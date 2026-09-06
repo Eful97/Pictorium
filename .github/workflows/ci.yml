@@ -33,3 +33,11 @@ jobs:
       - run: npm ci
       - run: npx playwright install --with-deps chromium
       - run: npx playwright test e2e/posterium-visual.spec.ts
+      # Su failure carica i render actual: servono per creare la variante
+      # snapshot della piattaforma CI (gli snapshot sono per-OS) dopo revisione.
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: visual-test-results
+          path: test-results/
+          retention-days: 7
