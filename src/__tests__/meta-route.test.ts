@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { NextRequest } from "next/server"
 import { GET } from "@/app/meta/[type]/[id]/route"
 import { cacheClear } from "@/lib/cache"
+import { __clearTMDBCache } from "@/lib/tmdb"
 import { POSTER_URL_VERSION } from "@/lib/render-version"
 import { getById } from "@/lib/store"
 
@@ -12,6 +13,15 @@ vi.mock("@/lib/store", () => ({
 vi.mock("@/lib/server-defaults", () => ({
   getServerDefaults: vi.fn(() => ({})),
 }))
+
+vi.mock("@/lib/tvdb", async (importOriginal) => {
+  const mod = await importOriginal<typeof import("@/lib/tvdb")>()
+  return { ...mod, enrichVideosWithTvdb: vi.fn() }
+})
+
+import { enrichVideosWithTvdb } from "@/lib/tvdb"
+
+const mockedEnrich = vi.mocked(enrichVideosWithTvdb)
 
 const mockedGetById = vi.mocked(getById)
 
@@ -24,6 +34,10 @@ describe("GET /meta/[type]/[id]", () => {
     vi.restoreAllMocks()
     mockedGetById.mockReset()
     cacheClear()
+    // Isolamento tra test: tmdbFetch ha una LRU in-memory (5 min) che
+    // sopravvive ai mock di fetch — senza clear, due test sugli stessi
+    // URL TMDB si avvelenano a vicenda (cfr. default Parts su tt6468322).
+    __clearTMDBCache()
   })
 
   it("returns complete movie metadata with Posterium poster URL and cast/crew", async () => {
@@ -104,6 +118,8 @@ describe("GET /meta/[type]/[id]", () => {
       }))
       // /tv/94997/images
       .mockResolvedValueOnce(Response.json({ logos: [] }))
+      // /tv/94997/episode_groups (default automatico: nessun gruppo → standard)
+      .mockResolvedValueOnce(Response.json({ results: [] }))
       // /tv/94997/season/1
       .mockResolvedValueOnce(Response.json({
         id: 1234,
@@ -165,6 +181,74 @@ describe("GET /meta/[type]/[id]", () => {
       name: "Il principe canaglia",
       thumbnail: expect.stringContaining("/ep2.jpg"),
     })
+  })
+
+  it("auto-selects Original Parts with no saved mapping (Casa di Carta 5 parti)", async () => {
+    // Nessun mapping salvato (default beforeEach = null) → default automatico.
+    // NB: fixture ID diversi dal test Netflix sotto (tt6468322/71446) perché
+    // tmdbFetch cacherebbe gli URL in comune tra i test.
+    const partSizes = [9, 6, 8, 8, 10]
+    const groups = partSizes.map((size, p) => ({
+      id: `part_${p + 1}`,
+      name: `Parte ${p + 1}`,
+      order: p + 1,
+      episodes: Array.from({ length: size }, (_, i) => ({
+        id: (p + 1) * 100 + i,
+        episode_number: i + 1,
+        name: `P${p + 1}E${i + 1}`,
+        air_date: "2017-05-02",
+        order: i,
+      })),
+    }))
+    vi.spyOn(globalThis, "fetch")
+      // /find/tt6468301
+      .mockResolvedValueOnce(Response.json({
+        tv_results: [{ id: 714401 }],
+      }))
+      // /tv/714401 details (standard: 3 stagioni, 41 episodi)
+      .mockResolvedValueOnce(Response.json({
+        id: 714401,
+        name: "La casa di carta",
+        overview: "Una banda di ladri...",
+        first_air_date: "2017-05-02",
+        vote_average: 8.2,
+        genres: [{ id: 80, name: "Crime" }],
+        external_ids: { imdb_id: "tt6468301" },
+        seasons: [
+          { season_number: 1, episode_count: 15 },
+          { season_number: 2, episode_count: 16 },
+          { season_number: 3, episode_count: 10 },
+        ],
+      }))
+      // /tv/714401/images
+      .mockResolvedValueOnce(Response.json({ logos: [] }))
+      // /tv/714401/episode_groups
+      .mockResolvedValueOnce(Response.json({
+        results: [
+          { id: "grp_original", name: "Original Parts", description: "Antena 3", group_count: 5, episode_count: 41 },
+          { id: "grp_recut", name: "Parts (edited version)", description: "Netflix re-cut", group_count: 5, episode_count: 48 },
+        ],
+      }))
+      // /tv/episode_group/grp_original
+      .mockResolvedValueOnce(Response.json({
+        id: "grp_original",
+        name: "Original Parts",
+        group_count: 5,
+        groups,
+      }))
+
+    const req = new NextRequest("http://localhost:3000/meta/series/tt6468301.json?api_key=settings-key")
+    const res = await GET(req, {
+      params: Promise.resolve({ type: "series", id: "tt6468301.json" }),
+    })
+    const body = await res.json()
+
+    expect(res.status).toBe(200)
+    expect(body.meta.videos).toHaveLength(41)
+    expect(body.meta.videos[0]).toMatchObject({ id: "tt6468301:1:1", season: 1, episode: 1 })
+    expect(body.meta.videos[8]).toMatchObject({ season: 1, episode: 9 })
+    expect(body.meta.videos[9]).toMatchObject({ season: 2, episode: 1 })
+    expect(body.meta.videos[40]).toMatchObject({ id: "tt6468301:5:10", season: 5, episode: 10 })
   })
 
   it("supports alternative Netflix Episode Groups (e.g. 5 parts for La Casa de Papel)", async () => {
@@ -264,6 +348,8 @@ describe("GET /meta/[type]/[id]", () => {
       }))
       // /tv/1396/images
       .mockResolvedValueOnce(Response.json({ logos: [] }))
+      // /tv/1396/episode_groups (default automatico: nessun gruppo → standard)
+      .mockResolvedValueOnce(Response.json({ results: [] }))
       // /tv/1396/season/1
       .mockResolvedValueOnce(Response.json({
         id: 1396,
@@ -283,5 +369,67 @@ describe("GET /meta/[type]/[id]", () => {
     expect(body.meta).not.toBeNull()
     expect(body.meta.name).toBe("Breaking Bad")
     expect(body.meta.videos[0].id).toBe("tt0903747:1:1")
+  })
+
+  it("skips TVDB enrichment for group-ordered videos (S:E would misalign)", async () => {
+    mockedGetById.mockResolvedValue({ episodeGroupId: "grp_parts" } as unknown as Awaited<ReturnType<typeof getById>>)
+    vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(Response.json({ tv_results: [{ id: 715001 }] }))
+      .mockResolvedValueOnce(Response.json({
+        id: 715001,
+        name: "Serie Parti",
+        first_air_date: "2020-01-01",
+        vote_average: 8.0,
+        genres: [],
+        external_ids: { imdb_id: "tt6468001" },
+        seasons: [{ season_number: 1, episode_count: 2 }],
+      }))
+      .mockResolvedValueOnce(Response.json({ logos: [] }))
+      .mockResolvedValueOnce(Response.json({
+        id: "grp_parts",
+        name: "Original Parts",
+        groups: [
+          { id: "p1", name: "Parte 1", order: 1, episodes: [{ id: 1, episode_number: 1, name: "E1" }] },
+          { id: "p2", name: "Parte 2", order: 2, episodes: [{ id: 2, episode_number: 1, name: "E2" }] },
+        ],
+      }))
+
+    const req = new NextRequest("http://localhost:3000/meta/series/tt6468001.json?api_key=k&tvdb_key=tvdbk")
+    const res = await GET(req, { params: Promise.resolve({ type: "series", id: "tt6468001.json" }) })
+    const body = await res.json()
+
+    expect(res.status).toBe(200)
+    expect(body.meta.videos).toHaveLength(2)
+    expect(mockedEnrich).not.toHaveBeenCalled()
+  })
+
+  it("keeps TVDB enrichment for standard-ordered videos", async () => {
+    vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(Response.json({ tv_results: [{ id: 715002 }] }))
+      .mockResolvedValueOnce(Response.json({
+        id: 715002,
+        name: "Serie Standard",
+        first_air_date: "2020-01-01",
+        vote_average: 8.0,
+        genres: [],
+        external_ids: { imdb_id: "tt6468002" },
+        seasons: [{ season_number: 1, episode_count: 1 }],
+      }))
+      .mockResolvedValueOnce(Response.json({ logos: [] }))
+      .mockResolvedValueOnce(Response.json({ results: [] }))
+      .mockResolvedValueOnce(Response.json({
+        id: 715002,
+        season_number: 1,
+        name: "Stagione 1",
+        episodes: [{ id: 11, season_number: 1, episode_number: 1, name: "Pilot" }],
+      }))
+
+    const req = new NextRequest("http://localhost:3000/meta/series/tt6468002.json?api_key=k&tvdb_key=tvdbk")
+    const res = await GET(req, { params: Promise.resolve({ type: "series", id: "tt6468002.json" }) })
+    const body = await res.json()
+
+    expect(res.status).toBe(200)
+    expect(body.meta.videos).toHaveLength(1)
+    expect(mockedEnrich).toHaveBeenCalledTimes(1)
   })
 })

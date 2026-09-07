@@ -28,6 +28,7 @@ interface PreviewPayload {
   seasons: PreviewSeason[]
   totalEpisodes: number
   totalSeasons: number
+  autoDefault?: { groupId: string; name: string } | null
 }
 
 export function EpisodePreview() {
@@ -58,9 +59,12 @@ export function EpisodePreview() {
     })
     if (episodeGroupId && episodeGroupId !== "standard") {
       params.set("episodeGroupId", episodeGroupId)
-    } else {
+    } else if (episodeGroupId === "standard") {
+      // "standard" esplicito: disattiva il default automatico Parts
       params.set("episodeGroupId", "standard")
     }
+    // episodeGroupId null = nessuna scelta: parametro omesso → il server
+    // applica il default automatico Parts quando rilevato (meta-handler sync)
     if (tvdbApiKey) params.set("tvdb_key", tvdbApiKey)
     // per l'anteprima TVDB mostra sempre thumbnail TVDB se disponibile
     if (episodeGroupId === "tvdb" || episodeGroupId?.startsWith("tvdb:")) params.set("source", "tvdb")
@@ -115,6 +119,12 @@ export function EpisodePreview() {
           </span>
         )}
       </div>
+
+      {!loading && !error && data?.autoDefault && (
+        <div className="rounded-lg bg-accent-orange/10 border border-accent-orange/30 px-3 py-2">
+          <p className="text-[11px] text-zinc-200">✨ Default automatico: <span className="font-semibold">{data.autoDefault.name}</span> — lo stesso ordinamento che vedrà Stremio senza salvare nulla.</p>
+        </div>
+      )}
 
       {loading && (
         <div className="space-y-2">

@@ -12,6 +12,7 @@ import {
 } from "@/lib/tmdb"
 import { enrichVideosWithTvdb } from "@/lib/tvdb"
 import { buildVideosFromAnizip, buildVideosFromGroups, buildVideosFromTvdb, concurrentMap, resolveSeasonNumbers, seasonNumberForGroup } from "@/lib/episode-ordering"
+import { groupDetailsEpisodeCount, resolveDefaultEpisodeGroupId } from "@/lib/episode-group-default"
 
 interface PreviewVideo {
   id: string
@@ -47,7 +48,9 @@ export async function GET(req: NextRequest) {
   const tvdbApiKey = tvdbKeyParam || process.env.POSTERIUM_TVDB_API_KEY || process.env.TVDB_API_KEY
   const episodeMetadataSource = req.nextUrl.searchParams.get("source") || (tvdbApiKey ? "tvdb" : "tmdb")
 
-  const cacheKey = `preview:episodes:tv:${tmdbId}:eg${episodeGroupId ?? "standard"}:lang${language}:ak${apiKey ? hashFragment(apiKey) : "none"}:es${episodeMetadataSource}:tk${tvdbApiKey ? hashFragment(tvdbApiKey) : "none"}`
+  // "auto" (parametro assente) e "standard" esplicito hanno chiavi diverse:
+  // l'automatico può risolvere un gruppo Parts, lo standard mai.
+  const cacheKey = `preview:episodes:tv:${tmdbId}:eg${episodeGroupId ?? "auto"}:lang${language}:ak${apiKey ? hashFragment(apiKey) : "none"}:es${episodeMetadataSource}:tk${tvdbApiKey ? hashFragment(tvdbApiKey) : "none"}`
   const cached = cacheGet<{ videos: PreviewVideo[]; seasons: { season: number; name: string; overview?: string; episodes: PreviewVideo[] }[] }>(cacheKey)
   if (cached) {
     return Response.json(cached, {
@@ -107,6 +110,38 @@ export async function GET(req: NextRequest) {
     if (groupDetails?.groups && groupDetails.groups.length > 0) {
       videos.push(...(buildVideosFromGroups(groupDetails, primaryId) as unknown as PreviewVideo[]))
     }
+    // true se i videos seguono un Episode Group (esplicito o automatico):
+    // vedi meta-handler, l'arricchimento TVDB su S:E standard misallineerebbe.
+    let videosFromGroup = groupDetails?.groups != null && groupDetails.groups.length > 0
+
+    // Default automatico "Parts" (stessa logica di meta-handler per WYSIWYG
+    // sync): solo quando nessun ordinamento è richiesto (parametro assente).
+    // "standard" esplicito resta standard. Ogni fallimento → standard sotto.
+    let autoDefault: { groupId: string; name: string } | null = null
+    if (videos.length === 0 && episodeGroupId === null && details.seasons && details.seasons.length > 0) {
+      try {
+        const regularSeasons = details.seasons.filter((s) => s.season_number > 0)
+        const standardEpisodeCount = regularSeasons.reduce((n, s) => n + ((s as { episode_count?: number }).episode_count || 0), 0)
+        if (regularSeasons.length > 0 && standardEpisodeCount > 0) {
+          const autoId = await resolveDefaultEpisodeGroupId(tmdbId, regularSeasons.length, standardEpisodeCount, apiKey)
+          if (autoId) {
+            const autoDetails = await getTVEpisodeGroup(autoId, language, apiKey).catch(() => null)
+            if (
+              autoDetails?.groups &&
+              autoDetails.groups.length > 0 &&
+              groupDetailsEpisodeCount(autoDetails) === standardEpisodeCount
+            ) {
+              groupDetails = autoDetails
+              videos.push(...(buildVideosFromGroups(autoDetails, primaryId) as unknown as PreviewVideo[]))
+              videosFromGroup = true
+              autoDefault = { groupId: autoId, name: autoDetails.name || autoId }
+            }
+          }
+        }
+      } catch {
+        // fallback standard sotto
+      }
+    }
 
     // Fallback standard — limitato a 5 richieste parallele per evitare burst TMDB
     if (videos.length === 0 && details.seasons && details.seasons.length > 0) {
@@ -130,7 +165,7 @@ export async function GET(req: NextRequest) {
     }
 
     const isTvdbPreviewForEnrich = episodeGroupId === "tvdb" || (episodeGroupId?.startsWith("tvdb:") ?? false)
-    if (videos.length > 0 && episodeMetadataSource === "tvdb" && tvdbApiKey && !isTvdbPreviewForEnrich) {
+    if (videos.length > 0 && episodeMetadataSource === "tvdb" && tvdbApiKey && !isTvdbPreviewForEnrich && !videosFromGroup) {
       await enrichVideosWithTvdb(videos as unknown as import("@/lib/meta-handler").StremioVideo[], imdbId, tmdbId, tvdbApiKey, "ita")
     }
 
@@ -169,7 +204,7 @@ export async function GET(req: NextRequest) {
         episodes: episodes.sort((a, b) => a.episode - b.episode),
       }))
 
-    const payload = { videos, seasons, totalEpisodes: videos.length, totalSeasons: seasons.length, tmdbId, episodeGroupId: episodeGroupId ?? "standard", language }
+    const payload = { videos, seasons, totalEpisodes: videos.length, totalSeasons: seasons.length, tmdbId, episodeGroupId: episodeGroupId ?? "standard", autoDefault, language }
     cacheSet(cacheKey, payload, ["preview"], 5 * 60 * 1000)
     return Response.json(payload, {
       headers: {

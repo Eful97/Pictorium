@@ -23,6 +23,7 @@ import { buildStremioPosterUrl } from "@/lib/stremio-poster-url"
 import { getOriginFromRequest } from "@/lib/poster-public-url"
 import { enrichVideosWithTvdb } from "@/lib/tvdb"
 import { buildVideosFromAnizip, buildVideosFromGroups, buildVideosFromTvdb, concurrentMap } from "@/lib/episode-ordering"
+import { groupDetailsEpisodeCount, resolveDefaultEpisodeGroupId } from "@/lib/episode-group-default"
 import { createLogger } from "@/lib/logger"
 
 const log = createLogger("meta")
@@ -191,7 +192,10 @@ export async function posteriumMeta(
     if (pre) preMappingForCache = { episodeGroupId: pre.episodeGroupId ?? null, updatedAt: pre.updatedAt }
   } catch { /* ignore — fallback a auto */ }
   const egKey = preMappingForCache ? `${preMappingForCache.episodeGroupId ?? "auto"}:${preMappingForCache.updatedAt ?? ""}` : "auto"
-  const cacheKey = `stremio:meta:${stType}:${cleanId}:pv${POSTER_URL_VERSION}${userParam ? `:u${hashFragment(userParam)}` : ""}:ak${apiKey ? hashFragment(apiKey) : "none"}${configParam ? `:cfg${hashFragment(configParam)}` : ""}${mdblistKey ? `:mk${hashFragment(mdblistKey)}` : ""}${tvdbApiKey ? `:tk${hashFragment(tvdbApiKey)}` : ""}:es${episodeMetadataSource}:eg${hashFragment(egKey)}`
+  // eo2 = versione ordinamento episodi: il default automatico "Parts" (v2)
+  // cambia i videos a parità di mapping — senza frammento, un meta cachato
+  // con le stagioni standard resterebbe servito fino a 12h dopo il deploy.
+  const cacheKey = `stremio:meta:${stType}:${cleanId}:pv${POSTER_URL_VERSION}${userParam ? `:u${hashFragment(userParam)}` : ""}:ak${apiKey ? hashFragment(apiKey) : "none"}${configParam ? `:cfg${hashFragment(configParam)}` : ""}${mdblistKey ? `:mk${hashFragment(mdblistKey)}` : ""}${tvdbApiKey ? `:tk${hashFragment(tvdbApiKey)}` : ""}:es${episodeMetadataSource}:eg${hashFragment(egKey)}${stType === "series" ? ":eo2" : ""}`
   const cached = cacheGet<{ meta: StremioMetaDetail }>(cacheKey)
   if (cached) return metaResponse(cached)
 
@@ -264,6 +268,11 @@ export async function posteriumMeta(
 
       let groupDetails: TMDBEpisodeGroupDetails | null = null
       const isGroupSentinel = sentinel !== null && sentinel !== "standard" && !isTvdbSentinel && sentinel !== "anizip"
+      // true quando i videos seguono un Episode Group (esplicito o default
+      // automatico): la numerazione S:E non coincide più con quella standard
+      // e l'arricchimento TVDB (mappato su S:E) assegnerebbe titoli/cover
+      // dell'episodio sbagliato → va saltato (vedi sotto).
+      let videosFromGroup = false
 
       // Default: stagioni standard TMDB. Si usa un Episode Group solo se
       // l'utente ha salvato esplicitamente un episodeGroupId diverso da "standard", "tvdb:*" e "anizip".
@@ -273,6 +282,39 @@ export async function posteriumMeta(
 
       if (groupDetails?.groups && groupDetails.groups.length > 0) {
         videos.push(...(buildVideosFromGroups(groupDetails, primaryId) as StremioVideo[]))
+        videosFromGroup = true
+      }
+
+      // Default automatico "Parts" (es. Casa di Carta 5 parti invece di 3
+      // stagioni): solo quando nessun mapping salvato sceglie esplicitamente
+      // (sentinel null). "standard" esplicito resta standard, mapping salvato
+      // vince sempre. Ogni fallimento degrada allo standard sotto.
+      if (videos.length === 0 && sentinel === null && details.seasons && details.seasons.length > 0) {
+        try {
+          const regularSeasons = details.seasons.filter((s) => s.season_number > 0)
+          const standardEpisodeCount = regularSeasons.reduce((n, s) => n + (s.episode_count || 0), 0)
+          if (regularSeasons.length > 0 && standardEpisodeCount > 0) {
+            const autoId = await resolveDefaultEpisodeGroupId(
+              tmdbId,
+              regularSeasons.length,
+              standardEpisodeCount,
+              apiKey,
+            )
+            if (autoId) {
+              const autoDetails = await getTVEpisodeGroup(autoId, "it-IT", apiKey).catch(() => null)
+              if (
+                autoDetails?.groups &&
+                autoDetails.groups.length > 0 &&
+                groupDetailsEpisodeCount(autoDetails) === standardEpisodeCount
+              ) {
+                videos.push(...(buildVideosFromGroups(autoDetails, primaryId) as StremioVideo[]))
+                videosFromGroup = true
+              }
+            }
+          }
+        } catch {
+          // fallback standard sotto
+        }
       }
 
       // Fallback alle stagioni standard se non ci sono Episode Groups alternativi
@@ -298,9 +340,11 @@ export async function posteriumMeta(
       }
 
       // Se la fonte metadati episodi è TVDB ed è presente una chiave TVDB, arricchisci con copertine e trame TVDB
-      // Skip se già ordinato via TVDB (dati già TVDB nativi)
+      // Skip se già ordinato via TVDB (dati già TVDB nativi) o se i videos
+      // seguono un Episode Group: la mappa TVDB è su S:E standard e con le
+      // Parti assegnerebbe nome/cover/trama dell'episodio sbagliato.
       const isTvdbOrdering = (mapping?.episodeGroupId === "tvdb" || (mapping?.episodeGroupId?.startsWith("tvdb:") ?? false))
-      if (videos.length > 0 && episodeMetadataSource === "tvdb" && tvdbApiKey && !isTvdbOrdering) {
+      if (videos.length > 0 && episodeMetadataSource === "tvdb" && tvdbApiKey && !isTvdbOrdering && !videosFromGroup) {
         await enrichVideosWithTvdb(videos, imdbId, tmdbId, tvdbApiKey, "ita")
       }
     }
