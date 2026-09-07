@@ -8,7 +8,7 @@ import { LANG_FLAGS, LANG_NAMES } from "@/lib/utils"
 import { LangPicker } from "@/components/LangPicker"
 import { ToastProvider } from "@/components/Toast"
 import { HomeStatusStrip } from "@/components/HomeStatusStrip"
-import { RefreshCw, Settings, Globe, HeartPulse, Sparkles, Copy, Check, QrCode, Palette, Search, Layers } from "lucide-react"
+import { RefreshCw, Settings, Globe, HeartPulse, Sparkles, Copy, Check, QrCode, Palette, Layers } from "lucide-react"
 
 // Code-splitting: viste/modali pesanti caricate on-demand per ridurre il JS iniziale.
 const SettingsPanel = dynamic(() => import("@/components/SettingsPanel").then((m) => m.SettingsPanel), { ssr: false })
@@ -285,9 +285,9 @@ export function AppShell() {
             src="/posterium.png"
             alt="Posterium"
             decoding="async"
-            className="header-logo h-14 sm:h-16 md:h-20 w-auto cursor-pointer hover:brightness-110 active:scale-95 transition-all duration-150 mb-1 md:mb-2"
+            className="header-logo h-8 sm:h-12 md:h-20 w-auto cursor-pointer hover:brightness-110 active:scale-95 transition-all duration-150 mb-1.5 md:mb-2"
           />
-          <p className="header-tagline text-xs sm:text-sm mb-3.5 sm:mb-5 md:mb-6">{t("ui.homeTagline")}</p>
+          <p className="header-tagline text-center text-[10px] sm:text-xs md:text-sm mb-3.5 sm:mb-5 md:mb-6 max-w-xs sm:max-w-none">{t("ui.homeTagline")}</p>
           {mobileToolbar}
           </>
         </div>
@@ -303,29 +303,31 @@ export function AppShell() {
       </div>
 
       {/* Desktop Bottom-Right Utility Cluster */}
-      <div className="hidden md:flex fixed bottom-5 right-5 z-50 items-center gap-2 floating-group">
-        <button type="button"
-          aria-label={t("ui.refreshLists")}
-          onClick={async () => { setRefreshing(true); await refreshLists(); setRefreshing(false) }}
-          disabled={refreshing}
-          title={t("ui.refreshLists")}
-          className="h-9 w-9 flex items-center justify-center rounded-lg active:scale-90 transition-all duration-150 text-sm hover:bg-white/[0.08] press-scale"
-        >
-          <RefreshCw className={`w-4 h-4 ${refreshing ? "animate-spin" : ""}`} />
-        </button>
-        <a href="/status" aria-label={t("ui.statusTitle")} className="h-9 w-9 flex items-center justify-center rounded-lg active:scale-90 transition-all duration-150 text-sm hover:bg-white/[0.08] press-scale"><HeartPulse className="w-4 h-4" /></a>
-        <div ref={langRef} className="relative">
-          <button type="button" aria-label={t("ui.chooseLanguage")} onClick={() => setLangOpen((o) => !o)} className={`h-9 w-9 flex items-center justify-center rounded-lg active:scale-90 transition-all duration-150 text-sm press-scale ${langOpen ? "dropdown-open" : "hover:bg-white/[0.08]"}`} title={LANG_NAMES[lang]}>{LANG_FLAGS[lang] || <Globe className="w-4 h-4" />}</button>
-          {(langOpen || closingLang) && (
-            <div className={`absolute right-0 bottom-full mb-3 bg-black/60 backdrop-blur-xl border border-border/50 rounded-xl p-2 shadow-2xl shadow-black/50 z-50 min-w-40 ${closingLang ? "animate-fade-scale-out" : "animate-fade-scale-in"} dropdown-open`}>
-              {Object.entries(LANG_NAMES).filter(([k]) => k !== "xx").map(([code, name]) => (
-                <button type="button" key={code} onClick={() => { pickLang(code); closeLang() }} className={`w-full flex items-center gap-2 px-3 py-2.5 rounded-lg text-xs transition-all duration-150 text-left hover:bg-zinc-700/50 active:scale-[0.98] ${code === lang ? "bg-accent/10 text-accent font-medium" : "text-zinc-300"}`}>
-                  <span>{LANG_FLAGS[code] || <Globe className="w-4 h-4" />}</span>
-                  <span>{name}</span>
-                </button>
-              ))}
-            </div>
-          )}
+      <div className="hidden md:block fixed bottom-5 right-5 z-50">
+        <div className="flex items-center gap-2 floating-group">
+          <button type="button"
+            aria-label={t("ui.refreshLists")}
+            onClick={async () => { setRefreshing(true); await refreshLists(); setRefreshing(false) }}
+            disabled={refreshing}
+            title={t("ui.refreshLists")}
+            className="h-9 w-9 flex items-center justify-center rounded-lg active:scale-90 transition-all duration-150 text-sm hover:bg-white/[0.08] press-scale"
+          >
+            <RefreshCw className={`w-4 h-4 ${refreshing ? "animate-spin" : ""}`} />
+          </button>
+          <a href="/status" aria-label={t("ui.statusTitle")} className="h-9 w-9 flex items-center justify-center rounded-lg active:scale-90 transition-all duration-150 text-sm hover:bg-white/[0.08] press-scale"><HeartPulse className="w-4 h-4" /></a>
+          <div ref={langRef} className="relative">
+            <button type="button" aria-label={t("ui.chooseLanguage")} onClick={() => setLangOpen((o) => !o)} className={`h-9 w-9 flex items-center justify-center rounded-lg active:scale-90 transition-all duration-150 text-sm press-scale ${langOpen ? "dropdown-open" : "hover:bg-white/[0.08]"}`} title={LANG_NAMES[lang]}>{LANG_FLAGS[lang] || <Globe className="w-4 h-4" />}</button>
+            {(langOpen || closingLang) && (
+              <div className={`absolute right-0 bottom-full mb-3 bg-black/60 backdrop-blur-xl border border-border/50 rounded-xl p-2 shadow-2xl shadow-black/50 z-50 min-w-40 ${closingLang ? "animate-fade-scale-out" : "animate-fade-scale-in"} dropdown-open`}>
+                {Object.entries(LANG_NAMES).filter(([k]) => k !== "xx").map(([code, name]) => (
+                  <button type="button" key={code} onClick={() => { pickLang(code); closeLang() }} className={`w-full flex items-center gap-2 px-3 py-2.5 rounded-lg text-xs transition-all duration-150 text-left hover:bg-zinc-700/50 active:scale-[0.98] ${code === lang ? "bg-accent/10 text-accent font-medium" : "text-zinc-300"}`}>
+                    <span>{LANG_FLAGS[code] || <Globe className="w-4 h-4" />}</span>
+                    <span>{name}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
@@ -336,21 +338,7 @@ export function AppShell() {
           view === "edit" && selected ? "translate-y-full pointer-events-none opacity-0" : "translate-y-0 opacity-100"
         }`}
       >
-        <div className="grid grid-cols-5 items-center justify-around max-w-md mx-auto">
-          {/* Cerca / Home */}
-          <button
-            type="button"
-            onClick={goHome}
-            className={`flex flex-col items-center justify-center gap-1 py-1 px-1 rounded-xl transition-all duration-150 active:scale-90 cursor-pointer ${
-              view === "search" && !selected
-                ? "text-accent-orange font-semibold"
-                : "text-zinc-400 hover:text-zinc-200"
-            }`}
-          >
-            <Search className="w-5 h-5" />
-            <span className="text-[10px] tracking-tight truncate">{t("ui.search") || "Cerca"}</span>
-          </button>
-
+        <div className="grid grid-cols-4 items-center justify-around max-w-md mx-auto">
           {/* Cataloghi */}
           <button
             type="button"

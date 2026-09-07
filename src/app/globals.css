@@ -1257,6 +1257,7 @@ select:focus-visible {
   text-transform: uppercase;
   letter-spacing: 0.14em;
   color: rgba(161, 161, 170, 0.55);
+  text-align: center;
 }
 
 /* Kicker pill — hero & welcome panel */
@@ -1733,6 +1734,24 @@ select:focus-visible {
 }
 
 @media (max-width: 560px) {
+  .home-hero {
+    gap: 1.25rem;
+    padding: 1rem 0 0.5rem;
+  }
+
+  .home-hero-title {
+    font-size: clamp(1.4rem, 5.5vw, 1.85rem);
+  }
+
+  .home-hero-sub {
+    font-size: 12px;
+    line-height: 1.5;
+  }
+
+  .p-frame-main {
+    width: 140px;
+  }
+
   .status-strip {
     justify-content: center;
     text-align: center;

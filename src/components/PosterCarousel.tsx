@@ -55,9 +55,10 @@ const EXAMPLES: CarouselEntry[] = [
   { id: 44217, type: "tv", title: "Dark", params: "?genreName=Thriller&voteAverage=8.0&rs=netflix&rank=4&label=Serie%20tv&ranking=&tl=0&gradHeight=25&blur=30&bf=50&bd=40&logoFit=0", desc: "Ranking badge stile Netflix Top 10, tema scuro e misterioso" },
 ]
 
-const CARD_W = 240
-const GAP = 16
-const STEP = CARD_W + GAP
+const CARD_W_DESKTOP = 240
+const CARD_W_MOBILE = 145
+const GAP_DESKTOP = 16
+const GAP_MOBILE = 10
 const SCROLL_SPEED = 0.5 // px per frame
 
 /** M21: `<img>` che porta la chiave nell'header x-api-key (object URL) invece
@@ -107,8 +108,20 @@ export function PosterCarousel() {
   const [showLeft, setShowLeft] = useState(false)
   const [showRight, setShowRight] = useState(true)
 
+  const [cardW, setCardW] = useState(CARD_W_DESKTOP)
+  const gap = cardW < 200 ? GAP_MOBILE : GAP_DESKTOP
+  const step = cardW + gap
   const totalItems = items.length
-  const totalW = totalItems * STEP
+  const totalW = totalItems * step
+
+  useEffect(() => {
+    const updateSize = () => {
+      setCardW(typeof window !== "undefined" && window.innerWidth < 640 ? CARD_W_MOBILE : CARD_W_DESKTOP)
+    }
+    updateSize()
+    window.addEventListener("resize", updateSize)
+    return () => window.removeEventListener("resize", updateSize)
+  }, [])
 
   const applyTransform = useCallback((x: number) => {
     if (trackRef.current) trackRef.current.style.transform = `translateX(${x}px)`
@@ -131,7 +144,7 @@ export function PosterCarousel() {
         applyTransform(-posRef.current)
         frameCount++
         if (frameCount % 12 === 0) {
-          const idx = Math.floor(posRef.current / STEP) % totalItems
+          const idx = Math.floor(posRef.current / step) % totalItems
           setActiveIndex(idx)
           setShowLeft(posRef.current > 0)
           setShowRight(true)
@@ -142,10 +155,10 @@ export function PosterCarousel() {
     tickRef.current = tick
     rafRef.current = requestAnimationFrame(tick)
     return () => cancelAnimationFrame(rafRef.current)
-  }, [totalW, totalItems, applyTransform])
+  }, [totalW, totalItems, step, applyTransform])
 
   const scrollTo = useCallback((dir: number) => {
-    const target = Math.max(0, Math.min(totalW, posRef.current + dir * STEP))
+    const target = Math.max(0, Math.min(totalW, posRef.current + dir * step))
     const start = posRef.current
     const duration = 200
     const startTime = performance.now()
@@ -162,12 +175,12 @@ export function PosterCarousel() {
     }
     cancelAnimationFrame(rafRef.current)
     rafRef.current = requestAnimationFrame(animate)
-  }, [totalW, applyTransform])
+  }, [totalW, step, applyTransform])
 
   return (
-    <div id="poster-examples" className="mt-14 max-w-5xl mx-auto px-8">
-      <div className="flex items-center justify-between mb-4">
-        <h2 className="section-heading text-xl font-bold">
+    <div id="poster-examples" className="mt-8 sm:mt-14 max-w-5xl mx-auto px-2 sm:px-8">
+      <div className="flex items-center justify-between mb-3 sm:mb-4">
+        <h2 className="section-heading text-lg sm:text-xl font-bold">
           {t("ui.posterExamples")}
           <span className="demo-tag">{t("ui.demoTag")}</span>
         </h2>
@@ -183,7 +196,7 @@ export function PosterCarousel() {
           </div>
         </div>
       </div>
-      <p className="text-xs text-zinc-500 mb-6">
+      <p className="text-[11px] sm:text-xs text-zinc-500 mb-4 sm:mb-6">
         {t("ui.posterExamplesDesc")}
       </p>
 
@@ -195,17 +208,17 @@ export function PosterCarousel() {
         {showLeft && (
           <button type="button"
             onClick={() => scrollTo(-1)}
-            className="absolute -left-3 top-1/2 -translate-y-1/2 z-20 w-9 h-9 rounded-full bg-surface/80 border border-border/50 backdrop-blur-xl flex items-center justify-center text-zinc-300 hover:text-white hover:bg-surface2/80 active:scale-90 transition-all shadow-xl"
+            className="absolute -left-2 sm:-left-3 top-1/2 -translate-y-1/2 z-20 w-8 sm:w-9 h-8 sm:h-9 rounded-full bg-surface/80 border border-border/50 backdrop-blur-xl flex items-center justify-center text-zinc-300 hover:text-white hover:bg-surface2/80 active:scale-90 transition-all shadow-xl"
             aria-label={t("ui.scrollLeft")}
           >
             <ChevronLeft className="w-4 h-4" />
           </button>
         )}
 
-        <div ref={containerRef} className="carousel-track overflow-hidden px-4">
+        <div ref={containerRef} className="carousel-track overflow-hidden px-2 sm:px-4">
           <div
             ref={trackRef}
-            className="flex gap-4 will-change-transform"
+            className="flex gap-2.5 sm:gap-4 will-change-transform"
           >
             {[...items, ...items].map((ex, i) => {
               // La chiave personale va in query: senza, i titoli non mappati
@@ -216,7 +229,7 @@ export function PosterCarousel() {
                 <div
                   key={i}
                   className="shrink-0 animate-stagger-in"
-                  style={{ width: CARD_W, animationDelay: `${(i % totalItems) * 50}ms` }}
+                  style={{ width: cardW, animationDelay: `${(i % totalItems) * 50}ms` }}
                 >
                   <div
                     onClick={() => navigateToPoster(toSearchResult({ id: ex.id, media_type: ex.type, title: ex.title, name: ex.title }))}
@@ -229,13 +242,13 @@ export function PosterCarousel() {
                       {/* M21: la chiave viaggia nell'header x-api-key, mai nel DOM */}
                     <SecureCarouselImg url={posterUrl} alt={ex.title} className="w-full h-full object-cover transition-transform duration-500 ease-out group-hover:scale-[1.05]" />
                     </div>
-                    <div className="p-3 relative z-10 flex-1">
-                      <h3 className="text-xs font-semibold text-zinc-100 group-hover:text-white transition-colors duration-200">{ex.title}</h3>
-                      <p className="text-[10px] text-muted group-hover:text-zinc-200 mt-1 leading-relaxed transition-colors duration-200">{ex.desc}</p>
+                    <div className="p-2 sm:p-3 relative z-10 flex-1">
+                      <h3 className="text-[11px] sm:text-xs font-semibold text-zinc-100 group-hover:text-white transition-colors duration-200 line-clamp-1">{ex.title}</h3>
+                      <p className="text-[9px] sm:text-[10px] text-muted group-hover:text-zinc-200 mt-0.5 sm:mt-1 leading-tight sm:leading-relaxed transition-colors duration-200 line-clamp-2">{ex.desc}</p>
                     </div>
                     </div>
                     <PosterDepthSheen sheenStrength={20} />
-                    <span className="car-arrow" aria-hidden="true">
+                    <span className="car-arrow hidden sm:flex" aria-hidden="true">
                       <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
                         <polyline points="9 18 15 12 9 6" />
                       </svg>
@@ -250,7 +263,7 @@ export function PosterCarousel() {
         {showRight && (
           <button type="button"
             onClick={() => scrollTo(1)}
-            className="absolute -right-3 top-1/2 -translate-y-1/2 z-20 w-9 h-9 rounded-full bg-surface/80 border border-border/50 backdrop-blur-xl flex items-center justify-center text-zinc-300 hover:text-white hover:bg-surface2/80 active:scale-90 transition-all shadow-xl"
+            className="absolute -right-2 sm:-right-3 top-1/2 -translate-y-1/2 z-20 w-8 sm:w-9 h-8 sm:h-9 rounded-full bg-surface/80 border border-border/50 backdrop-blur-xl flex items-center justify-center text-zinc-300 hover:text-white hover:bg-surface2/80 active:scale-90 transition-all shadow-xl"
             aria-label={t("ui.scrollRight")}
           >
             <ChevronRight className="w-4 h-4" />
