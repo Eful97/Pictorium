@@ -701,7 +701,6 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
     finalRankTop = 0
 
     // Se il badge grande (centrale) si sovrappone ai badge alti (qualità top-right e network top-left), riducilo progressivamente.
-    // In caso di poster non-clean il network è in alto a sinistra e non va toccato — si scala solo il centrale.
     if (finalRankBadge && !isBar && !isNetflixRibbon) {
       const netPadX = Math.round(18 * STD_W / 380)
       const netPadY = Math.round(18 * STD_H / 570)
@@ -709,8 +708,8 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
       const qLeft = hasQuality ? Math.round(STD_W - safeQualityBadgeResult!.w - netPadX) : 0
       const qRight = hasQuality ? qLeft + safeQualityBadgeResult!.w : 0
       const qBottom = hasQuality ? netPadY + safeQualityBadgeResult!.h : 0
-      // Network in alto a sinistra solo quando non c'è logo film (poster non-clean)
-      const hasNetworkTop = !logoResult && !!networkRawResult
+      // Network in alto a sinistra quando non c'è il nastro stile netflix
+      const hasNetworkTop = !!networkRawResult && !isNetflixRibbon
       let netW = 0, netH = 0, netRight = 0, netBottom = 0
       if (hasNetworkTop) {
         // Stima dimensioni fitted (evita sharp qui — il logo network è piccolo e raramente scalato)
@@ -759,9 +758,9 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
       left: finalRankLeft,
     })
   }
-  // Network: subito sopra il logo del film; se poster non-clean → in alto a sinistra, senza toccare badge alti (qualità/rank)
-  // netTopLeftBottom traccia il fondo del logo network quando occupa il
-  // top-left: serve al badge qualità (modalità Stremio) per impilarsi sotto.
+  // Network: quando non c'è il badge stile netflix va sempre in alto a sinistra.
+  // Con badge stile netflix resta sopra il logo film (o a fianco del nastro se no logo).
+  // netTopLeftBottom traccia il fondo del logo network quando occupa il top-left (per qualità Stremio sotto).
   let netTopLeftBottom: number | null = null
   if (networkRawResult) {
     const gap = Math.round(6 * STD_H / 570)
@@ -769,16 +768,24 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
     if (fittedRaw) {
       let top: number
       let left: number
-      if (logoResult) {
+      const isNetflixRibbon = rankingBadgeStyle === "netflix" && topBadge?.type === "rank"
+      const netPadX = Math.round(18 * STD_W / 380)
+      const netPadY = Math.round(18 * STD_H / 570)
+
+      if (!isNetflixRibbon) {
+        // Sempre in alto a sinistra quando non c'è il nastro stile Netflix
+        top = netPadY
+        left = netPadX
+        netTopLeftBottom = top + fittedRaw.h
+      } else if (logoResult) {
+        // Con nastro Netflix e logo film presente: posizionato subito sopra il logo film
         top = Math.max(0, logoResult.top - fittedRaw.h - gap)
         left = Math.round((STD_W - fittedRaw.w) / 2)
       } else {
-        const netPadX = Math.round(18 * STD_W / 380)
-        const netPadY = Math.round(18 * STD_H / 570)
+        // Con nastro Netflix senza logo film: top-left o a fianco del nastro
         top = netPadY
         left = netPadX
-        // Solo quando c'è il nastro Netflix a sinistra (Nuvio, default): il network in top-left ci finirebbe sotto → spostalo a destra del nastro
-        const isNetflixLeftRibbon = rankingBadgeStyle === "netflix" && topBadge?.type === "rank" && ribbonSide !== "right" && finalRankBadge && finalRankLeft !== null
+        const isNetflixLeftRibbon = ribbonSide !== "right" && finalRankBadge && finalRankLeft !== null
         if (isNetflixLeftRibbon) {
           const ribbonRight = finalRankLeft! + finalRankBadge!.w
           const netRight = left + fittedRaw.w
