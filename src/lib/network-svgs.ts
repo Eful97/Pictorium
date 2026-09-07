@@ -271,7 +271,7 @@ async function loadNetworkPng(networkKey: string, pw: number, topLight: boolean 
       const w = meta.width || 100
       const h = meta.height || 50
       const aspect = w / h
-      const isFlatWide = ["lionsgate", "sony", "legendary", "fandango", "pixar", "dreamworks", "taodue", "mappa", "skydance"].includes(networkKey)
+      const isFlatWide = ["lionsgate", "sony", "legendary", "fandango", "pixar", "dreamworks", "taodue", "mappa", "skydance", "castle_rock"].includes(networkKey)
       const areaScale = isFlatWide ? 0.62 : 1 // Lionsgate, Pixar e simili troppo larghi → area -38%
       const desiredArea = 3600 * areaScale * (pw / 500) * (pw / 500)
       const desiredH = Math.round(Math.sqrt(desiredArea / aspect))

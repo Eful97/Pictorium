@@ -821,7 +821,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
       badgesEnabled, rankingEnabled,
       badgeGenre, badgeYear, badgeRating, badgeQuality,
       logoScale, logoOffsetX, logoOffsetY,
-      queryExtra, qNetLogo, ribbonSide,
+      queryExtra, qNetLogo, networkLogo, ribbonSide,
     } = renderConfig
 
     const finalQuality = qQualityParam || liveQualityResult || null
@@ -928,7 +928,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
           scale: logoScale,
           offsetX: logoOffsetX,
           offsetY: logoOffsetY,
-          networkLogo: qNetLogo !== "0",
+          networkLogo,
         },
       })
     }
@@ -959,7 +959,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
       tvType, tvStatus, releaseDate, firstAirDate,
       lastAirDate, seasonCount, originCountries,
       wikidataResult, tmdbKeywords, locale, t,
-      qLabel, queryExtra, qNetLogo, sd,
+      qLabel, queryExtra, qNetLogo, networkLogo, sd,
       accentOverride, imdbTop250,
       posterSrc: posterPath,
       logoSrc: logoPath,

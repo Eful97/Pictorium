@@ -15,20 +15,54 @@ if (!packageJson || typeof packageJson.version !== "string" || packageJson.versi
 }
 
 // La versione dell'app si aggiorna da sola: major.minor vengono dal
-// package.json, la patch è il numero di commit su HEAD. Ogni nuovo
-// commit (fix o feature) produce quindi una versione nuova senza bump
-// manuali. Se git non è disponibile (es. build Docker senza .git),
-// si ricade sulla versione base del package.json.
+// package.json, la patch conta i commit a partire dall'introduzione della versione.
+// Ogni nuovo commit produce quindi una patch incrementale (es. 1.10.0, 1.10.1, 1.10.2).
+// Se git non è disponibile (es. build Docker senza .git), si ricade sulla versione base del package.json.
 const baseVersion = packageJson.version.trim()
-const [major, minor] = baseVersion.split(".")
+const [major, minor, basePatch = "0"] = baseVersion.split(".")
 let version = baseVersion
 try {
-  const commitCount = execFileSync("git", ["rev-list", "--count", "HEAD"], {
-    cwd: rootDir,
-    encoding: "utf-8",
-  }).trim()
-  if (/^\d+$/.test(commitCount)) {
-    version = `${major}.${minor}.${commitCount}`
+  let headVersion = null
+  try {
+    const headPkg = execFileSync("git", ["show", "HEAD:package.json"], {
+      cwd: rootDir,
+      encoding: "utf-8",
+      stdio: ["ignore", "pipe", "ignore"],
+    })
+    headVersion = JSON.parse(headPkg)?.version?.trim()
+  } catch {}
+
+  if (headVersion && headVersion !== baseVersion) {
+    // Versione modificata localmente ma non ancora committata: parte da basePatch
+    version = `${major}.${minor}.${basePatch}`
+  } else {
+    // Trova l'ultimo commit che ha modificato il campo version in package.json
+    const introCommit = execFileSync(
+      "git",
+      ["log", "-G", '"version":', "-n", "1", "--pretty=format:%H", "package.json"],
+      {
+        cwd: rootDir,
+        encoding: "utf-8",
+        stdio: ["ignore", "pipe", "ignore"],
+      }
+    ).trim()
+
+    if (introCommit && /^[0-9a-f]{40}$/i.test(introCommit)) {
+      const commitCount = execFileSync(
+        "git",
+        ["rev-list", "--count", `${introCommit}..HEAD`],
+        {
+          cwd: rootDir,
+          encoding: "utf-8",
+          stdio: ["ignore", "pipe", "ignore"],
+        }
+      ).trim()
+
+      if (/^\d+$/.test(commitCount)) {
+        const patchNum = (parseInt(basePatch, 10) || 0) + parseInt(commitCount, 10)
+        version = `${major}.${minor}.${patchNum}`
+      }
+    }
   }
 } catch {}
 

@@ -325,6 +325,7 @@ export function CatalogManagerModal({ isOpen, onClose }: CatalogManagerModalProp
         <button
           type="button"
           onClick={onClose}
+          aria-label="Chiudi"
           className="p-1.5 rounded-xl text-muted hover:text-white hover:bg-white/5 transition-colors"
         >
           <X className="w-4 h-4" />

@@ -143,6 +143,7 @@ export function CustomCatalogModal({ isOpen, onClose }: CustomCatalogModalProps)
         <button
           type="button"
           onClick={onClose}
+          aria-label="Chiudi"
           className="p-1 rounded-lg text-muted hover:text-white hover:bg-white/5 transition-colors"
         >
           <X className="w-3.5 h-3.5" />

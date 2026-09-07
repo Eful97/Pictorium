@@ -136,6 +136,7 @@ export function InstallModal({ isOpen, onClose, manifestUrl: propManifestUrl }: 
           <button
             type="button"
             onClick={onClose}
+            aria-label="Chiudi"
             className="p-1.5 text-muted hover:text-white rounded-lg hover:bg-white/5 transition-colors"
           >
             <X className="w-4 h-4" />

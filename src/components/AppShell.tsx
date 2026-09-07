@@ -193,7 +193,7 @@ export function AppShell() {
           {/* Cataloghi Button */}
           <button
             type="button"
-            onClick={() => { if (view === "cataloghi") { router.back() } else { router.replace("cataloghi") } }}
+            onClick={() => { if (view === "cataloghi") { router.push("edit") } else { router.push("cataloghi") } }}
             className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-medium transition-all duration-150 active:scale-[0.95] cursor-pointer ${
               view === "cataloghi"
                 ? "bg-white/15 text-white font-semibold border border-white/20"
@@ -211,7 +211,7 @@ export function AppShell() {
             type="button"
             aria-label={t("ui.myPostersBtn")}
             title={t("ui.myPostersBtn")}
-            onClick={() => { if (view === "myposters") { router.back() } else { router.replace("myposters") } }}
+            onClick={() => { if (view === "myposters") { router.push("edit") } else { router.push("myposters") } }}
             className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-medium transition-all duration-150 active:scale-[0.95] cursor-pointer ${
               view === "myposters"
                 ? "bg-white/15 text-white font-semibold border border-white/20"

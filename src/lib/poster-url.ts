@@ -135,7 +135,7 @@ export function buildPreviewUrl(ps: PosterState, bp: BadgeParams): string {
   params.push(`bs=${bp.badgeStyle}`)
   params.push(`rs=${bp.rankingBadgeStyle}`)
   if (!bp.blurEnabled) params.push("be=0")
-  if (bp.networkLogo === false) params.push("netLogo=0")
+  params.push(`netLogo=${bp.networkLogo !== false ? "1" : "0"}`)
   // Fix M2: side viene emesso SEMPRE (left|right) — prima soltanto "right";
   // senza il parametro il server risolve dal mapping/config salvati (di
   // default right in modalità Stremio) e la preview rendeva a destra anche

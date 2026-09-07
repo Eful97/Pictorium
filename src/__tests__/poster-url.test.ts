@@ -217,6 +217,11 @@ describe("buildPreviewUrl", () => {
     expect(url).toContain("netLogo=0")
   })
 
+  it("includes netLogo=1 when networkLogo is true", () => {
+    const url = buildPreviewUrl(basePosterState, { ...baseBadgeParams, networkLogo: true })
+    expect(url).toContain("netLogo=1")
+  })
+
   it("includes gradHeight, blur, bf, bd, bs, rs", () => {
     const url = buildPreviewUrl(basePosterState, { ...baseBadgeParams, gradientHeight: 50, blurIntensity: 8, blurFade: 70, blurDarkness: 50, badgeStyle: "pill", rankingBadgeStyle: "bar" })
     expect(url).toContain("gradHeight=50")

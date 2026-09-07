@@ -829,4 +829,41 @@ describe("GET /api/poster/[type]/[id] error and edge cases", () => {
     expect(body.rankings.finalRank).toBe(15)
     expect(body.badge.computed.badge).toMatchObject({ type: "rank", rank: 15 })
   })
+
+  it("respects netLogo query param over mapping for networkLogo", async () => {
+    const posterBuf = await imageBuffer("#101010", 500, 750)
+
+    mockedGetById.mockResolvedValue({
+      tmdbId: 76479,
+      mediaType: "tv",
+      title: "The Boys",
+      posterPath: "/the-boys.jpg",
+      logoPath: null,
+      originalPosterPath: null,
+      language: "it",
+      networkLogo: false,
+      updatedAt: "2026-07-16T10:15:30.000Z",
+    } as never)
+
+    vi.spyOn(globalThis, "fetch").mockImplementation(async () =>
+      new Response(new Uint8Array(posterBuf), {
+        status: 200,
+        headers: { "content-type": "image/png", "content-length": String(posterBuf.length) },
+      }),
+    )
+
+    // With netLogo=1, it should override mapping's networkLogo: false
+    const reqOn = new NextRequest("http://localhost:3000/api/poster/tv/76479?debug=1&netLogo=1")
+    const resOn = await GET(reqOn, { params: Promise.resolve({ type: "tv", id: "76479" }) })
+    expect(resOn.status).toBe(200)
+    const bodyOn = await resOn.json()
+    expect(bodyOn.logos.networkLogo).toBe(true)
+
+    // Without netLogo query param, it respects mapping's networkLogo: false
+    const reqDefault = new NextRequest("http://localhost:3000/api/poster/tv/76479?debug=1")
+    const resDefault = await GET(reqDefault, { params: Promise.resolve({ type: "tv", id: "76479" }) })
+    expect(resDefault.status).toBe(200)
+    const bodyDefault = await resDefault.json()
+    expect(bodyDefault.logos.networkLogo).toBe(false)
+  })
 })

@@ -209,4 +209,17 @@ describe("network-svgs", () => {
     const c = await renderNetworkLogoBadge("HBO Max", 380, true)
     expect(a!.png.equals(c!.png)).toBe(false)
   })
+
+  it("matches and renders Castle Rock Entertainment", async () => {
+    const res = getNetworkSvgResult("Castle Rock Entertainment", 500)
+    expect(res).not.toBeNull()
+    expect(res!.networkKey).toBe("castle_rock")
+
+    const pngRes = await renderNetworkLogoBadge("Castle Rock Entertainment", 500)
+    expect(pngRes).not.toBeNull()
+    expect(pngRes!.networkKey).toBe("castle_rock")
+    expect(pngRes!.png).toBeInstanceOf(Buffer)
+    expect(pngRes!.w).toBeGreaterThan(0)
+    expect(pngRes!.h).toBeGreaterThan(0)
+  })
 })

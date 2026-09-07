@@ -104,6 +104,7 @@ export interface GenerationInput {
   qLabel: string | null
   queryExtra: string | null
   qNetLogo: string | null
+  networkLogo?: boolean
   sd: ServerDefaults
   accentOverride: { genreColor: string; rankColor: string } | null
   /** Pre-resolved IMDb Top 250 membership. Falls back gracefully when falsy. */
@@ -449,7 +450,7 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
     tvType, tvStatus, releaseDate, firstAirDate,
     lastAirDate, seasonCount, originCountries,
     wikidataResult, tmdbKeywords, locale, t,
-    qLabel, queryExtra, qNetLogo, sd, accentOverride, imdbTop250,
+    qLabel, queryExtra, qNetLogo, networkLogo, sd, accentOverride, imdbTop250,
     posterSrc, logoSrc, backdropSrc,
   } = input
 
@@ -564,7 +565,7 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
   }
 
   // Network logo (parallel with badge render) — SVG first, TMDB fallback
-  const netLogoEnabled = sd.networkLogo !== false && (mapping?.networkLogo ?? true) !== false && qNetLogo !== "0"
+  const netLogoEnabled = networkLogo ?? (qNetLogo !== null ? qNetLogo !== "0" : (sd.networkLogo !== false && (mapping?.networkLogo ?? true) !== false))
   // Se i candidati dettagliati sono disponibili, usali (con logo_path); altrimenti fallback a soli nomi per retrocompat.
   const hasDetailed = !!(tmdbNetworksDetailed?.length || productionCompaniesDetailed?.length)
   const detailedCandidates: NetworkCandidate[] = hasDetailed

@@ -61,6 +61,7 @@ export interface PosterRenderConfig {
   logoOffsetY: number | null
   queryExtra: string | null
   qNetLogo: string | null
+  networkLogo: boolean
   ribbonSide: "left" | "right"
 }
 
@@ -164,7 +165,11 @@ export function resolvePosterRenderConfig(input: PosterRenderConfigInput): Poste
   // arrivava letterale al renderer (la preview invece la risolveva → desync).
   const rawExtra = q.get("extra") || configOverride?.customBadge || null
   const queryExtra = rawExtra ? resolveLabelFor(rawExtra, input.lang || "it") : null
-  const qNetLogo = q.get("netLogo") ?? (configOverride !== null ? (configOverride.networkLogo ? null : "0") : null)
+  const rawNetLogo = q.get("netLogo")
+  const networkLogo: boolean = rawNetLogo !== null
+    ? rawNetLogo !== "0"
+    : (mapping?.networkLogo ?? (configOverride !== null ? configOverride.networkLogo : undefined) ?? sd.networkLogo ?? true)
+  const qNetLogo = networkLogo ? (rawNetLogo ?? (configOverride !== null ? (configOverride.networkLogo ? "1" : null) : null)) : "0"
   // Modalità layout nastro Netflix + logo network: query `side=right` (Stremio) o `side=left` (Nuvio), mapping salvato o config/profilo
   const qSide = q.get("side")
   const ribbonSide: "left" | "right" = qSide === "right"
@@ -193,6 +198,7 @@ export function resolvePosterRenderConfig(input: PosterRenderConfigInput): Poste
     logoOffsetY,
     queryExtra,
     qNetLogo,
+    networkLogo,
     ribbonSide,
   }
 }

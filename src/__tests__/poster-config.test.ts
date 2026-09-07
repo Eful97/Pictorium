@@ -194,6 +194,15 @@ describe("resolvePosterRenderConfig", () => {
     expect(resolvePosterRenderConfig(baseInput()).ribbonSide).toBe("left")
   })
 
+  it("networkLogo: query netLogo=1 or netLogo=0 wins, then mapping, then config token, then sd, then true", () => {
+    expect(resolvePosterRenderConfig(baseInput({ searchParams: new URLSearchParams({ netLogo: "1" }), mapping: mapping({ networkLogo: false }) })).networkLogo).toBe(true)
+    expect(resolvePosterRenderConfig(baseInput({ searchParams: new URLSearchParams({ netLogo: "0" }), mapping: mapping({ networkLogo: true }) })).networkLogo).toBe(false)
+    expect(resolvePosterRenderConfig(baseInput({ mapping: mapping({ networkLogo: false }) })).networkLogo).toBe(false)
+    expect(resolvePosterRenderConfig(baseInput({ configOverride: config({ networkLogo: false }) })).networkLogo).toBe(false)
+    expect(resolvePosterRenderConfig(baseInput({ sd: { networkLogo: false } })).networkLogo).toBe(false)
+    expect(resolvePosterRenderConfig(baseInput()).networkLogo).toBe(true)
+  })
+
   it("queryExtra picks up extra param or config customBadge", () => {
     expect(resolvePosterRenderConfig(baseInput({ searchParams: new URLSearchParams({ extra: "Oggi" }) })).queryExtra).toBe("Oggi")
     expect(resolvePosterRenderConfig(baseInput({ configOverride: config({ customBadge: "Cult" }) })).queryExtra).toBe("Cult")
