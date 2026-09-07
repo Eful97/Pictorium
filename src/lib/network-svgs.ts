@@ -38,7 +38,7 @@ export function __resetNetworkLogoCache(): void {
 
 // Map networkKey → filename in public/networks/
 const NETWORK_FILES: Record<string, string> = {
-  netflix: "Netflix_2015_logo.svg",
+  netflix: "Netflix_2016_N_logo.svg",
   hbo: "HBO_logo.svg",
   disney: "Disney+_logo.svg",
   prime: "Prime_Video_logo_(2024).svg",
@@ -67,7 +67,7 @@ const NETWORK_FILES: Record<string, string> = {
   columbia: "Columbia_Pictures.svg",
   sony: "Sony_logo.svg",
   disney_pictures: "Walt_Disney_Pictures_text_logo.svg",
-  marvel: "Marvel_Logo.svg",
+  marvel: "Marvel_Studios_2016_logo.svg",
   pixar: "Pixar_logo.svg",
   a24: "A24_logo.svg",
   legendary: "Legendary_Entertainment_logo.svg",
@@ -272,7 +272,8 @@ async function loadNetworkPng(networkKey: string, pw: number, topLight: boolean 
       const h = meta.height || 50
       const aspect = w / h
       const isFlatWide = ["lionsgate", "sony", "legendary", "fandango", "pixar", "dreamworks", "taodue", "mappa", "skydance", "castle_rock"].includes(networkKey)
-      const areaScale = isFlatWide ? 0.62 : 1 // Lionsgate, Pixar e simili troppo larghi → area -38%
+      // La "N" Netflix è un'icona verticale: ad area uniforme uscirebbe altissima (~80px) → area -60%
+      const areaScale = isFlatWide ? 0.62 : networkKey === "netflix" ? 0.4 : 1 // Lionsgate, Pixar e simili troppo larghi → area -38%
       const desiredArea = 3600 * areaScale * (pw / 500) * (pw / 500)
       const desiredH = Math.round(Math.sqrt(desiredArea / aspect))
       const desiredW = Math.round(desiredH * aspect)
@@ -622,7 +623,8 @@ async function loadNetworkRawPng(networkKey: string, pw: number, _topLight?: boo
       const h = meta.height || 50
       const aspect = w / h
       const isFlatWide2 = ["lionsgate", "sony", "legendary", "fandango", "pixar", "dreamworks", "taodue", "mappa", "skydance"].includes(networkKey)
-      const areaScale2 = isFlatWide2 ? 0.62 : 1
+      // La "N" Netflix è un'icona verticale: ad area uniforme uscirebbe altissima (~80px) → area -60%
+      const areaScale2 = isFlatWide2 ? 0.62 : networkKey === "netflix" ? 0.4 : 1
       const desiredArea = 3600 * areaScale2 * (pw / 500) * (pw / 500)
       const desiredH = Math.round(Math.sqrt(desiredArea / aspect))
       const desiredW = Math.round(desiredH * aspect)
