@@ -14,6 +14,12 @@ export interface BadgeInput {
   mediaType: "movie" | "tv"
   releaseDate: string | null
   firstAirDate: string | null
+  /** Ultima messa in onda (serie TV) — per il badge "Nuova stagione". */
+  lastAirDate: string | null
+  /** Numero di stagioni TMDB — per il suffisso "S2" del badge "Nuova stagione". */
+  seasonCount: number | null
+  /** Origin country di network + production companies (ISO-3166) — per "K-Drama". */
+  originCountries: string[]
   voteAverage: number
   trendRank: number | null
   animeRank: number | null
@@ -34,6 +40,7 @@ export interface ComputedTopBadge {
   readonly upcomingRelease: string | null
   readonly isNewMovie: boolean
   readonly isNewSeries: boolean
+  readonly newSeason: string | null
   readonly extraFallback: string | null
   readonly awardBadge: string | null
   readonly studioBadge: string | null
@@ -53,6 +60,38 @@ export function isNetworkStudio(studioName: string | null): boolean {
     lower === "rai" || lower.startsWith("rai ") ||
     lower.includes("crunchyroll")
   )
+}
+
+/**
+ * Badge "Nuova stagione": serie TV con ultima messa in onda recente (<14gg)
+ * ma prima messa in onda vecchia (altrimenti è "Nuova serie", non nuova stagione).
+ * Con seasonCount > 1 aggiunge il suffisso " S{n}" (es. "Nuova stagione S2").
+ * Formula condivisa con BadgeControls (mai forkare): entrambi importano da qui.
+ */
+export function getNewSeasonLabel(input: {
+  lastAirDate?: string | null
+  firstAirDate?: string | null
+  seasonCount?: number | null
+  t: BadgeT
+}): string | null {
+  const now = Date.now()
+  const TWO_WEEKS_MS = 14 * 24 * 60 * 60 * 1000
+  const lastTime = input.lastAirDate ? new Date(input.lastAirDate).getTime() : NaN
+  if (!Number.isFinite(lastTime)) return null
+  if (!(lastTime <= now && (now - lastTime) < TWO_WEEKS_MS)) return null
+  const firstTime = input.firstAirDate ? new Date(input.firstAirDate).getTime() : NaN
+  if (Number.isFinite(firstTime) && firstTime <= now && (now - firstTime) < TWO_WEEKS_MS) return null
+  const n = input.seasonCount
+  const suffix = typeof n === "number" && Number.isFinite(n) && n > 1 ? ` S${n}` : ""
+  return `${input.t("badge.newSeason")}${suffix}`
+}
+
+/**
+ * True se almeno un origin country di network/production è KR (K-Drama).
+ * Confronto case-insensitive su codici ISO-3166 già normalizzati da TMDB.
+ */
+export function isKDramaOrigin(originCountries: readonly string[] | undefined | null): boolean {
+  return !!originCountries?.some((c) => c?.trim().toUpperCase() === "KR")
 }
 
 /**
@@ -99,11 +138,22 @@ export function computeTopBadge(input: BadgeInput, t: BadgeT, locale?: string): 
 
   const subGenreBadge = getSubGenreLabel(input.keywords || [], locale)
 
+  const newSeason = input.mediaType === "tv"
+    ? getNewSeasonLabel({
+        lastAirDate: input.lastAirDate,
+        firstAirDate: input.firstAirDate,
+        seasonCount: input.seasonCount,
+        t,
+      })
+    : null
+  const isKDrama = input.mediaType === "tv" && isKDramaOrigin(input.originCountries)
+
   const badge = computeBadge({
     mediaType: input.mediaType,
     upcomingRelease,
     isNewMovie,
     isNewSeries,
+    newSeason,
     animeRank: input.animeRank,
     trendRank: input.trendRank,
     award: awardBadge,
@@ -111,6 +161,7 @@ export function computeTopBadge(input: BadgeInput, t: BadgeT, locale?: string): 
     studio,
     director: input.director,
     subGenre: subGenreBadge,
+    isKDrama,
     imdbTop250: !!input.imdbTop250,
     extra: extraFallback,
   }, t)
@@ -120,6 +171,7 @@ export function computeTopBadge(input: BadgeInput, t: BadgeT, locale?: string): 
     upcomingRelease,
     isNewMovie,
     isNewSeries,
+    newSeason,
     extraFallback,
     awardBadge,
     studioBadge,

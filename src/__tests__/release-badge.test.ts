@@ -116,27 +116,33 @@ describe("getUpcomingReleaseLabel", () => {
   })
 
   describe("tv / series media type", () => {
-    it("returns null regardless of future releaseDate", () => {
+    it("returns label for a future firstAirDate (serie annunciata)", () => {
       const result = getUpcomingReleaseLabel({
         mediaType: "tv",
-        releaseDate: "2026-12-25",
-      })
-      expect(result).toBeNull()
-    })
-
-    it("returns null regardless of future firstAirDate", () => {
-      const result = getUpcomingReleaseLabel({
-        mediaType: "tv",
-        releaseDate: "2026-12-25",
         firstAirDate: "2026-12-25",
       })
+      expect(result).toBe("In uscita 25.12.26")
+    })
+
+    it("ignores releaseDate for tv (usa firstAirDate)", () => {
+      const result = getUpcomingReleaseLabel({
+        mediaType: "tv",
+        releaseDate: "2026-12-25",
+      })
       expect(result).toBeNull()
     })
 
-    it("returns null when releaseDate is past", () => {
+    it("returns null when firstAirDate is past", () => {
       const result = getUpcomingReleaseLabel({
         mediaType: "tv",
-        releaseDate: "2020-01-15",
+        firstAirDate: "2020-01-15",
+      })
+      expect(result).toBeNull()
+    })
+
+    it("returns null when firstAirDate is missing", () => {
+      const result = getUpcomingReleaseLabel({
+        mediaType: "tv",
       })
       expect(result).toBeNull()
     })

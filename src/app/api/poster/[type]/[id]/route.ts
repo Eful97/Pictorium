@@ -311,6 +311,9 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
   let rankingBadges = true
   let releaseDate: string | null = null
   let firstAirDate: string | null = null
+  let lastAirDate: string | null = null
+  let seasonCount: number | null = null
+  let originCountries: string[] = []
   let tvType: string | null = null
   let tvStatus: string | null = null
   let tmdbStudios: string[] = []
@@ -435,6 +438,11 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
       voteAverage = details.vote_average ?? 0
       releaseDate = details.release_date || null
       firstAirDate = details.first_air_date || null
+      lastAirDate = details.last_air_date || null
+      seasonCount = details.number_of_seasons ?? null
+      originCountries = [...(details.networks || []), ...(details.production_companies || [])]
+        .map((c) => c.origin_country)
+        .filter((c): c is string => !!c)
       tmdbNetworks = (details.networks || []).map((n: TMDBCompany) => n.name)
       tmdbNetworksDetailed = (details.networks || []).map((n: TMDBCompany) => ({ name: n.name, logoPath: n.logo_path }))
       productionCompanies = (details.production_companies || []).map((c: TMDBCompany) => c.name)
@@ -768,6 +776,13 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
             if (!details) return
             if (!releaseDate) releaseDate = details.release_date || null
             if (!firstAirDate) firstAirDate = details.first_air_date || null
+            if (!lastAirDate) lastAirDate = details.last_air_date || null
+            if (seasonCount == null) seasonCount = details.number_of_seasons ?? null
+            if (originCountries.length === 0) {
+              originCountries = [...(details.networks || []), ...(details.production_companies || [])]
+                .map((c) => c.origin_country)
+                .filter((c): c is string => !!c)
+            }
             if (!tvType) tvType = details.type || null
             if (!tvStatus) tvStatus = details.status || null
             if (details.networks) {
@@ -829,6 +844,9 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
         mediaType: mediaType as "movie" | "tv",
         releaseDate: releaseDate ?? null,
         firstAirDate: firstAirDate ?? null,
+        lastAirDate: lastAirDate ?? null,
+        seasonCount: seasonCount ?? null,
+        originCountries: [...originCountries],
         voteAverage: voteAverage ?? 0,
         trendRank: finalRank,
         animeRank: animeRankResult,
@@ -939,6 +957,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
       mapping, tmdbNetworks, productionCompanies, tmdbStudios,
       tmdbNetworksDetailed, productionCompaniesDetailed,
       tvType, tvStatus, releaseDate, firstAirDate,
+      lastAirDate, seasonCount, originCountries,
       wikidataResult, tmdbKeywords, locale, t,
       qLabel, queryExtra, qNetLogo, sd,
       accentOverride, imdbTop250,

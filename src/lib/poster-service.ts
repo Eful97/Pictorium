@@ -93,6 +93,10 @@ export interface GenerationInput {
   tvStatus: string | null
   releaseDate: string | null
   firstAirDate: string | null
+  /** Ultima messa in onda + n. stagioni + origin country (badge Nuova stagione / K-Drama). */
+  lastAirDate: string | null
+  seasonCount: number | null
+  originCountries: readonly string[]
   wikidataResult: WikidataResult
   tmdbKeywords: readonly string[]
   locale: string
@@ -443,6 +447,7 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
     mapping, tmdbNetworks, productionCompanies, tmdbStudios,
     tmdbNetworksDetailed, productionCompaniesDetailed,
     tvType, tvStatus, releaseDate, firstAirDate,
+    lastAirDate, seasonCount, originCountries,
     wikidataResult, tmdbKeywords, locale, t,
     qLabel, queryExtra, qNetLogo, sd, accentOverride, imdbTop250,
     posterSrc, logoSrc, backdropSrc,
@@ -525,6 +530,9 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
     mediaType,
     releaseDate: releaseDate ?? null,
     firstAirDate: firstAirDate ?? null,
+    lastAirDate: lastAirDate ?? null,
+    seasonCount: seasonCount ?? null,
+    originCountries: [...originCountries],
     voteAverage: voteAverage ?? 0,
     trendRank: finalRank,
     animeRank: animeRankResult,

@@ -17,6 +17,8 @@ export function computeBadge(params: {
   upcomingRelease: string | null
   isNewMovie: boolean
   isNewSeries: boolean
+  /** Label "Nuova stagione [S2]" già localizzata (da getNewSeasonLabel) o null. */
+  newSeason?: string | null
   animeRank: number | null
   trendRank: number | null
   award: string | null
@@ -24,6 +26,8 @@ export function computeBadge(params: {
   studio: string | null
   director: string | null
   subGenre?: string | null
+  /** Serie TV prodotta in Corea del Sud (origin country KR). */
+  isKDrama?: boolean
   imdbTop250?: boolean
   extra: string | null
 }, _t?: T): BadgeResult | null {
@@ -35,10 +39,12 @@ export function computeBadge(params: {
   if (params.trendRank) return { type: "rank", label: t(params.mediaType === "movie" ? "badge.movie" : "badge.series"), rank: params.trendRank }
   if (params.isNewMovie) return { type: "extra", label: t("badge.newMovie") }
   if (params.isNewSeries) return { type: "extra", label: t("badge.newSeries") }
+  if (params.newSeason) return { type: "extra", label: params.newSeason }
   if (params.award) return { type: "extra", label: params.award }
   if (params.imdbTop250) return { type: "extra", label: t("badge.absoluteCinema") }
   if (params.nomination) return { type: "extra", label: params.nomination }
   if (params.subGenre) return { type: "extra", label: params.subGenre }
+  if (params.isKDrama) return { type: "extra", label: "K-Drama" }
   if (params.director) return { type: "extra", label: params.director }
   if (params.studio) return { type: "extra", label: params.studio }
   if (params.extra) return { type: "extra", label: params.extra }
@@ -66,6 +72,7 @@ export function getAllBadgeOptions(params: {
   upcomingRelease: string | null
   isNewMovie: boolean
   isNewSeries: boolean
+  newSeason?: string | null
   animeRank: number | null
   trendRank: number | null
   award: string | null
@@ -73,6 +80,7 @@ export function getAllBadgeOptions(params: {
   studio: string | null
   director: string | null
   subGenre?: string | null
+  isKDrama?: boolean
   imdbTop250?: boolean
   extra: string | null
   mediaType: "movie" | "tv"
@@ -84,12 +92,14 @@ export function getAllBadgeOptions(params: {
   if (params.upcomingRelease) options.add(params.upcomingRelease)
   if (params.isNewMovie) options.add(keyed("badge.newMovie"))
   if (params.isNewSeries) options.add(keyed("badge.newSeries"))
+  if (params.newSeason) options.add(keyed("badge.newSeason"))
   if (params.trendRank) options.add(keyed(params.mediaType === "movie" ? "badge.movie" : "badge.series"))
   if (params.animeRank) options.add(keyed("badge.anime"))
   if (params.award) options.add(params.award)
   if (params.mediaType === "movie" && params.imdbTop250) options.add(keyed("badge.absoluteCinema"))
   if (params.nomination) options.add(params.nomination)
   if (params.subGenre) options.add(params.subGenre)
+  if (params.isKDrama) options.add("K-Drama")
   if (params.director) options.add(params.director)
   if (params.studio) options.add(params.studio)
   if (params.mediaType === "tv") {

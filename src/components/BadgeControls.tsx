@@ -11,6 +11,7 @@ import { BadgeStyleSelector } from "@/components/ui"
 import { getAwardBadgeLabel, getNominationBadgeLabel } from "@/lib/awards"
 import { getSubGenreLabel } from "@/lib/subgenres"
 import { getUpcomingReleaseLabel } from "@/lib/release-badge"
+import { getNewSeasonLabel, isKDramaOrigin } from "@/lib/poster-badge"
 import { isPrefixedKey, badgeKey } from "@/lib/i18n"
 import { getAllBadgeOptions } from "@/lib/badge-priority"
 import { defaultGradientHeightForPoster } from "@/lib/gradient-defaults"
@@ -281,10 +282,20 @@ export function BadgeControls() {
                   t,
                 })
                 const subGenre = getSubGenreLabel(metaInfo.keywords || [], lang)
+                const newSeason = selected.media_type === "tv" ? getNewSeasonLabel({
+                  lastAirDate: metaInfo.last_air_date,
+                  firstAirDate: metaInfo.first_air_date,
+                  seasonCount: metaInfo.number_of_seasons,
+                  t,
+                }) : null
+                const isKDrama = selected.media_type === "tv" && isKDramaOrigin([
+                  ...(metaInfo.networksDetailed ?? []),
+                  ...(metaInfo.productionCompaniesDetailed ?? []),
+                ].map((c) => c.origin_country).filter((c): c is string => !!c))
                 const options = getAllBadgeOptions({
-                  upcomingRelease, isNewMovie, isNewSeries, animeRank, trendRank: trendRank,
+                  upcomingRelease, isNewMovie, isNewSeries, newSeason, animeRank, trendRank: trendRank,
                   award, nomination, studio,
-                  director: metaInfo.director || null, subGenre, extra,
+                  director: metaInfo.director || null, subGenre, isKDrama, extra,
                   mediaType: selected.media_type === "tv" ? "tv" : "movie",
                   voteAverage: metaInfo.voteAverage, tvType, tvStatus,
                   imdbTop250: !!imdbTop250,

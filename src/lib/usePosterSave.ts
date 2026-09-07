@@ -18,7 +18,7 @@ interface PosterSaveDeps {
   setPreviewPoster: (poster: TMDBImage | null) => void
   setPreviewId: (id: string | null) => void
   posters: TMDBImage[]
-  metaInfo: { genres: { id: number; name: string }[]; voteAverage: number; type?: string; status?: string; release_date?: string; first_air_date?: string; awards?: string[]; nominations?: string[]; studios?: string[]; director?: string | null; keywords?: string[]; imdb_id?: string | null; networksDetailed?: { name: string; logo_path: string | null }[]; productionCompaniesDetailed?: { name: string; logo_path: string | null }[] }
+  metaInfo: { genres: { id: number; name: string }[]; voteAverage: number; type?: string; status?: string; release_date?: string; first_air_date?: string; last_air_date?: string; number_of_seasons?: number; awards?: string[]; nominations?: string[]; studios?: string[]; director?: string | null; keywords?: string[]; imdb_id?: string | null; networksDetailed?: { name: string; logo_path: string | null; origin_country?: string }[]; productionCompaniesDetailed?: { name: string; logo_path: string | null; origin_country?: string }[] }
   /** IMDb Top 250 membership for the selected content. */
   imdbTop250?: boolean
   trendRank: number | null
@@ -174,6 +174,11 @@ export function usePosterSave(deps: PosterSaveDeps) {
       mediaType: selected.media_type === "tv" ? "tv" : "movie",
       releaseDate: metaInfo.release_date ?? null,
       firstAirDate: metaInfo.first_air_date ?? null,
+      lastAirDate: metaInfo.last_air_date ?? null,
+      seasonCount: metaInfo.number_of_seasons ?? null,
+      originCountries: [...(metaInfo.networksDetailed ?? []), ...(metaInfo.productionCompaniesDetailed ?? [])]
+        .map((c) => c.origin_country)
+        .filter((c): c is string => !!c),
       voteAverage: metaInfo.voteAverage,
       trendRank: trendRank ?? null,
       animeRank: animeRankData?.rank ?? null,
@@ -187,7 +192,10 @@ export function usePosterSave(deps: PosterSaveDeps) {
     }
     const computed = computeTopBadge(badgeInput, t, lang)
     const isUpcomingReleaseBadge = !!computed.upcomingRelease && computed.badge?.type === "extra" && computed.badge.label === computed.upcomingRelease
-    const badgeExtra = computed.badge?.type === "extra" && !isUpcomingReleaseBadge ? computed.badge.label : undefined
+    // Come "In uscita", anche "Nuova stagione" è time-bound: non va congelato
+    // nel mapping salvato (resterebbe per sempre), quindi è escluso da badgeExtra.
+    const isNewSeasonBadge = !!computed.newSeason && computed.badge?.type === "extra" && computed.badge.label === computed.newSeason
+    const badgeExtra = computed.badge?.type === "extra" && !isUpcomingReleaseBadge && !isNewSeasonBadge ? computed.badge.label : undefined
     const badgeRank = (!badgeExtra && rankingBadges) ? (computed.badge?.type === "rank" ? computed.badge.rank : trendRank || undefined) : undefined
     const badgeLabel = (!badgeExtra && animeRankData) ? t("badge.anime") : (!badgeExtra && computed.badge?.type === "rank") ? (computed.badge.rankLabel || t(selected.media_type === "tv" ? "badge.series" : "badge.movie")) : undefined
     const isClean = posterToSave.iso_639_1 === null

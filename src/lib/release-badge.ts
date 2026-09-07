@@ -10,9 +10,10 @@ export function getUpcomingReleaseLabel(input: {
   /** Traduttore per la label — default `t` globale (M14: "In uscita" non è più hardcodato). */
   t?: UpcomingReleaseT
 }): string | null {
-  if (input.mediaType !== "movie") return null
-
-  const date = parseTmdbDate(input.releaseDate)
+  // Film: release_date futura. Serie TV: first_air_date futura (serie annunciate
+  // ma non ancora in onda — prima le serie future non avevano alcun badge).
+  const raw = input.mediaType === "movie" ? input.releaseDate : input.firstAirDate
+  const date = parseTmdbDate(raw)
   if (!date) return null
 
   const today = new Date()
