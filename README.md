@@ -9,33 +9,43 @@ pinned: false
 ---
 
 <p align="center">
-  <img src="public/posterium.png" alt="Posterium" width="360" />
+  <img src="public/posterium.png" alt="Posterium" width="380" />
 </p>
 
+<h3 align="center">Generatore Dinamico di Poster Cinematografici per Stremio & Media Center</h3>
+
 <p align="center">
-  <strong>Generatore dinamico di poster cinematografici per Stremio & Media Center</strong><br />
-  Locandine pulite, loghi vettoriali, rating IMDb/TMDB, badge trend JustWatch/FlixPatrol, premi Oscar/Cannes, classifiche Netflix Top 10 e grafiche cinematografiche composte in tempo reale.
+  Locandine clean senza testo, loghi vettoriali ad alta definizione, rating IMDb/TMDB/Rotten Tomatoes, badge qualità streaming 4K, classifiche Netflix Top 10 e ordinamento stagioni intelligente. Tutto renderizzato al volo con Sharp C++ & SVG.
 </p>
 
 <p align="center">
   <a href="https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2FEful97%2FPosterium"><img src="https://vercel.com/button" alt="Deploy with Vercel" /></a>
-  <a href="#-deploy-rapido"><img src="https://img.shields.io/badge/Docker-Supported-2496ED?style=for-the-badge&logo=docker&logoColor=white" alt="Docker" /></a>
-  <a href="#-deploy-rapido"><img src="https://img.shields.io/badge/Deploy-Termux-171717?style=for-the-badge&logo=android&logoColor=green" alt="Termux Deploy" /></a>
-  <img src="https://img.shields.io/badge/Next.js-16-black?style=for-the-badge&logo=next.js&logoColor=white" alt="Next.js 16" />
-  <img src="https://img.shields.io/badge/License-AGPL--3.0-blue?style=for-the-badge" alt="License AGPLv3" />
+  <a href="#-docker--compose"><img src="https://img.shields.io/badge/Docker-Supported-2496ED?style=flat-square&logo=docker&logoColor=white" alt="Docker" /></a>
+  <img src="https://img.shields.io/badge/Next.js-16-black?style=flat-square&logo=next.js&logoColor=white" alt="Next.js 16" />
+  <img src="https://img.shields.io/badge/Node.js-%3E%3D20-green?style=flat-square&logo=node.js&logoColor=white" alt="Node.js" />
+  <img src="https://img.shields.io/badge/License-AGPL--3.0-blue?style=flat-square" alt="License AGPLv3" />
 </p>
 
 ---
 
-## 📸 Anteprima & Screenshots
+## 📸 Anteprima
 
 <div align="center">
   <img src="https://raw.githubusercontent.com/Eful97/Posterium/master/public/Screen/home.png" alt="Posterium Home" width="100%" style="border-radius: 8px; margin-bottom: 8px;" />
-  <img src="https://raw.githubusercontent.com/Eful97/Posterium/master/public/Screen/editor.png" alt="Posterium Editor" width="100%" style="border-radius: 8px; margin-bottom: 8px;" />
-  <img src="https://raw.githubusercontent.com/Eful97/Posterium/master/public/Screen/myposters.png" alt="Posterium My Posters" width="100%" style="border-radius: 8px; margin-bottom: 8px;" />
 </div>
 
-<div align="center">
+<table align="center" width="100%">
+  <tr>
+    <td width="50%"><img src="https://raw.githubusercontent.com/Eful97/Posterium/master/public/Screen/editor.png" alt="Posterium Editor" style="border-radius: 6px;" /></td>
+    <td width="50%"><img src="https://raw.githubusercontent.com/Eful97/Posterium/master/public/Screen/myposters.png" alt="Posterium My Posters" style="border-radius: 6px;" /></td>
+  </tr>
+  <tr>
+    <td align="center"><em>Editor WYSIWYG & Anteprima Live</em></td>
+    <td align="center"><em>I Miei Poster & Gestione Cataloghi</em></td>
+  </tr>
+</table>
+
+<div align="center" style="margin-top: 12px;">
   <img src="https://raw.githubusercontent.com/Eful97/Posterium/master/public/Screen/1405.jpg" alt="Poster Demo — Rapacità" width="32%" style="border-radius: 6px;" />
   <img src="https://raw.githubusercontent.com/Eful97/Posterium/master/public/Screen/79696.jpg" alt="Poster Demo — Manifest" width="32%" style="border-radius: 6px;" />
   <img src="https://raw.githubusercontent.com/Eful97/Posterium/master/public/Screen/97546.jpg" alt="Poster Demo — Ted Lasso" width="32%" style="border-radius: 6px;" />
@@ -43,288 +53,180 @@ pinned: false
 
 ---
 
-## 🧠 Perché Posterium?
+## ⚡ Caratteristiche Principali
 
-* 🎯 **Motore di Rendering Unificato (WYSIWYG)**: Un unico endpoint grafico (`/api/poster/{type}/{id}`) basato su Sharp C++ ed SVG serve sia l'anteprima web in tempo reale sia le locandine consegnate a Stremio.
-* 📦 **Fornitore Metadati & Addon 100% Autonomo (`meta` + `catalog` + `poster`)**: Non richiede addon terzi o configurazioni complesse. Fornisce direttamente a Stremio schede dettagliate, trame in italiano, loghi trasparenti, sfondi 4K, trailer YouTube e **tutte le stagioni ed episodi con thumbnail e titoli italiani**.
-* ⚡ **Compatibilità Streaming Universale**: Genera identificatori standard (`tt...` e `tt...:S:E`) perfettamente compatibili con Torrentio, Debrid e qualsiasi lettore Stremio/Nuvio.
-* 🔄 **Cache Intelligente & Versioning Deterministico**: Ogni render incorpora una `RENDER_VERSION` calcolata automaticamente dal codice grafico: modifiche agli stili aggiornano istantaneamente le immagini su Stremio senza conflitti di cache. Anche `APP_VERSION` è automatica (`<major>.<minor>.<numero di commit>`): ogni nuovo commit produce una versione nuova senza bump manuali. Il pulsante **«Svuota cache»** nelle impostazioni azzera l'intera cache dell'istanza (poster renderizzati, badge, metadati TMDB/TVDB, classifiche JustWatch/FlixPatrol, loghi network e altro).
+| Funzionalità | Descrizione |
+|---|---|
+| 🎯 **Motore Grafico WYSIWYG** | Un unico endpoint (`/api/poster/{type}/{id}`) basato su Sharp C++ ed SVG serve l'anteprima web in tempo reale e il poster finale su Stremio con pixel-perfect sync. |
+| 📦 **Addon 100% Autonomo** | Fornisce direttamente a Stremio schede dettagliate, trame in italiano, loghi trasparenti, sfondi 4K, trailer YouTube e tutte le stagioni con thumbnail ed episodi tradotti. |
+| 📺 **Ordinamento Intelligente Parti & Anime** | Rileva automaticamente i gruppi **Original Parts** (es. *La Casa di Carta*, *Lupin*) e spacchetta le mega-stagioni uniche degli anime su TMDB (es. *Re:ZERO*, *Jujutsu Kaisen*) nelle vere stagioni con cui sono distribuiti. |
+| 🏷️ **Badge Qualità & Voti** | Visualizza in tempo reale risoluzione video (4K/1080p/720p), voti aggregati da oltre 16 fonti (IMDb, TMDB, Rotten Tomatoes, Letterboxd, MAL), premi Oscar/Cannes e nastri Netflix Top 10. |
+| 🌐 **Cataloghi Personalizzati** | Importa watchlist e collezioni da **Letterboxd, Trakt, TMDb, TheTVDB, MDBList** e classifiche trend in tempo reale tramite JustWatch GraphQL. |
+| ⚡ **Zero Conflitti di Cache** | Versioning deterministico con `RENDER_VERSION` e `APP_VERSION` automatiche. Se cambi uno stile, Stremio aggiorna istantaneamente le immagini. |
 
 ---
 
-## ✨ Funzionalità
+## 🛠️ Funzionalità in Dettaglio
 
 ### 🖼️ Locandine, Loghi & Grafica
-* **Selezione Poster Clean**: Scegli in un click la locandina senza testo preferita tra i candidati ufficiali TMDB. La griglia si apre sempre sui clean (`iso_639_1===null`) prima delle lingue.
-* **Algoritmo Best-Fit Intelligente**: Analizza automaticamente la luminosità e gli spazi vuoti del poster per posizionare e scalare il logo evitando di coprire i volti dei protagonisti.
-* **Sfocatura Sfondo Nativa (Sharp C++)**: Generazione di sfondi con effetto blur ultra-rapido (10–20ms) a bassissimo consumo di memoria.
-* **Rotazione Automatica 24h**: Seleziona più poster per lo stesso titolo e falli alternare automaticamente ogni giorno.
-* **Loghi Network Ufficiali (SVG → TMDB fallback)**: Riconoscimento automatico e sovrapposizione loghi per Netflix, Prime Video (incluso Amazon MGM Studios / MGM via alias a Prime), Disney+, Apple TV+, HBO/HBO Max, Paramount+, Sky/NOW, Crunchyroll, Rai, Mediaset Infinity, Tubi, Pluto TV, AMC, ABC, CBS, FX/FXX, Hulu, National Geographic, NBC, Showtime, Pixar, Marvel, Studio Ghibli, 20th Century Studios, Warner Bros., Universal, Columbia, Sony, MGM+ e altri. Priorità a SVG locali (colore originale) poi fallback a TMDB `w300` sempre bianchi con ombra; i PNG opachi a sfondo pieno vengono skippati per evitare rettangoli. Tutti i loghi sono normalizzati ad area visiva uniforme (~3600px² @500) e rasterizzati con densità adattiva. Su poster non-clean il network resta in alto a sinistra e, solo con nastro Netflix a sinistra, slitta a destra del nastro.
-* **Editor sempre disponibile**: Badge e Stagioni restano accessibili anche con poster non-clean (fix UX).
+* **Selezione Poster Clean**: Scegli in un click la locandina senza testo tra i candidati ufficiali TMDB (`iso_639_1 === null`).
+* **Algoritmo Best-Fit Intelligente**: Analizza luminosità e zone vuote per scalare e posizionare il logo evitando di coprire i volti.
+* **Sfocatura Sfondo (Sharp C++)**: Generazione di sfondi blur cinematografici ultra-rapidi (10–20ms) a basso consumo di RAM.
+* **Rotazione Automatica 24h**: Alterna automaticamente ogni giorno più poster salvati per lo stesso titolo.
+* **Loghi Network Ufficiali**: Riconoscimento ed embedding automatico per Netflix, Prime Video, Disney+, Apple TV+, HBO Max, Paramount+, Sky/NOW, Crunchyroll, Rai, Mediaset e oltre 30 studi (Marvel, Pixar, Ghibli, Warner Bros, A24).
 
-### 🏷️ Badge, Rating & Classifiche
-* **✨ Badge Qualità Streaming (4K / 1080p / 720p / SD)**: Visualizza in alto a destra la risoluzione video massima disponibile rilevata in tempo reale dai flussi Stremio (Torrentio/Scraper) con fallback automatico su JustWatch. In modalità Stremio (nastro Netflix a destra) si sposta a sinistra per non restargli accanto. Presenta uno schema cromatico adattivo dinamico (*contrasto chiaro/scuro invertito in base alla luminosità del poster*).
-* **6 Stili Badge Genere/Voto**: *Shadow, Pill, Bar, Colored, Bordo, Vetro* con colori accent adattivi calcolati in base alla palette del poster.
-* **5 Stili Badge Trend/Classifiche**: *Default, Bar, Colored, Pill, Nastro Netflix*.
-* **16 Fonti di Valutazione**: Supporto completo per IMDb, TMDB, Rotten Tomatoes (Critics & Audience), Metacritic, Letterboxd, MyAnimeList, AniList, FilmAffinity, Trakt e provider streaming.
-* **Nastro Verticale Netflix Top 10**: Il caratteristico nastro rosso laterale con posizione in classifica e logo della piattaforma (con supporto dedicato anche per gli Anime).
-* **Classifiche sempre aggiornate**: il rank (es. "Top 15") segue la classifica live (JustWatch/MDBList) — se un titolo esce dalla chart il badge sparisce invece di mostrare il vecchio rank del salvataggio. Il rank salvato si riusa solo quando le classifiche live non rispondono.
-* **Premi Cinematografici & Cult**: Riconoscimento automatico Oscar, Cannes, BAFTA, Emmy e badge *"Absolute Cinema"* per i titoli della IMDb Top 250.
+### 🏷️ Badge, Rating & Riconoscimenti
+* **✨ Qualità Streaming (4K / 1080p / 720p / SD)**: Rilevata in tempo reale dai flussi di Stremio con fallback automatico su JustWatch.
+* **6 Stili Badge Genere & Voto**: *Shadow, Pill, Bar, Colored, Bordo, Vetro* con palette adattiva alla locandina.
+* **Nastro Verticale Netflix Top 10**: Il caratteristico nastro rosso laterale con posizione live (supporto dedicato anche per Anime).
+* **Premi Cinematografici**: Riconoscimento automatico Oscar, Cannes, BAFTA, Emmy e badge *"Absolute Cinema"* per i titoli della IMDb Top 250.
+* **Classifiche Sempre Sincronizzate**: Il badge Top 10/20 segue la classifica live; se un titolo esce dalla chart, il badge si aggiorna da solo.
 
-### 🔍 Ricerca
-* **Ricerca TMDB**: Trova film e serie TV per titolo con risultati in italiano e poster ufficiali.
-* **Ricerca per Persona (Attore/Regista)**: Due cataloghi dedicati *“Cerca per Persona (Film/Serie TV)”* (`posterium-search-people-movies`/`posterium-search-people-series`) che cercano su TMDB `/search/person` e mostrano la filmografia (cast + crew) della persona più rilevante — filtrianti per nome esatto/middle/suffisso e soglie popolarità/voti come AIOMetadata.
-* **Cronologia Ricerche**: Salvataggio automatico delle ricerche recenti.
-
-### 📺 Cataloghi Stremio, Posterium Hub & Gestione Avanzata
-* **📱 Posterium Hub All-in-One**: Un unico punto di installazione per Stremio con supporto QR Code per Smart TV, link diretto e **selettore a 3 modalità** (*Tutto: Cataloghi + Ricerca*, *Solo Cataloghi*, *Solo Ricerca*).
-* **🌐 Import Universale Cataloghi Personalizzati (fino a 500 titoli)**:
-  * **Letterboxd**: Liste pubbliche e watchlist utenti (es. saghe MCU, cinefili, filmografia registi) con estrazione automatica header e mapping completo ID.
-  * **Trakt**: Liste pubbliche, watchlist e collezioni utente.
-  * **TMDb Collezioni & Saghe**: Importa intere saghe (es. *The Avengers Collection*, *Star Wars Saga*) o liste tematiche direttamente da TMDb.
-  * **TheTVDB & IMDb**: Liste tematiche e classifiche personalizzate.
-  * **MDBList**: Liste dinamiche, filtri per voto e popolarità.
-  * *Funzionalità avanzate*: Riconoscimento automatico nome lista, suddivisione automatica Film/Serie TV (*modalità Misto*) e paginazione continua `skip` su Stremio.
-* **Cataloghi Piattaforme & Trend in Tempo Reale (JustWatch GraphQL)**: Classifiche ufficiali e sempre aggiornate per Top 20 Italia, Netflix, Prime Video, Disney+, Sky/NOW, Apple TV+, HBO Max, Paramount+, con deduplicazione automatica e zero doppioni.
-* **Top 20 Film & Serie Anime (MDBList)**: Classifiche dedicate all'animazione giapponese (`posterium-anime-movies` e `posterium-anime`) disponibili nativamente sia con chiave personale MDBList che senza chiave (fallback JSON pubblico).
-* **Compatibilità Totale Manifest & AIOMetadata**: Supporto speculare ad AIOMetadata con tutti i prefissi ID (`tmdb:`, `tt`, `kitsu:`, `tvdb:`, `mal:`, `anilist:`, `anidb:`) e tipologie (`movie`, `series`, `anime`, `anime.movie`, `anime.series`, `collection`).
-* **Gestione Priorità, Nomi & Visibilità**:
-  * 🔀 **Ordinamento & Drag & Drop**: Cambia l'ordine dei cataloghi per decidere quali mostrare prima su Stremio.
-  * ✏️ **Rinomina**: Assegna nomi personalizzati ed emoji a qualsiasi catalogo.
-  * 🔌 **Attivazione/Disattivazione**: Disabilita i cataloghi che non utilizzi.
-  * 🏠 **Selettore Visibilità Home vs Esplora**: Scegli se visualizzare un catalogo nella **Home/Bacheca** di Stremio o mantenerlo accessibile solo nella scheda **Esplora**.
-* **Episodi TMDB o TheTVDB (TVDB)**: Scegli la fonte preferita per immagini e descrizioni degli episodi con traduzioni italiane e fallback automatico. Default: **Stagioni Standard TMDB** (ordinamento cronologico ufficiale); gli Episode Groups alternativi (es. Italian/Netflix) sono selezionabili manualmente per titolo.
-* **Anteprima Stagioni & Episodi Live**: Nel pannello `📺 Stagioni` dell'editor, anteprima immediata delle stagioni/episodi che Stremio riceverà su `/meta` — gruppi per stagione, thumbnail, titolo, `S:E`, air date e voto, aggiornata al cambio ordinamento senza salvare. Endpoint `GET /api/preview/episodes?tmdbId=&episodeGroupId=`.
-* **Ricerca Globale Stremio**: Cerca qualsiasi titolo direttamente dalla barra di ricerca di Stremio su Smart TV, PC e smartphone: Posterium genererà al volo i poster personalizzati per ogni risultato.
-* **Addon Proxy Stremio**: Incolla il link `manifest.json` di qualsiasi altro addon Stremio per arricchire istantaneamente tutti i suoi poster con il tuo stile grafico.
-
-### 📱 Interfaccia Mobile & Touch Ergonomics
-* **Bottom Navigation Bar Mobile**: Barra inferiore in frosted glass stile iOS/Android con accesso istantaneo a Ricerca, Cataloghi, Hub di Installazione, I Miei Poster e Impostazioni.
-* **Editor Poster Mobile a Tab Dedicati**: Selettore rapido (*Poster, Anteprima, Personalizza*) e barra flottante di salvataggio rapido per creare e modificare locandine da smartphone con il massimo comfort.
-* **Touch Optimization**: Supporto per safe-area su schermi moderni (`env(safe-area-inset-bottom)`), touch targets ampi (> 44px) e rimozione del tap-delay per un'esperienza fluida come un'app nativa.
+### 📺 Stagioni, Episodi & Anime
+* **✨ Rilevamento Automatico Parti**: Passa in automatico da stagioni standard a Parti originali per serie come *La Casa di Carta* (5 parti) e *Lupin* (4 parti).
+* **🌀 Spacchettamento Anime**: Risolve la catalogazione TMDB che comprime intere serie anime in una sola stagione (es. *Re:ZERO* 85 episodi, *Jujutsu Kaisen* 59 episodi), ripristinando la corretta suddivisione stagionale (S1, S2, S3, S4 + Speciali in S0).
+* **Supporto TVDB & AniZip**: Possibilità di selezionare manualmente gli ordinamenti alternativi TheTVDB (*Aired, DVD, Absolute, Alternate*) o AniZip (*AniList / AniDB*).
+* **Anteprima Episodi Live**: Visualizza prima di salvare esattamente come appariranno le stagioni, i titoli e le miniature in Stremio.
 
 ---
 
-## ⚡ Deploy Rapido
+## 🚀 Deploy Rapido
 
-Scegli la modalità di hosting più comoda per le tue esigenze:
+Scegli la modalità più comoda per la tua installazione:
 
 | Piattaforma | Costo | Tipologia | Persistenza | Ideale per |
 |---|---|---|---|---|
-| [▲ Vercel](#-vercel-consigliato) | **Gratis** (Hobby) | Serverless | Upstash Redis (KV) | **Iniziare subito**: 1 click, zero manutenzione, CDN globale |
-| [🤗 Hugging Face Spaces](#-hugging-face-spaces) | **Gratis** / PRO | Docker (16GB RAM) | Storage Bucket (`/data`) | Ottime prestazioni con 16GB di RAM |
-| [🦾 Oracle Cloud A1](#-oracle-cloud-always-free) | **Gratis 24/7** | VPS ARM (4 OCPU / 24GB) | Disco Locale (`/data`) | Massima potenza sempre online a costo zero |
-| [🐳 Docker / Compose](#-docker--docker-compose) | **Gratis** | Container | Volume (`posterium-data`) | Self-hosting su proprio server/NAS |
-| [📱 Termux (Android)](#-termux-android) | **Gratis** | Node.js nativo | Memoria dispositivo | Riciclare un vecchio smartphone Android |
-| [🖥️ VPS + Caddy](#-vps--caddy-reverse-proxy) | ~3-5€ / mese | Docker + Proxy | Disco Locale (`/data`) | Istanze condivise con certificato SSL automatico |
+| [▲ **Vercel**](#-vercel-1-click) | **Gratis** | Serverless | Upstash Redis (KV) | **Consigliato**: 1 click, zero manutenzione, CDN globale |
+| [🐳 **Docker Compose**](#-docker--compose) | **Gratis** | Container | Volume locale (`/data`) | NAS, Home Server, mini-PC (Unraid/TrueNAS) |
+| [🤗 **Hugging Face**](#-hugging-face-spaces) | **Gratis** | Docker (16GB RAM) | Storage Bucket | Ottima RAM gratuita per istanze condivise |
+| [🦾 **Oracle Cloud**](#-altre-modalit-di-installazione) | **Gratis** | VPS ARM (24GB RAM) | Disco Locale | Sempre online con risorse dedicate a costo zero |
 
 ---
 
-### ▲ Vercel (Consigliato)
+### ▲ Vercel (1-Click)
 
 [![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2FEful97%2FPosterium)
 
-Vercel permette di avviare Posterium in 2 minuti senza configurare server, con persistenza cloud gratuita per salvare poster e cataloghi.
-
-#### 1. Crea il progetto su Vercel
-* Clicca sul pulsante **Deploy with Vercel** qui sopra.
-* Lascia tutte le opzioni predefinite e clicca **Deploy** (attendi ~1 minuto fino a ✅ **Ready**).
-
-#### 2. Collega lo Storage Cloud Gratuito (Upstash KV)
-1. Nella Dashboard del tuo progetto su Vercel, clicca sul tab **Storage** in alto.
-2. Clicca **Create Database** → seleziona **Upstash** (Redis) → clicca **Continue** e collegalo al tuo progetto.
-3. Vercel configurerà automaticamente le variabili `KV_REST_API_URL` e `KV_REST_API_TOKEN`.
-
-#### 3. Imposta le Variabili d'Ambiente
-Vai in **Settings → Environment Variables** e inserisci:
-
-| Nome Variabile | Valore | Scopo |
-|---|---|---|
-| `POSTERIUM_PUBLIC_INSTANCE` | `1` | **Sblocca l'editor**: permette di salvare i poster e modificare i cataloghi. |
-| `POSTERIUM_TMDB_KEY` | *La tua chiave TMDB* | **Cataloghi & Locandine**: popola e renderizza automaticamente i poster su Stremio ([ottieni chiave gratuita](https://www.themoviedb.org/settings/api)). |
-| `POSTERIUM_MDBLIST_KEY` | *(Opzionale)* | **Liste MDBList**: per importare e visualizzare liste personalizzate e anime ([ottieni chiave](https://mdblist.com/preferences/)). |
-| `POSTERIUM_TVDB_API_KEY` | *(Opzionale)* | **Episodi TVDB**: per descrizioni e thumbnail degli episodi da TheTVDB ([ottieni chiave](https://thetvdb.com/dashboard/account/apikeys)). |
-
-#### 4. Applica le modifiche & Installa su Stremio
-1. Vai nella scheda **Deployments** → clicca sui **tre puntini ⋯** accanto all'ultimo deploy → seleziona **Redeploy**.
-2. Apri `https://<tuo-progetto>.vercel.app` e clicca **Installa su Stremio** (oppure incolla `https://<tuo-progetto>.vercel.app/manifest.json` in Stremio).
-
-> 💡 **Verifica Storage**: Aprendo `https://<tuo-progetto>.vercel.app/api/status` vedrai `storage: "kv"` a conferma che la persistenza è attiva.
-
----
-
-### 🤗 Hugging Face Spaces
-
-Il repository include già la configurazione per HF Spaces Docker (`sdk: docker`, `app_port: 8080`, `Dockerfile`).
-
-1. Crea una nuova Space su Hugging Face con SDK **Docker** collegata al repository `Eful97/Posterium`.
-2. In **Space Settings → Variables and secrets**, imposta:
-   * `NODE_OPTIONS` = `--max-old-space-size=1024`
+1. Clicca sul pulsante **Deploy with Vercel** qui sopra e crea il progetto.
+2. Nella dashboard di Vercel, vai su **Storage** → **Create Database** → seleziona **Upstash (Redis)** e collegalo al progetto (imposta automaticamente `KV_REST_API_URL` e `KV_REST_API_TOKEN`).
+3. Vai in **Settings → Environment Variables** e aggiungi:
    * `POSTERIUM_PUBLIC_INSTANCE` = `1`
-   * `POSTERIUM_TMDB_KEY` = *La tua chiave TMDB*
-3. **Persistenza**: In **Settings → Storage**, collega uno Storage Bucket montato su `/data`.
-4. Manifest Stremio: `https://<tua-space>.hf.space/manifest.json`.
+   * `POSTERIUM_TMDB_KEY` = *La tua chiave TMDB* ([registrati gratis su TMDB](https://www.themoviedb.org/settings/api))
+4. Vai su **Deployments** → menu **⋯** → **Redeploy**.
+5. Apri l'URL generato e clicca su **Installa su Stremio**!
 
 ---
 
-### 🦾 Oracle Cloud Always Free
+### 🐳 Docker & Compose
 
-Per avere un'istanza sempre accesa, potente e senza limiti serverless:
+Crea un file `docker-compose.yml`:
 
-1. Registrati su [Oracle Cloud](https://www.oracle.com/cloud/free/) e crea un'istanza **VM.Standard.A1.Flex** (ARM Ampere: 4 OCPU, 24 GB RAM, Ubuntu).
-2. Nella console Oracle, apri la porta TCP **8080** nella Security List della VCN.
-3. Connettiti via SSH e avvia Posterium:
-   ```bash
-   ssh ubuntu@<IP-ISTANZA>
-   sudo apt update && sudo apt install -y docker.io docker-compose-v2
-   git clone https://github.com/Eful97/Posterium && cd Posterium
-   sudo docker compose up -d
-   ```
-4. Manifest Stremio: `http://<IP-ISTANZA>:8080/manifest.json`.
+```yaml
+services:
+  posterium:
+    image: eful97/posterium:latest # o build locale: .
+    container_name: posterium
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      - POSTERIUM_PUBLIC_INSTANCE=1
+      - POSTERIUM_TMDB_KEY=la_tua_chiave_tmdb
+    volumes:
+      - posterium-data:/data
 
----
+volumes:
+  posterium-data:
+```
 
-### 🐳 Docker & Docker Compose
-
-#### Con Docker Compose (Consigliato)
+Avvia il container:
 ```bash
-git clone https://github.com/Eful97/Posterium && cd Posterium
 docker compose up -d
 ```
-
-#### Esecuzione Manuale
-```bash
-docker build -t posterium .
-docker run -d \
-  -p 8080:8080 \
-  -v posterium-data:/data \
-  --name posterium \
-  posterium
-```
-
-Manifest Stremio: `http://localhost:8080/manifest.json`.
+Il manifest per Stremio sarà disponibile su: `http://<IP-SERVER>:8080/manifest.json`.
 
 ---
 
-### 🖥️ VPS + Caddy (Reverse Proxy HTTPS)
+<details>
+<summary><strong>👉 Altre modalità di installazione (Hugging Face, Oracle Cloud, VPS Caddy, Termux)</strong></summary>
 
-Ideale per condividere un'istanza sicura in HTTPS con amici e familiari:
+#### 🤗 Hugging Face Spaces
+1. Crea una Space su Hugging Face con SDK **Docker** collegata al repo `Eful97/Posterium`.
+2. In **Settings → Variables and secrets**:
+   * `NODE_OPTIONS` = `--max-old-space-size=1024`
+   * `POSTERIUM_PUBLIC_INSTANCE` = `1`
+   * `POSTERIUM_TMDB_KEY` = *la tua chiave TMDB*
+3. In **Settings → Storage**, collega uno Storage Bucket montato su `/data`.
+4. Manifest Stremio: `https://<tua-space>.hf.space/manifest.json`.
 
-1. Clona il repository e genera il file `.env`:
-   ```bash
-   git clone https://github.com/Eful97/Posterium && cd Posterium
-   echo "POSTERIUM_PUBLIC_INSTANCE=1" > .env
-   echo "POSTERIUM_TMDB_KEY=la_tua_chiave_tmdb" >> .env
-   ```
-2. Aggiungi il blocco Caddy al `docker-compose.yml`:
-   ```yaml
-     caddy:
-       image: caddy:2
-       restart: unless-stopped
-       ports: ["80:80", "443:443"]
-       volumes:
-         - ./caddy/Caddyfile:/etc/caddy/Caddyfile
-         - caddy-data:/data
-       depends_on: [posterium]
-   volumes:
-     caddy-data:
-   ```
-3. Crea `caddy/Caddyfile`:
-   ```caddyfile
-   tuodominio.com {
-       reverse_proxy posterium:8080
-   }
-   ```
-4. Avvia con `docker compose up -d`. Caddy otterrà automaticamente un certificato SSL gratuito da Let's Encrypt!
-
----
-
-### 📱 Termux (Android)
-
-Trasforma un vecchio telefono Android in un server domestico:
-
-> ⚠️ Installa Termux da **F-Droid** (la versione Play Store è deprecata).
-
+#### 🦾 Oracle Cloud Always Free (ARM Ampere)
 ```bash
-pkg update && pkg upgrade -y
-pkg install nodejs git -y
+sudo apt update && sudo apt install -y docker.io docker-compose-v2
 git clone https://github.com/Eful97/Posterium && cd Posterium
-npm install --ignore-scripts
-npm run build
-npm start
+echo "POSTERIUM_PUBLIC_INSTANCE=1" > .env
+echo "POSTERIUM_TMDB_KEY=la_tua_chiave" >> .env
+sudo docker compose up -d
 ```
 
-Manifest Stremio: `http://<IP-DELLO-SMARTPHONE>:3000/manifest.json`.
+#### 🖥️ VPS + Caddy (HTTPS Automatico)
+```caddyfile
+tuodominio.com {
+    reverse_proxy posterium:8080
+}
+```
+
+#### 📱 Termux (Android)
+```bash
+pkg update && pkg install nodejs git -y
+git clone https://github.com/Eful97/Posterium && cd Posterium
+npm install --ignore-scripts && npm run build && npm start
+```
+</details>
 
 ---
 
-## 🔑 Variabili d'Ambiente
+## 🔑 Configurazione & Variabili d'Ambiente
 
-### 🛡️ Accesso & API Keys
-| Variabile | Descrizione |
-|---|---|
-| `POSTERIUM_PUBLIC_INSTANCE` | Imposta a `1` per sbloccare l'editor su istanze pubbliche (Vercel/HF) senza richiedere token admin. Unico fail-open esplicito — `NODE_ENV=development` da solo non apre più le route admin (serve loopback o `POSTERIUM_ALLOW_DEV_ADMIN=1`). |
-| `POSTERIUM_ALLOW_DEV_ADMIN` | In `NODE_ENV=development` consente l'accesso admin senza token su qualsiasi host (`1`), altrimenti solo su loopback (`127.0.0.1`/`localhost`/`::1`). |
-| `POSTERIUM_WARMUP_TOKEN` | Token per `POST /api/warmup` (header `x-warmup-token`). **Obbligatorio quando `POSTERIUM_PUBLIC_INSTANCE=1`** per evitare DoS via amplificazione (1 req → 500 poster). Su istanze private è opzionale (fallback a `x-admin-token`). |
-| `POSTERIUM_TMDB_KEY` | Fallback d'istanza **opt-in** per deploy personali single-user (NON usare su istanze pubbliche multi-utente — senza questa env, Stremio deve passare la chiave via header/query, che non manda mai). |
-| `POSTERIUM_MDBLIST_KEY` | Fallback d'istanza **opt-in** per liste MDBList personali (come sopra). |
-| `POSTERIUM_TVDB_API_KEY` | Fallback d'istanza **opt-in** per TheTVDB (come sopra). |
-| `POSTERIUM_ADMIN_TOKEN` | Token segreto per proteggere le route amministrative private. |
-| `CONFIG_HMAC_SECRET` | Chiave segreta per la firma dei config token stateless (`?config=`). |
+### Variabili Essenziali
 
-### 💾 Storage & Persistenza
-| Variabile | Descrizione |
-|---|---|
-| `POSTERIUM_DATA_DIR` | Percorso della cartella per i dati persistenti locali (default: `./data/` o `/data`). |
-| `KV_REST_API_URL` | URL REST del database Redis Upstash / Vercel KV per serverless. |
-| `KV_REST_API_TOKEN` | Token di autenticazione per database Redis Upstash / Vercel KV. |
-
-### ⚙️ Pipeline di Rendering & Concorrenza
 | Variabile | Default | Descrizione |
 |---|:---:|---|
-| `POSTERIUM_MAX_CONCURRENT_RENDERS` | `4` | Numero massimo di render eseguiti in parallelo (protezione memoria). |
-| `POSTERIUM_RENDER_TIMEOUT_MS` | `30000` | Timeout massimo per il completamento di un render (ms). |
-| `POSTERIUM_RENDER_SLOT_WAIT_MS` | `15000` | Tempo massimo di attesa in coda per uno slot di render libero. |
-| `POSTERIUM_RENDER_QUEUE` | `0` | Coda bounded: `0`=illimitata fino a timeout, `>0`= 503 immediato oltre N waiter. |
-| `POSTERIUM_CACHE_MAX_MB` | `150` | Memoria RAM massima per la cache dei poster in memoria (MB). |
-| `POSTERIUM_CACHE_MAX` | `2000` | Numero massimo di entry in cache (oltre FIFO eviction). |
-| `POSTERIUM_CACHE_REFRESH_HOUR` | `3` | Ora UTC del refresh schedulato giornaliero per poster/cataloghi. |
-| `POSTERIUM_NEGATIVE_CACHE_TTL_MS` | `5000` | TTL negative cache per errori poster 500/503/404 (1s–60s). |
-| `POSTERIUM_DYNAMIC_POSTER_TTL_MS` | `21600000` | TTL dei poster dinamici non-mappati, in ms (default 6h). Clamp 5min–24h. Gli header `Cache-Control`/`Surrogate-Control` dynamic derivano dallo stesso valore. |
-| `POSTERIUM_RATING_WAIT_MS` | `1500` | Tetto attesa rating MDBList prima di fallback TMDB. |
-| `POSTERIUM_AUTO_FIT_TIMEOUT_MS` | `1200` | Tetto scoring best-fit CPU (300–10000ms). |
-| `POSTERIUM_AUTO_FIT_FETCH_TIMEOUT_MS` | `5000` | Tetto fetch logo/candidati best-fit (1s–15s). |
-| `POSTERIUM_RATELIMIT_POSTER_MAX` | `200` | Burst max bucket poster (10–10000). |
-| `POSTERIUM_RATELIMIT_KV` | *auto* | Con KV configurato (`KV_REST_API_URL`/`KV_REST_API_TOKEN`) il rate-limit usa un contatore shared su Upstash tra tutte le istanze (fixed-window 1s); `0` forza lo store in-memory per-processo. Su errore KV degrada automaticamente al bucket locale. |
-| `POSTERIUM_PROXY_ALLOW_DOMAINS` | *(vuoto)* | Allowlist domini per addon proxy (vuoto=aperto). |
-| `POSTERIUM_TORRENTIO_URL` | `https://torrentio.strem.fun` | Endpoint provider per lo scraping real-time della qualità stream. |
-| `POSTERIUM_LOG_LEVEL` | `info` | Livello logger (`debug`/`info`/`warn`/`error`). |
-| `POSTERIUM_LOG_FORMAT` | `human` | Formato logger (`human`/`json` — `json` per log aggregation). |
-| `POSTERIUM_SELF_WARMUP` | `1` | Preriscaldamento automatico dei cataloghi all'avvio (`0` per disattivare). |
-| `POSTERIUM_BEST_FIT_ENABLED` | *Auto* | Forza attivazione (`1`) o disattivazione (`0`) globale di Best-Fit. |
-| `POSTERIUM_TRUST_PROXY` | `0` | Imposta a `1` se dietro Cloudflare/HF/Nginx fidato per usare `x-forwarded-for` nel rate-limit. Senza trust, `x-forwarded-for` è ignorato per evitare bucket pollution (spoof fino a 50k bucket). |
-
-### 🎨 Stili Predefiniti per i Cataloghi
-I poster dei cataloghi Stremio utilizzano i valori di default dell'istanza. Su istanze personali puoi configurarli anche via env:
-
-| Variabile | Valori ammessi | Effetto sui poster dei cataloghi |
-|---|---|---|
-| `POSTERIUM_GLOBAL_BADGES` | `1` / `0` | Mostra/nasconde globalmente i badge genere e voto. |
-| `POSTERIUM_RANKING_BADGES` | `1` / `0` | Mostra/nasconde i badge delle classifiche. |
-| `POSTERIUM_BADGE_QUALITY` | `1` / `0` | Mostra/nasconde il badge con la massima qualità streaming (4K/1080p). |
-| `POSTERIUM_BADGE_GENRE` | `1` / `0` | Mostra/nasconde l'etichetta del genere. |
-| `POSTERIUM_BADGE_YEAR` | `1` / `0` | Mostra/nasconde l'anno di uscita. |
-| `POSTERIUM_BADGE_RATING` | `1` / `0` | Mostra/nasconde la stella con il voto. |
-| `POSTERIUM_NETWORK_LOGO` | `1` / `0` | Mostra/nasconde il logo della piattaforma streaming. |
-| `POSTERIUM_BADGE_STYLE` | `shadow`, `pill`, `bar`, `colored`, `bordo`, `vetro` | Stile grafico dei badge genere/rating. |
-| `POSTERIUM_RANKING_BADGE_STYLE` | `default`, `bar`, `colored`, `pill`, `netflix` | Stile grafico dei badge di classifica. |
-| `POSTERIUM_RIBBON_SIDE` | `left` / `right` | Lato del nastro verticale Netflix Top 10. |
-| `POSTERIUM_BLUR_ENABLED` | `1` / `0` | Abilita/disabilita lo sfondo sfocato. |
-| `POSTERIUM_GRADIENT_HEIGHT` | `5` – `100` | Altezza percentuale del gradiente nero inferiore. |
+| `POSTERIUM_PUBLIC_INSTANCE` | `0` | Imposta a `1` su Vercel/HF per consentire il salvataggio dei poster e l'uso dell'editor senza token admin. |
+| `POSTERIUM_TMDB_KEY` | *(opzionale)* | Chiave API TMDB d'istanza per generare poster e cataloghi senza doverla inserire nei client. |
+| `POSTERIUM_TVDB_API_KEY` | *(opzionale)* | Chiave TheTVDB per ordinamenti stagioni alternativi e descrizioni episodi. |
+| `POSTERIUM_MDBLIST_KEY` | *(opzionale)* | Chiave MDBList per liste personalizzate e cataloghi anime. |
+| `POSTERIUM_DATA_DIR` | `./data` | Cartella di persistenza su disco per database e file salvati. |
+| `KV_REST_API_URL` / `TOKEN` | *(vuoto)* | Parametri di connessione Upstash Redis per deploy serverless su Vercel. |
 
 ---
 
-## 🧪 Sviluppo in Locale & Test
+<details>
+<summary><strong>⚙️ Variabili Avanzate, Stili Predefiniti & Pipeline di Rendering</strong></summary>
+
+### Stili Grafici Predefiniti per i Cataloghi
+| Variabile | Valori | Effetto |
+|---|---|---|
+| `POSTERIUM_BADGE_STYLE` | `shadow`, `pill`, `bar`, `colored`, `bordo`, `vetro` | Stile dei badge genere/voto. |
+| `POSTERIUM_RANKING_BADGE_STYLE` | `default`, `bar`, `colored`, `pill`, `netflix` | Stile del badge per le classifiche. |
+| `POSTERIUM_RIBBON_SIDE` | `left` / `right` | Lato del nastro verticale Netflix Top 10. |
+| `POSTERIUM_BLUR_ENABLED` | `1` / `0` | Attiva o disattiva lo sfondo sfocato. |
+| `POSTERIUM_BADGE_QUALITY` | `1` / `0` | Mostra/nasconde il badge qualità streaming (4K/1080p). |
+| `POSTERIUM_NETWORK_LOGO` | `1` / `0` | Mostra/nasconde il logo del network (Netflix, Prime, ecc.). |
+| `POSTERIUM_GRADIENT_HEIGHT` | `5` – `100` | Altezza percentuale del gradiente nero inferiore. |
+
+### Concorrenza & Protezione Memoria
+| Variabile | Default | Descrizione |
+|---|:---:|---|
+| `POSTERIUM_MAX_CONCURRENT_RENDERS` | `4` | Massimo numero di render paralleli su Sharp (protezione OOM). |
+| `POSTERIUM_RENDER_TIMEOUT_MS` | `30000` | Timeout massimo per completare un render (ms). |
+| `POSTERIUM_CACHE_MAX_MB` | `150` | Memoria RAM massima riservata alla cache delle immagini. |
+| `POSTERIUM_SELF_WARMUP` | `1` | Preriscaldamento automatico dei cataloghi all'avvio. |
+| `POSTERIUM_LOG_LEVEL` | `info` | Livello di log (`debug`, `info`, `warn`, `error`). |
+</details>
+
+---
+
+## 🧪 Sviluppo in Locale
 
 ```bash
 # 1. Clona il repository
@@ -333,21 +235,21 @@ git clone https://github.com/Eful97/Posterium && cd Posterium
 # 2. Installa le dipendenze
 npm install
 
-# 3. Avvia in sviluppo
+# 3. Avvia il server di sviluppo
 npm run dev
 
-# 4. Esegui i test unitari
+# 4. Esegui i test unitari (Vitest)
 npm test
 
-# 5. Suite completa di verifica (TypeScript + ESLint + Vitest + Next Build)
+# 5. Verifica completa del codice (Typecheck + Lint + Unit test + Build)
 npm run verify
 ```
 
 ---
 
-## 📄 Licenza & Ringraziamenti
+## 📄 Licenza & Crediti
 
-* Rilasciato sotto licenza **GNU Affero General Public License v3.0 (AGPL-3.0)**.
+* Rilasciato sotto licenza open-source **GNU Affero General Public License v3.0 (AGPL-3.0)**.
 * Ispirato al progetto [erdb](https://github.com/realbestia1/erdb) di realbestia1.
-* Loghi delle piattaforme streaming per gentile concessione di [Wikimedia Commons](https://commons.wikimedia.org/).
-
+* Dati e metadati forniti da [TMDb](https://www.themoviedb.org/), [TheTVDB](https://thetvdb.com/) e [JustWatch](https://www.justwatch.com/).
+* Loghi network e studi cinematografici per gentile concessione di [Wikimedia Commons](https://commons.wikimedia.org/).
