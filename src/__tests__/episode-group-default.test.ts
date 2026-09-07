@@ -87,6 +87,47 @@ describe("pickDefaultEpisodeGroupId", () => {
       "grp_original_parts",
     )
   })
+
+  it("seleziona il gruppo con type: 1 (Original Air Date) anche se denominato 'Seasons' (caso reale Lupin 96677)", () => {
+    const lupinGroup = item({
+      id: "6074e65418864b00439afa4f",
+      name: "Seasons",
+      description: "",
+      type: 1,
+      group_count: 4,
+      episode_count: 25,
+    })
+    // Lupin standard: 3 stagioni (S1 10ep, S2 7ep, S3 8ep), totale 25ep
+    expect(pickDefaultEpisodeGroupId([lupinGroup], 3, 25)).toBe("6074e65418864b00439afa4f")
+  })
+
+  it("seleziona il gruppo Seasons spacchettando la stagione unica anime con speciali inclusi (caso reale Re:ZERO 65942)", () => {
+    const rezeroGroup = item({
+      id: "641eb9d6b234b9007ac67063",
+      name: "Seasons",
+      description: "There are 4 seasons of the show. First season comprises of 25 episodes. Second one is also 25 episodes...",
+      type: 6,
+      group_count: 5,
+      episode_count: 166,
+    })
+    const storyArcGroup = item({
+      id: "69ec40bc75c2e8fbcd17cb5f",
+      name: "Story Arc",
+      description: "Arcs...",
+      type: 5,
+      group_count: 5,
+      episode_count: 66,
+    })
+    // Re:ZERO standard: 1 stagione regolare (85ep), 81 speciali (totale 166ep)
+    expect(
+      pickDefaultEpisodeGroupId(
+        [storyArcGroup, rezeroGroup],
+        1,
+        85,
+        166,
+      ),
+    ).toBe("641eb9d6b234b9007ac67063")
+  })
 })
 
 describe("groupDetailsEpisodeCount", () => {

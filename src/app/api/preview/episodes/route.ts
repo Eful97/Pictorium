@@ -122,14 +122,17 @@ export async function GET(req: NextRequest) {
       try {
         const regularSeasons = details.seasons.filter((s) => s.season_number > 0)
         const standardEpisodeCount = regularSeasons.reduce((n, s) => n + ((s as { episode_count?: number }).episode_count || 0), 0)
+        const totalEpisodeCountWithSpecials = details.seasons.reduce((n, s) => n + ((s as { episode_count?: number }).episode_count || 0), 0)
         if (regularSeasons.length > 0 && standardEpisodeCount > 0) {
-          const autoId = await resolveDefaultEpisodeGroupId(tmdbId, regularSeasons.length, standardEpisodeCount, apiKey)
+          const autoId = await resolveDefaultEpisodeGroupId(tmdbId, regularSeasons.length, standardEpisodeCount, apiKey, totalEpisodeCountWithSpecials)
           if (autoId) {
             const autoDetails = await getTVEpisodeGroup(autoId, language, apiKey).catch(() => null)
+            const count = groupDetailsEpisodeCount(autoDetails)
+            const countMatches = count === standardEpisodeCount || (totalEpisodeCountWithSpecials > standardEpisodeCount && count === totalEpisodeCountWithSpecials)
             if (
               autoDetails?.groups &&
               autoDetails.groups.length > 0 &&
-              groupDetailsEpisodeCount(autoDetails) === standardEpisodeCount
+              countMatches
             ) {
               groupDetails = autoDetails
               videos.push(...(buildVideosFromGroups(autoDetails, primaryId) as unknown as PreviewVideo[]))

@@ -16,8 +16,9 @@ import { getTVEpisodeGroups, type TMDBEpisodeGroupDetails, type TMDBEpisodeGroup
  * 2. Il totale episodi del gruppo deve coincidere con quello standard: un
  *    re-cut con totale diverso (es. versione Netflix 48ep vs originale 41ep)
  *    cambia gli episodi veri, non solo il raggruppamento → scartato.
- * 3. Nome/descrizione riconoscibile come "Parti" (original/part*), mai
- *    varianti editoriali (edited, re-cut, director's, alternate, ...).
+ * 3. Riconoscibile come release originale: type 1 (Original Air Date TMDB)
+ *    oppure nome/descrizione con "original" / "part*", mai varianti
+ *    editoriali (edited, re-cut, director's, alternate, ...).
  * 4. "standard" salvato esplicitamente disattiva sempre l'automatico (vedi
  *    chiamanti); ogni errore di rete/parsing degrada a null.
  */
@@ -25,11 +26,13 @@ import { getTVEpisodeGroups, type TMDBEpisodeGroupDetails, type TMDBEpisodeGroup
 const EXCLUDE_RE = /edit|re-?cut|director'?s|deleted|alternat|chronolog|dvd|broadcast|air.?date|absolut|special|trailer|extra/i
 const ORIGINAL_RE = /original/i
 const PART_RE = /part/i
+const SEASON_RE = /seasons?/i
 
 export function pickDefaultEpisodeGroupId(
   groups: TMDBEpisodeGroupItem[] | undefined | null,
   standardSeasonCount: number,
   standardEpisodeCount: number,
+  totalEpisodeCountWithSpecials?: number,
 ): string | null {
   if (!groups || groups.length === 0) return null
   if (!(standardSeasonCount > 0) || !(standardEpisodeCount > 0)) return null
@@ -41,16 +44,25 @@ export function pickDefaultEpisodeGroupId(
     if (gc <= 1 || ec <= 0) continue
     // Stesso numero di gruppi delle stagioni = nessun valore aggiunto
     if (gc === standardSeasonCount) continue
-    // Totale diverso = re-cut editoriale, non puro ri-raggruppamento
-    if (ec !== standardEpisodeCount) continue
+    // Totale deve coincidere con lo standard regolare o con lo standard inclusi speciali (es. anime con Season 0 nel gruppo)
+    const matchRegular = ec === standardEpisodeCount
+    const matchWithSpecials =
+      typeof totalEpisodeCountWithSpecials === "number" &&
+      totalEpisodeCountWithSpecials > standardEpisodeCount &&
+      ec === totalEpisodeCountWithSpecials
+    if (!matchRegular && !matchWithSpecials) continue
     const text = `${g.name ?? ""} ${g.description ?? ""}`
     // Le esclusioni editoriali si valutano sul NOME (scelta intenzionale):
     // le descrizioni spesso citano le versioni edited solo per distinguerle
     // (es. Original Parts: "does not include the edited episodes...").
     if (EXCLUDE_RE.test(g.name ?? "")) continue
     let score = 0
+    if (g.type === 1) score += 3
     if (ORIGINAL_RE.test(text)) score += 3
     if (PART_RE.test(text)) score += 2
+    // Quando la serie ha una sola mega-stagione (tipico degli anime su TMDB es. Re:Zero, Jujutsu Kaisen),
+    // un gruppo che la suddivide in più stagioni logiche con nome "Seasons" è il default atteso
+    if (standardSeasonCount === 1 && SEASON_RE.test(text)) score += 3
     if (score === 0) continue
     if (!best || score > best.score) best = { id: g.id, score }
   }
@@ -93,6 +105,7 @@ export async function resolveDefaultEpisodeGroupId(
   standardSeasonCount: number,
   standardEpisodeCount: number,
   apiKey?: string,
+  totalEpisodeCountWithSpecials?: number,
 ): Promise<string | null> {
   try {
     let groups = groupListCacheGet(tvId)
@@ -100,7 +113,12 @@ export async function resolveDefaultEpisodeGroupId(
       groups = await getTVEpisodeGroups(tvId, apiKey)
       groupListCacheSet(tvId, groups)
     }
-    const picked = pickDefaultEpisodeGroupId(groups, standardSeasonCount, standardEpisodeCount)
+    const picked = pickDefaultEpisodeGroupId(
+      groups,
+      standardSeasonCount,
+      standardEpisodeCount,
+      totalEpisodeCountWithSpecials,
+    )
     return picked
   } catch {
     return null

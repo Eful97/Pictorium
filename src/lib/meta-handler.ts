@@ -293,19 +293,23 @@ export async function posteriumMeta(
         try {
           const regularSeasons = details.seasons.filter((s) => s.season_number > 0)
           const standardEpisodeCount = regularSeasons.reduce((n, s) => n + (s.episode_count || 0), 0)
+          const totalEpisodeCountWithSpecials = details.seasons.reduce((n, s) => n + (s.episode_count || 0), 0)
           if (regularSeasons.length > 0 && standardEpisodeCount > 0) {
             const autoId = await resolveDefaultEpisodeGroupId(
               tmdbId,
               regularSeasons.length,
               standardEpisodeCount,
               apiKey,
+              totalEpisodeCountWithSpecials,
             )
             if (autoId) {
               const autoDetails = await getTVEpisodeGroup(autoId, "it-IT", apiKey).catch(() => null)
+              const count = groupDetailsEpisodeCount(autoDetails)
+              const countMatches = count === standardEpisodeCount || (totalEpisodeCountWithSpecials > standardEpisodeCount && count === totalEpisodeCountWithSpecials)
               if (
                 autoDetails?.groups &&
                 autoDetails.groups.length > 0 &&
-                groupDetailsEpisodeCount(autoDetails) === standardEpisodeCount
+                countMatches
               ) {
                 videos.push(...(buildVideosFromGroups(autoDetails, primaryId) as StremioVideo[]))
                 videosFromGroup = true
