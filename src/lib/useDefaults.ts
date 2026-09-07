@@ -221,15 +221,24 @@ export function useDefaults() {
   // di useState avrebbe prodotto un hydration mismatch con l'HTML renderizzato dal server.
   const [state, setState] = useState<DefaultsState>(() => ({ ...DEFAULTS }))
 
+  // Gate anti-clobber: l'effect di auto-persist sotto gira nello stesso commit
+  // del caricamento con `state` ancora ai factory — senza gate sovrascriverebbe
+  // localStorage (e poi il server via PUT) con i factory. In dev StrictMode
+  // rimonta due volte e il secondo mount leggeva lo storage già avvelenato,
+  // consolidando i factory al rientro ("le impostazioni non si salvano").
+  // Il gate resta chiuso finché il load non conferma l'idratazione.
+  const [hydrated, setHydrated] = useState(false)
+
   // Ref di dedup per l'auto-persist: primato durante l'hydration con il payload appena
   // caricato, così il primo run dell'effetto di sync trova payload identico e non scrive.
   const lastPersistRef = useRef<string>("")
 
   useEffect(() => {
     const stored = readStoredDefaults()
-    const hydrated = buildFromStored(stored)
-    setState(hydrated)
-    lastPersistRef.current = JSON.stringify(defaultsToPayload(hydrated))
+    const hydratedState = buildFromStored(stored)
+    setState(hydratedState)
+    lastPersistRef.current = JSON.stringify(defaultsToPayload(hydratedState))
+    setHydrated(true)
 
     fetch("/api/defaults")
       .then((r) => (r.ok ? r.json() : null))
@@ -259,7 +268,9 @@ export function useDefaults() {
   // Auto-persist: ogni cambio dei default scrive SUBITO su localStorage
   // e tenta il sync server (/api/defaults). Dedup via payload string — se cambiano
   // solo i valori "corrente" il payload resta identico e non viene riscritta.
+  // Il gate `hydrated` blocca il run del primo commit (state ancora factory).
   useEffect(() => {
+    if (!hydrated) return
     const payload = defaultsToPayload(state)
     const payloadStr = JSON.stringify(payload)
     if (lastPersistRef.current === payloadStr) return
@@ -298,7 +309,7 @@ export function useDefaults() {
     }, 500)
 
     return () => clearTimeout(timer)
-  }, [state])
+  }, [state, hydrated])
 
   const update = useCallback((patch: Partial<DefaultsState>) => {
     setState((prev) => ({ ...prev, ...patch }))

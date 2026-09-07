@@ -236,10 +236,14 @@ export function PosterEditorProvider({
       const next = typeof v === "function" ? v(ribbonSide) : v
       update({ ribbonSide: next, defaultRibbonSide: next })
     }, [ribbonSide, update])
+  // Solo il valore corrente: il default cambia SOLO via setDefaultGradientHeight
+  // (Impostazioni). I flussi automatici (apertura/selezione poster, slider del
+  // poster corrente) non devono riscrivere il default salvato, altrimenti al
+  // rientro il default risulta "cambiato da solo".
   const setGradientHeight = useCallback(
     (v: number | ((prev: number) => number)) => {
       const next = typeof v === "function" ? v(gradientHeight) : v
-      update({ gradientHeight: next, defaultGradientHeight: next })
+      update({ gradientHeight: next })
     }, [gradientHeight, update])
   const setBlurIntensity = useCallback(
     (v: number | ((prev: number) => number)) => {
