@@ -17,6 +17,10 @@ export const metadata: Metadata = {
   title: "Posterium — Generatore di poster per Stremio",
   description: "Generatore dinamico di poster cinematografici per Stremio: locandine pulite, loghi vettoriali, rating e badge trend composti in tempo reale.",
   manifest: "/site.webmanifest",
+  icons: {
+    icon: "/App.png",
+    apple: "/App.png",
+  },
   openGraph: {
     title: "Posterium",
     description: "Generatore di poster cinematografici per Stremio",
