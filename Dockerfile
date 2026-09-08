@@ -35,19 +35,17 @@ ENV SHARP_CONCURRENCY=2
 ENV SHARP_CACHE_MEMORY_MB=64
 ENV POSTERIUM_DATA_DIR=/data
 
-RUN addgroup --system nodejs
-# uid 1000: coincide con l'owner dello storage HF Spaces (persistenza distribuita).
-RUN adduser --system --uid 1000 nextjs
-
+# In node:22-bookworm l'utente 'node' ha già uid 1000 / gid 1000,
+# che coincide esattamente con l'owner dello storage HF Spaces (persistenza distribuita).
 COPY --from=deps /app/node_modules ./node_modules
 COPY --from=builder /app/public ./public
-COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
-COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
+COPY --from=builder --chown=node:node /app/.next/standalone ./
+COPY --from=builder --chown=node:node /app/.next/static ./.next/static
 COPY --from=builder /app/entrypoint.sh /entrypoint.sh
-RUN chmod +x /entrypoint.sh && mkdir -p /data && chown nextjs:nodejs /data
+RUN chmod +x /entrypoint.sh && mkdir -p /data && chown -R node:node /data
 
 # Esegui il server come utente non-root (principio del minimo privilegio).
-USER nextjs
+USER node
 
 EXPOSE 8080
 
