@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useRef, useEffect } from "react"
 import { http } from "./http"
+import { t } from "./i18n"
 import type { SearchResult } from "./types"
 import { useToast } from "@/components/Toast"
 
@@ -81,8 +82,8 @@ export function useSearch(tmdbKey: string, lang: string) {
     } catch (e) {
       if (rev !== revRef.current) return
       console.error("[posterium] Search failed:", e)
-      toastRef.current.error("Search failed")
-      setError("Search failed. Please try again.")
+      toastRef.current.error(t("ui.searchError"))
+      setError(t("ui.searchError"))
       if (page === 1) setResults([])
     } finally {
       if (rev === revRef.current) setSearching(false)

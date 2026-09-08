@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from "react"
 import type { BadgeStyle, RankingBadgeStyle } from "./badge-styles"
+import { normalizeRegion } from "./regions"
 import { t } from "./i18n"
 
 export type RibbonSide = "left" | "right"
@@ -27,6 +28,9 @@ export interface DefaultsState {
   defaultNetworkLogo: boolean
   defaultRibbonSide: RibbonSide
   defaultEpisodeMetadataSource: "tmdb" | "tvdb"
+  /** Regione classifiche (codice JW canonico, es. "IT"). */
+  defaultRegion: string
+  region: string
   globalBadges: boolean
   rankingBadges: boolean
   /** Componenti del badge genere/rating (default tutti ON). */
@@ -67,6 +71,8 @@ const DEFAULTS: DefaultsState = {
   defaultNetworkLogo: true,
   defaultRibbonSide: "left",
   defaultEpisodeMetadataSource: "tmdb",
+  defaultRegion: "IT",
+  region: "IT",
   globalBadges: true,
   rankingBadges: true,
   badgeGenre: true,
@@ -123,6 +129,8 @@ interface StoredDefaults {
   ribbonSide?: RibbonSide
   defaultEpisodeMetadataSource?: "tmdb" | "tvdb"
   episodeMetadataSource?: "tmdb" | "tvdb"
+  defaultRegion?: string
+  region?: string
   autoRotateClean?: boolean
 }
 
@@ -164,6 +172,8 @@ function buildFromStored(d: StoredDefaults | null): DefaultsState {
     defaultNetworkLogo: d.defaultNetworkLogo ?? d.networkLogo ?? true,
     defaultRibbonSide: d.defaultRibbonSide ?? d.ribbonSide ?? "left",
     defaultEpisodeMetadataSource: d.defaultEpisodeMetadataSource ?? d.episodeMetadataSource ?? "tmdb",
+    defaultRegion: normalizeRegion(d.defaultRegion ?? d.region),
+    region: normalizeRegion(d.region ?? d.defaultRegion),
     globalBadges: d.globalBadges ?? d.defaultGlobalBadges ?? true,
     rankingBadges: d.rankingBadges ?? d.defaultRankingBadges ?? true,
     badgeGenre: d.badgeGenre ?? d.defaultBadgeGenre ?? true,
@@ -211,6 +221,7 @@ function defaultsToPayload(d: DefaultsState): Record<string, unknown> {
     networkLogo: d.defaultNetworkLogo,
     ribbonSide: d.defaultRibbonSide,
     episodeMetadataSource: d.defaultEpisodeMetadataSource,
+    region: d.defaultRegion,
   }
 }
 

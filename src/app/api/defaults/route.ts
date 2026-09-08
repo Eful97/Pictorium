@@ -40,6 +40,7 @@ const defaultsSchema = z.object({
   networkLogo: z.boolean().optional(),
   ribbonSide: z.enum(["left", "right"]).optional(),
   episodeMetadataSource: z.enum(["tmdb", "tvdb"]).optional(),
+  region: z.string().max(32).optional(),
   customCatalogs: z.array(customCatalogSchema).optional(),
   disabledCatalogIds: z.array(z.string().max(80)).optional(),
   homeDisabledCatalogIds: z.array(z.string().max(80)).optional(),

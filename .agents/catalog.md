@@ -40,9 +40,12 @@ Warmup automatico: `posterium-jw-movies`, `posterium-jw-series`, `posterium-netf
 ## Flusso per catalogo
 
 ### JustWatch (`posterium-jw-*`)
-1. `getJWRankings("MOVIE"|"SHOW", "IT", 20)` in `lib/justwatch.ts` — query GraphQL
-   a `apis.justwatch.com` (o `JUSTWATCH_API_URL` nei test). Cache condivisa 30 min
-   con `/api/trending/rank` e warmup. Restituisce `{ tmdbId, imdbId, rank }`:
+1. `getJWRankings("MOVIE"|"SHOW", region.code, ...)` in `lib/justwatch.ts` — query GraphQL
+   a `apis.justwatch.com` (o `JUSTWATCH_API_URL` nei test). Regione da `lib/regions.ts`
+   (12 paesi: `?region=` > config-token > default server `POSTERIUM_REGION` > `IT`);
+   la lingua query JW e i titoli TMDB seguono la regione. Cache condivisa 30 min
+   con `/api/trending/rank` e warmup (cache key include `:r<CODE>`).
+   Restituisce `{ tmdbId, imdbId, rank }`:
    **l'`imdbId` arriva già da JustWatch** — non rifare una chiamata TMDB per ottenerlo.
 2. Per ogni riga: `getDetails` TMDB (`it-IT`) con la chiave risolta da
    `resolveRequestApiKey(req)`.
@@ -50,9 +53,10 @@ Warmup automatico: `posterium-jw-movies`, `posterium-jw-series`, `posterium-netf
 4. Poster: `/api/poster/{type}/{tmdbId}?rv=...` (+ `mv` se esiste un mapping salvato).
 
 ### Piattaforme Streaming (`posterium-netflix-*`, `posterium-prime-*`, ecc.)
-1. `getJustWatchRankings(type, "IT", 10, packages)` con i pacchetti della piattaforma
-   (`nfx`, `prv`, `dnp`, `ntv`/`skg`, `atp`, `mxx`, `pmp`).
-2. Se JustWatch non restituisce righe, fallback trasparente su FlixPatrol `getTop10(slug, "italy", apiKey)`.
+1. `getJustWatchRankings(type, region.code, 10, packages, region.lang)` con i pacchetti della piattaforma
+   (`nfx`, `prv`, `dnp`, `ntv`/`skg`, `atp`, `mxx`, `pmp`). Il fast-path JW in
+   `getTop10` vale per tutte le 12 regioni supportate (prima solo Italia).
+2. Se JustWatch non restituisce righe, fallback trasparente su FlixPatrol `getTop10(slug, region.flixSlug, apiKey)`.
 3. Deduplicazione rigorosa per `tmdbId` (nessun doppione nei primi 10).
 
 ### Anime (`posterium-anime-movies`, `posterium-anime`)

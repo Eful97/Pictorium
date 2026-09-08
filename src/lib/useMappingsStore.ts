@@ -46,7 +46,7 @@ export function useMappingsStore() {
       import("sonner").then(({ toast }) => toast.success(t("ui.saved") || "Backup esportato con successo!"))
     } catch (e) {
       console.error("[posterium] Export failed:", e)
-      import("sonner").then(({ toast }) => toast.error("Errore durante l'esportazione"))
+      import("sonner").then(({ toast }) => toast.error(t("ui.exportError")))
     }
   }, [])
 

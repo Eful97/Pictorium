@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react"
 import { ChevronDown, ChevronRight, Film, Calendar, Star } from "lucide-react"
 import { usePSelector } from "@/lib/context"
+import { useT } from "@/lib/contexts/TranslationContext"
 import { usePosterEditor } from "@/lib/contexts/PosterEditorContext"
 
 interface PreviewVideo {
@@ -32,6 +33,7 @@ interface PreviewPayload {
 }
 
 export function EpisodePreview() {
+  const { t } = useT()
   const selected = usePSelector((v) => v.selected)
   const tmdbKey = usePSelector((v) => v.tmdbKey)
   const tvdbApiKey = usePSelector((v) => v.tvdbApiKey)
@@ -111,18 +113,18 @@ export function EpisodePreview() {
       <div className="flex items-center justify-between">
         <span className="font-semibold text-zinc-200 flex items-center gap-1.5 text-xs">
           <Film className="w-3.5 h-3.5 text-accent-orange" />
-          Anteprima Stagioni & Episodi
+          {t("ui.epPreviewTitle")}
         </span>
         {!loading && data && (
           <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-white/[0.06] text-zinc-300 border border-white/10">
-            {data.totalSeasons} stagioni · {data.totalEpisodes} ep
+            {t("ui.epPreviewCount", { seasons: data.totalSeasons, episodes: data.totalEpisodes })}
           </span>
         )}
       </div>
 
       {!loading && !error && data?.autoDefault && (
         <div className="rounded-lg bg-accent-orange/10 border border-accent-orange/30 px-3 py-2">
-          <p className="text-[11px] text-zinc-200">✨ Default automatico: <span className="font-semibold">{data.autoDefault.name}</span> — lo stesso ordinamento che vedrà Stremio senza salvare nulla.</p>
+          <p className="text-[11px] text-zinc-200">{t("ui.epAutoDefault", { name: data.autoDefault.name })}</p>
         </div>
       )}
 
@@ -143,12 +145,12 @@ export function EpisodePreview() {
 
       {(episodeGroupId === "tvdb" || episodeGroupId?.startsWith("tvdb:")) && !tvdbApiKey && (
         <div className="rounded-lg bg-amber-500/10 border border-amber-500/30 px-3 py-2">
-          <p className="text-[11px] text-amber-300">⚠️ Chiave TVDB mancante — inseriscila in Impostazioni. Anteprima in fallback su Standard TMDB.</p>
+          <p className="text-[11px] text-amber-300">{t("ui.tvdbKeyMissingWarn")}</p>
         </div>
       )}
 
       {!loading && !error && data && data.seasons.length === 0 && (
-        <p className="text-[11px] text-zinc-500 text-center py-4 italic">Nessun episodio disponibile per questa configurazione.</p>
+        <p className="text-[11px] text-zinc-500 text-center py-4 italic">{t("ui.noEpisodes")}</p>
       )}
 
       {!loading && !error && data && data.seasons.length > 0 && (

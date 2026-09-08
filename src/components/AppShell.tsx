@@ -4,7 +4,8 @@ import { useState, useRef, useEffect, type CSSProperties } from "react"
 import dynamic from "next/dynamic"
 import { usePSelector } from "@/lib/context"
 import { useT } from "@/lib/contexts/TranslationContext"
-import { LANG_FLAGS, LANG_NAMES } from "@/lib/utils"
+import { usePosterEditor } from "@/lib/contexts/PosterEditorContext"
+import { LANG_FLAGS, LANG_NAMES, PICKER_LANGS } from "@/lib/utils"
 import { LangPicker } from "@/components/LangPicker"
 import { ToastProvider } from "@/components/Toast"
 import { HomeStatusStrip } from "@/components/HomeStatusStrip"
@@ -42,6 +43,8 @@ export function AppShell() {
   const langRef = usePSelector((v) => v.langRef)
   const langOpen = usePSelector((v) => v.langOpen)
   const { t, lang, pickLang } = useT()
+  const ed = usePosterEditor()
+  const setShowLangPicker = usePSelector((v) => v.setShowLangPicker)
   const [refreshing, setRefreshing] = useState(false)
   const [proxyOpen, setProxyOpen] = useState(false)
   const [closingLang, setClosingLang] = useState(false)
@@ -104,15 +107,15 @@ export function AppShell() {
         </button>
         {langOpen && (
           <div className="absolute left-0 top-full mt-2 bg-black/90 backdrop-blur-2xl border border-white/15 rounded-xl p-1.5 shadow-2xl shadow-black/80 z-50 min-w-36 animate-fade-scale-in">
-            {Object.entries(LANG_NAMES).filter(([k]) => k !== "xx").map(([code, name]) => (
+            {PICKER_LANGS.map((l) => (
               <button
                 type="button"
-                key={code}
-                onClick={() => { pickLang(code); setLangOpen(false) }}
-                className={`w-full flex items-center gap-2 px-2.5 py-2 rounded-lg text-xs transition-all text-left hover:bg-zinc-800 cursor-pointer ${code === lang ? "bg-accent/15 text-accent-orange font-semibold" : "text-zinc-300"}`}
+                key={l.key}
+                onClick={() => { pickLang(l.code); setLangOpen(false) }}
+                className={`w-full flex items-center gap-2 px-2.5 py-2 rounded-lg text-xs transition-all text-left hover:bg-zinc-800 cursor-pointer ${l.code === lang ? "bg-accent/15 text-accent-orange font-semibold" : "text-zinc-300"}`}
               >
-                <span>{LANG_FLAGS[code] || <Globe className="w-3.5 h-3.5" />}</span>
-                <span>{name}</span>
+                <span>{l.flag}</span>
+                <span>{l.name}</span>
               </button>
             ))}
           </div>
@@ -172,7 +175,13 @@ export function AppShell() {
           {t("ui.statusTmdbUnavailable")}
         </div>
       )}
-      {showLangPicker && <LangPicker onPick={pickLang} />}
+      {showLangPicker && (
+        <LangPicker
+          onPickLang={pickLang}
+          onPickRegion={(regionCode) => { ed.setDefaultRegion(regionCode); ed.setRegion(regionCode) }}
+          onDone={() => setShowLangPicker(false)}
+        />
+      )}
 
       {/* Desktop Toolbar — Floating Island */}
       <div className="hidden md:flex absolute top-4 right-4 z-20">
@@ -185,7 +194,7 @@ export function AppShell() {
             className="flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-accent-orange to-amber-500 hover:from-accent-orange/90 hover:to-amber-500/90 text-white font-semibold text-xs shadow-md shadow-accent-orange/20 hover:shadow-accent-orange/35 hover:scale-[1.02] active:scale-[0.97] transition-all duration-150 border border-white/20 cursor-pointer"
           >
             <QrCode className="w-3.5 h-3.5 text-white" />
-            <span>Installa Hub</span>
+            <span>{t("ui.installHub")}</span>
           </button>
 
           <div className="h-4 w-px bg-white/10 mx-0.5" />
@@ -319,10 +328,10 @@ export function AppShell() {
             <button type="button" aria-label={t("ui.chooseLanguage")} onClick={() => setLangOpen((o) => !o)} className={`h-9 w-9 flex items-center justify-center rounded-lg active:scale-90 transition-all duration-150 text-sm press-scale ${langOpen ? "dropdown-open" : "hover:bg-white/[0.08]"}`} title={LANG_NAMES[lang]}>{LANG_FLAGS[lang] || <Globe className="w-4 h-4" />}</button>
             {(langOpen || closingLang) && (
               <div className={`absolute right-0 bottom-full mb-3 bg-black/60 backdrop-blur-xl border border-border/50 rounded-xl p-2 shadow-2xl shadow-black/50 z-50 min-w-40 ${closingLang ? "animate-fade-scale-out" : "animate-fade-scale-in"} dropdown-open`}>
-                {Object.entries(LANG_NAMES).filter(([k]) => k !== "xx").map(([code, name]) => (
-                  <button type="button" key={code} onClick={() => { pickLang(code); closeLang() }} className={`w-full flex items-center gap-2 px-3 py-2.5 rounded-lg text-xs transition-all duration-150 text-left hover:bg-zinc-700/50 active:scale-[0.98] ${code === lang ? "bg-accent/10 text-accent font-medium" : "text-zinc-300"}`}>
-                    <span>{LANG_FLAGS[code] || <Globe className="w-4 h-4" />}</span>
-                    <span>{name}</span>
+                {PICKER_LANGS.map((l) => (
+                  <button type="button" key={l.key} onClick={() => { pickLang(l.code); closeLang() }} className={`w-full flex items-center gap-2 px-3 py-2.5 rounded-lg text-xs transition-all duration-150 text-left hover:bg-zinc-700/50 active:scale-[0.98] ${l.code === lang ? "bg-accent/10 text-accent font-medium" : "text-zinc-300"}`}>
+                    <span>{l.flag}</span>
+                    <span>{l.name}</span>
                   </button>
                 ))}
               </div>
@@ -333,7 +342,7 @@ export function AppShell() {
 
       {/* Mobile Bottom Navigation Bar (iOS / Android Style) */}
       <nav
-        aria-label="Navigazione principale"
+        aria-label={t("ui.mainNav")}
         className={`md:hidden fixed bottom-0 left-0 right-0 z-40 bg-zinc-950/90 backdrop-blur-2xl border-t border-white/[0.08] shadow-[0_-10px_30px_rgba(0,0,0,0.5)] px-2 pt-1.5 pb-[max(0.5rem,env(safe-area-inset-bottom))] transition-all duration-200 ${
           view === "edit" && selected ? "translate-y-full pointer-events-none opacity-0" : "translate-y-0 opacity-100"
         }`}
@@ -362,7 +371,7 @@ export function AppShell() {
             <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-accent-orange to-amber-500 flex items-center justify-center text-white shadow-md shadow-accent-orange/30 -mt-2">
               <QrCode className="w-4 h-4" />
             </div>
-            <span className="text-[10px] font-semibold text-white tracking-tight truncate">Installa</span>
+            <span className="text-[10px] font-semibold text-white tracking-tight truncate">{t("ui.install")}</span>
           </button>
 
           {/* I Miei Poster */}
@@ -427,7 +436,7 @@ export function AppShell() {
       )}
     </div>
     </ToastProvider>
-    <OnboardingTour />
+    {!showLangPicker && <OnboardingTour />}
     </>
   )
 }

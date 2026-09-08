@@ -2,6 +2,8 @@
 
 import { usePSelector } from "@/lib/context"
 import { useT } from "@/lib/contexts/TranslationContext"
+import { usePosterEditor } from "@/lib/contexts/PosterEditorContext"
+import { getRegionDef } from "@/lib/regions"
 import { toSearchResult } from "@/lib/types"
 import { useState, useEffect, useMemo } from "react"
 import { createPortal } from "react-dom"
@@ -108,6 +110,7 @@ function CustomCatalogEntry({
   tmdbKey: string
   mdblistApiKey: string
 }) {
+  const { t } = useT()
   const [items, setItems] = useState<SimklCardItem[]>([])
   const [loading, setLoading] = useState(true)
   const isEnabled = cat.enabled !== false
@@ -181,7 +184,7 @@ function CustomCatalogEntry({
           <button
             type="button"
             onClick={() => toggleCustomCatalog(cat.id)}
-            title={isEnabled ? "Disattiva da Stremio" : "Attiva su Stremio"}
+            title={isEnabled ? t("ui.disableStremio") : t("ui.enableStremio")}
             className={`p-1.5 rounded-lg border transition-colors ${
               isEnabled
                 ? "bg-accent-orange/15 border-accent-orange/30 text-accent-orange hover:bg-accent-orange/25"
@@ -193,7 +196,7 @@ function CustomCatalogEntry({
           <button
             type="button"
             onClick={() => removeCustomCatalog(cat.id)}
-            title="Elimina catalogo"
+            title={t("ui.deleteCatalog")}
             className="p-1.5 rounded-lg border border-white/5 text-muted hover:text-red-400 hover:bg-red-500/10 hover:border-red-500/20 transition-colors"
           >
             <Trash2 className="w-3.5 h-3.5" />
@@ -204,11 +207,11 @@ function CustomCatalogEntry({
       {loading ? (
         <div className="h-28 flex items-center justify-center rounded-xl bg-black/20 border border-white/5 text-xs text-muted">
           <div className="w-4 h-4 border-2 border-accent-orange/30 border-t-accent-orange rounded-full animate-spin mr-2" />
-          Caricamento titoli...
+          {t("ui.customLoadingTitles")}
         </div>
       ) : items.length === 0 ? (
         <div className="p-3 rounded-xl bg-black/20 border border-white/5 text-xs text-muted">
-          Nessun titolo trovato per questa lista.
+          {t("ui.customNoTitles")}
         </div>
       ) : isMixed ? (
         <CatalogPair
@@ -289,6 +292,8 @@ export function CataloghiView() {
   const tmdbKey = usePSelector((v) => v.tmdbKey)
   const mdblistApiKey = usePSelector((v) => v.mdblistApiKey)
   const { t } = useT()
+  const ed = usePosterEditor()
+  const regionFlag = getRegionDef(ed.defaultRegion).flag
   const movieTrending = trending.filter((r) => r.media_type === "movie").slice(0, 20)
   const tvTrending = trending.filter((r) => r.media_type === "tv").slice(0, 20)
   const animeMovies = mdblistAnimeList.filter((r) => r.media_type === "movie")
@@ -387,7 +392,7 @@ export function CataloghiView() {
                 className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-surface2 border border-white/10 hover:border-white/20 text-zinc-200 text-xs font-semibold hover:text-white active:scale-95 transition-all shadow-sm"
               >
                 <SlidersHorizontal className="w-3.5 h-3.5 text-accent-orange" />
-                <span>Priorità & Nomi</span>
+                <span>{t("ui.priorityNames")}</span>
               </button>
               <CatalogManagerModal isOpen={isManagerOpen} onClose={() => setIsManagerOpen(false)} />
             </div>
@@ -401,7 +406,7 @@ export function CataloghiView() {
                 className="flex items-center gap-2 px-4 py-2 rounded-xl bg-accent-orange text-white text-xs font-semibold hover:bg-accent-orange/90 active:scale-95 transition-all shadow-md"
               >
                 <ListPlus className="w-4 h-4" />
-                <span>Aggiungi Catalogo</span>
+                <span>{t("ui.addCatalog")}</span>
               </button>
               <CustomCatalogModal isOpen={isAddCustomOpen} onClose={() => setIsAddCustomOpen(false)} />
             </div>
@@ -431,9 +436,9 @@ export function CataloghiView() {
         <ScrollReveal animation="fade-up" threshold={0.05}>
           <div className="mb-12 space-y-6">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="section-heading text-xl font-bold">Cataloghi Personalizzati</h2>
+              <h2 className="section-heading text-xl font-bold">{t("ui.customCatalogs")}</h2>
               <span className="text-xs text-muted">
-                {customCatalogs.filter((c) => c.enabled !== false).length} attivi su Stremio
+                {t("ui.activeOnStremio", { count: customCatalogs.filter((c) => c.enabled !== false).length })}
               </span>
             </div>
             <div className="space-y-6">
@@ -463,7 +468,7 @@ export function CataloghiView() {
       {showJustWatch && (
         <ScrollReveal animation="fade-up" threshold={0.05}>
           <div className="mb-12">
-            <h2 className="section-heading text-xl font-bold mb-6">{t("ui.justwatchTop20")}</h2>
+            <h2 className="section-heading text-xl font-bold mb-6">{t("ui.justwatchTop20")} {regionFlag}</h2>
             <CatalogPair
               movies={movieTrending}
               tv={tvTrending}

@@ -5,6 +5,7 @@ import type { SearchResult, TMDBImage, Mapping, CustomCatalogConfig } from "./ty
 import { posterUrl, titleOf, yearOf, STREAMING_PLATFORMS } from "./utils"
 import { matchTMDBStudios } from "./awards"
 import { setLang as setI18nLang, t } from "./i18n"
+import { isSupportedUiLang } from "./regions"
 import type { EnrichedAnimeItem } from "./validation"
 import { http } from "./http"
 import { useRootColors } from "./useRootColors"
@@ -290,10 +291,10 @@ export function usePosterium(): PosteriumCtx {
   const langInit = useRef(false)
 
   const navigation = useNavigation()
-  const trending = useTrending(tmdbKey, mdblistApiKey)
+  const editorCtx = usePosterEditor()
+  const trending = useTrending(tmdbKey, mdblistApiKey, editorCtx.defaultRegion)
   const search = useSearch(tmdbKey, lang)
   const { mappings, mappingsMap, loadMappings, removeMapping, exportData, importData } = useMappingsStore()
-  const editorCtx = usePosterEditor()
   const {
     // Badges
     globalBadges, setGlobalBadges,
@@ -527,19 +528,22 @@ export function usePosterium(): PosteriumCtx {
     if (langInit.current) return
     langInit.current = true
     const saved = safeGetItem("preferred_lang")
-    if (saved) {
-      setLang(saved)
-      setI18nLang(saved)
+    // Solo le lingue delle 12 nazionalità supportate; un valore legacy
+    // (zh/ru/ar/nl del vecchio picker) rimostra la scelta.
+    if (saved && isSupportedUiLang(saved)) {
+      setLang(saved.toLowerCase())
+      setI18nLang(saved.toLowerCase())
     } else {
       setShowLangPicker(true)
     }
   }, [safeGetItem])
 
   const pickLang = (l: string) => {
-    setLang(l)
-    setI18nLang(l)
-    safeSetItem("preferred_lang", l)
-    setShowLangPicker(false)
+    if (!isSupportedUiLang(l)) return
+    const code = l.toLowerCase()
+    setLang(code)
+    setI18nLang(code)
+    safeSetItem("preferred_lang", code)
   }
 
   // --- Settings panels ---

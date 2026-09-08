@@ -1,5 +1,7 @@
 import { NextRequest } from "next/server"
 import { getJWRankings } from "@/lib/justwatch"
+import { getRegionDef, normalizeRegion, parseRegion } from "@/lib/regions"
+import { getServerDefaults } from "@/lib/server-defaults"
 import { rateLimit, rateLimitKey, rateLimitResponse } from "@/lib/rate-limit"
 import { cacheGet, cacheSet } from "@/lib/cache"
 import { createLogger } from "@/lib/logger"
@@ -25,7 +27,9 @@ export async function GET(req: NextRequest) {
   // un titolo fuori dalla finestra non verrà mai trovato e risulta "senza
   // rank". `first` la rende configurabile (1-100) mantenendo il default.
   const first = Number.isFinite(rawFirst) ? Math.min(Math.max(Math.round(rawFirst), 1), 100) : 20
-  const cacheKey = `rank:v2:${rawType}:${id}:f${first}`
+  // Regione classifica: `?region=`/`?country=` > default server > IT.
+  const region = getRegionDef(parseRegion(req.nextUrl.searchParams.get("region") ?? req.nextUrl.searchParams.get("country")) ?? normalizeRegion(getServerDefaults().region))
+  const cacheKey = `rank:v2:${rawType}:${id}:f${first}:r${region.code}`
   const cached = cacheGet<{ rank: number | null; period?: string }>(cacheKey)
   if (cached) {
     // Fix L9: anche il cache-hit dichiara i header cache (Next default
@@ -34,7 +38,7 @@ export async function GET(req: NextRequest) {
   }
   const headers = { "Cache-Control": "public, max-age=300, s-maxage=1800" }
   try {
-    const rankings = await getJWRankings(rawType === "movie" ? "MOVIE" : "SHOW", "IT", first)
+    const rankings = await getJWRankings(rawType === "movie" ? "MOVIE" : "SHOW", region.code, first, undefined, region.lang)
     const found = rankings.find((r) => r.tmdbId === id)
     if (found) {
       const body = { rank: found.rank, period: "day", top: first }

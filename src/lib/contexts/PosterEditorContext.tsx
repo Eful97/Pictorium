@@ -42,6 +42,8 @@ export interface PosterEditorCtx {
   setRibbonSide: (v: "left" | "right" | ((prev: "left" | "right") => "left" | "right")) => void
   episodeMetadataSource: "tmdb" | "tvdb"
   setEpisodeMetadataSource: (v: "tmdb" | "tvdb" | ((prev: "tmdb" | "tvdb") => "tmdb" | "tvdb")) => void
+  region: string
+  setRegion: (v: string | ((prev: string) => string)) => void
 
   // ---- Defaults ----
   defaultBadgeStyle: BadgeStyle
@@ -82,6 +84,8 @@ export interface PosterEditorCtx {
   setDefaultNetworkLogo: (v: boolean | ((prev: boolean) => boolean)) => void
   defaultRibbonSide: "left" | "right"
   setDefaultRibbonSide: (v: "left" | "right" | ((prev: "left" | "right") => "left" | "right")) => void
+  defaultRegion: string
+  setDefaultRegion: (v: string | ((prev: string) => string)) => void
   loadDefaultsToState: () => void
 
   // ---- Blur ----
@@ -188,6 +192,7 @@ export function PosterEditorProvider({
     defaultBadgeGenre, defaultBadgeYear, defaultBadgeRating, defaultBadgeQuality, defaultRatingSources,
     defaultAutoRotateClean, defaultLogoFitEnabled, defaultNetworkLogo, defaultRibbonSide,
     episodeMetadataSource, defaultEpisodeMetadataSource,
+    region, defaultRegion,
     loadDefaultsToState, update,
   } = defaults
 
@@ -376,6 +381,16 @@ export function PosterEditorProvider({
       const next = typeof v === "function" ? v(defaultEpisodeMetadataSource) : v
       update({ defaultEpisodeMetadataSource: next, episodeMetadataSource: next })
     }, [defaultEpisodeMetadataSource, update])
+  const setRegion = useCallback(
+    (v: string | ((prev: string) => string)) => {
+      const next = typeof v === "function" ? v(region) : v
+      update({ region: next, defaultRegion: next })
+    }, [region, update])
+  const setDefaultRegion = useCallback(
+    (v: string | ((prev: string) => string)) => {
+      const next = typeof v === "function" ? v(defaultRegion) : v
+      update({ defaultRegion: next, region: next })
+    }, [defaultRegion, update])
 
   const editorCtx = useMemo<PosterEditorCtx>(
     () => ({
@@ -406,6 +421,8 @@ export function PosterEditorProvider({
       setRibbonSide,
       episodeMetadataSource,
       setEpisodeMetadataSource,
+      region,
+      setRegion,
 
       // Defaults
       defaultBadgeStyle,
@@ -446,6 +463,8 @@ export function PosterEditorProvider({
       setDefaultNetworkLogo,
       defaultRibbonSide,
       setDefaultRibbonSide,
+      defaultRegion,
+      setDefaultRegion,
       loadDefaultsToState,
 
       // Blur
@@ -511,6 +530,8 @@ export function PosterEditorProvider({
       networkLogo, setNetworkLogo,
       ribbonSide, setRibbonSide,
       episodeMetadataSource, setEpisodeMetadataSource,
+      region, setRegion,
+      defaultRegion, setDefaultRegion,
 
       // Defaults
       defaultBadgeStyle, setDefaultBadgeStyle,

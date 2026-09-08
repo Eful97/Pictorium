@@ -374,7 +374,7 @@ export function BadgeControls() {
                   else setAccentColor(null)
                 }}
                 className="text-[11px] text-zinc-400 hover:text-zinc-200 transition-colors px-1.5 py-0.5 rounded bg-surface2/50 border border-surface2 hover:bg-surface2"
-                title="Ripristina colore rilevato automaticamente"
+                title={t("ui.resetAutoColor")}
               >
                 ↺ Reset
               </button>

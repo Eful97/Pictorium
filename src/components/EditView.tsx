@@ -226,7 +226,7 @@ export default function EditView() {
                 className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-gradient-to-r from-accent-orange to-amber-500 text-white font-semibold text-xs shadow-md shadow-accent-orange/20 active:scale-95 transition-all shrink-0 cursor-pointer"
               >
                 <Save className="w-3.5 h-3.5" />
-                <span>Salva</span>
+                <span>{t("ui.save")}</span>
               </button>
             )}
           </div>
@@ -242,7 +242,7 @@ export default function EditView() {
                   : "text-zinc-400 hover:text-zinc-200"
               }`}
             >
-              <span>Poster</span>
+              <span>{t("ui.poster")}</span>
               <span className="text-[10px] opacity-75 font-mono">({posters.length})</span>
             </button>
             <button
@@ -254,7 +254,7 @@ export default function EditView() {
                   : "text-zinc-400 hover:text-zinc-200"
               }`}
             >
-              <span>Anteprima</span>
+              <span>{t("ui.preview")}</span>
             </button>
             <button
               type="button"
@@ -265,7 +265,7 @@ export default function EditView() {
                   : "text-zinc-400 hover:text-zinc-200"
               }`}
             >
-              <span>Personalizza</span>
+              <span>{t("ui.customize")}</span>
             </button>
           </div>
 
@@ -409,7 +409,7 @@ export default function EditView() {
                           </span>
                         )
                       })()}
-                      <JwRankBadge tmdbId={selected.id} type={selected.media_type === "movie" ? "movie" : "tv"} />
+                      <JwRankBadge tmdbId={selected.id} type={selected.media_type === "movie" ? "movie" : "tv"} regionCode={ed.defaultRegion} />
                     </div>
                   </div>
                 )}

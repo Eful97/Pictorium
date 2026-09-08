@@ -2,19 +2,13 @@ import { NextRequest } from "next/server"
 import { getJWRankings } from "@/lib/justwatch"
 import { getDetails, getImages } from "@/lib/tmdb"
 import { rateLimit, rateLimitKey, rateLimitResponse } from "@/lib/rate-limit"
+import { getServerDefaults } from "@/lib/server-defaults"
+import { getRegionDef, normalizeRegion, parseRegion } from "@/lib/regions"
 import { cacheGet, cacheSet } from "@/lib/cache"
 import { createLogger } from "@/lib/logger"
 import { jsonGzip } from "@/lib/json-response"
 
 const log = createLogger("trending")
-
-/** Codici paese supportati da JustWatch (set chiuso — evita cache-miss illimitati). */
-const JW_COUNTRIES = new Set([
-  "AE", "AR", "AT", "AU", "BE", "BG", "BR", "CA", "CH", "CL", "CO", "CZ", "DE", "DK",
-  "EC", "EE", "EG", "ES", "FI", "FR", "GB", "GR", "HK", "HR", "HU", "ID", "IE", "IL",
-  "IN", "IT", "JP", "KR", "LT", "LV", "MX", "MY", "NL", "NO", "NZ", "PE", "PH", "PL",
-  "PT", "RO", "RS", "RU", "SE", "SG", "SI", "SK", "TH", "TR", "UA", "US", "VE", "ZA",
-])
 
 /** Esegue `fn` su ogni item con al massimo `limit` chiamate concorrenti. */
 async function mapLimit<T, R>(items: T[], limit: number, fn: (item: T) => Promise<R>): Promise<R[]> {
@@ -45,9 +39,13 @@ export async function GET(req: NextRequest) {
   const rl = await rateLimit(rateLimitKey(req), "tmdb")
   if (!rl.ok) return rateLimitResponse(rl.retAfter)
   const apiKey = req.nextUrl.searchParams.get("api_key") || undefined
-  const rawCountry = req.nextUrl.searchParams.get("country") || "IT"
-  const country = JW_COUNTRIES.has(rawCountry.toUpperCase()) ? rawCountry.toUpperCase() : "IT"
-  const cacheKey = `trending:${country}`
+  // Regione classifica: `?country=` > default server > IT (fail-closed su IT).
+  const region = getRegionDef(parseRegion(req.nextUrl.searchParams.get("country")) ?? normalizeRegion(getServerDefaults().region))
+  const country = region.code
+  const tmdbLang = region.lang
+  // v2: la lingua di arricchimento segue la regione — le entry v1 (sempre it-IT)
+  // non devono avvelenare le richieste non italiane.
+  const cacheKey = `trending:v2:${country}`
   const acceptEncoding = req.headers.get("accept-encoding")
   const cached = cacheGet<{ movies: TrendingItem[]; tv: TrendingItem[] }>(cacheKey)
   if (cached) return jsonGzip(cached, 200, undefined, acceptEncoding)
@@ -56,12 +54,12 @@ export async function GET(req: NextRequest) {
     // altrimenti un outage (JW/TMDB) si congela nel cache fino al refresh.
     let degraded = false
     const [movieRanks, tvRanks] = await Promise.all([
-      getJWRankings("MOVIE", country).catch((e) => {
+      getJWRankings("MOVIE", country, 20, undefined, tmdbLang).catch((e) => {
         degraded = true
         log.warn("JW movie rankings failed", { error: e instanceof Error ? e.message : String(e), country })
         return [] as { tmdbId: number; rank: number }[]
       }),
-      getJWRankings("SHOW", country).catch((e) => {
+      getJWRankings("SHOW", country, 20, undefined, tmdbLang).catch((e) => {
         degraded = true
         log.warn("JW show rankings failed", { error: e instanceof Error ? e.message : String(e), country })
         return [] as { tmdbId: number; rank: number }[]
@@ -74,9 +72,10 @@ export async function GET(req: NextRequest) {
     // riscaldano la stessa cache che leggono i render poster (/movie/{id}?language=it-IT).
     const enrichItem = async (tmdbId: number, mediaType: "movie" | "tv") => {
       try {
+        const primary = tmdbLang.slice(0, 2).toLowerCase()
         const [details, images] = await Promise.all([
-          getDetails(mediaType, tmdbId, "it-IT", apiKey),
-          getImages(mediaType, tmdbId, "it,en,null", apiKey),
+          getDetails(mediaType, tmdbId, tmdbLang, apiKey),
+          getImages(mediaType, tmdbId, `${primary},en,null`, apiKey),
         ])
         const poster = details.poster_path
           ? details.poster_path

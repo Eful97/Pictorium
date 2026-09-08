@@ -5,6 +5,7 @@ import { DATA_DIR } from "@/lib/data-dir"
 import { createLogger } from "@/lib/logger"
 import type { BadgeStyle, RankingBadgeStyle } from "@/lib/badge-styles"
 import { isBadgeStyle, isRankingBadgeStyle } from "@/lib/badge-styles"
+import { normalizeRegion } from "@/lib/regions"
 
 const log = createLogger("server-defaults")
 
@@ -28,6 +29,8 @@ export interface ServerDefaults {
   networkLogo?: boolean
   ribbonSide?: "left" | "right"
   episodeMetadataSource?: "tmdb" | "tvdb"
+  /** Regione classifiche JustWatch/FlixPatrol + lingua titoli (codice JW, es. "IT"). */
+  region?: string
   customCatalogs?: import("@/lib/types").CustomCatalogConfig[]
   disabledCatalogIds?: string[]
   homeDisabledCatalogIds?: string[]
@@ -92,6 +95,8 @@ function defaultsFromEnv(): ServerDefaults {
   const gradH = envNum("POSTERIUM_GRADIENT_HEIGHT")
   const epSrc = process.env.POSTERIUM_EPISODE_METADATA_SOURCE?.trim().toLowerCase()
   if (epSrc === "tmdb" || epSrc === "tvdb") d.episodeMetadataSource = epSrc
+  // Regione classifiche: codice canonico, fail-closed su IT se non riconosciuta.
+  if (process.env.POSTERIUM_REGION?.trim()) d.region = normalizeRegion(process.env.POSTERIUM_REGION)
   if (bs && isBadgeStyle(bs)) d.badgeStyle = bs
   if (rbs && isRankingBadgeStyle(rbs)) d.rankingBadgeStyle = rbs
   if (side === "left" || side === "right") d.ribbonSide = side

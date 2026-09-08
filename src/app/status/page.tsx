@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from "react"
 import Link from "next/link"
-import { t, getLang } from "@/lib/i18n"
+import { t, getLang, setLang } from "@/lib/i18n"
 
 interface CheckResult {
   ok: boolean
@@ -113,6 +113,18 @@ export default function StatusPage() {
   const [cacheStatus, setCacheStatus] = useState<CacheStatusData | null>(null)
   const [error, setError] = useState("")
   const [loading, setLoading] = useState(true)
+  // Fuori dal provider di traduzione: sincronizza la lingua salvata al mount
+  // così la pagina non resta mai in italiano dopo un cambio lingua + refresh.
+  const [, setLangTick] = useState(0)
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem("preferred_lang")
+      if (saved && saved !== getLang()) {
+        setLang(saved)
+        setLangTick((n) => n + 1)
+      }
+    } catch {}
+  }, [])
 
   async function loadCacheStatus() {
     try {

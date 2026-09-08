@@ -20,6 +20,7 @@ import { PosterEditorProvider, usePosterEditor, type PosterEditorCtx } from "@/l
 
 // Valori utente salvati (forma del payload scritto da saveDefaults):
 // badgeYear OFF, gradientHeight 45, blurIntensity 9 — tutto il resto factory.
+// `region` è parte del payload da quando le classifiche sono multi-paese.
 const USER_SAVED = {
   badgeStyle: "shadow",
   rankingBadgeStyle: "default",
@@ -40,6 +41,7 @@ const USER_SAVED = {
   networkLogo: true,
   ribbonSide: "left",
   episodeMetadataSource: "tvdb",
+  region: "IT",
 }
 
 function strictWrapper({ children }: { children: ReactNode }) {

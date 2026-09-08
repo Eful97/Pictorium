@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useRef, useMemo } from "react"
 import { X, Check, Copy, Download, ExternalLink, Tv, Sparkles, Film, Search } from "lucide-react"
 import QRCode from "qrcode"
+import { useT } from "@/lib/contexts/TranslationContext"
 
 interface InstallModalProps {
   isOpen: boolean
@@ -11,6 +12,7 @@ interface InstallModalProps {
 }
 
 export function InstallModal({ isOpen, onClose, manifestUrl: propManifestUrl }: InstallModalProps) {
+  const { t } = useT()
   const [hubMode, setHubMode] = useState<"all" | "catalogs" | "search">("all")
   const [copied, setCopied] = useState(false)
   const [qrSvg, setQrSvg] = useState<string>("")
@@ -129,14 +131,14 @@ export function InstallModal({ isOpen, onClose, manifestUrl: propManifestUrl }: 
               <Download className="w-4 h-4" />
             </div>
             <div>
-              <h2 className="text-sm font-bold text-white leading-tight">Installa Posterium Hub</h2>
-              <p className="text-[11px] text-muted">Scegli cosa includere nel tuo addon Stremio</p>
+              <h2 className="text-sm font-bold text-white leading-tight">{t("ui.installHubTitle")}</h2>
+              <p className="text-[11px] text-muted">{t("ui.installHubSub")}</p>
             </div>
           </div>
           <button
             type="button"
             onClick={onClose}
-            aria-label="Chiudi"
+            aria-label={t("ui.close")}
             className="p-1.5 text-muted hover:text-white rounded-lg hover:bg-white/5 transition-colors"
           >
             <X className="w-4 h-4" />
@@ -148,7 +150,7 @@ export function InstallModal({ isOpen, onClose, manifestUrl: propManifestUrl }: 
           {/* Mode Selector Segmented Control */}
           <div className="space-y-1.5">
             <label className="block text-[11px] font-semibold text-zinc-300">
-              Modalità di Installazione
+              {t("ui.installMode")}
             </label>
             <div className="grid grid-cols-3 gap-1.5 p-1 bg-white/5 border border-white/5 rounded-xl">
               <button
@@ -161,8 +163,8 @@ export function InstallModal({ isOpen, onClose, manifestUrl: propManifestUrl }: 
                 }`}
               >
                 <Sparkles className="w-3.5 h-3.5 mb-0.5" />
-                <span className="text-[11px] font-medium leading-tight">Tutto</span>
-                <span className="text-[9px] opacity-80 leading-tight">Cataloghi + Cerca</span>
+                <span className="text-[11px] font-medium leading-tight">{t("ui.modeAll")}</span>
+                <span className="text-[9px] opacity-80 leading-tight">{t("ui.modeAllSub")}</span>
               </button>
 
               <button
@@ -175,8 +177,8 @@ export function InstallModal({ isOpen, onClose, manifestUrl: propManifestUrl }: 
                 }`}
               >
                 <Film className="w-3.5 h-3.5 mb-0.5" />
-                <span className="text-[11px] font-medium leading-tight">Solo Cataloghi</span>
-                <span className="text-[9px] opacity-80 leading-tight">Righe & Sezioni</span>
+                <span className="text-[11px] font-medium leading-tight">{t("ui.modeCatalogs")}</span>
+                <span className="text-[9px] opacity-80 leading-tight">{t("ui.modeCatalogsSub")}</span>
               </button>
 
               <button
@@ -189,8 +191,8 @@ export function InstallModal({ isOpen, onClose, manifestUrl: propManifestUrl }: 
                 }`}
               >
                 <Search className="w-3.5 h-3.5 mb-0.5" />
-                <span className="text-[11px] font-medium leading-tight">Solo Ricerca</span>
-                <span className="text-[9px] opacity-80 leading-tight">Barra Cerca</span>
+                <span className="text-[11px] font-medium leading-tight">{t("ui.modeSearch")}</span>
+                <span className="text-[9px] opacity-80 leading-tight">{t("ui.modeSearchSub")}</span>
               </button>
             </div>
           </div>
@@ -199,24 +201,24 @@ export function InstallModal({ isOpen, onClose, manifestUrl: propManifestUrl }: 
           <div className="flex flex-col items-center justify-center p-3.5 bg-white/5 rounded-xl border border-white/5 space-y-2">
             <div className="flex items-center gap-1.5 text-zinc-300 text-[11px] font-medium">
               <Tv className="w-3.5 h-3.5 text-accent-orange" />
-              <span>Scansiona da Smart TV o Smartphone</span>
+              <span>{t("ui.scanQr")}</span>
             </div>
             {qrSvg ? (
               <div
                 className="bg-white p-2 rounded-xl shadow-lg"
                 role="img"
-                aria-label="QR code per installare Posterium Hub"
+                aria-label={t("ui.qrAria")}
                 dangerouslySetInnerHTML={{ __html: qrSvg }}
               />
             ) : (
               <div className="w-[170px] h-[170px] bg-white/10 rounded-xl flex items-center justify-center text-muted text-xs">
-                Generazione QR...
+                {t("ui.qrGenerating")}
               </div>
             )}
             <p className="text-[10px] text-muted text-center max-w-[240px]">
-              {hubMode === "all" && "Installa tutto l'ecosistema Posterium (Cataloghi + Ricerca)"}
-              {hubMode === "catalogs" && "Installa solo le righe e i cataloghi streaming/personalizzati"}
-              {hubMode === "search" && "Installa solo la ricerca locandine Posterium"}
+              {hubMode === "all" && t("ui.hubDescAll")}
+              {hubMode === "catalogs" && t("ui.hubDescCatalogs")}
+              {hubMode === "search" && t("ui.hubDescSearch")}
             </p>
           </div>
 
@@ -228,7 +230,7 @@ export function InstallModal({ isOpen, onClose, manifestUrl: propManifestUrl }: 
               className="w-full py-2.5 px-4 rounded-xl bg-accent-orange hover:bg-accent-orange/90 text-white font-semibold text-xs flex items-center justify-center gap-2 transition-all shadow-lg shadow-accent-orange/20 active:scale-[0.98]"
             >
               <Download className="w-3.5 h-3.5" />
-              <span>Installa nell&apos;app Stremio</span>
+              <span>{t("ui.installInApp")}</span>
             </a>
 
             {/* Copy Manifest URL */}
@@ -242,7 +244,7 @@ export function InstallModal({ isOpen, onClose, manifestUrl: propManifestUrl }: 
               }`}
             >
               {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5 text-muted" />}
-              <span>{copied ? "Link Manifest Copiato!" : "Copia Link Manifest"}</span>
+              <span>{copied ? t("ui.manifestCopied") : t("ui.copyManifest")}</span>
             </button>
 
             {/* Open in Web Stremio */}
@@ -252,7 +254,7 @@ export function InstallModal({ isOpen, onClose, manifestUrl: propManifestUrl }: 
               rel="noopener noreferrer"
               className="w-full py-1 px-3 rounded-xl text-[11px] font-medium text-muted hover:text-zinc-200 flex items-center justify-center gap-1.5 transition-colors"
             >
-              <span>Apri su Stremio Web</span>
+              <span>{t("ui.openWebStremio")}</span>
               <ExternalLink className="w-3 h-3" />
             </a>
           </div>

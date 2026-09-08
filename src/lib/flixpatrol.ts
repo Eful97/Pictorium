@@ -5,6 +5,7 @@ import path from "node:path"
 import { DATA_DIR } from "@/lib/data-dir"
 import { createLogger } from "@/lib/logger"
 import { getJWRankings, PLATFORM_JW_PACKAGES, type JWRankEntry } from "@/lib/justwatch"
+import { flixSlugToRegionCode, getRegionDef } from "@/lib/regions"
 
 const log = createLogger("flixpatrol")
 
@@ -197,15 +198,22 @@ async function mapLimit<T, R>(items: T[], limit: number, fn: (item: T, index: nu
   return results
 }
 
-async function fetchPosterPath(tmdbId: number, mediaType: string, apiKey: string): Promise<string | null> {
-  const url = `${TMDB_BASE}/${mediaType}/${tmdbId}/images?api_key=${apiKey}&include_image_language=it,en,null`
+/** Locale TMDB per uno slug paese FlixPatrol; fuori dalle regioni supportate resta it-IT. */
+function tmdbLangForCountry(country: string): string {
+  const code = flixSlugToRegionCode(country)
+  return code ? getRegionDef(code).lang : "it-IT"
+}
+
+async function fetchPosterPath(tmdbId: number, mediaType: string, apiKey: string, tmdbLang = "it-IT"): Promise<string | null> {
+  const primary = tmdbLang.slice(0, 2).toLowerCase()
+  const url = `${TMDB_BASE}/${mediaType}/${tmdbId}/images?api_key=${apiKey}&include_image_language=${primary},en,null`
   try {
     const json = await tmdbCachedFetch(url) as { posters?: { iso_639_1: string | null; file_path: string }[] } | null
     if (!json) return null
     const posters = json.posters ?? []
-    const itPoster = posters.find((p) => p.iso_639_1 === "it")
-    const enPoster = posters.find((p) => p.iso_639_1 === "en")
-    return itPoster?.file_path || enPoster?.file_path || null
+    const langPoster = posters.find((p) => p.iso_639_1 === primary)
+    const enPoster = primary === "en" ? undefined : posters.find((p) => p.iso_639_1 === "en")
+    return langPoster?.file_path || enPoster?.file_path || null
   } catch {
     return null
   }
@@ -226,11 +234,15 @@ export async function getTop10(platformSlug: string, country = "italy", apiKey?:
   const enrich = options?.enrich ?? true
 
   const pkgs = PLATFORM_JW_PACKAGES[platformSlug]
-  if (country === "italy" && pkgs) {
+  // Fast-path JustWatch nella stessa regione del paese richiesto (prima solo
+  // Italia): la classifica JW è live, il catalogo disco è il fallback.
+  const jwCode = flixSlugToRegionCode(country)
+  const tmdbLang = tmdbLangForCountry(country)
+  if (jwCode && pkgs) {
     try {
       const [jwMovies, jwShows] = await Promise.all([
-        getJWRankings("MOVIE", "IT", 10, pkgs),
-        getJWRankings("SHOW", "IT", 10, pkgs),
+        getJWRankings("MOVIE", jwCode, 10, pkgs, tmdbLang),
+        getJWRankings("SHOW", jwCode, 10, pkgs, tmdbLang),
       ])
       if (jwMovies.length > 0 || jwShows.length > 0) {
         const toJwItem = async (entry: JWRankEntry, type: "movie" | "tv", idx: number): Promise<FlixPatrolEnrichedItem> => {
@@ -240,9 +252,9 @@ export async function getTop10(platformSlug: string, country = "italy", apiKey?:
           let releaseDate: string | null = null
 
           if (tmdbId && apiKey && enrich) {
-            const detailsUrl = `${TMDB_BASE}/${type}/${tmdbId}?api_key=${apiKey}&language=it-IT`
+            const detailsUrl = `${TMDB_BASE}/${type}/${tmdbId}?api_key=${apiKey}&language=${tmdbLang}`
             const [fetchedPoster, details] = await Promise.all([
-              fetchPosterPath(tmdbId, type, apiKey),
+              fetchPosterPath(tmdbId, type, apiKey, tmdbLang),
               tmdbCachedFetch(detailsUrl) as Promise<{ title?: string; name?: string; release_date?: string; first_air_date?: string } | null>,
             ])
             posterPath = fetchedPoster
@@ -313,9 +325,9 @@ export async function getTop10(platformSlug: string, country = "italy", apiKey?:
     let releaseDate: string | null = entry.tmdb?.release_date ?? null
 
     if (tmdbId && apiKey && enrich) {
-      const detailsUrl = `${TMDB_BASE}/${type}/${tmdbId}?api_key=${apiKey}&language=it-IT`
+      const detailsUrl = `${TMDB_BASE}/${type}/${tmdbId}?api_key=${apiKey}&language=${tmdbLang}`
       const [fetchedPoster, details] = await Promise.all([
-        fetchPosterPath(tmdbId, type, apiKey),
+        fetchPosterPath(tmdbId, type, apiKey, tmdbLang),
         tmdbCachedFetch(detailsUrl) as Promise<{ title?: string; name?: string; release_date?: string; first_air_date?: string } | null>,
       ])
       posterPath = fetchedPoster

@@ -57,6 +57,9 @@ export const configTokenSchema = z.object({
   homeDisabledCatalogIds: z.array(z.string().max(80)).optional(),
   episodeMetadataSource: z.enum(["tmdb", "tvdb"]).optional(),
   hubMode: z.enum(["all", "catalogs", "search"]).optional(),
+  // Regione classifiche (codice JW "IT"/"US"... o slug FlixPatrol): validazione
+  // lasca di proposito, la normalizzazione fail-closed avviene in risoluzione.
+  region: z.string().max(32).optional(),
 })
 
 export type PosteriumUserConfig = z.infer<typeof configTokenSchema>

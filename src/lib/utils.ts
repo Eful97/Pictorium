@@ -1,5 +1,7 @@
 import type { TMDBImage, SearchResult } from "./types"
 
+import { REGIONS } from "./regions"
+
 export const IMG_BASE = process.env.NEXT_PUBLIC_TMDB_IMG_URL || "https://image.tmdb.org/t/p"
 
 export function cn(...classes: (string | undefined | null | false)[]) {
@@ -61,17 +63,15 @@ export const STREAMING_PLATFORMS = [
   { slug: "paramount-plus", name: "Paramount+", icon: "" },
 ] as const
 
-export const PICKER_LANGS = [
-  { code: "it", name: "Italiano" },
-  { code: "en", name: "English" },
-  { code: "fr", name: "Français" },
-  { code: "de", name: "Deutsch" },
-  { code: "es", name: "Español" },
-  { code: "pt", name: "Português" },
-  { code: "ja", name: "日本語" },
-  { code: "ko", name: "한국어" },
-  { code: "zh", name: "中文" },
-  { code: "ru", name: "Русский" },
-  { code: "ar", name: "العربية" },
-  { code: "nl", name: "Nederlands" },
-] as const
+/**
+ * Voci del selettore lingua: SOLO le 12 nazionalità supportate (una per
+ * regione). `key` è il codice paese (univoco), `code` la lingua UI a 2 lettere
+ * (it/en/fr/de/es/ja/ko/pt — ja/ko/pt ripiegano sull'inglese in `i18n.lookup`).
+ */
+export const PICKER_LANGS = REGIONS.map((r) => ({
+  key: r.code,
+  code: r.lang2,
+  flag: r.flag,
+  name: `${r.label} · ${r.languageName}`,
+  sub: r.lang2.toUpperCase(),
+}))

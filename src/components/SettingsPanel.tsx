@@ -11,8 +11,9 @@ import { SliderRow } from "@/components/SliderRow"
 import { Toggle } from "@/components/Toggle"
 import { BadgeStyleSelector, MenuItem } from "@/components/ui"
 import { UI_RATING_SOURCES } from "@/lib/ratings"
+import { REGIONS } from "@/lib/regions"
 import { RatingSourceIcon } from "@/components/RatingSourceIcon"
-import { Star, Trophy, Palette, Ruler, Cloud, Minus, Circle, RotateCcw, Save, Check, Upload, Download, Trash2, Sparkles, Tv, Flame, ChevronDown, Sliders, Database, Layers } from "lucide-react"
+import { Star, Trophy, Palette, Ruler, Cloud, Minus, Circle, RotateCcw, Save, Check, Upload, Download, Trash2, Sparkles, Tv, Flame, ChevronDown, Sliders, Database, Layers, Wand2 } from "lucide-react"
 
 interface Props {
   tmdbKeyInput?: string
@@ -34,6 +35,7 @@ export function SettingsPanel({ setSettingsOpen, exportData, importData, mobile 
   const setUiAccent = usePSelector((v) => v.setUiAccent)
   const selected = usePSelector((v) => v.selected)
   const mappingsMap = usePSelector((v) => v.mappingsMap)
+  const setShowLangPicker = usePSelector((v) => v.setShowLangPicker)
   const { t } = useT()
   const ed = usePosterEditor()
   const [sourcesOpen, setSourcesOpen] = useState(false)
@@ -511,6 +513,27 @@ export function SettingsPanel({ setSettingsOpen, exportData, importData, mobile 
           </div>
           <p className="text-[10px] text-muted leading-tight">{t("ui.episodeMetadataSourceHint")}</p>
         </div>
+        <div className="pt-2 border-t border-surface2/40 space-y-1.5">
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-zinc-300 font-medium flex items-center gap-1.5 shrink-0">
+              <Flame className="w-3.5 h-3.5 text-accent-orange" />
+              {t("ui.region")}
+            </span>
+            <select
+              value={ed.defaultRegion}
+              onChange={(e) => { ed.setDefaultRegion(e.target.value); ed.setRegion(e.target.value) }}
+              aria-label={t("ui.region")}
+              className="max-w-[170px] truncate px-2 py-1 rounded-lg text-[11px] font-semibold bg-white/5 text-zinc-100 border border-white/10 hover:bg-white/10 focus:outline-none focus:border-accent-orange/50 cursor-pointer"
+            >
+              {REGIONS.map((r) => (
+                <option key={r.code} value={r.code} className="bg-zinc-900">
+                  {r.flag} {r.label}
+                </option>
+              ))}
+            </select>
+          </div>
+          <p className="text-[10px] text-muted leading-tight">{t("ui.regionHint")}</p>
+        </div>
       </div>
 
       {/* SEZIONE 6: Salvataggio & Backup */}
@@ -547,6 +570,15 @@ export function SettingsPanel({ setSettingsOpen, exportData, importData, mobile 
             onClick={() => { importData(); setSettingsOpen(false) }}
           />
         </div>
+
+        <button
+          type="button"
+          onClick={() => { setSettingsOpen(false); setShowLangPicker(true) }}
+          className="w-full flex items-center justify-center gap-1.5 px-2.5 py-2 rounded-lg text-[11px] font-medium bg-white/[0.04] text-zinc-300 hover:text-white hover:bg-white/[0.08] active:scale-[0.98] transition-all border border-white/[0.06]"
+        >
+          <Wand2 className="w-3.5 h-3.5 text-accent-orange" />
+          {t("ui.repeatSetup")}
+        </button>
       </div>
 
       {/* SEZIONE 7: Diagnostica Cache */}

@@ -3,6 +3,7 @@
 import React, { useState, useRef, useEffect } from "react"
 import { X, Plus, ListPlus, Film, Tv, Shuffle, Check, AlertCircle } from "lucide-react"
 import { usePSelector } from "@/lib/context"
+import { useT } from "@/lib/contexts/TranslationContext"
 import { detectCatalogProvider } from "@/lib/custom-catalog-providers"
 import { EmojiPicker } from "@/components/ui"
 import type { CustomCatalogType } from "@/lib/types"
@@ -13,6 +14,7 @@ interface CustomCatalogModalProps {
 }
 
 export function CustomCatalogModal({ isOpen, onClose }: CustomCatalogModalProps) {
+  const { t } = useT()
   const addCustomCatalog = usePSelector((v) => v.addCustomCatalog)
   const [url, setUrl] = useState("")
   const [name, setName] = useState("")
@@ -68,17 +70,17 @@ export function CustomCatalogModal({ isOpen, onClose }: CustomCatalogModalProps)
     const trimmedName = name.trim()
 
     if (!trimmedUrl) {
-      setError("Inserisci l'URL o ID lista")
+      setError(t("ui.customErrUrl"))
       return
     }
     if (!trimmedName) {
-      setError("Inserisci un nome")
+      setError(t("ui.customErrName"))
       return
     }
 
     const detection = detectCatalogProvider(trimmedUrl)
     if (!detection) {
-      setError("URL non valido (supportati: Letterboxd, Trakt, TMDb, MDBList, IMDb, TVDB).")
+      setError(t("ui.customErrInvalid"))
       return
     }
 
@@ -94,7 +96,7 @@ export function CustomCatalogModal({ isOpen, onClose }: CustomCatalogModalProps)
         if (Array.isArray(data?.items) && data.items.length > 0) {
           previewCount = data.items.length
           setPreviewItems(data.items.slice(0, 3).map((it: { title?: string; name?: string; year?: number }) => ({
-            title: it.title || it.name || "Titolo",
+            title: it.title || it.name || t("ui.untitled"),
             year: it.year || 0,
           })))
         }
@@ -138,12 +140,12 @@ export function CustomCatalogModal({ isOpen, onClose }: CustomCatalogModalProps)
       <div className="flex items-center justify-between px-4 py-3 border-b border-white/10 bg-surface2/40">
         <div className="flex items-center gap-2">
           <ListPlus className="w-4 h-4 text-accent-orange" />
-          <h3 className="text-xs font-bold text-white">Nuovo Catalogo</h3>
+          <h3 className="text-xs font-bold text-white">{t("ui.newCatalog")}</h3>
         </div>
         <button
           type="button"
           onClick={onClose}
-          aria-label="Chiudi"
+          aria-label={t("ui.close")}
           className="p-1 rounded-lg text-muted hover:text-white hover:bg-white/5 transition-colors"
         >
           <X className="w-3.5 h-3.5" />
@@ -155,7 +157,7 @@ export function CustomCatalogModal({ isOpen, onClose }: CustomCatalogModalProps)
         <div>
           <div className="flex items-center justify-between mb-1">
             <label className="block text-[11px] font-semibold text-zinc-300">
-              URL Lista o Collezione
+              {t("ui.customUrlLabel")}
             </label>
             <span className="text-[10px] text-zinc-400 font-normal">
               Letterboxd, Trakt, TMDb, MDBList
@@ -163,7 +165,7 @@ export function CustomCatalogModal({ isOpen, onClose }: CustomCatalogModalProps)
           </div>
           <input
             type="text"
-            placeholder="es. https://letterboxd.com/... o trakt/mdblist"
+            placeholder={t("ui.customUrlPh")}
             value={url}
             onChange={(e) => handleUrlChange(e.target.value)}
             className="w-full px-3 py-2 bg-surface2 border border-white/10 rounded-xl text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-accent-orange transition-colors"
@@ -182,7 +184,7 @@ export function CustomCatalogModal({ isOpen, onClose }: CustomCatalogModalProps)
 
         <div>
           <label className="block text-[11px] font-semibold text-zinc-300 mb-1">
-            Nome Catalogo
+            {t("ui.customNameLabel")}
           </label>
           <EmojiPicker
             currentName={name}
@@ -193,7 +195,7 @@ export function CustomCatalogModal({ isOpen, onClose }: CustomCatalogModalProps)
           />
           <input
             type="text"
-            placeholder="es. ☁️ Sky & NOW — Top 10"
+            placeholder={t("ui.customNamePh")}
             value={name}
             onChange={(e) => setName(e.target.value)}
             className="w-full px-3 py-2 bg-surface2 border border-white/10 rounded-xl text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-accent-orange transition-colors"
@@ -203,7 +205,7 @@ export function CustomCatalogModal({ isOpen, onClose }: CustomCatalogModalProps)
 
         <div>
           <label className="block text-[11px] font-semibold text-zinc-300 mb-1">
-            Tipo Contenuto
+            {t("ui.contentType")}
           </label>
           <div className="grid grid-cols-3 gap-1.5">
             <button
@@ -215,7 +217,7 @@ export function CustomCatalogModal({ isOpen, onClose }: CustomCatalogModalProps)
                   : "bg-surface2/60 border-white/5 text-muted hover:text-white"
               }`}
             >
-              <Film className="w-3 h-3" /> Film
+              <Film className="w-3 h-3" /> {t("ui.movie")}
             </button>
             <button
               type="button"
@@ -226,7 +228,7 @@ export function CustomCatalogModal({ isOpen, onClose }: CustomCatalogModalProps)
                   : "bg-surface2/60 border-white/5 text-muted hover:text-white"
               }`}
             >
-              <Tv className="w-3 h-3" /> Serie
+              <Tv className="w-3 h-3" /> {t("ui.tvSeries")}
             </button>
             <button
               type="button"
@@ -237,7 +239,7 @@ export function CustomCatalogModal({ isOpen, onClose }: CustomCatalogModalProps)
                   : "bg-surface2/60 border-white/5 text-muted hover:text-white"
               }`}
             >
-              <Shuffle className="w-3 h-3" /> Misto
+              <Shuffle className="w-3 h-3" /> {t("ui.mixedType")}
             </button>
           </div>
         </div>
@@ -252,7 +254,7 @@ export function CustomCatalogModal({ isOpen, onClose }: CustomCatalogModalProps)
         {previewItems && previewItems.length > 0 && (
           <div className="p-2.5 rounded-xl bg-green-500/10 border border-green-500/20 text-[11px] text-green-300 space-y-1">
             <div className="flex items-center gap-1 font-semibold text-green-400">
-              <Check className="w-3.5 h-3.5" /> Lista verificata!
+              <Check className="w-3.5 h-3.5" /> {t("ui.verifiedList")}
             </div>
             <p className="text-[10px] text-zinc-300 truncate">
               {previewItems.map((p) => p.title).join(", ")}
@@ -267,14 +269,14 @@ export function CustomCatalogModal({ isOpen, onClose }: CustomCatalogModalProps)
             onClick={onClose}
             className="px-3 py-1.5 rounded-xl text-[11px] font-medium text-muted hover:text-white transition-colors"
           >
-            Annulla
+            {t("ui.cancel")}
           </button>
           <button
             type="submit"
             disabled={loading}
             className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-accent-orange text-white text-[11px] font-semibold hover:bg-accent-orange/90 active:scale-95 transition-all shadow-md disabled:opacity-50"
           >
-            {loading ? "Salvataggio..." : <><Plus className="w-3 h-3" /> Aggiungi</>}
+            {loading ? t("ui.saving") : <><Plus className="w-3 h-3" /> {t("ui.addCatalogBtn")}</>}
           </button>
         </div>
       </form>

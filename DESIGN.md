@@ -108,7 +108,7 @@ AppShell
 
 ## i18n
 
-- 5 languages: en, it, fr, de, es
+- 8 languages: en, it, fr, de, es, ja, ko, pt
 - Keys prefixed with `ui.` for UI strings, `badge.` for badge labels
 - `__` prefix for badge keys that need translation at render time
 - `createT(lang)` for server-side translation

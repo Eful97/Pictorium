@@ -14,6 +14,7 @@ import { fetchUnifiedCatalogItems } from "@/lib/custom-catalog-providers"
 import { buildStremioPosterUrl } from "@/lib/stremio-poster-url"
 import { getOriginFromRequest } from "@/lib/poster-public-url"
 import { getJWRankings, type JWRankEntry } from "@/lib/justwatch"
+import { getRegionDef, normalizeRegion, parseRegion, type RegionDef } from "@/lib/regions"
 import { getCatalogEpoch } from "@/lib/catalog-epoch"
 import { createLogger } from "@/lib/logger"
 import { concurrentMap } from "@/lib/episode-ordering"
@@ -103,9 +104,10 @@ async function getJustWatchRankings(
   country = "IT",
   first = 20,
   packages?: readonly string[] | string[],
+  language = "it-IT",
 ): Promise<JWRankEntry[]> {
   try {
-    return await getJWRankings(type, country, first, packages)
+    return await getJWRankings(type, country, first, packages, language)
   } catch {
     return []
   }
@@ -148,7 +150,20 @@ function normalizeCatalogType(type: string): StremioCatalogType {
   return (t === "movie" || t === "anime.movie") ? "movie" : "series"
 }
 
-async function posteriumPosterUrl(req: NextRequest, type: "movie" | "series", id: number, configParam?: string | null, userParam?: string | null, mdblistKeyParam?: string | null, animeRankParam?: number | null): Promise<string> {
+/**
+ * Regione del catalogo: `?region=` (alias `?country=`) > config-token `region` >
+ * default server (`POSTERIUM_REGION` o salvato) > IT. Accetta sia codici JW
+ * ("US") che slug FlixPatrol ("united-states"), fail-closed su IT.
+ */
+export function resolveCatalogRegion(req: NextRequest, userConfig: Partial<PosteriumUserConfig> | null): RegionDef {
+  const fromQuery = parseRegion(req.nextUrl.searchParams.get("region") ?? req.nextUrl.searchParams.get("country"))
+  if (fromQuery) return getRegionDef(fromQuery)
+  const fromConfig = parseRegion((userConfig as { region?: string } | null)?.region)
+  if (fromConfig) return getRegionDef(fromConfig)
+  return getRegionDef(normalizeRegion(getServerDefaults().region))
+}
+
+async function posteriumPosterUrl(req: NextRequest, type: "movie" | "series", id: number, configParam?: string | null, userParam?: string | null, mdblistKeyParam?: string | null, animeRankParam?: number | null, posterLang = "it"): Promise<string> {
   const serverDefaults = getServerDefaults()
   const userConfig = configParam ? decodeConfig(configParam) : null
   const defaults = userConfig ? { ...serverDefaults, ...userConfig } : serverDefaults
@@ -159,7 +174,7 @@ async function posteriumPosterUrl(req: NextRequest, type: "movie" | "series", id
     id,
     defaults,
     mapping,
-    lang: "it",
+    lang: posterLang,
     config: configParam || undefined,
     user: userParam || undefined,
     mdblistKey: mdblistKeyParam || undefined,
@@ -176,9 +191,9 @@ function catalogBackground(backdropPath: string | null | undefined): string | un
  * La risposta è cachata da tmdbFetch (LRU 5 min) ed è condivisa tra richieste;
  * in caso di errore degrada a mappa vuota (righe senza generi).
  */
-async function tmdbGenreNames(stType: "movie" | "series", apiKey?: string): Promise<Map<number, string>> {
+async function tmdbGenreNames(stType: "movie" | "series", apiKey?: string, lang = "it-IT"): Promise<Map<number, string>> {
   try {
-    const list = await getGenreList(stType === "movie" ? "movie" : "tv", "it-IT", apiKey)
+    const list = await getGenreList(stType === "movie" ? "movie" : "tv", lang, apiKey)
     return new Map((list.genres || []).map((g) => [g.id, g.name]))
   } catch {
     return new Map()
@@ -191,12 +206,13 @@ function genreNamesFromIds(genreIds: number[] | undefined, genreNames: Map<numbe
   return names.length > 0 ? names : undefined
 }
 
-async function catalogLogo(mediaType: "movie" | "tv", tmdbId: number, apiKey?: string): Promise<string | undefined> {
+async function catalogLogo(mediaType: "movie" | "tv", tmdbId: number, apiKey?: string, tmdbLang = "it-IT"): Promise<string | undefined> {
   try {
     const signal = typeof AbortSignal !== "undefined" && "timeout" in AbortSignal ? AbortSignal.timeout(2500) : undefined
-    const images = await getImages(mediaType, tmdbId, "it,en,null", apiKey, signal)
+    const primary = tmdbLang.slice(0, 2).toLowerCase()
+    const images = await getImages(mediaType, tmdbId, `${primary},en,null`, apiKey, signal)
     if (images?.logos && images.logos.length > 0) {
-      const itLogo = images.logos.find((l) => l.iso_639_1 === "it") || images.logos[0]
+      const itLogo = images.logos.find((l) => l.iso_639_1 === primary) || images.logos[0]
       if (itLogo?.file_path) return posterUrlOriginal(itLogo.file_path)
     }
   } catch {
@@ -266,6 +282,12 @@ export async function posteriumCatalog(
   const epoch = await getCatalogEpoch()
   const sdHash = hashFragment(JSON.stringify(getServerDefaults()))
   const freshness = `:e${epoch}:sd${sdHash}`
+  // Regione classifiche (JustWatch + FlixPatrol) e lingua titoli: entra in ogni
+  // cache key così cataloghi di paesi diversi non si avvelenano a vicenda.
+  const region = resolveCatalogRegion(req, userConfig)
+  const tmdbLang = region.lang
+  const posterLang = tmdbLang.slice(0, 2).toLowerCase()
+  const regionFragment = `:r${region.code}`
 
   // --- Gestione Ricerca Stremio (sia via barra di ricerca che catalogo dedicato) ---
   if (extra.search) {
@@ -273,7 +295,7 @@ export async function posteriumCatalog(
     if (isPeopleCatalog) {
       if (!apiKey) return catalogResponse({ metas: [] })
       const page = Math.floor((extra.skip || 0) / 20) + 1
-      const searchCacheKey = `stremio:search:people:${stType}:${hashFragment(extra.search)}:p${page}:pv${POSTER_URL_VERSION}${userParam ? `:u${hashFragment(userParam)}` : ""}:ak${hashFragment(apiKey)}${configParam ? `:cfg${hashFragment(configParam)}` : ""}${mdblistKey ? `:mk${hashFragment(mdblistKey)}` : ""}${freshness}`
+      const searchCacheKey = `stremio:search:people:${stType}:${hashFragment(extra.search)}:p${page}:pv${POSTER_URL_VERSION}${userParam ? `:u${hashFragment(userParam)}` : ""}:ak${hashFragment(apiKey)}${configParam ? `:cfg${hashFragment(configParam)}` : ""}${mdblistKey ? `:mk${hashFragment(mdblistKey)}` : ""}${regionFragment}${freshness}`
       const cachedSearch = cacheGet<{ metas: StremioMeta[] }>(searchCacheKey)
       if (cachedSearch) return catalogResponse(cachedSearch)
 
@@ -284,7 +306,7 @@ export async function posteriumCatalog(
       }
 
       try {
-        const personRes = await searchPerson(extra.search, "it-IT", apiKey, page)
+        const personRes = await searchPerson(extra.search, tmdbLang, apiKey, page)
         const candidates = personRes?.results || []
         const topPerson = pickTopPerson(candidates, extra.search)
         if (!topPerson) {
@@ -294,8 +316,8 @@ export async function posteriumCatalog(
         }
 
         const credits = stType === "movie"
-          ? await personMovieCredits(topPerson.id, "it-IT", apiKey)
-          : await personTvCredits(topPerson.id, "it-IT", apiKey)
+          ? await personMovieCredits(topPerson.id, tmdbLang, apiKey)
+          : await personTvCredits(topPerson.id, tmdbLang, apiKey)
 
         const allCredits = [...(credits.cast || []), ...(credits.crew || [])]
         const seen = new Map<number, typeof allCredits[number]>()
@@ -317,12 +339,12 @@ export async function posteriumCatalog(
 
         const skip = extra.skip || 0
         const paged = deduped.slice(skip, skip + 20)
-        const genreNames = await tmdbGenreNames(stType, apiKey)
+        const genreNames = await tmdbGenreNames(stType, apiKey, tmdbLang)
 
         const results: (StremioMeta | null)[] = await concurrentMap(paged, async (item) => {
           if (!item.id) return null
           const imdbId = await resolveImdbId(stType === "movie" ? "movie" : "tv", item.id, apiKey)
-          const poster = await posteriumPosterUrl(req, stType, item.id, configParam, userParam, mdblistKeyParam)
+          const poster = await posteriumPosterUrl(req, stType, item.id, configParam, userParam, mdblistKeyParam, undefined, posterLang)
           const releaseInfo = (item.release_date || item.first_air_date || "").slice(0, 4) || undefined
           return {
             id: catalogMetaId(imdbId, item.id),
@@ -348,22 +370,22 @@ export async function posteriumCatalog(
 
     if (!apiKey) return catalogResponse({ metas: [] })
     const page = Math.floor((extra.skip || 0) / 20) + 1
-    const searchCacheKey = `stremio:search:${stType}:${hashFragment(extra.search)}:p${page}:pv${POSTER_URL_VERSION}${userParam ? `:u${hashFragment(userParam)}` : ""}:ak${hashFragment(apiKey)}${configParam ? `:cfg${hashFragment(configParam)}` : ""}${mdblistKey ? `:mk${hashFragment(mdblistKey)}` : ""}${freshness}`
+    const searchCacheKey = `stremio:search:${stType}:${hashFragment(extra.search)}:p${page}:pv${POSTER_URL_VERSION}${userParam ? `:u${hashFragment(userParam)}` : ""}:ak${hashFragment(apiKey)}${configParam ? `:cfg${hashFragment(configParam)}` : ""}${mdblistKey ? `:mk${hashFragment(mdblistKey)}` : ""}${regionFragment}${freshness}`
     const cachedSearch = cacheGet<{ metas: StremioMeta[] }>(searchCacheKey)
     if (cachedSearch) return catalogResponse(cachedSearch)
 
     try {
       const searchRes = stType === "movie"
-        ? await searchMovies(extra.search, "it-IT", apiKey, page)
-        : await searchTV(extra.search, "it-IT", apiKey, page)
+        ? await searchMovies(extra.search, tmdbLang, apiKey, page)
+        : await searchTV(extra.search, tmdbLang, apiKey, page)
 
       const items = (searchRes?.results || []).slice(0, 20)
 
-      const genreNames = await tmdbGenreNames(stType, apiKey)
+      const genreNames = await tmdbGenreNames(stType, apiKey, tmdbLang)
       const results: (StremioMeta | null)[] = await concurrentMap(items, async (item) => {
         if (!item.id) return null
         const imdbId = await resolveImdbId(stType === "movie" ? "movie" : "tv", item.id, apiKey)
-        const poster = await posteriumPosterUrl(req, stType, item.id, configParam, userParam, mdblistKeyParam)
+        const poster = await posteriumPosterUrl(req, stType, item.id, configParam, userParam, mdblistKeyParam, undefined, posterLang)
         const releaseInfo = (item.release_date || item.first_air_date || "").slice(0, 4) || undefined
         return {
           id: catalogMetaId(imdbId, item.id),
@@ -394,7 +416,7 @@ export async function posteriumCatalog(
 
   const skipFragment = typeof extra.skip === "number" && extra.skip > 0 ? `:s${extra.skip}` : ""
   const genreFragment = extra.genre && extra.genre !== "Tutti" ? `:g${hashFragment(extra.genre)}` : ""
-  const cacheKey = `stremio:catalog:v2:${stType}:${catalogId}:pv${POSTER_URL_VERSION}${userParam ? `:u${hashFragment(userParam)}` : ""}:ak${apiKey ? hashFragment(apiKey) : "none"}${configParam ? `:cfg${hashFragment(configParam)}` : ""}${mdblistKey ? `:mk${hashFragment(mdblistKey)}` : ""}${genreFragment}${skipFragment}${freshness}`
+  const cacheKey = `stremio:catalog:v2:${stType}:${catalogId}:pv${POSTER_URL_VERSION}${userParam ? `:u${hashFragment(userParam)}` : ""}:ak${apiKey ? hashFragment(apiKey) : "none"}${configParam ? `:cfg${hashFragment(configParam)}` : ""}${mdblistKey ? `:mk${hashFragment(mdblistKey)}` : ""}${genreFragment}${skipFragment}${regionFragment}${freshness}`
   const cached = cacheGet<{ metas: StremioMeta[] }>(cacheKey)
   if (cached) return catalogResponse(cached)
 
@@ -446,7 +468,7 @@ export async function posteriumCatalog(
           let details: TMDBDetails | null = null
           if (apiKey) {
             try {
-              details = await getDetails(stType === "movie" ? "movie" : "tv", tmdbId, "it-IT", apiKey)
+              details = await getDetails(stType === "movie" ? "movie" : "tv", tmdbId, tmdbLang, apiKey)
             } catch {
               details = null
             }
@@ -469,8 +491,8 @@ export async function posteriumCatalog(
         metas = await concurrentMap(validResults, async (r) => {
           const [imdbId, poster, logo] = await Promise.all([
             r.imdb ? Promise.resolve(r.imdb) : resolveImdbId(stType === "movie" ? "movie" : "tv", r.tmdbId, apiKey),
-            posteriumPosterUrl(req, stType, r.tmdbId, configParam, userParam, mdblistKeyParam, r.rank),
-            apiKey ? catalogLogo(stType === "movie" ? "movie" : "tv", r.tmdbId, apiKey) : Promise.resolve(undefined),
+            posteriumPosterUrl(req, stType, r.tmdbId, configParam, userParam, mdblistKeyParam, r.rank, posterLang),
+            apiKey ? catalogLogo(stType === "movie" ? "movie" : "tv", r.tmdbId, apiKey, tmdbLang) : Promise.resolve(undefined),
           ])
           const background = catalogBackground(r.backdropPath)
           return {
@@ -493,7 +515,7 @@ export async function posteriumCatalog(
       if (!apiKey) return catalogResponse({ metas: [] })
       const jwSkip = typeof extra.skip === "number" && extra.skip > 0 ? extra.skip : 0
       const jwFirst = Math.min(60, 20 + jwSkip)
-      const rows = await getJustWatchRankings(stType === "movie" ? "MOVIE" : "SHOW", "IT", jwFirst)
+      const rows = await getJustWatchRankings(stType === "movie" ? "MOVIE" : "SHOW", region.code, jwFirst, undefined, tmdbLang)
       const seenTmdb = new Set<number>()
       const uniqueRows = rows.filter((r) => {
         if (!r.tmdbId || seenTmdb.has(r.tmdbId)) return false
@@ -503,7 +525,7 @@ export async function posteriumCatalog(
 
       const results = await concurrentMap(uniqueRows, async (row) => {
         try {
-          const d = await getDetails(stType === "movie" ? "movie" : "tv", row.tmdbId, "it-IT", apiKey)
+          const d = await getDetails(stType === "movie" ? "movie" : "tv", row.tmdbId, tmdbLang, apiKey)
           if (!d?.id) return null
           return { d, tmdbId: row.tmdbId, imdbId: row.imdbId }
         } catch {
@@ -514,8 +536,8 @@ export async function posteriumCatalog(
       metas = await concurrentMap(validResults, async (r) => {
         const [imdbId, poster, logo] = await Promise.all([
           r.imdbId ? Promise.resolve(r.imdbId) : resolveImdbId(stType === "movie" ? "movie" : "tv", r.tmdbId, apiKey),
-          posteriumPosterUrl(req, stType, r.tmdbId, configParam, userParam, mdblistKeyParam),
-          apiKey ? catalogLogo(stType === "movie" ? "movie" : "tv", r.tmdbId, apiKey) : Promise.resolve(undefined),
+          posteriumPosterUrl(req, stType, r.tmdbId, configParam, userParam, mdblistKeyParam, undefined, posterLang),
+          apiKey ? catalogLogo(stType === "movie" ? "movie" : "tv", r.tmdbId, apiKey, tmdbLang) : Promise.resolve(undefined),
         ])
         const background = catalogBackground(r.d.backdrop_path)
         return {
@@ -550,7 +572,7 @@ export async function posteriumCatalog(
         let d: TMDBDetails | null = null
         if (apiKey) {
           try {
-            d = await getDetails(mediaType, tmdbId, "it-IT", apiKey)
+            d = await getDetails(mediaType, tmdbId, tmdbLang, apiKey)
           } catch {
             d = null
           }
@@ -573,8 +595,8 @@ export async function posteriumCatalog(
       metas = await concurrentMap(validResults, async (r) => {
         const [imdbId, poster, logo] = await Promise.all([
           r.imdb ? Promise.resolve(r.imdb) : resolveImdbId(mediaType, r.tmdbId, apiKey),
-          posteriumPosterUrl(req, stType, r.tmdbId, configParam, userParam, mdblistKeyParam, r.rank),
-          apiKey ? catalogLogo(mediaType, r.tmdbId, apiKey) : Promise.resolve(undefined),
+          posteriumPosterUrl(req, stType, r.tmdbId, configParam, userParam, mdblistKeyParam, r.rank, posterLang),
+          apiKey ? catalogLogo(mediaType, r.tmdbId, apiKey, tmdbLang) : Promise.resolve(undefined),
         ])
         const background = catalogBackground(r.backdropPath)
         return {
@@ -608,7 +630,7 @@ export async function posteriumCatalog(
         const pkgs = PLATFORM_JW_PACKAGES[platformKey]
         const skipForPlatform = typeof extra.skip === "number" && extra.skip > 0 ? extra.skip : 0
         const jwFirst = Math.min(50, 10 + skipForPlatform)
-        const jwRows = pkgs ? await getJustWatchRankings(stType === "movie" ? "MOVIE" : "SHOW", "IT", jwFirst, pkgs) : []
+        const jwRows = pkgs ? await getJustWatchRankings(stType === "movie" ? "MOVIE" : "SHOW", region.code, jwFirst, pkgs, tmdbLang) : []
 
         if (jwRows.length > 0) {
           const seenTmdb = new Set<number>()
@@ -622,7 +644,7 @@ export async function posteriumCatalog(
             let details: TMDBDetails | null = null
             if (apiKey) {
               try {
-                details = await getDetails(stType === "movie" ? "movie" : "tv", row.tmdbId, "it-IT", apiKey)
+                details = await getDetails(stType === "movie" ? "movie" : "tv", row.tmdbId, tmdbLang, apiKey)
               } catch {
                 details = null
               }
@@ -643,8 +665,8 @@ export async function posteriumCatalog(
           metas = await concurrentMap(validResults, async (r) => {
             const [imdbId, poster, logo] = await Promise.all([
               r.imdbId ? Promise.resolve(r.imdbId) : resolveImdbId(stType === "movie" ? "movie" : "tv", r.tmdbId, apiKey),
-              posteriumPosterUrl(req, stType, r.tmdbId, configParam, userParam, mdblistKeyParam),
-              apiKey ? catalogLogo(stType === "movie" ? "movie" : "tv", r.tmdbId, apiKey) : Promise.resolve(undefined),
+              posteriumPosterUrl(req, stType, r.tmdbId, configParam, userParam, mdblistKeyParam, undefined, posterLang),
+              apiKey ? catalogLogo(stType === "movie" ? "movie" : "tv", r.tmdbId, apiKey, tmdbLang) : Promise.resolve(undefined),
             ])
             const background = catalogBackground(r.backdropPath)
             return {
@@ -663,7 +685,7 @@ export async function posteriumCatalog(
           }, 5)
         } else if (slug && apiKey) {
           // Fallback secondario: FlixPatrol Top 10
-          const data = await getTop10(slug, "italy", apiKey, { enrich: false }).catch(() => null)
+          const data = await getTop10(slug, region.flixSlug, apiKey, { enrich: false }).catch(() => null)
           if (data) {
             const items = stType === "movie" ? data.movies : data.tv
             const seenTmdb = new Set<number>()
@@ -679,9 +701,9 @@ export async function posteriumCatalog(
             metas = await concurrentMap(itemsWithTmdb, async (item) => {
               const [imdbId, details, poster, logo] = await Promise.all([
                 resolveImdbId(stType === "movie" ? "movie" : "tv", item.tmdbId, apiKey),
-                getDetails(stType === "movie" ? "movie" : "tv", item.tmdbId, "it-IT", apiKey).catch(() => null),
-                posteriumPosterUrl(req, stType, item.tmdbId, configParam, userParam, mdblistKeyParam),
-                catalogLogo(stType === "movie" ? "movie" : "tv", item.tmdbId, apiKey),
+                getDetails(stType === "movie" ? "movie" : "tv", item.tmdbId, tmdbLang, apiKey).catch(() => null),
+                posteriumPosterUrl(req, stType, item.tmdbId, configParam, userParam, mdblistKeyParam, undefined, posterLang),
+                catalogLogo(stType === "movie" ? "movie" : "tv", item.tmdbId, apiKey, tmdbLang),
               ])
               const italianTitle = details?.title || details?.name || item.title
               const background = catalogBackground(details?.backdrop_path ?? null)

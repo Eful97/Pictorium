@@ -21,6 +21,7 @@ import {
   Square,
 } from "lucide-react"
 import { usePSelector } from "@/lib/context"
+import { useT } from "@/lib/contexts/TranslationContext"
 import { POSTERIUM_CATALOGS } from "@/lib/catalog-definitions"
 import { EmojiPicker } from "@/components/ui"
 
@@ -41,6 +42,7 @@ interface CatalogEntryItem {
 }
 
 export function CatalogManagerModal({ isOpen, onClose }: CatalogManagerModalProps) {
+  const { t } = useT()
   const customCatalogs = usePSelector((v) => v.customCatalogs)
   const toggleCustomCatalog = usePSelector((v) => v.toggleCustomCatalog)
   const removeCustomCatalog = usePSelector((v) => v.removeCustomCatalog)
@@ -316,16 +318,16 @@ export function CatalogManagerModal({ isOpen, onClose }: CatalogManagerModalProp
         <div className="flex items-center gap-2.5">
           <SlidersHorizontal className="w-5 h-5 text-accent-orange" />
           <div>
-            <h3 className="text-sm font-bold text-white">Priorità & Nomi Cataloghi Stremio</h3>
+            <h3 className="text-sm font-bold text-white">{t("ui.catMgrTitle")}</h3>
             <p className="text-[11px] text-muted">
-              Seleziona più cataloghi per spostarli insieme, o trascina l&apos;icona ≡
+              {t("ui.catMgrSubtitle")}
             </p>
           </div>
         </div>
         <button
           type="button"
           onClick={onClose}
-          aria-label="Chiudi"
+          aria-label={t("ui.close")}
           className="p-1.5 rounded-xl text-muted hover:text-white hover:bg-white/5 transition-colors"
         >
           <X className="w-4 h-4" />
@@ -341,16 +343,16 @@ export function CatalogManagerModal({ isOpen, onClose }: CatalogManagerModalProp
             className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-surface border border-white/10 text-zinc-300 hover:text-white hover:border-white/20 transition-all font-medium text-[11px]"
           >
             {allSelected ? <CheckSquare className="w-3.5 h-3.5 text-accent-orange" /> : <Square className="w-3.5 h-3.5" />}
-            <span>{selectedIds.size > 0 ? `${selectedIds.size} selezionati` : "Seleziona tutti"}</span>
+            <span>{selectedIds.size > 0 ? t("ui.selectedCount", { count: selectedIds.size }) : t("ui.selectAll")}</span>
           </button>
 
           {selectedIds.size > 0 && (
             <div className="flex items-center gap-1 bg-accent-orange/15 border border-accent-orange/30 px-2 py-0.5 rounded-lg text-accent-orange font-semibold text-[11px]">
-              <span>Sposta gruppo:</span>
+              <span>{t("ui.moveGroup")}</span>
               <button
                 type="button"
                 onClick={moveSelectedToTop}
-                title="Sposta tutti i selezionati in cima"
+                title={t("ui.moveTop")}
                 className="p-1 hover:bg-accent-orange/20 rounded transition-colors"
               >
                 <ChevronsUp className="w-3.5 h-3.5" />
@@ -358,7 +360,7 @@ export function CatalogManagerModal({ isOpen, onClose }: CatalogManagerModalProp
               <button
                 type="button"
                 onClick={moveSelectedUp}
-                title="Sposta i selezionati su di 1"
+                title={t("ui.moveUp1")}
                 className="p-1 hover:bg-accent-orange/20 rounded transition-colors"
               >
                 <ArrowUp className="w-3.5 h-3.5" />
@@ -366,7 +368,7 @@ export function CatalogManagerModal({ isOpen, onClose }: CatalogManagerModalProp
               <button
                 type="button"
                 onClick={moveSelectedDown}
-                title="Sposta i selezionati giù di 1"
+                title={t("ui.moveDown1")}
                 className="p-1 hover:bg-accent-orange/20 rounded transition-colors"
               >
                 <ArrowDown className="w-3.5 h-3.5" />
@@ -374,7 +376,7 @@ export function CatalogManagerModal({ isOpen, onClose }: CatalogManagerModalProp
               <button
                 type="button"
                 onClick={moveSelectedToBottom}
-                title="Sposta tutti i selezionati in fondo"
+                title={t("ui.moveBottom")}
                 className="p-1 hover:bg-accent-orange/20 rounded transition-colors"
               >
                 <ChevronsDown className="w-3.5 h-3.5" />
@@ -384,7 +386,7 @@ export function CatalogManagerModal({ isOpen, onClose }: CatalogManagerModalProp
                 onClick={() => setSelectedIds(new Set())}
                 className="ml-1 text-[10px] underline hover:text-white"
               >
-                Deseleziona
+                {t("ui.deselect")}
               </button>
             </div>
           )}
@@ -397,7 +399,7 @@ export function CatalogManagerModal({ isOpen, onClose }: CatalogManagerModalProp
               onClick={resetCatalogOrder}
               className="flex items-center gap-1 px-2 py-1 rounded-lg text-muted hover:text-zinc-200 hover:bg-white/5 transition-colors text-[11px]"
             >
-              <RotateCcw className="w-3 h-3" /> Ripristina Ordine
+              <RotateCcw className="w-3 h-3" /> {t("ui.resetOrder")}
             </button>
           )}
           {Object.keys(catalogRenames).length > 0 && (
@@ -406,7 +408,7 @@ export function CatalogManagerModal({ isOpen, onClose }: CatalogManagerModalProp
               onClick={resetCatalogNames}
               className="flex items-center gap-1 px-2 py-1 rounded-lg text-muted hover:text-zinc-200 hover:bg-white/5 transition-colors text-[11px]"
             >
-              <RotateCcw className="w-3 h-3" /> Ripristina Nomi
+              <RotateCcw className="w-3 h-3" /> {t("ui.resetNames")}
             </button>
           )}
         </div>
@@ -461,8 +463,8 @@ export function CatalogManagerModal({ isOpen, onClose }: CatalogManagerModalProp
                   className="cursor-grab active:cursor-grabbing p-1.5 rounded-lg hover:bg-white/10 text-muted hover:text-white transition-colors"
                   title={
                     isSelected && selectedIds.size > 1
-                      ? `Trascina per spostare tutti i ${selectedIds.size} cataloghi selezionati insieme`
-                      : "Trascina per cambiare priorità"
+                      ? t("ui.dragMany", { count: selectedIds.size })
+                      : t("ui.dragOne")
                   }
                 >
                   <Menu className="w-4 h-4 stroke-[2.5]" />
@@ -473,7 +475,7 @@ export function CatalogManagerModal({ isOpen, onClose }: CatalogManagerModalProp
                     type="button"
                     disabled={index === 0}
                     onClick={() => (isSelected ? moveSelectedUp() : moveCatalog(item.id, "up"))}
-                    title="Sposta in alto"
+                    title={t("ui.moveUp")}
                     className="p-0.5 rounded hover:bg-white/10 text-muted hover:text-white disabled:opacity-15 transition-colors"
                   >
                     <ArrowUp className="w-3 h-3" />
@@ -482,7 +484,7 @@ export function CatalogManagerModal({ isOpen, onClose }: CatalogManagerModalProp
                     type="button"
                     disabled={index === allCatalogs.length - 1}
                     onClick={() => (isSelected ? moveSelectedDown() : moveCatalog(item.id, "down"))}
-                    title="Sposta in basso"
+                    title={t("ui.moveDown")}
                     className="p-0.5 rounded hover:bg-white/10 text-muted hover:text-white disabled:opacity-15 transition-colors"
                   >
                     <ArrowDown className="w-3 h-3" />
@@ -521,7 +523,7 @@ export function CatalogManagerModal({ isOpen, onClose }: CatalogManagerModalProp
                         type="button"
                         onClick={() => saveRename(item.id)}
                         className="p-2 rounded-xl bg-green-500/20 border border-green-500/40 text-green-300 hover:bg-green-500/30 transition-colors"
-                        title="Salva nome"
+                        title={t("ui.saveName")}
                       >
                         <Check className="w-3.5 h-3.5" />
                       </button>
@@ -529,7 +531,7 @@ export function CatalogManagerModal({ isOpen, onClose }: CatalogManagerModalProp
                         type="button"
                         onClick={cancelRename}
                         className="p-2 rounded-xl bg-white/5 hover:bg-white/10 text-muted hover:text-white transition-colors"
-                        title="Annulla"
+                        title={t("ui.cancel")}
                       >
                         <X className="w-3.5 h-3.5" />
                       </button>
@@ -542,7 +544,7 @@ export function CatalogManagerModal({ isOpen, onClose }: CatalogManagerModalProp
                       type="button"
                       onClick={() => startRename(item)}
                       className="p-1 rounded text-muted hover:text-white hover:bg-white/5 transition-colors shrink-0"
-                      title="Rinomina catalogo"
+                      title={t("ui.renameCatalog")}
                     >
                       <Edit2 className="w-3 h-3" />
                     </button>
@@ -551,9 +553,9 @@ export function CatalogManagerModal({ isOpen, onClose }: CatalogManagerModalProp
                         type="button"
                         onClick={() => renameCatalog(item.id, "")}
                         className="text-[10px] text-accent-orange hover:underline shrink-0"
-                        title={`Nome originale: ${item.originalName}`}
+                        title={t("ui.origName", { name: item.originalName })}
                       >
-                        (ripristina nome)
+                        {t("ui.restoreName")}
                       </button>
                     )}
                   </div>
@@ -569,7 +571,7 @@ export function CatalogManagerModal({ isOpen, onClose }: CatalogManagerModalProp
                       }`}
                     >
                       {item.type === "movie" ? <Film className="w-3 h-3" /> : <Tv className="w-3 h-3" />}
-                      {item.type === "movie" ? "Film" : "Serie TV"}
+                      {item.type === "movie" ? t("ui.movie") : t("ui.tvSeries")}
                     </span>
                     {item.isCustom && (
                       <span className="px-2 py-0.5 rounded-md text-[10px] font-semibold bg-amber-500/15 text-amber-400 border border-amber-500/20">
@@ -587,8 +589,8 @@ export function CatalogManagerModal({ isOpen, onClose }: CatalogManagerModalProp
                   onClick={() => toggleCatalogHome(item.id)}
                   title={
                     item.showInHome
-                      ? "Visibile nella Home di Stremio (clicca per nascondere dalla Home)"
-                      : "Nascosto dalla Home di Stremio (visibile solo in Esplora — clicca per mostrare nella Home)"
+                      ? t("ui.homeVisible")
+                      : t("ui.homeHidden")
                   }
                   className={`p-1.5 rounded-xl border transition-colors ${
                     item.showInHome
@@ -601,7 +603,7 @@ export function CatalogManagerModal({ isOpen, onClose }: CatalogManagerModalProp
                 <button
                   type="button"
                   onClick={() => handleToggle(item)}
-                  title={item.enabled ? "Disattiva da Stremio" : "Attiva su Stremio"}
+                  title={item.enabled ? t("ui.disableStremio") : t("ui.enableStremio")}
                   className={`p-1.5 rounded-xl border transition-colors ${
                     item.enabled
                       ? "bg-accent-orange/15 border-accent-orange/30 text-accent-orange hover:bg-accent-orange/25"
@@ -614,7 +616,7 @@ export function CatalogManagerModal({ isOpen, onClose }: CatalogManagerModalProp
                   <button
                     type="button"
                     onClick={() => removeCustomCatalog(item.customBaseId!)}
-                    title="Elimina catalogo"
+                    title={t("ui.deleteCatalog")}
                     className="p-1.5 rounded-xl border border-white/5 text-muted hover:text-red-400 hover:bg-red-500/10 hover:border-red-500/20 transition-colors"
                   >
                     <Trash2 className="w-3.5 h-3.5" />
@@ -629,14 +631,14 @@ export function CatalogManagerModal({ isOpen, onClose }: CatalogManagerModalProp
       {/* Footer */}
       <div className="flex items-center justify-between px-5 py-3 border-t border-white/10 bg-surface2/40">
         <span className="text-xs text-muted font-medium">
-          {allCatalogs.filter((c) => c.enabled).length} cataloghi abilitati su Stremio
+          {t("ui.enabledCount", { count: allCatalogs.filter((c) => c.enabled).length })}
         </span>
         <button
           type="button"
           onClick={onClose}
           className="px-4 py-2 rounded-xl bg-accent-orange text-white text-xs font-semibold hover:bg-accent-orange/90 active:scale-95 transition-all shadow-md"
         >
-          Fatto
+          {t("ui.done")}
         </button>
       </div>
     </div>

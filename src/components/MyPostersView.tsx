@@ -118,11 +118,11 @@ export function MyPostersView() {
   const bulkSetOrdering = async (groupId: string | null) => {
     const toUpdate = mappings.filter((m) => selected.has(`${m.mediaType}:${m.tmdbId}`) && m.mediaType === "tv")
     if (toUpdate.length === 0) {
-      import("sonner").then(({ toast }) => toast.error("Seleziona almeno una serie TV"))
+      import("sonner").then(({ toast }) => toast.error(t("ui.bulkNeedTv")))
       return
     }
     if (groupId === "tvdb" && !tvdbApiKey) {
-      import("sonner").then(({ toast }) => toast.error("Chiave TVDB mancante — impostala in Impostazioni"))
+      import("sonner").then(({ toast }) => toast.error(t("ui.epKeyMissingToast")))
       return
     }
     setBulkSaving(true)
@@ -408,13 +408,13 @@ export function MyPostersView() {
           </span>
           <div className="flex flex-wrap items-center gap-2 justify-end">
             <div className="flex items-center gap-1.5 bg-black/20 rounded-xl p-1 border border-white/5">
-              <span className="text-[11px] text-zinc-400 px-1.5 hidden sm:inline-flex items-center gap-1"><ListOrdered className="w-3 h-3" /> Ordinamento</span>
+              <span className="text-[11px] text-zinc-400 px-1.5 hidden sm:inline-flex items-center gap-1"><ListOrdered className="w-3 h-3" /> {t("ui.ordering")}</span>
               <button
                 type="button"
                 disabled={bulkSaving}
                 onClick={() => bulkSetOrdering("standard")}
                 className="text-xs px-2.5 py-1 rounded-lg bg-surface2/60 text-zinc-200 hover:bg-surface2 border border-white/10 disabled:opacity-50"
-                title="Imposta Standard TMDB"
+                title={t("ui.setStandard")}
               >
                 Standard
               </button>
@@ -423,7 +423,7 @@ export function MyPostersView() {
                 disabled={bulkSaving || !tvdbApiKey}
                 onClick={() => bulkSetOrdering("tvdb")}
                 className={`text-xs px-2.5 py-1 rounded-lg border disabled:opacity-50 ${!tvdbApiKey ? "bg-surface2/20 text-zinc-500 border-white/5 cursor-not-allowed" : "bg-surface2/60 text-zinc-200 hover:bg-surface2 border-white/10"}`}
-                title={tvdbApiKey ? "Imposta TheTVDB" : "Richiede chiave TVDB"}
+                title={tvdbApiKey ? t("ui.setTvdb") : t("ui.tvdbKeyNeeded")}
               >
                 TVDB
               </button>
@@ -432,7 +432,7 @@ export function MyPostersView() {
                 disabled={bulkSaving}
                 onClick={() => bulkSetOrdering("anizip")}
                 className="text-xs px-2.5 py-1 rounded-lg bg-surface2/60 text-zinc-200 hover:bg-surface2 border border-white/10 disabled:opacity-50"
-                title="Imposta AniZip (anime)"
+                title={t("ui.setAnizip")}
               >
                 AniZip
               </button>

@@ -5,6 +5,7 @@ import { POSTERIUM_CATALOGS, POSTERIUM_PEOPLE_SEARCH_CATALOGS } from "@/lib/cata
 import { getOriginFromRequest } from "@/lib/poster-public-url"
 import { decodeConfig, type PosteriumUserConfig } from "@/lib/config-token"
 import { getServerDefaults } from "@/lib/server-defaults"
+import { getRegionDef, normalizeRegion, parseRegion, type RegionDef } from "@/lib/regions"
 
 const MOVIE_GENRES = [
   "Tutti", "Azione", "Avventura", "Animazione", "Commedia", "Crime",
@@ -28,6 +29,12 @@ const ANIME_GENRES = [
 function getCatalogGenreOptions(type: "movie" | "series", catalogId: string): string[] {
   if (catalogId.includes("anime")) return ANIME_GENRES
   return type === "movie" ? MOVIE_GENRES : SERIES_GENRES
+}
+
+/** Nome dei cataloghi Top 20 JustWatch nella lingua/regione attiva (bandiera dinamica). */
+function regionJwName(id: string, type: "movie" | "series", region: RegionDef): string | null {
+  if (!id.startsWith("posterium-jw-")) return null
+  return `${region.flag} Top 20 ${region.label} — ${type === "movie" ? "Film" : "Serie TV"}`
 }
 
 function safeSuffix(value: string | null | undefined): string | null {
@@ -86,16 +93,20 @@ export async function buildManifestResponse(req: NextRequest, user?: string | nu
     }
   }
 
-  // Applica rinomine personalizzate dei cataloghi
-  if (userConfig?.catalogRenames && Object.keys(userConfig.catalogRenames).length > 0) {
-    catalogs = catalogs.map((cat) => {
-      const customName = userConfig?.catalogRenames?.[cat.id]
-      if (customName && customName.trim()) {
-        return { ...cat, name: customName.trim() }
-      }
-      return cat
-    })
-  }
+  // Regione manifest: config-token > default server > IT. I cataloghi Top 20
+  // JustWatch mostrano bandiera/nome del paese attivo (le rinomine utente vincono).
+  const manifestRegion = getRegionDef(parseRegion(userConfig?.region) ?? normalizeRegion(getServerDefaults().region))
+
+  // Applica rinomine personalizzate dei cataloghi + nomi regione per i Top 20 JW
+  catalogs = catalogs.map((cat) => {
+    const customName = userConfig?.catalogRenames?.[cat.id]
+    if (customName && customName.trim()) {
+      return { ...cat, name: customName.trim() }
+    }
+    const jwName = regionJwName(cat.id, cat.type, manifestRegion)
+    if (jwName) return { ...cat, name: jwName }
+    return cat
+  })
 
   // Applica ordinamento / priorità personalizzata
   if (userConfig?.catalogOrder && userConfig.catalogOrder.length > 0) {

@@ -3,11 +3,13 @@
 import { useState, useEffect } from "react"
 import { ListOrdered, Check, Save } from "lucide-react"
 import { usePSelector } from "@/lib/context"
+import { useT } from "@/lib/contexts/TranslationContext"
 import { usePosterEditor } from "@/lib/contexts/PosterEditorContext"
 import { http } from "@/lib/http"
 import { EpisodePreview } from "@/components/EpisodePreview"
 
 export function EpisodeGroupControls() {
+  const { t } = useT()
   const selected = usePSelector((v) => v.selected)
   const tmdbKey = usePSelector((v) => v.tmdbKey)
   const tvdbApiKey = usePSelector((v) => v.tvdbApiKey)
@@ -116,7 +118,7 @@ export function EpisodeGroupControls() {
     if (!selected) return
     if ((ed.episodeGroupId === "tvdb" || ed.episodeGroupId?.startsWith("tvdb:")) && !tvdbApiKey) {
       const { toast } = await import("sonner")
-      toast("Chiave TVDB mancante — imposta la chiave in Impostazioni o scegli Standard TMDB")
+      toast(t("ui.epKeyMissingToast"))
       return
     }
 
@@ -166,10 +168,10 @@ export function EpisodeGroupControls() {
 
       setSaved(true)
       const { toast } = await import("sonner")
-      toast("Ordinamento stagioni salvato ✓")
+      toast(t("ui.epOrderSaved"))
     } catch {
       const { toast } = await import("sonner")
-      toast("Errore nel salvataggio")
+      toast(t("ui.saveError"))
     } finally {
       setSaving(false)
     }
@@ -181,17 +183,17 @@ export function EpisodeGroupControls() {
         <div className="flex items-center justify-between">
           <span className="font-semibold text-zinc-200 flex items-center gap-1.5">
             <ListOrdered className="w-3.5 h-3.5 text-accent-orange" />
-            <span>Ordinamento Parti & Stagioni</span>
+            <span>{t("ui.epOrderTitle")}</span>
           </span>
           {epGroups.length > 0 && (
             <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-accent-orange/15 text-accent-orange border border-accent-orange/30">
-              {epGroups.length} gruppi
+              {t("ui.groupCount", { count: epGroups.length })}
             </span>
           )}
         </div>
 
         <p className="text-[11px] text-zinc-400">
-          Scegli come organizzare le stagioni e le parti della serie in Stremio:
+          {t("ui.epOrderIntro")}
         </p>
 
         <div className="space-y-1.5">
@@ -205,8 +207,8 @@ export function EpisodeGroupControls() {
             }`}
           >
             <div className="flex flex-col">
-              <span>✨ Automatico (rilevamento Parti)</span>
-              <span className="text-[10px] text-zinc-400">Usa le Parti originali quando rilevate (es. Casa di Carta 5 parti), altrimenti Stagioni Standard</span>
+              <span>{t("ui.epAuto")}</span>
+              <span className="text-[10px] text-zinc-400">{t("ui.epAutoDesc")}</span>
             </div>
             {!ed.episodeGroupId && <Check className="w-3.5 h-3.5 text-accent-orange shrink-0" />}
           </button>
@@ -221,8 +223,8 @@ export function EpisodeGroupControls() {
             }`}
           >
             <div className="flex flex-col">
-              <span>📺 Stagioni Standard TMDB</span>
-              <span className="text-[10px] text-zinc-400">Ordinamento originale per data di messa in onda — disattiva il default automatico Parti</span>
+              <span>{t("ui.epStandard")}</span>
+              <span className="text-[10px] text-zinc-400">{t("ui.epStandardDesc")}</span>
             </div>
             {ed.episodeGroupId === "standard" && <Check className="w-3.5 h-3.5 text-accent-orange shrink-0" />}
           </button>
@@ -231,12 +233,12 @@ export function EpisodeGroupControls() {
             <button
               type="button"
               disabled
-              title="Richiede chiave TVDB nelle Impostazioni"
+              title={t("ui.tvdbKeyRequired")}
               className="w-full text-left px-2.5 py-2 rounded-lg text-[11px] border bg-surface2/20 text-zinc-500 border-white/5 opacity-50 cursor-not-allowed flex items-center justify-between"
             >
               <div className="flex flex-col">
                 <span>🗄️ TheTVDB</span>
-                <span className="text-[10px] text-zinc-400">Richiede chiave TVDB nelle impostazioni</span>
+                <span className="text-[10px] text-zinc-400">{t("ui.tvdbKeyRequired")}</span>
               </div>
             </button>
           ) : tvdbLoading ? (
@@ -247,15 +249,15 @@ export function EpisodeGroupControls() {
             >
               <div className="flex flex-col">
                 <span>🗄️ TheTVDB</span>
-                <span className="text-[10px] text-zinc-400">Caricamento tipi TVDB…</span>
+                <span className="text-[10px] text-zinc-400">{t("ui.tvdbLoading")}</span>
               </div>
               <span className="w-3.5 h-3.5 border-2 border-zinc-500 border-t-transparent rounded-full animate-spin shrink-0" />
             </button>
           ) : tvdbSeasonTypes.length === 0 ? (
             <div className="w-full text-left px-2.5 py-2 rounded-lg text-[11px] border bg-surface2/20 text-zinc-400 border-white/5">
               <div className="flex flex-col">
-                <span>🗄️ TheTVDB — nessun tipo trovato</span>
-                <span className="text-[10px] text-zinc-500">{tvdbError ? `Errore: ${tvdbError}` : "Nessun ordinamento alternativo per questa serie. Prova con un'altra serie o verifica la chiave TVDB."}</span>
+                <span>{t("ui.tvdbNoTypes")}</span>
+                <span className="text-[10px] text-zinc-500">{tvdbError ? t("ui.statusError", { msg: tvdbError }) : t("ui.tvdbNoTypesDesc")}</span>
               </div>
             </div>
           ) : (
@@ -280,7 +282,7 @@ export function EpisodeGroupControls() {
                 >
                   <div className="flex flex-col">
                     <span>🗄️ TheTVDB — {label}</span>
-                    <span className="text-[10px] text-zinc-400">Ordinamento TVDB {st.type}</span>
+                    <span className="text-[10px] text-zinc-400">{t("ui.tvdbOrder", { type: st.type })}</span>
                   </div>
                   {isSelected && <Check className="w-3.5 h-3.5 text-accent-orange shrink-0" />}
                 </button>
@@ -298,8 +300,8 @@ export function EpisodeGroupControls() {
             }`}
           >
             <div className="flex flex-col">
-              <span>🌀 AniZip (AniList/AniDB) — Anime</span>
-              <span className="text-[10px] text-zinc-400">Ordinamento anime absolute via AniZip, senza chiave</span>
+              <span>{t("ui.anizip")}</span>
+              <span className="text-[10px] text-zinc-400">{t("ui.anizipDesc")}</span>
             </div>
             {ed.episodeGroupId === "anizip" && <Check className="w-3.5 h-3.5 text-accent-orange shrink-0" />}
           </button>
@@ -319,7 +321,7 @@ export function EpisodeGroupControls() {
               >
                 <div className="flex flex-col">
                   <span className="font-medium">{g.name}</span>
-                  <span className="text-[10px] text-zinc-400">{g.group_count} parti · {g.episode_count} episodi</span>
+                  <span className="text-[10px] text-zinc-400">{t("ui.partsCount", { count: g.group_count })} · {t("ui.episodesCount", { count: g.episode_count })}</span>
                 </div>
                 {isSelected && <Check className="w-3.5 h-3.5 text-accent-orange shrink-0" />}
               </button>
@@ -328,7 +330,7 @@ export function EpisodeGroupControls() {
 
           {epGroups.length === 0 && (
             <p className="text-[11px] text-zinc-500 text-center py-2 italic">
-              Nessun gruppo di episodi alternativo disponibile per questa serie.
+              {t("ui.epNoGroups")}
             </p>
           )}
         </div>
@@ -347,12 +349,12 @@ export function EpisodeGroupControls() {
           {saved ? (
             <>
               <Check className="w-3.5 h-3.5" />
-              Salvato!
+              {t("ui.saved")}
             </>
           ) : (
             <>
               <Save className="w-3.5 h-3.5" />
-              {saving ? "Salvataggio..." : "Salva Ordinamento"}
+              {saving ? t("ui.saving") : t("ui.epSaveOrder")}
             </>
           )}
         </button>

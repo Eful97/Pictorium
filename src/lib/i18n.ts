@@ -3,10 +3,13 @@ import it from "./translations/it.json"
 import fr from "./translations/fr.json"
 import de from "./translations/de.json"
 import es from "./translations/es.json"
+import ja from "./translations/ja.json"
+import ko from "./translations/ko.json"
+import pt from "./translations/pt.json"
 
 export type Lang = keyof typeof dicts
 
-const dicts: Record<string, Record<string, string>> = { en, it, fr, de, es }
+const dicts: Record<string, Record<string, string>> = { en, it, fr, de, es, ja, ko, pt }
 
 let _currentLang: string = "it"
 
@@ -35,10 +38,10 @@ export function isRankKey(val: string | null): string | null {
     if (key === "badge.today" || key === "badge.anime" || key === "badge.movie" || key === "badge.series") return key
     return null
   }
-  if (val === "Oggi" || val === "Today" || val === "Aujourd'hui" || val === "Heute" || val === "Hoy") return "badge.today"
-  if (val === "Anime") return "badge.anime"
-  if (val === "Film" || val === "Movie" || val === "Película") return "badge.movie"
-  if (val === "Serie tv" || val === "TV series" || val === "Série TV" || val === "Serie de TV" || val === "Serie") return "badge.series"
+  if (val === "Oggi" || val === "Today" || val === "Aujourd'hui" || val === "Heute" || val === "Hoy" || val === "今日" || val === "오늘" || val === "Hoje") return "badge.today"
+  if (val === "Anime" || val === "アニメ" || val === "애니메이션") return "badge.anime"
+  if (val === "Film" || val === "Movie" || val === "Película" || val === "映画" || val === "영화" || val === "Filme") return "badge.movie"
+  if (val === "Serie tv" || val === "TV series" || val === "Série TV" || val === "Serie de TV" || val === "Serie" || val === "TVシリーズ" || val === "TV 시리즈") return "badge.series"
   return null
 }
 

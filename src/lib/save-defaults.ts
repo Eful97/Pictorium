@@ -30,6 +30,7 @@ export function saveDefaults(p: { selected: PosteriumCtx["selected"]; mappingsMa
     defaultNetworkLogo: ed.defaultNetworkLogo,
     defaultRibbonSide: ed.defaultRibbonSide,
     defaultEpisodeMetadataSource: ed.defaultEpisodeMetadataSource,
+    region: ed.defaultRegion,
     networkLogo: ed.defaultNetworkLogo,
     ribbonSide: ed.defaultRibbonSide,
     episodeMetadataSource: ed.defaultEpisodeMetadataSource,

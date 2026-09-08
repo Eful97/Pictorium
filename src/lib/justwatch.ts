@@ -50,9 +50,11 @@ export async function getJWRankings(
   country = "IT",
   first = 20,
   packages?: readonly string[] | string[],
+  language = "it-IT",
 ): Promise<JWRankEntry[]> {
   const pkgKey = packages && packages.length > 0 ? packages.join(",") : "all"
-  const cacheKey = `${objectType}:${country}:${first}:${pkgKey}`
+  // La lingua entra nella key: i titoli JW seguono la lingua query.
+  const cacheKey = `${objectType}:${country}:${first}:${pkgKey}:${language}`
   const cached = rankingsCache.get(cacheKey)
   if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
     return cached.data
@@ -75,7 +77,7 @@ export async function getJWRankings(
       query: QUERY,
       variables: {
         country,
-        language: "it-IT",
+        language,
         filter,
         first: Math.max(first * 2, 20),
       },
@@ -145,6 +147,7 @@ export async function getJWTitleQuality(
   searchTitle?: string | null,
   country = "IT",
   signal?: AbortSignal,
+  language = "it-IT",
 ): Promise<JWQuality | null> {
   const cacheKey = `${objectType}:${country}:${tmdbId}`
   const cached = qualityCache.get(cacheKey)
@@ -186,7 +189,7 @@ export async function getJWTitleQuality(
         query: TITLE_OFFERS_QUERY,
         variables: {
           country,
-          language: "it-IT",
+          language,
           filter,
         },
       }),
