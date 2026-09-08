@@ -11,7 +11,7 @@ export function LangPicker({ onPick }: { onPick: (code: string) => void }) {
       <div className="w-full max-w-lg mx-4">
         <div className="text-center mb-10">
           {/* eslint-disable-next-line @next/next/no-img-element -- local SVG asset */}
-          <img src="/posterium.png" alt="Posterium" loading="eager" decoding="async" className="h-auto w-[min(92vw,390px)] mx-auto mb-4 hover:brightness-110 transition-all duration-150" />
+          <img src="/posterium.svg" alt="Posterium" loading="eager" decoding="async" className="h-auto w-[min(92vw,390px)] mx-auto mb-4 hover:brightness-110 transition-all duration-150" />
           <h2 className="text-2xl font-bold text-zinc-100">{t("ui.welcome")}</h2>
           <p className="text-sm text-muted mt-1.5">{t("ui.welcomeSubtitle")}</p>
         </div>
