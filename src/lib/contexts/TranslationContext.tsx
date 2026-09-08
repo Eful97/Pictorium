@@ -2,12 +2,13 @@
 
 import { createContext, useContext, useMemo, type ReactNode } from "react"
 import type { PosteriumCtx } from "@/lib/context"
+import { createT } from "@/lib/i18n"
 
 /**
- * TranslationCtx — fornisce t() e lang in modo stabile.
- * t è un import, quindi non cambia MAI; lang e pickLang cambiano
- * solo quando l'utente cambia lingua. Perfetto per i consumer
- * che hanno bisogno solo di traduzioni senza abbonarsi a tutto.
+ * TranslationCtx — fornisce t() e lang in modo reattivo.
+ * t() è legato alla lingua attiva (`createT(lang)`), così quando lang
+ * cambia tutti i componenti e i valori memoizzati che dipendono da t
+ * o lang si aggiornano immediatamente senza richiedere un refresh.
  */
 export interface TranslationCtx {
   t: (key: string, params?: Record<string, string | number>) => string
@@ -30,13 +31,14 @@ export function TranslationProvider({
   value: PosteriumCtx
   children: ReactNode
 }) {
+  const t = useMemo(() => value.t ?? createT(value.lang), [value.t, value.lang])
   const ctx = useMemo<TranslationCtx>(
     () => ({
-      t: value.t,
+      t,
       lang: value.lang,
       pickLang: value.pickLang,
     }),
-    [value.t, value.lang, value.pickLang],
+    [t, value.lang, value.pickLang],
   )
 
   return <Ctx.Provider value={ctx}>{children}</Ctx.Provider>

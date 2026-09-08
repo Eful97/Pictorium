@@ -78,22 +78,19 @@ export function PosterCarousel() {
   const containerRef = useRef<HTMLDivElement>(null)
 
   // 20 poster demo scelti a caso a ogni refresh tra gli esempi statici e i film/
-  // serie delle classifiche giornaliere (JustWatch DAILY_POPULARITY esposta da
-  // /api/tmdb/trending): i titoli in classifica mostrano il badge rank reale.
-  // Senza trending (chiave assente o classifiche vuote) restano solo gli esempi
-  // statici, comunque mescolati.
+  // serie di tendenza JustWatch (con rank badge coerente)
   const items = useMemo<CarouselEntry[]>(() => {
     const rankParams = (rank: number) =>
       `?ranking=&rank=${rank}&rs=netflix&tl=0&gradHeight=25&blur=30&bf=50&bd=40&logoFit=0`
-    const top = trending.map((i) => ({
+    const top = trending.slice(0, 15).map((i) => ({
       id: i.id,
       type: i.media_type,
       title: titleOf(i),
       params: rankParams(i.rank),
-      desc: i.media_type === "movie" ? `Top ${i.rank} film di oggi` : `Top ${i.rank} serie di oggi`,
+      desc: i.media_type === "movie" ? `Top ${i.rank} ${t("ui.movie")}` : `Top ${i.rank} ${t("ui.tvSeries")}`,
     }))
     return shuffle([...EXAMPLES, ...top]).slice(0, CAROUSEL_SIZE)
-  }, [trending])
+  }, [trending, t])
   // D4: il transform della pista è scritto DIRETTAMENTE sul DOM via ref.
   // Prima setOffset() a ogni frame (60fps) ri-renderizzava tutte le card del
   // carousel via React; ora solo activeIndex/showLeft/showRight restano state

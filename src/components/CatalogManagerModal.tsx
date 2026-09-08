@@ -114,8 +114,8 @@ export function CatalogManagerModal({ isOpen, onClose }: CatalogManagerModalProp
         const sId = `posterium-custom-series-${cc.id}`
         list.push({
           id: mId,
-          name: catalogRenames[mId] || `${cc.name} — Film`,
-          originalName: `${cc.name} — Film`,
+          name: catalogRenames[mId] || `${cc.name} — ${t("ui.movie")}`,
+          originalName: `${cc.name} — ${t("ui.movie")}`,
           type: "movie",
           isCustom: true,
           customBaseId: cc.id,
@@ -124,8 +124,8 @@ export function CatalogManagerModal({ isOpen, onClose }: CatalogManagerModalProp
         })
         list.push({
           id: sId,
-          name: catalogRenames[sId] || `${cc.name} — Serie TV`,
-          originalName: `${cc.name} — Serie TV`,
+          name: catalogRenames[sId] || `${cc.name} — ${t("ui.tvSeries")}`,
+          originalName: `${cc.name} — ${t("ui.tvSeries")}`,
           type: "series",
           isCustom: true,
           customBaseId: cc.id,
@@ -159,7 +159,7 @@ export function CatalogManagerModal({ isOpen, onClose }: CatalogManagerModalProp
     }
 
     return list
-  }, [customCatalogs, disabledCatalogIds, homeDisabledCatalogIds, catalogOrder, catalogRenames])
+  }, [customCatalogs, disabledCatalogIds, homeDisabledCatalogIds, catalogOrder, catalogRenames, t])
 
   if (!isOpen) return null
 

@@ -4,7 +4,7 @@ import React, { createContext, useContext, useState, useEffect, useCallback, use
 import type { SearchResult, TMDBImage, Mapping, CustomCatalogConfig } from "./types"
 import { posterUrl, titleOf, yearOf, STREAMING_PLATFORMS } from "./utils"
 import { matchTMDBStudios } from "./awards"
-import { setLang as setI18nLang, t } from "./i18n"
+import { setLang as setI18nLang, createT } from "./i18n"
 import { isSupportedUiLang } from "./regions"
 import type { EnrichedAnimeItem } from "./validation"
 import { http } from "./http"
@@ -270,6 +270,7 @@ export function usePosterium(): PosteriumCtx {
   }, [])
 
   const [lang, setLang] = useState("it")
+  const t = useMemo(() => createT(lang), [lang])
   const [tmdbKey, setTmdbKeyState] = useState("")
   const [mdblistApiKey, setMdblistApiKey] = useState("")
   const [tvdbApiKey, setTvdbApiKey] = useState("")

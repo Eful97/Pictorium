@@ -219,10 +219,10 @@ function CustomCatalogEntry({
           tv={tv}
           totalMovies={movies.length}
           totalTv={tv.length}
-          movieTitle={`${cat.name} — Film`}
-          tvTitle={`${cat.name} — Serie TV`}
-          movieGridTitle={`${cat.name} — Film`}
-          tvGridTitle={`${cat.name} — Serie TV`}
+          movieTitle={`${cat.name} — ${t("ui.movie")}`}
+          tvTitle={`${cat.name} — ${t("ui.tvSeries")}`}
+          movieGridTitle={`${cat.name} — ${t("ui.movie")}`}
+          tvGridTitle={`${cat.name} — ${t("ui.tvSeries")}`}
           openGrid={openGrid}
           onItemClick={onItemClick}
           savedKeys={savedKeys}
@@ -260,20 +260,6 @@ function CustomCatalogEntry({
   )
 }
 
-const PLATFORM_FILTERS = [
-  { id: "all", label: "Tutti" },
-  { id: "custom", label: "Personalizzati" },
-  { id: "justwatch", label: "JustWatch" },
-  { id: "netflix", label: "Netflix" },
-  { id: "amazon-prime", label: "Prime Video" },
-  { id: "disney", label: "Disney+" },
-  { id: "now", label: "NOW / Sky" },
-  { id: "apple-tv", label: "Apple TV+" },
-  { id: "hbo-max", label: "HBO Max" },
-  { id: "paramount-plus", label: "Paramount+" },
-  { id: "anime", label: "Anime" },
-] as const
-
 export function CataloghiView() {
   const trending = usePSelector((v) => v.trending)
   const trendingError = usePSelector((v) => v.trendingError)
@@ -292,6 +278,19 @@ export function CataloghiView() {
   const tmdbKey = usePSelector((v) => v.tmdbKey)
   const mdblistApiKey = usePSelector((v) => v.mdblistApiKey)
   const { t } = useT()
+  const platformFilters = useMemo(() => [
+    { id: "all", label: t("ui.all") },
+    { id: "custom", label: t("ui.customCatalogs") },
+    { id: "justwatch", label: "JustWatch" },
+    { id: "netflix", label: "Netflix" },
+    { id: "amazon-prime", label: "Prime Video" },
+    { id: "disney", label: "Disney+" },
+    { id: "now", label: "NOW / Sky" },
+    { id: "apple-tv", label: "Apple TV+" },
+    { id: "hbo-max", label: "HBO Max" },
+    { id: "paramount-plus", label: "Paramount+" },
+    { id: "anime", label: "Anime" },
+  ], [t])
   const ed = usePosterEditor()
   const regionFlag = getRegionDef(ed.defaultRegion).flag
   const movieTrending = trending.filter((r) => r.media_type === "movie").slice(0, 20)
@@ -416,7 +415,7 @@ export function CataloghiView() {
 
       {/* Platform Filter Chips */}
       <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-none pb-2 mb-8">
-        {PLATFORM_FILTERS.map((f) => (
+        {platformFilters.map((f) => (
           <button type="button"
             key={f.id}
             onClick={() => setPlatformFilter(f.id)}
