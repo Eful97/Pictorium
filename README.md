@@ -15,6 +15,10 @@ pinned: false
 <h3 align="center">Generatore Dinamico di Poster Cinematografici per Stremio & Media Center</h3>
 
 <p align="center">
+  <a href="README.md"><b>🇮🇹 Leggi in Italiano</b></a> • <a href="README.en.md"><b>🇬🇧 Read in English</b></a>
+</p>
+
+<p align="center">
   Locandine clean senza testo, loghi vettoriali ad alta definizione, rating IMDb/TMDB/Rotten Tomatoes, badge qualità streaming 4K, classifiche Netflix Top 10 e ordinamento stagioni intelligente. Tutto renderizzato al volo con Sharp C++ & SVG.
 </p>
 
