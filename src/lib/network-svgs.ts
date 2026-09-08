@@ -580,7 +580,7 @@ export async function renderFirstMatchingNetworkRawBadgeHybrid(
     if (shouldSkipNbcForJapaneseList(names, name)) continue
     const networkKey = getNetworkKey(name)
     if (networkKey) {
-      const svgRes = await loadNetworkRawPng(networkKey, pw)
+      const svgRes = await loadNetworkRawPng(networkKey, pw, topLight)
       if (svgRes) return { ...svgRes, networkKey, matchedName: name }
     }
   }
@@ -601,9 +601,9 @@ export async function renderFirstMatchingNetworkRawBadgeHybrid(
   return null
 }
 
-/** Logo network raw: sempre bianco con ombra (richiesta "sempre bianchi"), quasi attaccato al logo film. */
-async function loadNetworkRawPng(networkKey: string, pw: number, _topLight?: boolean): Promise<{ png: Buffer; w: number; h: number } | null> {
-  const cacheKey = `raw:${networkKey}:${pw}`
+/** Logo network raw con ombra morbida a contrasto per massima leggibilità. */
+async function loadNetworkRawPng(networkKey: string, pw: number, topLight: boolean = false): Promise<{ png: Buffer; w: number; h: number } | null> {
+  const cacheKey = `raw:${networkKey}:${pw}:${topLight ? 1 : 0}`
   const cached = networkLogoCache.get(cacheKey)
   if (cached) return cached
   const filename = NETWORK_FILES[networkKey]
@@ -612,7 +612,15 @@ async function loadNetworkRawPng(networkKey: string, pw: number, _topLight?: boo
   if (!fs.existsSync(filePath)) return null
   try {
     const sharp = (await import("sharp")).default
-    const svgBuffer = await fs.promises.readFile(filePath)
+    let svgBuffer: Buffer
+    if (networkKey === "marvel") {
+      const studiosColor = topLight ? "#ffffff" : "#121216"
+      const raw = await fs.promises.readFile(filePath, "utf-8")
+      const modified = raw.replace(".studios-fg { fill: #121216; }", `.studios-fg { fill: ${studiosColor}; }`)
+      svgBuffer = Buffer.from(modified)
+    } else {
+      svgBuffer = await fs.promises.readFile(filePath)
+    }
     // Uniform area come per loadNetworkPng — flat ridotti
     let targetW: number
     let maxLogoH: number
@@ -622,7 +630,7 @@ async function loadNetworkRawPng(networkKey: string, pw: number, _topLight?: boo
       const w = meta.width || 100
       const h = meta.height || 50
       const aspect = w / h
-      const isFlatWide2 = ["lionsgate", "sony", "legendary", "fandango", "pixar", "dreamworks", "taodue", "mappa", "skydance"].includes(networkKey)
+      const isFlatWide2 = ["lionsgate", "sony", "legendary", "fandango", "pixar", "dreamworks", "taodue", "mappa", "skydance", "castle_rock"].includes(networkKey)
       // La "N" Netflix è un'icona verticale: ad area uniforme uscirebbe altissima (~80px) → area -60%
       const areaScale2 = isFlatWide2 ? 0.62 : networkKey === "netflix" ? 0.4 : 1
       const desiredArea = 3600 * areaScale2 * (pw / 500) * (pw / 500)
@@ -641,8 +649,41 @@ async function loadNetworkRawPng(networkKey: string, pw: number, _topLight?: boo
       .resize(targetW, maxLogoH, { fit: "inside", withoutEnlargement: false })
       .png()
       .toBuffer({ resolveWithObject: true })
-    // Senza pill e senza ombra — solo logo originale (quasi attaccato al logo film) — richiesta: svg originale
-    const result = { png: data, w: info.width, h: info.height }
+
+    // Ombra a contrasto (drop shadow) per staccare il logo dallo sfondo
+    const shadowBlur = Math.max(2, Math.round(3 * pw / 380))
+    const shadowDy = Math.max(1, Math.round(2 * pw / 380))
+    const shadowColor = { r: 0, g: 0, b: 0, alpha: 0.55 as const }
+
+    const shadowSolid = await sharp({
+      create: { width: info.width, height: info.height, channels: 4, background: shadowColor },
+    })
+      .png()
+      .toBuffer()
+    const masked = await sharp(shadowSolid)
+      .composite([{ input: data, blend: "dest-in" }])
+      .png()
+      .toBuffer()
+    const shadowBuf = await sharp(masked).blur(shadowBlur).toBuffer()
+
+    const canvasW = info.width + shadowBlur * 2 + 2
+    const canvasH = info.height + shadowBlur * 2 + shadowDy + 2
+    const shadowLeft = shadowBlur + 1
+    const shadowTop = shadowBlur + shadowDy + 1
+    const logoLeft = shadowBlur + 1
+    const logoTop = shadowBlur + 1
+
+    const finalPng = await sharp({
+      create: { width: canvasW, height: canvasH, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } },
+    })
+      .composite([
+        { input: shadowBuf, left: shadowLeft, top: shadowTop },
+        { input: data, left: logoLeft, top: logoTop },
+      ])
+      .png()
+      .toBuffer()
+
+    const result = { png: finalPng, w: canvasW, h: canvasH }
     networkLogoCache.set(cacheKey, result)
     return result
   } catch (e) {
