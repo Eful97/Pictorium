@@ -162,7 +162,7 @@ export default function StatusPage() {
               <div className="flex items-center gap-2 mb-3">
                 <StatusBadge ok={data.tmdb.apiKey} />
                 <h2 className="text-base font-semibold">{t("ui.statusTmdb")}</h2>
-                {data.tmdb.apiKey && <span className="text-xs text-zinc-400">({data.tmdb.apiKeyLength} caratteri)</span>}
+                {data.tmdb.apiKey && <span className="text-xs text-zinc-400">{t("ui.statusApiKeyLength", { count: data.tmdb.apiKeyLength })}</span>}
               </div>
               {data.tmdb.apiKey ? (
                 <div className="space-y-1">
@@ -211,17 +211,17 @@ export default function StatusPage() {
             {cacheStatus?.tmdb && (
               <div className="bg-white/[0.03] border border-zinc-800 rounded-xl p-4">
                 <h2 className="text-base font-semibold mb-3 flex items-center justify-between">
-                  <span>Quota & Telemetria TMDb</span>
+                  <span>{t("ui.statusTmdbTelemetry")}</span>
                   <span className="text-xs px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-medium">
-                    Hit rate: {cacheStatus.tmdb.cacheHitRate}
+                    {t("ui.statusHitRate", { rate: cacheStatus.tmdb.cacheHitRate })}
                   </span>
                 </h2>
                 <div className="space-y-1">
-                  <StatusRow label="Chiamate API Totali" ok extra={cacheStatus.tmdb.totalCalls} />
-                  <StatusRow label="Cache Hit (in-memory 5m)" ok extra={<>{cacheStatus.tmdb.cacheHits} ({cacheStatus.tmdb.cacheHitRate})</>} />
-                  <StatusRow label="Richieste di Rete Effettive" ok extra={cacheStatus.tmdb.networkCalls} />
+                  <StatusRow label={t("ui.statusTmdbTotalCalls")} ok extra={cacheStatus.tmdb.totalCalls} />
+                  <StatusRow label={t("ui.statusTmdbCacheHits")} ok extra={<>{cacheStatus.tmdb.cacheHits} ({cacheStatus.tmdb.cacheHitRate})</>} />
+                  <StatusRow label={t("ui.statusTmdbNetworkCalls")} ok extra={cacheStatus.tmdb.networkCalls} />
                   {cacheStatus.tmdb.lastCallTime && (
-                    <StatusRow label="Ultima Chiamata" ok extra={new Date(cacheStatus.tmdb.lastCallTime).toLocaleTimeString(getLang())} />
+                    <StatusRow label={t("ui.statusTmdbLastCall")} ok extra={new Date(cacheStatus.tmdb.lastCallTime).toLocaleTimeString(getLang())} />
                   )}
                 </div>
               </div>
@@ -231,20 +231,20 @@ export default function StatusPage() {
             {cacheStatus?.poster && (
               <div className="bg-white/[0.03] border border-zinc-800 rounded-xl p-4">
                 <div className="flex items-center justify-between mb-3">
-                  <h2 className="text-base font-semibold">Locandine & Cache Hit Rate</h2>
+                  <h2 className="text-base font-semibold">{t("ui.statusPosterHitRateTitle")}</h2>
                   <span className="text-xs px-2 py-0.5 rounded-md bg-accent-orange/15 text-accent-orange border border-accent-orange/30 font-semibold">
-                    Hit rate: {cacheStatus.poster.hitRate}
+                    {t("ui.statusHitRate", { rate: cacheStatus.poster.hitRate })}
                   </span>
                 </div>
                 <div className="space-y-1">
-                  <StatusRow label="Richieste Poster Totali" ok extra={cacheStatus.poster.requests} />
-                  <StatusRow label="Serviti da Cache (Istantanei)" ok extra={<>{cacheStatus.poster.hits} ({cacheStatus.poster.hitRate})</>} />
-                  <StatusRow label="Renderizzati da zero (Sharp)" ok extra={cacheStatus.poster.renders} />
-                  <StatusRow label="Slot Concorrenza Attivi" ok extra={<>{cacheStatus.poster.activeRenders} / {cacheStatus.poster.maxConcurrent} (in coda: {cacheStatus.poster.queuedRenders})</>} />
+                  <StatusRow label={t("ui.statusPosterRequests")} ok extra={cacheStatus.poster.requests} />
+                  <StatusRow label={t("ui.statusPosterServedCache")} ok extra={<>{cacheStatus.poster.hits} ({cacheStatus.poster.hitRate})</>} />
+                  <StatusRow label={t("ui.statusPosterRendersZero")} ok extra={cacheStatus.poster.renders} />
+                  <StatusRow label={t("ui.statusPosterActiveSlots")} ok extra={<>{cacheStatus.poster.activeRenders} / {cacheStatus.poster.maxConcurrent} {t("ui.statusPosterQueued", { count: cacheStatus.poster.queuedRenders })}</>} />
                   
                   {/* Formati erogati */}
                   <div className="pt-2">
-                    <span className="text-xs text-zinc-400 block mb-1.5">Distribuzione Formati Immagine:</span>
+                    <span className="text-xs text-zinc-400 block mb-1.5">{t("ui.statusPosterFormatDist")}</span>
                     <div className="flex flex-wrap gap-2">
                       <span className="px-2.5 py-1 rounded-lg bg-zinc-900 border border-zinc-800 text-xs text-zinc-300">
                         WebP: <span className="text-accent-orange font-semibold">{cacheStatus.poster.formats.webp}</span>
@@ -264,13 +264,13 @@ export default function StatusPage() {
             {/* Memoria & Sharp Engine */}
             {cacheStatus?.system && (
               <div className="bg-white/[0.03] border border-zinc-800 rounded-xl p-4">
-                <h2 className="text-base font-semibold mb-3">Memoria RAM & Engine Sharp</h2>
+                <h2 className="text-base font-semibold mb-3">{t("ui.statusMemoryTitle")}</h2>
                 <div className="space-y-1">
-                  <StatusRow label="RAM Processo (RSS)" ok extra={`${cacheStatus.system.memory.rssMb} MB`} />
-                  <StatusRow label="Heap Node.js Utilizzato" ok extra={`${cacheStatus.system.memory.heapUsedMb} / ${cacheStatus.system.memory.heapTotalMb} MB`} />
-                  <StatusRow label="Buffer Cache Sharp / libvips" ok extra={`${(cacheStatus.system.sharp.memory.current / 1024 / 1024).toFixed(1)} MB (max: ${(cacheStatus.system.sharp.memory.max / 1024 / 1024).toFixed(0)} MB)`} />
-                  <StatusRow label="Sharp Concurrency & SIMD" ok extra={`Thread: ${cacheStatus.system.sharp.concurrency} | SIMD: ${cacheStatus.system.sharp.simd ? "Attivo" : "No"}`} />
-                  <StatusRow label="Uptime Server" ok extra={`${Math.floor(cacheStatus.system.uptimeSeconds / 60)} min (${cacheStatus.system.uptimeSeconds}s)`} />
+                  <StatusRow label={t("ui.statusMemoryRss")} ok extra={`${cacheStatus.system.memory.rssMb} MB`} />
+                  <StatusRow label={t("ui.statusMemoryHeap")} ok extra={`${cacheStatus.system.memory.heapUsedMb} / ${cacheStatus.system.memory.heapTotalMb} MB`} />
+                  <StatusRow label={t("ui.statusMemoryBuffer")} ok extra={`${(cacheStatus.system.sharp.memory.current / 1024 / 1024).toFixed(1)} MB (${t("ui.statusMemoryBufferMax", { max: `${(cacheStatus.system.sharp.memory.max / 1024 / 1024).toFixed(0)} MB` })})`} />
+                  <StatusRow label={t("ui.statusMemorySharpSimd")} ok extra={t("ui.statusSharpSimdThreads", { concurrency: cacheStatus.system.sharp.concurrency, simd: cacheStatus.system.sharp.simd ? t("ui.statusSimdActive") : t("ui.statusSimdInactive") })} />
+                  <StatusRow label={t("ui.statusMemoryUptime")} ok extra={t("ui.statusUptimeValue", { min: Math.floor(cacheStatus.system.uptimeSeconds / 60), sec: cacheStatus.system.uptimeSeconds })} />
                 </div>
               </div>
             )}

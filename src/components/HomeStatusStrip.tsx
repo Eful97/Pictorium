@@ -9,7 +9,7 @@ export function HomeStatusStrip() {
     <footer className="status-strip max-w-5xl mx-auto mt-10" data-testid="home-status">
       <div className="status-left">
         <span className="pulse-dot" aria-hidden="true" />
-        <span>{t("ui.allSystemsOperational")}</span>
+        <span>{t("ui.allSystemsOperational")}</span>{" "}
         <span className="status-meta hidden sm:inline" aria-hidden="true">{t("ui.statusMeta")}</span>
       </div>
       <div className="status-right">
