@@ -107,24 +107,42 @@ Choose the preferred deployment method for your setup:
 
 | Platform | Cost | Type | Persistence | Recommended For |
 |---|---|---|---|---|
-| [▲ **Vercel**](#-vercel-1-click) | **Free** | Serverless | Upstash Redis (KV) | **Recommended**: 1-click, zero maintenance, global CDN |
+| [▲ **Vercel**](#-vercel) | **Free** | Serverless | Upstash Redis (KV) | **Recommended**: 1-click, zero maintenance, global CDN |
 | [🐳 **Docker Compose**](#-docker--compose) | **Free** | Container | Local Volume (`/data`) | NAS, Home Server, mini-PC (Unraid/TrueNAS) |
 | [🤗 **Hugging Face**](#-hugging-face-spaces) | **Free** | Docker (16GB RAM) | Storage Bucket | Great free RAM for shared instances |
 | [🦾 **Oracle Cloud**](#-other-deployment-methods) | **Free** | ARM VPS (24GB RAM) | Local Disk | Always-online with dedicated resources at zero cost |
 
 ---
 
-### ▲ Vercel (1-Click)
+### ▲ Vercel
 
 [![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2FEful97%2FPosterium)
 
-1. Click the **Deploy with Vercel** button above and create the project.
-2. In the Vercel dashboard, navigate to **Storage** → **Create Database** → select **Upstash (Redis)** and connect it to your project (this automatically sets `KV_REST_API_URL` and `KV_REST_API_TOKEN`).
-3. Go to **Settings → Environment Variables** and configure:
-   * `POSTERIUM_PUBLIC_INSTANCE` = `1`
-   * `POSTERIUM_TMDB_KEY` = *Your TMDB API Key* ([sign up free on TMDB](https://www.themoviedb.org/settings/api))
-4. Go to **Deployments** → **⋯** menu → **Redeploy**.
-5. Open the generated URL and click **Install on Stremio**!
+Ideal if you don't own a home server. Setup takes under 2 minutes and is 100% free:
+
+1. **Get your free TMDB API Key**:
+   * Create an account on [themoviedb.org](https://www.themoviedb.org/signup).
+   * Go to **Settings → API** ([themoviedb.org/settings/api](https://www.themoviedb.org/settings/api)) and generate an API key (*Developer*).
+   * Copy the **API Key (v3 auth)** (a 32-character string, *not* the long read access token).
+2. **Import Project on Vercel**:
+   * Log into [vercel.com](https://vercel.com).
+   * Click **Add New…** → **Project** at the top.
+   * Under "Import Third-Party Git Repository", paste the repository URL: `https://github.com/Eful97/Posterium` and click **Import**.
+   * In the **Environment Variables** section, add:
+     * `POSTERIUM_TMDB_KEY` = your 32-character TMDB API key.
+     * `POSTERIUM_PUBLIC_INSTANCE` = `1`
+   * Click **Deploy**.
+3. **Link Upstash Redis (free database to save your custom posters)**:
+   * Once the deploy finishes, open your project dashboard in Vercel.
+   * Go to the **Storage** tab at the top → click **Connect Store** (or **Create Database**) → choose **Upstash (Redis)**.
+   * Select a region close to you and click **Create & Connect** (Vercel automatically configures `KV_REST_API_URL` and `KV_REST_API_TOKEN`).
+4. **Redeploy (Crucial Step!)**:
+   * Go to the **Deployments** tab in your Vercel project.
+   * Click the **three dots (⋯)** on the latest deployment and select **Redeploy**.
+   * *(Note: Vercel only binds the new Upstash database variables on subsequent deployments)*.
+5. **Done!**:
+   * Open your deployed URL (e.g. `https://your-posterium.vercel.app`).
+   * Click **Install on Stremio**! *(You can confirm everything is running smoothly by checking `/api/health`, which should return `"storage": "kv"` and `"status": "ok"`)*.
 
 ---
 
