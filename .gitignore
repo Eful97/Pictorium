@@ -45,6 +45,9 @@ yarn-error.log*
 /vibeguard.config.json
 /.opencode/
 /CLAUDE.md
+/AGENTS.md
+/agents.md
+/.agents/
 
 # vercel
 .vercel
