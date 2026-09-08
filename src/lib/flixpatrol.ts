@@ -4,7 +4,7 @@ import os from "node:os"
 import path from "node:path"
 import { DATA_DIR } from "@/lib/data-dir"
 import { createLogger } from "@/lib/logger"
-import { getJWRankings, PLATFORM_JW_PACKAGES, type JWRankEntry } from "@/lib/justwatch"
+import { getJWRankings, getJWTitles, PLATFORM_JW_PACKAGES, type JWRankEntry } from "@/lib/justwatch"
 import { flixSlugToRegionCode, getRegionDef } from "@/lib/regions"
 
 const log = createLogger("flixpatrol")
@@ -79,6 +79,7 @@ const SLUG_TO_PLATFORM: Record<string, string> = {
   now: "NOW",
   "now-tv": "NOW",
   hayu: "hayu",
+  crunchyroll: "Crunchyroll",
 }
 
 interface CatalogEntry {
@@ -240,10 +241,52 @@ export async function getTop10(platformSlug: string, country = "italy", apiKey?:
   const tmdbLang = tmdbLangForCountry(country)
   if (jwCode && pkgs) {
     try {
-      const [jwMovies, jwShows] = await Promise.all([
+      let [jwMovies, jwShows] = await Promise.all([
         getJWRankings("MOVIE", jwCode, 10, pkgs, tmdbLang),
         getJWRankings("SHOW", jwCode, 10, pkgs, tmdbLang),
       ])
+      // Se la classifica giornaliera JustWatch è scarsa (<5 titoli, es. RaiPlay),
+      // arricchisce/ripiega sui titoli più popolari della piattaforma per garantire 10 voci.
+      if (jwMovies.length < 5) {
+        try {
+          const popMovies = await getJWTitles({
+            objectType: "MOVIE",
+            country: jwCode,
+            first: 10,
+            packages: pkgs,
+            sortBy: "POPULAR",
+            language: tmdbLang,
+          })
+          if (popMovies.length > 0) {
+            jwMovies = popMovies.map((t, idx) => ({
+              tmdbId: t.tmdbId,
+              imdbId: t.imdbId,
+              rank: idx + 1,
+              title: t.title,
+            }))
+          }
+        } catch {}
+      }
+      if (jwShows.length < 5) {
+        try {
+          const popShows = await getJWTitles({
+            objectType: "SHOW",
+            country: jwCode,
+            first: 10,
+            packages: pkgs,
+            sortBy: "POPULAR",
+            language: tmdbLang,
+          })
+          if (popShows.length > 0) {
+            jwShows = popShows.map((t, idx) => ({
+              tmdbId: t.tmdbId,
+              imdbId: t.imdbId,
+              rank: idx + 1,
+              title: t.title,
+            }))
+          }
+        } catch {}
+      }
       if (jwMovies.length > 0 || jwShows.length > 0) {
         const toJwItem = async (entry: JWRankEntry, type: "movie" | "tv", idx: number): Promise<FlixPatrolEnrichedItem> => {
           const tmdbId = entry.tmdbId

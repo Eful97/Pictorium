@@ -27,12 +27,15 @@ const ANIME_GENRES = [
 ]
 
 function getCatalogGenreOptions(type: "movie" | "series", catalogId: string): string[] {
-  if (catalogId.includes("anime")) return ANIME_GENRES
+  if (catalogId.includes("anime") || catalogId.includes("crunchyroll")) return ANIME_GENRES
   return type === "movie" ? MOVIE_GENRES : SERIES_GENRES
 }
 
-/** Nome dei cataloghi Top 20 JustWatch nella lingua/regione attiva (bandiera dinamica). */
+/** Nome dei cataloghi Top 20 / Ultime Uscite JustWatch nella lingua/regione attiva (bandiera dinamica). */
 function regionJwName(id: string, type: "movie" | "series", region: RegionDef): string | null {
+  if (id.startsWith("posterium-jw-new-")) {
+    return `${region.flag} Ultime Uscite ${region.label} — ${type === "movie" ? "Film" : "Serie TV"}`
+  }
   if (!id.startsWith("posterium-jw-")) return null
   return `${region.flag} Top 20 ${region.label} — ${type === "movie" ? "Film" : "Serie TV"}`
 }

@@ -23,6 +23,8 @@ export const POSTERIUM_CATALOGS = [
   { id: "posterium-hbo-series", name: "🟣 HBO Max — Serie TV", type: "series" },
   { id: "posterium-paramount-movies", name: "🏔️ Paramount+ — Film", type: "movie" },
   { id: "posterium-paramount-series", name: "🏔️ Paramount+ — Serie TV", type: "series" },
+  { id: "posterium-crunchyroll-series", name: "🍥 Crunchyroll — Anime & Serie", type: "series" },
+  { id: "posterium-crunchyroll-movies", name: "🍥 Crunchyroll — Film Anime", type: "movie" },
   { id: "posterium-anime-movies", name: "⛩️ Top 20 Film Anime", type: "movie" },
   { id: "posterium-anime", name: "⛩️ Top 20 Serie Anime", type: "series" },
 ] as const satisfies readonly PosteriumCatalogDefinition[]

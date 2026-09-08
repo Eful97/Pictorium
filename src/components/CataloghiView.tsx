@@ -289,6 +289,7 @@ export function CataloghiView() {
     { id: "apple-tv", label: "Apple TV+" },
     { id: "hbo-max", label: "HBO Max" },
     { id: "paramount-plus", label: "Paramount+" },
+    { id: "crunchyroll", label: "Crunchyroll" },
     { id: "anime", label: "Anime" },
   ], [t])
   const ed = usePosterEditor()

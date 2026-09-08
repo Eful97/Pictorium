@@ -334,6 +334,27 @@ const server = http.createServer(async (req, res) => {
         })
       }
 
+      if (opName === "GetPopularTitles") {
+        return json(res, 200, {
+          data: {
+            popularTitles: {
+              edges: [
+                {
+                  node: {
+                    content: { title: "Avatar", originalReleaseDate: "2009-12-18", externalIds: { tmdbId: 19995, imdbId: "tt0499549" } },
+                  },
+                },
+                {
+                  node: {
+                    content: { title: "Interstellar", originalReleaseDate: "2014-11-07", externalIds: { tmdbId: 157336, imdbId: "tt0816692" } },
+                  },
+                },
+              ],
+            },
+          },
+        })
+      }
+
       const movieEdges = [
         { streamingChartInfo: { rank: 1 }, node: { content: { externalIds: { tmdbId: 19995 } } } },
         { streamingChartInfo: { rank: 2 }, node: { content: { externalIds: { tmdbId: 157336 } } } },

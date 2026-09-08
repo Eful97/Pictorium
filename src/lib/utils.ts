@@ -61,6 +61,7 @@ export const STREAMING_PLATFORMS = [
   { slug: "apple-tv", name: "Apple TV+", icon: "" },
   { slug: "hbo-max", name: "HBO Max", icon: "" },
   { slug: "paramount-plus", name: "Paramount+", icon: "" },
+  { slug: "crunchyroll", name: "Crunchyroll", icon: "" },
 ] as const
 
 /**

@@ -13,7 +13,7 @@ import { fetchMDBList } from "@/lib/mdblist"
 import { fetchUnifiedCatalogItems } from "@/lib/custom-catalog-providers"
 import { buildStremioPosterUrl } from "@/lib/stremio-poster-url"
 import { getOriginFromRequest } from "@/lib/poster-public-url"
-import { getJWRankings, type JWRankEntry } from "@/lib/justwatch"
+import { getJWRankings, getJWTitles, resolveJWGenreCode, type JWRankEntry } from "@/lib/justwatch"
 import { getRegionDef, normalizeRegion, parseRegion, type RegionDef } from "@/lib/regions"
 import { getCatalogEpoch } from "@/lib/catalog-epoch"
 import { createLogger } from "@/lib/logger"
@@ -126,12 +126,14 @@ const PLATFORM_JW_PACKAGES: Record<string, string[]> = {
   apple: ["atp"],
   hbo: ["mxx"],
   paramount: ["pmp"],
+  crunchyroll: ["cru"],
 }
 
 const PLATFORM_SLUGS: Record<string, string> = {
   netflix: "netflix", prime: "amazon-prime", disney: "disney",
   now: "now",
   apple: "apple-tv", hbo: "hbo-max", paramount: "paramount-plus",
+  crunchyroll: "crunchyroll",
 }
 
 type StremioCatalogType = "movie" | "series"
@@ -514,14 +516,26 @@ export async function posteriumCatalog(
       // Fix L12: la chiave si controlla PRIMA del fetch JustWatch
       if (!apiKey) return catalogResponse({ metas: [] })
       const jwSkip = typeof extra.skip === "number" && extra.skip > 0 ? extra.skip : 0
+      const jwGenre = resolveJWGenreCode(extra.genre)
       const jwFirst = Math.min(60, 20 + jwSkip)
-      const rows = await getJustWatchRankings(stType === "movie" ? "MOVIE" : "SHOW", region.code, jwFirst, undefined, tmdbLang)
+      const rows = jwGenre
+        ? await getJWTitles({
+            objectType: stType === "movie" ? "MOVIE" : "SHOW",
+            country: region.code,
+            first: jwFirst,
+            offset: jwSkip,
+            genres: [jwGenre],
+            sortBy: "POPULAR",
+            language: tmdbLang,
+          })
+        : await getJustWatchRankings(stType === "movie" ? "MOVIE" : "SHOW", region.code, jwFirst, undefined, tmdbLang)
+
       const seenTmdb = new Set<number>()
       const uniqueRows = rows.filter((r) => {
         if (!r.tmdbId || seenTmdb.has(r.tmdbId)) return false
         seenTmdb.add(r.tmdbId)
         return true
-      }).slice(jwSkip, jwSkip + 20)
+      }).slice(jwGenre ? 0 : jwSkip, (jwGenre ? 0 : jwSkip) + 20)
 
       const results = await concurrentMap(uniqueRows, async (row) => {
         try {
@@ -629,16 +643,34 @@ export async function posteriumCatalog(
         // Fonte primaria: JustWatch streaming charts con filtro package (es. Netflix nfx, Prime prv, ecc.)
         const pkgs = PLATFORM_JW_PACKAGES[platformKey]
         const skipForPlatform = typeof extra.skip === "number" && extra.skip > 0 ? extra.skip : 0
+        const jwGenre = resolveJWGenreCode(extra.genre)
         const jwFirst = Math.min(50, 10 + skipForPlatform)
-        const jwRows = pkgs ? await getJustWatchRankings(stType === "movie" ? "MOVIE" : "SHOW", region.code, jwFirst, pkgs, tmdbLang) : []
+        let jwRows: JWRankEntry[] = []
+        if (pkgs) {
+          if (jwGenre) {
+            jwRows = await getJWTitles({
+              objectType: stType === "movie" ? "MOVIE" : "SHOW",
+              country: region.code,
+              first: jwFirst,
+              offset: skipForPlatform,
+              packages: pkgs,
+              genres: [jwGenre],
+              sortBy: "POPULAR",
+              language: tmdbLang,
+            })
+          } else {
+            jwRows = await getJustWatchRankings(stType === "movie" ? "MOVIE" : "SHOW", region.code, jwFirst, pkgs, tmdbLang)
+          }
+        }
 
         if (jwRows.length > 0) {
           const seenTmdb = new Set<number>()
+          const sliceOffset = jwGenre ? 0 : skipForPlatform
           const uniqueJwRows = jwRows.filter((r) => {
             if (!r.tmdbId || seenTmdb.has(r.tmdbId)) return false
             seenTmdb.add(r.tmdbId)
             return true
-          }).slice(skipForPlatform, skipForPlatform + 10)
+          }).slice(sliceOffset, sliceOffset + 10)
 
           const results = await concurrentMap(uniqueJwRows, async (row) => {
             let details: TMDBDetails | null = null
