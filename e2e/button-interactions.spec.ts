@@ -152,6 +152,9 @@ test.describe("Button interactions and immediate updates", () => {
     await expect(stremioRibbon).toHaveClass(/bg-white\/20/)
     await expect(nuvioRibbon).not.toHaveClass(/bg-white\/20/)
 
+    // Switch to Preferences tab
+    await page.getByRole("tab", { name: /Preferenze|Preferences/i }).click()
+
     // Test Episode metadata source buttons
     const episodeSourceSection = page.locator(".flex.gap-1").filter({ hasText: "TMDB" })
     const tvdbBtn = episodeSourceSection.getByRole("button", { name: "TVDB" })
@@ -161,6 +164,9 @@ test.describe("Button interactions and immediate updates", () => {
     await tmdbBtn.click()
     await expect(tmdbBtn).toHaveClass(/bg-white\/20/)
     await expect(tvdbBtn).not.toHaveClass(/bg-white\/20/)
+
+    // Switch back to Style tab
+    await page.getByRole("tab", { name: /Stile|Style/i }).click()
 
     // Test Blur toggle switch
     const blurToggle = page.getByRole("switch", { name: "Sfocatura predefinita" })

@@ -75,3 +75,22 @@ export const PICKER_LANGS = REGIONS.map((r) => ({
   name: `${r.label} · ${r.languageName}`,
   sub: r.lang2.toUpperCase(),
 }))
+
+export interface UiLangOption {
+  code: string
+  flag: string
+  name: string
+  sub: string
+}
+
+/** Le 8 lingue UI con dizionario completo dedicato. */
+export const UI_LANGUAGES: readonly UiLangOption[] = [
+  { code: "it", flag: "🇮🇹", name: "Italiano", sub: "IT" },
+  { code: "en", flag: "🇬🇧", name: "English", sub: "EN" },
+  { code: "fr", flag: "🇫🇷", name: "Français", sub: "FR" },
+  { code: "de", flag: "🇩🇪", name: "Deutsch", sub: "DE" },
+  { code: "es", flag: "🇪🇸", name: "Español", sub: "ES" },
+  { code: "ja", flag: "🇯🇵", name: "日本語", sub: "JA" },
+  { code: "ko", flag: "🇰🇷", name: "한국어", sub: "KO" },
+  { code: "pt", flag: "🇧🇷", name: "Português", sub: "PT" },
+] as const

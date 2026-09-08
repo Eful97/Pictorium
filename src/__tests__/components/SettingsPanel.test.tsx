@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest"
+import { describe, it, expect, vi } from "vitest"
 import { screen } from "@testing-library/react"
 import { SettingsPanel } from "@/components/SettingsPanel"
 import { renderWithCtx } from "@/__tests__/test-utils"
@@ -73,5 +73,49 @@ describe("SettingsPanel", () => {
     expect(screen.queryByPlaceholderText("ui.tmdbKeyPlaceholder")).toBeNull()
     expect(screen.queryByPlaceholderText("ui.mdblistKeyPlaceholder")).toBeNull()
     expect(screen.queryByPlaceholderText("ui.tvdbKeyPlaceholder")).toBeNull()
+  })
+
+  it("renders 3 tabs and switches active tab on click", async () => {
+    const { fireEvent } = await import("@testing-library/react")
+    renderWithCtx(
+      <SettingsPanel
+        setSettingsOpen={() => {}}
+        exportData={() => {}}
+        importData={() => {}}
+      />
+    )
+    const styleTab = screen.getByRole("tab", { name: "ui.settingsTabStyle" })
+    const prefsTab = screen.getByRole("tab", { name: "ui.settingsTabPrefs" })
+    const dataTab = screen.getByRole("tab", { name: "ui.settingsTabData" })
+
+    expect(styleTab).toHaveAttribute("aria-selected", "true")
+    expect(prefsTab).toHaveAttribute("aria-selected", "false")
+    expect(dataTab).toHaveAttribute("aria-selected", "false")
+
+    fireEvent.click(prefsTab)
+    expect(styleTab).toHaveAttribute("aria-selected", "false")
+    expect(prefsTab).toHaveAttribute("aria-selected", "true")
+    expect(dataTab).toHaveAttribute("aria-selected", "false")
+    expect(screen.getByText("ui.settingsAutomationTitle")).toBeInTheDocument()
+
+    fireEvent.click(dataTab)
+    expect(dataTab).toHaveAttribute("aria-selected", "true")
+    expect(prefsTab).toHaveAttribute("aria-selected", "false")
+  })
+
+  it("calls setSettingsOpen(false) when close button is clicked", async () => {
+    const { fireEvent } = await import("@testing-library/react")
+    const closeSpy = vi.fn()
+    renderWithCtx(
+      <SettingsPanel
+        setSettingsOpen={closeSpy}
+        exportData={() => {}}
+        importData={() => {}}
+      />
+    )
+    const closeButtons = screen.getAllByRole("button", { name: /Chiudi|ui\.close/i })
+    expect(closeButtons.length).toBeGreaterThan(0)
+    fireEvent.click(closeButtons[0])
+    expect(closeSpy).toHaveBeenCalledWith(false)
   })
 })

@@ -5,7 +5,7 @@ import dynamic from "next/dynamic"
 import { usePSelector } from "@/lib/context"
 import { useT } from "@/lib/contexts/TranslationContext"
 import { usePosterEditor } from "@/lib/contexts/PosterEditorContext"
-import { LANG_FLAGS, LANG_NAMES, PICKER_LANGS } from "@/lib/utils"
+import { LANG_FLAGS, LANG_NAMES, UI_LANGUAGES } from "@/lib/utils"
 import { LangPicker } from "@/components/LangPicker"
 import { ToastProvider } from "@/components/Toast"
 import { HomeStatusStrip } from "@/components/HomeStatusStrip"
@@ -106,16 +106,19 @@ export function AppShell() {
           <span className="text-[11px] uppercase tracking-wider">{lang}</span>
         </button>
         {langOpen && (
-          <div className="absolute left-0 top-full mt-2 bg-black/90 backdrop-blur-2xl border border-white/15 rounded-xl p-1.5 shadow-2xl shadow-black/80 z-50 min-w-36 animate-fade-scale-in">
-            {PICKER_LANGS.map((l) => (
+          <div className="absolute left-0 top-full mt-2 bg-black/90 backdrop-blur-2xl border border-white/15 rounded-xl p-1.5 shadow-2xl shadow-black/80 z-50 min-w-40 animate-fade-scale-in">
+            {UI_LANGUAGES.map((l) => (
               <button
                 type="button"
-                key={l.key}
+                key={l.code}
                 onClick={() => { pickLang(l.code); setLangOpen(false) }}
-                className={`w-full flex items-center gap-2 px-2.5 py-2 rounded-lg text-xs transition-all text-left hover:bg-zinc-800 cursor-pointer ${l.code === lang ? "bg-accent/15 text-accent-orange font-semibold" : "text-zinc-300"}`}
+                className={`w-full flex items-center justify-between px-2.5 py-2 rounded-lg text-xs transition-all text-left hover:bg-zinc-800 cursor-pointer ${l.code === lang ? "bg-accent/15 text-accent-orange font-semibold" : "text-zinc-300"}`}
               >
-                <span>{l.flag}</span>
-                <span>{l.name}</span>
+                <span className="flex items-center gap-2">
+                  <span>{l.flag}</span>
+                  <span>{l.name}</span>
+                </span>
+                {l.code === lang && <Check className="w-3.5 h-3.5 text-accent-orange shrink-0" />}
               </button>
             ))}
           </div>
@@ -185,7 +188,6 @@ export function AppShell() {
 
       {/* Desktop Toolbar — Floating Island */}
       <div className="hidden md:flex absolute top-4 right-4 z-20">
-        {settingsOpen && <div className="hidden md:block fixed inset-0 z-40" onClick={() => setSettingsOpen(false)} />}
         <div className="flex items-center gap-1.5 p-1.5 rounded-2xl bg-black/60 backdrop-blur-xl border border-white/10 shadow-2xl shadow-black/50 relative z-50">
           {/* Installa Posterium Hub Pill Button */}
           <button
@@ -259,23 +261,18 @@ export function AppShell() {
             <Sparkles className="w-4 h-4" />
           </button>
 
-          {/* Settings Button & Dropdown */}
-          <div className="relative">
-            <button
-              type="button"
-              aria-label={t("ui.settings")}
-              title={t("ui.settings")}
-              onClick={(e) => { e.stopPropagation(); setSettingsOpen((o) => !o) }}
-              className={`p-2 rounded-xl text-zinc-400 hover:text-white hover:bg-white/[0.08] active:scale-90 transition-all duration-150 cursor-pointer ${
-                settingsOpen ? "bg-white/10 text-white" : ""
-              }`}
-            >
-              <Settings className="w-4 h-4" />
-            </button>
-            <div className="hidden md:block">
-              {settingsOpen && <SettingsPanel setSettingsOpen={setSettingsOpen} exportData={exportData} importData={importData} />}
-            </div>
-          </div>
+          {/* Settings Button */}
+          <button
+            type="button"
+            aria-label={t("ui.settings")}
+            title={t("ui.settings")}
+            onClick={(e) => { e.stopPropagation(); setSettingsOpen((o) => !o) }}
+            className={`p-2 rounded-xl text-zinc-400 hover:text-white hover:bg-white/[0.08] active:scale-90 transition-all duration-150 cursor-pointer ${
+              settingsOpen ? "bg-white/10 text-white" : ""
+            }`}
+          >
+            <Settings className="w-4 h-4" />
+          </button>
         </div>
       </div>
 
@@ -328,10 +325,18 @@ export function AppShell() {
             <button type="button" aria-label={t("ui.chooseLanguage")} onClick={() => setLangOpen((o) => !o)} className={`h-9 w-9 flex items-center justify-center rounded-lg active:scale-90 transition-all duration-150 text-sm press-scale ${langOpen ? "dropdown-open" : "hover:bg-white/[0.08]"}`} title={LANG_NAMES[lang]}>{LANG_FLAGS[lang] || <Globe className="w-4 h-4" />}</button>
             {(langOpen || closingLang) && (
               <div className={`absolute right-0 bottom-full mb-3 bg-black/60 backdrop-blur-xl border border-border/50 rounded-xl p-2 shadow-2xl shadow-black/50 z-50 min-w-40 ${closingLang ? "animate-fade-scale-out" : "animate-fade-scale-in"} dropdown-open`}>
-                {PICKER_LANGS.map((l) => (
-                  <button type="button" key={l.key} onClick={() => { pickLang(l.code); closeLang() }} className={`w-full flex items-center gap-2 px-3 py-2.5 rounded-lg text-xs transition-all duration-150 text-left hover:bg-zinc-700/50 active:scale-[0.98] ${l.code === lang ? "bg-accent/10 text-accent font-medium" : "text-zinc-300"}`}>
-                    <span>{l.flag}</span>
-                    <span>{l.name}</span>
+                {UI_LANGUAGES.map((l) => (
+                  <button
+                    type="button"
+                    key={l.code}
+                    onClick={() => { pickLang(l.code); closeLang() }}
+                    className={`w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-xs transition-all duration-150 text-left hover:bg-zinc-700/50 active:scale-[0.98] ${l.code === lang ? "bg-accent/10 text-accent font-medium" : "text-zinc-300"}`}
+                  >
+                    <span className="flex items-center gap-2">
+                      <span>{l.flag}</span>
+                      <span>{l.name}</span>
+                    </span>
+                    {l.code === lang && <Check className="w-3.5 h-3.5 text-accent shrink-0" />}
                   </button>
                 ))}
               </div>
@@ -410,6 +415,17 @@ export function AppShell() {
           </button>
         </div>
       </nav>
+
+      {/* Desktop Settings Modal */}
+      <div className="hidden md:block">
+        {settingsOpen && (
+          <SettingsPanel
+            setSettingsOpen={setSettingsOpen}
+            exportData={exportData}
+            importData={importData}
+          />
+        )}
+      </div>
 
       {(settingsOpen || closingSettings) && (
         <div role="dialog" aria-modal="true" aria-label={t("ui.settingsTitle")} className={`fixed inset-0 z-[70] bg-background md:hidden overflow-y-auto ${closingSettings ? "animate-fade-out" : "animate-fade-scale-in"}`}>
