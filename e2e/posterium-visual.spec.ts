@@ -53,8 +53,8 @@ test("home — full page", async ({ page }) => {
     } catch {}
   })
   await page.goto("/")
-  const logo = page.getByAltText("Posterium")
-  const logoFallback = page.getByText("Posterium")
+  const logo = page.getByAltText(/Pictorium|Posterium/)
+  const logoFallback = page.getByText(/Pictorium|Posterium/)
   await expect(logo.or(logoFallback).first()).toBeVisible({ timeout: 30_000 })
   await expect(page.getByPlaceholder(/cerca/i)).toBeVisible({ timeout: 30_000 })
   await page.waitForFunction(() => document.body.scrollHeight > window.innerHeight, { timeout: 30_000 })
@@ -76,8 +76,8 @@ test("home — hero viewport", async ({ page }) => {
     } catch {}
   })
   await page.goto("/")
-  const logo = page.getByAltText("Posterium")
-  const logoFallback = page.getByText("Posterium")
+  const logo = page.getByAltText(/Pictorium|Posterium/)
+  const logoFallback = page.getByText(/Pictorium|Posterium/)
   await expect(logo.or(logoFallback).first()).toBeVisible({ timeout: 30_000 })
   await expect(page.getByPlaceholder(/cerca/i)).toBeVisible({ timeout: 30_000 })
   await page.evaluate(() => window.scrollTo(0, 0))
@@ -99,8 +99,8 @@ test("home — mobile viewport", async ({ page }) => {
     } catch {}
   })
   await page.goto("/")
-  const logo = page.getByAltText("Posterium")
-  const logoFallback = page.getByText("Posterium")
+  const logo = page.getByAltText(/Pictorium|Posterium/)
+  const logoFallback = page.getByText(/Pictorium|Posterium/)
   await expect(logo.or(logoFallback).first()).toBeVisible({ timeout: 30_000 })
   await expect(page.getByPlaceholder(/cerca/i)).toBeVisible({ timeout: 30_000 })
   await page.evaluate(() => window.scrollTo(0, 0))

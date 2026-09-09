@@ -24,7 +24,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: "Pictorium",
     description: "Generatore di poster cinematografici per Stremio",
-    images: ["/posterium.png"],
+    images: ["/pictorium.png"],
     type: "website",
   },
   robots: { index: true, follow: true },

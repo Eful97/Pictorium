@@ -42,7 +42,7 @@ export function LangPicker({ onPickLang, onPickRegion, onDone }: SetupWizardProp
       <div className="w-full max-w-lg mx-4">
         <div className="text-center mb-8">
           {/* eslint-disable-next-line @next/next/no-img-element -- local SVG asset */}
-          <img src="/posterium.svg" alt="Pictorium" loading="eager" decoding="async" className="h-auto w-[min(92vw,390px)] mx-auto mb-4 hover:brightness-110 transition-all duration-150" />
+          <img src="/pictorium.svg" alt="Pictorium" loading="eager" decoding="async" className="h-auto w-[min(92vw,390px)] mx-auto mb-4 hover:brightness-110 transition-all duration-150" />
           <h2 className="text-2xl font-bold text-zinc-100">
             {isRegion ? t("ui.setupRegionTitle") : t("ui.welcome")}
           </h2>

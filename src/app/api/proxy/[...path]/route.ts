@@ -321,8 +321,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ path
       const proxiedManifest = {
         ...origManifest,
         id: `org.posterium.proxy.${Buffer.from(baseUrl).toString("base64url").slice(0, 12)}${userSuffix}`,
-        name: `${origManifest.name || "Addon"} (Posterium)`,
-        description: `${origManifest.description || ""} — Poster personalizzati via Posterium`.trim(),
+        name: `${origManifest.name || "Addon"} (Pictorium)`,
+        description: `${origManifest.description || ""} — Poster personalizzati via Pictorium`.trim(),
         logo: origManifest.logo || `${origin}/App.png`,
       }
 

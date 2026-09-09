@@ -288,7 +288,7 @@ export function AppShell() {
             role="button"
             tabIndex={0}
             aria-label={t("ui.home")}
-            src="/posterium.svg"
+            src="/pictorium.svg"
             alt="Pictorium"
             decoding="async"
             className="header-logo h-8 sm:h-12 md:h-20 w-auto cursor-pointer hover:brightness-110 active:scale-95 transition-all duration-150 mb-1.5 md:mb-2"

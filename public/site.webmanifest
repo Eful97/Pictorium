@@ -1,6 +1,6 @@
 {
-  "name": "Posterium",
-  "short_name": "Posterium",
+  "name": "Pictorium",
+  "short_name": "Pictorium",
   "description": "Generatore di poster cinematografici per Stremio",
   "start_url": "/",
   "display": "standalone",
