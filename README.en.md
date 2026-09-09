@@ -35,20 +35,20 @@ pinned: false
 ## 📸 Preview
 
 <div align="center">
-  <img src="https://raw.githubusercontent.com/Eful97/Pictorium/master/public/Screen/home.png" alt="Posterium Home" width="100%" style="border-radius: 8px; margin-bottom: 8px;" />
+  <img src="https://raw.githubusercontent.com/Eful97/Pictorium/master/public/Screen/home.png" alt="Pictorium Home" width="100%" style="border-radius: 8px; margin-bottom: 8px;" />
 </div>
 
 <table align="center" width="100%">
   <tr>
-    <td width="50%"><img src="https://raw.githubusercontent.com/Eful97/Pictorium/master/public/Screen/editor.png" alt="Posterium Editor" style="border-radius: 6px;" /></td>
-    <td width="50%"><img src="https://raw.githubusercontent.com/Eful97/Pictorium/master/public/Screen/myposters.png" alt="Posterium My Posters" style="border-radius: 6px;" /></td>
+    <td width="50%"><img src="https://raw.githubusercontent.com/Eful97/Pictorium/master/public/Screen/editor.png" alt="Pictorium Editor" style="border-radius: 6px;" /></td>
+    <td width="50%"><img src="https://raw.githubusercontent.com/Eful97/Pictorium/master/public/Screen/myposters.png" alt="Pictorium My Posters" style="border-radius: 6px;" /></td>
   </tr>
   <tr>
     <td align="center"><em>WYSIWYG Editor & Live Preview</em></td>
     <td align="center"><em>My Posters & Personal Library</em></td>
   </tr>
   <tr>
-    <td colspan="2"><img src="https://raw.githubusercontent.com/Eful97/Pictorium/master/public/Screen/catalogs.png" alt="Posterium Catalogs" style="border-radius: 6px; margin-top: 8px;" /></td>
+    <td colspan="2"><img src="https://raw.githubusercontent.com/Eful97/Pictorium/master/public/Screen/catalogs.png" alt="Pictorium Catalogs" style="border-radius: 6px; margin-top: 8px;" /></td>
   </tr>
   <tr>
     <td align="center" colspan="2"><em>Dynamic Catalogs & JustWatch Streaming Charts</em></td>
