@@ -432,4 +432,25 @@ describe("GET /meta/[type]/[id]", () => {
     expect(body.meta.videos).toHaveLength(1)
     expect(mockedEnrich).toHaveBeenCalledTimes(1)
   })
+
+  it("resolves language and details according to region parameter (e.g. MX -> es-MX)", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(Response.json({ movie_results: [{ id: 550, title: "El club de la pelea" }] }))
+      .mockResolvedValueOnce(Response.json({
+        id: 550,
+        title: "El club de la pelea",
+        overview: "Un oficinista insomne...",
+        external_ids: { imdb_id: "tt0137523" },
+      }))
+      .mockResolvedValueOnce(Response.json({ id: 550, logos: [] }))
+
+    const req = new NextRequest("http://localhost:3000/meta/movie/tt0137523.json?api_key=k&region=MX")
+    const res = await GET(req, { params: Promise.resolve({ type: "movie", id: "tt0137523.json" }) })
+    const body = await res.json()
+
+    expect(res.status).toBe(200)
+    expect(body.meta.name).toBe("El club de la pelea")
+    const detailsCall = fetchSpy.mock.calls.find((call) => typeof call[0] === "string" && call[0].includes("/movie/550"))
+    expect(detailsCall?.[0]).toContain("language=es-MX")
+  })
 })

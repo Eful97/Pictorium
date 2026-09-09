@@ -20,6 +20,7 @@ import {
   tmdbFindByTvdb,
 } from "@/lib/tmdb"
 import { resolveImdbId } from "@/lib/imdb-cache"
+import { resolveCatalogRegion } from "@/lib/catalog-handler"
 import { buildStremioPosterUrl } from "@/lib/stremio-poster-url"
 import { getOriginFromRequest } from "@/lib/poster-public-url"
 import { enrichVideosWithTvdb } from "@/lib/tvdb"
@@ -100,6 +101,7 @@ async function pictoriumPosterUrl(
   configParam?: string | null,
   userParam?: string | null,
   mdblistKeyParam?: string | null,
+  posterLang = "it",
 ): Promise<string> {
   const serverDefaults = getServerDefaults()
   const userConfig = configParam ? decodeConfig(configParam) : null
@@ -111,7 +113,7 @@ async function pictoriumPosterUrl(
     id,
     defaults,
     mapping,
-    lang: "it",
+    lang: posterLang,
     config: configParam || undefined,
     user: userParam || undefined,
     mdblistKey: mdblistKeyParam || undefined,
@@ -156,6 +158,9 @@ export async function pictoriumMeta(
   }
 
   const episodeMetadataSource = userConfig?.episodeMetadataSource || (tvdbApiKey ? "tvdb" : "tmdb")
+  const region = resolveCatalogRegion(req, userConfig)
+  const tmdbLang = region.lang
+  const posterLang = tmdbLang.slice(0, 2).toLowerCase()
 
   // Risoluzione ID TMDB e IMDb
   let tmdbId: number | null = null
@@ -196,12 +201,12 @@ export async function pictoriumMeta(
   // eo2 = versione ordinamento episodi: il default automatico "Parts" (v2)
   // cambia i videos a parità di mapping — senza frammento, un meta cachato
   // con le stagioni standard resterebbe servito fino a 12h dopo il deploy.
-  const cacheKey = `stremio:meta:${stType}:${cleanId}:pv${POSTER_URL_VERSION}${userParam ? `:u${hashFragment(userParam)}` : ""}:ak${apiKey ? hashFragment(apiKey) : "none"}${configParam ? `:cfg${hashFragment(configParam)}` : ""}${mdblistKey ? `:mk${hashFragment(mdblistKey)}` : ""}${tvdbApiKey ? `:tk${hashFragment(tvdbApiKey)}` : ""}:es${episodeMetadataSource}:eg${hashFragment(egKey)}${stType === "series" ? ":eo2" : ""}`
+  const cacheKey = `stremio:meta:${stType}:${cleanId}:pv${POSTER_URL_VERSION}${userParam ? `:u${hashFragment(userParam)}` : ""}:ak${apiKey ? hashFragment(apiKey) : "none"}${configParam ? `:cfg${hashFragment(configParam)}` : ""}${mdblistKey ? `:mk${hashFragment(mdblistKey)}` : ""}${tvdbApiKey ? `:tk${hashFragment(tvdbApiKey)}` : ""}:es${episodeMetadataSource}:eg${hashFragment(egKey)}:r${region.code}${stType === "series" ? ":eo2" : ""}`
   const cached = cacheGet<{ meta: StremioMetaDetail }>(cacheKey)
   if (cached) return metaResponse(cached)
 
   try {
-    const details = await getFullDetails(tmdbMediaType, tmdbId, "it-IT", apiKey)
+    const details = await getFullDetails(tmdbMediaType, tmdbId, tmdbLang, apiKey)
     if (!details || !details.id) {
       return metaResponse({ meta: null })
     }
@@ -214,18 +219,18 @@ export async function pictoriumMeta(
     }
 
     const primaryId = imdbId || `tmdb:${tmdbId}`
-    const poster = await pictoriumPosterUrl(req, stType, tmdbId, configParam, userParam, mdblistKeyParam)
+    const poster = await pictoriumPosterUrl(req, stType, tmdbId, configParam, userParam, mdblistKeyParam, posterLang)
     const background = details.backdrop_path ? posterUrlOriginal(details.backdrop_path) : undefined
 
     // Risoluzione Logo
     let logo: string | undefined
     try {
-      const images = await getImages(tmdbMediaType, tmdbId, "it,en,null", apiKey)
+      const images = await getImages(tmdbMediaType, tmdbId, `${posterLang},en,null`, apiKey)
       if (images?.logos && images.logos.length > 0) {
-        // Preferisci logo italiano, altrimenti primo disponibile
-        const itLogo = images.logos.find((l) => l.iso_639_1 === "it") || images.logos[0]
-        if (itLogo?.file_path) {
-          logo = posterUrlOriginal(itLogo.file_path)
+        // Preferisci logo della lingua locale, altrimenti primo disponibile
+        const langLogo = images.logos.find((l) => l.iso_639_1 === posterLang) || images.logos[0]
+        if (langLogo?.file_path) {
+          logo = posterUrlOriginal(langLogo.file_path)
         }
       }
     } catch {
@@ -304,7 +309,7 @@ export async function pictoriumMeta(
               totalEpisodeCountWithSpecials,
             )
             if (autoId) {
-              const autoDetails = await getTVEpisodeGroup(autoId, "it-IT", apiKey).catch(() => null)
+              const autoDetails = await getTVEpisodeGroup(autoId, tmdbLang, apiKey).catch(() => null)
               const count = groupDetailsEpisodeCount(autoDetails)
               const countMatches = count === standardEpisodeCount || (totalEpisodeCountWithSpecials > standardEpisodeCount && count === totalEpisodeCountWithSpecials)
               if (
@@ -325,7 +330,7 @@ export async function pictoriumMeta(
       // Fallback alle stagioni standard se non ci sono Episode Groups alternativi
       if (videos.length === 0 && details.seasons && details.seasons.length > 0) {
         const regularSeasons = details.seasons.filter((s) => s.season_number > 0)
-        const seasonsData = await concurrentMap(regularSeasons, (s) => getTVSeason(tmdbId, s.season_number!, "it-IT", apiKey), 5)
+        const seasonsData = await concurrentMap(regularSeasons, (s) => getTVSeason(tmdbId, s.season_number!, tmdbLang, apiKey), 5)
 
         for (const sData of seasonsData) {
           if (!sData || !sData.episodes) continue

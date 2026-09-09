@@ -5,7 +5,7 @@ import type { SearchResult, TMDBImage, Mapping, CustomCatalogConfig } from "./ty
 import { posterUrl, titleOf, yearOf, STREAMING_PLATFORMS } from "./utils"
 import { matchTMDBStudios } from "./awards"
 import { setLang as setI18nLang, createT } from "./i18n"
-import { isSupportedUiLang } from "./regions"
+import { isSupportedUiLang, getRegionDef } from "./regions"
 import type { EnrichedAnimeItem } from "./validation"
 import { http } from "./http"
 import { useRootColors } from "./useRootColors"
@@ -302,7 +302,8 @@ export function usePictorium(): PictoriumCtx {
   const navigation = useNavigation()
   const editorCtx = usePosterEditor()
   const trending = useTrending(tmdbKey, mdblistApiKey, editorCtx.defaultRegion)
-  const search = useSearch(tmdbKey, lang)
+  const tmdbLang = getRegionDef(editorCtx.defaultRegion).lang
+  const search = useSearch(tmdbKey, tmdbLang)
   const { mappings, mappingsMap, loadMappings, removeMapping, exportData, importData } = useMappingsStore()
   const {
     // Badges
@@ -623,7 +624,8 @@ export function usePictorium(): PictoriumCtx {
     const itemType = item.media_type
     const mdblistParam = mdblistApiKey ? "&mdblist_key=" + encodeURIComponent(mdblistApiKey) : ""
     const rsrcParam = ratingSources && ratingSources.length > 0 ? "&rsrc=" + encodeURIComponent(ratingSources.join(",")) : ""
-    const detailsUrl = `/api/tmdb/${itemId}/details?type=${itemType}&language=${lang}&api_key=${tmdbKey}${mdblistParam}${rsrcParam}`
+    const regionLang = getRegionDef(editorCtx.defaultRegion).lang
+    const detailsUrl = `/api/tmdb/${itemId}/details?type=${itemType}&language=${regionLang}&api_key=${tmdbKey}${mdblistParam}${rsrcParam}`
     const [details, rankData, awardData] = await Promise.all([
       http<{ genres: { id: number; name: string }[]; voteAverage: number; voteCount: number; status: string | null; type: string | null; release_date: string | null; first_air_date: string | null; last_air_date: string | null; next_episode_to_air: { air_date: string; episode_number: number; season_number: number } | null; number_of_seasons: number | null; number_of_episodes: number | null; title: string | null; name: string | null; imdb_id: string | null; networks: { name: string; logo_path: string | null; origin_country: string }[]; production_companies: { name: string; logo_path: string | null; origin_country: string }[]; original_language: string; aggregatedRatings?: AggregatedRatings | null }>(detailsUrl, { timeout: 30000 }).catch((e) => { console.error("[pictorium] Details fetch failed:", e); setServiceErrors((prev) => ({ ...prev, tmdb: true })); return { genres: [] as { id: number; name: string }[], voteAverage: 0, voteCount: 0, status: null, type: null, release_date: null, first_air_date: null, last_air_date: null, next_episode_to_air: null, number_of_seasons: null, number_of_episodes: null, title: null, name: null, imdb_id: null, networks: [] as { name: string; logo_path: string | null; origin_country: string }[], production_companies: [] as { name: string; logo_path: string | null; origin_country: string }[], original_language: "en", aggregatedRatings: null } }),
       http<{ rank: number | null }>(`/api/trending/rank?type=${itemType}&id=${itemId}&api_key=${encodeURIComponent(tmdbKey)}`, { timeout: 15000 }).catch(() => ({ rank: null })),
@@ -673,7 +675,8 @@ export function usePictorium(): PictoriumCtx {
     const itemType = navigation.selected.media_type
     const mdblistParam = mdblistApiKey ? "&mdblist_key=" + encodeURIComponent(mdblistApiKey) : ""
     const rsrcParam = ratingSources && ratingSources.length > 0 ? "&rsrc=" + encodeURIComponent(ratingSources.join(",")) : ""
-    const detailsUrl = `/api/tmdb/${itemId}/details?type=${itemType}&language=${lang}&api_key=${tmdbKey}${mdblistParam}${rsrcParam}`
+    const regionLang = getRegionDef(editorCtx.defaultRegion).lang
+    const detailsUrl = `/api/tmdb/${itemId}/details?type=${itemType}&language=${regionLang}&api_key=${tmdbKey}${mdblistParam}${rsrcParam}`
     let active = true
     http<{ voteAverage: number; aggregatedRatings?: AggregatedRatings | null }>(detailsUrl, { timeout: 15000 }).then((d) => {
       if (!active) return

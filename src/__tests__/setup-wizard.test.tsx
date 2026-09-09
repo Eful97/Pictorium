@@ -15,11 +15,12 @@ function renderWizard() {
 }
 
 describe("SetupWizard", () => {
-  it("mostra le 12 nazionalita al passo lingua", () => {
+  it("mostra le 13 nazionalita al passo lingua", () => {
     renderWizard()
-    // 12 voci lingua (una per nazionalita) + tasto back assente al passo 1
+    // 13 voci lingua (una per nazionalita) + tasto back assente al passo 1
     expect(screen.getByText("Italia · Italiano")).toBeInTheDocument()
     expect(screen.getByText("USA · English")).toBeInTheDocument()
+    expect(screen.getByText("Messico · Español (México)")).toBeInTheDocument()
     expect(screen.getByText("Giappone · 日本語")).toBeInTheDocument()
     expect(screen.queryByText("ui.back")).not.toBeInTheDocument()
   })

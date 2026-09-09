@@ -36,6 +36,7 @@ export const REGIONS: readonly RegionDef[] = [
   { code: "FR", flixSlug: "france", lang: "fr-FR", lang2: "fr", languageName: "Français", label: "Francia", flag: "🇫🇷" },
   { code: "DE", flixSlug: "germany", lang: "de-DE", lang2: "de", languageName: "Deutsch", label: "Germania", flag: "🇩🇪" },
   { code: "ES", flixSlug: "spain", lang: "es-ES", lang2: "es", languageName: "Español", label: "Spagna", flag: "🇪🇸" },
+  { code: "MX", flixSlug: "mexico", lang: "es-MX", lang2: "es", languageName: "Español (México)", label: "Messico", flag: "🇲🇽" },
   { code: "JP", flixSlug: "japan", lang: "ja-JP", lang2: "ja", languageName: "日本語", label: "Giappone", flag: "🇯🇵" },
   { code: "KR", flixSlug: "south-korea", lang: "ko-KR", lang2: "ko", languageName: "한국어", label: "Corea del Sud", flag: "🇰🇷" },
   { code: "BR", flixSlug: "brazil", lang: "pt-BR", lang2: "pt", languageName: "Português", label: "Brasile", flag: "🇧🇷" },
@@ -78,7 +79,7 @@ export function regionToFlixSlug(code: string | null | undefined): string {
   return getRegionDef(code).flixSlug
 }
 
-/** Codice JustWatch (= codice canonico) per uno slug FlixPatrol; null se fuori dai 12 supportati. */
+/** Codice JustWatch (= codice canonico) per uno slug FlixPatrol; null se fuori da quelli supportati. */
 export function flixSlugToRegionCode(slug: string): string | null {
   return BY_FLIX_SLUG.get(slug)?.code ?? null
 }

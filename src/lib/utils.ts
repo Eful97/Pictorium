@@ -65,7 +65,7 @@ export const STREAMING_PLATFORMS = [
 ] as const
 
 /**
- * Voci del selettore lingua: SOLO le 12 nazionalità supportate (una per
+ * Voci del selettore lingua: SOLO le nazionalità supportate (una per
  * regione). `key` è il codice paese (univoco), `code` la lingua UI a 2 lettere
  * (it/en/fr/de/es/ja/ko/pt — ja/ko/pt ripiegano sull'inglese in `i18n.lookup`).
  */
