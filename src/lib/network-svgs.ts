@@ -87,6 +87,7 @@ const NETWORK_FILES: Record<string, string> = {
   mappa: "MAPPA_Logo.svg",
   skydance: "Skydance_Media_2020.svg",
   dg_cinema: "direzione-generale-cinema-e-audiovisivo-vector-logo.svg",
+  dc: "DC_Studios_logo.svg",
 }
 
 // Falso positivo NBC giapponese (Jujutsu Kaisen tmdb 95479): network list contiene 25+ regionali tra cui "NBC" (Nagasaki Broadcasting).
@@ -165,6 +166,7 @@ const NETWORK_TARGET_W: Record<string, number> = {
   mappa: 58,
   skydance: 62,
   dg_cinema: 48,
+  dc: 46,
 }
 
 function getNetworkKey(networkName: string): string | null {
@@ -218,6 +220,14 @@ function getNetworkKey(networkName: string): string | null {
   if (lower.includes("universal pictures")) return "universal"
   if (lower.includes("columbia pictures")) return "columbia"
   if (lower.includes("marvel")) return "marvel"
+  if (
+    lower.includes("dc studios") ||
+    lower.includes("dc films") ||
+    lower.includes("dc entertainment") ||
+    lower.includes("dc comics") ||
+    lower.includes("dc universe") ||
+    lower === "dc"
+  ) return "dc"
   if (lower.includes("pixar")) return "pixar"
   // Filtro Sony Music (anime) vs Sony Pictures (film) — non mostrare Sony per OST anime
   if (lower.includes("sony music")) return null
@@ -273,7 +283,7 @@ async function loadNetworkPng(networkKey: string, pw: number, topLight: boolean 
       const aspect = w / h
       const isFlatWide = ["lionsgate", "sony", "legendary", "fandango", "pixar", "dreamworks", "taodue", "mappa", "skydance", "castle_rock"].includes(networkKey)
       // La "N" Netflix è un'icona verticale: ad area uniforme uscirebbe altissima (~80px) → area -60%
-      const areaScale = isFlatWide ? 0.62 : networkKey === "netflix" ? 0.4 : 1 // Lionsgate, Pixar e simili troppo larghi → area -38%
+      const areaScale = isFlatWide ? 0.62 : networkKey === "netflix" ? 0.4 : networkKey === "dc" ? 0.75 : 1 // Lionsgate, Pixar e simili troppo larghi → area -38%
       const desiredArea = 3600 * areaScale * (pw / 500) * (pw / 500)
       const desiredH = Math.round(Math.sqrt(desiredArea / aspect))
       const desiredW = Math.round(desiredH * aspect)
@@ -292,7 +302,7 @@ async function loadNetworkPng(networkKey: string, pw: number, topLight: boolean 
       .toBuffer({ resolveWithObject: true })
 
     // Logo SVG: colore originale con ombra adattiva (richiesta: svg originale, TMDB bianco)
-    const keepColor = networkKey === "marvel"
+    const keepColor = networkKey === "marvel" || networkKey === "dc"
     let recolored: Buffer
     if (keepColor) {
       recolored = data
@@ -632,7 +642,7 @@ async function loadNetworkRawPng(networkKey: string, pw: number, topLight: boole
       const aspect = w / h
       const isFlatWide2 = ["lionsgate", "sony", "legendary", "fandango", "pixar", "dreamworks", "taodue", "mappa", "skydance", "castle_rock"].includes(networkKey)
       // La "N" Netflix è un'icona verticale: ad area uniforme uscirebbe altissima (~80px) → area -60%
-      const areaScale2 = isFlatWide2 ? 0.62 : networkKey === "netflix" ? 0.4 : 1
+      const areaScale2 = isFlatWide2 ? 0.62 : networkKey === "netflix" ? 0.4 : networkKey === "dc" ? 0.75 : 1
       const desiredArea = 3600 * areaScale2 * (pw / 500) * (pw / 500)
       const desiredH = Math.round(Math.sqrt(desiredArea / aspect))
       const desiredW = Math.round(desiredH * aspect)

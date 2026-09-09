@@ -217,6 +217,7 @@ const NETWORK_FILES_COMBINED: Record<string, string> = {
   mappa: "MAPPA_Logo.svg",
   skydance: "Skydance_Media_2020.svg",
   dg_cinema: "direzione-generale-cinema-e-audiovisivo-vector-logo.svg",
+  dc: "DC_Studios_logo.svg",
 }
 
 async function loadNetworkLogoForPill(networkKey: string, targetH: number, fg: string): Promise<{ png: Buffer; w: number; h: number } | null> {
@@ -240,7 +241,7 @@ async function loadNetworkLogoForPill(networkKey: string, targetH: number, fg: s
       .resize(Math.round(targetH * 3), targetH, { fit: "inside", withoutEnlargement: false })
       .png()
       .toBuffer({ resolveWithObject: true })
-    if (networkKey === "marvel") {
+    if (networkKey === "marvel" || networkKey === "dc") {
       return { png: data, w: info.width, h: info.height }
     }
     // Ricolora a fg (bianco/nero) per interno pill
