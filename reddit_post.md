@@ -36,17 +36,17 @@ The only requirement is a free [TMDB API key](https://www.themoviedb.org/setting
 
 ```yaml
 services:
-  posterium:
-    image: eful97/posterium:latest
-    container_name: posterium
+  pictorium:
+    image: eful97/pictorium:latest
+    container_name: pictorium
     restart: unless-stopped
     ports:
       - "8080:8080"
     environment:
-      - POSTERIUM_PUBLIC_INSTANCE=1
-      - POSTERIUM_TMDB_KEY=your_tmdb_api_key_here
+      - PICTORIUM_PUBLIC_INSTANCE=1
+      - PICTORIUM_TMDB_KEY=your_tmdb_api_key_here
     volumes:
-      - ./posterium-data:/data
+      - ./pictorium-data:/data
 ```
 
 Run `docker compose up -d`, navigate to `http://localhost:8080`, customize your look, and click **"Install on Stremio"**.
@@ -57,7 +57,7 @@ Run `docker compose up -d`, navigate to `http://localhost:8080`, customize your 
 
 ### 🔗 Links
 * **GitHub**: https://github.com/Eful97/Pictorium
-* **Docker Hub**: `eful97/posterium:latest`
-* **GHCR**: `ghcr.io/eful97/posterium:latest`
+* **Docker Hub**: `eful97/pictorium:latest` *(legacy `eful97/posterium:latest` also supported)*
+* **GHCR**: `ghcr.io/eful97/pictorium:latest`
 
 I'd love to hear your feedback, bug reports, and ideas! What media center integrations would you like to see next?

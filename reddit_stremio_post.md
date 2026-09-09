@@ -1,17 +1,21 @@
 Hey r/StremioAddons,
 
-I’m excited to share **Posterium** — a free and open-source dynamic poster generator and complete metadata addon for Stremio.
+> ⚠️ **NOTICE: THE PROJECT'S NAME IS CHANGING TO PICTORIUM**
+> Due to a name overlap with an existing project (`posterium.xyz`), this addon is officially rebranding to **Pictorium**.
+> All GitHub repositories and Docker images have transitioned to **Pictorium** (100% backward compatibility is preserved for existing installs).
 
-I created Posterium because I wanted **absolute, granular control over every single poster in my library**. When an automated template places an awkward logo over an actor’s face, or picks a low-contrast backdrop, I wanted the power to open an editor, pick the exact clean artwork, choose the logo variant, adjust badge placement, and have it sync instantly to Stremio.
+I’m excited to share **Pictorium** — a free and open-source dynamic poster generator and complete metadata addon for Stremio.
 
-Posterium is the result: a **stateless, dynamic rendering proxy and complete Stremio metadata addon** powered by Sharp C++ and SVG, combining automated rules with the freedom to tailor any specific poster to perfection.
+I created Pictorium because I wanted **absolute, granular control over every single poster in my library**. When an automated template places an awkward logo over an actor’s face, or picks a low-contrast backdrop, I wanted the power to open an editor, pick the exact clean artwork, choose the logo variant, adjust badge placement, and have it sync instantly to Stremio.
+
+Pictorium is the result: a **stateless, dynamic rendering proxy and complete Stremio metadata addon** powered by Sharp C++ and SVG, combining automated rules with the freedom to tailor any specific poster to perfection.
 
 ---
 
 ### 🌟 Key Features
 
 * 🎯 **Live WYSIWYG Web Editor**: Full visual control in real-time. Change artwork whenever you want, pick between candidate posters, customize badge styles (*Shadow, Pill, Bar, Colored, Border, Glass*), gradients, and see the exact Stremio result live before saving.
-* 🔄 **24h Daily Poster Rotation**: Save multiple posters for the same title and let Posterium automatically rotate them daily to keep your Stremio library fresh and cinematic.
+* 🔄 **24h Daily Poster Rotation**: Save multiple posters for the same title and let Pictorium automatically rotate them daily to keep your Stremio library fresh and cinematic.
 * 🎬 **20+ Official Network & Studio Logos**: Automatic recognition and embedding for Netflix, Prime Video, Disney+, Apple TV+, HBO Max, Paramount+, Crunchyroll, and studios like Marvel, Pixar, A24, Studio Ghibli, and Warner Bros.
 * 🧠 **Smart Best-Fit Algorithm**: Analyzes poster luminance and empty space to automatically size and position logos without obstructing actors' faces.
 * 🏷️ **Dynamic Badges & Multi-Source Ratings**: Live streaming resolution (4K/1080p/720p), ratings aggregated from 16+ sources (IMDb, TMDB, Rotten Tomatoes, Letterboxd, MAL), awards (Oscars, Cannes, Emmy, BAFTA), and live Netflix Top 10 ribbons.
@@ -33,32 +37,32 @@ Posterium is the result: a **stateless, dynamic rendering proxy and complete Str
 
 ### 🚀 How to Run & Install
 
-You can host Posterium completely free either in the cloud or locally. The only requirement is a free [TMDB API key](https://www.themoviedb.org/settings/api).
+You can host Pictorium completely free either in the cloud or locally. The only requirement is a free [TMDB API key](https://www.themoviedb.org/settings/api).
 
 #### Option A: ▲ 1-Click Free Cloud Setup (Vercel — No server needed)
 If you don't have a 24/7 home server, you can deploy your personal instance to Vercel for free:
-1. Click **[Deploy with Vercel](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2FEful97%2FPosterium)**.
+1. Click **[Deploy with Vercel](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2FEful97%2FPictorium)**.
 2. In your Vercel Dashboard, go to **Storage** → create a free **Upstash (Redis)** database and link it.
 3. In **Settings → Environment Variables**, add:
-   - `POSTERIUM_PUBLIC_INSTANCE` = `1`
-   - `POSTERIUM_TMDB_KEY` = `your_tmdb_api_key`
-4. Go to **Deployments** → click **Redeploy**.
+   - `PICTORIUM_PUBLIC_INSTANCE` = `1`
+   - `PICTORIUM_TMDB_KEY` = `your_tmdb_api_key`
+4. Go to **Deployments** → click the three dots (⋯) on the latest deployment → **Redeploy** *(crucial step to apply Upstash variables)*.
 5. Open your generated URL and click **"Install on Stremio"**!
 
 #### Option B: 🐳 Docker Compose (Home Server / NAS / Pi)
 ```yaml
 services:
-  posterium:
+  pictorium:
     image: eful97/pictorium:latest
-    container_name: posterium
+    container_name: pictorium
     restart: unless-stopped
     ports:
       - "8080:8080"
     environment:
-      - POSTERIUM_PUBLIC_INSTANCE=1
-      - POSTERIUM_TMDB_KEY=your_tmdb_api_key_here
+      - PICTORIUM_PUBLIC_INSTANCE=1
+      - PICTORIUM_TMDB_KEY=your_tmdb_api_key_here
     volumes:
-      - ./posterium-data:/data
+      - ./pictorium-data:/data
 ```
 Run `docker compose up -d`, open `http://localhost:8080`, customize your look, and click **"Install on Stremio"**.
 
@@ -66,7 +70,7 @@ Run `docker compose up -d`, open `http://localhost:8080`, customize your look, a
 
 ### 🔗 Links
 * **GitHub**: https://github.com/Eful97/Pictorium
-* **Docker Hub**: `eful97/pictorium:latest`
+* **Docker Hub**: `eful97/pictorium:latest` *(legacy `eful97/posterium:latest` also supported)*
 * **GHCR**: `ghcr.io/eful97/pictorium:latest`
 
 I'd love to hear your feedback, bug reports, and ideas for new features!
