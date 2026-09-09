@@ -1,0 +1,24 @@
+name: Load Smoke
+
+# Il render pipeline (concurrency limiter, deadline, negative cache) può
+# regredire silenziosamente: il smoke schedulato lo verifica settimanalmente
+# anche senza push, usando il mock server (nessuna chiave TMDB reale).
+on:
+  schedule:
+    - cron: "0 4 * * 3" # mercoledì 04:00 UTC (diverso dall'audit del lunedì)
+  workflow_dispatch:
+
+jobs:
+  load-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      # Il caricamento di default (40 richieste, concorrenza 10) è sufficiente
+      # per esercitare slot limiter, backpressure 503 e deadline.
+      - run: node scripts/load-smoke.mjs
