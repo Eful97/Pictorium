@@ -26,7 +26,7 @@ import { buildStremioPosterUrl } from "@/lib/stremio-poster-url"
 import { getOriginFromRequest } from "@/lib/poster-public-url"
 import { enrichVideosWithTvdb } from "@/lib/tvdb"
 import { buildVideosFromAnizip, buildVideosFromGroups, buildVideosFromTvdb, concurrentMap } from "@/lib/episode-ordering"
-import { groupDetailsEpisodeCount, resolveDefaultEpisodeGroupId } from "@/lib/episode-group-default"
+import { groupDetailsEpisodeCount, groupDetailsRegularEpisodeCount, resolveDefaultEpisodeGroupId } from "@/lib/episode-group-default"
 import { createLogger } from "@/lib/logger"
 
 const log = createLogger("meta")
@@ -315,7 +315,12 @@ export async function pictoriumMeta(
             if (autoId) {
               const autoDetails = await getTVEpisodeGroup(autoId, tmdbLang, apiKey).catch(() => null)
               const count = groupDetailsEpisodeCount(autoDetails)
-              const countMatches = count === standardEpisodeCount || (totalEpisodeCountWithSpecials > standardEpisodeCount && count === totalEpisodeCountWithSpecials)
+              const regularCount = groupDetailsRegularEpisodeCount(autoDetails)
+              const countMatches =
+                count === standardEpisodeCount ||
+                regularCount === standardEpisodeCount ||
+                (totalEpisodeCountWithSpecials > standardEpisodeCount &&
+                  (count === totalEpisodeCountWithSpecials || Math.abs(count - totalEpisodeCountWithSpecials) <= 15))
               if (
                 autoDetails?.groups &&
                 autoDetails.groups.length > 0 &&

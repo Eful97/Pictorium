@@ -49,7 +49,8 @@ export function pickDefaultEpisodeGroupId(
     const matchWithSpecials =
       typeof totalEpisodeCountWithSpecials === "number" &&
       totalEpisodeCountWithSpecials > standardEpisodeCount &&
-      ec === totalEpisodeCountWithSpecials
+      (ec === totalEpisodeCountWithSpecials ||
+        (ec > standardEpisodeCount && Math.abs(ec - totalEpisodeCountWithSpecials) <= 15))
     if (!matchRegular && !matchWithSpecials) continue
     const text = `${g.name ?? ""} ${g.description ?? ""}`
     // Le esclusioni editoriali si valutano sul NOME (scelta intenzionale):
@@ -73,6 +74,14 @@ export function pickDefaultEpisodeGroupId(
 export function groupDetailsEpisodeCount(details: TMDBEpisodeGroupDetails | null | undefined): number {
   if (!details?.groups) return 0
   return details.groups.reduce((n, g) => n + (g.episodes?.length ?? 0), 0)
+}
+
+/** Conta gli episodi regolari (esclusi specials/stagione 0) nei dettagli di un gruppo. */
+export function groupDetailsRegularEpisodeCount(details: TMDBEpisodeGroupDetails | null | undefined): number {
+  if (!details?.groups) return 0
+  return details.groups
+    .filter((g) => !(g.order === 0 && g.name?.toLowerCase().includes("special")))
+    .reduce((n, g) => n + (g.episodes?.length ?? 0), 0)
 }
 
 const GROUP_LIST_CACHE = new Map<number, { value: TMDBEpisodeGroupItem[]; expiry: number }>()

@@ -12,7 +12,7 @@ import {
 } from "@/lib/tmdb"
 import { enrichVideosWithTvdb } from "@/lib/tvdb"
 import { buildVideosFromAnizip, buildVideosFromGroups, buildVideosFromTvdb, concurrentMap, resolveSeasonNumbers, seasonNumberForGroup } from "@/lib/episode-ordering"
-import { groupDetailsEpisodeCount, resolveDefaultEpisodeGroupId } from "@/lib/episode-group-default"
+import { groupDetailsEpisodeCount, groupDetailsRegularEpisodeCount, resolveDefaultEpisodeGroupId } from "@/lib/episode-group-default"
 import { envWithFallback } from "@/lib/env-compat"
 
 interface PreviewVideo {
@@ -129,7 +129,12 @@ export async function GET(req: NextRequest) {
           if (autoId) {
             const autoDetails = await getTVEpisodeGroup(autoId, language, apiKey).catch(() => null)
             const count = groupDetailsEpisodeCount(autoDetails)
-            const countMatches = count === standardEpisodeCount || (totalEpisodeCountWithSpecials > standardEpisodeCount && count === totalEpisodeCountWithSpecials)
+            const regularCount = groupDetailsRegularEpisodeCount(autoDetails)
+            const countMatches =
+              count === standardEpisodeCount ||
+              regularCount === standardEpisodeCount ||
+              (totalEpisodeCountWithSpecials > standardEpisodeCount &&
+                (count === totalEpisodeCountWithSpecials || Math.abs(count - totalEpisodeCountWithSpecials) <= 15))
             if (
               autoDetails?.groups &&
               autoDetails.groups.length > 0 &&
@@ -193,9 +198,11 @@ export async function GET(req: NextRequest) {
       const { sorted, hasZero, hasSpecials } = resolveSeasonNumbers(groupDetails.groups)
       for (const g of groupDetails.groups) {
         const derivedSeason = seasonNumberForGroup(g, sorted.indexOf(g), sorted, hasZero, hasSpecials)
-        if (!seasonMetaMap.has(derivedSeason)) {
-          seasonMetaMap.set(derivedSeason, { name: g.name || `Stagione ${derivedSeason}` })
-        }
+        const existing = seasonMetaMap.get(derivedSeason)
+        seasonMetaMap.set(derivedSeason, {
+          name: g.name || existing?.name || (derivedSeason === 0 ? "Specials" : `Stagione ${derivedSeason}`),
+          overview: existing?.overview,
+        })
       }
     }
 
