@@ -27,6 +27,7 @@ export interface StremioPosterParamsInput {
   readonly customBadge?: string | null
   readonly config?: string | null
   readonly user?: string | null
+  readonly region?: string | null
 }
 
 const DEFAULT_STREMIO_POSTER_PARAMS = {
@@ -51,6 +52,7 @@ export function buildStremioPosterSearchParams(input: StremioPosterParamsInput):
 
   if (input.config) params.set("config", input.config)
   if (input.user) params.set("u", input.user)
+  if (input.region) params.set("region", input.region)
   if (input.apiKey) params.set("api_key", input.apiKey)
   // Chiave MDBList esplicita della richiesta catalogo (rank anime nei poster).
   // La chiave del profilo NON va nell'URL: viene risolta server-side da ?u=.

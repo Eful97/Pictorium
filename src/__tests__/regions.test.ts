@@ -3,6 +3,7 @@ import {
   DEFAULT_REGION,
   REGIONS,
   SUPPORTED_UI_LANGS,
+  defaultRegionForLang,
   flixSlugToRegionCode,
   getRegionDef,
   isSupportedUiLang,
@@ -102,5 +103,22 @@ describe("regions", () => {
       expect(l.name).toContain("·")
       expect(isSupportedUiLang(l.code)).toBe(true)
     }
+  })
+
+  it("defaultRegionForLang resolves region from language and preserves regional variants", () => {
+    expect(defaultRegionForLang("fr")).toBe("FR")
+    expect(defaultRegionForLang("de")).toBe("DE")
+    expect(defaultRegionForLang("it")).toBe("IT")
+    expect(defaultRegionForLang("ja")).toBe("JP")
+    expect(defaultRegionForLang("ko")).toBe("KR")
+    expect(defaultRegionForLang("pt")).toBe("BR")
+    expect(defaultRegionForLang("es")).toBe("ES")
+    expect(defaultRegionForLang("es", "MX")).toBe("MX")
+    expect(defaultRegionForLang("en")).toBe("US")
+    expect(defaultRegionForLang("en", "GB")).toBe("GB")
+    expect(defaultRegionForLang("en", "IT")).toBe("US")
+    expect(defaultRegionForLang("unknown")).toBeNull()
+    expect(defaultRegionForLang(null)).toBeNull()
+    expect(defaultRegionForLang(undefined)).toBeNull()
   })
 })

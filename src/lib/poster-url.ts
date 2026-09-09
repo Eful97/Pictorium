@@ -60,6 +60,7 @@ interface PosterState {
   topEdgeColor: string | null
   accentColor?: string | null
   lang: string
+  region?: string
   tmdbKey: string
 }
 
@@ -128,6 +129,7 @@ export function buildPreviewUrl(ps: PosterState, bp: BadgeParams): string {
     params.push(`boy=${ps.backdropOffsetY}`)
   }
   if (ps.lang) params.push(`lang=${ps.lang}`)
+  if (ps.region) params.push(`region=${encodeURIComponent(ps.region)}`)
   params.push(`gradHeight=${bp.gradientHeight}`)
   params.push(`blur=${bp.blurIntensity}`)
   params.push(`bf=${bp.blurFade}`)

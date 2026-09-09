@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server"
 import { getJWRankings } from "@/lib/justwatch"
-import { getRegionDef, normalizeRegion, parseRegion } from "@/lib/regions"
+import { getRegionDef, normalizeRegion, parseRegion, defaultRegionForLang } from "@/lib/regions"
 import { getServerDefaults } from "@/lib/server-defaults"
 import { rateLimit, rateLimitKey, rateLimitResponse } from "@/lib/rate-limit"
 import { cacheGet, cacheSet } from "@/lib/cache"
@@ -27,8 +27,11 @@ export async function GET(req: NextRequest) {
   // un titolo fuori dalla finestra non verrà mai trovato e risulta "senza
   // rank". `first` la rende configurabile (1-100) mantenendo il default.
   const first = Number.isFinite(rawFirst) ? Math.min(Math.max(Math.round(rawFirst), 1), 100) : 20
-  // Regione classifica: `?region=`/`?country=` > default server > IT.
-  const region = getRegionDef(parseRegion(req.nextUrl.searchParams.get("region") ?? req.nextUrl.searchParams.get("country")) ?? normalizeRegion(getServerDefaults().region))
+  // Regione classifica: `?region=`/`?country=` > `?lang=` > default server > IT.
+  const qRegion = parseRegion(req.nextUrl.searchParams.get("region") ?? req.nextUrl.searchParams.get("country"))
+  const qLang = req.nextUrl.searchParams.get("lang")
+  const langRegion = qLang ? (parseRegion(qLang) ?? defaultRegionForLang(qLang)) : null
+  const region = getRegionDef(qRegion ?? langRegion ?? normalizeRegion(getServerDefaults().region))
   const cacheKey = `rank:v2:${rawType}:${id}:f${first}:r${region.code}`
   const cached = cacheGet<{ rank: number | null; period?: string }>(cacheKey)
   if (cached) {

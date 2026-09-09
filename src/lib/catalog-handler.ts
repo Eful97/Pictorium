@@ -167,7 +167,7 @@ export function resolveCatalogRegion(req: NextRequest, userConfig: Partial<Picto
   return getRegionDef(normalizeRegion(getServerDefaults().region))
 }
 
-async function pictoriumPosterUrl(req: NextRequest, type: "movie" | "series", id: number, configParam?: string | null, userParam?: string | null, mdblistKeyParam?: string | null, animeRankParam?: number | null, posterLang = "it"): Promise<string> {
+async function pictoriumPosterUrl(req: NextRequest, type: "movie" | "series", id: number, configParam?: string | null, userParam?: string | null, mdblistKeyParam?: string | null, animeRankParam?: number | null, posterLang = "it", posterRegion?: string | null): Promise<string> {
   const serverDefaults = getServerDefaults()
   const userConfig = configParam ? decodeConfig(configParam) : null
   const defaults = userConfig ? { ...serverDefaults, ...userConfig } : serverDefaults
@@ -179,6 +179,7 @@ async function pictoriumPosterUrl(req: NextRequest, type: "movie" | "series", id
     defaults,
     mapping,
     lang: posterLang,
+    region: posterRegion || undefined,
     config: configParam || undefined,
     user: userParam || undefined,
     mdblistKey: mdblistKeyParam || undefined,
@@ -355,7 +356,7 @@ export async function pictoriumCatalog(
         const results: (StremioMeta | null)[] = await concurrentMap(paged, async (item) => {
           if (!item.id) return null
           const imdbId = await resolveImdbId(stType === "movie" ? "movie" : "tv", item.id, apiKey)
-          const poster = await pictoriumPosterUrl(req, stType, item.id, configParam, userParam, mdblistKeyParam, undefined, posterLang)
+          const poster = await pictoriumPosterUrl(req, stType, item.id, configParam, userParam, mdblistKeyParam, undefined, posterLang, region.code)
           const releaseInfo = (item.release_date || item.first_air_date || "").slice(0, 4) || undefined
           return {
             id: catalogMetaId(imdbId, item.id),
@@ -396,7 +397,7 @@ export async function pictoriumCatalog(
       const results: (StremioMeta | null)[] = await concurrentMap(items, async (item) => {
         if (!item.id) return null
         const imdbId = await resolveImdbId(stType === "movie" ? "movie" : "tv", item.id, apiKey)
-        const poster = await pictoriumPosterUrl(req, stType, item.id, configParam, userParam, mdblistKeyParam, undefined, posterLang)
+        const poster = await pictoriumPosterUrl(req, stType, item.id, configParam, userParam, mdblistKeyParam, undefined, posterLang, region.code)
         const releaseInfo = (item.release_date || item.first_air_date || "").slice(0, 4) || undefined
         return {
           id: catalogMetaId(imdbId, item.id),
@@ -502,7 +503,7 @@ export async function pictoriumCatalog(
         metas = await concurrentMap(validResults, async (r) => {
           const [imdbId, poster, logo] = await Promise.all([
             r.imdb ? Promise.resolve(r.imdb) : resolveImdbId(stType === "movie" ? "movie" : "tv", r.tmdbId, apiKey),
-            pictoriumPosterUrl(req, stType, r.tmdbId, configParam, userParam, mdblistKeyParam, r.rank, posterLang),
+            pictoriumPosterUrl(req, stType, r.tmdbId, configParam, userParam, mdblistKeyParam, r.rank, posterLang, region.code),
             apiKey ? catalogLogo(stType === "movie" ? "movie" : "tv", r.tmdbId, apiKey, tmdbLang) : Promise.resolve(undefined),
           ])
           const background = catalogBackground(r.backdropPath)
@@ -562,7 +563,7 @@ export async function pictoriumCatalog(
       metas = await concurrentMap(validResults, async (r) => {
         const [imdbId, poster, logo] = await Promise.all([
           r.imdbId ? Promise.resolve(r.imdbId) : resolveImdbId(stType === "movie" ? "movie" : "tv", r.tmdbId, apiKey),
-          pictoriumPosterUrl(req, stType, r.tmdbId, configParam, userParam, mdblistKeyParam, undefined, posterLang),
+          pictoriumPosterUrl(req, stType, r.tmdbId, configParam, userParam, mdblistKeyParam, undefined, posterLang, region.code),
           apiKey ? catalogLogo(stType === "movie" ? "movie" : "tv", r.tmdbId, apiKey, tmdbLang) : Promise.resolve(undefined),
         ])
         const background = catalogBackground(r.d.backdrop_path)
@@ -621,7 +622,7 @@ export async function pictoriumCatalog(
       metas = await concurrentMap(validResults, async (r) => {
         const [imdbId, poster, logo] = await Promise.all([
           r.imdb ? Promise.resolve(r.imdb) : resolveImdbId(mediaType, r.tmdbId, apiKey),
-          pictoriumPosterUrl(req, stType, r.tmdbId, configParam, userParam, mdblistKeyParam, r.rank, posterLang),
+          pictoriumPosterUrl(req, stType, r.tmdbId, configParam, userParam, mdblistKeyParam, r.rank, posterLang, region.code),
           apiKey ? catalogLogo(mediaType, r.tmdbId, apiKey, tmdbLang) : Promise.resolve(undefined),
         ])
         const background = catalogBackground(r.backdropPath)
@@ -711,7 +712,7 @@ export async function pictoriumCatalog(
           metas = await concurrentMap(validResults, async (r) => {
             const [imdbId, poster, logo] = await Promise.all([
               r.imdbId ? Promise.resolve(r.imdbId) : resolveImdbId(stType === "movie" ? "movie" : "tv", r.tmdbId, apiKey),
-              pictoriumPosterUrl(req, stType, r.tmdbId, configParam, userParam, mdblistKeyParam, undefined, posterLang),
+              pictoriumPosterUrl(req, stType, r.tmdbId, configParam, userParam, mdblistKeyParam, undefined, posterLang, region.code),
               apiKey ? catalogLogo(stType === "movie" ? "movie" : "tv", r.tmdbId, apiKey, tmdbLang) : Promise.resolve(undefined),
             ])
             const background = catalogBackground(r.backdropPath)
@@ -748,7 +749,7 @@ export async function pictoriumCatalog(
               const [imdbId, details, poster, logo] = await Promise.all([
                 resolveImdbId(stType === "movie" ? "movie" : "tv", item.tmdbId, apiKey),
                 getDetails(stType === "movie" ? "movie" : "tv", item.tmdbId, tmdbLang, apiKey).catch(() => null),
-                pictoriumPosterUrl(req, stType, item.tmdbId, configParam, userParam, mdblistKeyParam, undefined, posterLang),
+                pictoriumPosterUrl(req, stType, item.tmdbId, configParam, userParam, mdblistKeyParam, undefined, posterLang, region.code),
                 catalogLogo(stType === "movie" ? "movie" : "tv", item.tmdbId, apiKey, tmdbLang),
               ])
               const italianTitle = details?.title || details?.name || item.title

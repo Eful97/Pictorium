@@ -18,6 +18,7 @@ export interface BuildStremioPosterUrlInput {
   readonly lang?: string | null
   readonly config?: string | null
   readonly user?: string | null
+  readonly region?: string | null
 }
 
 export function mappingVersionParam(mapping: Mapping | null | undefined): string | null {
@@ -48,6 +49,7 @@ export function buildStremioPosterUrl(input: BuildStremioPosterUrlInput): URL {
     mdblistKey: input.mdblistKey,
     animerank: input.animerank,
     user: input.user,
+    region: input.region ?? input.defaults.region,
     lang: input.lang || "it",
     // Per-titolo vince sui default globali, con emissione ESPLICITA in query:
     // il fallback server (mapping quando il parametro manca) è fragile —

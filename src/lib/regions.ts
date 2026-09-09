@@ -102,3 +102,18 @@ export function regionLangOption(regionCode: string): { key: string; lang: strin
   const r = getRegionDef(regionCode)
   return { key: r.code, lang: r.lang2, flag: r.flag, name: `${r.label} · ${r.languageName}`, sub: r.lang2.toUpperCase() }
 }
+
+/**
+ * Restituisce la regione predefinita per una lingua UI (es. "fr" -> "FR", "it" -> "IT", "de" -> "DE").
+ * Se `currentRegion` appartiene già alla stessa famiglia linguistica (es. "GB" con lingua "en"), la mantiene.
+ */
+export function defaultRegionForLang(lang: string | null | undefined, currentRegion?: string | null): string | null {
+  if (!lang) return null
+  const l = lang.toLowerCase().trim()
+  if (currentRegion) {
+    const cur = getRegionDef(currentRegion)
+    if (cur && cur.lang2 === l) return cur.code
+  }
+  const found = REGIONS.find((r) => r.lang2 === l)
+  return found?.code ?? null
+}

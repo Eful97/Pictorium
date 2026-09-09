@@ -55,6 +55,14 @@ describe("buildStremioPosterSearchParams", () => {
     expect(rightParams.get("side")).toBe("right")
   })
 
+  it("serializes region when configured and omits it when missing", () => {
+    const paramsWithRegion = buildStremioPosterSearchParams({ region: "FR" })
+    expect(paramsWithRegion.get("region")).toBe("FR")
+
+    const paramsWithoutRegion = buildStremioPosterSearchParams({})
+    expect(paramsWithoutRegion.has("region")).toBe(false)
+  })
+
   it("serializes badge subcomponents and rating sources when configured", () => {
     const params = buildStremioPosterSearchParams({
       badgeGenre: false,

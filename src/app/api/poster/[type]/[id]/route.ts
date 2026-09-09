@@ -6,6 +6,7 @@ import { getJWRankings } from "@/lib/justwatch"
 import { getById } from "@/lib/store"
 import { rateLimit, rateLimitKey, rateLimitResponse } from "@/lib/rate-limit"
 import { getServerDefaults } from "@/lib/server-defaults"
+import { getRegionDef, normalizeRegion, parseRegion, defaultRegionForLang } from "@/lib/regions"
 import { BEST_FIT_GLOBAL } from "@/lib/best-fit-config"
 import { warmFonts } from "@/lib/svg-badge"
 import { selectBestLogoFitPosterPath } from "@/lib/poster-auto-fit"
@@ -143,6 +144,11 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
   // 1. Get mapping + server defaults (no network)
   let mapping = await getById(mediaType, tmdbId)
   const sd = getServerDefaults()
+  const qRegion = parseRegion(req.nextUrl.searchParams.get("region") ?? req.nextUrl.searchParams.get("country"))
+  const configRegion = parseRegion(configOverride?.region)
+  const langParam = req.nextUrl.searchParams.get("lang") || mapping?.language
+  const langRegion = langParam ? (parseRegion(langParam) ?? defaultRegionForLang(langParam)) : null
+  const posterRegion = getRegionDef(qRegion ?? configRegion ?? langRegion ?? normalizeRegion(sd.region))
 
   // Auto-rotate clean poster
   const rotationState = getEffectiveRotationState(mapping)
@@ -173,8 +179,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
   const configHash = configOverride ? hashKey(JSON.stringify(configOverride)) : ""
   const outputFormat = resolveImageFormat(req.headers.get("accept"), req.nextUrl.searchParams.get("fmt") || req.nextUrl.searchParams.get("format"))
   const formatKey = outputFormat !== "jpeg" ? `:fmt${outputFormat}` : ""
-  const cacheKey = `poster:v${RENDER_VERSION}:${mediaType}:${tmdbId}:r${cachedRank ?? "x"}:sd${sdHash}:${cacheParams.toString()}${rotateKey}${mapVersion}${configHash ? `:cfg${configHash}` : ""}${formatKey}`
-  const etagBase = hashKey(`v${RENDER_VERSION}:${mediaType}:${tmdbId}:r${cachedRank ?? "x"}:sd${sdHash}:${cacheParams.toString()}${configHash ? `:${configHash}` : ""}:${outputFormat}`)
+  const cacheKey = `poster:v${RENDER_VERSION}:${mediaType}:${tmdbId}:reg${posterRegion.code}:r${cachedRank ?? "x"}:sd${sdHash}:${cacheParams.toString()}${rotateKey}${mapVersion}${configHash ? `:cfg${configHash}` : ""}${formatKey}`
+  const etagBase = hashKey(`v${RENDER_VERSION}:${mediaType}:${tmdbId}:reg${posterRegion.code}:r${cachedRank ?? "x"}:sd${sdHash}:${cacheParams.toString()}${configHash ? `:${configHash}` : ""}:${outputFormat}`)
   const currentMappingVersion = mappingVersionParam(mapping)
   const immutablePoster = isImmutablePosterRequest(req.nextUrl.searchParams, {
     hasMapping: !!mapping,
@@ -620,7 +626,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
           : logoPath ? fetchImg(imgSrc(logoPath), renderAbort.signal).catch(() => null) : Promise.resolve(null),
         backdropPath ? fetchImg(imgSrc(backdropPath), renderAbort.signal).catch(() => null) : Promise.resolve(null),
         rankingEnabledEarly
-          ? getJWRankings(mediaType === "movie" ? "MOVIE" : "SHOW", "IT")
+          ? getJWRankings(mediaType === "movie" ? "MOVIE" : "SHOW", posterRegion.code, 20, undefined, posterRegion.lang)
             .then((r) => r.find((x) => x.tmdbId === tmdbId)?.rank ?? null)
             // Solo il FETCH FALLITO (rete/outage) ripiega sul rank salvato nel
             // mapping (degraded esplicito). La miss genuina (fetch riuscito, il
@@ -868,6 +874,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
           tmdbId,
           mediaType,
           locale,
+          region: posterRegion.code,
           imdbId,
           imdbTop250: !!imdbTop250,
           renderVersion: RENDER_VERSION,

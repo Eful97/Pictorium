@@ -5,7 +5,7 @@ import type { SearchResult, TMDBImage, Mapping, CustomCatalogConfig } from "./ty
 import { posterUrl, titleOf, yearOf, STREAMING_PLATFORMS } from "./utils"
 import { matchTMDBStudios } from "./awards"
 import { setLang as setI18nLang, createT } from "./i18n"
-import { isSupportedUiLang, getRegionDef } from "./regions"
+import { isSupportedUiLang, getRegionDef, defaultRegionForLang } from "./regions"
 import type { EnrichedAnimeItem } from "./validation"
 import { http } from "./http"
 import { useRootColors } from "./useRootColors"
@@ -554,6 +554,11 @@ export function usePictorium(): PictoriumCtx {
     setLang(code)
     setI18nLang(code)
     safeSetItem("preferred_lang", code)
+    const matchingRegion = defaultRegionForLang(code, editorCtx.defaultRegion)
+    if (matchingRegion) {
+      editorCtx.setDefaultRegion(matchingRegion)
+      editorCtx.setRegion(matchingRegion)
+    }
   }
 
   // --- Settings panels ---
@@ -597,6 +602,7 @@ export function usePictorium(): PictoriumCtx {
         backdropScale, backdropOffsetX, backdropOffsetY,
         metaInfo, trendRank, mdblistAnimeList: trending.mdblistAnimeList,
         topEdgeColor, accentColor, lang, tmdbKey,
+        region: editorCtx.defaultRegion,
       },
       { globalBadges, rankingBadges, badgeStyle, rankingBadgeStyle, badgeGenre, badgeYear, badgeRating, badgeQuality, ratingSources, customBadge, gradientHeight, blurIntensity, blurFade, blurDarkness, blurEnabled, networkLogo, ribbonSide }
     )
@@ -604,6 +610,7 @@ export function usePictorium(): PictoriumCtx {
   }, [navigation.selected, navigation.previewPoster, navigation.selectedLogo, selectedBackdrop,
     logoScale, logoOffsetX, logoOffsetY, backdropScale, backdropOffsetX, backdropOffsetY,
     metaInfo, trendRank, trending.mdblistAnimeList, topEdgeColor, accentColor, lang, tmdbKey,
+    editorCtx.defaultRegion,
     globalBadges, rankingBadges, badgeStyle, rankingBadgeStyle, badgeGenre, badgeYear, badgeRating, badgeQuality, ratingSources, customBadge, gradientHeight, blurIntensity, blurFade, blurDarkness, blurEnabled, networkLogo, ribbonSide])
 
   useEffect(() => {
@@ -628,7 +635,7 @@ export function usePictorium(): PictoriumCtx {
     const detailsUrl = `/api/tmdb/${itemId}/details?type=${itemType}&language=${regionLang}&api_key=${tmdbKey}${mdblistParam}${rsrcParam}`
     const [details, rankData, awardData] = await Promise.all([
       http<{ genres: { id: number; name: string }[]; voteAverage: number; voteCount: number; status: string | null; type: string | null; release_date: string | null; first_air_date: string | null; last_air_date: string | null; next_episode_to_air: { air_date: string; episode_number: number; season_number: number } | null; number_of_seasons: number | null; number_of_episodes: number | null; title: string | null; name: string | null; imdb_id: string | null; networks: { name: string; logo_path: string | null; origin_country: string }[]; production_companies: { name: string; logo_path: string | null; origin_country: string }[]; original_language: string; aggregatedRatings?: AggregatedRatings | null }>(detailsUrl, { timeout: 30000 }).catch((e) => { console.error("[pictorium] Details fetch failed:", e); setServiceErrors((prev) => ({ ...prev, tmdb: true })); return { genres: [] as { id: number; name: string }[], voteAverage: 0, voteCount: 0, status: null, type: null, release_date: null, first_air_date: null, last_air_date: null, next_episode_to_air: null, number_of_seasons: null, number_of_episodes: null, title: null, name: null, imdb_id: null, networks: [] as { name: string; logo_path: string | null; origin_country: string }[], production_companies: [] as { name: string; logo_path: string | null; origin_country: string }[], original_language: "en", aggregatedRatings: null } }),
-      http<{ rank: number | null }>(`/api/trending/rank?type=${itemType}&id=${itemId}&api_key=${encodeURIComponent(tmdbKey)}`, { timeout: 15000 }).catch(() => ({ rank: null })),
+      http<{ rank: number | null }>(`/api/trending/rank?type=${itemType}&id=${itemId}&api_key=${encodeURIComponent(tmdbKey)}&region=${encodeURIComponent(editorCtx.defaultRegion)}&lang=${encodeURIComponent(regionLang)}`, { timeout: 15000 }).catch(() => ({ rank: null })),
       http<{ awards: string[]; nominations: string[]; studios: string[]; director: string | null; keywords: string[] }>(`/api/awards/${itemType}/${itemId}?api_key=${encodeURIComponent(tmdbKey)}`, { timeout: 15000 }).catch(() => ({ awards: [] as string[], nominations: [] as string[], studios: [] as string[], director: null, keywords: [] as string[] })),
     ])
     const origLang = details.original_language
@@ -740,8 +747,8 @@ export function usePictorium(): PictoriumCtx {
         }
       }
     }).catch((e) => { console.error("[pictorium] Poster image refresh failed:", e) })
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- intentionally only on lang change; others set inside
-  }, [lang])
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- intentionally only on lang / defaultRegion change; others set inside
+  }, [lang, editorCtx.defaultRegion])
 
   const openPosterBrowser = async (item: SearchResult) => {
     const itemId = item.id

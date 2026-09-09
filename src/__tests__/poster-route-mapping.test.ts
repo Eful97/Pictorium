@@ -866,4 +866,48 @@ describe("GET /api/poster/[type]/[id] error and edge cases", () => {
     const bodyDefault = await resDefault.json()
     expect(bodyDefault.logos.networkLogo).toBe(false)
   })
+
+  it("queries JustWatch rankings with the requested region and localized language", async () => {
+    const posterBuf = await imageBuffer("#101010", 500, 750)
+
+    mockedGetById.mockResolvedValue(null)
+    mockedGetDetails.mockResolvedValue({
+      id: 76479,
+      title: "The Boys",
+      genres: [{ id: 18, name: "Drama" }],
+      vote_average: 8.5,
+      original_language: "en",
+    } as never)
+    mockedGetImages.mockResolvedValue({
+      posters: [{ file_path: "/the-boys.jpg", vote_average: 9, width: 500, height: 750, iso_639_1: "fr" }],
+      logos: [],
+      backdrops: [],
+    } as never)
+
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(new Uint8Array(posterBuf), {
+        status: 200,
+        headers: { "content-type": "image/png", "content-length": String(posterBuf.length) },
+      }),
+    )
+
+    mockedGetJWRankings.mockResolvedValue([])
+
+    // Explicit region=FR
+    const reqFr = new NextRequest("http://localhost:3000/api/poster/tv/76479?debug=1&region=FR")
+    await GET(reqFr, { params: Promise.resolve({ type: "tv", id: "76479" }) })
+
+    expect(mockedGetJWRankings).toHaveBeenCalledWith("SHOW", "FR", 20, undefined, "fr-FR")
+
+    mockedGetJWRankings.mockClear()
+    cacheClear()
+    __resetTMDBSessionCache()
+
+    // Lang fallback: lang=de -> region DE, de-DE
+    const reqDe = new NextRequest("http://localhost:3000/api/poster/tv/76479?debug=1&lang=de")
+    await GET(reqDe, { params: Promise.resolve({ type: "tv", id: "76479" }) })
+
+    expect(mockedGetJWRankings).toHaveBeenCalledWith("SHOW", "DE", 20, undefined, "de-DE")
+  })
 })
+
