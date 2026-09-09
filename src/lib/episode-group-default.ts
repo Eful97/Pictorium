@@ -23,7 +23,7 @@ import { getTVEpisodeGroups, type TMDBEpisodeGroupDetails, type TMDBEpisodeGroup
  *    chiamanti); ogni errore di rete/parsing degrada a null.
  */
 
-const EXCLUDE_RE = /edit|re-?cut|director'?s|deleted|alternat|chronolog|dvd|broadcast|air.?date|absolut|special|trailer|extra/i
+const EXCLUDE_RE = /edit|re-?cut|director'?s|deleted|alternat|chronolog|dvd|broadcast|air.?date|absolut|special|trailer|extra|\bova\b|\boad\b|production/i
 const ORIGINAL_RE = /original/i
 const PART_RE = /part/i
 const SEASON_RE = /seasons?/i
@@ -59,11 +59,21 @@ export function pickDefaultEpisodeGroupId(
     if (EXCLUDE_RE.test(g.name ?? "")) continue
     let score = 0
     if (g.type === 1) score += 3
-    if (ORIGINAL_RE.test(text)) score += 3
-    if (PART_RE.test(text)) score += 2
-    // Quando la serie ha una sola mega-stagione (tipico degli anime su TMDB es. Re:Zero, Jujutsu Kaisen),
-    // un gruppo che la suddivide in più stagioni logiche con nome "Seasons" è il default atteso
-    if (standardSeasonCount === 1 && SEASON_RE.test(text)) score += 3
+    if (standardSeasonCount > 1) {
+      // Quando la serie ha già più stagioni standard (es. Attack on Titan 4 stagioni),
+      // sovrascrivi solo per release canoniche in Parti (es. La Casa de Papel: Original Parts)
+      // o release type 1 (Original Air Date TMDB).
+      if (PART_RE.test(text)) {
+        score += 2
+        if (ORIGINAL_RE.test(text)) score += 3
+      }
+    } else {
+      // Quando la serie ha 1 sola stagione su TMDB (anime mega-season es. Re:Zero),
+      // qualsiasi suddivisione logica in 'Seasons' o 'Parts' o 'Original' è benvenuta.
+      if (ORIGINAL_RE.test(text)) score += 3
+      if (PART_RE.test(text)) score += 2
+      if (SEASON_RE.test(text)) score += 3
+    }
     if (score === 0) continue
     if (!best || score > best.score) best = { id: g.id, score }
   }

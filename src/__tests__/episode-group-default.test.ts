@@ -157,6 +157,17 @@ describe("pickDefaultEpisodeGroupId", () => {
       ),
     ).toBe("641eb9d6b234b9007ac67063")
   })
+
+  it("preserva le 4 stagioni standard per Attack on Titan scartando gruppi Production/OVAs (caso reale 1429)", () => {
+    const aotGroups = [
+      item({ id: "g_ova", name: "All Episodes + OVAs", type: 2, group_count: 1, episode_count: 97 }),
+      item({ id: "g_prod", name: "Original Production + OVAs", type: 6, group_count: 8, episode_count: 136 }),
+      item({ id: "g_seas_ova", name: "Seasons + OVAs", type: 6, group_count: 5, episode_count: 97 }),
+      item({ id: "g_prod_s", name: "Original Production by Seasons", type: 6, group_count: 5, episode_count: 124 }),
+    ]
+    // AoT standard: 4 stagioni (87ep regolari, 124 totali con speciali)
+    expect(pickDefaultEpisodeGroupId(aotGroups, 4, 87, 124)).toBeNull()
+  })
 })
 
 describe("groupDetailsEpisodeCount", () => {
