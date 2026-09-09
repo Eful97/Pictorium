@@ -8,6 +8,7 @@ export interface MDBListEntry {
   year: number
   tmdb?: number
   mediatype?: "movie" | "show" | "anime" | "tv"
+  poster_path?: string | null
 }
 
 export const MDBLISTS = [

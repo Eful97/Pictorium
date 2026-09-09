@@ -56,6 +56,7 @@ interface TmdbListPart {
   release_date?: string
   first_air_date?: string
   media_type?: string
+  poster_path?: string | null
 }
 
 /**
@@ -96,23 +97,29 @@ export function detectCatalogProvider(input: string): ProviderDetectionResult | 
   }
 
   // 3. TMDb Collection
-  // es. https://www.themoviedb.org/collection/86311-the-avengers-collection
-  const tmdbColMatch = trimmed.match(/^(?:https?:\/\/)?(?:www\.)?themoviedb\.org\/collection\/([0-9]+)(?:-[a-zA-Z0-9_-]+)?\/?(?:[?#].*)?$/i)
+  // es. https://www.themoviedb.org/collection/86311-the-avengers-collection o tmdb:collection:86311
+  const tmdbColMatch = trimmed.match(/^(?:https?:\/\/)?(?:www\.)?themoviedb\.org\/collection\/([0-9]+)(?:-([a-zA-Z0-9_-]+))?\/?(?:[?#].*)?$/i)
+    || trimmed.match(/^tmdb:collection:([0-9]+)$/i)
   if (tmdbColMatch) {
+    const slug = tmdbColMatch[2]
     return {
       provider: "tmdb_collection",
       identifier: tmdbColMatch[1],
+      nameSuggestion: slug ? slug.replace(/[-_]+/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()) : `TMDb Collezione ${tmdbColMatch[1]}`,
       defaultType: "movie",
     }
   }
 
   // 4. TMDb List
-  // es. https://www.themoviedb.org/list/8249673
-  const tmdbListMatch = trimmed.match(/^(?:https?:\/\/)?(?:www\.)?themoviedb\.org\/list\/([0-9]+)\/?(?:[?#].*)?$/i)
+  // es. https://www.themoviedb.org/list/8249673-marvel-cinematic-universe o https://www.themoviedb.org/list/8249673 o tmdb:list:8249673
+  const tmdbListMatch = trimmed.match(/^(?:https?:\/\/)?(?:www\.)?themoviedb\.org\/(?:u\/[^\/]+\/)?list\/([0-9]+)(?:-([a-zA-Z0-9_-]+))?\/?(?:[?#].*)?$/i)
+    || trimmed.match(/^tmdb:list:([0-9]+)$/i)
   if (tmdbListMatch) {
+    const slug = tmdbListMatch[2]
     return {
       provider: "tmdb_list",
       identifier: tmdbListMatch[1],
+      nameSuggestion: slug ? slug.replace(/[-_]+/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()) : `TMDb Lista ${tmdbListMatch[1]}`,
       defaultType: "movie",
     }
   }
@@ -298,15 +305,40 @@ async function fetchTmdbCollectionOrList(
   if (!key || !identifier) return []
 
   try {
-    const endpoint = provider === "tmdb_collection"
-      ? `https://api.themoviedb.org/3/collection/${encodeURIComponent(identifier)}?api_key=${encodeURIComponent(key)}&language=it-IT`
-      : `https://api.themoviedb.org/3/list/${encodeURIComponent(identifier)}?api_key=${encodeURIComponent(key)}&language=it-IT`
+    if (provider === "tmdb_collection") {
+      const endpoint = `https://api.themoviedb.org/3/collection/${encodeURIComponent(identifier)}?api_key=${encodeURIComponent(key)}&language=it-IT`
+      const res = await fetch(endpoint, { signal: AbortSignal.timeout(8000) }).catch(() => null)
+      if (!res || !res.ok) return []
 
-    const res = await fetch(endpoint, { signal: AbortSignal.timeout(8000) }).catch(() => null)
-    if (!res || !res.ok) return []
+      const data = await res.json()
+      const rawParts: TmdbListPart[] = data?.parts || []
 
-    const data = await res.json()
-    const rawParts: TmdbListPart[] = data?.parts || data?.items || []
+      return rawParts.slice(0, limit).map((p) => ({
+        imdb: "",
+        tmdb: Number(p.id) || undefined,
+        title: p.title || p.name || "",
+        year: Number((p.release_date || p.first_air_date || "").slice(0, 4)) || 0,
+        mediatype: "movie",
+        poster_path: p.poster_path ?? null,
+      }))
+    }
+
+    // provider === "tmdb_list"
+    // 1. Prova prima endpoint v3: /3/list/{list_id}
+    const v3Endpoint = `https://api.themoviedb.org/3/list/${encodeURIComponent(identifier)}?api_key=${encodeURIComponent(key)}&language=it-IT`
+    const res = await fetch(v3Endpoint, { signal: AbortSignal.timeout(8000) }).catch(() => null)
+    const data = res && res.ok ? await res.json() : null
+    let rawParts: TmdbListPart[] = data?.items || data?.parts || []
+
+    // 2. Se v3 non trova la lista (es. 404 per liste create su TMDB v4) o non ha elementi, tenta endpoint v4: /4/list/{list_id}
+    if (rawParts.length === 0) {
+      const v4Endpoint = `https://api.themoviedb.org/4/list/${encodeURIComponent(identifier)}?api_key=${encodeURIComponent(key)}&language=it-IT`
+      const resV4 = await fetch(v4Endpoint, { signal: AbortSignal.timeout(8000) }).catch(() => null)
+      if (resV4 && resV4.ok) {
+        const dataV4 = await resV4.json()
+        rawParts = dataV4?.results || []
+      }
+    }
 
     return rawParts.slice(0, limit).map((p) => ({
       imdb: "",
@@ -314,12 +346,14 @@ async function fetchTmdbCollectionOrList(
       title: p.title || p.name || "",
       year: Number((p.release_date || p.first_air_date || "").slice(0, 4)) || 0,
       mediatype: p.media_type === "tv" ? "tv" : "movie",
+      poster_path: p.poster_path ?? null,
     }))
   } catch (err) {
     log.error("Error fetching TMDb collection or list", { provider, identifier, error: (err as Error).message })
     return []
   }
 }
+
 
 /**
  * Dispatcher universale per recuperare gli elementi di qualsiasi catalogo o lista esterna.

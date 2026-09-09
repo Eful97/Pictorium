@@ -16,6 +16,8 @@ interface CustomCatalogModalProps {
 export function CustomCatalogModal({ isOpen, onClose }: CustomCatalogModalProps) {
   const { t } = useT()
   const addCustomCatalog = usePSelector((v) => v.addCustomCatalog)
+  const tmdbKey = usePSelector((v) => v.tmdbKey)
+  const mdblistApiKey = usePSelector((v) => v.mdblistApiKey)
   const [url, setUrl] = useState("")
   const [name, setName] = useState("")
   const [type, setType] = useState<CustomCatalogType>("movie")
@@ -86,7 +88,15 @@ export function CustomCatalogModal({ isOpen, onClose }: CustomCatalogModalProps)
 
     setLoading(true)
     try {
-      const res = await fetch(`/api/mdblist/custom?url=${encodeURIComponent(trimmedUrl)}`, {
+      const params = new URLSearchParams({
+        url: trimmedUrl,
+        limit: "10",
+      })
+      if (tmdbKey) params.set("api_key", tmdbKey)
+      if (mdblistApiKey) params.set("mdblist_key", mdblistApiKey)
+
+      const res = await fetch(`/api/mdblist/custom?${params.toString()}`, {
+        headers: tmdbKey ? { "x-api-key": tmdbKey } : undefined,
         signal: AbortSignal.timeout(8000),
       }).catch(() => null)
 
@@ -176,6 +186,7 @@ export function CustomCatalogModal({ isOpen, onClose }: CustomCatalogModalProps)
             <span className="text-[9px] px-1.5 py-0.5 rounded bg-white/5 border border-white/10 text-zinc-400">Letterboxd</span>
             <span className="text-[9px] px-1.5 py-0.5 rounded bg-white/5 border border-white/10 text-zinc-400">Trakt</span>
             <span className="text-[9px] px-1.5 py-0.5 rounded bg-white/5 border border-white/10 text-zinc-400">TMDb Saga</span>
+            <span className="text-[9px] px-1.5 py-0.5 rounded bg-white/5 border border-white/10 text-zinc-400">TMDb Lista</span>
             <span className="text-[9px] px-1.5 py-0.5 rounded bg-white/5 border border-white/10 text-zinc-400">MDBList</span>
             <span className="text-[9px] px-1.5 py-0.5 rounded bg-white/5 border border-white/10 text-zinc-400">TheTVDB</span>
             <span className="text-[9px] px-1.5 py-0.5 rounded bg-white/5 border border-white/10 text-zinc-400">IMDb</span>

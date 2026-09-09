@@ -29,8 +29,8 @@ export async function GET(req: NextRequest) {
             tmdbId = 0
           }
         }
-        let posterPath: string | null = null
-        if (tmdbId && apiKey) {
+        let posterPath: string | null = it.poster_path ?? null
+        if (!posterPath && tmdbId && apiKey) {
           try {
             const d = await getDetails(mediaType, tmdbId, "it-IT", apiKey)
             posterPath = d?.poster_path || null
