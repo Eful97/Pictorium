@@ -68,7 +68,7 @@ pinned: false
 | Funzionalità | Descrizione |
 |---|---|
 | 🎯 **Motore Grafico WYSIWYG** | Un unico endpoint (`/api/poster/{type}/{id}`) basato su Sharp C++ ed SVG serve l'anteprima web in tempo reale e il poster finale su Stremio con pixel-perfect sync. |
-| 📦 **Addon 100% Autonomo** | Fornisce direttamente a Stremio schede dettagliate, trame in italiano, loghi trasparenti, sfondi 4K, trailer YouTube e tutte le stagioni con thumbnail ed episodi tradotti. |
+| 📦 **Addon 100% Autonomo** | Fornisce direttamente a Stremio schede dettagliate, trame localizzate, loghi trasparenti, sfondi 4K, trailer YouTube e tutte le stagioni con thumbnail ed episodi tradotti. |
 | 📺 **Ordinamento Intelligente Parti & Anime** | Rileva automaticamente i gruppi **Original Parts** (es. *La Casa di Carta*, *Lupin*) e spacchetta le mega-stagioni uniche degli anime su TMDB (es. *Re:ZERO*, *Jujutsu Kaisen*) nelle vere stagioni con cui sono distribuiti. |
 | 🏷️ **Badge Qualità & Voti** | Visualizza in tempo reale risoluzione video (4K/1080p/720p), voti aggregati da oltre 16 fonti (IMDb, TMDB, Rotten Tomatoes, Letterboxd, MAL), premi Oscar/Cannes e nastri Netflix Top 10. |
 | 🌐 **Cataloghi Personalizzati** | Importa watchlist e collezioni da **Letterboxd, Trakt, TMDb, TheTVDB, MDBList** e classifiche trend in tempo reale tramite JustWatch GraphQL. |
@@ -227,7 +227,7 @@ npm install --ignore-scripts && npm run build && npm start
 | `PICTORIUM_TMDB_KEY` | *(opzionale)* | Chiave API TMDB d'istanza per generare poster e cataloghi senza doverla inserire nei client. |
 | `PICTORIUM_TVDB_API_KEY` | *(opzionale)* | Chiave TheTVDB per ordinamenti stagioni alternativi e descrizioni episodi. |
 | `PICTORIUM_MDBLIST_KEY` | *(opzionale)* | Chiave MDBList per liste personalizzate e cataloghi anime. |
-| `PICTORIUM_REGION` | `IT` | Paese delle classifiche JustWatch/FlixPatrol e lingua dei titoli (`IT`, `US`, `GB`, `FR`, `DE`, `ES`, `JP`, `KR`, `BR`, `IN`, `CA`, `AU`). Overridabile per-richiesta con `?region=` e per-utente via config-token/default salvati. |
+| `PICTORIUM_REGION` | `IT` | Paese delle classifiche JustWatch/FlixPatrol e lingua dei titoli (`IT`, `US`, `GB`, `FR`, `DE`, `ES`, `MX`, `JP`, `KR`, `BR`, `IN`, `CA`, `AU`). Overridabile per-richiesta con `?region=` e per-utente via config-token/default salvati. |
 | `PICTORIUM_DATA_DIR` | `./data` | Cartella di persistenza su disco per database e file salvati. |
 | `KV_REST_API_URL` / `TOKEN` | *(vuoto)* | Parametri di connessione Upstash Redis per deploy serverless su Vercel. |
 
