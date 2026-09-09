@@ -847,7 +847,7 @@ export function SettingsPanel({ setSettingsOpen, exportData, importData, mobile 
         <div className="flex items-center justify-between text-[11px] font-medium text-muted px-0.5">
           <span className="flex items-center gap-1.5 text-zinc-200 font-semibold">
             <Lock className="w-3.5 h-3.5 text-amber-400" />
-            <span>Sicurezza Pannello (PIN)</span>
+            <span>{t("ui.pinSecurityTitle")}</span>
           </span>
           <span
             className={`text-[10px] font-semibold px-2 py-0.5 rounded border ${
@@ -856,11 +856,11 @@ export function SettingsPanel({ setSettingsOpen, exportData, importData, mobile 
                 : "bg-white/5 text-zinc-400 border-white/5"
             }`}
           >
-            {pinConfig?.hasPin ? "PIN Attivo" : "Disattivato"}
+            {pinConfig?.hasPin ? t("ui.pinActive") : t("ui.pinNotConfigured")}
           </span>
         </div>
         <p className="text-[10px] text-muted leading-tight">
-          Protegge l&apos;accesso all&apos;editor web e alle modifiche. Manifest e poster di Stremio restano sempre accessibili e funzionanti.
+          {t("ui.pinSecurityDesc")}
         </p>
 
         {pinModalMode === null ? (
@@ -876,7 +876,7 @@ export function SettingsPanel({ setSettingsOpen, exportData, importData, mobile 
                 className="w-full flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-[11px] font-medium bg-amber-500/10 text-amber-300 hover:bg-amber-500/20 active:scale-[0.98] transition-all border border-amber-500/20 cursor-pointer"
               >
                 <Lock className="w-3.5 h-3.5" />
-                Imposta PIN di protezione
+                {t("ui.pinConfigure")}
               </button>
             ) : (
               <>
@@ -890,7 +890,7 @@ export function SettingsPanel({ setSettingsOpen, exportData, importData, mobile 
                   className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-[11px] font-medium bg-white/[0.05] text-zinc-200 hover:bg-white/[0.1] active:scale-[0.98] transition-all border border-white/10 cursor-pointer"
                 >
                   <KeyRound className="w-3.5 h-3.5 text-amber-400" />
-                  Cambia PIN
+                  {t("ui.pinChange")}
                 </button>
                 <button
                   type="button"
@@ -901,7 +901,7 @@ export function SettingsPanel({ setSettingsOpen, exportData, importData, mobile 
                   className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-[11px] font-medium bg-rose-500/10 text-rose-300 hover:bg-rose-500/20 active:scale-[0.98] transition-all border border-rose-500/20 cursor-pointer"
                 >
                   <Trash2 className="w-3.5 h-3.5" />
-                  Rimuovi PIN
+                  {t("ui.pinRemove")}
                 </button>
               </>
             )}
@@ -912,7 +912,7 @@ export function SettingsPanel({ setSettingsOpen, exportData, importData, mobile 
               <>
                 {pinConfig?.hasPin && (
                   <div>
-                    <label className="text-[10px] text-muted block mb-1">PIN Attuale</label>
+                    <label className="text-[10px] text-muted block mb-1">{t("ui.pinCurrentLabel")}</label>
                     <input
                       type="password"
                       inputMode="numeric"
@@ -925,7 +925,7 @@ export function SettingsPanel({ setSettingsOpen, exportData, importData, mobile 
                   </div>
                 )}
                 <div>
-                  <label className="text-[10px] text-muted block mb-1">Nuovo PIN (min. 4 cifre)</label>
+                  <label className="text-[10px] text-muted block mb-1">{t("ui.pinNewLabel")}</label>
                   <input
                     type="password"
                     inputMode="numeric"
@@ -943,7 +943,7 @@ export function SettingsPanel({ setSettingsOpen, exportData, importData, mobile 
                     disabled={pinBusy}
                     className="flex-1 py-1.5 rounded-lg text-[11px] font-medium bg-white/5 text-zinc-400 hover:text-zinc-200 border border-white/5 cursor-pointer"
                   >
-                    Annulla
+                    {t("ui.cancel")}
                   </button>
                   <button
                     type="button"
@@ -960,29 +960,29 @@ export function SettingsPanel({ setSettingsOpen, exportData, importData, mobile 
                           if (typeof window !== "undefined") {
                             window.dispatchEvent(new CustomEvent("pictorium:pin-change", { detail: { unlocked: true } }))
                           }
-                          toast.success("PIN salvato con successo!")
+                          toast.success(t("ui.pinSavedSuccess"))
                           setPinModalMode(null)
                           refreshPin()
                         } else {
                           const err = await res.json().catch(() => ({}))
-                          toast.error(err.error || "Errore durante il salvataggio")
+                          toast.error(err.error || t("ui.pinSaveError"))
                         }
                       } catch {
-                        toast.error("Errore di connessione")
+                        toast.error(t("ui.pinConnError"))
                       } finally {
                         setPinBusy(false)
                       }
                     }}
                     className="flex-1 py-1.5 rounded-lg text-[11px] font-semibold bg-amber-500 text-black hover:bg-amber-400 disabled:opacity-30 disabled:pointer-events-none cursor-pointer"
                   >
-                    {pinBusy ? "Salvataggio..." : "Salva"}
+                    {pinBusy ? t("ui.saving") : t("ui.save")}
                   </button>
                 </div>
               </>
             ) : (
               <>
                 <div>
-                  <label className="text-[10px] text-muted block mb-1">Inserisci il PIN attuale per confermare</label>
+                  <label className="text-[10px] text-muted block mb-1">{t("ui.pinRemoveConfirmLabel")}</label>
                   <input
                     type="password"
                     inputMode="numeric"
@@ -1000,7 +1000,7 @@ export function SettingsPanel({ setSettingsOpen, exportData, importData, mobile 
                     disabled={pinBusy}
                     className="flex-1 py-1.5 rounded-lg text-[11px] font-medium bg-white/5 text-zinc-400 hover:text-zinc-200 border border-white/5 cursor-pointer"
                   >
-                    Annulla
+                    {t("ui.cancel")}
                   </button>
                   <button
                     type="button"
@@ -1017,22 +1017,22 @@ export function SettingsPanel({ setSettingsOpen, exportData, importData, mobile 
                           if (typeof window !== "undefined") {
                             window.dispatchEvent(new CustomEvent("pictorium:pin-change", { detail: { unlocked: false } }))
                           }
-                          toast.success("PIN rimosso con successo!")
+                          toast.success(t("ui.pinRemovedSuccess"))
                           setPinModalMode(null)
                           refreshPin()
                         } else {
                           const err = await res.json().catch(() => ({}))
-                          toast.error(err.error || "PIN errato")
+                          toast.error(err.error || t("ui.pinLockWrong"))
                         }
                       } catch {
-                        toast.error("Errore di connessione")
+                        toast.error(t("ui.pinConnError"))
                       } finally {
                         setPinBusy(false)
                       }
                     }}
                     className="flex-1 py-1.5 rounded-lg text-[11px] font-semibold bg-rose-500 text-white hover:bg-rose-600 disabled:opacity-30 disabled:pointer-events-none cursor-pointer"
                   >
-                    {pinBusy ? "Rimozione..." : "Conferma Rimozione"}
+                    {pinBusy ? t("ui.loading") : t("ui.pinConfirmRemove")}
                   </button>
                 </div>
               </>

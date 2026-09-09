@@ -2,12 +2,14 @@
 
 import React, { useState, useEffect, useRef } from "react"
 import { Lock, ArrowRight, Delete, ShieldAlert } from "lucide-react"
+import { useT } from "@/lib/contexts/TranslationContext"
 
 interface PinLockModalProps {
   onSuccess: () => void
 }
 
 export function PinLockModal({ onSuccess }: PinLockModalProps) {
+  const { t } = useT()
   const [pin, setPin] = useState("")
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -36,14 +38,14 @@ export function PinLockModal({ onSuccess }: PinLockModalProps) {
         onSuccess()
       } else {
         const data = await res.json().catch(() => ({}))
-        setError(data.error || "PIN non corretto")
+        setError(data.error || t("ui.pinLockWrong"))
         setShake(true)
         setTimeout(() => setShake(false), 500)
         setPin("")
         inputRef.current?.focus()
       }
     } catch {
-      setError("Errore di connessione al server")
+      setError(t("ui.pinConnError"))
       setShake(true)
       setTimeout(() => setShake(false), 500)
     } finally {
@@ -74,8 +76,8 @@ export function PinLockModal({ onSuccess }: PinLockModalProps) {
           <Lock className="w-7 h-7" />
         </div>
 
-        <h2 className="text-lg font-bold text-zinc-100 mb-1">Pannello Protetto</h2>
-        <p className="text-xs text-zinc-400 mb-6">Inserisci il PIN per sbloccare Pictorium</p>
+        <h2 className="text-lg font-bold text-zinc-100 mb-1">{t("ui.pinLockTitle")}</h2>
+        <p className="text-xs text-zinc-400 mb-6">{t("ui.pinLockSubtitle")}</p>
 
         {/* Input PIN visivo */}
         <form onSubmit={handleSubmit} className="w-full mb-6">
@@ -118,7 +120,7 @@ export function PinLockModal({ onSuccess }: PinLockModalProps) {
           <button
             type="button"
             onClick={handleDelete}
-            aria-label="Cancella"
+            aria-label={t("ui.pinLockDelete")}
             className="h-12 rounded-xl bg-white/[0.03] hover:bg-white/[0.08] active:scale-95 border border-white/5 flex items-center justify-center text-zinc-400 hover:text-zinc-200 transition-all"
           >
             <Delete className="w-5 h-5" />
@@ -134,7 +136,7 @@ export function PinLockModal({ onSuccess }: PinLockModalProps) {
             type="button"
             onClick={() => handleSubmit()}
             disabled={pin.length < 4 || loading}
-            aria-label="Sblocca"
+            aria-label={t("ui.pinLockUnlock")}
             className="h-12 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 active:scale-95 border border-amber-500/30 flex items-center justify-center text-amber-400 hover:text-amber-300 disabled:opacity-30 disabled:pointer-events-none transition-all"
           >
             <ArrowRight className="w-5 h-5" />
@@ -147,7 +149,7 @@ export function PinLockModal({ onSuccess }: PinLockModalProps) {
           disabled={pin.length < 4 || loading}
           className="w-full py-3 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 text-black font-semibold text-xs tracking-wide uppercase hover:opacity-90 active:scale-98 disabled:opacity-30 disabled:pointer-events-none transition-all shadow-lg shadow-amber-500/20"
         >
-          {loading ? "Verifica in corso..." : "Sblocca Editor"}
+          {loading ? t("ui.setupPinSaving") : t("ui.pinLockUnlock")}
         </button>
       </div>
     </div>

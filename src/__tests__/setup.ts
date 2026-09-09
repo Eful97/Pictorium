@@ -114,6 +114,13 @@ const itDict: Record<string, string> = {
   "franchise.mcu": "MCU",
   "franchise.dc_extended_universe": "DC Extended Universe",
   "franchise.star_wars": "Star Wars",
+  "ui.setupPinTitle": "Proteggi il tuo pannello",
+  "ui.setupPinSubtitle": "Imposta un PIN di sicurezza per accedere all'editor e salvare modifiche",
+  "ui.setupPinSave": "Salva PIN e Inizia",
+  "ui.setupPinSaving": "Salvataggio...",
+  "ui.setupPinSkip": "Salta questo passaggio",
+  "ui.setupPinMinDigits": "Il PIN deve contenere almeno 4 cifre",
+  "ui.setupPinStremioNotice": "Manifest e poster Stremio restano aperti",
 }
 
 function mockT(key: string, params?: Record<string, string | number>): string {
