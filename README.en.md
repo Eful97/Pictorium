@@ -73,6 +73,7 @@ pinned: false
 | 🏷️ **Quality Badges & Ratings** | Real-time video resolution detection (4K/1080p/720p), aggregated ratings from over 16 sources (IMDb, TMDB, Rotten Tomatoes, Letterboxd, MAL), Academy/Cannes awards, and Netflix Top 10 ribbons. |
 | 🌐 **Custom Catalogs** | Import watchlists and custom lists from **Letterboxd, Trakt, TMDb, TheTVDB, MDBList**, along with real-time trending charts via JustWatch GraphQL. |
 | 🌍 **Dynamic Multilingual UI** | Fully localized interface (Italian, English, French, German, Spanish, Portuguese, Japanese, Korean) with instant real-time language switching without page refresh. |
+| 🔒 **PIN Protection & Security** | Lock screen protection on every launch and page reload (F5) for the editor, configurable right during the initial setup wizard (Step 3) or in Settings. Stremio manifests and posters remain 100% open and unaffected. |
 | ⚡ **Zero Cache Conflicts** | Deterministic versioning with automated `RENDER_VERSION` and `APP_VERSION`. Change any styling parameter and Stremio updates cached images immediately. |
 
 ---
@@ -99,6 +100,13 @@ pinned: false
 * **TheTVDB & AniZip Support**: Manually select alternative ordering from TheTVDB (*Aired, DVD, Absolute, Alternate*) or AniZip (*AniList / AniDB*).
 * **Live Episode Preview**: Check exactly how seasons, episode titles, and thumbnails will appear in Stremio before saving.
 
+### 🔒 Panel Security & PIN Protection
+* **Panel Lock on Launch & Reload (F5)**: Automatically prompts for your PIN whenever the web app is loaded or refreshed to safeguard your custom posters and settings.
+* **Initial Setup Wizard Integration**: Step 3 of the guided onboarding wizard lets you configure a personal PIN in seconds (or skip this step).
+* **Virtual Keypad & Keyboard Support**: Seamless numeric input on mobile devices and desktop keyboards, complete with visual shake animation on wrong PIN.
+* **Flexible Management**: Change or remove your PIN anytime from *Settings → Data & Cache*.
+* **100% Unaffected Stremio Endpoints**: The PIN strictly shields editor routes: Stremio endpoints (`/manifest.json`, `/api/poster/*`, `/catalog/*`, `/api/health`) remain always accessible and uninterrupted.
+
 ---
 
 ## 🚀 Quick Deploy
@@ -116,6 +124,7 @@ Choose the preferred deployment method for your setup:
 
 ### ▲ Vercel
 
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2FEful97%2FPictorium&env=PICTORIUM_TMDB_KEY,PICTORIUM_PUBLIC_INSTANCE&envDescription=TMDB%20v3%20API%20Key%20(32%20chars),Set%20to%201%20to%20allow%20saving%20posters&envLink=https%3A%2F%2Fwww.themoviedb.org%2Fsettings%2Fapi&project-name=pictorium&repository-name=pictorium)
 [![Fork & Deploy](https://img.shields.io/badge/GitHub-Fork_&_Deploy-black?style=for-the-badge&logo=github)](https://github.com/Eful97/Pictorium/fork)
 [![YouTube Video Guide](https://img.shields.io/badge/YouTube-Video_Setup_Guide-FF0000?style=for-the-badge&logo=youtube&logoColor=white)](https://www.youtube.com/watch?v=FP6VJ2vGYiY)
 
@@ -127,35 +136,34 @@ Ideal if you don't own a home server. Setup takes under 2 minutes, 100% free wit
    * Create an account on [themoviedb.org](https://www.themoviedb.org/signup).
    * Go to **Settings → API** ([themoviedb.org/settings/api](https://www.themoviedb.org/settings/api)) and generate an API key (*Developer*).
    * Copy the **API Key (v3 auth)** (a 32-character string, *not* the long read access token).
-2. **Fork the Repository on GitHub**:
-   * Click **[Fork](https://github.com/Eful97/Pictorium/fork)** at the top right to copy the repository into your personal GitHub account.
-   *(This step is crucial: it makes your copy an official GitHub fork, permanently enabling the 1-click update button).*
-3. **Create Project on Vercel**:
-   * Log into [vercel.com](https://vercel.com) (signing in with GitHub is recommended).
-   * Click **Add New…** → **Project**.
-   * You will immediately see **Pictorium** at the top of your GitHub repository list: click **Import**.
-   * In the **Environment Variables** section, add:
+2. **1-Click Deploy**:
+   * Click **[Deploy with Vercel](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2FEful97%2FPictorium&env=PICTORIUM_TMDB_KEY,PICTORIUM_PUBLIC_INSTANCE&envDescription=TMDB%20v3%20API%20Key%20(32%20chars),Set%20to%201%20to%20allow%20saving%20posters&envLink=https%3A%2F%2Fwww.themoviedb.org%2Fsettings%2Fapi&project-name=pictorium&repository-name=pictorium)** (or [Fork](https://github.com/Eful97/Pictorium/fork) directly on GitHub).
+   * Sign in to Vercel with GitHub if prompted.
+   * **⚠️ Key note for updates**: On the clone screen, the Vercel quick deploy button is very convenient, but **uncheck "Create private Git Repository" (leaving the repository public)** if you want to receive future updates effortlessly! This allows GitHub to show the native **Sync fork** button to pull upstream updates in 1 click.
+     > *No privacy worries*: With the new **PIN Protection** feature, your panel and posters are secured by your private PIN code, preventing unauthorized access or changes.
+   * Enter the environment variables:
      * `PICTORIUM_TMDB_KEY` = your 32-character TMDB API key.
      * `PICTORIUM_PUBLIC_INSTANCE` = `1`
    * Click **Deploy**.
-4. **Link Upstash Redis (free database to save your custom posters)**:
+3. **Link Upstash Redis (free database to save your custom posters)**:
    * Once the deploy finishes, open your project dashboard in Vercel.
    * Go to the **Storage** tab at the top → click **Connect Store** (or **Create Database**) → choose **Upstash (Redis)**.
    * Select a region close to you and click **Create & Connect** (Vercel automatically configures `KV_REST_API_URL` and `KV_REST_API_TOKEN`).
-5. **Redeploy (Crucial Step!)**:
+4. **Redeploy (Crucial Step!)**:
    * Go to the **Deployments** tab in your Vercel project.
    * Click the **three dots (⋯)** on the latest deployment and select **Redeploy**.
    * *(Note: Vercel only binds the new Upstash database variables on subsequent deployments)*.
-6. **Install on Stremio**:
+5. **Initial Setup Wizard & Stremio Installation**:
    * Open your deployed URL (e.g. `https://your-pictorium.vercel.app`).
+   * Complete the guided setup (Language, Region, and configure your **Security PIN**).
    * Click **Install on Stremio**! *(You can confirm everything is running smoothly by checking `/api/health`, which should return `"storage": "kv"` and `"status": "ok"`)*.
 
 ---
 
-#### 🔄 How to Receive Updates (1-Click)
-Because you forked the repository in Step 2, updating your instance whenever a new version is released takes a single click with zero reconfiguration:
-1. Open your fork page on GitHub (`https://github.com/<your-username>/Pictorium`).
-2. Under the repository header, click **Sync fork** → **Update branch**.
+#### 🔄 How to Receive Updates (1-Click with Sync Fork)
+If your repository is public (or created as a direct GitHub Fork):
+1. Open your repository page on GitHub (`https://github.com/<your-username>/Pictorium`).
+2. Click **Sync fork** (located below the green Code button) → **Update branch**.
 3. Vercel automatically detects the new commit and **builds and deploys the update in 60 seconds**, preserving your Upstash database, environment keys, and saved posters!
 
 ---

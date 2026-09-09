@@ -38,6 +38,9 @@ describe("SetupWizard", () => {
 
     await user.click(screen.getByText("Giappone"))
     expect(onPickRegion).toHaveBeenCalledWith("JP")
+    expect(screen.getByText("Proteggi il tuo pannello")).toBeInTheDocument()
+
+    await user.click(screen.getByText("Salta questo passaggio"))
     expect(onDone).toHaveBeenCalledTimes(1)
   })
 
@@ -50,6 +53,19 @@ describe("SetupWizard", () => {
     await user.click(screen.getByText("Indietro"))
     expect(screen.getByText("Italia · Italiano")).toBeInTheDocument()
     expect(onPickRegion).not.toHaveBeenCalled()
+    expect(onDone).not.toHaveBeenCalled()
+  })
+
+  it("il tasto indietro dal PIN torna alla regione", async () => {
+    const user = userEvent.setup()
+    const { onDone } = renderWizard()
+
+    await user.click(screen.getByText("USA · English"))
+    await user.click(screen.getByText("Italia"))
+    expect(screen.getByText("Proteggi il tuo pannello")).toBeInTheDocument()
+
+    await user.click(screen.getByText("Indietro"))
+    expect(screen.getByText("ui.setupRegionTitle")).toBeInTheDocument()
     expect(onDone).not.toHaveBeenCalled()
   })
 })

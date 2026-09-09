@@ -2,6 +2,8 @@ import { expect, afterEach, vi } from "vitest"
 import { cleanup } from "@testing-library/react"
 import * as matchers from "@testing-library/jest-dom/matchers"
 
+import { _resetPinCache } from "@/lib/pin-auth"
+
 expect.extend(matchers)
 
 // I test simulano un'istanza pubblica (route admin aperte senza ADMIN_TOKEN):
@@ -10,6 +12,9 @@ process.env.POSTERIUM_PUBLIC_INSTANCE = "1"
 
 afterEach(() => {
   cleanup()
+  vi.unstubAllEnvs()
+  _resetPinCache()
+  process.env.POSTERIUM_PUBLIC_INSTANCE = "1"
 })
 
 const itDict: Record<string, string> = {

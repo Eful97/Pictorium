@@ -1,6 +1,7 @@
 import crypto from "node:crypto"
 import { createLogger } from "@/lib/logger"
 import { envWithFallback } from "@/lib/env-compat"
+import { hasPinConfiguredSync, verifySessionFromRequestSync } from "@/lib/pin-auth"
 
 const log = createLogger("auth")
 
@@ -64,7 +65,20 @@ function constantTimeEqual(a: string, b: string): boolean {
 
 export function checkAdminToken(request: Request): boolean {
   const token = resolveAdminToken()
-  // Nessun token configurato → le route restano aperte solo in modalità
+  if (token) {
+    const headers = request.headers
+    const bearer = headers.get("authorization")?.replace(/^Bearer\s+/i, "")
+    const xtoken = headers.get("x-admin-token")
+    if (bearer && constantTimeEqual(bearer, token)) return true
+    if (xtoken && constantTimeEqual(xtoken, token)) return true
+  }
+
+  // Se è configurato un PIN d'istanza, verifica se la richiesta ha una sessione PIN valida
+  if (hasPinConfiguredSync()) {
+    return verifySessionFromRequestSync(request)
+  }
+
+  // Nessun token né PIN configurato → le route restano aperte solo in modalità
   // pubblica esplicita (PICTORIUM_PUBLIC_INSTANCE=1) o in dev su loopback /
   // con PICTORIUM_ALLOW_DEV_ADMIN=1. Il client non invia mai il token admin,
   // quindi la modalità pubblica è l'unico modo per far funzionare l'editor
@@ -76,30 +90,30 @@ export function checkAdminToken(request: Request): boolean {
     return false
   }
 
-  const headers = request.headers
-  const bearer = headers.get("authorization")?.replace(/^Bearer\s+/i, "")
-  const xtoken = headers.get("x-admin-token")
-  if (bearer && constantTimeEqual(bearer, token)) return true
-  if (xtoken && constantTimeEqual(xtoken, token)) return true
   return false
 }
 
 /**
- * Fail-closed admin check: richiede SEMPRE un token admin configurato e valido.
+ * Fail-closed admin check: richiede SEMPRE un token admin configurato o un PIN di sessione valido.
  * A differenza di checkAdminToken (che resta aperto su istanze pubbliche senza
- * ADMIN_TOKEN), questa restituisce false quando non c'è token configurato.
+ * ADMIN_TOKEN), questa restituisce false quando non c'è token o PIN configurato.
  * Da usare SOLO per le operazioni che devono restare protette anche su HF Spaces
  * (es. DELETE /api/mappings wipe-all).
  */
 export function requireAdminToken(request: Request): boolean {
   const token = resolveAdminToken()
-  if (!token) return false
+  if (token) {
+    const headers = request.headers
+    const bearer = headers.get("authorization")?.replace(/^Bearer\s+/i, "")
+    const xtoken = headers.get("x-admin-token")
+    if (bearer && constantTimeEqual(bearer, token)) return true
+    if (xtoken && constantTimeEqual(xtoken, token)) return true
+  }
 
-  const headers = request.headers
-  const bearer = headers.get("authorization")?.replace(/^Bearer\s+/i, "")
-  const xtoken = headers.get("x-admin-token")
-  if (bearer && constantTimeEqual(bearer, token)) return true
-  if (xtoken && constantTimeEqual(xtoken, token)) return true
+  if (hasPinConfiguredSync()) {
+    return verifySessionFromRequestSync(request)
+  }
+
   return false
 }
 

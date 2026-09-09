@@ -298,6 +298,12 @@ input[type="range"]::-moz-range-thumb {
 .animate-pulse-ring { animation: pulse-ring 2s infinite; }
 .animate-stagger-in { animation: stagger-in 0.25s cubic-bezier(0.22, 1, 0.36, 1) both; }
 .animate-shimmer-subtle { animation: shimmer-subtle 2s ease-in-out infinite; }
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  20%, 60% { transform: translateX(-6px); }
+  40%, 80% { transform: translateX(6px); }
+}
+.animate-shake { animation: shake 0.4s ease-in-out both; }
 
 /* ═══════════════════════════════════════════════
    Premium animation polish — ingressi a strati

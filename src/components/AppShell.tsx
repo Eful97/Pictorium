@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useRef, useEffect, type CSSProperties } from "react"
+import { useState, useRef, useEffect, useCallback, type CSSProperties } from "react"
 import dynamic from "next/dynamic"
 import { usePSelector } from "@/lib/context"
 import { useT } from "@/lib/contexts/TranslationContext"
@@ -20,6 +20,7 @@ const EditView = dynamic(() => import("@/components/EditView"), { ssr: false, lo
 const ProxyModal = dynamic(() => import("@/components/ProxyModal").then((m) => m.ProxyModal), { ssr: false })
 const InstallModal = dynamic(() => import("@/components/InstallModal").then((m) => m.InstallModal), { ssr: false })
 const OnboardingTour = dynamic(() => import("@/components/OnboardingTour").then((m) => m.OnboardingTour), { ssr: false })
+const PinLockModal = dynamic(() => import("@/components/PinLockModal").then((m) => m.PinLockModal), { ssr: false })
 
 export function AppShell() {
   const setLangOpen = usePSelector((v) => v.setLangOpen)
@@ -58,6 +59,37 @@ export function AppShell() {
   const closeSettings = () => {
     setClosingSettings(true)
     closingSettingsRef.current = setTimeout(() => { setSettingsOpen(false); setClosingSettings(false) }, 150)
+  }
+
+  const [hasPinConfigured, setHasPinConfigured] = useState<boolean | null>(null)
+  const [isUnlocked, setIsUnlocked] = useState(false)
+
+  const checkPinStatus = useCallback(() => {
+    fetch("/api/auth/pin")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (data && typeof data.hasPin === "boolean") {
+          setHasPinConfigured(data.hasPin)
+        }
+      })
+      .catch(() => null)
+  }, [])
+
+  useEffect(() => {
+    checkPinStatus()
+    const handlePinChange = (e: Event) => {
+      const custom = e as CustomEvent<{ unlocked?: boolean }>
+      if (custom.detail?.unlocked) {
+        setIsUnlocked(true)
+      }
+      checkPinStatus()
+    }
+    window.addEventListener("pictorium:pin-change", handlePinChange)
+    return () => window.removeEventListener("pictorium:pin-change", handlePinChange)
+  }, [checkPinStatus])
+
+  const handlePinUnlock = () => {
+    setIsUnlocked(true)
   }
 
   // Il pannello impostazioni completo si chiude con Esc
@@ -419,6 +451,9 @@ export function AppShell() {
     </div>
     </ToastProvider>
     {!showLangPicker && <OnboardingTour />}
+    {hasPinConfigured && !isUnlocked && !showLangPicker && (
+      <PinLockModal onSuccess={handlePinUnlock} />
+    )}
     </>
   )
 }

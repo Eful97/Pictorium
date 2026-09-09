@@ -73,6 +73,7 @@ pinned: false
 | 🏷️ **Badge Qualità & Voti** | Visualizza in tempo reale risoluzione video (4K/1080p/720p), voti aggregati da oltre 16 fonti (IMDb, TMDB, Rotten Tomatoes, Letterboxd, MAL), premi Oscar/Cannes e nastri Netflix Top 10. |
 | 🌐 **Cataloghi Personalizzati** | Importa watchlist e collezioni da **Letterboxd, Trakt, TMDb, TheTVDB, MDBList** e classifiche trend in tempo reale tramite JustWatch GraphQL. |
 | 🌍 **Interfaccia Multilingua Dinamica** | Interfaccia localizzata (Italiano, English, Français, Deutsch, Español, Português, 日本語, 한국어) con cambio lingua istantaneo in tempo reale senza ricaricare la pagina. |
+| 🔒 **Protezione con PIN & Sicurezza** | Protezione ad ogni avvio e ricaricamento (F5) per l'editor, configurabile subito nel wizard iniziale (Step 3) o nelle Impostazioni. Locandine, manifest e cataloghi per Stremio restano 100% aperti e sempre funzionanti. |
 | ⚡ **Zero Conflitti di Cache** | Versioning deterministico con `RENDER_VERSION` e `APP_VERSION` automatiche. Se cambi uno stile, Stremio aggiorna istantaneamente le immagini. |
 
 ---
@@ -99,6 +100,13 @@ pinned: false
 * **Supporto TVDB & AniZip**: Possibilità di selezionare manualmente gli ordinamenti alternativi TheTVDB (*Aired, DVD, Absolute, Alternate*) o AniZip (*AniList / AniDB*).
 * **Anteprima Episodi Live**: Visualizza prima di salvare esattamente come appariranno le stagioni, i titoli e le miniature in Stremio.
 
+### 🔒 Sicurezza & Protezione Pannello (PIN)
+* **Blocco Pannello ad Ogni Avvio & Ricarica (F5)**: Richiesta automatica del codice PIN all'avvio dell'app e ad ogni ricaricamento di pagina per proteggere i tuoi poster salvati e le modifiche.
+* **Configurazione Guidata Iniziale**: Al primo avvio, lo Step 3 del wizard iniziale ti consente di impostare subito il PIN di protezione in pochi secondi (o saltare il passaggio).
+* **Tastierino Virtuale & Tastiera Fisica**: Inserimento agevole sia da smartphone/tablet che da desktop, con feedback di sicurezza visivo ed errore su codice errato.
+* **Gestione Flessibile**: Modifica o rimozione del PIN in qualsiasi momento dalla sezione *Dati & Cache* nel pannello Impostazioni.
+* **Stremio 100% Invariato**: Il PIN protegge esclusivamente l'editor web: gli endpoint Stremio (`/manifest.json`, `/api/poster/*`, `/catalog/*`, `/api/health`) rimangono sempre accessibili e senza alcuna interruzione.
+
 ---
 
 ## 🚀 Deploy Rapido
@@ -121,7 +129,7 @@ Scegli la modalità più comoda per la tua installazione:
 
 > 📺 **Video Tutorial Passo-Passo**: preferisci seguire la procedura a video? Guarda la [**Video Guida su YouTube**](https://www.youtube.com/watch?v=FP6VJ2vGYiY) per completare il setup in meno di 2 minuti.
 
-Ideale se non hai un server domestico. Setup guidato a costo zero con **creazione automatica di repository privato** (per proteggere la tua istanza e la tua privacy):
+Ideale se non hai un server domestico. Setup guidato a costo zero con deploy in meno di 2 minuti:
 
 1. **Ottieni la tua API Key TMDB (gratis)**:
    * Crea un account su [themoviedb.org](https://www.themoviedb.org/signup).
@@ -130,9 +138,10 @@ Ideale se non hai un server domestico. Setup guidato a costo zero con **creazion
 2. **Deploy con 1 Click**:
    * Clicca sul pulsante nero in alto **[Deploy with Vercel](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2FEful97%2FPictorium&env=PICTORIUM_TMDB_KEY,PICTORIUM_PUBLIC_INSTANCE&envDescription=Chiave%20API%20TMDB%20v3%20(32%20caratteri),Imposta%20a%201%20per%20consentire%20il%20salvataggio%20poster&envLink=https%3A%2F%2Fwww.themoviedb.org%2Fsettings%2Fapi&project-name=pictorium&repository-name=pictorium)**.
    * Effettua l'accesso a Vercel con GitHub se richiesto.
-   * Nella schermata di clone, assicurati che la casella **"Create private Git Repository"** sia selezionata *(è già spuntata di default: protegge la tua privacy facendo in modo che nessuno su GitHub possa vedere la tua istanza o il tuo URL)*.
-   * Inserisci nei campi:
-     * `PICTORIUM_TMDB_KEY`: la tua chiave TMDB v3.
+   * **⚠️ Fondamentale per gli aggiornamenti**: nella schermata di clone, il pulsante rapido di Vercel è comodissimo, ma **deseleziona la spunta "Create private Git Repository" (lasciando la repository pubblica)** se desideri ricevere facilmente gli aggiornamenti futuri! In questo modo GitHub abiliterà il pulsante nativo **Sync fork** per allineare le nuove versioni in 1 click.
+     > *Nessun timore per la privacy*: con la nuova funzione di **Protezione con PIN**, il tuo pannello e i tuoi poster sono protetti dal tuo PIN personale e nessuno può manometterli.
+   * Inserisci nei campi delle variabili:
+     * `PICTORIUM_TMDB_KEY`: la tua chiave TMDB v3 (32 caratteri).
      * `PICTORIUM_PUBLIC_INSTANCE`: `1`
    * Clicca su **Deploy**.
 3. **Collega Upstash Redis (database gratuito per salvare i tuoi poster)**:
@@ -143,20 +152,18 @@ Ideale se non hai un server domestico. Setup guidato a costo zero con **creazion
    * Vai nella scheda **Deployments** del progetto.
    * Clicca sui **tre puntini (⋯)** dell'ultimo deployment e seleziona **Redeploy**.
    * *(Nota: Vercel applica il database Upstash solo dal redeploy in poi)*.
-5. **Installazione su Stremio**:
+5. **Installazione su Stremio & PIN iniziale**:
    * Apri l'URL generato (es. `https://tuo-pictorium.vercel.app`).
+   * Completa la configurazione guidata (Lingua, Regione e imposta il tuo **PIN di sicurezza**).
    * Clicca su **Installa su Stremio**! *(Puoi verificare che tutto sia ok aprendo `/api/health`, che deve indicare `"storage": "kv"` e `"status": "ok"`)*.
 
 ---
 
-#### 🔄 Come Aggiornare in Futuro (Automatico o 1 Click)
-Il tuo repository privato include già un'azione automatica di sincronizzazione:
-* **Automatico**: Il tuo repository si aggiorna da solo ogni giorno (ogni 24 ore) scaricando le ultime novità di Pictorium, avviando il deploy automatico su Vercel.
-* **Manuale (1 Click)**: Se esce una nuova versione e vuoi aggiornare subito:
-  1. Apri la pagina del tuo repository su GitHub.
-  2. Clicca sulla scheda **Actions** in alto.
-  3. Seleziona a sinistra **Sync with Upstream** e clicca a destra su **Run workflow** → **Run workflow**.
-  4. Vercel rileverà l'aggiornamento e compilerà la nuova versione in 60 secondi mantenendo intatti poster e database!
+#### 🔄 Come Aggiornare in Futuro (1 Click con Sync Fork)
+Se hai lasciato la repository pubblica (o hai fatto un Fork diretto su GitHub):
+1. Apri la pagina della tua repository su GitHub.
+2. Clicca sul pulsante **Sync fork** (situato sotto al tasto verde Code) → **Update branch**.
+3. Vercel rileverà automaticamente il nuovo commit e compilerà la nuova versione in circa 60 secondi, mantenendo intatti database Upstash e poster personalizzati!
 
 ---
 

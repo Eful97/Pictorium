@@ -206,7 +206,7 @@ describe("POST /api/poster-fit — auth (S10)", () => {
   afterEach(() => {
     delete process.env.POSTERIUM_ADMIN_TOKEN
     delete process.env.ADMIN_TOKEN
-    delete process.env.POSTERIUM_PUBLIC_INSTANCE
+    process.env.POSTERIUM_PUBLIC_INSTANCE = "1"
     vi.restoreAllMocks()
   })
 

@@ -37,6 +37,8 @@ import {
   Wand2,
   Globe,
   X,
+  Lock,
+  KeyRound,
 } from "lucide-react"
 
 interface Props {
@@ -81,6 +83,25 @@ export function SettingsPanel({ setSettingsOpen, exportData, importData, mobile 
         if (data && typeof data.totalEntries === "number") setCacheCount(data.totalEntries)
       })
       .catch(() => null)
+  }, [])
+
+  const [pinConfig, setPinConfig] = useState<{ hasPin: boolean } | null>(null)
+  const [pinModalMode, setPinModalMode] = useState<"set" | "remove" | null>(null)
+  const [curPinInput, setCurPinInput] = useState("")
+  const [newPinInput, setNewPinInput] = useState("")
+  const [pinBusy, setPinBusy] = useState(false)
+
+  const refreshPin = () => {
+    fetch("/api/auth/pin")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (data && typeof data.hasPin === "boolean") setPinConfig(data)
+      })
+      .catch(() => null)
+  }
+
+  useEffect(() => {
+    refreshPin()
   }, [])
 
   // Focus trap su mobile
@@ -819,6 +840,205 @@ export function SettingsPanel({ setSettingsOpen, exportData, importData, mobile 
             {clearStatus === "cleared" ? t("ui.cleared") : t("ui.clearCache")}
           </button>
         </div>
+      </div>
+
+      {/* Sicurezza & Accesso PIN */}
+      <div className="bg-surface/50 border border-surface2/60 rounded-xl p-3.5 space-y-2.5 shadow-sm">
+        <div className="flex items-center justify-between text-[11px] font-medium text-muted px-0.5">
+          <span className="flex items-center gap-1.5 text-zinc-200 font-semibold">
+            <Lock className="w-3.5 h-3.5 text-amber-400" />
+            <span>Sicurezza Pannello (PIN)</span>
+          </span>
+          <span
+            className={`text-[10px] font-semibold px-2 py-0.5 rounded border ${
+              pinConfig?.hasPin
+                ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
+                : "bg-white/5 text-zinc-400 border-white/5"
+            }`}
+          >
+            {pinConfig?.hasPin ? "PIN Attivo" : "Disattivato"}
+          </span>
+        </div>
+        <p className="text-[10px] text-muted leading-tight">
+          Protegge l&apos;accesso all&apos;editor web e alle modifiche. Manifest e poster di Stremio restano sempre accessibili e funzionanti.
+        </p>
+
+        {pinModalMode === null ? (
+          <div className="flex gap-2 pt-1">
+            {!pinConfig?.hasPin ? (
+              <button
+                type="button"
+                onClick={() => {
+                  setCurPinInput("")
+                  setNewPinInput("")
+                  setPinModalMode("set")
+                }}
+                className="w-full flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-[11px] font-medium bg-amber-500/10 text-amber-300 hover:bg-amber-500/20 active:scale-[0.98] transition-all border border-amber-500/20 cursor-pointer"
+              >
+                <Lock className="w-3.5 h-3.5" />
+                Imposta PIN di protezione
+              </button>
+            ) : (
+              <>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCurPinInput("")
+                    setNewPinInput("")
+                    setPinModalMode("set")
+                  }}
+                  className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-[11px] font-medium bg-white/[0.05] text-zinc-200 hover:bg-white/[0.1] active:scale-[0.98] transition-all border border-white/10 cursor-pointer"
+                >
+                  <KeyRound className="w-3.5 h-3.5 text-amber-400" />
+                  Cambia PIN
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCurPinInput("")
+                    setPinModalMode("remove")
+                  }}
+                  className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-[11px] font-medium bg-rose-500/10 text-rose-300 hover:bg-rose-500/20 active:scale-[0.98] transition-all border border-rose-500/20 cursor-pointer"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  Rimuovi PIN
+                </button>
+              </>
+            )}
+          </div>
+        ) : (
+          <div className="space-y-2 pt-1 border-t border-white/5">
+            {pinModalMode === "set" ? (
+              <>
+                {pinConfig?.hasPin && (
+                  <div>
+                    <label className="text-[10px] text-muted block mb-1">PIN Attuale</label>
+                    <input
+                      type="password"
+                      inputMode="numeric"
+                      maxLength={8}
+                      value={curPinInput}
+                      onChange={(e) => setCurPinInput(e.target.value.replace(/\D/g, ""))}
+                      placeholder="••••"
+                      className="w-full text-center text-sm font-mono tracking-widest py-1.5 px-3 rounded-lg bg-black/40 border border-white/10 text-white placeholder-zinc-600 focus:outline-none focus:border-amber-500/50"
+                    />
+                  </div>
+                )}
+                <div>
+                  <label className="text-[10px] text-muted block mb-1">Nuovo PIN (min. 4 cifre)</label>
+                  <input
+                    type="password"
+                    inputMode="numeric"
+                    maxLength={8}
+                    value={newPinInput}
+                    onChange={(e) => setNewPinInput(e.target.value.replace(/\D/g, ""))}
+                    placeholder="••••"
+                    className="w-full text-center text-sm font-mono tracking-widest py-1.5 px-3 rounded-lg bg-black/40 border border-white/10 text-white placeholder-zinc-600 focus:outline-none focus:border-amber-500/50"
+                  />
+                </div>
+                <div className="flex gap-2 pt-1">
+                  <button
+                    type="button"
+                    onClick={() => setPinModalMode(null)}
+                    disabled={pinBusy}
+                    className="flex-1 py-1.5 rounded-lg text-[11px] font-medium bg-white/5 text-zinc-400 hover:text-zinc-200 border border-white/5 cursor-pointer"
+                  >
+                    Annulla
+                  </button>
+                  <button
+                    type="button"
+                    disabled={newPinInput.length < 4 || (pinConfig?.hasPin && !curPinInput) || pinBusy}
+                    onClick={async () => {
+                      setPinBusy(true)
+                      try {
+                        const res = await fetch("/api/auth/pin", {
+                          method: "PUT",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({ currentPin: curPinInput, newPin: newPinInput }),
+                        })
+                        if (res.ok) {
+                          if (typeof window !== "undefined") {
+                            window.dispatchEvent(new CustomEvent("pictorium:pin-change", { detail: { unlocked: true } }))
+                          }
+                          toast.success("PIN salvato con successo!")
+                          setPinModalMode(null)
+                          refreshPin()
+                        } else {
+                          const err = await res.json().catch(() => ({}))
+                          toast.error(err.error || "Errore durante il salvataggio")
+                        }
+                      } catch {
+                        toast.error("Errore di connessione")
+                      } finally {
+                        setPinBusy(false)
+                      }
+                    }}
+                    className="flex-1 py-1.5 rounded-lg text-[11px] font-semibold bg-amber-500 text-black hover:bg-amber-400 disabled:opacity-30 disabled:pointer-events-none cursor-pointer"
+                  >
+                    {pinBusy ? "Salvataggio..." : "Salva"}
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                <div>
+                  <label className="text-[10px] text-muted block mb-1">Inserisci il PIN attuale per confermare</label>
+                  <input
+                    type="password"
+                    inputMode="numeric"
+                    maxLength={8}
+                    value={curPinInput}
+                    onChange={(e) => setCurPinInput(e.target.value.replace(/\D/g, ""))}
+                    placeholder="••••"
+                    className="w-full text-center text-sm font-mono tracking-widest py-1.5 px-3 rounded-lg bg-black/40 border border-white/10 text-white placeholder-zinc-600 focus:outline-none focus:border-rose-500/50"
+                  />
+                </div>
+                <div className="flex gap-2 pt-1">
+                  <button
+                    type="button"
+                    onClick={() => setPinModalMode(null)}
+                    disabled={pinBusy}
+                    className="flex-1 py-1.5 rounded-lg text-[11px] font-medium bg-white/5 text-zinc-400 hover:text-zinc-200 border border-white/5 cursor-pointer"
+                  >
+                    Annulla
+                  </button>
+                  <button
+                    type="button"
+                    disabled={!curPinInput || pinBusy}
+                    onClick={async () => {
+                      setPinBusy(true)
+                      try {
+                        const res = await fetch("/api/auth/pin", {
+                          method: "DELETE",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({ currentPin: curPinInput }),
+                        })
+                        if (res.ok) {
+                          if (typeof window !== "undefined") {
+                            window.dispatchEvent(new CustomEvent("pictorium:pin-change", { detail: { unlocked: false } }))
+                          }
+                          toast.success("PIN rimosso con successo!")
+                          setPinModalMode(null)
+                          refreshPin()
+                        } else {
+                          const err = await res.json().catch(() => ({}))
+                          toast.error(err.error || "PIN errato")
+                        }
+                      } catch {
+                        toast.error("Errore di connessione")
+                      } finally {
+                        setPinBusy(false)
+                      }
+                    }}
+                    className="flex-1 py-1.5 rounded-lg text-[11px] font-semibold bg-rose-500 text-white hover:bg-rose-600 disabled:opacity-30 disabled:pointer-events-none cursor-pointer"
+                  >
+                    {pinBusy ? "Rimozione..." : "Conferma Rimozione"}
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        )}
       </div>
     </div>
   )
