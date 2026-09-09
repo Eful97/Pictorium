@@ -130,7 +130,7 @@ export async function buildManifestResponse(req: NextRequest, user?: string | nu
   const safeConfig = safeSuffix(config || user)
   const suffix = safeConfig ? `.${safeConfig}` : ""
   const modeSuffix = hubMode === "all" ? "" : `.${hubMode}`
-  const addonId = `org.posterium${suffix}${modeSuffix}`
+  const addonId = `org.pictorium${suffix}${modeSuffix}`
 
   const homeDisabledSet = new Set(userConfig?.homeDisabledCatalogIds || [])
 
@@ -150,13 +150,13 @@ export async function buildManifestResponse(req: NextRequest, user?: string | nu
   const searchCatalogs = [
     {
       id: "posterium-search-movies",
-      name: "🔍 Posterium — Cerca Film",
+      name: "🔍 Pictorium — Cerca Film",
       type: "movie" as const,
       extra: [{ name: "search", isRequired: true }, { name: "skip", isRequired: false }],
     },
     {
       id: "posterium-search-series",
-      name: "🔍 Posterium — Cerca Serie TV",
+      name: "🔍 Pictorium — Cerca Serie TV",
       type: "series" as const,
       extra: [{ name: "search", isRequired: true }, { name: "skip", isRequired: false }],
     },
@@ -191,7 +191,7 @@ export async function buildManifestResponse(req: NextRequest, user?: string | nu
 
   const TYPES = ["movie", "series", "anime.movie", "anime.series", "anime", "Trakt", "collection"]
 
-  let manifestName = safeConfig ? `Posterium (${safeConfig})` : "Posterium"
+  let manifestName = safeConfig ? `Pictorium (${safeConfig})` : "Pictorium"
   if (hubMode === "search") {
     manifestName += " (Ricerca)"
   } else if (hubMode === "catalogs") {

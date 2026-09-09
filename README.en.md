@@ -1,5 +1,5 @@
 ---
-title: Posterium
+title: Pictorium
 emoji: 🖼️
 colorFrom: indigo
 colorTo: purple
@@ -9,7 +9,7 @@ pinned: false
 ---
 
 <p align="center">
-  <img src="public/posterium.png" alt="Posterium" width="380" />
+  <img src="public/posterium.png" alt="Pictorium" width="380" />
 </p>
 
 <h3 align="center">Dynamic Movie & TV Poster Generator for Stremio & Media Centers</h3>
@@ -152,20 +152,20 @@ Create a `docker-compose.yml` file:
 
 ```yaml
 services:
-  posterium:
-    image: eful97/posterium:latest # or local build: .
-    container_name: posterium
+  pictorium:
+    image: eful97/pictorium:latest # or local build: .
+    container_name: pictorium
     restart: unless-stopped
     ports:
       - "8080:8080"
     environment:
-      - POSTERIUM_PUBLIC_INSTANCE=1
-      - POSTERIUM_TMDB_KEY=your_tmdb_key_here
+      - PICTORIUM_PUBLIC_INSTANCE=1
+      - PICTORIUM_TMDB_KEY=your_tmdb_key_here
     volumes:
-      - posterium-data:/data
+      - pictorium-data:/data
 
 volumes:
-  posterium-data:
+  pictorium-data:
 ```
 
 Start the container:
@@ -218,10 +218,13 @@ npm install --ignore-scripts && npm run build && npm start
 
 ### Essential Variables
 
+> [!NOTE]
+> All variables support the `PICTORIUM_*` prefix (recommended, e.g. `PICTORIUM_TMDB_KEY`) with full backwards compatibility for legacy `POSTERIUM_*` variables.
+
 | Variable | Default | Description |
 |---|:---:|---|
-| `POSTERIUM_PUBLIC_INSTANCE` | `0` | Set to `1` on Vercel/HF to allow saving posters and using the editor without an admin token. |
-| `POSTERIUM_TMDB_KEY` | *(optional)* | Instance TMDB API key to generate posters and catalogs without requiring users to input one. |
+| `PICTORIUM_PUBLIC_INSTANCE` | `0` | Set to `1` on Vercel/HF to allow saving posters and using the editor without an admin token. |
+| `PICTORIUM_TMDB_KEY` | *(optional)* | Instance TMDB API key to generate posters and catalogs without requiring users to input one. |
 | `POSTERIUM_TVDB_API_KEY` | *(optional)* | TheTVDB API key for alternative season ordering and episode descriptions. |
 | `POSTERIUM_MDBLIST_KEY` | *(optional)* | MDBList API key for custom lists and anime catalogs. |
 | `POSTERIUM_REGION` | `IT` | Default country for JustWatch/FlixPatrol charts and title language (`IT`, `US`, `GB`, `FR`, `DE`, `ES`, `JP`, `KR`, `BR`, `IN`, `CA`, `AU`). Overridable per-request via `?region=` and per-user via config token or saved defaults. |

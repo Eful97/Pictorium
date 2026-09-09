@@ -52,9 +52,9 @@ export async function GET(req: NextRequest) {
   const d = getServerDefaults()
   if (checkAdminToken(req)) {
     const serverKeys = {
-      tmdbKey: process.env.POSTERIUM_TMDB_KEY || process.env.TMDB_API_KEY || "",
-      mdblistApiKey: process.env.POSTERIUM_MDBLIST_KEY || process.env.MDBLIST_API_KEY || "",
-      tvdbApiKey: process.env.POSTERIUM_TVDB_API_KEY || process.env.TVDB_API_KEY || "",
+      tmdbKey: process.env.PICTORIUM_TMDB_KEY || process.env.POSTERIUM_TMDB_KEY || process.env.TMDB_API_KEY || "",
+      mdblistApiKey: process.env.PICTORIUM_MDBLIST_KEY || process.env.POSTERIUM_MDBLIST_KEY || process.env.MDBLIST_API_KEY || "",
+      tvdbApiKey: process.env.PICTORIUM_TVDB_API_KEY || process.env.POSTERIUM_TVDB_API_KEY || process.env.TVDB_API_KEY || "",
     }
     return Response.json({ ...d, serverKeys })
   }

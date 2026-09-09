@@ -14,7 +14,7 @@ export function HomeStatusStrip() {
       </div>
       <div className="status-right">
         <a href="/status" className="status-link">{t("ui.statusTitle")}</a>
-        <span className="hidden sm:inline" aria-hidden="true">Posterium v{APP_VERSION}</span>
+        <span className="hidden sm:inline" aria-hidden="true">Pictorium v{APP_VERSION}</span>
       </div>
     </footer>
   )

@@ -19,8 +19,8 @@ export async function GET(req: NextRequest) {
   const cached = cacheGet<EnrichedAnimeItem[]>(cacheKey)
   if (cached) return Response.json(cached)
 
-  const mdblistKey = req.nextUrl.searchParams.get("mdblist_key") || process.env.POSTERIUM_MDBLIST_KEY || process.env.MDBLIST_KEY || process.env.MDBLIST_API_KEY || ""
-  const tmdbKey = req.nextUrl.searchParams.get("api_key") || process.env.POSTERIUM_TMDB_KEY || process.env.TMDB_KEY || process.env.TMDB_API_KEY || undefined
+  const mdblistKey = req.nextUrl.searchParams.get("mdblist_key") || process.env.PICTORIUM_MDBLIST_KEY || process.env.POSTERIUM_MDBLIST_KEY || process.env.MDBLIST_KEY || process.env.MDBLIST_API_KEY || ""
+  const tmdbKey = req.nextUrl.searchParams.get("api_key") || process.env.PICTORIUM_TMDB_KEY || process.env.POSTERIUM_TMDB_KEY || process.env.TMDB_KEY || process.env.TMDB_API_KEY || undefined
   if (!mdblistKey || !tmdbKey) return Response.json([])
 
   try {

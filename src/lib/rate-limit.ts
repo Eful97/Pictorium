@@ -33,7 +33,7 @@ interface BucketConfig {
 // F7: il bucket poster era 100 burst/10s — un catalog load con molti poster
 // freddi poteva andare in 429. Sovrascrivibile via env a module level.
 const POSTER_MAX_TOKENS = (() => {
-  const raw = process.env.POSTERIUM_RATELIMIT_POSTER_MAX
+  const raw = process.env.PICTORIUM_RATELIMIT_POSTER_MAX || process.env.POSTERIUM_RATELIMIT_POSTER_MAX
   const n = raw ? parseInt(raw, 10) : 200
   return Number.isFinite(n) && n >= 10 && n <= 10000 ? n : 200
 })()
@@ -93,6 +93,7 @@ function memoryRateLimit(bucketKey: string, cfg: BucketConfig, now: number): { o
 const useKvStore =
   !!process.env.KV_REST_API_URL &&
   !!process.env.KV_REST_API_TOKEN &&
+  process.env.PICTORIUM_RATELIMIT_KV !== "0" &&
   process.env.POSTERIUM_RATELIMIT_KV !== "0"
 
 let lastKvErrorLog = 0

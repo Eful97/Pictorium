@@ -8,8 +8,8 @@ describe("buildManifestResponse with hubMode options", () => {
     const res = await buildManifestResponse(req)
     const json = await res.json()
 
-    expect(json.id).toBe("org.posterium")
-    expect(json.name).toBe("Posterium")
+    expect(json.id).toBe("org.pictorium")
+    expect(json.name).toBe("Pictorium")
     const catalogIds = json.catalogs.map((c: { id: string }) => c.id)
     expect(catalogIds).toContain("posterium-search-movies")
     expect(catalogIds).toContain("posterium-search-series")
@@ -21,7 +21,7 @@ describe("buildManifestResponse with hubMode options", () => {
     const res = await buildManifestResponse(req)
     const json = await res.json()
 
-    expect(json.id).toBe("org.posterium.catalogs")
+    expect(json.id).toBe("org.pictorium.catalogs")
     expect(json.name).toContain("(Cataloghi)")
     const catalogIds = json.catalogs.map((c: { id: string }) => c.id)
     expect(catalogIds).not.toContain("posterium-search-movies")
@@ -34,7 +34,7 @@ describe("buildManifestResponse with hubMode options", () => {
     const res = await buildManifestResponse(req)
     const json = await res.json()
 
-    expect(json.id).toBe("org.posterium.search")
+    expect(json.id).toBe("org.pictorium.search")
     expect(json.name).toContain("(Ricerca)")
     const catalogIds = json.catalogs.map((c: { id: string }) => c.id)
     expect(catalogIds).toContain("posterium-search-movies")
@@ -56,8 +56,8 @@ describe("buildManifestResponse with hubMode options", () => {
     const resB = await buildManifestResponse(reqB, null, configB)
     const jsonB = await resB.json()
 
-    expect(jsonA.id).toMatch(/^org\.posterium\.[A-Za-z0-9_-]{8}$/)
-    expect(jsonB.id).toMatch(/^org\.posterium\.[A-Za-z0-9_-]{8}$/)
+    expect(jsonA.id).toMatch(/^org\.pictorium\.[A-Za-z0-9_-]{8}$/)
+    expect(jsonB.id).toMatch(/^org\.pictorium\.[A-Za-z0-9_-]{8}$/)
     expect(jsonA.id).not.toBe(jsonB.id)
   })
 })

@@ -51,52 +51,56 @@ const KV_KEY = "defaults"
 // Cruciale per i CATALOGHI: i poster dei cataloghi usano getServerDefaults() e
 // non il config utente, quindi senza questi default d'istanza i badge escono
 // tutti ON indipendentemente dalle preferenze salvate.
-function envBool(name: string): boolean | undefined {
-  const raw = process.env[name]?.trim().toLowerCase()
+function getEnv(suffix: string): string | undefined {
+  return process.env[`PICTORIUM_${suffix}`] ?? process.env[`POSTERIUM_${suffix}`]
+}
+function envBool(suffix: string): boolean | undefined {
+  const raw = getEnv(suffix)?.trim().toLowerCase()
   if (raw === "1" || raw === "true" || raw === "yes" || raw === "on") return true
   if (raw === "0" || raw === "false" || raw === "no" || raw === "off") return false
   return undefined
 }
-function envNum(name: string): number | undefined {
-  const raw = process.env[name]?.trim()
+function envNum(suffix: string): number | undefined {
+  const raw = getEnv(suffix)?.trim()
   const n = raw ? Number(raw) : NaN
   return Number.isFinite(n) ? n : undefined
 }
 function defaultsFromEnv(): ServerDefaults {
   const d: ServerDefaults = {}
-  const bG = envBool("POSTERIUM_GLOBAL_BADGES")
-  const bR = envBool("POSTERIUM_RANKING_BADGES")
-  const bg = envBool("POSTERIUM_BADGE_GENRE")
-  const by = envBool("POSTERIUM_BADGE_YEAR")
-  const br = envBool("POSTERIUM_BADGE_RATING")
-  const bq = envBool("POSTERIUM_BADGE_QUALITY")
-  const blurEn = envBool("POSTERIUM_BLUR_ENABLED")
-  const netLogo = envBool("POSTERIUM_NETWORK_LOGO")
-  const autoRotate = envBool("POSTERIUM_AUTO_ROTATE_CLEAN")
-  const logoFit = envBool("POSTERIUM_LOGO_FIT_ENABLED")
+  const bG = envBool("GLOBAL_BADGES")
+  const bR = envBool("RANKING_BADGES")
+  const bg = envBool("BADGE_GENRE")
+  const by = envBool("BADGE_YEAR")
+  const br = envBool("BADGE_RATING")
+  const bq = envBool("BADGE_QUALITY")
+  const blurEn = envBool("BLUR_ENABLED")
+  const netLogo = envBool("NETWORK_LOGO")
+  const autoRotate = envBool("AUTO_ROTATE_CLEAN")
+  const logoFit = envBool("LOGO_FIT_ENABLED")
   if (bG !== undefined) d.globalBadges = bG
   if (bR !== undefined) d.rankingBadges = bR
   if (bg !== undefined) d.badgeGenre = bg
   if (by !== undefined) d.badgeYear = by
   if (br !== undefined) d.badgeRating = br
   if (bq !== undefined) d.badgeQuality = bq
-  const rsrcEnv = process.env.POSTERIUM_RATING_SOURCES?.split(",").map((s) => s.trim().toLowerCase()).filter(Boolean)
+  const rsrcEnv = getEnv("RATING_SOURCES")?.split(",").map((s) => s.trim().toLowerCase()).filter(Boolean)
   if (rsrcEnv && rsrcEnv.length > 0) d.ratingSources = rsrcEnv
   if (blurEn !== undefined) d.blurEnabled = blurEn
   if (netLogo !== undefined) d.networkLogo = netLogo
   if (autoRotate !== undefined) d.autoRotateClean = autoRotate
   if (logoFit !== undefined) d.defaultLogoFitEnabled = logoFit
-  const bs = process.env.POSTERIUM_BADGE_STYLE?.trim()
-  const rbs = process.env.POSTERIUM_RANKING_BADGE_STYLE?.trim()
-  const side = process.env.POSTERIUM_RIBBON_SIDE?.trim().toLowerCase()
-  const blurI = envNum("POSTERIUM_BLUR_INTENSITY")
-  const blurF = envNum("POSTERIUM_BLUR_FADE")
-  const blurD = envNum("POSTERIUM_BLUR_DARKNESS")
-  const gradH = envNum("POSTERIUM_GRADIENT_HEIGHT")
-  const epSrc = process.env.POSTERIUM_EPISODE_METADATA_SOURCE?.trim().toLowerCase()
+  const bs = getEnv("BADGE_STYLE")?.trim()
+  const rbs = getEnv("RANKING_BADGE_STYLE")?.trim()
+  const side = getEnv("RIBBON_SIDE")?.trim().toLowerCase()
+  const blurI = envNum("BLUR_INTENSITY")
+  const blurF = envNum("BLUR_FADE")
+  const blurD = envNum("BLUR_DARKNESS")
+  const gradH = envNum("GRADIENT_HEIGHT")
+  const epSrc = getEnv("EPISODE_METADATA_SOURCE")?.trim().toLowerCase()
   if (epSrc === "tmdb" || epSrc === "tvdb") d.episodeMetadataSource = epSrc
   // Regione classifiche: codice canonico, fail-closed su IT se non riconosciuta.
-  if (process.env.POSTERIUM_REGION?.trim()) d.region = normalizeRegion(process.env.POSTERIUM_REGION)
+  const regionRaw = getEnv("REGION")?.trim()
+  if (regionRaw) d.region = normalizeRegion(regionRaw)
   if (bs && isBadgeStyle(bs)) d.badgeStyle = bs
   if (rbs && isRankingBadgeStyle(rbs)) d.rankingBadgeStyle = rbs
   if (side === "left" || side === "right") d.ribbonSide = side

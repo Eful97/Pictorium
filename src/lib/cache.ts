@@ -22,11 +22,14 @@ export type CacheStatus = {
 const store = new Map<string, CacheEntry<unknown>>()
 
 const MAX_TTL = 30 * 60 * 1000
-const ENV_MAX_ENTRIES = process.env.POSTERIUM_CACHE_MAX ? parseInt(process.env.POSTERIUM_CACHE_MAX, 10) : 2000
+const rawMaxEntries = process.env.PICTORIUM_CACHE_MAX || process.env.POSTERIUM_CACHE_MAX
+const ENV_MAX_ENTRIES = rawMaxEntries ? parseInt(rawMaxEntries, 10) : 2000
 const MAX_ENTRIES = Number.isFinite(ENV_MAX_ENTRIES) && ENV_MAX_ENTRIES > 100 ? ENV_MAX_ENTRIES : 2000
-const ENV_MAX_MB = process.env.POSTERIUM_CACHE_MAX_MB ? parseFloat(process.env.POSTERIUM_CACHE_MAX_MB) : 150
+const rawMaxMb = process.env.PICTORIUM_CACHE_MAX_MB || process.env.POSTERIUM_CACHE_MAX_MB
+const ENV_MAX_MB = rawMaxMb ? parseFloat(rawMaxMb) : 150
 const MAX_BYTES = (Number.isFinite(ENV_MAX_MB) && ENV_MAX_MB > 10 ? ENV_MAX_MB : 150) * 1024 * 1024
-const ENV_REFRESH_HOUR = process.env.POSTERIUM_CACHE_REFRESH_HOUR ? parseInt(process.env.POSTERIUM_CACHE_REFRESH_HOUR, 10) : 3
+const rawRefreshHour = process.env.PICTORIUM_CACHE_REFRESH_HOUR || process.env.POSTERIUM_CACHE_REFRESH_HOUR
+const ENV_REFRESH_HOUR = rawRefreshHour ? parseInt(rawRefreshHour, 10) : 3
 const REFRESH_HOUR = Number.isFinite(ENV_REFRESH_HOUR) && ENV_REFRESH_HOUR >= 0 && ENV_REFRESH_HOUR <= 23 ? ENV_REFRESH_HOUR : 3
 
 let totalBytes = 0

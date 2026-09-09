@@ -1,5 +1,5 @@
 ---
-title: Posterium
+title: Pictorium
 emoji: 🖼️
 colorFrom: indigo
 colorTo: purple
@@ -9,7 +9,7 @@ pinned: false
 ---
 
 <p align="center">
-  <img src="public/posterium.png" alt="Posterium" width="380" />
+  <img src="public/posterium.png" alt="Pictorium" width="380" />
 </p>
 
 <h3 align="center">Generatore Dinamico di Poster Cinematografici per Stremio & Media Center</h3>
@@ -152,20 +152,20 @@ Crea un file `docker-compose.yml`:
 
 ```yaml
 services:
-  posterium:
-    image: eful97/posterium:latest # o build locale: .
-    container_name: posterium
+  pictorium:
+    image: eful97/pictorium:latest # o build locale: .
+    container_name: pictorium
     restart: unless-stopped
     ports:
       - "8080:8080"
     environment:
-      - POSTERIUM_PUBLIC_INSTANCE=1
-      - POSTERIUM_TMDB_KEY=la_tua_chiave_tmdb
+      - PICTORIUM_PUBLIC_INSTANCE=1
+      - PICTORIUM_TMDB_KEY=la_tua_chiave_tmdb
     volumes:
-      - posterium-data:/data
+      - pictorium-data:/data
 
 volumes:
-  posterium-data:
+  pictorium-data:
 ```
 
 Avvia il container:
@@ -218,10 +218,13 @@ npm install --ignore-scripts && npm run build && npm start
 
 ### Variabili Essenziali
 
+> [!NOTE]
+> Tutte le variabili supportano il prefisso `PICTORIUM_*` (consigliato, es. `PICTORIUM_TMDB_KEY`) con pieno supporto retrocompatibile alle vecchie variabili `POSTERIUM_*`.
+
 | Variabile | Default | Descrizione |
 |---|:---:|---|
-| `POSTERIUM_PUBLIC_INSTANCE` | `0` | Imposta a `1` su Vercel/HF per consentire il salvataggio dei poster e l'uso dell'editor senza token admin. |
-| `POSTERIUM_TMDB_KEY` | *(opzionale)* | Chiave API TMDB d'istanza per generare poster e cataloghi senza doverla inserire nei client. |
+| `PICTORIUM_PUBLIC_INSTANCE` | `0` | Imposta a `1` su Vercel/HF per consentire il salvataggio dei poster e l'uso dell'editor senza token admin. |
+| `PICTORIUM_TMDB_KEY` | *(opzionale)* | Chiave API TMDB d'istanza per generare poster e cataloghi senza doverla inserire nei client. |
 | `POSTERIUM_TVDB_API_KEY` | *(opzionale)* | Chiave TheTVDB per ordinamenti stagioni alternativi e descrizioni episodi. |
 | `POSTERIUM_MDBLIST_KEY` | *(opzionale)* | Chiave MDBList per liste personalizzate e cataloghi anime. |
 | `POSTERIUM_REGION` | `IT` | Paese delle classifiche JustWatch/FlixPatrol e lingua dei titoli (`IT`, `US`, `GB`, `FR`, `DE`, `ES`, `JP`, `KR`, `BR`, `IN`, `CA`, `AU`). Overridabile per-richiesta con `?region=` e per-utente via config-token/default salvati. |

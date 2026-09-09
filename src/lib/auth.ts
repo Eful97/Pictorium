@@ -4,17 +4,17 @@ import { createLogger } from "@/lib/logger"
 const log = createLogger("auth")
 
 function resolveAdminToken(): string | undefined {
-  return process.env.POSTERIUM_ADMIN_TOKEN || process.env.ADMIN_TOKEN || undefined
+  return process.env.PICTORIUM_ADMIN_TOKEN || process.env.POSTERIUM_ADMIN_TOKEN || process.env.ADMIN_TOKEN || undefined
 }
 
 /** Istanza in modalità pubblica: le route admin restano aperte senza
  *  ADMIN_TOKEN solo quando esplicitamente configurata via
- *  POSTERIUM_PUBLIC_INSTANCE=1 (HF Spaces multi-utente). In dev locale
+ *  PICTORIUM_PUBLIC_INSTANCE=1 o POSTERIUM_PUBLIC_INSTANCE=1 (HF Spaces multi-utente). In dev locale
  *  (`next dev`, NODE_ENV=development) l'accesso senza token è consentito
- *  solo su loopback (127.0.0.1/::1/localhost) o con POSTERIUM_ALLOW_DEV_ADMIN=1.
+ *  solo su loopback (127.0.0.1/::1/localhost) o con PICTORIUM_ALLOW_DEV_ADMIN=1 / POSTERIUM_ALLOW_DEV_ADMIN=1.
  *  In produzione senza flag resta fail-closed. */
 function isPublicInstance(): boolean {
-  return process.env.POSTERIUM_PUBLIC_INSTANCE === "1"
+  return process.env.PICTORIUM_PUBLIC_INSTANCE === "1" || process.env.POSTERIUM_PUBLIC_INSTANCE === "1"
 }
 
 function isLoopbackRequest(request: Request): boolean {
@@ -32,7 +32,7 @@ function isLoopbackRequest(request: Request): boolean {
 
 function isDevAdminAllowed(request: Request): boolean {
   if (process.env.NODE_ENV !== "development") return false
-  if (process.env.POSTERIUM_ALLOW_DEV_ADMIN === "1") return true
+  if (process.env.PICTORIUM_ALLOW_DEV_ADMIN === "1" || process.env.POSTERIUM_ALLOW_DEV_ADMIN === "1") return true
   return isLoopbackRequest(request)
 }
 

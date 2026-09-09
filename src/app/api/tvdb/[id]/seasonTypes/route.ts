@@ -16,12 +16,12 @@ export async function GET(req: NextRequest, context: { params: Promise<{ id: str
   const rawId = (id || "").trim()
   if (!rawId) return Response.json({ error: "Missing id" }, { status: 400 })
 
-  const rawTvdbKey = req.headers.get("x-api-key") || req.headers.get("x-tvdb-key") || req.nextUrl.searchParams.get("tvdb_key") || process.env.POSTERIUM_TVDB_API_KEY || process.env.TVDB_API_KEY || ""
+  const rawTvdbKey = req.headers.get("x-api-key") || req.headers.get("x-tvdb-key") || req.nextUrl.searchParams.get("tvdb_key") || process.env.PICTORIUM_TVDB_API_KEY || process.env.POSTERIUM_TVDB_API_KEY || process.env.TVDB_API_KEY || ""
   const tvdbKey = rawTvdbKey.trim()
   if (!tvdbKey) return Response.json({ results: [], error: "TVDB key missing — imposta in Impostazioni" }, { status: 200 })
 
   // tmdb key opzionale: permette di risolvere tvdb_id via TMDB external_ids (molto più affidabile di search/remoteid per id numerici)
-  const tmdbKey = req.headers.get("x-tmdb-key") || req.nextUrl.searchParams.get("tmdb_key") || req.nextUrl.searchParams.get("api_key") || req.headers.get("x-api-key-tvdb") || process.env.POSTERIUM_TMDB_KEY || ""
+  const tmdbKey = req.headers.get("x-tmdb-key") || req.nextUrl.searchParams.get("tmdb_key") || req.nextUrl.searchParams.get("api_key") || req.headers.get("x-api-key-tvdb") || process.env.PICTORIUM_TMDB_KEY || process.env.POSTERIUM_TMDB_KEY || ""
   const cacheKey = `tvdb:seasonTypes:raw${rawId}:ak${hashFragment(tvdbKey)}:tk${hashFragment(tmdbKey || "")}`
   const cached = cacheGet<{ results: { id: number; name: string; type: string; alternateName?: string | null }[]; tvdbId?: number | null }>(cacheKey)
   if (cached) return Response.json(cached, { headers: { "Cache-Control": "public, max-age=3600, stale-while-revalidate=3600" } })

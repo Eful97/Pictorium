@@ -14,7 +14,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Posterium — Generatore di poster per Stremio",
+  title: "Pictorium — Generatore di poster per Stremio",
   description: "Generatore dinamico di poster cinematografici per Stremio: locandine pulite, loghi vettoriali, rating e badge trend composti in tempo reale.",
   manifest: "/site.webmanifest",
   icons: {
@@ -22,7 +22,7 @@ export const metadata: Metadata = {
     apple: "/App.png",
   },
   openGraph: {
-    title: "Posterium",
+    title: "Pictorium",
     description: "Generatore di poster cinematografici per Stremio",
     images: ["/posterium.png"],
     type: "website",

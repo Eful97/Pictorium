@@ -10,8 +10,8 @@ export async function GET(req: NextRequest) {
   const url = req.nextUrl.searchParams.get("url")
   if (!url) return Response.json({ items: [] })
 
-  const apiKey = resolveRequestApiKey(req) || process.env.POSTERIUM_TMDB_KEY || process.env.TMDB_KEY || process.env.TMDB_API_KEY || undefined
-  const mdblistKey = req.nextUrl.searchParams.get("mdblist_key") || process.env.POSTERIUM_MDBLIST_KEY || process.env.MDBLIST_KEY || process.env.MDBLIST_API_KEY || undefined
+  const apiKey = resolveRequestApiKey(req) || process.env.PICTORIUM_TMDB_KEY || process.env.POSTERIUM_TMDB_KEY || process.env.TMDB_KEY || process.env.TMDB_API_KEY || undefined
+  const mdblistKey = req.nextUrl.searchParams.get("mdblist_key") || process.env.PICTORIUM_MDBLIST_KEY || process.env.POSTERIUM_MDBLIST_KEY || process.env.MDBLIST_KEY || process.env.MDBLIST_API_KEY || undefined
 
   try {
     const detection = detectCatalogProvider(url)

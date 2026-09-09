@@ -243,7 +243,7 @@ export function resolveRequestApiKey(req: { headers: Headers | { get: (name: str
   if (headerKey) return headerKey
   const queryKey = req.nextUrl?.searchParams.get("api_key")
   if (queryKey) return queryKey
-  const envKey = process.env.POSTERIUM_TMDB_KEY
+  const envKey = process.env.PICTORIUM_TMDB_KEY || process.env.POSTERIUM_TMDB_KEY || process.env.TMDB_KEY || process.env.TMDB_API_KEY
   if (envKey) return envKey
   return undefined
 }

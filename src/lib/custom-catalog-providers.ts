@@ -293,7 +293,7 @@ async function fetchTmdbCollectionOrList(
   apiKey?: string,
   limit: number = 500,
 ): Promise<MDBListEntry[]> {
-  const key = apiKey || process.env.POSTERIUM_TMDB_KEY || process.env.TMDB_KEY || process.env.TMDB_API_KEY
+  const key = apiKey || process.env.PICTORIUM_TMDB_KEY || process.env.POSTERIUM_TMDB_KEY || process.env.TMDB_KEY || process.env.TMDB_API_KEY
   if (!key || !identifier) return []
 
   try {
