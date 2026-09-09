@@ -1,20 +1,10 @@
 import fs from "fs"
-import path from "path"
 import { textColorForBg } from "./accent-color"
-import { estimateTextWidth, genreBadgeSafePad, genreBadgeSvgDims, genrePillMaxW, buildGenreBarSvg, buildGenrePillSvg, buildGenreTextSvg, buildGenreBorderedSvg, buildGenreGlassSvg, buildRankingBarSvg, buildRankingDefaultSvg, buildRankingPillSvg, buildExtraBarSvg, buildExtraDefaultSvg, buildExtraPillSvg, buildExtraGlassSvg, buildQualityBadgeSvg, escSvg } from "./badge-svg-shared"
+import { FONT_FILES, FONT_INTER_REGULAR, FONT_INTER_BOLD, FONT_INTER_BLACK, FONT_SYMBOLS } from "./fonts"
+import { estimateTextWidth, fontFamilyFor, genreBadgeSafePad, genreBadgeSvgDims, genrePillMaxW, buildGenreBarSvg, buildGenrePillSvg, buildGenreTextSvg, buildGenreBorderedSvg, buildGenreGlassSvg, buildRankingBarSvg, buildRankingDefaultSvg, buildRankingPillSvg, buildExtraBarSvg, buildExtraDefaultSvg, buildExtraPillSvg, buildExtraGlassSvg, buildQualityBadgeSvg, escSvg } from "./badge-svg-shared"
 import type { GenreParts } from "./badge-svg-shared"
 import type { BadgeStyle, RankingBadgeStyle, ExtraBadgeStyle } from "./badge-styles"
 
-const FONT_REGULAR = path.join(/* turbopackIgnore: true */ process.cwd(), "src", "assets", "fonts", "Inter-Regular.ttf")
-const FONT_BOLD = path.join(/* turbopackIgnore: true */ process.cwd(), "src", "assets", "fonts", "Inter-Bold.ttf")
-const FONT_BLACK = path.join(/* turbopackIgnore: true */ process.cwd(), "src", "assets", "fonts", "Inter-Black.ttf")
-const FONT_SYMBOLS = path.join(/* turbopackIgnore: true */ process.cwd(), "src", "assets", "fonts", "NotoSansSymbols2-Regular.ttf")
-const FONT_FILES = [
-  FONT_REGULAR,
-  FONT_BOLD,
-  FONT_BLACK,
-  FONT_SYMBOLS,
-] as const
 
 let _regular: Buffer | null = null
 let _bold: Buffer | null = null
@@ -38,15 +28,15 @@ export function warmFonts(): void {
 }
 
 function fontRegular(): Buffer {
-  if (!_regular) _regular = fs.readFileSync(FONT_REGULAR)
+  if (!_regular) _regular = fs.readFileSync(FONT_INTER_REGULAR)
   return _regular
 }
 function fontBold(): Buffer {
-  if (!_bold) _bold = fs.readFileSync(FONT_BOLD)
+  if (!_bold) _bold = fs.readFileSync(FONT_INTER_BOLD)
   return _bold
 }
 function fontBlack(): Buffer {
-  if (!_black) _black = fs.readFileSync(FONT_BLACK)
+  if (!_black) _black = fs.readFileSync(FONT_INTER_BLACK)
   return _black
 }
 function fontSymbols(): Buffer {
@@ -309,7 +299,7 @@ export function buildNetflixRankBadgeSVG(rank: number, pw: number, topLight: boo
   const shadowDx = isRight ? -3 : 3
 
   const subEl = hasSub
-    ? `<text x="${textX}" y="${subY}" fill="${textColor}" font-family="Inter" font-weight="700" font-size="${subFs}" text-anchor="middle" dominant-baseline="central" letter-spacing="0.6" filter="url(#textShadow)">${escSvg(subLabel)}</text>`
+    ? `<text x="${textX}" y="${subY}" fill="${textColor}" font-family="${fontFamilyFor(subLabel)}" font-weight="700" font-size="${subFs}" text-anchor="middle" dominant-baseline="central" letter-spacing="0.6" filter="url(#textShadow)">${escSvg(subLabel)}</text>`
     : ""
 
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${totalW}" height="${totalHSub}" viewBox="0 0 ${totalW} ${totalHSub}">

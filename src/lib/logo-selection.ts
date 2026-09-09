@@ -5,10 +5,14 @@ import type { TMDBImage } from "./types"
  *
  * Priority (descending):
  *   1. Preferred language (`lang`)
- *   2. Italian ("it")
- *   3. English ("en")
- *   4. Original language of the content (`origLang`)
- *   5. Any first available logo
+ *   2. English ("en")
+ *   3. Original language of the content (`origLang`)
+ *   4. Any first available logo
+ *
+ * L'italiano stava al secondo posto per ogni lingua: un utente ebraico (o
+ * giapponese, o coreano) senza logo nella propria lingua riceveva il logo
+ * italiano prima di quello inglese. Ora l'italiano non è più privilegiato —
+ * per `lang === "it"` il tier 1 lo copre già e l'ordine resta identico a prima.
  *
  * Returns `undefined` when `logos` is empty.
  */
@@ -19,11 +23,10 @@ export function selectBestLogo(
 ): TMDBImage | undefined {
   if (logos.length === 0) return undefined
   const langLogo = logos.find((l) => l.iso_639_1 === lang)
-  const itLogo = lang !== "it" ? logos.find((l) => l.iso_639_1 === "it") : undefined
   const enLogo = lang !== "en" ? logos.find((l) => l.iso_639_1 === "en") : undefined
   const origLogo =
     origLang && origLang !== lang ? logos.find((l) => l.iso_639_1 === origLang) : undefined
-  return langLogo || itLogo || enLogo || origLogo || logos[0]
+  return langLogo || enLogo || origLogo || logos[0]
 }
 
 /**
@@ -38,7 +41,7 @@ export function logoBestLogoFallbackReason(
   if (!selected) return "none"
   if (selected.iso_639_1 === lang) return null
   if (origLang && selected.iso_639_1 === origLang) return "origLang"
-  if (selected.iso_639_1 === "it" || selected.iso_639_1 === "en") return null
+  if (selected.iso_639_1 === "en") return null
   return "any"
 }
 

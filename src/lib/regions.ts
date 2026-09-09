@@ -18,8 +18,9 @@ export interface RegionDef {
   readonly lang: string
   /**
    * Lingua UI a 2 lettere (stato `lang` dell'app, `preferred_lang`).
-   * Solo it/en/fr/de/es hanno un dizionario tradotto — ja/ko/pt ripiegano
-   * sull'inglese in `i18n.lookup`, mentre i contenuti TMDB seguono `lang`.
+   * Solo it/en/fr/de/es hanno un dizionario UI completo — ja/ko/pt/he
+   * ripiegano sull'inglese in `i18n.lookup` per le stringhe `ui.*` (he ha
+   * badge/award tradotti), mentre i contenuti TMDB seguono `lang`.
    */
   readonly lang2: string
   /** Nome lingua in lingua nativa (per il selettore lingua). */
@@ -37,6 +38,7 @@ export const REGIONS: readonly RegionDef[] = [
   { code: "DE", flixSlug: "germany", lang: "de-DE", lang2: "de", languageName: "Deutsch", label: "Germania", flag: "🇩🇪" },
   { code: "ES", flixSlug: "spain", lang: "es-ES", lang2: "es", languageName: "Español", label: "Spagna", flag: "🇪🇸" },
   { code: "MX", flixSlug: "mexico", lang: "es-MX", lang2: "es", languageName: "Español (México)", label: "Messico", flag: "🇲🇽" },
+  { code: "IL", flixSlug: "israel", lang: "he-IL", lang2: "he", languageName: "עברית", label: "Israele", flag: "🇮🇱" },
   { code: "JP", flixSlug: "japan", lang: "ja-JP", lang2: "ja", languageName: "日本語", label: "Giappone", flag: "🇯🇵" },
   { code: "KR", flixSlug: "south-korea", lang: "ko-KR", lang2: "ko", languageName: "한국어", label: "Corea del Sud", flag: "🇰🇷" },
   { code: "BR", flixSlug: "brazil", lang: "pt-BR", lang2: "pt", languageName: "Português", label: "Brasile", flag: "🇧🇷" },

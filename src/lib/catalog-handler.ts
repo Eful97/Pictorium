@@ -205,6 +205,26 @@ async function tmdbGenreNames(stType: "movie" | "series", apiKey?: string, lang 
   }
 }
 
+/**
+ * Le opzioni `genre` del manifest sono etichette fisse italiane/inglesi
+ * (build-manifest: MOVIE_GENRES / SERIES_GENRES / ANIME_GENRES), identiche per
+ * ogni regione. I `genres` dei meta arrivano invece da TMDB nella lingua della
+ * regione: con IT combaciavano per costruzione, ma con he-IL (o ja-JP, ko-KR,
+ * de-DE...) il confronto per sottostringa non trova nulla e il catalogo
+ * filtrato per genere torna VUOTO. Questa tabella riporta l'etichetta del
+ * manifest all'id TMDB, così il nome localizzato si ricava dalla /genre/list
+ * già in cache e il confronto avviene nella lingua giusta.
+ */
+const MANIFEST_GENRE_TMDB_IDS: Record<string, number> = {
+  azione: 28, avventura: 12, animazione: 16, commedia: 35, crime: 80,
+  documentario: 99, dramma: 18, famiglia: 10751, fantascienza: 878,
+  fantasy: 14, guerra: 10752, horror: 27, mistero: 9648, musica: 10402,
+  romance: 10749, storia: 36, thriller: 53, western: 37,
+  "action & adventure": 10759, family: 10751, kids: 10762, news: 10763,
+  reality: 10764, "sci-fi & fantasy": 10765, soap: 10766, talk: 10767,
+  "war & politics": 10768,
+}
+
 function genreNamesFromIds(genreIds: number[] | undefined, genreNames: Map<number, string>): string[] | undefined {
   if (!genreIds || genreIds.length === 0) return undefined
   const names = genreIds.map((gid) => genreNames.get(gid)).filter((g): g is string => !!g)
@@ -778,11 +798,19 @@ export async function pictoriumCatalog(
       const isFamily = gLower === "famiglia" || gLower === "family"
       const isSciFi = gLower === "fantascienza" || gLower.includes("sci-fi")
       const isAction = gLower === "azione" || gLower.includes("action")
+      // Nome del genere nella lingua della regione (vedi MANIFEST_GENRE_TMDB_IDS).
+      // Resta undefined per le etichette fuori tabella o quando /genre/list
+      // fallisce: in quel caso il filtro degrada al confronto di prima.
+      const tmdbGenreId = MANIFEST_GENRE_TMDB_IDS[gLower]
+      const localizedGenre = tmdbGenreId !== undefined
+        ? (await tmdbGenreNames(stType, apiKey, tmdbLang)).get(tmdbGenreId)?.toLowerCase()
+        : undefined
       metas = metas.filter((m) => {
         if (!m.genres || m.genres.length === 0) return true
         return m.genres.some((g) => {
           const gn = g.toLowerCase()
           if (gn.includes(gLower) || gLower.includes(gn)) return true
+          if (localizedGenre && (gn.includes(localizedGenre) || localizedGenre.includes(gn))) return true
           if (isFamily && (gn.includes("famiglia") || gn.includes("family"))) return true
           if (isSciFi && (gn.includes("fantascienza") || gn.includes("sci-fi"))) return true
           if (isAction && (gn.includes("azione") || gn.includes("action"))) return true

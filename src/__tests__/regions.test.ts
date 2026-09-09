@@ -14,10 +14,10 @@ import {
 import { PICKER_LANGS } from "@/lib/utils"
 
 describe("regions", () => {
-  it("exposes 13 regions with unique codes and slugs", () => {
-    expect(REGIONS).toHaveLength(13)
-    expect(new Set(REGIONS.map((r) => r.code)).size).toBe(13)
-    expect(new Set(REGIONS.map((r) => r.flixSlug)).size).toBe(13)
+  it("exposes 14 regions with unique codes and slugs", () => {
+    expect(REGIONS).toHaveLength(14)
+    expect(new Set(REGIONS.map((r) => r.code)).size).toBe(14)
+    expect(new Set(REGIONS.map((r) => r.flixSlug)).size).toBe(14)
     for (const r of REGIONS) {
       expect(r.code).toMatch(/^[A-Z]{2}$/)
       expect(r.lang).toMatch(/^[a-z]{2}-[A-Z]{2}$/)
@@ -30,6 +30,7 @@ describe("regions", () => {
     expect(parseRegion("  fr ")).toBe("FR")
     expect(parseRegion("kr")).toBe("KR")
     expect(parseRegion("mx")).toBe("MX")
+    expect(parseRegion("il")).toBe("IL")
   })
 
   it("parseRegion accepts FlixPatrol slugs", () => {
@@ -38,6 +39,7 @@ describe("regions", () => {
     expect(parseRegion("south-korea")).toBe("KR")
     expect(parseRegion("United-Kingdom")).toBe("GB")
     expect(parseRegion("mexico")).toBe("MX")
+    expect(parseRegion("israel")).toBe("IL")
   })
 
   it("parseRegion fails closed on unknown input", () => {
@@ -56,16 +58,19 @@ describe("regions", () => {
     expect(getRegionDef("FR").lang).toBe("fr-FR")
     expect(getRegionDef("JP").lang).toBe("ja-JP")
     expect(getRegionDef("MX").lang).toBe("es-MX")
+    expect(getRegionDef("IL").lang).toBe("he-IL")
     expect(getRegionDef("IT")).toMatchObject({ flag: "🇮🇹", label: "Italia" })
     expect(getRegionDef("US")).toMatchObject({ flag: "🇺🇸", label: "USA" })
     expect(getRegionDef("MX")).toMatchObject({ flag: "🇲🇽", label: "Messico", lang2: "es" })
+    expect(getRegionDef("IL")).toMatchObject({ flag: "🇮🇱", label: "Israele", lang2: "he", flixSlug: "israel" })
   })
 
   it("flixSlugToRegionCode round-trips supported slugs", () => {
     expect(flixSlugToRegionCode("france")).toBe("FR")
     expect(flixSlugToRegionCode("japan")).toBe("JP")
     expect(flixSlugToRegionCode("mexico")).toBe("MX")
-    // Paesi FlixPatrol fuori dai 13 supportati → null (fallback disco, niente fast-path JW)
+    expect(flixSlugToRegionCode("israel")).toBe("IL")
+    // Paesi FlixPatrol fuori dai 14 supportati → null (fallback disco, niente fast-path JW)
     expect(flixSlugToRegionCode("albania")).toBeNull()
   })
 
@@ -84,8 +89,8 @@ describe("regions", () => {
   })
 
   it("supports only the picker UI languages", () => {
-    expect(SUPPORTED_UI_LANGS).toEqual(["it", "en", "fr", "de", "es", "ja", "ko", "pt"])
-    for (const l of ["it", "en", "fr", "de", "es", "ja", "ko", "pt"]) {
+    expect(SUPPORTED_UI_LANGS).toEqual(["it", "en", "fr", "de", "es", "he", "ja", "ko", "pt"])
+    for (const l of ["it", "en", "fr", "de", "es", "he", "ja", "ko", "pt"]) {
       expect(isSupportedUiLang(l)).toBe(true)
     }
     // Lingue del vecchio picker (zh/ru/ar/nl) non più offerte
@@ -94,9 +99,9 @@ describe("regions", () => {
     }
   })
 
-  it("PICKER_LANGS lists exactly the 13 nationalities", () => {
-    expect(PICKER_LANGS).toHaveLength(13)
-    expect(new Set(PICKER_LANGS.map((l) => l.key)).size).toBe(13)
+  it("PICKER_LANGS lists exactly the 14 nationalities", () => {
+    expect(PICKER_LANGS).toHaveLength(14)
+    expect(new Set(PICKER_LANGS.map((l) => l.key)).size).toBe(14)
     expect(PICKER_LANGS.map((l) => l.key)).toEqual(REGIONS.map((r) => r.code))
     for (const l of PICKER_LANGS) {
       expect(l.flag).toBeTruthy()

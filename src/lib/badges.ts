@@ -44,23 +44,30 @@ export function cinematicVignetteSVG(pw: number, ph: number): string {
 </svg>`
 }
 
+/**
+ * Colore d'accento per nome di genere. La chiave è il nome COME LO RESTITUISCE
+ * TMDB nella lingua richiesta, quindi ogni lingua supportata va elencata: una
+ * chiave mancante non è un errore visibile, degrada a #555555 (grigio) sia sul
+ * badge genere sia sull'accento del poster quando la locandina è piatta.
+ * Le voci ebraiche vengono da /genre/{movie,tv}/list?language=he-IL.
+ */
 export const GENRE_FALLBACK: Record<string, string> = {
-  Action: '#D4A574', Azione: '#D4A574',
-  Horror: '#8B0000', Horreur: '#8B0000',
-  Comedy: '#F4D03F', Commedia: '#F4D03F', Comédie: '#F4D03F',
-  Drama: '#5D6D7E', Dramma: '#5D6D7E', Drame: '#5D6D7E',
-  Thriller: '#4A4A4A',
-  Adventure: '#2E86AB', Avventura: '#2E86AB', Aventure: '#2E86AB',
-  Animation: '#E67E22', Animazione: '#E67E22',
-  'Science Fiction': '#3498DB', 'Science-Fiction': '#3498DB', Fantascienza: '#3498DB',
-  Romance: '#E74C3C', Romantico: '#E74C3C',
-  Documentary: '#7F8C8D', Documentario: '#7F8C8D',
-  Mystery: '#6C3483', Mistero: '#6C3483',
-  Fantasy: '#8E44AD', Fantasia: '#8E44AD',
-  War: '#6B4226', Guerra: '#6B4226',
-  Western: '#A0522D',
-  Music: '#1ABC9C', Musica: '#1ABC9C',
-  Family: '#2ECC71', Famiglia: '#2ECC71',
-  History: '#A67B5B', Storico: '#A67B5B', Storia: '#A67B5B',
-  Crime: '#2C3E50', Crimine: '#2C3E50',
+  Action: '#D4A574', Azione: '#D4A574', 'אקשן': '#D4A574',
+  Horror: '#8B0000', Horreur: '#8B0000', 'אימה': '#8B0000',
+  Comedy: '#F4D03F', Commedia: '#F4D03F', Comédie: '#F4D03F', 'קומדיה': '#F4D03F',
+  Drama: '#5D6D7E', Dramma: '#5D6D7E', Drame: '#5D6D7E', 'דרמה': '#5D6D7E',
+  Thriller: '#4A4A4A', 'מותחן': '#4A4A4A',
+  Adventure: '#2E86AB', Avventura: '#2E86AB', Aventure: '#2E86AB', 'הרפתקאות': '#2E86AB',
+  Animation: '#E67E22', Animazione: '#E67E22', 'אנימציה': '#E67E22',
+  'Science Fiction': '#3498DB', 'Science-Fiction': '#3498DB', Fantascienza: '#3498DB', 'מדע בדיוני': '#3498DB',
+  Romance: '#E74C3C', Romantico: '#E74C3C', 'רומנטיקה': '#E74C3C',
+  Documentary: '#7F8C8D', Documentario: '#7F8C8D', 'תיעודי': '#7F8C8D',
+  Mystery: '#6C3483', Mistero: '#6C3483', 'מסתורין': '#6C3483',
+  Fantasy: '#8E44AD', Fantasia: '#8E44AD', 'פנטזיה': '#8E44AD',
+  War: '#6B4226', Guerra: '#6B4226', 'מלחמה': '#6B4226',
+  Western: '#A0522D', 'מערבון': '#A0522D',
+  Music: '#1ABC9C', Musica: '#1ABC9C', 'מוזיקה': '#1ABC9C',
+  Family: '#2ECC71', Famiglia: '#2ECC71', 'משפחה': '#2ECC71',
+  History: '#A67B5B', Storico: '#A67B5B', Storia: '#A67B5B', 'היסטוריה': '#A67B5B',
+  Crime: '#2C3E50', Crimine: '#2C3E50', 'פשע': '#2C3E50',
 }

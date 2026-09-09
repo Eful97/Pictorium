@@ -7,6 +7,7 @@ import { POSTER_URL_VERSION } from "@/lib/render-version"
 import { getById } from "@/lib/store"
 import { decodeConfig, type PictoriumUserConfig } from "@/lib/config-token"
 import { envWithFallback } from "@/lib/env-compat"
+import { selectBestLogo } from "@/lib/logo-selection"
 import {
   getFullDetails,
   getImages,
@@ -227,8 +228,11 @@ export async function pictoriumMeta(
     try {
       const images = await getImages(tmdbMediaType, tmdbId, `${posterLang},en,null`, apiKey)
       if (images?.logos && images.logos.length > 0) {
-        // Preferisci logo della lingua locale, altrimenti primo disponibile
-        const langLogo = images.logos.find((l) => l.iso_639_1 === posterLang) || images.logos[0]
+        // Stessa scala del render poster (lingua → inglese → lingua originale
+        // → primo): prima si prendeva il PRIMO logo disponibile appena mancava
+        // quello locale, servendo a un utente ebraico un logo giapponese o
+        // coreano al posto di quello inglese.
+        const langLogo = selectBestLogo(images.logos, posterLang, details.original_language)
         if (langLogo?.file_path) {
           logo = posterUrlOriginal(langLogo.file_path)
         }

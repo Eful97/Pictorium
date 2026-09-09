@@ -453,4 +453,38 @@ describe("GET /meta/[type]/[id]", () => {
     const detailsCall = fetchSpy.mock.calls.find((call) => typeof call[0] === "string" && call[0].includes("/movie/550"))
     expect(detailsCall?.[0]).toContain("language=es-MX")
   })
+
+  it("resolves Hebrew metadata and images for region IL", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(Response.json({ movie_results: [{ id: 550, title: "מועדון קרב" }] }))
+      .mockResolvedValueOnce(Response.json({
+        id: 550,
+        title: "מועדון קרב",
+        overview: "פקיד נדודי שינה...",
+        external_ids: { imdb_id: "tt0137523" },
+      }))
+      .mockResolvedValueOnce(Response.json({
+        id: 550,
+        // Nessun logo ebraico: deve vincere l'inglese, non l'italiano né il
+        // primo della lista (giapponese).
+        logos: [
+          { file_path: "/ja.png", iso_639_1: "ja", vote_average: 5, width: 500, height: 200 },
+          { file_path: "/it.png", iso_639_1: "it", vote_average: 5, width: 500, height: 200 },
+          { file_path: "/en.png", iso_639_1: "en", vote_average: 5, width: 500, height: 200 },
+        ],
+      }))
+
+    const req = new NextRequest("http://localhost:3000/meta/movie/tt0137523.json?api_key=k&region=IL")
+    const res = await GET(req, { params: Promise.resolve({ type: "movie", id: "tt0137523.json" }) })
+    const body = await res.json()
+
+    expect(res.status).toBe(200)
+    expect(body.meta.name).toBe("מועדון קרב")
+    expect(body.meta.description).toBe("פקיד נדודי שינה...")
+    expect(body.meta.logo).toContain("/en.png")
+    const detailsCall = fetchSpy.mock.calls.find((call) => typeof call[0] === "string" && call[0].includes("/movie/550?"))
+    expect(detailsCall?.[0]).toContain("language=he-IL")
+    const imagesCall = fetchSpy.mock.calls.find((call) => typeof call[0] === "string" && call[0].includes("/images"))
+    expect(imagesCall?.[0]).toContain("include_image_language=he%2Cen%2Cnull")
+  })
 })

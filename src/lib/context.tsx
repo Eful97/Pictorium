@@ -709,7 +709,7 @@ export function usePictorium(): PictoriumCtx {
     // dettagli/genere/voto/badge, non solo le immagini.
     loadCurrentItemData(item, fetchId).then((loaded) => {
       if (!loaded) return
-      const { data } = loaded
+      const { data, details } = loaded
       if (navigation.previewPoster) {
         const match = (data.posters || []).find((p: TMDBImage) => p.file_path === navigation.previewPoster!.file_path)
         if (!match) {
@@ -717,18 +717,13 @@ export function usePictorium(): PictoriumCtx {
           const langPoster = data.posters?.find((p: TMDBImage) => p.iso_639_1 === lang)
           const firstPoster = data.posters?.[0]
           if (clean) {
-            const langLogo = data.logos?.find((l: TMDBImage) => l.iso_639_1 === lang)
-            const itLogo = lang !== "it" ? data.logos?.find((l: TMDBImage) => l.iso_639_1 === "it") : undefined
-            const enLogo = lang !== "en" ? data.logos?.find((l: TMDBImage) => l.iso_639_1 === "en") : undefined
-            const firstLogo = data.logos?.[0]
-            const autoLogo = langLogo || itLogo || enLogo || firstLogo
+            const autoLogo = selectBestLogo(data.logos || [], lang, details.original_language)
             if (autoLogo) {
               navigation.setPreviewPoster({ file_path: clean.file_path, iso_639_1: null, vote_average: 0, width: 0, height: 0 })
               setGradientHeight(defaultGradientHeightForPoster(clean))
             } else {
-              const itPoster = data.posters?.find((p: TMDBImage) => p.iso_639_1 === "it")
               const enPoster = data.posters?.find((p: TMDBImage) => p.iso_639_1 === "en")
-              const nextPoster = itPoster || enPoster || langPoster || firstPoster || navigation.previewPoster
+              const nextPoster = langPoster || enPoster || firstPoster || navigation.previewPoster
               navigation.setPreviewPoster(nextPoster)
               setGradientHeight(defaultGradientHeightForPoster(nextPoster))
             }
@@ -742,7 +737,7 @@ export function usePictorium(): PictoriumCtx {
       if (navigation.previewPoster?.iso_639_1 === null && navigation.selectedLogo) {
         const match = (data.logos || []).find((l: TMDBImage) => l.file_path === navigation.selectedLogo!.file_path)
         if (!match) {
-          const autoLogo = selectBestLogo(data.logos || [], lang)
+          const autoLogo = selectBestLogo(data.logos || [], lang, details.original_language)
           navigation.setSelectedLogo(autoLogo || navigation.selectedLogo)
         }
       }
@@ -869,10 +864,9 @@ export function usePictorium(): PictoriumCtx {
             const scale = logoDefaultScale(autoLogo)
             if (scale !== null) setLogoScale(scale)
           } else {
-            const itPoster = data.posters?.find((p: TMDBImage) => p.iso_639_1 === "it")
             const enPoster = data.posters?.find((p: TMDBImage) => p.iso_639_1 === "en")
             const origPoster = details.original_language ? data.posters?.find((p: TMDBImage) => p.iso_639_1 === details.original_language) : undefined
-            const fallbackPoster = itPoster || enPoster || origPoster || firstPoster
+            const fallbackPoster = langPoster || enPoster || origPoster || firstPoster
             if (fallbackPoster) {
               chosenPoster = fallbackPoster
               navigation.setPreviewPoster({ file_path: fallbackPoster.file_path, iso_639_1: fallbackPoster.iso_639_1, vote_average: 0, width: 0, height: 0 })

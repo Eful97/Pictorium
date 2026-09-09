@@ -11,7 +11,7 @@ export function cn(...classes: (string | undefined | null | false)[]) {
 export const LANG_FLAGS: Record<string, string> = {
   it: "🇮🇹", en: "🇬🇧", fr: "🇫🇷", de: "🇩🇪", es: "🇪🇸", pt: "🇵🇹",
   ja: "🇯🇵", ko: "🇰🇷", zh: "🇨🇳", ru: "🇷🇺", ar: "🇸🇦", nl: "🇳🇱",
-  pl: "🇵🇱", sv: "🇸🇪", tr: "🇹🇷", hi: "🇮🇳",
+  pl: "🇵🇱", sv: "🇸🇪", tr: "🇹🇷", hi: "🇮🇳", he: "🇮🇱",
 }
 
 export const LANG_NAMES: Record<string, string> = {
@@ -19,6 +19,7 @@ export const LANG_NAMES: Record<string, string> = {
   es: "Español", pt: "Português", ja: "日本語", ko: "한국어",
   zh: "中文", ru: "Русский", ar: "العربية", nl: "Nederlands",
   pl: "Polski", sv: "Svenska", tr: "Türkçe", hi: "हिन्दी",
+  he: "עברית",
   xx: "Senza lingua",
 }
 
@@ -67,7 +68,8 @@ export const STREAMING_PLATFORMS = [
 /**
  * Voci del selettore lingua: SOLO le nazionalità supportate (una per
  * regione). `key` è il codice paese (univoco), `code` la lingua UI a 2 lettere
- * (it/en/fr/de/es/ja/ko/pt — ja/ko/pt ripiegano sull'inglese in `i18n.lookup`).
+ * (it/en/fr/de/es/ja/ko/pt/he — ja/ko/pt/he ripiegano sull'inglese in
+ * `i18n.lookup` per le chiavi che non traducono).
  */
 export const PICKER_LANGS = REGIONS.map((r) => ({
   key: r.code,
@@ -84,7 +86,11 @@ export interface UiLangOption {
   sub: string
 }
 
-/** Le 8 lingue UI con dizionario completo dedicato. */
+/**
+ * Le lingue selezionabili per l'interfaccia. it/en/fr/de/es/ja/ko/pt hanno un
+ * dizionario completo; `he` traduce badge/award/sottogeneri e ripiega
+ * sull'inglese per le stringhe `ui.*` (vedi translations/he.json).
+ */
 export const UI_LANGUAGES: readonly UiLangOption[] = [
   { code: "it", flag: "🇮🇹", name: "Italiano", sub: "IT" },
   { code: "en", flag: "🇬🇧", name: "English", sub: "EN" },
@@ -94,4 +100,5 @@ export const UI_LANGUAGES: readonly UiLangOption[] = [
   { code: "ja", flag: "🇯🇵", name: "日本語", sub: "JA" },
   { code: "ko", flag: "🇰🇷", name: "한국어", sub: "KO" },
   { code: "pt", flag: "🇧🇷", name: "Português", sub: "PT" },
+  { code: "he", flag: "🇮🇱", name: "עברית", sub: "HE" },
 ] as const

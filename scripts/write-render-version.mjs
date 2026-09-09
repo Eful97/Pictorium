@@ -21,6 +21,7 @@ const RENDER_FILES = [
   "src/lib/badges.ts",
   "src/lib/blur.ts",
   "src/lib/config-token.ts",
+  "src/lib/fonts.ts",
   "src/lib/image-utils.ts",
   "src/lib/logo-layout.ts",
   "src/lib/logo-selection.ts",
@@ -43,6 +44,9 @@ const RENDER_FILES = [
   "src/assets/fonts/Inter-Bold.ttf",
   "src/assets/fonts/Inter-Regular.ttf",
   "src/assets/fonts/NotoSansSymbols2-Regular.ttf",
+  "src/assets/fonts/Rubik-Black.ttf",
+  "src/assets/fonts/Rubik-Bold.ttf",
+  "src/assets/fonts/Rubik-Regular.ttf",
 ]
 
 const outputPath = path.join(rootDir, "src", "lib", "render-version.ts")

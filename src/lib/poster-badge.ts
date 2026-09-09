@@ -65,7 +65,10 @@ export function isNetworkStudio(studioName: string | null): boolean {
 /**
  * Badge "Nuova stagione": serie TV con ultima messa in onda recente (<14gg)
  * ma prima messa in onda vecchia (altrimenti è "Nuova serie", non nuova stagione).
- * Con seasonCount > 1 aggiunge il suffisso " S{n}" (es. "Nuova stagione S2").
+ * Con seasonCount > 1 usa `badge.newSeasonN`, che include il numero (es.
+ * "Nuova stagione S2"). Il numero sta DENTRO la stringa tradotta e non
+ * concatenato dopo: in ebraico un " S2" attaccato a un testo RTL produce una
+ * stringa a direzione mista, mentre così ogni lingua decide dove metterlo.
  * Formula condivisa con BadgeControls (mai forkare): entrambi importano da qui.
  */
 export function getNewSeasonLabel(input: {
@@ -82,8 +85,8 @@ export function getNewSeasonLabel(input: {
   const firstTime = input.firstAirDate ? new Date(input.firstAirDate).getTime() : NaN
   if (Number.isFinite(firstTime) && firstTime <= now && (now - firstTime) < TWO_WEEKS_MS) return null
   const n = input.seasonCount
-  const suffix = typeof n === "number" && Number.isFinite(n) && n > 1 ? ` S${n}` : ""
-  return `${input.t("badge.newSeason")}${suffix}`
+  const numbered = typeof n === "number" && Number.isFinite(n) && n > 1
+  return numbered ? input.t("badge.newSeasonN", { n: n! }) : input.t("badge.newSeason")
 }
 
 /**

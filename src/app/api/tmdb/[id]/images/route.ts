@@ -11,7 +11,10 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
   if (!rl.ok) return rateLimitResponse(rl.retAfter)
   const { id } = await params
   const type = req.nextUrl.searchParams.get("type") || "movie"
-  const languages = req.nextUrl.searchParams.get("languages") || "en,null,it"
+  // Il default è solo una rete di sicurezza: ogni chiamante passa `languages`
+  // costruito dalla regione. L'italiano che stava qui privilegiava una lingua
+  // sola tra le tredici.
+  const languages = req.nextUrl.searchParams.get("languages") || "en,null"
   const apiKey = req.nextUrl.searchParams.get("api_key") || undefined
   const cacheKey = `images:${type}:${id}:${languages}`
   const acceptEncoding = req.headers.get("accept-encoding")

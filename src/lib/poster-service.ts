@@ -1,6 +1,7 @@
 import sharp from "sharp"
 import { cacheGet, cacheSet } from "./cache"
 import { GENRE_FALLBACK, cinematicVignetteSVG } from "./badges"
+import { FONT_FILES } from "./fonts"
 import { applyBlur } from "./blur"
 import {
   STD_W, STD_H,
@@ -15,7 +16,7 @@ import { renderFirstMatchingNetworkLogoBadge, renderFirstMatchingNetworkRawBadge
 import { computeLogoLayout } from "./logo-layout"
 import fs from "fs"
 import path from "path"
-import { estimateTextWidth } from "./badge-svg-shared"
+import { estimateTextWidth, fontFamilyFor } from "./badge-svg-shared"
 import { computeTopBadge, isNetworkStudio, type BadgeInput } from "./poster-badge"
 import type { Mapping } from "./types"
 import type { ServerDefaults } from "./server-defaults"
@@ -270,16 +271,10 @@ export async function renderCombinedRankNetworkPill(rank: number, label: string,
   const textY = pt + fs / 2
   const logoY = pt + fs + gap + netLogo.h / 2
   const logoX = Math.round((pillW - netLogo.w) / 2)
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${pillW}" height="${pillH}"><rect width="${pillW}" height="${pillH}" rx="${r}" fill="${bg}" stroke="${topLight ? "rgba(0,0,0,0.15)" : "rgba(255,255,255,0.20)"}" stroke-width="1"/><text x="${pillW / 2}" y="${textY}" text-anchor="middle" dominant-baseline="central" font-family="Inter" font-weight="700" font-size="${fs}" fill="${fg}">${text.replace(/&/g, "&amp;").replace(/</g, "&lt;")}</text><image href="data:image/png;base64,${netLogo.png.toString("base64")}" x="${logoX}" y="${Math.round(logoY - netLogo.h / 2)}" width="${netLogo.w}" height="${netLogo.h}"/></svg>`
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${pillW}" height="${pillH}"><rect width="${pillW}" height="${pillH}" rx="${r}" fill="${bg}" stroke="${topLight ? "rgba(0,0,0,0.15)" : "rgba(255,255,255,0.20)"}" stroke-width="1"/><text x="${pillW / 2}" y="${textY}" text-anchor="middle" dominant-baseline="central" font-family="${fontFamilyFor(text)}" font-weight="700" font-size="${fs}" fill="${fg}">${text.replace(/&/g, "&amp;").replace(/</g, "&lt;")}</text><image href="data:image/png;base64,${netLogo.png.toString("base64")}" x="${logoX}" y="${Math.round(logoY - netLogo.h / 2)}" width="${netLogo.w}" height="${netLogo.h}"/></svg>`
   // Render via resvg (stesso path degli altri badge)
-  const FONT_FILES = [
-    path.join(process.cwd(), "src/assets/fonts/Inter-Regular.ttf"),
-    path.join(process.cwd(), "src/assets/fonts/Inter-Bold.ttf"),
-    path.join(process.cwd(), "src/assets/fonts/Inter-Black.ttf"),
-    path.join(process.cwd(), "src/assets/fonts/NotoSansSymbols2-Regular.ttf"),
-  ]
   const { Resvg } = await import("@resvg/resvg-js")
-  const resvg = new Resvg(svg, { fitTo: { mode: "width", value: pillW }, font: { fontFiles: FONT_FILES, loadSystemFonts: false } })
+  const resvg = new Resvg(svg, { fitTo: { mode: "width", value: pillW }, font: { fontFiles: [...FONT_FILES], loadSystemFonts: false } })
   const png = Buffer.from(resvg.render().asPng())
   return { png, w: pillW, h: pillH }
 }
@@ -297,14 +292,8 @@ export async function renderNetworkOnlyLargePill(networkKey: string, pw: number,
   if (!netLogo) return null
   const pillW = netLogo.w + px * 2
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${pillW}" height="${pillH}"><rect width="${pillW}" height="${pillH}" rx="${r}" fill="${bg}" stroke="${topLight ? "rgba(0,0,0,0.15)" : "rgba(255,255,255,0.20)"}" stroke-width="1"/><image href="data:image/png;base64,${netLogo.png.toString("base64")}" x="${px}" y="${Math.round((pillH - netLogo.h) / 2)}" width="${netLogo.w}" height="${netLogo.h}"/></svg>`
-  const FONT_FILES2 = [
-    path.join(process.cwd(), "src/assets/fonts/Inter-Regular.ttf"),
-    path.join(process.cwd(), "src/assets/fonts/Inter-Bold.ttf"),
-    path.join(process.cwd(), "src/assets/fonts/Inter-Black.ttf"),
-    path.join(process.cwd(), "src/assets/fonts/NotoSansSymbols2-Regular.ttf"),
-  ]
   const { Resvg } = await import("@resvg/resvg-js")
-  const resvg = new Resvg(svg, { fitTo: { mode: "width", value: pillW }, font: { fontFiles: FONT_FILES2, loadSystemFonts: false } })
+  const resvg = new Resvg(svg, { fitTo: { mode: "width", value: pillW }, font: { fontFiles: [...FONT_FILES], loadSystemFonts: false } })
   const png = Buffer.from(resvg.render().asPng())
   return { png, w: pillW, h: pillH }
 }
@@ -327,15 +316,9 @@ export async function renderCombinedExtraNetworkPill(label: string, networkKey: 
   const textY = pt + fs / 2
   const logoX = Math.round((pillW - netLogo.w) / 2)
   const logoY = pt + fs + gap + netLogo.h / 2
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${pillW}" height="${pillH}"><rect width="${pillW}" height="${pillH}" rx="${r}" fill="${bg}" stroke="${topLight ? "rgba(0,0,0,0.15)" : "rgba(255,255,255,0.20)"}" stroke-width="1"/><text x="${pillW / 2}" y="${textY}" text-anchor="middle" dominant-baseline="central" font-family="Inter" font-weight="700" font-size="${fs}" fill="${fg}">${label.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")}</text><image href="data:image/png;base64,${netLogo.png.toString("base64")}" x="${logoX}" y="${Math.round(logoY - netLogo.h / 2)}" width="${netLogo.w}" height="${netLogo.h}"/></svg>`
-  const FONT_FILES3 = [
-    path.join(process.cwd(), "src/assets/fonts/Inter-Regular.ttf"),
-    path.join(process.cwd(), "src/assets/fonts/Inter-Bold.ttf"),
-    path.join(process.cwd(), "src/assets/fonts/Inter-Black.ttf"),
-    path.join(process.cwd(), "src/assets/fonts/NotoSansSymbols2-Regular.ttf"),
-  ]
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${pillW}" height="${pillH}"><rect width="${pillW}" height="${pillH}" rx="${r}" fill="${bg}" stroke="${topLight ? "rgba(0,0,0,0.15)" : "rgba(255,255,255,0.20)"}" stroke-width="1"/><text x="${pillW / 2}" y="${textY}" text-anchor="middle" dominant-baseline="central" font-family="${fontFamilyFor(label)}" font-weight="700" font-size="${fs}" fill="${fg}">${label.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")}</text><image href="data:image/png;base64,${netLogo.png.toString("base64")}" x="${logoX}" y="${Math.round(logoY - netLogo.h / 2)}" width="${netLogo.w}" height="${netLogo.h}"/></svg>`
   const { Resvg: Resvg2 } = await import("@resvg/resvg-js")
-  const resvg2 = new Resvg2(svg, { fitTo: { mode: "width", value: pillW }, font: { fontFiles: FONT_FILES3, loadSystemFonts: false } })
+  const resvg2 = new Resvg2(svg, { fitTo: { mode: "width", value: pillW }, font: { fontFiles: [...FONT_FILES], loadSystemFonts: false } })
   const png2 = Buffer.from(resvg2.render().asPng())
   return { png: png2, w: pillW, h: pillH }
 }
