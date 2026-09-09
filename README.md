@@ -118,31 +118,42 @@ Scegli la modalità più comoda per la tua installazione:
 
 [![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2FEful97%2FPictorium)
 
-Ideale se non hai un server domestico. Setup in 2 minuti a costo zero:
+Ideale se non hai un server domestico. Setup in 2 minuti a costo zero con aggiornamenti automatici a 1 click:
 
 1. **Ottieni la tua API Key TMDB (gratis)**:
    * Crea un account su [themoviedb.org](https://www.themoviedb.org/signup).
    * Vai in **Impostazioni → API** ([themoviedb.org/settings/api](https://www.themoviedb.org/settings/api)) e genera una chiave API (*Developer*).
    * Copia la **Chiave API (autenticazione v3)** (stringa di 32 caratteri, *non* il token di lettura lungo).
-2. **Crea il progetto su Vercel**:
-   * Vai su [vercel.com](https://vercel.com) ed effettua l'accesso.
-   * Clicca in alto su **Add New…** → **Project**.
-   * Incolla l'indirizzo della repository: `https://github.com/Eful97/Pictorium` e clicca su **Import**.
+2. **Crea il progetto su Vercel con il tuo account GitHub**:
+   * Clicca sul pulsante qui sopra **Deploy with Vercel** (oppure su [vercel.com](https://vercel.com) fai **Add New…** → **Project** e sotto *Import Third-Party Git Repository* incolla `https://github.com/Eful97/Pictorium`).
+   * Nella schermata **New Project** vedrai:
+     > **Cloning from GitHub**  
+     > [Eful97/Pictorium](https://github.com/Eful97/Pictorium)  
+     > *Create a Git repository to easily update your project after deploying it. Every push to that Git repository will be deployed automatically.*
+   * In **Git Scope**, seleziona il tuo account GitHub e lascia `pictorium` come nome repository.
    * Nella sezione **Environment Variables**, inserisci:
      * `PICTORIUM_TMDB_KEY` = la tua chiave TMDB v3 (32 caratteri).
      * `PICTORIUM_PUBLIC_INSTANCE` = `1`
-   * Clicca su **Deploy**.
+   * Clicca su **Deploy** (o **Create**).
 3. **Collega Upstash Redis (database gratuito per salvare i tuoi poster)**:
    * A fine deploy, vai nella dashboard del progetto su Vercel.
    * Clicca sulla scheda **Storage** in alto → **Connect Store** (o **Create Database**) → seleziona **Upstash (Redis)**.
-   * Scegli una regione e clicca **Create & Connect** (Vercel imposterà automaticamente `KV_REST_API_URL` e `KV_REST_API_TOKEN`).
+   * Scegli una regione vicina e clicca **Create & Connect** (Vercel imposterà automaticamente `KV_REST_API_URL` e `KV_REST_API_TOKEN`).
 4. **Redeploy (Passaggio fondamentale!)**:
    * Vai nella scheda **Deployments** del progetto.
    * Clicca sui **tre puntini (⋯)** dell'ultimo deployment e seleziona **Redeploy**.
    * *(Nota: Vercel applica il database Upstash solo dal redeploy in poi)*.
-5. **Installazione**:
+5. **Installazione su Stremio**:
    * Apri l'URL generato (es. `https://tuo-pictorium.vercel.app`).
    * Clicca su **Installa su Stremio**! *(Puoi verificare che tutto sia ok aprendo `/api/health`, che deve indicare `"storage": "kv"` e `"status": "ok"`)*.
+
+---
+
+#### 🔄 Come Aggiornare in Futuro (1 Click)
+Avendo collegato il tuo **Git Scope** al punto 2, aggiornare la tua istanza quando escono nuove versioni richiede un solo click, senza riconfigurare nulla:
+1. Apri la pagina del repository creato nel tuo profilo GitHub (`https://github.com/<tuo-username>/pictorium`).
+2. Clicca sul pulsante **Sync fork** → **Update branch**.
+3. Vercel rileva subito il nuovo commit e **compila ed effettua il deploy automatico in 60 secondi** mantenendo intatti il database Upstash, le impostazioni e i tuoi poster!
 
 ---
 
