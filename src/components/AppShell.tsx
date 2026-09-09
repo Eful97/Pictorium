@@ -9,7 +9,7 @@ import { LANG_FLAGS, LANG_NAMES, UI_LANGUAGES } from "@/lib/utils"
 import { LangPicker } from "@/components/LangPicker"
 import { ToastProvider } from "@/components/Toast"
 import { HomeStatusStrip } from "@/components/HomeStatusStrip"
-import { RefreshCw, Settings, Globe, HeartPulse, Sparkles, Copy, Check, QrCode, Palette, Layers } from "lucide-react"
+import { RefreshCw, Settings, Globe, HeartPulse, Sparkles, Check, QrCode, Palette, Layers } from "lucide-react"
 
 // Code-splitting: viste/modali pesanti caricate on-demand per ridurre il JS iniziale.
 const SettingsPanel = dynamic(() => import("@/components/SettingsPanel").then((m) => m.SettingsPanel), { ssr: false })
@@ -29,8 +29,6 @@ export function AppShell() {
   const serviceErrors = usePSelector((v) => v.serviceErrors)
 
   const showLangPicker = usePSelector((v) => v.showLangPicker)
-  const copied = usePSelector((v) => v.copied)
-  const copyUrl = usePSelector((v) => v.copyUrl)
   const urlPattern = usePSelector((v) => v.urlPattern)
   const view = usePSelector((v) => v.view)
   const router = usePSelector((v) => v.router)
@@ -127,21 +125,6 @@ export function AppShell() {
 
       <button
         type="button"
-        suppressHydrationWarning
-        aria-label={copied ? t("ui.copied") : t("ui.copyUrl")}
-        onClick={() => { copyUrl() }}
-        disabled={!urlPattern}
-        className={`p-1.5 rounded-xl border transition-all duration-150 active:scale-90 ${
-          copied
-            ? "bg-emerald-500/20 text-emerald-400 border-emerald-500/40 shadow-sm"
-            : "bg-white/[0.05] border-white/10 text-zinc-300 hover:text-white"
-        } disabled:opacity-40`}
-      >
-        {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
-      </button>
-
-      <button
-        type="button"
         aria-label={t("ui.refreshLists")}
         onClick={async () => { setRefreshing(true); await refreshLists(); setRefreshing(false) }}
         disabled={refreshing}
@@ -233,23 +216,6 @@ export function AppShell() {
             <span>{mappings.length}</span>
           </button>
 
-          <div className="h-4 w-px bg-white/10 mx-0.5" />
-
-          {/* Copy URL */}
-          <button
-            type="button"
-            suppressHydrationWarning
-            aria-label={copied ? t("ui.copied") : t("ui.copyUrl")}
-            title={t("ui.copyUrl")}
-            onClick={() => { copyUrl() }}
-            disabled={!urlPattern}
-            className={`p-2 rounded-xl text-zinc-400 hover:text-zinc-200 hover:bg-white/[0.08] active:scale-90 transition-all duration-150 disabled:opacity-30 cursor-pointer ${
-              copied ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/40" : ""
-            }`}
-          >
-            {copied ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
-          </button>
-
           {/* Proxy Modal */}
           <button
             type="button"
@@ -300,7 +266,7 @@ export function AppShell() {
         )}
 
         <ProxyModal isOpen={proxyOpen} onClose={() => setProxyOpen(false)} />
-        <InstallModal isOpen={installOpen} onClose={() => setInstallOpen(false)} />
+        <InstallModal isOpen={installOpen} onClose={() => setInstallOpen(false)} posterUrlPattern={urlPattern} />
         <div key={view} className="animate-view-enter">
           {view === "search" ? <SearchView /> : view === "myposters" ? <MyPostersView /> : view === "cataloghi" ? <CataloghiView /> : <EditView />}
         </div>

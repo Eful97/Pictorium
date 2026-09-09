@@ -16,8 +16,11 @@ test("home loads and exposes main actions", async ({ page }) => {
   await expect(logo.or(logoFallback).first()).toBeVisible()
 
   await expect(page.getByPlaceholder(/cerca un film|cerca una serie|search/i)).toBeVisible({ timeout: 30_000 })
-  await expect(page.getByRole("button", { name: /AIOMetadata URL/i })).toBeVisible()
-  await expect(page.getByRole("button", { name: /Installa Hub|Installa catalogo|Installa/i })).toBeVisible()
+  const installBtn = page.getByRole("button", { name: /Installa Hub|Installa catalogo|Installa/i }).first()
+  await expect(installBtn).toBeVisible()
+  await installBtn.click()
+  await expect(page.getByRole("button", { name: /Copia URL|Copy URL|Copia/i })).toBeVisible()
+  await page.keyboard.press("Escape")
   await expect(page.getByRole("button", { name: /I miei poster/i })).toBeVisible()
   await expect(page.getByRole("button", { name: /Impostazioni|settings/i }).first()).toBeVisible()
 })
