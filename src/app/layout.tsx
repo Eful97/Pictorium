@@ -14,6 +14,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL || "https://pictorium.app"),
   title: "Pictorium — Generatore di poster per Stremio",
   description: "Generatore dinamico di poster cinematografici per Stremio: locandine pulite, loghi vettoriali, rating e badge trend composti in tempo reale.",
   manifest: "/site.webmanifest",
