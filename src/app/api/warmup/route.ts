@@ -13,6 +13,7 @@ import { getTrending, resolveRequestApiKey } from "@/lib/tmdb"
 import { rateLimit, rateLimitKey, rateLimitResponse } from "@/lib/rate-limit"
 import { checkAdminToken, adminAuthResponse, isSameOrigin, originMismatchResponse } from "@/lib/auth"
 import { createLogger } from "@/lib/logger"
+import { envWithFallback } from "@/lib/env-compat"
 
 const log = createLogger("warmup")
 
@@ -102,16 +103,16 @@ function constantTimeEqual(a: string, b: string): boolean {
 }
 
 export async function POST(req: NextRequest) {
-  const warmupToken = process.env.PICTORIUM_WARMUP_TOKEN || process.env.POSTERIUM_WARMUP_TOKEN
-  const isPublic = process.env.PICTORIUM_PUBLIC_INSTANCE === "1" || process.env.POSTERIUM_PUBLIC_INSTANCE === "1"
+  const warmupToken = envWithFallback("WARMUP_TOKEN")
+  const isPublic = envWithFallback("PUBLIC_INSTANCE") === "1"
   if (isPublic) {
     // Fix H3: su istanza pubblica il warmup è un amplificatore (1 req → 500
-    // poster tentati) — POSTERIUM_WARMUP_TOKEN è obbligatorio. Senza token
+    // poster tentati) — PICTORIUM_WARMUP_TOKEN è obbligatorio. Senza token
     // l'endpoint non è utilizzabile (evita DoS su HF Spaces). Con token
     // configurato, richiede x-warmup-token esatto (non basta checkAdminToken
     // che su public è fail-open).
     if (!warmupToken) {
-      log.warn("Warmup rejected: POSTERIUM_PUBLIC_INSTANCE=1 requires POSTERIUM_WARMUP_TOKEN")
+      log.warn("Warmup rejected: PICTORIUM_PUBLIC_INSTANCE=1 requires PICTORIUM_WARMUP_TOKEN")
       return adminAuthResponse()
     }
     const header = req.headers.get("x-warmup-token")

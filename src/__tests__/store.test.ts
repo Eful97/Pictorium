@@ -20,7 +20,7 @@ afterEach(async () => {
 
 describe("file mapping store", () => {
   it("reloads mappings written by another server worker", async () => {
-    tempDir = await fsp.mkdtemp(path.join(os.tmpdir(), "posterium-store-"))
+    tempDir = await fsp.mkdtemp(path.join(os.tmpdir(), "pictorium-store-"))
     process.env.POSTERIUM_DATA_DIR = tempDir
     vi.resetModules()
     const store = await import("@/lib/store")
@@ -42,7 +42,7 @@ describe("file mapping store", () => {
   })
 
   it("handles concurrent upserts without losing writes", async () => {
-    tempDir = await fsp.mkdtemp(path.join(os.tmpdir(), "posterium-concurrent-"))
+    tempDir = await fsp.mkdtemp(path.join(os.tmpdir(), "pictorium-concurrent-"))
     process.env.POSTERIUM_DATA_DIR = tempDir
     vi.resetModules()
     const store = await import("@/lib/store")
@@ -70,7 +70,7 @@ describe("file mapping store", () => {
   })
 
   it("importMappings stamps a fresh updatedAt on each imported mapping", async () => {
-    tempDir = await fsp.mkdtemp(path.join(os.tmpdir(), "posterium-import-"))
+    tempDir = await fsp.mkdtemp(path.join(os.tmpdir(), "pictorium-import-"))
     process.env.POSTERIUM_DATA_DIR = tempDir
     vi.resetModules()
     const store = await import("@/lib/store")

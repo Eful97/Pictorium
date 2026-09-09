@@ -3,7 +3,7 @@ import fs from "node:fs"
 import os from "node:os"
 import path from "node:path"
 
-const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "posterium-flixpatrol-test-"))
+const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "pictorium-flixpatrol-test-"))
 
 function makeCatalog(prefix: string): unknown {
   return {

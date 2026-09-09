@@ -43,7 +43,7 @@ interface PosterFitApiResponse {
   readonly ranked: PosterFitEntry[]
   readonly bestPosterPath: string | null
   /** Vero quando il best-fit è disabilitato globalmente dall'istanza
-   *  (POSTERIUM_BEST_FIT_ENABLED=0): la UI non deve mostrare il best-fit. */
+   *  (PICTORIUM_BEST_FIT_ENABLED=0): la UI non deve mostrare il best-fit. */
   readonly disabled?: boolean
 }
 
@@ -140,11 +140,11 @@ export function usePosterFit(input: UsePosterFitInput): UsePosterFitResult {
 
         if (!res.ok) {
           // 401: la route admin è chiusa in produzione senza
-          // POSTERIUM_PUBLIC_INSTANCE=1 (o ADMIN_TOKEN). In locale (dev) le
+          // PICTORIUM_PUBLIC_INSTANCE=1 (o ADMIN_TOKEN). In locale (dev) le
           // route admin sono aperte, quindi il best-fit funziona solo in dev
           // finché il flag manca — messaggio esplicito invece del silenzio.
           if (res.status === 401) {
-            setError("Best-fit non disponibile: l'istanza non è in modalità pubblica (imposta POSTERIUM_PUBLIC_INSTANCE=1).")
+            setError("Best-fit non disponibile: l'istanza non è in modalità pubblica (imposta PICTORIUM_PUBLIC_INSTANCE=1).")
           } else {
             setError(`Analisi best-fit fallita (HTTP ${res.status})`)
           }
@@ -155,7 +155,7 @@ export function usePosterFit(input: UsePosterFitInput): UsePosterFitResult {
 
         const data = await res.json() as PosterFitApiResponse
 
-        // Best-fit disabilitato globalmente (POSTERIUM_BEST_FIT_ENABLED=0):
+        // Best-fit disabilitato globalmente (PICTORIUM_BEST_FIT_ENABLED=0):
         // nessun risultato, nessun errore — la UI semplicemente non lo mostra.
         if (data.disabled === true) {
           setResults([])

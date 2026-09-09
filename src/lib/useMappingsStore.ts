@@ -22,7 +22,7 @@ export function useMappingsStore() {
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
       const data = await res.json()
       setMappings(Array.isArray(data.mappings) ? data.mappings : [])
-    } catch (e) { console.error("[posterium] Failed to load mappings:", e) }
+    } catch (e) { console.error("[pictorium] Failed to load mappings:", e) }
   }, [])
 
   useEffect(() => { loadMappings() }, [loadMappings])
@@ -40,12 +40,12 @@ export function useMappingsStore() {
       const url = URL.createObjectURL(blob)
       const a = document.createElement("a")
       a.href = url
-      a.download = `posterium-backup-${new Date().toISOString().slice(0, 10)}.json`
+      a.download = `pictorium-backup-${new Date().toISOString().slice(0, 10)}.json`
       a.click()
       URL.revokeObjectURL(url)
       import("sonner").then(({ toast }) => toast.success(t("ui.saved") || "Backup esportato con successo!"))
     } catch (e) {
-      console.error("[posterium] Export failed:", e)
+      console.error("[pictorium] Export failed:", e)
       import("sonner").then(({ toast }) => toast.error(t("ui.exportError")))
     }
   }, [])

@@ -65,7 +65,7 @@ const itDict: Record<string, string> = {
   "ui.profileUnlock": "Accedi",
   "ui.continueWithoutProfile": "Continua senza profilo",
   "ui.proxyTitle": "Generatore Addon Proxy",
-  "ui.proxySubtitle": "Inietta i poster di Posterium in qualsiasi Add-on Stremio",
+  "ui.proxySubtitle": "Inietta i poster di Pictorium in qualsiasi Add-on Stremio",
   "ui.proxyPasteLabel": "Incolla il link manifest.json dell'Add-on originale:",
   "ui.proxyPresets": "Preset rapidi:",
   "ui.proxyGeneratedLabel": "URL Addon Proxy generato:",

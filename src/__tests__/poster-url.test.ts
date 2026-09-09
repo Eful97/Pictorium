@@ -50,11 +50,11 @@ describe("buildUrlPattern", () => {
   })
 
   it("uses poster CDN base URL when configured", () => {
-    process.env.NEXT_PUBLIC_POSTER_CDN_URL = "https://cdn.posterium.example/"
+    process.env.NEXT_PUBLIC_POSTER_CDN_URL = "https://cdn.pictorium.example/"
 
     const url = buildUrlPattern({ ...baseBadgeParams, tmdbKey: "key", lang: "it" })
 
-    expect(url).toContain("https://cdn.posterium.example/api/poster/{type}/{imdb_id}")
+    expect(url).toContain("https://cdn.pictorium.example/api/poster/{type}/{imdb_id}")
   })
 
   it("includes api_key param", () => {

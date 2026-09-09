@@ -1,4 +1,4 @@
-# Posterium Design System
+# Pictorium Design System
 
 ## Z-Index Layers
 

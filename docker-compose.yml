@@ -18,6 +18,7 @@ services:
       # profilo utente (`?u=`). Niente env var = niente chiavi nel process;
       # senza chiave esplicita le chiamate TMDB/MDBList falliscono.
       # ── Opzionali — Admin & Sicurezza ──
+      - PICTORIUM_ADMIN_TOKEN=${PICTORIUM_ADMIN_TOKEN:-${POSTERIUM_ADMIN_TOKEN:-}}
       - POSTERIUM_ADMIN_TOKEN=${POSTERIUM_ADMIN_TOKEN:-}
       - WARMUP_TOKEN=${POSTERIUM_ADMIN_TOKEN:-}
       # Firma dei config token URL (CONFIG_HMAC_SECRET). Senza, i token non sono firmati.
@@ -31,16 +32,22 @@ services:
       - KV_REST_API_TOKEN=${KV_REST_API_TOKEN:-}
 
       # ── Opzionali — Cache ──
+      - PICTORIUM_CACHE_MAX=${PICTORIUM_CACHE_MAX:-${POSTERIUM_CACHE_MAX:-2000}}
       - POSTERIUM_CACHE_MAX=${POSTERIUM_CACHE_MAX:-2000}
+      - PICTORIUM_CACHE_MAX_MB=${PICTORIUM_CACHE_MAX_MB:-${POSTERIUM_CACHE_MAX_MB:-150}}
       - POSTERIUM_CACHE_MAX_MB=${POSTERIUM_CACHE_MAX_MB:-150}
+      - PICTORIUM_CACHE_REFRESH_HOUR=${PICTORIUM_CACHE_REFRESH_HOUR:-${POSTERIUM_CACHE_REFRESH_HOUR:-3}}
       - POSTERIUM_CACHE_REFRESH_HOUR=${POSTERIUM_CACHE_REFRESH_HOUR:-3}
 
       # ── Opzionali — Render pipeline (tuning performance) ──
       # Default tarati per il limite 512MB sotto. Su istanze con più RAM alza
-      # POSTERIUM_MAX_CONCURRENT_RENDERS (es. 8) e la cache per più poster/s
+      # PICTORIUM_MAX_CONCURRENT_RENDERS (es. 8) e la cache per più poster/s
       # sulle griglie fredde — vedi README "Tuning performance".
+      - PICTORIUM_MAX_CONCURRENT_RENDERS=${PICTORIUM_MAX_CONCURRENT_RENDERS:-${POSTERIUM_MAX_CONCURRENT_RENDERS:-4}}
       - POSTERIUM_MAX_CONCURRENT_RENDERS=${POSTERIUM_MAX_CONCURRENT_RENDERS:-4}
+      - PICTORIUM_RENDER_SLOT_WAIT_MS=${PICTORIUM_RENDER_SLOT_WAIT_MS:-${POSTERIUM_RENDER_SLOT_WAIT_MS:-15000}}
       - POSTERIUM_RENDER_SLOT_WAIT_MS=${POSTERIUM_RENDER_SLOT_WAIT_MS:-15000}
+      - PICTORIUM_RENDER_TIMEOUT_MS=${PICTORIUM_RENDER_TIMEOUT_MS:-${POSTERIUM_RENDER_TIMEOUT_MS:-30000}}
       - POSTERIUM_RENDER_TIMEOUT_MS=${POSTERIUM_RENDER_TIMEOUT_MS:-30000}
 
       # ── Opzionali — Sharp (ottimizzazione CPU/RAM) ──
@@ -48,7 +55,9 @@ services:
       - SHARP_CACHE_MEMORY_MB=${SHARP_CACHE_MEMORY_MB:-64}
 
       # ── Opzionali — Logging ──
+      - PICTORIUM_LOG_LEVEL=${PICTORIUM_LOG_LEVEL:-${POSTERIUM_LOG_LEVEL:-info}}
       - POSTERIUM_LOG_LEVEL=${POSTERIUM_LOG_LEVEL:-info}
+      - PICTORIUM_LOG_FORMAT=${PICTORIUM_LOG_FORMAT:-${POSTERIUM_LOG_FORMAT:-}}
       - POSTERIUM_LOG_FORMAT=${POSTERIUM_LOG_FORMAT:-}
 
       # ── Opzionali — CDN ──

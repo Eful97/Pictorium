@@ -1,10 +1,10 @@
-# Open Design — Brief pronti per Posterium
+# Open Design — Brief pronti per Pictorium
 
-> Come usarli: in Open Design seleziona il design system **Posterium**, poi scegli il tipo di artefatto (Prototype / Deck / Image) e incolla il brief (in inglese, così l'agente sfrutta al meglio il `DESIGN.md`). Genera → critica → itera → esporta (HTML / PPTX / PDF / PNG).
+> Come usarli: in Open Design seleziona il design system **Pictorium**, poi scegli il tipo di artefatto (Prototype / Deck / Image) e incolla il brief (in inglese, così l'agente sfrutta al meglio il `DESIGN.md`). Genera → critica → itera → esporta (HTML / PPTX / PDF / PNG).
 
 ## Workflow rapido nell'app
 
-1. **Home** → scegli uno skill (es. `od-default` o `od-new-generation`) + design system **Posterium** → incolla il brief.
+1. **Home** → scegli uno skill (es. `od-default` o `od-new-generation`) + design system **Pictorium** → incolla il brief.
 2. Oppure entra in un progetto → **Studio** → scegli il tipo di artefatto.
 3. Dopo la prima bozza usa la **critica**: "keep the overall layout, make X …", "try variant Y".
 4. **Esporta**: prototipo → HTML (poi portabile in React/Tailwind nel repo); deck → PPTX/PDF; immagine → PNG ad alta risoluzione.
@@ -16,14 +16,14 @@
 > ⚠️ **Superato da Brief 5** — usare il Brief 5 (allineato alla struttura reale v2).
 
 ```
-Create a single-page HTML prototype of the Posterium editor, following the
-Posterium design system (tokens.css + DESIGN.md) exactly: dark glassmorphism,
+Create a single-page HTML prototype of the Pictorium editor, following the
+Pictorium design system (tokens.css + DESIGN.md) exactly: dark glassmorphism,
 near-black background #0a0a0a with a soft radial accent glow top-center,
 accent #e85d2a, Geist UI font, glass recipe (gradient + tint + border +
 shadow + 14px blur).
 
 Layout, desktop-first (1280px+):
-- Centered header: Posterium logo image on top, uppercase muted tagline
+- Centered header: Pictorium logo image on top, uppercase muted tagline
   "POSTER PERSONALIZZATI PER LA TUA LIBRERIA STREMIO" beneath it (letter-
   spacing 0.14em, 11px).
 - Three-column editor below: left = poster options (grid of poster tiles
@@ -49,13 +49,13 @@ the placeholder poster, which you can generate as an inline SVG mock).
 ## Brief 2 — Landing page (Prototype)
 
 ```
-Create a single-page HTML landing page for Posterium, a dynamic poster
-generator for Stremio. Follow the Posterium design system exactly
+Create a single-page HTML landing page for Pictorium, a dynamic poster
+generator for Stremio. Follow the Pictorium design system exactly
 (tokens.css + DESIGN.md): dark glassmorphism, #0a0a0a background, accent
 #e85d2a, Geist font, glass panels.
 
 Sections:
-1. Hero: Posterium logo, headline "Custom posters for your Stremio
+1. Hero: Pictorium logo, headline "Custom posters for your Stremio
    library", tagline "Clean logos, IMDb/TMDB ratings, JustWatch trends,
    Netflix Top 10 ribbons, awards badges — generated in real time",
    primary CTA button (accent gradient, white text, glow) "Install on
@@ -79,13 +79,13 @@ Self-contained HTML/CSS; mock posters as inline SVG.
 ## Brief 3 — Pitch deck (Deck)
 
 ```
-Create a 9-slide pitch deck for Posterium, a dynamic poster generator for
-Stremio/media centers. Use the Posterium design system (tokens.css +
+Create a 9-slide pitch deck for Pictorium, a dynamic poster generator for
+Stremio/media centers. Use the Pictorium design system (tokens.css +
 DESIGN.md): dark #0a0a0a slides, accent #e85d2a, Geist font, glass panels,
 compact uppercase section kickers with accent color.
 
 Slides:
-1. Title: Posterium logo, "Custom posters for your Stremio library".
+1. Title: Pictorium logo, "Custom posters for your Stremio library".
 2. Problem: default Stremio posters are generic and boring — clean artwork
    with title text baked in, no ratings, no rankings, no branding.
 3. Solution: one endpoint (/api/poster/{type}/{id}) serves both the WYSIWYG
@@ -114,10 +114,10 @@ keep text within safe margins.
 ## Brief 4 — Social / README banner (Image)
 
 ```
-Generate a 1600x900 promotional image for Posterium. Dark background
+Generate a 1600x900 promotional image for Pictorium. Dark background
 #0a0a0a with a soft radial accent glow (#e85d2a, alpha ~0.12) top-center.
 Composition:
-- Posterium logo centered upper third, with the uppercase tagline
+- Pictorium logo centered upper third, with the uppercase tagline
   "Poster personalizzati per la tua libreria Stremio" in muted 11px
   letterspaced text below it.
 - Lower two thirds: a row of three 2/3 movie posters (mock, cinematic
@@ -135,11 +135,11 @@ Output at high resolution.
 ## Brief 5 — Editor UI hi-fi, struttura reale (Prototype) ⭐ USARE QUESTO
 
 > Obiettivo: mockup **hi-fi implementabile** dell'editor attuale (struttura v2 validata).
-> Nell'app: skill `od-default` + design system Posterium, artefatto Prototype.
+> Nell'app: skill `od-default` + design system Pictorium, artefatto Prototype.
 
 ```
-Create a HIGH-FIDELITY single-page HTML prototype of the Posterium editor,
-ready to be ported to React/Tailwind. Follow the Posterium design system
+Create a HIGH-FIDELITY single-page HTML prototype of the Pictorium editor,
+ready to be ported to React/Tailwind. Follow the Pictorium design system
 (tokens.css + DESIGN.md) exactly: dark glassmorphism, #0a0a0a background
 with soft radial accent glow top-center, accent #e85d2a, Geist/Inter font,
 glass recipe (gradient + tint + border + shadow + 14px blur), compact dense
@@ -148,7 +148,7 @@ labels (10-12px, 600-700), tabular numbers, min 44px touch targets.
 Use REAL-looking content: pick a known sci-fi movie (e.g. "Dune: Part Two",
 2024, Sci-Fi, rating 8.7). The center poster is a real 2:3 cinematic
 artwork you generate as inline SVG (dark desert tones), and must show the
-actual Posterium badge system composed on it: a genre/rating pill badge
+actual Pictorium badge system composed on it: a genre/rating pill badge
 (bottom center, accent-colored, "SCI-FI • 2024 • 8.7") and a red
 Netflix-style ranking ribbon on the left edge with the rank number "1" and
 the word "Netflix" beneath. The poster also shows the bottom blur gradient.

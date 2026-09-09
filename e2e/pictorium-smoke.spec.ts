@@ -3,16 +3,16 @@ import { expect, test } from "@playwright/test"
 test("home loads and exposes main actions", async ({ page }) => {
   await page.addInitScript(() => {
     try {
-      localStorage.setItem("posterium_profile_id", "e2e-smoke-profile")
-      localStorage.setItem("posterium_profile_stateless", "1")
-      localStorage.setItem("posterium_onboarding_done", "true")
+      localStorage.setItem("pictorium_profile_id", "e2e-smoke-profile")
+      localStorage.setItem("pictorium_profile_stateless", "1")
+      localStorage.setItem("pictorium_onboarding_done", "true")
       localStorage.setItem("preferred_lang", "it")
     } catch {}
   })
   await page.goto("/")
 
-  const logo = page.getByAltText(/Pictorium|Posterium/)
-  const logoFallback = page.getByText(/Pictorium|Posterium/)
+  const logo = page.getByAltText(/Pictorium/)
+  const logoFallback = page.getByText(/Pictorium/)
   await expect(logo.or(logoFallback).first()).toBeVisible()
 
   await expect(page.getByPlaceholder(/cerca un film|cerca una serie|search/i)).toBeVisible({ timeout: 30_000 })
@@ -26,9 +26,9 @@ test("home works on mobile", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 })
   await page.addInitScript(() => {
     try {
-      localStorage.setItem("posterium_profile_id", "e2e-smoke-profile")
-      localStorage.setItem("posterium_profile_stateless", "1")
-      localStorage.setItem("posterium_onboarding_done", "true")
+      localStorage.setItem("pictorium_profile_id", "e2e-smoke-profile")
+      localStorage.setItem("pictorium_profile_stateless", "1")
+      localStorage.setItem("pictorium_onboarding_done", "true")
       localStorage.setItem("preferred_lang", "it")
     } catch {}
   })
@@ -37,8 +37,8 @@ test("home works on mobile", async ({ page }) => {
   // Il logo vive in AppShell (SSR): verificarlo PRIMA della search bar dà al
   // chunk dinamico di EditView (dynamic import, ssr:false) il tempo di montare
   // senza bruciare il budget dell'assert. Stesso pattern di "home loads...".
-  const logo = page.getByAltText(/Pictorium|Posterium/)
-  const logoFallback = page.getByText(/Pictorium|Posterium/)
+  const logo = page.getByAltText(/Pictorium/)
+  const logoFallback = page.getByText(/Pictorium/)
   await expect(logo.or(logoFallback).first()).toBeVisible()
 
   // Budget generoso: su runner GitHub Windows condivisi (Node 20, next dev a
@@ -56,10 +56,10 @@ test("can open an editor from search", async ({ page }) => {
     // Dismiss dei tre modali first-visit (OnboardingTour z-[300], LangPicker
     // z-[100], ProfileModal z-50): senza i flag i full-screen overlay
     // intercettano il click sui risultati di ricerca in un contesto fresco.
-    localStorage.setItem("posterium_onboarding_done", "true")
+    localStorage.setItem("pictorium_onboarding_done", "true")
     localStorage.setItem("preferred_lang", "it")
-    localStorage.setItem("posterium_profile_id", "e2e-smoke-profile")
-    localStorage.setItem("posterium_profile_stateless", "1")
+    localStorage.setItem("pictorium_profile_id", "e2e-smoke-profile")
+    localStorage.setItem("pictorium_profile_stateless", "1")
   })
 
   await page.goto("/")

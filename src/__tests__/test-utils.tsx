@@ -1,7 +1,7 @@
 import type { ReactNode } from "react"
 import { render } from "@testing-library/react"
-import { PosteriumProvider } from "@/lib/context"
-import type { PosteriumCtx } from "@/lib/context"
+import { PictoriumProvider } from "@/lib/context"
+import type { PictoriumCtx } from "@/lib/context"
 import { PosterEditorProvider } from "@/lib/contexts/PosterEditorContext"
 import { t } from "@/lib/i18n"
 import { STREAMING_PLATFORMS } from "@/lib/utils"
@@ -9,7 +9,7 @@ import { STREAMING_PLATFORMS } from "@/lib/utils"
 function stubFn() {}
 async function asyncStubFn() {}
 
-export const MOCK_CTX: PosteriumCtx = {
+export const MOCK_CTX: PictoriumCtx = {
   selected: null,
   setSelected: stubFn,
   view: "search",
@@ -130,17 +130,17 @@ export const MOCK_CTX: PosteriumCtx = {
   resetCatalogOrder: stubFn,
 }
 
-export function createWrapper(overrides?: Partial<PosteriumCtx>) {
+export function createWrapper(overrides?: Partial<PictoriumCtx>) {
   const ctx = { ...MOCK_CTX, ...overrides }
   return function Wrapper({ children }: { children: ReactNode }) {
     return (
       <PosterEditorProvider>
-        <PosteriumProvider value={ctx}>{children}</PosteriumProvider>
+        <PictoriumProvider value={ctx}>{children}</PictoriumProvider>
       </PosterEditorProvider>
     )
   }
 }
 
-export function renderWithCtx(ui: ReactNode, overrides?: Partial<PosteriumCtx>) {
+export function renderWithCtx(ui: ReactNode, overrides?: Partial<PictoriumCtx>) {
   return render(ui, { wrapper: createWrapper(overrides) })
 }

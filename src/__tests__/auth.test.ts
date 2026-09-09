@@ -191,9 +191,9 @@ describe("isSameOrigin (CSRF)", () => {
     const req = new NextRequest("http://localhost:3000/api/mappings", {
       method: "POST",
       headers: {
-        origin: "https://posterium.example.com",
-        host: "posterium.example.com",
-        "x-forwarded-host": "posterium.example.com",
+        origin: "https://pictorium.example.com",
+        host: "pictorium.example.com",
+        "x-forwarded-host": "pictorium.example.com",
       },
     })
     expect(isSameOrigin(req)).toBe(true)
@@ -215,14 +215,14 @@ describe("isSameOrigin (CSRF)", () => {
   })
 
   it("trusts X-Forwarded-Host when listed in POSTERIUM_ALLOWED_HOSTS", () => {
-    process.env.POSTERIUM_ALLOWED_HOSTS = "posterium.example.com"
+    process.env.POSTERIUM_ALLOWED_HOSTS = "pictorium.example.com"
     try {
       const req = new NextRequest("http://localhost:3000/api/mappings", {
         method: "POST",
         headers: {
-          origin: "https://posterium.example.com",
+          origin: "https://pictorium.example.com",
           host: "internal.local",
-          "x-forwarded-host": "posterium.example.com",
+          "x-forwarded-host": "pictorium.example.com",
         },
       })
       expect(isSameOrigin(req)).toBe(true)

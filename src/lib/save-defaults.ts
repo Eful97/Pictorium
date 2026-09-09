@@ -1,4 +1,4 @@
-import type { PosteriumCtx } from "@/lib/context"
+import type { PictoriumCtx } from "@/lib/context"
 import type { PosterEditorCtx } from "@/lib/contexts/PosterEditorContext"
 
 function safeSetItem(key: string, val: string) {
@@ -9,7 +9,7 @@ function safeSetItem(key: string, val: string) {
  *  Ritorna `true` se il PUT /api/defaults è andato a buon fine, `false` se è
  *  fallito (rete, 401 admin fail-closed, 5xx): in quel caso i default D'ISTANZA
  *  usati dai poster dei cataloghi su Stremio restano quelli vecchi. */
-export function saveDefaults(p: { selected: PosteriumCtx["selected"]; mappingsMap: PosteriumCtx["mappingsMap"] }, ed: PosterEditorCtx): Promise<boolean> {
+export function saveDefaults(p: { selected: PictoriumCtx["selected"]; mappingsMap: PictoriumCtx["mappingsMap"] }, ed: PosterEditorCtx): Promise<boolean> {
   const d = {
     globalBadges: ed.defaultGlobalBadges,
     rankingBadges: ed.defaultRankingBadges,

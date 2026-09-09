@@ -6,7 +6,7 @@ import { getTop10 } from "@/lib/flixpatrol"
 import { getServerDefaults } from "@/lib/server-defaults"
 import { POSTER_URL_VERSION } from "@/lib/render-version"
 import { getById } from "@/lib/store"
-import { decodeConfig, type PosteriumUserConfig } from "@/lib/config-token"
+import { decodeConfig, type PictoriumUserConfig } from "@/lib/config-token"
 import { getDetails, getGenreList, getImages, personMovieCredits, personTvCredits, posterUrlOriginal, resolveRequestApiKey, searchMovies, searchPerson, searchTV, tmdbFindByImdb, type TMDBDetails } from "@/lib/tmdb"
 import { resolveImdbId } from "@/lib/imdb-cache"
 import { fetchMDBList } from "@/lib/mdblist"
@@ -19,6 +19,8 @@ import { getCatalogEpoch } from "@/lib/catalog-epoch"
 import { createLogger } from "@/lib/logger"
 import { concurrentMap } from "@/lib/episode-ordering"
 import { isPersonQuery, pickTopPerson } from "@/lib/person-search"
+import { normalizeCatalogId, normalizeCatalogIdKeys, normalizeCatalogIdList } from "@/lib/catalog-definitions"
+import { envWithFallback } from "@/lib/env-compat"
 
 const log = createLogger("catalog")
 
@@ -154,10 +156,10 @@ function normalizeCatalogType(type: string): StremioCatalogType {
 
 /**
  * Regione del catalogo: `?region=` (alias `?country=`) > config-token `region` >
- * default server (`POSTERIUM_REGION` o salvato) > IT. Accetta sia codici JW
+ * default server (`PICTORIUM_REGION` o salvato) > IT. Accetta sia codici JW
  * ("US") che slug FlixPatrol ("united-states"), fail-closed su IT.
  */
-export function resolveCatalogRegion(req: NextRequest, userConfig: Partial<PosteriumUserConfig> | null): RegionDef {
+export function resolveCatalogRegion(req: NextRequest, userConfig: Partial<PictoriumUserConfig> | null): RegionDef {
   const fromQuery = parseRegion(req.nextUrl.searchParams.get("region") ?? req.nextUrl.searchParams.get("country"))
   if (fromQuery) return getRegionDef(fromQuery)
   const fromConfig = parseRegion((userConfig as { region?: string } | null)?.region)
@@ -165,7 +167,7 @@ export function resolveCatalogRegion(req: NextRequest, userConfig: Partial<Poste
   return getRegionDef(normalizeRegion(getServerDefaults().region))
 }
 
-async function posteriumPosterUrl(req: NextRequest, type: "movie" | "series", id: number, configParam?: string | null, userParam?: string | null, mdblistKeyParam?: string | null, animeRankParam?: number | null, posterLang = "it"): Promise<string> {
+async function pictoriumPosterUrl(req: NextRequest, type: "movie" | "series", id: number, configParam?: string | null, userParam?: string | null, mdblistKeyParam?: string | null, animeRankParam?: number | null, posterLang = "it"): Promise<string> {
   const serverDefaults = getServerDefaults()
   const userConfig = configParam ? decodeConfig(configParam) : null
   const defaults = userConfig ? { ...serverDefaults, ...userConfig } : serverDefaults
@@ -227,7 +229,7 @@ async function catalogLogo(mediaType: "movie" | "tv", tmdbId: number, apiKey?: s
 
 /**
  * ID del catalogo Stremio: esponendo l'id provider (`tmdb:<id>`), Stremio
- * interroga direttamente Posterium per la risorsa `meta` invece di delegare a Cinemeta,
+ * interroga direttamente Pictorium per la risorsa `meta` invece di delegare a Cinemeta,
  * permettendo la gestione autonoma di loghi, trame e ordinamento parti/stagioni.
  */
 function catalogMetaId(_imdbId: string | null | undefined, tmdbId: number): string {
@@ -239,7 +241,7 @@ function catalogMetaId(_imdbId: string | null | undefined, tmdbId: number): stri
  * (`/u/<uuid>/catalog/...`): il parametro è esplicito così entrambi i route
  * condividono la stessa logica.
  */
-export async function posteriumCatalog(
+export async function pictoriumCatalog(
   req: NextRequest,
   mediaType: string,
   rawId: string,
@@ -250,7 +252,9 @@ export async function posteriumCatalog(
   const rl = await rateLimit(rateLimitKey(req), "catalog")
   if (!rl.ok) return rateLimitResponse(rl.retAfter)
 
-  const catalogId = rawId.replace(/\.json$/, "")
+  // Alias legacy: gli addon Stremio installati prima del rename usano ID
+  // `posterium-*` — vengono normalizzati al canonico `pictorium-*`.
+  const catalogId = normalizeCatalogId(rawId.replace(/\.json$/, ""))
   if (catalogId.length > 80) return catalogResponse({ metas: [] })
   const stType = normalizeCatalogType(mediaType)
   const extra = parseCatalogExtra(extraSegments, req.nextUrl.searchParams)
@@ -259,10 +263,10 @@ export async function posteriumCatalog(
   // servito a una richiesta senza chiave non avvelena quelle keyed (D3).
   const apiKey = resolveRequestApiKey(req)
   // Chiave MDBList della richiesta (anime/custom): parametro esplicito o, come
-  // fallback per istanze personali, env POSTERIUM_MDBLIST_KEY. Il param `?u=`
+  // fallback per istanze personali, env PICTORIUM_MDBLIST_KEY. Il param `?u=`
   // NON fornisce chiavi (solo identità/tracking).
-  const mdblistKey = mdblistKeyParam || process.env.POSTERIUM_MDBLIST_KEY
-  let userConfig: Partial<PosteriumUserConfig> | null = null
+  const mdblistKey = mdblistKeyParam || envWithFallback("MDBLIST_KEY")
+  let userConfig: Partial<PictoriumUserConfig> | null = null
   if (configParam) {
     userConfig = decodeConfig(configParam)
   }
@@ -273,8 +277,13 @@ export async function posteriumCatalog(
       customCatalogs: serverDefaults.customCatalogs,
       catalogRenames: serverDefaults.catalogRenames,
       catalogOrder: serverDefaults.catalogOrder,
-    } as PosteriumUserConfig
+    } as PictoriumUserConfig
   }
+  // Config salvate prima del rename possono contenere ID `pictorium-*`:
+  // normalizza al canonico `pictorium-*` così filtri/ordini/rinomine restano validi.
+  userConfig.disabledCatalogIds = normalizeCatalogIdList(userConfig.disabledCatalogIds)
+  userConfig.catalogOrder = normalizeCatalogIdList(userConfig.catalogOrder)
+  userConfig.catalogRenames = normalizeCatalogIdKeys(userConfig.catalogRenames)
   // Epoch globale + hash dei server defaults: frammenti di freschezza per TUTTI
   // i cache key di questo handler (ricerche + catalogo). Su deploy
   // multi-istanza la `cacheInvalidate("stremio")` del save non raggiunge le
@@ -293,7 +302,7 @@ export async function posteriumCatalog(
 
   // --- Gestione Ricerca Stremio (sia via barra di ricerca che catalogo dedicato) ---
   if (extra.search) {
-    const isPeopleCatalog = catalogId.startsWith("posterium-search-people-")
+    const isPeopleCatalog = catalogId.startsWith("pictorium-search-people-")
     if (isPeopleCatalog) {
       if (!apiKey) return catalogResponse({ metas: [] })
       const page = Math.floor((extra.skip || 0) / 20) + 1
@@ -346,7 +355,7 @@ export async function posteriumCatalog(
         const results: (StremioMeta | null)[] = await concurrentMap(paged, async (item) => {
           if (!item.id) return null
           const imdbId = await resolveImdbId(stType === "movie" ? "movie" : "tv", item.id, apiKey)
-          const poster = await posteriumPosterUrl(req, stType, item.id, configParam, userParam, mdblistKeyParam, undefined, posterLang)
+          const poster = await pictoriumPosterUrl(req, stType, item.id, configParam, userParam, mdblistKeyParam, undefined, posterLang)
           const releaseInfo = (item.release_date || item.first_air_date || "").slice(0, 4) || undefined
           return {
             id: catalogMetaId(imdbId, item.id),
@@ -387,7 +396,7 @@ export async function posteriumCatalog(
       const results: (StremioMeta | null)[] = await concurrentMap(items, async (item) => {
         if (!item.id) return null
         const imdbId = await resolveImdbId(stType === "movie" ? "movie" : "tv", item.id, apiKey)
-        const poster = await posteriumPosterUrl(req, stType, item.id, configParam, userParam, mdblistKeyParam, undefined, posterLang)
+        const poster = await pictoriumPosterUrl(req, stType, item.id, configParam, userParam, mdblistKeyParam, undefined, posterLang)
         const releaseInfo = (item.release_date || item.first_air_date || "").slice(0, 4) || undefined
         return {
           id: catalogMetaId(imdbId, item.id),
@@ -412,7 +421,7 @@ export async function posteriumCatalog(
   }
 
   // Se è un catalogo di ricerca dedicato ma non è stata passata alcuna query
-  if (catalogId.startsWith("posterium-search-")) {
+  if (catalogId.startsWith("pictorium-search-")) {
     return catalogResponse({ metas: [] })
   }
 
@@ -427,8 +436,8 @@ export async function posteriumCatalog(
   try {
     let metas: StremioMeta[] = []
 
-    if (catalogId.startsWith("posterium-custom-")) {
-      let customId = catalogId.replace(/^posterium-custom-/, "")
+    if (catalogId.startsWith("pictorium-custom-")) {
+      let customId = catalogId.replace(/^pictorium-custom-/, "")
       if (customId.startsWith("movie-")) customId = customId.slice(6)
       else if (customId.startsWith("series-")) customId = customId.slice(7)
 
@@ -493,7 +502,7 @@ export async function posteriumCatalog(
         metas = await concurrentMap(validResults, async (r) => {
           const [imdbId, poster, logo] = await Promise.all([
             r.imdb ? Promise.resolve(r.imdb) : resolveImdbId(stType === "movie" ? "movie" : "tv", r.tmdbId, apiKey),
-            posteriumPosterUrl(req, stType, r.tmdbId, configParam, userParam, mdblistKeyParam, r.rank, posterLang),
+            pictoriumPosterUrl(req, stType, r.tmdbId, configParam, userParam, mdblistKeyParam, r.rank, posterLang),
             apiKey ? catalogLogo(stType === "movie" ? "movie" : "tv", r.tmdbId, apiKey, tmdbLang) : Promise.resolve(undefined),
           ])
           const background = catalogBackground(r.backdropPath)
@@ -512,7 +521,7 @@ export async function posteriumCatalog(
           }
         }, 5)
       }
-    } else if (catalogId.startsWith("posterium-jw")) {
+    } else if (catalogId.startsWith("pictorium-jw")) {
       // Fix L12: la chiave si controlla PRIMA del fetch JustWatch
       if (!apiKey) return catalogResponse({ metas: [] })
       const jwSkip = typeof extra.skip === "number" && extra.skip > 0 ? extra.skip : 0
@@ -550,7 +559,7 @@ export async function posteriumCatalog(
       metas = await concurrentMap(validResults, async (r) => {
         const [imdbId, poster, logo] = await Promise.all([
           r.imdbId ? Promise.resolve(r.imdbId) : resolveImdbId(stType === "movie" ? "movie" : "tv", r.tmdbId, apiKey),
-          posteriumPosterUrl(req, stType, r.tmdbId, configParam, userParam, mdblistKeyParam, undefined, posterLang),
+          pictoriumPosterUrl(req, stType, r.tmdbId, configParam, userParam, mdblistKeyParam, undefined, posterLang),
           apiKey ? catalogLogo(stType === "movie" ? "movie" : "tv", r.tmdbId, apiKey, tmdbLang) : Promise.resolve(undefined),
         ])
         const background = catalogBackground(r.d.backdrop_path)
@@ -568,8 +577,8 @@ export async function posteriumCatalog(
           description: r.d.overview ?? undefined,
         }
       }, 5)
-    } else if (catalogId.startsWith("posterium-anime")) {
-      const isMovie = catalogId === "posterium-anime-movies" || stType === "movie"
+    } else if (catalogId.startsWith("pictorium-anime")) {
+      const isMovie = catalogId === "pictorium-anime-movies" || stType === "movie"
       const listKey = isMovie ? "mdblistAnimeMovie" : "mdblistAnime"
       const mediaType = isMovie ? "movie" : "tv"
       const items = await fetchMDBList(listKey, mdblistKey)
@@ -609,7 +618,7 @@ export async function posteriumCatalog(
       metas = await concurrentMap(validResults, async (r) => {
         const [imdbId, poster, logo] = await Promise.all([
           r.imdb ? Promise.resolve(r.imdb) : resolveImdbId(mediaType, r.tmdbId, apiKey),
-          posteriumPosterUrl(req, stType, r.tmdbId, configParam, userParam, mdblistKeyParam, r.rank, posterLang),
+          pictoriumPosterUrl(req, stType, r.tmdbId, configParam, userParam, mdblistKeyParam, r.rank, posterLang),
           apiKey ? catalogLogo(mediaType, r.tmdbId, apiKey, tmdbLang) : Promise.resolve(undefined),
         ])
         const background = catalogBackground(r.backdropPath)
@@ -633,7 +642,7 @@ export async function posteriumCatalog(
       for (const [k, v] of Object.entries(PLATFORM_SLUGS)) {
         // Fix M4: match ancorato invece di includes(k) — "now" dentro "unknown"
         // o "snow-white" dava falso positivo su customCatalog id arbitrari
-        if (catalogId === `posterium-${k}-movies` || catalogId === `posterium-${k}-series`) {
+        if (catalogId === `pictorium-${k}-movies` || catalogId === `pictorium-${k}-series`) {
           platformKey = k
           slug = v
           break
@@ -697,7 +706,7 @@ export async function posteriumCatalog(
           metas = await concurrentMap(validResults, async (r) => {
             const [imdbId, poster, logo] = await Promise.all([
               r.imdbId ? Promise.resolve(r.imdbId) : resolveImdbId(stType === "movie" ? "movie" : "tv", r.tmdbId, apiKey),
-              posteriumPosterUrl(req, stType, r.tmdbId, configParam, userParam, mdblistKeyParam, undefined, posterLang),
+              pictoriumPosterUrl(req, stType, r.tmdbId, configParam, userParam, mdblistKeyParam, undefined, posterLang),
               apiKey ? catalogLogo(stType === "movie" ? "movie" : "tv", r.tmdbId, apiKey, tmdbLang) : Promise.resolve(undefined),
             ])
             const background = catalogBackground(r.backdropPath)
@@ -734,7 +743,7 @@ export async function posteriumCatalog(
               const [imdbId, details, poster, logo] = await Promise.all([
                 resolveImdbId(stType === "movie" ? "movie" : "tv", item.tmdbId, apiKey),
                 getDetails(stType === "movie" ? "movie" : "tv", item.tmdbId, tmdbLang, apiKey).catch(() => null),
-                posteriumPosterUrl(req, stType, item.tmdbId, configParam, userParam, mdblistKeyParam, undefined, posterLang),
+                pictoriumPosterUrl(req, stType, item.tmdbId, configParam, userParam, mdblistKeyParam, undefined, posterLang),
                 catalogLogo(stType === "movie" ? "movie" : "tv", item.tmdbId, apiKey, tmdbLang),
               ])
               const italianTitle = details?.title || details?.name || item.title
@@ -776,8 +785,8 @@ export async function posteriumCatalog(
       })
     }
 
-    const isPlatformOrJw = catalogId.startsWith("posterium-jw") || catalogId.includes("netflix") || catalogId.includes("prime") || catalogId.includes("disney") || catalogId.includes("-now-") || catalogId.includes("apple") || catalogId.includes("hbo") || catalogId.includes("paramount")
-    if (typeof extra.skip === "number" && extra.skip > 0 && (!catalogId.startsWith("posterium-custom-") || isCustomGenreFiltered) && !isPlatformOrJw) {
+    const isPlatformOrJw = catalogId.startsWith("pictorium-jw") || catalogId.includes("netflix") || catalogId.includes("prime") || catalogId.includes("disney") || catalogId.includes("-now-") || catalogId.includes("apple") || catalogId.includes("hbo") || catalogId.includes("paramount")
+    if (typeof extra.skip === "number" && extra.skip > 0 && (!catalogId.startsWith("pictorium-custom-") || isCustomGenreFiltered) && !isPlatformOrJw) {
       metas = metas.slice(extra.skip)
     }
 

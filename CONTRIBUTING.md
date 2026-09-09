@@ -1,4 +1,4 @@
-# Contribuire a Posterium
+# Contribuire a Pictorium
 
 Grazie per l'interesse! Prima di aprire una PR, leggi queste linee guida.
 
@@ -9,7 +9,7 @@ npm install
 npm run dev
 ```
 
-Serve una chiave TMDB (variabile `POSTERIUM_TMDB_KEY`, vedi `README.md` → Variabili d'Ambiente) per cataloghi e render reali. I test usano un mock server e non richiedono chiavi.
+Serve una chiave TMDB (variabile `PICTORIUM_TMDB_KEY`, vedi `README.md` → Variabili d'Ambiente) per cataloghi e render reali. I test usano un mock server e non richiedono chiavi.
 
 ## Comandi principali
 

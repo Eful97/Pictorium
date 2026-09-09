@@ -1,10 +1,10 @@
 "use client"
 
 import { createContext, useContext, useMemo, type ReactNode } from "react"
-import type { PosteriumCtx } from "@/lib/context"
+import type { PictoriumCtx } from "@/lib/context"
 
 /**
- * SettingsCtx — subset di PosteriumCtx per impostazioni (chiavi API, tema, lingua, profilo).
+ * SettingsCtx — subset di PictoriumCtx per impostazioni (chiavi API, tema, lingua, profilo).
  * Deriva dal padre via memo: cambia solo quando cambiano le impostazioni,
  * non quando cambiano badge/search/nav.
  */
@@ -35,7 +35,7 @@ const Ctx = createContext<SettingsCtx | null>(null)
 
 export function useSettingsCtx() {
   const v = useContext(Ctx)
-  if (!v) throw new Error("useSettingsCtx must be inside PosteriumProvider")
+  if (!v) throw new Error("useSettingsCtx must be inside PictoriumProvider")
   return v
 }
 
@@ -43,7 +43,7 @@ export function SettingsProvider({
   value,
   children,
 }: {
-  value: PosteriumCtx
+  value: PictoriumCtx
   children: ReactNode
 }) {
   const settingsCtx = useMemo<SettingsCtx>(

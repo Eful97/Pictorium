@@ -3,7 +3,7 @@ import { fetchMDBList } from "@/lib/mdblist"
 import { cacheInvalidate } from "@/lib/cache"
 
 // `fetchMDBList` è il parsing del list endpoint MDBList usato dal rank anime
-// (poster route + catalogo posterium-anime). Nessun altro test lo copre: i
+// (poster route + catalogo pictorium-anime). Nessun altro test lo copre: i
 // mock dei test esistenti servono la forma normalizzata, mentre l'API reale
 // (OpenAPI ufficiale api.mdblist.com) risponde `{ movies: [...], shows: [...] }`
 // con gli item shows privi di `ids`/`tmdb` (l'id TMDB è il campo `id`).

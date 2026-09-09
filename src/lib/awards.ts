@@ -124,7 +124,7 @@ async function sparqlQuery(query: string): Promise<Record<string, { value: strin
       const timeout = 5000 + Math.round(Math.random() * 1000)
       try {
         const res = await fetch(url, {
-          headers: { "User-Agent": "Posterium/1.0" },
+          headers: { "User-Agent": "Pictorium/1.0" },
           signal: AbortSignal.timeout(timeout),
         })
         if (res.status === 429) {

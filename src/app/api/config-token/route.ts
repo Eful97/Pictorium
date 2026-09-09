@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server"
-import { configTokenSchema, encodeConfig, type PosteriumUserConfig } from "@/lib/config-token"
+import { configTokenSchema, encodeConfig, type PictoriumUserConfig } from "@/lib/config-token"
 import { rateLimit, rateLimitKey, rateLimitResponse } from "@/lib/rate-limit"
 import { isSameOrigin, originMismatchResponse } from "@/lib/auth"
 import { createLogger } from "@/lib/logger"
@@ -38,7 +38,7 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const token = encodeConfig(parsed.data as PosteriumUserConfig)
+    const token = encodeConfig(parsed.data as PictoriumUserConfig)
     return Response.json({ token })
   } catch (error) {
     log.error("encode failed", { error: error instanceof Error ? error.message : String(error) })

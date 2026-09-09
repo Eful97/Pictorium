@@ -4,7 +4,7 @@ import { useToast } from "@/components/Toast"
 
 export function usePosterPreview() {
   // B2: selettore slice — prima useP() ri-renderizzava il hook (e chi lo usa)
-  // a OGNI aggiornamento del context Posterium, non solo al cambio previewUrl.
+  // a OGNI aggiornamento del context Pictorium, non solo al cambio previewUrl.
   const previewUrl = usePSelector((v) => v.previewUrl)
   const toast = useToast()
   const toastRef = useRef(toast)

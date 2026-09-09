@@ -22,7 +22,7 @@ import {
 } from "lucide-react"
 import { usePSelector } from "@/lib/context"
 import { useT } from "@/lib/contexts/TranslationContext"
-import { POSTERIUM_CATALOGS } from "@/lib/catalog-definitions"
+import { PICTORIUM_CATALOGS } from "@/lib/catalog-definitions"
 import { EmojiPicker } from "@/components/ui"
 
 interface CatalogManagerModalProps {
@@ -94,7 +94,7 @@ export function CatalogManagerModal({ isOpen, onClose }: CatalogManagerModalProp
     const list: CatalogEntryItem[] = []
 
     // Built-in catalogs
-    for (const c of POSTERIUM_CATALOGS) {
+    for (const c of PICTORIUM_CATALOGS) {
       list.push({
         id: c.id,
         name: catalogRenames[c.id] || c.name,
@@ -110,8 +110,8 @@ export function CatalogManagerModal({ isOpen, onClose }: CatalogManagerModalProp
     for (const cc of customCatalogs) {
       const isCustomHomeDisabled = homeDisabledCatalogIds.includes(cc.id)
       if (cc.type === "mixed") {
-        const mId = `posterium-custom-movie-${cc.id}`
-        const sId = `posterium-custom-series-${cc.id}`
+        const mId = `pictorium-custom-movie-${cc.id}`
+        const sId = `pictorium-custom-series-${cc.id}`
         list.push({
           id: mId,
           name: catalogRenames[mId] || `${cc.name} — ${t("ui.movie")}`,
@@ -133,7 +133,7 @@ export function CatalogManagerModal({ isOpen, onClose }: CatalogManagerModalProp
           showInHome: !isCustomHomeDisabled && !homeDisabledCatalogIds.includes(sId),
         })
       } else {
-        const cId = `posterium-custom-${cc.type}-${cc.id}`
+        const cId = `pictorium-custom-${cc.type}-${cc.id}`
         list.push({
           id: cId,
           name: catalogRenames[cId] || cc.name,

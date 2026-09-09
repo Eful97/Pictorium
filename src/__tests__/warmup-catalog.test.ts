@@ -44,9 +44,9 @@ describe("POST /api/mappings — catalog warmup", () => {
 
     const urls = fetchSpy.mock.calls.map((c) => String(c[0]))
     const posterUrl = urls.find((u) => u.includes("/api/poster/movie/42"))
-    const hasCatalogMovie = urls.some((u) => u.includes("/catalog/movie/posterium-jw-movies.json"))
-    const hasCatalogSeries = urls.some((u) => u.includes("/catalog/series/posterium-jw-series.json"))
-    const hasCatalogAnime = urls.some((u) => u.includes("/catalog/series/posterium-anime.json"))
+    const hasCatalogMovie = urls.some((u) => u.includes("/catalog/movie/pictorium-jw-movies.json"))
+    const hasCatalogSeries = urls.some((u) => u.includes("/catalog/series/pictorium-jw-series.json"))
+    const hasCatalogAnime = urls.some((u) => u.includes("/catalog/series/pictorium-anime.json"))
 
     expect(posterUrl).toBeDefined()
     if (!posterUrl) throw new Error("Poster warmup URL was not called")

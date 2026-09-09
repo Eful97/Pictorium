@@ -9,7 +9,7 @@ export interface PosterCollection {
   createdAt: number
 }
 
-const STORAGE_KEY = "posterium_collections"
+const STORAGE_KEY = "pictorium_collections"
 
 // ── localStorage helpers ──────────────────────────────────────────
 function load(): PosterCollection[] {

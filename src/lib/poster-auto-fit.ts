@@ -1,6 +1,7 @@
 import sharp from "sharp"
 import { rankPostersByFit } from "@/lib/poster-fit-score"
 import { concurrentMap } from "@/lib/episode-ordering"
+import { envWithFallback } from "@/lib/env-compat"
 import {
   adjustFitResults,
   selectAcceptedPosterPath,
@@ -42,7 +43,7 @@ const TMDB_CANDIDATE_COUNT = 16
 // oltre questo tempo si usa il fallback (primo clean). Ridotto a 1200ms per
 // stringere il caso peggiore del render non-mappato; sovrascrivibile via env.
 const AUTO_FIT_TIMEOUT_MS = (() => {
-  const raw = process.env.POSTERIUM_AUTO_FIT_TIMEOUT_MS
+  const raw = envWithFallback("AUTO_FIT_TIMEOUT_MS")
   const n = raw ? parseInt(raw, 10) : 1200
   return Number.isFinite(n) && n >= 300 && n <= 10000 ? n : 1200
 })()
@@ -53,7 +54,7 @@ const AUTO_FIT_TIMEOUT_MS = (() => {
 // Il fetch del logo e dei candidati è I/O, non CPU: gli diamo il budget della
 // route (5000ms), coerente con AbortSignal.timeout(5000) già usato nei fetch.
 const AUTO_FIT_FETCH_TIMEOUT_MS = (() => {
-  const raw = process.env.POSTERIUM_AUTO_FIT_FETCH_TIMEOUT_MS
+  const raw = envWithFallback("AUTO_FIT_FETCH_TIMEOUT_MS")
   const n = raw ? parseInt(raw, 10) : 5000
   return Number.isFinite(n) && n >= 1000 && n <= 15000 ? n : 5000
 })()

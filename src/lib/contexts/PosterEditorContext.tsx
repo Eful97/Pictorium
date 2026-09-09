@@ -146,7 +146,7 @@ export function usePosterEditor() {
 
 /**
  * PosterEditorProvider — ORA possiede il proprio stato.
- * Non dipende più da PosteriumCtx.
+ * Non dipende più da PictoriumCtx.
  * Crea useDefaults() internamente per badge/blur/gradient defaults persistenti,
  * e useState per logo/backdrop/rotazione/editing.
  */

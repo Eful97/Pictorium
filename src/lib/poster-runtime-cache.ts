@@ -1,6 +1,7 @@
 import type { NextRequest } from "next/server"
 import { cacheGet, cacheGetStale, cacheSet } from "@/lib/cache"
 import { createLogger } from "@/lib/logger"
+import { envWithFallback } from "@/lib/env-compat"
 
 const log = createLogger("poster-cache")
 
@@ -21,7 +22,7 @@ export interface PosterCachePayload {
 // storage: l'header HTTP non può mentire rispetto a quanto resta in cache
 // (coerente con fix M3).
 const DYNAMIC_POSTER_TTL_SEC = (() => {
-  const raw = process.env.POSTERIUM_DYNAMIC_POSTER_TTL_MS
+  const raw = envWithFallback("DYNAMIC_POSTER_TTL_MS")
   const n = raw ? parseInt(raw, 10) : 6 * 60 * 60 * 1000
   // Clamp 5min–24h: sotto i 5 minuti la CDN martellerebbe il render pipeline,
   // sopra le 24h i dati dinamici (rank, IMDb Top 250) diventano troppo stantii.
@@ -191,7 +192,7 @@ export interface PosterErrorRecord {
 }
 
 const NEGATIVE_TTL_MS = (() => {
-  const raw = process.env.POSTERIUM_NEGATIVE_CACHE_TTL_MS
+  const raw = envWithFallback("NEGATIVE_CACHE_TTL_MS")
   const n = raw ? parseInt(raw, 10) : 5000
   return Number.isFinite(n) && n >= 1000 && n <= 60000 ? n : 5000
 })()
@@ -297,7 +298,7 @@ export function schedulePosterRefresh(req: NextRequest, isPreview: boolean = fal
 // un tempo limitato, poi ricevono 503 invece di accodarsi all'infinito.
 
 const MAX_CONCURRENT_RENDERS = (() => {
-  const raw = process.env.PICTORIUM_MAX_CONCURRENT_RENDERS || process.env.POSTERIUM_MAX_CONCURRENT_RENDERS
+  const raw = envWithFallback("MAX_CONCURRENT_RENDERS")
   const n = raw ? parseInt(raw, 10) : 4
   return Number.isFinite(n) && n > 0 && n <= 32 ? n : 4
 })()
@@ -308,7 +309,7 @@ const MAX_CONCURRENT_RENDERS = (() => {
 // mancanti). I waiter non tengono buffer immagini (i fetch avvengono dentro lo
 // slot), quindi allungare l'attesa è memory-neutral.
 export const RENDER_SLOT_WAIT_MS = (() => {
-  const raw = process.env.PICTORIUM_RENDER_SLOT_WAIT_MS || process.env.POSTERIUM_RENDER_SLOT_WAIT_MS
+  const raw = envWithFallback("RENDER_SLOT_WAIT_MS")
   const n = raw ? parseInt(raw, 10) : 15000
   return Number.isFinite(n) && n >= 500 && n <= 60000 ? n : 15000
 })()
@@ -316,7 +317,7 @@ export const RENDER_SLOT_WAIT_MS = (() => {
 // posti attendono fino a RENDER_SLOT_WAIT_MS). Con N>0 i waiter oltre N
 // ricevono 503 immediato invece di accodarsi: backpressure senza code infinite.
 const RENDER_QUEUE_LIMIT = (() => {
-  const raw = process.env.PICTORIUM_RENDER_QUEUE || process.env.POSTERIUM_RENDER_QUEUE
+  const raw = envWithFallback("RENDER_QUEUE")
   const n = raw ? parseInt(raw, 10) : 0
   return Number.isFinite(n) && n >= 0 && n <= 128 ? n : 0
 })()

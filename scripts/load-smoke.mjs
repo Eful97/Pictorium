@@ -1,6 +1,6 @@
 // Load smoke test per la render pipeline poster (Fase D del piano di hardening).
 //
-// Avvia il mock server + l'app (o usa POSTERIUM_BASE_URL se già in esecuzione),
+// Avvia il mock server + l'app (o usa PICTORIUM_BASE_URL se già in esecuzione),
 // poi spara N richieste concorrenti su titoli freddi non-mappati e misura:
 //   - % 503 (backpressure dello slot limiter)
 //   - poster/sec
@@ -11,7 +11,7 @@
 //
 // Uso:
 //   node scripts/load-smoke.mjs                       # avvia tutto (mock + next dev)
-//   POSTERIUM_BASE_URL=http://127.0.0.1:3100 node scripts/load-smoke.mjs
+//   PICTORIUM_BASE_URL=http://127.0.0.1:3100 node scripts/load-smoke.mjs
 //   LOAD_REQUESTS=80 LOAD_CONCURRENCY=20 node scripts/load-smoke.mjs
 
 import { spawn } from "node:child_process"
@@ -20,7 +20,7 @@ import { fileURLToPath } from "node:url"
 
 const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..")
 
-const BASE_URL = process.env.POSTERIUM_BASE_URL || ""
+const BASE_URL = process.env.PICTORIUM_BASE_URL || process.env.POSTERIUM_BASE_URL || ""
 const PORT = Number(process.env.LOAD_PORT) || 3101
 const MOCK_PORT = Number(process.env.LOAD_MOCK_PORT) || 8791
 const N = Number(process.env.LOAD_REQUESTS) || 40
@@ -50,7 +50,7 @@ async function waitFor(url, timeoutMs, label, headers = {}) {
 
 // /api/health risponde 503 senza chiave (S9): in modalità mock va bene una
 // chiave finta (il mock la ignora); per un'istanza già in esecuzione
-// (POSTERIUM_BASE_URL) impostare LOAD_HEALTH_KEY con una chiave valida.
+// (PICTORIUM_BASE_URL) impostare LOAD_HEALTH_KEY con una chiave valida.
 const healthKey = process.env.LOAD_HEALTH_KEY || "mock-key"
 
 const children = []
@@ -89,6 +89,7 @@ async function run() {
       {
         NEXT_DIST_DIR: ".next-load",
         POSTERIUM_DATA_DIR: path.join(rootDir, ".next-load", "data"),
+        PICTORIUM_DATA_DIR: path.join(rootDir, ".next-load", "data"),
         NODE_OPTIONS: "--max-old-space-size=384",
         TMDB_BASE_URL: `${mockUrl}/3`,
         TMDB_IMG_URL: `${mockUrl}/t/p`,

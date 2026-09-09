@@ -6,6 +6,7 @@ const CLEANUP_INTERVAL = 30 * 60 * 1000
 const MAX_KEYS = 50_000
 let cleanupTimer: ReturnType<typeof setInterval> | null = null
 import { createLogger } from "@/lib/logger"
+import { envWithFallback } from "@/lib/env-compat"
 
 const log = createLogger("rate-limit")
 
@@ -33,7 +34,7 @@ interface BucketConfig {
 // F7: il bucket poster era 100 burst/10s — un catalog load con molti poster
 // freddi poteva andare in 429. Sovrascrivibile via env a module level.
 const POSTER_MAX_TOKENS = (() => {
-  const raw = process.env.PICTORIUM_RATELIMIT_POSTER_MAX || process.env.POSTERIUM_RATELIMIT_POSTER_MAX
+  const raw = envWithFallback("RATELIMIT_POSTER_MAX")
   const n = raw ? parseInt(raw, 10) : 200
   return Number.isFinite(n) && n >= 10 && n <= 10000 ? n : 200
 })()
@@ -87,14 +88,13 @@ function memoryRateLimit(bucketKey: string, cfg: BucketConfig, now: number): { o
 // lambda, HF multi-replica) il limite in-memory per-process vale comunque
 // N × maxTokens per istanza. La finestra è `refillWindow` (1s) con cap
 // `maxTokens` per finestra — approssimazione del token bucket locale.
-// POSTERIUM_RATELIMIT_KV=0 forza lo store in-memory anche con KV presente.
+// PICTORIUM_RATELIMIT_KV=0 (legacy: POSTERIUM_RATELIMIT_KV=0) forza lo store in-memory anche con KV presente.
 // Su errore KV si degrada al bucket in-memory di questo processo (fail-open
 // locale): un outage del rate-limit non deve mai rompere il serving.
 const useKvStore =
   !!process.env.KV_REST_API_URL &&
   !!process.env.KV_REST_API_TOKEN &&
-  process.env.PICTORIUM_RATELIMIT_KV !== "0" &&
-  process.env.POSTERIUM_RATELIMIT_KV !== "0"
+  envWithFallback("RATELIMIT_KV") !== "0"
 
 let lastKvErrorLog = 0
 
@@ -128,14 +128,14 @@ async function kvRateLimit(bucketKey: string, cfg: BucketConfig, now: number): P
 
 /**
  * Rate-limit con store selezionabile: KV condiviso quando configurato
- * (POSTERIUM_RATELIMIT_KV non è "0"), altrimenti token bucket per-processo.
+ * (RATELIMIT_KV non è "0"), altrimenti token bucket per-processo.
  * È async da quando esiste il percorso KV: tutte le call site fanno `await`.
  */
 export async function rateLimit(key: string, bucket: string): Promise<{ ok: boolean; retAfter: number }> {
   const cfg = limits[bucket] || limits.default
   const now = Date.now()
   // Chiave composta (bucket, client): con la chiave client condivisa "shared"
-  // (senza POSTERIUM_TRUST_PROXY) tutte le route finivano in un UNICO bucket
+  // (senza PICTORIUM_TRUST_PROXY) tutte le route finivano in un UNICO bucket
   // il cui maxTokens/refill veniva sovrascritto dall'ultima route chiamata
   // (una chiamata warmup con max 5 sgonfiava il bucket di poster/tmdb e
   // viceversa, rendendo i limiti per-route illusori).
@@ -152,14 +152,14 @@ export async function rateLimit(key: string, bucket: string): Promise<{ ok: bool
 }
 
 export function rateLimitKey(request: Request): string {
-  // Estrae l'IP client per il rate limit. Quando POSTERIUM_TRUST_PROXY=1
+  // Estrae l'IP client per il rate limit. Quando PICTORIUM_TRUST_PROXY=1
   // gli header sono considerati fidati (proxy sovrascrive XFF), altrimenti
   // x-forwarded-for è ignorato per evitare bucket pollution (H2): l'attaccante
   // poteva inviare X-Forwarded-For arbitrario e generare fino a MAX_KEYS bucket
   // distinti, evictando quelli legittimi (FIFO). x-real-ip / cf-connecting-ip
   // restano usati (Nginx/Cloudflare) ma il fallback ua: garantisce granularità
   // minima senza ricadere nel vecchio bucket "shared" globale.
-  const trusted = process.env.POSTERIUM_TRUST_PROXY === "1"
+  const trusted = envWithFallback("TRUST_PROXY") === "1"
   // 1) x-real-ip — Nginx/HF
   const realIp = request.headers.get("x-real-ip")
   if (realIp) return realIp.trim()

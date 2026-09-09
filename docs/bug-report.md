@@ -1,4 +1,4 @@
-# Report Audit — Posterium
+# Report Audit — Pictorium
 
 **Data:** 31/08/2026 · **Commit:** `089e152` (master) · **Working tree:** pulita al momento dell'audit
 
@@ -29,7 +29,7 @@ dagli addon). Le CVE di decoding di libvips su input non fidato sono esattamente
 il vettore esposto dall'applicazione.
 
 **Fix:** aggiornare a `sharp@0.35.4`. Attenzione: è una modifica al rendering →
-per il Golden Rule serve rieseguire `e2e/posterium-visual.spec.ts` e verificare
+per il Golden Rule serve rieseguire `e2e/pictorium-visual.spec.ts` e verificare
 che `RENDER_VERSION`/snapshot non cambino; se l'output visivo cambia,
 rigenerare la render version con `node scripts/write-render-version.mjs` (mai a mano).
 
@@ -87,7 +87,7 @@ Eventuale mitigazione futura: bucket su KV/Upstash quando `KV_REST_API_URL`
 | 1 | sharp CVE high (top-level) | ✅ **FIX APPLICATO** — aggiornato a `sharp@0.35.4` |
 | 1b | sharp/postcss vulnerabili **bundlati in Next 16.2.7** + advisory Next (SSRF/DoS/cache confusion, tutti high) | ✅ **FIX APPLICATO** — Next aggiornato a `16.3.3` (minor upgrade nella major 16); `npm audit fix` ha risolto anche `nanoid` |
 | 2 | warning exhaustive-deps | ✅ **FIX APPLICATO** — `EditView.tsx` (deps su campi primitivi di `selected` + `useMemo` su `rightTabs`), `EpisodeGroupControls.tsx` (stesso pattern; rimosso il read di `tvdbError` da stale closure che cancellava l'errore appena impostato dal fetch — fix di un bug reale di visualizzazione errori TVDB) |
-| 3 | rate-limit per-process | ✅ **FIX APPLICATO** — `rateLimit` ora usa un contatore fixed-window condiviso su Upstash/Vercel KV quando `KV_REST_API_URL`/`KV_REST_API_TOKEN` sono configurati (`POSTERIUM_RATELIMIT_KV=0` per forzare l'in-memory); su errore KV degrada automaticamente al bucket per-processo (fail-open locale). Firma ora async: 33 call site aggiornate. Documentato in README (Variabili d'Ambiente) |
+| 3 | rate-limit per-process | ✅ **FIX APPLICATO** — `rateLimit` ora usa un contatore fixed-window condiviso su Upstash/Vercel KV quando `KV_REST_API_URL`/`KV_REST_API_TOKEN` sono configurati (`PICTORIUM_RATELIMIT_KV=0` per forzare l'in-memory); su errore KV degrada automaticamente al bucket per-processo (fail-open locale). Firma ora async: 33 call site aggiornate. Documentato in README (Variabili d'Ambiente) |
 | CSP parziale | Osservazione minore #1 | ✅ **FIX APPLICATO** — CSP estesa in `next.config.ts` e `vercel.json` (in sync): `default-src 'self'`, `script-src 'self' 'unsafe-inline'` (+ `'unsafe-eval'` e websocket HMR solo in dev), `style-src 'self' 'unsafe-inline'`, `img-src 'self' data: blob: https://image.tmdb.org`, `connect-src 'self'` (tutte le fetch client sono same-origin `/api/*`), `object-src 'none'`, `base-uri 'self'`, `form-action 'self'`; `frame-ancestors` invariato per HF Spaces |
 
 ### Audit finale

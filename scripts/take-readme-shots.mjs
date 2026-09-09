@@ -65,8 +65,8 @@ process.on("exit", cleanup)
 function initScript(key) {
   return () => {
     try {
-      localStorage.setItem("posterium_profile_id", "e2e")
-      localStorage.setItem("posterium_onboarding_done", "true")
+      localStorage.setItem("pictorium_profile_id", "e2e")
+      localStorage.setItem("pictorium_onboarding_done", "true")
       localStorage.setItem("preferred_lang", "it")
       localStorage.setItem("tmdb_key", key || "mock-tmdb-key-0000000000")
     } catch {}
@@ -84,6 +84,7 @@ async function newPage(browser) {
 const APP_ENV = {
   NEXT_DIST_DIR: ".next-e2e",
   POSTERIUM_DATA_DIR: path.join(ROOT, ".next-e2e", "data"),
+  PICTORIUM_DATA_DIR: path.join(ROOT, ".next-e2e", "data"),
   // In modalità reale NON sovrascriviamo TMDB_* (default = API/CDN reali).
   ...(REAL ? {} : {
     TMDB_BASE_URL: `${MOCK_URL}/3`,

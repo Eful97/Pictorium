@@ -1,12 +1,13 @@
 import { createLogger } from "./logger"
 import { getJWTitleQuality } from "./justwatch"
 import { getExternalIds } from "./tmdb"
+import { envWithFallback } from "./env-compat"
 
 const log = createLogger("stream-quality")
 
 export type StreamQuality = "4K" | "1080p" | "720p" | "SD"
 
-const TORRENTIO_BASE_URL = (process.env.POSTERIUM_TORRENTIO_URL || process.env.TORRENTIO_URL || "https://torrentio.strem.fun").replace(/\/+$/, "")
+const TORRENTIO_BASE_URL = (envWithFallback("TORRENTIO_URL") || process.env.TORRENTIO_URL || "https://torrentio.strem.fun").replace(/\/+$/, "")
 const STREAM_CACHE_TTL = 30 * 60 * 1000 // 30 minutes
 const STREAM_CACHE_TTL_NULL = 2 * 60 * 1000 // 2 minutes for null (evita cache avvelenata su Vercel)
 const qualityCache = new Map<string, { quality: StreamQuality | null; timestamp: number }>()
@@ -67,7 +68,7 @@ export async function fetchTorrentioQuality(
       }
 
       const res = await fetch(url, {
-        headers: { "User-Agent": "Posterium/1.0" },
+        headers: { "User-Agent": "Pictorium/1.0" },
         signal: combinedSignal,
       })
       if (!res.ok) {

@@ -86,8 +86,8 @@ describe("New JustWatch Catalogs & Genre Filtering", () => {
       .mockResolvedValueOnce(justWatchStreamingChartResponse(201, "tt201"))
       .mockResolvedValueOnce(tmdbDetailsResponse(201, "One Piece"))
 
-    const req = new NextRequest("http://localhost:3000/catalog/series/posterium-crunchyroll-series.json?api_key=test-api-key")
-    const res = await GET(req, { params: Promise.resolve({ type: "series", id: "posterium-crunchyroll-series.json" }) })
+    const req = new NextRequest("http://localhost:3000/catalog/series/pictorium-crunchyroll-series.json?api_key=test-api-key")
+    const res = await GET(req, { params: Promise.resolve({ type: "series", id: "pictorium-crunchyroll-series.json" }) })
     const body = await res.json()
 
     expect(res.status).toBe(200)
@@ -110,8 +110,8 @@ describe("New JustWatch Catalogs & Genre Filtering", () => {
       return tmdbDetailsResponse(301, "Interstellar")
     })
 
-    const req = new NextRequest("http://localhost:3000/catalog/movie/posterium-netflix-movies.json?genre=Fantascienza&api_key=test-api-key")
-    const res = await GET(req, { params: Promise.resolve({ type: "movie", id: "posterium-netflix-movies.json" }) })
+    const req = new NextRequest("http://localhost:3000/catalog/movie/pictorium-netflix-movies.json?genre=Fantascienza&api_key=test-api-key")
+    const res = await GET(req, { params: Promise.resolve({ type: "movie", id: "pictorium-netflix-movies.json" }) })
     const body = await res.json()
 
     expect(res.status).toBe(200)

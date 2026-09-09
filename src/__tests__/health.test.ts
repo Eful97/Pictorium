@@ -19,7 +19,7 @@ afterEach(async () => {
 
 describe("GET /api/health", () => {
   it("exposes storage state without leaking the absolute DATA_DIR path", async () => {
-    tempDir = await fsp.mkdtemp(path.join(os.tmpdir(), "posterium-health-"))
+    tempDir = await fsp.mkdtemp(path.join(os.tmpdir(), "pictorium-health-"))
     process.env.POSTERIUM_DATA_DIR = tempDir
     vi.resetModules()
     const { GET } = await import("@/app/api/health/route")
@@ -35,7 +35,7 @@ describe("GET /api/health", () => {
   })
 
   it("returns mappingCount as a number and lastMappingUpdatedAt as null when empty", async () => {
-    tempDir = await fsp.mkdtemp(path.join(os.tmpdir(), "posterium-health-empty-"))
+    tempDir = await fsp.mkdtemp(path.join(os.tmpdir(), "pictorium-health-empty-"))
     process.env.POSTERIUM_DATA_DIR = tempDir
     vi.resetModules()
     const { GET } = await import("@/app/api/health/route")
@@ -50,7 +50,7 @@ describe("GET /api/health", () => {
   })
 
   it("returns correct mappingCount and lastMappingUpdatedAt with data", async () => {
-    tempDir = await fsp.mkdtemp(path.join(os.tmpdir(), "posterium-health-data-"))
+    tempDir = await fsp.mkdtemp(path.join(os.tmpdir(), "pictorium-health-data-"))
     process.env.POSTERIUM_DATA_DIR = tempDir
     vi.resetModules()
 

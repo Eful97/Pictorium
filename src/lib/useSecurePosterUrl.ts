@@ -57,7 +57,7 @@ export function useSecurePosterUrl(url: string, apiKey: string | null | undefine
       .catch((error: unknown) => {
         if (cancelled) return
         // Fallback sicuro: URL senza chiave (nessun leak nel DOM).
-        console.warn("[posterium] Secure poster fetch failed, falling back to direct URL", error)
+        console.warn("[pictorium] Secure poster fetch failed, falling back to direct URL", error)
         setSrc(cleanUrl)
       })
     return () => {

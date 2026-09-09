@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useEffect, useRef } from "react"
 import type { CustomCatalogConfig } from "./types"
-import { POSTERIUM_CATALOGS } from "./catalog-definitions"
+import { PICTORIUM_CATALOGS } from "./catalog-definitions"
 
 export function useCustomCatalogs(
   safeGetItem: (key: string) => string | null,
@@ -23,7 +23,7 @@ export function useCustomCatalogs(
     let localOrder: string[] = []
     let localRenames: Record<string, string> = {}
 
-    const savedCustomCats = safeGetItem("posterium_custom_catalogs")
+    const savedCustomCats = safeGetItem("pictorium_custom_catalogs")
     if (savedCustomCats) {
       try {
         const parsed = JSON.parse(savedCustomCats)
@@ -33,7 +33,7 @@ export function useCustomCatalogs(
         }
       } catch {}
     }
-    const savedDisabledCats = safeGetItem("posterium_disabled_catalogs")
+    const savedDisabledCats = safeGetItem("pictorium_disabled_catalogs")
     if (savedDisabledCats) {
       try {
         const parsed = JSON.parse(savedDisabledCats)
@@ -43,7 +43,7 @@ export function useCustomCatalogs(
         }
       } catch {}
     }
-    const savedHomeDisabledCats = safeGetItem("posterium_home_disabled_catalogs")
+    const savedHomeDisabledCats = safeGetItem("pictorium_home_disabled_catalogs")
     if (savedHomeDisabledCats) {
       try {
         const parsed = JSON.parse(savedHomeDisabledCats)
@@ -53,7 +53,7 @@ export function useCustomCatalogs(
         }
       } catch {}
     }
-    const savedOrder = safeGetItem("posterium_catalog_order")
+    const savedOrder = safeGetItem("pictorium_catalog_order")
     if (savedOrder) {
       try {
         const parsed = JSON.parse(savedOrder)
@@ -63,7 +63,7 @@ export function useCustomCatalogs(
         }
       } catch {}
     }
-    const savedRenames = safeGetItem("posterium_catalog_renames")
+    const savedRenames = safeGetItem("pictorium_catalog_renames")
     if (savedRenames) {
       try {
         const parsed = JSON.parse(savedRenames)
@@ -90,7 +90,7 @@ export function useCustomCatalogs(
         if (Array.isArray(data.customCatalogs) && (!savedCustomCats || localCustom.length === 0)) {
           setCustomCatalogsState((prev) => {
             if (prev.length === 0) {
-              safeSetItem("posterium_custom_catalogs", JSON.stringify(data.customCatalogs))
+              safeSetItem("pictorium_custom_catalogs", JSON.stringify(data.customCatalogs))
               return data.customCatalogs
             }
             return prev
@@ -99,7 +99,7 @@ export function useCustomCatalogs(
         if (Array.isArray(data.disabledCatalogIds) && (!savedDisabledCats || localDisabled.length === 0)) {
           setDisabledCatalogIdsState((prev) => {
             if (prev.length === 0) {
-              safeSetItem("posterium_disabled_catalogs", JSON.stringify(data.disabledCatalogIds))
+              safeSetItem("pictorium_disabled_catalogs", JSON.stringify(data.disabledCatalogIds))
               return data.disabledCatalogIds
             }
             return prev
@@ -108,7 +108,7 @@ export function useCustomCatalogs(
         if (Array.isArray(data.homeDisabledCatalogIds) && (!savedHomeDisabledCats || localHomeDisabled.length === 0)) {
           setHomeDisabledCatalogIdsState((prev) => {
             if (prev.length === 0) {
-              safeSetItem("posterium_home_disabled_catalogs", JSON.stringify(data.homeDisabledCatalogIds))
+              safeSetItem("pictorium_home_disabled_catalogs", JSON.stringify(data.homeDisabledCatalogIds))
               return data.homeDisabledCatalogIds
             }
             return prev
@@ -117,7 +117,7 @@ export function useCustomCatalogs(
         if (Array.isArray(data.catalogOrder) && (!savedOrder || localOrder.length === 0)) {
           setCatalogOrderState((prev) => {
             if (prev.length === 0) {
-              safeSetItem("posterium_catalog_order", JSON.stringify(data.catalogOrder))
+              safeSetItem("pictorium_catalog_order", JSON.stringify(data.catalogOrder))
               return data.catalogOrder
             }
             return prev
@@ -126,7 +126,7 @@ export function useCustomCatalogs(
         if (data.catalogRenames && typeof data.catalogRenames === "object" && !Array.isArray(data.catalogRenames) && (!savedRenames || Object.keys(localRenames).length === 0)) {
           setCatalogRenamesState((prev) => {
             if (Object.keys(prev).length === 0) {
-              safeSetItem("posterium_catalog_renames", JSON.stringify(data.catalogRenames))
+              safeSetItem("pictorium_catalog_renames", JSON.stringify(data.catalogRenames))
               return data.catalogRenames
             }
             return prev
@@ -165,14 +165,14 @@ export function useCustomCatalogs(
 
   const setCustomCatalogs = useCallback((catalogs: CustomCatalogConfig[]) => {
     setCustomCatalogsState(catalogs)
-    safeSetItem("posterium_custom_catalogs", JSON.stringify(catalogs))
+    safeSetItem("pictorium_custom_catalogs", JSON.stringify(catalogs))
   }, [safeSetItem])
 
   const addCustomCatalog = useCallback((catalog: Omit<CustomCatalogConfig, "id">) => {
     const id = `cat_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`
     setCustomCatalogsState((prev) => {
       const next = [...prev, { ...catalog, id }]
-      safeSetItem("posterium_custom_catalogs", JSON.stringify(next))
+      safeSetItem("pictorium_custom_catalogs", JSON.stringify(next))
       return next
     })
   }, [safeSetItem])
@@ -180,7 +180,7 @@ export function useCustomCatalogs(
   const removeCustomCatalog = useCallback((id: string) => {
     setCustomCatalogsState((prev) => {
       const next = prev.filter((c) => c.id !== id)
-      safeSetItem("posterium_custom_catalogs", JSON.stringify(next))
+      safeSetItem("pictorium_custom_catalogs", JSON.stringify(next))
       return next
     })
   }, [safeSetItem])
@@ -188,40 +188,40 @@ export function useCustomCatalogs(
   const toggleCustomCatalog = useCallback((id: string) => {
     setCustomCatalogsState((prev) => {
       const next = prev.map((c) => (c.id === id ? { ...c, enabled: !c.enabled } : c))
-      safeSetItem("posterium_custom_catalogs", JSON.stringify(next))
+      safeSetItem("pictorium_custom_catalogs", JSON.stringify(next))
       return next
     })
   }, [safeSetItem])
 
   const setDisabledCatalogIds = useCallback((ids: string[]) => {
     setDisabledCatalogIdsState(ids)
-    safeSetItem("posterium_disabled_catalogs", JSON.stringify(ids))
+    safeSetItem("pictorium_disabled_catalogs", JSON.stringify(ids))
   }, [safeSetItem])
 
   const toggleBuiltinCatalog = useCallback((id: string) => {
     setDisabledCatalogIdsState((prev) => {
       const next = prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id]
-      safeSetItem("posterium_disabled_catalogs", JSON.stringify(next))
+      safeSetItem("pictorium_disabled_catalogs", JSON.stringify(next))
       return next
     })
   }, [safeSetItem])
 
   const setHomeDisabledCatalogIds = useCallback((ids: string[]) => {
     setHomeDisabledCatalogIdsState(ids)
-    safeSetItem("posterium_home_disabled_catalogs", JSON.stringify(ids))
+    safeSetItem("pictorium_home_disabled_catalogs", JSON.stringify(ids))
   }, [safeSetItem])
 
   const toggleCatalogHome = useCallback((id: string) => {
     setHomeDisabledCatalogIdsState((prev) => {
       const next = prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id]
-      safeSetItem("posterium_home_disabled_catalogs", JSON.stringify(next))
+      safeSetItem("pictorium_home_disabled_catalogs", JSON.stringify(next))
       return next
     })
   }, [safeSetItem])
 
   const setCatalogOrder = useCallback((order: string[]) => {
     setCatalogOrderState(order)
-    safeSetItem("posterium_catalog_order", JSON.stringify(order))
+    safeSetItem("pictorium_catalog_order", JSON.stringify(order))
   }, [safeSetItem])
 
   const moveCatalog = useCallback((id: string, direction: "up" | "down") => {
@@ -232,7 +232,7 @@ export function useCustomCatalogs(
         allIds.push(catId)
         existing.add(catId)
       })
-      POSTERIUM_CATALOGS.forEach((c) => {
+      PICTORIUM_CATALOGS.forEach((c) => {
         if (!existing.has(c.id)) {
           allIds.push(c.id)
           existing.add(c.id)
@@ -240,12 +240,12 @@ export function useCustomCatalogs(
       })
       customCatalogs.forEach((c) => {
         if (c.type === "mixed") {
-          const mId = `posterium-custom-movie-${c.id}`
-          const sId = `posterium-custom-series-${c.id}`
+          const mId = `pictorium-custom-movie-${c.id}`
+          const sId = `pictorium-custom-series-${c.id}`
           if (!existing.has(mId)) { allIds.push(mId); existing.add(mId) }
           if (!existing.has(sId)) { allIds.push(sId); existing.add(sId) }
         } else {
-          const cId = `posterium-custom-${c.type}-${c.id}`
+          const cId = `pictorium-custom-${c.type}-${c.id}`
           if (!existing.has(cId)) { allIds.push(cId); existing.add(cId) }
         }
       })
@@ -258,33 +258,33 @@ export function useCustomCatalogs(
       const next = [...allIds]
       const [item] = next.splice(idx, 1)
       next.splice(targetIdx, 0, item)
-      safeSetItem("posterium_catalog_order", JSON.stringify(next))
+      safeSetItem("pictorium_catalog_order", JSON.stringify(next))
       return next
     })
   }, [customCatalogs, safeSetItem])
 
   const setCatalogRenames = useCallback((renames: Record<string, string>) => {
     setCatalogRenamesState(renames)
-    safeSetItem("posterium_catalog_renames", JSON.stringify(renames))
+    safeSetItem("pictorium_catalog_renames", JSON.stringify(renames))
   }, [safeSetItem])
 
   const renameCatalog = useCallback((id: string, newName: string) => {
     setCatalogRenamesState((prev) => {
       const next = { ...prev, [id]: newName }
       if (!newName.trim()) delete next[id]
-      safeSetItem("posterium_catalog_renames", JSON.stringify(next))
+      safeSetItem("pictorium_catalog_renames", JSON.stringify(next))
       return next
     })
   }, [safeSetItem])
 
   const resetCatalogNames = useCallback(() => {
     setCatalogRenamesState({})
-    try { localStorage.removeItem("posterium_catalog_renames") } catch {}
+    try { localStorage.removeItem("pictorium_catalog_renames") } catch {}
   }, [])
 
   const resetCatalogOrder = useCallback(() => {
     setCatalogOrderState([])
-    try { localStorage.removeItem("posterium_catalog_order") } catch {}
+    try { localStorage.removeItem("pictorium_catalog_order") } catch {}
   }, [])
 
   return {

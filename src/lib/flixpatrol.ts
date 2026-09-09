@@ -48,7 +48,7 @@ const cacheFile = (() => {
   } catch {
     const fallbackDir = os.tmpdir()
     log.warn(`DATA_DIR non scrivibile — cache flixpatrol su ${fallbackDir}`)
-    return (country: string) => path.join(fallbackDir, `posterium-flixpatrol_cache_${country}.json`)
+    return (country: string) => path.join(fallbackDir, `pictorium-flixpatrol_cache_${country}.json`)
   }
 })()
 
@@ -230,7 +230,7 @@ export async function getTop10(platformSlug: string, country = "italy", apiKey?:
     throw new Error(`Unsupported country: ${country}`)
   }
   // C6: enrich:false → nessuna chiamata TMDB per titolo (il catalogo Stremio
-  // costruisce il poster via posteriumPosterUrl e non usa né posterPath né il
+  // costruisce il poster via pictoriumPosterUrl e non usa né posterPath né il
   // titolo italiano: restituire la voce grezza taglia ~2 fetch TMDB × titolo).
   const enrich = options?.enrich ?? true
 

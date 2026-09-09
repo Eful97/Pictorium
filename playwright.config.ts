@@ -50,6 +50,7 @@ export default defineConfig({
         // Data dir isolata: i test visivi non devono essere inquinati dallo
         // stato locale (defaults, mapping salvati) in ./data.
         POSTERIUM_DATA_DIR: path.join(__dirname, ".next-e2e", "data"),
+        PICTORIUM_DATA_DIR: path.join(__dirname, ".next-e2e", "data"),
         TMDB_BASE_URL: `${mockUrl}/3`,
         TMDB_IMG_URL: `${mockUrl}/t/p`,
         NEXT_PUBLIC_TMDB_IMG_URL: `${mockUrl}/t/p`,
@@ -59,10 +60,13 @@ export default defineConfig({
         // hero+podio). Gli snapshot "no key" devono valere ovunque, CI inclusa.
         TMDB_API_KEY: "",
         POSTERIUM_TMDB_KEY: "",
+        PICTORIUM_TMDB_KEY: "",
         MDBLIST_API_KEY: "",
         POSTERIUM_MDBLIST_KEY: "",
+        PICTORIUM_MDBLIST_KEY: "",
         TVDB_API_KEY: "",
         POSTERIUM_TVDB_API_KEY: "",
+        PICTORIUM_TVDB_API_KEY: "",
         JUSTWATCH_API_URL: `${mockUrl}/graphql`,
         WIKIDATA_SPARQL_URL: `${mockUrl}/sparql`,
         IMDB_CHART_URL: `${mockUrl}/chart/top`,

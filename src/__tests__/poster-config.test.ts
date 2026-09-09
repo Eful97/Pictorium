@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest"
 import { resolvePosterRenderConfig, clamp, type PosterRenderConfigInput } from "@/lib/poster-config"
 import type { Mapping } from "@/lib/types"
-import type { PosteriumUserConfig } from "@/lib/config-token"
+import type { PictoriumUserConfig } from "@/lib/config-token"
 
 function baseInput(overrides: Partial<PosterRenderConfigInput> = {}): PosterRenderConfigInput {
   return {
@@ -25,7 +25,7 @@ const mapping = (partial: Partial<Mapping> = {}): Mapping => ({
   ...partial,
 })
 
-const config = (partial: Partial<PosteriumUserConfig> = {}): PosteriumUserConfig => ({
+const config = (partial: Partial<PictoriumUserConfig> = {}): PictoriumUserConfig => ({
   globalBadges: true,
   rankingBadges: true,
   badgeStyle: "shadow",

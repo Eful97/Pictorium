@@ -15,17 +15,17 @@ describe("Addon Proxy Helpers", () => {
       { id: "278", type: "movie", name: "Numeric Movie", poster: null },
     ]
 
-    const rewritten = rewriteMetasPosters(metas, "https://posterium.app")
+    const rewritten = rewriteMetasPosters(metas, "https://pictorium.app")
 
-    expect(rewritten[0].poster).toContain("https://posterium.app/api/poster/movie/tt0111161")
-    expect(rewritten[1].poster).toContain("https://posterium.app/api/poster/series/tt0944947")
-    expect(rewritten[2].poster).toContain("https://posterium.app/api/poster/movie/278")
+    expect(rewritten[0].poster).toContain("https://pictorium.app/api/poster/movie/tt0111161")
+    expect(rewritten[1].poster).toContain("https://pictorium.app/api/poster/series/tt0944947")
+    expect(rewritten[2].poster).toContain("https://pictorium.app/api/poster/movie/278")
   })
 
   it("rewrites single meta poster URL correctly", () => {
     const meta: StremioItemMeta = { id: "tt1375666", type: "movie", name: "Inception", poster: "https://old.jpg" }
-    const rewritten = rewriteSingleMetaPoster(meta, "https://my-posterium.koyeb.app")
-    expect(rewritten.poster).toContain("https://my-posterium.koyeb.app/api/poster/movie/tt1375666")
+    const rewritten = rewriteSingleMetaPoster(meta, "https://my-pictorium.koyeb.app")
+    expect(rewritten.poster).toContain("https://my-pictorium.koyeb.app/api/poster/movie/tt1375666")
   })
 
   it("resolveImdbToTmdb returns null for non-imdb IDs", async () => {

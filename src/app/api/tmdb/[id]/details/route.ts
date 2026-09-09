@@ -4,12 +4,13 @@ import { getDetails, getExternalIds } from "@/lib/tmdb"
 import { fetchAggregatedRating, calculateAverageRating, SUPPORTED_RATING_SOURCES } from "@/lib/ratings"
 import { rateLimit, rateLimitKey, rateLimitResponse } from "@/lib/rate-limit"
 import { cacheGet, cacheSet } from "@/lib/cache"
+import { envWithFallback } from "@/lib/env-compat"
 
 // Tetto massimo per l'attesa del voto medio TMDB+IMDb (MDBList): se il fetch
 // è lento si usa il voto TMDB, coerente con la route poster (stesso knob
-// POSTERIUM_RATING_WAIT_MS, stesso default).
+// PICTORIUM_RATING_WAIT_MS, stesso default).
 const RATING_WAIT_MS = (() => {
-  const raw = process.env.POSTERIUM_RATING_WAIT_MS
+  const raw = envWithFallback("RATING_WAIT_MS")
   const n = raw ? parseInt(raw, 10) : 1500
   return Number.isFinite(n) && n >= 300 && n <= 10000 ? n : 1500
 })()

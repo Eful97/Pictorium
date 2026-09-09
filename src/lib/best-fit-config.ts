@@ -1,7 +1,7 @@
 /**
  * Interruttore globale del best-fit (istanza-level).
  *
- * `POSTERIUM_BEST_FIT_ENABLED`:
+ * `PICTORIUM_BEST_FIT_ENABLED` (legacy: `POSTERIUM_BEST_FIT_ENABLED`):
  *   - `0` / `false` / `off` → best-fit disabilitato SEMPRE, vince su query,
  *     config token e server defaults (utile su Vercel/HF dove i defaults o il
  *     toggle client non sempre arrivano al server).
@@ -12,7 +12,9 @@
  * Lettura a module level come le altre env: un cambio richiede restart.
  */
 
-const raw = process.env.POSTERIUM_BEST_FIT_ENABLED?.trim().toLowerCase()
+import { envWithFallback } from "@/lib/env-compat"
+
+const raw = envWithFallback("BEST_FIT_ENABLED")?.trim().toLowerCase()
 
 export type BestFitGlobal = "on" | "off" | "auto"
 

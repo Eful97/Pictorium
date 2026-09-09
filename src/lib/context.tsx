@@ -27,6 +27,7 @@ import { TranslationProvider } from "./contexts/TranslationContext"
 import { MetaInfoProvider } from "./contexts/MetaInfoContext"
 import { MappingsProvider } from "./contexts/MappingsContext"
 import { useCustomCatalogs } from "./useCustomCatalogs"
+import { migrateLegacyStorage } from "./storage-migration"
 
 export type ViewType = "search" | "myposters" | "edit" | "cataloghi"
 
@@ -53,7 +54,7 @@ export interface MetaInfo {
   productionCompaniesDetailed?: { name: string; logo_path: string | null; origin_country?: string }[]
 }
 
-export interface PosteriumCtx {
+export interface PictoriumCtx {
   selected: SearchResult | null
   setSelected: React.Dispatch<React.SetStateAction<SearchResult | null>>
   view: ViewType
@@ -177,27 +178,27 @@ export interface PosteriumCtx {
   resetCatalogOrder: () => void
 }
 
-const Ctx = createContext<PosteriumCtx | null>(null)
+const Ctx = createContext<PictoriumCtx | null>(null)
 
 // Store scoped al provider per la subscription ottimizzata (usePSelector):
-// ogni PosteriumProvider ha il proprio store, così i test restano isolati e i
+// ogni PictoriumProvider ha il proprio store, così i test restano isolati e i
 // selettori ri-renderizzano SOLO quando lo slice selezionato cambia (Object.is).
 interface SelectorStore {
-  value: PosteriumCtx | null
+  value: PictoriumCtx | null
   listeners: Set<() => void>
 }
 const SelectorStoreCtx = createContext<SelectorStore | null>(null)
 
 /**
- * Consuma solo lo slice richiesto del contesto Posterium. Il componente
+ * Consuma solo lo slice richiesto del contesto Pictorium. Il componente
  * ri-renderizza SOLO quando il valore selezionato cambia (Object.is), non a
  * ogni aggiornamento di qualsiasi slice. Il selettore DEVE restituire un
  * riferimento stabile (primitiva o campo di stato esistente), mai un oggetto
  * nuovo creato inline, altrimenti il confronto fallisce.
  */
-export function usePSelector<T>(selector: (v: PosteriumCtx) => T): T {
+export function usePSelector<T>(selector: (v: PictoriumCtx) => T): T {
   const store = useContext(SelectorStoreCtx)
-  if (!store) throw new Error("usePSelector must be inside PosteriumProvider")
+  if (!store) throw new Error("usePSelector must be inside PictoriumProvider")
   const get = (): T | undefined => (store.value ? selector(store.value) : undefined)
   return useSyncExternalStore(
     (cb) => {
@@ -211,11 +212,11 @@ export function usePSelector<T>(selector: (v: PosteriumCtx) => T): T {
 
 export function useP() {
   const ctx = useContext(Ctx)
-  if (!ctx) throw new Error("useP must be inside PosteriumProvider")
+  if (!ctx) throw new Error("useP must be inside PictoriumProvider")
   return ctx
 }
 
-export function PosteriumProvider({ value, children }: { value: PosteriumCtx; children: React.ReactNode }) {
+export function PictoriumProvider({ value, children }: { value: PictoriumCtx; children: React.ReactNode }) {
   const storeRef = useRef<SelectorStore | null>(null)
   if (!storeRef.current) storeRef.current = { value: null, listeners: new Set() }
   const store = storeRef.current
@@ -242,25 +243,32 @@ export function PosteriumProvider({ value, children }: { value: PosteriumCtx; ch
 }
 
 /**
- * PosteriumRoot — racchiude la creazione dello stato e la catena provider.
+ * PictoriumRoot — racchiude la creazione dello stato e la catena provider.
  * PosterEditorProvider wrappa l'esterno così usa useDefaults() in autonomia.
- * Il PosteriumProvider interno riceve tutto lo stato (inclusi editor fields
+ * Il PictoriumProvider interno riceve tutto lo stato (inclusi editor fields
  * per backward compat via useP()).
  */
-export function PosteriumRoot({ children }: { children: React.ReactNode }) {
+export function PictoriumRoot({ children }: { children: React.ReactNode }) {
+  // Migrazione one-time localStorage posterium_* → pictorium_*: l'initializer
+  // di useState gira nel render del parent, quindi PRIMA degli useEffect dei
+  // figli che leggono lo storage (hydration da useCustomCatalogs, tema, ...).
+  useState(() => {
+    migrateLegacyStorage()
+    return null
+  })
   return (
     <PosterEditorProvider>
-      <PosteriumRootInner>{children}</PosteriumRootInner>
+      <PictoriumRootInner>{children}</PictoriumRootInner>
     </PosterEditorProvider>
   )
 }
 
-function PosteriumRootInner({ children }: { children: React.ReactNode }) {
-  const value = usePosterium()
-  return <PosteriumProvider value={value}>{children}</PosteriumProvider>
+function PictoriumRootInner({ children }: { children: React.ReactNode }) {
+  const value = usePictorium()
+  return <PictoriumProvider value={value}>{children}</PictoriumProvider>
 }
 
-export function usePosterium(): PosteriumCtx {
+export function usePictorium(): PictoriumCtx {
   // Helper per localStorage: evita crash in Safari ITP / Brave Shield / Firefox Strict
   const safeGetItem = useCallback((key: string): string | null => {
     try { return localStorage.getItem(key) } catch { return null }
@@ -280,10 +288,10 @@ export function usePosterium(): PosteriumCtx {
   // Lettura differita in useEffect per evitare hydration mismatch client/server
   const [uiAccent, setUiAccent] = useState(false)
   useEffect(() => {
-    const saved = safeGetItem("posterium_ui_accent")
+    const saved = safeGetItem("pictorium_ui_accent")
     if (saved === "true") setUiAccent(true)
   }, [safeGetItem])
-  useEffect(() => { safeSetItem("posterium_ui_accent", String(uiAccent)) }, [uiAccent, safeSetItem])
+  useEffect(() => { safeSetItem("pictorium_ui_accent", String(uiAccent)) }, [uiAccent, safeSetItem])
   // Sync uiAccent toggle to <html> class
   useEffect(() => {
     document.documentElement.classList.toggle("ui-accent", uiAccent)
@@ -491,7 +499,7 @@ export function usePosterium(): PosteriumCtx {
     setMdblistApiKey(savedMdblist)
     const savedTvdb = safeGetItem("tvdb_key") || ""
     setTvdbApiKey(savedTvdb)
-    const savedTheme = safeGetItem("posterium_theme")
+    const savedTheme = safeGetItem("pictorium_theme")
     if (savedTheme === "light" || savedTheme === "dark") setTheme(savedTheme)
 
     // Se sul dispositivo corrente alcune chiavi sono vuote, interroga /api/defaults
@@ -522,7 +530,7 @@ export function usePosterium(): PosteriumCtx {
 
   useEffect(() => {
     document.documentElement.classList.toggle("light-mode", theme === "light")
-    safeSetItem("posterium_theme", theme)
+    safeSetItem("pictorium_theme", theme)
   }, [theme, safeSetItem])
 
   useEffect(() => {
@@ -617,7 +625,7 @@ export function usePosterium(): PosteriumCtx {
     const rsrcParam = ratingSources && ratingSources.length > 0 ? "&rsrc=" + encodeURIComponent(ratingSources.join(",")) : ""
     const detailsUrl = `/api/tmdb/${itemId}/details?type=${itemType}&language=${lang}&api_key=${tmdbKey}${mdblistParam}${rsrcParam}`
     const [details, rankData, awardData] = await Promise.all([
-      http<{ genres: { id: number; name: string }[]; voteAverage: number; voteCount: number; status: string | null; type: string | null; release_date: string | null; first_air_date: string | null; last_air_date: string | null; next_episode_to_air: { air_date: string; episode_number: number; season_number: number } | null; number_of_seasons: number | null; number_of_episodes: number | null; title: string | null; name: string | null; imdb_id: string | null; networks: { name: string; logo_path: string | null; origin_country: string }[]; production_companies: { name: string; logo_path: string | null; origin_country: string }[]; original_language: string; aggregatedRatings?: AggregatedRatings | null }>(detailsUrl, { timeout: 30000 }).catch((e) => { console.error("[posterium] Details fetch failed:", e); setServiceErrors((prev) => ({ ...prev, tmdb: true })); return { genres: [] as { id: number; name: string }[], voteAverage: 0, voteCount: 0, status: null, type: null, release_date: null, first_air_date: null, last_air_date: null, next_episode_to_air: null, number_of_seasons: null, number_of_episodes: null, title: null, name: null, imdb_id: null, networks: [] as { name: string; logo_path: string | null; origin_country: string }[], production_companies: [] as { name: string; logo_path: string | null; origin_country: string }[], original_language: "en", aggregatedRatings: null } }),
+      http<{ genres: { id: number; name: string }[]; voteAverage: number; voteCount: number; status: string | null; type: string | null; release_date: string | null; first_air_date: string | null; last_air_date: string | null; next_episode_to_air: { air_date: string; episode_number: number; season_number: number } | null; number_of_seasons: number | null; number_of_episodes: number | null; title: string | null; name: string | null; imdb_id: string | null; networks: { name: string; logo_path: string | null; origin_country: string }[]; production_companies: { name: string; logo_path: string | null; origin_country: string }[]; original_language: string; aggregatedRatings?: AggregatedRatings | null }>(detailsUrl, { timeout: 30000 }).catch((e) => { console.error("[pictorium] Details fetch failed:", e); setServiceErrors((prev) => ({ ...prev, tmdb: true })); return { genres: [] as { id: number; name: string }[], voteAverage: 0, voteCount: 0, status: null, type: null, release_date: null, first_air_date: null, last_air_date: null, next_episode_to_air: null, number_of_seasons: null, number_of_episodes: null, title: null, name: null, imdb_id: null, networks: [] as { name: string; logo_path: string | null; origin_country: string }[], production_companies: [] as { name: string; logo_path: string | null; origin_country: string }[], original_language: "en", aggregatedRatings: null } }),
       http<{ rank: number | null }>(`/api/trending/rank?type=${itemType}&id=${itemId}&api_key=${encodeURIComponent(tmdbKey)}`, { timeout: 15000 }).catch(() => ({ rank: null })),
       http<{ awards: string[]; nominations: string[]; studios: string[]; director: string | null; keywords: string[] }>(`/api/awards/${itemType}/${itemId}?api_key=${encodeURIComponent(tmdbKey)}`, { timeout: 15000 }).catch(() => ({ awards: [] as string[], nominations: [] as string[], studios: [] as string[], director: null, keywords: [] as string[] })),
     ])
@@ -640,7 +648,7 @@ export function usePosterium(): PosteriumCtx {
         if (navigation.fetchIdRef.current === fetchId) {
           setMdblistMatch(d?.match || null)
         }
-      }).catch((e) => { console.error("[posterium] MDBList lookup failed:", e) })
+      }).catch((e) => { console.error("[pictorium] MDBList lookup failed:", e) })
     } else {
       setMdblistMatch(null)
     }
@@ -728,7 +736,7 @@ export function usePosterium(): PosteriumCtx {
           navigation.setSelectedLogo(autoLogo || navigation.selectedLogo)
         }
       }
-    }).catch((e) => { console.error("[posterium] Poster image refresh failed:", e) })
+    }).catch((e) => { console.error("[pictorium] Poster image refresh failed:", e) })
   // eslint-disable-next-line react-hooks/exhaustive-deps -- intentionally only on lang change; others set inside
   }, [lang])
 

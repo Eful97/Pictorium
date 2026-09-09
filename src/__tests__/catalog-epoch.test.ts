@@ -21,7 +21,7 @@ afterEach(async () => {
 
 describe("catalog epoch (F3)", () => {
   it("starts at 0, bumps to a new value, and persists across reloads", async () => {
-    tempDir = await fsp.mkdtemp(path.join(os.tmpdir(), "posterium-epoch-"))
+    tempDir = await fsp.mkdtemp(path.join(os.tmpdir(), "pictorium-epoch-"))
     process.env.POSTERIUM_DATA_DIR = tempDir
 
     const mod = await freshEpochModule()
@@ -40,7 +40,7 @@ describe("catalog epoch (F3)", () => {
   })
 
   it("never throws when persistence fails (save must not hard-fail)", async () => {
-    tempDir = await fsp.mkdtemp(path.join(os.tmpdir(), "posterium-epoch-"))
+    tempDir = await fsp.mkdtemp(path.join(os.tmpdir(), "pictorium-epoch-"))
     // DATA_DIR punta a un FILE esistente: mkdir/write falliscono sempre.
     const blocker = path.join(tempDir, "blocker")
     await fsp.writeFile(blocker, "x")

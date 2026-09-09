@@ -1,13 +1,13 @@
 "use client"
 
 import { createContext, useContext, useMemo } from "react"
-import type { PosteriumCtx } from "@/lib/context"
+import type { PictoriumCtx } from "@/lib/context"
 import type { SearchResult, FlixPatrolChart } from "@/lib/types"
 import type { EnrichedAnimeItem } from "@/lib/validation"
 import { STREAMING_PLATFORMS } from "@/lib/utils"
 
 /**
- * SearchCtx — subset di PosteriumCtx per search + trending.
+ * SearchCtx — subset di PictoriumCtx per search + trending.
  */
 export interface SearchCtx {
   query: string
@@ -35,7 +35,7 @@ const Ctx = createContext<SearchCtx | null>(null)
 
 export function useSearchCtx() {
   const v = useContext(Ctx)
-  if (!v) throw new Error("useSearchCtx must be inside PosteriumProvider")
+  if (!v) throw new Error("useSearchCtx must be inside PictoriumProvider")
   return v
 }
 
@@ -43,7 +43,7 @@ export function SearchProvider({
   value,
   children,
 }: {
-  value: PosteriumCtx
+  value: PictoriumCtx
   children: React.ReactNode
 }) {
   const searchCtx = useMemo<SearchCtx>(

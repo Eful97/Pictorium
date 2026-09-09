@@ -1,7 +1,7 @@
 "use client"
 
 import { createContext, useContext, useMemo, type ReactNode } from "react"
-import type { PosteriumCtx } from "@/lib/context"
+import type { PictoriumCtx } from "@/lib/context"
 import { createT } from "@/lib/i18n"
 
 /**
@@ -20,7 +20,7 @@ const Ctx = createContext<TranslationCtx | null>(null)
 
 export function useT() {
   const v = useContext(Ctx)
-  if (!v) throw new Error("useT must be inside PosteriumProvider")
+  if (!v) throw new Error("useT must be inside PictoriumProvider")
   return v
 }
 
@@ -28,7 +28,7 @@ export function TranslationProvider({
   value,
   children,
 }: {
-  value: PosteriumCtx
+  value: PictoriumCtx
   children: ReactNode
 }) {
   const t = useMemo(() => value.t ?? createT(value.lang), [value.t, value.lang])

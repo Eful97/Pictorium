@@ -13,7 +13,7 @@ const STEPS = [
   { icon: MonitorSmartphone, titleKey: "ui.onboardingSaveTitle", descKey: "ui.onboardingSaveDesc" },
 ]
 
-const LS_KEY = "posterium_onboarding_done"
+const LS_KEY = "pictorium_onboarding_done"
 
 export function OnboardingTour() {
   const { t } = useT()

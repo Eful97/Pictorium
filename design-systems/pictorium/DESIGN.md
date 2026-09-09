@@ -1,10 +1,10 @@
-# Posterium Design System
+# Pictorium Design System
 
-> Brand contract for AI-assisted design generation. Posterium is a **dark, glassmorphism, cinema-grade UI** for a Stremio poster manager: it edits and serves personalized movie posters. The aesthetic is a premium streaming app — layered glass surfaces, a single warm orange accent, compact dense typography — with one signature behavior: **the UI accent adapts to the poster being edited** (`.ui-accent` theming).
+> Brand contract for AI-assisted design generation. Pictorium is a **dark, glassmorphism, cinema-grade UI** for a Stremio poster manager: it edits and serves personalized movie posters. The aesthetic is a premium streaming app — layered glass surfaces, a single warm orange accent, compact dense typography — with one signature behavior: **the UI accent adapts to the poster being edited** (`.ui-accent` theming).
 
 ## Brand
 
-- **Product**: Posterium — generate and manage custom posters for Stremio/media centers.
+- **Product**: Pictorium — generate and manage custom posters for Stremio/media centers.
 - **Audience**: Stremio power users, self-hosters, media-library enthusiasts.
 - **Tone**: premium, cinematic, quietly technical. No gradients-on-gradients, no cartoonish decoration; the "modern look comes from layered surfaces, consistent borders, and compact spacing rather than large decorative blocks."
 - **Reference palette feel**: Netflix-dark, warm ember accent, frosted glass.

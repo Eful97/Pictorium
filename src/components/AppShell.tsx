@@ -189,7 +189,7 @@ export function AppShell() {
       {/* Desktop Toolbar — Floating Island */}
       <div className="hidden md:flex absolute top-4 right-4 z-20">
         <div className="flex items-center gap-1.5 p-1.5 rounded-2xl bg-black/60 backdrop-blur-xl border border-white/10 shadow-2xl shadow-black/50 relative z-50">
-          {/* Installa Posterium Hub Pill Button */}
+          {/* Installa Pictorium Hub Pill Button */}
           <button
             type="button"
             onClick={handleInstallCatalog}

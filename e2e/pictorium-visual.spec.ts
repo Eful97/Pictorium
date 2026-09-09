@@ -45,16 +45,16 @@ test("home — full page", async ({ page }) => {
   await page.addInitScript(() => {
     try {
       localStorage.clear()
-      localStorage.setItem("posterium_profile_id", "e2e")
-      localStorage.setItem("posterium_profile_stateless", "1")
-      localStorage.setItem("posterium_onboarding_done", "true")
+      localStorage.setItem("pictorium_profile_id", "e2e")
+      localStorage.setItem("pictorium_profile_stateless", "1")
+      localStorage.setItem("pictorium_onboarding_done", "true")
       localStorage.setItem("preferred_lang", "it")
       localStorage.setItem("tmdb_key", "")
     } catch {}
   })
   await page.goto("/")
-  const logo = page.getByAltText(/Pictorium|Posterium/)
-  const logoFallback = page.getByText(/Pictorium|Posterium/)
+  const logo = page.getByAltText(/Pictorium/)
+  const logoFallback = page.getByText(/Pictorium/)
   await expect(logo.or(logoFallback).first()).toBeVisible({ timeout: 30_000 })
   await expect(page.getByPlaceholder(/cerca/i)).toBeVisible({ timeout: 30_000 })
   await page.waitForFunction(() => document.body.scrollHeight > window.innerHeight, { timeout: 30_000 })
@@ -68,16 +68,16 @@ test("home — hero viewport", async ({ page }) => {
   await page.addInitScript(() => {
     try {
       localStorage.clear()
-      localStorage.setItem("posterium_profile_id", "e2e")
-      localStorage.setItem("posterium_profile_stateless", "1")
-      localStorage.setItem("posterium_onboarding_done", "true")
+      localStorage.setItem("pictorium_profile_id", "e2e")
+      localStorage.setItem("pictorium_profile_stateless", "1")
+      localStorage.setItem("pictorium_onboarding_done", "true")
       localStorage.setItem("preferred_lang", "it")
       localStorage.setItem("tmdb_key", "")
     } catch {}
   })
   await page.goto("/")
-  const logo = page.getByAltText(/Pictorium|Posterium/)
-  const logoFallback = page.getByText(/Pictorium|Posterium/)
+  const logo = page.getByAltText(/Pictorium/)
+  const logoFallback = page.getByText(/Pictorium/)
   await expect(logo.or(logoFallback).first()).toBeVisible({ timeout: 30_000 })
   await expect(page.getByPlaceholder(/cerca/i)).toBeVisible({ timeout: 30_000 })
   await page.evaluate(() => window.scrollTo(0, 0))
@@ -91,16 +91,16 @@ test("home — mobile viewport", async ({ page }) => {
   await page.addInitScript(() => {
     try {
       localStorage.clear()
-      localStorage.setItem("posterium_profile_id", "e2e")
-      localStorage.setItem("posterium_profile_stateless", "1")
-      localStorage.setItem("posterium_onboarding_done", "true")
+      localStorage.setItem("pictorium_profile_id", "e2e")
+      localStorage.setItem("pictorium_profile_stateless", "1")
+      localStorage.setItem("pictorium_onboarding_done", "true")
       localStorage.setItem("preferred_lang", "it")
       localStorage.setItem("tmdb_key", "")
     } catch {}
   })
   await page.goto("/")
-  const logo = page.getByAltText(/Pictorium|Posterium/)
-  const logoFallback = page.getByText(/Pictorium|Posterium/)
+  const logo = page.getByAltText(/Pictorium/)
+  const logoFallback = page.getByText(/Pictorium/)
   await expect(logo.or(logoFallback).first()).toBeVisible({ timeout: 30_000 })
   await expect(page.getByPlaceholder(/cerca/i)).toBeVisible({ timeout: 30_000 })
   await page.evaluate(() => window.scrollTo(0, 0))
@@ -115,9 +115,9 @@ test("home with key — hero podium and status strip", async ({ page }) => {
       // Podio: la scelta dei 2 film + 1 serie è random a ogni refresh (Fisher–
       // Yates su Math.random) → stub costante per screenshot deterministici.
       Math.random = () => 0
-      localStorage.setItem("posterium_profile_id", "e2e")
-      localStorage.setItem("posterium_profile_stateless", "1")
-      localStorage.setItem("posterium_onboarding_done", "true")
+      localStorage.setItem("pictorium_profile_id", "e2e")
+      localStorage.setItem("pictorium_profile_stateless", "1")
+      localStorage.setItem("pictorium_onboarding_done", "true")
       localStorage.setItem("preferred_lang", "it")
       localStorage.setItem("tmdb_key", "e2e-key")
     } catch {}

@@ -1,4 +1,4 @@
-// Mock server per i test E2E di Posterium.
+// Mock server per i test E2E di Pictorium.
 //
 // Sostituisce le API esterne (TMDB, JustWatch, Wikidata, IMDb) con risposte
 // statiche deterministiche, così i test girano senza TMDB_API_KEY e senza

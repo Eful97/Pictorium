@@ -1,24 +1,43 @@
 import { describe, expect, it } from "vitest"
-import { getWarmupCatalogs, POSTERIUM_CATALOGS, WARMUP_CATALOG_IDS } from "@/lib/catalog-definitions"
+import { getWarmupCatalogs, normalizeCatalogId, normalizeCatalogIdKeys, normalizeCatalogIdList, PICTORIUM_CATALOGS, WARMUP_CATALOG_IDS } from "@/lib/catalog-definitions"
 
 describe("catalog definitions", () => {
   it("keeps warmup catalog IDs backed by manifest catalogs", () => {
-    const manifestIds: Set<string> = new Set(POSTERIUM_CATALOGS.map((catalog) => catalog.id))
+    const manifestIds: Set<string> = new Set(PICTORIUM_CATALOGS.map((catalog) => catalog.id))
 
     const warmupCatalogs = getWarmupCatalogs()
 
     expect(warmupCatalogs.map((catalog) => catalog.id)).toEqual([
-      "posterium-jw-movies",
-      "posterium-jw-series",
-      "posterium-netflix-movies",
-      "posterium-netflix-series",
-      "posterium-prime-movies",
-      "posterium-prime-series",
-      "posterium-anime-movies",
-      "posterium-anime",
+      "pictorium-jw-movies",
+      "pictorium-jw-series",
+      "pictorium-netflix-movies",
+      "pictorium-netflix-series",
+      "pictorium-prime-movies",
+      "pictorium-prime-series",
+      "pictorium-anime-movies",
+      "pictorium-anime",
     ])
     expect(warmupCatalogs.every((catalog) => manifestIds.has(catalog.id))).toBe(true)
     expect(warmupCatalogs.map((catalog) => catalog.type)).toEqual(["movie", "series", "movie", "series", "movie", "series", "movie", "series"])
     expect(WARMUP_CATALOG_IDS).toHaveLength(8)
+  })
+
+  it("emits only pictorium-* catalog IDs", () => {
+    expect(PICTORIUM_CATALOGS.every((catalog) => catalog.id.startsWith("pictorium-"))).toBe(true)
+  })
+
+  it("normalizes legacy posterium-* IDs to pictorium-*", () => {
+    expect(normalizeCatalogId("posterium-jw-movies")).toBe("pictorium-jw-movies")
+    expect(normalizeCatalogId("posterium-custom-movie-x")).toBe("pictorium-custom-movie-x")
+    expect(normalizeCatalogId("pictorium-jw-movies")).toBe("pictorium-jw-movies")
+    expect(normalizeCatalogIdList(["posterium-jw-movies", "pictorium-anime"])).toEqual([
+      "pictorium-jw-movies",
+      "pictorium-anime",
+    ])
+    expect(normalizeCatalogIdList(undefined)).toBeUndefined()
+    expect(normalizeCatalogIdKeys({ "posterium-anime": "Anime", other: "x" })).toEqual({
+      "pictorium-anime": "Anime",
+      other: "x",
+    })
   })
 })

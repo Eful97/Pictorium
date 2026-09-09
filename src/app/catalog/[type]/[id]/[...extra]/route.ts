@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server"
-import { posteriumCatalog } from "@/lib/catalog-handler"
+import { pictoriumCatalog } from "@/lib/catalog-handler"
 
 export const maxDuration = 60
 
@@ -9,5 +9,5 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
   const { type: mediaType, id: rawId, extra } = await params
   const userParam = req.nextUrl.searchParams.get("u") || req.nextUrl.searchParams.get("user")
   const configParam = req.nextUrl.searchParams.get("config") || req.nextUrl.searchParams.get("c")
-  return posteriumCatalog(req, mediaType, rawId, userParam, configParam, extra)
+  return pictoriumCatalog(req, mediaType, rawId, userParam, configParam, extra)
 }

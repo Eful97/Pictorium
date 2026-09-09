@@ -9,6 +9,7 @@ import { createLogger } from "@/lib/logger"
 import { z } from "zod"
 import { BADGE_STYLES, RANKING_BADGE_STYLES } from "@/lib/badge-styles"
 import { readJsonBody, BodyTooLargeError, DEFAULT_MAX_BODY_BYTES } from "@/lib/read-body"
+import { envWithFallback } from "@/lib/env-compat"
 
 const log = createLogger("defaults")
 
@@ -52,9 +53,9 @@ export async function GET(req: NextRequest) {
   const d = getServerDefaults()
   if (checkAdminToken(req)) {
     const serverKeys = {
-      tmdbKey: process.env.PICTORIUM_TMDB_KEY || process.env.POSTERIUM_TMDB_KEY || process.env.TMDB_API_KEY || "",
-      mdblistApiKey: process.env.PICTORIUM_MDBLIST_KEY || process.env.POSTERIUM_MDBLIST_KEY || process.env.MDBLIST_API_KEY || "",
-      tvdbApiKey: process.env.PICTORIUM_TVDB_API_KEY || process.env.POSTERIUM_TVDB_API_KEY || process.env.TVDB_API_KEY || "",
+      tmdbKey: envWithFallback("TMDB_KEY") || process.env.TMDB_API_KEY || "",
+      mdblistApiKey: envWithFallback("MDBLIST_KEY") || process.env.MDBLIST_API_KEY || "",
+      tvdbApiKey: envWithFallback("TVDB_API_KEY") || process.env.TVDB_API_KEY || "",
     }
     return Response.json({ ...d, serverKeys })
   }

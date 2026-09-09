@@ -13,6 +13,7 @@ import {
 import { enrichVideosWithTvdb } from "@/lib/tvdb"
 import { buildVideosFromAnizip, buildVideosFromGroups, buildVideosFromTvdb, concurrentMap, resolveSeasonNumbers, seasonNumberForGroup } from "@/lib/episode-ordering"
 import { groupDetailsEpisodeCount, resolveDefaultEpisodeGroupId } from "@/lib/episode-group-default"
+import { envWithFallback } from "@/lib/env-compat"
 
 interface PreviewVideo {
   id: string
@@ -45,7 +46,7 @@ export async function GET(req: NextRequest) {
   const language = req.nextUrl.searchParams.get("lang") || "it-IT"
   const apiKey = resolveRequestApiKey(req)
   const tvdbKeyParam = req.nextUrl.searchParams.get("tvdb_key") || undefined
-  const tvdbApiKey = tvdbKeyParam || process.env.POSTERIUM_TVDB_API_KEY || process.env.TVDB_API_KEY
+  const tvdbApiKey = tvdbKeyParam || envWithFallback("TVDB_API_KEY") || process.env.TVDB_API_KEY
   const episodeMetadataSource = req.nextUrl.searchParams.get("source") || (tvdbApiKey ? "tvdb" : "tmdb")
 
   // "auto" (parametro assente) e "standard" esplicito hanno chiavi diverse:

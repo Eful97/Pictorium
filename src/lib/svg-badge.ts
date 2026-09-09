@@ -33,7 +33,7 @@ export function warmFonts(): void {
     fontStyle()
     _fontsWarmed = true
   } catch (e) {
-    console.warn("[posterium] Font warming failed:", e instanceof Error ? e.message : String(e))
+    console.warn("[pictorium] Font warming failed:", e instanceof Error ? e.message : String(e))
   }
 }
 

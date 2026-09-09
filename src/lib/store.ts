@@ -3,6 +3,7 @@ import path from "node:path"
 import type { Mapping } from "@/lib/types"
 import { DATA_DIR } from "@/lib/data-dir"
 import { createLogger } from "@/lib/logger"
+import { envWithFallback } from "@/lib/env-compat"
 
 export type { Mapping }
 
@@ -14,7 +15,7 @@ export function getStorageMode(): "kv" | "file" {
   return useKv ? "kv" : "file"
 }
 
-const debugStore = process.env.POSTERIUM_DEBUG === "1"
+const debugStore = envWithFallback("DEBUG") === "1"
 
 if (!useKv && debugStore) {
   log.info("Data directory", { dir: DATA_DIR, file: path.join(DATA_DIR, "mappings.json") })

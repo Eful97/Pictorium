@@ -64,7 +64,28 @@ describe("GET /catalog/[type]/[id]", () => {
     cacheClear()
   })
 
-  it("builds Posterium series poster URLs for JustWatch series catalogs", async () => {
+  it("builds Pictorium series poster URLs for JustWatch series catalogs", async () => {
+    vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(justWatchResponse(94997, "tt11198330"))
+      .mockResolvedValueOnce(tmdbShowResponse(94997))
+
+    const req = new NextRequest("http://localhost:3000/catalog/series/pictorium-jw-series.json?api_key=settings-key")
+    const res = await GET(req, { params: Promise.resolve({ type: "series", id: "pictorium-jw-series.json" }) })
+    const body = await res.json()
+
+    expect(res.status).toBe(200)
+    expect(body.metas[0]).toMatchObject({
+      id: "tmdb:94997",
+      type: "series",
+      name: "House of the Dragon",
+      poster: expect.stringContaining("/api/poster/series/94997"),
+    })
+    expect(body.metas[0].poster).toContain(`rv=${POSTER_URL_VERSION}`)
+  })
+
+  it("serves legacy posterium-* catalog IDs as aliases of pictorium-*", async () => {
+    // Addon Stremio installati prima del rename chiedono ancora gli ID legacy:
+    // devono rispondere come i canonici, senza duplicare la logica.
     vi.spyOn(globalThis, "fetch")
       .mockResolvedValueOnce(justWatchResponse(94997, "tt11198330"))
       .mockResolvedValueOnce(tmdbShowResponse(94997))
@@ -80,7 +101,6 @@ describe("GET /catalog/[type]/[id]", () => {
       name: "House of the Dragon",
       poster: expect.stringContaining("/api/poster/series/94997"),
     })
-    expect(body.metas[0].poster).toContain(`rv=${POSTER_URL_VERSION}`)
   })
 
   it("embeds the explicit mdblist_key in poster URLs of non-anime series catalogs", async () => {
@@ -92,8 +112,8 @@ describe("GET /catalog/[type]/[id]", () => {
       .mockResolvedValueOnce(justWatchResponse(94997, "tt11198330"))
       .mockResolvedValueOnce(tmdbShowResponse(94997))
 
-    const req = new NextRequest("http://localhost:3000/catalog/series/posterium-jw-series.json?api_key=settings-key&mdblist_key=mdblist-key")
-    const res = await GET(req, { params: Promise.resolve({ type: "series", id: "posterium-jw-series.json" }) })
+    const req = new NextRequest("http://localhost:3000/catalog/series/pictorium-jw-series.json?api_key=settings-key&mdblist_key=mdblist-key")
+    const res = await GET(req, { params: Promise.resolve({ type: "series", id: "pictorium-jw-series.json" }) })
     const body = await res.json()
 
     expect(res.status).toBe(200)
@@ -115,8 +135,8 @@ describe("GET /catalog/[type]/[id]", () => {
       .mockResolvedValueOnce(justWatchResponse(94997, "tt11198330"))
       .mockResolvedValueOnce(tmdbShowResponse(94997))
 
-    const req = new NextRequest("http://localhost:3000/catalog/series/posterium-jw-series.json?api_key=settings-key")
-    const res = await GET(req, { params: Promise.resolve({ type: "series", id: "posterium-jw-series.json" }) })
+    const req = new NextRequest("http://localhost:3000/catalog/series/pictorium-jw-series.json?api_key=settings-key")
+    const res = await GET(req, { params: Promise.resolve({ type: "series", id: "pictorium-jw-series.json" }) })
     const body = await res.json()
     const posterUrl = new URL(body.metas[0].poster)
 
@@ -144,8 +164,8 @@ describe("GET /catalog/[type]/[id]", () => {
       ribbonSide: "right",
     })
 
-    const req = new NextRequest(`http://localhost:3000/catalog/series/posterium-jw-series.json?api_key=settings-key&config=${token}`)
-    const res = await GET(req, { params: Promise.resolve({ type: "series", id: "posterium-jw-series.json" }) })
+    const req = new NextRequest(`http://localhost:3000/catalog/series/pictorium-jw-series.json?api_key=settings-key&config=${token}`)
+    const res = await GET(req, { params: Promise.resolve({ type: "series", id: "pictorium-jw-series.json" }) })
     const body = await res.json()
     const posterUrl = new URL(body.metas[0].poster)
 
@@ -160,13 +180,13 @@ describe("GET /catalog/[type]/[id]", () => {
     expect(posterUrl.searchParams.get("config")).toBe(token)
   })
 
-  it("normalizes tv catalog routes to Posterium series poster URLs", async () => {
+  it("normalizes tv catalog routes to Pictorium series poster URLs", async () => {
     vi.spyOn(globalThis, "fetch")
       .mockResolvedValueOnce(justWatchResponse(94997, "tt11198330"))
       .mockResolvedValueOnce(tmdbShowResponse(94997))
 
-    const req = new NextRequest("http://localhost:3000/catalog/tv/posterium-jw-series.json?api_key=settings-key")
-    const res = await GET(req, { params: Promise.resolve({ type: "tv", id: "posterium-jw-series.json" }) })
+    const req = new NextRequest("http://localhost:3000/catalog/tv/pictorium-jw-series.json?api_key=settings-key")
+    const res = await GET(req, { params: Promise.resolve({ type: "tv", id: "pictorium-jw-series.json" }) })
     const body = await res.json()
 
     expect(res.status).toBe(200)
@@ -178,7 +198,7 @@ describe("GET /catalog/[type]/[id]", () => {
     expect(body.metas[0].poster).toContain(`rv=${POSTER_URL_VERSION}`)
   })
 
-  it("builds Posterium poster URLs for platform catalogs even when source posterPath is missing", async () => {
+  it("builds Pictorium poster URLs for platform catalogs even when source posterPath is missing", async () => {
     vi.spyOn(globalThis, "fetch")
       .mockResolvedValueOnce(Response.json({ id: 1715492, imdb_id: "tt1715492" }))
       .mockResolvedValueOnce(Response.json({ id: 1715492, title: "Costa Concordia: incubo in mare", release_date: "2026-01-01" }))
@@ -199,8 +219,8 @@ describe("GET /catalog/[type]/[id]", () => {
       tv: [],
     })
 
-    const req = new NextRequest("http://localhost:3000/catalog/movie/posterium-netflix-movies.json?api_key=settings-key")
-    const res = await GET(req, { params: Promise.resolve({ type: "movie", id: "posterium-netflix-movies.json" }) })
+    const req = new NextRequest("http://localhost:3000/catalog/movie/pictorium-netflix-movies.json?api_key=settings-key")
+    const res = await GET(req, { params: Promise.resolve({ type: "movie", id: "pictorium-netflix-movies.json" }) })
     const body = await res.json()
 
     expect(res.status).toBe(200)
@@ -220,8 +240,8 @@ describe("GET /catalog/[type]/[id]", () => {
       .mockResolvedValueOnce(tmdbShowResponse(687163))
       .mockResolvedValueOnce(Response.json({ id: 687163, imdb_id: "tt12042730" }))
 
-    const req = new NextRequest("http://localhost:3000/catalog/movie/posterium-jw-movies.json?api_key=settings-key")
-    const res = await GET(req, { params: Promise.resolve({ type: "movie", id: "posterium-jw-movies.json" }) })
+    const req = new NextRequest("http://localhost:3000/catalog/movie/pictorium-jw-movies.json?api_key=settings-key")
+    const res = await GET(req, { params: Promise.resolve({ type: "movie", id: "pictorium-jw-movies.json" }) })
     const body = await res.json()
 
     expect(res.status).toBe(200)
@@ -239,8 +259,8 @@ describe("GET /catalog/[type]/[id]", () => {
       .mockResolvedValueOnce(justWatchResponse(8282, "tt0848228"))
       .mockResolvedValueOnce(tmdbShowResponse(8282))
 
-    const req = new NextRequest("http://localhost:3000/catalog/movie/posterium-jw-movies.json?api_key=settings-key")
-    const res = await GET(req, { params: Promise.resolve({ type: "movie", id: "posterium-jw-movies.json" }) })
+    const req = new NextRequest("http://localhost:3000/catalog/movie/pictorium-jw-movies.json?api_key=settings-key")
+    const res = await GET(req, { params: Promise.resolve({ type: "movie", id: "pictorium-jw-movies.json" }) })
     const body = await res.json()
 
     expect(res.status).toBe(200)
@@ -259,8 +279,8 @@ describe("GET /catalog/[type]/[id]", () => {
       .mockResolvedValueOnce(tmdbShowResponse(67890))
       .mockResolvedValueOnce(Response.json({ id: 67890, imdb_id: null }))
 
-    const req = new NextRequest("http://localhost:3000/catalog/movie/posterium-jw-movies.json?api_key=settings-key")
-    const res = await GET(req, { params: Promise.resolve({ type: "movie", id: "posterium-jw-movies.json" }) })
+    const req = new NextRequest("http://localhost:3000/catalog/movie/pictorium-jw-movies.json?api_key=settings-key")
+    const res = await GET(req, { params: Promise.resolve({ type: "movie", id: "pictorium-jw-movies.json" }) })
     const body = await res.json()
 
     expect(res.status).toBe(200)
@@ -285,11 +305,11 @@ describe("GET /catalog/[type]/[id]", () => {
       }))
       .mockResolvedValueOnce(Response.json({ id: 550, imdb_id: "tt0137523" }))
 
-    const req = new NextRequest("http://localhost:3000/catalog/movie/posterium-search-movies/search=fight%20club.json?api_key=settings-key")
+    const req = new NextRequest("http://localhost:3000/catalog/movie/pictorium-search-movies/search=fight%20club.json?api_key=settings-key")
     const res = await GET_EXTRA(req, {
       params: Promise.resolve({
         type: "movie",
-        id: "posterium-search-movies",
+        id: "pictorium-search-movies",
         extra: ["search=fight%20club.json"],
       }),
     })
@@ -307,11 +327,11 @@ describe("GET /catalog/[type]/[id]", () => {
   })
 
   it("returns empty metas when dedicated search catalog is called without a search query", async () => {
-    const req = new NextRequest("http://localhost:3000/catalog/movie/posterium-search-movies.json?api_key=settings-key")
+    const req = new NextRequest("http://localhost:3000/catalog/movie/pictorium-search-movies.json?api_key=settings-key")
     const res = await GET(req, {
       params: Promise.resolve({
         type: "movie",
-        id: "posterium-search-movies.json",
+        id: "pictorium-search-movies.json",
       }),
     })
     const body = await res.json()
@@ -320,7 +340,7 @@ describe("GET /catalog/[type]/[id]", () => {
     expect(body.metas).toEqual([])
   })
 
-  it("handles posterium-anime-movies and builds movie poster URLs even without an explicit MDBList key", async () => {
+  it("handles pictorium-anime-movies and builds movie poster URLs even without an explicit MDBList key", async () => {
     vi.spyOn(globalThis, "fetch")
       .mockResolvedValueOnce(Response.json({
         items: [
@@ -333,11 +353,11 @@ describe("GET /catalog/[type]/[id]", () => {
         release_date: "2025-07-01",
       }))
 
-    const req = new NextRequest("http://localhost:3000/catalog/movie/posterium-anime-movies.json?api_key=settings-key")
+    const req = new NextRequest("http://localhost:3000/catalog/movie/pictorium-anime-movies.json?api_key=settings-key")
     const res = await GET(req, {
       params: Promise.resolve({
         type: "movie",
-        id: "posterium-anime-movies.json",
+        id: "pictorium-anime-movies.json",
       }),
     })
     const body = await res.json()
@@ -379,11 +399,11 @@ describe("GET /catalog/[type]/[id]", () => {
       .mockResolvedValueOnce(Response.json({ id: 866398, title: "The Beekeeper", release_date: "2024-01-08" }))
       .mockResolvedValueOnce(Response.json({ id: 1588838, title: "To the Max", release_date: "2026-02-06" }))
 
-    const req = new NextRequest("http://localhost:3000/catalog/movie/posterium-netflix-movies.json?api_key=settings-key")
+    const req = new NextRequest("http://localhost:3000/catalog/movie/pictorium-netflix-movies.json?api_key=settings-key")
     const res = await GET(req, {
       params: Promise.resolve({
         type: "movie",
-        id: "posterium-netflix-movies.json",
+        id: "pictorium-netflix-movies.json",
       }),
     })
     const body = await res.json()
@@ -401,12 +421,12 @@ describe("GET /catalog/[type]/[id]", () => {
       .mockResolvedValueOnce(tmdbShowResponse(999))
 
     const { GET: cGET } = await import("@/app/c/[config]/catalog/[type]/[id]/route")
-    const req = new NextRequest("http://localhost:3000/c/testcfg/catalog/movie/posterium-jw-movies.json?api_key=settings-key")
+    const req = new NextRequest("http://localhost:3000/c/testcfg/catalog/movie/pictorium-jw-movies.json?api_key=settings-key")
     const res = await cGET(req, {
       params: Promise.resolve({
         config: "testcfg",
         type: "movie",
-        id: "posterium-jw-movies.json",
+        id: "pictorium-jw-movies.json",
       }),
     })
     const body = await res.json()

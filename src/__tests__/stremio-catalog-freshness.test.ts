@@ -54,10 +54,10 @@ function emptyImagesResponse(): Response {
 }
 
 function catalogRequest() {
-  return new NextRequest("http://localhost:3000/catalog/series/posterium-jw-series.json?api_key=settings-key")
+  return new NextRequest("http://localhost:3000/catalog/series/pictorium-jw-series.json?api_key=settings-key")
 }
 
-const PARAMS = { params: Promise.resolve({ type: "series", id: "posterium-jw-series.json" }) }
+const PARAMS = { params: Promise.resolve({ type: "series", id: "pictorium-jw-series.json" }) }
 
 // Prepara una fase con titolo diverso: reset delle cache interne (JW + TMDB)
 // così la nuova risposta mock viene davvero consumata.

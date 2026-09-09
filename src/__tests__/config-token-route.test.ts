@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest"
 import { NextRequest } from "next/server"
 import { POST } from "@/app/api/config-token/route"
 import { decodeConfig } from "@/lib/config-token"
-import type { PosteriumUserConfig } from "@/lib/config-token"
+import type { PictoriumUserConfig } from "@/lib/config-token"
 
 vi.mock("@/lib/rate-limit", () => ({
   rateLimit: vi.fn(() => ({ ok: true })),
@@ -15,7 +15,7 @@ vi.mock("@/lib/auth", () => ({
   originMismatchResponse: vi.fn(() => new Response("origin mismatch", { status: 403 })),
 }))
 
-const VALID_CONFIG: PosteriumUserConfig = {
+const VALID_CONFIG: PictoriumUserConfig = {
   globalBadges: true,
   rankingBadges: true,
   badgeGenre: true,

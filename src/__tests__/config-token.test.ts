@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
-import type { PosteriumUserConfig } from "@/lib/config-token"
+import type { PictoriumUserConfig } from "@/lib/config-token"
 
-const SAMPLE_CONFIG: PosteriumUserConfig = {
+const SAMPLE_CONFIG: PictoriumUserConfig = {
   globalBadges: true,
   rankingBadges: false,
   badgeStyle: "shadow",
@@ -17,7 +17,7 @@ const SAMPLE_CONFIG: PosteriumUserConfig = {
   customBadge: "Test",
 }
 
-const MINIMAL_CONFIG: PosteriumUserConfig = {
+const MINIMAL_CONFIG: PictoriumUserConfig = {
   globalBadges: false,
   rankingBadges: false,
   badgeStyle: "pill",
@@ -83,7 +83,7 @@ describe("encodeConfig / decodeConfig round-trip", () => {
   })
 
   it("round-trips optional fields (customBadge, ribbonSide)", async () => {
-    const config: PosteriumUserConfig = {
+    const config: PictoriumUserConfig = {
       ...SAMPLE_CONFIG,
       customBadge: "HD",
       ribbonSide: "right",
@@ -194,7 +194,7 @@ describe("production fail-closed", () => {
 describe("defensive clamping on decode", () => {
   it("clamps out-of-range numeric fields", async () => {
     const { encodeConfig, decodeConfig } = await importConfigToken()
-    const extreme: PosteriumUserConfig = {
+    const extreme: PictoriumUserConfig = {
       ...SAMPLE_CONFIG,
       blurIntensity: 999,
       blurFade: -10,
@@ -212,7 +212,7 @@ describe("defensive clamping on decode", () => {
 
   it("rounds non-integer numeric fields", async () => {
     const { encodeConfig, decodeConfig } = await importConfigToken()
-    const config: PosteriumUserConfig = { ...SAMPLE_CONFIG, blurIntensity: 5.6 }
+    const config: PictoriumUserConfig = { ...SAMPLE_CONFIG, blurIntensity: 5.6 }
     const token = encodeConfig(config)
     const decoded = decodeConfig(token)
     expect(decoded).not.toBeNull()

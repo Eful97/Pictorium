@@ -1,5 +1,6 @@
 import type { NextRequest } from "next/server"
 import { getDomain } from "@/lib/utils"
+import { envWithFallback } from "@/lib/env-compat"
 
 export interface PosterBaseUrlInput {
   readonly origin?: string
@@ -22,9 +23,9 @@ function hostnameOf(value: string): string | null {
   }
 }
 
-/** Allowlist opzionale di hostname pubblici ammessi (POSTERIUM_ALLOWED_HOSTS). */
+/** Allowlist opzionale di hostname pubblici ammessi (PICTORIUM_ALLOWED_HOSTS). */
 function isAllowedHostname(hostname: string): boolean {
-  const raw = process.env.POSTERIUM_ALLOWED_HOSTS
+  const raw = envWithFallback("ALLOWED_HOSTS")
   if (!raw) return false
   const allowed = raw.split(",").map((h) => h.trim().toLowerCase()).filter(Boolean)
   return allowed.includes(hostname)
@@ -35,7 +36,7 @@ function isAllowedHostname(hostname: string): boolean {
  * (Koyeb, HF Spaces, etc.) that forward via internal IPs.
  *
  * X-Forwarded-Host è fidato solo se combacia con l'Host header originale
- * (o è in POSTERIUM_ALLOWED_HOSTS): in caso contrario un client può far
+ * (o è in PICTORIUM_ALLOWED_HOSTS): in caso contrario un client può far
  * generare URL poster che puntano a un dominio arbitrario (host header
  * injection). Su HF Spaces / proxy fidati XFH == Host → nessun cambiamento
  * di comportamento.

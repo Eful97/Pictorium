@@ -5,7 +5,8 @@ import { cacheGet, cacheSet } from "@/lib/cache"
 import { getServerDefaults } from "@/lib/server-defaults"
 import { POSTER_URL_VERSION } from "@/lib/render-version"
 import { getById } from "@/lib/store"
-import { decodeConfig, type PosteriumUserConfig } from "@/lib/config-token"
+import { decodeConfig, type PictoriumUserConfig } from "@/lib/config-token"
+import { envWithFallback } from "@/lib/env-compat"
 import {
   getFullDetails,
   getImages,
@@ -92,7 +93,7 @@ function normalizeMediaType(type: string): "movie" | "series" {
   return (t === "movie" || t === "anime.movie") ? "movie" : "series"
 }
 
-async function posteriumPosterUrl(
+async function pictoriumPosterUrl(
   req: NextRequest,
   type: "movie" | "series",
   id: number,
@@ -122,9 +123,9 @@ async function posteriumPosterUrl(
 /**
  * Gestore principale della risorsa `meta` di Stremio.
  * Fornisce schede complete (dettagli, cast, trailer, trame, logo e lista episodi)
- * con il poster nativo di Posterium.
+ * con il poster nativo di Pictorium.
  */
-export async function posteriumMeta(
+export async function pictoriumMeta(
   req: NextRequest,
   mediaType: string,
   rawId: string,
@@ -143,9 +144,9 @@ export async function posteriumMeta(
   const tvdbKeyParam = req.nextUrl.searchParams.get("tvdb_key") || undefined
 
   const apiKey = resolveRequestApiKey(req)
-  const mdblistKey = mdblistKeyParam || process.env.POSTERIUM_MDBLIST_KEY
-  const tvdbApiKey = tvdbKeyParam || process.env.POSTERIUM_TVDB_API_KEY || process.env.TVDB_API_KEY
-  let userConfig: Partial<PosteriumUserConfig> | null = null
+  const mdblistKey = mdblistKeyParam || envWithFallback("MDBLIST_KEY")
+  const tvdbApiKey = tvdbKeyParam || envWithFallback("TVDB_API_KEY") || process.env.TVDB_API_KEY
+  let userConfig: Partial<PictoriumUserConfig> | null = null
 
   if (configParam) {
     userConfig = decodeConfig(configParam)
@@ -213,7 +214,7 @@ export async function posteriumMeta(
     }
 
     const primaryId = imdbId || `tmdb:${tmdbId}`
-    const poster = await posteriumPosterUrl(req, stType, tmdbId, configParam, userParam, mdblistKeyParam)
+    const poster = await pictoriumPosterUrl(req, stType, tmdbId, configParam, userParam, mdblistKeyParam)
     const background = details.backdrop_path ? posterUrlOriginal(details.backdrop_path) : undefined
 
     // Risoluzione Logo

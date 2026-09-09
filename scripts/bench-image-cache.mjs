@@ -25,7 +25,7 @@
 //
 // Uso:
 //   node scripts/bench-image-cache.mjs
-//   POSTERIUM_BASE_URL=http://127.0.0.1:3100 node scripts/bench-image-cache.mjs
+//   PICTORIUM_BASE_URL=http://127.0.0.1:3100 node scripts/bench-image-cache.mjs
 //   BENCH_N=25 node scripts/bench-image-cache.mjs
 
 import { spawn } from "node:child_process"
@@ -35,7 +35,7 @@ import { fileURLToPath } from "node:url"
 
 const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..")
 
-const BASE_URL = process.env.POSTERIUM_BASE_URL || ""
+const BASE_URL = process.env.PICTORIUM_BASE_URL || process.env.POSTERIUM_BASE_URL || ""
 const PORT = Number(process.env.BENCH_PORT) || 3102
 const MOCK_PORT = Number(process.env.BENCH_MOCK_PORT) || 8792
 const N = Number(process.env.BENCH_N) || 25
@@ -140,6 +140,7 @@ async function run() {
       {
         NEXT_DIST_DIR: ".next-bench",
         POSTERIUM_DATA_DIR: path.join(rootDir, ".next-bench", "data"),
+        PICTORIUM_DATA_DIR: path.join(rootDir, ".next-bench", "data"),
         NODE_OPTIONS: "--max-old-space-size=384",
         TMDB_BASE_URL: `${mockUrl}/3`,
         TMDB_IMG_URL: `${mockUrl}/t/p`,

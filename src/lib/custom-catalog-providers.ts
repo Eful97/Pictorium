@@ -2,6 +2,7 @@ import crypto from "node:crypto"
 import { cacheGet, cacheSet } from "@/lib/cache"
 import { fetchCustomMDBList, type MDBListEntry } from "@/lib/mdblist"
 import { createLogger } from "@/lib/logger"
+import { envWithFallback } from "@/lib/env-compat"
 
 const log = createLogger("custom-catalogs")
 const CACHE_TTL_MS = 30 * 60 * 1000
@@ -177,7 +178,7 @@ async function fetchLetterboxdList(url: string, limit: number = 500): Promise<MD
     const headRes = await fetch(requestUrl, {
       method: "HEAD",
       headers: {
-        "User-Agent": "Mozilla/5.0 Posterium",
+        "User-Agent": "Mozilla/5.0 Pictorium",
         "Accept-Language": "en-US,en;q=0.9",
       },
       signal: AbortSignal.timeout(8000),
@@ -197,7 +198,7 @@ async function fetchLetterboxdList(url: string, limit: number = 500): Promise<MD
     const res = await fetch(stremThruUrl, {
       headers: {
         Accept: "application/json",
-        "User-Agent": "Mozilla/5.0 Posterium",
+        "User-Agent": "Mozilla/5.0 Pictorium",
       },
       signal: AbortSignal.timeout(12000),
     }).catch(() => null)
@@ -248,7 +249,7 @@ async function fetchTraktList(url: string, limit: number = 500): Promise<MDBList
     if (user && slug) {
       const stremThruUrl = `https://stremthru.13377001.xyz/v0/meta/trakt/users/${encodeURIComponent(user)}/lists/${encodeURIComponent(slug)}/items`
       const res = await fetch(stremThruUrl, {
-        headers: { Accept: "application/json", "User-Agent": "Mozilla/5.0 Posterium" },
+        headers: { Accept: "application/json", "User-Agent": "Mozilla/5.0 Pictorium" },
         signal: AbortSignal.timeout(10000),
       }).catch(() => null)
 
@@ -293,7 +294,7 @@ async function fetchTmdbCollectionOrList(
   apiKey?: string,
   limit: number = 500,
 ): Promise<MDBListEntry[]> {
-  const key = apiKey || process.env.PICTORIUM_TMDB_KEY || process.env.POSTERIUM_TMDB_KEY || process.env.TMDB_KEY || process.env.TMDB_API_KEY
+  const key = apiKey || envWithFallback("TMDB_KEY") || process.env.TMDB_KEY || process.env.TMDB_API_KEY
   if (!key || !identifier) return []
 
   try {

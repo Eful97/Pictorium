@@ -5,6 +5,7 @@ import { getOriginFromRequest } from "@/lib/poster-public-url"
 import { rewriteMetasPosters, rewriteSingleMetaPoster, type StremioItemMeta } from "@/lib/addon-proxy"
 import { rateLimit, rateLimitKey, rateLimitResponse } from "@/lib/rate-limit"
 import { createLogger } from "@/lib/logger"
+import { envWithFallback } from "@/lib/env-compat"
 
 const log = createLogger("addon-proxy")
 
@@ -15,7 +16,7 @@ const MAX_RESPONSE_BYTES = 5 * 1024 * 1024
 // potevano superare il maxDuration della piattaforma, terminando la funzione a
 // metà risposta. Un unico tetto globale avvolge safeFetch + readJsonCapped.
 const PROXY_DEADLINE_MS = (() => {
-  const raw = process.env.POSTERIUM_PROXY_DEADLINE_MS
+  const raw = envWithFallback("PROXY_DEADLINE_MS")
   const n = raw ? parseInt(raw, 10) : 20000
   return Number.isFinite(n) && n >= 5000 && n <= 120000 ? n : 20000
 })()
@@ -174,9 +175,9 @@ function getSafeAgent(): InstanceType<typeof import("undici").Agent> | undefined
   return safeAgent
 }
 
-/** Allowlist opzionale di domini proxy (POSTERIUM_PROXY_ALLOW_DOMAINS). */
+/** Allowlist opzionale di domini proxy (PICTORIUM_PROXY_ALLOW_DOMAINS). */
 export function isAllowedByAllowlist(url: URL): boolean {
-  const raw = process.env.POSTERIUM_PROXY_ALLOW_DOMAINS
+  const raw = envWithFallback("PROXY_ALLOW_DOMAINS")
   if (!raw) return true
   const domains = raw.split(",").map((d) => d.trim().toLowerCase()).filter(Boolean)
   if (domains.length === 0) return true
@@ -320,7 +321,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ path
       const userSuffix = userUuid ? `.${userUuid.slice(0, 8)}` : ""
       const proxiedManifest = {
         ...origManifest,
-        id: `org.posterium.proxy.${Buffer.from(baseUrl).toString("base64url").slice(0, 12)}${userSuffix}`,
+        id: `org.pictorium.proxy.${Buffer.from(baseUrl).toString("base64url").slice(0, 12)}${userSuffix}`,
         name: `${origManifest.name || "Addon"} (Pictorium)`,
         description: `${origManifest.description || ""} — Poster personalizzati via Pictorium`.trim(),
         logo: origManifest.logo || `${origin}/App.png`,

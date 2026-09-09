@@ -67,12 +67,12 @@ export async function POST(req: NextRequest) {
   // S10: endpoint CPU/network-heavy (fetch di fino a 17 immagini + analisi
   // sharp). Protetto come le altre route admin: senza auth un attaccante lo
   // userebbe come amplificatore di richieste verso image.tmdb.org e consumo
-  // CPU. Su istanza pubblica (POSTERIUM_PUBLIC_INSTANCE=1) resta aperto per
+  // CPU. Su istanza pubblica (PICTORIUM_PUBLIC_INSTANCE=1) resta aperto per
   // l'editor; con ADMIN_TOKEN configurato richiede il token.
   if (!checkAdminToken(req)) return adminAuthResponse()
   if (!isSameOrigin(req)) return originMismatchResponse()
 
-  // Override globale dell'istanza (POSTERIUM_BEST_FIT_ENABLED): se disabilitato
+  // Override globale dell'istanza (PICTORIUM_BEST_FIT_ENABLED): se disabilitato
   // il best-fit non viene nemmeno calcolato — risposta vuota con flag.
   if (BEST_FIT_GLOBAL === "off") {
     return Response.json({ ranked: [], bestPosterPath: null, total: 0, failed: 0, disabled: true })

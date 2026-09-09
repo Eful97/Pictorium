@@ -293,7 +293,7 @@ export default function EditView() {
                       const hasMapping = mappingsMap.get(key)
                       if (!hasMapping) return null
                       return (
-                        <button type="button" aria-label={t("ui.remove")} onClick={() => { removeMapping(hasMapping).catch((e) => console.error("[posterium] Remove mapping failed:", e)); setSelected(null); setPreviewPoster(null); setSelectedLogo(null); setPreviewId(null) }} className="btn-danger min-h-[44px] px-4 rounded-xl text-xs">
+                        <button type="button" aria-label={t("ui.remove")} onClick={() => { removeMapping(hasMapping).catch((e) => console.error("[pictorium] Remove mapping failed:", e)); setSelected(null); setPreviewPoster(null); setSelectedLogo(null); setPreviewId(null) }} className="btn-danger min-h-[44px] px-4 rounded-xl text-xs">
                           <Trash2 className="w-4 h-4" />
                           {t("ui.remove")}
                         </button>
@@ -357,7 +357,7 @@ export default function EditView() {
                     <div className={`editor-stage editor-stage-fill isolate ${previewPoster?.file_path ? "editor-stage-glow" : ""}`}>
                       {/* NuvioDesktop-style depth edge */}
                       <PosterDepthEdge edgeStrength={40} edgeCoverage={10} />
-                      {/* Accent Glow (firma Posterium: si ritinta col colore dominante) */}
+                      {/* Accent Glow (firma Pictorium: si ritinta col colore dominante) */}
                       <div
                         className="absolute -inset-8 rounded-3xl opacity-45 blur-3xl pointer-events-none transition-all duration-700 ease-out z-0"
                         style={{

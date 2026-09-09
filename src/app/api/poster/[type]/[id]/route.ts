@@ -19,6 +19,7 @@ import { getEffectiveRotationState, tryRotatePoster } from "@/lib/poster-rotatio
 import { getTMDBSessionCache, setTMDBSessionCache } from "@/lib/tmdb-session-cache"
 import { mappingVersionParam } from "@/lib/stremio-poster-url"
 import { RENDER_VERSION } from "@/lib/render-version"
+import { envWithFallback } from "@/lib/env-compat"
 import {
   RENDER_SLOT_WAIT_MS,
   acquirePosterRenderSlot,
@@ -62,7 +63,7 @@ import { selectBestLogo, logoBestLogoFallbackReason } from "@/lib/logo-selection
 import { resolveStreamQuality } from "@/lib/stream-quality"
 
 // Vercel: limite massimo di esecuzione della funzione. Il render poster ha un
-// deadline interno di 30s (POSTERIUM_RENDER_TIMEOUT_MS) → 40s copre il caso
+// deadline interno di 30s (PICTORIUM_RENDER_TIMEOUT_MS) → 40s copre il caso
 // peggiore. Su Hobby Vercel impone comunque 10s; su Pro vale questo valore.
 export const maxDuration = 40
 
@@ -73,7 +74,7 @@ const log = createLogger("poster")
 // watchdog abbandona il render e libera slot + inflight map. Lettura a module
 // level: un cambio env richiede restart, non hot-reload.
 const RENDER_TIMEOUT_MS = (() => {
-  const raw = process.env.PICTORIUM_RENDER_TIMEOUT_MS || process.env.POSTERIUM_RENDER_TIMEOUT_MS
+  const raw = envWithFallback("RENDER_TIMEOUT_MS")
   const n = raw ? parseInt(raw, 10) : 30000
   // Clamp superiore = maxDuration (40s): un timeout interno più lungo del
   // limite della funzione serverless non avrebbe mai tempo di scattare (finding 11).
@@ -82,11 +83,11 @@ const RENDER_TIMEOUT_MS = (() => {
 
 // Tetto massimo per l'attesa del voto medio TMDB+IMDb (MDBList) prima del
 // render: se il fetch è lento, il poster usa il voto TMDB senza bloccarsi.
-// Sovrascrivibile via env (POSTERIUM_RATING_WAIT_MS); default ridotto a 1500ms
+// Sovrascrivibile via env (PICTORIUM_RATING_WAIT_MS); default ridotto a 1500ms
 // per stringere il caso peggiore senza rinunciare all'upgrade del voto. Valore
 // condiviso con la route tmdb-details (stesso knob).
 const RATING_WAIT_MS = (() => {
-  const raw = process.env.PICTORIUM_RATING_WAIT_MS || process.env.POSTERIUM_RATING_WAIT_MS
+  const raw = envWithFallback("RATING_WAIT_MS")
   const n = raw ? parseInt(raw, 10) : 1500
   return Number.isFinite(n) && n >= 300 && n <= 10000 ? n : 1500
 })()
@@ -432,7 +433,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
       // A1: fetch deferito — la media TMDB+IMDb parte subito ma non blocca.
       ratingAbort = imdbId ? new AbortController() : null
       aggregatedRating = imdbId
-        ? fetchAggregatedRating(imdbId, req.nextUrl.searchParams.get("mdblist_key") || process.env.POSTERIUM_MDBLIST_KEY || undefined, ratingAbort!.signal).catch(() => null)
+        ? fetchAggregatedRating(imdbId, req.nextUrl.searchParams.get("mdblist_key") || envWithFallback("MDBLIST_KEY") || undefined, ratingAbort!.signal).catch(() => null)
         : Promise.resolve(null)
       genreName = details.genres[0]?.name || null
       voteAverage = details.vote_average ?? 0
@@ -479,7 +480,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
           if (chosenLogo) logoPath = chosenLogo.file_path
         }
         const qLogoFit = req.nextUrl.searchParams.get("logoFit")
-        // Override globale dell'istanza (POSTERIUM_BEST_FIT_ENABLED): vince su
+        // Override globale dell'istanza (PICTORIUM_BEST_FIT_ENABLED): vince su
         // query, config token e server defaults. Utile su Vercel/HF dove il
         // toggle client o i defaults salvati non sempre arrivano al server.
         const logoFitEnabled = BEST_FIT_GLOBAL === "off" ? false
@@ -630,7 +631,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
         // Rank anime (media_type=tv): la lista MDBList trending anime senza
         // chiave risponde 503 "Invalid API key" → rank sempre null. Si usa la
         // chiave esplicita della richiesta (mdblist_key) o il fallback
-        // d'istanza (POSTERIUM_MDBLIST_KEY). La cache è quella interna di
+        // d'istanza (PICTORIUM_MDBLIST_KEY). La cache è quella interna di
         // fetchMDBList (keyed per chiave, TTL 30min), quindi niente cache
         // manuale non-keyed.
         // Precedenza: `animerank` (preview/catalogo) > fetch live >
@@ -642,7 +643,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
               ? Promise.resolve(qAnimeRank)
               : fetchMDBList(
                   mediaType === "movie" ? "mdblistAnimeMovie" : "mdblistAnime",
-                  req.nextUrl.searchParams.get("mdblist_key") || process.env.POSTERIUM_MDBLIST_KEY || process.env.MDBLIST_KEY || process.env.MDBLIST_API_KEY || undefined
+                  req.nextUrl.searchParams.get("mdblist_key") || envWithFallback("MDBLIST_KEY") || process.env.MDBLIST_KEY || process.env.MDBLIST_API_KEY || undefined
                 )
                   .then((entries) => {
                     // Shape inattesa → come failure: fallback al salvato.

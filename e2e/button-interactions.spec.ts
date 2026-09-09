@@ -5,9 +5,9 @@ test.describe("Button interactions and immediate updates", () => {
     await page.addInitScript(() => {
       try {
         localStorage.setItem("tmdb_key", "mock-tmdb-key-0000000000")
-        localStorage.setItem("posterium_profile_id", "e2e-buttons-profile")
-        localStorage.setItem("posterium_profile_stateless", "1")
-        localStorage.setItem("posterium_onboarding_done", "true")
+        localStorage.setItem("pictorium_profile_id", "e2e-buttons-profile")
+        localStorage.setItem("pictorium_profile_stateless", "1")
+        localStorage.setItem("pictorium_onboarding_done", "true")
         localStorage.setItem("preferred_lang", "it")
       } catch {}
     })
@@ -21,7 +21,7 @@ test.describe("Button interactions and immediate updates", () => {
     const installBtn = page.getByRole("button", { name: /Installa Hub/i })
     await expect(installBtn).toBeVisible()
     await installBtn.click()
-    const modalHeading = page.getByRole("heading", { name: /Installa Posterium/i })
+    const modalHeading = page.getByRole("heading", { name: /Installa Pictorium/i })
     await expect(modalHeading).toBeVisible()
     // Close modal via accessible close button
     const closeBtn = page.getByRole("button", { name: "Chiudi" }).first()

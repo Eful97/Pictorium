@@ -67,7 +67,7 @@ async function canRead(file: string): Promise<boolean> {
 }
 
 async function canWriteDir(dir: string): Promise<boolean> {
-  const probe = path.join(dir, `.posterium-healthcheck-${Date.now()}`)
+  const probe = path.join(dir, `.pictorium-healthcheck-${Date.now()}`)
   try {
     await fsp.writeFile(probe, "ok")
     await fsp.unlink(probe)

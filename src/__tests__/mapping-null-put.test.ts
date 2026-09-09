@@ -47,7 +47,7 @@ function mockPutRequest(body: unknown, type = "movie", id = 123): Request {
 
 describe("PUT /api/mappings null fields", () => {
   it("sets logoPath, backdropPath, customBadge, badgeExtra to null when sent as null", async () => {
-    tempDir = await fsp.mkdtemp(path.join(os.tmpdir(), "posterium-null-put-"))
+    tempDir = await fsp.mkdtemp(path.join(os.tmpdir(), "pictorium-null-put-"))
     process.env.POSTERIUM_DATA_DIR = tempDir
     vi.resetModules()
     const store = await import("@/lib/store")
@@ -76,7 +76,7 @@ describe("PUT /api/mappings null fields", () => {
   })
 
   it("preserves fields when not sent in body", async () => {
-    tempDir = await fsp.mkdtemp(path.join(os.tmpdir(), "posterium-null-put2-"))
+    tempDir = await fsp.mkdtemp(path.join(os.tmpdir(), "pictorium-null-put2-"))
     process.env.POSTERIUM_DATA_DIR = tempDir
     vi.resetModules()
     const store = await import("@/lib/store")

@@ -1,20 +1,21 @@
 import crypto from "node:crypto"
 import { createLogger } from "@/lib/logger"
+import { envWithFallback } from "@/lib/env-compat"
 
 const log = createLogger("auth")
 
 function resolveAdminToken(): string | undefined {
-  return process.env.PICTORIUM_ADMIN_TOKEN || process.env.POSTERIUM_ADMIN_TOKEN || process.env.ADMIN_TOKEN || undefined
+  return envWithFallback("ADMIN_TOKEN") || process.env.ADMIN_TOKEN || undefined
 }
 
 /** Istanza in modalità pubblica: le route admin restano aperte senza
  *  ADMIN_TOKEN solo quando esplicitamente configurata via
- *  PICTORIUM_PUBLIC_INSTANCE=1 o POSTERIUM_PUBLIC_INSTANCE=1 (HF Spaces multi-utente). In dev locale
+ *  PICTORIUM_PUBLIC_INSTANCE=1 (legacy: POSTERIUM_PUBLIC_INSTANCE=1, HF Spaces multi-utente). In dev locale
  *  (`next dev`, NODE_ENV=development) l'accesso senza token è consentito
- *  solo su loopback (127.0.0.1/::1/localhost) o con PICTORIUM_ALLOW_DEV_ADMIN=1 / POSTERIUM_ALLOW_DEV_ADMIN=1.
+ *  solo su loopback (127.0.0.1/::1/localhost) o con PICTORIUM_ALLOW_DEV_ADMIN=1 (legacy: POSTERIUM_ALLOW_DEV_ADMIN=1).
  *  In produzione senza flag resta fail-closed. */
 function isPublicInstance(): boolean {
-  return process.env.PICTORIUM_PUBLIC_INSTANCE === "1" || process.env.POSTERIUM_PUBLIC_INSTANCE === "1"
+  return envWithFallback("PUBLIC_INSTANCE") === "1"
 }
 
 function isLoopbackRequest(request: Request): boolean {
@@ -32,28 +33,28 @@ function isLoopbackRequest(request: Request): boolean {
 
 function isDevAdminAllowed(request: Request): boolean {
   if (process.env.NODE_ENV !== "development") return false
-  if (process.env.PICTORIUM_ALLOW_DEV_ADMIN === "1" || process.env.POSTERIUM_ALLOW_DEV_ADMIN === "1") return true
+  if (envWithFallback("ALLOW_DEV_ADMIN") === "1") return true
   return isLoopbackRequest(request)
 }
 
 if (!resolveAdminToken() && !isPublicInstance()) {
   if (process.env.NODE_ENV === "development") {
-    if (process.env.POSTERIUM_ALLOW_DEV_ADMIN === "1") {
-      log.warn("⚠️  Dev locale con POSTERIUM_ALLOW_DEV_ADMIN=1 senza ADMIN_TOKEN — route admin APERTE in dev (esplicito).")
-      log.warn("   Imposta POSTERIUM_ADMIN_TOKEN (o ADMIN_TOKEN) per proteggerle anche in dev.")
+    if (envWithFallback("ALLOW_DEV_ADMIN") === "1") {
+      log.warn("⚠️  Dev locale con PICTORIUM_ALLOW_DEV_ADMIN=1 senza ADMIN_TOKEN — route admin APERTE in dev (esplicito).")
+      log.warn("   Imposta PICTORIUM_ADMIN_TOKEN (o ADMIN_TOKEN) per proteggerle anche in dev.")
     } else {
-      log.warn("⚠️  Dev locale senza ADMIN_TOKEN — route admin APERTE solo su loopback (127.0.0.1/localhost) o con POSTERIUM_ALLOW_DEV_ADMIN=1.")
-      log.warn("   - Per aprire ovunque in dev: POSTERIUM_ALLOW_DEV_ADMIN=1")
-      log.warn("   - Istanza privata: imposta POSTERIUM_ADMIN_TOKEN (o ADMIN_TOKEN) per chiudere ovunque")
+      log.warn("⚠️  Dev locale senza ADMIN_TOKEN — route admin APERTE solo su loopback (127.0.0.1/localhost) o con PICTORIUM_ALLOW_DEV_ADMIN=1.")
+      log.warn("   - Per aprire ovunque in dev: PICTORIUM_ALLOW_DEV_ADMIN=1")
+      log.warn("   - Istanza privata: imposta PICTORIUM_ADMIN_TOKEN (o ADMIN_TOKEN) per chiudere ovunque")
     }
   } else {
     log.warn("⚠️  Nessun ADMIN_TOKEN configurato e modalità pubblica non attiva — route admin CHIUSE (fail-closed).")
-    log.warn("   - Istanza pubblica (HF Spaces multi-utente): imposta POSTERIUM_PUBLIC_INSTANCE=1")
-    log.warn("   - Istanza privata: imposta POSTERIUM_ADMIN_TOKEN (o ADMIN_TOKEN) (x-admin-token / Bearer)")
+    log.warn("   - Istanza pubblica (HF Spaces multi-utente): imposta PICTORIUM_PUBLIC_INSTANCE=1")
+    log.warn("   - Istanza privata: imposta PICTORIUM_ADMIN_TOKEN (o ADMIN_TOKEN) (x-admin-token / Bearer)")
   }
 } else if (!resolveAdminToken()) {
-  log.warn("⚠️  Modalità pubblica senza ADMIN_TOKEN — route admin APERTE (POSTERIUM_PUBLIC_INSTANCE=1).")
-  log.warn("   Imposta POSTERIUM_ADMIN_TOKEN (o ADMIN_TOKEN) per proteggerle.")
+  log.warn("⚠️  Modalità pubblica senza ADMIN_TOKEN — route admin APERTE (PICTORIUM_PUBLIC_INSTANCE=1).")
+  log.warn("   Imposta PICTORIUM_ADMIN_TOKEN (o ADMIN_TOKEN) per proteggerle.")
 }
 
 function constantTimeEqual(a: string, b: string): boolean {
@@ -64,8 +65,8 @@ function constantTimeEqual(a: string, b: string): boolean {
 export function checkAdminToken(request: Request): boolean {
   const token = resolveAdminToken()
   // Nessun token configurato → le route restano aperte solo in modalità
-  // pubblica esplicita (POSTERIUM_PUBLIC_INSTANCE=1) o in dev su loopback /
-  // con POSTERIUM_ALLOW_DEV_ADMIN=1. Il client non invia mai il token admin,
+  // pubblica esplicita (PICTORIUM_PUBLIC_INSTANCE=1) o in dev su loopback /
+  // con PICTORIUM_ALLOW_DEV_ADMIN=1. Il client non invia mai il token admin,
   // quindi la modalità pubblica è l'unico modo per far funzionare l'editor
   // su HF. Un'istanza di produzione privata che ha dimenticato il token
   // NON resta esposta → fail-closed.
@@ -120,11 +121,11 @@ function hostnameOf(value: string | null): string | null {
   }
 }
 
-/** Allowlist opzionale di hostname pubblici ammessi (POSTERIUM_ALLOWED_HOSTS).
+/** Allowlist opzionale di hostname pubblici ammessi (PICTORIUM_ALLOWED_HOSTS).
  *  Stessa logica di poster-public-url.ts: X-Forwarded-Host è fidato solo se
  *  combacia con l'header Host o se è in allowlist. */
 function isAllowedHostname(hostname: string): boolean {
-  const raw = process.env.POSTERIUM_ALLOWED_HOSTS
+  const raw = envWithFallback("ALLOWED_HOSTS")
   if (!raw) return false
   const allowed = raw.split(",").map((h) => h.trim().toLowerCase()).filter(Boolean)
   return allowed.includes(hostname)
@@ -137,7 +138,7 @@ function isAllowedHostname(hostname: string): boolean {
  * Le richieste senza Origin (curl, test, Stremio, tooling) passano.
  *
  * X-Forwarded-Host è fidato SOLO se combacia con l'header Host o è in
- * POSTERIUM_ALLOWED_HOSTS (fix H6, stessa logica di getOriginFromRequest):
+ * PICTORIUM_ALLOWED_HOSTS (fix H6, stessa logica di getOriginFromRequest):
  * XFH non è un header forbidden per i browser, quindi una pagina malevola
  * poteva inviare Origin: evil.com + X-Forwarded-Host: evil.com e superare il
  * controllo su ogni deploy senza proxy che sovrascrive XFH. XFH non fidato

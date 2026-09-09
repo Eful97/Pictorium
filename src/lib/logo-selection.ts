@@ -53,7 +53,7 @@ export function autoLogoSelection(
   lang: string,
   origLang: string | null | undefined,
   itemLabel: string,
-  warn: (msg: string) => void = (msg) => console.warn(`[posterium] ${msg}`),
+  warn: (msg: string) => void = (msg) => console.warn(`[pictorium] ${msg}`),
 ): TMDBImage | undefined {
   const autoLogo = selectBestLogo(logos || [], lang, origLang)
   const reason = logoBestLogoFallbackReason(autoLogo, lang, origLang)

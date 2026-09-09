@@ -5,7 +5,7 @@
 // isolamento. Semantica identica all'originale — nessuna logica di rendering.
 // ---------------------------------------------------------------------------
 
-import type { PosteriumUserConfig } from "./config-token"
+import type { PictoriumUserConfig } from "./config-token"
 import type { Mapping } from "./types"
 import type { ServerDefaults } from "./server-defaults"
 import { resolveLabelFor } from "./i18n"
@@ -26,7 +26,7 @@ export function clamp(v: number, min: number, max: number): number {
 export interface PosterRenderConfigInput {
   searchParams: URLSearchParams
   mapping: Mapping | null
-  configOverride: PosteriumUserConfig | null
+  configOverride: PictoriumUserConfig | null
   sd: ServerDefaults
   /** true se la richiesta fornisce poster/mapping espliciti (query o mapping salvato) */
   hasQuery: boolean

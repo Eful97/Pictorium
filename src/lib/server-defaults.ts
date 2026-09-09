@@ -6,6 +6,7 @@ import { createLogger } from "@/lib/logger"
 import type { BadgeStyle, RankingBadgeStyle } from "@/lib/badge-styles"
 import { isBadgeStyle, isRankingBadgeStyle } from "@/lib/badge-styles"
 import { normalizeRegion } from "@/lib/regions"
+import { envWithFallback } from "@/lib/env-compat"
 
 const log = createLogger("server-defaults")
 
@@ -42,7 +43,7 @@ const FILE = path.join(DATA_DIR, "defaults.json")
 const useKv = !!process.env.KV_REST_API_URL && !!process.env.KV_REST_API_TOKEN
 const KV_KEY = "defaults"
 
-// ── Default di stile da env d'istanza (POSTERIUM_*) ─────────────────────────
+// ── Default di stile da env d'istanza (PICTORIUM_*, con fallback alle legacy POSTERIUM_*) ─────────────────────────
 // Per istanze personali (es. Vercel senza KV): fissano il default di resa
 // (Genere/Anno/Voto, stile badge, blur, network logo, nastro...) anche quando
 // defaults.json è vuoto/non persiste. Il file/KV salvato (dall'editor) vince
@@ -52,7 +53,7 @@ const KV_KEY = "defaults"
 // non il config utente, quindi senza questi default d'istanza i badge escono
 // tutti ON indipendentemente dalle preferenze salvate.
 function getEnv(suffix: string): string | undefined {
-  return process.env[`PICTORIUM_${suffix}`] ?? process.env[`POSTERIUM_${suffix}`]
+  return envWithFallback(suffix)
 }
 function envBool(suffix: string): boolean | undefined {
   const raw = getEnv(suffix)?.trim().toLowerCase()

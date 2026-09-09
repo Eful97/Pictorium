@@ -1,8 +1,8 @@
 import { describe, it, expect, vi } from "vitest"
 import { render } from "@testing-library/react"
-import { PosteriumProvider, usePSelector } from "@/lib/context"
+import { PictoriumProvider, usePSelector } from "@/lib/context"
 import { MOCK_CTX } from "./test-utils"
-import type { PosteriumCtx } from "@/lib/context"
+import type { PictoriumCtx } from "@/lib/context"
 import { PosterEditorProvider } from "@/lib/contexts/PosterEditorContext"
 
 describe("usePSelector", () => {
@@ -30,10 +30,10 @@ describe("usePSelector", () => {
       </>
     )
 
-    let ctx: PosteriumCtx = { ...MOCK_CTX }
+    let ctx: PictoriumCtx = { ...MOCK_CTX }
     const Wrapper = ({ children }: { children: React.ReactNode }) => (
       <PosterEditorProvider>
-        <PosteriumProvider value={ctx}>{children}</PosteriumProvider>
+        <PictoriumProvider value={ctx}>{children}</PictoriumProvider>
       </PosterEditorProvider>
     )
 
@@ -54,6 +54,6 @@ describe("usePSelector", () => {
       usePSelector((v) => v.lang)
       return null
     }
-    expect(() => render(<Probe />)).toThrow("usePSelector must be inside PosteriumProvider")
+    expect(() => render(<Probe />)).toThrow("usePSelector must be inside PictoriumProvider")
   })
 })

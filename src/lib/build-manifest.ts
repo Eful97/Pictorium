@@ -1,9 +1,10 @@
 import crypto from "node:crypto"
 import { NextRequest } from "next/server"
 import { APP_VERSION } from "@/generated/app-version"
-import { POSTERIUM_CATALOGS, POSTERIUM_PEOPLE_SEARCH_CATALOGS } from "@/lib/catalog-definitions"
+import { PICTORIUM_CATALOGS, PICTORIUM_PEOPLE_SEARCH_CATALOGS } from "@/lib/catalog-definitions"
 import { getOriginFromRequest } from "@/lib/poster-public-url"
-import { decodeConfig, type PosteriumUserConfig } from "@/lib/config-token"
+import { decodeConfig, type PictoriumUserConfig } from "@/lib/config-token"
+import { normalizeCatalogIdKeys, normalizeCatalogIdList } from "@/lib/catalog-definitions"
 import { getServerDefaults } from "@/lib/server-defaults"
 import { getRegionDef, normalizeRegion, parseRegion, type RegionDef } from "@/lib/regions"
 
@@ -33,10 +34,10 @@ function getCatalogGenreOptions(type: "movie" | "series", catalogId: string): st
 
 /** Nome dei cataloghi Top 20 / Ultime Uscite JustWatch nella lingua/regione attiva (bandiera dinamica). */
 function regionJwName(id: string, type: "movie" | "series", region: RegionDef): string | null {
-  if (id.startsWith("posterium-jw-new-")) {
+  if (id.startsWith("pictorium-jw-new-")) {
     return `${region.flag} Ultime Uscite ${region.label} — ${type === "movie" ? "Film" : "Serie TV"}`
   }
-  if (!id.startsWith("posterium-jw-")) return null
+  if (!id.startsWith("pictorium-jw-")) return null
   return `${region.flag} Top 20 ${region.label} — ${type === "movie" ? "Film" : "Serie TV"}`
 }
 
@@ -48,7 +49,7 @@ function safeSuffix(value: string | null | undefined): string | null {
 export async function buildManifestResponse(req: NextRequest, user?: string | null, config?: string | null): Promise<Response> {
   const domain = getOriginFromRequest(req)
 
-  let userConfig: Partial<PosteriumUserConfig> | null = null
+  let userConfig: Partial<PictoriumUserConfig> | null = null
   if (config) {
     userConfig = decodeConfig(config)
   }
@@ -63,7 +64,15 @@ export async function buildManifestResponse(req: NextRequest, user?: string | nu
     }
   }
 
-  let catalogs: Array<{ id: string; name: string; type: "movie" | "series"; customBaseId?: string }> = [...POSTERIUM_CATALOGS]
+  // Config salvate prima del rename possono contenere ID `posterium-*`:
+  // normalizza al canonico `pictorium-*` così esclusioni/ordini/rinomine restano validi.
+  if (userConfig) {
+    userConfig.disabledCatalogIds = normalizeCatalogIdList(userConfig.disabledCatalogIds)
+    userConfig.homeDisabledCatalogIds = normalizeCatalogIdList(userConfig.homeDisabledCatalogIds)
+    userConfig.catalogOrder = normalizeCatalogIdList(userConfig.catalogOrder)
+    userConfig.catalogRenames = normalizeCatalogIdKeys(userConfig.catalogRenames)
+  }
+  let catalogs: Array<{ id: string; name: string; type: "movie" | "series"; customBaseId?: string }> = [...PICTORIUM_CATALOGS]
   if (userConfig?.disabledCatalogIds && userConfig.disabledCatalogIds.length > 0) {
     const disabledSet = new Set(userConfig.disabledCatalogIds)
     catalogs = catalogs.filter(c => !disabledSet.has(c.id))
@@ -73,20 +82,20 @@ export async function buildManifestResponse(req: NextRequest, user?: string | nu
       if (cc.enabled !== false) {
         if (cc.type === "mixed") {
           catalogs.push({
-            id: `posterium-custom-movie-${cc.id}`,
+            id: `pictorium-custom-movie-${cc.id}`,
             name: `${cc.name} — Film`,
             type: "movie",
             customBaseId: cc.id,
           })
           catalogs.push({
-            id: `posterium-custom-series-${cc.id}`,
+            id: `pictorium-custom-series-${cc.id}`,
             name: `${cc.name} — Serie TV`,
             type: "series",
             customBaseId: cc.id,
           })
         } else {
           catalogs.push({
-            id: `posterium-custom-${cc.type}-${cc.id}`,
+            id: `pictorium-custom-${cc.type}-${cc.id}`,
             name: cc.name,
             type: cc.type,
             customBaseId: cc.id,
@@ -149,20 +158,20 @@ export async function buildManifestResponse(req: NextRequest, user?: string | nu
 
   const searchCatalogs = [
     {
-      id: "posterium-search-movies",
+      id: "pictorium-search-movies",
       name: "🔍 Pictorium — Cerca Film",
       type: "movie" as const,
       extra: [{ name: "search", isRequired: true }, { name: "skip", isRequired: false }],
     },
     {
-      id: "posterium-search-series",
+      id: "pictorium-search-series",
       name: "🔍 Pictorium — Cerca Serie TV",
       type: "series" as const,
       extra: [{ name: "search", isRequired: true }, { name: "skip", isRequired: false }],
     },
   ]
 
-  const peopleSearchCatalogs = POSTERIUM_PEOPLE_SEARCH_CATALOGS.map((c) => ({
+  const peopleSearchCatalogs = PICTORIUM_PEOPLE_SEARCH_CATALOGS.map((c) => ({
     id: c.id,
     name: c.name,
     type: c.type,

@@ -1,5 +1,6 @@
 import crypto from "node:crypto"
 import { cacheGet, cacheSet } from "./cache"
+import { envWithFallback } from "./env-compat"
 
 export interface MDBListEntry {
   imdb: string
@@ -45,7 +46,7 @@ export async function fetchMDBList(listKey: string, apiKey?: string): Promise<MD
       res = await fetch(`${explicitUrl}/lists/snoak/${slug}`, { signal: AbortSignal.timeout(10000) }).catch(() => null)
     } else if (key) {
       res = await fetch(`https://api.mdblist.com/lists/snoak/${slug}/items?apikey=${encodeURIComponent(key)}&limit=20`, {
-        headers: { "User-Agent": "Mozilla/5.0 Posterium" },
+        headers: { "User-Agent": "Mozilla/5.0 Pictorium" },
         signal: AbortSignal.timeout(10000),
       }).catch(() => null)
     }
@@ -53,7 +54,7 @@ export async function fetchMDBList(listKey: string, apiKey?: string): Promise<MD
     if (!res || !res.ok) {
       // Fallback endpoint pubblico JSON diretto
       res = await fetch(`https://mdblist.com/lists/snoak/${slug}/json`, {
-        headers: { "User-Agent": "Mozilla/5.0 Posterium" },
+        headers: { "User-Agent": "Mozilla/5.0 Pictorium" },
         signal: AbortSignal.timeout(10000),
       }).catch(() => null)
     }
@@ -146,7 +147,7 @@ export async function fetchCustomMDBList(urlOrSlug: string, apiKey?: string, lim
   const target = parseMDBListTarget(urlOrSlug)
   if (!target) return []
 
-  const key = apiKey || process.env.POSTERIUM_MDBLIST_KEY || process.env.MDBLIST_KEY || process.env.MDBLIST_API_KEY
+  const key = apiKey || envWithFallback("MDBLIST_KEY") || process.env.MDBLIST_KEY || process.env.MDBLIST_API_KEY
   const keyHash = key ? crypto.createHash("sha1").update(key).digest("hex").slice(0, 8) : "none"
   const targetHash = crypto.createHash("sha1").update(urlOrSlug.trim()).digest("hex").slice(0, 8)
   const cacheKey = `mdblist:custom:${targetHash}:${keyHash}`
@@ -171,7 +172,7 @@ export async function fetchCustomMDBList(urlOrSlug: string, apiKey?: string, lim
       }
       if (keyUrl) {
         res = await fetch(keyUrl, {
-          headers: { "User-Agent": "Mozilla/5.0 Posterium" },
+          headers: { "User-Agent": "Mozilla/5.0 Pictorium" },
           signal: AbortSignal.timeout(10000),
         }).catch(() => null)
       }
@@ -189,7 +190,7 @@ export async function fetchCustomMDBList(urlOrSlug: string, apiKey?: string, lim
       }
       if (publicUrl) {
         res = await fetch(publicUrl, {
-          headers: { "User-Agent": "Mozilla/5.0 Posterium" },
+          headers: { "User-Agent": "Mozilla/5.0 Pictorium" },
           signal: AbortSignal.timeout(10000),
         }).catch(() => null)
       }

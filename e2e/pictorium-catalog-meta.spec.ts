@@ -3,8 +3,8 @@ import { test, expect } from "@playwright/test"
 // Catalog / Meta / Manifest API tests — no TMDB key needed (mock server)
 
 test.describe("catalog API", () => {
-  test("posterium-jw-movies returns metas with tmdb: ids", async ({ request }) => {
-    const res = await request.get("/catalog/movie/posterium-jw-movies.json", {
+  test("pictorium-jw-movies returns metas with tmdb: ids", async ({ request }) => {
+    const res = await request.get("/catalog/movie/pictorium-jw-movies.json", {
       headers: { "x-api-key": "e2e-key" },
     })
     expect(res.ok()).toBeTruthy()
@@ -17,8 +17,20 @@ test.describe("catalog API", () => {
     }
   })
 
+  test("legacy posterium-jw-movies alias returns the same metas", async ({ request }) => {
+    const res = await request.get("/catalog/movie/posterium-jw-movies.json", {
+      headers: { "x-api-key": "e2e-key" },
+    })
+    expect(res.ok()).toBeTruthy()
+    const body = await res.json()
+    expect(body.metas.length).toBeGreaterThan(0)
+    for (const m of body.metas) {
+      expect(m.id.startsWith("tmdb:")).toBeTruthy()
+    }
+  })
+
   test("search catalog with query returns results", async ({ request }) => {
-    const res = await request.get("/catalog/movie/posterium-search-movies.json?search=Avatar", {
+    const res = await request.get("/catalog/movie/pictorium-search-movies.json?search=Avatar", {
       headers: { "x-api-key": "e2e-key" },
     })
     expect(res.ok()).toBeTruthy()
@@ -28,7 +40,7 @@ test.describe("catalog API", () => {
   })
 
   test("search metas carry rating, background, genres and description like AIOMetadata", async ({ request }) => {
-    const res = await request.get("/catalog/movie/posterium-search-movies.json?search=Avatar", {
+    const res = await request.get("/catalog/movie/pictorium-search-movies.json?search=Avatar", {
       headers: { "x-api-key": "e2e-key" },
     })
     expect(res.ok()).toBeTruthy()
@@ -42,10 +54,10 @@ test.describe("catalog API", () => {
   })
 
   test("platform catalog pagination skip returns fewer-or-empty", async ({ request }) => {
-    const res1 = await request.get("/catalog/movie/posterium-netflix-movies.json", {
+    const res1 = await request.get("/catalog/movie/pictorium-netflix-movies.json", {
       headers: { "x-api-key": "e2e-key" },
     })
-    const res2 = await request.get("/catalog/movie/posterium-netflix-movies.json?skip=1", {
+    const res2 = await request.get("/catalog/movie/pictorium-netflix-movies.json?skip=1", {
       headers: { "x-api-key": "e2e-key" },
     })
     expect(res1.ok() && res2.ok()).toBeTruthy()
@@ -59,7 +71,7 @@ test.describe("catalog API", () => {
   })
 
   test("genre filter via query param", async ({ request }) => {
-    const res = await request.get("/catalog/movie/posterium-jw-movies.json?genre=Azione", {
+    const res = await request.get("/catalog/movie/pictorium-jw-movies.json?genre=Azione", {
       headers: { "x-api-key": "e2e-key" },
     })
     expect(res.ok()).toBeTruthy()
@@ -68,7 +80,7 @@ test.describe("catalog API", () => {
   })
 
   test("without api key returns empty metas", async ({ request }) => {
-    const res = await request.get("/catalog/movie/posterium-jw-movies.json")
+    const res = await request.get("/catalog/movie/pictorium-jw-movies.json")
     expect(res.ok()).toBeTruthy()
     const body = await res.json()
     expect(body.metas.length).toBe(0)
@@ -112,7 +124,7 @@ test.describe("manifest API", () => {
     const res = await request.get("/manifest.json")
     expect(res.ok()).toBeTruthy()
     const body = await res.json()
-    expect(body.id.startsWith("org.posterium")).toBeTruthy()
+    expect(body.id.startsWith("org.pictorium")).toBeTruthy()
     expect(body.catalogs.length).toBeGreaterThan(10)
     expect(body.resources.some((r: string | { name: string }) => typeof r === "string" ? r === "catalog" : r.name === "meta")).toBeTruthy()
   })
@@ -121,14 +133,14 @@ test.describe("manifest API", () => {
     const res = await request.get("/manifest.json?mode=search")
     expect(res.ok()).toBeTruthy()
     const body = await res.json()
-    expect(body.catalogs.every((c: { id: string }) => c.id.startsWith("posterium-search-"))).toBeTruthy()
+    expect(body.catalogs.every((c: { id: string }) => c.id.startsWith("pictorium-search-"))).toBeTruthy()
   })
 
   test("manifest mode=catalogs excludes search catalogs", async ({ request }) => {
     const res = await request.get("/manifest.json?mode=catalogs")
     expect(res.ok()).toBeTruthy()
     const body = await res.json()
-    expect(body.catalogs.every((c: { id: string }) => !c.id.startsWith("posterium-search-"))).toBeTruthy()
+    expect(body.catalogs.every((c: { id: string }) => !c.id.startsWith("pictorium-search-"))).toBeTruthy()
   })
 
   test("manifest extra includes genre and skip", async ({ request }) => {

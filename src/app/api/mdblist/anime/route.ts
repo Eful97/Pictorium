@@ -6,6 +6,7 @@ import { fetchMDBList } from "@/lib/mdblist"
 import { getDetails } from "@/lib/tmdb"
 import { resolveImdbToTmdb } from "@/lib/imdb-resolver"
 import type { EnrichedAnimeItem } from "@/lib/validation"
+import { envWithFallback } from "@/lib/env-compat"
 
 const log = createLogger("mdblist-anime")
 
@@ -19,8 +20,8 @@ export async function GET(req: NextRequest) {
   const cached = cacheGet<EnrichedAnimeItem[]>(cacheKey)
   if (cached) return Response.json(cached)
 
-  const mdblistKey = req.nextUrl.searchParams.get("mdblist_key") || process.env.PICTORIUM_MDBLIST_KEY || process.env.POSTERIUM_MDBLIST_KEY || process.env.MDBLIST_KEY || process.env.MDBLIST_API_KEY || ""
-  const tmdbKey = req.nextUrl.searchParams.get("api_key") || process.env.PICTORIUM_TMDB_KEY || process.env.POSTERIUM_TMDB_KEY || process.env.TMDB_KEY || process.env.TMDB_API_KEY || undefined
+  const mdblistKey = req.nextUrl.searchParams.get("mdblist_key") || envWithFallback("MDBLIST_KEY") || process.env.MDBLIST_KEY || process.env.MDBLIST_API_KEY || ""
+  const tmdbKey = req.nextUrl.searchParams.get("api_key") || envWithFallback("TMDB_KEY") || process.env.TMDB_KEY || process.env.TMDB_API_KEY || undefined
   if (!mdblistKey || !tmdbKey) return Response.json([])
 
   try {
