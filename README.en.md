@@ -107,7 +107,7 @@ Choose the preferred deployment method for your setup:
 
 | Platform | Cost | Type | Persistence | Recommended For |
 |---|---|---|---|---|
-| [▲ **Vercel**](#-vercel) | **Free** | Serverless | Upstash Redis (KV) | **Recommended**: 1-click, zero maintenance, global CDN |
+| [▲ **Vercel**](#-vercel) | **Free** | Serverless | Upstash Redis (KV) | **Recommended**: 1-click, zero maintenance, global CDN ([📺 Video Guide](https://www.youtube.com/watch?v=FP6VJ2vGYiY)) |
 | [🐳 **Docker Compose**](#-docker--compose) | **Free** | Container | Local Volume (`/data`) | NAS, Home Server, mini-PC (Unraid/TrueNAS) |
 | [🤗 **Hugging Face**](#-hugging-face-spaces) | **Free** | Docker (16GB RAM) | Storage Bucket | Great free RAM for shared instances |
 | [🦾 **Oracle Cloud**](#-other-deployment-methods) | **Free** | ARM VPS (24GB RAM) | Local Disk | Always-online with dedicated resources at zero cost |
@@ -117,6 +117,9 @@ Choose the preferred deployment method for your setup:
 ### ▲ Vercel
 
 [![Fork & Deploy](https://img.shields.io/badge/GitHub-Fork_&_Deploy-black?style=for-the-badge&logo=github)](https://github.com/Eful97/Pictorium/fork)
+[![YouTube Video Guide](https://img.shields.io/badge/YouTube-Video_Setup_Guide-FF0000?style=for-the-badge&logo=youtube&logoColor=white)](https://www.youtube.com/watch?v=FP6VJ2vGYiY)
+
+> 📺 **Step-by-Step Video Guide**: Prefer following along visually? Watch the [**YouTube Video Tutorial**](https://www.youtube.com/watch?v=FP6VJ2vGYiY) to get everything set up in under 2 minutes.
 
 Ideal if you don't own a home server. Setup takes under 2 minutes, 100% free with 1-click automatic updates:
 
