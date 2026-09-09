@@ -23,7 +23,8 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
+          CURRENT_BRANCH=$(git branch --show-current)
           git remote add upstream https://github.com/Eful97/Pictorium.git || true
-          git fetch upstream main
-          git merge upstream/main --ff-only || git merge upstream/main -m "chore: sync with upstream Pictorium"
-          git push origin main
+          git fetch upstream master
+          git merge upstream/master --ff-only || git merge upstream/master -m "chore: sync with upstream Pictorium"
+          git push origin "$CURRENT_BRANCH"
