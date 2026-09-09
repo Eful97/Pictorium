@@ -116,47 +116,47 @@ Scegli la modalità più comoda per la tua installazione:
 
 ### ▲ Vercel
 
-[![Fork & Deploy](https://img.shields.io/badge/GitHub-Fork_&_Deploy-black?style=for-the-badge&logo=github)](https://github.com/Eful97/Pictorium/fork)
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2FEful97%2FPictorium&env=PICTORIUM_TMDB_KEY,PICTORIUM_PUBLIC_INSTANCE&envDescription=Chiave%20API%20TMDB%20v3%20(32%20caratteri),Imposta%20a%201%20per%20consentire%20il%20salvataggio%20poster&envLink=https%3A%2F%2Fwww.themoviedb.org%2Fsettings%2Fapi&project-name=pictorium&repository-name=pictorium)
 [![Video Guida YouTube](https://img.shields.io/badge/YouTube-Video_Guida_Setup-FF0000?style=for-the-badge&logo=youtube&logoColor=white)](https://www.youtube.com/watch?v=FP6VJ2vGYiY)
 
 > 📺 **Video Tutorial Passo-Passo**: preferisci seguire la procedura a video? Guarda la [**Video Guida su YouTube**](https://www.youtube.com/watch?v=FP6VJ2vGYiY) per completare il setup in meno di 2 minuti.
 
-Ideale se non hai un server domestico. Setup in 2 minuti a costo zero con aggiornamenti automatici a 1 click:
+Ideale se non hai un server domestico. Setup guidato a costo zero con **creazione automatica di repository privato** (per proteggere la tua istanza e la tua privacy):
 
 1. **Ottieni la tua API Key TMDB (gratis)**:
    * Crea un account su [themoviedb.org](https://www.themoviedb.org/signup).
    * Vai in **Impostazioni → API** ([themoviedb.org/settings/api](https://www.themoviedb.org/settings/api)) e genera una chiave API (*Developer*).
    * Copia la **Chiave API (autenticazione v3)** (stringa di 32 caratteri, *non* il token di lettura lungo).
-2. **Fai il Fork del repository su GitHub**:
-   * Clicca in alto a destra su **[Fork](https://github.com/Eful97/Pictorium/fork)** per copiare il repository nel tuo account GitHub.
-   *(Questo passaggio è fondamentale: rende la tua copia un vero fork ufficiale, abilitando per sempre il pulsante di aggiornamento a 1 click).*
-3. **Crea il progetto su Vercel**:
-   * Vai su [vercel.com](https://vercel.com) ed effettua l'accesso (consigliato con GitHub).
-   * Clicca su **Add New…** → **Project**.
-   * Troverai subito **Pictorium** in cima alla lista dei tuoi repository GitHub: clicca su **Import**.
-   * Nella sezione **Environment Variables**, inserisci:
-     * `PICTORIUM_TMDB_KEY` = la tua chiave TMDB v3 (32 caratteri).
-     * `PICTORIUM_PUBLIC_INSTANCE` = `1`
+2. **Deploy con 1 Click**:
+   * Clicca sul pulsante nero in alto **[Deploy with Vercel](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2FEful97%2FPictorium&env=PICTORIUM_TMDB_KEY,PICTORIUM_PUBLIC_INSTANCE&envDescription=Chiave%20API%20TMDB%20v3%20(32%20caratteri),Imposta%20a%201%20per%20consentire%20il%20salvataggio%20poster&envLink=https%3A%2F%2Fwww.themoviedb.org%2Fsettings%2Fapi&project-name=pictorium&repository-name=pictorium)**.
+   * Effettua l'accesso a Vercel con GitHub se richiesto.
+   * Nella schermata di clone, assicurati che la casella **"Create private Git Repository"** sia selezionata *(è già spuntata di default: protegge la tua privacy facendo in modo che nessuno su GitHub possa vedere la tua istanza o il tuo URL)*.
+   * Inserisci nei campi:
+     * `PICTORIUM_TMDB_KEY`: la tua chiave TMDB v3.
+     * `PICTORIUM_PUBLIC_INSTANCE`: `1`
    * Clicca su **Deploy**.
-4. **Collega Upstash Redis (database gratuito per salvare i tuoi poster)**:
+3. **Collega Upstash Redis (database gratuito per salvare i tuoi poster)**:
    * A fine deploy, vai nella dashboard del progetto su Vercel.
    * Clicca sulla scheda **Storage** in alto → **Connect Store** (o **Create Database**) → seleziona **Upstash (Redis)**.
    * Scegli una regione vicina e clicca **Create & Connect** (Vercel imposterà automaticamente `KV_REST_API_URL` e `KV_REST_API_TOKEN`).
-5. **Redeploy (Passaggio fondamentale!)**:
+4. **Redeploy (Passaggio fondamentale!)**:
    * Vai nella scheda **Deployments** del progetto.
    * Clicca sui **tre puntini (⋯)** dell'ultimo deployment e seleziona **Redeploy**.
    * *(Nota: Vercel applica il database Upstash solo dal redeploy in poi)*.
-6. **Installazione su Stremio**:
+5. **Installazione su Stremio**:
    * Apri l'URL generato (es. `https://tuo-pictorium.vercel.app`).
    * Clicca su **Installa su Stremio**! *(Puoi verificare che tutto sia ok aprendo `/api/health`, che deve indicare `"storage": "kv"` e `"status": "ok"`)*.
 
 ---
 
-#### 🔄 Come Aggiornare in Futuro (1 Click)
-Avendo fatto il Fork al punto 2, aggiornare la tua istanza quando escono nuove versioni richiede un solo click, senza dover riconfigurare nulla:
-1. Apri la pagina del tuo fork su GitHub (`https://github.com/<tuo-username>/Pictorium`).
-2. Sotto il titolo del repository clicca sul pulsante **Sync fork** → **Update branch**.
-3. Vercel rileva subito il nuovo commit e **compila ed effettua il deploy automatico in 60 secondi** mantenendo intatti il database Upstash, le impostazioni e i tuoi poster!
+#### 🔄 Come Aggiornare in Futuro (Automatico o 1 Click)
+Il tuo repository privato include già un'azione automatica di sincronizzazione:
+* **Automatico**: Il tuo repository si aggiorna da solo ogni giorno (ogni 24 ore) scaricando le ultime novità di Pictorium, avviando il deploy automatico su Vercel.
+* **Manuale (1 Click)**: Se esce una nuova versione e vuoi aggiornare subito:
+  1. Apri la pagina del tuo repository su GitHub.
+  2. Clicca sulla scheda **Actions** in alto.
+  3. Seleziona a sinistra **Sync with Upstream** e clicca a destra su **Run workflow** → **Run workflow**.
+  4. Vercel rileverà l'aggiornamento e compilerà la nuova versione in 60 secondi mantenendo intatti poster e database!
 
 ---
 
