@@ -9,6 +9,7 @@ const QUERY = `query GetStreamingChartInfo($country: Country!, $language: Langua
         ... on MovieOrShowOrSeason {
           content(country: $country, language: $language) {
             title
+            originalReleaseDate
             externalIds { tmdbId imdbId }
           }
         }
@@ -46,42 +47,118 @@ export const JW_GENRE_MAP: Record<string, string> = {
   azione: "act",
   action: "act",
   "action & adventure": "act",
+  "acción": "act",
+  accion: "act",
+  "ação": "act",
+  acao: "act",
   animazione: "ani",
   animation: "ani",
+  "animación": "ani",
+  animacion: "ani",
+  "animação": "ani",
+  animacao: "ani",
   commedia: "cmy",
   comedy: "cmy",
+  "comédie": "cmy",
+  comedie: "cmy",
+  comedia: "cmy",
+  "komödie": "cmy",
+  "komodie": "cmy",
+  "comédia": "cmy",
   crimine: "crm",
   crime: "crm",
+  crimen: "crm",
+  krimi: "crm",
   documentario: "doc",
   documentary: "doc",
+  documentaire: "doc",
+  documental: "doc",
+  dokumentarfilm: "doc",
+  "documentário": "doc",
   dramma: "drm",
   drama: "drm",
+  drame: "drm",
   famiglia: "fml",
   family: "fml",
+  famille: "fml",
+  familia: "fml",
+  familie: "fml",
+  "família": "fml",
   fantascienza: "scf",
   "sci-fi": "scf",
+  "science fiction": "scf",
+  "science-fiction": "scf",
   "sci-fi & fantasy": "scf",
+  "ciencia ficción": "scf",
+  "ciencia ficcion": "scf",
+  "ficção científica": "scf",
+  "ficcao cientifica": "scf",
   fantasy: "fnt",
+  fantastique: "fnt",
+  "fantasía": "fnt",
+  "fantasia": "fnt",
   guerra: "war",
   war: "war",
   "war & politics": "war",
+  guerre: "war",
   horror: "hrr",
+  horreur: "hrr",
+  terror: "hrr",
   musica: "msc",
   music: "msc",
+  musique: "msc",
+  "música": "msc",
+  musik: "msc",
   romance: "rma",
   romantico: "rma",
+  romantik: "rma",
   storia: "hst",
   history: "hst",
+  histoire: "hst",
+  historia: "hst",
+  geschichte: "hst",
+  "história": "hst",
   thriller: "trl",
   western: "wsn",
+  faroeste: "wsn",
   sport: "spt",
+  deporte: "spt",
+  esporte: "spt",
 }
 
 export function resolveJWGenreCode(genreName?: string | null): string | null {
   if (!genreName) return null
+  const direct = lookupJWGenreCode(genreName)
+  if (direct) return direct
+  // Stremio doppia-encoda i generi (es. "Science Fiction" → "%2520"): il parse
+  // dell'extra decodifica una sola volta, quindi qui arriva ancora encodato.
+  // Un secondo decode condizionale (solo se cambia la stringa) risolve il 100%
+  // dei filtri rotti senza mai alterare un nome genuino.
+  if (genreName.includes("%")) {
+    try {
+      const decoded = decodeURIComponent(genreName)
+      if (decoded !== genreName) return lookupJWGenreCode(decoded)
+    } catch {
+      // Escape sequence malformata — resta irrisolto, il chiamante degrada al post-filtro
+    }
+  }
+  return null
+}
+
+function stripDiacritics(str: string): string {
+  return str.normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+}
+
+function lookupJWGenreCode(genreName: string): string | null {
   const cleaned = genreName.toLowerCase().trim()
   if (cleaned === "tutti" || cleaned === "all") return null
-  return JW_GENRE_MAP[cleaned] ?? null
+  const direct = JW_GENRE_MAP[cleaned]
+  if (direct) return direct
+  const stripped = stripDiacritics(cleaned)
+  if (stripped !== cleaned) {
+    return JW_GENRE_MAP[stripped] ?? null
+  }
+  return null
 }
 
 const rankingsCache = new Map<string, { data: JWRankEntry[]; timestamp: number }>()
@@ -148,9 +225,9 @@ const circuitState: CircuitBreakerState = {
   cooldownUntil: 0,
 }
 
-const CIRCUIT_FAILURE_THRESHOLD = 3
-const CIRCUIT_COOLDOWN_DEFAULT_MS = 30_000 // 30s per 5xx/timeout ripetuti
-const CIRCUIT_COOLDOWN_BLOCK_MS = 180_000 // 3 min su 403 (DataDome block)
+const CIRCUIT_FAILURE_THRESHOLD = 5
+const CIRCUIT_COOLDOWN_DEFAULT_MS = 60_000 // 60s per 5xx/timeout ripetuti
+const CIRCUIT_COOLDOWN_BLOCK_MS = 300_000 // 5 min su 403 (DataDome block)
 
 function isCircuitOpen(): boolean {
   if (circuitState.cooldownUntil === 0) return false
@@ -251,13 +328,19 @@ export async function getJWRankings(
   const edges = json?.data?.streamingCharts?.edges || []
   const seenTmdb = new Set<number>()
   const result: JWRankEntry[] = []
+  // Gli streamingCharts includono titoli annunciati ma non ancora usciti:
+  // scarta le date future (stesso criterio di getJWTitles/isUnreleased).
+  // Data mancante = rilasciato (mai nascondere per metadati incompleti).
+  const today = new Date().toISOString().slice(0, 10)
 
   for (const e of edges) {
     const tmdbId = Number(e?.node?.content?.externalIds?.tmdbId)
     const imdbId = e?.node?.content?.externalIds?.imdbId || null
     const title = e?.node?.content?.title || null
+    const relDate = e?.node?.content?.originalReleaseDate
     const rank = e?.streamingChartInfo?.rank
     if (!tmdbId || !rank || seenTmdb.has(tmdbId)) continue
+    if (relDate && relDate > today) continue
     seenTmdb.add(tmdbId)
     result.push({ tmdbId, imdbId, rank, title })
     if (result.length >= first) break

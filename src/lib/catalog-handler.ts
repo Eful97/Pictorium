@@ -524,9 +524,12 @@ export async function pictoriumCatalog(
     } else if (catalogId.startsWith("pictorium-jw")) {
       // Fix L12: la chiave si controlla PRIMA del fetch JustWatch
       if (!apiKey) return catalogResponse({ metas: [] })
+      // streamingCharts non supporta `offset`: l'overfetch da zero + slice è
+      // l'unico modo per paginare (l'arricchimento TMDB resta comunque sui 20
+      // della finestra). popularTitles invece pagina nativo: first = finestra.
       const jwSkip = typeof extra.skip === "number" && extra.skip > 0 ? extra.skip : 0
       const jwGenre = resolveJWGenreCode(extra.genre)
-      const jwFirst = Math.min(60, 20 + jwSkip)
+      const jwFirst = jwGenre ? 20 : Math.min(60, 20 + jwSkip)
       const rows = jwGenre
         ? await getJWTitles({
             objectType: stType === "movie" ? "MOVIE" : "SHOW",
@@ -650,10 +653,12 @@ export async function pictoriumCatalog(
       }
       if (platformKey) {
         // Fonte primaria: JustWatch streaming charts con filtro package (es. Netflix nfx, Prime prv, ecc.)
+        // Come sopra: streamingCharts non pagina nativo (overfetch + slice),
+        // popularTitles sì (first = finestra da 10).
         const pkgs = PLATFORM_JW_PACKAGES[platformKey]
         const skipForPlatform = typeof extra.skip === "number" && extra.skip > 0 ? extra.skip : 0
         const jwGenre = resolveJWGenreCode(extra.genre)
-        const jwFirst = Math.min(50, 10 + skipForPlatform)
+        const jwFirst = jwGenre ? 10 : Math.min(50, 10 + skipForPlatform)
         let jwRows: JWRankEntry[] = []
         if (pkgs) {
           if (jwGenre) {
