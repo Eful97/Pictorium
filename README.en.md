@@ -35,20 +35,20 @@ pinned: false
 ## 📸 Preview
 
 <div align="center">
-  <img src="https://raw.githubusercontent.com/Eful97/Posterium/master/public/Screen/home.png" alt="Posterium Home" width="100%" style="border-radius: 8px; margin-bottom: 8px;" />
+  <img src="https://raw.githubusercontent.com/Eful97/Pictorium/master/public/Screen/home.png" alt="Posterium Home" width="100%" style="border-radius: 8px; margin-bottom: 8px;" />
 </div>
 
 <table align="center" width="100%">
   <tr>
-    <td width="50%"><img src="https://raw.githubusercontent.com/Eful97/Posterium/master/public/Screen/editor.png" alt="Posterium Editor" style="border-radius: 6px;" /></td>
-    <td width="50%"><img src="https://raw.githubusercontent.com/Eful97/Posterium/master/public/Screen/myposters.png" alt="Posterium My Posters" style="border-radius: 6px;" /></td>
+    <td width="50%"><img src="https://raw.githubusercontent.com/Eful97/Pictorium/master/public/Screen/editor.png" alt="Posterium Editor" style="border-radius: 6px;" /></td>
+    <td width="50%"><img src="https://raw.githubusercontent.com/Eful97/Pictorium/master/public/Screen/myposters.png" alt="Posterium My Posters" style="border-radius: 6px;" /></td>
   </tr>
   <tr>
     <td align="center"><em>WYSIWYG Editor & Live Preview</em></td>
     <td align="center"><em>My Posters & Personal Library</em></td>
   </tr>
   <tr>
-    <td colspan="2"><img src="https://raw.githubusercontent.com/Eful97/Posterium/master/public/Screen/catalogs.png" alt="Posterium Catalogs" style="border-radius: 6px; margin-top: 8px;" /></td>
+    <td colspan="2"><img src="https://raw.githubusercontent.com/Eful97/Pictorium/master/public/Screen/catalogs.png" alt="Posterium Catalogs" style="border-radius: 6px; margin-top: 8px;" /></td>
   </tr>
   <tr>
     <td align="center" colspan="2"><em>Dynamic Catalogs & JustWatch Streaming Charts</em></td>
@@ -56,9 +56,9 @@ pinned: false
 </table>
 
 <div align="center" style="margin-top: 12px;">
-  <img src="https://raw.githubusercontent.com/Eful97/Posterium/master/public/Screen/1405.jpg" alt="Poster Demo" width="32%" style="border-radius: 6px;" />
-  <img src="https://raw.githubusercontent.com/Eful97/Posterium/master/public/Screen/155.jpg" alt="Poster Demo — The Dark Knight" width="32%" style="border-radius: 6px;" />
-  <img src="https://raw.githubusercontent.com/Eful97/Posterium/master/public/Screen/66732.jpg" alt="Poster Demo — Stranger Things" width="32%" style="border-radius: 6px;" />
+  <img src="https://raw.githubusercontent.com/Eful97/Pictorium/master/public/Screen/1405.jpg" alt="Poster Demo" width="32%" style="border-radius: 6px;" />
+  <img src="https://raw.githubusercontent.com/Eful97/Pictorium/master/public/Screen/155.jpg" alt="Poster Demo — The Dark Knight" width="32%" style="border-radius: 6px;" />
+  <img src="https://raw.githubusercontent.com/Eful97/Pictorium/master/public/Screen/66732.jpg" alt="Poster Demo — Stranger Things" width="32%" style="border-radius: 6px;" />
 </div>
 
 ---
@@ -127,7 +127,7 @@ Ideal if you don't own a home server. Setup takes under 2 minutes and is 100% fr
 2. **Import Project on Vercel**:
    * Log into [vercel.com](https://vercel.com).
    * Click **Add New…** → **Project** at the top.
-   * Under "Import Third-Party Git Repository", paste the repository URL: `https://github.com/Eful97/Posterium` and click **Import**.
+   * Under "Import Third-Party Git Repository", paste the repository URL: `https://github.com/Eful97/Pictorium` and click **Import**.
    * In the **Environment Variables** section, add:
      * `POSTERIUM_TMDB_KEY` = your 32-character TMDB API key.
      * `POSTERIUM_PUBLIC_INSTANCE` = `1`
@@ -180,7 +180,7 @@ The Stremio addon manifest will be available at: `http://<SERVER-IP>:8080/manife
 <summary><strong>👉 Other Deployment Methods (Hugging Face, Oracle Cloud, VPS Caddy, Termux)</strong></summary>
 
 #### 🤗 Hugging Face Spaces
-1. Create a Space on Hugging Face using the **Docker** SDK connected to the `Eful97/Posterium` repository.
+1. Create a Space on Hugging Face using the **Docker** SDK connected to the `Eful97/Pictorium` repository.
 2. Under **Settings → Variables and secrets**, set:
    * `NODE_OPTIONS` = `--max-old-space-size=1024`
    * `POSTERIUM_PUBLIC_INSTANCE` = `1`
@@ -191,7 +191,7 @@ The Stremio addon manifest will be available at: `http://<SERVER-IP>:8080/manife
 #### 🦾 Oracle Cloud Always Free (ARM Ampere)
 ```bash
 sudo apt update && sudo apt install -y docker.io docker-compose-v2
-git clone https://github.com/Eful97/Posterium && cd Posterium
+git clone https://github.com/Eful97/Pictorium && cd Pictorium
 echo "POSTERIUM_PUBLIC_INSTANCE=1" > .env
 echo "POSTERIUM_TMDB_KEY=your_key_here" >> .env
 sudo docker compose up -d
@@ -207,7 +207,7 @@ yourdomain.com {
 #### 📱 Termux (Android)
 ```bash
 pkg update && pkg install nodejs git -y
-git clone https://github.com/Eful97/Posterium && cd Posterium
+git clone https://github.com/Eful97/Pictorium && cd Pictorium
 npm install --ignore-scripts && npm run build && npm start
 ```
 </details>
@@ -263,7 +263,7 @@ npm install --ignore-scripts && npm run build && npm start
 
 ```bash
 # 1. Clone the repository
-git clone https://github.com/Eful97/Posterium && cd Posterium
+git clone https://github.com/Eful97/Pictorium && cd Pictorium
 
 # 2. Install dependencies
 npm install

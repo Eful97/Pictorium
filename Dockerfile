@@ -1,6 +1,6 @@
 FROM node:22-bookworm AS source
 WORKDIR /src
-ARG SOURCE_REPO=https://github.com/Eful97/Posterium.git
+ARG SOURCE_REPO=https://github.com/Eful97/Pictorium.git
 ARG SOURCE_REF=master
 COPY . .
 RUN if [ ! -f package.json ]; then \

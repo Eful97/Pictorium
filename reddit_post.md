@@ -56,7 +56,7 @@ Run `docker compose up -d`, navigate to `http://localhost:8080`, customize your 
 ---
 
 ### 🔗 Links
-* **GitHub**: https://github.com/Eful97/Posterium
+* **GitHub**: https://github.com/Eful97/Pictorium
 * **Docker Hub**: `eful97/posterium:latest`
 * **GHCR**: `ghcr.io/eful97/posterium:latest`
 

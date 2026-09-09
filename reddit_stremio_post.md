@@ -49,7 +49,7 @@ If you don't have a 24/7 home server, you can deploy your personal instance to V
 ```yaml
 services:
   posterium:
-    image: eful97/posterium:latest
+    image: eful97/pictorium:latest
     container_name: posterium
     restart: unless-stopped
     ports:
@@ -65,8 +65,8 @@ Run `docker compose up -d`, open `http://localhost:8080`, customize your look, a
 ---
 
 ### 🔗 Links
-* **GitHub**: https://github.com/Eful97/Posterium
-* **Docker Hub**: `eful97/posterium:latest`
-* **GHCR**: `ghcr.io/eful97/posterium:latest`
+* **GitHub**: https://github.com/Eful97/Pictorium
+* **Docker Hub**: `eful97/pictorium:latest`
+* **GHCR**: `ghcr.io/eful97/pictorium:latest`
 
 I'd love to hear your feedback, bug reports, and ideas for new features!
