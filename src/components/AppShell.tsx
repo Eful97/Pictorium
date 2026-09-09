@@ -291,7 +291,7 @@ export function AppShell() {
             src="/pictorium.svg"
             alt="Pictorium"
             decoding="async"
-            className="header-logo h-8 sm:h-12 md:h-20 w-auto cursor-pointer hover:brightness-110 active:scale-95 transition-all duration-150 mb-1.5 md:mb-2"
+            className="header-logo h-10 sm:h-14 md:h-24 w-auto cursor-pointer hover:brightness-110 active:scale-95 transition-all duration-150 mb-1.5 md:mb-2"
           />
           <p className="header-tagline text-center text-[10px] sm:text-xs md:text-sm mb-3.5 sm:mb-5 md:mb-6 max-w-xs sm:max-w-none">{t("ui.homeTagline")}</p>
           {mobileToolbar}
