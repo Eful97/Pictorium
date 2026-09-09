@@ -73,7 +73,7 @@ const log = createLogger("poster")
 // watchdog abbandona il render e libera slot + inflight map. Lettura a module
 // level: un cambio env richiede restart, non hot-reload.
 const RENDER_TIMEOUT_MS = (() => {
-  const raw = process.env.POSTERIUM_RENDER_TIMEOUT_MS
+  const raw = process.env.PICTORIUM_RENDER_TIMEOUT_MS || process.env.POSTERIUM_RENDER_TIMEOUT_MS
   const n = raw ? parseInt(raw, 10) : 30000
   // Clamp superiore = maxDuration (40s): un timeout interno più lungo del
   // limite della funzione serverless non avrebbe mai tempo di scattare (finding 11).
@@ -86,7 +86,7 @@ const RENDER_TIMEOUT_MS = (() => {
 // per stringere il caso peggiore senza rinunciare all'upgrade del voto. Valore
 // condiviso con la route tmdb-details (stesso knob).
 const RATING_WAIT_MS = (() => {
-  const raw = process.env.POSTERIUM_RATING_WAIT_MS
+  const raw = process.env.PICTORIUM_RATING_WAIT_MS || process.env.POSTERIUM_RATING_WAIT_MS
   const n = raw ? parseInt(raw, 10) : 1500
   return Number.isFinite(n) && n >= 300 && n <= 10000 ? n : 1500
 })()

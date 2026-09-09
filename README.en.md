@@ -129,8 +129,8 @@ Ideal if you don't own a home server. Setup takes under 2 minutes and is 100% fr
    * Click **Add New…** → **Project** at the top.
    * Under "Import Third-Party Git Repository", paste the repository URL: `https://github.com/Eful97/Pictorium` and click **Import**.
    * In the **Environment Variables** section, add:
-     * `POSTERIUM_TMDB_KEY` = your 32-character TMDB API key.
-     * `POSTERIUM_PUBLIC_INSTANCE` = `1`
+     * `PICTORIUM_TMDB_KEY` = your 32-character TMDB API key.
+     * `PICTORIUM_PUBLIC_INSTANCE` = `1`
    * Click **Deploy**.
 3. **Link Upstash Redis (free database to save your custom posters)**:
    * Once the deploy finishes, open your project dashboard in Vercel.
@@ -141,7 +141,7 @@ Ideal if you don't own a home server. Setup takes under 2 minutes and is 100% fr
    * Click the **three dots (⋯)** on the latest deployment and select **Redeploy**.
    * *(Note: Vercel only binds the new Upstash database variables on subsequent deployments)*.
 5. **Done!**:
-   * Open your deployed URL (e.g. `https://your-posterium.vercel.app`).
+   * Open your deployed URL (e.g. `https://your-pictorium.vercel.app`).
    * Click **Install on Stremio**! *(You can confirm everything is running smoothly by checking `/api/health`, which should return `"storage": "kv"` and `"status": "ok"`)*.
 
 ---
@@ -183,8 +183,8 @@ The Stremio addon manifest will be available at: `http://<SERVER-IP>:8080/manife
 1. Create a Space on Hugging Face using the **Docker** SDK connected to the `Eful97/Pictorium` repository.
 2. Under **Settings → Variables and secrets**, set:
    * `NODE_OPTIONS` = `--max-old-space-size=1024`
-   * `POSTERIUM_PUBLIC_INSTANCE` = `1`
-   * `POSTERIUM_TMDB_KEY` = *your TMDB key*
+   * `PICTORIUM_PUBLIC_INSTANCE` = `1`
+   * `PICTORIUM_TMDB_KEY` = *your TMDB key*
 3. Under **Settings → Storage**, attach a Storage Bucket mounted to `/data`.
 4. Stremio Manifest: `https://<your-space>.hf.space/manifest.json`.
 
@@ -192,15 +192,15 @@ The Stremio addon manifest will be available at: `http://<SERVER-IP>:8080/manife
 ```bash
 sudo apt update && sudo apt install -y docker.io docker-compose-v2
 git clone https://github.com/Eful97/Pictorium && cd Pictorium
-echo "POSTERIUM_PUBLIC_INSTANCE=1" > .env
-echo "POSTERIUM_TMDB_KEY=your_key_here" >> .env
+echo "PICTORIUM_PUBLIC_INSTANCE=1" > .env
+echo "PICTORIUM_TMDB_KEY=your_key_here" >> .env
 sudo docker compose up -d
 ```
 
 #### 🖥️ VPS + Caddy (Automatic HTTPS)
 ```caddyfile
 yourdomain.com {
-    reverse_proxy posterium:8080
+    reverse_proxy pictorium:8080
 }
 ```
 
@@ -225,10 +225,10 @@ npm install --ignore-scripts && npm run build && npm start
 |---|:---:|---|
 | `PICTORIUM_PUBLIC_INSTANCE` | `0` | Set to `1` on Vercel/HF to allow saving posters and using the editor without an admin token. |
 | `PICTORIUM_TMDB_KEY` | *(optional)* | Instance TMDB API key to generate posters and catalogs without requiring users to input one. |
-| `POSTERIUM_TVDB_API_KEY` | *(optional)* | TheTVDB API key for alternative season ordering and episode descriptions. |
-| `POSTERIUM_MDBLIST_KEY` | *(optional)* | MDBList API key for custom lists and anime catalogs. |
-| `POSTERIUM_REGION` | `IT` | Default country for JustWatch/FlixPatrol charts and title language (`IT`, `US`, `GB`, `FR`, `DE`, `ES`, `JP`, `KR`, `BR`, `IN`, `CA`, `AU`). Overridable per-request via `?region=` and per-user via config token or saved defaults. |
-| `POSTERIUM_DATA_DIR` | `./data` | Local disk persistence folder for database and saved files. |
+| `PICTORIUM_TVDB_API_KEY` | *(optional)* | TheTVDB API key for alternative season ordering and episode descriptions. |
+| `PICTORIUM_MDBLIST_KEY` | *(optional)* | MDBList API key for custom lists and anime catalogs. |
+| `PICTORIUM_REGION` | `IT` | Default country for JustWatch/FlixPatrol charts and title language (`IT`, `US`, `GB`, `FR`, `DE`, `ES`, `JP`, `KR`, `BR`, `IN`, `CA`, `AU`). Overridable per-request via `?region=` and per-user via config token or saved defaults. |
+| `PICTORIUM_DATA_DIR` | `./data` | Local disk persistence folder for database and saved files. |
 | `KV_REST_API_URL` / `TOKEN` | *(empty)* | Upstash Redis connection parameters for serverless deployment on Vercel. |
 
 ---
@@ -239,22 +239,22 @@ npm install --ignore-scripts && npm run build && npm start
 ### Default Visual Styles for Catalogs
 | Variable | Values | Effect |
 |---|---|---|
-| `POSTERIUM_BADGE_STYLE` | `shadow`, `pill`, `bar`, `colored`, `bordo`, `vetro` | Style for genre/rating badges. |
-| `POSTERIUM_RANKING_BADGE_STYLE` | `default`, `bar`, `colored`, `pill`, `netflix` | Style for ranking badges. |
-| `POSTERIUM_RIBBON_SIDE` | `left` / `right` | Position of the vertical Netflix Top 10 ribbon. |
-| `POSTERIUM_BLUR_ENABLED` | `1` / `0` | Enable or disable the blurred background. |
-| `POSTERIUM_BADGE_QUALITY` | `1` / `0` | Show or hide the streaming quality badge (4K/1080p). |
-| `POSTERIUM_NETWORK_LOGO` | `1` / `0` | Show or hide the network logo (Netflix, Prime, etc.). |
-| `POSTERIUM_GRADIENT_HEIGHT` | `5` – `100` | Percentage height of the bottom black gradient. |
+| `PICTORIUM_BADGE_STYLE` | `shadow`, `pill`, `bar`, `colored`, `bordo`, `vetro` | Style for genre/rating badges. |
+| `PICTORIUM_RANKING_BADGE_STYLE` | `default`, `bar`, `colored`, `pill`, `netflix` | Style for ranking badges. |
+| `PICTORIUM_RIBBON_SIDE` | `left` / `right` | Position of the vertical Netflix Top 10 ribbon. |
+| `PICTORIUM_BLUR_ENABLED` | `1` / `0` | Enable or disable the blurred background. |
+| `PICTORIUM_BADGE_QUALITY` | `1` / `0` | Show or hide the streaming quality badge (4K/1080p). |
+| `PICTORIUM_NETWORK_LOGO` | `1` / `0` | Show or hide the network logo (Netflix, Prime, ecc.). |
+| `PICTORIUM_GRADIENT_HEIGHT` | `5` – `100` | Percentage height of the bottom black gradient. |
 
 ### Concurrency & Memory Protection
 | Variable | Default | Description |
 |---|:---:|---|
-| `POSTERIUM_MAX_CONCURRENT_RENDERS` | `4` | Maximum parallel Sharp rendering operations (OOM protection). |
-| `POSTERIUM_RENDER_TIMEOUT_MS` | `30000` | Maximum timeout to complete a render operation (ms). |
-| `POSTERIUM_CACHE_MAX_MB` | `150` | Maximum RAM reserved for image caching. |
-| `POSTERIUM_SELF_WARMUP` | `1` | Automatic pre-warming of catalogs at startup. |
-| `POSTERIUM_LOG_LEVEL` | `info` | Log level (`debug`, `info`, `warn`, `error`). |
+| `PICTORIUM_MAX_CONCURRENT_RENDERS` | `4` | Maximum parallel Sharp rendering operations (OOM protection). |
+| `PICTORIUM_RENDER_TIMEOUT_MS` | `30000` | Timeout massimo per completare un render (ms). |
+| `PICTORIUM_CACHE_MAX_MB` | `150` | Memoria RAM massima riservata alla cache delle immagini. |
+| `PICTORIUM_SELF_WARMUP` | `1` | Preriscaldamento automatico dei cataloghi all'avvio. |
+| `PICTORIUM_LOG_LEVEL` | `info` | Log level (`debug`, `info`, `warn`, `error`). |
 </details>
 
 ---

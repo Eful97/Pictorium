@@ -297,7 +297,7 @@ export function schedulePosterRefresh(req: NextRequest, isPreview: boolean = fal
 // un tempo limitato, poi ricevono 503 invece di accodarsi all'infinito.
 
 const MAX_CONCURRENT_RENDERS = (() => {
-  const raw = process.env.POSTERIUM_MAX_CONCURRENT_RENDERS
+  const raw = process.env.PICTORIUM_MAX_CONCURRENT_RENDERS || process.env.POSTERIUM_MAX_CONCURRENT_RENDERS
   const n = raw ? parseInt(raw, 10) : 4
   return Number.isFinite(n) && n > 0 && n <= 32 ? n : 4
 })()
@@ -308,7 +308,7 @@ const MAX_CONCURRENT_RENDERS = (() => {
 // mancanti). I waiter non tengono buffer immagini (i fetch avvengono dentro lo
 // slot), quindi allungare l'attesa è memory-neutral.
 export const RENDER_SLOT_WAIT_MS = (() => {
-  const raw = process.env.POSTERIUM_RENDER_SLOT_WAIT_MS
+  const raw = process.env.PICTORIUM_RENDER_SLOT_WAIT_MS || process.env.POSTERIUM_RENDER_SLOT_WAIT_MS
   const n = raw ? parseInt(raw, 10) : 15000
   return Number.isFinite(n) && n >= 500 && n <= 60000 ? n : 15000
 })()
@@ -316,7 +316,7 @@ export const RENDER_SLOT_WAIT_MS = (() => {
 // posti attendono fino a RENDER_SLOT_WAIT_MS). Con N>0 i waiter oltre N
 // ricevono 503 immediato invece di accodarsi: backpressure senza code infinite.
 const RENDER_QUEUE_LIMIT = (() => {
-  const raw = process.env.POSTERIUM_RENDER_QUEUE
+  const raw = process.env.PICTORIUM_RENDER_QUEUE || process.env.POSTERIUM_RENDER_QUEUE
   const n = raw ? parseInt(raw, 10) : 0
   return Number.isFinite(n) && n >= 0 && n <= 128 ? n : 0
 })()
