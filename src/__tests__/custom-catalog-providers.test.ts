@@ -254,4 +254,50 @@ describe("fetchUnifiedCatalogItems", () => {
     expect(items[0].year).toBe(1999)
     expect(items[0].poster_path).toBe("/fightclub.jpg")
   })
+
+  it("fetches multi-page TMDb lists across multiple pages", async () => {
+    global.fetch = vi.fn().mockImplementation((url: string) => {
+      if (typeof url === "string" && url.includes("/3/list/310") && url.includes("page=2")) {
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({
+            id: "310",
+            total_pages: 2,
+            items: [
+              {
+                id: 200,
+                title: "Movie Page 2",
+                release_date: "2010-01-01",
+                poster_path: "/p2.jpg",
+              },
+            ],
+          }),
+        })
+      }
+      if (typeof url === "string" && url.includes("/3/list/310")) {
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({
+            id: "310",
+            total_pages: 2,
+            items: [
+              {
+                id: 100,
+                title: "Movie Page 1",
+                release_date: "2009-01-01",
+                poster_path: "/p1.jpg",
+              },
+            ],
+          }),
+        })
+      }
+      return Promise.resolve({ ok: false, status: 404 })
+    }) as unknown as typeof fetch
+
+    const items = await fetchUnifiedCatalogItems("https://www.themoviedb.org/list/310-my-movie-list", { apiKey: "test-tmdb-key" })
+    expect(items.length).toBe(2)
+    expect(items[0].title).toBe("Movie Page 1")
+    expect(items[1].title).toBe("Movie Page 2")
+    expect(items[1].poster_path).toBe("/p2.jpg")
+  })
 })

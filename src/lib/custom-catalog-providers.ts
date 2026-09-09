@@ -330,6 +330,28 @@ async function fetchTmdbCollectionOrList(
     const data = res && res.ok ? await res.json() : null
     let rawParts: TmdbListPart[] = data?.items || data?.parts || []
 
+    if (data?.total_pages && data.total_pages > 1 && rawParts.length < limit) {
+      const maxPages = Math.min(data.total_pages, Math.ceil(limit / 20))
+      const CHUNK_SIZE = 5
+      for (let i = 2; i <= maxPages; i += CHUNK_SIZE) {
+        const chunkPromises: Promise<TmdbListPart[]>[] = []
+        for (let p = i; p < Math.min(i + CHUNK_SIZE, maxPages + 1); p++) {
+          const pageUrl = `https://api.themoviedb.org/3/list/${encodeURIComponent(identifier)}?api_key=${encodeURIComponent(key)}&language=it-IT&page=${p}`
+          chunkPromises.push(
+            fetch(pageUrl, { signal: AbortSignal.timeout(8000) })
+              .then((r) => (r.ok ? r.json() : null))
+              .then((d) => (d?.items || d?.parts || []) as TmdbListPart[])
+              .catch(() => [] as TmdbListPart[])
+          )
+        }
+        const pageResults = await Promise.all(chunkPromises)
+        for (const items of pageResults) {
+          rawParts.push(...items)
+        }
+        if (rawParts.length >= limit) break
+      }
+    }
+
     // 2. Se v3 non trova la lista (es. 404 per liste create su TMDB v4) o non ha elementi, tenta endpoint v4: /4/list/{list_id}
     if (rawParts.length === 0) {
       const v4Endpoint = `https://api.themoviedb.org/4/list/${encodeURIComponent(identifier)}?api_key=${encodeURIComponent(key)}&language=it-IT`
@@ -337,6 +359,27 @@ async function fetchTmdbCollectionOrList(
       if (resV4 && resV4.ok) {
         const dataV4 = await resV4.json()
         rawParts = dataV4?.results || []
+        if (dataV4?.total_pages && dataV4.total_pages > 1 && rawParts.length < limit) {
+          const maxPages = Math.min(dataV4.total_pages, Math.ceil(limit / 20))
+          const CHUNK_SIZE = 5
+          for (let i = 2; i <= maxPages; i += CHUNK_SIZE) {
+            const chunkPromises: Promise<TmdbListPart[]>[] = []
+            for (let p = i; p < Math.min(i + CHUNK_SIZE, maxPages + 1); p++) {
+              const pageUrl = `https://api.themoviedb.org/4/list/${encodeURIComponent(identifier)}?api_key=${encodeURIComponent(key)}&language=it-IT&page=${p}`
+              chunkPromises.push(
+                fetch(pageUrl, { signal: AbortSignal.timeout(8000) })
+                  .then((r) => (r.ok ? r.json() : null))
+                  .then((d) => (d?.results || []) as TmdbListPart[])
+                  .catch(() => [] as TmdbListPart[])
+              )
+            }
+            const pageResults = await Promise.all(chunkPromises)
+            for (const items of pageResults) {
+              rawParts.push(...items)
+            }
+            if (rawParts.length >= limit) break
+          }
+        }
       }
     }
 
