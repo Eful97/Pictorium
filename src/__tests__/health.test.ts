@@ -34,6 +34,18 @@ describe("GET /api/health", () => {
     expect(json.storage.dataDirWritable).toBe(true)
   })
 
+  it("answers the liveness probe without key, probes or storage I/O (D1)", async () => {
+    vi.resetModules()
+    const { GET } = await import("@/app/api/health/route")
+
+    const req = new Request("http://localhost:3000/api/health?probe=1")
+    const res = await GET(req)
+    const json = await res.json()
+
+    expect(res.status).toBe(200)
+    expect(json.status).toBe("alive")
+  })
+
   it("returns mappingCount as a number and lastMappingUpdatedAt as null when empty", async () => {
     tempDir = await fsp.mkdtemp(path.join(os.tmpdir(), "pictorium-health-empty-"))
     process.env.POSTERIUM_DATA_DIR = tempDir

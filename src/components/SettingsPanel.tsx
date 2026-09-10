@@ -932,7 +932,7 @@ export function SettingsPanel({ setSettingsOpen, exportData, importData, mobile 
                   </button>
                   <button
                     type="button"
-                    disabled={newPinInput.length < 4 || (pinConfig?.hasPin && !curPinInput) || pinBusy}
+                    disabled={newPinInput.length < 6 || (pinConfig?.hasPin && !curPinInput) || pinBusy}
                     onClick={async () => {
                       setPinBusy(true)
                       try {

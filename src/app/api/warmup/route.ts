@@ -137,9 +137,14 @@ export async function POST(req: NextRequest) {
   const apiKey = resolveRequestApiKey(req)
   const lang = req.nextUrl.searchParams.get("lang") || "it"
   const concurrency = boundedInt({ value: req.nextUrl.searchParams.get("concurrency"), fallback: 3, min: 1, max: 8 })
-  const trendingLimit = boundedInt({ value: req.nextUrl.searchParams.get("trending"), fallback: 50, min: 0, max: 100 })
-  const justWatchLimit = boundedInt({ value: req.nextUrl.searchParams.get("justwatch"), fallback: 20, min: 0, max: 50 })
-  const mappingLimit = boundedInt({ value: req.nextUrl.searchParams.get("mappings"), fallback: 200, min: 0, max: 500 })
+  // D2: default dimezzati (~110 target invece di ~340). Prima ogni warmup
+  // senza parametri veniva sempre troncato dalla deadline 50s (e su Hobby
+  // 10s non completava nulla), sprecando lavoro e — al boot su 512M —
+  // rischiando OOM contro il traffico reale. Chi vuole di più passa i
+  // parametri espliciti (max invariati).
+  const trendingLimit = boundedInt({ value: req.nextUrl.searchParams.get("trending"), fallback: 20, min: 0, max: 100 })
+  const justWatchLimit = boundedInt({ value: req.nextUrl.searchParams.get("justwatch"), fallback: 10, min: 0, max: 50 })
+  const mappingLimit = boundedInt({ value: req.nextUrl.searchParams.get("mappings"), fallback: 50, min: 0, max: 500 })
 
   try {
     const [movies, tv, jwMovies, jwShows, mappings] = await Promise.allSettled([
@@ -199,7 +204,10 @@ export async function POST(req: NextRequest) {
         try {
           const res = await fetch(buildPosterUrl({ req, target, lang }), { signal: AbortSignal.timeout(batchTimeout) })
           if (!res.ok) return { ...target, status: "fail", statusCode: res.status }
-          await res.arrayBuffer()
+          // D2: basta scaldare la cache server — il body non serve: cancellarlo
+          // invece di allocare l'intero JPEG nell'orchestratore (prima
+          // `arrayBuffer()` teneva ogni poster in memoria per niente).
+          await res.body?.cancel().catch(() => {})
           return { ...target, status: "ok" }
         } catch (error: unknown) {
           if (error instanceof Error) log.error("Poster failed", { error: error.message })

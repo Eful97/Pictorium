@@ -58,6 +58,11 @@ if (!resolveAdminToken() && !isPublicInstance()) {
   log.warn("   Imposta PICTORIUM_ADMIN_TOKEN (o ADMIN_TOKEN) per proteggerle.")
 }
 
+/** True quando un ADMIN_TOKEN è configurato (qualunque env supportata). */
+export function hasAdminTokenConfigured(): boolean {
+  return !!resolveAdminToken()
+}
+
 function constantTimeEqual(a: string, b: string): boolean {
   if (a.length !== b.length) return false
   return crypto.timingSafeEqual(Buffer.from(a), Buffer.from(b))

@@ -158,9 +158,23 @@ export function resolvePosterRenderConfig(input: PosterRenderConfigInput): Poste
   const qScale = q.get("scale")
   const qOx = q.get("ox")
   const qOy = q.get("oy")
-  const logoScale = qScale ? Number(qScale) || null : mapping?.logoScale ?? null
-  const logoOffsetX = qOx ? Number(qOx) || null : mapping?.logoOffsetX ?? null
-  const logoOffsetY = qOy ? Number(qOy) || null : mapping?.logoOffsetY ?? null
+  // Bound anti-DoS (R1): scale fuori 10..200 arrivava a resizeLogoCached con
+  // dimensioni assurde (sharp OOM); scale negativa addirittura crashava il
+  // resize → 500 permanente. `scale=0`/non-numerico resta null come prima.
+  const qScaleNum = qScale ? Number(qScale) : NaN
+  const logoScale = qScale
+    ? (Number.isFinite(qScaleNum) && qScaleNum !== 0 ? clamp(Math.round(qScaleNum), 10, 200) : null)
+    : mapping?.logoScale ?? null
+  // Offset: clamp ±2000px (oltre è comunque fuori canvas). A differenza di
+  // prima, `ox=0` esplicito vince sul mapping (0 reale invece di null).
+  const qOxNum = qOx ? Number(qOx) : NaN
+  const logoOffsetX = qOx
+    ? (Number.isFinite(qOxNum) ? clamp(Math.round(qOxNum), -2000, 2000) : null)
+    : mapping?.logoOffsetX ?? null
+  const qOyNum = qOy ? Number(qOy) : NaN
+  const logoOffsetY = qOy
+    ? (Number.isFinite(qOyNum) ? clamp(Math.round(qOyNum), -2000, 2000) : null)
+    : mapping?.logoOffsetY ?? null
 
   // Fix L32: le label prefissate (__badge.*) vengono risolte con la lingua
   // della richiesta — prima un customBadge "__badge.anime" dal config token

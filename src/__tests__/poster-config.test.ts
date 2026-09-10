@@ -222,6 +222,19 @@ describe("resolvePosterRenderConfig", () => {
     expect(r2.logoOffsetY).toBe(2)
   })
 
+  it("logo scale/offsets are clamped (R1 anti-DoS)", () => {
+    // Scale assurda → clamp 10..200 (prima arrivava a sharp → OOM/500).
+    expect(resolvePosterRenderConfig(baseInput({ searchParams: new URLSearchParams({ scale: "999999" }) })).logoScale).toBe(200)
+    expect(resolvePosterRenderConfig(baseInput({ searchParams: new URLSearchParams({ scale: "-50" }) })).logoScale).toBe(10)
+    // Non-numerico e 0 restano null come prima (nessun override).
+    expect(resolvePosterRenderConfig(baseInput({ searchParams: new URLSearchParams({ scale: "abc" }) })).logoScale).toBeNull()
+    expect(resolvePosterRenderConfig(baseInput({ searchParams: new URLSearchParams({ scale: "0" }) })).logoScale).toBeNull()
+    // Offset oltre ±2000px → clamp (comunque fuori canvas).
+    expect(resolvePosterRenderConfig(baseInput({ searchParams: new URLSearchParams({ ox: "99999" }) })).logoOffsetX).toBe(2000)
+    expect(resolvePosterRenderConfig(baseInput({ searchParams: new URLSearchParams({ oy: "-99999" }) })).logoOffsetY).toBe(-2000)
+    expect(resolvePosterRenderConfig(baseInput({ searchParams: new URLSearchParams({ ox: "xyz" }) })).logoOffsetX).toBeNull()
+  })
+
   it("badgeGenre/badgeYear/badgeRating default to true", () => {
     const r = resolvePosterRenderConfig(baseInput())
     expect(r.badgeGenre).toBe(true)

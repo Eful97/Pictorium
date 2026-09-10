@@ -1,5 +1,6 @@
 import { cacheGet, cacheSet } from "./cache"
 import { createLogger } from "@/lib/logger"
+import { combineAbortSignals } from "./abort-signal"
 
 const log = createLogger("awards")
 
@@ -110,8 +111,10 @@ function release(): void {
 
 // ---- SPARQL helper ----
 
-async function sparqlQuery(query: string): Promise<Record<string, { value: string; type: string }>[] | null> {
+async function sparqlQuery(query: string, signal?: AbortSignal): Promise<Record<string, { value: string; type: string }>[] | null> {
   if (isBreakerOpen()) return null
+  // R3: signal esterno già abortito → niente rete inutile.
+  if (signal?.aborted) return null
 
   await acquire()
   try {
@@ -125,7 +128,7 @@ async function sparqlQuery(query: string): Promise<Record<string, { value: strin
       try {
         const res = await fetch(url, {
           headers: { "User-Agent": "Pictorium/1.0" },
-          signal: AbortSignal.timeout(timeout),
+          signal: combineAbortSignals(signal, timeout),
         })
         if (res.status === 429) {
           recordFailure()
@@ -244,8 +247,35 @@ const DIRECTORS = [
   "Max Ophüls",
 ]
 
-function matchDirector(name: string | null, t?: (key: string, params?: Record<string, string | number>) => string): string | null {
-  if (!name) return null
+/** Estrae "Q123" da un URI entità Wikidata (o da un QID già nudo). */
+function qidFromEntityUri(value: string | null | undefined): string | null {
+  if (!value) return null
+  const m = value.match(/(Q\d+)\s*$/)
+  return m ? m[1] : null
+}
+
+/**
+ * Titolo del sitelink enwiki di un item (es. Q25191 → "Christopher Nolan").
+ * Fallback fail-open per item senza label: 1 chiamata API veloce con timeout
+ * breve, MAI join sitelink in SPARQL (rende la query 10x più lenta).
+ */
+async function enwikiTitle(qid: string, signal?: AbortSignal): Promise<string | null> {
+  try {
+    const url = `https://www.wikidata.org/w/api.php?action=wbgetentities&ids=${encodeURIComponent(qid)}&props=sitelinks&sitefilter=enwiki&format=json`
+    const res = await fetch(url, {
+      headers: { "User-Agent": "Pictorium/1.0" },
+      signal: combineAbortSignals(signal, 4000),
+    })
+    if (!res.ok) return null
+    const json = await res.json()
+    const title = json?.entities?.[qid]?.sitelinks?.enwiki?.title
+    return typeof title === "string" && title.length > 0 ? title : null
+  } catch {
+    return null
+  }
+}
+
+function matchDirector(name: string | null, t?: (key: string, params?: Record<string, string | number>) => string): string | null {  if (!name) return null
   const lower = name.toLowerCase().trim()
   for (const d of DIRECTORS) {
     if (lower === d.toLowerCase() || lower.includes(d.toLowerCase())) {
@@ -257,7 +287,14 @@ function matchDirector(name: string | null, t?: (key: string, params?: Record<st
 
 const WIKIDATA_CACHE_TTL = 24 * 60 * 60 * 1000
 
-export async function fetchAllWikidata(tmdbId: number, mediaType: "movie" | "tv", t?: (key: string, params?: Record<string, string | number>) => string): Promise<WikidataResult> {
+export async function fetchAllWikidata(
+  tmdbId: number,
+  mediaType: "movie" | "tv",
+  t?: (key: string, params?: Record<string, string | number>) => string,
+  // R3: signal esterno (es. deadline render) — senza, il fetch sopravvive al
+  // watchdog come zombie anche dopo il 503.
+  signal?: AbortSignal,
+): Promise<WikidataResult> {
   const cacheKey = `wikidata:${mediaType}:${tmdbId}`
 
   // Check shared cache first (typed, with TTL)
@@ -266,16 +303,17 @@ export async function fetchAllWikidata(tmdbId: number, mediaType: "movie" | "tv"
 
   const tmdbProp = mediaType === "movie" ? "P4947" : "P4983"
   const networkQuery = mediaType === "tv" ? `OPTIONAL { ?item wdt:P449 ?network . ?network rdfs:label ?networkLabel . FILTER(LANG(?networkLabel) = "en") }` : ""
-  const query = `SELECT ?awardLabel ?nominationLabel ?networkLabel ?directorLabel WHERE {
+  const query = `SELECT ?awardLabel ?nominationLabel ?networkLabel ?directorLabel ?director WHERE {
     ?item wdt:${tmdbProp} "${tmdbId}" .
     OPTIONAL { ?item wdt:P166 ?award . ?award rdfs:label ?awardLabel . FILTER(LANG(?awardLabel) = "en") }
     OPTIONAL { ?item wdt:P1411 ?nomination . ?nomination rdfs:label ?nominationLabel . FILTER(LANG(?nominationLabel) = "en") }
     ${networkQuery}
-    OPTIONAL { ?item wdt:P57 ?director . ?director rdfs:label ?directorLabel . FILTER(LANG(?directorLabel) = "en") }
+    OPTIONAL { ?item wdt:P57 ?director }
+    OPTIONAL { ?director rdfs:label ?directorLabel . FILTER(LANG(?directorLabel) = "en") }
   }`
 
   try {
-    const bindings = await sparqlQuery(query)
+    const bindings = await sparqlQuery(query, signal)
     if (bindings === null) {
       // Fallimento transitorio (breaker, timeout, 5xx): non inquinare la cache 24h
       return { awards: [], nominations: [], studios: [], director: null }
@@ -285,15 +323,30 @@ export async function fetchAllWikidata(tmdbId: number, mediaType: "movie" | "tv"
     const nominationLabels = new Set<string>()
     const networkLabels = new Set<string>()
     const directorLabels = new Set<string>()
+    const directorQids = new Set<string>()
 
     for (const b of bindings) {
       if (b.awardLabel?.value) awardLabels.add(b.awardLabel.value)
       if (b.nominationLabel?.value) nominationLabels.add(b.nominationLabel.value)
       if (b.networkLabel?.value) networkLabels.add(b.networkLabel.value)
       if (b.directorLabel?.value) directorLabels.add(b.directorLabel.value)
+      const qid = qidFromEntityUri(b.director?.value)
+      if (qid) directorQids.add(qid)
     }
 
-    const director = [...directorLabels][0] || null
+    // Titolo enwiki come fallback quando l'item regista non ha label
+    // (vandalismo/decadimento dati: es. Q25191 senza label ma con sitelink
+    // "Christopher Nolan"). Solo quando la label manca: 1 chiamata API
+    // veloce, mai join sitelink in SPARQL (troppo lento, manda in timeout
+    // l'intera query). matchDirector usa comunque il nome canonico.
+    let director = [...directorLabels][0] || null
+    if (!director) {
+      const fallbackQid = [...directorQids][0]
+      if (fallbackQid) {
+        const wikiTitle = await enwikiTitle(fallbackQid, signal).catch(() => null)
+        if (wikiTitle) director = wikiTitle
+      }
+    }
     const directorBadge = matchDirector(director, t)
 
     const result: WikidataResult = {

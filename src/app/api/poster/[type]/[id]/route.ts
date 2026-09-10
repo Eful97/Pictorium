@@ -58,6 +58,7 @@ import { generatePosterBuffer, type GenerationInput } from "@/lib/poster-service
 import { computeTopBadge } from "@/lib/poster-badge"
 
 import { resolveImdbToTmdb } from "@/lib/imdb-resolver"
+import { validatePosterQuery } from "@/lib/validation"
 import { decodeConfig } from "@/lib/config-token"
 import { createLogger } from "@/lib/logger"
 import { resolvePosterRenderConfig } from "@/lib/poster-config"
@@ -82,6 +83,11 @@ const RENDER_TIMEOUT_MS = (() => {
   // limite della funzione serverless non avrebbe mai tempo di scattare (finding 11).
   return Number.isFinite(n) && n >= 1000 && n <= 40000 ? n : 30000
 })()
+
+// D5: tetto TMDB nel path poster (slot-bound). Un singolo fetch TMDB appeso
+// teneva 1 slot di render fino a 30s; a 8s il render degrada (fallback) o
+// fallisce in fretta liberando lo slot. Cataloghi/meta/search restano a 30s.
+const POSTER_TMDB_TIMEOUT_MS = 8000
 
 // Tetto massimo per l'attesa del voto medio TMDB+IMDb (MDBList) prima del
 // render: se il fetch è lento, il poster usa il voto TMDB senza bloccarsi.
@@ -140,6 +146,29 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
 
   if (isNaN(tmdbId) || tmdbId <= 0) {
     return new Response("Invalid ID", { status: 400, headers: corsHeaders() })
+  }
+
+  // R1: bound anti-DoS/cache-flood sui query param — PRIMA di cache key,
+  // slot e inflight: input oltre i bound → 400 immediato, mai render/cache.
+  // (I path immagine vengono validati anche contro l'allowlist in R2.)
+  const invalidQuery = validatePosterQuery(req.nextUrl.searchParams)
+  if (invalidQuery) {
+    return new Response(invalidQuery, { status: 400, headers: corsHeaders() })
+  }
+
+  // R2: i path immagine passano per l'allowlist SSRF di imgSrc() (stessa
+  // funzione usata dal render — nessuna deriva). Prima un URL esterno
+  // falliva dentro il try del render → 500 + negative-cache per un errore
+  // del client, intasando log e slot. Ora 400 immediato.
+  for (const imgKey of ["poster", "logo", "backdrop"] as const) {
+    const imgPath = req.nextUrl.searchParams.get(imgKey)
+    if (imgPath) {
+      try {
+        imgSrc(imgPath)
+      } catch {
+        return new Response(`Invalid query parameter: ${imgKey}`, { status: 400, headers: corsHeaders() })
+      }
+    }
   }
 
   // 1. Get mapping + server defaults (no network)
@@ -280,7 +309,11 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
   const renderDeadline = setTimeout(() => {
     deadlineFired = true
     renderAbort.abort()
-    completePosterRender(null)
+    // R4: risolve i waiter con null ma TIENE l'entry inflight prenotata allo
+    // zombie (keepEntry) — i nuovi arrivati fanno 503 immediato invece di
+    // duplicare il render. L'entry si libera alla fine dello zombie o al
+    // timeout 60s di beginPosterRender.
+    completePosterRender(null, true)
     endZombieRender = recordZombieRenderStart()
     releaseSlotOnce()
   }, RENDER_TIMEOUT_MS)
@@ -433,9 +466,9 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
       } else {
         const baseLangs = `${preferredLanguage},en,null`
         const [det, ext, imgs] = await Promise.all([
-          getDetails(mediaType, tmdbId, preferredLanguage, apiKey, renderAbort.signal),
-          getExternalIds(mediaType, tmdbId, apiKey, renderAbort.signal).catch(() => ({ imdb_id: null, tvdb_id: null })),
-          getImages(mediaType, tmdbId, baseLangs, apiKey, renderAbort.signal),
+          getDetails(mediaType, tmdbId, preferredLanguage, apiKey, renderAbort.signal, POSTER_TMDB_TIMEOUT_MS),
+          getExternalIds(mediaType, tmdbId, apiKey, renderAbort.signal, POSTER_TMDB_TIMEOUT_MS).catch(() => ({ imdb_id: null, tvdb_id: null })),
+          getImages(mediaType, tmdbId, baseLangs, apiKey, renderAbort.signal, POSTER_TMDB_TIMEOUT_MS),
         ])
         details = det
         extIds = ext
@@ -443,7 +476,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
         const needsOrigLang = origLang && origLang !== preferredLanguage && origLang !== "en"
           && (imgs.posters.length === 0 || imgs.logos.length === 0)
         images = needsOrigLang
-          ? await getImages(mediaType, tmdbId, `${baseLangs},${origLang}`, apiKey, renderAbort.signal).catch(() => imgs)
+          ? await getImages(mediaType, tmdbId, `${baseLangs},${origLang}`, apiKey, renderAbort.signal, POSTER_TMDB_TIMEOUT_MS).catch(() => imgs)
           : imgs
         setTMDBSessionCache(mediaType, tmdbId, { details: det, images, externalIds: ext })
       }
@@ -654,7 +687,9 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
           : logoPath ? fetchImg(imgSrc(logoPath), renderAbort.signal).catch(() => null) : Promise.resolve(null),
         backdropPath ? fetchImg(imgSrc(backdropPath), renderAbort.signal).catch(() => null) : Promise.resolve(null),
         rankingEnabledEarly
-          ? getJWRankings(mediaType === "movie" ? "MOVIE" : "SHOW", posterRegion.code, 20, undefined, posterRegion.lang)
+          // R3: signal del watchdog — allo scatto della deadline il fetch
+          // abortisce invece di proseguire come zombie in background.
+          ? getJWRankings(mediaType === "movie" ? "MOVIE" : "SHOW", posterRegion.code, 20, undefined, posterRegion.lang, renderAbort.signal)
             .then((r) => r.find((x) => x.tmdbId === tmdbId)?.rank ?? null)
             // Solo il FETCH FALLITO (rete/outage) ripiega sul rank salvato nel
             // mapping (degraded esplicito). La miss genuina (fetch riuscito, il
@@ -677,7 +712,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
               ? Promise.resolve(qAnimeRank)
               : fetchMDBList(
                   mediaType === "movie" ? "mdblistAnimeMovie" : "mdblistAnime",
-                  req.nextUrl.searchParams.get("mdblist_key") || envWithFallback("MDBLIST_KEY") || process.env.MDBLIST_KEY || process.env.MDBLIST_API_KEY || undefined
+                  req.nextUrl.searchParams.get("mdblist_key") || envWithFallback("MDBLIST_KEY") || process.env.MDBLIST_KEY || process.env.MDBLIST_API_KEY || undefined,
+                  renderAbort.signal
                 )
                   .then((entries) => {
                     // Shape inattesa → come failure: fallback al salvato.
@@ -733,7 +769,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
                     || genreName
                     || null
                   const [relDates, jw] = await Promise.all([
-                    getReleaseDates(mediaType, tmdbId, apiKey, renderAbort.signal).catch(() => null),
+                    getReleaseDates(mediaType, tmdbId, apiKey, renderAbort.signal, POSTER_TMDB_TIMEOUT_MS).catch(() => null),
                     hasJWOffers(tmdbId, "MOVIE", preTitle, posterRegion.code, renderAbort.signal).catch(() => null),
                   ])
                   preDigital = relDates ? extractDigitalReleaseDate(relDates, posterRegion.code) : null
@@ -765,7 +801,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
           })
           const result = await Promise.race([
             rankingEnabledEarly
-              ? fetchAllWikidata(tmdbId, mediaType, t).catch(() => emptyWikidata)
+              ? fetchAllWikidata(tmdbId, mediaType, t, renderAbort.signal).catch(() => emptyWikidata)
               : Promise.resolve(emptyWikidata),
             wikidataTimeout,
           ])
@@ -773,18 +809,18 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
           return result
         })(),
         rankingEnabledEarly
-          ? getKeywords(mediaType, tmdbId, resolveRequestApiKey(req), renderAbort.signal).catch(() => [])
+          ? getKeywords(mediaType, tmdbId, resolveRequestApiKey(req), renderAbort.signal, POSTER_TMDB_TIMEOUT_MS).catch(() => [])
           : Promise.resolve([]),
         (async () => {
           if (!rankingEnabledEarly) return false
           if (!imdbId) {
             // F6: externalIds già in session cache (ramo non-mappato) → niente rete.
             const extIds = getTMDBSessionCache(mediaType, tmdbId)?.externalIds
-              ?? (await getExternalIds(mediaType, tmdbId, resolveRequestApiKey(req), renderAbort.signal).catch(() => null))
+              ?? (await getExternalIds(mediaType, tmdbId, resolveRequestApiKey(req), renderAbort.signal, POSTER_TMDB_TIMEOUT_MS).catch(() => null))
             if (extIds?.imdb_id) imdbId = extIds.imdb_id
           }
           if (!imdbId) return false
-          return isImdbTop250(imdbId)
+          return isImdbTop250(imdbId, renderAbort.signal)
         })(),
       ]),
     ])
@@ -855,8 +891,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
             // upstream): senza dettagli saltano studio/network badge e il
             // render resta cachato così per tutto il TTL.
             const details = getTMDBSessionCache(mediaType, tmdbId)?.details
-              ?? (await getDetails(mediaType, tmdbId, preferredLang, apiKey, renderAbort.signal).catch(() => null))
-              ?? (await getDetails(mediaType, tmdbId, preferredLang, apiKey, renderAbort.signal).catch(() => null))
+              ?? (await getDetails(mediaType, tmdbId, preferredLang, apiKey, renderAbort.signal, POSTER_TMDB_TIMEOUT_MS).catch(() => null))
+              ?? (await getDetails(mediaType, tmdbId, preferredLang, apiKey, renderAbort.signal, POSTER_TMDB_TIMEOUT_MS).catch(() => null))
             if (!details) return
             if (!releaseDate) releaseDate = details.release_date || null
             if (!firstAirDate) firstAirDate = details.first_air_date || null

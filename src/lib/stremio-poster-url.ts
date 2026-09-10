@@ -12,8 +12,8 @@ export interface BuildStremioPosterUrlInput {
   readonly id: number
   readonly defaults: ServerDefaults
   readonly mapping?: Mapping | null
-  readonly apiKey?: string
-  readonly mdblistKey?: string
+  // Niente chiavi (vedi stremio-poster-params.ts): questo URL viene servito
+  // a Stremio e persistito nel suo DB — mai segreti dentro.
   readonly animerank?: number
   readonly lang?: string | null
   readonly config?: string | null
@@ -45,8 +45,6 @@ export function buildStremioPosterUrl(input: BuildStremioPosterUrlInput): URL {
     : undefined
   const params = buildStremioPosterSearchParams({
     config: input.config,
-    apiKey: input.apiKey,
-    mdblistKey: input.mdblistKey,
     animerank: input.animerank,
     user: input.user,
     region: input.region ?? input.defaults.region,

@@ -119,7 +119,7 @@ const itDict: Record<string, string> = {
   "ui.setupPinSave": "Salva PIN e Inizia",
   "ui.setupPinSaving": "Salvataggio...",
   "ui.setupPinSkip": "Salta questo passaggio",
-  "ui.setupPinMinDigits": "Il PIN deve contenere almeno 4 cifre",
+  "ui.setupPinMinDigits": "Il PIN deve contenere almeno 6 cifre",
   "ui.setupPinStremioNotice": "Manifest e poster Stremio restano aperti",
 }
 

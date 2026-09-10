@@ -14,6 +14,14 @@ vi.mock("@/lib/server-defaults", () => ({
   getServerDefaults: vi.fn(() => ({})),
 }))
 
+// Epoch controllabile: simula il bump su save senza scrivere su disco.
+// Senza freshness nella meta key (H7), il cambio epoch non invaliderebbe.
+const epochCtl = vi.hoisted(() => ({ value: "e1" }))
+vi.mock("@/lib/catalog-epoch", () => ({
+  getCatalogEpoch: vi.fn(async () => epochCtl.value),
+  bumpCatalogEpoch: vi.fn(async () => epochCtl.value),
+}))
+
 vi.mock("@/lib/tvdb", async (importOriginal) => {
   const mod = await importOriginal<typeof import("@/lib/tvdb")>()
   return { ...mod, enrichVideosWithTvdb: vi.fn() }
@@ -452,6 +460,69 @@ describe("GET /meta/[type]/[id]", () => {
     expect(body.meta.name).toBe("El club de la pelea")
     const detailsCall = fetchSpy.mock.calls.find((call) => typeof call[0] === "string" && call[0].includes("/movie/550"))
     expect(detailsCall?.[0]).toContain("language=es-MX")
+  })
+
+  it("refetches meta after a catalog epoch bump instead of serving 12h stale (C1)", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation((url: unknown) => {
+      const u = String(url)
+      if (u.includes("/find/")) return Promise.resolve(Response.json({ movie_results: [{ id: 550 }] }))
+      if (u.includes("/images")) return Promise.resolve(Response.json({ id: 550, logos: [] }))
+      return Promise.resolve(Response.json({
+        id: 550,
+        title: "Fight Club",
+        overview: "x",
+        release_date: "1999-10-15",
+        vote_average: 8.4,
+        genres: [],
+        external_ids: { imdb_id: "tt0137523" },
+      }))
+    })
+    const url = "http://localhost:3000/meta/movie/tt0137523.json?api_key=settings-key"
+    const params = { params: Promise.resolve({ type: "movie", id: "tt0137523.json" }) }
+
+    // 1. Miss: popola la cache.
+    const res1 = await GET(new NextRequest(url), params)
+    expect(res1.status).toBe(200)
+    expect((await res1.json()).meta.name).toBe("Fight Club")
+    const callsAfterMiss = fetchSpy.mock.calls.length
+    expect(callsAfterMiss).toBeGreaterThan(0)
+
+    // 2. Stessa richiesta: hit, niente rete.
+    const res2 = await GET(new NextRequest(url), params)
+    expect(res2.status).toBe(200)
+    expect(fetchSpy.mock.calls.length).toBe(callsAfterMiss)
+
+    // 3. Bump epoch (save mapping/defaults) + L2 pulito per isolare il layer
+    //    meta: deve mancare la cache e rifare rete, non servire stale.
+    epochCtl.value = "e2"
+    __clearTMDBCache()
+    const res3 = await GET(new NextRequest(url), params)
+    expect(res3.status).toBe(200)
+    expect(fetchSpy.mock.calls.length).toBeGreaterThan(callsAfterMiss)
+
+    epochCtl.value = "e1"
+  })
+
+  it("returns meta:null (not 500) when ID resolution needs a missing API key (C2)", async () => {
+    // Senza api_key, tmdbFindByImdb lancia "TMDB API key is missing": prima
+    // usciva dal try → 500, ora degrada a meta:null come i cataloghi.
+    const fetchSpy = vi.spyOn(globalThis, "fetch")
+    const req = new NextRequest("http://localhost:3000/meta/movie/tt0137523.json")
+    const res = await GET(req, { params: Promise.resolve({ type: "movie", id: "tt0137523.json" }) })
+    const body = await res.json()
+
+    expect(res.status).toBe(200)
+    expect(body).toEqual({ meta: null })
+    expect(fetchSpy).not.toHaveBeenCalled()
+  })
+
+  it("returns 400 for unknown meta types instead of silently serving series (C4)", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch")
+    const req = new NextRequest("http://localhost:3000/meta/garbage/tmdb:550.json?api_key=k")
+    const res = await GET(req, { params: Promise.resolve({ type: "garbage", id: "tmdb:550.json" }) })
+
+    expect(res.status).toBe(400)
+    expect(fetchSpy).not.toHaveBeenCalled()
   })
 
   it("resolves Hebrew metadata and images for region IL", async () => {

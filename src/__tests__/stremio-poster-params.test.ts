@@ -3,9 +3,11 @@ import { buildStremioPosterSearchParams } from "@/lib/stremio-poster-params"
 import { POSTER_URL_VERSION, RENDER_VERSION } from "@/lib/render-version"
 
 describe("buildStremioPosterSearchParams", () => {
-  it("builds the exact visual params used by Stremio poster URLs", () => {
+  it("never embeds API keys in served poster URLs (M2)", () => {
+    // Chiavi passate per errore vengono ignorate: i poster URL finiscono nel
+    // DB Stremio/log/proxy — mai segreti dentro. Le chiavi del template che
+    // l'utente copia (buildUrlPattern) sono accodate a parte, lì sono volute.
     const params = buildStremioPosterSearchParams({
-      apiKey: "tmdb-key",
       lang: "it",
       globalBadges: false,
       rankingBadges: false,
@@ -18,7 +20,8 @@ describe("buildStremioPosterSearchParams", () => {
       blurEnabled: false,
     })
 
-    expect(params.get("api_key")).toBe("tmdb-key")
+    expect(params.has("api_key")).toBe(false)
+    expect(params.has("mdblist_key")).toBe(false)
     expect(params.get("lang")).toBe("it")
     expect(params.get("badges")).toBe("0")
     expect(params.get("ranking")).toBe("0")

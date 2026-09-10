@@ -47,7 +47,7 @@ export function LangPicker({ onPickLang, onPickRegion, onDone }: SetupWizardProp
 
   const handleSavePin = async (e?: React.FormEvent) => {
     if (e) e.preventDefault()
-    if (pin.length < 4) {
+    if (pin.length < 6) {
       setPinError(t("ui.setupPinMinDigits"))
       return
     }
@@ -172,7 +172,7 @@ export function LangPicker({ onPickLang, onPickRegion, onDone }: SetupWizardProp
 
               <button
                 type="submit"
-                disabled={pin.length < 4 || pinLoading}
+                disabled={pin.length < 6 || pinLoading}
                 className="w-full py-3 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 text-black font-semibold text-xs tracking-wide uppercase hover:opacity-90 active:scale-98 disabled:opacity-30 disabled:pointer-events-none transition-all shadow-lg shadow-amber-500/20 flex items-center justify-center gap-2 cursor-pointer"
               >
                 <span>{pinLoading ? t("ui.setupPinSaving") : t("ui.setupPinSave")}</span>

@@ -470,6 +470,22 @@ describe("GET /api/poster/[type]/[id] error and edge cases", () => {
     expect(res.status).toBe(400)
   })
 
+  it("returns 400 (not 500) for external image URLs blocked by the allowlist (R2)", async () => {
+    // Prima l'URL esterno falliva dentro il try del render → 500 +
+    // negative-cache per un errore del client. Ora 400 prima di slot/cache.
+    for (const key of ["poster", "logo", "backdrop"]) {
+      const req = new NextRequest(`http://localhost:3000/api/poster/movie/42?${key}=http://evil.example/x.jpg`)
+      const res = await GET(req, { params: Promise.resolve({ type: "movie", id: "42" }) })
+      expect(res.status).toBe(400)
+    }
+  })
+
+  it("returns 400 for oversized text params (R1)", async () => {
+    const req = new NextRequest(`http://localhost:3000/api/poster/movie/42?extra=${"x".repeat(5000)}`)
+    const res = await GET(req, { params: Promise.resolve({ type: "movie", id: "42" }) })
+    expect(res.status).toBe(400)
+  })
+
   it("returns 404 when posterPath is null after resolution", async () => {
     mockedGetById.mockResolvedValue({
       tmdbId: 99,
@@ -955,7 +971,9 @@ describe("GET /api/poster/[type]/[id] error and edge cases", () => {
     const reqFr = new NextRequest("http://localhost:3000/api/poster/tv/76479?debug=1&region=FR")
     await GET(reqFr, { params: Promise.resolve({ type: "tv", id: "76479" }) })
 
-    expect(mockedGetJWRankings).toHaveBeenCalledWith("SHOW", "FR", 20, undefined, "fr-FR")
+    // R3: la route passa anche il signal del watchdog (6° arg) — allo scatto
+    // della deadline il fetch JW abortisce invece di restare zombie.
+    expect(mockedGetJWRankings).toHaveBeenCalledWith("SHOW", "FR", 20, undefined, "fr-FR", expect.any(AbortSignal))
 
     mockedGetJWRankings.mockClear()
     cacheClear()
@@ -965,7 +983,7 @@ describe("GET /api/poster/[type]/[id] error and edge cases", () => {
     const reqDe = new NextRequest("http://localhost:3000/api/poster/tv/76479?debug=1&lang=de")
     await GET(reqDe, { params: Promise.resolve({ type: "tv", id: "76479" }) })
 
-    expect(mockedGetJWRankings).toHaveBeenCalledWith("SHOW", "DE", 20, undefined, "de-DE")
+    expect(mockedGetJWRankings).toHaveBeenCalledWith("SHOW", "DE", 20, undefined, "de-DE", expect.any(AbortSignal))
   })
 })
 

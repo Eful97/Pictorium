@@ -8,6 +8,7 @@ import { getTop10 } from "@/lib/flixpatrol"
 import { getById } from "@/lib/store"
 import { __resetJWRankingsCache } from "@/lib/justwatch"
 import { encodeConfig } from "@/lib/config-token"
+import { parseCatalogExtra } from "@/lib/catalog-handler"
 vi.mock("@/lib/flixpatrol", () => ({
   getTop10: vi.fn(),
 }))
@@ -103,11 +104,11 @@ describe("GET /catalog/[type]/[id]", () => {
     })
   })
 
-  it("embeds the explicit mdblist_key in poster URLs of non-anime series catalogs", async () => {
-    // Un titolo anime può comparire nei cataloghi jw/platform: senza mdblist_key
-    // nell'URL poster il rank anime non sarebbe risolvibile su Stremio (il fetch
-    // MDBList keyless fallisce 503). Come nel catalogo anime, la chiave esplicita
-    // della richiesta va nell'URL poster.
+  it("never leaks mdblist_key into served poster URLs (M2)", async () => {
+    // La chiave resta server-side (rank/voti calcolati al momento del
+    // catalogo): nel poster URL finirebbe nel DB Stremio, log CDN/proxy e
+    // link condivisi. Il poster risolve il rank via `animerank` incorporato
+    // (cataloghi anime) o fallback d'istanza/mapping.
     vi.spyOn(globalThis, "fetch")
       .mockResolvedValueOnce(justWatchResponse(94997, "tt11198330"))
       .mockResolvedValueOnce(tmdbShowResponse(94997))
@@ -117,7 +118,9 @@ describe("GET /catalog/[type]/[id]", () => {
     const body = await res.json()
 
     expect(res.status).toBe(200)
-    expect(body.metas[0].poster).toContain("mdblist_key=mdblist-key")
+    expect(body.metas[0].poster).toContain("/api/poster/series/94997")
+    expect(body.metas[0].poster).not.toContain("mdblist_key")
+    expect(body.metas[0].poster).not.toContain("mdblist-key")
   })
 
   it("adds mapping version to catalog poster URLs for saved titles", async () => {
@@ -178,6 +181,87 @@ describe("GET /catalog/[type]/[id]", () => {
     expect(posterUrl.searchParams.get("gradHeight")).toBe("50")
     expect(posterUrl.searchParams.get("side")).toBe("right")
     expect(posterUrl.searchParams.get("config")).toBe(token)
+  })
+
+  it("returns 400 for unknown catalog types instead of silently serving series (C4)", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch")
+    const req = new NextRequest("http://localhost:3000/catalog/garbage/pictorium-jw-series.json?api_key=settings-key")
+    const res = await GET(req, { params: Promise.resolve({ type: "garbage", id: "pictorium-jw-series.json" }) })
+    const body = await res.json()
+
+    expect(res.status).toBe(400)
+    expect(body).toEqual({ metas: [] })
+    expect(fetchSpy).not.toHaveBeenCalled()
+  })
+
+  it("resolves missing JW imdbId from fused details without an extra external_ids fetch (D4)", async () => {
+    // Riga JW senza imdbId + details con external_ids in append: prima un
+    // secondo fetch /external_ids per titolo, ora zero.
+    const fetchSpy = vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(justWatchResponse(123456))
+      .mockResolvedValueOnce(Response.json({
+        id: 123456,
+        name: "Fusion Test",
+        poster_path: "/fusion.jpg",
+        first_air_date: "2022-08-21",
+        vote_average: 7.0,
+        genres: [],
+        external_ids: { imdb_id: "tt9999999" },
+      }))
+      .mockResolvedValue(Response.json({ id: 123456, logos: [] }))
+
+    const req = new NextRequest("http://localhost:3000/catalog/series/pictorium-jw-series.json?api_key=settings-key")
+    const res = await GET(req, { params: Promise.resolve({ type: "series", id: "pictorium-jw-series.json" }) })
+    const body = await res.json()
+
+    expect(res.status).toBe(200)
+    expect(body.metas[0]).toMatchObject({ id: "tmdb:123456", type: "series" })
+    const urls = fetchSpy.mock.calls.map((c) => String(c[0]))
+    expect(urls.some((u) => u.includes("append_to_response=external_ids"))).toBe(true)
+    expect(urls.some((u) => u.includes("/external_ids"))).toBe(false)
+  })
+
+  it("returns 404 without caching for unknown catalog IDs (C4)", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch")
+    const req = new NextRequest("http://localhost:3000/catalog/series/pictorium-nope-xyz.json?api_key=settings-key")
+    const res = await GET(req, { params: Promise.resolve({ type: "series", id: "pictorium-nope-xyz.json" }) })
+    const body = await res.json()
+
+    expect(res.status).toBe(404)
+    expect(body).toEqual({ metas: [] })
+    expect(fetchSpy).not.toHaveBeenCalled()
+
+    // Seconda richiesta identica: ancora 404 senza rete (niente entry cache).
+    const res2 = await GET(
+      new NextRequest("http://localhost:3000/catalog/series/pictorium-nope-xyz.json?api_key=settings-key"),
+      { params: Promise.resolve({ type: "series", id: "pictorium-nope-xyz.json" }) },
+    )
+    expect(res2.status).toBe(404)
+    expect(fetchSpy).not.toHaveBeenCalled()
+  })
+
+  it("still serves tv/anime type aliases as series (C4)", async () => {
+    // Upstream finto down: il ramo anime degrada a metas:[] ma resta 200
+    // (l'alias di tipo è riconosciuto, non 400).
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(null, { status: 404 }))
+
+    const req = new NextRequest("http://localhost:3000/catalog/anime/pictorium-anime.json?api_key=settings-key")
+    const res = await GET(req, { params: Promise.resolve({ type: "anime", id: "pictorium-anime.json" }) })
+    expect(res.status).toBe(200)
+  })
+
+  it("caps skip/search/genre extras against cache-flooding (C4)", () => {
+    expect(parseCatalogExtra(null, new URLSearchParams({ skip: "999999" })).skip).toBe(1000)
+    expect(parseCatalogExtra(null, new URLSearchParams({ skip: "-5" })).skip).toBeUndefined()
+    expect(parseCatalogExtra(null, new URLSearchParams({ search: "x".repeat(500) })).search).toHaveLength(100)
+    expect(parseCatalogExtra(null, new URLSearchParams({ genre: "x".repeat(500) })).genre).toHaveLength(40)
+    expect(parseCatalogExtra(["skip=999999"], null).skip).toBe(1000)
+    // Valori legittimi invariati.
+    expect(parseCatalogExtra(null, new URLSearchParams({ skip: "40", search: "dune", genre: "Fantascienza" }))).toEqual({
+      skip: 40,
+      search: "dune",
+      genre: "Fantascienza",
+    })
   })
 
   it("normalizes tv catalog routes to Pictorium series poster URLs", async () => {

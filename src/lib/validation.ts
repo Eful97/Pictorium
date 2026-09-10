@@ -67,6 +67,70 @@ export const mappingSchema = z.object({
 
 export type MappingInput = z.infer<typeof mappingSchema>
 
+// Query string del poster: bound anti-DoS/cache-flood (R1). La cache key
+// contiene i raw params e i testi finiscono negli SVG: una stringa da 10KB
+// in `extra`/`title`/path significherebbe render enormi + entry cache enormi
+// + key explosion (ogni valore distinto = miss). Valori oltre i bound → 400
+// prima di slot/inflight/cache (route). I bound sono generosi: nessun client
+// legittimo li supera (path TMDB <100, titoli <200, rank int piccoli,
+// numerici a poche cifre). I valori numerici restano validati anche al sito
+// d'uso con clamp (poster-config) — qui basta il bound di lunghezza.
+const boundedQueryString = (max: number) => z.string().max(max).optional()
+const intQueryString = (maxDigits: number) =>
+  z.string().regex(new RegExp(`^-?\\d{1,${maxDigits}}$`)).optional()
+
+export const posterQuerySchema = z.object({
+  extra: boundedQueryString(80),
+  label: boundedQueryString(80),
+  title: boundedQueryString(200),
+  genreName: boundedQueryString(60),
+  poster: boundedQueryString(160),
+  logo: boundedQueryString(160),
+  backdrop: boundedQueryString(160),
+  quality: boundedQueryString(16),
+  lang: boundedQueryString(20),
+  rsrc: boundedQueryString(200),
+  imdbId: z.string().regex(/^tt\d{1,20}$/).optional(),
+  rank: intQueryString(7),
+  animerank: intQueryString(7),
+  scale: boundedQueryString(12),
+  ox: boundedQueryString(12),
+  oy: boundedQueryString(12),
+  bscale: boundedQueryString(12),
+  box: boundedQueryString(12),
+  boy: boundedQueryString(12),
+  gradHeight: boundedQueryString(12),
+  blur: boundedQueryString(12),
+  bf: boundedQueryString(12),
+  bd: boundedQueryString(12),
+  voteAverage: boundedQueryString(12),
+  year: boundedQueryString(16),
+  rd: boundedQueryString(10),
+  fad: boundedQueryString(10),
+  mv: boundedQueryString(32),
+  fmt: boundedQueryString(8),
+  format: boundedQueryString(8),
+})
+
+export type PosterQuery = z.infer<typeof posterQuerySchema>
+
+/**
+ * Ritorna il messaggio d'errore se un query param supera i bound, altrimenti
+ * null. I parametri ignoti passano (semantica inerte o clamp al sito d'uso).
+ */
+export function validatePosterQuery(searchParams: URLSearchParams): string | null {
+  const input: Record<string, string> = {}
+  for (const key of new Set(searchParams.keys())) {
+    const v = searchParams.get(key)
+    if (v !== null) input[key] = v
+  }
+  const parsed = posterQuerySchema.safeParse(input)
+  if (parsed.success) return null
+  const first = parsed.error.issues[0]
+  const name = first && first.path.length > 0 ? String(first.path[0]) : "query"
+  return `Invalid query parameter: ${name}`
+}
+
 export const mappingUpdateSchema = mappingSchema.partial().omit({ tmdbId: true, mediaType: true })
 
 export type MappingUpdate = z.infer<typeof mappingUpdateSchema>

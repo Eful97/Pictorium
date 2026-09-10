@@ -9,7 +9,7 @@ import {
   buildClearSessionCookie,
   verifySessionFromRequest,
 } from "@/lib/pin-auth"
-import { isSameOrigin, originMismatchResponse, checkAdminToken } from "@/lib/auth"
+import { isSameOrigin, originMismatchResponse, checkAdminToken, hasAdminTokenConfigured } from "@/lib/auth"
 import { rateLimit, rateLimitKey, rateLimitResponse } from "@/lib/rate-limit"
 import { readJsonBody, BodyTooLargeError, DEFAULT_MAX_BODY_BYTES } from "@/lib/read-body"
 
@@ -53,7 +53,9 @@ export async function POST(req: NextRequest) {
   }
 
   const cookie = buildSessionCookie(token)
-  return new Response(JSON.stringify({ success: true, token }), {
+  // Il token viaggia solo nel cookie HttpOnly: non lo echoiamo nel JSON
+  // (un XSS che legge il body non deve poter riusare la sessione altrove).
+  return new Response(JSON.stringify({ success: true }), {
     status: 200,
     headers: {
       "Content-Type": "application/json",
@@ -76,8 +78,8 @@ export async function PUT(req: NextRequest) {
   }
 
   const newPin = typeof body?.newPin === "string" ? body.newPin.trim() : ""
-  if (!newPin || newPin.length < 4) {
-    return Response.json({ error: "Il nuovo PIN deve avere almeno 4 cifre" }, { status: 400 })
+  if (!newPin || newPin.length < 6) {
+    return Response.json({ error: "Il nuovo PIN deve avere almeno 6 cifre" }, { status: 400 })
   }
 
   const hasPin = await hasPinConfigured()
@@ -88,6 +90,11 @@ export async function PUT(req: NextRequest) {
     if (!isCurrentValid && !isAdmin) {
       return Response.json({ error: "PIN attuale non corretto" }, { status: 401 })
     }
+  } else if (hasAdminTokenConfigured() && !checkAdminToken(req)) {
+    // Primo set con ADMIN_TOKEN configurato: chi non ha il token non può
+    // impossessarsi dell'istanza impostando un PIN prima del proprietario.
+    // (Senza ADMIN_TOKEN il primo set resta libero per l'onboarding wizard.)
+    return Response.json({ error: "Unauthorized. Set x-admin-token or Authorization: Bearer header." }, { status: 401 })
   }
 
   const success = await setPin(newPin)
@@ -101,7 +108,8 @@ export async function PUT(req: NextRequest) {
     headers["Set-Cookie"] = buildSessionCookie(token)
   }
 
-  return new Response(JSON.stringify({ success: true, token }), {
+  // Come sopra: sessione solo via cookie HttpOnly, niente token nel JSON.
+  return new Response(JSON.stringify({ success: true }), {
     status: 200,
     headers,
   })

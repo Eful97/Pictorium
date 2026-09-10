@@ -78,6 +78,16 @@ async function canWriteDir(dir: string): Promise<boolean> {
 }
 
 export async function GET(request: Request) {
+  // D1: probe di liveness per Docker/entrypoint (`?probe=1`) — 200 senza
+  // chiave e senza probe upstream. Prima /api/health senza x-api-key
+  // rispondeva sempre 503: HEALTHCHECK restava unhealthy (restart loop) e
+  // l'entrypoint non superava mai il gate di boot (self-warmup mai avviato).
+  // Fuori dal rate-limit di proposito: la liveness non deve dipendere dal
+  // traffico. Zero I/O: processo che risponde = vivo.
+  if (new URL(request.url).searchParams.get("probe") === "1") {
+    return NextResponse.json({ status: "alive", timestamp: new Date().toISOString() }, { status: 200 })
+  }
+
   const rl = await rateLimit(rateLimitKey(request), "default")
   if (!rl.ok) return rateLimitResponse(rl.retAfter)
 

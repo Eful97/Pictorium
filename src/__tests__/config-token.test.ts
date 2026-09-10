@@ -113,6 +113,13 @@ describe("decodeConfig invalid tokens", () => {
     expect(decodeConfig(b64)).toBeNull()
   })
 
+  it("returns null for oversized tokens without decoding (C5)", async () => {
+    const { decodeConfig, MAX_CONFIG_TOKEN_LENGTH } = await importConfigToken()
+    expect(MAX_CONFIG_TOKEN_LENGTH).toBe(32768)
+    expect(decodeConfig("x".repeat(MAX_CONFIG_TOKEN_LENGTH + 1))).toBeNull()
+    expect(decodeConfig("x".repeat(1_000_000))).toBeNull()
+  })
+
   it("returns null when the signature is tampered", async () => {
     vi.stubEnv("CONFIG_HMAC_SECRET", "test-secret")
     const { encodeConfig, decodeConfig } = await importConfigToken()

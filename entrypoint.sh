@@ -63,8 +63,11 @@ echo "[entrypoint] ============================================"
 WARMUP_ENABLED="${PICTORIUM_SELF_WARMUP:-${POSTERIUM_SELF_WARMUP:-1}}"
 if [ "$WARMUP_ENABLED" = "1" ]; then
   (
-    HEALTH_URL="http://127.0.0.1:${PORT:-8080}/api/health"
-    WARMUP_URL="http://127.0.0.1:${PORT:-8080}/api/warmup?lang=it"
+    HEALTH_URL="http://127.0.0.1:${PORT:-8080}/api/health?probe=1"
+    # D2: warmup gentile al boot (seriale, niente JustWatch): su 512M il
+    # default pieno (~110 target a concurrency 3) competeva con il traffico
+    # reale per i 4 slot → OOM al boot. I poster dell'utente prima di tutto.
+    WARMUP_URL="http://127.0.0.1:${PORT:-8080}/api/warmup?lang=it&trending=10&justwatch=0&mappings=20&concurrency=1"
     # Attende il server (poll su /api/health, max ~60s) prima di lanciare il
     # warmup: un boot lento non deve far partire i fetch contro un server spento.
     UP=0

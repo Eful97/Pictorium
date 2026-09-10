@@ -1,6 +1,8 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
 import { cacheClear } from "@/lib/cache"
 import {
+  beginPosterRender,
+  getPendingPoster,
   isImmutablePosterRequest,
   posterHeaders,
   posterNotModifiedHeaders,
@@ -153,6 +155,51 @@ describe("poster negative cache (F3)", () => {
     writePosterError(key, 503)
     // La payload cache usa la stessa key base senza suffisso: nessun conflitto.
     expect(readPosterError(`${key}:headers`)).toBeNull()
+  })
+})
+
+describe("poster inflight coalescing (R4)", () => {
+  it("second begin on the same key is a no-op (no duplicate registration)", () => {
+    const key = `poster:r4:noop:${Date.now()}`
+    const first = beginPosterRender(key)
+    expect(getPendingPoster(key)).not.toBeNull()
+    const second = beginPosterRender(key)
+    // Il no-op non deve toccare l'entry del primo.
+    second(null)
+    expect(getPendingPoster(key)).not.toBeNull()
+    first(null)
+    expect(getPendingPoster(key)).toBeNull()
+  })
+
+  it("watchdog completion keeps the entry reserved for the zombie (no duplicate renders)", async () => {
+    const key = `poster:r4:zombie:${Date.now()}`
+    const complete = beginPosterRender(key)
+    const waiter = getPendingPoster(key)
+    expect(waiter).not.toBeNull()
+
+    // Watchdog: waiter risolti con null, entry ancora prenotata.
+    complete(null, true)
+    await expect(waiter).resolves.toBeNull()
+    expect(getPendingPoster(key)).not.toBeNull()
+
+    // Un nuovo begin non deve registrare un secondo render...
+    const late = beginPosterRender(key)
+    late(null)
+    expect(getPendingPoster(key)).not.toBeNull()
+
+    // ...e i nuovi arrivati vedono subito null (503 immediato, zero lavoro).
+    await expect(getPendingPoster(key)).resolves.toBeNull()
+
+    // Fine zombie: l'entry si libera.
+    complete({ buffer: Buffer.from("x"), etag: '"x"' })
+    expect(getPendingPoster(key)).toBeNull()
+  })
+
+  it("normal completion clears the entry", async () => {
+    const key = `poster:r4:normal:${Date.now()}`
+    const complete = beginPosterRender(key)
+    complete({ buffer: Buffer.from("x"), etag: '"x"' })
+    expect(getPendingPoster(key)).toBeNull()
   })
 })
 

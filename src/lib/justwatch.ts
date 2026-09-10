@@ -1,4 +1,5 @@
 import { hasDigitalOffer } from "./pre-release"
+import { combineAbortSignals } from "./abort-signal"
 
 // Sovrascrivibile via env: nei test E2E punta al mock server locale.
 const JW_API = process.env.JUSTWATCH_API_URL || "https://apis.justwatch.com/graphql"
@@ -269,6 +270,9 @@ export async function getJWRankings(
   first = 20,
   packages?: readonly string[] | string[],
   language = "it-IT",
+  // R3: signal esterno (es. deadline render) combinato col timeout interno —
+  // senza, il fetch sopravvive al watchdog come zombie.
+  signal?: AbortSignal,
 ): Promise<JWRankEntry[]> {
   const pkgKey = packages && packages.length > 0 ? packages.join(",") : "all"
   // La lingua entra nella key: i titoli JW seguono la lingua query.
@@ -295,7 +299,7 @@ export async function getJWRankings(
     res = await fetch(JW_API, {
       method: "POST",
       headers: jwHeaders(),
-      signal: AbortSignal.timeout(8000),
+      signal: combineAbortSignals(signal, 8000),
       body: JSON.stringify({
         operationName: "GetStreamingChartInfo",
         query: QUERY,

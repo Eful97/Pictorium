@@ -25,14 +25,15 @@ describe("buildStremioPosterUrl", () => {
       id: 42,
       defaults: { badgeStyle: "bar" },
       mapping: mapping(updatedAt),
-      apiKey: "tmdb-key",
     })
 
     expect(url.pathname).toBe("/api/poster/movie/42")
     expect(url.searchParams.get("rv")).toBe(String(POSTER_URL_VERSION))
     expect(url.searchParams.get("mv")).toBe(String(Date.parse(updatedAt)))
     expect(url.searchParams.get("bs")).toBe("bar")
-    expect(url.searchParams.get("api_key")).toBe("tmdb-key")
+    // Mai segreti nei poster serviti (M2): niente api_key/mdblist_key.
+    expect(url.searchParams.has("api_key")).toBe(false)
+    expect(url.searchParams.has("mdblist_key")).toBe(false)
   })
 
   it("emits the mapping title for JustWatch matching", () => {

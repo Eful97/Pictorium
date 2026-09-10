@@ -101,6 +101,34 @@ describe("POST /api/validate-key", () => {
     expect(json.valid).toBe(true)
   })
 
+  it("rejects cross-origin requests (C6)", async () => {
+    const req = new NextRequest("http://localhost:3000/api/validate-key", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Origin: "https://evil.example",
+        Host: "localhost:3000",
+      },
+      body: JSON.stringify({ provider: "tmdb", key: "some-key" }),
+    })
+    const res = await POST(req)
+    expect(res.status).toBe(403)
+  })
+
+  it("merges upstream errors into the generic invalid response, never 502 (C6)", async () => {
+    vi.spyOn(globalThis, "fetch").mockRejectedValueOnce(new Error("connection reset"))
+
+    const req = new NextRequest("http://localhost:3000/api/validate-key", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ provider: "tmdb", key: "any-key" }),
+    })
+    const res = await POST(req)
+    expect(res.status).toBe(200)
+    const json = await res.json()
+    expect(json.valid).toBe(false)
+  })
+
   it("validates invalid TVDB key", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
       new Response(JSON.stringify({ message: "Invalid key" }), { status: 401 })

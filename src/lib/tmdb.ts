@@ -1,6 +1,7 @@
 import { z } from "zod"
 import { createLogger } from "@/lib/logger"
 import { envWithFallback } from "@/lib/env-compat"
+import { combineAbortSignals } from "./abort-signal"
 
 const log = createLogger("tmdb")
 
@@ -278,7 +279,7 @@ export function getTMDBStats() {
   }
 }
 
-async function tmdbFetch(path: string, apiKey?: string, signal?: AbortSignal): Promise<unknown> {
+async function tmdbFetch(path: string, apiKey?: string, signal?: AbortSignal, timeoutMs = 30000): Promise<unknown> {
   tmdbStats.totalCalls++
   const key = apiKey || (process.env.TMDB_BASE_URL ? "mock-key" : undefined)
   if (!key) throw new Error("TMDB API key is missing")
@@ -308,12 +309,15 @@ async function tmdbFetch(path: string, apiKey?: string, signal?: AbortSignal): P
   fetchUrl.searchParams.set("api_key", key)
 
   // Nota: l'inflight coalescing è condiviso tra richieste concorrenti sulla
-  // stessa URL — il signal vale solo per la PRIMA richiesta (quella che esegue
-  // il fetch). È corretto: il deadline del render è il bound, non il signal.
+  // stessa URL — signal/timeout valgono solo per la PRIMA richiesta (quella
+  // che esegue il fetch). È corretto: il deadline del render è il bound, non
+  // il signal.
   const promise = (async () => {
     tmdbStats.networkCalls++
     tmdbStats.lastCallTime = new Date().toISOString()
-    const res = await fetch(fetchUrl.toString(), { signal: signal ?? AbortSignal.timeout(30000) })
+    // D5: tetto interno combinato col signal esterno (default 30s). Il path
+    // poster passa 8s: un TMDB appeso non deve tenere uno slot di render.
+    const res = await fetch(fetchUrl.toString(), { signal: combineAbortSignals(signal, timeoutMs) })
     if (!res.ok) throw new Error(`TMDB fetch failed: ${res.status}`)
     const data = await res.json()
     // Evict LRU (first key = least-recently-used) when at capacity
@@ -444,8 +448,8 @@ export async function getPopularTV(page = 1, language = "it-IT", apiKey?: string
   return parseTmdb<TMDBSearchResponse>("tv/popular", tmdbSearchResponseSchema, data)
 }
 
-export async function getImages(mediaType: "movie" | "tv", id: number, languages = "en,null", apiKey?: string, signal?: AbortSignal): Promise<TMDBImagesResponse> {
-  const data = await tmdbFetch(`/${mediaType}/${id}/images?include_image_language=${encodeURIComponent(languages)}`, apiKey, signal)
+export async function getImages(mediaType: "movie" | "tv", id: number, languages = "en,null", apiKey?: string, signal?: AbortSignal, timeoutMs = 30000): Promise<TMDBImagesResponse> {
+  const data = await tmdbFetch(`/${mediaType}/${id}/images?include_image_language=${encodeURIComponent(languages)}`, apiKey, signal, timeoutMs)
   return parseTmdb<TMDBImagesResponse>("images", tmdbImagesResponseSchema, data)
 }
 
@@ -492,8 +496,8 @@ export interface TMDBExternalIds {
   tvdb_id?: number | null
 }
 
-export async function getExternalIds(mediaType: "movie" | "tv", id: number, apiKey?: string, signal?: AbortSignal): Promise<TMDBExternalIds> {
-  const data = await tmdbFetch(`/${mediaType}/${id}/external_ids`, apiKey, signal)
+export async function getExternalIds(mediaType: "movie" | "tv", id: number, apiKey?: string, signal?: AbortSignal, timeoutMs = 30000): Promise<TMDBExternalIds> {
+  const data = await tmdbFetch(`/${mediaType}/${id}/external_ids`, apiKey, signal, timeoutMs)
   return parseTmdb<TMDBExternalIds>("external_ids", tmdbExternalIdsSchema, data)
 }
 
@@ -502,8 +506,8 @@ export async function getExternalIds(mediaType: "movie" | "tv", id: number, apiK
  * (`/{type}/{id}/release_dates`). Usata dal rilevamento pre-digitale:
  * il type 4 (Digital) dice quando il film arriva in digitale.
  */
-export async function getReleaseDates(mediaType: "movie" | "tv", id: number, apiKey?: string, signal?: AbortSignal): Promise<TMDBReleaseDatesResponse> {
-  const data = await tmdbFetch(`/${mediaType}/${id}/release_dates`, apiKey, signal)
+export async function getReleaseDates(mediaType: "movie" | "tv", id: number, apiKey?: string, signal?: AbortSignal, timeoutMs = 30000): Promise<TMDBReleaseDatesResponse> {
+  const data = await tmdbFetch(`/${mediaType}/${id}/release_dates`, apiKey, signal, timeoutMs)
   return parseTmdb<TMDBReleaseDatesResponse>("release_dates", tmdbReleaseDatesSchema, data)
 }
 
@@ -513,9 +517,9 @@ export interface TMDBKeywordsResponse {
   results?: { id: number; name: string }[]
 }
 
-export async function getKeywords(mediaType: "movie" | "tv", id: number, apiKey?: string, signal?: AbortSignal): Promise<string[]> {
+export async function getKeywords(mediaType: "movie" | "tv", id: number, apiKey?: string, signal?: AbortSignal, timeoutMs = 30000): Promise<string[]> {
   try {
-    const data = parseTmdb<TMDBKeywordsResponse>("keywords", tmdbKeywordsResponseSchema, await tmdbFetch(`/${mediaType}/${id}/keywords`, apiKey, signal))
+    const data = parseTmdb<TMDBKeywordsResponse>("keywords", tmdbKeywordsResponseSchema, await tmdbFetch(`/${mediaType}/${id}/keywords`, apiKey, signal, timeoutMs))
     const list = data.keywords || data.results || []
     return list.map((k) => k.name)
   } catch {
@@ -560,9 +564,21 @@ export interface TMDBDetails {
   }
 }
 
-export async function getDetails(mediaType: "movie" | "tv", id: number, language = "it-IT", apiKey?: string, signal?: AbortSignal): Promise<TMDBDetails> {
-  const data = await tmdbFetch(`/${mediaType}/${id}?language=${language}`, apiKey, signal)
+export async function getDetails(mediaType: "movie" | "tv", id: number, language = "it-IT", apiKey?: string, signal?: AbortSignal, timeoutMs = 30000): Promise<TMDBDetails> {
+  const data = await tmdbFetch(`/${mediaType}/${id}?language=${language}`, apiKey, signal, timeoutMs)
   return parseTmdb<TMDBDetails>("details", tmdbDetailsSchema, data)
+}
+
+/**
+ * Dettagli + external_ids in UN colpo (D4). I cataloghi facevano per ogni
+ * titolo `getDetails` + `getExternalIds` (via resolveImdbId): ~40 fetch per
+ * catalogo freddo invece di ~20. Solo `external_ids` in append — NON
+ * getFullDetails (credits+videos gonfierebbero payload e validazione per
+ * dati che il catalogo scarta).
+ */
+export async function getDetailsWithExternalIds(mediaType: "movie" | "tv", id: number, language = "it-IT", apiKey?: string, signal?: AbortSignal, timeoutMs = 30000): Promise<TMDBDetails> {
+  const data = await tmdbFetch(`/${mediaType}/${id}?language=${language}&append_to_response=external_ids`, apiKey, signal, timeoutMs)
+  return parseTmdb<TMDBDetails>("details_with_external_ids", tmdbDetailsSchema, data)
 }
 
 export async function getFullDetails(mediaType: "movie" | "tv", id: number, language = "it-IT", apiKey?: string, signal?: AbortSignal): Promise<TMDBDetails> {

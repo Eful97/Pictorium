@@ -1,12 +1,22 @@
 import { NextRequest } from "next/server"
 import { rateLimit, rateLimitKey, rateLimitResponse } from "@/lib/rate-limit"
+import { isSameOrigin, originMismatchResponse } from "@/lib/auth"
 import { createLogger } from "@/lib/logger"
 
 const log = createLogger("validate-key")
 
+// Risposta indistinguibile tra chiave invalida e upstream irraggiungibile
+// (C6): il 502 separato faceva da oracolo sullo stato della rete server.
+function invalidOrUnreachable(provider: string): Response {
+  return Response.json({ valid: false, message: `Chiave ${provider} non valida o servizio non raggiungibile` })
+}
+
 export async function POST(req: NextRequest): Promise<Response> {
-  const rl = await rateLimit(rateLimitKey(req), "default")
+  const rl = await rateLimit(rateLimitKey(req), "validate-key")
   if (!rl.ok) return rateLimitResponse(rl.retAfter)
+  // Solo same-origin (la UI): niente probing cross-site. Senza Origin
+  // (curl/tooling) passa come altrove.
+  if (!isSameOrigin(req)) return originMismatchResponse()
 
   let body: { provider?: string; key?: string }
   try {
@@ -19,6 +29,9 @@ export async function POST(req: NextRequest): Promise<Response> {
   const cleanKey = (key || "").trim()
 
   if (!cleanKey) {
+    return Response.json({ valid: false, message: "Missing key" }, { status: 400 })
+  }
+  if (cleanKey.length > 512) {
     return Response.json({ valid: false, message: "Missing key" }, { status: 400 })
   }
 
@@ -36,7 +49,7 @@ export async function POST(req: NextRequest): Promise<Response> {
       return Response.json({ valid: false, message: "Chiave TMDB non valida" })
     } catch (e) {
       log.warn("TMDB key validation failed", { error: e instanceof Error ? e.message : String(e) })
-      return Response.json({ valid: false, message: "Errore di connessione a TMDB" }, { status: 502 })
+      return invalidOrUnreachable("TMDB")
     }
   }
 
@@ -54,7 +67,7 @@ export async function POST(req: NextRequest): Promise<Response> {
       return Response.json({ valid: false, message: "Chiave MDBList non valida" })
     } catch (e) {
       log.warn("MDBList key validation failed", { error: e instanceof Error ? e.message : String(e) })
-      return Response.json({ valid: false, message: "Errore di connessione a MDBList" }, { status: 502 })
+      return invalidOrUnreachable("MDBList")
     }
   }
 
@@ -75,7 +88,7 @@ export async function POST(req: NextRequest): Promise<Response> {
       return Response.json({ valid: false, message: "Chiave TVDB non valida" })
     } catch (e) {
       log.warn("TVDB key validation failed", { error: e instanceof Error ? e.message : String(e) })
-      return Response.json({ valid: false, message: "Errore di connessione a TheTVDB" }, { status: 502 })
+      return invalidOrUnreachable("TVDB")
     }
   }
 

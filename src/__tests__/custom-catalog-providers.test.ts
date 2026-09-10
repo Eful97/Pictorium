@@ -300,4 +300,30 @@ describe("fetchUnifiedCatalogItems", () => {
     expect(items[1].title).toBe("Movie Page 2")
     expect(items[1].poster_path).toBe("/p2.jpg")
   })
+
+  it("isolates cache entries per API key (no cross-user poisoning)", async () => {
+    // Stesso URL, chiavi diverse → payload diversi: senza hash delle chiavi
+    // nel cache key, il fallback pubblico senza chiave avvelenava la vista
+    // keyed (e viceversa).
+    const calls: string[] = []
+    global.fetch = vi.fn().mockImplementation((url: string) => {
+      calls.push(url)
+      const title = typeof url === "string" && url.includes("apikey=KEY-ONE") ? "Movie One" : "Movie Two"
+      return Promise.resolve({
+        ok: true,
+        json: async () => [{ imdb_id: "tt0000001", title, year: 2020, tmdb_id: 1 }],
+      })
+    }) as unknown as typeof fetch
+
+    const url = "https://mdblist.com/lists/snoak/keyed-cache-test"
+    const one = await fetchUnifiedCatalogItems(url, { mdblistKey: "KEY-ONE" })
+    const two = await fetchUnifiedCatalogItems(url, { mdblistKey: "KEY-TWO" })
+    expect(one[0]?.title).toBe("Movie One")
+    expect(two[0]?.title).toBe("Movie Two")
+
+    // Stessa chiave → cache hit, nessun refetch.
+    const again = await fetchUnifiedCatalogItems(url, { mdblistKey: "KEY-ONE" })
+    expect(again[0]?.title).toBe("Movie One")
+    expect(calls.length).toBe(2)
+  })
 })

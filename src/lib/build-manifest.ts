@@ -187,15 +187,15 @@ export async function buildManifestResponse(req: NextRequest, user?: string | nu
     manifestCatalogs = [...contentCatalogs, ...searchCatalogs, ...peopleSearchCatalogs] as typeof contentCatalogs
   }
 
+  // Solo prefissi che il resolver /meta sa davvero risolvere (meta-handler:
+  // tt/tmdb:/tvdb:/tvdbc:/numerici). Dichiarare kitsu:/mal:/anilist:/anidb:
+  // faceva instradare a noi meta di altri provider per poi rispondere null,
+  // oscurando gli addon che li servono davvero (C3).
   const ID_PREFIXES = [
     "tmdb:",
     "tt",
     "tvdb:",
     "tvdbc:",
-    "kitsu:",
-    "mal:",
-    "anilist:",
-    "anidb:",
   ]
 
   const TYPES = ["movie", "series", "anime.movie", "anime.series", "anime", "Trakt", "collection"]

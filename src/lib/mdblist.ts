@@ -1,6 +1,7 @@
 import crypto from "node:crypto"
 import { cacheGet, cacheSet } from "./cache"
 import { envWithFallback } from "./env-compat"
+import { combineAbortSignals } from "./abort-signal"
 
 export interface MDBListEntry {
   imdb: string
@@ -23,7 +24,12 @@ export const MDBLISTS = [
 // prossimo accesso.
 const CACHE_TTL_MS = 30 * 60 * 1000
 
-export async function fetchMDBList(listKey: string, apiKey?: string): Promise<MDBListEntry[]> {
+export async function fetchMDBList(
+  listKey: string,
+  apiKey?: string,
+  // R3: signal esterno (es. deadline render) combinato col timeout interno.
+  signal?: AbortSignal,
+): Promise<MDBListEntry[]> {
   const list = MDBLISTS.find(l => l.key === listKey)
   if (!list) return []
   // Solo la chiave esplicita della richiesta: non esiste più chiave d'istanza.
@@ -44,11 +50,11 @@ export async function fetchMDBList(listKey: string, apiKey?: string): Promise<MD
     let res: Response | null = null
 
     if (explicitUrl) {
-      res = await fetch(`${explicitUrl}/lists/snoak/${slug}`, { signal: AbortSignal.timeout(10000) }).catch(() => null)
+      res = await fetch(`${explicitUrl}/lists/snoak/${slug}`, { signal: combineAbortSignals(signal, 10000) }).catch(() => null)
     } else if (key) {
       res = await fetch(`https://api.mdblist.com/lists/snoak/${slug}/items?apikey=${encodeURIComponent(key)}&limit=20`, {
         headers: { "User-Agent": "Mozilla/5.0 Pictorium" },
-        signal: AbortSignal.timeout(10000),
+        signal: combineAbortSignals(signal, 10000),
       }).catch(() => null)
     }
 
@@ -56,7 +62,7 @@ export async function fetchMDBList(listKey: string, apiKey?: string): Promise<MD
       // Fallback endpoint pubblico JSON diretto
       res = await fetch(`https://mdblist.com/lists/snoak/${slug}/json`, {
         headers: { "User-Agent": "Mozilla/5.0 Pictorium" },
-        signal: AbortSignal.timeout(10000),
+        signal: combineAbortSignals(signal, 10000),
       }).catch(() => null)
     }
 

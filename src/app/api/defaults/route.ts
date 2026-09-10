@@ -2,7 +2,7 @@ import { NextRequest } from "next/server"
 import { getServerDefaults, setServerDefaults, type ServerDefaults } from "@/lib/server-defaults"
 import { cacheInvalidatePosterData } from "@/lib/cache"
 import { bumpCatalogEpoch } from "@/lib/catalog-epoch"
-import { checkAdminToken, isSameOrigin, adminAuthResponse, originMismatchResponse } from "@/lib/auth"
+import { checkAdminToken, requireAdminToken, isSameOrigin, adminAuthResponse, originMismatchResponse } from "@/lib/auth"
 import { rateLimit, rateLimitKey, rateLimitResponse } from "@/lib/rate-limit"
 import { getWarmupCatalogs } from "@/lib/catalog-definitions"
 import { createLogger } from "@/lib/logger"
@@ -52,7 +52,10 @@ const defaultsSchema = z.object({
 
 export async function GET(req: NextRequest) {
   const d = getServerDefaults()
-  if (checkAdminToken(req)) {
+  // Le chiavi d'istanza non devono mai trapelare su istanze pubbliche:
+  // checkAdminToken è true per chiunque con PICTORIUM_PUBLIC_INSTANCE=1,
+  // quindi qui serve requireAdminToken (solo ADMIN_TOKEN o sessione PIN valida).
+  if (requireAdminToken(req)) {
     const serverKeys = {
       tmdbKey: envWithFallback("TMDB_KEY") || process.env.TMDB_API_KEY || "",
       mdblistApiKey: envWithFallback("MDBLIST_KEY") || process.env.MDBLIST_API_KEY || "",

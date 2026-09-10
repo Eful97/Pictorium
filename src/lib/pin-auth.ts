@@ -185,13 +185,15 @@ export async function verifyPin(pin: string): Promise<boolean> {
 }
 
 export async function setPin(newPin: string): Promise<boolean> {
-  if (!newPin || typeof newPin !== "string" || newPin.trim().length < 4) {
+  if (!newPin || typeof newPin !== "string" || newPin.trim().length < 6) {
     return false
   }
   const cleanPin = newPin.trim()
   const cfg = await readSecurityConfig()
   const { pinHash } = hashPin(cleanPin)
-  const sessionSecret = cfg.sessionSecret || crypto.randomBytes(32).toString("hex")
+  // Rotazione sempre: cambiare PIN invalida tutte le sessioni precedenti
+  // (prima il secret veniva riusato e i vecchi token restavano validi 30gg).
+  const sessionSecret = crypto.randomBytes(32).toString("hex")
 
   await writeSecurityConfig({
     ...cfg,
