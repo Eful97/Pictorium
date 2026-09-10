@@ -64,6 +64,18 @@ export interface PosterEditorCtx {
   setDefaultBlurDarkness: (v: number | ((prev: number) => number)) => void
   defaultGradientHeight: number
   setDefaultGradientHeight: (v: number | ((prev: number) => number)) => void
+  defaultTopBadgeScale: number
+  setDefaultTopBadgeScale: (v: number | ((prev: number) => number)) => void
+  defaultTopBadgeOffsetX: number
+  setDefaultTopBadgeOffsetX: (v: number | ((prev: number) => number)) => void
+  defaultTopBadgeOffsetY: number
+  setDefaultTopBadgeOffsetY: (v: number | ((prev: number) => number)) => void
+  defaultGenreBadgeScale: number
+  setDefaultGenreBadgeScale: (v: number | ((prev: number) => number)) => void
+  defaultQualityBadgeScale: number
+  setDefaultQualityBadgeScale: (v: number | ((prev: number) => number)) => void
+  defaultNetworkLogoScale: number
+  setDefaultNetworkLogoScale: (v: number | ((prev: number) => number)) => void
   defaultGlobalBadges: boolean
   setDefaultGlobalBadges: (v: boolean | ((prev: boolean) => boolean)) => void
   defaultRankingBadges: boolean
@@ -105,6 +117,26 @@ export interface PosterEditorCtx {
   // ---- Gradient ----
   gradientHeight: number
   setGradientHeight: (v: number | ((prev: number) => number)) => void
+
+  // ---- Badge superiore (rank/extra in alto) ----
+  topBadgeScale: number
+  setTopBadgeScale: (v: number | ((prev: number) => number)) => void
+  topBadgeOffsetX: number
+  setTopBadgeOffsetX: (v: number | ((prev: number) => number)) => void
+  topBadgeOffsetY: number
+  setTopBadgeOffsetY: (v: number | ((prev: number) => number)) => void
+
+  // ---- Badge genere/rating in basso ----
+  genreBadgeScale: number
+  setGenreBadgeScale: (v: number | ((prev: number) => number)) => void
+
+  // ---- Badge qualità streaming ----
+  qualityBadgeScale: number
+  setQualityBadgeScale: (v: number | ((prev: number) => number)) => void
+
+  // ---- Logo network ----
+  networkLogoScale: number
+  setNetworkLogoScale: (v: number | ((prev: number) => number)) => void
 
   // ---- Logo ----
   logoScale: number
@@ -189,10 +221,14 @@ export function PosterEditorProvider({
     globalBadges, rankingBadges, networkLogo, preRelease, ribbonSide,
     badgeGenre, badgeYear, badgeRating, badgeQuality, ratingSources,
     gradientHeight, blurIntensity, blurFade, blurDarkness, blurEnabled,
+    topBadgeScale, topBadgeOffsetX, topBadgeOffsetY,
+    genreBadgeScale, qualityBadgeScale, networkLogoScale,
     badgeStyle, rankingBadgeStyle,
     defaultBadgeStyle, defaultRankingBadgeStyle,
     defaultBlurEnabled, defaultBlurIntensity, defaultBlurFade, defaultBlurDarkness,
     defaultGradientHeight, defaultGlobalBadges, defaultRankingBadges,
+    defaultTopBadgeScale, defaultTopBadgeOffsetX, defaultTopBadgeOffsetY,
+    defaultGenreBadgeScale, defaultQualityBadgeScale, defaultNetworkLogoScale,
     defaultBadgeGenre, defaultBadgeYear, defaultBadgeRating, defaultBadgeQuality, defaultRatingSources,
     defaultAutoRotateClean, defaultLogoFitEnabled, defaultNetworkLogo, defaultPreRelease, defaultRibbonSide,
     episodeMetadataSource, defaultEpisodeMetadataSource,
@@ -262,6 +298,36 @@ export function PosterEditorProvider({
       const next = typeof v === "function" ? v(gradientHeight) : v
       update({ gradientHeight: next })
     }, [gradientHeight, update])
+  const setTopBadgeScale = useCallback(
+    (v: number | ((prev: number) => number)) => {
+      const next = typeof v === "function" ? v(topBadgeScale) : v
+      update({ topBadgeScale: next })
+    }, [topBadgeScale, update])
+  const setTopBadgeOffsetX = useCallback(
+    (v: number | ((prev: number) => number)) => {
+      const next = typeof v === "function" ? v(topBadgeOffsetX) : v
+      update({ topBadgeOffsetX: next })
+    }, [topBadgeOffsetX, update])
+  const setTopBadgeOffsetY = useCallback(
+    (v: number | ((prev: number) => number)) => {
+      const next = typeof v === "function" ? v(topBadgeOffsetY) : v
+      update({ topBadgeOffsetY: next })
+    }, [topBadgeOffsetY, update])
+  const setGenreBadgeScale = useCallback(
+    (v: number | ((prev: number) => number)) => {
+      const next = typeof v === "function" ? v(genreBadgeScale) : v
+      update({ genreBadgeScale: next })
+    }, [genreBadgeScale, update])
+  const setQualityBadgeScale = useCallback(
+    (v: number | ((prev: number) => number)) => {
+      const next = typeof v === "function" ? v(qualityBadgeScale) : v
+      update({ qualityBadgeScale: next })
+    }, [qualityBadgeScale, update])
+  const setNetworkLogoScale = useCallback(
+    (v: number | ((prev: number) => number)) => {
+      const next = typeof v === "function" ? v(networkLogoScale) : v
+      update({ networkLogoScale: next })
+    }, [networkLogoScale, update])
   const setBlurIntensity = useCallback(
     (v: number | ((prev: number) => number)) => {
       const next = typeof v === "function" ? v(blurIntensity) : v
@@ -327,6 +393,36 @@ export function PosterEditorProvider({
       const next = typeof v === "function" ? v(defaultGradientHeight) : v
       update({ defaultGradientHeight: next })
     }, [defaultGradientHeight, update])
+  const setDefaultTopBadgeScale = useCallback(
+    (v: number | ((prev: number) => number)) => {
+      const next = typeof v === "function" ? v(defaultTopBadgeScale) : v
+      update({ defaultTopBadgeScale: next })
+    }, [defaultTopBadgeScale, update])
+  const setDefaultTopBadgeOffsetX = useCallback(
+    (v: number | ((prev: number) => number)) => {
+      const next = typeof v === "function" ? v(defaultTopBadgeOffsetX) : v
+      update({ defaultTopBadgeOffsetX: next })
+    }, [defaultTopBadgeOffsetX, update])
+  const setDefaultTopBadgeOffsetY = useCallback(
+    (v: number | ((prev: number) => number)) => {
+      const next = typeof v === "function" ? v(defaultTopBadgeOffsetY) : v
+      update({ defaultTopBadgeOffsetY: next })
+    }, [defaultTopBadgeOffsetY, update])
+  const setDefaultGenreBadgeScale = useCallback(
+    (v: number | ((prev: number) => number)) => {
+      const next = typeof v === "function" ? v(defaultGenreBadgeScale) : v
+      update({ defaultGenreBadgeScale: next })
+    }, [defaultGenreBadgeScale, update])
+  const setDefaultQualityBadgeScale = useCallback(
+    (v: number | ((prev: number) => number)) => {
+      const next = typeof v === "function" ? v(defaultQualityBadgeScale) : v
+      update({ defaultQualityBadgeScale: next })
+    }, [defaultQualityBadgeScale, update])
+  const setDefaultNetworkLogoScale = useCallback(
+    (v: number | ((prev: number) => number)) => {
+      const next = typeof v === "function" ? v(defaultNetworkLogoScale) : v
+      update({ defaultNetworkLogoScale: next })
+    }, [defaultNetworkLogoScale, update])
   const setDefaultGlobalBadges = useCallback(
     (v: boolean | ((prev: boolean) => boolean)) => {
       const next = typeof v === "function" ? v(defaultGlobalBadges) : v
@@ -459,6 +555,18 @@ export function PosterEditorProvider({
       setDefaultBlurDarkness,
       defaultGradientHeight,
       setDefaultGradientHeight,
+      defaultTopBadgeScale,
+      setDefaultTopBadgeScale,
+      defaultTopBadgeOffsetX,
+      setDefaultTopBadgeOffsetX,
+      defaultTopBadgeOffsetY,
+      setDefaultTopBadgeOffsetY,
+      defaultGenreBadgeScale,
+      setDefaultGenreBadgeScale,
+      defaultQualityBadgeScale,
+      setDefaultQualityBadgeScale,
+      defaultNetworkLogoScale,
+      setDefaultNetworkLogoScale,
       defaultGlobalBadges,
       setDefaultGlobalBadges,
       defaultRankingBadges,
@@ -500,6 +608,26 @@ export function PosterEditorProvider({
       // Gradient
       gradientHeight,
       setGradientHeight,
+
+      // Badge superiore
+      topBadgeScale,
+      setTopBadgeScale,
+      topBadgeOffsetX,
+      setTopBadgeOffsetX,
+      topBadgeOffsetY,
+      setTopBadgeOffsetY,
+
+      // Badge genere
+      genreBadgeScale,
+      setGenreBadgeScale,
+
+      // Badge qualità
+      qualityBadgeScale,
+      setQualityBadgeScale,
+
+      // Logo network
+      networkLogoScale,
+      setNetworkLogoScale,
 
       // Logo
       logoScale,
@@ -563,6 +691,15 @@ export function PosterEditorProvider({
       defaultBlurFade, setDefaultBlurFade,
       defaultBlurDarkness, setDefaultBlurDarkness,
       defaultGradientHeight, setDefaultGradientHeight,
+      defaultTopBadgeScale, setDefaultTopBadgeScale,
+      defaultTopBadgeOffsetX, setDefaultTopBadgeOffsetX,
+      defaultTopBadgeOffsetY, setDefaultTopBadgeOffsetY,
+      defaultGenreBadgeScale,
+      setDefaultGenreBadgeScale,
+      defaultQualityBadgeScale,
+      setDefaultQualityBadgeScale,
+      defaultNetworkLogoScale,
+      setDefaultNetworkLogoScale,
       defaultGlobalBadges, setDefaultGlobalBadges,
       defaultRankingBadges, setDefaultRankingBadges,
       defaultBadgeGenre, setDefaultBadgeGenre,
@@ -585,6 +722,20 @@ export function PosterEditorProvider({
 
       // Gradient
       gradientHeight, setGradientHeight,
+
+      // Badge superiore
+      topBadgeScale, setTopBadgeScale,
+      topBadgeOffsetX, setTopBadgeOffsetX,
+      topBadgeOffsetY, setTopBadgeOffsetY,
+
+      // Badge genere
+      genreBadgeScale, setGenreBadgeScale,
+
+      // Badge qualità
+      qualityBadgeScale, setQualityBadgeScale,
+
+      // Logo network
+      networkLogoScale, setNetworkLogoScale,
 
       // Logo
       logoScale, setLogoScale,

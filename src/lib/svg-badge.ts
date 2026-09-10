@@ -115,11 +115,20 @@ export async function buildExtraBadgeSVG(
   topLight?: boolean,
   badgeStyle?: ExtraBadgeStyle,
   accentColor?: string,
+  /** Scala % applicata al font solo per lo stile barra (gli altri scalano via bitmap nel service). */
+  scale = 100,
 ): Promise<{ png: Buffer; w: number; h: number } | null> {
   const s = badgeStyle || "default"
-  const maxBadgeW = pw - 20
-  // Più piccola
-  let finalFs = 16 * pw / 380
+  // Cap estetico per gli stili compatti: oltre il 65% di pw il testo si
+  // rimpicciolisce (le label corte restano invariate). La barra resta
+  // full-width: lì vale solo il bound hard anti-overflow (pw - 20).
+  const maxBadgeW = s === "bar" ? pw - 20 : Math.round(pw * 0.65)
+  // Extra al 90% del badge ranking: a pari fs ("Vincitore Oscar" a 100%)
+  // il testo risultava troppo grande rispetto ai rank.
+  let finalFs = 23 * 0.9 * pw / 380
+  // Barra full-width: la scala assottiglia nativamente (font+padding),
+  // senza staccare la barra dal bordo come farebbe il resize bitmap.
+  if (s === "bar") finalFs = (finalFs * scale) / 100
   const projectedW = estimateTextWidth(label, finalFs) + Math.round(finalFs * 2) + Math.round(finalFs * 0.6) * 2
   if (projectedW > maxBadgeW) {
     finalFs = Math.max(maxBadgeW / projectedW * finalFs, 10)
@@ -155,12 +164,18 @@ export async function buildExtraBadgeSVG(
 export async function buildGenreBadgeSVG(
   genreName: string, voteAverage: number, pw: number,
   year?: string, style?: BadgeStyle, accentColor?: string, topLight?: boolean, parts?: GenreParts,
+  /** Scala % applicata al font solo per lo stile barra (gli altri scalano via bitmap nel service). */
+  scale = 100,
 ): Promise<{ png: Buffer; w: number; h: number } | null> {
   const s = style || "shadow"
   const voteStr = voteAverage ? voteAverage.toFixed(1) : ""
   const yearStr = year || ""
 
-  let finalFs = 24 * pw / 380
+  // Base al 120%: il badge genere/rating di default rende come l'ex-120%
+  // ma nativo (niente upscale bitmap) — lo slider `gscale` parte da 100.
+  let finalFs = 24 * 1.2 * pw / 380
+  // Barra full-width: vedi nota in buildExtraBadgeSVG.
+  if (s === "bar") finalFs = (finalFs * scale) / 100
   const aestheticMaxW = Math.round(pw * 0.86) // 86% per margine estetico
   let dims = genreBadgeSvgDims(finalFs, genreName, voteStr, yearStr, parts)
   let safePad = genreBadgeSafePad(finalFs)
@@ -222,8 +237,9 @@ export async function buildGenreBadgeSVG(
 export async function renderGenreBadge(
   genreName: string, voteAverage: number, pw: number,
   year?: string, style?: BadgeStyle, accentColor?: string, topLight?: boolean, parts?: GenreParts,
+  scale = 100,
 ): Promise<{ png: Buffer; w: number; h: number }> {
-  const r = await buildGenreBadgeSVG(genreName, voteAverage, pw, year, style, accentColor, topLight, parts)
+  const r = await buildGenreBadgeSVG(genreName, voteAverage, pw, year, style, accentColor, topLight, parts, scale)
   if (r) return r
   throw new Error(`SVG genre badge failed: ${genreName}`)
 }
@@ -330,12 +346,16 @@ export async function buildRankingBadgeSVG(
   accentColor?: string,
   side?: "left" | "right",
   isAnime?: boolean,
+  /** Scala % applicata al font solo per lo stile barra (gli altri scalano via bitmap nel service). */
+  scale = 100,
 ): Promise<{ png: Buffer; w: number; h: number } | null> {
   const s = badgeStyle || "default"
   const periodText = label || "Oggi"
   const fullText = `#${rank} ${periodText}`
   const maxBadgeW = pw - 20
   let finalFs = 23 * pw / 380
+  // Barra full-width: vedi nota in buildExtraBadgeSVG.
+  if (s === "bar") finalFs = (finalFs * scale) / 100
   const projectedW = estimateTextWidth(fullText, finalFs) + Math.round(finalFs * 2) + Math.round(finalFs * 0.6) * 2
   if (projectedW > maxBadgeW) {
     finalFs = Math.max(maxBadgeW / projectedW * finalFs, 10)
@@ -369,8 +389,9 @@ export async function buildRankingBadgeSVG(
 export async function renderRankingBadge(
   rank: number, pw: number, label?: string,
   topLight?: boolean, badgeStyle?: RankingBadgeStyle, accentColor?: string, side?: "left" | "right", isAnime?: boolean,
+  scale = 100,
 ): Promise<{ png: Buffer; w: number; h: number }> {
-  const r = await buildRankingBadgeSVG(rank, pw, label, topLight, badgeStyle, accentColor, side, isAnime)
+  const r = await buildRankingBadgeSVG(rank, pw, label, topLight, badgeStyle, accentColor, side, isAnime, scale)
   if (r) return r
   throw new Error(`SVG ranking badge failed: rank=${rank}`)
 }
@@ -378,8 +399,9 @@ export async function renderRankingBadge(
 export async function renderExtraBadge(
   label: string, pw: number, topLight?: boolean,
   badgeStyle?: ExtraBadgeStyle, accentColor?: string,
+  scale = 100,
 ): Promise<{ png: Buffer; w: number; h: number }> {
-  const r = await buildExtraBadgeSVG(label, pw, topLight, badgeStyle, accentColor)
+  const r = await buildExtraBadgeSVG(label, pw, topLight, badgeStyle, accentColor, scale)
   if (r) return r
   throw new Error(`SVG extra badge failed: ${label}`)
 }
@@ -426,7 +448,9 @@ export async function renderComingSoonRibbon(
   let fs = Math.round(21 * s)
   // Il testo deve stare nel segmento visibile (tra i due bordi poster):
   // oltre sborda a metà lettera e sembra rotto, non "nastro da angolo".
-  const maxTextW = Math.round(135 * s)
+  // Tetto stretto (120, non tutta la banda): le parole lunghe
+  // ("Prossimamente", "Prochainement"...) respirano invece di toccare i bordi.
+  const maxTextW = Math.round(120 * s)
   const textW = estimateTextWidth(text, fs)
   if (textW > maxTextW) {
     fs = Math.max(12, Math.floor((fs * maxTextW) / textW))
@@ -455,7 +479,8 @@ export async function renderQualityBadge(
   pw: number,
   topLight?: boolean,
 ): Promise<{ png: Buffer; w: number; h: number }> {
-  const fs = Math.round(Math.max(14 * pw / 380, 10))
+  // Base al 120% nativa (come il badge genere): lo slider `qscale` parte da 100.
+  const fs = Math.round(Math.max(14 * 1.2 * pw / 380, 10))
   const bg = topLight ? "rgba(0,0,0,0.80)" : "rgba(255,255,255,0.80)"
   const fg = topLight ? "rgba(255,255,255,0.80)" : "rgba(0,0,0,0.80)"
   const result = buildQualityBadgeSvg(quality, fs, fg, bg, !!topLight)

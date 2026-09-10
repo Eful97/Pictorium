@@ -63,6 +63,7 @@
   "ui.badgePosterHint": "保存するとこのタイトルにのみ固定されます",
   "ui.badgeDefaultsHint": "新しいポスターと未保存のタイトルに適用されます",
   "ui.trendBadge": "トレンド",
+  "ui.topBadge": "トップバッジ",
   "ui.genreRatingBadge": "ジャンル / 評価",
   "ui.badgeGenre": "ジャンル",
   "ui.badgeYear": "年",

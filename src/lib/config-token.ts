@@ -40,6 +40,14 @@ export const configTokenSchema = z.object({
   blurFade: z.number().finite(),
   blurDarkness: z.number().finite(),
   gradientHeight: z.number().finite(),
+  // Scala/offset del badge superiore: opzionali per back-compat (i token
+  // generati prima non devono fallire il safeParse — vedi logoFitEnabled).
+  topBadgeScale: z.number().finite().optional(),
+  topBadgeOffsetX: z.number().finite().optional(),
+  topBadgeOffsetY: z.number().finite().optional(),
+  genreBadgeScale: z.number().finite().optional(),
+  qualityBadgeScale: z.number().finite().optional(),
+  networkLogoScale: z.number().finite().optional(),
   networkLogo: z.boolean(),
   preRelease: z.boolean().optional(),
   autoRotateClean: z.boolean(),
@@ -171,6 +179,12 @@ export function decodeConfig(token: string): PictoriumUserConfig | null {
       blurFade: clamp(Math.round(result.data.blurFade), 0, 100),
       blurDarkness: clamp(Math.round(result.data.blurDarkness), 0, 100),
       gradientHeight: clamp(Math.round(result.data.gradientHeight), 5, 100),
+      topBadgeScale: result.data.topBadgeScale !== undefined ? clamp(Math.round(result.data.topBadgeScale), 10, 200) : undefined,
+      topBadgeOffsetX: result.data.topBadgeOffsetX !== undefined ? clamp(Math.round(result.data.topBadgeOffsetX), -2000, 2000) : undefined,
+      topBadgeOffsetY: result.data.topBadgeOffsetY !== undefined ? clamp(Math.round(result.data.topBadgeOffsetY), -2000, 2000) : undefined,
+      genreBadgeScale: result.data.genreBadgeScale !== undefined ? clamp(Math.round(result.data.genreBadgeScale), 10, 200) : undefined,
+      qualityBadgeScale: result.data.qualityBadgeScale !== undefined ? clamp(Math.round(result.data.qualityBadgeScale), 10, 200) : undefined,
+      networkLogoScale: result.data.networkLogoScale !== undefined ? clamp(Math.round(result.data.networkLogoScale), 10, 200) : undefined,
     }
 
     return clamped

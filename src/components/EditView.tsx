@@ -174,9 +174,11 @@ export default function EditView() {
   const rightTabs = useMemo(() => [
     { key: "logo", label: t("ui.logoSection") },
     { key: "badge", label: t("ui.badgeSection") },
-    ...(selectedLogo ? [{ key: "transform", label: t("ui.transform") }] : []),
+    // Sempre visibile: ospita anche badge superiore e sfocatura, che valgono
+    // pure senza logo film (la sezione logo resta condizionata dentro).
+    { key: "transform", label: t("ui.transform") },
     ...(selected?.media_type === "tv" ? [{ key: "stagioni", label: t("ui.seasons") || "Stagioni" }] : []),
-  ], [t, selectedLogo, selected?.media_type])
+  ], [t, selected?.media_type])
 
   useEffect(() => {
     if (!rightTabs.some((tab) => tab.key === activeRightTab)) {
@@ -337,6 +339,12 @@ export default function EditView() {
                         blurEnabled: ed.blurEnabled,
                         networkLogo: ed.networkLogo,
                         ribbonSide: ed.ribbonSide,
+                        topBadgeScale: ed.topBadgeScale,
+                        topBadgeOffsetX: ed.topBadgeOffsetX,
+                        topBadgeOffsetY: ed.topBadgeOffsetY,
+                        genreBadgeScale: ed.genreBadgeScale,
+                        qualityBadgeScale: ed.qualityBadgeScale,
+                        networkLogoScale: ed.networkLogoScale,
                       })
                       if (!url) return
                       setUrlCopied(false)

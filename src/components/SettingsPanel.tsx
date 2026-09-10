@@ -39,6 +39,9 @@ import {
   X,
   Lock,
   KeyRound,
+  Search,
+  ArrowLeftRight,
+  ArrowUpDown,
 } from "lucide-react"
 
 interface Props {
@@ -418,6 +421,32 @@ export function SettingsPanel({ setSettingsOpen, exportData, importData, mobile 
             />
           </div>
 
+          {ed.defaultBadgeQuality && (
+            <div className="pl-3 py-1 border-l-2 border-surface2 ml-1 animate-fade-in">
+              <SliderRow
+                icon={<Search className="w-3.5 h-3.5" />}
+                label={t("ui.scale")}
+                value={ed.defaultQualityBadgeScale}
+                min={50}
+                max={150}
+                boundsMin={10}
+                boundsMax={200}
+                onChange={(v) => {
+                  ed.setDefaultQualityBadgeScale(v)
+                }}
+            onDoubleClick={() => {
+              ed.setDefaultQualityBadgeScale(100)
+            }}
+                editingValue={editVal}
+                editText={editTxt}
+                setEditingValue={setEditVal}
+                setEditText={setEditTxt}
+                editingKey="qbs"
+                suffix="%"
+              />
+            </div>
+          )}
+
           <div className="flex items-center justify-between">
             <span className="text-zinc-300 font-medium flex items-center gap-1.5">
               <Tv className="w-3.5 h-3.5 text-sky-400" />
@@ -431,6 +460,32 @@ export function SettingsPanel({ setSettingsOpen, exportData, importData, mobile 
               label={t("ui.networkLogo")}
             />
           </div>
+
+          {ed.defaultNetworkLogo && (
+            <div className="pl-3 py-1 border-l-2 border-surface2 ml-1 animate-fade-in">
+              <SliderRow
+                icon={<Search className="w-3.5 h-3.5" />}
+                label={t("ui.scale")}
+                value={ed.defaultNetworkLogoScale}
+                min={50}
+                max={150}
+                boundsMin={10}
+                boundsMax={200}
+                onChange={(v) => {
+                  ed.setDefaultNetworkLogoScale(v)
+                }}
+                onDoubleClick={() => {
+                  ed.setDefaultNetworkLogoScale(100)
+                }}
+                editingValue={editVal}
+                editText={editTxt}
+                setEditingValue={setEditVal}
+                setEditText={setEditTxt}
+                editingKey="nls"
+                suffix="%"
+              />
+            </div>
+          )}
 
           <div className="flex items-center justify-between">
             <span className="text-zinc-300 font-medium flex items-center gap-1.5">
@@ -516,6 +571,27 @@ export function SettingsPanel({ setSettingsOpen, exportData, importData, mobile 
               ed.setDefaultBadgeStyle(v)
             }}
             t={t}
+          />
+          <SliderRow
+            icon={<Search className="w-3.5 h-3.5" />}
+            label={t("ui.scale")}
+            value={ed.defaultGenreBadgeScale}
+            min={50}
+            max={150}
+            boundsMin={10}
+            boundsMax={200}
+            onChange={(v) => {
+              ed.setDefaultGenreBadgeScale(v)
+            }}
+            onDoubleClick={() => {
+              ed.setDefaultGenreBadgeScale(100)
+            }}
+            editingValue={editVal}
+            editText={editTxt}
+            setEditingValue={setEditVal}
+            setEditText={setEditTxt}
+            editingKey="gbs"
+            suffix="%"
           />
         </div>
       </div>
@@ -624,6 +700,80 @@ export function SettingsPanel({ setSettingsOpen, exportData, importData, mobile 
             />
           </div>
         )}
+      </div>
+
+      {/* Badge Superiore Predefinito */}
+      <div className="bg-surface/50 border border-surface2/60 rounded-xl p-3.5 space-y-2.5 shadow-sm">
+        <span className="text-zinc-300 font-medium flex items-center gap-1.5">
+          <Trophy className="w-3.5 h-3.5 text-amber-500" />
+          {t("ui.topBadge")}
+        </span>
+
+        <div className="space-y-1.5 pt-1">
+          <SliderRow
+            icon={<Search className="w-3.5 h-3.5" />}
+            label={t("ui.scale")}
+            value={ed.defaultTopBadgeScale}
+            min={50}
+            max={150}
+            boundsMin={10}
+            boundsMax={200}
+            onChange={(v) => {
+              ed.setDefaultTopBadgeScale(v)
+            }}
+            onDoubleClick={() => {
+              ed.setDefaultTopBadgeScale(100)
+            }}
+            editingValue={editVal}
+            editText={editTxt}
+            setEditingValue={setEditVal}
+            setEditText={setEditTxt}
+            editingKey="tbs"
+            suffix="%"
+          />
+          <SliderRow
+            icon={<ArrowLeftRight className="w-3.5 h-3.5" />}
+            label="X"
+            value={ed.defaultTopBadgeOffsetX}
+            min={-100}
+            max={100}
+            boundsMin={-500}
+            boundsMax={500}
+            onChange={(v) => {
+              ed.setDefaultTopBadgeOffsetX(v)
+            }}
+            onDoubleClick={() => {
+              ed.setDefaultTopBadgeOffsetX(0)
+            }}
+            editingValue={editVal}
+            editText={editTxt}
+            setEditingValue={setEditVal}
+            setEditText={setEditTxt}
+            editingKey="tbx"
+            suffix="px"
+          />
+          <SliderRow
+            icon={<ArrowUpDown className="w-3.5 h-3.5" />}
+            label="Y"
+            value={ed.defaultTopBadgeOffsetY}
+            min={-100}
+            max={100}
+            boundsMin={-500}
+            boundsMax={500}
+            onChange={(v) => {
+              ed.setDefaultTopBadgeOffsetY(v)
+            }}
+            onDoubleClick={() => {
+              ed.setDefaultTopBadgeOffsetY(0)
+            }}
+            editingValue={editVal}
+            editText={editTxt}
+            setEditingValue={setEditVal}
+            setEditText={setEditTxt}
+            editingKey="tby"
+            suffix="px"
+          />
+        </div>
       </div>
     </div>
   )

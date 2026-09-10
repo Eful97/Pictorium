@@ -63,6 +63,7 @@
   "ui.badgePosterHint": "Enregistrés, ils restent figés sur cette affiche",
   "ui.badgeDefaultsHint": "S'appliquent aux nouvelles affiches et titres jamais enregistrés",
   "ui.trendBadge": "Tendances",
+  "ui.topBadge": "Badge supérieur",
   "ui.genreRatingBadge": "Genre / Note",
   "ui.badgeGenre": "Genre",
   "ui.badgeYear": "Année",

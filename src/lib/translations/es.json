@@ -63,6 +63,7 @@
   "ui.badgePosterHint": "Al guardar quedan fijadas solo en este póster",
   "ui.badgeDefaultsHint": "Valen para pósteres nuevos y títulos nunca guardados",
   "ui.trendBadge": "Tendencia",
+  "ui.topBadge": "Insignia superior",
   "ui.genreRatingBadge": "Género / Puntuación",
   "ui.badgeGenre": "Género",
   "ui.badgeYear": "Año",

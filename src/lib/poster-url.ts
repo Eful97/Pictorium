@@ -25,6 +25,16 @@ interface BadgeParams {
   blurFade: number
   blurDarkness: number
   blurEnabled: boolean
+  /** Scala % + offset px del badge superiore (solo stili centrati per gli offset). */
+  topBadgeScale: number
+  topBadgeOffsetX: number
+  topBadgeOffsetY: number
+  /** Scala % del badge genere/rating in basso. */
+  genreBadgeScale: number
+  /** Scala % del badge qualità streaming. */
+  qualityBadgeScale: number
+  /** Scala % del logo network. */
+  networkLogoScale: number
   networkLogo?: boolean
   /** Effetto pre-digitale (darken + Coming Soon, solo film). Default OFF. */
   preRelease?: boolean
@@ -87,6 +97,12 @@ export function buildUrlPattern(bp: BadgeParams & { tmdbKey: string; lang: strin
     networkLogo: bp.networkLogo,
     preRelease: bp.preRelease,
     ribbonSide: bp.ribbonSide,
+    topBadgeScale: bp.topBadgeScale,
+    topBadgeOffsetX: bp.topBadgeOffsetX,
+    topBadgeOffsetY: bp.topBadgeOffsetY,
+    genreBadgeScale: bp.genreBadgeScale,
+    qualityBadgeScale: bp.qualityBadgeScale,
+    networkLogoScale: bp.networkLogoScale,
   })
   // Template che l'utente copia per sé (come la manifest URL con chiavi):
   // qui le chiavi sono volute — Stremio non invia header custom, quindi il
@@ -155,6 +171,12 @@ export function buildPreviewUrl(ps: PosterState, bp: BadgeParams): string {
   params.push(`bd=${bp.blurDarkness}`)
   params.push(`bs=${bp.badgeStyle}`)
   params.push(`rs=${bp.rankingBadgeStyle}`)
+  params.push(`tscale=${bp.topBadgeScale}`)
+  params.push(`tox=${bp.topBadgeOffsetX}`)
+  params.push(`toy=${bp.topBadgeOffsetY}`)
+  params.push(`gscale=${bp.genreBadgeScale}`)
+  params.push(`qscale=${bp.qualityBadgeScale}`)
+  params.push(`netscale=${bp.networkLogoScale}`)
   if (!bp.blurEnabled) params.push("be=0")
   params.push(`netLogo=${bp.networkLogo !== false ? "1" : "0"}`)
   if (bp.preRelease) params.push("pre=1")

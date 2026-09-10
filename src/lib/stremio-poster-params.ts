@@ -26,6 +26,17 @@ export interface StremioPosterParamsInput {
   readonly blurDarkness?: number
   readonly blurEnabled?: boolean
   readonly networkLogo?: boolean
+  /** Scala % del badge superiore (default 100). */
+  readonly topBadgeScale?: number
+  /** Offset px del badge superiore, solo stili centrati (default 0). */
+  readonly topBadgeOffsetX?: number
+  readonly topBadgeOffsetY?: number
+  /** Scala % del badge genere/rating in basso (default 100). */
+  readonly genreBadgeScale?: number
+  /** Scala % del badge qualità streaming (default 100). */
+  readonly qualityBadgeScale?: number
+  /** Scala % del logo network (default 100). */
+  readonly networkLogoScale?: number
   /** Effetto pre-digitale (darken + Coming Soon, solo film). Default OFF. */
   readonly preRelease?: boolean
   readonly ribbonSide?: "left" | "right"
@@ -50,6 +61,12 @@ const DEFAULT_STREMIO_POSTER_PARAMS = {
   blurDarkness: 40,
   blurEnabled: true,
   networkLogo: true,
+  topBadgeScale: 100,
+  topBadgeOffsetX: 0,
+  topBadgeOffsetY: 0,
+  genreBadgeScale: 100,
+  qualityBadgeScale: 100,
+  networkLogoScale: 100,
 } as const
 
 export function buildStremioPosterSearchParams(input: StremioPosterParamsInput): URLSearchParams {
@@ -86,6 +103,12 @@ export function buildStremioPosterSearchParams(input: StremioPosterParamsInput):
   params.set("bd", String(input.blurDarkness ?? DEFAULT_STREMIO_POSTER_PARAMS.blurDarkness))
   params.set("bs", input.badgeStyle || DEFAULT_STREMIO_POSTER_PARAMS.badgeStyle)
   params.set("rs", input.rankingBadgeStyle || DEFAULT_STREMIO_POSTER_PARAMS.rankingBadgeStyle)
+  params.set("tscale", String(input.topBadgeScale ?? DEFAULT_STREMIO_POSTER_PARAMS.topBadgeScale))
+  params.set("tox", String(input.topBadgeOffsetX ?? DEFAULT_STREMIO_POSTER_PARAMS.topBadgeOffsetX))
+  params.set("toy", String(input.topBadgeOffsetY ?? DEFAULT_STREMIO_POSTER_PARAMS.topBadgeOffsetY))
+  params.set("gscale", String(input.genreBadgeScale ?? DEFAULT_STREMIO_POSTER_PARAMS.genreBadgeScale))
+  params.set("qscale", String(input.qualityBadgeScale ?? DEFAULT_STREMIO_POSTER_PARAMS.qualityBadgeScale))
+  params.set("netscale", String(input.networkLogoScale ?? DEFAULT_STREMIO_POSTER_PARAMS.networkLogoScale))
   params.set("rv", String(POSTER_URL_VERSION))
   return params
 }

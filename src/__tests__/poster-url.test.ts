@@ -13,6 +13,12 @@ const baseBadgeParams = {
   blurFade: 60,
   blurDarkness: 40,
   blurEnabled: true,
+  topBadgeScale: 100,
+  topBadgeOffsetX: 0,
+  topBadgeOffsetY: 0,
+  genreBadgeScale: 100,
+  qualityBadgeScale: 100,
+  networkLogoScale: 100,
 }
 
 const basePosterState = {

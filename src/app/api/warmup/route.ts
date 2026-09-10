@@ -92,6 +92,12 @@ function buildPosterUrl(input: BuildPosterUrlInput): URL {
     blurFade: defaults.blurFade,
     blurDarkness: defaults.blurDarkness,
     blurEnabled: defaults.blurEnabled,
+    topBadgeScale: defaults.topBadgeScale,
+    topBadgeOffsetX: defaults.topBadgeOffsetX,
+    topBadgeOffsetY: defaults.topBadgeOffsetY,
+    genreBadgeScale: defaults.genreBadgeScale,
+    qualityBadgeScale: defaults.qualityBadgeScale,
+    networkLogoScale: defaults.networkLogoScale,
   })
   params.forEach((value, key) => url.searchParams.set(key, value))
   return url

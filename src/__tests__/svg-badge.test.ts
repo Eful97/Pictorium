@@ -63,6 +63,25 @@ describe("buildGenreBadgeSVG", () => {
     expect(badge!.w).toBeLessThanOrEqual(860)
   })
 
+  it("scales bar badges natively (full-width kept, height shrinks)", async () => {
+    const full = await buildGenreBadgeSVG("Dramma", 6.4, 380, undefined, "bar", "#555555", false, undefined, 100)
+    const slim = await buildGenreBadgeSVG("Dramma", 6.4, 380, undefined, "bar", "#555555", false, undefined, 70)
+    expect(full).not.toBeNull()
+    expect(slim).not.toBeNull()
+    expect(full!.w).toBe(380)
+    expect(slim!.w).toBe(380)
+    expect(slim!.h).toBeLessThan(full!.h)
+  })
+
+  it("ignores the scale param for non-bar styles (bitmap scaling lives in the service)", async () => {
+    const a = await buildGenreBadgeSVG("Dramma", 6.4, 380, undefined, "shadow", "#555555", false, undefined, 100)
+    const b = await buildGenreBadgeSVG("Dramma", 6.4, 380, undefined, "shadow", "#555555", false, undefined, 70)
+    expect(a).not.toBeNull()
+    expect(b).not.toBeNull()
+    expect(b!.w).toBe(a!.w)
+    expect(b!.h).toBe(a!.h)
+  })
+
   it.each([
     ["Commedia", 8.1, "2026"],
     ["Sci-Fi & Fantasy", 8.0, "2022"],
@@ -294,6 +313,20 @@ describe("buildRankingBadgeSVG", () => {
       expect(svg).toContain(`>${label}</text>`)
       expect(w).toBeGreaterThan(95)
     }
+  })
+})
+
+describe("top badge uniformity (rank vs extra)", () => {
+  it("renders extra badges at 90% of the rank size", async () => {
+    // Rank a fs 23, extra al 90% (~fs 21): "Vincitore Oscar" a 100%
+    // risultava troppo grande. h extra ≈ 60, h rank ≈ 66.
+    const rank = await buildRankingBadgeSVG(3, 380, "Oggi", false, "default", "#555555")
+    const extra = await buildExtraBadgeSVG("Oscar 2024", 380, false, "default", "#555555")
+    expect(rank).not.toBeNull()
+    expect(extra).not.toBeNull()
+    expect(extra!.h).toBeLessThan(rank!.h)
+    expect(extra!.h / rank!.h).toBeCloseTo(0.9, 1)
+    expect(extra!.h).toBeGreaterThan(50)
   })
 })
 

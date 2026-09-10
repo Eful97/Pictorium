@@ -235,6 +235,147 @@ describe("resolvePosterRenderConfig", () => {
     expect(resolvePosterRenderConfig(baseInput({ searchParams: new URLSearchParams({ ox: "xyz" }) })).logoOffsetX).toBeNull()
   })
 
+  it("top badge scale/offsets default to 100/0/0", () => {
+    const r = resolvePosterRenderConfig(baseInput())
+    expect(r.topBadgeScale).toBe(100)
+    expect(r.topBadgeOffsetX).toBe(0)
+    expect(r.topBadgeOffsetY).toBe(0)
+  })
+
+  it("top badge scale/offsets: query > mapping > config > server defaults", () => {
+    const r = resolvePosterRenderConfig(baseInput({
+      searchParams: new URLSearchParams({ tscale: "120", tox: "5", toy: "-3" }),
+      mapping: mapping({ topBadgeScale: 80, topBadgeOffsetX: 1, topBadgeOffsetY: 2 }),
+      configOverride: config({ topBadgeScale: 90, topBadgeOffsetX: 3, topBadgeOffsetY: 4 }),
+      sd: { topBadgeScale: 70, topBadgeOffsetX: 6, topBadgeOffsetY: 7 },
+    }))
+    expect(r.topBadgeScale).toBe(120)
+    expect(r.topBadgeOffsetX).toBe(5)
+    expect(r.topBadgeOffsetY).toBe(-3)
+    const rMapping = resolvePosterRenderConfig(baseInput({
+      mapping: mapping({ topBadgeScale: 80, topBadgeOffsetX: 1, topBadgeOffsetY: 2 }),
+      configOverride: config({ topBadgeScale: 90, topBadgeOffsetX: 3, topBadgeOffsetY: 4 }),
+      sd: { topBadgeScale: 70, topBadgeOffsetX: 6, topBadgeOffsetY: 7 },
+    }))
+    expect(rMapping.topBadgeScale).toBe(80)
+    expect(rMapping.topBadgeOffsetX).toBe(1)
+    expect(rMapping.topBadgeOffsetY).toBe(2)
+    const rConfig = resolvePosterRenderConfig(baseInput({
+      configOverride: config({ topBadgeScale: 90, topBadgeOffsetX: 3, topBadgeOffsetY: 4 }),
+      sd: { topBadgeScale: 70, topBadgeOffsetX: 6, topBadgeOffsetY: 7 },
+    }))
+    expect(rConfig.topBadgeScale).toBe(90)
+    expect(rConfig.topBadgeOffsetX).toBe(3)
+    expect(rConfig.topBadgeOffsetY).toBe(4)
+    const rSd = resolvePosterRenderConfig(baseInput({
+      sd: { topBadgeScale: 70, topBadgeOffsetX: 6, topBadgeOffsetY: 7 },
+    }))
+    expect(rSd.topBadgeScale).toBe(70)
+    expect(rSd.topBadgeOffsetX).toBe(6)
+    expect(rSd.topBadgeOffsetY).toBe(7)
+  })
+
+  it("top badge scale/offsets are clamped (R1 anti-DoS)", () => {
+    expect(resolvePosterRenderConfig(baseInput({ searchParams: new URLSearchParams({ tscale: "999999" }) })).topBadgeScale).toBe(200)
+    expect(resolvePosterRenderConfig(baseInput({ searchParams: new URLSearchParams({ tscale: "-50" }) })).topBadgeScale).toBe(10)
+    // Non-numerico e 0 ricadono sul default 100 (non null: la scala ha sempre un valore).
+    expect(resolvePosterRenderConfig(baseInput({ searchParams: new URLSearchParams({ tscale: "abc" }) })).topBadgeScale).toBe(100)
+    expect(resolvePosterRenderConfig(baseInput({ searchParams: new URLSearchParams({ tscale: "0" }) })).topBadgeScale).toBe(100)
+    expect(resolvePosterRenderConfig(baseInput({ searchParams: new URLSearchParams({ tox: "99999" }) })).topBadgeOffsetX).toBe(2000)
+    expect(resolvePosterRenderConfig(baseInput({ searchParams: new URLSearchParams({ toy: "-99999" }) })).topBadgeOffsetY).toBe(-2000)
+    expect(resolvePosterRenderConfig(baseInput({ searchParams: new URLSearchParams({ tox: "xyz" }) })).topBadgeOffsetX).toBe(0)
+  })
+
+  it("genre badge scale defaults to 100; query > mapping > config > server defaults", () => {
+    expect(resolvePosterRenderConfig(baseInput()).genreBadgeScale).toBe(100)
+    const r = resolvePosterRenderConfig(baseInput({
+      searchParams: new URLSearchParams({ gscale: "120" }),
+      mapping: mapping({ genreBadgeScale: 80 }),
+      configOverride: config({ genreBadgeScale: 90 }),
+      sd: { genreBadgeScale: 70 },
+    }))
+    expect(r.genreBadgeScale).toBe(120)
+    expect(resolvePosterRenderConfig(baseInput({
+      mapping: mapping({ genreBadgeScale: 80 }),
+      configOverride: config({ genreBadgeScale: 90 }),
+      sd: { genreBadgeScale: 70 },
+    })).genreBadgeScale).toBe(80)
+    expect(resolvePosterRenderConfig(baseInput({
+      configOverride: config({ genreBadgeScale: 90 }),
+      sd: { genreBadgeScale: 70 },
+    })).genreBadgeScale).toBe(90)
+    expect(resolvePosterRenderConfig(baseInput({
+      sd: { genreBadgeScale: 70 },
+    })).genreBadgeScale).toBe(70)
+  })
+
+  it("genre badge scale is clamped (R1 anti-DoS)", () => {
+    expect(resolvePosterRenderConfig(baseInput({ searchParams: new URLSearchParams({ gscale: "999999" }) })).genreBadgeScale).toBe(200)
+    expect(resolvePosterRenderConfig(baseInput({ searchParams: new URLSearchParams({ gscale: "-50" }) })).genreBadgeScale).toBe(10)
+    expect(resolvePosterRenderConfig(baseInput({ searchParams: new URLSearchParams({ gscale: "abc" }) })).genreBadgeScale).toBe(100)
+    expect(resolvePosterRenderConfig(baseInput({ searchParams: new URLSearchParams({ gscale: "0" }) })).genreBadgeScale).toBe(100)
+  })
+
+  it("quality badge scale defaults to 100; query > mapping > config > server defaults", () => {
+    expect(resolvePosterRenderConfig(baseInput()).qualityBadgeScale).toBe(100)
+    const r = resolvePosterRenderConfig(baseInput({
+      searchParams: new URLSearchParams({ qscale: "120" }),
+      mapping: mapping({ qualityBadgeScale: 80 }),
+      configOverride: config({ qualityBadgeScale: 90 }),
+      sd: { qualityBadgeScale: 70 },
+    }))
+    expect(r.qualityBadgeScale).toBe(120)
+    expect(resolvePosterRenderConfig(baseInput({
+      mapping: mapping({ qualityBadgeScale: 80 }),
+      configOverride: config({ qualityBadgeScale: 90 }),
+      sd: { qualityBadgeScale: 70 },
+    })).qualityBadgeScale).toBe(80)
+    expect(resolvePosterRenderConfig(baseInput({
+      configOverride: config({ qualityBadgeScale: 90 }),
+      sd: { qualityBadgeScale: 70 },
+    })).qualityBadgeScale).toBe(90)
+    expect(resolvePosterRenderConfig(baseInput({
+      sd: { qualityBadgeScale: 70 },
+    })).qualityBadgeScale).toBe(70)
+  })
+
+  it("quality badge scale is clamped (R1 anti-DoS)", () => {
+    expect(resolvePosterRenderConfig(baseInput({ searchParams: new URLSearchParams({ qscale: "999999" }) })).qualityBadgeScale).toBe(200)
+    expect(resolvePosterRenderConfig(baseInput({ searchParams: new URLSearchParams({ qscale: "-50" }) })).qualityBadgeScale).toBe(10)
+    expect(resolvePosterRenderConfig(baseInput({ searchParams: new URLSearchParams({ qscale: "abc" }) })).qualityBadgeScale).toBe(100)
+    expect(resolvePosterRenderConfig(baseInput({ searchParams: new URLSearchParams({ qscale: "0" }) })).qualityBadgeScale).toBe(100)
+  })
+
+  it("network logo scale defaults to 100; query > mapping > config > server defaults", () => {
+    expect(resolvePosterRenderConfig(baseInput()).networkLogoScale).toBe(100)
+    const r = resolvePosterRenderConfig(baseInput({
+      searchParams: new URLSearchParams({ netscale: "120" }),
+      mapping: mapping({ networkLogoScale: 80 }),
+      configOverride: config({ networkLogoScale: 90 }),
+      sd: { networkLogoScale: 70 },
+    }))
+    expect(r.networkLogoScale).toBe(120)
+    expect(resolvePosterRenderConfig(baseInput({
+      mapping: mapping({ networkLogoScale: 80 }),
+      configOverride: config({ networkLogoScale: 90 }),
+      sd: { networkLogoScale: 70 },
+    })).networkLogoScale).toBe(80)
+    expect(resolvePosterRenderConfig(baseInput({
+      configOverride: config({ networkLogoScale: 90 }),
+      sd: { networkLogoScale: 70 },
+    })).networkLogoScale).toBe(90)
+    expect(resolvePosterRenderConfig(baseInput({
+      sd: { networkLogoScale: 70 },
+    })).networkLogoScale).toBe(70)
+  })
+
+  it("network logo scale is clamped (R1 anti-DoS)", () => {
+    expect(resolvePosterRenderConfig(baseInput({ searchParams: new URLSearchParams({ netscale: "999999" }) })).networkLogoScale).toBe(200)
+    expect(resolvePosterRenderConfig(baseInput({ searchParams: new URLSearchParams({ netscale: "-50" }) })).networkLogoScale).toBe(10)
+    expect(resolvePosterRenderConfig(baseInput({ searchParams: new URLSearchParams({ netscale: "abc" }) })).networkLogoScale).toBe(100)
+    expect(resolvePosterRenderConfig(baseInput({ searchParams: new URLSearchParams({ netscale: "0" }) })).networkLogoScale).toBe(100)
+  })
+
   it("badgeGenre/badgeYear/badgeRating default to true", () => {
     const r = resolvePosterRenderConfig(baseInput())
     expect(r.badgeGenre).toBe(true)

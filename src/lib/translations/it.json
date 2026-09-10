@@ -63,6 +63,7 @@
   "ui.badgePosterHint": "Salvando restano congelati solo su questo titolo",
   "ui.badgeDefaultsHint": "Valgono per i nuovi poster e i titoli mai salvati",
   "ui.trendBadge": "Trend",
+  "ui.topBadge": "Badge superiore",
   "ui.genreRatingBadge": "Genere / Rating",
   "ui.badgeGenre": "Genere",
   "ui.badgeYear": "Anno",

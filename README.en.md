@@ -276,6 +276,11 @@ npm install --ignore-scripts && npm run build && npm start
 | `PICTORIUM_NETWORK_LOGO` | `1` / `0` | Show or hide the network logo (Netflix, Prime, ecc.). |
 | `PICTORIUM_PRE_RELEASE` | `1` / `0` | Dark veil + "Coming Soon" ribbon on movies not yet available digitally (default OFF). |
 | `PICTORIUM_GRADIENT_HEIGHT` | `5` – `100` | Percentage height of the bottom black gradient. |
+| `PICTORIUM_TOP_BADGE_SCALE` | `10` – `200` | Scale % of the top rank/extra badge (default `100`). |
+| `PICTORIUM_TOP_BADGE_OFFSET_X` / `_Y` | `±2000` px | Offset of the top badge, centered styles only (default `0`). |
+| `PICTORIUM_GENRE_BADGE_SCALE` | `10` – `200` | Scale % of the genre/rating badge (default `100`, 120% native base). |
+| `PICTORIUM_QUALITY_BADGE_SCALE` | `10` – `200` | Scale % of the streaming quality badge (default `100`, 120% native base). |
+| `PICTORIUM_NETWORK_LOGO_SCALE` | `10` – `200` | Scale % of the network logo (default `100`). |
 
 ### Concurrency & Memory Protection
 | Variable | Default | Description |

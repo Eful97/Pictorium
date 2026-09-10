@@ -63,6 +63,7 @@
   "ui.badgePosterHint": "Beim Speichern gelten sie nur für dieses Poster",
   "ui.badgeDefaultsHint": "Gelten für neue Poster und nie gespeicherte Titel",
   "ui.trendBadge": "Trend",
+  "ui.topBadge": "Oberes Badge",
   "ui.genreRatingBadge": "Genre / Bewertung",
   "ui.badgeGenre": "Genre",
   "ui.badgeYear": "Jahr",

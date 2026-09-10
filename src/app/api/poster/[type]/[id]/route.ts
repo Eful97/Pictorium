@@ -599,10 +599,16 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
           posterPath = fallbackPoster.file_path
         }
       } else {
+        // Nessun clean disponibile: il poster in lingua ha già il titolo
+        // stampato → mai sovrapporre il logo (stesso invariante del client:
+        // buildPreviewUrl emette `logo=` solo con poster clean, e il mapping
+        // forza logoPath=null sui non-clean).
         const langPoster = images.posters.find((p: TMDBImage) => p.iso_639_1 === preferredLanguage)
         const origPoster = details.original_language ? images.posters.find((p: TMDBImage) => p.iso_639_1 === details.original_language) : undefined
         const chosen = langPoster || origPoster || images.posters[0]
         if (chosen) posterPath = chosen.file_path
+        logoPath = null
+        logoPathBuffer = null
       }
     } catch (e) {
       autoFetchFailed = true
@@ -941,6 +947,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
       badgesEnabled, rankingEnabled,
       badgeGenre, badgeYear, badgeRating, badgeQuality,
       logoScale, logoOffsetX, logoOffsetY,
+      topBadgeScale, topBadgeOffsetX, topBadgeOffsetY,
+      genreBadgeScale, qualityBadgeScale, networkLogoScale,
       queryExtra, qNetLogo, networkLogo, ribbonSide,
       preRelease,
     } = renderConfig
@@ -1058,6 +1066,14 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
           offsetY: logoOffsetY,
           networkLogo,
         },
+        topBadge: {
+          scale: topBadgeScale,
+          offsetX: topBadgeOffsetX,
+          offsetY: topBadgeOffsetY,
+        },
+        genreBadge: {
+          scale: genreBadgeScale,
+        },
       })
     }
 
@@ -1080,6 +1096,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
       quality: finalQuality,
       topLight, targetCenter, ribbonSide,
       logoScale, logoOffsetX, logoOffsetY,
+      topBadgeScale, topBadgeOffsetX, topBadgeOffsetY,
+      genreBadgeScale, qualityBadgeScale, networkLogoScale,
       mediaType: mediaType as "movie" | "tv",
       finalRank, animeRankResult, rankingResult,
       mapping, tmdbNetworks, productionCompanies, tmdbStudios,

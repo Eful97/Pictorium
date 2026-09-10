@@ -1,12 +1,11 @@
 "use client"
 
 import { useState } from "react"
-import { Check, XCircle, Ruler, Cloud, Minus, Circle, ChevronDown, Star, Trophy, Tv, Flame, Sparkles, Palette, Layers } from "lucide-react"
+import { ChevronDown, Star, Trophy, Tv, Flame, Sparkles, Palette, Layers, Cloud } from "lucide-react"
 import { usePSelector } from "@/lib/context"
 import { useT } from "@/lib/contexts/TranslationContext"
 import { usePosterEditor } from "@/lib/contexts/PosterEditorContext"
 import { Toggle } from "@/components/Toggle"
-import { SliderRow } from "@/components/SliderRow"
 import { BadgeStyleSelector } from "@/components/ui"
 import { getAwardBadgeLabel, getNominationBadgeLabel } from "@/lib/awards"
 import { getSubGenreLabel } from "@/lib/subgenres"
@@ -14,7 +13,6 @@ import { getUpcomingReleaseLabel } from "@/lib/release-badge"
 import { getNewSeasonLabel, isKDramaOrigin } from "@/lib/poster-badge"
 import { isPrefixedKey, badgeKey } from "@/lib/i18n"
 import { getAllBadgeOptions } from "@/lib/badge-priority"
-import { defaultGradientHeightForPoster } from "@/lib/gradient-defaults"
 import { UI_RATING_SOURCES } from "@/lib/ratings"
 import { RatingSourceIcon } from "@/components/RatingSourceIcon"
 
@@ -27,7 +25,6 @@ export function BadgeControls() {
   const trendRank = usePSelector((v) => v.trendRank)
   const imdbTop250 = usePSelector((v) => v.imdbTop250)
   const setAccentColor = usePSelector((v) => v.setAccentColor)
-  const previewPoster = usePSelector((v) => v.previewPoster)
   const { t, lang } = useT()
   const ed = usePosterEditor()
   const [now] = useState(() => Date.now())
@@ -196,6 +193,14 @@ export function BadgeControls() {
               {t("ui.networkLogo")}
             </span>
             <Toggle value={ed.networkLogo} onChange={(v) => ed.setNetworkLogo(v)} label={t("ui.networkLogo")} />
+          </div>
+
+          <div className="flex items-center justify-between">
+            <span className="text-zinc-300 font-medium flex items-center gap-1.5">
+              <Cloud className="w-3.5 h-3.5 text-cyan-400" />
+              {t("ui.blurSection")}
+            </span>
+            <Toggle value={ed.blurEnabled} onChange={(v) => ed.setBlurEnabled(v)} label={t("ui.blurSection")} />
           </div>
 
           <div className="flex items-center justify-between gap-3 pt-1">
@@ -386,105 +391,6 @@ export function BadgeControls() {
             )}
           </div>
         </div>
-      </div>
-
-      {/* CARD 4: Sfumatura & Blur di Sfondo */}
-      <div className="bg-surface/50 border border-surface2/60 rounded-xl p-3 space-y-2.5 shadow-sm">
-        <button
-          type="button"
-          aria-label={ed.blurEnabled ? t("ui.blurDisabled") : t("ui.blurEnabled")}
-          onClick={() => ed.setBlurEnabled(!ed.blurEnabled)}
-          className={`w-full py-2 px-3 text-xs font-semibold rounded-lg transition-all duration-150 flex items-center justify-center gap-1.5 ${
-            ed.blurEnabled
-              ? "bg-white/15 text-white shadow-sm border border-white/10"
-              : "bg-white/5 text-muted hover:bg-white/10 hover:text-zinc-200 border border-transparent"
-          }`}
-        >
-          {ed.blurEnabled ? (
-            <>
-              <Check className="w-3.5 h-3.5 text-accent-orange" />
-              {t("ui.blurEnabled")}
-            </>
-          ) : (
-            <>
-              <XCircle className="w-3.5 h-3.5 text-zinc-500" />
-              {t("ui.blurDisabled")}
-            </>
-          )}
-        </button>
-
-        {ed.blurEnabled && (
-          <div className="space-y-1.5 pt-1 animate-fade-in">
-            <SliderRow
-              icon={<Ruler className="w-3.5 h-3.5" />}
-              label={t("ui.height")}
-              value={ed.gradientHeight}
-              min={5}
-              max={100}
-              boundsMin={5}
-              boundsMax={100}
-              onChange={(v) => ed.setGradientHeight(v)}
-              onDoubleClick={() => ed.setGradientHeight(defaultGradientHeightForPoster(previewPoster))}
-              editingValue={editingValue}
-              editText={editText}
-              setEditingValue={setEditingValue}
-              setEditText={setEditText}
-              editingKey="gradHeight"
-              suffix="%"
-            />
-            <SliderRow
-              icon={<Cloud className="w-3.5 h-3.5" />}
-              label={t("ui.intensity")}
-              value={ed.blurIntensity}
-              min={1}
-              max={50}
-              boundsMin={1}
-              boundsMax={50}
-              onChange={(v) => ed.setBlurIntensity(v)}
-              onDoubleClick={() => ed.setBlurIntensity(5)}
-              editingValue={editingValue}
-              editText={editText}
-              setEditingValue={setEditingValue}
-              setEditText={setEditText}
-              editingKey="blurIntensity"
-              suffix="px"
-            />
-            <SliderRow
-              icon={<Minus className="w-3.5 h-3.5" />}
-              label={t("ui.fade")}
-              value={ed.blurFade}
-              min={0}
-              max={100}
-              boundsMin={0}
-              boundsMax={100}
-              onChange={(v) => ed.setBlurFade(v)}
-              onDoubleClick={() => ed.setBlurFade(60)}
-              editingValue={editingValue}
-              editText={editText}
-              setEditingValue={setEditingValue}
-              setEditText={setEditText}
-              editingKey="blurFade"
-              suffix="%"
-            />
-            <SliderRow
-              icon={<Circle className="w-3.5 h-3.5" />}
-              label={t("ui.darkness")}
-              value={ed.blurDarkness}
-              min={0}
-              max={100}
-              boundsMin={0}
-              boundsMax={100}
-              onChange={(v) => ed.setBlurDarkness(v)}
-              onDoubleClick={() => ed.setBlurDarkness(40)}
-              editingValue={editingValue}
-              editText={editText}
-              setEditingValue={setEditingValue}
-              setEditText={setEditText}
-              editingKey="blurDarkness"
-              suffix="%"
-            />
-          </div>
-        )}
       </div>
     </div>
   )

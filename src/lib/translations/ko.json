@@ -63,6 +63,7 @@
   "ui.badgePosterHint": "저장하면 이 타이틀에만 고정됩니다",
   "ui.badgeDefaultsHint": "새 포스터와 저장되지 않은 타이틀에 적용됩니다",
   "ui.trendBadge": "트렌드",
+  "ui.topBadge": "상단 배지",
   "ui.genreRatingBadge": "장르 / 평점",
   "ui.badgeGenre": "장르",
   "ui.badgeYear": "연도",

@@ -28,6 +28,17 @@ export interface ServerDefaults {
   autoRotateClean?: boolean
   defaultLogoFitEnabled?: boolean
   networkLogo?: boolean
+  /** Scala % del badge superiore (rank/extra). Default 100. */
+  topBadgeScale?: number
+  /** Offset px del badge superiore (solo stili centrati). Default 0. */
+  topBadgeOffsetX?: number
+  topBadgeOffsetY?: number
+  /** Scala % del badge genere/rating in basso. Default 100. */
+  genreBadgeScale?: number
+  /** Scala % del badge qualità (streaming). Default 100. */
+  qualityBadgeScale?: number
+  /** Scala % del logo network. Default 100. */
+  networkLogoScale?: number
   /** Effetto pre-digitale (darken + badge Coming Soon, solo film). Default OFF. */
   preRelease?: boolean
   ribbonSide?: "left" | "right"
@@ -101,6 +112,12 @@ function defaultsFromEnv(): ServerDefaults {
   const blurF = envNum("BLUR_FADE")
   const blurD = envNum("BLUR_DARKNESS")
   const gradH = envNum("GRADIENT_HEIGHT")
+  const topBadgeScale = envNum("TOP_BADGE_SCALE")
+  const topBadgeOX = envNum("TOP_BADGE_OFFSET_X")
+  const topBadgeOY = envNum("TOP_BADGE_OFFSET_Y")
+  const genreBadgeScale = envNum("GENRE_BADGE_SCALE")
+  const qualityBadgeScale = envNum("QUALITY_BADGE_SCALE")
+  const networkLogoScale = envNum("NETWORK_LOGO_SCALE")
   const epSrc = getEnv("EPISODE_METADATA_SOURCE")?.trim().toLowerCase()
   if (epSrc === "tmdb" || epSrc === "tvdb") d.episodeMetadataSource = epSrc
   // Regione classifiche: codice canonico, fail-closed su IT se non riconosciuta.
@@ -113,6 +130,12 @@ function defaultsFromEnv(): ServerDefaults {
   if (blurF !== undefined) d.blurFade = blurF
   if (blurD !== undefined) d.blurDarkness = blurD
   if (gradH !== undefined) d.gradientHeight = gradH
+  if (topBadgeScale !== undefined) d.topBadgeScale = topBadgeScale
+  if (topBadgeOX !== undefined) d.topBadgeOffsetX = topBadgeOX
+  if (topBadgeOY !== undefined) d.topBadgeOffsetY = topBadgeOY
+  if (genreBadgeScale !== undefined) d.genreBadgeScale = genreBadgeScale
+  if (qualityBadgeScale !== undefined) d.qualityBadgeScale = qualityBadgeScale
+  if (networkLogoScale !== undefined) d.networkLogoScale = networkLogoScale
   return d
 }
 const ENV_DEFAULTS: ServerDefaults = defaultsFromEnv()

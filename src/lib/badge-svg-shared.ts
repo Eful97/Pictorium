@@ -158,7 +158,9 @@ function buildGenreTextFlow({ genreName, voteStr, yearStr, fs, centerX, y, parts
 }
 
 export function buildGenreBarSvg(genreName: string, voteStr: string, yearStr: string, pw: number, fs: number, textColor: string, topLight: boolean, textOffsetX = 0, parts?: GenreParts) {
-  const barPad = Math.round(fs * 0.5)
+  // Padding verticale allineato alle altre barre (ranking/extra): la barra
+  // genere era più alta (0.5) e copriva troppo poster.
+  const barPad = Math.round(fs * 0.35)
   const barH = fs + barPad * 2
   const barR = Math.round(fs * 0.7)
   const barShadowOff = Math.max(Math.round(barH * 0.2), 3)

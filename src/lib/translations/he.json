@@ -63,6 +63,7 @@
   "ui.badgePosterHint": "Saving freezes them on this title only",
   "ui.badgeDefaultsHint": "Apply to new posters and never-saved titles",
   "ui.trendBadge": "Trend",
+  "ui.topBadge": "Top badge",
   "ui.genreRatingBadge": "Genre / Rating",
   "ui.badgeGenre": "Genre",
   "ui.badgeYear": "Year",

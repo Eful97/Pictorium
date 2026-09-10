@@ -62,6 +62,17 @@ export interface Mapping {
   logoScale?: number | null
   logoOffsetX?: number | null
   logoOffsetY?: number | null
+  /** Scala % del badge superiore (rank/extra). Default 100. */
+  topBadgeScale?: number | null
+  /** Offset px del badge superiore — applicati solo agli stili centrati. */
+  topBadgeOffsetX?: number | null
+  topBadgeOffsetY?: number | null
+  /** Scala % del badge genere/rating in basso. Default 100. */
+  genreBadgeScale?: number | null
+  /** Scala % del badge qualità (streaming). Default 100. */
+  qualityBadgeScale?: number | null
+  /** Scala % del logo network. Default 100. */
+  networkLogoScale?: number | null
   backdropPath?: string | null
   backdropScale?: number | null
   backdropOffsetX?: number | null

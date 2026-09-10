@@ -59,6 +59,16 @@ export interface PosterRenderConfig {
   logoScale: number | null
   logoOffsetX: number | null
   logoOffsetY: number | null
+  /** Scala % del badge superiore (default 100). Offset solo stili centrati. */
+  topBadgeScale: number
+  topBadgeOffsetX: number
+  topBadgeOffsetY: number
+  /** Scala % del badge genere/rating in basso (default 100). */
+  genreBadgeScale: number
+  /** Scala % del badge qualità streaming (default 100). */
+  qualityBadgeScale: number
+  /** Scala % del logo network (default 100). */
+  networkLogoScale: number
   queryExtra: string | null
   qNetLogo: string | null
   networkLogo: boolean
@@ -176,6 +186,64 @@ export function resolvePosterRenderConfig(input: PosterRenderConfigInput): Poste
     ? (Number.isFinite(qOyNum) ? clamp(Math.round(qOyNum), -2000, 2000) : null)
     : mapping?.logoOffsetY ?? null
 
+  // Badge superiore — stessa catena di blur/gradient (query > mapping > config
+  // > server defaults > default), stessi bound del logo (scala %, offset px).
+  const qTScaleNum = q.get("tscale") ? Number(q.get("tscale")) : NaN
+  const topBadgeScale = q.get("tscale") !== null
+    ? (Number.isFinite(qTScaleNum) && qTScaleNum !== 0 ? clamp(Math.round(qTScaleNum), 10, 200) : 100)
+    : (mapping?.topBadgeScale != null && Number.isFinite(mapping.topBadgeScale)
+        ? clamp(Math.round(mapping.topBadgeScale), 10, 200)
+        : (configOverride?.topBadgeScale != null && Number.isFinite(configOverride.topBadgeScale)
+            ? clamp(Math.round(configOverride.topBadgeScale), 10, 200)
+            : (sd.topBadgeScale != null && Number.isFinite(sd.topBadgeScale)
+                ? clamp(Math.round(sd.topBadgeScale), 10, 200)
+                : 100)))
+  const qToxNum = q.get("tox") ? Number(q.get("tox")) : NaN
+  const topBadgeOffsetX = q.get("tox") !== null
+    ? (Number.isFinite(qToxNum) ? clamp(Math.round(qToxNum), -2000, 2000) : 0)
+    : (mapping?.topBadgeOffsetX ?? configOverride?.topBadgeOffsetX ?? sd.topBadgeOffsetX ?? 0)
+  const qToyNum = q.get("toy") ? Number(q.get("toy")) : NaN
+  const topBadgeOffsetY = q.get("toy") !== null
+    ? (Number.isFinite(qToyNum) ? clamp(Math.round(qToyNum), -2000, 2000) : 0)
+    : (mapping?.topBadgeOffsetY ?? configOverride?.topBadgeOffsetY ?? sd.topBadgeOffsetY ?? 0)
+
+  // Badge genere/rating in basso — stessa catena (query > mapping > config >
+  // server defaults > default), stessi bound della scala (%, 10..200).
+  const qGScaleNum = q.get("gscale") ? Number(q.get("gscale")) : NaN
+  const genreBadgeScale = q.get("gscale") !== null
+    ? (Number.isFinite(qGScaleNum) && qGScaleNum !== 0 ? clamp(Math.round(qGScaleNum), 10, 200) : 100)
+    : (mapping?.genreBadgeScale != null && Number.isFinite(mapping.genreBadgeScale)
+        ? clamp(Math.round(mapping.genreBadgeScale), 10, 200)
+        : (configOverride?.genreBadgeScale != null && Number.isFinite(configOverride.genreBadgeScale)
+            ? clamp(Math.round(configOverride.genreBadgeScale), 10, 200)
+            : (sd.genreBadgeScale != null && Number.isFinite(sd.genreBadgeScale)
+                ? clamp(Math.round(sd.genreBadgeScale), 10, 200)
+                : 100)))
+
+  // Badge qualità streaming — stessa catena, stessi bound (%, 10..200).
+  const qQScaleNum = q.get("qscale") ? Number(q.get("qscale")) : NaN
+  const qualityBadgeScale = q.get("qscale") !== null
+    ? (Number.isFinite(qQScaleNum) && qQScaleNum !== 0 ? clamp(Math.round(qQScaleNum), 10, 200) : 100)
+    : (mapping?.qualityBadgeScale != null && Number.isFinite(mapping.qualityBadgeScale)
+        ? clamp(Math.round(mapping.qualityBadgeScale), 10, 200)
+        : (configOverride?.qualityBadgeScale != null && Number.isFinite(configOverride.qualityBadgeScale)
+            ? clamp(Math.round(configOverride.qualityBadgeScale), 10, 200)
+            : (sd.qualityBadgeScale != null && Number.isFinite(sd.qualityBadgeScale)
+                ? clamp(Math.round(sd.qualityBadgeScale), 10, 200)
+                : 100)))
+
+  // Logo network — stessa catena, stessi bound (%, 10..200).
+  const qNScaleNum = q.get("netscale") ? Number(q.get("netscale")) : NaN
+  const networkLogoScale = q.get("netscale") !== null
+    ? (Number.isFinite(qNScaleNum) && qNScaleNum !== 0 ? clamp(Math.round(qNScaleNum), 10, 200) : 100)
+    : (mapping?.networkLogoScale != null && Number.isFinite(mapping.networkLogoScale)
+        ? clamp(Math.round(mapping.networkLogoScale), 10, 200)
+        : (configOverride?.networkLogoScale != null && Number.isFinite(configOverride.networkLogoScale)
+            ? clamp(Math.round(configOverride.networkLogoScale), 10, 200)
+            : (sd.networkLogoScale != null && Number.isFinite(sd.networkLogoScale)
+                ? clamp(Math.round(sd.networkLogoScale), 10, 200)
+                : 100)))
+
   // Fix L32: le label prefissate (__badge.*) vengono risolte con la lingua
   // della richiesta — prima un customBadge "__badge.anime" dal config token
   // arrivava letterale al renderer (la preview invece la risolveva → desync).
@@ -217,6 +285,12 @@ export function resolvePosterRenderConfig(input: PosterRenderConfigInput): Poste
     logoScale,
     logoOffsetX,
     logoOffsetY,
+    topBadgeScale,
+    topBadgeOffsetX,
+    topBadgeOffsetY,
+    genreBadgeScale,
+    qualityBadgeScale,
+    networkLogoScale,
     queryExtra,
     qNetLogo,
     networkLogo,

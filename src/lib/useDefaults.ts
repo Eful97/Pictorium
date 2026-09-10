@@ -15,6 +15,12 @@ export interface DefaultsState {
   defaultBlurFade: number
   defaultBlurDarkness: number
   defaultGradientHeight: number
+  defaultTopBadgeScale: number
+  defaultTopBadgeOffsetX: number
+  defaultTopBadgeOffsetY: number
+  defaultGenreBadgeScale: number
+  defaultQualityBadgeScale: number
+  defaultNetworkLogoScale: number
   defaultGlobalBadges: boolean
   defaultRankingBadges: boolean
   /** Componenti del badge genere/rating di default (default tutti ON). */
@@ -45,6 +51,12 @@ export interface DefaultsState {
   ribbonSide: RibbonSide
   episodeMetadataSource: "tmdb" | "tvdb"
   gradientHeight: number
+  topBadgeScale: number
+  topBadgeOffsetX: number
+  topBadgeOffsetY: number
+  genreBadgeScale: number
+  qualityBadgeScale: number
+  networkLogoScale: number
   blurIntensity: number
   blurFade: number
   blurDarkness: number
@@ -61,6 +73,12 @@ const DEFAULTS: DefaultsState = {
   defaultBlurFade: 60,
   defaultBlurDarkness: 40,
   defaultGradientHeight: 30,
+  defaultTopBadgeScale: 100,
+  defaultTopBadgeOffsetX: 0,
+  defaultTopBadgeOffsetY: 0,
+  defaultGenreBadgeScale: 100,
+  defaultQualityBadgeScale: 100,
+  defaultNetworkLogoScale: 100,
   defaultGlobalBadges: true,
   defaultRankingBadges: true,
   defaultBadgeGenre: true,
@@ -88,6 +106,12 @@ const DEFAULTS: DefaultsState = {
   ribbonSide: "left",
   episodeMetadataSource: "tmdb",
   gradientHeight: 30,
+  topBadgeScale: 100,
+  topBadgeOffsetX: 0,
+  topBadgeOffsetY: 0,
+  genreBadgeScale: 100,
+  qualityBadgeScale: 100,
+  networkLogoScale: 100,
   blurIntensity: 5,
   blurFade: 60,
   blurDarkness: 40,
@@ -105,6 +129,12 @@ interface StoredDefaults {
   badgeQuality?: boolean
   networkLogo?: boolean
   gradientHeight?: number
+  topBadgeScale?: number
+  topBadgeOffsetX?: number
+  topBadgeOffsetY?: number
+  genreBadgeScale?: number
+  qualityBadgeScale?: number
+  networkLogoScale?: number
   blurIntensity?: number
   blurFade?: number
   blurDarkness?: number
@@ -118,6 +148,12 @@ interface StoredDefaults {
   defaultBlurFade?: number
   defaultBlurDarkness?: number
   defaultGradientHeight?: number
+  defaultTopBadgeScale?: number
+  defaultTopBadgeOffsetX?: number
+  defaultTopBadgeOffsetY?: number
+  defaultGenreBadgeScale?: number
+  defaultQualityBadgeScale?: number
+  defaultNetworkLogoScale?: number
   defaultGlobalBadges?: boolean
   defaultRankingBadges?: boolean
   defaultBadgeGenre?: boolean
@@ -166,6 +202,12 @@ function buildFromStored(d: StoredDefaults | null): DefaultsState {
     defaultBlurFade: d.defaultBlurFade ?? d.blurFade ?? 60,
     defaultBlurDarkness: d.defaultBlurDarkness ?? d.blurDarkness ?? 40,
     defaultGradientHeight: d.defaultGradientHeight ?? d.gradientHeight ?? 30,
+    defaultTopBadgeScale: d.defaultTopBadgeScale ?? d.topBadgeScale ?? 100,
+    defaultTopBadgeOffsetX: d.defaultTopBadgeOffsetX ?? d.topBadgeOffsetX ?? 0,
+    defaultTopBadgeOffsetY: d.defaultTopBadgeOffsetY ?? d.topBadgeOffsetY ?? 0,
+    defaultGenreBadgeScale: d.defaultGenreBadgeScale ?? d.genreBadgeScale ?? 100,
+    defaultQualityBadgeScale: d.defaultQualityBadgeScale ?? d.qualityBadgeScale ?? 100,
+    defaultNetworkLogoScale: d.defaultNetworkLogoScale ?? d.networkLogoScale ?? 100,
     defaultGlobalBadges: d.defaultGlobalBadges ?? d.globalBadges ?? true,
     defaultRankingBadges: d.defaultRankingBadges ?? d.rankingBadges ?? true,
     defaultBadgeGenre: d.defaultBadgeGenre ?? d.badgeGenre ?? true,
@@ -193,6 +235,12 @@ function buildFromStored(d: StoredDefaults | null): DefaultsState {
     ribbonSide: d.ribbonSide ?? d.defaultRibbonSide ?? "left",
     episodeMetadataSource: d.episodeMetadataSource ?? d.defaultEpisodeMetadataSource ?? "tmdb",
     gradientHeight: d.gradientHeight ?? d.defaultGradientHeight ?? 30,
+    topBadgeScale: d.topBadgeScale ?? d.defaultTopBadgeScale ?? 100,
+    topBadgeOffsetX: d.topBadgeOffsetX ?? d.defaultTopBadgeOffsetX ?? 0,
+    topBadgeOffsetY: d.topBadgeOffsetY ?? d.defaultTopBadgeOffsetY ?? 0,
+    genreBadgeScale: d.genreBadgeScale ?? d.defaultGenreBadgeScale ?? 100,
+    qualityBadgeScale: d.qualityBadgeScale ?? d.defaultQualityBadgeScale ?? 100,
+    networkLogoScale: d.networkLogoScale ?? d.defaultNetworkLogoScale ?? 100,
     blurIntensity: d.blurIntensity ?? d.defaultBlurIntensity ?? 5,
     blurFade: d.blurFade ?? d.defaultBlurFade ?? 60,
     blurDarkness: d.blurDarkness ?? d.defaultBlurDarkness ?? 40,
@@ -217,6 +265,12 @@ function defaultsToPayload(d: DefaultsState): Record<string, unknown> {
     blurFade: d.defaultBlurFade,
     blurDarkness: d.defaultBlurDarkness,
     gradientHeight: d.defaultGradientHeight,
+    topBadgeScale: d.defaultTopBadgeScale,
+    topBadgeOffsetX: d.defaultTopBadgeOffsetX,
+    topBadgeOffsetY: d.defaultTopBadgeOffsetY,
+    genreBadgeScale: d.defaultGenreBadgeScale,
+    qualityBadgeScale: d.defaultQualityBadgeScale,
+    networkLogoScale: d.defaultNetworkLogoScale,
     globalBadges: d.defaultGlobalBadges,
     rankingBadges: d.defaultRankingBadges,
     badgeGenre: d.defaultBadgeGenre,

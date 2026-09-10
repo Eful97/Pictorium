@@ -83,6 +83,19 @@ export interface GenerationInput {
   /** Disattiva la velatura di sicurezza sotto al logo (default: attiva). */
   logoScrimDisabled?: boolean
 
+  // Badge superiore (rank/extra in alto): scala % su tutti gli stili
+  // (la barra scala nativa via font per restare full-width),
+  // offset px solo sugli stili centrati (nastro/barra restano ancorati).
+  topBadgeScale: number
+  topBadgeOffsetX: number
+  topBadgeOffsetY: number
+  /** Scala % del badge genere/rating in basso, su tutti gli stili (barra nativa via font). */
+  genreBadgeScale: number
+  /** Scala % del badge qualità streaming. */
+  qualityBadgeScale: number
+  /** Scala % del logo network. */
+  networkLogoScale: number
+
   // Badge data sources
   mediaType: "movie" | "tv"
   finalRank: number | null
@@ -456,6 +469,8 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
     rankingBadgeStyle, badgeGenre, badgeYear, badgeRating, badgeQuality, quality,
     topLight, targetCenter, ribbonSide,
     logoScale, logoOffsetX, logoOffsetY,
+    topBadgeScale, topBadgeOffsetX, topBadgeOffsetY,
+    genreBadgeScale, qualityBadgeScale, networkLogoScale,
     mediaType, finalRank, animeRankResult,
     mapping, tmdbNetworks, productionCompanies, tmdbStudios,
     tmdbNetworksDetailed, productionCompaniesDetailed,
@@ -683,14 +698,28 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
       : await renderFirstMatchingNetworkRawBadge(stringCandidates, STD_W)
     : null
 
+  // Scala del logo network: resize del bitmap dopo il fetch, prima del fit.
+  // Tutta la matematica di posizione/overlap sotto usa già le dimensioni
+  // scalate (fittedRaw). La cache interna dei badge network resta valida
+  // (chiave senza scala): la scala si applica a valle, come per gli altri.
+  let networkLogoForLayout = networkRawResult
+  if (networkRawResult && networkLogoScale !== 100) {
+    const scaledW = Math.max(1, Math.round(networkRawResult.w * networkLogoScale / 100))
+    const scaledH = Math.max(1, Math.round(networkRawResult.h * networkLogoScale / 100))
+    if (scaledW !== networkRawResult.w || scaledH !== networkRawResult.h) {
+      const scaledPng = await sharp(networkRawResult.png).resize(scaledW, scaledH).toBuffer()
+      networkLogoForLayout = { ...networkRawResult, png: scaledPng, w: scaledW, h: scaledH }
+    }
+  }
+
   const genreBadgeKey = hasGenreBadge
-    ? badgeCacheKey("genre", genreName, voteAverage, STD_W, year, badgeStyle, accentColorGenre, topLight, badgeGenre, badgeYear, badgeRating)
+    ? badgeCacheKey("genre", genreName, voteAverage, STD_W, year, badgeStyle, accentColorGenre, topLight, badgeGenre, badgeYear, badgeRating, genreBadgeScale)
     : null
   const rankBadgeKey = !showComingSoon && topBadge
-    ? badgeCacheKey("rank", topBadge.type === "extra" ? topBadge.label : `${(topBadge as { rank: number }).rank}:${topBadge!.label}`, STD_W, topLight, rankingBadgeStyle, accentColorRank, ribbonSide, isAnimeRank)
+    ? badgeCacheKey("rank", topBadge.type === "extra" ? topBadge.label : `${(topBadge as { rank: number }).rank}:${topBadge!.label}`, STD_W, topLight, rankingBadgeStyle, accentColorRank, ribbonSide, isAnimeRank, topBadgeScale)
     : null
   const qualityBadgeKey = hasQualityBadge
-    ? badgeCacheKey("quality", quality, STD_W, topLight)
+    ? badgeCacheKey("quality", quality, STD_W, topLight, qualityBadgeScale)
     : null
   const comingSoonKey = showComingSoon
     ? badgeCacheKey("comingsoon", comingSoonLabel, STD_W, topLight, ribbonSide)
@@ -700,7 +729,7 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
     genreBadgeKey
       ? (cacheGet<{ png: Buffer; w: number; h: number }>(genreBadgeKey)
           || coalesceBadgeRender(genreBadgeKey, () =>
-              renderGenreBadge(genreName ?? "", voteAverage ?? 0, STD_W, year, badgeStyle, accentColorGenre, topLight, { showGenre: badgeGenre, showYear: badgeYear, showRating: badgeRating })
+              renderGenreBadge(genreName ?? "", voteAverage ?? 0, STD_W, year, badgeStyle, accentColorGenre, topLight, { showGenre: badgeGenre, showYear: badgeYear, showRating: badgeRating }, badgeStyle === "bar" ? genreBadgeScale : 100)
                 .then((r) => { if (r) cacheSet(genreBadgeKey, r, ["badge"], BADGE_CACHE_TTL); return r })
             ))
       : Promise.resolve(null),
@@ -708,10 +737,10 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
       ? (cacheGet<{ png: Buffer; w: number; h: number; isRank?: boolean }>(rankBadgeKey)
           || coalesceBadgeRender(rankBadgeKey, () => {
               if (topBadge!.type === "extra") {
-                return renderExtraBadge(topBadge!.label, STD_W, topLight, rankingBadgeStyle, accentColorRank)
+                return renderExtraBadge(topBadge!.label, STD_W, topLight, rankingBadgeStyle, accentColorRank, rankingBadgeStyle === "bar" ? topBadgeScale : 100)
                   .then((r) => { const v = { ...r, isRank: false }; cacheSet(rankBadgeKey, v, ["badge"], BADGE_CACHE_TTL); return v })
               }
-              return renderRankingBadge((topBadge as { rank: number }).rank, STD_W, topBadge!.label, topLight, rankingBadgeStyle, accentColorRank, ribbonSide, isAnimeRank)
+              return renderRankingBadge((topBadge as { rank: number }).rank, STD_W, topBadge!.label, topLight, rankingBadgeStyle, accentColorRank, ribbonSide, isAnimeRank, rankingBadgeStyle === "bar" ? topBadgeScale : 100)
                 .then((r) => { const v = { ...r, isRank: true }; cacheSet(rankBadgeKey, v, ["badge"], BADGE_CACHE_TTL); return v })
             }))
       : Promise.resolve(null),
@@ -734,10 +763,45 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
   // -----------------------------------------------------------------------
   // 6. Position badges + network logo
   // -----------------------------------------------------------------------
+  // Scala del badge superiore: resize del bitmap dopo il render (tutti gli
+  // stili TRANNE la barra, che scala nativa via font nel builder per restare
+  // full-width), prima del fit — così fitBadgeToCanvas garantisce comunque
+  // il contenimento nel canvas.
+  let rankBadgeForLayout = rankBadgeResult
+  if (rankBadgeResult && topBadgeScale !== 100 && rankingBadgeStyle !== "bar") {
+    const scaledW = Math.max(1, Math.round(rankBadgeResult.w * topBadgeScale / 100))
+    const scaledH = Math.max(1, Math.round(rankBadgeResult.h * topBadgeScale / 100))
+    if (scaledW !== rankBadgeResult.w || scaledH !== rankBadgeResult.h) {
+      const scaledPng = await sharp(rankBadgeResult.png).resize(scaledW, scaledH).toBuffer()
+      rankBadgeForLayout = { ...rankBadgeResult, png: scaledPng, w: scaledW, h: scaledH }
+    }
+  }
+  // Scala del badge genere: come sopra (la barra scala nativa nel builder).
+  // La posizione sotto usa già le dimensioni scalate (badgeY da safeGenreBadgeResult.h).
+  let genreBadgeForLayout = genreBadgeResult
+  if (genreBadgeResult && genreBadgeScale !== 100 && badgeStyle !== "bar") {
+    const scaledW = Math.max(1, Math.round(genreBadgeResult.w * genreBadgeScale / 100))
+    const scaledH = Math.max(1, Math.round(genreBadgeResult.h * genreBadgeScale / 100))
+    if (scaledW !== genreBadgeResult.w || scaledH !== genreBadgeResult.h) {
+      const scaledPng = await sharp(genreBadgeResult.png).resize(scaledW, scaledH).toBuffer()
+      genreBadgeForLayout = { ...genreBadgeResult, png: scaledPng, w: scaledW, h: scaledH }
+    }
+  }
+  // Scala del badge qualità: resize del bitmap dopo il render, prima del
+  // fit. La posizione (top-right di default) usa già le dimensioni scalate.
+  let qualityBadgeForLayout = qualityBadgeResult
+  if (qualityBadgeResult && qualityBadgeScale !== 100) {
+    const scaledW = Math.max(1, Math.round(qualityBadgeResult.w * qualityBadgeScale / 100))
+    const scaledH = Math.max(1, Math.round(qualityBadgeResult.h * qualityBadgeScale / 100))
+    if (scaledW !== qualityBadgeResult.w || scaledH !== qualityBadgeResult.h) {
+      const scaledPng = await sharp(qualityBadgeResult.png).resize(scaledW, scaledH).toBuffer()
+      qualityBadgeForLayout = { ...qualityBadgeResult, png: scaledPng, w: scaledW, h: scaledH }
+    }
+  }
   const [safeGenreBadgeResult, safeRankBadgeResult, safeQualityBadgeResult, safeComingSoonResult] = await Promise.all([
-    genreBadgeResult ? fitBadgeToCanvas(genreBadgeResult, STD_W, STD_H) : Promise.resolve(null),
-    rankBadgeResult ? fitBadgeToCanvas(rankBadgeResult, STD_W, STD_H) : Promise.resolve(null),
-    qualityBadgeResult ? fitBadgeToCanvas(qualityBadgeResult, STD_W, STD_H) : Promise.resolve(null),
+    genreBadgeForLayout ? fitBadgeToCanvas(genreBadgeForLayout, STD_W, STD_H) : Promise.resolve(null),
+    rankBadgeForLayout ? fitBadgeToCanvas(rankBadgeForLayout, STD_W, STD_H) : Promise.resolve(null),
+    qualityBadgeForLayout ? fitBadgeToCanvas(qualityBadgeForLayout, STD_W, STD_H) : Promise.resolve(null),
     comingSoonResult ? fitBadgeToCanvas(comingSoonResult, STD_W, STD_H) : Promise.resolve(null),
   ])
 
@@ -760,6 +824,9 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
     // centrato, anche se lo stile selezionato è "netflix": altrimenti esce
     // decentrato a sinistra.
     const isNetflixRibbon = rankingBadgeStyle === "netflix" && topBadge?.type === "rank"
+    // Offset X/Y solo sui centrati: nastro e barra restano ancorati (per scelta
+    // utente esplicita gli offset non li toccano).
+    const isCentered = !isBar && !isNetflixRibbon
     let left: number
     if (isBar) {
       left = 0 // bar full-width: resta ancorata a sinistra
@@ -770,11 +837,11 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
     } else {
       // Badge grande al centro, dimensione invariata: in caso di sovrapposizione
       // si rimpiccioliscono i badge laterali (network top-left, qualità top-right).
-      left = Math.round((STD_W - safeRankBadgeResult.w) / 2)
+      left = Math.round((STD_W - safeRankBadgeResult.w) / 2) + topBadgeOffsetX
     }
     finalRankBadge = safeRankBadgeResult
     finalRankLeft = left
-    finalRankTop = 0
+    finalRankTop = isCentered ? topBadgeOffsetY : 0
 
     // Il badge centrale resta invariato — la gestione overlap vive nei blocchi
     // network/qualità qui sotto (shrink dei laterali).
@@ -800,9 +867,9 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
   // (top-left, o a fianco del nastro).
   // netTopLeftBottom traccia il fondo del logo network quando occupa il top-left (per qualità Stremio sotto).
   let netTopLeftBottom: number | null = null
-  if (networkRawResult) {
+  if (networkLogoForLayout) {
     const gap = Math.round(6 * STD_H / 570)
-    let fittedRaw = await fitBadgeToCanvas(networkRawResult, STD_W, STD_H)
+    let fittedRaw = await fitBadgeToCanvas(networkLogoForLayout, STD_W, STD_H)
     if (fittedRaw) {
       let top: number
       let left: number
@@ -817,7 +884,7 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
         if (finalRankBadge && finalRankLeft !== null && rankingBadgeStyle !== "bar") {
           const rankL = finalRankLeft
           const rankR = finalRankLeft + finalRankBadge.w
-          const rankB = finalRankBadge.h
+          const rankB = finalRankTop + finalRankBadge.h
           let curW = box.w
           let curH = box.h
           let curPng = box.png
@@ -871,7 +938,7 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
           const netRight = left + fittedRaw.w
           const netBottom = top + fittedRaw.h
           const overlapX = left < ribbonRight + 6 && netRight > finalRankLeft! - 6
-          const overlapY = top < finalRankBadge!.h + 4 && netBottom > finalRankTop - 4
+          const overlapY = top < finalRankTop + finalRankBadge!.h + 4 && netBottom > finalRankTop - 4
           if (overlapX && overlapY) {
             left = Math.round(ribbonRight + 10)
             const maxLeft = STD_W - fittedRaw.w - netPadX
@@ -911,7 +978,7 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
     if (finalRankBadge && finalRankLeft !== null && rankingBadgeStyle !== "bar") {
       const rankL = finalRankLeft
       const rankR = finalRankLeft + finalRankBadge.w
-      const rankB = finalRankBadge.h
+      const rankB = finalRankTop + finalRankBadge.h
       let curW = finalQualityBadge.w
       let curH = finalQualityBadge.h
       let curPng = finalQualityBadge.png

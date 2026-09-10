@@ -336,6 +336,10 @@ export function usePictorium(): PictoriumCtx {
     defaultBlurFade,
     defaultBlurDarkness,
     defaultGradientHeight,
+    defaultTopBadgeScale,
+    defaultTopBadgeOffsetX,
+    defaultTopBadgeOffsetY,
+    defaultGenreBadgeScale, defaultQualityBadgeScale, defaultNetworkLogoScale,
     defaultAutoRotateClean,
     defaultNetworkLogo,
     loadDefaultsToState,
@@ -346,6 +350,16 @@ export function usePictorium(): PictoriumCtx {
     blurDarkness, setBlurDarkness,
     // Gradient
     gradientHeight, setGradientHeight,
+    // Badge superiore
+    topBadgeScale, setTopBadgeScale,
+    topBadgeOffsetX, setTopBadgeOffsetX,
+    topBadgeOffsetY, setTopBadgeOffsetY,
+    // Badge genere
+    genreBadgeScale, setGenreBadgeScale,
+    // Badge qualità
+    qualityBadgeScale, setQualityBadgeScale,
+    // Logo network
+    networkLogoScale, setNetworkLogoScale,
     // Logo
     logoScale, setLogoScale,
     logoOffsetX, setLogoOffsetX,
@@ -587,9 +601,10 @@ export function usePictorium(): PictoriumCtx {
       globalBadges, rankingBadges, badgeStyle, rankingBadgeStyle,
       badgeGenre, badgeYear, badgeRating, badgeQuality, ratingSources,
       customBadge, gradientHeight, blurIntensity, blurFade, blurDarkness, blurEnabled, networkLogo, preRelease, ribbonSide,
+      topBadgeScale, topBadgeOffsetX, topBadgeOffsetY, genreBadgeScale, qualityBadgeScale, networkLogoScale,
       tmdbKey, lang, mdblistApiKey,
     }))
-  }, [globalBadges, rankingBadges, badgeGenre, badgeYear, badgeRating, badgeQuality, ratingSources, networkLogo, preRelease, ribbonSide, gradientHeight, blurIntensity, blurFade, blurDarkness, blurEnabled, badgeStyle, rankingBadgeStyle, tmdbKey, lang, mdblistApiKey]) // eslint-disable-line react-hooks/exhaustive-deps -- customBadge intentionally excluded to avoid loop
+  }, [globalBadges, rankingBadges, badgeGenre, badgeYear, badgeRating, badgeQuality, ratingSources, networkLogo, preRelease, ribbonSide, gradientHeight, blurIntensity, blurFade, blurDarkness, blurEnabled, badgeStyle, rankingBadgeStyle, topBadgeScale, topBadgeOffsetX, topBadgeOffsetY, genreBadgeScale, qualityBadgeScale, networkLogoScale, tmdbKey, lang, mdblistApiKey]) // eslint-disable-line react-hooks/exhaustive-deps -- customBadge intentionally excluded to avoid loop
 
   // --- Preview URL ---
   const buildPreviewUrlCb = useCallback(() => {
@@ -605,14 +620,14 @@ export function usePictorium(): PictoriumCtx {
         topEdgeColor, accentColor, lang, tmdbKey,
         region: editorCtx.defaultRegion,
       },
-      { globalBadges, rankingBadges, badgeStyle, rankingBadgeStyle, badgeGenre, badgeYear, badgeRating, badgeQuality, ratingSources, customBadge, gradientHeight, blurIntensity, blurFade, blurDarkness, blurEnabled, networkLogo, preRelease, ribbonSide }
+      { globalBadges, rankingBadges, badgeStyle, rankingBadgeStyle, badgeGenre, badgeYear, badgeRating, badgeQuality, ratingSources, customBadge, gradientHeight, blurIntensity, blurFade, blurDarkness, blurEnabled, networkLogo, preRelease, ribbonSide, topBadgeScale, topBadgeOffsetX, topBadgeOffsetY, genreBadgeScale, qualityBadgeScale, networkLogoScale }
     )
     setPreviewUrl(url)
   }, [navigation.selected, navigation.previewPoster, navigation.selectedLogo, selectedBackdrop,
     logoScale, logoOffsetX, logoOffsetY, backdropScale, backdropOffsetX, backdropOffsetY,
     metaInfo, trendRank, trending.mdblistAnimeList, topEdgeColor, accentColor, lang, tmdbKey,
     editorCtx.defaultRegion,
-    globalBadges, rankingBadges, badgeStyle, rankingBadgeStyle, badgeGenre, badgeYear, badgeRating, badgeQuality, ratingSources, customBadge, gradientHeight, blurIntensity, blurFade, blurDarkness, blurEnabled, networkLogo, preRelease, ribbonSide])
+    globalBadges, rankingBadges, badgeStyle, rankingBadgeStyle, badgeGenre, badgeYear, badgeRating, badgeQuality, ratingSources, customBadge, gradientHeight, blurIntensity, blurFade, blurDarkness, blurEnabled, networkLogo, preRelease, ribbonSide, topBadgeScale, topBadgeOffsetX, topBadgeOffsetY, genreBadgeScale, qualityBadgeScale, networkLogoScale])
 
   useEffect(() => {
     if (!navigation.selected) { setPreviewUrl(""); return }
@@ -778,6 +793,12 @@ export function usePictorium(): PictoriumCtx {
       setNetworkLogo(existing.networkLogo ?? defaultNetworkLogo)
       setRibbonSide(existing.ribbonSide ?? defaultRibbonSide)
       setGradientHeight(existing.gradientHeight ?? defaultGradientHeight)
+      setTopBadgeScale(existing.topBadgeScale ?? defaultTopBadgeScale)
+      setTopBadgeOffsetX(existing.topBadgeOffsetX ?? defaultTopBadgeOffsetX)
+      setTopBadgeOffsetY(existing.topBadgeOffsetY ?? defaultTopBadgeOffsetY)
+      setGenreBadgeScale(existing.genreBadgeScale ?? defaultGenreBadgeScale)
+      setQualityBadgeScale(existing.qualityBadgeScale ?? defaultQualityBadgeScale)
+      setNetworkLogoScale(existing.networkLogoScale ?? defaultNetworkLogoScale)
       setBlurIntensity(existing.blurIntensity ?? defaultBlurIntensity)
       setBlurFade(existing.blurFade ?? defaultBlurFade)
       setBlurDarkness(existing.blurDarkness ?? defaultBlurDarkness)
@@ -913,6 +934,7 @@ export function usePictorium(): PictoriumCtx {
     globalBadges, rankingBadges, customBadge, badgeStyle, rankingBadgeStyle,
     badgeGenre, badgeYear, badgeRating, badgeQuality,
     defaultBadgeStyle, defaultRankingBadgeStyle, blurEnabled, blurIntensity, blurFade, blurDarkness, gradientHeight,
+    topBadgeScale, topBadgeOffsetX, topBadgeOffsetY, genreBadgeScale, qualityBadgeScale, networkLogoScale,
     setGradientHeight,
     rotationPosters, autoRotateClean, defaultAutoRotateClean, excludedPosters, accentColor, logoDisabled, setLogoDisabled,
     setLogoScale, setLogoOffsetX, setLogoOffsetY, networkLogo, ribbonSide, lang, episodeGroupId,
