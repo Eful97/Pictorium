@@ -1,5 +1,4 @@
 import dns, { type LookupOptions } from "node:dns"
-import { createRequire } from "node:module"
 import { NextRequest } from "next/server"
 import { getOriginFromRequest } from "@/lib/poster-public-url"
 import { rewriteMetasPosters, rewriteSingleMetaPoster, type StremioItemMeta } from "@/lib/addon-proxy"
@@ -156,23 +155,39 @@ function safeLookup(hostname: string, options: LookupOptions, callback: (err: No
     .catch((err: NodeJS.ErrnoException) => callback(err, []))
 }
 
-/** Agent undici con lookup vincolato agli IP pubblici (DNS pin) — lazy per non rompere la build su Node 20 (undici 8 richiede >=22.19: markAsUncloneable). */
-let safeAgent: InstanceType<typeof import("undici").Agent> | undefined
-let safeAgentTried = false
-function getSafeAgent(): InstanceType<typeof import("undici").Agent> | undefined {
-  if (safeAgentTried) return safeAgent
-  safeAgentTried = true
+/** Fetch + Agent undici caricati dalla STESSA istanza (DNS pin) — lazy per non
+ * rompere la build su Node 20 (undici 8 richiede >=22.19: markAsUncloneable).
+ *
+ * Il dispatcher DEVE appartenere alla stessa implementazione undici della
+ * fetch usata: passare un Agent del pacchetto npm `undici` alla fetch globale
+ * di Node (undici interno di versione diversa) fallisce ogni richiesta con
+ * `invalid onRequestStart method` → 500 su tutto il proxy. Per questo la
+ * coppia fetch/dispatcher viene presa dallo stesso modulo dinamico; se il
+ * modulo non è caricabile si degrada alla fetch globale senza dispatcher
+ * (resta comunque il pre-check DNS di resolveAndCheckBlocked).
+ */
+type SafeFetchPair = {
+  fetchFn: typeof fetch
+  dispatcher: InstanceType<typeof import("undici").Agent>
+}
+let safePair: SafeFetchPair | undefined
+let safePairTried = false
+async function getSafeFetch(): Promise<SafeFetchPair | undefined> {
+  if (safePairTried) return safePair
+  safePairTried = true
   try {
-    const require = createRequire(import.meta.url)
-    const { Agent } = require("undici") as typeof import("undici")
-    safeAgent = new Agent({ connect: { lookup: safeLookup } })
+    const { Agent, fetch: undiciFetch } = await import("undici") as typeof import("undici")
+    safePair = {
+      fetchFn: undiciFetch as unknown as typeof fetch,
+      dispatcher: new Agent({ connect: { lookup: safeLookup } }),
+    }
   } catch (e) {
-    log.warn("undici Agent unavailable — DNS pin disabilitato, fallback a fetch senza dispatcher", {
+    log.warn("undici unavailable — DNS pin disabilitato, fallback a fetch senza dispatcher", {
       error: e instanceof Error ? e.message : String(e),
     })
-    safeAgent = undefined
+    safePair = undefined
   }
-  return safeAgent
+  return safePair
 }
 
 /** Allowlist opzionale di domini proxy (PICTORIUM_PROXY_ALLOW_DOMAINS). */
@@ -236,8 +251,9 @@ function hopSignal(hopTimeoutMs: number): { signal: AbortSignal; deadline: Abort
 
 /**
  * Esegue un fetch con redirect manuali, validando ogni destinazione.
- * Previene SSRF via redirect 302 verso IP privati. Il DNS pin (SAFE_AGENT)
- * garantisce che ogni connessione usi solo indirizzi pubblici verificati.
+ * Previene SSRF via redirect 302 verso IP privati. Il DNS pin (coppia
+ * fetch/dispatcher undici di getSafeFetch) garantisce che ogni connessione
+ * usi solo indirizzi pubblici verificati.
  */
 async function safeFetch(url: string, options: RequestInit & { signal: AbortSignal }): Promise<Response> {
   let currentUrl = url
@@ -248,18 +264,19 @@ async function safeFetch(url: string, options: RequestInit & { signal: AbortSign
       log.warn("Blocked by proxy allowlist", { target: redactUrlForLog(currentUrl) })
       return Response.json({ error: "Target domain not allowed" }, { status: 403, headers: corsHeaders() })
     }
-    // La fetch globale di Node (undici) accetta `dispatcher`; il lib DOM di
-    // Next non lo tipizza, quindi il cast è necessario. Il dispatcher vincola
-    // la connessione agli IP pubblici verificati (DNS pin) — se undici non è
-    // caricabile (Node 20 + undici 8) si usa fetch senza dispatcher +
+    // fetchFn e dispatcher provengono dallo stesso modulo undici (vedi
+    // getSafeFetch): mescolare l'Agent npm con la fetch globale di Node
+    // rompe ogni richiesta (`invalid onRequestStart method`). Se undici non è
+    // caricabile si usa la fetch globale senza dispatcher +
     // resolveAndCheckBlocked già fatto sopra.
-    const dispatcher = getSafeAgent()
+    const safe = await getSafeFetch()
+    const fetchFn = safe?.fetchFn ?? fetch
     const fetchOpts = {
       ...options,
       redirect: "manual",
-      ...(dispatcher ? { dispatcher } : {}),
+      ...(safe ? { dispatcher: safe.dispatcher } : {}),
     } as unknown as RequestInit
-    const res = await fetch(currentUrl, fetchOpts)
+    const res = await fetchFn(currentUrl, fetchOpts)
     if (res.status < 300 || res.status >= 400) return res
     // Redirect — validiamo la destinazione
     const location = res.headers.get("location")

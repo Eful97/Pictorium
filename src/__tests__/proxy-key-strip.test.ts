@@ -11,6 +11,16 @@ vi.mock("@/lib/rate-limit", () => ({
   rateLimitResponse: vi.fn(() => new Response("rate limited", { status: 429 })),
 }))
 
+// La route carica fetch+Agent dallo stesso modulo undici via import dinamico:
+// nei test lo sostituiamo con la fetch globale (spiabile) + Agent fittizio,
+// così le asserzioni sugli URL inoltrati restano valide.
+vi.mock("undici", () => ({
+  Agent: class MockAgent {
+    constructor(_opts?: unknown) {}
+  },
+  fetch: (...args: Parameters<typeof fetch>) => (globalThis.fetch as typeof fetch)(...args),
+}))
+
 // DNS sempre verso un IP pubblico: il target del test non è reale.
 vi.mock("node:dns", () => ({
   default: {
@@ -36,6 +46,23 @@ describe("proxy resource forwarding — strip chiavi API (M6)", () => {
     fetchSpy.mockReset()
   })
 
+  it("il branch manifest usa la coppia fetch/dispatcher compatibile e riscrive id/nome", async () => {
+    // Regressione: l'Agent npm passato alla fetch globale di Node falliva ogni
+    // richiesta (`invalid onRequestStart method`) → 500 su tutto il proxy.
+    fetchSpy.mockResolvedValueOnce(
+      new Response(JSON.stringify({ id: "up.id", name: "Up", description: "d" }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }),
+    )
+    const target = encodeURIComponent("https://addon.example.com/manifest.json")
+    const req = new NextRequest(`http://localhost:3000/api/proxy/manifest?target=${target}`)
+    const res = await GET(req, { params: Promise.resolve({ path: ["manifest"] }) })
+    expect(res.status).toBe(200)
+    const body = (await res.json()) as { id: string; name: string }
+    expect(body.id.startsWith("org.pictorium.proxy.")).toBe(true)
+    expect(body.name).toContain("(Pictorium)")
+  })
   it("non inoltra api_key/mdblist_key/param di controllo al target, ma preserva gli altri", async () => {
     const target = encodeURIComponent("https://addon.example.com/manifest.json")
     const req = new NextRequest(
