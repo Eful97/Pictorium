@@ -26,7 +26,7 @@ export function ProxyModal({ isOpen, onClose }: Props) {
 
   const domain = typeof window !== "undefined" ? window.location.origin : ""
   const proxyUrl = targetUrl.trim()
-    ? `${domain}/api/proxy/manifest?url=${encodeURIComponent(targetUrl.trim())}`
+    ? `${domain}/api/proxy/manifest.json?url=${encodeURIComponent(targetUrl.trim())}`
     : ""
 
   const handleCopy = async () => {
