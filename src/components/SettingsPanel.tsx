@@ -444,6 +444,21 @@ export function SettingsPanel({ setSettingsOpen, exportData, importData, mobile 
             />
           </div>
 
+          <div className="flex items-center justify-between">
+            <span className="text-zinc-300 font-medium flex items-center gap-1.5">
+              <Flame className="w-3.5 h-3.5 text-orange-400" />
+              {t("ui.preRelease")}
+            </span>
+            <Toggle
+              value={ed.defaultPreRelease}
+              onChange={(v) => {
+                ed.setDefaultPreRelease(v)
+                ed.setPreRelease(v)
+              }}
+              label={t("ui.preRelease")}
+            />
+          </div>
+
           <div className="flex items-center justify-between gap-3 pt-1">
             <span className="text-zinc-300 font-medium flex items-center gap-1.5 shrink-0">
               <Layers className="w-3.5 h-3.5 text-accent-orange" />

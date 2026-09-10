@@ -107,8 +107,9 @@ export function SearchView() {
               >
                 <Clock className="w-4 h-4 text-zinc-500 shrink-0" />
                 <span className="flex-1 truncate">{term}</span>
-                <button
-                  type="button"
+                <span
+                  role="button"
+                  tabIndex={0}
                   onMouseDown={(e) => {
                     e.preventDefault()
                     e.stopPropagation()
@@ -117,11 +118,18 @@ export function SearchView() {
                     e.stopPropagation()
                     s.removeRecentSearch(term)
                   }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault()
+                      e.stopPropagation()
+                      s.removeRecentSearch(term)
+                    }
+                  }}
                   aria-label={t("ui.remove")}
                   className="text-danger hover:text-red-300 transition-all duration-150 text-sm px-2 shrink-0 cursor-pointer"
                 >
                   <X className="w-3.5 h-3.5" />
-                </button>
+                </span>
               </button>
             ))}
           </div>

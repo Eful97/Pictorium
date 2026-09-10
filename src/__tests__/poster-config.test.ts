@@ -262,6 +262,31 @@ describe("resolvePosterRenderConfig", () => {
     expect(r.badgeRating).toBe(true)
   })
 
+  it("preRelease defaults to false; query/config/sd chain wins in order", () => {
+    expect(resolvePosterRenderConfig(baseInput()).preRelease).toBe(false)
+
+    const rQuery = resolvePosterRenderConfig(baseInput({
+      searchParams: new URLSearchParams({ pre: "1" }),
+    }))
+    expect(rQuery.preRelease).toBe(true)
+
+    const rQueryOff = resolvePosterRenderConfig(baseInput({
+      searchParams: new URLSearchParams({ pre: "0" }),
+      configOverride: config({ preRelease: true }),
+      sd: { preRelease: true },
+    }))
+    expect(rQueryOff.preRelease).toBe(false)
+
+    const rConfig = resolvePosterRenderConfig(baseInput({
+      configOverride: config({ preRelease: true }),
+      sd: { preRelease: false },
+    }))
+    expect(rConfig.preRelease).toBe(true)
+
+    const rSd = resolvePosterRenderConfig(baseInput({ sd: { preRelease: true } }))
+    expect(rSd.preRelease).toBe(true)
+  })
+
   it("ratingSources default is ['imdb', 'tmdb'] and query rsrc overrides it", () => {
     const rDef = resolvePosterRenderConfig(baseInput())
     expect(rDef.ratingSources).toEqual(["imdb", "tmdb"])

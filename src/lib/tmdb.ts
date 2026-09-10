@@ -457,6 +457,36 @@ export function posterUrlOriginal(path: string): string {
   return `${IMG_BASE}/original${path}`
 }
 
+const tmdbReleaseDateItemSchema = z.object({
+  certification: z.string().optional(),
+  iso_639_1: z.string().nullable().optional(),
+  note: z.string().nullable().optional(),
+  release_date: z.string(),
+  type: z.number().int(),
+}).passthrough()
+
+const tmdbReleaseDatesSchema = z.object({
+  id: z.number().int().positive(),
+  results: z.array(z.object({
+    iso_3166_1: z.string(),
+    release_dates: z.array(tmdbReleaseDateItemSchema).default([]),
+  }).passthrough()).default([]),
+}).passthrough()
+
+export interface TMDBReleaseDatesResponse {
+  id: number
+  results: {
+    iso_3166_1: string
+    release_dates: {
+      certification?: string
+      iso_639_1?: string | null
+      note?: string | null
+      release_date: string
+      type: number
+    }[]
+  }[]
+}
+
 export interface TMDBExternalIds {
   imdb_id: string | null
   tvdb_id?: number | null
@@ -465,6 +495,16 @@ export interface TMDBExternalIds {
 export async function getExternalIds(mediaType: "movie" | "tv", id: number, apiKey?: string, signal?: AbortSignal): Promise<TMDBExternalIds> {
   const data = await tmdbFetch(`/${mediaType}/${id}/external_ids`, apiKey, signal)
   return parseTmdb<TMDBExternalIds>("external_ids", tmdbExternalIdsSchema, data)
+}
+
+/**
+ * Date di uscita per tipo (theatrical/digital/physical) e paese
+ * (`/{type}/{id}/release_dates`). Usata dal rilevamento pre-digitale:
+ * il type 4 (Digital) dice quando il film arriva in digitale.
+ */
+export async function getReleaseDates(mediaType: "movie" | "tv", id: number, apiKey?: string, signal?: AbortSignal): Promise<TMDBReleaseDatesResponse> {
+  const data = await tmdbFetch(`/${mediaType}/${id}/release_dates`, apiKey, signal)
+  return parseTmdb<TMDBReleaseDatesResponse>("release_dates", tmdbReleaseDatesSchema, data)
 }
 
 export interface TMDBKeywordsResponse {

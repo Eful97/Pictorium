@@ -63,6 +63,8 @@ export interface PosterRenderConfig {
   qNetLogo: string | null
   networkLogo: boolean
   ribbonSide: "left" | "right"
+  /** Stato pre-digitale (darken + badge Coming Soon, solo film). Default OFF. */
+  preRelease: boolean
 }
 
 export function resolvePosterRenderConfig(input: PosterRenderConfigInput): PosterRenderConfig {
@@ -178,6 +180,11 @@ export function resolvePosterRenderConfig(input: PosterRenderConfigInput): Poste
       ? "left"
       : (mapping?.ribbonSide === "right" || configOverride?.ribbonSide === "right" ? "right" : "left")
 
+  // Pre-release pre-digitale (solo film): query `pre` > config token > server
+  // defaults > false. Globale, nessun override per-titolo.
+  const qPre = q.get("pre")
+  const preRelease = qPre !== null ? qPre !== "0" : (configOverride?.preRelease ?? sd.preRelease ?? false)
+
   return {
     badgeStyle,
     rankingBadgeStyle,
@@ -200,6 +207,6 @@ export function resolvePosterRenderConfig(input: PosterRenderConfigInput): Poste
     qNetLogo,
     networkLogo,
     ribbonSide,
+    preRelease,
   }
 }
-

@@ -75,6 +75,7 @@ const NETWORK_FILES: Record<string, string> = {
   fandango: "Fandango_logotipo.svg",
   medusa: "Medusa_Film_-_logo_(Italy,_2017-).svg",
   ghibli: "Studio_Ghibli.svg",
+  mgm: "metro-goldwyn-mayer.svg",
   mgm_plus: "MGM+_logo.svg",
   lucasfilm: "Lucasfilm_logo.svg",
   miramax: "Miramax_logo.svg",
@@ -154,6 +155,7 @@ const NETWORK_TARGET_W: Record<string, number> = {
   fandango: 54,
   medusa: 40,
   ghibli: 62,
+  mgm: 56,
   mgm_plus: 54,
   lucasfilm: 62,
   miramax: 54,
@@ -178,7 +180,7 @@ function getNetworkKey(networkName: string): string | null {
   // Walt Disney Pictures va prima di Disney generico per non clashare con Disney+
   if (lower.includes("walt disney")) return "disney_pictures"
   if (lower.includes("disney")) return "disney"
-  if (lower.includes("prime") || lower.includes("amazon") || lower.includes("mgm") || lower.includes("metro-goldwyn") || lower.includes("metro goldwyn")) return "prime"
+  if (lower.includes("prime") || lower.includes("amazon")) return "prime"
   if (lower.includes("apple")) return "apple"
   if (lower.includes("paramount")) return "paramount"
   if (lower === "rai" || lower.startsWith("rai ")) return "rai"
@@ -240,6 +242,7 @@ function getNetworkKey(networkName: string): string | null {
   if (lower.includes("ghibli") || lower.includes("studio ghibli")) return "ghibli"
   if (lower.includes("lucasfilm")) return "lucasfilm"
   if (lower.includes("miramax")) return "miramax"
+  if (lower.includes("metro-goldwyn") || lower.includes("metro goldwyn") || /\bmgm\b/.test(lower)) return "mgm"
   if (lower.includes("castle rock")) return "castle_rock"
   if (lower.includes("dreamworks")) return "dreamworks"
   if (lower.includes("indiana")) return "indiana"

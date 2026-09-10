@@ -21,12 +21,56 @@ export function selectBestLogo(
   lang: string,
   origLang?: string | null,
 ): TMDBImage | undefined {
-  if (logos.length === 0) return undefined
-  const langLogo = logos.find((l) => l.iso_639_1 === lang)
-  const enLogo = lang !== "en" ? logos.find((l) => l.iso_639_1 === "en") : undefined
-  const origLogo =
-    origLang && origLang !== lang ? logos.find((l) => l.iso_639_1 === origLang) : undefined
-  return langLogo || enLogo || origLogo || logos[0]
+  return selectLogoTier(logos, lang, origLang)[0]
+}
+
+/**
+ * Il livello di lingua vincente, come LISTA anziché come singolo logo.
+ *
+ * La lingua decide da sola quale gruppo si usa — è la regola che vogliamo,
+ * altrimenti un logo nella lingua giusta perderebbe contro uno inglese solo
+ * perché contrasta meglio. Ma dentro un gruppo l'ordine di TMDB è arbitrario,
+ * e lì la leggibilità può decidere: da qui `pickReadableLogo`.
+ *
+ * Ritorna una lista vuota quando non c'è nessun logo.
+ */
+export function selectLogoTier(
+  logos: TMDBImage[],
+  lang: string,
+  origLang?: string | null,
+): TMDBImage[] {
+  if (logos.length === 0) return []
+  const tier = (code: string | null) => logos.filter((l) => l.iso_639_1 === code)
+  const langTier = tier(lang)
+  if (langTier.length > 0) return langTier
+  const enTier = lang !== "en" ? tier("en") : []
+  if (enTier.length > 0) return enTier
+  const origTier = origLang && origLang !== lang ? tier(origLang) : []
+  if (origTier.length > 0) return origTier
+  return logos
+}
+
+/**
+ * Sceglie, DENTRO un livello di lingua già deciso, il logo che si legge meglio
+ * sul poster. `score` ritorna il contrasto misurato; un candidato che non si
+ * riesce a misurare non vince per caso, perché il primo resta il riferimento.
+ */
+export async function pickReadableLogo(
+  tier: TMDBImage[],
+  score: (logo: TMDBImage) => Promise<number | null>,
+): Promise<TMDBImage | undefined> {
+  if (tier.length === 0) return undefined
+  if (tier.length === 1) return tier[0]
+  let best = tier[0]
+  let bestScore = (await score(tier[0])) ?? -Infinity
+  for (const candidate of tier.slice(1)) {
+    const s = await score(candidate)
+    if (s !== null && s > bestScore) {
+      best = candidate
+      bestScore = s
+    }
+  }
+  return best
 }
 
 /**

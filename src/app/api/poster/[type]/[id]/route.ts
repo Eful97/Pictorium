@@ -1,8 +1,9 @@
 import { NextRequest } from "next/server"
 import sharp from "sharp"
 import { initSharp } from "@/lib/sharp-config"
-import { getImages, getDetails, getExternalIds, getKeywords, resolveRequestApiKey, type TMDBImage, type TMDBCompany } from "@/lib/tmdb"
-import { getJWRankings } from "@/lib/justwatch"
+import { getImages, getDetails, getExternalIds, getKeywords, getReleaseDates, resolveRequestApiKey, type TMDBImage, type TMDBCompany } from "@/lib/tmdb"
+import { getJWRankings, hasJWOffers } from "@/lib/justwatch"
+import { extractDigitalReleaseDate, isDigitalPreRelease } from "@/lib/pre-release"
 import { getById } from "@/lib/store"
 import { rateLimit, rateLimitKey, rateLimitResponse } from "@/lib/rate-limit"
 import { getServerDefaults } from "@/lib/server-defaults"
@@ -60,7 +61,8 @@ import { resolveImdbToTmdb } from "@/lib/imdb-resolver"
 import { decodeConfig } from "@/lib/config-token"
 import { createLogger } from "@/lib/logger"
 import { resolvePosterRenderConfig } from "@/lib/poster-config"
-import { selectBestLogo, logoBestLogoFallbackReason } from "@/lib/logo-selection"
+import { selectLogoTier, pickReadableLogo, logoBestLogoFallbackReason } from "@/lib/logo-selection"
+import { logoContrast, logoInkLuminance, posterLogoZoneLuminance } from "@/lib/logo-contrast"
 import { resolveStreamQuality } from "@/lib/stream-quality"
 
 // Vercel: limite massimo di esecuzione della funzione. Il render poster ha un
@@ -69,6 +71,14 @@ import { resolveStreamQuality } from "@/lib/stream-quality"
 export const maxDuration = 40
 
 const log = createLogger("poster")
+
+/**
+ * Fascia di poster su cui il logo cade, per misurarne il contrasto PRIMA di
+ * scegliere. È un'approssimazione del rettangolo di `computeLogoLayout` a scala
+ * di default: qui serve a ordinare candidati, non a posizionare nulla, e il
+ * riquadro esatto lo ricalcola comunque il render.
+ */
+const LOGO_ZONE = { left: 0, top: Math.round(STD_H * 0.52), width: STD_W, height: Math.round(STD_H * 0.26) } as const
 
 // Deadline complessivo del render (F2): limite sull'intera pipeline
 // (fetch immagini + TMDB + composizione sharp). Oltre il tempo massimo il
@@ -363,11 +373,22 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
     // Fix M1: anno della preview (WYSIWYG). Senza, il ramo query non impostava
     // releaseDate/firstAirDate e il badge genere della preview ometteva
     // "• 2024" presente invece sul poster finale.
-    const queryYear = req.nextUrl.searchParams.get("year")
-    if (queryYear && /^\d{4}$/.test(queryYear.slice(0, 4))) {
-      const y = queryYear.slice(0, 4)
-      if (mediaType === "tv") firstAirDate = `${y}-01-01`
-      else releaseDate = `${y}-01-01`
+    // Date complete (`rd`/`fad`) quando il client le conosce: l'anno da solo
+    // diventa `${y}-01-01` e cade fuori dalla finestra theatrical del
+    // rilevamento pre-digitale (desync preview/finale).
+    const queryRd = req.nextUrl.searchParams.get("rd")
+    const queryFad = req.nextUrl.searchParams.get("fad")
+    if (mediaType === "tv" && queryFad && /^\d{4}-\d{2}-\d{2}$/.test(queryFad)) {
+      firstAirDate = queryFad
+    } else if (mediaType !== "tv" && queryRd && /^\d{4}-\d{2}-\d{2}$/.test(queryRd)) {
+      releaseDate = queryRd
+    } else {
+      const queryYear = req.nextUrl.searchParams.get("year")
+      if (queryYear && /^\d{4}$/.test(queryYear.slice(0, 4))) {
+        const y = queryYear.slice(0, 4)
+        if (mediaType === "tv") firstAirDate = `${y}-01-01`
+        else releaseDate = `${y}-01-01`
+      }
     }
     imdbId = req.nextUrl.searchParams.get("imdbId") || null
     showBadges = req.nextUrl.searchParams.get("badges") !== "0"
@@ -413,16 +434,16 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
       const sessionData = getTMDBSessionCache(mediaType, tmdbId)
       let details: Awaited<ReturnType<typeof getDetails>>
       let images: Awaited<ReturnType<typeof getImages>>
-      let extIds: { imdb_id: string | null }
+      let extIds: { imdb_id: string | null; tvdb_id?: number | null }
       if (sessionData?.details && sessionData.images) {
         details = sessionData.details
         images = sessionData.images
-        extIds = sessionData.externalIds ?? { imdb_id: null }
+        extIds = sessionData.externalIds ?? { imdb_id: null, tvdb_id: null }
       } else {
         const baseLangs = `${preferredLanguage},en,null`
         const [det, ext, imgs] = await Promise.all([
           getDetails(mediaType, tmdbId, preferredLanguage, apiKey, renderAbort.signal),
-          getExternalIds(mediaType, tmdbId, apiKey, renderAbort.signal).catch(() => ({ imdb_id: null })),
+          getExternalIds(mediaType, tmdbId, apiKey, renderAbort.signal).catch(() => ({ imdb_id: null, tvdb_id: null })),
           getImages(mediaType, tmdbId, baseLangs, apiKey, renderAbort.signal),
         ])
         details = det
@@ -471,20 +492,51 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
           return posterErrorResponse(503)
         }
       }
+      const allLogos: TMDBImage[] = images.logos
+
+      // Il logo si risolve PRIMA del poster. Serve a due cose: i livelli con
+      // backdrop valgono solo se c'è un logo da appoggiarci sopra (un backdrop
+      // ritagliato senza logo è un'immagine senza titolo), e prima il logo
+      // veniva scelto solo dentro il ramo "esiste un poster clean", quindi il
+      // ramo senza clean non ne aveva mai uno.
+      if (queryLogo) {
+        const exact = allLogos.find((l: TMDBImage) => l.file_path === queryLogo)
+        if (exact) logoPath = exact.file_path
+      }
+      if (!logoPath) {
+        // La lingua sceglie il gruppo; dentro al gruppo decide la leggibilità.
+        // L'ordine di TMDB dentro una lingua è arbitrario, quindi qui non si
+        // sta scavalcando nessuna preferenza: si sta solo smettendo di prendere
+        // il primo a caso quando uno degli altri si legge meglio.
+        const tier = selectLogoTier(allLogos, preferredLanguage, details.original_language)
+        const cleanPoster = images.posters.find((p: TMDBImage) => p.iso_639_1 === null)
+        const chosenLogo = tier.length > 1 && cleanPoster
+          ? await pickReadableLogo(tier, async (candidate) => {
+              try {
+                const [logoBuf, posterCandidate] = await Promise.all([
+                  fetchImg(imgSrc(candidate.file_path), renderAbort.signal),
+                  fetchImg(imgSrc(cleanPoster.file_path), renderAbort.signal),
+                ])
+                const [ink, zone] = await Promise.all([
+                  logoInkLuminance(logoBuf),
+                  posterLogoZoneLuminance(posterCandidate, LOGO_ZONE),
+                ])
+                if (ink === null || zone === null) return null
+                return logoContrast(ink, zone)
+              } catch {
+                return null
+              }
+            }).catch(() => tier[0])
+          : tier[0]
+        const reason = logoBestLogoFallbackReason(chosenLogo, preferredLanguage, details.original_language)
+        if (reason === "origLang") log.info("Logo fallback to original_language", { lang: details.original_language, mediaType, tmdbId })
+        else if (reason === "any") log.info("Logo fallback to any (first available)", { mediaType, tmdbId })
+        else if (reason === "none") log.info("No logo available", { mediaType, tmdbId })
+        if (chosenLogo) logoPath = chosenLogo.file_path
+      }
+
       const clean = images.posters.find((p: TMDBImage) => p.iso_639_1 === null)
       if (clean) {
-        if (queryLogo) {
-          const exact = images.logos.find((l: TMDBImage) => l.file_path === queryLogo)
-          if (exact) logoPath = exact.file_path
-        }
-        if (!logoPath) {
-          const chosenLogo = selectBestLogo(images.logos, preferredLanguage, details.original_language)
-          const reason = logoBestLogoFallbackReason(chosenLogo, preferredLanguage, details.original_language)
-          if (reason === "origLang") log.info("Logo fallback to original_language", { lang: details.original_language, mediaType, tmdbId })
-          else if (reason === "any") log.info("Logo fallback to any (first available)", { mediaType, tmdbId })
-          else if (reason === "none") log.info("No logo available", { mediaType, tmdbId })
-          if (chosenLogo) logoPath = chosenLogo.file_path
-        }
         const qLogoFit = req.nextUrl.searchParams.get("logoFit")
         // Override globale dell'istanza (PICTORIUM_BEST_FIT_ENABLED): vince su
         // query, config token e server defaults. Utile su Vercel/HF dove il
@@ -604,6 +656,13 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
     const badgesEnabledEarly = hasQueryEarly ? (qBadgesEarly !== null ? qBadgesEarly !== "0" : showBadges) : true
     const rankingEnabledEarly = hasQueryEarly ? (qRankingEarly !== null ? qRankingEarly !== "0" : rankingBadges) : true
     const badgeQualityEarly = qBqEarly !== null ? qBqEarly !== "0" : (mapping?.badgeQuality ?? configOverride?.badgeQuality ?? sd.badgeQuality ?? true)
+    // Flag pre-digitale per il fetch condizionato: query `pre` > config token
+    // > server defaults > false (stessa catena di poster-config, senza mapping).
+    const qPreEarly = req.nextUrl.searchParams.get("pre")
+    const preReleaseEnabledEarly = qPreEarly !== null ? qPreEarly !== "0" : (configOverride?.preRelease ?? sd.preRelease ?? false)
+    // Segnali grezzi del rilevamento pre-digitale (solo debug=1).
+    let preJw: boolean | null = null
+    let preDigital: string | null = null
     // Rank anime inviato dal client nella preview WYSIWYG (override del fetch).
     const qAnimeRankParam = req.nextUrl.searchParams.get("animerank")
     const qAnimeRank = qAnimeRankParam ? Number(qAnimeRankParam) : NaN
@@ -613,7 +672,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
     const emptyWikidata = { awards: [], nominations: [], studios: [], director: null }
     const WIKIDATA_TIMEOUT = Number(process.env.WIKIDATA_TIMEOUT) || 2500
     const [
-      [originalBuf, logoFetch, backdropFetch, rankingResult, animeRankResult, liveQualityResult],
+      [originalBuf, logoFetch, backdropFetch, rankingResult, animeRankResult, liveQualityResult, preReleaseDetected],
       [wikidataResult, tmdbKeywords, imdbTop250],
     ] = await Promise.all([
       // Block A: images + ranking data + quality
@@ -680,6 +739,51 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
                   ).catch(() => null)
                 })())
           : Promise.resolve(null),
+        // Rilevamento pre-digitale (solo film, solo se flag `pre` ON):
+        // JustWatch ha la precedenza, TMDB release_dates (type 4) come
+        // fallback. Tetto 2500ms con fail-open: a dati ignoti il poster
+        // resta normale invece di attendere gli upstream.
+        (preReleaseEnabledEarly && mediaType === "movie"
+          ? (async (): Promise<boolean> => {
+              let preTimer: ReturnType<typeof setTimeout> | undefined
+              const preTimeout = new Promise<false>((r) => {
+                preTimer = setTimeout(() => r(false), 2500)
+              })
+              const detect = (async (): Promise<boolean> => {
+                try {
+                  const apiKey = resolveRequestApiKey(req)
+                  // Titolo per la ricerca JW (stesso fallback del blocco
+                  // qualità): senza searchQuery la query chiede 5 titoli
+                  // popolari generici e il match per tmdbId fallisce quasi
+                  // sempre → disponibilità ignota → poster normale.
+                  const sessionDetails = getTMDBSessionCache(mediaType, tmdbId)?.details
+                  const preTitle = mapping?.title
+                    || req.nextUrl.searchParams.get("title")
+                    || sessionDetails?.title
+                    || sessionDetails?.name
+                    || genreName
+                    || null
+                  const [relDates, jw] = await Promise.all([
+                    getReleaseDates(mediaType, tmdbId, apiKey, renderAbort.signal).catch(() => null),
+                    hasJWOffers(tmdbId, "MOVIE", preTitle, posterRegion.code, renderAbort.signal).catch(() => null),
+                  ])
+                  preDigital = relDates ? extractDigitalReleaseDate(relDates, posterRegion.code) : null
+                  preJw = jw
+                  return isDigitalPreRelease({
+                    mediaType,
+                    theatricalDate: releaseDate ?? mapping?.releaseDate ?? null,
+                    digitalDate: preDigital,
+                    jwAvailable: jw,
+                  })
+                } catch {
+                  return false
+                }
+              })()
+              const detected = await Promise.race([detect, preTimeout])
+              if (preTimer) clearTimeout(preTimer)
+              return detected
+            })()
+          : Promise.resolve(false)),
       ]),
       // Block B: badge data (independent of Block A — runs concurrently)
       Promise.all([
@@ -829,7 +933,13 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
       badgeGenre, badgeYear, badgeRating, badgeQuality,
       logoScale, logoOffsetX, logoOffsetY,
       queryExtra, qNetLogo, networkLogo, ribbonSide,
+      preRelease,
     } = renderConfig
+
+    // Il rilevamento (`preReleaseDetected`) cambia nel tempo: non entra nella
+    // cache key (verrebbe letta prima del fetch), il ritorno al poster normale
+    // avviene alla scadenza del TTL (6h non-mappati, 24h mappati).
+    const applyPreRelease = preRelease && preReleaseDetected
 
     const finalQuality = qQualityParam || liveQualityResult || null
 
@@ -887,6 +997,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
         genre: { name: genreName, year: releaseDate?.slice(0, 4) },
         vote: { average: voteAverage },
         quality: finalQuality,
+        preRelease: { enabled: preRelease, detected: preReleaseDetected, applied: applyPreRelease, jwAvailable: preJw, digitalDate: preDigital, theatricalDate: releaseDate ?? mapping?.releaseDate ?? null },
         rankings: {
           justwatch: rankingResult,
           anime: animeRankResult,
@@ -968,7 +1079,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
       lastAirDate, seasonCount, originCountries,
       wikidataResult, tmdbKeywords, locale, t,
       qLabel, queryExtra, qNetLogo, networkLogo, sd,
-      accentOverride, imdbTop250,
+      accentOverride, imdbTop250, preRelease: applyPreRelease,
       posterSrc: posterPath,
       logoSrc: logoPath,
       backdropSrc: backdropPath,
@@ -981,7 +1092,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
 
     // 10. Fix stale auto ETag: include dynamic data (rank, rating) so when it re-renders, the ETag changes
     if (!mapping && !isPreview) {
-      etag = `${etag.slice(0, -1)}:${finalRank ?? "X"}:${imdbTop250}:${voteAverage ?? "0"}"`
+      etag = `${etag.slice(0, -1)}:${finalRank ?? "X"}:${imdbTop250}:${voteAverage ?? "0"}:${applyPreRelease ? "P" : "x"}"`
     }
 
     // 11. Cache + response

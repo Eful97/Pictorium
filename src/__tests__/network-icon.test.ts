@@ -32,6 +32,14 @@ describe("network-svgs", () => {
     expect(res!.networkKey).toBe("prime")
   })
 
+  it("matches Metro-Goldwyn-Mayer and classic MGM to mgm (not Prime Video)", () => {
+    expect(getNetworkSvgResult("Metro-Goldwyn-Mayer", 500)?.networkKey).toBe("mgm")
+    expect(getNetworkSvgResult("Metro-Goldwyn-Mayer (MGM)", 500)?.networkKey).toBe("mgm")
+    expect(getNetworkSvgResult("MGM", 500)?.networkKey).toBe("mgm")
+    expect(getNetworkSvgResult("Amazon MGM Studios", 500)?.networkKey).toBe("prime")
+    expect(getNetworkSvgResult("MGM+", 500)?.networkKey).toBe("mgm_plus")
+  })
+
   it("matches Apple TV+ and returns networkKey=apple", () => {
     const res = getNetworkSvgResult("Apple TV+", 500)
     expect(res).not.toBeNull()
@@ -247,6 +255,24 @@ describe("network-svgs", () => {
     const light = await renderNetworkLogoBadge("DC Studios", 500, true)
     const dark = await renderNetworkLogoBadge("DC Studios", 500, false)
     expect(light!.png.equals(dark!.png)).toBe(true)
+  })
+
+  it("matches and renders Metro-Goldwyn-Mayer (MGM)", async () => {
+    const res = getNetworkSvgResult("Metro-Goldwyn-Mayer", 500)
+    expect(res).not.toBeNull()
+    expect(res!.networkKey).toBe("mgm")
+
+    const pngRes = await renderNetworkLogoBadge("Metro-Goldwyn-Mayer", 500)
+    expect(pngRes).not.toBeNull()
+    expect(pngRes!.networkKey).toBe("mgm")
+    expect(pngRes!.png).toBeInstanceOf(Buffer)
+    expect(pngRes!.w).toBeGreaterThan(0)
+    expect(pngRes!.h).toBeGreaterThan(0)
+
+    // MGM adapts across topLight (monochrome)
+    const light = await renderNetworkLogoBadge("Metro-Goldwyn-Mayer", 500, true)
+    const dark = await renderNetworkLogoBadge("Metro-Goldwyn-Mayer", 500, false)
+    expect(light!.png.equals(dark!.png)).toBe(false)
   })
 })
 

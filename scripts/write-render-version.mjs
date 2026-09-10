@@ -10,8 +10,9 @@ const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..")
 // Stremio vengono invalidate senza dover bumpare nulla a mano.
 // NB: NON includere `render-version.ts` (è l'output dello script).
 // File esclusi intenzionalmente: poster-runtime-cache.ts, cache.ts,
-// justwatch.ts, flixpatrol.ts, ratings.ts — influenzano ranking/cache ma
-// non il rendering visivo byte-level; non devono invalidare rv.
+// flixpatrol.ts, ratings.ts — influenzano ranking/cache ma non il rendering
+// visivo byte-level; non devono invalidare rv. justwatch.ts È incluso da
+// quando le offerte JW guidano l'effetto pre-digitale (velo + badge).
 const RENDER_FILES = [
   "src/app/api/poster/[type]/[id]/route.ts",
   "src/lib/accent-color.ts",
@@ -23,6 +24,8 @@ const RENDER_FILES = [
   "src/lib/config-token.ts",
   "src/lib/fonts.ts",
   "src/lib/image-utils.ts",
+  "src/lib/justwatch.ts",
+  "src/lib/logo-contrast.ts",
   "src/lib/logo-layout.ts",
   "src/lib/logo-selection.ts",
   "src/lib/network-svgs.ts",
@@ -35,6 +38,7 @@ const RENDER_FILES = [
   "src/lib/poster-rotation.ts",
   "src/lib/poster-service.ts",
   "src/lib/poster-url.ts",
+  "src/lib/pre-release.ts",
   "src/lib/release-badge.ts",
   "src/lib/stremio-poster-params.ts",
   "src/lib/stremio-poster-url.ts",

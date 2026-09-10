@@ -1,3 +1,5 @@
+import { hasDigitalOffer } from "./pre-release"
+
 // Sovrascrivibile via env: nei test E2E punta al mock server locale.
 const JW_API = process.env.JUSTWATCH_API_URL || "https://apis.justwatch.com/graphql"
 
@@ -508,6 +510,7 @@ const TITLE_OFFERS_QUERY = `query GetTitleOffers($country: Country!, $language: 
           externalIds { tmdbId imdbId }
         }
         offers(country: $country, platform: WEB) {
+          monetizationType
           presentationType
         }
       }
@@ -629,10 +632,117 @@ export async function getJWTitleQuality(
   }
 }
 
+const availabilityCache = new Map<string, { data: boolean | null; timestamp: number }>()
+
+/**
+ * True se il titolo ha almeno un'offerta streaming/digitale (noleggio,
+ * acquisto o abbonamento) nel paese dato, false se nessuna, null se il dato
+ * è ignoto (errore fetch o titolo non trovato). Riusa `TITLE_OFFERS_QUERY`:
+ * la presenza di offerte — non il loro tipo — è il segnale di disponibilità.
+ * Solo film: le serie seguono la first_air_date, già coperta altrove.
+ */
+export async function hasJWOffers(
+  tmdbId: number,
+  objectType: "MOVIE" | "SHOW",
+  searchTitle?: string | null,
+  country = "IT",
+  signal?: AbortSignal,
+  language = "it-IT",
+): Promise<boolean | null> {
+  const cacheKey = `avail:${objectType}:${country}:${tmdbId}`
+  const cached = availabilityCache.get(cacheKey)
+  if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
+    return cached.data
+  }
+
+  if (isCircuitOpen()) {
+    return null
+  }
+
+  try {
+    const filter: Record<string, unknown> = {
+      objectTypes: [objectType],
+    }
+    if (searchTitle) {
+      filter.searchQuery = searchTitle
+    }
+
+    const timeoutSignal = AbortSignal.timeout(4000)
+    let combinedSignal: AbortSignal = timeoutSignal
+    if (signal) {
+      if (typeof (AbortSignal as unknown as { any?: unknown }).any === "function") {
+        combinedSignal = (AbortSignal as unknown as { any: (signals: AbortSignal[]) => AbortSignal }).any([signal, timeoutSignal])
+      } else {
+        const ctrl = new AbortController()
+        const onAbort = () => ctrl.abort((signal as unknown as { reason?: unknown })?.reason ?? timeoutSignal.reason)
+        if (signal.aborted || timeoutSignal.aborted) ctrl.abort()
+        else {
+          signal.addEventListener("abort", onAbort, { once: true })
+          timeoutSignal.addEventListener("abort", onAbort, { once: true })
+        }
+        combinedSignal = ctrl.signal
+      }
+    }
+
+    const res = await fetch(JW_API, {
+      method: "POST",
+      headers: jwHeaders(),
+      signal: combinedSignal,
+      body: JSON.stringify({
+        operationName: "GetTitleOffers",
+        query: TITLE_OFFERS_QUERY,
+        variables: {
+          country,
+          language,
+          filter,
+        },
+      }),
+    })
+    captureCookie(res.headers)
+    if (!res.ok) {
+      recordCircuitFailure(res.status)
+      return null
+    }
+    const json = await res.json()
+    if (json.errors && !usablePayload(json.data)) {
+      recordCircuitFailure()
+      return null
+    }
+    recordCircuitSuccess()
+
+    const edges = json?.data?.popularTitles?.edges || []
+
+    let matchedNode = null
+    for (const e of edges) {
+      const edgeTmdbId = Number(e?.node?.content?.externalIds?.tmdbId)
+      if (edgeTmdbId === tmdbId) {
+        matchedNode = e.node
+        break
+      }
+    }
+    // Titolo non trovato tra i risultati: disponibilità ignota, mai false
+    // (un miss non è una prova di assenza).
+    if (!matchedNode) return null
+
+    const offers = (matchedNode?.offers || []) as Array<{ presentationType?: string; monetizationType?: string | null }>
+    // Solo offerte digitali: CINEMA (biglietti) non è disponibilità
+    // digitale/streaming (vedi hasDigitalOffer in pre-release.ts).
+    const available = hasDigitalOffer(offers)
+
+    if (availabilityCache.size >= CACHE_MAX) availabilityCache.delete(availabilityCache.keys().next().value!)
+    availabilityCache.set(cacheKey, { data: available, timestamp: Date.now() })
+    return available
+  } catch {
+    recordCircuitFailure()
+    return null
+  }
+}
+
 /** Solo per i test: svuota la cache condivisa delle classifiche e qualità JustWatch, cookie e circuit breaker. */
 export function __resetJWRankingsCache(): void {
   rankingsCache.clear()
   qualityCache.clear()
+  availabilityCache.clear()
   ddCookie = null
   circuitState.consecutiveFailures = 0
   circuitState.cooldownUntil = 0

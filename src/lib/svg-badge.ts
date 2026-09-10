@@ -239,15 +239,16 @@ function netflixSubLabel(isAnime: boolean | undefined, label: string | undefined
 }
 
 export function buildNetflixRankBadgeSVG(rank: number, pw: number, topLight: boolean, side: "left" | "right" = "left", isAnime?: boolean, label?: string) {
-  const fs = Math.round(Math.max(23 * pw / 380, 14))
-  const w = Math.round(fs * 2.6)
+  // Più grande ed evidente (+20%): fs base 27 (prima 23), w proporzionale 2.65
+  const fs = Math.round(Math.max(27 * pw / 380, 16))
+  const w = Math.round(fs * 2.65)
   // Sottotitolo presente (anime o film/serie con etichetta): nastro allungato
-  // verso il basso (h × 1.55) per dare spazio alla scritta sotto il numero.
+  // verso il basso (h × 1.65) per dare pieno respiro alla scritta sopra la V.
   const subLabel = netflixSubLabel(isAnime, label)
   const hasSub = subLabel.length > 0
-  const h = Math.round(w * (hasSub ? 1.55 : 1.35))
+  const h = Math.round(w * (hasSub ? 1.65 : 1.35))
   const slant = Math.round(w * 0.12)
-  const topFs = Math.round(w * 0.26)
+  const topFs = Math.round(w * 0.25)
   const isDoubleDigit = rank >= 10
   const rankFs = Math.round(w * (isDoubleDigit ? 0.48 : 0.54))
   const rankLetterSpacing = isDoubleDigit ? "-1" : "0"
@@ -256,34 +257,34 @@ export function buildNetflixRankBadgeSVG(rank: number, pw: number, topLight: boo
   const totalW = w + padRight
   const totalH = h + padBottom
 
-  // Sottotitolo sotto il numero: font proporzionale al nastro, auto-fit se
-  // l'etichetta è più larga del nastro (es. traduzioni lunghe).
-  let subFs = Math.round(w * 0.20)
-  if (hasSub) {
-    const maxSubW = Math.round(w * 0.90)
-    const subW = estimateTextWidth(subLabel, subFs)
-    if (subW > maxSubW) subFs = Math.max(Math.round(subFs * maxSubW / subW), 8)
-  }
-  const subPadBottom = hasSub ? Math.round(subFs * 0.6) : 0
-  const totalHSub = totalH + subPadBottom
+  const ribbonMidX = w / 2
+  const ribbonVNotchY = Math.round(h * 0.90)
 
-  // TOP, numero e sottotitolo impilati con la stessa distanza visiva.
-  const topY = hasSub ? Math.round(h * 0.22) : Math.round(h * 0.26)
-  const textGap = hasSub ? Math.round(Math.min(topFs, subFs) * 0.2) : 0
+  // Sottotitolo sotto il numero: calcolato sulla larghezza reale del trapezio alla base
+  // (w - slant) con margine di sicurezza interno (0.82) per evitare qualsiasi sbordatura.
+  let subFs = Math.round(w * 0.19)
+  if (hasSub) {
+    const maxSubW = Math.round((w - slant) * 0.82)
+    const subW = estimateTextWidth(subLabel, subFs)
+    if (subW > maxSubW) {
+      subFs = Math.max(Math.round(subFs * maxSubW / subW), 8)
+    }
+  }
+
+  // TOP, numero e sottotitolo impilati
+  const topY = hasSub ? Math.round(h * 0.20) : Math.round(h * 0.26)
+  const textGap = hasSub ? Math.round(Math.min(topFs, subFs) * 0.25) : 0
   const rankY = hasSub
     ? topY + Math.round(topFs / 2) + textGap + Math.round(rankFs / 2)
     : Math.round(h * 0.60)
   const subY = hasSub
-    ? rankY + Math.round(rankFs / 2) + textGap + Math.round(subFs / 2)
+    ? Math.round((rankY + Math.round(rankFs / 2) + ribbonVNotchY) / 2)
     : 0
 
   // Stessa logica adattiva degli altri badge ranking (tlBg/tlFg):
   // top chiaro → nastro scuro con testo chiaro; top scuro → nastro chiaro con testo nero.
   const fill = topLight ? "rgba(0,0,0,0.80)" : "rgba(255,255,255,0.80)"
   const textColor = topLight ? "rgba(255,255,255,0.80)" : "rgba(0,0,0,0.80)"
-
-  const ribbonMidX = w / 2
-  const ribbonVNotchY = Math.round(h * 0.88)
 
   // Nastro top-left (side="left", default): ancorato al bordo sinistro del poster,
   // lato sinistro dritto e destro inclinato. Modalità Stremio (side="right"): nastro
@@ -299,10 +300,10 @@ export function buildNetflixRankBadgeSVG(rank: number, pw: number, topLight: boo
   const shadowDx = isRight ? -3 : 3
 
   const subEl = hasSub
-    ? `<text x="${textX}" y="${subY}" fill="${textColor}" font-family="${fontFamilyFor(subLabel)}" font-weight="700" font-size="${subFs}" text-anchor="middle" dominant-baseline="central" letter-spacing="0.6" filter="url(#textShadow)">${escSvg(subLabel)}</text>`
+    ? `<text x="${textX}" y="${subY}" fill="${textColor}" font-family="${fontFamilyFor(subLabel)}" font-weight="700" font-size="${subFs}" text-anchor="middle" dominant-baseline="central" filter="url(#textShadow)">${escSvg(subLabel)}</text>`
     : ""
 
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${totalW}" height="${totalHSub}" viewBox="0 0 ${totalW} ${totalHSub}">
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${totalW}" height="${totalH}" viewBox="0 0 ${totalW} ${totalH}">
     <defs>
       <filter id="shadow3D" x="-20%" y="-20%" width="180%" height="180%">
         <feDropShadow dx="${shadowDx}" dy="3" stdDeviation="3.5" flood-color="#000000" flood-opacity="0.65"/>
@@ -317,7 +318,7 @@ export function buildNetflixRankBadgeSVG(rank: number, pw: number, topLight: boo
     <text x="${textX}" y="${rankY}" fill="${textColor}" font-family="Inter" font-weight="900" font-size="${rankFs}" text-anchor="middle" dominant-baseline="central" letter-spacing="${rankLetterSpacing}" filter="url(#textShadow)">${rank}</text>
     ${subEl}
   </svg>`
-  return { svg, w: totalW, h: totalHSub }
+  return { svg, w: totalW, h: totalH }
 }
 
 export async function buildRankingBadgeSVG(
@@ -334,7 +335,7 @@ export async function buildRankingBadgeSVG(
   const periodText = label || "Oggi"
   const fullText = `#${rank} ${periodText}`
   const maxBadgeW = pw - 20
-  let finalFs = 20 * pw / 380
+  let finalFs = 23 * pw / 380
   const projectedW = estimateTextWidth(fullText, finalFs) + Math.round(finalFs * 2) + Math.round(finalFs * 0.6) * 2
   if (projectedW > maxBadgeW) {
     finalFs = Math.max(maxBadgeW / projectedW * finalFs, 10)
@@ -383,12 +384,78 @@ export async function renderExtraBadge(
   throw new Error(`SVG extra badge failed: ${label}`)
 }
 
+// --- Coming Soon corner ribbon (pre-digitale) ---
+//
+// Sticker angolare rosso in alto (a sinistra; speculare a destra con side="right"), la banda sborda
+// dai bordi poster (il layer va composto con offset negativo pari a
+// `comingSoonRibbonLayout(pw).offset`), così resta visibile solo il
+// triangolo d'angolo. Il logo network va impilato sotto `extent` (solo lato sinistro).
+
+export interface ComingSoonRibbonLayout {
+  /** Lato del canvas quadrato (px). */
+  size: number
+  /** Quanto il layer va spostato in negativo su top/left per far sbordare la banda. */
+  offset: number
+  /** Estensione visibile del nastro dall'angolo (per impilare il logo network sotto). */
+  extent: number
+}
+
+export function comingSoonRibbonLayout(pw: number): ComingSoonRibbonLayout {
+  const s = pw / 380
+  return {
+    size: Math.round(200 * s),
+    offset: Math.round(20 * s),
+    extent: Math.round(155 * s),
+  }
+}
+
+export async function renderComingSoonRibbon(
+  label: string,
+  pw: number,
+  side: "left" | "right" = "left",
+): Promise<{ png: Buffer; w: number; h: number }> {
+  const s = pw / 380
+  const layout = comingSoonRibbonLayout(pw)
+  const CS = layout.size
+  const c = CS - layout.offset - Math.round(100 * s)
+  const cx = side === "right" ? CS - c : c
+  const rot = side === "right" ? 45 : -45
+  const half = Math.round(140 * s)
+  const bandH = Math.round(44 * s)
+  const text = label.toUpperCase()
+  let fs = Math.round(21 * s)
+  // Il testo deve stare nel segmento visibile (tra i due bordi poster):
+  // oltre sborda a metà lettera e sembra rotto, non "nastro da angolo".
+  const maxTextW = Math.round(135 * s)
+  const textW = estimateTextWidth(text, fs)
+  if (textW > maxTextW) {
+    fs = Math.max(12, Math.floor((fs * maxTextW) / textW))
+  }
+  const svg =
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${CS}" height="${CS}" viewBox="0 0 ${CS} ${CS}">` +
+    `<defs>` +
+    `<filter id="csShadow" x="-40%" y="-40%" width="180%" height="180%">` +
+    `<feDropShadow dx="0" dy="${Math.round(3 * s)}" stdDeviation="${Math.round(4 * s)}" flood-color="#000000" flood-opacity="0.80"/>` +
+    `</filter>` +
+    `<linearGradient id="csGrad" x1="0" y1="0" x2="0" y2="1">` +
+    `<stop offset="0%" stop-color="#e50914"/>` +
+    `<stop offset="100%" stop-color="#a30810"/>` +
+    `</linearGradient>` +
+    `</defs>` +
+    `<g transform="translate(${cx},${c}) rotate(${rot})" filter="url(#csShadow)">` +
+    `<rect x="${-half}" y="${Math.round(-bandH / 2)}" width="${half * 2}" height="${bandH}" fill="url(#csGrad)"/>` +
+    `<text x="0" y="${Math.round(1 * s)}" text-anchor="middle" dominant-baseline="central" font-family="${fontFamilyFor(text)}" font-weight="800" font-size="${fs}" fill="#ffffff" letter-spacing="0.05em">${escSvg(text)}</text>` +
+    `</g></svg>`
+  const png = await renderSVG(wrapSvg(svg), CS)
+  return { png, w: CS, h: CS }
+}
+
 export async function renderQualityBadge(
   quality: string,
   pw: number,
   topLight?: boolean,
 ): Promise<{ png: Buffer; w: number; h: number }> {
-  const fs = Math.round(Math.max(16 * pw / 380, 11))
+  const fs = Math.round(Math.max(14 * pw / 380, 10))
   const bg = topLight ? "rgba(0,0,0,0.80)" : "rgba(255,255,255,0.80)"
   const fg = topLight ? "rgba(255,255,255,0.80)" : "rgba(0,0,0,0.80)"
   const result = buildQualityBadgeSvg(quality, fs, fg, bg, !!topLight)

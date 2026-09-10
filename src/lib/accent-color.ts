@@ -9,12 +9,12 @@ function linearize(c: number): number {
 }
 
 /** Luminanza relativa sRGB (WCAG) */
-function relativeLuminance(r: number, g: number, b: number): number {
+export function relativeLuminance(r: number, g: number, b: number): number {
   return 0.2126 * linearize(r) + 0.7152 * linearize(g) + 0.0722 * linearize(b)
 }
 
 /** Rapporto di contrasto WCAG tra due luminanze */
-function contrastRatio(l1: number, l2: number): number {
+export function contrastRatio(l1: number, l2: number): number {
   const lighter = Math.max(l1, l2)
   const darker = Math.min(l1, l2)
   return (lighter + 0.05) / (darker + 0.05)

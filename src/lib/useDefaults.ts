@@ -26,6 +26,7 @@ export interface DefaultsState {
   defaultAutoRotateClean: boolean
   defaultLogoFitEnabled: boolean
   defaultNetworkLogo: boolean
+  defaultPreRelease: boolean
   defaultRibbonSide: RibbonSide
   defaultEpisodeMetadataSource: "tmdb" | "tvdb"
   /** Regione classifiche (codice JW canonico, es. "IT"). */
@@ -40,6 +41,7 @@ export interface DefaultsState {
   badgeQuality: boolean
   ratingSources: string[]
   networkLogo: boolean
+  preRelease: boolean
   ribbonSide: RibbonSide
   episodeMetadataSource: "tmdb" | "tvdb"
   gradientHeight: number
@@ -69,6 +71,7 @@ const DEFAULTS: DefaultsState = {
   defaultAutoRotateClean: false,
   defaultLogoFitEnabled: true,
   defaultNetworkLogo: true,
+  defaultPreRelease: false,
   defaultRibbonSide: "left",
   defaultEpisodeMetadataSource: "tmdb",
   defaultRegion: "IT",
@@ -81,6 +84,7 @@ const DEFAULTS: DefaultsState = {
   badgeQuality: true,
   ratingSources: ["imdb", "tmdb"],
   networkLogo: true,
+  preRelease: false,
   ribbonSide: "left",
   episodeMetadataSource: "tmdb",
   gradientHeight: 30,
@@ -125,6 +129,8 @@ interface StoredDefaults {
   defaultAutoRotateClean?: boolean
   defaultLogoFitEnabled?: boolean
   defaultNetworkLogo?: boolean
+  defaultPreRelease?: boolean
+  preRelease?: boolean
   defaultRibbonSide?: RibbonSide
   ribbonSide?: RibbonSide
   defaultEpisodeMetadataSource?: "tmdb" | "tvdb"
@@ -170,6 +176,7 @@ function buildFromStored(d: StoredDefaults | null): DefaultsState {
     defaultAutoRotateClean: d.defaultAutoRotateClean ?? d.autoRotateClean ?? false,
     defaultLogoFitEnabled: d.defaultLogoFitEnabled ?? true,
     defaultNetworkLogo: d.defaultNetworkLogo ?? d.networkLogo ?? true,
+    defaultPreRelease: d.defaultPreRelease ?? d.preRelease ?? false,
     defaultRibbonSide: d.defaultRibbonSide ?? d.ribbonSide ?? "left",
     defaultEpisodeMetadataSource: d.defaultEpisodeMetadataSource ?? d.episodeMetadataSource ?? "tmdb",
     defaultRegion: normalizeRegion(d.defaultRegion ?? d.region),
@@ -182,6 +189,7 @@ function buildFromStored(d: StoredDefaults | null): DefaultsState {
     badgeQuality: d.badgeQuality ?? d.defaultBadgeQuality ?? true,
     ratingSources: d.ratingSources ?? d.defaultRatingSources ?? ["imdb", "tmdb"],
     networkLogo: d.networkLogo ?? d.defaultNetworkLogo ?? true,
+    preRelease: d.preRelease ?? d.defaultPreRelease ?? false,
     ribbonSide: d.ribbonSide ?? d.defaultRibbonSide ?? "left",
     episodeMetadataSource: d.episodeMetadataSource ?? d.defaultEpisodeMetadataSource ?? "tmdb",
     gradientHeight: d.gradientHeight ?? d.defaultGradientHeight ?? 30,
@@ -219,6 +227,7 @@ function defaultsToPayload(d: DefaultsState): Record<string, unknown> {
     autoRotateClean: d.defaultAutoRotateClean,
     defaultLogoFitEnabled: d.defaultLogoFitEnabled,
     networkLogo: d.defaultNetworkLogo,
+    preRelease: d.defaultPreRelease,
     ribbonSide: d.defaultRibbonSide,
     episodeMetadataSource: d.defaultEpisodeMetadataSource,
     region: d.defaultRegion,

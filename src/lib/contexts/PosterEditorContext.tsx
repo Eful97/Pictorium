@@ -38,6 +38,8 @@ export interface PosterEditorCtx {
   setCustomBadge: (v: string | null | ((prev: string | null) => string | null)) => void
   networkLogo: boolean
   setNetworkLogo: (v: boolean | ((prev: boolean) => boolean)) => void
+  preRelease: boolean
+  setPreRelease: (v: boolean | ((prev: boolean) => boolean)) => void
   ribbonSide: "left" | "right"
   setRibbonSide: (v: "left" | "right" | ((prev: "left" | "right") => "left" | "right")) => void
   episodeMetadataSource: "tmdb" | "tvdb"
@@ -82,6 +84,8 @@ export interface PosterEditorCtx {
   setDefaultLogoFitEnabled: (v: boolean | ((prev: boolean) => boolean)) => void
   defaultNetworkLogo: boolean
   setDefaultNetworkLogo: (v: boolean | ((prev: boolean) => boolean)) => void
+  defaultPreRelease: boolean
+  setDefaultPreRelease: (v: boolean | ((prev: boolean) => boolean)) => void
   defaultRibbonSide: "left" | "right"
   setDefaultRibbonSide: (v: "left" | "right" | ((prev: "left" | "right") => "left" | "right")) => void
   defaultRegion: string
@@ -182,7 +186,7 @@ export function PosterEditorProvider({
   const [customBadge, setCustomBadge] = useState<string | null>(null)
 
   const {
-    globalBadges, rankingBadges, networkLogo, ribbonSide,
+    globalBadges, rankingBadges, networkLogo, preRelease, ribbonSide,
     badgeGenre, badgeYear, badgeRating, badgeQuality, ratingSources,
     gradientHeight, blurIntensity, blurFade, blurDarkness, blurEnabled,
     badgeStyle, rankingBadgeStyle,
@@ -190,7 +194,7 @@ export function PosterEditorProvider({
     defaultBlurEnabled, defaultBlurIntensity, defaultBlurFade, defaultBlurDarkness,
     defaultGradientHeight, defaultGlobalBadges, defaultRankingBadges,
     defaultBadgeGenre, defaultBadgeYear, defaultBadgeRating, defaultBadgeQuality, defaultRatingSources,
-    defaultAutoRotateClean, defaultLogoFitEnabled, defaultNetworkLogo, defaultRibbonSide,
+    defaultAutoRotateClean, defaultLogoFitEnabled, defaultNetworkLogo, defaultPreRelease, defaultRibbonSide,
     episodeMetadataSource, defaultEpisodeMetadataSource,
     region, defaultRegion,
     loadDefaultsToState, update,
@@ -236,6 +240,11 @@ export function PosterEditorProvider({
       const next = typeof v === "function" ? v(networkLogo) : v
       update({ networkLogo: next, defaultNetworkLogo: next })
     }, [networkLogo, update])
+  const setPreRelease = useCallback(
+    (v: boolean | ((prev: boolean) => boolean)) => {
+      const next = typeof v === "function" ? v(preRelease) : v
+      update({ preRelease: next, defaultPreRelease: next })
+    }, [preRelease, update])
   const setRibbonSide = useCallback(
     (v: "left" | "right" | ((prev: "left" | "right") => "left" | "right")) => {
       const next = typeof v === "function" ? v(ribbonSide) : v
@@ -366,6 +375,11 @@ export function PosterEditorProvider({
       const next = typeof v === "function" ? v(defaultNetworkLogo) : v
       update({ defaultNetworkLogo: next, networkLogo: next })
     }, [defaultNetworkLogo, update])
+  const setDefaultPreRelease = useCallback(
+    (v: boolean | ((prev: boolean) => boolean)) => {
+      const next = typeof v === "function" ? v(defaultPreRelease) : v
+      update({ defaultPreRelease: next, preRelease: next })
+    }, [defaultPreRelease, update])
   const setDefaultRibbonSide = useCallback(
     (v: "left" | "right" | ((prev: "left" | "right") => "left" | "right")) => {
       const next = typeof v === "function" ? v(defaultRibbonSide) : v
@@ -417,6 +431,8 @@ export function PosterEditorProvider({
       setCustomBadge,
       networkLogo,
       setNetworkLogo,
+      preRelease,
+      setPreRelease,
       ribbonSide,
       setRibbonSide,
       episodeMetadataSource,
@@ -461,6 +477,8 @@ export function PosterEditorProvider({
       setDefaultLogoFitEnabled,
       defaultNetworkLogo,
       setDefaultNetworkLogo,
+      defaultPreRelease,
+      setDefaultPreRelease,
       defaultRibbonSide,
       setDefaultRibbonSide,
       defaultRegion,
@@ -528,6 +546,7 @@ export function PosterEditorProvider({
       rankingBadgeStyle, setRankingBadgeStyle,
       customBadge, setCustomBadge,
       networkLogo, setNetworkLogo,
+      preRelease, setPreRelease,
       ribbonSide, setRibbonSide,
       episodeMetadataSource, setEpisodeMetadataSource,
       region, setRegion,
@@ -552,6 +571,7 @@ export function PosterEditorProvider({
       defaultAutoRotateClean, setDefaultAutoRotateClean,
       defaultLogoFitEnabled, setDefaultLogoFitEnabled,
       defaultNetworkLogo, setDefaultNetworkLogo,
+      defaultPreRelease, setDefaultPreRelease,
       defaultRibbonSide, setDefaultRibbonSide,
       loadDefaultsToState,
 

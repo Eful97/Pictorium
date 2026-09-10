@@ -1,5 +1,5 @@
 // Script offline una tantum: verifica che i package JustWatch usati da
-// Posterium (PLATFORM_JW_PACKAGES in catalog-handler.ts) esistano davvero in
+// Pictorium (PLATFORM_JW_PACKAGES in catalog-handler.ts) esistano davvero in
 // ognuna delle 12 regioni supportate, includendo gli add-on/channel
 // (includeAddons: true — senza, HBO Max/Crunchyroll/AMC+ via Amazon Channel
 // risultano invisibili).

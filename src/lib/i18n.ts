@@ -42,7 +42,7 @@ export function isRankKey(val: string | null): string | null {
   if (val === "Oggi" || val === "Today" || val === "Aujourd'hui" || val === "Heute" || val === "Hoy" || val === "今日" || val === "오늘" || val === "Hoje" || val === "היום") return "badge.today"
   if (val === "Anime" || val === "アニメ" || val === "애니메이션" || val === "אנימה") return "badge.anime"
   if (val === "Film" || val === "Movie" || val === "Película" || val === "映画" || val === "영화" || val === "Filme" || val === "סרט") return "badge.movie"
-  if (val === "Serie tv" || val === "TV series" || val === "Série TV" || val === "Serie de TV" || val === "Serie" || val === "TVシリーズ" || val === "TV 시리즈" || val === "סדרה") return "badge.series"
+  if (val === "Serie tv" || val === "TV series" || val === "Series" || val === "Série TV" || val === "Série" || val === "Serie de TV" || val === "Serie" || val === "TVシリーズ" || val === "TV 시리즈" || val === "סדרה") return "badge.series"
   return null
 }
 

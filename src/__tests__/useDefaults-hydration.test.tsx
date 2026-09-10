@@ -39,6 +39,7 @@ const USER_SAVED = {
   autoRotateClean: false,
   defaultLogoFitEnabled: true,
   networkLogo: true,
+  preRelease: false,
   ribbonSide: "left",
   episodeMetadataSource: "tvdb",
   region: "IT",

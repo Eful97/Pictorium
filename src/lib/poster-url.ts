@@ -26,6 +26,8 @@ interface BadgeParams {
   blurDarkness: number
   blurEnabled: boolean
   networkLogo?: boolean
+  /** Effetto pre-digitale (darken + Coming Soon, solo film). Default OFF. */
+  preRelease?: boolean
   ribbonSide?: "left" | "right"
 }
 
@@ -85,6 +87,7 @@ export function buildUrlPattern(bp: BadgeParams & { tmdbKey: string; lang: strin
     blurDarkness: bp.blurDarkness,
     blurEnabled: bp.blurEnabled,
     networkLogo: bp.networkLogo,
+    preRelease: bp.preRelease,
     ribbonSide: bp.ribbonSide,
   })
   const str = params.toString()
@@ -113,6 +116,13 @@ export function buildPreviewUrl(ps: PosterState, bp: BadgeParams): string {
     // omette "• 2024" che compare invece sul poster finale.
     const year = ps.metaInfo.release_date?.slice(0, 4) || ps.metaInfo.first_air_date?.slice(0, 4) || ps.selected?.release_date?.slice(0, 4) || ps.selected?.first_air_date?.slice(0, 4)
     if (year) params.push(`year=${year}`)
+    // Date complete per il rilevamento pre-digitale: l'anno da solo diventa
+    // `${y}-01-01` sul server e cade fuori dalla finestra theatrical (desync
+    // preview/finale). Formato TMDB YYYY-MM-DD, solo se valido.
+    const fullRd = ps.metaInfo.release_date || ps.selected?.release_date
+    if (/^\d{4}-\d{2}-\d{2}$/.test(fullRd || "")) params.push(`rd=${fullRd}`)
+    const fullFad = ps.metaInfo.first_air_date || ps.selected?.first_air_date
+    if (/^\d{4}-\d{2}-\d{2}$/.test(fullFad || "")) params.push(`fad=${fullFad}`)
     const imdbId = ps.metaInfo.imdb_id || ps.selected.imdb_id
     if (imdbId) params.push(`imdbId=${encodeURIComponent(imdbId)}`)
   }
@@ -138,6 +148,7 @@ export function buildPreviewUrl(ps: PosterState, bp: BadgeParams): string {
   params.push(`rs=${bp.rankingBadgeStyle}`)
   if (!bp.blurEnabled) params.push("be=0")
   params.push(`netLogo=${bp.networkLogo !== false ? "1" : "0"}`)
+  if (bp.preRelease) params.push("pre=1")
   // Fix M2: side viene emesso SEMPRE (left|right) — prima soltanto "right";
   // senza il parametro il server risolve dal mapping/config salvati (di
   // default right in modalità Stremio) e la preview rendeva a destra anche
