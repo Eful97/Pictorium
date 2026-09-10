@@ -18,7 +18,10 @@ import { getTVEpisodeGroups, type TMDBEpisodeGroupDetails, type TMDBEpisodeGroup
  *    cambia gli episodi veri, non solo il raggruppamento → scartato.
  * 3. Riconoscibile come release originale: type 1 (Original Air Date TMDB)
  *    oppure nome/descrizione con "original" / "part*", mai varianti
- *    editoriali (edited, re-cut, director's, alternate, ...).
+ *    editoriali (edited, re-cut, director's, alternate, ...) e mai split in
+ *    volumi su serie multi-stagione (es. Stranger Things "Release Volumes":
+ *    solo S4/S5 si spezzano, S1-S3 restano 1:1 → la mappatura posizionale
+ *    produrrebbe stagioni rietichettate male, 8 invece di 5).
  * 4. "standard" salvato esplicitamente disattiva sempre l'automatico (vedi
  *    chiamanti); ogni errore di rete/parsing degrada a null.
  */
@@ -57,6 +60,12 @@ export function pickDefaultEpisodeGroupId(
     // le descrizioni spesso citano le versioni edited solo per distinguerle
     // (es. Original Parts: "does not include the edited episodes...").
     if (EXCLUDE_RE.test(g.name ?? "")) continue
+    // Split in volumi su standard multi-stagione: solo alcune stagioni si
+    // spezzano e le altre restano 1:1 (caso reale Stranger Things 66732,
+    // "Release Volumes" 8 gruppi/42ep su 5 stagioni) → scartato, resta lo
+    // standard. Su standard a stagione unica lo split resta benvenuto
+    // (produce stagioni nuove corrette, come Re:ZERO).
+    if (standardSeasonCount > 1 && /volum/i.test(g.name ?? "")) continue
     let score = 0
     if (g.type === 1) score += 3
     if (standardSeasonCount > 1) {

@@ -158,6 +158,33 @@ describe("pickDefaultEpisodeGroupId", () => {
     ).toBe("641eb9d6b234b9007ac67063")
   })
 
+  it("preserva le 5 stagioni standard scartando lo split in volumi (caso reale Stranger Things 66732)", () => {
+    const releaseVolumes = item({
+      id: "6927abf75b39bb2ce1248ec4",
+      name: "Release Volumes",
+      description: "This episode group is for the release volumes used by Stranger Things 4 and Stranger Things 5",
+      type: 1,
+      group_count: 8,
+      episode_count: 42,
+    })
+    // Standard: 5 stagioni (8+9+8+9+8 = 42ep). Il gruppo ha lo stesso totale
+    // ma spezza solo S4/S5: la mappatura posizionale darebbe 8 stagioni
+    // rietichettate male → scartato anche se type 1.
+    expect(pickDefaultEpisodeGroupId([releaseVolumes], 5, 42)).toBeNull()
+  })
+
+  it("accetta lo split in volumi su standard a stagione unica (produce stagioni nuove)", () => {
+    const volumes = item({
+      id: "gv",
+      name: "Release Volumes",
+      description: "",
+      type: 1,
+      group_count: 3,
+      episode_count: 24,
+    })
+    expect(pickDefaultEpisodeGroupId([volumes], 1, 24)).toBe("gv")
+  })
+
   it("preserva le 4 stagioni standard per Attack on Titan scartando gruppi Production/OVAs (caso reale 1429)", () => {
     const aotGroups = [
       item({ id: "g_ova", name: "All Episodes + OVAs", type: 2, group_count: 1, episode_count: 97 }),
