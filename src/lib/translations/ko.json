@@ -405,6 +405,7 @@
   "ui.proxyCopyLink": "프록시 링크 복사",
   "ui.proxyOpenStremio": "Stremio에서 열기",
   "ui.proxyHint": "애드온 URL을 입력하여 전용 프록시 링크를 생성하세요.",
+  "ui.proxyMappingNote": "저장된 포스터가 없는 타이틀은 서버 기본값을 사용합니다 — Pictorium에서 포스터를 저장하면 외관이 고정됩니다.",
   "ui.profileCreateOrAccess": "시작하려면 프로필을 만들거나 여세요",
   "ui.uuidGenerating": "UUID 생성 중...",
   "ui.copyUuid": "UUID 복사",

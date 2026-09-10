@@ -531,6 +531,7 @@
   "ui.proxyCopyLink": "Copy Proxy Link",
   "ui.proxyOpenStremio": "Open in Stremio",
   "ui.proxyHint": "Enter an add-on URL to generate your personalized proxy link.",
+  "ui.proxyMappingNote": "Titles without a saved poster use server defaults — save a poster in Pictorium to lock its look.",
   "ui.profileCreateOrAccess": "Create or access a profile to get started",
   "ui.uuidGenerating": "Generating UUID...",
   "ui.copyUuid": "Copy UUID",

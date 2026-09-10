@@ -531,6 +531,7 @@
   "ui.proxyCopyLink": "Copia Link Proxy",
   "ui.proxyOpenStremio": "Apri su Stremio",
   "ui.proxyHint": "Inserisci l'URL di un add-on per generare il tuo link proxy personalizzato.",
+  "ui.proxyMappingNote": "I titoli senza poster salvato usano i default server — salva un poster in Pictorium per fissarne l'aspetto.",
   "ui.profileCreateOrAccess": "Crea o accedi ad un profilo per iniziare",
   "ui.uuidGenerating": "Generazione UUID...",
   "ui.copyUuid": "Copia UUID",

@@ -405,6 +405,7 @@
   "ui.proxyCopyLink": "プロキシリンクをコピー",
   "ui.proxyOpenStremio": "Stremioで開く",
   "ui.proxyHint": "アドオンのURLを入力して専用プロキシリンクを生成。",
+  "ui.proxyMappingNote": "保存されたポスターがないタイトルはサーバーの既定値を使用します — Pictoriumでポスターを保存すると見た目が固定されます。",
   "ui.profileCreateOrAccess": "開始するにはプロフィールを作成またはアクセス",
   "ui.uuidGenerating": "UUIDを生成中...",
   "ui.copyUuid": "UUIDをコピー",

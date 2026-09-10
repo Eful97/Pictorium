@@ -531,6 +531,7 @@
   "ui.proxyCopyLink": "Copy Proxy Link",
   "ui.proxyOpenStremio": "Open in Stremio",
   "ui.proxyHint": "Enter an add-on URL to generate your personalized proxy link.",
+  "ui.proxyMappingNote": "כותרות ללא פוסטר שמור משתמשות בברירות המחדל של השרת — שמור פוסטר ב-Pictorium כדי לקבע את המראה.",
   "ui.profileCreateOrAccess": "Create or access a profile to get started",
   "ui.uuidGenerating": "Generating UUID...",
   "ui.copyUuid": "Copy UUID",

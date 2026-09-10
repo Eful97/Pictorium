@@ -106,6 +106,9 @@ export function ProxyModal({ isOpen, onClose }: Props) {
             <div className="p-3 rounded-xl bg-black/60 border border-accent-orange/20 break-all text-[11px] font-mono text-zinc-200">
               {proxyUrl}
             </div>
+            <p className="text-[11px] text-muted leading-relaxed">
+              {t("ui.proxyMappingNote")}
+            </p>
 
             <div className="grid grid-cols-2 gap-2 pt-2">
               <button
