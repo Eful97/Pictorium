@@ -140,6 +140,64 @@ describe("GET /api/poster/[type]/[id] with saved mappings", () => {
     expect(requestedUrls.some((url) => url.includes("/best-fit.jpg"))).toBe(false)
   })
 
+  it("retries Block B getDetails once on transient failure", async () => {
+    const savedPoster = await imageBuffer("#101010", 500, 750)
+
+    // ID e mapping version unici: la poster cache runtime non viene resettata
+    // tra i test e la chiave include id + mv — riusare il 42 contaminerebbe.
+    mockedGetById.mockResolvedValue({
+      tmdbId: 43,
+      mediaType: "movie",
+      title: "Saved Poster",
+      posterPath: "/saved-choice.jpg",
+      logoPath: null,
+      originalPosterPath: null,
+      language: null,
+      showBadges: false,
+      rankingBadges: false,
+      updatedAt: "2026-07-17T10:15:30.000Z",
+    })
+
+    let thrown = false
+    mockedGetDetails.mockImplementation(async (_mediaType: unknown, tmdbId: unknown) => {
+      // Solo la prima chiamata per QUESTO titolo fallisce (cold-start); il
+      // retry deve riuscire. Le chiamate per altri id (leakage async di altri
+      // test) riescono subito e non entrano nel conteggio.
+      if (tmdbId === 43 && !thrown) {
+        thrown = true
+        throw new Error("cold-start blip")
+      }
+      return {
+        id: 42,
+        title: "Saved Poster",
+        genres: [{ id: 18, name: "Drama" }],
+        vote_average: 7.5,
+        vote_count: 100,
+        original_language: "en",
+        release_date: "2024-01-15",
+        networks: [],
+        production_companies: [],
+      }
+    })
+
+    vi.spyOn(globalThis, "fetch").mockImplementation(async () =>
+      new Response(new Uint8Array(savedPoster), {
+        status: 200,
+        headers: { "content-type": "image/png", "content-length": String(savedPoster.length) },
+      })
+    )
+
+    // Isola il conteggio da eventuali task async di altri test: conta solo
+    // le chiamate avvenute durante QUESTA richiesta e per QUESTO titolo.
+    mockedGetDetails.mockClear()
+    const req = new NextRequest("http://localhost:3000/api/poster/movie/43?rv=81&mv=1784304930000")
+    const res = await GET(req, { params: Promise.resolve({ type: "movie", id: "43" }) })
+
+    expect(res.status).toBe(200)
+    const callsFor43 = mockedGetDetails.mock.calls.filter((c) => c[1] === 43)
+    expect(callsFor43).toHaveLength(2)
+  })
+
   it("calls selectBestLogoFitPosterPath when no mapping exists and a logo is available", async () => {
     const posterBuf = await imageBuffer("#101010", 500, 750)
     const logo = await imageBuffer("#ffffff", 220, 80)

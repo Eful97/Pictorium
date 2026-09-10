@@ -203,57 +203,60 @@ export function PosterEditorProvider({
   const setGlobalBadges = useCallback(
     (v: boolean | ((prev: boolean) => boolean)) => {
       const next = typeof v === "function" ? v(globalBadges) : v
-      update({ globalBadges: next, defaultGlobalBadges: next })
+      update({ globalBadges: next })
     }, [globalBadges, update])
   const setRankingBadges = useCallback(
     (v: boolean | ((prev: boolean) => boolean)) => {
       const next = typeof v === "function" ? v(rankingBadges) : v
-      update({ rankingBadges: next, defaultRankingBadges: next })
+      update({ rankingBadges: next })
     }, [rankingBadges, update])
   const setBadgeGenre = useCallback(
     (v: boolean | ((prev: boolean) => boolean)) => {
       const next = typeof v === "function" ? v(badgeGenre) : v
-      update({ badgeGenre: next, defaultBadgeGenre: next })
+      update({ badgeGenre: next })
     }, [badgeGenre, update])
   const setBadgeYear = useCallback(
     (v: boolean | ((prev: boolean) => boolean)) => {
       const next = typeof v === "function" ? v(badgeYear) : v
-      update({ badgeYear: next, defaultBadgeYear: next })
+      update({ badgeYear: next })
     }, [badgeYear, update])
   const setBadgeRating = useCallback(
     (v: boolean | ((prev: boolean) => boolean)) => {
       const next = typeof v === "function" ? v(badgeRating) : v
-      update({ badgeRating: next, defaultBadgeRating: next })
+      update({ badgeRating: next })
     }, [badgeRating, update])
   const setBadgeQuality = useCallback(
     (v: boolean | ((prev: boolean) => boolean)) => {
       const next = typeof v === "function" ? v(badgeQuality) : v
-      update({ badgeQuality: next, defaultBadgeQuality: next })
+      update({ badgeQuality: next })
     }, [badgeQuality, update])
   const setRatingSources = useCallback(
     (v: string[] | ((prev: string[]) => string[])) => {
       const next = typeof v === "function" ? v(ratingSources) : v
-      update({ ratingSources: next, defaultRatingSources: next })
+      update({ ratingSources: next })
     }, [ratingSources, update])
   const setNetworkLogo = useCallback(
     (v: boolean | ((prev: boolean) => boolean)) => {
       const next = typeof v === "function" ? v(networkLogo) : v
-      update({ networkLogo: next, defaultNetworkLogo: next })
+      update({ networkLogo: next })
     }, [networkLogo, update])
   const setPreRelease = useCallback(
     (v: boolean | ((prev: boolean) => boolean)) => {
       const next = typeof v === "function" ? v(preRelease) : v
-      update({ preRelease: next, defaultPreRelease: next })
+      update({ preRelease: next })
     }, [preRelease, update])
   const setRibbonSide = useCallback(
     (v: "left" | "right" | ((prev: "left" | "right") => "left" | "right")) => {
       const next = typeof v === "function" ? v(ribbonSide) : v
-      update({ ribbonSide: next, defaultRibbonSide: next })
+      update({ ribbonSide: next })
     }, [ribbonSide, update])
-  // Solo il valore corrente: il default cambia SOLO via setDefaultGradientHeight
-  // (Impostazioni). I flussi automatici (apertura/selezione poster, slider del
-  // poster corrente) non devono riscrivere il default salvato, altrimenti al
-  // rientro il default risulta "cambiato da solo".
+  // Regola di split corrente/default (vale per TUTTI i setter di questo file):
+  // i setter dell'editor (setX) scrivono solo il valore corrente del poster
+  // aperto, i setter delle Impostazioni (setDefaultX) solo il default globale.
+  // I flussi automatici (apertura/selezione poster, slider del poster corrente)
+  // non devono riscrivere il default salvato, altrimenti al rientro il default
+  // risulta "cambiato da solo"; e cambiare un default non deve riscrivere il
+  // poster aperto, altrimenti il salvataggio per-titolo non congela nulla.
   const setGradientHeight = useCallback(
     (v: number | ((prev: number) => number)) => {
       const next = typeof v === "function" ? v(gradientHeight) : v
@@ -262,108 +265,107 @@ export function PosterEditorProvider({
   const setBlurIntensity = useCallback(
     (v: number | ((prev: number) => number)) => {
       const next = typeof v === "function" ? v(blurIntensity) : v
-      update({ blurIntensity: next, defaultBlurIntensity: next })
+      update({ blurIntensity: next })
     }, [blurIntensity, update])
   const setBlurFade = useCallback(
     (v: number | ((prev: number) => number)) => {
       const next = typeof v === "function" ? v(blurFade) : v
-      update({ blurFade: next, defaultBlurFade: next })
+      update({ blurFade: next })
     }, [blurFade, update])
   const setBlurDarkness = useCallback(
     (v: number | ((prev: number) => number)) => {
       const next = typeof v === "function" ? v(blurDarkness) : v
-      update({ blurDarkness: next, defaultBlurDarkness: next })
+      update({ blurDarkness: next })
     }, [blurDarkness, update])
   const setBlurEnabled = useCallback(
     (v: boolean | ((prev: boolean) => boolean)) => {
       const next = typeof v === "function" ? v(blurEnabled) : v
-      update({ blurEnabled: next, defaultBlurEnabled: next })
+      update({ blurEnabled: next })
     }, [blurEnabled, update])
   const setBadgeStyle = useCallback(
     (v: BadgeStyle | ((prev: BadgeStyle) => BadgeStyle)) => {
       const next = typeof v === "function" ? v(badgeStyle) : v
-      update({ badgeStyle: next, defaultBadgeStyle: next })
+      update({ badgeStyle: next })
     }, [badgeStyle, update])
   const setRankingBadgeStyle = useCallback(
     (v: RankingBadgeStyle | ((prev: RankingBadgeStyle) => RankingBadgeStyle)) => {
       const next = typeof v === "function" ? v(rankingBadgeStyle) : v
-      update({ rankingBadgeStyle: next, defaultRankingBadgeStyle: next })
+      update({ rankingBadgeStyle: next })
     }, [rankingBadgeStyle, update])
   const setDefaultBadgeStyle = useCallback(
     (v: BadgeStyle | ((prev: BadgeStyle) => BadgeStyle)) => {
       const next = typeof v === "function" ? v(defaultBadgeStyle) : v
-      update({ defaultBadgeStyle: next, badgeStyle: next })
+      update({ defaultBadgeStyle: next })
     }, [defaultBadgeStyle, update])
   const setDefaultRankingBadgeStyle = useCallback(
     (v: RankingBadgeStyle | ((prev: RankingBadgeStyle) => RankingBadgeStyle)) => {
       const next = typeof v === "function" ? v(defaultRankingBadgeStyle) : v
-      update({ defaultRankingBadgeStyle: next, rankingBadgeStyle: next })
+      update({ defaultRankingBadgeStyle: next })
     }, [defaultRankingBadgeStyle, update])
   const setDefaultBlurEnabled = useCallback(
     (v: boolean | ((prev: boolean) => boolean)) => {
       const next = typeof v === "function" ? v(defaultBlurEnabled) : v
-      update({ defaultBlurEnabled: next, blurEnabled: next })
+      update({ defaultBlurEnabled: next })
     }, [defaultBlurEnabled, update])
   const setDefaultBlurIntensity = useCallback(
     (v: number | ((prev: number) => number)) => {
       const next = typeof v === "function" ? v(defaultBlurIntensity) : v
-      update({ defaultBlurIntensity: next, blurIntensity: next })
+      update({ defaultBlurIntensity: next })
     }, [defaultBlurIntensity, update])
   const setDefaultBlurFade = useCallback(
     (v: number | ((prev: number) => number)) => {
       const next = typeof v === "function" ? v(defaultBlurFade) : v
-      update({ defaultBlurFade: next, blurFade: next })
+      update({ defaultBlurFade: next })
     }, [defaultBlurFade, update])
   const setDefaultBlurDarkness = useCallback(
     (v: number | ((prev: number) => number)) => {
       const next = typeof v === "function" ? v(defaultBlurDarkness) : v
-      update({ defaultBlurDarkness: next, blurDarkness: next })
+      update({ defaultBlurDarkness: next })
     }, [defaultBlurDarkness, update])
   const setDefaultGradientHeight = useCallback(
     (v: number | ((prev: number) => number)) => {
       const next = typeof v === "function" ? v(defaultGradientHeight) : v
-      update({ defaultGradientHeight: next, gradientHeight: next })
+      update({ defaultGradientHeight: next })
     }, [defaultGradientHeight, update])
   const setDefaultGlobalBadges = useCallback(
     (v: boolean | ((prev: boolean) => boolean)) => {
       const next = typeof v === "function" ? v(defaultGlobalBadges) : v
-      update({ defaultGlobalBadges: next, globalBadges: next })
+      update({ defaultGlobalBadges: next })
     }, [defaultGlobalBadges, update])
   const setDefaultRankingBadges = useCallback(
     (v: boolean | ((prev: boolean) => boolean)) => {
       const next = typeof v === "function" ? v(defaultRankingBadges) : v
-      update({ defaultRankingBadges: next, rankingBadges: next })
+      update({ defaultRankingBadges: next })
     }, [defaultRankingBadges, update])
   const setDefaultBadgeGenre = useCallback(
     (v: boolean | ((prev: boolean) => boolean)) => {
       const next = typeof v === "function" ? v(defaultBadgeGenre) : v
-      update({ defaultBadgeGenre: next, badgeGenre: next })
+      update({ defaultBadgeGenre: next })
     }, [defaultBadgeGenre, update])
   const setDefaultBadgeYear = useCallback(
     (v: boolean | ((prev: boolean) => boolean)) => {
       const next = typeof v === "function" ? v(defaultBadgeYear) : v
-      update({ defaultBadgeYear: next, badgeYear: next })
+      update({ defaultBadgeYear: next })
     }, [defaultBadgeYear, update])
   const setDefaultBadgeRating = useCallback(
     (v: boolean | ((prev: boolean) => boolean)) => {
       const next = typeof v === "function" ? v(defaultBadgeRating) : v
-      update({ defaultBadgeRating: next, badgeRating: next })
+      update({ defaultBadgeRating: next })
     }, [defaultBadgeRating, update])
   const setDefaultBadgeQuality = useCallback(
     (v: boolean | ((prev: boolean) => boolean)) => {
       const next = typeof v === "function" ? v(defaultBadgeQuality) : v
-      update({ defaultBadgeQuality: next, badgeQuality: next })
+      update({ defaultBadgeQuality: next })
     }, [defaultBadgeQuality, update])
   const setDefaultRatingSources = useCallback(
     (v: string[] | ((prev: string[]) => string[])) => {
       const next = typeof v === "function" ? v(defaultRatingSources) : v
-      update({ defaultRatingSources: next, ratingSources: next })
+      update({ defaultRatingSources: next })
     }, [defaultRatingSources, update])
   const setDefaultAutoRotateClean = useCallback(
     (v: boolean | ((prev: boolean) => boolean)) => {
       const next = typeof v === "function" ? v(defaultAutoRotateClean) : v
       update({ defaultAutoRotateClean: next })
-      setAutoRotateClean(next)
     }, [defaultAutoRotateClean, update])
   const setDefaultLogoFitEnabled = useCallback(
     (v: boolean | ((prev: boolean) => boolean)) => {
@@ -373,37 +375,37 @@ export function PosterEditorProvider({
   const setDefaultNetworkLogo = useCallback(
     (v: boolean | ((prev: boolean) => boolean)) => {
       const next = typeof v === "function" ? v(defaultNetworkLogo) : v
-      update({ defaultNetworkLogo: next, networkLogo: next })
+      update({ defaultNetworkLogo: next })
     }, [defaultNetworkLogo, update])
   const setDefaultPreRelease = useCallback(
     (v: boolean | ((prev: boolean) => boolean)) => {
       const next = typeof v === "function" ? v(defaultPreRelease) : v
-      update({ defaultPreRelease: next, preRelease: next })
+      update({ defaultPreRelease: next })
     }, [defaultPreRelease, update])
   const setDefaultRibbonSide = useCallback(
     (v: "left" | "right" | ((prev: "left" | "right") => "left" | "right")) => {
       const next = typeof v === "function" ? v(defaultRibbonSide) : v
-      update({ defaultRibbonSide: next, ribbonSide: next })
+      update({ defaultRibbonSide: next })
     }, [defaultRibbonSide, update])
   const setEpisodeMetadataSource = useCallback(
     (v: "tmdb" | "tvdb" | ((prev: "tmdb" | "tvdb") => "tmdb" | "tvdb")) => {
       const next = typeof v === "function" ? v(episodeMetadataSource) : v
-      update({ episodeMetadataSource: next, defaultEpisodeMetadataSource: next })
+      update({ episodeMetadataSource: next })
     }, [episodeMetadataSource, update])
   const setDefaultEpisodeMetadataSource = useCallback(
     (v: "tmdb" | "tvdb" | ((prev: "tmdb" | "tvdb") => "tmdb" | "tvdb")) => {
       const next = typeof v === "function" ? v(defaultEpisodeMetadataSource) : v
-      update({ defaultEpisodeMetadataSource: next, episodeMetadataSource: next })
+      update({ defaultEpisodeMetadataSource: next })
     }, [defaultEpisodeMetadataSource, update])
   const setRegion = useCallback(
     (v: string | ((prev: string) => string)) => {
       const next = typeof v === "function" ? v(region) : v
-      update({ region: next, defaultRegion: next })
+      update({ region: next })
     }, [region, update])
   const setDefaultRegion = useCallback(
     (v: string | ((prev: string) => string)) => {
       const next = typeof v === "function" ? v(defaultRegion) : v
-      update({ defaultRegion: next, region: next })
+      update({ defaultRegion: next })
     }, [defaultRegion, update])
 
   const editorCtx = useMemo<PosterEditorCtx>(

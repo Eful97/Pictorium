@@ -52,9 +52,10 @@ export function BadgeControls() {
         <div className="flex items-center justify-between">
           <span className="font-semibold text-zinc-200 flex items-center gap-1.5">
             <Layers className="w-3.5 h-3.5 text-accent-orange" />
-            {t("ui.badgeSection")}
+            {t("ui.badgeSectionPoster")}
           </span>
         </div>
+        <p className="text-[10px] text-zinc-500 italic -mt-1">{t("ui.badgePosterHint")}</p>
 
         {/* Master Toggle Genere / Rating */}
         <div className="space-y-2">

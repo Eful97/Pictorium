@@ -851,7 +851,11 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
             const apiKey = resolveRequestApiKey(req)
             const preferredLang = req.nextUrl.searchParams.get("lang") || mapping?.language || "it"
             // F6: anche il refetch dei dettagli TV riusa la session cache.
+            // Un singolo retry sul fallimento transitorio (cold-start
+            // upstream): senza dettagli saltano studio/network badge e il
+            // render resta cachato così per tutto il TTL.
             const details = getTMDBSessionCache(mediaType, tmdbId)?.details
+              ?? (await getDetails(mediaType, tmdbId, preferredLang, apiKey, renderAbort.signal).catch(() => null))
               ?? (await getDetails(mediaType, tmdbId, preferredLang, apiKey, renderAbort.signal).catch(() => null))
             if (!details) return
             if (!releaseDate) releaseDate = details.release_date || null

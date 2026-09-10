@@ -61,6 +61,12 @@ pinned: false
   <img src="https://raw.githubusercontent.com/Eful97/Pictorium/master/public/Screen/66732.jpg" alt="Poster Demo — Stranger Things" width="32%" style="border-radius: 6px;" />
 </div>
 
+<div align="center" style="margin-top: 12px;">
+  <img src="https://raw.githubusercontent.com/Eful97/Pictorium/master/public/Screen/1368337.jpg" alt="Effetto Pre-Digitale — Coming Soon" width="32%" style="border-radius: 6px;" />
+  <br />
+  <em>Effetto Pre-Digitale: velo scuro + nastro "Coming Soon" sui film non ancora in streaming</em>
+</div>
+
 ---
 
 ## ⚡ Caratteristiche Principali

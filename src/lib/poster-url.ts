@@ -125,6 +125,11 @@ export function buildPreviewUrl(ps: PosterState, bp: BadgeParams): string {
     if (/^\d{4}-\d{2}-\d{2}$/.test(fullFad || "")) params.push(`fad=${fullFad}`)
     const imdbId = ps.metaInfo.imdb_id || ps.selected.imdb_id
     if (imdbId) params.push(`imdbId=${encodeURIComponent(imdbId)}`)
+    // Titolo per il match JustWatch (rilevamento pre-digitale + qualità):
+    // senza, il server ripiega su genreName ("Avventura") e il match per
+    // tmdbId fallisce sempre.
+    const title = ps.selected?.title || ps.selected?.name
+    if (title) params.push(`title=${encodeURIComponent(title)}`)
   }
   if (ps.selectedLogo && ps.previewPoster?.iso_639_1 === null) {
     params.push(`logo=${encodeURIComponent(ps.selectedLogo.file_path)}`)

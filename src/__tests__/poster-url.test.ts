@@ -139,6 +139,19 @@ describe("buildPreviewUrl", () => {
     expect(url).toContain("poster=%2Fposter.jpg")
   })
 
+  it("includes title for JustWatch matching", () => {
+    const url = buildPreviewUrl(basePosterState, baseBadgeParams)
+    expect(url).toContain("title=Test%20Movie")
+  })
+
+  it("falls back to name when title is missing", () => {
+    const url = buildPreviewUrl({
+      ...basePosterState,
+      selected: { id: 123, media_type: "movie" as const, name: "Serie X", poster_path: "/poster.jpg" },
+    }, baseBadgeParams)
+    expect(url).toContain("title=Serie%20X")
+  })
+
   it("includes genreName from metaInfo", () => {
     const url = buildPreviewUrl(basePosterState, baseBadgeParams)
     expect(url).toContain("genreName=Azione")

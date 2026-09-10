@@ -247,10 +247,14 @@ export function usePosterSave(deps: PosterSaveDeps) {
           accentColor: accentColor !== '#ffffff' ? accentColor : undefined,
           showBadges: globalBadges,
           rankingBadges,
-          badgeGenre: badgeGenre === false ? false : undefined,
-          badgeYear: badgeYear === false ? false : undefined,
-          badgeRating: badgeRating === false ? false : undefined,
-          badgeQuality: badgeQuality === false ? false : undefined,
+          // Snapshot esplicito per-titolo (freeze): valori pieni, mai
+          // `undefined`="segui i default". Così cambiare le Impostazioni dopo
+          // il save non muove più questo poster. I mapping vecchi con
+          // `undefined` continuano a seguire i default finché non risalvati.
+          badgeGenre,
+          badgeYear,
+          badgeRating,
+          badgeQuality,
           tvType: metaInfo.type || null,
           tvStatus: metaInfo.status || null,
           releaseDate: metaInfo.release_date || null,
@@ -260,8 +264,8 @@ export function usePosterSave(deps: PosterSaveDeps) {
           badgeLabel,
           animeRank: animeRankData?.rank ?? null,
           customBadge,
-          badgeStyle: badgeStyle !== defaultBadgeStyle ? badgeStyle : undefined,
-          rankingBadgeStyle: rankingBadgeStyle !== defaultRankingBadgeStyle ? rankingBadgeStyle : undefined,
+          badgeStyle,
+          rankingBadgeStyle,
           defaultBadgeStyle,
           defaultRankingBadgeStyle,
           blurEnabled,

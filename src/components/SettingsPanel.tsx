@@ -52,8 +52,6 @@ export function SettingsPanel({ setSettingsOpen, exportData, importData, mobile 
   const accentColor = usePSelector((v) => v.accentColor)
   const uiAccent = usePSelector((v) => v.uiAccent)
   const setUiAccent = usePSelector((v) => v.setUiAccent)
-  const selected = usePSelector((v) => v.selected)
-  const mappingsMap = usePSelector((v) => v.mappingsMap)
   const setShowLangPicker = usePSelector((v) => v.setShowLangPicker)
   const { t } = useT()
   const ed = usePosterEditor()
@@ -162,7 +160,7 @@ export function SettingsPanel({ setSettingsOpen, exportData, importData, mobile 
   }
 
   const handleSaveDefaults = () => {
-    void saveDefaults({ selected, mappingsMap }, ed).then((synced) => {
+    void saveDefaults(ed).then((synced) => {
       if (!synced) toast.warning(t("ui.defaultsSyncFailed"))
     })
     setSaved(true)
@@ -235,6 +233,7 @@ export function SettingsPanel({ setSettingsOpen, exportData, importData, mobile 
           <Layers className="w-3.5 h-3.5 text-accent-orange" />
           {t("ui.badgeSection")}
         </span>
+        <p className="text-[10px] text-zinc-500 italic -mt-1">{t("ui.badgeDefaultsHint")}</p>
 
         {/* Master Toggle Genere / Rating */}
         <div className="space-y-2">
@@ -247,7 +246,6 @@ export function SettingsPanel({ setSettingsOpen, exportData, importData, mobile 
               value={ed.defaultGlobalBadges}
               onChange={(v) => {
                 ed.setDefaultGlobalBadges(v)
-                ed.setGlobalBadges(v)
               }}
               label={t("ui.genreRatingBadge")}
             />
@@ -262,7 +260,6 @@ export function SettingsPanel({ setSettingsOpen, exportData, importData, mobile 
                   value={ed.defaultBadgeGenre}
                   onChange={(v) => {
                     ed.setDefaultBadgeGenre(v)
-                    ed.setBadgeGenre(v)
                   }}
                   label={t("ui.badgeGenre")}
                 />
@@ -273,7 +270,6 @@ export function SettingsPanel({ setSettingsOpen, exportData, importData, mobile 
                   value={ed.defaultBadgeYear}
                   onChange={(v) => {
                     ed.setDefaultBadgeYear(v)
-                    ed.setBadgeYear(v)
                   }}
                   label={t("ui.badgeYear")}
                 />
@@ -284,7 +280,6 @@ export function SettingsPanel({ setSettingsOpen, exportData, importData, mobile 
                   value={ed.defaultBadgeRating}
                   onChange={(v) => {
                     ed.setDefaultBadgeRating(v)
-                    ed.setBadgeRating(v)
                   }}
                   label={t("ui.badgeRating")}
                 />
@@ -327,7 +322,6 @@ export function SettingsPanel({ setSettingsOpen, exportData, importData, mobile 
                             onClick={() => {
                               const all = UI_RATING_SOURCES.map((s) => s.id)
                               ed.setDefaultRatingSources(all)
-                              ed.setRatingSources(all)
                             }}
                             className="text-accent-orange hover:underline font-semibold transition-colors cursor-pointer"
                           >
@@ -339,7 +333,6 @@ export function SettingsPanel({ setSettingsOpen, exportData, importData, mobile 
                             onClick={() => {
                               const def = ["imdb", "tmdb"]
                               ed.setDefaultRatingSources(def)
-                              ed.setRatingSources(def)
                             }}
                             className="text-muted hover:text-zinc-200 transition-colors cursor-pointer"
                           >
@@ -360,12 +353,10 @@ export function SettingsPanel({ setSettingsOpen, exportData, importData, mobile 
                                   if (current.length > 1) {
                                     const updated = current.filter((x) => x !== s.id)
                                     ed.setDefaultRatingSources(updated)
-                                    ed.setRatingSources(updated)
                                   }
                                 } else {
                                   const updated = [...current, s.id]
                                   ed.setDefaultRatingSources(updated)
-                                  ed.setRatingSources(updated)
                                 }
                               }}
                               className={`flex items-center justify-between px-2 py-1.5 rounded-lg text-[10.5px] transition-all duration-150 border cursor-pointer ${
@@ -408,7 +399,6 @@ export function SettingsPanel({ setSettingsOpen, exportData, importData, mobile 
               value={ed.defaultRankingBadges}
               onChange={(v) => {
                 ed.setDefaultRankingBadges(v)
-                ed.setRankingBadges(v)
               }}
               label={t("ui.trendBadge")}
             />
@@ -423,7 +413,6 @@ export function SettingsPanel({ setSettingsOpen, exportData, importData, mobile 
               value={ed.defaultBadgeQuality}
               onChange={(v) => {
                 ed.setDefaultBadgeQuality(v)
-                ed.setBadgeQuality(v)
               }}
               label={t("ui.badgeQuality")}
             />
@@ -438,7 +427,6 @@ export function SettingsPanel({ setSettingsOpen, exportData, importData, mobile 
               value={ed.defaultNetworkLogo}
               onChange={(v) => {
                 ed.setDefaultNetworkLogo(v)
-                ed.setNetworkLogo(v)
               }}
               label={t("ui.networkLogo")}
             />
@@ -453,7 +441,6 @@ export function SettingsPanel({ setSettingsOpen, exportData, importData, mobile 
               value={ed.defaultPreRelease}
               onChange={(v) => {
                 ed.setDefaultPreRelease(v)
-                ed.setPreRelease(v)
               }}
               label={t("ui.preRelease")}
             />
@@ -469,7 +456,6 @@ export function SettingsPanel({ setSettingsOpen, exportData, importData, mobile 
                 type="button"
                 onClick={() => {
                   ed.setDefaultRibbonSide("left")
-                  ed.setRibbonSide("left")
                 }}
                 className={`flex-1 py-1 rounded-lg text-[11px] font-semibold transition-all duration-150 cursor-pointer ${
                   ed.defaultRibbonSide === "left"
@@ -483,7 +469,6 @@ export function SettingsPanel({ setSettingsOpen, exportData, importData, mobile 
                 type="button"
                 onClick={() => {
                   ed.setDefaultRibbonSide("right")
-                  ed.setRibbonSide("right")
                 }}
                 className={`flex-1 py-1 rounded-lg text-[11px] font-semibold transition-all duration-150 cursor-pointer ${
                   ed.defaultRibbonSide === "right"
@@ -514,7 +499,6 @@ export function SettingsPanel({ setSettingsOpen, exportData, importData, mobile 
             options={["default", "colored", "pill"]}
             onChange={(v) => {
               ed.setDefaultRankingBadgeStyle(v)
-              ed.setRankingBadgeStyle(v)
             }}
             t={t}
             accentColor={accentColor}
@@ -530,7 +514,6 @@ export function SettingsPanel({ setSettingsOpen, exportData, importData, mobile 
             options={["shadow", "pill", "bar", "colored", "bordo", "vetro"]}
             onChange={(v) => {
               ed.setDefaultBadgeStyle(v)
-              ed.setBadgeStyle(v)
             }}
             t={t}
           />
@@ -548,7 +531,6 @@ export function SettingsPanel({ setSettingsOpen, exportData, importData, mobile 
             value={ed.defaultBlurEnabled}
             onChange={(v) => {
               ed.setDefaultBlurEnabled(v)
-              ed.setBlurEnabled(v)
             }}
             label={t("ui.blurDefault")}
           />
@@ -566,11 +548,9 @@ export function SettingsPanel({ setSettingsOpen, exportData, importData, mobile 
               boundsMax={100}
               onChange={(v) => {
                 ed.setDefaultGradientHeight(v)
-                ed.setGradientHeight(v)
               }}
               onDoubleClick={() => {
                 ed.setDefaultGradientHeight(30)
-                ed.setGradientHeight(30)
               }}
               editingValue={editVal}
               editText={editTxt}
@@ -589,11 +569,9 @@ export function SettingsPanel({ setSettingsOpen, exportData, importData, mobile 
               boundsMax={50}
               onChange={(v) => {
                 ed.setDefaultBlurIntensity(v)
-                ed.setBlurIntensity(v)
               }}
               onDoubleClick={() => {
                 ed.setDefaultBlurIntensity(5)
-                ed.setBlurIntensity(5)
               }}
               editingValue={editVal}
               editText={editTxt}
@@ -612,11 +590,9 @@ export function SettingsPanel({ setSettingsOpen, exportData, importData, mobile 
               boundsMax={100}
               onChange={(v) => {
                 ed.setDefaultBlurFade(v)
-                ed.setBlurFade(v)
               }}
               onDoubleClick={() => {
                 ed.setDefaultBlurFade(60)
-                ed.setBlurFade(60)
               }}
               editingValue={editVal}
               editText={editTxt}
@@ -635,11 +611,9 @@ export function SettingsPanel({ setSettingsOpen, exportData, importData, mobile 
               boundsMax={100}
               onChange={(v) => {
                 ed.setDefaultBlurDarkness(v)
-                ed.setBlurDarkness(v)
               }}
               onDoubleClick={() => {
                 ed.setDefaultBlurDarkness(40)
-                ed.setBlurDarkness(40)
               }}
               editingValue={editVal}
               editText={editTxt}
@@ -673,7 +647,6 @@ export function SettingsPanel({ setSettingsOpen, exportData, importData, mobile 
             value={ed.defaultRegion}
             onChange={(e) => {
               ed.setDefaultRegion(e.target.value)
-              ed.setRegion(e.target.value)
             }}
             aria-label={t("ui.region")}
             className="max-w-[190px] truncate px-2.5 py-1.5 rounded-lg text-[11px] font-semibold bg-white/5 text-zinc-100 border border-white/10 hover:bg-white/10 focus:outline-none focus:border-accent-orange/50 cursor-pointer"
@@ -701,7 +674,6 @@ export function SettingsPanel({ setSettingsOpen, exportData, importData, mobile 
               type="button"
               onClick={() => {
                 ed.setDefaultEpisodeMetadataSource("tmdb")
-                ed.setEpisodeMetadataSource("tmdb")
               }}
               className={`px-3 py-1 rounded-lg text-[11px] font-semibold transition-all duration-150 cursor-pointer ${
                 ed.episodeMetadataSource === "tmdb"
@@ -715,7 +687,6 @@ export function SettingsPanel({ setSettingsOpen, exportData, importData, mobile 
               type="button"
               onClick={() => {
                 ed.setDefaultEpisodeMetadataSource("tvdb")
-                ed.setEpisodeMetadataSource("tvdb")
               }}
               className={`px-3 py-1 rounded-lg text-[11px] font-semibold transition-all duration-150 cursor-pointer ${
                 ed.episodeMetadataSource === "tvdb"
@@ -745,7 +716,6 @@ export function SettingsPanel({ setSettingsOpen, exportData, importData, mobile 
             value={ed.defaultAutoRotateClean}
             onChange={(v) => {
               ed.setDefaultAutoRotateClean(v)
-              ed.setAutoRotateClean(v)
             }}
             label={t("ui.autoRotateDefault")}
           />

@@ -35,6 +35,30 @@ describe("buildStremioPosterUrl", () => {
     expect(url.searchParams.get("api_key")).toBe("tmdb-key")
   })
 
+  it("emits the mapping title for JustWatch matching", () => {
+    const url = buildStremioPosterUrl({
+      origin: "http://localhost:3000",
+      type: "movie",
+      id: 42,
+      defaults: {},
+      mapping: mapping("2026-07-16T10:15:30.000Z"),
+    })
+
+    expect(url.searchParams.get("title")).toBe("Test")
+  })
+
+  it("omits title without a saved mapping", () => {
+    const url = buildStremioPosterUrl({
+      origin: "http://localhost:3000",
+      type: "series",
+      id: 94997,
+      defaults: {},
+      mapping: null,
+    })
+
+    expect(url.searchParams.has("title")).toBe(false)
+  })
+
   it("omits mapping version for unsaved titles", () => {
     const url = buildStremioPosterUrl({
       origin: "http://localhost:3000",

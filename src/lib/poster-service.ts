@@ -9,6 +9,7 @@ import {
   fitBadgeToCanvas,
   fitCompositeToCanvas,
   isValidHex,
+  BadgeRender,
   PosterComposite,
 } from "./poster-render-helpers"
 import { renderGenreBadge, renderRankingBadge, renderExtraBadge, renderQualityBadge, renderComingSoonRibbon, comingSoonRibbonLayout } from "./svg-badge"
@@ -794,8 +795,9 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
       left: ribbonSide === "right" ? Math.round(STD_W - safeComingSoonResult.w + ribbonLayout.offset) : -ribbonLayout.offset,
     })
   }
-  // Network: sopra il logo film quando presente (come con lo stile netflix); in alto a sinistra solo senza logo film.
-  // Con badge stile netflix resta sopra il logo film (o a fianco del nastro se no logo).
+  // Network: in alto a sinistra di default; centrato sopra il logo film SOLO
+  // con nastro Netflix o Coming Soon. Senza logo film resta il layout storico
+  // (top-left, o a fianco del nastro).
   // netTopLeftBottom traccia il fondo del logo network quando occupa il top-left (per qualità Stremio sotto).
   let netTopLeftBottom: number | null = null
   if (networkRawResult) {
@@ -805,23 +807,20 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
       let top: number
       let left: number
       const isNetflixRibbon = rankingBadgeStyle === "netflix" && topBadge?.type === "rank"
+      const hasComingSoonCorner = showComingSoon && !!ribbonLayout && !!safeComingSoonResult
       const netPadX = Math.round(18 * STD_W / 380)
       const netPadY = Math.round(18 * STD_H / 570)
 
-      if (!isNetflixRibbon && !logoResult) {
-        // Senza logo film e senza nastro Netflix: in alto a sinistra;
-        // con il nastro Coming Soon impilato sotto di esso (stesso angolo).
-        top = (showComingSoon && ribbonLayout && ribbonSide !== "right") ? ribbonLayout.extent + gap : netPadY
-        left = netPadX
-        // Il badge centrale resta invariato: se si sovrappone al network,
-        // rimpicciolisce il network (fino a 0.55x).
+      // Il badge centrale resta invariato: se si sovrappone al network,
+      // rimpicciolisce il network (fino a 0.55x).
+      const shrinkToAvoidRank = async <T extends BadgeRender>(box: T, top: number, left: number): Promise<T> => {
         if (finalRankBadge && finalRankLeft !== null && rankingBadgeStyle !== "bar") {
           const rankL = finalRankLeft
           const rankR = finalRankLeft + finalRankBadge.w
           const rankB = finalRankBadge.h
-          let curW = fittedRaw.w
-          let curH = fittedRaw.h
-          let curPng = fittedRaw.png
+          let curW = box.w
+          let curH = box.h
+          let curPng = box.png
           const overlapsRank = () =>
             left < rankR + 6 && left + curW > rankL - 6 && top < rankB + 4 && top + curH > netPadY - 4
           if (overlapsRank()) {
@@ -830,22 +829,38 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
             while (scale > minScale && overlapsRank()) {
               scale -= 0.07
               if (scale < minScale) scale = minScale
-              const newW = Math.max(1, Math.round(fittedRaw.w * scale))
-              const newH = Math.max(1, Math.round(fittedRaw.h * scale))
+              const newW = Math.max(1, Math.round(box.w * scale))
+              const newH = Math.max(1, Math.round(box.h * scale))
               if (newW === curW && newH === curH) break
               curW = newW
               curH = newH
-              curPng = await sharp(fittedRaw.png).resize(newW, newH).toBuffer()
+              curPng = await sharp(box.png).resize(newW, newH).toBuffer()
               if (scale <= minScale) break
             }
-            fittedRaw = { ...fittedRaw, png: curPng, w: curW, h: curH }
+            return { ...box, png: curPng, w: curW, h: curH }
           }
         }
-        netTopLeftBottom = top + fittedRaw.h
-      } else if (logoResult) {
-        // Con logo film presente (stile Netflix o no): posizionato subito sopra il logo film
+        return box
+      }
+
+      if (logoResult && (isNetflixRibbon || hasComingSoonCorner)) {
+        // Con logo film + nastro Netflix o Coming Soon: subito sopra il logo film
         top = Math.max(0, logoResult.top - fittedRaw.h - gap)
         left = Math.round((STD_W - fittedRaw.w) / 2)
+      } else if (!isNetflixRibbon && !logoResult) {
+        // Senza logo film e senza nastro Netflix: in alto a sinistra;
+        // con il nastro Coming Soon impilato sotto di esso (stesso angolo).
+        top = (showComingSoon && ribbonLayout && ribbonSide !== "right") ? ribbonLayout.extent + gap : netPadY
+        left = netPadX
+        fittedRaw = await shrinkToAvoidRank(fittedRaw, top, left)
+        netTopLeftBottom = top + fittedRaw.h
+      } else if (logoResult) {
+        // Con logo film ma SENZA nastro Netflix né Coming Soon: in alto a
+        // sinistra (resta a sinistra anche con side="right").
+        top = netPadY
+        left = netPadX
+        fittedRaw = await shrinkToAvoidRank(fittedRaw, top, left)
+        netTopLeftBottom = top + fittedRaw.h
       } else {
         // Con nastro Netflix senza logo film: top-left o a fianco del nastro
         top = netPadY

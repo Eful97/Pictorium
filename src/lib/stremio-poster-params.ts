@@ -27,6 +27,9 @@ export interface StremioPosterParamsInput {
   readonly ribbonSide?: "left" | "right"
   /** Badge extra testuale per-titolo (dal mapping): emesso come `extra`. */
   readonly customBadge?: string | null
+  /** Titolo per-titolo (dal mapping): match JustWatch per rilevamento
+   *  pre-digitale e qualità. Senza, il server ripiega su valori generici. */
+  readonly title?: string | null
   readonly config?: string | null
   readonly user?: string | null
   readonly region?: string | null
@@ -70,6 +73,7 @@ export function buildStremioPosterSearchParams(input: StremioPosterParamsInput):
   if (input.badgeQuality === false) params.set("bq", "0")
   if (input.ratingSources && input.ratingSources.length > 0) params.set("rsrc", input.ratingSources.join(","))
   if (input.customBadge) params.set("extra", input.customBadge)
+  if (input.title) params.set("title", input.title)
   if (!networkLogo) params.set("netLogo", "0")
   if (input.preRelease) params.set("pre", "1")
   if (input.ribbonSide === "right") params.set("side", "right")
