@@ -61,8 +61,7 @@ import { resolveImdbToTmdb } from "@/lib/imdb-resolver"
 import { decodeConfig } from "@/lib/config-token"
 import { createLogger } from "@/lib/logger"
 import { resolvePosterRenderConfig } from "@/lib/poster-config"
-import { selectLogoTier, pickReadableLogo, logoBestLogoFallbackReason } from "@/lib/logo-selection"
-import { logoContrast, logoInkLuminance, posterLogoZoneLuminance } from "@/lib/logo-contrast"
+import { selectBestLogo, logoBestLogoFallbackReason } from "@/lib/logo-selection"
 import { resolveStreamQuality } from "@/lib/stream-quality"
 
 // Vercel: limite massimo di esecuzione della funzione. Il render poster ha un
@@ -71,14 +70,6 @@ import { resolveStreamQuality } from "@/lib/stream-quality"
 export const maxDuration = 40
 
 const log = createLogger("poster")
-
-/**
- * Fascia di poster su cui il logo cade, per misurarne il contrasto PRIMA di
- * scegliere. È un'approssimazione del rettangolo di `computeLogoLayout` a scala
- * di default: qui serve a ordinare candidati, non a posizionare nulla, e il
- * riquadro esatto lo ricalcola comunque il render.
- */
-const LOGO_ZONE = { left: 0, top: Math.round(STD_H * 0.52), width: STD_W, height: Math.round(STD_H * 0.26) } as const
 
 // Deadline complessivo del render (F2): limite sull'intera pipeline
 // (fetch immagini + TMDB + composizione sharp). Oltre il tempo massimo il
@@ -504,30 +495,10 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
         if (exact) logoPath = exact.file_path
       }
       if (!logoPath) {
-        // La lingua sceglie il gruppo; dentro al gruppo decide la leggibilità.
-        // L'ordine di TMDB dentro una lingua è arbitrario, quindi qui non si
-        // sta scavalcando nessuna preferenza: si sta solo smettendo di prendere
-        // il primo a caso quando uno degli altri si legge meglio.
-        const tier = selectLogoTier(allLogos, preferredLanguage, details.original_language)
-        const cleanPoster = images.posters.find((p: TMDBImage) => p.iso_639_1 === null)
-        const chosenLogo = tier.length > 1 && cleanPoster
-          ? await pickReadableLogo(tier, async (candidate) => {
-              try {
-                const [logoBuf, posterCandidate] = await Promise.all([
-                  fetchImg(imgSrc(candidate.file_path), renderAbort.signal),
-                  fetchImg(imgSrc(cleanPoster.file_path), renderAbort.signal),
-                ])
-                const [ink, zone] = await Promise.all([
-                  logoInkLuminance(logoBuf),
-                  posterLogoZoneLuminance(posterCandidate, LOGO_ZONE),
-                ])
-                if (ink === null || zone === null) return null
-                return logoContrast(ink, zone)
-              } catch {
-                return null
-              }
-            }).catch(() => tier[0])
-          : tier[0]
+        // Default = primo logo del gruppo lingua, lo stesso che mostra il
+        // client (`selectBestLogo` in context.tsx): nessun re-ranking per
+        // leggibilità, così Stremio rende lo stesso logo della preview.
+        const chosenLogo = selectBestLogo(allLogos, preferredLanguage, details.original_language)
         const reason = logoBestLogoFallbackReason(chosenLogo, preferredLanguage, details.original_language)
         if (reason === "origLang") log.info("Logo fallback to original_language", { lang: details.original_language, mediaType, tmdbId })
         else if (reason === "any") log.info("Logo fallback to any (first available)", { mediaType, tmdbId })
@@ -642,7 +613,6 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
       }
     }
 
-    const qBadgesEarly = req.nextUrl.searchParams.get("badges")
     const qRankingEarly = req.nextUrl.searchParams.get("ranking")
     const qBqEarly = req.nextUrl.searchParams.get("bq")
     const qQualityParam = req.nextUrl.searchParams.get("quality")
@@ -653,7 +623,6 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
     // trend. Con un config token la personalizzazione è esplicita → i flag off
     // devono valere.
     const hasQueryEarly = !!queryPoster || !!mapping || !!configToken
-    const badgesEnabledEarly = hasQueryEarly ? (qBadgesEarly !== null ? qBadgesEarly !== "0" : showBadges) : true
     const rankingEnabledEarly = hasQueryEarly ? (qRankingEarly !== null ? qRankingEarly !== "0" : rankingBadges) : true
     const badgeQualityEarly = qBqEarly !== null ? qBqEarly !== "0" : (mapping?.badgeQuality ?? configOverride?.badgeQuality ?? sd.badgeQuality ?? true)
     // Flag pre-digitale per il fetch condizionato: query `pre` > config token
@@ -722,7 +691,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
                   })
                   .catch(() => mapping?.animeRank ?? null))
           : Promise.resolve(null),
-        (badgesEnabledEarly && badgeQualityEarly)
+        (badgeQualityEarly)
           ? (qQualityParam
               ? Promise.resolve(qQualityParam)
               : (() => {

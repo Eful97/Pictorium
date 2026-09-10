@@ -239,8 +239,8 @@ function netflixSubLabel(isAnime: boolean | undefined, label: string | undefined
 }
 
 export function buildNetflixRankBadgeSVG(rank: number, pw: number, topLight: boolean, side: "left" | "right" = "left", isAnime?: boolean, label?: string) {
-  // Più grande ed evidente (+20%): fs base 27 (prima 23), w proporzionale 2.65
-  const fs = Math.round(Math.max(27 * pw / 380, 16))
+  // Leggermente ridotto (-11%): fs base 24, w proporzionale 2.65
+  const fs = Math.round(Math.max(24 * pw / 380, 16))
   const w = Math.round(fs * 2.65)
   // Sottotitolo presente (anime o film/serie con etichetta): nastro allungato
   // verso il basso (h × 1.65) per dare pieno respiro alla scritta sopra la V.

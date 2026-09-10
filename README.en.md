@@ -93,6 +93,7 @@ pinned: false
 * **Vertical Netflix Top 10 Ribbon**: The iconic red side ribbon with live rank position (dedicated support for Anime).
 * **Film Awards & Accolades**: Automatic recognition of Oscars, Cannes, BAFTA, Emmy, and the *"Absolute Cinema"* badge for IMDb Top 250 titles.
 * **Always-in-Sync Charts**: Top 10/20 badges track live charts; if a title leaves the ranking, its badge updates automatically.
+* **✨ Pre-Digital Effect (Coming Soon)**: For movies out in theaters but not yet streaming (detected via JustWatch with fallback to the TMDB digital date): darkened poster with a red "Coming Soon" corner ribbon. Movies only, default OFF; enable per-title, via `?pre=1`, config token or environment variable.
 
 ### 📺 Seasons, Episodes & Anime
 * **✨ Automatic Parts Detection**: Automatically maps standard seasons to original Parts for series like *Money Heist / La Casa de Papel* (5 parts) and *Lupin* (4 parts).
@@ -267,6 +268,7 @@ npm install --ignore-scripts && npm run build && npm start
 | `PICTORIUM_BLUR_ENABLED` | `1` / `0` | Enable or disable the blurred background. |
 | `PICTORIUM_BADGE_QUALITY` | `1` / `0` | Show or hide the streaming quality badge (4K/1080p). |
 | `PICTORIUM_NETWORK_LOGO` | `1` / `0` | Show or hide the network logo (Netflix, Prime, ecc.). |
+| `PICTORIUM_PRE_RELEASE` | `1` / `0` | Dark veil + "Coming Soon" ribbon on movies not yet available digitally (default OFF). |
 | `PICTORIUM_GRADIENT_HEIGHT` | `5` – `100` | Percentage height of the bottom black gradient. |
 
 ### Concurrency & Memory Protection

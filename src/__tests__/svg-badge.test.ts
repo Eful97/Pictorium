@@ -261,7 +261,7 @@ describe("buildRankingBadgeSVG", () => {
     expect(svg).toContain(">4</text>")
     expect(svg).toContain(">Oggi</text>")
     // Nastro esteso (h × 1.65): il testo ha bisogno di spazio
-    const fs = Math.round(Math.max(27 * 1000 / 380, 16))
+    const fs = Math.round(Math.max(24 * 1000 / 380, 16))
     const w = Math.round(fs * 2.65)
     const extendedH = Math.round(w * 1.65) + Math.round(fs * 0.4)
     expect(h).toBe(extendedH)
@@ -270,7 +270,7 @@ describe("buildRankingBadgeSVG", () => {
   it("stays compact without label and not anime", () => {
     const { svg, h } = buildNetflixRankBadgeSVG(4, 1000, false)
     expect(svg).not.toContain(">anime</text>")
-    const fs = Math.round(Math.max(27 * 1000 / 380, 16))
+    const fs = Math.round(Math.max(24 * 1000 / 380, 16))
     const w = Math.round(fs * 2.65)
     expect(h).toBe(Math.round(w * 1.35) + Math.round(fs * 0.4))
   })

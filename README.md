@@ -93,6 +93,7 @@ pinned: false
 * **Nastro Verticale Netflix Top 10**: Il caratteristico nastro rosso laterale con posizione live (supporto dedicato anche per Anime).
 * **Premi Cinematografici**: Riconoscimento automatico Oscar, Cannes, BAFTA, Emmy e badge *"Absolute Cinema"* per i titoli della IMDb Top 250.
 * **Classifiche Sempre Sincronizzate**: Il badge Top 10/20 segue la classifica live; se un titolo esce dalla chart, il badge si aggiorna da solo.
+* **✨ Effetto Pre-Digitale (Coming Soon)**: Per i film usciti al cinema ma non ancora in streaming (rilevati via JustWatch con fallback alla data digitale TMDB): velo scuro sul poster e nastro rosso "Coming Soon". Solo film, default OFF, attivabile per-titolo, via `?pre=1`, config-token o variabile d'ambiente.
 
 ### 📺 Stagioni, Episodi & Anime
 * **✨ Rilevamento Automatico Parti**: Passa in automatico da stagioni standard a Parti originali per serie come *La Casa di Carta* (5 parti) e *Lupin* (4 parti).
@@ -267,6 +268,7 @@ npm install --ignore-scripts && npm run build && npm start
 | `PICTORIUM_BLUR_ENABLED` | `1` / `0` | Attiva o disattiva lo sfondo sfocato. |
 | `PICTORIUM_BADGE_QUALITY` | `1` / `0` | Mostra/nasconde il badge qualità streaming (4K/1080p). |
 | `PICTORIUM_NETWORK_LOGO` | `1` / `0` | Mostra/nasconde il logo del network (Netflix, Prime, ecc.). |
+| `PICTORIUM_PRE_RELEASE` | `1` / `0` | Velo scuro + nastro "Coming Soon" sui film non ancora disponibili in digitale (default OFF). |
 | `PICTORIUM_GRADIENT_HEIGHT` | `5` – `100` | Altezza percentuale del gradiente nero inferiore. |
 
 ### Concorrenza & Protezione Memoria

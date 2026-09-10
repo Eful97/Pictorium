@@ -27,10 +27,10 @@ export function selectBestLogo(
 /**
  * Il livello di lingua vincente, come LISTA anziché come singolo logo.
  *
- * La lingua decide da sola quale gruppo si usa — è la regola che vogliamo,
- * altrimenti un logo nella lingua giusta perderebbe contro uno inglese solo
- * perché contrasta meglio. Ma dentro un gruppo l'ordine di TMDB è arbitrario,
- * e lì la leggibilità può decidere: da qui `pickReadableLogo`.
+ * La lingua decide da sola quale gruppo si usa, e dentro al gruppo vale
+ * l'ordine di TMDB: il default è sempre il primo logo del gruppo, senza
+ * re-ranking (la scelta per leggibilità è stata rimossa di proposito, così
+ * client e server rendono lo stesso logo).
  *
  * Ritorna una lista vuota quando non c'è nessun logo.
  */
@@ -48,29 +48,6 @@ export function selectLogoTier(
   const origTier = origLang && origLang !== lang ? tier(origLang) : []
   if (origTier.length > 0) return origTier
   return logos
-}
-
-/**
- * Sceglie, DENTRO un livello di lingua già deciso, il logo che si legge meglio
- * sul poster. `score` ritorna il contrasto misurato; un candidato che non si
- * riesce a misurare non vince per caso, perché il primo resta il riferimento.
- */
-export async function pickReadableLogo(
-  tier: TMDBImage[],
-  score: (logo: TMDBImage) => Promise<number | null>,
-): Promise<TMDBImage | undefined> {
-  if (tier.length === 0) return undefined
-  if (tier.length === 1) return tier[0]
-  let best = tier[0]
-  let bestScore = (await score(tier[0])) ?? -Infinity
-  for (const candidate of tier.slice(1)) {
-    const s = await score(candidate)
-    if (s !== null && s > bestScore) {
-      best = candidate
-      bestScore = s
-    }
-  }
-  return best
 }
 
 /**

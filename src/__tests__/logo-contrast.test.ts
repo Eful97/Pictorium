@@ -9,7 +9,7 @@ import {
   logoScrimStrength,
   posterLogoZoneLuminance,
 } from "@/lib/logo-contrast"
-import { selectLogoTier, pickReadableLogo } from "@/lib/logo-selection"
+import { selectLogoTier } from "@/lib/logo-selection"
 import type { TMDBImage } from "@/lib/types"
 
 /** Logo: barra piena del colore dato su un canvas per il resto trasparente. */
@@ -129,25 +129,5 @@ describe("selectLogoTier", () => {
 
   it("is empty when there are no logos", () => {
     expect(selectLogoTier([], "he", "en")).toEqual([])
-  })
-})
-
-describe("pickReadableLogo", () => {
-  it("prefers the highest-contrast candidate in the tier", async () => {
-    const tier = [L("he", "/dim"), L("he", "/bright")]
-    const got = await pickReadableLogo(tier, async (l) => (l.file_path === "/bright" ? 9 : 1.2))
-    expect(got?.file_path).toBe("/bright")
-  })
-
-  it("keeps the first when nothing can be measured", async () => {
-    const tier = [L("he", "/a"), L("he", "/b")]
-    expect((await pickReadableLogo(tier, async () => null))?.file_path).toBe("/a")
-  })
-
-  it("does not measure a single candidate at all", async () => {
-    let calls = 0
-    const got = await pickReadableLogo([L("he", "/only")], async () => { calls++; return 1 })
-    expect(got?.file_path).toBe("/only")
-    expect(calls).toBe(0)
   })
 })
