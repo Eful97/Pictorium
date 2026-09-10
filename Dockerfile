@@ -23,6 +23,11 @@ RUN npm run build
 
 FROM node:22-bookworm AS runner
 WORKDIR /app
+LABEL org.opencontainers.image.title="Pictorium"
+LABEL org.opencontainers.image.description="Dynamic cinematic poster generator for Stremio and media centers"
+LABEL org.opencontainers.image.source="https://github.com/Eful97/Pictorium"
+LABEL org.opencontainers.image.authors="Eful97"
+LABEL org.opencontainers.image.licenses="AGPL-3.0-only"
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV PORT=8080
@@ -38,6 +43,8 @@ ENV POSTERIUM_DATA_DIR=/data
 
 # In node:22-bookworm l'utente 'node' ha già uid 1000 / gid 1000,
 # che coincide esattamente con l'owner dello storage HF Spaces (persistenza distribuita).
+# Testo completo AGPL-3.0 a bordo immagine (anche senza .git nel context).
+COPY --from=source /src/LICENSE ./LICENSE
 COPY --from=deps /app/node_modules ./node_modules
 COPY --from=builder /app/public ./public
 COPY --from=builder --chown=node:node /app/.next/standalone ./

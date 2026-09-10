@@ -313,6 +313,7 @@ npm run verify
 ## 📄 Licenza & Crediti
 
 * Rilasciato sotto licenza open-source **GNU Affero General Public License v3.0 (AGPL-3.0)**.
+* Integratori terzi (solo endpoint poster): vedi [`docs/INTEGRAZIONE.md`](docs/INTEGRAZIONE.md) per contratto stabile, chiavi API, comportamento fail-safe e regole di attribuzione.
 * Ispirato al progetto [erdb](https://github.com/realbestia1/erdb) di realbestia1.
 * Dati e metadati forniti da [TMDb](https://www.themoviedb.org/), [TheTVDB](https://thetvdb.com/) e [JustWatch](https://www.justwatch.com/).
 * Loghi network e studi cinematografici per gentile concessione di [Wikimedia Commons](https://commons.wikimedia.org/).

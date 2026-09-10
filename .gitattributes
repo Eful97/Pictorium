@@ -1,0 +1,7 @@
+# Eseguibili e definizioni build sempre LF: un checkout Windows con CRLF
+# rompe lo shebang (exec /entrypoint.sh: no such file or directory) e la
+# build Docker. Regola necessaria per self-host esterni su Windows.
+entrypoint.sh text eol=lf
+*.sh text eol=lf
+Dockerfile text eol=lf
+docker-compose.yml text eol=lf
