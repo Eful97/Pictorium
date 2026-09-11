@@ -1,7 +1,7 @@
 import crypto from "node:crypto"
 import { NextRequest } from "next/server"
 import { rateLimit, rateLimitKey, rateLimitResponse } from "@/lib/rate-limit"
-import { cacheGet, cacheSet } from "@/lib/cache"
+import { cacheGet, cacheGetShared, cacheSet } from "@/lib/cache"
 import { getTop10 } from "@/lib/flixpatrol"
 import { getServerDefaults } from "@/lib/server-defaults"
 import { POSTER_URL_VERSION } from "@/lib/render-version"
@@ -279,17 +279,33 @@ function genreNamesFromIds(genreIds: number[] | undefined, genreNames: Map<numbe
 }
 
 async function catalogLogo(mediaType: "movie" | "tv", tmdbId: number, apiKey?: string, tmdbLang = "it-IT"): Promise<string | undefined> {
+  // A5: memo 24h (hit) / 1h (miss). Il logo in catalogo è richiesto per ogni
+  // item a ogni catalogo freddo (fino a 3N upstream con details+externalIds):
+  // i path TMDB sono immutabili, quindi l'hit vale 24h; il miss solo 1h così
+  // un logo aggiunto su TMDB viene scoperto entro l'ora. Wrapper oggetto
+  // perché cacheGet segnala il miss con null (un null cachato sarebbe
+  // indistinguibile). La chiave esclude l'api_key (non influisce sul payload).
+  // Solo gli esiti certi vanno in memo: su eccezione (timeout/rate-limit) non
+  // si cacha, così un errore transient non oscura il logo per un'ora.
+  const primary = tmdbLang.slice(0, 2).toLowerCase()
+  const memoKey = `catalog:logo:${mediaType}:${tmdbId}:${primary}`
+  const memo = cacheGet<{ logo: string | null }>(memoKey)
+  if (memo) return memo.logo ?? undefined
   try {
     // D4: tetto 1500ms (prima 2500). Il logo in catalogo è guarnizione: su
     // cold catalog 20 loghi × coda/concorrenza 5 valgono secondi di route
     // (maxDuration 60). Oltre il tetto → undefined, il poster resta completo.
     const signal = typeof AbortSignal !== "undefined" && "timeout" in AbortSignal ? AbortSignal.timeout(1500) : undefined
-    const primary = tmdbLang.slice(0, 2).toLowerCase()
     const images = await getImages(mediaType, tmdbId, `${primary},en,null`, apiKey, signal)
     if (images?.logos && images.logos.length > 0) {
       const itLogo = images.logos.find((l) => l.iso_639_1 === primary) || images.logos[0]
-      if (itLogo?.file_path) return posterUrlOriginal(itLogo.file_path)
+      if (itLogo?.file_path) {
+        const logoUrl = posterUrlOriginal(itLogo.file_path)
+        cacheSet(memoKey, { logo: logoUrl }, ["catalog", "tmdb"], 24 * 60 * 60 * 1000)
+        return logoUrl
+      }
     }
+    cacheSet(memoKey, { logo: null }, ["catalog", "tmdb"], 60 * 60 * 1000)
   } catch {
     // logo opzionale — ignora errori (rate limit, 404, timeout)
   }
@@ -508,7 +524,8 @@ export async function pictoriumCatalog(
   const skipFragment = typeof extra.skip === "number" && extra.skip > 0 ? `:s${extra.skip}` : ""
   const genreFragment = extra.genre && extra.genre !== "Tutti" ? `:g${hashFragment(extra.genre)}` : ""
   const cacheKey = `stremio:catalog:v2:${stType}:${catalogId}:pv${POSTER_URL_VERSION}${userParam ? `:u${hashFragment(userParam)}` : ""}:ak${apiKey ? hashFragment(apiKey) : "none"}${configParam ? `:cfg${hashFragment(configParam)}` : ""}${mdblistKey ? `:mk${hashFragment(mdblistKey)}` : ""}${genreFragment}${skipFragment}${regionFragment}${freshness}`
-  const cached = cacheGet<{ metas: StremioMeta[] }>(cacheKey)
+  // C1: L1 + L2 condivisa (KV su multi-istanza, no-op locale/VPS).
+  const cached = await cacheGetShared<{ metas: StremioMeta[] }>(cacheKey, ["stremio", "catalog"])
   if (cached) return catalogResponse(cached)
 
   let isCustomGenreFiltered = false

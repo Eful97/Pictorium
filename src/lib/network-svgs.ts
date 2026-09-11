@@ -34,6 +34,7 @@ const TMDB_LOGO_SIZE = "w300"
 /** Svuota la cache dei logo pre-renderizzati (per /api/cache/clear e test). */
 export function __resetNetworkLogoCache(): void {
   networkLogoCache.clear()
+  tmdbDownloadCache.clear()
 }
 
 // Map networkKey → filename in public/networks/
@@ -438,6 +439,37 @@ async function isTmdbBlockLogo(buf: Buffer, _logoPath: string): Promise<boolean>
   }
 }
 
+/** B1: memo download+validazione loghi TMDB (path CDN immutabili).
+ *  I pass pill e raw scaricavano lo stesso logo e ripetevano lo scan pixel
+ *  di isTmdbBlockLogo: un solo fetch + un solo scan per logoPath. TTL 10min,
+ *  cap 100 entry (i render finali restano cachati in networkLogoCache 24h).
+ *  Il signal resta per-chiamata: un abort non avvelena la memo (solo i
+ *  success vengono cachati). */
+const tmdbDownloadCache = new Map<string, { buf: Buffer | null; ts: number }>()
+const TMDB_DOWNLOAD_TTL = 10 * 60 * 1000
+const TMDB_DOWNLOAD_MAX = 100
+async function fetchValidatedTmdbLogoBuffer(logoPath: string, signal?: AbortSignal): Promise<Buffer | null> {
+  const memo = tmdbDownloadCache.get(logoPath)
+  if (memo && Date.now() - memo.ts < TMDB_DOWNLOAD_TTL) return memo.buf
+  try {
+    const url = `${TMDB_IMG_BASE}/${TMDB_LOGO_SIZE}${logoPath}`
+    const { fetchImg } = await import("./poster-render-helpers")
+    const buf = await fetchImg(url, signal)
+    if (await isTmdbBlockLogo(buf, logoPath)) {
+      log.warn(`Skipping TMDB network logo with opaque/block background — add SVG for it`, { logoPath })
+      if (tmdbDownloadCache.size >= TMDB_DOWNLOAD_MAX) tmdbDownloadCache.delete(tmdbDownloadCache.keys().next().value!)
+      tmdbDownloadCache.set(logoPath, { buf: null, ts: Date.now() })
+      return null
+    }
+    if (tmdbDownloadCache.size >= TMDB_DOWNLOAD_MAX) tmdbDownloadCache.delete(tmdbDownloadCache.keys().next().value!)
+    tmdbDownloadCache.set(logoPath, { buf, ts: Date.now() })
+    return buf
+  } catch (e) {
+    log.error(`Failed to load TMDB PNG ${logoPath}`, { error: e instanceof Error ? e.message : String(e) })
+    return null
+  }
+}
+
 async function loadTmdbNetworkPng(logoPath: string, pw: number, topLight: boolean = false, signal?: AbortSignal): Promise<{ png: Buffer; w: number; h: number } | null> {
   if (!logoPath) return null
   const cacheKey = `tmdb:${logoPath}:${pw}:${topLight ? 1 : 0}`
@@ -445,13 +477,10 @@ async function loadTmdbNetworkPng(logoPath: string, pw: number, topLight: boolea
   if (cached) return cached
   try {
     const sharp = (await import("sharp")).default
-    const url = `${TMDB_IMG_BASE}/${TMDB_LOGO_SIZE}${logoPath}`
-    const { fetchImg } = await import("./poster-render-helpers")
-    const buf = await fetchImg(url, signal)
-    if (await isTmdbBlockLogo(buf, logoPath)) {
-      log.warn(`Skipping TMDB network logo with opaque/block background — add SVG for it`, { logoPath })
-      return null
-    }
+    // B1: download+validazione condivisi col path raw (memo) — prima pill e
+    // raw riscaricavano lo stesso logo e ripetevano lo scan pixel intero.
+    const buf = await fetchValidatedTmdbLogoBuffer(logoPath, signal)
+    if (!buf) return null
     const meta = await sharp(buf).metadata()
     const w0 = meta.width || 100
     const h0 = meta.height || 50
@@ -496,13 +525,8 @@ async function loadTmdbNetworkRawPng(logoPath: string, pw: number, topLight: boo
   if (cached) return cached
   try {
     const sharp = (await import("sharp")).default
-    const url = `${TMDB_IMG_BASE}/${TMDB_LOGO_SIZE}${logoPath}`
-    const { fetchImg } = await import("./poster-render-helpers")
-    const buf = await fetchImg(url, signal)
-    if (await isTmdbBlockLogo(buf, logoPath)) {
-      log.warn(`Skipping TMDB network logo with opaque/block background — add SVG for it`, { logoPath })
-      return null
-    }
+    const buf = await fetchValidatedTmdbLogoBuffer(logoPath, signal)
+    if (!buf) return null
     const meta = await sharp(buf).metadata()
     const w0 = meta.width || 100
     const h0 = meta.height || 50

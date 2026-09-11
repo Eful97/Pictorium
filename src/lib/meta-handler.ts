@@ -1,7 +1,7 @@
 import crypto from "node:crypto"
 import { NextRequest } from "next/server"
 import { rateLimit, rateLimitKey, rateLimitResponse } from "@/lib/rate-limit"
-import { cacheGet, cacheSet } from "@/lib/cache"
+import { cacheGetShared, cacheSet } from "@/lib/cache"
 import { getServerDefaults } from "@/lib/server-defaults"
 import { POSTER_URL_VERSION } from "@/lib/render-version"
 import { getById } from "@/lib/store"
@@ -237,7 +237,7 @@ export async function pictoriumMeta(
   const sdHash = hashFragment(JSON.stringify(getServerDefaults()))
   const freshness = `:e${epoch}:sd${sdHash}`
   const cacheKey = `stremio:meta:${stType}:${cleanId}:pv${POSTER_URL_VERSION}${userParam ? `:u${hashFragment(userParam)}` : ""}:ak${apiKey ? hashFragment(apiKey) : "none"}${configParam ? `:cfg${hashFragment(configParam)}` : ""}${mdblistKey ? `:mk${hashFragment(mdblistKey)}` : ""}${tvdbApiKey ? `:tk${hashFragment(tvdbApiKey)}` : ""}:es${episodeMetadataSource}:eg${hashFragment(egKey)}:r${region.code}${stType === "series" ? ":eo2" : ""}${freshness}`
-  const cached = cacheGet<{ meta: StremioMetaDetail }>(cacheKey)
+  const cached = await cacheGetShared<{ meta: StremioMetaDetail }>(cacheKey, ["stremio", "meta"])
   if (cached) return metaResponse(cached)
 
   try {

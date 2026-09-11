@@ -66,7 +66,7 @@ export function isNetworkStudio(studioName: string | null): boolean {
  * Badge "Nuova stagione": serie TV con ultima messa in onda recente (<14gg)
  * ma prima messa in onda vecchia (altrimenti è "Nuova serie", non nuova stagione).
  * Con seasonCount > 1 usa `badge.newSeasonN`, che include il numero (es.
- * "Nuova stagione S2"). Il numero sta DENTRO la stringa tradotta e non
+ * "Nuova S2"). Il numero sta DENTRO la stringa tradotta e non
  * concatenato dopo: in ebraico un " S2" attaccato a un testo RTL produce una
  * stringa a direzione mista, mentre così ogni lingua decide dove metterlo.
  * Formula condivisa con BadgeControls (mai forkare): entrambi importano da qui.

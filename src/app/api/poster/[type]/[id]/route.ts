@@ -33,6 +33,8 @@ import {
   posterHeaders,
   posterNotModifiedHeaders,
   posterResponse,
+  convertPosterFormat,
+  variantEtagFor,
   readCachedPoster,
   readPosterError,
   recordZombieRenderStart,
@@ -64,6 +66,7 @@ import { createLogger } from "@/lib/logger"
 import { resolvePosterRenderConfig } from "@/lib/poster-config"
 import { selectBestLogo, logoBestLogoFallbackReason } from "@/lib/logo-selection"
 import { resolveStreamQuality } from "@/lib/stream-quality"
+import { combineAbortSignals } from "@/lib/abort-signal"
 
 // Vercel: limite massimo di esecuzione della funzione. Il render poster ha un
 // deadline interno di 30s (PICTORIUM_RENDER_TIMEOUT_MS) → 40s copre il caso
@@ -208,9 +211,13 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
   const mapVersion = mapping?.updatedAt ? `:mu${mapping.updatedAt}` : ""
   const configHash = configOverride ? hashKey(JSON.stringify(configOverride)) : ""
   const outputFormat = resolveImageFormat(req.headers.get("accept"), req.nextUrl.searchParams.get("fmt") || req.nextUrl.searchParams.get("format"))
-  const formatKey = outputFormat !== "jpeg" ? `:fmt${outputFormat}` : ""
+  // C3: render canonico jpeg (il webp è variante di risposta convertita
+  // on-the-fly); solo ?fmt=avif esplicito mantiene chiave+render dedicati.
+  const legacyAvif = outputFormat === "avif"
+  const formatKey = legacyAvif ? ":fmtavif" : ""
   const cacheKey = `poster:v${RENDER_VERSION}:${mediaType}:${tmdbId}:reg${posterRegion.code}:r${cachedRank ?? "x"}:sd${sdHash}:${cacheParams.toString()}${rotateKey}${mapVersion}${configHash ? `:cfg${configHash}` : ""}${formatKey}`
-  const etagBase = hashKey(`v${RENDER_VERSION}:${mediaType}:${tmdbId}:reg${posterRegion.code}:r${cachedRank ?? "x"}:sd${sdHash}:${cacheParams.toString()}${configHash ? `:${configHash}` : ""}:${outputFormat}`)
+  const variantKey = outputFormat === "webp" ? `${cacheKey}:fmtwebp` : cacheKey
+  const etagBase = hashKey(`v${RENDER_VERSION}:${mediaType}:${tmdbId}:reg${posterRegion.code}:r${cachedRank ?? "x"}:sd${sdHash}:${cacheParams.toString()}${configHash ? `:${configHash}` : ""}`)
   const currentMappingVersion = mappingVersionParam(mapping)
   const immutablePoster = isImmutablePosterRequest(req.nextUrl.searchParams, {
     hasMapping: !!mapping,
@@ -223,22 +230,56 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
   // invece delle 24h del path mappato, così rank/IMDb Top 250 non restano
   // stantii per un giorno intero. Il flag non cambia per tutta la richiesta.
   const dynamicPoster = !mapping
+  const mappingTag = mapping ? `poster:${mediaType}:${tmdbId}` : undefined
+
+  // C3: risposta webp da payload canonico jpeg (cache variante o conversione).
+  const serveWebpVariant = async (canonical: PosterCachePayload): Promise<Response> => {
+    const variantHit = readCachedPoster(variantKey)
+    if (variantHit.payload) {
+      return posterResponse(variantHit.payload, immutablePoster, isPreview, dynamicPoster, outputFormat)
+    }
+    const converted = await convertPosterFormat(canonical.buffer)
+    const variant: PosterCachePayload = { buffer: converted, etag: variantEtagFor(canonical.etag) }
+    writeCachedPoster(variantKey, variant, mappingTag)
+    return posterResponse(variant, immutablePoster, isPreview, dynamicPoster, outputFormat)
+  }
 
   // 3. Memory cache check
+  // C3: la variante webp ha fast-path dedicato; il canonico jpeg resta il
+  // fallback (conversione) quando la variante è assente/evicted.
+  if (outputFormat === "webp" && !refreshRequest) {
+    const variantHit = readCachedPoster(variantKey)
+    if (variantHit.payload) {
+      recordPosterRequest(true, outputFormat)
+      if (!isPreview && req.headers.get("If-None-Match") === variantHit.payload.etag) {
+        log.debug("Poster cache: 304 (variant)", { mediaType, tmdbId, ms: Date.now() - startTime })
+        return new Response(null, { status: 304, headers: posterNotModifiedHeaders(variantHit.payload.etag, immutablePoster, dynamicPoster) })
+      }
+      if (!variantHit.stale) {
+        log.debug("Poster cache: fresh variant hit", { mediaType, tmdbId, ms: Date.now() - startTime })
+        return posterResponse(variantHit.payload, immutablePoster, isPreview, dynamicPoster, outputFormat)
+      }
+      schedulePosterRefresh(req, isPreview)
+      log.debug("Poster cache: stale variant hit (refresh scheduled)", { mediaType, tmdbId, ms: Date.now() - startTime })
+      return posterResponse(variantHit.payload, immutablePoster, isPreview, dynamicPoster, outputFormat)
+    }
+  }
   const cachedPoster = readCachedPoster(cacheKey)
   if (cachedPoster.payload) {
     recordPosterRequest(true, outputFormat)
-    if (!isPreview && req.headers.get("If-None-Match") === cachedPoster.payload.etag) {
+    if (!isPreview && outputFormat !== "webp" && req.headers.get("If-None-Match") === cachedPoster.payload.etag) {
       log.debug("Poster cache: 304", { mediaType, tmdbId, ms: Date.now() - startTime })
       return new Response(null, { status: 304, headers: posterNotModifiedHeaders(cachedPoster.payload.etag, immutablePoster, dynamicPoster) })
     }
     if (!cachedPoster.stale) {
       log.debug("Poster cache: fresh hit", { mediaType, tmdbId, ms: Date.now() - startTime })
+      if (outputFormat === "webp") return serveWebpVariant(cachedPoster.payload)
       return posterResponse(cachedPoster.payload, immutablePoster, isPreview, dynamicPoster, outputFormat)
     }
     if (!refreshRequest) {
       schedulePosterRefresh(req, isPreview)
       log.debug("Poster cache: stale hit (refresh scheduled)", { mediaType, tmdbId, ms: Date.now() - startTime })
+      if (outputFormat === "webp") return serveWebpVariant(cachedPoster.payload)
       return posterResponse(cachedPoster.payload, immutablePoster, isPreview, dynamicPoster, outputFormat)
     }
   }
@@ -260,6 +301,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
       recordPosterRequest(true, outputFormat)
       // Finding 5: il waiter della preview deve ricevere gli header no-store
       // anche quando si coalesce con un render in flight (era hardcoded false).
+      // C3: il payload condiviso è canonico jpeg — il waiter webp converte.
+      if (outputFormat === "webp" && !legacyAvif) return serveWebpVariant(payload)
       return posterResponse(payload, immutablePoster, isPreview, dynamicPoster, outputFormat)
     }
     // Coalesce scaduto: o il render è fallito (negative cache) o è ancora in
@@ -554,7 +597,10 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
             const bestFit = await selectBestLogoFitPosterPath({
               posters: images.posters, logoPath,
               fetchImage: async (path: string) => {
-                const res = await fetch(imgSrc(path), { signal: AbortSignal.timeout(5000) })
+                // B5: combina col watchdog — prima AbortSignal.timeout(5000)
+                // ignorava renderAbort: dopo la deadline i fetch continuavano
+                // come zombie (slot già liberato, lavoro buttato).
+                const res = await fetch(imgSrc(path), { signal: combineAbortSignals(renderAbort.signal, 5000) })
                 if (!res.ok) throw new Error(`HTTP ${res.status}`)
                 return Buffer.from(await res.arrayBuffer())
               },
@@ -563,7 +609,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
                   throw new Error("Blocked external URL in fetchCandidateImage")
                 }
                 const url = path.startsWith("http") ? path : `https://image.tmdb.org/t/p/w342${path}`
-                const res = await fetch(url, { signal: AbortSignal.timeout(5000) })
+                const res = await fetch(url, { signal: combineAbortSignals(renderAbort.signal, 5000) })
                 if (!res.ok) throw new Error(`HTTP ${res.status}`)
                 return Buffer.from(await res.arrayBuffer())
               },
@@ -1114,7 +1160,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
       posterSrc: posterPath,
       logoSrc: logoPath,
       backdropSrc: backdropPath,
-      format: outputFormat,
+      // C3: render sempre canonico jpeg (tranne ?fmt=avif legacy esplicito).
+      format: legacyAvif ? outputFormat : "jpeg",
     }
     if (renderAbort.signal.aborted) {
       throw new Error("Render deadline exceeded before poster compositing")
@@ -1128,11 +1175,12 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
 
     // 11. Cache + response
     const payload = { buffer: composited, etag }
-    const mappingTag = mapping ? `poster:${mediaType}:${tmdbId}` : undefined
     writeCachedPoster(cacheKey, payload, mappingTag)
     completePosterRender(payload)
     recordPosterRequest(false, outputFormat)
     log.info("Poster rendered", { mediaType, tmdbId, ms: Date.now() - startTime, bytes: composited.byteLength, cached: !!mappingTag, format: outputFormat })
+    // C3: il webp è variante di risposta (convertita + cachata), non un render.
+    if (outputFormat === "webp") return serveWebpVariant(payload)
     return new Response(new Uint8Array(composited), { headers: posterHeaders(etag, immutablePoster, isPreview, dynamicPoster, outputFormat) })
   } catch (e) {
     completePosterRender(null)

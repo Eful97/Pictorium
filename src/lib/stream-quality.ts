@@ -5,7 +5,7 @@ import { envWithFallback } from "./env-compat"
 
 const log = createLogger("stream-quality")
 
-export type StreamQuality = "4K" | "1080p" | "720p" | "SD"
+export type StreamQuality = "4K" | "FHD" | "HD" | "SD"
 
 const TORRENTIO_BASE_URL = (envWithFallback("TORRENTIO_URL") || process.env.TORRENTIO_URL || "https://torrentio.strem.fun").replace(/\/+$/, "")
 const STREAM_CACHE_TTL = 30 * 60 * 1000 // 30 minutes
@@ -35,8 +35,8 @@ export function parseStreamQualityFromStreams(
     }
   }
 
-  if (has1080p) return "1080p"
-  if (has720p) return "720p"
+  if (has1080p) return "FHD"
+  if (has720p) return "HD"
   if (hasSD) return "SD"
   return null
 }
@@ -105,7 +105,9 @@ export async function resolveStreamQuality(
   let targetImdbId = imdbId
   if (!targetImdbId && tmdbId) {
     try {
-      const ext = await getExternalIds(type === "movie" ? "movie" : "tv", tmdbId)
+      // A3: signal + tetto 8s (come POSTER_TMDB_TIMEOUT_MS) — prima senza
+      // entrambi: un TMDB appeso teneva lo slot di render fino a 30s.
+      const ext = await getExternalIds(type === "movie" ? "movie" : "tv", tmdbId, undefined, signal, 8000)
       if (ext.imdb_id) targetImdbId = ext.imdb_id
     } catch {}
   }

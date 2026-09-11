@@ -1,7 +1,6 @@
 import sharp from "sharp"
 import { cacheGet, cacheSet } from "./cache"
 import { GENRE_FALLBACK, cinematicVignetteSVG } from "./badges"
-import { FONT_FILES } from "./fonts"
 import { applyBlur } from "./blur"
 import {
   STD_W, STD_H,
@@ -12,7 +11,7 @@ import {
   BadgeRender,
   PosterComposite,
 } from "./poster-render-helpers"
-import { renderGenreBadge, renderRankingBadge, renderExtraBadge, renderQualityBadge, renderComingSoonRibbon, comingSoonRibbonLayout } from "./svg-badge"
+import { renderGenreBadge, renderRankingBadge, renderExtraBadge, renderQualityBadge, renderComingSoonRibbon, comingSoonRibbonLayout, renderSVG } from "./svg-badge"
 import { buildLogoScrim, logoContrast, logoInkLuminance, logoScrimStrength, posterLogoZoneLuminance } from "./logo-contrast"
 import { renderFirstMatchingNetworkLogoBadge, renderFirstMatchingNetworkRawBadge, renderFirstMatchingNetworkLogoBadgeHybrid, renderFirstMatchingNetworkRawBadgeHybrid, type NetworkCandidate } from "./network-svgs"
 import { computeLogoLayout } from "./logo-layout"
@@ -33,6 +32,18 @@ import type { PosterImageFormat } from "@/lib/poster-runtime-cache"
 // ---------------------------------------------------------------------------
 
 const BADGE_CACHE_TTL = 24 * 60 * 60 * 1000
+
+// B2: scala % di un bitmap già renderizzato (un solo resize sharp).
+// Condiviso dai 4 badge scalabili (rank/genere/qualità/network): stessa
+// matematica dei blocchi inline sostituiti (round + max 1px, no-op se le
+// dimensioni non cambiano). Lo spread preserva i campi extra (isRank, …).
+async function scaleBitmapForLayout<T extends { png: Buffer; w: number; h: number }>(r: T, pct: number): Promise<T> {
+  const w = Math.max(1, Math.round(r.w * pct / 100))
+  const h = Math.max(1, Math.round(r.h * pct / 100))
+  if (w === r.w && h === r.h) return r
+  const png = await sharp(r.png).resize(w, h).toBuffer()
+  return { ...r, png, w, h }
+}
 
 // TTL cache image-level (colori badge, resize logo/backdrop): le immagini TMDB
 // sono immutabili per path → 24h come la badge cache. Le entry si auto-espellono
@@ -270,7 +281,22 @@ const NETWORK_FILES_COMBINED: Record<string, string> = {
   dc: "DC_Studios_logo.svg",
 }
 
+// B4: memo per (networkKey, targetH, fg). Gli SVG in public/networks/ sono
+// immutabili → memo permanente (cap 200). Prima ogni cold render ripeteva
+// existsSync + readFile + metadata + resize + composite per lo stesso logo.
+const pillLogoMemo = new Map<string, Promise<{ png: Buffer; w: number; h: number } | null>>()
+const PILL_LOGO_MEMO_MAX = 200
 async function loadNetworkLogoForPill(networkKey: string, targetH: number, fg: string): Promise<{ png: Buffer; w: number; h: number } | null> {
+  const memoKey = `${networkKey}:${targetH}:${fg}`
+  const memo = pillLogoMemo.get(memoKey)
+  if (memo) return memo
+  const p = loadNetworkLogoForPillUncached(networkKey, targetH, fg)
+  if (pillLogoMemo.size >= PILL_LOGO_MEMO_MAX) pillLogoMemo.delete(pillLogoMemo.keys().next().value!)
+  pillLogoMemo.set(memoKey, p)
+  return p
+}
+
+async function loadNetworkLogoForPillUncached(networkKey: string, targetH: number, fg: string): Promise<{ png: Buffer; w: number; h: number } | null> {
   const filename = NETWORK_FILES_COMBINED[networkKey]
   if (!filename) return null
   const filePath = path.join(NETWORKS_DIR_COMBINED, filename)
@@ -323,10 +349,8 @@ export async function renderCombinedRankNetworkPill(rank: number, label: string,
   const logoY = pt + fs + gap + netLogo.h / 2
   const logoX = Math.round((pillW - netLogo.w) / 2)
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${pillW}" height="${pillH}"><rect width="${pillW}" height="${pillH}" rx="${r}" fill="${bg}" stroke="${topLight ? "rgba(0,0,0,0.15)" : "rgba(255,255,255,0.20)"}" stroke-width="1"/><text x="${pillW / 2}" y="${textY}" text-anchor="middle" dominant-baseline="central" font-family="${fontFamilyFor(text)}" font-weight="700" font-size="${fs}" fill="${fg}">${text.replace(/&/g, "&amp;").replace(/</g, "&lt;")}</text><image href="data:image/png;base64,${netLogo.png.toString("base64")}" x="${logoX}" y="${Math.round(logoY - netLogo.h / 2)}" width="${netLogo.w}" height="${netLogo.h}"/></svg>`
-  // Render via resvg (stesso path degli altri badge)
-  const { Resvg } = await import("@resvg/resvg-js")
-  const resvg = new Resvg(svg, { fitTo: { mode: "width", value: pillW }, font: { fontFiles: [...FONT_FILES], loadSystemFonts: false } })
-  const png = Buffer.from(resvg.render().asPng())
+  // Render via resvg (stesso path degli altri badge — renderSVG hoisted)
+  const png = await renderSVG(svg, pillW)
   return { png, w: pillW, h: pillH }
 }
 
@@ -343,9 +367,7 @@ export async function renderNetworkOnlyLargePill(networkKey: string, pw: number,
   if (!netLogo) return null
   const pillW = netLogo.w + px * 2
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${pillW}" height="${pillH}"><rect width="${pillW}" height="${pillH}" rx="${r}" fill="${bg}" stroke="${topLight ? "rgba(0,0,0,0.15)" : "rgba(255,255,255,0.20)"}" stroke-width="1"/><image href="data:image/png;base64,${netLogo.png.toString("base64")}" x="${px}" y="${Math.round((pillH - netLogo.h) / 2)}" width="${netLogo.w}" height="${netLogo.h}"/></svg>`
-  const { Resvg } = await import("@resvg/resvg-js")
-  const resvg = new Resvg(svg, { fitTo: { mode: "width", value: pillW }, font: { fontFiles: [...FONT_FILES], loadSystemFonts: false } })
-  const png = Buffer.from(resvg.render().asPng())
+  const png = await renderSVG(svg, pillW)
   return { png, w: pillW, h: pillH }
 }
 
@@ -368,10 +390,8 @@ export async function renderCombinedExtraNetworkPill(label: string, networkKey: 
   const logoX = Math.round((pillW - netLogo.w) / 2)
   const logoY = pt + fs + gap + netLogo.h / 2
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${pillW}" height="${pillH}"><rect width="${pillW}" height="${pillH}" rx="${r}" fill="${bg}" stroke="${topLight ? "rgba(0,0,0,0.15)" : "rgba(255,255,255,0.20)"}" stroke-width="1"/><text x="${pillW / 2}" y="${textY}" text-anchor="middle" dominant-baseline="central" font-family="${fontFamilyFor(label)}" font-weight="700" font-size="${fs}" fill="${fg}">${label.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")}</text><image href="data:image/png;base64,${netLogo.png.toString("base64")}" x="${logoX}" y="${Math.round(logoY - netLogo.h / 2)}" width="${netLogo.w}" height="${netLogo.h}"/></svg>`
-  const { Resvg: Resvg2 } = await import("@resvg/resvg-js")
-  const resvg2 = new Resvg2(svg, { fitTo: { mode: "width", value: pillW }, font: { fontFiles: [...FONT_FILES], loadSystemFonts: false } })
-  const png2 = Buffer.from(resvg2.render().asPng())
-  return { png: png2, w: pillW, h: pillH }
+  const png = await renderSVG(svg, pillW)
+  return { png, w: pillW, h: pillH }
 }
 
 // ---------------------------------------------------------------------------
@@ -680,11 +700,23 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
   // Unifica: se abbiamo detailed, usiamo hybrid; altrimenti legacy string path
   const networkCandidatesHybrid: (NetworkCandidate | string)[] = hasDetailed ? detailedCandidates : stringCandidates
 
-  const networkLogoResult = netLogoEnabled
-    ? hasDetailed
-      ? await renderFirstMatchingNetworkLogoBadgeHybrid(networkCandidatesHybrid as NetworkCandidate[], STD_W, topLight)
-      : await renderFirstMatchingNetworkLogoBadge(stringCandidates, STD_W, topLight)
-    : null
+  // B1: pass pill + raw in parallelo (prima sequenziali). Semantica
+  // preservata: il raw resta usato solo se la pill matcha (stesso match,
+  // resa diversa: pill stilizzata vs colori originali). Il doppio
+  // download/scan TMDB è eliminato dalla memo in network-svgs.
+  const [pillLogoResult, rawLogoResult] = netLogoEnabled
+    ? await Promise.all([
+        hasDetailed
+          ? renderFirstMatchingNetworkLogoBadgeHybrid(networkCandidatesHybrid as NetworkCandidate[], STD_W, topLight)
+          : renderFirstMatchingNetworkLogoBadge(stringCandidates, STD_W, topLight),
+        hasDetailed
+          ? renderFirstMatchingNetworkRawBadgeHybrid(networkCandidatesHybrid as NetworkCandidate[], STD_W, topLight)
+          : renderFirstMatchingNetworkRawBadge(stringCandidates, STD_W),
+      ])
+    : [null, null]
+  const networkLogoResult = pillLogoResult
+  // Network: sempre visibile quando abilitato, subito sopra il logo film, quasi attaccato — SVG resta raw, TMDB fallback è A (ricolor + ombra) per non risultare scuro.
+  const networkRawResult = networkLogoResult ? rawLogoResult : null
 
   if (networkLogoResult && topBadge && topBadge.type === "extra") {
     const lbl = topBadge.label.toLowerCase().trim()
@@ -702,26 +734,6 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
   const isAnimeRank = topBadge?.type === "rank" && animeRankResult !== null && topBadge.rank === animeRankResult
 
   const hasQualityBadge = badgeQuality !== false && !!quality
-  // Network: sempre visibile quando abilitato, subito sopra il logo film, quasi attaccato — SVG resta raw, TMDB fallback è A (ricolor + ombra) per non risultare scuro.
-  const networkRawResult = networkLogoResult
-    ? hasDetailed
-      ? await renderFirstMatchingNetworkRawBadgeHybrid(networkCandidatesHybrid as NetworkCandidate[], STD_W, topLight)
-      : await renderFirstMatchingNetworkRawBadge(stringCandidates, STD_W)
-    : null
-
-  // Scala del logo network: resize del bitmap dopo il fetch, prima del fit.
-  // Tutta la matematica di posizione/overlap sotto usa già le dimensioni
-  // scalate (fittedRaw). La cache interna dei badge network resta valida
-  // (chiave senza scala): la scala si applica a valle, come per gli altri.
-  let networkLogoForLayout = networkRawResult
-  if (networkRawResult && networkLogoScale !== 100) {
-    const scaledW = Math.max(1, Math.round(networkRawResult.w * networkLogoScale / 100))
-    const scaledH = Math.max(1, Math.round(networkRawResult.h * networkLogoScale / 100))
-    if (scaledW !== networkRawResult.w || scaledH !== networkRawResult.h) {
-      const scaledPng = await sharp(networkRawResult.png).resize(scaledW, scaledH).toBuffer()
-      networkLogoForLayout = { ...networkRawResult, png: scaledPng, w: scaledW, h: scaledH }
-    }
-  }
 
   const genreBadgeKey = hasGenreBadge
     ? badgeCacheKey("genre", genreName, voteAverage, STD_W, year, badgeStyle, accentColorGenre, topLight, badgeGenre, badgeYear, badgeRating, genreBadgeScale)
@@ -774,41 +786,27 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
   // -----------------------------------------------------------------------
   // 6. Position badges + network logo
   // -----------------------------------------------------------------------
-  // Scala del badge superiore: resize del bitmap dopo il render (tutti gli
-  // stili TRANNE la barra, che scala nativa via font nel builder per restare
-  // full-width), prima del fit — così fitBadgeToCanvas garantisce comunque
-  // il contenimento nel canvas.
-  let rankBadgeForLayout = rankBadgeResult
-  if (rankBadgeResult && topBadgeScale !== 100 && rankingBadgeStyle !== "bar") {
-    const scaledW = Math.max(1, Math.round(rankBadgeResult.w * topBadgeScale / 100))
-    const scaledH = Math.max(1, Math.round(rankBadgeResult.h * topBadgeScale / 100))
-    if (scaledW !== rankBadgeResult.w || scaledH !== rankBadgeResult.h) {
-      const scaledPng = await sharp(rankBadgeResult.png).resize(scaledW, scaledH).toBuffer()
-      rankBadgeForLayout = { ...rankBadgeResult, png: scaledPng, w: scaledW, h: scaledH }
-    }
-  }
-  // Scala del badge genere: come sopra (la barra scala nativa nel builder).
-  // La posizione sotto usa già le dimensioni scalate (badgeY da safeGenreBadgeResult.h).
-  let genreBadgeForLayout = genreBadgeResult
-  if (genreBadgeResult && genreBadgeScale !== 100 && badgeStyle !== "bar") {
-    const scaledW = Math.max(1, Math.round(genreBadgeResult.w * genreBadgeScale / 100))
-    const scaledH = Math.max(1, Math.round(genreBadgeResult.h * genreBadgeScale / 100))
-    if (scaledW !== genreBadgeResult.w || scaledH !== genreBadgeResult.h) {
-      const scaledPng = await sharp(genreBadgeResult.png).resize(scaledW, scaledH).toBuffer()
-      genreBadgeForLayout = { ...genreBadgeResult, png: scaledPng, w: scaledW, h: scaledH }
-    }
-  }
-  // Scala del badge qualità: resize del bitmap dopo il render, prima del
-  // fit. La posizione (top-right di default) usa già le dimensioni scalate.
-  let qualityBadgeForLayout = qualityBadgeResult
-  if (qualityBadgeResult && qualityBadgeScale !== 100) {
-    const scaledW = Math.max(1, Math.round(qualityBadgeResult.w * qualityBadgeScale / 100))
-    const scaledH = Math.max(1, Math.round(qualityBadgeResult.h * qualityBadgeScale / 100))
-    if (scaledW !== qualityBadgeResult.w || scaledH !== qualityBadgeResult.h) {
-      const scaledPng = await sharp(qualityBadgeResult.png).resize(scaledW, scaledH).toBuffer()
-      qualityBadgeForLayout = { ...qualityBadgeResult, png: scaledPng, w: scaledW, h: scaledH }
-    }
-  }
+  // Scale %: resize dei bitmap dopo il render (tutti gli stili TRANNE le
+  // barre, che scalano native via font nel builder per restare full-width),
+  // prima del fit — così fitBadgeToCanvas garantisce comunque il
+  // contenimento nel canvas. B2: 4 await sequenziali → un Promise.all.
+  // La cache resta valida (chiave senza scala): la scala si applica a valle.
+  // Tutta la matematica di posizione/overlap sotto usa già le dimensioni
+  // scalate. La posizione del badge genere usa safeGenreBadgeResult.h.
+  const [rankBadgeForLayout, genreBadgeForLayout, qualityBadgeForLayout, networkLogoForLayout] = await Promise.all([
+    rankBadgeResult && topBadgeScale !== 100 && rankingBadgeStyle !== "bar"
+      ? scaleBitmapForLayout(rankBadgeResult, topBadgeScale)
+      : Promise.resolve(rankBadgeResult),
+    genreBadgeResult && genreBadgeScale !== 100 && badgeStyle !== "bar"
+      ? scaleBitmapForLayout(genreBadgeResult, genreBadgeScale)
+      : Promise.resolve(genreBadgeResult),
+    qualityBadgeResult && qualityBadgeScale !== 100
+      ? scaleBitmapForLayout(qualityBadgeResult, qualityBadgeScale)
+      : Promise.resolve(qualityBadgeResult),
+    networkRawResult && networkLogoScale !== 100
+      ? scaleBitmapForLayout(networkRawResult, networkLogoScale)
+      : Promise.resolve(networkRawResult),
+  ])
   const [safeGenreBadgeResult, safeRankBadgeResult, safeQualityBadgeResult, safeComingSoonResult] = await Promise.all([
     genreBadgeForLayout ? fitBadgeToCanvas(genreBadgeForLayout, STD_W, STD_H) : Promise.resolve(null),
     rankBadgeForLayout ? fitBadgeToCanvas(rankBadgeForLayout, STD_W, STD_H) : Promise.resolve(null),
@@ -891,32 +889,34 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
       const netPadY = Math.round(18 * STD_H / 570)
 
       // Il badge centrale resta invariato: se si sovrappone al network,
-      // rimpicciolisce il network (fino a 0.55x).
+      // rimpicciolisce il network (fino a 0.55x). B2: la scala finale è
+      // calcolata aritmeticamente (l'overlap dipende solo da w/h, funzioni
+      // deterministiche della scala) + UN solo resize — prima ogni step
+      // intermedio faceva un resize sharp poi scartato (fino a ~7).
       const shrinkToAvoidRank = async <T extends BadgeRender>(box: T, top: number, left: number): Promise<T> => {
         if (finalRankBadge && finalRankLeft !== null && rankingBadgeStyle !== "bar") {
           const rankL = finalRankLeft
           const rankR = finalRankLeft + finalRankBadge.w
           const rankB = finalRankTop + finalRankBadge.h
+          const overlapsAt = (w: number, h: number) =>
+            left < rankR + 6 && left + w > rankL - 6 && top < rankB + 4 && top + h > netPadY - 4
+          let scale = 1
+          const minScale = 0.55
           let curW = box.w
           let curH = box.h
-          let curPng = box.png
-          const overlapsRank = () =>
-            left < rankR + 6 && left + curW > rankL - 6 && top < rankB + 4 && top + curH > netPadY - 4
-          if (overlapsRank()) {
-            let scale = 1
-            const minScale = 0.55
-            while (scale > minScale && overlapsRank()) {
-              scale -= 0.07
-              if (scale < minScale) scale = minScale
-              const newW = Math.max(1, Math.round(box.w * scale))
-              const newH = Math.max(1, Math.round(box.h * scale))
-              if (newW === curW && newH === curH) break
-              curW = newW
-              curH = newH
-              curPng = await sharp(box.png).resize(newW, newH).toBuffer()
-              if (scale <= minScale) break
-            }
-            return { ...box, png: curPng, w: curW, h: curH }
+          while (scale > minScale && overlapsAt(curW, curH)) {
+            scale -= 0.07
+            if (scale < minScale) scale = minScale
+            const newW = Math.max(1, Math.round(box.w * scale))
+            const newH = Math.max(1, Math.round(box.h * scale))
+            if (newW === curW && newH === curH) break
+            curW = newW
+            curH = newH
+            if (scale <= minScale) break
+          }
+          if (curW !== box.w || curH !== box.h) {
+            const png = await sharp(box.png).resize(curW, curH).toBuffer()
+            return { ...box, png, w: curW, h: curH }
           }
         }
         return box

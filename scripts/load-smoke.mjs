@@ -2,12 +2,16 @@
 //
 // Avvia il mock server + l'app (o usa PICTORIUM_BASE_URL se già in esecuzione),
 // poi spara N richieste concorrenti su titoli freddi non-mappati e misura:
-//   - % 503 (backpressure dello slot limiter)
-//   - poster/sec
-//   - heap prima/dopo
+//   - % 503 (backpressure dello slot limiter — atteso sotto burst, non un errore)
+//   - poster/sec e latenze p50/p95
 //
-// Assert (exit != 0): nessun errore non-503, heap finale < 250MB sull'istanza
-// con heap limitato a 384MB (default del piano).
+// Assert (exit != 0): errori 500/429/404/rete, oppure zero poster serviti.
+// Il mock serve details deterministici per QUALSIASI id numerico: un 404 qui
+// è un bug del render, non un titolo mancante.
+//
+// NOTA heap: non si misura più process.memoryUsage() dell'orchestratore (era
+// il processo sbagliato — lo script non renderizza nulla). Per il consumo
+// reale usare /api/cache/status o metriche del processo app.
 //
 // Uso:
 //   node scripts/load-smoke.mjs                       # avvia tutto (mock + next dev)
@@ -25,7 +29,6 @@ const PORT = Number(process.env.LOAD_PORT) || 3101
 const MOCK_PORT = Number(process.env.LOAD_MOCK_PORT) || 8791
 const N = Number(process.env.LOAD_REQUESTS) || 40
 const CONCURRENCY = Number(process.env.LOAD_CONCURRENCY) || 10
-const HEAP_LIMIT_MB = Number(process.env.LOAD_HEAP_LIMIT_MB) || 250
 const appUrl = BASE_URL || `http://127.0.0.1:${PORT}`
 
 const startedAt = Date.now()
@@ -107,13 +110,12 @@ async function run() {
   }
 
   // Warmup: compila le route (dev) e riempie la cache TMDB prima del burst.
+  // STESSA forma di chiave del burst (niente ?preview=1: il flag preview fa
+  // parte della cache key, col preview il warmup scaldava altre entry).
   log("Warmup (3 richieste sequenziali)")
   for (let i = 0; i < 3; i++) {
-    await fetch(`${appUrl}/api/poster/movie/1999${i}?preview=1`)
+    await fetch(`${appUrl}/api/poster/movie/1999${i}`)
   }
-
-  const heapBefore = process.memoryUsage().heapUsed / 1024 / 1024
-  log(`Heap prima: ${heapBefore.toFixed(1)} MB`)
 
   // Titoli freddi: id unici non-mappati → pipeline completa (no cache).
   const ids = Array.from({ length: N }, (_, i) => 900000 + i)
@@ -132,8 +134,9 @@ async function run() {
         const status = res.status
         statusCounts.set(status, (statusCounts.get(status) || 0) + 1)
         latencies.push(Date.now() - start)
-        if (status === 500) errors++
-        if (status === 429) errors++
+        // 503 = backpressure voluta (slot limiter), non errore. 404 = bug
+        // (il mock serve qualsiasi id): conta come errore.
+        if (status === 500 || status === 429 || status === 404) errors++
       } catch (e) {
         errors++
         log(`Errore di rete su movie/${id}: ${e.message}`)
@@ -145,7 +148,6 @@ async function run() {
   const workers = Array.from({ length: CONCURRENCY }, () => worker(queue))
   await Promise.all(workers)
 
-  const heapAfter = process.memoryUsage().heapUsed / 1024 / 1024
   const elapsedSec = (Date.now() - startedAt) / 1000
   const total = ids.length
   const ok = statusCounts.get(200) || 0
@@ -159,18 +161,13 @@ async function run() {
 
   log("--- Risultati ---")
   log(`Status: ${JSON.stringify(Object.fromEntries(statusCounts))}`)
-  log(`% 503: ${pct503}%  | % 404: ${pct404}%  | errori rete/500/429: ${errors}`)
+  log(`% 503: ${pct503}%  | % 404: ${pct404}%  | errori rete/500/429/404: ${errors}`)
   log(`Poster OK: ${ok}/${total} in ${elapsedSec.toFixed(1)}s (~${(ok / elapsedSec).toFixed(1)}/s)`)
   log(`Latenza p50: ${p50}ms | p95: ${p95}ms`)
-  log(`Heap: ${heapBefore.toFixed(1)} MB → ${heapAfter.toFixed(1)} MB (limite ${HEAP_LIMIT_MB} MB)`)
 
   let exitCode = 0
   if (errors > 0) {
-    log(`FAIL: ${errors} errori 500/429/rete`)
-    exitCode = 1
-  }
-  if (heapAfter > HEAP_LIMIT_MB) {
-    log(`FAIL: heap ${heapAfter.toFixed(1)} MB oltre il limite ${HEAP_LIMIT_MB} MB`)
+    log(`FAIL: ${errors} errori 500/429/404/rete`)
     exitCode = 1
   }
   if (ok === 0 && total > 0) {
@@ -178,7 +175,7 @@ async function run() {
     exitCode = 1
   }
 
-  log(exitCode === 0 ? "PASS: nessun OOM, heap sotto il limite" : `EXIT ${exitCode}`)
+  log(exitCode === 0 ? "PASS: burst completato senza errori" : `EXIT ${exitCode}`)
   await shutdown(exitCode)
 }
 

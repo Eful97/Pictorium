@@ -18,19 +18,19 @@ describe("parseStreamQualityFromStreams", () => {
     expect(parseStreamQualityFromStreams(streams)).toBe("4K")
   })
 
-  it("identifies 1080p streams when no 4K is present", () => {
+  it("identifies FHD streams when no 4K is present", () => {
     const streams = [
       { name: "Torrentio\n720p", title: "Movie.720p.HD" },
       { name: "Torrentio\n1080p", title: "Movie.1080p.BluRay.x264" },
     ]
-    expect(parseStreamQualityFromStreams(streams)).toBe("1080p")
+    expect(parseStreamQualityFromStreams(streams)).toBe("FHD")
   })
 
-  it("identifies 720p streams", () => {
+  it("identifies HD streams", () => {
     const streams = [
       { name: "Torrentio\n720p", title: "Movie.720p.HDTV" },
     ]
-    expect(parseStreamQualityFromStreams(streams)).toBe("720p")
+    expect(parseStreamQualityFromStreams(streams)).toBe("HD")
   })
 
   it("identifies SD streams", () => {

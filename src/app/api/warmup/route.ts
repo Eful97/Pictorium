@@ -8,6 +8,8 @@ export const maxDuration = 60
 import { buildPosterPublicUrl } from "@/lib/poster-public-url"
 import { getServerDefaults } from "@/lib/server-defaults"
 import { buildStremioPosterSearchParams } from "@/lib/stremio-poster-params"
+import { getWarmupCatalogs } from "@/lib/catalog-definitions"
+import { getRegionDef, normalizeRegion } from "@/lib/regions"
 import { getAll } from "@/lib/store"
 import { getTrending, resolveRequestApiKey } from "@/lib/tmdb"
 import { rateLimit, rateLimitKey, rateLimitResponse } from "@/lib/rate-limit"
@@ -71,13 +73,12 @@ function addTarget(targets: WarmupTarget[], target: WarmupTarget): void {
 }
 
 function buildPosterUrl(input: BuildPosterUrlInput): URL {
-  // Self-fetch con origin interno fisso (127.0.0.1), come le route
-  // defaults/mappings: l'origin derivato dagli header di richiesta
-  // (X-Forwarded-Host / Host) è controllabile dal client → host header
-  // injection / SSRF. Un CDN configurato via env (preferCdn) resta il primo
-  // target quando presente: è configurazione fidata.
+  // C2: origin self-fetch — MAI dalla richiesta (host header injection/SSRF).
+  // Loopback per locale/VPS; su Vercel il loopback non instrada (istanze
+  // effimere) → VERCEL_URL fornita dalla piattaforma; override esplicito via
+  // env per custom. Vedi selfFetchOrigin().
   const url = buildPosterPublicUrl(`/api/poster/${input.target.type}/${input.target.id}`, {
-    origin: `http://127.0.0.1:${process.env.PORT || "3000"}`,
+    origin: selfFetchOrigin(),
     preferCdn: input.req.nextUrl.searchParams.get("edge") !== "0",
   })
   const defaults = getServerDefaults()
@@ -114,6 +115,15 @@ function constantTimeEqual(a: string, b: string): boolean {
   return crypto.timingSafeEqual(Buffer.from(a), Buffer.from(b))
 }
 
+/** C2: origin fidato per il self-fetch (mai dalla richiesta). */
+function selfFetchOrigin(): string {
+  const explicit = envWithFallback("WARMUP_ORIGIN")?.trim().replace(/\/+$/, "")
+  if (explicit) return explicit
+  const vercel = process.env.VERCEL_URL?.trim()
+  if (vercel) return `https://${vercel}`
+  return `http://127.0.0.1:${process.env.PORT || "3000"}`
+}
+
 export async function POST(req: NextRequest) {
   const warmupToken = envWithFallback("WARMUP_TOKEN")
   const isPublic = envWithFallback("PUBLIC_INSTANCE") === "1"
@@ -147,8 +157,22 @@ export async function POST(req: NextRequest) {
   if (!isSameOrigin(req)) return originMismatchResponse()
 
   const apiKey = resolveRequestApiKey(req)
-  const lang = req.nextUrl.searchParams.get("lang") || "it"
   const concurrency = boundedInt({ value: req.nextUrl.searchParams.get("concurrency"), fallback: 3, min: 1, max: 8 })
+  // C2: regione per le classifiche JW (prima hardcoded IT) — la cache key
+  // include già `:r<CODE>`, quindi scaldare altre regioni non avvelena IT.
+  // La lingua default resta "it" salvo regione esplicita (nessun cambio di
+  // comportamento per le chiamate esistenti senza parametri).
+  const regionParam = req.nextUrl.searchParams.get("region") || req.nextUrl.searchParams.get("country")
+  const warmRegion = normalizeRegion(regionParam || "IT")
+  const warmRegionDef = getRegionDef(warmRegion)
+  const warmLang = req.nextUrl.searchParams.get("lang") || (regionParam ? warmRegionDef.lang || "it" : "it")
+  // C2: resume — offset nella coda dedup + nextOffset in risposta per
+  // concatenare chiamate sotto deadline (Vercel Hobby 10s).
+  const queueOffset = boundedInt({ value: req.nextUrl.searchParams.get("offset"), fallback: 0, min: 0, max: 10000 })
+  // C2: warm dei cataloghi (default off — upstream costoso). Scalda gli 8
+  // WARMUP_CATALOG_IDS così il primo browse non è freddo N+1; con C1 i body
+  // finiscono anche in KV cross-istanza. Chiavi pass-through dalla richiesta.
+  const warmCatalogs = req.nextUrl.searchParams.get("catalogs") === "1"
   // D2: default dimezzati (~110 target invece di ~340). Prima ogni warmup
   // senza parametri veniva sempre troncato dalla deadline 50s (e su Hobby
   // 10s non completava nulla), sprecando lavoro e — al boot su 512M —
@@ -162,8 +186,8 @@ export async function POST(req: NextRequest) {
     const [movies, tv, jwMovies, jwShows, mappings] = await Promise.allSettled([
       getTrending("movie", "day", apiKey, 1),
       getTrending("tv", "day", apiKey, 1),
-      justWatchLimit > 0 ? getJWRankings("MOVIE", "IT", justWatchLimit) : Promise.resolve([]),
-      justWatchLimit > 0 ? getJWRankings("SHOW", "IT", justWatchLimit) : Promise.resolve([]),
+      justWatchLimit > 0 ? getJWRankings("MOVIE", warmRegion, justWatchLimit) : Promise.resolve([]),
+      justWatchLimit > 0 ? getJWRankings("SHOW", warmRegion, justWatchLimit) : Promise.resolve([]),
       getAll(),
     ])
 
@@ -202,19 +226,22 @@ export async function POST(req: NextRequest) {
     // peggiore: la funzione serverless veniva terminata a metà senza ritorno.
     // Dopo WARMUP_DEADLINE_MS non si avviano più nuovi batch (il timeout di
     // ogni fetch in corso è ridotto al tempo residuo).
+    // C2: resume via ?offset= — la coda è deterministica (stessi target,
+    // stesso ordine) così chiamate successive proseguono da nextOffset.
     const WARMUP_DEADLINE_MS = 50_000
     const deadlineAt = Date.now() + WARMUP_DEADLINE_MS
-    for (let i = 0; i < queue.length; i += concurrency) {
+    const workQueue = queue.slice(queueOffset)
+    for (let i = 0; i < workQueue.length; i += concurrency) {
       const remaining = deadlineAt - Date.now()
       if (remaining <= 0) {
-        log.warn("Warmup deadline reached — batch loop truncated", { processed: results.length, total: queue.length })
+        log.warn("Warmup deadline reached — batch loop truncated", { processed: results.length, total: workQueue.length })
         break
       }
-      const batch = queue.slice(i, i + concurrency)
+      const batch = workQueue.slice(i, i + concurrency)
       const batchTimeout = Math.max(1_000, Math.min(20_000, remaining))
       const batchResults = await Promise.all(batch.map(async (target): Promise<WarmupResult> => {
         try {
-          const res = await fetch(buildPosterUrl({ req, target, lang }), { signal: AbortSignal.timeout(batchTimeout) })
+          const res = await fetch(buildPosterUrl({ req, target, lang: warmLang }), { signal: AbortSignal.timeout(batchTimeout) })
           if (!res.ok) return { ...target, status: "fail", statusCode: res.status }
           // D2: basta scaldare la cache server — il body non serve: cancellarlo
           // invece di allocare l'intero JPEG nell'orchestratore (prima
@@ -228,12 +255,49 @@ export async function POST(req: NextRequest) {
       }))
       results.push(...batchResults)
     }
+    const processedTotal = queueOffset + results.length
+    const nextOffset = processedTotal < queue.length ? processedTotal : null
+
+    // C2: warm cataloghi (solo con ?catalogs=1). Stesso self-fetch dei poster:
+    // scalda la cache catalogo (L1 + KV via C1) così il primo browse non paga
+    // N+1 freddo. Chiavi pass-through: senza api_key i cataloghi TMDB tornano
+    // vuoti (come da contratto), gli anime/MDBList funzionano comunque.
+    let catalogResults: WarmupResult[] | undefined
+    if (warmCatalogs && Date.now() < deadlineAt) {
+      const mdblistKey = req.nextUrl.searchParams.get("mdblist_key")
+      catalogResults = await Promise.all(getWarmupCatalogs().map(async (def): Promise<WarmupResult> => {
+        const target = { type: def.type, id: 0, source: `catalog:${def.id}` }
+        try {
+          const url = buildPosterPublicUrl(`/catalog/${def.type}/${def.id}.json`, { origin: selfFetchOrigin() })
+          if (apiKey) url.searchParams.set("api_key", apiKey)
+          if (mdblistKey) url.searchParams.set("mdblist_key", mdblistKey)
+          url.searchParams.set("region", warmRegion)
+          const remaining = deadlineAt - Date.now()
+          if (remaining <= 0) return { ...target, status: "fail" }
+          const res = await fetch(url, { signal: AbortSignal.timeout(Math.max(1_000, Math.min(20_000, remaining))) })
+          if (!res.ok) return { ...target, status: "fail", statusCode: res.status }
+          await res.body?.cancel().catch(() => {})
+          return { ...target, status: "ok" }
+        } catch {
+          return { ...target, status: "fail" }
+        }
+      }))
+    }
 
     return Response.json({
       total: queue.length,
       ok: results.filter((result) => result.status === "ok").length,
       fail: results.filter((result) => result.status === "fail").length,
+      offset: queueOffset,
+      nextOffset,
       results,
+      ...(catalogResults ? {
+        catalogs: {
+          ok: catalogResults.filter((r) => r.status === "ok").length,
+          fail: catalogResults.filter((r) => r.status === "fail").length,
+          results: catalogResults,
+        },
+      } : {}),
     })
   } catch (error: unknown) {
     if (error instanceof Error) log.error("Failed", { error: error.message })

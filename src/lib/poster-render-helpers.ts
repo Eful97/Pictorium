@@ -112,19 +112,56 @@ export async function topLuminance(buf: Buffer): Promise<number> {
   return stats.mean / 255
 }
 
+// B3: memo decode condivisi per extractBadgeColor (chiamato 2× — top+bottom —
+// sullo STESSO posterBuf/logoBuf da resolveBadgeColors). WeakMap keyed sul
+// Buffer: stesso oggetto = stessi byte, quindi niente invalidazione; le entry
+// muoiono col GC dei buffer. Stessi byte negli stessi algoritmi → output
+// identico, solo meno decode (1 resize 200×300 e 1 raw logo risparmiati).
+const thumbMemo = new WeakMap<Buffer, Promise<Buffer>>()
+function posterThumb(posterBuf: Buffer): Promise<Buffer> {
+  let p = thumbMemo.get(posterBuf)
+  if (!p) {
+    p = sharp(posterBuf).resize(200, 300, { fit: "cover" }).toBuffer()
+    thumbMemo.set(posterBuf, p)
+  }
+  return p
+}
+
+interface LogoRaw {
+  readonly pixels: Buffer
+  readonly w: number
+  readonly h: number
+}
+const logoRawMemo = new WeakMap<Buffer, Promise<LogoRaw | null>>()
+function logoRawPixels(logoBuf: Buffer): Promise<LogoRaw | null> {
+  let p = logoRawMemo.get(logoBuf)
+  if (!p) {
+    p = (async (): Promise<LogoRaw | null> => {
+      try {
+        const meta = await sharp(logoBuf).metadata()
+        const pixels = await sharp(logoBuf).ensureAlpha().raw().toBuffer()
+        return { pixels, w: meta.width || 200, h: meta.height || 100 }
+      } catch {
+        return null
+      }
+    })()
+    logoRawMemo.set(logoBuf, p)
+  }
+  return p
+}
+
 export async function extractBadgeColor(
   posterBuf: Buffer,
   logoBuf?: Buffer | null,
   fallbackGenre?: string | null,
   region?: 'bottom' | 'top',
 ): Promise<string> {
-  async function extractFrom(buf: Buffer, w: number, h: number, genre: string): Promise<string> {
-    const pixels = await sharp(buf).ensureAlpha().raw().toBuffer()
+  function extractFromRaw(pixels: Buffer, w: number, h: number, genre: string): string {
     const result = findAccentColor(pixels, w, h, genre)
     return `#${result.r.toString(16).padStart(2, "0")}${result.g.toString(16).padStart(2, "0")}${result.b.toString(16).padStart(2, "0")}`
   }
 
-  const thumbBuf = await sharp(posterBuf).resize(200, 300, { fit: "cover" }).toBuffer()
+  const thumbBuf = await posterThumb(posterBuf)
 
   // Crop to target region for more focused color extraction
   let posterAnalysisBuf = thumbBuf
@@ -142,13 +179,10 @@ export async function extractBadgeColor(
       .toBuffer()
   }
 
-  const [posterColor, logoColor] = await Promise.all([
-    extractFrom(posterAnalysisBuf, posterW, posterH, fallbackGenre || ""),
-    logoBuf ? (async () => {
-      const meta = await sharp(logoBuf).metadata()
-      return extractFrom(logoBuf, meta.width || 200, meta.height || 100, "")
-    })() : Promise.resolve(""),
-  ])
+  const posterPixels = await sharp(posterAnalysisBuf).ensureAlpha().raw().toBuffer()
+  const logoRaw = logoBuf ? await logoRawPixels(logoBuf) : null
+  const posterColor = extractFromRaw(posterPixels, posterW, posterH, fallbackGenre || "")
+  const logoColor = logoRaw ? extractFromRaw(logoRaw.pixels, logoRaw.w, logoRaw.h, "") : ""
 
   if (posterColor && logoColor) {
     const pr = parseInt(posterColor.slice(1, 3), 16)

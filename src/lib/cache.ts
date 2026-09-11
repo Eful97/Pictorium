@@ -23,6 +23,87 @@ export type CacheStatus = {
 
 const store = new Map<string, CacheEntry<unknown>>()
 
+// ---------------------------------------------------------------------------
+// C1: L2 condiviso su Vercel KV (opt-in). La Map resta L1: su VPS/HF senza
+// KV_REST_API_URL/TOKEN non cambia nulla (stesso pattern di store.ts).
+// Solo JSON piccoli (<=64KB, mai Buffer): i poster/badge PNG resterebbero
+// locali comunque (base64 +33%, limiti di valore e costi KV, latenza sul path
+// caldo). Il premio è per i body catalogo/meta: su multi-istanza la seconda
+// istanza serve dalla KV invece di rifare ~60 upstream.
+// Chiavi auto-invalidanti: epoch/versioni sono già dentro le cache key
+// (catalog-epoch, RENDER_VERSION, mapVersion) → le entry KV orfane scadono
+// via EX, nessuna invalidazione per-tag necessaria su KV.
+// Scrittura fire-and-forget (mai latenza sul path caldo); lettura solo su
+// miss L1 (quando comunque si farebbe upstream lento). Errori KV = miss.
+// ---------------------------------------------------------------------------
+const useKvL2 = !!process.env.KV_REST_API_URL && !!process.env.KV_REST_API_TOKEN
+const KV_L2_PREFIX = "pictorium:cache:"
+const KV_L2_MAX_BYTES = 64 * 1024
+
+function secondsUntilScheduledRefresh(): number {
+  const now = new Date()
+  const next = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), REFRESH_HOUR, 0, 0, 0)
+  const target = next > now.getTime() ? next : next + 86400000
+  return Math.max(60, Math.round((target - now.getTime()) / 1000))
+}
+
+/** Serializza per L2 solo se JSON piccolo senza Buffer; null = resta locale. */
+function toKvPayload(data: unknown): string | null {
+  if (Buffer.isBuffer(data)) return null
+  try {
+    const json = JSON.stringify(data)
+    if (json.length > KV_L2_MAX_BYTES) return null
+    // Buffer annidati serializzerebbero come {type:"Buffer",data:[...]} con
+    // bloat e revive mancato → solo JSON puro in L2.
+    if (json.includes('"type":"Buffer"')) return null
+    return json
+  } catch {
+    return null
+  }
+}
+
+function kvWriteThrough(key: string, json: string, ttlMs?: number, tags: string[] = []): void {
+  const ex = ttlMs !== undefined
+    ? Math.max(60, Math.round(ttlMs / 1000))
+    : (isScheduledRefresh(tags) !== null ? secondsUntilScheduledRefresh() : Math.round(MAX_TTL / 1000));
+  (async () => {
+    try {
+      const { kv } = await import("@vercel/kv")
+      await kv.set(`${KV_L2_PREFIX}${key}`, json, { ex })
+    } catch {
+      // fail-open: la L1 resta valida, la L2 si ripopola al prossimo set
+    }
+  })()
+}
+
+async function kvReadThrough<T>(key: string): Promise<T | null> {
+  try {
+    const { kv } = await import("@vercel/kv")
+    const raw: unknown = await kv.get(`${KV_L2_PREFIX}${key}`)
+    // C1: il client KV può restituire la stringa così com'è o già parsata
+    // (deserializzazione automatica): accetta entrambi, scarta il resto.
+    if (typeof raw === "string") return JSON.parse(raw) as T
+    if (raw !== null && typeof raw === "object") return raw as T
+    return null
+  } catch {
+    return null
+  }
+}
+
+/** Miss L1 + hit L2: ripopola la L1 con gli stessi tag (stesse regole TTL).
+ *  Ritorna null se L2 disabilitata/miss/errore. */
+export async function cacheGetShared<T>(key: string, tags: string[] = []): Promise<T | null> {
+  const local = cacheGet<T>(key)
+  if (local !== null) return local
+  if (!useKvL2) return null
+  const shared = await kvReadThrough<T>(key)
+  if (shared === null) return null
+  // Stessi tag dell'originale → stesse regole (MAX_TTL/scheduled); la
+  // scadenza assoluta resta garantita dall'EX della entry KV.
+  cacheSet(key, shared as T, tags, undefined)
+  return shared
+}
+
 const MAX_TTL = 30 * 60 * 1000
 const rawMaxEntries = envWithFallback("CACHE_MAX")
 const ENV_MAX_ENTRIES = rawMaxEntries ? parseInt(rawMaxEntries, 10) : 2000
@@ -192,6 +273,11 @@ export function cacheSet<T>(key: string, data: T, tags: string[] = [], ttlMs?: n
   }
   totalBytes += incomingBytes
   store.set(key, { data, timestamp: Date.now(), tags, ttl: ttlMs })
+  // C1: write-through L2 (fire-and-forget, mai latenza sul chiamante).
+  if (useKvL2) {
+    const json = toKvPayload(data)
+    if (json !== null) kvWriteThrough(key, json, ttlMs, tags)
+  }
 }
 
 export function cacheHas(key: string): boolean {

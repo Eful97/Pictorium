@@ -123,7 +123,7 @@ export async function buildExtraBadgeSVG(
   // rimpicciolisce (le label corte restano invariate). La barra resta
   // full-width: lì vale solo il bound hard anti-overflow (pw - 20).
   const maxBadgeW = s === "bar" ? pw - 20 : Math.round(pw * 0.65)
-  // Extra al 90% del badge ranking: a pari fs ("Vincitore Oscar" a 100%)
+  // Extra al 90% del badge ranking: a pari fs (es. "Candidato Golden Globe")
   // il testo risultava troppo grande rispetto ai rank.
   let finalFs = 23 * 0.9 * pw / 380
   // Barra full-width: la scala assottiglia nativamente (font+padding),

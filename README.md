@@ -76,7 +76,7 @@ pinned: false
 | 🎯 **Motore Grafico WYSIWYG** | Un unico endpoint (`/api/poster/{type}/{id}`) basato su Sharp C++ ed SVG serve l'anteprima web in tempo reale e il poster finale su Stremio con pixel-perfect sync. |
 | 📦 **Addon 100% Autonomo** | Fornisce direttamente a Stremio schede dettagliate, trame localizzate, loghi trasparenti, sfondi 4K, trailer YouTube e tutte le stagioni con thumbnail ed episodi tradotti. |
 | 📺 **Ordinamento Intelligente Parti & Anime** | Rileva automaticamente i gruppi **Original Parts** (es. *La Casa di Carta*, *Lupin*) e spacchetta le mega-stagioni uniche degli anime su TMDB (es. *Re:ZERO*, *Jujutsu Kaisen*) nelle vere stagioni con cui sono distribuiti. |
-| 🏷️ **Badge Qualità & Voti** | Visualizza in tempo reale risoluzione video (4K/1080p/720p), voti aggregati da oltre 16 fonti (IMDb, TMDB, Rotten Tomatoes, Letterboxd, MAL), premi Oscar/Cannes e nastri Netflix Top 10. |
+| 🏷️ **Badge Qualità & Voti** | Visualizza in tempo reale risoluzione video (4K/FHD/HD), voti aggregati da oltre 16 fonti (IMDb, TMDB, Rotten Tomatoes, Letterboxd, MAL), premi Oscar/Cannes e nastri Netflix Top 10. |
 | 🌐 **Cataloghi Personalizzati** | Importa watchlist e collezioni da **Letterboxd, Trakt, TMDb, TheTVDB, MDBList** e classifiche trend in tempo reale tramite JustWatch GraphQL. |
 | 🌍 **Interfaccia Multilingua Dinamica** | Interfaccia localizzata (Italiano, English, Français, Deutsch, Español, Português, 日本語, 한국어) con cambio lingua istantaneo in tempo reale senza ricaricare la pagina. |
 | 🔒 **Protezione con PIN & Sicurezza** | Protezione ad ogni avvio e ricaricamento (F5) per l'editor, configurabile subito nel wizard iniziale (Step 3) o nelle Impostazioni. Locandine, manifest e cataloghi per Stremio restano 100% aperti e sempre funzionanti. |
@@ -94,7 +94,7 @@ pinned: false
 * **Loghi Network Ufficiali**: Riconoscimento ed embedding automatico per Netflix, Prime Video, Disney+, Apple TV+, HBO Max, Paramount+, Sky/NOW, Crunchyroll, Rai, Mediaset e oltre 30 studi (Marvel, Pixar, Ghibli, Warner Bros, A24).
 
 ### 🏷️ Badge, Rating & Riconoscimenti
-* **✨ Qualità Streaming (4K / 1080p / 720p / SD)**: Rilevata in tempo reale dai flussi di Stremio con fallback automatico su JustWatch.
+* **✨ Qualità Streaming (4K / FHD / HD / SD)**: Rilevata in tempo reale dai flussi di Stremio con fallback automatico su JustWatch.
 * **6 Stili Badge Genere & Voto**: *Shadow, Pill, Bar, Colored, Bordo, Vetro* con palette adattiva alla locandina.
 * **Nastro Verticale Netflix Top 10**: Il caratteristico nastro rosso laterale con posizione live (supporto dedicato anche per Anime).
 * **Premi Cinematografici**: Riconoscimento automatico Oscar, Cannes, BAFTA, Emmy e badge *"Absolute Cinema"* per i titoli della IMDb Top 250.
@@ -272,7 +272,7 @@ npm install --ignore-scripts && npm run build && npm start
 | `PICTORIUM_RANKING_BADGE_STYLE` | `default`, `bar`, `colored`, `pill`, `netflix` | Stile del badge per le classifiche. |
 | `PICTORIUM_RIBBON_SIDE` | `left` / `right` | Lato del nastro verticale Netflix Top 10. |
 | `PICTORIUM_BLUR_ENABLED` | `1` / `0` | Attiva o disattiva lo sfondo sfocato. |
-| `PICTORIUM_BADGE_QUALITY` | `1` / `0` | Mostra/nasconde il badge qualità streaming (4K/1080p). |
+| `PICTORIUM_BADGE_QUALITY` | `1` / `0` | Mostra/nasconde il badge qualità streaming (4K/FHD). |
 | `PICTORIUM_NETWORK_LOGO` | `1` / `0` | Mostra/nasconde il logo del network (Netflix, Prime, ecc.). |
 | `PICTORIUM_PRE_RELEASE` | `1` / `0` | Velo scuro + nastro "Coming Soon" sui film non ancora disponibili in digitale (default OFF). |
 | `PICTORIUM_GRADIENT_HEIGHT` | `5` – `100` | Altezza percentuale del gradiente nero inferiore. |

@@ -50,11 +50,11 @@ export async function fetchMDBList(
     let res: Response | null = null
 
     if (explicitUrl) {
-      res = await fetch(`${explicitUrl}/lists/snoak/${slug}`, { signal: combineAbortSignals(signal, 10000) }).catch(() => null)
+      res = await fetch(`${explicitUrl}/lists/snoak/${slug}`, { signal: combineAbortSignals(signal, 8000) }).catch(() => null)
     } else if (key) {
       res = await fetch(`https://api.mdblist.com/lists/snoak/${slug}/items?apikey=${encodeURIComponent(key)}&limit=20`, {
         headers: { "User-Agent": "Mozilla/5.0 Pictorium" },
-        signal: combineAbortSignals(signal, 10000),
+        signal: combineAbortSignals(signal, 8000),
       }).catch(() => null)
     }
 
@@ -62,7 +62,7 @@ export async function fetchMDBList(
       // Fallback endpoint pubblico JSON diretto
       res = await fetch(`https://mdblist.com/lists/snoak/${slug}/json`, {
         headers: { "User-Agent": "Mozilla/5.0 Pictorium" },
-        signal: combineAbortSignals(signal, 10000),
+        signal: combineAbortSignals(signal, 8000),
       }).catch(() => null)
     }
 

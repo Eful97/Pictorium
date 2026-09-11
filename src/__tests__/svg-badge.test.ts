@@ -318,7 +318,7 @@ describe("buildRankingBadgeSVG", () => {
 
 describe("top badge uniformity (rank vs extra)", () => {
   it("renders extra badges at 90% of the rank size", async () => {
-    // Rank a fs 23, extra al 90% (~fs 21): "Vincitore Oscar" a 100%
+    // Rank a fs 23, extra al 90% (~fs 21): un'etichetta lunga a 100%
     // risultava troppo grande. h extra ≈ 60, h rank ≈ 66.
     const rank = await buildRankingBadgeSVG(3, 380, "Oggi", false, "default", "#555555")
     const extra = await buildExtraBadgeSVG("Oscar 2024", 380, false, "default", "#555555")

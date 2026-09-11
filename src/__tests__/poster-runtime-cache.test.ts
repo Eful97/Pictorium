@@ -2,12 +2,14 @@ import { afterEach, describe, expect, it, vi } from "vitest"
 import { cacheClear } from "@/lib/cache"
 import {
   beginPosterRender,
+  convertPosterFormat,
   getPendingPoster,
   isImmutablePosterRequest,
   posterHeaders,
   posterNotModifiedHeaders,
   readPosterError,
   resolveImageFormat,
+  variantEtagFor,
   writePosterError,
 } from "@/lib/poster-runtime-cache"
 
@@ -208,13 +210,18 @@ describe("poster image format negotiation (WebP / AVIF)", () => {
     expect(resolveImageFormat(null)).toBe("jpeg")
     expect(resolveImageFormat("image/jpeg,image/png")).toBe("jpeg")
     expect(resolveImageFormat("image/webp,image/apng,*/*")).toBe("webp")
-    expect(resolveImageFormat("image/avif,image/webp,image/apng,*/*")).toBe("avif")
+    // C3: Accept avif → webp (encode avif 3-5×, i client avif accettano webp);
+    // bare "image/avif" senza webp → jpeg (fallback universale, mai webp non negoziato)
+    expect(resolveImageFormat("image/avif,image/webp,image/apng,*/*")).toBe("webp")
+    expect(resolveImageFormat("image/avif")).toBe("jpeg")
   })
 
   it("prioritizes query param fmt over Accept header", () => {
     expect(resolveImageFormat("image/avif", "webp")).toBe("webp")
     expect(resolveImageFormat("image/webp", "jpeg")).toBe("jpeg")
     expect(resolveImageFormat("image/webp", "jpg")).toBe("jpeg")
+    // C3: ?fmt=avif esplicito resta onorato (render dedicato legacy)
+    expect(resolveImageFormat("image/webp", "avif")).toBe("avif")
   })
 
   it("sets correct Content-Type and Vary headers according to format", () => {
@@ -229,5 +236,28 @@ describe("poster image format negotiation (WebP / AVIF)", () => {
     const avifHeaders = posterHeaders("\"etag\"", false, false, false, "avif")
     expect(avifHeaders["Content-Type"]).toBe("image/avif")
     expect(avifHeaders.Vary).toBe("Accept")
+  })
+
+  it("converts canonical jpeg to webp with matching encoder options", async () => {
+    const sharp = (await import("sharp")).default
+    const jpeg = await sharp({ create: { width: 16, height: 16, channels: 3, background: { r: 200, g: 30, b: 40 } } })
+      .jpeg({ quality: 70 })
+      .toBuffer()
+    const webp = await convertPosterFormat(jpeg)
+    // Magic bytes WebP: RIFF....WEBP
+    expect(webp.subarray(0, 4).toString()).toBe("RIFF")
+    expect(webp.subarray(8, 12).toString()).toBe("WEBP")
+    const meta = await sharp(webp).metadata()
+    expect(meta.format).toBe("webp")
+    expect(meta.width).toBe(16)
+    expect(meta.height).toBe(16)
+  })
+
+  it("derives a deterministic variant etag distinct from the canonical one", () => {
+    const canonical = "\"abc123\""
+    const variant = variantEtagFor(canonical)
+    expect(variant).not.toBe(canonical)
+    expect(variant).toBe(variantEtagFor(canonical))
+    expect(variant.startsWith("\"") && variant.endsWith("\"")).toBe(true)
   })
 })

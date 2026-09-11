@@ -2,6 +2,13 @@ import { defineConfig, devices } from "@playwright/test"
 import path from "path"
 
 const isCi = process.env.CI === "true"
+// C4: reuse dell'app esistente SOLO su opt-in esplicito (PLAYWRIGHT_REUSE_APP=1).
+// Prima `reuseExistingServer: !isCi` riusava in silenzio un dev sporco sulla
+// stessa porta (senza env mock → snapshot flaky senza colpevoli). Default:
+// spawn sempre fresco; se la porta è occupata Playwright fallisce subito con
+// EADDRINUSE (fail fast) invece di testare l'app sbagliata. Il mock resta
+// riusabile (stateless, nessun env che lo sporca).
+const reuseApp = process.env.PLAYWRIGHT_REUSE_APP === "1"
 // Porta locale dedicata ai test: 3100, così `npm run dev` sulla porta 3000
 // non viene riusato senza le env del mock server.
 const port = process.env.PLAYWRIGHT_PORT || (isCi ? "41731" : "3100")
@@ -41,7 +48,7 @@ export default defineConfig({
     {
       command: `node ./node_modules/next/dist/bin/next dev -H 127.0.0.1 -p ${port}`,
       url: `http://127.0.0.1:${port}`,
-      reuseExistingServer: !isCi,
+      reuseExistingServer: reuseApp,
       timeout: 180_000,
       env: {
         // DistDir separato: `next dev` può girare anche con un altro dev server

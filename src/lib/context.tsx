@@ -640,9 +640,22 @@ export function usePictorium(): PictoriumCtx {
     editorCtx.defaultRegion,
     globalBadges, rankingBadges, badgeStyle, rankingBadgeStyle, badgeGenre, badgeYear, badgeRating, badgeQuality, ratingSources, customBadge, gradientHeight, blurIntensity, blurFade, blurDarkness, blurEnabled, networkLogo, preRelease, ribbonSide, topBadgeScale, topBadgeOffsetX, topBadgeOffsetY, genreBadgeScale, qualityBadgeScale, networkLogoScale, genreBadgeOffsetX, genreBadgeOffsetY, qualityBadgeOffsetX, qualityBadgeOffsetY, networkLogoOffsetX, networkLogoOffsetY])
 
+  // A1: trailing debounce della preview URL (200ms). Ogni tick di slider
+  // cambia l'identità di buildPreviewUrlCb → senza debounce ogni pixel di
+  // drag genera una URL e un render server (storm). Il timer si resetta a
+  // ogni tick: solo l'ultimo stato dopo la pausa fa partire XHR + sharp.
+  // Cambio di titolo selezionato = fire immediato (niente attesa).
+  const lastPreviewSelectedId = useRef<number | null>(null)
   useEffect(() => {
-    if (!navigation.selected) { setPreviewUrl(""); return }
-    buildPreviewUrlCb()
+    if (!navigation.selected) { lastPreviewSelectedId.current = null; setPreviewUrl(""); return }
+    const selectedId = navigation.selected.id
+    if (lastPreviewSelectedId.current !== selectedId) {
+      lastPreviewSelectedId.current = selectedId
+      buildPreviewUrlCb()
+      return
+    }
+    const timer = setTimeout(buildPreviewUrlCb, 200)
+    return () => clearTimeout(timer)
   }, [navigation.selected, buildPreviewUrlCb])
 
   // --- Color detection ---

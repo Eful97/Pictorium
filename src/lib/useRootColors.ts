@@ -34,7 +34,11 @@ export function useRootColors(
       setAccentColor(null); setAutoAccentColor?.(null); setTopEdgeColor(null); return
     }
     let cancelled = false
-    const url = posterUrl(previewPoster.file_path, "w342") + `?cb=${Date.now()}`
+    // C4: niente cache-busting (?cb=Date.now): i path TMDB sono immutabili,
+    // quindi la stessa URL è valida per il browser cache tra un poster e
+    // l'altro (l'effetto gira solo al cambio poster). Prima ogni cambio
+    // riscaricava il w342 anche se già in cache.
+    const url = posterUrl(previewPoster.file_path, "w342")
     const img = new Image()
     img.crossOrigin = "anonymous"
     const setRootColors = (r: number, g: number, b: number, edgeR: number, edgeG: number, edgeB: number) => {

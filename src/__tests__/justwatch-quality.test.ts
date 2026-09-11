@@ -12,11 +12,11 @@ describe("resolveMaxQuality", () => {
     expect(resolveMaxQuality(["UHD"])).toBe("4K")
   })
 
-  it("returns 1080p if max offer is HD/1080p/FHD/720p", () => {
-    expect(resolveMaxQuality(["SD", "HD"])).toBe("1080p")
-    expect(resolveMaxQuality(["1080p"])).toBe("1080p")
-    expect(resolveMaxQuality(["FHD"])).toBe("1080p")
-    expect(resolveMaxQuality(["SD", "720p"])).toBe("1080p")
+  it("returns FHD if max offer is HD/1080p/FHD/720p", () => {
+    expect(resolveMaxQuality(["SD", "HD"])).toBe("FHD")
+    expect(resolveMaxQuality(["1080p"])).toBe("FHD")
+    expect(resolveMaxQuality(["FHD"])).toBe("FHD")
+    expect(resolveMaxQuality(["SD", "720p"])).toBe("FHD")
   })
 
   it("returns SD if only SD/480 offers are available", () => {

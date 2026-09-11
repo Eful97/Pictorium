@@ -93,14 +93,37 @@ export function resolveImageFormat(acceptHeader?: string | null, queryFmt?: stri
   if (queryFmt) {
     const q = queryFmt.toLowerCase()
     if (q === "webp") return "webp"
+    // C3: ?fmt=avif esplicito resta onorato (render dedicato legacy); via
+    // Accept l'avif mappa a webp (tutti i client avif accettano anche webp,
+    // l'encode avif costa 3-5× e triplicherebbe render+cache).
     if (q === "avif") return "avif"
     if (q === "jpeg" || q === "jpg") return "jpeg"
   }
   if (!acceptHeader) return "jpeg"
   const accept = acceptHeader.toLowerCase()
-  if (accept.includes("image/avif")) return "avif"
   if (accept.includes("image/webp")) return "webp"
   return "jpeg"
+}
+
+// C3: conversione jpeg canonico → webp on-the-fly. Stesse opzioni
+// dell'encode webp diretto in poster-service (q80, effort 2): byte non
+// identici al render diretto (doppia compressione), ma stessa qualità
+// percepita — il webp esiste solo come variante di risposta, mai come chiave
+// di render. ~20-50ms contro ~2-8s di re-render completo.
+export async function convertPosterFormat(jpeg: Buffer): Promise<Buffer> {
+  const sharp = (await import("sharp")).default
+  return sharp(jpeg).webp({ quality: 80, effort: 2 }).toBuffer()
+}
+
+/** ETag deterministico della variante webp derivato da quello canonico. */
+export function variantEtagFor(canonicalEtag: string): string {
+  let h = 0x811c9dc5
+  const s = `${canonicalEtag}:webp`
+  for (let i = 0; i < s.length; i++) {
+    h ^= s.charCodeAt(i)
+    h = Math.imul(h, 0x01000193)
+  }
+  return `"${(h >>> 0).toString(16).padStart(8, "0")}"`
 }
 
 const CORS_HEADERS = {

@@ -24,8 +24,6 @@
     "node": ">=22"
   },
   "dependencies": {
-    "@fontsource/inter": "^5.3.0",
-    "@fontsource/noto-sans-symbols-2": "^5.3.0",
     "@resvg/resvg-js": "^2.6.2",
     "@vercel/kv": "^3.0.0",
     "lucide-react": "^1.35.0",
@@ -50,7 +48,6 @@
     "@types/react-dom": "^19",
     "@vitejs/plugin-react": "^6.1.1",
     "@vitest/coverage-v8": "^4.1.11",
-    "babel-plugin-react-compiler": "^1.0.0",
     "eslint": "^9",
     "eslint-config-next": "16.3.3",
     "jsdom": "^30.0.1",

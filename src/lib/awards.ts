@@ -372,7 +372,7 @@ export async function fetchAwards(tmdbId: number, mediaType: "movie" | "tv"): Pr
 export function getAwardBadgeLabel(awards: string[], t?: (key: string, params?: Record<string, string | number>) => string): string | null {
   const priority = ["Oscar", "Cannes", "Venezia", "BAFTA", "Golden Globe", "Emmy", "David"]
   for (const a of priority) {
-    if (awards.includes(a)) return t ? t("badge.winner", { name: t(`award.${a.toLowerCase().replace(/ /g, "_")}`) }) : `Vincitore ${a}`
+    if (awards.includes(a)) return t ? t("badge.winner", { name: t(`award.${a.toLowerCase().replace(/ /g, "_")}`) }) : `${a}`
   }
   return null
 }

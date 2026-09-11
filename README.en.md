@@ -76,7 +76,7 @@ pinned: false
 | 🎯 **WYSIWYG Graphics Engine** | A single endpoint (`/api/poster/{type}/{id}`) powered by Sharp C++ and SVG serves both the real-time web preview and the final poster on Stremio with pixel-perfect sync. |
 | 📦 **100% Standalone Addon** | Directly delivers rich metadata cards, multilingual synopses, transparent logos, 4K backdrops, YouTube trailers, and full seasons with thumbnails and translated episodes to Stremio. |
 | 📺 **Smart Parts & Anime Splitting** | Automatically detects **Original Parts** (e.g. *Money Heist*, *Lupin*) and splits giant single-season anime entries on TMDB (e.g. *Re:ZERO*, *Jujutsu Kaisen*) into their true release seasons. |
-| 🏷️ **Quality Badges & Ratings** | Real-time video resolution detection (4K/1080p/720p), aggregated ratings from over 16 sources (IMDb, TMDB, Rotten Tomatoes, Letterboxd, MAL), Academy/Cannes awards, and Netflix Top 10 ribbons. |
+| 🏷️ **Quality Badges & Ratings** | Real-time video resolution detection (4K/FHD/HD), aggregated ratings from over 16 sources (IMDb, TMDB, Rotten Tomatoes, Letterboxd, MAL), Academy/Cannes awards, and Netflix Top 10 ribbons. |
 | 🌐 **Custom Catalogs** | Import watchlists and custom lists from **Letterboxd, Trakt, TMDb, TheTVDB, MDBList**, along with real-time trending charts via JustWatch GraphQL. |
 | 🌍 **Dynamic Multilingual UI** | Fully localized interface (Italian, English, French, German, Spanish, Portuguese, Japanese, Korean) with instant real-time language switching without page refresh. |
 | 🔒 **PIN Protection & Security** | Lock screen protection on every launch and page reload (F5) for the editor, configurable right during the initial setup wizard (Step 3) or in Settings. Stremio manifests and posters remain 100% open and unaffected. |
@@ -94,7 +94,7 @@ pinned: false
 * **Official Network Logos**: Automatic detection and embedding for Netflix, Prime Video, Disney+, Apple TV+, HBO Max, Paramount+, Sky/NOW, Crunchyroll, and 30+ studios (Marvel, Pixar, Ghibli, Warner Bros, A24).
 
 ### 🏷️ Badges, Ratings & Accolades
-* **✨ Streaming Quality (4K / 1080p / 720p / SD)**: Detected live from Stremio video streams with automatic fallback to JustWatch.
+* **✨ Streaming Quality (4K / FHD / HD / SD)**: Detected live from Stremio video streams with automatic fallback to JustWatch.
 * **6 Genre & Rating Badge Styles**: *Shadow, Pill, Bar, Colored, Border, Glass* with adaptive palette matching the poster.
 * **Vertical Netflix Top 10 Ribbon**: The iconic red side ribbon with live rank position (dedicated support for Anime).
 * **Film Awards & Accolades**: Automatic recognition of Oscars, Cannes, BAFTA, Emmy, and the *"Absolute Cinema"* badge for IMDb Top 250 titles.
@@ -272,7 +272,7 @@ npm install --ignore-scripts && npm run build && npm start
 | `PICTORIUM_RANKING_BADGE_STYLE` | `default`, `bar`, `colored`, `pill`, `netflix` | Style for ranking badges. |
 | `PICTORIUM_RIBBON_SIDE` | `left` / `right` | Position of the vertical Netflix Top 10 ribbon. |
 | `PICTORIUM_BLUR_ENABLED` | `1` / `0` | Enable or disable the blurred background. |
-| `PICTORIUM_BADGE_QUALITY` | `1` / `0` | Show or hide the streaming quality badge (4K/1080p). |
+| `PICTORIUM_BADGE_QUALITY` | `1` / `0` | Show or hide the streaming quality badge (4K/FHD). |
 | `PICTORIUM_NETWORK_LOGO` | `1` / `0` | Show or hide the network logo (Netflix, Prime, ecc.). |
 | `PICTORIUM_PRE_RELEASE` | `1` / `0` | Dark veil + "Coming Soon" ribbon on movies not yet available digitally (default OFF). |
 | `PICTORIUM_GRADIENT_HEIGHT` | `5` – `100` | Percentage height of the bottom black gradient. |

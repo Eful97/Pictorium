@@ -168,6 +168,18 @@ const rankingsCache = new Map<string, { data: JWRankEntry[]; timestamp: number }
 const CACHE_TTL = 30 * 60 * 1000
 const CACHE_MAX = 100
 
+// A4: negative cache per i risultati vuoti (60s). Un JW che risponde
+// 200-vuoto (o che filtra tutto come unreleased) non fa scattare il circuit
+// breaker (solo errori/throw lo fanno) e verrebbe rifetchato a ogni
+// render/catalogo — thunder. Il timestamp retrodatato scade dopo NEGATIVE_TTL
+// usando il check esistente, senza toccarne la semantica.
+const NEGATIVE_TTL = 60 * 1000
+function cacheRankingsResult(cacheKey: string, result: JWRankEntry[]): void {
+  if (rankingsCache.size >= CACHE_MAX) rankingsCache.delete(rankingsCache.keys().next().value!)
+  const timestamp = result.length > 0 ? Date.now() : Date.now() - CACHE_TTL + NEGATIVE_TTL
+  rankingsCache.set(cacheKey, { data: result, timestamp })
+}
+
 const UA =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 " +
   "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
@@ -352,10 +364,7 @@ export async function getJWRankings(
     if (result.length >= first) break
   }
 
-  if (result.length > 0) {
-    if (rankingsCache.size >= CACHE_MAX) rankingsCache.delete(rankingsCache.keys().next().value!)
-    rankingsCache.set(cacheKey, { data: result, timestamp: Date.now() })
-  }
+  cacheRankingsResult(cacheKey, result)
   return result
 }
 
@@ -498,10 +507,7 @@ export async function getJWTitles(opts: JWTitleOptions): Promise<JWRankEntry[]> 
     if (result.length >= first) break
   }
 
-  if (result.length > 0) {
-    if (rankingsCache.size >= CACHE_MAX) rankingsCache.delete(rankingsCache.keys().next().value!)
-    rankingsCache.set(cacheKey, { data: result, timestamp: Date.now() })
-  }
+  cacheRankingsResult(cacheKey, result)
   return result
 }
 
@@ -522,7 +528,7 @@ const TITLE_OFFERS_QUERY = `query GetTitleOffers($country: Country!, $language: 
   }
 }`
 
-export type JWQuality = "4K" | "1080p" | "SD"
+export type JWQuality = "4K" | "FHD" | "SD"
 
 export function resolveMaxQuality(presentationTypes: (string | null | undefined)[]): JWQuality | null {
   const types = presentationTypes.filter(Boolean).map((t) => String(t).toUpperCase())
@@ -530,7 +536,7 @@ export function resolveMaxQuality(presentationTypes: (string | null | undefined)
     return "4K"
   }
   if (types.some((t) => t.includes("HD") || t.includes("1080") || t.includes("720") || t.includes("_1080P") || t.includes("HD_1080"))) {
-    return "1080p"
+    return "FHD"
   }
   if (types.some((t) => t.includes("SD") || t.includes("480"))) {
     return "SD"

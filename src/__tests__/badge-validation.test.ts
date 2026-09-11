@@ -215,7 +215,7 @@ describe("getNewSeasonLabel", () => {
   const inDays = (n: number) => new Date(Date.now() + n * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
 
   it("returns numbered label for recent last air + old first air", () => {
-    expect(getNewSeasonLabel({ lastAirDate: daysAgo(3), firstAirDate: daysAgo(400), seasonCount: 2, t })).toBe("Nuova stagione S2")
+    expect(getNewSeasonLabel({ lastAirDate: daysAgo(3), firstAirDate: daysAgo(400), seasonCount: 2, t })).toBe("Nuova S2")
   })
 
   it("returns generic label without season count", () => {
@@ -281,10 +281,10 @@ describe("computeTopBadge (nuovi badge)", () => {
     imdbTop250: false,
   }
 
-  it("computes Nuova stagione S3 for returning series with recent last air", () => {
+  it("computes Nuova S3 for returning series with recent last air", () => {
     const c = computeTopBadge({ ...baseInput, lastAirDate: daysAgo(3), seasonCount: 3 }, t, "it")
-    expect(c.newSeason).toBe("Nuova stagione S3")
-    expect(c.badge).toEqual({ type: "extra", label: "Nuova stagione S3" })
+    expect(c.newSeason).toBe("Nuova S3")
+    expect(c.badge).toEqual({ type: "extra", label: "Nuova S3" })
   })
 
   it("computes K-Drama for KR origin without stronger badges", () => {
