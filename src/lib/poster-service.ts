@@ -91,10 +91,19 @@ export interface GenerationInput {
   topBadgeOffsetY: number
   /** Scala % del badge genere/rating in basso, su tutti gli stili (barra nativa via font). */
   genreBadgeScale: number
+  /** Offset px del badge genere/rating, solo stili non-bar. */
+  genreBadgeOffsetX: number
+  genreBadgeOffsetY: number
   /** Scala % del badge qualità streaming. */
   qualityBadgeScale: number
+  /** Offset px del badge qualità. */
+  qualityBadgeOffsetX: number
+  qualityBadgeOffsetY: number
   /** Scala % del logo network. */
   networkLogoScale: number
+  /** Offset px del logo network. */
+  networkLogoOffsetX: number
+  networkLogoOffsetY: number
 
   // Badge data sources
   mediaType: "movie" | "tv"
@@ -471,6 +480,8 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
     logoScale, logoOffsetX, logoOffsetY,
     topBadgeScale, topBadgeOffsetX, topBadgeOffsetY,
     genreBadgeScale, qualityBadgeScale, networkLogoScale,
+    genreBadgeOffsetX, genreBadgeOffsetY, qualityBadgeOffsetX, qualityBadgeOffsetY,
+    networkLogoOffsetX, networkLogoOffsetY,
     mediaType, finalRank, animeRankResult,
     mapping, tmdbNetworks, productionCompanies, tmdbStudios,
     tmdbNetworksDetailed, productionCompaniesDetailed,
@@ -809,8 +820,9 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
     if (badgeStyle === "bar") {
       composites.push({ input: safeGenreBadgeResult.png, top: STD_H - safeGenreBadgeResult.h, left: 0 })
     } else {
-      const badgeY = STD_H - safeGenreBadgeResult.h - Math.max(0, Math.round(targetCenter - safeGenreBadgeResult.h / 2))
-      composites.push({ input: safeGenreBadgeResult.png, top: badgeY, left: Math.round((STD_W - safeGenreBadgeResult.w) / 2) })
+      // Offset solo stili centrati: la barra resta ancorata full-width.
+      const badgeY = STD_H - safeGenreBadgeResult.h - Math.max(0, Math.round(targetCenter - safeGenreBadgeResult.h / 2)) + genreBadgeOffsetY
+      composites.push({ input: safeGenreBadgeResult.png, top: badgeY, left: Math.round((STD_W - safeGenreBadgeResult.w) / 2) + genreBadgeOffsetX })
     }
   }
   const isRightRibbon = ribbonSide === "right"
@@ -947,7 +959,13 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
         }
         netTopLeftBottom = top + fittedRaw.h
       }
-      composites.push({ input: fittedRaw.png, top, left })
+      composites.push({
+        input: fittedRaw.png,
+        // Offset applicati DOPO il posizionamento automatico (come il badge
+        // qualità): la logica overlap/shrink ragiona sulla posizione ancorata.
+        top: top + networkLogoOffsetY,
+        left: left + networkLogoOffsetX,
+      })
     }
   }
 
@@ -1007,8 +1025,12 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
 
     composites.push({
       input: finalQualityBadge.png,
-      top,
-      left,
+      // Offset applicato DOPO lo shrink anti-overlap (che ragiona sulla
+      // posizione ancorata): con offset estremi il badge può sovrapporsi ad
+      // altri elementi — scelta utente, WYSIWYG. fitCompositeToCanvas lo
+      // tiene comunque dentro la tela.
+      top: top + qualityBadgeOffsetY,
+      left: left + qualityBadgeOffsetX,
     })
   }
 

@@ -4,7 +4,7 @@ import { SettingsPanel } from "@/components/SettingsPanel"
 import { renderWithCtx } from "@/__tests__/test-utils"
 
 describe("SettingsPanel", () => {
-  it("renders genre/rating badge toggle", () => {
+  it("renders genre/rating badge toggle and mirror card", () => {
     renderWithCtx(
       <SettingsPanel
         setSettingsOpen={() => {}}
@@ -12,7 +12,8 @@ describe("SettingsPanel", () => {
         importData={() => {}}
       />
     )
-    expect(screen.getByText("ui.genreRatingBadge")).toBeInTheDocument()
+    // Toggle nella card Badge + titolo della card specchio nel tab Trasforma.
+    expect(screen.getAllByText("ui.genreRatingBadge")).toHaveLength(2)
   })
 
   it("renders trend badge toggle", () => {
@@ -75,7 +76,7 @@ describe("SettingsPanel", () => {
     expect(screen.queryByPlaceholderText("ui.tvdbKeyPlaceholder")).toBeNull()
   })
 
-  it("renders 3 tabs and switches active tab on click", async () => {
+  it("renders 4 tabs and switches active tab on click", async () => {
     const { fireEvent } = await import("@testing-library/react")
     renderWithCtx(
       <SettingsPanel
@@ -84,16 +85,18 @@ describe("SettingsPanel", () => {
         importData={() => {}}
       />
     )
-    const styleTab = screen.getByRole("tab", { name: "ui.settingsTabStyle" })
+    const badgeTab = screen.getByRole("tab", { name: "ui.badgeSection" })
+    const transformTab = screen.getByRole("tab", { name: "ui.transform" })
     const prefsTab = screen.getByRole("tab", { name: "ui.settingsTabPrefs" })
     const dataTab = screen.getByRole("tab", { name: "ui.settingsTabData" })
 
-    expect(styleTab).toHaveAttribute("aria-selected", "true")
+    expect(badgeTab).toHaveAttribute("aria-selected", "true")
+    expect(transformTab).toHaveAttribute("aria-selected", "false")
     expect(prefsTab).toHaveAttribute("aria-selected", "false")
     expect(dataTab).toHaveAttribute("aria-selected", "false")
 
     fireEvent.click(prefsTab)
-    expect(styleTab).toHaveAttribute("aria-selected", "false")
+    expect(badgeTab).toHaveAttribute("aria-selected", "false")
     expect(prefsTab).toHaveAttribute("aria-selected", "true")
     expect(dataTab).toHaveAttribute("aria-selected", "false")
     expect(screen.getByText("ui.settingsAutomationTitle")).toBeInTheDocument()
@@ -101,6 +104,10 @@ describe("SettingsPanel", () => {
     fireEvent.click(dataTab)
     expect(dataTab).toHaveAttribute("aria-selected", "true")
     expect(prefsTab).toHaveAttribute("aria-selected", "false")
+
+    fireEvent.click(transformTab)
+    expect(transformTab).toHaveAttribute("aria-selected", "true")
+    expect(badgeTab).toHaveAttribute("aria-selected", "false")
   })
 
   it("calls setSettingsOpen(false) when close button is clicked", async () => {

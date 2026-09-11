@@ -69,7 +69,13 @@ export function buildStremioPosterUrl(input: BuildStremioPosterUrlInput): URL {
     topBadgeOffsetY: mapping?.topBadgeOffsetY ?? input.defaults.topBadgeOffsetY,
     genreBadgeScale: mapping?.genreBadgeScale ?? input.defaults.genreBadgeScale,
     qualityBadgeScale: mapping?.qualityBadgeScale ?? input.defaults.qualityBadgeScale,
+    genreBadgeOffsetX: mapping?.genreBadgeOffsetX ?? input.defaults.genreBadgeOffsetX,
+    genreBadgeOffsetY: mapping?.genreBadgeOffsetY ?? input.defaults.genreBadgeOffsetY,
+    qualityBadgeOffsetX: mapping?.qualityBadgeOffsetX ?? input.defaults.qualityBadgeOffsetX,
+    qualityBadgeOffsetY: mapping?.qualityBadgeOffsetY ?? input.defaults.qualityBadgeOffsetY,
     networkLogoScale: mapping?.networkLogoScale ?? input.defaults.networkLogoScale,
+    networkLogoOffsetX: mapping?.networkLogoOffsetX ?? input.defaults.networkLogoOffsetX,
+    networkLogoOffsetY: mapping?.networkLogoOffsetY ?? input.defaults.networkLogoOffsetY,
     gradientHeight: mapping?.gradientHeight ?? input.defaults.gradientHeight,
     blurIntensity: mapping?.blurIntensity ?? input.defaults.blurIntensity,
     blurFade: mapping?.blurFade ?? input.defaults.blurFade,
@@ -79,7 +85,8 @@ export function buildStremioPosterUrl(input: BuildStremioPosterUrlInput): URL {
     title: mapping?.title ?? undefined,
     networkLogo: (input.defaults.networkLogo !== false) && (mapping?.networkLogo !== false),
     preRelease: input.defaults.preRelease,
-    ribbonSide: mapping?.ribbonSide ?? input.defaults.ribbonSide,
+    // ribbonSide solo globale: i mapping storici con valore salvato lo ignorano.
+    ribbonSide: input.defaults.ribbonSide,
   })
 
   params.forEach((value, key) => url.searchParams.set(key, value))

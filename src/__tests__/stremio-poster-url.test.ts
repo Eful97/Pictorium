@@ -99,7 +99,7 @@ describe("buildStremioPosterUrl", () => {
     expect(url.searchParams.has("br")).toBe(false) // badgeRating is true
     expect(url.searchParams.get("bq")).toBe("0") // defaults
     expect(url.searchParams.get("rsrc")).toBe("tmdb,imdb")
-    expect(url.searchParams.get("side")).toBe("left") // mapping wins
+    expect(url.searchParams.get("side")).toBe("right") // solo globale: mapping ignorato
   })
 
   it("ignores invalid mapping timestamps", () => {

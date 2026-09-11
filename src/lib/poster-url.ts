@@ -31,10 +31,19 @@ interface BadgeParams {
   topBadgeOffsetY: number
   /** Scala % del badge genere/rating in basso. */
   genreBadgeScale: number
+  /** Offset px del badge genere/rating, solo stili non-bar. */
+  genreBadgeOffsetX: number
+  genreBadgeOffsetY: number
   /** Scala % del badge qualità streaming. */
   qualityBadgeScale: number
+  /** Offset px del badge qualità. */
+  qualityBadgeOffsetX: number
+  qualityBadgeOffsetY: number
   /** Scala % del logo network. */
   networkLogoScale: number
+  /** Offset px del logo network. */
+  networkLogoOffsetX: number
+  networkLogoOffsetY: number
   networkLogo?: boolean
   /** Effetto pre-digitale (darken + Coming Soon, solo film). Default OFF. */
   preRelease?: boolean
@@ -102,7 +111,13 @@ export function buildUrlPattern(bp: BadgeParams & { tmdbKey: string; lang: strin
     topBadgeOffsetY: bp.topBadgeOffsetY,
     genreBadgeScale: bp.genreBadgeScale,
     qualityBadgeScale: bp.qualityBadgeScale,
+    genreBadgeOffsetX: bp.genreBadgeOffsetX,
+    genreBadgeOffsetY: bp.genreBadgeOffsetY,
+    qualityBadgeOffsetX: bp.qualityBadgeOffsetX,
+    qualityBadgeOffsetY: bp.qualityBadgeOffsetY,
     networkLogoScale: bp.networkLogoScale,
+    networkLogoOffsetX: bp.networkLogoOffsetX,
+    networkLogoOffsetY: bp.networkLogoOffsetY,
   })
   // Template che l'utente copia per sé (come la manifest URL con chiavi):
   // qui le chiavi sono volute — Stremio non invia header custom, quindi il
@@ -130,7 +145,12 @@ export function buildPreviewUrl(ps: PosterState, bp: BadgeParams): string {
     params.push(`poster=${encodeURIComponent(ps.previewPoster.file_path)}`)
     const genre = ps.metaInfo.genres[0]?.name
     if (genre) params.push(`genreName=${encodeURIComponent(genre)}`)
-    if (ps.metaInfo.voteAverage > 0) params.push(`voteAverage=${ps.metaInfo.voteAverage}`)
+    // Un decimale come il badge (`toFixed(1)` nel renderer): la media grezza
+    // può essere un float lungo (es. 7.080000000000001) che supera il bound
+    // anti-flood della query e fa rispondere 400 al poster.
+    if (ps.metaInfo.voteAverage > 0 && Number.isFinite(ps.metaInfo.voteAverage)) {
+      params.push(`voteAverage=${ps.metaInfo.voteAverage.toFixed(1)}`)
+    }
     // Fix M1: l'anno della preview — senza, il server non imposta
     // releaseDate/firstAirDate nel ramo query e il badge genere della preview
     // omette "• 2024" che compare invece sul poster finale.
@@ -175,8 +195,14 @@ export function buildPreviewUrl(ps: PosterState, bp: BadgeParams): string {
   params.push(`tox=${bp.topBadgeOffsetX}`)
   params.push(`toy=${bp.topBadgeOffsetY}`)
   params.push(`gscale=${bp.genreBadgeScale}`)
+  params.push(`gox=${bp.genreBadgeOffsetX}`)
+  params.push(`goy=${bp.genreBadgeOffsetY}`)
   params.push(`qscale=${bp.qualityBadgeScale}`)
+  params.push(`qox=${bp.qualityBadgeOffsetX}`)
+  params.push(`qoy=${bp.qualityBadgeOffsetY}`)
   params.push(`netscale=${bp.networkLogoScale}`)
+  params.push(`nox=${bp.networkLogoOffsetX}`)
+  params.push(`noy=${bp.networkLogoOffsetY}`)
   if (!bp.blurEnabled) params.push("be=0")
   params.push(`netLogo=${bp.networkLogo !== false ? "1" : "0"}`)
   if (bp.preRelease) params.push("pre=1")

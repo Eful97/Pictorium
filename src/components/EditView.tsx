@@ -344,7 +344,13 @@ export default function EditView() {
                         topBadgeOffsetY: ed.topBadgeOffsetY,
                         genreBadgeScale: ed.genreBadgeScale,
                         qualityBadgeScale: ed.qualityBadgeScale,
+                        genreBadgeOffsetX: ed.genreBadgeOffsetX,
+                        genreBadgeOffsetY: ed.genreBadgeOffsetY,
+                        qualityBadgeOffsetX: ed.qualityBadgeOffsetX,
+                        qualityBadgeOffsetY: ed.qualityBadgeOffsetY,
                         networkLogoScale: ed.networkLogoScale,
+                        networkLogoOffsetX: ed.networkLogoOffsetX,
+                        networkLogoOffsetY: ed.networkLogoOffsetY,
                       })
                       if (!url) return
                       setUrlCopied(false)

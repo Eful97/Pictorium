@@ -122,7 +122,7 @@ export function TransformControls() {
             {t("ui.genreRatingBadge")}
           </span>
           <button type="button" aria-label={t("ui.reset")}
-                  onClick={() => { ed.setGenreBadgeScale(ed.defaultGenreBadgeScale) }}
+                  onClick={() => { ed.setGenreBadgeScale(ed.defaultGenreBadgeScale); ed.setGenreBadgeOffsetX(ed.defaultGenreBadgeOffsetX); ed.setGenreBadgeOffsetY(ed.defaultGenreBadgeOffsetY) }}
                   className="text-xs text-muted hover:text-accent transition-colors px-2 py-0.5 rounded-md border border-border/50 hover:border-accent/30">
             {t("ui.reset")}
           </button>
@@ -135,14 +135,48 @@ export function TransformControls() {
           max={150}
           boundsMin={10}
           boundsMax={200}
-            onChange={(v) => ed.setGenreBadgeScale(v)}
-            onDoubleClick={() => ed.setGenreBadgeScale(ed.defaultGenreBadgeScale)}
+          onChange={(v) => ed.setGenreBadgeScale(v)}
+          onDoubleClick={() => ed.setGenreBadgeScale(ed.defaultGenreBadgeScale)}
           editingValue={editingValue}
           editText={editText}
           setEditingValue={setEditingValue}
           setEditText={setEditText}
           editingKey="genreScale"
           suffix="%"
+        />
+        <SliderRow
+          icon={<ArrowLeftRight className="w-3.5 h-3.5" />}
+          label="X"
+          value={ed.genreBadgeOffsetX}
+          min={-100}
+          max={100}
+          boundsMin={-500}
+          boundsMax={500}
+          onChange={(v) => ed.setGenreBadgeOffsetX(v)}
+          onDoubleClick={() => ed.setGenreBadgeOffsetX(ed.defaultGenreBadgeOffsetX)}
+          editingValue={editingValue}
+          editText={editText}
+          setEditingValue={setEditingValue}
+          setEditText={setEditText}
+          editingKey="genreOX"
+          suffix="px"
+        />
+        <SliderRow
+          icon={<ArrowUpDown className="w-3.5 h-3.5" />}
+          label="Y"
+          value={ed.genreBadgeOffsetY}
+          min={-100}
+          max={100}
+          boundsMin={-500}
+          boundsMax={500}
+          onChange={(v) => ed.setGenreBadgeOffsetY(v)}
+          onDoubleClick={() => ed.setGenreBadgeOffsetY(ed.defaultGenreBadgeOffsetY)}
+          editingValue={editingValue}
+          editText={editText}
+          setEditingValue={setEditingValue}
+          setEditText={setEditText}
+          editingKey="genreOY"
+          suffix="px"
         />
       </div>
       )}
@@ -155,7 +189,7 @@ export function TransformControls() {
             {t("ui.badgeQuality")}
           </span>
           <button type="button" aria-label={t("ui.reset")}
-                  onClick={() => { ed.setQualityBadgeScale(ed.defaultQualityBadgeScale) }}
+                  onClick={() => { ed.setQualityBadgeScale(ed.defaultQualityBadgeScale); ed.setQualityBadgeOffsetX(ed.defaultQualityBadgeOffsetX); ed.setQualityBadgeOffsetY(ed.defaultQualityBadgeOffsetY) }}
                   className="text-xs text-muted hover:text-accent transition-colors px-2 py-0.5 rounded-md border border-border/50 hover:border-accent/30">
             {t("ui.reset")}
           </button>
@@ -177,6 +211,40 @@ export function TransformControls() {
           editingKey="qualityScale"
           suffix="%"
         />
+        <SliderRow
+          icon={<ArrowLeftRight className="w-3.5 h-3.5" />}
+          label="X"
+          value={ed.qualityBadgeOffsetX}
+          min={-100}
+          max={100}
+          boundsMin={-500}
+          boundsMax={500}
+          onChange={(v) => ed.setQualityBadgeOffsetX(v)}
+          onDoubleClick={() => ed.setQualityBadgeOffsetX(ed.defaultQualityBadgeOffsetX)}
+          editingValue={editingValue}
+          editText={editText}
+          setEditingValue={setEditingValue}
+          setEditText={setEditText}
+          editingKey="qualityOX"
+          suffix="px"
+        />
+        <SliderRow
+          icon={<ArrowUpDown className="w-3.5 h-3.5" />}
+          label="Y"
+          value={ed.qualityBadgeOffsetY}
+          min={-100}
+          max={100}
+          boundsMin={-500}
+          boundsMax={500}
+          onChange={(v) => ed.setQualityBadgeOffsetY(v)}
+          onDoubleClick={() => ed.setQualityBadgeOffsetY(ed.defaultQualityBadgeOffsetY)}
+          editingValue={editingValue}
+          editText={editText}
+          setEditingValue={setEditingValue}
+          setEditText={setEditText}
+          editingKey="qualityOY"
+          suffix="px"
+        />
       </div>
       )}
 
@@ -188,7 +256,7 @@ export function TransformControls() {
             {t("ui.networkLogo")}
           </span>
           <button type="button" aria-label={t("ui.reset")}
-                  onClick={() => { ed.setNetworkLogoScale(ed.defaultNetworkLogoScale) }}
+                  onClick={() => { ed.setNetworkLogoScale(ed.defaultNetworkLogoScale); ed.setNetworkLogoOffsetX(ed.defaultNetworkLogoOffsetX); ed.setNetworkLogoOffsetY(ed.defaultNetworkLogoOffsetY) }}
                   className="text-xs text-muted hover:text-accent transition-colors px-2 py-0.5 rounded-md border border-border/50 hover:border-accent/30">
             {t("ui.reset")}
           </button>
@@ -209,6 +277,40 @@ export function TransformControls() {
           setEditText={setEditText}
           editingKey="networkScale"
           suffix="%"
+        />
+        <SliderRow
+          icon={<ArrowLeftRight className="w-3.5 h-3.5" />}
+          label="X"
+          value={ed.networkLogoOffsetX}
+          min={-100}
+          max={100}
+          boundsMin={-500}
+          boundsMax={500}
+          onChange={(v) => ed.setNetworkLogoOffsetX(v)}
+          onDoubleClick={() => ed.setNetworkLogoOffsetX(ed.defaultNetworkLogoOffsetX)}
+          editingValue={editingValue}
+          editText={editText}
+          setEditingValue={setEditingValue}
+          setEditText={setEditText}
+          editingKey="networkOX"
+          suffix="px"
+        />
+        <SliderRow
+          icon={<ArrowUpDown className="w-3.5 h-3.5" />}
+          label="Y"
+          value={ed.networkLogoOffsetY}
+          min={-100}
+          max={100}
+          boundsMin={-500}
+          boundsMax={500}
+          onChange={(v) => ed.setNetworkLogoOffsetY(v)}
+          onDoubleClick={() => ed.setNetworkLogoOffsetY(ed.defaultNetworkLogoOffsetY)}
+          editingValue={editingValue}
+          editText={editText}
+          setEditingValue={setEditingValue}
+          setEditText={setEditText}
+          editingKey="networkOY"
+          suffix="px"
         />
       </div>
       )}

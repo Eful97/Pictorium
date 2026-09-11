@@ -32,6 +32,7 @@ import {
   Flame,
   ChevronDown,
   Sliders,
+  Move,
   Database,
   Layers,
   Wand2,
@@ -59,7 +60,7 @@ export function SettingsPanel({ setSettingsOpen, exportData, importData, mobile 
   const { t } = useT()
   const ed = usePosterEditor()
 
-  const [activeTab, setActiveTab] = useState<"style" | "prefs" | "data">("style")
+  const [activeTab, setActiveTab] = useState<"badge" | "trasforma" | "prefs" | "data">("badge")
   const [sourcesOpen, setSourcesOpen] = useState(false)
   const [editVal, setEditVal] = useState<string | null>(null)
   const [editTxt, setEditTxt] = useState("")
@@ -181,16 +182,30 @@ export function SettingsPanel({ setSettingsOpen, exportData, importData, mobile 
       <button
         type="button"
         role="tab"
-        aria-selected={activeTab === "style"}
-        onClick={() => setActiveTab("style")}
+        aria-selected={activeTab === "badge"}
+        onClick={() => setActiveTab("badge")}
         className={`flex items-center gap-2 py-3 px-3 text-xs font-semibold border-b-2 transition-all cursor-pointer ${
-          activeTab === "style"
+          activeTab === "badge"
             ? "border-accent-orange text-accent-orange"
             : "border-transparent text-zinc-400 hover:text-zinc-200"
         }`}
       >
-        <Palette className="w-3.5 h-3.5" />
-        <span>{t("ui.settingsTabStyle")}</span>
+        <Layers className="w-3.5 h-3.5" />
+        <span>{t("ui.badgeSection")}</span>
+      </button>
+      <button
+        type="button"
+        role="tab"
+        aria-selected={activeTab === "trasforma"}
+        onClick={() => setActiveTab("trasforma")}
+        className={`flex items-center gap-2 py-3 px-3 text-xs font-semibold border-b-2 transition-all cursor-pointer ${
+          activeTab === "trasforma"
+            ? "border-accent-orange text-accent-orange"
+            : "border-transparent text-zinc-400 hover:text-zinc-200"
+        }`}
+      >
+        <Move className="w-3.5 h-3.5" />
+        <span>{t("ui.transform")}</span>
       </button>
       <button
         type="button"
@@ -223,12 +238,12 @@ export function SettingsPanel({ setSettingsOpen, exportData, importData, mobile 
     </div>
   )
 
-  // Scheda 1: Stile Poster
-  const stylePanel = (
+  // Scheda 1: Badge (specchio del tab Badge dell'editor, valori default)
+  const badgePanel = (
     <div
       role="tabpanel"
-      aria-label={t("ui.settingsTabStyle")}
-      className={`space-y-3.5 text-xs ${activeTab === "style" ? "block" : "hidden"}`}
+      aria-label={t("ui.badgeSection")}
+      className={`space-y-3.5 text-xs ${activeTab === "badge" ? "block" : "hidden"}`}
     >
       {/* Badge & Provider Predefiniti */}
       <div className="bg-surface/50 border border-surface2/60 rounded-xl p-3.5 space-y-3 shadow-sm">
@@ -421,32 +436,6 @@ export function SettingsPanel({ setSettingsOpen, exportData, importData, mobile 
             />
           </div>
 
-          {ed.defaultBadgeQuality && (
-            <div className="pl-3 py-1 border-l-2 border-surface2 ml-1 animate-fade-in">
-              <SliderRow
-                icon={<Search className="w-3.5 h-3.5" />}
-                label={t("ui.scale")}
-                value={ed.defaultQualityBadgeScale}
-                min={50}
-                max={150}
-                boundsMin={10}
-                boundsMax={200}
-                onChange={(v) => {
-                  ed.setDefaultQualityBadgeScale(v)
-                }}
-            onDoubleClick={() => {
-              ed.setDefaultQualityBadgeScale(100)
-            }}
-                editingValue={editVal}
-                editText={editTxt}
-                setEditingValue={setEditVal}
-                setEditText={setEditTxt}
-                editingKey="qbs"
-                suffix="%"
-              />
-            </div>
-          )}
-
           <div className="flex items-center justify-between">
             <span className="text-zinc-300 font-medium flex items-center gap-1.5">
               <Tv className="w-3.5 h-3.5 text-sky-400" />
@@ -461,31 +450,19 @@ export function SettingsPanel({ setSettingsOpen, exportData, importData, mobile 
             />
           </div>
 
-          {ed.defaultNetworkLogo && (
-            <div className="pl-3 py-1 border-l-2 border-surface2 ml-1 animate-fade-in">
-              <SliderRow
-                icon={<Search className="w-3.5 h-3.5" />}
-                label={t("ui.scale")}
-                value={ed.defaultNetworkLogoScale}
-                min={50}
-                max={150}
-                boundsMin={10}
-                boundsMax={200}
-                onChange={(v) => {
-                  ed.setDefaultNetworkLogoScale(v)
-                }}
-                onDoubleClick={() => {
-                  ed.setDefaultNetworkLogoScale(100)
-                }}
-                editingValue={editVal}
-                editText={editTxt}
-                setEditingValue={setEditVal}
-                setEditText={setEditTxt}
-                editingKey="nls"
-                suffix="%"
-              />
-            </div>
-          )}
+          <div className="flex items-center justify-between">
+            <span className="text-zinc-300 font-medium flex items-center gap-1.5">
+              <Cloud className="w-3.5 h-3.5 text-cyan-400" />
+              {t("ui.blurSection")}
+            </span>
+            <Toggle
+              value={ed.defaultBlurEnabled}
+              onChange={(v) => {
+                ed.setDefaultBlurEnabled(v)
+              }}
+              label={t("ui.blurSection")}
+            />
+          </div>
 
           <div className="flex items-center justify-between">
             <span className="text-zinc-300 font-medium flex items-center gap-1.5">
@@ -572,6 +549,125 @@ export function SettingsPanel({ setSettingsOpen, exportData, importData, mobile 
             }}
             t={t}
           />
+        </div>
+      </div>
+    </div>
+  )
+
+  // Scheda 2: Trasforma (specchio del tab Trasforma dell'editor, valori default)
+  const trasformaPanel = (
+    <div
+      role="tabpanel"
+      aria-label={t("ui.transform")}
+      className={`space-y-3.5 text-xs ${activeTab === "trasforma" ? "block" : "hidden"}`}
+    >
+      {/* Badge Superiore Predefinito */}
+      {ed.defaultRankingBadges && (
+      <div className="bg-surface/50 border border-surface2/60 rounded-xl p-3.5 space-y-2.5 shadow-sm animate-fade-in">
+        <div className="flex items-center justify-between">
+          <span className="text-zinc-300 font-medium flex items-center gap-1.5">
+            <Trophy className="w-3.5 h-3.5 text-amber-500" />
+            {t("ui.topBadge")}
+          </span>
+          <button type="button" aria-label={t("ui.reset")}
+                  onClick={() => {
+                    ed.setDefaultTopBadgeScale(100)
+                    ed.setDefaultTopBadgeOffsetX(0)
+                    ed.setDefaultTopBadgeOffsetY(0)
+                  }}
+                  className="text-xs text-muted hover:text-accent transition-colors px-2 py-0.5 rounded-md border border-border/50 hover:border-accent/30">
+            {t("ui.reset")}
+          </button>
+        </div>
+
+        <div className="space-y-1.5 pt-1">
+          <SliderRow
+            icon={<Search className="w-3.5 h-3.5" />}
+            label={t("ui.scale")}
+            value={ed.defaultTopBadgeScale}
+            min={50}
+            max={150}
+            boundsMin={10}
+            boundsMax={200}
+            onChange={(v) => {
+              ed.setDefaultTopBadgeScale(v)
+            }}
+            onDoubleClick={() => {
+              ed.setDefaultTopBadgeScale(100)
+            }}
+            editingValue={editVal}
+            editText={editTxt}
+            setEditingValue={setEditVal}
+            setEditText={setEditTxt}
+            editingKey="tbs"
+            suffix="%"
+          />
+          <SliderRow
+            icon={<ArrowLeftRight className="w-3.5 h-3.5" />}
+            label="X"
+            value={ed.defaultTopBadgeOffsetX}
+            min={-100}
+            max={100}
+            boundsMin={-500}
+            boundsMax={500}
+            onChange={(v) => {
+              ed.setDefaultTopBadgeOffsetX(v)
+            }}
+            onDoubleClick={() => {
+              ed.setDefaultTopBadgeOffsetX(0)
+            }}
+            editingValue={editVal}
+            editText={editTxt}
+            setEditingValue={setEditVal}
+            setEditText={setEditTxt}
+            editingKey="tbx"
+            suffix="px"
+          />
+          <SliderRow
+            icon={<ArrowUpDown className="w-3.5 h-3.5" />}
+            label="Y"
+            value={ed.defaultTopBadgeOffsetY}
+            min={-100}
+            max={100}
+            boundsMin={-500}
+            boundsMax={500}
+            onChange={(v) => {
+              ed.setDefaultTopBadgeOffsetY(v)
+            }}
+            onDoubleClick={() => {
+              ed.setDefaultTopBadgeOffsetY(0)
+            }}
+            editingValue={editVal}
+            editText={editTxt}
+            setEditingValue={setEditVal}
+            setEditText={setEditTxt}
+            editingKey="tby"
+            suffix="px"
+          />
+        </div>
+      </div>
+      )}
+
+      {/* Badge Genere Predefinito */}
+      {ed.defaultGlobalBadges && (
+      <div className="bg-surface/50 border border-surface2/60 rounded-xl p-3.5 space-y-2.5 shadow-sm animate-fade-in">
+        <div className="flex items-center justify-between">
+          <span className="text-zinc-300 font-medium flex items-center gap-1.5">
+            <Star className="w-3.5 h-3.5 text-amber-400" />
+            {t("ui.genreRatingBadge")}
+          </span>
+          <button type="button" aria-label={t("ui.reset")}
+                  onClick={() => {
+                    ed.setDefaultGenreBadgeScale(100)
+                    ed.setDefaultGenreBadgeOffsetX(0)
+                    ed.setDefaultGenreBadgeOffsetY(0)
+                  }}
+                  className="text-xs text-muted hover:text-accent transition-colors px-2 py-0.5 rounded-md border border-border/50 hover:border-accent/30">
+            {t("ui.reset")}
+          </button>
+        </div>
+
+        <div className="space-y-1.5 pt-1">
           <SliderRow
             icon={<Search className="w-3.5 h-3.5" />}
             label={t("ui.scale")}
@@ -593,27 +689,247 @@ export function SettingsPanel({ setSettingsOpen, exportData, importData, mobile 
             editingKey="gbs"
             suffix="%"
           />
+          <SliderRow
+            icon={<ArrowLeftRight className="w-3.5 h-3.5" />}
+            label="X"
+            value={ed.defaultGenreBadgeOffsetX}
+            min={-100}
+            max={100}
+            boundsMin={-500}
+            boundsMax={500}
+            onChange={(v) => {
+              ed.setDefaultGenreBadgeOffsetX(v)
+            }}
+            onDoubleClick={() => {
+              ed.setDefaultGenreBadgeOffsetX(0)
+            }}
+            editingValue={editVal}
+            editText={editTxt}
+            setEditingValue={setEditVal}
+            setEditText={setEditTxt}
+            editingKey="gbx"
+            suffix="px"
+          />
+          <SliderRow
+            icon={<ArrowUpDown className="w-3.5 h-3.5" />}
+            label="Y"
+            value={ed.defaultGenreBadgeOffsetY}
+            min={-100}
+            max={100}
+            boundsMin={-500}
+            boundsMax={500}
+            onChange={(v) => {
+              ed.setDefaultGenreBadgeOffsetY(v)
+            }}
+            onDoubleClick={() => {
+              ed.setDefaultGenreBadgeOffsetY(0)
+            }}
+            editingValue={editVal}
+            editText={editTxt}
+            setEditingValue={setEditVal}
+            setEditText={setEditTxt}
+            editingKey="gby"
+            suffix="px"
+          />
         </div>
       </div>
+      )}
+
+      {/* Badge Qualità Predefinito */}
+      {ed.defaultBadgeQuality && (
+      <div className="bg-surface/50 border border-surface2/60 rounded-xl p-3.5 space-y-2.5 shadow-sm animate-fade-in">
+        <div className="flex items-center justify-between">
+          <span className="text-zinc-300 font-medium flex items-center gap-1.5">
+            <Sparkles className="w-3.5 h-3.5 text-purple-400" />
+            {t("ui.badgeQuality")}
+          </span>
+          <button type="button" aria-label={t("ui.reset")}
+                  onClick={() => {
+                    ed.setDefaultQualityBadgeScale(100)
+                    ed.setDefaultQualityBadgeOffsetX(0)
+                    ed.setDefaultQualityBadgeOffsetY(0)
+                  }}
+                  className="text-xs text-muted hover:text-accent transition-colors px-2 py-0.5 rounded-md border border-border/50 hover:border-accent/30">
+            {t("ui.reset")}
+          </button>
+        </div>
+
+        <div className="space-y-1.5 pt-1">
+          <SliderRow
+            icon={<Search className="w-3.5 h-3.5" />}
+            label={t("ui.scale")}
+            value={ed.defaultQualityBadgeScale}
+            min={50}
+            max={150}
+            boundsMin={10}
+            boundsMax={200}
+            onChange={(v) => {
+              ed.setDefaultQualityBadgeScale(v)
+            }}
+            onDoubleClick={() => {
+              ed.setDefaultQualityBadgeScale(100)
+            }}
+            editingValue={editVal}
+            editText={editTxt}
+            setEditingValue={setEditVal}
+            setEditText={setEditTxt}
+            editingKey="qbs"
+            suffix="%"
+          />
+          <SliderRow
+            icon={<ArrowLeftRight className="w-3.5 h-3.5" />}
+            label="X"
+            value={ed.defaultQualityBadgeOffsetX}
+            min={-100}
+            max={100}
+            boundsMin={-500}
+            boundsMax={500}
+            onChange={(v) => {
+              ed.setDefaultQualityBadgeOffsetX(v)
+            }}
+            onDoubleClick={() => {
+              ed.setDefaultQualityBadgeOffsetX(0)
+            }}
+            editingValue={editVal}
+            editText={editTxt}
+            setEditingValue={setEditVal}
+            setEditText={setEditTxt}
+            editingKey="qbx"
+            suffix="px"
+          />
+          <SliderRow
+            icon={<ArrowUpDown className="w-3.5 h-3.5" />}
+            label="Y"
+            value={ed.defaultQualityBadgeOffsetY}
+            min={-100}
+            max={100}
+            boundsMin={-500}
+            boundsMax={500}
+            onChange={(v) => {
+              ed.setDefaultQualityBadgeOffsetY(v)
+            }}
+            onDoubleClick={() => {
+              ed.setDefaultQualityBadgeOffsetY(0)
+            }}
+            editingValue={editVal}
+            editText={editTxt}
+            setEditingValue={setEditVal}
+            setEditText={setEditTxt}
+            editingKey="qby"
+            suffix="px"
+          />
+        </div>
+      </div>
+      )}
+
+      {/* Logo Network Predefinito */}
+      {ed.defaultNetworkLogo && (
+      <div className="bg-surface/50 border border-surface2/60 rounded-xl p-3.5 space-y-2.5 shadow-sm animate-fade-in">
+        <div className="flex items-center justify-between">
+          <span className="text-zinc-300 font-medium flex items-center gap-1.5">
+            <Tv className="w-3.5 h-3.5 text-sky-400" />
+            {t("ui.networkLogo")}
+          </span>
+          <button type="button" aria-label={t("ui.reset")}
+                  onClick={() => {
+                    ed.setDefaultNetworkLogoScale(100)
+                    ed.setDefaultNetworkLogoOffsetX(0)
+                    ed.setDefaultNetworkLogoOffsetY(0)
+                  }}
+                  className="text-xs text-muted hover:text-accent transition-colors px-2 py-0.5 rounded-md border border-border/50 hover:border-accent/30">
+            {t("ui.reset")}
+          </button>
+        </div>
+
+        <div className="space-y-1.5 pt-1">
+          <SliderRow
+            icon={<Search className="w-3.5 h-3.5" />}
+            label={t("ui.scale")}
+            value={ed.defaultNetworkLogoScale}
+            min={50}
+            max={150}
+            boundsMin={10}
+            boundsMax={200}
+            onChange={(v) => {
+              ed.setDefaultNetworkLogoScale(v)
+            }}
+            onDoubleClick={() => {
+              ed.setDefaultNetworkLogoScale(100)
+            }}
+            editingValue={editVal}
+            editText={editTxt}
+            setEditingValue={setEditVal}
+            setEditText={setEditTxt}
+            editingKey="nls"
+            suffix="%"
+          />
+          <SliderRow
+            icon={<ArrowLeftRight className="w-3.5 h-3.5" />}
+            label="X"
+            value={ed.defaultNetworkLogoOffsetX}
+            min={-100}
+            max={100}
+            boundsMin={-500}
+            boundsMax={500}
+            onChange={(v) => {
+              ed.setDefaultNetworkLogoOffsetX(v)
+            }}
+            onDoubleClick={() => {
+              ed.setDefaultNetworkLogoOffsetX(0)
+            }}
+            editingValue={editVal}
+            editText={editTxt}
+            setEditingValue={setEditVal}
+            setEditText={setEditTxt}
+            editingKey="nlx"
+            suffix="px"
+          />
+          <SliderRow
+            icon={<ArrowUpDown className="w-3.5 h-3.5" />}
+            label="Y"
+            value={ed.defaultNetworkLogoOffsetY}
+            min={-100}
+            max={100}
+            boundsMin={-500}
+            boundsMax={500}
+            onChange={(v) => {
+              ed.setDefaultNetworkLogoOffsetY(v)
+            }}
+            onDoubleClick={() => {
+              ed.setDefaultNetworkLogoOffsetY(0)
+            }}
+            editingValue={editVal}
+            editText={editTxt}
+            setEditingValue={setEditVal}
+            setEditText={setEditTxt}
+            editingKey="nly"
+            suffix="px"
+          />
+        </div>
+      </div>
+      )}
 
       {/* Sfumatura & Blur Predefiniti */}
-      <div className="bg-surface/50 border border-surface2/60 rounded-xl p-3.5 space-y-2.5 shadow-sm">
+      {ed.defaultBlurEnabled && (
+      <div className="bg-surface/50 border border-surface2/60 rounded-xl p-3.5 space-y-2.5 shadow-sm animate-fade-in">
         <div className="flex items-center justify-between">
           <span className="text-zinc-300 font-medium flex items-center gap-1.5">
             <Cloud className="w-3.5 h-3.5 text-cyan-400" />
             {t("ui.blurDefault")}
           </span>
-          <Toggle
-            value={ed.defaultBlurEnabled}
-            onChange={(v) => {
-              ed.setDefaultBlurEnabled(v)
-            }}
-            label={t("ui.blurDefault")}
-          />
+          <button type="button" aria-label={t("ui.reset")}
+                  onClick={() => {
+                    ed.setDefaultGradientHeight(30)
+                    ed.setDefaultBlurIntensity(5)
+                    ed.setDefaultBlurFade(60)
+                    ed.setDefaultBlurDarkness(40)
+                  }}
+                  className="text-xs text-muted hover:text-accent transition-colors px-2 py-0.5 rounded-md border border-border/50 hover:border-accent/30">
+            {t("ui.reset")}
+          </button>
         </div>
 
-        {ed.defaultBlurEnabled && (
-          <div className="space-y-1.5 pt-1.5 border-t border-surface2/50 animate-fade-in">
+        <div className="space-y-1.5 pt-1 animate-fade-in">
             <SliderRow
               icon={<Ruler className="w-3.5 h-3.5" />}
               label={t("ui.height")}
@@ -699,82 +1015,8 @@ export function SettingsPanel({ setSettingsOpen, exportData, importData, mobile 
               suffix="%"
             />
           </div>
-        )}
       </div>
-
-      {/* Badge Superiore Predefinito */}
-      <div className="bg-surface/50 border border-surface2/60 rounded-xl p-3.5 space-y-2.5 shadow-sm">
-        <span className="text-zinc-300 font-medium flex items-center gap-1.5">
-          <Trophy className="w-3.5 h-3.5 text-amber-500" />
-          {t("ui.topBadge")}
-        </span>
-
-        <div className="space-y-1.5 pt-1">
-          <SliderRow
-            icon={<Search className="w-3.5 h-3.5" />}
-            label={t("ui.scale")}
-            value={ed.defaultTopBadgeScale}
-            min={50}
-            max={150}
-            boundsMin={10}
-            boundsMax={200}
-            onChange={(v) => {
-              ed.setDefaultTopBadgeScale(v)
-            }}
-            onDoubleClick={() => {
-              ed.setDefaultTopBadgeScale(100)
-            }}
-            editingValue={editVal}
-            editText={editTxt}
-            setEditingValue={setEditVal}
-            setEditText={setEditTxt}
-            editingKey="tbs"
-            suffix="%"
-          />
-          <SliderRow
-            icon={<ArrowLeftRight className="w-3.5 h-3.5" />}
-            label="X"
-            value={ed.defaultTopBadgeOffsetX}
-            min={-100}
-            max={100}
-            boundsMin={-500}
-            boundsMax={500}
-            onChange={(v) => {
-              ed.setDefaultTopBadgeOffsetX(v)
-            }}
-            onDoubleClick={() => {
-              ed.setDefaultTopBadgeOffsetX(0)
-            }}
-            editingValue={editVal}
-            editText={editTxt}
-            setEditingValue={setEditVal}
-            setEditText={setEditTxt}
-            editingKey="tbx"
-            suffix="px"
-          />
-          <SliderRow
-            icon={<ArrowUpDown className="w-3.5 h-3.5" />}
-            label="Y"
-            value={ed.defaultTopBadgeOffsetY}
-            min={-100}
-            max={100}
-            boundsMin={-500}
-            boundsMax={500}
-            onChange={(v) => {
-              ed.setDefaultTopBadgeOffsetY(v)
-            }}
-            onDoubleClick={() => {
-              ed.setDefaultTopBadgeOffsetY(0)
-            }}
-            editingValue={editVal}
-            editText={editTxt}
-            setEditingValue={setEditVal}
-            setEditText={setEditTxt}
-            editingKey="tby"
-            suffix="px"
-          />
-        </div>
-      </div>
+      )}
     </div>
   )
 
@@ -1214,7 +1456,8 @@ export function SettingsPanel({ setSettingsOpen, exportData, importData, mobile 
       <div ref={settingsRef} className="space-y-4">
         {tabsNav}
         <div className="pt-2">
-          {stylePanel}
+          {badgePanel}
+          {trasformaPanel}
           {prefsPanel}
           {dataPanel}
         </div>
@@ -1269,7 +1512,8 @@ export function SettingsPanel({ setSettingsOpen, exportData, importData, mobile 
 
         {/* Contenuto scrollabile */}
         <div className="flex-1 overflow-y-auto p-4 sm:p-6">
-          {stylePanel}
+          {badgePanel}
+          {trasformaPanel}
           {prefsPanel}
           {dataPanel}
         </div>

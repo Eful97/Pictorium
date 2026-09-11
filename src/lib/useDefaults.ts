@@ -21,6 +21,12 @@ export interface DefaultsState {
   defaultGenreBadgeScale: number
   defaultQualityBadgeScale: number
   defaultNetworkLogoScale: number
+  defaultGenreBadgeOffsetX: number
+  defaultGenreBadgeOffsetY: number
+  defaultQualityBadgeOffsetX: number
+  defaultQualityBadgeOffsetY: number
+  defaultNetworkLogoOffsetX: number
+  defaultNetworkLogoOffsetY: number
   defaultGlobalBadges: boolean
   defaultRankingBadges: boolean
   /** Componenti del badge genere/rating di default (default tutti ON). */
@@ -57,6 +63,12 @@ export interface DefaultsState {
   genreBadgeScale: number
   qualityBadgeScale: number
   networkLogoScale: number
+  genreBadgeOffsetX: number
+  genreBadgeOffsetY: number
+  qualityBadgeOffsetX: number
+  qualityBadgeOffsetY: number
+  networkLogoOffsetX: number
+  networkLogoOffsetY: number
   blurIntensity: number
   blurFade: number
   blurDarkness: number
@@ -79,6 +91,12 @@ const DEFAULTS: DefaultsState = {
   defaultGenreBadgeScale: 100,
   defaultQualityBadgeScale: 100,
   defaultNetworkLogoScale: 100,
+  defaultGenreBadgeOffsetX: 0,
+  defaultGenreBadgeOffsetY: 0,
+  defaultQualityBadgeOffsetX: 0,
+  defaultQualityBadgeOffsetY: 0,
+  defaultNetworkLogoOffsetX: 0,
+  defaultNetworkLogoOffsetY: 0,
   defaultGlobalBadges: true,
   defaultRankingBadges: true,
   defaultBadgeGenre: true,
@@ -112,6 +130,12 @@ const DEFAULTS: DefaultsState = {
   genreBadgeScale: 100,
   qualityBadgeScale: 100,
   networkLogoScale: 100,
+  genreBadgeOffsetX: 0,
+  genreBadgeOffsetY: 0,
+  qualityBadgeOffsetX: 0,
+  qualityBadgeOffsetY: 0,
+  networkLogoOffsetX: 0,
+  networkLogoOffsetY: 0,
   blurIntensity: 5,
   blurFade: 60,
   blurDarkness: 40,
@@ -135,6 +159,12 @@ interface StoredDefaults {
   genreBadgeScale?: number
   qualityBadgeScale?: number
   networkLogoScale?: number
+  genreBadgeOffsetX?: number
+  genreBadgeOffsetY?: number
+  qualityBadgeOffsetX?: number
+  qualityBadgeOffsetY?: number
+  networkLogoOffsetX?: number
+  networkLogoOffsetY?: number
   blurIntensity?: number
   blurFade?: number
   blurDarkness?: number
@@ -154,6 +184,12 @@ interface StoredDefaults {
   defaultGenreBadgeScale?: number
   defaultQualityBadgeScale?: number
   defaultNetworkLogoScale?: number
+  defaultGenreBadgeOffsetX?: number
+  defaultGenreBadgeOffsetY?: number
+  defaultQualityBadgeOffsetX?: number
+  defaultQualityBadgeOffsetY?: number
+  defaultNetworkLogoOffsetX?: number
+  defaultNetworkLogoOffsetY?: number
   defaultGlobalBadges?: boolean
   defaultRankingBadges?: boolean
   defaultBadgeGenre?: boolean
@@ -208,6 +244,12 @@ function buildFromStored(d: StoredDefaults | null): DefaultsState {
     defaultGenreBadgeScale: d.defaultGenreBadgeScale ?? d.genreBadgeScale ?? 100,
     defaultQualityBadgeScale: d.defaultQualityBadgeScale ?? d.qualityBadgeScale ?? 100,
     defaultNetworkLogoScale: d.defaultNetworkLogoScale ?? d.networkLogoScale ?? 100,
+    defaultGenreBadgeOffsetX: d.defaultGenreBadgeOffsetX ?? d.genreBadgeOffsetX ?? 0,
+    defaultGenreBadgeOffsetY: d.defaultGenreBadgeOffsetY ?? d.genreBadgeOffsetY ?? 0,
+    defaultQualityBadgeOffsetX: d.defaultQualityBadgeOffsetX ?? d.qualityBadgeOffsetX ?? 0,
+    defaultQualityBadgeOffsetY: d.defaultQualityBadgeOffsetY ?? d.qualityBadgeOffsetY ?? 0,
+    defaultNetworkLogoOffsetX: d.defaultNetworkLogoOffsetX ?? d.networkLogoOffsetX ?? 0,
+    defaultNetworkLogoOffsetY: d.defaultNetworkLogoOffsetY ?? d.networkLogoOffsetY ?? 0,
     defaultGlobalBadges: d.defaultGlobalBadges ?? d.globalBadges ?? true,
     defaultRankingBadges: d.defaultRankingBadges ?? d.rankingBadges ?? true,
     defaultBadgeGenre: d.defaultBadgeGenre ?? d.badgeGenre ?? true,
@@ -241,6 +283,12 @@ function buildFromStored(d: StoredDefaults | null): DefaultsState {
     genreBadgeScale: d.genreBadgeScale ?? d.defaultGenreBadgeScale ?? 100,
     qualityBadgeScale: d.qualityBadgeScale ?? d.defaultQualityBadgeScale ?? 100,
     networkLogoScale: d.networkLogoScale ?? d.defaultNetworkLogoScale ?? 100,
+    genreBadgeOffsetX: d.genreBadgeOffsetX ?? d.defaultGenreBadgeOffsetX ?? 0,
+    genreBadgeOffsetY: d.genreBadgeOffsetY ?? d.defaultGenreBadgeOffsetY ?? 0,
+    qualityBadgeOffsetX: d.qualityBadgeOffsetX ?? d.defaultQualityBadgeOffsetX ?? 0,
+    qualityBadgeOffsetY: d.qualityBadgeOffsetY ?? d.defaultQualityBadgeOffsetY ?? 0,
+    networkLogoOffsetX: d.networkLogoOffsetX ?? d.defaultNetworkLogoOffsetX ?? 0,
+    networkLogoOffsetY: d.networkLogoOffsetY ?? d.defaultNetworkLogoOffsetY ?? 0,
     blurIntensity: d.blurIntensity ?? d.defaultBlurIntensity ?? 5,
     blurFade: d.blurFade ?? d.defaultBlurFade ?? 60,
     blurDarkness: d.blurDarkness ?? d.defaultBlurDarkness ?? 40,
@@ -271,6 +319,12 @@ function defaultsToPayload(d: DefaultsState): Record<string, unknown> {
     genreBadgeScale: d.defaultGenreBadgeScale,
     qualityBadgeScale: d.defaultQualityBadgeScale,
     networkLogoScale: d.defaultNetworkLogoScale,
+    genreBadgeOffsetX: d.defaultGenreBadgeOffsetX,
+    genreBadgeOffsetY: d.defaultGenreBadgeOffsetY,
+    qualityBadgeOffsetX: d.defaultQualityBadgeOffsetX,
+    qualityBadgeOffsetY: d.defaultQualityBadgeOffsetY,
+    networkLogoOffsetX: d.defaultNetworkLogoOffsetX,
+    networkLogoOffsetY: d.defaultNetworkLogoOffsetY,
     globalBadges: d.defaultGlobalBadges,
     rankingBadges: d.defaultRankingBadges,
     badgeGenre: d.defaultBadgeGenre,

@@ -185,11 +185,12 @@ describe("resolvePosterRenderConfig", () => {
     expect(r2.qNetLogo).toBe("0")
   })
 
-  it("ribbonSide: query side=right or side=left wins, then mapping, then config token", () => {
+  it("ribbonSide: query side=right or side=left wins, then config token (no mapping: globale)", () => {
     expect(resolvePosterRenderConfig(baseInput({ searchParams: new URLSearchParams({ side: "right" }) })).ribbonSide).toBe("right")
     expect(resolvePosterRenderConfig(baseInput({ searchParams: new URLSearchParams({ side: "left" }), mapping: mapping({ ribbonSide: "right" }) })).ribbonSide).toBe("left")
     expect(resolvePosterRenderConfig(baseInput({ searchParams: new URLSearchParams({ side: "left" }), configOverride: config({ ribbonSide: "right" }) })).ribbonSide).toBe("left")
-    expect(resolvePosterRenderConfig(baseInput({ mapping: mapping({ ribbonSide: "right" }) })).ribbonSide).toBe("right")
+    // Il mapping storico viene ignorato: vince il default globale.
+    expect(resolvePosterRenderConfig(baseInput({ mapping: mapping({ ribbonSide: "right" }) })).ribbonSide).toBe("left")
     expect(resolvePosterRenderConfig(baseInput({ configOverride: config({ ribbonSide: "right" }) })).ribbonSide).toBe("right")
     expect(resolvePosterRenderConfig(baseInput()).ribbonSide).toBe("left")
   })
@@ -344,6 +345,81 @@ describe("resolvePosterRenderConfig", () => {
     expect(resolvePosterRenderConfig(baseInput({ searchParams: new URLSearchParams({ qscale: "-50" }) })).qualityBadgeScale).toBe(10)
     expect(resolvePosterRenderConfig(baseInput({ searchParams: new URLSearchParams({ qscale: "abc" }) })).qualityBadgeScale).toBe(100)
     expect(resolvePosterRenderConfig(baseInput({ searchParams: new URLSearchParams({ qscale: "0" }) })).qualityBadgeScale).toBe(100)
+  })
+
+  it("genre/quality offsets default to 0; query > mapping > config > defaults", () => {
+    const r = resolvePosterRenderConfig(baseInput())
+    expect(r.genreBadgeOffsetX).toBe(0)
+    expect(r.genreBadgeOffsetY).toBe(0)
+    expect(r.qualityBadgeOffsetX).toBe(0)
+    expect(r.qualityBadgeOffsetY).toBe(0)
+    const q = resolvePosterRenderConfig(baseInput({
+      searchParams: new URLSearchParams({ gox: "5", goy: "-3", qox: "7", qoy: "-9" }),
+      mapping: mapping({ genreBadgeOffsetX: 1, genreBadgeOffsetY: 2, qualityBadgeOffsetX: 3, qualityBadgeOffsetY: 4 }),
+      configOverride: config({ genreBadgeOffsetX: 10, genreBadgeOffsetY: 11, qualityBadgeOffsetX: 12, qualityBadgeOffsetY: 13 }),
+      sd: { genreBadgeOffsetX: 20, genreBadgeOffsetY: 21, qualityBadgeOffsetX: 22, qualityBadgeOffsetY: 23 },
+    }))
+    expect(q.genreBadgeOffsetX).toBe(5)
+    expect(q.genreBadgeOffsetY).toBe(-3)
+    expect(q.qualityBadgeOffsetX).toBe(7)
+    expect(q.qualityBadgeOffsetY).toBe(-9)
+    const m = resolvePosterRenderConfig(baseInput({
+      mapping: mapping({ genreBadgeOffsetX: 1, genreBadgeOffsetY: 2, qualityBadgeOffsetX: 3, qualityBadgeOffsetY: 4 }),
+      configOverride: config({ genreBadgeOffsetX: 10, genreBadgeOffsetY: 11, qualityBadgeOffsetX: 12, qualityBadgeOffsetY: 13 }),
+      sd: { genreBadgeOffsetX: 20, genreBadgeOffsetY: 21, qualityBadgeOffsetX: 22, qualityBadgeOffsetY: 23 },
+    }))
+    expect(m.genreBadgeOffsetX).toBe(1)
+    expect(m.genreBadgeOffsetY).toBe(2)
+    expect(m.qualityBadgeOffsetX).toBe(3)
+    expect(m.qualityBadgeOffsetY).toBe(4)
+    // Zero esplicito in query vince (non cade sul mapping)
+    const z = resolvePosterRenderConfig(baseInput({
+      searchParams: new URLSearchParams({ gox: "0", qoy: "0" }),
+      mapping: mapping({ genreBadgeOffsetX: 1, qualityBadgeOffsetY: 4 }),
+    }))
+    expect(z.genreBadgeOffsetX).toBe(0)
+    expect(z.qualityBadgeOffsetY).toBe(0)
+  })
+
+  it("genre/quality offsets are clamped to ±2000px", () => {
+    expect(resolvePosterRenderConfig(baseInput({ searchParams: new URLSearchParams({ gox: "99999" }) })).genreBadgeOffsetX).toBe(2000)
+    expect(resolvePosterRenderConfig(baseInput({ searchParams: new URLSearchParams({ goy: "-99999" }) })).genreBadgeOffsetY).toBe(-2000)
+    expect(resolvePosterRenderConfig(baseInput({ searchParams: new URLSearchParams({ qox: "99999" }) })).qualityBadgeOffsetX).toBe(2000)
+    expect(resolvePosterRenderConfig(baseInput({ searchParams: new URLSearchParams({ qoy: "-99999" }) })).qualityBadgeOffsetY).toBe(-2000)
+    expect(resolvePosterRenderConfig(baseInput({ searchParams: new URLSearchParams({ gox: "xyz" }) })).genreBadgeOffsetX).toBe(0)
+  })
+
+  it("network logo offsets default to 0; query > mapping > config > defaults", () => {
+    const r = resolvePosterRenderConfig(baseInput())
+    expect(r.networkLogoOffsetX).toBe(0)
+    expect(r.networkLogoOffsetY).toBe(0)
+    const q = resolvePosterRenderConfig(baseInput({
+      searchParams: new URLSearchParams({ nox: "5", noy: "-3" }),
+      mapping: mapping({ networkLogoOffsetX: 1, networkLogoOffsetY: 2 }),
+      configOverride: config({ networkLogoOffsetX: 10, networkLogoOffsetY: 11 }),
+      sd: { networkLogoOffsetX: 20, networkLogoOffsetY: 21 },
+    }))
+    expect(q.networkLogoOffsetX).toBe(5)
+    expect(q.networkLogoOffsetY).toBe(-3)
+    const m = resolvePosterRenderConfig(baseInput({
+      mapping: mapping({ networkLogoOffsetX: 1, networkLogoOffsetY: 2 }),
+      configOverride: config({ networkLogoOffsetX: 10, networkLogoOffsetY: 11 }),
+      sd: { networkLogoOffsetX: 20, networkLogoOffsetY: 21 },
+    }))
+    expect(m.networkLogoOffsetX).toBe(1)
+    expect(m.networkLogoOffsetY).toBe(2)
+    // Zero esplicito in query vince (non cade sul mapping)
+    const z = resolvePosterRenderConfig(baseInput({
+      searchParams: new URLSearchParams({ nox: "0" }),
+      mapping: mapping({ networkLogoOffsetX: 1 }),
+    }))
+    expect(z.networkLogoOffsetX).toBe(0)
+  })
+
+  it("network logo offsets are clamped to ±2000px", () => {
+    expect(resolvePosterRenderConfig(baseInput({ searchParams: new URLSearchParams({ nox: "99999" }) })).networkLogoOffsetX).toBe(2000)
+    expect(resolvePosterRenderConfig(baseInput({ searchParams: new URLSearchParams({ noy: "-99999" }) })).networkLogoOffsetY).toBe(-2000)
+    expect(resolvePosterRenderConfig(baseInput({ searchParams: new URLSearchParams({ nox: "xyz" }) })).networkLogoOffsetX).toBe(0)
   })
 
   it("network logo scale defaults to 100; query > mapping > config > server defaults", () => {

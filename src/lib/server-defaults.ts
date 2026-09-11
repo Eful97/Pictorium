@@ -35,10 +35,19 @@ export interface ServerDefaults {
   topBadgeOffsetY?: number
   /** Scala % del badge genere/rating in basso. Default 100. */
   genreBadgeScale?: number
+  /** Offset px del badge genere/rating (solo stili non-bar). Default 0. */
+  genreBadgeOffsetX?: number
+  genreBadgeOffsetY?: number
   /** Scala % del badge qualità (streaming). Default 100. */
   qualityBadgeScale?: number
+  /** Offset px del badge qualità. Default 0. */
+  qualityBadgeOffsetX?: number
+  qualityBadgeOffsetY?: number
   /** Scala % del logo network. Default 100. */
   networkLogoScale?: number
+  /** Offset px del logo network. Default 0. */
+  networkLogoOffsetX?: number
+  networkLogoOffsetY?: number
   /** Effetto pre-digitale (darken + badge Coming Soon, solo film). Default OFF. */
   preRelease?: boolean
   ribbonSide?: "left" | "right"
@@ -116,8 +125,14 @@ function defaultsFromEnv(): ServerDefaults {
   const topBadgeOX = envNum("TOP_BADGE_OFFSET_X")
   const topBadgeOY = envNum("TOP_BADGE_OFFSET_Y")
   const genreBadgeScale = envNum("GENRE_BADGE_SCALE")
+  const genreBadgeOX = envNum("GENRE_BADGE_OFFSET_X")
+  const genreBadgeOY = envNum("GENRE_BADGE_OFFSET_Y")
   const qualityBadgeScale = envNum("QUALITY_BADGE_SCALE")
+  const qualityBadgeOX = envNum("QUALITY_BADGE_OFFSET_X")
+  const qualityBadgeOY = envNum("QUALITY_BADGE_OFFSET_Y")
   const networkLogoScale = envNum("NETWORK_LOGO_SCALE")
+  const networkLogoOX = envNum("NETWORK_LOGO_OFFSET_X")
+  const networkLogoOY = envNum("NETWORK_LOGO_OFFSET_Y")
   const epSrc = getEnv("EPISODE_METADATA_SOURCE")?.trim().toLowerCase()
   if (epSrc === "tmdb" || epSrc === "tvdb") d.episodeMetadataSource = epSrc
   // Regione classifiche: codice canonico, fail-closed su IT se non riconosciuta.
@@ -134,8 +149,14 @@ function defaultsFromEnv(): ServerDefaults {
   if (topBadgeOX !== undefined) d.topBadgeOffsetX = topBadgeOX
   if (topBadgeOY !== undefined) d.topBadgeOffsetY = topBadgeOY
   if (genreBadgeScale !== undefined) d.genreBadgeScale = genreBadgeScale
+  if (genreBadgeOX !== undefined) d.genreBadgeOffsetX = genreBadgeOX
+  if (genreBadgeOY !== undefined) d.genreBadgeOffsetY = genreBadgeOY
   if (qualityBadgeScale !== undefined) d.qualityBadgeScale = qualityBadgeScale
+  if (qualityBadgeOX !== undefined) d.qualityBadgeOffsetX = qualityBadgeOX
+  if (qualityBadgeOY !== undefined) d.qualityBadgeOffsetY = qualityBadgeOY
   if (networkLogoScale !== undefined) d.networkLogoScale = networkLogoScale
+  if (networkLogoOX !== undefined) d.networkLogoOffsetX = networkLogoOX
+  if (networkLogoOY !== undefined) d.networkLogoOffsetY = networkLogoOY
   return d
 }
 const ENV_DEFAULTS: ServerDefaults = defaultsFromEnv()

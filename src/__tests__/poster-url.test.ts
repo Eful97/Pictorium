@@ -19,6 +19,12 @@ const baseBadgeParams = {
   genreBadgeScale: 100,
   qualityBadgeScale: 100,
   networkLogoScale: 100,
+  genreBadgeOffsetX: 0,
+  genreBadgeOffsetY: 0,
+  qualityBadgeOffsetX: 0,
+  qualityBadgeOffsetY: 0,
+  networkLogoOffsetX: 0,
+  networkLogoOffsetY: 0,
 }
 
 const basePosterState = {
@@ -166,6 +172,12 @@ describe("buildPreviewUrl", () => {
   it("includes voteAverage when > 0", () => {
     const url = buildPreviewUrl(basePosterState, baseBadgeParams)
     expect(url).toContain("voteAverage=7.5")
+  })
+
+  it("rounds voteAverage to 1 decimal (long floats tripped the query bound → 400)", () => {
+    const url = buildPreviewUrl({ ...basePosterState, metaInfo: { ...basePosterState.metaInfo, voteAverage: 7.080000000000001 } }, baseBadgeParams)
+    expect(url).toContain("voteAverage=7.1")
+    expect(url).not.toContain("7.080000000000001")
   })
 
   it("does not include voteAverage when 0", () => {

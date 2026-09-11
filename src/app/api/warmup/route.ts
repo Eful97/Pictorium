@@ -98,6 +98,12 @@ function buildPosterUrl(input: BuildPosterUrlInput): URL {
     genreBadgeScale: defaults.genreBadgeScale,
     qualityBadgeScale: defaults.qualityBadgeScale,
     networkLogoScale: defaults.networkLogoScale,
+    genreBadgeOffsetX: defaults.genreBadgeOffsetX,
+    genreBadgeOffsetY: defaults.genreBadgeOffsetY,
+    qualityBadgeOffsetX: defaults.qualityBadgeOffsetX,
+    qualityBadgeOffsetY: defaults.qualityBadgeOffsetY,
+    networkLogoOffsetX: defaults.networkLogoOffsetX,
+    networkLogoOffsetY: defaults.networkLogoOffsetY,
   })
   params.forEach((value, key) => url.searchParams.set(key, value))
   return url

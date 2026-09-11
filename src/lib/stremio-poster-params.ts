@@ -33,10 +33,19 @@ export interface StremioPosterParamsInput {
   readonly topBadgeOffsetY?: number
   /** Scala % del badge genere/rating in basso (default 100). */
   readonly genreBadgeScale?: number
+  /** Offset px del badge genere/rating, solo stili non-bar (default 0). */
+  readonly genreBadgeOffsetX?: number
+  readonly genreBadgeOffsetY?: number
   /** Scala % del badge qualità streaming (default 100). */
   readonly qualityBadgeScale?: number
+  /** Offset px del badge qualità (default 0). */
+  readonly qualityBadgeOffsetX?: number
+  readonly qualityBadgeOffsetY?: number
   /** Scala % del logo network (default 100). */
   readonly networkLogoScale?: number
+  /** Offset px del logo network (default 0). */
+  readonly networkLogoOffsetX?: number
+  readonly networkLogoOffsetY?: number
   /** Effetto pre-digitale (darken + Coming Soon, solo film). Default OFF. */
   readonly preRelease?: boolean
   readonly ribbonSide?: "left" | "right"
@@ -65,8 +74,14 @@ const DEFAULT_STREMIO_POSTER_PARAMS = {
   topBadgeOffsetX: 0,
   topBadgeOffsetY: 0,
   genreBadgeScale: 100,
+  genreBadgeOffsetX: 0,
+  genreBadgeOffsetY: 0,
   qualityBadgeScale: 100,
+  qualityBadgeOffsetX: 0,
+  qualityBadgeOffsetY: 0,
   networkLogoScale: 100,
+  networkLogoOffsetX: 0,
+  networkLogoOffsetY: 0,
 } as const
 
 export function buildStremioPosterSearchParams(input: StremioPosterParamsInput): URLSearchParams {
@@ -107,8 +122,14 @@ export function buildStremioPosterSearchParams(input: StremioPosterParamsInput):
   params.set("tox", String(input.topBadgeOffsetX ?? DEFAULT_STREMIO_POSTER_PARAMS.topBadgeOffsetX))
   params.set("toy", String(input.topBadgeOffsetY ?? DEFAULT_STREMIO_POSTER_PARAMS.topBadgeOffsetY))
   params.set("gscale", String(input.genreBadgeScale ?? DEFAULT_STREMIO_POSTER_PARAMS.genreBadgeScale))
+  params.set("gox", String(input.genreBadgeOffsetX ?? DEFAULT_STREMIO_POSTER_PARAMS.genreBadgeOffsetX))
+  params.set("goy", String(input.genreBadgeOffsetY ?? DEFAULT_STREMIO_POSTER_PARAMS.genreBadgeOffsetY))
   params.set("qscale", String(input.qualityBadgeScale ?? DEFAULT_STREMIO_POSTER_PARAMS.qualityBadgeScale))
+  params.set("qox", String(input.qualityBadgeOffsetX ?? DEFAULT_STREMIO_POSTER_PARAMS.qualityBadgeOffsetX))
+  params.set("qoy", String(input.qualityBadgeOffsetY ?? DEFAULT_STREMIO_POSTER_PARAMS.qualityBadgeOffsetY))
   params.set("netscale", String(input.networkLogoScale ?? DEFAULT_STREMIO_POSTER_PARAMS.networkLogoScale))
+  params.set("nox", String(input.networkLogoOffsetX ?? DEFAULT_STREMIO_POSTER_PARAMS.networkLogoOffsetX))
+  params.set("noy", String(input.networkLogoOffsetY ?? DEFAULT_STREMIO_POSTER_PARAMS.networkLogoOffsetY))
   params.set("rv", String(POSTER_URL_VERSION))
   return params
 }
