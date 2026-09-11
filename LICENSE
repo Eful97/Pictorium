@@ -645,5 +645,5 @@ the "copyright" line and a pointer to where the full notice is found.
     You should have received a copy of the GNU Affero General Public License
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-  This program is based on erdb (https://github.com/realbestia1/erdb),
-  Copyright (C) realbestia1, also licensed under AGPL v3.
+  Inspired by erdb (https://github.com/realbestia1/erdb) by realbestia1,
+  also licensed under AGPL v3.
