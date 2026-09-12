@@ -1,4 +1,6 @@
 import sharp from "sharp"
+import type { RatingItem } from "./custom-rating/types"
+import { renderMultiRatings } from "./multi-rating-renderer"
 import { cacheGet, cacheSet } from "./cache"
 import { GENRE_FALLBACK, cinematicVignetteSVG } from "./badges"
 import { applyBlur } from "./blur"
@@ -52,6 +54,7 @@ const IMAGE_CACHE_TTL = 24 * 60 * 60 * 1000
 const IMAGE_CACHE_TAG = "poster-extract"
 
 export interface GenerationInput {
+  ratings?: RatingItem[]
   // Images (already fetched)
   posterBuf: Buffer
   logoFetch: Buffer | null
@@ -821,6 +824,17 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
       // Offset solo stili centrati: la barra resta ancorata full-width.
       const badgeY = STD_H - safeGenreBadgeResult.h - Math.max(0, Math.round(targetCenter - safeGenreBadgeResult.h / 2)) + genreBadgeOffsetY
       composites.push({ input: safeGenreBadgeResult.png, top: badgeY, left: Math.round((STD_W - safeGenreBadgeResult.w) / 2) + genreBadgeOffsetX })
+    }
+  }
+  if (input.ratings?.length) {
+    // Optional enrichment must never prevent the original poster from rendering.
+    const row = await renderMultiRatings(input.ratings, STD_W - 40).catch(() => null)
+    if (row) {
+      const legacyTop = safeGenreBadgeResult
+        ? (badgeStyle === "bar" ? STD_H - safeGenreBadgeResult.h
+          : STD_H - safeGenreBadgeResult.h - Math.max(0, Math.round(targetCenter - safeGenreBadgeResult.h / 2)) + genreBadgeOffsetY)
+        : STD_H - 20
+      composites.push({ input: row.png, left: Math.round((STD_W - row.w) / 2), top: Math.max(0, legacyTop - row.h - 10) })
     }
   }
   const isRightRibbon = ribbonSide === "right"

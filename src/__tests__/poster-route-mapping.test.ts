@@ -10,6 +10,15 @@ import { fetchMDBList } from "@/lib/mdblist"
 import { cacheClear } from "@/lib/cache"
 import { __resetTMDBSessionCache } from "@/lib/tmdb-session-cache"
 import type { Mapping } from "@/lib/types"
+import { fetchCustomRatings } from "@/lib/custom-rating"
+import { renderMultiRatings } from "@/lib/multi-rating-renderer"
+import { fetchAggregatedRating } from "@/lib/ratings"
+
+vi.mock("@/lib/custom-rating", async (importOriginal) => ({
+  ...await importOriginal<typeof import("@/lib/custom-rating")>(),
+  fetchCustomRatings: vi.fn(async () => []),
+}))
+vi.mock("@/lib/multi-rating-renderer", () => ({ renderMultiRatings: vi.fn(async () => null) }))
 
 vi.mock("@/lib/rate-limit", () => ({
   rateLimit: vi.fn(() => ({ ok: true, retAfter: 0 })),
@@ -95,6 +104,10 @@ async function imageBuffer(color: string, width: number, height: number): Promis
 describe("GET /api/poster/[type]/[id] with saved mappings", () => {
   beforeEach(() => {
     vi.restoreAllMocks()
+    vi.mocked(fetchCustomRatings).mockReset().mockResolvedValue([])
+    vi.mocked(fetchAggregatedRating).mockReset().mockResolvedValue(null)
+    vi.mocked(renderMultiRatings).mockClear()
+    vi.stubEnv("PICTORIUM_CUSTOM_RATING_ENABLED", "false")
   })
 
   afterEach(() => {
@@ -138,6 +151,37 @@ describe("GET /api/poster/[type]/[id] with saved mappings", () => {
     expect(mockedSelectBestLogoFitPosterPath).not.toHaveBeenCalled()
     expect(requestedUrls.some((url) => url.includes("/saved-choice.jpg"))).toBe(true)
     expect(requestedUrls.some((url) => url.includes("/best-fit.jpg"))).toBe(false)
+    expect(renderMultiRatings).not.toHaveBeenCalled()
+  })
+
+  it("passes custom ratings to the renderer on a miss and skips the provider on a cache hit", async () => {
+    vi.stubEnv("PICTORIUM_CUSTOM_RATING_ENABLED", "true")
+    vi.stubEnv("PICTORIUM_CUSTOM_RATING_ENDPOINT", "https://example.com/{imdbId}")
+    const rating = { id: "custom", name: "Example", value: 87, format: "percent" as const }
+    vi.mocked(fetchCustomRatings).mockResolvedValue([rating])
+    mockedGetExternalIds.mockResolvedValueOnce({ imdb_id: "tt1375666" })
+    mockedGetDetails.mockResolvedValueOnce({ id: 98765, title: "Custom test", genres: [], vote_average: 0, vote_count: 0 })
+    mockedGetById.mockResolvedValue({
+      tmdbId: 98765, mediaType: "movie", title: "Custom test", posterPath: "/custom-test.jpg",
+      logoPath: null, originalPosterPath: null, language: "it", showBadges: false,
+      rankingBadges: false, updatedAt: "2026-09-12T00:00:00.000Z",
+    })
+    const poster = await imageBuffer("#101010", 500, 750)
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(new Uint8Array(poster), {
+      headers: { "content-type": "image/png" },
+    }))
+    const requestPoster = () => GET(new NextRequest("http://localhost:3000/api/poster/movie/98765?imdbId=tt1375666"), {
+      params: Promise.resolve({ type: "movie", id: "98765" }),
+    })
+    const first = await requestPoster()
+    expect(first.status).toBe(200)
+    expect(fetchCustomRatings).toHaveBeenCalledWith("tt1375666", expect.objectContaining({ enabled: true }), expect.any(AbortSignal))
+    expect(renderMultiRatings).toHaveBeenCalledWith([rating], expect.any(Number))
+    const calls = vi.mocked(fetchCustomRatings).mock.calls.length
+    const hit = await requestPoster()
+    expect(hit.status).toBe(200)
+    expect(fetchCustomRatings).toHaveBeenCalledTimes(calls)
+    expect(hit.headers.get("etag")).toBe(first.headers.get("etag"))
   })
 
   it("retries Block B getDetails once on transient failure", async () => {
@@ -299,6 +343,69 @@ describe("GET /api/poster/[type]/[id] with saved mappings", () => {
     // Deve usare il poster in lingua, NON il clean senza logo
     expect(requestedUrls.some((url) => url.includes("/it-poster.jpg"))).toBe(true)
     expect(requestedUrls.some((url) => url.includes("/clean.jpg"))).toBe(false)
+  })
+
+  it.each([
+    { label: "disabled", enabled: false, imdb: true, custom: true, id: 98769 },
+    { label: "IMDb + Custom", enabled: true, imdb: true, custom: true, id: 98770 },
+    { label: "IMDb only", enabled: true, imdb: true, custom: false, id: 98771 },
+    { label: "Custom only", enabled: true, imdb: false, custom: true, id: 98772 },
+    { label: "no ratings", enabled: true, imdb: false, custom: false, id: 98773 },
+    { label: "provider overrides internal ID with multiple items", enabled: true, imdb: true, custom: true, id: 98774 },
+  ].flatMap(test => ["non-mapped", "saved", "query"].map((kind, index) => ({ ...test, kind, id: test.id + index * 100 }))))("renders independent rating items: $kind / $label", async ({ imdb, custom, id, enabled, kind, label }) => {
+    vi.stubEnv("PICTORIUM_CUSTOM_RATING_ENABLED", String(enabled))
+    const { fetchAggregatedRating } = await import("@/lib/ratings")
+    vi.mocked(fetchAggregatedRating).mockResolvedValue({
+      sources: imdb ? { imdb: 8.8, tmdb: 6 } : { tmdb: 6 },
+      average: imdb ? 7.4 : 6, count: imdb ? 2 : 1,
+    })
+    const customItem = { id: "custom", name: "Custom", value: 87, format: "percent" as const }
+    const overridesInternal = label.startsWith("provider overrides")
+    const providerItems = overridesInternal ? [
+      { id: "source1", name: "Source 1", value: 8, format: "decimal" as const },
+      { id: "imdb", name: "Provider value", value: 9.2, format: "decimal" as const },
+      { id: "source2", name: "Source 2", value: 87, format: "percent" as const },
+    ] : custom ? [customItem] : []
+    vi.mocked(fetchCustomRatings).mockResolvedValueOnce(providerItems)
+    mockedGetById.mockResolvedValue(kind === "saved" ? {
+      tmdbId: id, mediaType: "movie", title: "Independent ratings", posterPath: `/ratings-${id}.jpg`,
+      logoPath: null, originalPosterPath: null, language: "it", voteAverage: 5,
+      showBadges: false, rankingBadges: false, updatedAt: "2026-09-12T00:00:00.000Z",
+    } : null)
+    mockedGetDetails.mockResolvedValue({ id, title: "Independent ratings", genres: [], vote_average: 6, vote_count: 100 })
+    mockedGetImages.mockResolvedValue({ id, posters: [
+      { file_path: `/ratings-${id}.jpg`, iso_639_1: null, vote_average: 8, vote_count: 100, width: 500, height: 750, aspect_ratio: 0.667 },
+    ], logos: [], backdrops: [] })
+    mockedGetExternalIds.mockResolvedValue({ imdb_id: `tt${id}` })
+    const poster = await imageBuffer("#101010", 500, 750)
+    vi.spyOn(globalThis, "fetch").mockImplementation(async () => new Response(new Uint8Array(poster), {
+      headers: { "content-type": "image/png" },
+    }))
+    const url = `http://localhost:3000/api/poster/movie/${id}${kind === "query" ? `?poster=/ratings-${id}.jpg&imdbId=tt${id}&voteAverage=5&preview=1` : ""}`
+    const res = await GET(new NextRequest(url), {
+      params: Promise.resolve({ type: "movie", id: String(id) }),
+    })
+    expect(res.status).toBe(200)
+    const expected = overridesInternal ? [providerItems[1], providerItems[0], providerItems[2]] : [
+      ...(imdb ? [{ id: "imdb", name: "IMDb", value: 8.8, format: "decimal" }] : []),
+      ...(custom ? [customItem] : []),
+    ]
+    if (enabled && expected.length) expect(renderMultiRatings).toHaveBeenCalledWith(expected, expect.any(Number))
+    else expect(renderMultiRatings).not.toHaveBeenCalled()
+    if (!enabled) expect(fetchCustomRatings).not.toHaveBeenCalled()
+    const imdbCalls = vi.mocked(fetchAggregatedRating).mock.calls.length
+    const customCalls = vi.mocked(fetchCustomRatings).mock.calls.length
+    if (enabled || kind === "non-mapped") expect(imdbCalls).toBe(1)
+    else expect(imdbCalls).toBe(0)
+    const hit = await GET(new NextRequest(url), { params: Promise.resolve({ type: "movie", id: String(id) }) })
+    expect(hit.status).toBe(200)
+    expect(fetchAggregatedRating).toHaveBeenCalledTimes(imdbCalls)
+    expect(fetchCustomRatings).toHaveBeenCalledTimes(customCalls)
+    const debug = await GET(new NextRequest(`${url}${url.includes("?") ? "&" : "?"}debug=1`), {
+      params: Promise.resolve({ type: "movie", id: String(id) }),
+    })
+    expect(debug.status).toBe(200)
+    expect((await debug.json()).vote.average).toBeCloseTo(kind === "non-mapped" ? (imdb ? 7.4 : 6) : 5)
   })
 
   it("applies the TMDB+IMDb average rating when the aggregated rating resolves", async () => {
@@ -557,6 +664,54 @@ describe("GET /api/poster/[type]/[id] error and edge cases", () => {
     expect(res.headers.get("Access-Control-Allow-Origin")).toBe("*")
   })
 
+  it("revalidates saved custom ratings after cache eviction, including the empty state", async () => {
+    vi.stubEnv("PICTORIUM_CUSTOM_RATING_ENABLED", "true")
+    const id = 98999
+    mockedGetById.mockResolvedValue({
+      tmdbId: id, mediaType: "movie", title: "Revalidation", posterPath: "/revalidate.jpg",
+      logoPath: null, originalPosterPath: null, language: "it", showBadges: false,
+      rankingBadges: false, updatedAt: "2026-09-12T00:00:00.000Z",
+    })
+    mockedGetExternalIds.mockResolvedValue({ imdb_id: "tt98999" })
+    mockedGetDetails.mockResolvedValue({ id, genres: [], vote_average: 5, vote_count: 10 })
+    const poster = await imageBuffer("#101010", 500, 750)
+    vi.spyOn(globalThis, "fetch").mockImplementation(async () => new Response(new Uint8Array(poster), {
+      headers: { "content-type": "image/png" },
+    }))
+    const request = (etag?: string) => GET(new NextRequest(`http://localhost:3000/api/poster/movie/${id}`, {
+      headers: etag ? { "If-None-Match": etag } : {},
+    }), { params: Promise.resolve({ type: "movie", id: String(id) }) })
+    const first = await request()
+    expect(first.status).toBe(200)
+    const emptyEtag = first.headers.get("etag")!
+    expect(emptyEtag).toMatch(/:cr[^\"]+"$/)
+    expect(fetchCustomRatings).toHaveBeenCalledTimes(1)
+    expect((await request(emptyEtag)).status).toBe(304)
+    expect(fetchCustomRatings).toHaveBeenCalledTimes(1) // Cache HIT stays a fast path.
+    cacheClear()
+    expect((await request(emptyEtag)).status).toBe(304)
+    expect(fetchCustomRatings).toHaveBeenCalledTimes(2) // Empty state revalidated.
+
+    const item = { id: "source1", name: "Source 1", value: 87, format: "percent" as const }
+    vi.mocked(fetchCustomRatings).mockResolvedValue([item])
+    let populatedEtag = ""
+    // Also cover clients holding a pre-fix ETag without the empty-state suffix.
+    for (const previousEtag of [emptyEtag, emptyEtag.replace(/:cr[^\"]+"$/, '"')]) {
+      cacheClear()
+      const calls = vi.mocked(fetchCustomRatings).mock.calls.length
+      const next = await request(previousEtag)
+      expect(next.status).toBe(200)
+      expect(fetchCustomRatings).toHaveBeenCalledTimes(calls + 1)
+      expect(renderMultiRatings).toHaveBeenLastCalledWith([item], expect.any(Number))
+      populatedEtag = next.headers.get("etag")!
+      expect(populatedEtag).not.toBe(emptyEtag)
+    }
+    cacheClear()
+    const calls = vi.mocked(fetchCustomRatings).mock.calls.length
+    expect((await request(populatedEtag)).status).toBe(304)
+    expect(fetchCustomRatings).toHaveBeenCalledTimes(calls + 1)
+  })
+
   it("returns 304 Not Modified when etag matches", async () => {
     const posterBuf = await imageBuffer("#101010", 500, 750)
 
@@ -585,6 +740,7 @@ describe("GET /api/poster/[type]/[id] error and edge cases", () => {
     const etag = res1.headers.get("ETag")
     expect(etag).toBeTruthy()
 
+    cacheClear() // Disabled provider preserves mapped early 304 even on a cache miss.
     // Second request with If-None-Match
     const req2 = new NextRequest("http://localhost:3000/api/poster/movie/42", {
       headers: { "If-None-Match": etag! },
