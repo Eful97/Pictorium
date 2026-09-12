@@ -473,9 +473,10 @@ export function CatalogManagerModal({ isOpen, onClose }: CatalogManagerModalProp
                   )}
                 </button>
 
-                {/* 3 lines Drag Handle */}
+                {/* 3 lines Drag Handle: solo mouse (su touch il drag HTML5 non
+                    esiste — restano le frecce qui sotto, sempre funzionanti) */}
                 <div
-                  className="cursor-grab active:cursor-grabbing p-1.5 rounded-lg hover:bg-white/10 text-muted hover:text-white transition-colors"
+                  className="pointer-coarse:hidden cursor-grab active:cursor-grabbing p-1.5 rounded-lg hover:bg-white/10 text-muted hover:text-white transition-colors"
                   title={
                     isSelected && selectedIds.size > 1
                       ? t("ui.dragMany", { count: selectedIds.size })
@@ -491,7 +492,7 @@ export function CatalogManagerModal({ isOpen, onClose }: CatalogManagerModalProp
                     disabled={index === 0}
                     onClick={() => (isSelected ? moveSelectedUp() : moveCatalog(item.id, "up"))}
                     title={t("ui.moveUp")}
-                    className="p-0.5 rounded hover:bg-white/10 text-muted hover:text-white disabled:opacity-15 transition-colors"
+                    className="p-1 pointer-coarse:p-2 rounded hover:bg-white/10 text-muted hover:text-white disabled:opacity-15 transition-colors"
                   >
                     <ArrowUp className="w-3 h-3" />
                   </button>
@@ -500,7 +501,7 @@ export function CatalogManagerModal({ isOpen, onClose }: CatalogManagerModalProp
                     disabled={index === allCatalogs.length - 1}
                     onClick={() => (isSelected ? moveSelectedDown() : moveCatalog(item.id, "down"))}
                     title={t("ui.moveDown")}
-                    className="p-0.5 rounded hover:bg-white/10 text-muted hover:text-white disabled:opacity-15 transition-colors"
+                    className="p-1 pointer-coarse:p-2 rounded hover:bg-white/10 text-muted hover:text-white disabled:opacity-15 transition-colors"
                   >
                     <ArrowDown className="w-3 h-3" />
                   </button>

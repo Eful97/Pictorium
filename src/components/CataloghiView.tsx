@@ -7,7 +7,6 @@ import { getRegionDef } from "@/lib/regions"
 import { toSearchResult } from "@/lib/types"
 import { useState, useEffect, useMemo } from "react"
 import { createPortal } from "react-dom"
-import { ScrollReveal } from "@/components/ScrollReveal"
 import { SimklCard, type SimklCardItem } from "@/components/SimklCard"
 import { CustomCatalogModal } from "@/components/CustomCatalogModal"
 import { CatalogManagerModal } from "@/components/CatalogManagerModal"
@@ -51,13 +50,7 @@ function CatalogPair({
   const hasTv = tv.length > 0
   if (!hasMovies && !hasTv) return null
 
-  const toGrid = (list: SimklCardItem[]): GridViewItem[] =>
-    list.map((it) => ({
-      tmdbId: it.tmdbId ?? it.id ?? null,
-      mediaType: (it.media_type || it.mediaType || "movie") as "movie" | "tv",
-      title: it.title ?? it.name ?? "",
-      posterPath: it.poster_path ?? it.posterPath ?? null,
-    }))
+  const toGrid = (list: SimklCardItem[]): GridViewItem[] => toGridItems(list)
 
   return (
     <div className={`grid gap-3 ${hasMovies && hasTv ? "grid-cols-1 lg:grid-cols-2" : "grid-cols-1"}`}>
@@ -87,6 +80,46 @@ function CatalogPair({
   )
 }
 
+/** Converte item custom/unificati nel formato griglia (condiviso). */
+function toGridItems(list: SimklCardItem[]): GridViewItem[] {
+  return list.map((it) => ({
+    tmdbId: it.tmdbId ?? it.id ?? null,
+    mediaType: (it.media_type || it.mediaType || "movie") as "movie" | "tv",
+    title: it.title ?? it.name ?? "",
+    posterPath: it.poster_path ?? it.posterPath ?? null,
+  }))
+}
+
+/** Filtra la lista completa sulla sezione aperta (film/serie dallo slice preview). */
+function filterSection(full: SimklCardItem[], previewSlice: SimklCardItem[]): SimklCardItem[] {
+  const types = new Set(previewSlice.map((it) => it.media_type || it.mediaType))
+  return full.filter((it) => types.has(it.media_type || it.mediaType))
+}
+
+// Preview leggera per le card custom (la griglia completa arriva su open):
+// N cataloghi × 500 item parsati nel client ad ogni visita erano il collo
+// di bottiglia. Cache di sessione per la lista completa (chiave URL+chiavi).
+const CUSTOM_PREVIEW_LIMIT = 40
+const CUSTOM_FULL_LIMIT = 500
+const customFullCache = new Map<string, SimklCardItem[]>()
+
+function customItemsUrl(url: string, tmdbKey: string, mdblistApiKey: string, limit: number): string {
+  const params = new URLSearchParams({
+    url,
+    api_key: tmdbKey || "",
+    mdblist_key: mdblistApiKey || "",
+    limit: String(limit),
+  })
+  return `/api/mdblist/custom?${params.toString()}`
+}
+
+async function fetchCustomItems(url: string, signal?: AbortSignal): Promise<SimklCardItem[]> {
+  const res = await fetch(url, { signal })
+  const data = await res.json().catch(() => null)
+  if (!res.ok || !Array.isArray(data?.items)) throw new Error(`custom catalog failed: ${res.status}`)
+  return data.items
+}
+
 function CustomCatalogEntry({
   cat,
   openGrid,
@@ -113,43 +146,73 @@ function CustomCatalogEntry({
   const { t } = useT()
   const [items, setItems] = useState<SimklCardItem[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState(false)
+  const [expanding, setExpanding] = useState(false)
+  const [reloadNonce, setReloadNonce] = useState(0)
   const isEnabled = cat.enabled !== false
   const isHomeVisible = !homeDisabledCatalogIds.includes(cat.id)
   const isMixed = cat.type === "mixed"
   const isMovie = cat.type === "movie"
 
+  const fullCacheKey = `${cat.url}|${tmdbKey || ""}|${mdblistApiKey || ""}`
+
   useEffect(() => {
     let active = true
-    const params = new URLSearchParams({
-      url: cat.url,
-      api_key: tmdbKey || "",
-      mdblist_key: mdblistApiKey || "",
-      limit: "500",
-    })
-    fetch(`/api/mdblist/custom?${params.toString()}`)
-      .then((res) => res.json())
-      .then((data) => {
+    const ctrl = new AbortController()
+    setLoading(true)
+    setLoadError(false)
+    fetchCustomItems(customItemsUrl(cat.url, tmdbKey, mdblistApiKey, CUSTOM_PREVIEW_LIMIT), ctrl.signal)
+      .then((list) => {
         if (!active) return
-        if (Array.isArray(data?.items)) {
-          setItems(data.items)
-        }
+        setItems(list)
+        setLoading(false)
       })
-      .catch(() => {})
-      .finally(() => {
-        if (active) setLoading(false)
+      .catch(() => {
+        if (!active) return
+        setLoadError(true)
+        setLoading(false)
       })
     return () => {
       active = false
+      ctrl.abort()
     }
-  }, [cat.url, tmdbKey, mdblistApiKey])
+  }, [cat.url, tmdbKey, mdblistApiKey, reloadNonce])
+
+  // Griglia completa su richiesta: la preview mostra i primi 40, il full
+  // (500) si scarica solo aprendo la griglia e resta in cache di sessione.
+  // La sezione (film/serie) si ricava dai tipi presenti nello slice preview.
+  const expandAndOpen = (previewSlice: SimklCardItem[], title: string) => {
+    const cached = customFullCache.get(fullCacheKey)
+    if (cached) {
+      openGrid(toGridItems(filterSection(cached, previewSlice)), title)
+      return
+    }
+    setExpanding(true)
+    fetchCustomItems(customItemsUrl(cat.url, tmdbKey, mdblistApiKey, CUSTOM_FULL_LIMIT))
+      .then((full) => {
+        customFullCache.set(fullCacheKey, full)
+        openGrid(toGridItems(filterSection(full, previewSlice)), title)
+      })
+      .catch(() => {
+        // Fallback: apri con l'anteprima (meglio che niente).
+        openGrid(toGridItems(previewSlice), title)
+      })
+      .finally(() => setExpanding(false))
+  }
 
   const movies = items.filter((it) => (it.media_type || it.mediaType) === "movie")
   const tv = items.filter((it) => (it.media_type || it.mediaType) !== "movie")
 
   return (
-    <div className={`p-4 rounded-2xl border transition-all duration-200 ${
+    <div className={`relative p-4 rounded-2xl border transition-all duration-200 ${
       isEnabled ? "bg-surface border-white/10 shadow-sm" : "bg-surface/40 border-white/5 opacity-60"
     }`}>
+      {expanding && (
+        <div className="absolute inset-0 z-10 flex items-center justify-center gap-2 rounded-2xl bg-black/50 backdrop-blur-[2px] text-xs text-zinc-300" aria-live="polite">
+          <div className="w-4 h-4 border-2 border-accent-orange/30 border-t-accent-orange rounded-full animate-spin" />
+          {t("ui.customLoadingTitles")}
+        </div>
+      )}
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2">
           <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-semibold uppercase tracking-wider ${
@@ -209,6 +272,17 @@ function CustomCatalogEntry({
           <div className="w-4 h-4 border-2 border-accent-orange/30 border-t-accent-orange rounded-full animate-spin mr-2" />
           {t("ui.customLoadingTitles")}
         </div>
+      ) : loadError ? (
+        <div className="p-3 rounded-xl bg-black/20 border border-white/5 text-xs text-muted flex items-center justify-between gap-2">
+          <span>{t("ui.catalogsError")}</span>
+          <button
+            type="button"
+            onClick={() => setReloadNonce((n) => n + 1)}
+            className="shrink-0 px-2.5 py-1 rounded-lg bg-surface2/60 text-zinc-200 hover:bg-surface2 border border-white/10 transition-colors"
+          >
+            {t("ui.retry")}
+          </button>
+        </div>
       ) : items.length === 0 ? (
         <div className="p-3 rounded-xl bg-black/20 border border-white/5 text-xs text-muted">
           {t("ui.customNoTitles")}
@@ -223,7 +297,9 @@ function CustomCatalogEntry({
           tvTitle={`${cat.name} — ${t("ui.tvSeries")}`}
           movieGridTitle={`${cat.name} — ${t("ui.movie")}`}
           tvGridTitle={`${cat.name} — ${t("ui.tvSeries")}`}
-          openGrid={openGrid}
+          openGrid={(items, title) => {
+            void expandAndOpen(items, title)
+          }}
           onItemClick={onItemClick}
           savedKeys={savedKeys}
         />
@@ -237,7 +313,9 @@ function CustomCatalogEntry({
           tvTitle=""
           movieGridTitle={cat.name}
           tvGridTitle=""
-          openGrid={openGrid}
+          openGrid={(items, title) => {
+            void expandAndOpen(items, title)
+          }}
           onItemClick={onItemClick}
           savedKeys={savedKeys}
         />
@@ -251,7 +329,9 @@ function CustomCatalogEntry({
           tvTitle={cat.name}
           movieGridTitle=""
           tvGridTitle={cat.name}
-          openGrid={openGrid}
+          openGrid={(items, title) => {
+            void expandAndOpen(items, title)
+          }}
           onItemClick={onItemClick}
           savedKeys={savedKeys}
         />
@@ -366,7 +446,7 @@ export function CataloghiView() {
 
   return (
     <div className="max-w-6xl mx-auto animate-fade-scale-in">
-      <ScrollReveal animation="fade-up-fast">
+      <>
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
           <div>
             <button type="button"
@@ -412,7 +492,7 @@ export function CataloghiView() {
             </div>
           </div>
         </div>
-      </ScrollReveal>
+      </>
 
       {/* Platform Filter Chips */}
       <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-none pb-2 mb-8">
@@ -433,7 +513,7 @@ export function CataloghiView() {
 
       {/* Custom Catalogs Section */}
       {showCustom && customCatalogs.length > 0 && (
-        <ScrollReveal animation="fade-up" threshold={0.05}>
+        <>
           <div className="mb-12 space-y-6">
             <div className="flex items-center justify-between mb-4">
               <h2 className="section-heading text-xl font-bold">{t("ui.customCatalogs")}</h2>
@@ -459,14 +539,14 @@ export function CataloghiView() {
               ))}
             </div>
           </div>
-        </ScrollReveal>
+        </>
       )}
 
       {showCustom && customCatalogs.length > 0 && <div className="section-divider" />}
 
       {/* JustWatch Top 20 — due contenitori separati (Film | Serie) sulla stessa riga */}
       {showJustWatch && (
-        <ScrollReveal animation="fade-up" threshold={0.05}>
+        <>
           <div className="mb-12">
             <h2 className="section-heading text-xl font-bold mb-6">{t("ui.justwatchTop20")} {regionFlag}</h2>
             <CatalogPair
@@ -483,14 +563,14 @@ export function CataloghiView() {
               savedKeys={savedKeys}
             />
           </div>
-        </ScrollReveal>
+        </>
       )}
 
       {showJustWatch && <div className="section-divider" />}
 
       {/* Piattaforme streaming — filtrate se attivo un filtro */}
       {filteredPlatforms.length > 0 && (
-        <ScrollReveal animation="fade-up" threshold={0.05}>
+        <>
           <div className="mb-12">
             <h2 className="section-heading text-xl font-bold mb-6">{t("ui.streamingPlatforms")}</h2>
             {filteredPlatforms.map((sp) => {
@@ -519,14 +599,14 @@ export function CataloghiView() {
               )
             })}
           </div>
-        </ScrollReveal>
+        </>
       )}
 
       {showAnime && <div className="section-divider" />}
 
       {/* Anime trending — Film e Serie in due contenitori separati */}
       {showAnime && mdblistAnimeList.length >= 5 && (
-        <ScrollReveal animation="fade-up" threshold={0.05}>
+        <>
           <div className="mb-12">
             <h2 className="section-heading text-xl font-bold mb-6">{t("ui.trendingAnime")}</h2>
             <CatalogPair
@@ -543,7 +623,7 @@ export function CataloghiView() {
               savedKeys={savedKeys}
             />
           </div>
-        </ScrollReveal>
+        </>
       )}
 
       {trending.length === 0 && !trendingError && (

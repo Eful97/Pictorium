@@ -84,7 +84,12 @@ export function SimklCard({ items, title, totalCount, meta = [], onClick, onItem
               }}
             >
               <PosterDepthEdge edgeStrength={40} edgeCoverage={10} />
-              <div className="relative z-[1]">
+              {/* h-full sul wrapper: senza altezza definita, l'h-full dell'img
+                  collassa sul ratio intrinseco (115px × ratio) e i poster più
+                  "quadrati" del 2:3 (es. Sesto Senso 836×1203) lasciano una
+                  striscia vuota in fondo alla tile 170px. Con h-full l'img
+                  riempie sempre e object-cover ritaglia simmetrico. */}
+              <div className="relative z-[1] h-full">
                 {src ? (
                   // eslint-disable-next-line @next/next/no-img-element -- remote TMDB poster tiles (lazy, optimized by CDN)
                   <img
@@ -99,10 +104,10 @@ export function SimklCard({ items, title, totalCount, meta = [], onClick, onItem
                 )}
                 {isSaved && (
                   <div
-                    className="absolute top-1.5 right-1.5 w-4.5 h-4.5 rounded-full bg-emerald-500 text-white flex items-center justify-center shadow-lg z-10"
+                    className="absolute top-1.5 right-1.5 w-6 h-6 rounded-full bg-emerald-500 text-white flex items-center justify-center shadow-lg ring-1 ring-white/30 z-10"
                     title={t("ui.alreadyCustomized")}
                   >
-                    <Check className="w-3 h-3 stroke-[3]" />
+                    <Check className="w-3.5 h-3.5 stroke-[3]" />
                   </div>
                 )}
               </div>
