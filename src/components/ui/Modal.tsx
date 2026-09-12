@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useRef } from "react"
+import { createPortal } from "react-dom"
 
 const FOCUSABLE = [
   "a[href]", "button:not([disabled])", "input:not([disabled])", "select:not([disabled])",
@@ -72,7 +73,7 @@ export function Modal({
 
   if (!isOpen) return null
 
-  return (
+  const content = (
     <div
       role="dialog"
       aria-modal="true"
@@ -89,4 +90,10 @@ export function Modal({
       </div>
     </div>
   )
+  // Portal su body: l'app-shell (overflow-x-hidden) è containing block per i
+  // fixed discendenti — senza portal un modale aperto da pagina scrollata si
+  // centra sul contenitore pagina invece che sul viewport (stesso pattern del
+  // menu collezioni e delle tendine ancorate).
+  if (typeof document === "undefined") return null
+  return createPortal(content, document.body)
 }
