@@ -60,12 +60,17 @@ and a 16 KiB response limit. Only public HTTP(S) destinations are supported:
 private/loopback/link-local addresses are blocked at connection time, URL
 credentials and redirects are rejected. Configure secrets through the header,
 never in the endpoint URL. Provider errors are not logged.
+API-key authentication requires HTTPS. An HTTP endpoint with a configured API
+key is rejected without making a request and returns `[]`; HTTP without an API
+key remains supported.
 
 Poster cache hits return before custom fetching. On a miss, fetching runs with
 luminance and optional metadata work after IMDb ID resolution. A SHA-256 digest
 of enabled configuration participates in poster cache identity, including key
 changes without storing plaintext secrets in cache keys. There is no additional
 rating cache; freshness follows the existing poster TTL. Restart after env changes.
+Enabled custom ratings use the existing normal poster HTTP cache policy, including
+for saved mappings with versioned URLs; they never use one-year immutable caching.
 
 `GenerationInput.ratings?: RatingItem[]` supports any number of ratings in a
 horizontal row that scales to the available width. Omission preserves the old

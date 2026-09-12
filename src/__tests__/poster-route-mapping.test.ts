@@ -13,6 +13,8 @@ import type { Mapping } from "@/lib/types"
 import { fetchCustomRatings } from "@/lib/custom-rating"
 import { renderMultiRatings } from "@/lib/multi-rating-renderer"
 import { fetchAggregatedRating } from "@/lib/ratings"
+import { RENDER_VERSION } from "@/lib/render-version"
+import { posterHeaders } from "@/lib/poster-runtime-cache"
 
 vi.mock("@/lib/custom-rating", async (importOriginal) => ({
   ...await importOriginal<typeof import("@/lib/custom-rating")>(),
@@ -662,6 +664,48 @@ describe("GET /api/poster/[type]/[id] error and edge cases", () => {
     const res = await GET(req, { params: Promise.resolve({ type: "movie", id: "0" }) })
     expect(res.status).toBe(400)
     expect(res.headers.get("Access-Control-Allow-Origin")).toBe("*")
+  })
+
+  it.each([true, false])("uses the correct mapped HTTP cache policy with custom provider enabled=%s", async enabled => {
+    vi.mocked(fetchCustomRatings).mockClear()
+    vi.stubEnv("PICTORIUM_CUSTOM_RATING_ENABLED", String(enabled))
+    const id = 99001
+    const updatedAt = "2026-09-12T00:00:00.000Z"
+    mockedGetById.mockResolvedValue({
+      tmdbId: id, mediaType: "movie", title: "Cache policy", posterPath: "/cache-policy.jpg",
+      logoPath: null, originalPosterPath: null, language: "it", showBadges: false,
+      rankingBadges: false, updatedAt,
+    })
+    mockedGetExternalIds.mockResolvedValue({ imdb_id: "tt99001" })
+    mockedGetDetails.mockResolvedValue({ id, genres: [], vote_average: 5, vote_count: 10 })
+    const poster = await imageBuffer("#101010", 500, 750)
+    vi.spyOn(globalThis, "fetch").mockImplementation(async () => new Response(new Uint8Array(poster), {
+      headers: { "content-type": "image/png" },
+    }))
+    const request = (etag?: string) => GET(new NextRequest(
+      `http://localhost:3000/api/poster/movie/${id}?rv=${RENDER_VERSION}&mv=${Date.parse(updatedAt)}`,
+      { headers: etag ? { "If-None-Match": etag } : {} },
+    ), { params: Promise.resolve({ type: "movie", id: String(id) }) })
+    const first = await request()
+    expect(first.status).toBe(200)
+    const calls = vi.mocked(fetchCustomRatings).mock.calls.length
+    const hit = await request()
+    const conditionalHit = await request(first.headers.get("etag")!)
+    expect(hit.status).toBe(200)
+    expect(conditionalHit.status).toBe(304)
+    expect(fetchCustomRatings).toHaveBeenCalledTimes(calls)
+    for (const response of [first, hit, conditionalHit]) {
+      const policy = response.headers.get("cache-control")!
+      expect(policy).toBe(posterHeaders("test", !enabled)["Cache-Control"])
+      if (enabled) {
+        expect(policy).not.toContain("immutable")
+        expect(policy).not.toContain("max-age=31536000")
+      } else {
+        expect(policy).toContain("immutable")
+        expect(policy).toContain("max-age=31536000")
+      }
+    }
+    vi.mocked(fetchCustomRatings).mockClear()
   })
 
   it("revalidates saved custom ratings after cache eviction, including the empty state", async () => {

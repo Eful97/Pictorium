@@ -224,7 +224,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
   const variantKey = outputFormat === "webp" ? `${cacheKey}:fmtwebp` : cacheKey
   const etagBase = hashKey(`v${RENDER_VERSION}:${mediaType}:${tmdbId}:reg${posterRegion.code}:r${cachedRank ?? "x"}:sd${sdHash}:${cacheParams.toString()}${configHash ? `:${configHash}` : ""}`)
   const currentMappingVersion = mappingVersionParam(mapping)
-  const immutablePoster = isImmutablePosterRequest(req.nextUrl.searchParams, {
+  const immutablePoster = !customRatingConfig.enabled && isImmutablePosterRequest(req.nextUrl.searchParams, {
     hasMapping: !!mapping,
     isRotating,
     mappingVersionMatches: !!currentMappingVersion && req.nextUrl.searchParams.get("mv") === currentMappingVersion,

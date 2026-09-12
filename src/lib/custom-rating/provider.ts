@@ -38,6 +38,7 @@ export async function fetchCustomRatings(imdbId: string | null | undefined, conf
     if (!config.endpoint.includes("{imdbId}")) return []
     const url = new URL(config.endpoint.replaceAll("{imdbId}", imdbId))
     if (!["http:", "https:"].includes(url.protocol) || url.username || url.password) return []
+    if (config.apiKey && url.protocol !== "https:") return []
     const host = url.hostname.replace(/^\[|\]$/g, "")
     if (isIP(host) && !publicAddress(host)) return []
     const headers: Record<string, string> = { accept: "application/json" }

@@ -88,6 +88,18 @@ describe("custom rating", () => {
     vi.stubEnv("PICTORIUM_CUSTOM_RATING_ENABLED", "true")
     expect(resolveCustomRatingConfig({ endpoint: "https://other.example/{imdbId}" })).toMatchObject({ enabled: true, endpoint: "https://other.example/{imdbId}", apiKeyHeader: "X-API-Key" })
   })
+  it("rejects HTTP with an API key before making a request", async () => {
+    respond(JSON.stringify({ ratings: [sample] }))
+    expect(await fetchCustomRatings("tt123", {
+      ...config, endpoint: "http://example.com/{imdbId}", apiKey: "test-secret",
+    })).toEqual([])
+    expect(mockedRequest).not.toHaveBeenCalled()
+  })
+  it.each(["http", "https"])("allows %s without an API key", async protocol => {
+    respond(JSON.stringify({ ratings: [sample] }))
+    expect(await fetchCustomRatings("tt123", { ...config, endpoint: `${protocol}://example.com/{imdbId}` })).toEqual([sample])
+    expect(mockedRequest).toHaveBeenCalledTimes(1)
+  })
   it.each(["PICTORIUM", "POSTERIUM"])("resolves all custom rating settings from %s", prefix => {
     const values = {
       CUSTOM_RATING_ENABLED: "1", CUSTOM_RATING_ENDPOINT: "https://example.com/{imdbId}",
