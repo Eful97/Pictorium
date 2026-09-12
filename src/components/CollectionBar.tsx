@@ -36,6 +36,26 @@ export function CollectionBar({
   const inputRef = useRef<HTMLInputElement>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
   const menuRef = useRef<HTMLDivElement>(null)
+  // Indicatori di scroll orizzontale: su desktop con mouse classico non è
+  // ovvio che la lista collezioni scorre — fade ai bordi solo quando serve.
+  const [canScrollLeft, setCanScrollLeft] = useState(false)
+  const [canScrollRight, setCanScrollRight] = useState(false)
+
+  useEffect(() => {
+    const el = scrollRef.current
+    if (!el) return
+    const update = () => {
+      setCanScrollLeft(el.scrollLeft > 4)
+      setCanScrollRight(el.scrollLeft + el.clientWidth < el.scrollWidth - 4)
+    }
+    update()
+    el.addEventListener("scroll", update, { passive: true })
+    window.addEventListener("resize", update)
+    return () => {
+      el.removeEventListener("scroll", update)
+      window.removeEventListener("resize", update)
+    }
+  }, [collections])
 
   const openMenu = (e: React.MouseEvent, colId: string) => {
     e.stopPropagation()
@@ -107,6 +127,7 @@ export function CollectionBar({
 
   return (
     <>
+      <div className="relative">
       <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-none pb-1 -mb-1" ref={scrollRef}>
         {/* "Tutti" chip */}
         <button type="button"
@@ -220,6 +241,13 @@ export function CollectionBar({
             <Plus className="w-3.5 h-3.5" />
           </button>
         )}
+      </div>
+      {canScrollLeft && (
+        <div aria-hidden="true" className="pointer-events-none absolute left-0 top-0 bottom-0 w-8 bg-gradient-to-r from-background to-transparent" />
+      )}
+      {canScrollRight && (
+        <div aria-hidden="true" className="pointer-events-none absolute right-0 top-0 bottom-0 w-8 bg-gradient-to-l from-background to-transparent" />
+      )}
       </div>
 
       {/* Dropdown — PORTAL a document.body per evitare che i parent con transform/animation rovinino position: fixed */}

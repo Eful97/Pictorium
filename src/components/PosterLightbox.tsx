@@ -70,12 +70,14 @@ export function PosterLightbox({
 
   const handleClose = useCallback(() => {
     setClosing(true)
+    // 300ms = durata dell'exit della card (transition-all duration-300):
+    // smontare prima tagliava l'animazione a metà (era 150ms).
     closeTimerRef.current = setTimeout(() => {
       setClosing(false)
       setMounted(false)
       onClose()
       closeTimerRef.current = null
-    }, 150)
+    }, 300)
   }, [onClose])
 
   // Keyboard handler: Escape chiude, Tab resta intrappolato nel dialog

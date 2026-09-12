@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useState, useMemo, useEffect, useRef, useCallback } from "react"
+import React, { useState, useMemo, useEffect, useRef, useCallback, useDeferredValue } from "react"
 import { usePSelector } from "@/lib/context"
 import { useT } from "@/lib/contexts/TranslationContext"
 import { toSearchResult } from "@/lib/types"
@@ -26,6 +26,9 @@ export function MyPostersView() {
   const { t } = useT()
   const posterCount = useCountUp(mappings.length)
   const [filter, setFilter] = useState("")
+  // Ricerca reattiva: l'input resta immediato, filtro/sort/raggruppamento
+  // della griglia rincorrono a priorità bassa (niente jank sul keystroke).
+  const deferredFilter = useDeferredValue(filter)
   const filterRef = useRef<HTMLInputElement>(null)
   const [typeFilter, setTypeFilter] = useState<"all" | "movie" | "tv" | "anime">("all")
   const [selectMode, setSelectMode] = useState(false)
@@ -33,6 +36,9 @@ export function MyPostersView() {
   const [showDeleteAll, setShowDeleteAll] = useState(false)
   // Conferma prima della cancellazione (F9): singolo tile e multi-select.
   const [confirmRemove, setConfirmRemove] = useState<Mapping | null>(null)
+  // Ancoraggio viewport della tendina di conferma singola (dal cestino della
+  // tile): clampato per non uscire dallo schermo, vedi openRemoveConfirm.
+  const [confirmAnchor, setConfirmAnchor] = useState<{ top: number; left: number } | null>(null)
   const [confirmDeleteCollection, setConfirmDeleteCollection] = useState<string | null>(null)
   const [showDeleteSelected, setShowDeleteSelected] = useState(false)
   const [sortBy, setSortBy] = useState<"updated" | "alpha">("updated")
@@ -53,6 +59,25 @@ export function MyPostersView() {
   const sortRef = useRef<HTMLDivElement>(null)
   const sortCloseTimer = useRef<ReturnType<typeof setTimeout>>(null)
 
+  // Tendina di conferma sotto il cestino della tile (fixed + clampato come il
+  // menu collezioni): niente modale a tutto schermo per la delete singola.
+  const openRemoveConfirm = (e: React.MouseEvent, m: Mapping) => {
+    e.stopPropagation()
+    const btn = e.currentTarget as HTMLElement
+    const r = btn.getBoundingClientRect()
+    const W = 224 // min-w-56 della tendina
+    const GAP = 8
+    const left = Math.max(12, Math.min(r.right - W, window.innerWidth - W - 12))
+    const below = r.bottom + GAP
+    const top = below + 190 > window.innerHeight ? Math.max(12, r.top - 190) : below
+    setConfirmAnchor({ top, left })
+    setConfirmRemove(m)
+  }
+  const closeRemoveConfirm = () => {
+    setConfirmRemove(null)
+    setConfirmAnchor(null)
+  }
+
   // Cleanup dei timer di chiusura dropdown su unmount: evita setState su
   // componente smontato (warning React) e timer pendenti dopo la navigazione.
   useEffect(() => {
@@ -60,6 +85,21 @@ export function MyPostersView() {
       if (sortCloseTimer.current) clearTimeout(sortCloseTimer.current)
     }
   }, [])
+
+  // La tendina ancorata non segue lo scroll: chiudila (come il menu collezioni).
+  useEffect(() => {
+    if (!confirmRemove) return
+    const handler = () => {
+      setConfirmRemove(null)
+      setConfirmAnchor(null)
+    }
+    window.addEventListener("scroll", handler, true)
+    window.addEventListener("resize", handler)
+    return () => {
+      window.removeEventListener("scroll", handler, true)
+      window.removeEventListener("resize", handler)
+    }
+  }, [confirmRemove])
 
   const closeSortDropdown = useCallback(() => {
     if (sortOpen) {
@@ -161,7 +201,9 @@ export function MyPostersView() {
   const filtered = useMemo(() => {
     return mappings
       .filter((m) => {
-        if (!m.title.toLowerCase().includes(filter.toLowerCase())) return false
+        // deferredFilter: la digitazione resta a 60fps (input immediato),
+        // la griglia rincorre a priorità bassa senza bloccare il keystroke.
+        if (!m.title.toLowerCase().includes(deferredFilter.toLowerCase())) return false
         if (typeFilter === "all") return true
         if (typeFilter === "movie") return m.mediaType === "movie"
         if (typeFilter === "tv") return m.mediaType === "tv" && !(m.genreName || "").toLowerCase().includes("anim")
@@ -175,7 +217,7 @@ export function MyPostersView() {
         return col?.posterIds.includes(key) ?? false
       })
       .sort((a, b) => sortBy === "updated" ? b.updatedAt.localeCompare(a.updatedAt) : a.title.localeCompare(b.title))
-  }, [mappings, filter, sortBy, typeFilter, activeCollection, collections])
+  }, [mappings, deferredFilter, sortBy, typeFilter, activeCollection, collections])
 
   useEffect(() => {
     if (!sortOpen) return
@@ -321,7 +363,7 @@ export function MyPostersView() {
               <ChevronDown className="w-3 h-3 text-zinc-400" />
             </button>
             {(sortOpen || sortClosing) && (
-              <div className={`absolute right-0 top-full mt-1.5 bg-[#141418] border border-border/80 rounded-xl p-1.5 z-50 min-w-40 shadow-xl shadow-black/80 ${sortClosing ? "animate-fade-scale-out" : "animate-fade-scale-in"}`}>
+              <div className={`absolute right-0 top-full mt-1.5 surface-card border-border/80 rounded-xl p-1.5 z-50 min-w-40 shadow-xl shadow-black/80 ${sortClosing ? "animate-fade-scale-out" : "animate-fade-scale-in"}`}>
                 <button
                   type="button"
                   onClick={() => { setSortBy("updated"); closeSortDropdown() }}
@@ -491,15 +533,18 @@ export function MyPostersView() {
             </>
           ) : activeCollection ? (
             <>
-              <div className="empty-state-illustration mb-4">
-                <svg className="w-10 h-10 text-zinc-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                  <line x1="8" y1="6" x2="21" y2="6" opacity="0.3"/>
-                  <line x1="8" y1="12" x2="21" y2="12" opacity="0.3"/>
-                  <line x1="8" y1="18" x2="21" y2="18" opacity="0.3"/>
-                  <line x1="3" y1="6" x2="3.01" y2="6"/>
-                  <line x1="3" y1="12" x2="3.01" y2="12"/>
-                  <line x1="3" y1="18" x2="3.01" y2="18"/>
-                </svg>
+              <div className="relative mx-auto w-fit" aria-hidden="true">
+                <div className="absolute -inset-6 -z-10" style={{ background: "radial-gradient(circle, rgb(var(--accent-rgb) / 0.14), transparent 70%)" }} />
+                <div className="empty-state-illustration mb-4">
+                  <svg className="w-10 h-10 text-zinc-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                    <line x1="8" y1="6" x2="21" y2="6" opacity="0.3"/>
+                    <line x1="8" y1="12" x2="21" y2="12" opacity="0.3"/>
+                    <line x1="8" y1="18" x2="21" y2="18" opacity="0.3"/>
+                    <line x1="3" y1="6" x2="3.01" y2="6"/>
+                    <line x1="3" y1="12" x2="3.01" y2="12"/>
+                    <line x1="3" y1="18" x2="3.01" y2="18"/>
+                  </svg>
+                </div>
               </div>
               <p className="text-zinc-300 text-sm font-medium mb-1">{t("ui.emptyCollectionTitle")}</p>
               <p className="text-zinc-500 text-xs mb-4">{t("ui.emptyCollectionSub")}</p>
@@ -509,15 +554,18 @@ export function MyPostersView() {
             </>
           ) : (
             <>
-              <div className="empty-state-illustration mb-4">
-                <svg className="w-10 h-10 text-zinc-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                  <line x1="8" y1="6" x2="21" y2="6" opacity="0.3"/>
-                  <line x1="8" y1="12" x2="21" y2="12" opacity="0.3"/>
-                  <line x1="8" y1="18" x2="21" y2="18" opacity="0.3"/>
-                  <line x1="3" y1="6" x2="3.01" y2="6"/>
-                  <line x1="3" y1="12" x2="3.01" y2="12"/>
-                  <line x1="3" y1="18" x2="3.01" y2="18"/>
-                </svg>
+              <div className="relative mx-auto w-fit" aria-hidden="true">
+                <div className="absolute -inset-6 -z-10" style={{ background: "radial-gradient(circle, rgb(var(--accent-rgb) / 0.14), transparent 70%)" }} />
+                <div className="empty-state-illustration mb-4">
+                  <svg className="w-10 h-10 text-zinc-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                    <line x1="8" y1="6" x2="21" y2="6" opacity="0.3"/>
+                    <line x1="8" y1="12" x2="21" y2="12" opacity="0.3"/>
+                    <line x1="8" y1="18" x2="21" y2="18" opacity="0.3"/>
+                    <line x1="3" y1="6" x2="3.01" y2="6"/>
+                    <line x1="3" y1="12" x2="3.01" y2="12"/>
+                    <line x1="3" y1="18" x2="3.01" y2="18"/>
+                  </svg>
+                </div>
               </div>
               <p className="text-muted text-sm mb-1">{t("ui.noFilteredResults")}</p>
               <p className="text-zinc-500 text-xs">{t("ui.noFilteredResultsSub")}</p>
@@ -542,7 +590,7 @@ export function MyPostersView() {
               const rect = tileEl ? tileEl.getBoundingClientRect() : new DOMRect(window.innerWidth / 2, window.innerHeight / 2, 0, 0)
               setLightbox({ mapping: m, rect })
             }}
-            onRemove={(e) => { e.stopPropagation(); setConfirmRemove(m) }}
+            onRemove={(e) => openRemoveConfirm(e, m)}
             collectionCount={collections.filter((c) => c.posterIds.includes(`${m.mediaType}:${m.tmdbId}`)).length}
             t={t}
           />
@@ -570,10 +618,12 @@ export function MyPostersView() {
         confirmLabel={t("ui.delete")}
         onConfirm={() => {
           const target = confirmRemove
-          setConfirmRemove(null)
+          closeRemoveConfirm()
           if (target) void removeMapping(target)
         }}
-        onCancel={() => setConfirmRemove(null)}
+        onCancel={closeRemoveConfirm}
+        inline
+        anchor={confirmAnchor}
       />
       <ConfirmDialog
         open={confirmDeleteCollection !== null}
