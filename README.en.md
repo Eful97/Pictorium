@@ -127,6 +127,9 @@ via HTTP header, and fails gracefully without blocking poster generation.
 
 Configuration is currently server-side. Web/editor configuration is intentionally
 left out of this change so the backend feature stays focused and easy to review.
+Use `PICTORIUM_CUSTOM_RATING_ENABLED`, `PICTORIUM_CUSTOM_RATING_ENDPOINT`,
+`PICTORIUM_CUSTOM_RATING_API_KEY`, and `PICTORIUM_CUSTOM_RATING_API_KEY_HEADER`.
+The existing `POSTERIUM_` prefix remains a fallback; `PICTORIUM_` takes precedence.
 
 For full configuration and API details, see
 [Custom Rating Provider documentation](docs/custom-rating.md).

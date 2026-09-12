@@ -487,7 +487,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
     showBadges = mapping.showBadges ?? true
     rankingBadges = mapping.rankingBadges ?? true
     etag = `"m${etagBase}:${mapping.updatedAt}"`
-    if (req.headers.get("If-None-Match") === etag) {
+    if (!customRatingConfig.enabled && req.headers.get("If-None-Match") === etag) {
       clearTimeout(renderDeadline)
       completePosterRender(null)
       return new Response(null, { status: 304, headers: posterNotModifiedHeaders(etag, immutablePoster, dynamicPoster) })
@@ -1203,7 +1203,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
       throw new Error("Render deadline exceeded before poster compositing")
     }
     const composited = await generatePosterBuffer(genInput)
-    if (genInput.ratings?.length) {
+    if (customRatingConfig.enabled) {
       etag = `${etag.slice(0, -1)}:cr${hashKey(JSON.stringify(genInput.ratings))}"`
     }
 
@@ -1217,6 +1217,11 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
     writeCachedPoster(cacheKey, payload, mappingTag)
     completePosterRender(payload)
     recordPosterRequest(false, outputFormat)
+    // Enabled enrichment must revalidate against the final state, including [].
+    const responseEtag = outputFormat === "webp" ? variantEtagFor(etag) : etag
+    if (customRatingConfig.enabled && !isPreview && req.headers.get("If-None-Match") === responseEtag) {
+      return new Response(null, { status: 304, headers: posterNotModifiedHeaders(responseEtag, immutablePoster, dynamicPoster) })
+    }
     log.info("Poster rendered", { mediaType, tmdbId, ms: Date.now() - startTime, bytes: composited.byteLength, cached: !!mappingTag, format: outputFormat })
     // C3: il webp è variante di risposta (convertita + cachata), non un render.
     if (outputFormat === "webp") return serveWebpVariant(payload)

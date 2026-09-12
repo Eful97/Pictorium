@@ -107,7 +107,7 @@ describe("GET /api/poster/[type]/[id] with saved mappings", () => {
     vi.mocked(fetchCustomRatings).mockReset().mockResolvedValue([])
     vi.mocked(fetchAggregatedRating).mockReset().mockResolvedValue(null)
     vi.mocked(renderMultiRatings).mockClear()
-    vi.stubEnv("CUSTOM_RATING_ENABLED", "false")
+    vi.stubEnv("PICTORIUM_CUSTOM_RATING_ENABLED", "false")
   })
 
   afterEach(() => {
@@ -155,8 +155,8 @@ describe("GET /api/poster/[type]/[id] with saved mappings", () => {
   })
 
   it("passes custom ratings to the renderer on a miss and skips the provider on a cache hit", async () => {
-    vi.stubEnv("CUSTOM_RATING_ENABLED", "true")
-    vi.stubEnv("CUSTOM_RATING_ENDPOINT", "https://example.com/{imdbId}")
+    vi.stubEnv("PICTORIUM_CUSTOM_RATING_ENABLED", "true")
+    vi.stubEnv("PICTORIUM_CUSTOM_RATING_ENDPOINT", "https://example.com/{imdbId}")
     const rating = { id: "custom", name: "Example", value: 87, format: "percent" as const }
     vi.mocked(fetchCustomRatings).mockResolvedValue([rating])
     mockedGetExternalIds.mockResolvedValueOnce({ imdb_id: "tt1375666" })
@@ -353,7 +353,7 @@ describe("GET /api/poster/[type]/[id] with saved mappings", () => {
     { label: "no ratings", enabled: true, imdb: false, custom: false, id: 98773 },
     { label: "provider overrides internal ID with multiple items", enabled: true, imdb: true, custom: true, id: 98774 },
   ].flatMap(test => ["non-mapped", "saved", "query"].map((kind, index) => ({ ...test, kind, id: test.id + index * 100 }))))("renders independent rating items: $kind / $label", async ({ imdb, custom, id, enabled, kind, label }) => {
-    vi.stubEnv("CUSTOM_RATING_ENABLED", String(enabled))
+    vi.stubEnv("PICTORIUM_CUSTOM_RATING_ENABLED", String(enabled))
     const { fetchAggregatedRating } = await import("@/lib/ratings")
     vi.mocked(fetchAggregatedRating).mockResolvedValue({
       sources: imdb ? { imdb: 8.8, tmdb: 6 } : { tmdb: 6 },
@@ -664,6 +664,54 @@ describe("GET /api/poster/[type]/[id] error and edge cases", () => {
     expect(res.headers.get("Access-Control-Allow-Origin")).toBe("*")
   })
 
+  it("revalidates saved custom ratings after cache eviction, including the empty state", async () => {
+    vi.stubEnv("PICTORIUM_CUSTOM_RATING_ENABLED", "true")
+    const id = 98999
+    mockedGetById.mockResolvedValue({
+      tmdbId: id, mediaType: "movie", title: "Revalidation", posterPath: "/revalidate.jpg",
+      logoPath: null, originalPosterPath: null, language: "it", showBadges: false,
+      rankingBadges: false, updatedAt: "2026-09-12T00:00:00.000Z",
+    })
+    mockedGetExternalIds.mockResolvedValue({ imdb_id: "tt98999" })
+    mockedGetDetails.mockResolvedValue({ id, genres: [], vote_average: 5, vote_count: 10 })
+    const poster = await imageBuffer("#101010", 500, 750)
+    vi.spyOn(globalThis, "fetch").mockImplementation(async () => new Response(new Uint8Array(poster), {
+      headers: { "content-type": "image/png" },
+    }))
+    const request = (etag?: string) => GET(new NextRequest(`http://localhost:3000/api/poster/movie/${id}`, {
+      headers: etag ? { "If-None-Match": etag } : {},
+    }), { params: Promise.resolve({ type: "movie", id: String(id) }) })
+    const first = await request()
+    expect(first.status).toBe(200)
+    const emptyEtag = first.headers.get("etag")!
+    expect(emptyEtag).toMatch(/:cr[^\"]+"$/)
+    expect(fetchCustomRatings).toHaveBeenCalledTimes(1)
+    expect((await request(emptyEtag)).status).toBe(304)
+    expect(fetchCustomRatings).toHaveBeenCalledTimes(1) // Cache HIT stays a fast path.
+    cacheClear()
+    expect((await request(emptyEtag)).status).toBe(304)
+    expect(fetchCustomRatings).toHaveBeenCalledTimes(2) // Empty state revalidated.
+
+    const item = { id: "source1", name: "Source 1", value: 87, format: "percent" as const }
+    vi.mocked(fetchCustomRatings).mockResolvedValue([item])
+    let populatedEtag = ""
+    // Also cover clients holding a pre-fix ETag without the empty-state suffix.
+    for (const previousEtag of [emptyEtag, emptyEtag.replace(/:cr[^\"]+"$/, '"')]) {
+      cacheClear()
+      const calls = vi.mocked(fetchCustomRatings).mock.calls.length
+      const next = await request(previousEtag)
+      expect(next.status).toBe(200)
+      expect(fetchCustomRatings).toHaveBeenCalledTimes(calls + 1)
+      expect(renderMultiRatings).toHaveBeenLastCalledWith([item], expect.any(Number))
+      populatedEtag = next.headers.get("etag")!
+      expect(populatedEtag).not.toBe(emptyEtag)
+    }
+    cacheClear()
+    const calls = vi.mocked(fetchCustomRatings).mock.calls.length
+    expect((await request(populatedEtag)).status).toBe(304)
+    expect(fetchCustomRatings).toHaveBeenCalledTimes(calls + 1)
+  })
+
   it("returns 304 Not Modified when etag matches", async () => {
     const posterBuf = await imageBuffer("#101010", 500, 750)
 
@@ -692,6 +740,7 @@ describe("GET /api/poster/[type]/[id] error and edge cases", () => {
     const etag = res1.headers.get("ETag")
     expect(etag).toBeTruthy()
 
+    cacheClear() // Disabled provider preserves mapped early 304 even on a cache miss.
     // Second request with If-None-Match
     const req2 = new NextRequest("http://localhost:3000/api/poster/movie/42", {
       headers: { "If-None-Match": etag! },

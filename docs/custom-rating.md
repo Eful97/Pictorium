@@ -9,13 +9,15 @@ IMDb data is combined with the provider items for non-mapped, saved and query po
 ## Configuration
 
 Configuration is currently server-side via environment variables.
+The canonical prefix is `PICTORIUM_`; `POSTERIUM_` is supported as a legacy
+fallback through `envWithFallback()`. Canonical values take precedence.
 
 | Environment variable | Default | Purpose |
 | --- | --- | --- |
-| `CUSTOM_RATING_ENABLED` | `false` | Enable with `true` or `1` |
-| `CUSTOM_RATING_ENDPOINT` | empty | HTTP(S) URL containing `{imdbId}` |
-| `CUSTOM_RATING_API_KEY` | unset | Optional secret sent only in a header |
-| `CUSTOM_RATING_API_KEY_HEADER` | `X-API-Key` | Header for the secret |
+| `PICTORIUM_CUSTOM_RATING_ENABLED` | `false` | Enable with `true` or `1` |
+| `PICTORIUM_CUSTOM_RATING_ENDPOINT` | empty | HTTP(S) URL containing `{imdbId}` |
+| `PICTORIUM_CUSTOM_RATING_API_KEY` | unset | Optional secret sent only in a header |
+| `PICTORIUM_CUSTOM_RATING_API_KEY_HEADER` | `X-API-Key` | Header for the secret |
 
 Example endpoint: `https://example.com/ratings/{imdbId}`.
 For IMDb ID `tt1375666`, Pictorium sends:

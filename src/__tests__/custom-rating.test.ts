@@ -85,8 +85,30 @@ describe("custom rating", () => {
     expect(mockedRequest).not.toHaveBeenCalled()
   })
   it("resolves env with future explicit overrides", () => {
-    vi.stubEnv("CUSTOM_RATING_ENABLED", "true")
+    vi.stubEnv("PICTORIUM_CUSTOM_RATING_ENABLED", "true")
     expect(resolveCustomRatingConfig({ endpoint: "https://other.example/{imdbId}" })).toMatchObject({ enabled: true, endpoint: "https://other.example/{imdbId}", apiKeyHeader: "X-API-Key" })
+  })
+  it.each(["PICTORIUM", "POSTERIUM"])("resolves all custom rating settings from %s", prefix => {
+    const values = {
+      CUSTOM_RATING_ENABLED: "1", CUSTOM_RATING_ENDPOINT: "https://example.com/{imdbId}",
+      CUSTOM_RATING_API_KEY: "test-key", CUSTOM_RATING_API_KEY_HEADER: "Authorization",
+    }
+    for (const [suffix, value] of Object.entries(values)) {
+      vi.stubEnv(`PICTORIUM_${suffix}`, undefined)
+      vi.stubEnv(`POSTERIUM_${suffix}`, undefined)
+      vi.stubEnv(`${prefix}_${suffix}`, value)
+    }
+    expect(resolveCustomRatingConfig()).toEqual({
+      enabled: true, endpoint: values.CUSTOM_RATING_ENDPOINT, apiKey: "test-key", apiKeyHeader: "Authorization",
+    })
+  })
+  it("prefers canonical settings over legacy fallback, including disabled and empty values", () => {
+    for (const suffix of ["CUSTOM_RATING_ENABLED", "CUSTOM_RATING_ENDPOINT", "CUSTOM_RATING_API_KEY", "CUSTOM_RATING_API_KEY_HEADER"]) {
+      vi.stubEnv(`POSTERIUM_${suffix}`, "legacy")
+      vi.stubEnv(`PICTORIUM_${suffix}`, "")
+    }
+    vi.stubEnv("PICTORIUM_CUSTOM_RATING_ENABLED", "false")
+    expect(resolveCustomRatingConfig()).toEqual({ enabled: false, endpoint: "", apiKey: undefined, apiKeyHeader: "X-API-Key" })
   })
   it.each(["::ffff:127.0.0.1", "::ffff:10.0.0.1", "::ffff:93.184.216.34"])("blocks IPv4-mapped IPv6 endpoint %s before requesting", async address => {
     respond('{"invalid":87}')
