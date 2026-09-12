@@ -419,6 +419,7 @@
   "ui.onboardingSkip": "Saltar tutorial",
   "ui.slide": "Diapositiva {n}",
   "ui.addonProxy": "Addon Proxy",
+  "ui.proxyShort": "Proxy",
   "ui.scrollLeft": "Desplazarse a la izquierda",
   "ui.scrollRight": "Desplazarse a la derecha",
   "ui.errorDefaultTitle": "Algo salió mal",

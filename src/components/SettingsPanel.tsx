@@ -12,6 +12,7 @@ import { Toggle } from "@/components/Toggle"
 import { BadgeStyleSelector, MenuItem } from "@/components/ui"
 import { UI_RATING_SOURCES } from "@/lib/ratings"
 import { REGIONS } from "@/lib/regions"
+import { UI_LANGUAGES } from "@/lib/utils"
 import { RatingSourceIcon } from "@/components/RatingSourceIcon"
 import {
   Star,
@@ -54,6 +55,8 @@ interface Props {
 
 export function SettingsPanel({ setSettingsOpen, exportData, importData, mobile }: Props) {
   const accentColor = usePSelector((v) => v.accentColor)
+  const lang = usePSelector((v) => v.lang)
+  const pickLang = usePSelector((v) => v.pickLang)
   const uiAccent = usePSelector((v) => v.uiAccent)
   const setUiAccent = usePSelector((v) => v.setUiAccent)
   const setShowLangPicker = usePSelector((v) => v.setShowLangPicker)
@@ -1033,6 +1036,23 @@ export function SettingsPanel({ setSettingsOpen, exportData, importData, mobile 
           <Globe className="w-3.5 h-3.5 text-accent-orange" />
           {t("ui.region")}
         </span>
+        <div className="flex items-center justify-between gap-2 pt-0.5">
+          <span className="text-zinc-300 font-medium">{t("ui.chooseLanguage")}</span>
+          <select
+            value={lang}
+            onChange={(e) => {
+              pickLang(e.target.value)
+            }}
+            aria-label={t("ui.chooseLanguage")}
+            className="max-w-[190px] truncate px-2.5 py-1.5 rounded-lg text-[11px] font-semibold bg-white/5 text-zinc-100 border border-white/10 hover:bg-white/10 focus:outline-none focus:border-accent-orange/50 cursor-pointer"
+          >
+            {UI_LANGUAGES.map((l) => (
+              <option key={l.code} value={l.code} className="bg-zinc-900 text-zinc-100">
+                {l.flag} {l.name}
+              </option>
+            ))}
+          </select>
+        </div>
         <div className="flex items-center justify-between gap-2 pt-0.5">
           <span className="text-zinc-300 font-medium">{t("ui.region")}</span>
           <select

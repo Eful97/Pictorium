@@ -419,6 +419,7 @@
   "ui.onboardingSkip": "Passer le didacticiel",
   "ui.slide": "Diapositive {n}",
   "ui.addonProxy": "Addon Proxy",
+  "ui.proxyShort": "Proxy",
   "ui.scrollLeft": "Faire défiler vers la gauche",
   "ui.scrollRight": "Faire défiler vers la droite",
   "ui.errorDefaultTitle": "Quelque chose s'est mal passé",

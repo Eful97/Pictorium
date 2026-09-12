@@ -435,6 +435,7 @@
   "ui.onboardingSkip": "튜토리얼 건너뛰기",
   "ui.slide": "슬라이드 {n}",
   "ui.addonProxy": "Addon 프록시",
+  "ui.proxyShort": "Proxy",
   "ui.scrollLeft": "왼쪽으로 스크롤",
   "ui.scrollRight": "오른쪽으로 스크롤",
   "ui.errorDefaultTitle": "문제가 발생했습니다",

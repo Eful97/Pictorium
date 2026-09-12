@@ -13,10 +13,10 @@ const mockLogos: TMDBImage[] = [
 ]
 
 describe("LogoOptions", () => {
-  it("shows skeleton when no logos", () => {
+  it("shows informative empty state when no logos (no dead placeholder boxes)", () => {
     const { container } = renderWithCtx(<LogoOptions logos={[]} selectedLogo={null} lang="it" selectLogo={() => {}} removeLogo={() => {}} />)
-    const plusIcons = container.querySelectorAll(".lucide-plus")
-    expect(plusIcons.length).toBe(4)
+    expect(container.querySelectorAll(".lucide-plus").length).toBe(0)
+    expect(screen.getByText("ui.noLogosAvailable")).toBeInTheDocument()
   })
 
   it("renders language group tabs", () => {

@@ -5,11 +5,10 @@ import dynamic from "next/dynamic"
 import { usePSelector } from "@/lib/context"
 import { useT } from "@/lib/contexts/TranslationContext"
 import { usePosterEditor } from "@/lib/contexts/PosterEditorContext"
-import { LANG_FLAGS, LANG_NAMES, UI_LANGUAGES } from "@/lib/utils"
 import { LangPicker } from "@/components/LangPicker"
 import { ToastProvider } from "@/components/Toast"
 import { HomeStatusStrip } from "@/components/HomeStatusStrip"
-import { RefreshCw, Settings, Globe, Sparkles, Check, QrCode, Palette, Layers } from "lucide-react"
+import { Settings, Sparkles, QrCode, Palette, Layers } from "lucide-react"
 
 // Code-splitting: viste/modali pesanti caricate on-demand per ridurre il JS iniziale.
 const SettingsPanel = dynamic(() => import("@/components/SettingsPanel").then((m) => m.SettingsPanel), { ssr: false })
@@ -23,7 +22,6 @@ const OnboardingTour = dynamic(() => import("@/components/OnboardingTour").then(
 const PinLockModal = dynamic(() => import("@/components/PinLockModal").then((m) => m.PinLockModal), { ssr: false })
 
 export function AppShell() {
-  const setLangOpen = usePSelector((v) => v.setLangOpen)
   const setSettingsOpen = usePSelector((v) => v.setSettingsOpen)
   const accentColor = usePSelector((v) => v.accentColor)
   const settingsOpen = usePSelector((v) => v.settingsOpen)
@@ -38,23 +36,12 @@ export function AppShell() {
   const exportData = usePSelector((v) => v.exportData)
   const importData = usePSelector((v) => v.importData)
   const goHome = usePSelector((v) => v.goHome)
-  const refreshLists = usePSelector((v) => v.refreshLists)
-  const langRef = usePSelector((v) => v.langRef)
-  const langOpen = usePSelector((v) => v.langOpen)
-  const { t, lang, pickLang } = useT()
+  const { t, pickLang } = useT()
   const ed = usePosterEditor()
   const setShowLangPicker = usePSelector((v) => v.setShowLangPicker)
-  const [refreshing, setRefreshing] = useState(false)
   const [proxyOpen, setProxyOpen] = useState(false)
-  const [closingLang, setClosingLang] = useState(false)
   const [closingSettings, setClosingSettings] = useState(false)
-  const closingLangRef = useRef<ReturnType<typeof setTimeout>>(null)
   const closingSettingsRef = useRef<ReturnType<typeof setTimeout>>(null)
-
-  const closeLang = () => {
-    setClosingLang(true)
-    closingLangRef.current = setTimeout(() => { setLangOpen(false); setClosingLang(false) }, 150)
-  }
 
   const closeSettings = () => {
     setClosingSettings(true)
@@ -101,7 +88,6 @@ export function AppShell() {
 
   useEffect(() => {
     return () => {
-      if (closingLangRef.current) clearTimeout(closingLangRef.current)
       if (closingSettingsRef.current) clearTimeout(closingSettingsRef.current)
     }
   }, [])
@@ -120,61 +106,6 @@ export function AppShell() {
   const handleInstallCatalog = () => {
     setInstallOpen(true)
   }
-
-  // Toolbar rapida mobile: compatto e raffinato
-  const mobileToolbar = (
-    <div className="flex md:hidden items-center gap-2 justify-center p-1.5 px-3 rounded-2xl bg-surface/80 backdrop-blur-xl border border-white/10 shadow-lg shadow-black/20 relative z-30">
-      <div className="relative">
-        <button
-          type="button"
-          aria-label={t("ui.chooseLanguage")}
-          onClick={() => setLangOpen((o) => !o)}
-          className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-xs font-medium text-zinc-300 bg-white/[0.05] border border-white/10 active:scale-95 transition-all"
-          title={LANG_NAMES[lang]}
-        >
-          <span>{LANG_FLAGS[lang] || <Globe className="w-3.5 h-3.5" />}</span>
-          <span className="text-[11px] uppercase tracking-wider">{lang}</span>
-        </button>
-        {langOpen && (
-          <div className="absolute left-0 top-full mt-2 bg-black/90 backdrop-blur-2xl border border-white/15 rounded-xl p-1.5 shadow-2xl shadow-black/80 z-50 min-w-40 animate-fade-scale-in">
-            {UI_LANGUAGES.map((l) => (
-              <button
-                type="button"
-                key={l.code}
-                onClick={() => { pickLang(l.code); setLangOpen(false) }}
-                className={`w-full flex items-center justify-between px-2.5 py-2 rounded-lg text-xs transition-all text-left hover:bg-zinc-800 cursor-pointer ${l.code === lang ? "bg-accent/15 text-accent-orange font-semibold" : "text-zinc-300"}`}
-              >
-                <span className="flex items-center gap-2">
-                  <span>{l.flag}</span>
-                  <span>{l.name}</span>
-                </span>
-                {l.code === lang && <Check className="w-3.5 h-3.5 text-accent-orange shrink-0" />}
-              </button>
-            ))}
-          </div>
-        )}
-      </div>
-
-      <button
-        type="button"
-        aria-label={t("ui.refreshLists")}
-        onClick={async () => { setRefreshing(true); await refreshLists(); setRefreshing(false) }}
-        disabled={refreshing}
-        className="p-1.5 rounded-xl bg-white/[0.05] border border-white/10 text-zinc-300 active:scale-90 transition-all"
-      >
-        <RefreshCw className={`w-3.5 h-3.5 ${refreshing ? "animate-spin" : ""}`} />
-      </button>
-
-      <button
-        type="button"
-        aria-label={t("ui.addonProxy")}
-        onClick={() => setProxyOpen(true)}
-        className="p-1.5 rounded-xl bg-white/[0.05] border border-white/10 text-accent-orange active:scale-90 transition-all"
-      >
-        <Sparkles className="w-3.5 h-3.5" />
-      </button>
-    </div>
-  )
 
   return (
     <>
@@ -284,7 +215,6 @@ export function AppShell() {
             className="header-logo h-10 sm:h-14 md:h-24 w-auto cursor-pointer hover:brightness-110 active:scale-95 transition-all duration-150 mb-1.5 md:mb-2"
           />
           <p className="header-tagline text-center text-[10px] sm:text-xs md:text-sm mb-3.5 sm:mb-5 md:mb-6 max-w-xs sm:max-w-none">{t("ui.homeTagline")}</p>
-          {mobileToolbar}
           </>
         </div>
         )}
@@ -298,42 +228,6 @@ export function AppShell() {
         {!(view === "edit" && selected) && <HomeStatusStrip />}
       </div>
 
-      {/* Desktop Bottom-Right Utility Cluster */}
-      <div className="hidden md:block fixed bottom-5 right-5 z-50">
-        <div className="flex items-center gap-2 floating-group">
-          <button type="button"
-            aria-label={t("ui.refreshLists")}
-            onClick={async () => { setRefreshing(true); await refreshLists(); setRefreshing(false) }}
-            disabled={refreshing}
-            title={t("ui.refreshLists")}
-            className="h-9 w-9 flex items-center justify-center rounded-lg active:scale-90 transition-all duration-150 text-sm hover:bg-white/[0.08] press-scale"
-          >
-            <RefreshCw className={`w-4 h-4 ${refreshing ? "animate-spin" : ""}`} />
-          </button>
-          <div ref={langRef} className="relative">
-            <button type="button" aria-label={t("ui.chooseLanguage")} onClick={() => setLangOpen((o) => !o)} className={`h-9 w-9 flex items-center justify-center rounded-lg active:scale-90 transition-all duration-150 text-sm press-scale ${langOpen ? "dropdown-open" : "hover:bg-white/[0.08]"}`} title={LANG_NAMES[lang]}>{LANG_FLAGS[lang] || <Globe className="w-4 h-4" />}</button>
-            {(langOpen || closingLang) && (
-              <div className={`absolute right-0 bottom-full mb-3 bg-black/60 backdrop-blur-xl border border-border/50 rounded-xl p-2 shadow-2xl shadow-black/50 z-50 min-w-40 ${closingLang ? "animate-fade-scale-out" : "animate-fade-scale-in"} dropdown-open`}>
-                {UI_LANGUAGES.map((l) => (
-                  <button
-                    type="button"
-                    key={l.code}
-                    onClick={() => { pickLang(l.code); closeLang() }}
-                    className={`w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-xs transition-all duration-150 text-left hover:bg-zinc-700/50 active:scale-[0.98] ${l.code === lang ? "bg-accent/10 text-accent font-medium" : "text-zinc-300"}`}
-                  >
-                    <span className="flex items-center gap-2">
-                      <span>{l.flag}</span>
-                      <span>{l.name}</span>
-                    </span>
-                    {l.code === lang && <Check className="w-3.5 h-3.5 text-accent shrink-0" />}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-
       {/* Mobile Bottom Navigation Bar (iOS / Android Style) */}
       <nav
         aria-label={t("ui.mainNav")}
@@ -341,7 +235,7 @@ export function AppShell() {
           view === "edit" && selected ? "translate-y-full pointer-events-none opacity-0" : "translate-y-0 opacity-100"
         }`}
       >
-        <div className="grid grid-cols-4 items-center justify-around max-w-md mx-auto">
+        <div className="grid grid-cols-5 items-center justify-around max-w-md mx-auto">
           {/* Cataloghi */}
           <button
             type="button"
@@ -352,8 +246,24 @@ export function AppShell() {
                 : "text-zinc-400 hover:text-zinc-200"
             }`}
           >
-            <Layers className="w-5 h-5" />
+            <span className="h-8 flex items-center justify-center">
+              <Layers className="w-5 h-5" />
+            </span>
             <span className="text-[10px] tracking-tight truncate">{t("ui.catalogs") || "Cataloghi"}</span>
+          </button>
+
+          {/* Proxy Addon (seconda voce) */}
+          <button
+            type="button"
+            onClick={() => setProxyOpen(true)}
+            aria-label={t("ui.addonProxy")}
+            title={t("ui.addonProxy")}
+            className="flex flex-col items-center justify-center gap-1 py-1 px-1 rounded-xl transition-all duration-150 active:scale-90 cursor-pointer text-zinc-400 hover:text-zinc-200"
+          >
+            <span className="h-8 flex items-center justify-center">
+              <Sparkles className="w-5 h-5 text-accent-orange" />
+            </span>
+            <span className="text-[10px] tracking-tight truncate">{t("ui.proxyShort") || "Proxy"}</span>
           </button>
 
           {/* Installa Hub (Featured Central Pill) */}
@@ -362,7 +272,7 @@ export function AppShell() {
             onClick={handleInstallCatalog}
             className="flex flex-col items-center justify-center gap-1 py-1 px-1 rounded-xl transition-all duration-150 active:scale-90 cursor-pointer text-zinc-300 hover:text-white"
           >
-            <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-accent-orange to-amber-500 flex items-center justify-center text-white shadow-md shadow-accent-orange/30 -mt-2">
+            <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-accent-orange to-amber-500 flex items-center justify-center text-white shadow-md shadow-accent-orange/30">
               <QrCode className="w-4 h-4" />
             </div>
             <span className="text-[10px] font-semibold text-white tracking-tight truncate">{t("ui.install")}</span>
@@ -378,14 +288,16 @@ export function AppShell() {
                 : "text-zinc-400 hover:text-zinc-200"
             }`}
           >
-            <div className="relative">
-              <Palette className="w-5 h-5" />
-              {mappings.length > 0 && (
-                <span className="absolute -top-1 -right-2 px-1 min-w-3.5 h-3.5 bg-accent-orange text-[9px] font-bold text-white rounded-full flex items-center justify-center leading-none">
-                  {mappings.length}
-                </span>
-              )}
-            </div>
+            <span className="h-8 flex items-center justify-center">
+              <div className="relative">
+                <Palette className="w-5 h-5" />
+                {mappings.length > 0 && (
+                  <span className="absolute -top-1 -right-2 px-1 min-w-3.5 h-3.5 bg-accent-orange text-[9px] font-bold text-white rounded-full flex items-center justify-center leading-none">
+                    {mappings.length}
+                  </span>
+                )}
+              </div>
+            </span>
             <span className="text-[10px] tracking-tight truncate">{t("ui.myPostersBtn") || "I Miei"}</span>
           </button>
 
@@ -399,7 +311,9 @@ export function AppShell() {
                 : "text-zinc-400 hover:text-zinc-200"
             }`}
           >
-            <Settings className="w-5 h-5" />
+            <span className="h-8 flex items-center justify-center">
+              <Settings className="w-5 h-5" />
+            </span>
             <span className="text-[10px] tracking-tight truncate">{t("ui.settingsTitle") || "Opzioni"}</span>
           </button>
         </div>

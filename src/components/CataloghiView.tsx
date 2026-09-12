@@ -11,7 +11,7 @@ import { SimklCard, type SimklCardItem } from "@/components/SimklCard"
 import { CustomCatalogModal } from "@/components/CustomCatalogModal"
 import { CatalogManagerModal } from "@/components/CatalogManagerModal"
 import { posterUrl } from "@/lib/utils"
-import { X, Check, ListPlus, Trash2, Film, Tv, Shuffle, Power, SlidersHorizontal, Home } from "lucide-react"
+import { X, Check, ListPlus, Trash2, Film, Tv, Shuffle, Power, SlidersHorizontal, Home, RefreshCw } from "lucide-react"
 
 interface GridViewItem {
   tmdbId: number | null
@@ -383,6 +383,7 @@ export function CataloghiView() {
   const [platformFilter, setPlatformFilter] = useState<string>("all")
   const [isAddCustomOpen, setIsAddCustomOpen] = useState(false)
   const [isManagerOpen, setIsManagerOpen] = useState(false)
+  const [refreshing, setRefreshing] = useState(false)
 
   const savedKeys = useMemo(
     () => new Set(mappings.map((m) => `${m.mediaType}:${m.tmdbId}`)),
@@ -462,6 +463,16 @@ export function CataloghiView() {
             <p className="text-sm text-muted mt-1">{t("ui.catalogsSubtitle")}</p>
           </div>
           <div className="flex items-center gap-2 self-start sm:self-center">
+            <button
+              type="button"
+              aria-label={t("ui.refreshLists")}
+              title={t("ui.refreshLists")}
+              onClick={async () => { setRefreshing(true); await refreshLists(); setRefreshing(false) }}
+              disabled={refreshing}
+              className="flex items-center justify-center w-9 h-9 rounded-xl bg-surface2 border border-white/10 hover:border-white/20 text-zinc-200 hover:text-white active:scale-95 transition-all shadow-sm disabled:opacity-60"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 text-accent-orange ${refreshing ? "animate-spin" : ""}`} />
+            </button>
             <div className="relative">
               <button
                 type="button"

@@ -417,6 +417,7 @@
   "ui.onboardingSkip": "Tutorial überspringen",
   "ui.slide": "Folie {n}",
   "ui.addonProxy": "Addon Proxy",
+  "ui.proxyShort": "Proxy",
   "ui.scrollLeft": "Nach links scrollen",
   "ui.scrollRight": "Nach rechts scrollen",
   "ui.errorDefaultTitle": "Etwas ist schiefgelaufen",

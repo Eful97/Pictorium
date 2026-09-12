@@ -418,6 +418,7 @@
   "ui.onboardingSkip": "Salta tutorial",
   "ui.slide": "Slide {n}",
   "ui.addonProxy": "Addon Proxy",
+  "ui.proxyShort": "Proxy",
   "ui.scrollLeft": "Scorri a sinistra",
   "ui.scrollRight": "Scorri a destra",
   "ui.errorDefaultTitle": "Qualcosa è andato storto",

@@ -435,6 +435,7 @@
   "ui.onboardingSkip": "Pular tutorial",
   "ui.slide": "Slide {n}",
   "ui.addonProxy": "Addon Proxy",
+  "ui.proxyShort": "Proxy",
   "ui.scrollLeft": "Rolar à esquerda",
   "ui.scrollRight": "Rolar à direita",
   "ui.errorDefaultTitle": "Algo deu errado",
