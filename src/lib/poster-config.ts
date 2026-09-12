@@ -55,6 +55,8 @@ export interface PosterRenderConfig {
   badgeYear: boolean
   badgeRating: boolean
   badgeQuality: boolean
+  /** Riga rating custom provider (display). Default ON quando il provider è configurato. */
+  customRatings: boolean
   ratingSources: string[]
   logoScale: number | null
   logoOffsetX: number | null
@@ -159,6 +161,12 @@ export function resolvePosterRenderConfig(input: PosterRenderConfigInput): Poste
   const badgeYear = qBy !== null ? qBy !== "0" : (mapping?.badgeYear ?? configOverride?.badgeYear ?? sd.badgeYear ?? true)
   const badgeRating = qBr !== null ? qBr !== "0" : (mapping?.badgeRating ?? configOverride?.badgeRating ?? sd.badgeRating ?? true)
   const badgeQuality = qBq !== null ? qBq !== "0" : (mapping?.badgeQuality ?? configOverride?.badgeQuality ?? sd.badgeQuality ?? true)
+
+  // Riga rating custom provider (display) — precedenza: query `cr` > mapping
+  // salvato > config token/profilo > server defaults > true (ON di default).
+  // L'effettivo rendering richiede comunque il provider configurato (env).
+  const qCr = q.get("cr")
+  const customRatings = qCr !== null ? qCr !== "0" : (mapping?.customRatings ?? configOverride?.customRatings ?? sd.customRatings ?? true)
 
   const qRsrc = q.get("rsrc")
   const validSources = SUPPORTED_RATING_SOURCES as readonly string[]
@@ -322,6 +330,7 @@ export function resolvePosterRenderConfig(input: PosterRenderConfigInput): Poste
     badgeYear,
     badgeRating,
     badgeQuality,
+    customRatings,
     ratingSources,
     logoScale,
     logoOffsetX,

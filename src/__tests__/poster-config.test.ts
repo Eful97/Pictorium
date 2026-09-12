@@ -517,6 +517,34 @@ describe("resolvePosterRenderConfig", () => {
     expect(rSd.preRelease).toBe(true)
   })
 
+  it("customRatings defaults to true; query/mapping/config/sd chain wins in order", () => {
+    expect(resolvePosterRenderConfig(baseInput()).customRatings).toBe(true)
+
+    const rQuery = resolvePosterRenderConfig(baseInput({
+      searchParams: new URLSearchParams({ cr: "0" }),
+      mapping: mapping({ customRatings: true }),
+      configOverride: config({ customRatings: true }),
+      sd: { customRatings: true },
+    }))
+    expect(rQuery.customRatings).toBe(false)
+
+    const rMapping = resolvePosterRenderConfig(baseInput({
+      mapping: mapping({ customRatings: false }),
+      configOverride: config({ customRatings: true }),
+      sd: { customRatings: true },
+    }))
+    expect(rMapping.customRatings).toBe(false)
+
+    const rConfig = resolvePosterRenderConfig(baseInput({
+      configOverride: config({ customRatings: false }),
+      sd: { customRatings: true },
+    }))
+    expect(rConfig.customRatings).toBe(false)
+
+    const rSd = resolvePosterRenderConfig(baseInput({ sd: { customRatings: false } }))
+    expect(rSd.customRatings).toBe(false)
+  })
+
   it("ratingSources default is ['imdb', 'tmdb'] and query rsrc overrides it", () => {
     const rDef = resolvePosterRenderConfig(baseInput())
     expect(rDef.ratingSources).toEqual(["imdb", "tmdb"])

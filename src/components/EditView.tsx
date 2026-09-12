@@ -355,6 +355,7 @@ export default function EditView() {
                         badgeYear: ed.badgeYear,
                         badgeRating: ed.badgeRating,
                         badgeQuality: ed.badgeQuality,
+                        customRatings: ed.customRatings,
                         ratingSources: ed.ratingSources,
                         badgeStyle: ed.badgeStyle,
                         rankingBadgeStyle: ed.rankingBadgeStyle,

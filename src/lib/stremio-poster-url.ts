@@ -61,6 +61,7 @@ export function buildStremioPosterUrl(input: BuildStremioPosterUrlInput): URL {
     badgeYear: input.mapping?.badgeYear ?? input.defaults.badgeYear,
     badgeRating: input.mapping?.badgeRating ?? input.defaults.badgeRating,
     badgeQuality: input.mapping?.badgeQuality ?? input.defaults.badgeQuality,
+    customRatings: mapping?.customRatings ?? input.defaults.customRatings,
     ratingSources: input.defaults.ratingSources,
     badgeStyle: mapping?.badgeStyle ?? input.defaults.badgeStyle,
     rankingBadgeStyle: mapping?.rankingBadgeStyle ?? input.defaults.rankingBadgeStyle,

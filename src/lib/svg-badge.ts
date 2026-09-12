@@ -69,7 +69,7 @@ function fontStyle(): string {
   return _cachedStyle
 }
 
-function wrapSvg(svg: string): string {
+export function wrapSvg(svg: string): string {
   if (svg.includes("</defs>")) {
     return svg.replace("</defs>", `${fontStyle()}</defs>`)
   }

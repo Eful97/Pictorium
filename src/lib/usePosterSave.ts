@@ -42,6 +42,7 @@ interface PosterSaveDeps {
   badgeYear: boolean
   badgeRating: boolean
   badgeQuality: boolean
+  customRatings: boolean
   customBadge: string | null
   badgeStyle: string
   rankingBadgeStyle: string
@@ -95,7 +96,7 @@ export function usePosterSave(deps: PosterSaveDeps) {
     selectedBackdrop, setSelectedBackdrop, backdropScale, backdropOffsetX, backdropOffsetY,
     setBackdropScale, setBackdropOffsetX, setBackdropOffsetY,
     globalBadges, rankingBadges, customBadge, badgeStyle, rankingBadgeStyle,
-    badgeGenre, badgeYear, badgeRating, badgeQuality,
+    badgeGenre, badgeYear, badgeRating, badgeQuality, customRatings,
     defaultBadgeStyle, defaultRankingBadgeStyle,
     blurEnabled, blurIntensity, blurFade, blurDarkness, gradientHeight, setGradientHeight,
     topBadgeScale, topBadgeOffsetX, topBadgeOffsetY, genreBadgeScale, qualityBadgeScale, networkLogoScale,
@@ -269,6 +270,7 @@ export function usePosterSave(deps: PosterSaveDeps) {
           badgeYear,
           badgeRating,
           badgeQuality,
+          customRatings,
           tvType: metaInfo.type || null,
           tvStatus: metaInfo.status || null,
           releaseDate: metaInfo.release_date || null,

@@ -35,6 +35,12 @@ export interface DefaultsState {
   defaultBadgeYear: boolean
   defaultBadgeRating: boolean
   defaultBadgeQuality: boolean
+  /** Riga rating custom provider di default (default ON). */
+  defaultCustomRatings: boolean
+  /** Endpoint provider custom rating salvato via UI (non-segreto). */
+  defaultCustomRatingEndpoint?: string
+  /** Header chiave provider salvato via UI. */
+  defaultCustomRatingApiKeyHeader?: string
   defaultRatingSources: string[]
   defaultAutoRotateClean: boolean
   defaultLogoFitEnabled: boolean
@@ -52,6 +58,8 @@ export interface DefaultsState {
   badgeYear: boolean
   badgeRating: boolean
   badgeQuality: boolean
+  /** Riga rating custom provider (default ON). */
+  customRatings: boolean
   ratingSources: string[]
   networkLogo: boolean
   preRelease: boolean
@@ -104,6 +112,7 @@ const DEFAULTS: DefaultsState = {
   defaultBadgeYear: true,
   defaultBadgeRating: true,
   defaultBadgeQuality: true,
+  defaultCustomRatings: true,
   defaultRatingSources: ["imdb", "tmdb"],
   defaultAutoRotateClean: false,
   defaultLogoFitEnabled: true,
@@ -119,6 +128,7 @@ const DEFAULTS: DefaultsState = {
   badgeYear: true,
   badgeRating: true,
   badgeQuality: true,
+  customRatings: true,
   ratingSources: ["imdb", "tmdb"],
   networkLogo: true,
   preRelease: false,
@@ -152,6 +162,7 @@ interface StoredDefaults {
   badgeYear?: boolean
   badgeRating?: boolean
   badgeQuality?: boolean
+  customRatings?: boolean
   networkLogo?: boolean
   gradientHeight?: number
   topBadgeScale?: number
@@ -197,6 +208,11 @@ interface StoredDefaults {
   defaultBadgeYear?: boolean
   defaultBadgeRating?: boolean
   defaultBadgeQuality?: boolean
+  defaultCustomRatings?: boolean
+  defaultCustomRatingEndpoint?: string
+  defaultCustomRatingApiKeyHeader?: string
+  customRatingEndpoint?: string
+  customRatingApiKeyHeader?: string
   defaultRatingSources?: string[]
   ratingSources?: string[]
   defaultAutoRotateClean?: boolean
@@ -257,6 +273,9 @@ function buildFromStored(d: StoredDefaults | null): DefaultsState {
     defaultBadgeYear: d.defaultBadgeYear ?? d.badgeYear ?? true,
     defaultBadgeRating: d.defaultBadgeRating ?? d.badgeRating ?? true,
     defaultBadgeQuality: d.defaultBadgeQuality ?? d.badgeQuality ?? true,
+    defaultCustomRatings: d.defaultCustomRatings ?? d.customRatings ?? true,
+    defaultCustomRatingEndpoint: d.defaultCustomRatingEndpoint ?? d.customRatingEndpoint,
+    defaultCustomRatingApiKeyHeader: d.defaultCustomRatingApiKeyHeader ?? d.customRatingApiKeyHeader,
     defaultRatingSources: d.defaultRatingSources ?? d.ratingSources ?? ["imdb", "tmdb"],
     defaultAutoRotateClean: d.defaultAutoRotateClean ?? d.autoRotateClean ?? false,
     defaultLogoFitEnabled: d.defaultLogoFitEnabled ?? true,
@@ -272,6 +291,7 @@ function buildFromStored(d: StoredDefaults | null): DefaultsState {
     badgeYear: d.badgeYear ?? d.defaultBadgeYear ?? true,
     badgeRating: d.badgeRating ?? d.defaultBadgeRating ?? true,
     badgeQuality: d.badgeQuality ?? d.defaultBadgeQuality ?? true,
+    customRatings: d.customRatings ?? d.defaultCustomRatings ?? true,
     ratingSources: d.ratingSources ?? d.defaultRatingSources ?? ["imdb", "tmdb"],
     networkLogo: d.networkLogo ?? d.defaultNetworkLogo ?? true,
     preRelease: d.preRelease ?? d.defaultPreRelease ?? false,
@@ -332,6 +352,9 @@ function defaultsToPayload(d: DefaultsState): Record<string, unknown> {
     badgeYear: d.defaultBadgeYear,
     badgeRating: d.defaultBadgeRating,
     badgeQuality: d.defaultBadgeQuality,
+    customRatings: d.defaultCustomRatings,
+    customRatingEndpoint: d.defaultCustomRatingEndpoint ?? "",
+    customRatingApiKeyHeader: d.defaultCustomRatingApiKeyHeader ?? "",
     ratingSources: d.defaultRatingSources,
     autoRotateClean: d.defaultAutoRotateClean,
     defaultLogoFitEnabled: d.defaultLogoFitEnabled,

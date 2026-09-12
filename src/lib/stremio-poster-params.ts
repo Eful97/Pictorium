@@ -17,6 +17,8 @@ export interface StremioPosterParamsInput {
   readonly badgeYear?: boolean
   readonly badgeRating?: boolean
   readonly badgeQuality?: boolean
+  /** Riga rating custom provider (display). `false` emette `cr=0`. */
+  readonly customRatings?: boolean
   readonly ratingSources?: string[]
   readonly badgeStyle?: BadgeStyle
   readonly rankingBadgeStyle?: RankingBadgeStyle
@@ -103,6 +105,7 @@ export function buildStremioPosterSearchParams(input: StremioPosterParamsInput):
   if (input.badgeYear === false) params.set("by", "0")
   if (input.badgeRating === false) params.set("br", "0")
   if (input.badgeQuality === false) params.set("bq", "0")
+  if (input.customRatings === false) params.set("cr", "0")
   if (input.ratingSources && input.ratingSources.length > 0) params.set("rsrc", input.ratingSources.join(","))
   if (input.customBadge) params.set("extra", input.customBadge)
   if (input.title) params.set("title", input.title)

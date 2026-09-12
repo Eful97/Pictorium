@@ -187,6 +187,14 @@ export function BadgeControls() {
             <Toggle value={ed.badgeQuality} onChange={(v) => ed.setBadgeQuality(v)} label={t("ui.badgeQuality")} />
           </div>
 
+          <div className="flex items-center justify-between" title={t("ui.customRatingsHint")}>
+            <span className="text-zinc-300 font-medium flex items-center gap-1.5">
+              <Star className="w-3.5 h-3.5 text-teal-400" />
+              {t("ui.customRatings")}
+            </span>
+            <Toggle value={ed.customRatings} onChange={(v) => ed.setCustomRatings(v)} label={t("ui.customRatings")} />
+          </div>
+
           <div className="flex items-center justify-between">
             <span className="text-zinc-300 font-medium flex items-center gap-1.5">
               <Tv className="w-3.5 h-3.5 text-sky-400" />

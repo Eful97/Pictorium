@@ -198,7 +198,16 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
   }
 
   // 2. Cache key
-  const customRatingConfig = resolveCustomRatingConfig()
+  // Riga rating custom: il provider deve essere configurato (env) E il display
+  // abilitato (catena query `cr` > mapping > config > defaults > true, come
+  // bg/by/br — vedi resolvePosterRenderConfig). `cr` resta nei cacheParams e
+  // `mv`/configHash coprono mapping/token, quindi niente stale.
+  const qCr = req.nextUrl.searchParams.get("cr")
+  const customRatingsDisplay = qCr !== null
+    ? qCr !== "0"
+    : (mapping?.customRatings ?? configOverride?.customRatings ?? sd.customRatings ?? true)
+  const envRatingConfig = resolveCustomRatingConfig({}, sd)
+  const customRatingConfig = { ...envRatingConfig, enabled: envRatingConfig.enabled && customRatingsDisplay }
   const customRatingHash = customRatingConfig.enabled
     ? createHash("sha256").update(JSON.stringify(customRatingConfig)).digest("hex") : ""
   const sdHash = hashKey(JSON.stringify(sd) + customRatingHash)
@@ -224,7 +233,10 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
   const variantKey = outputFormat === "webp" ? `${cacheKey}:fmtwebp` : cacheKey
   const etagBase = hashKey(`v${RENDER_VERSION}:${mediaType}:${tmdbId}:reg${posterRegion.code}:r${cachedRank ?? "x"}:sd${sdHash}:${cacheParams.toString()}${configHash ? `:${configHash}` : ""}`)
   const currentMappingVersion = mappingVersionParam(mapping)
-  const immutablePoster = isImmutablePosterRequest(req.nextUrl.searchParams, {
+  // Rating dinamici: con provider abilitato niente cache immutable annuale
+  // (i rating cambiano) — vale anche il display-aware locale: solo la riga
+  // davvero renderizzata rinuncia all'immutable.
+  const immutablePoster = !customRatingConfig.enabled && isImmutablePosterRequest(req.nextUrl.searchParams, {
     hasMapping: !!mapping,
     isRotating,
     mappingVersionMatches: !!currentMappingVersion && req.nextUrl.searchParams.get("mv") === currentMappingVersion,

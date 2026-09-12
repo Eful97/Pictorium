@@ -47,6 +47,20 @@ const defaultsSchema = z.object({
   badgeYear: z.boolean().optional(),
   badgeRating: z.boolean().optional(),
   badgeQuality: z.boolean().optional(),
+  customRatings: z.boolean().optional(),
+  // Endpoint provider custom rating (non-segreto; la chiave resta solo env).
+  // Stessi vincoli del fetch: placeholder {imdbId}, http/https, no credenziali.
+  customRatingEndpoint: z.string().max(500).optional().refine((v) => {
+    if (!v) return true
+    if (!v.includes("{imdbId}")) return false
+    try {
+      const url = new URL(v)
+      return (url.protocol === "http:" || url.protocol === "https:") && !url.username && !url.password
+    } catch {
+      return false
+    }
+  }, { message: "customRatingEndpoint must be an http(s) URL containing {imdbId} without credentials" }),
+  customRatingApiKeyHeader: z.string().max(64).optional(),
   ratingSources: z.array(z.string()).optional(),
   autoRotateClean: z.boolean().optional(),
   defaultLogoFitEnabled: z.boolean().optional(),

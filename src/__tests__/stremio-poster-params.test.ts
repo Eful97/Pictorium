@@ -50,6 +50,12 @@ describe("buildStremioPosterSearchParams", () => {
     expect(params.get("rs")).toBe("default")
   })
 
+  it("emits cr=0 only when custom ratings display is off", () => {
+    expect(buildStremioPosterSearchParams({}).has("cr")).toBe(false)
+    expect(buildStremioPosterSearchParams({ customRatings: true }).has("cr")).toBe(false)
+    expect(buildStremioPosterSearchParams({ customRatings: false }).get("cr")).toBe("0")
+  })
+
   it("serializes ribbonSide left and right explicitly", () => {
     const leftParams = buildStremioPosterSearchParams({ ribbonSide: "left" })
     expect(leftParams.get("side")).toBe("left")

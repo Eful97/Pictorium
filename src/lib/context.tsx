@@ -314,6 +314,7 @@ export function usePictorium(): PictoriumCtx {
     badgeYear, setBadgeYear,
     badgeRating, setBadgeRating,
     badgeQuality, setBadgeQuality,
+    customRatings, setCustomRatings,
     ratingSources,
     badgeStyle, setBadgeStyle,
     rankingBadgeStyle, setRankingBadgeStyle,
@@ -330,6 +331,7 @@ export function usePictorium(): PictoriumCtx {
     defaultBadgeYear,
     defaultBadgeRating,
     defaultBadgeQuality,
+    defaultCustomRatings,
     defaultRibbonSide,
     setRibbonSide,
     defaultBlurEnabled,
@@ -608,14 +610,14 @@ export function usePictorium(): PictoriumCtx {
   useEffect(() => {
     setUrlPattern(buildUrlPattern({
       globalBadges, rankingBadges, badgeStyle, rankingBadgeStyle,
-      badgeGenre, badgeYear, badgeRating, badgeQuality, ratingSources,
+      badgeGenre, badgeYear, badgeRating, badgeQuality, customRatings, ratingSources,
       customBadge, gradientHeight, blurIntensity, blurFade, blurDarkness, blurEnabled, networkLogo, preRelease, ribbonSide,
       topBadgeScale, topBadgeOffsetX, topBadgeOffsetY, genreBadgeScale, qualityBadgeScale, networkLogoScale,
       genreBadgeOffsetX, genreBadgeOffsetY, qualityBadgeOffsetX, qualityBadgeOffsetY,
       networkLogoOffsetX, networkLogoOffsetY,
       tmdbKey, lang, mdblistApiKey,
     }))
-  }, [globalBadges, rankingBadges, badgeGenre, badgeYear, badgeRating, badgeQuality, ratingSources, networkLogo, preRelease, ribbonSide, gradientHeight, blurIntensity, blurFade, blurDarkness, blurEnabled, badgeStyle, rankingBadgeStyle, topBadgeScale, topBadgeOffsetX, topBadgeOffsetY, genreBadgeScale, qualityBadgeScale, networkLogoScale, genreBadgeOffsetX, genreBadgeOffsetY, qualityBadgeOffsetX, qualityBadgeOffsetY, networkLogoOffsetX, networkLogoOffsetY, tmdbKey, lang, mdblistApiKey]) // eslint-disable-line react-hooks/exhaustive-deps -- customBadge intentionally excluded to avoid loop
+  }, [globalBadges, rankingBadges, badgeGenre, badgeYear, badgeRating, badgeQuality, customRatings, ratingSources, networkLogo, preRelease, ribbonSide, gradientHeight, blurIntensity, blurFade, blurDarkness, blurEnabled, badgeStyle, rankingBadgeStyle, topBadgeScale, topBadgeOffsetX, topBadgeOffsetY, genreBadgeScale, qualityBadgeScale, networkLogoScale, genreBadgeOffsetX, genreBadgeOffsetY, qualityBadgeOffsetX, qualityBadgeOffsetY, networkLogoOffsetX, networkLogoOffsetY, tmdbKey, lang, mdblistApiKey]) // eslint-disable-line react-hooks/exhaustive-deps -- customBadge intentionally excluded to avoid loop
 
   // --- Preview URL ---
   const buildPreviewUrlCb = useCallback(() => {
@@ -631,14 +633,14 @@ export function usePictorium(): PictoriumCtx {
         topEdgeColor, accentColor, lang, tmdbKey,
         region: editorCtx.defaultRegion,
       },
-      { globalBadges, rankingBadges, badgeStyle, rankingBadgeStyle, badgeGenre, badgeYear, badgeRating, badgeQuality, ratingSources, customBadge, gradientHeight, blurIntensity, blurFade, blurDarkness, blurEnabled, networkLogo, preRelease, ribbonSide, topBadgeScale, topBadgeOffsetX, topBadgeOffsetY, genreBadgeScale, qualityBadgeScale, networkLogoScale, genreBadgeOffsetX, genreBadgeOffsetY, qualityBadgeOffsetX, qualityBadgeOffsetY, networkLogoOffsetX, networkLogoOffsetY }
+      { globalBadges, rankingBadges, badgeStyle, rankingBadgeStyle, badgeGenre, badgeYear, badgeRating, badgeQuality, customRatings, ratingSources, customBadge, gradientHeight, blurIntensity, blurFade, blurDarkness, blurEnabled, networkLogo, preRelease, ribbonSide, topBadgeScale, topBadgeOffsetX, topBadgeOffsetY, genreBadgeScale, qualityBadgeScale, networkLogoScale, genreBadgeOffsetX, genreBadgeOffsetY, qualityBadgeOffsetX, qualityBadgeOffsetY, networkLogoOffsetX, networkLogoOffsetY }
     )
     setPreviewUrl(url)
   }, [navigation.selected, navigation.previewPoster, navigation.selectedLogo, selectedBackdrop,
     logoScale, logoOffsetX, logoOffsetY, backdropScale, backdropOffsetX, backdropOffsetY,
     metaInfo, trendRank, trending.mdblistAnimeList, topEdgeColor, accentColor, lang, tmdbKey,
     editorCtx.defaultRegion,
-    globalBadges, rankingBadges, badgeStyle, rankingBadgeStyle, badgeGenre, badgeYear, badgeRating, badgeQuality, ratingSources, customBadge, gradientHeight, blurIntensity, blurFade, blurDarkness, blurEnabled, networkLogo, preRelease, ribbonSide, topBadgeScale, topBadgeOffsetX, topBadgeOffsetY, genreBadgeScale, qualityBadgeScale, networkLogoScale, genreBadgeOffsetX, genreBadgeOffsetY, qualityBadgeOffsetX, qualityBadgeOffsetY, networkLogoOffsetX, networkLogoOffsetY])
+    globalBadges, rankingBadges, badgeStyle, rankingBadgeStyle, badgeGenre, badgeYear, badgeRating, badgeQuality, customRatings, ratingSources, customBadge, gradientHeight, blurIntensity, blurFade, blurDarkness, blurEnabled, networkLogo, preRelease, ribbonSide, topBadgeScale, topBadgeOffsetX, topBadgeOffsetY, genreBadgeScale, qualityBadgeScale, networkLogoScale, genreBadgeOffsetX, genreBadgeOffsetY, qualityBadgeOffsetX, qualityBadgeOffsetY, networkLogoOffsetX, networkLogoOffsetY])
 
   // A1: trailing debounce della preview URL (200ms). Ogni tick di slider
   // cambia l'identità di buildPreviewUrlCb → senza debounce ogni pixel di
@@ -814,6 +816,7 @@ export function usePictorium(): PictoriumCtx {
       setBadgeYear(existing.badgeYear ?? defaultBadgeYear)
       setBadgeRating(existing.badgeRating ?? defaultBadgeRating)
       setBadgeQuality(existing.badgeQuality ?? defaultBadgeQuality)
+      setCustomRatings(existing.customRatings ?? defaultCustomRatings)
       setNetworkLogo(existing.networkLogo ?? defaultNetworkLogo)
       // ribbonSide solo globale: i mapping storici con valore salvato lo ignorano,
       // così la preview resta sincrona con Stremio (side dal default d'istanza).
@@ -854,6 +857,7 @@ export function usePictorium(): PictoriumCtx {
       setBadgeYear(defaultBadgeYear)
       setBadgeRating(defaultBadgeRating)
       setBadgeQuality(defaultBadgeQuality)
+      setCustomRatings(defaultCustomRatings)
       setGradientHeight(defaultGradientHeight)
       setBlurIntensity(defaultBlurIntensity)
       setBlurFade(defaultBlurFade)
@@ -964,7 +968,7 @@ export function usePictorium(): PictoriumCtx {
     selectedBackdrop, setSelectedBackdrop: setSelectedBackdrop, backdropScale, backdropOffsetX, backdropOffsetY,
     setBackdropScale, setBackdropOffsetX, setBackdropOffsetY,
     globalBadges, rankingBadges, customBadge, badgeStyle, rankingBadgeStyle,
-    badgeGenre, badgeYear, badgeRating, badgeQuality,
+    badgeGenre, badgeYear, badgeRating, badgeQuality, customRatings,
     defaultBadgeStyle, defaultRankingBadgeStyle, blurEnabled, blurIntensity, blurFade, blurDarkness, gradientHeight,
     topBadgeScale, topBadgeOffsetX, topBadgeOffsetY, genreBadgeScale, qualityBadgeScale, networkLogoScale,
     genreBadgeOffsetX, genreBadgeOffsetY, qualityBadgeOffsetX, qualityBadgeOffsetY,

@@ -24,6 +24,12 @@ export interface ServerDefaults {
   badgeYear?: boolean
   badgeRating?: boolean
   badgeQuality?: boolean
+  /** Riga rating custom provider (display). Default ON quando il provider è configurato. */
+  customRatings?: boolean
+  /** Endpoint provider custom rating (UI). Non-segreto; la chiave resta solo env. */
+  customRatingEndpoint?: string
+  /** Header della chiave provider (UI). Default "X-API-Key". */
+  customRatingApiKeyHeader?: string
   ratingSources?: string[]
   autoRotateClean?: boolean
   defaultLogoFitEnabled?: boolean
@@ -96,6 +102,7 @@ function defaultsFromEnv(): ServerDefaults {
   const by = envBool("BADGE_YEAR")
   const br = envBool("BADGE_RATING")
   const bq = envBool("BADGE_QUALITY")
+  const cr = envBool("CUSTOM_RATINGS")
   const blurEn = envBool("BLUR_ENABLED")
   const netLogo = envBool("NETWORK_LOGO")
   const preRel = envBool("PRE_RELEASE")
@@ -107,6 +114,7 @@ function defaultsFromEnv(): ServerDefaults {
   if (by !== undefined) d.badgeYear = by
   if (br !== undefined) d.badgeRating = br
   if (bq !== undefined) d.badgeQuality = bq
+  if (cr !== undefined) d.customRatings = cr
   const rsrcEnv = getEnv("RATING_SOURCES")?.split(",").map((s) => s.trim().toLowerCase()).filter(Boolean)
   if (rsrcEnv && rsrcEnv.length > 0) d.ratingSources = rsrcEnv
   if (blurEn !== undefined) d.blurEnabled = blurEn
@@ -135,6 +143,12 @@ function defaultsFromEnv(): ServerDefaults {
   const networkLogoOY = envNum("NETWORK_LOGO_OFFSET_Y")
   const epSrc = getEnv("EPISODE_METADATA_SOURCE")?.trim().toLowerCase()
   if (epSrc === "tmdb" || epSrc === "tvdb") d.episodeMetadataSource = epSrc
+  // Endpoint provider custom rating (non-segreto; chiave solo env). Il valore
+  // salvato via UI vince su questo in getServerDefaults (merge sotto).
+  const ratingEndpoint = getEnv("CUSTOM_RATING_ENDPOINT")?.trim()
+  if (ratingEndpoint) d.customRatingEndpoint = ratingEndpoint
+  const ratingKeyHeader = getEnv("CUSTOM_RATING_API_KEY_HEADER")?.trim()
+  if (ratingKeyHeader) d.customRatingApiKeyHeader = ratingKeyHeader
   // Regione classifiche: codice canonico, fail-closed su IT se non riconosciuta.
   const regionRaw = getEnv("REGION")?.trim()
   if (regionRaw) d.region = normalizeRegion(regionRaw)

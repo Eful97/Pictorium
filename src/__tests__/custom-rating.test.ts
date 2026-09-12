@@ -3,7 +3,7 @@ import { Readable } from "node:stream"
 import { afterEach, describe, expect, it, vi } from "vitest"
 import { request } from "undici"
 import { fetchCustomRatings, formatRating, resolveCustomRatingConfig } from "@/lib/custom-rating"
-import { renderMultiRatings } from "@/lib/multi-rating-renderer"
+import { MAX_CUSTOM_RATINGS, renderMultiRatings } from "@/lib/multi-rating-renderer"
 import sharp from "sharp"
 import type { LookupFunction } from "node:net"
 import { lookup } from "node:dns"
@@ -88,6 +88,18 @@ describe("custom rating", () => {
     vi.stubEnv("PICTORIUM_CUSTOM_RATING_ENABLED", "true")
     expect(resolveCustomRatingConfig({ endpoint: "https://other.example/{imdbId}" })).toMatchObject({ enabled: true, endpoint: "https://other.example/{imdbId}", apiKeyHeader: "X-API-Key" })
   })
+  it("rejects HTTP with an API key before making a request", async () => {
+    respond(JSON.stringify({ ratings: [sample] }))
+    expect(await fetchCustomRatings("tt123", {
+      ...config, endpoint: "http://example.com/{imdbId}", apiKey: "test-secret",
+    })).toEqual([])
+    expect(mockedRequest).not.toHaveBeenCalled()
+  })
+  it.each(["http", "https"])("allows %s without an API key", async protocol => {
+    respond(JSON.stringify({ ratings: [sample] }))
+    expect(await fetchCustomRatings("tt123", { ...config, endpoint: `${protocol}://example.com/{imdbId}` })).toEqual([sample])
+    expect(mockedRequest).toHaveBeenCalledTimes(1)
+  })
   it.each(["PICTORIUM", "POSTERIUM"])("resolves all custom rating settings from %s", prefix => {
     const values = {
       CUSTOM_RATING_ENABLED: "1", CUSTOM_RATING_ENDPOINT: "https://example.com/{imdbId}",
@@ -101,6 +113,19 @@ describe("custom rating", () => {
     expect(resolveCustomRatingConfig()).toEqual({
       enabled: true, endpoint: values.CUSTOM_RATING_ENDPOINT, apiKey: "test-key", apiKeyHeader: "Authorization",
     })
+  })
+  it("prefers the UI-saved endpoint/header over env, with env fallback", () => {
+    vi.stubEnv("PICTORIUM_CUSTOM_RATING_ENDPOINT", "https://env.example/{imdbId}")
+    vi.stubEnv("PICTORIUM_CUSTOM_RATING_API_KEY_HEADER", "X-Env")
+    expect(resolveCustomRatingConfig({}, {
+      customRatingEndpoint: "https://ui.example/{imdbId}",
+      customRatingApiKeyHeader: "X-UI",
+    })).toMatchObject({ endpoint: "https://ui.example/{imdbId}", apiKeyHeader: "X-UI" })
+    expect(resolveCustomRatingConfig({}, {})).toMatchObject({
+      endpoint: "https://env.example/{imdbId}", apiKeyHeader: "X-Env",
+    })
+    expect(resolveCustomRatingConfig({}, { customRatingEndpoint: "  " }).endpoint)
+      .toBe("https://env.example/{imdbId}")
   })
   it("prefers canonical settings over legacy fallback, including disabled and empty values", () => {
     for (const suffix of ["CUSTOM_RATING_ENABLED", "CUSTOM_RATING_ENDPOINT", "CUSTOM_RATING_API_KEY", "CUSTOM_RATING_API_KEY_HEADER"]) {
@@ -127,6 +152,13 @@ describe("custom rating", () => {
         })
       })
     }
+  })
+  it("caps displayed pills at MAX_CUSTOM_RATINGS, keeping provider data complete", async () => {
+    const many = Array.from({ length: MAX_CUSTOM_RATINGS + 2 }, (_, i) => ({ id: `s${i}`, name: `Source ${i}`, value: 8 + i / 10, format: "decimal" as const }))
+    const capped = await renderMultiRatings(many, 460)
+    const first = await renderMultiRatings(many.slice(0, MAX_CUSTOM_RATINGS), 460)
+    expect(capped).not.toBeNull()
+    expect(capped!.png.equals(first!.png)).toBe(true)
   })
   it("renders more than two pills within the canvas, including escaped names", async () => {
     const row = await renderMultiRatings([1, 2, 3].map(value => ({ id: String(value), name: "A & <B>", value, format: "decimal" })), 460)

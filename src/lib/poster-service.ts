@@ -828,7 +828,7 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
   }
   if (input.ratings?.length) {
     // Optional enrichment must never prevent the original poster from rendering.
-    const row = await renderMultiRatings(input.ratings, STD_W - 40).catch(() => null)
+    const row = await renderMultiRatings(input.ratings, STD_W - 40, topLight).catch(() => null)
     if (row) {
       const legacyTop = safeGenreBadgeResult
         ? (badgeStyle === "bar" ? STD_H - safeGenreBadgeResult.h

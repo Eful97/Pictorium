@@ -100,12 +100,38 @@ pinned: false
 * **Premi Cinematografici**: Riconoscimento automatico Oscar, Cannes, BAFTA, Emmy e badge *"Absolute Cinema"* per i titoli della IMDb Top 250.
 * **Classifiche Sempre Sincronizzate**: Il badge Top 10/20 segue la classifica live; se un titolo esce dalla chart, il badge si aggiorna da solo.
 * **✨ Effetto Pre-Digitale (Coming Soon)**: Per i film usciti al cinema ma non ancora in streaming (rilevati via JustWatch con fallback alla data digitale TMDB): velo scuro sul poster e nastro rosso "Coming Soon". Solo film, default OFF, attivabile per-titolo, via `?pre=1`, config-token o variabile d'ambiente.
+* **🔌 Rating Custom Esterni**: Riga di pill con i voti di qualsiasi API esterna (via IMDb ID di TMDB): formati decimali/percentuali, autenticazione su header (solo HTTPS), display per-titolo e endpoint configurabile dall'editor — la chiave API resta sempre variabile d'ambiente.
 
 ### 📺 Stagioni, Episodi & Anime
 * **✨ Rilevamento Automatico Parti**: Passa in automatico da stagioni standard a Parti originali per serie come *La Casa di Carta* (5 parti) e *Lupin* (4 parti).
 * **🌀 Spacchettamento Anime**: Risolve la catalogazione TMDB che comprime intere serie anime in una sola stagione (es. *Re:ZERO* 85 episodi, *Jujutsu Kaisen* 59 episodi), ripristinando la corretta suddivisione stagionale (S1, S2, S3, S4 + Speciali in S0).
 * **Supporto TVDB & AniZip**: Possibilità di selezionare manualmente gli ordinamenti alternativi TheTVDB (*Aired, DVD, Absolute, Alternate*) o AniZip (*AniList / AniDB*).
 * **Anteprima Episodi Live**: Visualizza prima di salvare esattamente come appariranno le stagioni, i titoli e le miniature in Stremio.
+
+### 🔌 Custom Rating Provider
+
+Pictorium può mostrare i voti di qualsiasi API esterna usando l'IMDb ID del titolo.
+
+Endpoint di esempio (il segnaposto `{imdbId}` viene sostituito):
+```text
+https://example.com/ratings/{imdbId}
+```
+
+Risposta attesa:
+```json
+{
+  "ratings": [
+    { "id": "source1", "name": "Source 1", "value": 8.8, "format": "decimal" },
+    { "id": "source2", "name": "Source 2", "value": 87, "format": "percent" }
+  ]
+}
+```
+
+I voti appaiono in una riga di pill sopra il badge genere/voto (max 5 mostrate). Il provider non blocca mai il render: errori, timeout (1.5s) e risposte invalide danno riga vuota. La chiave API viaggia solo in header e solo su HTTPS (HTTP + chiave = rifiutato); gli indirizzi privati/loopback sono bloccati. I poster con rating attivi non usano la cache immutable annuale, così i voti si aggiornano alla scadenza del TTL.
+
+Configurazione: endpoint e header dall'editor (Impostazioni, vince sull'env) o via env; la chiave API resta sempre env (mai in UI, token o URL). Il display è per-titolo (`?cr=0`, mapping, config-token, default ON) in AND con il provider abilitato (`PICTORIUM_CUSTOM_RATING_ENABLED`).
+
+Dettagli completi in [docs/custom-rating.md](docs/custom-rating.md).
 
 ### 🔒 Sicurezza & Protezione Pannello (PIN)
 * **Blocco Pannello ad Ogni Avvio & Ricarica (F5)**: Richiesta automatica del codice PIN all'avvio dell'app e ad ogni ricaricamento di pagina per proteggere i tuoi poster salvati e le modifiche.
@@ -284,6 +310,11 @@ npm install --ignore-scripts && npm run build && npm start
 | `PICTORIUM_QUALITY_BADGE_OFFSET_X` / `_Y` | `±2000` px | Spostamento del badge qualità (default `0`). |
 | `PICTORIUM_NETWORK_LOGO_SCALE` | `10` – `200` | Scala % del logo network (default `100`). |
 | `PICTORIUM_NETWORK_LOGO_OFFSET_X` / `_Y` | `±2000` px | Spostamento del logo network (default `0`). |
+| `PICTORIUM_CUSTOM_RATING_ENABLED` | `0` | Abilita il provider rating custom (`1`/`true`). |
+| `PICTORIUM_CUSTOM_RATING_ENDPOINT` | *(vuoto)* | URL con `{imdbId}` (vince il valore salvato via editor). Solo HTTPS se c'è chiave. |
+| `PICTORIUM_CUSTOM_RATING_API_KEY` | *(vuoto)* | Chiave API inviata solo in header (mai in UI/URL). |
+| `PICTORIUM_CUSTOM_RATING_API_KEY_HEADER` | `X-API-Key` | Nome dell'header della chiave (vince il valore salvato via editor). |
+| `PICTORIUM_CUSTOM_RATINGS` | `1` | Default display riga rating (`1`/`0`, overridabile per-titolo). |
 
 ### Concorrenza & Protezione Memoria
 | Variabile | Default | Descrizione |

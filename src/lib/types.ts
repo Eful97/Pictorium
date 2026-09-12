@@ -106,6 +106,8 @@ export interface Mapping {
   badgeYear?: boolean | null
   badgeRating?: boolean | null
   badgeQuality?: boolean | null
+  /** Riga rating custom provider (display). Default ON quando il provider è configurato. */
+  customRatings?: boolean | null
   badgeStyle?: BadgeStyle | null
   rankingBadgeStyle?: RankingBadgeStyle | null
   blurEnabled?: boolean | null

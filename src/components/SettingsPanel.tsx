@@ -439,6 +439,46 @@ export function SettingsPanel({ setSettingsOpen, exportData, importData, mobile 
             />
           </div>
 
+          <div className="flex items-center justify-between" title={t("ui.customRatingsHint")}>
+            <span className="text-zinc-300 font-medium flex items-center gap-1.5">
+              <Star className="w-3.5 h-3.5 text-teal-400" />
+              {t("ui.customRatings")}
+            </span>
+            <Toggle
+              value={ed.defaultCustomRatings}
+              onChange={(v) => {
+                ed.setDefaultCustomRatings(v)
+              }}
+              label={t("ui.customRatings")}
+            />
+          </div>
+
+          <div className="pl-3 py-1 space-y-2 border-l-2 border-surface2 ml-1 animate-fade-in">
+            <div>
+              <label className="text-[10px] text-muted block mb-1">{t("ui.customRatingEndpoint")}</label>
+              <input
+                type="url"
+                value={ed.defaultCustomRatingEndpoint ?? ""}
+                onChange={(e) => ed.setDefaultCustomRatingEndpoint(e.target.value)}
+                placeholder="https://example.com/ratings/{imdbId}"
+                maxLength={500}
+                className="w-full text-xs font-mono py-1.5 px-2.5 rounded-lg bg-black/40 border border-white/10 text-white placeholder-zinc-600 focus:outline-none focus:border-teal-500/50"
+              />
+            </div>
+            <div>
+              <label className="text-[10px] text-muted block mb-1">{t("ui.customRatingApiKeyHeader")}</label>
+              <input
+                type="text"
+                value={ed.defaultCustomRatingApiKeyHeader ?? ""}
+                onChange={(e) => ed.setDefaultCustomRatingApiKeyHeader(e.target.value)}
+                placeholder="X-API-Key"
+                maxLength={64}
+                className="w-full text-xs font-mono py-1.5 px-2.5 rounded-lg bg-black/40 border border-white/10 text-white placeholder-zinc-600 focus:outline-none focus:border-teal-500/50"
+              />
+            </div>
+            <p className="text-[10px] text-zinc-500 italic">{t("ui.customRatingKeyHint")}</p>
+          </div>
+
           <div className="flex items-center justify-between">
             <span className="text-zinc-300 font-medium flex items-center gap-1.5">
               <Tv className="w-3.5 h-3.5 text-sky-400" />

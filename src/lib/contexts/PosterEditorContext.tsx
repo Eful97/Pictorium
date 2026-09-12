@@ -28,6 +28,9 @@ export interface PosterEditorCtx {
   setBadgeRating: (v: boolean | ((prev: boolean) => boolean)) => void
   badgeQuality: boolean
   setBadgeQuality: (v: boolean | ((prev: boolean) => boolean)) => void
+  /** Riga rating custom provider (default ON quando il provider è configurato). */
+  customRatings: boolean
+  setCustomRatings: (v: boolean | ((prev: boolean) => boolean)) => void
   ratingSources: string[]
   setRatingSources: (v: string[] | ((prev: string[]) => string[])) => void
   badgeStyle: BadgeStyle
@@ -100,6 +103,13 @@ export interface PosterEditorCtx {
   setDefaultBadgeRating: (v: boolean | ((prev: boolean) => boolean)) => void
   defaultBadgeQuality: boolean
   setDefaultBadgeQuality: (v: boolean | ((prev: boolean) => boolean)) => void
+  defaultCustomRatings: boolean
+  setDefaultCustomRatings: (v: boolean | ((prev: boolean) => boolean)) => void
+  /** Endpoint provider custom rating (non-segreto; chiave solo env). */
+  defaultCustomRatingEndpoint?: string
+  setDefaultCustomRatingEndpoint: (v: string | undefined | ((prev: string | undefined) => string | undefined)) => void
+  defaultCustomRatingApiKeyHeader?: string
+  setDefaultCustomRatingApiKeyHeader: (v: string | undefined | ((prev: string | undefined) => string | undefined)) => void
   defaultRatingSources: string[]
   setDefaultRatingSources: (v: string[] | ((prev: string[]) => string[])) => void
   defaultAutoRotateClean: boolean
@@ -243,7 +253,7 @@ export function PosterEditorProvider({
 
   const {
     globalBadges, rankingBadges, networkLogo, preRelease, ribbonSide,
-    badgeGenre, badgeYear, badgeRating, badgeQuality, ratingSources,
+    badgeGenre, badgeYear, badgeRating, badgeQuality, customRatings, ratingSources,
     gradientHeight, blurIntensity, blurFade, blurDarkness, blurEnabled,
     topBadgeScale, topBadgeOffsetX, topBadgeOffsetY,
     genreBadgeScale, qualityBadgeScale, networkLogoScale,
@@ -257,7 +267,7 @@ export function PosterEditorProvider({
     defaultGenreBadgeScale, defaultQualityBadgeScale, defaultNetworkLogoScale,
     defaultGenreBadgeOffsetX, defaultGenreBadgeOffsetY, defaultQualityBadgeOffsetX, defaultQualityBadgeOffsetY,
     defaultNetworkLogoOffsetX, defaultNetworkLogoOffsetY,
-    defaultBadgeGenre, defaultBadgeYear, defaultBadgeRating, defaultBadgeQuality, defaultRatingSources,
+    defaultBadgeGenre, defaultBadgeYear, defaultBadgeRating, defaultBadgeQuality, defaultCustomRatings, defaultCustomRatingEndpoint, defaultCustomRatingApiKeyHeader, defaultRatingSources,
     defaultAutoRotateClean, defaultLogoFitEnabled, defaultNetworkLogo, defaultPreRelease, defaultRibbonSide,
     episodeMetadataSource, defaultEpisodeMetadataSource,
     region, defaultRegion,
@@ -294,6 +304,11 @@ export function PosterEditorProvider({
       const next = typeof v === "function" ? v(badgeQuality) : v
       update({ badgeQuality: next })
     }, [badgeQuality, update])
+  const setCustomRatings = useCallback(
+    (v: boolean | ((prev: boolean) => boolean)) => {
+      const next = typeof v === "function" ? v(customRatings) : v
+      update({ customRatings: next })
+    }, [customRatings, update])
   const setRatingSources = useCallback(
     (v: string[] | ((prev: string[]) => string[])) => {
       const next = typeof v === "function" ? v(ratingSources) : v
@@ -541,6 +556,21 @@ export function PosterEditorProvider({
       const next = typeof v === "function" ? v(defaultBadgeQuality) : v
       update({ defaultBadgeQuality: next })
     }, [defaultBadgeQuality, update])
+  const setDefaultCustomRatings = useCallback(
+    (v: boolean | ((prev: boolean) => boolean)) => {
+      const next = typeof v === "function" ? v(defaultCustomRatings) : v
+      update({ defaultCustomRatings: next })
+    }, [defaultCustomRatings, update])
+  const setDefaultCustomRatingEndpoint = useCallback(
+    (v: string | undefined | ((prev: string | undefined) => string | undefined)) => {
+      const next = typeof v === "function" ? v(defaultCustomRatingEndpoint) : v
+      update({ defaultCustomRatingEndpoint: next })
+    }, [defaultCustomRatingEndpoint, update])
+  const setDefaultCustomRatingApiKeyHeader = useCallback(
+    (v: string | undefined | ((prev: string | undefined) => string | undefined)) => {
+      const next = typeof v === "function" ? v(defaultCustomRatingApiKeyHeader) : v
+      update({ defaultCustomRatingApiKeyHeader: next })
+    }, [defaultCustomRatingApiKeyHeader, update])
   const setDefaultRatingSources = useCallback(
     (v: string[] | ((prev: string[]) => string[])) => {
       const next = typeof v === "function" ? v(defaultRatingSources) : v
@@ -607,6 +637,8 @@ export function PosterEditorProvider({
       setBadgeRating,
       badgeQuality,
       setBadgeQuality,
+      customRatings,
+      setCustomRatings,
       ratingSources,
       setRatingSources,
       badgeStyle,
@@ -679,6 +711,12 @@ export function PosterEditorProvider({
       setDefaultBadgeRating,
       defaultBadgeQuality,
       setDefaultBadgeQuality,
+      defaultCustomRatings,
+      setDefaultCustomRatings,
+      defaultCustomRatingEndpoint,
+      setDefaultCustomRatingEndpoint,
+      defaultCustomRatingApiKeyHeader,
+      setDefaultCustomRatingApiKeyHeader,
       defaultRatingSources,
       setDefaultRatingSources,
       defaultAutoRotateClean,
@@ -783,6 +821,7 @@ export function PosterEditorProvider({
       badgeYear, setBadgeYear,
       badgeRating, setBadgeRating,
       badgeQuality, setBadgeQuality,
+      customRatings, setCustomRatings,
       ratingSources, setRatingSources,
       badgeStyle, setBadgeStyle,
       rankingBadgeStyle, setRankingBadgeStyle,
@@ -830,6 +869,9 @@ export function PosterEditorProvider({
       defaultBadgeYear, setDefaultBadgeYear,
       defaultBadgeRating, setDefaultBadgeRating,
       defaultBadgeQuality, setDefaultBadgeQuality,
+      defaultCustomRatings, setDefaultCustomRatings,
+      defaultCustomRatingEndpoint, setDefaultCustomRatingEndpoint,
+      defaultCustomRatingApiKeyHeader, setDefaultCustomRatingApiKeyHeader,
       defaultRatingSources, setDefaultRatingSources,
       defaultAutoRotateClean, setDefaultAutoRotateClean,
       defaultLogoFitEnabled, setDefaultLogoFitEnabled,

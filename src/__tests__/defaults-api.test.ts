@@ -82,4 +82,19 @@ describe("PUT /api/defaults", () => {
     expect(body.badgeStyle).toBe("bar")
     expect(body.gradientHeight).toBe(55)
   })
+
+  it("accepts a valid custom rating endpoint and rejects unsafe ones", async () => {
+    delete process.env.ADMIN_TOKEN
+    const ok = await PUT(mockPutRequest({ customRatingEndpoint: "https://example.com/ratings/{imdbId}" }) as unknown as NextRequest)
+    expect(ok.status).toBe(200)
+    for (const bad of [
+      "https://example.com/ratings/no-placeholder",
+      "file:///ratings/{imdbId}",
+      "https://user:pass@example.com/{imdbId}",
+      "not a url {imdbId}",
+    ]) {
+      const res = await PUT(mockPutRequest({ customRatingEndpoint: bad }) as unknown as NextRequest)
+      expect(res.status).toBe(400)
+    }
+  })
 })

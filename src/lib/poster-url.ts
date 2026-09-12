@@ -18,6 +18,8 @@ interface BadgeParams {
   badgeYear?: boolean
   badgeRating?: boolean
   badgeQuality?: boolean
+  /** Riga rating custom provider (display). `false` emette `cr=0`. */
+  customRatings?: boolean
   ratingSources?: string[]
   customBadge: string | null
   gradientHeight: number
@@ -95,6 +97,7 @@ export function buildUrlPattern(bp: BadgeParams & { tmdbKey: string; lang: strin
     badgeYear: bp.badgeYear,
     badgeRating: bp.badgeRating,
     badgeQuality: bp.badgeQuality,
+    customRatings: bp.customRatings,
     ratingSources: bp.ratingSources,
     badgeStyle: bp.badgeStyle,
     rankingBadgeStyle: bp.rankingBadgeStyle,
@@ -140,6 +143,7 @@ export function buildPreviewUrl(ps: PosterState, bp: BadgeParams): string {
   params.push(`by=${bp.badgeYear !== false ? "1" : "0"}`)
   params.push(`br=${bp.badgeRating !== false ? "1" : "0"}`)
   params.push(`bq=${bp.badgeQuality !== false ? "1" : "0"}`)
+  if (bp.customRatings === false) params.push("cr=0")
   if (bp.ratingSources && bp.ratingSources.length > 0) params.push(`rsrc=${encodeURIComponent(bp.ratingSources.join(","))}`)
   if (ps.previewPoster) {
     params.push(`poster=${encodeURIComponent(ps.previewPoster.file_path)}`)
