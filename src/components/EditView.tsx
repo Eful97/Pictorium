@@ -5,6 +5,7 @@ import { createPortal } from "react-dom"
 import { usePSelector } from "@/lib/context"
 import { useT } from "@/lib/contexts/TranslationContext"
 import { usePosterEditor } from "@/lib/contexts/PosterEditorContext"
+import type { TMDBImage } from "@/lib/types"
 import { PosterOptions } from "@/components/PosterOptions"
 import { LogoOptions } from "@/components/LogoOptions"
 import { EditorPanel } from "@/components/EditorPanel"
@@ -81,6 +82,16 @@ export default function EditView() {
   const handleSave = useCallback(async () => {
     await saveConfig()
   }, [saveConfig])
+
+  // Mobile: dopo il tap su un poster salta ad "Anteprima" (nella tab Poster
+  // non si vedrebbe alcun feedback). Solo sotto lg, dove lo switcher esiste;
+  // su desktop resti dove sei per confrontare varianti.
+  const handleSelectPoster = useCallback((img: TMDBImage) => {
+    void selectPoster(img)
+    if (typeof window !== "undefined" && window.matchMedia("(max-width: 1023.5px)").matches) {
+      setMobileSection("preview")
+    }
+  }, [selectPoster])
 
   const searchBar = (
     <div className={selected ? "w-full max-w-lg relative z-[100] isolate" : "max-w-lg mx-auto relative z-[100] isolate mb-8"}>
@@ -293,7 +304,9 @@ export default function EditView() {
                 {loadingImages ? (
                   <div className="space-y-2">{Array.from({ length: 4 }).map((_, i) => <div key={i} className="h-8 rounded-lg skeleton-shimmer" />)}</div>
                 ) : (
-                  <PosterOptions posters={posters} posterActivePath={posterActivePath} lang={lang} selectPoster={selectPoster} activeGroup={activePosterTab} onActiveGroupChange={setActivePosterTab} showTabs />
+                  <PosterOptions posters={posters} posterActivePath={posterActivePath}
+                    lang={lang} selectPoster={handleSelectPoster} activeGroup={activePosterTab} onActiveGroupChange={setActivePosterTab}
+                    showTabs />
                 )}
               </EditorPanel>
             </div>

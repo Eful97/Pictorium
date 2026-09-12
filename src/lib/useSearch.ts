@@ -52,14 +52,14 @@ export function useSearch(tmdbKey: string, lang: string) {
     writeRecentSearches(recentSearches)
   }, [recentSearches])
 
-  const doSearch = useCallback(async (q?: string, page = 1) => {
+  const doSearch = useCallback(async (q?: string, page = 1, opts?: { silent?: boolean }): Promise<SearchResult[]> => {
     const searchQuery = q ?? query
-    if (searchQuery.length < 2 || !tmdbKey) return
+    if (searchQuery.length < 2 || !tmdbKey) return []
     const rev = ++revRef.current
     abortRef.current?.abort()
     const controller = new AbortController()
     abortRef.current = controller
-    setSearching(true)
+    if (!opts?.silent) setSearching(true)
     setError(null)
     if (page === 1) {
       setSearchPage(1)
@@ -69,7 +69,7 @@ export function useSearch(tmdbKey: string, lang: string) {
         `/api/tmdb/search?q=${encodeURIComponent(searchQuery)}&language=${lang}&api_key=${tmdbKey}&page=${page}`,
         { timeout: 15000, signal: controller.signal }
       )
-      if (rev !== revRef.current) return
+      if (rev !== revRef.current) return []
       const newResults = data.results || []
       setResults(page === 1 ? newResults : (prev) => [...prev, ...newResults])
       setTotalResults(data.total_results || 0)
@@ -79,14 +79,16 @@ export function useSearch(tmdbKey: string, lang: string) {
         setSearchPage(1)
         setRecentSearches((prev) => [searchQuery, ...prev.filter((s) => s !== searchQuery)].slice(0, 5))
       }
+      return newResults
     } catch (e) {
-      if (rev !== revRef.current) return
+      if (rev !== revRef.current) return []
       console.error("[pictorium] Search failed:", e)
-      toastRef.current.error(t("ui.searchError"))
+      if (!opts?.silent) toastRef.current.error(t("ui.searchError"))
       setError(t("ui.searchError"))
       if (page === 1) setResults([])
+      return []
     } finally {
-      if (rev === revRef.current) setSearching(false)
+      if (!opts?.silent && rev === revRef.current) setSearching(false)
     }
   }, [query, tmdbKey, lang])
 
@@ -97,6 +99,40 @@ export function useSearch(tmdbKey: string, lang: string) {
     const nextPage = searchPage + 1
     try {
       await doSearch(query, nextPage)
+    } finally {
+      loadMoreRef.current = false
+    }
+  }, [query, searchPage, totalPages, searching, doSearch])
+
+  /**
+   * "Carica altri" con filtro tipo attivo: una pagina mista da 20 aggiunge
+   * pochi match visibili, così si prosegue finché non se ne accumulano
+   * `targetNew` (o pagine esaurite / maxPages per click). Ritorna i match aggiunti.
+   * Silent (niente overlay lampeggiante: lo spinner del bottone copre l'attesa).
+   */
+  const loadMoreFiltered = useCallback(async (
+    mediaType: "movie" | "tv",
+    targetNew = 10,
+    maxPages = 3,
+  ): Promise<number> => {
+    if (searching || searchPage >= totalPages || loadMoreRef.current) return 0
+    loadMoreRef.current = true
+    const matches = (list: SearchResult[]): number =>
+      list.filter((r) => (mediaType === "movie" ? r.media_type === "movie" : r.media_type !== "movie")).length
+    let page = searchPage
+    let added = 0
+    let expectedRev = revRef.current
+    try {
+      for (let i = 0; i < maxPages && added < targetNew && page < totalPages; i++) {
+        const batch = await doSearch(query, page + 1, { silent: true })
+        // Nuova ricerca nel frattempo (utente ha digitato): stop, i suoi
+        // risultati hanno già sostituito la lista (rev avanzata da altri).
+        if (revRef.current !== expectedRev + 1) break
+        expectedRev = revRef.current
+        page += 1
+        added += matches(batch)
+      }
+      return added
     } finally {
       loadMoreRef.current = false
     }
@@ -124,6 +160,7 @@ export function useSearch(tmdbKey: string, lang: string) {
     recentSearches,
     doSearch,
     loadMore,
+    loadMoreFiltered,
     removeRecentSearch,
     clearRecentSearches,
   }

@@ -99,8 +99,9 @@ export interface PictoriumCtx {
   refreshLists: () => Promise<void>
   tmdbKey: string
   setQuery: React.Dispatch<React.SetStateAction<string>>
-  doSearch: (q?: string, page?: number) => Promise<void>
+  doSearch: (q?: string, page?: number) => Promise<SearchResult[]>
   loadMore: () => Promise<void>
+  loadMoreFiltered: (mediaType: "movie" | "tv", targetNew?: number, maxPages?: number) => Promise<number>
   titleOf: (r: SearchResult) => string
   yearOf: (r: SearchResult) => string
   posterUrl: (path: string, size?: string) => string
@@ -1009,7 +1010,7 @@ export function usePictorium(): PictoriumCtx {
     saveConfig, removeMapping, mappingsMap,
     goHome: navigation.goHome, sourceView: navigation.sourceView, navigateToPoster: (item: SearchResult, source?: string) => { navigation.navigateToPoster(item, source); openPosterBrowserRef.current(item) },
     refreshLists: trending.refreshLists,
-    tmdbKey, setQuery: search.setQuery, doSearch: search.doSearch, loadMore: search.loadMore,
+    tmdbKey, setQuery: search.setQuery, doSearch: search.doSearch, loadMore: search.loadMore, loadMoreFiltered: search.loadMoreFiltered,
     titleOf, yearOf, posterUrl,
     trending: trending.trending, trendingError: trending.trendingError, streamingCharts: trending.streamingCharts, mdblistAnimeList: trending.mdblistAnimeList,
     STREAMING_PLATFORMS, loadMappings,

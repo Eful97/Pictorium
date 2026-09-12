@@ -22,8 +22,9 @@ export interface SearchCtx {
   recentSearches: string[]
   removeRecentSearch: (search: string) => void
   clearRecentSearches: () => void
-  doSearch: (q?: string, page?: number) => Promise<void>
+  doSearch: (q?: string, page?: number) => Promise<SearchResult[]>
   loadMore: () => Promise<void>
+  loadMoreFiltered: (mediaType: "movie" | "tv", targetNew?: number, maxPages?: number) => Promise<number>
   trending: (SearchResult & { rank: number })[]
   streamingCharts: Record<string, FlixPatrolChart>
   mdblistAnimeList: EnrichedAnimeItem[]
@@ -62,6 +63,7 @@ export function SearchProvider({
       clearRecentSearches: value.clearRecentSearches,
       doSearch: value.doSearch,
       loadMore: value.loadMore,
+      loadMoreFiltered: value.loadMoreFiltered,
       trending: value.trending,
       streamingCharts: value.streamingCharts,
       mdblistAnimeList: value.mdblistAnimeList,
@@ -73,7 +75,7 @@ export function SearchProvider({
       value.results, value.searching, value.error, value.setError,
       value.totalResults, value.totalPages, value.searchPage,
       value.recentSearches, value.removeRecentSearch, value.clearRecentSearches,
-      value.doSearch, value.loadMore,
+      value.doSearch, value.loadMore, value.loadMoreFiltered,
       value.trending, value.streamingCharts, value.mdblistAnimeList,
       value.refreshLists, value.STREAMING_PLATFORMS,
     ],

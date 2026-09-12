@@ -1,13 +1,13 @@
 "use client"
 
-import { useState, useRef, useEffect, useCallback } from "react"
+import { useState, useMemo, useRef, useEffect, useCallback } from "react"
 import { usePSelector } from "@/lib/context"
 import { useT } from "@/lib/contexts/TranslationContext"
 import { useSearchCtx } from "@/lib/contexts/SearchContext"
 import { posterUrl, titleOf, yearOf } from "@/lib/utils"
 import { SearchBar } from "@/components/SearchBar"
 import { PosterCardSkeleton } from "@/components/Skeleton"
-import { Clock, X, Check, ChevronDown, Clapperboard, Tv, Star, Trash2, Loader2 } from "lucide-react"
+import { Clock, X, Check, ChevronDown, ChevronUp, Clapperboard, Tv, Star, Trash2, Loader2 } from "lucide-react"
 import { PosterDepthEdge } from "@/components/PosterDepthGlow"
 
 export function SearchView() {
@@ -17,8 +17,11 @@ export function SearchView() {
   const tmdbKey = usePSelector((v) => v.tmdbKey)
   const mappingsMap = usePSelector((v) => v.mappingsMap)
   const navigateToPoster = usePSelector((v) => v.navigateToPoster)
+  const router = usePSelector((v) => v.router)
   const [searchFocused, setSearchFocused] = useState(false)
   const [loadingMore, setLoadingMore] = useState(false)
+  // Filtro tipo media lato client (i risultati sono già in memoria).
+  const [typeFilter, setTypeFilter] = useState<"all" | "movie" | "tv">("all")
   const blurTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   // B3: setQuery debounced (trailing 250ms) — digitare non ri-renderizza la griglia
   // risultati a ogni tasto (prima onChange={s.setQuery} committava al context per
@@ -49,10 +52,29 @@ export function SearchView() {
 
   const showRecent = searchFocused && s.recentSearches.length > 0
 
+  // Conteggi per chip filtro (memo separato: non ricalcola la griglia).
+  const typeCounts = useMemo(() => {
+    let movies = 0
+    let tv = 0
+    for (const r of s.results) {
+      if (r.media_type === "movie") movies++
+      else tv++
+    }
+    return { movies, tv }
+  }, [s.results])
+
+  const visibleResults = useMemo(() => {
+    if (typeFilter === "all") return s.results
+    return s.results.filter((r) => (typeFilter === "movie" ? r.media_type === "movie" : r.media_type !== "movie"))
+  }, [s.results, typeFilter])
+
   const handleLoadMore = async () => {
     setLoadingMore(true)
     try {
-      await s.loadMore()
+      // Con filtro attivo una pagina mista aggiunge pochi match visibili:
+      // si prosegue finché non se ne accumulano (o pagine esaurite).
+      if (typeFilter === "all") await s.loadMore()
+      else await s.loadMoreFiltered(typeFilter, 10, 3)
     } finally {
       setLoadingMore(false)
     }
@@ -60,6 +82,18 @@ export function SearchView() {
 
   return (
     <div>
+      <div className="max-w-7xl mx-auto px-4 mb-4">
+        <button
+          type="button"
+          onClick={() => router.push("edit")}
+          className="text-xs text-muted hover:text-white transition-colors inline-flex items-center gap-1"
+        >
+          <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="15 18 9 12 15 6" />
+          </svg>
+          {t("ui.homeBtn")}
+        </button>
+      </div>
       <div className="max-w-lg mx-auto relative z-[100] isolate mb-6">
         <SearchBar
           tmdbKey={tmdbKey}
@@ -145,10 +179,38 @@ export function SearchView() {
       )}
 
       {s.results.length > 0 && (
+        <div className="flex items-center gap-1.5 max-w-7xl mx-auto px-4 mb-4" role="group" aria-label={t("ui.filterPlaceholder")}>
+          {(
+            [
+              { id: "all", label: t("ui.all"), count: s.results.length, icon: null },
+              { id: "movie", label: t("ui.filterMovie"), count: typeCounts.movies, icon: <Clapperboard className="w-3.5 h-3.5" /> },
+              { id: "tv", label: t("ui.filterSeries"), count: typeCounts.tv, icon: <Tv className="w-3.5 h-3.5" /> },
+            ] as const
+          ).map((chip) => (
+            <button
+              key={chip.id}
+              type="button"
+              onClick={() => setTypeFilter(chip.id)}
+              aria-pressed={typeFilter === chip.id}
+              className={`px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all duration-150 flex items-center gap-1.5 shrink-0 border ${
+                typeFilter === chip.id
+                  ? "bg-accent-orange/15 text-accent-orange border-accent-orange/30 font-semibold shadow-sm"
+                  : "text-muted hover:text-zinc-200 hover:bg-white/5 border-transparent"
+              }`}
+            >
+              {chip.icon}
+              <span>{chip.label}</span>
+              <span className="tabular-nums text-[10px] opacity-80">{chip.count}</span>
+            </button>
+          ))}
+        </div>
+      )}
+
+      {s.results.length > 0 && (
         <div className="relative animate-fade-scale-in">
           {s.searching && <div className="absolute inset-0 bg-background/60 backdrop-blur-sm z-20 rounded-2xl flex items-center justify-center"><p className="text-sm text-muted animate-pulse">{t("ui.searching")}</p></div>}
           <div className="mx-auto grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3.5 sm:gap-4 max-w-7xl">
-          {s.results.map((r, idx) => {
+          {visibleResults.map((r, idx) => {
             const mapping = mappingsMap.get(`${r.media_type}:${r.id}`)
             const year = yearOf(r)
             const title = titleOf(r)
@@ -185,14 +247,6 @@ export function SearchView() {
                       </div>
                     )}
 
-                    {/* Badge tipo media (Film / Serie TV) in alto a sinistra */}
-                    <div className="absolute top-2 left-2 z-10 pointer-events-none">
-                      <span className="text-[10px] px-2 py-0.5 rounded-md bg-black/65 backdrop-blur-md border border-white/10 text-zinc-200 font-semibold shadow-md flex items-center gap-1">
-                        {r.media_type === "movie" ? <Clapperboard className="w-3 h-3 text-amber-400" /> : <Tv className="w-3 h-3 text-sky-400" />}
-                        <span>{r.media_type === "movie" ? t("ui.movie") : t("ui.tvSeries")}</span>
-                      </span>
-                    </div>
-
                     {/* Badge se già personalizzato/salvato */}
                     {mapping && (
                       <div
@@ -203,36 +257,28 @@ export function SearchView() {
                       </div>
                     )}
 
-                    {/* Overlay informativo al passaggio del mouse */}
-                    <div
-                      className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none flex flex-col justify-end p-3"
-                      style={{
-                        background: "linear-gradient(to top, rgba(0,0,0,0.92) 0%, rgba(0,0,0,0.25) 55%, transparent 100%)",
-                      }}
-                    >
-                      <p className="text-xs font-bold text-white truncate drop-shadow-md">{title}</p>
-                      <div className="flex items-center gap-2 mt-1">
-                        {year && <span className="text-xs text-zinc-300 font-medium">{year}</span>}
+                    {/* Hover affordance: la strip sotto mostra già titolo, anno,
+                        tipo e voto — nessun overlay informativo ridondante.
+                        Resta lift/scale/glow della card come feedback. */}
+                  </div>
+
+                    {/* Card info strip sottostante (sempre leggibile, anche touch):
+                        voto incluso qui — l'overlay hover sopra resta per desktop. */}
+                    <div className="p-2.5 text-left bg-surface/50 border-t border-white/[0.04]">
+                      <p className="text-xs font-semibold text-zinc-100 truncate group-hover:text-accent-orange transition-colors duration-200">
+                        {title}
+                      </p>
+                      <div className="flex items-center justify-between text-[11px] text-muted mt-0.5 gap-1">
+                        <span>{year || "—"}</span>
                         {r.vote_average != null && r.vote_average > 0 && (
-                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/20 border border-amber-500/30 text-amber-300 font-semibold flex items-center gap-1">
+                          <span className="px-1.5 py-px rounded bg-amber-500/20 border border-amber-500/30 text-amber-300 font-semibold flex items-center gap-1 tabular-nums">
                             <Star className="w-2.5 h-2.5 fill-amber-300" />
                             {r.vote_average.toFixed(1)}
                           </span>
                         )}
+                        <span className="capitalize text-zinc-400">{r.media_type === "movie" ? t("ui.movie") : t("ui.tvSeries")}</span>
                       </div>
                     </div>
-                  </div>
-
-                  {/* Card info strip sottostante (sempre leggibile) */}
-                  <div className="p-2.5 text-left bg-surface/50 border-t border-white/[0.04]">
-                    <p className="text-xs font-semibold text-zinc-100 truncate group-hover:text-accent-orange transition-colors duration-200">
-                      {title}
-                    </p>
-                    <div className="flex items-center justify-between text-[11px] text-muted mt-0.5">
-                      <span>{year || "—"}</span>
-                      <span className="capitalize text-zinc-400">{r.media_type === "movie" ? t("ui.movie") : t("ui.tvSeries")}</span>
-                    </div>
-                  </div>
                 </div>
               </button>
             )
@@ -272,6 +318,16 @@ export function SearchView() {
           )}
         </div>
       )}
+      {s.searchPage > 1 && s.results.length > 0 && (
+        <button
+          type="button"
+          onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
+          aria-label={t("ui.backToTop")}
+          className="fixed bottom-6 right-6 z-40 w-11 h-11 rounded-full bg-surface/90 backdrop-blur-md border border-white/10 text-zinc-300 hover:text-white hover:border-accent-orange/40 shadow-xl flex items-center justify-center active:scale-95 transition-all"
+        >
+          <ChevronUp className="w-5 h-5" />
+        </button>
+      )}
       {!tmdbKey && (
         <div className="text-center py-16 animate-fade-scale-in">
           <div className="empty-state-illustration mb-4">
@@ -310,6 +366,18 @@ export function SearchView() {
           </div>
           <p className="text-muted text-sm mb-2">{t("ui.noResults")}</p>
           <p className="text-zinc-500 text-xs max-w-xs mx-auto leading-relaxed">{t("ui.noResultsForQuery")}</p>
+        </div>
+      )}
+      {s.results.length > 0 && visibleResults.length === 0 && !s.searching && (
+        <div className="text-center py-16 animate-fade-scale-in">
+          <div className="empty-state-illustration mb-4">
+            <svg className="w-10 h-10 text-zinc-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="11" cy="11" r="8" opacity="0.4"/>
+              <path d="m21 21-4.3-4.3" opacity="0.4"/>
+            </svg>
+          </div>
+          <p className="text-muted text-sm mb-2">{t("ui.noFilteredResults")}</p>
+          <p className="text-zinc-500 text-xs max-w-xs mx-auto leading-relaxed">{t("ui.noFilteredResultsSub")}</p>
         </div>
       )}
     </div>

@@ -5,7 +5,7 @@ import type { TMDBImage } from "@/lib/types"
 import { LANG_NAMES, groupBy, limitBest, posterUrl } from "@/lib/utils"
 import { useT } from "@/lib/contexts/TranslationContext"
 import { usePosterEditor } from "@/lib/contexts/PosterEditorContext"
-import { Check, Plus, Trash2, ChevronDown } from "lucide-react"
+import { Check, Trash2, ChevronDown } from "lucide-react"
 
 interface Props {
   logos: TMDBImage[]
@@ -27,12 +27,8 @@ export const LogoOptions = React.memo(function LogoOptions({ logos, selectedLogo
   }, [logos, activeLogoGroup, lang])
 
   if (logos.length === 0) return (
-    <div className="grid grid-cols-2 gap-2">
-      {[1, 2, 3, 4].map((i) => (
-        <div key={i} className="h-20 rounded-xl border-2 border-dashed border-surface2 bg-surface/20 flex items-center justify-center">
-          <Plus className="w-4 h-4 text-zinc-600" />
-        </div>
-      ))}
+    <div className="rounded-xl border border-white/10 bg-white/[0.03] px-3 py-4 text-center">
+      <p className="text-xs text-zinc-300 font-medium leading-relaxed">{t("ui.noLogosAvailable")}</p>
     </div>
   )
   const groups = groupBy(logos, (img) => img.iso_639_1 || "xx")

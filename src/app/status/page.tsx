@@ -1,7 +1,8 @@
 "use client"
 
-import React, { useEffect, useState } from "react"
+import React, { useEffect, useState, useCallback } from "react"
 import Link from "next/link"
+import { RefreshCw } from "lucide-react"
 import { t, getLang, setLang } from "@/lib/i18n"
 import { APP_COMMIT, APP_VERSION } from "@/generated/app-version"
 
@@ -101,10 +102,12 @@ function StatusBadge({ ok }: { ok: boolean | null }) {
 
 function StatusRow({ label, ok, extra }: { label: string; ok: boolean | null; extra?: React.ReactNode }) {
   return (
-    <div className="flex items-center gap-2 py-2 px-3 even:bg-white/[0.03] rounded-lg text-sm">
-      <StatusBadge ok={ok} />
-      <span className="text-zinc-300">{label}</span>
-      {extra && <span className="text-xs text-zinc-400 ml-auto font-medium">{extra}</span>}
+    <div className="grid grid-cols-[1fr_auto] items-center gap-2 py-2 px-3 even:bg-white/[0.03] rounded-lg text-sm">
+      <span className="flex items-center gap-2 text-zinc-300 min-w-0">
+        <StatusBadge ok={ok} />
+        <span className="truncate">{label}</span>
+      </span>
+      {extra && <span className="text-xs text-zinc-400 font-mono tabular-nums text-right">{extra}</span>}
     </div>
   )
 }
@@ -138,31 +141,142 @@ export default function StatusPage() {
     }
   }
 
-  useEffect(() => {
+  const loadHealth = useCallback(async () => {
     // La chiave TMDB è personale (localStorage) e la route /api/health la
     // accetta SOLO via header x-api-key: senza, tutti i check rispondono 401
     // e la pagina mostrerebbe punti rossi anche a servizi sani.
     const key = typeof window !== "undefined" ? (localStorage.getItem("tmdb_key") || "") : ""
-    fetch("/api/health", { headers: key ? { "x-api-key": key } : undefined })
-      .then((r) => (r.ok || r.status === 503 ? r.json() : Promise.reject("Errore " + r.status)))
-      .then((d) => { setData(d); setLoading(false) })
-      .catch((e) => { setError(String(e)); setLoading(false) })
-    void loadCacheStatus()
+    setLoading(true)
+    setError("")
+    try {
+      const r = await fetch("/api/health", { headers: key ? { "x-api-key": key } : undefined })
+      if (!r.ok && r.status !== 503) throw new Error("Errore " + r.status)
+      const d = await r.json()
+      setData(d)
+    } catch (e) {
+      setError(String(e))
+    } finally {
+      setLoading(false)
+      setLastRefresh(new Date())
+    }
   }, [])
+
+  const [lastRefresh, setLastRefresh] = useState<Date | null>(null)
+  const [refreshing, setRefreshing] = useState(false)
+  const [autoRefresh, setAutoRefresh] = useState(false)
+  const [keyInput, setKeyInput] = useState("")
+
+  const handleRefresh = useCallback(async () => {
+    setRefreshing(true)
+    try {
+      await loadHealth()
+      await loadCacheStatus()
+    } finally {
+      setRefreshing(false)
+    }
+  }, [loadHealth])
+
+  useEffect(() => {
+    void loadHealth()
+    void loadCacheStatus()
+  }, [loadHealth])
+
+  // Auto-refresh SOLO metriche locali (/api/cache/status, zero upstream):
+  // il full-check TMDB resta manuale (quota burn + 429). Default off.
+  useEffect(() => {
+    if (!autoRefresh) return
+    const timer = setInterval(() => {
+      void loadCacheStatus()
+      setLastRefresh(new Date())
+    }, 10000)
+    return () => clearInterval(timer)
+  }, [autoRefresh])
 
   return (
     <div className="min-h-screen bg-background text-foreground">
       <div className="max-w-2xl mx-auto px-4 py-8">
         <Link href="/" className="inline-flex items-center gap-2 text-sm text-zinc-400 hover:text-accent transition-colors mb-6">{t("ui.statusBack")}</Link>
-        <h1 className="text-2xl font-bold mb-1">{t("ui.statusTitle")}</h1>
-        <p className="text-xs text-zinc-500 font-mono" data-testid="status-build">
-          v{APP_VERSION} · {APP_COMMIT}
-        </p>
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <h1 className="text-2xl font-bold mb-1">{t("ui.statusTitle")}</h1>
+            <p className="text-xs text-zinc-500 font-mono" data-testid="status-build">
+              v{APP_VERSION} · {APP_COMMIT}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => void handleRefresh()}
+            disabled={refreshing}
+            aria-label={t("ui.statusRefresh")}
+            title={t("ui.statusRefresh")}
+            className="shrink-0 w-9 h-9 rounded-xl bg-surface/80 border border-white/10 text-zinc-300 hover:text-white hover:border-accent-orange/40 flex items-center justify-center active:scale-95 transition-all disabled:opacity-50"
+          >
+            <RefreshCw className={`w-4 h-4 ${refreshing ? "animate-spin" : ""}`} />
+          </button>
+        </div>
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-2">
+          {lastRefresh && (
+            <p className="text-[11px] text-zinc-500">
+              {t("ui.statusUpdated", { time: lastRefresh.toLocaleTimeString(getLang()) })}
+              <span className="ml-1.5 px-1.5 py-px rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-semibold">
+                LIVE
+              </span>
+            </p>
+          )}
+          <button
+            type="button"
+            role="switch"
+            aria-checked={autoRefresh}
+            onClick={() => setAutoRefresh((v) => !v)}
+            className="flex items-center gap-1.5 text-[11px] text-zinc-400 hover:text-zinc-200 transition-colors cursor-pointer"
+          >
+            <span aria-hidden="true" className={`relative w-8 h-[18px] rounded-full transition-colors ${autoRefresh ? "bg-accent-orange" : "bg-zinc-700"}`}>
+              <span className={`absolute top-[2px] h-[14px] w-[14px] rounded-full bg-white shadow transition-all ${autoRefresh ? "left-[16px]" : "left-[2px]"}`} />
+            </span>
+            {t("ui.statusAutoRefresh")}
+          </button>
+        </div>
+        {data && !data.tmdb.apiKey && (
+          <form
+            className="mt-4 rounded-xl border border-white/10 bg-white/[0.03] p-3 space-y-1.5"
+            onSubmit={(e) => {
+              e.preventDefault()
+              const v = keyInput.trim()
+              if (!v) return
+              try { localStorage.setItem("tmdb_key", v) } catch {}
+              setKeyInput("")
+              void handleRefresh()
+            }}
+          >
+            <label htmlFor="status-tmdb-key" className="block text-[11px] font-semibold text-zinc-300">
+              {t("ui.tmdbKey")}
+            </label>
+            <div className="flex items-center gap-2">
+              <input
+                id="status-tmdb-key"
+                type="password"
+                autoComplete="off"
+                value={keyInput}
+                onChange={(e) => setKeyInput(e.target.value)}
+                placeholder={t("ui.tmdbKeyPlaceholder")}
+                className="flex-1 min-w-0 bg-black/30 border border-white/10 rounded-lg px-2.5 py-1.5 text-xs text-zinc-200 placeholder:text-zinc-600 outline-none focus:border-accent-orange/50"
+              />
+              <button
+                type="submit"
+                disabled={!keyInput.trim()}
+                className="shrink-0 px-3 py-1.5 rounded-lg bg-accent-orange text-white text-xs font-semibold hover:bg-accent-orange/90 active:scale-95 transition-all disabled:opacity-50"
+              >
+                {t("ui.save")}
+              </button>
+            </div>
+            <p className="text-[10px] text-zinc-500">{t("ui.statusKeyShared")}</p>
+          </form>
+        )}
         {loading && <p className="text-zinc-400 mt-4">{t("ui.statusLoading")}</p>}
         {error && <p className="text-red-400 mt-4">{t("ui.statusError", { msg: error })}</p>}
         {data && (
           <div className="mt-6 space-y-6">
-            <div className="bg-white/[0.03] border border-zinc-800 rounded-xl p-4">
+            <div className="surface-card border-white/10 rounded-2xl p-5 shadow-xl">
               <div className="flex items-center gap-2 mb-3">
                 <StatusBadge ok={data.tmdb.apiKey} />
                 <h2 className="text-base font-semibold">{t("ui.statusTmdb")}</h2>
@@ -182,7 +296,7 @@ export default function StatusPage() {
               )}
             </div>
 
-            <div className="bg-white/[0.03] border border-zinc-800 rounded-xl p-4">
+            <div className="surface-card border-white/10 rounded-2xl p-5 shadow-xl">
               <h2 className="text-base font-semibold mb-3">{t("ui.statusStreaming")}</h2>
               <div className="space-y-1">
                 <StatusRow label={t("ui.statusJustwatch")} ok={data.tmdb.apiKey ? data.streaming.justwatch.ok : null} extra={data.tmdb.apiKey ? <>{data.streaming.justwatch.status} — {data.streaming.justwatch.time}ms</> : t("ui.statusTmdbKeyMissing")} />
@@ -190,7 +304,7 @@ export default function StatusPage() {
               </div>
             </div>
 
-            <div className="bg-white/[0.03] border border-zinc-800 rounded-xl p-4">
+            <div className="surface-card border-white/10 rounded-2xl p-5 shadow-xl">
               <h2 className="text-base font-semibold mb-3">{t("ui.statusStorage")}</h2>
               <div className="space-y-1">
                 {data.storage.mode === "kv"
@@ -204,8 +318,19 @@ export default function StatusPage() {
               </div>
             </div>
 
-            <div className="bg-white/[0.03] border border-zinc-800 rounded-xl p-4">
-              <h2 className="text-base font-semibold mb-3">{t("ui.statusSystem")}</h2>
+            <div className="surface-card border-white/10 rounded-2xl p-5 shadow-xl">
+              <div className="flex items-center justify-between mb-3">
+                <h2 className="text-base font-semibold">{t("ui.statusSystem")}</h2>
+                {data.tmdb.apiKey && (
+                  <span className={`text-xs px-2 py-0.5 rounded-md border font-semibold ${
+                    data.status === "healthy"
+                      ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/25 shadow-[0_0_12px_rgba(52,211,153,0.25)]"
+                      : "bg-amber-500/10 text-amber-400 border-amber-500/25 shadow-[0_0_12px_rgba(251,191,36,0.25)]"
+                  }`}>
+                    {data.status === "healthy" ? t("ui.statusHealthy") : t("ui.statusDegraded")}
+                  </span>
+                )}
+              </div>
               <div className="space-y-1">
                 <StatusRow label={t("ui.statusOverall")} ok={data.tmdb.apiKey ? data.status === "healthy" : null} extra={data.tmdb.apiKey ? (data.status === "healthy" ? t("ui.statusHealthy") : t("ui.statusDegraded")) : t("ui.statusTmdbKeyMissing")} />
               </div>
@@ -213,7 +338,7 @@ export default function StatusPage() {
 
             {/* TMDB Quota & Telemetria */}
             {cacheStatus?.tmdb && (
-              <div className="bg-white/[0.03] border border-zinc-800 rounded-xl p-4">
+              <div className="surface-card border-white/10 rounded-2xl p-5 shadow-xl">
                 <h2 className="text-base font-semibold mb-3 flex items-center justify-between">
                   <span>{t("ui.statusTmdbTelemetry")}</span>
                   <span className="text-xs px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-medium">
@@ -233,7 +358,7 @@ export default function StatusPage() {
 
             {/* Poster Cache Hit Rate & Pipeline */}
             {cacheStatus?.poster && (
-              <div className="bg-white/[0.03] border border-zinc-800 rounded-xl p-4">
+              <div className="surface-card border-white/10 rounded-2xl p-5 shadow-xl">
                 <div className="flex items-center justify-between mb-3">
                   <h2 className="text-base font-semibold">{t("ui.statusPosterHitRateTitle")}</h2>
                   <span className="text-xs px-2 py-0.5 rounded-md bg-accent-orange/15 text-accent-orange border border-accent-orange/30 font-semibold">
@@ -246,20 +371,28 @@ export default function StatusPage() {
                   <StatusRow label={t("ui.statusPosterRendersZero")} ok extra={cacheStatus.poster.renders} />
                   <StatusRow label={t("ui.statusPosterActiveSlots")} ok extra={<>{cacheStatus.poster.activeRenders} / {cacheStatus.poster.maxConcurrent} {t("ui.statusPosterQueued", { count: cacheStatus.poster.queuedRenders })}</>} />
                   
-                  {/* Formati erogati */}
+                  {/* Formati erogati: barra di distribuzione + conteggi */}
                   <div className="pt-2">
                     <span className="text-xs text-zinc-400 block mb-1.5">{t("ui.statusPosterFormatDist")}</span>
-                    <div className="flex flex-wrap gap-2">
-                      <span className="px-2.5 py-1 rounded-lg bg-zinc-900 border border-zinc-800 text-xs text-zinc-300">
-                        WebP: <span className="text-accent-orange font-semibold">{cacheStatus.poster.formats.webp}</span>
-                      </span>
-                      <span className="px-2.5 py-1 rounded-lg bg-zinc-900 border border-zinc-800 text-xs text-zinc-300">
-                        AVIF: <span className="text-emerald-400 font-semibold">{cacheStatus.poster.formats.avif}</span>
-                      </span>
-                      <span className="px-2.5 py-1 rounded-lg bg-zinc-900 border border-zinc-800 text-xs text-zinc-300">
-                        JPEG: <span className="text-zinc-400 font-semibold">{cacheStatus.poster.formats.jpeg}</span>
-                      </span>
-                    </div>
+                    {(() => {
+                      const f = cacheStatus.poster.formats
+                      const total = f.webp + f.avif + f.jpeg
+                      const pct = (n: number) => (total > 0 ? Math.round((n / total) * 100) : 0)
+                      return (
+                        <>
+                          <div className="flex h-2 rounded-full overflow-hidden bg-white/[0.06] mb-2" aria-hidden="true">
+                            <div className="bg-accent-orange" style={{ width: `${pct(f.webp)}%` }} />
+                            <div className="bg-emerald-500" style={{ width: `${pct(f.avif)}%` }} />
+                            <div className="bg-zinc-500" style={{ width: `${pct(f.jpeg)}%` }} />
+                          </div>
+                          <div className="flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-zinc-400 font-mono tabular-nums">
+                            <span>WebP <span className="text-accent-orange font-semibold">{f.webp} ({pct(f.webp)}%)</span></span>
+                            <span>AVIF <span className="text-emerald-400 font-semibold">{f.avif} ({pct(f.avif)}%)</span></span>
+                            <span>JPEG <span className="text-zinc-300 font-semibold">{f.jpeg} ({pct(f.jpeg)}%)</span></span>
+                          </div>
+                        </>
+                      )
+                    })()}
                   </div>
                 </div>
               </div>
@@ -267,7 +400,7 @@ export default function StatusPage() {
 
             {/* Memoria & Sharp Engine */}
             {cacheStatus?.system && (
-              <div className="bg-white/[0.03] border border-zinc-800 rounded-xl p-4">
+              <div className="surface-card border-white/10 rounded-2xl p-5 shadow-xl">
                 <h2 className="text-base font-semibold mb-3">{t("ui.statusMemoryTitle")}</h2>
                 <div className="space-y-1">
                   <StatusRow label={t("ui.statusMemoryRss")} ok extra={`${cacheStatus.system.memory.rssMb} MB`} />
@@ -279,7 +412,7 @@ export default function StatusPage() {
               </div>
             )}
 
-            <div className="bg-white/[0.03] border border-zinc-800 rounded-xl p-4">
+            <div className="surface-card border-white/10 rounded-2xl p-5 shadow-xl">
               <h2 className="text-base font-semibold mb-3">{t("ui.statusCache")}</h2>
               {cacheStatus ? (
                 <div className="space-y-1">
