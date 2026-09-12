@@ -67,6 +67,8 @@ import { resolvePosterRenderConfig } from "@/lib/poster-config"
 import { selectBestLogo, logoBestLogoFallbackReason } from "@/lib/logo-selection"
 import { resolveStreamQuality } from "@/lib/stream-quality"
 import { combineAbortSignals } from "@/lib/abort-signal"
+import { createHash } from "node:crypto"
+import { fetchCustomRatings, resolveCustomRatingConfig, type RatingItem } from "@/lib/custom-rating"
 
 // Vercel: limite massimo di esecuzione della funzione. Il render poster ha un
 // deadline interno di 30s (PICTORIUM_RENDER_TIMEOUT_MS) → 40s copre il caso
@@ -196,7 +198,10 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
   }
 
   // 2. Cache key
-  const sdHash = hashKey(JSON.stringify(sd))
+  const customRatingConfig = resolveCustomRatingConfig()
+  const customRatingHash = customRatingConfig.enabled
+    ? createHash("sha256").update(JSON.stringify(customRatingConfig)).digest("hex") : ""
+  const sdHash = hashKey(JSON.stringify(sd) + customRatingHash)
   const cacheParams = normalizePosterCacheParams(req.nextUrl.searchParams)
   cacheParams.delete("config")
   cacheParams.delete("c")
@@ -390,6 +395,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
   // renderAbort non viene mai abortito a render riuscito → il controller va
   // abortito subito dopo la race per non lasciare il fetch orfano in background.
   let aggregatedRating: ReturnType<typeof fetchAggregatedRating> | null = null
+  let multiRatingOnly = false
+  const ratings: RatingItem[] = []
   let ratingAbort: AbortController | null = null
   let showBadges = true
   let rankingBadges = true
@@ -874,7 +881,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
           ? getKeywords(mediaType, tmdbId, resolveRequestApiKey(req), renderAbort.signal, POSTER_TMDB_TIMEOUT_MS).catch(() => [])
           : Promise.resolve([]),
         (async () => {
-          if (!rankingEnabledEarly) return false
+          if (!rankingEnabledEarly && !customRatingConfig.enabled) return false
           if (!imdbId) {
             // F6: externalIds già in session cache (ramo non-mappato) → niente rete.
             const extIds = getTMDBSessionCache(mediaType, tmdbId)?.externalIds
@@ -882,7 +889,17 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
             if (extIds?.imdb_id) imdbId = extIds.imdb_id
           }
           if (!imdbId) return false
-          return isImdbTop250(imdbId, renderAbort.signal)
+          if (customRatingConfig.enabled && !aggregatedRating) {
+            // Saved/query posters need source data only; keep their legacy vote intact.
+            multiRatingOnly = true
+            ratingAbort = new AbortController()
+            aggregatedRating = fetchAggregatedRating(
+              imdbId,
+              req.nextUrl.searchParams.get("mdblist_key") || envWithFallback("MDBLIST_KEY") || undefined,
+              combineAbortSignals(AbortSignal.any([renderAbort.signal, ratingAbort.signal]), RATING_WAIT_MS),
+            ).catch(() => null)
+          }
+          return rankingEnabledEarly ? isImdbTop250(imdbId, renderAbort.signal) : false
         })(),
       ]),
     ])
@@ -899,8 +916,14 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
       })
       const aggregated = await Promise.race([aggregatedRating, ratingTimeout])
       if (ratingTimer) clearTimeout(ratingTimer)
-      const avgVote = calculateAverageRating(aggregated, reqRatingSources)
-      if (typeof avgVote === "number" && avgVote > 0) voteAverage = avgVote
+      const imdbRating = aggregated?.sources.imdb
+      if (customRatingConfig.enabled && typeof imdbRating === "number" && Number.isFinite(imdbRating) && imdbRating > 0 && imdbRating <= 10) {
+        ratings.push({ id: "imdb", name: "IMDb", value: imdbRating, format: "decimal" })
+      }
+      if (!multiRatingOnly) {
+        const avgVote = calculateAverageRating(aggregated, reqRatingSources)
+        if (typeof avgVote === "number" && avgVote > 0) voteAverage = avgVote
+      }
       ratingAbort?.abort()
     }
 
@@ -939,7 +962,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
     if (mapping?.firstAirDate) firstAirDate = mapping.firstAirDate
 
     // Luminance + optional TV details fetch (parallel, independent)
-    const [topLum] = await Promise.all([
+    const [customRatings, topLum] = await Promise.all([
+      customRatingConfig.enabled ? fetchCustomRatings(imdbId, customRatingConfig, renderAbort.signal) : Promise.resolve([]),
       (async (): Promise<number | null> => {
         if (qTopLight === "1" || qTopLight === "0" || qTopLight === "true" || qTopLight === "false") return null
         return await topLuminance(posterBuf)
@@ -1146,6 +1170,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
 
     // 10. Generate poster buffer
     const genInput: GenerationInput = {
+      // Custom values override internal sources with the same ID, preserving order.
+      ratings: customRatingConfig.enabled ? [...new Map([...ratings, ...customRatings].map(item => [item.id, item])).values()] : undefined,
       posterBuf, logoFetch, backdropFetch,
       backdropScale, backdropOffsetX, backdropOffsetY,
       blurEnabled, blurHeight, blurIntensity, blurFade, blurDarkness,
@@ -1177,6 +1203,9 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
       throw new Error("Render deadline exceeded before poster compositing")
     }
     const composited = await generatePosterBuffer(genInput)
+    if (genInput.ratings?.length) {
+      etag = `${etag.slice(0, -1)}:cr${hashKey(JSON.stringify(genInput.ratings))}"`
+    }
 
     // 10. Fix stale auto ETag: include dynamic data (rank, rating) so when it re-renders, the ETag changes
     if (!mapping && !isPreview) {

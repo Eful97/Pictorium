@@ -94,12 +94,42 @@ pinned: false
 * **Official Network Logos**: Automatic detection and embedding for Netflix, Prime Video, Disney+, Apple TV+, HBO Max, Paramount+, Sky/NOW, Crunchyroll, and 30+ studios (Marvel, Pixar, Ghibli, Warner Bros, A24).
 
 ### 🏷️ Badges, Ratings & Accolades
+
+- **Custom Rating Provider**: Connect any external rating API using an IMDb ID through server-side configuration and render its ratings as separate pills, each with decimal or percentage formatting. Provider failures are non-blocking and never prevent the poster from rendering.
 * **✨ Streaming Quality (4K / FHD / HD / SD)**: Detected live from Stremio video streams with automatic fallback to JustWatch.
 * **6 Genre & Rating Badge Styles**: *Shadow, Pill, Bar, Colored, Border, Glass* with adaptive palette matching the poster.
 * **Vertical Netflix Top 10 Ribbon**: The iconic red side ribbon with live rank position (dedicated support for Anime).
 * **Film Awards & Accolades**: Automatic recognition of Oscars, Cannes, BAFTA, Emmy, and the *"Absolute Cinema"* badge for IMDb Top 250 titles.
 * **Always-in-Sync Charts**: Top 10/20 badges track live charts; if a title leaves the ranking, its badge updates automatically.
 * **✨ Pre-Digital Effect (Coming Soon)**: For movies out in theaters but not yet streaming (detected via JustWatch with fallback to the TMDB digital date): darkened poster with a red "Coming Soon" corner ribbon. Movies only, default OFF; enable per-title, via `?pre=1`, config token or environment variable.
+
+### 🔌 Custom Rating Provider
+
+Pictorium can optionally fetch multiple ratings from any external HTTP(S) API using the title's IMDb ID.
+
+Example endpoint:
+```text
+https://example.com/ratings/{imdbId}
+```
+
+Expected response:
+```json
+{
+  "ratings": [
+    { "id": "source1", "name": "Source 1", "value": 8.8, "format": "decimal" },
+    { "id": "source2", "name": "Source 2", "value": 87, "format": "percent" }
+  ]
+}
+```
+
+The provider supports any number of rating items, optional API-key authentication
+via HTTP header, and fails gracefully without blocking poster generation.
+
+Configuration is currently server-side. Web/editor configuration is intentionally
+left out of this change so the backend feature stays focused and easy to review.
+
+For full configuration and API details, see
+[Custom Rating Provider documentation](docs/custom-rating.md).
 
 ### 📺 Seasons, Episodes & Anime
 * **✨ Automatic Parts Detection**: Automatically maps standard seasons to original Parts for series like *Money Heist / La Casa de Papel* (5 parts) and *Lupin* (4 parts).
