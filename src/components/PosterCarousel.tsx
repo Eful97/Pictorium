@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useRef, useEffect, useCallback, useMemo } from "react"
+import { useState, useRef, useEffect, useCallback, useMemo, type TouchEvent } from "react"
 import { ChevronLeft, ChevronRight } from "lucide-react"
 import { usePSelector } from "@/lib/context"
 import { useT } from "@/lib/contexts/TranslationContext"
@@ -72,7 +72,6 @@ function SecureCarouselImg({ url, alt, className }: { url: string; alt: string; 
 
 export function PosterCarousel() {
   const navigateToPoster = usePSelector((v) => v.navigateToPoster)
-  const tmdbKey = usePSelector((v) => v.tmdbKey)
   const trending = usePSelector((v) => v.trending)
   const { t } = useT()
   const containerRef = useRef<HTMLDivElement>(null)
@@ -210,6 +209,31 @@ export function PosterCarousel() {
     }
   }, [totalW, totalItems, step, isHovering, applyTransform])
 
+  // Touch: pausa il loop al tocco, drag manuale a dito, resume al rilascio.
+  // touch-pan-y sul container lascia lo scroll verticale nativo alla pagina.
+  const touchStartX = useRef<number | null>(null)
+  const onTouchStart = (e: TouchEvent) => {
+    touchStartX.current = e.touches[0]?.clientX ?? null
+    stopRef.current()
+  }
+  const onTouchMove = (e: TouchEvent) => {
+    if (touchStartX.current === null) return
+    const x = e.touches[0]?.clientX
+    if (x === undefined) return
+    const dx = x - touchStartX.current
+    touchStartX.current = x
+    posRef.current = Math.max(0, Math.min(totalW, posRef.current - dx))
+    applyTransform(-posRef.current)
+  }
+  const onTouchEnd = () => {
+    touchStartX.current = null
+    const idx = Math.floor(posRef.current / step) % Math.max(totalItems, 1)
+    setActiveIndex(idx)
+    setShowLeft(posRef.current > 0)
+    setShowRight(true)
+    startRef.current()
+  }
+
   const scrollTo = useCallback((dir: number) => {
     const target = Math.max(0, Math.min(totalW, posRef.current + dir * step))
     const start = posRef.current
@@ -270,16 +294,22 @@ export function PosterCarousel() {
           </button>
         )}
 
-        <div ref={containerRef} className="carousel-track overflow-hidden px-2 sm:px-4">
+        <div
+          ref={containerRef}
+          className="carousel-track overflow-hidden px-2 sm:px-4 touch-pan-y"
+          onTouchStart={onTouchStart}
+          onTouchMove={onTouchMove}
+          onTouchEnd={onTouchEnd}
+          onTouchCancel={onTouchEnd}
+        >
           <div
             ref={trackRef}
             className="flex gap-2.5 sm:gap-4 will-change-transform"
           >
             {[...items, ...items].map((ex, i) => {
-              // La chiave personale va in query: senza, i titoli non mappati
-              // fallirebbero l'auto-fetch TMDB (solo chiavi personali, niente
-              // chiave d'istanza). ex.params inizia con "?".
-              const posterUrl = `/api/poster/${ex.type}/${ex.id}${ex.params}${tmdbKey ? `&api_key=${encodeURIComponent(tmdbKey)}` : ""}`
+              // URL pulita: la chiave viaggia solo via header x-api-key
+              // (SecureCarouselImg) — il server la legge lì per primo.
+              const posterUrl = `/api/poster/${ex.type}/${ex.id}${ex.params}`
               return (
                 <div
                   key={i}
