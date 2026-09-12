@@ -3,6 +3,7 @@
 import { useState, useCallback, useEffect, useRef } from "react"
 import type { CustomCatalogConfig } from "./types"
 import { PICTORIUM_CATALOGS } from "./catalog-definitions"
+import { shouldSkipServerSync } from "./guest-guard"
 
 export function useCustomCatalogs(
   safeGetItem: (key: string) => string | null,
@@ -150,13 +151,22 @@ export function useCustomCatalogs(
     lastSyncRef.current = payloadStr
 
     const timer = setTimeout(() => {
-      fetch("/api/defaults", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: payloadStr,
-      }).catch((e) => {
-        lastSyncRef.current = ""
-        console.warn("[catalogs] Auto-sync custom catalogs failed:", e)
+      // Guest guard: come in useDefaults — ospite senza sessione su istanza
+      // con PIN resta locale, mai sovrascrivere i cataloghi del proprietario.
+      void shouldSkipServerSync().then((skip) => {
+        if (skip) {
+          lastSyncRef.current = ""
+          console.debug("[catalogs] Server sync skipped (guest without session)")
+          return
+        }
+        fetch("/api/defaults", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: payloadStr,
+        }).catch((e) => {
+          lastSyncRef.current = ""
+          console.warn("[catalogs] Auto-sync custom catalogs failed:", e)
+        })
       })
     }, 400)
 

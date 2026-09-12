@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from "react"
 import type { BadgeStyle, RankingBadgeStyle } from "./badge-styles"
 import { normalizeRegion } from "./regions"
+import { shouldSkipServerSync } from "./guest-guard"
 import { t } from "./i18n"
 
 export type RibbonSide = "left" | "right"
@@ -408,11 +409,21 @@ export function useDefaults() {
     safeSetItem("badgeDefaults", payloadStr)
 
     const timer = setTimeout(() => {
-      fetch("/api/defaults", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: payloadStr,
-      })
+      // Guest guard: ospite da link altrui senza sessione su istanza con PIN
+      // → resta tutto locale, mai sovrascrivere i default del proprietario
+      // (es. cambio lingua che sposta la regione). Come sul 401: ref azzerato
+      // così un cambio successivo (es. dopo il login) riprova il sync.
+      void shouldSkipServerSync().then((skip) => {
+        if (skip) {
+          lastPersistRef.current = ""
+          console.debug("[defaults] Server sync skipped (guest without session)")
+          return
+        }
+        fetch("/api/defaults", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: payloadStr,
+        })
         .then((res) => {
           if (res.ok) return
           // 401 (admin fail-closed), 403 origin, 5xx persist: il client crede di
@@ -434,6 +445,7 @@ export function useDefaults() {
             toast.warning(t("ui.defaultsSyncFailed")),
           )
         })
+      })
     }, 500)
 
     return () => clearTimeout(timer)

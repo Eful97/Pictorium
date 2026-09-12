@@ -17,11 +17,22 @@ if (!packageJson || typeof packageJson.version !== "string" || packageJson.versi
 // La versione dell'app si aggiorna da sola: major.minor vengono dal
 // package.json, la patch conta i commit a partire dall'introduzione della versione.
 // Ogni nuovo commit produce quindi una patch incrementale (es. 1.10.0, 1.10.1, 1.10.2).
+// APP_COMMIT è lo SHA corto di HEAD (debug "quale commit gira?"); "unknown"
+// quando git non è disponibile (es. build Docker senza .git).
 // Se git non è disponibile (es. build Docker senza .git), si ricade sulla versione base del package.json.
 const baseVersion = packageJson.version.trim()
 const [major, minor, basePatch = "0"] = baseVersion.split(".")
 let version = baseVersion
+let commit = "unknown"
 try {
+  try {
+    commit = execFileSync("git", ["rev-parse", "--short", "HEAD"], {
+      cwd: rootDir,
+      encoding: "utf-8",
+      stdio: ["ignore", "pipe", "ignore"],
+    }).trim() || "unknown"
+  } catch {}
+  if (!/^[0-9a-f]{4,40}$/i.test(commit)) commit = "unknown"
   let headVersion = null
   try {
     const headPkg = execFileSync("git", ["show", "HEAD:package.json"], {
@@ -71,7 +82,10 @@ const output = [
   "// Versione automatica: <major>.<minor> dal package.json, patch = numero di",
   "// commit su HEAD. Cambia a ogni nuovo commit; fallback alla versione base",
   "// del package.json quando git non è disponibile.",
+  "// APP_COMMIT: SHA corto di HEAD (quale commit gira in produzione);",
+  '// "unknown" senza git.',
   `export const APP_VERSION = ${JSON.stringify(version)}`,
+  `export const APP_COMMIT = ${JSON.stringify(commit)}`,
   "",
 ].join("\n")
 

@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from "react"
 import Link from "next/link"
 import { t, getLang, setLang } from "@/lib/i18n"
+import { APP_COMMIT, APP_VERSION } from "@/generated/app-version"
 
 interface CheckResult {
   ok: boolean
@@ -154,6 +155,9 @@ export default function StatusPage() {
       <div className="max-w-2xl mx-auto px-4 py-8">
         <Link href="/" className="inline-flex items-center gap-2 text-sm text-zinc-400 hover:text-accent transition-colors mb-6">{t("ui.statusBack")}</Link>
         <h1 className="text-2xl font-bold mb-1">{t("ui.statusTitle")}</h1>
+        <p className="text-xs text-zinc-500 font-mono" data-testid="status-build">
+          v{APP_VERSION} · {APP_COMMIT}
+        </p>
         {loading && <p className="text-zinc-400 mt-4">{t("ui.statusLoading")}</p>}
         {error && <p className="text-red-400 mt-4">{t("ui.statusError", { msg: error })}</p>}
         {data && (

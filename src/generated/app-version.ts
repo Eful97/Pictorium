@@ -2,4 +2,7 @@
 // Versione automatica: <major>.<minor> dal package.json, patch = numero di
 // commit su HEAD. Cambia a ogni nuovo commit; fallback alla versione base
 // del package.json quando git non è disponibile.
-export const APP_VERSION = "1.10.66"
+// APP_COMMIT: SHA corto di HEAD (quale commit gira in produzione);
+// "unknown" senza git.
+export const APP_VERSION = "1.10.67"
+export const APP_COMMIT = "0b39ebc"
