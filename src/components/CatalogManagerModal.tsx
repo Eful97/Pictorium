@@ -22,7 +22,9 @@ import {
 } from "lucide-react"
 import { usePSelector } from "@/lib/context"
 import { useT } from "@/lib/contexts/TranslationContext"
-import { PICTORIUM_CATALOGS } from "@/lib/catalog-definitions"
+import { usePosterEditor } from "@/lib/contexts/PosterEditorContext"
+import { PICTORIUM_CATALOGS, regionJwName } from "@/lib/catalog-definitions"
+import { getRegionDef } from "@/lib/regions"
 import { EmojiPicker } from "@/components/ui"
 
 interface CatalogManagerModalProps {
@@ -43,6 +45,11 @@ interface CatalogEntryItem {
 
 export function CatalogManagerModal({ isOpen, onClose }: CatalogManagerModalProps) {
   const { t } = useT()
+  // Regione attiva: i nomi dei cataloghi JW seguono la classifica (bandiera
+  // dinamica via regionJwName, stessa del manifest Stremio). Senza, il modal
+  // restava inchiodato al nome statico "Top 20 Italia" al cambio regione.
+  const { defaultRegion } = usePosterEditor()
+  const activeRegion = getRegionDef(defaultRegion)
   const customCatalogs = usePSelector((v) => v.customCatalogs)
   const toggleCustomCatalog = usePSelector((v) => v.toggleCustomCatalog)
   const removeCustomCatalog = usePSelector((v) => v.removeCustomCatalog)
@@ -93,12 +100,13 @@ export function CatalogManagerModal({ isOpen, onClose }: CatalogManagerModalProp
   const allCatalogs = useMemo(() => {
     const list: CatalogEntryItem[] = []
 
-    // Built-in catalogs
+    // Built-in catalogs (i nomi JW seguono la regione attiva)
     for (const c of PICTORIUM_CATALOGS) {
+      const defaultName = regionJwName(c.id, c.type, activeRegion) ?? c.name
       list.push({
         id: c.id,
-        name: catalogRenames[c.id] || c.name,
-        originalName: c.name,
+        name: catalogRenames[c.id] || defaultName,
+        originalName: defaultName,
         type: c.type,
         isCustom: false,
         enabled: !disabledCatalogIds.includes(c.id),
@@ -159,7 +167,7 @@ export function CatalogManagerModal({ isOpen, onClose }: CatalogManagerModalProp
     }
 
     return list
-  }, [customCatalogs, disabledCatalogIds, homeDisabledCatalogIds, catalogOrder, catalogRenames, t])
+  }, [customCatalogs, disabledCatalogIds, homeDisabledCatalogIds, catalogOrder, catalogRenames, activeRegion, t])
 
   if (!isOpen) return null
 
@@ -184,8 +192,15 @@ export function CatalogManagerModal({ isOpen, onClose }: CatalogManagerModalProp
   }
 
   const saveRename = (id: string) => {
-    if (editName.trim()) {
-      renameCatalog(id, editName.trim())
+    const trimmed = editName.trim()
+    // Mai pinnare il default dinamico: salvare il nome uguale al default
+    // bloccherebbe la bandiera al cambio regione (la chiave rename vince
+    // sempre). In quel caso si cancella l'override ed emerge il dinamico.
+    const item = allCatalogs.find((c) => c.id === id)
+    if (trimmed && item && trimmed === item.originalName) {
+      renameCatalog(id, "")
+    } else if (trimmed) {
+      renameCatalog(id, trimmed)
     }
     setEditingId(null)
   }

@@ -1,4 +1,4 @@
-import { cacheGet, cacheSet } from "./cache"
+import { cacheGetShared, cacheSet } from "./cache"
 import { createLogger } from "@/lib/logger"
 import { combineAbortSignals } from "./abort-signal"
 
@@ -297,8 +297,10 @@ export async function fetchAllWikidata(
 ): Promise<WikidataResult> {
   const cacheKey = `wikidata:${mediaType}:${tmdbId}`
 
-  // Check shared cache first (typed, with TTL)
-  const cached = cacheGet<WikidataResult>(cacheKey)
+  // Check shared cache first (typed, with TTL). L1 + L2 KV cross-istanza:
+  // la prima istanza che riesce condivide con tutte (prima ogni istanza
+  // ritirava i dadi SPARQL per conto suo → lotteria badge multi-istanza).
+  const cached = await cacheGetShared<WikidataResult>(cacheKey, ["wikidata"])
   if (cached) return cached
 
   const tmdbProp = mediaType === "movie" ? "P4947" : "P4983"

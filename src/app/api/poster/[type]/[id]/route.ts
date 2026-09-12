@@ -848,8 +848,10 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
         // il fetch (prima restava attivo fino alla scadenza del timeout).
         (async () => {
           let wikidataTimer: ReturnType<typeof setTimeout> | undefined
+          let wikidataTimedOut = false
+          const wdStart = Date.now()
           const wikidataTimeout = new Promise<typeof emptyWikidata>((r) => {
-            wikidataTimer = setTimeout(() => r(emptyWikidata), WIKIDATA_TIMEOUT)
+            wikidataTimer = setTimeout(() => { wikidataTimedOut = true; r(emptyWikidata) }, WIKIDATA_TIMEOUT)
           })
           const result = await Promise.race([
             rankingEnabledEarly
@@ -858,6 +860,14 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
             wikidataTimeout,
           ])
           if (wikidataTimer) clearTimeout(wikidataTimer)
+          // a. Osservabilità lotteria badge: esito + tempo + contenuto. Un
+          // timeout qui = poster senza premi (per le serie, senza rete: nessun
+          // badge) congelato in cache per ore — dal log si distingue subito un
+          // miss genuino (fetch veloce, zero premi) da una gara persa.
+          log.debug("Wikidata race outcome", {
+            mediaType, tmdbId, ms: Date.now() - wdStart, timedOut: wikidataTimedOut,
+            awards: result.awards?.length ?? 0, nominations: result.nominations?.length ?? 0,
+          })
           return result
         })(),
         rankingEnabledEarly

@@ -1,3 +1,5 @@
+import type { RegionDef } from "./regions"
+
 export const CATALOG_ID_PREFIX = "pictorium-"
 
 /** Prefisso legacy pre-rename: accettato in ingresso (alias), mai più emesso. */
@@ -109,3 +111,17 @@ export const POSTERIUM_CATALOGS = PICTORIUM_CATALOGS
 export const POSTERIUM_SEARCH_CATALOGS = PICTORIUM_SEARCH_CATALOGS
 /** @deprecated Alias legacy — usare PICTORIUM_PEOPLE_SEARCH_CATALOGS. */
 export const POSTERIUM_PEOPLE_SEARCH_CATALOGS = PICTORIUM_PEOPLE_SEARCH_CATALOGS
+
+/**
+ * Nome dei cataloghi Top 20 / Ultime Uscite JustWatch nella lingua/regione
+ * attiva (bandiera dinamica). Ritorna null per i cataloghi non-JW (nome statico).
+ * Single source of truth condivisa da manifest Stremio (server) e modal/UI
+ * (client): la classifica segue la regione, il nome deve seguirla.
+ */
+export function regionJwName(id: string, type: "movie" | "series", region: RegionDef): string | null {
+  if (id.startsWith("pictorium-jw-new-")) {
+    return `${region.flag} Ultime Uscite ${region.label} — ${type === "movie" ? "Film" : "Serie TV"}`
+  }
+  if (!id.startsWith("pictorium-jw-")) return null
+  return `${region.flag} Top 20 ${region.label} — ${type === "movie" ? "Film" : "Serie TV"}`
+}

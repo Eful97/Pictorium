@@ -1,12 +1,12 @@
 import crypto from "node:crypto"
 import { NextRequest } from "next/server"
 import { APP_VERSION } from "@/generated/app-version"
-import { PICTORIUM_CATALOGS, PICTORIUM_PEOPLE_SEARCH_CATALOGS } from "@/lib/catalog-definitions"
+import { PICTORIUM_CATALOGS, PICTORIUM_PEOPLE_SEARCH_CATALOGS, regionJwName } from "@/lib/catalog-definitions"
 import { getOriginFromRequest } from "@/lib/poster-public-url"
 import { decodeConfig, type PictoriumUserConfig } from "@/lib/config-token"
 import { normalizeCatalogIdKeys, normalizeCatalogIdList } from "@/lib/catalog-definitions"
 import { getServerDefaults } from "@/lib/server-defaults"
-import { getRegionDef, normalizeRegion, parseRegion, type RegionDef } from "@/lib/regions"
+import { getRegionDef, normalizeRegion, parseRegion } from "@/lib/regions"
 
 const MOVIE_GENRES = [
   "Tutti", "Azione", "Avventura", "Animazione", "Commedia", "Crime",
@@ -30,15 +30,6 @@ const ANIME_GENRES = [
 function getCatalogGenreOptions(type: "movie" | "series", catalogId: string): string[] {
   if (catalogId.includes("anime") || catalogId.includes("crunchyroll")) return ANIME_GENRES
   return type === "movie" ? MOVIE_GENRES : SERIES_GENRES
-}
-
-/** Nome dei cataloghi Top 20 / Ultime Uscite JustWatch nella lingua/regione attiva (bandiera dinamica). */
-function regionJwName(id: string, type: "movie" | "series", region: RegionDef): string | null {
-  if (id.startsWith("pictorium-jw-new-")) {
-    return `${region.flag} Ultime Uscite ${region.label} — ${type === "movie" ? "Film" : "Serie TV"}`
-  }
-  if (!id.startsWith("pictorium-jw-")) return null
-  return `${region.flag} Top 20 ${region.label} — ${type === "movie" ? "Film" : "Serie TV"}`
 }
 
 function safeSuffix(value: string | null | undefined): string | null {
