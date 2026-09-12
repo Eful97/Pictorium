@@ -38,10 +38,13 @@ export function PosterPreview({
       <div className="relative aspect-[2/3] select-none pointer-events-none bg-zinc-950/70 overflow-hidden rounded-[1.2rem]">
         {previewUrl ? (
           <>
-            <div className="loading-bar-overlay" style={{ opacity: previewLoading ? 1 : 0, pointerEvents: "none" }} />
-            <div className="loading-bar-container" style={{ opacity: previewLoading ? 1 : 0, transition: "opacity 0.3s ease" }}>
-              <div className="loading-bar-track" style={{ transform: `scaleX(${loadProgress / 100})`, transformOrigin: "left" }} />
-              <span className="loading-bar-text">{loadProgress}%</span>
+            <div className="preview-loading-overlay" style={{ opacity: previewLoading ? 1 : 0 }} />
+            <div className="preview-hairline-track" style={{ opacity: previewLoading ? 1 : 0, transition: "opacity 0.25s ease" }}>
+              <div className="preview-hairline-bar" style={{ transform: `scaleX(${loadProgress / 100})` }} />
+            </div>
+            <div className="preview-loading-pill" style={{ opacity: previewLoading ? 1 : 0 }}>
+              <span className="w-2.5 h-2.5 rounded-full border-2 border-accent-orange/40 border-t-accent-orange animate-spin inline-block mr-1.5" />
+              <span>{loadProgress}%</span>
             </div>
             {imgSrc && (
               /* eslint-disable-next-line @next/next/no-img-element -- server-rendered poster */

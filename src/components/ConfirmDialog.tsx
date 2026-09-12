@@ -1,8 +1,6 @@
-"use client"
-
-import React, { useState, useEffect, useRef } from "react"
-import { createPortal } from "react-dom"
+import React from "react"
 import { useT } from "@/lib/contexts/TranslationContext"
+import { Modal } from "@/components/ui/Modal"
 
 export const ConfirmDialog = React.memo(function ConfirmDialog({
   open,
@@ -24,90 +22,65 @@ export const ConfirmDialog = React.memo(function ConfirmDialog({
   inline?: boolean
 }) {
   const { t } = useT()
-  const [closing, setClosing] = useState(false)
-  const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  useEffect(() => {
-    if (open) {
-      setClosing(false)
-      if (closeTimerRef.current) {
-        clearTimeout(closeTimerRef.current)
-        closeTimerRef.current = null
-      }
-    }
-  }, [open])
+  if (!open) return null
 
-  // Cleanup del timer di chiusura su unmount: evita setState su componente smontato
-  useEffect(() => {
-    return () => {
-      if (closeTimerRef.current) clearTimeout(closeTimerRef.current)
-    }
-  }, [])
-
-  // `closing` era stato morto (mai impostato a true): la chiusura avveniva istantanea
-  // senza animazione di uscita. Ora gioca la fade-out e chiama il callback al termine.
-  const dismiss = (cb: () => void) => {
-    if (closing) return
-    setClosing(true)
-    closeTimerRef.current = setTimeout(() => {
-      closeTimerRef.current = null
-      setClosing(false)
-      cb()
-    }, 150)
-  }
-
-  if (!open && !closing) return null
   if (inline) {
     return (
       <>
-        <div className="fixed inset-0 z-[199]" onClick={() => dismiss(onCancel)} />
-        <div role="dialog" aria-modal="true" aria-label={title} className={`absolute top-full right-0 mt-2 z-[200] bg-surface2 border border-zinc-500 rounded-2xl p-4 shadow-2xl shadow-black/80 min-w-56 max-w-[calc(100vw-2rem)] max-h-[80vh] overflow-y-auto ${closing ? "animate-fade-scale-out" : "animate-fade-scale-in"}`} onClick={(e) => e.stopPropagation()}>
-        <h3 className="text-sm font-semibold text-zinc-100 mb-2">{title}</h3>
-        <p className="text-xs text-zinc-300 mb-4">{message}</p>
-        <div className="flex gap-2 justify-end">
-          <button type="button" onClick={() => dismiss(onCancel)} className="px-4 py-2 rounded-xl text-xs font-medium bg-zinc-700 text-zinc-200 hover:bg-zinc-600 active:scale-[0.97] transition-all duration-150">{t("ui.cancelAction")}</button>
-          <button type="button" onClick={() => dismiss(onConfirm)} className={`px-4 py-2 rounded-xl text-xs font-medium active:scale-[0.97] transition-all duration-150 ${confirmClass || "bg-red-600 text-white hover:bg-red-500"}`}>{confirmLabel}</button>
-        </div>
-        </div>
-      </>
-    )
-  }
-  // Variante full-screen: PORTAL a document.body — il pattern già usato dal
-  // menu collezioni. Un antenato con transform persistente (view-enter)
-  // creerebbe un containing block e il dialog fixed apparirebbe disallineato
-  // ("in basso"), non centrato sul viewport.
-  return typeof document !== "undefined"
-    ? createPortal(
+        <div className="fixed inset-0 z-[199]" onClick={onCancel} />
         <div
           role="dialog"
           aria-modal="true"
           aria-label={title}
-          className={`fixed inset-0 z-[200] bg-black/80 backdrop-blur-sm flex items-center justify-center ${closing ? "animate-fade-out" : "animate-fade-in"}`}
-          onClick={() => dismiss(onCancel)}
+          className="absolute top-full right-0 mt-2 z-[200] surface-card border border-white/10 rounded-2xl p-4 shadow-2xl shadow-black/80 min-w-56 max-w-[calc(100vw-2rem)] max-h-[80vh] overflow-y-auto animate-fade-scale-in select-text"
+          onClick={(e) => e.stopPropagation()}
         >
-          <div
-            className={`bg-surface2 border border-zinc-500 rounded-2xl p-6 shadow-2xl shadow-black/80 max-w-sm w-full mx-4 ${closing ? "animate-fade-scale-out" : "animate-fade-scale-in"}`}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h3 className="text-lg font-semibold text-zinc-100 mb-2">{title}</h3>
-            <p className="text-sm text-zinc-300 mb-5">{message}</p>
-            <div className="flex gap-2 justify-end">
-              <button type="button"
-                onClick={() => dismiss(onCancel)}
-                className="px-4 py-2 rounded-xl text-sm font-medium bg-zinc-700 text-zinc-200 hover:bg-zinc-600 active:scale-[0.97] transition-all duration-150"
-              >
-                {t("ui.cancelAction")}
-              </button>
-              <button type="button"
-                onClick={() => dismiss(onConfirm)}
-                className={`px-4 py-2 rounded-xl text-sm font-medium active:scale-[0.97] transition-all duration-150 ${confirmClass || "bg-red-600 text-white hover:bg-red-500"}`}
-              >
-                {confirmLabel}
-              </button>
-            </div>
+          <h3 className="text-sm font-semibold text-zinc-100 mb-2">{title}</h3>
+          <p className="text-xs text-zinc-400 mb-4 leading-relaxed">{message}</p>
+          <div className="flex gap-2 justify-end">
+            <button
+              type="button"
+              onClick={onCancel}
+              className="btn-secondary px-3 py-1.5 rounded-xl text-xs font-medium cursor-pointer"
+            >
+              {t("ui.cancelAction")}
+            </button>
+            <button
+              type="button"
+              onClick={onConfirm}
+              className={`btn-danger px-3 py-1.5 rounded-xl text-xs font-medium cursor-pointer ${confirmClass ?? ""}`}
+            >
+              {confirmLabel}
+            </button>
           </div>
-        </div>,
-        document.body,
-      )
-    : null
+        </div>
+      </>
+    )
+  }
+
+  return (
+    <Modal isOpen={open} onClose={onCancel} labelledBy="confirm-dialog-title" className="max-w-sm p-5 space-y-4">
+      <div>
+        <h3 id="confirm-dialog-title" className="text-base font-bold text-zinc-100 mb-2">{title}</h3>
+        <p className="text-xs text-zinc-400 leading-relaxed">{message}</p>
+      </div>
+      <div className="flex gap-2 justify-end pt-1">
+        <button
+          type="button"
+          onClick={onCancel}
+          className="btn-secondary px-4 py-2 rounded-xl text-xs font-medium cursor-pointer"
+        >
+          {t("ui.cancelAction")}
+        </button>
+        <button
+          type="button"
+          onClick={onConfirm}
+          className={`btn-danger px-4 py-2 rounded-xl text-xs font-medium cursor-pointer ${confirmClass ?? ""}`}
+        >
+          {confirmLabel}
+        </button>
+      </div>
+    </Modal>
+  )
 })

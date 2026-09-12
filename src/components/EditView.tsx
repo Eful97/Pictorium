@@ -225,7 +225,7 @@ export default function EditView() {
                 type="button"
                 aria-label={t("ui.savePoster")}
                 onClick={handleSave}
-                className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-gradient-to-r from-accent-orange to-amber-500 text-white font-semibold text-xs shadow-md shadow-accent-orange/20 active:scale-95 transition-all shrink-0 cursor-pointer"
+                className="btn-primary flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-white font-semibold text-xs shrink-0 cursor-pointer"
               >
                 <Save className="w-3.5 h-3.5" />
                 <span>{t("ui.save")}</span>
@@ -234,13 +234,27 @@ export default function EditView() {
           </div>
 
           {/* Mobile Segmented Switcher (Scegli Poster / Anteprima / Modifica) */}
-          <div className="flex lg:hidden items-center justify-center p-1 bg-surface/90 backdrop-blur-md rounded-2xl border border-white/[0.08] mb-4 w-full max-w-md mx-auto shadow-lg shadow-black/20">
+          <div className="relative flex lg:hidden items-center justify-center p-1 bg-surface/90 backdrop-blur-md rounded-2xl border border-white/[0.08] mb-4 w-full max-w-md mx-auto shadow-lg shadow-black/20 overflow-hidden">
+            {/* Sliding Pill Indicator (GPU-accelerated) */}
+            <div
+              className="absolute top-1 bottom-1 rounded-xl bg-accent-orange shadow-md shadow-accent-orange/25 transition-transform duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] pointer-events-none"
+              style={{
+                width: "calc((100% - 8px) / 3)",
+                left: "4px",
+                transform:
+                  mobileSection === "poster"
+                    ? "translateX(0%)"
+                    : mobileSection === "preview"
+                      ? "translateX(100%)"
+                      : "translateX(200%)",
+              }}
+            />
             <button
               type="button"
               onClick={() => setMobileSection("poster")}
-              className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 px-2 rounded-xl text-xs font-semibold transition-all duration-150 cursor-pointer ${
+              className={`relative z-10 flex-1 flex items-center justify-center gap-1.5 py-2.5 px-2 rounded-xl text-xs font-semibold transition-colors duration-200 cursor-pointer ${
                 mobileSection === "poster"
-                  ? "bg-accent-orange text-white shadow-md shadow-accent-orange/20"
+                  ? "text-white"
                   : "text-zinc-400 hover:text-zinc-200"
               }`}
             >
@@ -250,9 +264,9 @@ export default function EditView() {
             <button
               type="button"
               onClick={() => setMobileSection("preview")}
-              className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 px-2 rounded-xl text-xs font-semibold transition-all duration-150 cursor-pointer ${
+              className={`relative z-10 flex-1 flex items-center justify-center gap-1.5 py-2.5 px-2 rounded-xl text-xs font-semibold transition-colors duration-200 cursor-pointer ${
                 mobileSection === "preview"
-                  ? "bg-accent-orange text-white shadow-md shadow-accent-orange/20"
+                  ? "text-white"
                   : "text-zinc-400 hover:text-zinc-200"
               }`}
             >
@@ -261,9 +275,9 @@ export default function EditView() {
             <button
               type="button"
               onClick={() => setMobileSection("customize")}
-              className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 px-2 rounded-xl text-xs font-semibold transition-all duration-150 cursor-pointer ${
+              className={`relative z-10 flex-1 flex items-center justify-center gap-1.5 py-2.5 px-2 rounded-xl text-xs font-semibold transition-colors duration-200 cursor-pointer ${
                 mobileSection === "customize"
-                  ? "bg-accent-orange text-white shadow-md shadow-accent-orange/20"
+                  ? "text-white"
                   : "text-zinc-400 hover:text-zinc-200"
               }`}
             >

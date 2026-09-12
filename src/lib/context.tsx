@@ -554,7 +554,6 @@ export function usePictorium(): PictoriumCtx {
   }, [safeGetItem, safeSetItem])
 
   useEffect(() => {
-    document.documentElement.classList.toggle("light-mode", theme === "light")
     safeSetItem("pictorium_theme", theme)
   }, [theme, safeSetItem])
 

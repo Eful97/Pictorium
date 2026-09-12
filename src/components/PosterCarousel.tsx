@@ -98,10 +98,13 @@ export function PosterCarousel() {
   const trackRef = useRef<HTMLDivElement>(null)
   const rafRef = useRef<number>(0)
   const posRef = useRef(0)
+  // Riavvio del marquee dopo lo scroll manuale (le frecce fermano il loop):
+  // l'effect assegna start/stop correnti, scrollTo li usa a inizio/fine.
+  const startRef = useRef<() => void>(() => {})
+  const stopRef = useRef<() => void>(() => {})
   const [isHovering, setIsHovering] = useState(false)
   const [activeIndex, setActiveIndex] = useState(0)
   const hoveringRef = useRef(false)
-  const tickRef = useRef<() => void>(() => {})
   const [showLeft, setShowLeft] = useState(false)
   const [showRight, setShowRight] = useState(true)
 
@@ -121,7 +124,7 @@ export function PosterCarousel() {
   }, [])
 
   const applyTransform = useCallback((x: number) => {
-    if (trackRef.current) trackRef.current.style.transform = `translateX(${x}px)`
+    if (trackRef.current) trackRef.current.style.transform = `translate3d(${x}px, 0, 0)`
   }, [])
 
   useEffect(() => {
@@ -129,11 +132,19 @@ export function PosterCarousel() {
   }, [isHovering])
 
   useEffect(() => {
-    let frameCount = 0
-    // jsdom (vitest) non implementa matchMedia: assenza => animazione attiva.
     const reduced = typeof window.matchMedia === "function" && window.matchMedia("(prefers-reduced-motion: reduce)").matches
+    if (reduced) {
+      startRef.current = () => {}
+      stopRef.current = () => {}
+      return
+    }
+
+    let frameCount = 0
+    let isVisible = true
+    let isRunning = false
+
     const tick = () => {
-      if (!hoveringRef.current && !reduced) {
+      if (!hoveringRef.current && isVisible) {
         posRef.current += SCROLL_SPEED
         if (posRef.current >= totalW) {
           posRef.current = 0
@@ -147,12 +158,57 @@ export function PosterCarousel() {
           setShowRight(true)
         }
       }
+
+      if (!hoveringRef.current && isVisible) {
+        rafRef.current = requestAnimationFrame(tick)
+      } else {
+        isRunning = false
+      }
+    }
+
+    const start = () => {
+      if (isRunning || hoveringRef.current || !isVisible) return
+      isRunning = true
       rafRef.current = requestAnimationFrame(tick)
     }
-    tickRef.current = tick
-    rafRef.current = requestAnimationFrame(tick)
-    return () => cancelAnimationFrame(rafRef.current)
-  }, [totalW, totalItems, step, applyTransform])
+
+    const stop = () => {
+      isRunning = false
+      cancelAnimationFrame(rafRef.current)
+    }
+
+    // Observer: se il carosello è fuori viewport, ferma completamente il loop
+    let observer: IntersectionObserver | null = null
+    if (typeof IntersectionObserver !== "undefined" && containerRef.current) {
+      observer = new IntersectionObserver(([entry]) => {
+        isVisible = entry.isIntersecting
+        if (isVisible) {
+          start()
+        } else {
+          stop()
+        }
+      }, { threshold: 0.05 })
+      observer.observe(containerRef.current)
+    } else {
+      start()
+    }
+
+    if (!isHovering) {
+      start()
+    } else {
+      stop()
+    }
+
+    // Espone start/stop correnti per scrollTo (stop a inizio frecce,
+    // restart a fine animazione).
+    startRef.current = start
+    stopRef.current = stop
+
+    return () => {
+      stop()
+      observer?.disconnect()
+    }
+  }, [totalW, totalItems, step, isHovering, applyTransform])
 
   const scrollTo = useCallback((dir: number) => {
     const target = Math.max(0, Math.min(totalW, posRef.current + dir * step))
@@ -167,10 +223,12 @@ export function PosterCarousel() {
       if (t < 1) {
         rafRef.current = requestAnimationFrame(animate)
       } else {
-        rafRef.current = requestAnimationFrame(tickRef.current)
+        // Fine scroll manuale: riavvia il marquee (start rispetta
+        // hover/visibilità/reduced-motion: no-op se non deve girare).
+        startRef.current()
       }
     }
-    cancelAnimationFrame(rafRef.current)
+    stopRef.current()
     rafRef.current = requestAnimationFrame(animate)
   }, [totalW, step, applyTransform])
 

@@ -208,7 +208,7 @@ export function AppShell() {
           <button
             type="button"
             onClick={handleInstallCatalog}
-            className="flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-accent-orange to-amber-500 hover:from-accent-orange/90 hover:to-amber-500/90 text-white font-semibold text-xs shadow-md shadow-accent-orange/20 hover:shadow-accent-orange/35 hover:scale-[1.02] active:scale-[0.97] transition-all duration-150 border border-white/20 cursor-pointer"
+            className="top-action-button-primary flex items-center gap-2 px-3.5 py-1.5 rounded-xl font-semibold text-xs shadow-md shadow-accent-orange/20 hover:scale-[1.02] active:scale-[0.97] transition-all duration-150 border cursor-pointer"
           >
             <QrCode className="w-3.5 h-3.5 text-white" />
             <span>{t("ui.installHub")}</span>
