@@ -63,6 +63,7 @@ services:
       - PROFILE_ENCRYPTION_KEY=${PROFILE_ENCRYPTION_KEY:-}
       # Proxy fidato (dietro Cloudflare/Caddy/Nginx) e allowlist host pubblici
       - PICTORIUM_TRUST_PROXY=${PICTORIUM_TRUST_PROXY:-${POSTERIUM_TRUST_PROXY:-}}
+      - PICTORIUM_CLIENT_IP_HEADER=${PICTORIUM_CLIENT_IP_HEADER:-}
       - PICTORIUM_ALLOWED_HOSTS=${PICTORIUM_ALLOWED_HOSTS:-${POSTERIUM_ALLOWED_HOSTS:-}}
       # Banner sponsor hosting pubblico (es. "elfhosted"; vuoto = nessun banner).
       - PICTORIUM_HOSTED_BY=${PICTORIUM_HOSTED_BY:-}
