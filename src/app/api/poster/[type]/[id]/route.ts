@@ -678,6 +678,9 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
   let tmdbNetworksDetailed: { name: string; logoPath: string | null }[] = []
   let productionCompaniesDetailed: { name: string; logoPath: string | null }[] = []
   let imdbId: string | null = pathImdbId
+  // TMDB title from the auto branch, kept in scope for the JustWatch match:
+  // the session cache is a small LRU and can be evicted mid-render.
+  let autoTitle: string | null = null
   // QID Wikidata per il fast-path REST awards (wbgetentities, ~150ms) invece
   // della lotteria SPARQL (4-13s contro race da 2.5s). Catena: query
   // `wikidata_id` (la preview lo ha già dai details, zero RTT) > mapping
@@ -686,7 +689,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
   // external_ids in append). Senza QID ovunque: fallback SPARQL invariato.
   let wikidataId: string | null = null
   {
-    const queryWikidataId = req.nextUrl.searchParams.get("wikidata_id")
+    const queryWikidataId = hardenedParams.get("wikidata_id")
     const mappingWikidataId = mapping?.wikidataId ?? null
     const sessionWikidataId = getTMDBSessionCache(mediaType, tmdbId)?.externalIds?.wikidata_id ?? null
     if (isValidWikidataQid(queryWikidataId)) wikidataId = queryWikidataId
@@ -701,14 +704,14 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
   // catena degli altri parametri — vedi resolvePosterShape). Solo
   // "landscape" attiva il ramo 16:9 con base = sfondo TMDB.
   const isLandscape = resolvePosterShape(req.nextUrl.searchParams, mapping, configOverride, sd) === "landscape"
-  const queryGenre = req.nextUrl.searchParams.get("genreName")
-  const queryVote = req.nextUrl.searchParams.get("voteAverage")
+  const queryGenre = hardenedParams.get("genreName")
+  const queryVote = hardenedParams.get("voteAverage")
   // Fonti voto medio ★ — stessa catena canonica di poster-config/Stremio:
   // query `rsrc` > mapping per-titolo > config token > server defaults > default.
   // (Prima: senza whitelist e senza mapping/sd — la preview col client valeva
   // una media diversa da Stremio a parità di titolo.)
   const reqRatingSources = resolveRatingSources(
-    req.nextUrl.searchParams.get("rsrc"),
+    hardenedParams.get("rsrc"),
     mapping?.ratingSources,
     configOverride?.ratingSources,
     sd.ratingSources,
@@ -740,21 +743,21 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
     // Date complete (`rd`/`fad`) quando il client le conosce: l'anno da solo
     // diventa `${y}-01-01` e cade fuori dalla finestra theatrical del
     // rilevamento pre-digitale (desync preview/finale).
-    const queryRd = req.nextUrl.searchParams.get("rd")
-    const queryFad = req.nextUrl.searchParams.get("fad")
+    const queryRd = hardenedParams.get("rd")
+    const queryFad = hardenedParams.get("fad")
     if (mediaType === "tv" && queryFad && /^\d{4}-\d{2}-\d{2}$/.test(queryFad)) {
       firstAirDate = queryFad
     } else if (mediaType !== "tv" && queryRd && /^\d{4}-\d{2}-\d{2}$/.test(queryRd)) {
       releaseDate = queryRd
     } else {
-      const queryYear = req.nextUrl.searchParams.get("year")
+      const queryYear = hardenedParams.get("year")
       if (queryYear && /^\d{4}$/.test(queryYear.slice(0, 4))) {
         const y = queryYear.slice(0, 4)
         if (mediaType === "tv") firstAirDate = `${y}-01-01`
         else releaseDate = `${y}-01-01`
       }
     }
-    imdbId = req.nextUrl.searchParams.get("imdbId") || imdbId
+    imdbId = hardenedParams.get("imdbId") || imdbId
     showBadges = req.nextUrl.searchParams.get("badges") !== "0"
     rankingBadges = req.nextUrl.searchParams.get("ranking") !== "0"
     etag = `"p${etagBase}"`
@@ -831,6 +834,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
       }
       // Candidato sfondo per il ramo landscape: backdrop principale TMDB,
       // poi il primo backdrops di /images (già 16:9 nativi).
+      autoTitle = details.title || details.name || null
       autoBackdropPath = details.backdrop_path || images.backdrops[0]?.file_path || null
       imdbId = extIds.imdb_id
       // Non sovrascrivere un QID già risolto a monte (query > mapping >
@@ -1159,7 +1163,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
     let preJw: boolean | null = null
     let preDigital: string | null = null
     // Rank anime inviato dal client nella preview WYSIWYG (override del fetch).
-    const qAnimeRankParam = req.nextUrl.searchParams.get("animerank")
+    const qAnimeRankParam = hardenedParams.get("animerank")
     const qAnimeRank = qAnimeRankParam ? Number(qAnimeRankParam) : NaN
 
     // Quarto anello QID (mapping legacy senza wikidataId salvato): una
@@ -1241,7 +1245,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
                   const sessionTitle = getTMDBSessionCache(mediaType, tmdbId)?.details?.title
                     || getTMDBSessionCache(mediaType, tmdbId)?.details?.name
                     || null
-                  const fallbackTitle = mapping?.title || req.nextUrl.searchParams.get("title") || sessionTitle || genreName || null
+                  const fallbackTitle = mapping?.title || hardenedParams.get("title") || autoTitle || sessionTitle || genreName || null
                   const effSeasonCount = seasonCount ?? getTMDBSessionCache(mediaType, tmdbId)?.details?.number_of_seasons ?? null
                   return resolveStreamQuality(
                     mediaType === "movie" ? "movie" : "series",
@@ -1273,7 +1277,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
                   // sempre → disponibilità ignota → poster normale.
                   const sessionDetails = getTMDBSessionCache(mediaType, tmdbId)?.details
                   const preTitle = mapping?.title
-                    || req.nextUrl.searchParams.get("title")
+                    || hardenedParams.get("title")
+                    || autoTitle
                     || sessionDetails?.title
                     || sessionDetails?.name
                     || genreName
@@ -1666,7 +1671,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
           justwatch: rankingResult,
           anime: animeRankResult,
           finalRank,
-          qRank: req.nextUrl.searchParams.get("rank") || null,
+          qRank: hardenedParams.get("rank") || null,
           qLabel,
         },
         wikidata: {

@@ -123,6 +123,20 @@ path `https://image.tmdb.org/t/p/...` (o `file_path` TMDB).
 > condividere il `CONFIG_HMAC_SECRET` dell'istanza ed è fail-closed in
 > produzione. I query param espliciti sono debuggabili e versionabili.
 
+### Istanze pubbliche (modalità presets)
+
+Sulle istanze pubbliche (`PICTORIUM_POSTER_PARAMS=presets`, attiva di default
+lì) le richieste diverse dalle preview live dell'editor vengono canonicalizzate
+prima del render:
+
+- Senza un override `poster=` accettato (richiede uno spazio utente), `title`,
+  `genreName`, `year`, `rd`, `fad`, `voteAverage`, `imdbId` e `wikidata_id`
+  sono ignorati: il server usa i dati TMDB e il mapping salvato. Inviarli non
+  fa danni.
+- `rank` è accettato solo come intero da 0 a 100 (0 nasconde il badge rank).
+- `animerank` oltre il limite del badge anime (20) vale come "nessun badge".
+- `rsrc` mantiene solo fonti supportate, senza duplicati.
+
 ## Risposte e comportamento in caso di errore (integrazione fail-safe)
 
 | Stato | Significato | Cosa fare |
