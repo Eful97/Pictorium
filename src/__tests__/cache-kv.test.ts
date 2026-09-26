@@ -42,6 +42,8 @@ describe("cache L2 condivisa (C1)", () => {
     delete process.env.KV_REST_API_URL
     delete process.env.KV_REST_API_TOKEN
     delete process.env.PICTORIUM_REDIS_URL
+    delete process.env.PICTORIUM_KV_CACHE
+    delete process.env.POSTERIUM_KV_CACHE
     redisStore.clear()
     vi.resetModules()
   })
@@ -110,5 +112,43 @@ describe("cache L2 condivisa (C1)", () => {
     const fresh = await importCache()
     expect(await fresh.cacheGetShared<{ metas: unknown[] }>("rcat1", ["stremio", "catalog"])).toEqual({ metas: [] })
     expect(await fresh.cacheGetShared("missing")).toBeNull()
+  })
+
+  it("KV_CACHE=0 with Redis: no write-through, no read-through, L1 still works", async () => {
+    process.env.PICTORIUM_REDIS_URL = "redis://localhost:6379/0"
+    process.env.PICTORIUM_KV_CACHE = "0"
+    redisStore.set("pictorium:cache:shared", JSON.stringify({ metas: ["x"] }))
+    const { cacheSet, cacheGetShared } = await importCache()
+    cacheSet("rcat2", { metas: [] }, ["stremio", "catalog"], 60_000)
+    await new Promise((r) => setTimeout(r, 10))
+    expect(redisStore.has("pictorium:cache:rcat2")).toBe(false)
+    expect(await cacheGetShared("rcat2")).toEqual({ metas: [] })
+    expect(await cacheGetShared("shared")).toBeNull()
+  })
+
+  it("KV_CACHE accepts FALSE/off and the legacy POSTERIUM_ prefix", async () => {
+    process.env.KV_REST_API_URL = "https://example.upstash.io"
+    process.env.KV_REST_API_TOKEN = "test-token"
+    for (const [name, value] of [["PICTORIUM_KV_CACHE", "FALSE"], ["PICTORIUM_KV_CACHE", "off"], ["POSTERIUM_KV_CACHE", "0"]] as const) {
+      delete process.env.PICTORIUM_KV_CACHE
+      delete process.env.POSTERIUM_KV_CACHE
+      process.env[name] = value
+      const { cacheSet } = await importCache()
+      cacheSet(`c-${name}-${value}`, { metas: [] }, ["stremio", "catalog"], 60_000)
+      await new Promise((r) => setTimeout(r, 10))
+    }
+    expect(kvMock.set).not.toHaveBeenCalled()
+  })
+
+  it("KV_CACHE=false with Upstash KV: no calls", async () => {
+    process.env.KV_REST_API_URL = "https://example.upstash.io"
+    process.env.KV_REST_API_TOKEN = "test-token"
+    process.env.PICTORIUM_KV_CACHE = "false"
+    const { cacheSet, cacheGetShared } = await importCache()
+    cacheSet("cat9", { metas: [] }, ["stremio", "catalog"], 60_000)
+    await new Promise((r) => setTimeout(r, 10))
+    expect(await cacheGetShared("missing9")).toBeNull()
+    expect(kvMock.set).not.toHaveBeenCalled()
+    expect(kvMock.get).not.toHaveBeenCalled()
   })
 })

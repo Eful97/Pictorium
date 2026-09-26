@@ -40,7 +40,16 @@ const store = new Map<string, CacheEntry<unknown>>()
 // miss L1 (quando comunque si farebbe upstream lento). Errori KV = miss.
 // ---------------------------------------------------------------------------
 // Lettura live (mai a module level): i test mutano le env + resetModules.
+// PICTORIUM_KV_CACHE=0 (or false/off/no) keeps the response cache in process
+// memory only while state (users, mappings, settings, epochs) stays in KV.
+// On a public instance write-through lets anonymous requests grow KV: every
+// JSON cacheSet is written, and keys carry caller-controlled parts (api_key
+// hash, config token, region) that live until each entry's TTL (up to ~24h
+// for catalogs). The in-memory L1 is size-capped. Cost: replicas no longer
+// share hits, so each one fetches upstream on its own.
 function isKvL2(): boolean {
+  const flag = (envWithFallback("KV_CACHE") || "").toLowerCase().trim()
+  if (flag === "0" || flag === "false" || flag === "off" || flag === "no") return false
   return getStorageMode() === "kv"
 }
 const KV_L2_PREFIX = "pictorium:cache:"

@@ -30,6 +30,14 @@ export interface ChangelogRelease {
  *  (which bumps on every commit and would leave the dot permanently on). */
 export const CHANGELOG: ChangelogRelease[] = [
   {
+    version: "1.23.3",
+    date: "2026-09-26",
+    title: "Release 1.23.3",
+    items: [
+      { type: "feature", text: "PICTORIUM_KV_CACHE=0 keeps the response cache in memory only" },
+    ],
+  },
+  {
     version: "1.23.2",
     date: "2026-09-26",
     title: "Release 1.23.2",
