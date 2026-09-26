@@ -3,6 +3,24 @@ import { rateLimit, rateLimitKey, rateLimitResponse } from "@/lib/rate-limit"
 import { fetchUnifiedCatalogItems, detectCatalogProvider } from "@/lib/custom-catalog-providers"
 import { getDetails, resolveRouteApiKey, tmdbFindByImdb } from "@/lib/tmdb"
 
+// Concorrenza del fan-out per-item (v1.23.0): liste fino a 1000 voci con
+// Promise.all sparavano migliaia di fetch TMDB concorrenti. Pool fissa;
+// le chiavi errate falliscono in fretta via negative-cache 401 (tmdb.ts).
+const FANOUT_CONCURRENCY = 5
+
+async function mapLimit<T, R>(items: readonly T[], limit: number, fn: (item: T) => Promise<R>): Promise<R[]> {
+  const out = new Array<R>(items.length)
+  let next = 0
+  const workers = Array.from({ length: Math.min(limit, items.length) }, async () => {
+    while (next < items.length) {
+      const idx = next++
+      out[idx] = await fn(items[idx])
+    }
+  })
+  await Promise.all(workers)
+  return out
+}
+
 export async function GET(req: NextRequest) {
   const rl = await rateLimit(rateLimitKey(req), "tmdb")
   if (!rl.ok) return rateLimitResponse(rl.retAfter)
@@ -17,8 +35,10 @@ export async function GET(req: NextRequest) {
     const detection = detectCatalogProvider(url)
     const limit = Math.min(Math.max(parseInt(req.nextUrl.searchParams.get("limit") || "500", 10) || 500, 1), 1000)
     const rawItems = await fetchUnifiedCatalogItems(url, { apiKey, mdblistKey, limit })
-    const items = await Promise.all(
-      rawItems.map(async (it) => {
+    const items = await mapLimit(
+      rawItems,
+      FANOUT_CONCURRENCY,
+      async (it) => {
         let tmdbId = Number(it.tmdb)
         const mediaType = (it.mediatype === "show" || it.mediatype === "tv" || it.mediatype === "anime") ? "tv" : "movie"
         if (!tmdbId && it.imdb && apiKey) {
@@ -46,7 +66,7 @@ export async function GET(req: NextRequest) {
           poster_path: posterPath,
           year: it.year,
         }
-      })
+      },
     )
     return Response.json({
       items,

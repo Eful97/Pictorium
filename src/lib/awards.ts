@@ -1,4 +1,10 @@
 import { cacheGetShared, cacheSet } from "./cache"
+import { matchStudios, isValidWikidataQid } from "./badge-labels"
+
+// Re-export per compatibilità: le label pure vivono in badge-labels.ts
+// (foglia client-safe); poster route, poster-badge e test continuano a
+// importarle da qui senza modifiche.
+export { matchTMDBStudios, getAwardBadgeLabel, getNominationBadgeLabel, isValidWikidataQid } from "./badge-labels"
 import { combineAbortSignals } from "./abort-signal"
 import { timedFetch } from "./outbound-stats"
 import { createCircuitBreaker } from "@/lib/circuit-breaker"
@@ -147,7 +153,7 @@ async function sparqlQuery(query: string, signal?: AbortSignal): Promise<Record<
   }
 }
 
-// ---- Matching logic ----
+// ---- Matching logic (studio/network + label vivono in badge-labels.ts) ----
 
 function matchRules(labels: string[]): string[] {
   const found = new Set<string>()
@@ -155,58 +161,6 @@ function matchRules(labels: string[]): string[] {
     for (const rule of RULES) {
       if (rule.keywords.some((kw) => label.toLowerCase().includes(kw.toLowerCase()))) {
         found.add(rule.label)
-      }
-    }
-  }
-  return [...found]
-}
-
-const NETWORKS = [
-  "Netflix", "Amazon Prime Video", "Apple TV+", "Disney+", "HBO", "Max",
-  "Paramount+", "Crunchyroll", "Prime Video",
-  "Rai", "Mediaset", "Sky", "Cartoon Network", "Nickelodeon", "Adult Swim",
-  "Universal Pictures", "Warner Bros.", "Paramount Pictures", "Columbia Pictures",
-  "20th Century Studios", "Walt Disney Pictures", "Marvel Studios", "Pixar",
-  "Studio Ghibli", "Sony Pictures",
-]
-
-function escapeRegExp(s: string): string {
-  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
-}
-
-/** Match network name with word boundaries to avoid false positives (e.g. "rai" in "raindrop") */
-function nameMatchesNetwork(name: string, network: string): boolean {
-  if (name === network) return true
-  // Use word boundary: matches "rai cinema" but not "raindrop" or "tutorial"
-  // Escape network for RegExp (e.g. "Apple TV+", "Paramount+" contain +)
-  return new RegExp(`\\b${escapeRegExp(network)}\\b`).test(name)
-}
-
-export function matchTMDBStudios(names: string[]): string[] {
-  const found = new Set<string>()
-  for (const name of names) {
-    const lower = name.toLowerCase().trim()
-    for (const net of NETWORKS) {
-      const nLower = net.toLowerCase()
-      if (lower === nLower || nameMatchesNetwork(lower, nLower)) {
-        found.add(net)
-        break
-      }
-    }
-  }
-  return [...found]
-}
-
-function matchStudios(labels: string[]): string[] {
-  const unique = [...new Set(labels.map((l) => l.trim()))].filter(Boolean)
-  const found = new Set<string>()
-  for (const label of unique) {
-    const lower = label.toLowerCase()
-    for (const net of NETWORKS) {
-      const nLower = net.toLowerCase()
-      if (lower === nLower || nameMatchesNetwork(lower, nLower)) {
-        found.add(net)
-        break
       }
     }
   }
@@ -245,11 +199,6 @@ function qidFromEntityUri(value: string | null | undefined): string | null {
 // locale (stesso pattern di WIKIDATA_SPARQL_URL per lo SPARQL).
 const wikidataApiBase = () =>
   process.env.WIKIDATA_API_URL || "https://www.wikidata.org/w/api.php"
-
-/** QID valido per il fast-path REST (es. "Q25191"). */
-export function isValidWikidataQid(value: string | null | undefined): value is string {
-  return typeof value === "string" && /^Q\d+$/.test(value)
-}
 
 /**
  * Titolo del sitelink enwiki di un item (es. Q25191 → "Christopher Nolan").
@@ -547,20 +496,4 @@ export async function fetchAllWikidata(
 export async function fetchAwards(tmdbId: number, mediaType: "movie" | "tv"): Promise<string[]> {
   const data = await fetchAllWikidata(tmdbId, mediaType)
   return data.awards
-}
-
-export function getAwardBadgeLabel(awards: string[], t?: (key: string, params?: Record<string, string | number>) => string): string | null {
-  const priority = ["Oscar", "Cannes", "Venezia", "BAFTA", "Golden Globe", "Emmy", "David"]
-  for (const a of priority) {
-    if (awards.includes(a)) return t ? t("badge.winner", { name: t(`award.${a.toLowerCase().replace(/ /g, "_")}`) }) : `${a}`
-  }
-  return null
-}
-
-export function getNominationBadgeLabel(nominations: string[], t?: (key: string, params?: Record<string, string | number>) => string): string | null {
-  const priority = ["Oscar", "Cannes", "Venezia", "BAFTA", "Golden Globe", "Emmy", "David"]
-  for (const a of priority) {
-    if (nominations.includes(a)) return t ? t("badge.nominee", { name: t(`award.${a.toLowerCase().replace(/ /g, "_")}`) }) : `Candidato ${a}`
-  }
-  return null
 }

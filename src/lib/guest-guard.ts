@@ -130,19 +130,32 @@ export async function shouldSkipServerSync(): Promise<boolean> {
   return admin.hasPin && !admin.authenticated
 }
 
-let multiUserCache: Promise<boolean> | null = null
+export interface ServerStatus {
+  readonly multiUser: boolean
+  readonly hostedBy: "elfhosted" | null
+}
+
+let serverStatusCache: Promise<ServerStatus> | null = null
+
+/** Stato pubblico del server (cachato; i fallimenti non si memoizzano). */
+export function fetchServerStatus(): Promise<ServerStatus> {
+  if (!serverStatusCache) {
+    serverStatusCache = fetch("/api/status")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d): ServerStatus => ({
+        multiUser: d?.multiUser === true,
+        hostedBy: d?.hostedBy === "elfhosted" ? "elfhosted" : null,
+      }))
+    serverStatusCache.catch(() => {
+      serverStatusCache = null
+    })
+  }
+  return serverStatusCache
+}
 
 /** Flag multi-user del server (cachato; i fallimenti non si memoizzano). */
 export function isMultiUserServer(): Promise<boolean> {
-  if (!multiUserCache) {
-    multiUserCache = fetch("/api/status")
-      .then((r) => (r.ok ? r.json() : null))
-      .then((d): boolean => d?.multiUser === true)
-    multiUserCache.catch(() => {
-      multiUserCache = null
-    })
-  }
-  return multiUserCache
+  return fetchServerStatus().then((s) => s.multiUser)
 }
 
 // Validazione token proprietario memoizzata per (uuid, token): true =
@@ -226,7 +239,7 @@ async function checkOwnerPassword(uuid: string, password: string): Promise<boole
 export function resetGuestGuardForTests(): void {
   foreignCache = null
   adminCache = null
-  multiUserCache = null
+  serverStatusCache = null
   ownerCheckCache.clear()
 }
 

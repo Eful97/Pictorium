@@ -109,4 +109,24 @@ describe("buildStremioPosterSearchParams", () => {
   it("keeps the public Stremio poster URL version in sync with renderer changes", () => {
     expect(POSTER_URL_VERSION).toBe(RENDER_VERSION)
   })
+
+  it("compactTuning drops high-cardinality tuning but keeps style contracts", () => {
+    const params = buildStremioPosterSearchParams({ compactTuning: true })
+    for (const k of ["gradHeight", "blur", "tint", "bf", "bd", "tscale", "tox", "toy",
+      "gscale", "gox", "goy", "qscale", "qox", "qoy", "netscale", "nox", "noy"]) {
+      expect(params.has(k)).toBe(false)
+    }
+    // Toggle/enum/funzionali restano espliciti.
+    expect(params.get("bs")).toBe("shadow")
+    expect(params.get("rs")).toBe("default")
+    expect(params.get("lang")).toBe("it")
+    expect(params.has("rv")).toBe(true)
+  })
+
+  it("emits full tuning by default (legacy + templates + ?config= installs)", () => {
+    const params = buildStremioPosterSearchParams({})
+    expect(params.get("gradHeight")).toBe("30")
+    expect(params.get("tscale")).toBe("100")
+    expect(params.get("tint")).toBe("20")
+  })
 })

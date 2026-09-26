@@ -10,6 +10,7 @@ import { isBadgeStyle, isRankingBadgeStyle } from "@/lib/badge-styles"
 import { normalizeRegion } from "@/lib/regions"
 import { envWithFallback } from "@/lib/env-compat"
 import { atomicWriteFile } from "@/lib/atomic-write"
+import { getKv, getStorageMode } from "@/lib/kv"
 
 const log = createLogger("server-defaults")
 
@@ -87,7 +88,11 @@ export interface ServerDefaults {
 }
 
 const FILE = path.join(DATA_DIR, "defaults.json")
-const useKv = !!process.env.KV_REST_API_URL && !!process.env.KV_REST_API_TOKEN
+// Lettura live (mai a module level): i test mutano le env + resetModules.
+// Nome senza prefisso `use`: la regola react-hooks lo scambierebbe per un Hook.
+function isKvMode(): boolean {
+  return getStorageMode() === "kv"
+}
 const KV_KEY = "defaults"
 
 // ── Default di stile da env d'istanza (PICTORIUM_*, con fallback alle legacy POSTERIUM_*) ─────────────────────────
@@ -239,8 +244,7 @@ async function loadFromDisk(): Promise<ServerDefaults> {
 
 async function kvLoadDefaults(): Promise<ServerDefaults> {
   try {
-    const { kv } = await import("@vercel/kv")
-    const raw = await kv.get<ServerDefaults>(KV_KEY)
+    const raw = await getKv().get<ServerDefaults>(KV_KEY)
     return raw ?? {}
   } catch (error) {
     logDefaultsError("failed to load defaults (KV)", error)
@@ -252,7 +256,7 @@ async function kvLoadDefaults(): Promise<ServerDefaults> {
 function warmDefaults(): Promise<void> {
   if (warmPromise) return warmPromise
   warmPromise = (async () => {
-    const d = useKv ? await kvLoadDefaults() : await loadFromDisk()
+    const d = isKvMode() ? await kvLoadDefaults() : await loadFromDisk()
     cached = d
   })().catch(() => {})
   return warmPromise
@@ -265,7 +269,7 @@ export function getServerDefaults(): ServerDefaults {
   // coprire solo i campi NON salvati.
   if (cached) return { ...ENV_DEFAULTS, ...cached }
   let loaded: ServerDefaults | null = null
-  if (!useKv) {
+  if (!isKvMode()) {
     try {
       if (existsSync(FILE)) {
         const raw = readFileSync(FILE, "utf-8")
@@ -280,10 +284,9 @@ export function getServerDefaults(): ServerDefaults {
   return { ...ENV_DEFAULTS, ...cached }
 }
 export async function setServerDefaults(d: ServerDefaults): Promise<void> {
-  if (useKv) {
+  if (isKvMode()) {
     try {
-      const { kv } = await import("@vercel/kv")
-      await kv.set(KV_KEY, d)
+      await getKv().set(KV_KEY, d)
       cached = { ...d }
     } catch (error) {
       logDefaultsError("failed to write defaults (KV)", error)
@@ -353,10 +356,9 @@ function userDefaultsCacheSet(userId: string, defaults: ServerDefaults): void {
 }
 
 async function loadUserDefaults(userId: string): Promise<ServerDefaults> {
-  if (useKv) {
+  if (isKvMode()) {
     try {
-      const { kv } = await import("@vercel/kv")
-      const raw = await kv.get<ServerDefaults>(userDefaultsKvKey(userId))
+      const raw = await getKv().get<ServerDefaults>(userDefaultsKvKey(userId))
       return raw ?? {}
     } catch (error) {
       logDefaultsError("failed to load user defaults (KV)", error)
@@ -406,10 +408,9 @@ export async function getServerDefaultsForUser(userId: string | null | undefined
 
 export async function setServerDefaultsForUser(userId: string, d: ServerDefaults): Promise<void> {
   assertValidUserId(userId)
-  if (useKv) {
+  if (isKvMode()) {
     try {
-      const { kv } = await import("@vercel/kv")
-      await kv.set(userDefaultsKvKey(userId), d)
+      await getKv().set(userDefaultsKvKey(userId), d)
       userDefaultsCacheSet(userId, d)
     } catch (error) {
       logDefaultsError("failed to write user defaults (KV)", error)

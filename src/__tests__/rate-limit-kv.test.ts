@@ -10,6 +10,27 @@ const kvMock = vi.hoisted(() => ({
 
 vi.mock("@vercel/kv", () => ({ kv: kvMock }))
 
+// Fake ioredis con contatori reali: valida il rate-limit distribuito sul
+// backend Redis nativo (stessa semantica fixed-window di Upstash).
+const redisCounters = vi.hoisted(() => new Map<string, number>())
+const redisExpireCalls = vi.hoisted((): Array<{ key: string; seconds: number }> => [])
+vi.mock("ioredis", () => ({
+  default: class {
+    async incr(key: string): Promise<number> {
+      const next = (redisCounters.get(key) ?? 0) + 1
+      redisCounters.set(key, next)
+      return next
+    }
+    async expire(key: string, seconds: number): Promise<number> {
+      redisExpireCalls.push({ key, seconds })
+      return 1
+    }
+    async quit(): Promise<string> {
+      return "OK"
+    }
+  },
+}))
+
 async function importRateLimit() {
   vi.resetModules()
   return await import("@/lib/rate-limit")
@@ -27,7 +48,10 @@ describe("rateLimit con store KV condiviso (KV_REST_API_URL/TOKEN configurati)",
   afterEach(() => {
     delete process.env.KV_REST_API_URL
     delete process.env.KV_REST_API_TOKEN
+    delete process.env.PICTORIUM_REDIS_URL
     delete process.env.POSTERIUM_RATELIMIT_KV
+    redisCounters.clear()
+    redisExpireCalls.length = 0
   })
 
   it("usa kv.incr su una chiave composta (bucket:client:finestra) e impagina maxTokens", async () => {
@@ -73,5 +97,23 @@ describe("rateLimit con store KV condiviso (KV_REST_API_URL/TOKEN configurati)",
       expect((await rateLimit("client-d", "warmup")).ok).toBe(true)
     }
     expect((await rateLimit("client-d", "warmup")).ok).toBe(false)
+  })
+
+  it("backend Redis nativo: fixed-window condiviso con TTL 2x finestra", async () => {
+    process.env.PICTORIUM_REDIS_URL = "redis://localhost:6379/0"
+    const { rateLimit } = await importRateLimit()
+    for (let i = 0; i < 5; i++) {
+      expect(await rateLimit("client-e", "warmup")).toEqual({ ok: true, retAfter: 0 })
+    }
+    // La prima richiesta della finestra imposta il TTL (2× finestra = 2s).
+    expect(redisExpireCalls).toHaveLength(1)
+    expect(redisExpireCalls[0].key).toMatch(/^rl:warmup:client-e:\d+$/)
+    expect(redisExpireCalls[0].seconds).toBe(2)
+
+    const denied = await rateLimit("client-e", "warmup")
+    expect(denied.ok).toBe(false)
+    expect(denied.retAfter).toBeGreaterThan(0)
+    // Mai toccato Upstash: il backend attivo è Redis.
+    expect(kvMock.incr).not.toHaveBeenCalled()
   })
 })

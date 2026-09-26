@@ -1,10 +1,25 @@
 import { describe, expect, it, vi, beforeEach } from "vitest"
 
+// Store KV in-memory: valida il cablaggio kofi-goal -> kv.ts -> @vercel/kv
+// senza rete. Attivo solo quando il test imposta KV_REST_API_URL/TOKEN.
+const kvStore = vi.hoisted(() => new Map<string, unknown>())
+vi.mock("@vercel/kv", () => ({
+  kv: {
+    get: async (key: string) => kvStore.get(key) ?? null,
+    set: async (key: string, value: unknown) => {
+      kvStore.set(key, value)
+    },
+  },
+}))
+
 describe("Ko-fi Goal API & Lib", () => {
   beforeEach(() => {
     vi.resetModules()
     delete process.env.KOFI_VPS_TARGET
     delete process.env.KOFI_VPS_CURRENT
+    delete process.env.KV_REST_API_URL
+    delete process.env.KV_REST_API_TOKEN
+    kvStore.clear()
   })
 
   it("returns default goal values when no env or file exists", async () => {
@@ -43,5 +58,17 @@ describe("Ko-fi Goal API & Lib", () => {
     expect(json).toHaveProperty("target")
     expect(json).toHaveProperty("current")
     expect(json).toHaveProperty("percentage")
+  })
+
+  it("reads target/current from KV when configured (KV wins over defaults)", async () => {
+    process.env.KV_REST_API_URL = "https://example.upstash.io"
+    process.env.KV_REST_API_TOKEN = "test-token"
+    kvStore.set("kofi_goal", { current: 3, target: 9, updatedAt: "2026-01-01T00:00:00.000Z" })
+    const { getKofiGoal } = await import("@/lib/kofi-goal")
+    const goal = await getKofiGoal()
+    expect(goal.target).toBe(9)
+    expect(goal.current).toBe(3)
+    expect(goal.percentage).toBe(33)
+    expect(goal.updatedAt).toBe("2026-01-01T00:00:00.000Z")
   })
 })

@@ -85,6 +85,9 @@ function buildPosterUrl(input: BuildPosterUrlInput): URL {
   const defaults = getServerDefaults()
   const params = buildStremioPosterSearchParams({
     lang: input.lang,
+    // Stesse chiavi servite dai cataloghi (compact, v1.23.0): scaldare le
+    // URL esplicite scalderebbe chiavi che nessuno richiede più.
+    compactTuning: true,
     globalBadges: defaults.globalBadges,
     rankingBadges: defaults.rankingBadges,
     badgeStyle: defaults.badgeStyle,

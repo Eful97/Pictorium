@@ -1,6 +1,7 @@
 import { describe, expect, it, vi, beforeEach } from "vitest"
-import { render, screen, waitFor } from "@testing-library/react"
+import { screen, waitFor } from "@testing-library/react"
 import { DesktopCommunityLinks, MobileCommunityLinks } from "@/components/HeaderCommunityLinks"
+import { renderWithCtx } from "@/__tests__/test-utils"
 
 describe("HeaderCommunityLinks", () => {
   beforeEach(() => {
@@ -11,7 +12,7 @@ describe("HeaderCommunityLinks", () => {
   })
 
   it("renders desktop community links with correct hrefs and goal", async () => {
-    render(<DesktopCommunityLinks />)
+    renderWithCtx(<DesktopCommunityLinks />)
 
     const ghLink = screen.getByLabelText("GitHub Repository")
     expect(ghLink).toHaveAttribute("href", "https://github.com/Eful97/Pictorium")
@@ -31,7 +32,7 @@ describe("HeaderCommunityLinks", () => {
   })
 
   it("renders mobile community links properly", async () => {
-    render(<MobileCommunityLinks />)
+    renderWithCtx(<MobileCommunityLinks />)
 
     expect(screen.getByText("GitHub")).toBeInTheDocument()
     expect(screen.getByText("Discord")).toBeInTheDocument()

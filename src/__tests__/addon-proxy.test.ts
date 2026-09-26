@@ -125,6 +125,20 @@ describe("isPrivateHost (S6 — prefissi IP solo su letterali)", () => {
     expect(isPrivateHost("10.example.com")).toBe(false)
   })
 
+  it("blocca i range IANA riservati (v1.23.0: CGNAT, benchmarking, TEST-NET)", () => {
+    expect(isPrivateHost("100.64.0.1")).toBe(true)
+    expect(isPrivateHost("100.127.255.255")).toBe(true)
+    expect(isPrivateHost("100.63.255.255")).toBe(false)
+    expect(isPrivateHost("100.128.0.1")).toBe(false)
+    expect(isPrivateHost("198.18.0.1")).toBe(true)
+    expect(isPrivateHost("198.19.255.255")).toBe(true)
+    expect(isPrivateHost("198.20.0.1")).toBe(false)
+    expect(isPrivateHost("192.0.2.1")).toBe(true)
+    expect(isPrivateHost("198.51.100.1")).toBe(true)
+    expect(isPrivateHost("203.0.113.1")).toBe(true)
+    expect(isPrivateHost("8.8.8.8")).toBe(false)
+  })
+
   it("blocca localhost e suffissi privati, lascia passare domini pubblici", () => {
     expect(isPrivateHost("localhost")).toBe(true)
     expect(isPrivateHost("myhost.local")).toBe(true)

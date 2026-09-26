@@ -121,6 +121,7 @@ pinned: false
 * **Lock on Launch & Refresh**: Password prompt appears on app launch and page reload (F5) to protect your settings and saved posters.
 * **Quick Setup**: Configure your PIN code in seconds during Step 3 of the setup wizard, or manage it anytime in Settings.
 * **Zero Stremio Impact**: PIN only protects the web editor; Stremio endpoints (`/manifest.json`, `/api/poster/*`, `/catalog/*`) remain open and functional.
+* **Rotation**: when a PIN is set using an admin token, rotating `PICTORIUM_ADMIN_TOKEN` automatically invalidates it (cryptographic binding against persistence). After rotating the token, simply set a new PIN if desired.
 
 #### Multi-User Spaces (Public / Shared Instances)
 When `PICTORIUM_MULTI_USER=1` is enabled, multiple users can share a single server with complete isolation:
@@ -246,7 +247,12 @@ npm install --ignore-scripts && npm run build && npm start
 | `PICTORIUM_MDBLIST_KEY` | *(optional)* | MDBList key for custom lists and anime catalogs. |
 | `PICTORIUM_REGION` | `IT` | Default country for streaming charts and availability (`IT`, `US`, `GB`, `FR`, `DE`, `ES`, etc.). |
 | `PICTORIUM_DATA_DIR` | `./data` | Directory path for persisting settings and saved posters on disk. In Docker it must point at a persistent volume (`/data`, `posterium-data` volume, writable by uid 1000): the data file is created on first save, so "not found" with 0 posters on a fresh install is normal. |
+| `PICTORIUM_REDIS_URL` | *(empty)* | Native Redis (TCP) for multi-replica HA without a `/data` volume: mappings, defaults, profiles, epochs and rate limits become shared across replicas. Wins over `KV_REST_*` when both are set (no automatic migration). On ElfHosted/K8s plain `REDIS_URL` is enough (read as fallback). |
 | `KV_REST_API_URL` / `TOKEN` | *(empty)* | Upstash Redis credentials for Vercel serverless deployments. |
+| `PICTORIUM_HOSTED_BY` | *(empty)* | Public hosting sponsor: `elfhosted` shows the ElfHosted banner on the home page (auto-detected from an `elfhosted.com` host as fallback). Empty = no banner. |
+| `PICTORIUM_POSTER_PARAMS` | *(auto)* | Poster cache-busting hardening: `presets` restricts non-preview requests to a finite render set (cache-key allowlist, coarse 5/10/5px numeric steps, palette-only `ac`, no anonymous free-text/keyless overrides), `free` is the historic behavior. Auto-`presets` on public instances (`PUBLIC_INSTANCE=1`, `HOSTED_BY=elfhosted` or `MULTI_USER=1`); the WYSIWYG preview stays live for user spaces and unlocked sessions. |
+| `PICTORIUM_PREVIEW_AUTH` | *(auto)* | Preview hardening: on public instances anonymous previews (`preview=1` without a space or session) are downgraded and cached like normal requests (no bot bypass). Existing user spaces and unlocked sessions stay live. Auto-on on public instances (`PUBLIC_INSTANCE=1`, `HOSTED_BY=elfhosted`, `MULTI_USER=1`); `0` forces OFF, `1` forces ON. |
+| `PICTORIUM_FRAME_ANCESTORS` | *(HF default)* | Overrides the CSP `frame-ancestors` (default is HF Spaces compatible). E.g. `'self'` for public instances that should never be embedded. |
 
 ### Multi-User Mode
 
@@ -269,6 +275,7 @@ npm install --ignore-scripts && npm run build && npm start
 | `PICTORIUM_BLUR_ENABLED` | `1` | Enable or disable cinematic background blur. |
 | `PICTORIUM_TINT_STRENGTH` | `20` | Scene tint strength for background blur (0–100). |
 | `PICTORIUM_BADGE_QUALITY` | `1` | Show or hide video streaming resolution badges (4K/FHD). |
+| `PICTORIUM_QUALITY_SOURCE` | `torrentio` | Streaming quality source: `torrentio` (with JustWatch fallback), `justwatch` (JW only), `none` (badge never shown, zero upstream). |
 | `PICTORIUM_NETWORK_LOGO` | `1` | Show or hide production network/studio logos. |
 | `PICTORIUM_PRE_RELEASE` | `0` | Dark veil + "Coming Soon" ribbon for movies not yet streaming. |
 | `PICTORIUM_GRADIENT_HEIGHT` | `65` | Percentage height of the bottom dark gradient. |

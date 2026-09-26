@@ -32,6 +32,18 @@ export interface ChangelogRelease {
  *  (which bumps on every commit and would leave the dot permanently on). */
 export const CHANGELOG: ChangelogRelease[] = [
   {
+    version: "1.23",
+    date: "2026-09-25",
+    title: "Security hardening for public instances",
+    items: [
+      { type: "feature", text: "Anti cache-busting posters on public instances: finite render sets, anonymous free-text and keyless overrides blocked (automatic)" },
+      { type: "feature", text: "Streaming quality source switch: Torrentio, JustWatch-only, or off" },
+      { type: "feature", text: "PIN bound to the admin token: rotating the token disables the PIN instead of leaving it behind" },
+      { type: "feature", text: "TMDB attribution in the footer" },
+      { type: "fix", text: "Add-on proxy always answers JSON (no more reflected content types)" },
+    ],
+  },
+  {
     version: "1.22",
     date: "2026-09-24",
     title: "AIO templates & franchise-split safety net",

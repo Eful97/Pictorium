@@ -157,7 +157,8 @@ describe("GET /catalog/[type]/[id]", () => {
       originalPosterPath: null,
       language: null,
       updatedAt: "2026-07-16T10:15:30.000Z",
-    })
+  })
+
     vi.spyOn(globalThis, "fetch")
       .mockResolvedValueOnce(justWatchResponse(94997, "tt11198330"))
       .mockResolvedValueOnce(tmdbShowResponse(94997))
@@ -411,7 +412,7 @@ describe("GET /catalog/[type]/[id]", () => {
         total_pages: 1,
         total_results: 1,
       }))
-      .mockResolvedValueOnce(Response.json({ id: 550, imdb_id: "tt0137523" }))
+      .mockResolvedValueOnce(Response.json({ genres: [{ id: 28, name: "Azione" }] }))
 
     const req = new NextRequest("http://localhost:3000/catalog/movie/pictorium-search-movies/search=fight%20club.json?api_key=settings-key")
     const res = await GET_EXTRA(req, {
@@ -446,6 +447,64 @@ describe("GET /catalog/[type]/[id]", () => {
 
     expect(res.status).toBe(200)
     expect(body.metas).toEqual([])
+  })
+
+  it("resolves an exact IMDb id via /find instead of full-text search", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(Response.json({
+        movie_results: [{ id: 550 }],
+        tv_results: [],
+      }))
+      .mockResolvedValueOnce(Response.json({
+        id: 550,
+        title: "Fight Club",
+        release_date: "1999-10-15",
+        genres: [{ id: 28, name: "Azione" }],
+        vote_average: 8.4,
+        backdrop_path: "/fight-club-bg.jpg",
+        overview: "Trama",
+      }))
+      .mockResolvedValueOnce(Response.json({ genres: [{ id: 28, name: "Azione" }] }))
+
+    const req = new NextRequest("http://localhost:3000/catalog/movie/pictorium-search-movies/search=tt0137523.json?api_key=settings-key")
+    const res = await GET_EXTRA(req, {
+      params: Promise.resolve({
+        type: "movie",
+        id: "pictorium-search-movies",
+        extra: ["search=tt0137523.json"],
+      }),
+    })
+    const body = await res.json()
+
+    expect(res.status).toBe(200)
+    expect(body.metas).toHaveLength(1)
+    expect(body.metas[0]).toMatchObject({
+      id: "tmdb:550",
+      type: "movie",
+      name: "Fight Club",
+      releaseInfo: "1999",
+    })
+    // Nessuna full-text search: solo /find + dettagli (+ genre-list cachata)
+    expect(fetchSpy.mock.calls.some(([url]) => String(url).includes("/search/movie"))).toBe(false)
+  })
+
+  it("returns empty metas for an unresolvable IMDb id without falling back to full-text", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(Response.json({ movie_results: [], tv_results: [] }))
+
+    const req = new NextRequest("http://localhost:3000/catalog/movie/pictorium-search-movies/search=tt0000000.json?api_key=settings-key")
+    const res = await GET_EXTRA(req, {
+      params: Promise.resolve({
+        type: "movie",
+        id: "pictorium-search-movies",
+        extra: ["search=tt0000000.json"],
+      }),
+    })
+    const body = await res.json()
+
+    expect(res.status).toBe(200)
+    expect(body.metas).toEqual([])
+    expect(fetchSpy.mock.calls.some(([url]) => String(url).includes("/search/movie"))).toBe(false)
   })
 
   it("handles pictorium-anime-movies and builds movie poster URLs even without an explicit MDBList key", async () => {

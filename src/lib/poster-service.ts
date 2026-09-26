@@ -21,7 +21,7 @@ import { LAND_W, LAND_H } from "./image-utils"
 import { renderGenreBadge, renderRankingBadge, renderExtraBadge, renderQualityBadge, renderComingSoonRibbon, comingSoonRibbonLayout, renderSVG } from "./svg-badge"
 import { buildLogoScrim, logoContrast, logoInkLuminance, logoScrimStrength, posterLogoZoneLuminance } from "./logo-contrast"
 import { renderFirstMatchingNetworkLogoBadge, renderFirstMatchingNetworkRawBadge, renderFirstMatchingNetworkLogoBadgeHybrid, renderFirstMatchingNetworkRawBadgeHybrid, type NetworkCandidate } from "./network-svgs"
-import { computeLogoLayout, logoAlignPadX, PORTRAIT_LOGO_MAX_HEIGHT_PCT } from "./logo-layout"
+import { computeLogoLayout, logoAlignPadX, PORTRAIT_LOGO_MAX_HEIGHT_PCT, PORTRAIT_LOGO_TOP_OFFSET } from "./logo-layout"
 import { logoDefaultScaleFromAspect } from "./logo-selection"
 import fs from "fs"
 import path from "path"
@@ -693,6 +693,9 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
             // Cap altezza portrait: i loghi quadrati/verticali non superano
             // il 25% dell'altezza poster (solo altezza, larghezza libera).
             maxHeightPct: PORTRAIT_LOGO_MAX_HEIGHT_PCT,
+            // Calibrazione portrait: logo 10px più in basso (solo portrait:
+            // questo ramo non baked-in mai il landscape).
+            topOffset: PORTRAIT_LOGO_TOP_OFFSET,
             align,
           })
           const resized = await resizeLogoCached(logoFetch, layout.width, layout.height, logoSrc)

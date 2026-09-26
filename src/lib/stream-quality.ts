@@ -16,6 +16,11 @@ const TORRENTIO_BASE_URL = (envWithFallback("TORRENTIO_URL") || process.env.TORR
 const STREAM_CACHE_TTL = 30 * 60 * 1000 // 30 minutes
 const STREAM_CACHE_TTL_NULL = 2 * 60 * 1000 // 2 minutes for null (evita cache avvelenata su Vercel)
 
+// Sorgente qualità (v1.23.0): "torrentio" (default, catena attuale con
+// fallback JW), "justwatch" (solo JW, niente Torrentio), "none" (nessun
+// provider: badge mai mostrato, zero upstream). A module level: restart.
+const QUALITY_SOURCE = (envWithFallback("QUALITY_SOURCE") || "torrentio").toLowerCase().trim()
+
 // Esito del rilevamento qualità: "resolved" = chiamata completata (anche con
 // quality null = esito negativo accertato, es. film 1950 senza stream);
 // "timeout" = abort per deadline; "error" = HTTP non-OK / rete. Solo
@@ -166,7 +171,9 @@ export async function resolveStreamQuality(
   tmdbId?: number | null,
   searchTitle?: string | null,
   signal?: AbortSignal,
-  seasonCount?: number | null
+  seasonCount?: number | null,
+  /** Paese JustWatch (default "IT"): la qualità streaming dipende dal catalogo regionale. */
+  region?: string | null,
 ): Promise<StreamQualityResult> {
   const lastSeason = seasonCount != null ? Math.trunc(seasonCount) : NaN
   const seasonSuffix = type === "series" && Number.isFinite(lastSeason) && lastSeason > 0 ? `:s${lastSeason}` : ""
@@ -184,6 +191,12 @@ export async function resolveStreamQuality(
     return r
   }
 
+  // Sorgente "none": nessun provider, esito negativo accertato senza rete.
+  if (QUALITY_SOURCE === "none") {
+    return store({ quality: null, status: "resolved", source: "none" })
+  }
+  const useTorrentio = QUALITY_SOURCE !== "justwatch"
+
   // 1. Try Torrentio via IMDb ID
   let targetImdbId = imdbId
   if (!targetImdbId && tmdbId) {
@@ -196,7 +209,7 @@ export async function resolveStreamQuality(
   }
 
   let torrentioFailure: StreamQualityResult | null = null
-  if (targetImdbId && targetImdbId.startsWith("tt")) {
+  if (useTorrentio && targetImdbId && targetImdbId.startsWith("tt")) {
     const t = await fetchTorrentioQuality(type, targetImdbId, signal)
     if (t.status === "resolved") {
       let best = t.quality
@@ -235,16 +248,13 @@ export async function resolveStreamQuality(
         tmdbId,
         type === "movie" ? "MOVIE" : "SHOW",
         searchTitle,
-        "IT",
+        region || "IT",
         signal
       )
       if (jw.quality) {
-        // Degradato: Torrentio down + JW ≤ FHD → si riusa lo status del
-        // failure così la cache usa il TTL effimero da 2min già esistente
-        // (zero costanti nuove) e il poster ritenta presto.
-        if (torrentioFailure && jw.quality !== "4K") {
-          return store({ quality: jw.quality, status: torrentioFailure.status, source: "justwatch" })
-        }
+        // Qualità accertata da JW → resolved con TTL pieno (v1.23.0): il
+        // vecchio status ereditato dal failure Torrentio dimezzava la cache
+        // a 2min anche a qualità certa.
         return store({ quality: jw.quality, status: "resolved", source: "justwatch" })
       }
       // ok=false (breaker aperto o trasporto fallito) = incertezza, NON miss:

@@ -223,7 +223,8 @@ export async function GET(req: NextRequest) {
         "Access-Control-Allow-Origin": "*",
       },
     })
-  } catch (e) {
-    return Response.json({ videos: [], seasons: [], totalEpisodes: 0, totalSeasons: 0, error: e instanceof Error ? e.message : String(e) }, { status: 200 })
+  } catch {
+    // Mai e.message in chiaro nel body: può contenere URL/chiavi upstream.
+    return Response.json({ videos: [], seasons: [], totalEpisodes: 0, totalSeasons: 0, error: "Episodi non disponibili" }, { status: 200 })
   }
 }

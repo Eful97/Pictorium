@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server"
-import { requireAdminToken, adminAuthResponse } from "@/lib/auth"
+import { requireAdminToken, adminAuthResponse, isSameOrigin, originMismatchResponse } from "@/lib/auth"
 import { isMultiUserEnabled } from "@/lib/user-auth"
 import { cleanupInactiveUsers, getUserRetentionDays } from "@/lib/user-activity"
 import { rateLimit, rateLimitKey, rateLimitResponse } from "@/lib/rate-limit"
@@ -17,6 +17,9 @@ export async function POST(req: NextRequest) {
   const rl = await rateLimit(rateLimitKey(req), "defaults")
   if (!rl.ok) return rateLimitResponse(rl.retAfter)
   if (!requireAdminToken(req)) return adminAuthResponse()
+  // La sessione PIN viaggia via cookie: senza same-origin un sito malevolo
+  // potrebbe triggerare il cleanup col cookie ambiente dell'admin (CSRF).
+  if (!isSameOrigin(req)) return originMismatchResponse()
   const result = await cleanupInactiveUsers()
   return Response.json({ ...result, retentionDays: getUserRetentionDays() })
 }

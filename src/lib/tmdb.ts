@@ -1,4 +1,5 @@
 import { z } from "zod"
+import { createHash } from "node:crypto"
 import { createLogger } from "@/lib/logger"
 import { envWithFallback } from "@/lib/env-compat"
 import { isMultiUserEnabled } from "@/lib/user-auth"
@@ -403,6 +404,38 @@ export async function resolveRouteApiKey(req: KeyRequest, kind: ApiKeyKind = "tm
 
 const inflight = new Map<string, Promise<unknown>>()
 
+// Negative cache per chiavi 401 (v1.23.0): un 401 TMDB significa chiave
+// invalida (deterministico, non transient) — senza, un catalogo con chiave
+// errata spara decine di fetch condannati. Keyed per hash della chiave (mai
+// in chiaro), TTL breve: una chiave corretta nel frattempo si riprende.
+const KEY_401_TTL_MS = 5 * 60 * 1000
+const KEY_401_CAP = 500
+const key401At = new Map<string, number>()
+
+function key401Hash(key: string): string {
+  return createHash("sha256").update(key, "utf-8").digest("hex").slice(0, 16)
+}
+
+function isKey401(key: string): boolean {
+  const at = key401At.get(key401Hash(key))
+  if (at === undefined) return false
+  if (Date.now() - at > KEY_401_TTL_MS) {
+    key401At.delete(key401Hash(key))
+    return false
+  }
+  return true
+}
+
+function markKey401(key: string): void {
+  if (key401At.size >= KEY_401_CAP) key401At.delete(key401At.keys().next().value!)
+  key401At.set(key401Hash(key), Date.now())
+}
+
+/** Solo per i test: azzera la negative cache 401. */
+export function __resetKey401Cache(): void {
+  key401At.clear()
+}
+
 interface TMDBStats {
   totalCalls: number
   cacheHits: number
@@ -432,8 +465,14 @@ export function getTMDBStats() {
 
 async function tmdbFetch(path: string, apiKey?: string, signal?: AbortSignal, timeoutMs = 30000): Promise<unknown> {
   tmdbStats.totalCalls++
-  const key = apiKey || (process.env.TMDB_BASE_URL ? "mock-key" : undefined)
+  // mock-key solo fuori produzione (v1.23.0): con TMDB_BASE_URL impostato
+  // (caching proxy frontale) una prod senza chiave usciva keyless verso la
+  // rete. Test/e2e girano con NODE_ENV=test e restano funzionanti.
+  const mockKey = process.env.TMDB_BASE_URL && process.env.NODE_ENV !== "production" ? "mock-key" : undefined
+  const key = apiKey || mockKey
   if (!key) throw new Error("TMDB API key is missing")
+  // Chiave già marchiata 401: fallisci subito senza rete (anti-amplificazione).
+  if (isKey401(key)) throw new Error("TMDB fetch failed: 401")
 
   // Cache key is the URL WITHOUT the api_key so that:
   //   1. The per-endpoint cache is shared across users (not fragmented by key).
@@ -469,6 +508,7 @@ async function tmdbFetch(path: string, apiKey?: string, signal?: AbortSignal, ti
     // D5: tetto interno combinato col signal esterno (default 30s). Il path
     // poster passa 8s: un TMDB appeso non deve tenere uno slot di render.
     const res = await timedFetch(fetchUrl.toString(), { signal: combineAbortSignals(signal, timeoutMs) })
+    if (res.status === 401) markKey401(key)
     if (!res.ok) throw new Error(`TMDB fetch failed: ${res.status}`)
     const data = await res.json()
     // Evict LRU (first key = least-recently-used) when at capacity
@@ -874,6 +914,7 @@ export async function personTvCredits(personId: number, language = "it-IT", apiK
 /** Fix L26: svuota la cache TMDB condivisa (per /api/cache/clear). */
 export function __clearTMDBCache(): void {
   fetchCache.clear()
+  key401At.clear()
 }
 
 /**

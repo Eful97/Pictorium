@@ -3,25 +3,16 @@ import { cacheGet, cacheSet } from "@/lib/cache"
 import { fetchCustomMDBList, type MDBListEntry } from "@/lib/mdblist"
 import { createLogger } from "@/lib/logger"
 import { envWithFallback } from "@/lib/env-compat"
+import { detectCatalogProvider } from "./catalog-provider-detect"
+
+// Re-export per compatibilità: il riconoscimento URL vive in
+// catalog-provider-detect.ts (foglia client-safe); route e test continuano
+// a importarlo da qui senza modifiche.
+export { detectCatalogProvider } from "./catalog-provider-detect"
+export type { CatalogProviderType, ProviderDetectionResult } from "./catalog-provider-detect"
 
 const log = createLogger("custom-catalogs")
 const CACHE_TTL_MS = 30 * 60 * 1000
-
-export type CatalogProviderType =
-  | "letterboxd"
-  | "trakt"
-  | "tmdb_collection"
-  | "tmdb_list"
-  | "tvdb"
-  | "imdb"
-  | "mdblist"
-
-export interface ProviderDetectionResult {
-  provider: CatalogProviderType
-  nameSuggestion?: string
-  defaultType: "movie" | "series" | "mixed"
-  identifier?: string
-}
 
 /** Item di lista Letterboxd via StremThru (solo i campi che leggiamo). */
 interface StremThruListItem {
@@ -57,103 +48,6 @@ interface TmdbListPart {
   first_air_date?: string
   media_type?: string
   poster_path?: string | null
-}
-
-/**
- * Riconosce il provider e suggerisce nome e tipo in base all'URL inserito.
- */
-export function detectCatalogProvider(input: string): ProviderDetectionResult | null {
-  const trimmed = input.trim()
-  if (!trimmed) return null
-
-  // 1. Letterboxd
-  // es. https://letterboxd.com/arinbicer/list/mcu/ o https://letterboxd.com/user/watchlist/
-  const letterboxdMatch = trimmed.match(/^(?:https?:\/\/)?(?:www\.)?letterboxd\.com\/([a-zA-Z0-9_.-]+)\/(?:list\/([a-zA-Z0-9_.-]+)|watchlist)\/?(?:[?#].*)?$/i)
-  if (letterboxdMatch) {
-    const user = letterboxdMatch[1]
-    const slug = letterboxdMatch[2]
-    const isWatchlist = trimmed.toLowerCase().includes("/watchlist")
-    const rawName = isWatchlist ? `Watchlist di ${user}` : (slug ? slug.replace(/[-_]+/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()) : "Letterboxd List")
-    return {
-      provider: "letterboxd",
-      nameSuggestion: rawName,
-      defaultType: "mixed",
-    }
-  }
-
-  // 2. Trakt
-  // es. https://trakt.tv/users/donxy/lists/marvel-cinematic-universe o https://trakt.tv/lists/12345
-  const traktMatch = trimmed.match(/^(?:https?:\/\/)?(?:www\.)?trakt\.tv\/(?:users\/([a-zA-Z0-9_.-]+)\/(?:lists\/([a-zA-Z0-9_.-]+)|watchlist)|lists\/([a-zA-Z0-9_.-]+))\/?(?:[?#].*)?$/i)
-  if (traktMatch) {
-    const user = traktMatch[1]
-    const slug = traktMatch[2] || traktMatch[3]
-    const isWatchlist = trimmed.toLowerCase().includes("/watchlist")
-    const rawName = isWatchlist ? `Watchlist Trakt (${user})` : (slug ? slug.replace(/[-_]+/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()) : "Trakt List")
-    return {
-      provider: "trakt",
-      nameSuggestion: rawName,
-      defaultType: "mixed",
-    }
-  }
-
-  // 3. TMDb Collection
-  // es. https://www.themoviedb.org/collection/86311-the-avengers-collection o tmdb:collection:86311
-  const tmdbColMatch = trimmed.match(/^(?:https?:\/\/)?(?:www\.)?themoviedb\.org\/collection\/([0-9]+)(?:-([a-zA-Z0-9_-]+))?\/?(?:[?#].*)?$/i)
-    || trimmed.match(/^tmdb:collection:([0-9]+)$/i)
-  if (tmdbColMatch) {
-    const slug = tmdbColMatch[2]
-    return {
-      provider: "tmdb_collection",
-      identifier: tmdbColMatch[1],
-      nameSuggestion: slug ? slug.replace(/[-_]+/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()) : `TMDb Collezione ${tmdbColMatch[1]}`,
-      defaultType: "movie",
-    }
-  }
-
-  // 4. TMDb List
-  // es. https://www.themoviedb.org/list/8249673-marvel-cinematic-universe o https://www.themoviedb.org/list/8249673 o tmdb:list:8249673
-  const tmdbListMatch = trimmed.match(/^(?:https?:\/\/)?(?:www\.)?themoviedb\.org\/(?:u\/[^\/]+\/)?list\/([0-9]+)(?:-([a-zA-Z0-9_-]+))?\/?(?:[?#].*)?$/i)
-    || trimmed.match(/^tmdb:list:([0-9]+)$/i)
-  if (tmdbListMatch) {
-    const slug = tmdbListMatch[2]
-    return {
-      provider: "tmdb_list",
-      identifier: tmdbListMatch[1],
-      nameSuggestion: slug ? slug.replace(/[-_]+/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()) : `TMDb Lista ${tmdbListMatch[1]}`,
-      defaultType: "movie",
-    }
-  }
-
-  // 5. TheTVDB List
-  // es. https://thetvdb.com/lists/mcu
-  const tvdbMatch = trimmed.match(/^(?:https?:\/\/)?(?:www\.)?thetvdb\.com\/lists\/([a-zA-Z0-9_.-]+)\/?(?:[?#].*)?$/i)
-  if (tvdbMatch) {
-    const slug = tvdbMatch[1]
-    return {
-      provider: "tvdb",
-      identifier: slug,
-      nameSuggestion: slug.replace(/[-_]+/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()),
-      defaultType: "mixed",
-    }
-  }
-
-  // 6. IMDb List
-  // es. https://www.imdb.com/list/ls000000000/
-  const imdbMatch = trimmed.match(/^(?:https?:\/\/)?(?:www\.)?imdb\.com\/list\/(ls[0-9]+)\/?(?:[?#].*)?$/i)
-  if (imdbMatch) {
-    return {
-      provider: "imdb",
-      identifier: imdbMatch[1],
-      nameSuggestion: `IMDb ${imdbMatch[1]}`,
-      defaultType: "movie",
-    }
-  }
-
-  // 7. MDBList (default fallback per mdblist.com, user/slug o id)
-  return {
-    provider: "mdblist",
-    defaultType: "movie",
-  }
 }
 
 /**

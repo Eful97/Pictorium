@@ -65,6 +65,8 @@ export default defineConfig({
         // restituire serverKeys da /api/defaults e il client adotterebbe la
         // chiave (context.tsx), cambiando il layout home (welcome panel vs
         // hero+podio). Gli snapshot "no key" devono valere ovunque, CI inclusa.
+        // Stesso motivo per ADMIN_TOKEN: un token in .env.local metterebbe le
+        // route mappings in fail-closed (401 al save) solo su quella macchina.
         TMDB_API_KEY: "",
         POSTERIUM_TMDB_KEY: "",
         PICTORIUM_TMDB_KEY: "",
@@ -74,6 +76,10 @@ export default defineConfig({
         TVDB_API_KEY: "",
         POSTERIUM_TVDB_API_KEY: "",
         PICTORIUM_TVDB_API_KEY: "",
+        PICTORIUM_ADMIN_TOKEN: "",
+        POSTERIUM_ADMIN_TOKEN: "",
+        PICTORIUM_HOSTED_BY: "",
+        POSTERIUM_HOSTED_BY: "",
         // Gate profili spento: un .env.local con PICTORIUM_MULTI_USER=1
         // mostrerebbe il gate al posto della home e romperebbe gli snapshot.
         PICTORIUM_MULTI_USER: "",

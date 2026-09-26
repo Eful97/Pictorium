@@ -81,6 +81,15 @@ export interface StremioPosterParamsInput {
   readonly config?: string | null
   readonly user?: string | null
   readonly region?: string | null
+  /**
+   * URL compatti (v1.23.0): omette i 17 tuning numerici ad alta cardinalità
+   * (gradiente/blur/tinta + scale/offset badge). Il server li risolve da
+   * mapping salvato > defaults (stessa catena, stesso render, chiave più
+   * corta e convergente). Mai con `config` (il token perderebbe contro il
+   * mapping). Toggle/enum/restano espliciti (bassa cardinalità + fallback
+   * server incompleti per alcuni).
+   */
+  readonly compactTuning?: boolean
 }
 
 const DEFAULT_STREMIO_POSTER_PARAMS = {
@@ -150,25 +159,31 @@ export function buildStremioPosterSearchParams(input: StremioPosterParamsInput):
   }
   params.set("lang", input.lang || "it")
   if (!blurEnabled) params.set("be", "0")
-  params.set("gradHeight", String(input.gradientHeight ?? DEFAULT_STREMIO_POSTER_PARAMS.gradientHeight))
-  params.set("blur", String(input.blurIntensity ?? DEFAULT_STREMIO_POSTER_PARAMS.blurIntensity))
-  params.set("tint", String(input.tintStrength ?? DEFAULT_STREMIO_POSTER_PARAMS.tintStrength))
-  params.set("bf", String(input.blurFade ?? DEFAULT_STREMIO_POSTER_PARAMS.blurFade))
-  params.set("bd", String(input.blurDarkness ?? DEFAULT_STREMIO_POSTER_PARAMS.blurDarkness))
+  // compactTuning: solo stile ad alta cardinalità omesso (vedi sopra) — il
+  // resto resta esplicito per fedeltà ai default e ai token.
+  if (!input.compactTuning) {
+    params.set("gradHeight", String(input.gradientHeight ?? DEFAULT_STREMIO_POSTER_PARAMS.gradientHeight))
+    params.set("blur", String(input.blurIntensity ?? DEFAULT_STREMIO_POSTER_PARAMS.blurIntensity))
+    params.set("tint", String(input.tintStrength ?? DEFAULT_STREMIO_POSTER_PARAMS.tintStrength))
+    params.set("bf", String(input.blurFade ?? DEFAULT_STREMIO_POSTER_PARAMS.blurFade))
+    params.set("bd", String(input.blurDarkness ?? DEFAULT_STREMIO_POSTER_PARAMS.blurDarkness))
+  }
   params.set("bs", input.badgeStyle || DEFAULT_STREMIO_POSTER_PARAMS.badgeStyle)
   params.set("rs", input.rankingBadgeStyle || DEFAULT_STREMIO_POSTER_PARAMS.rankingBadgeStyle)
-  params.set("tscale", String(input.topBadgeScale ?? DEFAULT_STREMIO_POSTER_PARAMS.topBadgeScale))
-  params.set("tox", String(input.topBadgeOffsetX ?? DEFAULT_STREMIO_POSTER_PARAMS.topBadgeOffsetX))
-  params.set("toy", String(input.topBadgeOffsetY ?? DEFAULT_STREMIO_POSTER_PARAMS.topBadgeOffsetY))
-  params.set("gscale", String(input.genreBadgeScale ?? DEFAULT_STREMIO_POSTER_PARAMS.genreBadgeScale))
-  params.set("gox", String(input.genreBadgeOffsetX ?? DEFAULT_STREMIO_POSTER_PARAMS.genreBadgeOffsetX))
-  params.set("goy", String(input.genreBadgeOffsetY ?? DEFAULT_STREMIO_POSTER_PARAMS.genreBadgeOffsetY))
-  params.set("qscale", String(input.qualityBadgeScale ?? DEFAULT_STREMIO_POSTER_PARAMS.qualityBadgeScale))
-  params.set("qox", String(input.qualityBadgeOffsetX ?? DEFAULT_STREMIO_POSTER_PARAMS.qualityBadgeOffsetX))
-  params.set("qoy", String(input.qualityBadgeOffsetY ?? DEFAULT_STREMIO_POSTER_PARAMS.qualityBadgeOffsetY))
-  params.set("netscale", String(input.networkLogoScale ?? DEFAULT_STREMIO_POSTER_PARAMS.networkLogoScale))
-  params.set("nox", String(input.networkLogoOffsetX ?? DEFAULT_STREMIO_POSTER_PARAMS.networkLogoOffsetX))
-  params.set("noy", String(input.networkLogoOffsetY ?? DEFAULT_STREMIO_POSTER_PARAMS.networkLogoOffsetY))
+  if (!input.compactTuning) {
+    params.set("tscale", String(input.topBadgeScale ?? DEFAULT_STREMIO_POSTER_PARAMS.topBadgeScale))
+    params.set("tox", String(input.topBadgeOffsetX ?? DEFAULT_STREMIO_POSTER_PARAMS.topBadgeOffsetX))
+    params.set("toy", String(input.topBadgeOffsetY ?? DEFAULT_STREMIO_POSTER_PARAMS.topBadgeOffsetY))
+    params.set("gscale", String(input.genreBadgeScale ?? DEFAULT_STREMIO_POSTER_PARAMS.genreBadgeScale))
+    params.set("gox", String(input.genreBadgeOffsetX ?? DEFAULT_STREMIO_POSTER_PARAMS.genreBadgeOffsetX))
+    params.set("goy", String(input.genreBadgeOffsetY ?? DEFAULT_STREMIO_POSTER_PARAMS.genreBadgeOffsetY))
+    params.set("qscale", String(input.qualityBadgeScale ?? DEFAULT_STREMIO_POSTER_PARAMS.qualityBadgeScale))
+    params.set("qox", String(input.qualityBadgeOffsetX ?? DEFAULT_STREMIO_POSTER_PARAMS.qualityBadgeOffsetX))
+    params.set("qoy", String(input.qualityBadgeOffsetY ?? DEFAULT_STREMIO_POSTER_PARAMS.qualityBadgeOffsetY))
+    params.set("netscale", String(input.networkLogoScale ?? DEFAULT_STREMIO_POSTER_PARAMS.networkLogoScale))
+    params.set("nox", String(input.networkLogoOffsetX ?? DEFAULT_STREMIO_POSTER_PARAMS.networkLogoOffsetX))
+    params.set("noy", String(input.networkLogoOffsetY ?? DEFAULT_STREMIO_POSTER_PARAMS.networkLogoOffsetY))
+  }
   params.set("rv", String(POSTER_URL_VERSION))
   return params
 }

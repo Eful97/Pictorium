@@ -1,6 +1,6 @@
 {
   "name": "pictorium",
-  "version": "1.21.5",
+  "version": "1.23.1",
   "license": "AGPL-3.0-only",
   "private": true,
   "scripts": {
@@ -26,6 +26,7 @@
   "dependencies": {
     "@resvg/resvg-js": "^2.6.2",
     "@vercel/kv": "^3.0.0",
+    "ioredis": "^6.0.0",
     "lucide-react": "^1.35.0",
     "next": "^16.3.3",
     "qrcode": "^1.5.4",

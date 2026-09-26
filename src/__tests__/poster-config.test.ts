@@ -728,8 +728,7 @@ describe("resolvePosterRenderConfig", () => {
     })).posterShape).toBe("landscape")
   })
 
-  it("logoAlign: query wins, global only in landscape, portrait always center", () => {
-    expect(resolvePosterRenderConfig(baseInput()).logoAlign).toBe("center")
+  it("logoAlign: query wins, global only in landscape, portrait always center", () => {    expect(resolvePosterRenderConfig(baseInput()).logoAlign).toBe("center")
     expect(resolvePosterRenderConfig(baseInput({
       searchParams: new URLSearchParams({ shape: "landscape" }),
     })).logoAlign).toBe("left")
@@ -756,5 +755,33 @@ describe("resolvePosterRenderConfig", () => {
     expect(resolvePosterRenderConfig(baseInput({
       searchParams: new URLSearchParams({ shape: "landscape", align: "diagonal" }),
     })).logoAlign).toBe("left")
+  })
+
+  it("gradHeight/blur/bf/bd fall back to server defaults when query/mapping/config are absent (v1.23.0 minimal URLs)", () => {
+    expect(resolvePosterRenderConfig(baseInput({
+      sd: { gradientHeight: 55, blurIntensity: 33, blurFade: 66, blurDarkness: 11 },
+    })).blurHeight).toBe(55)
+    expect(resolvePosterRenderConfig(baseInput({
+      sd: { gradientHeight: 55, blurIntensity: 33, blurFade: 66, blurDarkness: 11 },
+    })).blurIntensity).toBe(33)
+    expect(resolvePosterRenderConfig(baseInput({
+      sd: { gradientHeight: 55, blurIntensity: 33, blurFade: 66, blurDarkness: 11 },
+    })).blurFade).toBe(66)
+    expect(resolvePosterRenderConfig(baseInput({
+      sd: { gradientHeight: 55, blurIntensity: 33, blurFade: 66, blurDarkness: 11 },
+    })).blurDarkness).toBe(11)
+    // Query/mapping/config vincono sui defaults come prima.
+    expect(resolvePosterRenderConfig(baseInput({
+      searchParams: new URLSearchParams({ gradHeight: "40" }),
+      sd: { gradientHeight: 55 },
+    })).blurHeight).toBe(40)
+    expect(resolvePosterRenderConfig(baseInput({
+      mapping: mapping({ gradientHeight: 45 }),
+      sd: { gradientHeight: 55 },
+    })).blurHeight).toBe(45)
+    expect(resolvePosterRenderConfig(baseInput({
+      configOverride: config({ gradientHeight: 42 }),
+      sd: { gradientHeight: 55 },
+    })).blurHeight).toBe(42)
   })
 })

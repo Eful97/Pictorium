@@ -1,9 +1,43 @@
 import { NextRequest } from "next/server"
 import { rateLimit, rateLimitKey, rateLimitResponse } from "@/lib/rate-limit"
 import { isMultiUserEnabled, getMaxUsers } from "@/lib/user-auth"
-import { countActiveUsers, listUsers } from "@/lib/user-activity"
+import { countActiveUsers, listUsers, type UserInfo } from "@/lib/user-activity"
 import { getKeyMissingStats } from "@/lib/catalog-handler"
 import { isUserKeysEncryptionAvailable } from "@/lib/user-keys"
+import { envWithFallback } from "@/lib/env-compat"
+
+/**
+ * Sponsor/hosting pubblico dell'istanza (banner UI, mai segreti).
+ * Whitelist rigida: solo "elfhosted" o null — il raw env non esce mai.
+ * Primario l'env esplicito, fallback best-effort sull'host della richiesta.
+ */
+export function resolveHostedBy(req: NextRequest): "elfhosted" | null {
+  const raw = envWithFallback("HOSTED_BY")?.toLowerCase().trim()
+  if (raw === "elfhosted") return "elfhosted"
+  if (raw) return null
+  const host = req.headers.get("host")?.toLowerCase() ?? ""
+  const xfh = req.headers.get("x-forwarded-host")?.toLowerCase() ?? ""
+  if (host.includes("elfhosted.com") || xfh.includes("elfhosted.com")) return "elfhosted"
+  return null
+}
+
+const STATUS_USERS_TTL_MS = 60_000
+let usersCache: { at: number; users: UserInfo[] } | null = null
+
+async function listUsersCached(): Promise<UserInfo[]> {
+  const now = Date.now()
+  if (usersCache && now - usersCache.at < STATUS_USERS_TTL_MS) return usersCache.users
+  const users = await listUsers()
+  usersCache = { at: now, users }
+  return users
+}
+
+/**
+ * Solo per i test: invalida il memo degli aggregati.
+ */
+export function __resetStatusUsersCache(): void {
+  usersCache = null
+}
 
 /**
  * Stato multi-user (aggregati soli, nessun UUID/segreto): numero utenti,
@@ -15,7 +49,9 @@ export async function GET(req: NextRequest) {
   const rl = await rateLimit(rateLimitKey(req), "default")
   if (!rl.ok) return rateLimitResponse(rl.retAfter)
   const multiUser = isMultiUserEnabled()
-  const users = multiUser ? await listUsers() : []
+  // Memo breve (v1.23.0): listUsers scansiona storage/Redis — i conteggi non
+  // servono realtime, 60s bastano ed evitano SCAN+GET per utente a ogni hit.
+  const users = multiUser ? await listUsersCached() : []
   let usersBytes = 0
   for (const u of users) {
     if (u.bytes > 0) usersBytes += u.bytes
@@ -28,6 +64,7 @@ export async function GET(req: NextRequest) {
     usersBytes,
     keysEncryption: isUserKeysEncryptionAvailable(),
     keyMissing: getKeyMissingStats(),
+    hostedBy: resolveHostedBy(req),
     timestamp: new Date().toISOString(),
   })
 }

@@ -79,11 +79,16 @@ test.describe("catalog API", () => {
     expect(Array.isArray(body.metas)).toBeTruthy()
   })
 
-  test("without api key returns empty metas", async ({ request }) => {
+  test("without api key returns no real metas (notice only)", async ({ request }) => {
     const res = await request.get("/catalog/movie/pictorium-jw-movies.json")
     expect(res.ok()).toBeTruthy()
     const body = await res.json()
-    expect(body.metas.length).toBe(0)
+    // Senza chiave: niente contenuti reali — solo la notice card esplicativa
+    // (buildNoticeMeta, id `pictorium:notice:*`), mai titoli veri.
+    expect(Array.isArray(body.metas)).toBeTruthy()
+    for (const m of body.metas) {
+      expect(String(m.id)).toMatch(/^pictorium:notice:/)
+    }
   })
 })
 

@@ -25,7 +25,16 @@ class ProxyBodyTooLargeError extends Error {}
 function corsHeaders() {
   return {
     "Access-Control-Allow-Origin": "*",
+    // Sempre JSON: i body proxati passano da readJsonCapped (JSON.parse) —
+    // fare echo del Content-Type upstream (fix H9) permetterebbe a un addon
+    // malevolo di servire text/html sulla nostra origin (XSS riflesso con
+    // accesso al localStorage). nosniff chiude anche lo sniffing MIME.
     "Content-Type": "application/json; charset=utf-8",
+    "X-Content-Type-Options": "nosniff",
+    // Le API sono fuori dal matcher CSP del middleware: la policy va messa
+    // qui, per-risposta (i client JSON la ignorano, un HTML inatteso resta
+    // inerte anche se qualcosa servisse mai text/html).
+    "Content-Security-Policy": "default-src 'none'; frame-ancestors 'none'",
     "Cache-Control": "no-cache, max-age=0, must-revalidate",
   }
 }
@@ -79,7 +88,12 @@ export function isPrivateHost(hostname: string): boolean {
       h.startsWith("10.") ||                       // RFC 1918 10.0.0.0/8
       h.startsWith("192.168.") ||                  // RFC 1918 192.168.0.0/16
       /^172\.(1[6-9]|2\d|3[01])\./.test(h) ||      // RFC 1918 172.16.0.0/12
-      /^169\.254\./.test(h)                        // link-local
+      /^169\.254\./.test(h) ||                     // link-local
+      /^100\.(6[4-9]|[78]\d|9\d|1[01]\d|12[0-7])\./.test(h) || // CGNAT 100.64.0.0/10 (v1.23.0)
+      /^198\.(18|19)\./.test(h) ||                 // benchmarking 198.18.0.0/15 (v1.23.0)
+      h.startsWith("192.0.2.") ||                  // TEST-NET-1 (v1.23.0)
+      h.startsWith("198.51.100.") ||               // TEST-NET-2 (v1.23.0)
+      h.startsWith("203.0.113.")                   // TEST-NET-3 (v1.23.0)
     )
   }
 
@@ -344,9 +358,9 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ path
         logo: origManifest.logo || `${origin}/App.png`,
       }
 
-      // Echo del Content-Type upstream: il manifest può essere servito da
-      // addon con media type diversi dal JSON "puro" (fix H9).
-      return Response.json(proxiedManifest, { headers: { ...corsHeaders(), "Content-Type": manifestRes.headers.get("content-type") || "application/json; charset=utf-8" } })
+      // Content-Type sempre JSON (corsHeaders): il body è comunque JSON
+      // serializzato — l'echo dell'upstream aprirebbe a text/html malevolo.
+      return Response.json(proxiedManifest, { headers: corsHeaders() })
     } catch (e) {
       log.error("Manifest proxy error", { error: e instanceof Error ? e.message : String(e) })
       if (deadline.aborted) {
@@ -400,9 +414,10 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ path
       data.meta = rewriteSingleMetaPoster(data.meta as StremioItemMeta, origin, userUuid)
     }
 
-    // Echo del Content-Type upstream invece di forzare JSON (fix H9): addon
-    // stream/metadata possono rispondere con altri media type (es. M3U8).
-    return Response.json(data, { headers: { ...corsHeaders(), "Content-Type": res.headers.get("content-type") || "application/json; charset=utf-8" } })
+    // Content-Type sempre JSON (corsHeaders): `data` è JSON parsato e
+    // ri-serializzato — l'echo dell'upstream (ex fix H9) servirebbe text/html
+    // malevolo sulla nostra origin.
+    return Response.json(data, { headers: corsHeaders() })
   } catch (e) {
     log.error("Resource proxy error", { error: e instanceof Error ? e.message : String(e) })
     if (deadline && deadline.aborted) {

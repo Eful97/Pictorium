@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react"
 import { toast } from "sonner"
-import { Check, Copy, KeyRound } from "lucide-react"
+import { Check, Copy, Eye, EyeOff, KeyRound } from "lucide-react"
 import { useT } from "@/lib/contexts/TranslationContext"
 import {
   currentPathUuid,
@@ -37,6 +37,7 @@ export function UserUnlockModal() {
   const [, setUnlockTick] = useState(0)
   const [mode, setMode] = useState<"password" | "secret">("password")
   const [input, setInput] = useState("")
+  const [showInput, setShowInput] = useState(false)
   const [busy, setBusy] = useState(false)
   const [copied, setCopied] = useState(false)
 
@@ -209,28 +210,52 @@ export function UserUnlockModal() {
         {mode === "password" ? (
           <div>
             <label className="text-[10px] text-muted block mb-1">{t("ui.userUnlockPasswordLabel")}</label>
-            <input
-              type="password"
-              autoComplete="current-password"
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={(e) => { if (e.key === "Enter") void savePassword() }}
-              placeholder="••••••••"
-              className="w-full font-mono text-xs py-2 px-3 rounded-lg bg-black/40 border border-white/10 text-white placeholder-zinc-600 focus:outline-none focus:border-accent-orange/50"
-            />
+            <div className="relative">
+              <input
+                type={showInput ? "text" : "password"}
+                autoComplete="current-password"
+                autoFocus
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") void savePassword() }}
+                placeholder="••••••••"
+                className="w-full font-mono text-xs py-2 pl-3 pr-10 rounded-lg bg-black/40 border border-white/10 text-white placeholder-zinc-600 focus:outline-none focus:border-accent-orange/50"
+              />
+              <button
+                type="button"
+                onClick={() => setShowInput((s) => !s)}
+                aria-label={showInput ? t("ui.hideKey") : t("ui.showKey")}
+                title={showInput ? t("ui.hideKey") : t("ui.showKey")}
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-zinc-200 transition-colors cursor-pointer"
+              >
+                {showInput ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              </button>
+            </div>
           </div>
         ) : (
           <div>
             <label className="text-[10px] text-muted block mb-1">{t("ui.userKeysTokenLabel")}</label>
-            <input
-              type="password"
-              autoComplete="off"
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={(e) => { if (e.key === "Enter") void saveSecret() }}
-              placeholder="••••••••"
-              className="w-full font-mono text-xs py-2 px-3 rounded-lg bg-black/40 border border-white/10 text-white placeholder-zinc-600 focus:outline-none focus:border-accent-orange/50"
-            />
+            <div className="relative">
+              <input
+                type={showInput ? "text" : "password"}
+                autoComplete="off"
+                autoFocus
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") void saveSecret() }}
+                placeholder="••••••••"
+                className="w-full font-mono text-xs py-2 pl-3 pr-10 rounded-lg bg-black/40 border border-white/10 text-white placeholder-zinc-600 focus:outline-none focus:border-accent-orange/50"
+              />
+              <button
+                type="button"
+                onClick={() => setShowInput((s) => !s)}
+                aria-label={showInput ? t("ui.hideKey") : t("ui.showKey")}
+                title={showInput ? t("ui.hideKey") : t("ui.showKey")}
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-zinc-200 transition-colors cursor-pointer"
+              >
+                {showInput ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              </button>
+            </div>
           </div>
         )}
         <button
@@ -243,7 +268,7 @@ export function UserUnlockModal() {
         </button>
         <button
           type="button"
-          onClick={() => { setMode((m) => (m === "password" ? "secret" : "password")); setInput("") }}
+          onClick={() => { setMode((m) => (m === "password" ? "secret" : "password")); setInput(""); setShowInput(false) }}
           className="w-full text-center text-[11px] text-zinc-400 hover:text-zinc-200 transition-colors cursor-pointer"
         >
           {mode === "password" ? t("ui.userUnlockUseSecret") : t("ui.userUnlockUsePassword")}

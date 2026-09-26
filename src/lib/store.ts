@@ -5,6 +5,7 @@ import { DATA_DIR } from "@/lib/data-dir"
 import { createLogger } from "@/lib/logger"
 import { envWithFallback } from "@/lib/env-compat"
 import { getMaxMappingsPerUser } from "@/lib/user-auth"
+import { getKv, getStorageMode as getKvStorageMode } from "@/lib/kv"
 
 export type { Mapping }
 
@@ -24,15 +25,19 @@ function assertValidUserId(userId: string): void {
 
 const log = createLogger("store")
 
-const useKv = !!process.env.KV_REST_API_URL && !!process.env.KV_REST_API_TOKEN
+// Lettura live (mai a module level): i test mutano le env + resetModules.
+// Nome senza prefisso `use`: la regola react-hooks lo scambierebbe per un Hook.
+function isKvMode(): boolean {
+  return getKvStorageMode() === "kv"
+}
 
 export function getStorageMode(): "kv" | "file" {
-  return useKv ? "kv" : "file"
+  return getKvStorageMode()
 }
 
 const debugStore = envWithFallback("DEBUG") === "1"
 
-if (!useKv && debugStore) {
+if (getKvStorageMode() === "file" && debugStore) {
   log.info("Data directory", { dir: DATA_DIR, file: path.join(DATA_DIR, "mappings.json") })
 }
 
@@ -53,8 +58,7 @@ async function kvReadAllCached(): Promise<Record<string, Mapping>> {
   if (kvCache && now - kvCacheAt < KV_READ_TTL_MS) return kvCache
   if (kvCacheInflight) return kvCacheInflight
   kvCacheInflight = (async () => {
-    const { kv } = await import("@vercel/kv")
-    const raw = await kv.hgetall<Record<string, Mapping>>("mappings")
+    const raw = await getKv().hgetall<Record<string, Mapping>>("mappings")
     const map = raw ?? {}
     kvCache = map
     kvCacheAt = Date.now()
@@ -64,31 +68,29 @@ async function kvReadAllCached(): Promise<Record<string, Mapping>> {
 }
 
 async function kvUpsert(mapping: Mapping) {
-  const { kv } = await import("@vercel/kv")
   const key = `${mapping.mediaType}:${mapping.tmdbId}`
   const next = { ...mapping, updatedAt: new Date().toISOString() }
-  await kv.hset("mappings", { [key]: next })
+  await getKv().hset("mappings", { [key]: next })
   // Dopo un upsert l'utente apre subito il poster (getById): un refetch completo
   // della mappa annullerebbe il beneficio della cache. Update in-place.
   if (kvCache) kvCache[key] = next
 }
 
 async function kvRemove(type: "movie" | "tv", id: number) {
-  const { kv } = await import("@vercel/kv")
   const key = `${type}:${id}`
-  await kv.hdel("mappings", key)
+  await getKv().hdel("mappings", key)
   if (kvCache) delete kvCache[key]
 }
 
 async function kvRemoveAll() {
-  const { kv } = await import("@vercel/kv")
-  await kv.del("mappings")
+  await getKv().del("mappings")
   kvCache = {}
   kvCacheAt = Date.now()
 }
 
 async function kvImportMappings(mappings: Mapping[]) {
-  const { kv } = await import("@vercel/kv")
+  // Import vuoto: hset con 0 campi fa 500 su Redis — niente da scrivere.
+  if (mappings.length === 0) return
   const entries: Record<string, Mapping> = {}
   const now = new Date().toISOString()
   for (const m of mappings) {
@@ -97,7 +99,7 @@ async function kvImportMappings(mappings: Mapping[]) {
     // invisibile alla cache e i poster continuerebbero ad essere serviti stantii.
     entries[`${m.mediaType}:${m.tmdbId}`] = { ...m, updatedAt: now }
   }
-  await kv.hset("mappings", entries)
+  await getKv().hset("mappings", entries)
   if (kvCache) Object.assign(kvCache, entries)
 }
 
@@ -141,8 +143,7 @@ async function kvReadAllCachedFor(userId: string): Promise<Record<string, Mappin
   if (c.map && now - c.at < KV_READ_TTL_MS) return c.map
   if (c.inflight) return c.inflight
   c.inflight = (async () => {
-    const { kv } = await import("@vercel/kv")
-    const raw = await kv.hgetall<Record<string, Mapping>>(userKvKey(userId))
+    const raw = await getKv().hgetall<Record<string, Mapping>>(userKvKey(userId))
     const map = raw ?? {}
     c.map = map
     c.at = Date.now()
@@ -152,25 +153,22 @@ async function kvReadAllCachedFor(userId: string): Promise<Record<string, Mappin
 }
 
 async function kvUpsertFor(userId: string, mapping: Mapping) {
-  const { kv } = await import("@vercel/kv")
   const key = `${mapping.mediaType}:${mapping.tmdbId}`
   const next = { ...mapping, updatedAt: new Date().toISOString() }
-  await kv.hset(userKvKey(userId), { [key]: next })
+  await getKv().hset(userKvKey(userId), { [key]: next })
   const c = kvUserCaches.get(userId)
   if (c?.map) c.map[key] = next
 }
 
 async function kvRemoveFor(userId: string, type: "movie" | "tv", id: number) {
-  const { kv } = await import("@vercel/kv")
   const key = `${type}:${id}`
-  await kv.hdel(userKvKey(userId), key)
+  await getKv().hdel(userKvKey(userId), key)
   const c = kvUserCaches.get(userId)
   if (c?.map) delete c.map[key]
 }
 
 async function kvRemoveAllFor(userId: string) {
-  const { kv } = await import("@vercel/kv")
-  await kv.del(userKvKey(userId))
+  await getKv().del(userKvKey(userId))
   const c = kvUserCaches.get(userId)
   if (c) {
     c.map = {}
@@ -450,10 +448,10 @@ export function __evictUserStoreCache(userId: string): void {
 export async function getAll(userId?: string | null): Promise<Mapping[]> {
   if (userId) {
     assertValidUserId(userId)
-    if (useKv) return Object.values(await kvReadAllCachedFor(userId))
+    if (isKvMode()) return Object.values(await kvReadAllCachedFor(userId))
     return Object.values(await readUserFromMem(userId))
   }
-  if (useKv) return Object.values(await kvReadAllCached())
+  if (isKvMode()) return Object.values(await kvReadAllCached())
   return Object.values(await readFromMem())
 }
 
@@ -461,11 +459,11 @@ export async function getById(type: "movie" | "tv", id: number, userId?: string 
   // Namespace stretto: con userId SOLO il namespace, mai fallback globale.
   if (userId) {
     assertValidUserId(userId)
-    if (useKv) return (await kvReadAllCachedFor(userId))[`${type}:${id}`] ?? null
+    if (isKvMode()) return (await kvReadAllCachedFor(userId))[`${type}:${id}`] ?? null
     const data = await readUserFromMem(userId)
     return data[`${type}:${id}`] ?? null
   }
-  if (useKv) return (await kvReadAllCached())[`${type}:${id}`] ?? null
+  if (isKvMode()) return (await kvReadAllCached())[`${type}:${id}`] ?? null
   const key = `${type}:${id}`
   const data = await readFromMem()
   return data[key] ?? null
@@ -474,7 +472,7 @@ export async function getById(type: "movie" | "tv", id: number, userId?: string 
 export async function upsert(mapping: Mapping, userId?: string | null) {
   if (userId) {
     assertValidUserId(userId)
-    if (useKv) {
+    if (isKvMode()) {
       const current = await kvReadAllCachedFor(userId)
       assertUserQuota(current, `${mapping.mediaType}:${mapping.tmdbId}`)
       await kvUpsertFor(userId, mapping)
@@ -488,7 +486,7 @@ export async function upsert(mapping: Mapping, userId?: string | null) {
       await persistUser(userId, data)
     })
   }
-  if (useKv) {
+  if (isKvMode()) {
     await kvUpsert(mapping)
     return
   }
@@ -508,7 +506,7 @@ export async function upsert(mapping: Mapping, userId?: string | null) {
 export async function remove(type: "movie" | "tv", id: number, userId?: string | null) {
   if (userId) {
     assertValidUserId(userId)
-    if (useKv) {
+    if (isKvMode()) {
       await kvRemoveFor(userId, type, id)
       return
     }
@@ -519,7 +517,7 @@ export async function remove(type: "movie" | "tv", id: number, userId?: string |
       await persistUser(userId, data)
     })
   }
-  if (useKv) {
+  if (isKvMode()) {
     await kvRemove(type, id)
     return
   }
@@ -534,7 +532,7 @@ export async function remove(type: "movie" | "tv", id: number, userId?: string |
 export async function removeAll(userId?: string | null) {
   if (userId) {
     assertValidUserId(userId)
-    if (useKv) {
+    if (isKvMode()) {
       await kvRemoveAllFor(userId)
       return
     }
@@ -542,7 +540,7 @@ export async function removeAll(userId?: string | null) {
       await persistUser(userId, {})
     })
   }
-  if (useKv) {
+  if (isKvMode()) {
     await kvRemoveAll()
     return
   }
@@ -552,10 +550,11 @@ export async function removeAll(userId?: string | null) {
 }
 
 export async function importMappings(mappings: Mapping[], userId?: string | null) {
+  // Import vuoto: no-op (hset con 0 campi fa 500 su Redis — v1.23.0).
+  if (mappings.length === 0) return
   if (userId) {
     assertValidUserId(userId)
-    if (useKv) {
-      const { kv } = await import("@vercel/kv")
+    if (isKvMode()) {
       const current = await kvReadAllCachedFor(userId)
       const max = getMaxMappingsPerUser()
       const fresh = mappings.filter((m) => !(`${m.mediaType}:${m.tmdbId}` in current))
@@ -565,7 +564,7 @@ export async function importMappings(mappings: Mapping[], userId?: string | null
       for (const m of mappings) {
         entries[`${m.mediaType}:${m.tmdbId}`] = { ...m, updatedAt: now }
       }
-      await kv.hset(userKvKey(userId), entries)
+      await getKv().hset(userKvKey(userId), entries)
       const c = kvUserCaches.get(userId)
       if (c?.map) Object.assign(c.map, entries)
       return
@@ -584,7 +583,7 @@ export async function importMappings(mappings: Mapping[], userId?: string | null
       await persistUser(userId, data)
     })
   }
-  if (useKv) {
+  if (isKvMode()) {
     await kvImportMappings(mappings)
     return
   }
@@ -667,8 +666,7 @@ async function kvAliasRead(entry: KvAliasCache, hash: string): Promise<Record<st
   if (entry.map && now - entry.at < KV_READ_TTL_MS) return entry.map
   if (entry.inflight) return entry.inflight
   entry.inflight = (async () => {
-    const { kv } = await import("@vercel/kv")
-    const raw = await kv.hgetall<Record<string, ImdbAlias>>(hash)
+    const raw = await getKv().hgetall<Record<string, ImdbAlias>>(hash)
     const map = raw ?? {}
     entry.map = map
     entry.at = Date.now()
@@ -841,10 +839,10 @@ async function persistUserAliases(userId: string, data: Record<string, ImdbAlias
 async function readAliases(userId?: string | null): Promise<Record<string, ImdbAlias>> {
   if (userId) {
     assertValidUserId(userId)
-    if (useKv) return kvAliasRead(kvAliasUserCacheFor(userId), userAliasKvKey(userId))
+    if (isKvMode()) return kvAliasRead(kvAliasUserCacheFor(userId), userAliasKvKey(userId))
     return readUserAliasesFromMem(userId)
   }
-  if (useKv) return kvAliasRead(kvAliasGlobal, "aliases")
+  if (isKvMode()) return kvAliasRead(kvAliasGlobal, "aliases")
   return readAliasesFromMem()
 }
 
@@ -858,8 +856,8 @@ async function assertAliasQuota(
   const max = getMaxMappingsPerUser()
   const mappingCount = Object.keys(
     userId
-      ? (useKv ? await kvReadAllCachedFor(userId) : await readUserFromMem(userId))
-      : (useKv ? await kvReadAllCached() : await readFromMem()),
+      ? (isKvMode() ? await kvReadAllCachedFor(userId) : await readUserFromMem(userId))
+      : (isKvMode() ? await kvReadAllCached() : await readFromMem()),
   ).length
   if (mappingCount + Object.keys(aliases).length >= max) throw new QuotaExceededError(max)
 }
@@ -880,11 +878,10 @@ export async function setImdbAlias(alias: ImdbAlias, userId?: string | null) {
   const next = { ...alias, imdbId: key, updatedAt: new Date().toISOString() }
   if (userId) {
     assertValidUserId(userId)
-    if (useKv) {
-      const { kv } = await import("@vercel/kv")
+    if (isKvMode()) {
       const current = await kvAliasRead(kvAliasUserCacheFor(userId), userAliasKvKey(userId))
       await assertAliasQuota(current, key, userId)
-      await kv.hset(userAliasKvKey(userId), { [key]: next })
+      await getKv().hset(userAliasKvKey(userId), { [key]: next })
       const c = kvAliasUserCaches.get(userId)
       if (c?.map) c.map[key] = next
       return
@@ -896,11 +893,10 @@ export async function setImdbAlias(alias: ImdbAlias, userId?: string | null) {
       await persistUserAliases(userId, data)
     })
   }
-  if (useKv) {
-    const { kv } = await import("@vercel/kv")
+  if (isKvMode()) {
     const current = await kvAliasRead(kvAliasGlobal, "aliases")
     await assertAliasQuota(current, key)
-    await kv.hset("aliases", { [key]: next })
+    await getKv().hset("aliases", { [key]: next })
     if (kvAliasGlobal.map) kvAliasGlobal.map[key] = next
     return
   }
@@ -917,9 +913,8 @@ export async function removeImdbAlias(imdbId: string, userId?: string | null) {
   const key = normalizeAliasId(imdbId)
   if (userId) {
     assertValidUserId(userId)
-    if (useKv) {
-      const { kv } = await import("@vercel/kv")
-      await kv.hdel(userAliasKvKey(userId), key)
+    if (isKvMode()) {
+      await getKv().hdel(userAliasKvKey(userId), key)
       const c = kvAliasUserCaches.get(userId)
       if (c?.map) delete c.map[key]
       return
@@ -930,9 +925,8 @@ export async function removeImdbAlias(imdbId: string, userId?: string | null) {
       await persistUserAliases(userId, data)
     })
   }
-  if (useKv) {
-    const { kv } = await import("@vercel/kv")
-    await kv.hdel("aliases", key)
+  if (isKvMode()) {
+    await getKv().hdel("aliases", key)
     if (kvAliasGlobal.map) delete kvAliasGlobal.map[key]
     return
   }

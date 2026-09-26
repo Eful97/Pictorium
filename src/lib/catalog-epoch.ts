@@ -3,6 +3,7 @@ import path from "node:path"
 import { DATA_DIR } from "@/lib/data-dir"
 import { createLogger } from "@/lib/logger"
 import { atomicWriteFile } from "@/lib/atomic-write"
+import { getKv, getStorageMode } from "@/lib/kv"
 
 /**
  * Epoch globale dei cataloghi Stremio (F3).
@@ -17,12 +18,18 @@ import { atomicWriteFile } from "@/lib/atomic-write"
  *
  * L'epoch è un token opaco che cambia a ogni bump (timestamp + random: niente
  * race read-modify-write tra istanze). Persistenza file (single-instance) o KV
- * (serverless), stessi pattern di `lib/store.ts`.
+ * (Redis nativo o Vercel KV/Upstash via `lib/kv.ts`), stessi pattern di `lib/store.ts`.
  */
 
 const log = createLogger("catalog-epoch")
 
-const useKv = !!process.env.KV_REST_API_URL && !!process.env.KV_REST_API_TOKEN
+// Lettura live (mai a module level): i test mutano le env + resetModules,
+// e il backend va rivalutato a ogni chiamata come prima con `useKv`.
+// Nome senza prefisso `use`: la regola react-hooks lo scambierebbe per un Hook.
+function isKvMode(): boolean {
+  return getStorageMode() === "kv"
+}
+
 const KV_KEY = "catalog_epoch"
 const FILE = path.join(DATA_DIR, "catalog-epoch.json")
 
@@ -47,8 +54,7 @@ async function readFromDisk(): Promise<string | null> {
 
 async function kvRead(): Promise<string | null> {
   try {
-    const { kv } = await import("@vercel/kv")
-    const raw = await kv.get<string>(KV_KEY)
+    const raw = await getKv().get<string>(KV_KEY)
     return typeof raw === "string" && raw ? raw : null
   } catch (e) {
     log.warn("epoch KV read failed", { error: e instanceof Error ? e.message : String(e) })
@@ -71,7 +77,7 @@ export async function getCatalogEpoch(userId?: string | null): Promise<string> {
   }
   const now = Date.now()
   if (memCache !== null && now - memCacheAt < READ_TTL_MS) return memCache
-  const stored = useKv ? await kvRead() : await readFromDisk()
+  const stored = isKvMode() ? await kvRead() : await readFromDisk()
   memCache = stored ?? "0"
   memCacheAt = Date.now()
   return memCache
@@ -91,9 +97,8 @@ export async function bumpCatalogEpoch(userId?: string | null): Promise<string> 
   }
   const next = newEpoch()
   try {
-    if (useKv) {
-      const { kv } = await import("@vercel/kv")
-      await kv.set(KV_KEY, next)
+    if (isKvMode()) {
+      await getKv().set(KV_KEY, next)
     } else {
       await fsp.mkdir(DATA_DIR, { recursive: true })
       await atomicWriteFile(FILE, JSON.stringify({ epoch: next }))
@@ -132,10 +137,9 @@ async function getUserEpoch(userId: string): Promise<string> {
     return hit.epoch
   }
   let stored: string | null = null
-  if (useKv) {
+  if (isKvMode()) {
     try {
-      const { kv } = await import("@vercel/kv")
-      const raw = await kv.get<string>(userEpochKvKey(userId))
+      const raw = await getKv().get<string>(userEpochKvKey(userId))
       stored = typeof raw === "string" && raw ? raw : null
     } catch (e) {
       log.warn("user epoch KV read failed", { error: e instanceof Error ? e.message : String(e) })
@@ -161,9 +165,8 @@ async function getUserEpoch(userId: string): Promise<string> {
 async function bumpUserEpoch(userId: string): Promise<string> {
   const next = newEpoch()
   try {
-    if (useKv) {
-      const { kv } = await import("@vercel/kv")
-      await kv.set(userEpochKvKey(userId), next)
+    if (isKvMode()) {
+      await getKv().set(userEpochKvKey(userId), next)
     } else {
       await fsp.mkdir(path.dirname(userEpochFile(userId)), { recursive: true })
       await atomicWriteFile(userEpochFile(userId), JSON.stringify({ epoch: next }))

@@ -48,10 +48,10 @@ describe("rateLimitKey con POSTERIUM_TRUST_PROXY=1 (deploy dietro proxy fidato)"
   })
 })
 
-describe("rateLimitKey senza flag (per-IP anche senza trust — fix P0.5 evita bucket shared)", () => {
+describe("rateLimitKey senza flag (header IP spoofabili ignorati — v1.23.0)", () => {
   afterEach(() => { delete process.env.POSTERIUM_TRUST_PROXY })
 
-  it("usa per-IP anche senza flag (evita DoS del bucket shared)", () => {
+  it("ignora x-real-ip/cf-connecting-ip/XFF senza trust (niente bucket spoofabili)", () => {
     const req = new NextRequest("http://localhost:3000/", {
       headers: {
         "cf-connecting-ip": "1.2.3.4",
@@ -59,7 +59,10 @@ describe("rateLimitKey senza flag (per-IP anche senza trust — fix P0.5 evita b
         "x-forwarded-for": "9.9.9.9, 10.10.10.10",
       },
     })
-    expect(rateLimitKey(req)).toBe("5.6.7.8")
+    const key = rateLimitKey(req)
+    expect(key).not.toBe("5.6.7.8")
+    expect(key).not.toBe("1.2.3.4")
+    expect(key).not.toBe("9.9.9.9")
     expect(rateLimitKey(new NextRequest("http://localhost:3000/"))).toBe("local")
   })
 
@@ -68,7 +71,7 @@ describe("rateLimitKey senza flag (per-IP anche senza trust — fix P0.5 evita b
     const req = new NextRequest("http://localhost:3000/", {
       headers: { "x-real-ip": "5.6.7.8" },
     })
-    expect(rateLimitKey(req)).toBe("5.6.7.8")
+    expect(rateLimitKey(req)).not.toBe("5.6.7.8")
   })
 })
 

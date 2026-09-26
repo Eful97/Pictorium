@@ -4,10 +4,15 @@ import path from "node:path"
 import { createLogger } from "@/lib/logger"
 import { userDir } from "@/lib/user-auth"
 import { atomicWriteFile } from "@/lib/atomic-write"
+import { getKv, getStorageMode } from "@/lib/kv"
 
 const log = createLogger("user-keys")
 
-const useKv = !!process.env.KV_REST_API_URL && !!process.env.KV_REST_API_TOKEN
+// Lettura live (mai a module level): i test mutano le env + resetModules.
+// Nome senza prefisso `use`: la regola react-hooks lo scambierebbe per un Hook.
+function isKvMode(): boolean {
+  return getStorageMode() === "kv"
+}
 
 export type UserKeyKind = "tmdb" | "mdblist" | "tvdb" | "simkl"
 export const USER_KEY_KINDS: readonly UserKeyKind[] = ["tmdb", "mdblist", "tvdb", "simkl"]
@@ -96,10 +101,9 @@ function isValidBundle(v: unknown): v is EncBundle {
 }
 
 async function readKeysFile(userId: string): Promise<KeysFile | null> {
-  if (useKv) {
+  if (isKvMode()) {
     try {
-      const { kv } = await import("@vercel/kv")
-      const raw = await kv.get<KeysFile>(keysKvKey(userId))
+      const raw = await getKv().get<KeysFile>(keysKvKey(userId))
       if (raw && typeof raw === "object" && raw.version === 1 && raw.keys && typeof raw.keys === "object") {
         return raw
       }
@@ -288,9 +292,8 @@ export async function setUserKeys(userId: string, input: Partial<Record<UserKeyK
   current.updatedAt = new Date().toISOString()
   // Mai i valori nei log: solo le kind toccate (~ = flag soft-disable).
   log.info("User keys updated", { kinds: [...Object.keys(writes), ...deletes.map((k) => `-${k}`), ...Object.keys(flagSets).map((k) => `~${k}`), ...flagClears.map((k) => `~-${k}`)] })
-  if (useKv) {
-    const { kv } = await import("@vercel/kv")
-    await kv.set(keysKvKey(userId), current)
+  if (isKvMode()) {
+    await getKv().set(keysKvKey(userId), current)
     return
   }
   await fsp.mkdir(userDir(userId), { recursive: true })

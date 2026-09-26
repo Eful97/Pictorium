@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react"
 import Link from "next/link"
-import { Activity, Users } from "lucide-react"
+import { Users } from "lucide-react"
 import { useT } from "@/lib/contexts/TranslationContext"
 import { APP_VERSION } from "@/generated/app-version"
 import { currentPathUuid } from "@/lib/user-token"
@@ -71,26 +71,32 @@ export function HomeStatusStrip() {
   return (
     <footer className="status-strip max-w-5xl mx-auto mt-10" data-testid="home-status">
       <div className="status-left">
-        <div className="status-live-badge">
+        <Link href={statusHref} className="status-live-badge" suppressHydrationWarning>
           <span className="pulse-dot" aria-hidden="true" />
-          <span>{t("ui.allSystemsOperational")}</span>
-        </div>
-        <span className="status-divider hidden sm:inline-block" aria-hidden="true" />
-        <span className="status-meta hidden sm:inline" aria-hidden="true">{t("ui.statusMeta")}</span>
-      </div>
-      <div className="status-right">
-        <Link href={statusHref} className="status-link" suppressHydrationWarning>
-          <Activity className="w-3 h-3 text-emerald-400/80" aria-hidden="true" />
           <span>{t("ui.statusTitle")}</span>
         </Link>
+        <span className="status-divider hidden sm:inline-block" aria-hidden="true" />
+        <span className="status-meta hidden sm:inline" aria-hidden="true">{t("ui.statusMeta")}</span>
+        <span className="status-divider hidden sm:inline-block" aria-hidden="true" />
+        <a
+          className="status-meta hidden sm:inline"
+          href="https://www.themoviedb.org/"
+          target="_blank"
+          rel="noreferrer"
+        >
+          This product uses the TMDB API but is not endorsed or certified by TMDB.
+        </a>
+      </div>
+      <div className="status-right">
         {spaces !== null && (
-          <div className="status-pill">
+          <div
+            className="status-pill"
+            title={spaces.maxUsers > 0
+              ? t("ui.spacesUsedOf", { used: spaces.users, max: spaces.maxUsers, active: spaces.activeUsers })
+              : t("ui.spacesUsed", { used: spaces.users, active: spaces.activeUsers })}
+          >
             <Users className="w-3 h-3 text-zinc-400" aria-hidden="true" />
-            <span data-testid="home-spaces">
-              {spaces.maxUsers > 0
-                ? t("ui.spacesUsedOf", { used: spaces.users, max: spaces.maxUsers, active: spaces.activeUsers })
-                : t("ui.spacesUsed", { used: spaces.users, active: spaces.activeUsers })}
-            </span>
+            <span data-testid="home-spaces">{spaces.users}</span>
           </div>
         )}
         <button

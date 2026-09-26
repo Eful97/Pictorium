@@ -7,7 +7,7 @@ import type { BadgeStyle, RankingBadgeStyle } from "./badge-styles"
 import type { RibbonSide } from "./useDefaults"
 type LogoAlign = "left" | "center"
 import { posterUrl, titleOf, yearOf, STREAMING_PLATFORMS } from "./utils"
-import { matchTMDBStudios } from "./awards"
+import { matchTMDBStudios } from "./badge-labels"
 import { setLang as setI18nLang, createT } from "./i18n"
 import { isSupportedUiLang, getRegionDef, defaultRegionForLang } from "./regions"
 import type { EnrichedAnimeItem } from "./validation"
@@ -24,7 +24,7 @@ import { useMappingsStore } from "./useMappingsStore"
 import { usePosterEditor, PosterEditorProvider } from "./contexts/PosterEditorContext"
 import { usePosterSave } from "./usePosterSave"
 import { defaultGradientHeightForPoster, defaultBlurFadeForPoster } from "./gradient-defaults"
-import { computeLogoOffsetBounds, PORTRAIT_LOGO_MAX_HEIGHT_PCT } from "./logo-layout"
+import { computeLogoOffsetBounds, PORTRAIT_LOGO_MAX_HEIGHT_PCT, PORTRAIT_LOGO_TOP_OFFSET } from "./logo-layout"
 import { LAND_W, LAND_H } from "./constants"
 import { useOutsideDismiss } from "./useOutsideDismiss"
 import { type AggregatedRatings } from "./ratings"
@@ -110,6 +110,12 @@ export interface PictoriumCtx {
   logos: TMDBImage[]
   posterActivePath: string | null
   previewUrl: string
+  /** Anteprima Stremio: invece dell'URL editor mostra l'URL esatto servito
+   *  a Stremio (stesso builder dei cataloghi, via /meta). Solo lettura. */
+  stremioPreview: boolean
+  setStremioPreview: React.Dispatch<React.SetStateAction<boolean>>
+  /** URL Stremio risolto (null in caricamento o se il meta non risolve). */
+  stremioPreviewUrl: string | null
   urlPattern: string
   /** Template secondario con `{imdb_id}` (fallback universale). */
   urlPatternImdb: string
@@ -540,6 +546,10 @@ export function usePictorium(): PictoriumCtx {
   const [mdblistMatch, setMdblistMatch] = useState<{ key: string; rank: number } | null>(null)
   const [showLangPicker, setShowLangPicker] = useState(false)
   const [previewUrl, setPreviewUrl] = useState("")
+  // URL poster esattamente come lo serve Stremio (via /meta, stesso builder
+  // dei cataloghi): risolto on-demand quando il toggle è attivo.
+  const [stremioPreview, setStremioPreview] = useState(false)
+  const [stremioPreviewUrl, setStremioPreviewUrl] = useState<string | null>(null)
   const [imdbTop250, setImdbTop250] = useState(false)
   const [accentColor, setAccentColor] = useState<string | null>(null)
   const [autoAccentColor, setAutoAccentColor] = useState<string | null>(null)
@@ -618,7 +628,7 @@ export function usePictorium(): PictoriumCtx {
       ...(hasBadges ? { bottomMarginPct: 12 } : {}),
       ...(isLandscapeShape
         ? { maxWidthPct: 40, maxHeightPct: 24, bottomMarginPct: 25, topOffset: 55 }
-        : { maxHeightPct: PORTRAIT_LOGO_MAX_HEIGHT_PCT }),
+        : { maxHeightPct: PORTRAIT_LOGO_MAX_HEIGHT_PCT, topOffset: PORTRAIT_LOGO_TOP_OFFSET }),
     })
   }, [navigation.previewPoster, navigation.selectedLogo, logoScale, hasBadges, posterShape, logoAlign])
 
@@ -842,7 +852,38 @@ export function usePictorium(): PictoriumCtx {
   })
 
   // --- Preview URL ---
+  // Modalità Stremio: risolve l'URL esatto servito a Stremio per il titolo
+  // (meta → stesso builder dei cataloghi: mapping/auto, default, mv). Chiave
+  // browser in query (come le altre preview autenticate) + namespace `u`:
+  // se il server non risolve i metadati, si resta sull'editor senza rumore.
+  useEffect(() => {
+    if (!stremioPreview || !navigation.selected) { setStremioPreviewUrl(null); return }
+    const sel = navigation.selected
+    const stype = sel.media_type === "movie" ? "movie" : "series"
+    const params = new URLSearchParams()
+    if (currentUserId) params.set("u", currentUserId)
+    if (tmdbKey) params.set("api_key", tmdbKey)
+    const qs = params.toString() ? `?${params.toString()}` : ""
+    let live = true
+    // no-store: /meta risponde `max-age=300` per Stremio, ma qui serve
+    // l'URL fresco post-save (il `mv` cambia a ogni salvataggio).
+    http<{ meta?: { poster?: string | null } }>(`/meta/${stype}/tmdb:${sel.id}${qs}`, { timeout: 15000, cache: "no-store" })
+      .then((d) => { if (live) setStremioPreviewUrl(d?.meta?.poster || null) })
+      // Fallimento = modalità non attiva (niente stato bugiardo): si torna
+      // all'editor e il modale, se aperto, si chiude da solo.
+      .catch(() => { if (live) { setStremioPreviewUrl(null); setStremioPreview(false) } })
+    return () => { live = false }
+    // mappingsMap: dopo un save il mapping (e il suo `mv`) cambia — l'URL va
+    // ririsolta o il modale mostra l'artefatto pre-save (stale).
+  }, [stremioPreview, navigation.selected, currentUserId, tmdbKey, mappingsMap])
+
   const buildPreviewUrlCb = useCallback(() => {
+    // Toggle Stremio attivo e URL risolto: mostra l'artefatto finale vero.
+    // In caricamento (null) resta l'editor: niente flash vuoto.
+    if (stremioPreview && stremioPreviewUrl) {
+      setPreviewUrl(stremioPreviewUrl)
+      return
+    }
     const url = buildPreviewUrl(
       {
         selected: navigation.selected,
@@ -860,7 +901,7 @@ export function usePictorium(): PictoriumCtx {
       { globalBadges, rankingBadges, badgeStyle, rankingBadgeStyle, badgeGenre, badgeYear, badgeRating, badgeQuality, customRatings, ratingSources, separateRatings, customBadge, gradientHeight, blurIntensity, blurFade, blurDarkness, blurEnabled, tintStrength, networkLogo, preRelease, ribbonSide, posterShape, logoAlign, topBadgeScale, topBadgeOffsetX, topBadgeOffsetY, genreBadgeScale, qualityBadgeScale, networkLogoScale, genreBadgeOffsetX, genreBadgeOffsetY, qualityBadgeOffsetX, qualityBadgeOffsetY, networkLogoOffsetX, networkLogoOffsetY }
     )
     setPreviewUrl(url)
-  }, [navigation.selected, navigation.previewPoster, navigation.selectedLogo, selectedBackdrop,
+  }, [stremioPreview, stremioPreviewUrl, navigation.selected, navigation.previewPoster, navigation.selectedLogo, selectedBackdrop,
     logoScale, logoOffsetX, logoOffsetY, backdropScale, backdropOffsetX, backdropOffsetY,
     metaInfo, trendRank, trending.mdblistAnimeList, topEdgeColor, bottomEdgeColor, accentColor, autoAccentColor, lang, tmdbKey,
     editorCtx.defaultRegion, currentUserId,
@@ -1313,7 +1354,7 @@ export function usePictorium(): PictoriumCtx {
     selectedLogo: navigation.selectedLogo, setSelectedLogo: navigation.setSelectedLogo,
     logos: navigation.logos,
     posterActivePath: posterActivePath ?? null,
-    previewUrl, urlPattern, urlPatternImdb, lang,
+    previewUrl, stremioPreview, setStremioPreview, stremioPreviewUrl, urlPattern, urlPatternImdb, lang,
     openSections, toggleSection: (key: string) => setOpenSections((prev) => ({ ...prev, [key]: !(prev[key] ?? true) })),
     posterScrollRef, posterScrollInfo, setPosterScrollInfo,
     selectPoster, selectLogo, removeLogo,
@@ -1364,7 +1405,7 @@ export function usePictorium(): PictoriumCtx {
   // eslint-disable-next-line react-hooks/exhaustive-deps -- context value deps intentionally stable to prevent re-render cascades
   }), [
     navigation.selected, navigation.view, navigation.posters, loadingImages, navigation.previewPoster, navigation.selectedLogo,
-    navigation.logos, posterActivePath, previewUrl, urlPattern, lang,
+    navigation.logos, posterActivePath, previewUrl, stremioPreview, stremioPreviewUrl, urlPattern, lang,
     openSections, posterScrollInfo, logoBounds,
     trendRank, mdblistMatch, imdbTop250, metaInfo, navigation.previewId,
     selectPoster, selectLogo, saveConfig, removeLogo,

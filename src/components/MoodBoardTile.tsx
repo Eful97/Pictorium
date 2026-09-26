@@ -11,7 +11,9 @@ export interface TileHandlers {
   select: (key: string) => void
   open: (m: Mapping) => void
   quickView: (m: Mapping, rect: DOMRect) => void
-  remove: (m: Mapping, e: React.MouseEvent) => void
+  remove: (m: Mapping) => void
+  confirmRemove: (m: Mapping) => void
+  cancelRemove: () => void
   toggleShape: (m: Mapping) => void
 }
 
@@ -20,6 +22,7 @@ interface MoodBoardTileProps {
   idx: number
   selectMode: boolean
   isSelected: boolean
+  confirming?: boolean
   handlers: TileHandlers
   collectionCount?: number
   t: (key: string, params?: Record<string, string | number>) => string
@@ -30,6 +33,7 @@ export const MoodBoardTile = React.memo(function MoodBoardTile({
   idx,
   selectMode,
   isSelected,
+  confirming = false,
   handlers,
   collectionCount = 0,
   t,
@@ -68,6 +72,11 @@ export const MoodBoardTile = React.memo(function MoodBoardTile({
         aria-label={`${m.title} — ${m.logoPath ? t("ui.posterWithLogo") : t("ui.cleanPoster")} — ${typeLabel}`}
         aria-pressed={selectMode && isSelected}
         onKeyDown={(e) => {
+          if (e.key === "Escape" && confirming) {
+            e.stopPropagation()
+            handlers.cancelRemove()
+            return
+          }
           if (e.key === "Enter" || e.key === " ") {
             e.preventDefault()
             if (selectMode) handlers.select(key); else handlers.open(m)
@@ -191,16 +200,48 @@ export const MoodBoardTile = React.memo(function MoodBoardTile({
         )}
 
         {/* Delete button (always visible on hover) */}
-        {!selectMode && (
+        {!selectMode && !confirming && (
           <button
             type="button"
             aria-label={t("ui.delete")}
-            onClick={(e) => { e.stopPropagation(); handlers.remove(m, e) }}
+            onClick={(e) => { e.stopPropagation(); handlers.remove(m) }}
             onKeyDown={(e) => e.stopPropagation()}
             className="absolute top-2 left-2 w-10 h-10 rounded-lg bg-red-900/70 flex items-center justify-center text-xs text-red-300 hover:bg-red-800 hover:text-red-200 active:scale-90 transition-all duration-150 opacity-100 md:opacity-0 md:group-hover:opacity-100 focus-visible:opacity-100 cursor-pointer shadow-lg shadow-black/30 touch-manipulation"
           >
             <Trash2 className="w-4 h-4" />
           </button>
+        )}
+
+        {/* Inline delete confirm: sostituisce la tendina fixed con
+            getBoundingClientRect (glitch su scroll/resize) con un overlay
+            locale alla tile, istantaneo anche al tocco. */}
+        {!selectMode && confirming && (
+          <div
+            role="alertdialog"
+            aria-label={t("ui.confirmDelete")}
+            aria-live="assertive"
+            onClick={(e) => { e.stopPropagation(); handlers.cancelRemove() }}
+            className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-2 bg-black/85 p-3 text-center animate-fade-scale-in"
+          >
+            <p className="text-xs font-semibold text-zinc-100 leading-snug line-clamp-2">{t("ui.confirmDelete")}</p>
+            <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+              <button
+                type="button"
+                autoFocus
+                onClick={() => handlers.confirmRemove(m)}
+                className="min-h-[36px] px-3.5 rounded-lg text-xs font-semibold bg-red-600 text-white hover:bg-red-500 active:scale-95 transition-all cursor-pointer"
+              >
+                {t("ui.delete")}
+              </button>
+              <button
+                type="button"
+                onClick={() => handlers.cancelRemove()}
+                className="min-h-[36px] px-3.5 rounded-lg text-xs font-medium bg-white/10 text-zinc-200 hover:bg-white/15 active:scale-95 transition-all cursor-pointer"
+              >
+                {t("ui.cancelAction")}
+              </button>
+            </div>
+          </div>
         )}
 
         {/* Quick toggle formato primario (dual-format, zero attrito) */}

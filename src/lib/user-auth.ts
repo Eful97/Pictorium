@@ -6,10 +6,15 @@ import { envWithFallback } from "@/lib/env-compat"
 import { createLogger } from "@/lib/logger"
 import { rateLimitKey } from "@/lib/rate-limit"
 import { atomicWriteFile } from "@/lib/atomic-write"
+import { getKv, getStorageMode } from "@/lib/kv"
 
 const log = createLogger("user-auth")
 
-const useKv = !!process.env.KV_REST_API_URL && !!process.env.KV_REST_API_TOKEN
+// Lettura live (mai a module level): i test mutano le env + resetModules.
+// Nome senza prefisso `use`: la regola react-hooks lo scambierebbe per un Hook.
+function isKvMode(): boolean {
+  return getStorageMode() === "kv"
+}
 
 /** True solo con opt-in esplicito: senza flag tutto resta byte-identico a oggi. */
 export function isMultiUserEnabled(): boolean {
@@ -113,10 +118,9 @@ interface UserAuthRecord {
 }
 
 async function readAuthRecord(userId: string): Promise<UserAuthRecord | null> {
-  if (useKv) {
+  if (isKvMode()) {
     try {
-      const { kv } = await import("@vercel/kv")
-      const raw = await kv.get<UserAuthRecord>(userAuthKvKey(userId))
+      const raw = await getKv().get<UserAuthRecord>(userAuthKvKey(userId))
       if (raw && typeof raw === "object" && (typeof raw.hash === "string" || typeof raw.passwordHash === "string")) {
         return raw
       }
@@ -139,9 +143,8 @@ async function readAuthRecord(userId: string): Promise<UserAuthRecord | null> {
 }
 
 async function writeAuthRecord(userId: string, record: UserAuthRecord): Promise<void> {
-  if (useKv) {
-    const { kv } = await import("@vercel/kv")
-    await kv.set(userAuthKvKey(userId), record)
+  if (isKvMode()) {
+    await getKv().set(userAuthKvKey(userId), record)
     return
   }
   await fsp.mkdir(userDir(userId), { recursive: true })
@@ -170,10 +173,9 @@ export async function createUser(password?: unknown): Promise<CreatedUser> {
 
 /** True se l'utente esiste (file o KV). Mai il secret in output. */
 export async function userExists(userId: string): Promise<boolean> {
-  if (useKv) {
+  if (isKvMode()) {
     try {
-      const { kv } = await import("@vercel/kv")
-      return (await kv.get(userAuthKvKey(userId))) != null
+      return (await getKv().get(userAuthKvKey(userId))) != null
     } catch (e) {
       log.warn("user auth KV read failed", { error: e instanceof Error ? e.message : String(e) })
       return false

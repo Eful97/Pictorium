@@ -63,8 +63,7 @@ describe("proxy resource forwarding — strip chiavi API (M6)", () => {
     expect(body.id.startsWith("org.pictorium.proxy.")).toBe(true)
     expect(body.name).toContain("(Pictorium)")
   })
-  it("non inoltra api_key/mdblist_key/param di controllo al target, ma preserva gli altri", async () => {
-    const target = encodeURIComponent("https://addon.example.com/manifest.json")
+  it("non inoltra api_key/mdblist_key/param di controllo al target, ma preserva gli altri", async () => {    const target = encodeURIComponent("https://addon.example.com/manifest.json")
     const req = new NextRequest(
       `http://localhost:3000/api/proxy/catalog/movie/top.json?target=${target}&api_key=SECRET_TMDB&API_KEY=SECRET_UPPER&mdblist_key=SECRET_MDBLIST&genre=Action&skip=20`,
     )
@@ -83,5 +82,22 @@ describe("proxy resource forwarding — strip chiavi API (M6)", () => {
     // I param legittimi restano
     expect(url.searchParams.get("genre")).toBe("Action")
     expect(url.searchParams.get("skip")).toBe("20")
+  })
+  it("forza Content-Type JSON anche se l'upstream risponde text/html (anti-XSS riflesso, v1.23.0)", async () => {
+    // Addon malevolo: HTML con JS che ruberebbe il token da localStorage se
+    // servito come text/html sulla nostra origin (le API sono fuori CSP).
+    fetchSpy.mockResolvedValueOnce(
+      new Response(JSON.stringify({ id: "evil", name: "Evil", description: "<script>alert(1)</script>" }), {
+        status: 200,
+        headers: { "Content-Type": "text/html; charset=utf-8" },
+      }),
+    )
+    const target = encodeURIComponent("https://evil.example.com/manifest.json")
+    const req = new NextRequest(`http://localhost:3000/api/proxy/manifest?target=${target}`)
+    const res = await GET(req, { params: Promise.resolve({ path: ["manifest"] }) })
+    expect(res.status).toBe(200)
+    expect(res.headers.get("content-type")).toContain("application/json")
+    expect(res.headers.get("x-content-type-options")).toBe("nosniff")
+    expect(res.headers.get("content-security-policy")).toContain("default-src 'none'")
   })
 })

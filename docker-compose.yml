@@ -64,8 +64,15 @@ services:
       # Proxy fidato (dietro Cloudflare/Caddy/Nginx) e allowlist host pubblici
       - PICTORIUM_TRUST_PROXY=${PICTORIUM_TRUST_PROXY:-${POSTERIUM_TRUST_PROXY:-}}
       - PICTORIUM_ALLOWED_HOSTS=${PICTORIUM_ALLOWED_HOSTS:-${POSTERIUM_ALLOWED_HOSTS:-}}
+      # Banner sponsor hosting pubblico (es. "elfhosted"; vuoto = nessun banner).
+      - PICTORIUM_HOSTED_BY=${PICTORIUM_HOSTED_BY:-}
 
       # ── Opzionali — Persistenza distribuita ──
+      # Redis nativo (TCP) per HA multi-replica senza /data: PICTORIUM_REDIS_URL
+      # vince su KV_REST_* (log warn, nessuna migrazione automatica). Su ElfHosted
+      # basta REDIS_URL (fallback nudo supportato). Senza nessuno dei due resta il
+      # volume /data sotto.
+      - PICTORIUM_REDIS_URL=${PICTORIUM_REDIS_URL:-${REDIS_URL:-}}
       - KV_REST_API_URL=${KV_REST_API_URL:-}
       - KV_REST_API_TOKEN=${KV_REST_API_TOKEN:-}
 

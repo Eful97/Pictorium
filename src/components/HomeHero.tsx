@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo, useRef, type MouseEvent, type KeyboardEvent } from "react"
+import { useMemo, useRef, type MouseEvent, type KeyboardEvent, type ReactNode } from "react"
 import { usePSelector } from "@/lib/context"
 import { currentPathUuid } from "@/lib/user-token"
 import { useT } from "@/lib/contexts/TranslationContext"
@@ -73,7 +73,7 @@ function shuffle<T>(arr: T[]): T[] {
   return a
 }
 
-export function HomeHero() {
+export function HomeHero({ search }: { search?: ReactNode }) {
   const router = usePSelector((v) => v.router)
   const trending = usePSelector((v) => v.trending)
   const titleOf = usePSelector((v) => v.titleOf)
@@ -158,6 +158,11 @@ export function HomeHero() {
           {t("ui.heroTitleTail")}
         </h1>
         <p className="home-hero-sub mt-3 animate-fade-up" style={{ animationDelay: "140ms" }}>{t("ui.heroSubtitle")}</p>
+        {search ? (
+          <div className="home-hero-search animate-fade-up" style={{ animationDelay: "175ms" }}>
+            {search}
+          </div>
+        ) : null}
         <div className="stat-pills mt-4 animate-fade-up" style={{ animationDelay: "210ms" }}>
           <span className="stat-pill">
             <Layers className="w-3.5 h-3.5" />

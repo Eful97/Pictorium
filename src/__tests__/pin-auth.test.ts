@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach, beforeAll, afterAll } from "vitest"
+import { describe, it, expect, beforeEach, afterEach, beforeAll, afterAll, vi } from "vitest"
 import fs from "node:fs/promises"
 import path from "node:path"
 import os from "node:os"
@@ -16,6 +16,19 @@ import {
 import { checkAdminToken } from "@/lib/auth"
 import { NextRequest } from "next/server"
 import { GET, POST, PUT, DELETE } from "@/app/api/auth/pin/route"
+
+// Store KV in-memory: valida il cablaggio pin-auth -> kv.ts -> @vercel/kv
+// senza rete. Attivo solo quando il test imposta KV_REST_API_URL/TOKEN
+// (gli altri test restano in file-mode).
+const kvStore = vi.hoisted(() => new Map<string, unknown>())
+vi.mock("@vercel/kv", () => ({
+  kv: {
+    get: async (key: string) => kvStore.get(key) ?? null,
+    set: async (key: string, value: unknown) => {
+      kvStore.set(key, value)
+    },
+  },
+}))
 
 function createReq(method: string, pathUrl: string, body?: unknown, headers?: Record<string, string>): NextRequest {
   const reqHeaders: Record<string, string> = {
@@ -208,6 +221,73 @@ describe("PIN Authentication & Security", () => {
       const checkRes = await GET(createReq("GET", "/api/auth/pin"))
       const json = await checkRes.json()
       expect(json.hasPin).toBe(false)
+    })
+  })
+
+  describe("KV backend (Redis/Upstash via lib/kv)", () => {
+    it("setPin/verifyPin round-trip sulla KV condivisa tra istanze", async () => {
+      process.env.KV_REST_API_URL = "https://example.upstash.io"
+      process.env.KV_REST_API_TOKEN = "test-token"
+      try {
+        vi.resetModules()
+        const fresh = await import("@/lib/pin-auth")
+        fresh._resetPinCache()
+        expect(await fresh.hasPinConfigured()).toBe(false)
+        expect(await fresh.setPin("123456")).toBe(true)
+        expect(await fresh.hasPinConfigured()).toBe(true)
+        expect(await fresh.verifyPin("123456")).toBe(true)
+        expect(await fresh.verifyPin("000000")).toBe(false)
+
+        // Altra istanza (modulo ricaricato): legge dalla KV condivisa.
+        vi.resetModules()
+        const reloaded = await import("@/lib/pin-auth")
+        expect(await reloaded.verifyPin("123456")).toBe(true)
+      } finally {
+        delete process.env.KV_REST_API_URL
+        delete process.env.KV_REST_API_TOKEN
+        kvStore.clear()
+        vi.resetModules()
+      }
+    })
+  })
+
+  describe("binding PIN↔admin token (v1.23.0)", () => {
+    const OLD_ENV = { pictorium: process.env.PICTORIUM_ADMIN_TOKEN, bare: process.env.ADMIN_TOKEN }
+    afterEach(() => {
+      if (OLD_ENV.pictorium === undefined) delete process.env.PICTORIUM_ADMIN_TOKEN
+      else process.env.PICTORIUM_ADMIN_TOKEN = OLD_ENV.pictorium
+      if (OLD_ENV.bare === undefined) delete process.env.ADMIN_TOKEN
+      else process.env.ADMIN_TOKEN = OLD_ENV.bare
+    })
+
+    it("il PIN impostato via token muore con la rotazione dell'env", async () => {
+      process.env.PICTORIUM_ADMIN_TOKEN = "token-A"
+      expect(await setPin("123456", { viaAdminToken: true })).toBe(true)
+      expect(await verifyPin("123456")).toBe(true)
+      expect(await hasPinConfigured()).toBe(true)
+      const session = await createSessionToken()
+      expect(await verifySessionToken(session)).toBe(true)
+
+      // Rotazione: stesso PIN, token diverso → tutto inerte.
+      process.env.PICTORIUM_ADMIN_TOKEN = "token-B"
+      expect(await verifyPin("123456")).toBe(false)
+      expect(await hasPinConfigured()).toBe(false)
+      expect(await verifySessionToken(session)).toBe(false)
+    })
+
+    it("il PIN impostato via PIN (o senza token) sopravvive all'env", async () => {
+      delete process.env.PICTORIUM_ADMIN_TOKEN
+      delete process.env.ADMIN_TOKEN
+      expect(await setPin("123456")).toBe(true)
+      process.env.PICTORIUM_ADMIN_TOKEN = "token-C"
+      expect(await verifyPin("123456")).toBe(true)
+      expect(await hasPinConfigured()).toBe(true)
+    })
+
+    it("il PIN sopravvive quando il token non cambia", async () => {
+      process.env.PICTORIUM_ADMIN_TOKEN = "token-A"
+      expect(await setPin("123456", { viaAdminToken: true })).toBe(true)
+      expect(await verifyPin("123456")).toBe(true)
     })
   })
 })

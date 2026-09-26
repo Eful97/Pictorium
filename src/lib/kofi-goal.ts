@@ -4,6 +4,7 @@ import path from "node:path"
 import { DATA_DIR } from "@/lib/data-dir"
 import { envWithFallback } from "@/lib/env-compat"
 import { createLogger } from "@/lib/logger"
+import { getKv, getStorageMode } from "@/lib/kv"
 
 const log = createLogger("kofi-goal")
 
@@ -18,8 +19,13 @@ export interface KofiGoalData {
 const DEFAULT_TARGET = 6
 const DEFAULT_CURRENT = 0
 const GOAL_FILE_NAME = "kofi-goal.json"
-const useKv = !!process.env.KV_REST_API_URL && !!process.env.KV_REST_API_TOKEN
 const KV_KEY = "kofi_goal"
+
+// Lettura live (mai a module level): i test mutano le env + resetModules.
+// Nome senza prefisso `use`: la regola react-hooks lo scambierebbe per un Hook.
+function isKvMode(): boolean {
+  return getStorageMode() === "kv"
+}
 
 function getGoalFile(): string {
   const dir = envWithFallback("DATA_DIR") || DATA_DIR
@@ -34,10 +40,9 @@ export async function getKofiGoal(): Promise<KofiGoalData> {
   let current = Number.isFinite(envCurrent) && envCurrent >= 0 ? envCurrent : DEFAULT_CURRENT
   let updatedAt: string | undefined
 
-  if (useKv) {
+  if (isKvMode()) {
     try {
-      const { kv } = await import("@vercel/kv")
-      const data = await kv.get<{ current?: number; target?: number; updatedAt?: string }>(KV_KEY)
+      const data = await getKv().get<{ current?: number; target?: number; updatedAt?: string }>(KV_KEY)
       if (data) {
         if (typeof data.target === "number" && data.target > 0) target = data.target
         if (typeof data.current === "number" && data.current >= 0) current = data.current

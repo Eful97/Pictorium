@@ -4,7 +4,7 @@
  * logic applies in preview (WYSIWYG) and final poster.
  */
 import { computeBadge, computeAbsoluteCinema, type BadgeResult, type SashBucket } from "./badge-priority"
-import { getAwardBadgeLabel, getNominationBadgeLabel } from "./awards"
+import { getAwardBadgeLabel, getNominationBadgeLabel } from "./badge-labels"
 import { getUpcomingReleaseLabel } from "./release-badge"
 import { getSubGenreLabel } from "./subgenres"
 

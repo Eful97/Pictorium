@@ -125,6 +125,16 @@ describe("UserUnlockModal hard gate (niente bypass)", () => {
     act(() => requestUserUnlock(UUID))
     expect(screen.getByRole("dialog")).toBeInTheDocument()
   })
+
+  it("l'occhio mostra/nasconde la password inserita", () => {
+    renderModal()
+    const input = screen.getByPlaceholderText("••••••••") as HTMLInputElement
+    expect(input.type).toBe("password")
+    fireEvent.click(screen.getByRole("button", { name: "a:ui.showKey" }))
+    expect(input.type).toBe("text")
+    fireEvent.click(screen.getByRole("button", { name: "a:ui.hideKey" }))
+    expect(input.type).toBe("password")
+  })
 })
 
 describe("UserUnlockModal login via secret", () => {

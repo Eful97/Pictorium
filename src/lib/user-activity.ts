@@ -5,12 +5,17 @@ import { DATA_DIR } from "@/lib/data-dir"
 import { envWithFallback } from "@/lib/env-compat"
 import { createLogger } from "@/lib/logger"
 import { cacheExpire } from "@/lib/cache"
-import { userDir } from "@/lib/user-auth"
+import { userDir, userExists } from "@/lib/user-auth"
 import { atomicWriteFile } from "@/lib/atomic-write"
+import { getKv, getStorageMode } from "@/lib/kv"
 
 const log = createLogger("user-activity")
 
-const useKv = !!process.env.KV_REST_API_URL && !!process.env.KV_REST_API_TOKEN
+// Lettura live (mai a module level): i test mutano le env + resetModules.
+// Nome senza prefisso `use`: la regola react-hooks lo scambierebbe per un Hook.
+function isKvMode(): boolean {
+  return getStorageMode() === "kv"
+}
 
 function assertValidUserId(userId: string): void {
   if (!/^[0-9a-f-]{36}$/i.test(userId)) throw new Error("Invalid user id")
@@ -34,10 +39,16 @@ function activityKvKey(userId: string): string {
 }
 
 async function persistActivity(userId: string, now: number): Promise<void> {
+  // Solo spazi reali (v1.23.0): gli UUID inventati non devono creare
+  // directory/chiavi orfane mai visibili al cleanup (crescita incontrollata).
+  if (!(await userExists(userId))) return
   const payload = JSON.stringify({ lastAccess: new Date(now).toISOString() })
-  if (useKv) {
-    const { kv } = await import("@vercel/kv")
-    await kv.set(activityKvKey(userId), payload)
+  if (isKvMode()) {
+    // TTL = finestra retention (v1.23.0): oltre, il cleanup rimuoverebbe
+    // comunque lo spazio — la chiave si auto-estingue senza cron. Con
+    // retention disabilitata (0) cap a 1 anno: i dati restano utili allo
+    // status ma smettono di accumularsi per sempre.
+    await getKv().set(activityKvKey(userId), payload, { ex: activityTtlSec() })
     return
   }
   await fsp.mkdir(userDir(userId), { recursive: true })
@@ -129,7 +140,7 @@ async function readLastAccessFile(userId: string): Promise<string | null> {
 
 /** Elenca i namespace utente (file mode; KV best-effort). Mai dati sensibili. */
 export async function listUsers(): Promise<UserInfo[]> {
-  if (useKv) return listUsersKv()
+  if (isKvMode()) return listUsersKv()
   let entries: string[]
   try {
     entries = await fsp.readdir(path.join(DATA_DIR, "users"))
@@ -153,14 +164,12 @@ export async function listUsers(): Promise<UserInfo[]> {
 
 async function listUsersKv(): Promise<UserInfo[]> {
   try {
-    const { kv } = await import("@vercel/kv")
+    const kv = getKv()
     const uuids = new Set<string>()
     let cursor = 0
     do {
-      const [next, keys] = (await (kv as unknown as {
-        scan: (c: number, o?: { match?: string; count?: number }) => Promise<[number, string[]]>
-      }).scan(cursor, { match: "user:*:auth", count: 100 })) ?? [0, []]
-      cursor = Number(next) || 0
+      const [next, keys] = await kv.scan(cursor, { match: "user:*:auth", count: 100 })
+      cursor = next
       for (const k of keys ?? []) {
         const m = /^user:([0-9a-f-]{36}):auth$/i.exec(k)
         if (m?.[1]) uuids.add(m[1].toLowerCase())
@@ -204,8 +213,8 @@ export async function deleteUser(userId: string): Promise<number> {
   __evictUserStoreCache(userId)
   __evictUserDefaultsCache(userId)
   __evictUserEpochCache(userId)
-  if (useKv) {
-    const { kv } = await import("@vercel/kv")
+  if (isKvMode()) {
+    const kv = getKv()
     const keys = [
       ...USER_KV_KEYS.map((k) => `user:${userId}:${k}`),
       `mappings:${userId}`,
@@ -252,6 +261,11 @@ export function getUserRetentionDays(): number {
   const n = parseInt(raw, 10)
   if (raw.trim() === "0") return 0
   return Number.isFinite(n) && n > 0 ? n : 180
+}
+
+/** TTL (secondi) delle chiavi activity in KV: finestra retention, cap 1 anno se disabilitata. */
+export function activityTtlSec(retentionDays = getUserRetentionDays()): number {
+  return (retentionDays > 0 ? retentionDays : 365) * 24 * 60 * 60
 }
 
 export interface CleanupResult {

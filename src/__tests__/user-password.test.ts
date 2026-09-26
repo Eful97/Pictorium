@@ -5,6 +5,18 @@ import path from "node:path"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { NextRequest } from "next/server"
 
+// Store KV in-memory: valida il cablaggio user-auth -> kv.ts -> @vercel/kv
+// senza rete. Attivo solo quando il test imposta KV_REST_API_URL/TOKEN.
+const kvStore = vi.hoisted(() => new Map<string, unknown>())
+vi.mock("@vercel/kv", () => ({
+  kv: {
+    get: async (key: string) => kvStore.get(key) ?? null,
+    set: async (key: string, value: unknown) => {
+      kvStore.set(key, value)
+    },
+  },
+}))
+
 const ENV_KEYS = [
   "PICTORIUM_DATA_DIR",
   "PICTORIUM_MULTI_USER",
@@ -22,6 +34,9 @@ beforeEach(async () => {
   process.env.PICTORIUM_MULTI_USER = "1"
   process.env.PROFILE_ENCRYPTION_KEY = crypto.randomBytes(32).toString("hex")
   delete process.env.PICTORIUM_MAX_MAPPINGS_PER_USER
+  delete process.env.KV_REST_API_URL
+  delete process.env.KV_REST_API_TOKEN
+  kvStore.clear()
 })
 
 afterEach(async () => {
@@ -29,6 +44,9 @@ afterEach(async () => {
     if (savedEnv[k] === undefined) delete process.env[k]
     else process.env[k] = savedEnv[k]
   }
+  delete process.env.KV_REST_API_URL
+  delete process.env.KV_REST_API_TOKEN
+  kvStore.clear()
   vi.resetModules()
   vi.restoreAllMocks()
   if (tempDir) await fsp.rm(tempDir, { recursive: true, force: true })
@@ -235,5 +253,26 @@ describe("password API routes", () => {
     })
     expect(k.status).toBe(200)
     expect(await k.json()).toMatchObject({ tmdb: false, hasPassword: true })
+  })
+})
+
+describe("user-auth KV backend (Redis/Upstash via lib/kv)", () => {
+  it("createUser/userExists/verify round-trip sulla KV condivisa tra istanze", async () => {
+    process.env.KV_REST_API_URL = "https://example.upstash.io"
+    process.env.KV_REST_API_TOKEN = "test-token"
+    vi.resetModules()
+    const auth = await import("@/lib/user-auth")
+    const created = await auth.createUser("kv-password-1")
+    expect(await auth.userExists(created.uuid)).toBe(true)
+    expect(await auth.verifyUserToken(created.uuid, created.secret)).toBe(true)
+    expect(await auth.verifyUserPassword(created.uuid, "kv-password-1")).toBe(true)
+
+    // Altra istanza (modulo ricaricato): legge dalla KV condivisa.
+    vi.resetModules()
+    const reloaded = await import("@/lib/user-auth")
+    expect(await reloaded.userExists(created.uuid)).toBe(true)
+    expect(await reloaded.verifyUserToken(created.uuid, created.secret)).toBe(true)
+    expect(await reloaded.verifyUserPassword(created.uuid, "kv-password-1")).toBe(true)
+    expect(await reloaded.userExists("00000000-0000-4000-8000-000000000000")).toBe(false)
   })
 })

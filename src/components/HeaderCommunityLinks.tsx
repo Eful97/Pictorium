@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react"
 import { DiscordIcon, GithubIcon, KofiIcon } from "@/components/icons/BrandIcons"
+import { ElfHostedMenuPanel, useElfHostedMenu } from "@/components/ElfHostedMenu"
+import { useT } from "@/lib/contexts/TranslationContext"
 
 interface GoalState {
   current: number
@@ -48,9 +50,12 @@ export function useKofiGoal(): GoalState {
  */
 export function DesktopCommunityLinks() {
   const goal = useKofiGoal()
+  const menu = useElfHostedMenu("desktop")
+  const { t } = useT()
 
   return (
     <div className="hidden md:flex absolute top-4 left-4 z-20">
+      <div className="flex flex-col items-stretch">
       <div className="flex items-center gap-1.5 p-1.5 rounded-2xl bg-black/60 backdrop-blur-xl border border-white/10 shadow-2xl shadow-black/50 relative z-50">
         {/* GitHub Button */}
         <a
@@ -75,6 +80,23 @@ export function DesktopCommunityLinks() {
         >
           <DiscordIcon className="w-4 h-4" />
         </a>
+
+        {/* ElfHosted sponsor (solo istanze hostedBy=elfhosted) */}
+        {menu.visible && (
+          <button
+            type="button"
+            onClick={menu.toggle}
+            aria-expanded={menu.open}
+            aria-label={t("ui.hostedByToggle")}
+            title={t("ui.hostedByToggle")}
+            className={`p-1.5 rounded-xl active:scale-90 transition-all duration-150 flex items-center justify-center cursor-pointer ${
+              menu.open ? "bg-white/10" : "hover:bg-white/[0.08]"
+            }`}
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element -- local SVG asset */}
+            <img src="/elfhosted.svg" alt="" aria-hidden="true" className="w-5 h-5" />
+          </button>
+        )}
 
         <div className="h-4 w-px bg-white/10 mx-0.5" />
 
@@ -102,6 +124,13 @@ export function DesktopCommunityLinks() {
           </div>
         </a>
       </div>
+      {/* Tendina sponsor sotto la island, aperta al primo avvio */}
+      {menu.visible && menu.open && (
+        <div className="mt-2 w-80 max-w-[calc(100vw-2rem)] animate-fade-scale-in">
+          <ElfHostedMenuPanel onMinimize={menu.toggle} />
+        </div>
+      )}
+      </div>
     </div>
   )
 }
@@ -111,8 +140,11 @@ export function DesktopCommunityLinks() {
  */
 export function MobileCommunityLinks() {
   const goal = useKofiGoal()
+  const menu = useElfHostedMenu("mobile")
+  const { t } = useT()
 
   return (
+    <>
     <div className="md:hidden flex items-center justify-center gap-2 mb-3 mt-1 animate-fade-in">
       {/* GitHub Button */}
       <a
@@ -138,6 +170,24 @@ export function MobileCommunityLinks() {
         <span className="text-[11px] font-medium">Discord</span>
       </a>
 
+      {/* ElfHosted sponsor (solo istanze hostedBy=elfhosted) */}
+      {menu.visible && (
+        <button
+          type="button"
+          onClick={menu.toggle}
+          aria-expanded={menu.open}
+          aria-label={t("ui.hostedByToggle")}
+          className={`flex items-center px-2 py-1 rounded-xl border active:scale-95 transition-all duration-150 cursor-pointer ${
+            menu.open
+              ? "bg-white/10 border-white/20"
+              : "bg-white/[0.05] border-white/10"
+          }`}
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element -- local SVG asset */}
+          <img src="/elfhosted.svg" alt="" aria-hidden="true" className="w-4 h-4" />
+        </button>
+      )}
+
       {/* Ko-fi Goal Button */}
       <a
         href="https://ko-fi.com/eful97"
@@ -156,5 +206,12 @@ export function MobileCommunityLinks() {
         </div>
       </a>
     </div>
+    {/* Tendina sponsor sotto la barra, aperta al primo avvio */}
+    {menu.visible && menu.open && (
+      <div className="md:hidden w-full max-w-sm mx-auto px-3 mb-3 animate-fade-scale-in">
+        <ElfHostedMenuPanel onMinimize={menu.toggle} />
+      </div>
+    )}
+    </>
   )
 }

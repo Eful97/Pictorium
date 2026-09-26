@@ -7,6 +7,11 @@ const RANKING_FONT_WEIGHT = 700
 export const BADGE_BOX_PAD_Y_FACTOR = 0.40
 export const BADGE_BOX_PAD_X_FACTOR = 0.75
 
+/** Cornice compatta della pill genere (pill + colored): solo padding, mai il
+ *  font — il testo resta a base piena, si stringe solo la scatola. */
+export const GENRE_PILL_PAD_X_FACTOR = 0.55
+export const GENRE_PILL_PAD_Y_FACTOR = 0.30
+
 export function badgeBoxHeight(fs: number): number {
   return fs + Math.round(fs * BADGE_BOX_PAD_Y_FACTOR) * 2
 }
@@ -212,10 +217,10 @@ export function buildGenrePillSvg(
   /** Override fill stella (colored su accent caldo: oro → colore testo). */
   starFill?: string,
 ) {
-  const padX = Math.round(fs * BADGE_BOX_PAD_X_FACTOR)
+  const padX = Math.round(fs * GENRE_PILL_PAD_X_FACTOR)
   const dims = genreBadgeSvgDims(fs, genreName, voteStr, yearStr, parts)
   const pillW = dims.textContentW + padX * 2
-  const pillH = badgeBoxHeight(fs)
+  const pillH = fs + Math.round(fs * GENRE_PILL_PAD_Y_FACTOR) * 2
   const pillR = pillH / 2
   // Padding simmetrico per la coda dell'ombra (la pill sta in basso, mai a
   // filo bordo). Vale anche per colored (tinta piatta + ombra).

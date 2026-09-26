@@ -1,6 +1,6 @@
 import { textColorForBg, isWarmGoldAccent } from "./accent-color"
 import { FONT_FILES } from "./fonts"
-import { estimateTextWidth, fontFamilyFor, genreBadgeSafePad, genreBadgeSvgDims, genrePillMaxW, BADGE_BOX_PAD_X_FACTOR, buildGenreBarSvg, buildGenrePillSvg, buildGenreTextSvg, buildGenreBorderedSvg, buildGenreGlassSvg, buildRankingDefaultSvg, buildRankingPillSvg, buildRankingGlassSvg, buildRankingBorderedSvg, buildExtraDefaultSvg, buildExtraPillSvg, buildExtraGlassSvg, buildExtraBorderedSvg, buildQualityBadgeSvg, escSvg, satinPillStops } from "./badge-svg-shared"
+import { estimateTextWidth, fontFamilyFor, genreBadgeSafePad, genreBadgeSvgDims, genrePillMaxW, GENRE_PILL_PAD_X_FACTOR, buildGenreBarSvg, buildGenrePillSvg, buildGenreTextSvg, buildGenreBorderedSvg, buildGenreGlassSvg, buildRankingDefaultSvg, buildRankingPillSvg, buildRankingGlassSvg, buildRankingBorderedSvg, buildExtraDefaultSvg, buildExtraPillSvg, buildExtraGlassSvg, buildExtraBorderedSvg, buildQualityBadgeSvg, escSvg, satinPillStops } from "./badge-svg-shared"
 import type { GenreParts } from "./badge-svg-shared"
 import type { BadgeStyle, RankingBadgeStyle, ExtraBadgeStyle } from "./badge-styles"
 
@@ -108,6 +108,7 @@ export async function buildGenreBadgeSVG(
   const yearStr = year || ""
 
   // Base 28.6px (+30% scala nativa): resa bilanciata e leggibile, lo slider `gscale` parte da 100.
+  // (La compattezza di pill/colored vive nel padding di buildGenrePillSvg, mai nel font.)
   let finalFs = 28.6 * pw / 380
   // Barra full-width: vedi nota in buildExtraBadgeSVG.
   if (s === "bar") finalFs = (finalFs * scale) / 100
@@ -126,11 +127,12 @@ export async function buildGenreBadgeSVG(
 
   const isPillStyle = s === "pill" || s === "colored"
   if (isPillStyle) {
-    // Cap anti-sprawl sulla larghezza totale della pill (box model unificato con padX = 0.75*fs, zero safePad):
-    // il bound resta sul totale textContentW + padX*2. Itera al massimo 3 volte (converge subito).
+    // Cap anti-sprawl sulla larghezza totale della pill (stesso padX del
+    // builder, zero safePad): il bound resta sul totale textContentW + padX*2.
+    // Itera al massimo 3 volte (converge subito).
     const maxPillW = genrePillMaxW(pw)
     for (let i = 0; i < 3; i++) {
-      const _padX = Math.round(finalFs * BADGE_BOX_PAD_X_FACTOR)
+      const _padX = Math.round(finalFs * GENRE_PILL_PAD_X_FACTOR)
       const _dims = genreBadgeSvgDims(finalFs, genreName, voteStr, yearStr, parts)
       const total = _dims.textContentW + _padX * 2
       // Margine 4px: il builder arrotonda per eccesso rispetto alla stima.

@@ -4,6 +4,21 @@ import { GET } from "@/app/api/tvdb/[id]/seasonTypes/route"
 import { cacheClear } from "@/lib/cache"
 import { clearTvdbCache } from "@/lib/tvdb"
 
+// Il lib tvdb è fail-soft (gli errori fetch diventano []/null internamente):
+// l'unico throw che raggiunge il catch esterno è infrastrutturale
+// (es. cacheSet). Flag per simularlo senza rompere gli altri test.
+const cacheControl = vi.hoisted(() => ({ fail: false }))
+vi.mock("@/lib/cache", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/cache")>()
+  return {
+    ...actual,
+    cacheSet: (...args: Parameters<typeof actual.cacheSet>) => {
+      if (cacheControl.fail) throw new Error("disk /secret/path full")
+      return actual.cacheSet(...args)
+    },
+  }
+})
+
 describe("GET /api/tvdb/[id]/seasonTypes", () => {
   beforeEach(() => {
     cacheClear()
@@ -62,5 +77,31 @@ describe("GET /api/tvdb/[id]/seasonTypes", () => {
     const json = await res.json()
     expect(json.results).toEqual([])
     expect(json.error).toContain("TVDB key missing")
+  })
+
+  it("sanitizes upstream errors (no raw message in body, v1.23.0)", async () => {
+    vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(Response.json({ status: "success", data: { token: "mock-jwt" } }))
+      .mockResolvedValueOnce(
+        Response.json({ status: "success", data: [{ series: { id: 327153, name: "X" } }] }),
+      )
+      .mockResolvedValueOnce(
+        Response.json({
+          status: "success",
+          data: { id: 327153, seasonTypes: [{ id: 1, name: "Aired", type: "official", alternateName: null }] },
+        }),
+      )
+    cacheControl.fail = true
+    try {
+      const req = new NextRequest("http://localhost:3000/api/tvdb/71446/seasonTypes?tvdb_key=valid-key")
+      const res = await GET(req, { params: Promise.resolve({ id: "71446" }) })
+      expect(res.status).toBe(200)
+      const json = await res.json()
+      expect(json.results).toEqual([])
+      expect(json.error).toBe("TVDB non disponibile")
+      expect(JSON.stringify(json)).not.toContain("secret")
+    } finally {
+      cacheControl.fail = false
+    }
   })
 })

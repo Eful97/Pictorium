@@ -70,6 +70,11 @@ export function buildStremioPosterUrl(input: BuildStremioPosterUrlInput): URL {
     user: input.user,
     region: input.region ?? input.defaults.region,
     lang: input.lang || "it",
+    // URL compatti senza token stateless: il tuning numerico si risolve
+    // server-side (mapping > defaults dello spazio). Con `config` resta
+    // esplicito (il token perderebbe contro query assente). I template
+    // manuali (buildUrlPattern) restano sempre espliciti.
+    compactTuning: !input.config,
     // Per-titolo vince sui default globali, con emissione ESPLICITA in query:
     // il fallback server (mapping quando il parametro manca) è fragile —
     // con installazioni ?config= il token scavalca il mapping (poster-config:

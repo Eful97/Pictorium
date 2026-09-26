@@ -93,6 +93,7 @@ const NETWORK_FILES: Record<string, string> = {
   taodue: "Taodue_logo.svg",
   bandai: "Bandai_Visual_corporate_logo.svg",
   mappa: "MAPPA_Logo.svg",
+  madhouse: "Madhouse Studio logo.svg",
   skydance: "Skydance_Media_2020.svg",
   dg_cinema: "direzione-generale-cinema-e-audiovisivo-vector-logo.svg",
   dc: "DC_Studios_logo.svg",
@@ -174,6 +175,7 @@ const NETWORK_TARGET_W: Record<string, number> = {
   taodue: 62,
   bandai: 58,
   mappa: 58,
+  madhouse: 58,
   skydance: 62,
   dg_cinema: 48,
   dc: 46,
@@ -257,6 +259,7 @@ function getNetworkKey(networkName: string): string | null {
   if (lower.includes("taodue")) return "taodue"
   if (lower.includes("bandai")) return "bandai"
   if (lower.includes("mappa")) return "mappa"
+  if (lower.includes("madhouse")) return "madhouse"
   if (lower.includes("skydance")) return "skydance"
   if (lower.includes("big talk")) return "bigtalk"
   if (lower.includes("direzione generale") || lower.includes("cinema e audiovisivo") || lower.includes("dg cinema")) return "dg_cinema"
@@ -293,7 +296,7 @@ async function loadNetworkPng(networkKey: string, pw: number, topLight: boolean 
       const w = meta.width || 100
       const h = meta.height || 50
       const aspect = w / h
-      const isFlatWide = ["lionsgate", "sony", "legendary", "fandango", "pixar", "dreamworks", "taodue", "mappa", "skydance", "castle_rock"].includes(networkKey)
+      const isFlatWide = ["lionsgate", "sony", "legendary", "fandango", "pixar", "dreamworks", "taodue", "mappa", "madhouse", "skydance", "castle_rock"].includes(networkKey)
       // La "N" Netflix è un'icona verticale: ad area uniforme uscirebbe altissima (~80px) → area -60%
       const areaScale = isFlatWide ? 0.62 : networkKey === "netflix" ? 0.4 : networkKey === "dc" ? 0.75 : 1 // Lionsgate, Pixar e simili troppo larghi → area -38%
       const desiredArea = 3600 * areaScale * (pw / 500) * (pw / 500)
@@ -675,7 +678,7 @@ async function loadNetworkRawPng(networkKey: string, pw: number, topLight: boole
       const w = meta.width || 100
       const h = meta.height || 50
       const aspect = w / h
-      const isFlatWide2 = ["lionsgate", "sony", "legendary", "fandango", "pixar", "dreamworks", "taodue", "mappa", "skydance", "castle_rock"].includes(networkKey)
+      const isFlatWide2 = ["lionsgate", "sony", "legendary", "fandango", "pixar", "dreamworks", "taodue", "mappa", "madhouse", "skydance", "castle_rock"].includes(networkKey)
       // La "N" Netflix è un'icona verticale: ad area uniforme uscirebbe altissima (~80px) → area -60%
       const areaScale2 = isFlatWide2 ? 0.62 : networkKey === "netflix" ? 0.4 : networkKey === "dc" ? 0.75 : 1
       const desiredArea = 3600 * areaScale2 * (pw / 500) * (pw / 500)

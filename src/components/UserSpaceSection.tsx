@@ -6,6 +6,7 @@ import { toast } from "sonner"
 import { Check, Copy, Fingerprint, Plus } from "lucide-react"
 import { useT } from "@/lib/contexts/TranslationContext"
 import { copyText } from "@/lib/clipboard"
+import { isMultiUserServer } from "@/lib/guest-guard"
 import {
   currentPathUuid,
   fetchWithUserAuthRetry,
@@ -300,9 +301,8 @@ export function UserSpacesList() {
   const [sessionSpace, setSessionSpace] = useState<string | null>(null)
 
   useEffect(() => {
-    fetch("/api/status")
-      .then((r) => (r.ok ? r.json() : null))
-      .then((d) => setMultiUser(d?.multiUser === true))
+    isMultiUserServer()
+      .then((v) => setMultiUser(v))
       .catch(() => setMultiUser(false))
   }, [])
 

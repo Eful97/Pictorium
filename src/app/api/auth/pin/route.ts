@@ -87,21 +87,23 @@ export async function PUT(req: NextRequest) {
   }
 
   const hasPin = await hasPinConfigured()
+  const currentPin = typeof body?.currentPin === "string" ? body.currentPin.trim() : ""
+  const isCurrentValid = currentPin ? await verifyPin(currentPin) : false
+  const isAdmin = checkAdminToken(req)
   if (hasPin) {
-    const currentPin = typeof body?.currentPin === "string" ? body.currentPin.trim() : ""
-    const isCurrentValid = currentPin ? await verifyPin(currentPin) : false
-    const isAdmin = checkAdminToken(req)
     if (!isCurrentValid && !isAdmin) {
       return Response.json({ error: "PIN attuale non corretto" }, { status: 401 })
     }
-  } else if (hasAdminTokenConfigured() && !checkAdminToken(req)) {
+  } else if (hasAdminTokenConfigured() && !isAdmin) {
     // Primo set con ADMIN_TOKEN configurato: chi non ha il token non può
     // impossessarsi dell'istanza impostando un PIN prima del proprietario.
     // (Senza ADMIN_TOKEN il primo set resta libero per l'onboarding wizard.)
     return Response.json({ error: "Unauthorized. Set x-admin-token or Authorization: Bearer header." }, { status: 401 })
   }
 
-  const success = await setPin(newPin)
+  // Binding rotazione (v1.23.0): impostato via token (non via PIN) → il PIN
+  // muore con la rotazione dell'env. Via PIN o senza token: nessun binding.
+  const success = await setPin(newPin, { viaAdminToken: isAdmin && !isCurrentValid })
   if (!success) {
     return Response.json({ error: "Impossibile salvare il PIN" }, { status: 500 })
   }

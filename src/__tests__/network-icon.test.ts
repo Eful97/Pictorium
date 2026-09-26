@@ -291,5 +291,17 @@ describe("network-svgs", () => {
     const dark = await renderNetworkLogoBadge("Big Talk Studios", 500, false)
     expect(light!.png.equals(dark!.png)).toBe(false)
   })
+
+  it("matches and renders Madhouse studio", async () => {
+    expect(getNetworkSvgResult("Madhouse", 500)?.networkKey).toBe("madhouse")
+    expect(getNetworkSvgResult("MADHOUSE", 500)?.networkKey).toBe("madhouse")
+
+    const pngRes = await renderNetworkLogoBadge("Madhouse", 500)
+    expect(pngRes).not.toBeNull()
+    expect(pngRes!.networkKey).toBe("madhouse")
+    expect(pngRes!.png).toBeInstanceOf(Buffer)
+    expect(pngRes!.w).toBeGreaterThan(0)
+    expect(pngRes!.h).toBeGreaterThan(0)
+  })
 })
 

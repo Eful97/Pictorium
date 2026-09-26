@@ -157,8 +157,7 @@ describe("resolveStreamQuality", () => {
     expect(result.status).toBe("resolved")
     expect(result.source).toBe("torrentio")
   })
-
-  it("degrades TTL on Torrentio timeout + JustWatch FHD (keeps failure status)", async () => {
+  it("resolves full TTL on JustWatch FHD even after Torrentio timeout (quality certain, v1.23.0)", async () => {
     const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(async (url) => {
       const u = String(url)
       if (u.includes("/stream/")) {
@@ -188,8 +187,8 @@ describe("resolveStreamQuality", () => {
     const result = await resolveStreamQuality("movie", "tt0133093", 552)
     expect(result.quality).toBe("FHD")
     expect(result.source).toBe("justwatch")
-    // Status non-resolved → cache a 2min, non 30min: seconda chiamata riusa la cache.
-    expect(result.status).not.toBe("resolved")
+    // Qualità accertata → resolved con TTL pieno: seconda chiamata riusa la cache.
+    expect(result.status).toBe("resolved")
     const cached = await resolveStreamQuality("movie", "tt0133093", 552)
     expect(cached.quality).toBe("FHD")
     expect(fetchSpy).toHaveBeenCalledTimes(2) // 1 torrentio + 1 justwatch, poi cache
@@ -301,5 +300,59 @@ describe("parseSingleStreamQuality — falsi 4K e token attaccati", () => {
   it("extractRawQualityTokens cattura i token attaccati", () => {
     const tokens = extractRawQualityTokens([{ title: "Movie.2024.4KHDR.x264" }])
     expect(tokens).toContain("4k")
+  })
+})
+
+describe("QUALITY_SOURCE + regione JW (v1.23.0)", () => {
+  const jwFhd = (tmdbId: number) => ({
+    data: {
+      popularTitles: {
+        edges: [{ node: { content: { externalIds: { tmdbId } }, offers: [{ presentationType: "HD" }] } }],
+      },
+    },
+  })
+
+  it("none: nessun provider, resolved-null, zero fetch", async () => {
+    vi.resetModules()
+    vi.stubEnv("PICTORIUM_QUALITY_SOURCE", "none")
+    try {
+      const mod = await import("@/lib/stream-quality")
+      const fetchSpy = vi.spyOn(globalThis, "fetch")
+      const r = await mod.resolveStreamQuality("movie", "tt0111161", 550, "Test")
+      expect(r).toMatchObject({ quality: null, status: "resolved", source: "none" })
+      expect(fetchSpy).not.toHaveBeenCalled()
+    } finally {
+      vi.unstubAllEnvs()
+      vi.resetModules()
+    }
+  })
+
+  it("justwatch: salta Torrentio e passa la regione della richiesta", async () => {
+    vi.resetModules()
+    vi.stubEnv("PICTORIUM_QUALITY_SOURCE", "justwatch")
+    try {
+      const mod = await import("@/lib/stream-quality")
+      const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(async (url, init) => {
+        const u = String(url)
+        if (u.includes("justwatch.com")) {
+          return new Response(JSON.stringify(jwFhd(550)), {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          })
+        }
+        throw new Error(`unexpected fetch ${u} ${String((init as { body?: unknown })?.body)}`)
+      })
+      const r = await mod.resolveStreamQuality("movie", "tt0133093", 550, "Test", undefined, null, "US")
+      expect(r).toMatchObject({ quality: "FHD", status: "resolved", source: "justwatch" })
+      // Zero chiamate Torrentio…
+      expect(fetchSpy.mock.calls.every(([u]) => !String(u).includes("torrentio"))).toBe(true)
+      // …e la query JW porta il paese richiesto nel body.
+      const jwCall = fetchSpy.mock.calls.find(([u]) => String(u).includes("justwatch.com"))
+      expect(jwCall).toBeDefined()
+      expect(String((jwCall![1] as { body?: unknown })?.body)).toContain('"country":"US"')
+    } finally {
+      vi.unstubAllEnvs()
+      vi.resetModules()
+    }
   })
 })

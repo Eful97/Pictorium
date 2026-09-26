@@ -43,11 +43,9 @@ export function MyPostersView() {
   const [selectMode, setSelectMode] = useState(false)
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [showDeleteAll, setShowDeleteAll] = useState(false)
-  // Conferma prima della cancellazione (F9): singolo tile e multi-select.
-  const [confirmRemove, setConfirmRemove] = useState<Mapping | null>(null)
-  // Ancoraggio viewport della tendina di conferma singola (dal cestino della
-  // tile): clampato per non uscire dallo schermo, vedi openRemoveConfirm.
-  const [confirmAnchor, setConfirmAnchor] = useState<{ top: number; left: number } | null>(null)
+  // Conferma cancellazione singola inline nella tile (nessuna tendina fixed:
+  // una sola tile alla volta, Esc/sfondo annulla, zero glitch su scroll).
+  const [confirmingKey, setConfirmingKey] = useState<string | null>(null)
   const [confirmDeleteCollection, setConfirmDeleteCollection] = useState<string | null>(null)
   const [showDeleteSelected, setShowDeleteSelected] = useState(false)
   const [sortBy, setSortBy] = useState<"updated" | "alpha">("updated")
@@ -67,25 +65,6 @@ export function MyPostersView() {
   } = useCollections()
   const sortRef = useRef<HTMLDivElement>(null)
   const sortCloseTimer = useRef<ReturnType<typeof setTimeout>>(null)
-
-  // Tendina di conferma sotto il cestino della tile (fixed + clampato come il
-  // menu collezioni): niente modale a tutto schermo per la delete singola.
-  const openRemoveConfirm = useCallback((e: React.MouseEvent, m: Mapping) => {
-    e.stopPropagation()
-    const btn = e.currentTarget as HTMLElement
-    const r = btn.getBoundingClientRect()
-    const W = 224 // min-w-56 della tendina
-    const GAP = 8
-    const left = Math.max(12, Math.min(r.right - W, window.innerWidth - W - 12))
-    const below = r.bottom + GAP
-    const top = below + 190 > window.innerHeight ? Math.max(12, r.top - 190) : below
-    setConfirmAnchor({ top, left })
-    setConfirmRemove(m)
-  }, [])
-  const closeRemoveConfirm = () => {
-    setConfirmRemove(null)
-    setConfirmAnchor(null)
-  }
 
   // Dual-format: flip rapido del formato primario (PUT parziale con merge
   // server-side: tuning e backdrop preservati; updatedAt cambia → mv nuova →
@@ -111,21 +90,6 @@ export function MyPostersView() {
       if (sortCloseTimer.current) clearTimeout(sortCloseTimer.current)
     }
   }, [])
-
-  // La tendina ancorata non segue lo scroll: chiudila (come il menu collezioni).
-  useEffect(() => {
-    if (!confirmRemove) return
-    const handler = () => {
-      setConfirmRemove(null)
-      setConfirmAnchor(null)
-    }
-    window.addEventListener("scroll", handler, true)
-    window.addEventListener("resize", handler)
-    return () => {
-      window.removeEventListener("scroll", handler, true)
-      window.removeEventListener("resize", handler)
-    }
-  }, [confirmRemove])
 
   const closeSortDropdown = useCallback(() => {
     if (sortOpen) {
@@ -263,14 +227,20 @@ export function MyPostersView() {
   }, [baseFiltered, portraitItems, landscapeItems, formatFilter])
 
   // Handler tile stabili (un solo oggetto): con memo le tile si ri-renderizzano
-  // solo se le loro props cambiano (isSelected/count), non a ogni tick del parent.
+  // solo se le loro props cambiano (isSelected/count/confirming), non a ogni
+  // tick del parent.
   const tileHandlers: TileHandlers = useMemo(() => ({
     select: (key: string) => toggleSelect(key),
     open: (m: Mapping) => navigateToPoster(toSearchResult({ id: m.tmdbId, media_type: m.mediaType, title: m.title, name: m.title, poster_path: m.posterPath }), "myposters"),
     quickView: (m: Mapping, rect: DOMRect) => setLightbox({ mapping: m, rect }),
-    remove: (m: Mapping, e: React.MouseEvent) => openRemoveConfirm(e, m),
+    remove: (m: Mapping) => setConfirmingKey(`${m.mediaType}:${m.tmdbId}`),
+    confirmRemove: (m: Mapping) => {
+      setConfirmingKey(null)
+      void removeMapping(m)
+    },
+    cancelRemove: () => setConfirmingKey(null),
     toggleShape: (m: Mapping) => { void toggleMappingShape(m) },
-  }), [toggleSelect, navigateToPoster, openRemoveConfirm, toggleMappingShape])
+  }), [toggleSelect, navigateToPoster, removeMapping, toggleMappingShape])
   // Conteggi collezioni pre-calcolati una volta: prima un .filter per tile a ogni render.
   const tileCollectionCounts = useMemo(() => {
     const map = new Map<string, number>()
@@ -290,13 +260,14 @@ export function MyPostersView() {
           idx={idx}
           selectMode={selectMode}
           isSelected={selected.has(key)}
+          confirming={confirmingKey === key}
           handlers={tileHandlers}
           collectionCount={tileCollectionCounts.get(key) ?? 0}
           t={t}
         />
       )
     })
-  ), [selectMode, selected, tileHandlers, tileCollectionCounts, t])
+  ), [selectMode, selected, confirmingKey, tileHandlers, tileCollectionCounts, t])
 
   useEffect(() => {
     if (!sortOpen) return
@@ -500,7 +471,7 @@ export function MyPostersView() {
           <button
             type="button"
             aria-label={selectMode ? t("ui.cancel") : t("ui.select")}
-            onClick={() => { setSelectMode((v) => !v); setSelected(new Set()) }}
+            onClick={() => { setSelectMode((v) => !v); setSelected(new Set()); setConfirmingKey(null) }}
             className={`h-10 px-3 rounded-xl text-xs font-medium transition-all duration-150 active:scale-95 flex items-center justify-center gap-1.5 border ${
               selectMode
                 ? "bg-blue-500/20 text-blue-400 border-blue-500/40 shadow-sm"
@@ -635,7 +606,7 @@ export function MyPostersView() {
                 </div>
               </div>
               <p className="text-zinc-300 text-sm font-medium mb-1.5">{t("ui.emptyPosters")}</p>
-              <p className="text-zinc-500 text-xs mb-6 max-w-xs mx-auto leading-relaxed">{t("ui.emptyPostersSub")}</p>
+              <p className="text-zinc-400 text-xs mb-6 max-w-xs mx-auto leading-relaxed">{t("ui.emptyPostersSub")}</p>
               <button type="button" onClick={goHome} className="px-6 py-3 btn-primary font-medium press-scale">
                 {t("ui.searchCta")}
               </button>
@@ -656,7 +627,7 @@ export function MyPostersView() {
                 </div>
               </div>
               <p className="text-zinc-300 text-sm font-medium mb-1">{t("ui.emptyCollectionTitle")}</p>
-              <p className="text-zinc-500 text-xs mb-4">{t("ui.emptyCollectionSub")}</p>
+              <p className="text-zinc-400 text-xs mb-4">{t("ui.emptyCollectionSub")}</p>
               <button type="button" onClick={() => setActiveCollection(null)} className="px-4 py-2 text-xs rounded-xl bg-surface hover:bg-surface2 text-zinc-300 transition-colors press-scale">
                 {t("ui.showAllPosters", { count: mappings.length })}
               </button>
@@ -677,7 +648,7 @@ export function MyPostersView() {
                 </div>
               </div>
               <p className="text-muted text-sm mb-1">{t("ui.noFilteredResults")}</p>
-              <p className="text-zinc-500 text-xs">{t("ui.noFilteredResultsSub")}</p>
+              <p className="text-zinc-400 text-xs">{t("ui.noFilteredResultsSub")}</p>
             </>
           )}
         </div>
@@ -729,20 +700,6 @@ export function MyPostersView() {
           const m = lightbox.mapping
           navigateToPoster(toSearchResult({ id: m.tmdbId, media_type: m.mediaType, title: m.title, name: m.title, poster_path: m.posterPath }), "myposters")
         }}
-      />
-      <ConfirmDialog
-        open={confirmRemove !== null}
-        title={t("ui.confirmDelete")}
-        message={confirmRemove ? t("ui.confirmDeleteMsg", { title: confirmRemove.title }) : ""}
-        confirmLabel={t("ui.delete")}
-        onConfirm={() => {
-          const target = confirmRemove
-          closeRemoveConfirm()
-          if (target) void removeMapping(target)
-        }}
-        onCancel={closeRemoveConfirm}
-        inline
-        anchor={confirmAnchor}
       />
       <ConfirmDialog
         open={confirmDeleteCollection !== null}

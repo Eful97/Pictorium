@@ -112,13 +112,16 @@ describe("SettingsPanel", () => {
     expect(screen.queryByText("ui.disableAll")).not.toBeInTheDocument()
   })
 
-  it("renders clear cache button", () => {    renderWithCtx(
+  it("renders clear cache button inside the diagnostics disclosure", () => {    renderWithCtx(
       <SettingsPanel
         setSettingsOpen={() => {}}
         exportData={() => {}}
         importData={() => {}}
       />
     )
+    // Disclosure chiusa di default: il bottone si monta solo aprendola.
+    expect(screen.queryByText("ui.clearCache")).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole("button", { name: /ui\.cacheDiagnostics/ }))
     const buttons = screen.getAllByRole("button")
     const clearBtn = buttons.find((b) => b.textContent === "ui.clearCache")
     expect(clearBtn).toBeTruthy()
@@ -252,6 +255,20 @@ describe("SettingsPanel", () => {
     expect(await screen.findAllByText("ui.genreRatingBadge")).not.toHaveLength(0)
     expect(screen.queryByText("ui.pinSecurityTitle")).not.toBeInTheDocument()
     resetGuestGuardForTests()
+  })
+
+  it("tiene il corpo PIN smontato finché la disclosure è chiusa", () => {
+    renderWithCtx(
+      <SettingsPanel
+        setSettingsOpen={() => {}}
+        exportData={() => {}}
+        importData={() => {}}
+      />
+    )
+    expect(screen.getByText("ui.pinSecurityTitle")).toBeInTheDocument()
+    expect(screen.queryByText("ui.pinSecurityDesc")).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole("button", { name: /ui\.pinSecurityTitle/ }))
+    expect(screen.getByText("ui.pinSecurityDesc")).toBeInTheDocument()
   })
 
   it("tab Spazio dedicato: fuori da Dati & Cache, solo con contenuto", async () => {
@@ -395,6 +412,9 @@ describe("SettingsPanel", () => {
           importData={() => {}}
         />
       )
+      // Disclosure chiusa di default: vai al tab Dati & Cache, aprila, il fetch parte.
+      fireEvent.click(screen.getByRole("tab", { name: "ui.settingsTabData" }))
+      fireEvent.click(screen.getByRole("button", { name: /ui\.cacheDiagnostics/ }))
       expect(await screen.findByText(/ui\.statusMemoryRss/)).toBeInTheDocument()
       const link = screen.getByRole("link", { name: /ui\.statusTitle/ })
       expect(link).toHaveAttribute("href", "/status")

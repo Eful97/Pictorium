@@ -7,6 +7,7 @@ const MAX_KEYS = 50_000
 let cleanupTimer: ReturnType<typeof setInterval> | null = null
 import { createLogger } from "@/lib/logger"
 import { envWithFallback } from "@/lib/env-compat"
+import { getKv, getStorageMode } from "@/lib/kv"
 
 const log = createLogger("rate-limit")
 
@@ -97,18 +98,19 @@ function memoryRateLimit(bucketKey: string, cfg: BucketConfig, now: number): { o
 }
 
 // ---- Store distribuito (opzionale) ----
-// Con KV configurato (Upstash / Vercel KV) il rate-limit usa un contatore
-// fixed-window condiviso su Redis: su deploy multi-istanza (Vercel multi-
-// lambda, HF multi-replica) il limite in-memory per-process vale comunque
-// N × maxTokens per istanza. La finestra è `refillWindow` (1s) con cap
-// `maxTokens` per finestra — approssimazione del token bucket locale.
+// Con KV configurato (Redis nativo o Upstash / Vercel KV via `lib/kv.ts`)
+// il rate-limit usa un contatore fixed-window condiviso su Redis: su deploy
+// multi-istanza (Vercel multi-lambda, HF multi-replica) il limite in-memory
+// per-process vale comunque N × maxTokens per istanza. La finestra è
+// `refillWindow` (1s) con cap `maxTokens` per finestra — approssimazione
+// del token bucket locale.
 // PICTORIUM_RATELIMIT_KV=0 (legacy: POSTERIUM_RATELIMIT_KV=0) forza lo store in-memory anche con KV presente.
 // Su errore KV si degrada al bucket in-memory di questo processo (fail-open
 // locale): un outage del rate-limit non deve mai rompere il serving.
-const useKvStore =
-  !!process.env.KV_REST_API_URL &&
-  !!process.env.KV_REST_API_TOKEN &&
-  envWithFallback("RATELIMIT_KV") !== "0"
+// Lettura live (mai a module level): i test mutano le env + resetModules.
+function isKvStore(): boolean {
+  return getStorageMode() === "kv" && envWithFallback("RATELIMIT_KV") !== "0"
+}
 
 let lastKvErrorLog = 0
 
@@ -123,7 +125,7 @@ function logKvFallback(error: unknown): void {
 }
 
 async function kvRateLimit(bucketKey: string, cfg: BucketConfig, now: number): Promise<{ ok: boolean; retAfter: number }> {
-  const { kv } = await import("@vercel/kv")
+  const kv = getKv()
   const windowMs = cfg.refillWindow
   const win = Math.floor(now / windowMs)
   const kvKey = `rl:${bucketKey}:${win}`
@@ -154,7 +156,7 @@ export async function rateLimit(key: string, bucket: string): Promise<{ ok: bool
   // (una chiamata warmup con max 5 sgonfiava il bucket di poster/tmdb e
   // viceversa, rendendo i limiti per-route illusori).
   const bucketKey = `${bucket}:${key}`
-  if (useKvStore) {
+  if (isKvStore()) {
     try {
       return await kvRateLimit(bucketKey, cfg, now)
     } catch (error) {
@@ -174,12 +176,18 @@ export function rateLimitKey(request: Request): string {
   // restano usati (Nginx/Cloudflare) ma il fallback ua: garantisce granularità
   // minima senza ricadere nel vecchio bucket "shared" globale.
   const trusted = envWithFallback("TRUST_PROXY") === "1"
+  // Solo dietro proxy fidato (v1.23.0): x-real-ip/cf-connecting-ip sono
+  // scrivibili da chiunque raggiunga l'origin direttamente — fidarsene
+  // sempre permette di ruotare bucket falsi ed evadere il rate limit.
+  // Dietro Cloudflare/proxy che li sovrascrive, TRUST_PROXY=1 li riabilita.
   // 1) x-real-ip — Nginx/HF
-  const realIp = request.headers.get("x-real-ip")
-  if (realIp) return realIp.trim()
-  // 2) cf-connecting-ip — Cloudflare
-  const cfIp = request.headers.get("cf-connecting-ip")
-  if (cfIp) return cfIp.trim()
+  if (trusted) {
+    const realIp = request.headers.get("x-real-ip")
+    if (realIp) return realIp.trim()
+    // 2) cf-connecting-ip — Cloudflare
+    const cfIp = request.headers.get("cf-connecting-ip")
+    if (cfIp) return cfIp.trim()
+  }
   // 3) x-forwarded-for — solo se trusted, altrimenti spoofabile (H2).
   // Catena "client, proxy1, proxy2": il client è il PRIMO elemento.
   // Prendere l'ultimo raggrupperebbe tutti gli utenti dietro lo stesso

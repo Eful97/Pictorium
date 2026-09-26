@@ -84,7 +84,8 @@ export async function GET(req: NextRequest, context: { params: Promise<{ id: str
     const body = { results: types.map((t) => ({ id: t.id, name: t.name, type: t.type, alternateName: t.alternateName })), tvdbId: tvdbSeriesId }
     cacheSet(cacheKey, body, ["tvdb"], 24 * 60 * 60 * 1000)
     return Response.json(body, { headers: { "Cache-Control": "public, max-age=3600, stale-while-revalidate=3600" } })
-  } catch (e) {
-    return Response.json({ results: [], error: e instanceof Error ? e.message : String(e) }, { status: 200 })
+  } catch {
+    // Mai e.message in chiaro nel body: può contenere URL/chiavi upstream.
+    return Response.json({ results: [], error: "TVDB non disponibile" }, { status: 200 })
   }
 }

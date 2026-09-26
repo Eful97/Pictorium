@@ -1,5 +1,17 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
 
+// Store KV in-memory: valida il cablaggio server-defaults -> kv.ts ->
+// @vercel/kv senza rete. Attivo solo con KV_REST_API_URL/TOKEN.
+const kvStore = vi.hoisted(() => new Map<string, unknown>())
+vi.mock("@vercel/kv", () => ({
+  kv: {
+    get: async (key: string) => kvStore.get(key) ?? null,
+    set: async (key: string, value: unknown) => {
+      kvStore.set(key, value)
+    },
+  },
+}))
+
 // ENV_DEFAULTS è letto a module-load (vedi best-fit-config.test.ts): reset + reimport.
 // POSTERIUM_DATA_DIR punta a una dir vuota così getServerDefaults non legge il
 // defaults.json reale del repo (che vincerebbe sull'env per design).
@@ -19,9 +31,11 @@ describe("server-defaults — ENV_DEFAULTS (default di stile d'istanza)", () => 
       "POSTERIUM_BADGE_STYLE", "POSTERIUM_RANKING_BADGE_STYLE", "POSTERIUM_RIBBON_SIDE",
       "POSTERIUM_BLUR_INTENSITY", "POSTERIUM_BLUR_FADE", "POSTERIUM_BLUR_DARKNESS",
       "POSTERIUM_GRADIENT_HEIGHT", "POSTERIUM_DATA_DIR",
+      "KV_REST_API_URL", "KV_REST_API_TOKEN",
     ]) {
       delete process.env[name]
     }
+    kvStore.clear()
     vi.resetModules()
   })
 
@@ -67,5 +81,18 @@ describe("server-defaults — ENV_DEFAULTS (default di stile d'istanza)", () => 
   it("senza env il risultato è vuoto (comportamento di default)", async () => {
     const { getServerDefaults } = await importDefaults()
     expect(getServerDefaults()).toEqual({})
+  })
+
+  it("user defaults: set/get round-trip sulla KV condivisa tra istanze", async () => {
+    process.env.KV_REST_API_URL = "https://example.upstash.io"
+    process.env.KV_REST_API_TOKEN = "test-token"
+    const userId = "33333333-3333-4333-8333-333333333333"
+    const mod = await importDefaults()
+    await mod.setServerDefaultsForUser(userId, { badgeGenre: false })
+    expect(await mod.getStoredUserDefaults(userId)).toEqual({ badgeGenre: false })
+
+    // Altra istanza (modulo ricaricato, cache vuota): legge dalla KV condivisa.
+    const reloaded = await importDefaults()
+    expect(await reloaded.getStoredUserDefaults(userId)).toEqual({ badgeGenre: false })
   })
 })

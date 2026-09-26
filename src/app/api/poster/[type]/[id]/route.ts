@@ -5,7 +5,9 @@ import { getImages, getDetails, getDetailsWithExternalIds, getExternalIds, getKe
 import { getJWRankings, hasJWOffers } from "@/lib/justwatch"
 import { extractDigitalReleaseDate, isDigitalPreRelease } from "@/lib/pre-release"
 import { getAll, getById, getImdbAlias } from "@/lib/store"
-import { getScopedUserId } from "@/lib/user-auth"
+import { getScopedUserId, userExists } from "@/lib/user-auth"
+import { verifySessionFromRequestSync } from "@/lib/pin-auth"
+import { checkAdminToken } from "@/lib/auth"
 import { userRateLimitKey } from "@/lib/user-auth"
 import { touchUserActivity } from "@/lib/user-activity"
 import { rateLimit, rateLimitKey, rateLimitResponse } from "@/lib/rate-limit"
@@ -14,6 +16,7 @@ import { getRegionDef, normalizeRegion, parseRegion, defaultRegionForLang } from
 import { BEST_FIT_GLOBAL, resolveLogoFitEnabled } from "@/lib/best-fit-config"
 import { selectBestLogoFitPosterPath } from "@/lib/poster-auto-fit"
 import { fetchAllWikidata, matchTMDBStudios, directorBadgeLabel, isValidWikidataQid, type WikidataResult } from "@/lib/awards"
+import { resolveWikidataId } from "@/lib/imdb-cache"
 import { createT } from "@/lib/i18n"
 import type { EnrichedAnimeItem } from "@/lib/validation"
 import { fetchMDBList, type MDBListEntry } from "@/lib/mdblist"
@@ -57,6 +60,7 @@ import {
   type PosterErrorStatus,
 } from "@/lib/poster-runtime-cache"
 import { hashUserFragment, userTagFragment } from "@/lib/cache"
+import { hardenPosterSearchParams, isPresetsPosterMode, isPreviewAuthRequired, isPreviewDowngraded, isPublicPosterInstance } from "@/lib/poster-params-hardening"
 import {
   STD_H,
   STD_W,
@@ -68,6 +72,7 @@ import {
   bottomLuminance,
 } from "@/lib/poster-render-helpers"
 import { computeBottomLight } from "@/lib/accent-color"
+import { NON_CLEAN_BLUR_FADE, NON_CLEAN_GRADIENT_HEIGHT } from "@/lib/gradient-defaults"
 import { LAND_W, LAND_H, landscapeBackdropUrl, pillarboxLandscapeBase, cropBackdropToPortrait } from "@/lib/image-utils"
 import { generatePosterBuffer, type GenerationInput } from "@/lib/poster-service"
 import { computeTopBadge } from "@/lib/poster-badge"
@@ -178,6 +183,18 @@ function posterErrorResponse(status: PosterErrorStatus): Response {
   return new Response("Poster generation failed", { status: 500, headers: corsHeaders() })
 }
 
+/**
+ * Sessione preview sbloccata: cookie PIN/admin o admin token. Sync e senza
+ * I/O oltre la config cachata — sicuro sull'hot path. Mai throw.
+ */
+function hasUnlockedPreviewSession(req: NextRequest): boolean {
+  try {
+    return verifySessionFromRequestSync(req) || checkAdminToken(req)
+  } catch {
+    return false
+  }
+}
+
 export async function GET(req: NextRequest, { params }: { params: Promise<RouteParams> }) {
   const startTime = Date.now()
   initSharp()
@@ -189,12 +206,34 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
 
   // Namespace utente (multi-user): null con flag OFF o senza `?u=` → globale.
   const rawUser = req.nextUrl.searchParams.get("u") ?? req.nextUrl.searchParams.get("user")
-  const scopedUser = getScopedUserId(rawUser)
+  let scopedUser = getScopedUserId(rawUser)
   // Rate-limit per-utente (multi-user): il bucket segue il namespace
   // (IP+UUID) così il flood su `?u=vittima` brucia solo il sotto-bucket
   // dell'attaccante e non la quota legittima del proprietario.
   const rl = await rateLimit(scopedUser ? userRateLimitKey(req, scopedUser) : rateLimitKey(req), "poster")
   if (!rl.ok) return rateLimitResponse(rl.retAfter)
+  // Spazi inventati → anonimo (v1.23.0): niente cache key separate né
+  // hardening bypassato. DOPO il rate-limit: il flood su UUID altrui resta
+  // confinato al sotto-bucket dell'attaccante.
+  if (scopedUser && !(await userExists(scopedUser))) scopedUser = null
+  // Preview blindata opt-in (v1.23.0): con PICTORIUM_PREVIEW_AUTH=1 le
+  // preview anonime sulle pubbliche vengono hardenate e cachate come
+  // normali (niente bypass bot). Restano live: spazi esistenti (editor del
+  // proprietario) e sessioni sbloccate (cookie PIN/admin). Default OFF.
+  const rawPreview = req.nextUrl.searchParams.has("preview")
+  let isPreview = rawPreview
+  if (
+    rawPreview &&
+    isPreviewDowngraded({
+      presets: isPresetsPosterMode(),
+      publicInstance: isPublicPosterInstance(),
+      previewAuth: isPreviewAuthRequired(),
+      hasScopedUser: !!scopedUser,
+      unlocked: hasUnlockedPreviewSession(req),
+    })
+  ) {
+    isPreview = false
+  }
   // Chiavi effettive (slice 2, una sola lettura namespace): esplicite della
   // richiesta > namespace utente > env d'istanza. Con `scopedUser` null sono
   // identiche a oggi (byte-identico).
@@ -335,7 +374,24 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
   const customRatingHash = customRatingConfig.enabled
     ? createHash("sha256").update(JSON.stringify(customRatingConfig)).digest("hex") : ""
   const sdHash = hashKey(JSON.stringify(sd) + customRatingHash)
-  const cacheParams = normalizePosterCacheParams(req.nextUrl.searchParams)
+  // Hardening anti cache-busting (v1.23.0): con presets attivi le richieste
+  // non-preview collassano su un set finito di render (quantize numerici +
+  // palette ac + extra canonico dal mapping + strip override keyless su
+  // pubbliche anonime). Preview WYSIWYG e istanze private passano intatte.
+  // `hardenedParams` alimenta chiave di cache E render così non divergono;
+  // il resto legge la query originale (parametri funzionali intatti).
+  const hardenedParams = hardenPosterSearchParams(req.nextUrl.searchParams, {
+    presets: isPresetsPosterMode(),
+    preview: isPreview,
+    anonymous: !scopedUser,
+    publicInstance: isPublicPosterInstance(),
+    hasMapping: !!mapping,
+    mappingCustomBadge: mapping?.customBadge ?? null,
+  })
+  // Preview declassata (blindatura opt-in): senza il flag la chiave resterebbe
+  // separata dalle anonime — rimuovendolo condivide la entry canonica.
+  if (rawPreview && !isPreview) hardenedParams.delete("preview")
+  const cacheParams = normalizePosterCacheParams(hardenedParams)
   cacheParams.delete("config")
   cacheParams.delete("c")
   if (scopedUser) {
@@ -396,7 +452,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
     mappingVersionMatches: !!currentMappingVersion && req.nextUrl.searchParams.get("mv") === currentMappingVersion,
   })
   const refreshRequest = isPosterRefreshRequest(req.nextUrl.searchParams)
-  const isPreview = req.nextUrl.searchParams.has("preview")
+  // isPreview effettivo calcolato a inizio richiesta (può essere declassato
+  // dalla blindatura opt-in PICTORIUM_PREVIEW_AUTH) — non rileggere la query.
   // Poster non-mappato (composto al volo con dati dinamici): TTL ridotto (6h)
   // invece delle 24h del path mappato, così rank/IMDb Top 250 non restano
   // stantii per un giorno intero. Il flag non cambia per tutta la richiesta.
@@ -562,6 +619,13 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
   // Block A fa il fetch normale.
   let logoPathBuffer: Buffer | null = null
   let logoPath: string | null = null
+  // Il poster finale del ramo automatico è clean (senza testo incorporato)?
+  // Solo TMDB iso_639_1===null o rescue TVDB textless. Serve a: (1) non
+  // sovrapporre mai il logo a un poster con testo, (2) forzare il profilo
+  // blur non-clean sui default iniettati da Stremio (Golden Rule col client).
+  let autoPosterClean = false
+  // Il rescue TVDB ha restituito artwork textless (base clean, logo tenuto)?
+  let tvdbRescueClean = false
   // Lingua richiesta per artwork/logo (ramo non-mappato; default "it"):
   // serve al blocco debug=1 fuori dallo scope del ramo.
   let posterRequestedLang = "it"
@@ -617,7 +681,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
   // QID Wikidata per il fast-path REST awards (wbgetentities, ~150ms) invece
   // della lotteria SPARQL (4-13s contro race da 2.5s). Catena: query
   // `wikidata_id` (la preview lo ha già dai details, zero RTT) > mapping
-  // salvato > session cache TMDB del processo > ramo else (details +
+  // salvato > session cache TMDB del processo > resolve server-side con memo
+  // 7gg (quarto anello, prima della race) > ramo else (details +
   // external_ids in append). Senza QID ovunque: fallback SPARQL invariato.
   let wikidataId: string | null = null
   {
@@ -629,9 +694,9 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
     else if (isValidWikidataQid(sessionWikidataId)) wikidataId = sessionWikidataId
   }
 
-  const queryPoster = req.nextUrl.searchParams.get("poster")
-  const queryLogo = req.nextUrl.searchParams.get("logo")
-  const queryBackdrop = req.nextUrl.searchParams.get("backdrop")
+  const queryPoster = hardenedParams.get("poster")
+  const queryLogo = hardenedParams.get("logo")
+  const queryBackdrop = hardenedParams.get("backdrop")
   // Formato canvas: query `shape` > mapping > config > defaults (stessa
   // catena degli altri parametri — vedi resolvePosterShape). Solo
   // "landscape" attiva il ramo 16:9 con base = sfondo TMDB.
@@ -655,12 +720,12 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
     logoPath = queryLogo || null
     backdropPath = queryBackdrop || null
     if (queryBackdrop) {
-      backdropScale = Number(req.nextUrl.searchParams.get("bscale") || "100")
+      backdropScale = Number(hardenedParams.get("bscale") || "100")
       // Bound inferiore + superiore: un valore come 1e-7 produrrebbe resize(0,0) → 500.
       if (!Number.isFinite(backdropScale) || backdropScale < 5 || backdropScale > 500) backdropScale = 100
-      backdropOffsetX = Number(req.nextUrl.searchParams.get("box") || "0")
+      backdropOffsetX = Number(hardenedParams.get("box") || "0")
       if (!Number.isFinite(backdropOffsetX)) backdropOffsetX = 0
-      backdropOffsetY = Number(req.nextUrl.searchParams.get("boy") || "0")
+      backdropOffsetY = Number(hardenedParams.get("boy") || "0")
       if (!Number.isFinite(backdropOffsetY)) backdropOffsetY = 0
     }
     if (queryGenre) genreName = queryGenre
@@ -850,6 +915,9 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
 
       const clean = images.posters.find((p: TMDBImage) => p.iso_639_1 === null)
       if (clean) {
+        // Ramo clean: best-fit pesca solo dalla pool clean, quindi il poster
+        // finale resta clean (logo tenuto) salvo il fallback in lingua sotto.
+        autoPosterClean = true
         const qLogoFit = req.nextUrl.searchParams.get("logoFit")
         // Catena in best-fit-config.ts: globale > query > config token >
         // per-shape del namespace > legacy. Default spento.
@@ -917,6 +985,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
           const fallbackPoster = langPoster || origPoster || nonCleanPoster || clean
           log.info("No logo — fallback to language poster", { mediaType, tmdbId, poster: fallbackPoster.file_path })
           posterPath = fallbackPoster.file_path
+          autoPosterClean = fallbackPoster.iso_639_1 === null
         }
       } else {
         // B1: TVDB rescue — solo senza clean TMDB, con logo e chiave TVDB
@@ -935,7 +1004,11 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
                 : null)
             if (remoteTvdbId) {
               const arts = await getTvdbArtworks(mediaType, remoteTvdbId, tvdbApiKey, renderAbort.signal)
-              tvdbRescue = pickTvdbPoster(arts, preferredLanguage)?.image ?? null
+              const rescuedArt = pickTvdbPoster(arts, preferredLanguage)
+              tvdbRescue = rescuedArt?.image ?? null
+              // Solo il textless salva davvero il logo: con testo incorporato
+              // la base non è clean → niente logo sopra (doppio logo).
+              tvdbRescueClean = !!tvdbRescue && rescuedArt?.includesText === false
             }
           } catch {
             // Fallthrough al fallback in lingua.
@@ -945,6 +1018,13 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
           log.info("TVDB poster rescue", { mediaType, tmdbId, poster: tvdbRescue })
           recordTvdbRescue()
           posterPath = tvdbRescue
+          autoPosterClean = tvdbRescueClean
+          if (!tvdbRescueClean) {
+            // Base con testo incorporato: mai il logo sopra (stesso invariante
+            // del fallback in lingua sotto e del client).
+            logoPath = null
+            logoPathBuffer = null
+          }
         } else {
           // Nessun clean disponibile: il poster in lingua ha già il titolo
           // stampato → mai sovrapporre il logo (stesso invariante del client:
@@ -1082,6 +1162,15 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
     const qAnimeRankParam = req.nextUrl.searchParams.get("animerank")
     const qAnimeRank = qAnimeRankParam ? Number(qAnimeRankParam) : NaN
 
+    // Quarto anello QID (mapping legacy senza wikidataId salvato): una
+    // external_ids con memo 7gg invece della lotteria SPARQL — il REST diventa
+    // il default anche per Stremio. Solo con ranking ON e chiave TMDB (senza
+    // chiave o a fetch fallito il QID resta null e vale lo SPARQL invariato);
+    // tetto 1500ms per non tassare il render a freddo oltre la race da 2.5s.
+    if (!wikidataId && rankingEnabledEarly && effTmdbKey) {
+      wikidataId = await resolveWikidataId(mediaType, tmdbId, effTmdbKey, 1500)
+    }
+
     // 5. Fetch all data in parallel: images + rankings + quality + wikidata + keywords + imdbTop250
     //    All dependencies are available before this point — no Block B depends on Block A
     const emptyWikidata = { awards: [], nominations: [], studios: [], director: null }
@@ -1161,6 +1250,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
                     fallbackTitle,
                     renderAbort.signal,
                     effSeasonCount,
+                    posterRegion.code,
                   ).catch(() => null)
                 })())
           : Promise.resolve(null),
@@ -1345,8 +1435,10 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
     // titolo uscito dalla chart mostrerebbe per sempre il rank del save
     // precedente (es. "top 15" di un titolo oggi fuori top 20).
     const rankingRank = rankingResult
-    const qRank = req.nextUrl.searchParams.get("rank")
-    const qLabel = req.nextUrl.searchParams.get("label")
+    // rank/label dalla query hardenata (stessa del cache key): su presets il
+    // label free-text è droppato/canonicalizzato, il rank numerico resta.
+    const qRank = hardenedParams.get("rank")
+    const qLabel = hardenedParams.get("label")
     const finalRank = qRank !== null ? (parseInt(qRank, 10) >= 0 ? parseInt(qRank, 10) : rankingRank) : rankingRank
 
     // Fase 6 (observability): fine della fase fetch (mapping/defaults + TMDB +
@@ -1421,7 +1513,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
 
     // 7. Parse blur / badge / logo config from query
     const renderConfig = resolvePosterRenderConfig({
-      searchParams: req.nextUrl.searchParams,
+      searchParams: hardenedParams,
       mapping,
       configOverride,
       sd,
@@ -1447,6 +1539,18 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
       queryExtra, qNetLogo, networkLogo, ribbonSide,
       preRelease, posterShape, logoAlign, hideLogo,
     } = renderConfig
+
+    // Allineamento blur non-clean (Golden Rule col client): se il poster
+    // finale del ramo automatico ha testo incorporato, i default globali
+    // iniettati negli URL Stremio (30/50) non devono vincere sul profilo
+    // non-clean (20/80) — come fa il client. Solo Stremio unmapped: mai su
+    // preview (slider editor), poster esplicito o mapping (intento utente).
+    let effBlurHeight = blurHeight
+    let effBlurFade = blurFade
+    if (!isPreview && !mapping && !queryPoster && !autoPosterClean) {
+      effBlurHeight = NON_CLEAN_GRADIENT_HEIGHT
+      effBlurFade = NON_CLEAN_BLUR_FADE
+    }
 
     // Colonna rating separati attiva solo con badge voto visibili e almeno un
     // valore: sostituisce il segmento ★ nel badge genere (sostituire, non
@@ -1490,7 +1594,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
     const targetCenter = Math.round(30 * (isLandscape ? LAND_H : STD_H) / 570)
 
     // 8. Pre-resolve accent color override
-    const qAc = req.nextUrl.searchParams.get("ac")
+    const qAc = hardenedParams.get("ac")
     const accentOverride = (qAc && isValidHex(qAc))
       ? { genreColor: qAc, rankColor: qAc }
       : mapping?.accentColor
@@ -1607,11 +1711,11 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
           topLight,
           bottomLight,
           blurEnabled,
-          blurHeight,
+          blurHeight: effBlurHeight,
           blurIntensity,
-          blurFade,
+          blurFade: effBlurFade,
           blurDarkness,
-          gradientHeight: blurHeight,
+          gradientHeight: effBlurHeight,
           accentColor: accentOverride?.genreColor || null,
         },
         logos: {
@@ -1646,7 +1750,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
       ratings: customRatingConfig.enabled ? [...new Map([...ratings, ...customRatings].map(item => [item.id, item])).values()] : undefined,
       posterBuf, logoFetch, backdropFetch: isLandscape ? null : backdropFetch,
       backdropScale, backdropOffsetX, backdropOffsetY,
-      blurEnabled, blurHeight, blurIntensity, blurFade, blurDarkness, tintStrength,
+      blurEnabled, blurHeight: effBlurHeight, blurIntensity, blurFade: effBlurFade, blurDarkness, tintStrength,
       badgesEnabled, rankingEnabled, genreName, voteAverage, badgeStyle,
       rankingBadgeStyle, badgeGenre, badgeYear, badgeRating: effectiveBadgeRating, badgeQuality,
       separateRatings: useSeparate ? sepItems : undefined,

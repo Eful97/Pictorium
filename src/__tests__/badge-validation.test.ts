@@ -49,6 +49,13 @@ describe("computeBadge", () => {
     expect(computeBadge({ ...base, animeRank: 5, trendRank: 10 }, t)?.label).toBe("Anime")
   })
 
+  it("caps anime rank badge at top 20 (rank 21+ falls through)", () => {
+    expect(computeBadge({ ...base, animeRank: 20 }, t)?.rank).toBe(20)
+    // Oltre la Top 20 niente badge rank: cade al bucket successivo (qui trend).
+    expect(computeBadge({ ...base, animeRank: 21, trendRank: 3 }, t)?.rank).toBe(3)
+    expect(computeBadge({ ...base, animeRank: 50 }, t)).toBeNull()
+  })
+
   it("prioritizes trend rank over award", () => {
     expect(computeBadge({ ...base, trendRank: 3, award: "Vincitore Oscar" }, t)?.type).toBe("rank")
     expect(computeBadge({ ...base, trendRank: 3 }, t)?.rank).toBe(3)

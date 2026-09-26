@@ -10,7 +10,7 @@ import { logoDefaultScale } from "./logo-selection"
 import { t } from "./i18n"
 import { isManualAccent } from "./accent-color"
 import type { EnrichedAnimeItem } from "./validation"
-import { http } from "./http"
+import { http, ApiError } from "./http"
 
 interface PosterSaveDeps {
   selected: SearchResult | null
@@ -402,7 +402,15 @@ export function usePosterSave(deps: PosterSaveDeps) {
       if (!overrides.silent) import("sonner").then(({ toast }) => toast(t("ui.saveSuccess")))
       await loadMappings()
     } catch (error) {
-      if (!overrides.silent) import("sonner").then(({ toast }) => toast(t("ui.saveError")))
+      // 401 = istanza con ADMIN_TOKEN/multi-user senza sblocco: il generico
+      // "errore" non dice cosa fare — guida allo sblocco admin (che abilita
+      // anche i salvataggi, vedi ui.adminTokenDesc).
+      if (!overrides.silent) {
+        const toastMsg = error instanceof ApiError && error.status === 401
+          ? t("ui.clearCacheUnauthorized")
+          : t("ui.saveError")
+        import("sonner").then(({ toast }) => toast(toastMsg))
+      }
       if (overrides.silent) throw error
     }
   }, [selected, previewPoster, selectedLogo, metaInfo, logoScale, logoOffsetX, logoOffsetY, trendRank, globalBadges, rankingBadges, badgeGenre, badgeYear, badgeRating, badgeQuality, customRatings, ratingSources, separateRatings, mdblistAnimeList, loadMappings, customBadge, badgeStyle, rankingBadgeStyle, blurEnabled, blurIntensity, blurFade, blurDarkness, tintStrength, gradientHeight, topBadgeScale, topBadgeOffsetX, topBadgeOffsetY, genreBadgeScale, qualityBadgeScale, networkLogoScale, genreBadgeOffsetX, genreBadgeOffsetY, qualityBadgeOffsetX, qualityBadgeOffsetY, networkLogoOffsetX, networkLogoOffsetY, rotationPosters, autoRotateClean, defaultAutoRotateClean, excludedPosters, rotationBackdrops, autoRotateBackdrop, defaultAutoRotateBackdrop, excludedBackdrops, backdrops, defaultBadgeStyle, defaultRankingBadgeStyle, posters, mappingsMap, accentColor, autoAccentColor, backdropOffsetX, backdropOffsetY, backdropScale, selectedBackdrop, networkLogo, episodeGroupId, posterShape]) // eslint-disable-line react-hooks/exhaustive-deps -- intentionally complete to save all poster state

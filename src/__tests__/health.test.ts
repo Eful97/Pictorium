@@ -32,6 +32,9 @@ describe("GET /api/health", () => {
     expect(json.storage.dataDir).toBeUndefined()
     expect(json.storage.dataDirExists).toBe(true)
     expect(json.storage.dataDirWritable).toBe(true)
+    // Contratto storage: mode resta "kv" | "file", backend diagnostico null in file-mode.
+    expect(json.storage.mode).toBe("file")
+    expect(json.storage.storageBackend).toBeNull()
   })
 
   it("answers the liveness probe without key, probes or storage I/O (D1)", async () => {
@@ -89,7 +92,7 @@ describe("GET /api/health", () => {
     expect(json.storage.lastMappingUpdatedAt).toMatch(/^\d{4}-\d{2}-\d{2}T/)
   })
 
-  it("resolves tmdb key from user namespace (?u=) via resolveRouteApiKey", async () => {
+  it("ignores ?u= without namespace auth (anti-oracle v1.23.0), honors it with x-user-token", async () => {
     const crypto = await import("node:crypto")
     tempDir = await fsp.mkdtemp(path.join(os.tmpdir(), "pictorium-health-ns-"))
     process.env.PICTORIUM_DATA_DIR = tempDir
@@ -106,12 +109,19 @@ describe("GET /api/health", () => {
     vi.spyOn(tmdb, "checkTmdbEndpoint").mockResolvedValue({ ok: true, status: 200, time: 10 })
 
     const { GET } = await import("@/app/api/health/route")
-    const req = new Request(`http://localhost:3000/api/health?u=${user.uuid}`)
-    const res = await GET(req)
-    const json = await res.json()
+    // Anonimo: la chiave privata del namespace non viene testata.
+    const anonReq = new Request(`http://localhost:3000/api/health?u=${user.uuid}`)
+    const anonJson = await (await GET(anonReq)).json()
+    expect(anonJson.tmdb.apiKey).toBe(false)
+    expect(anonJson.status).toBe("degraded")
 
-    expect(json.tmdb.apiKey).toBe(true)
-    expect(json.status).toBe("healthy")
+    // Autenticato (secret dello spazio): namespace onorato come prima.
+    const authReq = new Request(`http://localhost:3000/api/health?u=${user.uuid}`, {
+      headers: { "x-user-token": user.secret },
+    })
+    const authJson = await (await GET(authReq)).json()
+    expect(authJson.tmdb.apiKey).toBe(true)
+    expect(authJson.status).toBe("healthy")
   })
 
   it("reports user namespace storage and mapping count when ?u= is provided", async () => {
@@ -147,14 +157,22 @@ describe("GET /api/health", () => {
     expect(globalJson.storage.mappingCount).toBe(0)
     expect(globalJson.storage.dataFileExists).toBe(false)
 
-    // Con ?u=: spazio utente isolato
+    // Con ?u= anonimo: cade sul globale (anti-oracle), non sullo spazio.
     const userReq = new Request(`http://localhost:3000/api/health?u=${user.uuid}`)
     const userRes = await GET(userReq)
     const userJson = await userRes.json()
-    expect(userJson.storage.mappingCount).toBe(2)
-    expect(userJson.storage.mappingsCount).toBe(2)
-    expect(userJson.storage.dataFileExists).toBe(true)
-    expect(userJson.storage.mappingsFileExists).toBe(true)
-    expect(userJson.storage.lastMappingUpdatedAt).toMatch(/^\d{4}-\d{2}-\d{2}T/)
+    expect(userJson.storage.mappingCount).toBe(0)
+
+    // Con ?u= autenticato: spazio utente isolato.
+    const authReq = new Request(`http://localhost:3000/api/health?u=${user.uuid}`, {
+      headers: { "x-user-token": user.secret },
+    })
+    const authRes = await GET(authReq)
+    const authJson = await authRes.json()
+    expect(authJson.storage.mappingCount).toBe(2)
+    expect(authJson.storage.mappingsCount).toBe(2)
+    expect(authJson.storage.dataFileExists).toBe(true)
+    expect(authJson.storage.mappingsFileExists).toBe(true)
+    expect(authJson.storage.lastMappingUpdatedAt).toMatch(/^\d{4}-\d{2}-\d{2}T/)
   })
 })

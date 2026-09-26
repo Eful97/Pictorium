@@ -5,6 +5,18 @@ import path from "node:path"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { NextRequest } from "next/server"
 
+// Store KV in-memory: valida il cablaggio user-keys -> kv.ts -> @vercel/kv
+// senza rete. Attivo solo quando il test imposta KV_REST_API_URL/TOKEN.
+const kvStore = vi.hoisted(() => new Map<string, unknown>())
+vi.mock("@vercel/kv", () => ({
+  kv: {
+    get: async (key: string) => kvStore.get(key) ?? null,
+    set: async (key: string, value: unknown) => {
+      kvStore.set(key, value)
+    },
+  },
+}))
+
 const UUID_A = "11111111-1111-4111-8111-111111111111"
 const NS_TMDB_KEY = "nstmdbkey1234567890"
 
@@ -31,6 +43,9 @@ beforeEach(async () => {
   delete process.env.PICTORIUM_TMDB_KEY
   delete process.env.TMDB_KEY
   delete process.env.TMDB_API_KEY
+  delete process.env.KV_REST_API_URL
+  delete process.env.KV_REST_API_TOKEN
+  kvStore.clear()
 })
 
 afterEach(async () => {
@@ -38,6 +53,9 @@ afterEach(async () => {
     if (savedEnv[k] === undefined) delete process.env[k]
     else process.env[k] = savedEnv[k]
   }
+  delete process.env.KV_REST_API_URL
+  delete process.env.KV_REST_API_TOKEN
+  kvStore.clear()
   vi.resetModules()
   vi.restoreAllMocks()
   if (tempDir) await fsp.rm(tempDir, { recursive: true, force: true })
@@ -371,8 +389,10 @@ describe("catalog con chiave namespace (fatal-block fix)", () => {
 
   it("serve il catalogo con la sola chiave namespace (niente chiave in request/env)", async () => {
     vi.resetModules()
+    const auth = await import("@/lib/user-auth")
+    const created = await auth.createUser("namespace-12")
     const keys = await import("@/lib/user-keys")
-    await keys.setUserKeys(UUID_A, { tmdb: NS_TMDB_KEY })
+    await keys.setUserKeys(created.uuid, { tmdb: NS_TMDB_KEY })
     const { cacheClear } = await import("@/lib/cache")
     cacheClear()
     const { __resetJWRankingsCache } = await import("@/lib/justwatch")
@@ -384,7 +404,7 @@ describe("catalog con chiave namespace (fatal-block fix)", () => {
       .mockResolvedValueOnce(tmdbDetailsResponse(94997))
       .mockResolvedValueOnce(tmdbImagesResponse(94997))
 
-    const req = nextReq(`http://localhost:3000/catalog/series/pictorium-jw-series.json?u=${UUID_A}`)
+    const req = nextReq(`http://localhost:3000/catalog/series/pictorium-jw-series.json?u=${created.uuid}`)
     const res = await GET(req, { params: Promise.resolve({ type: "series", id: "pictorium-jw-series" }) })
     expect(res.status).toBe(200)
     const body = await res.json()
@@ -410,5 +430,25 @@ describe("catalog con chiave namespace (fatal-block fix)", () => {
     expect(body.metas).toHaveLength(1)
     expect(body.metas[0].id.startsWith("pictorium:notice:")).toBe(true)
     expect(body.metas[0].poster).toContain("/pictorium.png")
+  })
+})
+
+describe("user-keys KV backend (Redis/Upstash via lib/kv)", () => {
+  it("round-trip cifrato sulla KV condivisa, mai file su disco", async () => {
+    process.env.KV_REST_API_URL = "https://example.upstash.io"
+    process.env.KV_REST_API_TOKEN = "test-token"
+    vi.resetModules()
+    const keys = await import("@/lib/user-keys")
+    await keys.setUserKeys(UUID_A, { tmdb: NS_TMDB_KEY })
+    expect(await keys.getUserKeys(UUID_A)).toMatchObject({ tmdb: NS_TMDB_KEY })
+    // Mai plaintext a riposo nella KV…
+    expect(JSON.stringify(kvStore.get(`user:${UUID_A}:keys`))).not.toContain(NS_TMDB_KEY)
+    // …e mai file su disco (ramo KV preso davvero).
+    expect(await fsp.stat(path.join(tempDir!, "users", UUID_A, "keys.json")).catch(() => null)).toBeNull()
+
+    // Altra istanza (modulo ricaricato): legge dalla KV condivisa.
+    vi.resetModules()
+    const reloaded = await import("@/lib/user-keys")
+    expect(await reloaded.getUserKeys(UUID_A)).toMatchObject({ tmdb: NS_TMDB_KEY })
   })
 })

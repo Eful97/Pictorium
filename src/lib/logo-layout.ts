@@ -16,7 +16,8 @@ type LogoLayoutInput = {
   readonly maxHeightPct?: number
   /** Margine inferiore in % dell'altezza poster (default 10). */
   readonly bottomMarginPct?: number
-  /** Offset Y fisso di calibrazione (es. +55 nel layout landscape). */
+  /** Offset Y fisso di calibrazione (es. +55 nel layout landscape,
+   *  +10 portrait via PORTRAIT_LOGO_TOP_OFFSET). */
   readonly topOffset?: number
 }
 
@@ -44,6 +45,11 @@ type LogoOffsetBounds = {
  *  `logoDefaultScale` in logo-selection.ts. Solo altezza: la larghezza resta
  *  libera (uncapped) così i wordmark panoramici possono respirare. */
 export const PORTRAIT_LOGO_MAX_HEIGHT_PCT = 25
+
+/** Calibrazione verticale portrait: il logo scende di 10px rispetto alla
+ *  geometria base (margine + badge). Solo portrait (il landscape non
+ *  baked-in non lo usa); passare come `topOffset` ai call site portrait. */
+export const PORTRAIT_LOGO_TOP_OFFSET = 10
 
 function sanePositive(value: number, fallback: number): number {
   return Number.isFinite(value) && value > 0 ? value : fallback

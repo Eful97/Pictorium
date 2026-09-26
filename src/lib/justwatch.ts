@@ -169,7 +169,10 @@ function lookupJWGenreCode(genreName: string): string | null {
 
 const rankingsCache = new Map<string, { data: JWRankEntry[]; timestamp: number }>()
 const CACHE_TTL = 30 * 60 * 1000
-const CACHE_MAX = 100
+// Cap allargato (v1.23.0): su istanze pubbliche le combinazioni
+// regione/pacchetti/tipo sfrattavano le entry utili (ogni miss = GraphQL).
+// Voci piccole (~1-2KB): 1000 ≈ pochi MB al massimo.
+const CACHE_MAX = 1000
 
 // A4: negative cache per i risultati vuoti (60s). Un JW che risponde
 // 200-vuoto (o che filtra tutto come unreleased) non fa scattare il circuit

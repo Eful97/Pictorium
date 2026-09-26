@@ -23,7 +23,7 @@ import { resolveImdbId } from "@/lib/imdb-cache"
 import { getCatalogEpoch } from "@/lib/catalog-epoch"
 import { buildNoticeDetail, NOTICE_ID_PREFIX } from "@/lib/notice-meta"
 import { resolveCatalogRegionWithDefaults } from "@/lib/catalog-handler"
-import { getScopedUserId, userRateLimitKey } from "@/lib/user-auth"
+import { getScopedUserId, userExists, userRateLimitKey } from "@/lib/user-auth"
 import { touchUserActivity } from "@/lib/user-activity"
 import { buildStremioPosterUrl } from "@/lib/stremio-poster-url"
 import { getOriginFromRequest } from "@/lib/poster-public-url"
@@ -175,7 +175,9 @@ export async function pictoriumMeta(
   }
   const tmdbMediaType = stType === "movie" ? "movie" : "tv"
   // Namespace utente (multi-user): null con flag OFF o senza `?u=` → globale.
-  const scopedUser = getScopedUserId(userParam)
+  // Spazi inventati → anonimo (v1.23.0): niente cache key separate.
+  let scopedUser = getScopedUserId(userParam)
+  if (scopedUser && !(await userExists(scopedUser))) scopedUser = null
   // Attività di lettura per il cleanup inattivi (throttled, fire-and-forget).
   if (scopedUser) touchUserActivity(scopedUser)
   // Chiavi effettive (slice 2): esplicite della richiesta > namespace utente

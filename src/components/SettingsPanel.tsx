@@ -10,7 +10,7 @@ import { saveDefaults } from "@/lib/save-defaults"
 import { SliderRow } from "@/components/SliderRow"
 import { Toggle } from "@/components/Toggle"
 import { BadgeStyleSelector, MenuItem } from "@/components/ui"
-import { UI_RATING_SOURCES } from "@/lib/ratings"
+import { UI_RATING_SOURCES } from "@/lib/rating-weights"
 import { SASH_BUCKETS, DEFAULT_SASH_ORDER, parseSashOrder, type SashBucket } from "@/lib/badge-priority"
 import { formatRating } from "@/lib/custom-rating/formatter"
 import { REGIONS } from "@/lib/regions"
@@ -118,6 +118,11 @@ export function SettingsPanel({ setSettingsOpen, exportData, importData, mobile 
   const clearTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const savedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [cacheCount, setCacheCount] = useState<number | null>(null)
+  // Disclosure "Diagnostica & manutenzione": chiusa di default, contenuto
+  // SMONTATO (niente DOM né fetch finché l'utente non la apre).
+  const [diagOpen, setDiagOpen] = useState(false)
+  // Disclosure "Sicurezza & Accesso PIN": stesso pattern, chiusa di default.
+  const [pinOpen, setPinOpen] = useState(false)
   // Snapshot compatto delle risorse server: visibile SOLO con admin token in
   // sessione. Doppio fail-closed: niente token → niente fetch e niente render;
   // con token ma 401/errore (l'endpoint richiede requireAdminToken anche su
@@ -157,9 +162,11 @@ export function SettingsPanel({ setSettingsOpen, exportData, importData, mobile 
     }
   }, [])
 
+  // Diagnostica on-demand: il fetch parte solo a disclosure aperta (e tab
+  // visibile), mai al mount — prima partiva sempre con token in sessione.
   useEffect(() => {
-    loadSysStats()
-  }, [loadSysStats])
+    if (adminUnlocked && activeTab === "data" && diagOpen) loadSysStats()
+  }, [loadSysStats, adminUnlocked, activeTab, diagOpen])
 
   const [pinConfig, setPinConfig] = useState<{ hasPin: boolean } | null>(null)
   const [pinModalMode, setPinModalMode] = useState<"set" | "remove" | null>(null)
@@ -312,14 +319,14 @@ export function SettingsPanel({ setSettingsOpen, exportData, importData, mobile 
     <div
       role="tablist"
       aria-label={t("ui.settingsTitle")}
-      className="flex border-b border-white/10 px-3 sm:px-6 bg-white/[0.02] gap-1 shrink-0"
+      className="flex border-b border-white/10 px-3 sm:px-6 bg-white/[0.02] gap-1 shrink-0 overflow-x-auto scrollbar-none"
     >
       <button
         type="button"
         role="tab"
         aria-selected={activeTab === "badge"}
         onClick={() => setActiveTab("badge")}
-        className={`flex items-center gap-2 py-3 px-3 text-xs font-semibold border-b-2 transition-all cursor-pointer ${
+        className={`flex items-center gap-2 py-3 px-3 text-xs font-semibold border-b-2 transition-all cursor-pointer shrink-0 whitespace-nowrap ${
           activeTab === "badge"
             ? "border-accent-orange text-accent-orange"
             : "border-transparent text-zinc-400 hover:text-zinc-200"
@@ -333,7 +340,7 @@ export function SettingsPanel({ setSettingsOpen, exportData, importData, mobile 
         role="tab"
         aria-selected={activeTab === "trasforma"}
         onClick={() => setActiveTab("trasforma")}
-        className={`flex items-center gap-2 py-3 px-3 text-xs font-semibold border-b-2 transition-all cursor-pointer ${
+        className={`flex items-center gap-2 py-3 px-3 text-xs font-semibold border-b-2 transition-all cursor-pointer shrink-0 whitespace-nowrap ${
           activeTab === "trasforma"
             ? "border-accent-orange text-accent-orange"
             : "border-transparent text-zinc-400 hover:text-zinc-200"
@@ -347,7 +354,7 @@ export function SettingsPanel({ setSettingsOpen, exportData, importData, mobile 
         role="tab"
         aria-selected={activeTab === "prefs"}
         onClick={() => setActiveTab("prefs")}
-        className={`flex items-center gap-2 py-3 px-3 text-xs font-semibold border-b-2 transition-all cursor-pointer ${
+        className={`flex items-center gap-2 py-3 px-3 text-xs font-semibold border-b-2 transition-all cursor-pointer shrink-0 whitespace-nowrap ${
           activeTab === "prefs"
             ? "border-accent-orange text-accent-orange"
             : "border-transparent text-zinc-400 hover:text-zinc-200"
@@ -361,7 +368,7 @@ export function SettingsPanel({ setSettingsOpen, exportData, importData, mobile 
         role="tab"
         aria-selected={activeTab === "data"}
         onClick={() => setActiveTab("data")}
-        className={`flex items-center gap-2 py-3 px-3 text-xs font-semibold border-b-2 transition-all cursor-pointer ${
+        className={`flex items-center gap-2 py-3 px-3 text-xs font-semibold border-b-2 transition-all cursor-pointer shrink-0 whitespace-nowrap ${
           activeTab === "data"
             ? "border-accent-orange text-accent-orange"
             : "border-transparent text-zinc-400 hover:text-zinc-200"
@@ -376,7 +383,7 @@ export function SettingsPanel({ setSettingsOpen, exportData, importData, mobile 
           role="tab"
           aria-selected={activeTab === "spazio"}
           onClick={() => setActiveTab("spazio")}
-          className={`flex items-center gap-2 py-3 px-3 text-xs font-semibold border-b-2 transition-all cursor-pointer ${
+          className={`flex items-center gap-2 py-3 px-3 text-xs font-semibold border-b-2 transition-all cursor-pointer shrink-0 whitespace-nowrap ${
             activeTab === "spazio"
               ? "border-accent-orange text-accent-orange"
               : "border-transparent text-zinc-400 hover:text-zinc-200"
@@ -402,7 +409,7 @@ export function SettingsPanel({ setSettingsOpen, exportData, importData, mobile 
           <Layers className="w-3.5 h-3.5 text-accent-orange" />
           {t("ui.badgeSection")}
         </span>
-        <p className="text-[10px] text-zinc-500 italic -mt-1">{t("ui.badgeDefaultsHint")}</p>
+        <p className="text-[11px] text-zinc-400 italic -mt-1">{t("ui.badgeDefaultsHint")}</p>
 
         {/* Master Toggle Genere / Rating */}
         <div className="space-y-2">
@@ -589,7 +596,7 @@ export function SettingsPanel({ setSettingsOpen, exportData, importData, mobile 
                 label={t("ui.trendBadge")}
               />
             </div>
-            <p className="text-[10px] text-zinc-500 italic mt-1">{t("ui.trendDefaultHint")}</p>
+            <p className="text-[11px] text-zinc-400 italic mt-1">{t("ui.trendDefaultHint")}</p>
           </div>
 
           <div className="flex items-center justify-between">
@@ -651,7 +658,7 @@ export function SettingsPanel({ setSettingsOpen, exportData, importData, mobile 
           {ed.defaultCustomRatings && (
           <div className="pl-3 py-1 space-y-2 border-l-2 border-surface2 ml-1 animate-fade-in">
             <div>
-              <label className="text-[10px] text-muted block mb-1">{t("ui.customRatingEndpoint")}</label>
+              <label className="text-[11px] text-muted block mb-1">{t("ui.customRatingEndpoint")}</label>
               <input
                 type="url"
                 value={ed.defaultCustomRatingEndpoint ?? ""}
@@ -661,7 +668,7 @@ export function SettingsPanel({ setSettingsOpen, exportData, importData, mobile 
                 className="w-full text-xs font-mono py-1.5 px-2.5 rounded-lg bg-black/40 border border-white/10 text-white placeholder-zinc-600 focus:outline-none focus:border-teal-500/50"
               />
             </div>
-            <p className="text-[10px] text-zinc-500 italic">{t("ui.customRatingKeyHint")}</p>
+            <p className="text-[11px] text-zinc-400 italic">{t("ui.customRatingKeyHint")}</p>
             <div className="pt-1">
               <button
                 type="button"
@@ -1393,7 +1400,7 @@ export function SettingsPanel({ setSettingsOpen, exportData, importData, mobile 
             ))}
           </select>
         </div>
-        <p className="text-[10px] text-muted leading-tight">{t("ui.regionHint")}</p>
+        <p className="text-[11px] text-muted leading-relaxed">{t("ui.regionHint")}</p>
       </div>
 
       {/* Fonte Metadati Serie & Episodi */}
@@ -1435,7 +1442,7 @@ export function SettingsPanel({ setSettingsOpen, exportData, importData, mobile 
             </button>
           </div>
         </div>
-        <p className="text-[10px] text-muted leading-tight">{t("ui.episodeMetadataSourceHint")}</p>
+        <p className="text-[11px] text-muted leading-relaxed">{t("ui.episodeMetadataSourceHint")}</p>
       </div>
 
       {/* Automazioni & Aspetto */}
@@ -1547,19 +1554,34 @@ export function SettingsPanel({ setSettingsOpen, exportData, importData, mobile 
         </button>
       </div>
 
-      {/* Diagnostica Cache */}
+      {/* Diagnostica & manutenzione (disclosure: chiusa di default, contenuto
+          smontato — niente DOM né fetch finché non la si apre) */}
       <div className="bg-surface/50 border border-surface2/60 rounded-xl p-3.5 space-y-2.5 shadow-sm">
-        <div className="flex items-center justify-between text-[11px] font-medium text-muted px-0.5">
+        <button
+          type="button"
+          onClick={() => setDiagOpen((prev) => !prev)}
+          aria-expanded={diagOpen}
+          className="w-full flex items-center justify-between text-[11px] font-medium text-muted px-0.5 cursor-pointer group"
+        >
           <span className="flex items-center gap-1.5 text-zinc-200 font-semibold">
             <Database className="w-3.5 h-3.5 text-amber-400" />
             {t("ui.cacheDiagnostics")}
           </span>
-          <span className="text-zinc-400 text-[10px] font-mono tabular-nums bg-white/5 px-2 py-0.5 rounded border border-white/5">
-            {cacheCount !== null
-              ? `${cacheCount} ${cacheCount === 1 ? t("ui.cacheEntryOne") : t("ui.cacheEntryMany")}`
-              : "1-Click"}
+          <span className="flex items-center gap-1.5">
+            <span className="text-zinc-400 text-[10px] font-mono tabular-nums bg-white/5 px-2 py-0.5 rounded border border-white/5">
+              {cacheCount !== null
+                ? `${cacheCount} ${cacheCount === 1 ? t("ui.cacheEntryOne") : t("ui.cacheEntryMany")}`
+                : "1-Click"}
+            </span>
+            <ChevronDown
+              className={`w-3.5 h-3.5 text-zinc-400 transition-transform duration-200 ${
+                diagOpen ? "rotate-180" : ""
+              }`}
+            />
           </span>
-        </div>
+        </button>
+        {diagOpen && (
+        <div className="space-y-2.5 animate-fade-in">
         {adminUnlocked && sysStats && (
           <p className="text-[10px] text-zinc-400 font-mono tabular-nums px-0.5">
             {t("ui.statusMemoryRss")}: {sysStats.rssMb} MB · {t("ui.statusMemoryHeap")}:{" "}
@@ -1608,6 +1630,8 @@ export function SettingsPanel({ setSettingsOpen, exportData, importData, mobile 
             {clearStatus === "cleared" ? t("ui.cleared") : t("ui.clearCache")}
           </button>
         </div>
+        </div>
+        )}
       </div>
 
       {/* (spazio utente, UUID e chiavi: nel tab Spazio dedicato sotto) */}
@@ -1634,22 +1658,36 @@ export function SettingsPanel({ setSettingsOpen, exportData, importData, mobile 
           lucchetto. Si mostra finché lo stato è ignoto (fail-open display). */}
       {multiUserOn !== true && (
       <div className="bg-surface/50 border border-surface2/60 rounded-xl p-3.5 space-y-2.5 shadow-sm">
-        <div className="flex items-center justify-between text-[11px] font-medium text-muted px-0.5">
+        <button
+          type="button"
+          onClick={() => setPinOpen((prev) => !prev)}
+          aria-expanded={pinOpen}
+          className="w-full flex items-center justify-between text-[11px] font-medium text-muted px-0.5 cursor-pointer group"
+        >
           <span className="flex items-center gap-1.5 text-zinc-200 font-semibold">
             <Lock className="w-3.5 h-3.5 text-amber-400" />
             <span>{t("ui.pinSecurityTitle")}</span>
           </span>
-          <span
-            className={`text-[10px] font-semibold px-2 py-0.5 rounded border ${
-              pinConfig?.hasPin
-                ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
-                : "bg-white/5 text-zinc-400 border-white/5"
-            }`}
-          >
-            {pinConfig?.hasPin ? t("ui.pinActive") : t("ui.pinNotConfigured")}
+          <span className="flex items-center gap-1.5">
+            <span
+              className={`text-[10px] font-semibold px-2 py-0.5 rounded border ${
+                pinConfig?.hasPin
+                  ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
+                  : "bg-white/5 text-zinc-400 border-white/5"
+              }`}
+            >
+              {pinConfig?.hasPin ? t("ui.pinActive") : t("ui.pinNotConfigured")}
+            </span>
+            <ChevronDown
+              className={`w-3.5 h-3.5 text-zinc-400 transition-transform duration-200 ${
+                pinOpen ? "rotate-180" : ""
+              }`}
+            />
           </span>
-        </div>
-        <p className="text-[10px] text-muted leading-tight">
+        </button>
+        {pinOpen && (
+        <div className="space-y-2.5 animate-fade-in">
+        <p className="text-[11px] text-muted leading-relaxed">
           {t("ui.pinSecurityDesc")}
         </p>
 
@@ -1702,7 +1740,7 @@ export function SettingsPanel({ setSettingsOpen, exportData, importData, mobile 
               <>
                 {pinConfig?.hasPin && (
                   <div>
-                    <label className="text-[10px] text-muted block mb-1">{t("ui.pinCurrentLabel")}</label>
+                    <label className="text-[11px] text-muted block mb-1">{t("ui.pinCurrentLabel")}</label>
                     <input
                       type="password"
                       inputMode="numeric"
@@ -1715,7 +1753,7 @@ export function SettingsPanel({ setSettingsOpen, exportData, importData, mobile 
                   </div>
                 )}
                 <div>
-                  <label className="text-[10px] text-muted block mb-1">{t("ui.pinNewLabel")}</label>
+                  <label className="text-[11px] text-muted block mb-1">{t("ui.pinNewLabel")}</label>
                   <input
                     type="password"
                     inputMode="numeric"
@@ -1772,7 +1810,7 @@ export function SettingsPanel({ setSettingsOpen, exportData, importData, mobile 
             ) : (
               <>
                 <div>
-                  <label className="text-[10px] text-muted block mb-1">{t("ui.pinRemoveConfirmLabel")}</label>
+                  <label className="text-[11px] text-muted block mb-1">{t("ui.pinRemoveConfirmLabel")}</label>
                   <input
                     type="password"
                     inputMode="numeric"
@@ -1828,6 +1866,8 @@ export function SettingsPanel({ setSettingsOpen, exportData, importData, mobile 
               </>
             )}
           </div>
+        )}
+        </div>
         )}
       </div>
       )}

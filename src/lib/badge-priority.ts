@@ -23,6 +23,12 @@ export const SASH_BUCKETS = ["upcoming", "rank", "new", "award", "extra"] as con
 
 export type SashBucket = (typeof SASH_BUCKETS)[number]
 
+/** Tetto classifica anime: la chart MDBList è intera (centinaia di titoli),
+ *  il badge rank vale solo fino alla Top 20 — oltre cade al bucket
+ *  successivo, come una miss da chart. Il trend è già limitato per
+ *  costruzione (fetch top-20 JustWatch). */
+export const ANIME_RANK_MAX = 20
+
 export const DEFAULT_SASH_ORDER: readonly SashBucket[] = ["upcoming", "rank", "new", "award", "extra"]
 
 function isSashBucket(v: string): v is SashBucket {
@@ -92,7 +98,7 @@ function resolveBucket(bucket: SashBucket, params: BadgeParams, t: T): BadgeResu
       if (params.upcomingRelease) return { type: "extra", label: params.upcomingRelease }
       return null
     case "rank":
-      if (params.animeRank) return { type: "rank", label: t("badge.anime"), rank: params.animeRank }
+      if (params.animeRank && params.animeRank <= ANIME_RANK_MAX) return { type: "rank", label: t("badge.anime"), rank: params.animeRank }
       // Label del rank per media type: "Film" per i film, "Serie tv" per le serie
       // (invece del periodo "Oggi"). qLabel/rankLabel possono comunque sovrascrivere.
       if (params.trendRank) return { type: "rank", label: t(params.mediaType === "movie" ? "badge.movie" : "badge.series"), rank: params.trendRank }
@@ -171,7 +177,7 @@ export function getAllBadgeOptions(params: {
   if (params.isNewSeries) options.add(keyed("badge.newSeries"))
   if (params.newSeason) options.add(keyed("badge.newSeason"))
   if (params.trendRank) options.add(keyed(params.mediaType === "movie" ? "badge.movie" : "badge.series"))
-  if (params.animeRank) options.add(keyed("badge.anime"))
+  if (params.animeRank && params.animeRank <= ANIME_RANK_MAX) options.add(keyed("badge.anime"))
   if (params.award) options.add(params.award)
   if (params.mediaType === "movie" && params.imdbTop250) options.add(keyed("badge.absoluteCinema"))
   if (params.nomination) options.add(params.nomination)

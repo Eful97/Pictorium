@@ -198,25 +198,25 @@ export function resolvePosterRenderConfig(input: PosterRenderConfigInput): Poste
     ? clamp(rawGradHeight, 5, 100)
     : (m?.gradientHeight != null && Number.isFinite(m.gradientHeight)
         ? clamp(m.gradientHeight, 5, 100)
-        : (configOverride !== null ? clamp(configOverride.gradientHeight, 5, 100) : (posterShape === "landscape" ? 20 : (mappingNonClean ? NON_CLEAN_GRADIENT_HEIGHT : 30))))
+        : (configOverride !== null ? clamp(configOverride.gradientHeight, 5, 100) : (sd.gradientHeight != null && Number.isFinite(sd.gradientHeight) ? clamp(sd.gradientHeight, 5, 100) : (posterShape === "landscape" ? 20 : (mappingNonClean ? NON_CLEAN_GRADIENT_HEIGHT : 30)))))
   const rawBlur = q.get("blur") ? Number(q.get("blur")) : NaN
   const blurIntensity = Number.isFinite(rawBlur)
     ? clamp(rawBlur, 1, 100)
     : (m?.blurIntensity != null && Number.isFinite(m.blurIntensity)
         ? clamp(m.blurIntensity, 1, 100)
-        : (configOverride !== null ? clamp(configOverride.blurIntensity, 1, 100) : 20))
+        : (configOverride !== null ? clamp(configOverride.blurIntensity, 1, 100) : (sd.blurIntensity != null && Number.isFinite(sd.blurIntensity) ? clamp(sd.blurIntensity, 1, 100) : 20)))
   const rawBf = q.get("bf") ? Number(q.get("bf")) : NaN
   const blurFade = Number.isFinite(rawBf)
     ? clamp(rawBf, 0, 100)
     : (m?.blurFade != null && Number.isFinite(m.blurFade)
         ? clamp(m.blurFade, 0, 100)
-        : (configOverride !== null ? clamp(configOverride.blurFade, 0, 100) : (posterShape === "landscape" ? 70 : (mappingNonClean ? NON_CLEAN_BLUR_FADE : 50))))
+        : (configOverride !== null ? clamp(configOverride.blurFade, 0, 100) : (sd.blurFade != null && Number.isFinite(sd.blurFade) ? clamp(sd.blurFade, 0, 100) : (posterShape === "landscape" ? 70 : (mappingNonClean ? NON_CLEAN_BLUR_FADE : 50)))))
   const rawBd = q.get("bd") ? Number(q.get("bd")) : NaN
   const blurDarkness = Number.isFinite(rawBd)
     ? clamp(rawBd, 0, 100)
     : (m?.blurDarkness != null && Number.isFinite(m.blurDarkness)
         ? clamp(m.blurDarkness, 0, 100)
-        : (configOverride !== null ? clamp(configOverride.blurDarkness, 0, 100) : 30))
+        : (configOverride !== null ? clamp(configOverride.blurDarkness, 0, 100) : (sd.blurDarkness != null && Number.isFinite(sd.blurDarkness) ? clamp(sd.blurDarkness, 0, 100) : 30)))
 
   // Intensità tinta 0-100 — stessa catena (query > mapping > config >
   // server defaults > 20). Nessun profilo landscape dedicato: vale per

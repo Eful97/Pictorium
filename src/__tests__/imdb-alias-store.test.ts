@@ -4,6 +4,36 @@ import path from "node:path"
 import { afterEach, describe, expect, it, vi } from "vitest"
 import type { Mapping } from "@/lib/types"
 
+// Hash KV in-memory: valida il cablaggio alias -> kv.ts -> @vercel/kv.
+// Attivo solo con KV_REST_API_URL/TOKEN.
+const kvHashes = vi.hoisted(() => new Map<string, Map<string, unknown>>())
+vi.mock("@vercel/kv", () => ({
+  kv: {
+    hgetall: async (key: string) => {
+      const h = kvHashes.get(key)
+      if (!h) return null
+      return Object.fromEntries(h)
+    },
+    hset: async (key: string, obj: Record<string, unknown>) => {
+      let h = kvHashes.get(key)
+      if (!h) {
+        h = new Map()
+        kvHashes.set(key, h)
+      }
+      for (const [f, v] of Object.entries(obj)) h.set(f, v)
+      return 1
+    },
+    hdel: async (key: string, ...fields: string[]) => {
+      const h = kvHashes.get(key)
+      if (!h) return 0
+      let n = 0
+      for (const f of fields) if (h.delete(f)) n++
+      return n
+    },
+    del: async (key: string) => (kvHashes.delete(key) ? 1 : 0),
+  },
+}))
+
 const UUID_A = "11111111-1111-1111-1111-111111111111"
 const UUID_B = "22222222-2222-2222-2222-222222222222"
 
@@ -23,6 +53,9 @@ afterEach(async () => {
   else process.env.POSTERIUM_DATA_DIR = originalDataDir
   if (originalMax === undefined) delete process.env.PICTORIUM_MAX_MAPPINGS_PER_USER
   else process.env.PICTORIUM_MAX_MAPPINGS_PER_USER = originalMax
+  delete process.env.KV_REST_API_URL
+  delete process.env.KV_REST_API_TOKEN
+  kvHashes.clear()
   vi.resetModules()
   if (tempDir) await fsp.rm(tempDir, { recursive: true, force: true })
   tempDir = undefined
@@ -94,5 +127,27 @@ describe("imdb alias store", () => {
     const store = await freshStore()
     await store.removeImdbAlias("xyz", UUID_A)
     await store.removeImdbAlias("tt999", UUID_A)
+  })
+})
+
+describe("imdb alias KV backend (Redis/Upstash via lib/kv)", () => {
+  it("set/get/remove round-trip sull'hash condiviso, namespace isolati", async () => {
+    process.env.KV_REST_API_URL = "https://example.upstash.io"
+    process.env.KV_REST_API_TOKEN = "test-token"
+    vi.resetModules()
+    const store = await import("@/lib/store")
+    await store.setImdbAlias({ imdbId: "tt13207736", mediaType: "tv", tmdbId: 299939 }, UUID_A)
+    await store.setImdbAlias({ imdbId: "tt13207736", mediaType: "movie", tmdbId: 1 }, UUID_B)
+    expect(await store.getImdbAlias("tt13207736", UUID_A)).toMatchObject({ tmdbId: 299939 })
+    expect(await store.getImdbAlias("tt13207736", UUID_B)).toMatchObject({ tmdbId: 1 })
+    expect(await store.getImdbAlias("tt13207736")).toBeNull()
+
+    // Altra istanza: legge dall'hash condiviso.
+    vi.resetModules()
+    const reloaded = await import("@/lib/store")
+    expect(await reloaded.getImdbAlias("tt13207736", UUID_A)).toMatchObject({ tmdbId: 299939 })
+    await reloaded.removeImdbAlias("tt13207736", UUID_A)
+    expect(await reloaded.getImdbAlias("tt13207736", UUID_A)).toBeNull()
+    expect(await reloaded.getImdbAlias("tt13207736", UUID_B)).toMatchObject({ tmdbId: 1 })
   })
 })

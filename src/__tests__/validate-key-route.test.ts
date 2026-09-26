@@ -183,4 +183,16 @@ describe("POST /api/validate-key", () => {
     const json = await res.json()
     expect(json.valid).toBe(false)
   })
+
+  it("rejects oversized bodies with 413 before buffering (anti-OOM v1.23.0)", async () => {
+    const req = new NextRequest("http://localhost:3000/api/validate-key", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ provider: "tmdb", key: "x".repeat(8192) }),
+    })
+    const res = await POST(req)
+    expect(res.status).toBe(413)
+    const json = await res.json()
+    expect(json.valid).toBe(false)
+  })
 })

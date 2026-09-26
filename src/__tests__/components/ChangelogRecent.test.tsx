@@ -17,6 +17,7 @@ describe("ChangelogModal recent section", () => {
     expect(screen.getByText("Auto entry one")).not.toBeNull()
     expect(screen.getByText("2026-09-01")).not.toBeNull()
     // Curated releases still on top
+    expect(screen.getByText("v1.23")).not.toBeNull()
     expect(screen.getByText("v1.22")).not.toBeNull()
   })
 })

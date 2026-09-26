@@ -2,6 +2,7 @@ import { NextRequest } from "next/server"
 import { rateLimit, rateLimitKey, rateLimitResponse } from "@/lib/rate-limit"
 import { isSameOrigin, originMismatchResponse } from "@/lib/auth"
 import { createLogger } from "@/lib/logger"
+import { readJsonBody, BodyTooLargeError } from "@/lib/read-body"
 
 const log = createLogger("validate-key")
 
@@ -20,8 +21,11 @@ export async function POST(req: NextRequest): Promise<Response> {
 
   let body: { provider?: string; key?: string }
   try {
-    body = await req.json()
-  } catch {
+    // Body cappato (anti-OOM v1.23.0): req.json() bufferizzava payload
+    // arbitrari prima del controllo lunghezza chiave qui sotto.
+    body = (await readJsonBody(req, 4096)) as { provider?: string; key?: string }
+  } catch (e) {
+    if (e instanceof BodyTooLargeError) return Response.json({ valid: false, message: "Request body too large" }, { status: 413 })
     return Response.json({ valid: false, message: "Invalid JSON body" }, { status: 400 })
   }
 

@@ -21,7 +21,8 @@ operator/agent checklist.
 | Docker manual | `docker build --build-arg NODE_MAX_OLD_SPACE=1024 -t pictorium .` then `docker run -p 8080:8080 -v posterium-data:/data pictorium` | named volume `/data` (legacy name `posterium-data` kept — do NOT rename, it holds user data) | entrypoint self-warmup (needs rebuilt image) |
 | Docker Compose | `docker compose up -d` (`.env` only for admin token; hardening cap_drop ALL, no-new-privileges; 512MB mem limit) | volume `posterium-data` | same |
 | HF Spaces | frontmatter `sdk: docker` + `app_port: 8080`; env `NODE_OPTIONS=--max-old-space-size=1024` + **`PICTORIUM_PUBLIC_INSTANCE=1`** | Storage bucket → `/data` (uid 1000) | same |
-| Vercel | deploy button / import repo; Next.js runtime; **`PICTORIUM_PUBLIC_INSTANCE=1`** needed for editor routes | **KV required for server-side saves** (KV_REST_API_URL/TOKEN); without it profiles degrade to stateless `?config=` (needs CONFIG_HMAC_SECRET) — fs is read-only | NOT useful on Hobby (10s limit) |
+| Vercel | deploy button / import repo; Next.js runtime; **`PICTORIUM_PUBLIC_INSTANCE=1`** needed for editor routes | **KV required for server-side saves** (`PICTORIUM_REDIS_URL` native Redis, or KV_REST_API_URL/TOKEN); without either profiles degrade to stateless `?config=` (needs CONFIG_HMAC_SECRET) — fs is read-only | NOT useful on Hobby (10s limit) |
+| ElfHosted/K8s HA | image + `REDIS_URL` (or `PICTORIUM_REDIS_URL`) to the cluster Redis, no `/data` volume, ≥2 replicas | native Redis shared by all replicas (wins over KV_REST_* when both set, no auto-migration) | entrypoint self-warmup per replica |
 | VPS/Oracle/Termux | `npm run build && npm start` (or docker compose); Oracle A1 4 OCPU free tier | local `/data` | none |
 
 > **Editor routes** (`POST/GET /api/mappings`, `/api/poster-fit`, `/api/defaults`)
@@ -81,8 +82,9 @@ Run these against the deployed instance:
 
 ## Vercel specifics
 
-- KV (`KV_REST_API_URL` + `KV_REST_API_TOKEN`) is required for **server-side
-  persistence** of mappings/defaults. Without it the filesystem is read-only and
+- KV (`PICTORIUM_REDIS_URL` native Redis, or `KV_REST_API_URL` +
+  `KV_REST_API_TOKEN`) is required for **server-side
+  persistence** of mappings/defaults. Without either the filesystem is read-only and
   mapping saves fail; the stateless path is config-token links (`?config=`,
   needs CONFIG_HMAC_SECRET). There is no `/api/profile` endpoint and no profile
   key store — `?u=` is identity/tracking only, never a key source.
@@ -114,3 +116,6 @@ Run these against the deployed instance:
   headers (Cloudflare/HF edge/Nginx).
 - Env table + full defaults live in README "Variabili d'Ambiente" — keep this
   skill in sync with it.
+- `PICTORIUM_HOSTED_BY=elfhosted` shows the sponsor banner on the home page
+  (served via `GET /api/status` → `hostedBy`, auto-detected from an
+  `elfhosted.com` host as fallback). Empty = no banner.

@@ -120,9 +120,7 @@ describe("HomeHero", () => {
 describe("HomeStatusStrip", () => {
   it("renders operational state and service links", () => {
     renderWithCtx(<HomeStatusStrip />)
-    expect(screen.getByText("ui.allSystemsOperational")).toBeInTheDocument()
     expect(screen.getByText("ui.statusMeta")).toBeInTheDocument()
-    expect(screen.getByText("ui.statusTitle")).toBeInTheDocument()
     expect(screen.getByRole("link", { name: "ui.statusTitle" })).toHaveAttribute("href", "/status")
   })
 

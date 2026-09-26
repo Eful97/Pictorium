@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest"
 import { buildStremioPosterUrl, mappingVersionParam } from "@/lib/stremio-poster-url"
+import { resolvePosterRenderConfig } from "@/lib/poster-config"
 import { POSTER_URL_VERSION } from "@/lib/render-version"
 import type { Mapping } from "@/lib/types"
 
@@ -16,8 +17,25 @@ function mapping(updatedAt: string): Mapping {
   }
 }
 
-describe("buildStremioPosterUrl", () => {
-  it("adds a mapping version parameter when a saved mapping exists", () => {
+// Risolve la config come il server (stessa catena query > mapping > config >
+// defaults): gli URL compatti omettono il tuning, il render deve coincidere.
+function resolveConfig(url: URL, mapping: Mapping | null) {
+  return resolvePosterRenderConfig({
+    searchParams: url.searchParams,
+    mapping,
+    configOverride: null,
+    sd: {},
+    hasQuery: true,
+    showBadges: true,
+    rankingBadges: true,
+    animeRank: null,
+    rankingResult: null,
+    finalRank: null,
+    lang: "it",
+  })
+}
+
+describe("buildStremioPosterUrl", () => {  it("adds a mapping version parameter when a saved mapping exists", () => {
     const updatedAt = "2026-07-16T10:15:30.000Z"
     const url = buildStremioPosterUrl({
       origin: "http://localhost:3000",
@@ -145,38 +163,36 @@ describe("buildStremioPosterUrl", () => {
     expect(forced.searchParams.get("title")).toBe("Test")
   })
 
-  it("forceShape applies the mapping landscape tuning profile", () => {
+  it("forceShape applies the mapping landscape tuning profile (resolved server-side, compact URLs v1.23.0)", () => {
+    const styled = {
+      ...mapping("2026-07-16T10:15:30.000Z"),
+      posterShape: "poster" as const,
+      gradientHeight: 50,
+      landscape: { gradientHeight: 15 },
+    }
     const url = buildStremioPosterUrl({
       origin: "http://localhost:3000",
       type: "movie" as const,
       id: 42,
       defaults: { gradientHeight: 30 },
-      mapping: {
-        ...mapping("2026-07-16T10:15:30.000Z"),
-        posterShape: "poster",
-        gradientHeight: 50,
-        landscape: { gradientHeight: 15 },
-      },
+      mapping: styled,
     })
-    // Senza force il titolo portrait usa il profilo flat...
-    expect(url.searchParams.get("gradHeight")).toBe("50")
+    // Tuning omesso dall'URL: il titolo portrait risolve il profilo flat...
+    expect(url.searchParams.has("gradHeight")).toBe(false)
+    expect(resolveConfig(url, styled).blurHeight).toBe(50)
 
     const forced = buildStremioPosterUrl({
       origin: "http://localhost:3000",
       type: "movie" as const,
       id: 42,
       defaults: { gradientHeight: 30 },
-      mapping: {
-        ...mapping("2026-07-16T10:15:30.000Z"),
-        posterShape: "poster",
-        gradientHeight: 50,
-        landscape: { gradientHeight: 15 },
-      },
+      mapping: styled,
       forceShape: "landscape",
     })
-    // ...con force il banner usa il profilo landscape.
-    expect(forced.searchParams.get("gradHeight")).toBe("15")
+    // ...con force il banner risolve il profilo landscape.
+    expect(forced.searchParams.has("gradHeight")).toBe(false)
     expect(forced.searchParams.get("shape")).toBe("landscape")
+    expect(resolveConfig(forced, styled).blurHeight).toBe(15)
   })
 
   it("emits hideLogo only for the Nuvio banner (never for poster)", () => {
@@ -195,7 +211,7 @@ describe("buildStremioPosterUrl", () => {
     expect(banner.searchParams.get("shape")).toBe("landscape")
   })
 
-  it("passes per-title tintStrength to the banner, defaults to 20", () => {
+  it("passes per-title tintStrength to the banner, defaults to 20 (resolved server-side, compact URLs v1.23.0)", () => {
     const base = {
       origin: "http://localhost:3000",
       type: "movie" as const,
@@ -203,11 +219,15 @@ describe("buildStremioPosterUrl", () => {
       defaults: {},
       mapping: { ...mapping("2026-07-16T10:15:30.000Z"), tintStrength: 55 },
     }
-    expect(buildStremioPosterUrl(base).searchParams.get("tint")).toBe("55")
-    expect(buildStremioPosterUrl({ ...base, mapping: null }).searchParams.get("tint")).toBe("20")
+    const tinted = buildStremioPosterUrl(base)
+    expect(tinted.searchParams.has("tint")).toBe(false)
+    expect(resolveConfig(tinted, base.mapping).tintStrength).toBe(55)
+    const plain = buildStremioPosterUrl({ ...base, mapping: null })
+    expect(plain.searchParams.has("tint")).toBe(false)
+    expect(resolveConfig(plain, null).tintStrength).toBe(20)
   })
 
-  it("defaults blurFade to 70 in landscape, 60 in portrait", () => {
+  it("defaults blurFade to 70 in landscape, 60 in portrait (resolved server-side, compact URLs v1.23.0)", () => {
     const base = {
       origin: "http://localhost:3000",
       type: "movie" as const,
@@ -215,13 +235,16 @@ describe("buildStremioPosterUrl", () => {
       defaults: {},
       mapping: null,
     }
-    expect(buildStremioPosterUrl(base).searchParams.get("bf")).toBe("50")
-    expect(buildStremioPosterUrl({ ...base, forceShape: "landscape" }).searchParams.get("bf")).toBe("70")
+    const portrait = buildStremioPosterUrl(base)
+    expect(portrait.searchParams.has("bf")).toBe(false)
+    expect(resolveConfig(portrait, null).blurFade).toBe(50)
+    const landscape = buildStremioPosterUrl({ ...base, forceShape: "landscape" })
+    expect(landscape.searchParams.has("bf")).toBe(false)
+    expect(resolveConfig(landscape, null).blurFade).toBe(70)
     // Mapping esplicito vince sul default di formato.
-    expect(buildStremioPosterUrl({
-      ...base,
-      forceShape: "landscape",
-      mapping: { ...mapping("2026-07-16T10:15:30.000Z"), blurFade: 40 },
-    }).searchParams.get("bf")).toBe("40")
+    const styled = { ...mapping("2026-07-16T10:15:30.000Z"), blurFade: 40 }
+    const banner = buildStremioPosterUrl({ ...base, forceShape: "landscape", mapping: styled })
+    expect(banner.searchParams.has("bf")).toBe(false)
+    expect(resolveConfig(banner, styled).blurFade).toBe(40)
   })
 })

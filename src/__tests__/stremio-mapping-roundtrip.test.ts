@@ -90,7 +90,7 @@ function resolveFromUrl(url: URL, mapping: Mapping | null, configOverride: Picto
 }
 
 describe("stremio mapping round-trip (F2)", () => {
-  it("emits per-title values explicitly in the Stremio URL", () => {
+  it("emits toggles/enums explicitly, numeric tuning resolves server-side (compact URLs v1.23.0)", () => {
     const url = buildStremioPosterUrl({
       origin: "https://x.test",
       type: "movie",
@@ -104,12 +104,19 @@ describe("stremio mapping round-trip (F2)", () => {
     expect(q.get("ranking")).toBe("0")
     expect(q.get("bs")).toBe("pill")
     expect(q.get("rs")).toBe("colored")
-    expect(q.get("gradHeight")).toBe("80")
-    expect(q.get("blur")).toBe("50")
-    expect(q.get("bf")).toBe("10")
-    expect(q.get("bd")).toBe("90")
     expect(q.get("be")).toBe("0")
     expect(q.get("extra")).toBe("Da cinema")
+    // Tuning numerico ad alta cardinalità: omesso, il server lo riproduce
+    // dal mapping (stesso render, chiave convergente).
+    for (const k of ["gradHeight", "blur", "tint", "bf", "bd", "tscale", "tox", "toy",
+      "gscale", "gox", "goy", "qscale", "qox", "qoy", "netscale", "nox", "noy"]) {
+      expect(q.has(k)).toBe(false)
+    }
+    const cfg = resolveFromUrl(url, styledMapping(), null)
+    expect(cfg.blurHeight).toBe(80)
+    expect(cfg.blurIntensity).toBe(50)
+    expect(cfg.blurFade).toBe(10)
+    expect(cfg.blurDarkness).toBe(90)
   })
 
   it("resolves the mapping style server-side, even against an opposing config token", () => {

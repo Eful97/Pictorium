@@ -73,26 +73,10 @@ export const SUPPORTED_RATING_SOURCES = [
 
 export type RatingSource = (typeof SUPPORTED_RATING_SOURCES)[number]
 
-export const DEFAULT_RATING_SOURCES: RatingSource[] = ["imdb", "tmdb"]
-
-export const UI_RATING_SOURCES: { id: RatingSource; labelKey: string; emoji: string }[] = [
-  { id: "imdb", labelKey: "ui.source_imdb", emoji: "⭐" },
-  { id: "tmdb", labelKey: "ui.source_tmdb", emoji: "🌐" },
-  { id: "mdblist", labelKey: "ui.source_mdblist", emoji: "📊" },
-  { id: "tomatoes", labelKey: "ui.source_tomatoes", emoji: "🍅" },
-  { id: "popcorntime", labelKey: "ui.source_popcorntime", emoji: "🍿" },
-  { id: "letterboxd", labelKey: "ui.source_letterboxd", emoji: "👁️" },
-  { id: "metacritic", labelKey: "ui.source_metacritic", emoji: "🎯" },
-  { id: "metacriticuser", labelKey: "ui.source_metacriticuser", emoji: "👥" },
-  { id: "trakt", labelKey: "ui.source_trakt", emoji: "📺" },
-  { id: "simkl", labelKey: "ui.source_simkl", emoji: "⚡" },
-  { id: "filmweb", labelKey: "ui.source_filmweb", emoji: "🎥" },
-  { id: "filmwebcritics", labelKey: "ui.source_filmwebcritics", emoji: "🖋️" },
-  { id: "rogerebert", labelKey: "ui.source_rogerebert", emoji: "🎖️" },
-  { id: "mal", labelKey: "ui.source_mal", emoji: "🌸" },
-  { id: "anilist", labelKey: "ui.source_anilist", emoji: "💫" },
-  { id: "kitsu", labelKey: "ui.source_kitsu", emoji: "🦊" },
-]
+// Definita in rating-weights.ts (foglia client-safe senza import runtime):
+// ratings.ts importa cache/KV e non può stare nel bundle browser.
+import { DEFAULT_RATING_SOURCES, UI_RATING_SOURCES } from "./rating-weights"
+export { DEFAULT_RATING_SOURCES, UI_RATING_SOURCES }
 
 export interface AggregatedRatings {
   sources: Record<string, number>

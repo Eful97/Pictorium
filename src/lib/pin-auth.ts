@@ -5,6 +5,7 @@ import crypto from "node:crypto"
 import { DATA_DIR } from "@/lib/data-dir"
 import { createLogger } from "@/lib/logger"
 import { envWithFallback } from "@/lib/env-compat"
+import { getKv, getStorageMode } from "@/lib/kv"
 
 const log = createLogger("pin-auth")
 
@@ -17,8 +18,13 @@ function getDataDir(): string {
   return envWithFallback("DATA_DIR") || DATA_DIR
 }
 
-const useKv = !!process.env.KV_REST_API_URL && !!process.env.KV_REST_API_TOKEN
 const KV_KEY = "security"
+
+// Lettura live (mai a module level): i test mutano le env + resetModules.
+// Nome senza prefisso `use`: la regola react-hooks lo scambierebbe per un Hook.
+function isKvMode(): boolean {
+  return getStorageMode() === "kv"
+}
 
 export const PIN_COOKIE_NAME = "pictorium_pin_session"
 const SESSION_DURATION_SECONDS = 30 * 24 * 60 * 60 // 30 giorni
@@ -26,6 +32,11 @@ const SESSION_DURATION_SECONDS = 30 * 24 * 60 * 60 // 30 giorni
 export interface SecurityConfig {
   pinHash?: string // format: `${salt}:${hash}`
   sessionSecret?: string
+  // Hash sha256 dell'ADMIN_TOKEN in vigore quando il PIN è stato impostato
+  // via token (mai via PIN): se il token ruota o sparisce, il binding non
+  // combacia più e il PIN si auto-disabilita (v1.23.0, anti-persistenza).
+  // Assente = impostato via PIN o senza token configurato: sempre attivo.
+  adminHash?: string
   updatedAt?: string
 }
 
@@ -44,10 +55,9 @@ export async function readSecurityConfig(): Promise<SecurityConfig> {
     return cachedConfig
   }
 
-  if (useKv) {
+  if (isKvMode()) {
     try {
-      const { kv } = await import("@vercel/kv")
-      const data = await kv.get<SecurityConfig>(KV_KEY)
+      const data = await getKv().get<SecurityConfig>(KV_KEY)
       cachedConfig = data ?? {}
       cacheAt = now
       return cachedConfig
@@ -79,7 +89,7 @@ export function readSecurityConfigSync(): SecurityConfig {
   if (cachedConfig && now - cacheAt < CACHE_TTL_MS) {
     return cachedConfig
   }
-  if (!useKv) {
+  if (!isKvMode()) {
     try {
       const file = getSecurityFile()
       if (!existsSync(file)) {
@@ -100,12 +110,13 @@ export function readSecurityConfigSync(): SecurityConfig {
 
 export function hasPinConfiguredSync(): boolean {
   const cfg = readSecurityConfigSync()
-  return !!cfg.pinHash && cfg.pinHash.includes(":")
+  return !!cfg.pinHash && cfg.pinHash.includes(":") && adminBindingOk(cfg)
 }
 
 export function verifySessionFromRequestSync(request: Request): boolean {
   const cfg = readSecurityConfigSync()
   if (!cfg.pinHash || !cfg.sessionSecret) return false
+  if (!adminBindingOk(cfg)) return false
 
   const token = extractSessionToken(request)
   if (!token) return false
@@ -128,10 +139,9 @@ export async function writeSecurityConfig(config: SecurityConfig): Promise<void>
     updatedAt: new Date().toISOString(),
   }
 
-  if (useKv) {
+  if (isKvMode()) {
     try {
-      const { kv } = await import("@vercel/kv")
-      await kv.set(KV_KEY, updated)
+      await getKv().set(KV_KEY, updated)
       cachedConfig = updated
       cacheAt = Date.now()
       return
@@ -166,15 +176,35 @@ export function hashPin(pin: string, salt?: string): { hash: string; salt: strin
   }
 }
 
+function currentAdminTokenHash(): string | null {
+  const t = envWithFallback("ADMIN_TOKEN") || process.env.ADMIN_TOKEN
+  if (!t) return null
+  return crypto.createHash("sha256").update(t, "utf-8").digest("hex")
+}
+
+/**
+ * Binding PIN↔admin token (v1.23.0): un PIN impostato via admin token muore
+ * con la rotazione. Senza binding (via PIN o senza token all'epoca) resta
+ * attivo; se il token sparisce del tutto con binding presente, fail-closed
+ * (recuperabile: senza PIN configurato il primo set torna libero).
+ */
+function adminBindingOk(cfg: SecurityConfig): boolean {
+  if (!cfg.adminHash) return true
+  const current = currentAdminTokenHash()
+  if (!current || current.length !== cfg.adminHash.length) return false
+  return crypto.timingSafeEqual(Buffer.from(current), Buffer.from(cfg.adminHash))
+}
+
 export async function hasPinConfigured(): Promise<boolean> {
   const cfg = await readSecurityConfig()
-  return !!cfg.pinHash && cfg.pinHash.includes(":")
+  return !!cfg.pinHash && cfg.pinHash.includes(":") && adminBindingOk(cfg)
 }
 
 export async function verifyPin(pin: string): Promise<boolean> {
   if (!pin || typeof pin !== "string") return false
   const cfg = await readSecurityConfig()
   if (!cfg.pinHash) return false
+  if (!adminBindingOk(cfg)) return false
 
   const [salt, storedHash] = cfg.pinHash.split(":")
   if (!salt || !storedHash) return false
@@ -184,7 +214,7 @@ export async function verifyPin(pin: string): Promise<boolean> {
   return crypto.timingSafeEqual(Buffer.from(candidate), Buffer.from(storedHash))
 }
 
-export async function setPin(newPin: string): Promise<boolean> {
+export async function setPin(newPin: string, opts?: { viaAdminToken?: boolean }): Promise<boolean> {
   if (!newPin || typeof newPin !== "string" || newPin.trim().length < 6) {
     return false
   }
@@ -199,6 +229,9 @@ export async function setPin(newPin: string): Promise<boolean> {
     ...cfg,
     pinHash,
     sessionSecret,
+    // Binding rotazione: impostato via token → hash corrente; via PIN →
+    // resta il binding precedente; senza token → nessun binding.
+    adminHash: opts?.viaAdminToken ? (currentAdminTokenHash() ?? undefined) : cfg.adminHash,
   })
   return true
 }
@@ -246,6 +279,7 @@ export async function verifySessionToken(token: string | null | undefined): Prom
 
   const cfg = await readSecurityConfig()
   if (!cfg.sessionSecret) return false
+  if (!adminBindingOk(cfg)) return false
 
   const expectedSignature = crypto.createHmac("sha256", cfg.sessionSecret).update(payload).digest("hex")
   if (expectedSignature.length !== signature.length) return false
