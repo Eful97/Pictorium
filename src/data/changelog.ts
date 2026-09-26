@@ -12,8 +12,6 @@
 // a deploy carries auto content the user hasn't seen (never for empty auto:
 // no phantom dots in quiet periods).
 
-import { APP_VERSION } from "@/generated/app-version"
-
 export type ChangelogItemType = "feature" | "perf" | "fix"
 
 export interface ChangelogItem {
@@ -31,6 +29,19 @@ export interface ChangelogRelease {
 /** Newest first. The dot compares against CHANGELOG[0], never APP_VERSION
  *  (which bumps on every commit and would leave the dot permanently on). */
 export const CHANGELOG: ChangelogRelease[] = [
+  {
+    version: "1.23.2",
+    date: "2026-09-26",
+    title: "Release 1.23.2",
+    items: [
+      { type: "feature", text: "Automatic home changelog with unread tracking" },
+      { type: "fix", text: "Drop unsupported Trakt and collection types from Stremio manifest" },
+      { type: "fix", text: "Mapping upsert answers JSON on unexpected storage errors" },
+      { type: "fix", text: "presets mode drops derivable hints and bounds rank/animerank/rsrc" },
+      { type: "feature", text: "PICTORIUM_PUBLIC_STATS=0 keeps /api/status counts admin-only" },
+      { type: "feature", text: "PICTORIUM_CLIENT_IP_HEADER pins the trusted client-IP header" },
+    ],
+  },
   {
     version: "1.23",
     date: "2026-09-25",
@@ -94,21 +105,25 @@ export const LATEST_CHANGELOG_VERSION: string = CHANGELOG[0].version
 
 export const CHANGELOG_SEEN_KEY = "pictorium_last_seen_changelog"
 
-/** Valore "visto" da persistere: curata + deploy corrente (APP_VERSION cambia
- *  a ogni commit, quindi ogni deploy è distinguibile). */
-export function seenValue(): string {
-  return `${LATEST_CHANGELOG_VERSION}::${APP_VERSION}`
+/** Valore "visto" da persistere: sha auto più nuovo, o versione curata quando
+ *  l'auto è vuoto (fallback senza git, es. build Docker). */
+export function seenValue(shas: readonly string[] = []): string {
+  return shas.length > 0 ? `r:${shas[0]}` : `c:${LATEST_CHANGELOG_VERSION}`
 }
 
 /**
- * Pure dot logic (unit-tested). `autoCount` = voci auto non vuote nel modale.
- * Compatibile col vecchio formato (solo versione curata, senza "::").
+ * Pure dot logic (unit-tested). Con auto non vuoto il dot dipende solo
+ * dall'ultimo sha visto: un nuovo commit lo riaccende, nient'altro.
+ * Con auto vuoto si confronta la versione curata (accetta anche i formati
+ * precedenti `X` e `X::deploy`, mostrati una sola volta dopo il cambio).
  */
-export function hasUnseenChangelog(seen: string | null, autoCount = 0): boolean {
+export function hasUnseenChangelog(seen: string | null, shas: readonly string[] = []): boolean {
   if (seen === null) return true
-  const sep = seen.indexOf("::")
-  const seenCurated = sep === -1 ? seen : seen.slice(0, sep)
-  const seenDeploy = sep === -1 ? "" : seen.slice(sep + 2)
-  if (seenCurated !== LATEST_CHANGELOG_VERSION) return true
-  return autoCount > 0 && seenDeploy !== APP_VERSION
+  if (shas.length > 0) return seen !== `r:${shas[0]}`
+  const curated = seen.startsWith("c:")
+    ? seen.slice(2)
+    : seen.includes("::")
+      ? seen.slice(0, seen.indexOf("::"))
+      : seen
+  return curated !== LATEST_CHANGELOG_VERSION
 }

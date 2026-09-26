@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react"
 import Link from "next/link"
-import { Users } from "lucide-react"
+import { History, Users } from "lucide-react"
 import { useT } from "@/lib/contexts/TranslationContext"
 import { APP_VERSION } from "@/generated/app-version"
 import { currentPathUuid } from "@/lib/user-token"
@@ -14,6 +14,8 @@ import {
 import { RECENT_CHANGES } from "@/generated/recent-changes"
 import { ChangelogModal } from "@/components/ChangelogModal"
 
+const RECENT_SHAS: readonly string[] = RECENT_CHANGES.map((item) => item.sha)
+
 export function HomeStatusStrip() {
   const { t } = useT()
   const [statusHref, setStatusHref] = useState("/status")
@@ -22,9 +24,9 @@ export function HomeStatusStrip() {
   // versione) — nessun layout shift, nessun errore, mai un "0 attivi" bugiardo.
   const [spaces, setSpaces] = useState<{ users: number; maxUsers: number; activeUsers: number } | null>(null)
   // Changelog unread dot: localStorage read strictly in useEffect (initial
-  // false) to avoid SSR hydration mismatch. Compared against the composite
-  // seen value (curated version + deploy): lights on curated news OR on a
-  // deploy carrying unseen auto content — never on empty auto alone.
+  // false) to avoid SSR hydration mismatch. Compared against the last seen
+  // auto sha — only a genuinely new commit relights it. With empty auto
+  // (no git, e.g. Docker build) it falls back to the curated version.
   const [changelogOpen, setChangelogOpen] = useState(false)
   const [hasUnseen, setHasUnseen] = useState(false)
 
@@ -32,13 +34,13 @@ export function HomeStatusStrip() {
     setChangelogOpen(false)
     setHasUnseen(false)
     try {
-      localStorage.setItem(CHANGELOG_SEEN_KEY, seenValue())
+      localStorage.setItem(CHANGELOG_SEEN_KEY, seenValue(RECENT_SHAS))
     } catch {}
   }
 
   useEffect(() => {
     try {
-      setHasUnseen(hasUnseenChangelog(localStorage.getItem(CHANGELOG_SEEN_KEY), RECENT_CHANGES.length))
+      setHasUnseen(hasUnseenChangelog(localStorage.getItem(CHANGELOG_SEEN_KEY), RECENT_SHAS))
     } catch {
       setHasUnseen(false)
     }
@@ -107,6 +109,7 @@ export function HomeStatusStrip() {
           title={t("ui.changelogTitle")}
           className="status-version"
         >
+          <History className="w-3 h-3 shrink-0" aria-hidden="true" />
           <span>v{APP_VERSION}</span>
           {hasUnseen && (
             <span data-testid="changelog-dot" className="changelog-dot" aria-hidden="true" />

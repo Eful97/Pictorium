@@ -18,6 +18,8 @@ import { renderMultiRatings } from "@/lib/multi-rating-renderer"
 import { fetchAggregatedRating } from "@/lib/ratings"
 import { RENDER_VERSION } from "@/lib/render-version"
 import { posterHeaders } from "@/lib/poster-runtime-cache"
+import * as hardening from "@/lib/poster-params-hardening"
+import * as sessionCache from "@/lib/tmdb-session-cache"
 
 vi.mock("@/lib/custom-rating", async (importOriginal) => ({
   ...await importOriginal<typeof import("@/lib/custom-rating")>(),
@@ -796,6 +798,68 @@ describe("GET /api/poster/[type]/[id] with saved mappings", () => {
     })
     expect(res.status).toBe(200)
     expect(vi.mocked(fetchAllWikidata)).toHaveBeenCalledWith(61005, "movie", expect.anything(), { wikidataId: null })
+  })
+})
+
+describe("GET /api/poster/[type]/[id] in presets mode (public instance)", () => {
+  beforeEach(() => {
+    vi.restoreAllMocks()
+    vi.mocked(fetchCustomRatings).mockReset().mockResolvedValue([])
+    vi.mocked(fetchAggregatedRating).mockReset().mockResolvedValue(null)
+    vi.stubEnv("PICTORIUM_CUSTOM_RATING_ENABLED", "false")
+    vi.spyOn(hardening, "isPresetsPosterMode").mockReturnValue(true)
+    vi.spyOn(hardening, "isPublicPosterInstance").mockReturnValue(true)
+  })
+
+  afterEach(() => {
+    cacheClear()
+    __resetTMDBSessionCache()
+  })
+
+  it("matches JustWatch on the TMDB title, not a query title, even if the session cache was evicted", async () => {
+    const poster = await imageBuffer("#101010", 500, 750)
+    mockedGetById.mockResolvedValue(null)
+    mockedGetDetails.mockResolvedValue({
+      id: 62001, title: "Real Title", genres: [{ id: 18, name: "Drama" }],
+      vote_average: 7, vote_count: 10, original_language: "en", production_companies: [],
+    })
+    mockedGetImages.mockResolvedValue({
+      id: 62001,
+      posters: [{ file_path: "/p62001.jpg", iso_639_1: "en", vote_average: 8, vote_count: 10, width: 500, height: 750, aspect_ratio: 0.667 }],
+      logos: [],
+      backdrops: [],
+    })
+    mockedGetExternalIds.mockResolvedValue({ imdb_id: "tt62001" })
+    // Simulate LRU eviction between the auto-branch write and the quality read.
+    vi.spyOn(sessionCache, "getTMDBSessionCache").mockReturnValue(null)
+    vi.spyOn(globalThis, "fetch").mockImplementation(async () => new Response(new Uint8Array(poster), {
+      headers: { "content-type": "image/png" },
+    }))
+    vi.mocked(resolveStreamQuality).mockClear()
+    const res = await GET(new NextRequest("http://localhost:3000/api/poster/movie/62001?api_key=k&title=Bogus"), {
+      params: Promise.resolve({ type: "movie", id: "62001" }),
+    })
+    expect(res.status).toBe(200)
+    expect(vi.mocked(resolveStreamQuality)).toHaveBeenCalled()
+    expect(vi.mocked(resolveStreamQuality).mock.calls[0][3]).toBe("Real Title")
+  })
+
+  it("does not forward a query wikidata_id without an image override", async () => {
+    const poster = await imageBuffer("#101010", 500, 750)
+    mockedGetById.mockResolvedValue({
+      tmdbId: 62002, mediaType: "movie", title: "Presets Qid", posterPath: "/p62002.jpg",
+      logoPath: null, originalPosterPath: null, language: "it",
+      rankingBadges: true, updatedAt: "2026-09-20T00:00:00.000Z",
+    })
+    vi.spyOn(globalThis, "fetch").mockImplementation(async () => new Response(new Uint8Array(poster), {
+      headers: { "content-type": "image/png" },
+    }))
+    vi.mocked(fetchAllWikidata).mockClear()
+    const res = await GET(new NextRequest("http://localhost:3000/api/poster/movie/62002?wikidata_id=Q999"), {
+      params: Promise.resolve({ type: "movie", id: "62002" }),
+    })
+    expect(res.status).toBe(200)
+    expect(vi.mocked(fetchAllWikidata)).toHaveBeenCalledWith(62002, "movie", expect.anything(), { wikidataId: null })
   })
 })
 

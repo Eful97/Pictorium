@@ -48,6 +48,62 @@ describe("rateLimitKey con POSTERIUM_TRUST_PROXY=1 (deploy dietro proxy fidato)"
   })
 })
 
+describe("rateLimitKey con PICTORIUM_CLIENT_IP_HEADER", () => {
+  const KEYS = ["PICTORIUM_CLIENT_IP_HEADER", "POSTERIUM_CLIENT_IP_HEADER", "PICTORIUM_TRUST_PROXY"] as const
+  let saved: Record<string, string | undefined> = {}
+  beforeEach(() => {
+    saved = {}
+    for (const k of KEYS) saved[k] = process.env[k]
+    for (const k of KEYS) delete process.env[k]
+  })
+  afterEach(() => {
+    for (const k of KEYS) {
+      if (saved[k] === undefined) delete process.env[k]
+      else process.env[k] = saved[k]
+    }
+  })
+  const req = (headers: Record<string, string>) => new NextRequest("http://localhost:3000/", { headers })
+
+  it("usa solo l'header indicato: x-real-ip inviato dal client viene ignorato", () => {
+    process.env.PICTORIUM_TRUST_PROXY = "1"
+    process.env.PICTORIUM_CLIENT_IP_HEADER = "CF-Connecting-IP"
+    expect(rateLimitKey(req({ "cf-connecting-ip": "1.2.3.4", "x-real-ip": "6.6.6.6", "x-forwarded-for": "7.7.7.7" }))).toBe("1.2.3.4")
+  })
+
+  it("header indicato assente o vuoto: niente fallback su x-real-ip/XFF", () => {
+    process.env.PICTORIUM_TRUST_PROXY = "1"
+    process.env.PICTORIUM_CLIENT_IP_HEADER = "cf-connecting-ip"
+    expect(rateLimitKey(req({ "x-real-ip": "6.6.6.6", "x-forwarded-for": "7.7.7.7", "user-agent": "curl/8" }))).toBe("ua:curl/8")
+    expect(rateLimitKey(req({ "cf-connecting-ip": "   ", "x-real-ip": "6.6.6.6" }))).toBe("local")
+  })
+
+  it("valori con virgola rifiutati (header appendibile, es. XFF pinnato)", () => {
+    process.env.PICTORIUM_TRUST_PROXY = "1"
+    process.env.PICTORIUM_CLIENT_IP_HEADER = "x-forwarded-for"
+    expect(rateLimitKey(req({ "x-forwarded-for": "6.6.6.6, 203.0.113.9", "user-agent": "curl/8" }))).toBe("ua:curl/8")
+  })
+
+  it("nome header non valido: ignorato (catena di default), mai eccezioni", () => {
+    process.env.PICTORIUM_TRUST_PROXY = "1"
+    for (const bad of ["CF-Connecting-IP:", "\"cf-connecting-ip\"", "cf connecting ip"]) {
+      process.env.PICTORIUM_CLIENT_IP_HEADER = bad
+      expect(() => rateLimitKey(req({ "x-real-ip": "5.6.7.8" }))).not.toThrow()
+      expect(rateLimitKey(req({ "x-real-ip": "5.6.7.8" }))).toBe("5.6.7.8")
+    }
+  })
+
+  it("legacy POSTERIUM_CLIENT_IP_HEADER supportato", () => {
+    process.env.PICTORIUM_TRUST_PROXY = "1"
+    process.env.POSTERIUM_CLIENT_IP_HEADER = "cf-connecting-ip"
+    expect(rateLimitKey(req({ "cf-connecting-ip": "1.2.3.4", "x-real-ip": "6.6.6.6" }))).toBe("1.2.3.4")
+  })
+
+  it("senza TRUST_PROXY l'header indicato è ignorato", () => {
+    process.env.PICTORIUM_CLIENT_IP_HEADER = "cf-connecting-ip"
+    expect(rateLimitKey(req({ "cf-connecting-ip": "1.2.3.4" }))).toBe("local")
+  })
+})
+
 describe("rateLimitKey senza flag (header IP spoofabili ignorati — v1.23.0)", () => {
   afterEach(() => { delete process.env.POSTERIUM_TRUST_PROXY })
 

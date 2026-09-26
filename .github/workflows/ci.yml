@@ -21,6 +21,19 @@ jobs:
       - run: npx tsc --noEmit
       - run: npx eslint .
       - run: npm run test
+      - run: npm run build
+
+  commits:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # Subject check needs history (default depth 1 has no ranges).
+          fetch-depth: 0
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+      - run: node scripts/check-commit-subjects.mjs
 
   visual:
     runs-on: ubuntu-latest

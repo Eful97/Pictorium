@@ -167,15 +167,53 @@ export async function rateLimit(key: string, bucket: string): Promise<{ ok: bool
   return memoryRateLimit(bucketKey, cfg, now)
 }
 
+// RFC 7230 token: anything else makes Headers.get() throw on every request.
+const HEADER_NAME_RE = /^[!#$%&'*+.^_`|~0-9a-z-]+$/
+const warnedPinned = new Set<string>()
+
+function warnPinnedHeaderOnce(kind: "invalid" | "missing" | "multi", header: string): void {
+  if (warnedPinned.has(kind)) return
+  warnedPinned.add(kind)
+  const reason = {
+    invalid: "is not a valid header name; setting ignored",
+    missing: "is absent from requests; falling back to per-user-agent buckets",
+    multi: "carries a comma-separated list; it must be a single value set by the proxy",
+  }[kind]
+  log.warn(`PICTORIUM_CLIENT_IP_HEADER "${header}" ${reason}`)
+}
+
+/** Validated, lowercased pinned header name, or "" when unset/invalid. */
+function pinnedClientIpHeader(): string {
+  const name = (envWithFallback("CLIENT_IP_HEADER") || "").trim().toLowerCase()
+  if (!name) return ""
+  if (!HEADER_NAME_RE.test(name)) {
+    warnPinnedHeaderOnce("invalid", name)
+    return ""
+  }
+  return name
+}
+
 export function rateLimitKey(request: Request): string {
-  // Estrae l'IP client per il rate limit. Quando PICTORIUM_TRUST_PROXY=1
-  // gli header sono considerati fidati (proxy sovrascrive XFF), altrimenti
-  // x-forwarded-for è ignorato per evitare bucket pollution (H2): l'attaccante
-  // poteva inviare X-Forwarded-For arbitrario e generare fino a MAX_KEYS bucket
-  // distinti, evictando quelli legittimi (FIFO). x-real-ip / cf-connecting-ip
-  // restano usati (Nginx/Cloudflare) ma il fallback ua: garantisce granularità
-  // minima senza ricadere nel vecchio bucket "shared" globale.
+  // Estrae l'IP client per il rate limit. Precedenza: header pinnato
+  // (CLIENT_IP_HEADER + TRUST_PROXY=1) > x-real-ip/cf-connecting-ip (solo se
+  // trusted) > x-forwarded-for primo hop (solo se trusted, anti H2 bucket
+  // pollution) > fallback ua:/local. Senza trust nessun header IP è usato:
+  // sono tutti spoofabili da chi raggiunge l'origin direttamente.
   const trusted = envWithFallback("TRUST_PROXY") === "1"
+  // PICTORIUM_CLIENT_IP_HEADER (with TRUST_PROXY=1): trust exactly one header,
+  // e.g. "cf-connecting-ip" behind Cloudflare. Cloudflare does not set
+  // x-real-ip but forwards one a client sends, so the default order below
+  // would let that client pick its own bucket. The header must be a single
+  // value that the proxy overwrites (not X-Forwarded-For, which proxies append
+  // to): comma-separated values are refused.
+  const pinnedHeader = trusted ? pinnedClientIpHeader() : ""
+  if (pinnedHeader) {
+    const raw = request.headers.get(pinnedHeader)?.trim() ?? ""
+    if (raw && !raw.includes(",")) return raw
+    warnPinnedHeaderOnce(raw ? "multi" : "missing", pinnedHeader)
+    const uaPinned = request.headers.get("user-agent")
+    return uaPinned ? `ua:${uaPinned.slice(0, 48)}` : "local"
+  }
   // Solo dietro proxy fidato (v1.23.0): x-real-ip/cf-connecting-ip sono
   // scrivibili da chiunque raggiunga l'origin direttamente — fidarsene
   // sempre permette di ruotare bucket falsi ed evadere il rate limit.

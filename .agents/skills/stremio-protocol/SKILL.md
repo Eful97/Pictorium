@@ -21,10 +21,11 @@ external addons like AIOMetadata.
 - Route `src/app/meta/[type]/[id]/route.ts`, delegating to `pictoriumMeta` in
   `src/lib/meta-handler.ts`. Also reachable at `/c/[config]/meta/[type]/[id]` and
   `/u/[user]/meta/[type]/[id]`.
-- Resolvable id prefixes: `tt...` (IMDb), `tmdb:<id>`, `tvdb:<id>`, `tvdbc:<id>`,
-  `kitsu:<id>`, `mal:<id>`, `anilist:<id>`, `anidb:<id>`; a bare numeric id is
-  treated as a TMDB id (fallback). Unresolvable id → `{ meta: null }` (200),
-  never a 404/cancel.
+- Resolvable id prefixes: `tt...` (IMDb), `tmdb:<id>`, `tvdb:<id>`, `tvdbc:<id>`;
+  a bare numeric id is treated as a TMDB id (fallback). `kitsu:`, `mal:`,
+  `anilist:`, `anidb:` are intentionally NOT resolved → `{ meta: null }` (200)
+  so dedicated anime addons keep serving them (manifest C3). Unresolvable id →
+  `{ meta: null }` (200), never a 404/cancel.
 - Resolution flow: TMDB id via `tmdbFindByImdb` / `tmdbFindByTvdb` or direct
   parse; full details via `getFullDetails` (+ credits/videos/external_ids);
   logo via `getImages`; poster via `buildStremioPosterUrl` (standalone poster

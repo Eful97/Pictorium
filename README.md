@@ -132,6 +132,8 @@ Attivando `PICTORIUM_MULTI_USER=1`, l'istanza permette a più utenti di condivid
   * **Recovery Key (Secret)**: codice segreto mostrato una sola volta alla creazione per recuperare l'accesso in caso di smarrimento o ruotare le credenziali.
 * **Protezione Anti-Brute-Force**: Limite automatico sui tentativi di inserimento password errati e protezione da abusi.
 
+> 📢 Per segnalare vulnerabilità in privato (mai con issue pubbliche), vedi [SECURITY.md](SECURITY.md).
+
 ---
 
 ## 🚀 Deploy Rapido
@@ -262,6 +264,7 @@ npm install --ignore-scripts && npm run build && npm start
 | `PROFILE_ENCRYPTION_KEY` | *(vuoto)* | **Obbligatoria** con `MULTI_USER=1`. Chiave hex a 64 caratteri (AES-256-GCM, genera con `openssl rand -hex 32`). |
 | `PICTORIUM_MAX_MAPPINGS_PER_USER` | `500` | Numero massimo di poster salvabili per ogni utente. |
 | `PICTORIUM_MAX_USERS` | *(illimitato)* | Limite massimo di utenti registrabili sull'istanza. |
+| `PICTORIUM_PUBLIC_STATS` | `1` | Imposta `0` per restituire i conteggi utenti di `/api/status` solo agli admin (la striscia "spazi" in home resta nascosta ai visitatori). |
 
 <details>
 <summary><strong>⚙️ Variabili Avanzate, Stili Predefiniti & Pipeline</strong></summary>
@@ -288,6 +291,18 @@ npm install --ignore-scripts && npm run build && npm start
 | `PICTORIUM_CACHE_MAX_MB` | `150` | Memoria RAM massima riservata alla cache immagini in memoria. |
 | `PICTORIUM_SELF_WARMUP` | `1` | Preriscaldamento automatico dei cataloghi all'avvio del server. |
 </details>
+
+---
+
+## ⚠️ Limiti Noti
+
+Scelte architetturali deliberate, non bug:
+
+* **Cache poster JPEG in-process** (RAM/disco, default 32 MB via `PICTORIUM_IMG_CACHE_MB`): mai in Redis/KV, che conserva solo metadati leggeri e cataloghi. Riversare binari JPEG in KV causerebbe bloat RAM e saturazione banda interna.
+* **Paginazione JustWatch**: la GraphQL upstream pagina solo via `$first` — il server fa overfetch (max 60) + slice locale. Lo `skip` profondo può costare più di un fetch upstream.
+* **Suite E2E visiva Chromium-only**: snapshot deterministici su un solo browser; Firefox/WebKit non coperti di proposito.
+* **HSTS al reverse proxy**: il container non forza `Strict-Transport-Security` con preload (romperebbe LAN/Docker in HTTP). TLS+HSTS stanno a Caddy / Cloudflare / Nginx — su VPS vedi Deploy con Caddy sopra.
+* **Warmup limitato**: all'avvio si scaldano solo 8 cataloghi core (`WARMUP_CATALOG_IDS`). Scaldare tutto causerebbe 429 TMDB e boot oltre i probe di liveness.
 
 ---
 

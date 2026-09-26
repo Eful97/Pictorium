@@ -113,7 +113,8 @@ export async function POST(req: NextRequest) {
     if (e instanceof QuotaExceededError) {
       return Response.json({ error: e.message }, { status: 413 })
     }
-    throw e
+    log.error("Mapping upsert failed", { error: e instanceof Error ? e.message : String(e) })
+    return Response.json({ error: "Internal server error" }, { status: 500 })
   }
 
   if (scoped) {

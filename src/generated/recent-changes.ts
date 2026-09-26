@@ -11,4 +11,7 @@ export interface RecentChange {
 }
 
 export const RECENT_CHANGES: RecentChange[] = [
+  { type: "fix", text: "presets mode drops derivable hints and bounds rank/animerank/rsrc", sha: "c2dbc6a", date: "2026-09-26" },
+  { type: "feature", text: "PICTORIUM_PUBLIC_STATS=0 keeps /api/status counts admin-only", sha: "63fd346", date: "2026-09-26" },
+  { type: "feature", text: "PICTORIUM_CLIENT_IP_HEADER pins the trusted client-IP header", sha: "ea1ea68", date: "2026-09-26" },
 ]

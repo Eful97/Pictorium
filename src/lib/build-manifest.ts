@@ -212,7 +212,7 @@ export async function buildManifestResponse(req: NextRequest, user?: string | nu
     "tvdbc:",
   ]
 
-  const TYPES = ["movie", "series", "anime.movie", "anime.series", "anime", "Trakt", "collection"]
+  const TYPES = ["movie", "series", "anime.movie", "anime.series", "anime"]
 
   let manifestName = safeConfig ? `Pictorium (${safeConfig})` : "Pictorium"
   if (hubMode === "search") {

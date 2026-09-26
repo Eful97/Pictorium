@@ -6,7 +6,6 @@ import {
   hasUnseenChangelog,
   seenValue,
 } from "@/data/changelog"
-import { APP_VERSION } from "@/generated/app-version"
 
 describe("changelog data", () => {
   it("exposes a non-empty curated list, newest first", () => {
@@ -33,35 +32,35 @@ describe("changelog data", () => {
 })
 
 describe("hasUnseenChangelog (dot logic)", () => {
+  const SHAS = ["abc1234", "def5678"]
+
   it("unseen when never opened (null)", () => {
     expect(hasUnseenChangelog(null)).toBe(true)
-    expect(hasUnseenChangelog(null, 5)).toBe(true)
+    expect(hasUnseenChangelog(null, SHAS)).toBe(true)
   })
 
-  it("seen when stored value matches current composite", () => {
-    expect(hasUnseenChangelog(seenValue())).toBe(false)
-    expect(hasUnseenChangelog(seenValue(), 5)).toBe(false)
+  it("seen only when the newest auto sha matches", () => {
+    expect(hasUnseenChangelog(seenValue(SHAS), SHAS)).toBe(false)
+    expect(hasUnseenChangelog(seenValue(["other"]), SHAS)).toBe(true)
+    expect(hasUnseenChangelog(seenValue([]), SHAS)).toBe(true)
   })
 
-  it("unseen when a new curated release lands", () => {
-    expect(hasUnseenChangelog("0.0")).toBe(true)
-    expect(hasUnseenChangelog("0.0::whatever", 5)).toBe(true)
+  it("a new commit relights the dot, nothing else does", () => {
+    const seen = seenValue(SHAS)
+    expect(hasUnseenChangelog(seen, SHAS)).toBe(false)
+    expect(hasUnseenChangelog(seen, ["newsha", ...SHAS])).toBe(true)
   })
 
-  it("legacy bare version still resolves against curated only", () => {
-    expect(hasUnseenChangelog(LATEST_CHANGELOG_VERSION)).toBe(false)
-    expect(hasUnseenChangelog("0.0")).toBe(true)
+  it("empty auto falls back to the curated version (legacy formats included)", () => {
+    expect(hasUnseenChangelog(seenValue([]), [])).toBe(false)
+    expect(hasUnseenChangelog(LATEST_CHANGELOG_VERSION, [])).toBe(false)
+    expect(hasUnseenChangelog(`${LATEST_CHANGELOG_VERSION}::old-deploy`, [])).toBe(false)
+    expect(hasUnseenChangelog("0.0", [])).toBe(true)
+    expect(hasUnseenChangelog("0.0::whatever", [])).toBe(true)
   })
 
-  it("deploy part lights only with non-empty auto content", () => {
-    const sameDeployOldCurated = `0.0::${APP_VERSION}`
-    expect(hasUnseenChangelog(sameDeployOldCurated, 0)).toBe(true) // curated differs
-    const cur = `${LATEST_CHANGELOG_VERSION}::old-deploy`
-    expect(hasUnseenChangelog(cur, 3)).toBe(true)
-    expect(hasUnseenChangelog(cur, 0)).toBe(false)
-  })
-
-  it("seenValue pins curated version and current deploy", () => {
-    expect(seenValue()).toBe(`${LATEST_CHANGELOG_VERSION}::${APP_VERSION}`)
+  it("seenValue pins the newest sha, or the curated version when auto is empty", () => {
+    expect(seenValue(SHAS)).toBe("r:abc1234")
+    expect(seenValue([])).toBe(`c:${LATEST_CHANGELOG_VERSION}`)
   })
 })
