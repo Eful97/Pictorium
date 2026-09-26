@@ -7,6 +7,9 @@
 //  2. quantizzazione dei numerici liberi su step grossolani (non-preview);
 //  3. `ac` solo palette nota, `extra`/`label` solo da mapping curato;
 //  4. niente override poster/logo/backdrop keyless su pubbliche anonime.
+//  5. without a poster override, derivable hints (title, genreName, year,
+//     rd, fad, voteAverage, imdbId, wikidata_id) are dropped; rank 0-100,
+//     animerank past the anime cap on one sentinel, rsrc known sources only.
 //
 // La preview (`preview=1`, WYSIWYG editor) è SEMPRE esente: gli slider live
 // devono rendere i valori esatti prima del save. I valori salvati
@@ -16,6 +19,8 @@
 import { envWithFallback } from "./env-compat"
 import { GENRE_FALLBACK } from "./badges"
 import { isRankKey } from "./i18n"
+import { parseRatingSources } from "./ratings"
+import { ANIME_RANK_MAX } from "./badge-priority"
 
 // Env a module level (convenzione del repo: un cambio richiede restart).
 const POSTER_PARAMS_MODE = (envWithFallback("POSTER_PARAMS") || "").toLowerCase().trim()
@@ -111,6 +116,36 @@ const STEP_10_PARAMS: ReadonlySet<string> = new Set([
   "tscale", "gscale", "qscale", "netscale", "scale", "bscale",
 ])
 
+// Metadata hints the route derives server-side (TMDB details / saved mapping)
+// whenever the request carries no image override. Without an override they
+// never change the render, so in presets mode they only fragment the cache.
+const DERIVED_HINT_PARAMS: ReadonlySet<string> = new Set([
+  "title", "genreName", "voteAverage", "year", "rd", "fad", "imdbId", "wikidata_id",
+])
+
+// rank: explicit rank override, kept as a canonical integer in [0, RANK_MAX]
+// (0 = suppress the rank badge); larger values are dropped.
+const RANK_MAX = 100
+
+function canonicalizeRank(params: URLSearchParams): void {
+  const raw = params.get("rank")
+  if (raw === null) return
+  const n = Number(raw)
+  if (Number.isInteger(n) && n >= 0 && n <= RANK_MAX) params.set("rank", String(n))
+  else params.delete("rank")
+}
+
+// animerank: catalogs pass list positions (up to 500). Anything past the badge
+// cap renders the same (no anime badge, no live MDBList fetch), so collapse it
+// to one sentinel instead of dropping it, which would re-enable the fetch.
+function canonicalizeAnimeRank(params: URLSearchParams): void {
+  const raw = params.get("animerank")
+  if (raw === null) return
+  const n = Number(raw)
+  if (!Number.isInteger(n) || n < 0) params.delete("animerank")
+  else params.set("animerank", String(Math.min(n, ANIME_RANK_MAX + 1)))
+}
+
 function quantizeInPlace(params: URLSearchParams, key: string, step: number): void {
   const raw = params.get(key)
   if (raw === null || raw === "") return
@@ -179,11 +214,28 @@ export function hardenPosterSearchParams(
   const cb = input.mappingCustomBadge
   if (input.hasMapping && cb && !isRankKey(cb)) params.set("extra", cb)
 
+  canonicalizeRank(params)
+  canonicalizeAnimeRank(params)
+
+  // Rating sources: supported ids only, deduplicated (order kept).
+  if (params.has("rsrc")) {
+    const parsed = parseRatingSources(params.get("rsrc"))
+    const unique = parsed ? [...new Set(parsed)] : []
+    if (unique.length > 0) params.set("rsrc", unique.join(","))
+    else params.delete("rsrc")
+  }
+
   // Override sorgente immagine senza user space su pubblica: ignorati.
   if (input.publicInstance && input.anonymous) {
     params.delete("poster")
     params.delete("logo")
     params.delete("backdrop")
+  }
+  // Without an image override the route reads these from TMDB / the mapping:
+  // drop them so they neither split the cache nor steer the JustWatch match.
+  // Truthiness, not presence: the route treats an empty poster= as no override.
+  if (!params.get("poster")) {
+    for (const key of DERIVED_HINT_PARAMS) params.delete(key)
   }
   return params
 }

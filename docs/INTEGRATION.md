@@ -119,6 +119,19 @@ paths (or TMDB `file_path`s) are accepted.
 > requires sharing the instance `CONFIG_HMAC_SECRET` and is fail-closed in
 > production. Explicit query parameters are debuggable and versionable.
 
+### Public instances (presets mode)
+
+On public instances (`PICTORIUM_POSTER_PARAMS=presets`, on by default there)
+requests other than live editor previews are canonicalised before rendering:
+
+- Without an honoured `poster=` override (which needs a user space), `title`,
+  `genreName`, `year`, `rd`, `fad`, `voteAverage`, `imdbId` and `wikidata_id`
+  are ignored: the server uses TMDB data and the saved mapping. Sending them is
+  harmless.
+- `rank` is kept only as an integer from 0 to 100 (0 hides the rank badge).
+- `animerank` values above the anime badge cap (20) are treated as "no badge".
+- `rsrc` keeps supported sources only, without duplicates.
+
 ## Responses and failure behavior (fail-safe integration)
 
 | Status | Meaning | What to do |

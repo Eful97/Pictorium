@@ -142,13 +142,15 @@ describe("hardenPosterSearchParams", () => {
 
   it("strips keyless image overrides on public anonymous requests", () => {
     const out = hardenPosterSearchParams(
-      new URLSearchParams("poster=/a.jpg&logo=/b.png&backdrop=/c.jpg&title=T"),
+      new URLSearchParams("poster=/a.jpg&logo=/b.png&backdrop=/c.jpg&title=T&badges=0"),
       BASE,
     )
     expect(out.has("poster")).toBe(false)
     expect(out.has("logo")).toBe(false)
     expect(out.has("backdrop")).toBe(false)
-    expect(out.get("title")).toBe("T")
+    expect(out.get("badges")).toBe("0")
+    // No override left: the title hint is derived server-side, so it is dropped.
+    expect(out.has("title")).toBe(false)
   })
 
   it("keeps image overrides with a user space or off public instances", () => {
@@ -231,3 +233,49 @@ describe("isPreviewDowngraded (preview blindata opt-in)", () => {
   })
 })
 
+describe("presets hardening: derived hints, rank, animerank, rsrc", () => {
+  const key = (q: string, opts: Partial<Parameters<typeof hardenPosterSearchParams>[1]> = {}) =>
+    normalizePosterCacheParams(hardenPosterSearchParams(new URLSearchParams(q), { ...BASE, ...opts })).toString()
+
+  it("without an image override, derived hints never enter the cache key", () => {
+    const base = key("badges=1")
+    for (const q of ["title=aaa", "title=bbb", "genreName=x", "year=1901", "rd=2020-01-01", "fad=2020-01-01", "voteAverage=7.1", "imdbId=tt123", "wikidata_id=Q42"]) {
+      expect(key(`badges=1&${q}`)).toBe(base)
+    }
+  })
+
+  it("an empty poster= counts as no override (the route treats it as absent)", () => {
+    const h = hardenPosterSearchParams(new URLSearchParams("poster=&title=aaa&wikidata_id=Q42"), { ...BASE, anonymous: false })
+    expect(h.has("title")).toBe(false)
+    expect(h.has("wikidata_id")).toBe(false)
+  })
+
+  it("keeps the hints when a poster override is honoured (user space)", () => {
+    const h = hardenPosterSearchParams(new URLSearchParams("poster=/a.jpg&title=aaa&year=1901"), { ...BASE, anonymous: false })
+    expect(h.get("title")).toBe("aaa")
+    expect(h.get("year")).toBe("1901")
+  })
+
+  it("rank: canonical integer 0-100, 0 kept (suppresses the badge), larger dropped", () => {
+    expect(key("rank=7")).toBe("rank=7")
+    expect(key("rank=007")).toBe("rank=7")
+    expect(key("rank=0")).toBe("rank=0")
+    expect(key("rank=150")).toBe(key(""))
+  })
+
+  it("animerank past the badge cap collapses to one sentinel (keeps no-badge, no-fetch)", () => {
+    expect(key("animerank=5")).toBe("animerank=5")
+    expect(key("animerank=150")).toBe("animerank=21")
+    expect(key("animerank=499")).toBe(key("animerank=150"))
+  })
+
+  it("rsrc: supported sources only, deduplicated, order kept", () => {
+    expect(key("rsrc=imdb,imdb,bogus")).toBe(key("rsrc=imdb"))
+    expect(key("rsrc=bogus")).toBe(key(""))
+  })
+
+  it("preview and presets off leave params untouched (WYSIWYG, private instances)", () => {
+    expect(key("title=aaa", { preview: true })).toContain("title=aaa")
+    expect(key("title=aaa", { presets: false })).toContain("title=aaa")
+  })
+})
