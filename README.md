@@ -262,6 +262,7 @@ npm install --ignore-scripts && npm run build && npm start
 | `PROFILE_ENCRYPTION_KEY` | *(vuoto)* | **Obbligatoria** con `MULTI_USER=1`. Chiave hex a 64 caratteri (AES-256-GCM, genera con `openssl rand -hex 32`). |
 | `PICTORIUM_MAX_MAPPINGS_PER_USER` | `500` | Numero massimo di poster salvabili per ogni utente. |
 | `PICTORIUM_MAX_USERS` | *(illimitato)* | Limite massimo di utenti registrabili sull'istanza. |
+| `PICTORIUM_PUBLIC_STATS` | `1` | Imposta `0` per restituire i conteggi utenti di `/api/status` solo agli admin (la striscia "spazi" in home resta nascosta ai visitatori). |
 
 <details>
 <summary><strong>⚙️ Variabili Avanzate, Stili Predefiniti & Pipeline</strong></summary>

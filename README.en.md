@@ -262,6 +262,7 @@ npm install --ignore-scripts && npm run build && npm start
 | `PROFILE_ENCRYPTION_KEY` | *(empty)* | **Required** when `MULTI_USER=1`. 64-character hex key (AES-256-GCM, generate via `openssl rand -hex 32`). |
 | `PICTORIUM_MAX_MAPPINGS_PER_USER` | `500` | Maximum number of saved posters allowed per user space. |
 | `PICTORIUM_MAX_USERS` | *(unlimited)* | Maximum number of user spaces that can be created. |
+| `PICTORIUM_PUBLIC_STATS` | `1` | Set `0` to return user counts from `/api/status` only to admins (the home "spaces" strip is then hidden for visitors). |
 
 <details>
 <summary><strong>⚙️ Advanced Variables, Default Styles & Performance Pipeline</strong></summary>

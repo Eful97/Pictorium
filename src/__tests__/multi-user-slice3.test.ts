@@ -39,6 +39,8 @@ const ENV_KEYS = [
   "PICTORIUM_HOSTED_BY",
   "POSTERIUM_HOSTED_BY",
   "ADMIN_TOKEN",
+  "PICTORIUM_PUBLIC_STATS",
+  "POSTERIUM_PUBLIC_STATS",
 ] as const
 let savedEnv: Record<string, string | undefined> = {}
 let tempDir: string | undefined
@@ -56,6 +58,8 @@ beforeEach(async () => {
   delete process.env.PICTORIUM_TMDB_KEY
   delete process.env.PICTORIUM_HOSTED_BY
   delete process.env.POSTERIUM_HOSTED_BY
+  delete process.env.PICTORIUM_PUBLIC_STATS
+  delete process.env.POSTERIUM_PUBLIC_STATS
 })
 
 afterEach(async () => {
@@ -274,6 +278,66 @@ describe("status aggregates", () => {
     expect(body.keysEncryption).toBe(true)
     expect(body.keyMissing).toMatchObject({ catalogs: expect.any(Number), keyMissing: expect.any(Number) })
     expect(JSON.stringify(body)).not.toContain("11111111")
+  })
+})
+
+describe("status PUBLIC_STATS", () => {
+  const COUNT_FIELDS = ["users", "activeUsers", "maxUsers", "usersBytes", "keysEncryption", "keyMissing"]
+
+  async function status(headers?: Record<string, string>) {
+    vi.resetModules()
+    const activity = await import("@/lib/user-activity")
+    const spy = vi.spyOn(activity, "listUsers")
+    const route = await import("@/app/api/status/route")
+    const res = await route.GET(nextReq("http://x/api/status", { headers }))
+    expect(res.status).toBe(200)
+    expect(res.headers.get("cache-control")).toBe("private, no-store")
+    const body = await res.json()
+    const scanned = spy.mock.calls.length > 0
+    spy.mockRestore()
+    return { body, scanned }
+  }
+
+  it("PUBLIC_STATS=0: anonimo riceve solo multiUser/hostedBy e nessuna scansione storage", async () => {
+    await createUser()
+    process.env.PICTORIUM_PUBLIC_STATS = "0"
+    const { body, scanned } = await status()
+    expect(body.multiUser).toBe(true)
+    expect(body).toHaveProperty("hostedBy")
+    for (const k of COUNT_FIELDS) expect(body).not.toHaveProperty(k)
+    expect(scanned).toBe(false)
+  })
+
+  it("PUBLIC_STATS=false e legacy POSTERIUM_PUBLIC_STATS=0 nascondono i conteggi", async () => {
+    await createUser()
+    process.env.PICTORIUM_PUBLIC_STATS = "false"
+    expect((await status()).body).not.toHaveProperty("users")
+    delete process.env.PICTORIUM_PUBLIC_STATS
+    process.env.POSTERIUM_PUBLIC_STATS = "0"
+    expect((await status()).body).not.toHaveProperty("users")
+  })
+
+  it("PUBLIC_STATS=0: token errato non vede i conteggi", async () => {
+    await createUser()
+    process.env.PICTORIUM_PUBLIC_STATS = "0"
+    expect((await status({ "x-admin-token": "nope" })).body).not.toHaveProperty("users")
+  })
+
+  it("PUBLIC_STATS=0: admin (x-admin-token o Bearer) vede ancora gli aggregati", async () => {
+    await createUser()
+    process.env.PICTORIUM_PUBLIC_STATS = "0"
+    const adminHeaders: Record<string, string>[] = [{ "x-admin-token": "admin-secret" }, { authorization: "Bearer admin-secret" }]
+    for (const headers of adminHeaders) {
+      const { body, scanned } = await status(headers)
+      expect(body.users).toBe(1)
+      expect(typeof body.activeUsers).toBe("number")
+      expect(scanned).toBe(true)
+    }
+  })
+
+  it("default (flag assente): aggregati pubblici come prima", async () => {
+    await createUser()
+    expect((await status()).body.users).toBe(1)
   })
 })
 
