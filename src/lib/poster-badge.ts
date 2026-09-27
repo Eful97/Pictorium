@@ -200,16 +200,21 @@ export function computeTopBadge(input: BadgeInput, t: BadgeT, locale?: string, o
  * Decide cosa congelare in `badgeExtra` del mapping salvato. I badge
  * time-bound non si congelano mai (resterebbero per sempre): "In uscita",
  * "Nuova stagione" e — da quando è auto — "Ritorna" (lo status è
- * transitorio, Stremio lo ricalcola a runtime). "Miniserie" resta
- * congelabile (formato permanente).
+ * transitorio, Stremio lo ricalcola a runtime). I badge sotto-genere
+ * (es. "Zombie", "Paranormal") restano ANCH'ESSI esclusi: sono salvati come
+ * testo già risolto nella lingua corrente, non come chiave traducibile — se
+ * congelati, restano fissati per sempre nella lingua del primo render,
+ * ignorando region/lingua per tutte le richieste successive. "Miniserie"
+ * resta congelabile (formato permanente, nessun problema di lingua).
  */
 export function resolveSavedBadgeExtra(
-  computed: Pick<ComputedTopBadge, "badge" | "upcomingRelease" | "newSeason">,
+  computed: Pick<ComputedTopBadge, "badge" | "upcomingRelease" | "newSeason" | "subGenreBadge">,
   t: BadgeT,
 ): string | undefined {
   if (computed.badge?.type !== "extra") return undefined
   if (computed.upcomingRelease && computed.badge.label === computed.upcomingRelease) return undefined
   if (computed.newSeason && computed.badge.label === computed.newSeason) return undefined
+  if (computed.subGenreBadge && computed.badge.label === computed.subGenreBadge) return undefined
   if (computed.badge.label === t("badge.returning")) return undefined
   return computed.badge.label
 }
