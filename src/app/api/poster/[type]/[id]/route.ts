@@ -628,7 +628,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
   let tvdbRescueClean = false
   // Lingua richiesta per artwork/logo (ramo non-mappato; default "it"):
   // serve al blocco debug=1 fuori dallo scope del ramo.
-  let posterRequestedLang = "it"
+  let posterRequestedLang = "posterRegion.lang2"
   // Selezione logo per debug=1: iso scelto + motivo del fallback (null = logo
   // esplicito da query/mapping, nessun fallback applicato).
   let logoChosenIso: string | null = null
@@ -716,7 +716,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
     configOverride?.ratingSources,
     sd.ratingSources,
   )
-  const t = createT(req.nextUrl.searchParams.get("lang") || mapping?.language || "it")
+  const t = createT(req.nextUrl.searchParams.get("lang") || mapping?.language || "posterRegion.lang2")
 
   if (queryPoster) {
     posterPath = queryPoster
@@ -789,7 +789,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
       return new Response(null, { status: 304, headers: posterNotModifiedHeaders(etag, immutablePoster, dynamicPoster, dynamicTtlSec) })
     }
   } else {
-    const preferredLanguage = req.nextUrl.searchParams.get("lang") || "it"
+    const preferredLanguage = req.nextUrl.searchParams.get("lang") || "posterRegion.lang2"
     posterRequestedLang = preferredLanguage
     const apiKey = effTmdbKey
     try {
@@ -1057,7 +1057,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
   if (isLandscape && !queryBackdrop && !mapping?.backdropPath && !autoBackdropPath) {
     try {
       const fbApiKey = effTmdbKey
-      const fbLang = req.nextUrl.searchParams.get("lang") || mapping?.language || "it"
+      const fbLang = req.nextUrl.searchParams.get("lang") || mapping?.language || "posterRegion.lang2"
       const cached = getTMDBSessionCache(mediaType, tmdbId)
       let fbDetails = cached?.details
       if (!fbDetails) {
@@ -1481,7 +1481,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
       (tmdbNetworks.length === 0 && productionCompanies.length === 0)
           ? (async () => {
             const apiKey = effTmdbKey
-            const preferredLang = req.nextUrl.searchParams.get("lang") || mapping?.language || "it"
+            const preferredLang = req.nextUrl.searchParams.get("lang") || mapping?.language || "posterRegion.lang2"
             // F6: anche il refetch dei dettagli TV riusa la session cache.
             // Un singolo retry sul fallimento transitorio (cold-start
             // upstream): senza dettagli saltano studio/network badge e il
@@ -1529,7 +1529,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
       rankingResult,
       finalRank,
       // Fix L32: lingua per la risoluzione delle label prefissate (__badge.*).
-      lang: req.nextUrl.searchParams.get("lang") || mapping?.language || "it",
+      lang: req.nextUrl.searchParams.get("lang") || mapping?.language || "posterRegion.lang2",
     })
     const {
       badgeStyle, rankingBadgeStyle,
@@ -1595,7 +1595,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
       minQuality,
     )
 
-    const locale = req.nextUrl.searchParams.get("lang") || mapping?.language || "it"
+    const locale = req.nextUrl.searchParams.get("lang") || mapping?.language || "posterRegion.lang2"
     const targetCenter = Math.round(30 * (isLandscape ? LAND_H : STD_H) / 570)
 
     // 8. Pre-resolve accent color override
