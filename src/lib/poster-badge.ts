@@ -208,7 +208,7 @@ export function computeTopBadge(input: BadgeInput, t: BadgeT, locale?: string, o
  * resta congelabile (formato permanente, nessun problema di lingua).
  */
 export function resolveSavedBadgeExtra(
-  computed: Pick<ComputedTopBadge, "badge" | "upcomingRelease" | "newSeason" | "subGenreBadge">,
+  computed: Pick<ComputedTopBadge, "badge" | "upcomingRelease" | "newSeason"> & { subGenreBadge?: ComputedTopBadge["subGenreBadge"] },
   t: BadgeT,
 ): string | undefined {
   if (computed.badge?.type !== "extra") return undefined
