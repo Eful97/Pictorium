@@ -67,7 +67,7 @@ ombra trasparente `TOP_SHADOW_PAD=14`):
 | Font size base | `24 * pw / 380` (rank), `×0.9` per extra (era 20); nastro Netflix invariato |
 | Padding X | `px = round(finalFontSize * 0.75)` (unificato con genre badges) |
 | Altezza scatola | `boxH = badgeBoxHeight(fs) = fs + round(fs * 0.40) * 2` (unificato con genre badges) |
-| Border radius | `r = round(finalFontSize * 0.7)` per default, `boxH / 2` per pill (lo stile `bar` del ranking è rimosso: `?rs=bar` degrada a default) |
+| Border radius | `r = round(finalFontSize * 0.45)` per default (`RANKING_DEFAULT_RADIUS_FACTOR`: squadrata ma non a spigolo), `boxH / 2` per pill (lo stile `bar` del ranking è rimosso: `?rs=bar` degrada a default) |
 | Ombra | `default`/extra-default: ombra 3D singola stile nastro (`dx=3, dy=3, blur 3.5, 0.65`, solo contenitore) + padding `TOP_SHADOW_PAD=14` su lati/basso (in alto la placca resta a filo, altrimenti sembra staccata); `pill` ranking-extra: stesso filtro ma padding simmetrico 14 anche sopra (`boxH + 28`, `oy = PAD`) perché la pill è staccata di `pillTopGap` dal top — prima l'ombra superiore era tagliata; `badgeShadowBox` resta per stime overflow — `blur = max(round(boxH * 0.20), 4)`, `off = max(round(boxH * 0.10), 2)` dove ancora usato |
 | Sfondo | `default`/extra-default/`pill` — gradiente satinato `satinPillStops(topLight)` + bordo sagomato polarizzato 1.5px (`topLight ? "rgba(0,0,0,0.12)" : "rgba(255,255,255,0.22)"`) + ombra 3D singola sul contenitore, canvas = box + padding ombra (`totalW + 28 × boxH + 14`, filo in alto; `pill` invece `boxH + 28`, simmetrico); `netflix` — nastro satinato con stroke polarizzato come quality (`topLight ? black 0.12 : white 0.22`) e ombra 3D propria, testo `0.80` (ha textShadow dedicato); `colored` — tinta accent piatta + `textColorForBg` (lo stile `bar` del ranking è rimosso) |
 | Testo | `topLight ? "rgba(255,255,255,0.95)" : "rgba(0,0,0,0.88)"` (default/pill, come badge qualità); `colored` = `textColorForBg`; `vetro`/`bordo` traslucidi: adattivo inverso (`topLight ? dark : #e5e7eb`, come qualità/netflix ma sul vetro) |
@@ -137,6 +137,17 @@ Opt-in portrait-only (`sep=1`, default OFF): sostituisce la media ★ nel badge 
 | Posizione | `top = dir === "up" ? ph - gh : 0` |
 | Fade | `0% trasp → svgFadeEnd% trasp → svgSolidPct% opaco → 100% opaco` |
 | Posizione badge genere | `badgeY = ph - h - round(20 * ph / 570)` |
+
+> **Preset sfumatura (Naturale/Colore, solo client):** scorciatoie in
+> `TransformControls.tsx` (per-titolo) e `SettingsPanel.tsx` (default globali)
+> che scrivono i 5 slider esistenti (`gradHeight`/`blur`/`bf`/`bd`/`tint`) —
+> nessun nuovo parametro URL, nessuna chiave cache. Logica in
+> `src/lib/gradient-presets.ts` (`GRADIENT_PRESET_COLOR`,
+> `NATURAL_GRADIENT_DEFAULTS`, `adjustGradientForPosterChange`,
+> `defaultHeightForPoster`/`defaultFadeForPoster`). Il cambio artwork ricalibra
+> altezza/fade solo da stato pristine (preset e tweak manuali sopravvivono);
+> i default personalizzati restano assoluti (niente auto-calibrazione per tipo
+> poster clean vs non-clean).
 
 ## Parametri URL (query string)
 
@@ -223,6 +234,7 @@ Opt-in portrait-only (`sep=1`, default OFF): sostituisce la media ★ nel badge 
 - `src/lib/badge-priority.ts` — logica priorità badge (condivisa)
 - `src/lib/badge-labels.ts` — label pure client-safe (match studio/network, label premi/nomination, QID regex; foglia senza import server, in RENDER_FILES)
 - `src/lib/logo-layout.ts` — geometria condivisa logo preview/server
+- `src/lib/gradient-presets.ts` — preset sfumatura Naturale/Colore (solo client) + regola pristine al cambio artwork
 - `src/app/api/poster/[type]/[id]/route.ts` — composizione poster finale (preview + Stremio usano la stessa route)
 - `src/lib/poster-params-hardening.ts` — allowlist cache key, quantizzazione presets, palette `ac`, canonicalizzazione `extra`, strip override keyless (in RENDER_FILES)
 - `src/lib/stremio-poster-params.ts` — `compactTuning`: omette il tuning numerico senza `config` (in RENDER_FILES)

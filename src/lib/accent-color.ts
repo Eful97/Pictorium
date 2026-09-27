@@ -290,8 +290,9 @@ export function findAccentColor(pixels: Uint8ClampedArray | Buffer, width: numbe
  *
  * A differenza di findAccentColor:
  * - NESSUNA rotazione a +150°: preserva la famiglia cromatica della scena.
- * - Saturazione controllata in [0.30, 0.50]: tinta presente ma non accesa.
- * - Luminosità L = 0.20: tinta già profonda come gli scrim di riferimento.
+ * - Saturazione preservata in [0.30, 0.80]: scene sature (ori, teal) restano
+ *   sature invece di schiacciarsi a oliva spento; scene piatte restano sobrie.
+ * - Luminosità L = 0.26: tinta profonda ma luminosa come gli scrim di riferimento.
  * - NESSUNA ricerca dicotomica di contrasto: deve fondersi armoniosamente con l'immagine.
  * - Fallback monocromatico: GENRE_FALLBACK puro senza pushContrast.
  */
@@ -309,10 +310,11 @@ export function findSceneTint(
   }
 
   // Same-hue: estrazione diretta della famiglia cromatica nativa della scena.
-  // L scuro (0.20): la tinta di scrim/badge nasce già profonda (riferimento
-  // RPDB ~#184236 per Silo); lo shade del blur la porta poi a fondo campo.
-  const sat = Math.min(0.50, Math.max(0.30, analysis.avgSat))
-  const res = hslToRgb(analysis.hue, sat, 0.20)
+  // L medio-scuro (0.26): la tinta di scrim/badge nasce profonda ma luminosa
+  // (riferimento concorrenza ~#7f5401 per Pluribus); lo shade del blur la
+  // porta poi a fondo campo quando la velatura è attiva.
+  const sat = Math.min(0.80, Math.max(0.30, analysis.avgSat))
+  const res = hslToRgb(analysis.hue, sat, 0.26)
   return {
     r: Math.max(0, Math.min(255, res.r)),
     g: Math.max(0, Math.min(255, res.g)),

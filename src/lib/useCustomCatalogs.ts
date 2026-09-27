@@ -3,7 +3,7 @@
 import { useState, useCallback, useEffect, useRef } from "react"
 import type { CustomCatalogConfig } from "./types"
 import { PICTORIUM_CATALOGS } from "./catalog-definitions"
-import { shouldSkipServerSync } from "./guest-guard"
+import { isProfilelessOnMultiUser, notifyProfilelessOnce, shouldSkipServerSync } from "./guest-guard"
 import { userFetch } from "./http"
 import { USER_UNLOCK_EVENT } from "./user-token"
 
@@ -187,7 +187,10 @@ export function useCustomCatalogs(
       void shouldSkipServerSync().then((skip) => {
         if (skip) {
           lastSyncRef.current = ""
-          console.debug("[catalogs] Server sync skipped (guest without session)")
+          console.debug("[catalogs] Server sync skipped (guest without session, or no profile)")
+          void isProfilelessOnMultiUser().then((profileless) => {
+            if (profileless) notifyProfilelessOnce()
+          })
           return
         }
         userFetch("/api/defaults", {

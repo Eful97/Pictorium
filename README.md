@@ -33,7 +33,8 @@ pinned: false
 </p>
 
 > [!TIP]
-> 🚀 **Prova l'[istanza pubblica](https://pictorium.duckdns.org)**: crea il tuo spazio personale con la tua chiave TMDB gratuita.  
+> 🚀 **Istanze pubbliche gratuite**: crea il tuo spazio personale con la tua chiave TMDB su **[pictorium.duckdns.org](https://pictorium.duckdns.org)** (VPS comunitaria) oppure su **[pictorium.elfhosted.com](https://pictorium.elfhosted.com/)** (ElfHosted).  
+> 🧝 **Istanza privata gestita**: puoi avviare un'istanza dedicata 1-click su **[ElfHosted](https://store.elfhosted.com/product/pictorium/)**.  
 > 💬 Entra nella community su [Discord](https://discord.gg/sYfWyXYVUp) per supporto, novità e segnalazioni.  
 > ☕ Supporta il progetto su [Ko-fi](https://ko-fi.com/eful97) per mantenere attiva la VPS comunitaria.
 
@@ -200,7 +201,10 @@ L'interfaccia e il manifest Stremio saranno disponibili su `http://<IP-SERVER>:8
 ---
 
 <details>
-<summary><strong>👉 Altre modalità di installazione (Hugging Face, Oracle Cloud, VPS Caddy, Termux)</strong></summary>
+<summary><strong>👉 Altre modalità di installazione (ElfHosted, Hugging Face, Oracle Cloud, VPS Caddy, Termux)</strong></summary>
+
+#### 🧝 ElfHosted (IaaS Gestito / 1-Click)
+Per chi preferisce non gestire server, porte o Docker: puoi avviare un'istanza Pictorium privata e gestita su Kubernetes direttamente da [ElfHosted](https://store.elfhosted.com/product/pictorium/), con HTTPS automatico, storage persistente e aggiornamenti continui.
 
 #### 🤗 Hugging Face Spaces
 1. Crea una Space su Hugging Face con SDK **Docker** collegata al repo `Eful97/Pictorium`.

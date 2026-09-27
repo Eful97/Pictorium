@@ -68,7 +68,11 @@ describe("guest guard", () => {
       vi.stubGlobal("fetch", fetchMock)
       setUrl("/")
       expect(await shouldSkipServerSync()).toBe(false)
-      expect(fetchMock).not.toHaveBeenCalled()
+      // Only the memoised /api/status lookup (multi-user check); never the
+      // admin/PIN endpoint on a single-user instance's own URL.
+      const urls = fetchMock.mock.calls.map((c) => String((c as unknown[])[0]))
+      expect(urls.every((u) => u.includes("/api/status"))).toBe(true)
+      expect(urls.some((u) => u.includes("/api/auth/pin"))).toBe(false)
     })
 
     it("skip su link altrui + PIN configurato + nessuna sessione", async () => {

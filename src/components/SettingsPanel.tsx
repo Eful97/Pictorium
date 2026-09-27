@@ -17,6 +17,7 @@ import { REGIONS } from "@/lib/regions"
 import { UI_LANGUAGES } from "@/lib/utils"
 import { RatingSourceIcon } from "@/components/RatingSourceIcon"
 import { UserKeysSection } from "@/components/UserKeysSection"
+import { GRADIENT_PRESET_COLOR, NATURAL_GRADIENT_DEFAULTS, matchesGradientPreset, type GradientPresetValues } from "@/lib/gradient-presets"
 import { UserSpaceSection } from "@/components/UserSpaceSection"
 import { isMultiUserServer } from "@/lib/guest-guard"
 import { adminAuthHeaders, hasAdminToken } from "@/lib/admin-token"
@@ -1239,6 +1240,43 @@ export function SettingsPanel({ setSettingsOpen, exportData, importData, mobile 
                   className="text-xs text-muted hover:text-accent transition-colors px-2 py-0.5 rounded-md border border-border/50 hover:border-accent/30">
             {t("ui.reset")}
           </button>
+        </div>
+
+        <div className="flex items-center gap-1.5 px-0.5">
+          {(() => {
+            const currentDefaults: GradientPresetValues = {
+              gradientHeight: ed.defaultGradientHeight,
+              blurIntensity: ed.defaultBlurIntensity,
+              blurFade: ed.defaultBlurFade,
+              blurDarkness: ed.defaultBlurDarkness,
+              tintStrength: ed.defaultTintStrength,
+              blurEnabled: ed.defaultBlurEnabled,
+            }
+            const applyDefaults = (v: GradientPresetValues) => {
+              ed.setDefaultBlurEnabled(true)
+              ed.setDefaultGradientHeight(v.gradientHeight)
+              ed.setDefaultBlurIntensity(v.blurIntensity)
+              ed.setDefaultBlurFade(v.blurFade)
+              ed.setDefaultBlurDarkness(v.blurDarkness)
+              ed.setDefaultTintStrength(v.tintStrength)
+            }
+            const isNatural = matchesGradientPreset(currentDefaults, NATURAL_GRADIENT_DEFAULTS)
+            const isColor = matchesGradientPreset(currentDefaults, GRADIENT_PRESET_COLOR)
+            return (<>
+              <button type="button"
+                      aria-pressed={isNatural}
+                      onClick={() => applyDefaults(NATURAL_GRADIENT_DEFAULTS)}
+                      className={`text-xs px-2 py-0.5 rounded-md border transition-colors ${isNatural ? "text-accent border-accent/50" : "text-muted hover:text-accent border-border/50 hover:border-accent/30"}`}>
+                {t("ui.gradientPresetNatural")}
+              </button>
+              <button type="button"
+                      aria-pressed={isColor}
+                      onClick={() => applyDefaults(GRADIENT_PRESET_COLOR)}
+                      className={`text-xs px-2 py-0.5 rounded-md border transition-colors ${isColor ? "text-accent border-accent/50" : "text-muted hover:text-accent border-border/50 hover:border-accent/30"}`}>
+                {t("ui.gradientPresetColor")}
+              </button>
+            </>)
+          })()}
         </div>
 
         <div className="space-y-1.5 pt-1 animate-fade-in">

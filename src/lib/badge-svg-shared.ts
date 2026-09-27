@@ -312,6 +312,13 @@ export const TOP_SHADOW_FILTER = `<filter id="tds" x="-20%" y="-20%" width="180%
 export const TOP_SHADOW_PAD = 14
 
 /**
+ * Raggio angoli placca ranking/extra default: squadrata ma non a spigolo
+ * vivo (0.45 × fs ≈ 11px a fs 24). Vale solo per lo stile default; la pill
+ * resta full-round per identità di stile.
+ */
+export const RANKING_DEFAULT_RADIUS_FACTOR = 0.45
+
+/**
  * Gradiente satinato per i badge a convenzione "pill" (pill chiara + testo
  * scuro su poster scuro, pill scura + testo chiaro su poster chiaro):
  * ranking-default, nastro netflix, qualità.
@@ -331,7 +338,7 @@ export function buildRankingDefaultSvg(fullText: string, fs: number, textColor: 
   const textW = estimateTextWidth(fullText, fs)
   const totalW = textW + px * 2
   const boxH = badgeBoxHeight(fs)
-  const r = Math.round(fs * 0.7)
+  const r = Math.round(fs * RANKING_DEFAULT_RADIUS_FACTOR)
   const renderW = totalW + TOP_SHADOW_PAD * 2
   const renderH = boxH + TOP_SHADOW_PAD
   const ox = TOP_SHADOW_PAD
@@ -401,7 +408,7 @@ export function buildExtraDefaultSvg(label: string, fs: number, textColor: strin
   const textW = Math.max(estimateTextWidth(label, fs), fs)
   const totalW = textW + px * 2
   const boxH = badgeBoxHeight(fs)
-  const r = Math.round(fs * 0.7)
+  const r = Math.round(fs * RANKING_DEFAULT_RADIUS_FACTOR)
   // Come il ranking default: canvas = box + padding per la coda dell'ombra
   // (solo lati/basso: in alto la placca resta a filo), bordo sagomato
   // polarizzato 1.5px. I nuovi parametri restano in coda per non rompere le

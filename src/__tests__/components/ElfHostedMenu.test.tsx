@@ -49,8 +49,10 @@ describe("ElfHostedMenu (desktop)", () => {
     )
     // Riga istanza privata presente ma non cliccabile (URL in arrivo)
     const deployRow = screen.getByText(/crea la tua istanza privata/i)
-    expect(deployRow.closest("a")).toBeNull()
-    expect(deployRow.closest("[aria-disabled='true']")).not.toBeNull()
+    const deployLink = deployRow.closest("a")
+    expect(deployLink).not.toBeNull()
+    expect(deployLink).toHaveAttribute("href", expect.stringMatching(/^https:\/\/store\.elfhosted\.com\/product\/pictorium\//))
+    expect(deployLink).toHaveAttribute("target", "_blank")
   })
 
   it("tocco icona chiude e riapre, con persistenza", async () => {

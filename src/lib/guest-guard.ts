@@ -1,6 +1,8 @@
 "use client"
 
 import { currentPathUuid, getStoredUserPassword, getStoredUserToken, isUserUnlocked } from "./user-token"
+import { hasAdminToken } from "./admin-token"
+import { t } from "./i18n"
 
 // Guard ospite: impedisce che un visitatore da link altrui sovrascriva
 // silenziosamente i default server (es. cambio lingua → cambio regione →
@@ -13,6 +15,8 @@ import { currentPathUuid, getStoredUserPassword, getStoredUserToken, isUserUnloc
 export interface AdminState {
   readonly hasPin: boolean
   readonly authenticated: boolean
+  /** Server has ADMIN_TOKEN configured (instance-wide writes are admin-only). */
+  readonly hasAdminToken?: boolean
 }
 
 let foreignCache: boolean | null = null
@@ -34,6 +38,14 @@ export function isForeignUrl(): boolean {
 
 let adminCache: Promise<AdminState> | null = null
 
+// A PIN unlock/lock changes `authenticated`: drop the memo so the next sync
+// check sees the new session instead of a stale "not authenticated".
+if (typeof window !== "undefined") {
+  window.addEventListener("pictorium:pin-change", () => {
+    adminCache = null
+  })
+}
+
 /** Stato PIN/sessione (cachato; i fallimenti di rete non si memoizzano). */
 export function fetchAdminState(): Promise<AdminState> {
   if (!adminCache) {
@@ -42,6 +54,7 @@ export function fetchAdminState(): Promise<AdminState> {
       .then((d): AdminState => ({
         hasPin: d?.hasPin === true,
         authenticated: d?.authenticated === true,
+        hasAdminToken: d?.hasAdminToken === true,
       }))
     // Fallimento (rete/server): non congelarlo — il PUT fallirebbe comunque
     // e il percorso d'errore esistente gestisce retry/toast.
@@ -123,6 +136,9 @@ export async function shouldSkipServerSync(): Promise<boolean> {
       }
     }
   }
+  // Multi-user instance, root editor ("continue without a profile"): only an
+  // admin can save instance-wide defaults, so the PUT would always 401.
+  if (await isProfilelessOnMultiUser()) return true
   if (!isForeignUrl()) return false
   const admin = await fetchAdminState().catch(
     (): AdminState => ({ hasPin: false, authenticated: false }),
@@ -235,8 +251,46 @@ async function checkOwnerPassword(uuid: string, password: string): Promise<boole
   return valid
 }
 
+/**
+ * True on a multi-user instance when the editor is not inside a user space
+ * (no /u/<uuid>) and the visitor has no admin token or PIN session: the
+ * instance-wide defaults it would write are admin-only, so a server sync can
+ * only fail. Callers keep the change local and use notifyProfilelessOnce()
+ * instead of the "sync rejected" warning. Status errors fail open (false),
+ * leaving the previous behaviour.
+ */
+export async function isProfilelessOnMultiUser(): Promise<boolean> {
+  if (currentPathUuid()) return false
+  if (hasAdminToken()) return false
+  try {
+    if (!(await isMultiUserServer())) return false
+  } catch {
+    return false
+  }
+  const admin = await fetchAdminState().catch(
+    (): AdminState => ({ hasPin: false, authenticated: false }),
+  )
+  // With a PIN, a PIN session is what unlocks instance-wide writes. Without
+  // one, /api/auth/pin reports every visitor as authenticated, so decide on
+  // ADMIN_TOKEN: set means the write is admin-only and this browser holds no
+  // token (checked above). No PIN and no token (open instance): writes are
+  // allowed, keep syncing.
+  if (admin.hasPin) return !admin.authenticated
+  return admin.hasAdminToken === true
+}
+
+let profilelessNoticeShown = false
+
+/** One info toast per page load: changes stay in this browser until a profile exists. */
+export function notifyProfilelessOnce(): void {
+  if (profilelessNoticeShown) return
+  profilelessNoticeShown = true
+  void import("sonner").then(({ toast }) => toast.info(t("ui.noProfileLocalOnly")))
+}
+
 /** Solo per i test: azzera le memo. */
 export function resetGuestGuardForTests(): void {
+  profilelessNoticeShown = false
   foreignCache = null
   adminCache = null
   serverStatusCache = null

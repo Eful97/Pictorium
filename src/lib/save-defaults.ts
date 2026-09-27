@@ -1,18 +1,21 @@
 import type { PosterEditorCtx } from "@/lib/contexts/PosterEditorContext"
 import { userFetch } from "@/lib/http"
+import { isProfilelessOnMultiUser, notifyProfilelessOnce } from "@/lib/guest-guard"
 import { defaultsStorageKey } from "@/lib/useDefaults"
 
 function safeSetItem(key: string, val: string) {
   try { localStorage.setItem(key, val) } catch { /* localStorage non disponibile */ }
 }
 
-/** Salva i default in localStorage e li sincronizza col server.
- *  Scrive SOLO i default: il poster eventualmente aperto non viene toccato
- *  (i suoi valori per-titolo restano congelati nel mapping al save).
- *  Ritorna `true` se il PUT /api/defaults è andato a buon fine, `false` se è
- *  fallito (rete, 401 admin fail-closed, 5xx): in quel caso i default D'ISTANZA
- *  usati dai poster dei cataloghi su Stremio restano quelli vecchi. */
-export function saveDefaults(ed: PosterEditorCtx): Promise<boolean> {
+/** Saves the defaults to localStorage and syncs them to the server.
+ *  Writes ONLY the defaults: an open poster is left untouched (its per-title
+ *  values stay frozen in the mapping on save).
+ *  Returns `true` when there is nothing to warn about: the PUT /api/defaults
+ *  succeeded, or it was skipped on purpose (multi-user root editor without an
+ *  admin session, where the visitor gets the "no profile" notice instead).
+ *  Returns `false` when the PUT failed (network, 401 admin fail-closed, 5xx):
+ *  the instance defaults used by Stremio catalog posters stay the old ones. */
+export async function saveDefaults(ed: PosterEditorCtx): Promise<boolean> {
   const d = {
     globalBadges: ed.defaultGlobalBadges,
     rankingBadges: ed.defaultRankingBadges,
@@ -62,6 +65,12 @@ export function saveDefaults(ed: PosterEditorCtx): Promise<boolean> {
     episodeMetadataSource: ed.defaultEpisodeMetadataSource,
   }
   safeSetItem(defaultsStorageKey(), JSON.stringify(d))
+  // Multi-user root editor without an admin session: the PUT can only 401.
+  // Keep it local and explain once; true = nothing for the caller to warn about.
+  if (await isProfilelessOnMultiUser()) {
+    notifyProfilelessOnce()
+    return true
+  }
   // userFetch: su path /u/<uuid> il PUT va nel namespace (token da storage).
   const syncPromise = userFetch("/api/defaults", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(d) })
     .then((res) => {

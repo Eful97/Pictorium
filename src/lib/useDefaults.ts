@@ -5,7 +5,7 @@ import type { BadgeStyle, RankingBadgeStyle } from "./badge-styles"
 import type { PosterShape } from "./types"
 import { isPosterShape } from "./types"
 import { normalizeRegion } from "./regions"
-import { shouldSkipServerSync } from "./guest-guard"
+import { isProfilelessOnMultiUser, notifyProfilelessOnce, shouldSkipServerSync } from "./guest-guard"
 import { userFetch } from "./http"
 import { USER_UNLOCK_EVENT, currentPathUuid } from "./user-token"
 import { t } from "./i18n"
@@ -548,7 +548,10 @@ export function useDefaults() {
       void shouldSkipServerSync().then((skip) => {
         if (skip) {
           lastPersistRef.current = ""
-          console.debug("[defaults] Server sync skipped (guest without session)")
+          console.debug("[defaults] Server sync skipped (guest without session, or no profile)")
+          void isProfilelessOnMultiUser().then((profileless) => {
+            if (profileless) notifyProfilelessOnce()
+          })
           return
         }
         userFetch("/api/defaults", {

@@ -7,6 +7,7 @@ import { useT } from "@/lib/contexts/TranslationContext"
 import { usePosterEditor } from "@/lib/contexts/PosterEditorContext"
 import { logoDefaultScale } from "@/lib/logo-selection"
 import { defaultGradientHeightForPoster, defaultBlurFadeForPoster } from "@/lib/gradient-defaults"
+import { GRADIENT_PRESET_COLOR, naturalGradientForPoster, matchesGradientPreset } from "@/lib/gradient-presets"
 import { SliderRow } from "@/components/SliderRow"
 
 export function TransformControls() {
@@ -24,6 +25,26 @@ export function TransformControls() {
     const l = selectedLogo
     if (!l) { ed.setLogoScale(75); return }
     ed.setLogoScale(logoDefaultScale(l) ?? 75)
+  }
+
+  // Preset sfumatura: scorciatoie che scrivono i 5 slider esistenti (nessun
+  // nuovo parametro server — la preview/Stremio ricevono gli stessi valori).
+  const naturalVals = naturalGradientForPoster(previewPoster, ed.posterShape)
+  const isNaturalActive = matchesGradientPreset(
+    { gradientHeight: ed.gradientHeight, blurIntensity: ed.blurIntensity, blurFade: ed.blurFade, blurDarkness: ed.blurDarkness, tintStrength: ed.tintStrength, blurEnabled: ed.blurEnabled },
+    naturalVals,
+  )
+  const isColorActive = matchesGradientPreset(
+    { gradientHeight: ed.gradientHeight, blurIntensity: ed.blurIntensity, blurFade: ed.blurFade, blurDarkness: ed.blurDarkness, tintStrength: ed.tintStrength, blurEnabled: ed.blurEnabled },
+    GRADIENT_PRESET_COLOR,
+  )
+  const applyGradientPreset = (v: typeof naturalVals) => {
+    ed.setBlurEnabled(true)
+    ed.setGradientHeight(v.gradientHeight)
+    ed.setBlurIntensity(v.blurIntensity)
+    ed.setBlurFade(v.blurFade)
+    ed.setBlurDarkness(v.blurDarkness)
+    ed.setTintStrength(v.tintStrength)
   }
 
   return (
@@ -326,6 +347,21 @@ export function TransformControls() {
                   onClick={() => { ed.setGradientHeight(defaultGradientHeightForPoster(previewPoster)); ed.setBlurIntensity(20); ed.setBlurFade(defaultBlurFadeForPoster(previewPoster)); ed.setBlurDarkness(30); ed.setTintStrength(20) }}
                   className="text-xs text-muted hover:text-accent transition-colors px-2 py-0.5 rounded-md border border-border/50 hover:border-accent/30">
             {t("ui.reset")}
+          </button>
+        </div>
+
+        <div className="flex items-center gap-1.5 px-1">
+          <button type="button"
+                  aria-pressed={isNaturalActive}
+                  onClick={() => applyGradientPreset(naturalVals)}
+                  className={`text-xs px-2 py-0.5 rounded-md border transition-colors ${isNaturalActive ? "text-accent border-accent/50" : "text-muted hover:text-accent border-border/50 hover:border-accent/30"}`}>
+            {t("ui.gradientPresetNatural")}
+          </button>
+          <button type="button"
+                  aria-pressed={isColorActive}
+                  onClick={() => applyGradientPreset(GRADIENT_PRESET_COLOR)}
+                  className={`text-xs px-2 py-0.5 rounded-md border transition-colors ${isColorActive ? "text-accent border-accent/50" : "text-muted hover:text-accent border-border/50 hover:border-accent/30"}`}>
+            {t("ui.gradientPresetColor")}
           </button>
         </div>
 

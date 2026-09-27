@@ -7,6 +7,8 @@ import { fetchServerStatus } from "@/lib/guest-guard"
 
 const MINIMIZED_KEY_PREFIX = "pictorium_elfhosted_minimized_"
 const TOGGLE_EVENT = "pictorium:elfhosted-toggle"
+const DEPLOY_URL =
+  "https://store.elfhosted.com/product/pictorium/?utm_source=pictorium-public&utm_medium=landing&utm_campaign=upgrade"
 
 export type ElfHostedScope = "desktop" | "mobile"
 
@@ -115,16 +117,8 @@ export function ElfHostedMenuPanel({ onMinimize }: { onMinimize: () => void }) {
       </div>
       <p className="px-2 pb-2 text-[11px] leading-snug text-zinc-400">{t("ui.hostedByShared")}</p>
       <div className="h-px bg-white/10 mx-2 mb-1" aria-hidden="true" />
-      {/* Riga deploy istanza privata: non cliccabile finché ElfHosted non
-          fornisce l'URL (era /app/pictorium/, oggi 404) — allora torna <a>. */}
-      <div
-        aria-disabled="true"
-        title={t("ui.hostedByDeploy")}
-        className="flex items-center justify-between gap-2 px-2.5 py-2 rounded-xl text-xs text-zinc-500 cursor-default select-none"
-      >
-        <span className="leading-snug">{t("ui.hostedByDeploy")}</span>
-        <ArrowUpRight className="w-3.5 h-3.5 shrink-0 text-zinc-700" aria-hidden="true" />
-      </div>
+      {/* Private-instance row: ElfHosted's Pictorium product page. */}
+      <MenuLink href={DEPLOY_URL}>{t("ui.hostedByDeploy")}</MenuLink>
       <MenuLink href="https://stremio-addons-guide.elfhosted.com/">
         {t("ui.hostedByGuideLine", { guide: t("ui.hostedByGuide") })}
       </MenuLink>

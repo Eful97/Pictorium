@@ -23,7 +23,7 @@ import { useNavigation } from "./useNavigation"
 import { useMappingsStore } from "./useMappingsStore"
 import { usePosterEditor, PosterEditorProvider } from "./contexts/PosterEditorContext"
 import { usePosterSave } from "./usePosterSave"
-import { defaultGradientHeightForPoster, defaultBlurFadeForPoster } from "./gradient-defaults"
+import { defaultHeightForPoster, defaultFadeForPoster, adjustGradientForPosterChange } from "./gradient-presets"
 import { computeLogoOffsetBounds, PORTRAIT_LOGO_MAX_HEIGHT_PCT, PORTRAIT_LOGO_TOP_OFFSET } from "./logo-layout"
 import { LAND_W, LAND_H } from "./constants"
 import { useOutsideDismiss } from "./useOutsideDismiss"
@@ -1048,6 +1048,20 @@ export function usePictorium(): PictoriumCtx {
       if (navigation.previewPoster) {
         const match = (data.posters || []).find((p: TMDBImage) => p.file_path === navigation.previewPoster!.file_path)
         if (!match) {
+          const oldPoster = navigation.previewPoster
+          // Stessa regola del cambio manuale: preset/tweak sopravvivono,
+          // solo lo stato pristine si ricalibra sul nuovo tipo.
+          const applyFor = (next: TMDBImage) => {
+            const adj = adjustGradientForPosterChange(
+              { gradientHeight, blurFade },
+              oldPoster,
+              next,
+            )
+            if (adj) {
+              setGradientHeight(adj.gradientHeight)
+              setBlurFade(adj.blurFade)
+            }
+          }
           const clean = data.posters?.find((p: TMDBImage) => p.iso_639_1 === null)
           const langPoster = data.posters?.find((p: TMDBImage) => p.iso_639_1 === lang)
           const firstPoster = data.posters?.[0]
@@ -1055,20 +1069,17 @@ export function usePictorium(): PictoriumCtx {
             const autoLogo = selectBestLogo(data.logos || [], lang, details.original_language)
             if (autoLogo) {
               navigation.setPreviewPoster({ file_path: clean.file_path, iso_639_1: null, vote_average: 0, width: 0, height: 0 })
-              setGradientHeight(defaultGradientHeightForPoster(clean))
-              setBlurFade(defaultBlurFadeForPoster(clean))
+              applyFor(clean)
             } else {
               const enPoster = data.posters?.find((p: TMDBImage) => p.iso_639_1 === "en")
               const nextPoster = langPoster || enPoster || firstPoster || navigation.previewPoster
               navigation.setPreviewPoster(nextPoster)
-              setGradientHeight(defaultGradientHeightForPoster(nextPoster))
-              setBlurFade(defaultBlurFadeForPoster(nextPoster))
+              applyFor(nextPoster)
             }
           } else {
             const nextPoster = langPoster || firstPoster || navigation.previewPoster
             navigation.setPreviewPoster(nextPoster)
-            setGradientHeight(defaultGradientHeightForPoster(nextPoster))
-            setBlurFade(defaultBlurFadeForPoster(nextPoster))
+            applyFor(nextPoster)
           }
         }
       }
@@ -1266,8 +1277,10 @@ export function usePictorium(): PictoriumCtx {
         }
         loadDefaultsToState()
         if (chosenPoster) {
-          setGradientHeight(defaultGradientHeightForPoster(chosenPoster))
-          setBlurFade(defaultBlurFadeForPoster(chosenPoster))
+          // Default personalizzati (es. preset Colore) restano assoluti;
+          // solo il legacy Naturale si ricalibra per tipo poster.
+          setGradientHeight(defaultHeightForPoster(defaultGradientHeight, chosenPoster))
+          setBlurFade(defaultFadeForPoster(defaultBlurFade, chosenPoster))
         }
       }
     } finally {

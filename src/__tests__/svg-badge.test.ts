@@ -534,6 +534,13 @@ describe("buildRankingDefaultSvg", () => {
     expect(svg).not.toContain('fill="url(#rdg)"')
   })
 
+  it("uses squared-but-rounded bottom corners (0.45 x fs)", () => {
+    const { svg } = buildRankingDefaultSvg("#1 Oggi", 60, "rgba(0,0,0,0.80)", "rgba(255,255,255,0.80)", false)
+    // r = round(60 * 0.45) = 27: angoli squadrati ma non a spigolo vivo.
+    expect(svg).toContain("A 27,27")
+    expect(svg).not.toContain("A 42,42")
+  })
+
   it("renders quality badge with satin gradient (geometry unchanged)", () => {
     const dark = buildQualityBadgeSvg("4K", 20, "", "", false)
     expect(dark.svg).toContain('fill="url(#qg)"')
@@ -566,6 +573,12 @@ describe("buildExtraDefaultSvg", () => {
     const { svg } = buildExtraDefaultSvg("Premio", 60, "#ffffff", "#ff6430", false, false, "#ff6430")
     expect(svg).toContain('fill="#ff6430"')
     expect(svg).not.toContain('fill="url(#edg)"')
+  })
+
+  it("uses squared-but-rounded bottom corners (0.45 x fs)", () => {
+    const { svg } = buildExtraDefaultSvg("Premio", 60, "#ffffff", "#ff6430", false, false)
+    expect(svg).toContain("A 27,27")
+    expect(svg).not.toContain("A 42,42")
   })
 })
 

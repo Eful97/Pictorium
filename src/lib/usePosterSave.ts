@@ -5,7 +5,7 @@ import type { SearchResult, TMDBImage, Mapping, PosterShape } from "./types"
 import { titleOf } from "./utils"
 import { computeTopBadge, resolveSavedBadgeExtra, type BadgeInput } from "./poster-badge"
 import type { SashBucket } from "./badge-priority"
-import { defaultGradientHeightForPoster, defaultBlurFadeForPoster } from "./gradient-defaults"
+import { adjustGradientForPosterChange } from "./gradient-presets"
 import { logoDefaultScale } from "./logo-selection"
 import { t } from "./i18n"
 import { isManualAccent } from "./accent-color"
@@ -131,11 +131,21 @@ export function usePosterSave(deps: PosterSaveDeps) {
 
   const selectPoster = useCallback(async (image: TMDBImage) => {
     if (!selected) return
+    // Il cambio artwork ricalibra altezza/fade solo da stato pristine
+    // (default di tipo del poster precedente): preset Colore e tweak manuali
+    // sopravvivono alla scelta di un altro poster.
+    const adj = adjustGradientForPosterChange(
+      { gradientHeight, blurFade },
+      previewPoster,
+      image,
+    )
     setPreviewPoster(image)
-    setGradientHeight(defaultGradientHeightForPoster(image))
-    setBlurFade(defaultBlurFadeForPoster(image))
+    if (adj) {
+      setGradientHeight(adj.gradientHeight)
+      setBlurFade(adj.blurFade)
+    }
     setPreviewId(`${selected.media_type}:${selected.id}`)
-  }, [selected]) // eslint-disable-line react-hooks/exhaustive-deps -- setter refs are stable
+  }, [selected, previewPoster, gradientHeight, blurFade]) // eslint-disable-line react-hooks/exhaustive-deps -- setter refs are stable
 
   const selectLogo = useCallback(async (logo: TMDBImage) => {
     setSelectedLogo(logo)

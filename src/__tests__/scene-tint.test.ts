@@ -43,6 +43,17 @@ describe("findSceneTint (same-hue scene tint extraction)", () => {
     expect(accentBadge.b).toBeGreaterThan(accentBadge.r)
   })
 
+  it("golden image (200, 140, 30) keeps a saturated gold tint (not muted olive)", () => {
+    // Riferimento concorrenza ~#7f5401 (sat ~0.98, L ~0.25): la tinta deve
+    // preservare la saturazione misurata invece di schiacciarla a oliva spento.
+    const raw = createSolidRawRgba(100, 100, 200, 140, 30)
+    const tint = findSceneTint(raw, 100, 100, "Action")
+    expect(tint.r).toBeGreaterThan(tint.g)
+    expect(tint.g).toBeGreaterThan(tint.b)
+    expect(tint.r).toBeGreaterThan(80)
+    expect(tint.r - tint.b).toBeGreaterThan(65)
+  })
+
   it("flat grey / monochromatic -> exact GENRE_FALLBACK without contrast push", () => {
     const raw = createSolidRawRgba(100, 100, 128, 128, 128)
     const tint = findSceneTint(raw, 100, 100, "Animation")
