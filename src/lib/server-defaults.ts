@@ -3,10 +3,10 @@ import { existsSync, readFileSync } from "node:fs"
 import path from "node:path"
 import { DATA_DIR } from "@/lib/data-dir"
 import { createLogger } from "@/lib/logger"
-import type { BadgeStyle, RankingBadgeStyle } from "@/lib/badge-styles"
+import type { BadgeStyle, RankingBadgeStyle, QualityBadgeStyle } from "@/lib/badge-styles"
 import type { StreamQuality } from "@/lib/quality-tiers"
 import type { SashBucket } from "@/lib/badge-priority"
-import { isBadgeStyle, isRankingBadgeStyle } from "@/lib/badge-styles"
+import { isBadgeStyle, isRankingBadgeStyle, isQualityBadgeStyle } from "@/lib/badge-styles"
 import { normalizeRegion } from "@/lib/regions"
 import { envWithFallback } from "@/lib/env-compat"
 import { atomicWriteFile } from "@/lib/atomic-write"
@@ -17,6 +17,8 @@ const log = createLogger("server-defaults")
 export interface ServerDefaults {
   badgeStyle?: BadgeStyle
   rankingBadgeStyle?: RankingBadgeStyle
+  /** Stile icone del badge qualità (standard = pill testuale). */
+  qualityBadgeStyle?: QualityBadgeStyle | null
   blurEnabled?: boolean
   blurIntensity?: number
   blurFade?: number
@@ -164,6 +166,7 @@ function defaultsFromEnv(): ServerDefaults {
   if (logoFit !== undefined) d.defaultLogoFitEnabled = logoFit
   const bs = getEnv("BADGE_STYLE")?.trim()
   const rbs = getEnv("RANKING_BADGE_STYLE")?.trim()
+  const qbs = getEnv("QUALITY_BADGE_STYLE")?.trim()
   const side = getEnv("RIBBON_SIDE")?.trim().toLowerCase()
   const shapeEnv = getEnv("POSTER_SHAPE")?.trim().toLowerCase()
   if (shapeEnv === "poster" || shapeEnv === "landscape") d.posterShape = shapeEnv
@@ -200,6 +203,7 @@ function defaultsFromEnv(): ServerDefaults {
   if (regionRaw) d.region = normalizeRegion(regionRaw)
   if (bs && isBadgeStyle(bs)) d.badgeStyle = bs
   if (rbs && isRankingBadgeStyle(rbs)) d.rankingBadgeStyle = rbs
+  if (qbs && isQualityBadgeStyle(qbs)) d.qualityBadgeStyle = qbs
   if (side === "left" || side === "right") d.ribbonSide = side
   if (blurI !== undefined) d.blurIntensity = blurI
   if (blurF !== undefined) d.blurFade = blurF

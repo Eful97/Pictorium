@@ -1551,7 +1551,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
       lang: req.nextUrl.searchParams.get("lang") || mapping?.language || posterRegion.lang2,
     })
     const {
-      badgeStyle, rankingBadgeStyle,
+      badgeStyle, rankingBadgeStyle, qualityBadgeStyle,
       blurEnabled, blurHeight, blurIntensity, blurFade, blurDarkness, tintStrength, topShade,
       badgesEnabled, rankingEnabled,
       badgeGenre, badgeYear, badgeRating, badgeQuality, minQuality, sashOrder,
@@ -1785,6 +1785,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
       blurEnabled, blurHeight: effBlurHeight, blurIntensity, blurFade: effBlurFade, blurDarkness, tintStrength, topShade,
       badgesEnabled, rankingEnabled, genreName, voteAverage, badgeStyle,
       rankingBadgeStyle, badgeGenre, badgeYear, badgeRating: effectiveBadgeRating, badgeQuality,
+      qualityBadgeStyle,
       separateRatings: useSeparate ? sepItems : undefined,
       sashOrder,
       quality: finalQuality,

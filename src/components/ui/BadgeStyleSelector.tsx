@@ -22,6 +22,16 @@ function BadgePreview({ style, accentColor }: { style: string; accentColor?: str
       return <span className={`${base} text-white font-black`} style={{ background: "rgba(255,255,255,0.25)", borderRadius: "2px 2px 0 0" }}>TOP</span>
     case "default":
       return <span className={`${base} text-white/70`}>Aa</span>
+    case "mono":
+      return <span className={`${base} bg-white`}>
+        {/* eslint-disable-next-line @next/next/no-img-element -- stesso SVG servito al server */}
+        <img src="/quality-badges/mono/4k-label-icon.svg" alt="mono" className="w-7 h-4 object-contain" />
+      </span>
+    case "color":
+      return <span className={`${base}`}>
+        {/* eslint-disable-next-line @next/next/no-img-element -- stesso SVG servito al server */}
+        <img src="/quality-badges/color/4k-label-color-icon.svg" alt="color" className="w-7 h-4 object-contain" />
+      </span>
     default:
       return <span className={`${base} text-white/50`}>~</span>
   }
@@ -66,7 +76,7 @@ export function BadgeStyleSelector<S extends string>({
           >
             <BadgePreview style={s} accentColor={accentColor} />
             <span className="text-[10px] font-semibold leading-tight truncate max-w-full">
-              {s === "shadow" ? t("ui.shadow") : s === "pill" ? t("ui.pill") : s === "bar" ? t("ui.bar") : s === "default" ? t("ui.bsDefault") : s === "colored" ? t("ui.colored") : s === "bordo" ? t("ui.bordo") : s === "vetro" ? t("ui.vetro") : s === "minimal" ? t("ui.minimal") : s === "netflix" ? t("ui.netflix") : s}
+              {s === "shadow" ? t("ui.shadow") : s === "pill" ? t("ui.pill") : s === "bar" ? t("ui.bar") : s === "default" ? t("ui.bsDefault") : s === "colored" ? t("ui.colored") : s === "bordo" ? t("ui.bordo") : s === "vetro" ? t("ui.vetro") : s === "minimal" ? t("ui.minimal") : s === "netflix" ? t("ui.netflix") : s === "standard" ? t("ui.qbsStandard") : s === "mono" ? t("ui.qbsMono") : s === "color" ? t("ui.qbsColor") : s}
             </span>
           </button>
         )

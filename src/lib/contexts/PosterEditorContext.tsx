@@ -3,7 +3,7 @@
 import { createContext, useContext, useState, useMemo, useCallback } from "react"
 import type { TMDBImage, PosterShape } from "@/lib/types"
 import { useDefaults } from "@/lib/useDefaults"
-import type { BadgeStyle, RankingBadgeStyle } from "@/lib/badge-styles"
+import type { BadgeStyle, RankingBadgeStyle, QualityBadgeStyle } from "@/lib/badge-styles"
 import type { SashBucket } from "@/lib/badge-priority"
 
 /**
@@ -41,6 +41,9 @@ export interface PosterEditorCtx {
   setBadgeStyle: (v: BadgeStyle | ((prev: BadgeStyle) => BadgeStyle)) => void
   rankingBadgeStyle: RankingBadgeStyle
   setRankingBadgeStyle: (v: RankingBadgeStyle | ((prev: RankingBadgeStyle) => RankingBadgeStyle)) => void
+  /** Stile icone del badge qualità del poster in editing. */
+  qualityBadgeStyle: QualityBadgeStyle
+  setQualityBadgeStyle: (v: QualityBadgeStyle | ((prev: QualityBadgeStyle) => QualityBadgeStyle)) => void
   customBadge: string | null
   setCustomBadge: (v: string | null | ((prev: string | null) => string | null)) => void
   badgePresetId: string | null
@@ -69,6 +72,9 @@ export interface PosterEditorCtx {
   setDefaultBadgeStyle: (v: BadgeStyle | ((prev: BadgeStyle) => BadgeStyle)) => void
   defaultRankingBadgeStyle: RankingBadgeStyle
   setDefaultRankingBadgeStyle: (v: RankingBadgeStyle | ((prev: RankingBadgeStyle) => RankingBadgeStyle)) => void
+  /** Stile icone del badge qualità di default. */
+  defaultQualityBadgeStyle: QualityBadgeStyle
+  setDefaultQualityBadgeStyle: (v: QualityBadgeStyle | ((prev: QualityBadgeStyle) => QualityBadgeStyle)) => void
   defaultEpisodeMetadataSource: "tmdb" | "tvdb"
   setDefaultEpisodeMetadataSource: (v: "tmdb" | "tvdb" | ((prev: "tmdb" | "tvdb") => "tmdb" | "tvdb")) => void
   defaultBlurEnabled: boolean
@@ -312,8 +318,8 @@ export function PosterEditorProvider({
     genreBadgeScale, qualityBadgeScale, networkLogoScale,
     genreBadgeOffsetX, genreBadgeOffsetY, qualityBadgeOffsetX, qualityBadgeOffsetY,
     networkLogoOffsetX, networkLogoOffsetY,
-    badgeStyle, rankingBadgeStyle,
-    defaultBadgeStyle, defaultRankingBadgeStyle,
+    badgeStyle, rankingBadgeStyle, qualityBadgeStyle,
+    defaultBadgeStyle, defaultRankingBadgeStyle, defaultQualityBadgeStyle,
     defaultBlurEnabled, defaultBlurIntensity, defaultBlurFade, defaultBlurDarkness, defaultTintStrength, defaultTopShade,
     defaultGradientHeight, defaultGlobalBadges, defaultRankingBadges,
     defaultTopBadgeScale, defaultTopBadgeOffsetX, defaultTopBadgeOffsetY,
@@ -515,6 +521,11 @@ export function PosterEditorProvider({
       const next = typeof v === "function" ? v(rankingBadgeStyle) : v
       update({ rankingBadgeStyle: next })
     }, [rankingBadgeStyle, update])
+  const setQualityBadgeStyle = useCallback(
+    (v: QualityBadgeStyle | ((prev: QualityBadgeStyle) => QualityBadgeStyle)) => {
+      const next = typeof v === "function" ? v(qualityBadgeStyle) : v
+      update({ qualityBadgeStyle: next })
+    }, [qualityBadgeStyle, update])
   const setDefaultBadgeStyle = useCallback(
     (v: BadgeStyle | ((prev: BadgeStyle) => BadgeStyle)) => {
       const next = typeof v === "function" ? v(defaultBadgeStyle) : v
@@ -525,6 +536,11 @@ export function PosterEditorProvider({
       const next = typeof v === "function" ? v(defaultRankingBadgeStyle) : v
       update({ defaultRankingBadgeStyle: next })
     }, [defaultRankingBadgeStyle, update])
+  const setDefaultQualityBadgeStyle = useCallback(
+    (v: QualityBadgeStyle | ((prev: QualityBadgeStyle) => QualityBadgeStyle)) => {
+      const next = typeof v === "function" ? v(defaultQualityBadgeStyle) : v
+      update({ defaultQualityBadgeStyle: next })
+    }, [defaultQualityBadgeStyle, update])
   const setDefaultBlurEnabled = useCallback(
     (v: boolean | ((prev: boolean) => boolean)) => {
       const next = typeof v === "function" ? v(defaultBlurEnabled) : v
@@ -771,6 +787,8 @@ export function PosterEditorProvider({
       setBadgeStyle,
       rankingBadgeStyle,
       setRankingBadgeStyle,
+      qualityBadgeStyle,
+      setQualityBadgeStyle,
       customBadge,
       setCustomBadge,
       badgePresetId,
@@ -797,6 +815,8 @@ export function PosterEditorProvider({
       setDefaultBadgeStyle,
       defaultRankingBadgeStyle,
       setDefaultRankingBadgeStyle,
+      defaultQualityBadgeStyle,
+      setDefaultQualityBadgeStyle,
       defaultEpisodeMetadataSource,
       setDefaultEpisodeMetadataSource,
       defaultBlurEnabled,
@@ -986,6 +1006,7 @@ export function PosterEditorProvider({
       separateRatings, setSeparateRatings,
       badgeStyle, setBadgeStyle,
       rankingBadgeStyle, setRankingBadgeStyle,
+      qualityBadgeStyle, setQualityBadgeStyle,
       customBadge, setCustomBadge,
       badgePresetId, setBadgePresetId,
       badgePresetRev, setBadgePresetRev,
@@ -1001,6 +1022,7 @@ export function PosterEditorProvider({
       // Defaults
       defaultBadgeStyle, setDefaultBadgeStyle,
       defaultRankingBadgeStyle, setDefaultRankingBadgeStyle,
+      defaultQualityBadgeStyle, setDefaultQualityBadgeStyle,
       defaultEpisodeMetadataSource, setDefaultEpisodeMetadataSource,
       defaultBlurEnabled, setDefaultBlurEnabled,
       defaultBlurIntensity, setDefaultBlurIntensity,

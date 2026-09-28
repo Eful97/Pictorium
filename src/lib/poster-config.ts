@@ -15,10 +15,13 @@ import { parseSashOrder, normalizeSashOrder, DEFAULT_SASH_ORDER, type SashBucket
 import {
   isBadgeStyle,
   isRankingBadgeStyle,
+  isQualityBadgeStyle,
   DEFAULT_BADGE_STYLE,
   DEFAULT_RANKING_BADGE_STYLE,
+  DEFAULT_QUALITY_BADGE_STYLE,
   type BadgeStyle,
   type RankingBadgeStyle,
+  type QualityBadgeStyle,
 } from "./badge-styles"
 import { NON_CLEAN_BLUR_FADE, NON_CLEAN_GRADIENT_HEIGHT } from "./gradient-defaults"
 
@@ -68,6 +71,8 @@ export interface PosterRenderConfigInput {
 export interface PosterRenderConfig {
   badgeStyle: BadgeStyle
   rankingBadgeStyle: RankingBadgeStyle
+  /** Stile icone del badge qualità (standard = pill testuale). */
+  qualityBadgeStyle: QualityBadgeStyle
   blurEnabled: boolean
   blurHeight: number
   blurIntensity: number
@@ -314,6 +319,14 @@ export function resolvePosterRenderConfig(input: PosterRenderConfigInput): Poste
     ? DEFAULT_BADGE_STYLE
     : (isBadgeStyle(rawBs) ? rawBs : DEFAULT_BADGE_STYLE)
 
+  // Stile icone qualità — catena: query `qbs` > mapping salvato >
+  // config token > server defaults > "standard". Valori non validi → standard.
+  const rawQbs = q.get("qbs")
+    || mapping?.qualityBadgeStyle
+    || configOverride?.qualityBadgeStyle
+    || sd.qualityBadgeStyle
+  const qualityBadgeStyle: QualityBadgeStyle = isQualityBadgeStyle(rawQbs) ? rawQbs : DEFAULT_QUALITY_BADGE_STYLE
+
   const qScale = q.get("scale")
   const qOx = q.get("ox")
   const qOy = q.get("oy")
@@ -456,6 +469,7 @@ export function resolvePosterRenderConfig(input: PosterRenderConfigInput): Poste
   return {
     badgeStyle,
     rankingBadgeStyle,
+    qualityBadgeStyle,
     blurEnabled,
     blurHeight,
     blurIntensity,

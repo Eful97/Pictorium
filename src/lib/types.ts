@@ -1,5 +1,4 @@
-import type { BadgeStyle, RankingBadgeStyle } from "./badge-styles"
-
+import type { BadgeStyle, RankingBadgeStyle, QualityBadgeStyle } from "./badge-styles"
 /** Formato canvas del poster: verticale standard o orizzontale 16:9 (Nuvio). */
 export type PosterShape = "poster" | "landscape"
 
@@ -130,6 +129,8 @@ export interface Mapping {
   wikidataId?: string | null
   badgeStyle?: BadgeStyle | null
   rankingBadgeStyle?: RankingBadgeStyle | null
+  /** Stile icone del badge qualità per-titolo (standard = pill testuale). */
+  qualityBadgeStyle?: QualityBadgeStyle | null
   blurEnabled?: boolean | null
   blurIntensity?: number | null
   blurFade?: number | null

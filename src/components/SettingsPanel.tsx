@@ -901,6 +901,22 @@ export function SettingsPanel({ setSettingsOpen, exportData, importData, mobile 
             t={t}
           />
         </div>
+
+        {ed.defaultBadgeQuality && (
+          <div className="pt-2 border-t border-surface2/50 space-y-1.5">
+            <label className="text-[11px] text-muted font-medium block">
+              {t("ui.qualityBadgeStyle")}
+            </label>
+            <BadgeStyleSelector
+              value={ed.defaultQualityBadgeStyle}
+              options={["standard", "mono", "color"]}
+              onChange={(v) => {
+                ed.setDefaultQualityBadgeStyle(v)
+              }}
+              t={t}
+            />
+          </div>
+        )}
       </div>
     </div>
   )

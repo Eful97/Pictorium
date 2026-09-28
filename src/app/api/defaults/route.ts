@@ -8,7 +8,7 @@ import { rateLimit, rateLimitKey, rateLimitResponse } from "@/lib/rate-limit"
 import { getWarmupCatalogs } from "@/lib/catalog-definitions"
 import { createLogger } from "@/lib/logger"
 import { z } from "zod"
-import { BADGE_STYLES, RANKING_BADGE_STYLES } from "@/lib/badge-styles"
+import { BADGE_STYLES, RANKING_BADGE_STYLES, QUALITY_BADGE_STYLES } from "@/lib/badge-styles"
 import { readJsonBody, BodyTooLargeError, DEFAULT_MAX_BODY_BYTES } from "@/lib/read-body"
 import { envWithFallback } from "@/lib/env-compat"
 
@@ -25,6 +25,7 @@ const customCatalogSchema = z.object({
 const defaultsSchema = z.object({
   badgeStyle: z.enum(BADGE_STYLES).optional(),
   rankingBadgeStyle: z.enum(RANKING_BADGE_STYLES).optional(),
+  qualityBadgeStyle: z.enum(QUALITY_BADGE_STYLES).nullable().optional(),
   blurEnabled: z.boolean().optional(),
   blurIntensity: z.number().optional(),
   blurFade: z.number().optional(),

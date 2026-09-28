@@ -25,7 +25,7 @@ import { computeLogoLayout, logoAlignPadX, PORTRAIT_LOGO_MAX_HEIGHT_PCT, PORTRAI
 import { logoDefaultScaleFromAspect } from "./logo-selection"
 import fs from "fs"
 import path from "path"
-import { estimateTextWidth, fontFamilyFor, escSvg, TOP_SHADOW_PAD } from "./badge-svg-shared"
+import { estimateTextWidth, fontFamilyFor, escSvg, badgeBoxHeight, TOP_SHADOW_PAD } from "./badge-svg-shared"
 import { computeTopBadge, isNetworkStudio, type BadgeInput } from "./poster-badge"
 import type { SashBucket } from "./badge-priority"
 import { PRE_RELEASE_DIM_ALPHA, PRE_RELEASE_BLUR_SIGMA } from "./pre-release"
@@ -39,6 +39,8 @@ import type { PosterImageFormat } from "@/lib/poster-runtime-cache"
 import { RENDER_VERSION } from "./render-version"
 import { getPresetForUser } from "./badge-preset-store"
 import type { BadgePreset } from "./badge-preset"
+import { qualityBadgeIconPath } from "./quality-badge-styles"
+import type { QualityBadgeStyle } from "./badge-styles"
 import type { BadgeVariableContext } from "./badge-variables"
 
 // ---------------------------------------------------------------------------
@@ -107,6 +109,8 @@ export interface GenerationInput {
   badgeRating: boolean
   badgeQuality?: boolean
   quality?: string | null
+  /** Stile icone del badge qualità (standard = pill testuale). */
+  qualityBadgeStyle?: QualityBadgeStyle | null
   /** Ordine/priorità sash (sottoinsieme = resto spento). Default = ordine standard. */
   sashOrder?: readonly SashBucket[] | null
   topLight: boolean
@@ -391,6 +395,95 @@ export function __resetPresetJsonCacheForTests(): void {
   presetJsonCache.clear()
 }
 
+// ---------------------------------------------------------------------------
+// Quality badge da icone built-in (public/quality-badges, server-only).
+// ---------------------------------------------------------------------------
+
+// Sorgenti SVG memoizzati (file immutabili, cap 20): i render a varie pw e
+// polarità condividono i byte sorgente.
+const qualityIconMemo = new Map<string, Promise<string | null>>()
+const QUALITY_ICON_MEMO_MAX = 20
+
+function loadQualityIconSvg(iconPath: string): Promise<string | null> {
+  const memo = qualityIconMemo.get(iconPath)
+  if (memo) return memo
+  const p = (async (): Promise<string | null> => {
+    try {
+      // Solo path del registro (niente ..) — il chiamante passa solo
+      // qualityBadgeIconPath(); doppia guardia contro traversal.
+      if (iconPath.includes("..") || path.posix.normalize(iconPath) !== iconPath) return null
+      const full = path.join(process.cwd(), "public", iconPath)
+      return await fs.promises.readFile(full, "utf8")
+    } catch {
+      return null
+    }
+  })()
+  p.catch(() => { if (qualityIconMemo.get(iconPath) === p) qualityIconMemo.delete(iconPath) })
+  if (qualityIconMemo.size >= QUALITY_ICON_MEMO_MAX) qualityIconMemo.delete(qualityIconMemo.keys().next().value!)
+  qualityIconMemo.set(iconPath, p)
+  return p
+}
+
+/** Solo test: svuota la memo dei sorgenti SVG qualità. */
+export function __resetQualityIconCacheForTests(): void {
+  qualityIconMemo.clear()
+}
+
+function qualityIconViewBox(svg: string): { w: number; h: number } | null {
+  const m = svg.match(/viewBox="([\d.\-\s]+)"/)
+  if (!m) return null
+  const parts = m[1].trim().split(/\s+/).map(Number)
+  if (parts.length !== 4 || parts.some((n) => !Number.isFinite(n)) || parts[2] <= 0 || parts[3] <= 0) return null
+  return { w: parts[2], h: parts[3] }
+}
+
+/**
+ * Rende un'icona qualità built-in all'ingombro verticale della pill
+ * standard (stesso anchor di layout). Lo stile mono è nero su fondo chiaro
+ * e va ricolorato di bianco su fondo scuro (fill ereditato alla radice: i
+ * path non dichiarano fill propri); il color resta originale. Ritorna null
+ * se il file manca o non rasterizza: il chiamante degrada sulla pill
+ * standard, mai 500.
+ */
+export async function renderQualityIconBadge(
+  iconPath: string,
+  pw: number,
+  topLight?: boolean,
+): Promise<{ png: Buffer; w: number; h: number } | null> {
+  try {
+    const src = await loadQualityIconSvg(iconPath)
+    if (!src) return null
+    const vb = qualityIconViewBox(src)
+    if (!vb) return null
+    const isMono = /(^|\/)mono\//.test(iconPath)
+    // Stessa base della pill standard (17px su griglia 380): l'icona occupa
+    // lo stesso ingombro verticale, qscale/qox/qoy invariati a valle.
+    const fs = Math.round(Math.max(17 * pw / 380, 10))
+    const targetH = badgeBoxHeight(fs)
+    const w = Math.max(1, Math.round(targetH * (vb.w / vb.h)))
+    const fill = isMono ? (topLight ? "#000000" : "#ffffff") : null
+    const svg = fill ? src.replace("<svg ", `<svg fill="${fill}" `) : src
+    const png = await renderSVG(svg, w)
+    const h = Math.max(1, Math.round(w * (vb.h / vb.w)))
+    // Padding ombra simmetrico come la pill standard: l'ancoraggio a valle
+    // (qPad/qBottomPad/centerX) e lo stack separati ragionano sul box visibile
+    // dentro il bitmap — senza, l'icona finirebbe 14px a destra e in alto.
+    const padded = await sharp(png)
+      .extend({
+        top: TOP_SHADOW_PAD,
+        bottom: TOP_SHADOW_PAD,
+        left: TOP_SHADOW_PAD,
+        right: TOP_SHADOW_PAD,
+        background: { r: 0, g: 0, b: 0, alpha: 0 },
+      })
+      .png()
+      .toBuffer()
+    return { png: padded, w: w + TOP_SHADOW_PAD * 2, h: h + TOP_SHADOW_PAD * 2 }
+  } catch {
+    return null
+  }
+}
+
 const NETWORKS_DIR_COMBINED = path.join(process.cwd(), "public", "networks")
 const NETWORK_FILES_COMBINED: Record<string, string> = {
   netflix: "Netflix_2016_N_logo.svg",
@@ -665,6 +758,7 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
     topShade = 50,
     badgesEnabled, rankingEnabled, genreName, voteAverage, badgeStyle,
     rankingBadgeStyle, badgeGenre, badgeYear, badgeRating, badgeQuality, quality,
+    qualityBadgeStyle,
     sashOrder,
     topLight, targetCenter, ribbonSide,
     bottomLight: bottomLightOpt,
@@ -982,6 +1076,9 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
   const isAnimeRank = topBadge?.type === "rank" && animeRankResult !== null && topBadge.rank === animeRankResult
 
   const hasQualityBadge = badgeQuality !== false && !!quality
+  // Icona built-in per stile+tier (null = pill standard). Lo stile entra
+  // nella chiave cache: cambio stile = bitmap nuovi, mai collisione.
+  const qualityIconPath = qualityBadgeIconPath(qualityBadgeStyle, quality)
 
   // Placca staccata: solo gli stili centrati (il nastro resta ancorato)
   // con offset Y esplicito arrotondano tutti e 4 gli angoli. Calcolato qui
@@ -996,7 +1093,7 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
     ? badgeCacheKey("rank", topBadge.type === "extra" ? topBadge.label : `${(topBadge as { rank: number }).rank}:${topBadge!.label}`, CW, topLight, rankingBadgeStyle, accentColorRank, ribbonSide, isAnimeRank, topBadgeScale, isRankDetached ? "detached" : undefined)
     : null
   const qualityBadgeKey = hasQualityBadge
-    ? badgeCacheKey("quality", quality, CW, topLight, qualityBadgeScale)
+    ? badgeCacheKey("quality", quality, CW, topLight, qualityBadgeScale, qualityIconPath ?? "std")
     : null
   const comingSoonKey = showComingSoon
     ? badgeCacheKey("comingsoon", comingSoonLabel, CW, topLight, ribbonSide)
@@ -1095,10 +1192,18 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
       : renderStandardRank(),
     qualityBadgeKey
       ? (cacheGet<{ png: Buffer; w: number; h: number }>(qualityBadgeKey)
-          || coalesceBadgeRender(qualityBadgeKey, () =>
-              renderQualityBadge(quality!, badgePw, topLight)
+          || coalesceBadgeRender(qualityBadgeKey, async () => {
+              // Icona built-in prima, pill standard come fallback (mai slot vuoto).
+              if (qualityIconPath) {
+                const icon = await renderQualityIconBadge(qualityIconPath, badgePw, topLight)
+                if (icon) {
+                  cacheSet(qualityBadgeKey, icon, ["badge"], BADGE_CACHE_TTL)
+                  return icon
+                }
+              }
+              return renderQualityBadge(quality!, badgePw, topLight)
                 .then((r) => { if (r) cacheSet(qualityBadgeKey, r, ["badge"], BADGE_CACHE_TTL); return r })
-            ))
+            }))
       : Promise.resolve(null),
     comingSoonKey
       ? (cacheGet<{ png: Buffer; w: number; h: number }>(comingSoonKey)

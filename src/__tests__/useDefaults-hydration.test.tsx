@@ -24,6 +24,7 @@ import { PosterEditorProvider, usePosterEditor, type PosterEditorCtx } from "@/l
 const USER_SAVED = {
   badgeStyle: "shadow",
   rankingBadgeStyle: "default",
+  qualityBadgeStyle: "standard",
   blurEnabled: true,
   blurIntensity: 9,
   blurFade: 60,

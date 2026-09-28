@@ -94,6 +94,7 @@ export function buildStremioPosterUrl(input: BuildStremioPosterUrlInput): URL {
     sashOrder: input.defaults.sashOrder ?? undefined,
     badgeStyle: mapping?.badgeStyle ?? input.defaults.badgeStyle,
     rankingBadgeStyle: mapping?.rankingBadgeStyle ?? input.defaults.rankingBadgeStyle,
+    qualityBadgeStyle: mapping?.qualityBadgeStyle ?? input.defaults.qualityBadgeStyle,
     topBadgeScale: eff?.topBadgeScale ?? input.defaults.topBadgeScale,
     topBadgeOffsetX: eff?.topBadgeOffsetX ?? input.defaults.topBadgeOffsetX,
     topBadgeOffsetY: eff?.topBadgeOffsetY ?? input.defaults.topBadgeOffsetY,

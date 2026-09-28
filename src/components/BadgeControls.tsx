@@ -191,6 +191,18 @@ export function BadgeControls() {
             <Toggle value={ed.badgeQuality} onChange={(v) => ed.setBadgeQuality(v)} label={t("ui.badgeQuality")} />
           </div>
 
+          {ed.badgeQuality && (
+            <div className="pl-3 py-1 space-y-1.5 border-l-2 border-surface2 ml-1 animate-fade-in">
+              <label className="text-[11px] text-muted font-medium block">{t("ui.qualityBadgeStyle")}</label>
+              <BadgeStyleSelector
+                value={ed.qualityBadgeStyle}
+                options={["standard", "mono", "color"]}
+                onChange={ed.setQualityBadgeStyle}
+                t={t}
+              />
+            </div>
+          )}
+
           <div className="flex items-center justify-between" title={t("ui.customRatingsHint")}>
             <span className="text-zinc-300 font-medium flex items-center gap-1.5">
               <Star className="w-3.5 h-3.5 text-teal-400" />

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest"
 import { resolvePosterRenderConfig, resolvePosterShape, clamp, type PosterRenderConfigInput } from "@/lib/poster-config"
+import { buildStremioPosterSearchParams } from "@/lib/stremio-poster-params"
 import type { Mapping } from "@/lib/types"
 import type { PictoriumUserConfig } from "@/lib/config-token"
 
@@ -568,6 +569,52 @@ describe("resolvePosterRenderConfig", () => {
     expect(r.badgeQuality).toBe(false)
     expect(r.badgeGenre).toBe(true)
     expect(r.badgeRating).toBe(true)
+  })
+
+  it("qualityBadgeStyle defaults to standard; query/mapping/config/sd chain wins in order", () => {
+    expect(resolvePosterRenderConfig(baseInput()).qualityBadgeStyle).toBe("standard")
+
+    const rQuery = resolvePosterRenderConfig(baseInput({
+      searchParams: new URLSearchParams({ qbs: "mono" }),
+      mapping: mapping({ qualityBadgeStyle: "color" }),
+      configOverride: config({ qualityBadgeStyle: "color" }),
+      sd: { qualityBadgeStyle: "color" },
+    }))
+    expect(rQuery.qualityBadgeStyle).toBe("mono")
+
+    const rMapping = resolvePosterRenderConfig(baseInput({
+      mapping: mapping({ qualityBadgeStyle: "mono" }),
+      configOverride: config({ qualityBadgeStyle: "color" }),
+      sd: { qualityBadgeStyle: "color" },
+    }))
+    expect(rMapping.qualityBadgeStyle).toBe("mono")
+
+    const rConfig = resolvePosterRenderConfig(baseInput({
+      configOverride: config({ qualityBadgeStyle: "color" }),
+      sd: { qualityBadgeStyle: "mono" },
+    }))
+    expect(rConfig.qualityBadgeStyle).toBe("color")
+
+    const rSd = resolvePosterRenderConfig(baseInput({ sd: { qualityBadgeStyle: "mono" } }))
+    expect(rSd.qualityBadgeStyle).toBe("mono")
+  })
+
+  it("qualityBadgeStyle falls back to standard on invalid values", () => {
+    const rQuery = resolvePosterRenderConfig(baseInput({
+      searchParams: new URLSearchParams({ qbs: "bar" }),
+    }))
+    expect(rQuery.qualityBadgeStyle).toBe("standard")
+    const rMapping = resolvePosterRenderConfig(baseInput({
+      mapping: mapping({ qualityBadgeStyle: "bar" as never }),
+    }))
+    expect(rMapping.qualityBadgeStyle).toBe("standard")
+  })
+
+  it("qbs is emitted only for non-standard styles (cache-stable URLs)", () => {
+    expect(buildStremioPosterSearchParams({}).get("qbs")).toBeNull()
+    expect(buildStremioPosterSearchParams({ qualityBadgeStyle: "standard" }).get("qbs")).toBeNull()
+    expect(buildStremioPosterSearchParams({ qualityBadgeStyle: "mono" }).get("qbs")).toBe("mono")
+    expect(buildStremioPosterSearchParams({ qualityBadgeStyle: "color" }).get("qbs")).toBe("color")
   })
 
   it("preRelease defaults to false; query/config/sd chain wins in order", () => {

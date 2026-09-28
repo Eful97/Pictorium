@@ -10,12 +10,15 @@ import { userFetch } from "./http"
 import { USER_UNLOCK_EVENT, currentPathUuid } from "./user-token"
 import { t } from "./i18n"
 import { normalizeSashOrder, DEFAULT_SASH_ORDER, type SashBucket } from "./badge-priority"
+import { DEFAULT_QUALITY_BADGE_STYLE, type QualityBadgeStyle } from "./badge-styles"
 
 export type RibbonSide = "left" | "right"
 
 export interface DefaultsState {
   defaultBadgeStyle: BadgeStyle
   defaultRankingBadgeStyle: RankingBadgeStyle
+  /** Stile icone del badge qualità di default (default "standard"). */
+  defaultQualityBadgeStyle: QualityBadgeStyle
   defaultBlurEnabled: boolean
   defaultBlurIntensity: number
   defaultBlurFade: number
@@ -119,11 +122,14 @@ export interface DefaultsState {
   topShade: number
   badgeStyle: BadgeStyle
   rankingBadgeStyle: RankingBadgeStyle
+  /** Stile icone del badge qualità del poster in editing. */
+  qualityBadgeStyle: QualityBadgeStyle
 }
 
 const DEFAULTS: DefaultsState = {
   defaultBadgeStyle: "shadow",
   defaultRankingBadgeStyle: "default",
+  defaultQualityBadgeStyle: DEFAULT_QUALITY_BADGE_STYLE,
   defaultBlurEnabled: true,
   defaultBlurIntensity: 20,
   defaultBlurFade: 50,
@@ -201,6 +207,7 @@ const DEFAULTS: DefaultsState = {
   topShade: 50,
   badgeStyle: "shadow",
   rankingBadgeStyle: "default",
+  qualityBadgeStyle: DEFAULT_QUALITY_BADGE_STYLE,
 }
 
 interface StoredDefaults {
@@ -233,8 +240,10 @@ interface StoredDefaults {
   topShade?: number
   badgeStyle?: BadgeStyle
   rankingBadgeStyle?: RankingBadgeStyle
+  qualityBadgeStyle?: QualityBadgeStyle
   defaultBadgeStyle?: BadgeStyle
   defaultRankingBadgeStyle?: RankingBadgeStyle
+  defaultQualityBadgeStyle?: QualityBadgeStyle
   defaultBlurEnabled?: boolean
   defaultBlurIntensity?: number
   defaultBlurFade?: number
@@ -333,6 +342,7 @@ function buildFromStored(d: StoredDefaults | null): DefaultsState {
   return {
     defaultBadgeStyle: d.defaultBadgeStyle ?? d.badgeStyle ?? "shadow",
     defaultRankingBadgeStyle: d.defaultRankingBadgeStyle ?? d.rankingBadgeStyle ?? "default",
+    defaultQualityBadgeStyle: d.defaultQualityBadgeStyle ?? d.qualityBadgeStyle ?? DEFAULT_QUALITY_BADGE_STYLE,
     defaultBlurEnabled: d.defaultBlurEnabled ?? d.blurEnabled ?? true,
     defaultBlurIntensity: d.defaultBlurIntensity ?? d.blurIntensity ?? 20,
     defaultBlurFade: d.defaultBlurFade ?? d.blurFade ?? 50,
@@ -417,6 +427,7 @@ function buildFromStored(d: StoredDefaults | null): DefaultsState {
     topShade: d.topShade ?? d.defaultTopShade ?? 50,
     badgeStyle: d.badgeStyle ?? d.defaultBadgeStyle ?? "shadow",
     rankingBadgeStyle: d.rankingBadgeStyle ?? d.defaultRankingBadgeStyle ?? "default",
+    qualityBadgeStyle: d.qualityBadgeStyle ?? d.defaultQualityBadgeStyle ?? DEFAULT_QUALITY_BADGE_STYLE,
   }
 }
 
@@ -430,6 +441,7 @@ function defaultsToPayload(d: DefaultsState): Record<string, unknown> {
   return {
     badgeStyle: d.defaultBadgeStyle,
     rankingBadgeStyle: d.defaultRankingBadgeStyle,
+    qualityBadgeStyle: d.defaultQualityBadgeStyle,
     blurEnabled: d.defaultBlurEnabled,
     blurIntensity: d.defaultBlurIntensity,
     blurFade: d.defaultBlurFade,

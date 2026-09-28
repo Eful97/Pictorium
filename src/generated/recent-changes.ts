@@ -11,5 +11,6 @@ export interface RecentChange {
 }
 
 export const RECENT_CHANGES: RecentChange[] = [
+  { type: "feature", text: "Add Badge Lab presets and colored Netflix ranking badge style", sha: "665b22a", date: "2026-09-28" },
   { type: "fix", text: "Proxy posters refresh on settings change and install template updates live", sha: "8c1eb7a", date: "2026-09-28" },
 ]

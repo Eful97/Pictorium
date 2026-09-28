@@ -1,5 +1,5 @@
 import { POSTER_URL_VERSION } from "@/lib/render-version"
-import type { BadgeStyle, RankingBadgeStyle } from "@/lib/badge-styles"
+import type { BadgeStyle, RankingBadgeStyle, QualityBadgeStyle } from "@/lib/badge-styles"
 import { parseMinQuality, type StreamQuality } from "@/lib/quality-tiers"
 import { parseSashOrder, isDefaultSashOrder, type SashBucket } from "@/lib/badge-priority"
 import { BADGE_PRESET_ID_RE, BADGE_PRESET_REV_RE } from "@/lib/badge-preset"
@@ -32,6 +32,8 @@ export interface StremioPosterParamsInput {
   readonly sashOrder?: readonly SashBucket[] | null
   readonly badgeStyle?: BadgeStyle
   readonly rankingBadgeStyle?: RankingBadgeStyle
+  /** Stile icone qualità: emesso come `qbs` solo quando non-standard (cache stabile). */
+  readonly qualityBadgeStyle?: QualityBadgeStyle | null
   readonly gradientHeight?: number
   readonly blurIntensity?: number
   readonly blurFade?: number
@@ -235,6 +237,11 @@ export function buildStremioPosterSearchParams(input: StremioPosterParamsInput):
   if (input.compactTuning) params.set("dv", tuningSignature(input))
   params.set("bs", input.badgeStyle || DEFAULT_STREMIO_POSTER_PARAMS.badgeStyle)
   params.set("rs", input.rankingBadgeStyle || DEFAULT_STREMIO_POSTER_PARAMS.rankingBadgeStyle)
+  // Stile icone qualità solo quando non-standard: gli URL esistenti restano
+  // identici e la cache non si invalida (il server risolve lo standard da solo).
+  if (input.qualityBadgeStyle === "mono" || input.qualityBadgeStyle === "color") {
+    params.set("qbs", input.qualityBadgeStyle)
+  }
   if (!input.compactTuning) {
     params.set("tscale", String(input.topBadgeScale ?? DEFAULT_STREMIO_POSTER_PARAMS.topBadgeScale))
     params.set("tox", String(input.topBadgeOffsetX ?? DEFAULT_STREMIO_POSTER_PARAMS.topBadgeOffsetX))

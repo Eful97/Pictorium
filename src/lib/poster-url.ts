@@ -10,7 +10,7 @@ import { hexLuminance, computeBottomLight } from "./accent-color"
 import { normalizeGenreName } from "./genre-normalize"
 import type { SearchResult, TMDBImage } from "./types"
 import type { EnrichedAnimeItem } from "./validation"
-import type { BadgeStyle, RankingBadgeStyle } from "./badge-styles"
+import type { BadgeStyle, RankingBadgeStyle, QualityBadgeStyle } from "./badge-styles"
 import type { PosterShape } from "./types"
 import { BADGE_PRESET_ID_RE, BADGE_PRESET_REV_RE } from "./badge-preset"
 
@@ -19,6 +19,8 @@ interface BadgeParams {
   rankingBadges: boolean
   badgeStyle: BadgeStyle
   rankingBadgeStyle: RankingBadgeStyle
+  /** Stile icone del badge qualità (default "standard"). */
+  qualityBadgeStyle?: QualityBadgeStyle | null
   /** Componenti del badge genere/rating: `false` emette `bg/by/br=0`. */
   badgeGenre?: boolean
   badgeYear?: boolean
@@ -141,6 +143,7 @@ export function buildUrlPattern(bp: BadgeParams & {
     separateRatings: bp.separateRatings,
     badgeStyle: bp.badgeStyle,
     rankingBadgeStyle: bp.rankingBadgeStyle,
+    qualityBadgeStyle: bp.qualityBadgeStyle,
     gradientHeight: bp.gradientHeight,
     blurIntensity: bp.blurIntensity,
     blurFade: bp.blurFade,
@@ -253,6 +256,9 @@ export function buildPreviewUrl(ps: PosterState, bp: BadgeParams): string {
   params.push(`ts=${bp.topShade ?? 50}`)
   params.push(`bs=${bp.badgeStyle}`)
   params.push(`rs=${bp.rankingBadgeStyle}`)
+  // Stile icone qualità SEMPRE esplicito in preview (come bs/rs): senza, un
+  // mapping salvato con stile diverso scavalcerebbe la scelta editor (desync).
+  params.push(`qbs=${bp.qualityBadgeStyle === "mono" || bp.qualityBadgeStyle === "color" ? bp.qualityBadgeStyle : "standard"}`)
   params.push(`tscale=${bp.topBadgeScale}`)
   params.push(`tox=${bp.topBadgeOffsetX}`)
   params.push(`toy=${bp.topBadgeOffsetY}`)
