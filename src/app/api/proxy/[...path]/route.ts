@@ -1,7 +1,8 @@
 import dns, { type LookupOptions } from "node:dns"
 import { NextRequest } from "next/server"
 import { getOriginFromRequest } from "@/lib/poster-public-url"
-import { rewriteMetasPosters, rewriteSingleMetaPoster, type StremioItemMeta } from "@/lib/addon-proxy"
+import { rewriteMetasPosters, rewriteSingleMetaPoster, proxyDefaultsSignature, type StremioItemMeta } from "@/lib/addon-proxy"
+import { getServerDefaultsForUser } from "@/lib/server-defaults"
 import { rateLimit, rateLimitKey, rateLimitResponse } from "@/lib/rate-limit"
 import { createLogger } from "@/lib/logger"
 import { envWithFallback } from "@/lib/env-compat"
@@ -312,6 +313,25 @@ async function safeFetch(url: string, options: RequestInit & { signal: AbortSign
   })
 }
 
+/**
+ * Firma di cache-busting per i poster riscritti: gli URL proxy omettono tutti
+ * i parametri visivi (li risolve la poster route da mapping > defaults),
+ * quindi senza firma un cambio default lascerebbe URL identici e cache
+ * stantie (Stremio/CDN). Copertura totale dei defaults via
+ * `proxyDefaultsSignature` (stili + toggle + tuning): i param espliciti sono
+ * esclusi di proposito — `bs=` dai defaults vincerebbe sul mapping
+ * per-titolo (query > mapping) e clobbererebbe il lavoro salvato.
+ * Fallback sicuro a null: niente `dv`, URL come prima.
+ */
+async function resolveProxyDv(userUuid: string | null): Promise<string | null> {
+  try {
+    const sd = await getServerDefaultsForUser(userUuid)
+    return proxyDefaultsSignature(sd)
+  } catch {
+    return null
+  }
+}
+
 export async function GET(req: NextRequest, { params }: { params: Promise<{ path: string[] }> }) {
   const rl = await rateLimit(rateLimitKey(req), "default")
   if (!rl.ok) return rateLimitResponse(rl.retAfter)
@@ -409,9 +429,9 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ path
     const data = (await readJsonCapped(res)) as Record<string, unknown> & { metas?: StremioItemMeta[]; meta?: StremioItemMeta }
 
     if (data && Array.isArray(data.metas)) {
-      data.metas = rewriteMetasPosters(data.metas as StremioItemMeta[], origin, userUuid)
+      data.metas = rewriteMetasPosters(data.metas as StremioItemMeta[], origin, userUuid, await resolveProxyDv(userUuid))
     } else if (data && data.meta) {
-      data.meta = rewriteSingleMetaPoster(data.meta as StremioItemMeta, origin, userUuid)
+      data.meta = rewriteSingleMetaPoster(data.meta as StremioItemMeta, origin, userUuid, await resolveProxyDv(userUuid))
     }
 
     // Content-Type sempre JSON (corsHeaders): `data` è JSON parsato e

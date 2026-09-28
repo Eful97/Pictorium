@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest"
-import { rewriteMetasPosters, rewriteSingleMetaPoster, type StremioItemMeta } from "@/lib/addon-proxy"
+import { rewriteMetasPosters, rewriteSingleMetaPoster, proxyDefaultsSignature, type StremioItemMeta } from "@/lib/addon-proxy"
+import type { ServerDefaults } from "@/lib/server-defaults"
 import { resolveImdbToTmdb } from "@/lib/imdb-resolver"
 import { isAllowedByAllowlist, isPrivateHost } from "@/app/api/proxy/[...path]/route"
 
@@ -38,6 +39,48 @@ describe("Addon Proxy Helpers", () => {
 
     const single = rewriteSingleMetaPoster(metas[0], "https://pictorium.app", userUuid)
     expect(single.poster).toContain(`&u=${userUuid}`)
+  })
+
+  it("omits dv when not provided (backward compat)", () => {
+    const metas: StremioItemMeta[] = [{ id: "tt0111161", type: "movie" }]
+    expect(rewriteMetasPosters(metas, "https://pictorium.app")[0].poster).not.toContain("dv=")
+    expect(rewriteMetasPosters(metas, "https://pictorium.app", null, null)[0].poster).not.toContain("dv=")
+    expect(rewriteSingleMetaPoster(metas[0], "https://pictorium.app").poster).not.toContain("dv=")
+  })
+
+  it("appends dv cache-buster when provided (metas + single)", () => {
+    const dv = "a1b2c3d4"
+    const metas: StremioItemMeta[] = [{ id: "tt0111161", type: "movie" }]
+    expect(rewriteMetasPosters(metas, "https://pictorium.app", null, dv)[0].poster).toContain(`&dv=${dv}`)
+    expect(rewriteSingleMetaPoster(metas[0], "https://pictorium.app", null, dv).poster).toContain(`&dv=${dv}`)
+  })
+
+  it("proxy dv covers all visual defaults: deterministic and order-independent", () => {
+    const a: ServerDefaults = { badgeStyle: "pill", gradientHeight: 40, networkLogo: false }
+    const reordered: ServerDefaults = { networkLogo: false, gradientHeight: 40, badgeStyle: "pill" }
+    const dv = proxyDefaultsSignature(a)
+    expect(dv).toMatch(/^[0-9a-f]{8}$/)
+    expect(proxyDefaultsSignature(reordered)).toBe(dv)
+    expect(proxyDefaultsSignature(null)).toMatch(/^[0-9a-f]{8}$/)
+  })
+
+  it("proxy dv busts on style/toggle changes too, not just tuning", () => {
+    const base: ServerDefaults = { badgeStyle: "pill", gradientHeight: 40, globalBadges: true }
+    const dv = proxyDefaultsSignature(base)
+    // Cambio stile → firma diversa (il buco che il tuning-only lasciava aperto).
+    expect(proxyDefaultsSignature({ ...base, badgeStyle: "shadow" })).not.toBe(dv)
+    expect(proxyDefaultsSignature({ ...base, rankingBadgeStyle: "pill" })).not.toBe(dv)
+    expect(proxyDefaultsSignature({ ...base, globalBadges: false })).not.toBe(dv)
+    expect(proxyDefaultsSignature({ ...base, posterShape: "landscape" })).not.toBe(dv)
+    // Cambio tuning → firma diversa.
+    expect(proxyDefaultsSignature({ ...base, gradientHeight: 30 })).not.toBe(dv)
+    expect(proxyDefaultsSignature({ ...base, blurFade: 10 })).not.toBe(dv)
+  })
+
+  it("rewritten URLs carry the full-defaults dv", () => {
+    const dv = proxyDefaultsSignature({ badgeStyle: "pill" })
+    const metas: StremioItemMeta[] = [{ id: "tt0111161", type: "movie" }]
+    expect(rewriteMetasPosters(metas, "https://pictorium.app", null, dv)[0].poster).toContain(`&dv=${dv}`)
   })
 
   it("resolveImdbToTmdb returns null for non-imdb IDs", async () => {
