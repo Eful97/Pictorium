@@ -23,15 +23,19 @@ function BadgePreview({ style, accentColor }: { style: string; accentColor?: str
     case "default":
       return <span className={`${base} text-white/70`}>Aa</span>
     case "mono":
-      return <span className={`${base} bg-white`}>
-        {/* eslint-disable-next-line @next/next/no-img-element -- stesso SVG servito al server */}
-        <img src="/quality-badges/mono/4k-label-icon.svg" alt="mono" className="w-7 h-4 object-contain" />
-      </span>
+      return (
+        <span className={`${base} bg-transparent`}>
+          {/* eslint-disable-next-line @next/next/no-img-element -- stesso SVG servito al server */}
+          <img src="/quality-badges/mono/4k-label-icon.svg" alt="mono" className="w-7 h-4 object-contain brightness-0 invert drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]" />
+        </span>
+      )
     case "color":
-      return <span className={`${base}`}>
-        {/* eslint-disable-next-line @next/next/no-img-element -- stesso SVG servito al server */}
-        <img src="/quality-badges/color/4k-label-color-icon.svg" alt="color" className="w-7 h-4 object-contain" />
-      </span>
+      return (
+        <span className={`${base} bg-transparent`}>
+          {/* eslint-disable-next-line @next/next/no-img-element -- stesso SVG servito al server */}
+          <img src="/quality-badges/color/4k-label-color-icon.svg" alt="color" className="w-7 h-4 object-contain drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]" />
+        </span>
+      )
     default:
       return <span className={`${base} text-white/50`}>~</span>
   }

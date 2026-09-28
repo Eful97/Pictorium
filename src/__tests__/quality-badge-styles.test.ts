@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 import { QUALITY_BADGE_STYLES, isQualityBadgeStyle, DEFAULT_QUALITY_BADGE_STYLE } from "@/lib/badge-styles"
-import { qualityBadgeIconPath, QUALITY_TIERS } from "@/lib/quality-badge-styles"
+import { qualityBadgeIconPath, QUALITY_TIERS, normalizeQualityTier } from "@/lib/quality-badge-styles"
 import { mappingSchema, mappingUpdateSchema } from "@/lib/validation"
 import sharp from "sharp"
 import fs from "node:fs"
@@ -44,6 +44,17 @@ describe("quality badge styles", () => {
     expect(qualityBadgeIconPath("bar" as never, "4K")).toBeNull()
   })
 
+  it("normalizes quality strings like 1080p, 4k, 2160p, 720p", () => {
+    expect(normalizeQualityTier("1080p")).toBe("FHD")
+    expect(normalizeQualityTier("1080P")).toBe("FHD")
+    expect(normalizeQualityTier("4k")).toBe("4K")
+    expect(normalizeQualityTier("2160p")).toBe("4K")
+    expect(normalizeQualityTier("720p")).toBe("HD")
+    expect(normalizeQualityTier("480p")).toBe("SD")
+    expect(normalizeQualityTier("unknown")).toBeNull()
+    expect(qualityBadgeIconPath("color", "1080p")).toMatch(/^quality-badges\/color\/full-hd.+icon\.svg$/)
+  })
+
   it("mapping schemas accept the style, reject junk, keep legacy valid", () => {
     const base = { tmdbId: 1, mediaType: "movie", title: "T", posterPath: "/p.jpg" }
     expect(mappingSchema.safeParse({ ...base, qualityBadgeStyle: "mono" }).success).toBe(true)
@@ -56,7 +67,7 @@ describe("quality badge styles", () => {
 })
 
 describe("renderQualityIconBadge", () => {
-  it("renders mono/color icons at the standard badge footprint, null on missing file", async () => {
+  it("renders mono/color icons at the standard badge footprint with drop shadow, null on missing file", async () => {
     const { renderQualityIconBadge, __resetQualityIconCacheForTests } = await import("@/lib/poster-service")
     __resetQualityIconCacheForTests()
     // pw=500 → fs=22 → boxH=40; mono 4K (512x414.89) → icona 49x40 + pad
@@ -66,10 +77,10 @@ describe("renderQualityIconBadge", () => {
     expect(mono!.w).toBe(77)
     expect(mono!.h).toBe(68)
     expect(mono!.png.length).toBeGreaterThan(100)
-    // Color FHD (122.88x89.82) → icona 55x40 + pad → 83x68.
+    // Color FHD con viewBox armonizzato (512x414.89) → icona 49x40 + pad → 77x68.
     const color = await renderQualityIconBadge("quality-badges/color/full-hd-icon.svg", 500, true)
     expect(color).not.toBeNull()
-    expect(color!.w).toBe(83)
+    expect(color!.w).toBe(77)
     expect(color!.h).toBe(68)
     // Missing file / traversal → null (il chiamante degrada sullo standard).
     expect(await renderQualityIconBadge("quality-badges/mono/nope.svg", 500, false)).toBeNull()

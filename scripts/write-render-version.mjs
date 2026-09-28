@@ -61,6 +61,7 @@ const RENDER_FILES = [
   "public/quality-badges/mono/sd-label-icon.svg",
   "public/quality-badges/color/4k-label-color-icon.svg",
   "public/quality-badges/color/full-hd-icon.svg",
+  "public/quality-badges/color/full-hd-label-color-icon.svg",
   "public/quality-badges/color/hd-label-color-icon.svg",
   "public/quality-badges/color/sd-label-color-icon.svg",
   "src/assets/fonts/Inter-Black.ttf",

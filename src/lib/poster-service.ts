@@ -461,28 +461,27 @@ export async function renderQualityIconBadge(
     const fs = Math.round(Math.max(17 * pw / 380, 10))
     const targetH = badgeBoxHeight(fs)
     const w = Math.max(1, Math.round(targetH * (vb.w / vb.h)))
-    const fill = isMono ? (topLight ? "#000000" : "#ffffff") : null
-    const svg = fill ? src.replace("<svg ", `<svg fill="${fill}" `) : src
-    const png = await renderSVG(svg, w)
     const h = Math.max(1, Math.round(w * (vb.h / vb.w)))
-    // Padding ombra simmetrico come la pill standard: l'ancoraggio a valle
-    // (qPad/qBottomPad/centerX) e lo stack separati ragionano sul box visibile
-    // dentro il bitmap — senza, l'icona finirebbe 14px a destra e in alto.
-    const padded = await sharp(png)
-      .extend({
-        top: TOP_SHADOW_PAD,
-        bottom: TOP_SHADOW_PAD,
-        left: TOP_SHADOW_PAD,
-        right: TOP_SHADOW_PAD,
-        background: { r: 0, g: 0, b: 0, alpha: 0 },
-      })
-      .png()
-      .toBuffer()
-    return { png: padded, w: w + TOP_SHADOW_PAD * 2, h: h + TOP_SHADOW_PAD * 2 }
+    const fill = isMono ? (topLight ? "#000000" : "#ffffff") : null
+    const totalW = w + TOP_SHADOW_PAD * 2
+    const totalH = h + TOP_SHADOW_PAD * 2
+    const innerContent = src.replace(/<svg[^>]*>/, "").replace(/<\/svg>\s*$/, "")
+    const fillAttr = fill ? ` fill="${fill}"` : ""
+    // Ombra reale simmetrica con feDropShadow (dx=2, dy=2, stdDev=2.5):
+    // stacca l'icona mono/color da sfondi chiari o complessi, mentre
+    // il padding TOP_SHADOW_PAD mantiene l'esatto ancoraggio visivo a valle.
+    const compositeSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="${totalW}" height="${totalH}" viewBox="0 0 ${totalW} ${totalH}">` +
+      `<defs><filter id="tds" x="-20%" y="-20%" width="180%" height="180%"><feDropShadow dx="2" dy="2" stdDeviation="2.5" flood-color="#000000" flood-opacity="0.65"/></filter></defs>` +
+      `<g filter="url(#tds)">` +
+      `<svg x="${TOP_SHADOW_PAD}" y="${TOP_SHADOW_PAD}" width="${w}" height="${h}" viewBox="0 0 ${vb.w} ${vb.h}"${fillAttr}>${innerContent}</svg>` +
+      `</g></svg>`
+    const png = await renderSVG(compositeSvg, totalW)
+    return { png, w: totalW, h: totalH }
   } catch {
     return null
   }
 }
+
 
 const NETWORKS_DIR_COMBINED = path.join(process.cwd(), "public", "networks")
 const NETWORK_FILES_COMBINED: Record<string, string> = {
