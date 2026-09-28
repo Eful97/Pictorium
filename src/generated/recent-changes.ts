@@ -11,6 +11,7 @@ export interface RecentChange {
 }
 
 export const RECENT_CHANGES: RecentChange[] = [
+  { type: "feature", text: "Add local AV specs database for 4K, Dolby Vision, Atmos and IMAX badges", sha: "21220f9", date: "2026-09-29" },
   { type: "fix", text: "Harmonize quality badge icons and improve drop shadow contrast", sha: "de94ec5", date: "2026-09-29" },
   { type: "feature", text: "quality badge icon styles (mono/color)", sha: "5566eae", date: "2026-09-28" },
   { type: "feature", text: "Add Badge Lab presets and colored Netflix ranking badge style", sha: "665b22a", date: "2026-09-28" },

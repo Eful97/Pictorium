@@ -1,12 +1,8 @@
 import { describe, expect, it } from "vitest"
 import { lookupAVSpecs, isVideoFormat, KNOWN_VIDEO_FORMATS, FORMAT_ICON_PATHS } from "@/lib/av-specs"
-import { renderQualityBadgeGroup, generatePosterBuffer, type GenerationInput } from "@/lib/poster-service"
-import { STD_W, STD_H } from "@/lib/poster-render-helpers"
-import type { WikidataResult } from "@/lib/awards"
-import type { ServerDefaults } from "@/lib/server-defaults"
+import { renderQualityBadgeGroup } from "@/lib/poster-service"
 import fs from "node:fs"
 import path from "node:path"
-import sharp from "sharp"
 
 const ROOT = path.resolve(__dirname, "../..")
 
