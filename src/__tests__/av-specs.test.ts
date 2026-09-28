@@ -82,4 +82,14 @@ describe("renderQualityBadgeGroup", () => {
     expect(group!.h).toBeGreaterThan(130)
     expect(group!.png.length).toBeGreaterThan(100)
   })
+
+  it("supports all resolution tiers (4K, FHD, HD, SD) stacked above AV formats", async () => {
+    for (const tier of ["4K", "FHD", "HD", "SD"]) {
+      const g = await renderQualityBadgeGroup(tier, "mono", ["dv"], 380, false)
+      expect(g).not.toBeNull()
+      expect(g!.h).toBeGreaterThan(g!.w) // vertical column: height exceeds width
+      const stats = await sharp(g!.png).stats()
+      expect(stats.channels[0].max).toBe(255) // white pixels on dark
+    }
+  })
 })
