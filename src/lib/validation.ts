@@ -1,5 +1,6 @@
 import { z } from "zod"
 import { BADGE_STYLES, RANKING_BADGE_STYLES } from "./badge-styles"
+import { BADGE_PRESET_ID_RE, BADGE_PRESET_REV_RE } from "./badge-preset"
 
 export const mappingSchema = z.object({
   tmdbId: z.number().int().positive(),
@@ -55,6 +56,8 @@ export const mappingSchema = z.object({
   // di mostrare il badge Anime anche senza chiave MDBList/profilo lato server.
   animeRank: z.number().int().min(1).nullable().optional(),
   customBadge: z.string().max(40).nullable().optional(),
+  badgePresetId: z.string().regex(BADGE_PRESET_ID_RE).nullable().optional(),
+  badgePresetRev: z.string().regex(BADGE_PRESET_REV_RE).nullable().optional(),
   releaseDate: z.string().nullable().optional(),
   firstAirDate: z.string().nullable().optional(),
   backdropPath: z.string().nullable().optional(),
@@ -199,6 +202,8 @@ export const posterQuerySchema = z.object({
   bl: boundedQueryString(8),
   bs: boundedQueryString(16),
   rs: boundedQueryString(16),
+  badgePreset: boundedQueryString(24),
+  prv: boundedQueryString(8),
 })
 
 export type PosterQuery = z.infer<typeof posterQuerySchema>

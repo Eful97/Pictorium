@@ -62,6 +62,17 @@ export interface KvClient {
   incr(key: string): Promise<number>
   expire(key: string, seconds: number): Promise<number>
   scan(cursor: number, opts?: { match?: string; count?: number }): Promise<[number, string[]]>
+  // Set (indici O(1), es. preset per utente).
+  sadd(key: string, ...members: string[]): Promise<number>
+  srem(key: string, ...members: string[]): Promise<number>
+  smembers(key: string): Promise<string[]>
+  // Sorted Set (ranking O(log N), es. preset pubblici per download/data).
+  zadd(key: string, score: number, member: string): Promise<number>
+  zrem(key: string, ...members: string[]): Promise<number>
+  zincrby(key: string, increment: number, member: string): Promise<number>
+  /** Membri in ordine decrescente di score (indici start/stop inclusivi, stile Redis). */
+  zrevrange(key: string, start: number, stop: number): Promise<string[]>
+  zscore(key: string, member: string): Promise<number | null>
 }
 
 /** URL Redis: canonico PICTORIUM > legacy POSTERIUM > nudo (ElfHosted). */
@@ -147,6 +158,14 @@ type UpstashKv = {
   incr(key: string): Promise<number>
   expire(key: string, seconds: number): Promise<number>
   scan(cursor: number, opts?: { match?: string; count?: number }): Promise<[number, string[]]>
+  sadd(key: string, ...members: string[]): Promise<number>
+  srem(key: string, ...members: string[]): Promise<number>
+  smembers<T extends string = string>(key: string): Promise<T[]>
+  zadd(key: string, ...args: Array<{ score: number; member: string }>): Promise<number>
+  zrem(key: string, ...members: string[]): Promise<number>
+  zincrby(key: string, increment: number, member: string): Promise<number>
+  zrange(key: string, min: number, max: number, opts?: { rev?: boolean }): Promise<string[]>
+  zscore(key: string, member: string): Promise<number | null>
 }
 
 async function loadUpstash(): Promise<UpstashKv> {
@@ -182,6 +201,31 @@ const upstashKv: KvClient = {
   async scan(cursor: number, opts?: { match?: string; count?: number }): Promise<[number, string[]]> {
     return (await loadUpstash()).scan(cursor, opts)
   },
+  async sadd(key: string, ...members: string[]): Promise<number> {
+    return (await loadUpstash()).sadd(key, ...members)
+  },
+  async srem(key: string, ...members: string[]): Promise<number> {
+    return (await loadUpstash()).srem(key, ...members)
+  },
+  async smembers(key: string): Promise<string[]> {
+    return (await loadUpstash()).smembers(key)
+  },
+  async zadd(key: string, score: number, member: string): Promise<number> {
+    return (await loadUpstash()).zadd(key, { score, member })
+  },
+  async zrem(key: string, ...members: string[]): Promise<number> {
+    return (await loadUpstash()).zrem(key, ...members)
+  },
+  async zincrby(key: string, increment: number, member: string): Promise<number> {
+    return Number(await (await loadUpstash()).zincrby(key, increment, member))
+  },
+  async zrevrange(key: string, start: number, stop: number): Promise<string[]> {
+    return (await loadUpstash()).zrange(key, start, stop, { rev: true })
+  },
+  async zscore(key: string, member: string): Promise<number | null> {
+    const v = await (await loadUpstash()).zscore(key, member)
+    return v === null || v === undefined ? null : Number(v)
+  },
 }
 
 // ---- Backend Redis nativo (ioredis, singleton lazy) ----
@@ -196,6 +240,14 @@ type RedisLike = {
   incr(key: string): Promise<number>
   expire(key: string, seconds: number): Promise<number>
   scan(cursor: number | string, ...args: (string | number)[]): Promise<[string, string[]]>
+  sadd(key: string, ...members: string[]): Promise<number>
+  srem(key: string, ...members: string[]): Promise<number>
+  smembers(key: string): Promise<string[]>
+  zadd(key: string, score: number | string, member: string): Promise<number>
+  zrem(key: string, ...members: string[]): Promise<number>
+  zincrby(key: string, increment: number, member: string): Promise<string>
+  zrevrange(key: string, start: number, stop: number): Promise<string[]>
+  zscore(key: string, member: string): Promise<string | null>
   quit(): Promise<unknown>
 }
 
@@ -277,5 +329,33 @@ const redisKv: KvClient = {
       opts?.count ?? 100,
     )
     return [Number(next) || 0, keys]
+  },
+  async sadd(key: string, ...members: string[]): Promise<number> {
+    if (members.length === 0) return 0
+    return (await ensureRedis()).sadd(key, ...members)
+  },
+  async srem(key: string, ...members: string[]): Promise<number> {
+    if (members.length === 0) return 0
+    return (await ensureRedis()).srem(key, ...members)
+  },
+  async smembers(key: string): Promise<string[]> {
+    return (await ensureRedis()).smembers(key)
+  },
+  async zadd(key: string, score: number, member: string): Promise<number> {
+    return (await ensureRedis()).zadd(key, score, member)
+  },
+  async zrem(key: string, ...members: string[]): Promise<number> {
+    if (members.length === 0) return 0
+    return (await ensureRedis()).zrem(key, ...members)
+  },
+  async zincrby(key: string, increment: number, member: string): Promise<number> {
+    return Number(await (await ensureRedis()).zincrby(key, increment, member))
+  },
+  async zrevrange(key: string, start: number, stop: number): Promise<string[]> {
+    return (await ensureRedis()).zrevrange(key, start, stop)
+  },
+  async zscore(key: string, member: string): Promise<number | null> {
+    const v = await (await ensureRedis()).zscore(key, member)
+    return v === null ? null : Number(v)
   },
 }

@@ -18,7 +18,7 @@ import {
   PosterComposite,
 } from "./poster-render-helpers"
 import { LAND_W, LAND_H } from "./image-utils"
-import { renderGenreBadge, renderRankingBadge, renderExtraBadge, renderQualityBadge, renderComingSoonRibbon, comingSoonRibbonLayout, renderSVG } from "./svg-badge"
+import { renderGenreBadge, renderRankingBadge, renderExtraBadge, renderQualityBadge, renderComingSoonRibbon, comingSoonRibbonLayout, renderSVG, buildCustomPresetBadgeSVG, buildHousePresetBadgeSVG } from "./svg-badge"
 import { buildLogoScrim, logoContrast, logoInkLuminance, logoScrimStrength, posterLogoZoneLuminance } from "./logo-contrast"
 import { renderFirstMatchingNetworkLogoBadge, renderFirstMatchingNetworkRawBadge, renderFirstMatchingNetworkLogoBadgeHybrid, renderFirstMatchingNetworkRawBadgeHybrid, type NetworkCandidate } from "./network-svgs"
 import { computeLogoLayout, logoAlignPadX, PORTRAIT_LOGO_MAX_HEIGHT_PCT, PORTRAIT_LOGO_TOP_OFFSET } from "./logo-layout"
@@ -34,9 +34,12 @@ import type { ServerDefaults } from "./server-defaults"
 import type { WikidataResult } from "./awards"
 import { directorBadgeLabel } from "./awards"
 import type { BadgeT } from "./poster-badge"
-import type { BadgeStyle, RankingBadgeStyle } from "./badge-styles"
+import { isRibbonRankingStyle, type BadgeStyle, type RankingBadgeStyle } from "./badge-styles"
 import type { PosterImageFormat } from "@/lib/poster-runtime-cache"
 import { RENDER_VERSION } from "./render-version"
+import { getPresetForUser } from "./badge-preset-store"
+import type { BadgePreset } from "./badge-preset"
+import type { BadgeVariableContext } from "./badge-variables"
 
 // ---------------------------------------------------------------------------
 // Types
@@ -146,6 +149,19 @@ export interface GenerationInput {
   mediaType: "movie" | "tv"
   /** TMDB ID per il lookup premi certi (liste ID in award-ids.ts). */
   tmdbId?: number | null
+  /** IMDb ID per le variabili preset ({{imdb}}). */
+  imdbId?: string | null
+  /**
+   * Badge preset custom (?badgePreset=<id>&prv=<rev>): sostituisce il bitmap
+   * dello slot corrispondente (target top → badge superiore, genre → badge
+   * genere) preservando layout/posizioni/scale esistenti. Assente/invalido →
+   * fallback silenzioso sullo stile standard (mai 500).
+   */
+  badgePresetId?: string | null
+  /** Revisione attesa del preset (cache identity): mismatch → refetch. */
+  badgePresetRev?: string | null
+  /** Namespace utente per i preset privati (solo il proprietario li rende). */
+  badgePresetUser?: string | null
   /** Data uscita digitale già calcolata dal pre-release: Just Added. */
   digitalReleaseDate?: string | null
   finalRank: number | null
@@ -322,6 +338,57 @@ function coalesceBadgeRender<T>(key: string, run: () => Promise<T>): Promise<T |
   })
   badgeInflight.set(key, promise)
   return promise
+}
+
+// ---------------------------------------------------------------------------
+// Badge preset lookup (M5): JSON cachato in-memory 10 min, fail-open.
+// ---------------------------------------------------------------------------
+
+const PRESET_JSON_TTL_MS = 10 * 60 * 1000
+const PRESET_JSON_CACHE_MAX = 200
+const presetJsonCache = new Map<string, { preset: BadgePreset; expires: number }>()
+
+/**
+ * Risolve un preset per il render poster. I pubblici rendono per chiunque,
+ * i privati solo nel namespace del proprietario. Qualsiasi fallimento
+ * (assente, invalido, KV irraggiungibile) → null: il chiamante degrada sullo
+ * stile standard, mai 500. La revision attesa (`prv` dall'URL) invalida
+ * subito la cache dopo una modifica del preset.
+ */
+export async function getPresetForPoster(
+  id: string | null | undefined,
+  expectedRev: string | null | undefined,
+  userUuid: string | null | undefined,
+): Promise<BadgePreset | null> {
+  if (!id) return null
+  const now = Date.now()
+  const hit = presetJsonCache.get(id)
+  if (hit && hit.expires > now && (!expectedRev || hit.preset.revision === expectedRev)) {
+    return hit.preset
+  }
+  try {
+    const stored = await getPresetForUser(id, userUuid ?? "")
+    if (!stored) {
+      presetJsonCache.delete(id)
+      return null
+    }
+    presetJsonCache.set(id, { preset: stored.preset, expires: now + PRESET_JSON_TTL_MS })
+    if (presetJsonCache.size > PRESET_JSON_CACHE_MAX) {
+      const oldest = presetJsonCache.keys().next().value
+      if (oldest !== undefined) presetJsonCache.delete(oldest)
+    }
+    return stored.preset
+  } catch {
+    // Store in panne (KV irraggiungibile, file corrotto): fail-open, il
+    // chiamante degrada sullo stile standard e il poster resta 200.
+    presetJsonCache.delete(id)
+    return null
+  }
+}
+
+/** Solo test: svuota la cache JSON dei preset. */
+export function __resetPresetJsonCacheForTests(): void {
+  presetJsonCache.clear()
 }
 
 const NETWORKS_DIR_COMBINED = path.join(process.cwd(), "public", "networks")
@@ -619,6 +686,10 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
     logoScrimDisabled,
     logoAlign,
     shape,
+    imdbId,
+    badgePresetId,
+    badgePresetRev,
+    badgePresetUser,
   } = input
 
   // Il badge genere in basso segue la luce del fondo, non del top (su poster
@@ -915,7 +986,7 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
   // Placca staccata: solo gli stili centrati (il nastro resta ancorato)
   // con offset Y esplicito arrotondano tutti e 4 gli angoli. Calcolato qui
   // (non nel layout sotto) perché entra nella chiave cache: il bitmap cambia.
-  const isRankNetflixRibbonStyle = rankingBadgeStyle === "netflix" && topBadge?.type === "rank"
+  const isRankNetflixRibbonStyle = isRibbonRankingStyle(rankingBadgeStyle) && topBadge?.type === "rank"
   const isRankDetached = !!topBadge && !isRankNetflixRibbonStyle && topBadgeOffsetY !== 0
 
   const genreBadgeKey = hasGenreBadge
@@ -931,14 +1002,41 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
     ? badgeCacheKey("comingsoon", comingSoonLabel, CW, topLight, ribbonSide)
     : null
 
-  const [genreBadgeResult, rankBadgeResult, qualityBadgeResult, comingSoonResult] = await Promise.all([
+  // Badge preset custom (?badgePreset=<id>&prv=<rev>): il design sostituisce
+  // il bitmap dello slot corrispondente, preservando layout/posizioni/scale
+  // esistenti. Il preset segue i master toggle dello slot (badgesEnabled /
+  // rankingEnabled) ma non richiede valori computati; assente, privato
+  // altrui o con testo vuoto → fallback silenzioso sullo stile standard.
+  const presetForPoster = await getPresetForPoster(badgePresetId, badgePresetRev, badgePresetUser)
+  const presetVarCtx: BadgeVariableContext = {
+    rating: voteAverage ? voteAverage.toFixed(1) : null,
+    year: year ?? null,
+    genre: genreName,
+    rank: finalRank ?? animeRankResult ?? null,
+    imdb: imdbId ?? null,
+    tmdb: input.tmdbId != null ? String(input.tmdbId) : null,
+  }
+  const useGenrePreset = !!presetForPoster && presetForPoster.target === "genre" && badgesEnabled
+  const useTopPreset = !!presetForPoster && presetForPoster.target === "top" && rankingEnabled && !showComingSoon
+  const genrePresetKey = useGenrePreset && presetForPoster
+    ? badgeCacheKey("preset-genre", presetForPoster.id, presetForPoster.revision, badgePw, voteAverage, year, genreName, finalRank)
+    : null
+  const topPresetKey = useTopPreset && presetForPoster
+    ? badgeCacheKey("preset-top", presetForPoster.id, presetForPoster.revision, topBadgePw, voteAverage, year, genreName, finalRank)
+    : null
+
+  // Render standard esternalizzati per il fallback: se il preset risolve un
+  // testo vuoto (es. {{rank}} senza rank), si degrada sullo stile
+  // preesistente invece di lasciare lo slot vuoto.
+  const renderStandardGenre = async (): Promise<{ png: Buffer; w: number; h: number } | null> =>
     genreBadgeKey
       ? (cacheGet<{ png: Buffer; w: number; h: number }>(genreBadgeKey)
           || coalesceBadgeRender(genreBadgeKey, () =>
                 renderGenreBadge(genreName ?? "", voteAverage ?? 0, badgePw, year, badgeStyle, accentColorGenre, bottomLight, { showGenre: badgeGenre, showYear: badgeYear, showRating: badgeRating }, badgeStyle === "bar" ? genreBadgeScale : 100)
                 .then((r) => { if (r) cacheSet(genreBadgeKey, r, ["badge"], BADGE_CACHE_TTL); return r })
             ))
-      : Promise.resolve(null),
+      : Promise.resolve(null)
+  const renderStandardRank = async (): Promise<{ png: Buffer; w: number; h: number; isRank?: boolean } | null> =>
     rankBadgeKey
       ? (cacheGet<{ png: Buffer; w: number; h: number; isRank?: boolean }>(rankBadgeKey)
           || coalesceBadgeRender(rankBadgeKey, () => {
@@ -946,10 +1044,55 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
                 return renderExtraBadge(topBadge!.label, topBadgePw, topLight, rankingBadgeStyle, accentColorRank, isRankDetached)
                   .then((r) => { const v = { ...r, isRank: false }; cacheSet(rankBadgeKey, v, ["badge"], BADGE_CACHE_TTL); return v })
               }
-              return renderRankingBadge((topBadge as { rank: number }).rank, rankingBadgeStyle === "netflix" ? badgePw : topBadgePw, topBadge!.label, topLight, rankingBadgeStyle, accentColorRank, ribbonSide, isAnimeRank, isRankDetached)
+              return renderRankingBadge((topBadge as { rank: number }).rank, isRibbonRankingStyle(rankingBadgeStyle) ? badgePw : topBadgePw, topBadge!.label, topLight, rankingBadgeStyle, accentColorRank, ribbonSide, isAnimeRank, isRankDetached)
                 .then((r) => { const v = { ...r, isRank: true }; cacheSet(rankBadgeKey, v, ["badge"], BADGE_CACHE_TTL); return v })
             }))
-      : Promise.resolve(null),
+      : Promise.resolve(null)
+  const renderPresetGenre = async (): Promise<{ png: Buffer; w: number; h: number } | null> =>
+    genrePresetKey && presetForPoster
+      ? (cacheGet<{ png: Buffer; w: number; h: number }>(genrePresetKey)
+          || coalesceBadgeRender(genrePresetKey, () =>
+                (presetForPoster.variant === "house"
+                  ? buildHousePresetBadgeSVG(presetForPoster, presetVarCtx, badgePw, {
+                      topLight,
+                      bottomLight,
+                      accentColor: accentColorGenre,
+                    })
+                  : buildCustomPresetBadgeSVG(presetForPoster, presetVarCtx, badgePw)
+                )
+                .then((r) => { if (r) cacheSet(genrePresetKey, r, ["badge"], BADGE_CACHE_TTL); return r })
+            ))
+      : Promise.resolve(null)
+  const renderPresetTop = async (): Promise<{ png: Buffer; w: number; h: number; isRank?: boolean } | null> =>
+    topPresetKey && presetForPoster
+      ? (cacheGet<{ png: Buffer; w: number; h: number; isRank?: boolean }>(topPresetKey)
+          || coalesceBadgeRender(topPresetKey, () =>
+                (presetForPoster.variant === "house"
+                  ? buildHousePresetBadgeSVG(presetForPoster, presetVarCtx, topBadgePw, {
+                      topLight,
+                      bottomLight,
+                      accentColor: accentColorRank,
+                      side:
+                        isRibbonRankingStyle(presetForPoster.house?.style) && presetForPoster.house?.side
+                          ? presetForPoster.house.side
+                          : ribbonSide === "right"
+                            ? "right"
+                            : "left",
+                      isAnime: isAnimeRank,
+                    })
+                  : buildCustomPresetBadgeSVG(presetForPoster, presetVarCtx, topBadgePw)
+                )
+                .then((r) => { const v = r ? { ...r, isRank: false } : null; if (v) cacheSet(topPresetKey, v, ["badge"], BADGE_CACHE_TTL); return v })
+            ))
+      : Promise.resolve(null)
+
+  const [genreBadgeResult, rankBadgeResult, qualityBadgeResult, comingSoonResult] = await Promise.all([
+    useGenrePreset && presetForPoster
+      ? renderPresetGenre().then((r) => r ?? renderStandardGenre())
+      : renderStandardGenre(),
+    useTopPreset && presetForPoster
+      ? renderPresetTop().then((r) => r ?? renderStandardRank())
+      : renderStandardRank(),
     qualityBadgeKey
       ? (cacheGet<{ png: Buffer; w: number; h: number }>(qualityBadgeKey)
           || coalesceBadgeRender(qualityBadgeKey, () =>
@@ -998,7 +1141,7 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
             : rankBadgeResult
         })()
       : Promise.resolve(null),
-    genreBadgeResult && genreBadgeScale !== 100 && badgeStyle !== "bar"
+    genreBadgeResult && genreBadgeScale !== 100 && (badgeStyle !== "bar" || useGenrePreset)
       ? scaleBitmapForLayout(genreBadgeResult, genreBadgeScale)
       : Promise.resolve(genreBadgeResult),
     qualityBadgeResult && qualityBadgeScale !== 100
@@ -1066,6 +1209,16 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
     }
   }
   const isRightRibbon = ribbonSide === "right"
+  // Nastro preset: lato effettivo (house side vince sul mapping; custom segue
+  // il mapping). Serve sopra (ancoraggio) e sotto (qualità a sinistra).
+  const presetIsRibbon = !!useTopPreset && !!presetForPoster && (presetForPoster.design?.shape === "ribbon" || (presetForPoster.variant === "house" && isRibbonRankingStyle(presetForPoster.house?.style)))
+  const presetRibbonRight =
+    presetIsRibbon &&
+    (presetForPoster?.variant === "house" &&
+    isRibbonRankingStyle(presetForPoster.house?.style) &&
+    presetForPoster.house?.side
+      ? presetForPoster.house.side === "right"
+      : isRightRibbon)
   let finalRankBadge = safeRankBadgeResult as { png: Buffer; w: number; h: number } | null
   let finalRankLeft: number | null = null
   let finalRankTop = 0
@@ -1073,8 +1226,10 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
     // Il nastro Netflix è ancorato a sinistra SOLO quando il badge è davvero un
     // ranking "netflix" (type rank). Un badge personalizzato/extra va SEMPRE
     // centrato, anche se lo stile selezionato è "netflix": altrimenti esce
-    // decentrato a sinistra.
-    const isNetflixRibbon = rankingBadgeStyle === "netflix" && topBadge?.type === "rank"
+    // decentrato a sinistra. Eccezione: un preset top ribbon/netflix è un
+    // nastro per costruzione e segue l'ancoraggio d'angolo.
+    const isNetflixRibbon =
+      (isRibbonRankingStyle(rankingBadgeStyle) && topBadge?.type === "rank") || presetIsRibbon
     // Offset X/Y solo sui centrati: il nastro resta ancorato (per scelta
     // utente esplicita gli offset non lo toccano).
     const isCentered = !isNetflixRibbon
@@ -1082,8 +1237,8 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
     // in editor). Default a filo top. Solo pill, indipendente dal badge qualità.
     const pillTopGap = rankingBadgeStyle === "pill" ? 10 : 0
     let left: number
-    if (isNetflixRibbon && isRightRibbon) {
-      left = Math.round(CW - safeRankBadgeResult.w) // nastro Netflix a destra (Stremio)
+    if (isNetflixRibbon && (presetIsRibbon ? presetRibbonRight : isRightRibbon)) {
+      left = Math.round(CW - safeRankBadgeResult.w) // nastro a destra (Stremio o side del preset)
     } else if (isNetflixRibbon) {
       left = 0 // nastro Netflix a sinistra (Nuvio, default)
     } else {
@@ -1128,7 +1283,7 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
     if (fittedRaw) {
       let top: number
       let left: number
-      const isNetflixRibbon = rankingBadgeStyle === "netflix" && topBadge?.type === "rank"
+      const isNetflixRibbon = isRibbonRankingStyle(rankingBadgeStyle) && topBadge?.type === "rank"
       const hasComingSoonCorner = showComingSoon && !!ribbonLayout && !!safeComingSoonResult
       const netPadX = Math.round(18 * CW / 380)
       const netPadY = Math.round(18 * CH / 570)
@@ -1228,9 +1383,9 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
   if (safeQualityBadgeResult) {
     const netBaseTop = Math.round(18 * CH / 570)
     const netPadX = Math.round(18 * CW / 380)
-    const isNetflixRight = rankingBadgeStyle === "netflix" && ribbonSide === "right" && topBadge?.type === "rank"
+    const isNetflixRight = isRibbonRankingStyle(rankingBadgeStyle) && ribbonSide === "right" && topBadge?.type === "rank"
     const isComingSoonRight = showComingSoon && ribbonSide === "right" && !!ribbonLayout
-    const isRightRibbonCorner = (isNetflixRight && !!finalRankBadge) || isComingSoonRight
+    const isRightRibbonCorner = (isNetflixRight && !!finalRankBadge) || isComingSoonRight || (presetRibbonRight && !!finalRankBadge)
 
     // Ancoraggio base: top = netBaseTop - 10 + 5 (storia editoriale: era -20).
     // Griglia laterale a box: il respiro del box qualità è uguale a quello del
@@ -1323,7 +1478,7 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
     // farebbe la qualità (stessa condizione del blocco sopra).
     const rightCorner = qualityStackAnchor
       ? qualityStackAnchor.leftCorner
-      : ((rankingBadgeStyle === "netflix" && ribbonSide === "right" && topBadge?.type === "rank" && !!finalRankBadge)
+      : ((isRibbonRankingStyle(rankingBadgeStyle) && ribbonSide === "right" && topBadge?.type === "rank" && !!finalRankBadge)
         || (showComingSoon && ribbonSide === "right" && !!ribbonLayout))
     const stackTop = qualityStackAnchor ? qualityStackAnchor.top + 6 : netBaseTop - 10
     const stackKey = badgeCacheKey("separate", items.map((i) => `${i.id}${i.value}`).join(","), CW, topLight)

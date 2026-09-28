@@ -21,6 +21,7 @@ import { GENRE_FALLBACK } from "./badges"
 import { isRankKey } from "./i18n"
 import { parseRatingSources } from "./ratings"
 import { ANIME_RANK_MAX } from "./badge-priority"
+import { BADGE_PRESET_ID_RE, BADGE_PRESET_REV_RE } from "./badge-preset"
 
 // Env a module level (convenzione del repo: un cambio richiede restart).
 const POSTER_PARAMS_MODE = (envWithFallback("POSTER_PARAMS") || "").toLowerCase().trim()
@@ -102,6 +103,7 @@ export const POSTER_CACHE_ALLOWLIST: ReadonlySet<string> = new Set([
   "pre", "side", "hideLogo", "tint", "be", "preview", "u", "user",
   "config", "c", "api_key", "mdblist_key", "simkl_key", "tvdb_key",
   "region", "country", "logoFit", "debug",
+  "badgePreset", "prv",
 ])
 
 // Numerici 0-100 (gradienti/blur/tinta/fade/ombra-alta) e offset px: step 5.
@@ -237,5 +239,22 @@ export function hardenPosterSearchParams(
   if (!params.get("poster")) {
     for (const key of DERIVED_HINT_PARAMS) params.delete(key)
   }
+
+  if (params.has("badgePreset")) {
+    const bp = params.get("badgePreset")
+    if (!bp || !BADGE_PRESET_ID_RE.test(bp)) {
+      params.delete("badgePreset")
+      params.delete("prv")
+    }
+  } else {
+    params.delete("prv")
+  }
+  if (params.has("prv")) {
+    const prv = params.get("prv")
+    if (!prv || !BADGE_PRESET_REV_RE.test(prv)) {
+      params.delete("prv")
+    }
+  }
+
   return params
 }

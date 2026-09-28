@@ -46,6 +46,7 @@ const limits: Record<string, BucketConfig> = {
   poster:  { maxTokens: POSTER_MAX_TOKENS, refillRate: 20, refillWindow: 1000 },
   search:  { maxTokens: 30,  refillRate: 3,  refillWindow: 1000 },
   mappings: { maxTokens: 120, refillRate: 10, refillWindow: 1000 },
+  presets:  { maxTokens: 120, refillRate: 10, refillWindow: 1000 },
   catalog:  { maxTokens: 60,  refillRate: 5,  refillWindow: 1000 },
   // Warmup: operazione pesante (rende molti poster) — burst basso e refill lento
   // per evitare che chiunque (istanza pubblica) possa triggerare carico.

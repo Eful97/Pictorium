@@ -120,6 +120,8 @@ export function buildStremioPosterUrl(input: BuildStremioPosterUrlInput): URL {
     // formato invariato). Assente negli URL legacy = default del server.
     topShade: mapping?.topShade ?? input.defaults.topShade ?? 50,
     customBadge,
+    badgePresetId: mapping?.badgePresetId,
+    badgePresetRev: mapping?.badgePresetRev,
     title: mapping?.title ?? undefined,
     networkLogo: (input.defaults.networkLogo !== false) && (mapping?.networkLogo !== false),
     preRelease: input.defaults.preRelease,

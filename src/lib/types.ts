@@ -106,6 +106,8 @@ export interface Mapping {
   badgeLabel?: string | null
   animeRank?: number | null
   customBadge?: string | null
+  badgePresetId?: string | null
+  badgePresetRev?: string | null
   releaseDate?: string | null
   firstAirDate?: string | null
   rankingBadges?: boolean | null

@@ -12,6 +12,7 @@ import type { SearchResult, TMDBImage } from "./types"
 import type { EnrichedAnimeItem } from "./validation"
 import type { BadgeStyle, RankingBadgeStyle } from "./badge-styles"
 import type { PosterShape } from "./types"
+import { BADGE_PRESET_ID_RE, BADGE_PRESET_REV_RE } from "./badge-preset"
 
 interface BadgeParams {
   globalBadges: boolean
@@ -29,6 +30,8 @@ interface BadgeParams {
   /** Colonna rating separati. Emessa sempre esplicita in preview (`sep=0/1`, WYSIWYG). */
   separateRatings?: boolean
   customBadge: string | null
+  badgePresetId?: string | null
+  badgePresetRev?: string | null
   gradientHeight: number
   blurIntensity: number
   blurFade: number
@@ -308,6 +311,12 @@ export function buildPreviewUrl(ps: PosterState, bp: BadgeParams): string {
   } else if (bp.customBadge) {
     const badgeParams = computeBadgeParams(ps, bp)
     params.push(...badgeParams)
+  }
+  if (bp.badgePresetId && BADGE_PRESET_ID_RE.test(bp.badgePresetId)) {
+    params.push(`badgePreset=${encodeURIComponent(bp.badgePresetId)}`)
+    if (bp.badgePresetRev && BADGE_PRESET_REV_RE.test(bp.badgePresetRev)) {
+      params.push(`prv=${encodeURIComponent(bp.badgePresetRev)}`)
+    }
   }
   params.push("preview=1")
   const qs = "?" + params.join("&")

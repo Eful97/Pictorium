@@ -2,6 +2,7 @@ import { POSTER_URL_VERSION } from "@/lib/render-version"
 import type { BadgeStyle, RankingBadgeStyle } from "@/lib/badge-styles"
 import { parseMinQuality, type StreamQuality } from "@/lib/quality-tiers"
 import { parseSashOrder, isDefaultSashOrder, type SashBucket } from "@/lib/badge-priority"
+import { BADGE_PRESET_ID_RE, BADGE_PRESET_REV_RE } from "@/lib/badge-preset"
 import type { PosterShape } from "@/lib/types"
 
 export interface StremioPosterParamsInput {
@@ -85,6 +86,8 @@ export interface StremioPosterParamsInput {
   /** Titolo per-titolo (dal mapping): match JustWatch per rilevamento
    *  pre-digitale e qualità. Senza, il server ripiega su valori generici. */
   readonly title?: string | null
+  readonly badgePresetId?: string | null
+  readonly badgePresetRev?: string | null
   readonly config?: string | null
   readonly user?: string | null
   readonly region?: string | null
@@ -195,6 +198,12 @@ export function buildStremioPosterSearchParams(input: StremioPosterParamsInput):
     if (parsed) params.set("sash", parsed.join(","))
   }
   if (input.customBadge) params.set("extra", input.customBadge)
+  if (input.badgePresetId && BADGE_PRESET_ID_RE.test(input.badgePresetId)) {
+    params.set("badgePreset", input.badgePresetId)
+    if (input.badgePresetRev && BADGE_PRESET_REV_RE.test(input.badgePresetRev)) {
+      params.set("prv", input.badgePresetRev)
+    }
+  }
   if (input.title) params.set("title", input.title)
   if (!networkLogo) params.set("netLogo", "0")
   if (input.preRelease) params.set("pre", "1")

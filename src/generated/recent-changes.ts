@@ -11,12 +11,5 @@ export interface RecentChange {
 }
 
 export const RECENT_CHANGES: RecentChange[] = [
-  { type: "feature", text: "smoother poster gradients with top shade and Stremio preview warning", sha: "b75907d", date: "2026-09-27" },
-  { type: "fix", text: "Normalize raw compound TV genre names on badges", sha: "53e1d70", date: "2026-09-27" },
-  { type: "feature", text: "Serve WebP posters by default (JPEG on request)", sha: "a1d5a17", date: "2026-09-27" },
-  { type: "perf", text: "Optional WebP posters, sharper JPEGs and faster repeat renders", sha: "ead31b8", date: "2026-09-27" },
-  { type: "feature", text: "Linear scrim fade and retuned Colore gradient preset", sha: "46f113d", date: "2026-09-27" },
-  { type: "feature", text: "Curated award lists, date-based badges, gradient presets and sash reorder", sha: "bfab286", date: "2026-09-27" },
-  { type: "feature", text: "Stronger blur in the Colore gradient preset", sha: "b9ff090", date: "2026-09-27" },
-  { type: "fix", text: "Fallback to region language in poster route and proxy modal", sha: "0e81f22", date: "2026-09-27" },
+  { type: "fix", text: "Proxy posters refresh on settings change and install template updates live", sha: "8c1eb7a", date: "2026-09-28" },
 ]

@@ -1,17 +1,11 @@
-import { textColorForBg, isWarmGoldAccent } from "./accent-color"
+import { textColorForBg } from "./accent-color"
 import { FONT_FILES } from "./fonts"
-import { estimateTextWidth, fontFamilyFor, genreBadgeSafePad, genreBadgeSvgDims, genrePillMaxW, GENRE_PILL_PAD_X_FACTOR, buildGenreBarSvg, buildGenrePillSvg, buildGenreTextSvg, buildGenreBorderedSvg, buildGenreGlassSvg, buildRankingDefaultSvg, buildRankingPillSvg, buildRankingGlassSvg, buildRankingBorderedSvg, buildExtraDefaultSvg, buildExtraPillSvg, buildExtraGlassSvg, buildExtraBorderedSvg, buildQualityBadgeSvg, escSvg, satinPillStops } from "./badge-svg-shared"
-import type { GenreParts } from "./badge-svg-shared"
+import { estimateTextWidth, fontFamilyFor, buildExtraPillSvg, buildExtraGlassSvg, buildExtraBorderedSvg, buildExtraDefaultSvg, buildQualityBadgeSvg, buildCustomBadgeSvg, escSvg, buildHouseGenreSvg, buildHouseRankingSvg, buildHousePresetSvg, TRANSLUCENT_BADGE_TEXT } from "./badge-svg-shared"
+export { buildNetflixRankBadgeSVG } from "./badge-svg-shared"
+import type { GenreParts, HousePresetScene } from "./badge-svg-shared"
+import { resolveBadgeText, type BadgeVariableContext } from "./badge-variables"
+import { scaleBadgeDesign, type BadgePreset } from "./badge-preset"
 import type { BadgeStyle, RankingBadgeStyle, ExtraBadgeStyle } from "./badge-styles"
-
-/**
- * Polo chiaro del testo adattivo (l'altro è rgba(0,0,0,0.80)): stesso bianco
- * del badge genere. I badge traslucidi (vetro/bordo) adattano il testo allo
- * sfondo effettivo come la pill opaca della qualità — ma al contrario: il
- * vetro su fondo chiaro è chiaro (testo scuro), sul fondo scuro è trasparente
- * (testo chiaro). Il fumé del bordo non copre abbastanza per un testo fisso.
- */
-const TRANSLUCENT_BADGE_TEXT = "#e5e7eb"
 
 
 // NOTE: i badge risolvono i font via `fontFiles: [...FONT_FILES]` in
@@ -103,90 +97,10 @@ export async function buildGenreBadgeSVG(
   /** Scala % applicata al font solo per lo stile barra (gli altri scalano via bitmap nel service). */
   scale = 100,
 ): Promise<{ png: Buffer; w: number; h: number } | null> {
-  const s = style || "shadow"
+  // Ricetta unica in badge-svg-shared (stessa del Badge Lab): qui solo resvg.
   const voteStr = voteAverage ? voteAverage.toFixed(1) : ""
   const yearStr = year || ""
-
-  // Base 28.6px (+30% scala nativa): resa bilanciata e leggibile, lo slider `gscale` parte da 100.
-  // (La compattezza di pill/colored vive nel padding di buildGenrePillSvg, mai nel font.)
-  let finalFs = 28.6 * pw / 380
-  // Barra full-width: vedi nota in buildExtraBadgeSVG.
-  if (s === "bar") finalFs = (finalFs * scale) / 100
-  const aestheticMaxW = Math.round(pw * 0.86) // 86% per margine estetico
-  const isMinimal = s === "minimal"
-  let dims = genreBadgeSvgDims(finalFs, genreName, voteStr, yearStr, parts, s)
-  let safePad = genreBadgeSafePad(finalFs)
-  // Per shadow e minimal, buildGenreTextSvg aggiunge shadowPad*2 al renderW finale
-  const extraShadowPad = s === "shadow" ? 8 : (isMinimal ? 2 : 0)
-  const estimatedRenderW = dims.totalW + safePad * 2 + extraShadowPad * 2
-  if (estimatedRenderW > aestheticMaxW) {
-    finalFs = Math.max(aestheticMaxW / estimatedRenderW * finalFs, 10)
-    dims = genreBadgeSvgDims(finalFs, genreName, voteStr, yearStr, parts, s)
-    safePad = genreBadgeSafePad(finalFs)
-  }
-
-  const isPillStyle = s === "pill" || s === "colored"
-  if (isPillStyle) {
-    // Cap anti-sprawl sulla larghezza totale della pill (stesso padX del
-    // builder, zero safePad): il bound resta sul totale textContentW + padX*2.
-    // Itera al massimo 3 volte (converge subito).
-    const maxPillW = genrePillMaxW(pw)
-    for (let i = 0; i < 3; i++) {
-      const _padX = Math.round(finalFs * GENRE_PILL_PAD_X_FACTOR)
-      const _dims = genreBadgeSvgDims(finalFs, genreName, voteStr, yearStr, parts)
-      const total = _dims.textContentW + _padX * 2
-      // Margine 4px: il builder arrotonda per eccesso rispetto alla stima.
-      if (total + 4 <= maxPillW) break
-      finalFs = Math.max((maxPillW - 4) / total * finalFs, 10)
-    }
-    dims = genreBadgeSvgDims(finalFs, genreName, voteStr, yearStr, parts)
-    safePad = genreBadgeSafePad(finalFs)
-  }
-  let fs = Math.round(finalFs)
-  const isPill = s === "pill" || s === "colored"
-  const isBar = s === "bar"
-
-  const isTranslucent = s === "vetro" || s === "bordo"
-  const textColor = s === "colored"
-    ? textColorForBg(accentColor || "")
-    : isTranslucent
-      ? (bottomLight ? "rgba(0,0,0,0.80)" : TRANSLUCENT_BADGE_TEXT)
-      : (isPill
-        // Pill satinata: stesso alto contrasto di bar/quality/ranking-default
-        // (su fondo chiaro la pill diventa grafite → testo chiaro).
-        ? (bottomLight ? "rgba(255,255,255,0.95)" : "rgba(0,0,0,0.88)")
-        : TRANSLUCENT_BADGE_TEXT)
-  const bgColor = s === "colored"
-    ? (accentColor && accentColor !== "#555555" ? accentColor : "rgba(255,255,255,0.80)")
-    : (isPill ? "rgba(255,255,255,0.80)" : "rgba(0,0,0,0.80)")
-
-  let result: { svg: string; w: number; h: number }
-  if (s === "bordo") {
-    result = buildGenreBorderedSvg(genreName, voteStr, yearStr, fs, textColor, bottomLight ?? false, 0, parts)
-  } else if (s === "vetro") {
-    result = buildGenreGlassSvg(genreName, voteStr, yearStr, fs, textColor, bottomLight ?? false, 0, parts)
-  } else if (isBar) {
-    // Barra genere: testo ad alto contrasto polarizzato sul fondo (come pill).
-    result = buildGenreBarSvg(genreName, voteStr, yearStr, pw, fs, bottomLight ? "rgba(255,255,255,0.95)" : "rgba(0,0,0,0.88)", !!bottomLight, 0, parts)
-  } else if (isPill) {
-    // colored: tinta piatta (niente satinatura); pill: satinatura polare.
-    // Su accent caldo (oro/ambra) la stella oro annega: fallback in colore testo.
-    const useSatin = s !== "colored"
-    const starFill = s === "colored" && accentColor && isWarmGoldAccent(accentColor) ? textColor : undefined
-    result = buildGenrePillSvg(genreName, voteStr, yearStr, fs, bgColor, textColor, 0, parts, !!bottomLight, useSatin, starFill)
-  } else {
-    result = buildGenreTextSvg(genreName, voteStr, yearStr, fs, textColor, s, 0, parts)
-    // Per shadow, il renderW include shadowPad*2 + safePad*2 aggiuntivi
-    // Assicuriamoci che non superi aestheticMaxW
-    let attempts = 0
-    while (result.w > aestheticMaxW && attempts < 30) {
-      // Riduciamo fs proporzionalmente al surplus
-      const targetFs = Math.max(Math.round(fs * (aestheticMaxW - 16) / result.w), 10)
-      if (targetFs >= fs) { fs = 10 } else { fs = targetFs }
-      result = buildGenreTextSvg(genreName, voteStr, yearStr, fs, textColor, s, 0, parts)
-      attempts++
-    }
-  }
+  const result = buildHouseGenreSvg({ genreName, voteStr, yearStr, pw, style, accentColor, bottomLight, parts, scale })
   const png = await renderSVG(result.svg, result.w)
   return { png, w: result.w, h: result.h }
 }
@@ -203,100 +117,6 @@ export async function renderGenreBadge(
 
 // --- Ranking badge ---
 
-// Testo sotto il numero del nastro Netflix. Per gli anime è l'etichetta fissa
-// "anime" (stessa del passato); per film/serie è l'etichetta del rank (es.
-// "Oggi", "Today") — stesso sistema del badge anime esteso a tutti i rank.
-function netflixSubLabel(isAnime: boolean | undefined, label: string | undefined): string {
-  if (label !== undefined && label !== "") return label
-  return isAnime ? "anime" : ""
-}
-
-export function buildNetflixRankBadgeSVG(rank: number, pw: number, topLight: boolean, side: "left" | "right" = "left", isAnime?: boolean, label?: string) {
-  // Nastro maggiorato (+15% default): fs base 24 → 27.6, w/h proporzionali.
-  const fs = Math.round(Math.max(24 * 1.15 * pw / 380, 16))
-  const w = Math.round(fs * 2.65)
-  // Sottotitolo presente (anime o film/serie con etichetta): nastro allungato
-  // verso il basso (h × 1.65) per dare pieno respiro alla scritta sopra la V.
-  const subLabel = netflixSubLabel(isAnime, label)
-  const hasSub = subLabel.length > 0
-  const h = Math.round(w * (hasSub ? 1.65 : 1.35))
-  const slant = Math.round(w * 0.12)
-  const topFs = Math.round(w * 0.25)
-  const isDoubleDigit = rank >= 10
-  const rankFs = Math.round(w * (isDoubleDigit ? 0.48 : 0.54))
-  const rankLetterSpacing = isDoubleDigit ? "-1" : "0"
-  const padRight = Math.round(fs * 0.4)
-  const padBottom = Math.round(fs * 0.4)
-  const totalW = w + padRight
-  const totalH = h + padBottom
-
-  const ribbonMidX = w / 2
-  const ribbonVNotchY = Math.round(h * 0.90)
-
-  // Sottotitolo sotto il numero: calcolato sulla larghezza reale del trapezio alla base
-  // (w - slant) con margine di sicurezza interno (0.82) per evitare qualsiasi sbordatura.
-  let subFs = Math.round(w * 0.19)
-  if (hasSub) {
-    const maxSubW = Math.round((w - slant) * 0.82)
-    const subW = estimateTextWidth(subLabel, subFs)
-    if (subW > maxSubW) {
-      subFs = Math.max(Math.round(subFs * maxSubW / subW), 8)
-    }
-  }
-
-  // TOP, numero e sottotitolo impilati
-  const topY = hasSub ? Math.round(h * 0.20) : Math.round(h * 0.26)
-  const textGap = hasSub ? Math.round(Math.min(topFs, subFs) * 0.25) : 0
-  const rankY = hasSub
-    ? topY + Math.round(topFs / 2) + textGap + Math.round(rankFs / 2)
-    : Math.round(h * 0.60)
-  const subY = hasSub
-    ? Math.round((rankY + Math.round(rankFs / 2) + ribbonVNotchY) / 2)
-    : 0
-
-  // Nastro satinato traslucido a convenzione "pill" (chiaro su top scuro,
-  // grafite su top chiaro) — testo, ombra singola, highlight e letter-spacing invariati.
-  // Stroke polarizzato come quality/default (scuro su pill chiara, chiaro su pill
-  // scura); il testo resta 0.80 perché ha già il textShadow dedicato.
-  const textColor = topLight ? "rgba(255,255,255,0.80)" : "rgba(0,0,0,0.80)"
-  const ribbonStroke = topLight ? "rgba(0,0,0,0.12)" : "rgba(255,255,255,0.22)"
-
-  // Nastro top-left (side="left", default): ancorato al bordo sinistro del poster,
-  // lato sinistro dritto e destro inclinato. Modalità Stremio (side="right"): nastro
-  // specchiato orizzontalmente, ancorato al bordo destro — lato destro dritto e
-  // sinistro inclinato, con il pad (ombra) spostato a sinistra e ombra che cade a sinistra.
-  const isRight = side === "right"
-  const pathD = isRight
-    ? `M ${totalW} 0 L ${padRight} 0 L ${padRight + slant} ${h} L ${totalW - ribbonMidX} ${ribbonVNotchY} L ${totalW} ${h} Z`
-    : `M 0 0 L ${w} 0 L ${w - slant} ${h} L ${ribbonMidX} ${ribbonVNotchY} L 0 ${h} Z`
-  const highlightX1 = isRight ? padRight : 0
-  const highlightX2 = isRight ? totalW : w
-  const textX = isRight ? totalW - ribbonMidX : ribbonMidX
-  const shadowDx = isRight ? -3 : 3
-
-  const subEl = hasSub
-    ? `<text x="${textX}" y="${subY}" fill="${textColor}" font-family="${fontFamilyFor(subLabel)}" font-weight="700" font-size="${subFs}" text-anchor="middle" dominant-baseline="central" filter="url(#textShadow)">${escSvg(subLabel)}</text>`
-    : ""
-
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${totalW}" height="${totalH}" viewBox="0 0 ${totalW} ${totalH}">
-    <defs>
-      <linearGradient id="nrg" x1="0" y1="0" x2="0" y2="1">${satinPillStops(topLight)}</linearGradient>
-      <filter id="shadow3D" x="-20%" y="-20%" width="180%" height="180%">
-        <feDropShadow dx="${shadowDx}" dy="3" stdDeviation="3.5" flood-color="#000000" flood-opacity="0.65"/>
-      </filter>
-      <filter id="textShadow" x="-30%" y="-30%" width="160%" height="160%">
-        <feDropShadow dx="${shadowDx > 0 ? 0 : -1.5}" dy="1.5" stdDeviation="1" flood-color="#000000" flood-opacity="0.65"/>
-      </filter>
-    </defs>
-    <path d="${pathD}" fill="url(#nrg)" stroke="${ribbonStroke}" stroke-width="1" filter="url(#shadow3D)"/>
-    <line x1="${highlightX1}" y1="1" x2="${highlightX2}" y2="1" stroke="rgba(255,255,255,0.4)" stroke-width="1.2"/>
-    <text x="${textX}" y="${topY}" fill="${textColor}" font-family="Inter" font-weight="800" font-size="${topFs}" text-anchor="middle" dominant-baseline="central" letter-spacing="1" filter="url(#textShadow)">TOP</text>
-    <text x="${textX}" y="${rankY}" fill="${textColor}" font-family="Inter" font-weight="900" font-size="${rankFs}" text-anchor="middle" dominant-baseline="central" letter-spacing="${rankLetterSpacing}" filter="url(#textShadow)">${rank}</text>
-    ${subEl}
-  </svg>`
-  return { svg, w: totalW, h: totalH }
-}
-
 export async function buildRankingBadgeSVG(
   rank: number,
   pw: number,
@@ -309,43 +129,8 @@ export async function buildRankingBadgeSVG(
   /** Placca fluttuante con 4 angoli raccordati (badge staccato dal top via toy). */
   detached = false,
 ): Promise<{ png: Buffer; w: number; h: number } | null> {
-  const s = badgeStyle || "default"
-  const periodText = label || "Oggi"
-  const fullText = `#${rank} ${periodText}`
-  const maxBadgeW = pw - 20
-  // Base 30px: placca visibile in alto, lo slider `topBadgeScale` parte da 100.
-  let finalFs = 30 * pw / 380
-  const projectedW = estimateTextWidth(fullText, finalFs) + Math.round(finalFs * 2) + Math.round(finalFs * 0.6) * 2
-  if (projectedW > maxBadgeW) {
-    finalFs = Math.max(maxBadgeW / projectedW * finalFs, 10)
-  }
-
-  const fs = Math.round(finalFs)
-  const isColored = s === "colored"
-  const isNetflix = s === "netflix"
-  const coloredBg = isColored && accentColor && accentColor !== "#555555" ? accentColor : undefined
-  const bg = coloredBg || (topLight ? "rgba(0,0,0,0.80)" : "rgba(255,255,255,0.80)")
-  const fg = isColored
-    ? textColorForBg(accentColor || "")
-    : (s === "vetro" || s === "bordo")
-      ? (topLight ? "rgba(0,0,0,0.80)" : TRANSLUCENT_BADGE_TEXT)
-      : (topLight ? "rgba(255,255,255,0.95)" : "rgba(0,0,0,0.88)")
-
-  let result: { svg: string; w: number; h: number }
-  if (isNetflix) {
-    // Il nastro mostra l'etichetta sotto il numero: per gli anime è "anime",
-    // per film/serie è il periodo del rank (es. "Oggi") — stesso sistema.
-    result = buildNetflixRankBadgeSVG(rank, pw, !!topLight, side, isAnime, periodText)
-  } else if (s === "pill") {
-    result = buildRankingPillSvg(fullText, fs, fg, bg, !!topLight)
-  } else if (s === "vetro") {
-    result = buildRankingGlassSvg(fullText, fs, fg, bg, !!topLight)
-  } else if (s === "bordo") {
-    result = buildRankingBorderedSvg(fullText, fs, fg, !!topLight)
-  } else {
-    // colored: passa la tinta accent come flatBg (resta piatta); default: gradiente.
-    result = buildRankingDefaultSvg(fullText, fs, fg, bg, !!topLight, isColored ? bg : undefined, detached)
-  }
+  // Ricetta unica in badge-svg-shared (stessa del Badge Lab): qui solo resvg.
+  const result = buildHouseRankingSvg({ rank, label, pw, topLight, style: badgeStyle, accentColor, side, isAnime, detached })
   const png = await renderSVG(result.svg, result.w)
   return { png, w: result.w, h: result.h }
 }
@@ -448,6 +233,46 @@ export async function renderQualityBadge(
   const bg = topLight ? "rgba(0,0,0,0.80)" : "rgba(255,255,255,0.80)"
   const fg = topLight ? "rgba(255,255,255,0.80)" : "rgba(0,0,0,0.80)"
   const result = buildQualityBadgeSvg(quality, fs, fg, bg, !!topLight)
+  const png = await renderSVG(result.svg, result.w)
+  return { png, w: result.w, h: result.h }
+}
+
+// --- Custom preset badge (Badge Lab → poster Stremio: stesso SVG) ---
+
+/**
+ * Rende un preset dichiarativo alla larghezza poster `pw` (fattore pw/380
+ * come gli altri badge: a 380px è identità col preview Lab). Variabili
+ * risolte dal contesto, testo vuoto → null (il chiamante degrada sullo
+ * stile standard, mai 500).
+ */
+export async function buildCustomPresetBadgeSVG(
+  preset: BadgePreset,
+  context: BadgeVariableContext,
+  pw: number,
+): Promise<{ png: Buffer; w: number; h: number } | null> {
+  if (preset.variant !== "custom" || !preset.design) return null
+  const design = scaleBadgeDesign(preset.design, pw / 380)
+  const text = resolveBadgeText(design.text.template, context)
+  if (!text) return null
+  const result = buildCustomBadgeSvg(design, text)
+  const png = await renderSVG(result.svg, result.w)
+  return { png, w: result.w, h: result.h }
+}
+
+/**
+ * Rende un preset house con gli stessi builder dei badge poster (stessa
+ * ricetta, non un'approssimazione). Testo vuoto o rank assente → null (il
+ * chiamante degrada sullo stile standard, mai 500).
+ */
+export async function buildHousePresetBadgeSVG(
+  preset: BadgePreset,
+  context: BadgeVariableContext,
+  pw: number,
+  scene: HousePresetScene,
+): Promise<{ png: Buffer; w: number; h: number } | null> {
+  // Ricetta unica in badge-svg-shared (stessa del Badge Lab): qui solo resvg.
+  const result = buildHousePresetSvg(preset, context, pw, scene)
+  if (!result) return null
   const png = await renderSVG(result.svg, result.w)
   return { png, w: result.w, h: result.h }
 }

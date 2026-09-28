@@ -1,3 +1,8 @@
+import type { BadgeDesign, HouseBadge, PresetLike } from "./badge-preset"
+import type { BadgeStyle, RankingBadgeStyle } from "./badge-styles"
+import { isWarmGoldAccent, textColorForBg } from "./accent-color"
+import { resolveBadgeText, type BadgeVariableContext } from "./badge-variables"
+
 const TEXT_SAFE_PAD = 1.15
 const GENRE_TEXT_MAX_RATIO = 0.84
 const GENRE_PILL_MAX_RATIO = 0.78
@@ -200,7 +205,7 @@ export function buildGenreBarSvg(genreName: string, voteStr: string, yearStr: st
   const defs = `<defs>${STAR_GRADIENT_DEF}<linearGradient id="gbg" x1="0" y1="0" x2="0" y2="1">${satinPillStops(bottomLight)}</linearGradient>${TOP_SHADOW_FILTER}</defs>`
   const textEl = `<g fill="${textColor}">${textParts}</g>`
   const inner = `<path d="${pathD}" fill="url(#gbg)" stroke="${stroke}" stroke-width="1.5" filter="url(#tds)"/>`
-  return { svg: `<svg xmlns="http://www.w3.org/2000/svg" width="${pw}" height="${barH}">${defs}${inner}${textEl}</svg>`, w: pw, h: barH }
+  return { svg: `<svg xmlns="http://www.w3.org/2000/svg" width="${pw}" height="${barH}" viewBox="0 0 ${pw} ${barH}">${defs}${inner}${textEl}</svg>`, w: pw, h: barH }
 }
 
 export function buildGenrePillSvg(
@@ -233,7 +238,7 @@ export function buildGenrePillSvg(
   const fill = useSatin ? "url(#gpg)" : bgColor
   const stroke = topLight ? "rgba(0,0,0,0.12)" : "rgba(255,255,255,0.22)"
   const defs = `<defs>${STAR_GRADIENT_DEF}${gradDef}${TOP_SHADOW_FILTER}</defs>`
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${renderW}" height="${renderH}">${defs}<rect x="${ox}" y="${oy}" width="${pillW}" height="${pillH}" rx="${pillR}" fill="${fill}" stroke="${stroke}" stroke-width="1.5" filter="url(#tds)"/><g fill="${textColor}">${textParts}</g></svg>`
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${renderW}" height="${renderH}" viewBox="0 0 ${renderW} ${renderH}">${defs}<rect x="${ox}" y="${oy}" width="${pillW}" height="${pillH}" rx="${pillR}" fill="${fill}" stroke="${stroke}" stroke-width="1.5" filter="url(#tds)"/><g fill="${textColor}">${textParts}</g></svg>`
   return { svg, w: renderW, h: renderH }
 }
 
@@ -257,7 +262,7 @@ export function buildGenreTextSvg(genreName: string, voteStr: string, yearStr: s
   } else {
     defs += `</defs>`
   }
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${renderW}" height="${renderH}">${defs}<g fill="${textColor}"${filterAttr}>${textParts}</g></svg>`
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${renderW}" height="${renderH}" viewBox="0 0 ${renderW} ${renderH}">${defs}<g fill="${textColor}"${filterAttr}>${textParts}</g></svg>`
   return { svg, w: renderW, h: renderH }
 }
 
@@ -272,7 +277,7 @@ export function buildGenreBorderedSvg(genreName: string, voteStr: string, yearSt
   const bgFill = topLight ? "rgba(0,0,0,0.06)" : "rgba(255,255,255,0.08)"
   const textParts = buildGenreTextFlow({ genreName, voteStr, yearStr, fs, centerX: renderW / 2 + textOffsetX, y: boxH / 2, parts })
   const defs = `<defs>${STAR_GRADIENT_DEF}</defs>`
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${renderW}" height="${boxH}">${defs}<rect x="${borderW / 2}" y="${borderW / 2}" width="${renderW - borderW}" height="${boxH - borderW}" rx="${r}" fill="${bgFill}" stroke="${borderColor}" stroke-width="${borderW}"/><g fill="${textColor}">${textParts}</g></svg>`
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${renderW}" height="${boxH}" viewBox="0 0 ${renderW} ${boxH}">${defs}<rect x="${borderW / 2}" y="${borderW / 2}" width="${renderW - borderW}" height="${boxH - borderW}" rx="${r}" fill="${bgFill}" stroke="${borderColor}" stroke-width="${borderW}"/><g fill="${textColor}">${textParts}</g></svg>`
   return { svg, w: renderW, h: boxH }
 }
 
@@ -285,7 +290,7 @@ export function buildGenreGlassSvg(genreName: string, voteStr: string, yearStr: 
   const stops = glassStops(topLight)
   const borderColor = topLight ? "rgba(0,0,0,0.12)" : "rgba(255,255,255,0.22)"
   const textParts = buildGenreTextFlow({ genreName, voteStr, yearStr, fs, centerX: renderW / 2 + textOffsetX, y: boxH / 2, parts })
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${renderW}" height="${boxH}"><defs>${STAR_GRADIENT_DEF}<linearGradient id="gg" x1="0" y1="0" x2="0" y2="1">${stops}</linearGradient></defs><rect width="${renderW}" height="${boxH}" rx="${r}" fill="url(#gg)" stroke="${borderColor}" stroke-width="1.5"/><g fill="${textColor}">${textParts}</g></svg>`
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${renderW}" height="${boxH}" viewBox="0 0 ${renderW} ${boxH}"><defs>${STAR_GRADIENT_DEF}<linearGradient id="gg" x1="0" y1="0" x2="0" y2="1">${stops}</linearGradient></defs><rect width="${renderW}" height="${boxH}" rx="${r}" fill="url(#gg)" stroke="${borderColor}" stroke-width="1.5"/><g fill="${textColor}">${textParts}</g></svg>`
   return { svg, w: renderW, h: boxH }
 }
 
@@ -352,7 +357,7 @@ export function buildRankingDefaultSvg(fullText: string, fs: number, textColor: 
   const defs = `<defs><linearGradient id="rdg" x1="0" y1="0" x2="0" y2="1">${satinPillStops(topLight)}</linearGradient>${TOP_SHADOW_FILTER}</defs>`
   const textEl = `<text x="${centerX}" y="${centerY}" text-anchor="middle" dominant-baseline="central" font-family="${fontFamilyFor(fullText)}" font-weight="${RANKING_FONT_WEIGHT}" font-size="${fs}" fill="${textColor}"${textFitAttrs(textW)}>${escSvg(fullText)}</text>`
   // colored: tinta accent piatta (contratto storico); default: gradiente satinato.
-  return { svg: `<svg xmlns="http://www.w3.org/2000/svg" width="${renderW}" height="${renderH}">${defs}<path d="${pathD}" fill="${flatBg ?? "url(#rdg)"}" stroke="${stroke}" stroke-width="1.5" filter="url(#tds)"/>${textEl}</svg>`, w: renderW, h: renderH }
+  return { svg: `<svg xmlns="http://www.w3.org/2000/svg" width="${renderW}" height="${renderH}" viewBox="0 0 ${renderW} ${renderH}">${defs}<path d="${pathD}" fill="${flatBg ?? "url(#rdg)"}" stroke="${stroke}" stroke-width="1.5" filter="url(#tds)"/>${textEl}</svg>`, w: renderW, h: renderH }
 }
 
 export function buildRankingPillSvg(fullText: string, fs: number, textColor: string, bg: string, topLight = false, useSatin = true) {
@@ -372,7 +377,7 @@ export function buildRankingPillSvg(fullText: string, fs: number, textColor: str
   const filterAttr = useSatin ? ' filter="url(#tds)"' : ""
   const textEl = `<text x="${ox + totalW / 2}" y="${oy + boxH / 2}" text-anchor="middle" dominant-baseline="central" font-family="${fontFamilyFor(fullText)}" font-weight="700" font-size="${fs}" fill="${textColor}"${textFitAttrs(textW)}>${escSvg(fullText)}</text>`
   const bgEl = `<rect x="${ox}" y="${oy}" width="${totalW}" height="${boxH}" rx="${r}" fill="${fill}" stroke="${stroke}" stroke-width="1.5"${filterAttr}/>`
-  return { svg: `<svg xmlns="http://www.w3.org/2000/svg" width="${renderW}" height="${renderH}">${defs}${bgEl}${textEl}</svg>`, w: renderW, h: renderH }
+  return { svg: `<svg xmlns="http://www.w3.org/2000/svg" width="${renderW}" height="${renderH}" viewBox="0 0 ${renderW} ${renderH}">${defs}${bgEl}${textEl}</svg>`, w: renderW, h: renderH }
 }
 
 export function buildRankingGlassSvg(fullText: string, fs: number, textColor: string, _bg: string, topLight: boolean) {
@@ -386,7 +391,7 @@ export function buildRankingGlassSvg(fullText: string, fs: number, textColor: st
   const textEl = `<text x="${totalW / 2}" y="${boxH / 2}" text-anchor="middle" dominant-baseline="central" font-family="${fontFamilyFor(fullText)}" font-weight="700" font-size="${fs}" fill="${textColor}"${textFitAttrs(textW)}>${escSvg(fullText)}</text>`
   const defs = `<defs><linearGradient id="rg" x1="0" y1="0" x2="0" y2="1">${stops}</linearGradient></defs>`
   const bgEl = `<rect x="0" y="0" width="${totalW}" height="${boxH}" rx="${r}" fill="url(#rg)" stroke="${borderColor}" stroke-width="1.5"/>`
-  return { svg: `<svg xmlns="http://www.w3.org/2000/svg" width="${totalW}" height="${boxH}">${defs}${bgEl}${textEl}</svg>`, w: totalW, h: boxH }
+  return { svg: `<svg xmlns="http://www.w3.org/2000/svg" width="${totalW}" height="${boxH}" viewBox="0 0 ${totalW} ${boxH}">${defs}${bgEl}${textEl}</svg>`, w: totalW, h: boxH }
 }
 
 export function buildRankingBorderedSvg(fullText: string, fs: number, textColor: string, topLight: boolean) {
@@ -400,7 +405,7 @@ export function buildRankingBorderedSvg(fullText: string, fs: number, textColor:
   const bgFill = topLight ? "rgba(0,0,0,0.06)" : "rgba(255,255,255,0.08)"
   const textEl = `<text x="${totalW / 2}" y="${boxH / 2}" text-anchor="middle" dominant-baseline="central" font-family="${fontFamilyFor(fullText)}" font-weight="700" font-size="${fs}" fill="${textColor}"${textFitAttrs(textW)}>${escSvg(fullText)}</text>`
   const bgEl = `<rect x="${borderW / 2}" y="${borderW / 2}" width="${totalW - borderW}" height="${boxH - borderW}" rx="${r}" fill="${bgFill}" stroke="${borderColor}" stroke-width="${borderW}"/>`
-  return { svg: `<svg xmlns="http://www.w3.org/2000/svg" width="${totalW}" height="${boxH}">${bgEl}${textEl}</svg>`, w: totalW, h: boxH }
+  return { svg: `<svg xmlns="http://www.w3.org/2000/svg" width="${totalW}" height="${boxH}" viewBox="0 0 ${totalW} ${boxH}">${bgEl}${textEl}</svg>`, w: totalW, h: boxH }
 }
 
 export function buildExtraDefaultSvg(label: string, fs: number, textColor: string, _bg: string, detached = false, topLight = false, flatBg?: string) {
@@ -426,7 +431,7 @@ export function buildExtraDefaultSvg(label: string, fs: number, textColor: strin
   const defs = `<defs><linearGradient id="edg" x1="0" y1="0" x2="0" y2="1">${satinPillStops(topLight)}</linearGradient>${TOP_SHADOW_FILTER}</defs>`
   const textEl = `<text x="${centerX}" y="${centerY}" text-anchor="middle" dominant-baseline="central" font-family="${fontFamilyFor(label)}" font-weight="700" font-size="${fs}" fill="${textColor}"${textFitAttrs(textW)}>${escSvg(label)}</text>`
   // colored: tinta accent piatta (contratto storico); default: gradiente satinato.
-  return { svg: `<svg xmlns="http://www.w3.org/2000/svg" width="${renderW}" height="${renderH}">${defs}<path d="${pathD}" fill="${flatBg ?? "url(#edg)"}" stroke="${stroke}" stroke-width="1.5" filter="url(#tds)"/>${textEl}</svg>`, w: renderW, h: renderH }
+  return { svg: `<svg xmlns="http://www.w3.org/2000/svg" width="${renderW}" height="${renderH}" viewBox="0 0 ${renderW} ${renderH}">${defs}<path d="${pathD}" fill="${flatBg ?? "url(#edg)"}" stroke="${stroke}" stroke-width="1.5" filter="url(#tds)"/>${textEl}</svg>`, w: renderW, h: renderH }
 }
 
 export function buildExtraPillSvg(label: string, fs: number, textColor: string, bg: string, topLight = false, useSatin = true) {
@@ -446,7 +451,7 @@ export function buildExtraPillSvg(label: string, fs: number, textColor: string, 
   const filterAttr = useSatin ? ' filter="url(#tds)"' : ""
   const textEl = `<text x="${ox + totalW / 2}" y="${oy + boxH / 2}" text-anchor="middle" dominant-baseline="central" font-family="${fontFamilyFor(label)}" font-weight="700" font-size="${fs}" fill="${textColor}"${textFitAttrs(textW)}>${escSvg(label)}</text>`
   const bgEl = `<rect x="${ox}" y="${oy}" width="${totalW}" height="${boxH}" rx="${r}" fill="${fill}" stroke="${stroke}" stroke-width="1.5"${filterAttr}/>`
-  return { svg: `<svg xmlns="http://www.w3.org/2000/svg" width="${renderW}" height="${renderH}">${defs}${bgEl}${textEl}</svg>`, w: renderW, h: renderH }
+  return { svg: `<svg xmlns="http://www.w3.org/2000/svg" width="${renderW}" height="${renderH}" viewBox="0 0 ${renderW} ${renderH}">${defs}${bgEl}${textEl}</svg>`, w: renderW, h: renderH }
 }
 
 export function buildExtraGlassSvg(label: string, fs: number, textColor: string, _bg: string, topLight: boolean) {
@@ -460,7 +465,7 @@ export function buildExtraGlassSvg(label: string, fs: number, textColor: string,
   const textEl = `<text x="${totalW / 2}" y="${boxH / 2}" text-anchor="middle" dominant-baseline="central" font-family="${fontFamilyFor(label)}" font-weight="700" font-size="${fs}" fill="${textColor}"${textFitAttrs(textW)}>${escSvg(label)}</text>`
   const defs = `<defs><linearGradient id="eg" x1="0" y1="0" x2="0" y2="1">${stops}</linearGradient></defs>`
   const bgEl = `<rect x="0" y="0" width="${totalW}" height="${boxH}" rx="${r}" fill="url(#eg)" stroke="${borderColor}" stroke-width="1.5"/>`
-  return { svg: `<svg xmlns="http://www.w3.org/2000/svg" width="${totalW}" height="${boxH}">${defs}${bgEl}${textEl}</svg>`, w: totalW, h: boxH }
+  return { svg: `<svg xmlns="http://www.w3.org/2000/svg" width="${totalW}" height="${boxH}" viewBox="0 0 ${totalW} ${boxH}">${defs}${bgEl}${textEl}</svg>`, w: totalW, h: boxH }
 }
 
 export function buildExtraBorderedSvg(label: string, fs: number, textColor: string, topLight: boolean) {
@@ -474,7 +479,7 @@ export function buildExtraBorderedSvg(label: string, fs: number, textColor: stri
   const bgFill = topLight ? "rgba(0,0,0,0.06)" : "rgba(255,255,255,0.08)"
   const textEl = `<text x="${totalW / 2}" y="${boxH / 2}" text-anchor="middle" dominant-baseline="central" font-family="${fontFamilyFor(label)}" font-weight="700" font-size="${fs}" fill="${textColor}"${textFitAttrs(textW)}>${escSvg(label)}</text>`
   const bgEl = `<rect x="${borderW / 2}" y="${borderW / 2}" width="${totalW - borderW}" height="${boxH - borderW}" rx="${r}" fill="${bgFill}" stroke="${borderColor}" stroke-width="${borderW}"/>`
-  return { svg: `<svg xmlns="http://www.w3.org/2000/svg" width="${totalW}" height="${boxH}">${bgEl}${textEl}</svg>`, w: totalW, h: boxH }
+  return { svg: `<svg xmlns="http://www.w3.org/2000/svg" width="${totalW}" height="${boxH}" viewBox="0 0 ${totalW} ${boxH}">${bgEl}${textEl}</svg>`, w: totalW, h: boxH }
 }
 
 export function buildNetflixRankSvg(rank: number, pw: number) {
@@ -509,6 +514,460 @@ export function buildQualityBadgeSvg(quality: string, fs: number, _textColor: st
   const textEl = `<text x="${ox + totalW / 2}" y="${oy + boxH / 2}" text-anchor="middle" dominant-baseline="central" font-family="${fontFamilyFor(quality)}" font-weight="700" font-size="${fs}" letter-spacing="0.06em" fill="${fg}"${textFitAttrs(textW)}>${escSvg(quality)}</text>`
   const defs = `<defs><linearGradient id="qg" x1="0" y1="0" x2="0" y2="1">${satinPillStops(topLight)}</linearGradient>${TOP_SHADOW_FILTER}</defs>`
   const bgEl = `<rect x="${ox}" y="${oy}" width="${totalW}" height="${boxH}" rx="${r}" fill="url(#qg)" stroke="${stroke}" stroke-width="1.5" filter="url(#tds)"/>`
-  return { svg: `<svg xmlns="http://www.w3.org/2000/svg" width="${renderW}" height="${renderH}">${defs}${bgEl}${textEl}</svg>`, w: renderW, h: renderH }
+  return { svg: `<svg xmlns="http://www.w3.org/2000/svg" width="${renderW}" height="${renderH}" viewBox="0 0 ${renderW} ${renderH}">${defs}${bgEl}${textEl}</svg>`, w: renderW, h: renderH }
+}
+
+// --- Custom preset badges (Badge Lab + poster Stremio: stessa funzione) ---
+
+/** `#RGB/#RRGGBB/#RRGGBBAA` + opacity 0-100 → `rgba(...)` deterministico. */
+export function presetHexToRgba(hex: string, opacityPct: number): string {
+  let h = hex.replace("#", "")
+  if (h.length === 3) h = h[0] + h[0] + h[1] + h[1] + h[2] + h[2]
+  const r = parseInt(h.slice(0, 2), 16)
+  const g = parseInt(h.slice(2, 4), 16)
+  const b = parseInt(h.slice(4, 6), 16)
+  const hexAlpha = h.length === 8 ? parseInt(h.slice(6, 8), 16) / 255 : 1
+  const a = Math.min(Math.max(hexAlpha * (opacityPct / 100), 0), 1)
+  const as = String(Math.round(a * 1000) / 1000)
+  return `rgba(${r},${g},${b},${as})`
+}
+
+function presetGradientAttrs(direction: "horizontal" | "vertical" | "diagonal"): string {
+  if (direction === "horizontal") return `x1="0" y1="0" x2="1" y2="0"`
+  if (direction === "vertical") return `x1="0" y1="0" x2="0" y2="1"`
+  return `x1="0" y1="0" x2="1" y2="1"`
+}
+
+/**
+ * Badge custom dichiarativo: funzione pura (zero I/O), deterministica,
+ * compatibile con DOM browser e resvg. L'editor la esegue live a 0ms, il
+ * server riusa lo stesso SVG prima di `renderSVG` — Golden Rule per costruzione.
+ */
+export function buildCustomBadgeSvg(design: BadgeDesign, resolvedText: string): { svg: string; w: number; h: number } {
+  const k = design.scale / 100
+  const fs = Math.max(1, Math.round(design.text.fontSize * k))
+  const label = (design.text.uppercase ? resolvedText.toUpperCase() : resolvedText).slice(0, 80)
+  const track = Math.round(design.text.letterSpacing * Math.max(label.length - 1, 0))
+  const textW = label ? Math.max(estimateTextWidth(label, fs) + track, Math.round(fs * 0.35)) : 0
+  const padX = Math.round(design.padding.x * k)
+  const padY = Math.round(design.padding.y * k)
+  const autoW = textW + padX * 2
+  const boxW = Math.max(design.width !== undefined ? Math.round(design.width * k) : autoW, autoW, 20)
+  const autoH = fs + padY * 2
+  const boxH = Math.max(design.height !== undefined ? Math.round(design.height * k) : autoH, fs + 4, 16)
+  const r = design.radius !== undefined
+    ? Math.round(design.radius * k)
+    : design.shape === "pill"
+      ? Math.floor(boxH / 2)
+      : design.shape === "squircle"
+        ? Math.round(Math.min(boxW, boxH) * 0.28)
+        : design.shape === "ribbon"
+          ? Math.round(fs * RANKING_DEFAULT_RADIUS_FACTOR)
+          : design.shape === "bordo"
+            ? Math.round(fs * 0.55)
+            : 0
+
+  const bg = design.background
+  const fill = bg.type === "gradient" && bg.gradient
+    ? "url(#cpbg)"
+    : presetHexToRgba(bg.color ?? "#000000", bg.opacity)
+  const gradDef = bg.type === "gradient" && bg.gradient
+    ? `<linearGradient id="cpbg" ${presetGradientAttrs(bg.gradient.direction)}><stop offset="0%" stop-color="${bg.gradient.from}" stop-opacity="${Math.min(Math.max(bg.opacity / 100, 0), 1)}"/><stop offset="100%" stop-color="${bg.gradient.to}" stop-opacity="${Math.min(Math.max(bg.opacity / 100, 0), 1)}"/></linearGradient>`
+    : ""
+
+  const border = design.border
+  const bw = border && border.enabled ? Math.round(border.width * k) : 0
+  const stroke = bw > 0 && border ? presetHexToRgba(border.color, border.opacity) : "none"
+
+  const shadow = design.shadow
+  const shOn = !!shadow && shadow.enabled && (shadow.blur > 0 || shadow.offsetX !== 0 || shadow.offsetY !== 0)
+  const shBlur = shOn ? Math.round(shadow!.blur * k) : 0
+  const shDx = shOn ? Math.round(shadow!.offsetX * k) : 0
+  const shDy = shOn ? Math.round(shadow!.offsetY * k) : 0
+  const shPad = shOn ? Math.round(shBlur + Math.max(Math.abs(shDx), Math.abs(shDy))) + 4 : 0
+  const shadowDef = shOn
+    ? `<filter id="cpbsh" x="-40%" y="-40%" width="180%" height="180%"><feDropShadow dx="${shDx}" dy="${shDy}" stdDeviation="${shBlur}" flood-color="#000000" flood-opacity="${Math.min(Math.max(shadow!.opacity / 100, 0), 1)}"/></filter>`
+    : ""
+  const filterAttr = shOn ? ` filter="url(#cpbsh)"` : ""
+
+  const renderW = boxW + shPad * 2 + (bw > 0 ? 2 : 0)
+  const renderH = boxH + shPad * 2 + (bw > 0 ? 2 : 0)
+  const ox = shPad + (bw > 0 ? 1 : 0)
+  const oy = shPad + (bw > 0 ? 1 : 0)
+  const inset = bw / 2
+  const textX = design.text.align === "left"
+    ? ox + padX + textW / 2
+    : design.text.align === "right"
+      ? ox + boxW - padX - textW / 2
+      : ox + boxW / 2
+  const fg = presetHexToRgba(design.text.color, design.text.opacity)
+  const lsAttr = design.text.letterSpacing !== 0 ? ` letter-spacing="${design.text.letterSpacing}"` : ""
+  const textEl = label
+    ? `<text x="${textX}" y="${oy + boxH / 2}" text-anchor="middle" dominant-baseline="central" font-family="${fontFamilyFor(label)}" font-weight="${design.text.fontWeight}" font-size="${fs}" fill="${fg}"${lsAttr}${textFitAttrs(textW)}>${escSvg(label)}</text>`
+    : ""
+  const defs = gradDef || shadowDef ? `<defs>${gradDef}${shadowDef}</defs>` : ""
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${renderW}" height="${renderH}" viewBox="0 0 ${renderW} ${renderH}">${defs}<rect x="${ox + inset}" y="${oy + inset}" width="${boxW - bw}" height="${boxH - bw}" rx="${Math.max(r - inset, 0)}" fill="${fill}" stroke="${stroke}" stroke-width="${bw}"${filterAttr}/>${textEl}</svg>`
+  return { svg, w: renderW, h: renderH }
+}
+
+// --- House badge dispatch (single source of truth) ---------------------------
+// Pure SVG builders for the real poster styles. The server selectors in
+// svg-badge.ts delegate here (plus resvg); the Badge Lab calls the same
+// functions in the browser — Lab preview and Stremio poster cannot diverge.
+
+/**
+ * Testo adattivo dei badge traslucidi (vetro/bordo): stesso bianco del badge
+ * genere (vedi nota in svg-badge.ts).
+ */
+export const TRANSLUCENT_BADGE_TEXT = "#e5e7eb"
+
+export interface HouseGenreInput {
+  readonly genreName: string
+  readonly voteStr: string
+  readonly yearStr: string
+  readonly pw: number
+  readonly style?: BadgeStyle
+  readonly accentColor?: string
+  readonly bottomLight?: boolean
+  readonly parts?: GenreParts
+  /** Scala % applicata al font solo per lo stile barra (gli altri scalano via bitmap nel service). */
+  readonly scale?: number
+  /** Dimensione font assoluta (px su griglia 380; senza = base 28.6 della ricetta). */
+  readonly fontSize?: number
+  /** Fill testo esplicito (rgba già risolto; senza = adattivo della ricetta). */
+  readonly textColor?: string
+}
+
+export function buildHouseGenreSvg(input: HouseGenreInput): { svg: string; w: number; h: number } {
+  const { genreName, voteStr, yearStr, pw, accentColor, parts } = input
+  const s = input.style || "shadow"
+  const scale = input.scale ?? 100
+  const bottomLight = input.bottomLight
+  // Base 28.6px (+30% scala nativa): resa bilanciata e leggibile, lo slider `gscale` parte da 100.
+  // (La compattezza di pill/colored vive nel padding di buildGenrePillSvg, mai nel font.)
+  let finalFs = (input.fontSize ?? 28.6) * pw / 380
+  // Barra full-width: vedi nota in buildExtraBadgeSVG.
+  if (s === "bar") finalFs = (finalFs * scale) / 100
+  const aestheticMaxW = Math.round(pw * 0.86) // 86% per margine estetico
+  const isMinimal = s === "minimal"
+  let dims = genreBadgeSvgDims(finalFs, genreName, voteStr, yearStr, parts, s)
+  let safePad = genreBadgeSafePad(finalFs)
+  // Per shadow e minimal, buildGenreTextSvg aggiunge shadowPad*2 al renderW finale
+  const extraShadowPad = s === "shadow" ? 8 : (isMinimal ? 2 : 0)
+  const estimatedRenderW = dims.totalW + safePad * 2 + extraShadowPad * 2
+  if (estimatedRenderW > aestheticMaxW) {
+    finalFs = Math.max(aestheticMaxW / estimatedRenderW * finalFs, 10)
+    dims = genreBadgeSvgDims(finalFs, genreName, voteStr, yearStr, parts, s)
+    safePad = genreBadgeSafePad(finalFs)
+  }
+
+  const isPillStyle = s === "pill" || s === "colored"
+  if (isPillStyle) {
+    // Cap anti-sprawl sulla larghezza totale della pill (stesso padX del
+    // builder, zero safePad): il bound resta sul totale textContentW + padX*2.
+    // Itera al massimo 3 volte (converge subito).
+    const maxPillW = genrePillMaxW(pw)
+    for (let i = 0; i < 3; i++) {
+      const _padX = Math.round(finalFs * GENRE_PILL_PAD_X_FACTOR)
+      const _dims = genreBadgeSvgDims(finalFs, genreName, voteStr, yearStr, parts)
+      const total = _dims.textContentW + _padX * 2
+      // Margine 4px: il builder arrotonda per eccesso rispetto alla stima.
+      if (total + 4 <= maxPillW) break
+      finalFs = Math.max((maxPillW - 4) / total * finalFs, 10)
+    }
+    dims = genreBadgeSvgDims(finalFs, genreName, voteStr, yearStr, parts)
+    safePad = genreBadgeSafePad(finalFs)
+  }
+  let fs = Math.round(finalFs)
+  const isPill = s === "pill" || s === "colored"
+  const isBar = s === "bar"
+
+  const isTranslucent = s === "vetro" || s === "bordo"
+  const recipeText = s === "colored"
+    ? textColorForBg(accentColor || "")
+    : isTranslucent
+      ? (bottomLight ? "rgba(0,0,0,0.80)" : TRANSLUCENT_BADGE_TEXT)
+      : (isPill
+        // Pill satinata: stesso alto contrasto di bar/quality/ranking-default
+        // (su fondo chiaro la pill diventa grafite → testo chiaro).
+        ? (bottomLight ? "rgba(255,255,255,0.95)" : "rgba(0,0,0,0.88)")
+        : TRANSLUCENT_BADGE_TEXT)
+  const textColor = input.textColor ?? recipeText
+  const bgColor = s === "colored"
+    ? (accentColor && accentColor !== "#555555" ? accentColor : "rgba(255,255,255,0.80)")
+    : (isPill ? "rgba(255,255,255,0.80)" : "rgba(0,0,0,0.80)")
+
+  let result: { svg: string; w: number; h: number }
+  if (s === "bordo") {
+    result = buildGenreBorderedSvg(genreName, voteStr, yearStr, fs, textColor, bottomLight ?? false, 0, parts)
+  } else if (s === "vetro") {
+    result = buildGenreGlassSvg(genreName, voteStr, yearStr, fs, textColor, bottomLight ?? false, 0, parts)
+  } else if (isBar) {
+    // Barra genere: testo ad alto contrasto polarizzato sul fondo (come pill).
+    result = buildGenreBarSvg(genreName, voteStr, yearStr, pw, fs, bottomLight ? "rgba(255,255,255,0.95)" : "rgba(0,0,0,0.88)", !!bottomLight, 0, parts)
+  } else if (isPill) {
+    // colored: tinta piatta (niente satinatura); pill: satinatura polare.
+    // Su accent caldo (oro/ambra) la stella oro annega: fallback in colore testo.
+    const useSatin = s !== "colored"
+    const starFill = s === "colored" && accentColor && isWarmGoldAccent(accentColor) ? textColor : undefined
+    result = buildGenrePillSvg(genreName, voteStr, yearStr, fs, bgColor, textColor, 0, parts, !!bottomLight, useSatin, starFill)
+  } else {
+    result = buildGenreTextSvg(genreName, voteStr, yearStr, fs, textColor, s, 0, parts)
+    // Per shadow, il renderW include shadowPad*2 + safePad*2 aggiuntivi
+    // Assicuriamoci che non superi aestheticMaxW
+    let attempts = 0
+    while (result.w > aestheticMaxW && attempts < 30) {
+      // Riduciamo fs proporzionalmente al surplus
+      const targetFs = Math.max(Math.round(fs * (aestheticMaxW - 16) / result.w), 10)
+      if (targetFs >= fs) { fs = 10 } else { fs = targetFs }
+      result = buildGenreTextSvg(genreName, voteStr, yearStr, fs, textColor, s, 0, parts)
+      attempts++
+    }
+  }
+  return result
+}
+
+// Testo sotto il numero del nastro Netflix. Per gli anime è l'etichetta fissa
+// "anime" (stessa del passato); per film/serie è l'etichetta del rank (es.
+// "Oggi", "Today") — stesso sistema del badge anime esteso a tutti i rank.
+function netflixSubLabel(isAnime: boolean | undefined, label: string | undefined): string {
+  if (label !== undefined && label !== "") return label
+  return isAnime ? "anime" : ""
+}
+
+export function buildNetflixRankBadgeSVG(rank: number, pw: number, topLight: boolean, side: "left" | "right" = "left", isAnime?: boolean, label?: string, accentColor?: string, opts?: { fontSize?: number; textColor?: string }) {
+  // Nastro maggiorato (+15% default): fs base 24 → 27.6, w/h proporzionali.
+  // fontSize override assoluto (px su griglia 380, dai preset house).
+  const fs = opts?.fontSize !== undefined
+    ? Math.max(Math.round(opts.fontSize * pw / 380), 8)
+    : Math.round(Math.max(24 * 1.15 * pw / 380, 16))
+  const w = Math.round(fs * 2.65)
+  // Sottotitolo presente (anime o film/serie con etichetta): nastro allungato
+  // verso il basso (h × 1.65) per dare pieno respiro alla scritta sopra la V.
+  const subLabel = netflixSubLabel(isAnime, label)
+  const hasSub = subLabel.length > 0
+  const h = Math.round(w * (hasSub ? 1.65 : 1.35))
+  const slant = Math.round(w * 0.12)
+  const topFs = Math.round(w * 0.25)
+  const isDoubleDigit = rank >= 10
+  const rankFs = Math.round(w * (isDoubleDigit ? 0.48 : 0.54))
+  const rankLetterSpacing = isDoubleDigit ? "-1" : "0"
+  const padRight = Math.round(fs * 0.4)
+  const padBottom = Math.round(fs * 0.4)
+  const totalW = w + padRight
+  const totalH = h + padBottom
+
+  const ribbonMidX = w / 2
+  const ribbonVNotchY = Math.round(h * 0.90)
+
+  // Sottotitolo sotto il numero: calcolato sulla larghezza reale del trapezio alla base
+  // (w - slant) con margine di sicurezza interno (0.82) per evitare qualsiasi sbordatura.
+  let subFs = Math.round(w * 0.19)
+  if (hasSub) {
+    const maxSubW = Math.round((w - slant) * 0.82)
+    const subW = estimateTextWidth(subLabel, subFs)
+    if (subW > maxSubW) {
+      subFs = Math.max(Math.round(subFs * maxSubW / subW), 8)
+    }
+  }
+
+  // TOP, numero e sottotitolo impilati
+  const topY = hasSub ? Math.round(h * 0.20) : Math.round(h * 0.26)
+  const textGap = hasSub ? Math.round(Math.min(topFs, subFs) * 0.25) : 0
+  const rankY = hasSub
+    ? topY + Math.round(topFs / 2) + textGap + Math.round(rankFs / 2)
+    : Math.round(h * 0.60)
+  const subY = hasSub
+    ? Math.round((rankY + Math.round(rankFs / 2) + ribbonVNotchY) / 2)
+    : 0
+
+  const isColored = !!(accentColor && accentColor !== "#555555")
+  const fill = isColored ? accentColor : "url(#nrg)"
+  const recipeText = isColored
+    ? textColorForBg(accentColor)
+    : (topLight ? "rgba(255,255,255,0.80)" : "rgba(0,0,0,0.80)")
+  const textColor = opts?.textColor ?? recipeText
+  const ribbonStroke = isColored
+    ? (textColor === "#ffffff" ? "rgba(255,255,255,0.25)" : "rgba(0,0,0,0.18)")
+    : (topLight ? "rgba(0,0,0,0.12)" : "rgba(255,255,255,0.22)")
+  const textFilter = isColored && textColor !== "#ffffff" ? "" : 'filter="url(#textShadow)"'
+
+  // Nastro top-left (side="left", default): ancorato al bordo sinistro del poster,
+  // lato sinistro dritto e destro inclinato. Modalità Stremio (side="right"): nastro
+  // specchiato orizzontalmente, ancorato al bordo destro — lato destro dritto e
+  // sinistro inclinato, con il pad (ombra) spostato a sinistra e ombra che cade a sinistra.
+  const isRight = side === "right"
+  const pathD = isRight
+    ? `M ${totalW} 0 L ${padRight} 0 L ${padRight + slant} ${h} L ${totalW - ribbonMidX} ${ribbonVNotchY} L ${totalW} ${h} Z`
+    : `M 0 0 L ${w} 0 L ${w - slant} ${h} L ${ribbonMidX} ${ribbonVNotchY} L 0 ${h} Z`
+  const highlightX1 = isRight ? padRight : 0
+  const highlightX2 = isRight ? totalW : w
+  const textX = isRight ? totalW - ribbonMidX : ribbonMidX
+  const shadowDx = isRight ? -3 : 3
+
+  const subEl = hasSub
+    ? `<text x="${textX}" y="${subY}" fill="${textColor}" font-family="${fontFamilyFor(subLabel)}" font-weight="700" font-size="${subFs}" text-anchor="middle" dominant-baseline="central"${textFilter ? ` ${textFilter}` : ""}>${escSvg(subLabel)}</text>`
+    : ""
+
+  const gradDef = isColored ? "" : `<linearGradient id="nrg" x1="0" y1="0" x2="0" y2="1">${satinPillStops(topLight)}</linearGradient>`
+
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${totalW}" height="${totalH}" viewBox="0 0 ${totalW} ${totalH}">
+    <defs>
+      ${gradDef}
+      <filter id="shadow3D" x="-20%" y="-20%" width="180%" height="180%">
+        <feDropShadow dx="${shadowDx}" dy="3" stdDeviation="3.5" flood-color="#000000" flood-opacity="0.65"/>
+      </filter>
+      <filter id="textShadow" x="-30%" y="-30%" width="160%" height="160%">
+        <feDropShadow dx="${shadowDx > 0 ? 0 : -1.5}" dy="1.5" stdDeviation="1" flood-color="#000000" flood-opacity="0.65"/>
+      </filter>
+    </defs>
+    <path d="${pathD}" fill="${fill}" stroke="${ribbonStroke}" stroke-width="1" filter="url(#shadow3D)"/>
+    <line x1="${highlightX1}" y1="1" x2="${highlightX2}" y2="1" stroke="rgba(255,255,255,0.4)" stroke-width="1.2"/>
+    <text x="${textX}" y="${topY}" fill="${textColor}" font-family="Inter" font-weight="800" font-size="${topFs}" text-anchor="middle" dominant-baseline="central" letter-spacing="1"${textFilter ? ` ${textFilter}` : ""}>TOP</text>
+    <text x="${textX}" y="${rankY}" fill="${textColor}" font-family="Inter" font-weight="900" font-size="${rankFs}" text-anchor="middle" dominant-baseline="central" letter-spacing="${rankLetterSpacing}"${textFilter ? ` ${textFilter}` : ""}>${rank}</text>
+    ${subEl}
+  </svg>`
+  return { svg, w: totalW, h: totalH }
+}
+
+export interface HouseRankingInput {
+  readonly rank: number
+  readonly label?: string
+  readonly pw: number
+  readonly topLight?: boolean
+  readonly style?: RankingBadgeStyle
+  readonly accentColor?: string
+  readonly side?: "left" | "right"
+  readonly isAnime?: boolean
+  /** Placca fluttuante con 4 angoli raccordati (badge staccato dal top via toy). */
+  readonly detached?: boolean
+  /** Dimensione font assoluta (px su griglia 380; senza = base 30 della ricetta). */
+  readonly fontSize?: number
+  /** Fill testo esplicito (rgba già risolto; senza = adattivo della ricetta). */
+  readonly textColor?: string
+}
+
+export function buildHouseRankingSvg(input: HouseRankingInput): { svg: string; w: number; h: number } {
+  const { rank, pw, topLight, accentColor, side, isAnime } = input
+  const s = input.style || "default"
+  const detached = input.detached ?? false
+  const periodText = input.label || "Oggi"
+  const fullText = `#${rank} ${periodText}`
+  const maxBadgeW = pw - 20
+  // Base 30px: placca visibile in alto, lo slider `topBadgeScale` parte da 100.
+  let finalFs = (input.fontSize ?? 30) * pw / 380
+  const projectedW = estimateTextWidth(fullText, finalFs) + Math.round(finalFs * 2) + Math.round(finalFs * 0.6) * 2
+  if (projectedW > maxBadgeW) {
+    finalFs = Math.max(maxBadgeW / projectedW * finalFs, 10)
+  }
+
+  const fs = Math.round(finalFs)
+  const isColored = s === "colored"
+  const isRibbon = s === "netflix" || isColored
+  const coloredBg = isColored && accentColor && accentColor !== "#555555" ? accentColor : undefined
+  const bg = coloredBg || (topLight ? "rgba(0,0,0,0.80)" : "rgba(255,255,255,0.80)")
+  const recipeFg = isColored
+    ? textColorForBg(accentColor || "")
+    : (s === "vetro" || s === "bordo")
+      ? (topLight ? "rgba(0,0,0,0.80)" : TRANSLUCENT_BADGE_TEXT)
+      : (topLight ? "rgba(255,255,255,0.95)" : "rgba(0,0,0,0.88)")
+  const fg = input.textColor ?? recipeFg
+
+  if (isRibbon) {
+    // Il nastro mostra l'etichetta sotto il numero: per gli anime è "anime",
+    // per film/serie è il periodo del rank (es. "Oggi") — stesso sistema.
+    // Se lo stile è "colored", il nastro prende l'accentColor.
+    const ribbonAccent = isColored ? coloredBg : undefined
+    return buildNetflixRankBadgeSVG(rank, pw, !!topLight, side, isAnime, periodText, ribbonAccent, {
+      fontSize: input.fontSize,
+      textColor: input.textColor,
+    })
+  } else if (s === "pill") {
+    return buildRankingPillSvg(fullText, fs, fg, bg, !!topLight)
+  } else if (s === "vetro") {
+    return buildRankingGlassSvg(fullText, fs, fg, bg, !!topLight)
+  } else if (s === "bordo") {
+    return buildRankingBorderedSvg(fullText, fs, fg, !!topLight)
+  }
+  return buildRankingDefaultSvg(fullText, fs, fg, bg, !!topLight, undefined, detached)
+}
+
+export interface HousePresetScene {
+  readonly topLight: boolean
+  readonly bottomLight: boolean
+  /** Accent esadecimale o null (null = sentinella "nessun accent", come "#555555"). */
+  readonly accentColor: string | null
+  readonly side?: "left" | "right"
+  readonly isAnime?: boolean
+}
+
+/**
+ * Render SVG puro di un preset house con gli stessi builder dei badge poster
+ * (stessa ricetta, non un'approssimazione). Server, route preview.svg e
+ * Badge Lab usano questa unica funzione — Golden Rule per costruzione. La
+ * scala del preset agisce sulla larghezza di lavoro così font e geometria
+ * restano proporzionali; testo vuoto o rank assente → null (fail-open).
+ */
+export function buildHousePresetSvg(
+  preset: PresetLike,
+  context: BadgeVariableContext,
+  pw: number,
+  scene: HousePresetScene,
+): { svg: string; w: number; h: number } | null {
+  const house: HouseBadge | undefined = preset.house
+  if (preset.variant !== "house" || !house) return null
+  const effPw = Math.max(1, (pw * house.scale) / 100)
+  // Override esplicito del preset, altrimenti accent di scena (come il poster).
+  const accent = house.accent ?? scene.accentColor ?? undefined
+  // Override di testo (variabili ammesse): vuoto o irrisolto = dato live.
+  const overrideText = (v: string | undefined): string => {
+    const t = v?.trim()
+    return t ? resolveBadgeText(t, context) : ""
+  }
+  if (preset.target === "genre") {
+    const genreName = overrideText(house.genreText) || context.genre || ""
+    const ratingLive = context.rating
+    const yearLive = context.year
+    const voteStr =
+      overrideText(house.ratingText) ||
+      (ratingLive === null || ratingLive === undefined || ratingLive === "" ? "" : String(ratingLive))
+    const yearStr =
+      overrideText(house.yearText) ||
+      (yearLive === null || yearLive === undefined || yearLive === "" ? "" : String(yearLive))
+    const parts = {
+      showGenre: house.showGenre ?? true,
+      showYear: house.showYear ?? true,
+      showRating: house.showRating ?? true,
+    }
+    if (!((parts.showGenre && genreName) || (parts.showRating && voteStr) || (parts.showYear && yearStr))) {
+      return null
+    }
+    const bottomLight = house.polarity === "auto" ? scene.bottomLight : house.polarity === "light"
+    return buildHouseGenreSvg({
+      genreName,
+      voteStr,
+      yearStr,
+      pw: effPw,
+      style: house.style as BadgeStyle,
+      accentColor: accent,
+      bottomLight,
+      parts,
+      scale: 100,
+    })
+  }
+  const rank = house.rankOverride ?? Number(context.rank)
+  if (!Number.isFinite(rank) || rank <= 0) return null
+  const label = resolveBadgeText(house.label ?? "", context) || "Oggi"
+  const topLight = house.polarity === "auto" ? scene.topLight : house.polarity === "light"
+  return buildHouseRankingSvg({
+    rank,
+    label,
+    pw: effPw,
+    topLight,
+    style: house.style as RankingBadgeStyle,
+    accentColor: accent,
+    side: house.side ?? scene.side ?? "left",
+    isAnime: scene.isAnime,
+  })
 }
 

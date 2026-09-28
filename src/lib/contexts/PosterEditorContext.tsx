@@ -43,6 +43,10 @@ export interface PosterEditorCtx {
   setRankingBadgeStyle: (v: RankingBadgeStyle | ((prev: RankingBadgeStyle) => RankingBadgeStyle)) => void
   customBadge: string | null
   setCustomBadge: (v: string | null | ((prev: string | null) => string | null)) => void
+  badgePresetId: string | null
+  setBadgePresetId: (v: string | null | ((prev: string | null) => string | null)) => void
+  badgePresetRev: string | null
+  setBadgePresetRev: (v: string | null | ((prev: string | null) => string | null)) => void
   networkLogo: boolean
   setNetworkLogo: (v: boolean | ((prev: boolean) => boolean)) => void
   preRelease: boolean
@@ -297,6 +301,8 @@ export function PosterEditorProvider({
 
   // ---- Custom badge ----
   const [customBadge, setCustomBadge] = useState<string | null>(null)
+  const [badgePresetId, setBadgePresetId] = useState<string | null>(null)
+  const [badgePresetRev, setBadgePresetRev] = useState<string | null>(null)
 
   const {
     globalBadges, rankingBadges, networkLogo, preRelease, ribbonSide, posterShape, logoAlign,
@@ -767,6 +773,10 @@ export function PosterEditorProvider({
       setRankingBadgeStyle,
       customBadge,
       setCustomBadge,
+      badgePresetId,
+      setBadgePresetId,
+      badgePresetRev,
+      setBadgePresetRev,
       networkLogo,
       setNetworkLogo,
       preRelease,
@@ -977,6 +987,8 @@ export function PosterEditorProvider({
       badgeStyle, setBadgeStyle,
       rankingBadgeStyle, setRankingBadgeStyle,
       customBadge, setCustomBadge,
+      badgePresetId, setBadgePresetId,
+      badgePresetRev, setBadgePresetRev,
       networkLogo, setNetworkLogo,
       preRelease, setPreRelease,
       ribbonSide, setRibbonSide,
