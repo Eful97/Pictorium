@@ -1,8 +1,9 @@
 import { describe, expect, it } from "vitest"
 import { lookupAVSpecs, isVideoFormat, KNOWN_VIDEO_FORMATS, FORMAT_ICON_PATHS } from "@/lib/av-specs"
-import { renderQualityBadgeGroup } from "@/lib/poster-service"
+import { renderQualityBadgeGroup, renderQualityIconBadge } from "@/lib/poster-service"
 import fs from "node:fs"
 import path from "node:path"
+import sharp from "sharp"
 
 const ROOT = path.resolve(__dirname, "../..")
 
@@ -41,6 +42,28 @@ describe("av-specs lookup", () => {
   })
 })
 
+describe("format icons color adaptation", () => {
+  it("renders format badges in white on dark background and black on light background", async () => {
+    // topLight = false (dark poster) -> icon should be white
+    const darkIcon = await renderQualityIconBadge(FORMAT_ICON_PATHS.dv, 380, false)
+    expect(darkIcon).not.toBeNull()
+    const statsDark = await sharp(darkIcon!.png).stats()
+    // R, G, B channels should reach 255 for white pixels
+    expect(statsDark.channels[0].max).toBe(255)
+    expect(statsDark.channels[1].max).toBe(255)
+    expect(statsDark.channels[2].max).toBe(255)
+
+    // topLight = true (light poster) -> icon should be black
+    const lightIcon = await renderQualityIconBadge(FORMAT_ICON_PATHS.dv, 380, true)
+    expect(lightIcon).not.toBeNull()
+    const statsLight = await sharp(lightIcon!.png).stats()
+    // Non-alpha channels should stay near 0 (pure black icon)
+    expect(statsLight.channels[0].max).toBe(0)
+    expect(statsLight.channels[1].max).toBe(0)
+    expect(statsLight.channels[2].max).toBe(0)
+  })
+})
+
 describe("renderQualityBadgeGroup", () => {
   it("renders single resolution badge when formats list is empty", async () => {
     const single = await renderQualityBadgeGroup("4K", "mono", [], 500, false)
@@ -49,12 +72,14 @@ describe("renderQualityBadgeGroup", () => {
     expect(single?.h).toBe(68) // 40 + 28
   })
 
-  it("renders composite strip with resolution and AV format badges", async () => {
+  it("renders vertical composite column with resolution and AV format badges", async () => {
     const group = await renderQualityBadgeGroup("4K", "mono", ["dv", "atmos"], 500, false)
     expect(group).not.toBeNull()
-    // 4K (49) + gap (8) + DV (64) + gap (8) + ATMOS (64) + 28 pad = ~221
-    expect(group!.w).toBeGreaterThan(150)
-    expect(group!.h).toBe(68)
+    // In vertical layout, width is bounded by the widest badge (~92px)
+    expect(group!.w).toBeLessThan(120)
+    expect(group!.w).toBeGreaterThan(60)
+    // Height stacks 3 badges vertically: 3 * ~40 + gaps + 28 pad = ~160+
+    expect(group!.h).toBeGreaterThan(130)
     expect(group!.png.length).toBeGreaterThan(100)
   })
 })

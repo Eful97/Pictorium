@@ -458,7 +458,7 @@ export async function renderQualityIconBadge(
     if (!src) return null
     const vb = qualityIconViewBox(src)
     if (!vb) return null
-    const isMono = /(^|\/)mono\//.test(iconPath)
+    const isMono = !/(^|\/)color\//.test(iconPath)
     // Stessa base della pill standard (17px su griglia 380): l'icona occupa
     // lo stesso ingombro verticale, qscale/qox/qoy invariati a valle.
     const fs = Math.round(Math.max(17 * pw / 380, 10))
@@ -469,7 +469,7 @@ export async function renderQualityIconBadge(
     const totalW = w + TOP_SHADOW_PAD * 2
     const totalH = h + TOP_SHADOW_PAD * 2
     const innerContent = src.replace(/<svg[^>]*>/, "").replace(/<\/svg>\s*$/, "")
-    const fillAttr = fill ? ` fill="${fill}"` : ""
+    const fillAttr = fill ? ` fill="${fill}" color="${fill}"` : ""
     // Ombra reale simmetrica con feDropShadow (dx=2, dy=2, stdDev=2.5):
     // stacca l'icona mono/color da sfondi chiari o complessi, mentre
     // il padding TOP_SHADOW_PAD mantiene l'esatto ancoraggio visivo a valle.
@@ -486,7 +486,7 @@ export async function renderQualityIconBadge(
 }
 
 /**
- * Renderizza il blocco compatto qualità + formati A/V (es. [4K] [DV] [ATMOS]).
+ * Renderizza la colonna verticale qualità + formati A/V (es. [4K] sopra [DV] sopra [ATMOS]).
  * Se non ci sono formati o falliscono, ritorna il singolo badge di risoluzione.
  */
 export async function renderQualityBadgeGroup(
@@ -517,33 +517,30 @@ export async function renderQualityBadgeGroup(
   }
   if (formatBadges.length === 0) return resBadge
 
-  const gap = Math.round(6 * pw / 380)
+  const gap = Math.round(5 * pw / 380)
   const allBadges = [resBadge, ...formatBadges]
-  let totalVisW = 0
-  const visWidths = allBadges.map((b) => {
-    const vw = Math.max(1, b.w - TOP_SHADOW_PAD * 2)
-    totalVisW += vw
-    return vw
-  })
-  totalVisW += gap * (allBadges.length - 1)
-  const totalW = totalVisW + TOP_SHADOW_PAD * 2
-  const maxH = Math.max(...allBadges.map((b) => b.h))
+  const visWidths = allBadges.map((b) => Math.max(1, b.w - TOP_SHADOW_PAD * 2))
+  const visHeights = allBadges.map((b) => Math.max(1, b.h - TOP_SHADOW_PAD * 2))
+  const maxVisW = Math.max(...visWidths)
+  const totalW = maxVisW + TOP_SHADOW_PAD * 2
+  const totalVisH = visHeights.reduce((sum, h) => sum + h, 0) + gap * (allBadges.length - 1)
+  const totalH = totalVisH + TOP_SHADOW_PAD * 2
 
   const composites: { input: Buffer; left: number; top: number }[] = []
-  let curVisLeft = TOP_SHADOW_PAD
+  let curVisTop = TOP_SHADOW_PAD
   for (let i = 0; i < allBadges.length; i++) {
     composites.push({
       input: allBadges[i].png,
-      left: curVisLeft - TOP_SHADOW_PAD,
-      top: Math.round((maxH - allBadges[i].h) / 2),
+      left: Math.round((totalW - allBadges[i].w) / 2),
+      top: curVisTop - TOP_SHADOW_PAD,
     })
-    curVisLeft += visWidths[i] + gap
+    curVisTop += visHeights[i] + gap
   }
 
   const groupPng = await sharp({
     create: {
       width: totalW,
-      height: maxH,
+      height: totalH,
       channels: 4,
       background: { r: 0, g: 0, b: 0, alpha: 0 },
     },
@@ -552,7 +549,7 @@ export async function renderQualityBadgeGroup(
     .png()
     .toBuffer()
 
-  return { png: groupPng, w: totalW, h: maxH }
+  return { png: groupPng, w: totalW, h: totalH }
 }
 
 
