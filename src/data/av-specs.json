@@ -1,64 +1,1817 @@
 {
-  "tt15239678": { "quality": "4K", "formats": ["dv", "atmos", "imax"] },
-  "tt1160419": { "quality": "4K", "formats": ["dv", "atmos", "imax"] },
-  "tt15398776": { "quality": "4K", "formats": ["imax"] },
-  "tt0816692": { "quality": "4K", "formats": ["imax"] },
-  "tt1745960": { "quality": "4K", "formats": ["dv", "atmos", "imax"] },
-  "tt0499549": { "quality": "4K", "formats": ["dv", "atmos"] },
-  "tt1630029": { "quality": "4K", "formats": ["dv", "atmos", "imax"] },
-  "tt9362722": { "quality": "4K", "formats": ["dv", "atmos"] },
-  "tt1877830": { "quality": "4K", "formats": ["dv", "atmos"] },
-  "tt1375666": { "quality": "4K", "formats": ["imax"] },
-  "tt0468569": { "quality": "4K", "formats": ["imax"] },
-  "tt1345836": { "quality": "4K", "formats": ["imax"] },
-  "tt6723592": { "quality": "4K", "formats": ["imax"] },
-  "tt4154796": { "quality": "4K", "formats": ["dv", "atmos", "imax"] },
-  "tt4154756": { "quality": "4K", "formats": ["dv", "atmos", "imax"] },
-  "tt10872600": { "quality": "4K", "formats": ["dv", "atmos", "imax"] },
-  "tt1853728": { "quality": "4K", "formats": ["dv", "atmos"] },
-  "tt9603212": { "quality": "4K", "formats": ["dv", "atmos", "imax"] },
-  "tt6263850": { "quality": "4K", "formats": ["dv", "atmos", "imax"] },
-  "tt3794354": { "quality": "4K", "formats": ["dv", "atmos"] },
-  "tt10366460": { "quality": "4K", "formats": ["dv", "atmos", "imax"] },
-  "tt0133093": { "quality": "4K", "formats": ["dv", "atmos"] },
-  "tt0167260": { "quality": "4K", "formats": ["dv", "atmos"] },
-  "tt0120737": { "quality": "4K", "formats": ["dv", "atmos"] },
-  "tt0167261": { "quality": "4K", "formats": ["dv", "atmos"] },
-  "tt0111161": { "quality": "4K", "formats": ["dv", "atmos"] },
-  "tt0068646": { "quality": "4K", "formats": ["dv", "atmos"] },
-  "tt0071562": { "quality": "4K", "formats": ["dv", "atmos"] },
-  "tt0076759": { "quality": "4K", "formats": ["dv", "atmos"] },
-  "tt0080684": { "quality": "4K", "formats": ["dv", "atmos"] },
-  "tt0086190": { "quality": "4K", "formats": ["dv", "atmos"] },
-  "tt2488496": { "quality": "4K", "formats": ["dv", "atmos", "imax"] },
-  "tt2527338": { "quality": "4K", "formats": ["dv", "atmos", "imax"] },
-  "tt2527336": { "quality": "4K", "formats": ["dv", "atmos", "imax"] },
-  "tt0172495": { "quality": "4K", "formats": ["dv", "atmos"] },
-  "tt0120804": { "quality": "4K", "formats": ["dv", "atmos"] },
-  "tt1392190": { "quality": "4K", "formats": ["dv", "atmos"] },
-  "tt12037194": { "quality": "4K", "formats": ["dv", "atmos", "imax"] },
-  "tt14824590": { "quality": "4K", "formats": ["dv", "atmos"] },
-  "tt11315808": { "quality": "4K", "formats": ["dv", "atmos"] },
-  "tt10640346": { "quality": "4K", "formats": ["dv", "atmos"] },
-  "tt1517268": { "quality": "4K", "formats": ["dv", "atmos"] },
-  "tt0109830": { "quality": "4K", "formats": ["dv", "atmos"] },
-  "tt0110912": { "quality": "4K", "formats": ["dv"] },
-  "tt0137523": { "quality": "4K", "formats": ["dv"] },
-  "tt0114369": { "quality": "4K", "formats": ["dv"] },
-  "tt0102926": { "quality": "4K", "formats": ["dv"] },
-  "tt0110357": { "quality": "4K", "formats": ["dv", "atmos"] },
-  "tt0114814": { "quality": "4K", "formats": ["dv"] },
-  "tt0120689": { "quality": "4K", "formats": ["dv", "atmos"] },
-  "tt0245429": { "quality": "4K", "formats": ["dv", "atmos"] },
-  "tt0848228": { "quality": "4K", "formats": ["dv", "atmos"] },
-  "tt1825683": { "quality": "4K", "formats": ["dv", "atmos"] },
-  "tt2250912": { "quality": "4K", "formats": ["dv", "atmos"] },
-  "tt3498820": { "quality": "4K", "formats": ["dv", "atmos"] },
-  "tt4729430": { "quality": "4K", "formats": ["dv", "atmos"] },
-  "tt5090568": { "quality": "4K", "formats": ["dv", "atmos"] },
-  "tt6320628": { "quality": "4K", "formats": ["dv", "atmos"] },
-  "tt8772262": { "quality": "4K", "formats": ["dv", "atmos"] },
-  "tt10638622": { "quality": "4K", "formats": ["dv", "atmos"] },
-  "tt11198330": { "quality": "4K", "formats": ["dv", "atmos"] },
-  "tt14230458": { "quality": "4K", "formats": ["dv", "atmos"] }
+  "tt0021749": {
+    "quality": "4K",
+    "formats": [
+      "dv"
+    ]
+  },
+  "tt0027977": {
+    "quality": "4K",
+    "formats": [
+      "dv"
+    ]
+  },
+  "tt0032553": {
+    "quality": "4K",
+    "formats": [
+      "dv"
+    ]
+  },
+  "tt0034583": {
+    "quality": "4K",
+    "formats": [
+      "dv"
+    ]
+  },
+  "tt0040522": {
+    "quality": "4K",
+    "formats": [
+      "dv"
+    ]
+  },
+  "tt0047478": {
+    "quality": "4K",
+    "formats": [
+      "dv"
+    ]
+  },
+  "tt0050083": {
+    "quality": "4K",
+    "formats": [
+      "dv"
+    ]
+  },
+  "tt0054215": {
+    "quality": "4K",
+    "formats": [
+      "dv"
+    ]
+  },
+  "tt0057012": {
+    "quality": "4K",
+    "formats": [
+      "dv"
+    ]
+  },
+  "tt0060196": {
+    "quality": "4K",
+    "formats": [
+      "dv"
+    ]
+  },
+  "tt0063161": {
+    "quality": "4K",
+    "formats": [
+      "dv"
+    ]
+  },
+  "tt0066921": {
+    "quality": "4K",
+    "formats": [
+      "dv"
+    ]
+  },
+  "tt0068646": {
+    "quality": "4K",
+    "formats": [
+      "dv",
+      "atmos"
+    ]
+  },
+  "tt0068647": {
+    "quality": "4K",
+    "formats": [
+      "dv"
+    ]
+  },
+  "tt0071562": {
+    "quality": "4K",
+    "formats": [
+      "dv",
+      "atmos"
+    ]
+  },
+  "tt0073195": {
+    "quality": "4K",
+    "formats": [
+      "dv",
+      "atmos"
+    ]
+  },
+  "tt0073486": {
+    "quality": "4K",
+    "formats": [
+      "dv"
+    ]
+  },
+  "tt0074285": {
+    "quality": "4K",
+    "formats": [
+      "dv"
+    ]
+  },
+  "tt0075314": {
+    "quality": "4K",
+    "formats": [
+      "dv"
+    ]
+  },
+  "tt0076759": {
+    "quality": "4K",
+    "formats": [
+      "dv",
+      "atmos"
+    ]
+  },
+  "tt0078748": {
+    "quality": "4K",
+    "formats": [
+      "hdr10plus"
+    ]
+  },
+  "tt0078788": {
+    "quality": "4K",
+    "formats": [
+      "dv",
+      "atmos"
+    ]
+  },
+  "tt0080684": {
+    "quality": "4K",
+    "formats": [
+      "dv",
+      "atmos"
+    ]
+  },
+  "tt0081505": {
+    "quality": "4K",
+    "formats": [
+      "dv"
+    ]
+  },
+  "tt0081696": {
+    "quality": "4K",
+    "formats": [
+      "dv"
+    ]
+  },
+  "tt0082971": {
+    "quality": "4K",
+    "formats": [
+      "dv",
+      "atmos"
+    ]
+  },
+  "tt0083658": {
+    "quality": "4K",
+    "formats": [
+      "atmos"
+    ]
+  },
+  "tt0083907": {
+    "quality": "4K",
+    "formats": [
+      "dv",
+      "atmos"
+    ]
+  },
+  "tt0084707": {
+    "quality": "4K",
+    "formats": [
+      "dv",
+      "atmos"
+    ]
+  },
+  "tt0086190": {
+    "quality": "4K",
+    "formats": [
+      "dv",
+      "atmos"
+    ]
+  },
+  "tt0086250": {
+    "quality": "4K",
+    "formats": [
+      "dv"
+    ]
+  },
+  "tt0087363": {
+    "quality": "4K",
+    "formats": [
+      "dv",
+      "atmos"
+    ]
+  },
+  "tt0087469": {
+    "quality": "4K",
+    "formats": [
+      "dv",
+      "atmos"
+    ]
+  },
+  "tt0087843": {
+    "quality": "4K",
+    "formats": [
+      "dv",
+      "atmos"
+    ]
+  },
+  "tt0088763": {
+    "quality": "4K",
+    "formats": [
+      "dv",
+      "atmos"
+    ]
+  },
+  "tt0090605": {
+    "quality": "4K",
+    "formats": [
+      "dv"
+    ]
+  },
+  "tt0091251": {
+    "quality": "4K",
+    "formats": [
+      "dv",
+      "atmos"
+    ]
+  },
+  "tt0092099": {
+    "quality": "4K",
+    "formats": [
+      "dv",
+      "atmos"
+    ]
+  },
+  "tt0093058": {
+    "quality": "4K",
+    "formats": [
+      "dv"
+    ]
+  },
+  "tt0093773": {
+    "quality": "4K",
+    "formats": [
+      "dv"
+    ]
+  },
+  "tt0093779": {
+    "quality": "4K",
+    "formats": [
+      "dv"
+    ]
+  },
+  "tt0095016": {
+    "quality": "4K",
+    "formats": [
+      "dv"
+    ]
+  },
+  "tt0096283": {
+    "quality": "4K",
+    "formats": [
+      "dv"
+    ]
+  },
+  "tt0096754": {
+    "quality": "4K",
+    "formats": [
+      "dv",
+      "atmos"
+    ]
+  },
+  "tt0096874": {
+    "quality": "4K",
+    "formats": [
+      "dv",
+      "atmos"
+    ]
+  },
+  "tt0096895": {
+    "quality": "4K",
+    "formats": [
+      "dv",
+      "atmos"
+    ]
+  },
+  "tt0097165": {
+    "quality": "4K",
+    "formats": [
+      "dv"
+    ]
+  },
+  "tt0097576": {
+    "quality": "4K",
+    "formats": [
+      "dv",
+      "atmos"
+    ]
+  },
+  "tt0099088": {
+    "quality": "4K",
+    "formats": [
+      "dv",
+      "atmos"
+    ]
+  },
+  "tt0099685": {
+    "quality": "4K",
+    "formats": [
+      "dv"
+    ]
+  },
+  "tt0102926": {
+    "quality": "4K",
+    "formats": [
+      "dv"
+    ]
+  },
+  "tt0103064": {
+    "quality": "4K",
+    "formats": [
+      "dv"
+    ]
+  },
+  "tt0103776": {
+    "quality": "4K",
+    "formats": [
+      "dv",
+      "atmos"
+    ]
+  },
+  "tt0105236": {
+    "quality": "4K",
+    "formats": [
+      "dv"
+    ]
+  },
+  "tt0107290": {
+    "quality": "4K",
+    "formats": [
+      "dv"
+    ]
+  },
+  "tt0108052": {
+    "quality": "4K",
+    "formats": [
+      "dv",
+      "atmos"
+    ]
+  },
+  "tt0109830": {
+    "quality": "4K",
+    "formats": [
+      "dv",
+      "atmos"
+    ]
+  },
+  "tt0110357": {
+    "quality": "4K",
+    "formats": [
+      "dv",
+      "atmos"
+    ]
+  },
+  "tt0110413": {
+    "quality": "4K",
+    "formats": [
+      "dv",
+      "atmos"
+    ]
+  },
+  "tt0110912": {
+    "quality": "4K",
+    "formats": [
+      "dv"
+    ]
+  },
+  "tt0111161": {
+    "quality": "4K",
+    "formats": [
+      "dv",
+      "atmos"
+    ]
+  },
+  "tt0111503": {
+    "quality": "4K",
+    "formats": [
+      "dv",
+      "atmos"
+    ]
+  },
+  "tt0112573": {
+    "quality": "4K",
+    "formats": [
+      "dv",
+      "atmos"
+    ]
+  },
+  "tt0112641": {
+    "quality": "4K",
+    "formats": [
+      "dv"
+    ]
+  },
+  "tt0113277": {
+    "quality": "4K",
+    "formats": [
+      "dv",
+      "atmos"
+    ]
+  },
+  "tt0114369": {
+    "quality": "4K",
+    "formats": [
+      "dv"
+    ]
+  },
+  "tt0114388": {
+    "quality": "4K",
+    "formats": [
+      "dv",
+      "imax"
+    ]
+  },
+  "tt0114709": {
+    "quality": "4K",
+    "formats": [
+      "dv",
+      "atmos"
+    ]
+  },
+  "tt0114814": {
+    "quality": "4K",
+    "formats": [
+      "dv"
+    ]
+  },
+  "tt0116282": {
+    "quality": "4K",
+    "formats": [
+      "dv"
+    ]
+  },
+  "tt0117060": {
+    "quality": "4K",
+    "formats": [
+      "dv"
+    ]
+  },
+  "tt0118715": {
+    "quality": "4K",
+    "formats": [
+      "dv"
+    ]
+  },
+  "tt0119217": {
+    "quality": "4K",
+    "formats": [
+      "dv"
+    ]
+  },
+  "tt0119488": {
+    "quality": "4K",
+    "formats": [
+      "dv"
+    ]
+  },
+  "tt0120338": {
+    "quality": "4K",
+    "formats": [
+      "dv",
+      "atmos"
+    ]
+  },
+  "tt0120363": {
+    "quality": "4K",
+    "formats": [
+      "dv",
+      "atmos"
+    ]
+  },
+  "tt0120382": {
+    "quality": "4K",
+    "formats": [
+      "dv"
+    ]
+  },
+  "tt0120586": {
+    "quality": "4K",
+    "formats": [
+      "dv"
+    ]
+  },
+  "tt0120689": {
+    "quality": "4K",
+    "formats": [
+      "dv",
+      "atmos"
+    ]
+  },
+  "tt0120737": {
+    "quality": "4K",
+    "formats": [
+      "dv",
+      "atmos"
+    ]
+  },
+  "tt0120755": {
+    "quality": "4K",
+    "formats": [
+      "dv"
+    ]
+  },
+  "tt0120804": {
+    "quality": "4K",
+    "formats": [
+      "dv",
+      "atmos"
+    ]
+  },
+  "tt0120815": {
+    "quality": "4K",
+    "formats": [
+      "dv",
+      "atmos"
+    ]
+  },
+  "tt0120915": {
+    "quality": "4K",
+    "formats": [
+      "dv",
+      "atmos"
+    ]
+  },
+  "tt0121765": {
+    "quality": "4K",
+    "formats": [
+      "dv",
+      "atmos"
+    ]
+  },
+  "tt0121766": {
+    "quality": "4K",
+    "formats": [
+      "dv",
+      "atmos"
+    ]
+  },
+  "tt0133093": {
+    "quality": "4K",
+    "formats": [
+      "dv",
+      "atmos"
+    ]
+  },
+  "tt0137523": {
+    "quality": "FHD",
+    "formats": [
+      "dv"
+    ]
+  },
+  "tt0167258": {
+    "quality": "4K",
+    "formats": [
+      "dv",
+      "atmos"
+    ]
+  },
+  "tt0167260": {
+    "quality": "4K",
+    "formats": [
+      "dv",
+      "atmos"
+    ]
+  },
+  "tt0167261": {
+    "quality": "4K",
+    "formats": [
+      "dv",
+      "atmos"
+    ]
+  },
+  "tt0169547": {
+    "quality": "4K",
+    "formats": [
+      "dv"
+    ]
+  },
+  "tt0172495": {
+    "quality": "4K",
+    "formats": [
+      "dv",
+      "atmos"
+    ]
+  },
+  "tt0198781": {
+    "quality": "4K",
+    "formats": [
+      "dv",
+      "atmos"
+    ]
+  },
+  "tt0209144": {
+    "quality": "4K",
+    "formats": [
+      "dv"
+    ]
+  },
+  "tt0234215": {
+    "quality": "4K",
+    "formats": [
+      "dv",
+      "atmos"
+    ]
+  },
+  "tt0241527": {
+    "quality": "4K",
+    "formats": [
+      "dv",
+      "atmos"
+    ]
+  },
+  "tt0242653": {
+    "quality": "4K",
+    "formats": [
+      "dv",
+      "atmos"
+    ]
+  },
+  "tt0245429": {
+    "quality": "4K",
+    "formats": [
+      "dv",
+      "atmos"
+    ]
+  },
+  "tt0253474": {
+    "quality": "4K",
+    "formats": [
+      "dv"
+    ]
+  },
+  "tt0258463": {
+    "quality": "4K",
+    "formats": [
+      "dv",
+      "atmos"
+    ]
+  },
+  "tt0266543": {
+    "quality": "4K",
+    "formats": [
+      "dv",
+      "atmos"
+    ]
+  },
+  "tt0266697": {
+    "quality": "4K",
+    "formats": [
+      "dv"
+    ]
+  },
+  "tt0295297": {
+    "quality": "4K",
+    "formats": [
+      "dv",
+      "atmos"
+    ]
+  },
+  "tt0304141": {
+    "quality": "4K",
+    "formats": [
+      "dv",
+      "atmos"
+    ]
+  },
+  "tt0317248": {
+    "quality": "4K",
+    "formats": [
+      "dv"
+    ]
+  },
+  "tt0317705": {
+    "quality": "4K",
+    "formats": [
+      "dv",
+      "atmos"
+    ]
+  },
+  "tt0317919": {
+    "quality": "4K",
+    "formats": [
+      "dv"
+    ]
+  },
+  "tt0330373": {
+    "quality": "4K",
+    "formats": [
+      "dv",
+      "atmos"
+    ]
+  },
+  "tt0338013": {
+    "quality": "4K",
+    "formats": [
+      "dv"
+    ]
+  },
+  "tt0361748": {
+    "quality": "4K",
+    "formats": [
+      "dv"
+    ]
+  },
+  "tt0367882": {
+    "quality": "4K",
+    "formats": [
+      "dv",
+      "atmos"
+    ]
+  },
+  "tt0371746": {
+    "quality": "4K",
+    "formats": [
+      "dv",
+      "atmos",
+      "imax"
+    ]
+  },
+  "tt0372183": {
+    "quality": "4K",
+    "formats": [
+      "dv",
+      "atmos"
+    ]
+  },
+  "tt0372784": {
+    "quality": "4K",
+    "formats": [
+      "imax"
+    ]
+  },
+  "tt0373889": {
+    "quality": "4K",
+    "formats": [
+      "dv",
+      "atmos"
+    ]
+  },
+  "tt0378194": {
+    "quality": "4K",
+    "formats": [
+      "dv"
+    ]
+  },
+  "tt0381061": {
+    "quality": "4K",
+    "formats": [
+      "dv"
+    ]
+  },
+  "tt0382932": {
+    "quality": "4K",
+    "formats": [
+      "dv",
+      "atmos"
+    ]
+  },
+  "tt0405094": {
+    "quality": "4K",
+    "formats": [
+      "dv"
+    ]
+  },
+  "tt0407887": {
+    "quality": "4K",
+    "formats": [
+      "dv"
+    ]
+  },
+  "tt0414387": {
+    "quality": "4K",
+    "formats": [
+      "dv"
+    ]
+  },
+  "tt0417741": {
+    "quality": "4K",
+    "formats": [
+      "dv",
+      "atmos"
+    ]
+  },
+  "tt0435761": {
+    "quality": "4K",
+    "formats": [
+      "dv",
+      "atmos"
+    ]
+  },
+  "tt0440963": {
+    "quality": "4K",
+    "formats": [
+      "dv",
+      "atmos"
+    ]
+  },
+  "tt0451279": {
+    "quality": "4K",
+    "formats": [
+      "dv",
+      "atmos"
+    ]
+  },
+  "tt0452625": {
+    "quality": "4K",
+    "formats": [
+      "dv",
+      "atmos"
+    ]
+  },
+  "tt0458339": {
+    "quality": "4K",
+    "formats": [
+      "dv",
+      "atmos"
+    ]
+  },
+  "tt0468569": {
+    "quality": "4K",
+    "formats": [
+      "imax"
+    ]
+  },
+  "tt0477348": {
+    "quality": "4K",
+    "formats": [
+      "dv"
+    ]
+  },
+  "tt0499549": {
+    "quality": "4K",
+    "formats": [
+      "dv",
+      "atmos"
+    ]
+  },
+  "tt0770828": {
+    "quality": "4K",
+    "formats": [
+      "dv",
+      "atmos"
+    ]
+  },
+  "tt0816692": {
+    "quality": "4K",
+    "formats": [
+      "imax"
+    ]
+  },
+  "tt0830515": {
+    "quality": "4K",
+    "formats": [
+      "dv"
+    ]
+  },
+  "tt0831387": {
+    "quality": "4K",
+    "formats": [
+      "dv",
+      "atmos"
+    ]
+  },
+  "tt0848228": {
+    "quality": "4K",
+    "formats": [
+      "dv",
+      "atmos"
+    ]
+  },
+  "tt0892791": {
+    "quality": "4K",
+    "formats": [
+      "dv"
+    ]
+  },
+  "tt0903624": {
+    "quality": "4K",
+    "formats": [
+      "dv",
+      "atmos"
+    ]
+  },
+  "tt0926084": {
+    "quality": "4K",
+    "formats": [
+      "dv",
+      "atmos"
+    ]
+  },
+  "tt0974015": {
+    "quality": "4K",
+    "formats": [
+      "dv",
+      "atmos"
+    ]
+  },
+  "tt0993846": {
+    "quality": "4K",
+    "formats": [
+      "dv"
+    ]
+  },
+  "tt10366206": {
+    "quality": "4K",
+    "formats": [
+      "dv",
+      "atmos"
+    ]
+  },
+  "tt10366460": {
+    "quality": "4K",
+    "formats": [
+      "dv",
+      "atmos",
+      "imax"
+    ]
+  },
+  "tt10466872": {
+    "quality": "4K",
+    "formats": [
+      "dv",
+      "atmos"
+    ]
+  },
+  "tt1049413": {
+    "quality": "4K",
+    "formats": [
+      "dv",
+      "atmos"
+    ]
+  },
+  "tt10638622": {
+    "quality": "4K",
+    "formats": [
+      "dv",
+      "atmos"
+    ]
+  },
+  "tt10640346": {
+    "quality": "4K",
+    "formats": [
+      "dv",
+      "atmos"
+    ]
+  },
+  "tt10648342": {
+    "quality": "4K",
+    "formats": [
+      "dv",
+      "atmos",
+      "imax"
+    ]
+  },
+  "tt1074638": {
+    "quality": "4K",
+    "formats": [
+      "imax"
+    ]
+  },
+  "tt10838180": {
+    "quality": "4K",
+    "formats": [
+      "dv",
+      "atmos"
+    ]
+  },
+  "tt10872600": {
+    "quality": "4K",
+    "formats": [
+      "dv",
+      "atmos",
+      "imax"
+    ]
+  },
+  "tt10954984": {
+    "quality": "4K",
+    "formats": [
+      "imax"
+    ]
+  },
+  "tt11198330": {
+    "quality": "4K",
+    "formats": [
+      "dv",
+      "atmos"
+    ]
+  },
+  "tt1130884": {
+    "quality": "4K",
+    "formats": [
+      "dv"
+    ]
+  },
+  "tt11315808": {
+    "quality": "4K",
+    "formats": [
+      "dv",
+      "atmos",
+      "imax"
+    ]
+  },
+  "tt11564570": {
+    "quality": "4K",
+    "formats": [
+      "dv",
+      "atmos"
+    ]
+  },
+  "tt1160419": {
+    "quality": "4K",
+    "formats": [
+      "dv",
+      "atmos",
+      "imax"
+    ]
+  },
+  "tt1170358": {
+    "quality": "4K",
+    "formats": [
+      "dv",
+      "atmos"
+    ]
+  },
+  "tt11866324": {
+    "quality": "4K",
+    "formats": [
+      "dv",
+      "atmos"
+    ]
+  },
+  "tt1201607": {
+    "quality": "4K",
+    "formats": [
+      "dv",
+      "atmos"
+    ]
+  },
+  "tt12037194": {
+    "quality": "4K",
+    "formats": [
+      "dv",
+      "atmos",
+      "imax"
+    ]
+  },
+  "tt1211837": {
+    "quality": "4K",
+    "formats": [
+      "dv",
+      "atmos",
+      "imax"
+    ]
+  },
+  "tt1228705": {
+    "quality": "4K",
+    "formats": [
+      "dv",
+      "atmos",
+      "imax"
+    ]
+  },
+  "tt1229238": {
+    "quality": "4K",
+    "formats": [
+      "dv",
+      "imax"
+    ]
+  },
+  "tt12361974": {
+    "quality": "4K",
+    "formats": [
+      "dv",
+      "atmos"
+    ]
+  },
+  "tt12439741": {
+    "quality": "4K",
+    "formats": [
+      "imax"
+    ]
+  },
+  "tt12584954": {
+    "quality": "4K",
+    "formats": [
+      "dv",
+      "atmos",
+      "imax"
+    ]
+  },
+  "tt1300854": {
+    "quality": "4K",
+    "formats": [
+      "dv",
+      "atmos",
+      "imax"
+    ]
+  },
+  "tt13433802": {
+    "quality": "4K",
+    "formats": [
+      "dv",
+      "atmos"
+    ]
+  },
+  "tt1345836": {
+    "quality": "4K",
+    "formats": [
+      "imax"
+    ]
+  },
+  "tt1375666": {
+    "quality": "4K",
+    "formats": [
+      "imax"
+    ]
+  },
+  "tt1392190": {
+    "quality": "4K",
+    "formats": [
+      "dv",
+      "atmos"
+    ]
+  },
+  "tt14230458": {
+    "quality": "4K",
+    "formats": [
+      "dv",
+      "atmos"
+    ]
+  },
+  "tt1431045": {
+    "quality": "4K",
+    "formats": [
+      "dv",
+      "atmos"
+    ]
+  },
+  "tt14539740": {
+    "quality": "4K",
+    "formats": [
+      "dv",
+      "atmos",
+      "imax"
+    ]
+  },
+  "tt1462764": {
+    "quality": "4K",
+    "formats": [
+      "dv",
+      "atmos"
+    ]
+  },
+  "tt1477834": {
+    "quality": "4K",
+    "formats": [
+      "dv",
+      "atmos",
+      "imax"
+    ]
+  },
+  "tt14824590": {
+    "quality": "4K",
+    "formats": [
+      "dv",
+      "atmos"
+    ]
+  },
+  "tt1517268": {
+    "quality": "4K",
+    "formats": [
+      "dv",
+      "atmos"
+    ]
+  },
+  "tt15239678": {
+    "quality": "4K",
+    "formats": [
+      "dv",
+      "atmos",
+      "imax"
+    ]
+  },
+  "tt1535108": {
+    "quality": "4K",
+    "formats": [
+      "dv",
+      "atmos"
+    ]
+  },
+  "tt15398776": {
+    "quality": "4K",
+    "formats": [
+      "imax"
+    ]
+  },
+  "tt1630029": {
+    "quality": "4K",
+    "formats": [
+      "dv",
+      "atmos",
+      "imax"
+    ]
+  },
+  "tt1745960": {
+    "quality": "4K",
+    "formats": [
+      "dv",
+      "atmos",
+      "imax"
+    ]
+  },
+  "tt1825683": {
+    "quality": "4K",
+    "formats": [
+      "dv",
+      "atmos",
+      "imax"
+    ]
+  },
+  "tt18412256": {
+    "quality": "4K",
+    "formats": [
+      "dv",
+      "atmos",
+      "imax"
+    ]
+  },
+  "tt1843866": {
+    "quality": "4K",
+    "formats": [
+      "dv",
+      "atmos",
+      "imax"
+    ]
+  },
+  "tt1853728": {
+    "quality": "4K",
+    "formats": [
+      "dv",
+      "atmos"
+    ]
+  },
+  "tt1856101": {
+    "quality": "4K",
+    "formats": [
+      "dv",
+      "atmos"
+    ]
+  },
+  "tt1877830": {
+    "quality": "4K",
+    "formats": [
+      "dv",
+      "atmos"
+    ]
+  },
+  "tt1877832": {
+    "quality": "4K",
+    "formats": [
+      "dv",
+      "atmos"
+    ]
+  },
+  "tt1979376": {
+    "quality": "4K",
+    "formats": [
+      "dv",
+      "atmos"
+    ]
+  },
+  "tt2015381": {
+    "quality": "4K",
+    "formats": [
+      "dv",
+      "atmos",
+      "imax"
+    ]
+  },
+  "tt2049403": {
+    "quality": "4K",
+    "formats": [
+      "dv",
+      "atmos",
+      "imax"
+    ]
+  },
+  "tt2096673": {
+    "quality": "4K",
+    "formats": [
+      "dv",
+      "atmos"
+    ]
+  },
+  "tt2124787": {
+    "quality": "4K",
+    "formats": [
+      "dv",
+      "atmos"
+    ]
+  },
+  "tt22022452": {
+    "quality": "4K",
+    "formats": [
+      "dv",
+      "atmos"
+    ]
+  },
+  "tt2250912": {
+    "quality": "4K",
+    "formats": [
+      "dv",
+      "atmos"
+    ]
+  },
+  "tt2267998": {
+    "quality": "4K",
+    "formats": [
+      "dv"
+    ]
+  },
+  "tt2310332": {
+    "quality": "4K",
+    "formats": [
+      "dv",
+      "atmos"
+    ]
+  },
+  "tt23289160": {
+    "quality": "4K",
+    "formats": [
+      "dv",
+      "atmos"
+    ]
+  },
+  "tt2379713": {
+    "quality": "4K",
+    "formats": [
+      "dv"
+    ]
+  },
+  "tt2380307": {
+    "quality": "4K",
+    "formats": [
+      "dv",
+      "atmos"
+    ]
+  },
+  "tt2381249": {
+    "quality": "4K",
+    "formats": [
+      "dv",
+      "atmos"
+    ]
+  },
+  "tt2382320": {
+    "quality": "4K",
+    "formats": [
+      "dv",
+      "atmos",
+      "imax"
+    ]
+  },
+  "tt2395427": {
+    "quality": "4K",
+    "formats": [
+      "dv",
+      "atmos"
+    ]
+  },
+  "tt2488496": {
+    "quality": "4K",
+    "formats": [
+      "dv",
+      "atmos",
+      "imax"
+    ]
+  },
+  "tt2527336": {
+    "quality": "4K",
+    "formats": [
+      "dv",
+      "atmos",
+      "imax"
+    ]
+  },
+  "tt2527338": {
+    "quality": "4K",
+    "formats": [
+      "dv",
+      "atmos",
+      "imax"
+    ]
+  },
+  "tt2543164": {
+    "quality": "4K",
+    "formats": [
+      "dv"
+    ]
+  },
+  "tt2562232": {
+    "quality": "4K",
+    "formats": [
+      "dv"
+    ]
+  },
+  "tt2737304": {
+    "quality": "FHD",
+    "formats": [
+      "dv"
+    ]
+  },
+  "tt2911666": {
+    "quality": "4K",
+    "formats": [
+      "dv",
+      "atmos"
+    ]
+  },
+  "tt2948372": {
+    "quality": "4K",
+    "formats": [
+      "dv",
+      "atmos"
+    ]
+  },
+  "tt2975590": {
+    "quality": "4K",
+    "formats": [
+      "dv",
+      "atmos",
+      "imax"
+    ]
+  },
+  "tt3044887": {
+    "quality": "4K",
+    "formats": [
+      "dv",
+      "atmos"
+    ]
+  },
+  "tt3397884": {
+    "quality": "4K",
+    "formats": [
+      "dv",
+      "atmos"
+    ]
+  },
+  "tt3498820": {
+    "quality": "4K",
+    "formats": [
+      "dv",
+      "atmos",
+      "imax"
+    ]
+  },
+  "tt3501632": {
+    "quality": "4K",
+    "formats": [
+      "dv",
+      "atmos",
+      "imax"
+    ]
+  },
+  "tt3606756": {
+    "quality": "4K",
+    "formats": [
+      "dv",
+      "atmos"
+    ]
+  },
+  "tt3731562": {
+    "quality": "4K",
+    "formats": [
+      "dv",
+      "atmos"
+    ]
+  },
+  "tt3741700": {
+    "quality": "4K",
+    "formats": [
+      "dv",
+      "atmos"
+    ]
+  },
+  "tt3748528": {
+    "quality": "4K",
+    "formats": [
+      "dv",
+      "atmos",
+      "imax"
+    ]
+  },
+  "tt3778644": {
+    "quality": "4K",
+    "formats": [
+      "dv",
+      "atmos"
+    ]
+  },
+  "tt3783958": {
+    "quality": "4K",
+    "formats": [
+      "dv",
+      "atmos"
+    ]
+  },
+  "tt3794354": {
+    "quality": "4K",
+    "formats": [
+      "dv",
+      "atmos"
+    ]
+  },
+  "tt3896198": {
+    "quality": "4K",
+    "formats": [
+      "dv",
+      "atmos",
+      "imax"
+    ]
+  },
+  "tt3915174": {
+    "quality": "4K",
+    "formats": [
+      "dv",
+      "atmos"
+    ]
+  },
+  "tt4154756": {
+    "quality": "4K",
+    "formats": [
+      "dv",
+      "atmos",
+      "imax"
+    ]
+  },
+  "tt4154796": {
+    "quality": "4K",
+    "formats": [
+      "dv",
+      "atmos",
+      "imax"
+    ]
+  },
+  "tt4425200": {
+    "quality": "4K",
+    "formats": [
+      "dv",
+      "atmos"
+    ]
+  },
+  "tt4633694": {
+    "quality": "4K",
+    "formats": [
+      "dv",
+      "atmos",
+      "imax"
+    ]
+  },
+  "tt4729430": {
+    "quality": "4K",
+    "formats": [
+      "dv",
+      "atmos"
+    ]
+  },
+  "tt5013056": {
+    "quality": "4K",
+    "formats": [
+      "imax"
+    ]
+  },
+  "tt5034838": {
+    "quality": "4K",
+    "formats": [
+      "dv",
+      "atmos"
+    ]
+  },
+  "tt5052448": {
+    "quality": "4K",
+    "formats": [
+      "dv"
+    ]
+  },
+  "tt5090568": {
+    "quality": "4K",
+    "formats": [
+      "dv",
+      "atmos"
+    ]
+  },
+  "tt5311514": {
+    "quality": "4K",
+    "formats": [
+      "dv"
+    ]
+  },
+  "tt5463162": {
+    "quality": "4K",
+    "formats": [
+      "dv",
+      "atmos"
+    ]
+  },
+  "tt6146586": {
+    "quality": "4K",
+    "formats": [
+      "dv",
+      "atmos"
+    ]
+  },
+  "tt6166392": {
+    "quality": "4K",
+    "formats": [
+      "dv",
+      "atmos"
+    ]
+  },
+  "tt6263850": {
+    "quality": "4K",
+    "formats": [
+      "dv",
+      "atmos",
+      "imax"
+    ]
+  },
+  "tt6320628": {
+    "quality": "4K",
+    "formats": [
+      "dv",
+      "atmos",
+      "imax"
+    ]
+  },
+  "tt6334354": {
+    "quality": "4K",
+    "formats": [
+      "dv",
+      "atmos",
+      "imax"
+    ]
+  },
+  "tt6565702": {
+    "quality": "4K",
+    "formats": [
+      "dv",
+      "atmos"
+    ]
+  },
+  "tt6644200": {
+    "quality": "4K",
+    "formats": [
+      "dv",
+      "atmos"
+    ]
+  },
+  "tt6710474": {
+    "quality": "4K",
+    "formats": [
+      "dv",
+      "atmos",
+      "imax"
+    ]
+  },
+  "tt6718170": {
+    "quality": "4K",
+    "formats": [
+      "dv",
+      "atmos"
+    ]
+  },
+  "tt6723592": {
+    "quality": "4K",
+    "formats": [
+      "imax"
+    ]
+  },
+  "tt6751668": {
+    "quality": "4K",
+    "formats": [
+      "dv"
+    ]
+  },
+  "tt6791350": {
+    "quality": "4K",
+    "formats": [
+      "dv",
+      "atmos",
+      "imax"
+    ]
+  },
+  "tt6857112": {
+    "quality": "4K",
+    "formats": [
+      "dv",
+      "atmos"
+    ]
+  },
+  "tt7131622": {
+    "quality": "4K",
+    "formats": [
+      "dv"
+    ]
+  },
+  "tt7286456": {
+    "quality": "4K",
+    "formats": [
+      "dv",
+      "atmos"
+    ]
+  },
+  "tt8332922": {
+    "quality": "4K",
+    "formats": [
+      "dv",
+      "atmos"
+    ]
+  },
+  "tt8503618": {
+    "quality": "4K",
+    "formats": [
+      "dv",
+      "atmos"
+    ]
+  },
+  "tt8579674": {
+    "quality": "4K",
+    "formats": [
+      "dv",
+      "atmos",
+      "imax"
+    ]
+  },
+  "tt8772262": {
+    "quality": "4K",
+    "formats": [
+      "dv",
+      "atmos"
+    ]
+  },
+  "tt8946378": {
+    "quality": "4K",
+    "formats": [
+      "dv",
+      "atmos"
+    ]
+  },
+  "tt9114286": {
+    "quality": "4K",
+    "formats": [
+      "dv",
+      "atmos",
+      "imax"
+    ]
+  },
+  "tt9218128": {
+    "quality": "4K",
+    "formats": [
+      "dv",
+      "atmos",
+      "imax"
+    ]
+  },
+  "tt9362722": {
+    "quality": "4K",
+    "formats": [
+      "dv",
+      "atmos"
+    ]
+  },
+  "tt9376612": {
+    "quality": "4K",
+    "formats": [
+      "dv",
+      "atmos",
+      "imax"
+    ]
+  },
+  "tt9419884": {
+    "quality": "4K",
+    "formats": [
+      "dv",
+      "atmos",
+      "imax"
+    ]
+  },
+  "tt9603212": {
+    "quality": "4K",
+    "formats": [
+      "dv",
+      "atmos",
+      "imax"
+    ]
+  }
 }
