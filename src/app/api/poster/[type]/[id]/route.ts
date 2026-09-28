@@ -90,6 +90,7 @@ import { resolvePosterRenderConfig, resolvePosterShape } from "@/lib/poster-conf
 import { selectBestLogo, logoBestLogoFallbackReason } from "@/lib/logo-selection"
 import { resolveStreamQuality, type StreamQualityResult } from "@/lib/stream-quality"
 import { applyMinQuality, type StreamQuality } from "@/lib/quality-tiers"
+import { lookupAVSpecs, isVideoFormat, type VideoFormat } from "@/lib/av-specs"
 import { computeVote } from "@/lib/rating-weights"
 import { combineAbortSignals } from "@/lib/abort-signal"
 import { cachedImageBytes } from "@/lib/image-bytes-cache"
@@ -1607,12 +1608,23 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
     // avviene alla scadenza del TTL (6h non-mappati, 24h mappati).
     const applyPreRelease = preRelease && preReleaseDetected
 
+    // Database locale AV specs (prioritario per 4K e formati, zero rete):
+    const localSpec = lookupAVSpecs(imdbId)
     // Soglia minima qualità all'uscita: la cache upstream (`resolveStreamQuality`)
     // tiene sempre il raw — qui si sopprime solo il badge sotto soglia.
+    const effectiveRawQuality = qQualityParam || localSpec?.quality || liveQuality || null
     const finalQuality = applyMinQuality(
-      (qQualityParam || liveQuality || null) as StreamQuality | null,
+      effectiveRawQuality as StreamQuality | null,
       minQuality,
     )
+
+    // Formati A/V da affiancare (dv, atmos, imax, hdr, hdr10plus):
+    // Priorità: query esplicita `?formats=` > mapping salvato > database locale AV specs
+    const qFormatsRaw = req.nextUrl.searchParams.get("formats")
+    const qFormats = qFormatsRaw !== null
+      ? (qFormatsRaw === "none" || qFormatsRaw === "" ? [] : (qFormatsRaw.split(",").map((s) => s.trim().toLowerCase()).filter(isVideoFormat) as VideoFormat[]))
+      : null
+    const finalVideoFormats = qFormats ?? mapping?.videoFormats ?? localSpec?.formats ?? null
 
     const locale = req.nextUrl.searchParams.get("lang") || mapping?.language || posterRegion.lang2
     // Normalizza i generi composti TV grezzi ("Sci-Fi & Fantasy" mai localizzato
@@ -1786,6 +1798,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
       badgesEnabled, rankingEnabled, genreName, voteAverage, badgeStyle,
       rankingBadgeStyle, badgeGenre, badgeYear, badgeRating: effectiveBadgeRating, badgeQuality,
       qualityBadgeStyle,
+      videoFormats: finalVideoFormats,
       separateRatings: useSeparate ? sepItems : undefined,
       sashOrder,
       quality: finalQuality,

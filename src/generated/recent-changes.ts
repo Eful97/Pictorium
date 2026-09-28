@@ -11,6 +11,7 @@ export interface RecentChange {
 }
 
 export const RECENT_CHANGES: RecentChange[] = [
+  { type: "fix", text: "Harmonize quality badge icons and improve drop shadow contrast", sha: "de94ec5", date: "2026-09-29" },
   { type: "feature", text: "quality badge icon styles (mono/color)", sha: "5566eae", date: "2026-09-28" },
   { type: "feature", text: "Add Badge Lab presets and colored Netflix ranking badge style", sha: "665b22a", date: "2026-09-28" },
   { type: "fix", text: "Proxy posters refresh on settings change and install template updates live", sha: "8c1eb7a", date: "2026-09-28" },

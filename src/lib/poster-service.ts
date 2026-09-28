@@ -41,6 +41,7 @@ import { getPresetForUser } from "./badge-preset-store"
 import type { BadgePreset } from "./badge-preset"
 import { qualityBadgeIconPath } from "./quality-badge-styles"
 import type { QualityBadgeStyle } from "./badge-styles"
+import { FORMAT_ICON_PATHS, type VideoFormat } from "./av-specs"
 import type { BadgeVariableContext } from "./badge-variables"
 
 // ---------------------------------------------------------------------------
@@ -111,6 +112,8 @@ export interface GenerationInput {
   quality?: string | null
   /** Stile icone del badge qualità (standard = pill testuale). */
   qualityBadgeStyle?: QualityBadgeStyle | null
+  /** Formati A/V da affiancare alla qualità (dv, atmos, imax, hdr, hdr10plus). */
+  videoFormats?: readonly VideoFormat[] | null
   /** Ordine/priorità sash (sottoinsieme = resto spento). Default = ordine standard. */
   sashOrder?: readonly SashBucket[] | null
   topLight: boolean
@@ -482,6 +485,77 @@ export async function renderQualityIconBadge(
   }
 }
 
+/**
+ * Renderizza il blocco compatto qualità + formati A/V (es. [4K] [DV] [ATMOS]).
+ * Se non ci sono formati o falliscono, ritorna il singolo badge di risoluzione.
+ */
+export async function renderQualityBadgeGroup(
+  quality: string,
+  qualityBadgeStyle: QualityBadgeStyle | null | undefined,
+  videoFormats: readonly VideoFormat[] | null | undefined,
+  pw: number,
+  topLight?: boolean,
+): Promise<{ png: Buffer; w: number; h: number } | null> {
+  const qualityIconPath = qualityBadgeIconPath(qualityBadgeStyle, quality)
+  let resBadge: { png: Buffer; w: number; h: number } | null = null
+  if (qualityIconPath) {
+    resBadge = await renderQualityIconBadge(qualityIconPath, pw, topLight)
+  }
+  if (!resBadge) {
+    resBadge = await renderQualityBadge(quality, pw, topLight)
+  }
+  if (!resBadge) return null
+  if (!videoFormats || videoFormats.length === 0) return resBadge
+
+  const validFormats = videoFormats.filter((f) => f in FORMAT_ICON_PATHS)
+  if (validFormats.length === 0) return resBadge
+
+  const formatBadges: { png: Buffer; w: number; h: number }[] = []
+  for (const fmt of validFormats) {
+    const icon = await renderQualityIconBadge(FORMAT_ICON_PATHS[fmt], pw, topLight)
+    if (icon) formatBadges.push(icon)
+  }
+  if (formatBadges.length === 0) return resBadge
+
+  const gap = Math.round(6 * pw / 380)
+  const allBadges = [resBadge, ...formatBadges]
+  let totalVisW = 0
+  const visWidths = allBadges.map((b) => {
+    const vw = Math.max(1, b.w - TOP_SHADOW_PAD * 2)
+    totalVisW += vw
+    return vw
+  })
+  totalVisW += gap * (allBadges.length - 1)
+  const totalW = totalVisW + TOP_SHADOW_PAD * 2
+  const maxH = Math.max(...allBadges.map((b) => b.h))
+
+  const composites: { input: Buffer; left: number; top: number }[] = []
+  let curVisLeft = TOP_SHADOW_PAD
+  for (let i = 0; i < allBadges.length; i++) {
+    composites.push({
+      input: allBadges[i].png,
+      left: curVisLeft - TOP_SHADOW_PAD,
+      top: Math.round((maxH - allBadges[i].h) / 2),
+    })
+    curVisLeft += visWidths[i] + gap
+  }
+
+  const groupPng = await sharp({
+    create: {
+      width: totalW,
+      height: maxH,
+      channels: 4,
+      background: { r: 0, g: 0, b: 0, alpha: 0 },
+    },
+  })
+    .composite(composites)
+    .png()
+    .toBuffer()
+
+  return { png: groupPng, w: totalW, h: maxH }
+}
+
+
 
 const NETWORKS_DIR_COMBINED = path.join(process.cwd(), "public", "networks")
 const NETWORK_FILES_COMBINED: Record<string, string> = {
@@ -757,7 +831,7 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
     topShade = 50,
     badgesEnabled, rankingEnabled, genreName, voteAverage, badgeStyle,
     rankingBadgeStyle, badgeGenre, badgeYear, badgeRating, badgeQuality, quality,
-    qualityBadgeStyle,
+    qualityBadgeStyle, videoFormats,
     sashOrder,
     topLight, targetCenter, ribbonSide,
     bottomLight: bottomLightOpt,
@@ -1091,8 +1165,9 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
   const rankBadgeKey = !showComingSoon && topBadge
     ? badgeCacheKey("rank", topBadge.type === "extra" ? topBadge.label : `${(topBadge as { rank: number }).rank}:${topBadge!.label}`, CW, topLight, rankingBadgeStyle, accentColorRank, ribbonSide, isAnimeRank, topBadgeScale, isRankDetached ? "detached" : undefined)
     : null
+  const formatsKey = (videoFormats && videoFormats.length > 0) ? videoFormats.join(",") : "none"
   const qualityBadgeKey = hasQualityBadge
-    ? badgeCacheKey("quality", quality, CW, topLight, qualityBadgeScale, qualityIconPath ?? "std")
+    ? badgeCacheKey("quality", quality, CW, topLight, qualityBadgeScale, qualityIconPath ?? "std", formatsKey)
     : null
   const comingSoonKey = showComingSoon
     ? badgeCacheKey("comingsoon", comingSoonLabel, CW, topLight, ribbonSide)
@@ -1192,16 +1267,9 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
     qualityBadgeKey
       ? (cacheGet<{ png: Buffer; w: number; h: number }>(qualityBadgeKey)
           || coalesceBadgeRender(qualityBadgeKey, async () => {
-              // Icona built-in prima, pill standard come fallback (mai slot vuoto).
-              if (qualityIconPath) {
-                const icon = await renderQualityIconBadge(qualityIconPath, badgePw, topLight)
-                if (icon) {
-                  cacheSet(qualityBadgeKey, icon, ["badge"], BADGE_CACHE_TTL)
-                  return icon
-                }
-              }
-              return renderQualityBadge(quality!, badgePw, topLight)
-                .then((r) => { if (r) cacheSet(qualityBadgeKey, r, ["badge"], BADGE_CACHE_TTL); return r })
+              const res = await renderQualityBadgeGroup(quality!, qualityBadgeStyle, videoFormats, badgePw, topLight)
+              if (res) cacheSet(qualityBadgeKey, res, ["badge"], BADGE_CACHE_TTL)
+              return res
             }))
       : Promise.resolve(null),
     comingSoonKey
