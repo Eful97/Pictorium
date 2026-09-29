@@ -35,6 +35,12 @@ which supports `{tmdb_id}` and `{imdb_id}`), use them in the path
   consumer genuinely knows that item's TMDB id.
 - `{imdb_id}` (universal fallback): every item has one, but it pays the
   resolution cost above and fails on franchise splits.
+- `{tmdb_id|imdb_id}` (auto, Nuvio): the consumer substitutes whichever id
+  the current view provides (Home, Library, More Like This, Cast rows each
+  carry different ids) and keeps the original poster when neither is
+  available. One template works everywhere — no per-view choice needed.
+  Typed `tmdb:<num>` substitutions resolve as the exact numeric path;
+  anything else unresolvable still answers `400`.
 
 If a title answers `404` via `tt...` while it exists on TMDB, use the
 numeric id or ask the instance operator to stitch a manual alias.

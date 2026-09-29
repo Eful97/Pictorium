@@ -37,6 +37,12 @@ supporta `{tmdb_id}` e `{imdb_id}`), usali nel path
   consumer conosce davvero il TMDB id di quell'item.
 - `{imdb_id}` (fallback universale): ogni item ce l'ha, ma paga la
   risoluzione sopra e fallisce sugli split di franchise.
+- `{tmdb_id|imdb_id}` (auto, Nuvio): il consumer sostituisce l'id
+  disponibile nella vista corrente (Home, Library, More Like This, righe
+  Cast portano id diversi) e tiene il poster originale quando nessuno dei
+  due c'è. Un solo template ovunque — niente scelta per-vista.
+  Le sostituzioni tipizzate `tmdb:<num>` si risolvono come path numerico
+  esatto; il resto non risolvibile resta `400`.
 
 Se un titolo rende `404` via `tt...` mentre esiste su TMDB, usa l'id
 numerico o chiedi all'operatore dell'istanza di cucire un alias manuale.

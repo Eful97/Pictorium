@@ -256,7 +256,11 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
   // il provider custom rating (e il ramo mapping) lo usano senza dipendere
   // da getExternalIds — che richiede una chiave TMDB assente negli URL Stremio.
   const pathImdbId = typeof id === "string" && /^tt\d+$/.test(id) ? id : null
-  let tmdbId = Number(id)
+  // Id tipizzato `tmdb:<num>` (es. sostituzione Nuvio del template auto
+  // `{tmdb_id|imdb_id}`): path numerico esatto, niente /find — come il nudo.
+  // Altri prefissi restano 400 (non risolvibili senza lookup dedicati).
+  const pathTmdbPrefixed = typeof id === "string" ? id.match(/^tmdb:(\d+)$/i)?.[1] ?? null : null
+  let tmdbId = pathTmdbPrefixed ? Number(pathTmdbPrefixed) : Number(id)
   if (isNaN(tmdbId) || tmdbId <= 0) {
     if (typeof id === "string" && id.startsWith("tt")) {
       // Alias manuale per-namespace vince sul /find TMDB (tt di franchise su

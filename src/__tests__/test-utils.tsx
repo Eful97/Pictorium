@@ -26,6 +26,7 @@ export const MOCK_CTX: PictoriumCtx = {
   previewUrl: "",
   urlPattern: "",
   urlPatternImdb: "",
+  urlPatternAuto: "",
   lang: "it",
   openSections: {},
   toggleSection: stubFn,

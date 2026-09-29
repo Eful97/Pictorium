@@ -69,6 +69,13 @@ describe("buildUrlPattern", () => {
     expect(tmdb.replace("{tmdb_id}", "{imdb_id}")).toBe(imdb)
   })
 
+  it("uses {tmdb_id|imdb_id} auto placeholder when requested (same params otherwise)", () => {
+    const auto = buildUrlPattern({ ...baseBadgeParams, tmdbKey: "key", lang: "it", idPlaceholder: "{tmdb_id|imdb_id}" })
+    const imdb = buildUrlPattern({ ...baseBadgeParams, tmdbKey: "key", lang: "it" })
+    expect(auto).toContain("/api/poster/{type}/{tmdb_id|imdb_id}")
+    expect(auto.replace("{tmdb_id|imdb_id}", "{imdb_id}")).toBe(imdb)
+  })
+
   it("uses poster CDN base URL when configured", () => {
     process.env.NEXT_PUBLIC_POSTER_CDN_URL = "https://cdn.pictorium.example/"
 

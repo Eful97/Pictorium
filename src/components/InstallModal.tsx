@@ -15,6 +15,8 @@ interface InstallModalProps {
   posterUrlPattern?: string
   /** Template secondario con `{imdb_id}` (fallback universale). */
   posterUrlPatternImdb?: string
+  /** Template auto con `{tmdb_id|imdb_id}` (Nuvio: id disponibile per la vista). */
+  posterUrlPatternAuto?: string
 }
 
 /** Riga template copiabile con stato "copiato" proprio. */
@@ -64,13 +66,14 @@ function PatternRow({ value, tag, copyLabel }: { value: string; tag: string; cop
   )
 }
 
-export function InstallModal({ isOpen, onClose, manifestUrl: propManifestUrl, posterUrlPattern, posterUrlPatternImdb }: InstallModalProps) {
+export function InstallModal({ isOpen, onClose, manifestUrl: propManifestUrl, posterUrlPattern, posterUrlPatternImdb, posterUrlPatternAuto }: InstallModalProps) {
   const { t } = useT()
   const [hubMode, setHubMode] = useState<"all" | "catalogs" | "search">("all")
   const [copied, setCopied] = useState(false)
-  // Quale placeholder id usa il template: TMDB (primario, esatto) o IMDb
-  // (fallback universale). Una sola riga visibile alla volta.
-  const [patternKind, setPatternKind] = useState<"tmdb" | "imdb">("tmdb")
+  // Quale placeholder id usa il template: TMDB (primario, esatto), IMDb
+  // (fallback universale) o Auto (Nuvio sostituisce l'id disponibile per la
+  // vista). Una sola riga visibile alla volta.
+  const [patternKind, setPatternKind] = useState<"tmdb" | "imdb" | "auto">("tmdb")
   const [qrSvg, setQrSvg] = useState<string>("")
   const [baseManifestUrl, setBaseManifestUrl] = useState(propManifestUrl || "")
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -295,8 +298,8 @@ export function InstallModal({ isOpen, onClose, manifestUrl: propManifestUrl, po
             </a>
           </div>
 
-          {/* AIOMetadata & External Poster URL: selettore TMDB/IMDb + una riga */}
-          {(posterUrlPattern || posterUrlPatternImdb) && (
+          {/* AIOMetadata & External Poster URL: selettore TMDB/IMDb/Auto + una riga */}
+          {(posterUrlPattern || posterUrlPatternImdb || posterUrlPatternAuto) && (
             <div className="pt-3 border-t border-white/10 space-y-1.5">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-1.5 text-zinc-300 text-[11px] font-semibold">
@@ -320,17 +323,18 @@ export function InstallModal({ isOpen, onClose, manifestUrl: propManifestUrl, po
                 <select
                   id="pattern-kind-select"
                   value={patternKind}
-                  onChange={(e) => setPatternKind(e.target.value === "imdb" ? "imdb" : "tmdb")}
+                  onChange={(e) => setPatternKind(e.target.value === "imdb" ? "imdb" : e.target.value === "auto" ? "auto" : "tmdb")}
                   className="w-full bg-black/40 border border-white/10 rounded-xl px-2 py-1.5 text-[11px] text-zinc-300 focus:outline-none focus:border-white/25 cursor-pointer"
                 >
                   <option value="tmdb">TMDB ID</option>
                   <option value="imdb">IMDb ID</option>
+                  <option value="auto">Auto (Nuvio)</option>
                 </select>
               </div>
 
               <PatternRow
-                value={(patternKind === "tmdb" ? posterUrlPattern : posterUrlPatternImdb) || posterUrlPattern || posterUrlPatternImdb || ""}
-                tag={patternKind === "tmdb" ? "TMDB · {tmdb_id} — primario" : "IMDb · {imdb_id} — fallback"}
+                value={(patternKind === "tmdb" ? posterUrlPattern : patternKind === "imdb" ? posterUrlPatternImdb : posterUrlPatternAuto) || posterUrlPattern || posterUrlPatternImdb || posterUrlPatternAuto || ""}
+                tag={patternKind === "tmdb" ? "TMDB · {tmdb_id} — primario" : patternKind === "imdb" ? "IMDb · {imdb_id} — fallback" : "Auto · {tmdb_id|imdb_id} — Nuvio"}
                 copyLabel={t("ui.aiomLinkTitle") || "AIOMetadata URL"}
               />
             </div>

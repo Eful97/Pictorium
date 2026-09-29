@@ -628,6 +628,51 @@ describe("GET /api/poster/[type]/[id] with saved mappings", () => {
     expect((await garbage.json()).vote.average).toBeCloseTo(7.0)
   })
 
+  it("accepts tmdb:<id> typed ids as exact numeric path (Nuvio auto template)", async () => {
+    const posterBuf = await imageBuffer("#101010", 500, 750)
+    const { fetchAggregatedRating } = await import("@/lib/ratings")
+    vi.mocked(fetchAggregatedRating).mockResolvedValue(null)
+
+    mockedGetById.mockResolvedValue(null)
+    mockedGetDetails.mockResolvedValue({
+      id: 44,
+      title: "Typed Id",
+      genres: [{ id: 18, name: "Drama" }],
+      vote_average: 7.5,
+      vote_count: 100,
+      original_language: "en",
+      release_date: "2024-01-15",
+      production_companies: [],
+    })
+    mockedGetImages.mockResolvedValue({
+      id: 44,
+      posters: [
+        { file_path: "/typed-clean.jpg", iso_639_1: null, vote_average: 8.0, vote_count: 100, width: 500, height: 750, aspect_ratio: 0.667 },
+      ],
+      logos: [],
+      backdrops: [],
+    })
+    mockedGetExternalIds.mockResolvedValue({ imdb_id: "tt0000044" })
+
+    vi.spyOn(globalThis, "fetch").mockImplementation(async () => new Response(new Uint8Array(posterBuf), {
+      status: 200,
+      headers: { "content-type": "image/png", "content-length": String(posterBuf.length) },
+    }))
+
+    const typed = await GET(new NextRequest("http://localhost:3000/api/poster/movie/tmdb:44?debug=1"), {
+      params: Promise.resolve({ type: "movie", id: "tmdb:44" }),
+    })
+    expect(typed.status).toBe(200)
+    // Path numerico esatto: voto TMDB nativo, niente risoluzione /find.
+    expect((await typed.json()).vote.average).toBeCloseTo(7.5)
+
+    // Altri prefissi restano 400 (non risolvibili senza lookup dedicati).
+    const other = await GET(new NextRequest("http://localhost:3000/api/poster/movie/kitsu:44"), {
+      params: Promise.resolve({ type: "movie", id: "kitsu:44" }),
+    })
+    expect(other.status).toBe(400)
+  })
+
   it("falls back to TMDB vote when the aggregated rating is not resolved in time", async () => {
     const posterBuf = await imageBuffer("#101010", 500, 750)
     const { fetchAggregatedRating } = await import("@/lib/ratings")

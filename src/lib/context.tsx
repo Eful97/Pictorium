@@ -93,6 +93,8 @@ export interface PictoriumCtx {
   urlPattern: string
   /** Template secondario con `{imdb_id}` (fallback universale). */
   urlPatternImdb: string
+  /** Template auto con `{tmdb_id|imdb_id}` (Nuvio: usa l'id disponibile per la vista). */
+  urlPatternAuto: string
   lang: string
   openSections: Record<string, boolean>
   toggleSection: (k: string) => void
@@ -519,6 +521,7 @@ export function usePictorium(): PictoriumCtx {
 
   const [urlPattern, setUrlPattern] = useState("")
   const [urlPatternImdb, setUrlPatternImdb] = useState("")
+  const [urlPatternAuto, setUrlPatternAuto] = useState("")
   const [copied, setCopied] = useState(false)
   const copiedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   useEffect(() => {
@@ -809,6 +812,7 @@ export function usePictorium(): PictoriumCtx {
     }
     setUrlPattern(buildUrlPattern({ ...base, idPlaceholder: "{tmdb_id}" }))
     setUrlPatternImdb(buildUrlPattern({ ...base, idPlaceholder: "{imdb_id}" }))
+    setUrlPatternAuto(buildUrlPattern({ ...base, idPlaceholder: "{tmdb_id|imdb_id}" }))
     }, [globalBadges, rankingBadges, badgeGenre, badgeYear, badgeRating, badgeQuality, qualityBadgeStyle, customRatings, ratingSources, separateRatings, networkLogo, preRelease, ribbonSide, ribbonEnabled, posterShape, logoAlign, gradientHeight, blurIntensity, blurFade, blurDarkness, blurEnabled, landscapeBlur, tintStrength, topShade, badgeStyle, rankingBadgeStyle, topBadgeScale, topBadgeOffsetX, topBadgeOffsetY, genreBadgeScale, qualityBadgeScale, networkLogoScale, genreBadgeOffsetX, genreBadgeOffsetY, qualityBadgeOffsetX, qualityBadgeOffsetY, networkLogoOffsetX, networkLogoOffsetY, tmdbKey, lang, mdblistApiKey, currentUserId, serverKeyStatus, navigation.previewId, defaultGlobalBadges, defaultRankingBadges, defaultBadgeStyle, defaultRankingBadgeStyle, defaultQualityBadgeStyle, defaultBadgeGenre, defaultBadgeYear, defaultBadgeRating, defaultBadgeQuality, defaultCustomRatings, defaultRatingSources, defaultSeparateRatings, defaultGradientHeight, defaultBlurIntensity, defaultBlurFade, defaultBlurDarkness, defaultBlurEnabled, defaultTintStrength, defaultTopShade, defaultNetworkLogo, defaultPreRelease, defaultRibbonSide, defaultRibbonEnabled, defaultPosterShape, defaultLogoAlign, defaultTopBadgeScale, defaultTopBadgeOffsetX, defaultTopBadgeOffsetY, defaultGenreBadgeScale, defaultQualityBadgeScale, defaultNetworkLogoScale, defaultGenreBadgeOffsetX, defaultGenreBadgeOffsetY, defaultQualityBadgeOffsetX, defaultQualityBadgeOffsetY, defaultNetworkLogoOffsetX, defaultNetworkLogoOffsetY]) // eslint-disable-line react-hooks/exhaustive-deps -- customBadge intentionally excluded to avoid loop
 
   // --- Default live sul titolo corrente ---
@@ -1543,7 +1547,7 @@ export function usePictorium(): PictoriumCtx {
     selectedLogo: navigation.selectedLogo, setSelectedLogo: navigation.setSelectedLogo,
     logos: navigation.logos,
     posterActivePath: posterActivePath ?? null,
-    previewUrl, stremioPreview, setStremioPreview, stremioPreviewUrl, urlPattern, urlPatternImdb, lang,
+    previewUrl, stremioPreview, setStremioPreview, stremioPreviewUrl, urlPattern, urlPatternImdb, urlPatternAuto, lang,
     openSections, toggleSection: (key: string) => setOpenSections((prev) => ({ ...prev, [key]: !(prev[key] ?? true) })),
     posterScrollRef, posterScrollInfo, setPosterScrollInfo,
     selectPoster, selectLogo, removeLogo,
