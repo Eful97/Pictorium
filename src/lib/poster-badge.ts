@@ -3,7 +3,7 @@
  * Used by both the server route and client hooks, ensuring the same badge
  * logic applies in preview (WYSIWYG) and final poster.
  */
-import { computeBadge, computeAbsoluteCinema, type BadgeResult, type SashBucket } from "./badge-priority"
+import { computeBadge, computeAbsoluteCinema, isMiniseriesType, isReturningStatus, stripArabicDiacritics, type BadgeResult, type SashBucket } from "./badge-priority"
 import { getAwardBadgeLabel, getNominationBadgeLabel } from "./badge-labels"
 import { withIdAwards, withIdNoms } from "./award-ids"
 import { getUpcomingReleaseLabel } from "./release-badge"
@@ -115,7 +115,9 @@ export function getJustAddedLabel(input: {
   return input.t("badge.justAddedMovie")
 }
 
-/** Stati "serie finita" (TMDB li localizza: inglese + italiano). */
+/** Stati "serie finita" (TMDB li localizza: inglese + italiano + arabo).
+ *  L'arabo arriva vocalizzato ("مُنتهٍ"): il confronto avviene spogliando i
+ *  diacritici ("منته"), piu variante non vocalizzata "منتهي". */
 const ENDED_STATUSES = ["ended", "terminata", "terminato", "finita", "finito", "conclusa", "concluso"]
 
 /**
@@ -129,7 +131,10 @@ export function getSeriesEndedLabel(input: {
   t: BadgeT
 }): string | null {
   const s = (input.tvStatus || "").trim().toLowerCase()
-  if (!ENDED_STATUSES.includes(s)) return null
+  if (!ENDED_STATUSES.includes(s)) {
+    const ar = stripArabicDiacritics(s)
+    if (ar !== "منته" && ar !== "منتهي") return null
+  }
   const lastTime = input.lastAirDate ? new Date(input.lastAirDate).getTime() : NaN
   if (!Number.isFinite(lastTime)) return null
   const now = Date.now()
@@ -216,13 +221,12 @@ export function computeTopBadge(input: BadgeInput, t: BadgeT, locale?: string, o
   // Miniserie (formato permanente) e serie in corso (status transitorio):
   // stesse condizioni del dropdown (getAllBadgeOptions), promosse ad auto in
   // coda all'extra. Una sola placca: miniserie vince su returning.
-  const tvTypeLower = (input.tvType || "").toLowerCase()
-  const tvStatusLower = (input.tvStatus || "").toLowerCase()
-  const miniseries = input.mediaType === "tv" && (tvTypeLower === "miniseries" || tvTypeLower === "miniserie")
+  // I match vivono in isMiniseriesType/isReturningStatus (badge-priority):
+  // coprono en/it/ar senza forkare la formula.
+  const miniseries = input.mediaType === "tv" && isMiniseriesType(input.tvType)
     ? t("badge.miniseries")
     : null
-  const returning = input.mediaType === "tv" && !miniseries &&
-    (tvStatusLower === "returning series" || tvStatusLower === "in corso")
+  const returning = input.mediaType === "tv" && !miniseries && isReturningStatus(input.tvStatus)
     ? t("badge.returning")
     : null
 

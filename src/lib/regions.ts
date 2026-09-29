@@ -18,9 +18,9 @@ export interface RegionDef {
   readonly lang: string
   /**
    * Lingua UI a 2 lettere (stato `lang` dell'app, `preferred_lang`).
-   * it/en/fr/de/es/pl hanno un dizionario UI completo — ja/ko/pt/he/cs
-   * ripiegano sull'inglese in `i18n.lookup` per le stringhe `ui.*` (he ha
-   * badge/award tradotti), mentre i contenuti TMDB seguono `lang`.
+   * it/en/fr/de/es/pl/he/ar hanno un dizionario UI completo — ja/ko/pt/cs
+   * ripiegano sull'inglese in `i18n.lookup` per le stringhe `ui.*` (he/ar
+   * hanno badge/award tradotti), mentre i contenuti TMDB seguono `lang`.
    */
   readonly lang2: string
   /** Nome lingua in lingua nativa (per il selettore lingua). */
@@ -49,6 +49,7 @@ export const REGIONS: readonly RegionDef[] = [
   { code: "AU", flixSlug: "australia", lang: "en-AU", lang2: "en", languageName: "English", label: "Australia", flag: "🇦🇺" },
   { code: "CZ", flixSlug: "czech-republic", lang: "cs-CZ", lang2: "cs", languageName: "Čeština", label: "Cechia", flag: "🇨🇿" },
   { code: "RO", flixSlug: "romania", lang: "ro-RO", lang2: "ro", languageName: "Română", label: "Romania", flag: "🇷🇴" },
+  { code: "SA", flixSlug: "saudi-arabia", lang: "ar-SA", lang2: "ar", languageName: "العربية", label: "Arabia Saudita", flag: "🇸🇦" },
 ] as const
 
 const BY_CODE = new Map(REGIONS.map((r) => [r.code, r]))

@@ -14,10 +14,10 @@ import {
 import { PICKER_LANGS } from "@/lib/utils"
 
 describe("regions", () => {
-  it("exposes 18 regions with unique codes and slugs", () => {
-    expect(REGIONS).toHaveLength(18)
-    expect(new Set(REGIONS.map((r) => r.code)).size).toBe(18)
-    expect(new Set(REGIONS.map((r) => r.flixSlug)).size).toBe(18)
+  it("exposes 19 regions with unique codes and slugs", () => {
+    expect(REGIONS).toHaveLength(19)
+    expect(new Set(REGIONS.map((r) => r.code)).size).toBe(19)
+    expect(new Set(REGIONS.map((r) => r.flixSlug)).size).toBe(19)
     for (const r of REGIONS) {
       expect(r.code).toMatch(/^[A-Z]{2}$/)
       expect(r.lang).toMatch(/^[a-z]{2}-[A-Z]{2}$/)
@@ -99,6 +99,7 @@ describe("regions", () => {
     expect(getRegionDef("RO").lang2).toBe("ro")
     expect(getRegionDef("MX").lang2).toBe("es")
     expect(getRegionDef("PL").lang2).toBe("pl")
+    expect(getRegionDef("SA").lang2).toBe("ar")
     for (const r of REGIONS) {
       expect(r.lang2).toMatch(/^[a-z]{2}$/)
       // La lingua UI è il prefisso del locale TMDB
@@ -107,19 +108,19 @@ describe("regions", () => {
   })
 
   it("supports only the picker UI languages", () => {
-    expect(SUPPORTED_UI_LANGS).toEqual(["it", "pl", "en", "fr", "de", "es", "he", "ja", "ko", "pt", "cs", "ro"])
-    for (const l of ["it", "pl", "en", "fr", "de", "es", "he", "ja", "ko", "pt", "cs", "ro"]) {
+    expect(SUPPORTED_UI_LANGS).toEqual(["it", "pl", "en", "fr", "de", "es", "he", "ja", "ko", "pt", "cs", "ro", "ar"])
+    for (const l of ["it", "pl", "en", "fr", "de", "es", "he", "ja", "ko", "pt", "cs", "ro", "ar"]) {
       expect(isSupportedUiLang(l)).toBe(true)
     }
-    // Lingue del vecchio picker (zh/ru/ar/nl) non più offerte
-    for (const l of ["zh", "ru", "ar", "nl", "", null, undefined]) {
+    // Lingue del vecchio picker (zh/ru/nl) non più offerte
+    for (const l of ["zh", "ru", "nl", "", null, undefined]) {
       expect(isSupportedUiLang(l)).toBe(false)
     }
   })
 
-  it("PICKER_LANGS lists exactly the 18 nationalities", () => {
-    expect(PICKER_LANGS).toHaveLength(18)
-    expect(new Set(PICKER_LANGS.map((l) => l.key)).size).toBe(18)
+  it("PICKER_LANGS lists exactly the 19 nationalities", () => {
+    expect(PICKER_LANGS).toHaveLength(19)
+    expect(new Set(PICKER_LANGS.map((l) => l.key)).size).toBe(19)
     expect(PICKER_LANGS.map((l) => l.key)).toEqual(REGIONS.map((r) => r.code))
     for (const l of PICKER_LANGS) {
       expect(l.flag).toBeTruthy()
@@ -140,6 +141,7 @@ describe("regions", () => {
     expect(defaultRegionForLang("es")).toBe("ES")
     expect(defaultRegionForLang("cs")).toBe("CZ")
     expect(defaultRegionForLang("pl")).toBe("PL")
+    expect(defaultRegionForLang("ar")).toBe("SA")
     expect(defaultRegionForLang("es", "MX")).toBe("MX")
     expect(defaultRegionForLang("en")).toBe("US")
     expect(defaultRegionForLang("en", "GB")).toBe("GB")

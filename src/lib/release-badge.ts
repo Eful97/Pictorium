@@ -33,10 +33,18 @@ function parseTmdbDate(value?: string | null): Date | null {
 }
 
 function formatReleaseDate(date: Date, locale: string): string {
-  const d = date.toLocaleDateString(locale === "it" ? "it-IT" : locale, {
+  // Calendario gregoriano + cifre latine SEMPRE: con `ar` il default sarebbe
+  // il calendario islamico (2026 -> anno 26!) con cifre arabo-indiche.
+  // Le estensioni unicode `-u-ca-gregory-nu-latn` valgono per ogni locale
+  // senza cambiare il formato degli altri (it/de/he invariati).
+  const base = locale === "it" ? "it-IT" : locale
+  const tag = base.includes("-u-") ? base : `${base}-u-ca-gregory-nu-latn`
+  const d = date.toLocaleDateString(tag, {
     day: "2-digit",
     month: "2-digit",
     year: "2-digit",
   })
-  return d.replaceAll("/", ".")
+  // toLocaleDateString arabo inserisce marchi direzionali invisibili
+  // (RLM/LRM/ALM): spogliarli, o falserebbero la stima larghezza badge.
+  return d.replace(/[\u200E\u200F\u061C]/g, "").replaceAll("/", ".")
 }

@@ -733,8 +733,8 @@ export function usePictorium(): PictoriumCtx {
     if (langInit.current) return
     langInit.current = true
     const saved = safeGetItem("preferred_lang")
-    // Solo le lingue delle 12 nazionalità supportate; un valore legacy
-    // (zh/ru/ar/nl del vecchio picker) rimostra la scelta.
+    // Solo le lingue delle 13 nazionalità supportate; un valore legacy
+    // (zh/ru/nl del vecchio picker) rimostra la scelta.
     if (saved && isSupportedUiLang(saved)) {
       setLang(saved.toLowerCase())
       setI18nLang(saved.toLowerCase())

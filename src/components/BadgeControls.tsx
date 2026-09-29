@@ -14,7 +14,7 @@ import { withIdAwards, withIdNoms } from "@/lib/award-ids"
 import { getSubGenreLabel } from "@/lib/subgenres"
 import { getUpcomingReleaseLabel } from "@/lib/release-badge"
 import { isPrefixedKey, badgeKey } from "@/lib/i18n"
-import { getAllBadgeOptions } from "@/lib/badge-priority"
+import { getAllBadgeOptions, isMiniseriesType, isReturningStatus } from "@/lib/badge-priority"
 import { isManualAccent } from "@/lib/accent-color"
 import { UI_RATING_SOURCES } from "@/lib/rating-weights"
 import { RatingSourceIcon } from "@/components/RatingSourceIcon"
@@ -319,7 +319,7 @@ export function BadgeControls() {
                 const studio = metaInfo.studios?.length ? metaInfo.studios[0] : null
                 const tvType = selected.media_type === "tv" ? metaInfo.type : null
                 const tvStatus = selected.media_type === "tv" ? metaInfo.status : null
-                const extra = selected.media_type === "tv" ? (tvType?.toLowerCase() === "miniseries" || tvType?.toLowerCase() === "miniserie" ? t("badge.miniseries") : tvStatus?.toLowerCase() === "returning series" || tvStatus?.toLowerCase() === "in corso" ? t("badge.returning") : null) : null
+                const extra = selected.media_type === "tv" ? (isMiniseriesType(tvType) ? t("badge.miniseries") : isReturningStatus(tvStatus) ? t("badge.returning") : null) : null
                 const upcomingRelease = getUpcomingReleaseLabel({
                   mediaType: selected.media_type === "tv" ? "tv" : "movie",
                   releaseDate: metaInfo.release_date,

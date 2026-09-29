@@ -179,6 +179,39 @@ function keyed(key: string): string {
   return `${BADGE_KEY_PREFIX}${key}`
 }
 
+/**
+ * Segni arabi vocalici/direzionali a larghezza zero (tashkeel U+064B-U+0652,
+ * U+0670 + RLM/LRM/ALM): TMDB li restituisce dentro gli status arabi
+ * (es. "Ended" ar = "مُنتهٍ"). Spogliarli rende il match robusto a tutte
+ * le varianti di vocalizzazione.
+ */
+export function stripArabicDiacritics(s: string): string {
+  return s.replace(/[\u064B-\u0652\u0670\u200E\u200F\u061C]/g, "")
+}
+
+/**
+ * True se il `type` TMDB indica una miniserie. Solo en/it: in arabo TMDB
+ * restituisce il generico "مسلسلات" (indistinguibile da una serie normale),
+ * quindi niente match arabo — degrada a null, mai un falso positivo.
+ * Formula unica: mai forkare (usata da computeTopBadge, getAllBadgeOptions
+ * e dal dropdown BadgeControls).
+ */
+export function isMiniseriesType(tvType: string | null | undefined): boolean {
+  const v = (tvType || "").toLowerCase().trim()
+  return v === "miniseries" || v === "miniserie"
+}
+
+/**
+ * True se lo `status` TMDB indica una serie in corso. "Returning Series"
+ * (en), "In corso" (it), "موسم جديد قادم" (ar, verificato su TMDB ar-SA).
+ * Formula unica: mai forkare (vedi isMiniseriesType).
+ */
+export function isReturningStatus(tvStatus: string | null | undefined): boolean {
+  const v = (tvStatus || "").toLowerCase().trim()
+  if (v === "returning series" || v === "in corso") return true
+  return stripArabicDiacritics(v) === "موسم جديد قادم"
+}
+
 export function getAllBadgeOptions(params: {
   upcomingRelease: string | null
   isNewMovie: boolean
@@ -220,10 +253,8 @@ export function getAllBadgeOptions(params: {
   if (params.director) options.add(params.director)
   if (params.studio) options.add(params.studio)
   if (params.mediaType === "tv") {
-    const tLower = (params.tvType || "").toLowerCase()
-    const sLower = (params.tvStatus || "").toLowerCase()
-    if (tLower === "miniseries" || tLower === "miniserie") options.add(keyed("badge.miniseries"))
-    if (sLower === "returning series" || sLower === "in corso") options.add(keyed("badge.returning"))
+    if (isMiniseriesType(params.tvType)) options.add(keyed("badge.miniseries"))
+    if (isReturningStatus(params.tvStatus)) options.add(keyed("badge.returning"))
     if (params.seriesEnded) options.add(params.seriesEnded)
   }
   options.delete("")

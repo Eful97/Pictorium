@@ -49,26 +49,45 @@ export function escSvg(s: string): string {
 /** Ebraico (blocco base + presentation forms). */
 const HEBREW_RE = /[\u0590-\u05FF\uFB1D-\uFB4F]/
 
+/** Arabo (base U+0600-06FF + supplemento U+0750-077F + presentation forms):
+ *  stringhe verificate su TMDB ar-SA (generi, status) — Rubik copre tutti
+ *  questi glifi in tutti i pesi (Regular/Bold/Black, vedi lib/fonts). */
+const ARABIC_RE = /[\u0600-\u06FF\u0750-\u077F\uFB50-\uFDFF\uFE70-\uFEFF]/
+
+/** Segni arabi a larghezza zero: tashkeel + marchi direzionali (RLM/LRM/ALM).
+ *  Non avanzano il cursore — contarli allargherebbe la pill via `textLength`. */
+const ARABIC_ZEROWIDTH_RE = /[\u064B-\u0652\u0670\u200E\u200F\u061C]/
+
+/** True se il testo contiene ebraico o arabo (serve il font Rubik). */
+function needsRubik(text: string): boolean {
+  return HEBREW_RE.test(text) || ARABIC_RE.test(text)
+}
+
 /**
- * Famiglia da dichiarare per un testo di badge. Inter non ha glifi ebraici:
+ * Famiglia da dichiarare per un testo di badge. Inter non ha glifi ebraici
+ * ne' arabi:
  * resvg li recupera per-glifo da Rubik (presente nel fontdb, vedi lib/fonts),
  * ma quel fallback ignora il `font-weight` richiesto e ripiega sempre sul
  * regular — un badge in grassetto verrebbe reso sottile. Dichiarando "Rubik"
- * quando il testo contiene ebraico il peso torna corretto.
+ * quando il testo contiene ebraico o arabo il peso torna corretto.
  *
  * Per i testi latini ritorna "Inter": l'SVG emesso resta byte-identico a
  * prima, quindi gli snapshot visivi non si muovono.
  */
 export function fontFamilyFor(text: string): string {
-  return HEBREW_RE.test(text) ? "Rubik" : "Inter"
+  return needsRubik(text) ? "Rubik" : "Inter"
 }
 
 function charWidthFactor(char: string): number {
+  if (ARABIC_ZEROWIDTH_RE.test(char)) return 0
   if (char === " ") return 0.33
   // Rubik: le lettere ebraiche hanno avanzamento ~0.55em, uniforme (niente
   // maiuscole/minuscole). Col default 0.62 la stima sforava del ~12% e
   // `lengthAdjust="spacingAndGlyphs"` allargava visibilmente i glifi.
   if (HEBREW_RE.test(char)) return 0.55
+  // Arabo in Rubik: avanzamento ~0.55-0.60em (simile all'ebraico, lettere
+  // mediamente un filo piu larghe per i tratti discendenti/ascendenti).
+  if (ARABIC_RE.test(char)) return 0.58
   if ("iIl.,:;!'|`".includes(char)) return 0.28
   if ("-–_".includes(char)) return 0.36
   if ("fjrt".includes(char.toLowerCase())) return 0.45

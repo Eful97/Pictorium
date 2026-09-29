@@ -56,28 +56,30 @@ export function cinematicCornerGradientSVG(pw: number, ph: number): string {
  * TMDB nella lingua richiesta, quindi ogni lingua supportata va elencata: una
  * chiave mancante non è un errore visibile, degrada a #555555 (grigio) sia sul
  * badge genere sia sull'accento del poster quando la locandina è piatta.
- * Le voci ebraiche vengono da /genre/{movie,tv}/list?language=he-IL.
+ * Le voci ebraiche vengono da /genre/{movie,tv}/list?language=he-IL, quelle
+ * arabe da ...?language=ar (verificate su TMDB ar-SA il 2026-09-29).
  */
 export const GENRE_FALLBACK: Record<string, string> = {
-  Action: '#D4A574', Azione: '#D4A574', 'אקשן': '#D4A574',
-  Horror: '#8B0000', Horreur: '#8B0000', 'אימה': '#8B0000',
-  Comedy: '#F4D03F', Commedia: '#F4D03F', Comédie: '#F4D03F', 'קומדיה': '#F4D03F',
-  Drama: '#5D6D7E', Dramma: '#5D6D7E', Drame: '#5D6D7E', 'דרמה': '#5D6D7E',
-  Thriller: '#4A4A4A', 'מותחן': '#4A4A4A',
-  Adventure: '#2E86AB', Avventura: '#2E86AB', Aventure: '#2E86AB', 'הרפתקאות': '#2E86AB',
-  Animation: '#E67E22', Animazione: '#E67E22', 'אנימציה': '#E67E22',
-  'Science Fiction': '#3498DB', 'Science-Fiction': '#3498DB', Fantascienza: '#3498DB', 'Sci-Fi': '#3498DB', 'מדע בדיוני': '#3498DB',
-  Romance: '#E74C3C', Romantico: '#E74C3C', 'רומנטיקה': '#E74C3C',
-  Documentary: '#7F8C8D', Documentario: '#7F8C8D', 'תיעודי': '#7F8C8D',
-  Mystery: '#6C3483', Mistero: '#6C3483', 'מסתורין': '#6C3483',
-  Fantasy: '#8E44AD', Fantasia: '#8E44AD', 'פנטזיה': '#8E44AD',
-  War: '#6B4226', Guerra: '#6B4226', 'מלחמה': '#6B4226',
-  Western: '#A0522D', 'מערבון': '#A0522D',
-  Music: '#1ABC9C', Musica: '#1ABC9C', 'מוזיקה': '#1ABC9C',
-  Family: '#2ECC71', Famiglia: '#2ECC71', 'משפחה': '#2ECC71',
-  History: '#A67B5B', Storico: '#A67B5B', Storia: '#A67B5B', 'היסטוריה': '#A67B5B',
-  Crime: '#2C3E50', Crimine: '#2C3E50', 'פשע': '#2C3E50',
+  Action: '#D4A574', Azione: '#D4A574', 'אקשן': '#D4A574', 'حركة': '#D4A574',
+  Horror: '#8B0000', Horreur: '#8B0000', 'אימה': '#8B0000', 'رعب': '#8B0000',
+  Comedy: '#F4D03F', Commedia: '#F4D03F', Comédie: '#F4D03F', 'קומדיה': '#F4D03F', 'كوميديا': '#F4D03F',
+  Drama: '#5D6D7E', Dramma: '#5D6D7E', Drame: '#5D6D7E', 'דרמה': '#5D6D7E', 'دراما': '#5D6D7E',
+  Thriller: '#4A4A4A', 'מותחן': '#4A4A4A', 'إثارة': '#4A4A4A',
+  Adventure: '#2E86AB', Avventura: '#2E86AB', Aventure: '#2E86AB', 'הרפתקאות': '#2E86AB', 'مغامرة': '#2E86AB',
+  Animation: '#E67E22', Animazione: '#E67E22', 'אנימציה': '#E67E22', 'رسوم متحركة': '#E67E22',
+  'Science Fiction': '#3498DB', 'Science-Fiction': '#3498DB', Fantascienza: '#3498DB', 'Sci-Fi': '#3498DB', 'מדע בדיוני': '#3498DB', 'خيال علمي': '#3498DB',
+  Romance: '#E74C3C', Romantico: '#E74C3C', 'רומנטיקה': '#E74C3C', 'رومنسية': '#E74C3C',
+  Documentary: '#7F8C8D', Documentario: '#7F8C8D', 'תיעודי': '#7F8C8D', 'وثائقي': '#7F8C8D',
+  Mystery: '#6C3483', Mistero: '#6C3483', 'מסתורין': '#6C3483', 'غموض': '#6C3483',
+  Fantasy: '#8E44AD', Fantasia: '#8E44AD', 'פנטזיה': '#8E44AD', 'فانتازيا': '#8E44AD',
+  War: '#6B4226', Guerra: '#6B4226', 'מלחמה': '#6B4226', 'حرب': '#6B4226',
+  Western: '#A0522D', 'מערבון': '#A0522D', 'غربي': '#A0522D',
+  Music: '#1ABC9C', Musica: '#1ABC9C', 'מוזיקה': '#1ABC9C', 'موسيقى': '#1ABC9C',
+  Family: '#2ECC71', Famiglia: '#2ECC71', 'משפחה': '#2ECC71', 'عائلي': '#2ECC71',
+  History: '#A67B5B', Storico: '#A67B5B', Storia: '#A67B5B', 'היסטוריה': '#A67B5B', 'تاريخ': '#A67B5B',
+  Crime: '#2C3E50', Crimine: '#2C3E50', 'פשע': '#2C3E50', 'جريمة': '#2C3E50',
   // Generi composti TV grezzi (sicurezza: il badge normalizza a monte, ma un
   // valore grezzo da mapping storici/cache non deve mai degradare a grigio).
-  'Sci-Fi & Fantasy': '#3498DB', 'Action & Adventure': '#D4A574', 'War & Politics': '#6B4226',
+  'Sci-Fi & Fantasy': '#3498DB', 'Action & Adventure': '#D4A574', 'War & Politics': '#6B4226', 'حركة ومغامرة': '#D4A574', 'خيال علمي وفانتازيا': '#3498DB', 'حرب وسياسة': '#6B4226',
+  'فيلم تلفازي': '#5D6D7E', 'أطفال': '#2ECC71', 'أخبار': '#7F8C8D', 'واقع': '#7F8C8D', 'حوار': '#7F8C8D', 'أوبرا صابونية': '#5D6D7E',
 }
