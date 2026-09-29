@@ -234,7 +234,12 @@ export async function fetchCustomMDBList(urlOrSlug: string, apiKey?: string, lim
     } else if (Array.isArray(payload?.items)) {
       rawItems = payload.items
     } else if (Array.isArray(payload?.movies) || Array.isArray(payload?.shows)) {
-      rawItems = [...(payload.movies || []), ...(payload.shows || [])]
+      // Le sezioni movies/shows portano il tipo: lo si annota come default
+      // (il campo proprio dell'item vince se presente) così i cataloghi
+      // "mixed" non sdoppiano gli item senza tipo in film+serie.
+      const movies = (payload.movies || []).map((m: { mediatype?: string }) => ({ mediatype: "movie" as const, ...m }))
+      const shows = (payload.shows || []).map((s: { mediatype?: string }) => ({ mediatype: "show" as const, ...s }))
+      rawItems = [...movies, ...shows]
     }
 
     const seenCustom = new Set<string>()

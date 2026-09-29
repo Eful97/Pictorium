@@ -63,6 +63,20 @@ describe("Custom Catalogs & MDBList Parsing", () => {
         tmdb: 200,
       })
     })
+
+    it("tags mediatype from movies/shows sections so mixed catalogs don't duplicate", async () => {
+      vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+        Response.json({
+          movies: [{ id: 1, title: "M", year: 2020, imdb_id: "tt0000001" }],
+          shows: [{ id: 2, title: "S", year: 2021, imdb_id: "tt0000002" }],
+        }),
+      )
+
+      const items = await fetchCustomMDBList("https://mdblist.com/lists/snoak/mixed-sections")
+      expect(items).toHaveLength(2)
+      expect(items.find((i) => i.tmdb === 1)?.mediatype).toBe("movie")
+      expect(items.find((i) => i.tmdb === 2)?.mediatype).toBe("show")
+    })
   })
 
   describe("Manifest with Custom Catalogs", () => {

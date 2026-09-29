@@ -116,9 +116,29 @@ export function detectCatalogProvider(input: string): ProviderDetectionResult | 
     }
   }
 
-  // 7. MDBList (default fallback per mdblist.com, user/slug o id)
-  return {
-    provider: "mdblist",
-    defaultType: "movie",
+  // 7. MDBList: solo se sembra davvero un target MDBList (URL mdblist.com,
+  // user/slug, id numerico o slug singolo). Qualsiasi altra stringa → null,
+  // così il modal rifiuta l'input spazzatura invece di salvare un catalogo
+  // morto che torna sempre vuoto.
+  if (looksLikeMDBListTarget(trimmed)) {
+    return {
+      provider: "mdblist",
+      defaultType: "movie",
+    }
   }
+  return null
+}
+
+/**
+ * Euristica client-safe speculare a `parseMDBListTarget` (mdblist.ts):
+ * decide se la stringa può essere un target MDBList senza import server.
+ */
+function looksLikeMDBListTarget(trimmed: string): boolean {
+  const noQuery = trimmed.replace(/\?.*$/, "").replace(/\/+$/, "")
+  if (/^(?:https?:\/\/)?(?:api\.)?mdblist\.com\/lists\//i.test(noQuery)) return true
+  if (/^[0-9]+$/.test(trimmed)) return true
+  if (/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(trimmed)) return true
+  // Slug singolo senza scheme/spazi/slash (es. `nome-lista`).
+  if (!/[:\s/]/.test(trimmed) && /^[A-Za-z0-9_.-]+$/.test(trimmed)) return true
+  return false
 }

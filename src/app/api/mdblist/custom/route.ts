@@ -34,9 +34,14 @@ export async function GET(req: NextRequest) {
   try {
     const detection = detectCatalogProvider(url)
     const limit = Math.min(Math.max(parseInt(req.nextUrl.searchParams.get("limit") || "500", 10) || 500, 1), 1000)
-    const rawItems = await fetchUnifiedCatalogItems(url, { apiKey, mdblistKey, limit })
+    // Il conteggio totale serve alla UI ("N titoli — anteprima K"): il raw si
+    // fetcha fino a 500 (una sola chiamata upstream, cache condivisa con la
+    // griglia full che chiede limit=500) ma si arricchisce solo la finestra
+    // richiesta, così la preview resta leggera.
+    const fetchLimit = Math.min(Math.max(limit, 500), 1000)
+    const rawItems = await fetchUnifiedCatalogItems(url, { apiKey, mdblistKey, limit: fetchLimit })
     const items = await mapLimit(
-      rawItems,
+      rawItems.slice(0, limit),
       FANOUT_CONCURRENCY,
       async (it) => {
         let tmdbId = Number(it.tmdb)
@@ -70,6 +75,7 @@ export async function GET(req: NextRequest) {
     )
     return Response.json({
       items,
+      total: rawItems.length,
       provider: detection?.provider,
       suggestedName: detection?.nameSuggestion,
       defaultType: detection?.defaultType,

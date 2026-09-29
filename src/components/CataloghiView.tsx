@@ -11,6 +11,8 @@ import { SimklCard, type SimklCardItem } from "@/components/SimklCard"
 import { CustomCatalogModal } from "@/components/CustomCatalogModal"
 import { CatalogManagerModal } from "@/components/CatalogManagerModal"
 import { posterUrl } from "@/lib/utils"
+import { userFetch } from "@/lib/http"
+import { currentPathUuid } from "@/lib/user-token"
 import { X, Check, ListPlus, Trash2, Film, Tv, Shuffle, Power, SlidersHorizontal, Home, RefreshCw } from "lucide-react"
 
 interface GridViewItem {
@@ -33,6 +35,7 @@ function CatalogPair({
   openGrid,
   onItemClick,
   savedKeys,
+  showEmpty,
 }: {
   movies: SimklCardItem[]
   tv: SimklCardItem[]
@@ -42,36 +45,42 @@ function CatalogPair({
   tvTitle: string
   movieGridTitle: string
   tvGridTitle: string
-  openGrid: (items: GridViewItem[], title: string) => void
+  openGrid: (items: GridViewItem[], title: string, section: "movie" | "tv") => void
   onItemClick: (item: SimklCardItem) => void
   savedKeys: Set<string>
+  /** Se true, rende anche le sezioni vuote (cataloghi mixed con preview
+   * sbilanciata: la sezione assente in preview resta cliccabile e carica il
+   * full filtrato alla prima apertura). */
+  showEmpty?: boolean
 }) {
   const hasMovies = movies.length > 0
   const hasTv = tv.length > 0
-  if (!hasMovies && !hasTv) return null
+  const showMovies = hasMovies || !!showEmpty
+  const showTv = hasTv || !!showEmpty
+  if (!showMovies && !showTv) return null
 
   const toGrid = (list: SimklCardItem[]): GridViewItem[] => toGridItems(list)
 
   return (
-    <div className={`grid gap-3 ${hasMovies && hasTv ? "grid-cols-1 lg:grid-cols-2" : "grid-cols-1"}`}>
-      {hasMovies && (
+    <div className={`grid gap-3 ${showMovies && showTv ? "grid-cols-1 lg:grid-cols-2" : "grid-cols-1"}`}>
+      {showMovies && (
         <SimklCard
           className="simkl-list-card--fill"
           items={movies}
           title={movieTitle}
           totalCount={totalMovies}
-          onClick={() => openGrid(toGrid(movies), movieGridTitle)}
+          onClick={() => openGrid(toGrid(movies), movieGridTitle, "movie")}
           onItemClick={onItemClick}
           savedKeys={savedKeys}
         />
       )}
-      {hasTv && (
+      {showTv && (
         <SimklCard
           className="simkl-list-card--fill"
           items={tv}
           title={tvTitle}
           totalCount={totalTv}
-          onClick={() => openGrid(toGrid(tv), tvGridTitle)}
+          onClick={() => openGrid(toGrid(tv), tvGridTitle, "tv")}
           onItemClick={onItemClick}
           savedKeys={savedKeys}
         />
@@ -96,6 +105,16 @@ function filterSection(full: SimklCardItem[], previewSlice: SimklCardItem[]): Si
   return full.filter((it) => types.has(it.media_type || it.mediaType))
 }
 
+/** Filtro per sezione esplicita della card; senza `section` degrada allo slice preview. */
+function filterBySection(
+  full: SimklCardItem[],
+  previewSlice: SimklCardItem[] | GridViewItem[],
+  section?: "movie" | "tv",
+): SimklCardItem[] {
+  if (section) return full.filter((it) => (it.media_type || it.mediaType) === section)
+  return filterSection(full, previewSlice as SimklCardItem[])
+}
+
 // Preview leggera per le card custom (la griglia completa arriva su open):
 // N cataloghi × 500 item parsati nel client ad ogni visita erano il collo
 // di bottiglia. Cache di sessione per la lista completa (chiave URL+chiavi).
@@ -113,11 +132,14 @@ function customItemsUrl(url: string, tmdbKey: string, mdblistApiKey: string, lim
   return `/api/mdblist/custom?${params.toString()}`
 }
 
-async function fetchCustomItems(url: string, signal?: AbortSignal): Promise<SimklCardItem[]> {
-  const res = await fetch(url, { signal })
+async function fetchCustomItems(url: string, signal?: AbortSignal): Promise<{ items: SimklCardItem[]; total: number | null }> {
+  // userFetch (mai fetch grezzo): sui path /u/<uuid> aggiunge ?u= + token così
+  // il server risolve le chiavi salvate nel profilo (con fetch grezzo le
+  // copertine restavano vuote in multi-user pur funzionando in locale).
+  const res = await userFetch(url, { signal })
   const data = await res.json().catch(() => null)
   if (!res.ok || !Array.isArray(data?.items)) throw new Error(`custom catalog failed: ${res.status}`)
-  return data.items
+  return { items: data.items, total: typeof data?.total === "number" ? data.total : null }
 }
 
 function CustomCatalogEntry({
@@ -145,6 +167,7 @@ function CustomCatalogEntry({
 }) {
   const { t } = useT()
   const [items, setItems] = useState<SimklCardItem[]>([])
+  const [total, setTotal] = useState<number | null>(null)
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState(false)
   const [expanding, setExpanding] = useState(false)
@@ -154,7 +177,10 @@ function CustomCatalogEntry({
   const isMixed = cat.type === "mixed"
   const isMovie = cat.type === "movie"
 
-  const fullCacheKey = `${cat.url}|${tmdbKey || ""}|${mdblistApiKey || ""}`
+  // Il namespace entra nella chiave: due profili non devono condividere il
+  // full cachato (le chiavi server-side differiscono per utente).
+  const namespaceUuid = currentPathUuid()
+  const fullCacheKey = `${namespaceUuid || ""}|${cat.url}|${tmdbKey || ""}|${mdblistApiKey || ""}`
 
   useEffect(() => {
     let active = true
@@ -162,9 +188,10 @@ function CustomCatalogEntry({
     setLoading(true)
     setLoadError(false)
     fetchCustomItems(customItemsUrl(cat.url, tmdbKey, mdblistApiKey, CUSTOM_PREVIEW_LIMIT), ctrl.signal)
-      .then((list) => {
+      .then(({ items: list, total: count }) => {
         if (!active) return
         setItems(list)
+        setTotal(count)
         setLoading(false)
       })
       .catch(() => {
@@ -176,26 +203,27 @@ function CustomCatalogEntry({
       active = false
       ctrl.abort()
     }
-  }, [cat.url, tmdbKey, mdblistApiKey, reloadNonce])
+  }, [cat.url, tmdbKey, mdblistApiKey, namespaceUuid, reloadNonce])
 
   // Griglia completa su richiesta: la preview mostra i primi 40, il full
   // (500) si scarica solo aprendo la griglia e resta in cache di sessione.
-  // La sezione (film/serie) si ricava dai tipi presenti nello slice preview.
-  const expandAndOpen = (previewSlice: SimklCardItem[], title: string) => {
+  // La sezione si filtra per tipo esplicito della card (mai dai tipi visti in
+  // preview: con preview sbilanciata la sezione assente spariva del tutto).
+  const expandAndOpen = (previewSlice: SimklCardItem[] | GridViewItem[], title: string, section?: "movie" | "tv") => {
     const cached = customFullCache.get(fullCacheKey)
     if (cached) {
-      openGrid(toGridItems(filterSection(cached, previewSlice)), title)
+      openGrid(toGridItems(filterBySection(cached, previewSlice, section)), title)
       return
     }
     setExpanding(true)
     fetchCustomItems(customItemsUrl(cat.url, tmdbKey, mdblistApiKey, CUSTOM_FULL_LIMIT))
-      .then((full) => {
+      .then(({ items: full }) => {
         customFullCache.set(fullCacheKey, full)
-        openGrid(toGridItems(filterSection(full, previewSlice)), title)
+        openGrid(toGridItems(filterBySection(full, previewSlice, section)), title)
       })
       .catch(() => {
         // Fallback: apri con l'anteprima (meglio che niente).
-        openGrid(toGridItems(previewSlice), title)
+        openGrid(toGridItems(previewSlice as SimklCardItem[]), title)
       })
       .finally(() => setExpanding(false))
   }
@@ -226,6 +254,11 @@ function CustomCatalogEntry({
             {isMixed ? "Misto" : isMovie ? "Film" : "Serie TV"}
           </span>
           <h3 className="text-base font-bold text-white line-clamp-1">{cat.name}</h3>
+          {total !== null && total > items.length && (
+            <span className="shrink-0 text-[10px] text-muted">
+              {total} {total === 1 ? t("ui.itemOne") : t("ui.itemMany")}
+            </span>
+          )}
         </div>
         <div className="flex items-center gap-1.5">
           <button
@@ -297,11 +330,12 @@ function CustomCatalogEntry({
           tvTitle={`${cat.name} — ${t("ui.tvSeries")}`}
           movieGridTitle={`${cat.name} — ${t("ui.movie")}`}
           tvGridTitle={`${cat.name} — ${t("ui.tvSeries")}`}
-          openGrid={(items, title) => {
-            void expandAndOpen(items, title)
+          openGrid={(gridItems, title, section) => {
+            void expandAndOpen(gridItems, title, section)
           }}
           onItemClick={onItemClick}
           savedKeys={savedKeys}
+          showEmpty
         />
       ) : isMovie ? (
         <CatalogPair
@@ -313,8 +347,8 @@ function CustomCatalogEntry({
           tvTitle=""
           movieGridTitle={cat.name}
           tvGridTitle=""
-          openGrid={(items, title) => {
-            void expandAndOpen(items, title)
+          openGrid={(gridItems, title, section) => {
+            void expandAndOpen(gridItems, title, section)
           }}
           onItemClick={onItemClick}
           savedKeys={savedKeys}
@@ -329,8 +363,8 @@ function CustomCatalogEntry({
           tvTitle={cat.name}
           movieGridTitle=""
           tvGridTitle={cat.name}
-          openGrid={(items, title) => {
-            void expandAndOpen(items, title)
+          openGrid={(gridItems, title, section) => {
+            void expandAndOpen(gridItems, title, section)
           }}
           onItemClick={onItemClick}
           savedKeys={savedKeys}

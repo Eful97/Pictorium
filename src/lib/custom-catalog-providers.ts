@@ -145,38 +145,41 @@ async function fetchTraktList(url: string, limit: number = 500): Promise<MDBList
 
     const user = traktMatch[1]
     const slug = traktMatch[2] || traktMatch[3]
+    const isWatchlist = trimmed.toLowerCase().includes("/watchlist")
 
-    // Prova prima l'endpoint StremThru se disponibile
-    if (user && slug) {
-      const stremThruUrl = `https://stremthru.13377001.xyz/v0/meta/trakt/users/${encodeURIComponent(user)}/lists/${encodeURIComponent(slug)}/items`
-      const res = await fetch(stremThruUrl, {
-        headers: { Accept: "application/json", "User-Agent": "Mozilla/5.0 Pictorium" },
-        signal: AbortSignal.timeout(10000),
-      }).catch(() => null)
-
-      if (res && res.ok) {
-        const json = await res.json()
-        const rawItems: TraktListItem[] = json?.data?.items || json?.items || []
-        if (rawItems.length > 0) {
-          return rawItems.slice(0, limit).map((it) => {
-            const idMap = it.id_map || {}
-            const media = it.movie || it.show || it
-            return {
-              imdb: idMap.imdb || media.ids?.imdb || "",
-              tmdb: Number(idMap.tmdb || media.ids?.tmdb) || undefined,
-              title: media.title || media.name || "",
-              year: Number(media.year) || 0,
-              mediatype: (it.type === "show" || Boolean(it.show)) ? "tv" : "movie",
-            }
-          })
-        }
-      }
+    // Le watchlist Trakt non hanno uno slug lista: nessuno endpoint noto le
+    // risolve (niente guess su URL StremThru non documentati) → [] esplicito.
+    if (isWatchlist || !user || !slug) {
+      log.warn("Trakt watchlist or slug-less list not supported as custom catalog", { url: trimmed })
+      return []
     }
 
-    // Fallback: MDBList sync per liste Trakt pubbliche
-    if (user && slug) {
-      const mdblistFallback = await fetchCustomMDBList(`https://mdblist.com/lists/${encodeURIComponent(user)}/${encodeURIComponent(slug)}`, undefined, limit)
-      if (mdblistFallback.length > 0) return mdblistFallback
+    // Unico tentativo: endpoint StremThru (single-shot, senza paginazione
+    // documentata). Niente fallback MDBList: `user/slug` Trakt NON è un
+    // namespace mdblist.com e il fallback tornava sempre [] nascondendo
+    // l'errore reale.
+    const stremThruUrl = `https://stremthru.13377001.xyz/v0/meta/trakt/users/${encodeURIComponent(user)}/lists/${encodeURIComponent(slug)}/items`
+    const res = await fetch(stremThruUrl, {
+      headers: { Accept: "application/json", "User-Agent": "Mozilla/5.0 Pictorium" },
+      signal: AbortSignal.timeout(10000),
+    }).catch(() => null)
+
+    if (res && res.ok) {
+      const json = await res.json()
+      const rawItems: TraktListItem[] = json?.data?.items || json?.items || []
+      if (rawItems.length > 0) {
+        return rawItems.slice(0, limit).map((it) => {
+          const idMap = it.id_map || {}
+          const media = it.movie || it.show || it
+          return {
+            imdb: idMap.imdb || media.ids?.imdb || "",
+            tmdb: Number(idMap.tmdb || media.ids?.tmdb) || undefined,
+            title: media.title || media.name || "",
+            year: Number(media.year) || 0,
+            mediatype: (it.type === "show" || Boolean(it.show)) ? "tv" : "movie",
+          }
+        })
+      }
     }
 
     return []
@@ -329,6 +332,13 @@ export async function fetchUnifiedCatalogItems(
       if (detection?.identifier) {
         items = await fetchTmdbCollectionOrList(provider, detection.identifier, options?.apiKey, limit)
       }
+      break
+    case "tvdb":
+    case "imdb":
+      // Provider riconosciuti dal detect ma senza fetch implementato: [] con
+      // warn (il modal blocca il save su preview vuota invece di creare un
+      // catalogo morto). Non cadere nel ramo mdblist.
+      log.warn("Custom catalog provider not yet implemented", { provider })
       break
     case "mdblist":
     default:

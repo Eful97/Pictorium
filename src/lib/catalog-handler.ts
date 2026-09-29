@@ -685,6 +685,14 @@ export async function pictoriumCatalog(
     let metas: StremioMeta[] = []
 
     if (catalogId.startsWith("pictorium-custom-")) {
+      // Come il ramo JW: senza chiave TMDB niente getDetails e i poster
+      // Pictorium risponderebbero 404 → notice esplicita invece di item rotti.
+      if (!apiKey) {
+        log.debug("Catalog key-missing: no TMDB key", { catalogId })
+        return catalogResponse({
+          metas: [buildNoticeMeta({ type: stType, poster: `${getOriginFromRequest(req)}/pictorium.png` })],
+        })
+      }
       let customId = catalogId.replace(/^pictorium-custom-/, "")
       if (customId.startsWith("movie-")) customId = customId.slice(6)
       else if (customId.startsWith("series-")) customId = customId.slice(7)

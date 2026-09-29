@@ -113,6 +113,15 @@ export function CustomCatalogModal({ isOpen, onClose }: CustomCatalogModalProps)
         }
       }
 
+      // Mai salvare un catalogo morto: senza titoli la preview su Stremio e
+      // nella sezione Cataloghi resterebbe vuota (provider non supportato,
+      // chiave mancante o lista inaccessibile).
+      if (previewCount === 0) {
+        setError(t("ui.customNoTitles"))
+        setLoading(false)
+        return
+      }
+
       addCustomCatalog({
         name: trimmedName,
         type,
@@ -126,18 +135,11 @@ export function CustomCatalogModal({ isOpen, onClose }: CustomCatalogModalProps)
         setPreviewItems(null)
         setLoading(false)
         onClose()
-      }, previewCount > 0 ? 700 : 150)
+      }, 700)
     } catch {
-      addCustomCatalog({
-        name: trimmedName,
-        type,
-        url: trimmedUrl,
-        enabled: true,
-      })
-      setUrl("")
-      setName("")
+      setError(t("ui.customNoTitles"))
       setLoading(false)
-      onClose()
+      return
     }
   }
 
@@ -189,8 +191,6 @@ export function CustomCatalogModal({ isOpen, onClose }: CustomCatalogModalProps)
             <span className="text-[9px] px-1.5 py-0.5 rounded bg-white/5 border border-white/10 text-zinc-400">TMDb Saga</span>
             <span className="text-[9px] px-1.5 py-0.5 rounded bg-white/5 border border-white/10 text-zinc-400">TMDb Lista</span>
             <span className="text-[9px] px-1.5 py-0.5 rounded bg-white/5 border border-white/10 text-zinc-400">MDBList</span>
-            <span className="text-[9px] px-1.5 py-0.5 rounded bg-white/5 border border-white/10 text-zinc-400">TheTVDB</span>
-            <span className="text-[9px] px-1.5 py-0.5 rounded bg-white/5 border border-white/10 text-zinc-400">IMDb</span>
           </div>
         </div>
 

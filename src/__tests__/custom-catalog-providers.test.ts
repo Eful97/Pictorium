@@ -94,6 +94,13 @@ describe("detectCatalogProvider", () => {
     expect(resSlug?.provider).toBe("mdblist")
   })
 
+  it("returns null for garbage input instead of a dead mdblist catalog", () => {
+    expect(detectCatalogProvider("https://example.com/foo")).toBeNull()
+    expect(detectCatalogProvider("not a url!!")).toBeNull()
+    // URL Letterboxd malformato (senza list/watchlist): non è un target mdblist.
+    expect(detectCatalogProvider("https://letterboxd.com/foo")).toBeNull()
+  })
+
   it("returns null for empty input", () => {
     expect(detectCatalogProvider("")).toBeNull()
     expect(detectCatalogProvider("   ")).toBeNull()
@@ -299,6 +306,16 @@ describe("fetchUnifiedCatalogItems", () => {
     expect(items[0].title).toBe("Movie Page 1")
     expect(items[1].title).toBe("Movie Page 2")
     expect(items[1].poster_path).toBe("/p2.jpg")
+  })
+
+  it("returns [] for recognized-but-unimplemented providers (tvdb/imdb)", async () => {
+    // Mock dedicato assegnato (stile del file): prova che il ramo non fa rete.
+    // Niente assert sullo storico globale di fetch: le assegnazioni dirette a
+    // global.fetch dei test precedenti persistono tra i test del file.
+    global.fetch = vi.fn(() => Promise.reject(new Error("must not fetch"))) as unknown as typeof fetch
+    expect(await fetchUnifiedCatalogItems("https://thetvdb.com/lists/mcu-test-unimpl")).toEqual([])
+    expect(await fetchUnifiedCatalogItems("https://www.imdb.com/list/ls123456789/")).toEqual([])
+    expect(global.fetch).not.toHaveBeenCalled()
   })
 
   it("isolates cache entries per API key (no cross-user poisoning)", async () => {

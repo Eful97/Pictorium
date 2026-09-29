@@ -147,6 +147,57 @@ describe("GET /catalog/[type]/[id]", () => {
     expect(body.metas[0].poster).not.toContain("mdblist-key")
   })
 
+  it("returns a notice card for custom catalogs without any TMDB key", async () => {
+    // Senza chiave niente getDetails e i poster Pictorium risponderebbero 404:
+    // notice esplicita come il ramo JW, mai item rotti o metas:[] silenzioso.
+    const savedEnv = {
+      PICTORIUM_TMDB_KEY: process.env.PICTORIUM_TMDB_KEY,
+      TMDB_KEY: process.env.TMDB_KEY,
+      TMDB_API_KEY: process.env.TMDB_API_KEY,
+    }
+    delete process.env.PICTORIUM_TMDB_KEY
+    delete process.env.TMDB_KEY
+    delete process.env.TMDB_API_KEY
+    try {
+      const token = encodeConfig({
+        globalBadges: true,
+        rankingBadges: true,
+        badgeStyle: "pill",
+        rankingBadgeStyle: "pill",
+        blurEnabled: true,
+        blurIntensity: 12,
+        blurFade: 45,
+        blurDarkness: 55,
+        gradientHeight: 50,
+        networkLogo: true,
+        autoRotateClean: false,
+        customCatalogs: [
+          {
+            id: "notice-test",
+            name: "Notice Test",
+            type: "movie",
+            url: "https://mdblist.com/lists/snoak/notice-test",
+            enabled: true,
+          },
+        ],
+      })
+
+      const req = new NextRequest(`http://localhost:3000/catalog/movie/pictorium-custom-movie-notice-test.json?config=${token}`)
+      const res = await GET(req, { params: Promise.resolve({ type: "movie", id: "pictorium-custom-movie-notice-test.json" }) })
+      const body = await res.json()
+
+      expect(res.status).toBe(200)
+      expect(body.metas).toHaveLength(1)
+      expect(body.metas[0].id.startsWith("pictorium:notice:")).toBe(true)
+      expect(body.metas[0].poster).toContain("/pictorium.png")
+    } finally {
+      for (const [k, v] of Object.entries(savedEnv)) {
+        if (v === undefined) delete process.env[k]
+        else process.env[k] = v
+      }
+    }
+  })
+
   it("adds mapping version to catalog poster URLs for saved titles", async () => {
     mockedGetById.mockResolvedValueOnce({
       tmdbId: 94997,
