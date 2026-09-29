@@ -73,6 +73,7 @@
   "ui.videoFormats": "Formatos A/V",
   "ui.defaultVideoFormats": "Formatos A/V predeterminados",
   "ui.videoFormatsHint": "Activar o desactivar las insignias de video y audio (DV, Atmos, IMAX, HDR, HDR10+).",
+  "ui.videoFormatsAutoHint": "Detectado automáticamente de la base de datos",
   "ui.formatsAll": "Todos",
   "ui.formatsNone": "Ninguno",
   "ui.qbsStandard": "Estándar",

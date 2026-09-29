@@ -6,7 +6,7 @@ import { usePSelector } from "@/lib/context"
 import { useT } from "@/lib/contexts/TranslationContext"
 import { usePosterEditor } from "@/lib/contexts/PosterEditorContext"
 import { Toggle } from "@/components/Toggle"
-import { BadgeStyleSelector, VideoFormatSelector } from "@/components/ui"
+import { BadgeStyleSelector } from "@/components/ui"
 import { lookupAVSpecs, KNOWN_VIDEO_FORMATS } from "@/lib/av-specs"
 import { getAwardBadgeLabel, getNominationBadgeLabel } from "@/lib/badge-labels"
 import { getNewSeasonLabel, getSeriesEndedLabel, isKDramaOrigin } from "@/lib/poster-badge"
@@ -36,12 +36,9 @@ export function BadgeControls() {
   const [editText, setEditText] = useState("")
 
   const localSpec = lookupAVSpecs(metaInfo?.imdb_id || selected?.imdb_id)
-  const isFormatsCustomized = ed.videoFormats !== null && ed.videoFormats !== undefined
-  const activeVideoFormats = isFormatsCustomized
-    ? ed.videoFormats!
-    : (localSpec?.formats
-        ? localSpec.formats.filter((f) => (ed.defaultVideoFormats ?? KNOWN_VIDEO_FORMATS).includes(f))
-        : [])
+  const activeVideoFormats = localSpec?.formats
+    ? localSpec.formats.filter((f) => (ed.defaultVideoFormats ?? KNOWN_VIDEO_FORMATS).includes(f))
+    : []
 
   if (!selected) return null
 
@@ -212,16 +209,24 @@ export function BadgeControls() {
                 />
               </div>
 
-              <div className="pt-1.5 border-t border-surface2/50">
-                <label className="text-[11px] text-muted font-medium block mb-1">{t("ui.videoFormats")}</label>
-                <VideoFormatSelector
-                  selectedFormats={activeVideoFormats}
-                  onChange={(formats) => ed.setVideoFormats(formats)}
-                  onReset={() => ed.setVideoFormats(null)}
-                  isCustomized={isFormatsCustomized}
-                  t={t}
-                />
-              </div>
+              {activeVideoFormats.length > 0 && (
+                <div className="pt-1.5 border-t border-surface2/50 flex items-center justify-between">
+                  <div className="flex flex-col">
+                    <span className="text-[11px] text-zinc-300 font-medium">{t("ui.videoFormats")}</span>
+                    <span className="text-[10px] text-muted">{t("ui.videoFormatsAutoHint")}</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    {activeVideoFormats.map((fmt) => (
+                      <span
+                        key={fmt}
+                        className="text-[10px] font-bold font-mono px-2 py-0.5 rounded bg-surface2/80 text-accent-orange border border-accent-orange/30 shadow-sm"
+                      >
+                        {fmt === "hdr10plus" ? "HDR10+" : fmt.toUpperCase()}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           )}
 

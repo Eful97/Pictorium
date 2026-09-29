@@ -73,6 +73,7 @@
   "ui.videoFormats": "A/V-Formate",
   "ui.defaultVideoFormats": "Standard-A/V-Formate",
   "ui.videoFormatsHint": "Video- und Audio-Badges aktivieren oder deaktivieren (DV, Atmos, IMAX, HDR, HDR10+).",
+  "ui.videoFormatsAutoHint": "Automatisch aus der Datenbank erkannt",
   "ui.formatsAll": "Alle",
   "ui.formatsNone": "Keine",
   "ui.qbsStandard": "Standard",

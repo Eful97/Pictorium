@@ -73,6 +73,7 @@
   "ui.videoFormats": "Formatos A/V",
   "ui.defaultVideoFormats": "Formatos A/V padrão",
   "ui.videoFormatsHint": "Ativar ou desativar selos de vídeo e áudio (DV, Atmos, IMAX, HDR, HDR10+).",
+  "ui.videoFormatsAutoHint": "Detectado automaticamente da base de dados",
   "ui.formatsAll": "Todos",
   "ui.formatsNone": "Nenhum",
   "ui.qbsStandard": "Padrão",

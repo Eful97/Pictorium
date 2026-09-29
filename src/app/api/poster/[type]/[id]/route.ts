@@ -1618,18 +1618,27 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
       minQuality,
     )
 
-    // Formati A/V da affiancare (dv, atmos, imax, hdr, hdr10plus):
-    // Priorità: query esplicita `?formats=` > mapping salvato > database locale AV specs
+    // Formati A/V (dv, atmos, imax, hdr, hdr10plus):
+    // Sempre rigorosamente automatici basati sulle specifiche reali del film (localSpec).
+    // Non vengono MAI mostrati loghi che il titolo non possiede nella realtà.
+    const availableFormats = localSpec?.formats ?? []
     const qFormatsRaw = req.nextUrl.searchParams.get("formats")
     const qFormats = qFormatsRaw !== null
       ? (qFormatsRaw === "none" || qFormatsRaw === "" ? [] : (qFormatsRaw.split(",").map((s) => s.trim().toLowerCase()).filter(isVideoFormat) as VideoFormat[]))
       : null
     const allowedFormats = sd.videoFormats
-    const rawLocalFormats = localSpec?.formats ?? null
-    const defaultFilteredFormats = (allowedFormats && rawLocalFormats)
-      ? rawLocalFormats.filter((f) => allowedFormats.includes(f))
-      : (allowedFormats === null || allowedFormats === undefined ? rawLocalFormats : [])
-    const finalVideoFormats = qFormats ?? mapping?.videoFormats ?? defaultFilteredFormats ?? null
+    const requestedFormats = qFormats ?? mapping?.videoFormats ?? null
+
+    const effectiveFormats = availableFormats.filter((f) => {
+      if (requestedFormats !== null) {
+        return requestedFormats.includes(f)
+      }
+      if (allowedFormats && allowedFormats.length > 0) {
+        return allowedFormats.includes(f)
+      }
+      return true
+    })
+    const finalVideoFormats = effectiveFormats.length > 0 ? effectiveFormats : null
 
     const locale = req.nextUrl.searchParams.get("lang") || mapping?.language || posterRegion.lang2
     // Normalizza i generi composti TV grezzi ("Sci-Fi & Fantasy" mai localizzato

@@ -62,6 +62,27 @@ describe("format icons color adaptation", () => {
     expect(statsLight.channels[1].max).toBe(0)
     expect(statsLight.channels[2].max).toBe(0)
   })
+
+  it("renders IMAX badge with transparent cutout in the letter A", async () => {
+    // Test the raw SVG rasterization without shadow overlay
+    const svg = fs.readFileSync(path.join(ROOT, "public", FORMAT_ICON_PATHS.imax), "utf8")
+    expect(svg).toContain('fill-rule="evenodd"')
+    const rawPng = await sharp(Buffer.from(svg.replace("currentColor", "white"))).png().toBuffer()
+    const { data, info } = await sharp(rawPng).raw().toBuffer({ resolveWithObject: true })
+    // In raw 980x490, A hole is at x ~558, y ~240 (150.28 + 90)
+    let foundHole = false
+    for (let y = 230; y <= 250; y++) {
+      for (let x = 550; x <= 566; x++) {
+        const idx = (y * info.width + x) * info.channels
+        if (data[idx + 3] === 0) {
+          foundHole = true
+          break
+        }
+      }
+      if (foundHole) break
+    }
+    expect(foundHole).toBe(true)
+  })
 })
 
 describe("renderQualityBadgeGroup", () => {

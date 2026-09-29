@@ -73,6 +73,7 @@
   "ui.videoFormats": "A/Vフォーマット",
   "ui.defaultVideoFormats": "デフォルトのA/Vフォーマット",
   "ui.videoFormatsHint": "ビデオおよびオーディオバッジ（DV、Atmos、IMAX、HDR、HDR10+）を有効または無効にします。",
+  "ui.videoFormatsAutoHint": "データベースから自動検出",
   "ui.formatsAll": "すべて",
   "ui.formatsNone": "なし",
   "ui.qbsStandard": "標準",

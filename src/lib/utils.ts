@@ -100,7 +100,7 @@ export const UI_LANGUAGES: readonly UiLangOption[] = [
   { code: "es", flag: "🇪🇸", name: "Español", sub: "ES" },
   { code: "ja", flag: "🇯🇵", name: "日本語", sub: "JA" },
   { code: "ko", flag: "🇰🇷", name: "한국어", sub: "KO" },
-  { code: "pt", flag: "🇧🇷", name: "Português", sub: "PT" },
+  { code: "pt", flag: "🇵🇹", name: "Português", sub: "PT" },
   { code: "he", flag: "🇮🇱", name: "עברית", sub: "HE" },
   { code: "cs", flag: "🇨🇿", name: "Čeština", sub: "CS" },
   { code: "ro", flag: "🇷🇴", name: "Română", sub: "RO" },

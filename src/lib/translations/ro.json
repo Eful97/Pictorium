@@ -73,6 +73,7 @@
   "ui.videoFormats": "Formate A/V",
   "ui.defaultVideoFormats": "Formate A/V implicite",
   "ui.videoFormatsHint": "Activează sau dezactivează insignele audio și video (DV, Atmos, IMAX, HDR, HDR10+).",
+  "ui.videoFormatsAutoHint": "Detectat automat din baza de date",
   "ui.formatsAll": "Toate",
   "ui.formatsNone": "Niciunul",
   "ui.qbsStandard": "Standard",
