@@ -82,6 +82,7 @@ const defaultsSchema = z.object({
   logoOffsetY: z.number().nullable().optional(),
   preRelease: z.boolean().optional(),
   ribbonSide: z.enum(["left", "right"]).optional(),
+  ribbonEnabled: z.boolean().optional(),
   posterShape: z.enum(["poster", "landscape"]).optional(),
   logoAlign: z.enum(["left", "center"]).nullable().optional(),
   episodeMetadataSource: z.enum(["tmdb", "tvdb"]).optional(),

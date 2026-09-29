@@ -88,6 +88,9 @@ export interface PosterEditorCtx {
   setPreRelease: (v: boolean | ((prev: boolean) => boolean)) => void
   ribbonSide: "left" | "right"
   setRibbonSide: (v: "left" | "right" | ((prev: "left" | "right") => "left" | "right")) => void
+  /** Nastro stile Netflix all'angolo (false = badge classifica centrato). */
+  ribbonEnabled: boolean
+  setRibbonEnabled: (v: boolean | ((prev: boolean) => boolean)) => void
   /** Allineamento blocco logo/metadati del poster in editing. */
   logoAlign: "left" | "center"
   setLogoAlign: (v: "left" | "center" | ((prev: "left" | "center") => "left" | "center")) => void
@@ -197,6 +200,9 @@ export interface PosterEditorCtx {
   setDefaultPreRelease: (v: boolean | ((prev: boolean) => boolean)) => void
   defaultRibbonSide: "left" | "right"
   setDefaultRibbonSide: (v: "left" | "right" | ((prev: "left" | "right") => "left" | "right")) => void
+  /** Nastro stile Netflix all'angolo di default (false = badge classifica centrato). */
+  defaultRibbonEnabled: boolean
+  setDefaultRibbonEnabled: (v: boolean | ((prev: boolean) => boolean)) => void
   /** Allineamento di default (null = default di formato). */
   defaultLogoAlign: "left" | "center" | null
   setDefaultLogoAlign: (v: "left" | "center" | null | ((prev: "left" | "center" | null) => "left" | "center" | null)) => void
@@ -371,7 +377,7 @@ export function PosterEditorProvider({
   const [badgePresetRev, setBadgePresetRev] = useState<string | null>(null)
 
   const {
-    globalBadges, rankingBadges, networkLogo, preRelease, ribbonSide, posterShape, logoAlign,
+    globalBadges, rankingBadges, networkLogo, preRelease, ribbonSide, ribbonEnabled, posterShape, logoAlign,
     badgeGenre, badgeYear, badgeRating, badgeQuality, customRatings, ratingSources, separateRatings,
     gradientHeight, blurIntensity, blurFade, blurDarkness, blurEnabled, tintStrength, topShade,
     topBadgeScale, topBadgeOffsetX, topBadgeOffsetY,
@@ -388,7 +394,7 @@ export function PosterEditorProvider({
     defaultGenreBadgeOffsetX, defaultGenreBadgeOffsetY, defaultQualityBadgeOffsetX, defaultQualityBadgeOffsetY,
     defaultNetworkLogoOffsetX, defaultNetworkLogoOffsetY,
     defaultBadgeGenre, defaultBadgeYear, defaultBadgeRating, defaultBadgeQuality, defaultCustomRatings, defaultCustomRatingEndpoint, defaultCustomRatingApiKeyHeader, defaultRatingSources, defaultSeparateRatings, defaultSashOrder,
-    defaultAutoRotateClean, defaultAutoRotateBackdrop, defaultPortraitFitEnabled, defaultLandscapeFitEnabled, defaultNetworkLogo, defaultPreRelease, defaultRibbonSide, defaultPosterShape, defaultLogoAlign,
+    defaultAutoRotateClean, defaultAutoRotateBackdrop, defaultPortraitFitEnabled, defaultLandscapeFitEnabled, defaultNetworkLogo, defaultPreRelease, defaultRibbonSide, defaultRibbonEnabled, defaultPosterShape, defaultLogoAlign,
     landscape: landscapeDefaults,
     episodeMetadataSource, defaultEpisodeMetadataSource,
     region, defaultRegion,
@@ -455,6 +461,11 @@ export function PosterEditorProvider({
       const next = typeof v === "function" ? v(ribbonSide) : v
       update({ ribbonSide: next })
     }, [ribbonSide, update])
+  const setRibbonEnabled = useCallback(
+    (v: boolean | ((prev: boolean) => boolean)) => {
+      const next = typeof v === "function" ? v(ribbonEnabled) : v
+      update({ ribbonEnabled: next })
+    }, [ribbonEnabled, update])
   const setPosterShape = useCallback(
     (v: PosterShape | ((prev: PosterShape) => PosterShape)) => {
       const next = typeof v === "function" ? v(posterShape) : v
@@ -828,6 +839,11 @@ export function PosterEditorProvider({
       const next = typeof v === "function" ? v(defaultRibbonSide) : v
       update({ defaultRibbonSide: next })
     }, [defaultRibbonSide, update])
+  const setDefaultRibbonEnabled = useCallback(
+    (v: boolean | ((prev: boolean) => boolean)) => {
+      const next = typeof v === "function" ? v(defaultRibbonEnabled) : v
+      update({ defaultRibbonEnabled: next })
+    }, [defaultRibbonEnabled, update])
   const setDefaultPosterShape = useCallback(
     (v: PosterShape | ((prev: PosterShape) => PosterShape)) => {
       const next = typeof v === "function" ? v(defaultPosterShape) : v
@@ -916,6 +932,8 @@ export function PosterEditorProvider({
       setPreRelease,
       ribbonSide,
       setRibbonSide,
+      ribbonEnabled,
+      setRibbonEnabled,
       posterShape,
       setPosterShape,
       logoAlign,
@@ -1016,6 +1034,8 @@ export function PosterEditorProvider({
       setDefaultPreRelease,
       defaultRibbonSide,
       setDefaultRibbonSide,
+      defaultRibbonEnabled,
+      setDefaultRibbonEnabled,
       defaultPosterShape,
       setDefaultPosterShape,
       landscape: landscapeDefaults,
@@ -1144,6 +1164,7 @@ export function PosterEditorProvider({
       networkLogo, setNetworkLogo,
       preRelease, setPreRelease,
       ribbonSide, setRibbonSide,
+      ribbonEnabled, setRibbonEnabled,
       posterShape, setPosterShape,
       logoAlign, setLogoAlign,
       episodeMetadataSource, setEpisodeMetadataSource,
@@ -1205,6 +1226,7 @@ export function PosterEditorProvider({
       defaultNetworkLogo, setDefaultNetworkLogo,
       defaultPreRelease, setDefaultPreRelease,
       defaultRibbonSide, setDefaultRibbonSide,
+      defaultRibbonEnabled, setDefaultRibbonEnabled,
       defaultPosterShape, setDefaultPosterShape,
       landscapeDefaults, setLandscape, resetLandscape,
       defaultLogoAlign, setDefaultLogoAlign,

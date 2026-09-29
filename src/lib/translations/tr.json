@@ -62,6 +62,8 @@
   "ui.badgePosterHint": "Kaydetme bunları yalnızca bu başlıkta dondurur",
   "ui.badgeDefaultsHint": "Yeni posterlere ve hiç kaydedilmemiş başlıklara uygulanır",
   "ui.trendBadge": "Trend",
+  "ui.ribbon": "Şerit",
+  "ui.ribbonHint": "Netflix tarzı köşe şeridi: KAPALI iken sıralama rozeti köşe şeridi yerine ortalanmış gösterilir.",
   "ui.trendDefaultHint": "Ana anahtar: KAPALI tüm üst rozetleri gizler (kaydedilenler dahil) — aşağıdan tek tek kategorileri yeniden etkinleştirebilirsiniz, örn. yalnızca Ekstra.",
   "ui.topBadge": "Üst rozet",
   "ui.genreRatingBadge": "Tür / Puan",

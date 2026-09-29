@@ -62,6 +62,8 @@
   "ui.badgePosterHint": "Salvarea le fixează doar pe acest titlu",
   "ui.badgeDefaultsHint": "Se aplică posterelor noi și titlurilor nesalvate",
   "ui.trendBadge": "Tendință",
+  "ui.ribbon": "Panglică",
+  "ui.ribbonHint": "Panglica de colț în stil Netflix: pe OFF insigna clasamentului se afișează centrat în loc de panglică.",
   "ui.trendDefaultHint": "Comutator general: OPRIT ascunde orice insignă superioară — mai jos poți reactiva categorii individuale, de ex. doar Extra.",
   "ui.topBadge": "Insignă sus",
   "ui.genreRatingBadge": "Gen / Notă",

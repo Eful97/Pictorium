@@ -281,6 +281,7 @@ npm install --ignore-scripts && npm run build && npm start
 | `PICTORIUM_BADGE_STYLE` | `shadow` | Stile badge genere/voto (`shadow`, `pill`, `bar`, `colored`, `bordo`, `vetro`). |
 | `PICTORIUM_RANKING_BADGE_STYLE` | `default` | Stile del badge per le classifiche (`default`, `bar`, `colored`, `pill`, `netflix`). |
 | `PICTORIUM_RIBBON_SIDE` | `left` | Lato del nastro Netflix Top 10 (`left` / `right`). |
+| `PICTORIUM_RIBBON_ENABLED` | `1` | Nastro stile Netflix all'angolo (`1` = nastro all'angolo, `0` = badge classifica centrato). |
 | `PICTORIUM_BLUR_ENABLED` | `1` | Attiva o disattiva lo sfondo sfocato dei poster verticali. |
 | `PICTORIUM_TINT_STRENGTH` | `20` | Intensità della tinta di scena per lo sfondo sfocato (0–100). |
 | `PICTORIUM_TOP_SHADE` | `50` | Ombra lineare superiore sul primo 25% del poster (0–100, 0 = spenta). |

@@ -62,6 +62,8 @@
   "ui.badgePosterHint": "Ao salvar, ficam fixos só neste título",
   "ui.badgeDefaultsHint": "Valem para pôsteres novos e títulos nunca salvos",
   "ui.trendBadge": "Tendência",
+  "ui.ribbon": "Faixa",
+  "ui.ribbonHint": "Faixa de canto estilo Netflix: com OFF o selo de ranking aparece centralizado em vez da faixa.",
   "ui.trendDefaultHint": "Master switch: OFF hides every top badge (saved posters included) — below you can re-enable single categories, e.g. Extra only.",
   "ui.topBadge": "Selo superior",
   "ui.genreRatingBadge": "Gênero / Nota",

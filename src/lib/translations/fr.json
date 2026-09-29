@@ -62,6 +62,8 @@
   "ui.badgePosterHint": "Enregistrés, ils restent figés sur cette affiche",
   "ui.badgeDefaultsHint": "S'appliquent aux nouvelles affiches et titres jamais enregistrés",
   "ui.trendBadge": "Tendances",
+  "ui.ribbon": "Ruban",
+  "ui.ribbonHint": "Ruban d'angle style Netflix : sur OFF, le badge de classement s'affiche centré au lieu du ruban.",
   "ui.trendDefaultHint": "Master switch: OFF hides every top badge (saved posters included) — below you can re-enable single categories, e.g. Extra only.",
   "ui.topBadge": "Badge supérieur",
   "ui.genreRatingBadge": "Genre / Note",

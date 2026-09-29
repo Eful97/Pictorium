@@ -64,6 +64,7 @@ const USER_SAVED = {
   networkLogo: true,
   preRelease: false,
   ribbonSide: "left",
+  ribbonEnabled: true,
   posterShape: "poster",
   logoAlign: null,
   episodeMetadataSource: "tvdb",

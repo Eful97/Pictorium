@@ -1634,7 +1634,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
       genreBadgeScale, qualityBadgeScale, networkLogoScale,
       genreBadgeOffsetX, genreBadgeOffsetY, qualityBadgeOffsetX, qualityBadgeOffsetY,
       networkLogoOffsetX, networkLogoOffsetY,
-      queryExtra, qNetLogo, networkLogo, ribbonSide,
+      queryExtra, qNetLogo, networkLogo, ribbonSide, ribbonEnabled, rankingBadgeAccent,
       preRelease, posterShape, logoAlign, hideLogo,
     } = renderConfig
 
@@ -1889,7 +1889,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
       separateRatings: useSeparate ? sepItems : undefined,
       sashOrder,
       quality: finalQuality,
-      topLight, bottomLight, targetCenter, ribbonSide,
+      topLight, bottomLight, targetCenter, ribbonSide, ribbonEnabled, rankingBadgeAccent,
       logoScale, logoOffsetX, logoOffsetY,
       topBadgeScale, topBadgeOffsetX, topBadgeOffsetY,
       genreBadgeScale, qualityBadgeScale, networkLogoScale,

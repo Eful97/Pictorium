@@ -149,6 +149,8 @@ export function buildStremioPosterUrl(input: BuildStremioPosterUrlInput): URL {
     hideLogo: input.hideLogo,
     // ribbonSide solo globale: i mapping storici con valore salvato lo ignorano.
     ribbonSide: sd.ribbonSide,
+    // Nastro: per-titolo vince sul default globale (come networkLogo).
+    ribbonEnabled: mapping?.ribbonEnabled ?? sd.ribbonEnabled,
     // Il default orizzontale prevale sui mapping portrait solo per Stremio.
     // Emesso solo quando landscape (vedi params); forceShape resta esplicito.
     posterShape: effShape,

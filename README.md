@@ -281,6 +281,7 @@ npm install --ignore-scripts && npm run build && npm start
 | `PICTORIUM_BADGE_STYLE` | `shadow` | Genre & rating badge style (`shadow`, `pill`, `bar`, `colored`, `bordo`, `vetro`). |
 | `PICTORIUM_RANKING_BADGE_STYLE` | `default` | Ranking badge style (`default`, `bar`, `colored`, `pill`, `netflix`). |
 | `PICTORIUM_RIBBON_SIDE` | `left` | Netflix Top 10 ribbon side (`left` / `right`). |
+| `PICTORIUM_RIBBON_ENABLED` | `1` | Netflix-style corner ribbon (`1` = corner ribbon, `0` = centered rank badge). |
 | `PICTORIUM_BLUR_ENABLED` | `1` | Enable or disable cinematic background blur. |
 | `PICTORIUM_TINT_STRENGTH` | `20` | Scene tint strength for background blur (0–100). |
 | `PICTORIUM_TOP_SHADE` | `50` | Top linear shade over the upper 25% of the poster (0–100, 0 = off). |

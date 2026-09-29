@@ -17,6 +17,7 @@ import {
   isBadgeStyle,
   isRankingBadgeStyle,
   isQualityBadgeStyle,
+  nonRibbonRankingStyle,
   DEFAULT_BADGE_STYLE,
   DEFAULT_RANKING_BADGE_STYLE,
   DEFAULT_QUALITY_BADGE_STYLE,
@@ -129,6 +130,19 @@ export interface PosterRenderConfig {
   qNetLogo: string | null
   networkLogo: boolean
   ribbonSide: "left" | "right"
+  /**
+   * Nastro stile Netflix all'angolo — catena: query `ribbon` > mapping
+   * per-titolo > config token > server defaults > true. Su false gli stili
+   * nastro degradano all'equivalente centrato (mai nascosti).
+   */
+  ribbonEnabled: boolean
+  /**
+   * Tinta accent sul badge classifica centrato: true quando il nastro è OFF
+   * e lo stile pre-degrado era "colored" (senza nastro deve colorare il
+   * badge default come riempimento piatto). Col nastro ON è ininfluente
+   * (lo stile "colored" colora già da sé).
+   */
+  rankingBadgeAccent: boolean
   /** Stato pre-digitale (darken + badge Coming Soon, solo film). Default OFF. */
   preRelease: boolean
   /** Formato canvas (query `shape` > mapping > config > defaults > "poster"). */
@@ -164,14 +178,29 @@ export function resolvePosterRenderConfig(input: PosterRenderConfigInput): Poste
 
   const qRankParam = q.get("rank")
   const hasRank = !!(input.animeRank || input.rankingResult || mapping?.badgeRank || mapping?.trendRank || qRankParam || input.finalRank)
+  // Nastro stile Netflix — catena: query `ribbon=0/1` > mapping per-titolo >
+  // config token > server defaults > true (ON storico). Su false gli stili
+  // nastro degradano all'equivalente centrato (mai nascosti, WYSIWYG).
+  const qRibbon = q.get("ribbon")
+  const ribbonEnabled = qRibbon !== null
+    ? qRibbon !== "0"
+    : (mapping?.ribbonEnabled ?? configOverride?.ribbonEnabled ?? sd.ribbonEnabled ?? true)
   // "default" = auto-detect: mostra il badge stile Netflix se c'è un rank,
   // altrimenti badge standard. Se il sorgente (mapping/query/config) specifica
   // un valore esplicito (pill/colored/bordo/vetro/netflix), viene rispettato
   // senza override ("bar" rimosso: degrada a "default" via isRankingBadgeStyle).
-  if (hasRank && rankingBadgeStyle === "default") {
+  if (hasRank && rankingBadgeStyle === "default" && ribbonEnabled) {
     rankingBadgeStyle = "netflix"
   } else if (!hasRank && rankingBadgeStyle === "netflix") {
     rankingBadgeStyle = "default"
+  }
+  // Senza nastro il "colored" deve colorare il badge default (tinta accent
+  // come riempimento piatto): il flag viaggia fino al builder, che colora
+  // solo questo caso (i default scelti dall'utente restano satinati).
+  let rankingBadgeAccent = false
+  if (!ribbonEnabled) {
+    rankingBadgeAccent = rankingBadgeStyle === "colored"
+    rankingBadgeStyle = nonRibbonRankingStyle(rankingBadgeStyle)
   }
 
   // Formato canvas presto: serve al default del gradiente sotto (20% in
@@ -518,6 +547,8 @@ export function resolvePosterRenderConfig(input: PosterRenderConfigInput): Poste
     qNetLogo,
     networkLogo,
     ribbonSide,
+    ribbonEnabled,
+    rankingBadgeAccent,
     preRelease,
     posterShape,
     logoAlign,

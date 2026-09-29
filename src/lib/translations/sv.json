@@ -62,6 +62,8 @@
   "ui.badgePosterHint": "Att spara fryser dem endast på denna titel",
   "ui.badgeDefaultsHint": "Gäller nya posters och aldrig sparade titlar",
   "ui.trendBadge": "Trend",
+  "ui.ribbon": "Band",
+  "ui.ribbonHint": "Netflix-hörnband: vid AV renderas rankbadgen centrerad istället för hörnbandet.",
   "ui.trendDefaultHint": "Huvudbrytare: AV döljer alla toppbadges (inklusive sparade) — nedan kan du återaktivera enskilda kategorier, t.ex. endast Extra.",
   "ui.topBadge": "Toppbadge",
   "ui.genreRatingBadge": "Genre / Betyg",

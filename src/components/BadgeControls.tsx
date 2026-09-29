@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { ChevronDown, Star, Trophy, Tv, Sparkles, Palette, Layers, Cloud, RotateCcw } from "lucide-react"
+import { ChevronDown, Star, Trophy, Tv, Sparkles, Palette, Layers, Cloud, RotateCcw, Ribbon } from "lucide-react"
 import { usePSelector } from "@/lib/context"
 import { useT } from "@/lib/contexts/TranslationContext"
 import { usePosterEditor } from "@/lib/contexts/PosterEditorContext"
@@ -187,6 +187,14 @@ export function BadgeControls() {
               {t("ui.trendBadge")}
             </span>
             <Toggle value={ed.rankingBadges} onChange={(v) => ed.setRankingBadges(v)} label={t("ui.trendBadge")} />
+          </div>
+
+          <div className="flex items-center justify-between" title={t("ui.ribbonHint")}>
+            <span className="text-zinc-300 font-medium flex items-center gap-1.5">
+              <Ribbon className="w-3.5 h-3.5 text-red-400" />
+              {t("ui.ribbon")}
+            </span>
+            <Toggle value={ed.ribbonEnabled} onChange={(v) => ed.setRibbonEnabled(v)} label={t("ui.ribbon")} />
           </div>
 
           <div className="flex items-center justify-between">

@@ -91,6 +91,7 @@ export const mappingSchema = z.object({
   logoDisabled: z.boolean().nullable().optional(),
   networkLogo: z.boolean().nullable().optional(),
   ribbonSide: z.enum(["left", "right"]).nullable().optional(),
+  ribbonEnabled: z.boolean().nullable().optional(),
   posterShape: z.enum(["poster", "landscape"]).nullable().optional(),
   // Profilo di tuning landscape 16:9 (vedi LandscapeSettings in types.ts):
   // stessi bound dei campi flat. Chiavi assenti/null = fallback al flat.

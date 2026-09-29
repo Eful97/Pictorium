@@ -71,6 +71,8 @@ export interface DefaultsState {
   defaultNetworkLogo: boolean
   defaultPreRelease: boolean
   defaultRibbonSide: RibbonSide
+  /** Nastro stile Netflix all'angolo di default (false = badge classifica centrato). */
+  defaultRibbonEnabled: boolean
   /** Formato canvas di default (portrait = verticale standard). */
   defaultPosterShape: PosterShape
   /** Allineamento blocco logo/metadati di default (null = default di formato). */
@@ -94,6 +96,8 @@ export interface DefaultsState {
   networkLogo: boolean
   preRelease: boolean
   ribbonSide: RibbonSide
+  /** Nastro stile Netflix all'angolo (false = badge classifica centrato). */
+  ribbonEnabled: boolean
   /** Allineamento blocco logo/metadati del poster in editing. */
   logoAlign: "left" | "center"
   /** Formato canvas del poster in editing (default: defaultPosterShape). */
@@ -184,6 +188,7 @@ const DEFAULTS: DefaultsState = {
   defaultNetworkLogo: true,
   defaultPreRelease: false,
   defaultRibbonSide: "left",
+  defaultRibbonEnabled: true,
   defaultPosterShape: "poster",
   defaultLogoAlign: null,
   defaultEpisodeMetadataSource: "tmdb",
@@ -201,6 +206,7 @@ const DEFAULTS: DefaultsState = {
   networkLogo: true,
   preRelease: false,
   ribbonSide: "left",
+  ribbonEnabled: true,
   posterShape: "poster",
   logoAlign: "center",
   episodeMetadataSource: "tmdb",
@@ -316,6 +322,8 @@ interface StoredDefaults {
   preRelease?: boolean
   defaultRibbonSide?: RibbonSide
   ribbonSide?: RibbonSide
+  defaultRibbonEnabled?: boolean
+  ribbonEnabled?: boolean
   defaultPosterShape?: PosterShape
   posterShape?: PosterShape
   /** null/assente = default di formato (mai spazzatura dallo storage). */
@@ -422,6 +430,7 @@ function buildFromStored(d: StoredDefaults | null): DefaultsState {
     defaultNetworkLogo: d.defaultNetworkLogo ?? d.networkLogo ?? true,
     defaultPreRelease: d.defaultPreRelease ?? d.preRelease ?? false,
     defaultRibbonSide: d.defaultRibbonSide ?? d.ribbonSide ?? "left",
+    defaultRibbonEnabled: d.defaultRibbonEnabled ?? d.ribbonEnabled ?? true,
     defaultPosterShape: storedDefaultShape ?? "poster",
     defaultLogoAlign: d.defaultLogoAlign === "left" || d.defaultLogoAlign === "center" ? d.defaultLogoAlign : null,
     defaultEpisodeMetadataSource: d.defaultEpisodeMetadataSource ?? d.episodeMetadataSource ?? "tmdb",
@@ -439,6 +448,7 @@ function buildFromStored(d: StoredDefaults | null): DefaultsState {
     networkLogo: d.networkLogo ?? d.defaultNetworkLogo ?? true,
     preRelease: d.preRelease ?? d.defaultPreRelease ?? false,
     ribbonSide: d.ribbonSide ?? d.defaultRibbonSide ?? "left",
+    ribbonEnabled: d.ribbonEnabled ?? d.defaultRibbonEnabled ?? true,
     posterShape: storedShape ?? "poster",
     logoAlign: d.logoAlign === "left" || d.logoAlign === "center"
       ? d.logoAlign
@@ -529,6 +539,7 @@ function defaultsToPayload(d: DefaultsState): Record<string, unknown> {
     networkLogo: d.defaultNetworkLogo,
     preRelease: d.defaultPreRelease,
     ribbonSide: d.defaultRibbonSide,
+    ribbonEnabled: d.defaultRibbonEnabled,
     posterShape: d.defaultPosterShape,
     logoAlign: d.defaultLogoAlign,
     episodeMetadataSource: d.defaultEpisodeMetadataSource,

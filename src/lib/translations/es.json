@@ -62,6 +62,8 @@
   "ui.badgePosterHint": "Al guardar quedan fijadas solo en este póster",
   "ui.badgeDefaultsHint": "Valen para pósteres nuevos y títulos nunca guardados",
   "ui.trendBadge": "Tendencia",
+  "ui.ribbon": "Cinta",
+  "ui.ribbonHint": "Cinta de esquina estilo Netflix: con OFF la insignia de ranking se muestra centrada en lugar de la cinta.",
   "ui.trendDefaultHint": "Master switch: OFF hides every top badge (saved posters included) — below you can re-enable single categories, e.g. Extra only.",
   "ui.topBadge": "Insignia superior",
   "ui.genreRatingBadge": "Género / Puntuación",

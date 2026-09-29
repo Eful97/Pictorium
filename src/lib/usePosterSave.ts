@@ -115,6 +115,8 @@ interface PosterSaveDeps {
   setLogoOffsetX: (v: number) => void
   setLogoOffsetY: (v: number) => void
   networkLogo: boolean
+  /** Nastro stile Netflix all'angolo per-titolo (congelato al save). */
+  ribbonEnabled: boolean
   lang: string
   /** Ordine sash dai default editor (stesso del render, o il salvataggio congela un badge diverso). */
   defaultSashOrder?: readonly SashBucket[] | null
@@ -149,7 +151,7 @@ export function usePosterSave(deps: PosterSaveDeps) {
     networkLogoOffsetX, networkLogoOffsetY,
     rotationPosters, autoRotateClean, defaultAutoRotateClean, excludedPosters, accentColor, autoAccentColor, logoDisabled, setLogoDisabled,
     rotationBackdrops, autoRotateBackdrop, defaultAutoRotateBackdrop, excludedBackdrops, backdrops,
-    setLogoScale, setLogoOffsetX, setLogoOffsetY,     networkLogo, lang, episodeGroupId, posterShape,
+    setLogoScale, setLogoOffsetX, setLogoOffsetY,     networkLogo, ribbonEnabled, lang, episodeGroupId, posterShape,
     defaultSashOrder,
   } = deps
 
@@ -455,6 +457,7 @@ export function usePosterSave(deps: PosterSaveDeps) {
           excludedBackdrops: nextExcludedBackdrops.length > 0 ? nextExcludedBackdrops : undefined,
           logoDisabled: logoDisabled || undefined,
           networkLogo: networkLogo !== undefined ? networkLogo : undefined,
+          ribbonEnabled: ribbonEnabled !== undefined ? ribbonEnabled : undefined,
           networkLogoPath: networkLogoPath ?? null,
           networkLogoName: networkLogoName ?? null,
           episodeGroupId: episodeGroupId || undefined,
@@ -477,7 +480,7 @@ export function usePosterSave(deps: PosterSaveDeps) {
       }
       if (overrides.silent) throw error
     }
-  }, [selected, previewPoster, selectedLogo, metaInfo, logoScale, logoOffsetX, logoOffsetY, trendRank, globalBadges, rankingBadges, badgeGenre, badgeYear, badgeRating, badgeQuality, customRatings, ratingSources, separateRatings, mdblistAnimeList, loadMappings, customBadge, badgePresetId, badgePresetRev, badgeStyle, rankingBadgeStyle, qualityBadgeStyle, videoFormats, blurEnabled, blurIntensity, blurFade, blurDarkness, landscapeBlur, landscapeBlurDirty, tintStrength, topShade, gradientHeight, topBadgeScale, topBadgeOffsetX, topBadgeOffsetY, genreBadgeScale, qualityBadgeScale, networkLogoScale, genreBadgeOffsetX, genreBadgeOffsetY, qualityBadgeOffsetX, qualityBadgeOffsetY, networkLogoOffsetX, networkLogoOffsetY, rotationPosters, autoRotateClean, defaultAutoRotateClean, excludedPosters, rotationBackdrops, autoRotateBackdrop, defaultAutoRotateBackdrop, excludedBackdrops, backdrops, defaultBadgeStyle, defaultRankingBadgeStyle, posters, mappingsMap, accentColor, autoAccentColor, backdropOffsetX, backdropOffsetY, backdropScale, selectedBackdrop, networkLogo, episodeGroupId, posterShape]) // eslint-disable-line react-hooks/exhaustive-deps -- intentionally complete to save all poster state
+  }, [selected, previewPoster, selectedLogo, metaInfo, logoScale, logoOffsetX, logoOffsetY, trendRank, globalBadges, rankingBadges, badgeGenre, badgeYear, badgeRating, badgeQuality, customRatings, ratingSources, separateRatings, mdblistAnimeList, loadMappings, customBadge, badgePresetId, badgePresetRev, badgeStyle, rankingBadgeStyle, qualityBadgeStyle, videoFormats, blurEnabled, blurIntensity, blurFade, blurDarkness, landscapeBlur, landscapeBlurDirty, tintStrength, topShade, gradientHeight, topBadgeScale, topBadgeOffsetX, topBadgeOffsetY, genreBadgeScale, qualityBadgeScale, networkLogoScale, genreBadgeOffsetX, genreBadgeOffsetY, qualityBadgeOffsetX, qualityBadgeOffsetY, networkLogoOffsetX, networkLogoOffsetY, rotationPosters, autoRotateClean, defaultAutoRotateClean, excludedPosters, rotationBackdrops, autoRotateBackdrop, defaultAutoRotateBackdrop, excludedBackdrops, backdrops, defaultBadgeStyle, defaultRankingBadgeStyle, posters, mappingsMap, accentColor, autoAccentColor, backdropOffsetX, backdropOffsetY, backdropScale, selectedBackdrop, networkLogo, ribbonEnabled, episodeGroupId, posterShape]) // eslint-disable-line react-hooks/exhaustive-deps -- intentionally complete to save all poster state
 
   return { selectPoster, selectLogo, removeLogo, selectBackdrop, removeBackdrop, saveConfig }
 }

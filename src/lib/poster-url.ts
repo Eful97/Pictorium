@@ -69,6 +69,8 @@ interface BadgeParams {
   /** Effetto pre-digitale (darken + Coming Soon, solo film). Default OFF. */
   preRelease?: boolean
   ribbonSide?: "left" | "right"
+  /** Nastro stile Netflix all'angolo (false = badge classifica centrato). */
+  ribbonEnabled?: boolean
   /** Formato canvas del poster in editing (preview WYSIWYG). */
   posterShape?: PosterShape
   /** Allineamento blocco logo/metadati in editing (preview WYSIWYG). */
@@ -157,6 +159,7 @@ export function buildUrlPattern(bp: BadgeParams & {
     networkLogo: bp.networkLogo,
     preRelease: bp.preRelease,
     ribbonSide: bp.ribbonSide,
+    ribbonEnabled: bp.ribbonEnabled,
     posterShape: bp.posterShape,
     logoAlign: bp.logoAlign,
     topBadgeScale: bp.topBadgeScale,
@@ -288,6 +291,9 @@ export function buildPreviewUrl(ps: PosterState, bp: BadgeParams): string {
   // default right in modalità Stremio) e la preview rendeva a destra anche
   // quando l'editor mostra lo stato sinistra.
   if (bp.ribbonSide) params.push(`side=${bp.ribbonSide}`)
+  // SEMPRE esplicito (come badges/ranking/cr): senza, un mapping salvato con
+  // ribbonEnabled=false scavalcerebbe il toggle editor (desync WYSIWYG).
+  params.push(`ribbon=${bp.ribbonEnabled === false ? "0" : "1"}`)
   // Shape SEMPRE esplicito in preview (come badges/ranking/cr): senza, un
   // mapping salvato con shape diversa scavalcerebbe il toggle editor (desync
   // WYSIWYG) — vedi catena query > mapping > config > defaults.

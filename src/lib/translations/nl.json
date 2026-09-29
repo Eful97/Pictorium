@@ -62,6 +62,8 @@
   "ui.badgePosterHint": "Opslaan bevriest ze alleen op deze titel",
   "ui.badgeDefaultsHint": "Geldt voor nieuwe posters en nooit-opgeslagen titels",
   "ui.trendBadge": "Trend",
+  "ui.ribbon": "Lint",
+  "ui.ribbonHint": "Netflix-hoeklint: bij UIT wordt de rankingbadge gecentreerd weergegeven in plaats van het hoeklint.",
   "ui.trendDefaultHint": "Hoofdschakelaar: UIT verbergt elke topbadge (opgeslagen posters inbegrepen) — hieronder kun je losse categorieën weer inschakelen, bijv. alleen Extra.",
   "ui.topBadge": "Topbadge",
   "ui.genreRatingBadge": "Genre / Beoordeling",

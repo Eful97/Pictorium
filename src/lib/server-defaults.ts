@@ -139,6 +139,8 @@ export interface ServerDefaults {
   /** Effetto pre-digitale (darken + badge Coming Soon, solo film). Default OFF. */
   preRelease?: boolean
   ribbonSide?: "left" | "right"
+  /** Nastro stile Netflix all'angolo (false = badge classifica centrato). Default ON. */
+  ribbonEnabled?: boolean
   /** Formato canvas globale: "landscape" = 16:9 da backdrop TMDB. Default portrait. */
   posterShape?: import("@/lib/types").PosterShape
   /** Allineamento blocco logo/metadati (default di formato se assente). */
@@ -202,6 +204,7 @@ function defaultsFromEnv(): ServerDefaults {
   const cr = envBool("CUSTOM_RATINGS")
   const blurEn = envBool("BLUR_ENABLED")
   const netLogo = envBool("NETWORK_LOGO")
+  const ribbonEn = envBool("RIBBON_ENABLED")
   const preRel = envBool("PRE_RELEASE")
   const autoRotate = envBool("AUTO_ROTATE_CLEAN")
   const logoFit = envBool("LOGO_FIT_ENABLED")
@@ -230,6 +233,7 @@ function defaultsFromEnv(): ServerDefaults {
   if (qminRaw === "SD" || qminRaw === "HD" || qminRaw === "FHD" || qminRaw === "4K") d.minQuality = qminRaw
   if (blurEn !== undefined) d.blurEnabled = blurEn
   if (netLogo !== undefined) d.networkLogo = netLogo
+  if (ribbonEn !== undefined) d.ribbonEnabled = ribbonEn
   if (preRel !== undefined) d.preRelease = preRel
   if (autoRotate !== undefined) d.autoRotateClean = autoRotate
   if (logoFit !== undefined) d.defaultLogoFitEnabled = logoFit

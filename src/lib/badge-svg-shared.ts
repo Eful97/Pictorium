@@ -864,6 +864,12 @@ export interface HouseRankingInput {
   readonly fontSize?: number
   /** Fill testo esplicito (rgba già risolto; senza = adattivo della ricetta). */
   readonly textColor?: string
+  /**
+   * Riempimento piatto con l'accent sul badge default centrato (degrado del
+   * "colored" a nastro disattivato): senza nastro deve colorare il badge
+   * default. Ininfluente sugli altri stili e col nastro attivo.
+   */
+  readonly accentFill?: boolean
 }
 
 export function buildHouseRankingSvg(input: HouseRankingInput): { svg: string; w: number; h: number } {
@@ -908,7 +914,10 @@ export function buildHouseRankingSvg(input: HouseRankingInput): { svg: string; w
   } else if (s === "bordo") {
     return buildRankingBorderedSvg(fullText, fs, fg, !!topLight)
   }
-  return buildRankingDefaultSvg(fullText, fs, fg, bg, !!topLight, undefined, detached)
+  // Senza nastro il "colored" colora il badge default: tinta accent piatta
+  // (stesso contratto del builder extra) invece del gradiente satinato.
+  const accentFlat = input.accentFill && accentColor && accentColor !== "#555555" ? accentColor : undefined
+  return buildRankingDefaultSvg(fullText, fs, accentFlat ? textColorForBg(accentFlat) : fg, bg, !!topLight, accentFlat, detached)
 }
 
 export interface HousePresetScene {

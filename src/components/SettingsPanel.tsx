@@ -59,6 +59,7 @@ import {
   ArrowUpDown,
   RectangleVertical,
   RectangleHorizontal,
+  Ribbon,
   Image as ImageIcon,
   Activity,
   ExternalLink,
@@ -608,6 +609,23 @@ export function SettingsPanel({ setSettingsOpen, exportData, importData, mobile 
             <p className="text-[11px] text-zinc-400 italic mt-1">{t("ui.trendDefaultHint")}</p>
           </div>
 
+          <div>
+            <div className="flex items-center justify-between" title={t("ui.ribbonHint")}>
+              <span className="text-zinc-300 font-medium flex items-center gap-1.5">
+                <Ribbon className="w-3.5 h-3.5 text-red-400" />
+                {t("ui.ribbon")}
+              </span>
+              <Toggle
+                value={ed.defaultRibbonEnabled}
+                onChange={(v) => {
+                  ed.setDefaultRibbonEnabled(v)
+                }}
+                label={t("ui.ribbon")}
+              />
+            </div>
+            <p className="text-[11px] text-zinc-400 italic mt-1">{t("ui.ribbonHint")}</p>
+          </div>
+
           <div className="flex items-center justify-between">
             <span className="text-zinc-300 font-medium flex items-center gap-1.5">
               <Sparkles className="w-3.5 h-3.5 text-purple-400" />
@@ -818,14 +836,15 @@ export function SettingsPanel({ setSettingsOpen, exportData, importData, mobile 
             />
           </div>
 
-          <div className="flex items-center justify-between gap-3 pt-1">
-            <span className="text-zinc-300 font-medium flex items-center gap-1.5 shrink-0">
+          <div className="flex items-center justify-between gap-3 pt-1" title={t("ui.ribbonHint")}>
+            <span className={`text-zinc-300 font-medium flex items-center gap-1.5 shrink-0 ${ed.defaultRibbonEnabled ? "" : "opacity-50"}`}>
               <Layers className="w-3.5 h-3.5 text-accent-orange" />
               {t("ui.badgePosition")}
             </span>
-            <div className="flex gap-1 flex-1 max-w-[160px]">
+            <div className={`flex gap-1 flex-1 max-w-[160px] ${ed.defaultRibbonEnabled ? "" : "opacity-50 pointer-events-none"}`}>
               <button
                 type="button"
+                disabled={!ed.defaultRibbonEnabled}
                 onClick={() => {
                   ed.setDefaultRibbonSide("left")
                 }}
@@ -839,6 +858,7 @@ export function SettingsPanel({ setSettingsOpen, exportData, importData, mobile 
               </button>
               <button
                 type="button"
+                disabled={!ed.defaultRibbonEnabled}
                 onClick={() => {
                   ed.setDefaultRibbonSide("right")
                 }}

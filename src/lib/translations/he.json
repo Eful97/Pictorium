@@ -62,6 +62,8 @@
   "ui.badgePosterHint": "Saving freezes them on this title only",
   "ui.badgeDefaultsHint": "Apply to new posters and never-saved titles",
   "ui.trendBadge": "Trend",
+  "ui.ribbon": "סרט",
+  "ui.ribbonHint": "סרט פינתי בסגנון Netflix: כשהוא כבוי תג הדירוג מוצג במרכז במקום סרט הפינה.",
   "ui.trendDefaultHint": "Master switch: OFF hides every top badge (saved posters included) — below you can re-enable single categories, e.g. Extra only.",
   "ui.topBadge": "Top badge",
   "ui.genreRatingBadge": "Genre / Rating",

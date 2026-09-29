@@ -43,3 +43,15 @@ export function isQualityBadgeStyle(v: string | null | undefined): v is QualityB
 export function isRibbonRankingStyle(v: string | null | undefined): boolean {
   return v === "netflix" || v === "netflix-color" || v === "colored"
 }
+
+/**
+ * Fallback centrato quando il nastro è disattivato (`ribbonEnabled=false`):
+ * gli stili nastro collassano sull'equivalente centrato (il badge resta
+ * visibile, mai nascosto). "colored" diventa "default" ma conserva la tinta
+ * accent come riempimento piatto (flag `rankingBadgeAccent` in poster-config:
+ * senza nastro deve colorare il badge default).
+ */
+export function nonRibbonRankingStyle(v: RankingBadgeStyle): RankingBadgeStyle {
+  if (v === "netflix" || v === "netflix-color" || v === "colored") return "default"
+  return v
+}

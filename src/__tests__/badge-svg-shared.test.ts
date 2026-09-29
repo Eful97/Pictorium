@@ -125,6 +125,30 @@ describe("buildHouseRankingSvg", () => {
     expect(res.svg).toContain(">2<")
   })
 
+  it("colors the default badge flat with accentFill (colored degrade without ribbon)", () => {
+    const accented = buildHouseRankingSvg({
+      rank: 4,
+      label: "Oggi",
+      pw: 380,
+      topLight: false,
+      style: "default",
+      accentColor: "#e50914",
+      accentFill: true,
+    })
+    expect(accented.svg).toContain('fill="#e50914"')
+    expect(accented.svg).toContain("#4 Oggi")
+    const plain = buildHouseRankingSvg({
+      rank: 4,
+      label: "Oggi",
+      pw: 380,
+      topLight: false,
+      style: "default",
+      accentColor: "#e50914",
+    })
+    expect(plain.svg).toContain('fill="url(#rdg)"')
+    expect(plain.svg).not.toContain('fill="#e50914"')
+  })
+
   it("renders pill style as a pill badge", () => {
     const res = buildHouseRankingSvg({
       rank: 3,

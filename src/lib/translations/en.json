@@ -62,6 +62,8 @@
   "ui.badgePosterHint": "Saving freezes them on this title only",
   "ui.badgeDefaultsHint": "Apply to new posters and never-saved titles",
   "ui.trendBadge": "Trend",
+  "ui.ribbon": "Ribbon",
+  "ui.ribbonHint": "Netflix-style corner ribbon: when OFF the rank badge renders centered instead of the corner ribbon.",
   "ui.trendDefaultHint": "Master switch: OFF hides every top badge (saved posters included) — below you can re-enable single categories, e.g. Extra only.",
   "ui.topBadge": "Top badge",
   "ui.genreRatingBadge": "Genre / Rating",

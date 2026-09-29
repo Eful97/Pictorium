@@ -157,6 +157,8 @@ export interface Mapping {
   excludedBackdrops?: string[] | null
   networkLogo?: boolean | null
   ribbonSide?: "left" | "right" | null
+  /** Nastro stile Netflix all'angolo (false = badge classifica centrato). Default ON. */
+  ribbonEnabled?: boolean | null
   /** Formato canvas per-titolo: "landscape" = 16:9 da backdrop TMDB. Default portrait. */
   posterShape?: PosterShape | null
   /**

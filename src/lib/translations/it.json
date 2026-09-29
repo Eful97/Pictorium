@@ -62,6 +62,8 @@
   "ui.badgePosterHint": "Salvando restano congelati solo su questo titolo",
   "ui.badgeDefaultsHint": "Valgono per i nuovi poster e i titoli mai salvati",
   "ui.trendBadge": "Trend",
+  "ui.ribbon": "Nastro",
+  "ui.ribbonHint": "Nastro stile Netflix all'angolo: su OFF il badge classifica viene reso centrato invece del nastro.",
   "ui.trendDefaultHint": "Interruttore generale: su OFF nasconde tutti i badge superiori (anche sui salvati) — qui sotto puoi riaccendere singole categorie, es. solo Extra.",
   "ui.topBadge": "Badge superiore",
   "ui.genreRatingBadge": "Genere / Rating",

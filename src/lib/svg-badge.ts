@@ -128,9 +128,11 @@ export async function buildRankingBadgeSVG(
   isAnime?: boolean,
   /** Placca fluttuante con 4 angoli raccordati (badge staccato dal top via toy). */
   detached = false,
+  /** Riempimento piatto accent sul default centrato (degrado "colored" senza nastro). */
+  accentFill = false,
 ): Promise<{ png: Buffer; w: number; h: number } | null> {
   // Ricetta unica in badge-svg-shared (stessa del Badge Lab): qui solo resvg.
-  const result = buildHouseRankingSvg({ rank, label, pw, topLight, style: badgeStyle, accentColor, side, isAnime, detached })
+  const result = buildHouseRankingSvg({ rank, label, pw, topLight, style: badgeStyle, accentColor, side, isAnime, detached, accentFill })
   const png = await renderSVG(result.svg, result.w)
   return { png, w: result.w, h: result.h }
 }
@@ -139,8 +141,10 @@ export async function renderRankingBadge(
   rank: number, pw: number, label?: string,
   topLight?: boolean, badgeStyle?: RankingBadgeStyle, accentColor?: string, side?: "left" | "right", isAnime?: boolean,
   detached = false,
+  /** Riempimento piatto accent sul default centrato (degrado "colored" senza nastro). */
+  accentFill = false,
 ): Promise<{ png: Buffer; w: number; h: number }> {
-  const r = await buildRankingBadgeSVG(rank, pw, label, topLight, badgeStyle, accentColor, side, isAnime, detached)
+  const r = await buildRankingBadgeSVG(rank, pw, label, topLight, badgeStyle, accentColor, side, isAnime, detached, accentFill)
   if (r) return r
   throw new Error(`SVG ranking badge failed: rank=${rank}`)
 }

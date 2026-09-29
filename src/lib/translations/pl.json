@@ -62,6 +62,8 @@
   "ui.badgePosterHint": "Zapisywanie utrwala je tylko dla tego tytułu",
   "ui.badgeDefaultsHint": "Zastosuj do nowych plakatów i tytułów nigdy niezapisanych",
   "ui.trendBadge": "Trend",
+  "ui.ribbon": "Wstęga",
+  "ui.ribbonHint": "Wstęga narożna w stylu Netflix: przy WYŁ odznaka rankingu renderuje się wyśrodkowana zamiast wstęgi.",
   "ui.trendDefaultHint": "Główny przełącznik: WYŁ. ukrywa wszystkie górne odznaki (także zapisane plakaty) — poniżej możesz ponownie włączyć pojedyncze kategorie, np. Tylko dodatkowe.",
   "ui.topBadge": "Górna odznaka",
   "ui.genreRatingBadge": "Gatunek / Ocena",

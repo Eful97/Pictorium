@@ -73,6 +73,7 @@ export const configTokenSchema = z.object({
   // gonfierebbe il token firmato (URL condivise) e la label SVG del badge.
   customBadge: z.string().max(40).optional(),
   ribbonSide: ribbonSideSchema.optional(),
+  ribbonEnabled: z.boolean().optional(),
   catalogOrder: z.array(z.string().max(80)).optional(),
   catalogRenames: z.record(z.string().max(80), z.string().max(100)).optional(),
   customCatalogs: z.array(customCatalogSchema).optional(),

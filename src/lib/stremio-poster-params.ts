@@ -83,6 +83,8 @@ export interface StremioPosterParamsInput {
    *  sovrappongono già il logo da catalogo). Default OFF. */
   readonly hideLogo?: boolean
   readonly ribbonSide?: "left" | "right"
+  /** Nastro stile Netflix all'angolo: emesso come `ribbon=0` solo quando OFF (default ON, cache stabile). */
+  readonly ribbonEnabled?: boolean
   /** Formato canvas: emesso come `shape=landscape` solo quando landscape
    *  (il portrait è il default e resta omesso per non invalidare la cache). */
   readonly posterShape?: PosterShape
@@ -227,6 +229,7 @@ export function buildStremioPosterSearchParams(input: StremioPosterParamsInput):
   if (input.hideLogo) params.set("hideLogo", "1")
   if (input.ribbonSide === "right") params.set("side", "right")
   else if (input.ribbonSide === "left") params.set("side", "left")
+  if (input.ribbonEnabled === false) params.set("ribbon", "0")
   if (input.posterShape === "landscape") {
     params.set("shape", "landscape")
     if (input.logoAlign === "center") params.set("align", "center")

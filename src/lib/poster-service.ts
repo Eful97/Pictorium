@@ -122,6 +122,18 @@ export interface GenerationInput {
   targetCenter: number
   /** Modalità layout nastro Netflix + logo network: "left" (Nuvio, default) o "right" (Stremio). */
   ribbonSide: "left" | "right"
+  /**
+   * Tinta accent sul badge classifica centrato: true quando il nastro è OFF
+   * e lo stile pre-degrado era "colored" (senza nastro deve colorare il
+   * badge default come riempimento piatto).
+   */
+  rankingBadgeAccent?: boolean
+  /**
+   * Nastro stile Netflix all'angolo (default true = comportamento storico).
+   * Su false il Coming Soon pre-digitale viene reso come pill centrale e gli
+   * stili classifica nastro sono già degradati a monte (poster-config).
+   */
+  ribbonEnabled?: boolean
 
   // Logo
   logoScale: number | null
@@ -847,6 +859,11 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
     qualityBadgeStyle, videoFormats,
     sashOrder,
     topLight, targetCenter, ribbonSide,
+    // Nastro stile Netflix all'angolo: default true (comportamento storico per
+    // i chiamanti diretti/test che non passano il campo).
+    ribbonEnabled = true,
+    // Tinta accent sul default centrato (degrado "colored" senza nastro).
+    rankingBadgeAccent = false,
     bottomLight: bottomLightOpt,
     logoScale, logoOffsetX, logoOffsetY,
     topBadgeScale, topBadgeOffsetX, topBadgeOffsetY,
@@ -1112,6 +1129,9 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
   }
   const showComingSoon = !!preRelease && !queryExtra
     && topBadge?.type === "extra" && topBadge.label === comingSoonLabel
+    // Nastro disattivato: il Coming Soon resta come badge extra centrale
+    // (ramo rank standard) invece del nastro angolare rosso.
+    && ribbonEnabled
   const ribbonLayout = showComingSoon ? comingSoonRibbonLayout(badgePw) : null
 
   // Network logo (parallel with badge render) — SVG first, TMDB fallback
@@ -1188,7 +1208,7 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
     ? badgeCacheKey("genre", genreName, voteAverage, CW, year, badgeStyle, accentColorGenre, bottomLight, badgeGenre, badgeYear, badgeRating, genreBadgeScale)
     : null
   const rankBadgeKey = !showComingSoon && topBadge
-    ? badgeCacheKey("rank", topBadge.type === "extra" ? topBadge.label : `${(topBadge as { rank: number }).rank}:${topBadge!.label}`, CW, topLight, rankingBadgeStyle, accentColorRank, ribbonSide, isAnimeRank, topBadgeScale, isRankDetached ? "detached" : undefined)
+    ? badgeCacheKey("rank", topBadge.type === "extra" ? topBadge.label : `${(topBadge as { rank: number }).rank}:${topBadge!.label}`, CW, topLight, rankingBadgeStyle, accentColorRank, ribbonSide, isAnimeRank, topBadgeScale, isRankDetached ? "detached" : undefined, rankingBadgeAccent ? "accent" : undefined)
     : null
   const formatsKey = (videoFormats && videoFormats.length > 0) ? videoFormats.join(",") : "none"
   const qualityBadgeKey = hasQualityBadge
@@ -1237,10 +1257,12 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
       ? (cacheGet<{ png: Buffer; w: number; h: number; isRank?: boolean }>(rankBadgeKey)
           || coalesceBadgeRender(rankBadgeKey, () => {
               if (topBadge!.type === "extra") {
-                return renderExtraBadge(topBadge!.label, topBadgePw, topLight, rankingBadgeStyle, accentColorRank, isRankDetached)
+                // Senza nastro il "colored" colora il badge default (il builder
+                // extra centra già di suo con tinta accent: stesso contratto).
+                return renderExtraBadge(topBadge!.label, topBadgePw, topLight, rankingBadgeAccent ? "colored" : rankingBadgeStyle, accentColorRank, isRankDetached)
                   .then((r) => { const v = { ...r, isRank: false }; cacheSet(rankBadgeKey, v, ["badge"], BADGE_CACHE_TTL); return v })
               }
-              return renderRankingBadge((topBadge as { rank: number }).rank, isRibbonRankingStyle(rankingBadgeStyle) ? badgePw : topBadgePw, topBadge!.label, topLight, rankingBadgeStyle, accentColorRank, ribbonSide, isAnimeRank, isRankDetached)
+              return renderRankingBadge((topBadge as { rank: number }).rank, isRibbonRankingStyle(rankingBadgeStyle) ? badgePw : topBadgePw, topBadge!.label, topLight, rankingBadgeStyle, accentColorRank, ribbonSide, isAnimeRank, isRankDetached, rankingBadgeAccent)
                 .then((r) => { const v = { ...r, isRank: true }; cacheSet(rankBadgeKey, v, ["badge"], BADGE_CACHE_TTL); return v })
             }))
       : Promise.resolve(null)

@@ -62,6 +62,8 @@
   "ui.badgePosterHint": "Uložením se zmrazí pouze pro tento titul",
   "ui.badgeDefaultsHint": "Platí pro nové plakáty a nikdy neuložené tituly",
   "ui.trendBadge": "Trend",
+  "ui.ribbon": "Stuha",
+  "ui.ribbonHint": "Rohová stuha ve stylu Netflix: při VYPNUTO se odznak žebříčku zobrazí centrovaný místo rohové stuhy.",
   "ui.trendDefaultHint": "Master switch: OFF hides every top badge (saved posters included) — below you can re-enable single categories, e.g. Extra only.",
   "ui.topBadge": "Horní odznak",
   "ui.genreRatingBadge": "Žánr / Hodnocení",
