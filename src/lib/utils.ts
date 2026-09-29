@@ -11,7 +11,8 @@ export function cn(...classes: (string | undefined | null | false)[]) {
 export const LANG_FLAGS: Record<string, string> = {
   it: "🇮🇹", en: "🇬🇧", fr: "🇫🇷", de: "🇩🇪", es: "🇪🇸", pt: "🇵🇹",
   ja: "🇯🇵", ko: "🇰🇷", zh: "🇨🇳", ru: "🇷🇺", ar: "🇸🇦", nl: "🇳🇱",
-  pl: "🇵🇱", sv: "🇸🇪", tr: "🇹🇷", hi: "🇮🇳", he: "🇮🇱",
+  pl: "🇵🇱", sv: "🇸🇪", tr: "🇹🇷", hi: "🇮🇳", he: "🇮🇱", ro: "🇷🇴",
+  cs: "🇨🇿",
 }
 
 export const LANG_NAMES: Record<string, string> = {
@@ -19,7 +20,7 @@ export const LANG_NAMES: Record<string, string> = {
   es: "Español", pt: "Português", ja: "日本語", ko: "한국어",
   zh: "中文", ru: "Русский", ar: "العربية", nl: "Nederlands",
   pl: "Polski", sv: "Svenska", tr: "Türkçe", hi: "हिन्दी",
-  he: "עברית",
+  he: "עברית", ro: "Română", cs: "Čeština",
   xx: "Senza lingua",
 }
 
@@ -102,4 +103,5 @@ export const UI_LANGUAGES: readonly UiLangOption[] = [
   { code: "pt", flag: "🇧🇷", name: "Português", sub: "PT" },
   { code: "he", flag: "🇮🇱", name: "עברית", sub: "HE" },
   { code: "cs", flag: "🇨🇿", name: "Čeština", sub: "CS" },
+  { code: "ro", flag: "🇷🇴", name: "Română", sub: "RO" },
 ] as const

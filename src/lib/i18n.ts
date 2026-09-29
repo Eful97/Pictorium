@@ -8,10 +8,11 @@ import ko from "./translations/ko.json"
 import pt from "./translations/pt.json"
 import he from "./translations/he.json"
 import cs from "./translations/cs.json"
+import ro from "./translations/ro.json"
 
 export type Lang = keyof typeof dicts
 
-const dicts: Record<string, Record<string, string>> = { en, it, fr, de, es, ja, ko, pt, he, cs }
+const dicts: Record<string, Record<string, string>> = { en, it, fr, de, es, ja, ko, pt, he, cs, ro }
 
 let _currentLang: string = "it"
 
@@ -40,10 +41,10 @@ export function isRankKey(val: string | null): string | null {
     if (key === "badge.today" || key === "badge.anime" || key === "badge.movie" || key === "badge.series") return key
     return null
   }
-  if (val === "Oggi" || val === "Today" || val === "Aujourd'hui" || val === "Heute" || val === "Hoy" || val === "今日" || val === "오늘" || val === "Hoje" || val === "היום" || val === "Dnes") return "badge.today"
+  if (val === "Oggi" || val === "Today" || val === "Aujourd'hui" || val === "Heute" || val === "Hoy" || val === "今日" || val === "오늘" || val === "Hoje" || val === "היום" || val === "Dnes" || val === "Azi" || val === "Astăzi" || val === "Astazi") return "badge.today"
   if (val === "Anime" || val === "アニメ" || val === "애니메이션" || val === "אנימה") return "badge.anime"
   if (val === "Film" || val === "Movie" || val === "Película" || val === "映画" || val === "영화" || val === "Filme" || val === "סרט") return "badge.movie"
-  if (val === "Serie tv" || val === "TV series" || val === "Series" || val === "Série TV" || val === "Série" || val === "Serie de TV" || val === "Serie" || val === "TVシリーズ" || val === "TV 시리즈" || val === "סדרה" || val === "Seriál") return "badge.series"
+  if (val === "Serie tv" || val === "TV series" || val === "Series" || val === "Série TV" || val === "Série" || val === "Serie de TV" || val === "Serie" || val === "TVシリーズ" || val === "TV 시리즈" || val === "סדרה" || val === "Seriál" || val === "Serial" || val === "Seriale") return "badge.series"
   return null
 }
 

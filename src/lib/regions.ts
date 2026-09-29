@@ -41,11 +41,13 @@ export const REGIONS: readonly RegionDef[] = [
   { code: "IL", flixSlug: "israel", lang: "he-IL", lang2: "he", languageName: "עברית", label: "Israele", flag: "🇮🇱" },
   { code: "JP", flixSlug: "japan", lang: "ja-JP", lang2: "ja", languageName: "日本語", label: "Giappone", flag: "🇯🇵" },
   { code: "KR", flixSlug: "south-korea", lang: "ko-KR", lang2: "ko", languageName: "한국어", label: "Corea del Sud", flag: "🇰🇷" },
-  { code: "BR", flixSlug: "brazil", lang: "pt-BR", lang2: "pt", languageName: "Português", label: "Brasile", flag: "🇧🇷" },
+  { code: "BR", flixSlug: "brazil", lang: "pt-BR", lang2: "pt", languageName: "Português (Brasil)", label: "Brasile", flag: "🇧🇷" },
+  { code: "PT", flixSlug: "portugal", lang: "pt-PT", lang2: "pt", languageName: "Português", label: "Portogallo", flag: "🇵🇹" },
   { code: "IN", flixSlug: "india", lang: "en-IN", lang2: "en", languageName: "English", label: "India", flag: "🇮🇳" },
   { code: "CA", flixSlug: "canada", lang: "en-CA", lang2: "en", languageName: "English", label: "Canada", flag: "🇨🇦" },
   { code: "AU", flixSlug: "australia", lang: "en-AU", lang2: "en", languageName: "English", label: "Australia", flag: "🇦🇺" },
   { code: "CZ", flixSlug: "czech-republic", lang: "cs-CZ", lang2: "cs", languageName: "Čeština", label: "Cechia", flag: "🇨🇿" },
+  { code: "RO", flixSlug: "romania", lang: "ro-RO", lang2: "ro", languageName: "Română", label: "Romania", flag: "🇷🇴" },
 ] as const
 
 const BY_CODE = new Map(REGIONS.map((r) => [r.code, r]))

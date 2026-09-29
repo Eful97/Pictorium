@@ -26,6 +26,8 @@ const defaultsSchema = z.object({
   badgeStyle: z.enum(BADGE_STYLES).optional(),
   rankingBadgeStyle: z.enum(RANKING_BADGE_STYLES).optional(),
   qualityBadgeStyle: z.enum(QUALITY_BADGE_STYLES).nullable().optional(),
+  videoFormats: z.array(z.enum(["dv", "hdr", "hdr10plus", "atmos", "imax"])).nullable().optional(),
+  defaultVideoFormats: z.array(z.enum(["dv", "hdr", "hdr10plus", "atmos", "imax"])).nullable().optional(),
   blurEnabled: z.boolean().optional(),
   blurIntensity: z.number().optional(),
   blurFade: z.number().optional(),
@@ -151,6 +153,9 @@ export async function PUT(req: NextRequest) {
   const parsed = defaultsSchema.safeParse(body)
   if (!parsed.success) {
     return Response.json({ error: "Validation failed", details: parsed.error.flatten() }, { status: 400 })
+  }
+  if (parsed.data.videoFormats === undefined && parsed.data.defaultVideoFormats !== undefined) {
+    parsed.data.videoFormats = parsed.data.defaultVideoFormats
   }
   try {
     if (scoped) {

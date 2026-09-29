@@ -6,6 +6,8 @@ import { createLogger } from "@/lib/logger"
 import type { BadgeStyle, RankingBadgeStyle, QualityBadgeStyle } from "@/lib/badge-styles"
 import type { StreamQuality } from "@/lib/quality-tiers"
 import type { SashBucket } from "@/lib/badge-priority"
+import type { VideoFormat } from "@/lib/av-specs"
+import { isVideoFormat } from "@/lib/av-specs"
 import { isBadgeStyle, isRankingBadgeStyle, isQualityBadgeStyle } from "@/lib/badge-styles"
 import { normalizeRegion } from "@/lib/regions"
 import { envWithFallback } from "@/lib/env-compat"
@@ -19,6 +21,9 @@ export interface ServerDefaults {
   rankingBadgeStyle?: RankingBadgeStyle
   /** Stile icone del badge qualità (standard = pill testuale). */
   qualityBadgeStyle?: QualityBadgeStyle | null
+  /** Formati A/V abilitati di default (dv, hdr, hdr10plus, atmos, imax). */
+  videoFormats?: VideoFormat[] | null
+  defaultVideoFormats?: VideoFormat[] | null
   blurEnabled?: boolean
   blurIntensity?: number
   blurFade?: number
@@ -223,6 +228,11 @@ function defaultsFromEnv(): ServerDefaults {
   if (networkLogoScale !== undefined) d.networkLogoScale = networkLogoScale
   if (networkLogoOX !== undefined) d.networkLogoOffsetX = networkLogoOX
   if (networkLogoOY !== undefined) d.networkLogoOffsetY = networkLogoOY
+  const vfEnv = getEnv("VIDEO_FORMATS")?.split(",").map((s) => s.trim().toLowerCase()).filter(Boolean)
+  if (vfEnv && vfEnv.length > 0) {
+    const valid = vfEnv.filter(isVideoFormat)
+    if (valid.length > 0) d.videoFormats = valid
+  }
   return d
 }
 const ENV_DEFAULTS: ServerDefaults = defaultsFromEnv()

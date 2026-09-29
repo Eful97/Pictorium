@@ -470,4 +470,11 @@ describe("buildPreviewUrl", () => {
     })
     expect(patternUrl).toContain("rsrc=tomatoes%2Cmetacritic")
   })
+
+  it("handles videoFormats in buildPreviewUrl correctly", () => {
+    expect(buildPreviewUrl(basePosterState, baseBadgeParams)).not.toContain("formats=")
+    expect(buildPreviewUrl(basePosterState, { ...baseBadgeParams, videoFormats: null })).not.toContain("formats=")
+    expect(buildPreviewUrl(basePosterState, { ...baseBadgeParams, videoFormats: [] })).toContain("formats=none")
+    expect(buildPreviewUrl(basePosterState, { ...baseBadgeParams, videoFormats: ["dv", "atmos"] })).toContain("formats=dv,atmos")
+  })
 })

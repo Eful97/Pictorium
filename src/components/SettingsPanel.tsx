@@ -9,7 +9,8 @@ import { ApiError, http } from "@/lib/http"
 import { saveDefaults } from "@/lib/save-defaults"
 import { SliderRow } from "@/components/SliderRow"
 import { Toggle } from "@/components/Toggle"
-import { BadgeStyleSelector, MenuItem } from "@/components/ui"
+import { BadgeStyleSelector, MenuItem, VideoFormatSelector } from "@/components/ui"
+import { KNOWN_VIDEO_FORMATS } from "@/lib/av-specs"
 import { UI_RATING_SOURCES } from "@/lib/rating-weights"
 import { SASH_BUCKETS, DEFAULT_SASH_ORDER, parseSashOrder, moveSashItem, type SashBucket } from "@/lib/badge-priority"
 import { formatRating } from "@/lib/custom-rating/formatter"
@@ -915,6 +916,17 @@ export function SettingsPanel({ setSettingsOpen, exportData, importData, mobile 
               }}
               t={t}
             />
+
+            <div className="pt-2 border-t border-surface2/50 space-y-1.5">
+              <label className="text-[11px] text-muted font-medium block">
+                {t("ui.defaultVideoFormats")}
+              </label>
+              <VideoFormatSelector
+                selectedFormats={ed.defaultVideoFormats ?? KNOWN_VIDEO_FORMATS}
+                onChange={(formats) => ed.setDefaultVideoFormats(formats)}
+                t={t}
+              />
+            </div>
           </div>
         )}
       </div>

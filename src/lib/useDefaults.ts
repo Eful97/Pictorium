@@ -11,6 +11,7 @@ import { USER_UNLOCK_EVENT, currentPathUuid } from "./user-token"
 import { t } from "./i18n"
 import { normalizeSashOrder, DEFAULT_SASH_ORDER, type SashBucket } from "./badge-priority"
 import { DEFAULT_QUALITY_BADGE_STYLE, type QualityBadgeStyle } from "./badge-styles"
+import { KNOWN_VIDEO_FORMATS, isVideoFormat, type VideoFormat } from "./av-specs"
 
 export type RibbonSide = "left" | "right"
 
@@ -19,6 +20,8 @@ export interface DefaultsState {
   defaultRankingBadgeStyle: RankingBadgeStyle
   /** Stile icone del badge qualità di default (default "standard"). */
   defaultQualityBadgeStyle: QualityBadgeStyle
+  /** Formati A/V abilitati di default (dv, atmos, imax, hdr, hdr10plus). */
+  defaultVideoFormats: VideoFormat[]
   defaultBlurEnabled: boolean
   defaultBlurIntensity: number
   defaultBlurFade: number
@@ -124,12 +127,15 @@ export interface DefaultsState {
   rankingBadgeStyle: RankingBadgeStyle
   /** Stile icone del badge qualità del poster in editing. */
   qualityBadgeStyle: QualityBadgeStyle
+  /** Formati A/V del poster in editing (null = segui default / spec locale). */
+  videoFormats: VideoFormat[] | null
 }
 
 const DEFAULTS: DefaultsState = {
   defaultBadgeStyle: "shadow",
   defaultRankingBadgeStyle: "default",
   defaultQualityBadgeStyle: DEFAULT_QUALITY_BADGE_STYLE,
+  defaultVideoFormats: [...KNOWN_VIDEO_FORMATS],
   defaultBlurEnabled: true,
   defaultBlurIntensity: 20,
   defaultBlurFade: 50,
@@ -208,9 +214,12 @@ const DEFAULTS: DefaultsState = {
   badgeStyle: "shadow",
   rankingBadgeStyle: "default",
   qualityBadgeStyle: DEFAULT_QUALITY_BADGE_STYLE,
+  videoFormats: null,
 }
 
 interface StoredDefaults {
+  videoFormats?: VideoFormat[] | null
+  defaultVideoFormats?: VideoFormat[] | null
   globalBadges?: boolean
   rankingBadges?: boolean
   badgeGenre?: boolean
@@ -343,6 +352,9 @@ function buildFromStored(d: StoredDefaults | null): DefaultsState {
     defaultBadgeStyle: d.defaultBadgeStyle ?? d.badgeStyle ?? "shadow",
     defaultRankingBadgeStyle: d.defaultRankingBadgeStyle ?? d.rankingBadgeStyle ?? "default",
     defaultQualityBadgeStyle: d.defaultQualityBadgeStyle ?? d.qualityBadgeStyle ?? DEFAULT_QUALITY_BADGE_STYLE,
+    defaultVideoFormats: Array.isArray(d.defaultVideoFormats)
+      ? d.defaultVideoFormats.filter(isVideoFormat)
+      : (Array.isArray(d.videoFormats) ? d.videoFormats.filter(isVideoFormat) : [...KNOWN_VIDEO_FORMATS]),
     defaultBlurEnabled: d.defaultBlurEnabled ?? d.blurEnabled ?? true,
     defaultBlurIntensity: d.defaultBlurIntensity ?? d.blurIntensity ?? 20,
     defaultBlurFade: d.defaultBlurFade ?? d.blurFade ?? 50,
@@ -428,6 +440,7 @@ function buildFromStored(d: StoredDefaults | null): DefaultsState {
     badgeStyle: d.badgeStyle ?? d.defaultBadgeStyle ?? "shadow",
     rankingBadgeStyle: d.rankingBadgeStyle ?? d.defaultRankingBadgeStyle ?? "default",
     qualityBadgeStyle: d.qualityBadgeStyle ?? d.defaultQualityBadgeStyle ?? DEFAULT_QUALITY_BADGE_STYLE,
+    videoFormats: Array.isArray(d.videoFormats) ? d.videoFormats.filter(isVideoFormat) : null,
   }
 }
 
@@ -484,6 +497,7 @@ function defaultsToPayload(d: DefaultsState): Record<string, unknown> {
     logoAlign: d.defaultLogoAlign,
     episodeMetadataSource: d.defaultEpisodeMetadataSource,
     region: d.defaultRegion,
+    videoFormats: d.defaultVideoFormats,
   }
 }
 
@@ -529,6 +543,9 @@ export function useDefaults() {
         }
         if (!currentStored?.defaultSashOrder && Array.isArray(serverData.sashOrder)) {
           merged.defaultSashOrder = serverData.sashOrder
+        }
+        if (!currentStored?.defaultVideoFormats && Array.isArray(serverData.videoFormats)) {
+          merged.defaultVideoFormats = serverData.videoFormats
         }
         const updated = buildFromStored(merged)
         setState(updated)

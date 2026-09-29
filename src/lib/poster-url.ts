@@ -11,6 +11,7 @@ import { normalizeGenreName } from "./genre-normalize"
 import type { SearchResult, TMDBImage } from "./types"
 import type { EnrichedAnimeItem } from "./validation"
 import type { BadgeStyle, RankingBadgeStyle, QualityBadgeStyle } from "./badge-styles"
+import type { VideoFormat } from "./av-specs"
 import type { PosterShape } from "./types"
 import { BADGE_PRESET_ID_RE, BADGE_PRESET_REV_RE } from "./badge-preset"
 
@@ -21,6 +22,8 @@ interface BadgeParams {
   rankingBadgeStyle: RankingBadgeStyle
   /** Stile icone del badge qualità (default "standard"). */
   qualityBadgeStyle?: QualityBadgeStyle | null
+  /** Formati A/V abilitati (dv, atmos, imax, hdr, hdr10plus). */
+  videoFormats?: VideoFormat[] | null
   /** Componenti del badge genere/rating: `false` emette `bg/by/br=0`. */
   badgeGenre?: boolean
   badgeYear?: boolean
@@ -259,6 +262,9 @@ export function buildPreviewUrl(ps: PosterState, bp: BadgeParams): string {
   // Stile icone qualità SEMPRE esplicito in preview (come bs/rs): senza, un
   // mapping salvato con stile diverso scavalcerebbe la scelta editor (desync).
   params.push(`qbs=${bp.qualityBadgeStyle === "mono" || bp.qualityBadgeStyle === "color" ? bp.qualityBadgeStyle : "standard"}`)
+  if (bp.videoFormats !== undefined && bp.videoFormats !== null) {
+    params.push(`formats=${bp.videoFormats.length === 0 ? "none" : bp.videoFormats.join(",")}`)
+  }
   params.push(`tscale=${bp.topBadgeScale}`)
   params.push(`tox=${bp.topBadgeOffsetX}`)
   params.push(`toy=${bp.topBadgeOffsetY}`)

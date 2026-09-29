@@ -70,6 +70,11 @@
   "ui.badgeRating": "평점",
   "ui.badgeQuality": "스트리밍 화질",
   "ui.qualityBadgeStyle": "화질 아이콘 스타일",
+  "ui.videoFormats": "A/V 포맷",
+  "ui.defaultVideoFormats": "기본 A/V 포맷",
+  "ui.videoFormatsHint": "비디오 및 오디오 배지(DV, Atmos, IMAX, HDR, HDR10+)를 활성화하거나 비활성화합니다.",
+  "ui.formatsAll": "모두",
+  "ui.formatsNone": "없음",
   "ui.qbsStandard": "표준",
   "ui.qbsMono": "모노크롬",
   "ui.qbsColor": "컬러",
@@ -738,5 +743,7 @@
   "ui.hostedByDeploy": "Deploy your own private instance on ElfHosted",
   "ui.hostedByGuide": "free addons guide",
   "ui.hostedByGuideLine": "New to Stremio? Check the {guide}.",
-  "ui.hostedByMinimize": "Minimize to icon"
+  "ui.hostedByMinimize": "Minimize to icon",
+  "ui.formatsAll": "모두",
+  "ui.formatsNone": "없음"
 }

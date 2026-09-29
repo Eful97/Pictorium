@@ -70,6 +70,11 @@
   "ui.badgeRating": "Rating",
   "ui.badgeQuality": "Streaming Quality",
   "ui.qualityBadgeStyle": "Quality icon style",
+  "ui.videoFormats": "פורמטי A/V",
+  "ui.defaultVideoFormats": "פורמטי A/V ברירת מחדל",
+  "ui.videoFormatsHint": "הפעל או השבת תגי וידאו ושמע (DV, Atmos, IMAX, HDR, HDR10+).",
+  "ui.formatsAll": "הכל",
+  "ui.formatsNone": "ללא",
   "ui.qbsStandard": "Standard",
   "ui.qbsMono": "Monochrome",
   "ui.qbsColor": "Color",
@@ -738,5 +743,7 @@
   "ui.hostedByDeploy": "Deploy your own private instance on ElfHosted",
   "ui.hostedByGuide": "free addons guide",
   "ui.hostedByGuideLine": "New to Stremio? Check the {guide}.",
-  "ui.hostedByMinimize": "Minimize to icon"
+  "ui.hostedByMinimize": "Minimize to icon",
+  "ui.formatsAll": "הכל",
+  "ui.formatsNone": "ללא"
 }

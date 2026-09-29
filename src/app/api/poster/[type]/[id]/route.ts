@@ -1624,7 +1624,12 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
     const qFormats = qFormatsRaw !== null
       ? (qFormatsRaw === "none" || qFormatsRaw === "" ? [] : (qFormatsRaw.split(",").map((s) => s.trim().toLowerCase()).filter(isVideoFormat) as VideoFormat[]))
       : null
-    const finalVideoFormats = qFormats ?? mapping?.videoFormats ?? localSpec?.formats ?? null
+    const allowedFormats = sd.videoFormats
+    const rawLocalFormats = localSpec?.formats ?? null
+    const defaultFilteredFormats = (allowedFormats && rawLocalFormats)
+      ? rawLocalFormats.filter((f) => allowedFormats.includes(f))
+      : (allowedFormats === null || allowedFormats === undefined ? rawLocalFormats : [])
+    const finalVideoFormats = qFormats ?? mapping?.videoFormats ?? defaultFilteredFormats ?? null
 
     const locale = req.nextUrl.searchParams.get("lang") || mapping?.language || posterRegion.lang2
     // Normalizza i generi composti TV grezzi ("Sci-Fi & Fantasy" mai localizzato

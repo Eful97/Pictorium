@@ -6,7 +6,8 @@ import { usePSelector } from "@/lib/context"
 import { useT } from "@/lib/contexts/TranslationContext"
 import { usePosterEditor } from "@/lib/contexts/PosterEditorContext"
 import { Toggle } from "@/components/Toggle"
-import { BadgeStyleSelector } from "@/components/ui"
+import { BadgeStyleSelector, VideoFormatSelector } from "@/components/ui"
+import { lookupAVSpecs, KNOWN_VIDEO_FORMATS } from "@/lib/av-specs"
 import { getAwardBadgeLabel, getNominationBadgeLabel } from "@/lib/badge-labels"
 import { getNewSeasonLabel, getSeriesEndedLabel, isKDramaOrigin } from "@/lib/poster-badge"
 import { withIdAwards, withIdNoms } from "@/lib/award-ids"
@@ -33,6 +34,14 @@ export function BadgeControls() {
   const [sourcesOpen, setSourcesOpen] = useState(false)
   const [editingValue, setEditingValue] = useState<string | null>(null)
   const [editText, setEditText] = useState("")
+
+  const localSpec = lookupAVSpecs(metaInfo?.imdb_id || selected?.imdb_id)
+  const isFormatsCustomized = ed.videoFormats !== null && ed.videoFormats !== undefined
+  const activeVideoFormats = isFormatsCustomized
+    ? ed.videoFormats!
+    : (localSpec?.formats
+        ? localSpec.formats.filter((f) => (ed.defaultVideoFormats ?? KNOWN_VIDEO_FORMATS).includes(f))
+        : [])
 
   if (!selected) return null
 
@@ -192,14 +201,27 @@ export function BadgeControls() {
           </div>
 
           {ed.badgeQuality && (
-            <div className="pl-3 py-1 space-y-1.5 border-l-2 border-surface2 ml-1 animate-fade-in">
-              <label className="text-[11px] text-muted font-medium block">{t("ui.qualityBadgeStyle")}</label>
-              <BadgeStyleSelector
-                value={ed.qualityBadgeStyle}
-                options={["standard", "mono", "color"]}
-                onChange={ed.setQualityBadgeStyle}
-                t={t}
-              />
+            <div className="pl-3 py-1 space-y-2.5 border-l-2 border-surface2 ml-1 animate-fade-in">
+              <div>
+                <label className="text-[11px] text-muted font-medium block mb-1">{t("ui.qualityBadgeStyle")}</label>
+                <BadgeStyleSelector
+                  value={ed.qualityBadgeStyle}
+                  options={["standard", "mono", "color"]}
+                  onChange={ed.setQualityBadgeStyle}
+                  t={t}
+                />
+              </div>
+
+              <div className="pt-1.5 border-t border-surface2/50">
+                <label className="text-[11px] text-muted font-medium block mb-1">{t("ui.videoFormats")}</label>
+                <VideoFormatSelector
+                  selectedFormats={activeVideoFormats}
+                  onChange={(formats) => ed.setVideoFormats(formats)}
+                  onReset={() => ed.setVideoFormats(null)}
+                  isCustomized={isFormatsCustomized}
+                  t={t}
+                />
+              </div>
             </div>
           )}
 

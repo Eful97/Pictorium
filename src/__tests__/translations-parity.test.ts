@@ -9,8 +9,9 @@ import koDict from "@/lib/translations/ko.json"
 import ptDict from "@/lib/translations/pt.json"
 import heDict from "@/lib/translations/he.json"
 import csDict from "@/lib/translations/cs.json"
+import roDict from "@/lib/translations/ro.json"
 
-const DICTS: Record<string, Record<string, string>> = { en: enDict, it: itDict, fr: frDict, de: deDict, es: esDict, ja: jaDict, ko: koDict, pt: ptDict, he: heDict, cs: csDict }
+const DICTS: Record<string, Record<string, string>> = { en: enDict, it: itDict, fr: frDict, de: deDict, es: esDict, ja: jaDict, ko: koDict, pt: ptDict, he: heDict, cs: csDict, ro: roDict }
 const LANGS = Object.keys(DICTS)
 
 function placeholders(s: string): string {
@@ -19,7 +20,7 @@ function placeholders(s: string): string {
 }
 
 describe("translations parity", () => {
-  it("all 10 dictionaries share the exact same key set", () => {
+  it("all 11 dictionaries share the exact same key set", () => {
     const allKeys = new Set<string>()
     for (const l of LANGS) for (const k of Object.keys(DICTS[l])) allKeys.add(k)
     expect(allKeys.size).toBeGreaterThan(500)

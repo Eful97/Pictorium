@@ -70,6 +70,11 @@
   "ui.badgeRating": "評価",
   "ui.badgeQuality": "ストリーミング画質",
   "ui.qualityBadgeStyle": "画質アイコンスタイル",
+  "ui.videoFormats": "A/Vフォーマット",
+  "ui.defaultVideoFormats": "デフォルトのA/Vフォーマット",
+  "ui.videoFormatsHint": "ビデオおよびオーディオバッジ（DV、Atmos、IMAX、HDR、HDR10+）を有効または無効にします。",
+  "ui.formatsAll": "すべて",
+  "ui.formatsNone": "なし",
   "ui.qbsStandard": "標準",
   "ui.qbsMono": "モノクロ",
   "ui.qbsColor": "カラー",
@@ -738,5 +743,7 @@
   "ui.hostedByDeploy": "Deploy your own private instance on ElfHosted",
   "ui.hostedByGuide": "free addons guide",
   "ui.hostedByGuideLine": "New to Stremio? Check the {guide}.",
-  "ui.hostedByMinimize": "Minimize to icon"
+  "ui.hostedByMinimize": "Minimize to icon",
+  "ui.formatsAll": "すべて",
+  "ui.formatsNone": "なし"
 }

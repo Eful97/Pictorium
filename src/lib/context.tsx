@@ -444,6 +444,7 @@ export function usePictorium(): PictoriumCtx {
     badgeStyle, setBadgeStyle,
     rankingBadgeStyle, setRankingBadgeStyle,
     qualityBadgeStyle, setQualityBadgeStyle,
+    videoFormats, setVideoFormats,
     customBadge, setCustomBadge,
     networkLogo, setNetworkLogo,
     preRelease,
@@ -454,6 +455,7 @@ export function usePictorium(): PictoriumCtx {
     defaultBadgeStyle,
     defaultRankingBadgeStyle,
     defaultQualityBadgeStyle,
+    defaultVideoFormats,
     defaultGlobalBadges,
     defaultRankingBadges,
     defaultBadgeGenre,
@@ -781,6 +783,7 @@ export function usePictorium(): PictoriumCtx {
       badgeStyle: noPreview ? defaultBadgeStyle : badgeStyle,
       rankingBadgeStyle: noPreview ? defaultRankingBadgeStyle : rankingBadgeStyle,
       qualityBadgeStyle: noPreview ? defaultQualityBadgeStyle : qualityBadgeStyle,
+      videoFormats: noPreview ? defaultVideoFormats : (videoFormats ?? defaultVideoFormats),
       badgeGenre: noPreview ? defaultBadgeGenre : badgeGenre,
       badgeYear: noPreview ? defaultBadgeYear : badgeYear,
       badgeRating: noPreview ? defaultBadgeRating : badgeRating,
@@ -834,7 +837,7 @@ export function usePictorium(): PictoriumCtx {
   const prevDefaultsRef = useRef<string | null>(null)
   useEffect(() => {
     const snap = JSON.stringify({
-      badgeStyle: defaultBadgeStyle, rankingBadgeStyle, qualityBadgeStyle: defaultQualityBadgeStyle, globalBadges: defaultGlobalBadges,
+      badgeStyle: defaultBadgeStyle, rankingBadgeStyle, qualityBadgeStyle: defaultQualityBadgeStyle, videoFormats: defaultVideoFormats, globalBadges: defaultGlobalBadges,
       rankingBadges: defaultRankingBadges, badgeGenre: defaultBadgeGenre, badgeYear: defaultBadgeYear,
       badgeRating: defaultBadgeRating, badgeQuality: defaultBadgeQuality, customRatings: defaultCustomRatings,
       ratingSources: defaultRatingSources, separateRatings: defaultSeparateRatings,
@@ -859,6 +862,7 @@ export function usePictorium(): PictoriumCtx {
     if (changed("badgeStyle")) setBadgeStyle(cur.badgeStyle as BadgeStyle)
     if (changed("rankingBadgeStyle")) setRankingBadgeStyle(cur.rankingBadgeStyle as RankingBadgeStyle)
     if (changed("qualityBadgeStyle")) setQualityBadgeStyle(cur.qualityBadgeStyle as QualityBadgeStyle)
+    if (changed("videoFormats")) setVideoFormats(null)
     if (changed("globalBadges")) setGlobalBadges(cur.globalBadges as boolean)
     if (changed("rankingBadges")) setRankingBadges(cur.rankingBadges as boolean)
     if (changed("badgeGenre")) setBadgeGenre(cur.badgeGenre as boolean)
@@ -942,14 +946,14 @@ export function usePictorium(): PictoriumCtx {
         // Preview WYSIWYG nel namespace (altrimenti mostra il globale).
         userId: currentUserId,
       },
-      { globalBadges, rankingBadges, badgeStyle, rankingBadgeStyle, qualityBadgeStyle, badgeGenre, badgeYear, badgeRating, badgeQuality, customRatings, ratingSources, separateRatings, customBadge, gradientHeight, blurIntensity, blurFade, blurDarkness, blurEnabled, tintStrength, topShade, networkLogo, preRelease, ribbonSide, posterShape, logoAlign, topBadgeScale, topBadgeOffsetX, topBadgeOffsetY, genreBadgeScale, qualityBadgeScale, networkLogoScale, genreBadgeOffsetX, genreBadgeOffsetY, qualityBadgeOffsetX, qualityBadgeOffsetY, networkLogoOffsetX, networkLogoOffsetY }
+      { globalBadges, rankingBadges, badgeStyle, rankingBadgeStyle, qualityBadgeStyle, videoFormats, badgeGenre, badgeYear, badgeRating, badgeQuality, customRatings, ratingSources, separateRatings, customBadge, gradientHeight, blurIntensity, blurFade, blurDarkness, blurEnabled, tintStrength, topShade, networkLogo, preRelease, ribbonSide, posterShape, logoAlign, topBadgeScale, topBadgeOffsetX, topBadgeOffsetY, genreBadgeScale, qualityBadgeScale, networkLogoScale, genreBadgeOffsetX, genreBadgeOffsetY, qualityBadgeOffsetX, qualityBadgeOffsetY, networkLogoOffsetX, networkLogoOffsetY }
     )
     setPreviewUrl(url)
   }, [stremioPreview, stremioPreviewUrl, navigation.selected, navigation.previewPoster, navigation.selectedLogo, selectedBackdrop,
     logoScale, logoOffsetX, logoOffsetY, backdropScale, backdropOffsetX, backdropOffsetY,
     metaInfo, trendRank, trending.mdblistAnimeList, topEdgeColor, bottomEdgeColor, accentColor, autoAccentColor, lang, tmdbKey,
     editorCtx.defaultRegion, currentUserId,
-    globalBadges, rankingBadges, badgeStyle, rankingBadgeStyle, qualityBadgeStyle, badgeGenre, badgeYear, badgeRating, badgeQuality, customRatings, ratingSources, separateRatings, customBadge, gradientHeight, blurIntensity, blurFade, blurDarkness, blurEnabled, tintStrength, topShade, networkLogo, preRelease, ribbonSide, posterShape, logoAlign, topBadgeScale, topBadgeOffsetX, topBadgeOffsetY, genreBadgeScale, qualityBadgeScale, networkLogoScale, genreBadgeOffsetX, genreBadgeOffsetY, qualityBadgeOffsetX, qualityBadgeOffsetY, networkLogoOffsetX, networkLogoOffsetY])
+    globalBadges, rankingBadges, badgeStyle, rankingBadgeStyle, qualityBadgeStyle, videoFormats, badgeGenre, badgeYear, badgeRating, badgeQuality, customRatings, ratingSources, separateRatings, customBadge, gradientHeight, blurIntensity, blurFade, blurDarkness, blurEnabled, tintStrength, topShade, networkLogo, preRelease, ribbonSide, posterShape, logoAlign, topBadgeScale, topBadgeOffsetX, topBadgeOffsetY, genreBadgeScale, qualityBadgeScale, networkLogoScale, genreBadgeOffsetX, genreBadgeOffsetY, qualityBadgeOffsetX, qualityBadgeOffsetY, networkLogoOffsetX, networkLogoOffsetY])
 
   // A1: trailing debounce della preview URL (200ms). Ogni tick di slider
   // cambia l'identità di buildPreviewUrlCb → senza debounce ogni pixel di
@@ -1167,6 +1171,7 @@ export function usePictorium(): PictoriumCtx {
       setBadgeStyle(existing.badgeStyle ?? defaultBadgeStyle)
       setRankingBadgeStyle(existing.rankingBadgeStyle ?? defaultRankingBadgeStyle)
       setQualityBadgeStyle(existing.qualityBadgeStyle ?? defaultQualityBadgeStyle)
+      setVideoFormats(existing.videoFormats ?? null)
       setGlobalBadges(existing.showBadges ?? defaultGlobalBadges)
       setRankingBadges(existing.rankingBadges ?? defaultRankingBadges)
       setBadgeGenre(existing.badgeGenre ?? defaultBadgeGenre)
@@ -1231,6 +1236,8 @@ export function usePictorium(): PictoriumCtx {
       setBadgeYear(defaultBadgeYear)
       setBadgeRating(defaultBadgeRating)
       setBadgeQuality(defaultBadgeQuality)
+      setQualityBadgeStyle(defaultQualityBadgeStyle)
+      setVideoFormats(null)
       setCustomRatings(defaultCustomRatings)
       setRatingSources(nextSources)
       setSeparateRatings(defaultSeparateRatings)
@@ -1355,7 +1362,7 @@ export function usePictorium(): PictoriumCtx {
     mappingsMap, loadMappings, logoScale, logoOffsetX, logoOffsetY,
     selectedBackdrop, setSelectedBackdrop: setSelectedBackdrop, backdropScale, backdropOffsetX, backdropOffsetY,
     setBackdropScale, setBackdropOffsetX, setBackdropOffsetY,
-    globalBadges, rankingBadges, customBadge, badgeStyle, rankingBadgeStyle, qualityBadgeStyle,
+    globalBadges, rankingBadges, customBadge, badgeStyle, rankingBadgeStyle, qualityBadgeStyle, videoFormats,
     badgeGenre, badgeYear, badgeRating, badgeQuality, customRatings, ratingSources, separateRatings,
     defaultBadgeStyle, defaultRankingBadgeStyle, blurEnabled, blurIntensity, blurFade, blurDarkness, tintStrength, topShade, gradientHeight,
     topBadgeScale, topBadgeOffsetX, topBadgeOffsetY, genreBadgeScale, qualityBadgeScale, networkLogoScale,

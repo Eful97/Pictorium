@@ -38,3 +38,17 @@ export const FORMAT_ICON_PATHS: Record<VideoFormat, string> = {
   atmos: "quality-badges/video/dolby-atmos.svg",
   imax: "quality-badges/video/imax.svg",
 }
+
+export interface VideoFormatOption {
+  readonly id: VideoFormat
+  readonly label: string
+  readonly fullName: string
+}
+
+export const VIDEO_FORMAT_OPTIONS: readonly VideoFormatOption[] = [
+  { id: "dv", label: "DV", fullName: "Dolby Vision" },
+  { id: "atmos", label: "ATMOS", fullName: "Dolby Atmos" },
+  { id: "imax", label: "IMAX", fullName: "IMAX Enhanced" },
+  { id: "hdr", label: "HDR", fullName: "HDR" },
+  { id: "hdr10plus", label: "HDR10+", fullName: "HDR10+" },
+]
