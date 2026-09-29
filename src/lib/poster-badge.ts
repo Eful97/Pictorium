@@ -115,10 +115,10 @@ export function getJustAddedLabel(input: {
   return input.t("badge.justAddedMovie")
 }
 
-/** Stati "serie finita" (TMDB li localizza: inglese + italiano + arabo).
+/** Stati "serie finita" (TMDB li localizza: en/it/ar + tr/nl/sv).
  *  L'arabo arriva vocalizzato ("مُنتهٍ"): il confronto avviene spogliando i
  *  diacritici ("منته"), piu variante non vocalizzata "منتهي". */
-const ENDED_STATUSES = ["ended", "terminata", "terminato", "finita", "finito", "conclusa", "concluso"]
+const ENDED_STATUSES = ["ended", "terminata", "terminato", "finita", "finito", "conclusa", "concluso", "bitti", "afgelopen", "avslutad"]
 
 /**
  * Badge "Serie conclusa": status finita + ultima puntata recente (<14gg,

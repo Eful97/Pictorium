@@ -86,7 +86,7 @@ pinned: false
 | 📺 **Ordinamento Intelligente Parti & Anime** | Rileva automaticamente i gruppi **Original Parts** (*La Casa di Carta*, *Lupin*) e spacchetta le mega-stagioni anime compresse su TMDB (*Re:ZERO*, *Jujutsu Kaisen*) nelle vere stagioni ufficiali. |
 | 🏷️ **Badge Qualità & Voti** | Visualizza in tempo reale risoluzione video (4K/FHD/HD), voti aggregati da oltre 16 fonti (IMDb, TMDB, Rotten Tomatoes, Letterboxd, MAL), premi Oscar/Cannes e nastri Netflix Top 10. |
 | 🌐 **Cataloghi Personalizzati** | Importa watchlist e collezioni da **Letterboxd, Trakt, TMDb, TheTVDB, MDBList** e classifiche trend in tempo reale tramite JustWatch GraphQL. |
-| 🌍 **Interfaccia Multilingua Dinamica** | Interfaccia localizzata in 13 lingue con cambio istantaneo in tempo reale senza ricaricare la pagina. |
+| 🌍 **Interfaccia Multilingua Dinamica** | Interfaccia localizzata in 16 lingue con cambio istantaneo in tempo reale senza ricaricare la pagina. |
 | 🔒 **Protezione PIN & Spazi Multi-Utente** | Protezione con codice PIN per istanze singole, oppure modalità multi-utente con spazi isolati e crittografia AES-256-GCM. Locandine e manifest Stremio rimangono sempre funzionanti. |
 | ⚡ **Zero Conflitti di Cache** | Versioning deterministico con `RENDER_VERSION` e `APP_VERSION` automatiche: ogni modifica grafica aggiorna istantaneamente le immagini su Stremio. |
 

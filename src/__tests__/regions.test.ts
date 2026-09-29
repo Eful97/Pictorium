@@ -14,10 +14,10 @@ import {
 import { PICKER_LANGS } from "@/lib/utils"
 
 describe("regions", () => {
-  it("exposes 19 regions with unique codes and slugs", () => {
-    expect(REGIONS).toHaveLength(19)
-    expect(new Set(REGIONS.map((r) => r.code)).size).toBe(19)
-    expect(new Set(REGIONS.map((r) => r.flixSlug)).size).toBe(19)
+  it("exposes 22 regions with unique codes and slugs", () => {
+    expect(REGIONS).toHaveLength(22)
+    expect(new Set(REGIONS.map((r) => r.code)).size).toBe(22)
+    expect(new Set(REGIONS.map((r) => r.flixSlug)).size).toBe(22)
     for (const r of REGIONS) {
       expect(r.code).toMatch(/^[A-Z]{2}$/)
       expect(r.lang).toMatch(/^[a-z]{2}-[A-Z]{2}$/)
@@ -108,19 +108,19 @@ describe("regions", () => {
   })
 
   it("supports only the picker UI languages", () => {
-    expect(SUPPORTED_UI_LANGS).toEqual(["it", "pl", "en", "fr", "de", "es", "he", "ja", "ko", "pt", "cs", "ro", "ar"])
-    for (const l of ["it", "pl", "en", "fr", "de", "es", "he", "ja", "ko", "pt", "cs", "ro", "ar"]) {
+    expect(SUPPORTED_UI_LANGS).toEqual(["it", "pl", "en", "fr", "de", "es", "he", "ja", "ko", "pt", "cs", "ro", "ar", "tr", "nl", "sv"])
+    for (const l of ["it", "pl", "en", "fr", "de", "es", "he", "ja", "ko", "pt", "cs", "ro", "ar", "tr", "nl", "sv"]) {
       expect(isSupportedUiLang(l)).toBe(true)
     }
-    // Lingue del vecchio picker (zh/ru/nl) non più offerte
-    for (const l of ["zh", "ru", "nl", "", null, undefined]) {
+    // Lingue del vecchio picker (zh/ru) non più offerte
+    for (const l of ["zh", "ru", "", null, undefined]) {
       expect(isSupportedUiLang(l)).toBe(false)
     }
   })
 
-  it("PICKER_LANGS lists exactly the 19 nationalities", () => {
-    expect(PICKER_LANGS).toHaveLength(19)
-    expect(new Set(PICKER_LANGS.map((l) => l.key)).size).toBe(19)
+  it("PICKER_LANGS lists exactly the 22 nationalities", () => {
+    expect(PICKER_LANGS).toHaveLength(22)
+    expect(new Set(PICKER_LANGS.map((l) => l.key)).size).toBe(22)
     expect(PICKER_LANGS.map((l) => l.key)).toEqual(REGIONS.map((r) => r.code))
     for (const l of PICKER_LANGS) {
       expect(l.flag).toBeTruthy()
@@ -142,6 +142,9 @@ describe("regions", () => {
     expect(defaultRegionForLang("cs")).toBe("CZ")
     expect(defaultRegionForLang("pl")).toBe("PL")
     expect(defaultRegionForLang("ar")).toBe("SA")
+    expect(defaultRegionForLang("tr")).toBe("TR")
+    expect(defaultRegionForLang("nl")).toBe("NL")
+    expect(defaultRegionForLang("sv")).toBe("SE")
     expect(defaultRegionForLang("es", "MX")).toBe("MX")
     expect(defaultRegionForLang("en")).toBe("US")
     expect(defaultRegionForLang("en", "GB")).toBe("GB")

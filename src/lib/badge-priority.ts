@@ -190,7 +190,7 @@ export function stripArabicDiacritics(s: string): string {
 }
 
 /**
- * True se il `type` TMDB indica una miniserie. Solo en/it: in arabo TMDB
+ * True se il `type` TMDB indica una miniserie. Solo en/it/nl: in arabo TMDB
  * restituisce il generico "مسلسلات" (indistinguibile da una serie normale),
  * quindi niente match arabo — degrada a null, mai un falso positivo.
  * Formula unica: mai forkare (usata da computeTopBadge, getAllBadgeOptions
@@ -198,17 +198,19 @@ export function stripArabicDiacritics(s: string): string {
  */
 export function isMiniseriesType(tvType: string | null | undefined): boolean {
   const v = (tvType || "").toLowerCase().trim()
-  return v === "miniseries" || v === "miniserie"
+  return v === "miniseries" || v === "miniserie" || v === "mini-serie"
 }
 
 /**
  * True se lo `status` TMDB indica una serie in corso. "Returning Series"
- * (en), "In corso" (it), "موسم جديد قادم" (ar, verificato su TMDB ar-SA).
- * Formula unica: mai forkare (vedi isMiniseriesType).
+ * (en), "In corso" (it), "موسم جديد قادم" (ar), "Yeni Sezonu Olan Diziler"
+ * (tr), "Terugkerende serie" (nl), "Återkommande serie" (sv) — verificati
+ * su TMDB. Formula unica: mai forkare (vedi isMiniseriesType).
  */
 export function isReturningStatus(tvStatus: string | null | undefined): boolean {
   const v = (tvStatus || "").toLowerCase().trim()
   if (v === "returning series" || v === "in corso") return true
+  if (v === "terugkerende serie" || v === "yeni sezonu olan diziler" || v === "återkommande serie") return true
   return stripArabicDiacritics(v) === "موسم جديد قادم"
 }
 

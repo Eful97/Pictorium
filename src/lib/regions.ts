@@ -18,7 +18,7 @@ export interface RegionDef {
   readonly lang: string
   /**
    * Lingua UI a 2 lettere (stato `lang` dell'app, `preferred_lang`).
-   * it/en/fr/de/es/pl/he/ar hanno un dizionario UI completo — ja/ko/pt/cs
+   * it/en/fr/de/es/pl/he/ar/tr/nl/sv hanno un dizionario UI completo — ja/ko/pt/cs
    * ripiegano sull'inglese in `i18n.lookup` per le stringhe `ui.*` (he/ar
    * hanno badge/award tradotti), mentre i contenuti TMDB seguono `lang`.
    */
@@ -50,6 +50,9 @@ export const REGIONS: readonly RegionDef[] = [
   { code: "CZ", flixSlug: "czech-republic", lang: "cs-CZ", lang2: "cs", languageName: "Čeština", label: "Cechia", flag: "🇨🇿" },
   { code: "RO", flixSlug: "romania", lang: "ro-RO", lang2: "ro", languageName: "Română", label: "Romania", flag: "🇷🇴" },
   { code: "SA", flixSlug: "saudi-arabia", lang: "ar-SA", lang2: "ar", languageName: "العربية", label: "Arabia Saudita", flag: "🇸🇦" },
+  { code: "TR", flixSlug: "turkey", lang: "tr-TR", lang2: "tr", languageName: "Türkçe", label: "Turchia", flag: "🇹🇷" },
+  { code: "NL", flixSlug: "netherlands", lang: "nl-NL", lang2: "nl", languageName: "Nederlands", label: "Paesi Bassi", flag: "🇳🇱" },
+  { code: "SE", flixSlug: "sweden", lang: "sv-SE", lang2: "sv", languageName: "Svenska", label: "Svezia", flag: "🇸🇪" },
 ] as const
 
 const BY_CODE = new Map(REGIONS.map((r) => [r.code, r]))

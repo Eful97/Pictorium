@@ -72,7 +72,7 @@ export const STREAMING_PLATFORMS = [
 /**
  * Voci del selettore lingua: SOLO le nazionalità supportate (una per
  * regione). `key` è il codice paese (univoco), `code` la lingua UI a 2 lettere
- * (it/pl/en/fr/de/es/he/ar hanno un dizionario completo — ja/ko/pt/cs/ro
+ * (it/pl/en/fr/de/es/he/ar/tr/nl/sv hanno un dizionario completo — ja/ko/pt/cs/ro
  * ripiegano sull'inglese in `i18n.lookup` per le chiavi che non traducono).
  */
 export const PICKER_LANGS = REGIONS.map((r) => ({
@@ -91,8 +91,8 @@ export interface UiLangOption {
 }
 
 /**
- * Le lingue selezionabili per l'interfaccia. it/pl/en/fr/de/es/he/ar hanno
- * un dizionario completo; `ja/ko/pt/cs/ro` ripiegano sull'inglese per le
+ * Le lingue selezionabili per l'interfaccia. it/pl/en/fr/de/es/he/ar/tr/nl/sv
+ * hanno un dizionario completo; `ja/ko/pt/cs/ro` ripiegano sull'inglese per le
  * stringhe `ui.*` (vedi translations/).
  */
 export const UI_LANGUAGES: readonly UiLangOption[] = [
@@ -109,4 +109,7 @@ export const UI_LANGUAGES: readonly UiLangOption[] = [
   { code: "cs", flag: "🇨🇿", name: "Čeština", sub: "CS" },
   { code: "ro", flag: "🇷🇴", name: "Română", sub: "RO" },
   { code: "ar", flag: "🇸🇦", name: "العربية", sub: "AR" },
+  { code: "tr", flag: "🇹🇷", name: "Türkçe", sub: "TR" },
+  { code: "nl", flag: "🇳🇱", name: "Nederlands", sub: "NL" },
+  { code: "sv", flag: "🇸🇪", name: "Svenska", sub: "SE" },
 ] as const
