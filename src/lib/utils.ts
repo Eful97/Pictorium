@@ -113,3 +113,33 @@ export const UI_LANGUAGES: readonly UiLangOption[] = [
   { code: "nl", flag: "🇳🇱", name: "Nederlands", sub: "NL" },
   { code: "sv", flag: "🇸🇪", name: "Svenska", sub: "SE" },
 ] as const
+
+export interface ImageLists {
+  posters: TMDBImage[]
+  logos: TMDBImage[]
+  backdrops: TMDBImage[]
+}
+
+/**
+ * Fonde due risposte /images TMDB (default + allargata alla lingua originale),
+ * deduplicando per file_path. La prima lista vince a parità di path.
+ * Spostata qui da context.tsx (move wholesale, logica identica).
+ */
+export function mergeImageLists(base: ImageLists, extra: ImageLists): ImageLists {
+  const merge = (a: TMDBImage[], b: TMDBImage[]): TMDBImage[] => {
+    const seen = new Set(a.map((img) => img.file_path))
+    const out = [...a]
+    for (const img of b) {
+      if (!seen.has(img.file_path)) {
+        seen.add(img.file_path)
+        out.push(img)
+      }
+    }
+    return out
+  }
+  return {
+    posters: merge(base.posters || [], extra.posters || []),
+    logos: merge(base.logos || [], extra.logos || []),
+    backdrops: merge(base.backdrops || [], extra.backdrops || []),
+  }
+}

@@ -6,7 +6,8 @@ import { effectiveMappingForShape } from "./types"
 import type { BadgeStyle, RankingBadgeStyle, QualityBadgeStyle } from "./badge-styles"
 import type { RibbonSide } from "./useDefaults"
 type LogoAlign = "left" | "center"
-import { posterUrl, titleOf, yearOf, STREAMING_PLATFORMS } from "./utils"
+import { posterUrl, titleOf, yearOf, STREAMING_PLATFORMS, mergeImageLists, type ImageLists } from "./utils"
+export { mergeImageLists, type ImageLists } from "./utils"
 import { matchTMDBStudios } from "./badge-labels"
 import { setLang as setI18nLang, createT } from "./i18n"
 import { isSupportedUiLang, getRegionDef, defaultRegionForLang } from "./regions"
@@ -24,6 +25,7 @@ import { useNavigation } from "./useNavigation"
 import { useMappingsStore } from "./useMappingsStore"
 import { usePosterEditor, PosterEditorProvider, type LandscapeBlurState } from "./contexts/PosterEditorContext"
 import { usePosterSave } from "./usePosterSave"
+import { usePrefetchTitle } from "./usePrefetchTitle"
 import { defaultHeightForPoster, defaultFadeForPoster, adjustGradientForPosterChange } from "./gradient-presets"
 import { computeLogoOffsetBounds, PORTRAIT_LOGO_MAX_HEIGHT_PCT, PORTRAIT_LOGO_TOP_OFFSET, LANDSCAPE_LOGO_MAX_WIDTH_PCT, LANDSCAPE_LOGO_MAX_HEIGHT_PCT, LANDSCAPE_LOGO_BOTTOM_MARGIN_PCT, LANDSCAPE_LOGO_TOP_OFFSET } from "./logo-layout"
 import { LAND_W, LAND_H } from "./constants"
@@ -39,35 +41,6 @@ import { useCustomCatalogs } from "./useCustomCatalogs"
 import { migrateLegacyStorage } from "./storage-migration"
 
 export type ViewType = "search" | "myposters" | "edit" | "cataloghi"
-
-export interface ImageLists {
-  posters: TMDBImage[]
-  logos: TMDBImage[]
-  backdrops: TMDBImage[]
-}
-
-/**
- * Fonde due risposte /images TMDB (default + allargata alla lingua originale),
- * deduplicando per file_path. La prima lista vince a parità di path.
- */
-export function mergeImageLists(base: ImageLists, extra: ImageLists): ImageLists {
-  const merge = (a: TMDBImage[], b: TMDBImage[]): TMDBImage[] => {
-    const seen = new Set(a.map((img) => img.file_path))
-    const out = [...a]
-    for (const img of b) {
-      if (!seen.has(img.file_path)) {
-        seen.add(img.file_path)
-        out.push(img)
-      }
-    }
-    return out
-  }
-  return {
-    posters: merge(base.posters || [], extra.posters || []),
-    logos: merge(base.logos || [], extra.logos || []),
-    backdrops: merge(base.backdrops || [], extra.backdrops || []),
-  }
-}
 
 export interface MetaInfo {
   genres: { id: number; name: string }[]
@@ -1557,23 +1530,9 @@ export function usePictorium(): PictoriumCtx {
     })
   }, [savePosterConfig, rotationBackdrops])
 
-  // Prefetch hover sui risultati di ricerca: scalda le cache server
-  // (details + images) così aprendo l'editor trova tutto già caldo.
-  // Fire-and-forget con dedup per titolo; niente retry per non inseguire
-  // un hover con richieste zombie.
-  const prefetchedRef = useRef<Set<string>>(new Set())
-  const prefetchTitle = useCallback((item: SearchResult) => {
-    const key = `${item.media_type}:${item.id}`
-    if (prefetchedRef.current.has(key)) return
-    if (prefetchedRef.current.size > 200) prefetchedRef.current.clear()
-    prefetchedRef.current.add(key)
-    const rLang = getRegionDef(editorCtx.defaultRegion).lang
-    const langs = `${lang},en,null`
-    // Senza chiave da nessuna parte evita prefetch destinati al 401.
-    if (!tmdbKey && !serverHasTmdbKey) return
-    http(`/api/tmdb/${item.id}/details?type=${item.media_type}&language=${rLang}&api_key=${tmdbKey}`, { timeout: 15000, retries: 0 }).catch(() => null)
-    http(`/api/tmdb/${item.id}/images?type=${item.media_type}&languages=${langs}&api_key=${tmdbKey}`, { timeout: 15000, retries: 0 }).catch(() => null)
-  }, [tmdbKey, serverHasTmdbKey, lang, editorCtx.defaultRegion])
+  // Prefetch hover sui risultati di ricerca — implementazione in
+  // usePrefetchTitle.ts (stesse deps, stessa identità del callback).
+  const prefetchTitle = usePrefetchTitle({ tmdbKey, serverHasTmdbKey, lang, defaultRegion: editorCtx.defaultRegion })
 
   return useMemo(() => ({
     selected: navigation.selected, setSelected: navigation.setSelected,

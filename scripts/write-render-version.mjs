@@ -42,6 +42,7 @@ const RENDER_FILES = [
   "src/lib/network-svgs.ts",
   "src/lib/poster-auto-fit.ts",
   "src/lib/poster-badge.ts",
+  "src/lib/poster-cache-infra.ts",
   "src/lib/poster-config.ts",
   "src/lib/poster-fit-adjust.ts",
   "src/lib/poster-fit-score.ts",
