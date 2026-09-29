@@ -1445,6 +1445,15 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
             const wantAnilist = reqRatingSources.includes("anilist")
             const wantKitsu = reqRatingSources.includes("kitsu")
             const wantImdb = reqRatingSources.includes("imdb")
+            // Backfill TMDB genuino (mai medie query/mapping congelate):
+            // solo details già in session cache (ramo non-mappato o fetch
+            // precedenti) — senza, niente backfill come prima. Stesso
+            // fallback del ramo auto, così la colonna separati non perde
+            // `tmdb` a MDBList down pur con chiave TMDB valida.
+            const cachedTmdbVote = getTMDBSessionCache(mediaType, tmdbId)?.details?.vote_average
+            const genuineTmdbVote = typeof cachedTmdbVote === "number" && Number.isFinite(cachedTmdbVote) && cachedTmdbVote > 0
+              ? cachedTmdbVote
+              : undefined
             aggregatedRating = fetchAggregatedRating(
               imdbId,
               effMdblistKey,
@@ -1457,6 +1466,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
                 wantAnilist,
                 wantKitsu,
                 wantImdb,
+                tmdbFallbackVote: genuineTmdbVote,
               },
             ).catch(() => null)
           }
