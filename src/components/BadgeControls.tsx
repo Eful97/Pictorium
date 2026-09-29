@@ -209,24 +209,32 @@ export function BadgeControls() {
                 />
               </div>
 
-              {activeVideoFormats.length > 0 && (
-                <div className="pt-1.5 border-t border-surface2/50 flex items-center justify-between">
-                  <div className="flex flex-col">
-                    <span className="text-[11px] text-zinc-300 font-medium">{t("ui.videoFormats")}</span>
-                    <span className="text-[10px] text-muted">{t("ui.videoFormatsAutoHint")}</span>
+              {activeVideoFormats.length > 0 && (() => {
+                const hasDV = activeVideoFormats.includes("dv")
+                const hasAtmos = activeVideoFormats.includes("atmos")
+                const displayFormats = (hasDV && hasAtmos)
+                  ? ["dv+atmos", ...activeVideoFormats.filter((f) => f !== "dv" && f !== "atmos")]
+                  : activeVideoFormats
+
+                return (
+                  <div className="pt-1.5 border-t border-surface2/50 flex items-center justify-between">
+                    <div className="flex flex-col">
+                      <span className="text-[11px] text-zinc-300 font-medium">{t("ui.videoFormats")}</span>
+                      <span className="text-[10px] text-muted">{t("ui.videoFormatsAutoHint")}</span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      {displayFormats.map((fmt) => (
+                        <span
+                          key={fmt}
+                          className="text-[10px] font-bold font-mono px-2 py-0.5 rounded bg-surface2/80 text-accent-orange border border-accent-orange/30 shadow-sm"
+                        >
+                          {fmt === "dv+atmos" ? "DV · ATMOS" : fmt === "hdr10plus" ? "HDR10+" : fmt.toUpperCase()}
+                        </span>
+                      ))}
+                    </div>
                   </div>
-                  <div className="flex items-center gap-1.5">
-                    {activeVideoFormats.map((fmt) => (
-                      <span
-                        key={fmt}
-                        className="text-[10px] font-bold font-mono px-2 py-0.5 rounded bg-surface2/80 text-accent-orange border border-accent-orange/30 shadow-sm"
-                      >
-                        {fmt === "hdr10plus" ? "HDR10+" : fmt.toUpperCase()}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              )}
+                )
+              })()}
             </div>
           )}
 

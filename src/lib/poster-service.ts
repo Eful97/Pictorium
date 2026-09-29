@@ -510,8 +510,24 @@ export async function renderQualityBadgeGroup(
   const validFormats = videoFormats.filter((f) => f in FORMAT_ICON_PATHS)
   if (validFormats.length === 0) return resBadge
 
+  const hasDV = validFormats.includes("dv")
+  const hasAtmos = validFormats.includes("atmos")
+  let useCombo = hasDV && hasAtmos
+  let comboIcon: { png: Buffer; w: number; h: number } | null = null
+  if (useCombo) {
+    comboIcon = await renderQualityIconBadge("quality-badges/video/dolby-vision-atmos.svg", pw, topLight)
+    if (!comboIcon) useCombo = false
+  }
+
   const formatBadges: { png: Buffer; w: number; h: number }[] = []
+  if (comboIcon) {
+    formatBadges.push(comboIcon)
+  }
+
   for (const fmt of validFormats) {
+    if (useCombo && (fmt === "dv" || fmt === "atmos")) {
+      continue
+    }
     const icon = await renderQualityIconBadge(FORMAT_ICON_PATHS[fmt], pw, topLight)
     if (icon) formatBadges.push(icon)
   }
