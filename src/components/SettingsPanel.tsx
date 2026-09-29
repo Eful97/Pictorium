@@ -20,6 +20,7 @@ import { RatingSourceIcon } from "@/components/RatingSourceIcon"
 import { UserKeysSection } from "@/components/UserKeysSection"
 import { NATURAL_GRADIENT_DEFAULTS, type GradientPresetValues } from "@/lib/gradient-presets"
 import { GradientPresetRow } from "@/components/GradientPresetRow"
+import { LandscapeDefaultsSection } from "@/components/LandscapeDefaultsSection"
 import { UserSpaceSection } from "@/components/UserSpaceSection"
 import { isMultiUserServer } from "@/lib/guest-guard"
 import { adminAuthHeaders, hasAdminToken } from "@/lib/admin-token"
@@ -58,6 +59,7 @@ import {
   ArrowUpDown,
   RectangleVertical,
   RectangleHorizontal,
+  Image as ImageIcon,
   Activity,
   ExternalLink,
 } from "lucide-react"
@@ -108,6 +110,8 @@ export function SettingsPanel({ setSettingsOpen, exportData, importData, mobile 
   const [activeTab, setActiveTab] = useState<"badge" | "trasforma" | "prefs" | "data" | "spazio">(
     () => consumeSettingsTab() ?? "badge",
   )
+  // Sotto-tab Verticale/Orizzontale dentro la scheda Trasforma (solo UI).
+  const [trasformaShape, setTrasformaShape] = useState<"portrait" | "landscape">("portrait")
   useEffect(() => {
     // Se la tab arriva quando il componente è già montato
     const requested: SettingsTabId | null = consumeSettingsTab()
@@ -773,6 +777,33 @@ export function SettingsPanel({ setSettingsOpen, exportData, importData, mobile 
             />
           </div>
 
+          <div className="flex items-center justify-between pl-3 ml-1 border-l-2 border-surface2">
+            <span className="text-zinc-300 font-medium flex items-center gap-1.5">
+              <Cloud className="w-3.5 h-3.5 text-cyan-400" />
+              {t("ui.blurSection")} · {t("ui.posterShapeLandscape")}
+            </span>
+            <span className="flex items-center gap-1.5">
+              {ed.landscape.blurEnabled !== undefined && (
+                <button
+                  type="button"
+                  title={t("ui.reset")}
+                  aria-label={t("ui.reset")}
+                  onClick={() => ed.setLandscape({ blurEnabled: undefined })}
+                  className="text-[11px] text-muted hover:text-accent transition-colors px-1.5 py-0.5 rounded-md border border-border/50 hover:border-accent/30 cursor-pointer"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              )}
+              <Toggle
+                value={ed.landscape.blurEnabled ?? ed.defaultBlurEnabled}
+                onChange={(v) => {
+                  ed.setLandscape({ blurEnabled: v })
+                }}
+                label={`${t("ui.blurSection")} · ${t("ui.posterShapeLandscape")}`}
+              />
+            </span>
+          </div>
+
           <div className="flex items-center justify-between" title={t("ui.preReleaseHint")}>
             <span className="text-zinc-300 font-medium flex items-center gap-1.5">
               <Flame className="w-3.5 h-3.5 text-orange-400" />
@@ -934,12 +965,108 @@ export function SettingsPanel({ setSettingsOpen, exportData, importData, mobile 
   )
 
   // Scheda 2: Trasforma (specchio del tab Trasforma dell'editor, valori default)
+  // con due tab Verticale/Orizzontale: gli stessi parametri per formato (i
+  // badge restano condivisi, solo sfumatura+scale differiscono).
   const trasformaPanel = (
     <div
       role="tabpanel"
       aria-label={t("ui.transform")}
       className={`space-y-3.5 text-xs ${activeTab === "trasforma" ? "block animate-tab-fade-in" : "hidden"}`}
     >
+      <div className="flex gap-1 p-1 rounded-xl bg-black/40 border border-white/10" aria-label={t("ui.transform")}>
+        {(["portrait", "landscape"] as const).map((shape) => (
+          <button
+            key={shape}
+            type="button"
+            aria-pressed={trasformaShape === shape}
+            onClick={() => setTrasformaShape(shape)}
+            className={`flex-1 py-1.5 rounded-lg text-[11px] font-semibold transition-all cursor-pointer ${
+              trasformaShape === shape
+                ? "bg-white/15 text-white shadow-sm"
+                : "text-muted hover:bg-white/5 hover:text-zinc-200"
+            }`}
+          >
+            {shape === "portrait" ? t("ui.posterShapePortrait") : t("ui.posterShapeLandscape")}
+          </button>
+        ))}
+      </div>
+      {trasformaShape === "landscape" ? (
+        <LandscapeDefaultsSection
+          editVal={editVal}
+          editTxt={editTxt}
+          setEditVal={setEditVal}
+          setEditTxt={setEditTxt}
+        />
+      ) : (
+      <>
+      {/* Logo Predefinito (null = auto-fit per aspect, storico) */}
+      <div className="bg-surface/50 border border-surface2/60 rounded-xl p-3.5 space-y-1.5 shadow-sm animate-fade-in">
+        <div className="flex items-center justify-between px-1">
+          <span className="font-semibold text-zinc-200 flex items-center gap-1.5">
+            <ImageIcon className="w-3.5 h-3.5 text-accent-orange" />
+            {t("ui.logoSection")}
+            {ed.defaultLogoScale == null && (
+              <span className="text-[10px] font-medium text-muted">· {t("ui.auto")}</span>
+            )}
+          </span>
+          <button type="button" aria-label={t("ui.reset")}
+                  onClick={() => { ed.setDefaultLogoScale(null); ed.setDefaultLogoOffsetX(null); ed.setDefaultLogoOffsetY(null) }}
+                  className="text-xs text-muted hover:text-accent transition-colors px-2 py-0.5 rounded-md border border-border/50 hover:border-accent/30">
+            {t("ui.reset")}
+          </button>
+        </div>
+        <SliderRow
+          icon={<Search className="w-3.5 h-3.5" />}
+          label={t("ui.scale")}
+          value={ed.defaultLogoScale ?? 75}
+          min={10}
+          max={100}
+          boundsMin={10}
+          boundsMax={100}
+          onChange={(v) => { ed.setDefaultLogoScale(v) }}
+          onDoubleClick={() => { ed.setDefaultLogoScale(null) }}
+          editingValue={editVal}
+          editText={editTxt}
+          setEditingValue={setEditVal}
+          setEditText={setEditTxt}
+          editingKey="dlogoScale"
+          suffix="%"
+        />
+        <SliderRow
+          icon={<ArrowLeftRight className="w-3.5 h-3.5" />}
+          label="X"
+          value={ed.defaultLogoOffsetX ?? 0}
+          min={-100}
+          max={100}
+          boundsMin={-500}
+          boundsMax={500}
+          onChange={(v) => { ed.setDefaultLogoOffsetX(v) }}
+          onDoubleClick={() => { ed.setDefaultLogoOffsetX(null) }}
+          editingValue={editVal}
+          editText={editTxt}
+          setEditingValue={setEditVal}
+          setEditText={setEditTxt}
+          editingKey="dlogoOX"
+          suffix="px"
+        />
+        <SliderRow
+          icon={<ArrowUpDown className="w-3.5 h-3.5" />}
+          label="Y"
+          value={ed.defaultLogoOffsetY ?? 0}
+          min={-100}
+          max={100}
+          boundsMin={-500}
+          boundsMax={500}
+          onChange={(v) => { ed.setDefaultLogoOffsetY(v) }}
+          onDoubleClick={() => { ed.setDefaultLogoOffsetY(null) }}
+          editingValue={editVal}
+          editText={editTxt}
+          setEditingValue={setEditVal}
+          setEditText={setEditTxt}
+          editingKey="dlogoOY"
+          suffix="px"
+        />
+      </div>
       {/* Badge Superiore Predefinito */}
       {ed.defaultRankingBadges && (
       <div className="bg-surface/50 border border-surface2/60 rounded-xl p-3.5 space-y-2.5 shadow-sm animate-fade-in">
@@ -1455,6 +1582,35 @@ export function SettingsPanel({ setSettingsOpen, exportData, importData, mobile 
             />
           </div>
       </div>
+      )}
+      <button
+        type="button"
+        onClick={() => {
+          ed.setDefaultTopBadgeScale(100)
+          ed.setDefaultTopBadgeOffsetX(0)
+          ed.setDefaultTopBadgeOffsetY(0)
+          ed.setDefaultGenreBadgeScale(100)
+          ed.setDefaultGenreBadgeOffsetX(0)
+          ed.setDefaultGenreBadgeOffsetY(0)
+          ed.setDefaultQualityBadgeScale(100)
+          ed.setDefaultQualityBadgeOffsetX(0)
+          ed.setDefaultQualityBadgeOffsetY(0)
+          ed.setDefaultNetworkLogoScale(100)
+          ed.setDefaultNetworkLogoOffsetX(0)
+          ed.setDefaultNetworkLogoOffsetY(0)
+          ed.setDefaultBlurEnabled(true)
+          ed.setDefaultGradientHeight(NATURAL_GRADIENT_DEFAULTS.gradientHeight)
+          ed.setDefaultBlurIntensity(NATURAL_GRADIENT_DEFAULTS.blurIntensity)
+          ed.setDefaultBlurFade(NATURAL_GRADIENT_DEFAULTS.blurFade)
+          ed.setDefaultBlurDarkness(NATURAL_GRADIENT_DEFAULTS.blurDarkness)
+          ed.setDefaultTintStrength(NATURAL_GRADIENT_DEFAULTS.tintStrength)
+          ed.setDefaultTopShade(50)
+        }}
+        className="w-full py-1.5 rounded-lg text-[11px] font-semibold text-muted hover:text-zinc-200 bg-white/5 hover:bg-white/10 border border-white/10 transition-colors cursor-pointer"
+      >
+        {t("ui.reset")} · {t("ui.posterShapePortrait")}
+      </button>
+      </>
       )}
     </div>
   )

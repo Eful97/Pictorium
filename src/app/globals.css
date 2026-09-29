@@ -1527,7 +1527,10 @@ select:focus-visible {
   background: radial-gradient(ellipse at center, rgb(var(--accent-rgb) / 0.2), transparent 70%);
   filter: blur(28px);
   pointer-events: none;
-  animation: breath 5s ease-in-out infinite;
+  /* Niente animazione infinita: un layer con filter + animazione trasforma
+     costringe il compositor a ri-rasterizzare ogni frame per sempre, anche da
+     fermo, e ruba budget allo scroll (misurato via tracing: 60fps continui in
+     idle). Il frame statico è identico allo 0% del vecchio breath. */
 }
 
 /* Chip flottanti attorno al podio */
@@ -1548,7 +1551,9 @@ select:focus-visible {
   border: 1px solid rgba(255,255,255,0.08);
   box-shadow: 0 16px 36px rgba(0,0,0,0.32), inset 0 1px 0 rgba(255,255,255,0.03);
   backdrop-filter: blur(14px);
-  animation: bob 5.5s ease-in-out infinite;
+  /* Niente bob infinito: muovere un layer con backdrop-filter costringe a
+     ricampionare il backdrop ogni frame per sempre (come sopra: compositor
+     mai in idle → scroll laggoso). Chip statiche, look invariato. */
 }
 
 .float-chip svg {

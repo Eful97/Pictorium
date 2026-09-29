@@ -59,6 +59,9 @@ export interface StremioMetaDetail {
   poster: string | null
   posterShape?: "poster" | "landscape"
   background?: string
+  /** Render landscape con logo baked-in (solo titoli landscape, vedi
+   *  catalog-handler: NuvioTV non deve sovrapporre il logo separato). */
+  landscapePoster?: string
   logo?: string
   description?: string
   releaseInfo?: string
@@ -114,6 +117,7 @@ async function pictoriumPosterUrl(
   configParam?: string | null,
   userParam?: string | null,
   posterLang = "it",
+  forceShape?: "poster" | "landscape",
 ): Promise<string> {
   const scopedUser = getScopedUserId(userParam)
   const serverDefaults = scopedUser ? await getServerDefaultsForUser(scopedUser) : getServerDefaults()
@@ -129,6 +133,7 @@ async function pictoriumPosterUrl(
     lang: posterLang,
     config: configParam || undefined,
     user: userParam || undefined,
+    forceShape,
   }).toString()
 }
 
@@ -294,6 +299,11 @@ export async function pictoriumMeta(
         posterShape = userConfig.posterShape
       }
     } catch { /* ignore — resta portrait */ }
+    // NuvioTV: per i titoli landscape, URL del render con logo baked-in
+    // (stesso profilo del poster). Solo in quel caso — i portrait non cambiano.
+    const landscapePoster = posterShape === "landscape"
+      ? await pictoriumPosterUrl(req, stType, tmdbId, configParam, userParam, posterLang, "landscape")
+      : undefined
     const background = details.backdrop_path ? posterUrlOriginal(details.backdrop_path) : undefined
 
     // Risoluzione Logo
@@ -450,7 +460,11 @@ export async function pictoriumMeta(
       poster,
       posterShape,
       background,
-      logo,
+      landscapePoster,
+      // Titoli landscape: il logo è già baked-in nel landscapePoster —
+      // esporlo separato farebbe sovrapporre a Nuvio un secondo logo
+      // (anche via arricchimento card dal dettaglio).
+      logo: posterShape === "landscape" ? undefined : logo,
       description: details.overview || details.tagline || undefined,
       releaseInfo: (details.release_date || details.first_air_date || "").slice(0, 4) || undefined,
       released: details.release_date ? `${details.release_date}T00:00:00.000Z` : undefined,

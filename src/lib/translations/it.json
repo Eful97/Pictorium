@@ -414,6 +414,7 @@
   "ui.posterShape": "Formato poster",
   "ui.posterShapePortrait": "Verticale",
   "ui.posterShapeLandscape": "Orizzontale",
+  "ui.landscapeDefaultsHint": "Override sfumatura Orizzontale: imposta i valori diversi dal Verticale, o resetta per seguirlo.",
   "ui.tmdb": "TMDB",
   "ui.bestFit": "Best fit",
   "ui.bestFitAlt": "Fit migliore",

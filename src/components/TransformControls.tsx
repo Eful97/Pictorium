@@ -10,6 +10,7 @@ import { defaultGradientHeightForPoster } from "@/lib/gradient-defaults"
 import { naturalGradientForPoster } from "@/lib/gradient-presets"
 import { GradientPresetRow } from "@/components/GradientPresetRow"
 import { SliderRow } from "@/components/SliderRow"
+import type { LandscapeBlurState } from "@/lib/contexts/PosterEditorContext"
 
 export function TransformControls() {
   const selectedLogo = usePSelector((v) => v.selectedLogo)
@@ -28,16 +29,72 @@ export function TransformControls() {
     ed.setLogoScale(logoDefaultScale(l) ?? 75)
   }
 
-  // Preset sfumatura: scorciatoie che scrivono i 5 slider esistenti (nessun
+  // Preset sfumatura: scorciatoie che scrivono gli slider esistenti (nessun
   // nuovo parametro server — la preview/Stremio ricevono gli stessi valori).
+  // La sezione segue il formato in editing: in landscape scrive il profilo
+  // Orizzontale (landscapeBlur, sfumatura completa di tinta e ombra),
+  // in portrait i flat.
+  const land = ed.landscapeBlur
+  const isLandShape = ed.posterShape === "landscape"
+  interface GradVals {
+    gradientHeight: number
+    blurIntensity: number
+    blurFade: number
+    blurDarkness: number
+    tintStrength: number
+    topShade: number
+    blurEnabled: boolean
+  }
+  const gradVals: GradVals = isLandShape
+    ? {
+        gradientHeight: land.gradientHeight,
+        blurIntensity: land.blurIntensity,
+        blurFade: land.blurFade,
+        blurDarkness: land.blurDarkness,
+        tintStrength: land.tintStrength,
+        topShade: land.topShade,
+        blurEnabled: land.blurEnabled,
+      }
+    : {
+        gradientHeight: ed.gradientHeight,
+        blurIntensity: ed.blurIntensity,
+        blurFade: ed.blurFade,
+        blurDarkness: ed.blurDarkness,
+        tintStrength: ed.tintStrength,
+        topShade: ed.topShade,
+        blurEnabled: ed.blurEnabled,
+      }
+  const setGradVals = (v: Partial<GradVals>) => {
+    if (isLandShape) {
+      const patch: Partial<LandscapeBlurState> = {}
+      if (v.gradientHeight !== undefined) patch.gradientHeight = v.gradientHeight
+      if (v.blurIntensity !== undefined) patch.blurIntensity = v.blurIntensity
+      if (v.blurFade !== undefined) patch.blurFade = v.blurFade
+      if (v.blurDarkness !== undefined) patch.blurDarkness = v.blurDarkness
+      if (v.tintStrength !== undefined) patch.tintStrength = v.tintStrength
+      if (v.topShade !== undefined) patch.topShade = v.topShade
+      if (v.blurEnabled !== undefined) patch.blurEnabled = v.blurEnabled
+      if (Object.keys(patch).length > 0) ed.setLandscapeBlur(patch)
+    } else {
+      if (v.blurEnabled !== undefined) ed.setBlurEnabled(v.blurEnabled)
+      if (v.gradientHeight !== undefined) ed.setGradientHeight(v.gradientHeight)
+      if (v.blurIntensity !== undefined) ed.setBlurIntensity(v.blurIntensity)
+      if (v.blurFade !== undefined) ed.setBlurFade(v.blurFade)
+      if (v.blurDarkness !== undefined) ed.setBlurDarkness(v.blurDarkness)
+      if (v.tintStrength !== undefined) ed.setTintStrength(v.tintStrength)
+      if (v.topShade !== undefined) ed.setTopShade(v.topShade)
+    }
+  }
   const naturalVals = naturalGradientForPoster(previewPoster, ed.posterShape)
   const applyGradientPreset = (v: typeof naturalVals) => {
-    ed.setBlurEnabled(true)
-    ed.setGradientHeight(v.gradientHeight)
-    ed.setBlurIntensity(v.blurIntensity)
-    ed.setBlurFade(v.blurFade)
-    ed.setBlurDarkness(v.blurDarkness)
-    ed.setTintStrength(v.tintStrength)
+    setGradVals({
+      blurEnabled: true,
+      gradientHeight: v.gradientHeight,
+      blurIntensity: v.blurIntensity,
+      blurFade: v.blurFade,
+      blurDarkness: v.blurDarkness,
+      tintStrength: v.tintStrength,
+    })
   }
 
   return (
@@ -47,7 +104,7 @@ export function TransformControls() {
         <div className="flex items-center justify-between px-1">
           <span className="font-semibold text-zinc-200 flex items-center gap-1.5">
             <ImageIcon className="w-3.5 h-3.5 text-accent-orange" />
-            {t("ui.logoSection")}
+            {t("ui.logoSection")} · {isLandShape ? t("ui.posterShapeLandscape") : t("ui.posterShapePortrait")}
           </span>
           <button type="button" aria-label={t("ui.reset")}
                   onClick={() => { defaultLogoScale(); ed.setLogoOffsetX(0); ed.setLogoOffsetY(0) }}
@@ -66,7 +123,7 @@ export function TransformControls() {
         <div className="flex items-center justify-between px-1">
           <span className="font-semibold text-zinc-200 flex items-center gap-1.5">
             <Trophy className="w-3.5 h-3.5 text-amber-500" />
-            {t("ui.topBadge")}
+            {t("ui.topBadge")} · {isLandShape ? t("ui.posterShapeLandscape") : t("ui.posterShapePortrait")}
           </span>
           <button type="button" aria-label={t("ui.reset")}
                   onClick={() => { ed.setTopBadgeScale(ed.defaultTopBadgeScale); ed.setTopBadgeOffsetX(ed.defaultTopBadgeOffsetX); ed.setTopBadgeOffsetY(ed.defaultTopBadgeOffsetY) }}
@@ -133,7 +190,7 @@ export function TransformControls() {
         <div className="flex items-center justify-between px-1">
           <span className="font-semibold text-zinc-200 flex items-center gap-1.5">
             <Star className="w-3.5 h-3.5 text-amber-400" />
-            {t("ui.genreRatingBadge")}
+            {t("ui.genreRatingBadge")} · {isLandShape ? t("ui.posterShapeLandscape") : t("ui.posterShapePortrait")}
           </span>
           <button type="button" aria-label={t("ui.reset")}
                   onClick={() => { ed.setGenreBadgeScale(ed.defaultGenreBadgeScale); ed.setGenreBadgeOffsetX(ed.defaultGenreBadgeOffsetX); ed.setGenreBadgeOffsetY(ed.defaultGenreBadgeOffsetY) }}
@@ -200,7 +257,7 @@ export function TransformControls() {
         <div className="flex items-center justify-between px-1">
           <span className="font-semibold text-zinc-200 flex items-center gap-1.5">
             <Sparkles className="w-3.5 h-3.5 text-purple-400" />
-            {t("ui.badgeQuality")}
+            {t("ui.badgeQuality")} · {isLandShape ? t("ui.posterShapeLandscape") : t("ui.posterShapePortrait")}
           </span>
           <button type="button" aria-label={t("ui.reset")}
                   onClick={() => { ed.setQualityBadgeScale(ed.defaultQualityBadgeScale); ed.setQualityBadgeOffsetX(ed.defaultQualityBadgeOffsetX); ed.setQualityBadgeOffsetY(ed.defaultQualityBadgeOffsetY) }}
@@ -267,7 +324,7 @@ export function TransformControls() {
         <div className="flex items-center justify-between px-1">
           <span className="font-semibold text-zinc-200 flex items-center gap-1.5">
             <Tv className="w-3.5 h-3.5 text-sky-400" />
-            {t("ui.networkLogo")}
+            {t("ui.networkLogo")} · {isLandShape ? t("ui.posterShapeLandscape") : t("ui.posterShapePortrait")}
           </span>
           <button type="button" aria-label={t("ui.reset")}
                   onClick={() => { ed.setNetworkLogoScale(ed.defaultNetworkLogoScale); ed.setNetworkLogoOffsetX(ed.defaultNetworkLogoOffsetX); ed.setNetworkLogoOffsetY(ed.defaultNetworkLogoOffsetY) }}
@@ -329,12 +386,12 @@ export function TransformControls() {
       </div>
       )}
 
-      {ed.blurEnabled && (
+      {gradVals.blurEnabled && (
       <div className="bg-surface/50 border border-surface2/60 rounded-xl p-3 space-y-2.5 shadow-sm animate-fade-in">
         <div className="flex items-center justify-between px-1">
           <span className="font-semibold text-zinc-200 flex items-center gap-1.5">
             <Cloud className="w-3.5 h-3.5 text-cyan-400" />
-            {t("ui.blurSection")}
+            {t("ui.blurSection")} · {isLandShape ? t("ui.posterShapeLandscape") : t("ui.posterShapePortrait")}
           </span>
           <button type="button" aria-label={t("ui.reset")}
                   onClick={() => applyGradientPreset(naturalVals)}
@@ -344,7 +401,7 @@ export function TransformControls() {
         </div>
 
         <GradientPresetRow
-          current={{ gradientHeight: ed.gradientHeight, blurIntensity: ed.blurIntensity, blurFade: ed.blurFade, blurDarkness: ed.blurDarkness, tintStrength: ed.tintStrength, blurEnabled: ed.blurEnabled }}
+          current={{ gradientHeight: gradVals.gradientHeight, blurIntensity: gradVals.blurIntensity, blurFade: gradVals.blurFade, blurDarkness: gradVals.blurDarkness, tintStrength: gradVals.tintStrength, blurEnabled: gradVals.blurEnabled }}
           onApply={applyGradientPreset}
           naturalLabel={t("ui.gradientPresetNatural")}
           colorLabel={t("ui.gradientPresetColor")}
@@ -357,13 +414,13 @@ export function TransformControls() {
             <SliderRow
               icon={<Ruler className="w-3.5 h-3.5" />}
               label={t("ui.height")}
-              value={ed.gradientHeight}
+              value={gradVals.gradientHeight}
               min={5}
               max={100}
               boundsMin={5}
               boundsMax={100}
-              onChange={(v) => ed.setGradientHeight(v)}
-              onDoubleClick={() => ed.setGradientHeight(defaultGradientHeightForPoster(previewPoster))}
+              onChange={(v) => setGradVals({ gradientHeight: v })}
+              onDoubleClick={() => setGradVals({ gradientHeight: defaultGradientHeightForPoster(previewPoster) })}
               editingValue={editingValue}
               editText={editText}
               setEditingValue={setEditingValue}
@@ -374,13 +431,13 @@ export function TransformControls() {
             <SliderRow
               icon={<Cloud className="w-3.5 h-3.5" />}
               label={t("ui.intensity")}
-              value={ed.blurIntensity}
+              value={gradVals.blurIntensity}
               min={1}
               max={100}
               boundsMin={1}
               boundsMax={100}
-              onChange={(v) => ed.setBlurIntensity(v)}
-              onDoubleClick={() => ed.setBlurIntensity(20)}
+              onChange={(v) => setGradVals({ blurIntensity: v })}
+              onDoubleClick={() => setGradVals({ blurIntensity: 20 })}
               editingValue={editingValue}
               editText={editText}
               setEditingValue={setEditingValue}
@@ -391,13 +448,13 @@ export function TransformControls() {
             <SliderRow
               icon={<Minus className="w-3.5 h-3.5" />}
               label={t("ui.fade")}
-              value={ed.blurFade}
+              value={gradVals.blurFade}
               min={0}
               max={100}
               boundsMin={0}
               boundsMax={100}
-              onChange={(v) => ed.setBlurFade(v)}
-              onDoubleClick={() => ed.setBlurFade(ed.posterShape === "landscape" ? 70 : 50)}
+              onChange={(v) => setGradVals({ blurFade: v })}
+              onDoubleClick={() => setGradVals({ blurFade: isLandShape ? 70 : 50 })}
               editingValue={editingValue}
               editText={editText}
               setEditingValue={setEditingValue}
@@ -408,13 +465,13 @@ export function TransformControls() {
             <SliderRow
               icon={<Circle className="w-3.5 h-3.5" />}
               label={t("ui.darkness")}
-              value={ed.blurDarkness}
+              value={gradVals.blurDarkness}
               min={0}
               max={100}
               boundsMin={0}
               boundsMax={100}
-              onChange={(v) => ed.setBlurDarkness(v)}
-              onDoubleClick={() => ed.setBlurDarkness(30)}
+              onChange={(v) => setGradVals({ blurDarkness: v })}
+              onDoubleClick={() => setGradVals({ blurDarkness: 30 })}
               editingValue={editingValue}
               editText={editText}
               setEditingValue={setEditingValue}
@@ -425,13 +482,13 @@ export function TransformControls() {
             <SliderRow
               icon={<Cloud className="w-3.5 h-3.5" />}
               label={t("ui.tintStrength")}
-              value={ed.tintStrength}
+              value={gradVals.tintStrength}
               min={0}
               max={100}
               boundsMin={0}
               boundsMax={100}
-              onChange={(v) => ed.setTintStrength(v)}
-              onDoubleClick={() => ed.setTintStrength(20)}
+              onChange={(v) => setGradVals({ tintStrength: v })}
+              onDoubleClick={() => setGradVals({ tintStrength: 20 })}
               editingValue={editingValue}
               editText={editText}
               setEditingValue={setEditingValue}
@@ -442,13 +499,13 @@ export function TransformControls() {
             <SliderRow
               icon={<Circle className="w-3.5 h-3.5" />}
               label={t("ui.topShade")}
-              value={ed.topShade}
+              value={gradVals.topShade}
               min={0}
               max={100}
               boundsMin={0}
               boundsMax={100}
-              onChange={(v) => ed.setTopShade(v)}
-              onDoubleClick={() => ed.setTopShade(50)}
+              onChange={(v) => setGradVals({ topShade: v })}
+              onDoubleClick={() => setGradVals({ topShade: 50 })}
               editingValue={editingValue}
               editText={editText}
               setEditingValue={setEditingValue}

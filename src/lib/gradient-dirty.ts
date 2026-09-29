@@ -47,3 +47,44 @@ export function isGradientDirty(
     current.topShade !== saved.topShade
   )
 }
+
+/** Selezione artwork corrente dell'editor (quella che la preview WYSIWYG mostra). */
+export interface ArtworkSelection {
+  posterPath: string | null
+  backdropPath: string | null
+  posterShape: PosterShape
+  logoPath: string | null
+  logoDisabled?: boolean
+}
+
+/**
+ * True quando l'artwork corrente differisce da quello che Stremio serve
+ * (mapping salvato). Il modale "Testa URL Stremio" mostra lo stato salvato:
+ * con poster/sfondo/formato/logo non ancora salvati l'immagine non
+ * corrisponde alla preview (es. Best Fit orizzontale selezionato ma non
+ * salvato → Stremio mostra ancora il primo TMDB).
+ * Senza mapping (titolo mai salvato) è dirty appena c'è una selezione
+ * locale o il formato differisce dal default: niente è ancora effettivo.
+ */
+export function isArtworkDirty(
+  current: ArtworkSelection,
+  mapping: Mapping | null | undefined,
+  defaultShape: PosterShape,
+): boolean {
+  const m = mapping ?? null
+  if (!m) {
+    return !!(
+      current.posterPath ||
+      current.backdropPath ||
+      current.logoPath ||
+      current.posterShape !== defaultShape
+    )
+  }
+  if ((m.posterShape ?? defaultShape) !== current.posterShape) return true
+  if ((m.posterPath ?? null) !== (current.posterPath ?? null)) return true
+  if ((m.backdropPath ?? null) !== (current.backdropPath ?? null)) return true
+  const savedLogo = m.logoDisabled ? null : (m.logoPath ?? null)
+  const currentLogo = current.logoDisabled ? null : (current.logoPath ?? null)
+  if (savedLogo !== currentLogo) return true
+  return false
+}

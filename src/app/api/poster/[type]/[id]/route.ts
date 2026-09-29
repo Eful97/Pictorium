@@ -14,7 +14,7 @@ import { rateLimit, rateLimitKey, rateLimitResponse } from "@/lib/rate-limit"
 import { getServerDefaults, getServerDefaultsForUser } from "@/lib/server-defaults"
 import { getRegionDef, normalizeRegion, parseRegion, defaultRegionForLang } from "@/lib/regions"
 import { BEST_FIT_GLOBAL, resolveLogoFitEnabled } from "@/lib/best-fit-config"
-import { selectBestLogoFitPosterPath } from "@/lib/poster-auto-fit"
+import { selectAutoFitCandidates, selectBestLogoFitPosterPath } from "@/lib/poster-auto-fit"
 import { fetchAllWikidata, matchTMDBStudios, directorBadgeLabel, isValidWikidataQid, type WikidataResult } from "@/lib/awards"
 import { resolveWikidataId } from "@/lib/imdb-cache"
 import { createT } from "@/lib/i18n"
@@ -1050,6 +1050,71 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
           if (chosen) posterPath = chosen.file_path
           logoPath = null
           logoPathBuffer = null
+        }
+      }
+      // Best-fit automatico dello sfondo landscape (mirror del portrait sopra):
+      // senza scelta esplicita (query/backdrop salvato) i titoli non-mappati
+      // usavano il primo backdrop TMDB mentre l'editor auto-seleziona il
+      // best-fit — l'anteprima Stremio mostrava un altro sfondo (desync
+      // WYSIWYG, "vedo comunque il primo poster"). Solo con logo disponibile
+      // (senza, niente da comporre sopra) e fit abilitato; qualsiasi fallimento
+      // mantiene il fallback storico (primo backdrop), mai 500.
+      if (isLandscape && !queryBackdrop && logoPath && (images.backdrops?.length ?? 0) > 0) {
+        const qLogoFitLand = req.nextUrl.searchParams.get("logoFit")
+        const landFitEnabled = resolveLogoFitEnabled({
+          global: BEST_FIT_GLOBAL,
+          queryLogoFit: qLogoFitLand,
+          configLogoFit: configOverride?.logoFitEnabled,
+          sdFit: sd,
+          isLandscape: true,
+        })
+        // <2 clean: niente da scegliere, fallback storico invariato.
+        if (!landFitEnabled) {
+          log.info("Best-fit landscape: disabled by config", { mediaType, tmdbId })
+        } else {
+          // Tutto dentro il try: qualsiasi throw (fit, candidati, mock
+          // parziali nei test) mantiene il fallback storico, mai 500/503.
+          try {
+            if (selectAutoFitCandidates(images.backdrops, "landscape").length < 2) {
+              // Niente da scegliere: fallback storico invariato.
+            } else {
+              const landFit = await selectBestLogoFitPosterPath({
+                posters: images.backdrops,
+                logoPath,
+                fetchImage: async (path: string) => {
+                  const url = imgSrc(path)
+                  return cachedImageBytes(url, async () => {
+                    const res = await timedFetch(url, { signal: combineAbortSignals(renderAbort.signal, 5000) })
+                    if (!res.ok) throw new Error(`HTTP ${res.status}`)
+                    return Buffer.from(await res.arrayBuffer())
+                  })
+                },
+                fetchCandidateImage: async (path: string) => {
+                  if (path.startsWith("http") && !path.startsWith("https://image.tmdb.org/t/p/")) {
+                    throw new Error("Blocked external URL in fetchCandidateImage")
+                  }
+                  // w780 come il client (BackdropOptions): a w342 il testo dei
+                  // backdrop si perderebbe e la cleanliness sbaglierebbe.
+                  const url = path.startsWith("http") ? path : `https://image.tmdb.org/t/p/w780${path}`
+                  return cachedImageBytes(url, async () => {
+                    const res = await timedFetch(url, { signal: combineAbortSignals(renderAbort.signal, 5000) })
+                    if (!res.ok) throw new Error(`HTTP ${res.status}`)
+                    return Buffer.from(await res.arrayBuffer())
+                  })
+                },
+                hasBadges: true,
+                shape: "landscape",
+              })
+              if (landFit?.posterPath) {
+                if (landFit.posterPath !== autoBackdropPath) {
+                  log.info("Best-fit: improved landscape backdrop selected", { mediaType, tmdbId, bestFit: landFit.posterPath, original: autoBackdropPath })
+                }
+                autoBackdropPath = landFit.posterPath
+              }
+            }
+          } catch (e) {
+            log.error("Best-fit landscape: fallback to first backdrop", { mediaType, tmdbId, error: e instanceof Error ? e.message : String(e) })
+          }
         }
       }
     } catch (e) {

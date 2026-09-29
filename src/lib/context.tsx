@@ -22,10 +22,10 @@ import { useTrending } from "./useTrending"
 import { useSearch } from "./useSearch"
 import { useNavigation } from "./useNavigation"
 import { useMappingsStore } from "./useMappingsStore"
-import { usePosterEditor, PosterEditorProvider } from "./contexts/PosterEditorContext"
+import { usePosterEditor, PosterEditorProvider, type LandscapeBlurState } from "./contexts/PosterEditorContext"
 import { usePosterSave } from "./usePosterSave"
 import { defaultHeightForPoster, defaultFadeForPoster, adjustGradientForPosterChange } from "./gradient-presets"
-import { computeLogoOffsetBounds, PORTRAIT_LOGO_MAX_HEIGHT_PCT, PORTRAIT_LOGO_TOP_OFFSET } from "./logo-layout"
+import { computeLogoOffsetBounds, PORTRAIT_LOGO_MAX_HEIGHT_PCT, PORTRAIT_LOGO_TOP_OFFSET, LANDSCAPE_LOGO_MAX_WIDTH_PCT, LANDSCAPE_LOGO_MAX_HEIGHT_PCT, LANDSCAPE_LOGO_BOTTOM_MARGIN_PCT, LANDSCAPE_LOGO_TOP_OFFSET } from "./logo-layout"
 import { LAND_W, LAND_H } from "./constants"
 import { useOutsideDismiss } from "./useOutsideDismiss"
 import { type AggregatedRatings } from "./ratings"
@@ -477,6 +477,9 @@ export function usePictorium(): PictoriumCtx {
     defaultBlurFade,
     defaultBlurDarkness,
     defaultGradientHeight,
+    defaultLogoScale,
+    defaultLogoOffsetX,
+    defaultLogoOffsetY,
     defaultTopBadgeScale,
     defaultTopBadgeOffsetX,
     defaultTopBadgeOffsetY,
@@ -490,6 +493,8 @@ export function usePictorium(): PictoriumCtx {
     loadDefaultsToState,
     // Blur
     blurEnabled, setBlurEnabled,
+    landscapeBlur, resetLandscapeBlur, setLandscapeBlur, landscapeBlurDirty,
+    landscape: landscapeDefaults,
     blurIntensity, setBlurIntensity,
     tintStrength, setTintStrength,
     topShade, setTopShade,
@@ -620,8 +625,8 @@ export function usePictorium(): PictoriumCtx {
   const logoBounds = useMemo(() => {
     if (!navigation.previewPoster || !navigation.selectedLogo) return { minX: -500, maxX: 500, minY: -500, maxY: 500 }
     // Stessi vincoli del server (poster-service): in landscape il canvas è
-    // 16:9 con logo contenuto (max 40%, max 24% altezza) e sollevato
-    // (margine 25%), con l'allineamento corrente.
+    // 16:9 col fondo logo in linea col badge genere (vedi costanti in
+    // logo-layout.ts), con l'allineamento corrente.
     const isLandscapeShape = posterShape === "landscape"
     return computeLogoOffsetBounds({
       posterW: isLandscapeShape ? LAND_W : (navigation.previewPoster.width || 1000),
@@ -635,7 +640,7 @@ export function usePictorium(): PictoriumCtx {
       // senza), altrimenti i bound degli slider mentono sul render finale.
       ...(hasBadges ? { bottomMarginPct: 12 } : {}),
       ...(isLandscapeShape
-        ? { maxWidthPct: 40, maxHeightPct: 24, bottomMarginPct: 25, topOffset: 55 }
+        ? { maxWidthPct: LANDSCAPE_LOGO_MAX_WIDTH_PCT, maxHeightPct: LANDSCAPE_LOGO_MAX_HEIGHT_PCT, bottomMarginPct: LANDSCAPE_LOGO_BOTTOM_MARGIN_PCT, topOffset: LANDSCAPE_LOGO_TOP_OFFSET }
         : { maxHeightPct: PORTRAIT_LOGO_MAX_HEIGHT_PCT, topOffset: PORTRAIT_LOGO_TOP_OFFSET }),
     })
   }, [navigation.previewPoster, navigation.selectedLogo, logoScale, hasBadges, posterShape, logoAlign])
@@ -850,6 +855,11 @@ export function usePictorium(): PictoriumCtx {
       genreBadgeOffsetX: defaultGenreBadgeOffsetX, genreBadgeOffsetY: defaultGenreBadgeOffsetY,
       qualityBadgeOffsetX: defaultQualityBadgeOffsetX, qualityBadgeOffsetY: defaultQualityBadgeOffsetY,
       networkLogoOffsetX: defaultNetworkLogoOffsetX, networkLogoOffsetY: defaultNetworkLogoOffsetY,
+      // Default logo globali (flat + override Orizzontale): propagazione live sotto.
+      logoScaleDefault: defaultLogoScale, logoOffsetXDefault: defaultLogoOffsetX, logoOffsetYDefault: defaultLogoOffsetY,
+      // Profilo Orizzontale: senza, cambiare le Impostazioni · Orizzontale a
+      // poster aperto non muove mai la preview landscape (resta standard).
+      landscape: landscapeDefaults ?? {},
     })
     const prevRaw = prevDefaultsRef.current
     prevDefaultsRef.current = snap
@@ -897,6 +907,73 @@ export function usePictorium(): PictoriumCtx {
     if (changed("qualityBadgeOffsetY")) setQualityBadgeOffsetY(cur.qualityBadgeOffsetY as number)
     if (changed("networkLogoOffsetX")) setNetworkLogoOffsetX(cur.networkLogoOffsetX as number)
     if (changed("networkLogoOffsetY")) setNetworkLogoOffsetY(cur.networkLogoOffsetY as number)
+    // Profilo Orizzontale: come i flat, si propaga al poster aperto solo senza
+    // mapping salvato — per singola chiave (le altre sopravvivono, come i flat).
+    // Chiavi landscape assenti = segui i flat (coerente con l'init
+    // all'apertura: mapping.landscape > globali Orizzontale > flat).
+    // resetLandscapeBlur (non setLandscapeBlur): la propagazione dai default
+    // NON è un edit esplicito, quindi non alza il dirty — altrimenti un save
+    // portrait congelerebbe il profilo dai default invece di preservarlo.
+    if (changed("landscape")) {
+      const prevLand = (prev.landscape ?? {}) as Record<string, unknown>
+      const curLand = (cur.landscape ?? {}) as Record<string, unknown>
+      const landKeyChanged = (k: string) => JSON.stringify(prevLand[k]) !== JSON.stringify(curLand[k])
+      const eff = (k: string, fb: unknown) => (curLand[k] !== undefined ? curLand[k] : fb)
+      const patch: Partial<LandscapeBlurState> = {}
+      if (landKeyChanged("gradientHeight")) patch.gradientHeight = eff("gradientHeight", gradientHeight) as number
+      if (landKeyChanged("blurEnabled")) patch.blurEnabled = eff("blurEnabled", blurEnabled) as boolean
+      if (landKeyChanged("blurIntensity")) patch.blurIntensity = eff("blurIntensity", blurIntensity) as number
+      if (landKeyChanged("blurFade")) patch.blurFade = eff("blurFade", blurFade) as number
+      if (landKeyChanged("blurDarkness")) patch.blurDarkness = eff("blurDarkness", blurDarkness) as number
+      if (landKeyChanged("tintStrength")) patch.tintStrength = eff("tintStrength", tintStrength) as number
+      if (landKeyChanged("topShade")) patch.topShade = eff("topShade", topShade) as number
+      if (Object.keys(patch).length > 0) resetLandscapeBlur({ ...landscapeBlur, ...patch })
+      // Scale/offset badge in landscape: gli slider condividono lo stato flat,
+      // che in landscape mostra il profilo Orizzontale — i default globali
+      // Orizzontale si propagano qui (solo in landscape: in portrait i flat
+      // mostrano il profilo Verticale e non si toccano). Chiavi assenti =
+      // segui i default flat (come il server).
+      if (posterShape === "landscape") {
+        if (landKeyChanged("topBadgeScale")) setTopBadgeScale(eff("topBadgeScale", defaultTopBadgeScale) as number)
+        if (landKeyChanged("topBadgeOffsetX")) setTopBadgeOffsetX(eff("topBadgeOffsetX", defaultTopBadgeOffsetX) as number)
+        if (landKeyChanged("topBadgeOffsetY")) setTopBadgeOffsetY(eff("topBadgeOffsetY", defaultTopBadgeOffsetY) as number)
+        if (landKeyChanged("genreBadgeScale")) setGenreBadgeScale(eff("genreBadgeScale", defaultGenreBadgeScale) as number)
+        if (landKeyChanged("genreBadgeOffsetX")) setGenreBadgeOffsetX(eff("genreBadgeOffsetX", defaultGenreBadgeOffsetX) as number)
+        if (landKeyChanged("genreBadgeOffsetY")) setGenreBadgeOffsetY(eff("genreBadgeOffsetY", defaultGenreBadgeOffsetY) as number)
+        if (landKeyChanged("qualityBadgeScale")) setQualityBadgeScale(eff("qualityBadgeScale", defaultQualityBadgeScale) as number)
+        if (landKeyChanged("qualityBadgeOffsetX")) setQualityBadgeOffsetX(eff("qualityBadgeOffsetX", defaultQualityBadgeOffsetX) as number)
+        if (landKeyChanged("qualityBadgeOffsetY")) setQualityBadgeOffsetY(eff("qualityBadgeOffsetY", defaultQualityBadgeOffsetY) as number)
+        if (landKeyChanged("networkLogoScale")) setNetworkLogoScale(eff("networkLogoScale", defaultNetworkLogoScale) as number)
+        if (landKeyChanged("networkLogoOffsetX")) setNetworkLogoOffsetX(eff("networkLogoOffsetX", defaultNetworkLogoOffsetX) as number)
+        if (landKeyChanged("networkLogoOffsetY")) setNetworkLogoOffsetY(eff("networkLogoOffsetY", defaultNetworkLogoOffsetY) as number)
+      }
+    }
+    // Default logo globali: come gli altri default, si propagano al poster
+    // aperto senza mapping (formato corrente: override Orizzontale in
+    // landscape, flat altrove). Solo valori espliciti: null = auto-fit/0,
+    // niente da propagare (la scala resta quella fittata sul logo).
+    {
+      const openIsLand = posterShape === "landscape"
+      const prevLand = (prev.landscape ?? {}) as Record<string, unknown>
+      const curLand = (cur.landscape ?? {}) as Record<string, unknown>
+      const effLogoScale = (land: Record<string, unknown>, flat: unknown): number | null =>
+        (openIsLand ? ((land.logoScale as number | null | undefined) ?? (flat as number | null)) : (flat as number | null)) ?? null
+      const prevLogoScale = effLogoScale(prevLand, prev.logoScaleDefault)
+      const curLogoScale = effLogoScale(curLand, cur.logoScaleDefault)
+      if (JSON.stringify(prevLogoScale) !== JSON.stringify(curLogoScale) && typeof curLogoScale === "number") {
+        setLogoScale(curLogoScale)
+      }
+      const effLogoOff = (land: Record<string, unknown>, flat: unknown, axis: "logoOffsetX" | "logoOffsetY"): number =>
+        (openIsLand ? ((land[axis] as number | null | undefined) ?? (flat as number | null)) : (flat as number | null)) ?? 0
+      for (const axis of ["logoOffsetX", "logoOffsetY"] as const) {
+        const prevOff = effLogoOff(prevLand, (prev as Record<string, unknown>)[axis === "logoOffsetX" ? "logoOffsetXDefault" : "logoOffsetYDefault"], axis)
+        const curOff = effLogoOff(curLand, (cur as Record<string, unknown>)[axis === "logoOffsetX" ? "logoOffsetXDefault" : "logoOffsetYDefault"], axis)
+        if (prevOff !== curOff) {
+          if (axis === "logoOffsetX") setLogoOffsetX(curOff)
+          else setLogoOffsetY(curOff)
+        }
+      }
+    }
   })
 
   // --- Preview URL ---
@@ -932,6 +1009,10 @@ export function usePictorium(): PictoriumCtx {
       setPreviewUrl(stremioPreviewUrl)
       return
     }
+    // Profili sfumatura per formato: in landscape la preview mostra i valori
+    // live della sezione Orizzontale (quelli salvati nel profilo), in
+    // portrait i flat. Tinta e ombra superiore restano condivise (flat).
+    const isLandscapePreview = posterShape === "landscape"
     const url = buildPreviewUrl(
       {
         selected: navigation.selected,
@@ -946,14 +1027,14 @@ export function usePictorium(): PictoriumCtx {
         // Preview WYSIWYG nel namespace (altrimenti mostra il globale).
         userId: currentUserId,
       },
-      { globalBadges, rankingBadges, badgeStyle, rankingBadgeStyle, qualityBadgeStyle, videoFormats, badgeGenre, badgeYear, badgeRating, badgeQuality, customRatings, ratingSources, separateRatings, customBadge, gradientHeight, blurIntensity, blurFade, blurDarkness, blurEnabled, tintStrength, topShade, networkLogo, preRelease, ribbonSide, posterShape, logoAlign, topBadgeScale, topBadgeOffsetX, topBadgeOffsetY, genreBadgeScale, qualityBadgeScale, networkLogoScale, genreBadgeOffsetX, genreBadgeOffsetY, qualityBadgeOffsetX, qualityBadgeOffsetY, networkLogoOffsetX, networkLogoOffsetY }
+      { globalBadges, rankingBadges, badgeStyle, rankingBadgeStyle, qualityBadgeStyle, videoFormats, badgeGenre, badgeYear, badgeRating, badgeQuality, customRatings, ratingSources, separateRatings, customBadge, gradientHeight: isLandscapePreview ? landscapeBlur.gradientHeight : gradientHeight, blurIntensity: isLandscapePreview ? landscapeBlur.blurIntensity : blurIntensity, blurFade: isLandscapePreview ? landscapeBlur.blurFade : blurFade, blurDarkness: isLandscapePreview ? landscapeBlur.blurDarkness : blurDarkness, blurEnabled: isLandscapePreview ? landscapeBlur.blurEnabled : blurEnabled, tintStrength: isLandscapePreview ? landscapeBlur.tintStrength : tintStrength, topShade: isLandscapePreview ? landscapeBlur.topShade : topShade, networkLogo, preRelease, ribbonSide, posterShape, logoAlign, topBadgeScale, topBadgeOffsetX, topBadgeOffsetY, genreBadgeScale, qualityBadgeScale, networkLogoScale, genreBadgeOffsetX, genreBadgeOffsetY, qualityBadgeOffsetX, qualityBadgeOffsetY, networkLogoOffsetX, networkLogoOffsetY }
     )
     setPreviewUrl(url)
   }, [stremioPreview, stremioPreviewUrl, navigation.selected, navigation.previewPoster, navigation.selectedLogo, selectedBackdrop,
     logoScale, logoOffsetX, logoOffsetY, backdropScale, backdropOffsetX, backdropOffsetY,
     metaInfo, trendRank, trending.mdblistAnimeList, topEdgeColor, bottomEdgeColor, accentColor, autoAccentColor, lang, tmdbKey,
     editorCtx.defaultRegion, currentUserId,
-    globalBadges, rankingBadges, badgeStyle, rankingBadgeStyle, qualityBadgeStyle, videoFormats, badgeGenre, badgeYear, badgeRating, badgeQuality, customRatings, ratingSources, separateRatings, customBadge, gradientHeight, blurIntensity, blurFade, blurDarkness, blurEnabled, tintStrength, topShade, networkLogo, preRelease, ribbonSide, posterShape, logoAlign, topBadgeScale, topBadgeOffsetX, topBadgeOffsetY, genreBadgeScale, qualityBadgeScale, networkLogoScale, genreBadgeOffsetX, genreBadgeOffsetY, qualityBadgeOffsetX, qualityBadgeOffsetY, networkLogoOffsetX, networkLogoOffsetY])
+    globalBadges, rankingBadges, badgeStyle, rankingBadgeStyle, qualityBadgeStyle, videoFormats, badgeGenre, badgeYear, badgeRating, badgeQuality, customRatings, ratingSources, separateRatings, customBadge, gradientHeight, blurIntensity, blurFade, blurDarkness, blurEnabled, landscapeBlur, tintStrength, topShade, networkLogo, preRelease, ribbonSide, posterShape, logoAlign, topBadgeScale, topBadgeOffsetX, topBadgeOffsetY, genreBadgeScale, qualityBadgeScale, networkLogoScale, genreBadgeOffsetX, genreBadgeOffsetY, qualityBadgeOffsetX, qualityBadgeOffsetY, networkLogoOffsetX, networkLogoOffsetY])
 
   // A1: trailing debounce della preview URL (200ms). Ogni tick di slider
   // cambia l'identità di buildPreviewUrlCb → senza debounce ogni pixel di
@@ -1143,6 +1224,17 @@ export function usePictorium(): PictoriumCtx {
   }, [lang, editorCtx.defaultRegion])
 
   const openPosterBrowser = async (item: SearchResult) => {
+    // Default logo globali per formato (Impostazioni · Verticale/Orizzontale):
+    // in landscape vince l'override Orizzontale, altrove il flat. Null =
+    // unset (auto-fit per la scala, 0 per gli offset). Usati all'apertura e
+    // alla scelta logo quando il mapping non congela un valore proprio.
+    const logoScaleDefaultFor = (shape: string): number | null =>
+      (shape === "landscape" ? landscapeDefaults?.logoScale : undefined) ?? defaultLogoScale ?? null
+    const logoOffsetDefault = (shape: string, axis: "x" | "y"): number | null => {
+      const land = shape === "landscape" ? landscapeDefaults : undefined
+      const flat = axis === "x" ? defaultLogoOffsetX : defaultLogoOffsetY
+      return (axis === "x" ? land?.logoOffsetX : land?.logoOffsetY) ?? flat ?? null
+    }
     const itemId = item.id
     const itemType = item.media_type
     const fetchId = navigation.incrementFetchId()
@@ -1192,8 +1284,10 @@ export function usePictorium(): PictoriumCtx {
       setLogoAlign((existing.posterShape ?? defaultPosterShape) === "landscape" ? (defaultLogoAlign ?? "left") : "center")
       // Profili per-formato: all'apertura gli slider mostrano il tuning
       // effettivo del formato salvato (landscape = profilo orizzontale).
+      // I flat sfumatura sono il profilo PORTRAIT (la sezione Orizzontale ha
+      // il suo store dedicato landscapeBlur, inizializzato qui sotto).
       const eff = effectiveMappingForShape(existing ?? null, existing?.posterShape ?? defaultPosterShape)
-      setGradientHeight(eff?.gradientHeight ?? defaultGradientHeight)
+      setGradientHeight(existing?.gradientHeight ?? defaultGradientHeight)
       setTopBadgeScale(eff?.topBadgeScale ?? defaultTopBadgeScale)
       setTopBadgeOffsetX(eff?.topBadgeOffsetX ?? defaultTopBadgeOffsetX)
       setTopBadgeOffsetY(eff?.topBadgeOffsetY ?? defaultTopBadgeOffsetY)
@@ -1206,14 +1300,27 @@ export function usePictorium(): PictoriumCtx {
       setQualityBadgeOffsetY(eff?.qualityBadgeOffsetY ?? defaultQualityBadgeOffsetY)
       setNetworkLogoOffsetX(eff?.networkLogoOffsetX ?? defaultNetworkLogoOffsetX)
       setNetworkLogoOffsetY(eff?.networkLogoOffsetY ?? defaultNetworkLogoOffsetY)
-      setBlurIntensity(eff?.blurIntensity ?? defaultBlurIntensity)
+      setBlurIntensity(existing?.blurIntensity ?? defaultBlurIntensity)
       setTintStrength(eff?.tintStrength ?? defaultTintStrength)
       // Ombra superiore: solo per-titolo (flat, niente profilo landscape) —
       // default globale quando il mapping non ce l'ha.
       setTopShade(existing.topShade ?? defaultTopShade)
-      setBlurFade(eff?.blurFade ?? defaultBlurFade)
-      setBlurDarkness(eff?.blurDarkness ?? defaultBlurDarkness)
-      setBlurEnabled(eff?.blurEnabled ?? defaultBlurEnabled)
+      setBlurFade(existing?.blurFade ?? defaultBlurFade)
+      setBlurDarkness(existing?.blurDarkness ?? defaultBlurDarkness)
+      setBlurEnabled(existing?.blurEnabled ?? defaultBlurEnabled)
+      // Profilo sfumatura landscape (sezione Orizzontale): mapping.landscape
+      // con fallback ai default globali Orizzontale e poi ai default di formato
+      // (fade 70 come il server).
+      const landEff = effectiveMappingForShape(existing ?? null, "landscape")
+      resetLandscapeBlur({
+        gradientHeight: landEff?.gradientHeight ?? landscapeDefaults?.gradientHeight ?? defaultGradientHeight,
+        blurEnabled: landEff?.blurEnabled ?? landscapeDefaults?.blurEnabled ?? defaultBlurEnabled,
+        blurIntensity: landEff?.blurIntensity ?? landscapeDefaults?.blurIntensity ?? defaultBlurIntensity,
+        blurFade: landEff?.blurFade ?? landscapeDefaults?.blurFade ?? 70,
+        blurDarkness: landEff?.blurDarkness ?? landscapeDefaults?.blurDarkness ?? defaultBlurDarkness,
+        tintStrength: landEff?.tintStrength ?? landscapeDefaults?.tintStrength ?? defaultTintStrength,
+        topShade: landEff?.topShade ?? landscapeDefaults?.topShade ?? defaultTopShade,
+      })
       setCustomBadge(existing.customBadge ?? null)
       setRotationPosters(existing.cleanPosters || [])
       setAutoRotateClean(existing.autoRotateClean ?? defaultAutoRotateClean)
@@ -1222,8 +1329,11 @@ export function usePictorium(): PictoriumCtx {
       setAutoRotateBackdrop(existing.autoRotateBackdrop ?? defaultAutoRotateBackdrop)
       setExcludedBackdrops(existing.excludedBackdrops || [])
       setLogoDisabled(existing.logoDisabled ?? false)
-      setLogoOffsetX(eff?.logoOffsetX ?? 0)
-      setLogoOffsetY(eff?.logoOffsetY ?? 0)
+      // Offset logo: profilo salvato (mapping.landscape in landscape) > default
+      // globali (Orizzontale nel formato) > 0. La calibrazione +10/-10 vive nel
+      // renderer, invisibile agli slider.
+      setLogoOffsetX(eff?.logoOffsetX ?? logoOffsetDefault(existing?.posterShape ?? defaultPosterShape, "x") ?? 0)
+      setLogoOffsetY(eff?.logoOffsetY ?? logoOffsetDefault(existing?.posterShape ?? defaultPosterShape, "y") ?? 0)
       setBackdropScale(existing.backdropScale ?? 100)
       setBackdropOffsetX(existing.backdropOffsetX ?? 0)
       setBackdropOffsetY(existing.backdropOffsetY ?? 0)
@@ -1248,6 +1358,32 @@ export function usePictorium(): PictoriumCtx {
       setBlurFade(defaultBlurFade)
       setBlurDarkness(defaultBlurDarkness)
       setBlurEnabled(defaultBlurEnabled)
+      resetLandscapeBlur({
+        gradientHeight: landscapeDefaults?.gradientHeight ?? defaultGradientHeight,
+        blurEnabled: landscapeDefaults?.blurEnabled ?? defaultBlurEnabled,
+        blurIntensity: landscapeDefaults?.blurIntensity ?? defaultBlurIntensity,
+        blurFade: landscapeDefaults?.blurFade ?? 70,
+        blurDarkness: landscapeDefaults?.blurDarkness ?? defaultBlurDarkness,
+        tintStrength: landscapeDefaults?.tintStrength ?? defaultTintStrength,
+        topShade: landscapeDefaults?.topShade ?? defaultTopShade,
+      })
+      // Scale badge: con default Orizzontale gli slider partono dai default
+      // globali Orizzontale (come la sfumatura sopra); in portrait resta lo
+      // storico (valori correnti preservati, mai resettati all'apertura).
+      if (defaultPosterShape === "landscape") {
+        setTopBadgeScale(landscapeDefaults?.topBadgeScale ?? defaultTopBadgeScale)
+        setTopBadgeOffsetX(landscapeDefaults?.topBadgeOffsetX ?? defaultTopBadgeOffsetX)
+        setTopBadgeOffsetY(landscapeDefaults?.topBadgeOffsetY ?? defaultTopBadgeOffsetY)
+        setGenreBadgeScale(landscapeDefaults?.genreBadgeScale ?? defaultGenreBadgeScale)
+        setGenreBadgeOffsetX(landscapeDefaults?.genreBadgeOffsetX ?? defaultGenreBadgeOffsetX)
+        setGenreBadgeOffsetY(landscapeDefaults?.genreBadgeOffsetY ?? defaultGenreBadgeOffsetY)
+        setQualityBadgeScale(landscapeDefaults?.qualityBadgeScale ?? defaultQualityBadgeScale)
+        setQualityBadgeOffsetX(landscapeDefaults?.qualityBadgeOffsetX ?? defaultQualityBadgeOffsetX)
+        setQualityBadgeOffsetY(landscapeDefaults?.qualityBadgeOffsetY ?? defaultQualityBadgeOffsetY)
+        setNetworkLogoScale(landscapeDefaults?.networkLogoScale ?? defaultNetworkLogoScale)
+        setNetworkLogoOffsetX(landscapeDefaults?.networkLogoOffsetX ?? defaultNetworkLogoOffsetX)
+        setNetworkLogoOffsetY(landscapeDefaults?.networkLogoOffsetY ?? defaultNetworkLogoOffsetY)
+      }
       setNetworkLogo(defaultNetworkLogo)
       setRibbonSide(defaultRibbonSide)
       setPosterShape(defaultPosterShape)
@@ -1260,8 +1396,8 @@ export function usePictorium(): PictoriumCtx {
       setAutoRotateBackdrop(defaultAutoRotateBackdrop)
       setExcludedBackdrops([])
       setLogoDisabled(false)
-      setLogoOffsetX(0)
-      setLogoOffsetY(0)
+      setLogoOffsetX(logoOffsetDefault(defaultPosterShape, "x") ?? 0)
+      setLogoOffsetY(logoOffsetDefault(defaultPosterShape, "y") ?? 0)
       setSelectedBackdrop(null)
       setBackdropScale(100)
       setBackdropOffsetX(0)
@@ -1284,11 +1420,12 @@ export function usePictorium(): PictoriumCtx {
           const autoLogo = autoLogoSelection(data.logos || [], lang, details.original_language, `${itemType}/${itemId}`)
           if (autoLogo) {
             navigation.setSelectedLogo({ file_path: autoLogo.file_path, iso_639_1: autoLogo.iso_639_1, vote_average: 0, width: autoLogo.width, height: autoLogo.height })
-            const scale = logoDefaultScale(autoLogo)
+            // Scala logo: default globale per formato > auto-fit per aspect.
+            const scale = logoScaleDefaultFor(existing.posterShape ?? defaultPosterShape) ?? logoDefaultScale(autoLogo)
             if (scale !== null) setLogoScale(scale)
           }
         }
-        setLogoScale(effectiveMappingForShape(existing, existing.posterShape ?? defaultPosterShape)?.logoScale ?? 75)
+        setLogoScale(effectiveMappingForShape(existing, existing.posterShape ?? defaultPosterShape)?.logoScale ?? logoScaleDefaultFor(existing.posterShape ?? defaultPosterShape) ?? 75)
         if (existing.backdropPath && data.backdrops) {
           const foundBackdrop = data.backdrops.find((b: TMDBImage) => b.file_path === existing.backdropPath)
           setSelectedBackdrop(foundBackdrop || { file_path: existing.backdropPath, iso_639_1: null, vote_average: 0, width: 0, height: 0 })
@@ -1309,7 +1446,8 @@ export function usePictorium(): PictoriumCtx {
             chosenPoster = clean
             navigation.setPreviewPoster({ file_path: clean.file_path, iso_639_1: null, vote_average: 0, width: 0, height: 0 })
             navigation.setSelectedLogo({ file_path: autoLogo.file_path, iso_639_1: autoLogo.iso_639_1, vote_average: 0, width: autoLogo.width, height: autoLogo.height })
-            const scale = logoDefaultScale(autoLogo)
+            // Scala logo: default globale per formato > auto-fit per aspect.
+            const scale = logoScaleDefaultFor(defaultPosterShape) ?? logoDefaultScale(autoLogo)
             if (scale !== null) setLogoScale(scale)
           } else {
             const enPoster = data.posters?.find((p: TMDBImage) => p.iso_639_1 === "en")
@@ -1364,7 +1502,7 @@ export function usePictorium(): PictoriumCtx {
     setBackdropScale, setBackdropOffsetX, setBackdropOffsetY,
     globalBadges, rankingBadges, customBadge, badgeStyle, rankingBadgeStyle, qualityBadgeStyle, videoFormats,
     badgeGenre, badgeYear, badgeRating, badgeQuality, customRatings, ratingSources, separateRatings,
-    defaultBadgeStyle, defaultRankingBadgeStyle, blurEnabled, blurIntensity, blurFade, blurDarkness, tintStrength, topShade, gradientHeight,
+    defaultBadgeStyle, defaultRankingBadgeStyle, blurEnabled, blurIntensity, blurFade, blurDarkness, landscapeBlur, landscapeBlurDirty, setLandscapeBlur, defaultLogoScale, defaultLogoOffsetX, defaultLogoOffsetY, landscapeDefaults, tintStrength, topShade, gradientHeight,
     topBadgeScale, topBadgeOffsetX, topBadgeOffsetY, genreBadgeScale, qualityBadgeScale, networkLogoScale,
     genreBadgeOffsetX, genreBadgeOffsetY, qualityBadgeOffsetX, qualityBadgeOffsetY,
     networkLogoOffsetX, networkLogoOffsetY,

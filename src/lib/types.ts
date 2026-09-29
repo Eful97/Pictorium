@@ -205,6 +205,8 @@ export interface LandscapeSettings {
   blurIntensity?: number | null
   blurFade?: number | null
   blurDarkness?: number | null
+  tintStrength?: number | null
+  topShade?: number | null
 }
 
 /**
@@ -238,6 +240,8 @@ export function effectiveMappingForShape(mapping: Mapping | null, shape: PosterS
     blurIntensity: l.blurIntensity ?? mapping.blurIntensity,
     blurFade: l.blurFade ?? mapping.blurFade,
     blurDarkness: l.blurDarkness ?? mapping.blurDarkness,
+    tintStrength: l.tintStrength ?? mapping.tintStrength,
+    topShade: l.topShade ?? mapping.topShade,
   }
 }
 

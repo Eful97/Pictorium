@@ -12,6 +12,8 @@ import { isManualAccent } from "./accent-color"
 import { normalizeGenreName } from "./genre-normalize"
 import type { EnrichedAnimeItem } from "./validation"
 import type { VideoFormat } from "./av-specs"
+import type { LandscapeBlurState } from "./contexts/PosterEditorContext"
+import type { LandscapeServerDefaults } from "./server-defaults"
 import { http, ApiError } from "./http"
 
 interface PosterSaveDeps {
@@ -66,12 +68,23 @@ interface PosterSaveDeps {
   blurIntensity: number
   blurFade: number
   blurDarkness: number
+  /** Profilo sfumatura landscape live (sezione Orizzontale). */
+  landscapeBlur: LandscapeBlurState
+  /** True se la sezione Orizzontale è stata toccata (guida il save). */
+  landscapeBlurDirty: boolean
+  /** Default globali logo (flat) e profilo Orizzontale: la scelta logo li
+   *  applica quando il mapping non congela valori propri (null = auto/0). */
+  defaultLogoScale: number | null
+  defaultLogoOffsetX: number | null
+  defaultLogoOffsetY: number | null
+  landscapeDefaults: LandscapeServerDefaults | null
   tintStrength: number
   /** Ombra lineare superiore 0-100 (solo per-titolo). */
   topShade: number
   gradientHeight: number
   setGradientHeight: (v: number) => void
   setBlurFade: (v: number) => void
+  setLandscapeBlur: (patch: Partial<LandscapeBlurState>) => void
   topBadgeScale: number
   topBadgeOffsetX: number
   topBadgeOffsetY: number
@@ -130,7 +143,7 @@ export function usePosterSave(deps: PosterSaveDeps) {
     videoFormats,
     badgeGenre, badgeYear, badgeRating, badgeQuality, customRatings, ratingSources, separateRatings,
     defaultBadgeStyle, defaultRankingBadgeStyle,
-    blurEnabled, blurIntensity, blurFade, blurDarkness, tintStrength, topShade, gradientHeight, setGradientHeight, setBlurFade,
+    blurEnabled, blurIntensity, blurFade, blurDarkness, landscapeBlur, landscapeBlurDirty, setLandscapeBlur, defaultLogoScale, defaultLogoOffsetX, defaultLogoOffsetY, landscapeDefaults, tintStrength, topShade, gradientHeight, setGradientHeight, setBlurFade,
     topBadgeScale, topBadgeOffsetX, topBadgeOffsetY, genreBadgeScale, qualityBadgeScale, networkLogoScale,
     genreBadgeOffsetX, genreBadgeOffsetY, qualityBadgeOffsetX, qualityBadgeOffsetY,
     networkLogoOffsetX, networkLogoOffsetY,
@@ -144,26 +157,34 @@ export function usePosterSave(deps: PosterSaveDeps) {
     if (!selected) return
     // Il cambio artwork ricalibra altezza/fade solo da stato pristine
     // (default di tipo del poster precedente): preset Colore e tweak manuali
-    // sopravvivono alla scelta di un altro poster.
+    // sopravvivono alla scelta di un altro poster. In landscape si ricalibra
+    // il profilo Orizzontale (quello visibile in preview), in portrait i flat.
+    const isLand = posterShape === "landscape"
     const adj = adjustGradientForPosterChange(
-      { gradientHeight, blurFade },
+      isLand ? { gradientHeight: landscapeBlur.gradientHeight, blurFade: landscapeBlur.blurFade } : { gradientHeight, blurFade },
       previewPoster,
       image,
     )
     setPreviewPoster(image)
     if (adj) {
-      setGradientHeight(adj.gradientHeight)
-      setBlurFade(adj.blurFade)
+      if (isLand) setLandscapeBlur({ gradientHeight: adj.gradientHeight, blurFade: adj.blurFade })
+      else {
+        setGradientHeight(adj.gradientHeight)
+        setBlurFade(adj.blurFade)
+      }
     }
     setPreviewId(`${selected.media_type}:${selected.id}`)
-  }, [selected, previewPoster, gradientHeight, blurFade]) // eslint-disable-line react-hooks/exhaustive-deps -- setter refs are stable
+  }, [selected, previewPoster, gradientHeight, blurFade, posterShape, landscapeBlur, setLandscapeBlur]) // eslint-disable-line react-hooks/exhaustive-deps -- setter refs are stable
 
   const selectLogo = useCallback(async (logo: TMDBImage) => {
     setSelectedLogo(logo)
     setLogoDisabled(false)
-    setLogoScale(logoDefaultScale(logo) ?? 75)
-    setLogoOffsetX(0)
-    setLogoOffsetY(0)
+    // Scala/offset logo: default globali per formato > auto-fit per aspect.
+    // Senza default si resta sullo storico (auto + 0), mai regressioni.
+    const landLogo = posterShape === "landscape" ? landscapeDefaults : undefined
+    setLogoScale(landLogo?.logoScale ?? defaultLogoScale ?? logoDefaultScale(logo) ?? 75)
+    setLogoOffsetX(landLogo?.logoOffsetX ?? defaultLogoOffsetX ?? 0)
+    setLogoOffsetY(landLogo?.logoOffsetY ?? defaultLogoOffsetY ?? 0)
     if (!previewPoster && selected) {
       const existing = mappingsMap.get(`${selected.media_type}:${selected.id}`)
       if (existing) {
@@ -173,7 +194,7 @@ export function usePosterSave(deps: PosterSaveDeps) {
       }
     }
     if (selected) setPreviewId(`${selected.media_type}:${selected.id}`)
-  }, [selected, previewPoster, mappingsMap, posters]) // eslint-disable-line react-hooks/exhaustive-deps -- setter refs are stable
+  }, [selected, previewPoster, mappingsMap, posters, posterShape, landscapeDefaults, defaultLogoScale, defaultLogoOffsetX, defaultLogoOffsetY]) // eslint-disable-line react-hooks/exhaustive-deps -- setter refs are stable
 
   const removeLogo = useCallback(async () => {
     if (!selected) return
@@ -295,6 +316,20 @@ export function usePosterSave(deps: PosterSaveDeps) {
     const isLandscapeMode = posterShape === "landscape"
     const keepFlat = <T>(current: T, saved: T | null | undefined): T =>
       isLandscapeMode ? (prevMapping ? (saved ?? current) : current) : current
+    // Sfumatura landscape: i valori live della sezione Orizzontale vincono
+    // quando la sezione è stata toccata oppure il save avviene in landscape
+    // (la preview li mostra) — altrimenti il profilo salvato resta intatto
+    // (niente freeze involontario dei default al save portrait).
+    const useLandscapeBlur = landscapeBlurDirty || isLandscapeMode
+    const landscapeBlurPatch = {
+      gradientHeight: landscapeBlur.gradientHeight,
+      blurEnabled: landscapeBlur.blurEnabled,
+      blurIntensity: landscapeBlur.blurIntensity,
+      blurFade: landscapeBlur.blurFade,
+      blurDarkness: landscapeBlur.blurDarkness,
+      tintStrength: landscapeBlur.tintStrength,
+      topShade: landscapeBlur.topShade,
+    }
     const landscapeProfile = isLandscapeMode
       ? {
           logoScale, logoOffsetX, logoOffsetY,
@@ -302,9 +337,11 @@ export function usePosterSave(deps: PosterSaveDeps) {
           genreBadgeScale, genreBadgeOffsetX, genreBadgeOffsetY,
           qualityBadgeScale, qualityBadgeOffsetX, qualityBadgeOffsetY,
           networkLogoScale, networkLogoOffsetX, networkLogoOffsetY,
-          gradientHeight, blurEnabled, blurIntensity, blurFade, blurDarkness,
+          ...landscapeBlurPatch,
         }
-      : (prevMapping?.landscape ?? null)
+      : (useLandscapeBlur || prevMapping?.landscape
+          ? { ...(prevMapping?.landscape ?? null), ...(useLandscapeBlur ? landscapeBlurPatch : {}) }
+          : null)
     const backdropToSave = isLandscapeMode
       ? (selectedBackdrop?.file_path || null)
       : (selectedBackdrop?.file_path ?? prevMapping?.backdropPath ?? null)
@@ -440,7 +477,7 @@ export function usePosterSave(deps: PosterSaveDeps) {
       }
       if (overrides.silent) throw error
     }
-  }, [selected, previewPoster, selectedLogo, metaInfo, logoScale, logoOffsetX, logoOffsetY, trendRank, globalBadges, rankingBadges, badgeGenre, badgeYear, badgeRating, badgeQuality, customRatings, ratingSources, separateRatings, mdblistAnimeList, loadMappings, customBadge, badgePresetId, badgePresetRev, badgeStyle, rankingBadgeStyle, qualityBadgeStyle, videoFormats, blurEnabled, blurIntensity, blurFade, blurDarkness, tintStrength, topShade, gradientHeight, topBadgeScale, topBadgeOffsetX, topBadgeOffsetY, genreBadgeScale, qualityBadgeScale, networkLogoScale, genreBadgeOffsetX, genreBadgeOffsetY, qualityBadgeOffsetX, qualityBadgeOffsetY, networkLogoOffsetX, networkLogoOffsetY, rotationPosters, autoRotateClean, defaultAutoRotateClean, excludedPosters, rotationBackdrops, autoRotateBackdrop, defaultAutoRotateBackdrop, excludedBackdrops, backdrops, defaultBadgeStyle, defaultRankingBadgeStyle, posters, mappingsMap, accentColor, autoAccentColor, backdropOffsetX, backdropOffsetY, backdropScale, selectedBackdrop, networkLogo, episodeGroupId, posterShape]) // eslint-disable-line react-hooks/exhaustive-deps -- intentionally complete to save all poster state
+  }, [selected, previewPoster, selectedLogo, metaInfo, logoScale, logoOffsetX, logoOffsetY, trendRank, globalBadges, rankingBadges, badgeGenre, badgeYear, badgeRating, badgeQuality, customRatings, ratingSources, separateRatings, mdblistAnimeList, loadMappings, customBadge, badgePresetId, badgePresetRev, badgeStyle, rankingBadgeStyle, qualityBadgeStyle, videoFormats, blurEnabled, blurIntensity, blurFade, blurDarkness, landscapeBlur, landscapeBlurDirty, tintStrength, topShade, gradientHeight, topBadgeScale, topBadgeOffsetX, topBadgeOffsetY, genreBadgeScale, qualityBadgeScale, networkLogoScale, genreBadgeOffsetX, genreBadgeOffsetY, qualityBadgeOffsetX, qualityBadgeOffsetY, networkLogoOffsetX, networkLogoOffsetY, rotationPosters, autoRotateClean, defaultAutoRotateClean, excludedPosters, rotationBackdrops, autoRotateBackdrop, defaultAutoRotateBackdrop, excludedBackdrops, backdrops, defaultBadgeStyle, defaultRankingBadgeStyle, posters, mappingsMap, accentColor, autoAccentColor, backdropOffsetX, backdropOffsetY, backdropScale, selectedBackdrop, networkLogo, episodeGroupId, posterShape]) // eslint-disable-line react-hooks/exhaustive-deps -- intentionally complete to save all poster state
 
   return { selectPoster, selectLogo, removeLogo, selectBackdrop, removeBackdrop, saveConfig }
 }

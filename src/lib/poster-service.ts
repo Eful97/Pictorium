@@ -21,7 +21,7 @@ import { LAND_W, LAND_H } from "./image-utils"
 import { renderGenreBadge, renderRankingBadge, renderExtraBadge, renderQualityBadge, renderComingSoonRibbon, comingSoonRibbonLayout, renderSVG, buildCustomPresetBadgeSVG, buildHousePresetBadgeSVG } from "./svg-badge"
 import { buildLogoScrim, logoContrast, logoInkLuminance, logoScrimStrength, posterLogoZoneLuminance } from "./logo-contrast"
 import { renderFirstMatchingNetworkLogoBadge, renderFirstMatchingNetworkRawBadge, renderFirstMatchingNetworkLogoBadgeHybrid, renderFirstMatchingNetworkRawBadgeHybrid, type NetworkCandidate } from "./network-svgs"
-import { computeLogoLayout, logoAlignPadX, PORTRAIT_LOGO_MAX_HEIGHT_PCT, PORTRAIT_LOGO_TOP_OFFSET } from "./logo-layout"
+import { computeLogoLayout, logoAlignPadX, PORTRAIT_LOGO_MAX_HEIGHT_PCT, PORTRAIT_LOGO_TOP_OFFSET, LANDSCAPE_LOGO_MAX_WIDTH_PCT, LANDSCAPE_LOGO_MAX_HEIGHT_PCT, LANDSCAPE_LOGO_BOTTOM_MARGIN_PCT, LANDSCAPE_LOGO_TOP_OFFSET, LANDSCAPE_LOGO_SHIFT_X, LANDSCAPE_LOGO_SHIFT_Y } from "./logo-layout"
 import { logoDefaultScaleFromAspect } from "./logo-selection"
 import fs from "fs"
 import path from "path"
@@ -236,8 +236,8 @@ export interface GenerationInput {
   shape?: "poster" | "landscape"
   /**
    * Nasconde il logo film dal composite (il fetch resta per i colori accent).
-   * In landscape il logo è SEMPRE nascosto (layout senza baked-in: a valle
-   * tutto si comporta come "senza logo"); in portrait serve query esplicita.
+   * Solo query esplicita `hideLogo=1` (banner Nuvio pulito): il landscape
+   * cuoce il logo come il portrait, coi vincoli del canvas 16:9.
    */
   hideLogo?: boolean
 }
@@ -881,9 +881,11 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
   // landscape 16:9 (prova ?shape=landscape, base = backdrop TMDB).
   const CW = shape === "landscape" ? LAND_W : STD_W
   const CH = shape === "landscape" ? LAND_H : STD_H
-  // Allineamento blocco logo/metadati: in portrait è SEMPRE "center" per contratto.
-  // In landscape può essere "left" (Cinematic Left) o "center".
+  // Layout logo per formato: in portrait è SEMPRE "center" per contratto.
+  // In landscape può essere "left" (Cinematic) o "center", col logo
+  // contenuto nei vincoli del canvas 16:9 (come i bound slider client).
   const align = shape === "landscape" && logoAlign === "left" ? "left" : "center"
+  const isLandscape = shape === "landscape"
   const isLandscapeLeft = shape === "landscape" && align === "left"
   // I badge si rendono alla larghezza portrait (stessi pixel assoluti del
   // verticale): sul canvas 16:9 non devono dominare la scena. Posizioni,
@@ -943,8 +945,9 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
   // Override esplicito `ac=` vince sempre; poi tinta di scena; rete di sicurezza: fallback genere
   const blurTintHex = accentOverride?.genreColor ?? sceneTintHex ?? accentColorGenre
 
-  // Layout landscape = senza logo baked-in (vale per preview, poster e
-  // banner: unica verità visiva). hideLogo esplicito copre anche il portrait.
+  // Logo baked-in in entrambi i formati (hideLogo esplicito lo salta:
+  // veicolo del banner Nuvio pulito). In landscape valgono i vincoli del
+  // canvas 16:9 — stessi di context.tsx e poster-fit-score.ts (Golden Rule).
   const [blurOverlay, logoResult] = await Promise.all([
     applyBlur({
       posterBuf,
@@ -958,7 +961,7 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
       canvasH: CH,
       accentColor: blurTintHex,
     }),
-    logoFetch && !hideLogo && shape !== "landscape"
+    logoFetch && !hideLogo
       ? (async () => {
           const lMeta = await sharp(logoFetch).metadata()
           const lw = lMeta.width || 200
@@ -971,17 +974,26 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
           const uOy = logoOffsetY ?? 0
           const layout = computeLogoLayout({
             posterW: CW, posterH: CH, logoW: lw, logoH: lh,
-            logoScale: uScale, logoOffsetX: uOx, logoOffsetY: uOy,
+            logoScale: uScale,
+            // Calibrazione geometrica landscape invisibile agli slider (+10 X /
+            // -10 Y): si somma agli offset utente espliciti (anche 0), come
+            // PORTRAIT_LOGO_TOP_OFFSET in portrait. Gli slider mostrano 0.
+            logoOffsetX: uOx + (isLandscape ? LANDSCAPE_LOGO_SHIFT_X : 0),
+            logoOffsetY: uOy + (isLandscape ? LANDSCAPE_LOGO_SHIFT_Y : 0),
             hasBadges: hasGenreBadge,
-            // Margine maggiorato solo col badge genere (12% vs 10% storico):
-            // solleva il logo sopra il badge basso senza spostare i poster clean.
-            bottomMarginPct: hasGenreBadge ? 12 : undefined,
-            // Cap altezza portrait: i loghi quadrati/verticali non superano
-            // il 25% dell'altezza poster (solo altezza, larghezza libera).
-            maxHeightPct: PORTRAIT_LOGO_MAX_HEIGHT_PCT,
-            // Calibrazione portrait: logo 10px più in basso (solo portrait:
-            // questo ramo non baked-in mai il landscape).
-            topOffset: PORTRAIT_LOGO_TOP_OFFSET,
+            // Fondo logo in linea col badge genere (~10px dal bordo, vedi
+            // costanti landscape in logo-layout.ts). In portrait margine
+            // maggiorato solo col badge genere (12% vs 10% storico).
+            bottomMarginPct: isLandscape ? LANDSCAPE_LOGO_BOTTOM_MARGIN_PCT : (hasGenreBadge ? 12 : undefined),
+            // Vincoli logo per formato (stessi di context.tsx e
+            // poster-fit-score.ts): portrait cap solo altezza + calibrazione
+            // +10px; landscape contenuto 40% larghezza / 24% altezza.
+            ...(isLandscape
+              ? { maxWidthPct: LANDSCAPE_LOGO_MAX_WIDTH_PCT, maxHeightPct: LANDSCAPE_LOGO_MAX_HEIGHT_PCT, topOffset: LANDSCAPE_LOGO_TOP_OFFSET }
+              : {
+                  maxHeightPct: PORTRAIT_LOGO_MAX_HEIGHT_PCT,
+                  topOffset: PORTRAIT_LOGO_TOP_OFFSET,
+                }),
             align,
           })
           const resized = await resizeLogoCached(logoFetch, layout.width, layout.height, logoSrc)
@@ -1507,7 +1519,38 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
         return box
       }
 
-      if (logoResult && (finalRankBadge || hasComingSoonCorner)) {
+      if (isLandscape && logoResult) {
+        // Landscape col logo film: mai sopra il logo (zona bassa) — sempre
+        // in alto: a fianco del nastro se occupa l'angolo sinistro (stile
+        // Netflix), sotto il Coming Soon se occupa quell'angolo, altrimenti
+        // top-left (con shrink vs badge centrale). Solo landscape: il
+        // portrait resta sul ramo storico sotto.
+        const leftRibbon =
+          ((isRibbonRankingStyle(rankingBadgeStyle) && topBadge?.type === "rank") || presetIsRibbon) &&
+          (presetIsRibbon ? !presetRibbonRight : ribbonSide !== "right")
+        if (leftRibbon && finalRankBadge && finalRankLeft !== null) {
+          top = netPadY
+          left = netPadX
+          const ribbonRight = finalRankLeft + finalRankBadge.w
+          const netRight = left + fittedRaw.w
+          const netBottom = top + fittedRaw.h
+          const overlapX = left < ribbonRight + 6 && netRight > finalRankLeft - 6
+          const overlapY = top < finalRankTop + finalRankBadge.h + 4 && netBottom > finalRankTop - 4
+          if (overlapX && overlapY) {
+            left = Math.round(ribbonRight + 10)
+            const maxLeft = CW - fittedRaw.w - netPadX
+            if (left > maxLeft) left = maxLeft
+          }
+        } else if (showComingSoon && ribbonLayout && ribbonSide !== "right") {
+          top = ribbonLayout.extent + gap
+          left = netPadX
+        } else {
+          top = netPadY
+          left = netPadX
+          fittedRaw = await shrinkToAvoidRank(fittedRaw, top, left)
+        }
+        netTopLeftBottom = top + NETWORK_LOGO_SHIFT_Y + fittedRaw.h
+      } else if (logoResult && (finalRankBadge || hasComingSoonCorner)) {
         // Con logo film + badge alto (nastro Netflix, badge centrale
         // rank/extra, o Coming Soon): subito sopra il logo film
         // (in Cinematic Left allineato a sinistra come sopratitolo, non centrato).

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { isGradientDirty, type GradientTuning } from "@/lib/gradient-dirty"
+import { isGradientDirty, isArtworkDirty, type GradientTuning } from "@/lib/gradient-dirty"
 import type { Mapping } from "@/lib/types"
 
 const DEFAULTS: GradientTuning = {
@@ -53,5 +53,55 @@ describe("isGradientDirty", () => {
     // Profilo orizzontale: fade 70 effettivo, non il flat 10.
     expect(isGradientDirty({ ...DEFAULTS, blurFade: 70 }, m, DEFAULTS, "poster")).toBe(false)
     expect(isGradientDirty({ ...DEFAULTS, blurFade: 10 }, m, DEFAULTS, "poster")).toBe(true)
+  })
+})
+
+describe("isArtworkDirty", () => {
+  it("false quando artwork corrente e mapping coincidono", () => {
+    const m = mapping({ posterPath: "/p.jpg", backdropPath: "/b.jpg", posterShape: "poster", logoPath: "/l.png" })
+    expect(isArtworkDirty(
+      { posterPath: "/p.jpg", backdropPath: "/b.jpg", posterShape: "poster", logoPath: "/l.png" },
+      m, "poster",
+    )).toBe(false)
+  })
+
+  it("true quando poster/backdrop/formato/logo divergono dal salvato", () => {
+    const m = mapping({ posterPath: "/p.jpg", backdropPath: "/b.jpg", posterShape: "poster", logoPath: "/l.png" })
+    expect(isArtworkDirty(
+      { posterPath: "/other.jpg", backdropPath: "/b.jpg", posterShape: "poster", logoPath: "/l.png" },
+      m, "poster",
+    )).toBe(true)
+    expect(isArtworkDirty(
+      { posterPath: "/p.jpg", backdropPath: "/best.jpg", posterShape: "poster", logoPath: "/l.png" },
+      m, "poster",
+    )).toBe(true)
+    expect(isArtworkDirty(
+      { posterPath: "/p.jpg", backdropPath: "/b.jpg", posterShape: "landscape", logoPath: "/l.png" },
+      m, "poster",
+    )).toBe(true)
+    expect(isArtworkDirty(
+      { posterPath: "/p.jpg", backdropPath: "/b.jpg", posterShape: "poster", logoPath: "/other.png" },
+      m, "poster",
+    )).toBe(true)
+  })
+
+  it("logo disabilitato equivale a nessun logo", () => {
+    const m = mapping({ posterPath: "/p.jpg", logoPath: "/l.png", logoDisabled: true })
+    expect(isArtworkDirty(
+      { posterPath: "/p.jpg", backdropPath: null, posterShape: "poster", logoPath: "/l.png", logoDisabled: true },
+      m, "poster",
+    )).toBe(false)
+  })
+
+  it("titolo mai salvato: dirty appena c'è una selezione locale", () => {
+    expect(isArtworkDirty(
+      { posterPath: null, backdropPath: null, posterShape: "poster", logoPath: null },
+      null, "poster",
+    )).toBe(false)
+    // Best Fit orizzontale scelto ma non salvato → Stremio mostra ancora l'auto.
+    expect(isArtworkDirty(
+      { posterPath: "/p.jpg", backdropPath: "/best.jpg", posterShape: "landscape", logoPath: "/l.png" },
+      null, "poster",
+    )).toBe(true)
   })
 })

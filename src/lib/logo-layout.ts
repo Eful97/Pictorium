@@ -47,9 +47,24 @@ type LogoOffsetBounds = {
 export const PORTRAIT_LOGO_MAX_HEIGHT_PCT = 25
 
 /** Calibrazione verticale portrait: il logo scende di 10px rispetto alla
- *  geometria base (margine + badge). Solo portrait (il landscape non
- *  baked-in non lo usa); passare come `topOffset` ai call site portrait. */
+ *  geometria base (margine + badge). Solo portrait (il landscape usa le sue
+ *  costanti dedicate); passare come `topOffset` ai call site portrait. */
 export const PORTRAIT_LOGO_TOP_OFFSET = 10
+
+/** Vincoli logo sul canvas landscape 16:9 (usati da server, bound slider
+ *  client e auto-fit — Golden Rule: stessa terna ovunque).
+ *  Il fondo del logo resta a ~10px dal bordo, in linea col badge genere. */
+export const LANDSCAPE_LOGO_MAX_WIDTH_PCT = 40
+export const LANDSCAPE_LOGO_MAX_HEIGHT_PCT = 24
+export const LANDSCAPE_LOGO_BOTTOM_MARGIN_PCT = 0
+export const LANDSCAPE_LOGO_TOP_OFFSET = -10
+
+/** Calibrazione geometrica landscape invisibile agli slider (X +10px a destra,
+ *  Y -10px in alto, in aggiunta al TOP_OFFSET sopra): si somma SEMPRE agli
+ *  offset utente/mapping/default (anche 0), come PORTRAIT_LOGO_TOP_OFFSET in
+ *  portrait. Gli slider mostrano 0 ma il render è spostato — è voluto. */
+export const LANDSCAPE_LOGO_SHIFT_X = 10
+export const LANDSCAPE_LOGO_SHIFT_Y = -10
 
 function sanePositive(value: number, fallback: number): number {
   return Number.isFinite(value) && value > 0 ? value : fallback

@@ -28,16 +28,20 @@ vi.mock("@/lib/store", () => ({
   getImdbAlias: vi.fn(async () => null),
 }))
 
-vi.mock("@/lib/server-defaults", () => ({
-  getServerDefaults: vi.fn(() => ({
-    defaultLogoFitEnabled: true,
-    badgeStyle: "shadow",
-    rankingBadgeStyle: "default",
-    region: "IT",
-    badgeQuality: false,
-    preRelease: false,
-  })),
-}))
+vi.mock("@/lib/server-defaults", async (importOriginal) => {
+  const mod = await importOriginal<typeof import("@/lib/server-defaults")>()
+  return {
+    ...mod,
+    getServerDefaults: vi.fn(() => ({
+      defaultLogoFitEnabled: true,
+      badgeStyle: "shadow",
+      rankingBadgeStyle: "default",
+      region: "IT",
+      badgeQuality: false,
+      preRelease: false,
+    })),
+  }
+})
 
 let backdropPng: Buffer
 

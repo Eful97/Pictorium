@@ -3,6 +3,7 @@ import { NextRequest } from "next/server"
 import { GET } from "@/app/catalog/[type]/[id]/route"
 import { GET as GET_EXTRA } from "@/app/catalog/[type]/[id]/[...extra]/route"
 import { cacheClear } from "@/lib/cache"
+import { __clearTMDBCache } from "@/lib/tmdb"
 import { POSTER_URL_VERSION } from "@/lib/render-version"
 import { getTop10 } from "@/lib/flixpatrol"
 import { getById } from "@/lib/store"
@@ -17,9 +18,10 @@ vi.mock("@/lib/store", () => ({
   getById: vi.fn(),
 }))
 
-vi.mock("@/lib/server-defaults", () => ({
-  getServerDefaults: vi.fn(() => ({})),
-}))
+vi.mock("@/lib/server-defaults", async (importOriginal) => {
+  const mod = await importOriginal<typeof import("@/lib/server-defaults")>()
+  return { ...mod, getServerDefaults: vi.fn(() => ({})) }
+})
 
 const mockedGetTop10 = vi.mocked(getTop10)
 const mockedGetById = vi.mocked(getById)
@@ -63,6 +65,10 @@ describe("GET /catalog/[type]/[id]", () => {
     mockedGetById.mockReset()
     __resetJWRankingsCache()
     cacheClear()
+    // Isolamento tra test: tmdbFetch ha una LRU in-memory che sopravvive ai
+    // mock di fetch — senza clear, i details restano cachati e i mock in
+    // coda (es. /images per il logo) slittano sul fetch sbagliato.
+    __clearTMDBCache()
   })
 
   it("builds Pictorium series poster URLs for JustWatch series catalogs", async () => {
@@ -85,13 +91,17 @@ describe("GET /catalog/[type]/[id]", () => {
   })
 
   it("serves a rendered landscape banner for Nuvio horizontal mode", async () => {
-    // Nuvio in modalità orizzontale carica `banner` (HomePosterCard:
-    // `banner ?: poster`), non `poster`: il banner deve puntare allo stesso
-    // rendering Pictorium in canvas landscape, altrimenti i poster spariscono
-    // e restano i backdrop TMDB grezzi.
+    // Il banner è il rendering Pictorium in canvas landscape SENZA logo
+    // baked-in (hideLogo): resta per i client che leggono `banner`.
+    // NuvioTV legge invece `landscapePoster` (con logo): i titoli portrait
+    // non lo emettono e mantengono il `logo` separato.
     vi.spyOn(globalThis, "fetch")
       .mockResolvedValueOnce(justWatchResponse(94997, "tt11198330"))
       .mockResolvedValueOnce(tmdbShowResponse(94997))
+      .mockResolvedValueOnce(Response.json({
+        id: 94997,
+        logos: [{ file_path: "/hotd-logo.png", iso_639_1: "it" }],
+      }))
 
     const req = new NextRequest("http://localhost:3000/catalog/series/pictorium-jw-series.json?api_key=settings-key")
     const res = await GET(req, { params: Promise.resolve({ type: "series", id: "pictorium-jw-series.json" }) })
@@ -106,6 +116,53 @@ describe("GET /catalog/[type]/[id]", () => {
     expect(body.metas[0].poster).not.toContain("shape=landscape")
     expect(body.metas[0].poster).not.toContain("hideLogo")
     expect(body.metas[0].posterShape).toBe("poster")
+    // Titolo portrait: niente landscapePoster, logo separato presente.
+    expect(body.metas[0].landscapePoster).toBeUndefined()
+    expect(body.metas[0].logo).toContain("/hotd-logo.png")
+  })
+
+  it("serves landscapePoster with baked-in logo and no separate logo for landscape titles", async () => {
+    // NuvioTV sovrappone il `logo` del catalogo alle card landscape: per i
+    // titoli landscape l'immagine deve arrivare intoccabile (logo già
+    // baked-in nel landscapePoster) e il `logo` va omesso — altrimenti il
+    // secondo logo finisce sopra il nostro.
+    mockedGetById.mockResolvedValue({
+      tmdbId: 94997,
+      mediaType: "tv",
+      title: "House of the Dragon",
+      posterPath: "/house-of-the-dragon.jpg",
+      logoPath: "/hotd-logo.png",
+      originalPosterPath: null,
+      language: null,
+      posterShape: "landscape",
+      updatedAt: "2026-07-16T10:15:30.000Z",
+    })
+    vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(justWatchResponse(94997, "tt11198330"))
+      .mockResolvedValueOnce(tmdbShowResponse(94997))
+      .mockResolvedValueOnce(Response.json({
+        id: 94997,
+        logos: [{ file_path: "/hotd-logo.png", iso_639_1: "it" }],
+      }))
+
+    const req = new NextRequest("http://localhost:3000/catalog/series/pictorium-jw-series.json?api_key=settings-key")
+    const res = await GET(req, { params: Promise.resolve({ type: "series", id: "pictorium-jw-series.json" }) })
+    const body = await res.json()
+
+    expect(res.status).toBe(200)
+    expect(body.metas[0].posterShape).toBe("landscape")
+    const posterUrl = new URL(body.metas[0].poster)
+    expect(posterUrl.searchParams.get("shape")).toBe("landscape")
+    expect(posterUrl.searchParams.has("hideLogo")).toBe(false)
+    // landscapePoster = stesso canvas con logo (niente hideLogo).
+    expect(body.metas[0].landscapePoster).toContain("/api/poster/series/94997")
+    const landscapeUrl = new URL(body.metas[0].landscapePoster)
+    expect(landscapeUrl.searchParams.get("shape")).toBe("landscape")
+    expect(landscapeUrl.searchParams.has("hideLogo")).toBe(false)
+    // Niente logo separato: Nuvio non ha nulla da sovrapporre.
+    expect(body.metas[0].logo).toBeUndefined()
+    // Il banner pulito resta per gli altri client.
+    expect(body.metas[0].banner).toContain("hideLogo=1")
   })
 
   it("serves legacy posterium-* catalog IDs as aliases of pictorium-*", async () => {

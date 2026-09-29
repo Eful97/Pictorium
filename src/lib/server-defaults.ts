@@ -16,6 +16,58 @@ import { getKv, getStorageMode } from "@/lib/kv"
 
 const log = createLogger("server-defaults")
 
+/**
+ * Default di resa per il formato landscape: sfumatura/blur + scale e offset
+ * dei badge (gli stessi parametri regolabili per-titolo per formato). Stili,
+ * toggle, tinta e ombra restano condivisi tra i formati per scelta.
+ * Ogni chiave assente/undefined segue il flat (portrait).
+ */
+export interface LandscapeServerDefaults {
+  gradientHeight?: number
+  blurEnabled?: boolean
+  blurIntensity?: number
+  blurFade?: number
+  blurDarkness?: number
+  tintStrength?: number
+  topShade?: number
+  /** Scala % logo film (null = auto-fit per aspect, come senza default). */
+  logoScale?: number | null
+  /** Offset px logo film (null = 0). */
+  logoOffsetX?: number | null
+  logoOffsetY?: number | null
+  topBadgeScale?: number
+  topBadgeOffsetX?: number
+  topBadgeOffsetY?: number
+  genreBadgeScale?: number
+  genreBadgeOffsetX?: number
+  genreBadgeOffsetY?: number
+  qualityBadgeScale?: number
+  qualityBadgeOffsetX?: number
+  qualityBadgeOffsetY?: number
+  networkLogoScale?: number
+  networkLogoOffsetX?: number
+  networkLogoOffsetY?: number
+}
+
+/** Solo chiavi definite (undefined = segui il flat, mai clobberare). */
+function pickDefined<T extends object>(obj: T): Partial<T> {
+  const out: Partial<T> = {}
+  for (const [k, v] of Object.entries(obj)) {
+    if (v !== undefined) (out as Record<string, unknown>)[k] = v
+  }
+  return out
+}
+
+/**
+ * Default effettivi per il formato richiesto: in landscape i valori definiti
+ * di `defaults.landscape` vincono sui flat. Ritorna lo stesso oggetto quando
+ * non c'è overlay da applicare (shape portrait o nessun profilo).
+ */
+export function effectiveDefaultsForShape(defaults: ServerDefaults, shape: "poster" | "landscape"): ServerDefaults {
+  if (shape !== "landscape" || !defaults.landscape) return defaults
+  return { ...defaults, ...pickDefined(defaults.landscape) }
+}
+
 export interface ServerDefaults {
   badgeStyle?: BadgeStyle
   rankingBadgeStyle?: RankingBadgeStyle
@@ -59,6 +111,11 @@ export interface ServerDefaults {
   defaultPortraitFitEnabled?: boolean
   defaultLandscapeFitEnabled?: boolean
   networkLogo?: boolean
+  /** Scala % logo film (null = auto-fit per aspect, comportamento storico). */
+  logoScale?: number | null
+  /** Offset px logo film (null = 0). */
+  logoOffsetX?: number | null
+  logoOffsetY?: number | null
   /** Scala % del badge superiore (rank/extra). Default 100. */
   topBadgeScale?: number
   /** Offset px del badge superiore (solo stili centrati). Default 0. */
@@ -89,6 +146,13 @@ export interface ServerDefaults {
   episodeMetadataSource?: "tmdb" | "tvdb"
   /** Regione classifiche JustWatch/FlixPatrol + lingua titoli (codice JW, es. "IT"). */
   region?: string
+  /**
+   * Tuning di resa specifico per il canvas landscape 16:9 (default globali
+   * orizzontali). I campi flat restano i default portrait E il fallback per
+   * ogni chiave landscape assente/undefined. Istanze senza `landscape` si
+   * comportano esattamente come prima (backward compatible).
+   */
+  landscape?: LandscapeServerDefaults | null
   customCatalogs?: import("@/lib/types").CustomCatalogConfig[]
   disabledCatalogIds?: string[]
   homeDisabledCatalogIds?: string[]

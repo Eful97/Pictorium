@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useRef } from "react"
 import type { BadgeStyle, RankingBadgeStyle } from "./badge-styles"
 import type { PosterShape } from "./types"
 import { isPosterShape } from "./types"
+import type { LandscapeServerDefaults } from "./server-defaults"
 import { normalizeRegion } from "./regions"
 import { isProfilelessOnMultiUser, notifyProfilelessOnce, shouldSkipServerSync } from "./guest-guard"
 import { userFetch } from "./http"
@@ -129,6 +130,17 @@ export interface DefaultsState {
   qualityBadgeStyle: QualityBadgeStyle
   /** Formati A/V del poster in editing (null = segui default / spec locale). */
   videoFormats: VideoFormat[] | null
+  /** Scala % logo di default (null = auto-fit per aspect, storico). */
+  defaultLogoScale: number | null
+  /** Offset px logo di default (null = 0). */
+  defaultLogoOffsetX: number | null
+  defaultLogoOffsetY: number | null
+  /**
+   * Profilo default landscape (sezione Impostazioni · Orizzontale): chiavi
+   * assenti seguono i flat (portrait). Sempre oggetto (mai null) per
+   * patch parziali semplici.
+   */
+  landscape: LandscapeServerDefaults
 }
 
 const DEFAULTS: DefaultsState = {
@@ -215,6 +227,10 @@ const DEFAULTS: DefaultsState = {
   rankingBadgeStyle: "default",
   qualityBadgeStyle: DEFAULT_QUALITY_BADGE_STYLE,
   videoFormats: null,
+  defaultLogoScale: null,
+  defaultLogoOffsetX: null,
+  defaultLogoOffsetY: null,
+  landscape: {},
 }
 
 interface StoredDefaults {
@@ -310,6 +326,18 @@ interface StoredDefaults {
   defaultRegion?: string
   region?: string
   autoRotateClean?: boolean
+  /** Scala % logo di default (numero o null = auto-fit; mai spazzatura).
+   *  Legge entrambe le chiavi (flat da saveDefaults/auto-persist, prefixed
+   *  legacy), come gli altri default numerici. */
+  defaultLogoScale?: number | null
+  defaultLogoOffsetX?: number | null
+  defaultLogoOffsetY?: number | null
+  /** Chiavi flat (scritte da saveDefaults/auto-persist): fallback di lettura. */
+  logoScale?: number | null
+  logoOffsetX?: number | null
+  logoOffsetY?: number | null
+  /** Profilo default landscape (grezzo dallo storage/server, mai validato qui). */
+  landscape?: Record<string, unknown> | null
 }
 
 function readStoredDefaults(): StoredDefaults | null {
@@ -441,6 +469,14 @@ function buildFromStored(d: StoredDefaults | null): DefaultsState {
     rankingBadgeStyle: d.rankingBadgeStyle ?? d.defaultRankingBadgeStyle ?? "default",
     qualityBadgeStyle: d.qualityBadgeStyle ?? d.defaultQualityBadgeStyle ?? DEFAULT_QUALITY_BADGE_STYLE,
     videoFormats: Array.isArray(d.videoFormats) ? d.videoFormats.filter(isVideoFormat) : null,
+    defaultLogoScale: typeof d.defaultLogoScale === "number" ? d.defaultLogoScale : (typeof d.logoScale === "number" ? d.logoScale : null),
+    defaultLogoOffsetX: typeof d.defaultLogoOffsetX === "number" ? d.defaultLogoOffsetX : (typeof d.logoOffsetX === "number" ? d.logoOffsetX : null),
+    defaultLogoOffsetY: typeof d.defaultLogoOffsetY === "number" ? d.defaultLogoOffsetY : (typeof d.logoOffsetY === "number" ? d.logoOffsetY : null),
+    // Profilo landscape: solo plain object (mai array/null dallo storage);
+    // la validazione vera avviene sul server al sync (PUT).
+    landscape: (d.landscape !== null && typeof d.landscape === "object" && !Array.isArray(d.landscape))
+      ? (d.landscape as LandscapeServerDefaults)
+      : {},
   }
 }
 
@@ -498,6 +534,10 @@ function defaultsToPayload(d: DefaultsState): Record<string, unknown> {
     episodeMetadataSource: d.defaultEpisodeMetadataSource,
     region: d.defaultRegion,
     videoFormats: d.defaultVideoFormats,
+    logoScale: d.defaultLogoScale ?? null,
+    logoOffsetX: d.defaultLogoOffsetX ?? null,
+    logoOffsetY: d.defaultLogoOffsetY ?? null,
+    landscape: d.landscape,
   }
 }
 

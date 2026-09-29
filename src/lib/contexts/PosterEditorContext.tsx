@@ -3,6 +3,7 @@
 import { createContext, useContext, useState, useMemo, useCallback } from "react"
 import type { TMDBImage, PosterShape } from "@/lib/types"
 import { useDefaults } from "@/lib/useDefaults"
+import type { LandscapeServerDefaults } from "@/lib/server-defaults"
 import type { BadgeStyle, RankingBadgeStyle, QualityBadgeStyle } from "@/lib/badge-styles"
 import type { SashBucket } from "@/lib/badge-priority"
 import type { VideoFormat } from "@/lib/av-specs"
@@ -15,6 +16,33 @@ import type { VideoFormat } from "@/lib/av-specs"
  * I consumer che usano SOLO usePosterEditor() (es. BadgeControls, TransformControls)
  * NON ri-renderizzano quando cambia trending/search/navigation.
  */
+/**
+ * Profilo sfumatura/blur landscape (sezione Trasforma · Orizzontale).
+ * Sottoinsieme dei campi di LandscapeSettings (sfumatura completa, non badge:
+ * quelli restano flat + stash al cambio formato). Valori sempre concreti,
+ * inizializzati all'apertura titolo.
+ */
+export interface LandscapeBlurState {
+  gradientHeight: number
+  blurEnabled: boolean
+  blurIntensity: number
+  blurFade: number
+  blurDarkness: number
+  tintStrength: number
+  topShade: number
+}
+
+/** Default di formato per il profilo landscape (mirror server/stremio-poster-url: fade 70). */
+export const LANDSCAPE_BLUR_DEFAULTS: LandscapeBlurState = {
+  gradientHeight: 30,
+  blurEnabled: true,
+  blurIntensity: 20,
+  blurFade: 70,
+  blurDarkness: 30,
+  tintStrength: 20,
+  topShade: 50,
+}
+
 export interface PosterEditorCtx {
   // ---- Badges ----
   globalBadges: boolean
@@ -96,6 +124,14 @@ export interface PosterEditorCtx {
   setDefaultBlurDarkness: (v: number | ((prev: number) => number)) => void
   defaultGradientHeight: number
   setDefaultGradientHeight: (v: number | ((prev: number) => number)) => void
+  /** Scala % logo di default (null = auto-fit per aspect, storico). */
+  defaultLogoScale: number | null
+  setDefaultLogoScale: (v: number | null | ((prev: number | null) => number | null)) => void
+  /** Offset px logo di default (null = 0). */
+  defaultLogoOffsetX: number | null
+  setDefaultLogoOffsetX: (v: number | null | ((prev: number | null) => number | null)) => void
+  defaultLogoOffsetY: number | null
+  setDefaultLogoOffsetY: (v: number | null | ((prev: number | null) => number | null)) => void
   defaultTopBadgeScale: number
   setDefaultTopBadgeScale: (v: number | ((prev: number) => number)) => void
   defaultTopBadgeOffsetX: number
@@ -167,6 +203,13 @@ export interface PosterEditorCtx {
   /** Formato canvas di default (Impostazioni globali). */
   defaultPosterShape: PosterShape
   setDefaultPosterShape: (v: PosterShape | ((prev: PosterShape) => PosterShape)) => void
+  /**
+   * Profilo default landscape (Impostazioni · Orizzontale): chiavi assenti
+   * seguono i flat (portrait). Patch parziale; reset = segui tutto.
+   */
+  landscape: LandscapeServerDefaults
+  setLandscape: (patch: Partial<LandscapeServerDefaults>) => void
+  resetLandscape: () => void
   defaultRegion: string
   setDefaultRegion: (v: string | ((prev: string) => string)) => void
   loadDefaultsToState: () => void
@@ -176,6 +219,16 @@ export interface PosterEditorCtx {
   setBlurEnabled: (v: boolean | ((prev: boolean) => boolean)) => void
   blurIntensity: number
   setBlurIntensity: (v: number | ((prev: number) => number)) => void
+  /**
+   * Sfumatura/blur del profilo landscape (sezione Trasforma · Orizzontale):
+   * valori live indipendenti dai flat (profilo portrait). Inizializzati
+   * all'apertura titolo da mapping.landscape > default di formato.
+   */
+  landscapeBlur: LandscapeBlurState
+  setLandscapeBlur: (patch: Partial<LandscapeBlurState>) => void
+  resetLandscapeBlur: (values: LandscapeBlurState) => void
+  /** True se la sezione Orizzontale è stata toccata nella sessione (guida il save). */
+  landscapeBlurDirty: boolean
   /** Intensità tinta di scena 0-100 (default 20). */
   tintStrength: number
   setTintStrength: (v: number | ((prev: number) => number)) => void
@@ -329,12 +382,14 @@ export function PosterEditorProvider({
     defaultBadgeStyle, defaultRankingBadgeStyle, defaultQualityBadgeStyle, defaultVideoFormats,
     defaultBlurEnabled, defaultBlurIntensity, defaultBlurFade, defaultBlurDarkness, defaultTintStrength, defaultTopShade,
     defaultGradientHeight, defaultGlobalBadges, defaultRankingBadges,
+    defaultLogoScale, defaultLogoOffsetX, defaultLogoOffsetY,
     defaultTopBadgeScale, defaultTopBadgeOffsetX, defaultTopBadgeOffsetY,
     defaultGenreBadgeScale, defaultQualityBadgeScale, defaultNetworkLogoScale,
     defaultGenreBadgeOffsetX, defaultGenreBadgeOffsetY, defaultQualityBadgeOffsetX, defaultQualityBadgeOffsetY,
     defaultNetworkLogoOffsetX, defaultNetworkLogoOffsetY,
     defaultBadgeGenre, defaultBadgeYear, defaultBadgeRating, defaultBadgeQuality, defaultCustomRatings, defaultCustomRatingEndpoint, defaultCustomRatingApiKeyHeader, defaultRatingSources, defaultSeparateRatings, defaultSashOrder,
     defaultAutoRotateClean, defaultAutoRotateBackdrop, defaultPortraitFitEnabled, defaultLandscapeFitEnabled, defaultNetworkLogo, defaultPreRelease, defaultRibbonSide, defaultPosterShape, defaultLogoAlign,
+    landscape: landscapeDefaults,
     episodeMetadataSource, defaultEpisodeMetadataSource,
     region, defaultRegion,
     loadDefaultsToState, update,
@@ -403,12 +458,12 @@ export function PosterEditorProvider({
   const setPosterShape = useCallback(
     (v: PosterShape | ((prev: PosterShape) => PosterShape)) => {
       const next = typeof v === "function" ? v(posterShape) : v
+      // Solo allineamento: i valori sfumatura sono profili dedicati per
+      // formato (flat = portrait, landscapeBlur = landscape) e non si
+      // toccano al cambio formato.
       update({
         posterShape: next,
         logoAlign: next === "landscape" ? (defaultLogoAlign ?? "left") : "center",
-        // Default sfumatura dedicato al formato (come logoAlign): in landscape
-        // serve una transizione più lunga; il portrait resta sul valore corrente.
-        ...(next === "landscape" ? { blurFade: 70 } : {}),
       })
     }, [posterShape, update, defaultLogoAlign])
   // Regola di split corrente/default (vale per TUTTI i setter di questo file):
@@ -518,6 +573,21 @@ export function PosterEditorProvider({
       const next = typeof v === "function" ? v(blurEnabled) : v
       update({ blurEnabled: next })
     }, [blurEnabled, update])
+  // Profilo sfumatura landscape (Trasforma · Orizzontale): stato per-titolo
+  // indipendente dai flat (profilo portrait). Ogni patch utente alza il flag
+  // dirty (guida il save); resetLandscapeBlur lo reinizializza (apertura titolo).
+  const [landscapeBlur, setLandscapeBlurState] = useState<LandscapeBlurState>(LANDSCAPE_BLUR_DEFAULTS)
+  const [landscapeBlurDirty, setLandscapeBlurDirty] = useState(false)
+  const setLandscapeBlur = useCallback(
+    (patch: Partial<LandscapeBlurState>) => {
+      setLandscapeBlurState((prev) => ({ ...prev, ...patch }))
+      setLandscapeBlurDirty(true)
+    }, [])
+  const resetLandscapeBlur = useCallback(
+    (values: LandscapeBlurState) => {
+      setLandscapeBlurState(values)
+      setLandscapeBlurDirty(false)
+    }, [])
   const setBadgeStyle = useCallback(
     (v: BadgeStyle | ((prev: BadgeStyle) => BadgeStyle)) => {
       const next = typeof v === "function" ? v(badgeStyle) : v
@@ -593,6 +663,21 @@ export function PosterEditorProvider({
       const next = typeof v === "function" ? v(defaultTopBadgeScale) : v
       update({ defaultTopBadgeScale: next })
     }, [defaultTopBadgeScale, update])
+  const setDefaultLogoScale = useCallback(
+    (v: number | null | ((prev: number | null) => number | null)) => {
+      const next = typeof v === "function" ? v(defaultLogoScale) : v
+      update({ defaultLogoScale: next })
+    }, [defaultLogoScale, update])
+  const setDefaultLogoOffsetX = useCallback(
+    (v: number | null | ((prev: number | null) => number | null)) => {
+      const next = typeof v === "function" ? v(defaultLogoOffsetX) : v
+      update({ defaultLogoOffsetX: next })
+    }, [defaultLogoOffsetX, update])
+  const setDefaultLogoOffsetY = useCallback(
+    (v: number | null | ((prev: number | null) => number | null)) => {
+      const next = typeof v === "function" ? v(defaultLogoOffsetY) : v
+      update({ defaultLogoOffsetY: next })
+    }, [defaultLogoOffsetY, update])
   const setDefaultTopBadgeOffsetX = useCallback(
     (v: number | ((prev: number) => number)) => {
       const next = typeof v === "function" ? v(defaultTopBadgeOffsetX) : v
@@ -748,6 +833,17 @@ export function PosterEditorProvider({
       const next = typeof v === "function" ? v(defaultPosterShape) : v
       update({ defaultPosterShape: next })
     }, [defaultPosterShape, update])
+  // Profilo default landscape: patch parziale (chiavi assenti = segui i flat),
+  // reset = svuota (torna a seguire tutto). Passa da update → auto-persist +
+  // sync server come gli altri default.
+  const setLandscape = useCallback(
+    (patch: Partial<LandscapeServerDefaults>) => {
+      update({ landscape: { ...landscapeDefaults, ...patch } })
+    }, [landscapeDefaults, update])
+  const resetLandscape = useCallback(
+    () => {
+      update({ landscape: {} })
+    }, [update])
   const setLogoAlign = useCallback(
     (v: "left" | "center" | ((prev: "left" | "center") => "left" | "center")) => {
       const next = typeof v === "function" ? v(logoAlign) : v
@@ -852,6 +948,12 @@ export function PosterEditorProvider({
       setDefaultBlurDarkness,
       defaultGradientHeight,
       setDefaultGradientHeight,
+      defaultLogoScale,
+      setDefaultLogoScale,
+      defaultLogoOffsetX,
+      setDefaultLogoOffsetX,
+      defaultLogoOffsetY,
+      setDefaultLogoOffsetY,
       defaultTopBadgeScale,
       setDefaultTopBadgeScale,
       defaultTopBadgeOffsetX,
@@ -916,6 +1018,9 @@ export function PosterEditorProvider({
       setDefaultRibbonSide,
       defaultPosterShape,
       setDefaultPosterShape,
+      landscape: landscapeDefaults,
+      setLandscape,
+      resetLandscape,
       defaultLogoAlign,
       setDefaultLogoAlign,
       defaultRegion,
@@ -925,6 +1030,10 @@ export function PosterEditorProvider({
       // Blur
       blurEnabled,
       setBlurEnabled,
+      landscapeBlur,
+      setLandscapeBlur,
+      resetLandscapeBlur,
+      landscapeBlurDirty,
       blurIntensity,
       setBlurIntensity,
       tintStrength,
@@ -1053,6 +1162,9 @@ export function PosterEditorProvider({
       defaultBlurFade, setDefaultBlurFade,
       defaultBlurDarkness, setDefaultBlurDarkness,
       defaultGradientHeight, setDefaultGradientHeight,
+      defaultLogoScale, setDefaultLogoScale,
+      defaultLogoOffsetX, setDefaultLogoOffsetX,
+      defaultLogoOffsetY, setDefaultLogoOffsetY,
       defaultTopBadgeScale, setDefaultTopBadgeScale,
       defaultTopBadgeOffsetX, setDefaultTopBadgeOffsetX,
       defaultTopBadgeOffsetY, setDefaultTopBadgeOffsetY,
@@ -1094,11 +1206,13 @@ export function PosterEditorProvider({
       defaultPreRelease, setDefaultPreRelease,
       defaultRibbonSide, setDefaultRibbonSide,
       defaultPosterShape, setDefaultPosterShape,
+      landscapeDefaults, setLandscape, resetLandscape,
       defaultLogoAlign, setDefaultLogoAlign,
       loadDefaultsToState,
 
       // Blur
       blurEnabled, setBlurEnabled,
+      landscapeBlur, setLandscapeBlur, resetLandscapeBlur, landscapeBlurDirty,
       blurIntensity, setBlurIntensity,
       tintStrength, setTintStrength,
       topShade, setTopShade,

@@ -65,6 +65,14 @@ export async function saveDefaults(ed: PosterEditorCtx): Promise<boolean> {
     posterShape: ed.defaultPosterShape,
     logoAlign: ed.defaultLogoAlign,
     episodeMetadataSource: ed.defaultEpisodeMetadataSource,
+    // Default logo (null = auto-fit/0): senza, il save manuale cancellerebbe
+    // dal localStorage i default impostati nella sezione Logo.
+    logoScale: ed.defaultLogoScale,
+    logoOffsetX: ed.defaultLogoOffsetX,
+    logoOffsetY: ed.defaultLogoOffsetY,
+    // Profilo Orizzontale: senza, il save manuale cancellerebbe dal localStorage
+    // gli override impostati nella sezione Orizzontale (l'auto-persist li scrive).
+    landscape: ed.landscape,
   }
   safeSetItem(defaultsStorageKey(), JSON.stringify(d))
   // Multi-user root editor without an admin session: the PUT can only 401.

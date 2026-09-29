@@ -36,7 +36,7 @@ ombra trasparente `TOP_SHADOW_PAD=14`):
 
 ## Badge Genere/Rating (GenreRatingBadges)
 
-**Componenti configurabili** (`bg`/`by`/`br`): genere, anno e voto si attivano **indipendentemente**. Default tutti ON → output byte-identico al passato (`Dramma • ★ 8.2 • 2024`). Il badge si mostra se almeno un componente abilitato ha un valore disponibile (`hasGenreBadge = badgesEnabled && ((genre && bg) || (rating > 0 && br) || (year && by))`). Lato SVG i segmenti sono condizionali in `badge-svg-shared.ts:buildGenreTextFlow` — il `dx` di separazione si emette solo se il segmento ha un precedente visibile (per non sfuocare dal centro quando anno o voto sono il primo segmento). In landscape i badge si rendono con `pw = 500` (`badgePw` in `poster-service.ts`: stessi pixel assoluti del portrait); il badge superiore centrale (rank/extra, non nastro) è al 120% (`topBadgePw`); posizioni, overflow-protection e chiavi cache restano sul canvas vero (`LAND_W/H`). Le barre in landscape sono centrate come lower-third invece che full-width. Il logo in landscape è contenuto a max 55% larghezza e 28% altezza (`maxWidthPct`/`maxHeightPct` in `logo-layout.ts`) con margine inferiore 25%. Il gradiente di default in landscape è 20% invece di 30% (solo quando non esplicitato).
+**Componenti configurabili** (`bg`/`by`/`br`): genere, anno e voto si attivano **indipendentemente**. Default tutti ON → output byte-identico al passato (`Dramma • ★ 8.2 • 2024`). Il badge si mostra se almeno un componente abilitato ha un valore disponibile (`hasGenreBadge = badgesEnabled && ((genre && bg) || (rating > 0 && br) || (year && by))`). Lato SVG i segmenti sono condizionali in `badge-svg-shared.ts:buildGenreTextFlow` — il `dx` di separazione si emette solo se il segmento ha un precedente visibile (per non sfuocare dal centro quando anno o voto sono il primo segmento). In landscape i badge si rendono con `pw = 500` (`badgePw` in `poster-service.ts`: stessi pixel assoluti del portrait); il badge superiore centrale (rank/extra, non nastro) è al 120% (`topBadgePw`); posizioni, overflow-protection e chiavi cache restano sul canvas vero (`LAND_W/H`). Le barre in landscape sono centrate come lower-third invece che full-width. Il logo in landscape è contenuto a max 40% larghezza e 24% altezza (`LANDSCAPE_LOGO_*` in `logo-layout.ts`, stessi di `context.tsx` e `poster-fit-score.ts`) col fondo a ~10px dal bordo, in linea col badge genere (`LANDSCAPE_LOGO_BOTTOM_MARGIN_PCT`/`TOP_OFFSET`). Il gradiente di default in landscape è 20% invece di 30% (solo quando non esplicitato).
 
 | Parametro | Server (`svg-badge.ts:renderGenreBadge`) |
 |---|---|
@@ -88,7 +88,7 @@ ombra trasparente `TOP_SHADOW_PAD=14`):
 | Bordo | `topLight ? "rgba(0,0,0,0.15)" : "rgba(255,255,255,0.20)"` stroke-width 1px |
 | Padding | `px = round(fs * 0.65)`, `pt = pb = round(fs * 0.32)` dove `fs = round(max(18 * pw / 380, 12))` |
 | Raggio | `r = round(pillH * 0.35)` (squircle, identico al badge qualità) |
-| Posizione | default in alto a sinistra (`top = round(18 * STD_H / 570) + 10`, `left = round(18 * STD_W / 380)`, resta a sinistra anche con `side="right"`); centrato sopra il logo film (`top = logoTop - h - gap + 10`) con logo film + badge alto (nastro Netflix, badge centrale rank/extra, o Coming Soon); senza logo film e con nastro: a fianco del nastro (`w + 10`). Se si sovrappone al badge centrale, rimpicciolisce fino a 0.55x |
+| Posizione | default in alto a sinistra (`top = round(18 * STD_H / 570) + 10`, `left = round(18 * STD_W / 380)`, resta a sinistra anche con `side="right"`); centrato sopra il logo film (`top = logoTop - h - gap + 10`) con logo film + badge alto (nastro Netflix, badge centrale rank/extra, o Coming Soon); senza logo film e con nastro: a fianco del nastro (`w + 10`). Solo landscape col logo film: mai sopra il logo (zona bassa) — sempre in alto (a fianco del nastro se occupa l'angolo sinistro, sotto il Coming Soon, altrimenti top-left con shrink vs badge centrale). Se si sovrappone al badge centrale, rimpicciolisce fino a 0.55x |
 | Scala (`netscale`) | Resize bitmap dopo il fetch, prima del fit; `%` 10..200, default 100 |
 | Offset (`nox`/`noy`) | `top += noy`, `left += nox` (px, default 0) dopo il posizionamento automatico |
 | Logo interno | `topLight ? rgba(255,255,255,0.85) : rgba(18,18,22,0.88)` (eccetto Marvel a colori brand) |
@@ -152,6 +152,27 @@ Opt-in portrait-only (`sep=1`, default OFF): sostituisce la media ★ nel badge 
 > altezza/fade solo da stato pristine (preset e tweak manuali sopravvivono);
 > i default personalizzati restano assoluti (niente auto-calibrazione per tipo
 > poster clean vs non-clean).
+>
+> **Sfumatura per formato (Verticale/Orizzontale):** i flat sono il profilo
+> portrait. Il profilo landscape vive in due posti: `landscapeBlur` per-titolo
+> (`PosterEditorContext`, init da `mapping.landscape` > default globali
+> Orizzontale > default di formato) e `ServerDefaults.landscape` per i default
+> globali (tab Impostazioni · Trasforma con sotto-tab Verticale/Orizzontale:
+> sfumatura completa — altezza/intensità/fade/darkness/tinta/ombra — + logo
+> (scala null = auto-fit, offset null = 0) + scale/offset badge; stili e toggle
+> restano condivisi). Risoluzione server:
+> query > mapping(.landscape) > config > defaults(.landscape) > default di
+> formato (`effectiveDefaultsForShape` in `server-defaults.ts`, usato da
+> `poster-config` e `stremio-poster-url`). L'editor segue gli stessi fallback:
+> all'ingresso in landscape senza stash/profilo salvato gli slider badge
+> partono dai default Orizzontale (`EditView`), all'apertura con default
+> Orizzontale idem (`context`), e i cambi ai default a poster aperto si
+> propagano live (solo senza mapping salvato, mai freeze involontario).
+> La preview in landscape usa il profilo, il save per-titolo lo scrive in
+> `mapping.landscape` (solo se toccato o save in landscape, mai freeze
+> involontario al save portrait). Lo stash al cambio formato non copre le
+> chiavi sfumatura. La sezione Trasforma per-titolo è singola e segue il
+> formato in editing (stessa riga preset condivisa).
 
 ## Parametri URL (query string)
 
@@ -175,7 +196,7 @@ Opt-in portrait-only (`sep=1`, default OFF): sostituisce la media ★ nel badge 
 | `qmin` | — (solo default globale, nessun per-titolo in Fase 1) | `q.get("qmin")` > server defaults (`PICTORIUM_QUALITY_MIN`) > `"SD"` — tier sotto soglia = niente badge; emesso negli URL Stremio solo quando ≠ `SD` |
 | `sash` | — (solo default globale via 5 toggle Impostazioni, nessun per-titolo in Fase 4) | `q.get("sash")` > server defaults (`PICTORIUM_SASH_ORDER`) > ordine standard (`upcoming,rank,new,award,extra`) — sottoinsieme ordinato, non listati = spenti, `sash=` vuoto = tutto spento, garbage = default; emesso negli URL Stremio solo quando ≠ default |
 | `pre` | `preRelease ? "1" : null` (solo se ON, default OFF) | `qPre` — effetto pre-digitale: velo scuro (sotto logo e badge, che restano luminosi) + nastro angolare rosso "coming soon!" in alto (a sinistra; a destra con side="right") sui film senza disponibilità digitale/streaming (JW offerte non-CINEMA > TMDB type 4). Catena: query > config token > server defaults (`PICTORIUM_PRE_RELEASE`) > false |
-| `hideLogo` | mai dal client (solo banner Stremio) | solo query `hideLogo=1`: salta il composite logo film (fetch tenuto per i colori accent). In landscape il logo è comunque sempre nascosto (layout senza baked-in per preview, poster e banner); il parametro serve solo per il portrait. Col banner (landscape) il badge genere va in basso a DESTRA (ancoraggio destro, niente shift landscape) e il network segue i rami "senza logo" (top-left / a fianco del nastro) |
+| `hideLogo` | mai dal client (solo banner Stremio) | solo query `hideLogo=1`: salta il composite logo film (fetch tenuto per i colori accent). Vale per entrambi i canvas: il landscape cuoce il logo come il portrait (vincoli 16:9), solo il banner pulito lo nasconde. Col banner (landscape) il badge genere va in basso a DESTRA (ancoraggio destro, niente shift landscape) e il network segue i rami "senza logo" (top-left / a fianco del nastro) |
 | `rd`/`fad` | date complete `release_date`/`first_air_date` (solo se valide `YYYY-MM-DD`) | ramo query: date a piena precisione per rilevamento pre-digitale (fallback `year` → `${y}-01-01`) |
 | `title` | `selected.title \|\| selected.name` (preview) / `mapping?.title` (Stremio) | titolo per il match JustWatch (`preTitle`: mapping > query > session > `genreName`) — senza, la ricerca usa `genreName` e il match per tmdbId fallisce (rilevamento pre-digitale + qualità degradati) |
 
@@ -184,7 +205,7 @@ Opt-in portrait-only (`sep=1`, default OFF): sostituisce la media ★ nel badge 
 | `animerank` | rank anime del titolo selezionato (da `mdblistAnimeList`, solo preview WYSIWYG) | `qAnimeRank` — override del rank anime (`media_type=tv`); senza, il server lo calcola da `fetchMDBList` con la chiave della richiesta o il fallback d'istanza (`PICTORIUM_MDBLIST_KEY`) |
 | `label` | `badge.rankLabel \|\| badge.label` | `qLabel` — override label ranking |
 | `extra` | `badge.label` (se extra) o `customBadge` | `queryExtra` — forza badge extra |
-| `bs` | `badgeStyle` | `qBs` — "shadow"/"pill"/"bar"/"colored"/"bordo"/"vetro"/"minimal" (in landscape forzato a "shadow": solo default per ora) |
+| `bs` | `badgeStyle` | `qBs` — "shadow"/"pill"/"bar"/"colored"/"bordo"/"vetro"/"minimal" (vale per entrambi i formati; il default landscape sceglie lo stile orizzontale) |
 | `rs` | `rankingBadgeStyle` | `qRs` — "default"/"colored"/"pill"/"bordo"/"vetro"/"netflix" ("bar" rimosso: degrada a "default") |
 | `tscale`/`tox`/`toy` | `topBadgeScale`/`topBadgeOffsetX`/`topBadgeOffsetY` (badge superiore) | scala `%` 10..200 (default 100, tutti gli stili) + offset px (default 0, solo centrati) |
 | `gscale` | `genreBadgeScale` (badge genere/rating in basso) | scala `%` 10..200 (default 100 su base 28.6px nativa; la **barra** scala nativa via font per restare full-width) |
@@ -222,6 +243,7 @@ Opt-in portrait-only (`sep=1`, default OFF): sostituisce la media ★ nel badge 
 | Sorgente logo | — | `fetchLogoImg` (`imgSrc(path, "original")`, nitidezza, niente upsampling); se l'originale supera il cap anti-OOM 10MB, fallback `w780` → `w500`. Poster/backdrop restano `w500` |
 | Margine inferiore | `bottomMarginPct: 12` con badge genere, `10` storico senza (mirror in `context.tsx` per i bound slider) | `bottomMarginPct: hasGenreBadge ? 12 : undefined` (default 10) — solleva il logo sopra il badge basso |
 | Calibrazione Y portrait | `topOffset: PORTRAIT_LOGO_TOP_OFFSET (10)` — logo 10px più in basso (mirror in `context.tsx` per i bound slider, `poster-fit-score.ts` per l'auto-fit; landscape escluso: non baked-in) | Stesso offset (ramo portrait, già solo-portrait) |
+| Calibrazione invisibile landscape | slider sempre a 0 (nessun default visibile) | `LANDSCAPE_LOGO_SHIFT_X/Y (+10/-10)` sommati in `poster-service.ts` agli offset risolti (`ox`/`oy` > mapping > default globali), come `PORTRAIT_LOGO_TOP_OFFSET` in portrait |
 
 ## Files coinvolti
 

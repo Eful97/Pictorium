@@ -414,6 +414,7 @@
   "ui.posterShape": "Kształt plakatu",
   "ui.posterShapePortrait": "Pionowy",
   "ui.posterShapeLandscape": "Poziomy",
+  "ui.landscapeDefaultsHint": "Landscape blur overrides: set values that differ from Portrait, or reset to follow it.",
   "ui.tmdb": "TMDB",
   "ui.bestFit": "Najlepsze dopasowanie",
   "ui.bestFitAlt": "Lepsze dopasowanie",

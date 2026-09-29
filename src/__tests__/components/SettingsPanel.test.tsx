@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
-import { fireEvent, screen } from "@testing-library/react"
+import { fireEvent, screen, within } from "@testing-library/react"
 import { SettingsPanel } from "@/components/SettingsPanel"
 import { renderWithCtx } from "@/__tests__/test-utils"
 import { resetGuestGuardForTests } from "@/lib/guest-guard"
@@ -310,6 +310,63 @@ describe("SettingsPanel", () => {
     expect(screen.queryByRole("tab", { name: "ui.settingsTabSpace" })).not.toBeInTheDocument()
     expect(screen.getAllByRole("tab")).toHaveLength(4)
     resetGuestGuardForTests()
+  })
+
+  it("trasforma tab has Portrait/Landscape sub-tabs with separate tuning", async () => {
+    renderWithCtx(
+      <SettingsPanel
+        setSettingsOpen={() => {}}
+        exportData={() => {}}
+        importData={() => {}}
+      />
+    )
+    fireEvent.click(screen.getByRole("tab", { name: "ui.transform" }))
+    const panel = screen.getByRole("tabpanel", { name: "ui.transform" })
+    // Default: sezione Verticale, quella Orizzontale non è nel DOM.
+    expect(within(panel).queryByText("ui.landscapeDefaultsHint")).not.toBeInTheDocument()
+    fireEvent.click(within(panel).getByRole("button", { name: "ui.posterShapeLandscape" }))
+    expect(await within(panel).findByText("ui.landscapeDefaultsHint")).toBeInTheDocument()
+  })
+
+  it("badge tab has split blur toggles for Portrait and Landscape", async () => {
+    renderWithCtx(
+      <SettingsPanel
+        setSettingsOpen={() => {}}
+        exportData={() => {}}
+        importData={() => {}}
+      />
+    )
+    // Due switch Sfocatura: Verticale (flat) e Orizzontale (override, segue il flat).
+    const switches = screen.getAllByRole("switch", { name: "ui.blurSection" })
+    expect(switches).toHaveLength(1)
+    expect(screen.getByRole("switch", { name: "ui.blurSection · ui.posterShapeLandscape" })).toBeInTheDocument()
+  })
+
+  it("landscape logo card follows the Orizzontale override, portrait the flat default", async () => {
+    localStorage.setItem(
+      "badgeDefaults",
+      JSON.stringify({ landscape: { logoScale: 60 }, logoScale: 80 }),
+    )
+    try {
+      renderWithCtx(
+        <SettingsPanel
+          setSettingsOpen={() => {}}
+          exportData={() => {}}
+          importData={() => {}}
+        />
+      )
+      fireEvent.click(screen.getByRole("tab", { name: "ui.transform" }))
+      const panel = screen.getByRole("tabpanel", { name: "ui.transform" })
+      // Verticale: default flat 80%.
+      const portraitSliders = within(panel).getAllByRole("slider", { name: "ui.scale" })
+      expect(portraitSliders.some((s) => s.getAttribute("aria-valuetext") === "80%")).toBe(true)
+      // Orizzontale: override 60%.
+      fireEvent.click(within(panel).getByRole("button", { name: "ui.posterShapeLandscape" }))
+      const landscapeSliders = within(panel).getAllByRole("slider", { name: "ui.scale" })
+      expect(landscapeSliders.some((s) => s.getAttribute("aria-valuetext") === "60%")).toBe(true)
+    } finally {
+      localStorage.removeItem("badgeDefaults")
+    }
   })
 
   it("allows selecting TVDB as episode metadata source in prefs tab", async () => {

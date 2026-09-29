@@ -74,7 +74,8 @@ export interface StremioPosterParamsInput {
   readonly networkLogoOffsetY?: number
   /** Effetto pre-digitale (darken + Coming Soon, solo film). Default OFF. */
   readonly preRelease?: boolean
-  /** Nasconde il logo film dal composite (banner Nuvio: Nuvio lo sovrappone già). Default OFF. */
+  /** Nasconde il logo film dal composite (banner pulito per i client che
+   *  sovrappongono già il logo da catalogo). Default OFF. */
   readonly hideLogo?: boolean
   readonly ribbonSide?: "left" | "right"
   /** Formato canvas: emesso come `shape=landscape` solo quando landscape

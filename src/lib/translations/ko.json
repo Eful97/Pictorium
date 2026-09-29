@@ -409,6 +409,7 @@
   "ui.posterShape": "Poster shape",
   "ui.posterShapePortrait": "Portrait",
   "ui.posterShapeLandscape": "Landscape",
+  "ui.landscapeDefaultsHint": "Landscape blur overrides: set values that differ from Portrait, or reset to follow it.",
   "ui.backdropAvailable": "Available backdrops",
   "ui.backdrops": "배경",
   "ui.testStremioUrl": "Stremio URL 테스트",

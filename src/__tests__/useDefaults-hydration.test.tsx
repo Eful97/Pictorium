@@ -68,6 +68,10 @@ const USER_SAVED = {
   logoAlign: null,
   episodeMetadataSource: "tvdb",
   region: "IT",
+  logoScale: null,
+  logoOffsetX: null,
+  logoOffsetY: null,
+  landscape: {},
 }
 
 function strictWrapper({ children }: { children: ReactNode }) {

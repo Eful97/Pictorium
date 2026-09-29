@@ -9,9 +9,10 @@ vi.mock("@/lib/store", () => ({
   getById: vi.fn(),
 }))
 
-vi.mock("@/lib/server-defaults", () => ({
-  getServerDefaults: vi.fn(() => ({})),
-}))
+vi.mock("@/lib/server-defaults", async (importOriginal) => {
+  const mod = await importOriginal<typeof import("@/lib/server-defaults")>()
+  return { ...mod, getServerDefaults: vi.fn(() => ({})) }
+})
 
 const mockedGetById = vi.mocked(getById)
 

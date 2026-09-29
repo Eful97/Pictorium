@@ -99,12 +99,15 @@ chiave d'istanza condivisa) resta valida per quel caso.
 ## Caching & risposte
 
 - Campi immagine per item: `poster` = rendering Pictorium (formato da
-  mapping/defaults), `banner` = SEMPRE rendering Pictorium in canvas landscape
-  (`forceShape` in `stremio-poster-url.ts`, profilo landscape del mapping),
-  `background` = backdrop TMDB grezzo per l'hero dettaglio. Nuvio in modalità
-  orizzontale carica `banner` (non `poster`): non far mai puntare `banner` al
-  backdrop grezzo o i poster Pictorium spariscono in quella modalità.
-  Gli altri client ignorano `banner` (fuori spec Stremio).
+  mapping/defaults, col logo baked-in anche in landscape), `landscapePoster` =
+  rendering Pictorium in canvas 16:9 con logo — SOLO per i titoli landscape
+  (NuvioTV lo legge e NON deve ricevere il `logo` separato, altrimenti lo
+  sovrappone al nostro: per quei titoli `logo` è omesso in catalogo e /meta),
+  `banner` = SEMPRE rendering Pictorium in canvas landscape SENZA logo
+  (`forceShape` + `hideLogo` in `stremio-poster-url.ts`, profilo landscape del
+  mapping) per i client che leggono `banner`, `background` = backdrop TMDB
+  grezzo per l'hero dettaglio. I titoli portrait non emettono `landscapePoster`
+  e mantengono il `logo` separato (comportamento invariato).
 
 - Cache catalogo (`cacheSet`/`cacheGet` in `lib/cache.ts`): key include tipo,
   `catalogId`, `POSTER_URL_VERSION`, hash `config` e hash `mdblist_key`.

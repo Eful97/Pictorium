@@ -607,12 +607,12 @@ test.describe("poster API — visual regression", () => {
     await expect(poster).toHaveScreenshot("poster-landscape-rank.png", { maxDiffPixelRatio: 0.10 })
   })
 
-  test("landscape omits baked-in logo, genre badge bottom-right - screenshot", async ({ page }) => {
-    // Layout landscape senza baked-in (preview, poster e banner): niente logo
-    // film anche se passato via query, badge genere a destra.
+  test("landscape bakes the logo, genre badge bottom-right - screenshot", async ({ page }) => {
+    // Layout landscape con logo baked-in (coi vincoli 16:9) e badge genere
+    // a destra: il logo passato via query finisce nel composite.
     const url = posterUrl({ backdrop: "/mocked/backdrop.jpg", logo: "/mocked/logo.png", shape: "landscape", genreName: "Action", voteAverage: "7.8", badges: "1", ranking: "0" })
     const poster = await renderPoster(page, url)
-    await expect(poster).toHaveScreenshot("poster-landscape-nologo.png", { maxDiffPixelRatio: 0.10 })
+    await expect(poster).toHaveScreenshot("poster-landscape-logo.png", { maxDiffPixelRatio: 0.10 })
   })
 
   test("separate ratings column (3 providers) — screenshot", async ({ page }) => {

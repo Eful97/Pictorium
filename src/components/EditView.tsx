@@ -10,7 +10,7 @@ import { useT } from "@/lib/contexts/TranslationContext"
 import { usePosterEditor } from "@/lib/contexts/PosterEditorContext"
 import type { TMDBImage } from "@/lib/types"
 import { effectiveMappingForShape, type LandscapeSettings } from "@/lib/types"
-import { isGradientDirty } from "@/lib/gradient-dirty"
+import { isGradientDirty, isArtworkDirty } from "@/lib/gradient-dirty"
 import { PosterOptions } from "@/components/PosterOptions"
 import { BackdropOptions } from "@/components/BackdropOptions"
 import { LogoOptions } from "@/components/LogoOptions"
@@ -150,6 +150,21 @@ export default function EditView() {
     ed.defaultPosterShape,
   ), [ed, selectedMapping])
 
+  // Il modale mostra lo stato SALVATO: anche poster/sfondo/formato/logo non
+  // ancora salvati divergono dalla preview (Best Fit orizzontale scelto ma
+  // non salvato → Stremio mostra ancora il primo TMDB).
+  const artworkDirty = useMemo(() => isArtworkDirty(
+    {
+      posterPath: previewPoster?.file_path ?? null,
+      backdropPath: ed.selectedBackdrop?.file_path ?? null,
+      posterShape: ed.posterShape,
+      logoPath: selectedLogo?.file_path ?? null,
+      logoDisabled: ed.logoDisabled,
+    },
+    selectedMapping ?? null,
+    ed.defaultPosterShape,
+  ), [previewPoster?.file_path, ed.selectedBackdrop?.file_path, ed.posterShape, selectedLogo?.file_path, ed.logoDisabled, selectedMapping, ed.defaultPosterShape])
+
   const handleSave = useCallback(async () => {
     await saveConfig()
     // Feedback tangibile sull'artefatto (non solo toast): anello smeraldo +
@@ -206,35 +221,38 @@ export default function EditView() {
       genreBadgeScale: ed.genreBadgeScale, genreBadgeOffsetX: ed.genreBadgeOffsetX, genreBadgeOffsetY: ed.genreBadgeOffsetY,
       qualityBadgeScale: ed.qualityBadgeScale, qualityBadgeOffsetX: ed.qualityBadgeOffsetX, qualityBadgeOffsetY: ed.qualityBadgeOffsetY,
       networkLogoScale: ed.networkLogoScale, networkLogoOffsetX: ed.networkLogoOffsetX, networkLogoOffsetY: ed.networkLogoOffsetY,
-      gradientHeight: ed.gradientHeight, blurEnabled: ed.blurEnabled,
-      blurIntensity: ed.blurIntensity, blurFade: ed.blurFade, blurDarkness: ed.blurDarkness,
+      // Sfumatura ESCLUSA: ha profili dedicati per formato (flat = portrait,
+      // landscapeBlur = landscape) e non passa più dallo stash.
     }
     if (next === "poster") removeBackdrop()
     ed.setPosterShape(next)
     ed.setLogoAlign(next === "landscape" ? (ed.defaultLogoAlign ?? "left") : "center")
+    // Fallback a tre livelli: stash non salvato > profilo salvato > default
+    // globali Orizzontale (solo in landscape: senza, il primo ingresso in
+    // landscape mostrerebbe i valori portrait invece dei default Orizzontale).
+    // La calibrazione +10/-10 vive nel renderer (invisibile, slider a 0).
+    // La sfumatura è esclusa (profili dedicati flat/landscapeBlur).
+    const landFallback: Partial<LandscapeSettings> | null = next === "landscape" ? (ed.landscape ?? null) : null
     const src = shapeStashRef.current[next]
       ?? (selectedMapping ? effectiveMappingForShape(selectedMapping, next) : null)
+      ?? landFallback
     if (src) {
       ed.setLogoScale(src.logoScale ?? ed.logoScale)
-      ed.setLogoOffsetX(src.logoOffsetX ?? ed.logoOffsetX)
-      ed.setLogoOffsetY(src.logoOffsetY ?? ed.logoOffsetY)
-      ed.setTopBadgeScale(src.topBadgeScale ?? ed.topBadgeScale)
-      ed.setTopBadgeOffsetX(src.topBadgeOffsetX ?? ed.topBadgeOffsetX)
-      ed.setTopBadgeOffsetY(src.topBadgeOffsetY ?? ed.topBadgeOffsetY)
-      ed.setGenreBadgeScale(src.genreBadgeScale ?? ed.genreBadgeScale)
-      ed.setGenreBadgeOffsetX(src.genreBadgeOffsetX ?? ed.genreBadgeOffsetX)
-      ed.setGenreBadgeOffsetY(src.genreBadgeOffsetY ?? ed.genreBadgeOffsetY)
-      ed.setQualityBadgeScale(src.qualityBadgeScale ?? ed.qualityBadgeScale)
-      ed.setQualityBadgeOffsetX(src.qualityBadgeOffsetX ?? ed.qualityBadgeOffsetX)
-      ed.setQualityBadgeOffsetY(src.qualityBadgeOffsetY ?? ed.qualityBadgeOffsetY)
-      ed.setNetworkLogoScale(src.networkLogoScale ?? ed.networkLogoScale)
-      ed.setNetworkLogoOffsetX(src.networkLogoOffsetX ?? ed.networkLogoOffsetX)
-      ed.setNetworkLogoOffsetY(src.networkLogoOffsetY ?? ed.networkLogoOffsetY)
-      ed.setGradientHeight(src.gradientHeight ?? ed.gradientHeight)
-      ed.setBlurEnabled(src.blurEnabled ?? ed.blurEnabled)
-      ed.setBlurIntensity(src.blurIntensity ?? ed.blurIntensity)
-      ed.setBlurFade(src.blurFade ?? ed.blurFade)
-      ed.setBlurDarkness(src.blurDarkness ?? ed.blurDarkness)
+      ed.setLogoOffsetX(src.logoOffsetX ?? landFallback?.logoOffsetX ?? ed.logoOffsetX)
+      ed.setLogoOffsetY(src.logoOffsetY ?? landFallback?.logoOffsetY ?? ed.logoOffsetY)
+      ed.setTopBadgeScale(src.topBadgeScale ?? landFallback?.topBadgeScale ?? ed.topBadgeScale)
+      ed.setTopBadgeOffsetX(src.topBadgeOffsetX ?? landFallback?.topBadgeOffsetX ?? ed.topBadgeOffsetX)
+      ed.setTopBadgeOffsetY(src.topBadgeOffsetY ?? landFallback?.topBadgeOffsetY ?? ed.topBadgeOffsetY)
+      ed.setGenreBadgeScale(src.genreBadgeScale ?? landFallback?.genreBadgeScale ?? ed.genreBadgeScale)
+      ed.setGenreBadgeOffsetX(src.genreBadgeOffsetX ?? landFallback?.genreBadgeOffsetX ?? ed.genreBadgeOffsetX)
+      ed.setGenreBadgeOffsetY(src.genreBadgeOffsetY ?? landFallback?.genreBadgeOffsetY ?? ed.genreBadgeOffsetY)
+      ed.setQualityBadgeScale(src.qualityBadgeScale ?? landFallback?.qualityBadgeScale ?? ed.qualityBadgeScale)
+      ed.setQualityBadgeOffsetX(src.qualityBadgeOffsetX ?? landFallback?.qualityBadgeOffsetX ?? ed.qualityBadgeOffsetX)
+      ed.setQualityBadgeOffsetY(src.qualityBadgeOffsetY ?? landFallback?.qualityBadgeOffsetY ?? ed.qualityBadgeOffsetY)
+      ed.setNetworkLogoScale(src.networkLogoScale ?? landFallback?.networkLogoScale ?? ed.networkLogoScale)
+      ed.setNetworkLogoOffsetX(src.networkLogoOffsetX ?? landFallback?.networkLogoOffsetX ?? ed.networkLogoOffsetX)
+      ed.setNetworkLogoOffsetY(src.networkLogoOffsetY ?? landFallback?.networkLogoOffsetY ?? ed.networkLogoOffsetY)
+      // Sfumatura esclusa dallo stash (profili dedicati per formato).
     }
   }, [ed, removeBackdrop, selectedMapping, selectedMappingKey])
 
@@ -719,7 +737,7 @@ export default function EditView() {
               {/* eslint-disable-next-line @next/next/no-img-element -- poster reale renderizzato dal server */}
               <img src={stremioPreviewUrl} alt="Stremio" className="w-full" />
             </div>
-            {gradientDirty && (
+            {(gradientDirty || artworkDirty) && (
               <div className="mt-3 flex items-center gap-2 rounded-xl border border-amber-400/30 bg-amber-400/10 px-3 py-2 text-xs text-amber-200">
                 <AlertTriangle className="h-4 w-4 shrink-0" />
                 <span className="flex-1">{t("ui.unsavedChanges")}</span>

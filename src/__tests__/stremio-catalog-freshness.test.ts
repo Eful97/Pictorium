@@ -11,9 +11,10 @@ vi.mock("@/lib/store", () => ({
   getById: vi.fn(),
 }))
 
-vi.mock("@/lib/server-defaults", () => ({
-  getServerDefaults: vi.fn(() => ({})),
-}))
+vi.mock("@/lib/server-defaults", async (importOriginal) => {
+  const mod = await importOriginal<typeof import("@/lib/server-defaults")>()
+  return { ...mod, getServerDefaults: vi.fn(() => ({})) }
+})
 
 // Epoch controllabile: simula il bump visto da UN'ALTRA istanza serverless.
 let epoch = "e1"

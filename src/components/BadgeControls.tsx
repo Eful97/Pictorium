@@ -394,7 +394,6 @@ export function BadgeControls() {
         <BadgeStyleSelector
           value={ed.badgeStyle}
           options={["shadow", "pill", "bar", "colored", "bordo", "vetro", "minimal"]}
-          disabled={ed.posterShape === "landscape" ? ["pill", "bar", "colored", "bordo", "vetro", "minimal"] : undefined}
           onChange={ed.setBadgeStyle}
           t={t}
           accentColor={accentColor}

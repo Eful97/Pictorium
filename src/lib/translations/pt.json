@@ -409,6 +409,7 @@
   "ui.posterShape": "Poster shape",
   "ui.posterShapePortrait": "Portrait",
   "ui.posterShapeLandscape": "Landscape",
+  "ui.landscapeDefaultsHint": "Landscape blur overrides: set values that differ from Portrait, or reset to follow it.",
   "ui.backdropAvailable": "Available backdrops",
   "ui.backdrops": "Fundos",
   "ui.testStremioUrl": "Testar URL do Stremio",

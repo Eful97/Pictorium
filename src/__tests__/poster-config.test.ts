@@ -78,7 +78,7 @@ describe("resolvePosterRenderConfig", () => {
     expect(r.badgeStyle).toBe("pill")
   })
 
-  it("landscape forces shadow even when query, mapping, config and defaults disagree", () => {
+  it("landscape honors the style chain like portrait (no shadow force)", () => {
     const r = resolvePosterRenderConfig(baseInput({
       searchParams: new URLSearchParams({ bs: "pill", shape: "landscape" }),
       mapping: mapping({ posterShape: "landscape", badgeStyle: "colored" }),
@@ -86,7 +86,7 @@ describe("resolvePosterRenderConfig", () => {
       sd: { badgeStyle: "bordo" },
     }))
     expect(r.posterShape).toBe("landscape")
-    expect(r.badgeStyle).toBe("shadow")
+    expect(r.badgeStyle).toBe("pill")
   })
 
   it("query rs beats mapping, config token and server defaults", () => {

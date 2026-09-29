@@ -10,9 +10,10 @@ vi.mock("@/lib/store", () => ({
   getById: vi.fn(),
 }))
 
-vi.mock("@/lib/server-defaults", () => ({
-  getServerDefaults: vi.fn(() => ({})),
-}))
+vi.mock("@/lib/server-defaults", async (importOriginal) => {
+  const mod = await importOriginal<typeof import("@/lib/server-defaults")>()
+  return { ...mod, getServerDefaults: vi.fn(() => ({})) }
+})
 
 // Epoch controllabile: simula il bump su save senza scrivere su disco.
 // Senza freshness nella meta key (H7), il cambio epoch non invaliderebbe.
@@ -557,5 +558,57 @@ describe("GET /meta/[type]/[id]", () => {
     expect(detailsCall?.[0]).toContain("language=he-IL")
     const imagesCall = fetchSpy.mock.calls.find((call) => typeof call[0] === "string" && call[0].includes("/images"))
     expect(imagesCall?.[0]).toContain("include_image_language=he%2Cen%2Cnull")
+  })
+
+  it("omits the separate logo and serves landscapePoster for landscape titles", async () => {
+    // Come nei cataloghi: il logo è già baked-in nel landscapePoster, Nuvio
+    // non deve riceverne uno separato da sovrapporre (nemmeno via
+    // arricchimento card dal dettaglio).
+    mockedGetById.mockResolvedValue({
+      tmdbId: 550,
+      mediaType: "movie",
+      title: "Fight Club",
+      posterPath: "/fight-club.jpg",
+      logoPath: "/fight-club-logo.png",
+      originalPosterPath: null,
+      language: null,
+      posterShape: "landscape",
+      updatedAt: "2026-07-16T10:15:30.000Z",
+    })
+    vi.spyOn(globalThis, "fetch")
+      // /find/tt0137523
+      .mockResolvedValueOnce(Response.json({
+        movie_results: [{ id: 550, title: "Fight Club" }],
+      }))
+      // /movie/550 details
+      .mockResolvedValueOnce(Response.json({
+        id: 550,
+        title: "Fight Club",
+        overview: "Un impiegato insonne...",
+        release_date: "1999-10-15",
+        genres: [{ id: 18, name: "Dramma" }],
+        backdrop_path: "/backdrop.jpg",
+        external_ids: { imdb_id: "tt0137523" },
+      }))
+      // /movie/550/images for logo
+      .mockResolvedValueOnce(Response.json({
+        id: 550,
+        logos: [{ file_path: "/fight-club-logo.png", iso_639_1: "it" }],
+      }))
+
+    const req = new NextRequest("http://localhost:3000/meta/movie/tt0137523.json?api_key=settings-key")
+    const res = await GET(req, {
+      params: Promise.resolve({ type: "movie", id: "tt0137523.json" }),
+    })
+    const body = await res.json()
+
+    expect(res.status).toBe(200)
+    expect(body.meta.posterShape).toBe("landscape")
+    expect(body.meta.poster).toContain("shape=landscape")
+    expect(body.meta.poster).not.toContain("hideLogo")
+    expect(body.meta.landscapePoster).toContain("/api/poster/movie/550")
+    expect(body.meta.landscapePoster).toContain("shape=landscape")
+    expect(body.meta.landscapePoster).not.toContain("hideLogo")
+    expect(body.meta.logo).toBeUndefined()
   })
 })

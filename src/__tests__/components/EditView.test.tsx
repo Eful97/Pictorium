@@ -124,6 +124,30 @@ describe("EditView", () => {
     }
   })
 
+  it("applies global Orizzontale badge defaults when switching to landscape without a saved profile", async () => {
+    // Regressione: gli slider badge dell'editor ignoravano i default
+    // Orizzontale (mostravano i valori portrait) al primo ingresso in
+    // landscape senza stash né mapping salvato.
+    localStorage.setItem("badgeDefaults", JSON.stringify({ landscape: { topBadgeScale: 150 } }))
+    try {
+      const u = userEvent.setup()
+      renderWithCtx(
+        <EditView />,
+        {
+          selected: mockSelected,
+          posters: [{ file_path: "/p1.jpg", iso_639_1: null, vote_average: 0, width: 1000, height: 1500 }],
+          previewPoster: { file_path: "/p1.jpg", iso_639_1: null, vote_average: 0, width: 1000, height: 1500 },
+        }
+      )
+      await u.click(screen.getByRole("tab", { name: "ui.transform" }))
+      await u.click(screen.getByRole("button", { name: "ui.posterShapeLandscape" }))
+      const scales = screen.getAllByRole("slider", { name: "ui.scale" })
+      expect(scales.some((s) => s.getAttribute("aria-valuetext") === "150%")).toBe(true)
+    } finally {
+      localStorage.removeItem("badgeDefaults")
+    }
+  })
+
   it("displays backdrops label and count in mobile switcher when shape is landscape", async () => {
     const u = userEvent.setup()
     const { container } = renderWithCtx(

@@ -120,6 +120,60 @@ describe("poster editor current/default split", () => {
     expect((putBodies[0] as { badgeGenre: boolean }).badgeGenre).toBe(true)
   })
 
+  it("saveDefaults persists the Orizzontale profile without touching the open poster", async () => {
+    const { result } = renderHook(() => usePosterEditor(), { wrapper })
+    // Flush del fetch di mount (GET /api/defaults) prima di agire.
+    await act(async () => {})
+    act(() => {
+      result.current.setLandscape({ topBadgeScale: 150, blurFade: 70 })
+    })
+    expect(result.current.landscape.topBadgeScale).toBe(150)
+    // I flat restano invariati (profili separati).
+    expect(result.current.defaultTopBadgeScale).toBe(100)
+
+    let synced = false
+    await act(async () => {
+      synced = await saveDefaults(result.current)
+    })
+    expect(synced).toBe(true)
+    expect(putBodies).toHaveLength(1)
+    expect((putBodies[0] as { landscape: unknown }).landscape).toMatchObject({
+      topBadgeScale: 150,
+      blurFade: 70,
+    })
+  })
+
+  it("logo default setters write the default only, persist via saveDefaults", async () => {
+    const { result } = renderHook(() => usePosterEditor(), { wrapper })
+    // Flush del fetch di mount (GET /api/defaults) prima di agire.
+    await act(async () => {})
+    // Null = auto-fit storico: nessun default impostato.
+    expect(result.current.defaultLogoScale).toBeNull()
+
+    act(() => {
+      result.current.setDefaultLogoScale(80)
+      result.current.setDefaultLogoOffsetX(10)
+      result.current.setLandscape({ logoScale: 60 })
+    })
+    expect(result.current.defaultLogoScale).toBe(80)
+    expect(result.current.defaultLogoOffsetX).toBe(10)
+    expect(result.current.landscape.logoScale).toBe(60)
+    // I flat restano invariati.
+    expect(result.current.defaultTopBadgeScale).toBe(100)
+
+    let synced = false
+    await act(async () => {
+      synced = await saveDefaults(result.current)
+    })
+    expect(synced).toBe(true)
+    expect(putBodies).toHaveLength(1)
+    expect(putBodies[0] as Record<string, unknown>).toMatchObject({
+      logoScale: 80,
+      logoOffsetX: 10,
+      landscape: { logoScale: 60 },
+    })
+  })
+
   it("setPosterShape syncs logoAlign to format default", () => {
     const { result } = renderHook(() => usePosterEditor(), { wrapper })
     expect(result.current.posterShape).toBe("poster")

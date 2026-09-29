@@ -2,6 +2,7 @@ import { buildPosterPublicUrl } from "@/lib/poster-public-url"
 import { buildStremioPosterSearchParams } from "@/lib/stremio-poster-params"
 import { isRankKey } from "@/lib/i18n"
 import type { ServerDefaults } from "@/lib/server-defaults"
+import { effectiveDefaultsForShape } from "@/lib/server-defaults"
 import { effectiveMappingForShape, type Mapping, type PosterShape } from "@/lib/types"
 import { NON_CLEAN_GRADIENT_HEIGHT, NON_CLEAN_BLUR_FADE } from "@/lib/gradient-defaults"
 
@@ -22,16 +23,15 @@ export interface BuildStremioPosterUrlInput {
   readonly region?: string | null
   /**
    * Forza il formato canvas dell'URL (default: mapping > defaults).
-   * Usato dal catalogo per il `banner` Nuvio: sempre landscape renderizzato,
-   * indipendente dal posterShape del titolo — la modalità orizzontale di
-   * Nuvio carica `banner` (non `poster`), così mostra comunque il rendering
-   * Pictorium invece del backdrop TMDB grezzo.
+   * Usato dal catalogo per i campi landscape: `banner` (sempre pulito, con
+   * `hideLogo`) per i client che lo leggono e `landscapePoster` (con logo
+   * baked-in) per NuvioTV — entrambi indipendenti dal posterShape del titolo.
    */
   readonly forceShape?: PosterShape
   /**
-   * Nasconde il logo film dal composite. Usato dal banner Nuvio insieme a
-   * forceShape (vedi sopra): senza, il baked-in duplicherebbe l'overlay logo
-   * che Nuvio applica da catalogo.
+   * Nasconde il logo film dal composite. Usato solo col banner pulito
+   * (insieme a forceShape, vedi sopra): senza, il baked-in duplicherebbe
+   * l'overlay logo che quei client applicano da catalogo.
    */
   readonly hideLogo?: boolean
 }
@@ -54,6 +54,9 @@ export function buildStremioPosterUrl(input: BuildStremioPosterUrlInput): URL {
   // resta quello del mapping salvato (fallback flat chiave-per-chiave).
   const effShape: PosterShape = input.forceShape ?? (mapping?.posterShape === "landscape" ? "landscape" : "poster")
   const eff = effectiveMappingForShape(mapping, effShape)
+  // Default di resa per formato: in landscape il profilo `landscape` vince sui
+  // flat chiave-per-chiave (chiavi fuori dal subset restano flat per tipo).
+  const sd = effectiveDefaultsForShape(input.defaults, effShape)
   // Custom badge testuale salvato per-titolo: emesso come `extra` (il server
   // risolve le label prefissate __badge.* con la lingua della richiesta).
   // Le rank-key (__badge.today/anime/movie/series e label equivalenti) sono
@@ -68,7 +71,7 @@ export function buildStremioPosterUrl(input: BuildStremioPosterUrlInput): URL {
     config: input.config,
     animerank: input.animerank,
     user: input.user,
-    region: input.region ?? input.defaults.region,
+    region: input.region ?? sd.region,
     lang: input.lang || "it",
     // URL compatti senza token stateless: il tuning numerico si risolve
     // server-side (mapping > defaults dello spazio). Con `config` resta
@@ -81,65 +84,65 @@ export function buildStremioPosterUrl(input: BuildStremioPosterUrlInput): URL {
     // configOverride.globalBadges vince su mapping.showBadges). Il server
     // applica query > mapping > config > defaults, quindi l'esplicito è
     // sempre fedele al mapping senza alterare i titoli senza mapping.
-    globalBadges: mapping?.showBadges ?? input.defaults.globalBadges,
-    rankingBadges: mapping?.rankingBadges ?? input.defaults.rankingBadges,
-    badgeGenre: input.mapping?.badgeGenre ?? input.defaults.badgeGenre,
-    badgeYear: input.mapping?.badgeYear ?? input.defaults.badgeYear,
-    badgeRating: input.mapping?.badgeRating ?? input.defaults.badgeRating,
-    badgeQuality: input.mapping?.badgeQuality ?? input.defaults.badgeQuality,
-    minQuality: input.defaults.minQuality ?? undefined,
-    customRatings: mapping?.customRatings ?? input.defaults.customRatings,
-    ratingSources: mapping?.ratingSources ?? input.defaults.ratingSources,
-    separateRatings: mapping?.separateRatings ?? input.defaults.separateRatings ?? undefined,
-    sashOrder: input.defaults.sashOrder ?? undefined,
-    badgeStyle: mapping?.badgeStyle ?? input.defaults.badgeStyle,
-    rankingBadgeStyle: mapping?.rankingBadgeStyle ?? input.defaults.rankingBadgeStyle,
-    qualityBadgeStyle: mapping?.qualityBadgeStyle ?? input.defaults.qualityBadgeStyle,
-    videoFormats: mapping?.videoFormats ?? input.defaults.videoFormats,
-    topBadgeScale: eff?.topBadgeScale ?? input.defaults.topBadgeScale,
-    topBadgeOffsetX: eff?.topBadgeOffsetX ?? input.defaults.topBadgeOffsetX,
-    topBadgeOffsetY: eff?.topBadgeOffsetY ?? input.defaults.topBadgeOffsetY,
-    genreBadgeScale: eff?.genreBadgeScale ?? input.defaults.genreBadgeScale,
-    qualityBadgeScale: eff?.qualityBadgeScale ?? input.defaults.qualityBadgeScale,
-    genreBadgeOffsetX: eff?.genreBadgeOffsetX ?? input.defaults.genreBadgeOffsetX,
-    genreBadgeOffsetY: eff?.genreBadgeOffsetY ?? input.defaults.genreBadgeOffsetY,
-    qualityBadgeOffsetX: eff?.qualityBadgeOffsetX ?? input.defaults.qualityBadgeOffsetX,
-    qualityBadgeOffsetY: eff?.qualityBadgeOffsetY ?? input.defaults.qualityBadgeOffsetY,
-    networkLogoScale: eff?.networkLogoScale ?? input.defaults.networkLogoScale,
-    networkLogoOffsetX: eff?.networkLogoOffsetX ?? input.defaults.networkLogoOffsetX,
-    networkLogoOffsetY: eff?.networkLogoOffsetY ?? input.defaults.networkLogoOffsetY,
-    gradientHeight: eff?.gradientHeight ?? (mapping?.language != null ? NON_CLEAN_GRADIENT_HEIGHT : input.defaults.gradientHeight),
-    blurIntensity: eff?.blurIntensity ?? input.defaults.blurIntensity,
+    globalBadges: mapping?.showBadges ?? sd.globalBadges,
+    rankingBadges: mapping?.rankingBadges ?? sd.rankingBadges,
+    badgeGenre: input.mapping?.badgeGenre ?? sd.badgeGenre,
+    badgeYear: input.mapping?.badgeYear ?? sd.badgeYear,
+    badgeRating: input.mapping?.badgeRating ?? sd.badgeRating,
+    badgeQuality: input.mapping?.badgeQuality ?? sd.badgeQuality,
+    minQuality: sd.minQuality ?? undefined,
+    customRatings: mapping?.customRatings ?? sd.customRatings,
+    ratingSources: mapping?.ratingSources ?? sd.ratingSources,
+    separateRatings: mapping?.separateRatings ?? sd.separateRatings ?? undefined,
+    sashOrder: sd.sashOrder ?? undefined,
+    badgeStyle: mapping?.badgeStyle ?? sd.badgeStyle,
+    rankingBadgeStyle: mapping?.rankingBadgeStyle ?? sd.rankingBadgeStyle,
+    qualityBadgeStyle: mapping?.qualityBadgeStyle ?? sd.qualityBadgeStyle,
+    videoFormats: mapping?.videoFormats ?? sd.videoFormats,
+    topBadgeScale: eff?.topBadgeScale ?? sd.topBadgeScale,
+    topBadgeOffsetX: eff?.topBadgeOffsetX ?? sd.topBadgeOffsetX,
+    topBadgeOffsetY: eff?.topBadgeOffsetY ?? sd.topBadgeOffsetY,
+    genreBadgeScale: eff?.genreBadgeScale ?? sd.genreBadgeScale,
+    qualityBadgeScale: eff?.qualityBadgeScale ?? sd.qualityBadgeScale,
+    genreBadgeOffsetX: eff?.genreBadgeOffsetX ?? sd.genreBadgeOffsetX,
+    genreBadgeOffsetY: eff?.genreBadgeOffsetY ?? sd.genreBadgeOffsetY,
+    qualityBadgeOffsetX: eff?.qualityBadgeOffsetX ?? sd.qualityBadgeOffsetX,
+    qualityBadgeOffsetY: eff?.qualityBadgeOffsetY ?? sd.qualityBadgeOffsetY,
+    networkLogoScale: eff?.networkLogoScale ?? sd.networkLogoScale,
+    networkLogoOffsetX: eff?.networkLogoOffsetX ?? sd.networkLogoOffsetX,
+    networkLogoOffsetY: eff?.networkLogoOffsetY ?? sd.networkLogoOffsetY,
+    gradientHeight: eff?.gradientHeight ?? (mapping?.language != null ? NON_CLEAN_GRADIENT_HEIGHT : sd.gradientHeight),
+    blurIntensity: eff?.blurIntensity ?? sd.blurIntensity,
     // Default sfumatura dedicato al formato (come logoAlign): in landscape
     // serve una transizione più lunga; il portrait resta sul default globale.
     // Mapping non-clean senza valori congelati: 20/80 per tipo poster (come
     // l'editor all'apertura) invece dei default globali.
-    blurFade: eff?.blurFade ?? ((input.forceShape ?? mapping?.posterShape ?? input.defaults.posterShape) === "landscape" ? 70 : (mapping?.language != null ? NON_CLEAN_BLUR_FADE : input.defaults.blurFade)),
-    blurDarkness: eff?.blurDarkness ?? input.defaults.blurDarkness,
-    blurEnabled: eff?.blurEnabled ?? input.defaults.blurEnabled,
-    tintStrength: eff?.tintStrength ?? input.defaults.tintStrength,
+    blurFade: eff?.blurFade ?? ((input.forceShape ?? mapping?.posterShape ?? sd.posterShape) === "landscape" ? 70 : (mapping?.language != null ? NON_CLEAN_BLUR_FADE : sd.blurFade)),
+    blurDarkness: eff?.blurDarkness ?? sd.blurDarkness,
+    blurEnabled: eff?.blurEnabled ?? sd.blurEnabled,
+    tintStrength: eff?.tintStrength ?? sd.tintStrength,
     // Ombra superiore: per-titolo, poi default globale, poi 50 (default di
     // formato invariato). Assente negli URL legacy = default del server.
-    topShade: mapping?.topShade ?? input.defaults.topShade ?? 50,
+    topShade: mapping?.topShade ?? sd.topShade ?? 50,
     customBadge,
     badgePresetId: mapping?.badgePresetId,
     badgePresetRev: mapping?.badgePresetRev,
     title: mapping?.title ?? undefined,
-    networkLogo: (input.defaults.networkLogo !== false) && (mapping?.networkLogo !== false),
-    preRelease: input.defaults.preRelease,
+    networkLogo: (sd.networkLogo !== false) && (mapping?.networkLogo !== false),
+    preRelease: sd.preRelease,
     // hideLogo viaggia solo sul banner (il chiamante lo imposta insieme a
     // forceShape): poster/preview/Stremio non lo vedono mai.
     hideLogo: input.hideLogo,
     // ribbonSide solo globale: i mapping storici con valore salvato lo ignorano.
-    ribbonSide: input.defaults.ribbonSide,
+    ribbonSide: sd.ribbonSide,
     // Formato canvas: per-titolo vince sul default globale (come gli altri
     // parametri espliciti). Emesso solo quando landscape (vedi params).
     // forceShape (banner Nuvio) scavalca entrambi.
-    posterShape: input.forceShape ?? mapping?.posterShape ?? input.defaults.posterShape,
+    posterShape: input.forceShape ?? mapping?.posterShape ?? sd.posterShape,
     // Allineamento: solo globale (il mapping non ha il campo) e solo
     // landscape — i portrait non portano mai `align` (sempre centrati).
-    logoAlign: (input.forceShape ?? mapping?.posterShape ?? input.defaults.posterShape) === "landscape"
-      ? input.defaults.logoAlign
+    logoAlign: (input.forceShape ?? mapping?.posterShape ?? sd.posterShape) === "landscape"
+      ? sd.logoAlign
       : undefined,
   })
 

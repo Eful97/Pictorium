@@ -62,6 +62,9 @@ interface StremioMeta {
   poster: string | null
   background?: string
   banner?: string
+  /** Render landscape con logo baked-in (solo titoli landscape): NuvioTV lo
+   *  legge, il `banner` (pulito) resta per gli altri client. Assente = portrait. */
+  landscapePoster?: string
   logo?: string
   releaseInfo?: string
   imdbRating?: string
@@ -259,14 +262,16 @@ export function resolveCatalogRegionWithDefaults(
 // DB Stremio/log/proxy). Il poster risolve il rank via `animerank` incorporato
 // o fallback d'istanza/mapping.
 /**
- * Poster URL + banner landscape + formato canvas di un item in un'unica
- * risoluzione mapping: UN solo getById per item (il lookup è cachato, ma la
- * doppia chiamata raddoppiava comunque il lavoro per ogni riga del catalogo).
+ * Poster URL + banner landscape + landscapePoster NuvioTV + formato canvas di
+ * un item in un'unica risoluzione mapping: UN solo getById per item (il
+ * lookup è cachato, ma la doppia chiamata raddoppiava comunque il lavoro per
+ * ogni riga del catalogo).
  *
- * Il `banner` è lo stesso rendering Pictorium in canvas landscape 16:9
- * (indipendente dal posterShape del titolo): Nuvio in modalità orizzontale
- * carica `banner` (HomePosterCard: `banner ?: poster`), non `poster` — senza
- * questo campo i poster Pictorium spariscono e restano i backdrop TMDB grezzi.
+ * Il `banner` è lo stesso rendering Pictorium in canvas landscape 16:9 SENZA
+ * logo baked-in (profilo landscape del mapping): resta per i client che lo
+ * leggono. NuvioTV invece ignora `banner` e legge `landscapePoster`: per i
+ * titoli landscape è lo stesso canvas MA con logo baked-in (immagine
+ * intoccabile, Nuvio non deve sovrapporre nulla) — emesso solo in quel caso.
  * `background` resta il backdrop grezzo per l'hero della pagina dettaglio.
  */
 async function pictoriumPosterAndShape(
@@ -278,7 +283,7 @@ async function pictoriumPosterAndShape(
   animeRankParam?: number | null,
   posterLang = "it",
   posterRegion?: string | null,
-): Promise<{ poster: string; banner: string; posterShape: PosterShape }> {
+): Promise<{ poster: string; banner: string; landscapePoster?: string; posterShape: PosterShape }> {
   const scopedUser = getScopedUserId(userParam)
   const serverDefaults = scopedUser ? await getServerDefaultsForUser(scopedUser) : getServerDefaults()
   const userConfig = configParam ? decodeConfig(configParam) : null
@@ -297,17 +302,32 @@ async function pictoriumPosterAndShape(
     animerank: animeRankParam ?? undefined,
   } as const
   const poster = buildStremioPosterUrl(base).toString()
-  // Banner Nuvio: canvas landscape + niente logo baked-in (Nuvio lo
-  // sovrappone già da catalogo) + badge genere in basso a destra.
+  // Banner pulito: canvas landscape senza logo baked-in (per i client che
+  // sovrappongono già il logo da catalogo) + badge genere in basso a destra.
   const banner = buildStremioPosterUrl({ ...base, forceShape: "landscape", hideLogo: true }).toString()
   const posterShape = isPosterShape(mapping?.posterShape)
     ? mapping.posterShape
     : (defaults.posterShape === "landscape" ? "landscape" : "poster")
-  return { poster, banner, posterShape }
+  // NuvioTV: immagine esattamente come Pictorium (logo baked-in, vedi
+  // poster-service). Solo titoli landscape — i portrait non cambiano.
+  const landscapePoster = posterShape === "landscape"
+    ? buildStremioPosterUrl({ ...base, forceShape: "landscape" }).toString()
+    : undefined
+  return { poster, banner, landscapePoster, posterShape }
 }
 
 function catalogBackground(backdropPath: string | null | undefined): string | undefined {
   return backdropPath ? posterUrlOriginal(backdropPath) : undefined
+}
+
+/**
+ * Logo separato per NuvioTV: i titoli landscape hanno già il logo baked-in
+ * nel `landscapePoster` — inviare anche `logo` farebbe sovrapporre a Nuvio
+ * un secondo logo sopra l'immagine Pictorium. Ometterlo spegne l'overlay
+ * (il /meta fa lo stesso, così l'arricchimento non lo reintroduce).
+ */
+function catalogLogoForShape(posterShape: PosterShape, logo: string | undefined): string | undefined {
+  return posterShape === "landscape" ? undefined : logo
 }
 
 /**
@@ -543,7 +563,7 @@ export async function pictoriumCatalog(
 
         const results: (StremioMeta | null)[] = await concurrentMap(paged, async (item) => {
           if (!item.id) return null
-          const { poster, banner, posterShape } = await pictoriumPosterAndShape(req, stType, item.id, configParam, userParam, undefined, posterLang, region.code)
+          const { poster, banner, landscapePoster, posterShape } = await pictoriumPosterAndShape(req, stType, item.id, configParam, userParam, undefined, posterLang, region.code)
           const releaseInfo = (item.release_date || item.first_air_date || "").slice(0, 4) || undefined
           return {
             id: catalogMetaId(null, item.id),
@@ -552,6 +572,7 @@ export async function pictoriumCatalog(
             poster,
             posterShape,
             banner,
+            landscapePoster,
             background: catalogBackground(item.backdrop_path),
             releaseInfo,
             imdbRating: item.vote_average ? item.vote_average.toFixed(1) : undefined,
@@ -598,7 +619,7 @@ export async function pictoriumCatalog(
         }
         const d = await getDetails(stType === "movie" ? "movie" : "tv", foundId, tmdbLang, apiKey)
         const genreNames = await tmdbGenreNames(stType, apiKey, tmdbLang)
-        const { poster, banner, posterShape } = await pictoriumPosterAndShape(req, stType, foundId, configParam, userParam, undefined, posterLang, region.code)
+        const { poster, banner, landscapePoster, posterShape } = await pictoriumPosterAndShape(req, stType, foundId, configParam, userParam, undefined, posterLang, region.code)
         const body = {
           metas: [
             {
@@ -608,6 +629,7 @@ export async function pictoriumCatalog(
               poster,
               posterShape,
               banner,
+              landscapePoster,
               background: catalogBackground(d?.backdrop_path ?? null),
               releaseInfo: (d?.release_date || d?.first_air_date || "").slice(0, 4) || undefined,
               imdbRating: d?.vote_average ? d.vote_average.toFixed(1) : undefined,
@@ -634,7 +656,7 @@ export async function pictoriumCatalog(
       const genreNames = await tmdbGenreNames(stType, apiKey, tmdbLang)
       const results: (StremioMeta | null)[] = await concurrentMap(items, async (item) => {
         if (!item.id) return null
-        const { poster, banner, posterShape } = await pictoriumPosterAndShape(req, stType, item.id, configParam, userParam, undefined, posterLang, region.code)
+        const { poster, banner, landscapePoster, posterShape } = await pictoriumPosterAndShape(req, stType, item.id, configParam, userParam, undefined, posterLang, region.code)
         const releaseInfo = (item.release_date || item.first_air_date || "").slice(0, 4) || undefined
         return {
           id: catalogMetaId(null, item.id),
@@ -643,6 +665,7 @@ export async function pictoriumCatalog(
           poster,
           posterShape,
           banner,
+          landscapePoster,
           background: catalogBackground(item.backdrop_path),
           releaseInfo,
           imdbRating: item.vote_average ? item.vote_average.toFixed(1) : undefined,
@@ -761,7 +784,7 @@ export async function pictoriumCatalog(
             pictoriumPosterAndShape(req, stType, r.tmdbId, configParam, userParam, r.rank, posterLang, region.code),
             apiKey ? catalogLogo(stType === "movie" ? "movie" : "tv", r.tmdbId, apiKey, tmdbLang) : Promise.resolve(undefined),
           ])
-          const { poster, banner, posterShape } = posterAndShape
+          const { poster, banner, landscapePoster, posterShape } = posterAndShape
           const background = catalogBackground(r.backdropPath)
           return {
             id: catalogMetaId(imdbId, r.tmdbId),
@@ -771,7 +794,8 @@ export async function pictoriumCatalog(
             posterShape,
             background,
             banner,
-            logo,
+            landscapePoster,
+            logo: catalogLogoForShape(posterShape, logo),
             releaseInfo: r.releaseInfo,
             imdbRating: r.voteAverage ? r.voteAverage.toFixed(1) : undefined,
             genres: r.genres,
@@ -834,7 +858,7 @@ export async function pictoriumCatalog(
           pictoriumPosterAndShape(req, stType, r.tmdbId, configParam, userParam, undefined, posterLang, region.code),
           apiKey ? catalogLogo(stType === "movie" ? "movie" : "tv", r.tmdbId, apiKey, tmdbLang) : Promise.resolve(undefined),
         ])
-        const { poster, banner, posterShape } = posterAndShape
+        const { poster, banner, landscapePoster, posterShape } = posterAndShape
         const background = catalogBackground(r.d?.backdrop_path ?? null)
         return {
           id: catalogMetaId(imdbId, r.tmdbId),
@@ -844,7 +868,8 @@ export async function pictoriumCatalog(
           posterShape,
           background,
           banner,
-          logo,
+          landscapePoster,
+          logo: catalogLogoForShape(posterShape, logo),
           releaseInfo: (r.d?.release_date || r.d?.first_air_date || "").slice(0, 4) || undefined,
           imdbRating: r.d?.vote_average ? r.d.vote_average.toFixed(1) : undefined,
           genres: (r.d?.genres || []).map((g) => g.name).filter(Boolean),
@@ -902,7 +927,7 @@ export async function pictoriumCatalog(
           pictoriumPosterAndShape(req, stType, r.tmdbId, configParam, userParam, r.rank, posterLang, region.code),
           apiKey ? catalogLogo(mediaType, r.tmdbId, apiKey, tmdbLang) : Promise.resolve(undefined),
         ])
-        const { poster, banner, posterShape } = posterAndShape
+        const { poster, banner, landscapePoster, posterShape } = posterAndShape
         const background = catalogBackground(r.backdropPath)
         return {
           id: catalogMetaId(imdbId, r.tmdbId),
@@ -912,7 +937,8 @@ export async function pictoriumCatalog(
           posterShape,
           background,
           banner,
-          logo,
+          landscapePoster,
+          logo: catalogLogoForShape(posterShape, logo),
           releaseInfo: r.releaseInfo,
           imdbRating: r.voteAverage ? r.voteAverage.toFixed(1) : undefined,
           genres: r.genres,
@@ -997,7 +1023,7 @@ export async function pictoriumCatalog(
               pictoriumPosterAndShape(req, stType, r.tmdbId, configParam, userParam, undefined, posterLang, region.code),
               apiKey ? catalogLogo(stType === "movie" ? "movie" : "tv", r.tmdbId, apiKey, tmdbLang) : Promise.resolve(undefined),
             ])
-            const { poster, banner, posterShape } = posterAndShape
+            const { poster, banner, landscapePoster, posterShape } = posterAndShape
             const background = catalogBackground(r.backdropPath)
             return {
               id: catalogMetaId(imdbId, r.tmdbId),
@@ -1007,7 +1033,8 @@ export async function pictoriumCatalog(
               posterShape,
               background,
               banner,
-              logo,
+              landscapePoster,
+              logo: catalogLogoForShape(posterShape, logo),
               releaseInfo: r.releaseInfo,
               imdbRating: r.voteAverage ? r.voteAverage.toFixed(1) : undefined,
               genres: r.genres,
@@ -1036,7 +1063,7 @@ export async function pictoriumCatalog(
                 pictoriumPosterAndShape(req, stType, item.tmdbId, configParam, userParam, undefined, posterLang, region.code),
                 catalogLogo(stType === "movie" ? "movie" : "tv", item.tmdbId, apiKey, tmdbLang),
               ])
-              const { poster, banner, posterShape } = posterAndShape
+              const { poster, banner, landscapePoster, posterShape } = posterAndShape
               const italianTitle = details?.title || details?.name || item.title
               const background = catalogBackground(details?.backdrop_path ?? null)
               return {
@@ -1047,7 +1074,8 @@ export async function pictoriumCatalog(
                 posterShape,
                 background,
                 banner,
-                logo,
+                landscapePoster,
+                logo: catalogLogoForShape(posterShape, logo),
                 releaseInfo: (details?.release_date || details?.first_air_date || item.releaseDate)?.slice(0, 4) || undefined,
                 imdbRating: details?.vote_average ? details.vote_average.toFixed(1) : undefined,
                 genres: (details?.genres || []).map((g) => g.name).filter(Boolean),

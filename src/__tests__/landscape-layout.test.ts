@@ -1,7 +1,8 @@
 /**
- * Layout landscape: niente logo film baked-in e badge genere/rating in basso
- * a destra — vale per preview, poster e banner (unica verità visiva).
- * `hideLogo` esplicito copre anche il portrait.
+ * Layout landscape: logo film baked-in coi vincoli del canvas 16:9 e badge
+ * genere/rating in basso a destra — vale per preview, poster e landscapePoster
+ * (unica verità visiva). `hideLogo` esplicito salta il logo anche in landscape
+ * (veicolo del banner Nuvio pulito).
  *
  * Regressione pixel-level via generatePosterBuffer su canvas scuro: l'unica
  * cosa chiara (>200 su tutti i canali) è il testo dei badge + il logo bianco
@@ -138,21 +139,22 @@ async function bottomLeftmostBrightX(buf: Buffer): Promise<number> {
 }
 
 describe("landscape layout", () => {
-  it("skips the film logo composite in landscape even without the flag", async () => {
+  it("bakes the film logo in landscape with the 16:9 constraints", async () => {
     const backdrop = await darkBackdrop()
     const poster = await darkPoster()
     const logo = await whiteLogo()
     // Badge spenti: l'unica cosa chiara può essere il logo bianco finto.
-    const withLogo = await generatePosterBuffer(
+    const portrait = await generatePosterBuffer(
       baseInput({ posterBuf: poster, logoFetch: logo, badgesEnabled: false, shape: "poster" }),
     )
     const landscape = await generatePosterBuffer(
       baseInput({ posterBuf: backdrop, logoFetch: logo, badgesEnabled: false, shape: "landscape" }),
     )
-    const portraitCount = await totalBrightCount(withLogo)
+    const portraitCount = await totalBrightCount(portrait)
     const landscapeCount = await totalBrightCount(landscape)
     expect(portraitCount).toBeGreaterThan(3000)
-    expect(landscapeCount).toBeLessThan(portraitCount / 4)
+    // Logo 220x100 cap 40% larghezza / 24% altezza su 768x432: migliaia di px.
+    expect(landscapeCount).toBeGreaterThan(3000)
   }, 60000)
 
   it("still honors explicit hideLogo in portrait", async () => {
@@ -162,6 +164,32 @@ describe("landscape layout", () => {
       baseInput({ posterBuf: poster, logoFetch: logo, badgesEnabled: false, shape: "poster", hideLogo: true }),
     )
     expect(await totalBrightCount(hidden)).toBeLessThan(1000)
+  }, 60000)
+
+  it("still honors explicit hideLogo in landscape (clean Nuvio banner)", async () => {
+    const backdrop = await darkBackdrop()
+    const logo = await whiteLogo()
+    const hidden = await generatePosterBuffer(
+      baseInput({ posterBuf: backdrop, logoFetch: logo, badgesEnabled: false, shape: "landscape", hideLogo: true }),
+    )
+    expect(await totalBrightCount(hidden)).toBeLessThan(1000)
+  }, 60000)
+
+  it("applies the invisible +10/-10 calibration in landscape with sliders at zero", async () => {
+    // Gli slider mostrano 0 (null o esplicito: stesso render) ma il logo è
+    // spostato di +10 X / -10 Y dalla calibrazione geometrica — bordo sinistro
+    // atteso a ~46px (padX 36 + 10), non a 36.
+    const backdrop = await darkBackdrop()
+    const logo = await whiteLogo()
+    const unset = await generatePosterBuffer(
+      baseInput({ posterBuf: backdrop, logoFetch: logo, badgesEnabled: false, shape: "landscape", logoAlign: "left", logoOffsetX: null, logoOffsetY: null }),
+    )
+    const zero = await generatePosterBuffer(
+      baseInput({ posterBuf: backdrop, logoFetch: logo, badgesEnabled: false, shape: "landscape", logoAlign: "left", logoOffsetX: 0, logoOffsetY: 0 }),
+    )
+    expect(zero.equals(unset)).toBe(true)
+    expect(await bottomLeftmostBrightX(unset)).toBeGreaterThanOrEqual(44)
+    expect(await bottomLeftmostBrightX(unset)).toBeLessThanOrEqual(48)
   }, 60000)
 
   it("anchors the genre badge bottom-right in landscape instead of centered", async () => {

@@ -116,6 +116,21 @@ describe("PUT /api/defaults", () => {
       expect(res.status).toBe(400)
     }
   })
+
+  it("accepts and returns the landscape blur profile, rejects mistyped keys", async () => {
+    delete process.env.ADMIN_TOKEN
+    const res = await PUT(
+      mockPutRequest({ landscape: { blurFade: 70, gradientHeight: 20, blurEnabled: true, tintStrength: 80, topShade: 10 } }) as unknown as NextRequest,
+    )
+    expect(res.status).toBe(200)
+
+    const resGet = await GET(new Request("http://localhost:3000/api/defaults") as unknown as NextRequest)
+    const body = (await resGet.json()) as Record<string, { blurFade?: number; gradientHeight?: number; tintStrength?: number; topShade?: number }>
+    expect(body.landscape).toMatchObject({ blurFade: 70, gradientHeight: 20, tintStrength: 80, topShade: 10 })
+
+    const bad = await PUT(mockPutRequest({ landscape: { blurFade: "much" } }) as unknown as NextRequest)
+    expect(bad.status).toBe(400)
+  })
 })
 
 describe("GET /api/defaults hasInstanceKeys", () => {

@@ -1,5 +1,5 @@
 import sharp from "sharp"
-import { computeLogoLayout, PORTRAIT_LOGO_MAX_HEIGHT_PCT, PORTRAIT_LOGO_TOP_OFFSET } from "@/lib/logo-layout"
+import { computeLogoLayout, PORTRAIT_LOGO_MAX_HEIGHT_PCT, PORTRAIT_LOGO_TOP_OFFSET, LANDSCAPE_LOGO_MAX_WIDTH_PCT, LANDSCAPE_LOGO_MAX_HEIGHT_PCT, LANDSCAPE_LOGO_BOTTOM_MARGIN_PCT, LANDSCAPE_LOGO_TOP_OFFSET } from "@/lib/logo-layout"
 import { createLogger } from "@/lib/logger"
 // Batch B: import shared utilities from image-utils.ts (single source of truth)
 import { STD_W, STD_H, LAND_W, LAND_H, clamp, luma, type RgbData, decodePosterRaw, sliceRgb } from "@/lib/image-utils"
@@ -105,7 +105,7 @@ export function fitCanvasSize(shape?: PosterShape): { width: number; height: num
 /** Vincoli di layout logo per formato (identici a poster-service.ts). */
 function logoLayoutOverrides(shape?: PosterShape): { align: "left" | "center"; maxWidthPct?: number; maxHeightPct?: number; bottomMarginPct?: number; topOffset?: number } {
   return shape === "landscape"
-    ? { align: "left", maxWidthPct: 40, maxHeightPct: 24, bottomMarginPct: 25, topOffset: 55 }
+    ? { align: "left", maxWidthPct: LANDSCAPE_LOGO_MAX_WIDTH_PCT, maxHeightPct: LANDSCAPE_LOGO_MAX_HEIGHT_PCT, bottomMarginPct: LANDSCAPE_LOGO_BOTTOM_MARGIN_PCT, topOffset: LANDSCAPE_LOGO_TOP_OFFSET }
     : { align: "center", maxHeightPct: PORTRAIT_LOGO_MAX_HEIGHT_PCT, topOffset: PORTRAIT_LOGO_TOP_OFFSET }
 }
 
