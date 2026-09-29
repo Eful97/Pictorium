@@ -468,7 +468,7 @@ export async function renderQualityIconBadge(
     const fill = isMono ? (topLight ? "#000000" : "#ffffff") : null
     const totalW = w + TOP_SHADOW_PAD * 2
     const totalH = h + TOP_SHADOW_PAD * 2
-    const innerContent = src.replace(/<svg[^>]*>/, "").replace(/<\/svg>\s*$/, "")
+    const innerContent = src.replace(/<\?xml[^>]*\?>/g, "").replace(/<svg[^>]*>/, "").replace(/<\/svg>\s*$/, "")
     const fillAttr = fill ? ` fill="${fill}" color="${fill}"` : ""
     // Ombra reale simmetrica con feDropShadow (dx=2, dy=2, stdDev=2.5):
     // stacca l'icona mono/color da sfondi chiari o complessi, mentre
