@@ -26,7 +26,24 @@ export function isGradientDirty(
   defaultShape: PosterShape,
 ): boolean {
   const m = mapping ?? null
-  const eff = effectiveMappingForShape(m, m?.posterShape ?? defaultShape)
+  return isGradientDirtyForShape(current, m, defaults, m?.posterShape ?? defaultShape)
+}
+
+/**
+ * Come isGradientDirty ma sul formato visualizzato: la preview in landscape
+ * mostra il profilo Orizzontale, quindi il confronto deve usare stato,
+ * mapping effettivo e default di quel formato (altrimenti una modifica
+ * orizzontale non attiva l'avviso, o un profilo salvato diverso dal verticale
+ * lo mantiene attivo senza modifiche).
+ */
+export function isGradientDirtyForShape(
+  current: GradientTuning,
+  mapping: Mapping | null | undefined,
+  defaults: GradientTuning,
+  shape: PosterShape,
+): boolean {
+  const m = mapping ?? null
+  const eff = effectiveMappingForShape(m, shape)
   const saved: GradientTuning = {
     gradientHeight: eff?.gradientHeight ?? defaults.gradientHeight,
     blurEnabled: eff?.blurEnabled ?? defaults.blurEnabled,
@@ -34,8 +51,9 @@ export function isGradientDirty(
     blurFade: eff?.blurFade ?? defaults.blurFade,
     blurDarkness: eff?.blurDarkness ?? defaults.blurDarkness,
     tintStrength: eff?.tintStrength ?? defaults.tintStrength,
-    // Solo flat (niente profilo landscape, come il load in context.tsx).
-    topShade: m?.topShade ?? defaults.topShade,
+    // Come gli altri campi: profilo effettivo del formato (il mapping
+    // landscape congela topShade come gli altri slider), poi i default.
+    topShade: eff?.topShade ?? defaults.topShade,
   }
   return (
     current.gradientHeight !== saved.gradientHeight ||

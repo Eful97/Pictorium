@@ -237,7 +237,10 @@ export function buildPreviewUrl(ps: PosterState, bp: BadgeParams): string {
     const title = ps.selected?.title || ps.selected?.name
     if (title) params.push(`title=${encodeURIComponent(title)}`)
   }
-  if (ps.selectedLogo && ps.previewPoster?.iso_639_1 === null) {
+  // Logo sopra il clean; in landscape la base è il backdrop (senza testo),
+  // quindi il logo resta anche se il poster verticale non è clean. In
+  // portrait invariato: mai logo sopra un poster con testo incorporato.
+  if (ps.selectedLogo && (ps.previewPoster?.iso_639_1 === null || bp.posterShape === "landscape")) {
     params.push(`logo=${encodeURIComponent(ps.selectedLogo.file_path)}`)
     params.push(`scale=${ps.logoScale}`)
     params.push(`ox=${ps.logoOffsetX}`)

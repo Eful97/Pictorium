@@ -121,7 +121,7 @@ export interface Mapping {
    * config token > server defaults > imdb+tmdb). Assente nei mapping vecchi
    * (seguono i default finché non risalvati). */
   ratingSources?: string[] | null
-  /** Colonna rating separati a destra (sostituisce la media ★). Default OFF. Solo portrait. */
+  /** Colonna rating separati a destra (sostituisce la media ★). Default OFF. */
   separateRatings?: boolean | null
   /** IMDb ID salvato al save: evita getExternalIds per i poster mappati. */
   imdbId?: string | null

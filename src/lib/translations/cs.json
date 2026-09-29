@@ -98,7 +98,7 @@
   "ui.ratingSources": "Provideři hodnocení",
   "ui.ratingSourcesHint": "Spočítá průměr všech aktivních poskytovatelů vybraných níže.",
   "ui.separateRatings": "Oddělená hodnocení",
-  "ui.separateRatingsHint": "Pravý sloupec s jedním hodnocením na poskytovatele (max. 3), nahrazuje průměr ★. Jen na výšku.",
+  "ui.separateRatingsHint": "Pravý sloupec s jedním hodnocením na poskytovatele (max. 3), nahrazuje průměr ★.",
   "ui.sashTitle": "Top badges (categories)",
   "ui.sash_upcoming": "Upcoming",
   "ui.sash_rank": "Rankings",

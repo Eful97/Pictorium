@@ -35,7 +35,7 @@ export function rewritablePosterId(id: string): string | null {
  * qualità, sash, rating — altrimenti un cambio default lascia URL identici e
  * Stremio/CDN servono byte stantii.
  *
- * Diverso da `tuningSignature` (solo 18 numerici, solo cataloghi compact):
+ * Diverso da `tuningSignature` (solo 21 numerici, solo cataloghi compact):
  * qui serve copertura totale perché il proxy NON può emettere i parametri
  * espliciti come i cataloghi — un `bs=` esplicito dai defaults vincerebbe sul
  * mapping salvato per-titolo (catena query > mapping in poster-config.ts) e

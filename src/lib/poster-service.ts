@@ -70,7 +70,7 @@ const IMAGE_CACHE_TAG = "poster-extract"
 
 export interface GenerationInput {
   ratings?: RatingItem[]
-  /** Colonna rating separati a destra (sostituisce la media ★). Solo portrait, max 3. */
+  /** Colonna rating separati a destra (sostituisce la media ★), max 3. */
   separateRatings?: readonly SeparateRating[]
   // Images (already fetched)
   posterBuf: Buffer
@@ -1359,11 +1359,10 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
     const landscapeShiftX = shape === "landscape" ? -55 : 0
     // Landscape: badge in basso a DESTRA invece che centrato (vale per
     // preview, poster e banner — unica verità visiva). Il portrait resta storico.
-    // Micro-calibrazione ottica dell'ancoraggio destro: +40px verso il bordo,
-    // -10px verso l'alto (clamp anti-overflow: mai fuori canvas).
+    // Micro-calibrazione ottica dell'ancoraggio destro: +40px verso il bordo
+    // (clamp anti-overflow: mai fuori canvas).
     const anchorRight = shape === "landscape"
     const anchorShiftX = anchorRight ? 40 : 0
-    const anchorShiftY = anchorRight ? -10 : 0
     const rightPadX = Math.round(18 * CW / 380)
     if (badgeStyle === "bar") {
       // In landscape la barra è resa a badgePw (non full-width): col banner
@@ -1380,13 +1379,74 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
       // Offset solo stili centrati: la barra resta ancorata full-width.
       // In Cinematic Left la riga metadati sta sotto il logo a sinistra.
       // Posizione unificata: altezza standardizzata per tutti gli stili, la baseline del testo non salta.
-      const badgeY = Math.min(CH - safeGenreBadgeResult.h, CH - safeGenreBadgeResult.h - Math.max(0, Math.round(targetCenter - safeGenreBadgeResult.h / 2)) + genreBadgeOffsetY + anchorShiftY)
-      const badgeLeft = anchorRight
-        ? Math.min(CW - safeGenreBadgeResult.w, Math.max(0, CW - safeGenreBadgeResult.w - rightPadX + anchorShiftX + genreBadgeOffsetX))
+      // Bordo/vetro in landscape: troppo incollati all'angolo → -30px X,
+      // -15px Y (con e senza separati: si somma allo shift sep).
+      const styleCornerShiftX = anchorRight && (badgeStyle === "bordo" || badgeStyle === "vetro") ? 30 : 0
+      const styleCornerShiftY = anchorRight && (badgeStyle === "bordo" || badgeStyle === "vetro") ? 15 : 0
+      // Ombra/minimale in landscape: testo nudo, +10px verso l'alto per
+      // staccarlo dal bordo (con e senza separati).
+      const styleLiftY = anchorRight && (badgeStyle === "shadow" || badgeStyle === "minimal") ? 10 : 0
+      const genreTopFor = (h: number) => Math.min(CH - h, CH - h - Math.max(0, Math.round(targetCenter - h / 2)) + genreBadgeOffsetY - styleCornerShiftY - styleLiftY)
+      // Separati attivi: il segmento ★ sparisce e la pill si restringe —
+      // ancorata a destra, la massa visiva andrebbe a destra. Si compensa di
+      // metà larghezza rimossa così il centro resta dov'era con ★ (solo
+      // landscape: in portrait è già centrato). Misura dal render reale con
+      // ★ (stesso builder, chiave cache dedicata: niente stime che
+      // divergono con shrink overflow e metriche dei font).
+      let sepCenterShift = 0
+      if (anchorRight && !useGenrePreset && genreBadgeResult && (input.separateRatings?.length ?? 0) > 0) {
+        const fullKey = badgeCacheKey("genre", genreName, voteAverage, CW, year, badgeStyle, accentColorGenre, bottomLight, badgeGenre, badgeYear, true, genreBadgeScale)
+        const fullHit = cacheGet<{ png: Buffer; w: number; h: number }>(fullKey)
+        const fullW = fullHit
+          ? fullHit.w
+          : await coalesceBadgeRender(fullKey, () =>
+              renderGenreBadge(genreName ?? "", voteAverage ?? 0, badgePw, year, badgeStyle, accentColorGenre, bottomLight, { showGenre: badgeGenre, showYear: badgeYear, showRating: true }, 100)
+                .then((r) => { if (r) cacheSet(fullKey, r, ["badge"], BADGE_CACHE_TTL); return r }),
+            ).then((r) => (r ? r.w : null), () => null)
+        if (fullW != null && fullW > genreBadgeResult.w) {
+          sepCenterShift = Math.round(((fullW - genreBadgeResult.w) / 2) * (genreBadgeScale / 100))
+        }
+      }
+      const genreLeftFor = (w: number) => anchorRight
+        ? Math.min(CW - w, Math.max(0, CW - w - rightPadX + anchorShiftX + genreBadgeOffsetX - sepCenterShift - styleCornerShiftX))
         : (isLandscapeLeft
           ? logoAlignPadX(CW) + genreBadgeOffsetX
-          : Math.round((CW - safeGenreBadgeResult.w) / 2) + genreBadgeOffsetX) + landscapeShiftX
-      composites.push({ input: safeGenreBadgeResult.png, top: badgeY, left: badgeLeft })
+          : Math.round((CW - w) / 2) + genreBadgeOffsetX) + landscapeShiftX
+      let genreBox = safeGenreBadgeResult
+      let genreTop = genreTopFor(genreBox.h)
+      let genreLeft = genreLeftFor(genreBox.w)
+      // Logo film grande + badge genere: se si sovrappongono si rimpicciolisce
+      // il badge (mai il logo: è il protagonista e la sua scala è un controllo
+      // utente esplicito). Min 0.7 (testo, deve restare leggibile), poi
+      // ri-ancoraggio come sopra.
+      if (logoResult) {
+        const overlapsLogo = (w: number, h: number, left: number, top: number) =>
+          left < logoResult.left + logoResult.w && left + w > logoResult.left &&
+          top < logoResult.top + logoResult.h && top + h > logoResult.top
+        if (overlapsLogo(genreBox.w, genreBox.h, genreLeft, genreTop)) {
+          let scale = 1
+          const minScale = 0.7
+          let curW = genreBox.w
+          let curH = genreBox.h
+          while (scale > minScale && overlapsLogo(curW, curH, genreLeftFor(curW), genreTopFor(curH))) {
+            scale -= 0.1
+            if (scale < minScale) scale = minScale
+            const newW = Math.max(1, Math.round(genreBox.w * scale))
+            const newH = Math.max(1, Math.round(genreBox.h * scale))
+            if (newW === curW && newH === curH) break
+            curW = newW
+            curH = newH
+            if (scale <= minScale) break
+          }
+          if (curW !== genreBox.w || curH !== genreBox.h) {
+            const png = await sharp(genreBox.png).resize(curW, curH).toBuffer()
+            genreBox = { ...genreBox, png, w: curW, h: curH }
+            genreTop = genreTopFor(curH)
+            genreLeft = genreLeftFor(curW)
+          }
+        }
+      }
+      composites.push({ input: genreBox.png, top: genreTop, left: genreLeft })
     }
   }
   // Riga custom provider: se renderizzata, la colonna separati si nasconde
@@ -1440,7 +1500,7 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
       left = 0 // nastro Netflix a sinistra (Nuvio, default)
     } else {
       // Badge grande al centro, dimensione invariata: in caso di sovrapposizione
-      // si rimpiccioliscono i badge laterali (network top-left, qualità top-right).
+      // si rimpiccioliscono i badge laterali (network e qualità agli angoli opposti).
       left = Math.round((CW - safeRankBadgeResult.w) / 2) + topBadgeOffsetX
     }
     finalRankBadge = safeRankBadgeResult
@@ -1468,7 +1528,8 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
   }
   // Network: centrato sopra il logo film quando c'è un badge alto
   // (nastro Netflix, badge centrale rank/extra, o angolo Coming Soon);
-  // in alto a sinistra SOLO senza alcun badge alto. Senza logo film resta
+  // angolo in alto negli altri casi (a destra in vista Stremio con nastro,
+  // altrimenti a sinistra). Senza logo film resta
   // il layout storico (top-left, o a fianco del nastro).
   // netTopLeftBottom traccia il fondo del logo network quando occupa il top-left (per qualità Stremio sotto).
   // Tuning editoriale globale (default per tutti i poster): pill network +10px Y.
@@ -1484,6 +1545,22 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
       const hasComingSoonCorner = showComingSoon && !!ribbonLayout && !!safeComingSoonResult
       const netPadX = Math.round(18 * CW / 380)
       const netPadY = Math.round(18 * CH / 570)
+
+      // Vista Stremio: il logo network specchia a destra quando l'angolo
+      // destro è occupato — di fianco al nastro rank (come a sinistra in
+      // vista Nuvio), sotto il Coming Soon (come a sinistra). La qualità va
+      // già a sinistra in quei casi. Senza occupante destro resta a sinistra
+      // (coesistenza pacifica con la qualità top-right).
+      const rightRankRibbonOccupied =
+        (((isRibbonRankingStyle(rankingBadgeStyle) && topBadge?.type === "rank") || presetIsRibbon) &&
+          (presetIsRibbon ? presetRibbonRight : ribbonSide === "right") &&
+          !!finalRankBadge)
+      const comingSoonRightOccupied = showComingSoon && !!ribbonLayout && !!safeComingSoonResult && ribbonSide === "right"
+      const rightRankRibbonLeft = rightRankRibbonOccupied && finalRankBadge && finalRankLeft !== null ? finalRankLeft : null
+      const mirrorNetworkBeside = rightRankRibbonLeft !== null
+      const mirrorNetworkBelow = !mirrorNetworkBeside && comingSoonRightOccupied
+      const comingSoonRightBottom = (comingSoonRightOccupied && ribbonLayout) ? ribbonLayout.extent : 0
+      const rightAnchoredLeft = Math.max(0, CW - fittedRaw.w - netPadX)
 
       // Il badge centrale resta invariato: se si sovrappone al network,
       // rimpicciolisce il network (fino a 0.55x). B2: la scala finale è
@@ -1541,6 +1618,16 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
             const maxLeft = CW - fittedRaw.w - netPadX
             if (left > maxLeft) left = maxLeft
           }
+        } else if (rightRankRibbonLeft !== null) {
+          // Di fianco al nastro a destra, stessa riga (specchio Nuvio).
+          top = netPadY
+          left = Math.max(0, rightRankRibbonLeft - 10 - fittedRaw.w)
+          fittedRaw = await shrinkToAvoidRank(fittedRaw, top, left)
+        } else if (mirrorNetworkBelow) {
+          // Sotto il Coming Soon a destra, ancorato a destra.
+          top = comingSoonRightBottom + gap
+          left = rightAnchoredLeft
+          fittedRaw = await shrinkToAvoidRank(fittedRaw, top, left)
         } else if (showComingSoon && ribbonLayout && ribbonSide !== "right") {
           top = ribbonLayout.extent + gap
           left = netPadX
@@ -1549,7 +1636,7 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
           left = netPadX
           fittedRaw = await shrinkToAvoidRank(fittedRaw, top, left)
         }
-        netTopLeftBottom = top + NETWORK_LOGO_SHIFT_Y + fittedRaw.h
+        if (rightRankRibbonLeft === null && !mirrorNetworkBelow) netTopLeftBottom = top + NETWORK_LOGO_SHIFT_Y + fittedRaw.h
       } else if (logoResult && (finalRankBadge || hasComingSoonCorner)) {
         // Con logo film + badge alto (nastro Netflix, badge centrale
         // rank/extra, o Coming Soon): subito sopra il logo film
@@ -1559,20 +1646,32 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
       } else if (!isNetflixRibbon && !logoResult) {
         // Senza logo film e senza nastro Netflix: in alto a sinistra;
         // con il nastro Coming Soon impilato sotto di esso (stesso angolo).
-        top = (showComingSoon && ribbonLayout && ribbonSide !== "right") ? ribbonLayout.extent + gap : netPadY
-        left = netPadX
+        // Specchio Stremio: sotto il Coming Soon destro, ancorato a destra.
+        if (mirrorNetworkBelow) {
+          top = comingSoonRightBottom + gap
+          left = rightAnchoredLeft
+        } else {
+          top = (showComingSoon && ribbonLayout && ribbonSide !== "right") ? ribbonLayout.extent + gap : netPadY
+          left = netPadX
+        }
         fittedRaw = await shrinkToAvoidRank(fittedRaw, top, left)
-        netTopLeftBottom = top + NETWORK_LOGO_SHIFT_Y + fittedRaw.h
+        if (!mirrorNetworkBelow) netTopLeftBottom = top + NETWORK_LOGO_SHIFT_Y + fittedRaw.h
       } else if (logoResult) {
         // Con logo film ma SENZA alcun badge alto (né nastro Netflix, né
-        // Coming Soon, né badge centrale): in alto a sinistra
-        // (resta a sinistra anche con side="right").
-        top = netPadY
-        left = netPadX
+        // Coming Soon, né badge centrale): angolo in alto (sotto il Coming
+        // Soon destro in vista Stremio, altrimenti a sinistra).
+        if (mirrorNetworkBelow) {
+          top = comingSoonRightBottom + gap
+          left = rightAnchoredLeft
+        } else {
+          top = netPadY
+          left = netPadX
+        }
         fittedRaw = await shrinkToAvoidRank(fittedRaw, top, left)
-        netTopLeftBottom = top + NETWORK_LOGO_SHIFT_Y + fittedRaw.h
+        if (!mirrorNetworkBelow) netTopLeftBottom = top + NETWORK_LOGO_SHIFT_Y + fittedRaw.h
       } else {
-        // Con nastro Netflix senza logo film: top-left o a fianco del nastro
+        // Con nastro Netflix senza logo film: top-left o a fianco del nastro;
+        // specchio Stremio: sotto l'occupante destro, ancorato a destra.
         top = netPadY
         left = netPadX
         const isNetflixLeftRibbon = ribbonSide !== "right" && finalRankBadge && finalRankLeft !== null
@@ -1587,8 +1686,18 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
             const maxLeft = CW - fittedRaw.w - netPadX
             if (left > maxLeft) left = maxLeft
           }
+        } else if (rightRankRibbonLeft !== null) {
+          // Di fianco al nastro a destra, stessa riga (specchio Nuvio).
+          top = netPadY
+          left = Math.max(0, rightRankRibbonLeft - 10 - fittedRaw.w)
+          fittedRaw = await shrinkToAvoidRank(fittedRaw, top, left)
+        } else if (mirrorNetworkBelow) {
+          // Sotto il Coming Soon a destra, ancorato a destra.
+          top = comingSoonRightBottom + gap
+          left = rightAnchoredLeft
+          fittedRaw = await shrinkToAvoidRank(fittedRaw, top, left)
         }
-        netTopLeftBottom = top + NETWORK_LOGO_SHIFT_Y + fittedRaw.h
+        if (rightRankRibbonLeft === null && !mirrorNetworkBelow) netTopLeftBottom = top + NETWORK_LOGO_SHIFT_Y + fittedRaw.h
       }
       composites.push({
         input: fittedRaw.png,
@@ -1694,11 +1803,11 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
     }
   }
 
-  // Colonna rating separati a destra (solo portrait): UN solo bitmap con
+  // Colonna rating separati: UN solo bitmap con
   // pill verticali logo-sopra/punteggio-sotto a larghezza uniforme,
   // centrato sull'asse verticale del badge qualità (o all'angolo quando la
-  // qualità manca). Mai col custom provider.
-  if (!customRowRendered && input.separateRatings?.length && shape !== "landscape") {
+  // qualità manca). Vale per entrambi i canvas. Mai col custom provider.
+  if (!customRowRendered && input.separateRatings?.length) {
     const items = input.separateRatings.slice(0, 3)
     const netPadX = Math.round(18 * CW / 380)
     const netBaseTop = Math.round(18 * CH / 570)

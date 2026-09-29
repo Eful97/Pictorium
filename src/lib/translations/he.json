@@ -98,7 +98,7 @@
   "ui.ratingSources": "Poster Providers",
   "ui.ratingSourcesHint": "Calculates the average of all active rating providers selected below.",
   "ui.separateRatings": "Separate ratings",
-  "ui.separateRatingsHint": "Right column with one score per provider (max 3), replacing the ★ average. Portrait only.",
+  "ui.separateRatingsHint": "Right column with one score per provider (max 3), replacing the ★ average.",
   "ui.sashTitle": "Top badges (categories)",
   "ui.sash_upcoming": "Upcoming",
   "ui.sash_rank": "Rankings",

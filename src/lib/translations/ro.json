@@ -98,7 +98,7 @@
   "ui.ratingSources": "Furnizori note poster",
   "ui.ratingSourcesHint": "Calculează media tuturor furnizorilor de note activi selectați mai jos.",
   "ui.separateRatings": "Note separate",
-  "ui.separateRatingsHint": "Coloană în dreapta cu o notă per furnizor (max 3), înlocuind media ★. Doar portret.",
+  "ui.separateRatingsHint": "Coloană în dreapta cu o notă per furnizor (max 3), înlocuind media ★.",
   "ui.sashTitle": "Insigne sus (categorii)",
   "ui.sash_upcoming": "Viitoare",
   "ui.sash_rank": "Clasamente",

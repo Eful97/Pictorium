@@ -304,7 +304,7 @@ export function usePosterSave(deps: PosterSaveDeps) {
       }
       if (!networkLogoPath && candidates.length) { networkLogoName = candidates[0].name }
     }
-    const effectiveLogoPath = isClean && !logoDisabled ? (selectedLogo?.file_path || null) : null
+    const effectiveLogoPath = (isClean || posterShape === "landscape") && !logoDisabled ? (selectedLogo?.file_path || null) : null
     // Dual-format My Posters: gli slider mostrano il profilo del formato in
     // editing, quindi il save scrive il profilo attivo e PRESERVA l'altro dal
     // mapping esistente (mai azzerato dal save dell'altro formato). Per i

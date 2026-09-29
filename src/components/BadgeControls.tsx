@@ -394,6 +394,9 @@ export function BadgeControls() {
         <BadgeStyleSelector
           value={ed.badgeStyle}
           options={["shadow", "pill", "bar", "colored", "bordo", "vetro", "minimal"]}
+          // Stile "bar" non disponibile in landscape: il server lo degrada
+          // a shadow (stesso endpoint, preview WYSIWYG garantita).
+          disabled={ed.posterShape === "landscape" ? ["bar"] : []}
           onChange={ed.setBadgeStyle}
           t={t}
           accentColor={accentColor}

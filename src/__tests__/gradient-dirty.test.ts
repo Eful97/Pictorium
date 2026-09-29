@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { isGradientDirty, isArtworkDirty, type GradientTuning } from "@/lib/gradient-dirty"
+import { isGradientDirty, isGradientDirtyForShape, isArtworkDirty, type GradientTuning } from "@/lib/gradient-dirty"
 import type { Mapping } from "@/lib/types"
 
 const DEFAULTS: GradientTuning = {
@@ -53,6 +53,37 @@ describe("isGradientDirty", () => {
     // Profilo orizzontale: fade 70 effettivo, non il flat 10.
     expect(isGradientDirty({ ...DEFAULTS, blurFade: 70 }, m, DEFAULTS, "poster")).toBe(false)
     expect(isGradientDirty({ ...DEFAULTS, blurFade: 10 }, m, DEFAULTS, "poster")).toBe(true)
+  })
+})
+
+describe("isGradientDirtyForShape", () => {
+  it("confronta il profilo del formato visualizzato, non quello salvato", () => {
+    // Mapping portrait con profilo landscape diverso: in landscape la
+    // preview mostra il profilo, i flat non contano.
+    const m = mapping({
+      posterShape: "poster",
+      blurFade: 10,
+      landscape: { blurFade: 70, gradientHeight: null, blurEnabled: null, blurIntensity: null, blurDarkness: null, tintStrength: null, topShade: null },
+    })
+    const landscapeDefaults: GradientTuning = { ...DEFAULTS, blurFade: 70 }
+    expect(isGradientDirtyForShape({ ...DEFAULTS, blurFade: 70 }, m, landscapeDefaults, "landscape")).toBe(false)
+    // Stesso stato, formato portrait: fade 10 effettivo contro default 50.
+    expect(isGradientDirtyForShape({ ...DEFAULTS, blurFade: 70 }, m, DEFAULTS, "poster")).toBe(true)
+  })
+
+  it("una modifica orizzontale attiva l'avviso in landscape", () => {
+    const m = mapping({
+      posterShape: "landscape",
+      topShade: 10,
+      landscape: { blurFade: 70, gradientHeight: 20, blurEnabled: true, blurIntensity: 20, blurDarkness: 30, tintStrength: 20, topShade: 80 },
+    })
+    const landscapeDefaults: GradientTuning = { ...DEFAULTS, blurFade: 70, gradientHeight: 20 }
+    // Il profilo landscape congela topShade 80: il flat 10 non conta.
+    const current: GradientTuning = { ...DEFAULTS, blurFade: 70, gradientHeight: 20, topShade: 80 }
+    expect(isGradientDirtyForShape(current, m, landscapeDefaults, "landscape")).toBe(false)
+    expect(isGradientDirtyForShape({ ...current, topShade: 10 }, m, landscapeDefaults, "landscape")).toBe(true)
+    expect(isGradientDirtyForShape({ ...current, tintStrength: 90 }, m, landscapeDefaults, "landscape")).toBe(true)
+    expect(isGradientDirtyForShape({ ...current, topShade: 0 }, m, landscapeDefaults, "landscape")).toBe(true)
   })
 })
 

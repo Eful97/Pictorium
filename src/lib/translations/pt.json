@@ -98,7 +98,7 @@
   "ui.ratingSources": "Provedores de nota",
   "ui.ratingSourcesHint": "Calcula a média de todos os provedores de nota ativos selecionados abaixo.",
   "ui.separateRatings": "Notas separadas",
-  "ui.separateRatingsHint": "Coluna à direita com uma nota por provedor (máx. 3), substitui a média ★. Somente retrato.",
+  "ui.separateRatingsHint": "Coluna à direita com uma nota por provedor (máx. 3), substitui a média ★.",
   "ui.sashTitle": "Top badges (categories)",
   "ui.sash_upcoming": "Upcoming",
   "ui.sash_rank": "Rankings",

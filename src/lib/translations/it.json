@@ -98,7 +98,7 @@
   "ui.ratingSources": "Provider del voto",
   "ui.ratingSourcesHint": "Calcola la media di tutti i provider attivi selezionati sotto.",
   "ui.separateRatings": "Rating separati",
-  "ui.separateRatingsHint": "Colonna a destra con un voto per provider (max 3), al posto della media ★. Solo portrait.",
+  "ui.separateRatingsHint": "Colonna a destra con un voto per provider (max 3), al posto della media ★.",
   "ui.sashTitle": "Badge superiori (categorie)",
   "ui.sash_upcoming": "In uscita",
   "ui.sash_rank": "Classifiche",

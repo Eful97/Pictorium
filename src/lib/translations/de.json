@@ -98,7 +98,7 @@
   "ui.ratingSources": "Bewertungs-Anbieter",
   "ui.ratingSourcesHint": "Berechnet den Durchschnitt aller unten ausgewählten aktiven Anbieter.",
   "ui.separateRatings": "Separate Ratings",
-  "ui.separateRatingsHint": "Rechte Spalte mit einer Wertung pro Anbieter (max. 3), ersetzt den ★-Durchschnitt. Nur Portrait.",
+  "ui.separateRatingsHint": "Rechte Spalte mit einer Wertung pro Anbieter (max. 3), ersetzt den ★-Durchschnitt.",
   "ui.sashTitle": "Top badges (categories)",
   "ui.sash_upcoming": "Upcoming",
   "ui.sash_rank": "Rankings",

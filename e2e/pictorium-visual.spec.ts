@@ -630,8 +630,9 @@ test.describe("poster API — visual regression", () => {
     await expect(poster).toHaveScreenshot("poster-separate-ratings-noquality.png", { maxDiffPixelRatio: 0.10 })
   })
 
-  test("separate ratings ignored in landscape (average kept) — screenshot", async ({ page }) => {
-    // Portrait-only: in landscape sep=1 non cambia niente (media ★ invariata).
+  test("separate ratings column in landscape (average replaced) — screenshot", async ({ page }) => {
+    // La colonna segue il badge qualità anche in 16:9 (il badge genere
+    // nasconde il segmento ★ come in portrait).
     const url = posterUrl({ backdrop: "/mocked/backdrop.jpg", shape: "landscape", genreName: "Action", voteAverage: "7.8", badges: "1", ranking: "0", imdbId: "tt0133093", sep: "1", rsrc: "imdb,tmdb,tomatoes" })
     const poster = await renderPoster(page, url)
     await expect(poster).toHaveScreenshot("poster-separate-ratings-landscape.png", { maxDiffPixelRatio: 0.10 })

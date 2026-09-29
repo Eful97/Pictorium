@@ -72,6 +72,11 @@ export interface StremioPosterParamsInput {
   /** Offset px del logo network (default 0). */
   readonly networkLogoOffsetX?: number
   readonly networkLogoOffsetY?: number
+  /** Scala % logo film (null = auto-fit per aspect). In compact coperta da `dv`. */
+  readonly logoScale?: number | null
+  /** Offset px logo film (null = 0). In compact coperti da `dv`. */
+  readonly logoOffsetX?: number | null
+  readonly logoOffsetY?: number | null
   /** Effetto pre-digitale (darken + Coming Soon, solo film). Default OFF. */
   readonly preRelease?: boolean
   /** Nasconde il logo film dal composite (banner pulito per i client che
@@ -98,8 +103,8 @@ export interface StremioPosterParamsInput {
   readonly user?: string | null
   readonly region?: string | null
   /**
-   * URL compatti (v1.23.0): omette i 17 tuning numerici ad alta cardinalità
-   * (gradiente/blur/tinta + scale/offset badge). Il server li risolve da
+   * URL compatti (v1.23.0): omette i 21 tuning numerici ad alta cardinalità
+   * (gradiente/blur/tinta + scale/offset badge + scala/offset logo). Il server li risolve da
    * mapping salvato > defaults (stessa catena, stesso render, chiave più
    * corta e convergente). Mai con `config` (il token perderebbe contro il
    * mapping). Toggle/enum/restano espliciti (bassa cardinalità + fallback
@@ -133,10 +138,13 @@ const DEFAULT_STREMIO_POSTER_PARAMS = {
   networkLogoScale: 100,
   networkLogoOffsetX: 0,
   networkLogoOffsetY: 0,
+  logoScale: null,
+  logoOffsetX: null,
+  logoOffsetY: null,
 } as const
 
 /**
- * Firma del tuning omesso negli URL compatti (`compactTuning`): i 18 numerici
+ * Firma del tuning omesso negli URL compatti (`compactTuning`): i 21 numerici
  * ad alta cardinalità non viaggiano nell'URL ma guidano il render server-side
  * (mapping > defaults). Senza firma, un cambio default lascerebbe URL identici
  * e browser/edge/Stremio servirebbero i byte vecchi all'infinito. FNV-1a 32bit
@@ -165,6 +173,9 @@ function tuningSignature(input: StremioPosterParamsInput): string {
     input.networkLogoScale ?? D.networkLogoScale,
     input.networkLogoOffsetX ?? D.networkLogoOffsetX,
     input.networkLogoOffsetY ?? D.networkLogoOffsetY,
+    input.logoScale ?? D.logoScale,
+    input.logoOffsetX ?? D.logoOffsetX,
+    input.logoOffsetY ?? D.logoOffsetY,
   ]
   let h = 0x811c9dc5
   const s = parts.join(",")

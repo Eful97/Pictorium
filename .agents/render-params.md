@@ -111,7 +111,7 @@ Solo quando il provider è abilitato server-side (`PICTORIUM_CUSTOM_RATING_*`) e
 
 ## Colonna rating separati (Separate Ratings)
 
-Opt-in portrait-only (`sep=1`, default OFF): sostituisce la media ★ nel badge genere con una colonna a destra di pill verticali (logo provider sopra, punteggio sotto). A OFF zero pixel cambiano.
+Opt-in (`sep=1`, default OFF): sostituisce la media ★ nel badge con una colonna a destra di pill verticali (logo provider sopra, punteggio sotto). A OFF zero pixel cambiano.
 
 | Parametro | Server (`separate-rating-renderer.ts:renderSeparateRatingStack` + `poster-service.ts`) |
 |---|---|
@@ -121,11 +121,10 @@ Opt-in portrait-only (`sep=1`, default OFF): sostituisce la media ★ nel badge 
 | Formati | decimale 1 cifra (`7.3`); famiglia percent (`tomatoes`, `popcorntime`) come `88%` (`formatSeparateValue`) |
 | Colori | convenzione quality-badge: `topLight ? dark pill : light pill`, bordo 1.5px adattivo, ombra dedicata ridotta (`seps`: dx=2, dy=2, blur 2, 0.55 — la 3D standard sbordava nel gap 5px sembrando squadrata) |
 | Loghi | `public/rating/*.svg` a colori brand originali (mai ricolorati), embed `<image data:...>` come le pill network; asset mancante → pill skippata (mai 500) |
-| Posizione | bordo destro allineato al badge qualità (`right = qualityRight`), `top = qualityBoxBottom + 6` (pad inferiore sottratto in scala, gap ottico 6px); senza qualità parte dal top (`netBaseTop - 10`, "sale"); con nastro a destra segue a sinistra (stesso branch `isRightRibbonCorner`); gap stack `5px` (`SEPARATE_STACK_GAP`) |
+| Posizione | bordo destro allineato al badge qualità (`right = qualityRight`), `top = qualityBoxBottom + 6` (pad inferiore sottratto in scala, gap ottico 6px); senza qualità parte dal top (`netBaseTop - 10`, "sale"); con nastro a destra segue a sinistra (stesso branch `isRightRibbonCorner`); in landscape segue il badge qualità come in portrait |
 | Priorità | mai col custom provider: se la riga custom è renderizzata, lo stack si nasconde |
 | Sostituzione | con stack attivo (`useSeparate`) il badge genere nasconde il segmento ★ (`badgeRating` effettivo = false) |
 | Cache | chiave stack `badge:separate:<src+val,...>:<CW>:<topLight>` (un composite); flag `sep` nella cache key poster; valori sep nell'etag dei poster dinamici |
-| Landscape | `sep` ignorato (media ★ invariata) |
 
 ## Gradiente fondo poster
 

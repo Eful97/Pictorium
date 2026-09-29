@@ -782,6 +782,9 @@ export function usePictorium(): PictoriumCtx {
   // per-titolo inclusi).
   useEffect(() => {
     const noPreview = !navigation.previewId
+    // Template WYSIWYG: a titolo aperto la sfumatura segue il profilo del
+    // formato in editing (landscapeBlur in orizzontale), come la preview.
+    const tmplLandscape = !noPreview && posterShape === "landscape"
     const base = {
       globalBadges: noPreview ? defaultGlobalBadges : globalBadges,
       rankingBadges: noPreview ? defaultRankingBadges : rankingBadges,
@@ -797,13 +800,13 @@ export function usePictorium(): PictoriumCtx {
       ratingSources: noPreview ? defaultRatingSources : ratingSources,
       separateRatings: noPreview ? defaultSeparateRatings : separateRatings,
       customBadge,
-      gradientHeight: noPreview ? defaultGradientHeight : gradientHeight,
-      blurIntensity: noPreview ? defaultBlurIntensity : blurIntensity,
-      blurFade: noPreview ? defaultBlurFade : blurFade,
-      blurDarkness: noPreview ? defaultBlurDarkness : blurDarkness,
-      blurEnabled: noPreview ? defaultBlurEnabled : blurEnabled,
-      tintStrength: noPreview ? defaultTintStrength : tintStrength,
-      topShade: noPreview ? defaultTopShade : topShade,
+      gradientHeight: noPreview ? defaultGradientHeight : tmplLandscape ? landscapeBlur.gradientHeight : gradientHeight,
+      blurIntensity: noPreview ? defaultBlurIntensity : tmplLandscape ? landscapeBlur.blurIntensity : blurIntensity,
+      blurFade: noPreview ? defaultBlurFade : tmplLandscape ? landscapeBlur.blurFade : blurFade,
+      blurDarkness: noPreview ? defaultBlurDarkness : tmplLandscape ? landscapeBlur.blurDarkness : blurDarkness,
+      blurEnabled: noPreview ? defaultBlurEnabled : tmplLandscape ? landscapeBlur.blurEnabled : blurEnabled,
+      tintStrength: noPreview ? defaultTintStrength : tmplLandscape ? landscapeBlur.tintStrength : tintStrength,
+      topShade: noPreview ? defaultTopShade : tmplLandscape ? landscapeBlur.topShade : topShade,
       networkLogo: noPreview ? defaultNetworkLogo : networkLogo,
       preRelease: noPreview ? defaultPreRelease : preRelease,
       ribbonSide: noPreview ? defaultRibbonSide : ribbonSide,
@@ -830,7 +833,7 @@ export function usePictorium(): PictoriumCtx {
     }
     setUrlPattern(buildUrlPattern({ ...base, idPlaceholder: "{tmdb_id}" }))
     setUrlPatternImdb(buildUrlPattern({ ...base, idPlaceholder: "{imdb_id}" }))
-    }, [globalBadges, rankingBadges, badgeGenre, badgeYear, badgeRating, badgeQuality, qualityBadgeStyle, customRatings, ratingSources, separateRatings, networkLogo, preRelease, ribbonSide, posterShape, logoAlign, gradientHeight, blurIntensity, blurFade, blurDarkness, blurEnabled, tintStrength, topShade, badgeStyle, rankingBadgeStyle, topBadgeScale, topBadgeOffsetX, topBadgeOffsetY, genreBadgeScale, qualityBadgeScale, networkLogoScale, genreBadgeOffsetX, genreBadgeOffsetY, qualityBadgeOffsetX, qualityBadgeOffsetY, networkLogoOffsetX, networkLogoOffsetY, tmdbKey, lang, mdblistApiKey, currentUserId, serverKeyStatus, navigation.previewId, defaultGlobalBadges, defaultRankingBadges, defaultBadgeStyle, defaultRankingBadgeStyle, defaultQualityBadgeStyle, defaultBadgeGenre, defaultBadgeYear, defaultBadgeRating, defaultBadgeQuality, defaultCustomRatings, defaultRatingSources, defaultSeparateRatings, defaultGradientHeight, defaultBlurIntensity, defaultBlurFade, defaultBlurDarkness, defaultBlurEnabled, defaultTintStrength, defaultTopShade, defaultNetworkLogo, defaultPreRelease, defaultRibbonSide, defaultPosterShape, defaultLogoAlign, defaultTopBadgeScale, defaultTopBadgeOffsetX, defaultTopBadgeOffsetY, defaultGenreBadgeScale, defaultQualityBadgeScale, defaultNetworkLogoScale, defaultGenreBadgeOffsetX, defaultGenreBadgeOffsetY, defaultQualityBadgeOffsetX, defaultQualityBadgeOffsetY, defaultNetworkLogoOffsetX, defaultNetworkLogoOffsetY]) // eslint-disable-line react-hooks/exhaustive-deps -- customBadge intentionally excluded to avoid loop
+    }, [globalBadges, rankingBadges, badgeGenre, badgeYear, badgeRating, badgeQuality, qualityBadgeStyle, customRatings, ratingSources, separateRatings, networkLogo, preRelease, ribbonSide, posterShape, logoAlign, gradientHeight, blurIntensity, blurFade, blurDarkness, blurEnabled, landscapeBlur, tintStrength, topShade, badgeStyle, rankingBadgeStyle, topBadgeScale, topBadgeOffsetX, topBadgeOffsetY, genreBadgeScale, qualityBadgeScale, networkLogoScale, genreBadgeOffsetX, genreBadgeOffsetY, qualityBadgeOffsetX, qualityBadgeOffsetY, networkLogoOffsetX, networkLogoOffsetY, tmdbKey, lang, mdblistApiKey, currentUserId, serverKeyStatus, navigation.previewId, defaultGlobalBadges, defaultRankingBadges, defaultBadgeStyle, defaultRankingBadgeStyle, defaultQualityBadgeStyle, defaultBadgeGenre, defaultBadgeYear, defaultBadgeRating, defaultBadgeQuality, defaultCustomRatings, defaultRatingSources, defaultSeparateRatings, defaultGradientHeight, defaultBlurIntensity, defaultBlurFade, defaultBlurDarkness, defaultBlurEnabled, defaultTintStrength, defaultTopShade, defaultNetworkLogo, defaultPreRelease, defaultRibbonSide, defaultPosterShape, defaultLogoAlign, defaultTopBadgeScale, defaultTopBadgeOffsetX, defaultTopBadgeOffsetY, defaultGenreBadgeScale, defaultQualityBadgeScale, defaultNetworkLogoScale, defaultGenreBadgeOffsetX, defaultGenreBadgeOffsetY, defaultQualityBadgeOffsetX, defaultQualityBadgeOffsetY, defaultNetworkLogoOffsetX, defaultNetworkLogoOffsetY]) // eslint-disable-line react-hooks/exhaustive-deps -- customBadge intentionally excluded to avoid loop
 
   // --- Default live sul titolo corrente ---
   // Una modifica ai default (barra Impostazioni) si riflette subito sulla
@@ -1309,14 +1312,14 @@ export function usePictorium(): PictoriumCtx {
       setBlurDarkness(existing?.blurDarkness ?? defaultBlurDarkness)
       setBlurEnabled(existing?.blurEnabled ?? defaultBlurEnabled)
       // Profilo sfumatura landscape (sezione Orizzontale): mapping.landscape
-      // con fallback ai default globali Orizzontale e poi ai default di formato
-      // (fade 70 come il server).
+      // con fallback ai default globali Orizzontale, poi al default flat
+      // (come il server), poi al default di formato (fade 70).
       const landEff = effectiveMappingForShape(existing ?? null, "landscape")
       resetLandscapeBlur({
         gradientHeight: landEff?.gradientHeight ?? landscapeDefaults?.gradientHeight ?? defaultGradientHeight,
         blurEnabled: landEff?.blurEnabled ?? landscapeDefaults?.blurEnabled ?? defaultBlurEnabled,
         blurIntensity: landEff?.blurIntensity ?? landscapeDefaults?.blurIntensity ?? defaultBlurIntensity,
-        blurFade: landEff?.blurFade ?? landscapeDefaults?.blurFade ?? 70,
+        blurFade: landEff?.blurFade ?? landscapeDefaults?.blurFade ?? defaultBlurFade ?? 70,
         blurDarkness: landEff?.blurDarkness ?? landscapeDefaults?.blurDarkness ?? defaultBlurDarkness,
         tintStrength: landEff?.tintStrength ?? landscapeDefaults?.tintStrength ?? defaultTintStrength,
         topShade: landEff?.topShade ?? landscapeDefaults?.topShade ?? defaultTopShade,
@@ -1362,7 +1365,9 @@ export function usePictorium(): PictoriumCtx {
         gradientHeight: landscapeDefaults?.gradientHeight ?? defaultGradientHeight,
         blurEnabled: landscapeDefaults?.blurEnabled ?? defaultBlurEnabled,
         blurIntensity: landscapeDefaults?.blurIntensity ?? defaultBlurIntensity,
-        blurFade: landscapeDefaults?.blurFade ?? 70,
+        // Come il server (effectiveDefaultsForShape): senza override
+        // Orizzontale si eredita il default flat, non 70 fisso.
+        blurFade: landscapeDefaults?.blurFade ?? defaultBlurFade ?? 70,
         blurDarkness: landscapeDefaults?.blurDarkness ?? defaultBlurDarkness,
         tintStrength: landscapeDefaults?.tintStrength ?? defaultTintStrength,
         topShade: landscapeDefaults?.topShade ?? defaultTopShade,
@@ -1467,6 +1472,18 @@ export function usePictorium(): PictoriumCtx {
           if (fallbackPoster) {
             chosenPoster = fallbackPoster
             navigation.setPreviewPoster({ file_path: fallbackPoster.file_path, iso_639_1: fallbackPoster.iso_639_1, vote_average: 0, width: 0, height: 0 })
+          }
+        }
+        // Solo landscape: senza poster clean il logo si auto-seleziona
+        // comunque (la base è il backdrop, senza testo). In portrait
+        // invariato: niente auto-logo senza clean.
+        if (!clean && defaultPosterShape === "landscape" && (data.logos?.length ?? 0) > 0) {
+          const autoLogo = autoLogoSelection(data.logos || [], lang, details.original_language, `${itemType}/${itemId}`)
+          if (autoLogo) {
+            navigation.setSelectedLogo({ file_path: autoLogo.file_path, iso_639_1: autoLogo.iso_639_1, vote_average: 0, width: autoLogo.width, height: autoLogo.height })
+            // Scala logo: default globale per formato > auto-fit per aspect.
+            const landscapeLogoScale = logoScaleDefaultFor(defaultPosterShape) ?? logoDefaultScale(autoLogo)
+            if (landscapeLogoScale !== null) setLogoScale(landscapeLogoScale)
           }
         }
         loadDefaultsToState()

@@ -98,7 +98,7 @@
   "ui.ratingSources": "評価プロバイダー",
   "ui.ratingSourcesHint": "以下で選択した有効な評価プロバイダーの平均を計算します。",
   "ui.separateRatings": "個別レーティング",
-  "ui.separateRatingsHint": "プロバイダーごとのスコアを右列に表示（最大3件）。★平均の代わり。縦長のみ。",
+  "ui.separateRatingsHint": "プロバイダーごとのスコアを右列に表示（最大3件）。★平均の代わり。",
   "ui.sashTitle": "Top badges (categories)",
   "ui.sash_upcoming": "Upcoming",
   "ui.sash_rank": "Rankings",

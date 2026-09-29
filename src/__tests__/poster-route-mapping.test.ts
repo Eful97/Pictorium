@@ -196,6 +196,44 @@ describe("GET /api/poster/[type]/[id] with saved mappings", () => {
     expect(renderMultiRatings).not.toHaveBeenCalled()
   })
 
+  it("keeps the logo over the backdrop in landscape without a clean poster (portrait drops it)", async () => {
+    const backdrop = await imageBuffer("#101010", 768, 432)
+    const logo = await imageBuffer("#ffffff", 220, 80)
+    const requestedUrls: string[] = []
+    const nonClean = {
+      mediaType: "movie" as const,
+      title: "Non-clean",
+      posterPath: "/lang-poster.jpg",
+      logoPath: "/landscape-logo.png",
+      originalPosterPath: null,
+      language: "it",
+      backdropPath: "/backdrop.jpg",
+      showBadges: false,
+      rankingBadges: false,
+      updatedAt: "2026-07-16T10:15:30.000Z",
+    }
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+      const url = String(input)
+      requestedUrls.push(url)
+      const body = url.includes("/landscape-logo.png") ? logo : backdrop
+      return new Response(new Uint8Array(body), {
+        status: 200,
+        headers: { "content-type": "image/png", "content-length": String(body.length) },
+      })
+    })
+    // Landscape: la base è il backdrop (senza testo), il logo resta.
+    mockedGetById.mockResolvedValue({ ...nonClean, tmdbId: 44, posterShape: "landscape" })
+    const land = await GET(new NextRequest("http://localhost:3000/api/poster/movie/44?rv=81"), { params: Promise.resolve({ type: "movie", id: "44" }) })
+    expect(land.status).toBe(200)
+    expect(requestedUrls.some((url) => url.includes("/landscape-logo.png"))).toBe(true)
+    // Portrait: poster con testo incorporato, niente logo (invariato).
+    requestedUrls.length = 0
+    mockedGetById.mockResolvedValue({ ...nonClean, tmdbId: 45, posterShape: "poster" })
+    const port = await GET(new NextRequest("http://localhost:3000/api/poster/movie/45?rv=81"), { params: Promise.resolve({ type: "movie", id: "45" }) })
+    expect(port.status).toBe(200)
+    expect(requestedUrls.some((url) => url.includes("/landscape-logo.png"))).toBe(false)
+  })
+
   it("passes custom ratings to the renderer on a miss and skips the provider on a cache hit", async () => {
     vi.stubEnv("PICTORIUM_CUSTOM_RATING_ENABLED", "true")
     vi.stubEnv("PICTORIUM_CUSTOM_RATING_ENDPOINT", "https://example.com/{imdbId}")

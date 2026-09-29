@@ -398,6 +398,28 @@ describe("SettingsPanel", () => {
     expect(tvdbBtn.className).not.toContain("bg-white/20")
   })
 
+  it("mostra Formato poster nel tab Preferenze (non nel tab Badge)", async () => {
+    renderWithCtx(
+      <SettingsPanel
+        setSettingsOpen={() => {}}
+        exportData={() => {}}
+        importData={() => {}}
+      />
+    )
+    // Tab Badge: nessun controllo formato.
+    const badgePanel = screen.getByRole("tabpanel", { name: "ui.badgeSection" })
+    expect(within(badgePanel).queryByRole("button", { name: "ui.posterShapeLandscape" })).not.toBeInTheDocument()
+    // Tab Preferenze: il controllo c'è e commuta il default.
+    fireEvent.click(screen.getByRole("tab", { name: "ui.settingsTabPrefs" }))
+    const prefsPanel = screen.getByRole("tabpanel", { name: "ui.settingsTabPrefs" })
+    const portraitBtn = within(prefsPanel).getByRole("button", { name: "ui.posterShapePortrait" })
+    const landscapeBtn = within(prefsPanel).getByRole("button", { name: "ui.posterShapeLandscape" })
+    expect(portraitBtn.className).toContain("bg-white/20")
+    fireEvent.click(landscapeBtn)
+    expect(landscapeBtn.className).toContain("bg-white/20")
+    expect(portraitBtn.className).not.toContain("bg-white/20")
+  })
+
   it("mostra la card Token admin solo quando il server ha ADMIN_TOKEN", async () => {
     resetGuestGuardForTests()
     vi.stubGlobal(

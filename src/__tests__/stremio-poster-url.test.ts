@@ -247,4 +247,66 @@ describe("buildStremioPosterUrl", () => {  it("adds a mapping version parameter 
     expect(banner.searchParams.has("bf")).toBe(false)
     expect(resolveConfig(banner, styled).blurFade).toBe(40)
   })
+
+  it("resolves the global landscape default shape without a mapping", () => {
+    const base = {
+      origin: "http://localhost:3000",
+      type: "movie" as const,
+      id: 42,
+      defaults: { posterShape: "landscape" as const },
+      mapping: null,
+    }
+    const url = buildStremioPosterUrl(base)
+    // Il formato globale vale anche senza mapping salvato (stessa catena
+    // della route: forceShape → mapping → defaults → "poster").
+    expect(url.searchParams.get("shape")).toBe("landscape")
+    expect(resolveConfig(url, null).posterShape).toBe("landscape")
+  })
+
+  it("forces the landscape default over a saved portrait without changing the mapping", () => {
+    const saved = { ...mapping("2026-07-16T10:15:30.000Z"), posterShape: "poster" as const }
+    const url = buildStremioPosterUrl({
+      origin: "http://localhost:3000",
+      type: "movie",
+      id: 42,
+      defaults: { posterShape: "landscape" },
+      mapping: saved,
+    })
+    expect(url.searchParams.get("shape")).toBe("landscape")
+    expect(resolveConfig(url, saved).posterShape).toBe("landscape")
+    expect(saved.posterShape).toBe("poster")
+  })
+
+  it("inherits the flat blurFade default in landscape instead of forcing 70", () => {
+    const base = {
+      origin: "http://localhost:3000",
+      type: "movie" as const,
+      id: 42,
+      // Token esplicito: tuning non compattato, bf visibile nell'URL.
+      config: "tok",
+      defaults: { posterShape: "landscape" as const, blurFade: 85 },
+      mapping: null,
+    }
+    const url = buildStremioPosterUrl(base)
+    expect(url.searchParams.get("shape")).toBe("landscape")
+    expect(url.searchParams.get("bf")).toBe("85")
+  })
+
+  it("uses the mapping landscape topShade profile (not the flat value)", () => {
+    const styled = {
+      ...mapping("2026-07-16T10:15:30.000Z"),
+      posterShape: "landscape" as const,
+      topShade: 10,
+      landscape: { topShade: 80 },
+    }
+    const url = buildStremioPosterUrl({
+      origin: "http://localhost:3000",
+      type: "movie" as const,
+      id: 42,
+      defaults: {},
+      mapping: styled,
+    })
+    expect(url.searchParams.has("ts")).toBe(false)
+    expect(resolveConfig(url, styled).topShade).toBe(80)
+  })
 })

@@ -98,7 +98,7 @@
   "ui.ratingSources": "Dostawcy ocen",
   "ui.ratingSourcesHint": "Oblicza średnią ze wszystkich aktywnych dostawców ocen wybranych poniżej.",
   "ui.separateRatings": "Oddzielne oceny",
-  "ui.separateRatingsHint": "Prawa kolumna z jednym wynikiem na dostawcę (max 3), zamiast średniej ★. Tylko pionowo.",
+  "ui.separateRatingsHint": "Prawa kolumna z jednym wynikiem na dostawcę (max 3), zamiast średniej ★.",
   "ui.sashTitle": "Górne odznaki (kategorie)",
   "ui.sash_upcoming": "Nadchodzące",
   "ui.sash_rank": "Rankingi",

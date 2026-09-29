@@ -144,3 +144,53 @@ describe("quality badge scale", () => {
     expect(c150 / c100).toBeCloseTo(2.25, 0)
   }, 30000)
 })
+
+async function blackLogo(): Promise<Buffer> {
+  return sharp({
+    create: { width: 220, height: 100, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 1 } },
+  })
+    .png()
+    .toBuffer()
+}
+
+/** Larghezza del testo chiaro del badge genere in basso. */
+async function genreTextWidth(buf: Buffer): Promise<number> {
+  const { data, info } = await sharp(buf).ensureAlpha().raw().toBuffer({ resolveWithObject: true })
+  let x0 = info.width, x1 = 0
+  for (let y = Math.floor(info.height * 0.8); y < info.height; y++) {
+    for (let x = 0; x < info.width; x++) {
+      const i = (y * info.width + x) * 4
+      if (data[i] > 200 && data[i + 1] > 200 && data[i + 2] > 200) {
+        if (x < x0) x0 = x
+        if (x > x1) x1 = x
+      }
+    }
+  }
+  return x1 - x0
+}
+
+describe("genre badge vs film logo overlap", () => {
+  it("shrinks the genre badge instead of the logo on overlap (min 0.7)", async () => {
+    // Logo nero: stessa geometria di quello bianco ma invisibile sul fondo
+    // scuro — la misura conta solo il testo del badge genere (vetro).
+    const poster = await darkPoster()
+    const logo = await blackLogo()
+    const base = {
+      posterBuf: poster,
+      logoFetch: logo,
+      logoScale: 75,
+      badgeStyle: "vetro" as const,
+      voteAverage: 7.8,
+      badgeRating: true,
+      releaseDate: "2024-01-15",
+    }
+    const normal = await generatePosterBuffer(baseInput({ ...base, logoOffsetY: 0 }))
+    const pushed = await generatePosterBuffer(baseInput({ ...base, logoOffsetY: 150 }))
+    const wNormal = await genreTextWidth(normal)
+    const wPushed = await genreTextWidth(pushed)
+    expect(wNormal).toBeGreaterThan(50)
+    // Il badge si rimpicciolisce ma resta leggibile (mai sotto 0.7x).
+    expect(wPushed).toBeLessThan(wNormal)
+    expect(wPushed / wNormal).toBeGreaterThan(0.6)
+  }, 30000)
+})

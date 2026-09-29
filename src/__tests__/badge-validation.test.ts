@@ -209,6 +209,19 @@ describe("mappingSchema", () => {
     expect(mappingSchema.safeParse(base).success).toBe(true)
     expect(mappingSchema.safeParse({ ...base, wikidataId: "nope" }).success).toBe(false)
   })
+
+  it("preserves landscape tintStrength/topShade (no Zod strip)", () => {
+    const base = { tmdbId: 1405, mediaType: "tv", title: "Dexter", posterPath: "/d.jpg" }
+    const r = mappingSchema.safeParse({
+      ...base,
+      landscape: { gradientHeight: 20, blurFade: 70, tintStrength: 80, topShade: 10 },
+    })
+    expect(r.success).toBe(true)
+    if (r.success) {
+      expect(r.data.landscape?.tintStrength).toBe(80)
+      expect(r.data.landscape?.topShade).toBe(10)
+    }
+  })
 })
 
 describe("getUpcomingReleaseLabel", () => {

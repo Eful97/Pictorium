@@ -259,6 +259,17 @@ describe("buildPreviewUrl", () => {
     expect(url).not.toContain("logo=")
   })
 
+  it("includes logo params in landscape even when the vertical poster is not clean", () => {
+    const url = buildPreviewUrl({
+      ...basePosterState,
+      selectedLogo: { file_path: "/logo.png", iso_639_1: "it", vote_average: 1, width: 200, height: 80 },
+      logoScale: 60,
+    }, { ...baseBadgeParams, posterShape: "landscape" as const, logoAlign: "left" as const })
+    expect(url).toContain("logo=%2Flogo.png")
+    expect(url).toContain("scale=60")
+    expect(url).toContain("shape=landscape")
+  })
+
   it("includes backdrop params when backdrop selected", () => {
     const url = buildPreviewUrl({
       ...basePosterState,

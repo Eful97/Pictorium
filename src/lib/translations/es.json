@@ -98,7 +98,7 @@
   "ui.ratingSources": "Proveedores de puntuación",
   "ui.ratingSourcesHint": "Calcula el promedio de todos los proveedores activos seleccionados abajo.",
   "ui.separateRatings": "Notas separadas",
-  "ui.separateRatingsHint": "Columna derecha con una nota por proveedor (máx. 3), reemplaza el promedio ★. Solo vertical.",
+  "ui.separateRatingsHint": "Columna derecha con una nota por proveedor (máx. 3), reemplaza el promedio ★.",
   "ui.sashTitle": "Top badges (categories)",
   "ui.sash_upcoming": "Upcoming",
   "ui.sash_rank": "Rankings",

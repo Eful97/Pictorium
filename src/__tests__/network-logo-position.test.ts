@@ -187,4 +187,88 @@ describe("network logo position", () => {
     }
     expect(brightTopLeft).toBeLessThan(100)
   })
+
+  it("mirrors top-right below the ribbon in Stremio view (ribbonSide right)", async () => {
+    const buf = await generatePosterBuffer({
+      posterBuf: await darkPoster(),
+      logoFetch: null,
+      backdropFetch: null,
+      backdropScale: 100,
+      backdropOffsetX: 0,
+      backdropOffsetY: 0,
+      blurEnabled: false,
+      blurHeight: 50,
+      blurIntensity: 10,
+      blurFade: 10,
+      blurDarkness: 0,
+      badgesEnabled: false,
+      rankingEnabled: true,
+      genreName: null,
+      voteAverage: null,
+      badgeStyle: "shadow",
+      rankingBadgeStyle: "netflix",
+      badgeGenre: false,
+      badgeYear: false,
+      badgeRating: false,
+      topLight: false,
+      targetCenter: 0,
+      ribbonSide: "right",
+      logoScale: 75,
+      logoOffsetX: 0,
+      logoOffsetY: 0,
+      topBadgeScale: 100,
+      topBadgeOffsetX: 0,
+      topBadgeOffsetY: 0,
+      genreBadgeScale: 100,
+      qualityBadgeScale: 100,
+      networkLogoScale: 100,
+      genreBadgeOffsetX: 0,
+      genreBadgeOffsetY: 0,
+      qualityBadgeOffsetX: 0,
+      qualityBadgeOffsetY: 0,
+      networkLogoOffsetX: 0,
+      networkLogoOffsetY: 0,
+      mediaType: "movie",
+      finalRank: 3,
+      animeRankResult: null,
+      rankingResult: 3,
+      mapping: null,
+      tmdbNetworks: ["Netflix"],
+      productionCompanies: [],
+      tmdbStudios: [],
+      tvType: null,
+      tvStatus: null,
+      releaseDate: null,
+      firstAirDate: null,
+      lastAirDate: null,
+      seasonCount: null,
+      originCountries: [],
+      wikidataResult: { awards: [], nominations: [], studios: [], director: null } satisfies WikidataResult,
+      tmdbKeywords: [],
+      locale: "it",
+      t: (k: string) => k,
+      qLabel: null,
+      queryExtra: null,
+      qNetLogo: null,
+      networkLogo: true,
+      sd: { networkLogo: true } satisfies ServerDefaults,
+      accentOverride: null,
+      imdbTop250: false,
+      preRelease: false,
+    })
+    const { data, info } = await sharp(buf).ensureAlpha().raw().toBuffer({ resolveWithObject: true })
+    const bright = (x0: number, x1: number, y0: number, y1: number) => {
+      let n = 0
+      for (let y = y0; y < y1; y++) {
+        for (let x = x0; x < x1; x++) {
+          if (data[(y * info.width + x) * 4] > 150) n++
+        }
+      }
+      return n
+    }
+    // Angolo sinistro libero: il network ha specchiato a destra.
+    expect(bright(18, 150, 18, 80)).toBeLessThan(100)
+    // Stessa riga del nastro, alla sua sinistra (specchio Nuvio).
+    expect(bright(300, 399, 10, 75)).toBeGreaterThan(300)
+  })
 })

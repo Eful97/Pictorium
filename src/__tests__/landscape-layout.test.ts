@@ -204,4 +204,69 @@ describe("landscape layout", () => {
     expect(centeredX).toBeLessThan(350)
     expect(rightX).toBeGreaterThan(400)
   }, 60000)
+
+  it("keeps the genre visual center with separate ratings in landscape", async () => {
+    // Con ★ la pill è più larga; senza (separati) l'ancoraggio destro la
+    // sposterebbe a destra — la compensazione tiene il centro dov'era.
+    // Due contenuti: corto (nessuno shrink) e lungo con anno (shrink overflow).
+    const backdrop = await darkBackdrop()
+    for (const extra of [
+      {},
+      { genreName: "Azione", releaseDate: "2024-01-15" },
+    ]) {
+      const full = await generatePosterBuffer(
+        baseInput({ posterBuf: backdrop, shape: "landscape", voteAverage: 7.8, badgeRating: true, ...extra }),
+      )
+      const sep = await generatePosterBuffer(
+        baseInput({
+          posterBuf: backdrop,
+          shape: "landscape",
+          voteAverage: 7.8,
+          badgeRating: false,
+          separateRatings: [{ id: "imdb", value: 8.7 }],
+          ...extra,
+        }),
+      )
+      const centerX = async (buf: Buffer) => {
+        const { data, info } = await sharp(buf).ensureAlpha().raw().toBuffer({ resolveWithObject: true })
+        let x0 = info.width, x1 = 0
+        for (let y = Math.floor(info.height * 0.8); y < info.height; y++) {
+          for (let x = 0; x < info.width; x++) {
+            const i = (y * info.width + x) * 4
+            if (data[i] > 150 && data[i + 1] > 150 && data[i + 2] > 150) {
+              if (x < x0) x0 = x
+              if (x > x1) x1 = x
+            }
+          }
+        }
+        return (x0 + x1) / 2
+      }
+      // Misura dal render reale: tolleranza stretta ma non zero.
+      expect(Math.abs((await centerX(sep)) - (await centerX(full)))).toBeLessThanOrEqual(12)
+    }
+  }, 60000)
+
+  it("pulls bordo/vetro genre badges off the landscape corner (-30x/-15y)", async () => {
+    // Senza la calibrazione stanno incollati al bordo (audit: bordo a x767/y431
+    // su canvas 768x432). Misura full-canvas: nient'altro è chiaro nel render.
+    const backdrop = await darkBackdrop()
+    for (const badgeStyle of ["bordo", "vetro"] as const) {
+      const buf = await generatePosterBuffer(
+        baseInput({ posterBuf: backdrop, shape: "landscape", badgeStyle, voteAverage: 7.8, badgeRating: true }),
+      )
+      const { data, info } = await sharp(buf).ensureAlpha().raw().toBuffer({ resolveWithObject: true })
+      let x1 = 0, y1 = 0
+      for (let y = 0; y < info.height; y++) {
+        for (let x = 0; x < info.width; x++) {
+          const i = (y * info.width + x) * 4
+          if (data[i] > 120 || data[i + 1] > 120 || data[i + 2] > 120) {
+            if (x > x1) x1 = x
+            if (y > y1) y1 = y
+          }
+        }
+      }
+      expect(x1).toBeLessThanOrEqual(info.width - 20)
+      expect(y1).toBeLessThanOrEqual(info.height - 10)
+    }
+  }, 60000)
 })

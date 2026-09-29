@@ -11,12 +11,12 @@ export interface RecentChange {
 }
 
 export const RECENT_CHANGES: RecentChange[] = [
+  { type: "feature", text: "Add Arabic language and Saudi Arabia to catalogs, rankings and interface", sha: "79ae08f", date: "2026-09-29" },
+  { type: "feature", text: "Landscape defaults section and unsaved artwork warning in Stremio preview", sha: "b5c2adc", date: "2026-09-29" },
   { type: "feature", text: "Add Polish language and Poland to catalogs, rankings and interface", sha: "62b62ec", date: "2026-09-29" },
   { type: "fix", text: "Fix Dolby Vision Atmos badge artwork and XML prolog handling", sha: "232ff9c", date: "2026-09-29" },
   { type: "fix", text: "Custom external catalogs show covers and full lists on multi-user profiles", sha: "8e853f4", date: "2026-09-29" },
   { type: "feature", text: "Introduce unified Dolby Vision Atmos compact badge", sha: "b8ba937", date: "2026-09-29" },
   { type: "feature", text: "Connect Portuguese language to European Portugal catalogs and flag", sha: "8e6f01a", date: "2026-09-29" },
   { type: "fix", text: "Fix IMAX vector letter A cutout and enforce automatic AV formats", sha: "265b6fd", date: "2026-09-29" },
-  { type: "feature", text: "Add video format badge toggles in editor and general settings", sha: "7b37694", date: "2026-09-29" },
-  { type: "feature", text: "Calibrate official vector video badges to unified 2:1 ratio", sha: "8fe95aa", date: "2026-09-29" },
 ]

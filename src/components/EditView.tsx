@@ -10,7 +10,7 @@ import { useT } from "@/lib/contexts/TranslationContext"
 import { usePosterEditor } from "@/lib/contexts/PosterEditorContext"
 import type { TMDBImage } from "@/lib/types"
 import { effectiveMappingForShape, type LandscapeSettings } from "@/lib/types"
-import { isGradientDirty, isArtworkDirty } from "@/lib/gradient-dirty"
+import { isGradientDirtyForShape, isArtworkDirty } from "@/lib/gradient-dirty"
 import { PosterOptions } from "@/components/PosterOptions"
 import { BackdropOptions } from "@/components/BackdropOptions"
 import { LogoOptions } from "@/components/LogoOptions"
@@ -133,22 +133,35 @@ export default function EditView() {
 
   // Il modale "Testa URL Stremio" mostra lo stato SALVATO (stesso URL dei
   // cataloghi): con preset/slider non ancora salvati la sfumatura in preview
-  // non corrisponde. Stessa risoluzione del load in context.tsx (profilo
-  // landscape incluso, flat per tinta/ombra).
-  const gradientDirty = useMemo(() => isGradientDirty(
-    {
-      gradientHeight: ed.gradientHeight, blurEnabled: ed.blurEnabled,
-      blurIntensity: ed.blurIntensity, blurFade: ed.blurFade, blurDarkness: ed.blurDarkness,
-      tintStrength: ed.tintStrength, topShade: ed.topShade,
-    },
+  // non corrisponde. Il confronto segue il formato visualizzato (in landscape
+  // la preview mostra il profilo Orizzontale, non i flat).
+  const isLandscapeTuning = ed.posterShape === "landscape"
+  const gradientDirty = useMemo(() => isGradientDirtyForShape(
+    isLandscapeTuning
+      ? { ...ed.landscapeBlur }
+      : {
+        gradientHeight: ed.gradientHeight, blurEnabled: ed.blurEnabled,
+        blurIntensity: ed.blurIntensity, blurFade: ed.blurFade, blurDarkness: ed.blurDarkness,
+        tintStrength: ed.tintStrength, topShade: ed.topShade,
+      },
     selectedMapping ?? null,
-    {
-      gradientHeight: ed.defaultGradientHeight, blurEnabled: ed.defaultBlurEnabled,
-      blurIntensity: ed.defaultBlurIntensity, blurFade: ed.defaultBlurFade, blurDarkness: ed.defaultBlurDarkness,
-      tintStrength: ed.defaultTintStrength, topShade: ed.defaultTopShade,
-    },
-    ed.defaultPosterShape,
-  ), [ed, selectedMapping])
+    isLandscapeTuning
+      ? {
+        gradientHeight: ed.landscape?.gradientHeight ?? ed.defaultGradientHeight,
+        blurEnabled: ed.landscape?.blurEnabled ?? ed.defaultBlurEnabled,
+        blurIntensity: ed.landscape?.blurIntensity ?? ed.defaultBlurIntensity,
+        blurFade: ed.landscape?.blurFade ?? ed.defaultBlurFade ?? 70,
+        blurDarkness: ed.landscape?.blurDarkness ?? ed.defaultBlurDarkness,
+        tintStrength: ed.landscape?.tintStrength ?? ed.defaultTintStrength,
+        topShade: ed.landscape?.topShade ?? ed.defaultTopShade,
+      }
+      : {
+        gradientHeight: ed.defaultGradientHeight, blurEnabled: ed.defaultBlurEnabled,
+        blurIntensity: ed.defaultBlurIntensity, blurFade: ed.defaultBlurFade, blurDarkness: ed.defaultBlurDarkness,
+        tintStrength: ed.defaultTintStrength, topShade: ed.defaultTopShade,
+      },
+    ed.posterShape,
+  ), [ed, selectedMapping, isLandscapeTuning])
 
   // Il modale mostra lo stato SALVATO: anche poster/sfondo/formato/logo non
   // ancora salvati divergono dalla preview (Best Fit orizzontale scelto ma
@@ -640,8 +653,8 @@ export default function EditView() {
                 )}
                 <div className="animate-tab-fade-in space-y-3">
                 {activeRightTab === "logo" && <>
-                  <LogoOptions logos={logos} selectedLogo={selectedLogo} lang={lang} selectLogo={handleSelectLogo} removeLogo={removeLogo} disabled={!cleanPoster} />
-                  {!cleanPoster && <p className="text-xs text-zinc-400 text-center mt-2 px-1">{t("ui.logoHint")}</p>}
+                  <LogoOptions logos={logos} selectedLogo={selectedLogo} lang={lang} selectLogo={handleSelectLogo} removeLogo={removeLogo} disabled={!cleanPoster && ed.posterShape !== "landscape"} />
+                  {!cleanPoster && ed.posterShape !== "landscape" && <p className="text-xs text-zinc-400 text-center mt-2 px-1">{t("ui.logoHint")}</p>}
                 </>}
                 {activeRightTab === "badge" && <BadgeControls />}
                 {activeRightTab === "transform" && <TransformControls />}

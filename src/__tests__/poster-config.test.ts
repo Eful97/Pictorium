@@ -89,6 +89,21 @@ describe("resolvePosterRenderConfig", () => {
     expect(r.badgeStyle).toBe("pill")
   })
 
+  it("landscape degrades genre bar to shadow (unavailable in 16:9)", () => {
+    // Query esplicita.
+    expect(resolvePosterRenderConfig(baseInput({
+      searchParams: new URLSearchParams({ bs: "bar", shape: "landscape" }),
+    }))).toMatchObject({ posterShape: "landscape", badgeStyle: "shadow" })
+    // Mapping salvato.
+    expect(resolvePosterRenderConfig(baseInput({
+      mapping: mapping({ posterShape: "landscape", badgeStyle: "bar" }),
+    }))).toMatchObject({ posterShape: "landscape", badgeStyle: "shadow" })
+    // Portrait invariato: bar resta valido.
+    expect(resolvePosterRenderConfig(baseInput({
+      searchParams: new URLSearchParams({ bs: "bar" }),
+    }))).toMatchObject({ posterShape: "poster", badgeStyle: "bar" })
+  })
+
   it("query rs beats mapping, config token and server defaults", () => {
     // M6: come per bs, la query `rs` vince sul mapping salvato (WYSIWYG).
     const r = resolvePosterRenderConfig(baseInput({

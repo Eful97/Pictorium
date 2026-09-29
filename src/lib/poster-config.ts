@@ -306,8 +306,8 @@ export function resolvePosterRenderConfig(input: PosterRenderConfigInput): Poste
   )
 
   // Colonna rating separati — stessa catena (query `sep` > mapping > config >
-  // server defaults > false). Il gate portrait-only è al sito d'uso (route):
-  // qui il flag resta puro per preview/WYSIWYG.
+  // server defaults > false). Vale per entrambi i canvas: la colonna segue
+  // il badge qualità anche in landscape.
   const qSep = q.get("sep")
   const separateRatings = qSep !== null ? qSep !== "0" : (mapping?.separateRatings ?? configOverride?.separateRatings ?? sd.separateRatings ?? false)
 
@@ -318,7 +318,11 @@ export function resolvePosterRenderConfig(input: PosterRenderConfigInput): Poste
     || (mapping?.badgeStyle && mapping.badgeStyle !== "shadow" ? mapping.badgeStyle : undefined)
     || configOverride?.badgeStyle
     || sd.badgeStyle
-  const badgeStyle: BadgeStyle = isBadgeStyle(rawBs) ? rawBs : DEFAULT_BADGE_STYLE
+  let badgeStyle: BadgeStyle = isBadgeStyle(rawBs) ? rawBs : DEFAULT_BADGE_STYLE
+  // Stile "bar" non disponibile in landscape (full-width incoerente con
+  // l'ancoraggio basso-destra 16:9): degrada a shadow come il ranking bar
+  // degrada a default. Vale per preview e Stremio (stesso endpoint).
+  if (posterShape === "landscape" && badgeStyle === "bar") badgeStyle = DEFAULT_BADGE_STYLE
 
   // Stile icone qualità — catena: query `qbs` > mapping salvato >
   // config token > server defaults > "standard". Valori non validi → standard.

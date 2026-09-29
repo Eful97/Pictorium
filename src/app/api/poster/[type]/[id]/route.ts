@@ -669,8 +669,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
   let aggregatedRating: ReturnType<typeof fetchAggregatedRating> | null = null
   let multiRatingOnly = false
   const ratings: RatingItem[] = []
-  // Colonna rating separati: popolata dai sources aggregati dopo la race
-  // (solo portrait — il gate è qui, non in poster-config che resta pura).
+  // Colonna rating separati: popolata dai sources aggregati dopo la race.
   let sepItems: SeparateRating[] = []
   let ratingAbort: AbortController | null = null
   let showBadges = true
@@ -773,11 +772,13 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
     etag = `"p${etagBase}"`
   } else if (mapping) {
     posterPath = mapping.posterPath
-    // Poster non-clean (language !== null) ha già testo incorporato → mai sovrapporre logo
+    // Poster non-clean (language !== null) ha già testo incorporato → mai
+    // sovrapporre il logo in portrait. In landscape la base è il backdrop
+    // (senza testo): il logo resta sempre, anche senza poster clean.
     const isMappingClean = mapping.language === null
-    const effectiveMappingLogo = isMappingClean && !mapping.logoDisabled ? mapping.logoPath : null
+    const effectiveMappingLogo = (isMappingClean || isLandscape) && !mapping.logoDisabled ? mapping.logoPath : null
     logoPath = queryLogo || effectiveMappingLogo
-    if (!isMappingClean) logoPath = null
+    if (!isMappingClean && !isLandscape) logoPath = null
     backdropPath = queryBackdrop || mapping?.backdropPath || null
     backdropScale = mapping?.backdropScale ?? 100
     // Fix M5: clamp difensivo anche sui mapping già salvati (pre-bounds zod):
@@ -1041,15 +1042,21 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
           }
         } else {
           // Nessun clean disponibile: il poster in lingua ha già il titolo
-          // stampato → mai sovrapporre il logo (stesso invariante del client:
-          // buildPreviewUrl emette `logo=` solo con poster clean, e il mapping
-          // forza logoPath=null sui non-clean).
+          // stampato → mai sovrapporre il logo in portrait (stesso invariante
+          // del client: buildPreviewUrl emette `logo=` solo con poster clean,
+          // e il mapping forza logoPath=null sui non-clean). In landscape la
+          // base è il backdrop (senza testo): il logo resta sempre e la base
+          // conta come clean per il profilo sfumatura.
           const langPoster = images.posters.find((p: TMDBImage) => p.iso_639_1 === preferredLanguage)
           const origPoster = details.original_language ? images.posters.find((p: TMDBImage) => p.iso_639_1 === details.original_language) : undefined
           const chosen = langPoster || origPoster || images.posters[0]
           if (chosen) posterPath = chosen.file_path
-          logoPath = null
-          logoPathBuffer = null
+          if (isLandscape && logoPath) {
+            autoPosterClean = true
+          } else {
+            logoPath = null
+            logoPathBuffer = null
+          }
         }
       }
       // Best-fit automatico dello sfondo landscape (mirror del portrait sopra):
@@ -1418,10 +1425,10 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
           ? getKeywords(mediaType, tmdbId, effTmdbKey, renderAbort.signal, POSTER_TMDB_TIMEOUT_MS).catch(() => [])
           : Promise.resolve([]),
         (async () => {
-          // La colonna separati (solo portrait) richiede gli stessi aggregated
+          // La colonna separati richiede gli stessi aggregated
           // dei custom rating: senza, preview e poster mappati non avrebbero
           // mai i sources (desync WYSIWYG).
-          const sepFetch = sepDisplay && !isLandscape
+          const sepFetch = sepDisplay
           if (!rankingEnabledEarly && !customRatingConfig.enabled && !sepFetch) return false
           if (!imdbId) {
             // F6: externalIds già in session cache (ramo non-mappato) → niente rete.
@@ -1488,7 +1495,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
       }
       // Colonna separati: dai sources aggregati (anche con media skippata via
       // multiRatingOnly — i sources servono comunque). Vuoto → fallback media.
-      if (sepDisplay && !isLandscape) sepItems = pickSeparateRatings(aggregated, reqRatingSources)
+      // Vale per entrambi i canvas (la colonna segue il badge qualità).
+      if (sepDisplay) sepItems = pickSeparateRatings(aggregated, reqRatingSources)
       ratingAbort?.abort()
     }
 

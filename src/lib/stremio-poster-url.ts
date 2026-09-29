@@ -3,7 +3,7 @@ import { buildStremioPosterSearchParams } from "@/lib/stremio-poster-params"
 import { isRankKey } from "@/lib/i18n"
 import type { ServerDefaults } from "@/lib/server-defaults"
 import { effectiveDefaultsForShape } from "@/lib/server-defaults"
-import { effectiveMappingForShape, type Mapping, type PosterShape } from "@/lib/types"
+import { effectiveMappingForShape, isPosterShape, type Mapping, type PosterShape } from "@/lib/types"
 import { NON_CLEAN_GRADIENT_HEIGHT, NON_CLEAN_BLUR_FADE } from "@/lib/gradient-defaults"
 
 export type StremioPosterType = "movie" | "series"
@@ -22,7 +22,7 @@ export interface BuildStremioPosterUrlInput {
   readonly user?: string | null
   readonly region?: string | null
   /**
-   * Forza il formato canvas dell'URL (default: mapping > defaults).
+   * Forza il formato canvas dell'URL (altrimenti: default landscape > mapping > poster).
    * Usato dal catalogo per i campi landscape: `banner` (sempre pulito, con
    * `hideLogo`) per i client che lo leggono e `landscapePoster` (con logo
    * baked-in) per NuvioTV — entrambi indipendenti dal posterShape del titolo.
@@ -42,6 +42,12 @@ export function mappingVersionParam(mapping: Mapping | null | undefined): string
   return Number.isFinite(timestamp) ? String(timestamp) : null
 }
 
+/** Il default orizzontale forza Stremio, senza riscrivere il formato salvato del titolo. */
+export function stremioPosterShape(mapping: Mapping | null | undefined, defaults: ServerDefaults): PosterShape {
+  if (defaults.posterShape === "landscape") return "landscape"
+  return isPosterShape(mapping?.posterShape) ? mapping.posterShape : "poster"
+}
+
 export function buildStremioPosterUrl(input: BuildStremioPosterUrlInput): URL {
   const url = buildPosterPublicUrl(`/api/poster/${input.type}/${input.id}`, {
     origin: input.origin,
@@ -52,7 +58,7 @@ export function buildStremioPosterUrl(input: BuildStremioPosterUrlInput): URL {
   // orizzontale (stessa effettività del server — query > landscape > flat).
   // forceShape scavalca la selezione da mapping (vedi sopra) ma il profilo
   // resta quello del mapping salvato (fallback flat chiave-per-chiave).
-  const effShape: PosterShape = input.forceShape ?? (mapping?.posterShape === "landscape" ? "landscape" : "poster")
+  const effShape = input.forceShape ?? stremioPosterShape(mapping, input.defaults)
   const eff = effectiveMappingForShape(mapping, effShape)
   // Default di resa per formato: in landscape il profilo `landscape` vince sui
   // flat chiave-per-chiave (chiavi fuori dal subset restano flat per tipo).
@@ -111,19 +117,27 @@ export function buildStremioPosterUrl(input: BuildStremioPosterUrlInput): URL {
     networkLogoScale: eff?.networkLogoScale ?? sd.networkLogoScale,
     networkLogoOffsetX: eff?.networkLogoOffsetX ?? sd.networkLogoOffsetX,
     networkLogoOffsetY: eff?.networkLogoOffsetY ?? sd.networkLogoOffsetY,
+    // Scala/offset logo: in compact viaggiano solo dentro `dv` (firma), ma
+    // vanno passati espliciti al builder altrimenti un cambio dei default
+    // non invaliderebbe l'URL (cache stantia su browser/edge/Stremio).
+    logoScale: eff?.logoScale ?? sd.logoScale ?? undefined,
+    logoOffsetX: eff?.logoOffsetX ?? sd.logoOffsetX ?? undefined,
+    logoOffsetY: eff?.logoOffsetY ?? sd.logoOffsetY ?? undefined,
     gradientHeight: eff?.gradientHeight ?? (mapping?.language != null ? NON_CLEAN_GRADIENT_HEIGHT : sd.gradientHeight),
     blurIntensity: eff?.blurIntensity ?? sd.blurIntensity,
     // Default sfumatura dedicato al formato (come logoAlign): in landscape
     // serve una transizione più lunga; il portrait resta sul default globale.
     // Mapping non-clean senza valori congelati: 20/80 per tipo poster (come
-    // l'editor all'apertura) invece dei default globali.
-    blurFade: eff?.blurFade ?? ((input.forceShape ?? mapping?.posterShape ?? sd.posterShape) === "landscape" ? 70 : (mapping?.language != null ? NON_CLEAN_BLUR_FADE : sd.blurFade)),
+    // l'editor all'apertura) invece dei default globali. Il default effettivo
+    // di formato (sd, già landscape-aware) vince sempre sul fallback 70.
+    blurFade: eff?.blurFade ?? sd.blurFade ?? (effShape === "landscape" ? 70 : (mapping?.language != null ? NON_CLEAN_BLUR_FADE : 50)),
     blurDarkness: eff?.blurDarkness ?? sd.blurDarkness,
     blurEnabled: eff?.blurEnabled ?? sd.blurEnabled,
     tintStrength: eff?.tintStrength ?? sd.tintStrength,
-    // Ombra superiore: per-titolo, poi default globale, poi 50 (default di
-    // formato invariato). Assente negli URL legacy = default del server.
-    topShade: mapping?.topShade ?? sd.topShade ?? 50,
+    // Ombra superiore: profilo effettivo per-titolo (landscape incluso),
+    // poi default globale, poi 50 (default di formato invariato). Assente
+    // negli URL legacy = default del server.
+    topShade: eff?.topShade ?? sd.topShade ?? 50,
     customBadge,
     badgePresetId: mapping?.badgePresetId,
     badgePresetRev: mapping?.badgePresetRev,
@@ -135,13 +149,12 @@ export function buildStremioPosterUrl(input: BuildStremioPosterUrlInput): URL {
     hideLogo: input.hideLogo,
     // ribbonSide solo globale: i mapping storici con valore salvato lo ignorano.
     ribbonSide: sd.ribbonSide,
-    // Formato canvas: per-titolo vince sul default globale (come gli altri
-    // parametri espliciti). Emesso solo quando landscape (vedi params).
-    // forceShape (banner Nuvio) scavalca entrambi.
-    posterShape: input.forceShape ?? mapping?.posterShape ?? sd.posterShape,
+    // Il default orizzontale prevale sui mapping portrait solo per Stremio.
+    // Emesso solo quando landscape (vedi params); forceShape resta esplicito.
+    posterShape: effShape,
     // Allineamento: solo globale (il mapping non ha il campo) e solo
     // landscape — i portrait non portano mai `align` (sempre centrati).
-    logoAlign: (input.forceShape ?? mapping?.posterShape ?? sd.posterShape) === "landscape"
+    logoAlign: effShape === "landscape"
       ? sd.logoAlign
       : undefined,
   })

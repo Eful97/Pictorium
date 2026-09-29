@@ -92,6 +92,11 @@ describe("buildStremioPosterSearchParams", () => {
     expect(buildStremioPosterSearchParams({ compactTuning: true, blurFade: 10 }).get("dv")).not.toBe(dv)
     expect(buildStremioPosterSearchParams({ compactTuning: true, topShade: 0 }).get("dv")).not.toBe(dv)
     expect(buildStremioPosterSearchParams({ compactTuning: true, gradientHeight: 40 }).get("dv")).not.toBe(dv)
+    // Scala/offset logo guidano il render: devono invalidare anche loro.
+    expect(buildStremioPosterSearchParams({ compactTuning: true, logoScale: 40 }).get("dv")).not.toBe(dv)
+    expect(buildStremioPosterSearchParams({ compactTuning: true, logoScale: 95 }).get("dv")).not.toBe(dv)
+    expect(buildStremioPosterSearchParams({ compactTuning: true, logoOffsetX: 10 }).get("dv")).not.toBe(dv)
+    expect(buildStremioPosterSearchParams({ compactTuning: true, logoOffsetY: -5 }).get("dv")).not.toBe(dv)
     // Non-compact (template, ?config=): tuning esplicito, niente firma.
     expect(buildStremioPosterSearchParams({}).has("dv")).toBe(false)
     expect(buildStremioPosterSearchParams({ config: "tok", blurFade: 10 }).has("dv")).toBe(false)

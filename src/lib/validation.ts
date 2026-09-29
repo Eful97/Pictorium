@@ -115,6 +115,8 @@ export const mappingSchema = z.object({
     blurIntensity: z.number().nullable().optional(),
     blurFade: z.number().nullable().optional(),
     blurDarkness: z.number().nullable().optional(),
+    tintStrength: z.number().nullable().optional(),
+    topShade: z.number().nullable().optional(),
   }).nullable().optional(),
   networkLogoPath: z.string().nullable().optional(),
   networkLogoName: z.string().nullable().optional(),
