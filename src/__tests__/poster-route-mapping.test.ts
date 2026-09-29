@@ -10,7 +10,7 @@ import { getJWRankings } from "@/lib/justwatch"
 import { fetchMDBList } from "@/lib/mdblist"
 import { cacheClear } from "@/lib/cache"
 import { resolveStreamQuality } from "@/lib/stream-quality"
-import { __resetTMDBSessionCache } from "@/lib/tmdb-session-cache"
+import { __resetTMDBSessionCache, setTMDBSessionCache } from "@/lib/tmdb-session-cache"
 import type { Mapping } from "@/lib/types"
 import { fetchCustomRatings } from "@/lib/custom-rating"
 import { fetchAllWikidata } from "@/lib/awards"
@@ -1917,6 +1917,52 @@ describe("GET /api/poster/[type]/[id] con alias IMDb manuale", () => {
     expect(res.status).toBe(200)
     expect(mockedGetById).toHaveBeenCalledWith("tv", 100, null)
     expect(mockedResolveImdbToTmdb).not.toHaveBeenCalled()
+  })
+
+  it("backfills genuine TMDB vote into the separate-ratings fetch on preview when MDBList is down", async () => {
+    const posterBuf = await imageBuffer("#101010", 500, 750)
+    const { fetchAggregatedRating } = await import("@/lib/ratings")
+    const mockedAggregatedRating = vi.mocked(fetchAggregatedRating)
+    // MDBList down: nessun sources.
+    mockedAggregatedRating.mockResolvedValue(null)
+    mockedGetById.mockResolvedValue(null)
+    // Voto TMDB genuino già in session cache (ramo non-mappato / tick precedenti).
+    setTMDBSessionCache("movie", 44, {
+      details: { id: 44, genres: [], vote_average: 7.5, vote_count: 100 },
+    })
+    mockedGetImages.mockResolvedValue({ id: 44, posters: [], logos: [], backdrops: [] })
+    vi.spyOn(globalThis, "fetch").mockImplementation(async () => new Response(new Uint8Array(posterBuf), {
+      status: 200,
+      headers: { "content-type": "image/png", "content-length": String(posterBuf.length) },
+    }))
+    const res = await GET(new NextRequest(
+      "http://localhost:3000/api/poster/movie/44?poster=%2Fq.jpg&imdbId=tt0000044&sep=1&rsrc=tmdb&badges=1&ranking=0&preview=1&debug=1",
+    ), { params: Promise.resolve({ type: "movie", id: "44" }) })
+    expect(res.status).toBe(200)
+    expect(mockedAggregatedRating).toHaveBeenCalled()
+    const opts = mockedAggregatedRating.mock.calls[0][3] as { tmdbFallbackVote?: number }
+    expect(opts.tmdbFallbackVote).toBe(7.5)
+  })
+
+  it("skips the TMDB backfill in the separate-ratings fetch without a genuine cached vote", async () => {
+    const posterBuf = await imageBuffer("#101010", 500, 750)
+    const { fetchAggregatedRating } = await import("@/lib/ratings")
+    const mockedAggregatedRating = vi.mocked(fetchAggregatedRating)
+    mockedAggregatedRating.mockResolvedValue(null)
+    mockedGetById.mockResolvedValue(null)
+    // Nessun details in session cache: niente backfill (come prima del fix).
+    mockedGetImages.mockResolvedValue({ id: 44, posters: [], logos: [], backdrops: [] })
+    vi.spyOn(globalThis, "fetch").mockImplementation(async () => new Response(new Uint8Array(posterBuf), {
+      status: 200,
+      headers: { "content-type": "image/png", "content-length": String(posterBuf.length) },
+    }))
+    const res = await GET(new NextRequest(
+      "http://localhost:3000/api/poster/movie/44?poster=%2Fq.jpg&imdbId=tt0000044&sep=1&rsrc=tmdb&badges=1&ranking=0&preview=1&debug=1",
+    ), { params: Promise.resolve({ type: "movie", id: "44" }) })
+    expect(res.status).toBe(200)
+    expect(mockedAggregatedRating).toHaveBeenCalled()
+    const opts = mockedAggregatedRating.mock.calls[0][3] as { tmdbFallbackVote?: number }
+    expect(opts.tmdbFallbackVote).toBeUndefined()
   })
 })
 
