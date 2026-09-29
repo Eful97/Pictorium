@@ -76,6 +76,8 @@
   "ui.videoFormatsAutoHint": "データベースから自動検出",
   "ui.formatsAll": "すべて",
   "ui.formatsNone": "なし",
+  "ui.activeCount": "有効",
+  "ui.resetAuto": "自動検出にリセット",
   "ui.qbsStandard": "標準",
   "ui.qbsMono": "モノクロ",
   "ui.qbsColor": "カラー",
@@ -442,6 +444,7 @@
   "ui.showDebug": "ベストフィットのデバッグを表示",
   "ui.excludePoster": "ポスターを除外",
   "ui.excludeBackdrop": "背景を除外",
+  "ui.noBackdrops": "背景画像がありません",
   "ui.withoutLanguage": "言語なし",
   "ui.noLogoInLanguage": "この言語のロゴがありません",
   "ui.loadMoreLogos": "さらに読み込む (+{count})",
@@ -455,6 +458,8 @@
   "ui.collectionOptions": "コレクション設定",
   "ui.posterWithLogo": "ロゴ付きポスター",
   "ui.cleanPoster": "クリーンポスター",
+  "ui.setAsPortrait": "縦向きに設定",
+  "ui.setAsLandscape": "横向きに設定",
   "ui.emptyPostersSub": "保存済みポスターはまだありません。カタログからポスターをカスタマイズするとここに表示されます。",
   "ui.emptyCollectionTitle": "コレクションなし",
   "ui.emptyCollectionSub": "最初のコレクションを作ってポスターを整理しましょう。",
@@ -744,7 +749,5 @@
   "ui.hostedByDeploy": "Deploy your own private instance on ElfHosted",
   "ui.hostedByGuide": "free addons guide",
   "ui.hostedByGuideLine": "New to Stremio? Check the {guide}.",
-  "ui.hostedByMinimize": "Minimize to icon",
-  "ui.formatsAll": "すべて",
-  "ui.formatsNone": "なし"
+  "ui.hostedByMinimize": "Minimize to icon"
 }

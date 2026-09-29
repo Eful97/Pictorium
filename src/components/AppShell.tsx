@@ -324,7 +324,7 @@ export function AppShell() {
             onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); goHome() } }}
             role="button"
             tabIndex={0}
-            aria-label={t("ui.home")}
+            aria-label={t("ui.homeBtn")}
             src="/pictorium.svg"
             alt="Pictorium"
             decoding="async"

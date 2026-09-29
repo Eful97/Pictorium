@@ -76,6 +76,8 @@
   "ui.videoFormatsAutoHint": "Detectado automaticamente da base de dados",
   "ui.formatsAll": "Todos",
   "ui.formatsNone": "Nenhum",
+  "ui.activeCount": "ativos",
+  "ui.resetAuto": "Redefinir para deteção automática",
   "ui.qbsStandard": "Padrão",
   "ui.qbsMono": "Monocromático",
   "ui.qbsColor": "Colorido",
@@ -442,6 +444,7 @@
   "ui.showDebug": "Mostrar debug do best fit",
   "ui.excludePoster": "Excluir pôster",
   "ui.excludeBackdrop": "Excluir fundo",
+  "ui.noBackdrops": "Nenhuma imagem de fundo disponível",
   "ui.withoutLanguage": "Sem idioma",
   "ui.noLogoInLanguage": "Sem logo neste idioma",
   "ui.loadMoreLogos": "Carregar mais (+{count})",
@@ -455,6 +458,8 @@
   "ui.collectionOptions": "Opções da coleção",
   "ui.posterWithLogo": "Pôster com logo",
   "ui.cleanPoster": "Pôster limpo",
+  "ui.setAsPortrait": "Definir como vertical",
+  "ui.setAsLandscape": "Definir como horizontal",
   "ui.emptyPostersSub": "Nenhum pôster salvo ainda. Personalize um pôster dos catálogos e ele aparece aqui.",
   "ui.emptyCollectionTitle": "Sem coleções",
   "ui.emptyCollectionSub": "Crie sua primeira coleção para organizar os pôsteres.",
@@ -744,7 +749,5 @@
   "ui.hostedByDeploy": "Deploy your own private instance on ElfHosted",
   "ui.hostedByGuide": "free addons guide",
   "ui.hostedByGuideLine": "New to Stremio? Check the {guide}.",
-  "ui.hostedByMinimize": "Minimize to icon",
-  "ui.formatsAll": "Todos",
-  "ui.formatsNone": "Nenhum"
+  "ui.hostedByMinimize": "Minimize to icon"
 }

@@ -76,6 +76,8 @@
   "ui.videoFormatsAutoHint": "Detectat automat din baza de date",
   "ui.formatsAll": "Toate",
   "ui.formatsNone": "Niciunul",
+  "ui.activeCount": "active",
+  "ui.resetAuto": "Resetează la detectarea automată",
   "ui.qbsStandard": "Standard",
   "ui.qbsMono": "Monocrom",
   "ui.qbsColor": "Color",
@@ -442,6 +444,7 @@
   "ui.showDebug": "Afișează depanarea potrivirii",
   "ui.excludePoster": "Exclude posterul",
   "ui.excludeBackdrop": "Exclude fundalul",
+  "ui.noBackdrops": "Nu există imagini de fundal disponibile",
   "ui.withoutLanguage": "Fără limbă",
   "ui.noLogoInLanguage": "Niciun logo în această limbă",
   "ui.loadMoreLogos": "Încarcă mai multe logo-uri (+{count})",
@@ -455,6 +458,8 @@
   "ui.collectionOptions": "Opțiuni colecție",
   "ui.posterWithLogo": "Poster cu logo",
   "ui.cleanPoster": "Poster curat",
+  "ui.setAsPortrait": "Setează ca portret",
+  "ui.setAsLandscape": "Setează ca peisaj",
   "ui.emptyPostersSub": "Niciun poster salvat încă. Personalizează un poster din cataloage și va apărea aici.",
   "ui.emptyCollectionTitle": "Nicio colecție",
   "ui.emptyCollectionSub": "Creează prima ta colecție pentru a-ți organiza posterele.",
@@ -744,7 +749,5 @@
   "ui.hostedByDeploy": "Găzduiește propria instanță privată pe ElfHosted",
   "ui.hostedByGuide": "ghidul gratuit de add-on-uri",
   "ui.hostedByGuideLine": "Nou pe Stremio? Consultă {guide}.",
-  "ui.hostedByMinimize": "Minimizează la pictogramă",
-  "ui.formatsAll": "Toate",
-  "ui.formatsNone": "Niciunul"
+  "ui.hostedByMinimize": "Minimizează la pictogramă"
 }

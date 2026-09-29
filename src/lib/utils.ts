@@ -12,7 +12,8 @@ export const LANG_FLAGS: Record<string, string> = {
   it: "🇮🇹", en: "🇬🇧", fr: "🇫🇷", de: "🇩🇪", es: "🇪🇸", pt: "🇵🇹",
   ja: "🇯🇵", ko: "🇰🇷", zh: "🇨🇳", ru: "🇷🇺", ar: "🇸🇦", nl: "🇳🇱",
   pl: "🇵🇱", sv: "🇸🇪", tr: "🇹🇷", hi: "🇮🇳", he: "🇮🇱", ro: "🇷🇴",
-  cs: "🇨🇿",
+  cs: "🇨🇿", da: "🇩🇰", no: "🇳🇴", fi: "🇫🇮", el: "🇬🇷", hu: "🇭🇺",
+  uk: "🇺🇦", th: "🇹🇭", id: "🇮🇩", vi: "🇻🇳",
 }
 
 export const LANG_NAMES: Record<string, string> = {
@@ -20,7 +21,9 @@ export const LANG_NAMES: Record<string, string> = {
   es: "Español", pt: "Português", ja: "日本語", ko: "한국어",
   zh: "中文", ru: "Русский", ar: "العربية", nl: "Nederlands",
   pl: "Polski", sv: "Svenska", tr: "Türkçe", hi: "हिन्दी",
-  he: "עברית", ro: "Română", cs: "Čeština",
+  he: "עברית", ro: "Română", cs: "Čeština", da: "Dansk",
+  no: "Norsk", fi: "Suomi", el: "Ελληνικά", hu: "Magyar",
+  uk: "Українська", th: "ไทย", id: "Bahasa Indonesia", vi: "Tiếng Việt",
   xx: "Senza lingua",
 }
 

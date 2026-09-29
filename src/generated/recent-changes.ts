@@ -11,6 +11,7 @@ export interface RecentChange {
 }
 
 export const RECENT_CHANGES: RecentChange[] = [
+  { type: "fix", text: "Fix IMAX vector letter A cutout and enforce automatic AV formats", sha: "265b6fd", date: "2026-09-29" },
   { type: "feature", text: "Add video format badge toggles in editor and general settings", sha: "7b37694", date: "2026-09-29" },
   { type: "feature", text: "Calibrate official vector video badges to unified 2:1 ratio", sha: "8fe95aa", date: "2026-09-29" },
   { type: "feature", text: "Expand local AV specs database to over 1400 popular movies", sha: "496e708", date: "2026-09-29" },
@@ -18,5 +19,4 @@ export const RECENT_CHANGES: RecentChange[] = [
   { type: "feature", text: "Stack AV format badges vertically and adapt color to poster luminance", sha: "a0e6ed0", date: "2026-09-29" },
   { type: "feature", text: "Add local AV specs database for 4K, Dolby Vision, Atmos and IMAX badges", sha: "21220f9", date: "2026-09-29" },
   { type: "fix", text: "Harmonize quality badge icons and improve drop shadow contrast", sha: "de94ec5", date: "2026-09-29" },
-  { type: "feature", text: "quality badge icon styles (mono/color)", sha: "5566eae", date: "2026-09-28" },
 ]

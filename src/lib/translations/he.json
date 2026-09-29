@@ -76,6 +76,8 @@
   "ui.videoFormatsAutoHint": "זוהה אוטומטית ממסד הנתונים",
   "ui.formatsAll": "הכל",
   "ui.formatsNone": "ללא",
+  "ui.activeCount": "פעילים",
+  "ui.resetAuto": "אפס לזיהוי אוטומטי",
   "ui.qbsStandard": "Standard",
   "ui.qbsMono": "Monochrome",
   "ui.qbsColor": "Color",
@@ -442,6 +444,7 @@
   "ui.showDebug": "Show best fit debug",
   "ui.excludePoster": "Exclude poster",
   "ui.excludeBackdrop": "Exclude backdrop",
+  "ui.noBackdrops": "אין תמונות רקע זמינות",
   "ui.withoutLanguage": "Without language",
   "ui.noLogoInLanguage": "No logo in this language",
   "ui.loadMoreLogos": "Load more logos (+{count})",
@@ -455,6 +458,8 @@
   "ui.collectionOptions": "Collection options",
   "ui.posterWithLogo": "Poster with logo",
   "ui.cleanPoster": "Clean poster",
+  "ui.setAsPortrait": "הגדר כלאורך",
+  "ui.setAsLandscape": "הגדר כרוחב",
   "ui.emptyPostersSub": "No posters saved yet. Customize a poster from the catalogs and it will appear here.",
   "ui.emptyCollectionTitle": "No collections",
   "ui.emptyCollectionSub": "Create your first collection to organize your posters.",
@@ -744,7 +749,5 @@
   "ui.hostedByDeploy": "Deploy your own private instance on ElfHosted",
   "ui.hostedByGuide": "free addons guide",
   "ui.hostedByGuideLine": "New to Stremio? Check the {guide}.",
-  "ui.hostedByMinimize": "Minimize to icon",
-  "ui.formatsAll": "הכל",
-  "ui.formatsNone": "ללא"
+  "ui.hostedByMinimize": "Minimize to icon"
 }

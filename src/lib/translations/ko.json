@@ -76,6 +76,8 @@
   "ui.videoFormatsAutoHint": "데이터베이스에서 자동 감지됨",
   "ui.formatsAll": "모두",
   "ui.formatsNone": "없음",
+  "ui.activeCount": "활성",
+  "ui.resetAuto": "자동 감지로 재설정",
   "ui.qbsStandard": "표준",
   "ui.qbsMono": "모노크롬",
   "ui.qbsColor": "컬러",
@@ -442,6 +444,7 @@
   "ui.showDebug": "베스트 핏 디버그 보기",
   "ui.excludePoster": "포스터 제외",
   "ui.excludeBackdrop": "배경 제외",
+  "ui.noBackdrops": "사용 가능한 배경 이미지가 없습니다",
   "ui.withoutLanguage": "언어 없음",
   "ui.noLogoInLanguage": "이 언어의 로고 없음",
   "ui.loadMoreLogos": "더 불러오기 (+{count})",
@@ -455,6 +458,8 @@
   "ui.collectionOptions": "컬렉션 설정",
   "ui.posterWithLogo": "로고 있는 포스터",
   "ui.cleanPoster": "클린 포스터",
+  "ui.setAsPortrait": "세로 모드로 설정",
+  "ui.setAsLandscape": "가로 모드로 설정",
   "ui.emptyPostersSub": "저장된 포스터가 아직 없습니다. 카탈로그에서 포스터를 꾸미면 여기에 표시됩니다.",
   "ui.emptyCollectionTitle": "컬렉션 없음",
   "ui.emptyCollectionSub": "첫 컬렉션을 만들어 포스터를 정리하세요.",
@@ -744,7 +749,5 @@
   "ui.hostedByDeploy": "Deploy your own private instance on ElfHosted",
   "ui.hostedByGuide": "free addons guide",
   "ui.hostedByGuideLine": "New to Stremio? Check the {guide}.",
-  "ui.hostedByMinimize": "Minimize to icon",
-  "ui.formatsAll": "모두",
-  "ui.formatsNone": "없음"
+  "ui.hostedByMinimize": "Minimize to icon"
 }
