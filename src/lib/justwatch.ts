@@ -152,6 +152,40 @@ export const JW_GENRE_MAP: Record<string, string> = {
   "stiintifico-fantastic": "scf",
   "științifico-fantastic": "scf",
   mister: "mys",
+  // Polacco: le forme qui sono i generi TMDB in pl-PL e le varianti usate
+  // dai nomi extra Stremio. "horror", "western", "thriller", "fantasy" e
+  // "science fiction", "historia" e "sport" mancano perché identici alle voci
+  // già presenti.
+  // `lookupJWGenreCode` applica stripDiacritics (che mappa anche `ł`), quindi
+  // "kryminal" copre "kryminał" senza una seconda voce.
+  akcja: "act",
+  "akcja i przygoda": "act",
+  animacja: "ani",
+  "animowany": "ani",
+  przygodowy: "act",
+  komedia: "cmy",
+  "komedia obyczajowa": "cmy",
+  kryminal: "crm",
+  dokumentalny: "doc",
+  dramat: "drm",
+  familijny: "fml",
+  romans: "rma",
+  romantyczny: "rma",
+  fantastyka: "fnt",
+  "fantastyka naukowa": "scf",
+  scifi: "scf",
+  historyczny: "hst",
+  wojenny: "war",
+  "wojna i polityka": "war",
+  sportowy: "spt",
+  muzyczny: "msc",
+  muzyka: "msc",
+  tajemniczy: "mys",
+  tajemnica: "mys",
+  "film dokumentalny": "doc",
+  "film animowany": "ani",
+  "film akcji": "act",
+  "film przygodowy": "act",
 }
 
 export function resolveJWGenreCode(genreName?: string | null): string | null {
@@ -174,7 +208,12 @@ export function resolveJWGenreCode(genreName?: string | null): string | null {
 }
 
 function stripDiacritics(str: string): string {
-  return str.normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+  // NFD + rimozione dei combining marks coprie acenti, cedille, caron e i
+  // corone romene (ș/ț). NON copre il polacco `ł` (U+0142): è una lettera con
+  // un tratto, non un diacritico, quindi NFD la lascia intatta — senza il
+  // mapping esplicito "kryminał" non risolverebbe mai a `kryminal`.
+  // L'input è già lowercase (vedi lookupJWGenreCode), basta la forma minuscola.
+  return str.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/ł/g, "l")
 }
 
 function lookupJWGenreCode(genreName: string): string | null {

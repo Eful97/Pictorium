@@ -13,7 +13,7 @@ const SUB_GENRES: SubGenreRule[] = [
   {
     key: "timetravel",
     keywords: ["time travel", "time loop", "time machine", "wormhole", "time manipulation"],
-    labels: { it: "Viaggi nel Tempo", en: "Time Travel", fr: "Voyage temporel", de: "Zeitreise", es: "Viajes en el tiempo", he: "מסע בזמן" },
+    labels: { it: "Viaggi nel Tempo", en: "Time Travel", fr: "Voyage temporel", de: "Zeitreise", es: "Viajes en el tiempo", he: "מסע בזמן", pl: "Podróż w czasie" },
   },
   {
     key: "cyberpunk",
@@ -21,7 +21,7 @@ const SUB_GENRES: SubGenreRule[] = [
     // they caused false positives on non-cyberpunk movies (e.g. The Handmaid's Tale,
     // Her, Ready Player One). Cyberpunk is distinctive enough from its core terms.
     keywords: ["cyberpunk", "android", "cybernetics"],
-    labels: { it: "Cyberpunk", en: "Cyberpunk", fr: "Cyberpunk", de: "Cyberpunk", es: "Cyberpunk", he: "סייברפאנק" },
+    labels: { it: "Cyberpunk", en: "Cyberpunk", fr: "Cyberpunk", de: "Cyberpunk", es: "Cyberpunk", he: "סייברפאנק", pl: "Cyberpunk" },
   },
 
   {
@@ -29,63 +29,63 @@ const SUB_GENRES: SubGenreRule[] = [
     // NOTE: "detective" and "investigation" removed — they are too broad and
     // triggered false positives on generic police procedurals.
     keywords: ["whodunit", "murder mystery", "private investigator", "sleuth"],
-    labels: { it: "Giallo", en: "Whodunit", fr: "Whodunit", de: "Whodunit", es: "Whodunit", he: "מי הרוצח" },
+    labels: { it: "Giallo", en: "Whodunit", fr: "Whodunit", de: "Whodunit", es: "Whodunit", he: "מי הרוצח", pl: "Tajemnica" },
   },
   {
     key: "heist",
     keywords: ["heist", "bank robbery", "caper", "robbery", "master thief"],
-    labels: { it: "Film di Rapina", en: "Heist", fr: "Film de braquage", de: "Heist", es: "Robos", he: "סרט שוד" },
+    labels: { it: "Film di Rapina", en: "Heist", fr: "Film de braquage", de: "Heist", es: "Robos", he: "סרט שוד", pl: "Film z napadu" },
   },
   {
     key: "zombie",
     // NOTE: "infected" removed — medical/virus outbreak keywords would falsely
     // trigger the zombie badge on non-zombie contagion thrillers.
     keywords: ["zombie", "zombies", "undead", "apocalypse zombie"],
-    labels: { it: "Film di Zombie", en: "Zombie", fr: "Film de zombies", de: "Zombie", es: "Zombis", he: "זומבים" },
+    labels: { it: "Film di Zombie", en: "Zombie", fr: "Film de zombies", de: "Zombie", es: "Zombis", he: "זומבים", pl: "Film zombie" },
   },
   {
     key: "vampire",
     keywords: ["vampire", "vampires", "dracula", "blood drinker"],
-    labels: { it: "Vampiri", en: "Vampires", fr: "Vampires", de: "Vampire", es: "Vampiros", he: "ערפדים" },
+    labels: { it: "Vampiri", en: "Vampires", fr: "Vampires", de: "Vampire", es: "Vampiros", he: "ערפדים", pl: "Wampiry" },
   },
   {
     key: "paranormal",
     keywords: ["haunted house", "ghost", "demonic possession", "exorcism", "poltergeist", "supernatural horror", "paranormal"],
-    labels: { it: "Paranormale", en: "Paranormal", fr: "Paranormal", de: "Paranormal", es: "Paranormal", he: "על-טבעי" },
+    labels: { it: "Paranormale", en: "Paranormal", fr: "Paranormal", de: "Paranormal", es: "Paranormal", he: "על-טבעי", pl: "Paranormalne" },
   },
   {
     key: "kaiju",
     keywords: ["kaiju", "giant monster", "godzilla", "king kong"],
-    labels: { it: "Kaiju & Mostri", en: "Kaiju & Monsters", fr: "Kaiju", de: "Kaiju", es: "Kaiju", he: "קאיג'ו ומפלצות" },
+    labels: { it: "Kaiju & Mostri", en: "Kaiju & Monsters", fr: "Kaiju", de: "Kaiju", es: "Kaiju", he: "קאיג'ו ומפלצות", pl: "Kaiju i potwory" },
   },
   {
     key: "postapocalyptic",
     // NOTE: "survival horror" removed — it is a video-game genre tag that appears
     // on non-post-apocalyptic survival horror games/movies (e.g. The Descent).
     keywords: ["post-apocalyptic", "wasteland", "nuclear winter"],
-    labels: { it: "Post-Apocalittico", en: "Post-Apocalyptic", fr: "Post-apocalyptique", de: "Postapokalyptisch", es: "Postapocalíptico", he: "פוסט-אפוקליפטי" },
+    labels: { it: "Post-Apocalittico", en: "Post-Apocalyptic", fr: "Post-apocalyptique", de: "Postapokalyptisch", es: "Postapocalíptico", he: "פוסט-אפוקליפטי", pl: "Postapokaliptyczny" },
   },
   {
     key: "foundfootage",
     keywords: ["found footage", "mockumentary", "handheld camera"],
     // NOTE: "mockumentary" can appear on comedy mockumentaries (This Is Spinal Tap),
     // but these rarely overlap with TMDB horror keywords. Acceptable low risk.
-    labels: { it: "Found Footage", en: "Found Footage", fr: "Found Footage", de: "Found Footage", es: "Metraje encontrado", he: "Found Footage" },
+    labels: { it: "Found Footage", en: "Found Footage", fr: "Found Footage", de: "Found Footage", es: "Metraje encontrado", he: "Found Footage", pl: "Found Footage" },
   },
   {
     key: "noir",
     keywords: ["neo-noir", "film noir", "hardboiled", "femme fatale"],
-    labels: { it: "Film Noir", en: "Film Noir", fr: "Film Noir", de: "Film Noir", es: "Cine Negro", he: "Film Noir" },
+    labels: { it: "Film Noir", en: "Film Noir", fr: "Film Noir", de: "Film Noir", es: "Cine Negro", he: "Film Noir", pl: "Film noir" },
   },
   {
     key: "spaghettiwestern",
     keywords: ["spaghetti western", "gunslinger", "wild west"],
-    labels: { it: "Spaghetti Western", en: "Western", fr: "Western", de: "Western", es: "Western", he: "מערבון" },
+    labels: { it: "Spaghetti Western", en: "Western", fr: "Western", de: "Western", es: "Western", he: "מערבון", pl: "Spaghetti Western" },
   },
   {
     key: "martialarts",
     keywords: ["martial arts", "kung fu", "karate", "samurai", "ninja"],
-    labels: { it: "Arti Marziali", en: "Martial Arts", fr: "Arts martiaux", de: "Kampfsport", es: "Artes marciales", he: "אומנויות לחימה" },
+    labels: { it: "Arti Marziali", en: "Martial Arts", fr: "Arts martiaux", de: "Kampfsport", es: "Artes marciales", he: "אומנויות לחימה", pl: "Sztuki walki" },
   },
   {
     key: "spaceopera",
@@ -93,7 +93,7 @@ const SUB_GENRES: SubGenreRule[] = [
     // flagged hard sci-fi (The Martian, Interstellar) and alien-invasion action
     // as space opera. Core terms are sufficient for Star Wars / Mandalorian / Trek.
     keywords: ["space opera", "space western", "intergalactic"],
-    labels: { it: "Space Opera", en: "Space Opera", fr: "Space Opera", de: "Space Opera", es: "Space Opera", he: "אופרת חלל" },
+    labels: { it: "Space Opera", en: "Space Opera", fr: "Space Opera", de: "Space Opera", es: "Space Opera", he: "אופרת חלל", pl: "Space opera" },
   },
 ]
 
@@ -111,7 +111,7 @@ export function getSubGenreLabel(keywords: string[], locale = "it"): string | nu
   for (const sub of SUB_GENRES) {
     if (sub.keywords.some((kwPattern) => normalized.some((nk) => matchKeywordPattern(nk, kwPattern)))) {
       const lang = (locale || "it").slice(0, 2)
-      // it/en/fr/de/es/he hanno tutti i 14 label; ja/ko/pt ripiegano
+      // it/en/fr/de/es/he/pl hanno tutti i 14 label; ja/ko/pt/cs/ro ripiegano
       // ancora sull'italiano (bug preesistente, fuori dallo scope qui).
       return sub.labels[lang] || sub.labels.it
     }

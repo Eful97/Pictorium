@@ -18,7 +18,7 @@ export interface RegionDef {
   readonly lang: string
   /**
    * Lingua UI a 2 lettere (stato `lang` dell'app, `preferred_lang`).
-   * Solo it/en/fr/de/es hanno un dizionario UI completo — ja/ko/pt/he/cs
+   * it/en/fr/de/es/pl hanno un dizionario UI completo — ja/ko/pt/he/cs
    * ripiegano sull'inglese in `i18n.lookup` per le stringhe `ui.*` (he ha
    * badge/award tradotti), mentre i contenuti TMDB seguono `lang`.
    */
@@ -32,6 +32,7 @@ export interface RegionDef {
 
 export const REGIONS: readonly RegionDef[] = [
   { code: "IT", flixSlug: "italy", lang: "it-IT", lang2: "it", languageName: "Italiano", label: "Italia", flag: "🇮🇹" },
+  { code: "PL", flixSlug: "poland", lang: "pl-PL", lang2: "pl", languageName: "Polski", label: "Polonia", flag: "🇵🇱" },
   { code: "US", flixSlug: "united-states", lang: "en-US", lang2: "en", languageName: "English", label: "USA", flag: "🇺🇸" },
   { code: "GB", flixSlug: "united-kingdom", lang: "en-GB", lang2: "en", languageName: "English", label: "Regno Unito", flag: "🇬🇧" },
   { code: "FR", flixSlug: "france", lang: "fr-FR", lang2: "fr", languageName: "Français", label: "Francia", flag: "🇫🇷" },

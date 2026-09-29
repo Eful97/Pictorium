@@ -52,6 +52,31 @@ describe("JustWatch Fase 1 (unreleased, doppio-decode, breaker)", () => {
     expect(resolveJWGenreCode("Guerre")).toBe("war")
   })
 
+  it("resolveJWGenreCode risolve i generi polacchi anche con diacritici", () => {
+    expect(resolveJWGenreCode("Akcja")).toBe("act")
+    expect(resolveJWGenreCode("Przygodowy")).toBe("act")
+    expect(resolveJWGenreCode("Animacja")).toBe("ani")
+    expect(resolveJWGenreCode("Komedia")).toBe("cmy")
+    expect(resolveJWGenreCode("Kryminał")).toBe("crm")
+    expect(resolveJWGenreCode("Kryminal")).toBe("crm")
+    expect(resolveJWGenreCode("Dokumentalny")).toBe("doc")
+    expect(resolveJWGenreCode("Dramat")).toBe("drm")
+    expect(resolveJWGenreCode("Familijny")).toBe("fml")
+    expect(resolveJWGenreCode("Horror")).toBe("hrr")
+    expect(resolveJWGenreCode("Romans")).toBe("rma")
+    expect(resolveJWGenreCode("Fantastyka")).toBe("fnt")
+    expect(resolveJWGenreCode("Fantastyka naukowa")).toBe("scf")
+    expect(resolveJWGenreCode("Historia")).toBe("hst")
+    expect(resolveJWGenreCode("Wojenny")).toBe("war")
+    expect(resolveJWGenreCode("Western")).toBe("wsn")
+    expect(resolveJWGenreCode("Sportowy")).toBe("spt")
+    expect(resolveJWGenreCode("Muzyczny")).toBe("msc")
+    expect(resolveJWGenreCode("Thriller")).toBe("trl")
+    expect(resolveJWGenreCode("Tajemnica")).toBe("mys")
+    // Genere polacco non mappato: degrada a null, mai a un codice sbagliato
+    expect(resolveJWGenreCode("Kryminał polski")).toBeNull()
+  })
+
   it("resolveJWGenreCode non altera nomi genuini e degrada su input malformati", () => {
     expect(resolveJWGenreCode("Dramma")).toBe("drm")
     expect(resolveJWGenreCode("Tutti")).toBeNull()

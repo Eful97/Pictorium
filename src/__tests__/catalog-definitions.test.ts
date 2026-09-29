@@ -48,6 +48,8 @@ describe("catalog definitions", () => {
       expect(regionJwName("pictorium-jw-series", "series", getRegionDef("IT"))).toBe("🇮🇹 Top 20 Italia — Serie TV")
       expect(regionJwName("pictorium-jw-movies", "movie", getRegionDef("DE"))).toBe("🇩🇪 Top 20 Germania — Film")
       expect(regionJwName("pictorium-jw-series", "series", getRegionDef("JP"))).toBe("🇯🇵 Top 20 Giappone — Serie TV")
+      expect(regionJwName("pictorium-jw-movies", "movie", getRegionDef("PL"))).toBe("🇵🇱 Top 20 Polonia — Film")
+      expect(regionJwName("pictorium-jw-series", "series", getRegionDef("PL"))).toBe("🇵🇱 Top 20 Polonia — Serie TV")
     })
 
     it("copre tutte le regioni senza resti della precedente", () => {

@@ -14,10 +14,10 @@ import {
 import { PICKER_LANGS } from "@/lib/utils"
 
 describe("regions", () => {
-  it("exposes 17 regions with unique codes and slugs", () => {
-    expect(REGIONS).toHaveLength(17)
-    expect(new Set(REGIONS.map((r) => r.code)).size).toBe(17)
-    expect(new Set(REGIONS.map((r) => r.flixSlug)).size).toBe(17)
+  it("exposes 18 regions with unique codes and slugs", () => {
+    expect(REGIONS).toHaveLength(18)
+    expect(new Set(REGIONS.map((r) => r.code)).size).toBe(18)
+    expect(new Set(REGIONS.map((r) => r.flixSlug)).size).toBe(18)
     for (const r of REGIONS) {
       expect(r.code).toMatch(/^[A-Z]{2}$/)
       expect(r.lang).toMatch(/^[a-z]{2}-[A-Z]{2}$/)
@@ -34,6 +34,7 @@ describe("regions", () => {
     expect(parseRegion("cz")).toBe("CZ")
     expect(parseRegion("pt")).toBe("PT")
     expect(parseRegion("ro")).toBe("RO")
+    expect(parseRegion("pl")).toBe("PL")
   })
 
   it("parseRegion accepts FlixPatrol slugs", () => {
@@ -46,6 +47,7 @@ describe("regions", () => {
     expect(parseRegion("czech-republic")).toBe("CZ")
     expect(parseRegion("portugal")).toBe("PT")
     expect(parseRegion("romania")).toBe("RO")
+    expect(parseRegion("poland")).toBe("PL")
   })
 
   it("parseRegion fails closed on unknown input", () => {
@@ -72,6 +74,7 @@ describe("regions", () => {
     expect(getRegionDef("CZ")).toMatchObject({ flag: "🇨🇿", label: "Cechia", lang2: "cs", lang: "cs-CZ", flixSlug: "czech-republic" })
     expect(getRegionDef("PT")).toMatchObject({ flag: "🇵🇹", label: "Portogallo", lang2: "pt", lang: "pt-PT", flixSlug: "portugal" })
     expect(getRegionDef("RO")).toMatchObject({ flag: "🇷🇴", label: "Romania", lang2: "ro", lang: "ro-RO", flixSlug: "romania" })
+    expect(getRegionDef("PL")).toMatchObject({ flag: "🇵🇱", label: "Polonia", lang2: "pl", lang: "pl-PL", flixSlug: "poland", languageName: "Polski" })
   })
 
   it("flixSlugToRegionCode round-trips supported slugs", () => {
@@ -81,7 +84,8 @@ describe("regions", () => {
     expect(flixSlugToRegionCode("israel")).toBe("IL")
     expect(flixSlugToRegionCode("portugal")).toBe("PT")
     expect(flixSlugToRegionCode("romania")).toBe("RO")
-    // Paesi FlixPatrol fuori dai 17 supportati → null (fallback disco, niente fast-path JW)
+    expect(flixSlugToRegionCode("poland")).toBe("PL")
+    // Paesi FlixPatrol fuori dai 18 supportati → null (fallback disco, niente fast-path JW)
     expect(flixSlugToRegionCode("albania")).toBeNull()
   })
 
@@ -94,6 +98,7 @@ describe("regions", () => {
     expect(getRegionDef("PT").lang2).toBe("pt")
     expect(getRegionDef("RO").lang2).toBe("ro")
     expect(getRegionDef("MX").lang2).toBe("es")
+    expect(getRegionDef("PL").lang2).toBe("pl")
     for (const r of REGIONS) {
       expect(r.lang2).toMatch(/^[a-z]{2}$/)
       // La lingua UI è il prefisso del locale TMDB
@@ -102,8 +107,8 @@ describe("regions", () => {
   })
 
   it("supports only the picker UI languages", () => {
-    expect(SUPPORTED_UI_LANGS).toEqual(["it", "en", "fr", "de", "es", "he", "ja", "ko", "pt", "cs", "ro"])
-    for (const l of ["it", "en", "fr", "de", "es", "he", "ja", "ko", "pt", "cs", "ro"]) {
+    expect(SUPPORTED_UI_LANGS).toEqual(["it", "pl", "en", "fr", "de", "es", "he", "ja", "ko", "pt", "cs", "ro"])
+    for (const l of ["it", "pl", "en", "fr", "de", "es", "he", "ja", "ko", "pt", "cs", "ro"]) {
       expect(isSupportedUiLang(l)).toBe(true)
     }
     // Lingue del vecchio picker (zh/ru/ar/nl) non più offerte
@@ -112,9 +117,9 @@ describe("regions", () => {
     }
   })
 
-  it("PICKER_LANGS lists exactly the 17 nationalities", () => {
-    expect(PICKER_LANGS).toHaveLength(17)
-    expect(new Set(PICKER_LANGS.map((l) => l.key)).size).toBe(17)
+  it("PICKER_LANGS lists exactly the 18 nationalities", () => {
+    expect(PICKER_LANGS).toHaveLength(18)
+    expect(new Set(PICKER_LANGS.map((l) => l.key)).size).toBe(18)
     expect(PICKER_LANGS.map((l) => l.key)).toEqual(REGIONS.map((r) => r.code))
     for (const l of PICKER_LANGS) {
       expect(l.flag).toBeTruthy()
@@ -134,6 +139,7 @@ describe("regions", () => {
     expect(defaultRegionForLang("ro")).toBe("RO")
     expect(defaultRegionForLang("es")).toBe("ES")
     expect(defaultRegionForLang("cs")).toBe("CZ")
+    expect(defaultRegionForLang("pl")).toBe("PL")
     expect(defaultRegionForLang("es", "MX")).toBe("MX")
     expect(defaultRegionForLang("en")).toBe("US")
     expect(defaultRegionForLang("en", "GB")).toBe("GB")

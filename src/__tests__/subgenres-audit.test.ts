@@ -187,6 +187,7 @@ describe("localisation — labels resolve by locale", () => {
 
   it("resolves Spanish labels", () => {
     expect(getSubGenreLabel(["martial arts"], "es")).toBe("Artes marciales")
+    expect(getSubGenreLabel(["martial arts"], "pl")).toBe("Sztuki walki")
   })
 })
 

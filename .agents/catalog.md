@@ -49,7 +49,7 @@ Warmup automatico: `pictorium-jw-movies`, `pictorium-jw-series`, `pictorium-netf
 ### JustWatch (`pictorium-jw-*`)
 1. `getJWRankings("MOVIE"|"SHOW", region.code, ...)` in `lib/justwatch.ts` — query GraphQL
    a `apis.justwatch.com` (o `JUSTWATCH_API_URL` nei test). Regione da `lib/regions.ts`
-   (15 paesi: `?region=` > config-token > default server `PICTORIUM_REGION` > `IT`);
+   (18 paesi: `?region=` > config-token > default server `PICTORIUM_REGION` > `IT`);
    la lingua query JW e i titoli TMDB seguono la regione. Cache condivisa 30 min
    con `/api/trending/rank` e warmup (cache key include `:r<CODE>`).
    Restituisce `{ tmdbId, imdbId, rank }`:
@@ -62,7 +62,7 @@ Warmup automatico: `pictorium-jw-movies`, `pictorium-jw-series`, `pictorium-netf
 ### Piattaforme Streaming (`pictorium-netflix-*`, `pictorium-prime-*`, ecc.)
 1. `getJustWatchRankings(type, region.code, 10, packages, region.lang)` con i pacchetti della piattaforma
    (`nfx`, `prv`, `dnp`, `ntv`/`skg`, `atp`, `mxx`, `pmp`). Il fast-path JW in
-   `getTop10` vale per tutte le 15 regioni supportate (prima solo Italia).
+   `getTop10` vale per tutte le 18 regioni supportate (prima solo Italia).
 2. Se JustWatch non restituisce righe, fallback trasparente su FlixPatrol `getTop10(slug, region.flixSlug, apiKey)`.
 3. Deduplicazione rigorosa per `tmdbId` (nessun doppione nei primi 10).
 

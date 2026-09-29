@@ -22,6 +22,26 @@ describe("subgenres detection", () => {
     expect(getSubGenreLabel(["time travel"], "he")).toBe("מסע בזמן")
   })
 
+  it("labels every rule for Polish", () => {
+    // Stessa garanzia di `he`: senza una voce `pl` su ogni regola il badge
+    // sottogenere di un utente polacco ripiegherebbe sull'italiano.
+    // "Found Footage", "Film noir", "Cyberpunk" e "Spaghetti Western" restano
+    // invariati: sono nomi di genere usati anche in polacco.
+    const LATIN_BY_DESIGN = new Set(["found footage", "film noir", "cyberpunk", "spaghetti western"])
+    for (const kw of ["time travel", "cyberpunk", "whodunit", "heist", "zombie", "vampire", "paranormal", "kaiju", "post-apocalyptic", "found footage", "film noir", "spaghetti western", "martial arts", "space opera"]) {
+      const pl = getSubGenreLabel([kw], "pl")
+      expect(pl, kw).toBeTruthy()
+      if (LATIN_BY_DESIGN.has(kw)) continue
+      expect(pl, kw).not.toBe(getSubGenreLabel([kw], "it"))
+      // Le label polacche non devono contenere glifi fuori dal latin-extended:
+      // coperti da Inter, quindi nessun tofu sui poster (vedi
+      // polish-font-coverage.test.ts).
+      expect(/^[\u0000-\u024f ]+$/u.test(pl!), `${kw} -> ${pl}`).toBe(true)
+    }
+    expect(getSubGenreLabel(["time travel"], "pl")).toBe("Podróż w czasie")
+    expect(getSubGenreLabel(["martial arts"], "pl")).toBe("Sztuki walki")
+  })
+
   it("detects cyberpunk for Blade Runner keywords", () => {
     const keywords = ["cyberpunk", "android", "futuristic city"]
     expect(getSubGenreLabel(keywords, "it")).toBe("Cyberpunk")
