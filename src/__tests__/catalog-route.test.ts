@@ -7,6 +7,7 @@ import { __clearTMDBCache } from "@/lib/tmdb"
 import { POSTER_URL_VERSION } from "@/lib/render-version"
 import { getTop10 } from "@/lib/flixpatrol"
 import { getById } from "@/lib/store"
+import { getServerDefaults } from "@/lib/server-defaults"
 import { __resetJWRankingsCache } from "@/lib/justwatch"
 import { encodeConfig } from "@/lib/config-token"
 import { parseCatalogExtra } from "@/lib/catalog-handler"
@@ -60,6 +61,7 @@ describe("GET /catalog/[type]/[id]", () => {
   })
 
   afterEach(() => {
+    vi.mocked(getServerDefaults).mockReturnValue({})
     vi.restoreAllMocks()
     mockedGetTop10.mockReset()
     mockedGetById.mockReset()
@@ -163,6 +165,25 @@ describe("GET /catalog/[type]/[id]", () => {
     expect(body.metas[0].logo).toBeUndefined()
     // Il banner pulito resta per gli altri client.
     expect(body.metas[0].banner).toContain("hideLogo=1")
+  })
+
+  it("forces saved portrait catalog cards to landscape when the global format is landscape", async () => {
+    vi.mocked(getServerDefaults).mockReturnValue({ posterShape: "landscape" })
+    mockedGetById.mockResolvedValue({
+      tmdbId: 94997, mediaType: "tv", title: "House of the Dragon",
+      posterPath: "/house-of-the-dragon.jpg", logoPath: null,
+      originalPosterPath: null, language: null, posterShape: "poster",
+      updatedAt: "2026-07-16T10:15:30.000Z",
+    })
+    vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(justWatchResponse(94997, "tt11198330"))
+      .mockResolvedValueOnce(tmdbShowResponse(94997))
+    const req = new NextRequest("http://localhost:3000/catalog/series/pictorium-jw-series.json?api_key=settings-key")
+    const res = await GET(req, { params: Promise.resolve({ type: "series", id: "pictorium-jw-series.json" }) })
+    const item = (await res.json()).metas[0]
+    expect(item.posterShape).toBe("landscape")
+    expect(new URL(item.poster).searchParams.get("shape")).toBe("landscape")
+    expect(item.landscapePoster).toBe(item.poster)
   })
 
   it("serves legacy posterium-* catalog IDs as aliases of pictorium-*", async () => {

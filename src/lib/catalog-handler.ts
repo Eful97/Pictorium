@@ -14,7 +14,7 @@ import { resolveImdbId } from "@/lib/imdb-cache"
 import { fetchMDBList } from "@/lib/mdblist"
 import { buildNoticeMeta } from "@/lib/notice-meta"
 import { fetchUnifiedCatalogItems } from "@/lib/custom-catalog-providers"
-import { buildStremioPosterUrl } from "@/lib/stremio-poster-url"
+import { buildStremioPosterUrl, stremioPosterShape } from "@/lib/stremio-poster-url"
 import { getOriginFromRequest } from "@/lib/poster-public-url"
 import { getJWRankings, getJWTitles, resolveJWGenreCode, type JWRankEntry } from "@/lib/justwatch"
 import { getRegionDef, normalizeRegion, parseRegion, type RegionDef } from "@/lib/regions"
@@ -24,7 +24,7 @@ import { concurrentMap } from "@/lib/episode-ordering"
 import { envWithFallback } from "@/lib/env-compat"
 import { isPersonQuery, pickTopPerson } from "@/lib/person-search"
 import { normalizeCatalogId, normalizeCatalogIdKeys, normalizeCatalogIdList } from "@/lib/catalog-definitions"
-import { isPosterShape, type PosterShape } from "@/lib/types"
+import type { PosterShape } from "@/lib/types"
 
 const log = createLogger("catalog")
 
@@ -170,12 +170,17 @@ function hashFragment(value: string): string {
 
 const PLATFORM_JW_PACKAGES: Record<string, string[]> = {
   netflix: ["nfx"],
-  prime: ["prv"],
+  // Prime: shortName regionale — `prv` (IT/FR/ES/...) vs `amp` (US/GB/DE/JP).
+  // JW ignora i codici inesistenti per regione: l'unione è sicura ovunque.
+  prime: ["prv", "amp"],
   disney: ["dnp"],
-  now: ["ntv", "skg"],
+  // NOW/Sky esiste solo in alcuni paesi; negli USA il catalogo mappa Peacock
+  // (stesso gruppo NBCUniversal/Comcast): `pct`+`pcp`, ignorati dove assenti.
+  now: ["ntv", "skg", "pct", "pcp"],
   apple: ["atp"],
   hbo: ["mxx"],
-  paramount: ["pmp"],
+  // Paramount+ in ES è SkyShowtime (`sst`): unione sicura come sopra.
+  paramount: ["pmp", "sst"],
   crunchyroll: ["cru"],
 }
 
@@ -270,7 +275,8 @@ export function resolveCatalogRegionWithDefaults(
  * Il `banner` è lo stesso rendering Pictorium in canvas landscape 16:9 SENZA
  * logo baked-in (profilo landscape del mapping): resta per i client che lo
  * leggono. NuvioTV invece ignora `banner` e legge `landscapePoster`: per i
- * titoli landscape è lo stesso canvas MA con logo baked-in (immagine
+ * titoli landscape (anche forzati dal default globale) è lo stesso canvas
+ * con logo baked-in (immagine
  * intoccabile, Nuvio non deve sovrapporre nulla) — emesso solo in quel caso.
  * `background` resta il backdrop grezzo per l'hero della pagina dettaglio.
  */
@@ -301,18 +307,14 @@ async function pictoriumPosterAndShape(
     user: userParam || undefined,
     animerank: animeRankParam ?? undefined,
   } as const
-  const poster = buildStremioPosterUrl(base).toString()
+  const posterShape = stremioPosterShape(mapping, defaults)
+  const poster = buildStremioPosterUrl({ ...base, forceShape: posterShape }).toString()
   // Banner pulito: canvas landscape senza logo baked-in (per i client che
   // sovrappongono già il logo da catalogo) + badge genere in basso a destra.
   const banner = buildStremioPosterUrl({ ...base, forceShape: "landscape", hideLogo: true }).toString()
-  const posterShape = isPosterShape(mapping?.posterShape)
-    ? mapping.posterShape
-    : (defaults.posterShape === "landscape" ? "landscape" : "poster")
   // NuvioTV: immagine esattamente come Pictorium (logo baked-in, vedi
-  // poster-service). Solo titoli landscape — i portrait non cambiano.
-  const landscapePoster = posterShape === "landscape"
-    ? buildStremioPosterUrl({ ...base, forceShape: "landscape" }).toString()
-    : undefined
+  // poster-service). I titoli forzati dal default sono inclusi.
+  const landscapePoster = posterShape === "landscape" ? poster : undefined
   return { poster, banner, landscapePoster, posterShape }
 }
 

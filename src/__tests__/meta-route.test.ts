@@ -5,6 +5,7 @@ import { cacheClear } from "@/lib/cache"
 import { __clearTMDBCache } from "@/lib/tmdb"
 import { POSTER_URL_VERSION } from "@/lib/render-version"
 import { getById } from "@/lib/store"
+import { getServerDefaults } from "@/lib/server-defaults"
 
 vi.mock("@/lib/store", () => ({
   getById: vi.fn(),
@@ -40,6 +41,7 @@ describe("GET /meta/[type]/[id]", () => {
   })
 
   afterEach(() => {
+    vi.mocked(getServerDefaults).mockReturnValue({})
     vi.restoreAllMocks()
     mockedGetById.mockReset()
     cacheClear()
@@ -104,6 +106,25 @@ describe("GET /meta/[type]/[id]", () => {
     expect(body.meta.background).toContain("/backdrop.jpg")
     expect(body.meta.logo).toContain("/fight-club-logo.png")
     expect(body.meta.trailers).toEqual([{ source: "trailer123", type: "Trailer" }])
+  })
+
+  it("forces a saved portrait to landscape in Stremio meta when the global format is landscape", async () => {
+    vi.mocked(getServerDefaults).mockReturnValue({ posterShape: "landscape" })
+    mockedGetById.mockResolvedValue({
+      tmdbId: 550, mediaType: "movie", title: "Fight Club",
+      posterPath: "/fight-club.jpg", logoPath: null,
+      originalPosterPath: null, language: null, posterShape: "poster",
+      updatedAt: "2026-07-16T10:15:30.000Z",
+    })
+    vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(Response.json({ id: 550, title: "Fight Club", external_ids: { imdb_id: "tt0137523" } }))
+      .mockResolvedValueOnce(Response.json({ id: 550, logos: [] }))
+    const req = new NextRequest("http://localhost:3000/meta/movie/tmdb:550.json?api_key=settings-key")
+    const res = await GET(req, { params: Promise.resolve({ type: "movie", id: "tmdb:550.json" }) })
+    const { meta } = await res.json()
+    expect(meta.posterShape).toBe("landscape")
+    expect(new URL(meta.poster).searchParams.get("shape")).toBe("landscape")
+    expect(meta.landscapePoster).toBe(meta.poster)
   })
 
   it("returns complete series metadata with seasons and episode videos", async () => {

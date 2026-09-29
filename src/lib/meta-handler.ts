@@ -25,7 +25,7 @@ import { buildNoticeDetail, NOTICE_ID_PREFIX } from "@/lib/notice-meta"
 import { resolveCatalogRegionWithDefaults } from "@/lib/catalog-handler"
 import { getScopedUserId, userExists, userRateLimitKey } from "@/lib/user-auth"
 import { touchUserActivity } from "@/lib/user-activity"
-import { buildStremioPosterUrl } from "@/lib/stremio-poster-url"
+import { buildStremioPosterUrl, stremioPosterShape } from "@/lib/stremio-poster-url"
 import { getOriginFromRequest } from "@/lib/poster-public-url"
 import { enrichVideosWithTvdb } from "@/lib/tvdb"
 import { buildVideosFromAnizip, buildVideosFromGroups, buildVideosFromTvdb, concurrentMap } from "@/lib/episode-ordering"
@@ -117,14 +117,14 @@ async function pictoriumPosterUrl(
   configParam?: string | null,
   userParam?: string | null,
   posterLang = "it",
-  forceShape?: "poster" | "landscape",
-): Promise<string> {
+): Promise<{ poster: string; posterShape: "poster" | "landscape" }> {
   const scopedUser = getScopedUserId(userParam)
   const serverDefaults = scopedUser ? await getServerDefaultsForUser(scopedUser) : getServerDefaults()
   const userConfig = configParam ? decodeConfig(configParam) : null
   const defaults = userConfig ? { ...serverDefaults, ...userConfig } : serverDefaults
   const mapping = await getById(type === "series" ? "tv" : "movie", id, scopedUser)
-  return buildStremioPosterUrl({
+  const posterShape = stremioPosterShape(mapping, defaults)
+  const poster = buildStremioPosterUrl({
     origin: getOriginFromRequest(req),
     type,
     id,
@@ -133,8 +133,9 @@ async function pictoriumPosterUrl(
     lang: posterLang,
     config: configParam || undefined,
     user: userParam || undefined,
-    forceShape,
+    forceShape: posterShape,
   }).toString()
+  return { poster, posterShape }
 }
 
 
@@ -286,24 +287,10 @@ export async function pictoriumMeta(
     }
 
     const primaryId = imdbId || `tmdb:${tmdbId}`
-    const poster = await pictoriumPosterUrl(req, stType, tmdbId, configParam, userParam, posterLang)
-    // Formato canvas: mapping salvato > config token/default server.
-    // Coerente col poster URL sopra (stesse sorgenti) così `posterShape`
-    // e immagine non divergono mai.
-    let posterShape: "poster" | "landscape" = "poster"
-    try {
-      const shapeMapping = await getById(tmdbMediaType, tmdbId, scopedUser)
-      if (shapeMapping?.posterShape === "landscape" || shapeMapping?.posterShape === "poster") {
-        posterShape = shapeMapping.posterShape
-      } else if (userConfig?.posterShape === "landscape" || userConfig?.posterShape === "poster") {
-        posterShape = userConfig.posterShape
-      }
-    } catch { /* ignore — resta portrait */ }
+    const { poster, posterShape } = await pictoriumPosterUrl(req, stType, tmdbId, configParam, userParam, posterLang)
     // NuvioTV: per i titoli landscape, URL del render con logo baked-in
-    // (stesso profilo del poster). Solo in quel caso — i portrait non cambiano.
-    const landscapePoster = posterShape === "landscape"
-      ? await pictoriumPosterUrl(req, stType, tmdbId, configParam, userParam, posterLang, "landscape")
-      : undefined
+    // (stesso profilo del poster), inclusi i titoli forzati dal default.
+    const landscapePoster = posterShape === "landscape" ? poster : undefined
     const background = details.backdrop_path ? posterUrlOriginal(details.backdrop_path) : undefined
 
     // Risoluzione Logo

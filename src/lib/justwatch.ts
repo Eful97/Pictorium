@@ -34,18 +34,18 @@ export interface JWRankEntry {
 
 export const PLATFORM_JW_PACKAGES: Record<string, string[]> = {
   netflix: ["nfx"],
-  "amazon-prime": ["prv"],
-  prime: ["prv"],
+  "amazon-prime": ["prv", "amp"],
+  prime: ["prv", "amp"],
   disney: ["dnp"],
   "disney-plus": ["dnp"],
-  now: ["ntv", "skg"],
-  "now-tv": ["ntv", "skg"],
+  now: ["ntv", "skg", "pct", "pcp"],
+  "now-tv": ["ntv", "skg", "pct", "pcp"],
   "apple-tv": ["atp"],
   apple: ["atp"],
   "hbo-max": ["mxx"],
   hbo: ["mxx"],
-  "paramount-plus": ["pmp"],
-  paramount: ["pmp"],
+  "paramount-plus": ["pmp", "sst"],
+  paramount: ["pmp", "sst"],
   crunchyroll: ["cru"],
 }
 

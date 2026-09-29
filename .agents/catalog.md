@@ -61,7 +61,9 @@ Warmup automatico: `pictorium-jw-movies`, `pictorium-jw-series`, `pictorium-netf
 
 ### Piattaforme Streaming (`pictorium-netflix-*`, `pictorium-prime-*`, ecc.)
 1. `getJustWatchRankings(type, region.code, 10, packages, region.lang)` con i pacchetti della piattaforma
-   (`nfx`, `prv`, `dnp`, `ntv`/`skg`, `atp`, `mxx`, `pmp`). Il fast-path JW in
+   (`nfx`, `prv`/`amp`, `dnp`, `ntv`/`skg`/`pct`/`pcp`, `atp`, `mxx`, `pmp`/`sst`). Gli shortName sono
+   regionali (Prime: `prv` in IT, `amp` in US/GB/DE/JP; Paramount in ES è SkyShowtime `sst`; NOW negli
+   USA mappa Peacock `pct`/`pcp`): si passa sempre l'unione, JW ignora i codici assenti per regione. Il fast-path JW in
    `getTop10` vale per tutte le 18 regioni supportate (prima solo Italia).
 2. Se JustWatch non restituisce righe, fallback trasparente su FlixPatrol `getTop10(slug, region.flixSlug, apiKey)`.
 3. Deduplicazione rigorosa per `tmdbId` (nessun doppione nei primi 10).

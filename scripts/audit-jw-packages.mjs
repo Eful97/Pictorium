@@ -14,12 +14,15 @@ const JW_API = process.env.JUSTWATCH_API_URL || "https://apis.justwatch.com/grap
 
 const EXPECTED = {
   netflix: ["nfx"],
-  prime: ["prv"],
+  // Unioni regionali (JW ignora i codici assenti): basta che ALMENO UNO sia
+  // presente — nessuno shortName esiste in tutte le regioni (es. Prime è
+  // `prv` in IT ma `amp` in US/GB/DE/JP; Paramount+ in ES è SkyShowtime `sst`).
+  prime: ["prv", "amp"],
   disney: ["dnp"],
-  now: ["ntv", "skg"],
+  now: ["ntv", "skg", "pct", "pcp"],
   apple: ["atp"],
   hbo: ["mxx"],
-  paramount: ["pmp"],
+  paramount: ["pmp", "sst"],
   crunchyroll: ["cru"],
 }
 
@@ -71,12 +74,14 @@ async function main() {
     }
     const available = new Set(pkgs.map((p) => p.shortName))
     for (const [platform, codes] of Object.entries(EXPECTED)) {
-      const missing = codes.filter((c) => !available.has(c))
-      if (missing.length === 0) {
-        console.log(`${country} ${platform}: OK (${codes.join(",")})`)
+      // Semantica "almeno uno": gli shortName sono regionali, mai tutti
+      // presenti ovunque. Fallisce solo se NESSUNO dei codici esiste.
+      const present = codes.filter((c) => available.has(c))
+      if (present.length > 0) {
+        console.log(`${country} ${platform}: OK (${present.join(",")})`)
       } else {
         failures++
-        console.log(`${country} ${platform}: MANCANTE [${missing.join(",")}] — attesi [${codes.join(",")}]`)
+        console.log(`${country} ${platform}: MANCANTE [${codes.join(",")}] — nessuno presente`)
         const addonHits = pkgs.filter((p) => codes.includes(p.addonParent?.shortName))
         for (const h of addonHits) {
           console.log(`    ↳ canale add-on: ${h.shortName} (${h.clearName}) ← parent ${h.addonParent.shortName}`)
