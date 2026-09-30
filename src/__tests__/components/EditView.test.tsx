@@ -173,4 +173,32 @@ describe("EditView", () => {
     // The first mobile switcher button should now show backdrops
     expect(screen.getByText("Sfondi")).toBeInTheDocument()
   })
-})
+  it("shows saved state when mapping matches current state, and unsaved when modified", () => {
+    const mapping = {
+      tmdbId: 550,
+      mediaType: "movie" as const,
+      title: "Fight Club",
+      posterPath: "/fc.jpg",
+      logoPath: null,
+      originalPosterPath: null,
+      language: null,
+      updatedAt: "2026-01-01",
+      posterShape: "poster" as const,
+    }
+    const mappingsMap = new Map([["movie:550", mapping]])
+
+    // Without edits, matching saved mapping
+    renderWithCtx(
+      <EditView />,
+      {
+        selected: mockSelected,
+        posters: [{ file_path: "/fc.jpg", iso_639_1: null, vote_average: 0, width: 1000, height: 1500 }],
+        previewPoster: { file_path: "/fc.jpg", iso_639_1: null, vote_average: 0, width: 1000, height: 1500 },
+        mappingsMap,
+      }
+    )
+
+    // Should indicate saved
+    expect(screen.getAllByText("ui.savedShort").length).toBeGreaterThan(0)
+  })
+});

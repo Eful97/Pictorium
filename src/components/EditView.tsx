@@ -11,7 +11,7 @@ import { useT } from "@/lib/contexts/TranslationContext"
 import { usePosterEditor } from "@/lib/contexts/PosterEditorContext"
 import type { TMDBImage } from "@/lib/types"
 import { effectiveMappingForShape, type LandscapeSettings } from "@/lib/types"
-import { isGradientDirtyForShape, isArtworkDirty } from "@/lib/gradient-dirty"
+import { isGradientDirtyForShape, isArtworkDirty, isMappingDirty } from "@/lib/gradient-dirty"
 import { PosterOptions } from "@/components/PosterOptions"
 import { BackdropOptions } from "@/components/BackdropOptions"
 import { CustomPosterUrl } from "@/components/CustomPosterUrl"
@@ -32,7 +32,7 @@ import { TransformControls } from "@/components/TransformControls"
 import { EpisodeGroupControls } from "@/components/EpisodeGroupControls"
 import { JwRankBadge } from "@/components/JwRankBadge"
 import { usePosterPreview } from "@/lib/usePosterPreview"
-import { Check, Clock, Save, Trash2, X, ChevronLeft, RectangleVertical, RectangleHorizontal, Tv, AlertTriangle } from "lucide-react"
+import { Check, Clock, Save, Trash2, X, ChevronLeft, RectangleVertical, RectangleHorizontal, Tv, AlertTriangle, Loader2, AlertCircle } from "lucide-react"
 
 export default function EditView() {
   const accentColor = usePSelector((v) => v.accentColor)
@@ -182,13 +182,91 @@ export default function EditView() {
     ed.defaultPosterShape,
   ), [previewPoster?.file_path, ed.selectedBackdrop?.file_path, ed.posterShape, selectedLogo?.file_path, ed.logoDisabled, selectedMapping, ed.defaultPosterShape])
 
+  const mappingDirty = useMemo(() => isMappingDirty(
+    {
+      artwork: {
+        posterPath: previewPoster?.file_path ?? null,
+        backdropPath: ed.selectedBackdrop?.file_path ?? null,
+        posterShape: ed.posterShape,
+        logoPath: selectedLogo?.file_path ?? null,
+        logoDisabled: ed.logoDisabled,
+      },
+      gradient: isLandscapeTuning
+        ? { ...ed.landscapeBlur }
+        : {
+          gradientHeight: ed.gradientHeight, blurEnabled: ed.blurEnabled,
+          blurIntensity: ed.blurIntensity, blurFade: ed.blurFade, blurDarkness: ed.blurDarkness,
+          tintStrength: ed.tintStrength, topShade: ed.topShade,
+        },
+      logoScale: ed.logoScale,
+      logoOffsetX: ed.logoOffsetX,
+      logoOffsetY: ed.logoOffsetY,
+      topBadgeScale: ed.topBadgeScale,
+      topBadgeOffsetX: ed.topBadgeOffsetX,
+      topBadgeOffsetY: ed.topBadgeOffsetY,
+      genreBadgeScale: ed.genreBadgeScale,
+      genreBadgeOffsetX: ed.genreBadgeOffsetX,
+      genreBadgeOffsetY: ed.genreBadgeOffsetY,
+      qualityBadgeScale: ed.qualityBadgeScale,
+      qualityBadgeOffsetX: ed.qualityBadgeOffsetX,
+      qualityBadgeOffsetY: ed.qualityBadgeOffsetY,
+      networkLogoScale: ed.networkLogoScale,
+      networkLogoOffsetX: ed.networkLogoOffsetX,
+      networkLogoOffsetY: ed.networkLogoOffsetY,
+      backdropScale: ed.backdropScale,
+      backdropOffsetX: ed.backdropOffsetX,
+      backdropOffsetY: ed.backdropOffsetY,
+      globalBadges: ed.globalBadges,
+      rankingBadges: ed.rankingBadges,
+      badgeGenre: ed.badgeGenre,
+      badgeYear: ed.badgeYear,
+      badgeRating: ed.badgeRating,
+      badgeQuality: ed.badgeQuality,
+      customRatings: ed.customRatings,
+      separateRatings: ed.separateRatings,
+      networkLogo: ed.networkLogo,
+      ribbonEnabled: ed.ribbonEnabled,
+      networkLogoPosition: ed.networkLogoPosition,
+      qualityBadgeStyle: ed.qualityBadgeStyle,
+      badgeStyle: ed.badgeStyle,
+      rankingBadgeStyle: ed.rankingBadgeStyle,
+      customBadge: ed.customBadge,
+    },
+    selectedMapping ?? null,
+    isLandscapeTuning
+      ? {
+        gradientHeight: ed.landscape?.gradientHeight ?? ed.defaultGradientHeight,
+        blurEnabled: ed.landscape?.blurEnabled ?? ed.defaultBlurEnabled,
+        blurIntensity: ed.landscape?.blurIntensity ?? ed.defaultBlurIntensity,
+        blurFade: ed.landscape?.blurFade ?? ed.defaultBlurFade ?? 70,
+        blurDarkness: ed.landscape?.blurDarkness ?? ed.defaultBlurDarkness,
+        tintStrength: ed.landscape?.tintStrength ?? ed.defaultTintStrength,
+        topShade: ed.landscape?.topShade ?? ed.defaultTopShade,
+      }
+      : {
+        gradientHeight: ed.defaultGradientHeight, blurEnabled: ed.defaultBlurEnabled,
+        blurIntensity: ed.defaultBlurIntensity, blurFade: ed.defaultBlurFade, blurDarkness: ed.defaultBlurDarkness,
+        tintStrength: ed.defaultTintStrength, topShade: ed.defaultTopShade,
+      },
+    ed.defaultPosterShape,
+  ), [ed, previewPoster?.file_path, selectedLogo?.file_path, selectedMapping, isLandscapeTuning])
+
+  const [saveState, setSaveState] = useState<"idle" | "saving" | "error">("idle")
   const handleSave = useCallback(async () => {
-    await saveConfig()
-    // Feedback tangibile sull'artefatto (non solo toast): anello smeraldo +
-    // sweep per 600ms sullo stage della preview.
-    setSaveFlash(true)
-    if (saveFlashTimerRef.current) clearTimeout(saveFlashTimerRef.current)
-    saveFlashTimerRef.current = setTimeout(() => setSaveFlash(false), 600)
+    setSaveState("saving")
+    try {
+      const ok = await saveConfig()
+      if (ok !== false) {
+        setSaveState("idle")
+        setSaveFlash(true)
+        if (saveFlashTimerRef.current) clearTimeout(saveFlashTimerRef.current)
+        saveFlashTimerRef.current = setTimeout(() => setSaveFlash(false), 600)
+      } else {
+        setSaveState("error")
+      }
+    } catch {
+      setSaveState("error")
+    }
   }, [saveConfig])
 
   // Tile custom di sessione (URL esterni aggiunti via box, non ancora salvati):
@@ -476,7 +554,7 @@ export default function EditView() {
     <div>
       {selected && !profileGate && (
         <div className="flex flex-col items-center w-full">
-          {/* Desktop Header */}
+          {/* Desktop Header con logo grande e centrato */}
           <header className="hidden lg:flex w-full px-4 md:px-6 -mt-1 md:-mt-4 mb-3 flex-col items-center">
             {/* eslint-disable-next-line @next/next/no-img-element -- logo locale */}
             <img
@@ -485,8 +563,8 @@ export default function EditView() {
               alt="Pictorium"
               decoding="async"
               className="header-logo h-20 md:h-24 w-auto cursor-pointer hover:brightness-110 active:scale-95 transition-all duration-150 mb-1"
+              title="Pictorium"
             />
-            <p className="header-tagline text-xs md:text-sm text-muted">{t("ui.homeTagline")}</p>
           </header>
 
           {/* Mobile Sticky Controls Header (Top Bar + Segmented Switcher) */}
@@ -510,10 +588,38 @@ export default function EditView() {
                   type="button"
                   aria-label={t("ui.savePoster")}
                   onClick={handleSave}
-                  className="btn-primary flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-white font-semibold text-xs shrink-0 cursor-pointer"
+                  disabled={saveState === "saving"}
+                  className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl font-semibold text-xs shrink-0 cursor-pointer transition-all ${
+                    saveState === "saving"
+                      ? "bg-zinc-800 text-zinc-400 border border-white/10 opacity-70 cursor-wait"
+                      : saveState === "error"
+                      ? "bg-red-500/20 text-red-300 border border-red-500/40 hover:bg-red-500/30"
+                      : hasMapping && !mappingDirty
+                      ? "bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 hover:bg-emerald-500/25"
+                      : "btn-primary text-white shadow-md shadow-accent-orange/20"
+                  }`}
                 >
-                  <Save className="w-3.5 h-3.5" />
-                  <span>{t("ui.save")}</span>
+                  {saveState === "saving" ? (
+                    <>
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      <span>{t("ui.saving")}</span>
+                    </>
+                  ) : saveState === "error" ? (
+                    <>
+                      <AlertCircle className="w-3.5 h-3.5" />
+                      <span>{t("ui.saveError")}</span>
+                    </>
+                  ) : hasMapping && !mappingDirty ? (
+                    <>
+                      <Check className="w-3.5 h-3.5 text-emerald-400" />
+                      <span>{t("ui.savedShort")}</span>
+                    </>
+                  ) : (
+                    <>
+                      <Save className="w-3.5 h-3.5" />
+                      <span>{t("ui.save")}</span>
+                    </>
+                  )}
                 </button>
               )}
             </div>
@@ -571,7 +677,7 @@ export default function EditView() {
             </div>
           </div>
 
-          <div className="editor-workspace w-full px-2 sm:px-4 md:px-6 lg:h-[clamp(660px,calc(100dvh-260px),830px)] lg:min-h-0">
+          <div className="editor-workspace w-full px-2 sm:px-4 md:px-6 lg:h-[clamp(640px,calc(100dvh-175px),880px)] lg:min-h-0">
 
             {/* LEFT: Poster (verticale) o Sfondi (orizzontale) */}
             <div className={mobileSection === "poster" ? "block w-full" : "hidden lg:block h-full min-w-0"}>
@@ -587,7 +693,7 @@ export default function EditView() {
                       customPosters={customTiles}
                       savedCustomPoster={savedCustomTile}
                       onRemoveCustomPoster={handleDeleteCustomTile}
-                      topSlot={<CustomPosterUrl onAdd={handleAddCustomPoster} onRemove={handleRemoveCustomPoster} />} />
+                      topSlot={<CustomPosterUrl onAdd={handleAddCustomPoster} onRemove={handleRemoveCustomPoster} collapsible />} />
                 )}
               </EditorPanel>
             </div>
@@ -649,9 +755,42 @@ export default function EditView() {
                       <Tv className="w-4 h-4" />
                       {t("ui.testStremioUrl")}
                     </button>
-                    <button type="button" aria-label={t("ui.savePoster")} onClick={handleSave} className="btn-primary min-h-[44px] px-5 rounded-xl">
-                      <Save className="w-4 h-4" />
-                      {t("ui.savePoster")}
+                    <button
+                      type="button"
+                      aria-label={t("ui.savePoster")}
+                      onClick={handleSave}
+                      disabled={saveState === "saving"}
+                      className={`min-h-[44px] px-5 rounded-xl font-semibold text-xs flex items-center gap-2 cursor-pointer transition-all ${
+                        saveState === "saving"
+                          ? "bg-zinc-800 text-zinc-400 border border-white/10 opacity-70 cursor-wait"
+                          : saveState === "error"
+                          ? "btn-danger"
+                          : hasMapping && !mappingDirty
+                          ? "bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 hover:bg-emerald-500/25"
+                          : "btn-primary text-white shadow-md shadow-accent-orange/20"
+                      }`}
+                    >
+                      {saveState === "saving" ? (
+                        <>
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                          <span>{t("ui.saving")}</span>
+                        </>
+                      ) : saveState === "error" ? (
+                        <>
+                          <AlertCircle className="w-4 h-4" />
+                          <span>{t("ui.saveError")}</span>
+                        </>
+                      ) : hasMapping && !mappingDirty ? (
+                        <>
+                          <Check className="w-4 h-4 text-emerald-400" />
+                          <span>{t("ui.savedShort")}</span>
+                        </>
+                      ) : (
+                        <>
+                          <Save className="w-4 h-4" />
+                          <span>{t("ui.savePoster")}</span>
+                        </>
+                      )}
                     </button>
                   </div>
                   </div>
@@ -697,6 +836,39 @@ export default function EditView() {
               <EditorPanel className="animate-fade-scale-in-panel-right h-full" title={t("ui.customize")} tabs={rightTabs} activeTab={activeRightTab} onTabChange={(k) => setActiveRightTab(k as typeof activeRightTab)}>
                 {selected && (
                   <div className="mb-3 pb-3 border-b border-white/[0.08]">
+                    {/* Mobile Live Preview Peek: ensures mobile users see their edits in real-time */}
+                    <div className="lg:hidden mb-3 p-2 rounded-2xl bg-zinc-950/70 border border-white/[0.08] flex items-center gap-3 shadow-md shadow-black/25">
+                      <div className="relative w-16 sm:w-20 shrink-0 aspect-[2/3] overflow-hidden rounded-xl bg-black/40 border border-white/10 shadow-inner">
+                        {imgSrc ? (
+                          /* eslint-disable-next-line @next/next/no-img-element */
+                          <img
+                            src={imgSrc}
+                            alt=""
+                            className={`w-full h-full ${ed.posterShape === "landscape" ? "object-contain" : "object-cover"}`}
+                          />
+                        ) : (
+                          <div className="w-full h-full bg-zinc-800 animate-pulse" />
+                        )}
+                        {previewLoading && (
+                          <div className="absolute inset-0 bg-black/50 backdrop-blur-[1px] flex items-center justify-center">
+                            <span className="w-3.5 h-3.5 rounded-full border-2 border-accent-orange/40 border-t-accent-orange animate-spin" />
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-bold text-zinc-100 truncate">{titleOf(selected)}</p>
+                        <p className="text-[10px] text-zinc-400 font-mono mt-0.5">{yearOf(selected)} · {selected.media_type === "movie" ? t("ui.movie") : t("ui.tvSeries")}</p>
+                        <button
+                          type="button"
+                          onClick={() => setMobileSection("preview")}
+                          className="mt-1.5 text-[11px] font-semibold text-accent-orange hover:underline flex items-center gap-1 cursor-pointer"
+                        >
+                          <span>{t("ui.previewSection") || "Anteprima"}</span>
+                          <ChevronLeft className="w-3 h-3 rotate-180" />
+                        </button>
+                      </div>
+                    </div>
+
                     <h3 className="text-[10px] font-semibold text-muted uppercase tracking-wider mb-1.5">{t("ui.details")}</h3>
                     <p className="text-sm font-bold tracking-tight text-zinc-50 truncate">{titleOf(selected)}</p>
                     <p className="text-[11px] font-mono text-zinc-400 mt-1">{yearOf(selected)} · {selected.media_type === "movie" ? t("ui.movie") : t("ui.tvSeries")} · TMDB <a href={`https://www.themoviedb.org/${selected.media_type}/${selected.id}`} target="_blank" rel="noopener noreferrer" className="text-zinc-300 hover:text-white underline underline-offset-2">{selected.id}</a>{selected.imdb_id ? <> · IMDB <a href={`https://www.imdb.com/title/${selected.imdb_id}`} target="_blank" rel="noopener noreferrer" className="text-zinc-300 hover:text-white underline underline-offset-2">{selected.imdb_id}</a></> : ""}{tvdbId ? <> · TVDB <a href={`https://thetvdb.com/?tab=series&id=${tvdbId}`} target="_blank" rel="noopener noreferrer" className="text-zinc-300 hover:text-white underline underline-offset-2">{tvdbId}</a></> : ""}</p>
@@ -708,6 +880,14 @@ export default function EditView() {
                       {(() => {
                         const key = `${selected.media_type}:${selected.id}`
                         if (!mappingsMap.get(key)) return null
+                        if (mappingDirty) {
+                          return (
+                            <span className="text-[10px] font-semibold px-2 py-0.5 rounded-md bg-amber-500/15 border border-amber-500/30 text-amber-300 flex items-center gap-1">
+                              <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
+                              {t("ui.unsavedChanges")}
+                            </span>
+                          )
+                        }
                         return (
                           <span className="text-[10px] font-semibold px-2 py-0.5 rounded-md bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 flex items-center gap-1">
                             <Check className="w-3 h-3 stroke-[3]" />
@@ -748,16 +928,7 @@ export default function EditView() {
       {!selected && !profileGate && !hasTmdbKey && (
         <div>
           {searchBar}
-          <p className="max-w-lg mx-auto mt-3 text-center text-xs text-muted leading-relaxed">{t("ui.noKeySub")}</p>
-          <div className="flex justify-center mt-2">
-            <button type="button" onClick={() => { requestSettingsTab("spazio"); setSettingsOpen(true) }} className="px-4 py-2 rounded-xl bg-white/[0.06] hover:bg-white/[0.1] border border-white/10 text-xs font-semibold text-zinc-200 hover:text-white transition-all active:scale-95 cursor-pointer">
-              {t("ui.configureKeys")}
-            </button>
-          </div>
-        </div>
-      )}
-      {!selected && !profileGate && !hasTmdbKey && (
-        <div className="max-w-md mx-auto mt-16 mb-16">
+          <div className="max-w-md mx-auto mt-8 mb-16">
           <div className="glass-panel relative overflow-hidden p-8 flex flex-col items-center text-center animate-fade-scale-in-hero">
             <div className="welcome-accent" />
             <span className="hero-kicker mb-4">{t("ui.welcomePanelKicker")}</span>
@@ -802,6 +973,7 @@ export default function EditView() {
               </div>
             </div>
           </div>
+        </div>
         </div>
       )}
       {!selected && !profileGate && hasTmdbKey && (

@@ -490,6 +490,7 @@ export function usePosterSave(deps: PosterSaveDeps) {
       setPreviewId(`${selected.media_type}:${selected.id}`)
       if (!overrides.silent) import("sonner").then(({ toast }) => toast(t("ui.saveSuccess")))
       await loadMappings()
+      return true
     } catch (error) {
       // 401 = istanza con ADMIN_TOKEN/multi-user senza sblocco: il generico
       // "errore" non dice cosa fare — guida allo sblocco admin (che abilita
@@ -501,6 +502,7 @@ export function usePosterSave(deps: PosterSaveDeps) {
         import("sonner").then(({ toast }) => toast(toastMsg))
       }
       if (overrides.silent) throw error
+      return false
     }
   }, [selected, previewPoster, selectedLogo, metaInfo, logoScale, logoOffsetX, logoOffsetY, trendRank, globalBadges, rankingBadges, badgeGenre, badgeYear, badgeRating, badgeQuality, customRatings, ratingSources, separateRatings, mdblistAnimeList, loadMappings, customBadge, badgePresetId, badgePresetRev, badgeStyle, rankingBadgeStyle, qualityBadgeStyle, videoFormats, blurEnabled, blurIntensity, blurFade, blurDarkness, landscapeBlur, landscapeBlurDirty, tintStrength, topShade, gradientHeight, topBadgeScale, topBadgeOffsetX, topBadgeOffsetY, genreBadgeScale, qualityBadgeScale, networkLogoScale, genreBadgeOffsetX, genreBadgeOffsetY, qualityBadgeOffsetX, qualityBadgeOffsetY, networkLogoOffsetX, networkLogoOffsetY, rotationPosters, autoRotateClean, defaultAutoRotateClean, excludedPosters, rotationBackdrops, autoRotateBackdrop, defaultAutoRotateBackdrop, excludedBackdrops, backdrops, defaultBadgeStyle, defaultRankingBadgeStyle, posters, mappingsMap, accentColor, autoAccentColor, backdropOffsetX, backdropOffsetY, backdropScale, selectedBackdrop, networkLogo, networkLogoPosition, ribbonEnabled, episodeGroupId, posterShape]) // eslint-disable-line react-hooks/exhaustive-deps -- intentionally complete to save all poster state
 

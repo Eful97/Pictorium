@@ -114,7 +114,7 @@ export interface PictoriumCtx {
   metaInfo: MetaInfo
   previewId: string | null
   setPreviewId: React.Dispatch<React.SetStateAction<string | null>>
-  saveConfig: () => Promise<void>
+  saveConfig: () => Promise<boolean | void>
   removeMapping: (m: Mapping) => Promise<void>
   mappingsMap: Map<string, Mapping>
   goHome: () => void
@@ -1532,7 +1532,7 @@ export function usePictorium(): PictoriumCtx {
   })
 
   const saveConfig = useCallback(async () => {
-    await savePosterConfig()
+    return await savePosterConfig()
   }, [savePosterConfig])
 
   const autoSaveExcludedPosters = useCallback(async (nextExcluded: string[], nextRotationPosters?: string[], nextPreviewPoster?: TMDBImage) => {

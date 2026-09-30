@@ -264,7 +264,8 @@ export function AppShell() {
             }`}
           >
             <Palette className="w-3.5 h-3.5 text-accent-orange" />
-            <span>{mappings.length}</span>
+            <span className="hidden xl:inline">{t("ui.myPostersBtn") || "I Miei Poster"}</span>
+            <span className="text-[10px] font-mono px-1.5 py-0.2 rounded-md bg-white/[0.08] text-zinc-300 border border-white/10">{mappings.length}</span>
           </button>
 
           {/* Proxy Modal */}
@@ -351,7 +352,7 @@ export function AppShell() {
           view === "edit" && selected ? "translate-y-full pointer-events-none opacity-0" : "translate-y-0 opacity-100"
         }`}
       >
-        <div className={`grid ${uuidShortcutVisible ? "grid-cols-6" : "grid-cols-5"} items-center justify-around max-w-md mx-auto`}>
+        <div className={`grid ${uuidShortcutVisible ? "grid-cols-5" : "grid-cols-4"} items-center justify-around max-w-md mx-auto`}>
           {/* Cataloghi */}
           <button
             type="button"
@@ -368,22 +369,6 @@ export function AppShell() {
               <Layers className="w-5 h-5" />
             </span>
             <span className="text-[10px] tracking-tight truncate">{t("ui.catalogs") || "Cataloghi"}</span>
-          </button>
-
-          {/* Proxy Addon (seconda voce) */}
-          <button
-            type="button"
-            onClick={() => { if (toolbarLocked) return; setProxyOpen(true) }}
-            disabled={toolbarLocked}
-            aria-disabled={toolbarLocked || undefined}
-            aria-label={t("ui.addonProxy")}
-            title={t("ui.addonProxy")}
-            className="flex flex-col items-center justify-center gap-1 py-1 px-1 rounded-xl transition-all duration-150 active:scale-90 cursor-pointer text-zinc-400 hover:text-zinc-200 disabled:opacity-40 disabled:cursor-not-allowed"
-          >
-            <span className="h-8 flex items-center justify-center">
-              <Sparkles className="w-5 h-5 text-accent-orange" />
-            </span>
-            <span className="text-[10px] tracking-tight truncate">{t("ui.proxyShort") || "Proxy"}</span>
           </button>
 
           {/* Installa Hub (Featured Central Pill) */}

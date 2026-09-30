@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { isGradientDirty, isGradientDirtyForShape, isArtworkDirty, type GradientTuning } from "@/lib/gradient-dirty"
+import { isGradientDirty, isGradientDirtyForShape, isArtworkDirty, isMappingDirty, type GradientTuning, type FullMappingCheckState } from "@/lib/gradient-dirty"
 import type { Mapping } from "@/lib/types"
 
 const DEFAULTS: GradientTuning = {
@@ -136,3 +136,43 @@ describe("isArtworkDirty", () => {
     )).toBe(true)
   })
 })
+
+describe("isMappingDirty", () => {
+  const baseArtwork = { posterPath: "/p.jpg", backdropPath: "/b.jpg", posterShape: "poster" as const, logoPath: "/l.png" };
+  const baseState: FullMappingCheckState = {
+    artwork: baseArtwork,
+    gradient: { ...DEFAULTS },
+    logoScale: 100,
+    logoOffsetX: 0,
+    logoOffsetY: 0,
+    globalBadges: true,
+  };
+
+  it("false quando lo stato corrisponde esattamente al mapping", () => {
+    const m = mapping({
+      ...baseArtwork,
+      ...DEFAULTS,
+      logoScale: 100,
+      logoOffsetX: 0,
+      logoOffsetY: 0,
+      showBadges: true,
+    });
+    expect(isMappingDirty(baseState, m, DEFAULTS, "poster")).toBe(false);
+  });
+
+  it("true quando logoScale o offset cambiano", () => {
+    const m = mapping({ ...baseArtwork, ...DEFAULTS, logoScale: 100, logoOffsetX: 0, logoOffsetY: 0, showBadges: true });
+    expect(isMappingDirty({ ...baseState, logoScale: 120 }, m, DEFAULTS, "poster")).toBe(true);
+    expect(isMappingDirty({ ...baseState, logoOffsetY: 10 }, m, DEFAULTS, "poster")).toBe(true);
+  });
+
+  it("true quando impostazioni badge cambiano", () => {
+    const m = mapping({ ...baseArtwork, ...DEFAULTS, logoScale: 100, showBadges: true, rankingBadges: false });
+    expect(isMappingDirty({ ...baseState, rankingBadges: true }, m, DEFAULTS, "poster")).toBe(true);
+  });
+
+  it("true quando customBadge cambia", () => {
+    const m = mapping({ ...baseArtwork, ...DEFAULTS, customBadge: "4K UHD" });
+    expect(isMappingDirty({ ...baseState, customBadge: "IMAX" }, m, DEFAULTS, "poster")).toBe(true);
+  });
+});

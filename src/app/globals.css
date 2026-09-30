@@ -600,16 +600,8 @@ input[type="range"]::-moz-range-thumb:active {
   transition: color 150ms ease, background 150ms ease, border-color 150ms ease, box-shadow 150ms ease;
 }
 
-.editor-panel-header button,
-.tab-chip,
-.poster-tile,
-.poster-tile-active,
-.btn-primary,
-.top-action-button,
-.floating-action,
-.menu-item,
-.search-shell input,
-.button {
+/* will-change limitato esclusivamente ad azioni fluttuanti animate per preservare memoria GPU */
+.floating-action {
   will-change: transform, opacity;
 }
 
@@ -1776,7 +1768,7 @@ button.status-version:hover {
 
   .podium {
     min-height: 0;
-    order: -1;
+
   }
 
   .p-frame-side {

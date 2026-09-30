@@ -113,4 +113,13 @@ describe("CustomPosterUrl", () => {
     expect(put).toBeTruthy()
     expect(JSON.parse(String(put!.init!.body))).toEqual({ customPosterUrl: null })
   })
-})
+  it("supporta modalità collassabile con pulsante apri/chiudi", async () => {
+    const user = userEvent.setup()
+    renderWithCtx(<CustomPosterUrl onAdd={() => {}} onRemove={() => {}} collapsible />, { selected })
+    expect(screen.queryByRole("button", { name: /customPosterAdd/ })).toBeNull()
+    await user.click(screen.getByRole("button", { name: /customPosterTitle/ }))
+    expect(screen.getByRole("button", { name: /customPosterAdd/ })).toBeTruthy()
+    await user.click(screen.getByRole("button", { name: /cancel/ }))
+    expect(screen.queryByRole("button", { name: /customPosterAdd/ })).toBeNull()
+  })
+});

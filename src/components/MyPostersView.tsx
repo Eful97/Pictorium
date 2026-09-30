@@ -584,7 +584,6 @@ export function MyPostersView() {
                 confirmLabel={t("ui.delete")}
                 onConfirm={() => { setShowDeleteSelected(false); void deleteSelected() }}
                 onCancel={() => setShowDeleteSelected(false)}
-                inline
               />
             </div>
           </div>
