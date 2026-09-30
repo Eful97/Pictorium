@@ -283,6 +283,59 @@ describe("safeTmdbImgSrc", () => {
 })
 
 describe("custom download counting (baseline traffico)", () => {
+  it("retries without joining an abandoned download still settling", async () => {
+    const controller = new AbortController()
+    let started!: () => void
+    const ready = new Promise<void>((resolve) => { started = resolve })
+    let finish!: (response: Response) => void
+    const remote = vi.fn()
+      .mockImplementationOnce(() => {
+        started()
+        return new Promise<Response>((resolve) => { finish = resolve })
+      })
+      .mockResolvedValue(imageResponse(PNG_1X1, "image/png"))
+    const deps = { ...noBlock, fetchRemote: remote }
+    const first = fetchValidatedCustomImage("https://i.imgur.com/retry.png", controller.signal, deps)
+    await ready
+    controller.abort()
+    await expect(first).rejects.toMatchObject({ name: "AbortError" })
+    const retry = fetchValidatedCustomImage("https://i.imgur.com/retry.png", signal, deps)
+    finish(imageResponse("unavailable", "image/png", 503))
+    await expect(retry).resolves.not.toBeNull()
+    expect(remote).toHaveBeenCalledTimes(2)
+    await expect(fetchValidatedCustomImage("https://i.imgur.com/retry.png", signal, deps)).resolves.not.toBeNull()
+  })
+
+  it("enforces the shared deadline while DNS is pending", async () => {
+    vi.useFakeTimers()
+    let finishDns!: (blocked: boolean) => void
+    const remote = vi.fn().mockResolvedValue(imageResponse(PNG_1X1, "image/png"))
+    try {
+      let settled = false
+      const pending = fetchValidatedCustomImage("https://i.imgur.com/dns.png", signal, {
+        checkBlocked: () => new Promise<boolean>((resolve) => { finishDns = resolve }),
+        fetchRemote: remote,
+      }).catch(() => null).then((value) => { settled = true; return value })
+      await vi.advanceTimersByTimeAsync(15_001)
+      const settledAtDeadline = settled
+      finishDns(false)
+      await pending
+      expect(settledAtDeadline).toBe(true)
+      expect(remote).not.toHaveBeenCalled()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it("honors an already aborted caller on a cache hit", async () => {
+    const url = "https://i.imgur.com/cached.png"
+    const deps = { ...noBlock, fetchRemote: async () => imageResponse(PNG_1X1, "image/png") }
+    await fetchValidatedCustomImage(url, signal, deps)
+    const controller = new AbortController()
+    controller.abort()
+    await expect(fetchValidatedCustomImage(url, controller.signal, deps)).rejects.toMatchObject({ name: "AbortError" })
+  })
+
   it("due render sequenziali dello stesso custom = un solo download", async () => {
     let calls = 0
     const deps = {

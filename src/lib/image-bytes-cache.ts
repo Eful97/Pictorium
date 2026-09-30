@@ -87,20 +87,7 @@ export async function cachedImageBytes(url: string, doFetch: () => Promise<Buffe
   const promise = doFetch().then(
     (buf) => {
       if (inflightBytes.get(url) === promise) inflightBytes.delete(url)
-      if (buf.length > 0 && buf.length <= MAX_ENTRY_BYTES) {
-        evictFor(buf.length)
-        if (cachedBytes + buf.length <= IMG_CACHE_BUDGET_BYTES) {
-          if (bytesCache.size >= MAX_CACHED_URLS) {
-            const evictedKey = bytesCache.keys().next().value!
-            const victim = bytesCache.get(evictedKey)!
-            bytesCache.delete(evictedKey)
-            cachedBytes -= victim.buf.length
-            bytesStats.evictions++
-          }
-          bytesCache.set(url, { buf, ts: Date.now() })
-          cachedBytes += buf.length
-        }
-      }
+      storeImageBytes(url, buf)
       return buf
     },
     (err) => {

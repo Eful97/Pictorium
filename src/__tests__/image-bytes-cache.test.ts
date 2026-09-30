@@ -3,6 +3,7 @@ import {
   __resetImageBytesForTest,
   cachedImageBytes,
   imageBytesStats,
+  storeImageBytes,
 } from "@/lib/image-bytes-cache"
 
 afterEach(() => {
@@ -20,6 +21,15 @@ function okFetch(body: Buffer) {
 }
 
 describe("cachedImageBytes", () => {
+  it("counts replacements written while a download is pending", async () => {
+    let finish!: (buf: Buffer) => void
+    const pending = cachedImageBytes("same-url", () => new Promise((resolve) => { finish = resolve }))
+    storeImageBytes("same-url", Buffer.alloc(3))
+    finish(Buffer.alloc(5))
+    await pending
+    expect(imageBytesStats()).toMatchObject({ entries: 1, bytes: 5 })
+  })
+
   it("second fetch of the same URL hits memory: 0 network", async () => {
     const spy = okFetch(Buffer.from([1, 2, 3, 4]))
     const doFetch = () => fetch("https://image.tmdb.org/t/p/w500/x.jpg").then((r) => r.arrayBuffer().then((b) => Buffer.from(b)))

@@ -102,15 +102,15 @@ async function sharedCustomDownload(
     }, CUSTOM_FETCH_TIMEOUT_MS)
     fresh.promise = (async (): Promise<Buffer | null> => {
       try {
-        const result = await work(controller.signal)
+        const result = await raceWithAbort(work(controller.signal), controller.signal)
         // Lavoro finito con null = origine fallita in modo definitivo.
-        if (result === null) recordCustomFailure(key)
+        if (result === null && !controller.signal.aborted) recordCustomFailure(key)
         return result
       } catch (e) {
         // Registra solo fallimenti definitivi: timeout interno = origine
         // lenta; mai l'abort da detach (zero waiter o deadline del render),
         // che arriva come AbortError a timeoutFired spento.
-        if (fresh.timeoutFired || !isAbortError(e)) recordCustomFailure(key)
+        if (fresh.timeoutFired || (!controller.signal.aborted && !isAbortError(e))) recordCustomFailure(key)
         throw e
       } finally {
         clearTimeout(fresh.timeout)
@@ -126,6 +126,8 @@ async function sharedCustomDownload(
   } finally {
     entry.refs--
     if (entry.refs <= 0) {
+      clearTimeout(entry.timeout)
+      if (customInflight.get(key) === entry) customInflight.delete(key)
       entry.controller.abort()
     }
   }
@@ -184,6 +186,7 @@ export async function fetchValidatedCustomImage(
   signal: AbortSignal,
   deps?: CustomFetchDeps,
 ): Promise<Buffer | null> {
+  if (signal.aborted) throw new DOMException("Aborted", "AbortError")
   const fetchRemote =
     deps?.fetchRemote ??
     ((url: string, sig: AbortSignal) =>
@@ -237,8 +240,9 @@ async function downloadAndValidateCustomImage(
   checkBlocked: (url: string) => Promise<boolean>,
 ): Promise<Buffer | null> {
   try {
-    if (await checkBlocked(parsed.href)) return null
-  } catch {
+    if (await raceWithAbort(checkBlocked(parsed.href), signal)) return null
+  } catch (e) {
+    if (isAbortError(e)) throw e
     return null
   }
   let res: Response
@@ -385,4 +389,3 @@ export function resolveEffectiveCustomUrl(input: EffectiveCustomUrlInput): strin
   if (!input.hasQueryPoster || !input.isPreview) return input.mappingCustomUrl
   return null
 }
-
