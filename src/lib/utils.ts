@@ -37,6 +37,35 @@ export function posterUrl(path: string, size = "w342") {
   return `${IMG_BASE}/${size}${path}`
 }
 
+/** Vero quando il valore è un URL http(s) esterno (base custom), non un path TMDB. */
+export function isCustomPosterUrl(value: string | null | undefined): boolean {
+  if (!value) return false
+  const v = value.trim()
+  return v.startsWith("http://") || v.startsWith("https://")
+}
+
+export interface PosterSaveSplit {
+  /** posterPath da persistere (sempre path TMDB di fallback, mai URL). */
+  readonly posterPath: string
+  /** customPosterUrl da persistere (null = nessuna base custom). */
+  readonly customPosterUrl: string | null
+}
+
+/**
+ * Split del save quando il poster selezionato può essere un tile custom.
+ * Tile custom → posterPath resta il riferimento TMDB (fallback del render se
+ * l'URL muore) e l'URL va in customPosterUrl. Tile TMDB → custom azzerato: il
+ * save congela lo stato mostrato, quindi tornare a un tile TMDB rimuove la
+ * base custom precedentemente salvata.
+ */
+export function splitCustomPosterSave(previewFilePath: string, tmdbRef: string | null): PosterSaveSplit {
+  if (isCustomPosterUrl(previewFilePath)) {
+    const fallback = tmdbRef && !isCustomPosterUrl(tmdbRef) ? tmdbRef : previewFilePath
+    return { posterPath: fallback, customPosterUrl: previewFilePath.trim() }
+  }
+  return { posterPath: previewFilePath, customPosterUrl: null }
+}
+
 export function titleOf(r: SearchResult) {
   return r.title || r.name || "Unknown"
 }

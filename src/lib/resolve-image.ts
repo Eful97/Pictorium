@@ -23,19 +23,27 @@ const MAX_IMAGE_BYTES = 10 * 1024 * 1024
  * rispettivi CDN. Vale sia per la pagina di partenza che per l'immagine
  * finale (og:image incluso): una pagina allowlisted che punta a un CDN fuori
  * lista viene rifiutata. Estensioni future = aggiungere radici qui + test.
+ *
+ * Pinterest redirige gli short link (pin.it) per geolocalizzazione verso i
+ * suoi ccTLD (pinterest.it, pinterest.fr, …): la famiglia copre quindi
+ * `pinterest.<tld>` oltre a `*.pinterest.com`. Boundary-safe: il match
+ * richiede inizio-stringa o punto prima di "pinterest" (evilpinterest.com
+ * resta fuori) e fine-stringa dopo il TLD (pinterest.com.evil.com fuori).
  */
-const ALLOWLIST_ROOTS = [
-  "pin.it",
-  "pinterest.com",
-  "pinimg.com",
-  "imgur.com",
-  "reddit.com",
-  "redd.it",
-] as const
+const PINTEREST_HOST_RE = /(^|\.)pinterest\.[a-z]{2,}(\.[a-z]{2,})?$/
+const PINIMG_HOST_RE = /(^|\.)pinimg\.com$/
+const IMGUR_HOST_RE = /(^|\.)imgur\.com$/
+const REDDIT_HOST_RE = /(^|\.)(reddit\.com|redd\.it)$/
 
 export function isAllowedResolveHost(hostname: string): boolean {
   const h = hostname.toLowerCase().replace(/\.$/, "")
-  return (ALLOWLIST_ROOTS as readonly string[]).some((root) => h === root || h.endsWith(`.${root}`))
+  if (h === "pin.it" || h.endsWith(".pin.it")) return true
+  return (
+    PINTEREST_HOST_RE.test(h) ||
+    PINIMG_HOST_RE.test(h) ||
+    IMGUR_HOST_RE.test(h) ||
+    REDDIT_HOST_RE.test(h)
+  )
 }
 
 /** Host che servono direttamente byte immagine (niente pagina HTML in mezzo). */

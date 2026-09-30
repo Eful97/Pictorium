@@ -31,7 +31,7 @@ describe("buildCspHeader", () => {
     "default-src 'self'; " +
     "script-src 'self' 'unsafe-inline'; " +
     "style-src 'self' 'unsafe-inline'; " +
-    "img-src 'self' data: blob: https://image.tmdb.org https://artworks.thetvdb.com; " +
+    "img-src 'self' data: blob: https://image.tmdb.org https://artworks.thetvdb.com https://i.pinimg.com https://i.imgur.com https://i.redd.it https://preview.redd.it https://share.redd.it; " +
     "font-src 'self'; " +
     "connect-src 'self'; " +
     "object-src 'none'; " +
@@ -45,13 +45,26 @@ describe("buildCspHeader", () => {
 
   it("aggiunge scheme+host CDN a img-src e connect-src (stessa precedenza env)", () => {
     const header = buildCspHeader({ POSTER_CDN_URL: "https://cdn.example.com/x?y=1" })
-    expect(header).toContain("img-src 'self' data: blob: https://image.tmdb.org https://artworks.thetvdb.com https://cdn.example.com")
+    expect(header).toContain("https://cdn.example.com")
     expect(header).toContain("connect-src 'self' https://cdn.example.com")
     expect(header).not.toContain("/x")
   })
 
   it("CDN invalido = policy invariata", () => {
     expect(buildCspHeader({ POSTER_CDN_URL: "ftp://cdn.example.com" })).toBe(BASE)
+  })
+
+  it("img-src include i CDN delle sorgenti custom (tile anteprime esterne)", () => {
+    const header = buildCspHeader({})
+    for (const host of [
+      "https://i.pinimg.com",
+      "https://i.imgur.com",
+      "https://i.redd.it",
+      "https://preview.redd.it",
+      "https://share.redd.it",
+    ]) {
+      expect(header).toContain(host)
+    }
   })
 
   it("dev aggiunge unsafe-eval e websocket HMR", () => {

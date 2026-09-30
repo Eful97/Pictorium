@@ -80,7 +80,8 @@ import { NON_CLEAN_BLUR_FADE, NON_CLEAN_GRADIENT_HEIGHT } from "@/lib/gradient-d
 import { LAND_W, LAND_H, landscapeBackdropUrl, pillarboxLandscapeBase, cropBackdropToPortrait } from "@/lib/image-utils"
 import { generatePosterBuffer, type GenerationInput } from "@/lib/poster-service"
 import { computeTopBadge } from "@/lib/poster-badge"
-import { fetchPosterBaseWithCustom, customBaseAnalysisKey } from "@/lib/custom-poster-base"
+import { fetchPosterBaseWithCustom, customBaseAnalysisKey, resolveEffectiveCustomUrl, safeTmdbImgSrc } from "@/lib/custom-poster-base"
+import { isCustomPosterUrl } from "@/lib/utils"
 
 import { resolveImdbToTmdb } from "@/lib/imdb-resolver"
 import { getTvdbArtworks, getTvdbMovieId, getTvdbSeriesId, pickTvdbPoster } from "@/lib/tvdb"
@@ -1266,8 +1267,24 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
     // TMDB). Scaricata in PARALLELO al TMDB con fallback automatico — mai in
     // serie (deadline render 8.5s su Vercel). La validazione SSRF avviene a
     // ogni render dentro fetchPosterBaseWithCustom: l'URL salvato resta input
-    // utente, mai fidato.
-    const customPosterUrl = !earlyLandscape && mapping?.customPosterUrl ? mapping.customPosterUrl : null
+    // utente, mai fidato. safeTmdbImgSrc: un posterPath non-TMDB (mapping
+    // legacy scritto a mano) non deve far lanciare il render → fallback null.
+    const mappingCustomUrl = !earlyLandscape && mapping?.customPosterUrl ? mapping.customPosterUrl : null
+    const tmdbFallbackSrc = mapping?.posterPath ? safeTmdbImgSrc(mapping.posterPath) : null
+    // Scelta custom esplicita in query (tile custom selezionata in preview ma
+    // non ancora salvata): vince sul mapping salvato, come queryPoster vince
+    // su mapping.posterPath nel ramo query. Solo portrait, solo URL validati.
+    // La precedenza completa (preview vs Stremio) vive in
+    // resolveEffectiveCustomUrl: in preview un click su tile TMDB mostra
+    // davvero quel tile, su Stremio comanda sempre lo stato salvato.
+    const queryCustomUrl =
+      !earlyLandscape && queryPoster && isCustomPosterUrl(queryPoster) ? queryPoster : null
+    const effectiveCustomUrl = resolveEffectiveCustomUrl({
+      queryCustomUrl,
+      hasQueryPoster: queryPoster ? true : false,
+      mappingCustomUrl,
+      isPreview: hardenedParams.get("preview") === "1",
+    })
 
     // 5. Fetch all data in parallel: images + rankings + quality + wikidata + keywords + imdbTop250
     //    All dependencies are available before this point — no Block B depends on Block A
@@ -1284,8 +1301,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
       Promise.all([
         posterPathBuffer
           ? Promise.resolve({ buf: posterPathBuffer, custom: false })
-          : customPosterUrl
-            ? fetchPosterBaseWithCustom(customPosterUrl, imgSrc(posterPath), renderAbort.signal)
+          : effectiveCustomUrl
+            ? fetchPosterBaseWithCustom(effectiveCustomUrl, tmdbFallbackSrc ?? safeTmdbImgSrc(posterPath), renderAbort.signal)
             : fetchImg(imgSrc(posterPath), renderAbort.signal).catch(() => null).then((buf) => (buf ? { buf, custom: false } : null)),
         logoPathBuffer
           ? Promise.resolve(logoPathBuffer)
@@ -1492,7 +1509,6 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
     // Base portrait: l'URL custom vince solo se scaricato e validato,
     // altrimenti vale il TMDB (fallback parallelo, mai seriale).
     const originalBuf = originalBase?.buf ?? null
-    const customBaseUsed = originalBase?.custom ?? false
 
     // Normalizza il risultato qualità (oggetto statusato oppure legacy string /
     // null da `?quality=` e dai mock): da qui in poi solo StreamQualityResult.
@@ -1573,16 +1589,13 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
     const qTopLight = req.nextUrl.searchParams.get("tl")
     const qBottomLight = req.nextUrl.searchParams.get("bl")
 
-    // Chiave analisi pixel (luminance/tinta di scena): identifica i byte
-    // effettivi della base, non il path nominale. Il pillarbox landscape deriva
-    // dal poster e il resize backdrop dal backdrop: a parità di path sono byte
-    // diversi e devono restare entry separate. Null → ricalcolo senza cache.
     // Base custom: hash dell'URL, mai l'URL in chiaro (e mai il posterPath
-    // TMDB, che con base custom non descrive i byte renderizzati).
+    // TMDB, che con base custom non descrive i byte renderizzati). Stessa
+    // effettività del fetch sopra: effectiveCustomUrl decide in un solo punto.
     const analysisKey = !isLandscape
-      ? (customBaseUsed && mapping?.customPosterUrl
-        ? customBaseAnalysisKey(mapping.customPosterUrl)
-        : (posterPath ? `portrait:poster:${posterPath}` : null))
+      ? (effectiveCustomUrl
+        ? customBaseAnalysisKey(effectiveCustomUrl)
+        : (posterPath && !isCustomPosterUrl(posterPath) ? `portrait:poster:${posterPath}` : null))
       : backdropFetch
         ? (backdropPath ? `landscape:backdrop:${backdropPath}` : null)
         : (posterPath ? `landscape:pillarbox:${posterPath}` : null)

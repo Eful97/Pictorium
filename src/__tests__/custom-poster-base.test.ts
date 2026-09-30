@@ -4,7 +4,11 @@ import {
   fetchPosterBaseWithCustom,
   fetchValidatedCustomImage,
   pickPosterBase,
+  resolveEffectiveCustomUrl,
+  safeTmdbImgSrc,
+  splitCustomPosterSave,
 } from "@/lib/custom-poster-base"
+import { isCustomPosterUrl } from "@/lib/utils"
 
 const PNG_1X1 = Buffer.from(
   "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
@@ -129,5 +133,82 @@ describe("customBaseAnalysisKey", () => {
     expect(key).not.toContain("imgur")
     expect(key).not.toContain("secret")
     expect(customBaseAnalysisKey(url)).toBe(key)
+  })
+})
+
+describe("isCustomPosterUrl", () => {
+  it("distingue URL esterni dai path TMDB", () => {
+    expect(isCustomPosterUrl("https://i.imgur.com/x.jpg")).toBe(true)
+    expect(isCustomPosterUrl("http://example.com/a.png")).toBe(true)
+    expect(isCustomPosterUrl("/abc123.jpg")).toBe(false)
+    expect(isCustomPosterUrl(null)).toBe(false)
+    expect(isCustomPosterUrl(undefined)).toBe(false)
+    expect(isCustomPosterUrl("")).toBe(false)
+  })
+})
+describe("resolveEffectiveCustomUrl", () => {
+  const mapping = "https://i.imgur.com/saved.jpg"
+  const query = "https://i.imgur.com/session.jpg"
+
+  it("la scelta query URL vince sempre (azione più recente)", () => {
+    expect(
+      resolveEffectiveCustomUrl({ queryCustomUrl: query, hasQueryPoster: true, mappingCustomUrl: mapping, isPreview: true }),
+    ).toBe(query)
+    expect(
+      resolveEffectiveCustomUrl({ queryCustomUrl: query, hasQueryPoster: true, mappingCustomUrl: mapping, isPreview: false }),
+    ).toBe(query)
+  })
+
+  it("senza query esplicita vale il salvato (anche in preview: stato iniziale)", () => {
+    expect(
+      resolveEffectiveCustomUrl({ queryCustomUrl: null, hasQueryPoster: false, mappingCustomUrl: mapping, isPreview: true }),
+    ).toBe(mapping)
+    expect(
+      resolveEffectiveCustomUrl({ queryCustomUrl: null, hasQueryPoster: false, mappingCustomUrl: mapping, isPreview: false }),
+    ).toBe(mapping)
+  })
+
+  it("click su tile TMDB in preview mostra quel tile (WYSIWYG), su Stremio comanda il salvato", () => {
+    expect(
+      resolveEffectiveCustomUrl({ queryCustomUrl: null, hasQueryPoster: true, mappingCustomUrl: mapping, isPreview: true }),
+    ).toBeNull()
+    expect(
+      resolveEffectiveCustomUrl({ queryCustomUrl: null, hasQueryPoster: true, mappingCustomUrl: mapping, isPreview: false }),
+    ).toBe(mapping)
+  })
+
+  it("senza custom da nessuna parte ritorna null", () => {
+    expect(
+      resolveEffectiveCustomUrl({ queryCustomUrl: null, hasQueryPoster: true, mappingCustomUrl: null, isPreview: true }),
+    ).toBeNull()
+  })
+})
+
+describe("splitCustomPosterSave", () => {
+  it("tile custom: posterPath resta il riferimento TMDB e l'URL va nel custom", () => {
+    expect(splitCustomPosterSave("https://i.imgur.com/x.jpg", "/abc.jpg")).toEqual({
+      posterPath: "/abc.jpg",
+      customPosterUrl: "https://i.imgur.com/x.jpg",
+    })
+  })
+
+  it("tile custom senza riferimento TMDB: posterPath ripiega sull'URL (schema min(1))", () => {
+    const r = splitCustomPosterSave("https://i.imgur.com/x.jpg", null)
+    expect(r.customPosterUrl).toBe("https://i.imgur.com/x.jpg")
+    expect(r.posterPath.length).toBeGreaterThan(0)
+  })
+
+  it("tile TMDB: custom azzerato (il save congela lo stato mostrato)", () => {
+    expect(splitCustomPosterSave("/abc.jpg", "/abc.jpg")).toEqual({
+      posterPath: "/abc.jpg",
+      customPosterUrl: null,
+    })
+  })
+})
+
+describe("safeTmdbImgSrc", () => {
+  it("costruisce l'URL TMDB e ritorna null per gli URL esterni", () => {
+    expect(safeTmdbImgSrc("/abc.jpg")).toBe("https://image.tmdb.org/t/p/w500/abc.jpg")
+    expect(safeTmdbImgSrc("https://i.imgur.com/x.jpg")).toBeNull()
   })
 })

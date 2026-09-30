@@ -2,7 +2,7 @@
 
 import { useCallback } from "react"
 import type { SearchResult, TMDBImage, Mapping, NetworkLogoPosition, PosterShape } from "./types"
-import { titleOf } from "./utils"
+import { titleOf, isCustomPosterUrl, splitCustomPosterSave } from "./utils"
 import { computeTopBadge, resolveSavedBadgeExtra, type BadgeInput } from "./poster-badge"
 import type { SashBucket } from "./badge-priority"
 import { adjustGradientForPosterChange } from "./gradient-presets"
@@ -192,7 +192,13 @@ export function usePosterSave(deps: PosterSaveDeps) {
     if (!previewPoster && selected) {
       const existing = mappingsMap.get(`${selected.media_type}:${selected.id}`)
       if (existing) {
-        setPreviewPoster({ file_path: existing.posterPath, iso_639_1: existing.language, vote_average: 0, width: 0, height: 0 })
+        // Base custom salvata: la preview deve partire dal tile custom (non
+        // dal riferimento TMDB), altrimenti highlight e preview divergono.
+        const customFile = existing.customPosterUrl && isCustomPosterUrl(existing.customPosterUrl)
+          ? existing.customPosterUrl
+          : null
+        const filePath = customFile ?? existing.posterPath
+        setPreviewPoster({ file_path: filePath, iso_639_1: customFile ? null : existing.language, vote_average: 0, width: 0, height: 0 })
       } else if (posters.length > 0) {
         setPreviewPoster(posters[0])
       }
@@ -209,13 +215,19 @@ export function usePosterSave(deps: PosterSaveDeps) {
       return
     }
     const logoPrecedente = selectedLogo
+    // Stesso split del save: mai un URL custom dentro posterPath (il render lo
+    // usa come fallback TMDB). Il custom salvato resta intatto (non nel body).
+    const logoSplit = splitCustomPosterSave(
+      previewPoster?.file_path || selected.poster_path || "",
+      selected.poster_path,
+    )
     try {
       await http(`/api/mappings/${key}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           tmdbId: selected.id, mediaType: selected.media_type, title: titleOf(selected),
-          posterPath: previewPoster?.file_path || selected.poster_path!, logoPath: null,
+          posterPath: logoSplit.posterPath, logoPath: null,
           originalPosterPath: selected.poster_path, language: previewPoster?.iso_639_1 || null,
           logoScale, logoOffsetX, logoOffsetY,
           genreName: normalizeGenreName(metaInfo.genres[0]?.name, lang) || null,
@@ -284,6 +296,10 @@ export function usePosterSave(deps: PosterSaveDeps) {
     const badgeLabel = (!badgeExtra && animeRankData) ? t("badge.anime") : (!badgeExtra && computed.badge?.type === "rank") ? (computed.badge.rankLabel || t(selected.media_type === "tv" ? "badge.series" : "badge.movie")) : undefined
     const isClean = posterToSave.iso_639_1 === null
     const isNewMapping = !mappingsMap.has(`${selected.media_type}:${selected.id}`)
+    // Tile custom selezionato: posterPath resta il riferimento TMDB (fallback
+    // del render) e l'URL va in customPosterUrl. Tile TMDB: custom azzerato
+    // (il save congela lo stato mostrato). Vedi splitCustomPosterSave.
+    const saveSplit = splitCustomPosterSave(posterToSave.file_path, selected.poster_path)
     const nextExcludedPosters = overrides.excludedPosters ?? excludedPosters
     const nextRotationPosters = overrides.rotationPosters ?? rotationPosters
     const excludedSet = new Set(nextExcludedPosters)
@@ -375,7 +391,8 @@ export function usePosterSave(deps: PosterSaveDeps) {
           tmdbId: selected.id,
           mediaType: selected.media_type,
           title: titleOf(selected),
-          posterPath: posterToSave.file_path,
+          posterPath: saveSplit.posterPath,
+          customPosterUrl: saveSplit.customPosterUrl,
           logoPath: effectiveLogoPath,
           originalPosterPath: selected.poster_path,
           language: posterToSave.iso_639_1,

@@ -58,9 +58,15 @@ describe("posterQuerySchema", () => {
   })
 
   it("rejects oversized image paths", () => {
-    expect(validatePosterQuery(params({ poster: `/${"x".repeat(200)}.jpg` }))).toContain("poster")
+    expect(validatePosterQuery(params({ poster: `/${"x".repeat(2100)}.jpg` }))).toContain("poster")
     expect(validatePosterQuery(params({ logo: `/${"x".repeat(200)}.png` }))).toContain("logo")
     expect(validatePosterQuery(params({ backdrop: `/${"x".repeat(200)}.jpg` }))).toContain("backdrop")
+  })
+
+  it("accepts custom image URLs in poster (same cap as the mapping)", () => {
+    expect(
+      validatePosterQuery(params({ poster: "https://i.pinimg.com/originals/ab/12/abcdef1234567890.jpg" })),
+    ).toBeNull()
   })
 
   it("rejects malformed rank/imdbId", () => {

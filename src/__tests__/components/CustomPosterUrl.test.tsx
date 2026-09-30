@@ -40,81 +40,77 @@ function mockFetch(handler: (url: string, init?: RequestInit) => Response) {
 }
 
 describe("CustomPosterUrl", () => {
-  it("mostra input e Test senza mapping salvato", () => {
-    renderWithCtx(<CustomPosterUrl />, { selected })
+  it("mostra input e Aggiungi senza mapping salvato", () => {
+    renderWithCtx(<CustomPosterUrl onAdd={() => {}} onRemove={() => {}} />, { selected })
     expect(screen.getByTestId("custom-poster-url")).toBeTruthy()
-    expect(screen.getByRole("button", { name: /customPosterTest/ })).toBeTruthy()
+    expect(screen.getByRole("button", { name: /customPosterAdd/ })).toBeTruthy()
     expect(screen.queryByText(/customPosterActive/)).toBeNull()
   })
 
   it("mostra stato attivo e bottone rimozione con custom salvato", () => {
     const mappingsMap = new Map([["movie:550", mappingWithCustom("https://i.imgur.com/x.jpg")]])
-    renderWithCtx(<CustomPosterUrl />, { selected, mappingsMap })
-    const input = screen.getByLabelText(/customPosterTitle/) as HTMLInputElement
-    expect(input.value).toBe("https://i.imgur.com/x.jpg")
+    renderWithCtx(<CustomPosterUrl onAdd={() => {}} onRemove={() => {}} />, { selected, mappingsMap })
     expect(screen.getByRole("button", { name: /customPosterRemove/ })).toBeTruthy()
   })
 
-  it("Test risolve e Salva fa PUT con l'URL custom", async () => {
+  it("Aggiungi risolve e chiama onAdd con l'URL diretto (un solo passo)", async () => {
+    const user = userEvent.setup()
+    const onAdd = vi.fn()
+    mockFetch((url) => {
+      expect(url).toContain("/api/resolve-image")
+      return new Response(
+        JSON.stringify({ imageUrl: "https://i.imgur.com/x.jpg", source: "direct", width: 1000, height: 1500 }),
+        { status: 200, headers: { "content-type": "application/json" } },
+      )
+    })
+    renderWithCtx(<CustomPosterUrl onAdd={onAdd} onRemove={() => {}} />, { selected })
+
+    await user.type(screen.getByLabelText(/customPosterTitle/), "https://imgur.com/gallery/abc")
+    await user.click(screen.getByRole("button", { name: /customPosterAdd/ }))
+
+    await waitFor(() => expect(onAdd).toHaveBeenCalledWith({ url: "https://i.imgur.com/x.jpg", width: 1000, height: 1500 }))
+    // L'input si pulisce dopo l'aggiunta
+    expect((screen.getByLabelText(/customPosterTitle/) as HTMLInputElement).value).toBe("")
+  })
+
+  it("resolve fallito mostra errore e non chiama onAdd", async () => {
+    const user = userEvent.setup()
+    const onAdd = vi.fn()
+    mockFetch(() => {
+      return new Response(JSON.stringify({ error: "Host not in the image-source allowlist" }), {
+        status: 403,
+        headers: { "content-type": "application/json" },
+      })
+    })
+    renderWithCtx(<CustomPosterUrl onAdd={onAdd} onRemove={() => {}} />, { selected })
+
+    await user.type(screen.getByLabelText(/customPosterTitle/), "https://evil.com/x.jpg")
+    await user.click(screen.getByRole("button", { name: /customPosterAdd/ }))
+
+    await screen.findByRole("alert")
+    expect(onAdd).not.toHaveBeenCalled()
+  })
+
+  it("Rimuovi azzera il custom salvato via PUT e chiama onRemove", async () => {
     const user = userEvent.setup()
     const calls: Array<{ url: string; init?: RequestInit }> = []
     mockFetch((url, init) => {
       calls.push({ url, init })
-      if (url.includes("/api/resolve-image")) {
-        return new Response(
-          JSON.stringify({ imageUrl: "https://i.imgur.com/x.jpg", source: "direct", width: 1000, height: 1500 }),
-          { status: 200, headers: { "content-type": "application/json" } },
-        )
-      }
       return new Response(JSON.stringify({ ok: true }), {
         status: 200,
         headers: { "content-type": "application/json" },
       })
     })
-    const mappingsMap = new Map([["movie:550", mappingWithCustom(null)]])
+    const mappingsMap = new Map([["movie:550", mappingWithCustom("https://i.imgur.com/x.jpg")]])
     const loadMappings = vi.fn(async () => {})
-    renderWithCtx(<CustomPosterUrl />, { selected, mappingsMap, loadMappings })
+    const onRemove = vi.fn()
+    renderWithCtx(<CustomPosterUrl onAdd={() => {}} onRemove={onRemove} />, { selected, mappingsMap, loadMappings })
 
-    const input = screen.getByLabelText(/customPosterTitle/)
-    await user.clear(input)
-    await user.type(input, "https://imgur.com/gallery/abc")
-    await user.click(screen.getByRole("button", { name: /customPosterTest/ }))
+    await user.click(screen.getByRole("button", { name: /customPosterRemove/ }))
 
-    const useBtn = await screen.findByRole("button", { name: /customPosterUse/ })
-    expect(useBtn).toBeTruthy()
-    await user.click(useBtn)
-
-    await waitFor(() => expect(loadMappings).toHaveBeenCalled())
+    await waitFor(() => expect(onRemove).toHaveBeenCalled())
     const put = calls.find((c) => c.url.includes("/api/mappings/movie:550") && c.init?.method === "PUT")
     expect(put).toBeTruthy()
-    expect(JSON.parse(String(put!.init!.body))).toEqual({ customPosterUrl: "https://i.imgur.com/x.jpg" })
-  })
-
-  it("Test fallito mostra errore e non salva (Test non equivale a salvataggio)", async () => {
-    const user = userEvent.setup()
-    let mappingWrites = 0
-    mockFetch((url, init) => {
-      if (url.includes("/api/resolve-image")) {
-        return new Response(JSON.stringify({ error: "Host not in the image-source allowlist" }), {
-          status: 403,
-          headers: { "content-type": "application/json" },
-        })
-      }
-      if (url.includes("/api/mappings") && (init?.method === "PUT" || init?.method === "POST")) {
-        mappingWrites++
-      }
-      return new Response(JSON.stringify({ ok: true }), {
-        status: 200,
-        headers: { "content-type": "application/json" },
-      })
-    })
-    renderWithCtx(<CustomPosterUrl />, { selected })
-
-    await user.type(screen.getByLabelText(/customPosterTitle/), "https://evil.com/x.jpg")
-    await user.click(screen.getByRole("button", { name: /customPosterTest/ }))
-
-    await screen.findByRole("alert")
-    expect(screen.queryByRole("button", { name: /customPosterUse/ })).toBeNull()
-    expect(mappingWrites).toBe(0)
+    expect(JSON.parse(String(put!.init!.body))).toEqual({ customPosterUrl: null })
   })
 })

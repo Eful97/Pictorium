@@ -1,9 +1,9 @@
 "use client"
 
-import { useEffect, useMemo, useRef, useState } from "react"
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react"
 import { toast } from "sonner"
 import type { TMDBImage } from "@/lib/types"
-import { LANG_NAMES, groupBy } from "@/lib/utils"
+import { LANG_NAMES, groupBy, isCustomPosterUrl } from "@/lib/utils"
 import { PosterBtn } from "@/components/PosterBtn"
 import { PosterTabs } from "@/components/PosterTabs"
 import { FitDebugPanel } from "@/components/FitDebugPanel"
@@ -21,9 +21,14 @@ interface Props {
   activeGroup?: string
   onActiveGroupChange?: (key: string) => void
   showTabs?: boolean
+  /** Slot sotto i tab (es. box URL poster personalizzato). */
+  topSlot?: ReactNode
+  /** Tile custom da URL esterno: prime nella griglia clean, fuori da
+   *  rotazione/esclusioni/best-fit (che ragionano su path TMDB). */
+  customPosters?: TMDBImage[]
 }
 
-export function PosterOptions({ posters, posterActivePath, lang, selectPoster, activeGroup: controlledActiveGroup, onActiveGroupChange, showTabs = true }: Props) {
+export function PosterOptions({ posters, posterActivePath, lang, selectPoster, activeGroup: controlledActiveGroup, onActiveGroupChange, showTabs = true, topSlot, customPosters = [] }: Props) {
   const selectedLogo = usePSelector((v) => v.selectedLogo)
   const selected = usePSelector((v) => v.selected)
   const mappingsMap = usePSelector((v) => v.mappingsMap)
@@ -33,8 +38,8 @@ export function PosterOptions({ posters, posterActivePath, lang, selectPoster, a
 
   const excludedSet = useMemo(() => new Set(ed.excludedPosters), [ed.excludedPosters])
 
-  const cleanPosters = useMemo(() => posters.filter((img) => img.iso_639_1 === null && !excludedSet.has(img.file_path)), [posters, excludedSet])
-  const hasClean = cleanPosters.length > 0
+  const cleanPosters = useMemo(() => posters.filter((img) => img.iso_639_1 === null && !excludedSet.has(img.file_path) && !isCustomPosterUrl(img.file_path)), [posters, excludedSet])
+  const hasClean = cleanPosters.length > 0 || customPosters.length > 0
   const langGroups = useMemo(
     () => Object.entries(groupBy(posters.filter((img) => img.iso_639_1 !== null), (img) => img.iso_639_1 || "other")).sort(([a], [b]) => {
       if (a === lang) return -1; if (b === lang) return 1
@@ -46,12 +51,12 @@ export function PosterOptions({ posters, posterActivePath, lang, selectPoster, a
 
   const posterTabs = useMemo(() => {
     const tabs: { key: string; label: string; count: number }[] = []
-    if (hasClean) tabs.push({ key: "clean", label: "Clean", count: cleanPosters.length })
+    if (hasClean) tabs.push({ key: "clean", label: "Clean", count: cleanPosters.length + customPosters.length })
     for (const [language, imgs] of langGroups) {
       if (imgs.length > 0) tabs.push({ key: language, label: LANG_NAMES[language] || language, count: imgs.length })
     }
     return tabs
-  }, [hasClean, cleanPosters.length, langGroups])
+  }, [hasClean, cleanPosters.length, customPosters.length, langGroups])
 
   const [internalActiveGroup, setInternalActiveGroup] = useState("clean")
   const activeGroup = controlledActiveGroup ?? internalActiveGroup
@@ -249,6 +254,7 @@ export function PosterOptions({ posters, posterActivePath, lang, selectPoster, a
       {showTabs && (
         <PosterTabs tabs={posterTabs} activeGroup={activeGroup} onSelect={setActiveGroup} />
       )}
+      {topSlot}
 
       {activeClean && hasClean && (
         <div className="space-y-2 mb-2 px-1">
@@ -326,6 +332,12 @@ export function PosterOptions({ posters, posterActivePath, lang, selectPoster, a
       {activeClean && hasClean && (
         <>
           <div className="grid grid-cols-3 gap-2">
+            {/* Tile custom: prime in griglia, senza rotazione/esclusioni (solo TMDB). */}
+            {customPosters.map((img, ci) => (
+              <div key={`custom:${img.file_path}`}>
+                <PosterBtn staggerIndex={ci} img={img} active={posterActivePath === img.file_path} onSelect={selectPoster} title={t("ui.customPosterActive")} />
+              </div>
+            ))}
             {visibleCleanPosters.map((img) => {
               const stagger = idx++
               const inRotation = ed.rotationPosters.includes(img.file_path)

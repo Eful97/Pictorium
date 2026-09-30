@@ -45,7 +45,7 @@ export function buildCspHeader(env: Record<string, string | undefined>, opts: Cs
     "default-src 'self'",
     `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ""}`,
     "style-src 'self' 'unsafe-inline'",
-    `img-src 'self' data: blob: https://image.tmdb.org https://artworks.thetvdb.com${cdnSuffix}`,
+    `img-src 'self' data: blob: https://image.tmdb.org https://artworks.thetvdb.com https://i.pinimg.com https://i.imgur.com https://i.redd.it https://preview.redd.it https://share.redd.it${cdnSuffix}`,
     "font-src 'self'",
     `connect-src 'self'${cdnSuffix}${isDev ? " ws://127.0.0.1:* ws://localhost:*" : ""}`,
     "object-src 'none'",

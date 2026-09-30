@@ -6,7 +6,7 @@ import { effectiveMappingForShape } from "./types"
 import type { BadgeStyle, RankingBadgeStyle, QualityBadgeStyle } from "./badge-styles"
 import type { RibbonSide } from "./useDefaults"
 type LogoAlign = "left" | "center"
-import { posterUrl, titleOf, yearOf, STREAMING_PLATFORMS, mergeImageLists, type ImageLists } from "./utils"
+import { posterUrl, titleOf, yearOf, STREAMING_PLATFORMS, mergeImageLists, isCustomPosterUrl, type ImageLists } from "./utils"
 export { mergeImageLists, type ImageLists } from "./utils"
 import { matchTMDBStudios } from "./badge-labels"
 import { setLang as setI18nLang, createT } from "./i18n"
@@ -1404,8 +1404,15 @@ export function usePictorium(): PictoriumCtx {
       const { details, data } = loaded
       const existing = mappingsMap.get(`${itemType}:${itemId}`)
       if (existing) {
-        const foundPoster = (data.posters || []).find((p: TMDBImage) => p.file_path === existing.posterPath)
-        navigation.setPreviewPoster(foundPoster ? { file_path: foundPoster.file_path, iso_639_1: foundPoster.iso_639_1, vote_average: 0, width: foundPoster.width, height: foundPoster.height } : { file_path: existing.posterPath, iso_639_1: existing.language, vote_average: 0, width: 0, height: 0 })
+        // Base custom salvata: la preview parte dal tile custom (highlight e
+        // preview coerenti), non dal riferimento TMDB di fallback.
+        const customFile = existing.customPosterUrl && isCustomPosterUrl(existing.customPosterUrl)
+          ? existing.customPosterUrl
+          : null
+        const previewFilePath = customFile ?? existing.posterPath
+        const previewLang = customFile ? null : existing.language
+        const foundPoster = !customFile ? (data.posters || []).find((p: TMDBImage) => p.file_path === existing.posterPath) : undefined
+        navigation.setPreviewPoster(foundPoster ? { file_path: foundPoster.file_path, iso_639_1: foundPoster.iso_639_1, vote_average: 0, width: foundPoster.width, height: foundPoster.height } : { file_path: previewFilePath, iso_639_1: previewLang, vote_average: 0, width: 0, height: 0 })
         let foundLogo: TMDBImage | undefined
         if (existing.logoPath) {
           foundLogo = (data.logos || []).find((l: TMDBImage) => l.file_path === existing.logoPath)

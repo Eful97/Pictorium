@@ -1,5 +1,6 @@
 import sharp from "sharp"
-import { fetchImg, hashKey } from "@/lib/poster-render-helpers"
+import { fetchImg, hashKey, imgSrc } from "@/lib/poster-render-helpers"
+export { splitCustomPosterSave, type PosterSaveSplit } from "@/lib/utils"
 import { isAllowedResolveHost } from "@/lib/resolve-image"
 import {
   BodyTooLargeError,
@@ -90,6 +91,16 @@ export async function fetchValidatedCustomImage(
   }
 }
 
+/** imgSrc che non lancia: ritorna null per i path non-TMDB/non-TVDB (es. URL
+ *  custom nel posterPath di un mapping legacy) invece di far fallire il render. */
+export function safeTmdbImgSrc(path: string): string | null {
+  try {
+    return imgSrc(path)
+  } catch {
+    return null
+  }
+}
+
 /** Selezione pura della base: custom valida vince, altrimenti TMDB, altrimenti null. */
 export function pickPosterBase(custom: Buffer | null, tmdb: Buffer | null): PosterBaseResult | null {
   if (custom) return { buf: custom, custom: true }
@@ -101,20 +112,22 @@ export function pickPosterBase(custom: Buffer | null, tmdb: Buffer | null): Post
  * Base portrait con custom URL in PARALLELO al TMDB (non in serie: su Vercel
  * il render ha deadline 8.5s, un fallback seriale arriverebbe troppo tardi).
  * customPosterUrl null → solo TMDB, comportamento storico invariato.
+ * tmdbUrl null (nessun fallback TMDB noto) → solo tentativo custom.
  */
 export async function fetchPosterBaseWithCustom(
   customUrl: string | null | undefined,
-  tmdbUrl: string,
+  tmdbUrl: string | null,
   signal: AbortSignal,
   deps?: CustomFetchDeps,
 ): Promise<PosterBaseResult | null> {
   if (!customUrl) {
+    if (!tmdbUrl) return null
     const tmdb = await fetchImg(tmdbUrl, signal).catch(() => null)
     return pickPosterBase(null, tmdb)
   }
   const [custom, tmdb] = await Promise.all([
     fetchValidatedCustomImage(customUrl, signal, deps).catch(() => null),
-    fetchImg(tmdbUrl, signal).catch(() => null),
+    tmdbUrl ? fetchImg(tmdbUrl, signal).catch(() => null) : Promise.resolve(null),
   ])
   return pickPosterBase(custom, tmdb)
 }
@@ -126,3 +139,29 @@ export async function fetchPosterBaseWithCustom(
 export function customBaseAnalysisKey(customUrl: string): string {
   return `portrait:custom:${hashKey(customUrl)}`
 }
+
+export interface EffectiveCustomUrlInput {
+  /** `poster=` in query quando è un URL esterno (scelta esplicita non salvata). */
+  readonly queryCustomUrl: string | null
+  /** Qualsiasi `poster=` in query (URL o path TMDB): presente = scelta esplicita. */
+  readonly hasQueryPoster: boolean
+  /** customPosterUrl del mapping salvato. */
+  readonly mappingCustomUrl: string | null
+  /** True per le preview editor (`preview=1`), false per Stremio/cataloghi. */
+  readonly isPreview: boolean
+}
+
+/**
+ * Quale base custom usare, se alcuna — pura e testabile.
+ * - Scelta query URL vince sempre (è l'azione più recente dell'utente).
+ * - Senza query esplicita vale il salvato (anche in preview: stato iniziale).
+ * - Query TMDB-path in preview = click su tile TMDB: vince sul salvato così
+ *   la preview mostra davvero il tile cliccato (WYSIWYG).
+ * - Query TMDB-path su Stremio = URL server-built: comanda lo stato salvato.
+ */
+export function resolveEffectiveCustomUrl(input: EffectiveCustomUrlInput): string | null {
+  if (input.queryCustomUrl) return input.queryCustomUrl
+  if (!input.hasQueryPoster || !input.isPreview) return input.mappingCustomUrl
+  return null
+}
+

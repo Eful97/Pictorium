@@ -17,6 +17,7 @@ import { CustomPosterUrl } from "@/components/CustomPosterUrl"
 import { LogoOptions } from "@/components/LogoOptions"
 import { EditorPanel } from "@/components/EditorPanel"
 import { copyText } from "@/lib/clipboard"
+import { isCustomPosterUrl } from "@/lib/utils"
 import { userFetch } from "@/lib/http"
 import { SearchBar } from "@/components/SearchBar"
 import { PosterCarousel } from "@/components/PosterCarousel"
@@ -188,6 +189,26 @@ export default function EditView() {
     saveFlashTimerRef.current = setTimeout(() => setSaveFlash(false), 600)
   }, [saveConfig])
 
+  // Tile custom di sessione (URL esterni aggiunti via box, non ancora salvati):
+  // per-titolo, si azzerano al cambio titolo come il resto dello stato editor.
+  const [customTiles, setCustomTiles] = useState<TMDBImage[]>([])
+  useEffect(() => {
+    setCustomTiles([])
+  }, [selected?.id])
+  // Tile effettivi = sessione + custom salvato nel mapping (deduplicati per URL).
+  const savedCustomUrl = selectedMapping?.customPosterUrl ?? null
+  const customPosters = useMemo(() => {
+    const seen = new Set<string>()
+    const out: TMDBImage[] = []
+    for (const tile of customTiles) {
+      if (!seen.has(tile.file_path)) { seen.add(tile.file_path); out.push(tile) }
+    }
+    if (savedCustomUrl && isCustomPosterUrl(savedCustomUrl) && !seen.has(savedCustomUrl)) {
+      out.push({ file_path: savedCustomUrl, iso_639_1: null, vote_average: 0, width: 0, height: 0 })
+    }
+    return out
+  }, [customTiles, savedCustomUrl])
+
   // Mobile: dopo il tap su un poster salta ad "Anteprima" (nella tab Poster
   // non si vedrebbe alcun feedback). Solo sotto lg, dove lo switcher esiste;
   // su desktop resti dove sei per confrontare varianti.
@@ -276,6 +297,29 @@ export default function EditView() {
       setMobileSection("preview")
     }
   }, [selectPoster])
+
+  // Box URL custom (sotto i tab): Aggiungi crea il tile in griglia e lo
+  // seleziona subito (la preview live mostra la base custom via queryPoster).
+  const handleAddCustomPoster = useCallback((image: { url: string; width: number; height: number }) => {
+    const tile: TMDBImage = {
+      file_path: image.url,
+      iso_639_1: null,
+      vote_average: 0,
+      width: image.width,
+      height: image.height,
+    }
+    setCustomTiles((prev) => (prev.some((t) => t.file_path === tile.file_path) ? prev : [tile, ...prev]))
+    handleSelectPoster(tile)
+  }, [handleSelectPoster])
+
+  // Dopo la rimozione del custom salvato i tile di sessione restano (l'utente
+  // può risalvarli); la preview torna al poster TMDB corrente o al primo.
+  const handleRemoveCustomPoster = useCallback(() => {
+    const fallback = previewPoster && !isCustomPosterUrl(previewPoster.file_path)
+      ? previewPoster
+      : posters[0] ?? null
+    if (fallback) handleSelectPoster(fallback)
+  }, [handleSelectPoster, previewPoster, posters])
 
   // Landscape: tap sullo sfondo salta all'anteprima (come i poster).
   const handleSelectBackdrop = useCallback((img: TMDBImage) => {
@@ -518,12 +562,11 @@ export default function EditView() {
                 ) : isLandscape ? (
                   <BackdropOptions backdrops={ed.backdrops} backdropActivePath={ed.selectedBackdrop?.file_path ?? null} selectBackdrop={handleSelectBackdrop} clearBackdrop={removeBackdrop} loading={loadingImages} />
                 ) : (
-                  <>
                     <PosterOptions posters={posters} posterActivePath={posterActivePath}
                       lang={lang} selectPoster={handleSelectPoster} activeGroup={activePosterTab} onActiveGroupChange={setActivePosterTab}
-                      showTabs />
-                    <CustomPosterUrl />
-                  </>
+                      showTabs
+                      customPosters={customPosters}
+                      topSlot={<CustomPosterUrl onAdd={handleAddCustomPoster} onRemove={handleRemoveCustomPoster} />} />
                 )}
               </EditorPanel>
             </div>
