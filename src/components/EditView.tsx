@@ -18,6 +18,7 @@ import { LogoOptions } from "@/components/LogoOptions"
 import { EditorPanel } from "@/components/EditorPanel"
 import { copyText } from "@/lib/clipboard"
 import { isCustomPosterUrl } from "@/lib/utils"
+import { loadCustomTiles, storeCustomTiles } from "@/lib/custom-tiles-store"
 import { userFetch } from "@/lib/http"
 import { SearchBar } from "@/components/SearchBar"
 import { PosterCarousel } from "@/components/PosterCarousel"
@@ -190,11 +191,15 @@ export default function EditView() {
   }, [saveConfig])
 
   // Tile custom di sessione (URL esterni aggiunti via box, non ancora salvati):
-  // per-titolo, si azzerano al cambio titolo come il resto dello stato editor.
-  const [customTiles, setCustomTiles] = useState<TMDBImage[]>([])
+  // per-titolo, persistiti in localStorage come i draft (sopravvivono al
+  // reload); la verità resta il mapping dopo Salva.
+  const [customTiles, setCustomTiles] = useState<TMDBImage[]>(() => loadCustomTiles(selected?.id))
   useEffect(() => {
-    setCustomTiles([])
+    setCustomTiles(loadCustomTiles(selected?.id))
   }, [selected?.id])
+  useEffect(() => {
+    storeCustomTiles(selected?.id, customTiles)
+  }, [selected?.id, customTiles])
   // Tile effettivi = sessione + custom salvato nel mapping (deduplicati per URL).
   const savedCustomUrl = selectedMapping?.customPosterUrl ?? null
   const customPosters = useMemo(() => {
