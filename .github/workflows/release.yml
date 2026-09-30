@@ -1,0 +1,50 @@
+name: Release
+
+# Tag pushed (or manually dispatched) -> pretty GitHub Release with grouped,
+# emoji changelog built from conventional commits. The in-app changelog
+# (src/data/changelog.ts via write-changelog-release.mjs) stays separate.
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag to (re)publish, e.g. v1.24.0 (backfill included)"
+        required: true
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # Notes need the range since the previous tag (default depth 1
+          # has no history, like the commits job in ci.yml).
+          fetch-depth: 0
+      - name: Build release notes
+        id: notes
+        env:
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: |
+          TAG="${{ github.event.inputs.tag || github.ref_name }}"
+          PREV="$(git describe --tags --abbrev=0 "${TAG}^" 2>/dev/null || true)"
+          if [ -z "$PREV" ]; then
+            echo "no previous tag reachable from $TAG"
+            exit 1
+          fi
+          node scripts/build-release-notes.mjs "$PREV" "$TAG" > /tmp/notes.md
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+      - name: Publish GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="${{ steps.notes.outputs.tag }}"
+          # Idempotent: re-running a tag push (or backfilling) updates
+          # the notes instead of failing on an existing release.
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release edit "$TAG" --title "Release ${TAG#v}" --notes-file /tmp/notes.md
+          else
+            gh release create "$TAG" --title "Release ${TAG#v}" --notes-file /tmp/notes.md
+          fi
