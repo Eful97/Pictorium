@@ -81,13 +81,13 @@ pinned: false
 
 | Feature | Description |
 |---|---|
-| 🎯 **WYSIWYG Graphics Engine** | A single endpoint (`/api/poster/{type}/{id}`) powered by Sharp C++ and SVG serves both the real-time web preview and the final poster on Stremio with pixel-perfect sync. |
+| 🎯 **WYSIWYG Graphics Engine** | A single endpoint (`/api/poster/{type}/{id}`) powered by Sharp C++ and SVG serves both the real-time web preview and the final poster on Stremio, Nuvio, and media centers with pixel-perfect sync. |
 | 📦 **100% Standalone Addon** | Directly delivers rich metadata cards, multilingual synopses, transparent logos, 4K backdrops, YouTube trailers, and full seasons with thumbnails and translated episodes to Stremio. |
 | 📺 **Smart Parts & Anime Splitting** | Automatically detects **Original Parts** (*Money Heist*, *Lupin*) and splits giant single-season anime entries on TMDB (*Re:ZERO*, *Jujutsu Kaisen*) into their true release seasons. |
 | 🏷️ **Quality Badges & Ratings** | Real-time video resolution detection (4K/FHD/HD), aggregated ratings from over 16 sources (IMDb, TMDB, Rotten Tomatoes, Letterboxd, MAL), Academy/Cannes awards, and Netflix Top 10 ribbons. |
-| 🌐 **Custom Catalogs** | Import watchlists and custom lists from **Letterboxd, Trakt, TMDb, TheTVDB (your API key), MDBList**, plus official IMDb CSV exports, along with real-time trending charts via JustWatch GraphQL. |
+| 🌐 **Custom Catalogs & Lists** | Import watchlists and custom lists from **Letterboxd, Trakt, TMDb, TheTVDB (your API key), MDBList**, plus official IMDb CSV exports, along with real-time trending charts via JustWatch GraphQL. |
 | 🌍 **Dynamic Multilingual UI** | Fully localized interface in 16 languages with instant real-time language switching without page refresh. |
-| 🔒 **PIN Protection & User Spaces** | PIN code lock protection for single instances, or full multi-user support with isolated spaces and AES-256-GCM encryption. Stremio manifests and posters remain permanently functional. |
+| 🔒 **PIN Protection & User Spaces** | PIN code lock protection for single instances, or full multi-user support with isolated spaces, AES-256-GCM encryption, and full-space backup/restore. Stremio manifests and posters remain permanently functional. |
 | ⚡ **Zero Cache Conflicts** | Deterministic versioning with automated `RENDER_VERSION` and `APP_VERSION`. Change any styling parameter and Stremio updates cached images immediately. |
 
 ---
@@ -96,6 +96,7 @@ pinned: false
 
 ### 🖼️ Posters, Logos & Graphics
 * **Clean Poster Selection**: Select textless posters with one click from official TMDB candidates (`iso_639_1 === null`).
+* **Custom Poster URL Import**: Import any artwork via direct URL, Pinterest, Imgur, or Reddit with live preview, tile management, and persistent custom artwork.
 * **Smart Best-Fit Algorithm**: Analyzes brightness and empty space to automatically scale and position logos without obscuring faces.
 * **Cinematic Background Blur (Sharp C++)**: Progressive intensity toward the base with same-hue scene tint, quadratic darkening and anti-seam, in a few ms with minimal RAM usage.
 * **24h Auto-Rotation**: Automatically rotates through multiple saved clean posters daily for the same title.
@@ -115,6 +116,11 @@ pinned: false
 * **🌀 Anime Season Unpacking**: Fixes TMDB's compression of multi-season anime into a single season, restoring official seasons (S1, S2, S3, S4 + Specials in S0).
 * **TVDB & AniZip Support**: Manually select alternate ordering from TheTVDB (*Aired, DVD, Absolute, Alternate*) or AniZip (*AniList / AniDB*).
 * **Live Episode Preview**: See exactly how seasons, episode titles, and thumbnails will appear on Stremio before saving.
+ 
+### 🗂️ Library, Automation & Backups
+* **Batch Poster Management**: Multi-select saved posters in "My Posters" to perform batch deletions and keep your collection tidy.
+* **Full Space Backup & Restore**: One-click export and import of your entire space configuration, saved posters, custom presets, and preferences.
+* **Nuvio & AIOMetadata Auto URL**: Dedicated poster template URLs for external catalog managers (e.g. Nuvio and AIOMetadata) with automatic TMDB ID resolution.
 
 ### 🔒 Security: PIN & Multi-User Spaces
 

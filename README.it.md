@@ -81,13 +81,13 @@ pinned: false
 
 | Funzionalità | Descrizione |
 |---|---|
-| 🎯 **Motore Grafico WYSIWYG** | Un unico endpoint (`/api/poster/{type}/{id}`) basato su Sharp C++ ed SVG serve l'anteprima web in tempo reale e il poster finale su Stremio con pixel-perfect sync. |
+| 🎯 **Motore Grafico WYSIWYG** | Un unico endpoint (`/api/poster/{type}/{id}`) basato su Sharp C++ ed SVG serve l'anteprima web in tempo reale e il poster finale su Stremio, Nuvio e media center con pixel-perfect sync. |
 | 📦 **Addon 100% Autonomo** | Fornisce direttamente a Stremio schede dettagliate, trame localizzate, loghi trasparenti, sfondi 4K, trailer YouTube e tutte le stagioni con miniature ed episodi tradotti. |
 | 📺 **Ordinamento Intelligente Parti & Anime** | Rileva automaticamente i gruppi **Original Parts** (*La Casa di Carta*, *Lupin*) e spacchetta le mega-stagioni anime compresse su TMDB (*Re:ZERO*, *Jujutsu Kaisen*) nelle vere stagioni ufficiali. |
 | 🏷️ **Badge Qualità & Voti** | Visualizza in tempo reale risoluzione video (4K/FHD/HD), voti aggregati da oltre 16 fonti (IMDb, TMDB, Rotten Tomatoes, Letterboxd, MAL), premi Oscar/Cannes e nastri Netflix Top 10. |
-| 🌐 **Cataloghi Personalizzati** | Importa watchlist e collezioni da **Letterboxd, Trakt, TMDb, TheTVDB, MDBList** e classifiche trend in tempo reale tramite JustWatch GraphQL. |
+| 🌐 **Cataloghi & Liste Personalizzate** | Importa watchlist e collezioni da **Letterboxd, Trakt, TMDb, TheTVDB, MDBList**, file CSV esportati da IMDb e classifiche trend in tempo reale tramite JustWatch GraphQL. |
 | 🌍 **Interfaccia Multilingua Dinamica** | Interfaccia localizzata in 16 lingue con cambio istantaneo in tempo reale senza ricaricare la pagina. |
-| 🔒 **Protezione PIN & Spazi Multi-Utente** | Protezione con codice PIN per istanze singole, oppure modalità multi-utente con spazi isolati e crittografia AES-256-GCM. Locandine e manifest Stremio rimangono sempre funzionanti. |
+| 🔒 **Protezione PIN & Spazi Multi-Utente** | Protezione con codice PIN per istanze singole, oppure modalità multi-utente con spazi isolati, crittografia AES-256-GCM e backup/ripristino completo. Locandine e manifest Stremio rimangono sempre funzionanti. |
 | ⚡ **Zero Conflitti di Cache** | Versioning deterministico con `RENDER_VERSION` e `APP_VERSION` automatiche: ogni modifica grafica aggiorna istantaneamente le immagini su Stremio. |
 
 ---
@@ -96,6 +96,7 @@ pinned: false
 
 ### 🖼️ Locandine, Loghi & Grafica
 * **Selezione Poster Clean**: Scegli in un click la locandina senza testo tra i candidati ufficiali TMDB (`iso_639_1 === null`).
+* **Poster Personalizzati & Import Diretto**: Importa locandine da URL diretti, Pinterest, Imgur o Reddit con anteprima immediata, gestione tessere e persistenza.
 * **Algoritmo Best-Fit Intelligente**: Analizza luminosità e zone vuote per scalare e posizionare il logo evitando di coprire i volti.
 * **Sfocatura Progressiva (Sharp C++)**: Blur a intensità crescente verso il fondo con tinta di scena same-hue, scurimento quadratico e anti-seam, in pochi ms e a basso consumo di RAM.
 * **Rotazione Automatica 24h**: Alterna automaticamente ogni giorno più locandine selezionate per lo stesso titolo.
@@ -115,6 +116,11 @@ pinned: false
 * **🌀 Spacchettamento Anime**: Risolve la catalogazione TMDB che raggruppa intere serie anime in una singola stagione, ripristinando la suddivisione ufficiale (S1, S2, S3, S4 + Speciali in S0).
 * **Supporto TVDB & AniZip**: Seleziona manualmente gli ordinamenti alternativi TheTVDB (*Aired, DVD, Absolute, Alternate*) o AniZip (*AniList / AniDB*).
 * **Anteprima Episodi Live**: Visualizza prima di salvare esattamente come appariranno stagioni, titoli e miniature su Stremio.
+ 
+### 🗂️ Libreria, Automazione & Backup
+* **Gestione Massiva ne I Miei Poster**: Selezione multipla dei poster salvati con eliminazione di gruppo per riordinare la propria libreria in pochi click.
+* **Backup Completo & Ripristino**: Esporta e ripristina con un click l'intera configurazione dello spazio (poster salvati, preset personalizzati, stili e preferenze) in formato JSON.
+* **Template URL per Nuvio & AIOMetadata**: Template dedicati per gestori di cataloghi esterni (come Nuvio e AIOMetadata) con risoluzione automatica degli ID TMDB.
 
 ### 🔒 Sicurezza: PIN & Spazi Multi-Utente
 
