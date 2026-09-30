@@ -55,6 +55,18 @@ describe("PUT /api/defaults", () => {
     expect(res.status).toBe(200)
   })
 
+  it("preserves custom catalog datasetId through PUT and GET", async () => {
+    delete process.env.ADMIN_TOKEN
+    const catalogs = [
+      { id: "cat1", name: "My CSV", type: "mixed", url: "imdb-csv:ds_abc123", datasetId: "ds_abc123", enabled: true },
+    ]
+    const putRes = await PUT(mockPutRequest({ customCatalogs: catalogs }) as unknown as NextRequest)
+    expect(putRes.status).toBe(200)
+    const getRes = await GET(new Request("http://localhost:3000/api/defaults") as unknown as NextRequest)
+    const data = await getRes.json()
+    expect(data.customCatalogs?.[0]).toMatchObject({ datasetId: "ds_abc123" })
+  })
+
   it("invalidates poster and catalog cache after saving defaults", async () => {
     delete process.env.ADMIN_TOKEN
     cacheSet("poster:movie:1", "poster", ["poster"])

@@ -74,4 +74,20 @@ describe("POST /api/config-token", () => {
     const res = await POST(makeRequest({ config: VALID_CONFIG }))
     expect(res.status).toBe(403)
   })
+
+  it("round-trips custom catalogs with datasetId (IMDb CSV reference)", async () => {
+    const { isSameOrigin } = await import("@/lib/auth")
+    vi.mocked(isSameOrigin).mockReturnValue(true)
+    const withDataset: PictoriumUserConfig = {
+      ...VALID_CONFIG,
+      customCatalogs: [
+        { id: "cat1", name: "My CSV", type: "mixed", url: "imdb-csv:ds_abc123", datasetId: "ds_abc123", enabled: true },
+      ],
+    }
+    const res = await POST(makeRequest({ config: withDataset }))
+    expect(res.status).toBe(200)
+    const { token } = await res.json()
+    const decoded = decodeConfig(token)
+    expect(decoded?.customCatalogs?.[0]).toMatchObject({ datasetId: "ds_abc123", url: "imdb-csv:ds_abc123" })
+  })
 })

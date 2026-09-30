@@ -273,4 +273,7 @@ export interface CustomCatalogConfig {
   type: CustomCatalogType
   url: string
   enabled?: boolean
+  /** Riferimento allo snapshot CSV importato (namespace utente): gli item
+   *  vivono server-side, mai nel config token. */
+  datasetId?: string
 }

@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server"
 import { rateLimit, rateLimitKey, rateLimitResponse } from "@/lib/rate-limit"
-import { fetchUnifiedCatalogItems, detectCatalogProvider } from "@/lib/custom-catalog-providers"
+import { fetchUnifiedCatalogResult, detectCatalogProvider } from "@/lib/custom-catalog-providers"
 import { getDetails, resolveRouteApiKey, tmdbFindByImdb } from "@/lib/tmdb"
 
 // Concorrenza del fan-out per-item (v1.23.0): liste fino a 1000 voci con
@@ -30,6 +30,7 @@ export async function GET(req: NextRequest) {
 
   const apiKey = await resolveRouteApiKey(req)
   const mdblistKey = await resolveRouteApiKey(req, "mdblist")
+  const tvdbKey = await resolveRouteApiKey(req, "tvdb")
 
   try {
     const detection = detectCatalogProvider(url)
@@ -39,7 +40,7 @@ export async function GET(req: NextRequest) {
     // griglia full che chiede limit=500) ma si arricchisce solo la finestra
     // richiesta, così la preview resta leggera.
     const fetchLimit = Math.min(Math.max(limit, 500), 1000)
-    const rawItems = await fetchUnifiedCatalogItems(url, { apiKey, mdblistKey, limit: fetchLimit })
+    const { items: rawItems, status } = await fetchUnifiedCatalogResult(url, { apiKey, mdblistKey, tvdbKey, limit: fetchLimit })
     const items = await mapLimit(
       rawItems.slice(0, limit),
       FANOUT_CONCURRENCY,
@@ -79,8 +80,9 @@ export async function GET(req: NextRequest) {
       provider: detection?.provider,
       suggestedName: detection?.nameSuggestion,
       defaultType: detection?.defaultType,
+      status,
     })
   } catch {
-    return Response.json({ items: [] })
+    return Response.json({ items: [], status: "unavailable" })
   }
 }

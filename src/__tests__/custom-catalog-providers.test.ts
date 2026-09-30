@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest"
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest"
 import { detectCatalogProvider, fetchUnifiedCatalogItems } from "@/lib/custom-catalog-providers"
 
 describe("detectCatalogProvider", () => {
@@ -68,6 +68,13 @@ describe("detectCatalogProvider", () => {
     const resList = detectCatalogProvider("tmdb:list:8249673")
     expect(resList?.provider).toBe("tmdb_list")
     expect(resList?.identifier).toBe("8249673")
+  })
+
+  it("detects imdb-csv dataset references", () => {
+    const res = detectCatalogProvider("imdb-csv:ds_abc123")
+    expect(res).not.toBeNull()
+    expect(res?.provider).toBe("imdb")
+    expect(res?.identifier).toBe("ds_abc123")
   })
 
   it("detects TheTVDB list URL", () => {
@@ -308,10 +315,12 @@ describe("fetchUnifiedCatalogItems", () => {
     expect(items[1].poster_path).toBe("/p2.jpg")
   })
 
-  it("returns [] for recognized-but-unimplemented providers (tvdb/imdb)", async () => {
+  it("returns [] for tvdb and dataset-less imdb URLs (no scraping)", async () => {
     // Mock dedicato assegnato (stile del file): prova che il ramo non fa rete.
     // Niente assert sullo storico globale di fetch: le assegnazioni dirette a
     // global.fetch dei test precedenti persistono tra i test del file.
+    // Le URL IMDb nude richiedono uno snapshot CSV importato (vedi
+    // imdb-datasets.test.ts); senza dataset tornano [] senza rete.
     global.fetch = vi.fn(() => Promise.reject(new Error("must not fetch"))) as unknown as typeof fetch
     expect(await fetchUnifiedCatalogItems("https://thetvdb.com/lists/mcu-test-unimpl")).toEqual([])
     expect(await fetchUnifiedCatalogItems("https://www.imdb.com/list/ls123456789/")).toEqual([])
@@ -342,5 +351,169 @@ describe("fetchUnifiedCatalogItems", () => {
     const again = await fetchUnifiedCatalogItems(url, { mdblistKey: "KEY-ONE" })
     expect(again[0]?.title).toBe("Movie One")
     expect(calls.length).toBe(2)
+  })
+})
+
+describe("fetchUnifiedCatalogItems via official Trakt API", () => {
+  const TRAKT_URL = "https://trakt.tv/users/donxy/lists/trakt-official-test"
+  const clientId = "test-trakt-client-id"
+
+  beforeEach(() => {
+    vi.restoreAllMocks()
+    process.env.PICTORIUM_TRAKT_CLIENT_ID = clientId
+    delete process.env.TRAKT_API_URL
+  })
+
+  afterEach(() => {
+    delete process.env.PICTORIUM_TRAKT_CLIENT_ID
+    delete process.env.TRAKT_API_URL
+  })
+
+  function traktItem(type: "movie" | "show", imdb: string | null, tmdb: number | null, title: string, year: number) {
+    return {
+      type,
+      [type]: { title, year, ids: { trakt: 1, slug: "x", imdb, tmdb } },
+    }
+  }
+
+  it("fetches a mixed public list through api.trakt.tv, never StremThru", async () => {
+    const seenUrls: string[] = []
+    let seenKey = ""
+    global.fetch = vi.fn().mockImplementation((url: string, opts?: { headers?: Record<string, string> }) => {
+      seenUrls.push(String(url))
+      seenKey = String(opts?.headers?.["trakt-api-key"] || "")
+      return Promise.resolve({
+        ok: true,
+        status: 200,
+        headers: new Headers(),
+        json: async () => [
+          traktItem("movie", "tt0371746", 1726, "Iron Man", 2008),
+          traktItem("show", "tt0903747", 1396, "Breaking Bad", 2008),
+        ],
+      })
+    }) as unknown as typeof fetch
+
+    const items = await fetchUnifiedCatalogItems(TRAKT_URL)
+    expect(items.length).toBe(2)
+    expect(items[0]).toMatchObject({ imdb: "tt0371746", tmdb: 1726, title: "Iron Man", mediatype: "movie" })
+    expect(items[1]).toMatchObject({ imdb: "tt0903747", tmdb: 1396, title: "Breaking Bad", mediatype: "tv" })
+    expect(seenUrls[0]).toContain("api.trakt.tv/users/donxy/lists/trakt-official-test/items/movie,show")
+    expect(seenUrls.some((u) => u.includes("stremthru"))).toBe(false)
+    expect(seenKey).toBe(clientId)
+  })
+
+  it("supports bare /lists/{id} URLs", async () => {
+    const seenUrls: string[] = []
+    global.fetch = vi.fn().mockImplementation((url: string) => {
+      seenUrls.push(String(url))
+      return Promise.resolve({
+        ok: true,
+        status: 200,
+        headers: new Headers(),
+        json: async () => [traktItem("movie", "tt0111161", 278, "Shawshank", 1994)],
+      })
+    }) as unknown as typeof fetch
+
+    const items = await fetchUnifiedCatalogItems("https://trakt.tv/lists/55-trakt-bare-test")
+    expect(items.length).toBe(1)
+    expect(seenUrls[0]).toContain("api.trakt.tv/lists/55-trakt-bare-test/items/movie,show")
+  })
+
+  it("paginates up to the 500 limit", async () => {
+    const pageOf = (n: number, startTmdb: number) =>
+      Array.from({ length: n }, (_, i) => traktItem("movie", null, startTmdb + i, `M${startTmdb + i}`, 2000))
+    global.fetch = vi.fn().mockImplementation((url: string) => {
+      const page = Number(new URL(String(url)).searchParams.get("page") || "1")
+      const payload = page === 1 ? pageOf(100, 1000) : page === 2 ? pageOf(100, 2000) : []
+      return Promise.resolve({
+        ok: true,
+        status: 200,
+        headers: new Headers({ "X-Pagination-Page-Count": "3" }),
+        json: async () => payload,
+      })
+    }) as unknown as typeof fetch
+
+    const items = await fetchUnifiedCatalogItems("https://trakt.tv/users/donxy/lists/trakt-pages-test", { limit: 250 })
+    expect(items.length).toBe(200)
+    // 100 + 100 + pagina vuota di stop.
+    expect(global.fetch).toHaveBeenCalledTimes(3)
+  })
+
+  it("dedupes by tmdb first, then by imdb", async () => {
+    global.fetch = vi.fn().mockImplementation(() =>
+      Promise.resolve({
+        ok: true,
+        status: 200,
+        headers: new Headers(),
+        json: async () => [
+          traktItem("movie", "tt0371746", 1726, "Iron Man", 2008),
+          traktItem("movie", "tt0371746", 1726, "Iron Man dup", 2008),
+          traktItem("movie", "tt0800080", null, "Hulk imdb-only", 2008),
+          traktItem("movie", "tt0800080", null, "Hulk imdb-only dup", 2008),
+        ],
+      })
+    ) as unknown as typeof fetch
+
+    const items = await fetchUnifiedCatalogItems("https://trakt.tv/users/donxy/lists/trakt-dedup-test")
+    expect(items.length).toBe(2)
+  })
+
+  it("returns [] on 404 without long negative caching", async () => {
+    global.fetch = vi.fn().mockImplementation(() =>
+      Promise.resolve({ ok: false, status: 404, headers: new Headers(), json: async () => ({}) })
+    ) as unknown as typeof fetch
+
+    const url = "https://trakt.tv/users/donxy/lists/trakt-missing-test"
+    expect(await fetchUnifiedCatalogItems(url)).toEqual([])
+    // Niente cache negativa lunga: la seconda chiamata rifà rete.
+    expect(await fetchUnifiedCatalogItems(url)).toEqual([])
+    expect(global.fetch).toHaveBeenCalledTimes(2)
+  })
+
+  it("returns [] on 429 and surfaces Retry-After in logs, then retries next call", async () => {
+    global.fetch = vi.fn().mockImplementation(() =>
+      Promise.resolve({
+        ok: false,
+        status: 429,
+        headers: new Headers({ "Retry-After": "30" }),
+        json: async () => ({}),
+      })
+    ) as unknown as typeof fetch
+
+    const url = "https://trakt.tv/users/donxy/lists/trakt-ratelimit-test"
+    expect(await fetchUnifiedCatalogItems(url)).toEqual([])
+    expect(await fetchUnifiedCatalogItems(url)).toEqual([])
+    expect(global.fetch).toHaveBeenCalledTimes(2)
+  })
+
+  it("returns [] on private lists (401/403)", async () => {
+    for (const status of [401, 403]) {
+      global.fetch = vi.fn().mockImplementation(() =>
+        Promise.resolve({ ok: false, status, headers: new Headers(), json: async () => ({}) })
+      ) as unknown as typeof fetch
+      const items = await fetchUnifiedCatalogItems(`https://trakt.tv/users/donxy/lists/trakt-private-${status}-test`)
+      expect(items).toEqual([])
+    }
+  })
+
+  it("returns [] on timeout without caching the failure", async () => {
+    global.fetch = vi.fn().mockImplementation(() => Promise.reject(new DOMException("Aborted", "AbortError"))) as unknown as typeof fetch
+    const url = "https://trakt.tv/users/donxy/lists/trakt-timeout-test"
+    expect(await fetchUnifiedCatalogItems(url)).toEqual([])
+    expect(await fetchUnifiedCatalogItems(url)).toEqual([])
+    expect(global.fetch).toHaveBeenCalledTimes(2)
+  })
+
+  it("returns [] when the client ID is missing and never hits the network", async () => {
+    delete process.env.PICTORIUM_TRAKT_CLIENT_ID
+    global.fetch = vi.fn(() => Promise.reject(new Error("must not fetch"))) as unknown as typeof fetch
+    expect(await fetchUnifiedCatalogItems("https://trakt.tv/users/donxy/lists/trakt-nokey-test")).toEqual([])
+    expect(global.fetch).not.toHaveBeenCalled()
+  })
+
+  it("returns [] for watchlists without hitting the network", async () => {
+    global.fetch = vi.fn(() => Promise.reject(new Error("must not fetch"))) as unknown as typeof fetch
+    expect(await fetchUnifiedCatalogItems("https://trakt.tv/users/donxy/watchlist")).toEqual([])
+    expect(global.fetch).not.toHaveBeenCalled()
   })
 })

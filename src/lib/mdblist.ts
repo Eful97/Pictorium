@@ -9,6 +9,9 @@ export interface MDBListEntry {
   title: string
   year: number
   tmdb?: number
+  /** Id TVDB (liste TVDB: gli entity espongono solo questo + tipo). La
+   *  pipeline lo risolve in TMDB via tmdbFindByTvdb, come per gli imdb-only. */
+  tvdb?: number
   mediatype?: "movie" | "show" | "anime" | "tv"
   poster_path?: string | null
 }

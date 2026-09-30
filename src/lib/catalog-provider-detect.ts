@@ -116,6 +116,18 @@ export function detectCatalogProvider(input: string): ProviderDetectionResult | 
     }
   }
 
+  // 6b. Riferimento a snapshot CSV importato: imdb-csv:<datasetId>.
+  // L'URL salvato resta leggibile ma gli item vivono server-side.
+  const imdbCsvMatch = trimmed.match(/^imdb-csv:([a-zA-Z0-9_-]+)$/i)
+  if (imdbCsvMatch) {
+    return {
+      provider: "imdb",
+      identifier: imdbCsvMatch[1],
+      nameSuggestion: "IMDb CSV",
+      defaultType: "mixed",
+    }
+  }
+
   // 7. MDBList: solo se sembra davvero un target MDBList (URL mdblist.com,
   // user/slug, id numerico o slug singolo). Qualsiasi altra stringa → null,
   // così il modal rifiuta l'input spazzatura invece di salvare un catalogo

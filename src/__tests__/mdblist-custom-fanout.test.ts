@@ -9,7 +9,7 @@ vi.mock("@/lib/rate-limit", () => ({
 
 vi.mock("@/lib/custom-catalog-providers", () => ({
   detectCatalogProvider: vi.fn(() => ({ provider: "test", nameSuggestion: "T", defaultType: "movie" })),
-  fetchUnifiedCatalogItems: vi.fn(async () => []),
+  fetchUnifiedCatalogResult: vi.fn(async () => ({ items: [], status: "ok" })),
 }))
 
 vi.mock("@/lib/tmdb", () => ({
@@ -19,7 +19,7 @@ vi.mock("@/lib/tmdb", () => ({
 }))
 
 import { GET } from "@/app/api/mdblist/custom/route"
-import { fetchUnifiedCatalogItems } from "@/lib/custom-catalog-providers"
+import { fetchUnifiedCatalogResult } from "@/lib/custom-catalog-providers"
 import { getDetails } from "@/lib/tmdb"
 
 describe("GET /api/mdblist/custom fan-out cap (v1.23.0)", () => {
@@ -34,7 +34,7 @@ describe("GET /api/mdblist/custom fan-out cap (v1.23.0)", () => {
       title: `T${i}`,
       year: 2020 + (i % 5),
     }))
-    vi.mocked(fetchUnifiedCatalogItems).mockResolvedValue(items as never)
+    vi.mocked(fetchUnifiedCatalogResult).mockResolvedValue({ items: items as never, status: "ok" })
 
     let active = 0
     let maxActive = 0

@@ -85,7 +85,7 @@ pinned: false
 | 📦 **100% Standalone Addon** | Directly delivers rich metadata cards, multilingual synopses, transparent logos, 4K backdrops, YouTube trailers, and full seasons with thumbnails and translated episodes to Stremio. |
 | 📺 **Smart Parts & Anime Splitting** | Automatically detects **Original Parts** (*Money Heist*, *Lupin*) and splits giant single-season anime entries on TMDB (*Re:ZERO*, *Jujutsu Kaisen*) into their true release seasons. |
 | 🏷️ **Quality Badges & Ratings** | Real-time video resolution detection (4K/FHD/HD), aggregated ratings from over 16 sources (IMDb, TMDB, Rotten Tomatoes, Letterboxd, MAL), Academy/Cannes awards, and Netflix Top 10 ribbons. |
-| 🌐 **Custom Catalogs** | Import watchlists and custom lists from **Letterboxd, Trakt, TMDb, TheTVDB, MDBList**, along with real-time trending charts via JustWatch GraphQL. |
+| 🌐 **Custom Catalogs** | Import watchlists and custom lists from **Letterboxd, Trakt, TMDb, TheTVDB (your API key), MDBList**, plus official IMDb CSV exports, along with real-time trending charts via JustWatch GraphQL. |
 | 🌍 **Dynamic Multilingual UI** | Fully localized interface in 16 languages with instant real-time language switching without page refresh. |
 | 🔒 **PIN Protection & User Spaces** | PIN code lock protection for single instances, or full multi-user support with isolated spaces and AES-256-GCM encryption. Stremio manifests and posters remain permanently functional. |
 | ⚡ **Zero Cache Conflicts** | Deterministic versioning with automated `RENDER_VERSION` and `APP_VERSION`. Change any styling parameter and Stremio updates cached images immediately. |
@@ -249,8 +249,9 @@ npm install --ignore-scripts && npm run build && npm start
 | `PICTORIUM_PUBLIC_INSTANCE` | `0` | Set `1` to leave admin routes open without a token (trusted LAN, public demos). On exposed instances keep `0` and use the token below. |
 | `PICTORIUM_ADMIN_TOKEN` | *(optional)* | Secret for private instances (`PUBLIC_INSTANCE=0`): paste it in Settings → Admin token (session only, dies with the tab) to enable warmup, cache clear and saves from the UI. |
 | `PICTORIUM_TMDB_KEY` | *(optional)* | Server-side TMDB API key to render posters and catalogs without client keys. |
-| `PICTORIUM_TVDB_API_KEY` | *(optional)* | TheTVDB key for alternate season ordering and episode descriptions. |
+| `PICTORIUM_TVDB_API_KEY` | *(optional)* | TheTVDB key for alternate season ordering, episode descriptions, and TheTVDB custom lists (BYOK: request header, `tvdb_key` query, or user profile key win over this). |
 | `PICTORIUM_MDBLIST_KEY` | *(optional)* | MDBList key for custom lists and anime catalogs. |
+| `PICTORIUM_TRAKT_CLIENT_ID` | *(optional)* | Trakt API client ID (single Pictorium app registration) for public Trakt lists as custom catalogs. Public lists only, no OAuth. |
 | `PICTORIUM_REGION` | `IT` | Default country for streaming charts and availability (`IT`, `US`, `GB`, `FR`, `DE`, `ES`, etc.). |
 | `PICTORIUM_DATA_DIR` | `./data` | Directory path for persisting settings and saved posters on disk. In Docker it must point at a persistent volume (`/data`, `posterium-data` volume, writable by uid 1000): the data file is created on first save, so "not found" with 0 posters on a fresh install is normal. |
 | `PICTORIUM_REDIS_URL` | *(empty)* | Native Redis (TCP) for multi-replica HA without a `/data` volume: mappings, defaults, profiles, epochs and rate limits become shared across replicas. Wins over `KV_REST_*` when both are set (no automatic migration). On ElfHosted/K8s plain `REDIS_URL` is enough (read as fallback). |

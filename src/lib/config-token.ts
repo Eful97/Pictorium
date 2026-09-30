@@ -24,6 +24,7 @@ const customCatalogSchema = z.object({
   type: z.enum(["movie", "series", "mixed"]),
   url: z.string().max(500),
   enabled: z.boolean().optional(),
+  datasetId: z.string().max(64).optional(),
 })
 
 export const configTokenSchema = z.object({

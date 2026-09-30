@@ -14,6 +14,7 @@
 export const NOTICE_ID_PREFIX = "pictorium:notice:"
 
 export const NOTICE_MISSING_TMDB_KEY = "missing-tmdb-key"
+export const NOTICE_MISSING_TVDB_KEY = "missing-tvdb-key"
 
 export function noticeCatalogId(slug: string = NOTICE_MISSING_TMDB_KEY): string {
   return `${NOTICE_ID_PREFIX}${slug}`
@@ -28,6 +29,12 @@ export const NOTICE_MISSING_KEY_TITLE = "Chiave TMDB richiesta"
 export const NOTICE_MISSING_KEY_DESCRIPTION =
   "Questo catalogo richiede una chiave API TMDB gratuita. " +
   "Configurala nella pagina impostazioni di Pictorium e ricarica."
+
+export const NOTICE_MISSING_TVDB_KEY_TITLE = "Chiave TVDB necessaria"
+
+export const NOTICE_MISSING_TVDB_KEY_DESCRIPTION =
+  "Questo catalogo legge una lista TheTVDB e richiede la tua chiave API TVDB. " +
+  "Aggiungila nelle impostazioni di Pictorium e ricarica."
 
 export interface NoticeCatalogMeta {
   id: string

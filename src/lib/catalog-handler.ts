@@ -9,11 +9,12 @@ import { touchUserActivity } from "@/lib/user-activity"
 import { POSTER_URL_VERSION } from "@/lib/render-version"
 import { getById } from "@/lib/store"
 import { decodeConfig, type PictoriumUserConfig } from "@/lib/config-token"
-import { getDetails, getDetailsWithExternalIds, getGenreList, getImages, personMovieCredits, personTvCredits, posterUrlOriginal, resolveUserApiKeys, searchMovies, searchPerson, searchTV, tmdbFindByImdb, type TMDBDetails } from "@/lib/tmdb"
+import { getDetails, getDetailsWithExternalIds, getGenreList, getImages, personMovieCredits, personTvCredits, posterUrlOriginal, resolveUserApiKeys, searchMovies, searchPerson, searchTV, tmdbFindByImdb, tmdbFindByTvdb, type TMDBDetails } from "@/lib/tmdb"
 import { resolveImdbId } from "@/lib/imdb-cache"
 import { fetchMDBList } from "@/lib/mdblist"
-import { buildNoticeMeta } from "@/lib/notice-meta"
+import { buildNoticeMeta, noticeCatalogId, NOTICE_MISSING_TVDB_KEY, NOTICE_MISSING_TVDB_KEY_TITLE, NOTICE_MISSING_TVDB_KEY_DESCRIPTION } from "@/lib/notice-meta"
 import { fetchUnifiedCatalogItems } from "@/lib/custom-catalog-providers"
+import { detectCatalogProvider } from "@/lib/catalog-provider-detect"
 import { buildStremioPosterUrl, stremioPosterShape } from "@/lib/stremio-poster-url"
 import { getOriginFromRequest } from "@/lib/poster-public-url"
 import { getJWRankings, getJWTitles, resolveJWGenreCode, type JWRankEntry } from "@/lib/justwatch"
@@ -462,6 +463,9 @@ export async function pictoriumCatalog(
   // Chiave MDBList (anime/custom): senza chiave né fallback la lista usa il
   // fallback pubblico (vedi ramo anime sotto).
   const mdblistKey = resolvedKeys.mdblist.key
+  // Chiave TVDB (liste custom TVDB, BYOK): richiesta esplicita > namespace
+  // utente > env d'istanza. Senza, i cataloghi TVDB escono con notice.
+  const tvdbKey = resolvedKeys.tvdb.key
   const effectiveDefaults = scopedUser ? await getServerDefaultsForUser(scopedUser) : getServerDefaults()
   let userConfig: Partial<PictoriumUserConfig> | null = null
   if (configParam) {
@@ -699,7 +703,7 @@ export async function pictoriumCatalog(
 
   const skipFragment = typeof extra.skip === "number" && extra.skip > 0 ? `:s${extra.skip}` : ""
   const genreFragment = extra.genre && extra.genre !== "Tutti" ? `:g${hashFragment(extra.genre)}` : ""
-  const cacheKey = `stremio:catalog:v2:${stType}:${catalogId}:pv${POSTER_URL_VERSION}${scopedUser ? `:u${hashUserFragment(scopedUser)}` : ""}:ak${apiKey ? hashFragment(apiKey) : "none"}${configParam ? `:cfg${hashFragment(configParam)}` : ""}${mdblistKey ? `:mk${hashFragment(mdblistKey)}` : ""}${genreFragment}${skipFragment}${regionFragment}${freshness}`
+  const cacheKey = `stremio:catalog:v2:${stType}:${catalogId}:pv${POSTER_URL_VERSION}${scopedUser ? `:u${hashUserFragment(scopedUser)}` : ""}:ak${apiKey ? hashFragment(apiKey) : "none"}${configParam ? `:cfg${hashFragment(configParam)}` : ""}${mdblistKey ? `:mk${hashFragment(mdblistKey)}` : ""}${tvdbKey ? `:tv${hashFragment(tvdbKey)}` : ""}${genreFragment}${skipFragment}${regionFragment}${freshness}`
   // C1: L1 + L2 condivisa (KV su multi-istanza, no-op locale/VPS).
   const cached = await cacheGetShared<{ metas: StremioMeta[] }>(cacheKey, ["stremio", "catalog"])
   if (cached) return catalogResponse(cached)
@@ -722,9 +726,25 @@ export async function pictoriumCatalog(
       if (customId.startsWith("movie-")) customId = customId.slice(6)
       else if (customId.startsWith("series-")) customId = customId.slice(7)
 
-      const customCat = userConfig?.customCatalogs?.find((c: { id: string }) => c.id === customId)
+      const customCat = userConfig?.customCatalogs?.find((c: { id: string }) => c.id === customId) as
+        | { id: string; url: string; type?: string; enabled?: boolean; datasetId?: string }
+        | undefined
       if (customCat && customCat.enabled !== false) {
-        let items = await fetchUnifiedCatalogItems(customCat.url, { apiKey, mdblistKey, limit: 500 })
+        // TVDB senza chiave: notice esplicita invece di item rotti o vuoto
+        // generico (stesso pattern del ramo apiKey sopra, mai cachata).
+        if (!tvdbKey && detectCatalogProvider(customCat.url)?.provider === "tvdb") {
+          log.debug("Catalog key-missing: no TVDB key", { catalogId })
+          return catalogResponse({
+            metas: [buildNoticeMeta({
+              type: stType,
+              poster: `${getOriginFromRequest(req)}/pictorium.png`,
+              id: noticeCatalogId(NOTICE_MISSING_TVDB_KEY),
+              name: NOTICE_MISSING_TVDB_KEY_TITLE,
+              description: NOTICE_MISSING_TVDB_KEY_DESCRIPTION,
+            })],
+          })
+        }
+        let items = await fetchUnifiedCatalogItems(customCat.url, { apiKey, mdblistKey, tvdbKey, limit: 500, datasetId: customCat.datasetId, userId: scopedUser })
         // Se la lista è mista o contiene mediatype, filtra in base al tipo di catalogo richiesto
         if (customCat.type === "mixed") {
           if (stType === "movie") {
@@ -740,6 +760,10 @@ export async function pictoriumCatalog(
           let tmdbId = Number(item.tmdb)
           if (!tmdbId && item.imdb && apiKey) {
             tmdbId = await tmdbFindByImdb(item.imdb, stType === "movie" ? "movie" : "tv", apiKey) || 0
+            item.tmdb = tmdbId
+          }
+          if (!tmdbId && item.tvdb && apiKey) {
+            tmdbId = await tmdbFindByTvdb(item.tvdb, stType === "movie" ? "movie" : "tv", apiKey) || 0
             item.tmdb = tmdbId
           }
           if (tmdbId && !seenTmdb.has(tmdbId)) {
