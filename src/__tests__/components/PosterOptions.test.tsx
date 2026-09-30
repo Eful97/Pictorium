@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest"
+import { describe, it, expect, vi } from "vitest"
 import { screen } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { PosterOptions } from "@/components/PosterOptions"
@@ -56,5 +56,40 @@ describe("PosterOptions", () => {
       const match = Array.from(imgs).some((img) => img.getAttribute("src") === src)
       expect(match).toBeTruthy()
     })
+  })
+
+  it("renders session custom tiles first with a remove button, saved tile without", async () => {
+    const u = userEvent.setup()
+    const onRemove = vi.fn()
+    const sessionTile: TMDBImage = { file_path: "https://i.imgur.com/session.jpg", iso_639_1: null, vote_average: 0, width: 1000, height: 1500 }
+    const savedTile: TMDBImage = { file_path: "https://i.imgur.com/saved.jpg", iso_639_1: null, vote_average: 0, width: 0, height: 0 }
+    const { container } = renderWithCtx(
+      <PosterOptions
+        posters={mockPosters}
+        posterActivePath={null}
+        lang="it"
+        selectPoster={() => {}}
+        customPosters={[sessionTile]}
+        savedCustomPoster={savedTile}
+        onRemoveCustomPoster={onRemove}
+      />,
+    )
+    const imgs = Array.from(container.querySelectorAll("img")).map((img) => img.getAttribute("src"))
+    // Tile custom primi in griglia, thumb diretta (niente proxy)
+    expect(imgs[0]).toBe("https://i.imgur.com/session.jpg")
+    expect(imgs[1]).toBe("https://i.imgur.com/saved.jpg")
+    // Una sola × (tile di sessione); il salvato non ne ha
+    const removeBtns = screen.getAllByRole("button", { name: "ui.remove" })
+    expect(removeBtns).toHaveLength(1)
+    await u.click(removeBtns[0])
+    expect(onRemove).toHaveBeenCalledWith("https://i.imgur.com/session.jpg")
+  })
+
+  it("no remove button without handler", () => {
+    const sessionTile: TMDBImage = { file_path: "https://i.imgur.com/session.jpg", iso_639_1: null, vote_average: 0, width: 1000, height: 1500 }
+    renderWithCtx(
+      <PosterOptions posters={mockPosters} posterActivePath={null} lang="it" selectPoster={() => {}} customPosters={[sessionTile]} />,
+    )
+    expect(screen.queryByRole("button", { name: "ui.remove" })).toBeNull()
   })
 })

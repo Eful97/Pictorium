@@ -11,7 +11,7 @@ import { usePSelector } from "@/lib/context"
 import { useT } from "@/lib/contexts/TranslationContext"
 import { usePosterEditor } from "@/lib/contexts/PosterEditorContext"
 import { usePosterFit } from "@/lib/usePosterFit"
-import { RotateCcw, Check, Clock, Sparkles, ArrowUpDown, EyeOff, ChevronDown } from "lucide-react"
+import { RotateCcw, Check, Clock, Sparkles, ArrowUpDown, EyeOff, ChevronDown, X } from "lucide-react"
 
 interface Props {
   posters: TMDBImage[]
@@ -23,12 +23,17 @@ interface Props {
   showTabs?: boolean
   /** Slot sotto i tab (es. box URL poster personalizzato). */
   topSlot?: ReactNode
-  /** Tile custom da URL esterno: prime nella griglia clean, fuori da
-   *  rotazione/esclusioni/best-fit (che ragionano su path TMDB). */
+  /** Tile custom di sessione (URL esterni): primi in griglia, con tasto di
+   *  rimozione, fuori da rotazione/esclusioni/best-fit (path TMDB only). */
   customPosters?: TMDBImage[]
+  /** Tile custom salvato nel mapping: in griglia senza tasto rimozione (si
+   *  rimuove dal box con "Rimuovi immagine personalizzata"). */
+  savedCustomPoster?: TMDBImage | null
+  /** Rimozione di un tile di sessione (solo customPosters, mai il salvato). */
+  onRemoveCustomPoster?: (filePath: string) => void
 }
 
-export function PosterOptions({ posters, posterActivePath, lang, selectPoster, activeGroup: controlledActiveGroup, onActiveGroupChange, showTabs = true, topSlot, customPosters = [] }: Props) {
+export function PosterOptions({ posters, posterActivePath, lang, selectPoster, activeGroup: controlledActiveGroup, onActiveGroupChange, showTabs = true, topSlot, customPosters = [], savedCustomPoster = null, onRemoveCustomPoster }: Props) {
   const selectedLogo = usePSelector((v) => v.selectedLogo)
   const selected = usePSelector((v) => v.selected)
   const mappingsMap = usePSelector((v) => v.mappingsMap)
@@ -39,7 +44,8 @@ export function PosterOptions({ posters, posterActivePath, lang, selectPoster, a
   const excludedSet = useMemo(() => new Set(ed.excludedPosters), [ed.excludedPosters])
 
   const cleanPosters = useMemo(() => posters.filter((img) => img.iso_639_1 === null && !excludedSet.has(img.file_path) && !isCustomPosterUrl(img.file_path)), [posters, excludedSet])
-  const hasClean = cleanPosters.length > 0 || customPosters.length > 0
+  const customCount = customPosters.length + (savedCustomPoster ? 1 : 0)
+  const hasClean = cleanPosters.length > 0 || customCount > 0
   const langGroups = useMemo(
     () => Object.entries(groupBy(posters.filter((img) => img.iso_639_1 !== null), (img) => img.iso_639_1 || "other")).sort(([a], [b]) => {
       if (a === lang) return -1; if (b === lang) return 1
@@ -51,12 +57,12 @@ export function PosterOptions({ posters, posterActivePath, lang, selectPoster, a
 
   const posterTabs = useMemo(() => {
     const tabs: { key: string; label: string; count: number }[] = []
-    if (hasClean) tabs.push({ key: "clean", label: "Clean", count: cleanPosters.length + customPosters.length })
+    if (hasClean) tabs.push({ key: "clean", label: "Clean", count: cleanPosters.length + customPosters.length + (savedCustomPoster ? 1 : 0) })
     for (const [language, imgs] of langGroups) {
       if (imgs.length > 0) tabs.push({ key: language, label: LANG_NAMES[language] || language, count: imgs.length })
     }
     return tabs
-  }, [hasClean, cleanPosters.length, customPosters.length, langGroups])
+  }, [hasClean, cleanPosters.length, customPosters.length, savedCustomPoster, langGroups])
 
   const [internalActiveGroup, setInternalActiveGroup] = useState("clean")
   const activeGroup = controlledActiveGroup ?? internalActiveGroup
@@ -332,12 +338,30 @@ export function PosterOptions({ posters, posterActivePath, lang, selectPoster, a
       {activeClean && hasClean && (
         <>
           <div className="grid grid-cols-3 gap-2">
-            {/* Tile custom: prime in griglia, senza rotazione/esclusioni (solo TMDB). */}
+            {/* Tile custom di sessione: primi in griglia, con tasto rimozione. */}
             {customPosters.map((img, ci) => (
-              <div key={`custom:${img.file_path}`}>
+              <div key={`custom:${img.file_path}`} className="relative group rounded-xl overflow-hidden">
                 <PosterBtn staggerIndex={ci} img={img} active={posterActivePath === img.file_path} onSelect={selectPoster} title={t("ui.customPosterActive")} />
+                {onRemoveCustomPoster && (
+                  <div className="absolute top-1.5 right-1.5 z-20 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
+                    <button type="button"
+                      aria-label={t("ui.remove")}
+                      title={t("ui.remove")}
+                      onClick={(e) => { e.stopPropagation(); onRemoveCustomPoster(img.file_path) }}
+                      className="w-6 h-6 rounded-lg flex items-center justify-center backdrop-blur-md border transition-all duration-150 bg-black/55 border-white/10 text-zinc-300 hover:bg-red-500/90 hover:text-white hover:border-red-400/60"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                )}
               </div>
             ))}
+            {/* Tile custom salvato: in griglia senza rimozione (dal box). */}
+            {savedCustomPoster && (
+              <div key={`custom-saved:${savedCustomPoster.file_path}`}>
+                <PosterBtn staggerIndex={customPosters.length} img={savedCustomPoster} active={posterActivePath === savedCustomPoster.file_path} onSelect={selectPoster} title={t("ui.customPosterActive")} />
+              </div>
+            )}
             {visibleCleanPosters.map((img) => {
               const stagger = idx++
               const inRotation = ed.rotationPosters.includes(img.file_path)

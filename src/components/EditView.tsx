@@ -200,18 +200,13 @@ export default function EditView() {
   useEffect(() => {
     storeCustomTiles(selected?.id, customTiles)
   }, [selected?.id, customTiles])
-  // Tile effettivi = sessione + custom salvato nel mapping (deduplicati per URL).
+  // Tile effettivi di sessione (= customTiles) + custom salvato nel mapping
+  // (deduplicati per URL): il salvato va in griglia senza tasto rimozione.
   const savedCustomUrl = selectedMapping?.customPosterUrl ?? null
-  const customPosters = useMemo(() => {
-    const seen = new Set<string>()
-    const out: TMDBImage[] = []
-    for (const tile of customTiles) {
-      if (!seen.has(tile.file_path)) { seen.add(tile.file_path); out.push(tile) }
-    }
-    if (savedCustomUrl && isCustomPosterUrl(savedCustomUrl) && !seen.has(savedCustomUrl)) {
-      out.push({ file_path: savedCustomUrl, iso_639_1: null, vote_average: 0, width: 0, height: 0 })
-    }
-    return out
+  const savedCustomTile = useMemo(() => {
+    if (!savedCustomUrl || !isCustomPosterUrl(savedCustomUrl)) return null
+    if (customTiles.some((tile) => tile.file_path === savedCustomUrl)) return null
+    return { file_path: savedCustomUrl, iso_639_1: null, vote_average: 0, width: 0, height: 0 } as TMDBImage
   }, [customTiles, savedCustomUrl])
 
   // Mobile: dopo il tap su un poster salta ad "Anteprima" (nella tab Poster
@@ -317,14 +312,32 @@ export default function EditView() {
     handleSelectPoster(tile)
   }, [handleSelectPoster])
 
-  // Dopo la rimozione del custom salvato i tile di sessione restano (l'utente
-  // può risalvarli); la preview torna al poster TMDB corrente o al primo.
+  // Rimozione di un tile di sessione: se era la preview corrente, fallback
+  // su un altro tile custom, sul salvato o sul primo poster TMDB.
+  const handleDeleteCustomTile = useCallback((filePath: string) => {
+    setCustomTiles((prev) => prev.filter((tile) => tile.file_path !== filePath))
+    if (previewPoster?.file_path === filePath) {
+      const fallback = customTiles.find((tile) => tile.file_path !== filePath)
+        ?? savedCustomTile
+        ?? posters[0]
+        ?? null
+      if (fallback) handleSelectPoster(fallback)
+    }
+  }, [customTiles, handleSelectPoster, previewPoster, posters, savedCustomTile])
+
+  // onRemove del box (custom salvato già azzerato nel mapping): se la preview
+  // era sul tile rimosso e non resta alcun tile con quell'URL, fallback.
   const handleRemoveCustomPoster = useCallback(() => {
-    const fallback = previewPoster && !isCustomPosterUrl(previewPoster.file_path)
-      ? previewPoster
-      : posters[0] ?? null
-    if (fallback) handleSelectPoster(fallback)
-  }, [handleSelectPoster, previewPoster, posters])
+    const current = previewPoster?.file_path ?? null
+    if (!current || !isCustomPosterUrl(current)) return
+    const stillPresent =
+      customTiles.some((tile) => tile.file_path === current) ||
+      selectedMapping?.customPosterUrl === current
+    if (!stillPresent) {
+      const fallback = customTiles[0] ?? posters[0] ?? null
+      if (fallback) handleSelectPoster(fallback)
+    }
+  }, [customTiles, handleSelectPoster, posters, previewPoster, selectedMapping])
 
   // Landscape: tap sullo sfondo salta all'anteprima (come i poster).
   const handleSelectBackdrop = useCallback((img: TMDBImage) => {
@@ -570,7 +583,9 @@ export default function EditView() {
                     <PosterOptions posters={posters} posterActivePath={posterActivePath}
                       lang={lang} selectPoster={handleSelectPoster} activeGroup={activePosterTab} onActiveGroupChange={setActivePosterTab}
                       showTabs
-                      customPosters={customPosters}
+                      customPosters={customTiles}
+                      savedCustomPoster={savedCustomTile}
+                      onRemoveCustomPoster={handleDeleteCustomTile}
                       topSlot={<CustomPosterUrl onAdd={handleAddCustomPoster} onRemove={handleRemoveCustomPoster} />} />
                 )}
               </EditorPanel>
