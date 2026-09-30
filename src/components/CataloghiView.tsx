@@ -122,13 +122,14 @@ const CUSTOM_PREVIEW_LIMIT = 40
 const CUSTOM_FULL_LIMIT = 500
 const customFullCache = new Map<string, SimklCardItem[]>()
 
-function customItemsUrl(url: string, tmdbKey: string, mdblistApiKey: string, limit: number): string {
+function customItemsUrl(url: string, tmdbKey: string, mdblistApiKey: string, limit: number, datasetId?: string): string {
   const params = new URLSearchParams({
     url,
     api_key: tmdbKey || "",
     mdblist_key: mdblistApiKey || "",
     limit: String(limit),
   })
+  if (datasetId) params.set("dataset", datasetId)
   return `/api/mdblist/custom?${params.toString()}`
 }
 
@@ -180,14 +181,14 @@ function CustomCatalogEntry({
   // Il namespace entra nella chiave: due profili non devono condividere il
   // full cachato (le chiavi server-side differiscono per utente).
   const namespaceUuid = currentPathUuid()
-  const fullCacheKey = `${namespaceUuid || ""}|${cat.url}|${tmdbKey || ""}|${mdblistApiKey || ""}`
+  const fullCacheKey = `${namespaceUuid || ""}|${cat.url}|${cat.datasetId || ""}|${tmdbKey || ""}|${mdblistApiKey || ""}`
 
   useEffect(() => {
     let active = true
     const ctrl = new AbortController()
     setLoading(true)
     setLoadError(false)
-    fetchCustomItems(customItemsUrl(cat.url, tmdbKey, mdblistApiKey, CUSTOM_PREVIEW_LIMIT), ctrl.signal)
+    fetchCustomItems(customItemsUrl(cat.url, tmdbKey, mdblistApiKey, CUSTOM_PREVIEW_LIMIT, cat.datasetId), ctrl.signal)
       .then(({ items: list, total: count }) => {
         if (!active) return
         setItems(list)
@@ -203,7 +204,7 @@ function CustomCatalogEntry({
       active = false
       ctrl.abort()
     }
-  }, [cat.url, tmdbKey, mdblistApiKey, namespaceUuid, reloadNonce])
+  }, [cat.url, cat.datasetId, tmdbKey, mdblistApiKey, namespaceUuid, reloadNonce])
 
   // Griglia completa su richiesta: la preview mostra i primi 40, il full
   // (500) si scarica solo aprendo la griglia e resta in cache di sessione.
@@ -216,7 +217,7 @@ function CustomCatalogEntry({
       return
     }
     setExpanding(true)
-    fetchCustomItems(customItemsUrl(cat.url, tmdbKey, mdblistApiKey, CUSTOM_FULL_LIMIT))
+    fetchCustomItems(customItemsUrl(cat.url, tmdbKey, mdblistApiKey, CUSTOM_FULL_LIMIT, cat.datasetId))
       .then(({ items: full }) => {
         customFullCache.set(fullCacheKey, full)
         openGrid(toGridItems(filterBySection(full, previewSlice, section)), title)

@@ -1,7 +1,9 @@
 import { NextRequest } from "next/server"
 import { rateLimit, rateLimitKey, rateLimitResponse } from "@/lib/rate-limit"
 import { fetchUnifiedCatalogResult, detectCatalogProvider } from "@/lib/custom-catalog-providers"
-import { getDetails, resolveRouteApiKey, tmdbFindByImdb } from "@/lib/tmdb"
+import { getDetails, resolveRouteApiKey, tmdbFindByImdb, tmdbFindByTvdb } from "@/lib/tmdb"
+import { checkUserAuth, extractUserParam, getScopedUserId, invalidUserResponse, isMultiUserEnabled, userAuthResponse } from "@/lib/user-auth"
+import { checkAdminToken, adminAuthResponse } from "@/lib/auth"
 
 // Concorrenza del fan-out per-item (v1.23.0): liste fino a 1000 voci con
 // Promise.all sparavano migliaia di fetch TMDB concorrenti. Pool fissa;
@@ -27,6 +29,17 @@ export async function GET(req: NextRequest) {
 
   const url = req.nextUrl.searchParams.get("url")
   if (!url) return Response.json({ items: [] })
+  const datasetId = req.nextUrl.searchParams.get("dataset") || undefined
+  const rawUser = extractUserParam(req)
+  const userId = getScopedUserId(rawUser)
+  if (datasetId || /^imdb-csv:/i.test(url.trim())) {
+    if (rawUser && isMultiUserEnabled() && !userId) return invalidUserResponse()
+    if (userId) {
+      if (!(await checkUserAuth(req, userId))) return userAuthResponse()
+    } else if (!checkAdminToken(req)) {
+      return adminAuthResponse()
+    }
+  }
 
   const apiKey = await resolveRouteApiKey(req)
   const mdblistKey = await resolveRouteApiKey(req, "mdblist")
@@ -40,7 +53,7 @@ export async function GET(req: NextRequest) {
     // griglia full che chiede limit=500) ma si arricchisce solo la finestra
     // richiesta, così la preview resta leggera.
     const fetchLimit = Math.min(Math.max(limit, 500), 1000)
-    const { items: rawItems, status } = await fetchUnifiedCatalogResult(url, { apiKey, mdblistKey, tvdbKey, limit: fetchLimit })
+    const { items: rawItems, status } = await fetchUnifiedCatalogResult(url, { apiKey, mdblistKey, tvdbKey, limit: fetchLimit, datasetId, userId })
     const items = await mapLimit(
       rawItems.slice(0, limit),
       FANOUT_CONCURRENCY,
@@ -54,23 +67,30 @@ export async function GET(req: NextRequest) {
             tmdbId = 0
           }
         }
+        if (!tmdbId && it.tvdb && apiKey) {
+          tmdbId = (await tmdbFindByTvdb(it.tvdb, mediaType, apiKey).catch(() => null)) || 0
+        }
         let posterPath: string | null = it.poster_path ?? null
-        if (!posterPath && tmdbId && apiKey) {
+        let title = it.title
+        let year = it.year
+        if ((!posterPath || !title || !year) && tmdbId && apiKey) {
           try {
             const d = await getDetails(mediaType, tmdbId, "it-IT", apiKey)
-            posterPath = d?.poster_path || null
+            posterPath = posterPath || d?.poster_path || null
+            title = title || d?.title || d?.name || ""
+            year = year || Number((d?.release_date || d?.first_air_date || "").slice(0, 4)) || 0
           } catch {
-            posterPath = null
+            // Preserve provider artwork if metadata enrichment fails.
           }
         }
         return {
-          id: tmdbId || it.imdb || String(Math.random()),
+          id: tmdbId || it.imdb || `tvdb:${it.tvdb}`,
           tmdbId: tmdbId || undefined,
           media_type: mediaType,
-          title: it.title,
-          name: it.title,
+          title,
+          name: title,
           poster_path: posterPath,
-          year: it.year,
+          year,
         }
       },
     )

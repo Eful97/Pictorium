@@ -152,4 +152,28 @@ describe("POST /api/mdblist/custom-imdb", () => {
     const other = await GET(new NextRequest(`${BASE}?dataset=${ds.id}`))
     expect(await other.json()).toMatchObject({ items: [] })
   })
+
+  it("loads scoped CSV catalogs through the general preview route, including source URLs", async () => {
+    const userA = "22222222-2222-4222-8222-222222222222"
+    const { saveImdbDataset } = await import("@/lib/imdb-datasets")
+    const ds = await saveImdbDataset("CSV preview", [{ imdb: "tt0371746", title: "Iron Man", year: 2008, mediatype: "movie" }], { userId: userA })
+    const tmdb = await import("@/lib/tmdb")
+    vi.spyOn(tmdb, "resolveRouteApiKey").mockResolvedValue(undefined)
+    const { GET } = await import("@/app/api/mdblist/custom/route")
+    for (const url of [`imdb-csv:${ds.id}`, "https://www.imdb.com/list/ls123456789/"]) {
+      const params = new URLSearchParams({ url, dataset: ds.id, u: userA })
+      const res = await GET(new NextRequest(`http://localhost:3000/api/mdblist/custom?${params}`))
+      expect(await res.json()).toMatchObject({ total: 1, status: "ok", items: [{ title: "Iron Man" }] })
+    }
+    const missing = await GET(new NextRequest(`http://localhost:3000/api/mdblist/custom?url=imdb-csv:${ds.id}`))
+    expect(await missing.json()).toMatchObject({ items: [], status: "not_found" })
+  })
+
+  it("requires authentication for dataset access through the general preview route", async () => {
+    const userAuth = await import("@/lib/user-auth")
+    vi.mocked(userAuth.checkUserAuth).mockResolvedValueOnce(false)
+    const { GET } = await import("@/app/api/mdblist/custom/route")
+    const res = await GET(new NextRequest("http://localhost:3000/api/mdblist/custom?url=imdb-csv:ds_test&u=22222222-2222-4222-8222-222222222222"))
+    expect(res.status).toBe(401)
+  })
 })

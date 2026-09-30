@@ -87,7 +87,8 @@ export function normalizeCatalogEntries(items: MDBListEntry[], limit: number = 5
     const rawImdb = typeof it.imdb === "string" ? it.imdb.trim() : ""
     const imdb = /^tt\d{7,10}$/i.test(rawImdb) ? rawImdb : tmdb || tvdb ? "" : rawImdb || ""
     if (!tmdb && !imdb && !tvdb) continue
-    const key = tmdb ? `tmdb:${tmdb}` : imdb ? `imdb:${imdb.toLowerCase()}` : `tvdb:${tvdb}`
+    const mediaType = it.mediatype === "tv" || it.mediatype === "show" || it.mediatype === "anime" ? "tv" : it.mediatype === "movie" ? "movie" : "unknown"
+    const key = tmdb ? `${mediaType}:tmdb:${tmdb}` : imdb ? `imdb:${imdb.toLowerCase()}` : `${mediaType}:tvdb:${tvdb}`
     if (seen.has(key)) continue
     seen.add(key)
     out.push({ imdb, tmdb, tvdb, title: it.title || "", year: Number(it.year) || 0, mediatype: it.mediatype, poster_path: it.poster_path ?? undefined })
@@ -268,7 +269,7 @@ async function fetchTraktList(url: string, limit: number = 500): Promise<Unified
         signal: AbortSignal.timeout(TRAKT_TIMEOUT_MS),
       }).catch(() => null)
 
-      if (!res) return done(items)
+      if (!res) return items.length ? done(items) : empty("unavailable")
       if (res.status === 401 || res.status === 403) {
         log.warn("Trakt list is private or forbidden", { status: res.status })
         return empty("private")
@@ -284,7 +285,7 @@ async function fetchTraktList(url: string, limit: number = 500): Promise<Unified
       }
       if (!res.ok) {
         log.warn("Trakt fetch failed", { status: res.status })
-        return done(items)
+        return items.length ? done(items) : empty("unavailable")
       }
 
       const json = await res.json().catch(() => null)
@@ -344,10 +345,10 @@ function tvdbApiBase(): string {
 // Su 401 il token si butta e si rifà login una volta (token scaduto).
 const tvdbTokenCache = new Map<string, { token: string; exp: number }>()
 
-async function tvdbLogin(tvdbKey: string): Promise<string | null> {
+async function tvdbLogin(tvdbKey: string): Promise<{ token: string | null; status: CatalogFetchStatus }> {
   const h = crypto.createHash("sha1").update(tvdbKey).digest("hex").slice(0, 8)
   const cached = tvdbTokenCache.get(h)
-  if (cached && cached.exp > Date.now()) return cached.token
+  if (cached && cached.exp > Date.now()) return { token: cached.token, status: "ok" }
   tvdbTokenCache.delete(h)
   const res = await fetch(`${tvdbApiBase()}/login`, {
     method: "POST",
@@ -357,13 +358,14 @@ async function tvdbLogin(tvdbKey: string): Promise<string | null> {
   }).catch(() => null)
   if (!res || !res.ok) {
     log.warn("TVDB login failed", res ? { status: res.status } : {})
-    return null
+    const status = res?.status === 401 || res?.status === 403 ? "key_missing" : res?.status === 429 ? "rate_limited" : "unavailable"
+    return { token: null, status }
   }
   const json = await res.json().catch(() => null)
   const token = typeof json?.data?.token === "string" ? json.data.token : null
-  if (!token) return null
+  if (!token) return { token: null, status: "unavailable" }
   tvdbTokenCache.set(h, { token, exp: Date.now() + TVDB_TOKEN_TTL_MS })
-  return token
+  return { token, status: "ok" }
 }
 
 /** Reset del token cache (solo test). */
@@ -386,8 +388,10 @@ async function fetchTvdbList(url: string, tvdbKey: string | undefined, limit: nu
       return empty("key_missing")
     }
 
-    let token = await tvdbLogin(tvdbKey)
-    if (!token) return empty("key_missing")
+    const login = await tvdbLogin(tvdbKey)
+    if (!login.token) return empty(login.status)
+    let token = login.token
+    let authFailure: CatalogFetchStatus | null = null
 
     const get = async (apiPath: string): Promise<Response | null> =>
       fetch(`${tvdbApiBase()}${apiPath}`, {
@@ -400,16 +404,20 @@ async function fetchTvdbList(url: string, tvdbKey: string | undefined, limit: nu
     const getWithAuth = async (apiPath: string): Promise<Response | null> => {
       let res = await get(apiPath)
       if (res && res.status === 401) {
-        tvdbTokenCache.clear()
-        token = await tvdbLogin(tvdbKey)
-        if (!token) return null
+        tvdbTokenCache.delete(crypto.createHash("sha1").update(tvdbKey).digest("hex").slice(0, 8))
+        const refreshed = await tvdbLogin(tvdbKey)
+        if (!refreshed.token) {
+          authFailure = refreshed.status
+          return null
+        }
+        token = refreshed.token
         res = await get(apiPath)
       }
       return res
     }
 
     const failStatus = (res: Response | null): CatalogFetchStatus | null => {
-      if (!res) return "unavailable"
+      if (!res) return authFailure ?? "unavailable"
       if (res.status === 401 || res.status === 403) return "private"
       if (res.status === 404) return "not_found"
       if (res.status === 429) return "rate_limited"
@@ -418,11 +426,6 @@ async function fetchTvdbList(url: string, tvdbKey: string | undefined, limit: nu
     }
 
     const slugRes = await getWithAuth(`/lists/slug/${encodeURIComponent(slug)}`)
-    if (!slugRes && token) {
-      // Il re-login del retry può aver fallito per chiave disattivata.
-      log.warn("TVDB auth failed")
-      return empty("key_missing")
-    }
     const slugFail = failStatus(slugRes)
     if (slugFail) {
       if (slugFail !== "unavailable") log.warn("TVDB list slug fetch failed")
@@ -436,10 +439,6 @@ async function fetchTvdbList(url: string, tvdbKey: string | undefined, limit: nu
     }
 
     const extRes = await getWithAuth(`/lists/${listId}/extended`)
-    if (!extRes && token) {
-      log.warn("TVDB auth failed")
-      return empty("key_missing")
-    }
     const extFail = failStatus(extRes)
     if (extFail) {
       if (extFail !== "unavailable") log.warn("TVDB list fetch failed")

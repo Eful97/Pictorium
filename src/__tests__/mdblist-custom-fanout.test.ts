@@ -16,15 +16,27 @@ vi.mock("@/lib/tmdb", () => ({
   getDetails: vi.fn(),
   resolveRouteApiKey: vi.fn(async () => "k"),
   tmdbFindByImdb: vi.fn(async () => 0),
+  tmdbFindByTvdb: vi.fn(async () => 0),
 }))
 
 import { GET } from "@/app/api/mdblist/custom/route"
 import { fetchUnifiedCatalogResult } from "@/lib/custom-catalog-providers"
-import { getDetails } from "@/lib/tmdb"
+import { getDetails, tmdbFindByTvdb } from "@/lib/tmdb"
 
 describe("GET /api/mdblist/custom fan-out cap (v1.23.0)", () => {
   afterEach(() => {
     vi.restoreAllMocks()
+  })
+
+  it("resolves TVDB-only entries and fills their missing metadata", async () => {
+    vi.mocked(fetchUnifiedCatalogResult).mockResolvedValue({
+      items: [{ imdb: "", tvdb: 456, title: "", year: 0, mediatype: "tv" }], status: "ok",
+    })
+    vi.mocked(tmdbFindByTvdb).mockResolvedValue(1396)
+    vi.mocked(getDetails).mockResolvedValue({ name: "Breaking Bad", first_air_date: "2008-01-20", poster_path: "/bb.jpg" } as never)
+    const res = await GET(new NextRequest("http://localhost:3000/api/mdblist/custom?url=https://thetvdb.com/lists/test"))
+    expect(tmdbFindByTvdb).toHaveBeenCalledWith(456, "tv", "k")
+    expect((await res.json()).items[0]).toMatchObject({ id: 1396, tmdbId: 1396, title: "Breaking Bad", year: 2008, poster_path: "/bb.jpg" })
   })
 
   it("bounds per-item TMDB concurrency and preserves order", async () => {

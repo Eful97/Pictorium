@@ -180,6 +180,8 @@ export function CustomCatalogModal({ isOpen, onClose }: CustomCatalogModalProps)
         return provider === "tvdb" ? t("ui.customErrTvdbKey") : t("ui.customErrUnavailable")
       case "unsupported":
         return t("ui.customErrUnsupported")
+      case "unavailable":
+        return t("ui.customErrUnavailable")
       default:
         return t("ui.customNoTitles")
     }

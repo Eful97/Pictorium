@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest"
-import { fetchUnifiedCatalogResult, __resetTvdbTokenCache } from "@/lib/custom-catalog-providers"
+import { fetchUnifiedCatalogResult, normalizeCatalogEntries, __resetTvdbTokenCache } from "@/lib/custom-catalog-providers"
 
 function jsonRes(status: number, payload: unknown, headers: Record<string, string> = {}) {
   return {
@@ -11,6 +11,13 @@ function jsonRes(status: number, payload: unknown, headers: Record<string, strin
 }
 
 describe("fetchUnifiedCatalogResult statuses", () => {
+  it("keeps movies and series with the same provider ID", () => {
+    for (const provider of ["tmdb", "tvdb"] as const) {
+      const movie = { imdb: "", [provider]: 123, title: "Movie", year: 2020, mediatype: "movie" as const }
+      const show = { imdb: "", [provider]: 123, title: "Series", year: 2020, mediatype: "tv" as const }
+      expect(normalizeCatalogEntries([movie, show, movie, show])).toEqual([movie, show])
+    }
+  })
   beforeEach(() => {
     vi.restoreAllMocks()
     __resetTvdbTokenCache()
@@ -38,6 +45,13 @@ describe("fetchUnifiedCatalogResult statuses", () => {
     const res = await fetchUnifiedCatalogResult("https://trakt.tv/users/u/lists/trakt-st-nokey")
     expect(res).toMatchObject({ status: "key_missing", items: [] })
     expect(global.fetch).not.toHaveBeenCalled()
+  })
+
+  it("reports Trakt transport and server failures as unavailable", async () => {
+    global.fetch = vi.fn().mockRejectedValue(new Error("timeout"))
+    expect((await fetchUnifiedCatalogResult("https://trakt.tv/users/u/lists/status-network-failure")).status).toBe("unavailable")
+    global.fetch = vi.fn().mockResolvedValue(jsonRes(503, {}))
+    expect((await fetchUnifiedCatalogResult("https://trakt.tv/users/u/lists/status-server-failure")).status).toBe("unavailable")
   })
 
   it("distinguishes Letterboxd errors", async () => {
@@ -141,6 +155,25 @@ describe("TVDB lists via official v4 API (BYOK)", () => {
     mockTvdb({ loginStatus: 401 })
     const res = await fetchUnifiedCatalogResult("https://thetvdb.com/lists/tvdb-st-badkey", { tvdbKey: "bad" })
     expect(res).toMatchObject({ status: "key_missing", items: [] })
+  })
+
+  it("distinguishes login outages and rate limits from invalid keys", async () => {
+    for (const [loginStatus, expected] of [[503, "unavailable"], [429, "rate_limited"]] as const) {
+      mockTvdb({ loginStatus })
+      expect((await fetchUnifiedCatalogResult(`https://thetvdb.com/lists/login-failure-${loginStatus}`, { tvdbKey: "outage-key" })).status).toBe(expected)
+    }
+  })
+
+  it("reports transport failures during either list request as unavailable", async () => {
+    for (const step of ["slug", "extended"]) {
+      __resetTvdbTokenCache()
+      global.fetch = vi.fn().mockImplementation((url: string) => {
+        if (url.endsWith("/login")) return Promise.resolve(jsonRes(200, { data: { token: "network-token" } }))
+        if (step === "extended" && url.includes("/lists/slug/")) return Promise.resolve(jsonRes(200, { data: { id: 42 } }))
+        return Promise.reject(new Error("network failure"))
+      })
+      expect((await fetchUnifiedCatalogResult(`https://thetvdb.com/lists/network-failure-${step}`, { tvdbKey: "network-key" })).status).toBe("unavailable")
+    }
   })
 
   it("retries once after an expired token", async () => {

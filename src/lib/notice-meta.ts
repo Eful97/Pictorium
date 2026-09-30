@@ -78,12 +78,13 @@ export function buildNoticeDetail(options: {
   name?: string
   description?: string
 }): NoticeDetailMeta {
+  const isTvdb = options.id === noticeCatalogId(NOTICE_MISSING_TVDB_KEY)
   return {
     id: options.id,
     type: options.type,
-    name: options.name ?? NOTICE_MISSING_KEY_TITLE,
+    name: options.name ?? (isTvdb ? NOTICE_MISSING_TVDB_KEY_TITLE : NOTICE_MISSING_KEY_TITLE),
     genres: [],
     poster: options.poster,
-    description: options.description ?? NOTICE_MISSING_KEY_DESCRIPTION,
+    description: options.description ?? (isTvdb ? NOTICE_MISSING_TVDB_KEY_DESCRIPTION : NOTICE_MISSING_KEY_DESCRIPTION),
   }
 }
