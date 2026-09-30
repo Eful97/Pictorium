@@ -7,8 +7,17 @@
 
 import { useEffect } from "react"
 import type { TMDBImage } from "./types"
+import { isCustomPosterUrl } from "./utils"
 import { findSceneTint, topEdgeAverage, bottomEdgeAverage } from "./accent-color"
 
+function parseHexColor(value: unknown): { r: number; g: number; b: number } | null {
+  if (typeof value !== "string" || !/^#[0-9a-f]{6}$/i.test(value)) return null
+  return {
+    r: parseInt(value.slice(1, 3), 16),
+    g: parseInt(value.slice(3, 5), 16),
+    b: parseInt(value.slice(5, 7), 16),
+  }
+}
 interface RootColorsSetters {
   setAccentColor: (v: string | null) => void
   setAutoAccentColor?: (v: string | null) => void
@@ -36,6 +45,25 @@ export function useRootColors(
       setAccentColor(null); setAutoAccentColor?.(null); setTopEdgeColor(null); setBottomEdgeColor?.(null); return
     }
     let cancelled = false
+    // Basi custom (URL esterni: Fanart.tv…): i byte cross-origin non sono
+    // leggibili dal canvas (taint silente → colori stale del poster
+    // precedente). Li calcola il server sugli stessi byte del render.
+    if (isCustomPosterUrl(previewPoster.file_path)) {
+      const ctrl = new AbortController()
+      const genre = genreName || ""
+      fetch(`/api/custom-colors?url=${encodeURIComponent(previewPoster.file_path)}&genre=${encodeURIComponent(genre)}`, { signal: ctrl.signal })
+        .then((res) => (res.ok ? res.json().catch(() => null) : null))
+        .then((data) => {
+          if (cancelled || !data) return
+          const a = parseHexColor((data as Record<string, unknown>).accent)
+          const t = parseHexColor((data as Record<string, unknown>).topEdge)
+          const b = parseHexColor((data as Record<string, unknown>).bottomEdge)
+          if (!a || !t || !b) return
+          setRootColors(a.r, a.g, a.b, t.r, t.g, t.b, b.r, b.g, b.b)
+        })
+        .catch(() => {})
+      return () => { cancelled = true; ctrl.abort() }
+    }
     // C4: niente cache-busting (?cb=Date.now): i path TMDB sono immutabili,
     // quindi la stessa URL è valida per il browser cache tra un poster e
     // l'altro (l'effetto gira solo al cambio poster). Prima ogni cambio
