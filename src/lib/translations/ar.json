@@ -220,6 +220,8 @@
   "ui.tmdbKey": "مفتاح TMDB الشخصي",
   "ui.keyTooShort": "يجب أن يكون المفتاح 20 حرفا على الأقل",
   "ui.networkLogo": "شعار الشبكة",
+  "ui.networkLogoPosition": "موضع شعار الشبكة",
+  "ui.networkLogoPositionTop": "أعلى",
   "ui.preRelease": "تأثير ما قبل الرقمي",
   "ui.badgePosition": "موضع الشارة",
   "ui.uiAccentDynamic": "تلوين الواجهة الديناميكي",

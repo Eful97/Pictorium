@@ -76,6 +76,7 @@ const defaultsSchema = z.object({
   defaultPortraitFitEnabled: z.boolean().optional(),
   defaultLandscapeFitEnabled: z.boolean().optional(),
   networkLogo: z.boolean().optional(),
+  networkLogoPosition: z.enum(["auto", "top"]).optional(),
   // Default logo film (null = auto-fit/0, mai spazzatura dallo storage).
   logoScale: z.number().nullable().optional(),
   logoOffsetX: z.number().nullable().optional(),

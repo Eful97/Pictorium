@@ -220,6 +220,8 @@
   "ui.tmdbKey": "Personal TMDB Key",
   "ui.keyTooShort": "The key must be at least 20 characters long",
   "ui.networkLogo": "Network logo",
+  "ui.networkLogoPosition": "Network logo position",
+  "ui.networkLogoPositionTop": "Top",
   "ui.preRelease": "אפקט טרום-דיגיטלי",
   "ui.badgePosition": "Badge position",
   "ui.uiAccentDynamic": "Dynamic UI tint",

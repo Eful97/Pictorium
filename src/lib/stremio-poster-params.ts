@@ -52,6 +52,12 @@ export interface StremioPosterParamsInput {
    */
   readonly topShade?: number
   readonly networkLogo?: boolean
+  /**
+   * Posizione del logo network ("auto" = specchio dinamico).
+   * Emesso come `netPos` solo in modo "top" (cache stabile: gli URL
+   * esistenti non cambiano e il server risolve `auto` da solo).
+   */
+  readonly networkLogoPosition?: import("@/lib/types").NetworkLogoPosition
   /** Scala % del badge superiore (default 100). */
   readonly topBadgeScale?: number
   /** Offset px del badge superiore, solo stili centrati (default 0). */
@@ -225,6 +231,9 @@ export function buildStremioPosterSearchParams(input: StremioPosterParamsInput):
   }
   if (input.title) params.set("title", input.title)
   if (!networkLogo) params.set("netLogo", "0")
+  if (input.networkLogoPosition === "top") {
+    params.set("netPos", "top")
+  }
   if (input.preRelease) params.set("pre", "1")
   if (input.hideLogo) params.set("hideLogo", "1")
   if (input.ribbonSide === "right") params.set("side", "right")

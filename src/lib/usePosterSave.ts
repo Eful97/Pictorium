@@ -1,7 +1,7 @@
 "use client"
 
 import { useCallback } from "react"
-import type { SearchResult, TMDBImage, Mapping, PosterShape } from "./types"
+import type { SearchResult, TMDBImage, Mapping, NetworkLogoPosition, PosterShape } from "./types"
 import { titleOf } from "./utils"
 import { computeTopBadge, resolveSavedBadgeExtra, type BadgeInput } from "./poster-badge"
 import type { SashBucket } from "./badge-priority"
@@ -115,6 +115,8 @@ interface PosterSaveDeps {
   setLogoOffsetX: (v: number) => void
   setLogoOffsetY: (v: number) => void
   networkLogo: boolean
+  /** Ancoraggio orizzontale del logo network per-titolo (congelato al save). */
+  networkLogoPosition: NetworkLogoPosition
   /** Nastro stile Netflix all'angolo per-titolo (congelato al save). */
   ribbonEnabled: boolean
   lang: string
@@ -151,7 +153,7 @@ export function usePosterSave(deps: PosterSaveDeps) {
     networkLogoOffsetX, networkLogoOffsetY,
     rotationPosters, autoRotateClean, defaultAutoRotateClean, excludedPosters, accentColor, autoAccentColor, logoDisabled, setLogoDisabled,
     rotationBackdrops, autoRotateBackdrop, defaultAutoRotateBackdrop, excludedBackdrops, backdrops,
-    setLogoScale, setLogoOffsetX, setLogoOffsetY,     networkLogo, ribbonEnabled, lang, episodeGroupId, posterShape,
+    setLogoScale, setLogoOffsetX, setLogoOffsetY,     networkLogo, networkLogoPosition, ribbonEnabled, lang, episodeGroupId, posterShape,
     defaultSashOrder,
   } = deps
 
@@ -457,6 +459,9 @@ export function usePosterSave(deps: PosterSaveDeps) {
           excludedBackdrops: nextExcludedBackdrops.length > 0 ? nextExcludedBackdrops : undefined,
           logoDisabled: logoDisabled || undefined,
           networkLogo: networkLogo !== undefined ? networkLogo : undefined,
+          // Solo "top" esplicito: "auto" resta assente così il titolo segue
+          // i default finché non risalvato (come gli altri toggle/strutture).
+          networkLogoPosition: networkLogoPosition === "top" ? "top" : undefined,
           ribbonEnabled: ribbonEnabled !== undefined ? ribbonEnabled : undefined,
           networkLogoPath: networkLogoPath ?? null,
           networkLogoName: networkLogoName ?? null,
@@ -480,7 +485,7 @@ export function usePosterSave(deps: PosterSaveDeps) {
       }
       if (overrides.silent) throw error
     }
-  }, [selected, previewPoster, selectedLogo, metaInfo, logoScale, logoOffsetX, logoOffsetY, trendRank, globalBadges, rankingBadges, badgeGenre, badgeYear, badgeRating, badgeQuality, customRatings, ratingSources, separateRatings, mdblistAnimeList, loadMappings, customBadge, badgePresetId, badgePresetRev, badgeStyle, rankingBadgeStyle, qualityBadgeStyle, videoFormats, blurEnabled, blurIntensity, blurFade, blurDarkness, landscapeBlur, landscapeBlurDirty, tintStrength, topShade, gradientHeight, topBadgeScale, topBadgeOffsetX, topBadgeOffsetY, genreBadgeScale, qualityBadgeScale, networkLogoScale, genreBadgeOffsetX, genreBadgeOffsetY, qualityBadgeOffsetX, qualityBadgeOffsetY, networkLogoOffsetX, networkLogoOffsetY, rotationPosters, autoRotateClean, defaultAutoRotateClean, excludedPosters, rotationBackdrops, autoRotateBackdrop, defaultAutoRotateBackdrop, excludedBackdrops, backdrops, defaultBadgeStyle, defaultRankingBadgeStyle, posters, mappingsMap, accentColor, autoAccentColor, backdropOffsetX, backdropOffsetY, backdropScale, selectedBackdrop, networkLogo, ribbonEnabled, episodeGroupId, posterShape]) // eslint-disable-line react-hooks/exhaustive-deps -- intentionally complete to save all poster state
+  }, [selected, previewPoster, selectedLogo, metaInfo, logoScale, logoOffsetX, logoOffsetY, trendRank, globalBadges, rankingBadges, badgeGenre, badgeYear, badgeRating, badgeQuality, customRatings, ratingSources, separateRatings, mdblistAnimeList, loadMappings, customBadge, badgePresetId, badgePresetRev, badgeStyle, rankingBadgeStyle, qualityBadgeStyle, videoFormats, blurEnabled, blurIntensity, blurFade, blurDarkness, landscapeBlur, landscapeBlurDirty, tintStrength, topShade, gradientHeight, topBadgeScale, topBadgeOffsetX, topBadgeOffsetY, genreBadgeScale, qualityBadgeScale, networkLogoScale, genreBadgeOffsetX, genreBadgeOffsetY, qualityBadgeOffsetX, qualityBadgeOffsetY, networkLogoOffsetX, networkLogoOffsetY, rotationPosters, autoRotateClean, defaultAutoRotateClean, excludedPosters, rotationBackdrops, autoRotateBackdrop, defaultAutoRotateBackdrop, excludedBackdrops, backdrops, defaultBadgeStyle, defaultRankingBadgeStyle, posters, mappingsMap, accentColor, autoAccentColor, backdropOffsetX, backdropOffsetY, backdropScale, selectedBackdrop, networkLogo, networkLogoPosition, ribbonEnabled, episodeGroupId, posterShape]) // eslint-disable-line react-hooks/exhaustive-deps -- intentionally complete to save all poster state
 
   return { selectPoster, selectLogo, removeLogo, selectBackdrop, removeBackdrop, saveConfig }
 }

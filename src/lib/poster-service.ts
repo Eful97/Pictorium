@@ -29,7 +29,7 @@ import { estimateTextWidth, fontFamilyFor, escSvg, badgeBoxHeight, TOP_SHADOW_PA
 import { computeTopBadge, isNetworkStudio, type BadgeInput } from "./poster-badge"
 import type { SashBucket } from "./badge-priority"
 import { PRE_RELEASE_DIM_ALPHA, PRE_RELEASE_BLUR_SIGMA } from "./pre-release"
-import type { Mapping } from "./types"
+import type { Mapping, NetworkLogoPosition } from "./types"
 import type { ServerDefaults } from "./server-defaults"
 import type { WikidataResult } from "./awards"
 import { directorBadgeLabel } from "./awards"
@@ -208,6 +208,12 @@ export interface GenerationInput {
   queryExtra: string | null
   qNetLogo: string | null
   networkLogo?: boolean
+  /**
+   * Posizione del logo network ("top" = sempre all'angolo superiore, lato
+   * del nastro effettivo; "auto" = specchio dinamico odierno). Default "auto"
+   * (byte-identico al passato).
+   */
+  networkLogoPosition?: NetworkLogoPosition
   sd: ServerDefaults
   accentOverride: { genreColor: string; rankColor: string } | null
   /** Pre-resolved IMDb Top 250 membership. Falls back gracefully when falsy. */
@@ -842,7 +848,7 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
     tvType, tvStatus, releaseDate, firstAirDate,
     lastAirDate, seasonCount, originCountries,
     wikidataResult, tmdbKeywords, locale, t,
-    qLabel, queryExtra, qNetLogo, networkLogo, sd, accentOverride, imdbTop250,
+    qLabel, queryExtra, qNetLogo, networkLogo, networkLogoPosition = "auto", sd, accentOverride, imdbTop250,
     logoSrc, backdropSrc, analysisKey,
     preRelease = false,
     hideLogo = false,
@@ -1523,6 +1529,12 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
   // Tuning editoriale globale (default per tutti i poster): pill network +10px Y.
   const NETWORK_LOGO_SHIFT_Y = 10
   let netTopLeftBottom: number | null = null
+  // Modalità "in alto" (query `netPos=top` > mapping > config > defaults):
+  // sempre all'angolo superiore. "auto" = specchio dinamico odierno.
+  const netForceTop = networkLogoPosition === "top"
+  // La qualità legge da qui se il network è finito a destra in modo "top"
+  // (trasloca a sinistra come col nastro a destra).
+  let netAnchoredRight = false
   if (networkLogoForLayout) {
     const gap = Math.round(6 * CH / 570)
     let fittedRaw = await fitBadgeToCanvas(networkLogoForLayout, CW, CH)
@@ -1584,7 +1596,52 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
         return box
       }
 
-      if (isLandscape && logoResult) {
+      if (netForceTop) {
+        // Angolo superiore, lato del nastro EFFETTIVO (reso, non impostato):
+        // solo con nastro rank/preset o Coming Soon a destra va a destra,
+        // con tutti gli altri badge (o senza) resta a sinistra — anche in
+        // vista Stremio. Restano: stacking sotto il Coming Soon del lato,
+        // shift a fianco del nastro sullo stesso lato (stessa matematica dei
+        // rami storici) e shrink vs badge centrale. Il ramo "sopra il logo
+        // film" non vale in "top": l'angolo è l'angolo.
+        const sideRight = rightRankRibbonOccupied || comingSoonRightOccupied
+        const csExtent = ribbonLayout ? ribbonLayout.extent : 0
+        const csOnSide = showComingSoon && !!ribbonLayout && !!safeComingSoonResult &&
+          (sideRight ? ribbonSide === "right" : ribbonSide !== "right")
+        if (sideRight && rightRankRibbonLeft !== null) {
+          // Stessa riga a fianco del nastro destro (specchio Nuvio).
+          top = netPadY
+          left = Math.max(0, rightRankRibbonLeft - 10 - fittedRaw.w)
+        } else if (csOnSide) {
+          top = csExtent + gap
+          left = sideRight ? rightAnchoredLeft : netPadX
+        } else {
+          top = netPadY
+          left = sideRight ? rightAnchoredLeft : netPadX
+          if (!sideRight) {
+            const leftRibbon =
+              ((isRibbonRankingStyle(rankingBadgeStyle) && topBadge?.type === "rank") || presetIsRibbon) &&
+              (presetIsRibbon ? !presetRibbonRight : ribbonSide !== "right")
+            if (leftRibbon && finalRankBadge && finalRankLeft !== null) {
+              const ribbonRight = finalRankLeft + finalRankBadge.w
+              const netRight = left + fittedRaw.w
+              const netBottom = top + fittedRaw.h
+              const overlapX = left < ribbonRight + 6 && netRight > finalRankLeft - 6
+              const overlapY = top < finalRankTop + finalRankBadge.h + 4 && netBottom > finalRankTop - 4
+              if (overlapX && overlapY) {
+                left = Math.round(ribbonRight + 10)
+                const maxLeft = CW - fittedRaw.w - netPadX
+                if (left > maxLeft) left = maxLeft
+              }
+            }
+          }
+        }
+        fittedRaw = await shrinkToAvoidRank(fittedRaw, top, left)
+        // Solo a sinistra alimenta lo stacking qualità (a destra la qualità
+        // ha già traslocato a sinistra, niente da impilare).
+        if (!sideRight) netTopLeftBottom = top + NETWORK_LOGO_SHIFT_Y + fittedRaw.h
+        else netAnchoredRight = true
+      } else if (isLandscape && logoResult) {
         // Landscape col logo film: mai sopra il logo (zona bassa) — sempre
         // in alto: a fianco del nastro se occupa l'angolo sinistro (stile
         // Netflix), sotto il Coming Soon se occupa quell'angolo, altrimenti
@@ -1710,7 +1767,9 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
     const netPadX = Math.round(18 * CW / 380)
     const isNetflixRight = isRibbonRankingStyle(rankingBadgeStyle) && ribbonSide === "right" && topBadge?.type === "rank"
     const isComingSoonRight = showComingSoon && ribbonSide === "right" && !!ribbonLayout
-    const isRightRibbonCorner = (isNetflixRight && !!finalRankBadge) || isComingSoonRight || (presetRibbonRight && !!finalRankBadge)
+    // Network "in alto" finito a destra: la qualità trasloca a sinistra
+    // come col nastro a destra (stesso branch, niente overlap sull'angolo).
+    const isRightRibbonCorner = (isNetflixRight && !!finalRankBadge) || isComingSoonRight || (presetRibbonRight && !!finalRankBadge) || (!!networkLogoForLayout && netAnchoredRight)
 
     // Ancoraggio base: top = netBaseTop - 10 + 5 (storia editoriale: era -20).
     // Griglia laterale a box: il respiro del box qualità è uguale a quello del

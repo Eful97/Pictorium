@@ -7,6 +7,20 @@ export function isPosterShape(value: unknown): value is PosterShape {
   return value === "poster" || value === "landscape"
 }
 
+/**
+ * Posizione del logo network: "auto" = specchio dinamico odierno (destra in
+ * vista Stremio con angolo destro occupato, sinistra altrove), "top" =
+ * sempre all'angolo superiore, lato del nastro effettivo (destra solo con
+ * nastro rank/preset o Coming Soon a destra, sinistra in tutti gli altri
+ * casi — anche in vista Stremio). Catena: query > mapping > config token >
+ * server defaults > "auto".
+ */
+export type NetworkLogoPosition = "auto" | "top"
+
+export function isNetworkLogoPosition(value: unknown): value is NetworkLogoPosition {
+  return value === "auto" || value === "top"
+}
+
 export interface SearchResult {
   id: number
   media_type: "movie" | "tv"
@@ -156,6 +170,8 @@ export interface Mapping {
   autoRotateBackdrop?: boolean | null
   excludedBackdrops?: string[] | null
   networkLogo?: boolean | null
+  /** Posizione del logo network ("auto" = specchio dinamico, "top" = angolo alto lato nastro). */
+  networkLogoPosition?: NetworkLogoPosition | null
   ribbonSide?: "left" | "right" | null
   /** Nastro stile Netflix all'angolo (false = badge classifica centrato). Default ON. */
   ribbonEnabled?: boolean | null

@@ -1648,7 +1648,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
       genreBadgeScale, qualityBadgeScale, networkLogoScale,
       genreBadgeOffsetX, genreBadgeOffsetY, qualityBadgeOffsetX, qualityBadgeOffsetY,
       networkLogoOffsetX, networkLogoOffsetY,
-      queryExtra, qNetLogo, networkLogo, ribbonSide, ribbonEnabled, rankingBadgeAccent,
+      queryExtra, qNetLogo, networkLogo, networkLogoPosition, ribbonSide, ribbonEnabled, rankingBadgeAccent,
       preRelease, posterShape, logoAlign, hideLogo,
     } = renderConfig
 
@@ -1916,7 +1916,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
       tvType, tvStatus, releaseDate, firstAirDate,
       lastAirDate, seasonCount, originCountries,
       wikidataResult, tmdbKeywords, locale, t,
-      qLabel, queryExtra, qNetLogo, networkLogo, sd,
+      qLabel, queryExtra, qNetLogo, networkLogo, networkLogoPosition, sd,
       accentOverride, imdbTop250, preRelease: applyPreRelease,
       shape: posterShape,
       logoAlign,

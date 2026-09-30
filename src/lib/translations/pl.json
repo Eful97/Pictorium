@@ -220,6 +220,8 @@
   "ui.tmdbKey": "Osobisty klucz TMDB",
   "ui.keyTooShort": "Klucz musi mieć co najmniej 20 znaków",
   "ui.networkLogo": "Logo sieci",
+  "ui.networkLogoPosition": "Pozycja logo sieci",
+  "ui.networkLogoPositionTop": "U góry",
   "ui.preRelease": "Efekt przedpremierowy",
   "ui.badgePosition": "Pozycja odznaki",
   "ui.uiAccentDynamic": "Dynamiczny akcent interfejsu",

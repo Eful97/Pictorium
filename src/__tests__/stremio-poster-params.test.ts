@@ -110,6 +110,12 @@ describe("buildStremioPosterSearchParams", () => {
     expect(rightParams.get("side")).toBe("right")
   })
 
+  it("emits netPos only in top mode (cache-stable auto)", () => {
+    expect(buildStremioPosterSearchParams({}).has("netPos")).toBe(false)
+    expect(buildStremioPosterSearchParams({ networkLogoPosition: "auto" }).has("netPos")).toBe(false)
+    expect(buildStremioPosterSearchParams({ networkLogoPosition: "top" }).get("netPos")).toBe("top")
+  })
+
   it("serializes region when configured and omits it when missing", () => {
     const paramsWithRegion = buildStremioPosterSearchParams({ region: "FR" })
     expect(paramsWithRegion.get("region")).toBe("FR")

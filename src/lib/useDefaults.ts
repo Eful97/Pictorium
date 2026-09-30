@@ -2,8 +2,8 @@
 
 import { useState, useEffect, useCallback, useRef } from "react"
 import type { BadgeStyle, RankingBadgeStyle } from "./badge-styles"
-import type { PosterShape } from "./types"
-import { isPosterShape } from "./types"
+import type { NetworkLogoPosition, PosterShape } from "./types"
+import { isNetworkLogoPosition, isPosterShape } from "./types"
 import type { LandscapeServerDefaults } from "./server-defaults"
 import { normalizeRegion } from "./regions"
 import { isProfilelessOnMultiUser, notifyProfilelessOnce, shouldSkipServerSync } from "./guest-guard"
@@ -69,6 +69,8 @@ export interface DefaultsState {
   defaultPortraitFitEnabled: boolean
   defaultLandscapeFitEnabled: boolean
   defaultNetworkLogo: boolean
+  /** Posizione del logo network di default ("auto" = specchio dinamico, "top" = angolo alto lato nastro). */
+  defaultNetworkLogoPosition: NetworkLogoPosition
   defaultPreRelease: boolean
   defaultRibbonSide: RibbonSide
   /** Nastro stile Netflix all'angolo di default (false = badge classifica centrato). */
@@ -94,6 +96,8 @@ export interface DefaultsState {
   /** Colonna rating separati a destra (default OFF). */
   separateRatings: boolean
   networkLogo: boolean
+  /** Posizione del logo network del poster in editing. */
+  networkLogoPosition: NetworkLogoPosition
   preRelease: boolean
   ribbonSide: RibbonSide
   /** Nastro stile Netflix all'angolo (false = badge classifica centrato). */
@@ -186,6 +190,7 @@ const DEFAULTS: DefaultsState = {
   defaultPortraitFitEnabled: true,
   defaultLandscapeFitEnabled: true,
   defaultNetworkLogo: true,
+  defaultNetworkLogoPosition: "auto",
   defaultPreRelease: false,
   defaultRibbonSide: "left",
   defaultRibbonEnabled: true,
@@ -204,6 +209,7 @@ const DEFAULTS: DefaultsState = {
   ratingSources: ["imdb", "tmdb"],
   separateRatings: false,
   networkLogo: true,
+  networkLogoPosition: "auto",
   preRelease: false,
   ribbonSide: "left",
   ribbonEnabled: true,
@@ -318,6 +324,8 @@ interface StoredDefaults {
   /** Deprecato (migrazione): il flag unico alimenta entrambi i formati. */
   defaultLogoFitEnabled?: boolean
   defaultNetworkLogo?: boolean
+  defaultNetworkLogoPosition?: NetworkLogoPosition
+  networkLogoPosition?: NetworkLogoPosition
   defaultPreRelease?: boolean
   preRelease?: boolean
   defaultRibbonSide?: RibbonSide
@@ -428,6 +436,9 @@ function buildFromStored(d: StoredDefaults | null): DefaultsState {
     defaultPortraitFitEnabled: d.defaultPortraitFitEnabled ?? d.defaultLogoFitEnabled ?? true,
     defaultLandscapeFitEnabled: d.defaultLandscapeFitEnabled ?? d.defaultLogoFitEnabled ?? true,
     defaultNetworkLogo: d.defaultNetworkLogo ?? d.networkLogo ?? true,
+    defaultNetworkLogoPosition: isNetworkLogoPosition(d.defaultNetworkLogoPosition)
+      ? d.defaultNetworkLogoPosition
+      : (isNetworkLogoPosition(d.networkLogoPosition) ? d.networkLogoPosition : "auto"),
     defaultPreRelease: d.defaultPreRelease ?? d.preRelease ?? false,
     defaultRibbonSide: d.defaultRibbonSide ?? d.ribbonSide ?? "left",
     defaultRibbonEnabled: d.defaultRibbonEnabled ?? d.ribbonEnabled ?? true,
@@ -446,6 +457,9 @@ function buildFromStored(d: StoredDefaults | null): DefaultsState {
     ratingSources: d.ratingSources ?? d.defaultRatingSources ?? ["imdb", "tmdb"],
     separateRatings: d.separateRatings ?? d.defaultSeparateRatings ?? false,
     networkLogo: d.networkLogo ?? d.defaultNetworkLogo ?? true,
+    networkLogoPosition: isNetworkLogoPosition(d.networkLogoPosition)
+      ? d.networkLogoPosition
+      : (isNetworkLogoPosition(d.defaultNetworkLogoPosition) ? d.defaultNetworkLogoPosition : "auto"),
     preRelease: d.preRelease ?? d.defaultPreRelease ?? false,
     ribbonSide: d.ribbonSide ?? d.defaultRibbonSide ?? "left",
     ribbonEnabled: d.ribbonEnabled ?? d.defaultRibbonEnabled ?? true,
@@ -537,6 +551,7 @@ function defaultsToPayload(d: DefaultsState): Record<string, unknown> {
     defaultPortraitFitEnabled: d.defaultPortraitFitEnabled,
     defaultLandscapeFitEnabled: d.defaultLandscapeFitEnabled,
     networkLogo: d.defaultNetworkLogo,
+    networkLogoPosition: d.defaultNetworkLogoPosition,
     preRelease: d.defaultPreRelease,
     ribbonSide: d.defaultRibbonSide,
     ribbonEnabled: d.defaultRibbonEnabled,

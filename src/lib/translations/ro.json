@@ -220,6 +220,8 @@
   "ui.tmdbKey": "Cheie TMDB personală",
   "ui.keyTooShort": "Cheia trebuie să aibă cel puțin 20 de caractere",
   "ui.networkLogo": "Logo rețea",
+  "ui.networkLogoPosition": "Poziția logo-ului de rețea",
+  "ui.networkLogoPositionTop": "Sus",
   "ui.preRelease": "Efect pre-digital",
   "ui.badgePosition": "Poziție insignă",
   "ui.uiAccentDynamic": "Nuanță dinamică interfață",

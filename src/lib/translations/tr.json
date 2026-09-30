@@ -220,6 +220,8 @@
   "ui.tmdbKey": "Kişisel TMDB Anahtarı",
   "ui.keyTooShort": "Anahtar en az 20 karakter olmalı",
   "ui.networkLogo": "Ağ logosu",
+  "ui.networkLogoPosition": "Ağ logosu konumu",
+  "ui.networkLogoPositionTop": "Üst",
   "ui.preRelease": "Dijital öncesi efekti",
   "ui.badgePosition": "Rozet konumu",
   "ui.uiAccentDynamic": "Dinamik arayüz rengi",

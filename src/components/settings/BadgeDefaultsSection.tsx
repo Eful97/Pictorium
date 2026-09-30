@@ -457,6 +457,30 @@ export function BadgeDefaultsSection({ active }: { active: boolean }) {
             />
           </div>
 
+          {ed.defaultNetworkLogo && (
+            <div className="flex items-center justify-between gap-3" title={t("ui.networkLogoPosition")}>
+              <span className="text-zinc-400 font-medium text-[11px] pl-5">
+                {t("ui.networkLogoPosition")}
+              </span>
+              <div className="flex gap-1 flex-1 max-w-[190px]">
+                {(["auto", "top"] as const).map((pos) => (
+                  <button
+                    key={pos}
+                    type="button"
+                    onClick={() => ed.setDefaultNetworkLogoPosition(pos)}
+                    className={`flex-1 py-1 rounded-lg text-[11px] font-semibold transition-all duration-150 cursor-pointer ${
+                      ed.defaultNetworkLogoPosition === pos
+                        ? "bg-white/20 text-white shadow-sm"
+                        : "bg-white/5 text-muted hover:bg-white/10 hover:text-zinc-200"
+                    }`}
+                  >
+                    {pos === "auto" ? t("ui.auto") : t("ui.networkLogoPositionTop")}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
           <div className="flex items-center justify-between">
             <span className="text-zinc-300 font-medium flex items-center gap-1.5">
               <Cloud className="w-3.5 h-3.5 text-cyan-400" />

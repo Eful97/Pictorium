@@ -6,7 +6,7 @@
 // ---------------------------------------------------------------------------
 
 import type { PictoriumUserConfig } from "./config-token"
-import { effectiveMappingForShape, type Mapping, type PosterShape } from "./types"
+import { effectiveMappingForShape, type Mapping, type NetworkLogoPosition, type PosterShape } from "./types"
 import { effectiveDefaultsForShape } from "./server-defaults"
 import type { ServerDefaults } from "./server-defaults"
 import { resolveLabelFor } from "./i18n"
@@ -129,6 +129,12 @@ export interface PosterRenderConfig {
   queryExtra: string | null
   qNetLogo: string | null
   networkLogo: boolean
+  /**
+   * Posizione del logo network — catena: query `netPos` ("top", garbage =
+   * auto) > mapping per-titolo > config token > server defaults > "auto"
+   * (specchio dinamico odierno, byte-identico).
+   */
+  networkLogoPosition: NetworkLogoPosition
   ribbonSide: "left" | "right"
   /**
    * Nastro stile Netflix all'angolo — catena: query `ribbon` > mapping
@@ -486,6 +492,16 @@ export function resolvePosterRenderConfig(input: PosterRenderConfigInput): Poste
     ? rawNetLogo !== "0"
     : (mapping?.networkLogo ?? (configOverride !== null ? configOverride.networkLogo : undefined) ?? sd.networkLogo ?? true)
   const qNetLogo = networkLogo ? (rawNetLogo ?? (configOverride !== null ? (configOverride.networkLogo ? "1" : null) : null)) : "0"
+  // Posizione logo network: solo "top" esplicito vince, tutto il resto
+  // (assente o garbage) cade al livello successivo della catena.
+  const qNetPos = (q.get("netPos") || "").toLowerCase()
+  const networkLogoPosition: NetworkLogoPosition = qNetPos === "top"
+    ? "top"
+    : (mapping?.networkLogoPosition === "top"
+      ? "top"
+      : (configOverride?.networkLogoPosition === "top"
+        ? "top"
+        : (sd.networkLogoPosition === "top" ? "top" : "auto")))
   // Modalità layout nastro Netflix + logo network: query `side=right` (Stremio)
   // o `side=left` (Nuvio), poi config/profilo. Globale: nessun override
   // per-titolo (il mapping storico con ribbonSide viene ignorato).
@@ -546,6 +562,7 @@ export function resolvePosterRenderConfig(input: PosterRenderConfigInput): Poste
     queryExtra,
     qNetLogo,
     networkLogo,
+    networkLogoPosition,
     ribbonSide,
     ribbonEnabled,
     rankingBadgeAccent,

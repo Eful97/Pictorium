@@ -143,6 +143,8 @@ export function buildStremioPosterUrl(input: BuildStremioPosterUrlInput): URL {
     badgePresetRev: mapping?.badgePresetRev,
     title: mapping?.title ?? undefined,
     networkLogo: (sd.networkLogo !== false) && (mapping?.networkLogo !== false),
+    // Ancoraggio network: per-titolo vince sul default globale (come networkLogo).
+    networkLogoPosition: mapping?.networkLogoPosition ?? sd.networkLogoPosition,
     preRelease: sd.preRelease,
     // hideLogo viaggia solo sul banner (il chiamante lo imposta insieme a
     // forceShape): poster/preview/Stremio non lo vedono mai.

@@ -216,6 +216,8 @@
   "ui.tmdbKey": "Clé TMDB personnelle",
   "ui.keyTooShort": "La clé doit contenir au moins 20 caractères",
   "ui.networkLogo": "Logo du réseau",
+  "ui.networkLogoPosition": "Position du logo réseau",
+  "ui.networkLogoPositionTop": "En haut",
   "ui.preRelease": "Effet pré-numérique",
   "ui.badgePosition": "Position du badge",
   "ui.region": "Pays des classements",

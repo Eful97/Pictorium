@@ -62,6 +62,7 @@ const USER_SAVED = {
   defaultPortraitFitEnabled: true,
   defaultLandscapeFitEnabled: true,
   networkLogo: true,
+  networkLogoPosition: "auto",
   preRelease: false,
   ribbonSide: "left",
   ribbonEnabled: true,

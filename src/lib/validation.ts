@@ -90,6 +90,7 @@ export const mappingSchema = z.object({
   excludedPosters: z.array(z.string()).nullable().optional(),
   logoDisabled: z.boolean().nullable().optional(),
   networkLogo: z.boolean().nullable().optional(),
+  networkLogoPosition: z.enum(["auto", "top"]).nullable().optional(),
   ribbonSide: z.enum(["left", "right"]).nullable().optional(),
   ribbonEnabled: z.boolean().nullable().optional(),
   posterShape: z.enum(["poster", "landscape"]).nullable().optional(),
@@ -210,6 +211,7 @@ export const posterQuerySchema = z.object({
   rs: boundedQueryString(16),
   badgePreset: boundedQueryString(24),
   prv: boundedQueryString(8),
+  netPos: boundedQueryString(8),
 })
 
 export type PosterQuery = z.infer<typeof posterQuerySchema>

@@ -268,6 +268,28 @@ describe("resolvePosterRenderConfig", () => {
     expect(resolvePosterRenderConfig(baseInput()).networkLogo).toBe(true)
   })
 
+  it("networkLogoPosition: query netPos=top wins, then mapping, then config token, then sd, then auto", () => {
+    expect(resolvePosterRenderConfig(baseInput()).networkLogoPosition).toBe("auto")
+    expect(resolvePosterRenderConfig(baseInput({
+      searchParams: new URLSearchParams({ netPos: "top" }),
+      mapping: mapping({ networkLogoPosition: "auto" }),
+    })).networkLogoPosition).toBe("top")
+    expect(resolvePosterRenderConfig(baseInput({
+      searchParams: new URLSearchParams({ netPos: "TOP" }),
+    })).networkLogoPosition).toBe("top")
+    // Garbage in query cade al livello successivo (qui mapping).
+    expect(resolvePosterRenderConfig(baseInput({
+      searchParams: new URLSearchParams({ netPos: "left" }),
+      mapping: mapping({ networkLogoPosition: "top" }),
+    })).networkLogoPosition).toBe("top")
+    expect(resolvePosterRenderConfig(baseInput({
+      searchParams: new URLSearchParams({ netPos: "left" }),
+    })).networkLogoPosition).toBe("auto")
+    expect(resolvePosterRenderConfig(baseInput({ mapping: mapping({ networkLogoPosition: "top" }) })).networkLogoPosition).toBe("top")
+    expect(resolvePosterRenderConfig(baseInput({ configOverride: config({ networkLogoPosition: "top" }) })).networkLogoPosition).toBe("top")
+    expect(resolvePosterRenderConfig(baseInput({ sd: { networkLogoPosition: "top" } })).networkLogoPosition).toBe("top")
+  })
+
   it("hideLogo: only explicit query hides the film logo (default false, no mapping/config chain)", () => {
     expect(resolvePosterRenderConfig(baseInput()).hideLogo).toBe(false)
     expect(resolvePosterRenderConfig(baseInput({ searchParams: new URLSearchParams({ hideLogo: "1" }) })).hideLogo).toBe(true)

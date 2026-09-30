@@ -111,6 +111,8 @@ export interface ServerDefaults {
   defaultPortraitFitEnabled?: boolean
   defaultLandscapeFitEnabled?: boolean
   networkLogo?: boolean
+  /** Posizione del logo network ("auto" = specchio dinamico, "top" = angolo alto lato nastro). */
+  networkLogoPosition?: import("@/lib/types").NetworkLogoPosition
   /** Scala % logo film (null = auto-fit per aspect, comportamento storico). */
   logoScale?: number | null
   /** Offset px logo film (null = 0). */

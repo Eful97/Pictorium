@@ -56,6 +56,7 @@ export async function saveDefaults(ed: PosterEditorCtx): Promise<boolean> {
     defaultPortraitFitEnabled: ed.defaultPortraitFitEnabled,
     defaultLandscapeFitEnabled: ed.defaultLandscapeFitEnabled,
     defaultNetworkLogo: ed.defaultNetworkLogo,
+    networkLogoPosition: ed.defaultNetworkLogoPosition,
     preRelease: ed.defaultPreRelease,
     defaultRibbonSide: ed.defaultRibbonSide,
     defaultEpisodeMetadataSource: ed.defaultEpisodeMetadataSource,

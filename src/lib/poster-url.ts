@@ -12,7 +12,7 @@ import type { SearchResult, TMDBImage } from "./types"
 import type { EnrichedAnimeItem } from "./validation"
 import type { BadgeStyle, RankingBadgeStyle, QualityBadgeStyle } from "./badge-styles"
 import type { VideoFormat } from "./av-specs"
-import type { PosterShape } from "./types"
+import type { PosterShape, NetworkLogoPosition } from "./types"
 import { BADGE_PRESET_ID_RE, BADGE_PRESET_REV_RE } from "./badge-preset"
 
 interface BadgeParams {
@@ -66,6 +66,8 @@ interface BadgeParams {
   networkLogoOffsetX: number
   networkLogoOffsetY: number
   networkLogo?: boolean
+  /** Ancoraggio orizzontale del logo network (preview WYSIWYG, sempre esplicito). */
+  networkLogoPosition?: NetworkLogoPosition
   /** Effetto pre-digitale (darken + Coming Soon, solo film). Default OFF. */
   preRelease?: boolean
   ribbonSide?: "left" | "right"
@@ -159,6 +161,7 @@ export function buildUrlPattern(bp: BadgeParams & {
     tintStrength: bp.tintStrength,
     topShade: bp.topShade,
     networkLogo: bp.networkLogo,
+    networkLogoPosition: bp.networkLogoPosition,
     preRelease: bp.preRelease,
     ribbonSide: bp.ribbonSide,
     ribbonEnabled: bp.ribbonEnabled,
@@ -287,6 +290,9 @@ export function buildPreviewUrl(ps: PosterState, bp: BadgeParams): string {
   params.push(`noy=${bp.networkLogoOffsetY}`)
   if (!bp.blurEnabled) params.push("be=0")
   params.push(`netLogo=${bp.networkLogo !== false ? "1" : "0"}`)
+  // SEMPRE esplicito (come ribbon/side): senza, un mapping salvato con
+  // posizione forzata scavalcerebbe lo stato editor (desync WYSIWYG).
+  params.push(`netPos=${bp.networkLogoPosition === "top" ? "top" : "auto"}`)
   if (bp.preRelease) params.push("pre=1")
   // Fix M2: side viene emesso SEMPRE (left|right) — prima soltanto "right";
   // senza il parametro il server risolve dal mapping/config salvati (di

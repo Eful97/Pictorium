@@ -62,6 +62,7 @@ export const configTokenSchema = z.object({
   networkLogoOffsetX: z.number().finite().optional(),
   networkLogoOffsetY: z.number().finite().optional(),
   networkLogo: z.boolean(),
+  networkLogoPosition: z.enum(["auto", "top"]).optional(),
   preRelease: z.boolean().optional(),
   posterShape: z.enum(["poster", "landscape"]).optional(),
   autoRotateClean: z.boolean(),

@@ -220,6 +220,8 @@
   "ui.tmdbKey": "Persoonlijke TMDB-sleutel",
   "ui.keyTooShort": "De sleutel moet minstens 20 tekens lang zijn",
   "ui.networkLogo": "Netwerklogo",
+  "ui.networkLogoPosition": "Netwerklogo-positie",
+  "ui.networkLogoPositionTop": "Boven",
   "ui.preRelease": "Pre-digitaal effect",
   "ui.badgePosition": "Badgepositie",
   "ui.uiAccentDynamic": "Dynamische UI-tint",

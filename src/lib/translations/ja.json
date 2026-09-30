@@ -220,6 +220,8 @@
   "ui.tmdbKey": "個人TMDBキー",
   "ui.keyTooShort": "キーは20文字以上必要です",
   "ui.networkLogo": "ネットワークロゴ",
+  "ui.networkLogoPosition": "ネットワークロゴの位置",
+  "ui.networkLogoPositionTop": "上",
   "ui.preRelease": "デジタル事前エフェクト",
   "ui.badgePosition": "バッジ位置",
   "ui.uiAccentDynamic": "動的UIアクセント",

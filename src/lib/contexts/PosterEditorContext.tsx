@@ -1,7 +1,7 @@
 "use client"
 
 import { createContext, useContext, useState, useMemo, useCallback } from "react"
-import type { TMDBImage, PosterShape } from "@/lib/types"
+import type { TMDBImage, NetworkLogoPosition, PosterShape } from "@/lib/types"
 import { useDefaults } from "@/lib/useDefaults"
 import type { LandscapeServerDefaults } from "@/lib/server-defaults"
 import type { BadgeStyle, RankingBadgeStyle, QualityBadgeStyle } from "@/lib/badge-styles"
@@ -84,6 +84,8 @@ export interface PosterEditorCtx {
   setBadgePresetRev: (v: string | null | ((prev: string | null) => string | null)) => void
   networkLogo: boolean
   setNetworkLogo: (v: boolean | ((prev: boolean) => boolean)) => void
+  networkLogoPosition: NetworkLogoPosition
+  setNetworkLogoPosition: (v: NetworkLogoPosition | ((prev: NetworkLogoPosition) => NetworkLogoPosition)) => void
   preRelease: boolean
   setPreRelease: (v: boolean | ((prev: boolean) => boolean)) => void
   ribbonSide: "left" | "right"
@@ -196,6 +198,8 @@ export interface PosterEditorCtx {
   setDefaultLandscapeFitEnabled: (v: boolean | ((prev: boolean) => boolean)) => void
   defaultNetworkLogo: boolean
   setDefaultNetworkLogo: (v: boolean | ((prev: boolean) => boolean)) => void
+  defaultNetworkLogoPosition: NetworkLogoPosition
+  setDefaultNetworkLogoPosition: (v: NetworkLogoPosition | ((prev: NetworkLogoPosition) => NetworkLogoPosition)) => void
   defaultPreRelease: boolean
   setDefaultPreRelease: (v: boolean | ((prev: boolean) => boolean)) => void
   defaultRibbonSide: "left" | "right"
@@ -377,7 +381,7 @@ export function PosterEditorProvider({
   const [badgePresetRev, setBadgePresetRev] = useState<string | null>(null)
 
   const {
-    globalBadges, rankingBadges, networkLogo, preRelease, ribbonSide, ribbonEnabled, posterShape, logoAlign,
+    globalBadges, rankingBadges, networkLogo, networkLogoPosition, preRelease, ribbonSide, ribbonEnabled, posterShape, logoAlign,
     badgeGenre, badgeYear, badgeRating, badgeQuality, customRatings, ratingSources, separateRatings,
     gradientHeight, blurIntensity, blurFade, blurDarkness, blurEnabled, tintStrength, topShade,
     topBadgeScale, topBadgeOffsetX, topBadgeOffsetY,
@@ -394,7 +398,7 @@ export function PosterEditorProvider({
     defaultGenreBadgeOffsetX, defaultGenreBadgeOffsetY, defaultQualityBadgeOffsetX, defaultQualityBadgeOffsetY,
     defaultNetworkLogoOffsetX, defaultNetworkLogoOffsetY,
     defaultBadgeGenre, defaultBadgeYear, defaultBadgeRating, defaultBadgeQuality, defaultCustomRatings, defaultCustomRatingEndpoint, defaultCustomRatingApiKeyHeader, defaultRatingSources, defaultSeparateRatings, defaultSashOrder,
-    defaultAutoRotateClean, defaultAutoRotateBackdrop, defaultPortraitFitEnabled, defaultLandscapeFitEnabled, defaultNetworkLogo, defaultPreRelease, defaultRibbonSide, defaultRibbonEnabled, defaultPosterShape, defaultLogoAlign,
+    defaultAutoRotateClean, defaultAutoRotateBackdrop, defaultPortraitFitEnabled, defaultLandscapeFitEnabled, defaultNetworkLogo, defaultNetworkLogoPosition, defaultPreRelease, defaultRibbonSide, defaultRibbonEnabled, defaultPosterShape, defaultLogoAlign,
     landscape: landscapeDefaults,
     episodeMetadataSource, defaultEpisodeMetadataSource,
     region, defaultRegion,
@@ -451,6 +455,11 @@ export function PosterEditorProvider({
       const next = typeof v === "function" ? v(networkLogo) : v
       update({ networkLogo: next })
     }, [networkLogo, update])
+  const setNetworkLogoPosition = useCallback(
+    (v: NetworkLogoPosition | ((prev: NetworkLogoPosition) => NetworkLogoPosition)) => {
+      const next = typeof v === "function" ? v(networkLogoPosition) : v
+      update({ networkLogoPosition: next })
+    }, [networkLogoPosition, update])
   const setPreRelease = useCallback(
     (v: boolean | ((prev: boolean) => boolean)) => {
       const next = typeof v === "function" ? v(preRelease) : v
@@ -829,6 +838,11 @@ export function PosterEditorProvider({
       const next = typeof v === "function" ? v(defaultNetworkLogo) : v
       update({ defaultNetworkLogo: next })
     }, [defaultNetworkLogo, update])
+  const setDefaultNetworkLogoPosition = useCallback(
+    (v: NetworkLogoPosition | ((prev: NetworkLogoPosition) => NetworkLogoPosition)) => {
+      const next = typeof v === "function" ? v(defaultNetworkLogoPosition) : v
+      update({ defaultNetworkLogoPosition: next })
+    }, [defaultNetworkLogoPosition, update])
   const setDefaultPreRelease = useCallback(
     (v: boolean | ((prev: boolean) => boolean)) => {
       const next = typeof v === "function" ? v(defaultPreRelease) : v
@@ -928,6 +942,8 @@ export function PosterEditorProvider({
       setBadgePresetRev,
       networkLogo,
       setNetworkLogo,
+      networkLogoPosition,
+      setNetworkLogoPosition,
       preRelease,
       setPreRelease,
       ribbonSide,
@@ -1030,6 +1046,8 @@ export function PosterEditorProvider({
       setDefaultLandscapeFitEnabled,
       defaultNetworkLogo,
       setDefaultNetworkLogo,
+      defaultNetworkLogoPosition,
+      setDefaultNetworkLogoPosition,
       defaultPreRelease,
       setDefaultPreRelease,
       defaultRibbonSide,
@@ -1162,6 +1180,7 @@ export function PosterEditorProvider({
       badgePresetId, setBadgePresetId,
       badgePresetRev, setBadgePresetRev,
       networkLogo, setNetworkLogo,
+      networkLogoPosition, setNetworkLogoPosition,
       preRelease, setPreRelease,
       ribbonSide, setRibbonSide,
       ribbonEnabled, setRibbonEnabled,
@@ -1224,6 +1243,7 @@ export function PosterEditorProvider({
       defaultPortraitFitEnabled, setDefaultPortraitFitEnabled,
       defaultLandscapeFitEnabled, setDefaultLandscapeFitEnabled,
       defaultNetworkLogo, setDefaultNetworkLogo,
+      defaultNetworkLogoPosition, setDefaultNetworkLogoPosition,
       defaultPreRelease, setDefaultPreRelease,
       defaultRibbonSide, setDefaultRibbonSide,
       defaultRibbonEnabled, setDefaultRibbonEnabled,

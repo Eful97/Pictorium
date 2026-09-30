@@ -220,6 +220,8 @@
   "ui.tmdbKey": "Chave TMDB pessoal",
   "ui.keyTooShort": "A chave deve ter pelo menos 20 caracteres",
   "ui.networkLogo": "Logo da rede",
+  "ui.networkLogoPosition": "Posição do logo da rede",
+  "ui.networkLogoPositionTop": "Em cima",
   "ui.preRelease": "Efeito pré-digital",
   "ui.badgePosition": "Posição do selo",
   "ui.uiAccentDynamic": "Cor de destaque dinâmica",
