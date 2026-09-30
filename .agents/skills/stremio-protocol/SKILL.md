@@ -2,7 +2,7 @@
 name: stremio-protocol
 description: >
   Stremio addon contract for Pictorium: manifest (manifest.json, /u/<uuid>/
-  path variant for AIOMetadata), addonId scheme, resources (catalog, poster,
+  path variant for AIOMetadata), addonId scheme, resources (catalog,
   meta), /meta/{type}/{id} resolution and idPrefixes, catalog routes and their
   query params (u=, config=, skip=), poster endpoint contract, resolvable
   metadata IDs (tt... / provider:id — never bare numbers), headers
@@ -51,11 +51,12 @@ Never emit a bare numeric `id` as the catalog meta id.
 - URL: classic `manifest.json?u=...` OR path `/u/<uuid>/manifest.json` for
   AIOMetadata imports (they reject/break URLs with query strings).
 - `addonId`: `org.pictorium` + `.` + first 8 chars of user UUID (or config token).
-- Fields: `resources: ["catalog", "poster", { name: "meta", types, idPrefixes }]`,
+- Fields: `resources: ["catalog", { name: "meta", types, idPrefixes }]`,
   `types`, `idPrefixes`, `manifestVersion: 1`, `catalogs` from `PICTORIUM_CATALOGS`
   each with `extra: [{ name: "skip" }]`, `version: APP_VERSION` (generated).
 - Headers: `Access-Control-Allow-Origin: *`, `Content-Type: application/json`,
   `Cache-Control: no-cache, max-age=0, must-revalidate`.
+- Posters are image URLs in catalog/meta responses, not a manifest resource.
 
 ## Catalog route
 

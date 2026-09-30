@@ -3,6 +3,15 @@ import { NextRequest } from "next/server"
 import { buildManifestResponse } from "@/lib/build-manifest"
 
 describe("manifest TYPES contract (P1-1)", () => {
+  it("advertises only standard Stremio resources", async () => {
+    const res = await buildManifestResponse(new NextRequest("http://localhost:3000/manifest.json"))
+    const json = await res.json()
+    const resourceNames = json.resources.map((resource: string | { name: string }) =>
+      typeof resource === "string" ? resource : resource.name,
+    )
+    expect(resourceNames).toEqual(["catalog", "meta"])
+  })
+
   it("does not advertise Trakt/collection meta types without a handler", async () => {
     const req = new NextRequest("http://localhost:3000/manifest.json")
     const res = await buildManifestResponse(req)

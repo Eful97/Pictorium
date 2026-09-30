@@ -125,13 +125,13 @@ test.describe("meta API", () => {
 })
 
 test.describe("manifest API", () => {
-  test("base manifest has catalogs and poster+meta resources", async ({ request }) => {
+  test("base manifest has catalogs and standard catalog/meta resources", async ({ request }) => {
     const res = await request.get("/manifest.json")
     expect(res.ok()).toBeTruthy()
     const body = await res.json()
     expect(body.id.startsWith("org.pictorium")).toBeTruthy()
     expect(body.catalogs.length).toBeGreaterThan(10)
-    expect(body.resources.some((r: string | { name: string }) => typeof r === "string" ? r === "catalog" : r.name === "meta")).toBeTruthy()
+    expect(body.resources.map((r: string | { name: string }) => typeof r === "string" ? r : r.name)).toEqual(["catalog", "meta"])
   })
 
   test("manifest mode=search returns only search catalogs", async ({ request }) => {

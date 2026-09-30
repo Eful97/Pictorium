@@ -74,7 +74,7 @@ README "Tuning performance". Env vars are read at module level → restart neede
 Run these against the deployed instance:
 1. `GET /api/health` → `ok` (does not leak data path).
 2. `GET /api/status` → TMDB status, streaming, storage sections populated.
-3. `GET /manifest.json` → Stremio manifest (`resources: catalog, poster`).
+3. `GET /manifest.json` → Stremio manifest (`resources: catalog, meta`).
 4. Warmup ran: check logs for `[entrypoint] Self-warmup completed` (or
    `PICTORIUM_SELF_WARMUP=0` intentionally).
 5. On HF: confirm a Storage bucket is linked to `/data` (logs warn on boot if

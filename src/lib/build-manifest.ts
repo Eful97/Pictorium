@@ -228,7 +228,6 @@ export async function buildManifestResponse(req: NextRequest, user?: string | nu
     description: "Custom poster manager for Stremio — loghi, badge trend, premi e rating",
     resources: [
       "catalog",
-      "poster",
       {
         name: "meta",
         types: TYPES,
