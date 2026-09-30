@@ -305,6 +305,7 @@
   "ui.logoRemoved": "Logo supprimé !",
   "ui.mappingRemoved": "Supprimé",
   "ui.importSuccess": "{count} posters importés",
+  "ui.backupImportSuccess": "Sauvegarde importée : {posters} posters, {presets} presets privés, {aliases} alias",
   "ui.importError": "Fichier JSON invalide",
   "ui.refreshRateLimit": "Listes mises à jour à l'instant — réessayez dans quelques secondes",
   "ui.listsRefreshed": "Listes mises à jour",

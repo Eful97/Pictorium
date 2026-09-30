@@ -307,6 +307,7 @@
   "ui.logoRemoved": "로고를 삭제했습니다!",
   "ui.mappingRemoved": "삭제됨",
   "ui.importSuccess": "포스터 {count}개를 가져왔습니다",
+  "ui.backupImportSuccess": "백업을 가져왔습니다: 포스터 {posters}개, 비공개 프리셋 {presets}개, 별칭 {aliases}개",
   "ui.importError": "잘못된 JSON 파일",
   "ui.refreshRateLimit": "목록을 방금 업데이트했습니다 — 몇 초 후 다시 시도하세요",
   "ui.listsRefreshed": "목록을 업데이트했습니다",

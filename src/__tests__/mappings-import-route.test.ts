@@ -47,8 +47,8 @@ describe("POST /api/mappings/import (M12 — rate limit + cap)", () => {
     expect(importMappings).toHaveBeenCalledTimes(1)
   })
 
-  it("rejects a body larger than 1MB (content-length) with 413", async () => {
-    const res = await POST(mockRequest({ mappings: [] }, 2_000_000))
+  it("rejects a body larger than 2.5MB (content-length) with 413", async () => {
+    const res = await POST(mockRequest({ mappings: [] }, 3_000_000))
     expect(res.status).toBe(413)
     expect(importMappings).not.toHaveBeenCalled()
   })

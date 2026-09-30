@@ -307,6 +307,7 @@
   "ui.logoRemoved": "Logotyp usunięty!",
   "ui.mappingRemoved": "Usunięto",
   "ui.importSuccess": "Zaimportowano {count} plakatów",
+  "ui.backupImportSuccess": "Zaimportowano kopię: {posters} plakatów, {presets} prywatnych presetów, {aliases} aliasów",
   "ui.importError": "Nieprawidłowy plik JSON",
   "ui.refreshRateLimit": "Listy właśnie zostały zaktualizowane — spróbuj ponownie za kilka sekund",
   "ui.listsRefreshed": "Listy zaktualizowane",

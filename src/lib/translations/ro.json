@@ -307,6 +307,7 @@
   "ui.logoRemoved": "Logo eliminat!",
   "ui.mappingRemoved": "Eliminat",
   "ui.importSuccess": "S-au importat {count} postere",
+  "ui.backupImportSuccess": "Backup importat: {posters} postere, {presets} preseturi private, {aliases} aliasuri",
   "ui.importError": "Fișier JSON nevalid",
   "ui.refreshRateLimit": "Listele tocmai au fost actualizate — reîncearcă în câteva secunde",
   "ui.listsRefreshed": "Liste actualizate",

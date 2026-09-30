@@ -307,6 +307,7 @@
   "ui.logoRemoved": "Logo kaldırıldı!",
   "ui.mappingRemoved": "Kaldırıldı",
   "ui.importSuccess": "{count} poster içe aktarıldı",
+  "ui.backupImportSuccess": "Yedek içe aktarıldı: {posters} poster, {presets} özel hazır ayar, {aliases} takma ad",
   "ui.importError": "Geçersiz JSON dosyası",
   "ui.refreshRateLimit": "Listeler az önce güncellendi — birkaç saniye sonra tekrar deneyin",
   "ui.listsRefreshed": "Listeler güncellendi",

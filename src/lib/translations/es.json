@@ -309,6 +309,7 @@
   "ui.logoRemoved": "¡Logo eliminado!",
   "ui.mappingRemoved": "Eliminado",
   "ui.importSuccess": "{count} pósters importados",
+  "ui.backupImportSuccess": "Copia importada: {posters} pósters, {presets} presets privados, {aliases} alias",
   "ui.importError": "Archivo JSON inválido",
   "ui.refreshRateLimit": "Listas recién actualizadas — inténtalo de nuevo en unos segundos",
   "ui.listsRefreshed": "Listas actualizadas",

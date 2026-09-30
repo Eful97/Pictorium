@@ -307,6 +307,7 @@
   "ui.logoRemoved": "Logotyp borttagen!",
   "ui.mappingRemoved": "Borttagen",
   "ui.importSuccess": "Importerade {count} posters",
+  "ui.backupImportSuccess": "Backup importerades: {posters} posters, {presets} privata presets, {aliases} alias",
   "ui.importError": "Ogiltig JSON-fil",
   "ui.refreshRateLimit": "Listorna uppdaterades just — försök igen om några sekunder",
   "ui.listsRefreshed": "Listor uppdaterade",

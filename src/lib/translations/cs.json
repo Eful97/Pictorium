@@ -307,6 +307,7 @@
   "ui.logoRemoved": "Logo odebráno!",
   "ui.mappingRemoved": "Odebráno",
   "ui.importSuccess": "Importováno {count} plakátů",
+  "ui.backupImportSuccess": "Záloha importována: {posters} plakátů, {presets} soukromých presetů, {aliases} aliasů",
   "ui.importError": "Neplatný JSON soubor",
   "ui.refreshRateLimit": "Seznamy byly právě aktualizovány — zkus to za pár sekund",
   "ui.listsRefreshed": "Seznamy aktualizovány",

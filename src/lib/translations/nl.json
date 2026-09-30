@@ -307,6 +307,7 @@
   "ui.logoRemoved": "Logo verwijderd!",
   "ui.mappingRemoved": "Verwijderd",
   "ui.importSuccess": "{count} posters geïmporteerd",
+  "ui.backupImportSuccess": "Backup geïmporteerd: {posters} posters, {presets} privé-presets, {aliases} aliassen",
   "ui.importError": "Ongeldig JSON-bestand",
   "ui.refreshRateLimit": "Lijsten zijn net bijgewerkt — probeer het over een paar seconden opnieuw",
   "ui.listsRefreshed": "Lijsten bijgewerkt",

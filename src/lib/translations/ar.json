@@ -307,6 +307,7 @@
   "ui.logoRemoved": "تمت إزالة الشعار!",
   "ui.mappingRemoved": "تمت الإزالة",
   "ui.importSuccess": "تم استيراد {count} ملصقات",
+  "ui.backupImportSuccess": "تم استيراد النسخة: {posters} ملصقات، {presets} إعدادات خاصة، {aliases} أسماء بديلة",
   "ui.importError": "ملف JSON غير صالح",
   "ui.refreshRateLimit": "تم تحديث القوائم للتو — حاول مجددا بعد ثوان",
   "ui.listsRefreshed": "تم تحديث القوائم",

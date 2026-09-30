@@ -307,6 +307,7 @@
   "ui.logoRemoved": "ロゴを削除しました!",
   "ui.mappingRemoved": "削除しました",
   "ui.importSuccess": "{count}件のポスターをインポートしました",
+  "ui.backupImportSuccess": "バックアップをインポート: ポスター{posters}件、プライベートプリセット{presets}件、エイリアス{aliases}件",
   "ui.importError": "無効なJSONファイル",
   "ui.refreshRateLimit": "リストは更新済みです — 数秒後にもう一度お試しください",
   "ui.listsRefreshed": "リストを更新しました",
