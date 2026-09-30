@@ -18,6 +18,12 @@ function stubFetch(res: Response) {
   return async () => res
 }
 
+/** Stub a due risposte in sequenza (pagina HTML poi byte immagine). */
+function stubFetchSequence(responses: Response[]) {
+  let i = 0
+  return async () => responses[Math.min(i++, responses.length - 1)]
+}
+
 function imageResponse(body: Buffer | string, contentType: string, status = 200): Response {
   return new Response(body as unknown as BodyInit, {
     status,
@@ -153,14 +159,48 @@ describe("resolveToImageUrl", () => {
     )
   })
 
-  it("risolve una pagina via og:image con upgrade Pinterest", async () => {
+  it("risolve una pagina via og:image con upgrade Pinterest (byte verificati)", async () => {
     const html = `<html><head><meta property="og:image" content="https://i.pinimg.com/736x/ab/12/x.jpg"></head></html>`
     const r = await resolveToImageUrl("https://www.pinterest.com/pin/123/", {
       ...noBlock,
-      fetchRemote: stubFetch(imageResponse(html, "text/html")),
+      fetchRemote: stubFetchSequence([
+        imageResponse(html, "text/html"),
+        imageResponse(PNG_1X1, "image/jpeg"),
+      ]),
     })
     expect(r.source).toBe("og:image")
     expect(r.imageUrl).toBe("https://i.pinimg.com/originals/ab/12/x.jpg")
+    expect(r.width).toBe(1)
+  })
+
+  it("rifiuta og:image che non si scarica come immagine (fail fast, niente tile rotto)", async () => {
+    const html = `<html><head><meta property="og:image" content="https://i.pinimg.com/736x/ab/12/x.jpg"></head></html>`
+    await expectResolveError(
+      "https://www.pinterest.com/pin/123/",
+      {
+        ...noBlock,
+        fetchRemote: stubFetchSequence([
+          imageResponse(html, "text/html"),
+          imageResponse("<html>bot-wall</html>", "text/html"),
+        ]),
+      },
+      415,
+    )
+  })
+
+  it("rifiuta og:image con upstream non-ok", async () => {
+    const html = `<html><head><meta property="og:image" content="https://i.imgur.com/gone.jpg"></head></html>`
+    await expectResolveError(
+      "https://imgur.com/gallery/abc",
+      {
+        ...noBlock,
+        fetchRemote: stubFetchSequence([
+          imageResponse(html, "text/html"),
+          imageResponse("gone", "image/jpeg", 403),
+        ]),
+      },
+      502,
+    )
   })
 
   it("rifiuta pagine senza immagine estraibile", async () => {

@@ -251,7 +251,19 @@ export interface SafeFetchOptions {
   /** Predicato opzionale di allowlist, valutato su OGNI hop (incluso il primo). */
   isAllowedUrl?: (url: URL) => boolean
   maxRedirects?: number
+  /** Header extra (merge sopra i default). */
+  headers?: Record<string, string>
 }
+
+/**
+ * UA browser di default: diversi CDN/WAF (es. i.pinimg.com) rispondono 403
+ * agli UA bot/undici, mentre servono i browser. Senza, il server non riesce
+ * a scaricare byte che il browser carica senza problemi (thumb ok, render
+ * 404). Vale per tutti i consumer: anche i manifest upstream beneficiano
+ * dell'UA browser (massima compatibilità).
+ */
+const DEFAULT_UA =
+  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
 
 /**
  * Esegue un fetch con redirect manuali, validando ogni destinazione.
@@ -283,6 +295,7 @@ export async function safeFetchRemote(
     const fetchOpts = {
       signal: options.signal,
       redirect: "manual",
+      headers: { "User-Agent": DEFAULT_UA, Accept: "*/*", ...options.headers },
       ...(safe ? { dispatcher: safe.dispatcher } : {}),
     } as unknown as RequestInit
     const res = await fetchFn(currentUrl, fetchOpts)

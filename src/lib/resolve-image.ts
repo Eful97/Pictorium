@@ -149,12 +149,13 @@ function finalUrlOf(res: Response, fallback: string): string {
 }
 
 /**
- * Risolve un URL utente a un'immagine diretta verificata.
+ * Risolve un URL utente a un'immagine diretta VERIFICATA (byte scaricati e
+ * decodificati, non solo estratti dalla pagina): se il tile viene aggiunto,
+ * il render riuscirà a scaricare gli stessi byte (stessi check, stesso UA).
  * - URL immagine diretta: scarica (cap 10MB) e verifica che sharp decodifichi
  *   davvero i byte (chiude il buco "estensione .jpg che serve HTML").
  * - Pagina web allowlisted: probe HTML (cap 2MB) → og:image → l'URL finale
- *   deve a sua volta passare allowlist + blocco SSRF. La decodificabilità
- *   dell'og:image è verificata al render (fallback TMDB in parallelo).
+ *   deve a sua volta passare allowlist + blocco SSRF + verifica byte.
  */
 export async function resolveToImageUrl(rawUrl: string, deps?: ResolveDeps): Promise<ResolveImageResult> {
   const fetchRemote = deps?.fetchRemote ?? defaultFetchRemote
@@ -195,20 +196,8 @@ export async function resolveToImageUrl(rawUrl: string, deps?: ResolveDeps): Pro
     if (!contentType.startsWith("image/")) {
       throw new ResolveImageError(415, "URL did not resolve to an image")
     }
-    let buf: Buffer
-    try {
-      buf = await readBodyCapped(res, MAX_IMAGE_BYTES)
-    } catch (e) {
-      if (e instanceof BodyTooLargeError) throw new ResolveImageError(413, e.message)
-      throw new ResolveImageError(502, "Failed to read image body")
-    }
-    try {
-      const meta = await sharp(buf).metadata()
-      if (!meta.width || !meta.height) throw new Error("no dimensions")
-      return { imageUrl: finalUrlOf(res, parsed.href), source: "direct", width: meta.width, height: meta.height }
-    } catch {
-      throw new ResolveImageError(415, "Response body is not a decodable image")
-    }
+    const verified = await verifyImageResponse(res, finalUrlOf(res, parsed.href))
+    return { imageUrl: verified.url, source: "direct", width: verified.width, height: verified.height }
   }
 
   // Caso pagina: solo HTML, body cappato, poi og:image.
@@ -243,6 +232,49 @@ export async function resolveToImageUrl(rawUrl: string, deps?: ResolveDeps): Pro
     throw new ResolveImageError(403, "Extracted image target blocked")
   }
   const finalImage = resolved.hostname === "i.pinimg.com" ? upgradePinterestImageQuality(resolved.href) : resolved.href
+  // Fail fast: verifica che l'immagine estratta si scarichi e decodifichi
+  // DAVVERO (stessi check del render). Senza, un og:image morente diventa un
+  // tile che in preview rende 404 ("Immagine non disponibile").
+  let imgRes: Response
+  try {
+    imgRes = await fetchRemote(finalImage, signal)
+  } catch (e) {
+    if (e instanceof ResolveImageError) throw e
+    throw new ResolveImageError(502, e instanceof Error ? e.message : "Fetch failed")
+  }
+  if (!imgRes.ok) {
+    throw new ResolveImageError(502, `Image upstream responded with status ${imgRes.status}`)
+  }
+  const verified = await verifyImageResponse(imgRes, finalImage)
   log.info("Resolved page to image", { source: parsed.hostname })
-  return { imageUrl: finalImage, source: "og:image" }
+  return { imageUrl: verified.url, source: "og:image", width: verified.width, height: verified.height }
+}
+
+/**
+ * Verifica che una risposta immagine (cap 10MB) contenga byte che sharp
+ * decodifica davvero. Qualsiasi fallimento → errore tipizzato per la route.
+ */
+async function verifyImageResponse(
+  res: Response,
+  fallbackUrl: string,
+): Promise<{ url: string; width: number; height: number }> {
+  const contentType = (res.headers.get("content-type") || "").toLowerCase()
+  if (!contentType.startsWith("image/")) {
+    throw new ResolveImageError(415, "URL did not resolve to an image")
+  }
+  let buf: Buffer
+  try {
+    buf = await readBodyCapped(res, MAX_IMAGE_BYTES)
+  } catch (e) {
+    if (e instanceof BodyTooLargeError) throw new ResolveImageError(413, e.message)
+    throw new ResolveImageError(502, "Failed to read image body")
+  }
+  try {
+    const meta = await sharp(buf).metadata()
+    if (!meta.width || !meta.height) throw new Error("no dimensions")
+    const finalUrl = finalUrlOf(res, fallbackUrl)
+    return { url: finalUrl, width: meta.width, height: meta.height }
+  } catch {
+    throw new ResolveImageError(415, "Response body is not a decodable image")
+  }
 }
