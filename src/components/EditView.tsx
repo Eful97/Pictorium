@@ -13,6 +13,7 @@ import { effectiveMappingForShape, type LandscapeSettings } from "@/lib/types"
 import { isGradientDirtyForShape, isArtworkDirty } from "@/lib/gradient-dirty"
 import { PosterOptions } from "@/components/PosterOptions"
 import { BackdropOptions } from "@/components/BackdropOptions"
+import { CustomPosterUrl } from "@/components/CustomPosterUrl"
 import { LogoOptions } from "@/components/LogoOptions"
 import { EditorPanel } from "@/components/EditorPanel"
 import { copyText } from "@/lib/clipboard"
@@ -517,9 +518,12 @@ export default function EditView() {
                 ) : isLandscape ? (
                   <BackdropOptions backdrops={ed.backdrops} backdropActivePath={ed.selectedBackdrop?.file_path ?? null} selectBackdrop={handleSelectBackdrop} clearBackdrop={removeBackdrop} loading={loadingImages} />
                 ) : (
-                  <PosterOptions posters={posters} posterActivePath={posterActivePath}
-                    lang={lang} selectPoster={handleSelectPoster} activeGroup={activePosterTab} onActiveGroupChange={setActivePosterTab}
-                    showTabs />
+                  <>
+                    <PosterOptions posters={posters} posterActivePath={posterActivePath}
+                      lang={lang} selectPoster={handleSelectPoster} activeGroup={activePosterTab} onActiveGroupChange={setActivePosterTab}
+                      showTabs />
+                    <CustomPosterUrl />
+                  </>
                 )}
               </EditorPanel>
             </div>

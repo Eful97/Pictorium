@@ -80,6 +80,7 @@ import { NON_CLEAN_BLUR_FADE, NON_CLEAN_GRADIENT_HEIGHT } from "@/lib/gradient-d
 import { LAND_W, LAND_H, landscapeBackdropUrl, pillarboxLandscapeBase, cropBackdropToPortrait } from "@/lib/image-utils"
 import { generatePosterBuffer, type GenerationInput } from "@/lib/poster-service"
 import { computeTopBadge } from "@/lib/poster-badge"
+import { fetchPosterBaseWithCustom, customBaseAnalysisKey } from "@/lib/custom-poster-base"
 
 import { resolveImdbToTmdb } from "@/lib/imdb-resolver"
 import { getTvdbArtworks, getTvdbMovieId, getTvdbSeriesId, pickTvdbPoster } from "@/lib/tvdb"
@@ -1261,6 +1262,13 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
       wikidataId = await resolveWikidataId(mediaType, tmdbId, effTmdbKey, 1500)
     }
 
+    // Base custom da URL salvato: solo portrait (il landscape usa il backdrop
+    // TMDB). Scaricata in PARALLELO al TMDB con fallback automatico — mai in
+    // serie (deadline render 8.5s su Vercel). La validazione SSRF avviene a
+    // ogni render dentro fetchPosterBaseWithCustom: l'URL salvato resta input
+    // utente, mai fidato.
+    const customPosterUrl = !earlyLandscape && mapping?.customPosterUrl ? mapping.customPosterUrl : null
+
     // 5. Fetch all data in parallel: images + rankings + quality + wikidata + keywords + imdbTop250
     //    All dependencies are available before this point — no Block B depends on Block A
     const emptyWikidata = { awards: [], nominations: [], studios: [], director: null }
@@ -1269,14 +1277,16 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
     // degraded del risultato copre i fallimenti strutturali, questa il timeout.
     let wikidataRaceTimedOut = false
     const [
-      [originalBuf, logoFetch, backdropFetch, rankingResult, animeRankResult, rawLiveQuality, preReleaseDetected],
+      [originalBase, logoFetch, backdropFetch, rankingResult, animeRankResult, rawLiveQuality, preReleaseDetected],
       [wikidataResult, tmdbKeywords, imdbTop250],
     ] = await Promise.all([
       // Block A: images + ranking data + quality
       Promise.all([
         posterPathBuffer
-          ? Promise.resolve(posterPathBuffer)
-          : fetchImg(imgSrc(posterPath), renderAbort.signal).catch(() => null),
+          ? Promise.resolve({ buf: posterPathBuffer, custom: false })
+          : customPosterUrl
+            ? fetchPosterBaseWithCustom(customPosterUrl, imgSrc(posterPath), renderAbort.signal)
+            : fetchImg(imgSrc(posterPath), renderAbort.signal).catch(() => null).then((buf) => (buf ? { buf, custom: false } : null)),
         logoPathBuffer
           ? Promise.resolve(logoPathBuffer)
           : logoPath ? fetchLogoImg(logoPath, renderAbort.signal).catch(() => null) : Promise.resolve(null),
@@ -1479,6 +1489,11 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
       ]),
     ])
 
+    // Base portrait: l'URL custom vince solo se scaricato e validato,
+    // altrimenti vale il TMDB (fallback parallelo, mai seriale).
+    const originalBuf = originalBase?.buf ?? null
+    const customBaseUsed = originalBase?.custom ?? false
+
     // Normalizza il risultato qualità (oggetto statusato oppure legacy string /
     // null da `?quality=` e dai mock): da qui in poi solo StreamQualityResult.
     // Nota: la decisione effimera (TTL) sta dopo resolvePosterRenderConfig e
@@ -1562,8 +1577,12 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
     // effettivi della base, non il path nominale. Il pillarbox landscape deriva
     // dal poster e il resize backdrop dal backdrop: a parità di path sono byte
     // diversi e devono restare entry separate. Null → ricalcolo senza cache.
+    // Base custom: hash dell'URL, mai l'URL in chiaro (e mai il posterPath
+    // TMDB, che con base custom non descrive i byte renderizzati).
     const analysisKey = !isLandscape
-      ? (posterPath ? `portrait:poster:${posterPath}` : null)
+      ? (customBaseUsed && mapping?.customPosterUrl
+        ? customBaseAnalysisKey(mapping.customPosterUrl)
+        : (posterPath ? `portrait:poster:${posterPath}` : null))
       : backdropFetch
         ? (backdropPath ? `landscape:backdrop:${backdropPath}` : null)
         : (posterPath ? `landscape:pillarbox:${posterPath}` : null)

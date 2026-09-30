@@ -76,6 +76,8 @@ export interface Mapping {
   mediaType: "movie" | "tv"
   title: string
   posterPath: string
+  /** Base image esterna da custom URL import (solo portrait). Null = base TMDB. */
+  customPosterUrl?: string | null
   logoPath: string | null
   originalPosterPath: string | null
   language: string | null

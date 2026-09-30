@@ -46,6 +46,9 @@ const limits: Record<string, BucketConfig> = {
   poster:  { maxTokens: POSTER_MAX_TOKENS, refillRate: 20, refillWindow: 1000 },
   search:  { maxTokens: 30,  refillRate: 3,  refillWindow: 1000 },
   mappings: { maxTokens: 120, refillRate: 10, refillWindow: 1000 },
+  // Resolve-image: oracolo di fetch su host esterni — burst contenuto e
+  // refill lento. La legittima UI ne fa uno per click su "Test".
+  "resolve-image": { maxTokens: 10, refillRate: 1, refillWindow: 6000 },
   presets:  { maxTokens: 120, refillRate: 10, refillWindow: 1000 },
   catalog:  { maxTokens: 60,  refillRate: 5,  refillWindow: 1000 },
   // Warmup: operazione pesante (rende molti poster) — burst basso e refill lento

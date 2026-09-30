@@ -102,6 +102,10 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<RouteP
     badgeRank: parsed.data.badgeRank ?? existing.badgeRank,
     badgeLabel: parsed.data.badgeLabel ?? existing.badgeLabel,
     animeRank: hasField("animeRank") ? (parsed.data.animeRank ?? null) : existing.animeRank,
+    // Base custom da URL esterno: presente → salva (null = rimuovi), assente →
+    // preserva. updatedAt viene sempre bumpato → `mv` negli URL Stremio e
+    // `:mu` nella cache key invalidano il poster precedente.
+    customPosterUrl: hasField("customPosterUrl") ? (parsed.data.customPosterUrl ?? null) : existing.customPosterUrl,
     releaseDate: parsed.data.releaseDate ?? existing.releaseDate,
     firstAirDate: parsed.data.firstAirDate ?? existing.firstAirDate,
     logoDisabled: parsed.data.logoDisabled ?? existing.logoDisabled,

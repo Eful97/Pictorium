@@ -7,6 +7,13 @@ export const mappingSchema = z.object({
   mediaType: z.enum(["movie", "tv"]),
   title: z.string().min(1),
   posterPath: z.string().min(1),
+  // Base image esterna (custom URL import): solo http/https, max 2000 char.
+  // La sicurezza SSRF non dipende dallo schema ma dai check al render
+  // (allowlist + DNS/IP + redirect manuali): qui si rifiuta solo il non-URL.
+  customPosterUrl: z.string().url().max(2000).refine(
+    (v) => v.startsWith("http://") || v.startsWith("https://"),
+    { message: "Only HTTP/HTTPS URLs allowed" },
+  ).nullable().optional(),
   logoPath: z.string().nullable().optional(),
   originalPosterPath: z.string().nullable().optional(),
   language: z.string().nullable().optional(),
