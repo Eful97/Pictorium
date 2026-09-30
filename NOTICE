@@ -1,0 +1,25 @@
+Pictorium — NOTICE
+==================
+
+Pictorium — Dynamic poster generator for movies and TV shows.
+Copyright (C) 2025 Eful97 <https://github.com/Eful97/Pictorium>
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as published
+by the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version. See the LICENSE file for details.
+
+Inspired by erdb (https://github.com/realbestia1/erdb) by realbestia1,
+also licensed under AGPL v3.
+
+Additional term under AGPL-3.0 section 7(b) — preservation of attribution:
+when you convey this work or a modified version of it, you must preserve
+this NOTICE file and the copyright notice above, keep a visible credit to
+the original project (name "Pictorium", author "Eful97", and the URL
+https://github.com/Eful97/Pictorium) in your README and in your
+application's interface or documentation, and state prominently that you
+modified the work, with a relevant date (AGPL-3.0 section 5(a)).
+
+Fork provenance: if you publish a derivative on GitHub, please use the
+"Fork" button on https://github.com/Eful97/Pictorium so the fork network
+stays connected to the original project.

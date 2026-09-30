@@ -337,7 +337,9 @@ npm run verify
 
 ## 📄 License & Credits
 
-* Released under open-source **GNU Affero General Public License v3.0 (AGPL-3.0)**.
+* Released under open-source **GNU Affero General Public License v3.0 (AGPL-3.0)** — see [LICENSE](LICENSE) and [NOTICE](NOTICE).
+* Copyright (C) 2025 **Eful97** — https://github.com/Eful97/Pictorium
+* Forks and derivatives must preserve attribution per [NOTICE](NOTICE) (AGPL-3.0 §5a/§7b): keep the copyright notice, credit Pictorium by Eful97 with a link, and state prominently what you changed and when. On GitHub, please use the **Fork** button so provenance stays connected.
 * Inspired by the [erdb](https://github.com/realbestia1/erdb) project by realbestia1.
 * Metadata provided by [TMDb](https://www.themoviedb.org/), [TheTVDB](https://thetvdb.com/) and [JustWatch](https://www.justwatch.com/).
 * Network and studio logos courtesy of [Wikimedia Commons](https://commons.wikimedia.org/).

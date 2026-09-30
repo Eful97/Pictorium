@@ -11,6 +11,7 @@ export async function GET(): Promise<Response> {
       license: "AGPL-3.0-only",
       licenseUrl: "https://www.gnu.org/licenses/agpl-3.0.html",
       licenseFile: "/LICENSE",
+      noticeFile: "/NOTICE",
       source: "https://github.com/Eful97/Pictorium",
       copyright: "Copyright (C) 2025 Eful97",
       notice:
