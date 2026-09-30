@@ -80,7 +80,7 @@ import { NON_CLEAN_BLUR_FADE, NON_CLEAN_GRADIENT_HEIGHT } from "@/lib/gradient-d
 import { LAND_W, LAND_H, landscapeBackdropUrl, pillarboxLandscapeBase, cropBackdropToPortrait } from "@/lib/image-utils"
 import { generatePosterBuffer, type GenerationInput } from "@/lib/poster-service"
 import { computeTopBadge } from "@/lib/poster-badge"
-import { fetchPosterBaseWithCustom, customBaseAnalysisKey, resolveEffectiveCustomUrl, safeTmdbImgSrc } from "@/lib/custom-poster-base"
+import { fetchPosterBaseWithCustom, customBaseAnalysisKey, resolveEffectiveCustomUrl, safeTmdbImgSrc, isAllowedQueryImagePath } from "@/lib/custom-poster-base"
 import { isCustomPosterUrl } from "@/lib/utils"
 
 import { resolveImdbToTmdb } from "@/lib/imdb-resolver"
@@ -315,11 +315,18 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
   // funzione usata dal render — nessuna deriva). Prima un URL esterno
   // falliva dentro il try del render → 500 + negative-cache per un errore
   // del client, intasando log e slot. Ora 400 immediato.
+  // Eccezione: `poster` accetta anche URL http(s) su host allowlist (base
+  // custom da tile esterno — isAllowedQueryImagePath). Logo/backdrop restano
+  // strict TMDB/TVDB: il custom è portrait-only, mai sfondi o loghi.
   for (const imgKey of ["poster", "logo", "backdrop"] as const) {
     const imgPath = req.nextUrl.searchParams.get(imgKey)
     if (imgPath) {
       try {
-        imgSrc(imgPath)
+        if (imgKey === "poster") {
+          if (!isAllowedQueryImagePath(imgPath)) throw new Error(`Blocked query image URL`)
+        } else {
+          imgSrc(imgPath)
+        }
       } catch {
         return new Response(`Invalid query parameter: ${imgKey}`, { status: 400, headers: corsHeaders() })
       }

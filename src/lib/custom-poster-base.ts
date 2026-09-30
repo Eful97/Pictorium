@@ -101,6 +101,31 @@ export function safeTmdbImgSrc(path: string): string | null {
   }
 }
 
+/**
+ * Gate R2 per i path immagine in query: TMDB/TVDB via imgSrc (invariato) +
+ * URL esterni http(s) su host allowlist (solo `poster`, la base custom).
+ * La SSRF piena (DNS/IP/redirect) resta al fetch dentro
+ * fetchPosterBaseWithCustom; qui solo check sintattico veloce prima di
+ * cache key/slot/inflight. Logo/backdrop restano strict (mai URL custom).
+ */
+export function isAllowedQueryImagePath(value: string): boolean {
+  try {
+    imgSrc(value)
+    return true
+  } catch {
+    // Non-TMDB: solo URL http(s) su host allowlist delle sorgenti custom.
+    try {
+      const u = new URL(value.trim())
+      return (
+        (u.protocol === "http:" || u.protocol === "https:") &&
+        isAllowedResolveHost(u.hostname)
+      )
+    } catch {
+      return false
+    }
+  }
+}
+
 /** Selezione pura della base: custom valida vince, altrimenti TMDB, altrimenti null. */
 export function pickPosterBase(custom: Buffer | null, tmdb: Buffer | null): PosterBaseResult | null {
   if (custom) return { buf: custom, custom: true }

@@ -3,6 +3,7 @@ import {
   customBaseAnalysisKey,
   fetchPosterBaseWithCustom,
   fetchValidatedCustomImage,
+  isAllowedQueryImagePath,
   pickPosterBase,
   resolveEffectiveCustomUrl,
   safeTmdbImgSrc,
@@ -203,6 +204,27 @@ describe("splitCustomPosterSave", () => {
       posterPath: "/abc.jpg",
       customPosterUrl: null,
     })
+  })
+})
+
+describe("isAllowedQueryImagePath", () => {
+  it("accetta path TMDB e URL su host allowlist", () => {
+    expect(isAllowedQueryImagePath("/abc123.jpg")).toBe(true)
+    expect(isAllowedQueryImagePath("https://i.pinimg.com/originals/93/9f/d0/x.jpg")).toBe(true)
+    expect(isAllowedQueryImagePath("https://www.pinterest.it/pin/123/")).toBe(true)
+  })
+
+  it("rifiuta host fuori allowlist e scheme non-HTTP", () => {
+    expect(isAllowedQueryImagePath("https://evil.com/x.jpg")).toBe(false)
+    expect(isAllowedQueryImagePath("http://evil.com/x.jpg")).toBe(false)
+    expect(isAllowedQueryImagePath("https://evilpinterest.com/x.jpg")).toBe(false)
+    expect(isAllowedQueryImagePath("https://i.imgur.com.evil.com/x.jpg")).toBe(false)
+    // "ftp://…" non inizia per "http": come prima vale come path TMDB (404
+    // al fetch verso image.tmdb.org, mai SSRF) — parità storica, non un buco.
+    expect(isAllowedQueryImagePath("ftp://i.imgur.com/x.jpg")).toBe(true)
+    // Stringa non-URL senza scheme: come prima, vale come path TMDB (404 al
+    // fetch, mai 400) — comportamento storico invariato.
+    expect(isAllowedQueryImagePath("not-a-url")).toBe(true)
   })
 })
 
