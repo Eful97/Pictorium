@@ -209,6 +209,21 @@ input[type="range"]::-moz-range-thumb:active {
   to { opacity: 0; transform: translateY(-8px) scale(0.96); }
 }
 
+/* Toast in stile schizzo/acquerello: bordo irregolare tratto a mano +
+ * lavata d'acquerello sul fondo. Solo estetica: posizione e durata restano
+ * quelle del Toaster / delle singole chiamate. */
+[data-sonner-toast] {
+  border-radius: 18px 5px 16px 6px / 6px 16px 5px 18px !important;
+  border: 1.5px solid rgba(255, 255, 255, 0.16) !important;
+  background:
+    radial-gradient(130% 100% at 12% 0%, rgba(232, 93, 42, 0.13), transparent 55%),
+    radial-gradient(120% 120% at 88% 100%, rgba(245, 158, 11, 0.09), transparent 55%),
+    rgb(24, 24, 27) !important;
+}
+[data-sonner-toast][data-type="success"] {
+  border-color: rgba(232, 93, 42, 0.55) !important;
+}
+
 @keyframes scale-in {
   from { opacity: 0; transform: scale(0.92); }
   to { opacity: 1; transform: scale(1); }
@@ -1228,7 +1243,7 @@ select:focus-visible {
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.12em;
-  color: var(--color-accent-orange);
+  color: #fff;
   background: rgb(var(--accent-rgb) / 0.10);
   border: 1px solid rgb(var(--accent-rgb) / 0.22);
 }

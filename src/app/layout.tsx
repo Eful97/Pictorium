@@ -58,7 +58,7 @@ export default function RootLayout({
         </a>
         <main id="main-content">{children}</main>
         <Toaster
-          position="bottom-center"
+          position="bottom-right"
           duration={3000}
           closeButton={false}
           richColors

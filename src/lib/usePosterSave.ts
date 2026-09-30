@@ -488,7 +488,11 @@ export function usePosterSave(deps: PosterSaveDeps) {
         }),
       })
       setPreviewId(`${selected.media_type}:${selected.id}`)
-      if (!overrides.silent) import("sonner").then(({ toast }) => toast(t("ui.saveSuccess")))
+      // Conferma discreta: vita breve (lo stile schizzo/arancio viene dal
+      // CSS globale dei toast). Gli errori restano banner informativi.
+      if (!overrides.silent) import("sonner").then(({ toast }) => toast(t("ui.saveSuccess"), {
+        duration: 2000,
+      }))
       await loadMappings()
       return true
     } catch (error) {
