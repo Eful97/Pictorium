@@ -11,12 +11,12 @@ export interface RecentChange {
 }
 
 export const RECENT_CHANGES: RecentChange[] = [
+  { type: "fix", text: "Restore TVDB and IMDb custom catalogs", sha: "91261a7", date: "2026-09-30" },
+  { type: "feature", text: "Official Trakt and TVDB lists, IMDb CSV import and clearer catalog errors", sha: "7f83f47", date: "2026-09-30" },
+  { type: "feature", text: "Calmer preview, readable controls and unified notifications", sha: "f88da74", date: "2026-09-30" },
+  { type: "feature", text: "Configurable release date format for the Upcoming badge", sha: "1a3f181", date: "2026-09-30" },
   { type: "feature", text: "Remove button for added custom poster tiles", sha: "0c450c5", date: "2026-09-30" },
   { type: "fix", text: "Allow custom poster URLs through the R2 image gate in previews", sha: "7d01edb", date: "2026-09-30" },
   { type: "fix", text: "Send browser UA for remote fetches and verify og:image bytes at resolve time", sha: "a00f866", date: "2026-09-30" },
   { type: "feature", text: "Keep unsaved custom poster tiles across reloads", sha: "57a3f19", date: "2026-09-30" },
-  { type: "feature", text: "Add custom poster tiles with one-click import and live preview", sha: "8838552", date: "2026-09-30" },
-  { type: "feature", text: "Custom poster URL import from Pinterest, Imgur and Reddit", sha: "cae43b9", date: "2026-09-30" },
-  { type: "feature", text: "Network logo top mode that follows the ribbon side", sha: "5bc3ce4", date: "2026-09-30" },
-  { type: "feature", text: "Full-space backup with settings, presets and preferences", sha: "3f8b7a2", date: "2026-09-30" },
 ]

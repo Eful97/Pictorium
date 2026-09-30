@@ -31,6 +31,7 @@ const RENDER_FILES = [
   "src/lib/badges.ts",
   "src/lib/blur.ts",
   "src/lib/config-token.ts",
+  "src/lib/custom-poster-base.ts",
   "src/lib/fonts.ts",
   "src/lib/genre-normalize.ts",
   "src/lib/image-utils.ts",

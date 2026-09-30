@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest"
+import sharp from "sharp"
 import {
   extractOgImage,
   isAllowedResolveHost,
@@ -183,6 +184,35 @@ describe("resolveToImageUrl", () => {
           imageResponse(html, "text/html"),
           imageResponse("<html>bot-wall</html>", "text/html"),
         ]),
+      },
+      415,
+    )
+  })
+
+  it("rifiuta SVG come og:image anche con MIME image/*", async () => {
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="100" height="150"><rect width="100" height="150" fill="red"/></svg>`
+    const html = `<html><head><meta property="og:image" content="https://i.imgur.com/x.svg"></head></html>`
+    await expectResolveError(
+      "https://imgur.com/gallery/abc",
+      {
+        ...noBlock,
+        fetchRemote: stubFetchSequence([
+          imageResponse(html, "text/html"),
+          imageResponse(svg, "image/svg+xml"),
+        ]),
+      },
+      415,
+    )
+  })
+
+  it("rifiuta og:image oltre il cap pixel", async () => {
+    const big = await sharp({ create: { width: 6000, height: 5000, channels: 3, background: { r: 1, g: 2, b: 3 } } }).png().toBuffer()
+    const html = `<html><head><meta property="og:image" content="https://i.imgur.com/big.png"></head></html>`
+    await expectResolveError(
+      "https://imgur.com/gallery/abc",
+      {
+        ...noBlock,
+        fetchRemote: stubFetchSequence([imageResponse(html, "text/html"), imageResponse(big, "image/png")]),
       },
       415,
     )

@@ -1721,7 +1721,13 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
     // senza togli/metti manuale del mapping. `degraded` assente (mock storici,
     // ramo ranking OFF deterministico) = non effimero.
     const wikidataEphemeral = wikidataResult.degraded === true || wikidataRaceTimedOut
-    const ephemeralTtl = qualityEphemeral || wikidataEphemeral
+    // Stesso trattamento per il fallback TMDB causato da custom fallito: il
+    // poster senza base custom resta in cache 2 minuti invece di 6h/24h, così
+    // un'origine tornata su guarisce al ricaricamento senza re-save manuale.
+    // Solo fallback reale (custom richiesto ma base TMDB): custom riuscito o
+    // nessun custom = TTL pieno invariato.
+    const customFallbackEphemeral = !!effectiveCustomUrl && originalBase !== null && !originalBase.custom
+    const ephemeralTtl = qualityEphemeral || wikidataEphemeral || customFallbackEphemeral
     const effectiveTtlSec = ephemeralTtl ? QUALITY_EPHEMERAL_TTL_SEC : dynamicTtlSec
     const effectiveImmutable = immutablePoster && !ephemeralTtl
 

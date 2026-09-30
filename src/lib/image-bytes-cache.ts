@@ -124,6 +124,53 @@ export function imageBytesStats(): ImageBytesStats {
   }
 }
 
+/**
+ * Lettura senza fetch (hit → buffer + promote MRU, miss/scaduto → null).
+ * Serve ai consumer con condivisione in-flight propria (basi custom): la hit
+ * non tocca la rete, il miss passa dal loro download condiviso e rientra con
+ * storeImageBytes. Stesse regole di cachedImageBytes (TTL, budget, conteggi).
+ */
+export function peekImageBytes(url: string): Buffer | null {
+  if (IMG_CACHE_BUDGET_BYTES <= 0) return null
+  const hit = bytesCache.get(url)
+  if (!hit) return null
+  if (Date.now() - hit.ts >= IMG_BYTES_TTL_MS) {
+    bytesCache.delete(url)
+    cachedBytes -= hit.buf.length
+    return null
+  }
+  // Promote a MRU.
+  bytesCache.delete(url)
+  bytesCache.set(url, hit)
+  bytesStats.hits++
+  return hit.buf
+}
+
+/**
+ * Memorizza buffer già scaricati e validati dal chiamante (mai abort/errori).
+ * Stesse regole di cachedImageBytes (cap entry, budget, max URL, MRU).
+ */
+export function storeImageBytes(url: string, buf: Buffer): void {
+  if (IMG_CACHE_BUDGET_BYTES <= 0) return
+  if (buf.length === 0 || buf.length > MAX_ENTRY_BYTES) return
+  const prev = bytesCache.get(url)
+  if (prev) {
+    bytesCache.delete(url)
+    cachedBytes -= prev.buf.length
+  }
+  evictFor(buf.length)
+  if (cachedBytes + buf.length > IMG_CACHE_BUDGET_BYTES) return
+  if (bytesCache.size >= MAX_CACHED_URLS) {
+    const evictedKey = bytesCache.keys().next().value!
+    const victim = bytesCache.get(evictedKey)!
+    bytesCache.delete(evictedKey)
+    cachedBytes -= victim.buf.length
+    bytesStats.evictions++
+  }
+  bytesCache.set(url, { buf, ts: Date.now() })
+  cachedBytes += buf.length
+}
+
 /** Solo per i test: svuota cache, inflight e contatori. */
 export function __resetImageBytesForTest(): void {
   bytesCache.clear()

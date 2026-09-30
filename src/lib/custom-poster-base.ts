@@ -1,5 +1,7 @@
-import sharp from "sharp"
 import { fetchImg, hashKey, imgSrc } from "@/lib/poster-render-helpers"
+import { ImageValidationError, validateImageBytes } from "@/lib/custom-image-validate"
+import { peekImageBytes, storeImageBytes } from "@/lib/image-bytes-cache"
+import { combineAbortSignals, raceWithAbort } from "@/lib/abort-signal"
 export { splitCustomPosterSave, type PosterSaveSplit } from "@/lib/utils"
 import { isAllowedResolveHost } from "@/lib/resolve-image"
 import {
@@ -14,6 +16,145 @@ const log = createLogger("custom-poster-base")
 
 const MAX_CUSTOM_IMAGE_BYTES = 10 * 1024 * 1024
 
+// --- Stato condiviso basi custom (byte-cache + failure cache) ---
+// La byte-cache vera vive in image-bytes-cache.ts (budget 32MB condiviso,
+// TTL 24h, cap 2000 URL): qui solo la failure map (fallimenti = niente rete
+// per 60s) e il reset per i test. Il download condiviso in-flight è più sotto.
+
+/** TTL failure cache: un'origine morta non si ricontatta per 60s. */
+export const CUSTOM_FAIL_TTL_MS = 60_000
+/** Tetto voci failure cache (con rimozione pigra delle scadute). */
+export const CUSTOM_FAIL_MAX_ENTRIES = 500
+/** Timeout proprio del download custom condiviso (indipendente dai waiter). */
+const CUSTOM_FETCH_TIMEOUT_MS = 15_000
+/** Budget custom nel parallelo col TMDB (solo con fallback noto). */
+export const CUSTOM_BUDGET_MS = 5_000
+/** Basi sopra questa taglia si rendono ma non entrano in byte-cache: non
+ *  devono mai flushare i byte TMDB dal budget condiviso (32MB). */
+const CUSTOM_CACHE_MAX_BYTES = 4 * 1024 * 1024
+
+/** url normalizzato → expiry epoch ms del fallimento. */
+const customFailures = new Map<string, number>()
+
+/** Solo per i test: svuota failure cache + download condivisi in corso. */
+export function __resetCustomImageStateForTests(): void {
+  for (const entry of customInflight.values()) {
+    clearTimeout(entry.timeout)
+    entry.controller.abort()
+  }
+  customInflight.clear()
+  customFailures.clear()
+}
+
+/**
+ * Vero per gli abort (AbortError) da QUALSIASI realm: DOMException di jsdom,
+ * undici o Node non condividono la catena `instanceof Error` tra realm, ma
+ * hanno sempre name "AbortError" (code 20). Il duck-type evita di
+ * classificare un abort come fallimento definitivo (che finirebbe nella
+ * failure cache) o, viceversa, di ingoiare errori veri.
+ */
+function isAbortError(e: unknown): boolean {
+  if (e instanceof Error && e.name === "AbortError") return true
+  if (typeof e !== "object" || e === null) return false
+  const rec = e as { name?: unknown; code?: unknown }
+  if (rec.name !== "AbortError") return false
+  return rec.code === undefined || rec.code === 20 || e instanceof Error
+}
+
+interface CustomInflightEntry {
+  refs: number
+  controller: AbortController
+  timeout: ReturnType<typeof setTimeout>
+  timeoutFired: boolean
+  promise: Promise<Buffer | null>
+}
+
+/** Un solo download attivo per URL: i render concorrenti lo condividono. */
+const customInflight = new Map<string, CustomInflightEntry>()
+
+/**
+ * Download condiviso con abort per-waiter: ogni render può staccarsi (il suo
+ * abort non uccide il download degli altri) ma quando resta zero waiter il
+ * lavoro residuo si interrompe + cleanup timer. Il download ha deadline
+ * propria (CUSTOM_FETCH_TIMEOUT_MS), indipendente dai signal dei chiamanti.
+ */
+async function sharedCustomDownload(
+  key: string,
+  callerSignal: AbortSignal,
+  work: (signal: AbortSignal) => Promise<Buffer | null>,
+): Promise<Buffer | null> {
+  if (callerSignal.aborted) {
+    throw new DOMException("Aborted", "AbortError")
+  }
+  let entry = customInflight.get(key)
+  if (!entry) {
+    const controller = new AbortController()
+    const fresh: CustomInflightEntry = {
+      refs: 0,
+      controller,
+      timeout: undefined as unknown as ReturnType<typeof setTimeout>,
+      timeoutFired: false,
+      promise: null as unknown as Promise<Buffer | null>,
+    }
+    fresh.timeout = setTimeout(() => {
+      fresh.timeoutFired = true
+      fresh.controller.abort()
+    }, CUSTOM_FETCH_TIMEOUT_MS)
+    fresh.promise = (async (): Promise<Buffer | null> => {
+      try {
+        const result = await work(controller.signal)
+        // Lavoro finito con null = origine fallita in modo definitivo.
+        if (result === null) recordCustomFailure(key)
+        return result
+      } catch (e) {
+        // Registra solo fallimenti definitivi: timeout interno = origine
+        // lenta; mai l'abort da detach (zero waiter o deadline del render),
+        // che arriva come AbortError a timeoutFired spento.
+        if (fresh.timeoutFired || !isAbortError(e)) recordCustomFailure(key)
+        throw e
+      } finally {
+        clearTimeout(fresh.timeout)
+        if (customInflight.get(key) === fresh) customInflight.delete(key)
+      }
+    })()
+    customInflight.set(key, fresh)
+    entry = fresh
+  }
+  entry.refs++
+  try {
+    return await raceWithAbort(entry.promise, callerSignal)
+  } finally {
+    entry.refs--
+    if (entry.refs <= 0) {
+      entry.controller.abort()
+    }
+  }
+}
+
+function isRecentlyFailed(key: string, now: number = Date.now()): boolean {
+  const exp = customFailures.get(key)
+  if (exp === undefined) return false
+  if (exp <= now) {
+    customFailures.delete(key)
+    return false
+  }
+  return true
+}
+
+function recordCustomFailure(key: string): void {
+  if (customFailures.size >= CUSTOM_FAIL_MAX_ENTRIES) {
+    const now = Date.now()
+    for (const [k, exp] of customFailures) {
+      if (exp <= now) customFailures.delete(k)
+    }
+    if (customFailures.size >= CUSTOM_FAIL_MAX_ENTRIES) {
+      const oldest = customFailures.keys().next().value
+      if (oldest !== undefined) customFailures.delete(oldest)
+    }
+  }
+  customFailures.set(key, Date.now() + CUSTOM_FAIL_TTL_MS)
+}
+
 export interface PosterBaseResult {
   readonly buf: Buffer
   /** True quando la base è l'URL custom (serve per analysisKey e diagnostica). */
@@ -23,15 +164,20 @@ export interface PosterBaseResult {
 export interface CustomFetchDeps {
   fetchRemote?: (url: string, signal: AbortSignal) => Promise<Response>
   checkBlocked?: (url: string) => Promise<boolean>
+  /** Override del budget custom (default CUSTOM_BUDGET_MS): solo per i test. */
+  budgetMs?: number
 }
 
 /**
  * Scarica e valida un'immagine da URL custom salvato nel mapping.
- * Ritorna null su QUALSIASI problema (host fuori allowlist, SSRF, HTTP non-ok,
- * content-type non-image, body oltre il cap, byte non decodificabili): il
- * chiamante ripiega sulla base TMDB, mai un poster rotto per un URL morto.
+ * Ritorna null su fallimento definitivo (host fuori allowlist, SSRF, HTTP
+ * non-ok, MIME/magic/pixel/animate, body oltre il cap): il chiamante ripiega
+ * sulla base TMDB, mai un poster rotto per un URL morto. L'abort del
+ * chiamante (deadline render, budget) PROPAGA invece di diventare null: un
+ * render abortito non deve continuare come zombie sul fallback.
  * La sicurezza SSRF non dipende dalla validazione dello schema ma da questi
- * check a ogni render (DNS/IP + redirect manuali via safeFetchRemote).
+ * check a ogni miss (DNS/IP + redirect manuali via safeFetchRemote).
+ * Byte-cache 24h su URL salvato + failure cache 60s + download condiviso.
  */
 export async function fetchValidatedCustomImage(
   rawUrl: string,
@@ -56,16 +202,50 @@ export async function fetchValidatedCustomImage(
   }
   if (parsed.protocol !== "http:" && parsed.protocol !== "https:") return null
   if (!isAllowedResolveHost(parsed.hostname)) return null
+  // Chiave = URL salvato normalizzato (non il finale post-redirect, che può
+  // variare per geo/instance e frammenterebbe la cache).
+  const key = parsed.href
+  if (isRecentlyFailed(key)) return null
+  const hit = peekImageBytes(key)
+  if (hit) return hit
+
+  let buf: Buffer | null
+  try {
+    buf = await sharedCustomDownload(key, signal, (sig) =>
+      downloadAndValidateCustomImage(parsed, sig, fetchRemote, checkBlocked),
+    )
+  } catch (e) {
+    // Abort del chiamante (deadline/budget): propaga, mai fallback zombie.
+    if (isAbortError(e)) throw e
+    return null
+  }
+  if (!buf) return null
+  if (buf.length > 0 && buf.length <= CUSTOM_CACHE_MAX_BYTES) {
+    storeImageBytes(key, buf)
+  }
+  return buf
+}
+
+/** Download + validazione di un URL già approvato in sintassi/allowlist.
+ *  Il check SSRF corre QUI (una volta per download condiviso, fresco anche
+ *  per i waiter tardivi), non prima: DNS rebinding safe per costruzione.
+ *  Null su fallimento definitivo, throw solo su abort. */
+async function downloadAndValidateCustomImage(
+  parsed: URL,
+  signal: AbortSignal,
+  fetchRemote: (url: string, signal: AbortSignal) => Promise<Response>,
+  checkBlocked: (url: string) => Promise<boolean>,
+): Promise<Buffer | null> {
   try {
     if (await checkBlocked(parsed.href)) return null
   } catch {
     return null
   }
-
   let res: Response
   try {
     res = await fetchRemote(parsed.href, signal)
-  } catch {
+  } catch (e) {
+    if (isAbortError(e)) throw e
     return null
   }
   if (!res.ok) return null
@@ -78,15 +258,21 @@ export async function fetchValidatedCustomImage(
   try {
     buf = await readBodyCapped(res, MAX_CUSTOM_IMAGE_BYTES)
   } catch (e) {
+    if (isAbortError(e)) throw e
     if (!(e instanceof BodyTooLargeError)) log.warn("Custom poster body read failed", { host: parsed.hostname })
     return null
   }
+  // Stesse regole del resolve (MIME raster, magic, pixel, no animate):
+  // qualsiasi rifiuto → null + fallback TMDB, mai poster rotto.
   try {
-    const meta = await sharp(buf).metadata()
-    if (!meta.width || !meta.height) return null
+    await validateImageBytes(buf, res.headers.get("content-type"))
     return buf
-  } catch {
-    log.warn("Custom poster bytes not decodable", { host: parsed.hostname })
+  } catch (e) {
+    if (isAbortError(e)) throw e
+    log.warn("Custom poster image rejected", {
+      host: parsed.hostname,
+      reason: e instanceof ImageValidationError ? e.reason : "unknown",
+    })
     return null
   }
 }
@@ -138,6 +324,10 @@ export function pickPosterBase(custom: Buffer | null, tmdb: Buffer | null): Post
  * il render ha deadline 8.5s, un fallback seriale arriverebbe troppo tardi).
  * customPosterUrl null → solo TMDB, comportamento storico invariato.
  * tmdbUrl null (nessun fallback TMDB noto) → solo tentativo custom.
+ * Budget custom 5s SOLO con fallback noto: oltre, il TMDB vince senza
+ * aspettare (mai gara al primo arrivato: un custom valido ma lento non viene
+ * ignorato finché resta nel budget). Senza fallback il custom aspetta fino
+ * alla deadline del render. La deadline vera propaga sempre (mai zombie).
  */
 export async function fetchPosterBaseWithCustom(
   customUrl: string | null | undefined,
@@ -150,8 +340,14 @@ export async function fetchPosterBaseWithCustom(
     const tmdb = await fetchImg(tmdbUrl, signal).catch(() => null)
     return pickPosterBase(null, tmdb)
   }
+  const budgetMs = deps?.budgetMs ?? CUSTOM_BUDGET_MS
+  const customSignal = tmdbUrl ? combineAbortSignals(signal, AbortSignal.timeout(budgetMs)) : signal
   const [custom, tmdb] = await Promise.all([
-    fetchValidatedCustomImage(customUrl, signal, deps).catch(() => null),
+    fetchValidatedCustomImage(customUrl, customSignal, deps).catch((e) => {
+      // Deadline vera del render: propaga. Budget scaduto: null → TMDB.
+      if (signal.aborted) throw e
+      return null
+    }),
     tmdbUrl ? fetchImg(tmdbUrl, signal).catch(() => null) : Promise.resolve(null),
   ])
   return pickPosterBase(custom, tmdb)

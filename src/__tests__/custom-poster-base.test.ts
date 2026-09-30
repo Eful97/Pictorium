@@ -1,5 +1,8 @@
-import { describe, expect, it } from "vitest"
+import { describe, expect, it, vi, beforeEach, afterEach } from "vitest"
+import sharp from "sharp"
 import {
+  CUSTOM_FAIL_TTL_MS,
+  __resetCustomImageStateForTests,
   customBaseAnalysisKey,
   fetchPosterBaseWithCustom,
   fetchValidatedCustomImage,
@@ -9,6 +12,7 @@ import {
   safeTmdbImgSrc,
   splitCustomPosterSave,
 } from "@/lib/custom-poster-base"
+import { __resetImageBytesForTest } from "@/lib/image-bytes-cache"
 import { isCustomPosterUrl } from "@/lib/utils"
 
 const PNG_1X1 = Buffer.from(
@@ -24,7 +28,50 @@ function imageResponse(body: Buffer | string, contentType: string, status = 200)
 }
 
 const noBlock = { checkBlocked: async () => false }
-const signal = AbortSignal.timeout(5000)
+// Signal fresco per test: quello condiviso scadrebbe (il modulo vive più del
+// suo timeout) e l'abort iniziale ora lancia davvero invece di passare silente.
+let signal: AbortSignal
+
+// Isolamento: le cache (byte + failure) sono module-level e condivise tra i
+// test dello stesso file — senza reset i conteggi download si inquinano.
+beforeEach(() => {
+  signal = AbortSignal.timeout(60_000)
+  __resetImageBytesForTest()
+  __resetCustomImageStateForTests()
+})
+
+afterEach(() => {
+  vi.restoreAllMocks()
+  __resetCustomImageStateForTests()
+})
+
+/** fetchRemote contatore con gate manuale (per concorrenza/cancellazioni).
+ *  Onora l'abort come un fetch reale: respinge se il signal scatta. */
+function deferredRemote() {
+  let calls = 0
+  const signals: AbortSignal[] = []
+  let resolve!: (res: Response) => void
+  const gate = new Promise<Response>((res) => { resolve = res })
+  const abortedError = () => new DOMException("Aborted", "AbortError")
+  return {
+    get calls() { return calls },
+    signals,
+    resolveOk: (body: Buffer, contentType = "image/png") => resolve(imageResponse(body, contentType)),
+    fetchRemote: async (_url: string, sig: AbortSignal) => {
+      calls++
+      signals.push(sig)
+      if (sig.aborted) throw abortedError()
+      return new Promise<Response>((resolveRes, rejectRes) => {
+        const onAbort = () => rejectRes(abortedError())
+        sig.addEventListener("abort", onAbort, { once: true })
+        gate.then(
+          (res) => { sig.removeEventListener("abort", onAbort); resolveRes(res) },
+          (e) => { sig.removeEventListener("abort", onAbort); rejectRes(e) },
+        )
+      })
+    },
+  }
+}
 
 describe("pickPosterBase", () => {
   const a = Buffer.from("custom")
@@ -233,4 +280,205 @@ describe("safeTmdbImgSrc", () => {
     expect(safeTmdbImgSrc("/abc.jpg")).toBe("https://image.tmdb.org/t/p/w500/abc.jpg")
     expect(safeTmdbImgSrc("https://i.imgur.com/x.jpg")).toBeNull()
   })
+})
+
+describe("custom download counting (baseline traffico)", () => {
+  it("due render sequenziali dello stesso custom = un solo download", async () => {
+    let calls = 0
+    const deps = {
+      ...noBlock,
+      fetchRemote: async () => {
+        calls++
+        return imageResponse(PNG_1X1, "image/png")
+      },
+    }
+    const a = await fetchValidatedCustomImage("https://i.imgur.com/x.jpg", signal, deps)
+    const b = await fetchValidatedCustomImage("https://i.imgur.com/x.jpg", signal, deps)
+    expect(a).not.toBeNull()
+    expect(b).not.toBeNull()
+    expect(calls).toBe(1)
+  })
+
+  it("due render concorrenti condividono un solo download", async () => {
+    const d = deferredRemote()
+    const deps = { ...noBlock, fetchRemote: d.fetchRemote }
+    const p1 = fetchValidatedCustomImage("https://i.imgur.com/x.jpg", signal, deps)
+    const p2 = fetchValidatedCustomImage("https://i.imgur.com/x.jpg", signal, deps)
+    await new Promise((r) => setTimeout(r, 20))
+    d.resolveOk(PNG_1X1)
+    const [a, b] = await Promise.all([p1, p2])
+    expect(a).not.toBeNull()
+    expect(b).not.toBeNull()
+    expect(d.calls).toBe(1)
+  })
+
+  it("abort del primo waiter non uccide il secondo (un download, un successo)", async () => {
+    const d = deferredRemote()
+    const deps = { ...noBlock, fetchRemote: d.fetchRemote }
+    const c1 = new AbortController()
+    const p1 = fetchValidatedCustomImage("https://i.imgur.com/x.jpg", c1.signal, deps)
+    const p2 = fetchValidatedCustomImage("https://i.imgur.com/x.jpg", signal, deps)
+    await new Promise((r) => setTimeout(r, 20))
+    c1.abort()
+    await expect(p1).rejects.toMatchObject({ name: "AbortError" })
+    d.resolveOk(PNG_1X1)
+    await expect(p2).resolves.not.toBeNull()
+    expect(d.calls).toBe(1)
+  })
+
+  it("abort di tutti interrompe la richiesta sottostante", async () => {
+    const d = deferredRemote()
+    const deps = { ...noBlock, fetchRemote: d.fetchRemote }
+    const c1 = new AbortController()
+    const c2 = new AbortController()
+    const p1 = fetchValidatedCustomImage("https://i.imgur.com/x.jpg", c1.signal, deps)
+    const p2 = fetchValidatedCustomImage("https://i.imgur.com/x.jpg", c2.signal, deps)
+    await new Promise((r) => setTimeout(r, 20))
+    c1.abort()
+    c2.abort()
+    await expect(p1).rejects.toMatchObject({ name: "AbortError" })
+    await expect(p2).rejects.toMatchObject({ name: "AbortError" })
+    expect(d.calls).toBe(1)
+    expect(d.signals.length).toBe(1)
+    expect(d.signals[0]!.aborted).toBe(true)
+  })
+
+  it("abort del chiamante non viene memorizzato come URL morto", async () => {
+    const d = deferredRemote()
+    const deps = { ...noBlock, fetchRemote: d.fetchRemote }
+    const c1 = new AbortController()
+    const p1 = fetchValidatedCustomImage("https://i.imgur.com/x.jpg", c1.signal, deps)
+    await new Promise((r) => setTimeout(r, 20))
+    c1.abort()
+    await expect(p1).rejects.toMatchObject({ name: "AbortError" })
+    d.resolveOk(PNG_1X1)
+    // Il retry riesce: nessun failure record, ma nemmeno rete condivisa
+    // (il primo download è stato abortito con zero waiter).
+    const ok = await fetchValidatedCustomImage("https://i.imgur.com/x.jpg", signal, deps)
+    expect(ok).not.toBeNull()
+    expect(d.calls).toBe(2)
+  })
+})
+
+describe("custom failure cache (60s, niente hammering)", () => {
+  it("origine morta: secondo render senza rete", async () => {
+    let calls = 0
+    const deps = {
+      ...noBlock,
+      fetchRemote: async () => {
+        calls++
+        return imageResponse("nope", "image/jpeg", 500)
+      },
+    }
+    expect(await fetchValidatedCustomImage("https://i.imgur.com/dead.jpg", signal, deps)).toBeNull()
+    expect(await fetchValidatedCustomImage("https://i.imgur.com/dead.jpg", signal, deps)).toBeNull()
+    expect(calls).toBe(1)
+  })
+
+  it("dopo la scadenza si riprova", async () => {
+    let calls = 0
+    const deps = {
+      ...noBlock,
+      fetchRemote: async () => {
+        calls++
+        return imageResponse("nope", "image/jpeg", 500)
+      },
+    }
+    expect(CUSTOM_FAIL_TTL_MS).toBe(60_000)
+    const t0 = Date.now()
+    const nowSpy = vi.spyOn(Date, "now")
+    try {
+      nowSpy.mockReturnValue(t0)
+      expect(await fetchValidatedCustomImage("https://i.imgur.com/dead.jpg", signal, deps)).toBeNull()
+      nowSpy.mockReturnValue(t0 + CUSTOM_FAIL_TTL_MS + 1000)
+      expect(await fetchValidatedCustomImage("https://i.imgur.com/dead.jpg", signal, deps)).toBeNull()
+      expect(calls).toBe(2)
+    } finally {
+      nowSpy.mockRestore()
+    }
+  })
+
+  it("abort cross-realm (DOMException non-Error) non registrato e propaga", async () => {
+    let calls = 0
+    const crossRealmAbort = (): never => {
+      // Simula DOMException di un altro realm (jsdom/undici): name giusto,
+      // catena instanceof diversa — il duck-type deve riconoscerlo comunque.
+      const e = { name: "AbortError", message: "Aborted" }
+      Object.setPrototypeOf(e, null)
+      throw e as unknown as Error
+    }
+    const deps = {
+      ...noBlock,
+      fetchRemote: async (): Promise<Response> => {
+        calls++
+        crossRealmAbort()
+        throw new Error("unreachable")
+      },
+    }
+    await expect(
+      fetchValidatedCustomImage("https://i.imgur.com/x.jpg", signal, deps),
+    ).rejects.toMatchObject({ name: "AbortError" })
+    // Non registrato: il retry ricontatta l'origine
+    await expect(
+      fetchValidatedCustomImage("https://i.imgur.com/x.jpg", signal, deps),
+    ).rejects.toMatchObject({ name: "AbortError" })
+    expect(calls).toBe(2)
+  })
+
+  it("buffer sopra 4MB si rende ma non entra in byte-cache", async () => {
+    const small = await sharp({ create: { width: 10, height: 10, channels: 3, background: { r: 1, g: 2, b: 3 } } }).jpeg().toBuffer()
+    const padded = Buffer.concat([small, Buffer.alloc(5 * 1024 * 1024)])
+    expect(padded.length).toBeGreaterThan(4 * 1024 * 1024)
+    expect(padded.length).toBeLessThan(10 * 1024 * 1024)
+    let calls = 0
+    const deps = {
+      ...noBlock,
+      fetchRemote: async () => {
+        calls++
+        return imageResponse(padded, "image/jpeg")
+      },
+    }
+    const a = await fetchValidatedCustomImage("https://i.imgur.com/big.jpg", signal, deps)
+    expect(a).not.toBeNull()
+    expect(a?.length).toBe(padded.length)
+    const b = await fetchValidatedCustomImage("https://i.imgur.com/big.jpg", signal, deps)
+    expect(b).not.toBeNull()
+    expect(calls).toBe(2)
+  })
+})
+
+describe("custom budget (non far aspettare il TMDB oltre il budget)", () => {
+  it("custom lento oltre il budget: TMDB vince, niente attesa seriale", async () => {
+    const d = deferredRemote()
+    const start = Date.now()
+    const r = await fetchPosterBaseWithCustom(
+      "https://i.imgur.com/slow.jpg",
+      "https://image.tmdb.org/t/p/w500/nonexistent-test-path.jpg",
+      signal,
+      { ...noBlock, fetchRemote: d.fetchRemote, budgetMs: 50 },
+    )
+    // TMDB irraggiungibile in test → null, ma il punto è non aver atteso il custom
+    expect(Date.now() - start).toBeLessThan(5000)
+    expect(r).toBeNull()
+    // Il budget deve aver staccato il waiter custom (detach, non attesa piena)
+    await new Promise((resolve) => setTimeout(resolve, 150))
+    expect(d.signals.length).toBe(1)
+    expect(d.signals[0]!.aborted).toBe(true)
+    d.resolveOk(PNG_1X1)
+  }, 10000)
+
+  it("custom valido entro il budget vince sul TMDB", async () => {
+    const r = await fetchPosterBaseWithCustom(
+      "https://i.imgur.com/x.jpg",
+      "https://image.tmdb.org/t/p/w500/nonexistent-test-path.jpg",
+      signal,
+      {
+        ...noBlock,
+        fetchRemote: async () => imageResponse(PNG_1X1, "image/png"),
+        budgetMs: 2000,
+      },
+    )
+    // TMDB fallisce in test: se il custom vince, il risultato è custom
+    expect(r?.custom).toBe(true)
+  }, 10000)
 })

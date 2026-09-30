@@ -1,4 +1,3 @@
-import sharp from "sharp"
 import {
   BodyTooLargeError,
   hopSignal,
@@ -7,6 +6,7 @@ import {
   safeFetchRemote,
   SafeFetchDeniedError,
 } from "@/lib/safe-remote-fetch"
+import { ImageValidationError, validateImageBytes } from "@/lib/custom-image-validate"
 import { createLogger } from "@/lib/logger"
 
 const log = createLogger("resolve-image")
@@ -253,15 +253,13 @@ export async function resolveToImageUrl(rawUrl: string, deps?: ResolveDeps): Pro
 /**
  * Verifica che una risposta immagine (cap 10MB) contenga byte che sharp
  * decodifica davvero. Qualsiasi fallimento → errore tipizzato per la route.
+ * Le regole (MIME raster, magic bytes, cap pixel, no animate) vivono in
+ * custom-image-validate: stesso bar del render, nessuna deriva.
  */
 async function verifyImageResponse(
   res: Response,
   fallbackUrl: string,
 ): Promise<{ url: string; width: number; height: number }> {
-  const contentType = (res.headers.get("content-type") || "").toLowerCase()
-  if (!contentType.startsWith("image/")) {
-    throw new ResolveImageError(415, "URL did not resolve to an image")
-  }
   let buf: Buffer
   try {
     buf = await readBodyCapped(res, MAX_IMAGE_BYTES)
@@ -270,11 +268,19 @@ async function verifyImageResponse(
     throw new ResolveImageError(502, "Failed to read image body")
   }
   try {
-    const meta = await sharp(buf).metadata()
-    if (!meta.width || !meta.height) throw new Error("no dimensions")
+    const { width, height } = await validateImageBytes(buf, res.headers.get("content-type"))
     const finalUrl = finalUrlOf(res, fallbackUrl)
-    return { url: finalUrl, width: meta.width, height: meta.height }
-  } catch {
+    return { url: finalUrl, width, height }
+  } catch (e) {
+    if (e instanceof ImageValidationError) {
+      if (e.reason === "pixels") {
+        throw new ResolveImageError(415, "Image dimensions exceed the supported pixel limit")
+      }
+      if (e.reason === "animated") {
+        throw new ResolveImageError(415, "Animated images are not supported as poster base")
+      }
+      throw new ResolveImageError(415, "URL did not resolve to an image")
+    }
     throw new ResolveImageError(415, "Response body is not a decodable image")
   }
 }
