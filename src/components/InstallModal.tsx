@@ -326,7 +326,7 @@ export function InstallModal({ isOpen, onClose, manifestUrl: propManifestUrl, po
                   onChange={(e) => setPatternKind(e.target.value === "imdb" ? "imdb" : e.target.value === "auto" ? "auto" : "tmdb")}
                   className="w-full bg-black/40 border border-white/10 rounded-xl px-2 py-1.5 text-[11px] text-zinc-300 focus:outline-none focus:border-white/25 cursor-pointer"
                 >
-                  <option value="auto">Auto (consigliato)</option>
+                  <option value="auto">{t("ui.patternAuto")}</option>
                   <option value="tmdb">TMDB ID</option>
                   <option value="imdb">IMDb ID</option>
                 </select>
@@ -334,7 +334,7 @@ export function InstallModal({ isOpen, onClose, manifestUrl: propManifestUrl, po
 
               <PatternRow
                 value={(patternKind === "tmdb" ? posterUrlPattern : patternKind === "imdb" ? posterUrlPatternImdb : posterUrlPatternAuto) || posterUrlPattern || posterUrlPatternImdb || posterUrlPatternAuto || ""}
-                tag={patternKind === "tmdb" ? "TMDB · {tmdb_id} — primario" : patternKind === "imdb" ? "IMDb · {imdb_id} — fallback" : "Auto · {tmdb_id|imdb_id} — consigliato"}
+                tag={patternKind === "tmdb" ? t("ui.patternTagTmdb") : patternKind === "imdb" ? t("ui.patternTagImdb") : t("ui.patternTagAuto")}
                 copyLabel={t("ui.aiomLinkTitle") || "AIOMetadata URL"}
               />
             </div>
