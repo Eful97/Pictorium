@@ -74,13 +74,14 @@ profile) and `config=` (config token) — both enter cache keys and poster URLs.
 Stremio poster. Query params: `rv` (render version), `mv` (saved mapping), `u=`
 (user profile), plus all render params (see `.agents/render-params.md`).
 The copy-paste AIO template comes in three variants with identical params:
-`{tmdb_id}` first (exact, no TMDB `/find` involved), `{imdb_id}` as the
+`{tmdb_id|imdb_id}` auto first (recommended for Nuvio and AIOMetadata — both
+support `{a|b}` alternation with graceful fallback to the original poster),
+`{tmdb_id}` (exact, no TMDB `/find` involved) and `{imdb_id}` as the
 universal fallback (every item has one, but franchise-shared `tt` ids on
 split season entries need a manual alias or mapping `imdbId` — resolution
 order: user alias > global alias > own mapping `imdbId` > global mapping
-`imdbId` > `/find`), and `{tmdb_id|imdb_id}` auto for Nuvio (substitutes
-whichever id the view provides; typed `tmdb:<num>` resolves as the exact
-numeric path, other prefixes stay `400`).
+`imdbId` > `/find`). Typed `tmdb:<num>` substitutions resolve as the exact
+numeric path, other prefixes stay `400`.
 
 ## Catalog list (`PICTORIUM_CATALOGS` in `catalog-definitions.ts`)
 

@@ -33,14 +33,16 @@ Se il consumer sostituisce placeholder per-titolo (es. AIOMetadata, che
 supporta `{tmdb_id}` e `{imdb_id}`), usali nel path
 (`/api/poster/{type}/{tmdb_id}`):
 
-- `{tmdb_id}` (consigliato): esatto, nessuna risoluzione — ma solo se il
+- `{tmdb_id|imdb_id}` (auto, consigliato per Nuvio e AIOMetadata): il
+  consumer sostituisce l'id disponibile nella vista corrente (Home,
+  Library, More Like This, righe Cast portano id diversi) e tiene il poster
+  originale quando nessuno dei due c'è — verificato sui gruppi di
+  alternanza `{a|b}` di AIOMetadata (vince il primo non vuoto) e sui marker
+  `{a|b}` di Nuvio. Un solo template ovunque — niente scelta per-vista.
+- `{tmdb_id}` (alternativa esatta): nessuna risoluzione — ma solo se il
   consumer conosce davvero il TMDB id di quell'item.
 - `{imdb_id}` (fallback universale): ogni item ce l'ha, ma paga la
   risoluzione sopra e fallisce sugli split di franchise.
-- `{tmdb_id|imdb_id}` (auto, Nuvio): il consumer sostituisce l'id
-  disponibile nella vista corrente (Home, Library, More Like This, righe
-  Cast portano id diversi) e tiene il poster originale quando nessuno dei
-  due c'è. Un solo template ovunque — niente scelta per-vista.
   Le sostituzioni tipizzate `tmdb:<num>` si risolvono come path numerico
   esatto; il resto non risolvibile resta `400`.
 

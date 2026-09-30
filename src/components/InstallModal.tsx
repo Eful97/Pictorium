@@ -70,10 +70,10 @@ export function InstallModal({ isOpen, onClose, manifestUrl: propManifestUrl, po
   const { t } = useT()
   const [hubMode, setHubMode] = useState<"all" | "catalogs" | "search">("all")
   const [copied, setCopied] = useState(false)
-  // Quale placeholder id usa il template: TMDB (primario, esatto), IMDb
-  // (fallback universale) o Auto (Nuvio sostituisce l'id disponibile per la
-  // vista). Una sola riga visibile alla volta.
-  const [patternKind, setPatternKind] = useState<"tmdb" | "imdb" | "auto">("tmdb")
+  // Quale placeholder id usa il template: Auto (Nuvio/AIO sostituiscono
+  // l'id disponibile per la vista, default), TMDB (primario, esatto) o IMDb
+  // (fallback universale). Una sola riga visibile alla volta.
+  const [patternKind, setPatternKind] = useState<"tmdb" | "imdb" | "auto">("auto")
   const [qrSvg, setQrSvg] = useState<string>("")
   const [baseManifestUrl, setBaseManifestUrl] = useState(propManifestUrl || "")
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -326,15 +326,15 @@ export function InstallModal({ isOpen, onClose, manifestUrl: propManifestUrl, po
                   onChange={(e) => setPatternKind(e.target.value === "imdb" ? "imdb" : e.target.value === "auto" ? "auto" : "tmdb")}
                   className="w-full bg-black/40 border border-white/10 rounded-xl px-2 py-1.5 text-[11px] text-zinc-300 focus:outline-none focus:border-white/25 cursor-pointer"
                 >
+                  <option value="auto">Auto (consigliato)</option>
                   <option value="tmdb">TMDB ID</option>
                   <option value="imdb">IMDb ID</option>
-                  <option value="auto">Auto (Nuvio)</option>
                 </select>
               </div>
 
               <PatternRow
                 value={(patternKind === "tmdb" ? posterUrlPattern : patternKind === "imdb" ? posterUrlPatternImdb : posterUrlPatternAuto) || posterUrlPattern || posterUrlPatternImdb || posterUrlPatternAuto || ""}
-                tag={patternKind === "tmdb" ? "TMDB · {tmdb_id} — primario" : patternKind === "imdb" ? "IMDb · {imdb_id} — fallback" : "Auto · {tmdb_id|imdb_id} — Nuvio"}
+                tag={patternKind === "tmdb" ? "TMDB · {tmdb_id} — primario" : patternKind === "imdb" ? "IMDb · {imdb_id} — fallback" : "Auto · {tmdb_id|imdb_id} — consigliato"}
                 copyLabel={t("ui.aiomLinkTitle") || "AIOMetadata URL"}
               />
             </div>

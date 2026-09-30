@@ -31,14 +31,17 @@ When the consumer substitutes per-title placeholders (e.g. AIOMetadata,
 which supports `{tmdb_id}` and `{imdb_id}`), use them in the path
 (`/api/poster/{type}/{tmdb_id}`):
 
-- `{tmdb_id}` (recommended): exact, no resolution involved — but only if the
+- `{tmdb_id|imdb_id}` (auto, recommended for Nuvio and AIOMetadata): the
+  consumer substitutes whichever id the current view provides (Home,
+  Library, More Like This, Cast rows each carry different ids) and keeps
+  the original poster when neither is available — verified against
+  AIOMetadata's alternation groups (`{a|b}`, first non-empty wins) and
+  Nuvio's `{a|b}` markers. One template works everywhere — no per-view
+  choice needed.
+- `{tmdb_id}` (exact alternative): no resolution involved — but only if the
   consumer genuinely knows that item's TMDB id.
 - `{imdb_id}` (universal fallback): every item has one, but it pays the
   resolution cost above and fails on franchise splits.
-- `{tmdb_id|imdb_id}` (auto, Nuvio): the consumer substitutes whichever id
-  the current view provides (Home, Library, More Like This, Cast rows each
-  carry different ids) and keeps the original poster when neither is
-  available. One template works everywhere — no per-view choice needed.
   Typed `tmdb:<num>` substitutions resolve as the exact numeric path;
   anything else unresolvable still answers `400`.
 
