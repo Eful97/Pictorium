@@ -170,9 +170,13 @@ export default function EditView() {
   // Il modale mostra lo stato SALVATO: anche poster/sfondo/formato/logo non
   // ancora salvati divergono dalla preview (Best Fit orizzontale scelto ma
   // non salvato → Stremio mostra ancora il primo TMDB).
+  const previewPosterFilePath = previewPoster?.file_path ?? null
+  const previewCustomPosterUrl = previewPosterFilePath && isCustomPosterUrl(previewPosterFilePath) ? previewPosterFilePath : null
+
   const artworkDirty = useMemo(() => isArtworkDirty(
     {
-      posterPath: previewPoster?.file_path ?? null,
+      posterPath: previewPosterFilePath,
+      customPosterUrl: previewCustomPosterUrl,
       backdropPath: ed.selectedBackdrop?.file_path ?? null,
       posterShape: ed.posterShape,
       logoPath: selectedLogo?.file_path ?? null,
@@ -180,12 +184,13 @@ export default function EditView() {
     },
     selectedMapping ?? null,
     ed.defaultPosterShape,
-  ), [previewPoster?.file_path, ed.selectedBackdrop?.file_path, ed.posterShape, selectedLogo?.file_path, ed.logoDisabled, selectedMapping, ed.defaultPosterShape])
+  ), [previewPosterFilePath, previewCustomPosterUrl, ed.selectedBackdrop?.file_path, ed.posterShape, selectedLogo?.file_path, ed.logoDisabled, selectedMapping, ed.defaultPosterShape])
 
   const mappingDirty = useMemo(() => isMappingDirty(
     {
       artwork: {
-        posterPath: previewPoster?.file_path ?? null,
+        posterPath: previewPosterFilePath,
+        customPosterUrl: previewCustomPosterUrl,
         backdropPath: ed.selectedBackdrop?.file_path ?? null,
         posterShape: ed.posterShape,
         logoPath: selectedLogo?.file_path ?? null,
@@ -249,7 +254,7 @@ export default function EditView() {
         tintStrength: ed.defaultTintStrength, topShade: ed.defaultTopShade,
       },
     ed.defaultPosterShape,
-  ), [ed, previewPoster?.file_path, selectedLogo?.file_path, selectedMapping, isLandscapeTuning])
+  ), [ed, previewPosterFilePath, previewCustomPosterUrl, selectedLogo?.file_path, selectedMapping, isLandscapeTuning])
 
   const [saveState, setSaveState] = useState<"idle" | "saving" | "error">("idle")
   const handleSave = useCallback(async () => {

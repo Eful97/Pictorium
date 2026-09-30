@@ -1,4 +1,5 @@
 import { effectiveMappingForShape, type Mapping, type PosterShape } from "./types"
+import { isCustomPosterUrl } from "./utils"
 
 /** I 7 slider del blocco sfumatura/blur (quelli che scrivono i preset). */
 export interface GradientTuning {
@@ -69,6 +70,7 @@ export function isGradientDirtyForShape(
 /** Selezione artwork corrente dell'editor (quella che la preview WYSIWYG mostra). */
 export interface ArtworkSelection {
   posterPath: string | null
+  customPosterUrl?: string | null
   backdropPath: string | null
   posterShape: PosterShape
   logoPath: string | null
@@ -93,13 +95,22 @@ export function isArtworkDirty(
   if (!m) {
     return !!(
       current.posterPath ||
+      current.customPosterUrl ||
       current.backdropPath ||
       current.logoPath ||
       current.posterShape !== defaultShape
     )
   }
   if ((m.posterShape ?? defaultShape) !== current.posterShape) return true
-  if ((m.posterPath ?? null) !== (current.posterPath ?? null)) return true
+
+  const savedPoster = (m.customPosterUrl && isCustomPosterUrl(m.customPosterUrl))
+    ? m.customPosterUrl
+    : (m.posterPath ?? null)
+
+  const currentCustom = current.customPosterUrl ?? (current.posterPath && isCustomPosterUrl(current.posterPath) ? current.posterPath : null)
+  const currentPoster = currentCustom ?? (current.posterPath ?? null)
+
+  if (savedPoster !== currentPoster) return true
   if ((m.backdropPath ?? null) !== (current.backdropPath ?? null)) return true
   const savedLogo = m.logoDisabled ? null : (m.logoPath ?? null)
   const currentLogo = current.logoDisabled ? null : (current.logoPath ?? null)
@@ -160,45 +171,49 @@ export function isMappingDirty(
   if (isGradientDirtyForShape(current.gradient, mapping, gradientDefaults, current.artwork.posterShape)) return true
   if (!mapping) return false
 
-  if (current.logoScale != null && mapping.logoScale != null && current.logoScale !== mapping.logoScale) return true
-  if (current.logoOffsetX != null && mapping.logoOffsetX != null && current.logoOffsetX !== mapping.logoOffsetX) return true
-  if (current.logoOffsetY != null && mapping.logoOffsetY != null && current.logoOffsetY !== mapping.logoOffsetY) return true
+  const eff = effectiveMappingForShape(mapping, current.artwork.posterShape) ?? mapping
 
-  if (current.topBadgeScale != null && mapping.topBadgeScale != null && current.topBadgeScale !== mapping.topBadgeScale) return true
-  if (current.topBadgeOffsetX != null && mapping.topBadgeOffsetX != null && current.topBadgeOffsetX !== mapping.topBadgeOffsetX) return true
-  if (current.topBadgeOffsetY != null && mapping.topBadgeOffsetY != null && current.topBadgeOffsetY !== mapping.topBadgeOffsetY) return true
+  if (current.logoScale != null && eff.logoScale != null && current.logoScale !== eff.logoScale) return true
+  if ((current.logoOffsetX ?? 0) !== (eff.logoOffsetX ?? 0)) return true
+  if ((current.logoOffsetY ?? 0) !== (eff.logoOffsetY ?? 0)) return true
 
-  if (current.genreBadgeScale != null && mapping.genreBadgeScale != null && current.genreBadgeScale !== mapping.genreBadgeScale) return true
-  if (current.genreBadgeOffsetX != null && mapping.genreBadgeOffsetX != null && current.genreBadgeOffsetX !== mapping.genreBadgeOffsetX) return true
-  if (current.genreBadgeOffsetY != null && mapping.genreBadgeOffsetY != null && current.genreBadgeOffsetY !== mapping.genreBadgeOffsetY) return true
+  if ((current.topBadgeScale ?? 100) !== (eff.topBadgeScale ?? 100)) return true
+  if ((current.topBadgeOffsetX ?? 0) !== (eff.topBadgeOffsetX ?? 0)) return true
+  if ((current.topBadgeOffsetY ?? 0) !== (eff.topBadgeOffsetY ?? 0)) return true
 
-  if (current.qualityBadgeScale != null && mapping.qualityBadgeScale != null && current.qualityBadgeScale !== mapping.qualityBadgeScale) return true
-  if (current.qualityBadgeOffsetX != null && mapping.qualityBadgeOffsetX != null && current.qualityBadgeOffsetX !== mapping.qualityBadgeOffsetX) return true
-  if (current.qualityBadgeOffsetY != null && mapping.qualityBadgeOffsetY != null && current.qualityBadgeOffsetY !== mapping.qualityBadgeOffsetY) return true
+  if ((current.genreBadgeScale ?? 100) !== (eff.genreBadgeScale ?? 100)) return true
+  if ((current.genreBadgeOffsetX ?? 0) !== (eff.genreBadgeOffsetX ?? 0)) return true
+  if ((current.genreBadgeOffsetY ?? 0) !== (eff.genreBadgeOffsetY ?? 0)) return true
 
-  if (current.networkLogoScale != null && mapping.networkLogoScale != null && current.networkLogoScale !== mapping.networkLogoScale) return true
-  if (current.networkLogoOffsetX != null && mapping.networkLogoOffsetX != null && current.networkLogoOffsetX !== mapping.networkLogoOffsetX) return true
-  if (current.networkLogoOffsetY != null && mapping.networkLogoOffsetY != null && current.networkLogoOffsetY !== mapping.networkLogoOffsetY) return true
+  if ((current.qualityBadgeScale ?? 100) !== (eff.qualityBadgeScale ?? 100)) return true
+  if ((current.qualityBadgeOffsetX ?? 0) !== (eff.qualityBadgeOffsetX ?? 0)) return true
+  if ((current.qualityBadgeOffsetY ?? 0) !== (eff.qualityBadgeOffsetY ?? 0)) return true
+
+  if ((current.networkLogoScale ?? 100) !== (eff.networkLogoScale ?? 100)) return true
+  if ((current.networkLogoOffsetX ?? 0) !== (eff.networkLogoOffsetX ?? 0)) return true
+  if ((current.networkLogoOffsetY ?? 0) !== (eff.networkLogoOffsetY ?? 0)) return true
 
   if (current.artwork.posterShape === "landscape") {
-    if (current.backdropScale != null && mapping.backdropScale != null && current.backdropScale !== mapping.backdropScale) return true
-    if (current.backdropOffsetX != null && mapping.backdropOffsetX != null && current.backdropOffsetX !== mapping.backdropOffsetX) return true
-    if (current.backdropOffsetY != null && mapping.backdropOffsetY != null && current.backdropOffsetY !== mapping.backdropOffsetY) return true
+    if ((current.backdropScale ?? 100) !== (eff.backdropScale ?? 100)) return true
+    if ((current.backdropOffsetX ?? 0) !== (eff.backdropOffsetX ?? 0)) return true
+    if ((current.backdropOffsetY ?? 0) !== (eff.backdropOffsetY ?? 0)) return true
   }
 
-  if (current.globalBadges != null && mapping.showBadges != null && current.globalBadges !== mapping.showBadges) return true
-  if (current.rankingBadges != null && mapping.rankingBadges != null && current.rankingBadges !== mapping.rankingBadges) return true
-  if (current.badgeGenre != null && mapping.badgeGenre != null && current.badgeGenre !== mapping.badgeGenre) return true
-  if (current.badgeYear != null && mapping.badgeYear != null && current.badgeYear !== mapping.badgeYear) return true
-  if (current.badgeRating != null && mapping.badgeRating != null && current.badgeRating !== mapping.badgeRating) return true
-  if (current.badgeQuality != null && mapping.badgeQuality != null && current.badgeQuality !== mapping.badgeQuality) return true
-  if (current.customRatings != null && mapping.customRatings != null && current.customRatings !== mapping.customRatings) return true
-  if (current.separateRatings != null && mapping.separateRatings != null && current.separateRatings !== mapping.separateRatings) return true
-  if (current.networkLogo != null && mapping.networkLogo != null && current.networkLogo !== mapping.networkLogo) return true
-  if (current.ribbonEnabled != null && mapping.ribbonEnabled != null && current.ribbonEnabled !== mapping.ribbonEnabled) return true
-  if (current.networkLogoPosition && mapping.networkLogoPosition && current.networkLogoPosition !== mapping.networkLogoPosition) return true
-  if (current.qualityBadgeStyle && mapping.qualityBadgeStyle && current.qualityBadgeStyle !== mapping.qualityBadgeStyle) return true
-  if ((current.customBadge ?? null) !== (mapping.customBadge ?? null)) return true
+  if ((current.globalBadges ?? true) !== (eff.showBadges ?? true)) return true
+  if ((current.rankingBadges ?? true) !== (eff.rankingBadges ?? true)) return true
+  if ((current.badgeGenre ?? true) !== (eff.badgeGenre ?? true)) return true
+  if ((current.badgeYear ?? true) !== (eff.badgeYear ?? true)) return true
+  if ((current.badgeRating ?? true) !== (eff.badgeRating ?? true)) return true
+  if ((current.badgeQuality ?? true) !== (eff.badgeQuality ?? true)) return true
+  if ((current.customRatings ?? true) !== (eff.customRatings ?? true)) return true
+  if ((current.separateRatings ?? false) !== (eff.separateRatings ?? false)) return true
+  if ((current.networkLogo ?? true) !== (eff.networkLogo ?? true)) return true
+  if ((current.ribbonEnabled ?? true) !== (eff.ribbonEnabled ?? true)) return true
+  if ((current.networkLogoPosition ?? "auto") !== (eff.networkLogoPosition ?? "auto")) return true
+  if ((current.qualityBadgeStyle ?? "standard") !== (eff.qualityBadgeStyle ?? "standard")) return true
+  if ((current.badgeStyle ?? "shadow") !== (eff.badgeStyle ?? "shadow")) return true
+  if ((current.rankingBadgeStyle ?? "default") !== (eff.rankingBadgeStyle ?? "default")) return true
+  if ((current.customBadge ?? null) !== (eff.customBadge ?? null)) return true
 
   return false
 }

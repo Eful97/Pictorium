@@ -69,4 +69,13 @@ describe("toolbar lock pre-auth", () => {
     const btns = await screen.findAllByRole("button", { name: "ui.catalogs" })
     for (const b of btns) expect(b).toBeDisabled()
   })
+
+  it("mostra il pulsante proxy sia nella toolbar desktop che nella navigazione mobile", async () => {
+    mockApi(false)
+    setUrl("/")
+    renderWithCtx(<AppShell />)
+    const proxyBtns = await screen.findAllByRole("button", { name: /Proxy/i })
+    // Uno desktop (toolbar in alto) e uno mobile (barra in basso)
+    expect(proxyBtns.length).toBeGreaterThanOrEqual(2)
+  })
 })

@@ -11,6 +11,7 @@ export interface RecentChange {
 }
 
 export const RECENT_CHANGES: RecentChange[] = [
+  { type: "feature", text: "Cleaner editor layout, collapsible custom poster URL and reliable batch poster deletion", sha: "43142f7", date: "2026-09-30" },
   { type: "fix", text: "Reliable custom poster retries and caching", sha: "32d021d", date: "2026-09-30" },
   { type: "perf", text: "Faster custom poster loads with smarter caching", sha: "f87df63", date: "2026-09-30" },
   { type: "fix", text: "Restore TVDB and IMDb custom catalogs", sha: "91261a7", date: "2026-09-30" },
@@ -18,5 +19,4 @@ export const RECENT_CHANGES: RecentChange[] = [
   { type: "feature", text: "Calmer preview, readable controls and unified notifications", sha: "f88da74", date: "2026-09-30" },
   { type: "feature", text: "Configurable release date format for the Upcoming badge", sha: "1a3f181", date: "2026-09-30" },
   { type: "feature", text: "Remove button for added custom poster tiles", sha: "0c450c5", date: "2026-09-30" },
-  { type: "fix", text: "Allow custom poster URLs through the R2 image gate in previews", sha: "7d01edb", date: "2026-09-30" },
 ]

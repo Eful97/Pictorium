@@ -124,6 +124,35 @@ describe("isArtworkDirty", () => {
     )).toBe(false)
   })
 
+  it("poster custom salvato non viene indicato come modificato", () => {
+    const customUrl = "https://images.example.com/custom-poster.jpg"
+    const m = mapping({
+      posterPath: "/fallback.jpg",
+      customPosterUrl: customUrl,
+      backdropPath: null,
+      posterShape: "poster",
+      logoPath: null,
+    })
+    // In UI previewPoster.file_path è l'URL custom
+    expect(isArtworkDirty(
+      { posterPath: customUrl, backdropPath: null, posterShape: "poster", logoPath: null },
+      m, "poster",
+    )).toBe(false)
+    expect(isArtworkDirty(
+      { posterPath: "/fallback.jpg", customPosterUrl: customUrl, backdropPath: null, posterShape: "poster", logoPath: null },
+      m, "poster",
+    )).toBe(false)
+    // Se torna al poster TMDB o cambia URL custom, diventa dirty
+    expect(isArtworkDirty(
+      { posterPath: "/fallback.jpg", backdropPath: null, posterShape: "poster", logoPath: null },
+      m, "poster",
+    )).toBe(true)
+    expect(isArtworkDirty(
+      { posterPath: "https://images.example.com/other.jpg", backdropPath: null, posterShape: "poster", logoPath: null },
+      m, "poster",
+    )).toBe(true)
+  })
+
   it("titolo mai salvato: dirty appena c'è una selezione locale", () => {
     expect(isArtworkDirty(
       { posterPath: null, backdropPath: null, posterShape: "poster", logoPath: null },
@@ -174,5 +203,50 @@ describe("isMappingDirty", () => {
   it("true quando customBadge cambia", () => {
     const m = mapping({ ...baseArtwork, ...DEFAULTS, customBadge: "4K UHD" });
     expect(isMappingDirty({ ...baseState, customBadge: "IMAX" }, m, DEFAULTS, "poster")).toBe(true);
+  });
+
+  it("in landscape confronta contro il profilo landscape del mapping", () => {
+    const m = mapping({
+      ...baseArtwork,
+      ...DEFAULTS,
+      posterShape: "landscape",
+      logoScale: 80,
+      logoOffsetX: 5,
+      landscape: {
+        logoScale: 120,
+        logoOffsetX: 15,
+        logoOffsetY: 0,
+      },
+    });
+    const landscapeArtwork = { ...baseArtwork, posterShape: "landscape" as const };
+    // Stato che coincide col profilo orizzontale salvato -> non dirty
+    expect(isMappingDirty({
+      ...baseState,
+      artwork: landscapeArtwork,
+      logoScale: 120,
+      logoOffsetX: 15,
+      logoOffsetY: 0,
+    }, m, DEFAULTS, "poster")).toBe(false);
+
+    // Se si modifica logoScale rispetto al profilo landscape salvato -> dirty
+    expect(isMappingDirty({
+      ...baseState,
+      artwork: landscapeArtwork,
+      logoScale: 130,
+      logoOffsetX: 15,
+      logoOffsetY: 0,
+    }, m, DEFAULTS, "poster")).toBe(true);
+  });
+
+  it("rileva modifiche ai badge anche quando il mapping salvato ha valori di default (undefined)", () => {
+    // Mapping salvato senza showBadges (default ON implicito)
+    const m = mapping({ ...baseArtwork, ...DEFAULTS, logoScale: 100 });
+    // Disabilitare globalBadges deve risultare dirty
+    expect(isMappingDirty({ ...baseState, globalBadges: false }, m, DEFAULTS, "poster")).toBe(true);
+    // Cambiare badgeStyle deve risultare dirty
+    expect(isMappingDirty({ ...baseState, badgeStyle: "glow" }, m, DEFAULTS, "poster")).toBe(true);
+    // Cambiare qualità o ranking style deve risultare dirty
+    expect(isMappingDirty({ ...baseState, qualityBadgeStyle: "pill" }, m, DEFAULTS, "poster")).toBe(true);
+    expect(isMappingDirty({ ...baseState, rankingBadgeStyle: "ribbon" }, m, DEFAULTS, "poster")).toBe(true);
   });
 });
