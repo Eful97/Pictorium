@@ -254,7 +254,7 @@ export function resolveRequestApiKey(req: { headers: Headers | { get: (name: str
   return undefined
 }
 
-export type ApiKeyKind = "tmdb" | "mdblist" | "tvdb" | "simkl"
+export type ApiKeyKind = "tmdb" | "mdblist" | "tvdb" | "simkl" | "fanart"
 export type ApiKeySource = "header" | "query" | "namespace" | "env" | "none"
 
 export interface ResolvedApiKey {
@@ -267,6 +267,7 @@ export interface ResolvedUserApiKeys {
   mdblist: ResolvedApiKey
   tvdb: ResolvedApiKey
   simkl: ResolvedApiKey
+  fanart: ResolvedApiKey
 }
 
 type KeyRequest = {
@@ -305,6 +306,7 @@ function searchParamsOf(req: KeyRequest): URLSearchParams | undefined {
  * - mdblist: query `mdblist_key` > namespace.mdblist > env MDBLIST.
  * - tvdb: header `x-tvdb-key` > query `tvdb_key` > namespace.tvdb > env TVDB.
  * - simkl: query `simkl_key` > header `x-simkl-key`/`simkl-api-key` > namespace.simkl > env SIMKL_CLIENT_ID/SIMKL_API_KEY.
+ * - fanart: query `fanart_key` > header `x-fanart-key` > namespace.fanart > env FANART (chiave progetto: spazio vince sull'istanza).
  */
 export async function resolveUserApiKeys(
   req: KeyRequest,
@@ -315,6 +317,7 @@ export async function resolveUserApiKeys(
     mdblist: { key: undefined, source: "none" },
     tvdb: { key: undefined, source: "none" },
     simkl: { key: undefined, source: "none" },
+    fanart: { key: undefined, source: "none" },
   }
   // 1. Richiesta esplicita (ogni kind indipendente: l'header TMDB non deve
   // oscurare le query mdblist_key/tvdb_key/simkl_key).
@@ -339,8 +342,14 @@ export async function resolveUserApiKeys(
     const headerSimkl = req.headers.get("x-simkl-key") || req.headers.get("simkl-api-key")
     if (headerSimkl) out.simkl = { key: headerSimkl, source: "header" }
   }
+  const queryFanart = sp?.get("fanart_key")
+  if (queryFanart) out.fanart = { key: queryFanart, source: "query" }
+  else {
+    const headerFanart = req.headers.get("x-fanart-key")
+    if (headerFanart) out.fanart = { key: headerFanart, source: "header" }
+  }
   // 2. Namespace utente (una sola lettura per tutte le kind).
-  if (userId && (!out.tmdb.key || !out.mdblist.key || !out.tvdb.key || !out.simkl.key)) {
+  if (userId && (!out.tmdb.key || !out.mdblist.key || !out.tvdb.key || !out.simkl.key || !out.fanart.key)) {
     try {
       const { getUserKeys } = await import("@/lib/user-keys")
       const scoped = await getUserKeys(userId)
@@ -348,6 +357,7 @@ export async function resolveUserApiKeys(
       if (!out.mdblist.key && scoped.mdblist) out.mdblist = { key: scoped.mdblist, source: "namespace" }
       if (!out.tvdb.key && scoped.tvdb) out.tvdb = { key: scoped.tvdb, source: "namespace" }
       if (!out.simkl.key && scoped.simkl) out.simkl = { key: scoped.simkl, source: "namespace" }
+      if (!out.fanart.key && scoped.fanart) out.fanart = { key: scoped.fanart, source: "namespace" }
     } catch {
       // getUserKeys logga già: qui fallback all'env sotto (degraded, mai throw).
     }
@@ -378,6 +388,10 @@ export async function resolveUserApiKeys(
   if (allowEnvFallback && !out.simkl.key) {
     const env = envWithFallback("SIMKL_CLIENT_ID") || process.env.SIMKL_CLIENT_ID || process.env.SIMKL_API_KEY
     if (env) out.simkl = { key: env, source: "env" }
+  }
+  if (allowEnvFallback && !out.fanart.key) {
+    const env = envWithFallback("FANART_KEY")
+    if (env) out.fanart = { key: env, source: "env" }
   }
   return out
 }

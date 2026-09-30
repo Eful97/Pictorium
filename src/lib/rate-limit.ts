@@ -61,6 +61,10 @@ const limits: Record<string, BucketConfig> = {
   // Validate-key: oracolo di validità per chiavi rubate — burst contenuto e
   // ~5/min sostenuti (1 token ogni 12s). La legittima UI ne fa una manciata.
   "validate-key": { maxTokens: 10, refillRate: 1,  refillWindow: 12000 },
+  // Fanart.tv: la UI ne fa una per apertura sezione a titolo (lazy) — burst
+  // contenuto come tmdb, refill uguale. La quota Fanart è stretta: la cache
+  // 24h/10min della route assorbe i ricaricamenti.
+  fanart:   { maxTokens: 60,  refillRate: 5,  refillWindow: 1000 },
   // PIN auth: tentativi di brute-force su 4-8 cifre — burst contenuto e
   // refill lento (20 burst, ~2/s sostenuti). La protezione reale viene da
   // PIN min 6 cifre + rotazione sessionSecret a ogni setPin.

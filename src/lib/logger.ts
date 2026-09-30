@@ -35,6 +35,8 @@ const SENSITIVE_EXACT_KEYS = new Set([
   "tvdb_api_key",
   "mdblistkey",
   "mdblist_key",
+  "fanartkey",
+  "fanart_key",
   "authorization",
   "cookie",
   "newpin",

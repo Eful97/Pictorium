@@ -15,7 +15,7 @@ import {
 } from "@/lib/user-token"
 import type { UserKeyKind } from "@/lib/user-keys"
 
-const KINDS: readonly UserKeyKind[] = ["tmdb", "mdblist", "tvdb", "simkl"]
+const KINDS: readonly UserKeyKind[] = ["tmdb", "mdblist", "tvdb", "simkl", "fanart"]
 
 // Contratto token col resto dell'app (ri-esportato per compatibilità):
 // secret di sessione, MAI in URL/query/log.
@@ -167,6 +167,7 @@ const SAVED_KEY_MASKS: Record<UserKeyKind, string> = {
   mdblist: "••••••••••••••••••••••••••••", // 28 caratteri (MDBList)
   tvdb: "••••••••••••••••••••••••••••••••", // 32 caratteri (TVDB)
   simkl: "••••••••••••••••••••••••••••••••", // Simkl Client ID
+  fanart: "••••••••••••••••••••••••••••••••", // Fanart.tv Project Key
 }
 
 const DEVICE_KEY_NAMES: Record<UserKeyKind, string> = {
@@ -174,6 +175,7 @@ const DEVICE_KEY_NAMES: Record<UserKeyKind, string> = {
   mdblist: "mdblist_key",
   tvdb: "tvdb_key",
   simkl: "simkl_key",
+  fanart: "fanart_key",
 }
 
 const KIND_LABELS: Record<UserKeyKind, string> = {
@@ -181,6 +183,7 @@ const KIND_LABELS: Record<UserKeyKind, string> = {
   mdblist: "MDBList",
   tvdb: "TVDB",
   simkl: "Simkl Client ID",
+  fanart: "Fanart.tv Project Key",
 }
 
 /**
@@ -205,14 +208,14 @@ export function UserKeysSection() {
   // presente ma non decifrabile = chiave inutilizzabile (env mancante/ruotata),
   // il badge deve dirlo invece di un verde bugiardo.
   const [healthy, setHealthy] = useState<Record<UserKeyKind, boolean> | null>(null)
-  const [values, setValues] = useState<Record<UserKeyKind, string>>({ tmdb: "", mdblist: "", tvdb: "", simkl: "" })
-  const [dirty, setDirty] = useState<Record<UserKeyKind, boolean>>({ tmdb: false, mdblist: false, tvdb: false, simkl: false })
+  const [values, setValues] = useState<Record<UserKeyKind, string>>({ tmdb: "", mdblist: "", tvdb: "", simkl: "", fanart: "" })
+  const [dirty, setDirty] = useState<Record<UserKeyKind, boolean>>({ tmdb: false, mdblist: false, tvdb: false, simkl: false, fanart: false })
   const [busy, setBusy] = useState(false)
   const [unauthorized, setUnauthorized] = useState(false)
   // Mostra/copia: valori digitati oppure rivelati dal server su richiesta
   // esplicita (reveal autenticato, mai in elenco). Dopo refresh/restart una
   // chiave salvata si rivela così, senza ridigitarla.
-  const [show, setShow] = useState<Record<UserKeyKind, boolean>>({ tmdb: false, mdblist: false, tvdb: false, simkl: false })
+  const [show, setShow] = useState<Record<UserKeyKind, boolean>>({ tmdb: false, mdblist: false, tvdb: false, simkl: false, fanart: false })
   const [copiedKind, setCopiedKind] = useState<UserKeyKind | null>(null)
   const [revealingKind, setRevealingKind] = useState<UserKeyKind | null>(null)
   const [verifyingKind, setVerifyingKind] = useState<UserKeyKind | null>(null)
@@ -232,7 +235,7 @@ export function UserKeysSection() {
     const stored = getStoredUserToken(id) || ""
     setToken(stored)
     // Riuso chiavi del dispositivo: precompila solo a status noto e assente.
-    const prefill: Record<UserKeyKind, string> = { tmdb: "", mdblist: "", tvdb: "", simkl: "" }
+    const prefill: Record<UserKeyKind, string> = { tmdb: "", mdblist: "", tvdb: "", simkl: "", fanart: "" }
     for (const kind of KINDS) prefill[kind] = safeGetItem(DEVICE_KEY_NAMES[kind])
     // Auth: secret oppure password di sessione (stile AIO). Il retry interno
     // copre il secret stantio che oscura la password fresca (niente refresh
@@ -250,12 +253,12 @@ export function UserKeysSection() {
       .then((data) => {
         if (!data) return
         setUnauthorized(false)
-        const next: Record<UserKeyKind, boolean> = { tmdb: false, mdblist: false, tvdb: false, simkl: false }
+        const next: Record<UserKeyKind, boolean> = { tmdb: false, mdblist: false, tvdb: false, simkl: false, fanart: false }
         for (const kind of KINDS) next[kind] = data[kind] === true
         setStatus(next)
         const dis = data.disabled
         if (dis && typeof dis === "object") {
-          const d: Record<UserKeyKind, boolean> = { tmdb: false, mdblist: false, tvdb: false, simkl: false }
+          const d: Record<UserKeyKind, boolean> = { tmdb: false, mdblist: false, tvdb: false, simkl: false, fanart: false }
           for (const kind of KINDS) d[kind] = dis[kind] === true
           setDisabledKeys(d)
         } else {
@@ -263,7 +266,7 @@ export function UserKeysSection() {
         }
         const dec = data.health?.decryptable
         if (dec && typeof dec === "object") {
-          const h: Record<UserKeyKind, boolean> = { tmdb: false, mdblist: false, tvdb: false, simkl: false }
+          const h: Record<UserKeyKind, boolean> = { tmdb: false, mdblist: false, tvdb: false, simkl: false, fanart: false }
           for (const kind of KINDS) h[kind] = dec[kind] === true
           setHealthy(h)
         } else {
@@ -280,7 +283,7 @@ export function UserKeysSection() {
           }
           return vals
         })
-        setDirty({ tmdb: false, mdblist: false, tvdb: false, simkl: false })
+        setDirty({ tmdb: false, mdblist: false, tvdb: false, simkl: false, fanart: false })
       })
       .catch(() => null)
   }, [])
@@ -427,7 +430,7 @@ export function UserKeysSection() {
         return
       }
       setDisabledKeys((prev) => {
-        const base = prev ?? { tmdb: false, mdblist: false, tvdb: false, simkl: false }
+        const base = prev ?? { tmdb: false, mdblist: false, tvdb: false, simkl: false, fanart: false }
         return { ...base, [kind]: !isDisabled }
       })
       if (!isDisabled) {
@@ -502,7 +505,7 @@ export function UserKeysSection() {
         setStatus(next)
         if (data.disabled && typeof data.disabled === "object") {
           setDisabledKeys((prev) => {
-            const base = prev ?? { tmdb: false, mdblist: false, tvdb: false, simkl: false }
+            const base = prev ?? { tmdb: false, mdblist: false, tvdb: false, simkl: false, fanart: false }
             const merged = { ...base }
             for (const kind of KINDS) {
               if (typeof data.disabled[kind] === "boolean") merged[kind] = data.disabled[kind]
@@ -513,7 +516,7 @@ export function UserKeysSection() {
         // I valori restano negli input dopo il save (occhio/copia devono
         // funzionare anche a chiave salvata: il server non li restituisce
         // mai). Si azzerano solo al refresh — da lì serve ridigitarli.
-        setDirty({ tmdb: false, mdblist: false, tvdb: false, simkl: false })
+        setDirty({ tmdb: false, mdblist: false, tvdb: false, simkl: false, fanart: false })
         // Riallinea lo status chiavi del context (gate ricerca/hero): senza,
         // resterebbe stantio fino al refresh e i poster non partirebbero.
         // Stesso idioma del cambio password in UserSpaceSection.

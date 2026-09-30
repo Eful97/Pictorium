@@ -48,7 +48,7 @@ async function expectResolveError(
 }
 
 describe("resolve-image allowlist", () => {
-  it("accetta Pinterest, Imgur, Reddit e i loro CDN", () => {
+  it("accetta Pinterest, Imgur, Reddit, Fanart.tv e i loro CDN", () => {
     for (const h of [
       "pin.it",
       "www.pinterest.com",
@@ -68,6 +68,8 @@ describe("resolve-image allowlist", () => {
       "preview.redd.it",
       "share.redd.it",
       "redd.it",
+      "assets.fanart.tv",
+      "fanart.tv",
     ]) {
       expect(isAllowedResolveHost(h)).toBe(true)
     }
@@ -79,6 +81,8 @@ describe("resolve-image allowlist", () => {
       "evilpinterest.com",
       "pinterest.com.evil.com",
       "notpin.it.evil.com",
+      "evifanart.tv",
+      "fanart.tv.evil.com",
       "localhost",
       "127.0.0.1",
       "theposterdb.com",

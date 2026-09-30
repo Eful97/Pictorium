@@ -31,7 +31,7 @@ describe("buildCspHeader", () => {
     "default-src 'self'; " +
     "script-src 'self' 'unsafe-inline'; " +
     "style-src 'self' 'unsafe-inline'; " +
-    "img-src 'self' data: blob: https://image.tmdb.org https://artworks.thetvdb.com https://i.pinimg.com https://i.imgur.com https://i.redd.it https://preview.redd.it https://share.redd.it; " +
+    "img-src 'self' data: blob: https://image.tmdb.org https://artworks.thetvdb.com https://assets.fanart.tv https://i.pinimg.com https://i.imgur.com https://i.redd.it https://preview.redd.it https://share.redd.it; " +
     "font-src 'self'; " +
     "connect-src 'self'; " +
     "object-src 'none'; " +
@@ -57,6 +57,7 @@ describe("buildCspHeader", () => {
   it("img-src include i CDN delle sorgenti custom (tile anteprime esterne)", () => {
     const header = buildCspHeader({})
     for (const host of [
+      "https://assets.fanart.tv",
       "https://i.pinimg.com",
       "https://i.imgur.com",
       "https://i.redd.it",

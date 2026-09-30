@@ -28,6 +28,8 @@ const ENV_KEYS = [
   "PICTORIUM_TMDB_KEY",
   "TMDB_KEY",
   "TMDB_API_KEY",
+  "PICTORIUM_FANART_KEY",
+  "POSTERIUM_FANART_KEY",
 ] as const
 let savedEnv: Record<string, string | undefined> = {}
 let tempDir: string | undefined
@@ -43,6 +45,8 @@ beforeEach(async () => {
   delete process.env.PICTORIUM_TMDB_KEY
   delete process.env.TMDB_KEY
   delete process.env.TMDB_API_KEY
+  delete process.env.PICTORIUM_FANART_KEY
+  delete process.env.POSTERIUM_FANART_KEY
   delete process.env.KV_REST_API_URL
   delete process.env.KV_REST_API_TOKEN
   kvStore.clear()
@@ -72,13 +76,13 @@ describe("user-keys encryption", () => {
     const keys = await import("@/lib/user-keys")
     await keys.setUserKeys(UUID_A, { tmdb: NS_TMDB_KEY, mdblist: "ns-mdblist-1" })
     expect(await keys.getUserKeys(UUID_A)).toMatchObject({ tmdb: NS_TMDB_KEY, mdblist: "ns-mdblist-1" })
-    expect(await keys.getUserKeysStatus(UUID_A)).toEqual({ tmdb: true, mdblist: true, tvdb: false, simkl: false })
+    expect(await keys.getUserKeysStatus(UUID_A)).toEqual({ tmdb: true, mdblist: true, tvdb: false, simkl: false, fanart: false })
     const raw = await fsp.readFile(path.join(tempDir!, "users", UUID_A, "keys.json"), "utf-8")
     expect(raw).not.toContain(NS_TMDB_KEY)
     expect(raw).not.toContain("ns-mdblist-1")
     // "" cancella la kind, campo assente = invariato.
     await keys.setUserKeys(UUID_A, { tmdb: "" })
-    expect(await keys.getUserKeysStatus(UUID_A)).toEqual({ tmdb: false, mdblist: true, tvdb: false, simkl: false })
+    expect(await keys.getUserKeysStatus(UUID_A)).toEqual({ tmdb: false, mdblist: true, tvdb: false, simkl: false, fanart: false })
     expect(await keys.getUserKeys(UUID_A)).toMatchObject({ mdblist: "ns-mdblist-1" })
   })
 
@@ -125,8 +129,8 @@ describe("user-keys encryption", () => {
     await keys.setUserKeys(UUID_A, { tmdb: NS_TMDB_KEY, mdblist: "ns-mdblist-1" })
     // Disattiva solo tmdb: presenza invariata, risoluzione esclusa.
     await keys.setUserKeys(UUID_A, { tmdb: { disabled: true } })
-    expect(await keys.getUserKeysDisabled(UUID_A)).toEqual({ tmdb: true, mdblist: false, tvdb: false, simkl: false })
-    expect(await keys.getUserKeysStatus(UUID_A)).toEqual({ tmdb: true, mdblist: true, tvdb: false, simkl: false })
+    expect(await keys.getUserKeysDisabled(UUID_A)).toEqual({ tmdb: true, mdblist: false, tvdb: false, simkl: false, fanart: false })
+    expect(await keys.getUserKeysStatus(UUID_A)).toEqual({ tmdb: true, mdblist: true, tvdb: false, simkl: false, fanart: false })
     expect(await keys.getUserKeys(UUID_A)).toMatchObject({ mdblist: "ns-mdblist-1" })
     expect(await keys.getUserKeys(UUID_A)).not.toHaveProperty("tmdb")
     // Reveal esplicito vede anche le disattivate (serve alla riattivazione).
@@ -201,6 +205,37 @@ describe("resolveUserApiKeys", () => {
       nextReq("http://x/?mdblist_key=q-mdb", { headers: { "x-api-key": "h-tmdb" } }), null,
     ).then((all) => all.mdblist)
     expect(r).toEqual({ key: "q-mdb", source: "query" })
+  })
+
+  it("kind fanart: query > header > namespace > env > none", async () => {
+    vi.resetModules()
+    const tmdb = await import("@/lib/tmdb")
+    const keys = await import("@/lib/user-keys")
+    await keys.setUserKeys(UUID_A, { fanart: "ns-fanart" })
+
+    // Query vince su header e namespace (stessa convenzione di tvdb/simkl).
+    let r = await tmdb.resolveUserApiKey(
+      nextReq(`http://x/?fanart_key=q-fan&u=${UUID_A}`, { headers: { "x-fanart-key": "h-fan" } }),
+      UUID_A, "fanart",
+    )
+    expect(r).toEqual({ key: "q-fan", source: "query" })
+    // Header senza query vince sul namespace.
+    r = await tmdb.resolveUserApiKey(
+      nextReq(`http://x/?u=${UUID_A}`, { headers: { "x-fanart-key": "h-fan" } }),
+      UUID_A, "fanart",
+    )
+    expect(r).toEqual({ key: "h-fan", source: "header" })
+    // Namespace (nessuna chiave esplicita, nessuna env).
+    r = await tmdb.resolveUserApiKey(nextReq(`http://x/?u=${UUID_A}`), UUID_A, "fanart")
+    expect(r).toEqual({ key: "ns-fanart", source: "namespace" })
+    // Env come ultima spiaggia.
+    process.env.PICTORIUM_FANART_KEY = "env-fan"
+    r = await tmdb.resolveUserApiKey(nextReq("http://x/"), null, "fanart")
+    expect(r).toEqual({ key: "env-fan", source: "env" })
+    // Niente da nessuna parte.
+    delete process.env.PICTORIUM_FANART_KEY
+    r = await tmdb.resolveUserApiKey(nextReq("http://x/"), null, "fanart")
+    expect(r).toEqual({ key: undefined, source: "none" })
   })
 })
 

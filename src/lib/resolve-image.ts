@@ -34,6 +34,7 @@ const PINTEREST_HOST_RE = /(^|\.)pinterest\.[a-z]{2,}(\.[a-z]{2,})?$/
 const PINIMG_HOST_RE = /(^|\.)pinimg\.com$/
 const IMGUR_HOST_RE = /(^|\.)imgur\.com$/
 const REDDIT_HOST_RE = /(^|\.)(reddit\.com|redd\.it)$/
+const FANART_HOST_RE = /(^|\.)fanart\.tv$/
 
 export function isAllowedResolveHost(hostname: string): boolean {
   const h = hostname.toLowerCase().replace(/\.$/, "")
@@ -42,7 +43,8 @@ export function isAllowedResolveHost(hostname: string): boolean {
     PINTEREST_HOST_RE.test(h) ||
     PINIMG_HOST_RE.test(h) ||
     IMGUR_HOST_RE.test(h) ||
-    REDDIT_HOST_RE.test(h)
+    REDDIT_HOST_RE.test(h) ||
+    FANART_HOST_RE.test(h)
   )
 }
 
@@ -54,7 +56,8 @@ function isImageCdnHost(hostname: string): boolean {
     h === "i.imgur.com" ||
     h === "i.redd.it" ||
     h === "preview.redd.it" ||
-    h === "share.redd.it"
+    h === "share.redd.it" ||
+    h === "assets.fanart.tv"
   )
 }
 

@@ -100,6 +100,15 @@ describe("fetchValidatedCustomImage", () => {
     expect(buf?.length).toBe(PNG_1X1.length)
   })
 
+  it("accetta il CDN Fanart.tv (poster verticali salvati come custom)", async () => {
+    const buf = await fetchValidatedCustomImage("https://assets.fanart.tv/fanart/movies/123/movieposter/a.jpg", signal, {
+      ...noBlock,
+      fetchRemote: async () => imageResponse(PNG_1X1, "image/png"),
+    })
+    expect(buf).not.toBeNull()
+    expect(buf?.length).toBe(PNG_1X1.length)
+  })
+
   it("rifiuta content-type non-image (MIME falso)", async () => {
     const buf = await fetchValidatedCustomImage("https://i.imgur.com/x.jpg", signal, {
       ...noBlock,

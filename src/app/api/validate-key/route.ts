@@ -117,5 +117,26 @@ export async function POST(req: NextRequest): Promise<Response> {
     }
   }
 
+  if (provider === "fanart") {
+    // Chiave progetto: basta un titolo noto (Fight Club, tt0137523 → TMDB 550).
+    // 200 = chiave accettata; 401/403 = rifiutata; il resto è indistinguibile
+    // (C6: mai oracolo sullo stato della rete).
+    try {
+      const res = await fetch(`https://webservice.fanart.tv/v3/movies/550?api_key=${encodeURIComponent(cleanKey)}`, {
+        signal: AbortSignal.timeout(6000),
+      })
+      if (res.ok) {
+        return Response.json({ valid: true })
+      }
+      if (res.status === 401 || res.status === 403) {
+        return Response.json({ valid: false, message: "Chiave Fanart.tv non valida" })
+      }
+      return invalidOrUnreachable("Fanart.tv")
+    } catch (e) {
+      log.warn("Fanart.tv key validation failed", { error: e instanceof Error ? e.message : String(e) })
+      return invalidOrUnreachable("Fanart.tv")
+    }
+  }
+
   return Response.json({ valid: false, message: "Unknown provider" }, { status: 400 })
 }

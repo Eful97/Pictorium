@@ -184,6 +184,39 @@ describe("POST /api/validate-key", () => {
     expect(json.valid).toBe(false)
   })
 
+  it("validates valid Fanart.tv key (200 on a known title)", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+      Response.json({ tmdb_id: "550" })
+    )
+
+    const req = new NextRequest("http://localhost:3000/api/validate-key", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ provider: "fanart", key: "valid-fanart-key" }),
+    })
+    const res = await POST(req)
+    expect(res.status).toBe(200)
+    const json = await res.json()
+    expect(json.valid).toBe(true)
+    expect(String(fetchSpy.mock.calls[0]?.[0])).toContain("webservice.fanart.tv/v3/movies/550")
+  })
+
+  it("validates invalid Fanart.tv key (401)", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+      new Response(JSON.stringify({ status: "error" }), { status: 401 })
+    )
+
+    const req = new NextRequest("http://localhost:3000/api/validate-key", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ provider: "fanart", key: "bad-fanart-key" }),
+    })
+    const res = await POST(req)
+    expect(res.status).toBe(200)
+    const json = await res.json()
+    expect(json.valid).toBe(false)
+  })
+
   it("rejects oversized bodies with 413 before buffering (anti-OOM v1.23.0)", async () => {
     const req = new NextRequest("http://localhost:3000/api/validate-key", {
       method: "POST",

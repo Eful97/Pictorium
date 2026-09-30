@@ -216,7 +216,7 @@ describe("UserKeysSection", () => {
     renderWithCtx(<UserKeysSection />)
 
     await waitFor(() => {
-      expect(screen.getAllByRole("button", { name: "ui.verifyKey" })).toHaveLength(4)
+      expect(screen.getAllByRole("button", { name: "ui.verifyKey" })).toHaveLength(5)
     })
 
     // Nessuna chiave: i pulsanti verifica sono disabilitati
@@ -226,7 +226,7 @@ describe("UserKeysSection", () => {
     // Digita una chiave TMDB e verifica (gli input password non hanno role
     // textbox in questa versione di testing-library: query dal DOM)
     const inputs = document.querySelectorAll("input")
-    expect(inputs).toHaveLength(4)
+    expect(inputs).toHaveLength(5)
     fireEvent.change(inputs[0], { target: { value: "my-tmdb-key-123" } })
     await waitFor(() => {
       expect(verifyBtns[0]).not.toBeDisabled()

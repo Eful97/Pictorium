@@ -11,7 +11,8 @@ import { usePSelector } from "@/lib/context"
 import { useT } from "@/lib/contexts/TranslationContext"
 import { usePosterEditor } from "@/lib/contexts/PosterEditorContext"
 import { usePosterFit } from "@/lib/usePosterFit"
-import { RotateCcw, Check, Clock, Sparkles, ArrowUpDown, EyeOff, ChevronDown, X } from "lucide-react"
+import { useFanartPosters } from "@/lib/useFanartPosters"
+import { RotateCcw, Check, Clock, Sparkles, ArrowUpDown, EyeOff, ChevronDown, X, Loader2 } from "lucide-react"
 
 interface Props {
   posters: TMDBImage[]
@@ -55,18 +56,23 @@ export function PosterOptions({ posters, posterActivePath, lang, selectPoster, a
     [lang, posters],
   )
 
+  const [internalActiveGroup, setInternalActiveGroup] = useState("clean")
+  const activeGroup = controlledActiveGroup ?? internalActiveGroup
+  const setActiveGroup = onActiveGroupChange ?? setInternalActiveGroup
+
+  // Fanart.tv: fetch lazy solo a tab aperta (mai all'apertura del titolo).
+  const fanart = useFanartPosters(activeGroup === "fanart")
+
   const posterTabs = useMemo(() => {
     const tabs: { key: string; label: string; count: number }[] = []
     if (hasClean) tabs.push({ key: "clean", label: "Clean", count: cleanPosters.length + customPosters.length + (savedCustomPoster ? 1 : 0) })
     for (const [language, imgs] of langGroups) {
       if (imgs.length > 0) tabs.push({ key: language, label: LANG_NAMES[language] || language, count: imgs.length })
     }
+    // Tab Fanart.tv alla pari delle lingue: solo a titolo selezionato.
+    if (selected) tabs.push({ key: "fanart", label: t("ui.fanartTitle"), count: fanart.posters.length })
     return tabs
-  }, [hasClean, cleanPosters.length, customPosters.length, savedCustomPoster, langGroups])
-
-  const [internalActiveGroup, setInternalActiveGroup] = useState("clean")
-  const activeGroup = controlledActiveGroup ?? internalActiveGroup
-  const setActiveGroup = onActiveGroupChange ?? setInternalActiveGroup
+  }, [hasClean, cleanPosters.length, customPosters.length, savedCustomPoster, langGroups, selected, fanart.posters.length, t])
 
   useEffect(() => {
     if (posterTabs.length > 0 && !posterTabs.some((t) => t.key === activeGroup)) {
@@ -189,9 +195,10 @@ export function PosterOptions({ posters, posterActivePath, lang, selectPoster, a
   }, [displayPosters, visibleCleanCount])
 
   const activeClean = activeGroup === "clean"
+  const activeFanart = activeGroup === "fanart"
   const activeLangImgs = useMemo(() => {
-    return !activeClean ? langGroups.find(([l]) => l === activeGroup)?.[1] ?? [] : []
-  }, [activeClean, langGroups, activeGroup])
+    return !activeClean && !activeFanart ? langGroups.find(([l]) => l === activeGroup)?.[1] ?? [] : []
+  }, [activeClean, activeFanart, langGroups, activeGroup])
 
   const visibleLangImgs = useMemo(() => {
     return activeLangImgs.slice(0, visibleLangCount)
@@ -424,7 +431,7 @@ export function PosterOptions({ posters, posterActivePath, lang, selectPoster, a
         <p className="text-center py-12 text-muted text-xs">{t("ui.loading")}</p>
       )}
 
-      {!activeClean && (
+      {!activeClean && !activeFanart && (
         <>
           <div className="grid grid-cols-3 gap-2">
             {visibleLangImgs.map((img) => {
@@ -446,6 +453,54 @@ export function PosterOptions({ posters, posterActivePath, lang, selectPoster, a
             </button>
           )}
         </>
+      )}
+
+      {activeFanart && (
+        <div data-testid="fanart-tab-panel">
+          {(fanart.status === "idle" || fanart.status === "loading") && (
+            <p className="flex items-center justify-center gap-1.5 py-12 text-[11px] text-zinc-500" role="status">
+              <Loader2 className="w-3.5 h-3.5 animate-spin" aria-hidden="true" />
+              {t("ui.fanartLoading")}
+            </p>
+          )}
+          {fanart.status === "empty" && (
+            <p className="py-12 text-center text-[11px] text-zinc-500">{t("ui.fanartEmpty")}</p>
+          )}
+          {fanart.status === "not_configured" && (
+            <p className="py-12 px-2 text-center text-[11px] text-zinc-500 leading-relaxed">{t("ui.fanartNotConfigured")}</p>
+          )}
+          {fanart.status === "unavailable" && (
+            <div className="py-8 text-center">
+              <p className="text-[11px] text-zinc-500">{t("ui.fanartUnavailable")}</p>
+              <button
+                type="button"
+                onClick={() => fanart.reload()}
+                className="mt-2 px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 text-[11px] font-semibold text-zinc-300 hover:text-white hover:bg-white/10 transition-all"
+              >
+                {t("ui.retry")}
+              </button>
+            </div>
+          )}
+          {fanart.status === "ready" && (
+            <div className="grid grid-cols-3 gap-2">
+              {fanart.posters.map((tile, i) => {
+                const m = fanart.meta[i]
+                const lang = m?.lang ?? null
+                const langLabel = !lang || lang === "00" ? t("ui.fanartLangUnknown") : LANG_NAMES[lang] || lang
+                return (
+                  <PosterBtn
+                    key={tile.file_path}
+                    staggerIndex={i}
+                    img={tile}
+                    active={posterActivePath === tile.file_path}
+                    onSelect={selectPoster}
+                    title={`${langLabel} · ♥ ${m?.likes ?? 0}`}
+                  />
+                )
+              })}
+            </div>
+          )}
+        </div>
       )}
 
       {activeClean && ed.rotationPosters.length > 0 && (

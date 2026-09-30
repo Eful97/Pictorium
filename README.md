@@ -132,7 +132,7 @@ pinned: false
 
 #### Multi-User Spaces (Public / Shared Instances)
 When `PICTORIUM_MULTI_USER=1` is enabled, multiple users can share a single server with complete isolation:
-* **Personal Space via UUID**: Each user has their own URL (`/u/<uuid>/configure`) with separate mappings, preferences, and TMDB keys.
+* **Personal Space via UUID**: Each user has their own URL (`/u/<uuid>/configure`) with separate mappings, preferences, and API keys (TMDB, MDBList, TVDB, Simkl, Fanart.tv).
 * **Encrypted at Rest**: User API keys are stored encrypted on disk using AES-256-GCM via `PROFILE_ENCRYPTION_KEY`.
 * **Authentication & Recovery**:
   * **Session Password**: Required on each visit to unlock the editor (never stored permanently in the browser).
@@ -257,6 +257,7 @@ npm install --ignore-scripts && npm run build && npm start
 | `PICTORIUM_TMDB_KEY` | *(optional)* | Server-side TMDB API key to render posters and catalogs without client keys. |
 | `PICTORIUM_TVDB_API_KEY` | *(optional)* | TheTVDB key for alternate season ordering, episode descriptions, and TheTVDB custom lists (BYOK: request header, `tvdb_key` query, or user profile key win over this). |
 | `PICTORIUM_MDBLIST_KEY` | *(optional)* | MDBList key for custom lists and anime catalogs. |
+| `PICTORIUM_FANART_KEY` | *(optional)* | Fanart.tv project key for the vertical-posters section in the editor (server-only, never exposed to the browser). Without it the section explains it is not configured. |
 | `PICTORIUM_TRAKT_CLIENT_ID` | *(optional)* | Trakt API client ID (single Pictorium app registration) for public Trakt lists as custom catalogs. Public lists only, no OAuth. |
 | `PICTORIUM_REGION` | `IT` | Default country for streaming charts and availability (`IT`, `US`, `GB`, `FR`, `DE`, `ES`, etc.). |
 | `PICTORIUM_DATA_DIR` | `./data` | Directory path for persisting settings and saved posters on disk. In Docker it must point at a persistent volume (`/data`, `posterium-data` volume, writable by uid 1000): the data file is created on first save, so "not found" with 0 posters on a fresh install is normal. |

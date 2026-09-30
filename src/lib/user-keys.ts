@@ -14,8 +14,8 @@ function isKvMode(): boolean {
   return getStorageMode() === "kv"
 }
 
-export type UserKeyKind = "tmdb" | "mdblist" | "tvdb" | "simkl"
-export const USER_KEY_KINDS: readonly UserKeyKind[] = ["tmdb", "mdblist", "tvdb", "simkl"]
+export type UserKeyKind = "tmdb" | "mdblist" | "tvdb" | "simkl" | "fanart"
+export const USER_KEY_KINDS: readonly UserKeyKind[] = ["tmdb", "mdblist", "tvdb", "simkl", "fanart"]
 
 export type UserKeys = Partial<Record<UserKeyKind, string>>
 
@@ -171,6 +171,7 @@ export async function getUserKeysDisabled(userId: string): Promise<Record<UserKe
     mdblist: disabled.mdblist === true,
     tvdb: disabled.tvdb === true,
     simkl: disabled.simkl === true,
+    fanart: disabled.fanart === true,
   }
 }
 
@@ -183,6 +184,7 @@ export async function getUserKeysStatus(userId: string): Promise<Record<UserKeyK
     mdblist: isValidBundle(file?.keys.mdblist),
     tvdb: isValidBundle(file?.keys.tvdb),
     simkl: isValidBundle(file?.keys.simkl),
+    fanart: isValidBundle(file?.keys.fanart),
   }
 }
 
@@ -207,12 +209,13 @@ export async function getUserKeysHealth(userId: string): Promise<UserKeysHealth>
     mdblist: isValidBundle(file?.keys.mdblist),
     tvdb: isValidBundle(file?.keys.tvdb),
     simkl: isValidBundle(file?.keys.simkl),
+    fanart: isValidBundle(file?.keys.fanart),
   }
   const key = encryptionKey()
   if (!key) {
-    return { present, decryptable: { tmdb: false, mdblist: false, tvdb: false, simkl: false }, encryptionAvailable: false }
+    return { present, decryptable: { tmdb: false, mdblist: false, tvdb: false, simkl: false, fanart: false }, encryptionAvailable: false }
   }
-  const decryptable: Record<UserKeyKind, boolean> = { tmdb: false, mdblist: false, tvdb: false, simkl: false }
+  const decryptable: Record<UserKeyKind, boolean> = { tmdb: false, mdblist: false, tvdb: false, simkl: false, fanart: false }
   for (const kind of USER_KEY_KINDS) {
     const bundle = file?.keys[kind]
     if (!isValidBundle(bundle)) continue
