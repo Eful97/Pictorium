@@ -27,6 +27,7 @@ import fs from "fs"
 import path from "path"
 import { estimateTextWidth, fontFamilyFor, escSvg, badgeBoxHeight, TOP_SHADOW_PAD } from "./badge-svg-shared"
 import { computeTopBadge, isNetworkStudio, type BadgeInput } from "./poster-badge"
+import type { DateFormat } from "./release-badge"
 import type { SashBucket } from "./badge-priority"
 import { PRE_RELEASE_DIM_ALPHA, PRE_RELEASE_BLUR_SIGMA } from "./pre-release"
 import type { Mapping, NetworkLogoPosition } from "./types"
@@ -203,6 +204,8 @@ export interface GenerationInput {
   wikidataResult: WikidataResult
   tmdbKeywords: readonly string[]
   locale: string
+  /** Formato data badge "in uscita" (query `df` > default utente; default `locale`). */
+  dateFormat?: DateFormat | null
   t: BadgeT
   qLabel: string | null
   queryExtra: string | null
@@ -1069,7 +1072,7 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
     keywords: [...tmdbKeywords],
     imdbTop250: !!imdbTop250,
   }
-  const computed = computeTopBadge(badgeInput, t, locale, sashOrder ?? null)
+  const computed = computeTopBadge(badgeInput, t, locale, sashOrder ?? null, input.dateFormat ?? "locale")
   const studioBadge = computed.studioBadge
   const isNetStudio = isNetworkStudio(studioBadge)
 

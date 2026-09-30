@@ -768,5 +768,11 @@
   "ui.hostedByDeploy": "Wdróż własną prywatną instancję na ElfHosted",
   "ui.hostedByGuide": "przewodnik po darmowych dodatkach",
   "ui.hostedByGuideLine": "Nowy w Stremio? Sprawdź {guide}.",
-  "ui.hostedByMinimize": "Minimalizuj do ikony"
+  "ui.hostedByMinimize": "Minimalizuj do ikony",
+  "ui.dateFormat": "Release date format",
+  "ui.dateFormatHint": "How the date shows in the Upcoming badge.",
+  "ui.dateFormatLocale": "Automatic (follows language)",
+  "ui.dateFormatDmy": "Day.Month.Year",
+  "ui.dateFormatMdy": "Month.Day.Year",
+  "ui.dateFormatIso": "Year-Month-Day"
 }

@@ -80,6 +80,7 @@ import { NON_CLEAN_BLUR_FADE, NON_CLEAN_GRADIENT_HEIGHT } from "@/lib/gradient-d
 import { LAND_W, LAND_H, landscapeBackdropUrl, pillarboxLandscapeBase, cropBackdropToPortrait } from "@/lib/image-utils"
 import { generatePosterBuffer, type GenerationInput } from "@/lib/poster-service"
 import { computeTopBadge } from "@/lib/poster-badge"
+import { parseDateFormat } from "@/lib/release-badge"
 import { fetchPosterBaseWithCustom, customBaseAnalysisKey, resolveEffectiveCustomUrl, safeTmdbImgSrc, isAllowedQueryImagePath } from "@/lib/custom-poster-base"
 import { isCustomPosterUrl } from "@/lib/utils"
 
@@ -1767,6 +1768,9 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
     const finalVideoFormats = effectiveFormats.length > 0 ? effectiveFormats : null
 
     const locale = req.nextUrl.searchParams.get("lang") || mapping?.language || posterRegion.lang2
+    // Formato data badge "in uscita": query `df` > default utente > `locale`
+    // (fail-closed: valori ignoti o assenti = comportamento storico).
+    const dateFormat = parseDateFormat(hardenedParams.get("df") ?? sd.dateFormat ?? null) ?? "locale"
     // Normalizza i generi composti TV grezzi ("Sci-Fi & Fantasy" mai localizzato
     // in it-IT) in etichette brevi da badge — stesso helper del client, così
     // preview e poster Stremio non divergono e i mapping storici grezzi si
@@ -1806,7 +1810,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
         keywords: [...tmdbKeywords],
         imdbTop250: !!imdbTop250,
       }
-      const badgeComputed = computeTopBadge(badgeInput, t, locale, sashOrder)
+      const badgeComputed = computeTopBadge(badgeInput, t, locale, sashOrder, dateFormat)
       log.info("Debug mode", { mediaType, tmdbId, imdbId, imdbTop250: !!imdbTop250, badge: badgeComputed.badge?.label ?? "null", vote: voteAverage, genre: genreName, quality: finalQuality })
       completePosterRender(null)
       return Response.json({
@@ -1955,6 +1959,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
       tvType, tvStatus, releaseDate, firstAirDate,
       lastAirDate, seasonCount, originCountries,
       wikidataResult, tmdbKeywords, locale, t,
+      dateFormat,
       qLabel, queryExtra, qNetLogo, networkLogo, networkLogoPosition, sd,
       accentOverride, imdbTop250, preRelease: applyPreRelease,
       shape: posterShape,

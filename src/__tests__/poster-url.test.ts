@@ -495,4 +495,15 @@ describe("buildPreviewUrl", () => {
     expect(buildPreviewUrl(basePosterState, { ...baseBadgeParams, videoFormats: [] })).toContain("formats=none")
     expect(buildPreviewUrl(basePosterState, { ...baseBadgeParams, videoFormats: ["dv", "atmos"] })).toContain("formats=dv,atmos")
   })
+
+  it("always emits df in preview (WYSIWYG), only non-locale in pattern", () => {
+    // Preview sempre esplicita: senza, un default salvato diverso
+    // scavalcerebbe la scelta editor (desync WYSIWYG).
+    expect(buildPreviewUrl(basePosterState, baseBadgeParams)).toContain("df=locale")
+    expect(buildPreviewUrl({ ...basePosterState, dateFormat: "dmy" }, baseBadgeParams)).toContain("df=dmy")
+    const patternDefault = buildUrlPattern({ ...baseBadgeParams, tmdbKey: "k", lang: "it" })
+    expect(patternDefault).not.toContain("df=")
+    const patternExplicit = buildUrlPattern({ ...baseBadgeParams, tmdbKey: "k", lang: "it", dateFormat: "iso" })
+    expect(patternExplicit).toContain("df=iso")
+  })
 })

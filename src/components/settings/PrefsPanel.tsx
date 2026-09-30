@@ -62,6 +62,23 @@ export function PrefsPanel({ active }: { active: boolean }) {
             ))}
           </select>
         </div>
+        <div className="flex items-center justify-between gap-2 pt-0.5">
+          <span className="text-zinc-300 font-medium">{t("ui.dateFormat")}</span>
+          <select
+            value={ed.defaultDateFormat}
+            onChange={(e) => {
+              ed.setDefaultDateFormat(e.target.value as "locale" | "dmy" | "mdy" | "iso")
+            }}
+            aria-label={t("ui.dateFormat")}
+            className="max-w-[190px] truncate px-2.5 py-1.5 rounded-lg text-[11px] font-semibold bg-white/5 text-zinc-100 border border-white/10 hover:bg-white/10 focus:outline-none focus:border-accent-orange/50 cursor-pointer"
+          >
+            <option value="locale" className="bg-zinc-900 text-zinc-100">{t("ui.dateFormatLocale")}</option>
+            <option value="dmy" className="bg-zinc-900 text-zinc-100">{t("ui.dateFormatDmy")}</option>
+            <option value="mdy" className="bg-zinc-900 text-zinc-100">{t("ui.dateFormatMdy")}</option>
+            <option value="iso" className="bg-zinc-900 text-zinc-100">{t("ui.dateFormatIso")}</option>
+          </select>
+        </div>
+        <p className="text-[11px] text-muted leading-relaxed">{t("ui.dateFormatHint")}</p>
         <p className="text-[11px] text-muted leading-relaxed">{t("ui.regionHint")}</p>
       </div>
 

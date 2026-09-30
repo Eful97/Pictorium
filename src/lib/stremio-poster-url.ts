@@ -141,6 +141,7 @@ export function buildStremioPosterUrl(input: BuildStremioPosterUrlInput): URL {
     customBadge,
     badgePresetId: mapping?.badgePresetId,
     badgePresetRev: mapping?.badgePresetRev,
+    dateFormat: sd.dateFormat ?? undefined,
     title: mapping?.title ?? undefined,
     networkLogo: (sd.networkLogo !== false) && (mapping?.networkLogo !== false),
     // Ancoraggio network: per-titolo vince sul default globale (come networkLogo).

@@ -11,12 +11,12 @@ export interface RecentChange {
 }
 
 export const RECENT_CHANGES: RecentChange[] = [
-  { type: "feature", text: "Add Turkish, Dutch and Swedish languages to catalogs, rankings and interface", sha: "d70c528", date: "2026-09-29" },
-  { type: "feature", text: "Add Arabic language and Saudi Arabia to catalogs, rankings and interface", sha: "79ae08f", date: "2026-09-29" },
-  { type: "feature", text: "Landscape defaults section and unsaved artwork warning in Stremio preview", sha: "b5c2adc", date: "2026-09-29" },
-  { type: "feature", text: "Add Polish language and Poland to catalogs, rankings and interface", sha: "62b62ec", date: "2026-09-29" },
-  { type: "fix", text: "Fix Dolby Vision Atmos badge artwork and XML prolog handling", sha: "232ff9c", date: "2026-09-29" },
-  { type: "fix", text: "Custom external catalogs show covers and full lists on multi-user profiles", sha: "8e853f4", date: "2026-09-29" },
-  { type: "feature", text: "Introduce unified Dolby Vision Atmos compact badge", sha: "b8ba937", date: "2026-09-29" },
-  { type: "feature", text: "Connect Portuguese language to European Portugal catalogs and flag", sha: "8e6f01a", date: "2026-09-29" },
+  { type: "feature", text: "Remove button for added custom poster tiles", sha: "0c450c5", date: "2026-09-30" },
+  { type: "fix", text: "Allow custom poster URLs through the R2 image gate in previews", sha: "7d01edb", date: "2026-09-30" },
+  { type: "fix", text: "Send browser UA for remote fetches and verify og:image bytes at resolve time", sha: "a00f866", date: "2026-09-30" },
+  { type: "feature", text: "Keep unsaved custom poster tiles across reloads", sha: "57a3f19", date: "2026-09-30" },
+  { type: "feature", text: "Add custom poster tiles with one-click import and live preview", sha: "8838552", date: "2026-09-30" },
+  { type: "feature", text: "Custom poster URL import from Pinterest, Imgur and Reddit", sha: "cae43b9", date: "2026-09-30" },
+  { type: "feature", text: "Network logo top mode that follows the ribbon side", sha: "5bc3ce4", date: "2026-09-30" },
+  { type: "feature", text: "Full-space backup with settings, presets and preferences", sha: "3f8b7a2", date: "2026-09-30" },
 ]

@@ -768,5 +768,11 @@
   "ui.hostedByDeploy": "Implementeer je eigen privé-instantie op ElfHosted",
   "ui.hostedByGuide": "gratis addongids",
   "ui.hostedByGuideLine": "Nieuw bij Stremio? Bekijk de {guide}.",
-  "ui.hostedByMinimize": "Minimaliseren naar pictogram"
+  "ui.hostedByMinimize": "Minimaliseren naar pictogram",
+  "ui.dateFormat": "Release date format",
+  "ui.dateFormatHint": "How the date shows in the Upcoming badge.",
+  "ui.dateFormatLocale": "Automatic (follows language)",
+  "ui.dateFormatDmy": "Day.Month.Year",
+  "ui.dateFormatMdy": "Month.Day.Year",
+  "ui.dateFormatIso": "Year-Month-Day"
 }

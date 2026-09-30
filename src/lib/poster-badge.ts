@@ -6,7 +6,7 @@
 import { computeBadge, computeAbsoluteCinema, isMiniseriesType, isReturningStatus, stripArabicDiacritics, type BadgeResult, type SashBucket } from "./badge-priority"
 import { getAwardBadgeLabel, getNominationBadgeLabel } from "./badge-labels"
 import { withIdAwards, withIdNoms } from "./award-ids"
-import { getUpcomingReleaseLabel } from "./release-badge"
+import { getUpcomingReleaseLabel, type DateFormat } from "./release-badge"
 import { getSubGenreLabel } from "./subgenres"
 
 export type BadgeT = (key: string, params?: Record<string, string | number>) => string
@@ -157,7 +157,7 @@ export function isKDramaOrigin(originCountries: readonly string[] | undefined | 
  * Returns both the final badge and intermediate values so callers can
  * use them for save logic without recomputing.
  */
-export function computeTopBadge(input: BadgeInput, t: BadgeT, locale?: string, order?: readonly SashBucket[] | null): ComputedTopBadge {
+export function computeTopBadge(input: BadgeInput, t: BadgeT, locale?: string, order?: readonly SashBucket[] | null, dateFormat?: DateFormat | null): ComputedTopBadge {
   const now = Date.now()
   const TWO_WEEKS_MS = 14 * 24 * 60 * 60 * 1000
   // Date FUTURE bug: con una data di uscita in avanti, (now - date) era negativo
@@ -194,6 +194,7 @@ export function computeTopBadge(input: BadgeInput, t: BadgeT, locale?: string, o
     releaseDate: input.releaseDate,
     firstAirDate: input.firstAirDate,
     locale: locale || "it",
+    dateFormat: dateFormat ?? "locale",
     t,
   })
 

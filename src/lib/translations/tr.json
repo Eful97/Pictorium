@@ -768,5 +768,11 @@
   "ui.hostedByDeploy": "Kendi özel örneğinizi ElfHosted'da yayınlayın",
   "ui.hostedByGuide": "ücretsiz eklenti kılavuzu",
   "ui.hostedByGuideLine": "Stremio'da yeni misiniz? {guide} konusuna bakın.",
-  "ui.hostedByMinimize": "Simgeye küçült"
+  "ui.hostedByMinimize": "Simgeye küçült",
+  "ui.dateFormat": "Release date format",
+  "ui.dateFormatHint": "How the date shows in the Upcoming badge.",
+  "ui.dateFormatLocale": "Automatic (follows language)",
+  "ui.dateFormatDmy": "Day.Month.Year",
+  "ui.dateFormatMdy": "Month.Day.Year",
+  "ui.dateFormatIso": "Year-Month-Day"
 }

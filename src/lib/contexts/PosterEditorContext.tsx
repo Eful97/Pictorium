@@ -4,6 +4,7 @@ import { createContext, useContext, useState, useMemo, useCallback } from "react
 import type { TMDBImage, NetworkLogoPosition, PosterShape } from "@/lib/types"
 import { useDefaults } from "@/lib/useDefaults"
 import type { LandscapeServerDefaults } from "@/lib/server-defaults"
+import type { DateFormat } from "@/lib/release-badge"
 import type { BadgeStyle, RankingBadgeStyle, QualityBadgeStyle } from "@/lib/badge-styles"
 import type { SashBucket } from "@/lib/badge-priority"
 import type { VideoFormat } from "@/lib/av-specs"
@@ -222,6 +223,9 @@ export interface PosterEditorCtx {
   resetLandscape: () => void
   defaultRegion: string
   setDefaultRegion: (v: string | ((prev: string) => string)) => void
+  /** Formato data badge "in uscita" (default `locale` = segue la lingua). */
+  defaultDateFormat: DateFormat
+  setDefaultDateFormat: (v: DateFormat | ((prev: DateFormat) => DateFormat)) => void
   loadDefaultsToState: () => void
 
   // ---- Blur ----
@@ -401,7 +405,7 @@ export function PosterEditorProvider({
     defaultAutoRotateClean, defaultAutoRotateBackdrop, defaultPortraitFitEnabled, defaultLandscapeFitEnabled, defaultNetworkLogo, defaultNetworkLogoPosition, defaultPreRelease, defaultRibbonSide, defaultRibbonEnabled, defaultPosterShape, defaultLogoAlign,
     landscape: landscapeDefaults,
     episodeMetadataSource, defaultEpisodeMetadataSource,
-    region, defaultRegion,
+    region, defaultRegion, defaultDateFormat,
     loadDefaultsToState, update,
   } = defaults
 
@@ -904,6 +908,11 @@ export function PosterEditorProvider({
       const next = typeof v === "function" ? v(defaultRegion) : v
       update({ defaultRegion: next })
     }, [defaultRegion, update])
+  const setDefaultDateFormat = useCallback(
+    (v: DateFormat | ((prev: DateFormat) => DateFormat)) => {
+      const next = typeof v === "function" ? v(defaultDateFormat) : v
+      update({ defaultDateFormat: next })
+    }, [defaultDateFormat, update])
 
   const editorCtx = useMemo<PosterEditorCtx>(
     () => ({
@@ -1063,6 +1072,8 @@ export function PosterEditorProvider({
       setDefaultLogoAlign,
       defaultRegion,
       setDefaultRegion,
+      defaultDateFormat,
+      setDefaultDateFormat,
       loadDefaultsToState,
 
       // Blur
@@ -1189,6 +1200,7 @@ export function PosterEditorProvider({
       episodeMetadataSource, setEpisodeMetadataSource,
       region, setRegion,
       defaultRegion, setDefaultRegion,
+      defaultDateFormat, setDefaultDateFormat,
 
       // Defaults
       defaultBadgeStyle, setDefaultBadgeStyle,

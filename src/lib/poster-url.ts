@@ -14,6 +14,7 @@ import type { BadgeStyle, RankingBadgeStyle, QualityBadgeStyle } from "./badge-s
 import type { VideoFormat } from "./av-specs"
 import type { PosterShape, NetworkLogoPosition } from "./types"
 import { BADGE_PRESET_ID_RE, BADGE_PRESET_REV_RE } from "./badge-preset"
+import type { DateFormat } from "./release-badge"
 
 interface BadgeParams {
   globalBadges: boolean
@@ -37,6 +38,8 @@ interface BadgeParams {
   customBadge: string | null
   badgePresetId?: string | null
   badgePresetRev?: string | null
+  /** Formato data badge "in uscita" (default `locale` = segue la lingua). */
+  dateFormat?: DateFormat | null
   gradientHeight: number
   blurIntensity: number
   blurFade: number
@@ -116,6 +119,8 @@ interface PosterState {
   autoAccentColor?: string | null
   lang: string
   region?: string
+  /** Formato data badge "in uscita" (preview sempre esplicita, WYSIWYG). */
+  dateFormat?: DateFormat | null
   tmdbKey: string
   /** Namespace utente (multi-user): emesso come `u=` così la preview rende il mapping del namespace. */
   userId?: string | null
@@ -179,6 +184,7 @@ export function buildUrlPattern(bp: BadgeParams & {
     networkLogoScale: bp.networkLogoScale,
     networkLogoOffsetX: bp.networkLogoOffsetX,
     networkLogoOffsetY: bp.networkLogoOffsetY,
+    dateFormat: bp.dateFormat ?? undefined,
   })
   // Template che l'utente copia per sé (come la manifest URL con chiavi):
   // qui le chiavi sono volute — Stremio non invia header custom, quindi il
@@ -262,6 +268,9 @@ export function buildPreviewUrl(ps: PosterState, bp: BadgeParams): string {
   }
   if (ps.lang) params.push(`lang=${ps.lang}`)
   if (ps.region) params.push(`region=${encodeURIComponent(ps.region)}`)
+  // SEMPRE esplicito in preview (come badges/ranking/cr): senza, un default
+  // salvato diverso scavalcerebbe la scelta editor (desync WYSIWYG).
+  params.push(`df=${ps.dateFormat ?? "locale"}`)
   params.push(`gradHeight=${bp.gradientHeight}`)
   params.push(`blur=${bp.blurIntensity}`)
   params.push(`bf=${bp.blurFade}`)

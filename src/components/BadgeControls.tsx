@@ -357,6 +357,7 @@ export function BadgeControls() {
                   releaseDate: metaInfo.release_date,
                   firstAirDate: metaInfo.first_air_date,
                   locale: lang,
+                  dateFormat: ed.defaultDateFormat,
                   t,
                 })
                 const subGenre = getSubGenreLabel(metaInfo.keywords || [], lang)

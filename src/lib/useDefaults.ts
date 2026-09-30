@@ -5,6 +5,7 @@ import type { BadgeStyle, RankingBadgeStyle } from "./badge-styles"
 import type { NetworkLogoPosition, PosterShape } from "./types"
 import { isNetworkLogoPosition, isPosterShape } from "./types"
 import type { LandscapeServerDefaults } from "./server-defaults"
+import { parseDateFormat, type DateFormat } from "./release-badge"
 import { normalizeRegion } from "./regions"
 import { isProfilelessOnMultiUser, notifyProfilelessOnce, shouldSkipServerSync } from "./guest-guard"
 import { userFetch } from "./http"
@@ -82,6 +83,8 @@ export interface DefaultsState {
   defaultEpisodeMetadataSource: "tmdb" | "tvdb"
   /** Regione classifiche (codice JW canonico, es. "IT"). */
   defaultRegion: string
+  /** Formato data badge "in uscita" (default `locale` = segue la lingua). */
+  defaultDateFormat: DateFormat
   region: string
   globalBadges: boolean
   rankingBadges: boolean
@@ -197,6 +200,7 @@ const DEFAULTS: DefaultsState = {
   defaultPosterShape: "poster",
   defaultLogoAlign: null,
   defaultEpisodeMetadataSource: "tmdb",
+  defaultDateFormat: "locale",
   defaultRegion: "IT",
   region: "IT",
   globalBadges: true,
@@ -339,6 +343,7 @@ interface StoredDefaults {
   logoAlign?: "left" | "center"
   defaultEpisodeMetadataSource?: "tmdb" | "tvdb"
   episodeMetadataSource?: "tmdb" | "tvdb"
+  defaultDateFormat?: DateFormat
   defaultRegion?: string
   region?: string
   autoRotateClean?: boolean
@@ -445,6 +450,7 @@ function buildFromStored(d: StoredDefaults | null): DefaultsState {
     defaultPosterShape: storedDefaultShape ?? "poster",
     defaultLogoAlign: d.defaultLogoAlign === "left" || d.defaultLogoAlign === "center" ? d.defaultLogoAlign : null,
     defaultEpisodeMetadataSource: d.defaultEpisodeMetadataSource ?? d.episodeMetadataSource ?? "tmdb",
+    defaultDateFormat: parseDateFormat(d.defaultDateFormat) ?? "locale",
     defaultRegion: normalizeRegion(d.defaultRegion ?? d.region),
     region: normalizeRegion(d.region ?? d.defaultRegion),
     globalBadges: d.globalBadges ?? d.defaultGlobalBadges ?? true,
@@ -559,6 +565,7 @@ function defaultsToPayload(d: DefaultsState): Record<string, unknown> {
     logoAlign: d.defaultLogoAlign,
     episodeMetadataSource: d.defaultEpisodeMetadataSource,
     region: d.defaultRegion,
+    dateFormat: d.defaultDateFormat,
     videoFormats: d.defaultVideoFormats,
     logoScale: d.defaultLogoScale ?? null,
     logoOffsetX: d.defaultLogoOffsetX ?? null,

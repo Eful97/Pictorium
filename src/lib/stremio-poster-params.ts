@@ -5,6 +5,7 @@ import { parseMinQuality, type StreamQuality } from "@/lib/quality-tiers"
 import { parseSashOrder, isDefaultSashOrder, type SashBucket } from "@/lib/badge-priority"
 import { BADGE_PRESET_ID_RE, BADGE_PRESET_REV_RE } from "@/lib/badge-preset"
 import type { PosterShape } from "@/lib/types"
+import type { DateFormat } from "@/lib/release-badge"
 
 export interface StremioPosterParamsInput {
   // NOTA SICUREZZA (M2): niente chiavi qui. Questo builder serve URL poster
@@ -107,6 +108,12 @@ export interface StremioPosterParamsInput {
   readonly title?: string | null
   readonly badgePresetId?: string | null
   readonly badgePresetRev?: string | null
+  /**
+   * Formato data badge "in uscita": emesso come `df` solo quando esplicito
+   * (non-`locale`) — gli URL esistenti restano identici e la cache non si
+   * invalida (il server risolve `locale` da solo).
+   */
+  readonly dateFormat?: DateFormat | null
   readonly config?: string | null
   readonly user?: string | null
   readonly region?: string | null
@@ -228,6 +235,9 @@ export function buildStremioPosterSearchParams(input: StremioPosterParamsInput):
     if (input.badgePresetRev && BADGE_PRESET_REV_RE.test(input.badgePresetRev)) {
       params.set("prv", input.badgePresetRev)
     }
+  }
+  if (input.dateFormat && input.dateFormat !== "locale") {
+    params.set("df", input.dateFormat)
   }
   if (input.title) params.set("title", input.title)
   if (!networkLogo) params.set("netLogo", "0")

@@ -768,5 +768,11 @@
   "ui.hostedByDeploy": "Distribuera din egen privata instans på ElfHosted",
   "ui.hostedByGuide": "gratis tilläggsguide",
   "ui.hostedByGuideLine": "Ny på Stremio? Kolla {guide}.",
-  "ui.hostedByMinimize": "Minimera till ikon"
+  "ui.hostedByMinimize": "Minimera till ikon",
+  "ui.dateFormat": "Release date format",
+  "ui.dateFormatHint": "How the date shows in the Upcoming badge.",
+  "ui.dateFormatLocale": "Automatic (follows language)",
+  "ui.dateFormatDmy": "Day.Month.Year",
+  "ui.dateFormatMdy": "Month.Day.Year",
+  "ui.dateFormatIso": "Year-Month-Day"
 }

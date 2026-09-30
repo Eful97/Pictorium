@@ -768,5 +768,11 @@
   "ui.hostedByDeploy": "انشر نسختك الخاصة على ElfHosted",
   "ui.hostedByGuide": "دليل الإضافات المجانية",
   "ui.hostedByGuideLine": "جديد على Stremio؟ راجع {guide}.",
-  "ui.hostedByMinimize": "تصغير لأيقونة"
+  "ui.hostedByMinimize": "تصغير لأيقونة",
+  "ui.dateFormat": "Release date format",
+  "ui.dateFormatHint": "How the date shows in the Upcoming badge.",
+  "ui.dateFormatLocale": "Automatic (follows language)",
+  "ui.dateFormatDmy": "Day.Month.Year",
+  "ui.dateFormatMdy": "Month.Day.Year",
+  "ui.dateFormatIso": "Year-Month-Day"
 }

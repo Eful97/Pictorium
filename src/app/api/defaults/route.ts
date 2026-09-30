@@ -88,6 +88,7 @@ const defaultsSchema = z.object({
   logoAlign: z.enum(["left", "center"]).nullable().optional(),
   episodeMetadataSource: z.enum(["tmdb", "tvdb"]).optional(),
   region: z.string().max(32).optional(),
+  dateFormat: z.enum(["locale", "dmy", "mdy", "iso"]).optional(),
   // Profilo default landscape (sfumatura/blur + scale/offset badge, come
   // LandscapeServerDefaults): chiavi assenti seguono i flat. Validazione
   // speculare ai flat.

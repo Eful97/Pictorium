@@ -768,5 +768,11 @@
   "ui.hostedByDeploy": "Găzduiește propria instanță privată pe ElfHosted",
   "ui.hostedByGuide": "ghidul gratuit de add-on-uri",
   "ui.hostedByGuideLine": "Nou pe Stremio? Consultă {guide}.",
-  "ui.hostedByMinimize": "Minimizează la pictogramă"
+  "ui.hostedByMinimize": "Minimizează la pictogramă",
+  "ui.dateFormat": "Release date format",
+  "ui.dateFormatHint": "How the date shows in the Upcoming badge.",
+  "ui.dateFormatLocale": "Automatic (follows language)",
+  "ui.dateFormatDmy": "Day.Month.Year",
+  "ui.dateFormatMdy": "Month.Day.Year",
+  "ui.dateFormatIso": "Year-Month-Day"
 }

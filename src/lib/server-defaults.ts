@@ -9,6 +9,7 @@ import type { SashBucket } from "@/lib/badge-priority"
 import type { VideoFormat } from "@/lib/av-specs"
 import { isVideoFormat } from "@/lib/av-specs"
 import { isBadgeStyle, isRankingBadgeStyle, isQualityBadgeStyle } from "@/lib/badge-styles"
+import type { DateFormat } from "@/lib/release-badge"
 import { normalizeRegion } from "@/lib/regions"
 import { envWithFallback } from "@/lib/env-compat"
 import { atomicWriteFile } from "@/lib/atomic-write"
@@ -150,6 +151,8 @@ export interface ServerDefaults {
   episodeMetadataSource?: "tmdb" | "tvdb"
   /** Regione classifiche JustWatch/FlixPatrol + lingua titoli (codice JW, es. "IT"). */
   region?: string
+  /** Formato data badge "in uscita" (default `locale` = segue la lingua). */
+  dateFormat?: DateFormat
   /**
    * Tuning di resa specifico per il canvas landscape 16:9 (default globali
    * orizzontali). I campi flat restano i default portrait E il fallback per

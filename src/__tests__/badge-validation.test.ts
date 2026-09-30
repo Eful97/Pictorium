@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest"
 import { computeBadge, computeAbsoluteCinema, getAllBadgeOptions } from "@/lib/badge-priority"
 import { computeTopBadge, getNewSeasonLabel, isKDramaOrigin, resolveSavedBadgeExtra } from "@/lib/poster-badge"
-import { getUpcomingReleaseLabel } from "@/lib/release-badge"
+import { getUpcomingReleaseLabel, parseDateFormat } from "@/lib/release-badge"
 import { mappingSchema } from "@/lib/validation"
 import { createT } from "@/lib/i18n"
 
@@ -255,6 +255,89 @@ describe("getUpcomingReleaseLabel", () => {
       mediaType: "movie",
       locale: "it",
     })).toBeNull()
+  })
+
+  it("locale=en renders month-first (US order)", () => {
+    // NB: setup.ts mocca i18n (label sempre italiana) — qui conta l'ordine della data.
+    expect(getUpcomingReleaseLabel({
+      mediaType: "movie",
+      releaseDate: "2099-12-18",
+      locale: "en",
+      t: createT("en"),
+    })).toMatch(/ 12\.18\.99$/)
+  })
+
+  it("dmy forces day-first regardless of locale", () => {
+    expect(getUpcomingReleaseLabel({
+      mediaType: "movie",
+      releaseDate: "2099-12-18",
+      locale: "en",
+      dateFormat: "dmy",
+      t: createT("en"),
+    })).toMatch(/ 18\.12\.99$/)
+  })
+
+  it("mdy forces month-first regardless of locale", () => {
+    const tIt = createT("it")
+    expect(getUpcomingReleaseLabel({
+      mediaType: "movie",
+      releaseDate: "2099-12-18",
+      locale: "it",
+      dateFormat: "mdy",
+      t: tIt,
+    })).toBe("In uscita 12.18.99")
+  })
+
+  it("iso renders unambiguous YYYY-MM-DD", () => {
+    expect(getUpcomingReleaseLabel({
+      mediaType: "movie",
+      releaseDate: "2099-12-18",
+      locale: "ar",
+      dateFormat: "iso",
+      t: createT("ar"),
+    })).toMatch(/^.+ 2099-12-18$/)
+  })
+
+  it("computeTopBadge honors dateFormat", () => {
+    const inDays = (n: number) => new Date(Date.now() + n * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
+    const base = {
+      mediaType: "tv" as const,
+      releaseDate: null,
+      firstAirDate: inDays(30),
+      lastAirDate: null as string | null,
+      seasonCount: null as number | null,
+      originCountries: [] as string[],
+      voteAverage: 8,
+      trendRank: null,
+      animeRank: null,
+      awards: [] as string[],
+      nominations: [] as string[],
+      studios: [] as string[],
+      director: null,
+      tvType: null,
+      tvStatus: "Returning Series",
+      keywords: [] as string[],
+      imdbTop250: false,
+    }
+    const c = computeTopBadge(base, t, "it", null, "iso")
+    expect(c.upcomingRelease).toMatch(/^In uscita \d{4}-\d{2}-\d{2}$/)
+    expect(c.badge?.label).toBe(c.upcomingRelease)
+  })
+})
+
+describe("parseDateFormat", () => {
+  it("accepts the four known values", () => {
+    expect(parseDateFormat("locale")).toBe("locale")
+    expect(parseDateFormat("dmy")).toBe("dmy")
+    expect(parseDateFormat("mdy")).toBe("mdy")
+    expect(parseDateFormat("iso")).toBe("iso")
+  })
+
+  it("is fail-closed on unknown, empty or missing values", () => {
+    expect(parseDateFormat("DD/MM/YYYY")).toBeNull()
+    expect(parseDateFormat("")).toBeNull()
+    expect(parseDateFormat(null)).toBeNull()
+    expect(parseDateFormat(undefined)).toBeNull()
   })
 })
 

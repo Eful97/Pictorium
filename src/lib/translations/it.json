@@ -768,5 +768,11 @@
   "ui.hostedByDeploy": "Crea la tua istanza privata su ElfHosted",
   "ui.hostedByGuide": "guida gratuita agli addon",
   "ui.hostedByGuideLine": "Nuovo di Stremio? Dai un'occhiata alla {guide}.",
-  "ui.hostedByMinimize": "Riduci a icona"
+  "ui.hostedByMinimize": "Riduci a icona",
+  "ui.dateFormat": "Formato data di uscita",
+  "ui.dateFormatHint": "Come mostrare la data nel badge In uscita.",
+  "ui.dateFormatLocale": "Automatico (segue la lingua)",
+  "ui.dateFormatDmy": "Giorno.Mese.Anno",
+  "ui.dateFormatMdy": "Mese.Giorno.Anno",
+  "ui.dateFormatIso": "Anno-Mese-Giorno"
 }

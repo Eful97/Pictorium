@@ -2,11 +2,25 @@ export type UpcomingReleaseT = (key: string, params?: Record<string, string | nu
 
 import { t as tGlobal } from "./i18n"
 
+/**
+ * Formato della data nel badge "in uscita": `locale` segue la lingua UI
+ * (it → DD.MM.AA, en → MM.DD.AA), gli altri sono espliciti e uguali in
+ * ogni lingua. Default `locale` (byte-identico al passato).
+ */
+export type DateFormat = "locale" | "dmy" | "mdy" | "iso"
+
+export function parseDateFormat(value: string | null | undefined): DateFormat | null {
+  if (value === "locale" || value === "dmy" || value === "mdy" || value === "iso") return value
+  return null
+}
+
 export function getUpcomingReleaseLabel(input: {
   mediaType: "movie" | "tv"
   releaseDate?: string | null
   firstAirDate?: string | null
   locale?: string
+  /** Formato data (default `locale`): da query `df` > default utente. */
+  dateFormat?: DateFormat | null
   /** Traduttore per la label — default `t` globale (M14: "In uscita" non è più hardcodato). */
   t?: UpcomingReleaseT
 }): string | null {
@@ -22,7 +36,7 @@ export function getUpcomingReleaseLabel(input: {
   if (date.getTime() <= today.getTime()) return null
 
   const translate = input.t ?? tGlobal
-  return translate("badge.upcomingRelease", { date: formatReleaseDate(date, input.locale ?? "it") })
+  return translate("badge.upcomingRelease", { date: formatReleaseDate(date, input.locale ?? "it", input.dateFormat ?? "locale") })
 }
 
 function parseTmdbDate(value?: string | null): Date | null {
@@ -32,7 +46,18 @@ function parseTmdbDate(value?: string | null): Date | null {
   return new Date(year, month - 1, day)
 }
 
-function formatReleaseDate(date: Date, locale: string): string {
+function formatReleaseDate(date: Date, locale: string, dateFormat: DateFormat): string {
+  // Formati espliciti: uguali in ogni lingua, anno a 2 cifre per dmy/mdy
+  // (stessa larghezza badge del passato), ISO a 4 cifre (non ambiguo).
+  if (dateFormat !== "locale") {
+    const p2 = (n: number) => String(n).padStart(2, "0")
+    const dd = p2(date.getDate())
+    const mm = p2(date.getMonth() + 1)
+    const yy = p2(date.getFullYear() % 100)
+    if (dateFormat === "dmy") return `${dd}.${mm}.${yy}`
+    if (dateFormat === "mdy") return `${mm}.${dd}.${yy}`
+    return `${date.getFullYear()}-${mm}-${dd}`
+  }
   // Calendario gregoriano + cifre latine SEMPRE: con `ar` il default sarebbe
   // il calendario islamico (2026 -> anno 26!) con cifre arabo-indiche.
   // Le estensioni unicode `-u-ca-gregory-nu-latn` valgono per ogni locale

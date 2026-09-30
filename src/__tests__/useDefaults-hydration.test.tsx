@@ -70,6 +70,7 @@ const USER_SAVED = {
   logoAlign: null,
   episodeMetadataSource: "tvdb",
   region: "IT",
+  dateFormat: "locale",
   logoScale: null,
   logoOffsetX: null,
   logoOffsetY: null,
