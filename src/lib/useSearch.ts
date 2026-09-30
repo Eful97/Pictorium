@@ -4,7 +4,7 @@ import { useState, useCallback, useRef, useEffect } from "react"
 import { http } from "./http"
 import { t } from "./i18n"
 import type { SearchResult } from "./types"
-import { useToast } from "@/components/Toast"
+import { toast } from "sonner"
 
 function readRecentSearches(): string[] {
   if (typeof window === "undefined" || !window.localStorage) return []
@@ -28,9 +28,6 @@ function writeRecentSearches(searches: string[]): void {
 }
 
 export function useSearch(tmdbKey: string, lang: string, hasServerKey = false) {
-  const toast = useToast()
-  const toastRef = useRef(toast)
-  toastRef.current = toast
   const [query, setQuery] = useState("")
   const [results, setResults] = useState<SearchResult[]>([])
   const [searching, setSearching] = useState(false)
@@ -85,7 +82,7 @@ export function useSearch(tmdbKey: string, lang: string, hasServerKey = false) {
     } catch (e) {
       if (rev !== revRef.current) return []
       console.error("[pictorium] Search failed:", e)
-      if (!opts?.silent) toastRef.current.error(t("ui.searchError"))
+      if (!opts?.silent) toast.error(t("ui.searchError"))
       setError(t("ui.searchError"))
       if (page === 1) setResults([])
       return []

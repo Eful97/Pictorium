@@ -1,14 +1,12 @@
 import { useState, useRef, useEffect, useCallback } from "react"
 import { usePSelector } from "@/lib/context"
-import { useToast } from "@/components/Toast"
+import { t } from "@/lib/i18n"
+import { toast } from "sonner"
 
 export function usePosterPreview() {
   // B2: selettore slice — prima useP() ri-renderizzava il hook (e chi lo usa)
   // a OGNI aggiornamento del context Pictorium, non solo al cambio previewUrl.
   const previewUrl = usePSelector((v) => v.previewUrl)
-  const toast = useToast()
-  const toastRef = useRef(toast)
-  toastRef.current = toast
 
   const [imageError, setImageError] = useState(false)
   const [previewLoading, setPreviewLoading] = useState(false)
@@ -90,7 +88,7 @@ export function usePosterPreview() {
       }
       setImageError(true)
       setPreviewLoading(false)
-      toastRef.current.error("Failed to load poster preview")
+      toast.error(t("ui.posterLoadError"))
     }
 
     xhr.ontimeout = () => {
@@ -100,7 +98,7 @@ export function usePosterPreview() {
       }
       setImageError(true)
       setPreviewLoading(false)
-      toastRef.current.error("Poster preview timed out — retry")
+      toast.error(t("ui.posterLoadError"))
     }
     
     xhr.send()

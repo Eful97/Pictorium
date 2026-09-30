@@ -774,5 +774,7 @@
   "ui.dateFormatLocale": "Automatic (follows language)",
   "ui.dateFormatDmy": "Day.Month.Year",
   "ui.dateFormatMdy": "Month.Day.Year",
-  "ui.dateFormatIso": "Year-Month-Day"
+  "ui.dateFormatIso": "Year-Month-Day",
+  "ui.previewUpdating": "Uppdaterar förhandsvisning…",
+  "ui.configureKeys": "Konfigurera API-nycklar"
 }

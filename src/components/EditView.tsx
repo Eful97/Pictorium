@@ -4,6 +4,7 @@ import { useState, useRef, useEffect, useCallback, useMemo } from "react"
 import { createPortal } from "react-dom"
 import { usePSelector } from "@/lib/context"
 import { currentPathUuid, USER_UNLOCK_EVENT } from "@/lib/user-token"
+import { requestSettingsTab } from "@/lib/settings-tab"
 import { isMultiUserServer } from "@/lib/guest-guard"
 import { UserSpacesList } from "@/components/UserSpaceSection"
 import { useT } from "@/lib/contexts/TranslationContext"
@@ -718,7 +719,7 @@ export default function EditView() {
                     </div>
                   </div>
                 )}
-                <div className="animate-tab-fade-in space-y-3">
+                <div key={activeRightTab} className="animate-tab-fade-in space-y-3">
                 {activeRightTab === "logo" && <>
                   <LogoOptions logos={logos} selectedLogo={selectedLogo} lang={lang} selectLogo={handleSelectLogo} removeLogo={removeLogo} disabled={!cleanPoster && ed.posterShape !== "landscape"} />
                   {!cleanPoster && ed.posterShape !== "landscape" && <p className="text-xs text-zinc-400 text-center mt-2 px-1">{t("ui.logoHint")}</p>}
@@ -747,6 +748,12 @@ export default function EditView() {
       {!selected && !profileGate && !hasTmdbKey && (
         <div>
           {searchBar}
+          <p className="max-w-lg mx-auto mt-3 text-center text-xs text-muted leading-relaxed">{t("ui.noKeySub")}</p>
+          <div className="flex justify-center mt-2">
+            <button type="button" onClick={() => { requestSettingsTab("spazio"); setSettingsOpen(true) }} className="px-4 py-2 rounded-xl bg-white/[0.06] hover:bg-white/[0.1] border border-white/10 text-xs font-semibold text-zinc-200 hover:text-white transition-all active:scale-95 cursor-pointer">
+              {t("ui.configureKeys")}
+            </button>
+          </div>
         </div>
       )}
       {!selected && !profileGate && !hasTmdbKey && (
@@ -762,8 +769,8 @@ export default function EditView() {
             </div>
             <h2 className="text-lg font-bold text-zinc-100 mb-2">{t("ui.welcomePanelTitle")}</h2>
             <p className="text-sm text-muted mb-6 leading-relaxed">{t("ui.noKey")}</p>
-            <button type="button" onClick={() => setSettingsOpen(true)} className="btn-primary px-5 py-2.5 text-sm">
-              {t("ui.openSettings")}
+            <button type="button" onClick={() => { requestSettingsTab("spazio"); setSettingsOpen(true) }} className="btn-primary px-5 py-2.5 text-sm">
+              {t("ui.configureKeys")}
             </button>
             <div className="grid grid-cols-3 gap-3 mt-8 w-full">
               <div className="feature-card">

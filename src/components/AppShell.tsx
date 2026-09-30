@@ -6,7 +6,6 @@ import { usePSelector } from "@/lib/context"
 import { useT } from "@/lib/contexts/TranslationContext"
 import { usePosterEditor } from "@/lib/contexts/PosterEditorContext"
 import { LangPicker } from "@/components/LangPicker"
-import { ToastProvider } from "@/components/Toast"
 import { HomeStatusStrip } from "@/components/HomeStatusStrip"
 import { currentPathUuid, isUserUnlocked, requestUserUnlock, USER_UNLOCK_EVENT } from "@/lib/user-token"
 import { requestSettingsTab } from "@/lib/settings-tab"
@@ -197,7 +196,6 @@ export function AppShell() {
 
   return (
     <>
-    <ToastProvider>
     <div className="app-shell text-foreground relative overflow-x-hidden" style={{ "--bg-accent": accentColor ?? undefined } as CSSProperties}>
       {serviceErrors.tmdb && (
         <div className="mx-auto max-w-lg mt-2 mb-0 px-4 py-2 bg-red-900/40 border border-red-800/50 rounded-xl text-xs text-red-300 text-center">
@@ -331,7 +329,7 @@ export function AppShell() {
             decoding="async"
             className="header-logo h-10 sm:h-14 md:h-24 w-auto cursor-pointer hover:brightness-110 active:scale-95 transition-all duration-150 mb-1.5 md:mb-2"
           />
-          <p className="header-tagline text-center text-[10px] sm:text-xs md:text-sm mb-3.5 sm:mb-5 md:mb-6 max-w-xs sm:max-w-none">{t("ui.homeTagline")}</p>
+          <p className="header-tagline text-center text-[10px] sm:text-xs md:text-sm mb-3.5 sm:mb-4 md:mb-4 max-w-xs sm:max-w-none">{t("ui.homeTagline")}</p>
           <MobileCommunityLinks />
           </>
         </div>
@@ -500,7 +498,6 @@ export function AppShell() {
         </div>
       )}
     </div>
-    </ToastProvider>
     {!showLangPicker && <OnboardingTour />}
     {hasPinConfigured && !isUnlocked && !showLangPicker && !isUserPath && (
       <PinLockModal onSuccess={handlePinUnlock} />

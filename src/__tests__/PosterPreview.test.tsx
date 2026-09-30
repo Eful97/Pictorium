@@ -3,10 +3,6 @@ import { screen, fireEvent } from "@testing-library/react"
 import { renderWithCtx } from "./test-utils"
 import { PosterPreview } from "@/components/PosterPreview"
 
-vi.mock("@/components/Toast", () => ({
-  useToast: () => ({ error: vi.fn() }),
-}))
-
 // t() che ritorna la key stessa — test non dipendenti dalle traduzioni
 const t = (k: string) => k
 
@@ -53,12 +49,12 @@ describe("PosterPreview", () => {
     expect(img?.getAttribute("src")).toBe("https://example.com/poster.jpg")
   })
 
-  it("shows loading bar when previewLoading is true", () => {
+  it("shows discrete updating status when previewLoading is true", () => {
     renderWithCtx(
       <PosterPreview {...BASE_PROPS} previewLoading loadProgress={45} />,
       { selected: SELECTED_MOVIE, previewUrl: "https://example.com/preview", t },
     )
-    expect(screen.getByText("45%")).toBeTruthy()
+    expect(screen.getByText("ui.previewUpdating")).toBeTruthy()
   })
 
   it("shows error overlay when imageError is true", () => {

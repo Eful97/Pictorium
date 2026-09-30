@@ -59,20 +59,9 @@ export default function RootLayout({
         <main id="main-content">{children}</main>
         <Toaster
           position="bottom-center"
-          toastOptions={{
-            style: {
-              background: "var(--color-accent-orange)",
-              color: "white",
-              borderRadius: "12px",
-              fontSize: "13px",
-              fontWeight: 600,
-              boxShadow: "0 8px 24px rgb(var(--accent-rgb) / 0.3)",
-              border: "none",
-            },
-          }}
-          duration={2500}
+          duration={3000}
           closeButton={false}
-          richColors={false}
+          richColors
           theme="dark"
         />
       </body>
