@@ -42,6 +42,21 @@ async function darkPixelCount(png: Buffer) {
   return n
 }
 
+describe("ranking ribbon labels", () => {
+  it("omits media labels on ranking ribbons on both sides, including anime", async () => {
+    for (const style of ["netflix", "colored"] as const) {
+      for (const side of ["left", "right"] as const) {
+        const plain = await buildRankingBadgeSVG(3, 380, "", false, style, "#e50914", side)
+        for (const label of ["Film", "Serie TV", "Anime"]) {
+          const badge = await buildRankingBadgeSVG(3, 380, label, false, style, "#e50914", side, label === "Anime")
+          expect(badge).toEqual(plain)
+        }
+        expect(plain!.h).toBe(buildNetflixRankBadgeSVG(3, 380, false, side, false, "Film").h)
+      }
+    }
+  })
+})
+
 describe("buildGenreBadgeSVG", () => {
   it("keeps genre separators in natural text flow", () => {
     const { svg } = buildGenreTextSvg("Sci-Fi & Fantasy", "8.0", "2022", 63, "#e5e7eb", "shadow")
@@ -353,7 +368,7 @@ describe("buildRankingBadgeSVG", () => {
     expect(svg).toContain(">4</text>")
     expect(svg).toContain(">Oggi</text>")
     // Nastro esteso (h × 1.65): il testo ha bisogno di spazio
-    const fs = Math.round(Math.max(24 * 1.15 * 1000 / 380, 16))
+    const fs = Math.round(Math.max(24 * 1.15 * 1.10 * 1000 / 380, 16))
     const w = Math.round(fs * 2.65)
     const extendedH = Math.round(w * 1.65) + Math.round(fs * 0.4)
     expect(h).toBe(extendedH)
@@ -362,7 +377,7 @@ describe("buildRankingBadgeSVG", () => {
   it("stays compact without label and not anime", () => {
     const { svg, h } = buildNetflixRankBadgeSVG(4, 1000, false)
     expect(svg).not.toContain(">anime</text>")
-    const fs = Math.round(Math.max(24 * 1.15 * 1000 / 380, 16))
+    const fs = Math.round(Math.max(24 * 1.15 * 1.10 * 1000 / 380, 16))
     const w = Math.round(fs * 2.65)
     expect(h).toBe(Math.round(w * 1.35) + Math.round(fs * 0.4))
   })

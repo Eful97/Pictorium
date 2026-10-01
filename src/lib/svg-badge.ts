@@ -6,6 +6,7 @@ import type { GenreParts, HousePresetScene } from "./badge-svg-shared"
 import { resolveBadgeText, type BadgeVariableContext } from "./badge-variables"
 import { scaleBadgeDesign, type BadgePreset } from "./badge-preset"
 import type { BadgeStyle, RankingBadgeStyle, ExtraBadgeStyle } from "./badge-styles"
+import { isRibbonRankingStyle } from "./badge-styles"
 
 
 // NOTE: i badge risolvono i font via `fontFiles: [...FONT_FILES]` in
@@ -132,7 +133,7 @@ export async function buildRankingBadgeSVG(
   accentFill = false,
 ): Promise<{ png: Buffer; w: number; h: number } | null> {
   // Ricetta unica in badge-svg-shared (stessa del Badge Lab): qui solo resvg.
-  const result = buildHouseRankingSvg({ rank, label, pw, topLight, style: badgeStyle, accentColor, side, isAnime, detached, accentFill })
+  const result = buildHouseRankingSvg({ rank, label: isRibbonRankingStyle(badgeStyle) ? "" : label, pw, topLight, style: badgeStyle, accentColor, side, isAnime, detached, accentFill })
   const png = await renderSVG(result.svg, result.w)
   return { png, w: result.w, h: result.h }
 }

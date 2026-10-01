@@ -750,22 +750,23 @@ export function buildHouseGenreSvg(input: HouseGenreInput): { svg: string; w: nu
 // "anime" (stessa del passato); per film/serie è l'etichetta del rank (es.
 // "Oggi", "Today") — stesso sistema del badge anime esteso a tutti i rank.
 function netflixSubLabel(isAnime: boolean | undefined, label: string | undefined): string {
-  if (label !== undefined && label !== "") return label
+  if (label !== undefined) return label
   return isAnime ? "anime" : ""
 }
 
 export function buildNetflixRankBadgeSVG(rank: number, pw: number, topLight: boolean, side: "left" | "right" = "left", isAnime?: boolean, label?: string, accentColor?: string, opts?: { fontSize?: number; textColor?: string }) {
-  // Nastro maggiorato (+15% default): fs base 24 → 27.6, w/h proporzionali.
+  // Default ribbon size: previous 27.6px base + 10%, with proportional geometry.
   // fontSize override assoluto (px su griglia 380, dai preset house).
   const fs = opts?.fontSize !== undefined
     ? Math.max(Math.round(opts.fontSize * pw / 380), 8)
-    : Math.round(Math.max(24 * 1.15 * pw / 380, 16))
+    : Math.round(Math.max(24 * 1.15 * 1.10 * pw / 380, 16))
   const w = Math.round(fs * 2.65)
   // Sottotitolo presente (anime o film/serie con etichetta): nastro allungato
   // verso il basso (h × 1.65) per dare pieno respiro alla scritta sopra la V.
   const subLabel = netflixSubLabel(isAnime, label)
   const hasSub = subLabel.length > 0
-  const h = Math.round(w * (hasSub ? 1.65 : 1.35))
+  // An explicit empty label hides the subtitle while preserving the full ribbon.
+  const h = Math.round(w * (hasSub || label === "" ? 1.65 : 1.35))
   const slant = Math.round(w * 0.12)
   const topFs = Math.round(w * 0.25)
   const isDoubleDigit = rank >= 10
@@ -791,7 +792,7 @@ export function buildNetflixRankBadgeSVG(rank: number, pw: number, topLight: boo
   }
 
   // TOP, numero e sottotitolo impilati
-  const topY = hasSub ? Math.round(h * 0.20) : Math.round(h * 0.26)
+  const topY = Math.round(h * (hasSub ? 0.20 : label === "" ? 0.30 : 0.26))
   const textGap = hasSub ? Math.round(Math.min(topFs, subFs) * 0.25) : 0
   const rankY = hasSub
     ? topY + Math.round(topFs / 2) + textGap + Math.round(rankFs / 2)
@@ -903,7 +904,7 @@ export function buildHouseRankingSvg(input: HouseRankingInput): { svg: string; w
     // per film/serie è il periodo del rank (es. "Oggi") — stesso sistema.
     // Se lo stile è "colored", il nastro prende l'accentColor.
     const ribbonAccent = isColored ? coloredBg : undefined
-    return buildNetflixRankBadgeSVG(rank, pw, !!topLight, side, isAnime, periodText, ribbonAccent, {
+    return buildNetflixRankBadgeSVG(rank, pw, !!topLight, side, isAnime, input.label ?? periodText, ribbonAccent, {
       fontSize: input.fontSize,
       textColor: input.textColor,
     })
