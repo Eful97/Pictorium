@@ -22,7 +22,7 @@ import type { EnrichedAnimeItem } from "@/lib/validation"
 import { fetchMDBList, type MDBListEntry } from "@/lib/mdblist"
 import { fetchAggregatedRating, pickSeparateRatings, resolveRatingSources, type SeparateRating } from "@/lib/ratings"
 import { isImdbTop250 } from "@/lib/imdb-top250"
-import { getEffectiveRotationState, tryRotatePoster, getEffectiveBackdropRotationState, tryRotateBackdrop } from "@/lib/poster-rotation"
+import { getEffectiveRotationState, tryRotatePoster, getEffectiveBackdropRotationState, tryRotateBackdrop, getDynamicRotationBucket, rotationIndexFor, secondsUntilDynamicRotationCut } from "@/lib/poster-rotation"
 import { getTMDBSessionCache, setTMDBSessionCache } from "@/lib/tmdb-session-cache"
 import { mappingVersionParam } from "@/lib/stremio-poster-url"
 import { RENDER_VERSION } from "@/lib/render-version"
@@ -451,6 +451,26 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
   const rotateKey = isRotating
     ? (earlyLandscape ? `:bi${mapping?.cleanBackdropIndex ?? "x"}` : `:ci${mapping?.cleanPosterIndex ?? "x"}`)
     : ""
+  // Rotazione giornaliera dei dinamici (titoli non salvati, solo clean, cut
+  // 02:00 UTC): senza mapping e senza `poster=` esplicito, il bucket giorno
+  // entra nella chiave così il cambio giorno invalida la cache su tutte le
+  // istanze senza write. Portrait → `autoRotateClean`, landscape → default
+  // `defaultAutoRotateBackdrop` (stessi toggle dei nuovi mapping).
+  const dynamicDayBucket = getDynamicRotationBucket({
+    hasMapping: !!mapping,
+    hasQueryPoster: hardenedParams.has("poster"),
+    isLandscape: earlyLandscape,
+    portraitEnabled: sd.autoRotateClean ?? false,
+    backdropEnabled: sd.defaultAutoRotateBackdrop ?? false,
+    nowMs: startTime,
+  })
+  const dynamicBucketKey = dynamicDayBucket !== null ? `:dd${dynamicDayBucket}` : ""
+  // TTL allineato al prossimo cut (header + storage esplicito sotto): oltre
+  // il cut la chiave cambia comunque, mai contenuto stantio oltre il giorno.
+  const dynamicCutTtlSec = dynamicDayBucket !== null
+    ? secondsUntilDynamicRotationCut(startTime)
+    : null
+  const dynamicCutTtlMs = dynamicCutTtlSec !== null ? dynamicCutTtlSec * 1000 : null
   const mapVersion = mapping?.updatedAt ? `:mu${mapping.updatedAt}` : ""
   const configHash = configOverride ? hashKey(JSON.stringify(configOverride)) : ""
   const outputFormat = resolveImageFormat(req.headers.get("accept"), req.nextUrl.searchParams.get("fmt") || req.nextUrl.searchParams.get("format"))
@@ -462,7 +482,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
   const legacyAvif = outputFormat === "avif"
   const canonicalFormat = legacyAvif ? "avif" : DEFAULT_IMAGE_FORMAT
   const formatKey = legacyAvif ? ":fmtavif" : canonicalFormat === "webp" ? ":fmtwebp" : ""
-  const cacheKey = `poster:v${RENDER_VERSION}:${mediaType}:${tmdbId}:reg${posterRegion.code}:r${cachedRank ?? "x"}:sd${sdHash}:${cacheParams.toString()}${rotateKey}${mapVersion}${configHash ? `:cfg${configHash}` : ""}${formatKey}`
+  const cacheKey = `poster:v${RENDER_VERSION}:${mediaType}:${tmdbId}:reg${posterRegion.code}:r${cachedRank ?? "x"}:sd${sdHash}:${cacheParams.toString()}${rotateKey}${mapVersion}${dynamicBucketKey}${configHash ? `:cfg${configHash}` : ""}${formatKey}`
   const needsVariant = !legacyAvif && outputFormat !== canonicalFormat
   const variantKey = needsVariant ? `${cacheKey}:fmt${outputFormat}` : cacheKey
   const etagBase = hashKey(`v${RENDER_VERSION}:${mediaType}:${tmdbId}:reg${posterRegion.code}:r${cachedRank ?? "x"}:sd${sdHash}:${cacheParams.toString()}${configHash ? `:${configHash}` : ""}`)
@@ -488,9 +508,9 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
   // TTL reale della entry canonica (jitter deterministico ±10%): threadato
   // negli header così restano sincronizzati con lo storage (M3). La variante
   // ha storage key propria → TTL proprio (vedi serveResponseVariant).
-  const dynamicTtlSec = dynamicPoster ? dynamicPosterTtlSec(cacheKey) : undefined
+  const dynamicTtlSec = dynamicPoster ? (dynamicCutTtlSec ?? dynamicPosterTtlSec(cacheKey)) : undefined
   // La variante è un'entry separata (storage key propria) con TTL proprio.
-  const variantTtlSec = dynamicPoster && needsVariant ? dynamicPosterTtlSec(variantKey) : undefined
+  const variantTtlSec = dynamicPoster && needsVariant ? (dynamicCutTtlSec ?? dynamicPosterTtlSec(variantKey)) : undefined
 
   // C3: risposta non-canonica da payload canonico (cache variante o conversione).
   // opts (ttlMs/immutable) dal fresh render effimero; sulle HIT riuso record.
@@ -957,7 +977,18 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
           sdFit: sd,
           isLandscape,
         })
-        if (logoPath && logoFitEnabled) {
+        // Rotazione giornaliera dinamici portrait (solo clean, cut 02:00 UTC):
+        // precede il best-fit così il cambio giorno cambia davvero la base.
+        // Solo con logo (un clean senza logo non ha titolo da comporre) e con
+        // almeno 2 clean, altrimenti fallback storico invariato.
+        const dynamicCleanPool = (dynamicDayBucket !== null && !isLandscape && logoPath)
+          ? images.posters.filter((p: TMDBImage) => p.iso_639_1 === null)
+          : []
+        if (dynamicDayBucket !== null && dynamicCleanPool.length >= 2) {
+          const picked = dynamicCleanPool[rotationIndexFor(dynamicDayBucket, dynamicCleanPool.length)]
+          posterPath = picked.file_path
+          log.info("Dynamic rotation: daily clean poster", { mediaType, tmdbId, poster: picked.file_path, pool: dynamicCleanPool.length })
+        } else if (logoPath && logoFitEnabled) {
           try {
             const fitStart = Date.now()
             const bestFit = await selectBestLogoFitPosterPath({
@@ -1073,6 +1104,19 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
           }
         }
       }
+      // Rotazione giornaliera dinamici landscape (solo backdrop clean, cut
+      // 02:00 UTC): precede il best-fit così il cambio giorno cambia davvero
+      // la base. Solo con logo e almeno 2 backdrop clean, altrimenti fallback
+      // storico invariato.
+      let dynamicLandscapeRotated = false
+      if (isLandscape && !queryBackdrop && logoPath && dynamicDayBucket !== null) {
+        const dynamicBackdropPool = (images.backdrops ?? []).filter((b) => b.iso_639_1 === null)
+        if (dynamicBackdropPool.length >= 2) {
+          autoBackdropPath = dynamicBackdropPool[rotationIndexFor(dynamicDayBucket, dynamicBackdropPool.length)].file_path
+          dynamicLandscapeRotated = true
+          log.info("Dynamic rotation: daily backdrop", { mediaType, tmdbId, backdrop: autoBackdropPath, pool: dynamicBackdropPool.length })
+        }
+      }
       // Best-fit automatico dello sfondo landscape (mirror del portrait sopra):
       // senza scelta esplicita (query/backdrop salvato) i titoli non-mappati
       // usavano il primo backdrop TMDB mentre l'editor auto-seleziona il
@@ -1080,7 +1124,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
       // WYSIWYG, "vedo comunque il primo poster"). Solo con logo disponibile
       // (senza, niente da comporre sopra) e fit abilitato; qualsiasi fallimento
       // mantiene il fallback storico (primo backdrop), mai 500.
-      if (isLandscape && !queryBackdrop && logoPath && (images.backdrops?.length ?? 0) > 0) {
+      if (isLandscape && !queryBackdrop && logoPath && !dynamicLandscapeRotated && (images.backdrops?.length ?? 0) > 0) {
         const qLogoFitLand = req.nextUrl.searchParams.get("logoFit")
         const landFitEnabled = resolveLogoFitEnabled({
           global: BEST_FIT_GLOBAL,
@@ -1992,7 +2036,10 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
     // 10. Fix stale auto ETag: include dynamic data (rank, rating) so when it re-renders, the ETag changes
     if (!mapping && !isPreview) {
       const sepSig = useSeparate ? sepItems.map((s) => `${s.id}${s.value}`).join(",") : ""
-      etag = `${etag.slice(0, -1)}:${finalRank ?? "X"}:${imdbTop250}:${voteAverage ?? "0"}:${applyPreRelease ? "P" : "x"}:${sepSig}"`
+      // Rotazione dinamica: il bucket giorno entra nell'ETag così la
+      // rivalidazione tra giorni non risponde mai 304 sul poster di ieri.
+      const dynEtagSuffix = dynamicDayBucket !== null ? `:${dynamicDayBucket}` : ""
+      etag = `${etag.slice(0, -1)}:${finalRank ?? "X"}:${imdbTop250}:${voteAverage ?? "0"}:${applyPreRelease ? "P" : "x"}:${sepSig}${dynEtagSuffix}"`
     }
 
     // 11. Cache + response
@@ -2005,7 +2052,9 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
     if (!isPreview) {
       writeCachedPoster(cacheKey, payload, mappingTag, ephemeralTtl
         ? { ttlMs: QUALITY_EPHEMERAL_TTL_SEC * 1000, immutable: false }
-        : { immutable: immutablePoster })
+        : dynamicCutTtlMs !== null
+          ? { ttlMs: dynamicCutTtlMs, immutable: immutablePoster }
+          : { immutable: immutablePoster })
     }
     completePosterRender(payload)
     recordPosterRequest(false, outputFormat)
@@ -2016,7 +2065,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
     }
     log.info("Poster rendered", { mediaType, tmdbId, ms: Date.now() - startTime, bytes: composited.byteLength, cached: !!mappingTag, format: outputFormat, fetchMs: tFetchMs, prepMs: tCompositeStart - startTime - tFetchMs, compositeMs: Date.now() - tCompositeStart })
     // C3: il non-canonico è variante di risposta (convertita + cachata), non un render.
-    if (needsVariant) return serveResponseVariant(payload, ephemeralTtl ? { ttlMs: QUALITY_EPHEMERAL_TTL_SEC * 1000, immutable: false } : { immutable: immutablePoster })
+    if (needsVariant) return serveResponseVariant(payload, ephemeralTtl ? { ttlMs: QUALITY_EPHEMERAL_TTL_SEC * 1000, immutable: false } : dynamicCutTtlMs !== null ? { ttlMs: dynamicCutTtlMs, immutable: immutablePoster } : { immutable: immutablePoster })
     const renderHeaders = {
       ...posterHeaders(etag, effectiveImmutable, isPreview, dynamicPoster, outputFormat, effectiveTtlSec),
       "Server-Timing": serverTimingValue([

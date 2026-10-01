@@ -174,3 +174,60 @@ export async function tryRotateBackdrop(
     return currentMapping
   })
 }
+
+// ---------------------------------------------------------------------------
+// Rotazione giornaliera dei poster dinamici (titoli NON salvati, solo clean).
+// Senza store: l'indice deriva dal bucket giorno con cut alle 02:00 UTC —
+// stesso input → stesso poster su tutte le istanze e su preview/finale
+// (niente Math.random, che divergerebbe tra processi). La cache key del
+// poster include il bucket (`:dd<bucket>`), quindi il cambio giorno invalida
+// CDN e server senza alcuna write. Solo clean (`iso_639_1 === null`):
+// pool con <2 candidati = niente rotazione (fallback storico invariato).
+// ---------------------------------------------------------------------------
+
+/** Cut giornaliero della rotazione dinamica (ora UTC, 0-23). */
+export const DYNAMIC_ROTATION_CUT_HOUR_UTC = 2
+
+const DYNAMIC_ROTATION_DAY_MS = 24 * 60 * 60 * 1000
+
+/**
+ * Bucket giorno con cut alle 02:00 UTC: giorni interi dal cut più recente.
+ * Due timestamp nello stesso intervallo 02:00→02:00 danno lo stesso bucket.
+ */
+export function dynamicRotationBucket(nowMs: number = Date.now()): number {
+  return Math.floor((nowMs - DYNAMIC_ROTATION_CUT_HOUR_UTC * 3_600_000) / DYNAMIC_ROTATION_DAY_MS)
+}
+
+/** Secondi al prossimo cut delle 02:00 UTC (TTL allineato, minimo 60s). */
+export function secondsUntilDynamicRotationCut(nowMs: number = Date.now()): number {
+  const cutMs = DYNAMIC_ROTATION_CUT_HOUR_UTC * 3_600_000
+  const dayOffset = (((nowMs - cutMs) % DYNAMIC_ROTATION_DAY_MS) + DYNAMIC_ROTATION_DAY_MS) % DYNAMIC_ROTATION_DAY_MS
+  return Math.max(60, Math.round((DYNAMIC_ROTATION_DAY_MS - dayOffset) / 1000))
+}
+
+/** Indice rotazionale nel pool: avanza di 1 a ogni bucket, senza store. */
+export function rotationIndexFor(bucket: number, count: number): number {
+  if (count <= 0) return 0
+  return ((bucket % count) + count) % count
+}
+
+export interface DynamicRotationInput {
+  readonly hasMapping: boolean
+  readonly hasQueryPoster: boolean
+  readonly isLandscape: boolean
+  readonly portraitEnabled: boolean
+  readonly backdropEnabled: boolean
+  readonly nowMs?: number
+}
+
+/**
+ * Bucket attivo per i poster dinamici, o null quando la rotazione non vale:
+ * con mapping o scelta esplicita (`poster=`) comanda lo stato salvato.
+ * Portrait → flag `autoRotateClean`, landscape → `defaultAutoRotateBackdrop`.
+ */
+export function getDynamicRotationBucket(input: DynamicRotationInput): number | null {
+  if (input.hasMapping || input.hasQueryPoster) return null
+  const enabled = input.isLandscape ? input.backdropEnabled : input.portraitEnabled
+  if (!enabled) return null
+  return dynamicRotationBucket(input.nowMs ?? Date.now())
+}

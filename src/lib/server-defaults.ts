@@ -106,6 +106,8 @@ export interface ServerDefaults {
   /** Ordine/priorità sash (sottoinsieme ammesso: non listati = spenti). Default = ordine standard. */
   sashOrder?: SashBucket[]
   autoRotateClean?: boolean
+  /** Rotazione giornaliera backdrop landscape (anche titoli non salvati). Default OFF. */
+  defaultAutoRotateBackdrop?: boolean
   defaultLogoFitEnabled?: boolean
   /** Fit logo per-shape (toggle UI Impostazioni): vince sul legacy qui sopra.
    *  Già accettati dallo schema PUT e persistiti — mancava solo il tipo. */
