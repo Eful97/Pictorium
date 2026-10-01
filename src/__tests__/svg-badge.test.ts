@@ -1,6 +1,6 @@
 import sharp from "sharp"
 import { describe, expect, it } from "vitest"
-import { buildGenrePillSvg, buildGenreTextSvg, buildGenreBarSvg, buildRankingDefaultSvg, buildExtraDefaultSvg, buildQualityBadgeSvg, glassStops, satinPillStops, buildGenreGlassSvg, buildGenreBorderedSvg, buildRankingGlassSvg, buildRankingBorderedSvg, buildExtraBorderedSvg } from "@/lib/badge-svg-shared"
+import { buildGenrePillSvg, buildGenreTextSvg, buildGenreBarSvg, buildRankingDefaultSvg, buildExtraDefaultSvg, buildQualityBadgeSvg, glassStops, satinPillStops, buildGenreGlassSvg, buildGenreBorderedSvg, buildRankingGlassSvg, buildRankingBorderedSvg, buildExtraBorderedSvg, buildHouseRankingSvg } from "@/lib/badge-svg-shared"
 import { buildGenreBadgeSVG, buildRankingBadgeSVG, buildExtraBadgeSVG, buildNetflixRankBadgeSVG, renderComingSoonRibbon, comingSoonRibbonLayout } from "@/lib/svg-badge"
 
 async function alphaBounds(png: Buffer) {
@@ -43,7 +43,7 @@ async function darkPixelCount(png: Buffer) {
 }
 
 describe("ranking ribbon labels", () => {
-  it("omits media labels on ranking ribbons on both sides, including anime", async () => {
+  it("omits media labels on ranking ribbons without ribbonLabel, including anime", async () => {
     for (const style of ["netflix", "colored"] as const) {
       for (const side of ["left", "right"] as const) {
         const plain = await buildRankingBadgeSVG(3, 380, "", false, style, "#e50914", side)
@@ -54,6 +54,35 @@ describe("ranking ribbon labels", () => {
         expect(plain!.h).toBe(buildNetflixRankBadgeSVG(3, 380, false, side, false, "Film").h)
       }
     }
+  })
+
+  it("shows the period subtitle on ranking ribbons when ribbonLabel is set", async () => {
+    for (const style of ["netflix", "colored"] as const) {
+      for (const side of ["left", "right"] as const) {
+        // La label per media type resta ignorata: conta solo ribbonLabel.
+        const badge = await buildRankingBadgeSVG(3, 380, "Film", false, style, "#e50914", side, false, false, false, "Oggi")
+        const plain = await buildRankingBadgeSVG(3, 380, "", false, style, "#e50914", side)
+        expect(badge).not.toBeNull()
+        expect(badge!.png).not.toEqual(plain!.png)
+        expect(badge!.h).toBe(plain!.h)
+        // Contenuto verificato sul builder sincrono (stessa ricetta).
+        const { svg } = buildHouseRankingSvg({ rank: 3, label: "Oggi", pw: 380, style })
+        expect(svg).toContain(">TOP<")
+        expect(svg).toContain(">Oggi<")
+        expect(svg).not.toContain(">Film<")
+      }
+    }
+  })
+
+  it("shows the period subtitle on anime ribbons too", async () => {
+    const badge = await buildRankingBadgeSVG(1, 380, "Anime", false, "netflix", "#e50914", "left", true, false, false, "Oggi")
+    const plain = await buildRankingBadgeSVG(1, 380, "Anime", false, "netflix", "#e50914", "left", true)
+    expect(badge).not.toBeNull()
+    expect(badge!.png).not.toEqual(plain!.png)
+    const { svg } = buildHouseRankingSvg({ rank: 1, label: "Oggi", pw: 380, style: "netflix", isAnime: true })
+    expect(svg).toContain(">TOP<")
+    expect(svg).toContain(">Oggi<")
+    expect(svg).not.toContain(">Anime<")
   })
 })
 

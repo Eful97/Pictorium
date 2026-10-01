@@ -5,6 +5,12 @@ export interface BadgeResult {
   label: string
   rank?: number
   rankLabel?: string
+  /**
+   * Sottotitolo del nastro classifica (stili ribbon): periodo della chart
+   * (es. "Oggi") invece della label per media type ("Film"/"Serie TV").
+   * Assente → il nastro ripiega sulla `label`.
+   */
+  ribbonLabel?: string
 }
 
 type T = (key: string, params?: Record<string, string | number>) => string
@@ -124,10 +130,12 @@ function resolveBucket(bucket: SashBucket, params: BadgeParams, t: T): BadgeResu
       if (params.upcomingRelease) return { type: "extra", label: params.upcomingRelease }
       return null
     case "rank":
-      if (params.animeRank && params.animeRank <= ANIME_RANK_MAX) return { type: "rank", label: t("badge.anime"), rank: params.animeRank }
+      if (params.animeRank && params.animeRank <= ANIME_RANK_MAX) return { type: "rank", label: t("badge.anime"), rank: params.animeRank, ribbonLabel: t("badge.today") }
       // Label del rank per media type: "Film" per i film, "Serie tv" per le serie
-      // (invece del periodo "Oggi"). qLabel/rankLabel possono comunque sovrascrivere.
-      if (params.trendRank) return { type: "rank", label: t(params.mediaType === "movie" ? "badge.movie" : "badge.series"), rank: params.trendRank }
+      // (invece del periodo "Oggi"). Il nastro mostra il periodo ("Oggi"):
+      // `ribbonLabel` viaggia separato così i badge centrati (#3 Film) restano invariati.
+      // qLabel/rankLabel possono comunque sovrascrivere.
+      if (params.trendRank) return { type: "rank", label: t(params.mediaType === "movie" ? "badge.movie" : "badge.series"), rank: params.trendRank, ribbonLabel: t("badge.today") }
       return null
     case "new":
       if (params.isNewMovie) return { type: "extra", label: t("badge.newMovie") }

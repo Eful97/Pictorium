@@ -543,10 +543,10 @@ test.describe("poster API — visual regression", () => {
     await expect(poster).toHaveScreenshot("poster-anime.png", { maxDiffPixelRatio: 0.10 })
   })
 
-  test("movie ranking (netflix ribbon) without media label — screenshot", async ({ page }) => {
-    // The standard ranking ribbon shows only TOP and the rank, including
-    // when the server resolves a media-type label (badge.movie).
-    const url = posterUrl({ genreName: "Action", voteAverage: "7.8", badges: "1", ranking: "1", rank: "3", rs: "netflix" })
+  test("movie ranking (netflix ribbon) with period subtitle — screenshot", async ({ page }) => {
+    // id 603 (Matrix, non anime) + rank=3 esplicito → trendRank: il nastro
+    // mostra TOP, numero e periodo ("Oggi"), non la label per media type.
+    const url = posterUrl({ genreName: "Action", voteAverage: "7.8", badges: "1", ranking: "1", rank: "3", rs: "netflix" }, "movie", 603)
     const poster = await renderPoster(page, url)
     await expect(poster).toHaveScreenshot("poster-ranking-netflix.png", { maxDiffPixelRatio: 0.10 })
   })

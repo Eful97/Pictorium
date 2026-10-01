@@ -65,7 +65,7 @@ ombra trasparente `TOP_SHADOW_PAD=14`):
 | Parametro | Server (`svg-badge.ts:renderRankingBadge/renderExtraBadge`) |
 |---|---|
 | Font size base | `30 * pw / 380` (rank), `×0.9` per extra; nastro Netflix a base `24 * 1.15 * 1.10` (+10% rispetto al default precedente) |
-| Dicitura nastro | I nastri di classifica standard mostrano solo `TOP` e il numero, senza Film/Serie TV/Anime; altezza originale `w × 1.65`, testo centrato (`TOP` a `0.30h`, numero a `0.60h`). I preset Badge Lab mantengono la propria etichetta personalizzata. |
+| Dicitura nastro | I nastri di classifica mostrano `TOP`, numero e sottotitolo periodo (`ribbonLabel`: "Oggi" localizzato, per film/serie come per anime; override custom esplicito vince sulle rank-key); altezza `w × 1.65`, testi centrati (`TOP` a `0.30h` senza sub, `0.20h` con sub, numero a `0.60h`). Senza `ribbonLabel` il sottotitolo resta nascosto. I preset Badge Lab mantengono la propria etichetta personalizzata. |
 | Padding X | `px = round(finalFontSize * 0.75)` (unificato con genre badges) |
 | Altezza scatola | `boxH = badgeBoxHeight(fs) = fs + round(fs * 0.40) * 2` (unificato con genre badges) |
 | Border radius | `r = round(finalFontSize * 0.45)` per default (`RANKING_DEFAULT_RADIUS_FACTOR`: squadrata ma non a spigolo), `boxH / 2` per pill (lo stile `bar` del ranking è rimosso: `?rs=bar` degrada a default) |

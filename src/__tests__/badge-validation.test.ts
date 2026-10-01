@@ -62,6 +62,10 @@ describe("computeBadge", () => {
     // Label del rank per media type: "Film" per i film, "Serie" per le serie
     expect(computeBadge({ ...base, trendRank: 3 }, t)?.label).toBe("Film")
     expect(computeBadge({ ...base, mediaType: "tv", trendRank: 3 }, t)?.label).toBe("Serie")
+    // Il nastro mostra il periodo ("Oggi", anche per gli anime), non la label per media type
+    expect(computeBadge({ ...base, trendRank: 3 }, t)?.ribbonLabel).toBe("Oggi")
+    expect(computeBadge({ ...base, mediaType: "tv", trendRank: 3 }, t)?.ribbonLabel).toBe("Oggi")
+    expect(computeBadge({ ...base, animeRank: 5 }, t)?.ribbonLabel).toBe("Oggi")
   })
 
   it("prioritizes nomination over subgenre", () => {

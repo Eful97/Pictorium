@@ -131,9 +131,13 @@ export async function buildRankingBadgeSVG(
   detached = false,
   /** Riempimento piatto accent sul default centrato (degrado "colored" senza nastro). */
   accentFill = false,
+  /** Sottotitolo del nastro classifica (stili ribbon); senza = nessun sottotitolo. */
+  ribbonLabel?: string,
 ): Promise<{ png: Buffer; w: number; h: number } | null> {
   // Ricetta unica in badge-svg-shared (stessa del Badge Lab): qui solo resvg.
-  const result = buildHouseRankingSvg({ rank, label: isRibbonRankingStyle(badgeStyle) ? "" : label, pw, topLight, style: badgeStyle, accentColor, side, isAnime, detached, accentFill })
+  // I nastri mostrano il sottotitolo periodo (`ribbonLabel`, es. "Oggi") o la
+  // label passata per gli anime ("Anime"); senza = nastro senza sottotitolo.
+  const result = buildHouseRankingSvg({ rank, label: isRibbonRankingStyle(badgeStyle) ? (ribbonLabel ?? "") : label, pw, topLight, style: badgeStyle, accentColor, side, isAnime, detached, accentFill })
   const png = await renderSVG(result.svg, result.w)
   return { png, w: result.w, h: result.h }
 }
@@ -144,8 +148,10 @@ export async function renderRankingBadge(
   detached = false,
   /** Riempimento piatto accent sul default centrato (degrado "colored" senza nastro). */
   accentFill = false,
+  /** Sottotitolo del nastro classifica (stili ribbon); senza = nessun sottotitolo. */
+  ribbonLabel?: string,
 ): Promise<{ png: Buffer; w: number; h: number }> {
-  const r = await buildRankingBadgeSVG(rank, pw, label, topLight, badgeStyle, accentColor, side, isAnime, detached, accentFill)
+  const r = await buildRankingBadgeSVG(rank, pw, label, topLight, badgeStyle, accentColor, side, isAnime, detached, accentFill, ribbonLabel)
   if (r) return r
   throw new Error(`SVG ranking badge failed: rank=${rank}`)
 }
