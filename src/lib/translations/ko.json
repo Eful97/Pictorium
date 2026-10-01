@@ -362,6 +362,8 @@
   "ui.autoRotate": "24시간 자동 회전",
   "ui.autoRotateDefaultPortrait": "포스터 24시간 자동 회전 (세로)",
   "ui.autoRotateDefaultLandscape": "배경 24시간 자동 회전 (가로)",
+  "ui.disableCleanPosters": "Disable clean posters",
+  "ui.disableCleanPostersHint": "Use TMDB default posters instead of clean ones (badges unchanged). Saved titles are not affected.",
   "ui.logoFitPortrait": "세로 로고 맞춤",
   "ui.logoFitLandscape": "가로 로고 맞춤",
   "ui.addToRotation": "회전에 추가",

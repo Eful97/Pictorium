@@ -466,6 +466,7 @@ export function usePictorium(): PictoriumCtx {
     defaultNetworkLogoOffsetX, defaultNetworkLogoOffsetY,
     defaultAutoRotateClean,
     defaultAutoRotateBackdrop,
+    defaultDisableCleanPosters,
     defaultNetworkLogo,
     defaultNetworkLogoPosition,
     defaultPreRelease,
@@ -1185,7 +1186,12 @@ export function usePictorium(): PictoriumCtx {
           const clean = data.posters?.find((p: TMDBImage) => p.iso_639_1 === null)
           const langPoster = data.posters?.find((p: TMDBImage) => p.iso_639_1 === lang)
           const firstPoster = data.posters?.[0]
-          if (clean) {
+          // Con "disattiva clean" il clean non è mai preferito (né qui né sotto):
+          // la catena resta lingua -> originale -> primo non-clean.
+          const firstNonClean = defaultDisableCleanPosters
+            ? data.posters?.find((p: TMDBImage) => p.iso_639_1 !== null)
+            : undefined
+          if (clean && !defaultDisableCleanPosters) {
             const autoLogo = selectBestLogo(data.logos || [], lang, details.original_language)
             if (autoLogo) {
               navigation.setPreviewPoster({ file_path: clean.file_path, iso_639_1: null, vote_average: 0, width: 0, height: 0 })
@@ -1197,7 +1203,7 @@ export function usePictorium(): PictoriumCtx {
               applyFor(nextPoster)
             }
           } else {
-            const nextPoster = langPoster || firstPoster || navigation.previewPoster
+            const nextPoster = langPoster || firstNonClean || firstPoster || navigation.previewPoster
             navigation.setPreviewPoster(nextPoster)
             applyFor(nextPoster)
           }
@@ -1445,8 +1451,14 @@ export function usePictorium(): PictoriumCtx {
         const clean = data.posters?.find((p: TMDBImage) => p.iso_639_1 === null)
         const langPoster = data.posters?.find((p: TMDBImage) => p.iso_639_1 === lang)
         const firstPoster = data.posters?.[0]
+        // Con "disattiva clean" si salta il ramo clean+logo e si usa la catena
+        // lingua -> en -> originale -> primo non-clean (badge invariati, niente
+        // logo sopra in portrait). La scelta manuale di un clean resta possibile.
+        const firstNonClean = defaultDisableCleanPosters
+          ? data.posters?.find((p: TMDBImage) => p.iso_639_1 !== null)
+          : undefined
         let chosenPoster: TMDBImage | null = null
-        if (clean) {
+        if (clean && !defaultDisableCleanPosters) {
           const autoLogo = autoLogoSelection(data.logos || [], lang, details.original_language, `${itemType}/${itemId}`)
           if (autoLogo) {
             chosenPoster = clean
@@ -1458,7 +1470,7 @@ export function usePictorium(): PictoriumCtx {
           } else {
             const enPoster = data.posters?.find((p: TMDBImage) => p.iso_639_1 === "en")
             const origPoster = details.original_language ? data.posters?.find((p: TMDBImage) => p.iso_639_1 === details.original_language) : undefined
-            const fallbackPoster = langPoster || enPoster || origPoster || firstPoster
+            const fallbackPoster = langPoster || enPoster || origPoster || firstNonClean || firstPoster
             if (fallbackPoster) {
               chosenPoster = fallbackPoster
               navigation.setPreviewPoster({ file_path: fallbackPoster.file_path, iso_639_1: fallbackPoster.iso_639_1, vote_average: 0, width: 0, height: 0 })
@@ -1469,16 +1481,16 @@ export function usePictorium(): PictoriumCtx {
           navigation.setPreviewPoster({ file_path: langPoster.file_path, iso_639_1: lang, vote_average: 0, width: 0, height: 0 })
         } else {
           const origPoster = details.original_language ? data.posters?.find((p: TMDBImage) => p.iso_639_1 === details.original_language) : undefined
-          const fallbackPoster = origPoster || firstPoster
+          const fallbackPoster = origPoster || firstNonClean || firstPoster
           if (fallbackPoster) {
             chosenPoster = fallbackPoster
             navigation.setPreviewPoster({ file_path: fallbackPoster.file_path, iso_639_1: fallbackPoster.iso_639_1, vote_average: 0, width: 0, height: 0 })
           }
         }
-        // Solo landscape: senza poster clean il logo si auto-seleziona
-        // comunque (la base è il backdrop, senza testo). In portrait
-        // invariato: niente auto-logo senza clean.
-        if (!clean && defaultPosterShape === "landscape" && (data.logos?.length ?? 0) > 0) {
+        // Solo landscape: senza poster clean (o con clean disattivati) il logo
+        // si auto-seleziona comunque (la base è il backdrop, senza testo). In
+        // portrait invariato: niente auto-logo senza clean.
+        if ((!clean || defaultDisableCleanPosters) && defaultPosterShape === "landscape" && (data.logos?.length ?? 0) > 0) {
           const autoLogo = autoLogoSelection(data.logos || [], lang, details.original_language, `${itemType}/${itemId}`)
           if (autoLogo) {
             navigation.setSelectedLogo({ file_path: autoLogo.file_path, iso_639_1: autoLogo.iso_639_1, vote_average: 0, width: autoLogo.width, height: autoLogo.height })

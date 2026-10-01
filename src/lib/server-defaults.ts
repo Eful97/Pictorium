@@ -108,6 +108,8 @@ export interface ServerDefaults {
   autoRotateClean?: boolean
   /** Rotazione giornaliera backdrop landscape (anche titoli non salvati). Default OFF. */
   defaultAutoRotateBackdrop?: boolean
+  /** Esclude i poster clean TMDB dalla selezione automatica (catena lingua -> originale -> primo). Default OFF. */
+  disableCleanPosters?: boolean
   defaultLogoFitEnabled?: boolean
   /** Fit logo per-shape (toggle UI Impostazioni): vince sul legacy qui sopra.
    *  Già accettati dallo schema PUT e persistiti — mancava solo il tipo. */
@@ -214,6 +216,7 @@ function defaultsFromEnv(): ServerDefaults {
   const ribbonEn = envBool("RIBBON_ENABLED")
   const preRel = envBool("PRE_RELEASE")
   const autoRotate = envBool("AUTO_ROTATE_CLEAN")
+  const disableClean = envBool("DISABLE_CLEAN_POSTERS")
   const logoFit = envBool("LOGO_FIT_ENABLED")
   if (bG !== undefined) d.globalBadges = bG
   if (bR !== undefined) d.rankingBadges = bR
@@ -243,6 +246,7 @@ function defaultsFromEnv(): ServerDefaults {
   if (ribbonEn !== undefined) d.ribbonEnabled = ribbonEn
   if (preRel !== undefined) d.preRelease = preRel
   if (autoRotate !== undefined) d.autoRotateClean = autoRotate
+  if (disableClean !== undefined) d.disableCleanPosters = disableClean
   if (logoFit !== undefined) d.defaultLogoFitEnabled = logoFit
   const bs = getEnv("BADGE_STYLE")?.trim()
   const rbs = getEnv("RANKING_BADGE_STYLE")?.trim()

@@ -73,6 +73,7 @@ const defaultsSchema = z.object({
   sashOrder: z.array(z.string().max(20)).optional(),
   autoRotateClean: z.boolean().optional(),
   defaultAutoRotateBackdrop: z.boolean().optional(),
+  disableCleanPosters: z.boolean().optional(),
   defaultLogoFitEnabled: z.boolean().optional(),
   defaultPortraitFitEnabled: z.boolean().optional(),
   defaultLandscapeFitEnabled: z.boolean().optional(),

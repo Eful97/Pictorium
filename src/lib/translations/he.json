@@ -362,6 +362,8 @@
   "ui.autoRotate": "Auto-rotate 24h",
   "ui.autoRotateDefaultPortrait": "רוטציה אוטומטית לאורך 24 שעות",
   "ui.autoRotateDefaultLandscape": "רוטציית רקעים אוטומטית לרוחב 24 שעות",
+  "ui.disableCleanPosters": "Disable clean posters",
+  "ui.disableCleanPostersHint": "Use TMDB default posters instead of clean ones (badges unchanged). Saved titles are not affected.",
   "ui.logoFitPortrait": "תאימות לוגו לאורך",
   "ui.logoFitLandscape": "תאימות לוגו לרוחב",
   "ui.addToRotation": "Add to rotation",

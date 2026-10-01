@@ -962,7 +962,12 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
         if (chosenLogo) { logoPath = chosenLogo.file_path; logoChosenIso = chosenLogo.iso_639_1 ?? null }
       }
 
-      const clean = images.posters.find((p: TMDBImage) => p.iso_639_1 === null)
+      // Opzione "disattiva clean" (default OFF = priorità ai clean): con flag ON
+      // il ramo clean è saltato del tutto e si usa la catena in lingua sotto
+      // (badge invariati, niente logo sopra in portrait). Mapping salvati e
+      // scelta manuale (query poster=) non passano di qui.
+      const cleanEnabled = sd.disableCleanPosters !== true
+      const clean = cleanEnabled ? images.posters.find((p: TMDBImage) => p.iso_639_1 === null) : undefined
       if (clean) {
         // Ramo clean: best-fit pesca solo dalla pool clean, quindi il poster
         // finale resta clean (logo tenuto) salvo il fallback in lingua sotto.
@@ -1048,13 +1053,15 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
           autoPosterClean = fallbackPoster.iso_639_1 === null
         }
       } else {
-        // B1: TVDB rescue — solo senza clean TMDB, con logo e chiave TVDB
+        // B1: TVDB rescue — solo senza clean TMDB (o con clean disattivati il
+        // rescue è spento: ricadrebbe su una base textless vanificando l'opzione),
+        // con logo e chiave TVDB
         // (gating fail-fast: niente chiave → costo zero). Il poster textless
         // TVDB salva il logo che altrimenti verrebbe droppato col fallback
         // in lingua. Solo portrait (il landscape ha già la base backdrop).
         // Fail-open: qualsiasi errore → fallback in lingua sotto.
         let tvdbRescue: string | null = null
-        if (!isLandscape && logoPath && tvdbApiKey) {
+        if (!isLandscape && logoPath && tvdbApiKey && cleanEnabled) {
           try {
             const remoteTvdbId = extIds.tvdb_id
               ?? (imdbId

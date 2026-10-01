@@ -55,6 +55,15 @@ describe("PUT /api/defaults", () => {
     expect(res.status).toBe(200)
   })
 
+  it("persists disableCleanPosters through PUT and GET", async () => {
+    delete process.env.ADMIN_TOKEN
+    const putRes = await PUT(mockPutRequest({ disableCleanPosters: true }) as unknown as NextRequest)
+    expect(putRes.status).toBe(200)
+    const getRes = await GET(new Request("http://localhost:3000/api/defaults") as unknown as NextRequest)
+    const data = await getRes.json()
+    expect(data.disableCleanPosters).toBe(true)
+  })
+
   it("preserves custom catalog datasetId through PUT and GET", async () => {
     delete process.env.ADMIN_TOKEN
     const catalogs = [

@@ -362,6 +362,8 @@
   "ui.autoRotate": "24時間自動ローテーション",
   "ui.autoRotateDefaultPortrait": "ポスター24時間自動ローテーション (縦)",
   "ui.autoRotateDefaultLandscape": "背景24時間自動ローテーション (横)",
+  "ui.disableCleanPosters": "Disable clean posters",
+  "ui.disableCleanPostersHint": "Use TMDB default posters instead of clean ones (badges unchanged). Saved titles are not affected.",
   "ui.logoFitPortrait": "縦向きロゴ適合",
   "ui.logoFitLandscape": "横向きロゴ適合",
   "ui.addToRotation": "ローテーションに追加",

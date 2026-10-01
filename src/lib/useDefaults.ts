@@ -66,6 +66,8 @@ export interface DefaultsState {
   defaultAutoRotateClean: boolean
   /** Rotazione 24h di default per formato (sdoppiata). */
   defaultAutoRotateBackdrop: boolean
+  /** Disattiva i poster clean TMDB nella selezione automatica (default OFF = priorità ai clean). */
+  defaultDisableCleanPosters: boolean
   /** Best-fit automatico per formato (sdoppiato da defaultLogoFitEnabled). */
   defaultPortraitFitEnabled: boolean
   defaultLandscapeFitEnabled: boolean
@@ -190,6 +192,7 @@ const DEFAULTS: DefaultsState = {
   defaultSashOrder: [...DEFAULT_SASH_ORDER],
   defaultAutoRotateClean: false,
   defaultAutoRotateBackdrop: false,
+  defaultDisableCleanPosters: false,
   defaultPortraitFitEnabled: true,
   defaultLandscapeFitEnabled: true,
   defaultNetworkLogo: true,
@@ -323,6 +326,9 @@ interface StoredDefaults {
   defaultSashOrder?: string[]
   defaultAutoRotateClean?: boolean
   defaultAutoRotateBackdrop?: boolean
+  defaultDisableCleanPosters?: boolean
+  /** Chiave flat server (ServerDefaults.disableCleanPosters): fallback di lettura. */
+  disableCleanPosters?: boolean
   defaultPortraitFitEnabled?: boolean
   defaultLandscapeFitEnabled?: boolean
   /** Deprecato (migrazione): il flag unico alimenta entrambi i formati. */
@@ -437,6 +443,7 @@ function buildFromStored(d: StoredDefaults | null): DefaultsState {
     defaultSashOrder: normalizeSashOrder(d.defaultSashOrder) ?? [...DEFAULT_SASH_ORDER],
     defaultAutoRotateClean: d.defaultAutoRotateClean ?? d.autoRotateClean ?? false,
     defaultAutoRotateBackdrop: d.defaultAutoRotateBackdrop ?? false,
+    defaultDisableCleanPosters: d.defaultDisableCleanPosters ?? d.disableCleanPosters ?? false,
     // Migrazione: il vecchio flag unico alimenta entrambi i formati.
     defaultPortraitFitEnabled: d.defaultPortraitFitEnabled ?? d.defaultLogoFitEnabled ?? true,
     defaultLandscapeFitEnabled: d.defaultLandscapeFitEnabled ?? d.defaultLogoFitEnabled ?? true,
@@ -554,6 +561,7 @@ function defaultsToPayload(d: DefaultsState): Record<string, unknown> {
     sashOrder: d.defaultSashOrder,
     autoRotateClean: d.defaultAutoRotateClean,
     defaultAutoRotateBackdrop: d.defaultAutoRotateBackdrop,
+    disableCleanPosters: d.defaultDisableCleanPosters,
     defaultPortraitFitEnabled: d.defaultPortraitFitEnabled,
     defaultLandscapeFitEnabled: d.defaultLandscapeFitEnabled,
     networkLogo: d.defaultNetworkLogo,

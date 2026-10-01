@@ -362,6 +362,8 @@
   "ui.autoRotate": "24s otomatik döndürme",
   "ui.autoRotateDefaultPortrait": "Dikey 24s otomatik döndürme",
   "ui.autoRotateDefaultLandscape": "Yatay 24s otomatik döndürme",
+  "ui.disableCleanPosters": "Disable clean posters",
+  "ui.disableCleanPostersHint": "Use TMDB default posters instead of clean ones (badges unchanged). Saved titles are not affected.",
   "ui.logoFitPortrait": "Dikey logo uyumluluğu",
   "ui.logoFitLandscape": "Yatay logo uyumluluğu",
   "ui.addToRotation": "Döndürmeye ekle",

@@ -5,6 +5,7 @@ import { GET } from "@/app/api/poster/[type]/[id]/route"
 import { getAll, getById, getImdbAlias } from "@/lib/store"
 import { resolveImdbToTmdb } from "@/lib/imdb-resolver"
 import { selectBestLogoFitPosterPath } from "@/lib/poster-auto-fit"
+import { getServerDefaults } from "@/lib/server-defaults"
 import { getDetails, getDetailsWithExternalIds, getImages, getExternalIds } from "@/lib/tmdb"
 import { getJWRankings } from "@/lib/justwatch"
 import { fetchMDBList } from "@/lib/mdblist"
@@ -463,6 +464,62 @@ describe("GET /api/poster/[type]/[id] with saved mappings", () => {
     // Deve usare il poster in lingua, NON il clean senza logo
     expect(requestedUrls.some((url) => url.includes("/it-poster.jpg"))).toBe(true)
     expect(requestedUrls.some((url) => url.includes("/clean.jpg"))).toBe(false)
+  })
+
+  it("skips clean posters when disableCleanPosters is set, even with a logo available", async () => {
+    vi.mocked(getServerDefaults).mockReturnValueOnce({
+      defaultLogoFitEnabled: true,
+      badgeStyle: "shadow",
+      rankingBadgeStyle: "default",
+      disableCleanPosters: true,
+    })
+    mockedSelectBestLogoFitPosterPath.mockClear()
+    const langPosterBuf = await imageBuffer("#204080", 500, 750)
+    const cleanBuf = await imageBuffer("#101010", 500, 750)
+    const requestedUrls: string[] = []
+
+    mockedGetById.mockResolvedValue(null)
+    mockedGetDetails.mockResolvedValue({
+      id: 42,
+      title: "Test Movie",
+      genres: [{ id: 18, name: "Drama" }],
+      vote_average: 7.0,
+      vote_count: 100,
+      original_language: "it",
+      release_date: "2025-01-15",
+      production_companies: [],
+    })
+    mockedGetImages.mockResolvedValue({
+      id: 42,
+      posters: [
+        { file_path: "/clean-dc.jpg", iso_639_1: null, vote_average: 8.0, vote_count: 100, width: 500, height: 750, aspect_ratio: 0.667 },
+        { file_path: "/it-poster-dc.jpg", iso_639_1: "it", vote_average: 7.0, vote_count: 50, width: 500, height: 750, aspect_ratio: 0.667 },
+      ],
+      logos: [
+        { file_path: "/logo.png", iso_639_1: "it", vote_average: 0, vote_count: 0, width: 220, height: 80, aspect_ratio: 2.75 },
+      ],
+      backdrops: [],
+    })
+    mockedGetExternalIds.mockResolvedValue({ imdb_id: "tt1234567" })
+
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+      const url = String(input)
+      requestedUrls.push(url)
+      const body = url.includes("/it-poster-dc.jpg") ? langPosterBuf : cleanBuf
+      return new Response(new Uint8Array(body), {
+        status: 200,
+        headers: { "content-type": "image/png", "content-length": String(body.length) },
+      })
+    })
+
+    const req = new NextRequest("http://localhost:3000/api/poster/movie/42")
+    const res = await GET(req, { params: Promise.resolve({ type: "movie", id: "42" }) })
+
+    expect(res.status).toBe(200)
+    // Niente best-fit sul pool clean: si usa il poster in lingua coi badge
+    expect(mockedSelectBestLogoFitPosterPath).not.toHaveBeenCalled()
+    expect(requestedUrls.some((url) => url.includes("/it-poster-dc.jpg"))).toBe(true)
+    expect(requestedUrls.some((url) => url.includes("/clean-dc.jpg"))).toBe(false)
   })
 
   it.each([

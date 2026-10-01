@@ -59,6 +59,7 @@ const USER_SAVED = {
   sashOrder: ["upcoming", "rank", "new", "award", "extra"],
   autoRotateClean: false,
   defaultAutoRotateBackdrop: false,
+  disableCleanPosters: false,
   defaultPortraitFitEnabled: true,
   defaultLandscapeFitEnabled: true,
   networkLogo: true,

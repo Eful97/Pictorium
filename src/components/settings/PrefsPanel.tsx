@@ -145,6 +145,20 @@ export function PrefsPanel({ active }: { active: boolean }) {
         </div>
         <div className="flex items-center justify-between py-0.5">
           <span className="text-zinc-300 font-medium flex items-center gap-1.5">
+            <RectangleVertical className="w-3.5 h-3.5 text-zinc-400" />
+            {t("ui.disableCleanPosters")}
+          </span>
+          <Toggle
+            value={ed.defaultDisableCleanPosters}
+            onChange={(v) => {
+              ed.setDefaultDisableCleanPosters(v)
+            }}
+            label={t("ui.disableCleanPosters")}
+          />
+        </div>
+        <p className="text-[11px] text-muted leading-relaxed">{t("ui.disableCleanPostersHint")}</p>
+        <div className="flex items-center justify-between py-0.5">
+          <span className="text-zinc-300 font-medium flex items-center gap-1.5">
             <RectangleHorizontal className="w-3.5 h-3.5 text-emerald-400" />
             {t("ui.autoRotateDefaultLandscape")}
           </span>

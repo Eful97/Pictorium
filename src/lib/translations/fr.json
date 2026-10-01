@@ -358,6 +358,8 @@
   "ui.autoRotate": "Rotation 24h",
   "ui.autoRotateDefaultPortrait": "Rotation affiches 24h (vertical)",
   "ui.autoRotateDefaultLandscape": "Rotation fonds 24h (horizontal)",
+  "ui.disableCleanPosters": "Disable clean posters",
+  "ui.disableCleanPostersHint": "Use TMDB default posters instead of clean ones (badges unchanged). Saved titles are not affected.",
   "ui.logoFitPortrait": "Compatibilité logo verticale",
   "ui.logoFitLandscape": "Compatibilité logo horizontale",
   "ui.addToRotation": "Ajouter à la rotation",

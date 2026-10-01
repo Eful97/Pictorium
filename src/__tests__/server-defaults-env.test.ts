@@ -31,6 +31,7 @@ describe("server-defaults — ENV_DEFAULTS (default di stile d'istanza)", () => 
       "POSTERIUM_BADGE_STYLE", "POSTERIUM_RANKING_BADGE_STYLE", "POSTERIUM_RIBBON_SIDE",
       "POSTERIUM_BLUR_INTENSITY", "POSTERIUM_BLUR_FADE", "POSTERIUM_BLUR_DARKNESS",
       "POSTERIUM_GRADIENT_HEIGHT", "POSTERIUM_DATA_DIR",
+      "POSTERIUM_DISABLE_CLEAN_POSTERS", "PICTORIUM_DISABLE_CLEAN_POSTERS",
       "KV_REST_API_URL", "KV_REST_API_TOKEN",
     ]) {
       delete process.env[name]
@@ -81,6 +82,12 @@ describe("server-defaults — ENV_DEFAULTS (default di stile d'istanza)", () => 
   it("senza env il risultato è vuoto (comportamento di default)", async () => {
     const { getServerDefaults } = await importDefaults()
     expect(getServerDefaults()).toEqual({})
+  })
+
+  it("PICTORIUM_DISABLE_CLEAN_POSTERS abilita l'esclusione dei clean", async () => {
+    process.env.PICTORIUM_DISABLE_CLEAN_POSTERS = "1"
+    const { getServerDefaults } = await importDefaults()
+    expect(getServerDefaults().disableCleanPosters).toBe(true)
   })
 
   it("user defaults: set/get round-trip sulla KV condivisa tra istanze", async () => {

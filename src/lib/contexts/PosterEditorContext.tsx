@@ -190,6 +190,9 @@ export interface PosterEditorCtx {
   setDefaultSashOrder: (v: SashBucket[] | ((prev: SashBucket[]) => SashBucket[])) => void
   defaultAutoRotateClean: boolean
   setDefaultAutoRotateClean: (v: boolean | ((prev: boolean) => boolean)) => void
+  /** Disattiva i poster clean TMDB nella selezione automatica (default OFF). */
+  defaultDisableCleanPosters: boolean
+  setDefaultDisableCleanPosters: (v: boolean | ((prev: boolean) => boolean)) => void
   defaultAutoRotateBackdrop: boolean
   setDefaultAutoRotateBackdrop: (v: boolean | ((prev: boolean) => boolean)) => void
   /** Best-fit automatico per formato (sdoppiato dal vecchio flag unico). */
@@ -403,6 +406,7 @@ export function PosterEditorProvider({
     defaultNetworkLogoOffsetX, defaultNetworkLogoOffsetY,
     defaultBadgeGenre, defaultBadgeYear, defaultBadgeRating, defaultBadgeQuality, defaultCustomRatings, defaultCustomRatingEndpoint, defaultCustomRatingApiKeyHeader, defaultRatingSources, defaultSeparateRatings, defaultSashOrder,
     defaultAutoRotateClean, defaultAutoRotateBackdrop, defaultPortraitFitEnabled, defaultLandscapeFitEnabled, defaultNetworkLogo, defaultNetworkLogoPosition, defaultPreRelease, defaultRibbonSide, defaultRibbonEnabled, defaultPosterShape, defaultLogoAlign,
+    defaultDisableCleanPosters,
     landscape: landscapeDefaults,
     episodeMetadataSource, defaultEpisodeMetadataSource,
     region, defaultRegion, defaultDateFormat,
@@ -827,6 +831,11 @@ export function PosterEditorProvider({
       const next = typeof v === "function" ? v(defaultAutoRotateBackdrop) : v
       update({ defaultAutoRotateBackdrop: next })
     }, [defaultAutoRotateBackdrop, update])
+  const setDefaultDisableCleanPosters = useCallback(
+    (v: boolean | ((prev: boolean) => boolean)) => {
+      const next = typeof v === "function" ? v(defaultDisableCleanPosters) : v
+      update({ defaultDisableCleanPosters: next })
+    }, [defaultDisableCleanPosters, update])
   const setDefaultPortraitFitEnabled = useCallback(
     (v: boolean | ((prev: boolean) => boolean)) => {
       const next = typeof v === "function" ? v(defaultPortraitFitEnabled) : v
@@ -1047,6 +1056,8 @@ export function PosterEditorProvider({
       setDefaultSashOrder,
       defaultAutoRotateClean,
       setDefaultAutoRotateClean,
+      defaultDisableCleanPosters,
+      setDefaultDisableCleanPosters,
       defaultAutoRotateBackdrop,
       setDefaultAutoRotateBackdrop,
       defaultPortraitFitEnabled,
@@ -1251,6 +1262,7 @@ export function PosterEditorProvider({
       defaultSeparateRatings, setDefaultSeparateRatings,
       defaultSashOrder, setDefaultSashOrder,
       defaultAutoRotateClean, setDefaultAutoRotateClean,
+      defaultDisableCleanPosters, setDefaultDisableCleanPosters,
       defaultAutoRotateBackdrop, setDefaultAutoRotateBackdrop,
       defaultPortraitFitEnabled, setDefaultPortraitFitEnabled,
       defaultLandscapeFitEnabled, setDefaultLandscapeFitEnabled,
