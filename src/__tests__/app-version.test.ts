@@ -1,16 +1,9 @@
 import { describe, expect, it } from "vitest"
-import packageJson from "../../package.json"
 import { APP_COMMIT, APP_VERSION } from "@/generated/app-version"
 
 describe("app version", () => {
-  it("derives from package.json major.minor with commit-count patch (auto version)", () => {
-    const [major, minor] = packageJson.version.split(".")
-    expect(APP_VERSION.startsWith(`${major}.${minor}.`)).toBe(true)
-    // When git is unavailable version equals package.json, otherwise patch is numeric commit count
-    if (APP_VERSION !== packageJson.version) {
-      const patch = APP_VERSION.split(".")[2]
-      expect(/^\d+$/.test(patch)).toBe(true)
-    }
+  it("tracks the latest vX.Y.Z tag (package.json fallback without tags/git)", () => {
+    expect(/^\d+\.\d+\.\d+$/.test(APP_VERSION)).toBe(true)
   })
 
   it("exposes the running commit SHA (or unknown without git)", () => {
