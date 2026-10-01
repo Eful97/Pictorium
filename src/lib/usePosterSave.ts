@@ -488,10 +488,9 @@ export function usePosterSave(deps: PosterSaveDeps) {
         }),
       })
       setPreviewId(`${selected.media_type}:${selected.id}`)
-      // Conferma discreta: vita breve (lo stile schizzo/arancio viene dal
-      // CSS globale dei toast). Gli errori restano banner informativi.
-      if (!overrides.silent) import("sonner").then(({ toast }) => toast(t("ui.saveSuccess"), {
-        duration: 2000,
+      // Conferma pillola/goccia arancio (lo stile e l'animazione vengono dal CSS globale).
+      if (!overrides.silent) import("sonner").then(({ toast }) => toast.success(t("ui.saveSuccess"), {
+        duration: 2500,
       }))
       await loadMappings()
       return true
@@ -503,7 +502,7 @@ export function usePosterSave(deps: PosterSaveDeps) {
         const toastMsg = error instanceof ApiError && error.status === 401
           ? t("ui.clearCacheUnauthorized")
           : t("ui.saveError")
-        import("sonner").then(({ toast }) => toast(toastMsg))
+        import("sonner").then(({ toast }) => toast.error(toastMsg))
       }
       if (overrides.silent) throw error
       return false

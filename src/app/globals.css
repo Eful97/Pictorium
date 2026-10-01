@@ -209,19 +209,351 @@ input[type="range"]::-moz-range-thumb:active {
   to { opacity: 0; transform: translateY(-8px) scale(0.96); }
 }
 
-/* Toast in stile schizzo/acquerello: bordo irregolare tratto a mano +
- * lavata d'acquerello sul fondo. Solo estetica: posizione e durata restano
- * quelle del Toaster / delle singole chiamate. */
-[data-sonner-toast] {
-  border-radius: 18px 5px 16px 6px / 6px 16px 5px 18px !important;
-  border: 1.5px solid rgba(255, 255, 255, 0.16) !important;
-  background:
-    radial-gradient(130% 100% at 12% 0%, rgba(232, 93, 42, 0.13), transparent 55%),
-    radial-gradient(120% 120% at 88% 100%, rgba(245, 158, 11, 0.09), transparent 55%),
-    rgb(24, 24, 27) !important;
+/* ==========================================================================
+   Toast — Pillola Glassmorphism con Goccia d'Arancio & Animazione Spring
+   ========================================================================== */
+
+/* Posizionamento Toaster: margine e layer */
+[data-sonner-toaster] {
+  --gap: 12px;
+  z-index: 999999;
 }
-[data-sonner-toast][data-type="success"] {
-  border-color: rgba(232, 93, 42, 0.55) !important;
+
+/* Capsula a Pillola fluttuante dinamica (larghezza adattiva al contenuto) */
+[data-sonner-toast] {
+  width: fit-content !important;
+  width: -moz-fit-content !important;
+  min-width: fit-content !important;
+  max-width: min(92vw, 540px) !important;
+  border-radius: 9999px !important;
+  padding: 9px 18px 9px 12px !important;
+  min-height: 40px !important;
+  box-sizing: border-box !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 10px !important;
+  position: relative !important;
+  overflow: hidden !important;
+  right: 0 !important;
+  left: auto !important;
+  font-family: var(--font-sans), system-ui, -apple-system, sans-serif !important;
+
+  /* Superficie Dark Obsidian Glass + Backlight Glow Arancio */
+  background:
+    radial-gradient(110% 140% at 0% 50%, rgba(232, 93, 42, 0.28) 0%, transparent 65%),
+    radial-gradient(90% 120% at 100% 50%, rgba(245, 158, 11, 0.12) 0%, transparent 60%),
+    linear-gradient(180deg, rgba(28, 22, 24, 0.94) 0%, rgba(14, 14, 17, 0.98) 100%) !important;
+  border: 1px solid rgba(232, 93, 42, 0.48) !important;
+
+  /* Vetro con forte sfocatura */
+  backdrop-filter: blur(20px) saturate(190%) !important;
+  -webkit-backdrop-filter: blur(20px) saturate(190%) !important;
+
+  /* Profondità e alone arancio */
+  box-shadow:
+    0 16px 40px -4px rgba(0, 0, 0, 0.75),
+    0 0 24px -2px rgba(232, 93, 42, 0.35),
+    inset 0 1px 0 rgba(255, 255, 255, 0.22),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.5) !important;
+
+  /* Transizione con spring bounce */
+  transition:
+    transform 480ms cubic-bezier(0.34, 1.56, 0.64, 1),
+    opacity 320ms cubic-bezier(0.16, 1, 0.3, 1),
+    height 300ms ease,
+    box-shadow 300ms ease !important;
+}
+
+/* Toast con descrizione estesa (adattamento morbido del border radius) */
+[data-sonner-toast]:has([data-description]) {
+  border-radius: 20px !important;
+  align-items: flex-start !important;
+  padding: 12px 18px 12px 14px !important;
+}
+
+[data-sonner-toast]:has([data-description]) [data-icon] {
+  margin-top: 2px !important;
+}
+
+@media (max-width: 600px) {
+  [data-sonner-toast] {
+    max-width: calc(100vw - 28px) !important;
+    left: 0 !important;
+    right: 0 !important;
+    margin-left: auto !important;
+    margin-right: auto !important;
+  }
+}
+
+/* Riflesso liquido (Shimmer Sweep) sulla curva della pillola */
+[data-sonner-toast]::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(
+    105deg,
+    transparent 15%,
+    rgba(255, 255, 255, 0.04) 40%,
+    rgba(255, 255, 255, 0.26) 50%,
+    rgba(255, 255, 255, 0.04) 60%,
+    transparent 85%
+  );
+  pointer-events: none;
+  transform: translateX(-130%);
+  animation: toast-shimmer-sweep 1.1s cubic-bezier(0.16, 1, 0.3, 1) 0.12s 1 forwards;
+}
+
+/* Exit state morbido */
+[data-sonner-toast][data-removed="true"] {
+  opacity: 0 !important;
+  transform: scale(0.92) translateY(6px) !important;
+  transition: transform 220ms ease-in, opacity 200ms ease-in !important;
+}
+
+/* Icona contenuta nella "Goccia" d'arancio */
+[data-sonner-toast] [data-icon] {
+  width: 24px !important;
+  height: 24px !important;
+  border-radius: 9999px !important;
+  background: linear-gradient(135deg, #ff8c53 0%, #e85d2a 55%, #c2410c 100%) !important;
+  box-shadow:
+    0 0 14px rgba(232, 93, 42, 0.75),
+    0 2px 6px rgba(0, 0, 0, 0.4),
+    inset 0 1px 1px rgba(255, 255, 255, 0.5) !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  flex-shrink: 0 !important;
+  margin: 0 !important;
+  animation:
+    droplet-pop 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) both,
+    droplet-breathe 3s ease-in-out infinite 0.6s !important;
+}
+
+[data-sonner-toast] [data-icon] svg {
+  width: 13px !important;
+  height: 13px !important;
+  color: #ffffff !important;
+  stroke: #ffffff !important;
+  stroke-width: 2.6 !important;
+}
+
+/* Goccia liquida luminosa per i toast senza icona esplicita */
+[data-sonner-toast]:not(:has([data-icon])) [data-title]::before {
+  content: "";
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  border-radius: 9999px;
+  background: linear-gradient(135deg, #ff9466 0%, #e85d2a 100%);
+  box-shadow:
+    0 0 10px rgba(232, 93, 42, 0.95),
+    0 0 3px #ff9466;
+  margin-right: 9px;
+  vertical-align: middle;
+  transform: translateY(-1px);
+  flex-shrink: 0;
+  animation:
+    droplet-pop 0.45s cubic-bezier(0.34, 1.56, 0.64, 1) both,
+    droplet-breathe 3s ease-in-out infinite 0.5s;
+}
+
+/* Contenuto e Tipografia */
+[data-sonner-toast] [data-content] {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 2px !important;
+  width: fit-content !important;
+  min-width: 0 !important;
+  flex: 1 1 auto !important;
+}
+
+/* Messaggi su riga singola: la pillola si allunga esattamente quanto serve al testo */
+[data-sonner-toast]:not(:has([data-description])) [data-title] {
+  white-space: nowrap !important;
+}
+
+/* Messaggi lunghi o con descrizione: vanno a capo fluidamente */
+[data-sonner-toast]:has([data-description]) [data-title],
+[data-sonner-toast] [data-description] {
+  white-space: normal !important;
+  overflow-wrap: break-word !important;
+}
+
+[data-sonner-toast] [data-title] {
+  font-family: var(--font-sans), system-ui, sans-serif !important;
+  font-size: 13px !important;
+  font-weight: 600 !important;
+  line-height: 1.4 !important;
+  color: #ffffff !important;
+  letter-spacing: -0.01em !important;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6) !important;
+}
+
+[data-sonner-toast] [data-description] {
+  font-family: var(--font-sans), system-ui, sans-serif !important;
+  font-size: 12px !important;
+  font-weight: 400 !important;
+  line-height: 1.35 !important;
+  color: rgba(255, 255, 255, 0.76) !important;
+}
+
+/* Pulsanti e Azioni */
+[data-sonner-toast] [data-button] {
+  border-radius: 9999px !important;
+  height: 26px !important;
+  padding: 0 12px !important;
+  font-size: 12px !important;
+  font-weight: 600 !important;
+  color: #ffffff !important;
+  background: linear-gradient(135deg, #ff8c53 0%, #e85d2a 100%) !important;
+  box-shadow: 0 2px 8px rgba(232, 93, 42, 0.4) !important;
+  border: none !important;
+  cursor: pointer !important;
+  transition: transform 0.15s ease, filter 0.15s ease !important;
+}
+
+[data-sonner-toast] [data-button]:hover {
+  filter: brightness(1.1) !important;
+  transform: scale(1.02) !important;
+}
+
+[data-sonner-toast] [data-close-button] {
+  background: rgba(255, 255, 255, 0.08) !important;
+  border: 1px solid rgba(255, 255, 255, 0.15) !important;
+  color: rgba(255, 255, 255, 0.8) !important;
+  border-radius: 9999px !important;
+  transition: all 0.2s ease !important;
+}
+
+[data-sonner-toast] [data-close-button]:hover {
+  background: rgba(232, 93, 42, 0.35) !important;
+  border-color: rgba(232, 93, 42, 0.7) !important;
+  color: #ffffff !important;
+}
+
+/* --- Varianti di tipo --- */
+
+/* Successo (Arancio luminoso / Amber) */
+[data-sonner-toast][data-type="success"],
+[data-rich-colors="true"][data-sonner-toast][data-type="success"] {
+  border-color: rgba(232, 93, 42, 0.58) !important;
+  background:
+    radial-gradient(110% 140% at 0% 50%, rgba(232, 93, 42, 0.32) 0%, transparent 65%),
+    radial-gradient(90% 120% at 100% 50%, rgba(245, 158, 11, 0.14) 0%, transparent 60%),
+    linear-gradient(180deg, rgba(30, 22, 24, 0.94) 0%, rgba(14, 14, 17, 0.98) 100%) !important;
+  box-shadow:
+    0 16px 40px -4px rgba(0, 0, 0, 0.75),
+    0 0 28px -2px rgba(232, 93, 42, 0.42),
+    inset 0 1px 0 rgba(255, 255, 255, 0.24),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.5) !important;
+}
+[data-sonner-toast][data-type="success"] [data-icon] {
+  background: linear-gradient(135deg, #ff8c53 0%, #e85d2a 55%, #c2410c 100%) !important;
+  box-shadow:
+    0 0 14px rgba(232, 93, 42, 0.8),
+    0 2px 6px rgba(0, 0, 0, 0.4),
+    inset 0 1px 1px rgba(255, 255, 255, 0.5) !important;
+}
+
+/* Errore (Rosso corallo / rubino) */
+[data-sonner-toast][data-type="error"],
+[data-rich-colors="true"][data-sonner-toast][data-type="error"] {
+  border-color: rgba(239, 68, 68, 0.55) !important;
+  background:
+    radial-gradient(110% 140% at 0% 50%, rgba(239, 68, 68, 0.28) 0%, transparent 65%),
+    radial-gradient(90% 120% at 100% 50%, rgba(220, 38, 38, 0.12) 0%, transparent 60%),
+    linear-gradient(180deg, rgba(32, 20, 22, 0.94) 0%, rgba(16, 14, 16, 0.98) 100%) !important;
+  box-shadow:
+    0 16px 40px -4px rgba(0, 0, 0, 0.75),
+    0 0 28px -2px rgba(239, 68, 68, 0.38),
+    inset 0 1px 0 rgba(255, 255, 255, 0.24),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.5) !important;
+}
+[data-sonner-toast][data-type="error"] [data-icon] {
+  background: linear-gradient(135deg, #f87171 0%, #ef4444 60%, #b91c1c 100%) !important;
+  box-shadow:
+    0 0 14px rgba(239, 68, 68, 0.8),
+    0 2px 6px rgba(0, 0, 0, 0.4),
+    inset 0 1px 1px rgba(255, 255, 255, 0.5) !important;
+}
+
+/* Warning (Ambra calda) */
+[data-sonner-toast][data-type="warning"],
+[data-rich-colors="true"][data-sonner-toast][data-type="warning"] {
+  border-color: rgba(245, 158, 11, 0.55) !important;
+  background:
+    radial-gradient(110% 140% at 0% 50%, rgba(245, 158, 11, 0.28) 0%, transparent 65%),
+    radial-gradient(90% 120% at 100% 50%, rgba(217, 119, 6, 0.12) 0%, transparent 60%),
+    linear-gradient(180deg, rgba(32, 26, 20, 0.94) 0%, rgba(16, 15, 14, 0.98) 100%) !important;
+  box-shadow:
+    0 16px 40px -4px rgba(0, 0, 0, 0.75),
+    0 0 28px -2px rgba(245, 158, 11, 0.38),
+    inset 0 1px 0 rgba(255, 255, 255, 0.24),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.5) !important;
+}
+[data-sonner-toast][data-type="warning"] [data-icon] {
+  background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 60%, #b45309 100%) !important;
+  box-shadow:
+    0 0 14px rgba(245, 158, 11, 0.8),
+    0 2px 6px rgba(0, 0, 0, 0.4),
+    inset 0 1px 1px rgba(255, 255, 255, 0.5) !important;
+}
+
+/* Info (Arancio Pictorium) */
+[data-sonner-toast][data-type="info"],
+[data-rich-colors="true"][data-sonner-toast][data-type="info"] {
+  border-color: rgba(232, 93, 42, 0.58) !important;
+}
+
+/* Keyframes */
+@keyframes droplet-pop {
+  0% {
+    transform: scale(0.15) rotate(-25deg);
+    opacity: 0;
+  }
+  65% {
+    transform: scale(1.22) rotate(4deg);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1) rotate(0deg);
+    opacity: 1;
+  }
+}
+
+@keyframes droplet-breathe {
+  0%, 100% {
+    box-shadow:
+      0 0 14px rgba(232, 93, 42, 0.7),
+      0 2px 6px rgba(0, 0, 0, 0.4),
+      inset 0 1px 1px rgba(255, 255, 255, 0.5);
+  }
+  50% {
+    box-shadow:
+      0 0 22px rgba(232, 93, 42, 0.95),
+      0 0 8px #ff8c53,
+      0 2px 6px rgba(0, 0, 0, 0.4),
+      inset 0 1px 1px rgba(255, 255, 255, 0.6);
+  }
+}
+
+@keyframes toast-shimmer-sweep {
+  0% {
+    transform: translateX(-130%) skewX(-20deg);
+    opacity: 0;
+  }
+  15% {
+    opacity: 0.85;
+  }
+  85% {
+    opacity: 0.85;
+  }
+  100% {
+    transform: translateX(270%) skewX(-20deg);
+    opacity: 0;
+  }
 }
 
 @keyframes scale-in {
@@ -1366,14 +1698,25 @@ select:focus-visible {
 
 .home-hero-title {
   font-size: clamp(2rem, 4.2vw, 2.9rem);
-  line-height: 1.04;
-  font-weight: 700;
-  letter-spacing: -0.03em;
-  color: var(--color-foreground);
+  line-height: 1.05;
+  font-weight: 750;
+  letter-spacing: -0.035em;
+  background: linear-gradient(180deg, #ffffff 45%, #d1d5db 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: #ffffff;
+  filter: drop-shadow(0 2px 12px rgba(0, 0, 0, 0.6));
 }
 
 .home-hero-title .accent-word {
+  background: linear-gradient(180deg, #ff7a45 10%, #e85d2a 90%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
   color: var(--color-accent-orange);
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.4)) drop-shadow(0 0 10px rgba(232, 93, 42, 0.22));
+  display: inline-block;
 }
 
 .home-hero-sub {

@@ -129,7 +129,7 @@ export function EpisodeGroupControls() {
     if (!selected) return
     if ((ed.episodeGroupId === "tvdb" || ed.episodeGroupId?.startsWith("tvdb:")) && !hasTvdbKey) {
       const { toast } = await import("sonner")
-      toast(t("ui.epKeyMissingToast"))
+      toast.warning(t("ui.epKeyMissingToast"))
       return
     }
 
@@ -179,10 +179,10 @@ export function EpisodeGroupControls() {
 
       setSaved(true)
       const { toast } = await import("sonner")
-      toast(t("ui.epOrderSaved"))
+      toast.success(t("ui.epOrderSaved"))
     } catch {
       const { toast } = await import("sonner")
-      toast(t("ui.saveError"))
+      toast.error(t("ui.saveError"))
     } finally {
       setSaving(false)
     }

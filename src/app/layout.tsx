@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { Toaster } from "sonner";
+import { Check, Info, AlertTriangle, AlertCircle } from "lucide-react";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -61,8 +62,14 @@ export default function RootLayout({
           position="bottom-right"
           duration={3000}
           closeButton={false}
-          richColors
+          richColors={false}
           theme="dark"
+          icons={{
+            success: <Check className="w-3.5 h-3.5 stroke-[2.5]" />,
+            info: <Info className="w-3.5 h-3.5 stroke-[2.5]" />,
+            warning: <AlertTriangle className="w-3.5 h-3.5 stroke-[2.5]" />,
+            error: <AlertCircle className="w-3.5 h-3.5 stroke-[2.5]" />,
+          }}
         />
       </body>
     </html>
