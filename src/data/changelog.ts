@@ -30,6 +30,16 @@ export interface ChangelogRelease {
  *  (which bumps on every commit and would leave the dot permanently on). */
 export const CHANGELOG: ChangelogRelease[] = [
   {
+    version: "1.24.6",
+    date: "2026-10-01",
+    title: "Release 1.24.6",
+    items: [
+      { type: "feature", text: "Add StudioCanal network logo" },
+      { type: "fix", text: "editor toggles, saves and Stremio posters follow the chosen settings" },
+      { type: "feature", text: "Simplify and enlarge ranking ribbons" },
+    ],
+  },
+  {
     version: "1.24.4",
     date: "2026-09-30",
     title: "Release 1.24.4",
