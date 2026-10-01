@@ -48,3 +48,12 @@ jobs:
           else
             gh release create "$TAG" --title "Release ${TAG#v}" --notes-file /tmp/notes.md
           fi
+      - name: Announce to Discord
+        if: success()
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          RELEASE_TAG: ${{ steps.notes.outputs.tag }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: |
+          node scripts/notify-discord-release.mjs /tmp/notes.md
+
