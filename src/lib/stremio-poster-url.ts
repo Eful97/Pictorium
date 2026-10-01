@@ -143,7 +143,7 @@ export function buildStremioPosterUrl(input: BuildStremioPosterUrlInput): URL {
     badgePresetRev: mapping?.badgePresetRev,
     dateFormat: sd.dateFormat ?? undefined,
     title: mapping?.title ?? undefined,
-    networkLogo: (sd.networkLogo !== false) && (mapping?.networkLogo !== false),
+    networkLogo: mapping?.networkLogo ?? sd.networkLogo,
     // Ancoraggio network: per-titolo vince sul default globale (come networkLogo).
     networkLogoPosition: mapping?.networkLogoPosition ?? sd.networkLogoPosition,
     preRelease: sd.preRelease,

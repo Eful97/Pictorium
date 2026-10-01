@@ -1210,10 +1210,10 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
   const useGenrePreset = !!presetForPoster && presetForPoster.target === "genre" && badgesEnabled
   const useTopPreset = !!presetForPoster && presetForPoster.target === "top" && rankingEnabled && !showComingSoon
   const genrePresetKey = useGenrePreset && presetForPoster
-    ? badgeCacheKey("preset-genre", presetForPoster.id, presetForPoster.revision, badgePw, voteAverage, year, genreName, finalRank)
+    ? badgeCacheKey("preset-genre", presetForPoster.id, presetForPoster.revision, badgePw, voteAverage, year, genreName, finalRank, animeRankResult ?? "noanime-rank", imdbId ?? "noimdb", input.tmdbId ?? "notmdb", topLight ? "tl1" : "tl0", bottomLight ? "bl1" : "bl0", accentColorGenre ?? "noac", ribbonSide, isAnimeRank ? "anime" : "noanime")
     : null
   const topPresetKey = useTopPreset && presetForPoster
-    ? badgeCacheKey("preset-top", presetForPoster.id, presetForPoster.revision, topBadgePw, voteAverage, year, genreName, finalRank)
+    ? badgeCacheKey("preset-top", presetForPoster.id, presetForPoster.revision, topBadgePw, voteAverage, year, genreName, finalRank, animeRankResult ?? "noanime-rank", imdbId ?? "noimdb", input.tmdbId ?? "notmdb", topLight ? "tl1" : "tl0", bottomLight ? "bl1" : "bl0", accentColorRank ?? "noac", ribbonSide, isAnimeRank ? "anime" : "noanime")
     : null
 
   // Render standard esternalizzati per il fallback: se il preset risolve un

@@ -291,7 +291,7 @@ export function BadgeControls() {
               <Cloud className="w-3.5 h-3.5 text-cyan-400" />
               {t("ui.blurSection")}
             </span>
-            <Toggle value={ed.blurEnabled} onChange={(v) => ed.setBlurEnabled(v)} label={t("ui.blurSection")} />
+            <Toggle value={ed.posterShape === "landscape" ? ed.landscapeBlur.blurEnabled : ed.blurEnabled} onChange={(v) => { if (ed.posterShape === "landscape") ed.setLandscapeBlur({ blurEnabled: v }); else ed.setBlurEnabled(v) }} label={t("ui.blurSection")} />
           </div>
         </div>
       </div>

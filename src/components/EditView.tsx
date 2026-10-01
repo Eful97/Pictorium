@@ -303,7 +303,11 @@ export default function EditView() {
   useEffect(() => {
     if (ed.posterShape !== "landscape") return
     if (ed.selectedBackdrop) return
+    // Mai riselezionare uno sfondo escluso: dopo l'esclusione dell'unico
+    // sfondo l'autosave invia backdropPath:null e la selezione resta nulla.
+    const excluded = new Set(ed.excludedBackdrops ?? [])
     if (selectedMapping?.backdropPath) {
+      if (excluded.has(selectedMapping.backdropPath)) return
       // Ripristino diretto (NON selectBackdrop: quello azzererebbe
       // backdropScale/offset già caricati dal mapping).
       const saved = ed.backdrops.find((b) => b.file_path === selectedMapping.backdropPath)
@@ -311,9 +315,10 @@ export default function EditView() {
       return
     }
     if (hasMapping) return
-    if (ed.backdrops.length === 0) return
-    void selectBackdrop(ed.backdrops[0])
-  }, [ed.posterShape, ed.selectedBackdrop, hasMapping, selectedMapping, ed.backdrops, selectBackdrop]) // eslint-disable-line react-hooks/exhaustive-deps -- dipendenze granulari intenzionali: `ed` intero rifarebbe scattare l'effetto a ogni tick editor e riselezionerebbe dopo una deselezione volontaria
+    const first = ed.backdrops.find((b) => !excluded.has(b.file_path))
+    if (!first) return
+    void selectBackdrop(first)
+  }, [ed.posterShape, ed.selectedBackdrop, hasMapping, selectedMapping, ed.backdrops, ed.excludedBackdrops, selectBackdrop]) // eslint-disable-line react-hooks/exhaustive-deps -- dipendenze granulari intenzionali: `ed` intero rifarebbe scattare l'effetto a ogni tick editor e riselezionerebbe dopo una deselezione volontaria
 
   // Dual-format: stash degli slider non salvati per formato. Senza, passare
   // da A a B e ritorno perderebbe in silenzio le modifiche non salvate di A

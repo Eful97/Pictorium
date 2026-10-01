@@ -114,7 +114,7 @@ export function TransformControls() {
         </div>
         <SliderRow icon={<Search className="w-3.5 h-3.5" />} label={t("ui.scale")} value={ed.logoScale} min={10} max={100} boundsMin={10} boundsMax={100} onChange={ed.setLogoScale} onDoubleClick={defaultLogoScale} editingValue={editingValue} editText={editText} setEditingValue={setEditingValue} setEditText={setEditText} editingKey="scale" />
         <SliderRow icon={<ArrowLeftRight className="w-3.5 h-3.5" />} label="X" value={ed.logoOffsetX} min={logoBounds.minX} max={logoBounds.maxX} boundsMin={logoBounds.minX} boundsMax={logoBounds.maxX} onChange={ed.setLogoOffsetX} onDoubleClick={() => ed.setLogoOffsetX(0)} editingValue={editingValue} editText={editText} setEditingValue={setEditingValue} setEditText={setEditText} editingKey="ox" />
-        <SliderRow icon={<ArrowUpDown className="w-3.5 h-3.5" />} label="Y" value={ed.logoOffsetY} min={logoBounds.minY} max={logoBounds.maxY} boundsMin={logoBounds.minX} boundsMax={logoBounds.maxY} onChange={ed.setLogoOffsetY} onDoubleClick={() => ed.setLogoOffsetY(0)} editingValue={editingValue} editText={editText} setEditingValue={setEditingValue} setEditText={setEditText} editingKey="oy" />
+        <SliderRow icon={<ArrowUpDown className="w-3.5 h-3.5" />} label="Y" value={ed.logoOffsetY} min={logoBounds.minY} max={logoBounds.maxY} boundsMin={logoBounds.minY} boundsMax={logoBounds.maxY} onChange={ed.setLogoOffsetY} onDoubleClick={() => ed.setLogoOffsetY(0)} editingValue={editingValue} editText={editText} setEditingValue={setEditingValue} setEditText={setEditText} editingKey="oy" />
       </div>
       )}
 
@@ -126,7 +126,7 @@ export function TransformControls() {
             {t("ui.topBadge")} · {isLandShape ? t("ui.posterShapeLandscape") : t("ui.posterShapePortrait")}
           </span>
           <button type="button" aria-label={t("ui.reset")}
-                  onClick={() => { ed.setTopBadgeScale(ed.defaultTopBadgeScale); ed.setTopBadgeOffsetX(ed.defaultTopBadgeOffsetX); ed.setTopBadgeOffsetY(ed.defaultTopBadgeOffsetY) }}
+                  onClick={() => { const land = ed.landscape; ed.setTopBadgeScale(isLandShape ? (land.topBadgeScale ?? ed.defaultTopBadgeScale) : ed.defaultTopBadgeScale); ed.setTopBadgeOffsetX(isLandShape ? (land.topBadgeOffsetX ?? ed.defaultTopBadgeOffsetX) : ed.defaultTopBadgeOffsetX); ed.setTopBadgeOffsetY(isLandShape ? (land.topBadgeOffsetY ?? ed.defaultTopBadgeOffsetY) : ed.defaultTopBadgeOffsetY) }}
                   className="text-xs text-muted hover:text-accent transition-colors px-2 py-0.5 rounded-md border border-border/50 hover:border-accent/30">
             {t("ui.reset")}
           </button>
@@ -140,7 +140,7 @@ export function TransformControls() {
           boundsMin={10}
           boundsMax={200}
             onChange={(v) => ed.setTopBadgeScale(v)}
-            onDoubleClick={() => ed.setTopBadgeScale(ed.defaultTopBadgeScale)}
+            onDoubleClick={() => ed.setTopBadgeScale(isLandShape ? (ed.landscape.topBadgeScale ?? ed.defaultTopBadgeScale) : ed.defaultTopBadgeScale)}
           editingValue={editingValue}
           editText={editText}
           setEditingValue={setEditingValue}
@@ -157,7 +157,7 @@ export function TransformControls() {
           boundsMin={-500}
           boundsMax={500}
             onChange={(v) => ed.setTopBadgeOffsetX(v)}
-            onDoubleClick={() => ed.setTopBadgeOffsetX(ed.defaultTopBadgeOffsetX)}
+            onDoubleClick={() => ed.setTopBadgeOffsetX(isLandShape ? (ed.landscape.topBadgeOffsetX ?? ed.defaultTopBadgeOffsetX) : ed.defaultTopBadgeOffsetX)}
           editingValue={editingValue}
           editText={editText}
           setEditingValue={setEditingValue}
@@ -174,7 +174,7 @@ export function TransformControls() {
           boundsMin={-500}
           boundsMax={500}
             onChange={(v) => ed.setTopBadgeOffsetY(v)}
-            onDoubleClick={() => ed.setTopBadgeOffsetY(ed.defaultTopBadgeOffsetY)}
+            onDoubleClick={() => ed.setTopBadgeOffsetY(isLandShape ? (ed.landscape.topBadgeOffsetY ?? ed.defaultTopBadgeOffsetY) : ed.defaultTopBadgeOffsetY)}
           editingValue={editingValue}
           editText={editText}
           setEditingValue={setEditingValue}
@@ -193,7 +193,7 @@ export function TransformControls() {
             {t("ui.genreRatingBadge")} · {isLandShape ? t("ui.posterShapeLandscape") : t("ui.posterShapePortrait")}
           </span>
           <button type="button" aria-label={t("ui.reset")}
-                  onClick={() => { ed.setGenreBadgeScale(ed.defaultGenreBadgeScale); ed.setGenreBadgeOffsetX(ed.defaultGenreBadgeOffsetX); ed.setGenreBadgeOffsetY(ed.defaultGenreBadgeOffsetY) }}
+                  onClick={() => { const land = ed.landscape; ed.setGenreBadgeScale(isLandShape ? (land.genreBadgeScale ?? ed.defaultGenreBadgeScale) : ed.defaultGenreBadgeScale); ed.setGenreBadgeOffsetX(isLandShape ? (land.genreBadgeOffsetX ?? ed.defaultGenreBadgeOffsetX) : ed.defaultGenreBadgeOffsetX); ed.setGenreBadgeOffsetY(isLandShape ? (land.genreBadgeOffsetY ?? ed.defaultGenreBadgeOffsetY) : ed.defaultGenreBadgeOffsetY) }}
                   className="text-xs text-muted hover:text-accent transition-colors px-2 py-0.5 rounded-md border border-border/50 hover:border-accent/30">
             {t("ui.reset")}
           </button>
@@ -207,7 +207,7 @@ export function TransformControls() {
           boundsMin={10}
           boundsMax={200}
           onChange={(v) => ed.setGenreBadgeScale(v)}
-          onDoubleClick={() => ed.setGenreBadgeScale(ed.defaultGenreBadgeScale)}
+          onDoubleClick={() => ed.setGenreBadgeScale(isLandShape ? (ed.landscape.genreBadgeScale ?? ed.defaultGenreBadgeScale) : ed.defaultGenreBadgeScale)}
           editingValue={editingValue}
           editText={editText}
           setEditingValue={setEditingValue}
@@ -224,7 +224,7 @@ export function TransformControls() {
           boundsMin={-500}
           boundsMax={500}
           onChange={(v) => ed.setGenreBadgeOffsetX(v)}
-          onDoubleClick={() => ed.setGenreBadgeOffsetX(ed.defaultGenreBadgeOffsetX)}
+          onDoubleClick={() => ed.setGenreBadgeOffsetX(isLandShape ? (ed.landscape.genreBadgeOffsetX ?? ed.defaultGenreBadgeOffsetX) : ed.defaultGenreBadgeOffsetX)}
           editingValue={editingValue}
           editText={editText}
           setEditingValue={setEditingValue}
@@ -241,7 +241,7 @@ export function TransformControls() {
           boundsMin={-500}
           boundsMax={500}
           onChange={(v) => ed.setGenreBadgeOffsetY(v)}
-          onDoubleClick={() => ed.setGenreBadgeOffsetY(ed.defaultGenreBadgeOffsetY)}
+          onDoubleClick={() => ed.setGenreBadgeOffsetY(isLandShape ? (ed.landscape.genreBadgeOffsetY ?? ed.defaultGenreBadgeOffsetY) : ed.defaultGenreBadgeOffsetY)}
           editingValue={editingValue}
           editText={editText}
           setEditingValue={setEditingValue}
@@ -260,7 +260,7 @@ export function TransformControls() {
             {t("ui.badgeQuality")} · {isLandShape ? t("ui.posterShapeLandscape") : t("ui.posterShapePortrait")}
           </span>
           <button type="button" aria-label={t("ui.reset")}
-                  onClick={() => { ed.setQualityBadgeScale(ed.defaultQualityBadgeScale); ed.setQualityBadgeOffsetX(ed.defaultQualityBadgeOffsetX); ed.setQualityBadgeOffsetY(ed.defaultQualityBadgeOffsetY) }}
+                  onClick={() => { const land = ed.landscape; ed.setQualityBadgeScale(isLandShape ? (land.qualityBadgeScale ?? ed.defaultQualityBadgeScale) : ed.defaultQualityBadgeScale); ed.setQualityBadgeOffsetX(isLandShape ? (land.qualityBadgeOffsetX ?? ed.defaultQualityBadgeOffsetX) : ed.defaultQualityBadgeOffsetX); ed.setQualityBadgeOffsetY(isLandShape ? (land.qualityBadgeOffsetY ?? ed.defaultQualityBadgeOffsetY) : ed.defaultQualityBadgeOffsetY) }}
                   className="text-xs text-muted hover:text-accent transition-colors px-2 py-0.5 rounded-md border border-border/50 hover:border-accent/30">
             {t("ui.reset")}
           </button>
@@ -274,7 +274,7 @@ export function TransformControls() {
           boundsMin={10}
           boundsMax={200}
           onChange={(v) => ed.setQualityBadgeScale(v)}
-          onDoubleClick={() => ed.setQualityBadgeScale(ed.defaultQualityBadgeScale)}
+          onDoubleClick={() => ed.setQualityBadgeScale(isLandShape ? (ed.landscape.qualityBadgeScale ?? ed.defaultQualityBadgeScale) : ed.defaultQualityBadgeScale)}
           editingValue={editingValue}
           editText={editText}
           setEditingValue={setEditingValue}
@@ -291,7 +291,7 @@ export function TransformControls() {
           boundsMin={-500}
           boundsMax={500}
           onChange={(v) => ed.setQualityBadgeOffsetX(v)}
-          onDoubleClick={() => ed.setQualityBadgeOffsetX(ed.defaultQualityBadgeOffsetX)}
+          onDoubleClick={() => ed.setQualityBadgeOffsetX(isLandShape ? (ed.landscape.qualityBadgeOffsetX ?? ed.defaultQualityBadgeOffsetX) : ed.defaultQualityBadgeOffsetX)}
           editingValue={editingValue}
           editText={editText}
           setEditingValue={setEditingValue}
@@ -308,7 +308,7 @@ export function TransformControls() {
           boundsMin={-500}
           boundsMax={500}
           onChange={(v) => ed.setQualityBadgeOffsetY(v)}
-          onDoubleClick={() => ed.setQualityBadgeOffsetY(ed.defaultQualityBadgeOffsetY)}
+          onDoubleClick={() => ed.setQualityBadgeOffsetY(isLandShape ? (ed.landscape.qualityBadgeOffsetY ?? ed.defaultQualityBadgeOffsetY) : ed.defaultQualityBadgeOffsetY)}
           editingValue={editingValue}
           editText={editText}
           setEditingValue={setEditingValue}
@@ -327,7 +327,7 @@ export function TransformControls() {
             {t("ui.networkLogo")} · {isLandShape ? t("ui.posterShapeLandscape") : t("ui.posterShapePortrait")}
           </span>
           <button type="button" aria-label={t("ui.reset")}
-                  onClick={() => { ed.setNetworkLogoScale(ed.defaultNetworkLogoScale); ed.setNetworkLogoOffsetX(ed.defaultNetworkLogoOffsetX); ed.setNetworkLogoOffsetY(ed.defaultNetworkLogoOffsetY) }}
+                  onClick={() => { const land = ed.landscape; ed.setNetworkLogoScale(isLandShape ? (land.networkLogoScale ?? ed.defaultNetworkLogoScale) : ed.defaultNetworkLogoScale); ed.setNetworkLogoOffsetX(isLandShape ? (land.networkLogoOffsetX ?? ed.defaultNetworkLogoOffsetX) : ed.defaultNetworkLogoOffsetX); ed.setNetworkLogoOffsetY(isLandShape ? (land.networkLogoOffsetY ?? ed.defaultNetworkLogoOffsetY) : ed.defaultNetworkLogoOffsetY) }}
                   className="text-xs text-muted hover:text-accent transition-colors px-2 py-0.5 rounded-md border border-border/50 hover:border-accent/30">
             {t("ui.reset")}
           </button>
@@ -341,7 +341,7 @@ export function TransformControls() {
           boundsMin={10}
           boundsMax={200}
           onChange={(v) => ed.setNetworkLogoScale(v)}
-          onDoubleClick={() => ed.setNetworkLogoScale(ed.defaultNetworkLogoScale)}
+          onDoubleClick={() => ed.setNetworkLogoScale(isLandShape ? (ed.landscape.networkLogoScale ?? ed.defaultNetworkLogoScale) : ed.defaultNetworkLogoScale)}
           editingValue={editingValue}
           editText={editText}
           setEditingValue={setEditingValue}
@@ -358,7 +358,7 @@ export function TransformControls() {
           boundsMin={-500}
           boundsMax={500}
           onChange={(v) => ed.setNetworkLogoOffsetX(v)}
-          onDoubleClick={() => ed.setNetworkLogoOffsetX(ed.defaultNetworkLogoOffsetX)}
+          onDoubleClick={() => ed.setNetworkLogoOffsetX(isLandShape ? (ed.landscape.networkLogoOffsetX ?? ed.defaultNetworkLogoOffsetX) : ed.defaultNetworkLogoOffsetX)}
           editingValue={editingValue}
           editText={editText}
           setEditingValue={setEditingValue}
@@ -375,7 +375,7 @@ export function TransformControls() {
           boundsMin={-500}
           boundsMax={500}
           onChange={(v) => ed.setNetworkLogoOffsetY(v)}
-          onDoubleClick={() => ed.setNetworkLogoOffsetY(ed.defaultNetworkLogoOffsetY)}
+          onDoubleClick={() => ed.setNetworkLogoOffsetY(isLandShape ? (ed.landscape.networkLogoOffsetY ?? ed.defaultNetworkLogoOffsetY) : ed.defaultNetworkLogoOffsetY)}
           editingValue={editingValue}
           editText={editText}
           setEditingValue={setEditingValue}

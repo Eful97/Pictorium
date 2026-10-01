@@ -99,7 +99,7 @@ export const POSTER_CACHE_ALLOWLIST: ReadonlySet<string> = new Set([
   "year", "rd", "fad", "mv", "fmt", "format", "shape", "align", "ac",
   "tl", "bl", "bs", "rs", "ts", "dv",
   // Funzionali (letti dalla route / poster-config, mai stile libero).
-  "badges", "ranking", "bg", "by", "br", "bq", "cr", "sep", "netLogo", "netPos",
+  "badges", "ranking", "bg", "by", "br", "bq", "qbs", "ribbon", "cr", "sep", "netLogo", "netPos",
   "pre", "side", "hideLogo", "tint", "be", "preview", "u", "user",
   "config", "c", "api_key", "mdblist_key", "simkl_key", "tvdb_key",
   "region", "country", "logoFit", "debug",
@@ -255,11 +255,11 @@ export function hardenPosterSearchParams(
       params.delete("prv")
     }
   }
-  // netPos: enum finita ("top") — garbage collassato (stesso render di
+  // netPos: enum finita ("top"/"auto") — garbage collassato (stesso render di
   // auto, che il server risolve da solo).
   if (params.has("netPos")) {
     const v = (params.get("netPos") || "").toLowerCase()
-    if (v === "top") params.set("netPos", v)
+    if (v === "top" || v === "auto") params.set("netPos", v)
     else params.delete("netPos")
   }
 

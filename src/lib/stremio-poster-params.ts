@@ -214,8 +214,16 @@ export function buildStremioPosterSearchParams(input: StremioPosterParamsInput):
   // Rank anime noto al catalogo (posizione in lista): rende il badge Anime
   // deterministico su Stremio, indipendentemente dalle chiavi lato server.
   if (input.animerank) params.set("animerank", String(input.animerank))
-  if (!globalBadges) params.set("badges", "0")
-  if (!rankingBadges) params.set("ranking", "0")
+  if (input.config) {
+    // Con token stateless il server applica query > mapping > config: un ON
+    // per-titolo omesso perderebbe contro un master OFF del token mentre la
+    // preview manda ON esplicito — emetti sempre esplicito (ON e OFF).
+    params.set("badges", globalBadges ? "1" : "0")
+    params.set("ranking", rankingBadges ? "1" : "0")
+  } else {
+    if (!globalBadges) params.set("badges", "0")
+    if (!rankingBadges) params.set("ranking", "0")
+  }
   if (input.badgeGenre === false) params.set("bg", "0")
   if (input.badgeYear === false) params.set("by", "0")
   if (input.badgeRating === false) params.set("br", "0")

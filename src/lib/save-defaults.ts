@@ -16,6 +16,9 @@ function safeSetItem(key: string, val: string) {
  *  Returns `false` when the PUT failed (network, 401 admin fail-closed, 5xx):
  *  the instance defaults used by Stremio catalog posters stay the old ones. */
 export async function saveDefaults(ed: PosterEditorCtx): Promise<boolean> {
+  // Endpoint provider: quando il display è OFF il campo è nascosto — un URL
+  // stale/invalido (senza {imdbId}) non deve far fallire l'intero PUT 400.
+  const endpointForSave = ed.defaultCustomRatings ? (ed.defaultCustomRatingEndpoint ?? "") : ""
   const d = {
     globalBadges: ed.defaultGlobalBadges,
     rankingBadges: ed.defaultRankingBadges,
@@ -23,7 +26,7 @@ export async function saveDefaults(ed: PosterEditorCtx): Promise<boolean> {
     badgeYear: ed.defaultBadgeYear,
     badgeRating: ed.defaultBadgeRating,
     badgeQuality: ed.defaultBadgeQuality,
-    customRatings: ed.defaultCustomRatings,    customRatingEndpoint: ed.defaultCustomRatingEndpoint ?? "",
+    customRatings: ed.defaultCustomRatings,    customRatingEndpoint: endpointForSave,
     customRatingApiKeyHeader: ed.defaultCustomRatingApiKeyHeader ?? "",
     ratingSources: ed.defaultRatingSources,
     separateRatings: ed.defaultSeparateRatings,
@@ -53,6 +56,7 @@ export async function saveDefaults(ed: PosterEditorCtx): Promise<boolean> {
     networkLogoOffsetY: ed.defaultNetworkLogoOffsetY,
     autoRotateClean: ed.defaultAutoRotateClean,
     defaultAutoRotateBackdrop: ed.defaultAutoRotateBackdrop,
+    disableCleanPosters: ed.defaultDisableCleanPosters,
     defaultPortraitFitEnabled: ed.defaultPortraitFitEnabled,
     defaultLandscapeFitEnabled: ed.defaultLandscapeFitEnabled,
     defaultNetworkLogo: ed.defaultNetworkLogo,

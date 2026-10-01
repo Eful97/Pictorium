@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server"
 import { diagnoseCustomRatings, resolveCustomRatingConfig } from "@/lib/custom-rating"
-import { getServerDefaults } from "@/lib/server-defaults"
+import { getServerDefaults, getServerDefaultsForUser } from "@/lib/server-defaults"
+import { checkUserAuth, getScopedUserId, extractUserParam, userAuthResponse } from "@/lib/user-auth"
 import { rateLimit, rateLimitKey, rateLimitResponse } from "@/lib/rate-limit"
 import { isSameOrigin, checkAdminToken, adminAuthResponse, originMismatchResponse } from "@/lib/auth"
 import { createLogger } from "@/lib/logger"
@@ -21,13 +22,18 @@ export const CUSTOM_RATING_TEST_IMDB_ID = "tt1375666"
 export async function POST(req: NextRequest) {
   const rl = await rateLimit(rateLimitKey(req), "config")
   if (!rl.ok) return rateLimitResponse(rl.retAfter)
-  if (!checkAdminToken(req)) return adminAuthResponse()
+  // Spazio utente reale: il test gira sui default del namespace (stesse chiavi
+  // del render), non sui globali. Altrimenti gate admin storico.
+  const scoped = getScopedUserId(extractUserParam(req))
+  if (scoped) {
+    if (!(await checkUserAuth(req, scoped))) return userAuthResponse()
+  } else if (!checkAdminToken(req)) return adminAuthResponse()
   if (!isSameOrigin(req)) return originMismatchResponse()
 
   // Nessun body da leggere: il sample è fisso server-side, nessun input client.
 
   try {
-    const sd = getServerDefaults()
+    const sd = scoped ? await getServerDefaultsForUser(scoped) : getServerDefaults()
     const config = resolveCustomRatingConfig({}, sd)
     const diagnosis = await diagnoseCustomRatings(CUSTOM_RATING_TEST_IMDB_ID, config)
     if (diagnosis.error) {

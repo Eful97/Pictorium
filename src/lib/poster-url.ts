@@ -297,7 +297,9 @@ export function buildPreviewUrl(ps: PosterState, bp: BadgeParams): string {
   params.push(`netscale=${bp.networkLogoScale}`)
   params.push(`nox=${bp.networkLogoOffsetX}`)
   params.push(`noy=${bp.networkLogoOffsetY}`)
-  if (!bp.blurEnabled) params.push("be=0")
+  // SEMPRE esplicito in preview (come badges/ranking/cr): senza, un mapping
+  // salvato con blurEnabled=false scavalcerebbe il toggle editor (desync WYSIWYG).
+  params.push(`be=${bp.blurEnabled ? "1" : "0"}`)
   params.push(`netLogo=${bp.networkLogo !== false ? "1" : "0"}`)
   // SEMPRE esplicito (come ribbon/side): senza, un mapping salvato con
   // posizione forzata scavalcerebbe lo stato editor (desync WYSIWYG).

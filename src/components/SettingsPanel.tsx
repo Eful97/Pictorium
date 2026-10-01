@@ -120,11 +120,14 @@ export function SettingsPanel({ setSettingsOpen, exportData, importData, mobile 
 
   const handleSaveDefaults = () => {
     void saveDefaults(ed).then((synced) => {
-      if (!synced) toast.warning(t("ui.defaultsSyncFailed"))
+      if (!synced) {
+        toast.warning(t("ui.defaultsSyncFailed"))
+        return
+      }
+      setSaved(true)
+      if (savedTimerRef.current) clearTimeout(savedTimerRef.current)
+      savedTimerRef.current = setTimeout(() => setSaved(false), 1500)
     })
-    setSaved(true)
-    if (savedTimerRef.current) clearTimeout(savedTimerRef.current)
-    savedTimerRef.current = setTimeout(() => setSaved(false), 1500)
   }
 
   // Barra di navigazione delle schede (Tabs)

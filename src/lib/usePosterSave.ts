@@ -133,6 +133,7 @@ export interface SaveConfigOverrides {
   excludedBackdrops?: string[]
   rotationBackdrops?: string[]
   previewPoster?: TMDBImage
+  selectedBackdrop?: TMDBImage | null
   silent?: boolean
 }
 
@@ -211,7 +212,10 @@ export function usePosterSave(deps: PosterSaveDeps) {
     const key = `${selected.media_type}:${selected.id}`
     const existing = mappingsMap.get(key)
     if (!existing) {
-      import("sonner").then(({ toast }) => toast(t("ui.noMappingUpdate")))
+      // Nessun mapping salvato: rimozione solo locale (niente PUT).
+      setSelectedLogo(null)
+      setLogoDisabled(true)
+      if (selected) setPreviewId(`${selected.media_type}:${selected.id}`)
       return
     }
     const logoPrecedente = selectedLogo
@@ -261,6 +265,7 @@ export function usePosterSave(deps: PosterSaveDeps) {
 
   const saveConfig = useCallback(async (overrides: SaveConfigOverrides = {}) => {
     const posterToSave = overrides.previewPoster ?? previewPoster
+    const backdropToSaveOverride = overrides.selectedBackdrop !== undefined ? overrides.selectedBackdrop : selectedBackdrop
     if (!selected || !posterToSave) return
 
     // Profilo stateless: il mapping per-titolo non può essere salvato (nessuno
@@ -363,11 +368,14 @@ export function usePosterSave(deps: PosterSaveDeps) {
           ? { ...(prevMapping?.landscape ?? null), ...(useLandscapeBlur ? landscapeBlurPatch : {}) }
           : null)
     const backdropToSave = isLandscapeMode
-      ? (selectedBackdrop?.file_path || null)
-      : (selectedBackdrop?.file_path ?? prevMapping?.backdropPath ?? null)
-    const backdropScaleToSave = isLandscapeMode ? backdropScale : (prevMapping?.backdropScale ?? backdropScale)
-    const backdropOffsetXToSave = isLandscapeMode ? backdropOffsetX : (prevMapping?.backdropOffsetX ?? backdropOffsetX)
-    const backdropOffsetYToSave = isLandscapeMode ? backdropOffsetY : (prevMapping?.backdropOffsetY ?? backdropOffsetY)
+      ? (backdropToSaveOverride?.file_path || null)
+      : (backdropToSaveOverride?.file_path ?? prevMapping?.backdropPath ?? null)
+    // Esclusione con fallback (override presente): mirror di selectBackdrop,
+    // che resetta scala/offset a 100/0/0 insieme alla selezione — senza, il save
+    // conserverebbe le trasformazioni dello sfondo appena escluso.
+    const backdropScaleToSave = overrides.selectedBackdrop !== undefined ? 100 : (isLandscapeMode ? backdropScale : (prevMapping?.backdropScale ?? backdropScale))
+    const backdropOffsetXToSave = overrides.selectedBackdrop !== undefined ? 0 : (isLandscapeMode ? backdropOffsetX : (prevMapping?.backdropOffsetX ?? backdropOffsetX))
+    const backdropOffsetYToSave = overrides.selectedBackdrop !== undefined ? 0 : (isLandscapeMode ? backdropOffsetY : (prevMapping?.backdropOffsetY ?? backdropOffsetY))
     // Rotazione sfondi landscape (mirror verticale): in portrait si preserva
     // quella salvata, altrimenti ogni save verticale cancellerebbe la
     // rotazione 16:9. Per i mapping nuovi in landscape con auto-rotate ON,
@@ -414,7 +422,7 @@ export function usePosterSave(deps: PosterSaveDeps) {
           // Solo scelta manuale: l'auto-rilevato coincide con autoAccentColor e
           // non deve congelarsi nel mapping, altrimenti il calcolo server non
           // girerebbe più per questo titolo (né in preview né su Stremio).
-          accentColor: accentColor !== '#ffffff' && isManualAccent(accentColor, autoAccentColor) ? accentColor : undefined,
+          accentColor: isManualAccent(accentColor, autoAccentColor) ? accentColor : undefined,
           showBadges: globalBadges,
           rankingBadges,
           // Snapshot esplicito per-titolo (freeze): valori pieni, mai
@@ -467,18 +475,18 @@ export function usePosterSave(deps: PosterSaveDeps) {
           cleanPosters: effectiveRotationPosters.length > 0 ? effectiveRotationPosters : undefined,
           cleanPosterIndex: 0,
           cleanPosterUpdatedAt: new Date().toISOString(),
-          autoRotateClean: effectiveRotationPosters.length > 1 ? (defaultAutoRotateClean && isClean && isNewMapping ? true : autoRotateClean) : undefined,
+          autoRotateClean: effectiveRotationPosters.length > 1 ? autoRotateClean : undefined,
           excludedPosters: nextExcludedPosters.length > 0 ? nextExcludedPosters : undefined,
           cleanBackdrops: effectiveRotationBackdrops.length > 0 ? effectiveRotationBackdrops : undefined,
           cleanBackdropIndex: isLandscapeMode ? 0 : (prevMapping?.cleanBackdropIndex ?? undefined),
           cleanBackdropUpdatedAt: isLandscapeMode ? new Date().toISOString() : (prevMapping?.cleanBackdropUpdatedAt ?? undefined),
-          autoRotateBackdrop: effectiveRotationBackdrops.length > 1 ? (isLandscapeMode && defaultAutoRotateBackdrop && isNewMapping ? true : autoRotateBackdrop) : undefined,
+          autoRotateBackdrop: effectiveRotationBackdrops.length > 1 ? autoRotateBackdrop : undefined,
           excludedBackdrops: nextExcludedBackdrops.length > 0 ? nextExcludedBackdrops : undefined,
           logoDisabled: logoDisabled || undefined,
           networkLogo: networkLogo !== undefined ? networkLogo : undefined,
-          // Solo "top" esplicito: "auto" resta assente così il titolo segue
-          // i default finché non risalvato (come gli altri toggle/strutture).
-          networkLogoPosition: networkLogoPosition === "top" ? "top" : undefined,
+          // Posizione congelata per-titolo (freeze come gli altri toggle):
+          // "auto" esplicito così il titolo non segue più i default dopo il save.
+          networkLogoPosition,
           ribbonEnabled: ribbonEnabled !== undefined ? ribbonEnabled : undefined,
           networkLogoPath: networkLogoPath ?? null,
           networkLogoName: networkLogoName ?? null,

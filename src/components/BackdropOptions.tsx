@@ -196,11 +196,14 @@ export function BackdropOptions({ backdrops, backdropActivePath, selectBackdrop,
     ed.setRotationBackdrops(nextRotationBackdrops)
     setExcludedSaveState("saving")
     let fallback: TMDBImage | undefined
+    let backdropOverride: TMDBImage | null | undefined
     if (backdropActivePath === filePath) {
       fallback = cleanBackdrops.find((b) => b.file_path !== filePath)
       if (fallback) selectBackdrop(fallback)
+      else clearBackdrop()
+      backdropOverride = fallback ?? null
     }
-    autoSaveExcludedBackdrops(nextExcluded, nextRotationBackdrops)
+    autoSaveExcludedBackdrops(nextExcluded, nextRotationBackdrops, backdropOverride)
       .then(() => { setExcludedSaveState("saved"); toast.success(t("ui.backdropExcluded")) })
       .catch(() => {
         ed.setExcludedBackdrops(prevExcluded)

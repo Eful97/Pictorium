@@ -324,6 +324,8 @@ interface StoredDefaults {
   separateRatings?: boolean
   /** Bucket sash abilitati (grezzi; normalizzati in buildFromStored). */
   defaultSashOrder?: string[]
+  /** Chiave server/local piatta (saveDefaults/defaultsToPayload): fallback di lettura. */
+  sashOrder?: string[]
   defaultAutoRotateClean?: boolean
   defaultAutoRotateBackdrop?: boolean
   defaultDisableCleanPosters?: boolean
@@ -350,6 +352,8 @@ interface StoredDefaults {
   defaultEpisodeMetadataSource?: "tmdb" | "tvdb"
   episodeMetadataSource?: "tmdb" | "tvdb"
   defaultDateFormat?: DateFormat
+  /** Chiave server/local piatta (saveDefaults/defaultsToPayload): fallback di lettura. */
+  dateFormat?: DateFormat
   defaultRegion?: string
   region?: string
   autoRotateClean?: boolean
@@ -440,7 +444,7 @@ function buildFromStored(d: StoredDefaults | null): DefaultsState {
     defaultCustomRatingApiKeyHeader: d.defaultCustomRatingApiKeyHeader ?? d.customRatingApiKeyHeader,
     defaultRatingSources: d.defaultRatingSources ?? d.ratingSources ?? ["imdb", "tmdb"],
     defaultSeparateRatings: d.defaultSeparateRatings ?? d.separateRatings ?? false,
-    defaultSashOrder: normalizeSashOrder(d.defaultSashOrder) ?? [...DEFAULT_SASH_ORDER],
+    defaultSashOrder: normalizeSashOrder(d.defaultSashOrder ?? d.sashOrder) ?? [...DEFAULT_SASH_ORDER],
     defaultAutoRotateClean: d.defaultAutoRotateClean ?? d.autoRotateClean ?? false,
     defaultAutoRotateBackdrop: d.defaultAutoRotateBackdrop ?? false,
     defaultDisableCleanPosters: d.defaultDisableCleanPosters ?? d.disableCleanPosters ?? false,
@@ -457,7 +461,7 @@ function buildFromStored(d: StoredDefaults | null): DefaultsState {
     defaultPosterShape: storedDefaultShape ?? "poster",
     defaultLogoAlign: d.defaultLogoAlign === "left" || d.defaultLogoAlign === "center" ? d.defaultLogoAlign : null,
     defaultEpisodeMetadataSource: d.defaultEpisodeMetadataSource ?? d.episodeMetadataSource ?? "tmdb",
-    defaultDateFormat: parseDateFormat(d.defaultDateFormat) ?? "locale",
+    defaultDateFormat: parseDateFormat(d.defaultDateFormat ?? d.dateFormat) ?? "locale",
     defaultRegion: normalizeRegion(d.defaultRegion ?? d.region),
     region: normalizeRegion(d.region ?? d.defaultRegion),
     globalBadges: d.globalBadges ?? d.defaultGlobalBadges ?? true,
@@ -554,7 +558,9 @@ function defaultsToPayload(d: DefaultsState): Record<string, unknown> {
     badgeRating: d.defaultBadgeRating,
     badgeQuality: d.defaultBadgeQuality,
     customRatings: d.defaultCustomRatings,
-    customRatingEndpoint: d.defaultCustomRatingEndpoint ?? "",
+    // Provider OFF = campo nascosto: un endpoint stale/invalido non deve far
+    // fallire l'intero PUT 400 (stessa protezione del Salva manuale).
+    customRatingEndpoint: d.defaultCustomRatings ? (d.defaultCustomRatingEndpoint ?? "") : "",
     customRatingApiKeyHeader: d.defaultCustomRatingApiKeyHeader ?? "",
     ratingSources: d.defaultRatingSources,
     separateRatings: d.defaultSeparateRatings,
@@ -622,7 +628,7 @@ export function useDefaults() {
           merged.defaultRatingSources = serverData.ratingSources
           merged.ratingSources = serverData.ratingSources
         }
-        if (!currentStored?.defaultSashOrder && Array.isArray(serverData.sashOrder)) {
+        if (!currentStored?.defaultSashOrder && !currentStored?.sashOrder && Array.isArray(serverData.sashOrder)) {
           merged.defaultSashOrder = serverData.sashOrder
         }
         if (!currentStored?.defaultVideoFormats && Array.isArray(serverData.videoFormats)) {

@@ -182,7 +182,7 @@ export interface PictoriumCtx {
   topEdgeColor: string | null
   bottomEdgeColor: string | null
   autoSaveExcludedPosters: (nextExcluded: string[], nextRotationPosters?: string[], nextPreviewPoster?: TMDBImage) => Promise<void>
-  autoSaveExcludedBackdrops: (nextExcluded: string[], nextRotationBackdrops?: string[]) => Promise<void>
+  autoSaveExcludedBackdrops: (nextExcluded: string[], nextRotationBackdrops?: string[], nextBackdrop?: import("@/lib/types").TMDBImage | null) => Promise<void>
   /** Scalda le cache details/images per un titolo (hover risultati). */
   prefetchTitle: (item: SearchResult) => void
   theme: "dark" | "light"
@@ -831,7 +831,7 @@ export function usePictorium(): PictoriumCtx {
   const prevDefaultsRef = useRef<string | null>(null)
   useEffect(() => {
     const snap = JSON.stringify({
-      badgeStyle: defaultBadgeStyle, rankingBadgeStyle, qualityBadgeStyle: defaultQualityBadgeStyle, videoFormats: defaultVideoFormats, globalBadges: defaultGlobalBadges,
+      badgeStyle: defaultBadgeStyle, rankingBadgeStyle: defaultRankingBadgeStyle, qualityBadgeStyle: defaultQualityBadgeStyle, videoFormats: defaultVideoFormats, globalBadges: defaultGlobalBadges,
       rankingBadges: defaultRankingBadges, badgeGenre: defaultBadgeGenre, badgeYear: defaultBadgeYear,
       badgeRating: defaultBadgeRating, badgeQuality: defaultBadgeQuality, customRatings: defaultCustomRatings,
       ratingSources: defaultRatingSources, separateRatings: defaultSeparateRatings,
@@ -1556,10 +1556,11 @@ export function usePictorium(): PictoriumCtx {
     })
   }, [savePosterConfig, rotationPosters])
 
-  const autoSaveExcludedBackdrops = useCallback(async (nextExcluded: string[], nextRotationBackdrops?: string[]) => {
+  const autoSaveExcludedBackdrops = useCallback(async (nextExcluded: string[], nextRotationBackdrops?: string[], nextBackdrop?: TMDBImage | null) => {
     await savePosterConfig({
       excludedBackdrops: nextExcluded,
       rotationBackdrops: nextRotationBackdrops ?? rotationBackdrops,
+      ...(nextBackdrop !== undefined ? { selectedBackdrop: nextBackdrop } : {}),
       silent: true,
     })
   }, [savePosterConfig, rotationBackdrops])

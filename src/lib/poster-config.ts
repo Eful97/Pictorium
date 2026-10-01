@@ -301,8 +301,10 @@ export function resolvePosterRenderConfig(input: PosterRenderConfigInput): Poste
 
   const qBadges = q.get("badges")
   const qRanking = q.get("ranking")
-  const badgesEnabled = hasQuery ? (qBadges !== null ? qBadges !== "0" : (configOverride !== null ? configOverride.globalBadges : showBadges)) : true
-  const rankingEnabled = hasQuery ? (qRanking !== null ? qRanking !== "0" : (configOverride !== null ? configOverride.rankingBadges : rankingBadges)) : true
+  // OFF/ON espliciti in query vincono sempre (anche su titolo non salvato
+  // senza token): senza, badges=0/ranking=0 venivano ignorati (hasQuery false).
+  const badgesEnabled = qBadges !== null ? qBadges !== "0" : (hasQuery ? (configOverride !== null ? configOverride.globalBadges : showBadges) : true)
+  const rankingEnabled = qRanking !== null ? qRanking !== "0" : (hasQuery ? (configOverride !== null ? configOverride.rankingBadges : rankingBadges) : true)
 
   // Componenti badge genere/rating — precedenza: query `bg/by/br` > mapping salvato
   // > config token/profilo > server defaults > true (tutti ON di default).
@@ -492,16 +494,22 @@ export function resolvePosterRenderConfig(input: PosterRenderConfigInput): Poste
     ? rawNetLogo !== "0"
     : (mapping?.networkLogo ?? (configOverride !== null ? configOverride.networkLogo : undefined) ?? sd.networkLogo ?? true)
   const qNetLogo = networkLogo ? (rawNetLogo ?? (configOverride !== null ? (configOverride.networkLogo ? "1" : null) : null)) : "0"
-  // Posizione logo network: solo "top" esplicito vince, tutto il resto
-  // (assente o garbage) cade al livello successivo della catena.
-  const qNetPos = (q.get("netPos") || "").toLowerCase()
-  const networkLogoPosition: NetworkLogoPosition = qNetPos === "top"
+  // Posizione logo network: query esplicita (`top` o `auto`) vince sempre;
+  // poi il valore salvato per-titolo (anche `auto`), poi config token, poi
+  // server defaults. Assente o garbage cade al livello successivo della catena.
+  const qNetPosRaw = q.get("netPos")
+  const qNetPosNorm = (qNetPosRaw || "").toLowerCase()
+  const savedNetPos = mapping?.networkLogoPosition === "top" || mapping?.networkLogoPosition === "auto"
+    ? mapping.networkLogoPosition
+    : null
+  const configNetPos = configOverride?.networkLogoPosition === "top" || configOverride?.networkLogoPosition === "auto"
+    ? configOverride.networkLogoPosition
+    : null
+  const networkLogoPosition: NetworkLogoPosition = qNetPosNorm === "top"
     ? "top"
-    : (mapping?.networkLogoPosition === "top"
-      ? "top"
-      : (configOverride?.networkLogoPosition === "top"
-        ? "top"
-        : (sd.networkLogoPosition === "top" ? "top" : "auto")))
+    : qNetPosNorm === "auto"
+      ? "auto"
+      : (savedNetPos ?? configNetPos ?? (sd.networkLogoPosition === "top" ? "top" : "auto"))
   // Modalità layout nastro Netflix + logo network: query `side=right` (Stremio)
   // o `side=left` (Nuvio), poi config/profilo. Globale: nessun override
   // per-titolo (il mapping storico con ribbonSide viene ignorato).
