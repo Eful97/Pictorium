@@ -61,12 +61,24 @@ pinned: false
   <tr>
     <td align="center" colspan="2"><em>Dynamic Catalogs & JustWatch Streaming Charts</em></td>
   </tr>
+  <tr>
+    <td colspan="2"><img src="https://raw.githubusercontent.com/Eful97/Pictorium/master/public/Screen/landscape-editor.png" alt="Landscape 16:9 Editor — Ted Lasso" style="border-radius: 6px; margin-top: 8px;" /></td>
+  </tr>
+  <tr>
+    <td align="center" colspan="2"><em>Landscape 16:9 Editor: backdrops, baked-in logo & Live Preview</em></td>
+  </tr>
 </table>
 
 <div align="center" style="margin-top: 12px;">
   <img src="https://raw.githubusercontent.com/Eful97/Pictorium/master/public/Screen/1405.jpg" alt="Poster Demo — Dexter" width="31%" style="border-radius: 6px; margin: 1%;" />
   <img src="https://raw.githubusercontent.com/Eful97/Pictorium/master/public/Screen/155.jpg" alt="Poster Demo — The Dark Knight" width="31%" style="border-radius: 6px; margin: 1%;" />
   <img src="https://raw.githubusercontent.com/Eful97/Pictorium/master/public/Screen/66732.jpg" alt="Poster Demo — Stranger Things" width="31%" style="border-radius: 6px; margin: 1%;" />
+</div>
+
+<div align="center" style="margin-top: 8px;">
+  <img src="https://raw.githubusercontent.com/Eful97/Pictorium/master/public/Screen/landscape.jpg" alt="Landscape 16:9 Poster Demo — Lanterns (HBO)" width="64%" style="border-radius: 6px;" />
+  <br />
+  <em>16:9 landscape poster with baked-in logo, rank ribbon and genre badge</em>
 </div>
 
 <div align="center" style="margin-top: 8px;">
