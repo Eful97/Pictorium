@@ -607,6 +607,7 @@ const NETWORK_FILES_COMBINED: Record<string, string> = {
   bandai: "Bandai_Visual_corporate_logo.svg",
   mappa: "MAPPA_Logo.svg",
   skydance: "Skydance_Media_2020.svg",
+  studiocanal: "Studiocanal_2011_logo.svg",
   dg_cinema: "direzione-generale-cinema-e-audiovisivo-vector-logo.svg",
   dc: "DC_Studios_logo.svg",
   bigtalk: "Big+Talk+Studios+-+Logo+-+Brandmark.webp",
