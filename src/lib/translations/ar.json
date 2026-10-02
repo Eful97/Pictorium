@@ -800,5 +800,10 @@
   "ui.dateFormatMdy": "Month.Day.Year",
   "ui.dateFormatIso": "Year-Month-Day",
   "ui.previewUpdating": "جارٍ تحديث المعاينة…",
-  "ui.configureKeys": "تكوين مفاتيح API"
+  "ui.configureKeys": "تكوين مفاتيح API",
+  "ui.linkModeFollow": "اتباع مساحتي",
+  "ui.linkModeFollowSub": "استخدم التغييرات المحفوظة دون نسخ الرابط مجددًا",
+  "ui.linkModeFixed": "إعدادات ثابتة في الرابط",
+  "ui.linkModeFixedSub": "احتفظ بالإعدادات الحالية في الرابط",
+  "ui.linkModeAdvanced": "خيارات متقدمة"
 }

@@ -800,5 +800,10 @@
   "ui.dateFormatMdy": "Month.Day.Year",
   "ui.dateFormatIso": "Year-Month-Day",
   "ui.previewUpdating": "Voorbeeld bijwerken…",
-  "ui.configureKeys": "API-sleutels configureren"
+  "ui.configureKeys": "API-sleutels configureren",
+  "ui.linkModeFollow": "Mijn ruimte volgen",
+  "ui.linkModeFollowSub": "Gebruik opgeslagen wijzigingen zonder de link opnieuw te kopiëren",
+  "ui.linkModeFixed": "Vaste instellingen in de link",
+  "ui.linkModeFixedSub": "Behoud de huidige instellingen in de link",
+  "ui.linkModeAdvanced": "Geavanceerde opties"
 }

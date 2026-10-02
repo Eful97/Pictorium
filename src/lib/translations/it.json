@@ -800,5 +800,10 @@
   "ui.dateFormatLocale": "Automatico (segue la lingua)",
   "ui.dateFormatDmy": "Giorno.Mese.Anno",
   "ui.dateFormatMdy": "Mese.Giorno.Anno",
-  "ui.dateFormatIso": "Anno-Mese-Giorno"
+  "ui.dateFormatIso": "Anno-Mese-Giorno",
+  "ui.linkModeFollow": "Segui il mio spazio",
+  "ui.linkModeFollowSub": "Usa le modifiche salvate senza ricopiare il link",
+  "ui.linkModeFixed": "Impostazioni fisse nel link",
+  "ui.linkModeFixedSub": "Mantieni i valori attuali nel link",
+  "ui.linkModeAdvanced": "Opzioni avanzate"
 }

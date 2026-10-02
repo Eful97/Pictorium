@@ -23,6 +23,15 @@ interface InstallModalProps {
   posterUrlPatternNuvio?: string
   posterUrlPatternNuvioImdb?: string
   posterUrlPatternNuvioAuto?: string
+  /**
+   * Modalità template poster (controllata dal context): "follow" = Segui il
+   * mio spazio (live=1, nessun visuale congelato), "fixed" = Impostazioni
+   * fisse nel link. Riguarda solo gli URL poster, mai il manifest.
+   */
+  linkMode?: "follow" | "fixed"
+  onLinkModeChange?: (m: "follow" | "fixed") => void
+  /** Spazio utente attivo: con spazio, il default iniziale è "follow". */
+  hasUserSpace?: boolean
 }
 
 /** Riga template copiabile con stato "copiato" proprio. */
@@ -72,7 +81,7 @@ function PatternRow({ value, tag, copyLabel }: { value: string; tag: string; cop
   )
 }
 
-export function InstallModal({ isOpen, onClose, manifestUrl: propManifestUrl, posterUrlPattern, posterUrlPatternImdb, posterUrlPatternAuto, posterUrlPatternNuvio, posterUrlPatternNuvioImdb, posterUrlPatternNuvioAuto }: InstallModalProps) {
+export function InstallModal({ isOpen, onClose, manifestUrl: propManifestUrl, posterUrlPattern, posterUrlPatternImdb, posterUrlPatternAuto, posterUrlPatternNuvio, posterUrlPatternNuvioImdb, posterUrlPatternNuvioAuto, linkMode: controlledLinkMode, onLinkModeChange, hasUserSpace }: InstallModalProps) {
   const { t } = useT()
   const [hubMode, setHubMode] = useState<"all" | "catalogs" | "search">("all")
   const [copied, setCopied] = useState(false)
@@ -83,6 +92,12 @@ export function InstallModal({ isOpen, onClose, manifestUrl: propManifestUrl, po
   // Formato automatico Nuvio (`shape={shape}`): Nuvio sceglie poster/landscape
   // per vista (square → poster verticale). Nessuna persistenza: solo display.
   const [nuvioShape, setNuvioShape] = useState(false)
+  // Modalità template poster: "follow" (Segui il mio spazio) / "fixed"
+  // (Impostazioni fisse nel link). Controllata dal context quando disponibile,
+  // altrimenti stato locale (default follow con spazio utente).
+  const [internalLinkMode, setInternalLinkMode] = useState<"follow" | "fixed">(hasUserSpace ? "follow" : "fixed")
+  const linkMode = controlledLinkMode ?? internalLinkMode
+  const setLinkMode = onLinkModeChange ?? setInternalLinkMode
   const [qrSvg, setQrSvg] = useState<string>("")
   const [baseManifestUrl, setBaseManifestUrl] = useState(propManifestUrl || "")
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -321,6 +336,23 @@ export function InstallModal({ isOpen, onClose, manifestUrl: propManifestUrl, po
               <p className="text-[10px] text-zinc-400 leading-tight">
                 {t("ui.aiomLinkDesc")}
               </p>
+
+              <div className="text-[10px] text-zinc-400 leading-tight">
+                <span className="block font-semibold text-zinc-300">{t(linkMode === "follow" ? "ui.linkModeFollow" : "ui.linkModeFixed")}</span>
+                <span className="block mt-0.5">{t(linkMode === "follow" ? "ui.linkModeFollowSub" : "ui.linkModeFixedSub")}</span>
+              </div>
+              <details className="text-[10px] text-zinc-400">
+                <summary className="cursor-pointer">{t("ui.linkModeAdvanced")}</summary>
+                <label className="flex items-center gap-2 mt-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={linkMode === "fixed"}
+                    onChange={(e) => setLinkMode(e.target.checked ? "fixed" : "follow")}
+                    className="h-3.5 w-3.5 accent-orange-500 cursor-pointer"
+                  />
+                  {t("ui.linkModeFixed")}
+                </label>
+              </details>
 
               <div className="flex items-center gap-1.5">
                 <label

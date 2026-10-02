@@ -12,10 +12,15 @@ export const POSTER_REFRESH_PARAM = "__poster_refresh"
 const POSTER_CACHE_CONTROL = "public, max-age=86400, s-maxage=86400, stale-while-revalidate=604800"
 const POSTER_IMMUTABLE_CACHE_CONTROL = "public, max-age=31536000, s-maxage=31536000, immutable"
 const PREVIEW_CACHE_CONTROL = "no-cache, no-store, must-revalidate, max-age=0"
+// Segui-spazio (`live=1`): rivalidazione obbligatoria, niente freshness né SWR.
+// Conserva l'immagine e rivalida via ETag (mai no-store: a ETag invariato vale il 304).
+const LIVE_CACHE_CONTROL = "public, no-cache, max-age=0, must-revalidate"
+const LIVE_SURROGATE_CONTROL = "max-age=0, must-revalidate"
 
 export interface PosterCachePayload {
   readonly buffer: Buffer
   readonly etag: string
+  readonly ttlSec?: number
 }
 
 // TTL dei poster dinamici (non-mappati, composti al volo): default 6h.
@@ -129,14 +134,29 @@ export function isPosterRefreshRequest(searchParams: URLSearchParams): boolean {
   return searchParams.get(POSTER_REFRESH_PARAM) === "1"
 }
 
-export function isImmutablePosterRequest(searchParams: URLSearchParams, state: ImmutablePosterRequestState = {}): boolean {
-  if (!searchParams.has("rv") || state.isRotating) return false
-  // Senza mapping il poster NON può essere immutable per un anno: viene composto
-  // al volo con dati dinamici (rank JustWatch, premi, IMDb Top 250) che cambiano
-  // di settimana in settimana — un header immutable li congelerebbe alla CDN.
-  // Con mapping, l'immutable richiede anche che il versionamento del mapping
-  // (mv) corrisponda, altrimenti la cache edge può servire un poster stantio.
-  return state.hasMapping === true && state.mappingVersionMatches === true
+/**
+ * Percorso "Segui il mio spazio" (`live=1`): politica di aggiornamento, non
+ * richiesta di rigenerazione — non bypassa la cache interna né forza il render.
+ */
+export function isLivePosterRequest(searchParams: URLSearchParams): boolean {
+  return searchParams.get("live") === "1"
+}
+
+/**
+ * Un mapping salvato con `rv`+`mv` NON garantisce da solo un'immagine
+ * immutabile: ranking live, rating aggregati, qualità streaming, premi,
+ * disponibilità/pre-release, finestre temporali e default fuori URL possono
+ * cambiare i byte a URL identico (audit freschezza, problemi 3–4). Dimostrare
+ * staticità completa richiederebbe una nuova architettura, quindi la scelta
+ * conservativa è non concedere mai l'immutable annuale: la cache interna
+ * (24h mappati / ~6h dinamici / effimera 120s) resta il riuso veloce, gli
+ * header restano finiti. Parametro `state` conservato per la firma.
+ */
+export function isImmutablePosterRequest(
+  _searchParams: URLSearchParams,
+  _state: ImmutablePosterRequestState = {},
+): boolean {
+  return false
 }
 
 export type PosterImageFormat = "jpeg" | "webp" | "avif"
@@ -214,7 +234,7 @@ const CORS_HEADERS = {
   "Vary": "Accept",
 }
 
-export function posterHeaders(etag: string, immutable: boolean, isPreview: boolean = false, dynamic: boolean = false, format: PosterImageFormat = "jpeg", dynamicTtlSec?: number): PosterHeaders {
+export function posterHeaders(etag: string, immutable: boolean, isPreview: boolean = false, dynamic: boolean = false, format: PosterImageFormat = "jpeg", dynamicTtlSec?: number, live: boolean = false): PosterHeaders {
   const contentType = FORMAT_MIME_TYPES[format] || "image/jpeg"
   if (isPreview) {
     return {
@@ -226,15 +246,30 @@ export function posterHeaders(etag: string, immutable: boolean, isPreview: boole
       "ETag": etag,
     }
   }
+  // Percorso live: stessa politica su 200 e 304 (vedi posterNotModifiedHeaders).
+  if (live) {
+    return {
+      ...CORS_HEADERS,
+      "Content-Type": contentType,
+      "Cache-Control": LIVE_CACHE_CONTROL,
+      "CDN-Cache-Control": LIVE_CACHE_CONTROL,
+      "Surrogate-Control": LIVE_SURROGATE_CONTROL,
+      "ETag": etag,
+    }
+  }
   // TTL reale della entry (con jitter) o base quando omesso: header e storage
   // restano sincronizzati per costruzione (M3) — entrambi derivano da
-  // dynamicPosterTtlSec(cacheKey) nel chiamante.
+  // dynamicPosterTtlSec(cacheKey) nel chiamante. Un TTL ESPLICITO (entry
+  // effimera 120s, cut di rotazione) restringe sempre la policy, anche per i
+  // mappati: la copia degradata non deve mai uscire con max-age pieno solo
+  // perché il flag dynamic è falso (audit, problema 4).
   const dynSec = dynamicTtlSec ?? DYNAMIC_POSTER_TTL_SEC
+  const explicitTtl = dynamicTtlSec !== undefined
   const dynamicCacheControl = `public, max-age=${dynSec}, s-maxage=${dynSec}, stale-while-revalidate=86400`
   const dynamicSurrogate = `max-age=${dynSec}, stale-while-revalidate=86400`
-  const cacheControl = immutable ? POSTER_IMMUTABLE_CACHE_CONTROL : dynamic ? dynamicCacheControl : POSTER_CACHE_CONTROL
-  const cdnCacheControl = immutable ? POSTER_IMMUTABLE_CACHE_CONTROL : dynamic ? dynamicCacheControl : POSTER_CDN_CACHE_CONTROL
-  const surrogate = immutable ? "max-age=31536000" : dynamic ? dynamicSurrogate : "max-age=86400, stale-while-revalidate=604800"
+  const cacheControl = immutable ? POSTER_IMMUTABLE_CACHE_CONTROL : (dynamic || explicitTtl) ? dynamicCacheControl : POSTER_CACHE_CONTROL
+  const cdnCacheControl = immutable ? POSTER_IMMUTABLE_CACHE_CONTROL : (dynamic || explicitTtl) ? dynamicCacheControl : POSTER_CDN_CACHE_CONTROL
+  const surrogate = immutable ? "max-age=31536000" : (dynamic || explicitTtl) ? dynamicSurrogate : "max-age=86400, stale-while-revalidate=604800"
   return {
     ...CORS_HEADERS,
     "Content-Type": contentType,
@@ -245,13 +280,25 @@ export function posterHeaders(etag: string, immutable: boolean, isPreview: boole
   }
 }
 
-export function posterNotModifiedHeaders(etag: string, immutable: boolean, dynamic: boolean = false, dynamicTtlSec?: number): PosterHeaders {
+export function posterNotModifiedHeaders(etag: string, immutable: boolean, dynamic: boolean = false, dynamicTtlSec?: number, live: boolean = false): PosterHeaders {
+  // Percorso live: stessa politica del 200 — il client deve rivalidare sempre.
+  if (live) {
+    return {
+      ...CORS_HEADERS,
+      "Cache-Control": LIVE_CACHE_CONTROL,
+      "CDN-Cache-Control": LIVE_CACHE_CONTROL,
+      "Surrogate-Control": LIVE_SURROGATE_CONTROL,
+      "ETag": etag,
+    }
+  }
+  // Come posterHeaders: un TTL esplicito restringe sempre (audit problema 4).
   const dynSec = dynamicTtlSec ?? DYNAMIC_POSTER_TTL_SEC
+  const explicitTtl = dynamicTtlSec !== undefined
   const dynamicCacheControl = `public, max-age=${dynSec}, s-maxage=${dynSec}, stale-while-revalidate=86400`
   const dynamicSurrogate = `max-age=${dynSec}, stale-while-revalidate=86400`
-  const cacheControl = immutable ? POSTER_IMMUTABLE_CACHE_CONTROL : dynamic ? dynamicCacheControl : POSTER_CACHE_CONTROL
-  const cdnCacheControl = immutable ? POSTER_IMMUTABLE_CACHE_CONTROL : dynamic ? dynamicCacheControl : POSTER_CDN_CACHE_CONTROL
-  const surrogate = immutable ? "max-age=31536000" : dynamic ? dynamicSurrogate : "max-age=86400, stale-while-revalidate=604800"
+  const cacheControl = immutable ? POSTER_IMMUTABLE_CACHE_CONTROL : (dynamic || explicitTtl) ? dynamicCacheControl : POSTER_CACHE_CONTROL
+  const cdnCacheControl = immutable ? POSTER_IMMUTABLE_CACHE_CONTROL : (dynamic || explicitTtl) ? dynamicCacheControl : POSTER_CDN_CACHE_CONTROL
+  const surrogate = immutable ? "max-age=31536000" : (dynamic || explicitTtl) ? dynamicSurrogate : "max-age=86400, stale-while-revalidate=604800"
   return {
     ...CORS_HEADERS,
     "Cache-Control": cacheControl,
@@ -283,8 +330,8 @@ export function serverTimingValue(entries: readonly ServerTimingEntry[]): string
     .join(", ")
 }
 
-export function posterResponse(payload: PosterCachePayload, immutable: boolean, isPreview: boolean = false, dynamic: boolean = false, format: PosterImageFormat = "jpeg", dynamicTtlSec?: number, serverTiming?: string): Response {
-  const headers = posterHeaders(payload.etag, immutable, isPreview, dynamic, format, dynamicTtlSec)
+export function posterResponse(payload: PosterCachePayload, immutable: boolean, isPreview: boolean = false, dynamic: boolean = false, format: PosterImageFormat = "jpeg", dynamicTtlSec?: number, serverTiming?: string, live: boolean = false): Response {
+  const headers = posterHeaders(payload.etag, immutable, isPreview, dynamic, format, dynamicTtlSec, live)
   return new Response(new Uint8Array(payload.buffer), {
     headers: serverTiming ? { ...headers, "Server-Timing": serverTiming } : headers,
   })
@@ -301,7 +348,7 @@ export function readCachedPoster(cacheKey: string): { readonly payload: PosterCa
   const cachedHeaders = cacheGetStale<PosterHeadersRecord>(`${cacheKey}:headers`)
   if (!cached.data || !cachedHeaders.data) return { payload: null, stale: false }
   return {
-    payload: { buffer: cached.data, etag: cachedHeaders.data.etag },
+    payload: { buffer: cached.data, etag: cachedHeaders.data.etag, ttlSec: cachedHeaders.data.ttlSec },
     stale: cached.stale || cachedHeaders.stale,
     ttlSec: cachedHeaders.data.ttlSec,
     immutable: cachedHeaders.data.immutable,
@@ -328,7 +375,7 @@ export interface WriteCachedPosterOpts {
 export function writeCachedPoster(cacheKey: string, payload: PosterCachePayload, mappingTag?: string, opts?: WriteCachedPosterOpts): void {
   const tags = mappingTag ? ["poster", mappingTag] : ["poster"]
   // TTL esplicito solo per i non-mappati: per i mappati resta il refresh
-  // schedulato giornaliero (immutable per un anno alla CDN, invalido per tag).
+  // schedulato giornaliero (invalidazione per tag dopo i salvataggi).
   // Jitter deterministico anti-herd: stessa key → stesso TTL ovunque (M3
   // garantito perché gli header derivano dallo stesso dynamicPosterTtlSec).
   // opts.ttlMs (es. qualità effimera dopo timeout upstream) vince su tutto,

@@ -30,6 +30,8 @@ export const MOCK_CTX: PictoriumCtx = {
   urlPatternNuvio: "",
   urlPatternNuvioImdb: "",
   urlPatternNuvioAuto: "",
+  linkMode: "fixed",
+  setLinkMode: stubFn,
   lang: "it",
   openSections: {},
   toggleSection: stubFn,

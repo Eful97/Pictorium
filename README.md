@@ -133,6 +133,8 @@ pinned: false
 * **Batch Poster Management**: Multi-select saved posters in "My Posters" to perform batch deletions and keep your collection tidy.
 * **Full Space Backup & Restore**: One-click export and import of your entire space configuration, saved posters, custom presets, and preferences.
 * **Nuvio & AIOMetadata Auto URL**: Dedicated poster template URLs for external catalog managers (e.g. Nuvio and AIOMetadata) with automatic TMDB ID resolution.
+  User spaces default to **Follow my space**: copy the new template once to use saved changes without replacing the link again. **Fixed settings in the link** remains available under advanced options and existing templates keep their explicit overrides. The automatic Nuvio variant still lets the client choose the image shape.
+  Follow links (`live=1`) require HTTP revalidation and reuse fresh internal renders. AIOMetadata and other image proxies must honor that policy; refresh any previously cached image using the controls available in your installed version. New headers cannot purge existing external copies, and an already displayed poster updates only when the client requests it again. Live rankings and other upstream data retain their internal refresh schedules.
 
 ### 🔒 Security: PIN & Multi-User Spaces
 

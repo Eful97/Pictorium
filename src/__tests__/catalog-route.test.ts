@@ -21,7 +21,8 @@ vi.mock("@/lib/store", () => ({
 
 vi.mock("@/lib/server-defaults", async (importOriginal) => {
   const mod = await importOriginal<typeof import("@/lib/server-defaults")>()
-  return { ...mod, getServerDefaults: vi.fn(() => ({})) }
+  const mocked = vi.fn(() => ({}))
+  return { ...mod, getServerDefaults: mocked, getServerDefaultsChecked: vi.fn(async () => mocked()) }
 })
 
 const mockedGetTop10 = vi.mocked(getTop10)

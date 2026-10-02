@@ -800,5 +800,10 @@
   "ui.dateFormatMdy": "Month.Day.Year",
   "ui.dateFormatIso": "Year-Month-Day",
   "ui.previewUpdating": "미리보기 업데이트 중…",
-  "ui.configureKeys": "API 키 설정"
+  "ui.configureKeys": "API 키 설정",
+  "ui.linkModeFollow": "내 공간 설정 따르기",
+  "ui.linkModeFollowSub": "링크를 다시 복사하지 않고 저장된 변경 사항 사용",
+  "ui.linkModeFixed": "링크에 고정된 설정",
+  "ui.linkModeFixedSub": "현재 설정을 링크에 유지",
+  "ui.linkModeAdvanced": "고급 옵션"
 }

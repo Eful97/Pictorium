@@ -224,6 +224,8 @@ export const posterQuerySchema = z.object({
   badgePreset: boundedQueryString(24),
   prv: boundedQueryString(8),
   netPos: boundedQueryString(8),
+  // Segui-spazio: politica di rivalidazione (non forza render). Solo 0/1.
+  live: z.enum(["0", "1"]).optional(),
 })
 
 export type PosterQuery = z.infer<typeof posterQuerySchema>

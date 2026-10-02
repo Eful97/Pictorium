@@ -24,6 +24,7 @@ async function importDefaults() {
 
 describe("server-defaults — ENV_DEFAULTS (default di stile d'istanza)", () => {
   afterEach(() => {
+    vi.restoreAllMocks()
     for (const name of [
       "POSTERIUM_GLOBAL_BADGES", "POSTERIUM_RANKING_BADGES", "POSTERIUM_BADGE_GENRE",
       "POSTERIUM_BADGE_YEAR", "POSTERIUM_BADGE_RATING", "POSTERIUM_BLUR_ENABLED",
@@ -101,5 +102,23 @@ describe("server-defaults — ENV_DEFAULTS (default di stile d'istanza)", () => 
     // Altra istanza (modulo ricaricato, cache vuota): legge dalla KV condivisa.
     const reloaded = await importDefaults()
     expect(await reloaded.getStoredUserDefaults(userId)).toEqual({ badgeGenre: false })
+  })
+
+  it("a delayed cold-start warm cannot overwrite checked defaults", async () => {
+    process.env.KV_REST_API_URL = "https://example.upstash.io"
+    process.env.KV_REST_API_TOKEN = "test-token"
+    const mod = await importDefaults()
+    const { getKv } = await import("@/lib/kv")
+    let finishWarm!: (value: { blurIntensity: number }) => void
+    const oldRead = new Promise<{ blurIntensity: number }>((resolve) => { finishWarm = resolve })
+    vi.spyOn(getKv(), "get").mockImplementationOnce(async () => await oldRead as never)
+    mod.getServerDefaults()
+
+    kvStore.set("defaults", { blurIntensity: 77 })
+    kvStore.set("catalog_epoch", "new")
+    expect((await mod.getServerDefaultsChecked()).blurIntensity).toBe(77)
+    finishWarm({ blurIntensity: 20 })
+    await new Promise<void>((resolve) => setImmediate(resolve))
+    expect((await mod.getServerDefaultsChecked()).blurIntensity).toBe(77)
   })
 })

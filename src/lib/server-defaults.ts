@@ -14,6 +14,7 @@ import { normalizeRegion } from "@/lib/regions"
 import { envWithFallback } from "@/lib/env-compat"
 import { atomicWriteFile } from "@/lib/atomic-write"
 import { getKv, getStorageMode } from "@/lib/kv"
+import { getCatalogEpoch } from "@/lib/catalog-epoch"
 
 const log = createLogger("server-defaults")
 
@@ -317,6 +318,10 @@ function defaultsFromEnv(): ServerDefaults {
 const ENV_DEFAULTS: ServerDefaults = defaultsFromEnv()
 
 let cached: ServerDefaults | null = null
+// Revisione epoch vista insieme a `cached`: se l'epoch globale è avanzata,
+// i default in memoria sono stantii e vanno ricaricati (multi-istanza).
+let cachedEpoch: string | null = null
+let globalReload: Promise<ServerDefaults> | null = null
 let warmPromise: Promise<void> | null = null
 let writeQueue = Promise.resolve()
 
@@ -353,8 +358,10 @@ async function kvLoadDefaults(): Promise<ServerDefaults> {
 function warmDefaults(): Promise<void> {
   if (warmPromise) return warmPromise
   warmPromise = (async () => {
+    const previous = cached
     const d = isKvMode() ? await kvLoadDefaults() : await loadFromDisk()
-    cached = d
+    // A checked reload or save may have completed while this cold read waited.
+    if (cached === previous) cached = d
   })().catch(() => {})
   return warmPromise
 }
@@ -380,11 +387,40 @@ export function getServerDefaults(): ServerDefaults {
   warmDefaults()
   return { ...ENV_DEFAULTS, ...cached }
 }
+/**
+ * Defaults globali con controllo revisione (multi-istanza): prima di riusare
+ * `cached` confronta l'epoch persistita; se avanzata, ricarica dal backend.
+ * Doppia lettura epoch attorno al load: mai associare default vecchi a una
+ * revisione nuova (bump durante il load → secondo load). Letture concorrenti
+ * deduplicate; finestra residua = TTL lettura epoch (500ms, 0 nei test).
+ */
+export async function getServerDefaultsChecked(): Promise<ServerDefaults> {
+  const e1 = await getCatalogEpoch(null)
+  if (cached && cachedEpoch === e1) return { ...ENV_DEFAULTS, ...cached }
+  if (globalReload) return globalReload
+  globalReload = (async () => {
+    const d = isKvMode() ? await kvLoadDefaults() : await loadFromDisk()
+    const e2 = await getCatalogEpoch(null)
+    if (e2 !== e1) {
+      const d2 = isKvMode() ? await kvLoadDefaults() : await loadFromDisk()
+      cached = d2
+      cachedEpoch = e2
+    } else {
+      cached = d
+      cachedEpoch = e1
+    }
+    return { ...ENV_DEFAULTS, ...cached }
+  })().finally(() => {
+    globalReload = null
+  })
+  return globalReload
+}
 export async function setServerDefaults(d: ServerDefaults): Promise<void> {
   if (isKvMode()) {
     try {
       await getKv().set(KV_KEY, d)
       cached = { ...d }
+      cachedEpoch = await getCatalogEpoch(null).catch(() => cachedEpoch)
     } catch (error) {
       logDefaultsError("failed to write defaults (KV)", error)
       throw error
@@ -398,6 +434,7 @@ export async function setServerDefaults(d: ServerDefaults): Promise<void> {
       await fs.mkdir(DATA_DIR, { recursive: true })
       await atomicWriteFile(FILE, JSON.stringify(d, null, 2))
       cached = { ...d }
+      cachedEpoch = await getCatalogEpoch(null).catch(() => cachedEpoch)
     } catch (error) {
       logDefaultsError("failed to write defaults", error)
       throw error
@@ -428,28 +465,63 @@ function assertValidUserId(userId: string): void {
 const USER_DEFAULTS_TTL_MS = 5 * 60 * 1000
 const USER_DEFAULTS_CAP = 500
 
-const userDefaultsCache = new Map<string, { defaults: ServerDefaults; at: number }>()
+// La entry porta anche la revisione epoch vista al load: a revisione cambiata
+// i default in memoria sono stantii anche dentro il TTL (altra istanza ha salvato).
+const userDefaultsCache = new Map<string, { defaults: ServerDefaults; at: number; epoch: string }>()
 const userDefaultsQueues = new Map<string, Promise<void>>()
+const userDefaultsInflight = new Map<string, Promise<ServerDefaults>>()
 
-function userDefaultsCacheGet(userId: string): ServerDefaults | null {
+function userDefaultsCachePeek(userId: string): { defaults: ServerDefaults; at: number; epoch: string } | null {
   const hit = userDefaultsCache.get(userId)
   if (!hit) return null
   if (Date.now() - hit.at >= USER_DEFAULTS_TTL_MS) {
     userDefaultsCache.delete(userId)
     return null
   }
-  // Promote LRU.
-  userDefaultsCache.delete(userId)
-  userDefaultsCache.set(userId, hit)
-  return hit.defaults
+  return hit
 }
 
-function userDefaultsCacheSet(userId: string, defaults: ServerDefaults): void {
+function userDefaultsCacheSet(userId: string, defaults: ServerDefaults, epoch: string = "0"): void {
   if (userDefaultsCache.size >= USER_DEFAULTS_CAP) {
     const oldest = userDefaultsCache.keys().next().value
     if (oldest !== undefined) userDefaultsCache.delete(oldest)
   }
-  userDefaultsCache.set(userId, { defaults: { ...defaults }, at: Date.now() })
+  userDefaultsCache.set(userId, { defaults: { ...defaults }, at: Date.now(), epoch })
+}
+
+/**
+ * Load dei default utente con controllo revisione (multi-istanza): a epoch
+ * invariata riusa la memoria (TTL 5min, LRU 500), a epoch cambiata ricarica
+ * dal backend. Doppia lettura epoch attorno al load (mai default vecchi con
+ * revisione nuova); letture concorrenti deduplicate per namespace; isolamento
+ * stretto tra utenti (epoch per-namespace).
+ */
+async function loadUserDefaultsChecked(userId: string): Promise<ServerDefaults> {
+  const e1 = await getCatalogEpoch(userId)
+  const hit = userDefaultsCachePeek(userId)
+  if (hit && hit.epoch === e1) {
+    // Promote LRU.
+    userDefaultsCache.delete(userId)
+    userDefaultsCache.set(userId, hit)
+    return { ...hit.defaults }
+  }
+  const inflight = userDefaultsInflight.get(userId)
+  if (inflight) return inflight
+  const run = (async () => {
+    const loaded = await loadUserDefaults(userId)
+    const e2 = await getCatalogEpoch(userId)
+    if (e2 !== e1) {
+      const reloaded = await loadUserDefaults(userId)
+      userDefaultsCacheSet(userId, reloaded, e2)
+      return { ...reloaded }
+    }
+    userDefaultsCacheSet(userId, loaded, e1)
+    return { ...loaded }
+  })().finally(() => {
+    userDefaultsInflight.delete(userId)
+  })
+  userDefaultsInflight.set(userId, run)
+  return run
 }
 
 async function loadUserDefaults(userId: string): Promise<ServerDefaults> {
@@ -483,10 +555,9 @@ async function loadUserDefaults(userId: string): Promise<ServerDefaults> {
 export async function getStoredUserDefaults(userId: string | null | undefined): Promise<ServerDefaults> {
   if (!userId) return {}
   assertValidUserId(userId)
-  const hit = userDefaultsCacheGet(userId)
-  // La cache contiene il raw caricato (mai ENV): copia difensiva.
-  if (hit) return { ...hit }
-  return loadUserDefaults(userId)
+  // Revisionata via epoch: il merge di PUT non deve fondere su uno storato
+  // stantio scritto da un'altra istanza. La cache resta raw (mai ENV).
+  return loadUserDefaultsChecked(userId)
 }
 
 /**
@@ -494,21 +565,21 @@ export async function getStoredUserDefaults(userId: string | null | undefined): 
  * `userId` null = path globale (wrapper di getServerDefaults, per i caller).
  */
 export async function getServerDefaultsForUser(userId: string | null | undefined): Promise<ServerDefaults> {
-  if (!userId) return getServerDefaults()
+  if (!userId) return getServerDefaultsChecked()
   assertValidUserId(userId)
-  const hit = userDefaultsCacheGet(userId)
-  if (hit) return { ...ENV_DEFAULTS, ...hit }
-  const loaded = await loadUserDefaults(userId)
-  userDefaultsCacheSet(userId, loaded)
+  const loaded = await loadUserDefaultsChecked(userId)
   return { ...ENV_DEFAULTS, ...loaded }
 }
 
 export async function setServerDefaultsForUser(userId: string, d: ServerDefaults): Promise<void> {
   assertValidUserId(userId)
+  // Dopo la scrittura la route fa bump dell'epoch: si registra l'epoch
+  // corrente così la prossima lettura revisionata rileva il bump e ricarica
+  // (mai default nuovi associati alla revisione vecchia).
   if (isKvMode()) {
     try {
       await getKv().set(userDefaultsKvKey(userId), d)
-      userDefaultsCacheSet(userId, d)
+      userDefaultsCacheSet(userId, d, await getCatalogEpoch(userId).catch(() => "0"))
     } catch (error) {
       logDefaultsError("failed to write user defaults (KV)", error)
       throw error
@@ -520,7 +591,7 @@ export async function setServerDefaultsForUser(userId: string, d: ServerDefaults
     try {
       await fs.mkdir(path.dirname(userDefaultsFile(userId)), { recursive: true })
       await atomicWriteFile(userDefaultsFile(userId), JSON.stringify(d, null, 2))
-      userDefaultsCacheSet(userId, d)
+      userDefaultsCacheSet(userId, d, await getCatalogEpoch(userId).catch(() => "0"))
     } catch (error) {
       logDefaultsError("failed to write user defaults", error)
       throw error

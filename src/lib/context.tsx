@@ -101,6 +101,13 @@ export interface PictoriumCtx {
   urlPatternNuvio: string
   urlPatternNuvioImdb: string
   urlPatternNuvioAuto: string
+  /**
+   * Modalità dei template AIO/Custom: "follow" (Segui il mio spazio, live=1,
+   * nessun visuale congelato) o "fixed" (Impostazioni fisse nel link,
+   * comportamento attuale). Riguarda solo gli URL poster, mai il manifest.
+   */
+  linkMode: "follow" | "fixed"
+  setLinkMode: React.Dispatch<React.SetStateAction<"follow" | "fixed">>
   lang: string
   openSections: Record<string, boolean>
   toggleSection: (k: string) => void
@@ -535,6 +542,18 @@ export function usePictorium(): PictoriumCtx {
   const [urlPatternNuvio, setUrlPatternNuvio] = useState("")
   const [urlPatternNuvioImdb, setUrlPatternNuvioImdb] = useState("")
   const [urlPatternNuvioAuto, setUrlPatternNuvioAuto] = useState("")
+  // Modalità template AIO/Custom: per gli spazi utente default "follow"
+  // (Segui il mio spazio), altrove "fixed" (comportamento attuale). Se lo
+  // spazio compare dopo (unlock/query) e l'utente non ha scelto, passa a follow.
+  const [linkMode, setLinkMode] = useState<"follow" | "fixed">(() => (currentUserId ? "follow" : "fixed"))
+  const linkModeTouchedRef = useRef(false)
+  useEffect(() => {
+    if (currentUserId && !linkModeTouchedRef.current) setLinkMode("follow")
+  }, [currentUserId])
+  const setLinkModeTracked = useCallback((v: React.SetStateAction<"follow" | "fixed">) => {
+    linkModeTouchedRef.current = true
+    setLinkMode(v)
+  }, [])
   const [copied, setCopied] = useState(false)
   const copiedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   useEffect(() => {
@@ -824,6 +843,8 @@ export function usePictorium(): PictoriumCtx {
       userId: currentUserId,
       omitApiKey: serverKeyStatus?.tmdb === true,
       omitMdblistKey: serverKeyStatus?.mdblist === true,
+      // Segui-spazio: omette i visuali (il server li risolve dallo spazio).
+      followSpace: linkMode === "follow",
     }
     setUrlPattern(buildUrlPattern({ ...base, idPlaceholder: "{tmdb_id}" }))
     setUrlPatternImdb(buildUrlPattern({ ...base, idPlaceholder: "{imdb_id}" }))
@@ -831,7 +852,7 @@ export function usePictorium(): PictoriumCtx {
     setUrlPatternNuvio(buildUrlPattern({ ...base, idPlaceholder: "{tmdb_id}", shapePlaceholder: "{shape}" }))
     setUrlPatternNuvioImdb(buildUrlPattern({ ...base, idPlaceholder: "{imdb_id}", shapePlaceholder: "{shape}" }))
     setUrlPatternNuvioAuto(buildUrlPattern({ ...base, idPlaceholder: "{tmdb_id|imdb_id}", shapePlaceholder: "{shape}" }))
-    }, [globalBadges, rankingBadges, badgeGenre, badgeYear, badgeRating, badgeQuality, qualityBadgeStyle, customRatings, ratingSources, separateRatings, networkLogo, networkLogoPosition, preRelease, ribbonSide, ribbonEnabled, posterShape, logoAlign, gradientHeight, blurIntensity, blurFade, blurDarkness, blurEnabled, landscapeBlur, tintStrength, topShade, badgeStyle, rankingBadgeStyle, topBadgeScale, topBadgeOffsetX, topBadgeOffsetY, genreBadgeScale, qualityBadgeScale, networkLogoScale, genreBadgeOffsetX, genreBadgeOffsetY, qualityBadgeOffsetX, qualityBadgeOffsetY, networkLogoOffsetX, networkLogoOffsetY, tmdbKey, lang, mdblistApiKey, currentUserId, serverKeyStatus, navigation.previewId, defaultGlobalBadges, defaultRankingBadges, defaultBadgeStyle, defaultRankingBadgeStyle, defaultQualityBadgeStyle, defaultBadgeGenre, defaultBadgeYear, defaultBadgeRating, defaultBadgeQuality, defaultCustomRatings, defaultRatingSources, defaultSeparateRatings, defaultGradientHeight, defaultBlurIntensity, defaultBlurFade, defaultBlurDarkness, defaultBlurEnabled, defaultTintStrength, defaultTopShade, defaultNetworkLogo, defaultNetworkLogoPosition, defaultPreRelease, defaultDateFormat, defaultRibbonSide, defaultRibbonEnabled, defaultPosterShape, defaultLogoAlign, defaultTopBadgeScale, defaultTopBadgeOffsetX, defaultTopBadgeOffsetY, defaultGenreBadgeScale, defaultQualityBadgeScale, defaultNetworkLogoScale, defaultGenreBadgeOffsetX, defaultGenreBadgeOffsetY, defaultQualityBadgeOffsetX, defaultQualityBadgeOffsetY, defaultNetworkLogoOffsetX, defaultNetworkLogoOffsetY]) // eslint-disable-line react-hooks/exhaustive-deps -- customBadge intentionally excluded to avoid loop
+    }, [globalBadges, rankingBadges, badgeGenre, badgeYear, badgeRating, badgeQuality, qualityBadgeStyle, customRatings, ratingSources, separateRatings, networkLogo, networkLogoPosition, preRelease, ribbonSide, ribbonEnabled, posterShape, logoAlign, gradientHeight, blurIntensity, blurFade, blurDarkness, blurEnabled, landscapeBlur, tintStrength, topShade, badgeStyle, rankingBadgeStyle, topBadgeScale, topBadgeOffsetX, topBadgeOffsetY, genreBadgeScale, qualityBadgeScale, networkLogoScale, genreBadgeOffsetX, genreBadgeOffsetY, qualityBadgeOffsetX, qualityBadgeOffsetY, networkLogoOffsetX, networkLogoOffsetY, tmdbKey, lang, mdblistApiKey, currentUserId, serverKeyStatus, linkMode, navigation.previewId, defaultGlobalBadges, defaultRankingBadges, defaultBadgeStyle, defaultRankingBadgeStyle, defaultQualityBadgeStyle, defaultBadgeGenre, defaultBadgeYear, defaultBadgeRating, defaultBadgeQuality, defaultCustomRatings, defaultRatingSources, defaultSeparateRatings, defaultGradientHeight, defaultBlurIntensity, defaultBlurFade, defaultBlurDarkness, defaultBlurEnabled, defaultTintStrength, defaultTopShade, defaultNetworkLogo, defaultNetworkLogoPosition, defaultPreRelease, defaultDateFormat, defaultRibbonSide, defaultRibbonEnabled, defaultPosterShape, defaultLogoAlign, defaultTopBadgeScale, defaultTopBadgeOffsetX, defaultTopBadgeOffsetY, defaultGenreBadgeScale, defaultQualityBadgeScale, defaultNetworkLogoScale, defaultGenreBadgeOffsetX, defaultGenreBadgeOffsetY, defaultQualityBadgeOffsetX, defaultQualityBadgeOffsetY, defaultNetworkLogoOffsetX, defaultNetworkLogoOffsetY]) // eslint-disable-line react-hooks/exhaustive-deps -- customBadge intentionally excluded to avoid loop
 
   // --- Default live sul titolo corrente ---
   // Una modifica ai default (barra Impostazioni) si riflette subito sulla
@@ -1590,7 +1611,7 @@ export function usePictorium(): PictoriumCtx {
     selectedLogo: navigation.selectedLogo, setSelectedLogo: navigation.setSelectedLogo,
     logos: navigation.logos,
     posterActivePath: posterActivePath ?? null,
-    previewUrl, stremioPreview, setStremioPreview, stremioPreviewUrl, urlPattern, urlPatternImdb, urlPatternAuto, urlPatternNuvio, urlPatternNuvioImdb, urlPatternNuvioAuto, lang,
+    previewUrl, stremioPreview, setStremioPreview, stremioPreviewUrl, urlPattern, urlPatternImdb, urlPatternAuto, urlPatternNuvio, urlPatternNuvioImdb, urlPatternNuvioAuto, linkMode, setLinkMode: setLinkModeTracked, lang,
     openSections, toggleSection: (key: string) => setOpenSections((prev) => ({ ...prev, [key]: !(prev[key] ?? true) })),
     posterScrollRef, posterScrollInfo, setPosterScrollInfo,
     selectPoster, selectLogo, removeLogo,

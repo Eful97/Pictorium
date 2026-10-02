@@ -1,7 +1,12 @@
 import type { NextRequest } from "next/server"
+import fsp from "node:fs/promises"
+import path from "node:path"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { GET, PUT } from "@/app/api/defaults/route"
 import { cacheClear, cacheGet, cacheSet } from "@/lib/cache"
+import { bumpCatalogEpoch } from "@/lib/catalog-epoch"
+import { DATA_DIR } from "@/lib/data-dir"
+import { setServerDefaults } from "@/lib/server-defaults"
 
 // I PUT di questo file scrivono i defaults via file; isoliamo lo store in una
 // dir temporanea (test-results/, gitignored) così i config di test non toccano
@@ -102,6 +107,26 @@ describe("PUT /api/defaults", () => {
     const body = (await resGet.json()) as Record<string, unknown>
     expect(body.badgeStyle).toBe("bar")
     expect(body.gradientHeight).toBe(55)
+  })
+
+  it("GET reloads global defaults saved by another instance", async () => {
+    await setServerDefaults({ blurIntensity: 20 })
+    await fsp.writeFile(path.join(DATA_DIR, "defaults.json"), JSON.stringify({ blurIntensity: 77 }))
+    await bumpCatalogEpoch()
+
+    const res = await GET(new Request("http://localhost:3000/api/defaults") as unknown as NextRequest)
+    expect((await res.json()).blurIntensity).toBe(77)
+  })
+
+  it("partial PUT preserves global defaults saved by another instance", async () => {
+    await setServerDefaults({ blurIntensity: 20 })
+    await fsp.writeFile(path.join(DATA_DIR, "defaults.json"), JSON.stringify({ blurIntensity: 77, badgeStyle: "pill" }))
+    await bumpCatalogEpoch()
+
+    const res = await PUT(mockPutRequest({ gradientHeight: 55 }) as unknown as NextRequest)
+    expect(res.status).toBe(200)
+    const stored = JSON.parse(await fsp.readFile(path.join(DATA_DIR, "defaults.json"), "utf-8"))
+    expect(stored).toMatchObject({ blurIntensity: 77, badgeStyle: "pill", gradientHeight: 55 })
   })
 
   it("persists gradient tuning including tintStrength", async () => {

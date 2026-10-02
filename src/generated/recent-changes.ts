@@ -11,4 +11,6 @@ export interface RecentChange {
 }
 
 export const RECENT_CHANGES: RecentChange[] = [
+  { type: "feature", text: "Add Bat in the Sun and Horror Section logos", sha: "f19c234", date: "2026-10-02" },
+  { type: "feature", text: "Automatically choose portrait or landscape posters in Nuvio", sha: "868fa56", date: "2026-10-02" },
 ]

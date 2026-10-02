@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server"
-import { getServerDefaults, setServerDefaults, getServerDefaultsForUser, getStoredUserDefaults, setServerDefaultsForUser, type ServerDefaults } from "@/lib/server-defaults"
+import { getServerDefaultsChecked, setServerDefaults, getServerDefaultsForUser, getStoredUserDefaults, setServerDefaultsForUser, type ServerDefaults } from "@/lib/server-defaults"
 import { cacheInvalidatePosterData } from "@/lib/cache"
 import { bumpCatalogEpoch } from "@/lib/catalog-epoch"
 import { checkAdminToken, requireAdminToken, isSameOrigin, adminAuthResponse, originMismatchResponse } from "@/lib/auth"
@@ -140,7 +140,7 @@ export async function GET(req: NextRequest) {
     const d = await getServerDefaultsForUser(scoped)
     return Response.json({ ...d })
   }
-  const d = getServerDefaults()
+  const d = await getServerDefaultsChecked()
   // Flag pubblici (solo booleani): dicono al client se l'istanza ha chiavi
   // env, così la welcome screen appare solo quando non c'è chiave da nessuna
   // parte (né browser né server). I VALORI restano dietro requireAdminToken
@@ -205,7 +205,7 @@ export async function PUT(req: NextRequest) {
       await bumpCatalogEpoch(scoped)
       return Response.json({ ok: true })
     }
-    const current = getServerDefaults()
+    const current = await getServerDefaultsChecked()
     // Merge invece di replace: un payload parziale NON deve azzerare i default
     // già salvati (altrimenti salvare un solo campo cancellerebbe gli altri).
     const next: Record<string, unknown> = { ...current, ...parsed.data }

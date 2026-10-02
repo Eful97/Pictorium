@@ -12,7 +12,7 @@ vi.mock("@/lib/store", () => {
 })
 
 vi.mock("@/lib/server-defaults", () => ({
-  getServerDefaults: vi.fn(() => ({})),
+  getServerDefaultsChecked: vi.fn(async () => ({})),
   setServerDefaults: vi.fn(),
   getStoredUserDefaults: vi.fn(async () => ({})),
   setServerDefaultsForUser: vi.fn(),

@@ -800,5 +800,10 @@
   "ui.dateFormatMdy": "Month.Day.Year",
   "ui.dateFormatIso": "Year-Month-Day",
   "ui.previewUpdating": "プレビューを更新中…",
-  "ui.configureKeys": "APIキーを設定"
+  "ui.configureKeys": "APIキーを設定",
+  "ui.linkModeFollow": "自分のスペースに追従",
+  "ui.linkModeFollowSub": "リンクを再コピーせずに保存した変更を使用",
+  "ui.linkModeFixed": "リンク内の固定設定",
+  "ui.linkModeFixedSub": "現在の設定をリンクに保持",
+  "ui.linkModeAdvanced": "詳細オプション"
 }

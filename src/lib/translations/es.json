@@ -800,5 +800,10 @@
   "ui.dateFormatMdy": "Month.Day.Year",
   "ui.dateFormatIso": "Year-Month-Day",
   "ui.previewUpdating": "Actualizando vista previa…",
-  "ui.configureKeys": "Configurar claves API"
+  "ui.configureKeys": "Configurar claves API",
+  "ui.linkModeFollow": "Seguir mi espacio",
+  "ui.linkModeFollowSub": "Usa los cambios guardados sin volver a copiar el enlace",
+  "ui.linkModeFixed": "Ajustes fijos en el enlace",
+  "ui.linkModeFixedSub": "Mantén los ajustes actuales en el enlace",
+  "ui.linkModeAdvanced": "Opciones avanzadas"
 }

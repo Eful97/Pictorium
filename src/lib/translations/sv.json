@@ -800,5 +800,10 @@
   "ui.dateFormatMdy": "Month.Day.Year",
   "ui.dateFormatIso": "Year-Month-Day",
   "ui.previewUpdating": "Uppdaterar förhandsvisning…",
-  "ui.configureKeys": "Konfigurera API-nycklar"
+  "ui.configureKeys": "Konfigurera API-nycklar",
+  "ui.linkModeFollow": "Följ mitt utrymme",
+  "ui.linkModeFollowSub": "Använd sparade ändringar utan att kopiera länken igen",
+  "ui.linkModeFixed": "Fasta inställningar i länken",
+  "ui.linkModeFixedSub": "Behåll de aktuella inställningarna i länken",
+  "ui.linkModeAdvanced": "Avancerade alternativ"
 }

@@ -2,7 +2,7 @@ import crypto from "node:crypto"
 import { NextRequest } from "next/server"
 import { rateLimit, rateLimitKey, rateLimitResponse } from "@/lib/rate-limit"
 import { cacheGetShared, cacheSet, hashUserFragment } from "@/lib/cache"
-import { getServerDefaults, getServerDefaultsForUser, type ServerDefaults } from "@/lib/server-defaults"
+import { getServerDefaultsChecked, getServerDefaultsForUser, type ServerDefaults } from "@/lib/server-defaults"
 import { POSTER_URL_VERSION } from "@/lib/render-version"
 import { getById } from "@/lib/store"
 import { decodeConfig, type PictoriumUserConfig } from "@/lib/config-token"
@@ -119,7 +119,7 @@ async function pictoriumPosterUrl(
   posterLang = "it",
 ): Promise<{ poster: string; posterShape: "poster" | "landscape" }> {
   const scopedUser = getScopedUserId(userParam)
-  const serverDefaults = scopedUser ? await getServerDefaultsForUser(scopedUser) : getServerDefaults()
+  const serverDefaults = scopedUser ? await getServerDefaultsForUser(scopedUser) : await getServerDefaultsChecked()
   const userConfig = configParam ? decodeConfig(configParam) : null
   const defaults = userConfig ? { ...serverDefaults, ...userConfig } : serverDefaults
   const mapping = await getById(type === "series" ? "tv" : "movie", id, scopedUser)
@@ -195,7 +195,7 @@ export async function pictoriumMeta(
   const tvdbApiKey = resolvedKeys.tvdb.key
   const effectiveDefaults: ServerDefaults = scopedUser
     ? await getServerDefaultsForUser(scopedUser)
-    : getServerDefaults()
+    : await getServerDefaultsChecked()
   let userConfig: Partial<PictoriumUserConfig> | null = null
 
   if (configParam) {

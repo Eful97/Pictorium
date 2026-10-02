@@ -3,7 +3,7 @@ import { NextRequest } from "next/server"
 import { rateLimit, rateLimitKey, rateLimitResponse } from "@/lib/rate-limit"
 import { cacheGet, cacheGetShared, cacheSet, hashUserFragment } from "@/lib/cache"
 import { getTop10 } from "@/lib/flixpatrol"
-import { getServerDefaults, getServerDefaultsForUser, type ServerDefaults } from "@/lib/server-defaults"
+import { getServerDefaults, getServerDefaultsChecked, getServerDefaultsForUser, type ServerDefaults } from "@/lib/server-defaults"
 import { getScopedUserId, userExists, userRateLimitKey } from "@/lib/user-auth"
 import { touchUserActivity } from "@/lib/user-activity"
 import { POSTER_URL_VERSION } from "@/lib/render-version"
@@ -292,7 +292,7 @@ async function pictoriumPosterAndShape(
   posterRegion?: string | null,
 ): Promise<{ poster: string; banner: string; landscapePoster?: string; posterShape: PosterShape }> {
   const scopedUser = getScopedUserId(userParam)
-  const serverDefaults = scopedUser ? await getServerDefaultsForUser(scopedUser) : getServerDefaults()
+  const serverDefaults = scopedUser ? await getServerDefaultsForUser(scopedUser) : await getServerDefaultsChecked()
   const userConfig = configParam ? decodeConfig(configParam) : null
   const defaults = userConfig ? { ...serverDefaults, ...userConfig } : serverDefaults
   const mapping = await getById(type === "series" ? "tv" : "movie", id, scopedUser)
@@ -466,7 +466,7 @@ export async function pictoriumCatalog(
   // Chiave TVDB (liste custom TVDB, BYOK): richiesta esplicita > namespace
   // utente > env d'istanza. Senza, i cataloghi TVDB escono con notice.
   const tvdbKey = resolvedKeys.tvdb.key
-  const effectiveDefaults = scopedUser ? await getServerDefaultsForUser(scopedUser) : getServerDefaults()
+  const effectiveDefaults = scopedUser ? await getServerDefaultsForUser(scopedUser) : await getServerDefaultsChecked()
   let userConfig: Partial<PictoriumUserConfig> | null = null
   if (configParam) {
     userConfig = decodeConfig(configParam)

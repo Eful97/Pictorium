@@ -147,8 +147,31 @@ export function buildUrlPattern(bp: BadgeParams & {
    *  landscape + backdrop in Continue Watching). Default assente (invariato:
    *  `shape` fisso o omesso come prima). */
   shapePlaceholder?: "{shape}"
+  /**
+   * Template "Segui il mio spazio": omette tutti i valori visuali (anche
+   * lingua e shape fisso) così il server li risolve dallo spazio salvato.
+   * Restano identità (`u`), placeholder id, chiavi per policy e `live=1`.
+   * La variante Nuvio conserva `shape={shape}` (formato dalla vista client).
+   * Default assente = template fisso attuale (invariato).
+   */
+  followSpace?: boolean
 }): string {
   let url = `${getPosterPublicBaseUrl()}/api/poster/{type}/${bp.idPlaceholder ?? "{imdb_id}"}`
+  if (bp.followSpace) {
+    const params = buildStremioPosterSearchParams({
+      user: bp.userId ?? undefined,
+      followSpace: true,
+    })
+    if (!bp.omitApiKey && bp.tmdbKey) params.set("api_key", bp.tmdbKey)
+    if (!bp.omitMdblistKey && bp.mdblistApiKey) params.set("mdblist_key", bp.mdblistApiKey)
+    if (bp.shapePlaceholder === "{shape}") {
+      params.delete("shape")
+      params.set("shape", "{shape}")
+    }
+    const str = params.toString().replace(/shape=%7Bshape%7D/gi, "shape={shape}")
+    if (str) url += "?" + str
+    return url
+  }
   const params = buildStremioPosterSearchParams({
     lang: bp.lang,
     user: bp.userId ?? undefined,

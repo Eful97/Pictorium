@@ -61,23 +61,30 @@ describe("poster CDN headers", () => {
     expect(headers["Cache-Control"]).toContain("no-store")
   })
 
-  it("only treats saved mapping poster URLs as immutable when the mapping version matches", () => {
+  it("never grants annual immutable: mapping+rv+mv do not cover live data (audit problems 3-4)", () => {
     const params = new URLSearchParams("rv=81")
     const versionedParams = new URLSearchParams("rv=81&mv=1784218530000")
+    const liveParams = new URLSearchParams("rv=81&mv=1784218530000&live=1")
 
-    expect(isImmutablePosterRequest(params, { hasMapping: true, isRotating: false })).toBe(false)
+    // Nemmeno il caso un tempo ritenuto immutabile (mapping + mv
+    // corrispondente) lo è: ranking live, rating, qualità, premi e default
+    // fuori URL cambiano i byte a URL identico.
     expect(isImmutablePosterRequest(versionedParams, {
       hasMapping: true,
       isRotating: false,
       mappingVersionMatches: true,
-    })).toBe(true)
+    })).toBe(false)
+    expect(isImmutablePosterRequest(liveParams, {
+      hasMapping: true,
+      isRotating: false,
+      mappingVersionMatches: true,
+    })).toBe(false)
     expect(isImmutablePosterRequest(versionedParams, {
       hasMapping: true,
       isRotating: true,
       mappingVersionMatches: true,
     })).toBe(false)
-    // Senza mapping il poster contiene dati dinamici (rank, premi, IMDb Top 250):
-    // non può essere immutable per un anno, o la CDN servirebbe badge congelati.
+    expect(isImmutablePosterRequest(params, { hasMapping: true, isRotating: false })).toBe(false)
     expect(isImmutablePosterRequest(params, { hasMapping: false, isRotating: false })).toBe(false)
     expect(isImmutablePosterRequest(versionedParams, {
       hasMapping: true,

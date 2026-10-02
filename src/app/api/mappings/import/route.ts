@@ -2,7 +2,7 @@ import { NextRequest } from "next/server"
 import { importMappings, setImdbAlias, QuotaExceededError } from "@/lib/store"
 import type { Mapping } from "@/lib/types"
 import { aliasSchema, mappingSchema } from "@/lib/validation"
-import { getServerDefaults, getStoredUserDefaults, setServerDefaults, setServerDefaultsForUser, type ServerDefaults } from "@/lib/server-defaults"
+import { getServerDefaultsChecked, getStoredUserDefaults, setServerDefaults, setServerDefaultsForUser, type ServerDefaults } from "@/lib/server-defaults"
 import { listUserPresets, savePreset, PresetQuotaError, PresetValidationError } from "@/lib/badge-preset-store"
 import { MAX_PRESETS_PER_USER } from "@/lib/badge-preset"
 import {
@@ -292,7 +292,7 @@ async function importBackupV2(
           await setServerDefaultsForUser(scoped, { ...stored, ...stripped } as ServerDefaults)
         } else {
           // Merge come il PUT: un payload parziale non azzera gli altri default.
-          const current = getServerDefaults()
+          const current = await getServerDefaultsChecked()
           await setServerDefaults({ ...current, ...stripped } as ServerDefaults)
         }
         imported.defaults = keys.length

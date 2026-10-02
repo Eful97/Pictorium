@@ -800,5 +800,10 @@
   "ui.dateFormatMdy": "Month.Day.Year",
   "ui.dateFormatIso": "Year-Month-Day",
   "ui.previewUpdating": "Önizleme güncelleniyor…",
-  "ui.configureKeys": "API anahtarlarını yapılandır"
+  "ui.configureKeys": "API anahtarlarını yapılandır",
+  "ui.linkModeFollow": "Alanımı takip et",
+  "ui.linkModeFollowSub": "Bağlantıyı yeniden kopyalamadan kaydedilen değişiklikleri kullan",
+  "ui.linkModeFixed": "Bağlantıda sabit ayarlar",
+  "ui.linkModeFixedSub": "Mevcut ayarları bağlantıda koru",
+  "ui.linkModeAdvanced": "Gelişmiş seçenekler"
 }

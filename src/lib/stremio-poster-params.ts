@@ -126,6 +126,21 @@ export interface StremioPosterParamsInput {
    * server incompleti per alcuni).
    */
   readonly compactTuning?: boolean
+  /**
+   * Template "Segui il mio spazio": omette TUTTI i valori visuali
+   * (toggle, stili, tuning) così il server li risolve dallo spazio salvato
+   * (override esplicito > mapping > config > spazio > default). Restano solo
+   * identità (`u`), `live=1` e `rv`. Lingua e shape fisso sono omessi: li
+   * risolve il server (mapping > config > spazio); la variante Nuvio aggiunge
+   * `shape={shape}` fuori da questo builder. Mai con valori visuali.
+   */
+  readonly followSpace?: boolean
+  /**
+   * Politica di rivalidazione (`live=1`): il client/proxy rivalida sempre via
+   * ETag. Non bypassa la cache interna né forza il render. Con `followSpace`
+   * è implicito; da solo si combina con override espliciti.
+   */
+  readonly live?: boolean
 }
 
 const DEFAULT_STREMIO_POSTER_PARAMS = {
@@ -203,6 +218,17 @@ function tuningSignature(input: StremioPosterParamsInput): string {
 
 export function buildStremioPosterSearchParams(input: StremioPosterParamsInput): URLSearchParams {
   const params = new URLSearchParams()
+  // Segui-spazio: solo identità + live + versione. Niente visuali, niente
+  // lingua/shape fissi (li risolve il server), niente firma dv (nulla da
+  // invalidare: l'URL è stabile, aggiorna la rivalidazione HTTP).
+  if (input.followSpace) {
+    if (input.config) params.set("config", input.config)
+    if (input.user) params.set("u", input.user)
+    params.set("live", "1")
+    params.set("rv", String(POSTER_URL_VERSION))
+    return params
+  }
+  const live = input.live ?? false
   const globalBadges = input.globalBadges ?? DEFAULT_STREMIO_POSTER_PARAMS.globalBadges
   const rankingBadges = input.rankingBadges ?? DEFAULT_STREMIO_POSTER_PARAMS.rankingBadges
   const blurEnabled = input.blurEnabled ?? DEFAULT_STREMIO_POSTER_PARAMS.blurEnabled
@@ -305,5 +331,6 @@ export function buildStremioPosterSearchParams(input: StremioPosterParamsInput):
     params.set("noy", String(input.networkLogoOffsetY ?? DEFAULT_STREMIO_POSTER_PARAMS.networkLogoOffsetY))
   }
   params.set("rv", String(POSTER_URL_VERSION))
+  if (live) params.set("live", "1")
   return params
 }

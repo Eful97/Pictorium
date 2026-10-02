@@ -5,7 +5,7 @@ import { PICTORIUM_CATALOGS, PICTORIUM_PEOPLE_SEARCH_CATALOGS, regionJwName } fr
 import { getOriginFromRequest } from "@/lib/poster-public-url"
 import { decodeConfig, type PictoriumUserConfig } from "@/lib/config-token"
 import { normalizeCatalogIdKeys, normalizeCatalogIdList } from "@/lib/catalog-definitions"
-import { getServerDefaults, getServerDefaultsForUser } from "@/lib/server-defaults"
+import { getServerDefaultsChecked, getServerDefaultsForUser } from "@/lib/server-defaults"
 import { getScopedUserId } from "@/lib/user-auth"
 import { getRegionDef, normalizeRegion, parseRegion } from "@/lib/regions"
 
@@ -50,7 +50,7 @@ export async function buildManifestResponse(req: NextRequest, user?: string | nu
   // Base namespace (una sola lettura): i defaults dell'utente, mai i globali
   // — altrimenti i cataloghi di B seguono i default di A. Con flag OFF o
   // senza uuid → globali invariati (byte-identico).
-  const namespaceDefaults = scopedManifestUser ? await getServerDefaultsForUser(scopedManifestUser) : getServerDefaults()
+  const namespaceDefaults = scopedManifestUser ? await getServerDefaultsForUser(scopedManifestUser) : await getServerDefaultsChecked()
   if (!userConfig) {
     // Cataloghi personali (multi-user): i defaults del namespace.
     userConfig = {

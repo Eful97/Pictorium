@@ -800,5 +800,10 @@
   "ui.dateFormatMdy": "Month.Day.Year",
   "ui.dateFormatIso": "Year-Month-Day",
   "ui.previewUpdating": "Updating preview…",
-  "ui.configureKeys": "Configure API keys"
+  "ui.configureKeys": "Configure API keys",
+  "ui.linkModeFollow": "מעקב אחר המרחב שלי",
+  "ui.linkModeFollowSub": "שימוש בשינויים שנשמרו בלי להעתיק שוב את הקישור",
+  "ui.linkModeFixed": "הגדרות קבועות בקישור",
+  "ui.linkModeFixedSub": "שמירת ההגדרות הנוכחיות בקישור",
+  "ui.linkModeAdvanced": "אפשרויות מתקדמות"
 }

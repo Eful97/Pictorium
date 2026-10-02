@@ -43,7 +43,8 @@ vi.mock("@/lib/store", () => ({
 
 vi.mock("@/lib/server-defaults", async (importOriginal) => {
   const mod = await importOriginal<typeof import("@/lib/server-defaults")>()
-  return { ...mod, getServerDefaults: vi.fn(() => ({ defaultLogoFitEnabled: true, badgeStyle: "shadow", rankingBadgeStyle: "default" })) }
+  const mocked = vi.fn(() => ({ defaultLogoFitEnabled: true, badgeStyle: "shadow", rankingBadgeStyle: "default" }))
+  return { ...mod, getServerDefaults: mocked, getServerDefaultsChecked: vi.fn(async () => mocked()) }
 })
 
 vi.mock("@/lib/poster-auto-fit", () => ({
@@ -1113,7 +1114,7 @@ describe("GET /api/poster/[type]/[id] error and edge cases", () => {
     expect(res.headers.get("Access-Control-Allow-Origin")).toBe("*")
   })
 
-  it.each([true, false])("uses the correct mapped HTTP cache policy with custom provider enabled=%s", async enabled => {
+  it.each([true, false])("uses a finite mapped HTTP cache policy with custom provider enabled=%s (audit problems 3-4)", async enabled => {
     vi.mocked(fetchCustomRatings).mockClear()
     vi.stubEnv("PICTORIUM_CUSTOM_RATING_ENABLED", String(enabled))
     const id = 99001
@@ -1143,14 +1144,13 @@ describe("GET /api/poster/[type]/[id] error and edge cases", () => {
     expect(fetchCustomRatings).toHaveBeenCalledTimes(calls)
     for (const response of [first, hit, conditionalHit]) {
       const policy = response.headers.get("cache-control")!
-      expect(policy).toBe(posterHeaders("test", !enabled)["Cache-Control"])
-      if (enabled) {
-        expect(policy).not.toContain("immutable")
-        expect(policy).not.toContain("max-age=31536000")
-      } else {
-        expect(policy).toContain("immutable")
-        expect(policy).toContain("max-age=31536000")
-      }
+      // Audit problemi 3-4: mapping+rv+mv non coprono ranking live, rating,
+      // qualità e default fuori URL — mai immutable annuale, in entrambi i
+      // casi. La cache interna resta il riuso veloce (conditionalHit = 304
+      // senza refetch).
+      expect(policy).toBe(posterHeaders("test", false)["Cache-Control"])
+      expect(policy).not.toContain("immutable")
+      expect(policy).not.toContain("max-age=31536000")
     }
     vi.mocked(fetchCustomRatings).mockClear()
   })

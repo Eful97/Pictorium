@@ -104,6 +104,8 @@ export const POSTER_CACHE_ALLOWLIST: ReadonlySet<string> = new Set([
   "config", "c", "api_key", "mdblist_key", "simkl_key", "tvdb_key",
   "region", "country", "logoFit", "debug",
   "badgePreset", "prv", "df",
+  // Segui-spazio: politica di rivalidazione (entra in chiave/ETag via serializzazione).
+  "live",
 ])
 
 // Numerici 0-100 (gradienti/blur/tinta/fade/ombra-alta) e offset px: step 5.
