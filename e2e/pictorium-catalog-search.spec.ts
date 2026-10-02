@@ -42,8 +42,8 @@ test(filtered ? "filtered search exposes a silent page failure and retries it" :
 test("mixed catalog opens series absent from preview and restores focus on mobile", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 })
   await page.route("**/api/mdblist/custom?**", async route => {
-    const full = new URL(route.request().url()).searchParams.get("limit") === "500"
-    await route.fulfill({ json: { status: "ok", total: 2, items: full
+    const series = new URL(route.request().url()).searchParams.get("media_type") === "tv"
+    await route.fulfill({ json: { status: "ok", total: series ? 1 : 2, nextOffset: null, items: series
       ? [{ id: 1399, media_type: "tv", name: "Full series", poster_path: null }]
       : [{ id: 19995, media_type: "movie", title: "Preview film", poster_path: null }] } })
   })
@@ -67,4 +67,35 @@ test("anime fallback uses the local TMDB base and animation filter", async ({ re
   expect(response.ok()).toBeTruthy()
   const { results } = await response.json()
   expect(results.map((item: { name: string }) => item.name)).toEqual(["One Piece"])
+})
+
+test("a 400-title catalog loads thirty at a time and retries the next page", async ({ page }) => {
+  const offsets: number[] = []
+  await page.route("**/api/mdblist/custom?**", async route => {
+    const params = new URL(route.request().url()).searchParams
+    expect(params.get("limit")).toBe("30")
+    const skip = Number(params.get("skip") ?? 0)
+    if (params.has("skip")) offsets.push(skip)
+    if (skip === 30 && offsets.filter(n => n === 30).length === 1) {
+      await route.fulfill({ status: 502, json: { error: "Temporary outage" } })
+      return
+    }
+    const items = Array.from({ length: 30 }, (_, i) => ({ id: skip + i + 1, media_type: "movie", title: `Paged title ${skip + i + 1}`, poster_path: null }))
+    await route.fulfill({ json: { status: "ok", total: 400, nextOffset: skip + 30, items } })
+  })
+  await page.goto("/")
+  await expect(page.getByPlaceholder(/cerca/i)).toBeVisible({ timeout: 30_000 })
+  await page.getByRole("button", { name: "Sfoglia i cataloghi", exact: true }).click()
+  await page.getByRole("button", { name: "Audit mixed list — Film" }).focus()
+  await page.keyboard.press("Enter")
+  const dialog = page.getByRole("dialog", { name: "Audit mixed list — Film" })
+  await expect(dialog.getByText("30 di 400 titoli", { exact: true })).toBeVisible()
+  await expect(dialog.getByRole("button", { name: /^Paged title / })).toHaveCount(30)
+  await dialog.getByRole("button", { name: "Mostra più risultati" }).click()
+  await expect(dialog.getByRole("alert")).toBeVisible()
+  await expect(dialog.getByRole("button", { name: /^Paged title / })).toHaveCount(30)
+  await dialog.getByRole("button", { name: "Riprova", exact: true }).click()
+  await expect(dialog.getByText("60 di 400 titoli", { exact: true })).toBeVisible()
+  await expect(dialog.getByRole("button", { name: /^Paged title / })).toHaveCount(60)
+  expect(offsets).toEqual([0, 30, 30])
 })

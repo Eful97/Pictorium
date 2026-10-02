@@ -137,6 +137,7 @@ describe("useTrending stati e refresh", () => {
     routeHttp({ platformErrors: ["netflix"] })
     const { result } = renderHook(() => useTrending("k", "m", "IT", false))
     await waitFor(() => expect(result.current.trendingStatus).toBe("ready"), { timeout: 2000 })
+    await act(async () => { await result.current.loadPlatform("netflix") })
     mockToast.mockClear()
     ;(mockToast.warning as ReturnType<typeof vi.fn>).mockClear()
     await act(async () => {
@@ -145,9 +146,68 @@ describe("useTrending stati e refresh", () => {
     expect(mockToast).not.toHaveBeenCalledWith("ui.listsRefreshed")
     expect(mockToast.warning).toHaveBeenCalledWith("ui.listsPartial")
     expect(result.current.platformErrors["netflix"]).toBe(true)
-    // I dati riusciti restano (trending + altre piattaforme)
+    // I dati riusciti restano.
     expect(result.current.trending.length).toBeGreaterThan(0)
     expect(result.current.trendingStatus).toBe("ready")
+  })
+
+  it("loads platforms on demand, caches them, and refreshes only requested platforms", async () => {
+    routeHttp({})
+    const { result } = renderHook(() => useTrending("k", "m", "IT", false))
+    await waitFor(() => expect(result.current.trendingStatus).toBe("ready"))
+    const platformCalls = () => mockedHttp.mock.calls.filter(([url]) => String(url).includes("/api/flixpatrol/top10"))
+    expect(platformCalls()).toHaveLength(0)
+    await act(async () => { await result.current.loadPlatform("netflix") })
+    await act(async () => { await result.current.loadPlatform("netflix") })
+    expect(platformCalls()).toHaveLength(1)
+    expect(result.current.streamingCharts.netflix).toEqual(chartPayload())
+    await act(async () => { await result.current.refreshLists() })
+    expect(platformCalls()).toHaveLength(2)
+    expect(platformCalls().every(([url]) => String(url).includes("platform=netflix"))).toBe(true)
+  })
+
+  it("coalesces platform requests and limits concurrent work to two", async () => {
+    routeHttp({})
+    const original = mockedHttp.getMockImplementation()!
+    const releases: Array<() => void> = []
+    let active = 0
+    let peak = 0
+    mockedHttp.mockImplementation((url, opts) => {
+      if (!String(url).includes("/api/flixpatrol/top10")) return original(url, opts)
+      active++
+      peak = Math.max(peak, active)
+      return new Promise(resolve => releases.push(() => { active--; resolve(chartPayload() as never) }))
+    })
+    const { result } = renderHook(() => useTrending("k", "m", "IT", false))
+    let jobs!: Promise<boolean>[]
+    await act(async () => {
+      jobs = ["netflix", "netflix", "amazon-prime", "disney"].map(slug => result.current.loadPlatform(slug))
+    })
+    await waitFor(() => expect(releases).toHaveLength(2))
+    await act(async () => { releases[0]() })
+    await waitFor(() => expect(releases).toHaveLength(3))
+    await act(async () => { releases[1](); releases[2](); await Promise.all(jobs) })
+    expect(peak).toBe(2)
+    expect(Object.keys(result.current.streamingCharts)).toHaveLength(3)
+  })
+
+  it("discards a pending platform response after changing country", async () => {
+    routeHttp({})
+    const original = mockedHttp.getMockImplementation()!
+    let release!: () => void
+    let signal: AbortSignal | undefined
+    mockedHttp.mockImplementation((url, opts) => {
+      if (!String(url).includes("/api/flixpatrol/top10")) return original(url, opts)
+      signal = opts?.signal
+      return new Promise(resolve => { release = () => resolve(chartPayload() as never) })
+    })
+    const { result, rerender } = renderHook(({ country }) => useTrending("k", "m", country, false), { initialProps: { country: "IT" } })
+    await act(async () => { void result.current.loadPlatform("netflix") })
+    await waitFor(() => expect(release).toBeTypeOf("function"))
+    rerender({ country: "US" })
+    expect(signal?.aborted).toBe(true)
+    await act(async () => { release() })
+    expect(result.current.streamingCharts).toEqual({})
   })
 
   it("waits for custom catalogs before reporting refresh completion", async () => {

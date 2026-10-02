@@ -810,5 +810,6 @@
   "ui.catalogSyncFailed": "Kataloglar yerel olarak kaydedildi. Sunucu eşitlemesi başarısız.",
   "ui.customPreviewOnly": "Kısmi önizleme. Tüm içerikleri yüklemek için listeyi tekrar açın.",
   "ui.customGridLimit": "En fazla 500 içerik gösteriliyor.",
-  "ui.animeFallback": "Alternatif: TMDB Japon animasyonu"
+  "ui.animeFallback": "Alternatif: TMDB Japon animasyonu",
+  "ui.catalogPageCount": "{total} içerikten {shown}"
 }

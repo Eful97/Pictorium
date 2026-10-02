@@ -810,5 +810,6 @@
   "ui.catalogSyncFailed": "Catalogues enregistrés localement. Échec de la synchronisation serveur.",
   "ui.customPreviewOnly": "Aperçu partiel. Rouvrez la liste pour charger tous les titres.",
   "ui.customGridLimit": "Affichage limité à 500 titres.",
-  "ui.animeFallback": "Alternative : animation japonaise de TMDB"
+  "ui.animeFallback": "Alternative : animation japonaise de TMDB",
+  "ui.catalogPageCount": "{shown} titres sur {total}"
 }

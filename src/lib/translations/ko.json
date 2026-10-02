@@ -810,5 +810,6 @@
   "ui.catalogSyncFailed": "카탈로그가 로컬에 저장되었습니다. 서버 동기화에 실패했습니다.",
   "ui.customPreviewOnly": "일부 미리보기입니다. 모든 작품을 불러오려면 목록을 다시 여세요.",
   "ui.customGridLimit": "최대 500개 작품을 표시합니다.",
-  "ui.animeFallback": "대체: TMDB 일본 애니메이션"
+  "ui.animeFallback": "대체: TMDB 일본 애니메이션",
+  "ui.catalogPageCount": "{total}개 작품 중 {shown}개"
 }

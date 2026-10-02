@@ -27,11 +27,17 @@ export function useTrending(tmdbKey: string, mdblistApiKey: string, regionCode =
   const [streamingCharts, setStreamingCharts] = useState<Record<string, FlixPatrolChart>>({})
   const [platformErrors, setPlatformErrors] = useState<Record<string, boolean>>({})
   // Contatore refresh: CataloghiView lo passa alle entry custom (refetch
-  // preview) e invalida la cache full di sessione.
+  // preview) e invalida la cache delle pagine di sessione.
   const [refreshNonce, setRefreshNonce] = useState(0)
   const lastRefreshRef = useRef(0)
   const abortRef = useRef<AbortController | null>(null)
   const platformAbortRef = useRef<AbortController | null>(null)
+  const requestedPlatformsRef = useRef(new Set<string>())
+  const chartsRef = useRef<Record<string, FlixPatrolChart>>({})
+  const platformInflightRef = useRef(new Map<string, Promise<boolean>>())
+  // Two queues bound work even when several sections enter the viewport together.
+  const platformQueuesRef = useRef([Promise.resolve(), Promise.resolve()])
+  const nextQueueRef = useRef(0)
 
   useEffect(() => {
     if (!tmdbKey && !hasServerKey) {
@@ -105,47 +111,52 @@ export function useTrending(tmdbKey: string, mdblistApiKey: string, regionCode =
     return () => { ctrl.abort(); abortRef.current?.abort() }
   }, [tmdbKey, mdblistApiKey, region.code, hasServerKey])
 
-  // FlixPatrol: defer + limit concurrency (evita burst di 8 fetch al mount).
-  // Il paese segue la regione attiva: al cambio regione si ricaricano le chart.
   useEffect(() => {
-    setStreamingCharts({})
-    setPlatformErrors({})
-    if (!tmdbKey && !hasServerKey) return
     const ctrl = new AbortController()
     platformAbortRef.current = ctrl
-    const signal = ctrl.signal
-    // Defer di 2s per non intasare il burst iniziale trending+anime
-    const timer = setTimeout(() => {
-      let idx = 0
-      const runNext = () => {
-        if (signal.aborted || idx >= STREAMING_PLATFORMS.length) return
-        // batch di 2 alla volta
-        const batch = STREAMING_PLATFORMS.slice(idx, idx + 2)
-        idx += 2
-        Promise.all(batch.map((p) =>
-          http<FlixPatrolChart>(`/api/flixpatrol/top10?platform=${p.slug}&country=${encodeURIComponent(flixCountry)}&api_key=${encodeURIComponent(tmdbKey)}`, { timeout: 30000, signal })
-            .then((data) => {
-              if (signal.aborted) return
-              setStreamingCharts((prev) => ({ ...prev, [p.slug]: data }))
-              setPlatformErrors((prev) => {
-                if (!prev[p.slug]) return prev
-                const next = { ...prev }
-                delete next[p.slug]
-                return next
-              })
-            })
-            .catch((e) => {
-              if (signal.aborted) return
-              console.error("[pictorium] FlixPatrol fetch failed for", p.slug, e)
-              setPlatformErrors((prev) => ({ ...prev, [p.slug]: true }))
-            })
-        )).finally(() => {
-          if (!signal.aborted) setTimeout(runNext, 300)
-        })
+    chartsRef.current = {}
+    requestedPlatformsRef.current.clear()
+    platformInflightRef.current.clear()
+    platformQueuesRef.current = [Promise.resolve(), Promise.resolve()]
+    setStreamingCharts({})
+    setPlatformErrors({})
+    return () => { ctrl.abort(); platformAbortRef.current?.abort() }
+  }, [tmdbKey, flixCountry, hasServerKey])
+
+  const loadPlatform = useCallback(async (slug: string, force = false): Promise<boolean> => {
+    // Let scope-reset effects complete before accepting demand from a child.
+    await Promise.resolve()
+    if ((!tmdbKey && !hasServerKey) || !STREAMING_PLATFORMS.some(p => p.slug === slug)) return false
+    const pending = platformInflightRef.current.get(slug)
+    if (pending) return pending
+    if (!force && requestedPlatformsRef.current.has(slug)) return !!chartsRef.current[slug]
+    const ctrl = platformAbortRef.current
+    if (!ctrl || ctrl.signal.aborted) return false
+    requestedPlatformsRef.current.add(slug)
+    const queue = nextQueueRef.current++ % 2
+    const job = platformQueuesRef.current[queue].then(async () => {
+      if (ctrl.signal.aborted) return false
+      try {
+        const suffix = force ? "&_t=" + Date.now() : ""
+        const chart = await http<FlixPatrolChart>("/api/flixpatrol/top10?platform=" + encodeURIComponent(slug) + "&country=" + encodeURIComponent(flixCountry) + "&api_key=" + encodeURIComponent(tmdbKey) + suffix, { timeout: 30000, signal: ctrl.signal })
+        if (ctrl.signal.aborted) return false
+        chartsRef.current[slug] = chart
+        setStreamingCharts(prev => ({ ...prev, [slug]: chart }))
+        setPlatformErrors(prev => ({ ...prev, [slug]: false }))
+        return true
+      } catch (error) {
+        if (!ctrl.signal.aborted) {
+          console.error("[pictorium] Platform failed:", slug, error)
+          setPlatformErrors(prev => ({ ...prev, [slug]: true }))
+        }
+        return false
       }
-      runNext()
-    }, 2000)
-    return () => { clearTimeout(timer); ctrl.abort() }
+    }).finally(() => {
+      if (platformInflightRef.current.get(slug) === job) platformInflightRef.current.delete(slug)
+    })
+    platformInflightRef.current.set(slug, job)
+    platformQueuesRef.current[queue] = job.then(() => {})
+    return job
   }, [tmdbKey, flixCountry, hasServerKey])
 
   const refreshLists = useCallback(async (refreshCustom?: () => Promise<number>) => {
@@ -160,8 +171,10 @@ export function useTrending(tmdbKey: string, mdblistApiKey: string, regionCode =
     const ctrl = new AbortController()
     const signal = ctrl.signal
     abortRef.current = ctrl
-    // Le entry custom ricaricano le preview su questo cambio; la cache full
-    // di sessione viene invalidata da CataloghiView sullo stesso segnale.
+    platformAbortRef.current = new AbortController()
+    platformInflightRef.current.clear()
+    platformQueuesRef.current = [Promise.resolve(), Promise.resolve()]
+    // CataloghiView invalida le pagine e ricarica le preview registrate.
     setRefreshNonce((n) => n + 1)
     const customPromise = refreshCustom ? refreshCustom().catch(() => 1) : Promise.resolve(0)
     let failures = 0
@@ -222,33 +235,11 @@ export function useTrending(tmdbKey: string, mdblistApiKey: string, regionCode =
       failures++
     }
     if (signal.aborted) return
-    // Piattaforme a batch di 2 (stesso limite del mount), esiti indipendenti.
-    for (let i = 0; (tmdbKey || hasServerKey) && i < STREAMING_PLATFORMS.length; i += 2) {
-      if (signal.aborted) return
-      const batch = STREAMING_PLATFORMS.slice(i, i + 2)
-      const settled = await Promise.allSettled(batch.map((p) =>
-        http<FlixPatrolChart>(`/api/flixpatrol/top10?platform=${p.slug}&country=${encodeURIComponent(flixCountry)}&api_key=${encodeURIComponent(tmdbKey)}&_t=${now}`, { timeout: 30000, signal }),
-      ))
-      if (signal.aborted) return
-      settled.forEach((res, bi) => {
-        const slug = batch[bi].slug
-        if (res.status === "fulfilled") {
-          setStreamingCharts((prev) => ({ ...prev, [slug]: res.value }))
-          setPlatformErrors((prev) => {
-            if (!prev[slug]) return prev
-            const next = { ...prev }
-            delete next[slug]
-            return next
-          })
-        } else {
-          if ((res.reason as Error)?.name !== "AbortError") {
-            console.error("[pictorium] FlixPatrol refresh failed for", slug, res.reason)
-          }
-          setPlatformErrors((prev) => ({ ...prev, [slug]: true }))
-          failures++
-        }
-      })
-    }
+    // Refresh only platforms the user has actually requested.
+    const platforms = Array.from(requestedPlatformsRef.current)
+    const platformResults = await Promise.all(platforms.map(slug => loadPlatform(slug, true)))
+    if (signal.aborted) return
+    failures += platformResults.filter(ok => !ok).length
     failures += await customPromise
     if (signal.aborted) return
     // Successo solo per gli esiti davvero riusciti: il parziale resta
@@ -257,7 +248,7 @@ export function useTrending(tmdbKey: string, mdblistApiKey: string, regionCode =
       if (failures === 0) toast(t("ui.listsRefreshed"))
       else toast.warning(t("ui.listsPartial"))
     })
-  }, [tmdbKey, mdblistApiKey, region.code, flixCountry, hasServerKey])
+  }, [tmdbKey, mdblistApiKey, region.code, hasServerKey, loadPlatform])
 
-  return { trending, trendingStatus, trendingError: trendingStatus === "error", mdblistAnimeList, animeStatus, animeSource, streamingCharts, platformErrors, refreshLists, refreshNonce }
+  return { trending, trendingStatus, trendingError: trendingStatus === "error", mdblistAnimeList, animeStatus, animeSource, streamingCharts, platformErrors, loadPlatform, refreshLists, refreshNonce }
 }

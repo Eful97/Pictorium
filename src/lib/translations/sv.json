@@ -810,5 +810,6 @@
   "ui.catalogSyncFailed": "Kataloger sparade lokalt. Serversynkronisering misslyckades.",
   "ui.customPreviewOnly": "Delvis förhandsvisning. Öppna listan igen för att ladda alla titlar.",
   "ui.customGridLimit": "Visar högst 500 titlar.",
-  "ui.animeFallback": "Alternativ: japansk animation från TMDB"
+  "ui.animeFallback": "Alternativ: japansk animation från TMDB",
+  "ui.catalogPageCount": "{shown} av {total} titlar"
 }

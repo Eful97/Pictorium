@@ -153,6 +153,7 @@ export interface PictoriumCtx {
   animeSource: "mdblist" | "tmdb" | null
   streamingCharts: Record<string, import("./types").FlixPatrolChart>
   platformErrors: Record<string, boolean>
+  loadPlatform: (slug: string, force?: boolean) => Promise<boolean>
   refreshNonce: number
   STREAMING_PLATFORMS: typeof STREAMING_PLATFORMS
   loadMappings: () => Promise<void>
@@ -1632,7 +1633,7 @@ export function usePictorium(): PictoriumCtx {
     previewId: navigation.previewId, setPreviewId: navigation.setPreviewId,
     saveConfig, removeMapping, mappingsMap,
     goHome: navigation.goHome, sourceView: navigation.sourceView, navigateToPoster: (item: SearchResult, source?: string) => { navigation.navigateToPoster(item, source); openPosterBrowserRef.current(item) },
-    refreshLists: trending.refreshLists,
+    refreshLists: trending.refreshLists, loadPlatform: trending.loadPlatform,
     tmdbKey, setQuery: search.setQuery, doSearch: search.doSearch, loadMore: search.loadMore, loadMoreFiltered: search.loadMoreFiltered, retryFailed: search.retryFailed, failedPage: search.failedPage, hasSearched: search.hasSearched,
     titleOf, yearOf, posterUrl,
     trending: trending.trending, trendingError: trending.trendingError, trendingStatus: trending.trendingStatus, streamingCharts: trending.streamingCharts, platformErrors: trending.platformErrors, mdblistAnimeList: trending.mdblistAnimeList, animeStatus: trending.animeStatus, animeSource: trending.animeSource, refreshNonce: trending.refreshNonce,
@@ -1685,7 +1686,7 @@ export function usePictorium(): PictoriumCtx {
     accentColor, autoAccentColor, setAccentColor,
     topEdgeColor, bottomEdgeColor, autoSaveExcludedPosters, autoSaveExcludedBackdrops, prefetchTitle,
     trending.trending, trending.trendingError, trending.trendingStatus, trending.streamingCharts, trending.platformErrors, trending.mdblistAnimeList, trending.animeStatus, trending.animeSource, trending.refreshNonce,
-    trending.refreshLists,
+    trending.refreshLists, trending.loadPlatform,
     theme, uiAccent, serviceErrors, hasNetflixRank,
     customCatalogs, disabledCatalogIds, homeDisabledCatalogIds, catalogOrder, catalogRenames,
   ])

@@ -35,7 +35,7 @@ describe("GET /api/mdblist/custom fan-out cap (v1.23.0)", () => {
     vi.mocked(tmdbFindByTvdb).mockResolvedValue(1396)
     vi.mocked(getDetails).mockResolvedValue({ name: "Breaking Bad", first_air_date: "2008-01-20", poster_path: "/bb.jpg" } as never)
     const res = await GET(new NextRequest("http://localhost:3000/api/mdblist/custom?url=https://thetvdb.com/lists/test"))
-    expect(tmdbFindByTvdb).toHaveBeenCalledWith(456, "tv", "k")
+    expect(tmdbFindByTvdb).toHaveBeenCalledWith(456, "tv", "k", expect.any(AbortSignal))
     expect((await res.json()).items[0]).toMatchObject({ id: 1396, tmdbId: 1396, title: "Breaking Bad", year: 2008, poster_path: "/bb.jpg" })
   })
 
@@ -67,5 +67,34 @@ describe("GET /api/mdblist/custom fan-out cap (v1.23.0)", () => {
     expect(json.items[0].poster_path).toBe("/p1000.jpg")
     expect(maxActive).toBeLessThanOrEqual(5)
     expect(maxActive).toBeGreaterThan(1) // davvero parallelo, non seriale
+  })
+
+  it("enriches only the requested 30-title window of a 400-title mixed list", async () => {
+    vi.mocked(getDetails).mockClear()
+    const raw = Array.from({ length: 400 }, (_, i) => ({ tmdb: i + 1, imdb: "", title: `T${i}`, year: 2020, mediatype: (i % 2 ? "show" : "movie") as "show" | "movie" }))
+    vi.mocked(fetchUnifiedCatalogResult).mockResolvedValue({ items: raw, status: "ok" })
+    vi.mocked(getDetails).mockResolvedValue({ poster_path: "/p.jpg" } as never)
+    const res = await GET(new NextRequest("http://localhost/api/mdblist/custom?url=test&limit=30&skip=30&media_type=tv"))
+    const page = await res.json()
+    expect(page.items).toHaveLength(30)
+    expect(page.total).toBe(200)
+    expect(page.nextOffset).toBe(60)
+    expect(page.items.map((it: { id: number }) => it.id)).toEqual(raw.filter(it => it.mediatype === "show").slice(30, 60).map(it => it.tmdb))
+    expect(getDetails).toHaveBeenCalledTimes(30)
+  })
+
+  it.each(["skip=-1", "skip=no", "skip=1.5", "skip=1001", "media_type=person"])("rejects an invalid page: %s", async query => {
+    const res = await GET(new NextRequest(`http://localhost/api/mdblist/custom?url=test&${query}`))
+    expect(res.status).toBe(400)
+  })
+
+  it("stops queued metadata work after cancellation", async () => {
+    const ctrl = new AbortController()
+    vi.mocked(getDetails).mockClear()
+    vi.mocked(fetchUnifiedCatalogResult).mockResolvedValue({ items: Array.from({ length: 400 }, (_, i) => ({ tmdb: i + 1, imdb: "", title: "T", year: 2020 })), status: "ok" })
+    vi.mocked(getDetails).mockImplementation(async () => { ctrl.abort(); return {} as never })
+    const res = await GET(new NextRequest("http://localhost/api/mdblist/custom?url=test&limit=30&skip=0", { signal: ctrl.signal }))
+    expect(res.status).toBe(499)
+    expect(vi.mocked(getDetails).mock.calls.length).toBeLessThanOrEqual(5)
   })
 })

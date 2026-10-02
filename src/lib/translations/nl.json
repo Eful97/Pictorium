@@ -810,5 +810,6 @@
   "ui.catalogSyncFailed": "Catalogi lokaal opgeslagen. Serversynchronisatie mislukt.",
   "ui.customPreviewOnly": "Gedeeltelijk voorbeeld. Heropen de lijst om alle titels te laden.",
   "ui.customGridLimit": "Maximaal 500 titels uit deze lijst.",
-  "ui.animeFallback": "Alternatief: Japanse animatie van TMDB"
+  "ui.animeFallback": "Alternatief: Japanse animatie van TMDB",
+  "ui.catalogPageCount": "{shown} van {total} titels"
 }

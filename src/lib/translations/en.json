@@ -810,5 +810,6 @@
   "ui.linkModeFollowSub": "Use saved changes without copying the link again",
   "ui.linkModeFixed": "Fixed settings in the link",
   "ui.linkModeFixedSub": "Keep the current settings in the link",
-  "ui.linkModeAdvanced": "Advanced options"
+  "ui.linkModeAdvanced": "Advanced options",
+  "ui.catalogPageCount": "{shown} of {total} titles"
 }

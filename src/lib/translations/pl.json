@@ -810,5 +810,6 @@
   "ui.catalogSyncFailed": "Katalogi zapisano lokalnie. Synchronizacja z serwerem nie powiodła się.",
   "ui.customPreviewOnly": "Częściowy podgląd. Otwórz listę ponownie, aby wczytać wszystkie tytuły.",
   "ui.customGridLimit": "Wyświetlono maksymalnie 500 tytułów.",
-  "ui.animeFallback": "Alternatywa: japońska animacja z TMDB"
+  "ui.animeFallback": "Alternatywa: japońska animacja z TMDB",
+  "ui.catalogPageCount": "{shown} z {total} tytułów"
 }

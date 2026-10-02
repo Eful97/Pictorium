@@ -21,7 +21,7 @@ const mockedFetch = vi.mocked(userFetch)
 beforeEach(() => {
   vi.clearAllMocks()
   vi.spyOn(window, "scrollTo").mockImplementation(() => {})
-  mockedFetch.mockImplementation(async url => response(String(url).includes("limit=500") ? [movie, tv] : [movie]))
+  mockedFetch.mockImplementation(async url => response(String(url).includes("media_type=tv") ? [tv] : [movie]))
 })
 
 describe("catalog browsing", () => {
@@ -32,13 +32,13 @@ describe("catalog browsing", () => {
     expect(screen.queryByText("ui.customNoTitles")).not.toBeInTheDocument()
   })
 
-  it("opens the mixed section absent from preview, reuses full cache, and restores keyboard focus", async () => {
+  it("opens the mixed section absent from preview, reuses page cache, and restores keyboard focus", async () => {
     renderWithCtx(<CataloghiView />, { tmdbKey: "k", customCatalogs: [cat] })
     const card = await screen.findByRole("button", { name: /Audit list — ui.tvSeries/ })
     card.focus()
     fireEvent.keyDown(card, { key: "Enter" })
     const dialog = await screen.findByRole("dialog", { name: "Audit list — ui.tvSeries" })
-    expect(within(dialog).getByAltText("Full series")).toBeInTheDocument()
+    expect(await within(dialog).findByAltText("Full series")).toBeInTheDocument()
     expect(within(dialog).queryByAltText("Preview movie")).not.toBeInTheDocument()
     expect(document.body.style.overflow).toBe("hidden")
     const close = within(dialog).getByRole("button", { name: "ui.close" })
@@ -52,12 +52,12 @@ describe("catalog browsing", () => {
     expect(document.body.style.overflow).toBe("")
     fireEvent.click(card)
     await screen.findByRole("dialog")
-    expect(mockedFetch.mock.calls.filter(([url]) => String(url).includes("limit=500"))).toHaveLength(1)
+    expect(mockedFetch.mock.calls.filter(([url]) => String(url).includes("media_type=tv"))).toHaveLength(1)
   })
 
-  it("ignores a full-list response arriving after the catalog is unmounted", async () => {
+  it("ignores a page response arriving after the catalog is unmounted", async () => {
     let resolve!: (res: Response) => void
-    mockedFetch.mockImplementation(async url => String(url).includes("limit=500")
+    mockedFetch.mockImplementation(async url => String(url).includes("skip=0")
       ? new Promise<Response>(r => { resolve = r }) : response([movie]))
     const view = renderWithCtx(<CataloghiView />, { tmdbKey: "k", customCatalogs: [{ ...cat, url: cat.url + "-late" }] })
     fireEvent.click(await screen.findByRole("button", { name: /Audit list — ui.movie/ }))
@@ -65,20 +65,35 @@ describe("catalog browsing", () => {
     view.unmount()
     await act(async () => { resolve(response([movie, tv])) })
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument()
-    const fullCall = mockedFetch.mock.calls.find(([url]) => String(url).includes("limit=500"))
+    const fullCall = mockedFetch.mock.calls.find(([url]) => String(url).includes("skip=0"))
     expect(fullCall?.[1]?.signal?.aborted).toBe(true)
   })
 
-  it("explains that a failed full fetch is showing only the preview", async () => {
+  it("loads 400 titles thirty at a time and retries a failed page without losing titles", async () => {
+    const offsets: number[] = []
     mockedFetch.mockImplementation(async url => {
-      if (String(url).includes("limit=500")) throw new Error("offline")
-      return response([movie])
+      const params = new URL(String(url), "https://test.local").searchParams
+      expect(params.get("limit")).toBe("30")
+      if (!params.has("skip")) return response([movie])
+      expect(params.get("media_type")).toBe("movie")
+      const skip = Number(params.get("skip"))
+      offsets.push(skip)
+      if (skip === 30 && offsets.filter(n => n === 30).length === 1) throw new Error("offline")
+      const items = Array.from({ length: 30 }, (_, i) => ({ ...movie, id: skip + i + 1, title: `Title ${skip + i + 1}` }))
+      return new Response(JSON.stringify({ status: "ok", total: 400, nextOffset: skip + 30, items }))
     })
     renderWithCtx(<CataloghiView />, { tmdbKey: "k", customCatalogs: [{ ...cat, url: cat.url + "-partial" }] })
     fireEvent.click(await screen.findByRole("button", { name: /Audit list — ui.movie/ }))
     const dialog = await screen.findByRole("dialog")
-    expect(within(dialog).getByText("ui.customPreviewOnly")).toBeInTheDocument()
-    expect(within(dialog).getByAltText("Preview movie")).toBeInTheDocument()
+    await within(dialog).findByAltText("Title 30")
+    expect(within(dialog).getAllByRole("button", { name: /^Title / })).toHaveLength(30)
+    fireEvent.click(within(dialog).getByRole("button", { name: "ui.showMore" }))
+    await within(dialog).findByRole("alert")
+    expect(within(dialog).getAllByRole("button", { name: /^Title / })).toHaveLength(30)
+    fireEvent.click(within(dialog).getByRole("button", { name: "ui.retry" }))
+    await within(dialog).findByAltText("Title 60")
+    expect(within(dialog).getAllByRole("button", { name: /^Title / })).toHaveLength(60)
+    expect(offsets).toEqual([0, 30, 30])
   })
 
   it("keeps a platform loading independently of JustWatch completion", () => {
@@ -86,5 +101,26 @@ describe("catalog browsing", () => {
     fireEvent.click(screen.getByRole("button", { name: "Netflix" }))
     expect(screen.getByText("ui.loadingCatalogs")).toBeInTheDocument()
     expect(screen.queryByText("ui.customNoTitles")).not.toBeInTheDocument()
+  })
+
+  it("requests only visible or selected streaming platforms", async () => {
+    const callbacks: Array<(entries: IntersectionObserverEntry[]) => void> = []
+    vi.stubGlobal("IntersectionObserver", class {
+      constructor(callback: (entries: IntersectionObserverEntry[]) => void) { callbacks.push(callback) }
+      observe() {}
+      disconnect() {}
+    })
+    try {
+      const loadPlatform = vi.fn(async () => true)
+      const view = renderWithCtx(<CataloghiView />, { tmdbKey: "k", loadPlatform })
+      expect(loadPlatform).not.toHaveBeenCalled()
+      await act(async () => { callbacks[0]([{ isIntersecting: true } as IntersectionObserverEntry]) })
+      expect(loadPlatform).toHaveBeenCalledTimes(1)
+      expect(loadPlatform).toHaveBeenCalledWith("netflix")
+      fireEvent.click(screen.getByRole("button", { name: "Disney+" }))
+      expect(loadPlatform).toHaveBeenLastCalledWith("disney")
+      expect(loadPlatform).toHaveBeenCalledTimes(2)
+      view.unmount()
+    } finally { vi.unstubAllGlobals() }
   })
 })

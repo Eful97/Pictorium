@@ -810,5 +810,6 @@
   "ui.catalogSyncFailed": "Katalogy uloženy místně. Synchronizace se serverem selhala.",
   "ui.customPreviewOnly": "Částečný náhled. Znovu otevřete seznam pro načtení všech titulů.",
   "ui.customGridLimit": "Zobrazeno nejvýše 500 titulů.",
-  "ui.animeFallback": "Alternativa: japonská animace z TMDB"
+  "ui.animeFallback": "Alternativa: japonská animace z TMDB",
+  "ui.catalogPageCount": "{shown} z {total} titulů"
 }

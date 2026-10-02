@@ -5,7 +5,7 @@ import { useT } from "@/lib/contexts/TranslationContext"
 import { usePosterEditor } from "@/lib/contexts/PosterEditorContext"
 import { getRegionDef } from "@/lib/regions"
 import { toSearchResult } from "@/lib/types"
-import { useState, useEffect, useMemo, useRef, useCallback } from "react"
+import { useState, useEffect, useMemo, useRef, useCallback, type ReactNode } from "react"
 import { Modal } from "@/components/ui/Modal"
 import { catalogStatusErrorKey } from "@/lib/catalog-provider-detect"
 import { SimklCard, type SimklCardItem } from "@/components/SimklCard"
@@ -105,52 +105,52 @@ function resolvedTmdbId(item: SimklCardItem): number | null {
   return typeof id === "number" && Number.isSafeInteger(id) && id > 0 ? id : null
 }
 
-/** Filtra la lista completa sulla sezione aperta (film/serie dallo slice preview). */
-function filterSection(full: SimklCardItem[], previewSlice: SimklCardItem[]): SimklCardItem[] {
-  const types = new Set(previewSlice.map((it) => it.media_type || it.mediaType))
-  return full.filter((it) => types.has(it.media_type || it.mediaType))
+interface CatalogPage {
+  items: SimklCardItem[]
+  total: number | null
+  nextOffset: number | null
 }
 
-/** Filtro per sezione esplicita della card; senza `section` degrada allo slice preview. */
-function filterBySection(
-  full: SimklCardItem[],
-  previewSlice: SimklCardItem[] | GridViewItem[],
-  section?: "movie" | "tv",
-): SimklCardItem[] {
-  if (section) return full.filter((it) => (it.media_type || it.mediaType) === section)
-  return filterSection(full, previewSlice as SimklCardItem[])
+interface GridSource {
+  cat: import("@/lib/types").CustomCatalogConfig
+  section: "movie" | "tv"
 }
 
-// Preview leggera per le card custom (la griglia completa arriva su open):
-// N cataloghi × 500 item parsati nel client ad ogni visita erano il collo
-// di bottiglia. Cache di sessione per la lista completa (chiave URL+chiavi).
-const CUSTOM_PREVIEW_LIMIT = 40
-const CUSTOM_FULL_LIMIT = 500
+const CUSTOM_PAGE_SIZE = 30
 const CUSTOM_CACHE_TTL = 5 * 60 * 1000
-const customFullCache = new Map<string, { items: SimklCardItem[]; expires: number }>()
+const customPageCache = new Map<string, { page: CatalogPage; expires: number }>()
 
-function customItemsUrl(url: string, tmdbKey: string, mdblistApiKey: string, limit: number, datasetId?: string): string {
+function customItemsUrl(url: string, tmdbKey: string, mdblistApiKey: string, limit: number, datasetId?: string, skip?: number, section?: "movie" | "tv"): string {
   const params = new URLSearchParams({
     url,
     api_key: tmdbKey || "",
     mdblist_key: mdblistApiKey || "",
     limit: String(limit),
   })
+  if (skip !== undefined) params.set("skip", String(skip))
+  if (section) params.set("media_type", section)
   if (datasetId) params.set("dataset", datasetId)
   return `/api/mdblist/custom?${params.toString()}`
 }
 
-async function fetchCustomItems(url: string, signal?: AbortSignal): Promise<{ items: SimklCardItem[]; total: number | null }> {
+async function fetchCustomItems(url: string, signal?: AbortSignal): Promise<CatalogPage> {
   // userFetch (mai fetch grezzo): sui path /u/<uuid> aggiunge ?u= + token così
   // il server risolve le chiavi salvate nel profilo (con fetch grezzo le
   // copertine restavano vuote in multi-user pur funzionando in locale).
+  const cacheKey = (currentPathUuid() || "") + "|" + url
+  const cached = customPageCache.get(cacheKey)
+  if (cached && cached.expires > Date.now()) return cached.page
   const res = await userFetch(url, { signal })
   const data = await res.json().catch(() => null)
   if (!res.ok || !Array.isArray(data?.items)) throw new Error("ui.catalogsError")
   if (data.status && data.status !== "ok" && data.status !== "empty") {
     throw new Error(catalogStatusErrorKey(data.status, data.provider))
   }
-  return { items: data.items, total: typeof data?.total === "number" ? data.total : null }
+  signal?.throwIfAborted()
+  const page: CatalogPage = { items: data.items, total: typeof data.total === "number" ? data.total : null, nextOffset: typeof data.nextOffset === "number" ? data.nextOffset : null }
+  if (customPageCache.size >= 20) customPageCache.delete(customPageCache.keys().next().value!)
+  customPageCache.set(cacheKey, { page, expires: Date.now() + CUSTOM_CACHE_TTL })
+  return page
 }
 
 function CustomCatalogEntry({
@@ -167,7 +167,7 @@ function CustomCatalogEntry({
   registerRefresh,
 }: {
   cat: import("@/lib/types").CustomCatalogConfig
-  openGrid: (items: GridViewItem[], title: string, notice?: string) => void
+  openGrid: (items: GridViewItem[], title: string, notice?: string, source?: GridSource) => void
   onItemClick: (item: SimklCardItem) => void
   savedKeys: Set<string>
   toggleCustomCatalog: (id: string) => void
@@ -183,29 +183,22 @@ function CustomCatalogEntry({
   const [total, setTotal] = useState<number | null>(null)
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
-  const [expanding, setExpanding] = useState(false)
   const previewControllerRef = useRef<AbortController | null>(null)
-  const fullControllerRef = useRef<AbortController | null>(null)
   const isEnabled = cat.enabled !== false
   const isHomeVisible = !homeDisabledCatalogIds.includes(cat.id)
   const isMixed = cat.type === "mixed"
   const isMovie = cat.type === "movie"
 
-  // Il namespace entra nella chiave: due profili non devono condividere il
-  // full cachato (le chiavi server-side differiscono per utente).
   const namespaceUuid = currentPathUuid()
-  const fullCacheKey = `${namespaceUuid || ""}|${cat.url}|${cat.datasetId || ""}|${tmdbKey || ""}|${mdblistApiKey || ""}`
 
   const loadPreview = useCallback(async (): Promise<boolean> => {
     previewControllerRef.current?.abort()
-    fullControllerRef.current?.abort()
-    setExpanding(false)
     const ctrl = new AbortController()
     previewControllerRef.current = ctrl
     setLoading(true)
     setLoadError(null)
     try {
-      const data = await fetchCustomItems(customItemsUrl(cat.url, tmdbKey, mdblistApiKey, CUSTOM_PREVIEW_LIMIT, cat.datasetId), AbortSignal.any([ctrl.signal, AbortSignal.timeout(30000)]))
+      const data = await fetchCustomItems(customItemsUrl(cat.url, tmdbKey, mdblistApiKey, CUSTOM_PAGE_SIZE, cat.datasetId), AbortSignal.any([ctrl.signal, AbortSignal.timeout(30000)]))
       if (ctrl.signal.aborted) return false
       setItems(data.items)
       setTotal(data.total)
@@ -224,32 +217,11 @@ function CustomCatalogEntry({
     return () => {
       registerRefresh(cat.id, null)
       previewControllerRef.current?.abort()
-      fullControllerRef.current?.abort()
     }
-  }, [cat.id, fullCacheKey, loadPreview, registerRefresh])
+  }, [cat.id, namespaceUuid, loadPreview, registerRefresh])
 
-  const expandAndOpen = async (previewSlice: SimklCardItem[] | GridViewItem[], title: string, section?: "movie" | "tv") => {
-    const cached = customFullCache.get(fullCacheKey)
-    if (cached && cached.expires > Date.now()) {
-      openGrid(toGridItems(filterBySection(cached.items, previewSlice, section)), title, cached.items.length >= CUSTOM_FULL_LIMIT ? "ui.customGridLimit" : undefined)
-      return
-    }
-    fullControllerRef.current?.abort()
-    const ctrl = new AbortController()
-    fullControllerRef.current = ctrl
-    setExpanding(true)
-    try {
-      const { items: full } = await fetchCustomItems(customItemsUrl(cat.url, tmdbKey, mdblistApiKey, CUSTOM_FULL_LIMIT, cat.datasetId), AbortSignal.any([ctrl.signal, AbortSignal.timeout(30000)]))
-      if (ctrl.signal.aborted) return
-      customFullCache.delete(fullCacheKey)
-      if (customFullCache.size >= 20) customFullCache.delete(customFullCache.keys().next().value!)
-      customFullCache.set(fullCacheKey, { items: full, expires: Date.now() + CUSTOM_CACHE_TTL })
-      openGrid(toGridItems(filterBySection(full, previewSlice, section)), title, full.length >= CUSTOM_FULL_LIMIT ? "ui.customGridLimit" : undefined)
-    } catch {
-      if (!ctrl.signal.aborted) openGrid(toGridItems(previewSlice as SimklCardItem[]), title, "ui.customPreviewOnly")
-    } finally {
-      if (!ctrl.signal.aborted) setExpanding(false)
-    }
+  const expandAndOpen = (_preview: GridViewItem[], title: string, section: "movie" | "tv") => {
+    openGrid([], title, undefined, { cat, section })
   }
 
   const movies = items.filter((it) => (it.media_type || it.mediaType) === "movie")
@@ -259,12 +231,6 @@ function CustomCatalogEntry({
     <div className={`relative p-4 rounded-2xl border transition-all duration-200 ${
       isEnabled ? "bg-surface border-white/10 shadow-sm" : "bg-surface/40 border-white/5 opacity-60"
     }`}>
-      {expanding && (
-        <div className="absolute inset-0 z-10 flex items-center justify-center gap-2 rounded-2xl bg-black/50 backdrop-blur-[2px] text-xs text-zinc-300" aria-live="polite">
-          <div className="w-4 h-4 border-2 border-accent-orange/30 border-t-accent-orange rounded-full animate-spin" />
-          {t("ui.customLoadingTitles")}
-        </div>
-      )}
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2">
           <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-semibold uppercase tracking-wider ${
@@ -398,12 +364,35 @@ function CustomCatalogEntry({
   )
 }
 
+function PlatformSection({ slug, selected, loadPlatform, children }: {
+  slug: string
+  selected: boolean
+  loadPlatform: (slug: string) => Promise<boolean>
+  children: ReactNode
+}) {
+  const ref = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (selected) {
+      void loadPlatform(slug)
+      return
+    }
+    if (typeof IntersectionObserver === "undefined") return
+    const observer = new IntersectionObserver(([entry]) => {
+      if (entry.isIntersecting) { void loadPlatform(slug); observer.disconnect() }
+    }, { rootMargin: "100px" })
+    if (ref.current) observer.observe(ref.current)
+    return () => observer.disconnect()
+  }, [slug, selected, loadPlatform])
+  return <div ref={ref} className="mb-6 last:mb-0 min-h-48">{children}</div>
+}
+
 export function CataloghiView() {
   const trending = usePSelector((v) => v.trending)
   const trendingStatus = usePSelector((v) => v.trendingStatus)
   const animeStatus = usePSelector((v) => v.animeStatus)
   const animeSource = usePSelector((v) => v.animeSource)
   const platformErrors = usePSelector((v) => v.platformErrors)
+  const loadPlatform = usePSelector((v) => v.loadPlatform)
   const mappings = usePSelector((v) => v.mappings)
   const navigateToPoster = usePSelector((v) => v.navigateToPoster)
   const STREAMING_PLATFORMS = usePSelector((v) => v.STREAMING_PLATFORMS)
@@ -444,6 +433,13 @@ export function CataloghiView() {
   const [gridItems, setGridItems] = useState<GridViewItem[] | null>(null)
   const [gridNotice, setGridNotice] = useState<string | undefined>()
   const [gridTitle, setGridTitle] = useState("")
+  const [gridSource, setGridSource] = useState<GridSource | null>(null)
+  const [gridTotal, setGridTotal] = useState<number | null>(null)
+  const [gridNextOffset, setGridNextOffset] = useState<number | null>(null)
+  const [gridLoading, setGridLoading] = useState(false)
+  const [gridError, setGridError] = useState<string | null>(null)
+  const gridControllerRef = useRef<AbortController | null>(null)
+  const gridPendingRef = useRef(false)
   const [platformFilter, setPlatformFilter] = useState<string>("all")
   const [isAddCustomOpen, setIsAddCustomOpen] = useState(false)
   const [isManagerOpen, setIsManagerOpen] = useState(false)
@@ -454,11 +450,57 @@ export function CataloghiView() {
     [mappings],
   )
 
-  const openGrid = (items: GridViewItem[], title: string, notice?: string) => {
+  const openGrid = (items: GridViewItem[], title: string, notice?: string, source?: GridSource) => {
+    gridControllerRef.current?.abort()
+    setGridSource(source ?? null)
+    setGridTotal(null)
+    setGridNextOffset(null)
+    setGridError(null)
+    setGridLoading(!!source)
     setGridNotice(notice)
     setGridItems(items)
     setGridTitle(title)
   }
+
+  const loadGridPage = useCallback(async (source: GridSource, skip: number) => {
+    if (gridPendingRef.current) return
+    const ctrl = new AbortController()
+    gridControllerRef.current = ctrl
+    gridPendingRef.current = true
+    setGridLoading(true)
+    setGridError(null)
+    try {
+      const page = await fetchCustomItems(customItemsUrl(source.cat.url, tmdbKey, mdblistApiKey, CUSTOM_PAGE_SIZE, source.cat.datasetId, skip, source.section), AbortSignal.any([ctrl.signal, AbortSignal.timeout(30000)]))
+      if (ctrl.signal.aborted) return
+      const items = toGridItems(page.items)
+      setGridItems(prev => skip === 0 ? items : [...(prev ?? []), ...items])
+      setGridTotal(page.total)
+      setGridNextOffset(page.nextOffset)
+      setGridNotice(page.total !== null && page.total >= 500 ? "ui.customGridLimit" : undefined)
+    } catch (error) {
+      if (!ctrl.signal.aborted) setGridError(error instanceof Error && error.message.startsWith("ui.") ? error.message : "ui.catalogsError")
+    } finally {
+      if (gridControllerRef.current === ctrl) {
+        gridPendingRef.current = false
+        if (!ctrl.signal.aborted) setGridLoading(false)
+      }
+    }
+  }, [tmdbKey, mdblistApiKey])
+
+  useEffect(() => {
+    if (!gridSource) return
+    gridPendingRef.current = false
+    void loadGridPage(gridSource, 0)
+    return () => { gridControllerRef.current?.abort(); gridPendingRef.current = false }
+  }, [gridSource, loadGridPage])
+
+  useEffect(() => {
+    if (gridSource && !customCatalogs.some(cat => cat.id === gridSource.cat.id && cat.url === gridSource.cat.url)) {
+      gridControllerRef.current?.abort()
+      setGridSource(null)
+      setGridItems(null)
+    }
+  }, [customCatalogs, gridSource])
 
   const navigateToItem = (item: SimklCardItem) => {
     const id = resolvedTmdbId(item)
@@ -483,13 +525,17 @@ export function CataloghiView() {
     setRefreshing(true)
     try {
       await refreshLists(async () => {
-        customFullCache.clear()
+        customPageCache.clear()
         const results = await Promise.allSettled(Array.from(customRefreshers.current.values(), (refresh) => refresh()))
         return results.filter((result) => result.status === "rejected" || !result.value).length
       })
     } finally { setRefreshing(false) }
   }
-  const closeGrid = useCallback(() => setGridItems(null), [])
+  const closeGrid = useCallback(() => {
+    gridControllerRef.current?.abort()
+    setGridSource(null)
+    setGridItems(null)
+  }, [])
 
   const SCROLL_KEY = "cataloghi:scroll"
 
@@ -652,20 +698,19 @@ export function CataloghiView() {
       {showJustWatch && <div className="section-divider" />}
 
       {/* Piattaforme streaming — filtrate se attivo un filtro */}
-      {filteredPlatforms.length > 0 && (
+      {hasKey && filteredPlatforms.length > 0 && (
         <>
           <div className="mb-12">
             <h2 className="section-heading text-xl font-bold mb-6">{t("ui.streamingPlatforms")}</h2>
             {filteredPlatforms.map((sp) => {
               const chart = streamingCharts[sp.slug]
-              if (!chart || (chart.movies.length === 0 && chart.tv.length === 0)) return null
               return (
-                <div key={sp.slug} className="mb-6 last:mb-0">
+                <PlatformSection key={sp.slug} slug={sp.slug} selected={platformFilter === sp.slug} loadPlatform={loadPlatform}>
                   <h3 className="text-sm font-semibold text-zinc-300 mb-3 flex items-center gap-2">
                     {sp.icon && <span className="text-base">{sp.icon}</span>}
                     {sp.name}
                   </h3>
-                  <CatalogPair
+                  {chart ? <CatalogPair
                     movies={chart.movies}
                     tv={chart.tv}
                     totalMovies={chart.movies.length}
@@ -677,8 +722,14 @@ export function CataloghiView() {
                     openGrid={openGrid}
                     onItemClick={navigateToItem}
                     savedKeys={savedKeys}
-                  />
-                </div>
+                  /> : <div className="rounded-xl border border-white/5 p-6 text-xs text-muted">
+                    {platformErrors[sp.slug] ? <>
+                      <span>{t("ui.catalogsError")}</span>
+                      <button type="button" onClick={() => { void loadPlatform(sp.slug, true) }} className="btn-ghost ml-3 px-3 py-2">{t("ui.retry")}</button>
+                    </> : t("ui.loadingCatalogs")}
+                  </div>}
+                  {chart && chart.movies.length === 0 && chart.tv.length === 0 && <p className="text-xs text-muted">{t("ui.customNoTitles")}</p>}
+                </PlatformSection>
               )
             })}
           </div>
@@ -782,34 +833,6 @@ export function CataloghiView() {
         </div>
       )}
 
-      {hasKey && !["all", "custom", "justwatch", "anime"].includes(platformFilter) && (() => {
-        const sp = STREAMING_PLATFORMS.find((p) => p.slug === platformFilter)
-        const chart = sp ? streamingCharts[sp.slug] : undefined
-        const hasData = !!chart && (chart.movies.length > 0 || chart.tv.length > 0)
-        if (hasData) return null
-        if (sp && platformErrors[sp.slug]) {
-          return (
-            <div className="flex flex-col items-center justify-center py-24 text-zinc-500 animate-fade-scale-in">
-              <p className="text-sm text-muted mb-4">{t("ui.catalogsError")}</p>
-              <button type="button" onClick={() => { void refreshCatalogs() }} className="btn-ghost px-4 py-2 text-xs">{t("ui.retry")}</button>
-            </div>
-          )
-        }
-        if (!chart) {
-          return (
-            <div className="flex flex-col items-center justify-center py-24 text-zinc-500 animate-fade-scale-in">
-              <p className="text-sm text-muted mb-2">{t("ui.loadingCatalogs")}</p>
-              <div className="w-8 h-8 rounded-full border-2 border-border border-t-accent-orange animate-spin" />
-            </div>
-          )
-        }
-        return (
-          <div className="text-center py-16 animate-fade-scale-in">
-            <p className="text-muted text-sm">{t("ui.customNoTitles")}</p>
-          </div>
-        )
-      })()}
-
       {platformFilter === "custom" && customCatalogs.length === 0 && (
         <div className="text-center py-16 animate-fade-scale-in">
           <p className="text-muted text-sm">{t("ui.customNoTitles")}</p>
@@ -820,13 +843,14 @@ export function CataloghiView() {
             <div className="flex items-center justify-between mb-6">
               <h2 id="catalog-grid-title" className="text-xl font-bold text-zinc-50">{gridTitle}</h2>
               <button type="button"
-                onClick={() => setGridItems(null)}
+                onClick={closeGrid}
                 className="w-9 h-9 flex items-center justify-center rounded-xl bg-surface2 hover:bg-zinc-700 text-muted hover:text-zinc-200 transition-all"
                 aria-label={t("ui.close")}
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
+            {gridSource && gridTotal !== null && <p role="status" className="text-xs text-muted">{t("ui.catalogPageCount").replace("{shown}", String(gridItems?.length ?? 0)).replace("{total}", String(gridTotal))}</p>}
             {gridNotice && <p role="status" className="text-xs text-muted">{t(gridNotice)}</p>}
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 md:gap-4">
               {(gridItems ?? []).map((item, idx) => {
@@ -879,6 +903,13 @@ export function CataloghiView() {
                 )
               })}
             </div>
+            {gridError && <div role="alert" className="flex items-center gap-3 text-xs text-danger">
+              <span>{t(gridError)}</span>
+              <button type="button" disabled={gridLoading} onClick={() => { if (gridSource) void loadGridPage(gridSource, gridNextOffset ?? 0) }} className="btn-ghost px-3 py-2">{t("ui.retry")}</button>
+            </div>}
+            {gridLoading && <p role="status" className="text-sm text-muted">{t("ui.loading")}</p>}
+            {!gridLoading && !gridError && gridSource && gridItems?.length === 0 && <p className="text-sm text-muted">{t("ui.customNoTitles")}</p>}
+            {gridSource && gridNextOffset !== null && !gridError && <button type="button" disabled={gridLoading} onClick={() => { void loadGridPage(gridSource, gridNextOffset) }} className="btn-ghost px-4 py-2 text-sm">{t("ui.showMore")}</button>}
       </Modal>
     </div>
   )

@@ -75,6 +75,7 @@ export const MOCK_CTX: PictoriumCtx = {
   animeSource: null,
   streamingCharts: {},
   platformErrors: {},
+  loadPlatform: async () => true,
   refreshNonce: 0,
   STREAMING_PLATFORMS,
   loadMappings: asyncStubFn,

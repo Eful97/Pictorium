@@ -810,5 +810,6 @@
   "ui.catalogSyncFailed": "حُفظت الكتالوجات محليًا. فشلت المزامنة مع الخادم.",
   "ui.customPreviewOnly": "معاينة جزئية. أعد فتح القائمة لتحميل جميع العناوين.",
   "ui.customGridLimit": "يتم عرض ما يصل إلى 500 عنوان.",
-  "ui.animeFallback": "بديل: رسوم متحركة يابانية من TMDB"
+  "ui.animeFallback": "بديل: رسوم متحركة يابانية من TMDB",
+  "ui.catalogPageCount": "{shown} من {total} عنوانًا"
 }
