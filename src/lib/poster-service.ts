@@ -612,6 +612,8 @@ const NETWORK_FILES_COMBINED: Record<string, string> = {
   dg_cinema: "direzione-generale-cinema-e-audiovisivo-vector-logo.svg",
   dc: "DC_Studios_logo.svg",
   bigtalk: "Big+Talk+Studios+-+Logo+-+Brandmark.webp",
+  batinthesun: "12x16-batinthesun.png",
+  horrorsection: "ths-logo-300_webp.png",
 }
 
 // B4: memo per (networkKey, targetH, fg). Gli SVG in public/networks/ sono

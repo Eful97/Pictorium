@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest"
-import { getNetworkSvgResult, renderNetworkLogoBadge } from "@/lib/network-svgs"
+import { getNetworkSvgResult, renderFirstMatchingNetworkLogoBadgeHybrid, renderNetworkLogoBadge } from "@/lib/network-svgs"
+import { renderNetworkOnlyLargePill } from "@/lib/poster-service"
 
 describe("network-svgs", () => {
   it("matches Netflix network and returns networkKey=netflix", () => {
@@ -302,6 +303,60 @@ describe("network-svgs", () => {
     expect(pngRes!.png).toBeInstanceOf(Buffer)
     expect(pngRes!.w).toBeGreaterThan(0)
     expect(pngRes!.h).toBeGreaterThan(0)
+  })
+
+  it("matches Bat in the Sun (PNG raster, full phrase only)", () => {
+    expect(getNetworkSvgResult("Bat in the Sun", 500)?.networkKey).toBe("batinthesun")
+    expect(getNetworkSvgResult("BAT IN THE SUN", 500)?.networkKey).toBe("batinthesun")
+
+    // Falsi positivi: "bat" da solo o titoli con Bat non devono matchare
+    expect(getNetworkSvgResult("Batman")).toBeNull()
+    expect(getNetworkSvgResult("Bat")).toBeNull()
+    expect(getNetworkSvgResult("Bats")).toBeNull()
+  })
+
+  it("matches The Horror Section (PNG raster, full phrase only)", () => {
+    expect(getNetworkSvgResult("The Horror Section", 500)?.networkKey).toBe("horrorsection")
+    expect(getNetworkSvgResult("THE HORROR SECTION", 500)?.networkKey).toBe("horrorsection")
+
+    // "horror" generico non deve matchare
+    expect(getNetworkSvgResult("Horror")).toBeNull()
+    expect(getNetworkSvgResult("American Horror Story")).toBeNull()
+  })
+
+  it("renders PNG buffers for Bat in the Sun and The Horror Section", async () => {
+    for (const [name, key] of [["Bat in the Sun", "batinthesun"], ["The Horror Section", "horrorsection"]] as const) {
+      const res = await renderNetworkLogoBadge(name, 500)
+      expect(res, `logo for ${key}`).not.toBeNull()
+      expect(res!.networkKey).toBe(key)
+      expect(res!.png).toBeInstanceOf(Buffer)
+      expect(res!.w).toBeGreaterThan(0)
+      expect(res!.h).toBeGreaterThan(0)
+      // Silhouette monocromatica adattiva come gli altri raster (non keepColor)
+      const light = await renderNetworkLogoBadge(name, 500, true)
+      const dark = await renderNetworkLogoBadge(name, 500, false)
+      expect(light!.png.equals(dark!.png), `topLight adapts ${key}`).toBe(false)
+    }
+  })
+
+  it("resolves both PNG logos via the hybrid (SVG-first) path", async () => {
+    for (const [name, key] of [["Bat in the Sun", "batinthesun"], ["The Horror Section", "horrorsection"]] as const) {
+      const res = await renderFirstMatchingNetworkLogoBadgeHybrid([{ name, logoPath: null }], 500)
+      expect(res, `hybrid logo for ${key}`).not.toBeNull()
+      expect(res!.networkKey).toBe(key)
+      expect(res!.matchedName).toBe(name)
+      expect(res!.png).toBeInstanceOf(Buffer)
+    }
+  })
+
+  it("renders pill badges for both PNG logos (NETWORK_FILES_COMBINED)", async () => {
+    for (const key of ["batinthesun", "horrorsection"] as const) {
+      const pill = await renderNetworkOnlyLargePill(key, 500, false)
+      expect(pill, `pill for ${key}`).not.toBeNull()
+      expect(pill!.png).toBeInstanceOf(Buffer)
+      expect(pill!.w).toBeGreaterThan(0)
+      expect(pill!.h).toBeGreaterThan(0)
+    }
   })
 })
 

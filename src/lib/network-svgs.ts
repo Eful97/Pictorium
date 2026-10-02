@@ -99,6 +99,8 @@ const NETWORK_FILES: Record<string, string> = {
   dg_cinema: "direzione-generale-cinema-e-audiovisivo-vector-logo.svg",
   dc: "DC_Studios_logo.svg",
   bigtalk: "Big+Talk+Studios+-+Logo+-+Brandmark.webp",
+  batinthesun: "12x16-batinthesun.png",
+  horrorsection: "ths-logo-300_webp.png",
 }
 
 // Falso positivo NBC giapponese (Jujutsu Kaisen tmdb 95479): network list contiene 25+ regionali tra cui "NBC" (Nagasaki Broadcasting).
@@ -265,6 +267,9 @@ function getNetworkKey(networkName: string): string | null {
   if (lower.includes("skydance")) return "skydance"
   if (lower.includes("studiocanal") || lower.includes("studio canal") || lower.includes("studio-canal")) return "studiocanal"
   if (lower.includes("big talk")) return "bigtalk"
+  // Frasi intere distintive: "bat" da solo o "horror" da solo non devono matchare.
+  if (lower.includes("bat in the sun")) return "batinthesun"
+  if (lower.includes("horror section")) return "horrorsection"
   if (lower.includes("direzione generale") || lower.includes("cinema e audiovisivo") || lower.includes("dg cinema")) return "dg_cinema"
   return null
 }
