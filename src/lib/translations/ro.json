@@ -805,5 +805,10 @@
   "ui.linkModeFollowSub": "Folosește modificările salvate fără a copia din nou linkul",
   "ui.linkModeFixed": "Setări fixe în link",
   "ui.linkModeFixedSub": "Păstrează setările actuale în link",
-  "ui.linkModeAdvanced": "Opțiuni avansate"
+  "ui.linkModeAdvanced": "Opțiuni avansate",
+  "ui.listsPartial": "Liste actualizate parțial; titlurile anterioare sunt păstrate în caz de eroare",
+  "ui.catalogSyncFailed": "Cataloage salvate local. Sincronizarea cu serverul a eșuat.",
+  "ui.customPreviewOnly": "Previzualizare parțială. Redeschide lista pentru a încărca toate titlurile.",
+  "ui.customGridLimit": "Sunt afișate cel mult 500 de titluri.",
+  "ui.animeFallback": "Alternativă: animație japoneză de pe TMDB"
 }

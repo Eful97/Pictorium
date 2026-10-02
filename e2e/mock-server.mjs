@@ -183,6 +183,14 @@ const server = http.createServer(async (req, res) => {
       return json(res, 200, { id: Number(personCreditsMatch[1]), cast, crew })
     }
     // TMDB API
+    if (pathname === "/3/discover/tv") {
+      const shows = [
+        { id: 37854, name: "One Piece", genre_ids: [16], original_language: "ja", poster_path: MOCKED_POSTER_PATH },
+        { id: 999, name: "Japanese Drama", genre_ids: [18], original_language: "ja", poster_path: MOCKED_POSTER_PATH },
+      ]
+      const results = shows.filter(item => !url.searchParams.get("with_genres") || item.genre_ids.includes(Number(url.searchParams.get("with_genres"))))
+      return json(res, 200, { page: 1, total_pages: 1, total_results: results.length, results })
+    }
     if (pathname === "/3/search/multi" || pathname === "/3/search/movie" || pathname === "/3/search/tv") {
       const isTV = pathname === "/3/search/tv"
       return json(res, 200, {

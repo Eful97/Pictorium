@@ -805,5 +805,10 @@
   "ui.linkModeFollowSub": "リンクを再コピーせずに保存した変更を使用",
   "ui.linkModeFixed": "リンク内の固定設定",
   "ui.linkModeFixedSub": "現在の設定をリンクに保持",
-  "ui.linkModeAdvanced": "詳細オプション"
+  "ui.linkModeAdvanced": "詳細オプション",
+  "ui.listsPartial": "リストを一部更新しました。エラー時には以前の作品を保持します",
+  "ui.catalogSyncFailed": "カタログはローカルに保存されました。サーバーとの同期に失敗しました。",
+  "ui.customPreviewOnly": "一部のみのプレビューです。全作品を読み込むにはリストを開き直してください。",
+  "ui.customGridLimit": "最大500作品を表示します。",
+  "ui.animeFallback": "代替：TMDBの日本語アニメーション"
 }

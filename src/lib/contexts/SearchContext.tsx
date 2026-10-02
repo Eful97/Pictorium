@@ -25,10 +25,13 @@ export interface SearchCtx {
   doSearch: (q?: string, page?: number) => Promise<SearchResult[]>
   loadMore: () => Promise<void>
   loadMoreFiltered: (mediaType: "movie" | "tv", targetNew?: number, maxPages?: number) => Promise<number>
+  retryFailed: () => Promise<void>
+  failedPage: number | null
+  hasSearched: boolean
   trending: (SearchResult & { rank: number })[]
   streamingCharts: Record<string, FlixPatrolChart>
   mdblistAnimeList: EnrichedAnimeItem[]
-  refreshLists: () => Promise<void>
+  refreshLists: (refreshCustom?: () => Promise<number>) => Promise<void>
   STREAMING_PLATFORMS: typeof STREAMING_PLATFORMS
 }
 
@@ -64,6 +67,9 @@ export function SearchProvider({
       doSearch: value.doSearch,
       loadMore: value.loadMore,
       loadMoreFiltered: value.loadMoreFiltered,
+      retryFailed: value.retryFailed,
+      failedPage: value.failedPage,
+      hasSearched: value.hasSearched,
       trending: value.trending,
       streamingCharts: value.streamingCharts,
       mdblistAnimeList: value.mdblistAnimeList,
@@ -75,7 +81,8 @@ export function SearchProvider({
       value.results, value.searching, value.error, value.setError,
       value.totalResults, value.totalPages, value.searchPage,
       value.recentSearches, value.removeRecentSearch, value.clearRecentSearches,
-      value.doSearch, value.loadMore, value.loadMoreFiltered,
+      value.doSearch, value.loadMore, value.loadMoreFiltered, value.retryFailed,
+      value.failedPage, value.hasSearched,
       value.trending, value.streamingCharts, value.mdblistAnimeList,
       value.refreshLists, value.STREAMING_PLATFORMS,
     ],

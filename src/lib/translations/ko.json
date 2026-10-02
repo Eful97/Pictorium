@@ -805,5 +805,10 @@
   "ui.linkModeFollowSub": "링크를 다시 복사하지 않고 저장된 변경 사항 사용",
   "ui.linkModeFixed": "링크에 고정된 설정",
   "ui.linkModeFixedSub": "현재 설정을 링크에 유지",
-  "ui.linkModeAdvanced": "고급 옵션"
+  "ui.linkModeAdvanced": "고급 옵션",
+  "ui.listsPartial": "목록이 일부 갱신되었습니다. 오류 시 이전 작품을 유지합니다",
+  "ui.catalogSyncFailed": "카탈로그가 로컬에 저장되었습니다. 서버 동기화에 실패했습니다.",
+  "ui.customPreviewOnly": "일부 미리보기입니다. 모든 작품을 불러오려면 목록을 다시 여세요.",
+  "ui.customGridLimit": "최대 500개 작품을 표시합니다.",
+  "ui.animeFallback": "대체: TMDB 일본 애니메이션"
 }

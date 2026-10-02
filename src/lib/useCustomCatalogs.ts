@@ -6,6 +6,7 @@ import { PICTORIUM_CATALOGS } from "./catalog-definitions"
 import { isProfilelessOnMultiUser, notifyProfilelessOnce, shouldSkipServerSync } from "./guest-guard"
 import { userFetch } from "./http"
 import { USER_UNLOCK_EVENT } from "./user-token"
+import { t } from "./i18n"
 
 export function useCustomCatalogs(
   safeGetItem: (key: string) => string | null,
@@ -17,6 +18,13 @@ export function useCustomCatalogs(
   const [catalogOrder, setCatalogOrderState] = useState<string[]>([])
   const [catalogRenames, setCatalogRenamesState] = useState<Record<string, string>>({})
   const lastSyncRef = useRef<string>("")
+  const pendingRef = useRef("")
+  const [syncAttempt, setSyncAttempt] = useState(0)
+  const [hydrated, setHydrated] = useState(false)
+  // Serializza i PUT in ordine d'arrivo: senza, due modifiche rapide con
+  // risposte ritardate possono chiudere il server con il payload vecchio
+  // (A lenta che atterra dopo B). La catena garantisce A-poi-B.
+  const putChainRef = useRef<Promise<void>>(Promise.resolve())
 
   // Refresh cataloghi dal server (namespace via userFetch su /u/<uuid>).
   // Rilegge i flag "saved" fresh da localStorage e riempie solo ciò che è
@@ -28,8 +36,10 @@ export function useCustomCatalogs(
       if (!raw) return false
       try {
         const parsed = JSON.parse(raw)
-        if (isRecord) return !!parsed && typeof parsed === "object" && !Array.isArray(parsed) && Object.keys(parsed).length > 0
-        return Array.isArray(parsed) && parsed.length > 0
+        // Presenza valida = salvato, anche se vuoto: una lista svuotata di
+        // proposito (`[]`/`{}`) non va ripopolata dai defaults server obsoleti.
+        if (isRecord) return !!parsed && typeof parsed === "object" && !Array.isArray(parsed)
+        return Array.isArray(parsed)
       } catch { return false }
     }
     const savedCustomCats = hasSaved("pictorium_custom_catalogs")
@@ -42,6 +52,13 @@ export function useCustomCatalogs(
       .then((r) => (r.ok ? r.json() : null))
       .then((data) => {
         if (!data) return
+        lastSyncRef.current = JSON.stringify({
+          customCatalogs: data.customCatalogs ?? [],
+          disabledCatalogIds: data.disabledCatalogIds ?? [],
+          homeDisabledCatalogIds: data.homeDisabledCatalogIds ?? [],
+          catalogOrder: data.catalogOrder ?? [],
+          catalogRenames: data.catalogRenames ?? {},
+        })
         if (Array.isArray(data.customCatalogs) && !savedCustomCats) {
           setCustomCatalogsState((prev) => {
             if (prev.length === 0) {
@@ -89,6 +106,7 @@ export function useCustomCatalogs(
         }
       })
       .catch(() => {})
+      .finally(() => setHydrated(true))
   }, [safeGetItem, safeSetItem])
 
   // Initial load: localStorage + fetch /api/defaults
@@ -163,49 +181,47 @@ export function useCustomCatalogs(
 
   // Post-unlock: ricarica i cataloghi del namespace senza refresh pagina.
   useEffect(() => {
-    const onUnlock = () => refreshCatalogsFromServer()
+    const onUnlock = () => { refreshCatalogsFromServer(); setSyncAttempt((n) => n + 1) }
     window.addEventListener(USER_UNLOCK_EVENT, onUnlock)
     return () => window.removeEventListener(USER_UNLOCK_EVENT, onUnlock)
   }, [refreshCatalogsFromServer])
 
-  // Auto-persist: sincronizza su server (/api/defaults) ad ogni modifica
+  // Keep the latest desired payload separate from the last acknowledged PUT.
+  const payloadStr = JSON.stringify({ customCatalogs, disabledCatalogIds, homeDisabledCatalogIds, catalogOrder, catalogRenames })
   useEffect(() => {
-    const payload = {
-      customCatalogs,
-      disabledCatalogIds,
-      homeDisabledCatalogIds,
-      catalogOrder,
-      catalogRenames,
-    }
-    const payloadStr = JSON.stringify(payload)
-    if (lastSyncRef.current === payloadStr) return
-    lastSyncRef.current = payloadStr
-
+    pendingRef.current = payloadStr
+    if (!hydrated || lastSyncRef.current === payloadStr) return
     const timer = setTimeout(() => {
-      // Guest guard: come in useDefaults — ospite senza sessione su istanza
-      // con PIN resta locale, mai sovrascrivere i cataloghi del proprietario.
-      void shouldSkipServerSync().then((skip) => {
-        if (skip) {
-          lastSyncRef.current = ""
-          console.debug("[catalogs] Server sync skipped (guest without session, or no profile)")
-          void isProfilelessOnMultiUser().then((profileless) => {
-            if (profileless) notifyProfilelessOnce()
+      // Queue the guard together with the write so slow auth checks cannot reorder PUTs.
+      putChainRef.current = putChainRef.current.then(async () => {
+        if (pendingRef.current !== payloadStr || lastSyncRef.current === payloadStr) return
+        try {
+          if (await shouldSkipServerSync()) {
+            if (await isProfilelessOnMultiUser()) notifyProfilelessOnce()
+            return
+          }
+          if (pendingRef.current !== payloadStr) return
+          const res = await userFetch("/api/defaults", {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: payloadStr,
+            signal: AbortSignal.timeout(15000),
           })
-          return
+          if (!res.ok) throw new Error("HTTP " + res.status)
+          lastSyncRef.current = payloadStr
+          if (pendingRef.current !== payloadStr) setSyncAttempt((n) => n + 1)
+        } catch (error) {
+          if (pendingRef.current !== payloadStr) return
+          console.warn("[catalogs] Sync failed:", error)
+          const { toast } = await import("sonner")
+          toast.warning(t("ui.catalogSyncFailed"), {
+            action: { label: t("ui.retry"), onClick: () => setSyncAttempt((n) => n + 1) },
+          })
         }
-        userFetch("/api/defaults", {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: payloadStr,
-        }).catch((e) => {
-          lastSyncRef.current = ""
-          console.warn("[catalogs] Auto-sync custom catalogs failed:", e)
-        })
       })
     }, 400)
-
     return () => clearTimeout(timer)
-  }, [customCatalogs, disabledCatalogIds, homeDisabledCatalogIds, catalogOrder, catalogRenames])
+  }, [payloadStr, syncAttempt, hydrated])
 
   const setCustomCatalogs = useCallback((catalogs: CustomCatalogConfig[]) => {
     setCustomCatalogsState(catalogs)
@@ -231,7 +247,9 @@ export function useCustomCatalogs(
 
   const toggleCustomCatalog = useCallback((id: string) => {
     setCustomCatalogsState((prev) => {
-      const next = prev.map((c) => (c.id === id ? { ...c, enabled: !c.enabled } : c))
+      // `enabled` assente = attivo (come in UI/manifest): il primo toggle di
+      // una config legacy deve disabilitare, non consolidare `true`.
+      const next = prev.map((c) => (c.id === id ? { ...c, enabled: !(c.enabled !== false) } : c))
       safeSetItem("pictorium_custom_catalogs", JSON.stringify(next))
       return next
     })

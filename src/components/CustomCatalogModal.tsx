@@ -4,7 +4,7 @@ import React, { useState, useRef, useEffect } from "react"
 import { X, Plus, ListPlus, Film, Tv, Shuffle, Check, AlertCircle } from "lucide-react"
 import { usePSelector } from "@/lib/context"
 import { useT } from "@/lib/contexts/TranslationContext"
-import { detectCatalogProvider } from "@/lib/catalog-provider-detect"
+import { detectCatalogProvider, catalogStatusErrorKey } from "@/lib/catalog-provider-detect"
 import { parseImdbCsv, IMDB_CSV_MAX_BYTES } from "@/lib/imdb-csv"
 import { userFetch } from "@/lib/http"
 import { EmojiPicker } from "@/components/ui"
@@ -168,25 +168,6 @@ export function CustomCatalogModal({ isOpen, onClose }: CustomCatalogModalProps)
 
   // Esito tipizzato del preview server (Fase 5): niente più generico
   // "nessun titolo" quando la causa è nota (privata, 404, rate limit...).
-  const statusError = (status: string | undefined, provider: string | undefined): string => {
-    switch (status) {
-      case "private":
-        return t("ui.customErrPrivate")
-      case "not_found":
-        return t("ui.customErrNotFound")
-      case "rate_limited":
-        return t("ui.customErrRateLimited")
-      case "key_missing":
-        return provider === "tvdb" ? t("ui.customErrTvdbKey") : t("ui.customErrUnavailable")
-      case "unsupported":
-        return t("ui.customErrUnsupported")
-      case "unavailable":
-        return t("ui.customErrUnavailable")
-      default:
-        return t("ui.customNoTitles")
-    }
-  }
-
   const handleTestAndSave = async (e: React.FormEvent) => {
     e.preventDefault()
     setError(null)
@@ -242,7 +223,7 @@ export function CustomCatalogModal({ isOpen, onClose }: CustomCatalogModalProps)
       // nella sezione Cataloghi resterebbe vuota (provider non supportato,
       // chiave mancante o lista inaccessibile).
       if (previewCount === 0) {
-        setError(statusError(previewStatus, previewProvider))
+        setError(t(catalogStatusErrorKey(previewStatus, previewProvider)))
         setLoading(false)
         return
       }

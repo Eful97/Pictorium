@@ -805,5 +805,10 @@
   "ui.linkModeFollowSub": "Använd sparade ändringar utan att kopiera länken igen",
   "ui.linkModeFixed": "Fasta inställningar i länken",
   "ui.linkModeFixedSub": "Behåll de aktuella inställningarna i länken",
-  "ui.linkModeAdvanced": "Avancerade alternativ"
+  "ui.linkModeAdvanced": "Avancerade alternativ",
+  "ui.listsPartial": "Listorna delvis uppdaterade; tidigare titlar behålls vid fel",
+  "ui.catalogSyncFailed": "Kataloger sparade lokalt. Serversynkronisering misslyckades.",
+  "ui.customPreviewOnly": "Delvis förhandsvisning. Öppna listan igen för att ladda alla titlar.",
+  "ui.customGridLimit": "Visar högst 500 titlar.",
+  "ui.animeFallback": "Alternativ: japansk animation från TMDB"
 }

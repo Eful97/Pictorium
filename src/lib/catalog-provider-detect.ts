@@ -26,6 +26,19 @@ export interface ProviderDetectionResult {
   identifier?: string
 }
 
+/** Translation keys shared by the import dialog and saved catalog previews. */
+export function catalogStatusErrorKey(status?: string, provider?: string): string {
+  switch (status) {
+    case "private": return "ui.customErrPrivate"
+    case "not_found": return "ui.customErrNotFound"
+    case "rate_limited": return "ui.customErrRateLimited"
+    case "key_missing": return provider === "tvdb" ? "ui.customErrTvdbKey" : "ui.customErrUnavailable"
+    case "unsupported": return "ui.customErrUnsupported"
+    case "unavailable": return "ui.customErrUnavailable"
+    default: return "ui.customNoTitles"
+  }
+}
+
 /**
  * Riconosce il provider e suggerisce nome e tipo in base all'URL inserito.
  */

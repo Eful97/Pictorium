@@ -805,5 +805,10 @@
   "ui.linkModeFollowSub": "Usa los cambios guardados sin volver a copiar el enlace",
   "ui.linkModeFixed": "Ajustes fijos en el enlace",
   "ui.linkModeFixedSub": "Mantén los ajustes actuales en el enlace",
-  "ui.linkModeAdvanced": "Opciones avanzadas"
+  "ui.linkModeAdvanced": "Opciones avanzadas",
+  "ui.listsPartial": "Listas parcialmente actualizadas; títulos anteriores conservados en caso de error",
+  "ui.catalogSyncFailed": "Catálogos guardados localmente. Falló la sincronización con el servidor.",
+  "ui.customPreviewOnly": "Vista previa parcial. Reabre la lista para cargar todos los títulos.",
+  "ui.customGridLimit": "Se muestran hasta 500 títulos.",
+  "ui.animeFallback": "Alternativa: animación japonesa de TMDB"
 }

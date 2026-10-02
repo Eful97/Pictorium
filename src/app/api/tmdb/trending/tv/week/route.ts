@@ -7,7 +7,7 @@ import { jsonGzip } from "@/lib/json-response"
 
 const log = createLogger("trending-tv-week")
 
-const TMDB_BASE = "https://api.themoviedb.org/3"
+const TMDB_BASE = process.env.TMDB_BASE_URL || "https://api.themoviedb.org/3"
 
 export async function GET(req: NextRequest) {
   const rl = await rateLimit(rateLimitKey(req), "tmdb")
@@ -19,7 +19,7 @@ export async function GET(req: NextRequest) {
   // identici per ogni chiave (la chiave è solo un gate di accesso, come nelle
   // altre route TMDB). Prima l'apiKeyHash generava una cache per utente che
   // nessuna altra richiesta riusava.
-  const cacheKey = `trending:tv:week:${origLang || "all"}`
+  const cacheKey = `trending:tv:week:${origLang || "all"}${origLang === "ja" ? ":animation" : ""}`
 
   const acceptEncoding = req.headers.get("accept-encoding")
   const cached = cacheGet<{ results: unknown[] }>(cacheKey)
@@ -28,14 +28,14 @@ export async function GET(req: NextRequest) {
   try {
     let url: string
     if (origLang) {
-      url = `${TMDB_BASE}/discover/tv?api_key=${encodeURIComponent(apiKey)}&with_original_language=${encodeURIComponent(origLang)}&sort_by=popularity.desc&language=it-IT`
+      url = `${TMDB_BASE}/discover/tv?api_key=${encodeURIComponent(apiKey)}&with_original_language=${encodeURIComponent(origLang)}${origLang === "ja" ? "&with_genres=16" : ""}&sort_by=popularity.desc&language=it-IT`
     } else {
       url = `${TMDB_BASE}/trending/tv/week?api_key=${encodeURIComponent(apiKey)}&language=it-IT`
     }
 
     const res = await fetch(url, { signal: AbortSignal.timeout(15000) })
     if (!res.ok) {
-      return jsonGzip({ results: [] }, 200, { "Cache-Control": "no-store" }, acceptEncoding)
+      return jsonGzip({ error: "Anime fallback is unavailable" }, 502, { "Cache-Control": "no-store" }, acceptEncoding)
     }
 
     const data = await res.json()
@@ -55,6 +55,6 @@ export async function GET(req: NextRequest) {
     return jsonGzip(body, 200, { "Cache-Control": "public, max-age=300, s-maxage=1800" }, acceptEncoding)
   } catch (err) {
     log.error("TV week fetch failed", { error: err instanceof Error ? err.message : String(err) })
-    return jsonGzip({ results: [] }, 200, { "Cache-Control": "no-store" }, acceptEncoding)
+    return jsonGzip({ error: "Anime fallback is unavailable" }, 502, { "Cache-Control": "no-store" }, acceptEncoding)
   }
 }

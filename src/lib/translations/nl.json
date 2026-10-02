@@ -805,5 +805,10 @@
   "ui.linkModeFollowSub": "Gebruik opgeslagen wijzigingen zonder de link opnieuw te kopiëren",
   "ui.linkModeFixed": "Vaste instellingen in de link",
   "ui.linkModeFixedSub": "Behoud de huidige instellingen in de link",
-  "ui.linkModeAdvanced": "Geavanceerde opties"
+  "ui.linkModeAdvanced": "Geavanceerde opties",
+  "ui.listsPartial": "Lijsten deels bijgewerkt; eerdere titels behouden bij fouten",
+  "ui.catalogSyncFailed": "Catalogi lokaal opgeslagen. Serversynchronisatie mislukt.",
+  "ui.customPreviewOnly": "Gedeeltelijk voorbeeld. Heropen de lijst om alle titels te laden.",
+  "ui.customGridLimit": "Maximaal 500 titels uit deze lijst.",
+  "ui.animeFallback": "Alternatief: Japanse animatie van TMDB"
 }

@@ -805,5 +805,10 @@
   "ui.linkModeFollowSub": "שימוש בשינויים שנשמרו בלי להעתיק שוב את הקישור",
   "ui.linkModeFixed": "הגדרות קבועות בקישור",
   "ui.linkModeFixedSub": "שמירת ההגדרות הנוכחיות בקישור",
-  "ui.linkModeAdvanced": "אפשרויות מתקדמות"
+  "ui.linkModeAdvanced": "אפשרויות מתקדמות",
+  "ui.listsPartial": "הרשימות עודכנו חלקית; הכותרים הקודמים נשמרו במקרה של שגיאה",
+  "ui.catalogSyncFailed": "הקטלוגים נשמרו מקומית. הסנכרון עם השרת נכשל.",
+  "ui.customPreviewOnly": "תצוגה מקדימה חלקית. יש לפתוח שוב את הרשימה לטעינת כל הכותרים.",
+  "ui.customGridLimit": "מוצגים עד 500 כותרים.",
+  "ui.animeFallback": "חלופה: אנימציה יפנית מ־TMDB"
 }

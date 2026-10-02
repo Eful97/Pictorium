@@ -25,6 +25,7 @@ export function SearchView() {
   const [loadingMore, setLoadingMore] = useState(false)
   // Filtro tipo media lato client (i risultati sono già in memoria).
   const [typeFilter, setTypeFilter] = useState<"all" | "movie" | "tv">("all")
+  const searchContainerRef = useRef<HTMLDivElement>(null)
   const blurTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   // B3: setQuery debounced (trailing 250ms) — digitare non ri-renderizza la griglia
   // risultati a ogni tasto (prima onChange={s.setQuery} committava al context per
@@ -34,6 +35,14 @@ export function SearchView() {
     if (queryDebounceRef.current) clearTimeout(queryDebounceRef.current)
     queryDebounceRef.current = setTimeout(() => setQuery(q), 250)
   }, [setQuery])
+  // Prima di submit o selezione di un recente il debounce pendente va
+  // cancellato, altrimenti ripristina il testo precedente dopo la scelta.
+  const cancelPendingQuery = useCallback(() => {
+    if (queryDebounceRef.current) {
+      clearTimeout(queryDebounceRef.current)
+      queryDebounceRef.current = null
+    }
+  }, [])
 
   useEffect(() => {
     return () => {
@@ -42,16 +51,22 @@ export function SearchView() {
     }
   }, [])
 
-  // Deep-link ?q=: precompila la ricerca dalla URL (es. /search?q=interstellar)
+  // Deep-link ?q=: precompila la ricerca dalla URL (es. /search?q=interstellar).
+  // Attende la disponibilità della chiave (senza, doSearch torna subito [])
+  // e scatta una sola volta: niente invii duplicati al cambio chiave.
+  const deepLinkFiredRef = useRef(false)
   useEffect(() => {
+    if (!hasKey || deepLinkFiredRef.current) return
     const params = new URLSearchParams(window.location.search)
     const q = params.get("q")?.trim() ?? ""
     if (q.length >= 2) {
+      deepLinkFiredRef.current = true
+      cancelPendingQuery()
       s.setQuery(q)
       s.doSearch(q)
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- solo al mount
-  }, [])
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- solo al deep-link disponibile
+  }, [hasKey])
 
   const showRecent = searchFocused && s.recentSearches.length > 0
 
@@ -83,6 +98,17 @@ export function SearchView() {
     }
   }
 
+  // Retry della pagina fallita (stessa query e pagina): i risultati già
+  // caricati restano, nessuna ripartenza da pagina 1.
+  const handleRetryPage = async () => {
+    setLoadingMore(true)
+    try {
+      await s.retryFailed()
+    } finally {
+      setLoadingMore(false)
+    }
+  }
+
   return (
     <div>
       <div className="max-w-7xl mx-auto px-4 mb-4">
@@ -97,20 +123,24 @@ export function SearchView() {
           {t("ui.homeBtn")}
         </button>
       </div>
-      <div className="max-w-lg mx-auto relative z-[100] isolate mb-6">
+      <div ref={searchContainerRef} className="max-w-lg mx-auto relative z-[100] isolate mb-6" onBlurCapture={() => {
+        if (blurTimerRef.current) clearTimeout(blurTimerRef.current)
+        blurTimerRef.current = setTimeout(() => { if (!searchContainerRef.current?.contains(document.activeElement)) setSearchFocused(false) }, 200)
+      }}>
         <SearchBar
           tmdbKey={tmdbKey}
           hasServerKey={serverHasTmdbKey}
           value={s.query}
           onChange={handleQueryChange}
           onSearch={(q) => {
+            cancelPendingQuery()
             s.setQuery(q)
             s.doSearch(q)
           }}
           large
-          onFocus={() => setSearchFocused(true)}
+          onFocus={() => { if (blurTimerRef.current) clearTimeout(blurTimerRef.current); setSearchFocused(true) }}
           onBlur={() => {
-            blurTimerRef.current = setTimeout(() => setSearchFocused(false), 200)
+            blurTimerRef.current = setTimeout(() => { if (!searchContainerRef.current?.contains(document.activeElement)) setSearchFocused(false) }, 200)
           }}
           error={s.error}
         />
@@ -132,43 +162,19 @@ export function SearchView() {
               </button>
             </div>
             {s.recentSearches.map((term) => (
-              <button
-                type="button"
-                key={term}
-                onMouseDown={(e) => e.preventDefault()}
-                onClick={() => {
-                  s.setQuery(term)
-                  s.doSearch(term)
-                  setSearchFocused(false)
-                }}
-                className="w-full flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-accent-orange/10 text-sm text-zinc-300 hover:text-accent transition-all duration-150 text-left"
-              >
-                <Clock className="w-4 h-4 text-zinc-500 shrink-0" />
-                <span className="flex-1 truncate">{term}</span>
-                <span
-                  role="button"
-                  tabIndex={0}
-                  onMouseDown={(e) => {
-                    e.preventDefault()
-                    e.stopPropagation()
-                  }}
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    s.removeRecentSearch(term)
-                  }}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" || e.key === " ") {
-                      e.preventDefault()
-                      e.stopPropagation()
-                      s.removeRecentSearch(term)
-                    }
-                  }}
-                  aria-label={t("ui.remove")}
-                  className="text-danger hover:text-red-300 transition-all duration-150 text-sm px-2 shrink-0 cursor-pointer"
-                >
+              <div key={term} className="flex items-center rounded-lg hover:bg-accent-orange/10">
+                <button type="button" onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => { cancelPendingQuery(); s.setQuery(term); s.doSearch(term); setSearchFocused(false) }}
+                  className="flex-1 min-w-0 flex items-center gap-2 px-3 py-2 text-sm text-zinc-300 hover:text-accent text-left">
+                  <Clock className="w-4 h-4 text-zinc-500 shrink-0" />
+                  <span className="truncate">{term}</span>
+                </button>
+                <button type="button" onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => s.removeRecentSearch(term)} aria-label={t("ui.remove") + ": " + term}
+                  className="text-danger hover:text-red-300 px-3 py-2 shrink-0">
                   <X className="w-3.5 h-3.5" />
-                </span>
-              </button>
+                </button>
+              </div>
             ))}
           </div>
         )}
@@ -290,7 +296,9 @@ export function SearchView() {
             )
           })}
           </div>
-          {s.searchPage < s.totalPages && (
+        </div>
+      )}
+      {s.searchPage < s.totalPages && (
             <div className="flex flex-col items-center justify-center mt-10 mb-4 gap-2">
               <button
                 type="button"
@@ -315,6 +323,12 @@ export function SearchView() {
                 )}
               </button>
 
+              {s.failedPage != null && s.failedPage > 1 && (
+                <div role="alert" className="flex items-center gap-2 text-xs">
+                  <span className="text-danger">{t("ui.searchError")}</span>
+                  <button type="button" disabled={loadingMore || s.searching} onClick={handleRetryPage} className="text-red-300 px-3 py-1.5">{t("ui.retry")}</button>
+                </div>
+              )}
               {s.totalPages > 1 && (
                 <span className="text-[11px] text-zinc-500 font-mono tracking-wider">
                   {s.searchPage} / {s.totalPages}
@@ -322,8 +336,6 @@ export function SearchView() {
               )}
             </div>
           )}
-        </div>
-      )}
       {s.searchPage > 1 && s.results.length > 0 && (
         <button
           type="button"
@@ -346,7 +358,7 @@ export function SearchView() {
           <p className="text-zinc-500 text-xs max-w-xs mx-auto leading-relaxed">{t("ui.noKeySub")}</p>
         </div>
       )}
-      {s.error && (
+      {s.error && (s.failedPage == null || s.failedPage === 1) && (
         <div className="text-center py-12 animate-fade-scale-in">
           <div className="empty-state-illustration mb-4 border-red-900/40 bg-red-900/15">
             <svg className="w-10 h-10 text-danger" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
@@ -357,10 +369,10 @@ export function SearchView() {
           </div>
           <p className="text-danger text-sm font-medium mb-1">{t("ui.searchError")}</p>
           <p className="text-zinc-500 text-xs mb-4 max-w-xs mx-auto leading-relaxed">{s.error}</p>
-          <button type="button" onClick={() => { s.setError(null); s.doSearch(s.query) }} className="px-5 py-2 rounded-xl text-xs font-semibold bg-red-900/30 border border-red-800/40 text-red-300 hover:bg-red-900/50 hover:text-red-200 active:scale-95 transition-all duration-200 press-scale">{t("ui.retry")}</button>
+          <button type="button" onClick={() => { void s.retryFailed() }} className="px-5 py-2 rounded-xl text-xs font-semibold bg-red-900/30 border border-red-800/40 text-red-300 hover:bg-red-900/50 hover:text-red-200 active:scale-95 transition-all duration-200 press-scale">{t("ui.retry")}</button>
         </div>
       )}
-      {s.results.length === 0 && !s.searching && !showRecent && !s.error && s.query.length >= 2 && hasKey && (
+      {s.hasSearched && s.results.length === 0 && s.searchPage >= s.totalPages && !s.searching && !showRecent && !s.error && s.query.length >= 2 && hasKey && (
         <div className="text-center py-16 animate-fade-scale-in">
           <div className="empty-state-illustration mb-4">
             <svg className="w-10 h-10 text-zinc-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">

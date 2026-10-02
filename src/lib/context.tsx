@@ -133,19 +133,27 @@ export interface PictoriumCtx {
   goHome: () => void
   sourceView: "edit" | "search" | "myposters" | "cataloghi" | null
   navigateToPoster: (item: SearchResult, source?: string) => void
-  refreshLists: () => Promise<void>
+  refreshLists: (refreshCustom?: () => Promise<number>) => Promise<void>
   tmdbKey: string
   setQuery: React.Dispatch<React.SetStateAction<string>>
   doSearch: (q?: string, page?: number) => Promise<SearchResult[]>
   loadMore: () => Promise<void>
   loadMoreFiltered: (mediaType: "movie" | "tv", targetNew?: number, maxPages?: number) => Promise<number>
+  retryFailed: () => Promise<void>
+  failedPage: number | null
+  hasSearched: boolean
   titleOf: (r: SearchResult) => string
   yearOf: (r: SearchResult) => string
   posterUrl: (path: string, size?: string) => string
   trending: (SearchResult & { rank: number })[]
   trendingError: boolean
+  trendingStatus: import("./useTrending").ListStatus
   mdblistAnimeList: EnrichedAnimeItem[]
+  animeStatus: import("./useTrending").ListStatus
+  animeSource: "mdblist" | "tmdb" | null
   streamingCharts: Record<string, import("./types").FlixPatrolChart>
+  platformErrors: Record<string, boolean>
+  refreshNonce: number
   STREAMING_PLATFORMS: typeof STREAMING_PLATFORMS
   loadMappings: () => Promise<void>
   query: string
@@ -1625,9 +1633,9 @@ export function usePictorium(): PictoriumCtx {
     saveConfig, removeMapping, mappingsMap,
     goHome: navigation.goHome, sourceView: navigation.sourceView, navigateToPoster: (item: SearchResult, source?: string) => { navigation.navigateToPoster(item, source); openPosterBrowserRef.current(item) },
     refreshLists: trending.refreshLists,
-    tmdbKey, setQuery: search.setQuery, doSearch: search.doSearch, loadMore: search.loadMore, loadMoreFiltered: search.loadMoreFiltered,
+    tmdbKey, setQuery: search.setQuery, doSearch: search.doSearch, loadMore: search.loadMore, loadMoreFiltered: search.loadMoreFiltered, retryFailed: search.retryFailed, failedPage: search.failedPage, hasSearched: search.hasSearched,
     titleOf, yearOf, posterUrl,
-    trending: trending.trending, trendingError: trending.trendingError, streamingCharts: trending.streamingCharts, mdblistAnimeList: trending.mdblistAnimeList,
+    trending: trending.trending, trendingError: trending.trendingError, trendingStatus: trending.trendingStatus, streamingCharts: trending.streamingCharts, platformErrors: trending.platformErrors, mdblistAnimeList: trending.mdblistAnimeList, animeStatus: trending.animeStatus, animeSource: trending.animeSource, refreshNonce: trending.refreshNonce,
     STREAMING_PLATFORMS, loadMappings,
     query: search.query, results: search.results, searching: search.searching, error: search.error, setError: search.setError, totalResults: search.totalResults, totalPages: search.totalPages, searchPage: search.searchPage, recentSearches: search.recentSearches, mappings,
 
@@ -1667,6 +1675,7 @@ export function usePictorium(): PictoriumCtx {
     trendRank, mdblistMatch, imdbTop250, metaInfo, navigation.previewId,
     selectPoster, selectLogo, saveConfig, removeLogo,
     mappingsMap, tmdbKey, search.query, search.results, search.searching, search.totalResults, search.totalPages, search.searchPage, search.recentSearches, search.clearRecentSearches,
+    search.doSearch, search.loadMore, search.loadMoreFiltered, search.retryFailed, search.failedPage, search.hasSearched, search.error,
     mappings,
     langOpen, settingsOpen, showLangPicker,
     tmdbKeyInput, showKey, copied, mdblistApiKey, tvdbApiKey,
@@ -1675,7 +1684,7 @@ export function usePictorium(): PictoriumCtx {
     currentUserId,
     accentColor, autoAccentColor, setAccentColor,
     topEdgeColor, bottomEdgeColor, autoSaveExcludedPosters, autoSaveExcludedBackdrops, prefetchTitle,
-    trending.trending, trending.trendingError, trending.streamingCharts, trending.mdblistAnimeList,
+    trending.trending, trending.trendingError, trending.trendingStatus, trending.streamingCharts, trending.platformErrors, trending.mdblistAnimeList, trending.animeStatus, trending.animeSource, trending.refreshNonce,
     trending.refreshLists,
     theme, uiAccent, serviceErrors, hasNetflixRank,
     customCatalogs, disabledCatalogIds, homeDisabledCatalogIds, catalogOrder, catalogRenames,

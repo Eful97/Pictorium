@@ -805,5 +805,10 @@
   "ui.linkModeFollowSub": "استخدم التغييرات المحفوظة دون نسخ الرابط مجددًا",
   "ui.linkModeFixed": "إعدادات ثابتة في الرابط",
   "ui.linkModeFixedSub": "احتفظ بالإعدادات الحالية في الرابط",
-  "ui.linkModeAdvanced": "خيارات متقدمة"
+  "ui.linkModeAdvanced": "خيارات متقدمة",
+  "ui.listsPartial": "تم تحديث القوائم جزئيًا؛ تم الاحتفاظ بالعناوين السابقة عند حدوث أخطاء",
+  "ui.catalogSyncFailed": "حُفظت الكتالوجات محليًا. فشلت المزامنة مع الخادم.",
+  "ui.customPreviewOnly": "معاينة جزئية. أعد فتح القائمة لتحميل جميع العناوين.",
+  "ui.customGridLimit": "يتم عرض ما يصل إلى 500 عنوان.",
+  "ui.animeFallback": "بديل: رسوم متحركة يابانية من TMDB"
 }

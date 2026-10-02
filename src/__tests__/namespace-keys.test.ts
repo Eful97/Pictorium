@@ -97,12 +97,14 @@ describe("chiavi namespace sulle route proxy (?u=)", () => {
     expect(outbound[0]).toContain(`api_key=${NS_TMDB_KEY}`)
   })
 
-  it("senza ?u= e senza chiavi: risultati vuoti come prima", async () => {
+  it("senza ?u= e senza chiavi: 401 chiave mancante, nessun upstream (contratto esplicito)", async () => {
     vi.resetModules()
-    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify(tmdbSearchPayload()), { status: 200 })))
+    const spy = vi.fn(async () => new Response(JSON.stringify(tmdbSearchPayload()), { status: 200 }))
+    vi.stubGlobal("fetch", spy)
     const route = await import("@/app/api/tmdb/search/route")
     const res = await route.GET(nextReq("http://x/api/tmdb/search?q=fight+club+xyz"))
-    expect(res.status).toBe(200)
-    expect((await res.json()).results).toEqual([])
+    expect(res.status).toBe(401)
+    expect(await res.json()).toMatchObject({ code: "search_missing_key" })
+    expect(spy).not.toHaveBeenCalled()
   })
 })
