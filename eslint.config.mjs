@@ -52,6 +52,8 @@ const eslintConfig = defineConfig([
     // parti): stesso motivo di .pi/** — vitest li raccoglie come suite del
     // repo e falliscono per dipendenze/env mancanti loro, non nostre.
     ".opencode/**",
+    // Artefatti di audit/documentazione generati localmente
+    "artifacts/**",
   ]),
 ]);
 

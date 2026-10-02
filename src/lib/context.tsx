@@ -641,6 +641,35 @@ export function usePictorium(): PictoriumCtx {
 
   // Appearance state
 
+  // Abort lifecycle of the current title load: starting a replacement load
+  // aborts the previous network work (see loadCurrentItemData), browser
+  // back/forward and view changes abort too, and unmount aborts whatever is
+  // left. Aborting only stops the network — navigation.fetchIdRef stays the
+  // guard that drops late state updates.
+  const loadAbortRef = useRef<AbortController | null>(null)
+  useEffect(() => {
+    const abortOnExit = () => {
+      loadAbortRef.current?.abort()
+      // The guarded finally of a superseded load no longer clears the spinner:
+      // leaving the editor clears it explicitly instead.
+      setLoadingImages(false)
+    }
+    window.addEventListener("popstate", abortOnExit)
+    return () => {
+      window.removeEventListener("popstate", abortOnExit)
+      loadAbortRef.current?.abort()
+    }
+  }, [])
+
+  // Fresh mirrors for async continuations: closures capture render-time values,
+  // but a manual selection made mid-load must not be overwritten by stale reads.
+  const previewPosterRef = useRef(navigation.previewPoster)
+  const selectedLogoRef = useRef(navigation.selectedLogo)
+  useEffect(() => {
+    previewPosterRef.current = navigation.previewPoster
+    selectedLogoRef.current = navigation.selectedLogo
+  }, [navigation.previewPoster, navigation.selectedLogo])
+
   const logoBounds = useMemo(() => {
     if (!navigation.previewPoster || !navigation.selectedLogo) return { minX: -500, maxX: 500, minY: -500, maxY: 500 }
     // Stessi vincoli del server (poster-service): in landscape il canvas è
@@ -1106,7 +1135,17 @@ export function usePictorium(): PictoriumCtx {
   // dettagli + rank + awards + immagini, aggiornando metaInfo (generi/voto/badge),
   // trendRank, mdblistMatch, posters/logos/backdrops e titolo. La guardia
   // fetchIdRef evita che una risposta stale sovrascriva la selezione corrente.
+  // The main path publishes artwork as soon as details+images resolve — rank
+  // and awards enrich afterwards without blocking the editor (see pending).
   async function loadCurrentItemData(item: SearchResult, fetchId: number, sourcesOverride?: string[]) {
+    // A replacement load aborts the previous network work; exiting the editor
+    // or unmounting aborts via the lifecycle effect above. Aborting only stops
+    // the network: every state update below still checks fetchIdRef.
+    loadAbortRef.current?.abort()
+    const controller = new AbortController()
+    loadAbortRef.current = controller
+    const signal = controller.signal
+    const isCurrent = () => navigation.fetchIdRef.current === fetchId && loadAbortRef.current === controller && !signal.aborted
     const itemId = item.id
     const itemType = item.media_type
     const mdblistParam = mdblistApiKey ? "&mdblist_key=" + encodeURIComponent(mdblistApiKey) : ""
@@ -1125,21 +1164,99 @@ export function usePictorium(): PictoriumCtx {
     const defaultImageLangs = `${lang},en,null`
     const imagesUrl = (langs: string) => `/api/tmdb/${itemId}/images?type=${itemType}&languages=${langs}&api_key=${tmdbKey}`
     const emptyLists: ImageLists = { posters: [], logos: [], backdrops: [] }
-    const imagesPromise = http<ImageLists>(imagesUrl(defaultImageLangs), { timeout: 30000, retries: 0 }).catch(() => emptyLists)
-    const [details, rankData, awardData] = await Promise.all([
-      http<{ genres: { id: number; name: string }[]; voteAverage: number; voteCount: number; status: string | null; type: string | null; release_date: string | null; first_air_date: string | null; last_air_date: string | null; next_episode_to_air: { air_date: string; episode_number: number; season_number: number } | null; number_of_seasons: number | null; number_of_episodes: number | null; title: string | null; name: string | null; imdb_id: string | null; wikidata_id?: string | null; networks: { name: string; logo_path: string | null; origin_country?: string }[]; production_companies: { name: string; logo_path: string | null; origin_country?: string }[]; original_language: string; aggregatedRatings?: AggregatedRatings | null }>(detailsUrl, { timeout: 30000 }).catch((e) => { console.error("[pictorium] Details fetch failed:", e); setServiceErrors((prev) => ({ ...prev, tmdb: true })); return { genres: [] as { id: number; name: string }[], voteAverage: 0, voteCount: 0, status: null, type: null, release_date: null, first_air_date: null, last_air_date: null, next_episode_to_air: null, number_of_seasons: null, number_of_episodes: null, title: null, name: null, imdb_id: null, wikidata_id: null, networks: [] as { name: string; logo_path: string | null; origin_country?: string }[], production_companies: [] as { name: string; logo_path: string | null; origin_country?: string }[], original_language: "en", aggregatedRatings: null } }),
-      http<{ rank: number | null }>(`/api/trending/rank?type=${itemType}&id=${itemId}&api_key=${encodeURIComponent(tmdbKey)}&region=${encodeURIComponent(editorCtx.defaultRegion)}&lang=${encodeURIComponent(regionLang)}`, { timeout: 15000 }).catch(() => ({ rank: null })),
-      http<{ awards: string[]; nominations: string[]; studios: string[]; director: string | null; keywords: string[] }>(`/api/awards/${itemType}/${itemId}?api_key=${encodeURIComponent(tmdbKey)}&lang=${encodeURIComponent(lang)}`, { timeout: 15000 }).catch(() => ({ awards: [] as string[], nominations: [] as string[], studios: [] as string[], director: null, keywords: [] as string[] })),
-    ])
+    type AwardPayload = { awards: string[]; nominations: string[]; studios: string[]; director: string | null; keywords: string[] }
+    const noAwards: AwardPayload = { awards: [], nominations: [], studios: [], director: null, keywords: [] }
+    // Optional enrichment (rank + awards) resolves in parallel with the main
+    // path and never blocks it. Results arriving before the base publish are
+    // stashed and merged into it, so an early optional response is never wiped
+    // by the later base publish; results arriving after update only their owned
+    // fields via functional updates, so manual edits and artwork selection
+    // survive. Failures settle to the previous empty fallbacks without
+    // rejecting the artwork path.
+    const pending: { rankSettled: boolean; rank: number | null; awardsSettled: boolean; awards: AwardPayload } = {
+      rankSettled: false, rank: null, awardsSettled: false, awards: noAwards,
+    }
+    let basePublished = false
+    // Studios matched from TMDB networks/companies win over the awards
+    // fallback. The base publish fills this before merging stashed awards;
+    // late awards reuse it so they never overwrite a TMDB match.
+    let tmdbMatchedStudios: string[] = []
+    const applyAwards = (a: AwardPayload) => {
+      if (!isCurrent()) return
+      setMetaInfo((prev) => {
+        if (navigation.fetchIdRef.current !== fetchId || signal.aborted) return prev
+        return {
+          ...prev,
+          awards: a.awards,
+          nominations: a.nominations,
+          studios: tmdbMatchedStudios.length > 0 ? prev.studios : a.studios,
+          director: a.director,
+          keywords: a.keywords,
+        }
+      })
+    }
+    const regionLangForRank = getRegionDef(editorCtx.defaultRegion).lang
+    http<{ rank: number | null }>(`/api/trending/rank?type=${itemType}&id=${itemId}&api_key=${encodeURIComponent(tmdbKey)}&region=${encodeURIComponent(editorCtx.defaultRegion)}&lang=${encodeURIComponent(regionLangForRank)}`, { timeout: 15000, signal }).then(
+      (d) => {
+        if (!isCurrent()) return
+        pending.rank = d?.rank ?? null
+        pending.rankSettled = true
+        if (basePublished) setTrendRank(pending.rank || null)
+      },
+      () => {
+        if (!isCurrent()) return
+        pending.rank = null
+        pending.rankSettled = true
+        if (basePublished) setTrendRank(null)
+      },
+    )
+    http<AwardPayload>(`/api/awards/${itemType}/${itemId}?api_key=${encodeURIComponent(tmdbKey)}&lang=${encodeURIComponent(lang)}`, { timeout: 15000, signal }).then(
+      (d) => {
+        if (!isCurrent()) return
+        pending.awards = { awards: d?.awards || [], nominations: d?.nominations || [], studios: d?.studios || [], director: d?.director || null, keywords: d?.keywords || [] }
+        pending.awardsSettled = true
+        if (basePublished) applyAwards(pending.awards)
+      },
+      () => {
+        if (!isCurrent()) return
+        pending.awards = noAwards
+        pending.awardsSettled = true
+        if (basePublished) applyAwards(noAwards)
+      },
+    )
+    const imagesPromise: Promise<ImageLists | null> = http<ImageLists>(imagesUrl(defaultImageLangs), { timeout: 30000, retries: 0, signal }).catch(() => {
+      // Abort is not an error: drop without the empty fallback so the caller
+      // publishes nothing for a superseded load.
+      if (!isCurrent()) return null
+      return emptyLists
+    })
+    const detailsPromise: Promise<{ genres: { id: number; name: string }[]; voteAverage: number; voteCount: number; status: string | null; type: string | null; release_date: string | null; first_air_date: string | null; last_air_date: string | null; next_episode_to_air: { air_date: string; episode_number: number; season_number: number } | null; number_of_seasons: number | null; number_of_episodes: number | null; title: string | null; name: string | null; imdb_id: string | null; wikidata_id?: string | null; networks: { name: string; logo_path: string | null; origin_country?: string }[]; production_companies: { name: string; logo_path: string | null; origin_country?: string }[]; original_language: string; aggregatedRatings?: AggregatedRatings | null } | null> = http<{ genres: { id: number; name: string }[]; voteAverage: number; voteCount: number; status: string | null; type: string | null; release_date: string | null; first_air_date: string | null; last_air_date: string | null; next_episode_to_air: { air_date: string; episode_number: number; season_number: number } | null; number_of_seasons: number | null; number_of_episodes: number | null; title: string | null; name: string | null; imdb_id: string | null; wikidata_id?: string | null; networks: { name: string; logo_path: string | null; origin_country?: string }[]; production_companies: { name: string; logo_path: string | null; origin_country?: string }[]; original_language: string; aggregatedRatings?: AggregatedRatings | null }>(detailsUrl, { timeout: 30000, signal }).catch((e) => {
+      // Abort is not a service error: no outage flag, no fallback published.
+      if (!isCurrent()) return null
+      console.error("[pictorium] Details fetch failed:", e)
+      setServiceErrors((prev) => ({ ...prev, tmdb: true }))
+      return { genres: [] as { id: number; name: string }[], voteAverage: 0, voteCount: 0, status: null, type: null, release_date: null, first_air_date: null, last_air_date: null, next_episode_to_air: null, number_of_seasons: null, number_of_episodes: null, title: null, name: null, imdb_id: null, wikidata_id: null, networks: [] as { name: string; logo_path: string | null; origin_country?: string }[], production_companies: [] as { name: string; logo_path: string | null; origin_country?: string }[], original_language: "en", aggregatedRatings: null }
+    })
+    // Main path waits only for details+images: rank/awards enrich later.
+    const [details, initialData] = await Promise.all([detailsPromise, imagesPromise])
+    if (!details || !initialData || !isCurrent()) return null
     const origLang = details.original_language
     const imageLangs = origLang && origLang !== lang && origLang !== "en" ? `${defaultImageLangs},${origLang}` : defaultImageLangs
-    let data = await imagesPromise
+    let data = initialData
     if (imageLangs !== defaultImageLangs) {
       // Solo quando la lingua originale aggiunge copertura: refetch e merge.
-      const extra = await http<ImageLists>(imagesUrl(imageLangs), { timeout: 30000, retries: 0 }).catch(() => null)
-      if (extra && navigation.fetchIdRef.current === fetchId) data = mergeImageLists(data, extra)
+      try {
+        const extra = await http<ImageLists>(imagesUrl(imageLangs), { timeout: 30000, retries: 0, signal })
+        if (!isCurrent()) return null
+        data = mergeImageLists(data, extra)
+      } catch {
+        if (!isCurrent()) return null
+        // Retry failure keeps the base-language artwork (previous behavior).
+      }
     }
-    if (navigation.fetchIdRef.current !== fetchId) return null
+    if (!isCurrent()) return null
+    // Single base publish: artwork + details. Already-settled optional results
+    // merge in; pending ones apply later via their functional updates above.
     navigation.setSelected({ ...item, imdb_id: details.imdb_id })
     navigation.setPosters(data.posters || [])
     navigation.setLogos(data.logos || [])
@@ -1147,15 +1264,23 @@ export function usePictorium(): PictoriumCtx {
     if (details.title) navigation.setSelected((prev) => ({ ...prev!, title: details.title! }))
     if (details.name) navigation.setSelected((prev) => ({ ...prev!, name: details.name! }))
     const tmdbNetworks = itemType === "tv" ? (details.networks || []).map((n: { name: string }) => n.name) : (details.production_companies || []).map((c: { name: string }) => c.name)
-    setMetaInfo({ genres: details.genres || [], voteAverage: details.voteAverage || 0, aggregatedRatings: details.aggregatedRatings ?? null, imdb_id: details.imdb_id ?? undefined, wikidata_id: details.wikidata_id ?? undefined, type: details.type ?? undefined, status: details.status ?? undefined, release_date: details.release_date ?? undefined, first_air_date: details.first_air_date ?? undefined, last_air_date: details.last_air_date ?? undefined, next_episode_to_air: details.next_episode_to_air ?? undefined, number_of_seasons: details.number_of_seasons ?? undefined, number_of_episodes: details.number_of_episodes ?? undefined, awards: awardData?.awards || [], nominations: awardData?.nominations || [], studios: matchTMDBStudios(tmdbNetworks).length ? matchTMDBStudios(tmdbNetworks) : (awardData?.studios || []), director: awardData?.director || null, keywords: awardData?.keywords || [], networksDetailed: details.networks || [], productionCompaniesDetailed: details.production_companies || [] })
-    setTrendRank(rankData.rank || null)
+    tmdbMatchedStudios = matchTMDBStudios(tmdbNetworks)
+    const settledAwards = pending.awardsSettled ? pending.awards : noAwards
+    setMetaInfo({ genres: details.genres || [], voteAverage: details.voteAverage || 0, aggregatedRatings: details.aggregatedRatings ?? null, imdb_id: details.imdb_id ?? undefined, wikidata_id: details.wikidata_id ?? undefined, type: details.type ?? undefined, status: details.status ?? undefined, release_date: details.release_date ?? undefined, first_air_date: details.first_air_date ?? undefined, last_air_date: details.last_air_date ?? undefined, next_episode_to_air: details.next_episode_to_air ?? undefined, number_of_seasons: details.number_of_seasons ?? undefined, number_of_episodes: details.number_of_episodes ?? undefined, awards: settledAwards.awards, nominations: settledAwards.nominations, studios: tmdbMatchedStudios.length ? tmdbMatchedStudios : settledAwards.studios, director: settledAwards.director, keywords: settledAwards.keywords, networksDetailed: details.networks || [], productionCompaniesDetailed: details.production_companies || [] })
+    if (pending.rankSettled) setTrendRank(pending.rank || null)
+    // A pending new rank must not leave the previous load's rank visible.
+    else setTrendRank(null)
+    basePublished = true
     const extImdbId = item.imdb_id || details.imdb_id
     if (extImdbId) {
-      http<{ match?: { key: string; rank: number } }>(`/api/mdblist?imdb=${extImdbId}&api_key=${mdblistApiKey}`, { timeout: 15000 }).then((d) => {
-        if (navigation.fetchIdRef.current === fetchId) {
-          setMdblistMatch(d?.match || null)
-        }
-      }).catch((e) => { console.error("[pictorium] MDBList lookup failed:", e) })
+      http<{ match?: { key: string; rank: number } }>(`/api/mdblist?imdb=${extImdbId}&api_key=${mdblistApiKey}`, { timeout: 15000, signal }).then((d) => {
+        if (!isCurrent()) return
+        setMdblistMatch(d?.match || null)
+      }).catch((e) => {
+        // Abort is not an error: silent, no fallback applied to another load.
+        if (!isCurrent()) return
+        console.error("[pictorium] MDBList lookup failed:", e)
+      })
     } else {
       setMdblistMatch(null)
     }
@@ -1163,7 +1288,7 @@ export function usePictorium(): PictoriumCtx {
       const first = data.posters.find((p: TMDBImage) => p.iso_639_1) || data.posters[0]
       navigation.setSelected((prev) => ({ ...prev!, poster_path: first.file_path }))
     }
-    return { details, data, itemId, itemType }
+    return { details, data, itemId, itemType, signal }
   }
 
   // --- Aggiornamento reattivo voto medio quando cambia ratingSources ---
@@ -1183,8 +1308,9 @@ export function usePictorium(): PictoriumCtx {
     const regionLang = getRegionDef(editorCtx.defaultRegion).lang
     const detailsUrl = `/api/tmdb/${itemId}/details?type=${itemType}&language=${regionLang}&api_key=${tmdbKey}${mdblistParam}${rsrcParam}`
     let active = true
-    http<{ voteAverage: number; aggregatedRatings?: AggregatedRatings | null }>(detailsUrl, { timeout: 15000 }).then((d) => {
-      if (!active) return
+    const signal = loadAbortRef.current?.signal
+    http<{ voteAverage: number; aggregatedRatings?: AggregatedRatings | null }>(detailsUrl, { timeout: 15000, signal }).then((d) => {
+      if (!active || signal?.aborted) return
       if (typeof d?.voteAverage === "number" && d.voteAverage > 0) {
         setMetaInfo((prev) => ({
           ...prev,
@@ -1198,20 +1324,159 @@ export function usePictorium(): PictoriumCtx {
     }
   }, [ratingSources]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Default logo globali per formato (Impostazioni · Verticale/Orizzontale):
+  // in landscape vince l'override Orizzontale, altrove il flat. Null =
+  // unset (auto-fit per la scala, 0 per gli offset). Usati all'apertura e
+  // alla scelta logo quando il mapping non congela un valore proprio.
+  const logoScaleDefaultFor = (shape: string): number | null =>
+    (shape === "landscape" ? landscapeDefaults?.logoScale : undefined) ?? defaultLogoScale ?? null
+  const logoOffsetDefault = (shape: string, axis: "x" | "y"): number | null => {
+    const land = shape === "landscape" ? landscapeDefaults : undefined
+    const flat = axis === "x" ? defaultLogoOffsetX : defaultLogoOffsetY
+    return (axis === "x" ? land?.logoOffsetX : land?.logoOffsetY) ?? flat ?? null
+  }
+
+  // Shared initial artwork selection (saved-mapping restore or auto chain),
+  // used by both openPosterBrowser and the language/region refresh: a refresh
+  // that supersedes the open before any poster was picked must still land an
+  // initial poster instead of leaving the editor empty. Mapping, preset,
+  // logoDisabled, backdrop and format rules live here once — callers must not
+  // duplicate them. The refresh passes skipDefaultsSync: rebuilding the whole
+  // editor state from storage on a language switch would wipe in-memory tweaks
+  // and revert a just-changed region (open already synced styles beforehand).
+  const applyLoadedSelection = (data: ImageLists, details: { original_language: string }, item: SearchResult, skipDefaultsSync = false) => {
+    const itemType = item.media_type
+    const itemId = item.id
+    const existing = mappingsMap.get(`${itemType}:${itemId}`)
+    if (existing) {
+      // Base custom salvata: la preview parte dal tile custom (highlight e
+      // preview coerenti), non dal riferimento TMDB di fallback.
+      const customFile = existing.customPosterUrl && isCustomPosterUrl(existing.customPosterUrl)
+        ? existing.customPosterUrl
+        : null
+      const previewFilePath = customFile ?? existing.posterPath
+      const previewLang = customFile ? null : existing.language
+      const foundPoster = !customFile ? (data.posters || []).find((p: TMDBImage) => p.file_path === existing.posterPath) : undefined
+      navigation.setPreviewPoster(foundPoster ? { file_path: foundPoster.file_path, iso_639_1: foundPoster.iso_639_1, vote_average: 0, width: foundPoster.width, height: foundPoster.height } : { file_path: previewFilePath, iso_639_1: previewLang, vote_average: 0, width: 0, height: 0 })
+      let foundLogo: TMDBImage | undefined
+      if (existing.logoPath) {
+        foundLogo = (data.logos || []).find((l: TMDBImage) => l.file_path === existing.logoPath)
+        navigation.setSelectedLogo(foundLogo ? { file_path: foundLogo.file_path, iso_639_1: existing.language, vote_average: 0, width: foundLogo.width, height: foundLogo.height } : { file_path: existing.logoPath, iso_639_1: existing.language, vote_average: 0, width: 0, height: 0 })
+      } else if (!existing.logoDisabled) {
+        const autoLogo = autoLogoSelection(data.logos || [], lang, details.original_language, `${itemType}/${itemId}`)
+        if (autoLogo) {
+          navigation.setSelectedLogo({ file_path: autoLogo.file_path, iso_639_1: autoLogo.iso_639_1, vote_average: 0, width: autoLogo.width, height: autoLogo.height })
+          // Scala logo: default globale per formato > auto-fit per aspect.
+          const scale = logoScaleDefaultFor(existing.posterShape ?? defaultPosterShape) ?? logoDefaultScale(autoLogo)
+          if (scale !== null) setLogoScale(scale)
+        }
+      }
+      setLogoScale(effectiveMappingForShape(existing, existing.posterShape ?? defaultPosterShape)?.logoScale ?? logoScaleDefaultFor(existing.posterShape ?? defaultPosterShape) ?? 75)
+      if (existing.backdropPath && data.backdrops) {
+        const foundBackdrop = data.backdrops.find((b: TMDBImage) => b.file_path === existing.backdropPath)
+        setSelectedBackdrop(foundBackdrop || { file_path: existing.backdropPath, iso_639_1: null, vote_average: 0, width: 0, height: 0 })
+      }
+      setNetworkLogo(existing.networkLogo ?? defaultNetworkLogo)
+      setNetworkLogoPosition(existing.networkLogoPosition ?? defaultNetworkLogoPosition)
+      setEpisodeGroupId(existing.episodeGroupId ?? null)
+    } else {
+      setLogoDisabled(false)
+      setNetworkLogo(defaultNetworkLogo)
+      setNetworkLogoPosition(defaultNetworkLogoPosition)
+      setEpisodeGroupId(null)
+      const clean = data.posters?.find((p: TMDBImage) => p.iso_639_1 === null)
+      const langPoster = data.posters?.find((p: TMDBImage) => p.iso_639_1 === lang)
+      const firstPoster = data.posters?.[0]
+      // Con "disattiva clean" si salta il ramo clean+logo e si usa la catena
+      // lingua -> en -> originale -> primo non-clean (badge invariati, niente
+      // logo sopra in portrait). La scelta manuale di un clean resta possibile.
+      const firstNonClean = defaultDisableCleanPosters
+        ? data.posters?.find((p: TMDBImage) => p.iso_639_1 !== null)
+        : undefined
+      let chosenPoster: TMDBImage | null = null
+      if (clean && !defaultDisableCleanPosters) {
+        const autoLogo = autoLogoSelection(data.logos || [], lang, details.original_language, `${itemType}/${itemId}`)
+        if (autoLogo) {
+          chosenPoster = clean
+          navigation.setPreviewPoster({ file_path: clean.file_path, iso_639_1: null, vote_average: 0, width: 0, height: 0 })
+          navigation.setSelectedLogo({ file_path: autoLogo.file_path, iso_639_1: autoLogo.iso_639_1, vote_average: 0, width: autoLogo.width, height: autoLogo.height })
+          // Scala logo: default globale per formato > auto-fit per aspect.
+          const scale = logoScaleDefaultFor(defaultPosterShape) ?? logoDefaultScale(autoLogo)
+          if (scale !== null) setLogoScale(scale)
+        } else {
+          const enPoster = data.posters?.find((p: TMDBImage) => p.iso_639_1 === "en")
+          const origPoster = details.original_language ? data.posters?.find((p: TMDBImage) => p.iso_639_1 === details.original_language) : undefined
+          const fallbackPoster = langPoster || enPoster || origPoster || firstNonClean || firstPoster
+          if (fallbackPoster) {
+            chosenPoster = fallbackPoster
+            navigation.setPreviewPoster({ file_path: fallbackPoster.file_path, iso_639_1: fallbackPoster.iso_639_1, vote_average: 0, width: 0, height: 0 })
+          }
+        }
+      } else if (langPoster) {
+        chosenPoster = langPoster
+        navigation.setPreviewPoster({ file_path: langPoster.file_path, iso_639_1: lang, vote_average: 0, width: 0, height: 0 })
+      } else {
+        const origPoster = details.original_language ? data.posters?.find((p: TMDBImage) => p.iso_639_1 === details.original_language) : undefined
+        const fallbackPoster = origPoster || firstNonClean || firstPoster
+        if (fallbackPoster) {
+          chosenPoster = fallbackPoster
+          navigation.setPreviewPoster({ file_path: fallbackPoster.file_path, iso_639_1: fallbackPoster.iso_639_1, vote_average: 0, width: 0, height: 0 })
+        }
+      }
+      // Solo landscape: senza poster clean (o con clean disattivati) il logo
+      // si auto-seleziona comunque (la base è il backdrop, senza testo). In
+      // portrait invariato: niente auto-logo senza clean.
+      if ((!clean || defaultDisableCleanPosters) && defaultPosterShape === "landscape" && (data.logos?.length ?? 0) > 0) {
+        const autoLogo = autoLogoSelection(data.logos || [], lang, details.original_language, `${itemType}/${itemId}`)
+        if (autoLogo) {
+          navigation.setSelectedLogo({ file_path: autoLogo.file_path, iso_639_1: autoLogo.iso_639_1, vote_average: 0, width: autoLogo.width, height: autoLogo.height })
+          // Scala logo: default globale per formato > auto-fit per aspect.
+          const landscapeLogoScale = logoScaleDefaultFor(defaultPosterShape) ?? logoDefaultScale(autoLogo)
+          if (landscapeLogoScale !== null) setLogoScale(landscapeLogoScale)
+        }
+      }
+      if (!skipDefaultsSync) loadDefaultsToState()
+      if (chosenPoster) {
+        // Default personalizzati (es. preset Colore) restano assoluti;
+        // solo il legacy Naturale si ricalibra per tipo poster.
+        setGradientHeight(defaultHeightForPoster(defaultGradientHeight, chosenPoster))
+        setBlurFade(defaultFadeForPoster(defaultBlurFade, chosenPoster))
+      }
+    }
+  }
+
   // --- Poster image refresh ---
+  const loadLocaleRef = useRef({ lang, region: editorCtx.defaultRegion })
   useEffect(() => {
+    const localeChanged = loadLocaleRef.current.lang !== lang || loadLocaleRef.current.region !== editorCtx.defaultRegion
+    loadLocaleRef.current = { lang, region: editorCtx.defaultRegion }
+    if (navigation.view !== "edit") {
+      loadAbortRef.current?.abort()
+      setLoadingImages(false)
+      return
+    }
+    // Resume an interrupted load on return, but do not replace the fresh load
+    // already started by openPosterBrowser when opening from another view.
+    if (!localeChanged && !loadAbortRef.current?.signal.aborted) return
     if (!navigation.selected || (!tmdbKey && !serverHasTmdbKey)) return
     const item = navigation.selected
     const fetchId = navigation.incrementFetchId()
+    setLoadingImages(true)
     // M16: riusa loadCurrentItemData così al cambio lingua si ricaricano anche
     // dettagli/genere/voto/badge, non solo le immagini.
     loadCurrentItemData(item, fetchId).then((loaded) => {
       if (!loaded) return
+      if (navigation.fetchIdRef.current !== fetchId || loaded.signal.aborted) return
       const { data, details } = loaded
-      if (navigation.previewPoster) {
-        const match = (data.posters || []).find((p: TMDBImage) => p.file_path === navigation.previewPoster!.file_path)
+      if (!previewPosterRef.current) {
+        // The open was superseded before picking: same initial selection
+        // (without re-syncing defaults from storage: styles are already set).
+        applyLoadedSelection(data, details, item, true)
+      } else {
+        const currentPoster = previewPosterRef.current
+        const match = (data.posters || []).find((p: TMDBImage) => p.file_path === currentPoster.file_path)
         if (!match) {
-          const oldPoster = navigation.previewPoster
+          const oldPoster = previewPosterRef.current
           // Stessa regola del cambio manuale: preset/tweak sopravvivono,
           // solo lo stato pristine si ricalibra sul nuovo tipo.
           const applyFor = (next: TMDBImage) => {
@@ -1240,40 +1505,42 @@ export function usePictorium(): PictoriumCtx {
               applyFor(clean)
             } else {
               const enPoster = data.posters?.find((p: TMDBImage) => p.iso_639_1 === "en")
-              const nextPoster = langPoster || enPoster || firstPoster || navigation.previewPoster
+              const nextPoster = langPoster || enPoster || firstPoster || currentPoster
               navigation.setPreviewPoster(nextPoster)
               applyFor(nextPoster)
             }
           } else {
-            const nextPoster = langPoster || firstNonClean || firstPoster || navigation.previewPoster
+            const nextPoster = langPoster || firstNonClean || firstPoster || currentPoster
             navigation.setPreviewPoster(nextPoster)
             applyFor(nextPoster)
           }
         }
       }
-      if (navigation.previewPoster?.iso_639_1 === null && navigation.selectedLogo) {
-        const match = (data.logos || []).find((l: TMDBImage) => l.file_path === navigation.selectedLogo!.file_path)
+      const livePoster = previewPosterRef.current
+      const liveLogo = selectedLogoRef.current
+      if (livePoster?.iso_639_1 === null && liveLogo) {
+        const match = (data.logos || []).find((l: TMDBImage) => l.file_path === liveLogo.file_path)
         if (!match) {
           const autoLogo = selectBestLogo(data.logos || [], lang, details.original_language)
-          navigation.setSelectedLogo(autoLogo || navigation.selectedLogo)
+          navigation.setSelectedLogo(autoLogo || liveLogo)
         }
       }
-    }).catch((e) => { console.error("[pictorium] Poster image refresh failed:", e) })
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- intentionally only on lang / defaultRegion change; others set inside
-  }, [lang, editorCtx.defaultRegion])
+    }).catch((e) => {
+      // A superseded or unmounted load rejects silently: never log or touch
+      // state for it (unmount aborts without bumping fetchId, so the signal
+      // check below is load-bearing there).
+      if (navigation.fetchIdRef.current !== fetchId || loadAbortRef.current?.signal.aborted) return
+      console.error("[pictorium] Poster image refresh failed:", e)
+    }).finally(() => {
+      // Clear the spinner only for the current, non-aborted load: a superseded
+      // load must not switch off the new title's spinner, and an unmounted
+      // load must not setState at all.
+      if (navigation.fetchIdRef.current === fetchId && loadAbortRef.current?.signal.aborted !== true) setLoadingImages(false)
+    })
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- refresh on locale change or return to editor; other state is set inside
+  }, [lang, editorCtx.defaultRegion, navigation.view])
 
   const openPosterBrowser = async (item: SearchResult) => {
-    // Default logo globali per formato (Impostazioni · Verticale/Orizzontale):
-    // in landscape vince l'override Orizzontale, altrove il flat. Null =
-    // unset (auto-fit per la scala, 0 per gli offset). Usati all'apertura e
-    // alla scelta logo quando il mapping non congela un valore proprio.
-    const logoScaleDefaultFor = (shape: string): number | null =>
-      (shape === "landscape" ? landscapeDefaults?.logoScale : undefined) ?? defaultLogoScale ?? null
-    const logoOffsetDefault = (shape: string, axis: "x" | "y"): number | null => {
-      const land = shape === "landscape" ? landscapeDefaults : undefined
-      const flat = axis === "x" ? defaultLogoOffsetX : defaultLogoOffsetY
-      return (axis === "x" ? land?.logoOffsetX : land?.logoOffsetY) ?? flat ?? null
-    }
     const itemId = item.id
     const itemType = item.media_type
     const fetchId = navigation.incrementFetchId()
@@ -1452,105 +1719,13 @@ export function usePictorium(): PictoriumCtx {
     try {
       const loaded = await loadCurrentItemData(item, fetchId, nextSources)
       if (!loaded) return
+      if (navigation.fetchIdRef.current !== fetchId || loaded.signal.aborted) return
       const { details, data } = loaded
-      const existing = mappingsMap.get(`${itemType}:${itemId}`)
-      if (existing) {
-        // Base custom salvata: la preview parte dal tile custom (highlight e
-        // preview coerenti), non dal riferimento TMDB di fallback.
-        const customFile = existing.customPosterUrl && isCustomPosterUrl(existing.customPosterUrl)
-          ? existing.customPosterUrl
-          : null
-        const previewFilePath = customFile ?? existing.posterPath
-        const previewLang = customFile ? null : existing.language
-        const foundPoster = !customFile ? (data.posters || []).find((p: TMDBImage) => p.file_path === existing.posterPath) : undefined
-        navigation.setPreviewPoster(foundPoster ? { file_path: foundPoster.file_path, iso_639_1: foundPoster.iso_639_1, vote_average: 0, width: foundPoster.width, height: foundPoster.height } : { file_path: previewFilePath, iso_639_1: previewLang, vote_average: 0, width: 0, height: 0 })
-        let foundLogo: TMDBImage | undefined
-        if (existing.logoPath) {
-          foundLogo = (data.logos || []).find((l: TMDBImage) => l.file_path === existing.logoPath)
-          navigation.setSelectedLogo(foundLogo ? { file_path: foundLogo.file_path, iso_639_1: existing.language, vote_average: 0, width: foundLogo.width, height: foundLogo.height } : { file_path: existing.logoPath, iso_639_1: existing.language, vote_average: 0, width: 0, height: 0 })
-        } else if (!existing.logoDisabled) {
-          const autoLogo = autoLogoSelection(data.logos || [], lang, details.original_language, `${itemType}/${itemId}`)
-          if (autoLogo) {
-            navigation.setSelectedLogo({ file_path: autoLogo.file_path, iso_639_1: autoLogo.iso_639_1, vote_average: 0, width: autoLogo.width, height: autoLogo.height })
-            // Scala logo: default globale per formato > auto-fit per aspect.
-            const scale = logoScaleDefaultFor(existing.posterShape ?? defaultPosterShape) ?? logoDefaultScale(autoLogo)
-            if (scale !== null) setLogoScale(scale)
-          }
-        }
-        setLogoScale(effectiveMappingForShape(existing, existing.posterShape ?? defaultPosterShape)?.logoScale ?? logoScaleDefaultFor(existing.posterShape ?? defaultPosterShape) ?? 75)
-        if (existing.backdropPath && data.backdrops) {
-          const foundBackdrop = data.backdrops.find((b: TMDBImage) => b.file_path === existing.backdropPath)
-          setSelectedBackdrop(foundBackdrop || { file_path: existing.backdropPath, iso_639_1: null, vote_average: 0, width: 0, height: 0 })
-        }
-        setNetworkLogo(existing.networkLogo ?? defaultNetworkLogo)
-        setNetworkLogoPosition(existing.networkLogoPosition ?? defaultNetworkLogoPosition)
-        setEpisodeGroupId(existing.episodeGroupId ?? null)
-      } else {
-        setLogoDisabled(false)
-        setNetworkLogo(defaultNetworkLogo)
-        setNetworkLogoPosition(defaultNetworkLogoPosition)
-        setEpisodeGroupId(null)
-        const clean = data.posters?.find((p: TMDBImage) => p.iso_639_1 === null)
-        const langPoster = data.posters?.find((p: TMDBImage) => p.iso_639_1 === lang)
-        const firstPoster = data.posters?.[0]
-        // Con "disattiva clean" si salta il ramo clean+logo e si usa la catena
-        // lingua -> en -> originale -> primo non-clean (badge invariati, niente
-        // logo sopra in portrait). La scelta manuale di un clean resta possibile.
-        const firstNonClean = defaultDisableCleanPosters
-          ? data.posters?.find((p: TMDBImage) => p.iso_639_1 !== null)
-          : undefined
-        let chosenPoster: TMDBImage | null = null
-        if (clean && !defaultDisableCleanPosters) {
-          const autoLogo = autoLogoSelection(data.logos || [], lang, details.original_language, `${itemType}/${itemId}`)
-          if (autoLogo) {
-            chosenPoster = clean
-            navigation.setPreviewPoster({ file_path: clean.file_path, iso_639_1: null, vote_average: 0, width: 0, height: 0 })
-            navigation.setSelectedLogo({ file_path: autoLogo.file_path, iso_639_1: autoLogo.iso_639_1, vote_average: 0, width: autoLogo.width, height: autoLogo.height })
-            // Scala logo: default globale per formato > auto-fit per aspect.
-            const scale = logoScaleDefaultFor(defaultPosterShape) ?? logoDefaultScale(autoLogo)
-            if (scale !== null) setLogoScale(scale)
-          } else {
-            const enPoster = data.posters?.find((p: TMDBImage) => p.iso_639_1 === "en")
-            const origPoster = details.original_language ? data.posters?.find((p: TMDBImage) => p.iso_639_1 === details.original_language) : undefined
-            const fallbackPoster = langPoster || enPoster || origPoster || firstNonClean || firstPoster
-            if (fallbackPoster) {
-              chosenPoster = fallbackPoster
-              navigation.setPreviewPoster({ file_path: fallbackPoster.file_path, iso_639_1: fallbackPoster.iso_639_1, vote_average: 0, width: 0, height: 0 })
-            }
-          }
-        } else if (langPoster) {
-          chosenPoster = langPoster
-          navigation.setPreviewPoster({ file_path: langPoster.file_path, iso_639_1: lang, vote_average: 0, width: 0, height: 0 })
-        } else {
-          const origPoster = details.original_language ? data.posters?.find((p: TMDBImage) => p.iso_639_1 === details.original_language) : undefined
-          const fallbackPoster = origPoster || firstNonClean || firstPoster
-          if (fallbackPoster) {
-            chosenPoster = fallbackPoster
-            navigation.setPreviewPoster({ file_path: fallbackPoster.file_path, iso_639_1: fallbackPoster.iso_639_1, vote_average: 0, width: 0, height: 0 })
-          }
-        }
-        // Solo landscape: senza poster clean (o con clean disattivati) il logo
-        // si auto-seleziona comunque (la base è il backdrop, senza testo). In
-        // portrait invariato: niente auto-logo senza clean.
-        if ((!clean || defaultDisableCleanPosters) && defaultPosterShape === "landscape" && (data.logos?.length ?? 0) > 0) {
-          const autoLogo = autoLogoSelection(data.logos || [], lang, details.original_language, `${itemType}/${itemId}`)
-          if (autoLogo) {
-            navigation.setSelectedLogo({ file_path: autoLogo.file_path, iso_639_1: autoLogo.iso_639_1, vote_average: 0, width: autoLogo.width, height: autoLogo.height })
-            // Scala logo: default globale per formato > auto-fit per aspect.
-            const landscapeLogoScale = logoScaleDefaultFor(defaultPosterShape) ?? logoDefaultScale(autoLogo)
-            if (landscapeLogoScale !== null) setLogoScale(landscapeLogoScale)
-          }
-        }
-        loadDefaultsToState()
-        if (chosenPoster) {
-          // Default personalizzati (es. preset Colore) restano assoluti;
-          // solo il legacy Naturale si ricalibra per tipo poster.
-          setGradientHeight(defaultHeightForPoster(defaultGradientHeight, chosenPoster))
-          setBlurFade(defaultFadeForPoster(defaultBlurFade, chosenPoster))
-        }
-      }
+      applyLoadedSelection(data, details, item)
     } finally {
-      setLoadingImages(false)
+      // A superseded load must not switch off the new title's spinner, and an
+      // unmounted load (aborted without a fetchId bump) must not setState.
+      if (navigation.fetchIdRef.current === fetchId && loadAbortRef.current?.signal.aborted !== true) setLoadingImages(false)
     }
   }
   const openPosterBrowserRef = useRef(openPosterBrowser)
@@ -1611,6 +1786,19 @@ export function usePictorium(): PictoriumCtx {
   // usePrefetchTitle.ts (stesse deps, stessa identità del callback).
   const prefetchTitle = usePrefetchTitle({ tmdbKey, serverHasTmdbKey, lang, defaultRegion: editorCtx.defaultRegion })
 
+  // Leaving the editor cancels the in-flight title load and invalidates it, so
+  // late responses cannot repopulate the cleared state. The navigation methods
+  // below are stable callbacks, hence this wrapper is stable too.
+  const navIncrementFetchId = navigation.incrementFetchId
+  const navGoHome = navigation.goHome
+  const goHomeAbort = useCallback(() => {
+    loadAbortRef.current?.abort()
+    navIncrementFetchId()
+    // The guarded finally of the cancelled load no longer clears the spinner.
+    setLoadingImages(false)
+    navGoHome()
+  }, [navIncrementFetchId, navGoHome])
+
   return useMemo(() => ({
     selected: navigation.selected, setSelected: navigation.setSelected,
     view: navigation.view, setView: navigation.setView as React.Dispatch<React.SetStateAction<ViewType>>,
@@ -1632,7 +1820,7 @@ export function usePictorium(): PictoriumCtx {
     metaInfo,
     previewId: navigation.previewId, setPreviewId: navigation.setPreviewId,
     saveConfig, removeMapping, mappingsMap,
-    goHome: navigation.goHome, sourceView: navigation.sourceView, navigateToPoster: (item: SearchResult, source?: string) => { navigation.navigateToPoster(item, source); openPosterBrowserRef.current(item) },
+    goHome: goHomeAbort, sourceView: navigation.sourceView, navigateToPoster: (item: SearchResult, source?: string) => { navigation.navigateToPoster(item, source); openPosterBrowserRef.current(item) },
     refreshLists: trending.refreshLists, loadPlatform: trending.loadPlatform,
     tmdbKey, setQuery: search.setQuery, doSearch: search.doSearch, loadMore: search.loadMore, loadMoreFiltered: search.loadMoreFiltered, retryFailed: search.retryFailed, failedPage: search.failedPage, hasSearched: search.hasSearched,
     titleOf, yearOf, posterUrl,
@@ -1674,7 +1862,7 @@ export function usePictorium(): PictoriumCtx {
     navigation.logos, posterActivePath, previewUrl, stremioPreview, stremioPreviewUrl, urlPattern, lang,
     openSections, posterScrollInfo, logoBounds,
     trendRank, mdblistMatch, imdbTop250, metaInfo, navigation.previewId,
-    selectPoster, selectLogo, saveConfig, removeLogo,
+    selectPoster, selectLogo, saveConfig, removeLogo, goHomeAbort,
     mappingsMap, tmdbKey, search.query, search.results, search.searching, search.totalResults, search.totalPages, search.searchPage, search.recentSearches, search.clearRecentSearches,
     search.doSearch, search.loadMore, search.loadMoreFiltered, search.retryFailed, search.failedPage, search.hasSearched, search.error,
     mappings,

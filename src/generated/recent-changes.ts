@@ -11,6 +11,10 @@ export interface RecentChange {
 }
 
 export const RECENT_CHANGES: RecentChange[] = [
+  { type: "fix", text: "Improve settings layout and keyboard access", sha: "86251af", date: "2026-10-02" },
+  { type: "perf", text: "Load catalogs and streaming on demand", sha: "f231765", date: "2026-10-02" },
+  { type: "fix", text: "Make catalog updates and search reliable", sha: "b19fbc2", date: "2026-10-02" },
+  { type: "fix", text: "Keep AIO and Custom posters up to date", sha: "e9b59ff", date: "2026-10-02" },
   { type: "feature", text: "Add Bat in the Sun and Horror Section logos", sha: "f19c234", date: "2026-10-02" },
   { type: "feature", text: "Automatically choose portrait or landscape posters in Nuvio", sha: "868fa56", date: "2026-10-02" },
 ]

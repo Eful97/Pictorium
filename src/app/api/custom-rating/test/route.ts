@@ -9,7 +9,7 @@ import { createLogger } from "@/lib/logger"
 const log = createLogger("custom-rating-test")
 
 /** IMDb ID campione fisso per il bottone "Test provider" (nessun input client). */
-export const CUSTOM_RATING_TEST_IMDB_ID = "tt1375666"
+const CUSTOM_RATING_TEST_IMDB_ID = "tt1375666"
 
 /**
  * POST /api/custom-rating/test

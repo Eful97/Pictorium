@@ -35,4 +35,69 @@ describe("http", () => {
     const [, init] = call
     expect((init.headers as Record<string, string>)["x-admin-token"]).toBe("adm")
   })
+
+  it("performs no network request when the caller signal is already aborted", async () => {
+    const caller = new AbortController()
+    caller.abort()
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify({ ok: true }), { status: 200 }))
+    vi.stubGlobal("fetch", fetchMock)
+
+    const failure = await http("/api/warmup", { retries: 0, signal: caller.signal }).then(
+      () => null,
+      (err: unknown) => err as { name?: string },
+    )
+    expect(failure?.name === "AbortError" || failure?.name === "TimeoutError").toBe(true)
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it("ends a hanging fetch at the per-attempt timeout with a live external signal", async () => {
+    const caller = new AbortController()
+    const seen: Array<AbortSignal | null | undefined> = []
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (_url: unknown, init?: RequestInit) => {
+        const signal = init?.signal as AbortSignal | null | undefined
+        seen.push(signal)
+        return new Promise<Response>((_resolve, reject) => {
+          const onAbort = () =>
+            reject(
+              signal?.reason instanceof Error
+                ? signal.reason
+                : new DOMException("Aborted", "AbortError"),
+            )
+          if (!signal) return // hangs forever without a signal
+          if (signal.aborted) {
+            onAbort()
+            return
+          }
+          signal.addEventListener("abort", onAbort, { once: true })
+        })
+      }),
+    )
+
+    const failure = await http("/api/warmup", {
+      retries: 0,
+      signal: caller.signal,
+      timeout: 40,
+    }).then(
+      () => null,
+      (err: unknown) => err as { name?: string },
+    )
+    expect(failure?.name === "AbortError" || failure?.name === "TimeoutError").toBe(true)
+    expect(seen).toHaveLength(1)
+  })
+
+  it("does not retry a recognized cancellation", async () => {
+    const fetchMock = vi.fn(async () => {
+      throw new DOMException("Aborted", "AbortError")
+    })
+    vi.stubGlobal("fetch", fetchMock)
+
+    const failure = await http("/api/warmup", { retries: 2 }).then(
+      () => null,
+      (err: unknown) => err as { name?: string },
+    )
+    expect(failure?.name).toBe("AbortError")
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
 })

@@ -2029,7 +2029,9 @@ describe("GET /api/poster/[type]/[id] con alias IMDb manuale", () => {
     mockedAggregatedRating.mockResolvedValue(null)
     mockedGetById.mockResolvedValue(null)
     // Voto TMDB genuino già in session cache (ramo non-mappato / tick precedenti).
-    setTMDBSessionCache("movie", 44, {
+    // Mandatory language key: the request below has neither lang nor mapping,
+    // so the route reads in the region default language (it).
+    setTMDBSessionCache("movie", 44, "it", {
       details: { id: 44, genres: [], vote_average: 7.5, vote_count: 100 },
     })
     mockedGetImages.mockResolvedValue({ id: 44, posters: [], logos: [], backdrops: [] })

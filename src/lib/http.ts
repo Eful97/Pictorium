@@ -1,5 +1,6 @@
 import { currentPathUuid, getStoredUserPassword, getStoredUserToken, isUserUnlocked, retryWithPasswordAuth } from "./user-token"
 import { applyAdminAuthHeaders } from "./admin-token"
+import { combineAbortSignals } from "./abort-signal"
 
 export class ApiError extends Error {
   constructor(public status: number, message: string) {
@@ -78,13 +79,17 @@ export function scopedApiInit(
  * `loading` per sempre (es. /api/poster-fit su render incastrato).
  */
 export async function userFetch(input: string, init: RequestInit & { timeout?: number } = {}): Promise<Response> {
-  const { timeout = 15000, ...fetchInit } = init
+  const { timeout = 15000, signal: externalSignal, ...fetchInit } = init
   const scoped = scopedApiInit(input, fetchInit)
   const scopedInit = { ...fetchInit, headers: applyAdminAuthHeaders(scoped.path, scoped.headers) }
-  const res = await fetch(scoped.path, { ...scopedInit, signal: scopedInit.signal ?? AbortSignal.timeout(timeout) })
+  // The timeout and the caller cancellation share one composed signal, used
+  // by both the first fetch and the password-auth retry below.
+  const signal = combineAbortSignals(externalSignal ?? undefined, timeout)
+  throwIfAborted(signal)
+  const res = await fetch(scoped.path, { ...scopedInit, signal })
   // Secret stantio + password fresca: un solo retry con password (butta il
   // secret se il retry passa). Senza entrambe le credenziali è passthrough.
-  return (await retryWithPasswordAuth(scoped.path, scopedInit, res)) ?? res
+  return (await retryWithPasswordAuth(scoped.path, { ...scopedInit, signal }, res)) ?? res
 }
 
 interface ApiOptions extends Omit<RequestInit, "signal"> {
@@ -102,19 +107,18 @@ export async function http<T = unknown>(path: string, opts: ApiOptions = {}): Pr
   const scopedOpts = { ...fetchOpts, headers: applyAdminAuthHeaders(path, scoped.headers) }
 
   for (let attempt = 0; attempt <= retries; attempt++) {
-    const controller = new AbortController()
-    const timer = setTimeout(() => controller.abort(), timeout)
-    const signalPair = externalSignal
-      ? combineAbortSignals(externalSignal, controller.signal)
-      : null
-
-    const combinedSignal = signalPair?.signal ?? controller.signal
+    // Fresh per-attempt budget: the timeout restarts on every attempt while
+    // the caller cancellation stays effective. The auth retry below belongs
+    // to this attempt and shares its effective signal. Backoff waits use only
+    // caller cancellation, since the completed attempt's budget may expire.
+    const combinedSignal = combineAbortSignals(externalSignal ?? undefined, timeout)
+    throwIfAborted(combinedSignal)
 
     try {
       let res = await fetch(path, { ...scopedOpts, signal: combinedSignal })
       // Secret stantio + password fresca: un solo retry con password prima di
       // trattare il 401 come definitivo (vedi userFetch sopra).
-      res = (await retryWithPasswordAuth(path, scopedOpts, res)) ?? res
+      res = (await retryWithPasswordAuth(path, { ...scopedOpts, signal: combinedSignal }, res)) ?? res
 
       if (!res.ok) {
         // Fix L21: retry anche per i 5xx (il server può essere in riavvio o
@@ -123,11 +127,11 @@ export async function http<T = unknown>(path: string, opts: ApiOptions = {}): Pr
         // l'errore anche se un attimo dopo il server rispondeva.
         if (attempt < retries) {
           if (res.status === 429) {
-            await delay(parseRetryAfter(res.headers.get("Retry-After")))
+            await delay(parseRetryAfter(res.headers.get("Retry-After")), externalSignal)
             continue
           }
           if (res.status >= 500) {
-            await delay(1000 * (attempt + 1))
+            await delay(1000 * (attempt + 1), externalSignal)
             continue
           }
         }
@@ -140,36 +144,50 @@ export async function http<T = unknown>(path: string, opts: ApiOptions = {}): Pr
       return JSON.parse(text) as T
     } catch (err) {
       if (err instanceof ApiError) throw err
-      if (isAbortError(err)) throw err
+      // A caller abort may carry a custom reason (not an AbortError): an
+      // aborted attempt signal still means "do not retry", with no backoff.
+      if (combinedSignal.aborted || isAbortError(err)) throw err
       if (attempt < retries) {
-        await delay(1000 * (attempt + 1))
+        await delay(1000 * (attempt + 1), externalSignal)
         continue
       }
       throw err
-    } finally {
-      clearTimeout(timer)
-      signalPair?.cleanup()
     }
   }
   throw new Error("Unreachable")
 }
 
-function combineAbortSignals(external: AbortSignal, internal: AbortSignal): { signal: AbortSignal; cleanup: () => void } {
-  const controller = new AbortController()
-  const onAbort = () => controller.abort()
-  external.addEventListener("abort", onAbort, { once: true })
-  internal.addEventListener("abort", onAbort, { once: true })
-  return {
-    signal: controller.signal,
-    cleanup: () => {
-      external.removeEventListener("abort", onAbort)
-      internal.removeEventListener("abort", onAbort)
-    },
+function throwIfAborted(signal: AbortSignal): void {
+  if (signal.aborted) {
+    throw signal.reason instanceof Error
+      ? signal.reason
+      : new DOMException("Aborted", "AbortError")
   }
 }
 
-function delay(ms: number): Promise<void> {
-  return new Promise((r) => setTimeout(r, ms))
+/**
+ * Retry backoff wait that an abort cuts short: no further fetch follows a
+ * cancellation. The listener is always removed on settle (no leak on the
+ * caller signal) and an already-aborted signal rejects without waiting.
+ */
+function delay(ms: number, signal?: AbortSignal): Promise<void> {
+  if (signal?.aborted) return Promise.reject(abortion(signal))
+  return new Promise<void>((resolve, reject) => {
+    const timer = setTimeout(() => {
+      signal?.removeEventListener("abort", onAbort)
+      resolve()
+    }, ms)
+    const onAbort = () => {
+      clearTimeout(timer)
+      signal?.removeEventListener("abort", onAbort)
+      reject(signal ? abortion(signal) : new DOMException("Aborted", "AbortError"))
+    }
+    signal?.addEventListener("abort", onAbort, { once: true })
+  })
+}
+
+function abortion(signal: AbortSignal): unknown {
+  return signal.reason instanceof Error ? signal.reason : new DOMException("Aborted", "AbortError")
 }
 
 /**

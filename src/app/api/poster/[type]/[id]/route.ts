@@ -776,11 +776,16 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
   // salvato > session cache TMDB del processo > resolve server-side con memo
   // 7gg (quarto anello, prima della race) > ramo else (details +
   // external_ids in append). Senza QID ovunque: fallback SPARQL invariato.
+  // F2: the session cache is language-isolated — reads use the same
+  // query > mapping > region chain as the branches that populate it (it
+  // matches preferredLanguage when mapping is null, and fbLang of the
+  // landscape fallback).
   let wikidataId: string | null = null
+  const sessionLang = req.nextUrl.searchParams.get("lang") || mapping?.language || posterRegion.lang2
   {
     const queryWikidataId = hardenedParams.get("wikidata_id")
     const mappingWikidataId = mapping?.wikidataId ?? null
-    const sessionWikidataId = getTMDBSessionCache(mediaType, tmdbId)?.externalIds?.wikidata_id ?? null
+    const sessionWikidataId = getTMDBSessionCache(mediaType, tmdbId, sessionLang)?.externalIds?.wikidata_id ?? null
     if (isValidWikidataQid(queryWikidataId)) wikidataId = queryWikidataId
     else if (isValidWikidataQid(mappingWikidataId)) wikidataId = mappingWikidataId
     else if (isValidWikidataQid(sessionWikidataId)) wikidataId = sessionWikidataId
@@ -892,7 +897,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
       // piccola): aggiungerla sempre a ogni richiesta costerebbe un payload più
       // grande e la stessa RTT, quindi il retry è condizionato e paga l'extra
       // RTT solo nei casi in cui aggiunge davvero qualcosa.
-      const sessionData = getTMDBSessionCache(mediaType, tmdbId)
+      const sessionData = getTMDBSessionCache(mediaType, tmdbId, preferredLanguage)
       let details: Awaited<ReturnType<typeof getDetails>>
       let images: Awaited<ReturnType<typeof getImages>>
       let extIds: { imdb_id: string | null; tvdb_id?: number | null; wikidata_id?: string | null }
@@ -920,7 +925,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
         images = needsOrigLang
           ? await getImages(mediaType, tmdbId, `${baseLangs},${origLang}`, apiKey, renderAbort.signal, POSTER_TMDB_TIMEOUT_MS).catch(() => imgs)
           : imgs
-        setTMDBSessionCache(mediaType, tmdbId, { details: det, images, externalIds: extIds })
+        setTMDBSessionCache(mediaType, tmdbId, preferredLanguage, { details: det, images, externalIds: extIds })
       }
       // Candidato sfondo per il ramo landscape: backdrop principale TMDB,
       // poi il primo backdrops di /images (già 16:9 nativi).
@@ -1250,20 +1255,20 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
     try {
       const fbApiKey = effTmdbKey
       const fbLang = req.nextUrl.searchParams.get("lang") || mapping?.language || posterRegion.lang2
-      const cached = getTMDBSessionCache(mediaType, tmdbId)
+      const cached = getTMDBSessionCache(mediaType, tmdbId, fbLang)
       let fbDetails = cached?.details
       if (!fbDetails) {
         fbDetails = await getDetails(mediaType, tmdbId, fbLang, fbApiKey, renderAbort.signal, POSTER_TMDB_TIMEOUT_MS)
-        const prev = getTMDBSessionCache(mediaType, tmdbId)
-        setTMDBSessionCache(mediaType, tmdbId, { ...prev ?? undefined, details: fbDetails })
+        const prev = getTMDBSessionCache(mediaType, tmdbId, fbLang)
+        setTMDBSessionCache(mediaType, tmdbId, fbLang, { ...prev ?? undefined, details: fbDetails })
       }
       autoBackdropPath = fbDetails?.backdrop_path || null
       if (!autoBackdropPath) {
         const fbImages = cached?.images
           ?? await getImages(mediaType, tmdbId, `${fbLang},en,null`, fbApiKey, renderAbort.signal, POSTER_TMDB_TIMEOUT_MS).catch(() => null)
         if (fbImages && !cached?.images) {
-          const prev = getTMDBSessionCache(mediaType, tmdbId)
-          setTMDBSessionCache(mediaType, tmdbId, { ...prev ?? undefined, images: fbImages })
+          const prev = getTMDBSessionCache(mediaType, tmdbId, fbLang)
+          setTMDBSessionCache(mediaType, tmdbId, fbLang, { ...prev ?? undefined, images: fbImages })
         }
         autoBackdropPath = fbImages?.backdrops?.[0]?.file_path || null
       }
@@ -1459,11 +1464,11 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
           ? (qQualityParam
               ? Promise.resolve(qQualityParam)
               : (() => {
-                  const sessionTitle = getTMDBSessionCache(mediaType, tmdbId)?.details?.title
-                    || getTMDBSessionCache(mediaType, tmdbId)?.details?.name
+                  const sessionTitle = getTMDBSessionCache(mediaType, tmdbId, sessionLang)?.details?.title
+                    || getTMDBSessionCache(mediaType, tmdbId, sessionLang)?.details?.name
                     || null
                   const fallbackTitle = mapping?.title || hardenedParams.get("title") || autoTitle || sessionTitle || genreName || null
-                  const effSeasonCount = seasonCount ?? getTMDBSessionCache(mediaType, tmdbId)?.details?.number_of_seasons ?? null
+                  const effSeasonCount = seasonCount ?? getTMDBSessionCache(mediaType, tmdbId, sessionLang)?.details?.number_of_seasons ?? null
                   return resolveStreamQuality(
                     mediaType === "movie" ? "movie" : "series",
                     imdbId,
@@ -1492,7 +1497,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
                   // qualità): senza searchQuery la query chiede 5 titoli
                   // popolari generici e il match per tmdbId fallisce quasi
                   // sempre → disponibilità ignota → poster normale.
-                  const sessionDetails = getTMDBSessionCache(mediaType, tmdbId)?.details
+                  const sessionDetails = getTMDBSessionCache(mediaType, tmdbId, sessionLang)?.details
                   const preTitle = mapping?.title
                     || hardenedParams.get("title")
                     || autoTitle
@@ -1567,7 +1572,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
           if (!rankingEnabledEarly && !customRatingConfig.enabled && !sepFetch) return false
           if (!imdbId) {
             // F6: externalIds già in session cache (ramo non-mappato) → niente rete.
-            const extIds = getTMDBSessionCache(mediaType, tmdbId)?.externalIds
+            const extIds = getTMDBSessionCache(mediaType, tmdbId, sessionLang)?.externalIds
               ?? (await getExternalIds(mediaType, tmdbId, effTmdbKey, renderAbort.signal, POSTER_TMDB_TIMEOUT_MS).catch(() => null))
             if (extIds?.imdb_id) imdbId = extIds.imdb_id
           }
@@ -1585,7 +1590,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
             // precedenti) — senza, niente backfill come prima. Stesso
             // fallback del ramo auto, così la colonna separati non perde
             // `tmdb` a MDBList down pur con chiave TMDB valida.
-            const cachedTmdbVote = getTMDBSessionCache(mediaType, tmdbId)?.details?.vote_average
+            const cachedTmdbVote = getTMDBSessionCache(mediaType, tmdbId, sessionLang)?.details?.vote_average
             const genuineTmdbVote = typeof cachedTmdbVote === "number" && Number.isFinite(cachedTmdbVote) && cachedTmdbVote > 0
               ? cachedTmdbVote
               : undefined
@@ -1729,7 +1734,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
             // Un singolo retry sul fallimento transitorio (cold-start
             // upstream): senza dettagli saltano studio/network badge e il
             // render resta cachato così per tutto il TTL.
-            const details = getTMDBSessionCache(mediaType, tmdbId)?.details
+            const details = getTMDBSessionCache(mediaType, tmdbId, preferredLang)?.details
               ?? (await getDetails(mediaType, tmdbId, preferredLang, apiKey, renderAbort.signal, POSTER_TMDB_TIMEOUT_MS).catch(() => null))
               ?? (await getDetails(mediaType, tmdbId, preferredLang, apiKey, renderAbort.signal, POSTER_TMDB_TIMEOUT_MS).catch(() => null))
             if (!details) return

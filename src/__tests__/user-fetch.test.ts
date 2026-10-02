@@ -171,3 +171,177 @@ describe("scopedApiInit / userFetch", () => {
     expect(getStoredUserToken(UUID)).toBeNull()
   })
 })
+
+describe("userFetch/http timeout and cancellation (Phase 3)", () => {
+  function isCancel(err: unknown): boolean {
+    const name = (err as { name?: string } | null)?.name
+    return name === "AbortError" || name === "TimeoutError"
+  }
+
+  /** Fetch mock that hangs until its signal aborts (never settles otherwise). */
+  function hangUntilAbort(init?: RequestInit): Promise<Response> {
+    const signal = init?.signal as AbortSignal | null | undefined
+    return new Promise<Response>((_resolve, reject) => {
+      const onAbort = () =>
+        reject(
+          signal?.reason instanceof Error ? signal.reason : new DOMException("Aborted", "AbortError"),
+        )
+      if (!signal) return // hangs forever without a signal
+      if (signal.aborted) {
+        onAbort()
+        return
+      }
+      signal.addEventListener("abort", onAbort, { once: true })
+    })
+  }
+
+  it("applies the timeout even when the caller passes a live signal", async () => {
+    const caller = new AbortController()
+    const seen: Array<AbortSignal | null | undefined> = []
+    vi.mocked(fetch).mockImplementation(async (_url: unknown, init?: RequestInit) => {
+      seen.push(init?.signal as AbortSignal | null | undefined)
+      return hangUntilAbort(init)
+    })
+    await expect(userFetch("/api/mappings", { signal: caller.signal, timeout: 40 })).rejects.toSatisfy(
+      isCancel,
+    )
+    expect(vi.mocked(fetch)).toHaveBeenCalledTimes(1)
+    expect(seen[0]).toBeDefined()
+    expect(seen[0]).not.toBe(caller.signal)
+  })
+
+  it("an external abort interrupts the active fetch even with a longer timeout", async () => {
+    const caller = new AbortController()
+    vi.mocked(fetch).mockImplementation(async (_url: unknown, init?: RequestInit) => hangUntilAbort(init))
+    const pending = userFetch("/api/mappings", { signal: caller.signal, timeout: 10000 })
+    caller.abort()
+    await expect(pending).rejects.toSatisfy(isCancel)
+    expect(vi.mocked(fetch)).toHaveBeenCalledTimes(1)
+  })
+
+  it("an already-aborted signal performs no network request", async () => {
+    const caller = new AbortController()
+    caller.abort()
+    const spy = vi.mocked(fetch)
+    await expect(userFetch("/api/mappings", { signal: caller.signal, timeout: 1000 })).rejects.toSatisfy(
+      isCancel,
+    )
+    expect(spy).not.toHaveBeenCalled()
+  })
+
+  it("auth retry reuses the effective signal: cancel reaches the retry", async () => {
+    setUrl(`/u/${UUID}/configure`)
+    setStoredUserToken(UUID, "stale-tok")
+    setStoredUserPassword(UUID, "fresh-pw-3")
+    window.dispatchEvent(new CustomEvent(USER_UNLOCK_EVENT, { detail: { uuid: UUID } }))
+    const seen: Array<AbortSignal | null | undefined> = []
+    let resolveRetryStarted!: () => void
+    const retryStarted = new Promise<void>((r) => {
+      resolveRetryStarted = r
+    })
+    vi.mocked(fetch).mockImplementation(async (_url: unknown, init?: RequestInit) => {
+      seen.push(init?.signal as AbortSignal | null | undefined)
+      const headers = (init?.headers ?? {}) as Record<string, string>
+      if (headers["x-user-token"] === "stale-tok") return new Response("{}", { status: 401 })
+      resolveRetryStarted()
+      return hangUntilAbort(init)
+    })
+    const caller = new AbortController()
+    const pending = userFetch("/api/mappings", { signal: caller.signal, timeout: 10000 })
+    // Wait until the password retry has started before aborting: ordering
+    // without timing.
+    await retryStarted
+    caller.abort()
+    await expect(pending).rejects.toSatisfy(isCancel)
+    expect(seen).toHaveLength(2)
+    expect(seen[1]).toBe(seen[0])
+  })
+
+  it("auth retry respects the timeout budget", async () => {
+    setUrl(`/u/${UUID}/configure`)
+    setStoredUserToken(UUID, "stale-tok")
+    setStoredUserPassword(UUID, "fresh-pw-4")
+    window.dispatchEvent(new CustomEvent(USER_UNLOCK_EVENT, { detail: { uuid: UUID } }))
+    vi.mocked(fetch).mockImplementation(async (_url: unknown, init?: RequestInit) => {
+      const headers = (init?.headers ?? {}) as Record<string, string>
+      if (headers["x-user-token"] === "stale-tok") return new Response("{}", { status: 401 })
+      return hangUntilAbort(init)
+    })
+    const caller = new AbortController()
+    await expect(userFetch("/api/mappings", { signal: caller.signal, timeout: 40 })).rejects.toSatisfy(
+      isCancel,
+    )
+    expect(vi.mocked(fetch)).toHaveBeenCalledTimes(2)
+  })
+
+  it("successful auth retry keeps secret cleanup, namespace and headers on the shared signal", async () => {
+    setUrl(`/u/${UUID}/configure`)
+    setStoredUserToken(UUID, "stale-tok")
+    setStoredUserPassword(UUID, "fresh-pw-5")
+    window.dispatchEvent(new CustomEvent(USER_UNLOCK_EVENT, { detail: { uuid: UUID } }))
+    const seen: Array<{ url: unknown; init?: RequestInit }> = []
+    vi.mocked(fetch).mockImplementation(async (url: unknown, init?: RequestInit) => {
+      seen.push({ url, init })
+      const headers = (init?.headers ?? {}) as Record<string, string>
+      if (headers["x-user-token"] === "stale-tok") return new Response("{}", { status: 401 })
+      return new Response('{"ok":true}', { status: 200 })
+    })
+    const caller = new AbortController()
+    const res = await userFetch("/api/mappings", { signal: caller.signal, timeout: 1000 })
+    expect(res.status).toBe(200)
+    expect(seen).toHaveLength(2)
+    // First fetch and password retry share the same composed signal.
+    expect(seen[1].init?.signal).toBe(seen[0].init?.signal)
+    expect(String(seen[0].url)).toBe(`/api/mappings?u=${UUID}`)
+    const retryHeaders = (seen[1].init?.headers ?? {}) as Record<string, string>
+    expect(retryHeaders["x-user-password"]).toBe("fresh-pw-5")
+    expect(retryHeaders["x-user-token"]).toBeUndefined()
+    expect(getStoredUserToken(UUID)).toBeNull()
+  })
+
+  it("http(): auth retry is cancelled by an external abort", async () => {
+    setUrl(`/u/${UUID}/configure`)
+    setStoredUserToken(UUID, "stale-tok")
+    setStoredUserPassword(UUID, "fresh-pw-6")
+    window.dispatchEvent(new CustomEvent(USER_UNLOCK_EVENT, { detail: { uuid: UUID } }))
+    let resolveRetryStarted!: () => void
+    const retryStarted = new Promise<void>((r) => {
+      resolveRetryStarted = r
+    })
+    vi.mocked(fetch).mockImplementation(async (_url: unknown, init?: RequestInit) => {
+      const headers = (init?.headers ?? {}) as Record<string, string>
+      if (headers["x-user-token"] === "stale-tok") return new Response("{}", { status: 401 })
+      resolveRetryStarted()
+      return hangUntilAbort(init)
+    })
+    const caller = new AbortController()
+    const pending = http("/api/mappings", { retries: 0, signal: caller.signal, timeout: 10000 })
+    await retryStarted
+    caller.abort()
+    await expect(pending).rejects.toSatisfy(isCancel)
+    expect(vi.mocked(fetch)).toHaveBeenCalledTimes(2)
+  })
+
+  it("http(): auth retry shares the attempt signal and times out without a third fetch", async () => {
+    setUrl(`/u/${UUID}/configure`)
+    setStoredUserToken(UUID, "stale-tok")
+    setStoredUserPassword(UUID, "fresh-pw-7")
+    window.dispatchEvent(new CustomEvent(USER_UNLOCK_EVENT, { detail: { uuid: UUID } }))
+    const seen: Array<AbortSignal | null | undefined> = []
+    vi.mocked(fetch).mockImplementation(async (_url: unknown, init?: RequestInit) => {
+      seen.push(init?.signal as AbortSignal | null | undefined)
+      const headers = (init?.headers ?? {}) as Record<string, string>
+      if (headers["x-user-token"] === "stale-tok") return new Response("{}", { status: 401 })
+      return hangUntilAbort(init)
+    })
+    const caller = new AbortController()
+    await expect(
+      http("/api/mappings", { retries: 1, signal: caller.signal, timeout: 40 }),
+    ).rejects.toSatisfy(isCancel)
+    // First fetch + password retry on the same composed signal; the timeout
+    // is not retried numerically, so no third fetch follows.
+    expect(vi.mocked(fetch)).toHaveBeenCalledTimes(2)
+    expect(seen).toHaveLength(2)
+    expect(seen[1]).toBe(seen[0])
+  })
+})

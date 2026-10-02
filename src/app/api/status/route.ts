@@ -14,7 +14,7 @@ import { requireAdminToken } from "@/lib/auth"
  * Whitelist rigida: solo "elfhosted" o null — il raw env non esce mai.
  * Primario l'env esplicito, fallback best-effort sull'host della richiesta.
  */
-export function resolveHostedBy(req: NextRequest): "elfhosted" | null {
+function resolveHostedBy(req: NextRequest): "elfhosted" | null {
   const raw = envWithFallback("HOSTED_BY")?.toLowerCase().trim()
   if (raw === "elfhosted") return "elfhosted"
   if (raw) return null
@@ -45,13 +45,6 @@ async function listUsersCached(): Promise<UserInfo[]> {
   const users = await listUsers()
   usersCache = { at: now, users }
   return users
-}
-
-/**
- * Solo per i test: invalida il memo degli aggregati.
- */
-export function __resetStatusUsersCache(): void {
-  usersCache = null
 }
 
 /**
