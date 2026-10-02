@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { ChevronDown, Cloud, Flame, Layers, Menu, Ribbon, Sparkles, Star, Trophy, Tv, X } from "lucide-react"
+import { ChevronDown, Flame, Layers, Menu, Ribbon, Sparkles, Star, Trophy, Tv } from "lucide-react"
 import { useT } from "@/lib/contexts/TranslationContext"
 import { usePosterEditor } from "@/lib/contexts/PosterEditorContext"
 import { Toggle } from "@/components/Toggle"
@@ -480,47 +480,6 @@ export function BadgeDefaultsSection({ active }: { active: boolean }) {
               </div>
             </div>
           )}
-
-          <div className="flex items-center justify-between">
-            <span className="text-zinc-300 font-medium flex items-center gap-1.5">
-              <Cloud className="w-3.5 h-3.5 text-cyan-400" />
-              {t("ui.blurSection")}
-            </span>
-            <Toggle
-              value={ed.defaultBlurEnabled}
-              onChange={(v) => {
-                ed.setDefaultBlurEnabled(v)
-              }}
-              label={t("ui.blurSection")}
-            />
-          </div>
-
-          <div className="flex items-center justify-between pl-3 ml-1 border-l-2 border-surface2">
-            <span className="text-zinc-300 font-medium flex items-center gap-1.5">
-              <Cloud className="w-3.5 h-3.5 text-cyan-400" />
-              {t("ui.blurSection")} · {t("ui.posterShapeLandscape")}
-            </span>
-            <span className="flex items-center gap-1.5">
-              {ed.landscape.blurEnabled !== undefined && (
-                <button
-                  type="button"
-                  title={t("ui.reset")}
-                  aria-label={t("ui.reset")}
-                  onClick={() => ed.setLandscape({ blurEnabled: undefined })}
-                  className="text-[11px] text-muted hover:text-accent transition-colors px-1.5 py-0.5 rounded-md border border-border/50 hover:border-accent/30 cursor-pointer"
-                >
-                  <X className="w-3 h-3" />
-                </button>
-              )}
-              <Toggle
-                value={ed.landscape.blurEnabled ?? ed.defaultBlurEnabled}
-                onChange={(v) => {
-                  ed.setLandscape({ blurEnabled: v })
-                }}
-                label={`${t("ui.blurSection")} · ${t("ui.posterShapeLandscape")}`}
-              />
-            </span>
-          </div>
 
           <div className="flex items-center justify-between" title={t("ui.preReleaseHint")}>
             <span className="text-zinc-300 font-medium flex items-center gap-1.5">

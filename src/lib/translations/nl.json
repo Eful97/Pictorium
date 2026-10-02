@@ -811,5 +811,9 @@
   "ui.customPreviewOnly": "Gedeeltelijk voorbeeld. Heropen de lijst om alle titels te laden.",
   "ui.customGridLimit": "Maximaal 500 titels uit deze lijst.",
   "ui.animeFallback": "Alternatief: Japanse animatie van TMDB",
+  "ui.defaultsAutoSaved": "Wijzigingen automatisch opgeslagen",
+  "ui.syncNow": "Nu synchroniseren",
+  "ui.syncing": "Synchroniseren...",
+  "ui.section": "Sectie",
   "ui.catalogPageCount": "{shown} van {total} titels"
 }

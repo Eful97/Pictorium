@@ -811,5 +811,9 @@
   "ui.customPreviewOnly": "一部のみのプレビューです。全作品を読み込むにはリストを開き直してください。",
   "ui.customGridLimit": "最大500作品を表示します。",
   "ui.animeFallback": "代替：TMDBの日本語アニメーション",
+  "ui.defaultsAutoSaved": "変更は自動的に保存されました",
+  "ui.syncNow": "今すぐ同期",
+  "ui.syncing": "同期中...",
+  "ui.section": "セクション",
   "ui.catalogPageCount": "{total}作品中{shown}作品"
 }

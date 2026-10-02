@@ -720,6 +720,11 @@ input[type="range"]::-moz-range-thumb:active {
   background: #52525b;
 }
 
+.toggle-track:focus-visible {
+  outline: 2px solid var(--color-accent, var(--color-accent-orange));
+  outline-offset: 2px;
+}
+
 .press-scale {
   transition: transform 0.12s cubic-bezier(0.22, 1, 0.36, 1);
 }

@@ -811,5 +811,9 @@
   "ui.customPreviewOnly": "Previzualizare parțială. Redeschide lista pentru a încărca toate titlurile.",
   "ui.customGridLimit": "Sunt afișate cel mult 500 de titluri.",
   "ui.animeFallback": "Alternativă: animație japoneză de pe TMDB",
+  "ui.defaultsAutoSaved": "Modificări salvate automat",
+  "ui.syncNow": "Sincronizează acum",
+  "ui.syncing": "Sincronizare...",
+  "ui.section": "Secțiune",
   "ui.catalogPageCount": "{shown} din {total} titluri"
 }

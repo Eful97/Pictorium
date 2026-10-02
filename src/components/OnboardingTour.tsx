@@ -1,12 +1,11 @@
 "use client"
 
 import React, { useState, useEffect, useRef } from "react"
-import { Search, Sparkles, Image, MonitorSmartphone, ChevronRight, ChevronLeft, X } from "lucide-react"
+import { Search, Sparkles, Image, MonitorSmartphone, ChevronRight, ChevronLeft, X, KeyRound } from "lucide-react"
 import { useT } from "@/lib/contexts/TranslationContext"
+import { usePSelector } from "@/lib/context"
 
-// Fix M20: gli step usano chiavi i18n (STEPS era interamente hardcoded in
-// italiano). Le chiavi vivono nei 5 dizionari (ui.onboarding*).
-const STEPS = [
+const BASE_STEPS = [
   { icon: Search, titleKey: "ui.onboardingSearchTitle", descKey: "ui.onboardingSearchDesc" },
   { icon: Sparkles, titleKey: "ui.onboardingBadgesTitle", descKey: "ui.onboardingBadgesDesc" },
   { icon: Image, titleKey: "ui.onboardingPosterTitle", descKey: "ui.onboardingPosterDesc" },
@@ -17,6 +16,19 @@ const LS_KEY = "pictorium_onboarding_done"
 
 export function OnboardingTour() {
   const { t } = useT()
+  const tmdbKey = usePSelector((v) => v.tmdbKey)
+  const serverHasTmdbKey = usePSelector((v) => v.serverHasTmdbKey)
+  const hasKey = !!tmdbKey || serverHasTmdbKey
+
+  const steps = [
+    hasKey
+      ? BASE_STEPS[0]
+      : { icon: KeyRound, titleKey: "ui.noKey", descKey: "ui.noKeySub" },
+    BASE_STEPS[1],
+    BASE_STEPS[2],
+    BASE_STEPS[3],
+  ]
+
   const [show, setShow] = useState(false)
   const [step, setStep] = useState(0)
   const [leaving, setLeaving] = useState(false)
@@ -50,8 +62,8 @@ export function OnboardingTour() {
 
   if (!show) return null
 
-  const StepIcon = STEPS[step].icon
-  const isLast = step === STEPS.length - 1
+  const StepIcon = steps[step].icon
+  const isLast = step === steps.length - 1
 
   return (
     <div
@@ -83,12 +95,12 @@ export function OnboardingTour() {
 
           {/* Title */}
           <h3 className="text-lg font-bold text-white mb-2">
-            {t(STEPS[step].titleKey)}
+            {t(steps[step].titleKey)}
           </h3>
 
           {/* Description */}
           <p className="text-sm text-muted leading-relaxed">
-            {t(STEPS[step].descKey)}
+            {t(steps[step].descKey)}
           </p>
         </div>
 
@@ -96,7 +108,7 @@ export function OnboardingTour() {
         <div className="px-6 pb-5">
           {/* Dots */}
           <div className="flex items-center justify-center gap-1 mb-5">
-            {STEPS.map((_, i) => (
+            {steps.map((_, i) => (
               <button type="button"
                 key={i}
                 onClick={() => setStep(i)}

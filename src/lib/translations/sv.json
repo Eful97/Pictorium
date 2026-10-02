@@ -811,5 +811,9 @@
   "ui.customPreviewOnly": "Delvis förhandsvisning. Öppna listan igen för att ladda alla titlar.",
   "ui.customGridLimit": "Visar högst 500 titlar.",
   "ui.animeFallback": "Alternativ: japansk animation från TMDB",
+  "ui.defaultsAutoSaved": "Ändringar sparas automatiskt",
+  "ui.syncNow": "Synkronisera nu",
+  "ui.syncing": "Synkroniserar...",
+  "ui.section": "Avsnitt",
   "ui.catalogPageCount": "{shown} av {total} titlar"
 }

@@ -811,5 +811,9 @@
   "ui.customPreviewOnly": "Aperçu partiel. Rouvrez la liste pour charger tous les titres.",
   "ui.customGridLimit": "Affichage limité à 500 titres.",
   "ui.animeFallback": "Alternative : animation japonaise de TMDB",
+  "ui.defaultsAutoSaved": "Modifications enregistrées automatiquement",
+  "ui.syncNow": "Synchroniser",
+  "ui.syncing": "Synchronisation...",
+  "ui.section": "Section",
   "ui.catalogPageCount": "{shown} titres sur {total}"
 }

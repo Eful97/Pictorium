@@ -811,5 +811,9 @@
   "ui.customPreviewOnly": "Částečný náhled. Znovu otevřete seznam pro načtení všech titulů.",
   "ui.customGridLimit": "Zobrazeno nejvýše 500 titulů.",
   "ui.animeFallback": "Alternativa: japonská animace z TMDB",
+  "ui.defaultsAutoSaved": "Změny automaticky uloženy",
+  "ui.syncNow": "Synchronizovat nyní",
+  "ui.syncing": "Synchronizace...",
+  "ui.section": "Sekce",
   "ui.catalogPageCount": "{shown} z {total} titulů"
 }

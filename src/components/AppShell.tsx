@@ -10,7 +10,7 @@ import { HomeStatusStrip } from "@/components/HomeStatusStrip"
 import { currentPathUuid, isUserUnlocked, requestUserUnlock, USER_UNLOCK_EVENT } from "@/lib/user-token"
 import { requestSettingsTab } from "@/lib/settings-tab"
 import { isMultiUserServer } from "@/lib/guest-guard"
-import { Settings, Sparkles, QrCode, Palette, Layers, KeyRound } from "lucide-react"
+import { Settings, Plug, QrCode, Images, Library, KeyRound } from "lucide-react"
 import { DesktopCommunityLinks, MobileCommunityLinks } from "@/components/HeaderCommunityLinks"
 
 // Code-splitting: viste/modali pesanti caricate on-demand per ridurre il JS iniziale.
@@ -54,6 +54,8 @@ export function AppShell() {
   const [proxyOpen, setProxyOpen] = useState(false)
   const [closingSettings, setClosingSettings] = useState(false)
   const closingSettingsRef = useRef<ReturnType<typeof setTimeout>>(null)
+  const mobileSettingsDialogRef = useRef<HTMLDivElement>(null)
+  const mobilePrevActiveRef = useRef<HTMLElement | null>(null)
 
   const closeSettings = () => {
     setClosingSettings(true)
@@ -123,6 +125,54 @@ export function AppShell() {
     document.body.style.overflow = "hidden"
     return () => { document.body.style.overflow = "" }
   }, [settingsOpen])
+
+  // Focus trap e ripristino focus per il dialogo impostazioni mobile
+  useEffect(() => {
+    if (!settingsOpen || closingSettings) return
+    const isMobile = typeof window !== "undefined" && window.innerWidth < 768
+    if (!isMobile) return
+
+    mobilePrevActiveRef.current = document.activeElement as HTMLElement | null
+
+    const dialog = mobileSettingsDialogRef.current
+    if (!dialog) return
+
+    // Focus iniziale sul pulsante "Indietro" o primo elemento interattivo
+    const backBtn = dialog.querySelector<HTMLElement>('button[aria-label]')
+    backBtn?.focus()
+
+    const handleTab = (e: KeyboardEvent) => {
+      if (e.key !== "Tab") return
+      const focusable = Array.from(
+        dialog.querySelectorAll<HTMLElement>(
+          'button:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])'
+        )
+      ).filter((el) => {
+        if (el.style.display === "none" || el.style.visibility === "hidden" || el.getAttribute("aria-hidden") === "true") return false
+        return true
+      })
+
+      if (focusable.length === 0) return
+      const first = focusable[0]
+      const last = focusable[focusable.length - 1]
+
+      if (e.shiftKey && (document.activeElement === first || !dialog.contains(document.activeElement))) {
+        e.preventDefault()
+        last.focus()
+      } else if (!e.shiftKey && (document.activeElement === last || !dialog.contains(document.activeElement))) {
+        e.preventDefault()
+        first.focus()
+      }
+    }
+
+    window.addEventListener("keydown", handleTab)
+    return () => {
+      window.removeEventListener("keydown", handleTab)
+      if (mobilePrevActiveRef.current && typeof mobilePrevActiveRef.current.focus === "function") {
+        mobilePrevActiveRef.current.focus()
+      }
+    }
+  }, [settingsOpen, closingSettings])
 
   const [installOpen, setInstallOpen] = useState(false)
 
@@ -249,7 +299,7 @@ export function AppShell() {
                 : "text-zinc-300 hover:text-white hover:bg-white/[0.08]"
             }`}
           >
-            <Layers className="w-3.5 h-3.5 text-accent-orange" />
+            <Library className="w-3.5 h-3.5 text-accent-orange" />
             <span>{t("ui.catalogs") || "Cataloghi"}</span>
           </button>
 
@@ -269,8 +319,8 @@ export function AppShell() {
                 : "text-zinc-300 hover:text-white hover:bg-white/[0.08]"
             }`}
           >
-            <Palette className="w-3.5 h-3.5 text-accent-orange" />
-            <span className="hidden xl:inline">{t("ui.myPostersBtn") || "I Miei Poster"}</span>
+            <Images className="w-3.5 h-3.5 text-accent-orange" />
+            <span className="hidden lg:inline">{t("ui.myPostersBtn") || "I Miei Poster"}</span>
             <span className="text-[10px] font-mono px-1.5 py-0.2 rounded-md bg-white/[0.08] text-zinc-300 border border-white/10">{mappings.length}</span>
           </button>
 
@@ -284,7 +334,7 @@ export function AppShell() {
             aria-disabled={toolbarLocked || undefined}
             className="p-2 rounded-xl text-zinc-400 hover:text-accent-orange hover:bg-white/[0.08] active:scale-90 transition-all duration-150 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
           >
-            <Sparkles className="w-4 h-4" />
+            <Plug className="w-4 h-4" />
           </button>
 
           {/* Spazio UUID (crea/entri/sblocca) */}
@@ -323,7 +373,19 @@ export function AppShell() {
         {/* Header globale (logo + tagline + toolbar mobile) */}
         {!(view === "edit" && selected) && (
         <div className="flex flex-col items-center pb-3 sm:pb-4 animate-fade-scale-in relative">
-          <>
+          {uuidShortcutVisible && (
+            <button
+              type="button"
+              aria-label={t("ui.userSpaceTitle")}
+              title={t("ui.userSpaceTitle")}
+              onClick={handleUuidShortcut}
+              disabled={toolbarLocked}
+              aria-disabled={toolbarLocked || undefined}
+              className="md:hidden absolute top-0 right-1 p-2 rounded-xl bg-white/[0.06] border border-white/10 text-accent-orange hover:text-white transition-all active:scale-90 cursor-pointer min-w-[36px] min-h-[36px] flex items-center justify-center disabled:opacity-40"
+            >
+              <KeyRound className="w-4 h-4" />
+            </button>
+          )}
           {/* eslint-disable-next-line @next/next/no-img-element -- local SVG asset */}
           <img
             onClick={goHome}
@@ -338,7 +400,6 @@ export function AppShell() {
           />
           <p className="header-tagline text-center text-[10px] sm:text-xs md:text-sm mb-3.5 sm:mb-4 md:mb-4 max-w-xs sm:max-w-none">{t("ui.homeTagline")}</p>
           <MobileCommunityLinks />
-          </>
         </div>
         )}
 
@@ -358,7 +419,7 @@ export function AppShell() {
           view === "edit" && selected ? "translate-y-full pointer-events-none opacity-0" : "translate-y-0 opacity-100"
         }`}
       >
-        <div className={`grid ${uuidShortcutVisible ? "grid-cols-6" : "grid-cols-5"} items-center justify-around max-w-md mx-auto`}>
+        <div className="grid grid-cols-5 items-center justify-around max-w-md mx-auto">
           {/* Cataloghi */}
           <button
             type="button"
@@ -372,7 +433,7 @@ export function AppShell() {
             }`}
           >
             <span className="h-8 flex items-center justify-center">
-              <Layers className="w-5 h-5" />
+              <Library className="w-5 h-5" />
             </span>
             <span className="text-[10px] tracking-tight truncate">{t("ui.catalogs") || "Cataloghi"}</span>
           </button>
@@ -388,7 +449,7 @@ export function AppShell() {
             className="flex flex-col items-center justify-center gap-1 py-1 px-1 rounded-xl transition-all duration-150 active:scale-90 cursor-pointer text-zinc-400 hover:text-zinc-200 disabled:opacity-40 disabled:cursor-not-allowed"
           >
             <span className="h-8 flex items-center justify-center">
-              <Sparkles className="w-5 h-5 text-accent-orange" />
+              <Plug className="w-5 h-5 text-accent-orange" />
             </span>
             <span className="text-[10px] tracking-tight truncate">{t("ui.proxyShort") || "Proxy"}</span>
           </button>
@@ -407,24 +468,6 @@ export function AppShell() {
             <span className="text-[10px] font-semibold text-white tracking-tight truncate">{t("ui.install")}</span>
           </button>
 
-          {/* Spazio UUID (crea/entri/sblocca) */}
-          {uuidShortcutVisible && (
-            <button
-              type="button"
-              onClick={handleUuidShortcut}
-              disabled={toolbarLocked}
-              aria-disabled={toolbarLocked || undefined}
-              aria-label={t("ui.userSpaceTitle")}
-              title={t("ui.userSpaceTitle")}
-              className="flex flex-col items-center justify-center gap-1 py-1 px-1 rounded-xl transition-all duration-150 active:scale-90 cursor-pointer text-zinc-400 hover:text-zinc-200 disabled:opacity-40 disabled:cursor-not-allowed"
-            >
-              <span className="h-8 flex items-center justify-center">
-                <KeyRound className="w-5 h-5 text-accent-orange" />
-              </span>
-              <span className="text-[10px] tracking-tight truncate">{t("ui.userSpaceTitle")}</span>
-            </button>
-          )}
-
           {/* I Miei Poster */}
           <button
             type="button"
@@ -439,7 +482,7 @@ export function AppShell() {
           >
             <span className="h-8 flex items-center justify-center">
               <div className="relative">
-                <Palette className="w-5 h-5" />
+                <Images className="w-5 h-5" />
                 {mappings.length > 0 && (
                   <span className="absolute -top-1 -right-2 px-1 min-w-3.5 h-3.5 bg-accent-orange text-[9px] font-bold text-white rounded-full flex items-center justify-center leading-none">
                     {mappings.length}
@@ -482,24 +525,29 @@ export function AppShell() {
       </div>
 
       {(settingsOpen || closingSettings) && (
-        <div role="dialog" aria-modal="true" aria-label={t("ui.settingsTitle")} className={`fixed inset-0 z-[70] bg-background md:hidden overflow-y-auto ${closingSettings ? "animate-fade-out" : "animate-fade-scale-in"}`}>
+        <div
+          ref={mobileSettingsDialogRef}
+          role="dialog"
+          aria-modal="true"
+          aria-label={t("ui.settingsTitle")}
+          className={`fixed inset-0 z-[70] bg-background md:hidden flex flex-col ${closingSettings ? "animate-fade-out" : "animate-fade-scale-in"}`}
+        >
           <div className="fixed inset-0 z-[-1]" onClick={() => closeSettings()} />
-          <div className="sticky top-0 z-20 bg-surface/95 backdrop-blur-2xl flex items-center justify-between px-4 py-3.5 border-b border-white/10 shadow-lg shadow-black/20">
+          <div className="sticky top-0 z-20 bg-surface/95 backdrop-blur-2xl flex items-center justify-between px-4 py-3 border-b border-white/10 shadow-lg shadow-black/20 shrink-0">
             <h2 className="text-sm font-bold text-zinc-100 flex items-center gap-2">
               <Settings className="w-4 h-4 text-accent-orange" />
               <span>{t("ui.settingsTitle")}</span>
             </h2>
             <button
               type="button"
-              autoFocus
               aria-label={t("ui.back")}
               onClick={() => closeSettings()}
-              className="px-3.5 py-1.5 rounded-xl bg-white/[0.08] border border-white/10 text-xs font-semibold text-zinc-200 hover:text-white active:scale-90 transition-all duration-150 press-scale"
+              className="px-4 py-2.5 rounded-xl bg-white/[0.08] border border-white/10 text-xs sm:text-sm font-semibold text-zinc-200 hover:text-white active:scale-95 transition-all duration-150 press-scale min-h-[44px] min-w-[44px] inline-flex items-center justify-center touch-manipulation cursor-pointer"
             >
               {t("ui.back")}
             </button>
           </div>
-          <div className="p-4 pb-[max(6rem,env(safe-area-inset-bottom)+4rem)] max-w-lg mx-auto">
+          <div className="flex-1 flex flex-col min-h-0 overflow-hidden max-w-lg mx-auto w-full">
             <SettingsPanel mobile setSettingsOpen={setSettingsOpen} exportData={exportData} importData={importData} />
           </div>
         </div>

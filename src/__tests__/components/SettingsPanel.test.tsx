@@ -328,7 +328,7 @@ describe("SettingsPanel", () => {
     expect(await within(panel).findByText("ui.landscapeDefaultsHint")).toBeInTheDocument()
   })
 
-  it("badge tab has split blur toggles for Portrait and Landscape", async () => {
+  it("trasforma tab has split blur toggles for Portrait and Landscape", async () => {
     renderWithCtx(
       <SettingsPanel
         setSettingsOpen={() => {}}
@@ -336,10 +336,11 @@ describe("SettingsPanel", () => {
         importData={() => {}}
       />
     )
-    // Due switch Sfocatura: Verticale (flat) e Orizzontale (override, segue il flat).
-    const switches = screen.getAllByRole("switch", { name: "ui.blurSection" })
-    expect(switches).toHaveLength(1)
-    expect(screen.getByRole("switch", { name: "ui.blurSection · ui.posterShapeLandscape" })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole("tab", { name: "ui.transform" }))
+    const panel = screen.getByRole("tabpanel", { name: "ui.transform" })
+    expect(within(panel).getByRole("switch", { name: "ui.blurSection" })).toBeInTheDocument()
+    fireEvent.click(within(panel).getByRole("button", { name: "ui.posterShapeLandscape" }))
+    expect(within(panel).getByRole("switch", { name: "ui.blurSection · ui.posterShapeLandscape" })).toBeInTheDocument()
   })
 
   it("landscape logo card follows the Orizzontale override, portrait the flat default", async () => {
@@ -552,5 +553,75 @@ describe("SettingsPanel", () => {
     } finally {
       clearAdminToken()
     }
+  })
+
+  it("renders auto-saved notice and syncNow action button in footer", async () => {
+    renderWithCtx(
+      <SettingsPanel
+        setSettingsOpen={() => {}}
+        exportData={() => {}}
+        importData={() => {}}
+      />
+    )
+    expect(screen.getByText("ui.defaultsAutoSaved")).toBeInTheDocument()
+    expect(screen.getByText("ui.syncNow")).toBeInTheDocument()
+  })
+
+  it("traps focus inside the desktop dialog on Tab and Shift+Tab", async () => {
+    renderWithCtx(
+      <SettingsPanel
+        setSettingsOpen={() => {}}
+        exportData={() => {}}
+        importData={() => {}}
+      />
+    )
+    const dialog = screen.getByRole("dialog")
+    const focusable = dialog.querySelectorAll<HTMLElement>(
+      'button:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])'
+    )
+    expect(focusable.length).toBeGreaterThan(1)
+    const first = focusable[0]
+    const last = focusable[focusable.length - 1]
+
+    // Tab from last wraps to first
+    last.focus()
+    fireEvent.keyDown(window, { key: "Tab", shiftKey: false })
+    expect(document.activeElement).toBe(first)
+
+    // Shift+Tab from first wraps to last
+    first.focus()
+    fireEvent.keyDown(window, { key: "Tab", shiftKey: true })
+    expect(document.activeElement).toBe(last)
+  })
+
+  it("renders mobile category selector with touch target styling", async () => {
+    const { container } = renderWithCtx(
+      <SettingsPanel
+        mobile
+        setSettingsOpen={() => {}}
+        exportData={() => {}}
+        importData={() => {}}
+      />
+    )
+    const select = container.querySelector("#mobile-settings-category")
+    expect(select).toBeInTheDocument()
+    expect(select?.className).toContain("min-h-[44px]")
+  })
+
+  it("structures mobile layout with body separate from footer", async () => {
+    const { container } = renderWithCtx(
+      <SettingsPanel
+        mobile
+        setSettingsOpen={() => {}}
+        exportData={() => {}}
+        importData={() => {}}
+      />
+    )
+    const scrollBody = container.querySelector(".overflow-y-auto")
+    expect(scrollBody).toBeInTheDocument()
+    // Il footer non è contenuto all'interno del corpo scrollabile
+    expect(within(scrollBody as HTMLElement).queryByText("ui.syncNow")).not.toBeInTheDocument()
+    // Il footer è presente nel pannello mobile complessivo
+    expect(screen.getByText("ui.syncNow")).toBeInTheDocument()
   })
 })

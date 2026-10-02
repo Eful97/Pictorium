@@ -20,15 +20,15 @@ export function MenuItem({
       type="button"
       aria-label={ariaLabel}
       onClick={onClick}
-      className={`w-full text-left text-xs px-3 py-2 rounded-lg active:scale-[0.98] transition-all duration-150 ${
+      className={`w-full text-left text-xs sm:text-sm font-medium px-3.5 py-2.5 min-h-[42px] rounded-xl active:scale-[0.98] transition-all duration-150 touch-manipulation cursor-pointer inline-flex items-center ${
         danger
-          ? "hover:bg-red-900/50"
-          : "hover:bg-zinc-700"
+          ? "hover:bg-red-900/50 bg-red-950/20 text-rose-300"
+          : "hover:bg-white/10 bg-white/[0.04] text-zinc-200 border border-white/[0.06]"
       } ${className}`}
     >
-      <span className="flex items-center gap-1.5">
-        {Icon && <span className="w-3 h-3">{Icon}</span>}
-        {label}
+      <span className="flex items-center gap-2">
+        {Icon && <span className="w-4 h-4 shrink-0">{Icon}</span>}
+        <span>{label}</span>
       </span>
     </button>
   )

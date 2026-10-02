@@ -811,5 +811,9 @@
   "ui.customPreviewOnly": "Kısmi önizleme. Tüm içerikleri yüklemek için listeyi tekrar açın.",
   "ui.customGridLimit": "En fazla 500 içerik gösteriliyor.",
   "ui.animeFallback": "Alternatif: TMDB Japon animasyonu",
+  "ui.defaultsAutoSaved": "Değişiklikler otomatik olarak kaydedildi",
+  "ui.syncNow": "Şimdi senkronize et",
+  "ui.syncing": "Senkronize ediliyor...",
+  "ui.section": "Bölüm",
   "ui.catalogPageCount": "{total} içerikten {shown}"
 }

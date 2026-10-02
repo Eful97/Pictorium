@@ -114,17 +114,17 @@ export function DataPanel({ active, exportData, importData, setSettingsOpen, mul
     <div
       role="tabpanel"
       aria-label={t("ui.settingsTabData")}
-      className={`space-y-3.5 text-xs ${active ? "block animate-tab-fade-in" : "hidden"}`}
+      className={`space-y-4 text-xs ${active ? "block animate-tab-fade-in" : "hidden"}`}
     >
       {/* Backup & Configurazione */}
-      <div className="bg-surface/50 border border-surface2/60 rounded-xl p-3.5 space-y-2.5 shadow-sm">
-        <span className="font-semibold text-zinc-200 flex items-center gap-1.5">
-          <Database className="w-3.5 h-3.5 text-accent-orange" />
-          {t("ui.settingsTabData")}
+      <div className="bg-surface/50 border border-surface2/60 rounded-xl p-4 space-y-3.5 shadow-sm">
+        <span className="font-semibold text-zinc-100 text-sm flex items-center gap-2">
+          <Database className="w-4 h-4 text-accent-orange" />
+          <span>{t("ui.settingsTabData")}</span>
         </span>
-        <div className="grid grid-cols-2 gap-2 pt-1">
+        <div className="grid grid-cols-2 gap-2.5 pt-1">
           <MenuItem
-            icon={<Download className="w-3.5 h-3.5 text-accent-orange" />}
+            icon={<Download className="w-4 h-4 text-accent-orange" />}
             label={t("ui.exportJson")}
             onClick={() => {
               exportData()
@@ -132,7 +132,7 @@ export function DataPanel({ active, exportData, importData, setSettingsOpen, mul
             }}
           />
           <MenuItem
-            icon={<Upload className="w-3.5 h-3.5 text-blue-400" />}
+            icon={<Upload className="w-4 h-4 text-blue-400" />}
             label={t("ui.importJson")}
             onClick={() => {
               importData()
@@ -146,43 +146,43 @@ export function DataPanel({ active, exportData, importData, setSettingsOpen, mul
             setSettingsOpen(false)
             setShowLangPicker(true)
           }}
-          className="w-full flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-[11px] font-medium bg-white/[0.04] text-zinc-300 hover:text-white hover:bg-white/[0.08] active:scale-[0.98] transition-all border border-white/[0.06] cursor-pointer"
+          className="w-full flex items-center justify-center gap-2 px-4 py-2.5 min-h-[42px] rounded-xl text-xs sm:text-sm font-medium bg-white/[0.04] text-zinc-200 hover:text-white hover:bg-white/[0.08] active:scale-[0.98] transition-all border border-white/[0.08] cursor-pointer touch-manipulation"
         >
-          <Wand2 className="w-3.5 h-3.5 text-accent-orange" />
-          {t("ui.repeatSetup")}
+          <Wand2 className="w-4 h-4 text-accent-orange" />
+          <span>{t("ui.repeatSetup")}</span>
         </button>
       </div>
 
       {/* Diagnostica & manutenzione (disclosure: chiusa di default, contenuto
           smontato — niente DOM né fetch finché non la si apre) */}
-      <div className="bg-surface/50 border border-surface2/60 rounded-xl p-3.5 space-y-2.5 shadow-sm">
+      <div className="bg-surface/50 border border-surface2/60 rounded-xl p-4 space-y-3.5 shadow-sm">
         <button
           type="button"
           onClick={() => setDiagOpen((prev) => !prev)}
           aria-expanded={diagOpen}
-          className="w-full flex items-center justify-between text-[11px] font-medium text-muted px-0.5 cursor-pointer group"
+          className="w-full min-h-[44px] py-1 flex items-center justify-between text-xs sm:text-sm font-medium text-muted px-0.5 cursor-pointer group touch-manipulation"
         >
-          <span className="flex items-center gap-1.5 text-zinc-200 font-semibold">
-            <Database className="w-3.5 h-3.5 text-amber-400" />
-            {t("ui.cacheDiagnostics")}
+          <span className="flex items-center gap-2 text-zinc-100 font-semibold text-sm">
+            <Database className="w-4 h-4 text-amber-400" />
+            <span>{t("ui.cacheDiagnostics")}</span>
           </span>
-          <span className="flex items-center gap-1.5">
-            <span className="text-zinc-400 text-[10px] font-mono tabular-nums bg-white/5 px-2 py-0.5 rounded border border-white/5">
+          <span className="flex items-center gap-2">
+            <span className="text-zinc-400 text-xs font-mono tabular-nums bg-white/5 px-2.5 py-1 rounded-lg border border-white/5">
               {cacheCount !== null
                 ? `${cacheCount} ${cacheCount === 1 ? t("ui.cacheEntryOne") : t("ui.cacheEntryMany")}`
                 : "1-Click"}
             </span>
             <ChevronDown
-              className={`w-3.5 h-3.5 text-zinc-400 transition-transform duration-200 ${
+              className={`w-4 h-4 text-zinc-400 transition-transform duration-200 ${
                 diagOpen ? "rotate-180" : ""
               }`}
             />
           </span>
         </button>
         {diagOpen && (
-        <div className="space-y-2.5 animate-fade-in">
+        <div className="space-y-3 animate-fade-in pt-1 border-t border-white/[0.04]">
         {adminUnlocked && sysStats && (
-          <p className="text-[10px] text-zinc-400 font-mono tabular-nums px-0.5">
+          <p className="text-xs text-zinc-400 font-mono tabular-nums px-0.5">
             {t("ui.statusMemoryRss")}: {sysStats.rssMb} MB · {t("ui.statusMemoryHeap")}:{" "}
             {sysStats.heapUsedMb}/{sysStats.heapTotalMb} MB · {t("ui.statusMemoryUptime")}:{" "}
             {t("ui.statusUptimeValue", {
@@ -196,14 +196,14 @@ export function DataPanel({ active, exportData, importData, setSettingsOpen, mul
             href="/status"
             target="_blank"
             rel="noopener noreferrer"
-            className="w-full flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-[11px] font-medium bg-white/[0.04] text-zinc-300 hover:text-white hover:bg-white/[0.08] active:scale-[0.98] transition-all border border-white/[0.06]"
+            className="w-full flex items-center justify-center gap-2 px-4 py-2.5 min-h-[42px] rounded-xl text-xs sm:text-sm font-medium bg-white/[0.04] text-zinc-200 hover:text-white hover:bg-white/[0.08] active:scale-[0.98] transition-all border border-white/[0.08]"
           >
-            <Activity className="w-3.5 h-3.5 text-emerald-400" />
-            {t("ui.statusTitle")}
-            <ExternalLink className="w-3 h-3 text-zinc-500" />
+            <Activity className="w-4 h-4 text-emerald-400" />
+            <span>{t("ui.statusTitle")}</span>
+            <ExternalLink className="w-3.5 h-3.5 text-zinc-500" />
           </a>
         )}
-        <div className="grid grid-cols-2 gap-2 pt-1">
+        <div className="grid grid-cols-2 gap-2.5 pt-1">
           <button
             type="button"
             onClick={async () => {
@@ -215,18 +215,18 @@ export function DataPanel({ active, exportData, importData, setSettingsOpen, mul
                 toast.error(t("ui.warmupError"))
               }
             }}
-            className="w-full flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-[11px] font-medium bg-amber-500/10 text-amber-300 hover:bg-amber-500/20 active:scale-[0.98] transition-all border border-amber-500/20 cursor-pointer"
+            className="w-full flex items-center justify-center gap-2 px-4 py-2.5 min-h-[42px] rounded-xl text-xs sm:text-sm font-semibold bg-amber-500/10 text-amber-300 hover:bg-amber-500/20 active:scale-[0.98] transition-all border border-amber-500/20 cursor-pointer touch-manipulation"
           >
-            <Flame className="w-3.5 h-3.5" />
-            Warmup
+            <Flame className="w-4 h-4" />
+            <span>Warmup</span>
           </button>
           <button
             type="button"
             onClick={clearCache}
-            className="w-full flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-[11px] font-medium bg-rose-500/10 text-rose-300 hover:bg-rose-500/20 active:scale-[0.98] transition-all border border-rose-500/20 cursor-pointer"
+            className="w-full flex items-center justify-center gap-2 px-4 py-2.5 min-h-[42px] rounded-xl text-xs sm:text-sm font-semibold bg-rose-500/10 text-rose-300 hover:bg-rose-500/20 active:scale-[0.98] transition-all border border-rose-500/20 cursor-pointer touch-manipulation"
           >
-            <Trash2 className="w-3.5 h-3.5" />
-            {clearStatus === "cleared" ? t("ui.cleared") : t("ui.clearCache")}
+            <Trash2 className="w-4 h-4" />
+            <span>{clearStatus === "cleared" ? t("ui.cleared") : t("ui.clearCache")}</span>
           </button>
         </div>
         </div>
@@ -256,20 +256,20 @@ export function DataPanel({ active, exportData, importData, setSettingsOpen, mul
           è la password dello spazio e l'admin è ADMIN_TOKEN): niente doppio
           lucchetto. Si mostra finché lo stato è ignoto (fail-open display). */}
       {multiUserOn !== true && (
-      <div className="bg-surface/50 border border-surface2/60 rounded-xl p-3.5 space-y-2.5 shadow-sm">
+      <div className="bg-surface/50 border border-surface2/60 rounded-xl p-4 space-y-3.5 shadow-sm">
         <button
           type="button"
           onClick={() => setPinOpen((prev) => !prev)}
           aria-expanded={pinOpen}
-          className="w-full flex items-center justify-between text-[11px] font-medium text-muted px-0.5 cursor-pointer group"
+          className="w-full min-h-[44px] py-1 flex items-center justify-between text-xs sm:text-sm font-medium text-muted px-0.5 cursor-pointer group touch-manipulation"
         >
-          <span className="flex items-center gap-1.5 text-zinc-200 font-semibold">
-            <Lock className="w-3.5 h-3.5 text-amber-400" />
+          <span className="flex items-center gap-2 text-zinc-100 font-semibold text-sm">
+            <Lock className="w-4 h-4 text-amber-400" />
             <span>{t("ui.pinSecurityTitle")}</span>
           </span>
-          <span className="flex items-center gap-1.5">
+          <span className="flex items-center gap-2">
             <span
-              className={`text-[10px] font-semibold px-2 py-0.5 rounded border ${
+              className={`text-xs font-semibold px-2.5 py-1 rounded-lg border ${
                 pinConfig?.hasPin
                   ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
                   : "bg-white/5 text-zinc-400 border-white/5"
@@ -278,20 +278,20 @@ export function DataPanel({ active, exportData, importData, setSettingsOpen, mul
               {pinConfig?.hasPin ? t("ui.pinActive") : t("ui.pinNotConfigured")}
             </span>
             <ChevronDown
-              className={`w-3.5 h-3.5 text-zinc-400 transition-transform duration-200 ${
+              className={`w-4 h-4 text-zinc-400 transition-transform duration-200 ${
                 pinOpen ? "rotate-180" : ""
               }`}
             />
           </span>
         </button>
         {pinOpen && (
-        <div className="space-y-2.5 animate-fade-in">
-        <p className="text-[11px] text-muted leading-relaxed">
+        <div className="space-y-3 animate-fade-in pt-1 border-t border-white/[0.04]">
+        <p className="text-xs text-zinc-400 leading-relaxed">
           {t("ui.pinSecurityDesc")}
         </p>
 
         {pinModalMode === null ? (
-          <div className="flex gap-2 pt-1">
+          <div className="flex gap-2.5 pt-1">
             {!pinConfig?.hasPin ? (
               <button
                 type="button"
@@ -300,10 +300,10 @@ export function DataPanel({ active, exportData, importData, setSettingsOpen, mul
                   setNewPinInput("")
                   setPinModalMode("set")
                 }}
-                className="w-full flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-[11px] font-medium bg-amber-500/10 text-amber-300 hover:bg-amber-500/20 active:scale-[0.98] transition-all border border-amber-500/20 cursor-pointer"
+                className="w-full flex items-center justify-center gap-2 px-4 py-2.5 min-h-[42px] rounded-xl text-xs sm:text-sm font-semibold bg-amber-500/10 text-amber-300 hover:bg-amber-500/20 active:scale-[0.98] transition-all border border-amber-500/20 cursor-pointer touch-manipulation"
               >
-                <Lock className="w-3.5 h-3.5" />
-                {t("ui.pinConfigure")}
+                <Lock className="w-4 h-4" />
+                <span>{t("ui.pinConfigure")}</span>
               </button>
             ) : (
               <>
@@ -314,10 +314,10 @@ export function DataPanel({ active, exportData, importData, setSettingsOpen, mul
                     setNewPinInput("")
                     setPinModalMode("set")
                   }}
-                  className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-[11px] font-medium bg-white/[0.05] text-zinc-200 hover:bg-white/[0.1] active:scale-[0.98] transition-all border border-white/10 cursor-pointer"
+                  className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 min-h-[42px] rounded-xl text-xs sm:text-sm font-semibold bg-white/[0.05] text-zinc-200 hover:bg-white/[0.1] active:scale-[0.98] transition-all border border-white/10 cursor-pointer"
                 >
-                  <KeyRound className="w-3.5 h-3.5 text-amber-400" />
-                  {t("ui.pinChange")}
+                  <KeyRound className="w-4 h-4 text-amber-400" />
+                  <span>{t("ui.pinChange")}</span>
                 </button>
                 <button
                   type="button"
@@ -325,10 +325,10 @@ export function DataPanel({ active, exportData, importData, setSettingsOpen, mul
                     setCurPinInput("")
                     setPinModalMode("remove")
                   }}
-                  className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-[11px] font-medium bg-rose-500/10 text-rose-300 hover:bg-rose-500/20 active:scale-[0.98] transition-all border border-rose-500/20 cursor-pointer"
+                  className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 min-h-[42px] rounded-xl text-xs sm:text-sm font-semibold bg-rose-500/10 text-rose-300 hover:bg-rose-500/20 active:scale-[0.98] transition-all border border-rose-500/20 cursor-pointer"
                 >
-                  <Trash2 className="w-3.5 h-3.5" />
-                  {t("ui.pinRemove")}
+                  <Trash2 className="w-4 h-4" />
+                  <span>{t("ui.pinRemove")}</span>
                 </button>
               </>
             )}
@@ -347,7 +347,7 @@ export function DataPanel({ active, exportData, importData, setSettingsOpen, mul
                       value={curPinInput}
                       onChange={(e) => setCurPinInput(e.target.value.replace(/\D/g, ""))}
                       placeholder="••••"
-                      className="w-full text-center text-sm font-mono tracking-widest py-1.5 px-3 rounded-lg bg-black/40 border border-white/10 text-white placeholder-zinc-600 focus:outline-none focus:border-amber-500/50"
+                      className="w-full text-center text-sm font-mono tracking-widest min-h-[42px] py-2 px-3 rounded-xl bg-black/40 border border-white/10 text-white placeholder-zinc-600 focus:outline-none focus:border-amber-500/50"
                     />
                   </div>
                 )}
@@ -360,7 +360,7 @@ export function DataPanel({ active, exportData, importData, setSettingsOpen, mul
                     value={newPinInput}
                     onChange={(e) => setNewPinInput(e.target.value.replace(/\D/g, ""))}
                     placeholder="••••"
-                    className="w-full text-center text-sm font-mono tracking-widest py-1.5 px-3 rounded-lg bg-black/40 border border-white/10 text-white placeholder-zinc-600 focus:outline-none focus:border-amber-500/50"
+                    className="w-full text-center text-sm font-mono tracking-widest min-h-[42px] py-2 px-3 rounded-xl bg-black/40 border border-white/10 text-white placeholder-zinc-600 focus:outline-none focus:border-amber-500/50"
                   />
                 </div>
                 <div className="flex gap-2 pt-1">
@@ -368,7 +368,7 @@ export function DataPanel({ active, exportData, importData, setSettingsOpen, mul
                     type="button"
                     onClick={() => setPinModalMode(null)}
                     disabled={pinBusy}
-                    className="flex-1 py-1.5 rounded-lg text-[11px] font-medium bg-white/5 text-zinc-400 hover:text-zinc-200 border border-white/5 cursor-pointer"
+                    className="flex-1 py-2.5 min-h-[42px] rounded-xl text-xs sm:text-sm font-medium bg-white/5 text-zinc-300 hover:text-white border border-white/10 cursor-pointer touch-manipulation transition-all"
                   >
                     {t("ui.cancel")}
                   </button>
@@ -400,7 +400,7 @@ export function DataPanel({ active, exportData, importData, setSettingsOpen, mul
                         setPinBusy(false)
                       }
                     }}
-                    className="flex-1 py-1.5 rounded-lg text-[11px] font-semibold bg-amber-500 text-black hover:bg-amber-400 disabled:opacity-30 disabled:pointer-events-none cursor-pointer"
+                    className="flex-1 py-2.5 min-h-[42px] rounded-xl text-xs sm:text-sm font-semibold bg-amber-500 text-black hover:bg-amber-400 disabled:opacity-30 disabled:pointer-events-none cursor-pointer touch-manipulation transition-all"
                   >
                     {pinBusy ? t("ui.saving") : t("ui.save")}
                   </button>
@@ -417,7 +417,7 @@ export function DataPanel({ active, exportData, importData, setSettingsOpen, mul
                     value={curPinInput}
                     onChange={(e) => setCurPinInput(e.target.value.replace(/\D/g, ""))}
                     placeholder="••••"
-                    className="w-full text-center text-sm font-mono tracking-widest py-1.5 px-3 rounded-lg bg-black/40 border border-white/10 text-white placeholder-zinc-600 focus:outline-none focus:border-rose-500/50"
+                    className="w-full text-center text-sm font-mono tracking-widest min-h-[42px] py-2 px-3 rounded-xl bg-black/40 border border-white/10 text-white placeholder-zinc-600 focus:outline-none focus:border-rose-500/50"
                   />
                 </div>
                 <div className="flex gap-2 pt-1">
@@ -425,7 +425,7 @@ export function DataPanel({ active, exportData, importData, setSettingsOpen, mul
                     type="button"
                     onClick={() => setPinModalMode(null)}
                     disabled={pinBusy}
-                    className="flex-1 py-1.5 rounded-lg text-[11px] font-medium bg-white/5 text-zinc-400 hover:text-zinc-200 border border-white/5 cursor-pointer"
+                    className="flex-1 py-2.5 min-h-[42px] rounded-xl text-xs sm:text-sm font-medium bg-white/5 text-zinc-300 hover:text-white border border-white/10 cursor-pointer touch-manipulation transition-all"
                   >
                     {t("ui.cancel")}
                   </button>
@@ -457,7 +457,7 @@ export function DataPanel({ active, exportData, importData, setSettingsOpen, mul
                         setPinBusy(false)
                       }
                     }}
-                    className="flex-1 py-1.5 rounded-lg text-[11px] font-semibold bg-rose-500 text-white hover:bg-rose-600 disabled:opacity-30 disabled:pointer-events-none cursor-pointer"
+                    className="flex-1 py-2.5 min-h-[42px] rounded-xl text-xs sm:text-sm font-semibold bg-rose-500 text-white hover:bg-rose-600 disabled:opacity-30 disabled:pointer-events-none cursor-pointer touch-manipulation transition-all"
                   >
                     {pinBusy ? t("ui.loading") : t("ui.pinConfirmRemove")}
                   </button>

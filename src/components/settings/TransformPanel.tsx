@@ -4,6 +4,7 @@ import { useState } from "react"
 import { useT } from "@/lib/contexts/TranslationContext"
 import { usePosterEditor } from "@/lib/contexts/PosterEditorContext"
 import { SliderRow } from "@/components/SliderRow"
+import { Toggle } from "@/components/Toggle"
 import { NATURAL_GRADIENT_DEFAULTS, type GradientPresetValues } from "@/lib/gradient-presets"
 import { GradientPresetRow } from "@/components/GradientPresetRow"
 import { LandscapeDefaultsSection } from "@/components/LandscapeDefaultsSection"
@@ -466,25 +467,36 @@ export function TransformPanel({ active }: { active: boolean }) {
       )}
 
       {/* Sfumatura & Blur Predefiniti */}
-      {ed.defaultBlurEnabled && (
       <div className="bg-surface/50 border border-surface2/60 rounded-xl p-3.5 space-y-2.5 shadow-sm animate-fade-in">
         <div className="flex items-center justify-between">
-          <span className="text-zinc-300 font-medium flex items-center gap-1.5">
+          <span className="text-zinc-200 font-semibold flex items-center gap-1.5">
             <Cloud className="w-3.5 h-3.5 text-cyan-400" />
-            {t("ui.blurDefault")}
+            {t("ui.blurSection")}
           </span>
-          <button type="button" aria-label={t("ui.reset")}
-                  onClick={() => {
-                    ed.setDefaultGradientHeight(NATURAL_GRADIENT_DEFAULTS.gradientHeight)
-                    ed.setDefaultBlurIntensity(NATURAL_GRADIENT_DEFAULTS.blurIntensity)
-                    ed.setDefaultBlurFade(NATURAL_GRADIENT_DEFAULTS.blurFade)
-                    ed.setDefaultBlurDarkness(NATURAL_GRADIENT_DEFAULTS.blurDarkness)
-                    ed.setDefaultTintStrength(NATURAL_GRADIENT_DEFAULTS.tintStrength)
-                  }}
-                  className="text-xs text-muted hover:text-accent transition-colors px-2 py-0.5 rounded-md border border-border/50 hover:border-accent/30">
-            {t("ui.reset")}
-          </button>
+          <div className="flex items-center gap-2">
+            {ed.defaultBlurEnabled && (
+              <button type="button" aria-label={t("ui.reset")}
+                      onClick={() => {
+                        ed.setDefaultGradientHeight(NATURAL_GRADIENT_DEFAULTS.gradientHeight)
+                        ed.setDefaultBlurIntensity(NATURAL_GRADIENT_DEFAULTS.blurIntensity)
+                        ed.setDefaultBlurFade(NATURAL_GRADIENT_DEFAULTS.blurFade)
+                        ed.setDefaultBlurDarkness(NATURAL_GRADIENT_DEFAULTS.blurDarkness)
+                        ed.setDefaultTintStrength(NATURAL_GRADIENT_DEFAULTS.tintStrength)
+                      }}
+                      className="text-xs text-muted hover:text-accent transition-colors px-2 py-0.5 rounded-md border border-border/50 hover:border-accent/30 cursor-pointer">
+                {t("ui.reset")}
+              </button>
+            )}
+            <Toggle
+              value={ed.defaultBlurEnabled}
+              onChange={(v) => ed.setDefaultBlurEnabled(v)}
+              label={t("ui.blurSection")}
+            />
+          </div>
         </div>
+
+        {ed.defaultBlurEnabled ? (
+          <>
 
         <GradientPresetRow
           current={{ gradientHeight: ed.defaultGradientHeight, blurIntensity: ed.defaultBlurIntensity, blurFade: ed.defaultBlurFade, blurDarkness: ed.defaultBlurDarkness, tintStrength: ed.defaultTintStrength, blurEnabled: ed.defaultBlurEnabled }}
@@ -631,8 +643,13 @@ export function TransformPanel({ active }: { active: boolean }) {
               suffix="%"
             />
           </div>
+          </>
+        ) : (
+          <p className="text-[11px] text-zinc-400 italic">
+            {t("ui.blurDisabled")}
+          </p>
+        )}
       </div>
-      )}
       <button
         type="button"
         onClick={() => {

@@ -33,7 +33,7 @@ export function Button({
   title,
   ariaLabel,
 }: ButtonProps) {
-  const baseClasses = "inline-flex items-center justify-center gap-2 rounded-xl font-semibold transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-orange focus-visible:ring-offset-2"
+  const baseClasses = "inline-flex items-center justify-center gap-2 rounded-xl font-semibold transition-all duration-150 cursor-pointer touch-manipulation select-none active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-orange focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-950"
 
   const variantClasses = {
     default: "bg-surface2 border border-border text-zinc-200 hover:bg-zinc-700 hover:text-zinc-100",
@@ -44,10 +44,10 @@ export function Button({
   }
 
   const sizeClasses = {
-    xs: "px-2 py-0.5 text-[10px] h-6 min-w-6",
-    sm: "px-3 py-1 text-xs h-7 min-w-7",
-    md: "px-3 py-1.5 text-xs h-9",
-    lg: "px-4 py-2 text-sm h-11 min-w-[88px]",
+    xs: "px-2.5 py-1 text-[11px] h-7 min-w-7",
+    sm: "px-3 py-1.5 text-xs h-8 min-w-8",
+    md: "px-3.5 py-2 text-xs sm:text-sm h-9 sm:h-10 min-h-[38px]",
+    lg: "px-4.5 py-2.5 text-sm h-11 min-h-[44px] min-w-[88px]",
   }
 
   const isDisabled = disabled || loading
@@ -64,7 +64,7 @@ export function Button({
         baseClasses,
         variantClasses[variant],
         sizeClasses[size],
-        isDisabled && "opacity-40 cursor-not-allowed disabled:cursor-not-allowed",
+        isDisabled && "opacity-40 cursor-not-allowed disabled:cursor-not-allowed active:scale-100",
         loading && "relative overflow-hidden",
         className
       )}

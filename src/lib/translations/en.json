@@ -811,5 +811,9 @@
   "ui.linkModeFixed": "Fixed settings in the link",
   "ui.linkModeFixedSub": "Keep the current settings in the link",
   "ui.linkModeAdvanced": "Advanced options",
+  "ui.defaultsAutoSaved": "Changes saved automatically",
+  "ui.syncNow": "Sync now",
+  "ui.syncing": "Syncing...",
+  "ui.section": "Section",
   "ui.catalogPageCount": "{shown} of {total} titles"
 }

@@ -811,5 +811,9 @@
   "ui.customPreviewOnly": "일부 미리보기입니다. 모든 작품을 불러오려면 목록을 다시 여세요.",
   "ui.customGridLimit": "최대 500개 작품을 표시합니다.",
   "ui.animeFallback": "대체: TMDB 일본 애니메이션",
+  "ui.defaultsAutoSaved": "변경사항이 자동으로 저장되었습니다",
+  "ui.syncNow": "지금 동기화",
+  "ui.syncing": "동기화 중...",
+  "ui.section": "섹션",
   "ui.catalogPageCount": "{total}개 작품 중 {shown}개"
 }

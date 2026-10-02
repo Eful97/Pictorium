@@ -811,5 +811,9 @@
   "ui.customPreviewOnly": "תצוגה מקדימה חלקית. יש לפתוח שוב את הרשימה לטעינת כל הכותרים.",
   "ui.customGridLimit": "מוצגים עד 500 כותרים.",
   "ui.animeFallback": "חלופה: אנימציה יפנית מ־TMDB",
+  "ui.defaultsAutoSaved": "השינויים נשמרו אוטומטית",
+  "ui.syncNow": "סנכרן כעת",
+  "ui.syncing": "מסנכרן...",
+  "ui.section": "מדור",
   "ui.catalogPageCount": "{shown} מתוך {total} כותרים"
 }

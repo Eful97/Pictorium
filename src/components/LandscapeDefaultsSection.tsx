@@ -18,6 +18,7 @@ import {
 import { useT } from "@/lib/contexts/TranslationContext"
 import { usePosterEditor } from "@/lib/contexts/PosterEditorContext"
 import { SliderRow } from "@/components/SliderRow"
+import { Toggle } from "@/components/Toggle"
 import { GradientPresetRow } from "@/components/GradientPresetRow"
 import type { GradientPresetValues } from "@/lib/gradient-presets"
 import type { LandscapeServerDefaults } from "@/lib/server-defaults"
@@ -267,11 +268,11 @@ export function LandscapeDefaultsSection({ editVal, editTxt, setEditVal, setEdit
 
       <div className="bg-surface/50 border border-surface2/60 rounded-xl p-3.5 space-y-2.5 shadow-sm">
         <div className="flex items-center justify-between">
-          <span className="text-zinc-300 font-medium flex items-center gap-1.5">
+          <span className="text-zinc-200 font-semibold flex items-center gap-1.5">
             <Cloud className="w-3.5 h-3.5 text-cyan-400" />
-            {t("ui.blurDefault")}
+            {t("ui.blurSection")} · {t("ui.posterShapeLandscape")}
           </span>
-          <span className="flex items-center gap-1.5">
+          <span className="flex items-center gap-2">
             {isOver("blurEnabled") && (
               <button
                 type="button"
@@ -283,10 +284,15 @@ export function LandscapeDefaultsSection({ editVal, editTxt, setEditVal, setEdit
                 <X className="w-3 h-3" />
               </button>
             )}
+            <Toggle
+              value={enabled}
+              onChange={(v) => set({ blurEnabled: v })}
+              label={`${t("ui.blurSection")} · ${t("ui.posterShapeLandscape")}`}
+            />
           </span>
         </div>
 
-        {enabled && (
+        {enabled ? (
           <>
             <GradientPresetRow
               current={{
@@ -313,6 +319,10 @@ export function LandscapeDefaultsSection({ editVal, editTxt, setEditVal, setEdit
               {gradSlider(t("ui.topShade"), <Circle className="w-3.5 h-3.5" />, "topShade", ed.defaultTopShade, 0, 100, "%", "lstp")}
             </div>
           </>
+        ) : (
+          <p className="text-[11px] text-zinc-400 italic">
+            {t("ui.blurDisabled")}
+          </p>
         )}
       </div>
 

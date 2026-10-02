@@ -811,5 +811,9 @@
   "ui.customPreviewOnly": "معاينة جزئية. أعد فتح القائمة لتحميل جميع العناوين.",
   "ui.customGridLimit": "يتم عرض ما يصل إلى 500 عنوان.",
   "ui.animeFallback": "بديل: رسوم متحركة يابانية من TMDB",
+  "ui.defaultsAutoSaved": "تم حفظ التغييرات تلقائيًا",
+  "ui.syncNow": "مزامنة الآن",
+  "ui.syncing": "جارٍ المزامنة...",
+  "ui.section": "القسم",
   "ui.catalogPageCount": "{shown} من {total} عنوانًا"
 }
