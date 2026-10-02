@@ -654,6 +654,8 @@
   "ui.aiomLinkTitle": "Länk för AIO & Anpassad URL:",
   "ui.aiomLinkDesc": "Använd denna mall-URL i AIOMetadata- eller Anpassad URL-fälten i din app eller tillägg för att visa Pictorium-posters:",
   "ui.patternAuto": "Auto (rekommenderas)",
+  "ui.patternNuvio": "Nuvio — auto shape",
+  "ui.nuvioShapeDesc": "Nuvio auto-selects portrait and landscape. Square uses the portrait poster.",
   "ui.patternTagTmdb": "TMDB · {tmdb_id} — primär",
   "ui.patternTagImdb": "IMDb · {imdb_id} — reserv",
   "ui.patternTagAuto": "Auto · {tmdb_id|imdb_id} — rekommenderas",

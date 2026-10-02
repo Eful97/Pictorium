@@ -654,6 +654,8 @@
   "ui.aiomLinkTitle": "Odkaz pro AIO a vlastní URL:",
   "ui.aiomLinkDesc": "Použij tuto šablonu URL v polích AIOMetadata nebo vlastní URL své aplikace či doplňku pro zobrazení plakátů Pictorium:",
   "ui.patternAuto": "Auto (doporučeno)",
+  "ui.patternNuvio": "Nuvio — auto shape",
+  "ui.nuvioShapeDesc": "Nuvio auto-selects portrait and landscape. Square uses the portrait poster.",
   "ui.patternTagTmdb": "TMDB · {tmdb_id} — primární",
   "ui.patternTagImdb": "IMDb · {imdb_id} — záložní",
   "ui.patternTagAuto": "Auto · {tmdb_id|imdb_id} — doporučeno",

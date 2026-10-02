@@ -141,6 +141,12 @@ export function buildUrlPattern(bp: BadgeParams & {
    *  consumer — es. Nuvio — sostituisce quello disponibile per la vista,
    *  altrimenti tiene il poster originale). Default `{imdb_id}` (invariato). */
   idPlaceholder?: "{imdb_id}" | "{tmdb_id}" | "{tmdb_id|imdb_id}"
+  /** Placeholder formato Nuvio in query: con `"{shape}"` il `shape` fisso
+   *  viene sostituito da `shape={shape}` letterale (Nuvio lo sostituisce con
+   *  `poster`/`landscape`/`square` per vista e abilita gli override
+   *  landscape + backdrop in Continue Watching). Default assente (invariato:
+   *  `shape` fisso o omesso come prima). */
+  shapePlaceholder?: "{shape}"
 }): string {
   let url = `${getPosterPublicBaseUrl()}/api/poster/{type}/${bp.idPlaceholder ?? "{imdb_id}"}`
   const params = buildStremioPosterSearchParams({
@@ -193,7 +199,14 @@ export function buildUrlPattern(bp: BadgeParams & {
   // chiavi server-side, `u=` basta e le chiavi restano fuori dal DB di terzi.
   if (!bp.omitApiKey && bp.tmdbKey) params.set("api_key", bp.tmdbKey)
   if (!bp.omitMdblistKey && bp.mdblistApiKey) params.set("mdblist_key", bp.mdblistApiKey)
-  const str = params.toString()
+  if (bp.shapePlaceholder === "{shape}") {
+    // Template Nuvio a formato automatico: UN SOLO `shape={shape}` letterale,
+    // mai il valore fisso (né duplicati). `URLSearchParams` codificherebbe le
+    // parentesi (%7B…%7D) — ripristinate sotto SOLO per questo placeholder.
+    params.delete("shape")
+    params.set("shape", "{shape}")
+  }
+  const str = params.toString().replace(/shape=%7Bshape%7D/gi, "shape={shape}")
   if (str) url += "?" + str
   return url
 }

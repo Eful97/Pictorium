@@ -34,7 +34,8 @@ export function clamp(v: number, min: number, max: number): number {
 /**
  * Formato canvas — precedenza: query `shape` > mapping salvato >
  * config token > server defaults > "poster". Solo "landscape" attiva il
- * ramo 16:9 (base = backdrop TMDB); qualsiasi altro valore → portrait.
+ * ramo 16:9 (base = backdrop TMDB); "poster" e "square" (fallback esplicito
+ * Nuvio: Pictorium non ha un canvas quadrato) selezionano il verticale.
  * Usato dalla route PRIMA del fetch (serve a scegliere la base) e dentro
  * resolvePosterRenderConfig per coerenza.
  */
@@ -46,7 +47,9 @@ export function resolvePosterShape(
 ): PosterShape {
   const q = (searchParams.get("shape") || "").toLowerCase()
   if (q === "landscape") return "landscape"
-  if (q === "poster") return "poster"
+  if (q === "poster" || q === "square") return "poster"
+  // Placeholder Nuvio `{shape}` ricevuto senza sostituzione (o qualsiasi
+  // valore non riconosciuto): nessun errore, vale il fallback sotto.
   if (mapping?.posterShape === "landscape" || mapping?.posterShape === "poster") return mapping.posterShape
   if (configOverride?.posterShape === "landscape" || configOverride?.posterShape === "poster") return configOverride.posterShape
   if (sd.posterShape === "landscape" || sd.posterShape === "poster") return sd.posterShape

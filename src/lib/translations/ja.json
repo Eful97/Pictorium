@@ -513,6 +513,8 @@
   "ui.aiomLinkTitle": "AIO & Custom URL用リンク:",
   "ui.aiomLinkDesc": "Pictoriumポスターを表示するには、アプリまたはアドオンのAIOMetadataまたはCustom URLフィールドでこのURLテンプレートを使用します:",
   "ui.patternAuto": "Auto（推奨）",
+  "ui.patternNuvio": "Nuvio — auto shape",
+  "ui.nuvioShapeDesc": "Nuvio auto-selects portrait and landscape. Square uses the portrait poster.",
   "ui.patternTagTmdb": "TMDB · {tmdb_id} — プライマリ",
   "ui.patternTagImdb": "IMDb · {imdb_id} — フォールバック",
   "ui.patternTagAuto": "Auto · {tmdb_id|imdb_id} — 推奨",

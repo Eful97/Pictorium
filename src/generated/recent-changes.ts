@@ -11,8 +11,4 @@ export interface RecentChange {
 }
 
 export const RECENT_CHANGES: RecentChange[] = [
-  { type: "feature", text: "Simplify and enlarge ranking ribbons", sha: "6ff96e5", date: "2026-10-01" },
-  { type: "feature", text: "Add option to use TMDB default posters instead of clean ones", sha: "e5d36c2", date: "2026-10-01" },
-  { type: "feature", text: "Redesign notification toasts as dynamic glass pills and polish hero title", sha: "373142e", date: "2026-10-01" },
-  { type: "feature", text: "Daily rotation for unsaved clean posters at 02:00 UTC", sha: "6085d53", date: "2026-10-01" },
 ]

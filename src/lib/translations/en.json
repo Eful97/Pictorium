@@ -656,6 +656,8 @@
   "ui.aiomLinkTitle": "Link for AIO & Custom URL:",
   "ui.aiomLinkDesc": "Use this template URL in the AIOMetadata or Custom URL fields of your app or add-on to display Pictorium posters:",
   "ui.patternAuto": "Auto (recommended)",
+  "ui.patternNuvio": "Nuvio — auto shape",
+  "ui.nuvioShapeDesc": "Nuvio auto-selects portrait and landscape. Square uses the portrait poster.",
   "ui.patternTagTmdb": "TMDB · {tmdb_id} — primary",
   "ui.patternTagImdb": "IMDb · {imdb_id} — fallback",
   "ui.patternTagAuto": "Auto · {tmdb_id|imdb_id} — recommended",

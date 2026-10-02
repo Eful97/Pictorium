@@ -17,6 +17,12 @@ interface InstallModalProps {
   posterUrlPatternImdb?: string
   /** Template auto con `{tmdb_id|imdb_id}` (Nuvio: id disponibile per la vista). */
   posterUrlPatternAuto?: string
+  /** Varianti Nuvio a formato automatico (`shape={shape}`): combinano il
+   *  placeholder id scelto con il placeholder shape (Nuvio sceglie
+   *  poster/landscape per vista; square ricade sul verticale). */
+  posterUrlPatternNuvio?: string
+  posterUrlPatternNuvioImdb?: string
+  posterUrlPatternNuvioAuto?: string
 }
 
 /** Riga template copiabile con stato "copiato" proprio. */
@@ -66,7 +72,7 @@ function PatternRow({ value, tag, copyLabel }: { value: string; tag: string; cop
   )
 }
 
-export function InstallModal({ isOpen, onClose, manifestUrl: propManifestUrl, posterUrlPattern, posterUrlPatternImdb, posterUrlPatternAuto }: InstallModalProps) {
+export function InstallModal({ isOpen, onClose, manifestUrl: propManifestUrl, posterUrlPattern, posterUrlPatternImdb, posterUrlPatternAuto, posterUrlPatternNuvio, posterUrlPatternNuvioImdb, posterUrlPatternNuvioAuto }: InstallModalProps) {
   const { t } = useT()
   const [hubMode, setHubMode] = useState<"all" | "catalogs" | "search">("all")
   const [copied, setCopied] = useState(false)
@@ -74,6 +80,9 @@ export function InstallModal({ isOpen, onClose, manifestUrl: propManifestUrl, po
   // l'id disponibile per la vista, default), TMDB (primario, esatto) o IMDb
   // (fallback universale). Una sola riga visibile alla volta.
   const [patternKind, setPatternKind] = useState<"tmdb" | "imdb" | "auto">("auto")
+  // Formato automatico Nuvio (`shape={shape}`): Nuvio sceglie poster/landscape
+  // per vista (square → poster verticale). Nessuna persistenza: solo display.
+  const [nuvioShape, setNuvioShape] = useState(false)
   const [qrSvg, setQrSvg] = useState<string>("")
   const [baseManifestUrl, setBaseManifestUrl] = useState(propManifestUrl || "")
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -332,9 +341,38 @@ export function InstallModal({ isOpen, onClose, manifestUrl: propManifestUrl, po
                 </select>
               </div>
 
+              <label
+                htmlFor="pattern-nuvio-shape"
+                className="flex items-start gap-2 cursor-pointer"
+              >
+                <input
+                  id="pattern-nuvio-shape"
+                  type="checkbox"
+                  checked={nuvioShape}
+                  onChange={(e) => setNuvioShape(e.target.checked)}
+                  className="mt-0.5 h-3.5 w-3.5 shrink-0 accent-orange-500 cursor-pointer"
+                />
+                <span className="text-[10px] text-zinc-400 leading-tight">
+                  <span className="block font-semibold text-zinc-300">{t("ui.patternNuvio")}</span>
+                  <span className="block mt-0.5">{t("ui.nuvioShapeDesc")}</span>
+                </span>
+              </label>
+
               <PatternRow
-                value={(patternKind === "tmdb" ? posterUrlPattern : patternKind === "imdb" ? posterUrlPatternImdb : posterUrlPatternAuto) || posterUrlPattern || posterUrlPatternImdb || posterUrlPatternAuto || ""}
-                tag={patternKind === "tmdb" ? t("ui.patternTagTmdb") : patternKind === "imdb" ? t("ui.patternTagImdb") : t("ui.patternTagAuto")}
+                value={(() => {
+                  if (!nuvioShape) {
+                    return (patternKind === "tmdb" ? posterUrlPattern : patternKind === "imdb" ? posterUrlPatternImdb : posterUrlPatternAuto) || posterUrlPattern || posterUrlPatternImdb || posterUrlPatternAuto || ""
+                  }
+                  const nuvio = (patternKind === "tmdb" ? posterUrlPatternNuvio : patternKind === "imdb" ? posterUrlPatternNuvioImdb : posterUrlPatternNuvioAuto)
+                    || posterUrlPatternNuvio || posterUrlPatternNuvioImdb || posterUrlPatternNuvioAuto || ""
+                  // Fallback: se il context non ha ancora generato la variante
+                  // Nuvio, resta il template base (mai riga vuota).
+                  return nuvio || (patternKind === "tmdb" ? posterUrlPattern : patternKind === "imdb" ? posterUrlPatternImdb : posterUrlPatternAuto) || posterUrlPattern || posterUrlPatternImdb || posterUrlPatternAuto || ""
+                })()}
+                tag={(() => {
+                  const base = patternKind === "tmdb" ? t("ui.patternTagTmdb") : patternKind === "imdb" ? t("ui.patternTagImdb") : t("ui.patternTagAuto")
+                  return nuvioShape ? `${base} · {shape}` : base
+                })()}
                 copyLabel={t("ui.aiomLinkTitle") || "AIOMetadata URL"}
               />
             </div>

@@ -513,6 +513,8 @@
   "ui.aiomLinkTitle": "AIO & Custom URL용 링크:",
   "ui.aiomLinkDesc": "Pictorium 포스터를 표시하려면 앱 또는 애드온의 AIOMetadata 또는 Custom URL 필드에서 이 URL 템플릿을 사용하세요:",
   "ui.patternAuto": "Auto(권장)",
+  "ui.patternNuvio": "Nuvio — auto shape",
+  "ui.nuvioShapeDesc": "Nuvio auto-selects portrait and landscape. Square uses the portrait poster.",
   "ui.patternTagTmdb": "TMDB · {tmdb_id} — 기본",
   "ui.patternTagImdb": "IMDb · {imdb_id} — 대체",
   "ui.patternTagAuto": "Auto · {tmdb_id|imdb_id} — 권장",

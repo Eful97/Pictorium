@@ -35,6 +35,9 @@ export function AppShell() {
   const urlPattern = usePSelector((v) => v.urlPattern)
   const urlPatternImdb = usePSelector((v) => v.urlPatternImdb)
   const urlPatternAuto = usePSelector((v) => v.urlPatternAuto)
+  const urlPatternNuvio = usePSelector((v) => v.urlPatternNuvio)
+  const urlPatternNuvioImdb = usePSelector((v) => v.urlPatternNuvioImdb)
+  const urlPatternNuvioAuto = usePSelector((v) => v.urlPatternNuvioAuto)
   const view = usePSelector((v) => v.view)
   const router = usePSelector((v) => v.router)
   const mappings = usePSelector((v) => v.mappings)
@@ -337,7 +340,7 @@ export function AppShell() {
         )}
 
         <ProxyModal isOpen={proxyOpen} onClose={() => setProxyOpen(false)} />
-        <InstallModal isOpen={installOpen} onClose={() => setInstallOpen(false)} posterUrlPattern={urlPattern} posterUrlPatternImdb={urlPatternImdb} posterUrlPatternAuto={urlPatternAuto} />
+        <InstallModal isOpen={installOpen} onClose={() => setInstallOpen(false)} posterUrlPattern={urlPattern} posterUrlPatternImdb={urlPatternImdb} posterUrlPatternAuto={urlPatternAuto} posterUrlPatternNuvio={urlPatternNuvio} posterUrlPatternNuvioImdb={urlPatternNuvioImdb} posterUrlPatternNuvioAuto={urlPatternNuvioAuto} />
         <div key={view} className="animate-view-enter">
           {view === "search" ? <SearchView /> : view === "myposters" ? <MyPostersView /> : view === "cataloghi" ? <CataloghiView /> : <EditView />}
         </div>
