@@ -30,6 +30,21 @@ export interface ChangelogRelease {
  *  (which bumps on every commit and would leave the dot permanently on). */
 export const CHANGELOG: ChangelogRelease[] = [
   {
+    version: "1.24.7",
+    date: "2026-10-02",
+    title: "Release 1.24.7",
+    items: [
+      { type: "perf", text: "Load posters faster and more reliably" },
+      { type: "fix", text: "Improve settings layout and keyboard access" },
+      { type: "perf", text: "Load catalogs and streaming on demand" },
+      { type: "fix", text: "Make catalog updates and search reliable" },
+      { type: "fix", text: "Keep AIO and Custom posters up to date" },
+      { type: "feature", text: "Add Bat in the Sun and Horror Section logos" },
+      { type: "feature", text: "Automatically choose portrait or landscape posters in Nuvio" },
+      { type: "feature", text: "Add Today subtitle to ranking ribbons" },
+    ],
+  },
+  {
     version: "1.24.6",
     date: "2026-10-01",
     title: "Release 1.24.6",
