@@ -8,6 +8,7 @@ import type { DateFormat } from "@/lib/release-badge"
 import type { BadgeStyle, RankingBadgeStyle, QualityBadgeStyle } from "@/lib/badge-styles"
 import type { SashBucket } from "@/lib/badge-priority"
 import type { VideoFormat } from "@/lib/av-specs"
+import type { VisualPresetValues } from "@/lib/visual-presets"
 
 /**
  * PosterEditorCtx — possiede il proprio stato di editing (badge defaults,
@@ -45,6 +46,7 @@ export const LANDSCAPE_BLUR_DEFAULTS: LandscapeBlurState = {
 }
 
 export interface PosterEditorCtx {
+  applyVisualPreset: (values: VisualPresetValues) => void
   // ---- Badges ----
   globalBadges: boolean
   setGlobalBadges: (v: boolean | ((prev: boolean) => boolean)) => void
@@ -923,8 +925,11 @@ export function PosterEditorProvider({
       update({ defaultDateFormat: next })
     }, [defaultDateFormat, update])
 
+  const applyVisualPreset = useCallback((values: VisualPresetValues) => update(values), [update])
+
   const editorCtx = useMemo<PosterEditorCtx>(
     () => ({
+      applyVisualPreset,
       // Badges
       globalBadges,
       setGlobalBadges,
@@ -1274,7 +1279,7 @@ export function PosterEditorProvider({
       defaultPosterShape, setDefaultPosterShape,
       landscapeDefaults, setLandscape, resetLandscape,
       defaultLogoAlign, setDefaultLogoAlign,
-      loadDefaultsToState,
+      loadDefaultsToState, applyVisualPreset,
 
       // Blur
       blurEnabled, setBlurEnabled,

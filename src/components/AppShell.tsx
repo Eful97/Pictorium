@@ -355,8 +355,8 @@ export function AppShell() {
           {/* Settings Button */}
           <button
             type="button"
-            aria-label={t("ui.settings")}
-            title={t("ui.settings")}
+            aria-label={t("ui.settingsGlobal")}
+            title={t("ui.settingsGlobal")}
             onClick={(e) => { e.stopPropagation(); if (toolbarLocked) return; setSettingsOpen((o) => !o) }}
             disabled={toolbarLocked}
             aria-disabled={toolbarLocked || undefined}
@@ -508,7 +508,7 @@ export function AppShell() {
             <span className="h-8 flex items-center justify-center">
               <Settings className="w-5 h-5" />
             </span>
-            <span className="text-[10px] tracking-tight truncate">{t("ui.settingsTitle") || "Opzioni"}</span>
+            <span className="text-[10px] tracking-tight truncate">{t("ui.settingsGlobalShort") || t("ui.settingsTitle") || "Opzioni"}</span>
           </button>
         </div>
       </nav>
@@ -520,6 +520,7 @@ export function AppShell() {
             setSettingsOpen={setSettingsOpen}
             exportData={exportData}
             importData={importData}
+            onOpenInstall={() => setInstallOpen(true)}
           />
         )}
       </div>
@@ -536,7 +537,7 @@ export function AppShell() {
           <div className="sticky top-0 z-20 bg-surface/95 backdrop-blur-2xl flex items-center justify-between px-4 py-3 border-b border-white/10 shadow-lg shadow-black/20 shrink-0">
             <h2 className="text-sm font-bold text-zinc-100 flex items-center gap-2">
               <Settings className="w-4 h-4 text-accent-orange" />
-              <span>{t("ui.settingsTitle")}</span>
+              <span>{t("ui.settingsGlobalTitle") || t("ui.settingsTitle")}</span>
             </h2>
             <button
               type="button"
@@ -548,7 +549,16 @@ export function AppShell() {
             </button>
           </div>
           <div className="flex-1 flex flex-col min-h-0 overflow-hidden max-w-lg mx-auto w-full">
-            <SettingsPanel mobile setSettingsOpen={setSettingsOpen} exportData={exportData} importData={importData} />
+            <SettingsPanel
+              mobile
+              setSettingsOpen={setSettingsOpen}
+              exportData={exportData}
+              importData={importData}
+              onOpenInstall={() => {
+                closeSettings()
+                setInstallOpen(true)
+              }}
+            />
           </div>
         </div>
       )}

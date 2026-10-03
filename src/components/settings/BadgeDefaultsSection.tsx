@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { ChevronDown, Flame, Layers, Menu, Ribbon, Sparkles, Star, Trophy, Tv } from "lucide-react"
+import { ChevronDown, Flame, Layers, Menu, Ribbon, Sparkles, Star, Trophy, Tv, Check } from "lucide-react"
 import { useT } from "@/lib/contexts/TranslationContext"
 import { usePosterEditor } from "@/lib/contexts/PosterEditorContext"
 import { Toggle } from "@/components/Toggle"
@@ -83,12 +83,146 @@ export function BadgeDefaultsSection({ active }: { active: boolean }) {
     }
   }
 
+  const isEssential =
+    ed.defaultGlobalBadges &&
+    ed.defaultBadgeGenre &&
+    ed.defaultBadgeYear &&
+    !ed.defaultBadgeRating &&
+    !ed.defaultBadgeQuality &&
+    !ed.defaultRankingBadges &&
+    !ed.defaultNetworkLogo &&
+    ed.defaultBadgeStyle === "minimal"
+
+  const isRatings =
+    ed.defaultGlobalBadges &&
+    !ed.defaultBadgeGenre &&
+    ed.defaultBadgeYear &&
+    ed.defaultBadgeRating &&
+    ed.defaultBadgeQuality &&
+    !ed.defaultRankingBadges &&
+    !ed.defaultNetworkLogo &&
+    ed.defaultBadgeStyle === "pill"
+
+  const isFull =
+    ed.defaultGlobalBadges &&
+    ed.defaultBadgeGenre &&
+    ed.defaultBadgeYear &&
+    ed.defaultBadgeRating &&
+    ed.defaultBadgeQuality &&
+    ed.defaultRankingBadges &&
+    ed.defaultNetworkLogo &&
+    ed.defaultBadgeStyle === "pill"
+
+  const applyEssential = () => {
+    ed.setDefaultGlobalBadges(true)
+    ed.setDefaultBadgeGenre(true)
+    ed.setDefaultBadgeYear(true)
+    ed.setDefaultBadgeRating(false)
+    ed.setDefaultBadgeQuality(false)
+    ed.setDefaultRankingBadges(false)
+    ed.setDefaultNetworkLogo(false)
+    ed.setDefaultBadgeStyle("minimal")
+  }
+
+  const applyRatings = () => {
+    ed.setDefaultGlobalBadges(true)
+    ed.setDefaultBadgeGenre(false)
+    ed.setDefaultBadgeYear(true)
+    ed.setDefaultBadgeRating(true)
+    ed.setDefaultSeparateRatings(false)
+    ed.setDefaultRatingSources(["imdb", "tmdb"])
+    ed.setDefaultBadgeQuality(true)
+    ed.setDefaultQualityBadgeStyle("standard")
+    ed.setDefaultRankingBadges(false)
+    ed.setDefaultNetworkLogo(false)
+    ed.setDefaultBadgeStyle("pill")
+  }
+
+  const applyFull = () => {
+    ed.setDefaultGlobalBadges(true)
+    ed.setDefaultBadgeGenre(true)
+    ed.setDefaultBadgeYear(true)
+    ed.setDefaultBadgeRating(true)
+    ed.setDefaultSeparateRatings(false)
+    ed.setDefaultRatingSources(["imdb", "tmdb"])
+    ed.setDefaultBadgeQuality(true)
+    ed.setDefaultQualityBadgeStyle("standard")
+    ed.setDefaultRankingBadges(true)
+    ed.setDefaultRankingBadgeStyle("default")
+    ed.setDefaultNetworkLogo(true)
+    ed.setDefaultBadgeStyle("pill")
+  }
+
   return (
     <div
       role="tabpanel"
       aria-label={t("ui.badgeSection")}
       className={`space-y-3.5 text-xs ${active ? "block animate-tab-fade-in" : "hidden"}`}
     >
+      {/* CARD 0: Configurazioni Rapide Iniziali */}
+      <div className="bg-surface/50 border border-surface2/60 rounded-xl p-3.5 space-y-2.5 shadow-sm">
+        <div className="flex items-center justify-between">
+          <span className="font-semibold text-zinc-200 flex items-center gap-1.5">
+            <Sparkles className="w-3.5 h-3.5 text-accent-orange" />
+            {t("ui.configPresetTitle")}
+          </span>
+          <span className="text-[10px] text-zinc-400 font-mono">1-click</span>
+        </div>
+        <p className="text-[11px] text-zinc-400 -mt-1">
+          {t("ui.configPresetDesc")}
+        </p>
+
+        <div className="grid grid-cols-3 gap-2 pt-0.5">
+          <button
+            type="button"
+            onClick={applyEssential}
+            className={`flex flex-col text-left p-2.5 rounded-xl border transition-all cursor-pointer ${
+              isEssential
+                ? "bg-accent-orange/15 border-accent-orange/60 text-white shadow-sm ring-1 ring-accent-orange/30"
+                : "bg-surface2/40 hover:bg-surface2/70 border-surface2 text-zinc-300 hover:text-white"
+            }`}
+          >
+            <div className="flex items-center justify-between w-full">
+              <span className="font-semibold text-xs text-white">{t("ui.configPresetEssential")}</span>
+              {isEssential && <Check className="w-3.5 h-3.5 text-accent-orange shrink-0" />}
+            </div>
+            <span className="text-[10px] text-zinc-400 mt-1 leading-snug">{t("ui.configPresetEssentialDesc")}</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={applyRatings}
+            className={`flex flex-col text-left p-2.5 rounded-xl border transition-all cursor-pointer ${
+              isRatings
+                ? "bg-accent-orange/15 border-accent-orange/60 text-white shadow-sm ring-1 ring-accent-orange/30"
+                : "bg-surface2/40 hover:bg-surface2/70 border-surface2 text-zinc-300 hover:text-white"
+            }`}
+          >
+            <div className="flex items-center justify-between w-full">
+              <span className="font-semibold text-xs text-white">{t("ui.configPresetRatings")}</span>
+              {isRatings && <Check className="w-3.5 h-3.5 text-accent-orange shrink-0" />}
+            </div>
+            <span className="text-[10px] text-zinc-400 mt-1 leading-snug">{t("ui.configPresetRatingsDesc")}</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={applyFull}
+            className={`flex flex-col text-left p-2.5 rounded-xl border transition-all cursor-pointer ${
+              isFull
+                ? "bg-accent-orange/15 border-accent-orange/60 text-white shadow-sm ring-1 ring-accent-orange/30"
+                : "bg-surface2/40 hover:bg-surface2/70 border-surface2 text-zinc-300 hover:text-white"
+            }`}
+          >
+            <div className="flex items-center justify-between w-full">
+              <span className="font-semibold text-xs text-white">{t("ui.configPresetFull")}</span>
+              {isFull && <Check className="w-3.5 h-3.5 text-accent-orange shrink-0" />}
+            </div>
+            <span className="text-[10px] text-zinc-400 mt-1 leading-snug">{t("ui.configPresetFullDesc")}</span>
+          </button>
+        </div>
+      </div>
+
       {/* Badge & Provider Predefiniti */}
       <div className="bg-surface/50 border border-surface2/60 rounded-xl p-3.5 space-y-3 shadow-sm">
         <span className="font-semibold text-zinc-200 flex items-center gap-1.5">

@@ -431,3 +431,117 @@ function computeBadgeParams(ps: PosterState, bp: BadgeParams): string[] {
   // For auto badges, let the server compute from its own TMDB data
   return params
 }
+
+export interface DefaultsPreviewParams {
+  defaultLogoScale?: number | null
+  defaultLogoOffsetX?: number | null
+  defaultLogoOffsetY?: number | null
+  tmdbKey?: string
+  userId?: string | null
+  lang?: string
+  defaultGlobalBadges?: boolean
+  defaultRankingBadges?: boolean
+  defaultBadgeGenre?: boolean
+  defaultBadgeYear?: boolean
+  defaultBadgeRating?: boolean
+  defaultBadgeQuality?: boolean
+  defaultCustomRatings?: boolean
+  defaultSeparateRatings?: boolean
+  defaultRatingSources?: string[]
+  defaultBadgeStyle?: BadgeStyle
+  defaultRankingBadgeStyle?: RankingBadgeStyle
+  defaultQualityBadgeStyle?: QualityBadgeStyle | null
+  defaultVideoFormats?: readonly VideoFormat[] | null
+  defaultBlurEnabled?: boolean
+  defaultBlurIntensity?: number
+  defaultBlurFade?: number
+  defaultBlurDarkness?: number
+  defaultTintStrength?: number
+  defaultTopShade?: number
+  defaultGradientHeight?: number
+  defaultTopBadgeScale?: number
+  defaultTopBadgeOffsetX?: number
+  defaultTopBadgeOffsetY?: number
+  defaultGenreBadgeScale?: number
+  defaultGenreBadgeOffsetX?: number
+  defaultGenreBadgeOffsetY?: number
+  defaultQualityBadgeScale?: number
+  defaultQualityBadgeOffsetX?: number
+  defaultQualityBadgeOffsetY?: number
+  defaultNetworkLogoScale?: number
+  defaultNetworkLogoOffsetX?: number
+  defaultNetworkLogoOffsetY?: number
+  defaultNetworkLogo?: boolean
+  defaultNetworkLogoPosition?: NetworkLogoPosition
+  defaultRibbonEnabled?: boolean
+  defaultRibbonSide?: "left" | "right"
+  defaultPosterShape?: PosterShape
+  defaultLogoAlign?: "left" | "center" | null
+  defaultDateFormat?: DateFormat | null
+  defaultRegion?: string
+}
+
+export const DEFAULTS_PREVIEW_DEMO_MEDIA = {
+  mediaType: "movie",
+  id: 19995,
+} as const
+
+export function buildDefaultsPreviewUrl(bp: DefaultsPreviewParams): string {
+  const params: string[] = [`rv=${RENDER_VERSION}`, "preview=1"]
+  if (bp.tmdbKey) params.push(`api_key=${encodeURIComponent(bp.tmdbKey)}`)
+  if (bp.userId) params.push(`u=${encodeURIComponent(bp.userId)}`)
+  // Explicit zero restores automatic sizing/no offset instead of inheriting a saved override.
+  params.push(`scale=${bp.defaultLogoScale ?? 0}`)
+  params.push(`ox=${bp.defaultLogoOffsetX ?? 0}`)
+  params.push(`oy=${bp.defaultLogoOffsetY ?? 0}`)
+  params.push(`badges=${bp.defaultGlobalBadges !== false ? "1" : "0"}`)
+  params.push(`ranking=${bp.defaultRankingBadges !== false ? "1" : "0"}`)
+  params.push(`bg=${bp.defaultBadgeGenre !== false ? "1" : "0"}`)
+  params.push(`by=${bp.defaultBadgeYear !== false ? "1" : "0"}`)
+  params.push(`br=${bp.defaultBadgeRating !== false ? "1" : "0"}`)
+  params.push(`bq=${bp.defaultBadgeQuality !== false ? "1" : "0"}`)
+  params.push(`cr=${bp.defaultCustomRatings === false ? "0" : "1"}`)
+  params.push(`sep=${bp.defaultSeparateRatings ? "1" : "0"}`)
+  if (bp.defaultRatingSources && bp.defaultRatingSources.length > 0) {
+    params.push(`rsrc=${encodeURIComponent(bp.defaultRatingSources.join(","))}`)
+  }
+  params.push(`bs=${bp.defaultBadgeStyle ?? "shadow"}`)
+  params.push(`rs=${bp.defaultRankingBadgeStyle ?? "default"}`)
+  params.push(`qbs=${bp.defaultQualityBadgeStyle === "mono" || bp.defaultQualityBadgeStyle === "color" ? bp.defaultQualityBadgeStyle : "standard"}`)
+  if (bp.defaultVideoFormats !== undefined && bp.defaultVideoFormats !== null) {
+    params.push(`formats=${bp.defaultVideoFormats.length === 0 ? "none" : bp.defaultVideoFormats.join(",")}`)
+  }
+  params.push(`gradHeight=${bp.defaultGradientHeight ?? 30}`)
+  params.push(`blur=${bp.defaultBlurIntensity ?? 20}`)
+  params.push(`bf=${bp.defaultBlurFade ?? 50}`)
+  params.push(`bd=${bp.defaultBlurDarkness ?? 30}`)
+  params.push(`be=${bp.defaultBlurEnabled !== false ? "1" : "0"}`)
+  params.push(`tint=${bp.defaultTintStrength ?? 20}`)
+  params.push(`ts=${bp.defaultTopShade ?? 50}`)
+  params.push(`tscale=${bp.defaultTopBadgeScale ?? 100}`)
+  params.push(`tox=${bp.defaultTopBadgeOffsetX ?? 0}`)
+  params.push(`toy=${bp.defaultTopBadgeOffsetY ?? 0}`)
+  params.push(`gscale=${bp.defaultGenreBadgeScale ?? 100}`)
+  params.push(`gox=${bp.defaultGenreBadgeOffsetX ?? 0}`)
+  params.push(`goy=${bp.defaultGenreBadgeOffsetY ?? 0}`)
+  params.push(`qscale=${bp.defaultQualityBadgeScale ?? 100}`)
+  params.push(`qox=${bp.defaultQualityBadgeOffsetX ?? 0}`)
+  params.push(`qoy=${bp.defaultQualityBadgeOffsetY ?? 0}`)
+  params.push(`netscale=${bp.defaultNetworkLogoScale ?? 100}`)
+  params.push(`nox=${bp.defaultNetworkLogoOffsetX ?? 0}`)
+  params.push(`noy=${bp.defaultNetworkLogoOffsetY ?? 0}`)
+  params.push(`netLogo=${bp.defaultNetworkLogo !== false ? "1" : "0"}`)
+  params.push(`netPos=${bp.defaultNetworkLogoPosition === "top" ? "top" : "auto"}`)
+  params.push(`ribbon=${bp.defaultRibbonEnabled === false ? "0" : "1"}`)
+  if (bp.defaultRibbonSide) params.push(`side=${bp.defaultRibbonSide}`)
+  params.push(`shape=${bp.defaultPosterShape === "landscape" ? "landscape" : "poster"}`)
+  if (bp.defaultPosterShape === "landscape" && bp.defaultLogoAlign) {
+    params.push(`align=${bp.defaultLogoAlign === "left" ? "left" : "center"}`)
+  }
+  if (bp.lang) params.push(`lang=${encodeURIComponent(bp.lang)}`)
+  if (bp.defaultRegion) params.push(`region=${encodeURIComponent(bp.defaultRegion)}`)
+  if (bp.defaultDateFormat) params.push(`df=${bp.defaultDateFormat}`)
+
+  const qs = "?" + params.join("&")
+  return `${getDomain()}/api/poster/${DEFAULTS_PREVIEW_DEMO_MEDIA.mediaType}/${DEFAULTS_PREVIEW_DEMO_MEDIA.id}${qs}`
+}
