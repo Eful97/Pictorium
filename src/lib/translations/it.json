@@ -857,5 +857,7 @@
   "ui.visualPresetsHint": "Salva badge, logo e trasformazioni. Ritrova i preset negli altri dispositivi collegati allo stesso spazio o alla stessa istanza privata.",
   "ui.visualPresetName": "Nome del preset",
   "ui.visualPresetSave": "Salva stile attuale",
-  "ui.visualPresetsError": "Impossibile caricare o salvare i preset. Controlla che il tuo spazio sia sbloccato."
+  "ui.visualPresetsError": "Impossibile caricare o salvare i preset. Controlla che il tuo spazio sia sbloccato.",
+  "ui.ribbonPosition": "Posizione nastro",
+  "ui.sashHint": "L'ordine dall'alto in basso stabilisce quale categoria compare in cima quando un titolo ne ha più d'una."
 }

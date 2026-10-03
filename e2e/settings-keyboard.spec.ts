@@ -14,12 +14,13 @@ for (const viewport of [
     })
     await page.goto("/")
     await expect(page.getByPlaceholder(/cerca/i)).toBeVisible({ timeout: 30_000 })
-    const trigger = page.getByRole("button", { name: "Impostazioni", exact: true })
+    const trigger = page.getByRole("button", { name: /Configura tutti i poster|Tutti i poster/i }).filter({ visible: true })
     await trigger.click()
 
-    const dialog = page.getByRole("dialog", { name: "Impostazioni", exact: true })
+    const dialog = page.getByRole("dialog", { name: "Configura tutti i poster" }).filter({ visible: true })
     await expect(dialog).toBeVisible()
     await expect(dialog.getByRole("button", { name: "Sincronizza ora", exact: true })).toBeVisible()
+    await expect(dialog.getByRole("status")).toHaveCount(0)
     const controls = dialog.locator(
       'button:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])',
     ).filter({ visible: true })

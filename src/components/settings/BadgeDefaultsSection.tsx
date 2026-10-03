@@ -386,12 +386,77 @@ export function BadgeDefaultsSection({ active }: { active: boolean }) {
               )}
             </div>
           )}
+          {/* Voti Personalizzati */}
+          <div className="pt-1">
+            <div className="flex items-center justify-between" title={t("ui.customRatingsHint")}>
+              <span className="text-zinc-300 font-medium flex items-center gap-1.5">
+                <Star className="w-3.5 h-3.5 text-teal-400" />
+                {t("ui.customRatings")}
+              </span>
+              <Toggle
+                value={ed.defaultCustomRatings}
+                onChange={(v) => {
+                  ed.setDefaultCustomRatings(v)
+                }}
+                label={t("ui.customRatings")}
+              />
+            </div>
+
+            {ed.defaultCustomRatings && (
+              <div className="pl-3 py-1 space-y-2 border-l-2 border-surface2 ml-1 animate-fade-in mt-1.5">
+                <div>
+                  <label className="text-[11px] text-muted block mb-1">{t("ui.customRatingEndpoint")}</label>
+                  <input
+                    type="url"
+                    value={ed.defaultCustomRatingEndpoint ?? ""}
+                    onChange={(e) => ed.setDefaultCustomRatingEndpoint(e.target.value)}
+                    placeholder="https://example.com/ratings/{imdbId}"
+                    maxLength={500}
+                    className="w-full text-xs font-mono py-1.5 px-2.5 rounded-lg bg-black/40 border border-white/10 text-white placeholder-zinc-600 focus:outline-none focus:border-teal-500/50"
+                  />
+                </div>
+                <p className="text-[11px] text-zinc-400 italic">{t("ui.customRatingKeyHint")}</p>
+                <div className="pt-1">
+                  <button
+                    type="button"
+                    disabled={crTestBusy}
+                    onClick={runCustomRatingTest}
+                    className="px-3 py-1.5 rounded-lg text-[11px] font-semibold bg-teal-500/15 text-teal-300 border border-teal-500/30 hover:bg-teal-500/25 disabled:opacity-50 transition-colors cursor-pointer"
+                  >
+                    {crTestBusy ? t("ui.customRatingTesting") : t("ui.customRatingTest")}
+                  </button>
+                  {crTestResult && (
+                    <div className={`mt-2 p-2 rounded-lg border text-[11px] ${crTestResult.ok ? "bg-emerald-500/10 border-emerald-500/30" : "bg-red-500/10 border-red-500/30"}`}>
+                      {crTestResult.ok ? (
+                        <div className="space-y-1">
+                          <div className="font-semibold text-emerald-300">
+                            {t("ui.customRatingTestOk")} · {crTestResult.status} OK · {crTestResult.ms} ms
+                          </div>
+                          {crTestResult.ratings?.map((r) => (
+                            <div key={r.id} className="flex items-center justify-between text-zinc-200">
+                              <span className="truncate">{r.name}</span>
+                              <span className="font-mono ml-2 shrink-0">{formatRating(r.value, r.format as "decimal" | "percent")}</span>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="text-red-300">
+                          {customRatingTestErrorLabel(crTestResult.error)}
+                          {crTestResult.status ? ` · ${crTestResult.status}` : ""} · {crTestResult.ms} ms
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
         </div>
 
         <hr className="border-surface2/50" />
 
-        {/* Trend & Network logo & Ribbon side */}
-        <div className="space-y-2">
+        {/* Trend, Fasce & Priorità */}
+        <div className="space-y-2.5">
           <div>
             <div className="flex items-center justify-between">
               <span className="text-zinc-300 font-medium flex items-center gap-1.5">
@@ -419,6 +484,23 @@ export function BadgeDefaultsSection({ active }: { active: boolean }) {
             <p className="text-[11px] text-zinc-400 italic mt-1">{t("ui.trendDefaultHint")}</p>
           </div>
 
+          <div title={t("ui.preReleaseHint")}>
+            <div className="flex items-center justify-between">
+              <span className="text-zinc-300 font-medium flex items-center gap-1.5">
+                <Flame className="w-3.5 h-3.5 text-orange-400" />
+                {t("ui.preRelease")}
+              </span>
+              <Toggle
+                value={ed.defaultPreRelease}
+                onChange={(v) => {
+                  ed.setDefaultPreRelease(v)
+                }}
+                label={t("ui.preRelease")}
+              />
+            </div>
+            <p className="text-[11px] text-zinc-400 italic mt-1">{t("ui.preReleaseHint")}</p>
+          </div>
+
           <div>
             <div className="flex items-center justify-between" title={t("ui.ribbonHint")}>
               <span className="text-zinc-300 font-medium flex items-center gap-1.5">
@@ -434,28 +516,54 @@ export function BadgeDefaultsSection({ active }: { active: boolean }) {
               />
             </div>
             <p className="text-[11px] text-zinc-400 italic mt-1">{t("ui.ribbonHint")}</p>
-          </div>
 
-          <div className="flex items-center justify-between">
-            <span className="text-zinc-300 font-medium flex items-center gap-1.5">
-              <Sparkles className="w-3.5 h-3.5 text-purple-400" />
-              {t("ui.badgeQuality")}
-            </span>
-            <Toggle
-              value={ed.defaultBadgeQuality}
-              onChange={(v) => {
-                ed.setDefaultBadgeQuality(v)
-              }}
-              label={t("ui.badgeQuality")}
-            />
+            {/* Posizione Ribbon: adiacente al toggle */}
+            {ed.defaultRibbonEnabled && (
+              <div className="flex items-center justify-between gap-3 pt-2 pl-5 animate-fade-in" title={t("ui.ribbonHint")}>
+                <span className="text-zinc-400 font-medium text-[11px]">
+                  {t("ui.ribbonPosition")}
+                </span>
+                <div className="flex gap-1 flex-1 max-w-[160px]">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      ed.setDefaultRibbonSide("left")
+                    }}
+                    className={`flex-1 py-1 rounded-lg text-[11px] font-semibold transition-all duration-150 cursor-pointer ${
+                      ed.defaultRibbonSide === "left"
+                        ? "bg-white/20 text-white shadow-sm"
+                        : "bg-white/5 text-muted hover:bg-white/10 hover:text-zinc-200"
+                    }`}
+                  >
+                    Nuvio
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      ed.setDefaultRibbonSide("right")
+                    }}
+                    className={`flex-1 py-1 rounded-lg text-[11px] font-semibold transition-all duration-150 cursor-pointer ${
+                      ed.defaultRibbonSide === "right"
+                        ? "bg-white/20 text-white shadow-sm"
+                        : "bg-white/5 text-muted hover:bg-white/10 hover:text-zinc-200"
+                    }`}
+                  >
+                    Stremio
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Scala priorità sash: l'ordine in lista è l'ordine di vittoria del badge superiore */}
-          <div className="pt-1">
-            <span className="text-[10px] font-semibold uppercase tracking-wide text-muted">
+          <div className="pt-2">
+            <span className="text-[10px] font-semibold uppercase tracking-wide text-muted block">
               {t("ui.sashTitle")}
             </span>
-            <div className="mt-1 space-y-1.5">
+            <p className="text-[11px] text-zinc-400 italic mt-0.5 mb-1.5">
+              {t("ui.sashHint")}
+            </p>
+            <div className="space-y-1.5">
               {(() => {
                 const sash = ed.defaultSashOrder ?? [...DEFAULT_SASH_ORDER]
                 // Accese nell'ordine salvato, spente in coda in ordine canonico.
@@ -513,69 +621,25 @@ export function BadgeDefaultsSection({ active }: { active: boolean }) {
               })()}
             </div>
           </div>
+        </div>
 
-          <div className="flex items-center justify-between" title={t("ui.customRatingsHint")}>
+        <hr className="border-surface2/50" />
+
+        {/* Specifiche Tecniche & Network */}
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
             <span className="text-zinc-300 font-medium flex items-center gap-1.5">
-              <Star className="w-3.5 h-3.5 text-teal-400" />
-              {t("ui.customRatings")}
+              <Sparkles className="w-3.5 h-3.5 text-purple-400" />
+              {t("ui.badgeQuality")}
             </span>
             <Toggle
-              value={ed.defaultCustomRatings}
+              value={ed.defaultBadgeQuality}
               onChange={(v) => {
-                ed.setDefaultCustomRatings(v)
+                ed.setDefaultBadgeQuality(v)
               }}
-              label={t("ui.customRatings")}
+              label={t("ui.badgeQuality")}
             />
           </div>
-
-          {ed.defaultCustomRatings && (
-          <div className="pl-3 py-1 space-y-2 border-l-2 border-surface2 ml-1 animate-fade-in">
-            <div>
-              <label className="text-[11px] text-muted block mb-1">{t("ui.customRatingEndpoint")}</label>
-              <input
-                type="url"
-                value={ed.defaultCustomRatingEndpoint ?? ""}
-                onChange={(e) => ed.setDefaultCustomRatingEndpoint(e.target.value)}
-                placeholder="https://example.com/ratings/{imdbId}"
-                maxLength={500}
-                className="w-full text-xs font-mono py-1.5 px-2.5 rounded-lg bg-black/40 border border-white/10 text-white placeholder-zinc-600 focus:outline-none focus:border-teal-500/50"
-              />
-            </div>
-            <p className="text-[11px] text-zinc-400 italic">{t("ui.customRatingKeyHint")}</p>
-            <div className="pt-1">
-              <button
-                type="button"
-                disabled={crTestBusy}
-                onClick={runCustomRatingTest}
-                className="px-3 py-1.5 rounded-lg text-[11px] font-semibold bg-teal-500/15 text-teal-300 border border-teal-500/30 hover:bg-teal-500/25 disabled:opacity-50 transition-colors cursor-pointer"
-              >
-                {crTestBusy ? t("ui.customRatingTesting") : t("ui.customRatingTest")}
-              </button>
-              {crTestResult && (
-                <div className={`mt-2 p-2 rounded-lg border text-[11px] ${crTestResult.ok ? "bg-emerald-500/10 border-emerald-500/30" : "bg-red-500/10 border-red-500/30"}`}>
-                  {crTestResult.ok ? (
-                    <div className="space-y-1">
-                      <div className="font-semibold text-emerald-300">
-                        {t("ui.customRatingTestOk")} · {crTestResult.status} OK · {crTestResult.ms} ms
-                      </div>
-                      {crTestResult.ratings?.map((r) => (
-                        <div key={r.id} className="flex items-center justify-between text-zinc-200">
-                          <span className="truncate">{r.name}</span>
-                          <span className="font-mono ml-2 shrink-0">{formatRating(r.value, r.format as "decimal" | "percent")}</span>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="text-red-300">
-                      {customRatingTestErrorLabel(crTestResult.error)}
-                      {crTestResult.status ? ` · ${crTestResult.status}` : ""} · {crTestResult.ms} ms
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-          </div>
-          )}
 
           <div className="flex items-center justify-between">
             <span className="text-zinc-300 font-medium flex items-center gap-1.5">
@@ -614,57 +678,6 @@ export function BadgeDefaultsSection({ active }: { active: boolean }) {
               </div>
             </div>
           )}
-
-          <div className="flex items-center justify-between" title={t("ui.preReleaseHint")}>
-            <span className="text-zinc-300 font-medium flex items-center gap-1.5">
-              <Flame className="w-3.5 h-3.5 text-orange-400" />
-              {t("ui.preRelease")}
-            </span>
-            <Toggle
-              value={ed.defaultPreRelease}
-              onChange={(v) => {
-                ed.setDefaultPreRelease(v)
-              }}
-              label={t("ui.preRelease")}
-            />
-          </div>
-
-          <div className="flex items-center justify-between gap-3 pt-1" title={t("ui.ribbonHint")}>
-            <span className={`text-zinc-300 font-medium flex items-center gap-1.5 shrink-0 ${ed.defaultRibbonEnabled ? "" : "opacity-50"}`}>
-              <Layers className="w-3.5 h-3.5 text-accent-orange" />
-              {t("ui.badgePosition")}
-            </span>
-            <div className={`flex gap-1 flex-1 max-w-[160px] ${ed.defaultRibbonEnabled ? "" : "opacity-50 pointer-events-none"}`}>
-              <button
-                type="button"
-                disabled={!ed.defaultRibbonEnabled}
-                onClick={() => {
-                  ed.setDefaultRibbonSide("left")
-                }}
-                className={`flex-1 py-1 rounded-lg text-[11px] font-semibold transition-all duration-150 cursor-pointer ${
-                  ed.defaultRibbonSide === "left"
-                    ? "bg-white/20 text-white shadow-sm"
-                    : "bg-white/5 text-muted hover:bg-white/10 hover:text-zinc-200"
-                }`}
-              >
-                Nuvio
-              </button>
-              <button
-                type="button"
-                disabled={!ed.defaultRibbonEnabled}
-                onClick={() => {
-                  ed.setDefaultRibbonSide("right")
-                }}
-                className={`flex-1 py-1 rounded-lg text-[11px] font-semibold transition-all duration-150 cursor-pointer ${
-                  ed.defaultRibbonSide === "right"
-                    ? "bg-white/20 text-white shadow-sm"
-                    : "bg-white/5 text-muted hover:bg-white/10 hover:text-zinc-200"
-                }`}
-              >
-                Stremio
-              </button>
-            </div>
-          </div>
         </div>
       </div>
 

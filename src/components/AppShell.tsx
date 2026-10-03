@@ -530,7 +530,7 @@ export function AppShell() {
           ref={mobileSettingsDialogRef}
           role="dialog"
           aria-modal="true"
-          aria-label={t("ui.settingsTitle")}
+          aria-label={t("ui.settingsGlobalTitle") || t("ui.settingsTitle")}
           className={`fixed inset-0 z-[70] bg-background md:hidden flex flex-col ${closingSettings ? "animate-fade-out" : "animate-fade-scale-in"}`}
         >
           <div className="fixed inset-0 z-[-1]" onClick={() => closeSettings()} />

@@ -11,6 +11,8 @@ export interface RecentChange {
 }
 
 export const RECENT_CHANGES: RecentChange[] = [
+  { type: "feature", text: "Map New Line, Jagged Edge, Gracie, Deseo and Bellanova network logos", sha: "16612f8", date: "2026-10-03" },
+  { type: "feature", text: "Import catalogs from Stremio addons via manifest URL", sha: "7da041d", date: "2026-10-03" },
   { type: "feature", text: "Redesign Top 20 ranking source bar with modern dropdowns", sha: "958041c", date: "2026-10-03" },
   { type: "fix", text: "Make custom Top 20 rankings work locally", sha: "751a33c", date: "2026-10-03" },
   { type: "feature", text: "Choose your own Top 20 ranking lists", sha: "5ae9536", date: "2026-10-03" },

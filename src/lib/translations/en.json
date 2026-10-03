@@ -857,5 +857,7 @@
   "ui.visualPresetsHint": "Save badges, logo and transforms. Access your presets on other devices connected to the same space or private instance.",
   "ui.visualPresetName": "Preset name",
   "ui.visualPresetSave": "Save current style",
-  "ui.visualPresetsError": "Unable to load or save presets. Check that your space is unlocked."
+  "ui.visualPresetsError": "Unable to load or save presets. Check that your space is unlocked.",
+  "ui.ribbonPosition": "Ribbon position",
+  "ui.sashHint": "Order from top to bottom sets which category appears at the top when a title matches multiple."
 }

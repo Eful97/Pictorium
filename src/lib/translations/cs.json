@@ -857,5 +857,7 @@
   "ui.addonSelect": "Select catalogs to import",
   "ui.addonSourceNote": "Imported catalogs keep source order, IDs and navigation. Pictorium posters apply to supported IMDb/TMDB titles; other items keep original images. Proprietary IDs need the source addon installed for details. Importing a catalog does not replace the original addon.",
   "ui.addonNoCatalogs": "No movie/series catalogs found in this manifest.",
-  "ui.addonProprietaryNote": "Proprietary IDs: keep the source addon installed for details (no meta forwarding in MVP)."
+  "ui.addonProprietaryNote": "Proprietary IDs: keep the source addon installed for details (no meta forwarding in MVP).",
+  "ui.ribbonPosition": "Pozice stuhy",
+  "ui.sashHint": "Pořadí shora dolů určuje, která kategorie se zobrazí nahoře při více shodách."
 }
