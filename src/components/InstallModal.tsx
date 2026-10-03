@@ -1,6 +1,7 @@
 "use client"
 
 import React, { useState, useEffect, useRef, useMemo } from "react"
+import { usePSelector } from "@/lib/context"
 import { X, Check, Copy, Download, ExternalLink, Tv, Sparkles, Film, Search, Star } from "lucide-react"
 import QRCode from "qrcode"
 import { useT } from "@/lib/contexts/TranslationContext"
@@ -83,6 +84,9 @@ function PatternRow({ value, tag, copyLabel }: { value: string; tag: string; cop
 
 export function InstallModal({ isOpen, onClose, manifestUrl: propManifestUrl, posterUrlPattern, posterUrlPatternImdb, posterUrlPatternAuto, posterUrlPatternNuvio, posterUrlPatternNuvioImdb, posterUrlPatternNuvioAuto, linkMode: controlledLinkMode, onLinkModeChange, hasUserSpace }: InstallModalProps) {
   const { t } = useT()
+  // Device config token (local-only spaces): the install carries the device
+  // catalog selection where no namespace exists.
+  const localConfigToken = usePSelector((v) => v.localConfigToken)
   const [hubMode, setHubMode] = useState<"all" | "catalogs" | "search">("all")
   const [copied, setCopied] = useState(false)
   // Quale placeholder id usa il template: Auto (Nuvio/AIO sostituiscono
@@ -135,8 +139,14 @@ export function InstallModal({ isOpen, onClose, manifestUrl: propManifestUrl, po
       setBaseManifestUrl(`${window.location.origin}/u/${uParam}/manifest.json`)
       return
     }
+    // Namespace-less spaces (local-only): carry the device catalog selection
+    // in a signed token instead of the empty global defaults.
+    if (localConfigToken) {
+      setBaseManifestUrl(`${window.location.origin}/manifest.json?config=${localConfigToken}`)
+      return
+    }
     setBaseManifestUrl(`${window.location.origin}/manifest.json`)
-  }, [propManifestUrl, isOpen])
+  }, [propManifestUrl, isOpen, localConfigToken])
 
   const resolvedManifestUrl = useMemo(() => {
     if (!baseManifestUrl) return ""

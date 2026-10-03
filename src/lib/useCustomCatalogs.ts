@@ -20,6 +20,10 @@ export function useCustomCatalogs(
   const lastSyncRef = useRef<string>("")
   const pendingRef = useRef("")
   const [syncAttempt, setSyncAttempt] = useState(0)
+  // Bumped on every acknowledged catalog PUT so rank consumers (badge,
+  // preview poster) refetch when a custom list changes under the same
+  // ranking selection (edited URL/type, disable, delete).
+  const [catalogsSyncNonce, setCatalogsSyncNonce] = useState(0)
   const [hydrated, setHydrated] = useState(false)
   // Serializza i PUT in ordine d'arrivo: senza, due modifiche rapide con
   // risposte ritardate possono chiudere il server con il payload vecchio
@@ -209,6 +213,7 @@ export function useCustomCatalogs(
           })
           if (!res.ok) throw new Error("HTTP " + res.status)
           lastSyncRef.current = payloadStr
+          setCatalogsSyncNonce((n) => n + 1)
           if (pendingRef.current !== payloadStr) setSyncAttempt((n) => n + 1)
         } catch (error) {
           if (pendingRef.current !== payloadStr) return
@@ -355,6 +360,7 @@ export function useCustomCatalogs(
     addCustomCatalog,
     removeCustomCatalog,
     toggleCustomCatalog,
+    catalogsSyncNonce,
     disabledCatalogIds,
     setDisabledCatalogIds,
     toggleBuiltinCatalog,

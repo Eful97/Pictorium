@@ -222,4 +222,22 @@ describe("useCustomCatalogs auto-sync", () => {
     })
     expect(result.current.customCatalogs[0].enabled).toBe(false)
   })
+
+  it("PUT success bumps catalogsSyncNonce, failure does not", async () => {
+    mockedPut.mockImplementation(async (url: string, init?: RequestInit) => {
+      if (init?.method === "PUT") return okPut()
+      return okGet
+    })
+    const store = memStore()
+    const { result } = renderHook(() => useCustomCatalogs(store.get, store.set))
+    expect(result.current.catalogsSyncNonce).toBe(0)
+
+    await act(async () => {
+      result.current.addCustomCatalog({ name: "Lista", type: "movie", url: "https://mdblist.com/lists/u/slug" })
+    })
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 700))
+    })
+    expect(result.current.catalogsSyncNonce).toBe(1)
+  })
 })

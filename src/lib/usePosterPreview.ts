@@ -7,6 +7,11 @@ export function usePosterPreview() {
   // B2: selettore slice — prima useP() ri-renderizzava il hook (e chi lo usa)
   // a OGNI aggiornamento del context Pictorium, non solo al cambio previewUrl.
   const previewUrl = usePSelector((v) => v.previewUrl)
+  // Rank-source save bump: la preview va rifetchata anche a URL identico
+  // (la selezione vive server-side e non entra nell'URL); le risposte
+  // preview sono no-store, quindi il reload rilegge sempre il render nuovo.
+  const rankSourceNonce = usePSelector((v) => v.rankSourceNonce)
+  const catalogsSyncNonce = usePSelector((v) => v.catalogsSyncNonce)
 
   const [imageError, setImageError] = useState(false)
   const [previewLoading, setPreviewLoading] = useState(false)
@@ -111,7 +116,7 @@ export function usePosterPreview() {
         loadDelayRef.current = null
       }
     }
-  }, [previewUrl, retryNonce])
+  }, [previewUrl, retryNonce, rankSourceNonce, catalogsSyncNonce])
 
   // Rifà la fetch della preview corrente (usato dal pulsante Retry dopo un errore).
   const retry = useCallback(() => {

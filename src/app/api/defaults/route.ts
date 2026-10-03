@@ -119,6 +119,8 @@ const defaultsSchema = z.object({
     networkLogoOffsetY: z.number().optional(),
   }).optional(),
   customCatalogs: z.array(customCatalogSchema).optional(),
+  rankingSourceMovie: z.string().max(64).optional(),
+  rankingSourceSeries: z.string().max(64).optional(),
   disabledCatalogIds: z.array(z.string().max(80)).optional(),
   homeDisabledCatalogIds: z.array(z.string().max(80)).optional(),
   catalogOrder: z.array(z.string().max(80)).optional(),

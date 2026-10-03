@@ -223,6 +223,16 @@ Opt-in (`sep=1`, default OFF): sostituisce la media ★ nel badge con una colonn
 | `live` | mai dallo stato editor (solo template "Segui il mio spazio": `followSpace` in `buildUrlPattern`, o `live: true` esplicito nel builder) | `live=1` — politica di rivalidazione (non forza il render): header `public, no-cache, max-age=0, must-revalidate` senza SWR su 200 e 304 + mai immutable; i parametri assenti seguono lo spazio (`badges`/`ranking`/`be` compresi, vedi sotto) |
 | `tvdb_key` | mai dal client (solo manuale; Stremio usa il fallback d'istanza) | chiave TVDB per il rescue poster B1: solo ramo non-mappato, solo senza clean TMDB + con logo + solo portrait. Solo il textless (`includesText === false`) salva il logo; con testo il logo si azzera (no doppio logo). La chiave non entra mai nella cache key (segreto); il flag server-side `tvdb=1` separa le entry con rescue attivo |
 
+> Fonte ranking Top 20 (nessun parametro URL dedicato): la selezione
+> (`rankingSourceMovie`/`rankingSourceSeries`, `""` = JustWatch) vive nei
+> server defaults / config token e si risolve server-side da `u=`/`config=`
+> come gli altri default — mai nelle query dei poster (le chiavi restano
+> server-side). Con fonte custom il rank alimenta il canale `trendRank`
+> (label Film/Serie, niente label JustWatch/anime); fuori Top 20 o in errore
+> nessun badge. La preview ricarica via nonce post-save (`rankSourceNonce` in
+> `usePosterPreview`, risposte preview no-store), mai con URL diverse: client
+> e Stremio vedono lo stesso render.
+
 > URL Stremio (cataloghi/meta): `buildStremioPosterUrl()` emette gli stessi parametri ma dal **mapping salvato con fallback ai default** (`mapping?.X ?? defaults.X`) per `badges`/`ranking`/`bs`/`rs`/`be`/`extra`/toggle/enum — emissione sempre esplicita. Il tuning numerico ad alta cardinalità (`gradHeight`/`blur`/`tint`/`bf`/`bd` + 12 scale/offset `tscale`/`tox`/`toy`/`gscale`/`gox`/`goy`/`qscale`/`qox`/`qoy`/`netscale`/`nox`/`noy`) è omesso senza `config` (`compactTuning`): il server lo risolve da mapping > defaults dello spazio (stesso render, chiave convergente). `extra` è emesso solo per customBadge **non** rank-key (`isRankKey`): le rank-key viaggiano via rank live + fallback `mapping.badgeRank`/`trendRank`/`animeRank` su fetch fallito (mai su miss genuina: un titolo uscito dalla chart non resuscita il rank stantio), altrimenti `queryExtra` duplicherebbe il badge (vince sul calcolato).
 >
 > Template AIO/Custom "Segui il mio spazio" (`followSpace` in `buildUrlPattern`, `linkMode` in `context.tsx`/`InstallModal.tsx`): omette TUTTI i visuali (toggle, stili, tuning, lingua, shape fisso) ed emette solo `u` + `live=1` + `rv` (+ chiavi per policy, + `shape={shape}` nella variante Nuvio). Il server risolve gli assenti da query > mapping > config > spazio > default; con `live=1` anche `badges`/`ranking`/`be` assenti seguono lo spazio (fuori dal live, l'assenza resta default ON come prima). Header live su 200 e 304, ETag + 304 conservati, cache interna riusata.

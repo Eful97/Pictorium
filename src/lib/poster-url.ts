@@ -132,6 +132,12 @@ export function buildUrlPattern(bp: BadgeParams & {
   mdblistApiKey?: string
   /** Namespace utente (multi-user): emesso come `u=` nel template. */
   userId?: string | null
+  /**
+   * Config token firmato (solo spazi senza namespace): porta cataloghi e
+   * selezione Top 20 del device dove i defaults di spazio non bastano.
+   * Assente ovunque altrove (template byte-identici a prima).
+   */
+  configToken?: string | null
   /** Namespace con chiavi server-side: omette le chiavi dal template (il
    *  server le risolve da namespace via `u=`) invece di incollarle in chiaro. */
   omitApiKey?: boolean
@@ -160,6 +166,7 @@ export function buildUrlPattern(bp: BadgeParams & {
   if (bp.followSpace) {
     const params = buildStremioPosterSearchParams({
       user: bp.userId ?? undefined,
+      config: bp.configToken ?? undefined,
       followSpace: true,
     })
     if (!bp.omitApiKey && bp.tmdbKey) params.set("api_key", bp.tmdbKey)
@@ -175,6 +182,7 @@ export function buildUrlPattern(bp: BadgeParams & {
   const params = buildStremioPosterSearchParams({
     lang: bp.lang,
     user: bp.userId ?? undefined,
+    config: bp.configToken ?? undefined,
     globalBadges: bp.globalBadges,
     rankingBadges: bp.rankingBadges,
     badgeGenre: bp.badgeGenre,
@@ -234,12 +242,15 @@ export function buildUrlPattern(bp: BadgeParams & {
   return url
 }
 
-export function buildPreviewUrl(ps: PosterState, bp: BadgeParams): string {
+export function buildPreviewUrl(ps: PosterState, bp: BadgeParams, configToken?: string | null): string {
   if (!ps.selected) return ""
   const params: string[] = [`rv=${RENDER_VERSION}`]
   // Namespace utente: la preview WYSIWYG deve leggere il mapping del
   // namespace, altrimenti mostra il poster globale (desync).
   if (ps.userId) params.push(`u=${ps.userId}`)
+  // Config token (solo spazi senza namespace, mai altrove): porta cataloghi e
+  // selezione Top 20 del device dove i defaults di spazio non bastano.
+  if (configToken) params.push(`config=${encodeURIComponent(configToken)}`)
   if (ps.tmdbKey) params.push(`api_key=${encodeURIComponent(ps.tmdbKey)}`)
   params.push(`badges=${bp.globalBadges ? "1" : "0"}`)
   params.push(`ranking=${bp.rankingBadges ? "1" : "0"}`)

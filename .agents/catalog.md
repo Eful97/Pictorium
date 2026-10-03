@@ -73,6 +73,39 @@ Warmup automatico: `pictorium-jw-movies`, `pictorium-jw-series`, `pictorium-netf
 per le serie. Funziona sia con chiave MDBList sia con endpoint pubblico JSON di fallback.
 Risolve i dettagli TMDB e deduplica per `tmdbId`.
 
+## Fonte ranking Top 20 (`rankingSourceMovie` / `rankingSourceSeries`)
+
+I cataloghi globali `pictorium-jw-movies` / `pictorium-jw-series` e i badge
+classifica (poster, preview, `/api/trending/rank`) possono usare JustWatch
+(default retrocompatibile) oppure un catalogo custom già importato come fonte
+ranking. La selezione vive in `ServerDefaults` + config token (stringa vuota =
+override JW esplicito); il manifest mostra il nome della lista custom al posto
+di "JustWatch" e la UI la configura in CataloghiView accanto ai cataloghi
+importati (due dropdown Film/Serie, solo custom abilitati e compatibili per
+tipo; `mixed` vale per entrambi).
+
+- Puro: `resolveRankingSource()` in `lib/ranking-source.ts` (foglia
+  client-safe, riusata da UI e server) — id eliminato, spento
+  (`enabled === false`) o incompatibile → JustWatch, mai errori.
+- Recupero: `fetchCustomRankingTop20()` in `lib/custom-ranking.ts`, unica
+  funzione per cataloghi/badge/poster — filtro per tipo, risoluzione
+  IMDb/TVDB→TMDB, dedup, STOP alle prime 20 posizioni valide (niente filler
+  JW, pagine oltre la Top 20 vuote). Errori provider → stato esplicito, mai
+  fallback silenzioso; solo `ok` con item va in cache (30 min, tag
+  `custom_catalogs`, chiave con hash di selezione/credenziali/namespace).
+- Badge: il rank custom viaggia sul canale `trendRank` (label Film/Serie);
+  fuori Top 20 o in errore nessun badge, mai rank JW. Piattaforme e anime
+  invariati. Le chiavi API non entrano mai nei poster URL (solo server-side).
+- Spazi senza namespace (local-only/profileless): la selezione viaggia in un
+  token firmato `?config=` coniato da `POST /api/config-token` (payload anche
+  solo cataloghi: il server completa i visual dai defaults). Preview, rank e
+  template/poster di install lo includono solo lì (altrove URL identici).
+  L'install Stremio da link con token serve cataloghi/poster custom omonimi.
+- Cache chiavi catalogo: frammento `:rs<hash>` SOLO sui globali JW così il
+  cambio selezione non invalida piattaforme/anime; poster ed ETag seguono già
+  via `sdHash`/`configHash`. `/api/trending/rank` custom risponde
+  `private, no-cache` (l'URL non cambia con la selezione), JW resta `public`.
+
 ## Chiavi API
 
 `resolveRequestApiKey(req)` in `lib/tmdb.ts` — priorità:
@@ -141,6 +174,10 @@ chiave d'istanza condivisa) resta valida per quel caso.
 
 - `src/lib/catalog-definitions.ts` — elenco cataloghi + warmup
 - `src/lib/catalog-handler.ts` — `pictoriumCatalog(req, mediaType, rawId, userParam, configParam)` (logica unica). `userParam` (param `u=`/`user`) è il profilo UUID: entra nel cache key come `:u<uuid>` e nei poster URL come `user` (`&u=`). `configParam` è il config token (`config=`).
+- `src/lib/ranking-source.ts` — selezione fonte Top 20 (pura, client-safe)
+- `src/lib/custom-ranking.ts` — Top 20 da lista custom (unica funzione condivisa)
+- `src/lib/useRankingSources.ts` — stato client, persistenza e nonce di refresh
+- `src/components/RankingSourceSection.tsx` — dropdown Film/Serie in CataloghiView
 - `src/lib/justwatch.ts` — `getJWRankings` (GraphQL + cache)
 - `src/lib/flixpatrol.ts` — `getTop10` per le piattaforme
 - `src/lib/mdblist.ts` — `fetchMDBList`

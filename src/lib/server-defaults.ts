@@ -166,6 +166,15 @@ export interface ServerDefaults {
    */
   landscape?: LandscapeServerDefaults | null
   customCatalogs?: import("@/lib/types").CustomCatalogConfig[]
+  /**
+   * Top 20 global ranking source (custom catalog id) per slot.
+   * Absent/empty = JustWatch (retrocompatible default). The resolver
+   * (`ranking-source.ts`) validates existence, `enabled !== false` and type
+   * compatibility (movie/series/mixed); deleted or incompatible ids return
+   * JustWatch without errors.
+   */
+  rankingSourceMovie?: string
+  rankingSourceSeries?: string
   disabledCatalogIds?: string[]
   homeDisabledCatalogIds?: string[]
   catalogOrder?: string[]

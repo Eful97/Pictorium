@@ -15,6 +15,8 @@ export const NOTICE_ID_PREFIX = "pictorium:notice:"
 
 export const NOTICE_MISSING_TMDB_KEY = "missing-tmdb-key"
 export const NOTICE_MISSING_TVDB_KEY = "missing-tvdb-key"
+/** The custom list driving a Top 20 catalog answered with an error status. */
+export const NOTICE_CUSTOM_RANKING_UNAVAILABLE = "custom-ranking-unavailable"
 
 export function noticeCatalogId(slug: string = NOTICE_MISSING_TMDB_KEY): string {
   return `${NOTICE_ID_PREFIX}${slug}`
@@ -35,6 +37,12 @@ export const NOTICE_MISSING_TVDB_KEY_TITLE = "Chiave TVDB necessaria"
 export const NOTICE_MISSING_TVDB_KEY_DESCRIPTION =
   "Questo catalogo legge una lista TheTVDB e richiede la tua chiave API TVDB. " +
   "Aggiungila nelle impostazioni di Pictorium e ricarica."
+
+export const NOTICE_CUSTOM_RANKING_UNAVAILABLE_TITLE = "Classifica non disponibile"
+
+export const NOTICE_CUSTOM_RANKING_UNAVAILABLE_DESCRIPTION =
+  "La lista personalizzata di questa classifica ha risposto con un errore. " +
+  "Riprova più tardi o seleziona di nuovo JustWatch nelle impostazioni."
 
 export interface NoticeCatalogMeta {
   id: string
@@ -79,12 +87,23 @@ export function buildNoticeDetail(options: {
   description?: string
 }): NoticeDetailMeta {
   const isTvdb = options.id === noticeCatalogId(NOTICE_MISSING_TVDB_KEY)
+  const isCustomRanking = options.id === noticeCatalogId(NOTICE_CUSTOM_RANKING_UNAVAILABLE)
+  const fallbackName = isTvdb
+    ? NOTICE_MISSING_TVDB_KEY_TITLE
+    : isCustomRanking
+      ? NOTICE_CUSTOM_RANKING_UNAVAILABLE_TITLE
+      : NOTICE_MISSING_KEY_TITLE
+  const fallbackDescription = isTvdb
+    ? NOTICE_MISSING_TVDB_KEY_DESCRIPTION
+    : isCustomRanking
+      ? NOTICE_CUSTOM_RANKING_UNAVAILABLE_DESCRIPTION
+      : NOTICE_MISSING_KEY_DESCRIPTION
   return {
     id: options.id,
     type: options.type,
-    name: options.name ?? (isTvdb ? NOTICE_MISSING_TVDB_KEY_TITLE : NOTICE_MISSING_KEY_TITLE),
+    name: options.name ?? fallbackName,
     genres: [],
     poster: options.poster,
-    description: options.description ?? (isTvdb ? NOTICE_MISSING_TVDB_KEY_DESCRIPTION : NOTICE_MISSING_KEY_DESCRIPTION),
+    description: options.description ?? fallbackDescription,
   }
 }

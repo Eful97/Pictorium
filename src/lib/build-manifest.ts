@@ -5,6 +5,7 @@ import { PICTORIUM_CATALOGS, PICTORIUM_PEOPLE_SEARCH_CATALOGS, regionJwName } fr
 import { getOriginFromRequest } from "@/lib/poster-public-url"
 import { decodeConfig, type PictoriumUserConfig } from "@/lib/config-token"
 import { normalizeCatalogIdKeys, normalizeCatalogIdList } from "@/lib/catalog-definitions"
+import { rankingSourceCatalogName } from "@/lib/ranking-source"
 import { getServerDefaultsChecked, getServerDefaultsForUser } from "@/lib/server-defaults"
 import { getScopedUserId } from "@/lib/user-auth"
 import { getRegionDef, normalizeRegion, parseRegion } from "@/lib/regions"
@@ -57,6 +58,8 @@ export async function buildManifestResponse(req: NextRequest, user?: string | nu
       disabledCatalogIds: namespaceDefaults.disabledCatalogIds,
       homeDisabledCatalogIds: namespaceDefaults.homeDisabledCatalogIds,
       customCatalogs: namespaceDefaults.customCatalogs,
+      rankingSourceMovie: namespaceDefaults.rankingSourceMovie,
+      rankingSourceSeries: namespaceDefaults.rankingSourceSeries,
       catalogRenames: namespaceDefaults.catalogRenames,
       catalogOrder: namespaceDefaults.catalogOrder,
     }
@@ -70,6 +73,8 @@ export async function buildManifestResponse(req: NextRequest, user?: string | nu
       disabledCatalogIds: userConfig.disabledCatalogIds ?? namespaceDefaults.disabledCatalogIds,
       homeDisabledCatalogIds: userConfig.homeDisabledCatalogIds ?? namespaceDefaults.homeDisabledCatalogIds,
       customCatalogs: userConfig.customCatalogs ?? namespaceDefaults.customCatalogs,
+      rankingSourceMovie: userConfig.rankingSourceMovie ?? namespaceDefaults.rankingSourceMovie,
+      rankingSourceSeries: userConfig.rankingSourceSeries ?? namespaceDefaults.rankingSourceSeries,
       catalogRenames: userConfig.catalogRenames ?? namespaceDefaults.catalogRenames,
       catalogOrder: userConfig.catalogOrder ?? namespaceDefaults.catalogOrder,
       region: userConfig.region ?? namespaceDefaults.region,
@@ -129,6 +134,18 @@ export async function buildManifestResponse(req: NextRequest, user?: string | nu
     if (customName && customName.trim()) {
       return { ...cat, name: customName.trim() }
     }
+    // A Top 20 driven by a custom list must not be called JustWatch: the
+    // custom list name wins over the regional JW name (renames still first).
+    const rankingName = rankingSourceCatalogName(
+      cat.id,
+      cat.type,
+      {
+        customCatalogs: userConfig?.customCatalogs,
+        rankingSourceMovie: userConfig?.rankingSourceMovie,
+        rankingSourceSeries: userConfig?.rankingSourceSeries,
+      },
+    )
+    if (rankingName) return { ...cat, name: rankingName }
     const jwName = regionJwName(cat.id, cat.type, manifestRegion)
     if (jwName) return { ...cat, name: jwName }
     return cat

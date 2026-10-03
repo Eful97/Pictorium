@@ -10,6 +10,7 @@ import { Modal } from "@/components/ui/Modal"
 import { catalogStatusErrorKey } from "@/lib/catalog-provider-detect"
 import { SimklCard, type SimklCardItem } from "@/components/SimklCard"
 import { CustomCatalogModal } from "@/components/CustomCatalogModal"
+import { RankingSourceSection } from "@/components/RankingSourceSection"
 import { CatalogManagerModal } from "@/components/CatalogManagerModal"
 import { posterUrl } from "@/lib/utils"
 import { userFetch } from "@/lib/http"
@@ -672,6 +673,16 @@ export function CataloghiView() {
       )}
 
       {showCustom && customCatalogs.length > 0 && <div className="section-divider" />}
+
+      {/* Global Top 20 source pickers — next to the imported catalogs, driving
+          the Top 20 rows below. Shown on the unfiltered view and the JustWatch
+          filter (the content it configures), never inside platform filters. */}
+      {(platformFilter === "all" || platformFilter === "justwatch") && (
+        <>
+          <RankingSourceSection />
+          <div className="section-divider" />
+        </>
+      )}
 
       {/* JustWatch Top 20 — due contenitori separati (Film | Serie) sulla stessa riga */}
       {showJustWatch && (

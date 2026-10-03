@@ -24,6 +24,7 @@ export interface LocalBackupSection {
   gradientPresets?: unknown[]
   catalogs?: Record<string, unknown>
   collections?: unknown
+  rankingSources?: { movie?: string; series?: string }
 }
 
 /** Cap per singola voce grezza (il file resta piccolo e innocuo). */
@@ -35,6 +36,8 @@ const RAW_CAPS: Record<string, number> = {
   pictorium_home_disabled_catalogs: 8_192,
   pictorium_catalog_order: 16_384,
   pictorium_catalog_renames: 16_384,
+  pictorium_ranking_source_movie: 128,
+  pictorium_ranking_source_series: 128,
   pictorium_collections: 65_536,
   recent_searches: 8_192,
 }
@@ -116,6 +119,19 @@ export function collectLocalBackup(storage: MinimalStorage, uuid: string | null)
       } catch { /* voce saltata */ }
     }
     if (Object.keys(catalogs).length > 0) out.catalogs = catalogs
+  } catch { /* voce saltata */ }
+  try {
+    // Lettura diretta (non readRaw: la stringa vuota è un override JW
+    // esplicito valido e va preservata, non scartata come assente).
+    const sources: { movie?: string; series?: string } = {}
+    for (const [field, key] of [["movie", "pictorium_ranking_source_movie"], ["series", "pictorium_ranking_source_series"]] as const) {
+      let raw: string | null = null
+      try {
+        raw = storage.getItem(key)
+      } catch { /* voce saltata */ }
+      if (raw !== null && raw.trim().length <= 64) sources[field] = raw.trim()
+    }
+    if (sources.movie !== undefined || sources.series !== undefined) out.rankingSources = sources
   } catch { /* voce saltata */ }
   try {
     const raw = readRaw(storage, "pictorium_collections")
@@ -208,5 +224,18 @@ export function applyLocalBackup(
       write("collections", "pictorium_collections", JSON.stringify(src.collections), RAW_CAPS.pictorium_collections)
     } else skipped.push("collections")
   } else if (src.collections !== undefined) skipped.push("collections")
+  if (typeof src.rankingSources === "object" && src.rankingSources !== null && !Array.isArray(src.rankingSources)) {
+    const sel = src.rankingSources as Record<string, unknown>
+    const pairs: Array<[string, string, unknown]> = [
+      ["rankingSources.movie", "pictorium_ranking_source_movie", sel.movie],
+      ["rankingSources.series", "pictorium_ranking_source_series", sel.series],
+    ]
+    for (const [name, key, v] of pairs) {
+      if (v === undefined) continue
+      // Stringa vuota = override JW esplicito: si applica come le altre.
+      if (typeof v === "string" && v.trim().length <= 64) write(name, key, v.trim(), RAW_CAPS[key])
+      else skipped.push(name)
+    }
+  } else if (src.rankingSources !== undefined) skipped.push("rankingSources")
   return { applied, skipped }
 }

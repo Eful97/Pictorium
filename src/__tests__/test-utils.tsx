@@ -140,6 +140,7 @@ export const MOCK_CTX: PictoriumCtx = {
   addCustomCatalog: stubFn,
   removeCustomCatalog: stubFn,
   toggleCustomCatalog: stubFn,
+  catalogsSyncNonce: 0,
   disabledCatalogIds: [],
   setDisabledCatalogIds: stubFn,
   toggleBuiltinCatalog: stubFn,
@@ -154,6 +155,13 @@ export const MOCK_CTX: PictoriumCtx = {
   renameCatalog: stubFn,
   resetCatalogNames: stubFn,
   resetCatalogOrder: stubFn,
+  rankingSourceMovie: "",
+  rankingSourceSeries: "",
+  setRankingSource: async () => true,
+  rankSourceNonce: 0,
+  refreshCurrentRank: stubFn,
+  localConfigToken: null,
+  localConfigTokenStatus: "off",
 }
 
 export function createWrapper(overrides?: Partial<PictoriumCtx>) {

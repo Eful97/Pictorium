@@ -68,6 +68,7 @@ export default function EditView() {
   const setStremioPreview = usePSelector((v) => v.setStremioPreview)
   const titleOf = usePSelector((v) => v.titleOf)
   const tmdbKey = usePSelector((v) => v.tmdbKey)
+  const currentUserId = usePSelector((v) => v.currentUserId)
   const serverHasTmdbKey = usePSelector((v) => v.serverHasTmdbKey)
   // Chiave disponibile = browser oppure env d'istanza (fallback server):
   // solo quando mancano entrambe si mostra il pannello di benvenuto.
@@ -905,7 +906,7 @@ export default function EditView() {
                           </span>
                         )
                       })()}
-                      <JwRankBadge tmdbId={selected.id} type={selected.media_type === "movie" ? "movie" : "tv"} regionCode={ed.defaultRegion} />
+                      <JwRankBadge tmdbId={selected.id} type={selected.media_type === "movie" ? "movie" : "tv"} regionCode={ed.defaultRegion} userId={currentUserId} />
                     </div>
                   </div>
                 )}

@@ -59,6 +59,32 @@ describe("collectLocalBackup", () => {
     }
     expect(collectLocalBackup(broken, UUID)).toEqual({})
   })
+
+  it("raccoglie e ripristina le fonti ranking (stringa vuota = override JW)", () => {
+    const s = memStorage({
+      pictorium_ranking_source_movie: "cat_movies",
+      pictorium_ranking_source_series: "",
+    })
+    expect(collectLocalBackup(s, UUID)).toMatchObject({
+      rankingSources: { movie: "cat_movies", series: "" },
+    })
+
+    const target = memStorage()
+    const res = applyLocalBackup(target, UUID, {
+      rankingSources: { movie: "cat_movies", series: "" },
+    })
+    expect(res.applied).toContain("rankingSources.movie")
+    expect(res.applied).toContain("rankingSources.series")
+    expect(target.dump()["pictorium_ranking_source_movie"]).toBe("cat_movies")
+    expect(target.dump()["pictorium_ranking_source_series"]).toBe("")
+
+    const bad = applyLocalBackup(memStorage(), UUID, {
+      rankingSources: { movie: "x".repeat(65), series: 42 },
+    })
+    expect(bad.applied).not.toContain("rankingSources.movie")
+    expect(bad.skipped).toContain("rankingSources.movie")
+    expect(bad.skipped).toContain("rankingSources.series")
+  })
 })
 
 describe("applyLocalBackup", () => {

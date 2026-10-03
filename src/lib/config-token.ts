@@ -79,6 +79,11 @@ export const configTokenSchema = z.object({
   catalogOrder: z.array(z.string().max(80)).optional(),
   catalogRenames: z.record(z.string().max(80), z.string().max(100)).optional(),
   customCatalogs: z.array(customCatalogSchema).optional(),
+  // Top 20 global ranking source (custom catalog id) per slot: absent =
+  // JustWatch (old tokens stay valid). The bound mirrors the custom id;
+  // existence and type compatibility are decided by the resolver.
+  rankingSourceMovie: z.string().max(64).optional(),
+  rankingSourceSeries: z.string().max(64).optional(),
   disabledCatalogIds: z.array(z.string().max(80)).optional(),
   homeDisabledCatalogIds: z.array(z.string().max(80)).optional(),
   episodeMetadataSource: z.enum(["tmdb", "tvdb"]).optional(),
@@ -89,6 +94,28 @@ export const configTokenSchema = z.object({
 })
 
 export type PictoriumUserConfig = z.infer<typeof configTokenSchema>
+
+/**
+ * Catalog-only token payload (no visuals): lets a device carry its catalog
+ * and Top 20 selection where the namespace is not enough (local-only /
+ * profileless spaces) through the existing `?config=` contract. Every
+ * consumer already merges missing fields from namespace/defaults, so absent
+ * visuals safely fall through to mapping > defaults. Keys are allowlisted
+ * (no numerics: nothing here can sway the render math), bounds mirror the
+ * full schema.
+ */
+export const partialCatalogTokenSchema = z.object({
+  customCatalogs: z.array(customCatalogSchema).optional(),
+  rankingSourceMovie: z.string().max(64).optional(),
+  rankingSourceSeries: z.string().max(64).optional(),
+  disabledCatalogIds: z.array(z.string().max(80)).optional(),
+  homeDisabledCatalogIds: z.array(z.string().max(80)).optional(),
+  catalogOrder: z.array(z.string().max(80)).optional(),
+  catalogRenames: z.record(z.string().max(80), z.string().max(100)).optional(),
+  region: z.string().max(32).optional(),
+}).strict()
+
+export type PartialCatalogUserConfig = z.infer<typeof partialCatalogTokenSchema>
 
 // ---- HMAC setup ----
 

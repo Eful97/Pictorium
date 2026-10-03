@@ -38,6 +38,9 @@ import { TranslationProvider } from "./contexts/TranslationContext"
 import { MetaInfoProvider } from "./contexts/MetaInfoContext"
 import { MappingsProvider } from "./contexts/MappingsContext"
 import { useCustomCatalogs } from "./useCustomCatalogs"
+import { useRankingSources } from "./useRankingSources"
+import { useLocalConfigToken } from "./useLocalConfigToken"
+import { slotsReferencingCustom, shouldApplyRankRefresh } from "./ranking-source"
 import { migrateLegacyStorage } from "./storage-migration"
 
 export type ViewType = "search" | "myposters" | "edit" | "cataloghi"
@@ -219,6 +222,8 @@ export interface PictoriumCtx {
   addCustomCatalog: (catalog: Omit<CustomCatalogConfig, "id">) => void
   removeCustomCatalog: (id: string) => void
   toggleCustomCatalog: (id: string) => void
+  /** Bumped on every acknowledged catalog PUT (custom edits retarget rank consumers). */
+  catalogsSyncNonce: number
   disabledCatalogIds: string[]
   setDisabledCatalogIds: (ids: string[]) => void
   toggleBuiltinCatalog: (id: string) => void
@@ -233,6 +238,23 @@ export interface PictoriumCtx {
   renameCatalog: (id: string, newName: string) => void
   resetCatalogNames: () => void
   resetCatalogOrder: () => void
+  /** Raw Top 20 source ids (`""` = explicit JustWatch); resolved via the pure resolver. */
+  rankingSourceMovie: string
+  rankingSourceSeries: string
+  setRankingSource: (slot: "movie" | "series", id: string) => Promise<boolean>
+  /** Bumped on every successful ranking save: rank consumers refetch. */
+  rankSourceNonce: number
+  /** Re-reads trendRank for the current item (after a ranking save). */
+  refreshCurrentRank: () => void
+  /**
+   * Signed config token mirroring the device catalog state, present only
+   * where the namespace is not enough (local-only/profileless): preview and
+   * rank requests append it as `?config=` so the server resolves the device
+   * selection. Null everywhere else (URLs byte-identical to before).
+   */
+  localConfigToken: string | null
+  /** Lifecycle of the token above: suspend/error instead of silent JW. */
+  localConfigTokenStatus: "off" | "pending" | "ready" | "error"
 }
 
 const Ctx = createContext<PictoriumCtx | null>(null)
@@ -698,8 +720,9 @@ export function usePictorium(): PictoriumCtx {
     customCatalogs,
     setCustomCatalogs,
     addCustomCatalog,
-    removeCustomCatalog,
+    removeCustomCatalog: removeCustomCatalogBase,
     toggleCustomCatalog,
+    catalogsSyncNonce,
     disabledCatalogIds,
     setDisabledCatalogIds,
     toggleBuiltinCatalog,
@@ -715,6 +738,81 @@ export function usePictorium(): PictoriumCtx {
     resetCatalogNames,
     resetCatalogOrder,
   } = useCustomCatalogs(safeGetItem, safeSetItem)
+
+  // --- Top 20 Ranking Sources (global movie/series charts) ---
+  const {
+    rankingSourceMovie,
+    rankingSourceSeries,
+    setRankingSource,
+    rankSourceNonce,
+  } = useRankingSources(safeGetItem, safeSetItem)
+
+  // Signed device config for namespace-less spaces (null otherwise).
+  const { token: localConfigToken, status: localConfigTokenStatus } =
+    useLocalConfigToken({ customCatalogs, rankingSourceMovie, rankingSourceSeries })
+
+  // Targeted trendRank refresh for the current item (after a ranking save):
+  // same endpoint and params as the item loader, without reloading
+  // details/images. Superseded calls resolve stale via the generation guard;
+  // a title/user switch mid-flight drops the write via the context guard.
+  const rankRefreshRef = useRef(0)
+  const rankCtxRef = useRef({ key: "", user: null as string | null })
+  rankCtxRef.current = {
+    key: navigation.selected ? `${navigation.selected.media_type}:${navigation.selected.id}` : "",
+    user: currentUserId,
+  }
+  const refreshCurrentRank = useCallback(() => {
+    const item = navigation.selected
+    if (!item || (!tmdbKey && !serverHasTmdbKey)) return
+    // Token suspend/error: never resolve through the empty namespace while a
+    // device selection is pending or failed (silent JW). The persistence
+    // effect refires on status transitions.
+    if (localConfigTokenStatus === "pending") return
+    if (localConfigTokenStatus === "error") {
+      setTrendRank(null)
+      return
+    }
+    const gen = ++rankRefreshRef.current
+    const fired = { gen, key: `${item.media_type}:${item.id}`, user: currentUserId }
+    const regionLang = getRegionDef(editorCtx.defaultRegion).lang
+    const userParam = currentUserId ? `&u=${encodeURIComponent(currentUserId)}` : ""
+    const configParam = localConfigToken ? `&config=${encodeURIComponent(localConfigToken)}` : ""
+    http<{ rank: number | null }>(
+      `/api/trending/rank?type=${item.media_type}&id=${item.id}&api_key=${encodeURIComponent(tmdbKey)}&region=${encodeURIComponent(editorCtx.defaultRegion)}&lang=${encodeURIComponent(regionLang)}${userParam}${configParam}`,
+      { timeout: 15000, cache: "no-store" },
+    ).then(
+      (d) => {
+        if (!shouldApplyRankRefresh(fired, { gen: rankRefreshRef.current, ...rankCtxRef.current })) return
+        setTrendRank(d?.rank ?? null)
+      },
+      () => {
+        if (!shouldApplyRankRefresh(fired, { gen: rankRefreshRef.current, ...rankCtxRef.current })) return
+        setTrendRank(null)
+      },
+    )
+  }, [navigation.selected, tmdbKey, serverHasTmdbKey, editorCtx.defaultRegion, currentUserId, localConfigToken, localConfigTokenStatus])
+
+  // Rank follows catalog persistence: any acknowledged ranking or custom
+  // save refetches trendRank for the open title (same title, same user).
+  // The callback identity is intentionally out of deps (ref-indirection):
+  // it renews on every title/key/region switch while the loader already
+  // fetches rank there — depending on it would double-fetch on navigation.
+  const refreshRankRef = useRef(refreshCurrentRank)
+  refreshRankRef.current = refreshCurrentRank
+  useEffect(() => {
+    refreshRankRef.current()
+  }, [catalogsSyncNonce, rankSourceNonce, localConfigTokenStatus])
+
+  // Deleting a custom can never drive Top 20 again: clear the raw reference
+  // in slots pointing at it, so a same-id reimport can not resurrect a stale
+  // selection. Disabling alone keeps the raw value (re-enable restores it).
+  const removeCustomCatalog = useCallback(async (id: string) => {
+    removeCustomCatalogBase(id)
+    const jobs = slotsReferencingCustom(rankingSourceMovie, rankingSourceSeries, id).map((slot) =>
+      setRankingSource(slot, ""),
+    )
+    await Promise.all(jobs)
+  }, [removeCustomCatalogBase, rankingSourceMovie, rankingSourceSeries, setRankingSource])
 
   const setTmdbKey = useCallback((val: string) => {
     setTmdbKeyState(val)
@@ -879,6 +977,9 @@ export function usePictorium(): PictoriumCtx {
       // AIO multi-user: `u=` nel template + niente chiavi in chiaro quando il
       // namespace le ha server-side (il server risolve da namespace).
       userId: currentUserId,
+      // Spazi senza namespace (local-only): il token firmato porta cataloghi
+      // e selezione Top 20 del device; assente altrove (template invariati).
+      configToken: localConfigToken ?? undefined,
       omitApiKey: serverKeyStatus?.tmdb === true,
       omitMdblistKey: serverKeyStatus?.mdblist === true,
       // Segui-spazio: omette i visuali (il server li risolve dallo spazio).
@@ -890,7 +991,7 @@ export function usePictorium(): PictoriumCtx {
     setUrlPatternNuvio(buildUrlPattern({ ...base, idPlaceholder: "{tmdb_id}", shapePlaceholder: "{shape}" }))
     setUrlPatternNuvioImdb(buildUrlPattern({ ...base, idPlaceholder: "{imdb_id}", shapePlaceholder: "{shape}" }))
     setUrlPatternNuvioAuto(buildUrlPattern({ ...base, idPlaceholder: "{tmdb_id|imdb_id}", shapePlaceholder: "{shape}" }))
-    }, [globalBadges, rankingBadges, badgeGenre, badgeYear, badgeRating, badgeQuality, qualityBadgeStyle, customRatings, ratingSources, separateRatings, networkLogo, networkLogoPosition, preRelease, ribbonSide, ribbonEnabled, posterShape, logoAlign, gradientHeight, blurIntensity, blurFade, blurDarkness, blurEnabled, landscapeBlur, tintStrength, topShade, badgeStyle, rankingBadgeStyle, topBadgeScale, topBadgeOffsetX, topBadgeOffsetY, genreBadgeScale, qualityBadgeScale, networkLogoScale, genreBadgeOffsetX, genreBadgeOffsetY, qualityBadgeOffsetX, qualityBadgeOffsetY, networkLogoOffsetX, networkLogoOffsetY, tmdbKey, lang, mdblistApiKey, currentUserId, serverKeyStatus, linkMode, navigation.previewId, defaultGlobalBadges, defaultRankingBadges, defaultBadgeStyle, defaultRankingBadgeStyle, defaultQualityBadgeStyle, defaultBadgeGenre, defaultBadgeYear, defaultBadgeRating, defaultBadgeQuality, defaultCustomRatings, defaultRatingSources, defaultSeparateRatings, defaultGradientHeight, defaultBlurIntensity, defaultBlurFade, defaultBlurDarkness, defaultBlurEnabled, defaultTintStrength, defaultTopShade, defaultNetworkLogo, defaultNetworkLogoPosition, defaultPreRelease, defaultDateFormat, defaultRibbonSide, defaultRibbonEnabled, defaultPosterShape, defaultLogoAlign, defaultTopBadgeScale, defaultTopBadgeOffsetX, defaultTopBadgeOffsetY, defaultGenreBadgeScale, defaultQualityBadgeScale, defaultNetworkLogoScale, defaultGenreBadgeOffsetX, defaultGenreBadgeOffsetY, defaultQualityBadgeOffsetX, defaultQualityBadgeOffsetY, defaultNetworkLogoOffsetX, defaultNetworkLogoOffsetY]) // eslint-disable-line react-hooks/exhaustive-deps -- customBadge intentionally excluded to avoid loop
+    }, [globalBadges, rankingBadges, badgeGenre, badgeYear, badgeRating, badgeQuality, qualityBadgeStyle, customRatings, ratingSources, separateRatings, networkLogo, networkLogoPosition, preRelease, ribbonSide, ribbonEnabled, posterShape, logoAlign, gradientHeight, blurIntensity, blurFade, blurDarkness, blurEnabled, landscapeBlur, tintStrength, topShade, badgeStyle, rankingBadgeStyle, topBadgeScale, topBadgeOffsetX, topBadgeOffsetY, genreBadgeScale, qualityBadgeScale, networkLogoScale, genreBadgeOffsetX, genreBadgeOffsetY, qualityBadgeOffsetX, qualityBadgeOffsetY, networkLogoOffsetX, networkLogoOffsetY, tmdbKey, lang, mdblistApiKey, currentUserId, localConfigToken, serverKeyStatus, linkMode, navigation.previewId, defaultGlobalBadges, defaultRankingBadges, defaultBadgeStyle, defaultRankingBadgeStyle, defaultQualityBadgeStyle, defaultBadgeGenre, defaultBadgeYear, defaultBadgeRating, defaultBadgeQuality, defaultCustomRatings, defaultRatingSources, defaultSeparateRatings, defaultGradientHeight, defaultBlurIntensity, defaultBlurFade, defaultBlurDarkness, defaultBlurEnabled, defaultTintStrength, defaultTopShade, defaultNetworkLogo, defaultNetworkLogoPosition, defaultPreRelease, defaultDateFormat, defaultRibbonSide, defaultRibbonEnabled, defaultPosterShape, defaultLogoAlign, defaultTopBadgeScale, defaultTopBadgeOffsetX, defaultTopBadgeOffsetY, defaultGenreBadgeScale, defaultQualityBadgeScale, defaultNetworkLogoScale, defaultGenreBadgeOffsetX, defaultGenreBadgeOffsetY, defaultQualityBadgeOffsetX, defaultQualityBadgeOffsetY, defaultNetworkLogoOffsetX, defaultNetworkLogoOffsetY]) // eslint-disable-line react-hooks/exhaustive-deps -- customBadge intentionally excluded to avoid loop
 
   // --- Default live sul titolo corrente ---
   // Una modifica ai default (barra Impostazioni) si riflette subito sulla
@@ -1065,6 +1166,10 @@ export function usePictorium(): PictoriumCtx {
   }, [stremioPreview, navigation.selected, currentUserId, tmdbKey, mappingsMap])
 
   const buildPreviewUrlCb = useCallback(() => {
+    // Token suspend: while the device config is minting (or failed), no
+    // preview is (re)built — the server would resolve the empty namespace
+    // instead of the device selection. The effect below refires on ready.
+    if (localConfigTokenStatus === "pending" || localConfigTokenStatus === "error") return
     // Toggle Stremio attivo e URL risolto: mostra l'artefatto finale vero.
     // In caricamento (null) resta l'editor: niente flash vuoto.
     if (stremioPreview && stremioPreviewUrl) {
@@ -1090,13 +1195,14 @@ export function usePictorium(): PictoriumCtx {
         // Preview WYSIWYG nel namespace (altrimenti mostra il globale).
         userId: currentUserId,
       },
-      { globalBadges, rankingBadges, badgeStyle, rankingBadgeStyle, qualityBadgeStyle, videoFormats, badgeGenre, badgeYear, badgeRating, badgeQuality, customRatings, ratingSources, separateRatings, customBadge, gradientHeight: isLandscapePreview ? landscapeBlur.gradientHeight : gradientHeight, blurIntensity: isLandscapePreview ? landscapeBlur.blurIntensity : blurIntensity, blurFade: isLandscapePreview ? landscapeBlur.blurFade : blurFade, blurDarkness: isLandscapePreview ? landscapeBlur.blurDarkness : blurDarkness, blurEnabled: isLandscapePreview ? landscapeBlur.blurEnabled : blurEnabled, tintStrength: isLandscapePreview ? landscapeBlur.tintStrength : tintStrength, topShade: isLandscapePreview ? landscapeBlur.topShade : topShade, networkLogo, networkLogoPosition, preRelease, ribbonSide, ribbonEnabled, posterShape, logoAlign, topBadgeScale, topBadgeOffsetX, topBadgeOffsetY, genreBadgeScale, qualityBadgeScale, networkLogoScale, genreBadgeOffsetX, genreBadgeOffsetY, qualityBadgeOffsetX, qualityBadgeOffsetY, networkLogoOffsetX, networkLogoOffsetY }
+      { globalBadges, rankingBadges, badgeStyle, rankingBadgeStyle, qualityBadgeStyle, videoFormats, badgeGenre, badgeYear, badgeRating, badgeQuality, customRatings, ratingSources, separateRatings, customBadge, gradientHeight: isLandscapePreview ? landscapeBlur.gradientHeight : gradientHeight, blurIntensity: isLandscapePreview ? landscapeBlur.blurIntensity : blurIntensity, blurFade: isLandscapePreview ? landscapeBlur.blurFade : blurFade, blurDarkness: isLandscapePreview ? landscapeBlur.blurDarkness : blurDarkness, blurEnabled: isLandscapePreview ? landscapeBlur.blurEnabled : blurEnabled, tintStrength: isLandscapePreview ? landscapeBlur.tintStrength : tintStrength, topShade: isLandscapePreview ? landscapeBlur.topShade : topShade, networkLogo, networkLogoPosition, preRelease, ribbonSide, ribbonEnabled, posterShape, logoAlign, topBadgeScale, topBadgeOffsetX, topBadgeOffsetY, genreBadgeScale, qualityBadgeScale, networkLogoScale, genreBadgeOffsetX, genreBadgeOffsetY, qualityBadgeOffsetX, qualityBadgeOffsetY, networkLogoOffsetX, networkLogoOffsetY },
+      localConfigToken,
     )
     setPreviewUrl(url)
   }, [stremioPreview, stremioPreviewUrl, navigation.selected, navigation.previewPoster, navigation.selectedLogo, selectedBackdrop,
     logoScale, logoOffsetX, logoOffsetY, backdropScale, backdropOffsetX, backdropOffsetY,
     metaInfo, trendRank, trending.mdblistAnimeList, topEdgeColor, bottomEdgeColor, accentColor, autoAccentColor, lang, tmdbKey,
-    editorCtx.defaultRegion, editorCtx.defaultDateFormat, currentUserId,
+    editorCtx.defaultRegion, editorCtx.defaultDateFormat, currentUserId, localConfigToken, localConfigTokenStatus,
     globalBadges, rankingBadges, badgeStyle, rankingBadgeStyle, qualityBadgeStyle, videoFormats, badgeGenre, badgeYear, badgeRating, badgeQuality, customRatings, ratingSources, separateRatings, customBadge, gradientHeight, blurIntensity, blurFade, blurDarkness, blurEnabled, landscapeBlur, tintStrength, topShade, networkLogo, networkLogoPosition, preRelease, ribbonSide, ribbonEnabled, posterShape, logoAlign, topBadgeScale, topBadgeOffsetX, topBadgeOffsetY, genreBadgeScale, qualityBadgeScale, networkLogoScale, genreBadgeOffsetX, genreBadgeOffsetY, qualityBadgeOffsetX, qualityBadgeOffsetY, networkLogoOffsetX, networkLogoOffsetY])
 
   // A1: trailing debounce della preview URL (200ms). Ogni tick di slider
@@ -1196,7 +1302,17 @@ export function usePictorium(): PictoriumCtx {
       })
     }
     const regionLangForRank = getRegionDef(editorCtx.defaultRegion).lang
-    http<{ rank: number | null }>(`/api/trending/rank?type=${itemType}&id=${itemId}&api_key=${encodeURIComponent(tmdbKey)}&region=${encodeURIComponent(editorCtx.defaultRegion)}&lang=${encodeURIComponent(regionLangForRank)}`, { timeout: 15000, signal }).then(
+    // Namespace-aware rank (same Top 20 source as the catalogs): without it
+    // the preview badge would always read JustWatch. Errors settle to null
+    // via the rejection path below — never a JW substitution. Device config
+    // token when the namespace is not enough; never browser-cached (the URL
+    // does not version the selection). While a device token is pending or
+    // failed the rank stays unsettled here (no silent namespace read); the
+    // persistence effect refreshes once it resolves.
+    const rankConfigParam = localConfigToken ? `&config=${encodeURIComponent(localConfigToken)}` : ""
+    const rankUserParam = currentUserId ? `&u=${encodeURIComponent(currentUserId)}` : ""
+    if (localConfigTokenStatus !== "pending" && localConfigTokenStatus !== "error") {
+    http<{ rank: number | null }>(`/api/trending/rank?type=${itemType}&id=${itemId}&api_key=${encodeURIComponent(tmdbKey)}&region=${encodeURIComponent(editorCtx.defaultRegion)}&lang=${encodeURIComponent(regionLangForRank)}${rankUserParam}${rankConfigParam}`, { timeout: 15000, signal, cache: "no-store" }).then(
       (d) => {
         if (!isCurrent()) return
         pending.rank = d?.rank ?? null
@@ -1210,6 +1326,7 @@ export function usePictorium(): PictoriumCtx {
         if (basePublished) setTrendRank(null)
       },
     )
+    }
     http<AwardPayload>(`/api/awards/${itemType}/${itemId}?api_key=${encodeURIComponent(tmdbKey)}&lang=${encodeURIComponent(lang)}`, { timeout: 15000, signal }).then(
       (d) => {
         if (!isCurrent()) return
@@ -1850,11 +1967,13 @@ export function usePictorium(): PictoriumCtx {
     uiAccent, setUiAccent,
     serviceErrors, setServiceErrors,
     hasNetflixRank,
-    customCatalogs, setCustomCatalogs, addCustomCatalog, removeCustomCatalog, toggleCustomCatalog,
+    customCatalogs, setCustomCatalogs, addCustomCatalog, removeCustomCatalog, toggleCustomCatalog, catalogsSyncNonce,
     disabledCatalogIds, setDisabledCatalogIds, toggleBuiltinCatalog,
     homeDisabledCatalogIds, setHomeDisabledCatalogIds, toggleCatalogHome,
     catalogOrder, setCatalogOrder, moveCatalog,
     catalogRenames, setCatalogRenames, renameCatalog, resetCatalogNames, resetCatalogOrder,
+    rankingSourceMovie, rankingSourceSeries, setRankingSource, rankSourceNonce, refreshCurrentRank,
+    localConfigToken, localConfigTokenStatus,
     t,
   // eslint-disable-next-line react-hooks/exhaustive-deps -- context value deps intentionally stable to prevent re-render cascades
   }), [
@@ -1877,5 +1996,6 @@ export function usePictorium(): PictoriumCtx {
     trending.refreshLists, trending.loadPlatform,
     theme, uiAccent, serviceErrors, hasNetflixRank,
     customCatalogs, disabledCatalogIds, homeDisabledCatalogIds, catalogOrder, catalogRenames,
+    rankingSourceMovie, rankingSourceSeries, rankSourceNonce, catalogsSyncNonce, localConfigToken, localConfigTokenStatus,
   ])
 }
