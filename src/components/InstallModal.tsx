@@ -142,7 +142,7 @@ export function InstallModal({ isOpen, onClose, manifestUrl: propManifestUrl, po
     // Namespace-less spaces (local-only): carry the device catalog selection
     // in a signed token instead of the empty global defaults.
     if (localConfigToken) {
-      setBaseManifestUrl(`${window.location.origin}/manifest.json?config=${localConfigToken}`)
+      setBaseManifestUrl(`${window.location.origin}/c/${encodeURIComponent(localConfigToken)}/manifest.json`)
       return
     }
     setBaseManifestUrl(`${window.location.origin}/manifest.json`)

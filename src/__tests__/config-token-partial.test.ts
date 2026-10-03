@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest"
 import { NextRequest } from "next/server"
 import { POST } from "@/app/api/config-token/route"
 import { decodeConfig } from "@/lib/config-token"
+import { getServerDefaultsChecked } from "@/lib/server-defaults"
 
 vi.mock("@/lib/server-defaults", async (importOriginal) => {
   const mod = await importOriginal<typeof import("@/lib/server-defaults")>()
@@ -32,6 +33,30 @@ function postBody(config: unknown) {
 }
 
 describe("POST /api/config-token with catalog-only payloads", () => {
+  it.each([{}, { globalBadges: false, blurIntensity: 42, networkLogo: false }])(
+    "mints a usable token with incomplete server defaults: %j",
+    async (defaults) => {
+      vi.mocked(getServerDefaultsChecked).mockResolvedValueOnce(defaults)
+      const res = await POST(postBody({ rankingSourceMovie: "cat_m" }))
+      expect(res.status).toBe(200)
+      const decoded = decodeConfig((await res.json()).token)
+      expect(decoded).toMatchObject({
+        globalBadges: defaults.globalBadges ?? true,
+        rankingBadges: true,
+        badgeStyle: "shadow",
+        rankingBadgeStyle: "default",
+        blurEnabled: true,
+        blurIntensity: defaults.blurIntensity ?? 20,
+        blurFade: 50,
+        blurDarkness: 30,
+        gradientHeight: 30,
+        networkLogo: defaults.networkLogo ?? true,
+        autoRotateClean: false,
+        rankingSourceMovie: "cat_m",
+      })
+    },
+  )
+
   it("mints a full token from a partial catalog payload", async () => {
     const res = await POST(
       postBody({

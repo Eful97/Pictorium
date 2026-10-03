@@ -99,6 +99,22 @@ describe("JwRankBadge with ranking sources", () => {
     )
   })
 
+  it("sends local credentials and refetches when a key changes", async () => {
+    const fetchSpy = mockRank({ rank: 2, top: 20 })
+    const badge = <JwRankBadge tmdbId={101} type="movie" />
+    const ctx = { ...MOCK_CTX, customCatalogs: [TRAKT], rankingSourceMovie: TRAKT.id,
+      tmdbKey: "local tmdb&key", mdblistApiKey: "local-mdb", tvdbApiKey: "local-tvdb" }
+    const { rerender } = render(<PictoriumProvider value={ctx}>{badge}</PictoriumProvider>)
+    await waitFor(() => expect(rankCalls(fetchSpy)).toHaveLength(1))
+    const params = new URL(rankCalls(fetchSpy)[0], window.location.origin).searchParams
+    expect(params.get("api_key")).toBe(ctx.tmdbKey)
+    expect(params.get("mdblist_key")).toBe(ctx.mdblistApiKey)
+    expect(params.get("tvdb_key")).toBe(ctx.tvdbApiKey)
+    rerender(<PictoriumProvider value={{ ...ctx, tmdbKey: "new-key" }}>{badge}</PictoriumProvider>)
+    await waitFor(() => expect(rankCalls(fetchSpy)).toHaveLength(2))
+    expect(new URL(rankCalls(fetchSpy)[1], window.location.origin).searchParams.get("api_key")).toBe("new-key")
+  })
+
   it("shows the unavailable state on explicit provider errors", async () => {
     mockRank({ rank: null, error: "unavailable" }, 502)
     renderWithCtx(<JwRankBadge tmdbId={101} type="movie" regionCode="IT" userId="u1" />, {

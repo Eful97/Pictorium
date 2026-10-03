@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server"
 import { configTokenSchema, encodeConfig, partialCatalogTokenSchema, type PictoriumUserConfig } from "@/lib/config-token"
 import { getServerDefaultsChecked } from "@/lib/server-defaults"
+import { resolvePosterRenderConfig } from "@/lib/poster-config"
 import { rateLimit, rateLimitKey, rateLimitResponse } from "@/lib/rate-limit"
 import { isSameOrigin, originMismatchResponse } from "@/lib/auth"
 import { createLogger } from "@/lib/logger"
@@ -47,18 +48,30 @@ export async function POST(req: NextRequest) {
       )
     }
     const defaults = await getServerDefaultsChecked()
+    const renderDefaults = resolvePosterRenderConfig({
+      searchParams: new URLSearchParams(),
+      mapping: null,
+      configOverride: null,
+      sd: defaults,
+      hasQuery: false,
+      showBadges: defaults.globalBadges ?? true,
+      rankingBadges: defaults.rankingBadges ?? true,
+      animeRank: null,
+      rankingResult: null,
+      finalRank: null,
+    })
     const composed = {
-      globalBadges: defaults.globalBadges,
-      rankingBadges: defaults.rankingBadges,
-      badgeStyle: defaults.badgeStyle,
-      rankingBadgeStyle: defaults.rankingBadgeStyle,
-      blurEnabled: defaults.blurEnabled,
-      blurIntensity: defaults.blurIntensity,
-      blurFade: defaults.blurFade,
-      blurDarkness: defaults.blurDarkness,
-      gradientHeight: defaults.gradientHeight,
-      networkLogo: defaults.networkLogo,
-      autoRotateClean: defaults.autoRotateClean,
+      globalBadges: defaults.globalBadges ?? renderDefaults.badgesEnabled,
+      rankingBadges: defaults.rankingBadges ?? renderDefaults.rankingEnabled,
+      badgeStyle: defaults.badgeStyle ?? renderDefaults.badgeStyle,
+      rankingBadgeStyle: defaults.rankingBadgeStyle ?? renderDefaults.rankingBadgeStyle,
+      blurEnabled: defaults.blurEnabled ?? renderDefaults.blurEnabled,
+      blurIntensity: defaults.blurIntensity ?? renderDefaults.blurIntensity,
+      blurFade: defaults.blurFade ?? renderDefaults.blurFade,
+      blurDarkness: defaults.blurDarkness ?? renderDefaults.blurDarkness,
+      gradientHeight: defaults.gradientHeight ?? renderDefaults.blurHeight,
+      networkLogo: defaults.networkLogo ?? renderDefaults.networkLogo,
+      autoRotateClean: defaults.autoRotateClean ?? false,
       ...partial.data,
     }
     const recomposed = configTokenSchema.safeParse(composed)

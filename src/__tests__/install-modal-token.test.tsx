@@ -10,7 +10,9 @@ describe("InstallModal with device config token", () => {
     })
 
     const webLink = document.querySelector('a[href*="web.stremio.com"]')
-    expect(webLink?.getAttribute("href")).toContain(encodeURIComponent("config=tok-device-1"))
+    const manifestUrl = decodeURIComponent(webLink!.getAttribute("href")!.split("addon=")[1])
+    expect(manifestUrl).toBe(`${window.location.origin}/c/tok-device-1/manifest.json`)
+    expect(manifestUrl.endsWith("/manifest.json")).toBe(true)
   })
 
   it("keeps the plain global manifest without a token", () => {

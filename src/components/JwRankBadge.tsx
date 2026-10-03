@@ -37,6 +37,9 @@ export function JwRankBadge({ tmdbId, type, regionCode = "IT", userId }: Props) 
   // Device config token where the namespace is not enough (local-only).
   const localConfigToken = usePSelector((v) => v.localConfigToken)
   const localConfigTokenStatus = usePSelector((v) => v.localConfigTokenStatus)
+  const tmdbKey = usePSelector((v) => v.tmdbKey)
+  const mdblistApiKey = usePSelector((v) => v.mdblistApiKey)
+  const tvdbApiKey = usePSelector((v) => v.tvdbApiKey)
   const slot = type === "movie" ? "movie" : "series"
   const source = resolveRankingSource(
     { customCatalogs, rankingSourceMovie, rankingSourceSeries },
@@ -61,7 +64,12 @@ export function JwRankBadge({ tmdbId, type, regionCode = "IT", userId }: Props) 
     // Browser cache stays out of rank reads (the URL does not version the
     // selection); device config travels explicitly where needed.
     const configParam = localConfigToken ? `&config=${encodeURIComponent(localConfigToken)}` : ""
-    fetch(`/api/trending/rank?type=${type}&id=${tmdbId}&first=20&region=${encodeURIComponent(region.code)}${userParam}${configParam}`, { cache: "no-store" })
+    const keyParams = new URLSearchParams()
+    if (tmdbKey) keyParams.set("api_key", tmdbKey)
+    if (mdblistApiKey) keyParams.set("mdblist_key", mdblistApiKey)
+    if (tvdbApiKey) keyParams.set("tvdb_key", tvdbApiKey)
+    const credentials = keyParams.size ? `&${keyParams}` : ""
+    fetch(`/api/trending/rank?type=${type}&id=${tmdbId}&first=20&region=${encodeURIComponent(region.code)}${userParam}${configParam}${credentials}`, { cache: "no-store" })
       .then((r) => r.json().then((data) => ({ ok: r.ok, data })))
       .then(({ ok, data }) => {
         if (!active) return
@@ -85,7 +93,7 @@ export function JwRankBadge({ tmdbId, type, regionCode = "IT", userId }: Props) 
   // The optimistic selection itself is intentionally NOT a dep: rank
   // refetches only after the save lands (save-before-refresh), while the
   // label follows the optimistic state immediately.
-  }, [tmdbId, type, region.code, userId, localConfigToken, localConfigTokenStatus, rankSourceNonce, catalogsSyncNonce])
+  }, [tmdbId, type, region.code, userId, localConfigToken, localConfigTokenStatus, rankSourceNonce, catalogsSyncNonce, tmdbKey, mdblistApiKey, tvdbApiKey])
 
   if (unavailable) {
     return <span className="text-[11px] text-zinc-500">{t("ui.rankUnavailable")}</span>
