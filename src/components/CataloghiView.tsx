@@ -10,6 +10,7 @@ import { Modal } from "@/components/ui/Modal"
 import { catalogStatusErrorKey } from "@/lib/catalog-provider-detect"
 import { SimklCard, type SimklCardItem } from "@/components/SimklCard"
 import { CustomCatalogModal } from "@/components/CustomCatalogModal"
+import { AddonCatalogModal } from "@/components/AddonCatalogModal"
 import { RankingSourceSection } from "@/components/RankingSourceSection"
 import { CatalogManagerModal } from "@/components/CatalogManagerModal"
 import { posterUrl } from "@/lib/utils"
@@ -121,7 +122,18 @@ const CUSTOM_PAGE_SIZE = 30
 const CUSTOM_CACHE_TTL = 5 * 60 * 1000
 const customPageCache = new Map<string, { page: CatalogPage; expires: number }>()
 
-function customItemsUrl(url: string, tmdbKey: string, mdblistApiKey: string, limit: number, datasetId?: string, skip?: number, section?: "movie" | "tv"): string {
+function customItemsUrl(url: string, tmdbKey: string, mdblistApiKey: string, limit: number, datasetId?: string, skip?: number, section?: "movie" | "tv", addon?: { manifestUrl: string; catalogId: string; catalogType: string }): string {
+  if (addon) {
+    const params = new URLSearchParams({
+      url: addon.manifestUrl,
+      catalogId: addon.catalogId,
+      type: addon.catalogType,
+      limit: String(limit),
+    })
+    if (tmdbKey) params.set("api_key", tmdbKey)
+    if (skip !== undefined) params.set("skip", String(skip))
+    return `/api/stremio-addon/items?${params.toString()}`
+  }
   const params = new URLSearchParams({
     url,
     api_key: tmdbKey || "",
@@ -199,7 +211,7 @@ function CustomCatalogEntry({
     setLoading(true)
     setLoadError(null)
     try {
-      const data = await fetchCustomItems(customItemsUrl(cat.url, tmdbKey, mdblistApiKey, CUSTOM_PAGE_SIZE, cat.datasetId), AbortSignal.any([ctrl.signal, AbortSignal.timeout(30000)]))
+      const data = await fetchCustomItems(customItemsUrl(cat.url, tmdbKey, mdblistApiKey, CUSTOM_PAGE_SIZE, cat.datasetId, undefined, undefined, cat.addon), AbortSignal.any([ctrl.signal, AbortSignal.timeout(30000)]))
       if (ctrl.signal.aborted) return false
       setItems(data.items)
       setTotal(data.total)
@@ -210,7 +222,7 @@ function CustomCatalogEntry({
     } finally {
       if (!ctrl.signal.aborted) setLoading(false)
     }
-  }, [cat.url, cat.datasetId, tmdbKey, mdblistApiKey])
+  }, [cat.url, cat.datasetId, cat.addon, tmdbKey, mdblistApiKey])
 
   useEffect(() => {
     registerRefresh(cat.id, loadPreview)
@@ -245,6 +257,11 @@ function CustomCatalogEntry({
             {isMixed ? t("ui.mixedType") : isMovie ? t("ui.movie") : t("ui.tvSeries")}
           </span>
           <h3 className="text-base font-bold text-white line-clamp-1">{cat.name}</h3>
+          {cat.addon && (
+            <span className="shrink-0 text-[10px] text-muted truncate max-w-48" title={cat.addon.manifestUrl}>
+              {(() => { try { return new URL(cat.addon.manifestUrl).hostname } catch { return cat.addon.manifestUrl } })()} · {cat.addon.catalogId}
+            </span>
+          )}
           {total !== null && total > items.length && (
             <span className="shrink-0 text-[10px] text-muted">
               {total} {total === 1 ? t("ui.itemOne") : t("ui.itemMany")}
@@ -443,6 +460,7 @@ export function CataloghiView() {
   const gridPendingRef = useRef(false)
   const [platformFilter, setPlatformFilter] = useState<string>("all")
   const [isAddCustomOpen, setIsAddCustomOpen] = useState(false)
+  const [isAddAddonOpen, setIsAddAddonOpen] = useState(false)
   const [isManagerOpen, setIsManagerOpen] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
 
@@ -471,7 +489,7 @@ export function CataloghiView() {
     setGridLoading(true)
     setGridError(null)
     try {
-      const page = await fetchCustomItems(customItemsUrl(source.cat.url, tmdbKey, mdblistApiKey, CUSTOM_PAGE_SIZE, source.cat.datasetId, skip, source.section), AbortSignal.any([ctrl.signal, AbortSignal.timeout(30000)]))
+      const page = await fetchCustomItems(customItemsUrl(source.cat.url, tmdbKey, mdblistApiKey, CUSTOM_PAGE_SIZE, source.cat.datasetId, skip, source.section, source.cat.addon), AbortSignal.any([ctrl.signal, AbortSignal.timeout(30000)]))
       if (ctrl.signal.aborted) return
       const items = toGridItems(page.items)
       setGridItems(prev => skip === 0 ? items : [...(prev ?? []), ...items])
@@ -609,7 +627,23 @@ export function CataloghiView() {
                 type="button"
                 onClick={(e) => {
                   e.stopPropagation()
+                  setIsAddAddonOpen((prev) => !prev)
+                  setIsAddCustomOpen(false)
+                }}
+                className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-surface2 border border-white/10 hover:border-white/20 text-zinc-200 text-xs font-semibold hover:text-white active:scale-95 transition-all shadow-sm"
+              >
+                <ListPlus className="w-4 h-4" />
+                <span>{t("ui.addonMode")}</span>
+              </button>
+              <AddonCatalogModal isOpen={isAddAddonOpen} onClose={() => setIsAddAddonOpen(false)} />
+            </div>
+            <div className="relative">
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation()
                   setIsAddCustomOpen((prev) => !prev)
+                  setIsAddAddonOpen(false)
                 }}
                 className="flex items-center gap-2 px-4 py-2 rounded-xl bg-accent-orange text-white text-xs font-semibold hover:bg-accent-orange/90 active:scale-95 transition-all shadow-md"
               >
@@ -639,6 +673,14 @@ export function CataloghiView() {
           </button>
         ))}
       </div>
+
+      {/* Global Top 20 source pickers — pinned above the imported catalogs,
+          driving the Top 20 rows below. Shown on the unfiltered view and the
+          JustWatch filter (the content it configures), never inside platform
+          filters. */}
+      {(platformFilter === "all" || platformFilter === "justwatch") && (
+        <RankingSourceSection />
+      )}
 
       {/* Custom Catalogs Section */}
       {showCustom && customCatalogs.length > 0 && (
@@ -673,16 +715,6 @@ export function CataloghiView() {
       )}
 
       {showCustom && customCatalogs.length > 0 && <div className="section-divider" />}
-
-      {/* Global Top 20 source pickers — next to the imported catalogs, driving
-          the Top 20 rows below. Shown on the unfiltered view and the JustWatch
-          filter (the content it configures), never inside platform filters. */}
-      {(platformFilter === "all" || platformFilter === "justwatch") && (
-        <>
-          <RankingSourceSection />
-          <div className="section-divider" />
-        </>
-      )}
 
       {/* JustWatch Top 20 — due contenitori separati (Film | Serie) sulla stessa riga */}
       {showJustWatch && (

@@ -276,4 +276,9 @@ export interface CustomCatalogConfig {
   /** Riferimento allo snapshot CSV importato (namespace utente): gli item
    *  vivono server-side, mai nel config token. */
   datasetId?: string
+  /** Import da addon Stremio via manifest (MVP): riferimento alla sorgente +
+   *  catalogo originale + capacità dichiarate. Quando presente, il ramo
+   *  addon preserva ordine/duplicati/ID originali (niente normalizzazione
+   *  delle liste custom). */
+  addon?: import("./stremio-addon").StremioAddonSource
 }

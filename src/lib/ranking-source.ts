@@ -53,6 +53,9 @@ function isCompatibleCustomType(customType: CustomCatalogType | undefined, slot:
  * value: JustWatch when nothing is selected, the selection is blank/invalid,
  * the id was deleted, the catalog is switched off (`enabled === false`), or
  * the custom type is incompatible (e.g. a `movie` custom on the series slot).
+ * Stremio-addon imports (`addon` set) can never drive the Top 20: the ranking
+ * service only understands normalized custom lists, so they fall back to
+ * JustWatch like a deleted id.
  */
 export function resolveRankingSource(selection: RankingSelection, slot: RankingSlot): RankingSource {
   const raw = selectionForSlot(selection, slot)
@@ -62,7 +65,7 @@ export function resolveRankingSource(selection: RankingSelection, slot: RankingS
   const customCatalogs = selection.customCatalogs
   if (!customCatalogs) return { kind: "justwatch" }
   const found = customCatalogs.find((c) => c.id === customId)
-  if (!found || found.enabled === false) return { kind: "justwatch" }
+  if (!found || found.enabled === false || found.addon) return { kind: "justwatch" }
   if (!isCompatibleCustomType(found.type, slot)) return { kind: "justwatch" }
   return { kind: "custom", customId }
 }
@@ -98,7 +101,8 @@ export interface RankingCustomOption {
 
 /**
  * Custom catalogs eligible as a Top 20 source for one slot: enabled and
- * type-compatible (`mixed` fits both). Single source of truth for every
+ * type-compatible (`mixed` fits both). Stremio-addon imports are excluded
+ * (the ranking service cannot read them). Single source of truth for every
  * picker — never duplicate the rule in components.
  */
 export function compatibleRankingCustoms<T extends RankingCustomOption>(
@@ -107,7 +111,7 @@ export function compatibleRankingCustoms<T extends RankingCustomOption>(
 ): T[] {
   if (!customCatalogs) return []
   return customCatalogs.filter(
-    (c) => c.enabled !== false && (c.type === slot || c.type === "mixed"),
+    (c) => c.enabled !== false && (c.type === slot || c.type === "mixed") && !(c as { addon?: unknown }).addon,
   )
 }
 

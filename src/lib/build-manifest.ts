@@ -6,6 +6,7 @@ import { getOriginFromRequest } from "@/lib/poster-public-url"
 import { decodeConfig, type PictoriumUserConfig } from "@/lib/config-token"
 import { normalizeCatalogIdKeys, normalizeCatalogIdList } from "@/lib/catalog-definitions"
 import { rankingSourceCatalogName } from "@/lib/ranking-source"
+import { pictoriumExtraForAddon } from "@/lib/stremio-addon"
 import { getServerDefaultsChecked, getServerDefaultsForUser } from "@/lib/server-defaults"
 import { getScopedUserId } from "@/lib/user-auth"
 import { getRegionDef, normalizeRegion, parseRegion } from "@/lib/regions"
@@ -90,7 +91,7 @@ export async function buildManifestResponse(req: NextRequest, user?: string | nu
     userConfig.catalogOrder = normalizeCatalogIdList(userConfig.catalogOrder)
     userConfig.catalogRenames = normalizeCatalogIdKeys(userConfig.catalogRenames)
   }
-  let catalogs: Array<{ id: string; name: string; type: "movie" | "series"; customBaseId?: string }> = [...PICTORIUM_CATALOGS]
+  let catalogs: Array<{ id: string; name: string; type: "movie" | "series"; customBaseId?: string; addonExtra?: ReturnType<typeof pictoriumExtraForAddon> }> = [...PICTORIUM_CATALOGS]
   if (userConfig?.disabledCatalogIds && userConfig.disabledCatalogIds.length > 0) {
     const disabledSet = new Set(userConfig.disabledCatalogIds)
     catalogs = catalogs.filter(c => !disabledSet.has(c.id))
@@ -98,6 +99,18 @@ export async function buildManifestResponse(req: NextRequest, user?: string | nu
   if (userConfig?.customCatalogs && userConfig.customCatalogs.length > 0) {
     for (const cc of userConfig.customCatalogs) {
       if (cc.enabled !== false) {
+        // Ramo addon: un solo catalogo movie|series con le capacità della
+        // fonte (niente split mixed, niente generi generici).
+        if (cc.addon) {
+          catalogs.push({
+            id: `pictorium-custom-${cc.type}-${cc.id}`,
+            name: cc.name,
+            type: cc.type === "series" ? "series" : "movie",
+            customBaseId: cc.id,
+            addonExtra: pictoriumExtraForAddon(cc.addon),
+          })
+          continue
+        }
         if (cc.type === "mixed") {
           catalogs.push({
             id: `pictorium-custom-movie-${cc.id}`,
@@ -176,6 +189,17 @@ export async function buildManifestResponse(req: NextRequest, user?: string | nu
 
   const contentCatalogs = catalogs.map((c) => {
     const isHomeHidden = homeDisabledSet.has(c.id) || (c.customBaseId ? homeDisabledSet.has(c.customBaseId) : false)
+    // Ramo addon: capacità della fonte, mai filtri generici aggiunti.
+    if (c.addonExtra) {
+      const extra = c.addonExtra.map((e) => ({ ...e }))
+      if (isHomeHidden && !extra.some((e) => e.isRequired)) {
+        const skippable = extra.find((e) => e.name === "skip")
+        if (skippable) skippable.isRequired = true
+        else if (extra.length > 0) extra[0].isRequired = true
+        else extra.push({ name: "skip", isRequired: true })
+      }
+      return { id: c.id, name: c.name, type: c.type, extra }
+    }
     const genreOptions = getCatalogGenreOptions(c.type, c.id)
     return {
       id: c.id,

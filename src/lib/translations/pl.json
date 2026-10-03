@@ -843,5 +843,19 @@
   "ui.visualPresetsHint": "Zapisz odznaki, logo i przekształcenia. Korzystaj ze swoich stylów na urządzeniach połączonych z tą samą przestrzenią lub prywatną instancją.",
   "ui.visualPresetName": "Nazwa stylu",
   "ui.visualPresetSave": "Zapisz obecny styl",
-  "ui.visualPresetsError": "Nie można wczytać ani zapisać stylów. Sprawdź, czy Twoja przestrzeń jest odblokowana."
+  "ui.visualPresetsError": "Nie można wczytać ani zapisać stylów. Sprawdź, czy Twoja przestrzeń jest odblokowana.",
+  "ui.addonMode": "Stremio addon",
+  "ui.addonUrlLabel": "Addon manifest.json URL (public https only)",
+  "ui.addonUrlPh": "https://.../manifest.json",
+  "ui.addonLoad": "Load manifest",
+  "ui.addonLoading": "Loading manifest…",
+  "ui.addonLimit": "MVP: public https manifests only, no credentials or tokens. The config token is signed, not encrypted — URLs with secrets are rejected.",
+  "ui.addonErrInvalid": "Invalid manifest URL (https manifest.json only, no credentials).",
+  "ui.addonErrPrivate": "Private or unreachable host: only public https manifests are supported.",
+  "ui.addonErrUnavailable": "Source unavailable or invalid manifest.",
+  "ui.addonErrIncompatible": "Catalog requires filters this version cannot forward.",
+  "ui.addonSelect": "Select catalogs to import",
+  "ui.addonSourceNote": "Imported catalogs keep source order, IDs and navigation. Pictorium posters apply to supported IMDb/TMDB titles; other items keep original images. Proprietary IDs need the source addon installed for details. Importing a catalog does not replace the original addon.",
+  "ui.addonNoCatalogs": "No movie/series catalogs found in this manifest.",
+  "ui.addonProprietaryNote": "Proprietary IDs: keep the source addon installed for details (no meta forwarding in MVP)."
 }

@@ -18,6 +18,22 @@ const badgeStyleSchema = z.enum(BADGE_STYLES)
 const rankingBadgeStyleSchema = z.enum(RANKING_BADGE_STYLES)
 const ribbonSideSchema = z.enum(["left", "right"])
 
+const addonExtraSchema = z.object({
+  name: z.string().max(40),
+  isRequired: z.boolean().optional(),
+  options: z.array(z.string().max(40)).max(100).optional(),
+  optionsLimit: z.number().finite().optional(),
+})
+
+const addonSourceSchema = z.object({
+  manifestUrl: z.string().max(500),
+  catalogId: z.string().max(100),
+  catalogType: z.enum(["movie", "series"]),
+  extra: z.array(addonExtraSchema).max(20).optional(),
+  addonId: z.string().max(100).optional(),
+  addonName: z.string().max(100).optional(),
+})
+
 const customCatalogSchema = z.object({
   id: z.string().max(64),
   name: z.string().max(100),
@@ -25,6 +41,7 @@ const customCatalogSchema = z.object({
   url: z.string().max(500),
   enabled: z.boolean().optional(),
   datasetId: z.string().max(64).optional(),
+  addon: addonSourceSchema.optional(),
 })
 
 export const configTokenSchema = z.object({

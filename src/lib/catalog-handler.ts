@@ -17,6 +17,8 @@ import { fetchCustomRankingTop20, findRankingCustomCatalog } from "@/lib/custom-
 import { buildNoticeMeta, noticeCatalogId, NOTICE_CUSTOM_RANKING_UNAVAILABLE, NOTICE_CUSTOM_RANKING_UNAVAILABLE_DESCRIPTION, NOTICE_CUSTOM_RANKING_UNAVAILABLE_TITLE, NOTICE_MISSING_TVDB_KEY, NOTICE_MISSING_TVDB_KEY_TITLE, NOTICE_MISSING_TVDB_KEY_DESCRIPTION } from "@/lib/notice-meta"
 import { fetchUnifiedCatalogItems } from "@/lib/custom-catalog-providers"
 import { detectCatalogProvider } from "@/lib/catalog-provider-detect"
+import { fetchAddonCatalogPage } from "@/lib/stremio-addon-server"
+import { parseSupportedTmdbRef } from "@/lib/stremio-addon"
 import { buildStremioPosterUrl, stremioPosterShape } from "@/lib/stremio-poster-url"
 import { getOriginFromRequest } from "@/lib/poster-public-url"
 import { getJWRankings, getJWTitles, resolveJWGenreCode, type JWRankEntry } from "@/lib/justwatch"
@@ -533,7 +535,21 @@ export async function pictoriumCatalog(
       : ":rsjw"
 
   // --- Gestione Ricerca Stremio (sia via barra di ricerca che catalogo dedicato) ---
-  if (extra.search) {
+  // Eccezione addon: se il catalogo importato dichiara `search`, la query va
+  // inoltrata alla fonte (ramo addon sotto), non alla ricerca TMDB globale.
+  const addonSearchPassthrough = (() => {
+    if (!extra.search) return false
+    if (!catalogId.startsWith("pictorium-custom-")) return false
+    let cid = catalogId.replace(/^pictorium-custom-/, "")
+    if (cid.startsWith("movie-")) cid = cid.slice(6)
+    else if (cid.startsWith("series-")) cid = cid.slice(7)
+    const customs = userConfig?.customCatalogs as Array<{ id: string; addon?: { extra?: Array<{ name: string }> } }> | undefined
+    const found = customs?.find((c) => c.id === cid)
+    const extras = found?.addon?.extra
+    const ok = !!extras && extras.some((e) => e.name === "search")
+    return ok
+  })()
+  if (extra.search && !addonSearchPassthrough) {
     const isPeopleCatalog = catalogId.startsWith("pictorium-search-people-")
     if (isPeopleCatalog) {
       // Senza chiave (né richiesta, né namespace, né env): notice card
@@ -735,17 +751,113 @@ export async function pictoriumCatalog(
 
   const skipFragment = typeof extra.skip === "number" && extra.skip > 0 ? `:s${extra.skip}` : ""
   const genreFragment = extra.genre && extra.genre !== "Tutti" ? `:g${hashFragment(extra.genre)}` : ""
-  const cacheKey = `stremio:catalog:v2:${stType}:${catalogId}:pv${POSTER_URL_VERSION}${scopedUser ? `:u${hashUserFragment(scopedUser)}` : ""}:ak${apiKey ? hashFragment(apiKey) : "none"}${configParam ? `:cfg${hashFragment(configParam)}` : ""}${mdblistKey ? `:mk${hashFragment(mdblistKey)}` : ""}${tvdbKey ? `:tv${hashFragment(tvdbKey)}` : ""}${genreFragment}${skipFragment}${regionFragment}${rankingFragment}${freshness}`
+  // Frammento search: i cataloghi non-addon non arrivano mai qui con search
+  // (intercettata dal ramo TMDB globale), ma gli addon con `search` dichiarato
+  // la inoltrano alla fonte — senza, due ricerche diverse colliderebbero.
+  const searchFragment = extra.search ? `:q${hashFragment(extra.search)}` : ""
+  const cacheKey = `stremio:catalog:v2:${stType}:${catalogId}:pv${POSTER_URL_VERSION}${scopedUser ? `:u${hashUserFragment(scopedUser)}` : ""}:ak${apiKey ? hashFragment(apiKey) : "none"}${configParam ? `:cfg${hashFragment(configParam)}` : ""}${mdblistKey ? `:mk${hashFragment(mdblistKey)}` : ""}${tvdbKey ? `:tv${hashFragment(tvdbKey)}` : ""}${genreFragment}${skipFragment}${searchFragment}${regionFragment}${rankingFragment}${freshness}`
   // C1: L1 + L2 condivisa (KV su multi-istanza, no-op locale/VPS).
   const cached = await cacheGetShared<{ metas: StremioMeta[] }>(cacheKey, ["stremio", "catalog"])
   if (cached) return catalogResponse(cached)
 
   let isCustomGenreFiltered = false
+  // Ramo addon: la fonte ha già filtrato (genre/search inoltrati) — il filtro
+  // locale per nome genere non deve girare (es. Cinemeta year con genre=2024
+  // contro genres=['Drama'] eliminerebbe risultati validi).
+  let isAddonCatalog = false
 
   try {
     let metas: StremioMeta[] = []
 
     if (catalogId.startsWith("pictorium-custom-")) {
+      let customId = catalogId.replace(/^pictorium-custom-/, "")
+      if (customId.startsWith("movie-")) customId = customId.slice(6)
+      else if (customId.startsWith("series-")) customId = customId.slice(7)
+
+      const customCat = userConfig?.customCatalogs?.find((c: { id: string }) => c.id === customId) as
+        | { id: string; url: string; type?: string; enabled?: boolean; datasetId?: string; addon?: import("./stremio-addon").StremioAddonSource }
+        | undefined
+      // Ramo dedicato addon Stremio: preserva ordine, duplicati, ID e metadati
+      // originali; arricchisce best-effort col poster Pictorium esistente.
+      if (customCat?.addon && customCat.enabled !== false) {
+        isAddonCatalog = true
+        const addon = customCat.addon
+        const remoteType = addon.catalogType === "series" ? "series" : "movie"
+        // Tipo richiesto deve corrispondere a quello importato (manifest a
+        // singolo tipo; niente split mixed per gli addon).
+        if ((stType === "series" ? "series" : "movie") !== remoteType) {
+          return catalogResponse({ metas: [] })
+        }
+        const addonQuery = {
+          ...(extra.search ? { search: extra.search } : {}),
+          ...(typeof extra.skip === "number" ? { skip: extra.skip } : {}),
+          ...(extra.genre ? { genre: extra.genre } : {}),
+        }
+        const nsKey = `${scopedUser ?? "global"}:${configParam ?? "nocfg"}:${apiKey ? hashFragment(apiKey) : "nokey"}`
+        const page = await fetchAddonCatalogPage(
+          addon.manifestUrl,
+          remoteType,
+          addon.catalogId,
+          addonQuery,
+          getOriginFromRequest(req),
+          `${nsKey}:${catalogId}`,
+        ).catch(() => ({ items: [] as Array<Record<string, unknown>>, error: "unavailable" as const }))
+        const remoteItems = ("items" in page && Array.isArray(page.items) ? page.items : []) as Array<Record<string, unknown>>
+        // Conserva ordine/duplicati/ID: nessuna dedup, nessun ordinamento,
+        // nessuna ricerca per titolo. Un errore di arricchimento non elimina il titolo.
+        const enriched = await concurrentMap(remoteItems, async (raw) => {
+          const rawId = typeof raw.id === "string" ? raw.id : ""
+          if (!rawId) return null
+          const name = typeof raw.name === "string" && raw.name
+            ? raw.name
+            : typeof raw.title === "string" && raw.title ? raw.title : rawId
+          const base: StremioMeta = {
+            id: rawId,
+            type: stType,
+            name,
+            poster: typeof raw.poster === "string" ? raw.poster : null,
+            background: typeof raw.background === "string" ? raw.background : undefined,
+            banner: typeof raw.banner === "string" ? raw.banner : undefined,
+            logo: typeof raw.logo === "string" ? raw.logo : undefined,
+            releaseInfo: typeof raw.releaseInfo === "string" ? raw.releaseInfo
+              : typeof raw.year === "string" || typeof raw.year === "number" ? String(raw.year).slice(0, 4) || undefined : undefined,
+            imdbRating: typeof raw.imdbRating === "string" && raw.imdbRating ? raw.imdbRating : undefined,
+            genres: Array.isArray(raw.genres)
+              ? (raw.genres as unknown[]).filter((g): g is string => typeof g === "string").slice(0, 10)
+              : Array.isArray(raw.genre)
+                ? (raw.genre as unknown[]).filter((g): g is string => typeof g === "string").slice(0, 10)
+                : undefined,
+            description: typeof raw.description === "string" ? raw.description : undefined,
+          }
+          try {
+            const ref = parseSupportedTmdbRef(rawId)
+            if (!ref) return base
+            let tmdbId: number | null = null
+            if (ref.kind === "tmdb") tmdbId = ref.tmdbId
+            else if (ref.kind === "imdb" && apiKey) {
+              tmdbId = await tmdbFindByImdb(ref.imdb, stType === "movie" ? "movie" : "tv", apiKey).catch(() => null)
+            } else if (ref.kind === "tvdb" && apiKey) {
+              tmdbId = await tmdbFindByTvdb(ref.tvdb, stType === "movie" ? "movie" : "tv", apiKey).catch(() => null)
+            }
+            if (!tmdbId) return base
+            const posterAndShape = await pictoriumPosterAndShape(req, stType, tmdbId, configParam, userParam, undefined, posterLang, region.code)
+            const logo = apiKey
+              ? await catalogLogo(stType === "movie" ? "movie" : "tv", tmdbId, apiKey, tmdbLang).catch(() => undefined)
+              : undefined
+            return {
+              ...base,
+              poster: posterAndShape.poster,
+              posterShape: posterAndShape.posterShape,
+              banner: posterAndShape.banner,
+              landscapePoster: posterAndShape.landscapePoster,
+              logo: catalogLogoForShape(posterAndShape.posterShape, logo ?? base.logo),
+            }
+          } catch {
+            return base
+          }
+        }, 5)
+        metas = (enriched.filter((m): m is StremioMeta => m !== null) as StremioMeta[])
+      } else {
       // Come il ramo JW: senza chiave TMDB niente getDetails e i poster
       // Pictorium risponderebbero 404 → notice esplicita invece di item rotti.
       if (!apiKey) {
@@ -754,17 +866,13 @@ export async function pictoriumCatalog(
           metas: [buildNoticeMeta({ type: stType, poster: `${getOriginFromRequest(req)}/pictorium.png` })],
         })
       }
-      let customId = catalogId.replace(/^pictorium-custom-/, "")
-      if (customId.startsWith("movie-")) customId = customId.slice(6)
-      else if (customId.startsWith("series-")) customId = customId.slice(7)
-
-      const customCat = userConfig?.customCatalogs?.find((c: { id: string }) => c.id === customId) as
+      const customCat2 = customCat as
         | { id: string; url: string; type?: string; enabled?: boolean; datasetId?: string }
         | undefined
-      if (customCat && customCat.enabled !== false) {
+      if (customCat2 && customCat2.enabled !== false) {
         // TVDB senza chiave: notice esplicita invece di item rotti o vuoto
         // generico (stesso pattern del ramo apiKey sopra, mai cachata).
-        if (!tvdbKey && detectCatalogProvider(customCat.url)?.provider === "tvdb") {
+        if (!tvdbKey && detectCatalogProvider(customCat2.url)?.provider === "tvdb") {
           log.debug("Catalog key-missing: no TVDB key", { catalogId })
           return catalogResponse({
             metas: [buildNoticeMeta({
@@ -776,9 +884,9 @@ export async function pictoriumCatalog(
             })],
           })
         }
-        let items = await fetchUnifiedCatalogItems(customCat.url, { apiKey, mdblistKey, tvdbKey, limit: 500, datasetId: customCat.datasetId, userId: scopedUser })
+        let items = await fetchUnifiedCatalogItems(customCat2.url, { apiKey, mdblistKey, tvdbKey, limit: 500, datasetId: customCat2.datasetId, userId: scopedUser })
         // Se la lista è mista o contiene mediatype, filtra in base al tipo di catalogo richiesto
-        if (customCat.type === "mixed") {
+        if (customCat2.type === "mixed") {
           if (stType === "movie") {
             items = items.filter((it) => it.mediatype !== "show" && it.mediatype !== "tv" && it.mediatype !== "anime")
           } else {
@@ -860,6 +968,7 @@ export async function pictoriumCatalog(
             description: r.description,
           }
         }, 5)
+      }
       }
     } else if (catalogId.startsWith("pictorium-jw")) {
       // Fix L12: la chiave si controlla PRIMA del fetch JustWatch
@@ -1184,7 +1293,10 @@ export async function pictoriumCatalog(
       }
     }
 
-    if (extra.genre && extra.genre !== "Tutti" && metas.length > 0) {
+    // Filtro locale per nome genere (built-in/custom liste): gli addon sono
+    // esclusi, la fonte ha già filtrato e qui `genre` può essere un anno
+    // (Cinemeta year) o un'etichetta non genere.
+    if (extra.genre && extra.genre !== "Tutti" && metas.length > 0 && !isAddonCatalog) {
       const gLower = extra.genre.toLowerCase()
       const isFamily = gLower === "famiglia" || gLower === "family"
       const isSciFi = gLower === "fantascienza" || gLower.includes("sci-fi")

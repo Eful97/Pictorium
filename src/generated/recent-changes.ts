@@ -11,10 +11,9 @@ export interface RecentChange {
 }
 
 export const RECENT_CHANGES: RecentChange[] = [
-  { type: "fix", text: "Improve settings layout and keyboard access", sha: "86251af", date: "2026-10-02" },
-  { type: "perf", text: "Load catalogs and streaming on demand", sha: "f231765", date: "2026-10-02" },
-  { type: "fix", text: "Make catalog updates and search reliable", sha: "b19fbc2", date: "2026-10-02" },
-  { type: "fix", text: "Keep AIO and Custom posters up to date", sha: "e9b59ff", date: "2026-10-02" },
-  { type: "feature", text: "Add Bat in the Sun and Horror Section logos", sha: "f19c234", date: "2026-10-02" },
-  { type: "feature", text: "Automatically choose portrait or landscape posters in Nuvio", sha: "868fa56", date: "2026-10-02" },
+  { type: "feature", text: "Redesign Top 20 ranking source bar with modern dropdowns", sha: "958041c", date: "2026-10-03" },
+  { type: "fix", text: "Make custom Top 20 rankings work locally", sha: "751a33c", date: "2026-10-03" },
+  { type: "feature", text: "Choose your own Top 20 ranking lists", sha: "5ae9536", date: "2026-10-03" },
+  { type: "feature", text: "Add live previews and personal poster presets", sha: "adc7b03", date: "2026-10-03" },
+  { type: "perf", text: "Load posters faster and more reliably", sha: "3a51300", date: "2026-10-03" },
 ]
