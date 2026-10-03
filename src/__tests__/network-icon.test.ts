@@ -358,5 +358,62 @@ describe("network-svgs", () => {
       expect(pill!.h).toBeGreaterThan(0)
     }
   })
+
+  it("matches the five newly mapped network logos", () => {
+    const cases = [
+      ["New Line Cinema", "new_line"],
+      ["NEW LINE CINEMA", "new_line"],
+      ["Jagged Edge Productions", "jagged_edge"],
+      ["JAGGED EDGE PRODUCTIONS", "jagged_edge"],
+      ["Gracie Films", "gracie"],
+      ["GRACIE FILMS", "gracie"],
+      ["El Deseo", "deseo"],
+      ["EL DESEO", "deseo"],
+      ["Bellanova", "bellanova"],
+      ["BELLANOVA", "bellanova"],
+    ] as const
+    for (const [name, key] of cases) {
+      expect(getNetworkSvgResult(name, 500)?.networkKey, name).toBe(key)
+    }
+    // Frasi parziali generiche non devono matchare i nuovi loghi
+    expect(getNetworkSvgResult("New")).toBeNull()
+    expect(getNetworkSvgResult("Jagged")).toBeNull()
+    expect(getNetworkSvgResult("Films")).toBeNull()
+  })
+
+  it("renders PNG buffers for the five newly mapped logos", async () => {
+    for (const [name, key] of [["New Line Cinema", "new_line"], ["Jagged Edge Productions", "jagged_edge"], ["Gracie Films", "gracie"], ["El Deseo", "deseo"], ["Bellanova", "bellanova"]] as const) {
+      const res = await renderNetworkLogoBadge(name, 500)
+      expect(res, `logo for ${key}`).not.toBeNull()
+      expect(res!.networkKey).toBe(key)
+      expect(res!.png).toBeInstanceOf(Buffer)
+      expect(res!.w).toBeGreaterThan(0)
+      expect(res!.h).toBeGreaterThan(0)
+      // Silhouette monocromatica adattiva come gli altri (non keepColor)
+      const light = await renderNetworkLogoBadge(name, 500, true)
+      const dark = await renderNetworkLogoBadge(name, 500, false)
+      expect(light!.png.equals(dark!.png), `topLight adapts ${key}`).toBe(false)
+    }
+  })
+
+  it("resolves the five newly mapped logos via the hybrid (SVG-first) path", async () => {
+    for (const [name, key] of [["New Line Cinema", "new_line"], ["Jagged Edge Productions", "jagged_edge"], ["Gracie Films", "gracie"], ["El Deseo", "deseo"], ["Bellanova", "bellanova"]] as const) {
+      const res = await renderFirstMatchingNetworkLogoBadgeHybrid([{ name, logoPath: null }], 500)
+      expect(res, `hybrid logo for ${key}`).not.toBeNull()
+      expect(res!.networkKey).toBe(key)
+      expect(res!.matchedName).toBe(name)
+      expect(res!.png).toBeInstanceOf(Buffer)
+    }
+  })
+
+  it("renders pill badges for the five newly mapped logos (NETWORK_FILES_COMBINED)", async () => {
+    for (const key of ["new_line", "jagged_edge", "gracie", "deseo", "bellanova"] as const) {
+      const pill = await renderNetworkOnlyLargePill(key, 500, false)
+      expect(pill, `pill for ${key}`).not.toBeNull()
+      expect(pill!.png).toBeInstanceOf(Buffer)
+      expect(pill!.w).toBeGreaterThan(0)
+      expect(pill!.h).toBeGreaterThan(0)
+    }
+  })
 })
 

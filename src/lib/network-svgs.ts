@@ -101,6 +101,11 @@ const NETWORK_FILES: Record<string, string> = {
   bigtalk: "Big+Talk+Studios+-+Logo+-+Brandmark.webp",
   batinthesun: "12x16-batinthesun.png",
   horrorsection: "ths-logo-300_webp.png",
+  new_line: "New_Line_Cinema.svg",
+  jagged_edge: "jagged.svg",
+  gracie: "Gracie_Films_logo_webp.png",
+  deseo: "deseo.svg",
+  bellanova: "bellanova-big.png",
 }
 
 // Falso positivo NBC giapponese (Jujutsu Kaisen tmdb 95479): network list contiene 25+ regionali tra cui "NBC" (Nagasaki Broadcasting).
@@ -183,6 +188,11 @@ const NETWORK_TARGET_W: Record<string, number> = {
   studiocanal: 62,
   dg_cinema: 48,
   dc: 46,
+  new_line: 62,
+  jagged_edge: 62,
+  gracie: 58,
+  deseo: 48,
+  bellanova: 54,
 }
 
 function getNetworkKey(networkName: string): string | null {
@@ -271,6 +281,13 @@ function getNetworkKey(networkName: string): string | null {
   if (lower.includes("bat in the sun")) return "batinthesun"
   if (lower.includes("horror section")) return "horrorsection"
   if (lower.includes("direzione generale") || lower.includes("cinema e audiovisivo") || lower.includes("dg cinema")) return "dg_cinema"
+  // Nuovi loghi mappati (file in public/networks/): frasi distintive per
+  // evitare falsi positivi, stesso pattern di batinthesun/horrorsection.
+  if (lower.includes("new line")) return "new_line"
+  if (lower.includes("jagged edge")) return "jagged_edge"
+  if (lower.includes("gracie")) return "gracie"
+  if (lower.includes("deseo")) return "deseo"
+  if (lower.includes("bellanova")) return "bellanova"
   return null
 }
 
@@ -304,7 +321,7 @@ async function loadNetworkPng(networkKey: string, pw: number, topLight: boolean 
       const w = meta.width || 100
       const h = meta.height || 50
       const aspect = w / h
-      const isFlatWide = ["lionsgate", "sony", "legendary", "fandango", "pixar", "dreamworks", "taodue", "mappa", "madhouse", "skydance", "studiocanal", "castle_rock"].includes(networkKey)
+      const isFlatWide = ["lionsgate", "sony", "legendary", "fandango", "pixar", "dreamworks", "taodue", "mappa", "madhouse", "skydance", "studiocanal", "castle_rock", "jagged_edge"].includes(networkKey)
       // La "N" Netflix è un'icona verticale: ad area uniforme uscirebbe altissima (~80px) → area -60%
       const areaScale = isFlatWide ? 0.62 : networkKey === "netflix" ? 0.4 : networkKey === "dc" ? 0.75 : 1 // Lionsgate, Pixar e simili troppo larghi → area -38%
       const desiredArea = 3600 * areaScale * (pw / 500) * (pw / 500)
@@ -686,7 +703,7 @@ async function loadNetworkRawPng(networkKey: string, pw: number, topLight: boole
       const w = meta.width || 100
       const h = meta.height || 50
       const aspect = w / h
-      const isFlatWide2 = ["lionsgate", "sony", "legendary", "fandango", "pixar", "dreamworks", "taodue", "mappa", "madhouse", "skydance", "studiocanal", "castle_rock"].includes(networkKey)
+      const isFlatWide2 = ["lionsgate", "sony", "legendary", "fandango", "pixar", "dreamworks", "taodue", "mappa", "madhouse", "skydance", "studiocanal", "castle_rock", "jagged_edge"].includes(networkKey)
       // La "N" Netflix è un'icona verticale: ad area uniforme uscirebbe altissima (~80px) → area -60%
       const areaScale2 = isFlatWide2 ? 0.62 : networkKey === "netflix" ? 0.4 : networkKey === "dc" ? 0.75 : 1
       const desiredArea = 3600 * areaScale2 * (pw / 500) * (pw / 500)
