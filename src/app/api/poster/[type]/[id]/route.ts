@@ -874,6 +874,22 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
     backdropOffsetX = mapping?.backdropOffsetX ?? 0
     backdropOffsetY = mapping?.backdropOffsetY ?? 0
     genreName = mapping.genreName ?? null
+    // A saved genre is a localized string, not a language-independent ID.
+    // Explicit poster language wins, just as it does for automatic posters.
+    const genreLang = req.nextUrl.searchParams.get("lang")
+    if (genreName && genreLang && effTmdbKey && mapping.showBadges !== false && !queryGenre) {
+      try {
+        const cached = getTMDBSessionCache(mediaType, tmdbId, genreLang)
+        const localizedDetails = cached?.details
+          ?? await getDetails(mediaType, tmdbId, genreLang, effTmdbKey, renderAbort.signal, POSTER_TMDB_TIMEOUT_MS)
+        if (!cached?.details && localizedDetails) {
+          setTMDBSessionCache(mediaType, tmdbId, genreLang, { ...cached ?? undefined, details: localizedDetails })
+        }
+        genreName = localizedDetails?.genres?.[0]?.name || genreName
+      } catch {
+        // Keep the saved genre if TMDB is unavailable.
+      }
+    }
     voteAverage = mapping.voteAverage ?? null
     showBadges = mapping.showBadges ?? true
     rankingBadges = mapping.rankingBadges ?? true
