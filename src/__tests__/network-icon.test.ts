@@ -141,6 +141,9 @@ describe("network-svgs", () => {
     expect(getNetworkSvgResult("White Fox")).toBeNull()
     expect(getNetworkSvgResult("WHITE FOX")).toBeNull()
     expect(getNetworkSvgResult("White Fox Studio")).toBeNull()
+    // WOWOW Prime (canale JP, es. Cowboy Bebop TMDB 30991) contiene "prime" ma non è Prime Video
+    expect(getNetworkSvgResult("WOWOW Prime")).toBeNull()
+    expect(getNetworkSvgResult("WOWOW")).toBeNull()
     // Legittimi restano mappati
     expect(getNetworkSvgResult("Warner Bros.")?.networkKey).toBe("warner")
     expect(getNetworkSvgResult("Warner Bros. Japan")?.networkKey).toBe("warner")

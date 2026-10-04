@@ -204,6 +204,10 @@ function getNetworkKey(networkName: string): string | null {
   // Walt Disney Pictures va prima di Disney generico per non clashare con Disney+
   if (lower.includes("walt disney")) return "disney_pictures"
   if (lower.includes("disney")) return "disney"
+  // Falso positivo anime/giapponese: WOWOW Prime (canale premium JP, es. Cowboy Bebop
+  // TMDB 30991: TV Tokyo + WOWOW Prime) contiene "prime" ma non è Prime Video.
+  // Nessun SVG WOWOW: null così passa al fallback TMDB (logo vero) invece del logo Prime.
+  if (lower.includes("wowow")) return null
   if (lower.includes("prime") || lower.includes("amazon")) return "prime"
   if (lower.includes("apple")) return "apple"
   if (lower.includes("paramount")) return "paramount"
