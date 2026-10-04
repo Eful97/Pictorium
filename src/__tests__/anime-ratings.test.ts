@@ -34,13 +34,12 @@ describe("anime-ratings (AniZip + AniList + Kitsu)", () => {
     expect(fetchSpy).not.toHaveBeenCalled()
   })
 
-  it("resolve via tmdbId e fetch parallelo AniList + Kitsu", async () => {
+  it("resolve via tmdbId dallo snapshot locale e fetch parallelo AniList + Kitsu", async () => {
     const seen: string[] = []
     globalThis.fetch = vi.fn(async (input: RequestInfo | URL) => {
       const url = String(input)
       seen.push(url)
       if (url.includes("/mappings")) {
-        expect(url).toContain("themoviedb_id=37854")
         return jsonResponse({ mappings: { anilist_id: 21, kitsu_id: 12 } })
       }
       if (url.includes("anilist") || url.includes("/graphql")) {
@@ -52,19 +51,21 @@ describe("anime-ratings (AniZip + AniList + Kitsu)", () => {
       return new Response("Not found", { status: 404 })
     })
 
+    // tmdb:37854 è unico nello snapshot locale → {21, 12} senza /mappings.
     const ids = await resolveAnimeIds("tt0388629", 37854)
     expect(ids).toEqual({ anilistId: 21, kitsuId: 12 })
+    expect(seen.some((u) => u.includes("/mappings"))).toBe(false)
 
     const ratings = await fetchAnimeRatings("tt0388629", { tmdbId: 37854, wantAnilist: true, wantKitsu: true })
     expect(ratings).toEqual({ anilist: 8.7, kitsu: 8.4 })
-    expect(seen.some((u) => u.includes("/mappings"))).toBe(true)
+    expect(seen.some((u) => u.includes("/mappings"))).toBe(false)
   })
 
   it("resolve via imdbId quando tmdbId assente", async () => {
     globalThis.fetch = vi.fn(async (input: RequestInfo | URL) => {
       const url = String(input)
       if (url.includes("/mappings")) {
-        expect(url).toContain("imdb_id=tt0388629")
+        expect(url).toContain("imdb_id=tt1000000")
         return jsonResponse({ mappings: { anilist_id: 21, kitsu_id: null } })
       }
       if (url.includes("anilist") || url.includes("/graphql")) {
@@ -73,7 +74,8 @@ describe("anime-ratings (AniZip + AniList + Kitsu)", () => {
       return new Response("Not found", { status: 404 })
     })
 
-    const ratings = await fetchAnimeRatings("tt0388629", { wantAnilist: true, wantKitsu: true })
+    // tt1000000 non è nello snapshot locale → percorso AniZip invariato.
+    const ratings = await fetchAnimeRatings("tt1000000", { wantAnilist: true, wantKitsu: true })
     // kitsu_id null → solo anilist, nessuna chiamata Kitsu sprecata
     expect(ratings).toEqual({ anilist: 9 })
   })
@@ -93,7 +95,8 @@ describe("anime-ratings (AniZip + AniList + Kitsu)", () => {
       return new Response("Not found", { status: 404 })
     })
 
-    const ratings = await fetchAnimeRatings("tt0388629", { tmdbId: 999999, wantAnilist: true })
+    // tmdb:999999 e tt1000001 assenti dallo snapshot → AniZip come prima.
+    const ratings = await fetchAnimeRatings("tt1000001", { tmdbId: 999999, wantAnilist: true })
     expect(ratings).toEqual({ anilist: 8.8 })
     expect(seen.filter((u) => u.includes("/mappings"))).toHaveLength(2)
   })

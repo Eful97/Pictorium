@@ -5,7 +5,7 @@ import { createLogger } from "@/lib/logger"
 import { envWithFallback } from "@/lib/env-compat"
 import { createCircuitBreaker, parseRetryAfterMs } from "@/lib/circuit-breaker"
 import { fetchSimklRating } from "./simkl"
-import { fetchAnimeRatings } from "./anime-ratings"
+import { fetchAnimeRatings, normalizeAnimeSide } from "./anime-ratings"
 import { fetchCinemetaRating } from "./cinemeta"
 
 const log = createLogger("ratings")
@@ -329,8 +329,12 @@ export async function fetchAggregatedRating(
   // Le fonti anime cambiano i sources → parte del cache key (flag, mai ID).
   // Stesso per wantImdb (Cinemeta): senza, togglare rsrc in editor servirebbe
   // entry con/senza imdb a caso dentro i 30min di TTL.
+  // Il lato TMDB entra nella chiave quando le fonti anime sono attive: gli id
+  // numerici sono condivisi tra movie e tv e lo stesso imdb non deve servire
+  // entry con l'anime dell'altro lato (P1: tv/128 vs movie/128).
+  const animeSide = wantAnime ? normalizeAnimeSide(opts?.mediaType ?? null) : null
   const animeFlag = `${wantAnilist ? "al" : "x"}${wantKitsu ? "ki" : "x"}`
-  const cacheKey = `mdb:ratings:${imdbId}:${keyHash}${wantSimkl ? `:${simklHash}` : ""}${wantAnime ? `:${animeFlag}` : ""}${opts?.wantImdb ? ":ci" : ""}`
+  const cacheKey = `mdb:ratings:${imdbId}:${keyHash}${wantSimkl ? `:${simklHash}` : ""}${wantAnime ? `:${animeFlag}:${animeSide ?? "x"}` : ""}${opts?.wantImdb ? ":ci" : ""}`
 
   const cached = cacheGet<AggregatedRatings>(cacheKey)
   if (cached) return cached
@@ -348,7 +352,7 @@ export async function fetchAggregatedRating(
         ? fetchSimklRating(imdbId, opts!.simklKey!, { tmdbId: opts?.tmdbId, mediaType: opts?.mediaType, signal }).catch(() => null)
         : Promise.resolve(null),
       wantAnime
-        ? fetchAnimeRatings(imdbId, { tmdbId: opts?.tmdbId, wantAnilist, wantKitsu, signal }).catch(() => null)
+        ? fetchAnimeRatings(imdbId, { tmdbId: opts?.tmdbId, mediaType: opts?.mediaType ?? null, wantAnilist, wantKitsu, signal }).catch(() => null)
         : Promise.resolve(null),
     ])
 

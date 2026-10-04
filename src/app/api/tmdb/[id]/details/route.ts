@@ -6,6 +6,7 @@ import { computeVote } from "@/lib/rating-weights"
 import { rateLimit, rateLimitKey, rateLimitResponse } from "@/lib/rate-limit"
 import { cacheGet, cacheSet } from "@/lib/cache"
 import { envWithFallback } from "@/lib/env-compat"
+import { findAnimeByTmdb } from "@/lib/anime-id-map"
 
 // Tetto massimo per l'attesa del voto medio TMDB+IMDb (MDBList): se il fetch
 // è lento si usa il voto TMDB, coerente con la route poster (stesso knob
@@ -32,6 +33,13 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   if (!Number.isInteger(tmdbId) || tmdbId <= 0) {
     return Response.json({ genres: [], voteAverage: 0, voteCount: 0, status: null, type: null, release_date: null, first_air_date: null, last_air_date: null, next_episode_to_air: null, number_of_seasons: null, number_of_episodes: null, title: null, name: null, imdb_id: null })
   }
+  // Return every association for this media side, without choosing a season.
+  // Computed outside the details cache so snapshot updates also reach cache hits.
+  const animeMatches = findAnimeByTmdb(tmdbId, mediaType)
+  const anime_ids = {
+    kitsu: [...new Set(animeMatches.flatMap((match) => match.k ? [match.k] : []))],
+    mal: [...new Set(animeMatches.flatMap((match) => match.m ? [match.m] : []))],
+  }
   // mdblist_key, simkl_key e rsrc cambiano il voto medio → parte del cache key.
   // Le fonti anime non hanno chiavi (endpoint pubblici): rsrcKey le copre.
   const mdblistHash = mdblistKey ? crypto.createHash("sha1").update(mdblistKey).digest("hex").slice(0, 8) : ""
@@ -45,7 +53,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   interface Episode { id: number; name: string; air_date: string | null; episode_number: number; season_number: number }
 
   const cached = cacheGet<{ title?: string; name?: string; genres: Genre[]; voteAverage: number; voteCount: number; type?: string; status?: string; release_date?: string; first_air_date?: string; last_air_date?: string; next_episode_to_air?: Episode | null; number_of_seasons?: number; number_of_episodes?: number; networks?: { id: number; name: string; logo_path: string | null; origin_country: string }[]; production_companies?: { id: number; name: string; logo_path: string | null; origin_country: string }[]; imdb_id?: string | null; wikidata_id?: string | null; original_language?: string }>(cacheKey)
-  if (cached) return Response.json(cached)
+  if (cached) return Response.json({ ...cached, anime_ids })
   try {
     const [data, extIds] = await Promise.all([
       getDetails(mediaType, tmdbId, language, apiKey),
@@ -88,7 +96,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     // awards senza passare dallo SPARQL lento).
     const body = { title: data.title, name: data.name, genres: data.genres || [], voteAverage: rating, voteCount: data.vote_count, type: data.type, status: data.status, release_date: data.release_date, first_air_date: data.first_air_date, last_air_date: data.last_air_date, next_episode_to_air: data.next_episode_to_air, number_of_seasons: data.number_of_seasons, number_of_episodes: data.number_of_episodes, networks: data.networks, production_companies: data.production_companies, imdb_id: extIds.imdb_id, wikidata_id: extIds.wikidata_id ?? null, original_language: data.original_language, aggregatedRatings: aggregatedData }
     cacheSet(cacheKey, body, ["tmdb", "details"])
-    return Response.json(body)
+    return Response.json({ ...body, anime_ids })
   } catch {
     return Response.json({ genres: [], voteAverage: 0, voteCount: 0, status: null, type: null, release_date: null, first_air_date: null, last_air_date: null, next_episode_to_air: null, number_of_seasons: null, number_of_episodes: null, title: null, name: null, imdb_id: null })
   }

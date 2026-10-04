@@ -31,6 +31,8 @@ export interface SearchResult {
   first_air_date?: string
   vote_average?: number
   imdb_id?: string | null
+  /** Local anime associations; multiple seasons may share a TMDB series. */
+  anime_ids?: { kitsu: number[]; mal: number[] }
 }
 
 export function toSearchResult(partial: { id?: number | null; media_type?: string; title?: string | null; name?: string | null; poster_path?: string | null; release_date?: string; first_air_date?: string; vote_average?: number; imdb_id?: string | null }): SearchResult {

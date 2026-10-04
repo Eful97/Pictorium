@@ -32,7 +32,7 @@ import { TransformControls } from "@/components/TransformControls"
 import { EpisodeGroupControls } from "@/components/EpisodeGroupControls"
 import { JwRankBadge } from "@/components/JwRankBadge"
 import { usePosterPreview } from "@/lib/usePosterPreview"
-import { Check, Clock, Save, Trash2, X, ChevronLeft, RectangleVertical, RectangleHorizontal, Tv, AlertTriangle, Loader2, AlertCircle } from "lucide-react"
+import { Check, Clock, Save, Trash2, X, ChevronLeft, ChevronDown, RectangleVertical, RectangleHorizontal, Tv, AlertTriangle, Loader2, AlertCircle } from "lucide-react"
 
 export default function EditView() {
   const accentColor = usePSelector((v) => v.accentColor)
@@ -82,6 +82,21 @@ export default function EditView() {
   const ed = usePosterEditor()
   const [searchFocused, setSearchFocused] = useState(false)
   const [tvdbId, setTvdbId] = useState<number | null>(null)
+  const animeIdsRowRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const closeAnimeDropdowns = (event: PointerEvent | KeyboardEvent) => {
+      if (event instanceof KeyboardEvent && event.key !== "Escape") return
+      animeIdsRowRef.current?.querySelectorAll<HTMLDetailsElement>("details[open]").forEach((dropdown) => {
+        if (event instanceof KeyboardEvent || !dropdown.contains(event.target as Node)) dropdown.open = false
+      })
+    }
+    document.addEventListener("pointerdown", closeAnimeDropdowns)
+    document.addEventListener("keydown", closeAnimeDropdowns)
+    return () => {
+      document.removeEventListener("pointerdown", closeAnimeDropdowns)
+      document.removeEventListener("keydown", closeAnimeDropdowns)
+    }
+  }, [])
   const blurTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   // Fix L30: timer del "copied" ripulito su unmount (setState post-unmount).
   const urlCopiedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -883,7 +898,31 @@ export default function EditView() {
 
                     <h3 className="text-[10px] font-semibold text-muted uppercase tracking-wider mb-1.5">{t("ui.details")}</h3>
                     <p className="text-sm font-bold tracking-tight text-zinc-50 truncate">{titleOf(selected)}</p>
-                    <p className="text-[11px] font-mono text-zinc-400 mt-1">{yearOf(selected)} · {selected.media_type === "movie" ? t("ui.movie") : t("ui.tvSeries")} · TMDB <a href={`https://www.themoviedb.org/${selected.media_type}/${selected.id}`} target="_blank" rel="noopener noreferrer" className="text-zinc-300 hover:text-white underline underline-offset-2">{selected.id}</a>{selected.imdb_id ? <> · IMDB <a href={`https://www.imdb.com/title/${selected.imdb_id}`} target="_blank" rel="noopener noreferrer" className="text-zinc-300 hover:text-white underline underline-offset-2">{selected.imdb_id}</a></> : ""}{tvdbId ? <> · TVDB <a href={`https://thetvdb.com/?tab=series&id=${tvdbId}`} target="_blank" rel="noopener noreferrer" className="text-zinc-300 hover:text-white underline underline-offset-2">{tvdbId}</a></> : ""}</p>
+                    <div ref={animeIdsRowRef} className="text-[11px] font-mono text-zinc-400 mt-1">
+                      {yearOf(selected)} · {selected.media_type === "movie" ? t("ui.movie") : t("ui.tvSeries")} · TMDB <a href={`https://www.themoviedb.org/${selected.media_type}/${selected.id}`} target="_blank" rel="noopener noreferrer" className="text-zinc-300 hover:text-white underline underline-offset-2">{selected.id}</a>{selected.imdb_id ? <> · IMDB <a href={`https://www.imdb.com/title/${selected.imdb_id}`} target="_blank" rel="noopener noreferrer" className="text-zinc-300 hover:text-white underline underline-offset-2">{selected.imdb_id}</a></> : ""}{tvdbId ? <> · TVDB <a href={`https://thetvdb.com/?tab=series&id=${tvdbId}`} target="_blank" rel="noopener noreferrer" className="text-zinc-300 hover:text-white underline underline-offset-2">{tvdbId}</a></> : ""}
+                      {([
+                        { name: "Kitsu", ids: selected.anime_ids?.kitsu ?? [], base: "https://kitsu.app/anime/" },
+                        { name: "MAL", ids: selected.anime_ids?.mal ?? [], base: "https://myanimelist.net/anime/" },
+                      ]).filter((provider) => provider.ids.length > 0).map((provider) => (
+                        <div key={provider.name} className="inline whitespace-nowrap">
+                          {" · "}
+                          {provider.ids.length === 1 ? (
+                            <>{provider.name} <a href={`${provider.base}${provider.ids[0]}`} target="_blank" rel="noopener noreferrer" className="text-zinc-300 hover:text-white underline underline-offset-2">{provider.ids[0]}</a></>
+                          ) : (
+                            <details name="anime-provider-ids" className="relative inline-block align-baseline" key={`${selected.media_type}:${selected.id}:${provider.name}`}>
+                              <summary className="inline-flex items-center gap-1 list-none cursor-pointer text-zinc-300 hover:text-white [&::-webkit-details-marker]:hidden">
+                                {provider.name} ({provider.ids.length}) <ChevronDown className="w-3 h-3" />
+                              </summary>
+                              <ul className="absolute start-0 top-full z-50 mt-1 min-w-28 max-h-48 overflow-y-auto rounded-lg border border-white/10 bg-zinc-950 p-1 shadow-xl">
+                                {provider.ids.map((id) => (
+                                  <li key={id}><a href={`${provider.base}${id}`} target="_blank" rel="noopener noreferrer" className="block rounded px-2 py-1.5 text-zinc-300 hover:bg-white/10 hover:text-white">{provider.name} {id}</a></li>
+                                ))}
+                              </ul>
+                            </details>
+                          )}
+                        </div>
+                      ))}
+                    </div>
 
                     <div className="flex items-center gap-2 flex-wrap mt-2">
                       {cleanPoster && (

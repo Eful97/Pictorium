@@ -432,9 +432,9 @@ test.describe("poster API — functional", () => {
   })
 
   test("anime ratings (anilist+kitsu) — aggregated + separate column — valid image", async ({ request }) => {
-    // imdbId anime in query → AniZip mock mappa tt0388629 (il tmdbId mock fa
-    // 404 e scatta il fallback imdb), voti AniList/Kitsu dal mock, colonna
-    // separati renderizzata (byte diversi dalla media ★ sola).
+    // imdbId anime in query → snapshot locale mappa tt0388629 (unico:
+    // anilist 21/kitsu 12, zero /mappings), voti AniList/Kitsu dal mock,
+    // colonna separati renderizzata (byte diversi dalla media ★ sola).
     const sepUrl = posterUrl({ genreName: "Animation", voteAverage: "7.8", badges: "1", ranking: "0", imdbId: "tt0388629", sep: "1", rsrc: "anilist,kitsu" })
     const avgUrl = posterUrl({ genreName: "Animation", voteAverage: "7.8", badges: "1", ranking: "0", imdbId: "tt0388629", rsrc: "anilist,kitsu" })
     const sepRes = await request.get(sepUrl)

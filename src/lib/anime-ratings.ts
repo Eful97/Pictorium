@@ -1,4 +1,5 @@
 import { cacheGet, cacheSet } from "./cache"
+import { findAnimeByImdb, findAnimeByTmdb, type AnimeMapRecord } from "./anime-id-map"
 import { timedFetch } from "./outbound-stats"
 import { createLogger } from "@/lib/logger"
 import { envWithFallback } from "@/lib/env-compat"
@@ -82,6 +83,13 @@ export interface AnimeRatingOptions {
   wantAnilist?: boolean
   wantKitsu?: boolean
   signal?: AbortSignal
+  /**
+   * Lato TMDB del titolo richiedente ("movie" | "tv", accettati anche
+   * "series" e case varianti). Gli id TMDB numerici sono condivisi tra movie
+   * e tv: senza lato, un tv/128 eredita il voto del mapping movie/128.
+   * Valori ambigui ("anime", null) = nessuna restrizione (legacy).
+   */
+  mediaType?: string | null
 }
 
 export interface AnimeIds {
@@ -100,8 +108,18 @@ interface AnizipMappings {
 }
 
 function toPositiveInt(v: unknown): number | null {
-  const n = typeof v === "number" ? v : parseInt(String(v ?? ""), 10)
-  return Number.isFinite(n) && n > 0 ? n : null
+  // Come in anime-id-map.ts: solo interi sicuri, stringhe interamente
+  // numeriche (niente parseInt parziale "164junk" → 164, niente 3.5 → 3).
+  if (typeof v === "number") {
+    return Number.isSafeInteger(v) && v > 0 ? v : null
+  }
+  if (typeof v === "string") {
+    const t = v.trim()
+    if (!/^\d+$/.test(t)) return null
+    const n = Number(t)
+    return Number.isSafeInteger(n) && n > 0 ? n : null
+  }
+  return null
 }
 
 function toTen(v: unknown): number | null {
@@ -111,7 +129,49 @@ function toTen(v: unknown): number | null {
 }
 
 /**
+ * Identità anime dallo snapshot locale per un set di match reverse
+ * (TMDB/IMDb -> entries). Usabile solo se NON ambigua: al massimo un AniList
+ * e un Kitsu distinti (righe duplicate dello stesso anime ok), almeno uno
+ * presente. Più stagioni sullo stesso show TMDB (es. 7 AniList su tmdb:26209)
+ * → null, e il chiamante conserva il fallback AniZip esistente (mai rating
+ * di una stagione arbitraria).
+ */
+export function localAnimeIdsForMatches(matches: AnimeMapRecord[]): AnimeIds | null {
+  const anilists = new Set<number>()
+  const kitsus = new Set<number>()
+  for (const r of matches) {
+    if (typeof r.a === "number" && r.a > 0) anilists.add(r.a)
+    if (typeof r.k === "number" && r.k > 0) kitsus.add(r.k)
+  }
+  if (anilists.size > 1 || kitsus.size > 1) return null
+  const anilistId = anilists.size === 1 ? [...anilists][0] : null
+  const kitsuId = kitsus.size === 1 ? [...kitsus][0] : null
+  if (anilistId === null && kitsuId === null) return null
+  return { anilistId, kitsuId }
+}
+
+/**
+ * Normalizza il media type del chiamante sul lato TMDB dello snapshot
+ * ("movie" | "tv"). "series" → "tv"; "anime" nudo o altro → null (nessuna
+ * restrizione, comportamento legacy per i chiamanti senza tipo).
+ */
+export function normalizeAnimeSide(mediaType: string | null | undefined): "movie" | "tv" | null {
+  const t = (mediaType || "").trim().toLowerCase()
+  if (t === "movie" || t === "anime.movie") return "movie"
+  if (t === "tv" || t === "series" || t === "anime.series" || t === "show" || t === "tvshow") return "tv"
+  return null
+}
+
+/**
  * Risolve gli ID proprietari anime (AniList/Kitsu) da TMDB o IMDb via AniZip.
+ * Prima lo snapshot locale (zero rete): un match reverse UNICO vince subito
+ * e salta la mapping-request AniZip (le successive fetch voto AniList/Kitsu
+ * avvengono comunque quando richieste). Il match è vincolato al lato TMDB
+ * del richiedente quando noto: tv/128 non vede mai il mapping movie/128
+ * (stesso vale per le cache `anime:map:*`, namespaced per lato).
+ * Miss/ambiguità → percorso AniZip esistente invariato (stessi tentativi
+ * tmdb→imdb, cache, coalescing, negative e breaker — il breaker blocca solo
+ * la rete, mai il locale).
  * Prova TMDB prima e IMDb dopo: un 404/miss sul primo non blocca il secondo
  * (la route poster passa tmdbId dall'URL e imdbId dalla query, e uno dei due
  * può non essere mappato). Errori transienti (5xx/rete/breaker) fermano
@@ -127,11 +187,29 @@ export async function resolveAnimeIds(
   imdbId: string | null | undefined,
   tmdbId: number | string | null | undefined,
   signal?: AbortSignal,
+  mediaType?: string | null,
 ): Promise<AnimeIds | null> {
+  const side = normalizeAnimeSide(mediaType)
+  const sideFrag = side ? `${side}:` : ""
   const attempts: { idKey: string; qp: string }[] = []
-  if (tmdbId) attempts.push({ idKey: `tmdb:${tmdbId}`, qp: `themoviedb_id=${encodeURIComponent(String(tmdbId))}` })
-  if (imdbId) attempts.push({ idKey: `imdb:${imdbId}`, qp: `imdb_id=${encodeURIComponent(imdbId)}` })
+  if (tmdbId) attempts.push({ idKey: `tmdb:${sideFrag}${tmdbId}`, qp: `themoviedb_id=${encodeURIComponent(String(tmdbId))}` })
+  if (imdbId) attempts.push({ idKey: `imdb:${sideFrag}${imdbId}`, qp: `imdb_id=${encodeURIComponent(imdbId)}` })
   if (attempts.length === 0) return null
+
+  // Snapshot locale prima della rete (stesso ordine tmdb → imdb). Sincrono,
+  // in-memory, fuori da breaker/coalescing (non tocca la rete). Entrambi i
+  // lookup vincolati al lato quando noto: un tv/128 non eredita il voto del
+  // film movie/128 anche se condivide l'id numerico (e l'imdb del film,
+  // se passato per errore con lato tv, resta escluso dal filtro lato).
+  if (tmdbId) {
+    const local = localAnimeIdsForMatches(findAnimeByTmdb(tmdbId, side ?? undefined))
+    if (local) return local
+  }
+  if (imdbId) {
+    const local = localAnimeIdsForMatches(findAnimeByImdb(imdbId, side ?? undefined))
+    if (local) return local
+  }
+
   if (anizipBreaker.isOpen()) return null
 
   for (const attempt of attempts) {
@@ -276,7 +354,7 @@ export async function fetchAnimeRatings(
   const wantKitsu = !!options?.wantKitsu
   if (!wantAnilist && !wantKitsu) return null
 
-  const ids = await resolveAnimeIds(imdbId, options?.tmdbId, options?.signal)
+  const ids = await resolveAnimeIds(imdbId, options?.tmdbId, options?.signal, options?.mediaType ?? null)
   if (!ids) return null
 
   const [anilist, kitsu] = await Promise.all([

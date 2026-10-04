@@ -55,6 +55,40 @@ describe("GET /api/tmdb/[id]/details (voto medio TMDB+IMDb)", () => {
     expect(body.voteAverage).toBe(7.3)
   })
 
+  it("exposes local Kitsu and MAL IDs on fresh and cached details", async () => {
+    vi.mocked(getDetails).mockResolvedValue(BASE_DETAILS as never)
+    vi.mocked(getExternalIds).mockResolvedValue({ imdb_id: null } as never)
+    const req = new NextRequest("http://localhost:3000/api/tmdb/128/details?type=movie&api_key=k")
+    for (let i = 0; i < 2; i++) {
+      const res = await GET(req, { params: Promise.resolve({ id: "128" }) })
+      expect((await res.json()).anime_ids).toEqual({ kitsu: [142], mal: [164] })
+    }
+    expect(getDetails).toHaveBeenCalledTimes(1)
+    expect(fetchAggregatedRating).not.toHaveBeenCalled()
+  })
+
+  it("keeps film and series associations separate", async () => {
+    vi.mocked(getDetails).mockResolvedValue(BASE_DETAILS as never)
+    vi.mocked(getExternalIds).mockResolvedValue({ imdb_id: null } as never)
+    const req = new NextRequest("http://localhost:3000/api/tmdb/128/details?type=tv&api_key=k")
+    const res = await GET(req, { params: Promise.resolve({ id: "128" }) })
+    expect((await res.json()).anime_ids).toEqual({ kitsu: [], mal: [] })
+  })
+
+  it("preserves all season associations for a series without picking one", async () => {
+    vi.mocked(getDetails).mockResolvedValue(BASE_DETAILS as never)
+    vi.mocked(getExternalIds).mockResolvedValue({ imdb_id: null } as never)
+    const req = new NextRequest("http://localhost:3000/api/tmdb/26209/details?type=tv&api_key=k")
+    const res = await GET(req, { params: Promise.resolve({ id: "26209" }) })
+    const { anime_ids } = await res.json()
+    expect(anime_ids.kitsu).toContain(265)
+    expect(anime_ids.kitsu).toContain(363)
+    expect(anime_ids.mal).toContain(290)
+    expect(anime_ids.mal).toContain(396)
+    expect(new Set(anime_ids.kitsu).size).toBe(anime_ids.kitsu.length)
+    expect(new Set(anime_ids.mal).size).toBe(anime_ids.mal.length)
+  })
+
   it("exposes wikidata_id from external_ids (preview fast-path, zero extra RTT)", async () => {
     ;(getDetails as ReturnType<typeof vi.fn>).mockResolvedValue(BASE_DETAILS)
     ;(getExternalIds as ReturnType<typeof vi.fn>).mockResolvedValue({ imdb_id: "tt123", wikidata_id: "Q23577" })

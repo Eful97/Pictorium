@@ -1,0 +1,70 @@
+[
+  {
+    "type": "MOVIE",
+    "anilist_id": 164,
+    "kitsu_id": 142,
+    "mal_id": 164,
+    "anidb_id": 7,
+    "imdb_id": ["tt0119698"],
+    "themoviedb_id": { "movie": [128] }
+  },
+  {
+    "type": "TV",
+    "anilist_id": 290,
+    "kitsu_id": 265,
+    "mal_id": 290,
+    "anidb_id": 1,
+    "imdb_id": ["tt0286390"],
+    "themoviedb_id": { "tv": 26209 },
+    "season": { "tvdb": 1, "tmdb": 1 }
+  },
+  {
+    "type": "TV",
+    "anilist_id": 396,
+    "kitsu_id": 266,
+    "mal_id": 396,
+    "anidb_id": 4,
+    "themoviedb_id": { "tv": 26209 },
+    "season": { "tvdb": 1, "tmdb": 2 }
+  },
+  {
+    "type": "MOVIE",
+    "anilist_id": 999001,
+    "kitsu_id": 999002,
+    "imdb_id": ["tt1754177", "tt2048804"],
+    "themoviedb_id": { "movie": [73529, 73530] }
+  },
+  {
+    "type": "TV",
+    "anilist_id": 145,
+    "kitsu_id": 123,
+    "mal_id": 145,
+    "anidb_id": 199,
+    "imdb_id": ["tt0202430"],
+    "themoviedb_id": { "tv": 36837 },
+    "season": { "tvdb": 1, "tmdb": 1 }
+  },
+  {
+    "type": "TV",
+    "anilist_id": 403,
+    "kitsu_id": 370,
+    "tvdb_id": 80654,
+    "season": { "tvdb": 1 }
+  },
+  {
+    "type": "OVA",
+    "anilist_id": -5,
+    "kitsu_id": "xx",
+    "imdb_id": ["not-an-id", 123],
+    "themoviedb_id": { "tv": "NaN" }
+  },
+  { "type": "TV", "themoviedb_id": { "tv": 99999 } },
+  {
+    "type": "MOVIE",
+    "anilist_id": 164,
+    "kitsu_id": 142,
+    "themoviedb_id": { "movie": [129] }
+  },
+  "garbage-row",
+  null
+]
