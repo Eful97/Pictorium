@@ -47,6 +47,15 @@ Warmup automatico: `pictorium-jw-movies`, `pictorium-jw-series`, `pictorium-netf
 ## Flusso per catalogo
 
 ### JustWatch (`pictorium-jw-*`)
+`GLOBAL` è selezionabile prima dei paesi in impostazioni e onboarding. La
+query usa `streamingCharts(country: null)`; il paese `US` serve solo alla
+localizzazione dei metadati. Le lingue UI senza paese chart, come `vi`,
+selezionano automaticamente `GLOBAL` al cambio lingua. Una scelta globale
+resta globale quando cambia la lingua e viene conservata al reload.
+Anche le piattaforme applicano i propri pacchetti al ranking globale: senza
+righe mondiali non vengono aggiunti titoli nazionali da popularTitles o
+FlixPatrol. I filtri genere globali si applicano dopo l'arricchimento TMDB.
+
 1. `getJWRankings("MOVIE"|"SHOW", region.code, ...)` in `lib/justwatch.ts` — query GraphQL
    a `apis.justwatch.com` (o `JUSTWATCH_API_URL` nei test). Regione da `lib/regions.ts`
    (18 paesi: `?region=` > config-token > default server `PICTORIUM_REGION` > `IT`);
@@ -146,7 +155,8 @@ chiave d'istanza condivisa) resta valida per quel caso.
 
 - Cache catalogo (`cacheSet`/`cacheGet` in `lib/cache.ts`): key include tipo,
   `catalogId`, `POSTER_URL_VERSION`, hash `config` e hash `mdblist_key`.
-  TTL: refresh schedulato alle 3:00 UTC (tag `catalog`); catalogo **vuoto** → 60 s.
+  TTL: 1h dalla generazione per il catalogo **non vuoto** (TTL esplicito, vince
+  sul refresh schedulato del tag `catalog`); catalogo **vuoto** → 60 s.
 - Cache meta (`meta-handler.ts`): key include `episodeGroupId:updatedAt` del
   mapping (film e serie) così save poster/ordinamento invalidano anche
   cross-instance; TTL 12h.
@@ -160,6 +170,27 @@ chiave d'istanza condivisa) resta valida per quel caso.
   429 con `Retry-After`.
 - Header risposta: `Cache-Control: no-cache`, CORS `*`.
 - Route con `maxDuration = 60` per cataloghi (`catalog/[type]/[id]/route.ts`), `40` per poster (`api/poster/[type]/[id]/route.ts`): un catalogo freddo fa ~20 `getDetails` + ranking.
+
+## Proxy addon: mapping anime locale (`anime-id-map`)
+
+Il proxy (`/api/proxy`, rewrite in `lib/addon-proxy.ts`) riscrive SOLO la
+poster URL degli item esterni con id anime-native **risolvibili in modo
+sicuro**, senza toccare id/tipo/ordine/paginazione/videos:
+
+- Solo `anilist:`/`kitsu:` + tipo item esplicito (`movie`/`anime.movie` →
+  movie, `series`/`anime.series`/`tv`/`show` → tv). Snapshot versionato in
+  `src/generated/anime-id-map.json` (derivato compatto di
+  Fribb/anime-lists, vedi `docs/anime-id-mapping.md`), indici in-memory,
+  lookup sincrono a zero rete.
+- Match unico lato-compatibile → `/api/poster/{movie|series}/{tmdbId}` con la
+  stessa propagazione `rv`/`u`/`dv`. Miss, ambiguità, mismatch di media type,
+  tipo `anime` nudo, `mal:`/`anidb:`, id malformati → artwork originale.
+- Un match unico stagione→show riusa l'artwork della SERIE (mai artwork
+  stagione-specifico, mai merge di stagioni).
+- Le risposte proxy non sono cachate server-side: un refresh dello snapshot
+  produce URL nuove al successivo fetch, nessuna chiave cache da versionare.
+- Il manifest NON dichiara i prefissi `kitsu:`/`anilist:`/`mal:`/`anidb:`
+  (il resolver `/meta` non li risolve: restano agli addon dedicati).
 
 ## Cosa NON fare
 

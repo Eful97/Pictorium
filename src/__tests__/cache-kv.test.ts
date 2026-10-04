@@ -67,7 +67,8 @@ describe("cache L2 condivisa (C1)", () => {
     expect(kvMock.set).toHaveBeenCalledTimes(1)
     const [key, json, opts] = kvMock.set.mock.calls[0] as [string, string, { ex: number }]
     expect(key).toBe("pictorium:cache:cat1")
-    expect(JSON.parse(json)).toEqual({ metas: [] })
+    // Envelope KV: i dati viaggiano in `d` con timestamp/TTL originali.
+    expect(JSON.parse(json).d).toEqual({ metas: [] })
     expect(opts.ex).toBeGreaterThanOrEqual(60)
 
     // Simula altra istanza: modulo fresco (L1 vuota), KV risponde
@@ -106,7 +107,7 @@ describe("cache L2 condivisa (C1)", () => {
     const { cacheSet } = await importCache()
     cacheSet("rcat1", { metas: [] }, ["stremio", "catalog"], 60_000)
     await new Promise((r) => setTimeout(r, 10))
-    expect(redisStore.get("pictorium:cache:rcat1")).toBe(JSON.stringify({ metas: [] }))
+    expect(JSON.parse(redisStore.get("pictorium:cache:rcat1") as string).d).toEqual({ metas: [] })
 
     // Altra istanza: L1 vuota, legge dal Redis condiviso e ripopola la L1.
     const fresh = await importCache()

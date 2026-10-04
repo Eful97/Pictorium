@@ -8,10 +8,10 @@ import { getKv, getStorageMode } from "@/lib/kv"
 /**
  * Epoch globale dei cataloghi Stremio (F3).
  *
- * La cache dei cataloghi è in-process (`lib/cache.ts`) con refresh schedulato:
- * su deploy multi-istanza (Vercel serverless) l'invalidazione locale
- * `cacheInvalidate("stremio")` non raggiunge le altre istanze e il cambio
- * poster / cambio default resta invisibile fino a ~24h. Includendo questa epoch
+ * La cache dei cataloghi è in-process (`lib/cache.ts`) con TTL di 1h dalla
+ * generazione (60s se vuoto): su deploy multi-istanza (Vercel serverless)
+ * l'invalidazione locale `cacheInvalidate("stremio")` non raggiunge le altre
+ * istanze e il cambio poster / cambio default resta invisibile fino a 1h. Includendo questa epoch
  * nel cache key del catalogo, ogni save (mapping o defaults) cambia la chiave
  * su TUTTE le istanze entro il TTL di lettura — invalidazione cross-instance
  * senza refactor della cache.

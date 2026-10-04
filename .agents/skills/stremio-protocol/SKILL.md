@@ -94,7 +94,8 @@ as route aliases (`normalizeCatalogId`) but never emitted.
 - `pictorium-anime` — MDBList `mdblistAnime`
 
 Warmup: `pictorium-jw-movies`, `pictorium-jw-series`, `pictorium-anime`
-(`WARMUP_CATALOG_IDS`), refreshed at 03:00 UTC (cache tag `catalog`).
+(`WARMUP_CATALOG_IDS`); catalog responses are cached 1h from generation
+(empty catalog 60 s).
 
 ## Do NOT
 

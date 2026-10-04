@@ -18,7 +18,16 @@ export type CacheStatus = {
   readonly totalEntries: number
   readonly taggedEntries: readonly CacheTagStats[]
   readonly untaggedEntries: number
+  /**
+   * Stima dei payload delle entry attive (significato storico, invariato).
+   * Come gli altri contatori byte è una stima dei payload, non la memoria
+   * complessiva del processo (esclude l'overhead delle strutture).
+   */
   readonly totalBytes: number
+  /** Stima dei payload stale trattenuti per la rivalidazione (tag poster/catalog). */
+  readonly staleBytes: number
+  /** Stima totale trattenuta: payload attivi + stale (sempre totalBytes + staleBytes). */
+  readonly retainedBytes: number
   readonly maxBytes: number
   readonly maxEntries: number
 }
@@ -77,17 +86,51 @@ function toKvPayload(data: unknown): string | null {
   }
 }
 
-function kvWriteThrough(key: string, json: string, ttlMs?: number, tags: string[] = []): void {
+function kvWriteThrough(key: string, data: unknown, ttlMs?: number, tags: string[] = [], timestamp: number = Date.now()): void {
+  // Guardia dimensione/contenuto sul payload grezzo (mai Buffer, <=64KB).
+  if (toKvPayload(data) === null) return
   const ex = ttlMs !== undefined
     ? Math.max(60, Math.round(ttlMs / 1000))
     : (isScheduledRefresh(tags) !== null ? secondsUntilScheduledRefresh() : Math.round(MAX_TTL / 1000));
+  // Envelope con scadenza assoluta: generazione + TTL esplicito viaggiano con
+  // il payload così il ripopolamento L1 su un'altra istanza conserva la
+  // scadenza originale invece di ripartire da un'ora intera (no sliding
+  // expiration: la read path non riscrive mai la KV).
+  let envelope: string
+  try {
+    envelope = JSON.stringify({
+      __pictoriumKv: 1,
+      d: data,
+      t: timestamp,
+      ...(ttlMs !== undefined ? { ttl: ttlMs } : {}),
+    })
+    if (envelope.length > KV_L2_MAX_BYTES) return
+  } catch {
+    return
+  }
   (async () => {
     try {
-      await getKv().set(`${KV_L2_PREFIX}${key}`, json, { ex })
+      await getKv().set(`${KV_L2_PREFIX}${key}`, envelope, { ex })
     } catch {
       // fail-open: la L1 resta valida, la L2 si ripopola al prossimo set
     }
   })()
+}
+
+/** Envelope KV→L1: payload + metadati di scadenza assoluta. */
+interface KvEnvelope<T> {
+  __pictoriumKv: 1
+  d: T
+  /** Generazione (ms epoch, = timestamp L1 dell'istanza scrittrice). */
+  t: number
+  /** TTL esplicito del writer; assente = regole scheduled/MAX_TTL dai tag. */
+  ttl?: number
+}
+
+function isKvEnvelope(raw: unknown): raw is KvEnvelope<unknown> {
+  if (typeof raw !== "object" || raw === null) return false
+  const rec = raw as Record<string, unknown>
+  return rec.__pictoriumKv === 1 && "d" in rec && typeof rec.t === "number"
 }
 
 async function kvReadThrough<T>(key: string): Promise<T | null> {
@@ -106,17 +149,31 @@ async function kvReadThrough<T>(key: string): Promise<T | null> {
 }
 
 /** Miss L1 + hit L2: ripopola la L1 con gli stessi tag (stesse regole TTL).
- *  Ritorna null se L2 disabilitata/miss/errore. */
-export async function cacheGetShared<T>(key: string, tags: string[] = []): Promise<T | null> {
+ *  Ritorna null se L2 disabilitata/miss/errore.
+ *  `ttlMs`: per i payload legacy senza envelope (che non trasportano metadati
+ *  di scadenza) — senza un TTL esplicito la L1 ripopolata ricadrebbe nelle
+ *  regole scheduled/MAX_TTL invece del TTL originale (es. catalogo non-vuoto
+ *  1h → refresh giornaliero). Accetta il valore o un selettore sul dato (es.
+ *  pieno/vuoto). Default undefined = comportamento storico per gli altri
+ *  chiamanti. Gli envelope correnti vincono sul selettore (timestamp+TTL
+ *  originali) e il ripopolamento è solo locale: mai rewrite KV, mai sliding
+ *  expiration. */
+export async function cacheGetShared<T>(key: string, tags: string[] = [], ttlMs?: number | ((data: T) => number | undefined)): Promise<T | null> {
   const local = cacheGet<T>(key)
   if (local !== null) return local
   if (!isKvL2()) return null
-  const shared = await kvReadThrough<T>(key)
-  if (shared === null) return null
+  const raw = await kvReadThrough<unknown>(key)
+  if (raw === null) return null
   // Stessi tag dell'originale → stesse regole (MAX_TTL/scheduled); la
   // scadenza assoluta resta garantita dall'EX della entry KV.
-  cacheSet(key, shared as T, tags, undefined)
-  return shared
+  const data = (isKvEnvelope(raw) ? raw.d : raw) as T
+  const envelopeTtl = isKvEnvelope(raw) ? raw.ttl : undefined
+  const repopulateTtl = envelopeTtl ?? (typeof ttlMs === "function" ? ttlMs(data) : ttlMs)
+  const timestamp = isKvEnvelope(raw) ? raw.t : Date.now()
+  cacheSetLocalOnly(key, data, tags, repopulateTtl, timestamp)
+  // Rilettura tramite cacheGet: se il residuo è già esaurito (es. envelope
+  // letto oltre la scadenza originale) isExpired la scarta → miss.
+  return cacheGet<T>(key)
 }
 
 const MAX_TTL = 30 * 60 * 1000
@@ -236,7 +293,7 @@ function estimateBytes(data: unknown): number {
   return 0
 }
 
-function makeSpace(count: number, incomingBytes: number = 0): void {
+function makeSpace(count: number, incomingBytes: number = 0, excludeKey?: string): void {
   if (store.size + count < MAX_ENTRIES && totalBytes + incomingBytes < MAX_BYTES) return
   // Map preserves insertion order; delete+set on read promotes accessed entries to end.
   // First keys are the least recently used. Evict in batches.
@@ -246,6 +303,9 @@ function makeSpace(count: number, incomingBytes: number = 0): void {
     // limite E byte sotto il target. Il vecchio blocco su entryLimit lasciava
     // la cache sopra MAX_BYTES quando una singola entry pesava molto (poster grandi).
     if (totalBytes <= byteTarget && store.size + count <= MAX_ENTRIES) break
+    // La chiave in sostituzione non è mai evitta: il suo peso è già stato
+    // rilasciato dal chiamante, evitta significherebbe doppia sottrazione.
+    if (excludeKey !== undefined && key === excludeKey) continue
     const entry = store.get(key)
     if (entry) {
       totalBytes -= estimateBytes(entry.data)
@@ -284,25 +344,42 @@ export function cacheGetStale<T>(key: string): { data: T | null; stale: boolean 
   return { data: entry.data, stale: false }
 }
 
-export function cacheSet<T>(key: string, data: T, tags: string[] = [], ttlMs?: number): void {
+/**
+ * Inserimento solo-L1 (mai write-through KV): la read path KV→L1 lo usa per
+ * ripopolare la memoria senza rinnovare la scadenza della entry KV condivisa
+ * (no sliding expiration) e con il timestamp originale per conservare la
+ * scadenza assoluta anche in locale.
+ */
+function cacheSetLocalOnly<T>(key: string, data: T, tags: string[], ttlMs: number | undefined, timestamp: number): void {
   if (!cleanupActive) startCleanup()
   const incomingBytes = estimateBytes(data)
   // Entry singola fuori budget: scartata invece di wipeare l'intera cache
   // (byteTarget 0 in makeSpace svuoterebbe tutto per un solo payload anomalo).
+  // Vale anche per le sostituzioni: la voce precedente resta intatta.
   if (incomingBytes > MAX_BYTES) return
-  if (!store.has(key)) {
+  const existing = store.get(key)
+  if (!existing) {
     makeSpace(1, incomingBytes)
   } else {
-    // Sottrai i byte dell'entry esistente prima di rimpiazzarla
-    const existing = store.get(key)
-    if (existing) totalBytes -= estimateBytes(existing.data)
+    // Sostituzione: rilascia prima il peso precedente così l'evizione LRU
+    // valuta solo la crescita netta e il totale stimato non supera mai
+    // MAX_BYTES. La chiave sostituita è esclusa dall'evizione (il suo peso
+    // è già stato sottratto una sola volta qui). `store.set` su chiave
+    // esistente conserva la posizione d'inserzione: l'ordine LRU resta quello
+    // storico (solo la lettura promuove a most-recently-used).
+    totalBytes -= estimateBytes(existing.data)
+    makeSpace(0, incomingBytes, key)
   }
   totalBytes += incomingBytes
-  store.set(key, { data, timestamp: Date.now(), tags, ttl: ttlMs })
+  store.set(key, { data, timestamp, tags, ttl: ttlMs })
+}
+
+export function cacheSet<T>(key: string, data: T, tags: string[] = [], ttlMs?: number): void {
+  const now = Date.now()
+  cacheSetLocalOnly(key, data, tags, ttlMs, now)
   // C1: write-through L2 (fire-and-forget, mai latenza sul chiamante).
   if (isKvL2()) {
-    const json = toKvPayload(data)
-    if (json !== null) kvWriteThrough(key, json, ttlMs, tags)
+    kvWriteThrough(key, data, ttlMs, tags, now)
   }
 }
 
@@ -379,15 +456,19 @@ export function cacheStatus(): CacheStatus {
   let totalEntries = 0
   let untaggedEntries = 0
   let activeBytes = 0
+  let staleBytes = 0
 
   for (const [key, entry] of store) {
     if (isExpired(entry)) {
       // Entry senza supporto SWR: evizione immediata su status pass.
       // Entry SWR (poster/catalog): non cancellare per consentire la revalidazione in background,
-      // ma escludere dai conteggi di entry attive.
+      // ma escludere dai conteggi di entry attive. Il payload resta in memoria:
+      // va conteggiato a parte come byte stale trattenuti.
       const isSwr = entry.tags.includes("poster") || entry.tags.includes("catalog")
       if (!isSwr) {
         deleteEntry(key)
+      } else {
+        staleBytes += estimateBytes(entry.data)
       }
       continue
     }
@@ -414,6 +495,8 @@ export function cacheStatus(): CacheStatus {
     taggedEntries,
     untaggedEntries,
     totalBytes: activeBytes,
+    staleBytes,
+    retainedBytes: activeBytes + staleBytes,
     maxBytes: MAX_BYTES,
     maxEntries: MAX_ENTRIES,
   }

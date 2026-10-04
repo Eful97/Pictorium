@@ -44,6 +44,12 @@ const CATALOG_TMDB_TIMEOUT_MS = (() => {
   return Number.isFinite(n) && n >= 500 && n <= 15000 ? n : 2500
 })()
 
+/** TTL cache risposte catalogo non vuote: 1h dalla generazione (esplicito,
+ *  vince sul refresh schedulato del tag `catalog`, che resta per poster/logo). */
+export const CATALOG_TTL_MS = 60 * 60 * 1000
+/** TTL catalogo vuoto: resta 60s (errori transient non congelati). */
+export const CATALOG_EMPTY_TTL_MS = 60_000
+
 /** Signal per-titolo nei cataloghi (stesso pattern del tetto loghi a riga ~350). */
 function catalogTimeoutSignal(): AbortSignal | undefined {
   return typeof AbortSignal !== "undefined" && "timeout" in AbortSignal
@@ -500,7 +506,7 @@ export async function pictoriumCatalog(
   // i cache key di questo handler (ricerche + catalogo). Su deploy
   // multi-istanza la `cacheInvalidate("stremio")` del save non raggiunge le
   // altre istanze — senza questi frammenti un body cachato (con vecchi poster
-  // URL) resterebbe servito fino al refresh schedulato (~24h). Ogni save
+  // URL) resterebbe servito fino alla scadenza (1h). Ogni save
   // (mapping/defaults) fa bump dell'epoch.
   const epoch = await getCatalogEpoch(scopedUser)
   const sdHash = hashFragment(JSON.stringify(effectiveDefaults))
@@ -757,7 +763,11 @@ export async function pictoriumCatalog(
   const searchFragment = extra.search ? `:q${hashFragment(extra.search)}` : ""
   const cacheKey = `stremio:catalog:v2:${stType}:${catalogId}:pv${POSTER_URL_VERSION}${scopedUser ? `:u${hashUserFragment(scopedUser)}` : ""}:ak${apiKey ? hashFragment(apiKey) : "none"}${configParam ? `:cfg${hashFragment(configParam)}` : ""}${mdblistKey ? `:mk${hashFragment(mdblistKey)}` : ""}${tvdbKey ? `:tv${hashFragment(tvdbKey)}` : ""}${genreFragment}${skipFragment}${searchFragment}${regionFragment}${rankingFragment}${freshness}`
   // C1: L1 + L2 condivisa (KV su multi-istanza, no-op locale/VPS).
-  const cached = await cacheGetShared<{ metas: StremioMeta[] }>(cacheKey, ["stremio", "catalog"])
+  // Il selettore conserva il TTL originale anche dopo il ripopolamento L1
+  // da KV (il payload KV non trasporta la scadenza): pieno → 1h, vuoto → 60s.
+  const cached = await cacheGetShared<{ metas: StremioMeta[] }>(cacheKey, ["stremio", "catalog"], (body) =>
+    body?.metas?.length ? CATALOG_TTL_MS : CATALOG_EMPTY_TTL_MS,
+  )
   if (cached) return catalogResponse(cached)
 
   let isCustomGenreFiltered = false
@@ -1331,7 +1341,7 @@ export async function pictoriumCatalog(
     }
 
     const body = { metas }
-    cacheSet(cacheKey, body, ["stremio", "catalog"], metas.length > 0 ? undefined : 60_000)
+    cacheSet(cacheKey, body, ["stremio", "catalog"], metas.length > 0 ? CATALOG_TTL_MS : CATALOG_EMPTY_TTL_MS)
     return catalogResponse(body)
   } catch (e) {
     log.error("Catalog error", { error: e instanceof Error ? e.message : String(e) })
