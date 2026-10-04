@@ -30,6 +30,31 @@ export interface ChangelogRelease {
  *  (which bumps on every commit and would leave the dot permanently on). */
 export const CHANGELOG: ChangelogRelease[] = [
   {
+    version: "1.25.0",
+    date: "2026-10-04",
+    title: "Release 1.25.0",
+    items: [
+      { type: "feature", text: "Add env auto-tuner with benchmark sweep for any machine" },
+      { type: "feature", text: "Light mode with theme picker plus Stremio, AIOMetadata and Nuvio install tabs" },
+      { type: "fix", text: "Show saved custom poster image in My Posters tiles and preview" },
+      { type: "fix", text: "Keep WOWOW out of Prime Video network matches" },
+      { type: "fix", text: "Localize saved genres in poster route" },
+      { type: "feature", text: "Map local anime IDs for AniList and Kitsu artwork" },
+      { type: "fix", text: "Parse IMDb Top 250 only from structured chart data" },
+      { type: "fix", text: "Harden catalog caching with explicit TTLs and KV envelopes" },
+      { type: "feature", text: "Add global rankings scope and Vietnamese language" },
+      { type: "feature", text: "Choose badge font with Barlow Condensed and Oswald" },
+      { type: "fix", text: "Add missing network logo assets mapped in 16612f87" },
+      { type: "feature", text: "Reorganize badge settings layout and ribbon controls" },
+      { type: "feature", text: "Map New Line, Jagged Edge, Gracie, Deseo and Bellanova network logos" },
+      { type: "feature", text: "Import catalogs from Stremio addons via manifest URL" },
+      { type: "feature", text: "Redesign Top 20 ranking source bar with modern dropdowns" },
+      { type: "fix", text: "Make custom Top 20 rankings work locally" },
+      { type: "feature", text: "Choose your own Top 20 ranking lists" },
+      { type: "feature", text: "Add live previews and personal poster presets" },
+    ],
+  },
+  {
     version: "1.24.7",
     date: "2026-10-02",
     title: "Release 1.24.7",
