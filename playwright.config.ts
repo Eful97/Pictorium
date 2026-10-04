@@ -61,6 +61,13 @@ export default defineConfig({
         TMDB_BASE_URL: `${mockUrl}/3`,
         TMDB_IMG_URL: `${mockUrl}/t/p`,
         NEXT_PUBLIC_TMDB_IMG_URL: `${mockUrl}/t/p`,
+        // CSP del mock: le tile usano URL assoluti verso il mock (TMDB_IMG_URL
+        // qui sopra + customPosterUrl dei test) e la CSP di default li
+        // bloccherebbe nel browser — senza questa riga nessuna <img> del mock
+        // può caricarsi e gli spec con assert sui pixel falliscono. Cambia solo
+        // l'origin degli URL poster assoluti (mai path/pixel: le asserzioni
+        // esistenti usano sottostringhe e pathname).
+        POSTER_CDN_URL: `${mockUrl}`,
         // Chiavi server VUOTE: un .env.local locale (TMDB_API_KEY ecc.) farebbe
         // restituire serverKeys da /api/defaults e il client adotterebbe la
         // chiave (context.tsx), cambiando il layout home (welcome panel vs

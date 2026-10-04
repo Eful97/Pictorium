@@ -39,9 +39,15 @@ export function PosterLightbox({
   const mapping = lightbox?.mapping ?? null
   const rect = lightbox?.rect ?? null
   const posterKey = mapping ? `${mapping.mediaType}:${mapping.tmdbId}` : null
+  const isLandscape = mapping?.posterShape === "landscape"
+  // Stessa scelta della tile: verticale con custom salvato → custom, con
+  // fallback al posterPath TMDB a errore esaurito; orizzontale invariato.
+  const customBase = !isLandscape && mapping?.customPosterUrl?.trim() ? mapping.customPosterUrl.trim() : null
+  const tmdbSrc = mapping?.posterPath ? posterUrlFn(mapping.posterPath, "w500") : null
+  const [customFailed, setCustomFailed] = useState(false)
   const mediaSrc = imgFailed
     ? null
-    : (mapping?.posterPath ? posterUrlFn(mapping.posterPath, "w500") : null)
+    : (customFailed ? tmdbSrc : (customBase ?? tmdbSrc))
 
   // Start animation on mount
   useEffect(() => {
@@ -52,10 +58,11 @@ export function PosterLightbox({
     return () => cancelAnimationFrame(raf)
   }, [mapping])
 
-  // Reset del fallback immagine quando cambia il poster
+  // Reset dei fallback quando cambiano poster o URL: la nuova immagine riprova.
   useEffect(() => {
     setImgFailed(false)
-  }, [mapping])
+    setCustomFailed(false)
+  }, [posterKey, mapping?.customPosterUrl, mapping?.posterPath, mapping?.posterShape])
 
   // Set transform-origin on the card once measured
   useEffect(() => {
@@ -128,7 +135,6 @@ export function PosterLightbox({
   const vote = mapping.voteAverage != null ? mapping.voteAverage.toFixed(1) : null
 
   // Dual-format: il lightbox adotta base e aspect del formato primario.
-  const isLandscape = mapping?.posterShape === "landscape"
   const displaySrc = imgFailed
     ? null
     : isLandscape
@@ -182,7 +188,15 @@ export function PosterLightbox({
                 src={displaySrc ?? undefined}
                 alt={mapping.title}
                 className="w-full h-full object-cover"
-                onError={() => { if (!imgFailed) setImgFailed(true) }}
+                onError={() => {
+                  // Custom verticale non caricabile → fallback TMDB una sola
+                  // volta; mai cicli (customFailed resta vero fino al cambio URL).
+                  if (!isLandscape && customBase && !customFailed && tmdbSrc && displaySrc === customBase) {
+                    setCustomFailed(true)
+                    return
+                  }
+                  if (!imgFailed) setImgFailed(true)
+                }}
               />
               {/* Logo overlay */}
               {mapping.logoPath && (

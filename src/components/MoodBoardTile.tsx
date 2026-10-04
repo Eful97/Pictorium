@@ -1,6 +1,6 @@
 "use client"
 
-import React from "react"
+import React, { useEffect, useState } from "react"
 import { Check, Trash2, Maximize2, Folder, RectangleHorizontal, RectangleVertical } from "lucide-react"
 import { posterUrl } from "@/lib/utils"
 import type { Mapping } from "@/lib/types"
@@ -54,9 +54,18 @@ export const MoodBoardTile = React.memo(function MoodBoardTile({
   // landscape con fallback al poster) e il tuning effettivo di quel formato.
   const isLandscape = m.posterShape === "landscape"
   const eff = effectiveMappingForShape(m, isLandscape ? "landscape" : "poster")
+  // Base custom da URL salvato: solo verticale (il landscape usa il backdrop
+  // TMDB, come il renderer). A custom esaurito vale il posterPath TMDB.
+  const customBase = !isLandscape && m.customPosterUrl?.trim() ? m.customPosterUrl.trim() : null
+  const fallbackSrc = m.posterPath ? posterUrl(m.posterPath, isLandscape ? "w500" : "w342") : null
+  const [customFailed, setCustomFailed] = useState(false)
+  // Al cambio di poster o URL l'errore si azzera: la nuova immagine riprova.
+  useEffect(() => {
+    setCustomFailed(false)
+  }, [customBase, m.posterPath])
   const displaySrc = isLandscape
-    ? (m.backdropPath ? posterUrl(m.backdropPath, "w780") : (m.posterPath ? posterUrl(m.posterPath, "w500") : null))
-    : (m.posterPath ? posterUrl(m.posterPath, "w342") : null)
+    ? (m.backdropPath ? posterUrl(m.backdropPath, "w780") : fallbackSrc)
+    : (customBase && !customFailed ? customBase : fallbackSrc)
 
   return (
     <div
@@ -105,6 +114,12 @@ export const MoodBoardTile = React.memo(function MoodBoardTile({
             decoding="async"
             className="w-full h-full object-cover transition-transform duration-[400ms] ease-out group-hover:scale-[1.06]"
             onError={(e) => {
+              // Custom non caricabile → una sola volta si passa al fallback
+              // TMDB; mai cicli (customFailed resta vero fino al cambio URL).
+              if (customBase && !customFailed && fallbackSrc && displaySrc === customBase) {
+                setCustomFailed(true)
+                return
+              }
               ;(e.target as HTMLImageElement).style.display = "none"
               ;(e.target as HTMLImageElement).parentElement?.classList.add("show-fallback")
             }}
