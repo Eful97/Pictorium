@@ -11,11 +11,12 @@ export interface RecentChange {
 }
 
 export const RECENT_CHANGES: RecentChange[] = [
-  { type: "feature", text: "Map New Line, Jagged Edge, Gracie, Deseo and Bellanova network logos", sha: "16612f8", date: "2026-10-03" },
-  { type: "feature", text: "Import catalogs from Stremio addons via manifest URL", sha: "7da041d", date: "2026-10-03" },
-  { type: "feature", text: "Redesign Top 20 ranking source bar with modern dropdowns", sha: "958041c", date: "2026-10-03" },
-  { type: "fix", text: "Make custom Top 20 rankings work locally", sha: "751a33c", date: "2026-10-03" },
-  { type: "feature", text: "Choose your own Top 20 ranking lists", sha: "5ae9536", date: "2026-10-03" },
-  { type: "feature", text: "Add live previews and personal poster presets", sha: "adc7b03", date: "2026-10-03" },
-  { type: "perf", text: "Load posters faster and more reliably", sha: "3a51300", date: "2026-10-03" },
+  { type: "fix", text: "Keep WOWOW out of Prime Video network matches", sha: "bfca284", date: "2026-10-04" },
+  { type: "fix", text: "Localize saved genres in poster route", sha: "9801a1f", date: "2026-10-04" },
+  { type: "feature", text: "Map local anime IDs for AniList and Kitsu artwork", sha: "3908727", date: "2026-10-04" },
+  { type: "fix", text: "Parse IMDb Top 250 only from structured chart data", sha: "3a9e12e", date: "2026-10-04" },
+  { type: "fix", text: "Harden catalog caching with explicit TTLs and KV envelopes", sha: "107e871", date: "2026-10-04" },
+  { type: "feature", text: "Add global rankings scope and Vietnamese language", sha: "b80792b", date: "2026-10-04" },
+  { type: "feature", text: "Choose badge font with Barlow Condensed and Oswald", sha: "91bc24c", date: "2026-10-04" },
+  { type: "fix", text: "Add missing network logo assets mapped in 16612f87", sha: "c93fbd9", date: "2026-10-04" },
 ]
