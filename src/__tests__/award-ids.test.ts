@@ -1,5 +1,8 @@
 import { describe, it, expect } from "vitest"
-import { lookupAwardIds, withIdAwards, withIdNoms } from "@/lib/award-ids"
+import { isAwardListsReviewDue, lookupAwardIds, withIdAwards, withIdNoms } from "@/lib/award-ids"
+import { checkAwardFreshness, readAwardMaintenance } from "../../scripts/check-award-lists.mjs"
+import fs from "node:fs"
+import path from "node:path"
 import { computeTopBadge } from "@/lib/poster-badge"
 import { createT } from "@/lib/i18n"
 
@@ -53,6 +56,62 @@ describe("lookupAwardIds", () => {
   })
 })
 
+describe("isAwardListsReviewDue (tracciabilità verifica)", () => {
+  const NOW = Date.parse("2026-10-03T00:00:00Z")
+
+  it("sconosciuta → revisione dovuta (mai finta come verificata)", () => {
+    expect(isAwardListsReviewDue("unknown", NOW)).toBe(true)
+    expect(isAwardListsReviewDue("", NOW)).toBe(true)
+  })
+
+  it("malformata o futura → revisione dovuta", () => {
+    expect(isAwardListsReviewDue("27/09/2026", NOW)).toBe(true)
+    expect(isAwardListsReviewDue("2026-13-01", NOW)).toBe(true)
+    expect(isAwardListsReviewDue("2026-10-04", NOW)).toBe(true)
+  })
+
+  it("vecchia oltre soglia → dovuta; recente → fresca", () => {
+    expect(isAwardListsReviewDue("2024-01-01", NOW)).toBe(true)
+    expect(isAwardListsReviewDue("2026-09-01", NOW)).toBe(false)
+  })
+
+  it("date impossibili normalizzate da Date.parse: dovute anche entro soglia", () => {
+    // 2026-02-31 non esiste (Date.parse la sposta a marzo): il round-trip
+    // deve coincidere con l'input, altrimenti è dovuta anche con soglia ampia.
+    expect(isAwardListsReviewDue("2026-02-31", NOW, 10000)).toBe(true)
+    expect(isAwardListsReviewDue("2025-02-29", NOW, 10000)).toBe(true)
+    // 2024-02-29 esiste (bisestile): con soglia ampia è fresca.
+    expect(isAwardListsReviewDue("2024-02-29", NOW, 10000)).toBe(false)
+  })
+  it("soglia documentata: 365 giorni", () => {
+    // Al giorno 365 esatto è ancora fresca (serve "oltre" la soglia).
+    expect(isAwardListsReviewDue("2025-10-03", NOW, 365)).toBe(false)
+    expect(isAwardListsReviewDue("2025-10-02", NOW, 365)).toBe(true)
+  })
+})
+
+describe("scripts/check-award-lists.mjs (comando manuale)", () => {
+  it("legge data e soglia dal sorgente reale", () => {
+    const source = fs.readFileSync(path.resolve("src/lib/award-ids.ts"), "utf-8")
+    const { lastVerified, thresholdDays } = readAwardMaintenance(source)
+    expect(typeof lastVerified).toBe("string")
+    expect(thresholdDays).toBe(365)
+  })
+
+  it("stato attuale: revisione dovuta (ultima verifica sconosciuta)", () => {
+    expect(checkAwardFreshness("unknown", Date.now(), 365)).toMatch(/sconosciuta/)
+  })
+
+  it("non altera liste né badge: segnala soltanto", () => {
+    expect(checkAwardFreshness("2026-09-01", Date.parse("2026-10-03T00:00:00Z"), 365)).toBeNull()
+  })
+
+  it("date impossibili: dovute anche entro soglia; bisestile valida: fresca", () => {
+    const now = Date.parse("2026-10-03T00:00:00Z")
+    expect(checkAwardFreshness("2026-02-31", now, 10000)).toMatch(/impossibile/)
+    expect(checkAwardFreshness("2024-02-29", now, 10000)).toBeNull()
+  })
+})
 describe("withIdAwards / withIdNoms", () => {
   it("certi in testa, generici intatti, dedup", () => {
     expect(withIdAwards(872585, "movie", ["BAFTA"])).toEqual(["Oscar", "Golden Globe", "BAFTA"])

@@ -6,14 +6,24 @@
  * aggiorna a ogni cerimonia. Qui vale lo stesso rituale:
  *
  * PROCEDURA AGGIORNAMENTO ANNUALE (marzo, dopo gli Oscar):
- * 1. Apri le pagine premi TMDB (themoviedb.org/award/...) + Wikipedia per
+ * 1. `node scripts/check-award-lists.mjs` — segnala se la revisione è dovuta
+ *    (anzianità oltre soglia o ultima verifica sconosciuta). Il controllo non
+ *    tocca i badge e non blocca il rendering: si limita a chiedere revisione.
+ * 2. Apri le pagine premi TMDB (themoviedb.org/award/...) + Wikipedia per
  *    controllo incrociato.
- * 2. Aggiungi i vincitori dell'anno (e i candidati Best Picture) con commento
- *    `// <film-year> <Titolo>`.
- * 3. Lancia `npx vitest run src/__tests__/award-ids.test.ts` — i test di
+ * 3. Verifica OGNI singolo dato prima di aggiungerlo (niente bulk non
+ *    controllati; i vincitori dell'anno — e i candidati Best Picture — con
+ *    commento `// <film-year> <Titolo>`): solo dopo la verifica imposta
+ *    AWARD_LISTS_LAST_VERIFIED alla data di verifica (YYYY-MM-DD). La data
+ *    di verifica: non aggiornarla senza aver ricontrollato le liste.
+ * 4. Lancia `npx vitest run src/__tests__/award-ids.test.ts` — i test di
  *    guardia bloccano duplicati, overlap win/nom e ID non numerici.
- * 4. `node scripts/write-render-version.mjs` (i poster con nuovi bollini
+ * 5. `node scripts/write-render-version.mjs` (i poster con nuovi bollini
  *    invalidano la cache da soli via hash).
+ *
+ * STATO VERIFICA: AWARD_LISTS_LAST_VERIFIED sotto. Vale "unknown" finché
+ * nessuno ricostruisce una verifica puntuale dei singoli dati: meglio una
+ * data sconosciuta dichiarata che una data finta.
  *
  * REGOLA D'ORO: gli ID film e gli ID serie di TMDB sono due namespace
  * separati (film/105 = Ritorno al futuro, tv/105 = Sex and the City).
@@ -27,6 +37,49 @@
  */
 
 export type AwardCanonicalName = "Oscar" | "Golden Globe" | "Emmy" | "Cannes" | "Venezia";
+
+/**
+ * Data (YYYY-MM-DD) dell'ultima verifica puntuale dei singoli dati delle
+ * liste. "unknown" = nessuna verifica ricostruibile (stato iniziale onesto:
+ * la data dell'ultimo commit NON conta come verifica, vedi procedura sopra).
+ * Da aggiornare SOLO dopo aver ricontrollato voce per voce.
+ */
+export const AWARD_LISTS_LAST_VERIFIED = "unknown"
+
+/**
+ * Soglia di anzianità della verifica: oltre questi giorni
+ * `isAwardListsReviewDue` segnala che le liste sono dovute per revisione.
+ * 365 giorni = ritmo annuale post-Oscar della procedura di manutenzione.
+ */
+export const AWARD_LISTS_REVIEW_THRESHOLD_DAYS = 365
+
+/**
+ * Controllo di anzianità riutilizzabile (puro, niente I/O): true quando la
+ * revisione è dovuta — data sconosciuta/malformata, verifica più vecchia
+ * della soglia, o data futura (anomala). Usato da
+ * `scripts/check-award-lists.mjs` (comando manuale: nessun controllo
+ * periodico automatico esiste nel repo — CI solo su push/PR — quindi niente
+ * hook che tocchi badge o rendering). Mai bloccante a runtime.
+ */
+export function isAwardListsReviewDue(
+  lastVerified: string = AWARD_LISTS_LAST_VERIFIED,
+  nowMs: number = Date.now(),
+  thresholdDays: number = AWARD_LISTS_REVIEW_THRESHOLD_DAYS,
+): boolean {
+  if (typeof lastVerified !== "string") return true
+  const v = lastVerified.trim().toLowerCase()
+  if (v === "" || v === "unknown") return true
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(v)) return true
+  const t = Date.parse(`${v}T00:00:00Z`)
+  if (!Number.isFinite(t)) return true
+  // Date.parse normalizza le date impossibili (2026-02-31 → 3 marzo):
+  // il round-trip in YYYY-MM-DD deve coincidere con l'input.
+  const d = new Date(t)
+  const pad = (n: number) => String(n).padStart(2, "0")
+  if (`${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}` !== v) return true
+  if (t > nowMs) return true
+  return nowMs - t > thresholdDays * 24 * 60 * 60 * 1000
+}
 
 /** Oscar miglior film — VINCITORI (film-year 2015-2024). */
 const OSCAR_WINNER_MOVIE_IDS: ReadonlySet<number> = new Set([
