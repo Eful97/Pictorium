@@ -355,7 +355,7 @@ export function PosterOptions({ posters, posterActivePath, lang, selectPoster, a
                       aria-label={t("ui.remove")}
                       title={t("ui.remove")}
                       onClick={(e) => { e.stopPropagation(); onRemoveCustomPoster(img.file_path) }}
-                      className="w-6 h-6 rounded-lg flex items-center justify-center backdrop-blur-md border transition-all duration-150 bg-black/55 border-white/10 text-zinc-300 hover:bg-red-500/90 hover:text-white hover:border-red-400/60"
+                      className="poster-image-action w-6 h-6 rounded-lg flex items-center justify-center backdrop-blur-md border transition-all duration-150 bg-black/55 border-white/10 text-zinc-300 hover:bg-red-500/90 hover:text-white hover:border-red-400/60"
                     >
                       <X className="w-3.5 h-3.5" />
                     </button>
@@ -389,7 +389,7 @@ export function PosterOptions({ posters, posterActivePath, lang, selectPoster, a
                     <button type="button"
                       aria-label={inRotation ? t("ui.removeFromRotation") : t("ui.addToRotation")}
                       onClick={(e) => { e.stopPropagation(); toggleRotation(img.file_path) }}
-                      className={`w-6 h-6 rounded-lg flex items-center justify-center backdrop-blur-md border transition-all duration-150 ${inRotation ? "bg-accent-orange text-white border-accent-orange shadow-sm shadow-accent-orange/40" : "bg-black/55 border-white/10 text-zinc-200 hover:bg-accent-orange/90 hover:text-white hover:border-accent-orange/60"}`}
+                      className={`poster-image-action w-6 h-6 rounded-lg flex items-center justify-center backdrop-blur-md border transition-all duration-150 ${inRotation ? "bg-accent-orange text-white border-accent-orange shadow-sm shadow-accent-orange/40" : "bg-black/55 border-white/10 text-zinc-200 hover:bg-accent-orange/90 hover:text-white hover:border-accent-orange/60"}`}
                       title={inRotation ? t("ui.removeFromRotation") : t("ui.addToRotation")}
                     >
                       {inRotation ? <Check className="w-3.5 h-3.5" /> : <RotateCcw className="w-3.5 h-3.5" />}
@@ -397,7 +397,7 @@ export function PosterOptions({ posters, posterActivePath, lang, selectPoster, a
                     <button type="button"
                       aria-label={t("ui.excludePoster")}
                       onClick={(e) => { e.stopPropagation(); excludePoster(img.file_path) }}
-                      className="w-6 h-6 rounded-lg flex items-center justify-center backdrop-blur-md border transition-all duration-150 bg-black/55 border-white/10 text-zinc-300 hover:bg-red-500/90 hover:text-white hover:border-red-400/60"
+                      className="poster-image-action w-6 h-6 rounded-lg flex items-center justify-center backdrop-blur-md border transition-all duration-150 bg-black/55 border-white/10 text-zinc-300 hover:bg-red-500/90 hover:text-white hover:border-red-400/60"
                       title={t("ui.excludePoster")}
                     >
                       <EyeOff className="w-3.5 h-3.5" />

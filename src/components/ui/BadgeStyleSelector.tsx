@@ -78,7 +78,9 @@ export function BadgeStyleSelector<S extends string>({
                   : "bg-white/5 text-muted hover:bg-white/10 hover:text-zinc-200 border-transparent"
             }`}
           >
-            <BadgePreview style={s} accentColor={accentColor} />
+            <span className="badge-style-preview inline-flex items-center justify-center rounded-md">
+              <BadgePreview style={s} accentColor={accentColor} />
+            </span>
             <span className="text-[10px] font-semibold leading-tight truncate max-w-full">
               {s === "shadow" ? t("ui.shadow") : s === "pill" ? t("ui.pill") : s === "bar" ? t("ui.bar") : s === "default" ? t("ui.bsDefault") : s === "colored" ? t("ui.colored") : s === "bordo" ? t("ui.bordo") : s === "vetro" ? t("ui.vetro") : s === "minimal" ? t("ui.minimal") : s === "netflix" ? t("ui.netflix") : s === "standard" ? t("ui.qbsStandard") : s === "mono" ? t("ui.qbsMono") : s === "color" ? t("ui.qbsColor") : s}
             </span>

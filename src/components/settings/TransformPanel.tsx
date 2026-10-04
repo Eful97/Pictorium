@@ -33,7 +33,7 @@ export function TransformPanel({ active }: { active: boolean }) {
             onClick={() => setTrasformaShape(shape)}
             className={`flex-1 py-1.5 rounded-lg text-[11px] font-semibold transition-all cursor-pointer ${
               trasformaShape === shape
-                ? "bg-white/15 text-white shadow-sm"
+                ? "bg-white/15 text-foreground shadow-sm"
                 : "text-muted hover:bg-white/5 hover:text-zinc-200"
             }`}
           >

@@ -1,10 +1,11 @@
 "use client"
 
-import { Globe, Palette, RectangleHorizontal, RectangleVertical, Sliders, Sparkles, Tv } from "lucide-react"
+import { Globe, Palette, RectangleHorizontal, RectangleVertical, Sliders, Sparkles, Tv, Sun } from "lucide-react"
 import { usePSelector } from "@/lib/context"
 import { useT } from "@/lib/contexts/TranslationContext"
 import { usePosterEditor } from "@/lib/contexts/PosterEditorContext"
 import { Toggle } from "@/components/Toggle"
+import { ThemeToggle } from "@/components/ThemeToggle"
 import { CHART_REGIONS, GLOBAL_REGION_CODE } from "@/lib/regions"
 import { UI_LANGUAGES } from "@/lib/utils"
 
@@ -254,6 +255,13 @@ export function PrefsPanel({ active }: { active: boolean }) {
                 <span>{t("ui.posterShapeLandscape")}</span>
               </button>
             </div>
+          </div>
+          <div className="flex items-center justify-between py-1.5">
+            <span className="text-zinc-200 text-xs sm:text-sm font-medium flex items-center gap-2">
+              <Sun className="w-4 h-4 text-accent-orange shrink-0" />
+              <span>{t("ui.theme") || "Tema"}</span>
+            </span>
+            <ThemeToggle showLabels />
           </div>
           <div className="flex items-center justify-between py-1.5">
             <span className="text-zinc-200 text-xs sm:text-sm font-medium flex items-center gap-2">

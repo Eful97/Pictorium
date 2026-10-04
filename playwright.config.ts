@@ -14,6 +14,9 @@ const reuseApp = process.env.PLAYWRIGHT_REUSE_APP === "1"
 const port = process.env.PLAYWRIGHT_PORT || (isCi ? "41731" : "3100")
 const mockPort = process.env.MOCK_PORT || "8790"
 const mockUrl = `http://127.0.0.1:${mockPort}`
+// A fresh app must also get fresh settings: a previous test run can leave
+// badgeRating=false (or mappings) behind in the persistent build directory.
+const testDataDir = path.join(__dirname, ".next-e2e", reuseApp ? "data" : `data-${process.pid}`)
 
 export default defineConfig({
   testDir: "./e2e",
@@ -29,6 +32,7 @@ export default defineConfig({
     trace: "retain-on-failure",
     screenshot: "only-on-failure",
     video: "retain-on-failure",
+    colorScheme: "dark",
   },
   projects: [
     {
@@ -56,8 +60,8 @@ export default defineConfig({
         NEXT_DIST_DIR: ".next-e2e",
         // Data dir isolata: i test visivi non devono essere inquinati dallo
         // stato locale (defaults, mapping salvati) in ./data.
-        POSTERIUM_DATA_DIR: path.join(__dirname, ".next-e2e", "data"),
-        PICTORIUM_DATA_DIR: path.join(__dirname, ".next-e2e", "data"),
+        POSTERIUM_DATA_DIR: testDataDir,
+        PICTORIUM_DATA_DIR: testDataDir,
         TMDB_BASE_URL: `${mockUrl}/3`,
         TMDB_IMG_URL: `${mockUrl}/t/p`,
         NEXT_PUBLIC_TMDB_IMG_URL: `${mockUrl}/t/p`,

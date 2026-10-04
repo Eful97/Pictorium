@@ -178,12 +178,12 @@ export function BadgeDefaultsSection({ active }: { active: boolean }) {
             onClick={applyEssential}
             className={`flex flex-col text-left p-2.5 rounded-xl border transition-all cursor-pointer ${
               isEssential
-                ? "bg-accent-orange/15 border-accent-orange/60 text-white shadow-sm ring-1 ring-accent-orange/30"
-                : "bg-surface2/40 hover:bg-surface2/70 border-surface2 text-zinc-300 hover:text-white"
+                ? "bg-accent-orange/15 border-accent-orange/60 text-foreground shadow-sm ring-1 ring-accent-orange/30"
+                : "bg-surface2/40 hover:bg-surface2/70 border-surface2 text-zinc-300 hover:text-foreground"
             }`}
           >
             <div className="flex items-center justify-between w-full">
-              <span className="font-semibold text-xs text-white">{t("ui.configPresetEssential")}</span>
+              <span className="font-semibold text-xs text-foreground">{t("ui.configPresetEssential")}</span>
               {isEssential && <Check className="w-3.5 h-3.5 text-accent-orange shrink-0" />}
             </div>
             <span className="text-[10px] text-zinc-400 mt-1 leading-snug">{t("ui.configPresetEssentialDesc")}</span>
@@ -194,12 +194,12 @@ export function BadgeDefaultsSection({ active }: { active: boolean }) {
             onClick={applyRatings}
             className={`flex flex-col text-left p-2.5 rounded-xl border transition-all cursor-pointer ${
               isRatings
-                ? "bg-accent-orange/15 border-accent-orange/60 text-white shadow-sm ring-1 ring-accent-orange/30"
-                : "bg-surface2/40 hover:bg-surface2/70 border-surface2 text-zinc-300 hover:text-white"
+                ? "bg-accent-orange/15 border-accent-orange/60 text-foreground shadow-sm ring-1 ring-accent-orange/30"
+                : "bg-surface2/40 hover:bg-surface2/70 border-surface2 text-zinc-300 hover:text-foreground"
             }`}
           >
             <div className="flex items-center justify-between w-full">
-              <span className="font-semibold text-xs text-white">{t("ui.configPresetRatings")}</span>
+              <span className="font-semibold text-xs text-foreground">{t("ui.configPresetRatings")}</span>
               {isRatings && <Check className="w-3.5 h-3.5 text-accent-orange shrink-0" />}
             </div>
             <span className="text-[10px] text-zinc-400 mt-1 leading-snug">{t("ui.configPresetRatingsDesc")}</span>
@@ -210,12 +210,12 @@ export function BadgeDefaultsSection({ active }: { active: boolean }) {
             onClick={applyFull}
             className={`flex flex-col text-left p-2.5 rounded-xl border transition-all cursor-pointer ${
               isFull
-                ? "bg-accent-orange/15 border-accent-orange/60 text-white shadow-sm ring-1 ring-accent-orange/30"
-                : "bg-surface2/40 hover:bg-surface2/70 border-surface2 text-zinc-300 hover:text-white"
+                ? "bg-accent-orange/15 border-accent-orange/60 text-foreground shadow-sm ring-1 ring-accent-orange/30"
+                : "bg-surface2/40 hover:bg-surface2/70 border-surface2 text-zinc-300 hover:text-foreground"
             }`}
           >
             <div className="flex items-center justify-between w-full">
-              <span className="font-semibold text-xs text-white">{t("ui.configPresetFull")}</span>
+              <span className="font-semibold text-xs text-foreground">{t("ui.configPresetFull")}</span>
               {isFull && <Check className="w-3.5 h-3.5 text-accent-orange shrink-0" />}
             </div>
             <span className="text-[10px] text-zinc-400 mt-1 leading-snug">{t("ui.configPresetFullDesc")}</span>
@@ -293,7 +293,7 @@ export function BadgeDefaultsSection({ active }: { active: boolean }) {
                   <button
                     type="button"
                     onClick={() => setSourcesOpen((prev) => !prev)}
-                    className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg bg-surface2/70 hover:bg-surface2 text-zinc-200 hover:text-white border border-surface2 transition-all group cursor-pointer"
+                    className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg bg-surface2/70 hover:bg-surface2 text-zinc-200 hover:text-foreground border border-surface2 transition-all group cursor-pointer"
                   >
                     <span className="flex items-center gap-1.5 text-[11px] font-semibold">
                       <Star className="w-3 h-3 text-amber-400 fill-amber-400/30" />
@@ -412,7 +412,7 @@ export function BadgeDefaultsSection({ active }: { active: boolean }) {
                     onChange={(e) => ed.setDefaultCustomRatingEndpoint(e.target.value)}
                     placeholder="https://example.com/ratings/{imdbId}"
                     maxLength={500}
-                    className="w-full text-xs font-mono py-1.5 px-2.5 rounded-lg bg-black/40 border border-white/10 text-white placeholder-zinc-600 focus:outline-none focus:border-teal-500/50"
+                    className="w-full text-xs font-mono py-1.5 px-2.5 rounded-lg bg-black/40 border border-white/10 text-foreground placeholder-zinc-600 focus:outline-none focus:border-teal-500/50"
                   />
                 </div>
                 <p className="text-[11px] text-zinc-400 italic">{t("ui.customRatingKeyHint")}</p>
@@ -531,7 +531,7 @@ export function BadgeDefaultsSection({ active }: { active: boolean }) {
                     }}
                     className={`flex-1 py-1 rounded-lg text-[11px] font-semibold transition-all duration-150 cursor-pointer ${
                       ed.defaultRibbonSide === "left"
-                        ? "bg-white/20 text-white shadow-sm"
+                        ? "bg-white/20 text-foreground shadow-sm"
                         : "bg-white/5 text-muted hover:bg-white/10 hover:text-zinc-200"
                     }`}
                   >
@@ -544,7 +544,7 @@ export function BadgeDefaultsSection({ active }: { active: boolean }) {
                     }}
                     className={`flex-1 py-1 rounded-lg text-[11px] font-semibold transition-all duration-150 cursor-pointer ${
                       ed.defaultRibbonSide === "right"
-                        ? "bg-white/20 text-white shadow-sm"
+                        ? "bg-white/20 text-foreground shadow-sm"
                         : "bg-white/5 text-muted hover:bg-white/10 hover:text-zinc-200"
                     }`}
                   >
@@ -668,7 +668,7 @@ export function BadgeDefaultsSection({ active }: { active: boolean }) {
                     onClick={() => ed.setDefaultNetworkLogoPosition(pos)}
                     className={`flex-1 py-1 rounded-lg text-[11px] font-semibold transition-all duration-150 cursor-pointer ${
                       ed.defaultNetworkLogoPosition === pos
-                        ? "bg-white/20 text-white shadow-sm"
+                        ? "bg-white/20 text-foreground shadow-sm"
                         : "bg-white/5 text-muted hover:bg-white/10 hover:text-zinc-200"
                     }`}
                   >

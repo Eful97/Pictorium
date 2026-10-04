@@ -22,7 +22,7 @@ test("home loads and exposes main actions", async ({ page }) => {
   // Selettore preciso sul bottone manifest: il modale contiene DUE bottoni
   // "Copia" (manifest + riga template PatternRow) e il bare `Copia` causava
   // strict mode violation con 2 elementi.
-  await expect(page.getByRole("button", { name: /Copia Link Manifest|Copy manifest link/i })).toBeVisible()
+  await expect(page.getByRole("button", { name: /Copia link|Copia Link Manifest|Copy link|Copy manifest link/i })).toBeVisible()
   await page.keyboard.press("Escape")
   await expect(page.getByRole("button", { name: /I miei poster/i })).toBeVisible()
   await expect(page.getByRole("button", { name: /Impostazioni|settings/i }).first()).toBeVisible()

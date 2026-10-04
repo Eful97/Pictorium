@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test"
+import { expect, test, type Locator, type Page } from "@playwright/test"
 
 // customPosterUrl in "Miei poster": la miniatura (MoodBoardTile) e
 // l'ingrandimento (PosterLightbox) mostrano l'immagine personalizzata
@@ -24,7 +24,7 @@ const SEED = [
   { tmdbId: 9003, mediaType: "movie", title: "Orizzontale Custom", posterPath: "/e2e-fallback-c.jpg", backdropPath: "/e2e-backdrop.jpg", posterShape: "landscape", customPosterUrl: CUSTOM_IGNORED },
 ]
 
-async function seed(page) {
+async function seed(page: Page) {
   await page.evaluate(async (mappings) => {
     for (const m of mappings) {
       const r = await fetch("/api/mappings", {
@@ -37,15 +37,15 @@ async function seed(page) {
   }, SEED)
 }
 
-async function gotoMyPosters(page) {
+async function gotoMyPosters(page: Page) {
   await page.goto("/")
   await expect(page.getByPlaceholder(/cerca/i)).toBeVisible({ timeout: 30_000 })
   await page.getByRole("button", { name: /I miei poster/i }).click()
   await expect(page.getByRole("heading", { name: /I miei poster/i })).toBeVisible()
 }
 
-async function putCustom(page, id: string, url: string) {
-  await page.evaluate(async ({ mid, customPosterUrl }) => {
+async function putCustom(page: Page, id: string, url: string) {
+  await page.evaluate(async ({ mid, customPosterUrl }: { mid: string; customPosterUrl: string }) => {
     const r = await fetch(`/api/mappings/${mid}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
@@ -55,7 +55,7 @@ async function putCustom(page, id: string, url: string) {
   }, { mid: id, customPosterUrl: url })
 }
 
-const widthOf = (loc) => loc.evaluate((img: HTMLImageElement) => img.naturalWidth)
+const widthOf = (loc: Locator) => loc.evaluate((img: HTMLImageElement) => img.naturalWidth)
 
 test.describe("customPosterUrl in Miei poster", () => {
   test.beforeEach(async ({ page }) => {

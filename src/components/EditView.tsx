@@ -589,7 +589,16 @@ export default function EditView() {
               src="/pictorium.svg"
               alt="Pictorium"
               decoding="async"
-              className="header-logo h-20 md:h-24 w-auto cursor-pointer hover:brightness-110 active:scale-95 transition-all duration-150 mb-1"
+              className="header-logo header-logo-dark h-20 md:h-24 w-auto cursor-pointer hover:brightness-110 active:scale-95 transition-all duration-150 mb-1"
+              title="Pictorium"
+            />
+            {/* eslint-disable-next-line @next/next/no-img-element -- local SVG asset */}
+            <img
+              onClick={goHome}
+              src="/pictorium-light.svg"
+              alt="Pictorium"
+              decoding="async"
+              className="header-logo header-logo-light h-20 md:h-24 w-auto cursor-pointer hover:brightness-110 active:scale-95 transition-all duration-150 mb-1"
               title="Pictorium"
             />
           </header>

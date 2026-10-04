@@ -11,6 +11,7 @@ export interface RecentChange {
 }
 
 export const RECENT_CHANGES: RecentChange[] = [
+  { type: "fix", text: "Show saved custom poster image in My Posters tiles and preview", sha: "7e7e0ef", date: "2026-10-04" },
   { type: "fix", text: "Keep WOWOW out of Prime Video network matches", sha: "bfca284", date: "2026-10-04" },
   { type: "fix", text: "Localize saved genres in poster route", sha: "9801a1f", date: "2026-10-04" },
   { type: "feature", text: "Map local anime IDs for AniList and Kitsu artwork", sha: "3908727", date: "2026-10-04" },
@@ -18,5 +19,4 @@ export const RECENT_CHANGES: RecentChange[] = [
   { type: "fix", text: "Harden catalog caching with explicit TTLs and KV envelopes", sha: "107e871", date: "2026-10-04" },
   { type: "feature", text: "Add global rankings scope and Vietnamese language", sha: "b80792b", date: "2026-10-04" },
   { type: "feature", text: "Choose badge font with Barlow Condensed and Oswald", sha: "91bc24c", date: "2026-10-04" },
-  { type: "fix", text: "Add missing network logo assets mapped in 16612f87", sha: "c93fbd9", date: "2026-10-04" },
 ]

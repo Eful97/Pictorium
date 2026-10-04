@@ -14,7 +14,7 @@ for (const viewport of [
     })
     await page.goto("/")
     await expect(page.getByPlaceholder(/cerca/i)).toBeVisible({ timeout: 30_000 })
-    const trigger = page.getByRole("button", { name: /Configura tutti i poster|Tutti i poster/i }).filter({ visible: true })
+    const trigger = page.getByRole("button", { name: /Configura tutti i poster|Tutti i poster|Impostazioni/i }).filter({ visible: true })
     await trigger.click()
 
     const dialog = page.getByRole("dialog", { name: "Configura tutti i poster" }).filter({ visible: true })

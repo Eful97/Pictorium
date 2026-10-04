@@ -28,27 +28,55 @@ function renderModal() {
   )
 }
 
+function openStremioTab() {
+  fireEvent.click(screen.getByRole("tab", { name: /stremio/i }))
+}
+
+function openAioTab() {
+  fireEvent.click(screen.getByRole("tab", { name: /aio/i }))
+}
+
+function openNuvioTab() {
+  fireEvent.click(screen.getByRole("tab", { name: /nuvio/i }))
+}
+
 function templateInput(): HTMLInputElement {
-  // PatternRow: input readonly con aria-label = copyLabel (ui.aiomLinkTitle).
-  return screen.getByLabelText("Link per AIO e custom URL:") as HTMLInputElement
+  const activePanel = document.querySelector('[role="tabpanel"]:not([hidden])')
+  return activePanel?.querySelector("input[type='text']") as HTMLInputElement
+}
+
+function webStremioLink(): HTMLAnchorElement {
+  return document.querySelector('a[href*="web.stremio.com"]') as HTMLAnchorElement
 }
 
 describe("InstallModal", () => {
   it("shows translated follow mode and keeps fixed settings in advanced options", () => {
     function ControlledModal() {
       const [mode, setMode] = useState<"follow" | "fixed">("follow")
-      return <InstallModal isOpen={true} onClose={vi.fn()} manifestUrl="https://pictorium.test/manifest.json" hasUserSpace={true} linkMode={mode} onLinkModeChange={setMode} posterUrlPatternAuto={mode === "follow" ? `${AUTO}&live=1` : AUTO} />
+      return (
+        <InstallModal
+          isOpen={true}
+          onClose={vi.fn()}
+          manifestUrl="https://pictorium.test/manifest.json"
+          hasUserSpace={true}
+          linkMode={mode}
+          onLinkModeChange={setMode}
+          posterUrlPatternAuto={mode === "follow" ? `${AUTO}&live=1` : AUTO}
+        />
+      )
     }
     renderWithCtx(<ControlledModal />, { t: (key) => (itDict as Record<string, string>)[key] ?? key })
-    expect(screen.getByText("Segui il mio spazio")).toBeInTheDocument()
-    expect(screen.getByText("Usa le modifiche salvate senza ricopiare il link")).toBeInTheDocument()
-    const advanced = screen.getByText("Opzioni avanzate").closest("details")!
+    openAioTab()
+    const aioPanel = document.getElementById("install-panel-aio")!
+    expect(aioPanel.textContent).toContain("Segui il mio spazio")
+    expect(aioPanel.textContent).toContain("Usa le modifiche salvate senza ricopiare il link")
+    const advanced = aioPanel.querySelector("details")!
     expect(advanced).not.toHaveAttribute("open")
     expect(templateInput().value).toContain("live=1")
-    fireEvent.click(screen.getByText("Opzioni avanzate"))
+    fireEvent.click(advanced.querySelector("summary")!)
     // Set open explicitly: jsdom does not consistently implement summary's default action.
     advanced.open = true
-    const fixed = screen.getByRole("checkbox", { name: "Impostazioni fisse nel link" })
+    const fixed = aioPanel.querySelector("input[type='checkbox']") as HTMLInputElement
     fireEvent.click(fixed)
     expect(fixed).toBeChecked()
     expect(templateInput().value).toBe(AUTO)
@@ -57,53 +85,161 @@ describe("InstallModal", () => {
     expect(templateInput().value).toContain("live=1")
   })
 
-  it("renders GitHub star gratification footer when open", () => {
+  it("does not render the GitHub star gratification footer", () => {
     renderWithCtx(
       <InstallModal isOpen={true} onClose={vi.fn()} manifestUrl="https://pictorium.test/manifest.json" />
     )
 
-    const starLink = screen.getByLabelText("Star Pictorium on GitHub")
-    expect(starLink).toBeInTheDocument()
-    expect(starLink).toHaveAttribute("href", "https://github.com/Eful97/Pictorium")
-    expect(screen.getByText("Lascia una stella su GitHub")).toBeInTheDocument()
+    expect(screen.queryByLabelText("Star Pictorium on GitHub")).not.toBeInTheDocument()
+    expect(screen.queryByText("Lascia una stella su GitHub")).not.toBeInTheDocument()
   })
 
-  it("shows the classic auto template by default (no shape placeholder)", () => {
+  it("selects the Stremio tab initially", () => {
     renderModal()
+    const stremioTab = screen.getByRole("tab", { name: /stremio/i })
+    const aioTab = screen.getByRole("tab", { name: /aio/i })
+    const nuvioTab = screen.getByRole("tab", { name: /nuvio/i })
+    expect(stremioTab).toHaveAttribute("aria-selected", "true")
+    expect(aioTab).toHaveAttribute("aria-selected", "false")
+    expect(nuvioTab).toHaveAttribute("aria-selected", "false")
+    expect(document.getElementById("install-panel-stremio")).not.toHaveAttribute("hidden")
+    expect(document.getElementById("install-panel-aio")).toHaveAttribute("hidden")
+    expect(document.getElementById("install-panel-nuvio")).toHaveAttribute("hidden")
+  })
+
+  it("hides the tabs when no poster templates are available", () => {
+    renderWithCtx(
+      <InstallModal isOpen={true} onClose={vi.fn()} manifestUrl="https://pictorium.test/manifest.json" />
+    )
+    expect(screen.queryByRole("tablist")).not.toBeInTheDocument()
+    expect(screen.queryByRole("tabpanel")).not.toBeInTheDocument()
+    // Il percorso Stremio resta completo: deep link + web link.
+    expect(document.querySelector('a[href^="stremio://"]')).toBeInTheDocument()
+    expect(webStremioLink()).toBeInTheDocument()
+  })
+
+  it("supports arrow-key navigation between tabs", () => {
+    renderModal()
+    const stremioTab = screen.getByRole("tab", { name: /stremio/i })
+    const aioTab = screen.getByRole("tab", { name: /aio/i })
+    const nuvioTab = screen.getByRole("tab", { name: /nuvio/i })
+    stremioTab.focus()
+    fireEvent.keyDown(stremioTab, { key: "ArrowRight" })
+    expect(aioTab).toHaveAttribute("aria-selected", "true")
+    expect(document.activeElement).toBe(aioTab)
+    expect(document.getElementById("install-panel-aio")).not.toHaveAttribute("hidden")
+
+    fireEvent.keyDown(aioTab, { key: "ArrowRight" })
+    expect(nuvioTab).toHaveAttribute("aria-selected", "true")
+    expect(document.activeElement).toBe(nuvioTab)
+    expect(document.getElementById("install-panel-nuvio")).not.toHaveAttribute("hidden")
+
+    fireEvent.keyDown(nuvioTab, { key: "ArrowLeft" })
+    expect(aioTab).toHaveAttribute("aria-selected", "true")
+    expect(document.activeElement).toBe(aioTab)
+
+    fireEvent.keyDown(aioTab, { key: "Home" })
+    expect(stremioTab).toHaveAttribute("aria-selected", "true")
+    expect(document.activeElement).toBe(stremioTab)
+
+    fireEvent.keyDown(stremioTab, { key: "End" })
+    expect(nuvioTab).toHaveAttribute("aria-selected", "true")
+    expect(document.activeElement).toBe(nuvioTab)
+  })
+
+  it("preserves session selections when switching tabs", () => {
+    renderModal()
+    // Scheda Stremio: modalità Cataloghi.
+    fireEvent.click(screen.getByRole("button", { name: /ui.modeCatalogs/ }))
+    // Scheda AIO: ID TMDB.
+    openAioTab()
+    const selectAio = document.getElementById("install-panel-aio")!.querySelector("select")!
+    fireEvent.change(selectAio, { target: { value: "tmdb" } })
+    expect(templateInput().value).toBe(TMDB)
+
+    // Scheda Nuvio: conserva ID TMDB e usa il template auto-shape
+    openNuvioTab()
+    expect(templateInput().value).toBe(NUVIO_TMDB)
+
+    // Torna a Stremio: la modalità è conservata nel link.
+    openStremioTab()
+    expect(webStremioLink().getAttribute("href")).toContain("mode%3Dcatalogs")
+
+    // Torna ad AIO: ID conservato.
+    openAioTab()
+    expect(templateInput().value).toBe(TMDB)
+  })
+
+  it("copies the manifest link matching the selected mode", async () => {
+    const writeTextMock = vi.fn().mockResolvedValue(undefined)
+    Object.assign(navigator, { clipboard: { writeText: writeTextMock } })
+    renderWithCtx(
+      <InstallModal isOpen={true} onClose={vi.fn()} manifestUrl="https://pictorium.test/manifest.json" />
+    )
+    fireEvent.click(screen.getByRole("button", { name: /ui.modeCatalogs/ }))
+    fireEvent.click(screen.getByRole("button", { name: /ui.copyManifest/ }))
+    await waitFor(() => {
+      expect(writeTextMock).toHaveBeenCalledWith("https://pictorium.test/manifest.json?mode=catalogs")
+    })
+  })
+
+  it("shows the classic auto template by default in AIOMetadata tab", () => {
+    renderModal()
+    openAioTab()
     const input = templateInput()
     expect(input.value).toBe(AUTO)
     expect(input.value).not.toContain("{shape}")
   })
 
-  it("nuvio checkbox combines the selected ID template with shape={shape}", () => {
+  it("shows the auto-shape template by default in Nuvio tab", () => {
     renderModal()
-    fireEvent.click(screen.getByRole("checkbox", { name: /ui.patternNuvio/ }))
-    expect(templateInput().value).toBe(NUVIO_AUTO)
-
-    fireEvent.change(screen.getByLabelText("ID:"), { target: { value: "tmdb" } })
-    expect(templateInput().value).toBe(NUVIO_TMDB)
-
-    fireEvent.change(screen.getByLabelText("ID:"), { target: { value: "imdb" } })
-    expect(templateInput().value).toBe(NUVIO_IMDB)
+    openNuvioTab()
+    const input = templateInput()
+    expect(input.value).toBe(NUVIO_AUTO)
+    expect(input.value).toContain("{shape}")
   })
 
-  it("unchecking restores the classic template", () => {
-    renderModal()
-    const checkbox = screen.getByRole("checkbox", { name: /ui.patternNuvio/ })
-    fireEvent.click(checkbox)
-    expect(templateInput().value).toBe(NUVIO_AUTO)
-    fireEvent.click(checkbox)
-    expect(templateInput().value).toBe(AUTO)
-  })
-
-  it("copy button copies the displayed nuvio template", async () => {
+  it("copies the displayed Nuvio template when clicking copy in Nuvio tab", async () => {
     const writeTextMock = vi.fn().mockResolvedValue(undefined)
     Object.assign(navigator, { clipboard: { writeText: writeTextMock } })
     renderModal()
-    fireEvent.click(screen.getByRole("checkbox", { name: /ui.patternNuvio/ }))
-    fireEvent.click(screen.getByRole("button", { name: "Copia URL" }))
+    openNuvioTab()
+    const copyBtn = document.getElementById("install-panel-nuvio")!.querySelector("button")!
+    fireEvent.click(copyBtn)
     await waitFor(() => {
       expect(writeTextMock).toHaveBeenCalledWith(NUVIO_AUTO)
     })
   })
+
+  it("hides the Nuvio tab and panel when no Nuvio templates are provided", () => {
+    renderWithCtx(
+      <InstallModal
+        isOpen={true}
+        onClose={vi.fn()}
+        manifestUrl="https://pictorium.test/manifest.json"
+        posterUrlPattern={TMDB}
+        posterUrlPatternAuto={AUTO}
+      />
+    )
+    expect(screen.getByRole("tab", { name: /stremio/i })).toBeInTheDocument()
+    expect(screen.getByRole("tab", { name: /aio/i })).toBeInTheDocument()
+    expect(screen.queryByRole("tab", { name: /nuvio/i })).not.toBeInTheDocument()
+    expect(document.getElementById("install-panel-nuvio")).not.toBeInTheDocument()
+  })
+
+  it("shows the exact AIOMetadata path in the description", () => {
+    renderWithCtx(
+      <InstallModal
+        isOpen={true}
+        onClose={vi.fn()}
+        manifestUrl="https://pictorium.test/manifest.json"
+        posterUrlPatternAuto={AUTO}
+      />,
+      { t: (key) => (itDict as Record<string, string>)[key] ?? key }
+    )
+    openAioTab()
+    const aioPanel = document.getElementById("install-panel-aio")!
+    expect(aioPanel.textContent).toContain("Art Providers → Poster URL Pattern")
+  })
 })
+

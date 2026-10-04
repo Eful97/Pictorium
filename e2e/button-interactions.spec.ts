@@ -21,7 +21,7 @@ test.describe("Button interactions and immediate updates", () => {
     const installBtn = page.getByRole("button", { name: /Installa Hub/i })
     await expect(installBtn).toBeVisible()
     await installBtn.click()
-    const modalHeading = page.getByRole("heading", { name: /Installa Pictorium/i })
+    const modalHeading = page.getByRole("heading", { name: /Collega Pictorium|Installa Pictorium/i })
     await expect(modalHeading).toBeVisible()
     // Close modal via accessible close button
     const closeBtn = page.getByRole("button", { name: "Chiudi" }).first()

@@ -185,11 +185,11 @@ export function SettingsPanel({ setSettingsOpen, exportData, importData, mobile,
     <div className="shrink-0">
       {/* Mobile Category Selector */}
       <div className="sm:hidden px-3 py-2 bg-white/[0.03] border-b border-white/10 flex items-center justify-between gap-2">
-        <label htmlFor="mobile-settings-category" className="text-xs font-semibold text-zinc-400 shrink-0">
+        <label htmlFor={mobile ? "mobile-settings-category" : "desktop-settings-category"} className="text-xs font-semibold text-zinc-400 shrink-0">
           {t("ui.section") || "Sezione"}:
         </label>
         <select
-          id="mobile-settings-category"
+          id={mobile ? "mobile-settings-category" : "desktop-settings-category"}
           value={activeTab}
           onChange={(e) => setActiveTab(e.target.value as SettingsTabId)}
           className="flex-1 bg-zinc-900 border border-white/15 text-zinc-100 rounded-xl px-3 min-h-[44px] h-11 text-xs sm:text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-accent-orange cursor-pointer touch-manipulation"
@@ -273,7 +273,7 @@ export function SettingsPanel({ setSettingsOpen, exportData, importData, mobile,
 
   // Actions Footer (condiviso desktop/mobile)
   const footer = (
-    <div className="border-t border-white/10 bg-[#0d0d10]/95 backdrop-blur-md px-4 sm:px-6 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] flex flex-col sm:flex-row items-center justify-between gap-3 shrink-0">
+    <div className="settings-dialog-footer border-t border-white/10 bg-[#0d0d10]/95 backdrop-blur-md px-4 sm:px-6 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] flex flex-col sm:flex-row items-center justify-between gap-3 shrink-0">
       <p className="text-xs text-zinc-400 text-center sm:text-left select-none">
         {t("ui.defaultsAutoSaved")}
       </p>
@@ -328,7 +328,7 @@ export function SettingsPanel({ setSettingsOpen, exportData, importData, mobile,
   // Layout Mobile (innestato nella schermata di AppShell)
   if (mobile) {
     return (
-      <div ref={settingsRef} className="flex flex-col h-full min-h-0 w-full">
+      <div ref={settingsRef} className="settings-panel flex flex-col h-full min-h-0 w-full">
         {tabsNav}
         {mobileViewport === true && (activeTab === "badge" || activeTab === "trasforma") && (
           <div className="shrink-0 px-4 pt-3">
@@ -364,11 +364,11 @@ export function SettingsPanel({ setSettingsOpen, exportData, importData, mobile,
       <div
         ref={settingsRef}
         tabIndex={-1}
-        className={`relative outline-none w-full ${isVisualTab ? "max-w-5xl h-[88dvh]" : "max-w-2xl"} max-h-[88dvh] flex flex-col rounded-2xl border border-white/10 bg-[#121216] shadow-2xl shadow-black/90 select-text animate-modal-panel-in overflow-hidden my-auto transition-all duration-200`}
+        className={`settings-panel settings-dialog-panel relative outline-none w-full ${isVisualTab ? "max-w-5xl h-[88dvh]" : "max-w-2xl"} max-h-[88dvh] flex flex-col rounded-2xl border border-white/10 bg-[#121216] shadow-2xl shadow-black/90 select-text animate-modal-panel-in overflow-hidden my-auto transition-all duration-200`}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header Modal */}
-        <div className="flex items-center justify-between px-4 sm:px-6 py-4 border-b border-white/10 bg-[#141418] shrink-0">
+        <div className="settings-dialog-header flex items-center justify-between px-4 sm:px-6 py-4 border-b border-white/10 bg-[#141418] shrink-0">
           <div className="flex items-center gap-2.5">
             <div className="p-2 rounded-xl bg-accent-orange/15 text-accent-orange border border-accent-orange/25">
               <SlidersHorizontal className="w-4 h-4" />

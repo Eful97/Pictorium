@@ -42,6 +42,8 @@ export const viewport: Viewport = {
   themeColor: "#e85d2a",
 };
 
+import { ThemeProvider } from "@/lib/contexts/ThemeContext";
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -50,27 +52,33 @@ export default function RootLayout({
   return (
     <html lang="it" suppressHydrationWarning className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}>
       <head>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(){var t;try{t=localStorage.getItem("pictorium_ui_theme");}catch(e){}var s=t==="light"||t==="dark"?t:"system";var d=s==="system"?(typeof window.matchMedia==="function"?(window.matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light"):"dark"):s;document.documentElement.setAttribute("data-theme",d);document.documentElement.setAttribute("data-theme-setting",s);document.documentElement.classList.add(d);document.documentElement.classList.remove(d==="dark"?"light":"dark");})();`,
+          }}
+        />
         <link rel="preconnect" href="https://image.tmdb.org" />
         <link rel="preconnect" href="https://api.themoviedb.org" />
       </head>
       <body className="min-h-full" suppressHydrationWarning>
-        <a href="#main-content" className="sr-only focus:not-sr-only focus:absolute focus:top-4 focus:left-4 focus:z-[200] focus:bg-accent-orange focus:text-white focus:px-4 focus:py-2 focus:rounded-xl">
-          Skip to main content
-        </a>
-        <main id="main-content">{children}</main>
-        <Toaster
-          position="bottom-right"
-          duration={3000}
-          closeButton={false}
-          richColors={false}
-          theme="dark"
-          icons={{
-            success: <Check className="w-3.5 h-3.5 stroke-[2.5]" />,
-            info: <Info className="w-3.5 h-3.5 stroke-[2.5]" />,
-            warning: <AlertTriangle className="w-3.5 h-3.5 stroke-[2.5]" />,
-            error: <AlertCircle className="w-3.5 h-3.5 stroke-[2.5]" />,
-          }}
-        />
+        <ThemeProvider>
+          <a href="#main-content" className="sr-only focus:not-sr-only focus:absolute focus:top-4 focus:left-4 focus:z-[200] focus:bg-accent-orange focus:text-white focus:px-4 focus:py-2 focus:rounded-xl">
+            Skip to main content
+          </a>
+          <main id="main-content">{children}</main>
+          <Toaster
+            position="bottom-right"
+            duration={3000}
+            closeButton={false}
+            richColors={false}
+            icons={{
+              success: <Check className="w-3.5 h-3.5 stroke-[2.5]" />,
+              info: <Info className="w-3.5 h-3.5 stroke-[2.5]" />,
+              warning: <AlertTriangle className="w-3.5 h-3.5 stroke-[2.5]" />,
+              error: <AlertCircle className="w-3.5 h-3.5 stroke-[2.5]" />,
+            }}
+          />
+        </ThemeProvider>
       </body>
     </html>
   );

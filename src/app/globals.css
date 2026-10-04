@@ -1,40 +1,79 @@
 @import "tailwindcss";
 
 @theme inline {
-  --color-background: #0a0a0a;
-  --color-foreground: #ededed;
-  --color-surface: #18181b;
-  --color-surface2: #27272a;
-  --color-border: #3f3f46;
-  --color-muted: #a1a1aa;
-  --color-accent-orange: #e85d2a;
+  --color-background: var(--bg);
+  --color-foreground: var(--fg);
+  --color-surface: var(--surface);
+  --color-surface2: var(--surface2);
+  --color-border: var(--border);
+  --color-muted: var(--muted);
+  --color-accent-orange: var(--accent-orange);
   --color-accent: #ffffff;
-  --color-panel: rgba(18, 18, 22, 0.74);
-  --color-panel-strong: rgba(21, 21, 26, 0.92);
-  --color-border-subtle: rgba(255, 255, 255, 0.08);
-  --color-border-strong: rgba(255, 255, 255, 0.14);
+  --color-panel: var(--panel);
+  --color-panel-strong: var(--panel-strong);
+  --color-border-subtle: var(--border-subtle);
+  --color-border-strong: var(--border-strong);
   --color-danger: #f87171;
   --color-warning: #fbbf24;
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
 
-/* Componenti RGB dell'accento (232, 93, 42 = #e85d2a) come token: tutti gli
-   rgba(232,93,42,alpha) del foglio usano questo token, così cambiare accento
-   è un edit da un punto solo (sintassi moderna: rgb(var(--accent-rgb) / a)). */
 :root {
+  color-scheme: dark;
+  --bg: #0a0a0a;
+  --fg: #ededed;
+  --surface: #18181b;
+  --surface2: #27272a;
+  --border: #3f3f46;
+  --muted: #a1a1aa;
+  --accent-orange: #e85d2a;
+  --panel: rgba(18, 18, 22, 0.74);
+  --panel-strong: rgba(21, 21, 26, 0.92);
+  --border-subtle: rgba(255, 255, 255, 0.08);
+  --border-strong: rgba(255, 255, 255, 0.14);
   --accent-rgb: 232 93 42;
 
-  /* Ricetta glass condivisa (ingredienti di default). Le classi della famiglia
-     glass* sovrascrivono --glass-* localmente dove servono; background, border
-     e box-shadow sono applicati dalla regola condivisa qui sotto, così i valori
-     non possono più derivare tra loro. */
-  /* Quiet dark: superficie quasi piatta con hairline — la lucentezza resta
-     solo una traccia (2%→0.4%) per evitare banding sui pannelli grandi. */
+  /* Ricetta glass condivisa dark */
   --glass-grad: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.004));
   --glass-tint: rgba(17, 17, 20, 0.92);
   --glass-border: rgba(255,255,255,0.06);
   --glass-shadow: inset 0 1px 0 rgba(255,255,255,0.03);
+}
+
+[data-theme="light"],
+html.light {
+  color-scheme: light;
+  --bg: #F2EEE7;
+  --fg: #252321;
+  --surface: #FAF7F2;
+  --surface2: #E8E2D9;
+  --border: #DDD5C7;
+  --muted: #70685F;
+  --accent-orange: #C94F24;
+  --panel: rgba(250, 247, 242, 0.88);
+  --panel-strong: rgba(250, 247, 242, 0.96);
+  --border-subtle: rgba(37, 35, 33, 0.08);
+  --border-strong: rgba(37, 35, 33, 0.16);
+  --accent-rgb: 201 79 36;
+
+  --glass-grad: none;
+  --glass-tint: #FAF7F2;
+  --glass-border: rgba(112, 104, 95, 0.16);
+  --glass-shadow: 0 4px 20px -2px rgba(37, 35, 33, 0.06), 0 1px 3px rgba(37, 35, 33, 0.03);
+
+  /* Remapping palette zinc al tema chiaro caldo da galleria */
+  --color-zinc-50: #1c1917;
+  --color-zinc-100: #252321;
+  --color-zinc-200: #38332e;
+  --color-zinc-300: #544e47;
+  --color-zinc-400: #70685F;
+  --color-zinc-500: #776D62;
+  --color-zinc-600: #aba194;
+  --color-zinc-700: #DDD5C7;
+  --color-zinc-800: #E8E2D9;
+  --color-zinc-900: #FAF7F2;
+  --color-zinc-950: #F2EEE7;
 }
 
 /* Famiglia glass: la ricetta unica per tutte le superfici (i valori effettivi
@@ -827,6 +866,119 @@ input[type="range"]::-moz-range-thumb:active {
     linear-gradient(180deg, var(--page-glow), transparent 35%),
     var(--color-background);
   isolation: isolate;
+}
+
+/* Light mode — Sfondo galleria calda con pesca tenue vicino all'hero e lavanda opposta */
+[data-theme="light"] .app-shell,
+html.light .app-shell {
+  min-height: 100dvh;
+  background-color: var(--color-background);
+  background-image:
+    radial-gradient(ellipse 75% 50% at 50% -10%, rgba(245, 185, 155, 0.28), transparent 65%),
+    radial-gradient(ellipse 65% 55% at 92% 100%, rgba(215, 205, 235, 0.24), transparent 65%),
+    radial-gradient(ellipse 55% 45% at 8% 90%, rgba(245, 215, 185, 0.18), transparent 60%);
+  isolation: isolate;
+}
+
+/* Logo brand adattivo: dark su sfondo scuro, dark-text su sfondo chiaro */
+.header-logo-light {
+  display: none;
+  aspect-ratio: 2427.79 / 504;
+  object-fit: contain;
+}
+.header-logo-dark {
+  display: block;
+}
+[data-theme="light"] .header-logo-light,
+html.light .header-logo-light {
+  display: block !important;
+}
+[data-theme="light"] .header-logo-dark,
+html.light .header-logo-dark {
+  display: none !important;
+}
+
+/* Cornice scura rigorosamente preservata attorno al poster nell'editor */
+[data-theme="light"] .editor-stage,
+[data-theme="light"] .editor-stage-glow {
+  background-color: #0c0c0e !important;
+  border-color: rgba(255, 255, 255, 0.10) !important;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.06) !important;
+}
+
+/* Adattamento superfici e controlli in light mode */
+[data-theme="light"] .border-white\/10 {
+  border-color: rgba(112, 104, 95, 0.16) !important;
+}
+[data-theme="light"] .border-white\/5,
+[data-theme="light"] .border-white\/\[0\.08\],
+[data-theme="light"] .border-white\/\[0\.05\],
+[data-theme="light"] .border-white\/\[0\.06\],
+[data-theme="light"] .border-white\/\[0\.04\] {
+  border-color: rgba(112, 104, 95, 0.12) !important;
+}
+[data-theme="light"] .border-white\/20,
+[data-theme="light"] .border-white\/25 {
+  border-color: rgba(112, 104, 95, 0.24) !important;
+}
+
+[data-theme="light"] .bg-white\/\[0\.02\],
+[data-theme="light"] .bg-white\/\[0\.03\],
+[data-theme="light"] .bg-white\/\[0\.04\],
+[data-theme="light"] .bg-white\/5 {
+  background-color: rgba(112, 104, 95, 0.05) !important;
+}
+[data-theme="light"] .bg-white\/10,
+[data-theme="light"] .bg-white\/\[0\.08\],
+[data-theme="light"] .bg-white\/\[0\.06\] {
+  background-color: rgba(112, 104, 95, 0.08) !important;
+}
+[data-theme="light"] .bg-white\/15,
+[data-theme="light"] .bg-white\/20 {
+  background-color: rgba(112, 104, 95, 0.12) !important;
+}
+
+[data-theme="light"] .bg-black\/40,
+[data-theme="light"] .bg-black\/50,
+[data-theme="light"] .bg-black\/60 {
+  background-color: #E8E2D9 !important;
+}
+[data-theme="light"] .bg-black\/20,
+[data-theme="light"] .bg-black\/30 {
+  background-color: rgba(232, 226, 217, 0.6) !important;
+}
+
+/* Bottoni primari mantengono testo bianco su arancione pieno */
+[data-theme="light"] .bg-accent-orange,
+[data-theme="light"] .top-action-button-primary,
+[data-theme="light"] button.bg-accent-orange,
+[data-theme="light"] a.bg-accent-orange {
+  color: #ffffff !important;
+}
+
+/* Floating islands e nav adattate a card morbide */
+[data-theme="light"] .desktop-toolbar,
+[data-theme="light"] .community-island,
+[data-theme="light"] nav[aria-label] {
+  background-color: rgba(250, 247, 242, 0.94) !important;
+  border-color: rgba(112, 104, 95, 0.18) !important;
+  box-shadow: 0 8px 30px -4px rgba(37, 35, 33, 0.08) !important;
+}
+
+/* Modali e input */
+[data-theme="light"] [role="dialog"] {
+  color: var(--color-foreground);
+}
+[data-theme="light"] input:not([type="range"]):not([type="checkbox"]):not([type="radio"]),
+[data-theme="light"] select,
+[data-theme="light"] textarea {
+  background-color: var(--color-surface2);
+  border-color: var(--color-border);
+  color: var(--color-foreground);
+}
+[data-theme="light"] input::placeholder,
+[data-theme="light"] textarea::placeholder {
+  color: var(--color-muted);
 }
 
 /* Quiet dark: griglia 64px rimossa */
@@ -2514,6 +2666,81 @@ button.status-version:hover {
   scrollbar-width: none;
 }
 
+/* Light surfaces must also override the local dark glass recipes. */
+[data-theme="light"] :is(.glass-panel, .editor-panel, .surface-card, .poster-tile, .preview-frame, .floating-action, .floating-group, .search-shell, .simkl-list-card, .carousel-card) {
+  --glass-grad: none;
+  --glass-tint: var(--color-surface);
+  --glass-border: var(--color-border-subtle);
+  --glass-shadow: 0 4px 20px rgba(37,35,33,0.06);
+}
+[data-theme="light"] .home-hero-title {
+  background-image: linear-gradient(180deg, #252321, #544e47);
+  color: var(--color-foreground);
+  filter: none;
+}
+[data-theme="light"] .home-hero-title .accent-word {
+  background: none;
+  -webkit-text-fill-color: var(--color-accent-orange);
+  color: var(--color-accent-orange);
+  filter: none;
+}
+[data-theme="light"] :is(.header-tagline, .feature-card-desc, .status-meta) {
+  color: var(--color-muted);
+}
+[data-theme="light"] :is(.hero-kicker, .stat-pill, .feature-card-title, .status-pill, .control-label, .tab-chip, .counter-badge, .btn-secondary, .segmented-option:hover, .top-action-button:not(.top-action-button-primary):not(.top-action-button-accent)) {
+  color: var(--color-foreground);
+}
+[data-theme="light"] :is(.float-chip, .btn-secondary, .segmented-control, .stat-pill, .feature-card, .status-pill, .counter-badge, .tab-chip) {
+  background: var(--color-surface);
+  border-color: var(--color-border-subtle);
+  box-shadow: 0 4px 16px rgba(37,35,33,0.06);
+}
+[data-theme="light"] :is(.btn-secondary:hover, .floating-action:hover, .segmented-option:hover, button.status-version:hover) {
+  background: var(--color-surface2);
+  color: var(--color-foreground);
+  border-color: var(--color-border-strong);
+}
+[data-theme="light"] .hover\:text-white:hover,
+[data-theme="light"] .bg-white\/20.text-white,
+[data-theme="light"] nav > div > button > span.text-white {
+  color: var(--color-foreground);
+}
+[data-theme="light"] [data-sonner-toast] {
+  background: var(--color-surface) !important;
+  border-color: var(--color-border-strong) !important;
+  box-shadow: 0 8px 30px rgba(37,35,33,0.12) !important;
+}
+[data-theme="light"] [data-sonner-toast] [data-title],
+[data-theme="light"] [data-sonner-toast] [data-description] {
+  color: var(--color-foreground) !important;
+  text-shadow: none !important;
+}
+[data-theme="light"] :is(.settings-dialog-panel, .settings-dialog-header, .settings-dialog-footer, .status-strip) {
+  background: var(--color-surface);
+  border-color: var(--color-border-subtle);
+  box-shadow: 0 8px 24px rgba(37,35,33,0.08);
+}
+[data-theme="light"] .status-live-badge {
+  color: #166534;
+}
+[data-theme="light"] .simkl-list-card {
+  color: var(--color-foreground);
+}
+[data-theme="light"] .search-shell input:not([type="range"]):not([type="checkbox"]):not([type="radio"]) {
+  background: transparent;
+}
+[data-theme="light"] .settings-panel .text-accent,
+[data-theme="light"] .settings-panel .hover\:text-accent:hover {
+  color: var(--color-foreground);
+}
+[data-theme="light"] .badge-style-preview {
+  background: #252321;
+  padding: 3px 4px;
+}
+[data-theme="light"] .poster-image-action {
+  color: #ffffff !important;
+}
+
 /* Rispetta la preferenza utente per il moto ridotto: disattiva animazioni,
    transizioni e scroll-behavior smooth. */
 @media (prefers-reduced-motion: reduce) {
@@ -2526,4 +2753,3 @@ button.status-version:hover {
     scroll-behavior: auto !important;
   }
 }
-

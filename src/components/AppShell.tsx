@@ -12,6 +12,7 @@ import { requestSettingsTab } from "@/lib/settings-tab"
 import { isMultiUserServer } from "@/lib/guest-guard"
 import { Settings, Plug, QrCode, Images, Library, KeyRound } from "lucide-react"
 import { DesktopCommunityLinks, MobileCommunityLinks } from "@/components/HeaderCommunityLinks"
+import { ThemeToggle } from "@/components/ThemeToggle"
 
 // Code-splitting: viste/modali pesanti caricate on-demand per ridurre il JS iniziale.
 const SettingsPanel = dynamic(() => import("@/components/SettingsPanel").then((m) => m.SettingsPanel), { ssr: false })
@@ -352,10 +353,15 @@ export function AppShell() {
             </button>
           )}
 
+          <div className="h-4 w-px bg-white/10 mx-0.5" />
+
+          {/* Theme Selector */}
+          <ThemeToggle />
+
           {/* Settings Button */}
           <button
             type="button"
-            aria-label={t("ui.settingsGlobal")}
+            aria-label={t("ui.settingsTitle") || t("ui.settingsGlobal")}
             title={t("ui.settingsGlobal")}
             onClick={(e) => { e.stopPropagation(); if (toolbarLocked) return; setSettingsOpen((o) => !o) }}
             disabled={toolbarLocked}
@@ -369,6 +375,9 @@ export function AppShell() {
         </div>
       </div>
 
+      <div className="md:hidden fixed top-3 left-3 z-50 rounded-xl border border-border bg-surface shadow-sm">
+        <ThemeToggle className="[&>div]:left-0 [&>div]:right-auto" />
+      </div>
       <div className="relative z-10 max-w-[1680px] mx-auto px-3 sm:px-4 pt-3 sm:pt-5 md:pt-[68px] pb-24 md:pb-6">
         {/* Header globale (logo + tagline + toolbar mobile) */}
         {!(view === "edit" && selected) && (
@@ -396,7 +405,19 @@ export function AppShell() {
             src="/pictorium.svg"
             alt="Pictorium"
             decoding="async"
-            className="header-logo h-10 sm:h-14 md:h-24 w-auto cursor-pointer hover:brightness-110 active:scale-95 transition-all duration-150 mb-1.5 md:mb-2"
+            className="header-logo header-logo-dark h-10 sm:h-14 md:h-24 w-auto cursor-pointer hover:brightness-110 active:scale-95 transition-all duration-150 mb-1.5 md:mb-2"
+          />
+          {/* eslint-disable-next-line @next/next/no-img-element -- local SVG asset */}
+          <img
+            onClick={goHome}
+            onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); goHome() } }}
+            role="button"
+            tabIndex={0}
+            aria-label={t("ui.homeBtn")}
+            src="/pictorium-light.svg"
+            alt="Pictorium"
+            decoding="async"
+            className="header-logo header-logo-light h-10 sm:h-14 md:h-24 w-auto cursor-pointer hover:brightness-110 active:scale-95 transition-all duration-150 mb-1.5 md:mb-2"
           />
           <p className="header-tagline text-center text-[10px] sm:text-xs md:text-sm mb-3.5 sm:mb-4 md:mb-4 max-w-xs sm:max-w-none">{t("ui.homeTagline")}</p>
           <MobileCommunityLinks />
@@ -508,7 +529,7 @@ export function AppShell() {
             <span className="h-8 flex items-center justify-center">
               <Settings className="w-5 h-5" />
             </span>
-            <span className="text-[10px] tracking-tight truncate">{t("ui.settingsGlobalShort") || t("ui.settingsTitle") || "Opzioni"}</span>
+            <span className="text-[10px] tracking-tight truncate">{t("ui.settingsTitle") || t("ui.settingsGlobalShort") || "Opzioni"}</span>
           </button>
         </div>
       </nav>

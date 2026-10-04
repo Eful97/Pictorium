@@ -12,7 +12,7 @@ async function openSettings(page: Page) {
   await expect(page.getByPlaceholder(/cerca/i)).toBeVisible()
   const dialog = page.getByRole("dialog").filter({ visible: true })
   await expect(async () => {
-    if (!await dialog.count()) await page.getByRole("button", { name: /Configura tutti i poster/i }).filter({ visible: true }).click()
+    if (!await dialog.count()) await page.getByRole("button", { name: /Configura tutti i poster|Impostazioni/i }).filter({ visible: true }).click()
     await expect(dialog).toBeVisible({ timeout: 1000 })
   }).toPass()
   await expect(dialog.getByRole("button", { name: "Salva stile attuale" })).toBeVisible()

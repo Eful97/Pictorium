@@ -21,7 +21,9 @@ async function renderPoster(page: Page, posterUrl: string) {
   // Navigate first so the relative src resolves against the app origin:
   // `setContent` alone leaves baseURI on about:blank and the /api/poster URL
   // would never load.
-  await page.goto("/")
+  // Use a same-origin document without a React root: hydration of the home
+  // page can otherwise replace the isolated poster after setContent.
+  await page.goto("/api/health")
   await page.setContent(`
     <html>
       <body style="margin:0;background:#000;display:flex;align-items:flex-start;justify-content:center;">
