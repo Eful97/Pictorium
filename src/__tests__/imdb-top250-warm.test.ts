@@ -1,10 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import { __resetTop250ForTest, isImdbTop250, warmTop250 } from "@/lib/imdb-top250"
 import { cacheClear } from "@/lib/cache"
-
-function chartHtml(ids: string[]): string {
-  return `<html><body>${ids.map((id) => `<a href="/title/${id}/">${id}</a>`).join("")}</body></html>`
-}
+import { chartIds250, nextDataHtml } from "./imdb-top250-fixtures"
 
 beforeEach(() => {
   cacheClear()
@@ -14,9 +11,9 @@ beforeEach(() => {
 
 describe("warmTop250", () => {
   it("warms once for concurrent callers (inflight dedup)", async () => {
-    const ids = Array.from({ length: 120 }, (_, i) => `tt${1000000 + i}`)
+    const ids = chartIds250()
     const spy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
-      new Response(chartHtml(ids), { status: 200, headers: { "content-type": "text/html" } }),
+      new Response(nextDataHtml(ids), { status: 200, headers: { "content-type": "text/html" } }),
     )
     const [w, member] = await Promise.all([warmTop250(), isImdbTop250("tt1000007")])
     expect(w).toBeUndefined()
