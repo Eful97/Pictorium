@@ -46,7 +46,9 @@
     ".next-load/types/**/*.ts",
     ".next-load/dev/types/**/*.ts",
     ".next-bench/types/**/*.ts",
-    ".next-bench/dev/types/**/*.ts"
+    ".next-bench/dev/types/**/*.ts",
+    ".next-tune/types/**/*.ts",
+    ".next-tune/dev/types/**/*.ts"
   ],
   "exclude": [
     "node_modules",

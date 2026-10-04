@@ -19,6 +19,7 @@
 /.next-e2e-probe/
 /.next-load/
 /.next-bench/
+/.next-tune/
 /out/
 
 # production

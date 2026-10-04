@@ -13,6 +13,7 @@
     "pretest": "node scripts/write-app-version.mjs && node scripts/write-render-version.mjs && node scripts/write-recent-changes.mjs",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
+    "tune": "node scripts/tune-env.mjs",
     "typecheck": "tsc --noEmit",
     "e2e": "playwright test",
     "e2e:ui": "playwright test --ui",
