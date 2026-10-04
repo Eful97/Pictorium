@@ -40,6 +40,21 @@ export function isQualityBadgeStyle(v: string | null | undefined): v is QualityB
   return !!v && (QUALITY_BADGE_STYLES as readonly string[]).includes(v)
 }
 
+/**
+ * Font dei testi badge ("inter" = resa storica). Catena come gli altri
+ * visuali: query `bfont` > mapping per-titolo > config token > server
+ * defaults > "inter". Assente o non valido → Inter (URL e preset esistenti
+ * invariati). I preset custom/house del Badge Lab hanno tipografia propria
+ * e ignorano questo parametro (vedi badge-svg-shared.ts).
+ */
+export const BADGE_FONTS = ["inter", "barlow-condensed", "oswald"] as const
+export type BadgeFont = (typeof BADGE_FONTS)[number]
+
+export const DEFAULT_BADGE_FONT: BadgeFont = "inter"
+
+export function isBadgeFont(v: string | null | undefined): v is BadgeFont {
+  return !!v && (BADGE_FONTS as readonly string[]).includes(v)
+}
 export function isRibbonRankingStyle(v: string | null | undefined): boolean {
   return v === "netflix" || v === "netflix-color" || v === "colored"
 }

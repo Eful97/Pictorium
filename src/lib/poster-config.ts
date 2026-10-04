@@ -17,13 +17,16 @@ import {
   isBadgeStyle,
   isRankingBadgeStyle,
   isQualityBadgeStyle,
+  isBadgeFont,
   nonRibbonRankingStyle,
   DEFAULT_BADGE_STYLE,
   DEFAULT_RANKING_BADGE_STYLE,
   DEFAULT_QUALITY_BADGE_STYLE,
+  DEFAULT_BADGE_FONT,
   type BadgeStyle,
   type RankingBadgeStyle,
   type QualityBadgeStyle,
+  type BadgeFont,
 } from "./badge-styles"
 import { NON_CLEAN_BLUR_FADE, NON_CLEAN_GRADIENT_HEIGHT } from "./gradient-defaults"
 
@@ -76,6 +79,8 @@ export interface PosterRenderConfigInput {
 export interface PosterRenderConfig {
   badgeStyle: BadgeStyle
   rankingBadgeStyle: RankingBadgeStyle
+  /** Font dei testi badge ("inter" = resa storica). */
+  badgeFont: BadgeFont
   /** Stile icone del badge qualità (standard = pill testuale). */
   qualityBadgeStyle: QualityBadgeStyle
   blurEnabled: boolean
@@ -395,6 +400,20 @@ export function resolvePosterRenderConfig(input: PosterRenderConfigInput): Poste
     || sd.qualityBadgeStyle
   const qualityBadgeStyle: QualityBadgeStyle = isQualityBadgeStyle(rawQbs) ? rawQbs : DEFAULT_QUALITY_BADGE_STYLE
 
+  // Font dei testi badge — stessa catena degli stili: query `bfont` >
+  // mapping salvato (non-"inter" = override, come "shadow" per badgeStyle) >
+  // config token > server defaults > "inter". Valori non validi → inter
+  // (resa storica, URL esistenti invariati). La query usa `??` e non `||`:
+  // `?bfont=` (stringa vuota) è un valore presente ma invalido → inter, come
+  // lo normalizza la chiave cache; con `||` cadrebbe sui default (es. Oswald)
+  // con la stessa chiave di `bfont=inter` ma byte diversi.
+  const rawBfont =
+    q.get("bfont") ??
+    (mapping?.badgeFont && mapping.badgeFont !== "inter" ? mapping.badgeFont : undefined) ??
+    configOverride?.badgeFont ??
+    sd.badgeFont
+  const badgeFont: BadgeFont = isBadgeFont(rawBfont) ? rawBfont : DEFAULT_BADGE_FONT
+
   const qScale = q.get("scale")
   const qOx = q.get("ox")
   const qOy = q.get("oy")
@@ -559,6 +578,7 @@ export function resolvePosterRenderConfig(input: PosterRenderConfigInput): Poste
   return {
     badgeStyle,
     rankingBadgeStyle,
+    badgeFont,
     qualityBadgeStyle,
     blurEnabled,
     blurHeight,

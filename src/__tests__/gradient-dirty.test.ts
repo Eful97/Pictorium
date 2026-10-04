@@ -249,4 +249,17 @@ describe("isMappingDirty", () => {
     expect(isMappingDirty({ ...baseState, qualityBadgeStyle: "pill" }, m, DEFAULTS, "poster")).toBe(true);
     expect(isMappingDirty({ ...baseState, rankingBadgeStyle: "ribbon" }, m, DEFAULTS, "poster")).toBe(true);
   });
+
+  it("font cambiato → modifiche non salvate; ripristinato → salvato", () => {
+    const m = mapping({ ...baseArtwork, ...DEFAULTS, logoScale: 100, showBadges: true });
+    // Mapping senza badgeFont (default inter implicito): stato inter = pulito
+    expect(isMappingDirty({ ...baseState, badgeFont: "inter" }, m, DEFAULTS, "poster")).toBe(false);
+    // Cambio font → dirty
+    expect(isMappingDirty({ ...baseState, badgeFont: "oswald" }, m, DEFAULTS, "poster")).toBe(true);
+    expect(isMappingDirty({ ...baseState, badgeFont: "barlow-condensed" }, m, DEFAULTS, "poster")).toBe(true);
+    // Mapping con font salvato: stato uguale = pulito, diverso = dirty
+    const mFont = mapping({ ...baseArtwork, ...DEFAULTS, logoScale: 100, showBadges: true, badgeFont: "oswald" });
+    expect(isMappingDirty({ ...baseState, badgeFont: "oswald" }, mFont, DEFAULTS, "poster")).toBe(false);
+    expect(isMappingDirty({ ...baseState, badgeFont: "inter" }, mFont, DEFAULTS, "poster")).toBe(true);
+  });
 });

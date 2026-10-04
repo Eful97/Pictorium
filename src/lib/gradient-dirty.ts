@@ -154,6 +154,8 @@ export interface FullMappingCheckState {
   qualityBadgeStyle?: string
   badgeStyle?: string
   rankingBadgeStyle?: string
+  /** Font dei testi badge ("inter" = resa storica). */
+  badgeFont?: string
   customBadge?: string | null
 }
 
@@ -213,6 +215,7 @@ export function isMappingDirty(
   if ((current.qualityBadgeStyle ?? "standard") !== (eff.qualityBadgeStyle ?? "standard")) return true
   if ((current.badgeStyle ?? "shadow") !== (eff.badgeStyle ?? "shadow")) return true
   if ((current.rankingBadgeStyle ?? "default") !== (eff.rankingBadgeStyle ?? "default")) return true
+  if ((current.badgeFont ?? "inter") !== (eff.badgeFont ?? "inter")) return true
   if ((current.customBadge ?? null) !== (eff.customBadge ?? null)) return true
 
   return false

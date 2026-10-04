@@ -5,7 +5,7 @@ import type { TMDBImage, NetworkLogoPosition, PosterShape } from "@/lib/types"
 import { useDefaults } from "@/lib/useDefaults"
 import type { LandscapeServerDefaults } from "@/lib/server-defaults"
 import type { DateFormat } from "@/lib/release-badge"
-import type { BadgeStyle, RankingBadgeStyle, QualityBadgeStyle } from "@/lib/badge-styles"
+import type { BadgeStyle, RankingBadgeStyle, QualityBadgeStyle, BadgeFont } from "@/lib/badge-styles"
 import type { SashBucket } from "@/lib/badge-priority"
 import type { VideoFormat } from "@/lib/av-specs"
 import type { VisualPresetValues } from "@/lib/visual-presets"
@@ -73,6 +73,9 @@ export interface PosterEditorCtx {
   setBadgeStyle: (v: BadgeStyle | ((prev: BadgeStyle) => BadgeStyle)) => void
   rankingBadgeStyle: RankingBadgeStyle
   setRankingBadgeStyle: (v: RankingBadgeStyle | ((prev: RankingBadgeStyle) => RankingBadgeStyle)) => void
+  /** Font dei testi badge del poster in editing ("inter" = resa storica). */
+  badgeFont: BadgeFont
+  setBadgeFont: (v: BadgeFont | ((prev: BadgeFont) => BadgeFont)) => void
   /** Stile icone del badge qualità del poster in editing. */
   qualityBadgeStyle: QualityBadgeStyle
   setQualityBadgeStyle: (v: QualityBadgeStyle | ((prev: QualityBadgeStyle) => QualityBadgeStyle)) => void
@@ -112,6 +115,9 @@ export interface PosterEditorCtx {
   setDefaultBadgeStyle: (v: BadgeStyle | ((prev: BadgeStyle) => BadgeStyle)) => void
   defaultRankingBadgeStyle: RankingBadgeStyle
   setDefaultRankingBadgeStyle: (v: RankingBadgeStyle | ((prev: RankingBadgeStyle) => RankingBadgeStyle)) => void
+  /** Font dei testi badge di default ("inter" = resa storica). */
+  defaultBadgeFont: BadgeFont
+  setDefaultBadgeFont: (v: BadgeFont | ((prev: BadgeFont) => BadgeFont)) => void
   /** Stile icone del badge qualità di default. */
   defaultQualityBadgeStyle: QualityBadgeStyle
   setDefaultQualityBadgeStyle: (v: QualityBadgeStyle | ((prev: QualityBadgeStyle) => QualityBadgeStyle)) => void
@@ -398,6 +404,7 @@ export function PosterEditorProvider({
     genreBadgeOffsetX, genreBadgeOffsetY, qualityBadgeOffsetX, qualityBadgeOffsetY,
     networkLogoOffsetX, networkLogoOffsetY,
     badgeStyle, rankingBadgeStyle, qualityBadgeStyle, videoFormats,
+    badgeFont, defaultBadgeFont,
     defaultBadgeStyle, defaultRankingBadgeStyle, defaultQualityBadgeStyle, defaultVideoFormats,
     defaultBlurEnabled, defaultBlurIntensity, defaultBlurFade, defaultBlurDarkness, defaultTintStrength, defaultTopShade,
     defaultGradientHeight, defaultGlobalBadges, defaultRankingBadges,
@@ -628,6 +635,11 @@ export function PosterEditorProvider({
       const next = typeof v === "function" ? v(rankingBadgeStyle) : v
       update({ rankingBadgeStyle: next })
     }, [rankingBadgeStyle, update])
+  const setBadgeFont = useCallback(
+    (v: BadgeFont | ((prev: BadgeFont) => BadgeFont)) => {
+      const next = typeof v === "function" ? v(badgeFont) : v
+      update({ badgeFont: next })
+    }, [badgeFont, update])
   const setQualityBadgeStyle = useCallback(
     (v: QualityBadgeStyle | ((prev: QualityBadgeStyle) => QualityBadgeStyle)) => {
       const next = typeof v === "function" ? v(qualityBadgeStyle) : v
@@ -648,6 +660,11 @@ export function PosterEditorProvider({
       const next = typeof v === "function" ? v(defaultRankingBadgeStyle) : v
       update({ defaultRankingBadgeStyle: next })
     }, [defaultRankingBadgeStyle, update])
+  const setDefaultBadgeFont = useCallback(
+    (v: BadgeFont | ((prev: BadgeFont) => BadgeFont)) => {
+      const next = typeof v === "function" ? v(defaultBadgeFont) : v
+      update({ defaultBadgeFont: next })
+    }, [defaultBadgeFont, update])
   const setDefaultQualityBadgeStyle = useCallback(
     (v: QualityBadgeStyle | ((prev: QualityBadgeStyle) => QualityBadgeStyle)) => {
       const next = typeof v === "function" ? v(defaultQualityBadgeStyle) : v
@@ -953,6 +970,8 @@ export function PosterEditorProvider({
       setBadgeStyle,
       rankingBadgeStyle,
       setRankingBadgeStyle,
+      badgeFont,
+      setBadgeFont,
       qualityBadgeStyle,
       setQualityBadgeStyle,
       videoFormats,
@@ -987,6 +1006,8 @@ export function PosterEditorProvider({
       setDefaultBadgeStyle,
       defaultRankingBadgeStyle,
       setDefaultRankingBadgeStyle,
+      defaultBadgeFont,
+      setDefaultBadgeFont,
       defaultQualityBadgeStyle,
       setDefaultQualityBadgeStyle,
       defaultVideoFormats,
@@ -1201,6 +1222,7 @@ export function PosterEditorProvider({
       separateRatings, setSeparateRatings,
       badgeStyle, setBadgeStyle,
       rankingBadgeStyle, setRankingBadgeStyle,
+      badgeFont, setBadgeFont,
       qualityBadgeStyle, setQualityBadgeStyle,
       videoFormats, setVideoFormats,
       customBadge, setCustomBadge,
@@ -1221,6 +1243,7 @@ export function PosterEditorProvider({
       // Defaults
       defaultBadgeStyle, setDefaultBadgeStyle,
       defaultRankingBadgeStyle, setDefaultRankingBadgeStyle,
+      defaultBadgeFont, setDefaultBadgeFont,
       defaultQualityBadgeStyle, setDefaultQualityBadgeStyle,
       defaultVideoFormats, setDefaultVideoFormats,
       defaultEpisodeMetadataSource, setDefaultEpisodeMetadataSource,

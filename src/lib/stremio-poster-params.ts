@@ -1,5 +1,5 @@
 import { POSTER_URL_VERSION } from "@/lib/render-version"
-import type { BadgeStyle, RankingBadgeStyle, QualityBadgeStyle } from "@/lib/badge-styles"
+import type { BadgeStyle, RankingBadgeStyle, QualityBadgeStyle, BadgeFont } from "@/lib/badge-styles"
 import type { VideoFormat } from "@/lib/av-specs"
 import { parseMinQuality, type StreamQuality } from "@/lib/quality-tiers"
 import { parseSashOrder, isDefaultSashOrder, type SashBucket } from "@/lib/badge-priority"
@@ -34,6 +34,8 @@ export interface StremioPosterParamsInput {
   readonly sashOrder?: readonly SashBucket[] | null
   readonly badgeStyle?: BadgeStyle
   readonly rankingBadgeStyle?: RankingBadgeStyle
+  /** Font dei testi badge ("inter" = resa storica). */
+  readonly badgeFont?: BadgeFont
   /** Stile icone qualità: emesso come `qbs` solo quando non-standard (cache stabile). */
   readonly qualityBadgeStyle?: QualityBadgeStyle | null
   /** Formati A/V abilitati: emessi come `formats` solo se specificati. */
@@ -308,6 +310,10 @@ export function buildStremioPosterSearchParams(input: StremioPosterParamsInput):
   if (input.compactTuning) params.set("dv", tuningSignature(input))
   params.set("bs", input.badgeStyle || DEFAULT_STREMIO_POSTER_PARAMS.badgeStyle)
   params.set("rs", input.rankingBadgeStyle || DEFAULT_STREMIO_POSTER_PARAMS.rankingBadgeStyle)
+  // Font badge sempre esplicito (come bs/rs): assente ≠ default nella catena
+  // query > mapping > config > defaults (un mapping salvato non-"inter"
+  // vincerebbe sul default dello spazio senza il parametro).
+  params.set("bfont", input.badgeFont || "inter")
   // Stile icone qualità solo quando non-standard: gli URL esistenti restano
   // identici e la cache non si invalida (il server risolve lo standard da solo).
   if (input.qualityBadgeStyle === "mono" || input.qualityBadgeStyle === "color") {

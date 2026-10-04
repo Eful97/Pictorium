@@ -1,5 +1,5 @@
 import { z } from "zod"
-import { BADGE_STYLES, RANKING_BADGE_STYLES, QUALITY_BADGE_STYLES } from "./badge-styles"
+import { BADGE_STYLES, RANKING_BADGE_STYLES, QUALITY_BADGE_STYLES, BADGE_FONTS } from "./badge-styles"
 import { SASH_BUCKETS } from "./badge-priority"
 
 const percent = z.number().finite().min(0).max(100)
@@ -24,6 +24,8 @@ export const visualPresetValuesSchema = z.object({
   defaultRatingSources: z.array(z.string().max(20)).max(20),
   defaultSashOrder: z.array(z.enum(SASH_BUCKETS)).max(SASH_BUCKETS.length),
   defaultBadgeStyle: z.enum(BADGE_STYLES), defaultRankingBadgeStyle: z.enum(RANKING_BADGE_STYLES),
+  // Preset salvati prima del selettore font: assente = "inter" (resa storica).
+  defaultBadgeFont: z.enum(BADGE_FONTS).default("inter"),
   defaultQualityBadgeStyle: z.enum(QUALITY_BADGE_STYLES),
   defaultVideoFormats: z.array(z.enum(["dv", "hdr", "hdr10plus", "atmos", "imax"])).max(5),
   defaultLogoScale: logoScale, defaultLogoOffsetX: offset.nullable(), defaultLogoOffsetY: offset.nullable(),

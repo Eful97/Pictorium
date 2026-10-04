@@ -1821,7 +1821,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
       lang: req.nextUrl.searchParams.get("lang") || mapping?.language || posterRegion.lang2,
     })
     const {
-      badgeStyle, rankingBadgeStyle, qualityBadgeStyle,
+      badgeStyle, rankingBadgeStyle, qualityBadgeStyle, badgeFont,
       blurEnabled, blurHeight, blurIntensity, blurFade, blurDarkness, tintStrength, topShade,
       badgesEnabled, rankingEnabled,
       badgeGenre, badgeYear, badgeRating, badgeQuality, minQuality, sashOrder,
@@ -2028,6 +2028,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
             rankingEnabled,
             badgeStyle,
             rankingBadgeStyle,
+            badgeFont,
             badgeGenre,
             badgeYear,
             badgeRating,
@@ -2088,7 +2089,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
       backdropScale, backdropOffsetX, backdropOffsetY,
       blurEnabled, blurHeight: effBlurHeight, blurIntensity, blurFade: effBlurFade, blurDarkness, tintStrength, topShade,
       badgesEnabled, rankingEnabled, genreName, voteAverage, badgeStyle,
-      rankingBadgeStyle, badgeGenre, badgeYear, badgeRating: effectiveBadgeRating, badgeQuality,
+      rankingBadgeStyle, badgeFont, badgeGenre, badgeYear, badgeRating: effectiveBadgeRating, badgeQuality,
       qualityBadgeStyle,
       videoFormats: finalVideoFormats,
       separateRatings: useSeparate ? sepItems : undefined,

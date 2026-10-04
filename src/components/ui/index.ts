@@ -1,5 +1,6 @@
 export { SectionCard, SectionLabel } from "./SectionCard"
 export { BadgeStyleSelector } from "./BadgeStyleSelector"
+export { BadgeFontSelector } from "./BadgeFontSelector"
 export { SecretInput } from "./SecretInput"
 export { MenuItem } from "./MenuItem"
 export { Button, type ButtonProps } from "./Button"

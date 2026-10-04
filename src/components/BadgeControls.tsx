@@ -6,7 +6,7 @@ import { usePSelector } from "@/lib/context"
 import { useT } from "@/lib/contexts/TranslationContext"
 import { usePosterEditor } from "@/lib/contexts/PosterEditorContext"
 import { Toggle } from "@/components/Toggle"
-import { BadgeStyleSelector } from "@/components/ui"
+import { BadgeStyleSelector, BadgeFontSelector } from "@/components/ui"
 import { lookupAVSpecs, KNOWN_VIDEO_FORMATS } from "@/lib/av-specs"
 import { getAwardBadgeLabel, getNominationBadgeLabel } from "@/lib/badge-labels"
 import { getNewSeasonLabel, getSeriesEndedLabel, isKDramaOrigin } from "@/lib/poster-badge"
@@ -434,6 +434,16 @@ export function BadgeControls() {
           t={t}
           accentColor={accentColor}
         />
+
+        <div className="pt-2 border-t border-surface2/50 space-y-1.5">
+          <label className="text-[11px] text-muted font-medium block">
+            {t("ui.badgeFont")}
+          </label>
+          <BadgeFontSelector
+            value={ed.badgeFont}
+            onChange={ed.setBadgeFont}
+          />
+        </div>
 
         <div className="flex items-center justify-between gap-2 pt-2 border-t border-surface2/50">
           <div className="flex items-center gap-2 shrink-0">

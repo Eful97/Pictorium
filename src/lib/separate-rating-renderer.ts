@@ -1,9 +1,10 @@
 import fs from "node:fs"
 import path from "node:path"
 import sharp from "sharp"
-import { escSvg, estimateTextWidth, fontFamilyFor, satinPillStops } from "./badge-svg-shared"
+import { escSvg, estimateTextWidth, fontFamilyFor, normalizeBadgeFont, satinPillStops } from "./badge-svg-shared"
 import { renderSVG } from "./svg-badge"
 import { formatSeparateValue } from "./ratings"
+import type { BadgeFont } from "./badge-styles"
 
 /** Mappa fonte → asset logo (stesso riuso di RatingSourceIcon: metacriticuser→metacritic, filmwebcritics→filmweb). */
 const SEPARATE_RATING_ICON_FILES: Record<string, string> = {
@@ -80,8 +81,11 @@ export async function renderSeparateRatingStack(
   items: readonly { id: string; value: number }[],
   pw: number,
   topLight = true,
+  /** Font dei punteggi (default "inter" = resa storica; i loghi provider restano invariati). */
+  font: BadgeFont = "inter",
 ): Promise<SeparateRatingStack | null> {
   // Pill compatte in stile moderno: proporzioni solide e bilanciate col badge 4K.
+  const f = normalizeBadgeFont(font)
   const fs = Math.round(Math.max(14 * pw / 380, 11))
   const px = Math.round(fs * 0.6)
   const pt = Math.max(2, Math.round(fs * 0.22))
@@ -95,7 +99,7 @@ export async function renderSeparateRatingStack(
     const logo = await loadSeparateRatingLogo(item.id, logoH)
     if (!logo) continue
     const display = formatSeparateValue(item.id, item.value)
-    const textW = Math.max(estimateTextWidth(display, fs), 1)
+    const textW = Math.max(estimateTextWidth(display, fs, f), 1)
     rows.push({ logo, display, textW, pillH: pt + logo.h + gap + fs + pt })
   }
   if (rows.length === 0) return null
@@ -113,7 +117,7 @@ export async function renderSeparateRatingStack(
     parts.push(
       `<rect y="${y}" width="${colW}" height="${row.pillH}" rx="${r}" fill="url(#sepg)" stroke="${stroke}" stroke-width="1.5" filter="url(#seps)"/>` +
       `<image href="data:image/png;base64,${row.logo.png.toString("base64")}" x="${logoX}" y="${y + pt}" width="${row.logo.w}" height="${row.logo.h}"/>` +
-      `<text x="${colW / 2}" y="${textY}" text-anchor="middle" dominant-baseline="central" font-family="${fontFamilyFor(row.display)}" font-weight="700" font-size="${fs}" fill="${fg}" textLength="${row.textW}" lengthAdjust="spacingAndGlyphs">${escSvg(row.display)}</text>`,
+      `<text x="${colW / 2}" y="${textY}" text-anchor="middle" dominant-baseline="central" font-family="${fontFamilyFor(row.display, f)}" font-weight="700" font-size="${fs}" fill="${fg}" textLength="${row.textW}" lengthAdjust="spacingAndGlyphs">${escSvg(row.display)}</text>`,
     )
     y += row.pillH + SEPARATE_STACK_GAP
   }

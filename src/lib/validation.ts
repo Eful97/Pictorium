@@ -1,5 +1,5 @@
 import { z } from "zod"
-import { BADGE_STYLES, RANKING_BADGE_STYLES, QUALITY_BADGE_STYLES } from "./badge-styles"
+import { BADGE_STYLES, RANKING_BADGE_STYLES, QUALITY_BADGE_STYLES, BADGE_FONTS } from "./badge-styles"
 import { BADGE_PRESET_ID_RE, BADGE_PRESET_REV_RE } from "./badge-preset"
 
 export const mappingSchema = z.object({
@@ -83,6 +83,7 @@ export const mappingSchema = z.object({
   gradientHeight: z.number().nullable().optional(),
   badgeStyle: z.enum(BADGE_STYLES).nullable().optional(),
   rankingBadgeStyle: z.enum(RANKING_BADGE_STYLES).nullable().optional(),
+  badgeFont: z.enum(BADGE_FONTS).nullable().optional(),
   qualityBadgeStyle: z.enum(QUALITY_BADGE_STYLES).nullable().optional(),
   videoFormats: z.array(z.enum(["dv", "hdr", "hdr10plus", "atmos", "imax"])).nullable().optional(),
   cleanPosters: z.array(z.string()).nullable().optional(),
@@ -220,6 +221,7 @@ export const posterQuerySchema = z.object({
   bl: boundedQueryString(8),
   bs: boundedQueryString(16),
   rs: boundedQueryString(16),
+  bfont: boundedQueryString(24),
   df: boundedQueryString(8),
   badgePreset: boundedQueryString(24),
   prv: boundedQueryString(8),

@@ -10,7 +10,7 @@ import { hexLuminance, computeBottomLight } from "./accent-color"
 import { normalizeGenreName } from "./genre-normalize"
 import type { SearchResult, TMDBImage } from "./types"
 import type { EnrichedAnimeItem } from "./validation"
-import type { BadgeStyle, RankingBadgeStyle, QualityBadgeStyle } from "./badge-styles"
+import type { BadgeStyle, RankingBadgeStyle, QualityBadgeStyle, BadgeFont } from "./badge-styles"
 import type { VideoFormat } from "./av-specs"
 import type { PosterShape, NetworkLogoPosition } from "./types"
 import { BADGE_PRESET_ID_RE, BADGE_PRESET_REV_RE } from "./badge-preset"
@@ -21,6 +21,8 @@ interface BadgeParams {
   rankingBadges: boolean
   badgeStyle: BadgeStyle
   rankingBadgeStyle: RankingBadgeStyle
+  /** Font dei testi badge (default "inter" = resa storica). */
+  badgeFont?: BadgeFont | null
   /** Stile icone del badge qualità (default "standard"). */
   qualityBadgeStyle?: QualityBadgeStyle | null
   /** Formati A/V abilitati (dv, atmos, imax, hdr, hdr10plus). */
@@ -194,6 +196,7 @@ export function buildUrlPattern(bp: BadgeParams & {
     separateRatings: bp.separateRatings,
     badgeStyle: bp.badgeStyle,
     rankingBadgeStyle: bp.rankingBadgeStyle,
+    badgeFont: bp.badgeFont ?? undefined,
     qualityBadgeStyle: bp.qualityBadgeStyle,
     gradientHeight: bp.gradientHeight,
     blurIntensity: bp.blurIntensity,
@@ -326,6 +329,9 @@ export function buildPreviewUrl(ps: PosterState, bp: BadgeParams, configToken?: 
   params.push(`ts=${bp.topShade ?? 50}`)
   params.push(`bs=${bp.badgeStyle}`)
   params.push(`rs=${bp.rankingBadgeStyle}`)
+  // Font badge SEMPRE esplicito in preview (come bs/rs): senza, un mapping
+  // salvato con font diverso scavalcerebbe la scelta editor (desync WYSIWYG).
+  params.push(`bfont=${bp.badgeFont ?? "inter"}`)
   // Stile icone qualità SEMPRE esplicito in preview (come bs/rs): senza, un
   // mapping salvato con stile diverso scavalcerebbe la scelta editor (desync).
   params.push(`qbs=${bp.qualityBadgeStyle === "mono" || bp.qualityBadgeStyle === "color" ? bp.qualityBadgeStyle : "standard"}`)
@@ -461,6 +467,7 @@ export interface DefaultsPreviewParams {
   defaultRatingSources?: string[]
   defaultBadgeStyle?: BadgeStyle
   defaultRankingBadgeStyle?: RankingBadgeStyle
+  defaultBadgeFont?: BadgeFont | null
   defaultQualityBadgeStyle?: QualityBadgeStyle | null
   defaultVideoFormats?: readonly VideoFormat[] | null
   defaultBlurEnabled?: boolean
@@ -518,6 +525,7 @@ export function buildDefaultsPreviewUrl(bp: DefaultsPreviewParams): string {
   }
   params.push(`bs=${bp.defaultBadgeStyle ?? "shadow"}`)
   params.push(`rs=${bp.defaultRankingBadgeStyle ?? "default"}`)
+  params.push(`bfont=${bp.defaultBadgeFont ?? "inter"}`)
   params.push(`qbs=${bp.defaultQualityBadgeStyle === "mono" || bp.defaultQualityBadgeStyle === "color" ? bp.defaultQualityBadgeStyle : "standard"}`)
   if (bp.defaultVideoFormats !== undefined && bp.defaultVideoFormats !== null) {
     params.push(`formats=${bp.defaultVideoFormats.length === 0 ? "none" : bp.defaultVideoFormats.join(",")}`)

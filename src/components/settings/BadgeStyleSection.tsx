@@ -4,7 +4,7 @@ import { Palette } from "lucide-react"
 import { usePSelector } from "@/lib/context"
 import { useT } from "@/lib/contexts/TranslationContext"
 import { usePosterEditor } from "@/lib/contexts/PosterEditorContext"
-import { BadgeStyleSelector, VideoFormatSelector } from "@/components/ui"
+import { BadgeStyleSelector, VideoFormatSelector, BadgeFontSelector } from "@/components/ui"
 import { KNOWN_VIDEO_FORMATS } from "@/lib/av-specs"
 
 /** Stili grafici predefiniti (tab Badge). Estratto da SettingsPanel: solo JSX + context, nessuno stato locale. */
@@ -45,6 +45,18 @@ export function BadgeStyleSection() {
             ed.setDefaultBadgeStyle(v)
           }}
           t={t}
+        />
+      </div>
+
+      <div className="pt-2 border-t border-surface2/50 space-y-1.5">
+        <label className="text-[11px] text-muted font-medium block">
+          {t("ui.badgeFont")}
+        </label>
+        <BadgeFontSelector
+          value={ed.defaultBadgeFont}
+          onChange={(v) => {
+            ed.setDefaultBadgeFont(v)
+          }}
         />
       </div>
 

@@ -7,6 +7,17 @@ import { __resetKey401Cache } from "@/lib/tmdb"
 
 expect.extend(matchers)
 
+// next/font/google non gira fuori da Next (i webfont dei campioni del
+// selettore font badge): stub deterministico, solo className. Export
+// espliciti: vitest richiede forma statica (niente Proxy).
+vi.mock("next/font/google", () => {
+  const stub = (name: string) => () => ({ className: `mock-font-${name}` })
+  return {
+    Barlow_Condensed: stub("Barlow_Condensed"),
+    Oswald: stub("Oswald"),
+  }
+})
+
 // I test simulano un'istanza pubblica (route admin aperte senza ADMIN_TOKEN):
 // la modalità deve essere esplicita via POSTERIUM_PUBLIC_INSTANCE=1 (vedi auth.ts).
 process.env.POSTERIUM_PUBLIC_INSTANCE = "1"

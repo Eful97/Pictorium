@@ -236,6 +236,7 @@ export default function EditView() {
       qualityBadgeStyle: ed.qualityBadgeStyle,
       badgeStyle: ed.badgeStyle,
       rankingBadgeStyle: ed.rankingBadgeStyle,
+      badgeFont: ed.badgeFont,
       customBadge: ed.customBadge,
     },
     selectedMapping ?? null,

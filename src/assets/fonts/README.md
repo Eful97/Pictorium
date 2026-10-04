@@ -9,6 +9,8 @@ render dei poster (`src/lib/fonts.ts` → resvg) li legge da disco con
 | `Inter-Regular.ttf`, `Inter-Bold.ttf`, `Inter-Black.ttf` | Inter | SIL Open Font License 1.1 | Testo latino di tutti i badge (pesi 400/700/900) |
 | `NotoSansSymbols2-Regular.ttf` | Noto Sans Symbols 2 | SIL Open Font License 1.1 | Glifo stella ★ del badge genere |
 | `Rubik-Regular.ttf`, `Rubik-Bold.ttf`, `Rubik-Black.ttf` | Rubik | SIL Open Font License 1.1 | Testo ebraico e arabo: Inter non ha questi glifi |
+| `BarlowCondensed-Regular.ttf`, `BarlowCondensed-Bold.ttf`, `BarlowCondensed-Black.ttf` | Barlow Condensed (expo-google-fonts 0.4.1) | SIL Open Font License 1.1 | Selettore "Font dei badge" (pesi 400/700/900) |
+| `Oswald-Regular.ttf`, `Oswald-SemiBold.ttf`, `Oswald-Bold.ttf` | Oswald (expo-google-fonts 0.4.2) | SIL Open Font License 1.1 | Selettore "Font dei badge" (pesi 400/600/700; il 900 risolve sul Bold) |
 
 Rubik copre latino, ebraico e arabo. resvg fa fallback per-glifo sull'intero fontdb,
 quindi la sola presenza dei file evita i quadratini anche dove `font-family`

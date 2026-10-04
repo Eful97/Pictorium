@@ -97,7 +97,7 @@ export const POSTER_CACHE_ALLOWLIST: ReadonlySet<string> = new Set([
   "gscale", "gox", "goy", "qscale", "qox", "qoy", "netscale", "nox", "noy",
   "bscale", "box", "boy", "gradHeight", "blur", "bf", "bd", "voteAverage",
   "year", "rd", "fad", "mv", "fmt", "format", "shape", "align", "ac",
-  "tl", "bl", "bs", "rs", "ts", "dv",
+  "tl", "bl", "bs", "rs", "bfont", "ts", "dv",
   // Funzionali (letti dalla route / poster-config, mai stile libero).
   "badges", "ranking", "bg", "by", "br", "bq", "qbs", "ribbon", "cr", "sep", "netLogo", "netPos",
   "pre", "side", "hideLogo", "tint", "be", "preview", "u", "user",

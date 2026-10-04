@@ -3,9 +3,10 @@ import { FONT_FILES } from "./fonts"
 import { estimateTextWidth, fontFamilyFor, buildExtraPillSvg, buildExtraGlassSvg, buildExtraBorderedSvg, buildExtraDefaultSvg, buildQualityBadgeSvg, buildCustomBadgeSvg, escSvg, buildHouseGenreSvg, buildHouseRankingSvg, buildHousePresetSvg, TRANSLUCENT_BADGE_TEXT } from "./badge-svg-shared"
 export { buildNetflixRankBadgeSVG } from "./badge-svg-shared"
 import type { GenreParts, HousePresetScene } from "./badge-svg-shared"
+import { normalizeBadgeFont } from "./badge-svg-shared"
 import { resolveBadgeText, type BadgeVariableContext } from "./badge-variables"
 import { scaleBadgeDesign, type BadgePreset } from "./badge-preset"
-import type { BadgeStyle, RankingBadgeStyle, ExtraBadgeStyle } from "./badge-styles"
+import type { BadgeStyle, RankingBadgeStyle, ExtraBadgeStyle, BadgeFont } from "./badge-styles"
 import { isRibbonRankingStyle } from "./badge-styles"
 
 
@@ -51,15 +52,18 @@ export async function buildExtraBadgeSVG(
   accentColor?: string,
   /** Placca fluttuante con 4 angoli raccordati (badge staccato dal top via toy). */
   detached = false,
+  /** Font dei testi (default "inter" = resa storica). */
+  font: BadgeFont = "inter",
 ): Promise<{ png: Buffer; w: number; h: number } | null> {
   const s = badgeStyle || "default"
+  const f = normalizeBadgeFont(font)
   // Cap estetico per gli stili compatti: oltre il 65% di pw il testo si
   // rimpicciolisce (le label corte restano invariate).
   const maxBadgeW = Math.round(pw * 0.65)
   // Extra al 90% del badge ranking (base 30): a pari fs le label lunghe
   // ("Candidato Golden Globe") restano compatte rispetto ai rank.
   let finalFs = 30 * 0.9 * pw / 380
-  const projectedW = estimateTextWidth(label, finalFs) + Math.round(finalFs * 2) + Math.round(finalFs * 0.6) * 2
+  const projectedW = estimateTextWidth(label, finalFs, f) + Math.round(finalFs * 2) + Math.round(finalFs * 0.6) * 2
   if (projectedW > maxBadgeW) {
     finalFs = Math.max(maxBadgeW / projectedW * finalFs, 10)
   }
@@ -77,14 +81,14 @@ export async function buildExtraBadgeSVG(
 
   let result: { svg: string; w: number; h: number }
   if (s === "pill") {
-    result = buildExtraPillSvg(label, fs, fg, bg, !!topLight)
+    result = buildExtraPillSvg(label, fs, fg, bg, !!topLight, true, f)
   } else if (isGlass) {
-    result = buildExtraGlassSvg(label, fs, fg, bg, !!topLight)
+    result = buildExtraGlassSvg(label, fs, fg, bg, !!topLight, f)
   } else if (s === "bordo") {
-    result = buildExtraBorderedSvg(label, fs, fg, !!topLight)
+    result = buildExtraBorderedSvg(label, fs, fg, !!topLight, f)
   } else {
     // colored: passa la tinta accent come flatBg (resta piatta); default: gradiente satinato.
-    result = buildExtraDefaultSvg(label, fs, fg, bg, detached, !!topLight, isColored ? bg : undefined)
+    result = buildExtraDefaultSvg(label, fs, fg, bg, detached, !!topLight, isColored ? bg : undefined, f)
   }
   const png = await renderSVG(result.svg, result.w)
   return { png, w: result.w, h: result.h }
@@ -97,11 +101,13 @@ export async function buildGenreBadgeSVG(
   year?: string, style?: BadgeStyle, accentColor?: string, bottomLight?: boolean, parts?: GenreParts,
   /** Scala % applicata al font solo per lo stile barra (gli altri scalano via bitmap nel service). */
   scale = 100,
+  /** Font dei testi (default "inter" = resa storica). */
+  font: BadgeFont = "inter",
 ): Promise<{ png: Buffer; w: number; h: number } | null> {
   // Ricetta unica in badge-svg-shared (stessa del Badge Lab): qui solo resvg.
   const voteStr = voteAverage ? voteAverage.toFixed(1) : ""
   const yearStr = year || ""
-  const result = buildHouseGenreSvg({ genreName, voteStr, yearStr, pw, style, accentColor, bottomLight, parts, scale })
+  const result = buildHouseGenreSvg({ genreName, voteStr, yearStr, pw, style, accentColor, bottomLight, parts, scale, font })
   const png = await renderSVG(result.svg, result.w)
   return { png, w: result.w, h: result.h }
 }
@@ -110,8 +116,9 @@ export async function renderGenreBadge(
   genreName: string, voteAverage: number, pw: number,
   year?: string, style?: BadgeStyle, accentColor?: string, bottomLight?: boolean, parts?: GenreParts,
   scale = 100,
+  font: BadgeFont = "inter",
 ): Promise<{ png: Buffer; w: number; h: number }> {
-  const r = await buildGenreBadgeSVG(genreName, voteAverage, pw, year, style, accentColor, bottomLight, parts, scale)
+  const r = await buildGenreBadgeSVG(genreName, voteAverage, pw, year, style, accentColor, bottomLight, parts, scale, font)
   if (r) return r
   throw new Error(`SVG genre badge failed: ${genreName}`)
 }
@@ -133,11 +140,13 @@ export async function buildRankingBadgeSVG(
   accentFill = false,
   /** Sottotitolo del nastro classifica (stili ribbon); senza = nessun sottotitolo. */
   ribbonLabel?: string,
+  /** Font dei testi (default "inter" = resa storica). */
+  font: BadgeFont = "inter",
 ): Promise<{ png: Buffer; w: number; h: number } | null> {
   // Ricetta unica in badge-svg-shared (stessa del Badge Lab): qui solo resvg.
   // I nastri mostrano il sottotitolo periodo (`ribbonLabel`, es. "Oggi") o la
   // label passata per gli anime ("Anime"); senza = nastro senza sottotitolo.
-  const result = buildHouseRankingSvg({ rank, label: isRibbonRankingStyle(badgeStyle) ? (ribbonLabel ?? "") : label, pw, topLight, style: badgeStyle, accentColor, side, isAnime, detached, accentFill })
+  const result = buildHouseRankingSvg({ rank, label: isRibbonRankingStyle(badgeStyle) ? (ribbonLabel ?? "") : label, pw, topLight, style: badgeStyle, accentColor, side, isAnime, detached, accentFill, font })
   const png = await renderSVG(result.svg, result.w)
   return { png, w: result.w, h: result.h }
 }
@@ -150,8 +159,10 @@ export async function renderRankingBadge(
   accentFill = false,
   /** Sottotitolo del nastro classifica (stili ribbon); senza = nessun sottotitolo. */
   ribbonLabel?: string,
+  /** Font dei testi (default "inter" = resa storica). */
+  font: BadgeFont = "inter",
 ): Promise<{ png: Buffer; w: number; h: number }> {
-  const r = await buildRankingBadgeSVG(rank, pw, label, topLight, badgeStyle, accentColor, side, isAnime, detached, accentFill, ribbonLabel)
+  const r = await buildRankingBadgeSVG(rank, pw, label, topLight, badgeStyle, accentColor, side, isAnime, detached, accentFill, ribbonLabel, font)
   if (r) return r
   throw new Error(`SVG ranking badge failed: rank=${rank}`)
 }
@@ -160,8 +171,10 @@ export async function renderExtraBadge(
   label: string, pw: number, topLight?: boolean,
   badgeStyle?: ExtraBadgeStyle, accentColor?: string,
   detached = false,
+  /** Font dei testi (default "inter" = resa storica). */
+  font: BadgeFont = "inter",
 ): Promise<{ png: Buffer; w: number; h: number }> {
-  const r = await buildExtraBadgeSVG(label, pw, topLight, badgeStyle, accentColor, detached)
+  const r = await buildExtraBadgeSVG(label, pw, topLight, badgeStyle, accentColor, detached, font)
   if (r) return r
   throw new Error(`SVG extra badge failed: ${label}`)
 }
@@ -195,6 +208,8 @@ export async function renderComingSoonRibbon(
   label: string,
   pw: number,
   side: "left" | "right" = "left",
+  /** Font del testo (default "inter" = resa storica). */
+  font: BadgeFont = "inter",
 ): Promise<{ png: Buffer; w: number; h: number }> {
   const s = pw / 380
   const layout = comingSoonRibbonLayout(pw)
@@ -211,7 +226,7 @@ export async function renderComingSoonRibbon(
   // Tetto stretto (120, non tutta la banda): le parole lunghe
   // ("Prossimamente", "Prochainement"...) respirano invece di toccare i bordi.
   const maxTextW = Math.round(120 * s)
-  const textW = estimateTextWidth(text, fs)
+  const textW = estimateTextWidth(text, fs, normalizeBadgeFont(font))
   if (textW > maxTextW) {
     fs = Math.max(12, Math.floor((fs * maxTextW) / textW))
   }
@@ -228,7 +243,7 @@ export async function renderComingSoonRibbon(
     `</defs>` +
     `<g transform="translate(${cx},${c}) rotate(${rot})" filter="url(#csShadow)">` +
     `<rect x="${-half}" y="${Math.round(-bandH / 2)}" width="${half * 2}" height="${bandH}" fill="url(#csGrad)"/>` +
-    `<text x="0" y="${Math.round(1 * s)}" text-anchor="middle" dominant-baseline="central" font-family="${fontFamilyFor(text)}" font-weight="800" font-size="${fs}" fill="#ffffff" letter-spacing="0.05em">${escSvg(text)}</text>` +
+    `<text x="0" y="${Math.round(1 * s)}" text-anchor="middle" dominant-baseline="central" font-family="${fontFamilyFor(text, normalizeBadgeFont(font))}" font-weight="800" font-size="${fs}" fill="#ffffff" letter-spacing="0.05em">${escSvg(text)}</text>` +
     `</g></svg>`
   const png = await renderSVG(svg, CS)
   return { png, w: CS, h: CS }
@@ -238,12 +253,14 @@ export async function renderQualityBadge(
   quality: string,
   pw: number,
   topLight?: boolean,
+  /** Font del testo (default "inter" = resa storica). */
+  font: BadgeFont = "inter",
 ): Promise<{ png: Buffer; w: number; h: number }> {
   // Base 17px (calibrato sul 65% di 26): watermark bilanciato e sobrio in alto a destra, lo slider `qscale` parte da 100.
   const fs = Math.round(Math.max(17 * pw / 380, 10))
   const bg = topLight ? "rgba(0,0,0,0.80)" : "rgba(255,255,255,0.80)"
   const fg = topLight ? "rgba(255,255,255,0.80)" : "rgba(0,0,0,0.80)"
-  const result = buildQualityBadgeSvg(quality, fs, fg, bg, !!topLight)
+  const result = buildQualityBadgeSvg(quality, fs, fg, bg, !!topLight, normalizeBadgeFont(font))
   const png = await renderSVG(result.svg, result.w)
   return { png, w: result.w, h: result.h }
 }

@@ -2,7 +2,7 @@ import type { NextRequest } from "next/server"
 import { cacheGet, cacheGetStale, cacheSet } from "@/lib/cache"
 import { createLogger } from "@/lib/logger"
 import { envWithFallback } from "@/lib/env-compat"
-import { isBadgeStyle, isRankingBadgeStyle } from "@/lib/badge-styles"
+import { isBadgeStyle, isRankingBadgeStyle, isBadgeFont } from "@/lib/badge-styles"
 import { POSTER_CACHE_ALLOWLIST } from "./poster-params-hardening"
 
 const log = createLogger("poster-cache")
@@ -125,6 +125,14 @@ export function normalizePosterCacheParams(searchParams: URLSearchParams): URLSe
   const rs = params.get("rs")
   if (rs !== null && !isRankingBadgeStyle(rs)) {
     params.delete("rs")
+  }
+  const bfont = params.get("bfont")
+  if (bfont !== null && !isBadgeFont(bfont)) {
+    // Fail-closed con distinzione dall'assenza: un valore invalido rende come
+    // Inter, mentre l'assenza può ereditare un altro font da mapping/default.
+    // Cancellarlo collasserebbe le due chiavi e la prima richiesta
+    // avvelenerebbe le successive (stessa chiave, immagini diverse).
+    params.set("bfont", "inter")
   }
 
   return params

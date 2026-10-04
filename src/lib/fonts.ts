@@ -24,6 +24,12 @@ export const FONT_SYMBOLS = fontPath("NotoSansSymbols2-Regular.ttf")
 export const FONT_RUBIK_REGULAR = fontPath("Rubik-Regular.ttf")
 export const FONT_RUBIK_BOLD = fontPath("Rubik-Bold.ttf")
 export const FONT_RUBIK_BLACK = fontPath("Rubik-Black.ttf")
+export const FONT_BARLOW_REGULAR = fontPath("BarlowCondensed-Regular.ttf")
+export const FONT_BARLOW_BOLD = fontPath("BarlowCondensed-Bold.ttf")
+export const FONT_BARLOW_BLACK = fontPath("BarlowCondensed-Black.ttf")
+export const FONT_OSWALD_REGULAR = fontPath("Oswald-Regular.ttf")
+export const FONT_OSWALD_SEMIBOLD = fontPath("Oswald-SemiBold.ttf")
+export const FONT_OSWALD_BOLD = fontPath("Oswald-Bold.ttf")
 
 export const FONT_FILES = [
   FONT_INTER_REGULAR,
@@ -33,4 +39,10 @@ export const FONT_FILES = [
   FONT_RUBIK_REGULAR,
   FONT_RUBIK_BOLD,
   FONT_RUBIK_BLACK,
+  FONT_BARLOW_REGULAR,
+  FONT_BARLOW_BOLD,
+  FONT_BARLOW_BLACK,
+  FONT_OSWALD_REGULAR,
+  FONT_OSWALD_SEMIBOLD,
+  FONT_OSWALD_BOLD,
 ] as const

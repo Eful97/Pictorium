@@ -366,6 +366,31 @@ test.describe("poster API — functional", () => {
     expect(buffer.length).toBeGreaterThan(1000)
   })
 
+  test("badge font (bfont) — invalid falls back to inter byte-identical", async ({ request }) => {
+    // Parametro assente o non valido → Inter: gli URL esistenti non cambiano.
+    const base = { genreName: "Action", voteAverage: "7.8", badges: "1", ranking: "0" }
+    const defRes = await request.get(posterUrl(base))
+    expect(defRes.ok()).toBeTruthy()
+    const defBuffer = await defRes.body()
+    expect(defBuffer.length).toBeGreaterThan(1000)
+    const badRes = await request.get(posterUrl({ ...base, bfont: "bebas" }))
+    expect(badRes.ok()).toBeTruthy()
+    expect(Buffer.compare(defBuffer, await badRes.body())).toBe(0)
+  })
+
+  test("badge font barlow-condensed / oswald — valid images, different bytes", async ({ request }) => {
+    // Font diversi non condividono bitmap: i byte devono differire da Inter.
+    const base = { genreName: "Action", voteAverage: "7.8", badges: "1", ranking: "0" }
+    const defBuffer = await (await request.get(posterUrl(base))).body()
+    for (const bfont of ["barlow-condensed", "oswald"]) {
+      const res = await request.get(posterUrl({ ...base, bfont }))
+      expect(res.ok()).toBeTruthy()
+      const buffer = await res.body()
+      expect(buffer.length).toBeGreaterThan(1000)
+      expect(Buffer.compare(defBuffer, buffer)).not.toBe(0)
+    }
+  })
+
   test("full config — valid image", async ({ request }) => {
     const url = posterUrl({ genreName: "Action", voteAverage: "8.0", badges: "1", ranking: "1", rank: "5", label: "Top 5", bs: "pill", rs: "pill", gradHeight: "25", blur: "5", bf: "50", bd: "30" })
     const res = await request.get(url)
@@ -635,5 +660,38 @@ test.describe("poster API — visual regression", () => {
     const url = posterUrl({ backdrop: "/mocked/backdrop.jpg", shape: "landscape", genreName: "Action", voteAverage: "7.8", badges: "1", ranking: "0", imdbId: "tt0133093", sep: "1", rsrc: "imdb,tmdb,tomatoes" })
     const poster = await renderPoster(page, url)
     await expect(poster).toHaveScreenshot("poster-separate-ratings-landscape.png", { maxDiffPixelRatio: 0.10 })
+  })
+
+  test("badge font barlow-condensed pill — screenshot", async ({ page }) => {
+    const url = posterUrl({ genreName: "Fantascienza", voteAverage: "8.7", bs: "pill", bfont: "barlow-condensed", badges: "1", ranking: "0" })
+    const poster = await renderPoster(page, url)
+    await expect(poster).toHaveScreenshot("poster-font-barlow-pill.png", { maxDiffPixelRatio: 0.10 })
+  })
+
+  test("badge font oswald ranking TOP 10 with decimals — screenshot", async ({ page }) => {
+    // TOP 10 a due cifre + voto decimale nel badge genere.
+    const url = posterUrl({ genreName: "Action", voteAverage: "8.7", badges: "1", ranking: "1", rank: "10", label: "Top 10", rs: "pill", bfont: "oswald" })
+    const poster = await renderPoster(page, url)
+    await expect(poster).toHaveScreenshot("poster-font-oswald-rank.png", { maxDiffPixelRatio: 0.10 })
+  })
+
+  test("badge font oswald long accented extra label — screenshot", async ({ page }) => {
+    // Dicitura lunga con accenti latini (copertura latin-ext del font).
+    const url = posterUrl({ genreName: "Action", voteAverage: "7.8", badges: "1", ranking: "1", extra: "Premio speciale Città Proibita èéü", bfont: "oswald" })
+    const poster = await renderPoster(page, url)
+    await expect(poster).toHaveScreenshot("poster-font-oswald-extra.png", { maxDiffPixelRatio: 0.10 })
+  })
+
+  test("badge font oswald hebrew fallback (Rubik) — screenshot", async ({ page }) => {
+    // Oswald non ha glifi ebraici: il testo cade su Rubik allo stesso peso.
+    const url = posterUrl({ genreName: "Action", voteAverage: "7.8", badges: "1", ranking: "1", extra: "עונה חדשה", bfont: "oswald" })
+    const poster = await renderPoster(page, url)
+    await expect(poster).toHaveScreenshot("poster-font-oswald-hebrew.png", { maxDiffPixelRatio: 0.10 })
+  })
+
+  test("badge font barlow-condensed landscape — screenshot", async ({ page }) => {
+    const url = posterUrl({ backdrop: "/mocked/backdrop.jpg", shape: "landscape", genreName: "Action", voteAverage: "8.7", badges: "1", ranking: "0", bfont: "barlow-condensed" })
+    const poster = await renderPoster(page, url)
+    await expect(poster).toHaveScreenshot("poster-font-barlow-landscape.png", { maxDiffPixelRatio: 0.10 })
   })
 })

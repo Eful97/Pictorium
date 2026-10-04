@@ -35,7 +35,9 @@ import type { ServerDefaults } from "./server-defaults"
 import type { WikidataResult } from "./awards"
 import { directorBadgeLabel } from "./awards"
 import type { BadgeT } from "./poster-badge"
+import type { BadgeFont } from "./badge-styles"
 import { isRibbonRankingStyle, type BadgeStyle, type RankingBadgeStyle } from "./badge-styles"
+import { normalizeBadgeFont } from "./badge-svg-shared"
 import type { PosterImageFormat } from "@/lib/poster-runtime-cache"
 import { getPresetForUser } from "./badge-preset-store"
 import type { BadgePreset } from "./badge-preset"
@@ -111,6 +113,8 @@ export interface GenerationInput {
   badgeRating: boolean
   badgeQuality?: boolean
   quality?: string | null
+  /** Font dei testi badge ("inter" = resa storica; i preset custom/house e i loghi restano invariati). */
+  badgeFont?: BadgeFont | null
   /** Stile icone del badge qualità (standard = pill testuale). */
   qualityBadgeStyle?: QualityBadgeStyle | null
   /** Formati A/V da affiancare alla qualità (dv, atmos, imax, hdr, hdr10plus). */
@@ -483,6 +487,8 @@ export async function renderQualityBadgeGroup(
   videoFormats: readonly VideoFormat[] | null | undefined,
   pw: number,
   topLight?: boolean,
+  /** Font della pill testuale (default "inter" = resa storica; le icone mono/color restano invariate). */
+  font: BadgeFont = "inter",
 ): Promise<{ png: Buffer; w: number; h: number } | null> {
   const qualityIconPath = qualityBadgeIconPath(qualityBadgeStyle, quality)
   let resBadge: { png: Buffer; w: number; h: number } | null = null
@@ -490,7 +496,7 @@ export async function renderQualityBadgeGroup(
     resBadge = await renderQualityIconBadge(qualityIconPath, pw, topLight)
   }
   if (!resBadge) {
-    resBadge = await renderQualityBadge(quality, pw, topLight)
+    resBadge = await renderQualityBadge(quality, pw, topLight, normalizeBadgeFont(font))
   }
   if (!resBadge) return null
   if (!videoFormats || videoFormats.length === 0) return resBadge
@@ -670,7 +676,7 @@ async function loadNetworkLogoForPillUncached(networkKey: string, targetH: numbe
   } catch { return null }
 }
 
-export async function renderCombinedRankNetworkPill(rank: number, label: string, networkKey: string, pw: number, topLight: boolean, _accentColor: string | undefined, _isAnime: boolean | undefined): Promise<{ png: Buffer; w: number; h: number } | null> {
+export async function renderCombinedRankNetworkPill(rank: number, label: string, networkKey: string, pw: number, topLight: boolean, _accentColor: string | undefined, _isAnime: boolean | undefined, font: BadgeFont = "inter"): Promise<{ png: Buffer; w: number; h: number } | null> {
   const fs = Math.round(Math.max(20 * pw / 380, 13))
   const px = Math.round(fs * 0.75)
   const pt = Math.round(fs * 0.35)
@@ -678,7 +684,8 @@ export async function renderCombinedRankNetworkPill(rank: number, label: string,
   const bg = topLight ? "rgba(0,0,0,0.80)" : "rgba(255,255,255,0.80)"
   const fg = topLight ? "rgba(255,255,255,0.95)" : "rgba(0,0,0,0.88)"
   const text = `#${rank} ${label}`
-  const textW = estimateTextWidth(text, fs)
+  const f = normalizeBadgeFont(font)
+  const textW = estimateTextWidth(text, fs, f)
   const netTargetH = Math.round(fs * 0.55)
   const netLogo = await loadNetworkLogoForPill(networkKey, netTargetH, fg)
   if (!netLogo) return null
@@ -689,7 +696,7 @@ export async function renderCombinedRankNetworkPill(rank: number, label: string,
   const textY = pt + fs / 2
   const logoY = pt + fs + gap + netLogo.h / 2
   const logoX = Math.round((pillW - netLogo.w) / 2)
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${pillW}" height="${pillH}"><rect width="${pillW}" height="${pillH}" rx="${r}" fill="${bg}" stroke="${topLight ? "rgba(0,0,0,0.15)" : "rgba(255,255,255,0.20)"}" stroke-width="1"/><text x="${pillW / 2}" y="${textY}" text-anchor="middle" dominant-baseline="central" font-family="${fontFamilyFor(text)}" font-weight="700" font-size="${fs}" fill="${fg}">${escSvg(text)}</text><image href="data:image/png;base64,${netLogo.png.toString("base64")}" x="${logoX}" y="${Math.round(logoY - netLogo.h / 2)}" width="${netLogo.w}" height="${netLogo.h}"/></svg>`
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${pillW}" height="${pillH}"><rect width="${pillW}" height="${pillH}" rx="${r}" fill="${bg}" stroke="${topLight ? "rgba(0,0,0,0.15)" : "rgba(255,255,255,0.20)"}" stroke-width="1"/><text x="${pillW / 2}" y="${textY}" text-anchor="middle" dominant-baseline="central" font-family="${fontFamilyFor(text, f)}" font-weight="700" font-size="${fs}" fill="${fg}">${escSvg(text)}</text><image href="data:image/png;base64,${netLogo.png.toString("base64")}" x="${logoX}" y="${Math.round(logoY - netLogo.h / 2)}" width="${netLogo.w}" height="${netLogo.h}"/></svg>`
   // Render via resvg (stesso path degli altri badge — renderSVG hoisted)
   const png = await renderSVG(svg, pillW)
   return { png, w: pillW, h: pillH }
@@ -712,14 +719,15 @@ export async function renderNetworkOnlyLargePill(networkKey: string, pw: number,
   return { png, w: pillW, h: pillH }
 }
 
-export async function renderCombinedExtraNetworkPill(label: string, networkKey: string, pw: number, topLight: boolean): Promise<{ png: Buffer; w: number; h: number } | null> {
+export async function renderCombinedExtraNetworkPill(label: string, networkKey: string, pw: number, topLight: boolean, font: BadgeFont = "inter"): Promise<{ png: Buffer; w: number; h: number } | null> {
   const fs = Math.round(Math.max(20 * pw / 380, 13))
   const px = Math.round(fs * 0.75)
   const pt = Math.round(fs * 0.35)
   const gap = Math.round(fs * 0.25)
   const bg = topLight ? "rgba(0,0,0,0.80)" : "rgba(255,255,255,0.80)"
   const fg = topLight ? "rgba(255,255,255,0.95)" : "rgba(0,0,0,0.88)"
-  const textW = estimateTextWidth(label, fs)
+  const f = normalizeBadgeFont(font)
+  const textW = estimateTextWidth(label, fs, f)
   const netTargetH = Math.round(fs * 0.55)
   const netLogo = await loadNetworkLogoForPill(networkKey, netTargetH, fg)
   if (!netLogo) return null
@@ -730,7 +738,7 @@ export async function renderCombinedExtraNetworkPill(label: string, networkKey: 
   const textY = pt + fs / 2
   const logoX = Math.round((pillW - netLogo.w) / 2)
   const logoY = pt + fs + gap + netLogo.h / 2
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${pillW}" height="${pillH}"><rect width="${pillW}" height="${pillH}" rx="${r}" fill="${bg}" stroke="${topLight ? "rgba(0,0,0,0.15)" : "rgba(255,255,255,0.20)"}" stroke-width="1"/><text x="${pillW / 2}" y="${textY}" text-anchor="middle" dominant-baseline="central" font-family="${fontFamilyFor(label)}" font-weight="700" font-size="${fs}" fill="${fg}">${escSvg(label)}</text><image href="data:image/png;base64,${netLogo.png.toString("base64")}" x="${logoX}" y="${Math.round(logoY - netLogo.h / 2)}" width="${netLogo.w}" height="${netLogo.h}"/></svg>`
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${pillW}" height="${pillH}"><rect width="${pillW}" height="${pillH}" rx="${r}" fill="${bg}" stroke="${topLight ? "rgba(0,0,0,0.15)" : "rgba(255,255,255,0.20)"}" stroke-width="1"/><text x="${pillW / 2}" y="${textY}" text-anchor="middle" dominant-baseline="central" font-family="${fontFamilyFor(label, f)}" font-weight="700" font-size="${fs}" fill="${fg}">${escSvg(label)}</text><image href="data:image/png;base64,${netLogo.png.toString("base64")}" x="${logoX}" y="${Math.round(logoY - netLogo.h / 2)}" width="${netLogo.w}" height="${netLogo.h}"/></svg>`
   const png = await renderSVG(svg, pillW)
   return { png, w: pillW, h: pillH }
 }
@@ -877,6 +885,8 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
   // con alto chiaro e fondo scuro la pill restava grafite su nero). Chiamanti
   // vecchi/test diretti che non passano bottomLight ricadono sul top.
   const bottomLight = bottomLightOpt ?? topLight
+  // Font badge normalizzato (assente/invalido → "inter" = resa storica).
+  const badgeFont = normalizeBadgeFont(input.badgeFont)
 
   // Dimensioni canvas: portrait (default, byte-identico al passato) o
   // landscape 16:9 (prova ?shape=landscape, base = backdrop TMDB).
@@ -1192,17 +1202,17 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
   const isRankDetached = !!topBadge && !isRankNetflixRibbonStyle && topBadgeOffsetY !== 0
 
   const genreBadgeKey = hasGenreBadge
-    ? badgeCacheKey("genre", genreName, voteAverage, CW, year, badgeStyle, accentColorGenre, bottomLight, badgeGenre, badgeYear, badgeRating, genreBadgeScale)
+    ? badgeCacheKey("genre", genreName, voteAverage, CW, year, badgeStyle, badgeFont, accentColorGenre, bottomLight, badgeGenre, badgeYear, badgeRating, genreBadgeScale)
     : null
   const rankBadgeKey = !showComingSoon && topBadge
-    ? badgeCacheKey("rank", topBadge.type === "extra" ? topBadge.label : `${(topBadge as { rank: number }).rank}:${topBadge!.label}:${(topBadge as { ribbonLabel?: string }).ribbonLabel ?? ""}`, CW, topLight, rankingBadgeStyle, accentColorRank, ribbonSide, isAnimeRank, topBadgeScale, isRankDetached ? "detached" : undefined, rankingBadgeAccent ? "accent" : undefined)
+    ? badgeCacheKey("rank", topBadge.type === "extra" ? topBadge.label : `${(topBadge as { rank: number }).rank}:${topBadge!.label}:${(topBadge as { ribbonLabel?: string }).ribbonLabel ?? ""}`, CW, topLight, rankingBadgeStyle, badgeFont, accentColorRank, ribbonSide, isAnimeRank, topBadgeScale, isRankDetached ? "detached" : undefined, rankingBadgeAccent ? "accent" : undefined)
     : null
   const formatsKey = (videoFormats && videoFormats.length > 0) ? videoFormats.join(",") : "none"
   const qualityBadgeKey = hasQualityBadge
-    ? badgeCacheKey("quality", quality, CW, topLight, qualityBadgeScale, qualityIconPath ?? "std", formatsKey)
+    ? badgeCacheKey("quality", quality, CW, topLight, badgeFont, qualityBadgeScale, qualityIconPath ?? "std", formatsKey)
     : null
   const comingSoonKey = showComingSoon
-    ? badgeCacheKey("comingsoon", comingSoonLabel, CW, topLight, ribbonSide)
+    ? badgeCacheKey("comingsoon", comingSoonLabel, CW, badgeFont, topLight, ribbonSide)
     : null
 
   // Badge preset custom (?badgePreset=<id>&prv=<rev>): il design sostituisce
@@ -1235,7 +1245,7 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
     genreBadgeKey
       ? (cacheGet<{ png: Buffer; w: number; h: number }>(genreBadgeKey)
           || coalesceBadgeRender(genreBadgeKey, () =>
-                renderGenreBadge(genreName ?? "", voteAverage ?? 0, badgePw, year, badgeStyle, accentColorGenre, bottomLight, { showGenre: badgeGenre, showYear: badgeYear, showRating: badgeRating }, badgeStyle === "bar" ? genreBadgeScale : 100)
+                renderGenreBadge(genreName ?? "", voteAverage ?? 0, badgePw, year, badgeStyle, accentColorGenre, bottomLight, { showGenre: badgeGenre, showYear: badgeYear, showRating: badgeRating }, badgeStyle === "bar" ? genreBadgeScale : 100, badgeFont)
                 .then((r) => { if (r) cacheSet(genreBadgeKey, r, ["badge"], BADGE_CACHE_TTL); return r })
             ))
       : Promise.resolve(null)
@@ -1246,10 +1256,10 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
               if (topBadge!.type === "extra") {
                 // Senza nastro il "colored" colora il badge default (il builder
                 // extra centra già di suo con tinta accent: stesso contratto).
-                return renderExtraBadge(topBadge!.label, topBadgePw, topLight, rankingBadgeAccent ? "colored" : rankingBadgeStyle, accentColorRank, isRankDetached)
+                return renderExtraBadge(topBadge!.label, topBadgePw, topLight, rankingBadgeAccent ? "colored" : rankingBadgeStyle, accentColorRank, isRankDetached, badgeFont)
                   .then((r) => { const v = { ...r, isRank: false }; cacheSet(rankBadgeKey, v, ["badge"], BADGE_CACHE_TTL); return v })
               }
-              return renderRankingBadge((topBadge as { rank: number }).rank, isRibbonRankingStyle(rankingBadgeStyle) ? badgePw : topBadgePw, topBadge!.label, topLight, rankingBadgeStyle, accentColorRank, ribbonSide, isAnimeRank, isRankDetached, rankingBadgeAccent, (topBadge as { ribbonLabel?: string }).ribbonLabel)
+              return renderRankingBadge((topBadge as { rank: number }).rank, isRibbonRankingStyle(rankingBadgeStyle) ? badgePw : topBadgePw, topBadge!.label, topLight, rankingBadgeStyle, accentColorRank, ribbonSide, isAnimeRank, isRankDetached, rankingBadgeAccent, (topBadge as { ribbonLabel?: string }).ribbonLabel, badgeFont)
                 .then((r) => { const v = { ...r, isRank: true }; cacheSet(rankBadgeKey, v, ["badge"], BADGE_CACHE_TTL); return v })
             }))
       : Promise.resolve(null)
@@ -1301,7 +1311,7 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
     qualityBadgeKey
       ? (cacheGet<{ png: Buffer; w: number; h: number }>(qualityBadgeKey)
           || coalesceBadgeRender(qualityBadgeKey, async () => {
-              const res = await renderQualityBadgeGroup(quality!, qualityBadgeStyle, videoFormats, badgePw, topLight)
+              const res = await renderQualityBadgeGroup(quality!, qualityBadgeStyle, videoFormats, badgePw, topLight, badgeFont)
               if (res) cacheSet(qualityBadgeKey, res, ["badge"], BADGE_CACHE_TTL)
               return res
             }))
@@ -1309,7 +1319,7 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
     comingSoonKey
       ? (cacheGet<{ png: Buffer; w: number; h: number }>(comingSoonKey)
           || coalesceBadgeRender(comingSoonKey, () =>
-              renderComingSoonRibbon(comingSoonLabel, badgePw, ribbonSide === "right" ? "right" : "left")
+              renderComingSoonRibbon(comingSoonLabel, badgePw, ribbonSide === "right" ? "right" : "left", badgeFont)
                 .then((r) => { if (r) cacheSet(comingSoonKey, r, ["badge"], BADGE_CACHE_TTL); return r })
             ))
       : Promise.resolve(null),
@@ -1404,12 +1414,12 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
       // divergono con shrink overflow e metriche dei font).
       let sepCenterShift = 0
       if (anchorRight && !useGenrePreset && genreBadgeResult && (input.separateRatings?.length ?? 0) > 0) {
-        const fullKey = badgeCacheKey("genre", genreName, voteAverage, CW, year, badgeStyle, accentColorGenre, bottomLight, badgeGenre, badgeYear, true, genreBadgeScale)
+        const fullKey = badgeCacheKey("genre", genreName, voteAverage, CW, year, badgeStyle, badgeFont, accentColorGenre, bottomLight, badgeGenre, badgeYear, true, genreBadgeScale)
         const fullHit = cacheGet<{ png: Buffer; w: number; h: number }>(fullKey)
         const fullW = fullHit
           ? fullHit.w
           : await coalesceBadgeRender(fullKey, () =>
-              renderGenreBadge(genreName ?? "", voteAverage ?? 0, badgePw, year, badgeStyle, accentColorGenre, bottomLight, { showGenre: badgeGenre, showYear: badgeYear, showRating: true }, 100)
+              renderGenreBadge(genreName ?? "", voteAverage ?? 0, badgePw, year, badgeStyle, accentColorGenre, bottomLight, { showGenre: badgeGenre, showYear: badgeYear, showRating: true }, 100, badgeFont)
                 .then((r) => { if (r) cacheSet(fullKey, r, ["badge"], BADGE_CACHE_TTL); return r }),
             ).then((r) => (r ? r.w : null), () => null)
         if (fullW != null && fullW > genreBadgeResult.w) {
@@ -1464,7 +1474,7 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
   if (input.ratings?.length) {
     // Optional enrichment must never prevent the original poster from rendering.
     // La riga sta sopra il badge genere, in basso: stessa polarità del fondo.
-    const row = await renderMultiRatings(input.ratings, CW - 40, bottomLight).catch(() => null)
+    const row = await renderMultiRatings(input.ratings, CW - 40, bottomLight, badgeFont).catch(() => null)
     if (row) {
       const legacyTop = safeGenreBadgeResult
         ? (badgeStyle === "bar" ? CH - safeGenreBadgeResult.h
@@ -1880,10 +1890,10 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
       : ((isRibbonRankingStyle(rankingBadgeStyle) && ribbonSide === "right" && topBadge?.type === "rank" && !!finalRankBadge)
         || (showComingSoon && ribbonSide === "right" && !!ribbonLayout))
     const stackTop = qualityStackAnchor ? qualityStackAnchor.top + 6 : netBaseTop - 10
-    const stackKey = badgeCacheKey("separate", items.map((i) => `${i.id}${i.value}`).join(","), CW, topLight)
+    const stackKey = badgeCacheKey("separate", items.map((i) => `${i.id}${i.value}`).join(","), CW, badgeFont, topLight)
     const cached = cacheGet<{ png: Buffer; w: number; h: number }>(stackKey)
     const stack = cached ?? await coalesceBadgeRender(stackKey, () =>
-      renderSeparateRatingStack(items, badgePw, topLight)
+      renderSeparateRatingStack(items, badgePw, topLight, badgeFont)
         .then((r) => { if (r) cacheSet(stackKey, r, ["badge"], BADGE_CACHE_TTL); return r })
     )
     const fitted = stack ? await fitBadgeToCanvas(stack, CW, CH) : null

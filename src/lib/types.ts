@@ -1,4 +1,4 @@
-import type { BadgeStyle, RankingBadgeStyle, QualityBadgeStyle } from "./badge-styles"
+import type { BadgeStyle, RankingBadgeStyle, QualityBadgeStyle, BadgeFont } from "./badge-styles"
 import type { VideoFormat } from "./av-specs"
 /** Formato canvas del poster: verticale standard o orizzontale 16:9 (Nuvio). */
 export type PosterShape = "poster" | "landscape"
@@ -146,6 +146,8 @@ export interface Mapping {
   wikidataId?: string | null
   badgeStyle?: BadgeStyle | null
   rankingBadgeStyle?: RankingBadgeStyle | null
+  /** Font dei testi badge per-titolo ("inter" = resa storica). */
+  badgeFont?: BadgeFont | null
   /** Stile icone del badge qualità per-titolo (standard = pill testuale). */
   qualityBadgeStyle?: QualityBadgeStyle | null
   /** Formati A/V abilitati per il badge qualità (dv, hdr, hdr10plus, atmos, imax). */
