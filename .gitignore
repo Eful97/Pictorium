@@ -107,3 +107,6 @@ skills-lock.json
 .probe-*
 .od-probe-*
 
+# review artifacts locali (log, png, zip, audit rigenerabili — mai nel repo)
+/artifacts/
+
