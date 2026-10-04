@@ -5,7 +5,7 @@ import path from "node:path"
 import { DATA_DIR } from "@/lib/data-dir"
 import { createLogger } from "@/lib/logger"
 import { getJWRankings, getJWTitles, PLATFORM_JW_PACKAGES, type JWRankEntry } from "@/lib/justwatch"
-import { flixSlugToRegionCode, getRegionDef } from "@/lib/regions"
+import { flixSlugToRegionCode, getRegionDef, GLOBAL_REGION } from "@/lib/regions"
 import { timedFetch } from "./outbound-stats"
 
 const log = createLogger("flixpatrol")
@@ -227,7 +227,8 @@ export async function getTop10(platformSlug: string, country = "italy", apiKey?:
   // Fail-closed: un paese fuori dalla lista non viene mai cercato su disco,
   // in cache o su rete — evitiamo sia URL arbitrari (path traversal) sia il
   // vecchio comportamento che restituiva sempre dati italiani.
-  if (!SUPPORTED_COUNTRIES.has(country)) {
+  const globalChart = country === GLOBAL_REGION.flixSlug
+  if (!globalChart && !SUPPORTED_COUNTRIES.has(country)) {
     throw new Error(`Unsupported country: ${country}`)
   }
   // C6: enrich:false → nessuna chiamata TMDB per titolo (il catalogo Stremio
@@ -238,8 +239,8 @@ export async function getTop10(platformSlug: string, country = "italy", apiKey?:
   const pkgs = PLATFORM_JW_PACKAGES[platformSlug]
   // Fast-path JustWatch nella stessa regione del paese richiesto (prima solo
   // Italia): la classifica JW è live, il catalogo disco è il fallback.
-  const jwCode = flixSlugToRegionCode(country)
-  const tmdbLang = tmdbLangForCountry(country)
+  const jwCode = globalChart ? GLOBAL_REGION.code : flixSlugToRegionCode(country)
+  const tmdbLang = globalChart ? GLOBAL_REGION.lang : tmdbLangForCountry(country)
   if (jwCode && pkgs) {
     try {
       let [jwMovies, jwShows] = await Promise.all([
@@ -248,7 +249,7 @@ export async function getTop10(platformSlug: string, country = "italy", apiKey?:
       ])
       // Se la classifica giornaliera JustWatch è scarsa (<5 titoli, es. RaiPlay),
       // arricchisce/ripiega sui titoli più popolari della piattaforma per garantire 10 voci.
-      if (jwMovies.length < 5) {
+      if (!globalChart && jwMovies.length < 5) {
         try {
           const popMovies = await getJWTitles({
             objectType: "MOVIE",
@@ -268,7 +269,7 @@ export async function getTop10(platformSlug: string, country = "italy", apiKey?:
           }
         } catch {}
       }
-      if (jwShows.length < 5) {
+      if (!globalChart && jwShows.length < 5) {
         try {
           const popShows = await getJWTitles({
             objectType: "SHOW",
@@ -329,6 +330,9 @@ export async function getTop10(platformSlug: string, country = "italy", apiKey?:
       log.error("JustWatch platform fetch failed, falling back to disk catalog", { error: e instanceof Error ? e.message : String(e), platform: platformSlug })
     }
   }
+
+  // No worldwide fp-crawler catalog exists: never fill global ranks with national data.
+  if (globalChart) return { platform: platformSlug, platformName, country, movies: [], tv: [] }
 
   const now = Date.now()
   const FOUR_HOURS = 4 * 60 * 60 * 1000

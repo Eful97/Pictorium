@@ -3,6 +3,7 @@ import { getTop10, getSupportedPlatforms, getSupportedCountries } from "@/lib/fl
 import { resolveRouteApiKey } from "@/lib/tmdb"
 import { rateLimit, rateLimitKey, rateLimitResponse } from "@/lib/rate-limit"
 import { createLogger } from "@/lib/logger"
+import { GLOBAL_REGION } from "@/lib/regions"
 
 const log = createLogger("flixpatrol-api")
 
@@ -16,7 +17,7 @@ export async function GET(req: NextRequest) {
   if (!valid) {
     return Response.json({ error: `Unknown platform: ${platform}` }, { status: 400 })
   }
-  if (!getSupportedCountries().includes(country)) {
+  if (country !== GLOBAL_REGION.flixSlug && !getSupportedCountries().includes(country)) {
     return Response.json({ error: `Unknown country: ${country}` }, { status: 400 })
   }
   try {

@@ -2,6 +2,7 @@ import { describe, it, expect, vi } from "vitest"
 import { screen } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { LangPicker } from "@/components/LangPicker"
+import { PrefsPanel } from "@/components/settings/PrefsPanel"
 import { renderWithCtx } from "@/__tests__/test-utils"
 
 function renderWizard() {
@@ -15,13 +16,25 @@ function renderWizard() {
 }
 
 describe("SetupWizard", () => {
-  it("mostra le 13 nazionalita al passo lingua", () => {
+  it("puts selectable global rankings first in the preferences dropdown", async () => {
+    const user = userEvent.setup()
+    renderWithCtx(<PrefsPanel active />)
+    const select = screen.getByRole("combobox", { name: "ui.region" }) as HTMLSelectElement
+    expect(select.options[0].value).toBe("GLOBAL")
+    expect(select.options[0].textContent).toContain("ui.regionGlobal")
+    await user.selectOptions(select, "GLOBAL")
+    expect(select.value).toBe("GLOBAL")
+  })
+
+  it("mostra le lingue UI al passo lingua", () => {
     renderWizard()
-    // 13 voci lingua (una per nazionalita) + tasto back assente al passo 1
-    expect(screen.getByText("Italia · Italiano")).toBeInTheDocument()
-    expect(screen.getByText("USA · English")).toBeInTheDocument()
-    expect(screen.getByText("Messico · Español (México)")).toBeInTheDocument()
-    expect(screen.getByText("Giappone · 日本語")).toBeInTheDocument()
+    // 17 voci lingua UI (incl. Tiếng Việt, senza regione chart) + tasto back assente al passo 1
+    expect(screen.getByText("Italiano")).toBeInTheDocument()
+    expect(screen.getByText("English")).toBeInTheDocument()
+    expect(screen.getByText("Tiếng Việt")).toBeInTheDocument()
+    expect(screen.getAllByRole("button")).toHaveLength(17)
+    // Lo step lingua non accoppia più paese e lingua (vi non ha regione chart)
+    expect(screen.queryByText("USA · English")).not.toBeInTheDocument()
     expect(screen.queryByText("ui.back")).not.toBeInTheDocument()
   })
 
@@ -29,7 +42,7 @@ describe("SetupWizard", () => {
     const user = userEvent.setup()
     const { onPickLang, onPickRegion, onDone } = renderWizard()
 
-    await user.click(screen.getByText("USA · English"))
+    await user.click(screen.getByText("English"))
     expect(onPickLang).toHaveBeenCalledWith("en")
     // Passo regione: titolo tradotto (mock) + voci paese, senza doppioni lingua
     expect(screen.getByText("ui.setupRegionTitle")).toBeInTheDocument()
@@ -44,14 +57,26 @@ describe("SetupWizard", () => {
     expect(onDone).toHaveBeenCalledTimes(1)
   })
 
+  it("offers global charts first at the region step", async () => {
+    const user = userEvent.setup()
+    const { onPickRegion } = renderWizard()
+    await user.click(screen.getByText("Tiếng Việt"))
+    const global = screen.getByRole("button", { name: /ui.regionGlobal/ })
+    const regionButtons = screen.getAllByRole("button").filter((button) => button.textContent?.includes("GLOBAL") || button.textContent?.includes("Italia"))
+    expect(regionButtons[0]).toBe(global)
+    await user.click(global)
+    expect(onPickRegion).toHaveBeenCalledWith("GLOBAL")
+  })
+
   it("il tasto indietro torna alla lingua senza completare", async () => {
     const user = userEvent.setup()
     const { onPickLang, onPickRegion, onDone } = renderWizard()
 
-    await user.click(screen.getByText("Francia · Français"))
+    await user.click(screen.getByText("Français"))
     expect(onPickLang).toHaveBeenCalledWith("fr")
     await user.click(screen.getByText("Indietro"))
-    expect(screen.getByText("Italia · Italiano")).toBeInTheDocument()
+    expect(screen.getByText("Italiano")).toBeInTheDocument()
+    expect(screen.getByText("Tiếng Việt")).toBeInTheDocument()
     expect(onPickRegion).not.toHaveBeenCalled()
     expect(onDone).not.toHaveBeenCalled()
   })
@@ -60,7 +85,7 @@ describe("SetupWizard", () => {
     const user = userEvent.setup()
     const { onDone } = renderWizard()
 
-    await user.click(screen.getByText("USA · English"))
+    await user.click(screen.getByText("English"))
     await user.click(screen.getByText("Italia"))
     expect(screen.getByText("Proteggi il tuo pannello")).toBeInTheDocument()
 
@@ -78,7 +103,7 @@ describe("SetupWizard", () => {
       <LangPicker onPickLang={onPickLang} onPickRegion={onPickRegion} onDone={onDone} skipPin={true} />
     )
 
-    await user.click(screen.getByText("USA · English"))
+    await user.click(screen.getByText("English"))
     expect(onPickLang).toHaveBeenCalledWith("en")
 
     await user.click(screen.getByText("Giappone"))

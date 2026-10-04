@@ -29,6 +29,28 @@ function makeCatalog(prefix: string): unknown {
 }
 
 describe("flixpatrol country support (D7)", () => {
+  it("uses global platform ranks without filling short charts with national titles", async () => {
+    vi.resetModules()
+    process.env.POSTERIUM_DATA_DIR = tmpDir
+    const fetchSpy = vi.fn(async (_url: unknown, init?: RequestInit) => {
+      const request = JSON.parse(String(init?.body))
+      expect(request.variables.countryStreamingCharts).toBeNull()
+      expect(request.variables.country).toBe("US")
+      expect(request.variables.filter.packages).toContain("nfx")
+      return new Response(JSON.stringify({ data: { streamingCharts: { edges: [{
+        streamingChartInfo: { rank: 1 },
+        node: { content: { title: "Global title", externalIds: { tmdbId: 550, imdbId: "tt0137523" } } },
+      }] } } }))
+    })
+    vi.stubGlobal("fetch", fetchSpy)
+    const { getTop10 } = await import("@/lib/flixpatrol")
+    const data = await getTop10("netflix", "global", undefined, { enrich: false })
+    expect(data.country).toBe("global")
+    expect(data.movies).toHaveLength(1)
+    expect(data.tv).toHaveLength(1)
+    expect(fetchSpy).toHaveBeenCalledTimes(2)
+  })
+
   afterEach(() => {
     vi.unstubAllGlobals()
   })

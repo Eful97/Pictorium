@@ -3,6 +3,10 @@ import {
   DEFAULT_REGION,
   REGIONS,
   SUPPORTED_UI_LANGS,
+  UI_LANG_META,
+  CHART_REGIONS,
+  GLOBAL_REGION_CODE,
+  contentLanguageForUiLang,
   defaultRegionForLang,
   flixSlugToRegionCode,
   getRegionDef,
@@ -11,9 +15,25 @@ import {
   parseRegion,
   regionToFlixSlug,
 } from "@/lib/regions"
-import { PICKER_LANGS } from "@/lib/utils"
+import { PICKER_LANGS, UI_LANGUAGES } from "@/lib/utils"
 
 describe("regions", () => {
+  it("puts global charts first and preserves their selection across UI languages", () => {
+    expect(CHART_REGIONS[0].code).toBe(GLOBAL_REGION_CODE)
+    expect(CHART_REGIONS.slice(1)).toEqual(REGIONS)
+    expect(parseRegion("global")).toBe(GLOBAL_REGION_CODE)
+    expect(normalizeRegion("GLOBAL")).toBe(GLOBAL_REGION_CODE)
+    expect(getRegionDef("GLOBAL")).toMatchObject({ code: "GLOBAL", flag: "🌐", flixSlug: "global" })
+    expect(defaultRegionForLang("fr", "GLOBAL")).toBe("GLOBAL")
+    expect(defaultRegionForLang("vi", "GLOBAL")).toBe("GLOBAL")
+  })
+  it("localizes poster content without changing the chart country", () => {
+    expect(contentLanguageForUiLang("vi", "IT")).toBe("vi")
+    expect(contentLanguageForUiLang("fr", "US")).toBe("fr")
+    expect(contentLanguageForUiLang("es", "MX")).toBe("es-MX")
+    expect(contentLanguageForUiLang("en", "GB")).toBe("en-GB")
+    expect(contentLanguageForUiLang("invalid", "IT")).toBe("it-IT")
+  })
   it("exposes 22 regions with unique codes and slugs", () => {
     expect(REGIONS).toHaveLength(22)
     expect(new Set(REGIONS.map((r) => r.code)).size).toBe(22)
@@ -108,13 +128,43 @@ describe("regions", () => {
   })
 
   it("supports only the picker UI languages", () => {
-    expect(SUPPORTED_UI_LANGS).toEqual(["it", "pl", "en", "fr", "de", "es", "he", "ja", "ko", "pt", "cs", "ro", "ar", "tr", "nl", "sv"])
-    for (const l of ["it", "pl", "en", "fr", "de", "es", "he", "ja", "ko", "pt", "cs", "ro", "ar", "tr", "nl", "sv"]) {
+    expect(SUPPORTED_UI_LANGS).toEqual(["it", "pl", "en", "fr", "de", "es", "ja", "ko", "pt", "he", "cs", "ro", "ar", "tr", "nl", "sv", "vi"])
+    for (const l of ["it", "pl", "en", "fr", "de", "es", "ja", "ko", "pt", "he", "cs", "ro", "ar", "tr", "nl", "sv", "vi"]) {
       expect(isSupportedUiLang(l)).toBe(true)
     }
     // Lingue del vecchio picker (zh/ru) non più offerte
     for (const l of ["zh", "ru", "", null, undefined]) {
       expect(isSupportedUiLang(l)).toBe(false)
+    }
+  })
+
+  it("UI language lists share one canonical source", () => {
+    // UI_LANG_META è l'unica fonte: validazione e picker devono restare
+    // sincronizzati (nessuna lista indipendente che diverge in silenzio).
+    expect(UI_LANG_META.map((l) => l.code)).toEqual(SUPPORTED_UI_LANGS)
+    expect(UI_LANGUAGES.map((l) => l.code)).toEqual(SUPPORTED_UI_LANGS)
+    expect(new Set(UI_LANG_META.map((l) => l.code)).size).toBe(UI_LANG_META.length)
+    for (const l of UI_LANGUAGES) {
+      expect(l.flag).toBeTruthy()
+      expect(l.name).toBeTruthy()
+      expect(l.sub).toBe(l.code.toUpperCase())
+    }
+    // Ogni lingua chart resta selezionabile come lingua UI.
+    for (const r of REGIONS) {
+      expect(isSupportedUiLang(r.lang2)).toBe(true)
+    }
+  })
+
+  it("selects global rankings for UI languages without a national chart", () => {
+    // vi è selezionabile ma non ha una regione chart (JustWatch non accetta VN):
+    // The default chart scope is global.
+    expect(isSupportedUiLang("vi")).toBe(true)
+    expect(isSupportedUiLang("VI")).toBe(true)
+    expect(defaultRegionForLang("vi")).toBe("GLOBAL")
+    expect(defaultRegionForLang("vi", "IT")).toBe("GLOBAL")
+    expect(defaultRegionForLang("vi", "US")).toBe("GLOBAL")
+    for (const r of REGIONS) {
+      expect(r.lang2).not.toBe("vi")
     }
   })
 

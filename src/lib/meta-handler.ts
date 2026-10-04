@@ -23,6 +23,7 @@ import { resolveImdbId } from "@/lib/imdb-cache"
 import { getCatalogEpoch } from "@/lib/catalog-epoch"
 import { buildNoticeDetail, NOTICE_ID_PREFIX } from "@/lib/notice-meta"
 import { resolveCatalogRegionWithDefaults } from "@/lib/catalog-handler"
+import { isSupportedUiLang, contentLanguageForUiLang } from "@/lib/regions"
 import { getScopedUserId, userExists, userRateLimitKey } from "@/lib/user-auth"
 import { touchUserActivity } from "@/lib/user-activity"
 import { buildStremioPosterUrl, stremioPosterShape } from "@/lib/stremio-poster-url"
@@ -117,6 +118,7 @@ async function pictoriumPosterUrl(
   configParam?: string | null,
   userParam?: string | null,
   posterLang = "it",
+  posterRegion?: string,
 ): Promise<{ poster: string; posterShape: "poster" | "landscape" }> {
   const scopedUser = getScopedUserId(userParam)
   const serverDefaults = scopedUser ? await getServerDefaultsForUser(scopedUser) : await getServerDefaultsChecked()
@@ -131,6 +133,7 @@ async function pictoriumPosterUrl(
     defaults,
     mapping,
     lang: posterLang,
+    region: posterRegion,
     config: configParam || undefined,
     user: userParam || undefined,
     forceShape: posterShape,
@@ -207,8 +210,9 @@ export async function pictoriumMeta(
 
   const episodeMetadataSource = userConfig?.episodeMetadataSource || (tvdbApiKey ? "tvdb" : "tmdb")
   const region = resolveCatalogRegionWithDefaults(req, userConfig, effectiveDefaults)
-  const tmdbLang = region.lang
-  const posterLang = tmdbLang.slice(0, 2).toLowerCase()
+  const requestedLang = req.nextUrl.searchParams.get("lang")?.toLowerCase()
+  const posterLang = isSupportedUiLang(requestedLang) ? requestedLang! : region.lang2
+  const tmdbLang = contentLanguageForUiLang(posterLang, region.code)
 
   // Risoluzione ID TMDB e IMDb
   let tmdbId: number | null = null
@@ -269,7 +273,7 @@ export async function pictoriumMeta(
   const epoch = await getCatalogEpoch(scopedUser)
   const sdHash = hashFragment(JSON.stringify(effectiveDefaults))
   const freshness = `:e${epoch}:sd${sdHash}`
-  const cacheKey = `stremio:meta:${stType}:${cleanId}:pv${POSTER_URL_VERSION}${scopedUser ? `:u${hashUserFragment(scopedUser)}` : ""}:ak${apiKey ? hashFragment(apiKey) : "none"}${configParam ? `:cfg${hashFragment(configParam)}` : ""}${mdblistKey ? `:mk${hashFragment(mdblistKey)}` : ""}${tvdbApiKey ? `:tk${hashFragment(tvdbApiKey)}` : ""}:es${episodeMetadataSource}:eg${hashFragment(egKey)}:r${region.code}${stType === "series" ? ":eo2" : ""}${freshness}`
+  const cacheKey = `stremio:meta:${stType}:${cleanId}:pv${POSTER_URL_VERSION}${scopedUser ? `:u${hashUserFragment(scopedUser)}` : ""}:ak${apiKey ? hashFragment(apiKey) : "none"}${configParam ? `:cfg${hashFragment(configParam)}` : ""}${mdblistKey ? `:mk${hashFragment(mdblistKey)}` : ""}${tvdbApiKey ? `:tk${hashFragment(tvdbApiKey)}` : ""}:es${episodeMetadataSource}:eg${hashFragment(egKey)}:r${region.code}:l${posterLang}${stType === "series" ? ":eo2" : ""}${freshness}`
   const cached = await cacheGetShared<{ meta: StremioMetaDetail }>(cacheKey, ["stremio", "meta"])
   if (cached) return metaResponse(cached)
 
@@ -287,7 +291,7 @@ export async function pictoriumMeta(
     }
 
     const primaryId = imdbId || `tmdb:${tmdbId}`
-    const { poster, posterShape } = await pictoriumPosterUrl(req, stType, tmdbId, configParam, userParam, posterLang)
+    const { poster, posterShape } = await pictoriumPosterUrl(req, stType, tmdbId, configParam, userParam, posterLang, region.code)
     // NuvioTV: per i titoli landscape, URL del render con logo baked-in
     // (stesso profilo del poster), inclusi i titoli forzati dal default.
     const landscapePoster = posterShape === "landscape" ? poster : undefined

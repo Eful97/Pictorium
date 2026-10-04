@@ -485,6 +485,25 @@ describe("GET /meta/[type]/[id]", () => {
     expect(detailsCall?.[0]).toContain("language=es-MX")
   })
 
+  it("keeps the chart region while honoring the poster UI language without cache collisions", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation((url: unknown) => {
+      if (String(url).includes("/images")) return Promise.resolve(Response.json({ id: 550, logos: [] }))
+      return Promise.resolve(Response.json({ id: 550, title: "Fight Club", external_ids: { imdb_id: "tt0137523" } }))
+    })
+    const posterParams = async (lang?: string) => {
+      const req = new NextRequest(`http://localhost:3000/meta/movie/tmdb:550.json?api_key=k&region=IT${lang ? `&lang=${lang}` : ""}`)
+      const res = await GET(req, { params: Promise.resolve({ type: "movie", id: "tmdb:550.json" }) })
+      return new URL((await res.json()).meta.poster).searchParams
+    }
+    expect((await posterParams()).get("lang")).toBe("it")
+    const vietnamese = await posterParams("vi")
+    expect(vietnamese.get("lang")).toBe("vi")
+    expect(vietnamese.get("region")).toBe("IT")
+    expect((await posterParams("fr")).get("lang")).toBe("fr")
+    expect((await posterParams("invalid")).get("lang")).toBe("it")
+    expect((await posterParams("vi")).get("lang")).toBe("vi")
+  })
+
   it("refetches meta after a catalog epoch bump instead of serving 12h stale (C1)", async () => {
     const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation((url: unknown) => {
       const u = String(url)

@@ -22,7 +22,7 @@ import { parseSupportedTmdbRef } from "@/lib/stremio-addon"
 import { buildStremioPosterUrl, stremioPosterShape } from "@/lib/stremio-poster-url"
 import { getOriginFromRequest } from "@/lib/poster-public-url"
 import { getJWRankings, getJWTitles, resolveJWGenreCode, type JWRankEntry } from "@/lib/justwatch"
-import { getRegionDef, normalizeRegion, parseRegion, type RegionDef } from "@/lib/regions"
+import { getRegionDef, normalizeRegion, parseRegion, GLOBAL_REGION_CODE, type RegionDef } from "@/lib/regions"
 import { getCatalogEpoch } from "@/lib/catalog-epoch"
 import { createLogger } from "@/lib/logger"
 import { concurrentMap } from "@/lib/episode-ordering"
@@ -1022,7 +1022,7 @@ export async function pictoriumCatalog(
         // l'unico modo per paginare (l'arricchimento TMDB resta comunque sui 20
         // della finestra). popularTitles invece pagina nativo: first = finestra.
         const jwSkip = typeof extra.skip === "number" && extra.skip > 0 ? extra.skip : 0
-        const jwGenre = resolveJWGenreCode(extra.genre)
+        const jwGenre = region.code === GLOBAL_REGION_CODE ? null : resolveJWGenreCode(extra.genre)
         const jwFirst = jwGenre ? 20 : Math.min(60, 20 + jwSkip)
         const rows = jwGenre
           ? await getJWTitles({
@@ -1169,7 +1169,7 @@ export async function pictoriumCatalog(
         // popularTitles sì (first = finestra da 10).
         const pkgs = PLATFORM_JW_PACKAGES[platformKey]
         const skipForPlatform = typeof extra.skip === "number" && extra.skip > 0 ? extra.skip : 0
-        const jwGenre = resolveJWGenreCode(extra.genre)
+        const jwGenre = region.code === GLOBAL_REGION_CODE ? null : resolveJWGenreCode(extra.genre)
         const jwFirst = jwGenre ? 10 : Math.min(50, 10 + skipForPlatform)
         let jwRows: JWRankEntry[] = []
         if (pkgs) {

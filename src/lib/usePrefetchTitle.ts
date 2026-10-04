@@ -1,6 +1,6 @@
 import { useCallback, useRef } from "react"
 import { http } from "./http"
-import { getRegionDef } from "./regions"
+import { contentLanguageForUiLang } from "./regions"
 import type { SearchResult } from "./types"
 
 /**
@@ -22,7 +22,7 @@ export function usePrefetchTitle(opts: {
     if (prefetchedRef.current.has(key)) return
     if (prefetchedRef.current.size > 200) prefetchedRef.current.clear()
     prefetchedRef.current.add(key)
-    const rLang = getRegionDef(defaultRegion).lang
+    const rLang = contentLanguageForUiLang(lang, defaultRegion)
     const langs = `${lang},en,null`
     // Senza chiave da nessuna parte evita prefetch destinati al 401.
     if (!tmdbKey && !serverHasTmdbKey) return

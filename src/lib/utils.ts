@@ -1,6 +1,6 @@
 import type { TMDBImage, SearchResult } from "./types"
 
-import { REGIONS } from "./regions"
+import { REGIONS, UI_LANG_META } from "./regions"
 
 export const IMG_BASE = process.env.NEXT_PUBLIC_TMDB_IMG_URL || "https://image.tmdb.org/t/p"
 
@@ -99,10 +99,10 @@ export const STREAMING_PLATFORMS = [
 ] as const
 
 /**
- * Voci del selettore lingua: SOLO le nazionalità supportate (una per
- * regione). `key` è il codice paese (univoco), `code` la lingua UI a 2 lettere
- * (it/pl/en/fr/de/es/he/ar/tr/nl/sv hanno un dizionario completo — ja/ko/pt/cs/ro
- * ripiegano sull'inglese in `i18n.lookup` per le chiavi che non traducono).
+ * Voci del selettore paese-chart: SOLO le nazionalità supportate (una per
+ * regione). `key` è il codice paese (univoco), `code` la lingua UI a 2 lettere.
+ * Lo step lingua dell'onboarding usa invece UI_LANGUAGES (include `vi`,
+ * solo lingua UI senza regione chart).
  */
 export const PICKER_LANGS = REGIONS.map((r) => ({
   key: r.code,
@@ -120,28 +120,16 @@ export interface UiLangOption {
 }
 
 /**
- * Le lingue selezionabili per l'interfaccia. it/pl/en/fr/de/es/he/ar/tr/nl/sv
- * hanno un dizionario completo; `ja/ko/pt/cs/ro` ripiegano sull'inglese per le
- * stringhe `ui.*` (vedi translations/).
+ * Le lingue selezionabili per l'interfaccia: derivate dalla fonte canonica
+ * UI_LANG_META (regions.ts) con l'aggiunta del sottotitolo display.
+ * Include `vi` (solo lingua UI, senza regione chart: JustWatch non accetta VN).
  */
-export const UI_LANGUAGES: readonly UiLangOption[] = [
-  { code: "it", flag: "🇮🇹", name: "Italiano", sub: "IT" },
-  { code: "pl", flag: "🇵🇱", name: "Polski", sub: "PL" },
-  { code: "en", flag: "🇬🇧", name: "English", sub: "EN" },
-  { code: "fr", flag: "🇫🇷", name: "Français", sub: "FR" },
-  { code: "de", flag: "🇩🇪", name: "Deutsch", sub: "DE" },
-  { code: "es", flag: "🇪🇸", name: "Español", sub: "ES" },
-  { code: "ja", flag: "🇯🇵", name: "日本語", sub: "JA" },
-  { code: "ko", flag: "🇰🇷", name: "한국어", sub: "KO" },
-  { code: "pt", flag: "🇵🇹", name: "Português", sub: "PT" },
-  { code: "he", flag: "🇮🇱", name: "עברית", sub: "HE" },
-  { code: "cs", flag: "🇨🇿", name: "Čeština", sub: "CS" },
-  { code: "ro", flag: "🇷🇴", name: "Română", sub: "RO" },
-  { code: "ar", flag: "🇸🇦", name: "العربية", sub: "AR" },
-  { code: "tr", flag: "🇹🇷", name: "Türkçe", sub: "TR" },
-  { code: "nl", flag: "🇳🇱", name: "Nederlands", sub: "NL" },
-  { code: "sv", flag: "🇸🇪", name: "Svenska", sub: "SE" },
-] as const
+export const UI_LANGUAGES: readonly UiLangOption[] = UI_LANG_META.map((l) => ({
+  code: l.code,
+  flag: l.flag,
+  name: l.name,
+  sub: l.code.toUpperCase(),
+}))
 
 export interface ImageLists {
   posters: TMDBImage[]

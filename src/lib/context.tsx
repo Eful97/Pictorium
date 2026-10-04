@@ -881,8 +881,9 @@ export function usePictorium(): PictoriumCtx {
     if (langInit.current) return
     langInit.current = true
     const saved = safeGetItem("preferred_lang")
-    // Solo le lingue delle 16 nazionalità supportate; un valore legacy
-    // (zh/ru del vecchio picker) rimostra la scelta.
+    // Solo le lingue UI supportate (SUPPORTED_UI_LANGS, include lingue senza
+    // regione chart come `vi`); un valore legacy (zh/ru del vecchio picker)
+    // rimostra la scelta.
     if (saved && isSupportedUiLang(saved)) {
       setLang(saved.toLowerCase())
       setI18nLang(saved.toLowerCase())
@@ -1150,11 +1151,15 @@ export function usePictorium(): PictoriumCtx {
   // se il server non risolve i metadati, si resta sull'editor senza rumore.
   useEffect(() => {
     if (!stremioPreview || !navigation.selected) { setStremioPreviewUrl(null); return }
+    if (localConfigTokenStatus === "pending" || localConfigTokenStatus === "error") { setStremioPreviewUrl(null); return }
     const sel = navigation.selected
     const stype = sel.media_type === "movie" ? "movie" : "series"
     const params = new URLSearchParams()
     if (currentUserId) params.set("u", currentUserId)
     if (tmdbKey) params.set("api_key", tmdbKey)
+    params.set("lang", lang)
+    params.set("region", editorCtx.defaultRegion)
+    if (localConfigToken) params.set("config", localConfigToken)
     const qs = params.toString() ? `?${params.toString()}` : ""
     let live = true
     // no-store: /meta risponde `max-age=300` per Stremio, ma qui serve
@@ -1167,7 +1172,7 @@ export function usePictorium(): PictoriumCtx {
     return () => { live = false }
     // mappingsMap: dopo un save il mapping (e il suo `mv`) cambia — l'URL va
     // ririsolta o il modale mostra l'artefatto pre-save (stale).
-  }, [stremioPreview, navigation.selected, currentUserId, tmdbKey, mappingsMap])
+  }, [stremioPreview, navigation.selected, currentUserId, tmdbKey, mappingsMap, lang, editorCtx.defaultRegion, localConfigToken, localConfigTokenStatus])
 
   const buildPreviewUrlCb = useCallback(() => {
     // Token suspend: while the device config is minting (or failed), no
@@ -1265,7 +1270,7 @@ export function usePictorium(): PictoriumCtx {
     // fonti vecchie e gareggerebbe col refetch dell'effetto [ratingSources].
     const activeSources = sourcesOverride ?? ratingSources
     const rsrcParam = activeSources && activeSources.length > 0 ? "&rsrc=" + encodeURIComponent(activeSources.join(",")) : ""
-    const regionLang = getRegionDef(editorCtx.defaultRegion).lang
+    const regionLang = contentLanguageForUiLang(lang, editorCtx.defaultRegion)
     const detailsUrl = `/api/tmdb/${itemId}/details?type=${itemType}&language=${regionLang}&api_key=${tmdbKey}${mdblistParam}${rsrcParam}`
     // Le immagini partono SUBITO in parallelo ai details (non dopo): la lingua
     // originale serve solo ad allargare la query quando è fuori da lang/en.
@@ -1426,7 +1431,7 @@ export function usePictorium(): PictoriumCtx {
     const itemType = navigation.selected.media_type
     const mdblistParam = mdblistApiKey ? "&mdblist_key=" + encodeURIComponent(mdblistApiKey) : ""
     const rsrcParam = ratingSources && ratingSources.length > 0 ? "&rsrc=" + encodeURIComponent(ratingSources.join(",")) : ""
-    const regionLang = getRegionDef(editorCtx.defaultRegion).lang
+    const regionLang = contentLanguageForUiLang(lang, editorCtx.defaultRegion)
     const detailsUrl = `/api/tmdb/${itemId}/details?type=${itemType}&language=${regionLang}&api_key=${tmdbKey}${mdblistParam}${rsrcParam}`
     let active = true
     const signal = loadAbortRef.current?.signal

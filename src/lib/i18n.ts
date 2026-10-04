@@ -14,10 +14,11 @@ import ar from "./translations/ar.json"
 import tr from "./translations/tr.json"
 import nl from "./translations/nl.json"
 import sv from "./translations/sv.json"
+import vi from "./translations/vi.json"
 
 export type Lang = keyof typeof dicts
 
-const dicts: Record<string, Record<string, string>> = { en, it, pl, fr, de, es, ja, ko, pt, he, cs, ro, ar, tr, nl, sv }
+const dicts: Record<string, Record<string, string>> = { en, it, pl, fr, de, es, ja, ko, pt, he, cs, ro, ar, tr, nl, sv, vi }
 
 let _currentLang: string = "it"
 
@@ -46,10 +47,10 @@ export function isRankKey(val: string | null): string | null {
     if (key === "badge.today" || key === "badge.anime" || key === "badge.movie" || key === "badge.series") return key
     return null
   }
-  if (val === "Oggi" || val === "Today" || val === "Aujourd'hui" || val === "Heute" || val === "Hoy" || val === "今日" || val === "오늘" || val === "Hoje" || val === "היום" || val === "Dnes" || val === "Dzisiaj" || val === "Azi" || val === "Astăzi" || val === "Astazi" || val === "اليوم" || val === "Bugün" || val === "Vandaag" || val === "Idag") return "badge.today"
+  if (val === "Oggi" || val === "Today" || val === "Aujourd'hui" || val === "Heute" || val === "Hoy" || val === "今日" || val === "오늘" || val === "Hoje" || val === "היום" || val === "Dnes" || val === "Dzisiaj" || val === "Azi" || val === "Astăzi" || val === "Astazi" || val === "اليوم" || val === "Bugün" || val === "Vandaag" || val === "Idag" || val === "Hôm nay") return "badge.today"
   if (val === "Anime" || val === "アニメ" || val === "애니메이션" || val === "אנימה" || val === "أنمي") return "badge.anime"
-  if (val === "Film" || val === "Movie" || val === "Película" || val === "映画" || val === "영화" || val === "Filme" || val === "סרט" || val === "فيلم") return "badge.movie"
-  if (val === "Serie tv" || val === "TV series" || val === "Series" || val === "Série TV" || val === "Série" || val === "Serie de TV" || val === "Serie" || val === "TVシリーズ" || val === "TV 시리즈" || val === "סדרה" || val === "Seriál" || val === "Serial" || val === "Seriale" || val === "مسلسل" || val === "مسلسلات" || val === "Dizi") return "badge.series"
+  if (val === "Film" || val === "Movie" || val === "Película" || val === "映画" || val === "영화" || val === "Filme" || val === "סרט" || val === "فيلم" || val === "Phim") return "badge.movie"
+  if (val === "Serie tv" || val === "TV series" || val === "Series" || val === "Série TV" || val === "Série" || val === "Serie de TV" || val === "Serie" || val === "TVシリーズ" || val === "TV 시리즈" || val === "סדרה" || val === "Seriál" || val === "Serial" || val === "Seriale" || val === "مسلسل" || val === "مسلسلات" || val === "Dizi" || val === "Phim truyền hình") return "badge.series"
   return null
 }
 

@@ -3,12 +3,13 @@ import { combineAbortSignals } from "./abort-signal"
 import { timedFetch } from "./outbound-stats"
 import { envWithFallback } from "@/lib/env-compat"
 import { createCircuitBreaker } from "@/lib/circuit-breaker"
+import { GLOBAL_REGION_CODE } from "./regions"
 
 // Sovrascrivibile via env: nei test E2E punta al mock server locale.
 const JW_API = process.env.JUSTWATCH_API_URL || "https://apis.justwatch.com/graphql"
 
-const QUERY = `query GetStreamingChartInfo($country: Country!, $language: Language!, $filter: StreamingChartsFilter, $first: Int!) {
-  streamingCharts(country: $country, filter: $filter, first: $first) {
+const QUERY = `query GetStreamingChartInfo($country: Country!, $countryStreamingCharts: Country, $language: Language!, $filter: StreamingChartsFilter, $first: Int!) {
+  streamingCharts(country: $countryStreamingCharts, filter: $filter, first: $first) {
     edges {
       streamingChartInfo { rank }
       node {
@@ -372,39 +373,53 @@ export async function getJWRankings(
     filter.packages = packages
   }
 
-  let res: Response
-  try {
-    res = await timedFetch(JW_API, {
-      method: "POST",
-      headers: jwHeaders(),
-      signal: combineAbortSignals(signal, JW_TIMEOUT_MS),
-      body: JSON.stringify({
-        operationName: "GetStreamingChartInfo",
-        query: QUERY,
-        variables: {
-          country,
-          language,
-          filter,
-          first: Math.max(first * 2, 20),
-        },
-      }),
-    })
-  } catch (err) {
-    recordCircuitFailure()
-    throw err
-  }
+  // Both attempts share one deadline: an unsupported locale is a capability
+  // error, not a provider outage. Only that error enables the global chart.
+  const requestSignal = combineAbortSignals(signal, JW_TIMEOUT_MS)
+  let json
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const globalChart = country === GLOBAL_REGION_CODE || attempt === 1
+    let res: Response
+    try {
+      res = await timedFetch(JW_API, {
+        method: "POST",
+        headers: jwHeaders(),
+        signal: requestSignal,
+        body: JSON.stringify({
+          operationName: "GetStreamingChartInfo",
+          query: QUERY,
+          variables: {
+            country: globalChart ? "US" : country,
+            countryStreamingCharts: globalChart ? null : country,
+            language: globalChart ? "en-US" : language,
+            filter,
+            first: Math.max(first * 2, 20),
+          },
+        }),
+      })
+    } catch (err) {
+      recordCircuitFailure()
+      throw err
+    }
 
-  captureCookie(res.headers)
+    captureCookie(res.headers)
 
-  if (!res.ok) {
-    recordCircuitFailure(res.status)
-    throw new Error(`JustWatch ${objectType} failed: ${res.status}`)
-  }
+    if (!res.ok) {
+      recordCircuitFailure(res.status)
+      throw new Error(`JustWatch ${objectType} failed: ${res.status}`)
+    }
 
-  const json = await res.json()
-  if (json.errors && !usablePayload(json.data)) {
-    recordCircuitFailure()
-    throw new Error(`JustWatch ${objectType} GraphQL error: ${json.errors[0]?.message || "unknown"}`)
+    json = await res.json()
+    if (json.errors && !usablePayload(json.data)) {
+      const unsupportedCountry = json.errors.some((error: { message?: string; extensions?: { code?: string } }) =>
+        error.extensions?.code === "BAD_REQUEST"
+        && error.message?.includes("couldn't get locale with country code")
+      )
+      if (!globalChart && unsupportedCountry) continue
+      recordCircuitFailure()
+      throw new Error(`JustWatch ${objectType} GraphQL error: ${json.errors[0]?.message || "unknown"}`)
+    }
+    break
   }
 
   recordCircuitSuccess()
@@ -708,6 +723,8 @@ async function fetchTitleOffersShared(
   filter: Record<string, unknown>,
   signal?: AbortSignal,
 ): Promise<TitleOffersPayload | null> {
+  // Offers are localized facts, not chart ranks, and require a real country.
+  if (country === GLOBAL_REGION_CODE) country = "US"
   const key = `${country}|${language}|${JSON.stringify(filter)}`
   const existing = titleOffersInflight.get(key)
   if (existing) return existing

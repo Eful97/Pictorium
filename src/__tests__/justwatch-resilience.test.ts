@@ -11,6 +11,50 @@ describe("JustWatch resilience & anti-bot", () => {
     vi.restoreAllMocks()
   })
 
+  it("requests the worldwide chart directly when GLOBAL is selected", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(Response.json({ data: { streamingCharts: { edges: [] } } }))
+    await getJWRankings("MOVIE", "GLOBAL", 20, undefined, "en-US")
+    expect(fetchSpy).toHaveBeenCalledTimes(1)
+    expect(JSON.parse(String(fetchSpy.mock.calls[0][1]?.body)).variables).toMatchObject({
+      country: "US", countryStreamingCharts: null, language: "en-US",
+    })
+  })
+
+  it("falls back to the global chart only when JustWatch rejects the country locale", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(Response.json({ errors: [{
+        message: 'locale by the country code: couldn\'t get locale with country code "VN" from locale map',
+        extensions: { code: "BAD_REQUEST" },
+      }], data: null }))
+      .mockResolvedValueOnce(Response.json({ data: { streamingCharts: { edges: [{
+        streamingChartInfo: { rank: 1 },
+        node: { content: { title: "Global movie", externalIds: { tmdbId: 100, imdbId: "tt100" } } },
+      }] } } }))
+    expect(await getJWRankings("MOVIE", "VN", 1, undefined, "vi-VN")).toEqual([
+      { tmdbId: 100, imdbId: "tt100", rank: 1, title: "Global movie" },
+    ])
+    const local = JSON.parse(String(fetchSpy.mock.calls[0][1]?.body)).variables
+    const global = JSON.parse(String(fetchSpy.mock.calls[1][1]?.body)).variables
+    expect(local.countryStreamingCharts).toBe("VN")
+    expect(global).toMatchObject({ country: "US", countryStreamingCharts: null, language: "en-US" })
+    expect(fetchSpy.mock.calls[1][1]?.signal).toBe(fetchSpy.mock.calls[0][1]?.signal)
+    // The fallback is cached for the rejected country, not for a valid country.
+    await getJWRankings("MOVIE", "VN", 1, undefined, "vi-VN")
+    expect(fetchSpy).toHaveBeenCalledTimes(2)
+    fetchSpy.mockResolvedValueOnce(Response.json({ data: { streamingCharts: { edges: [] } } }))
+    expect(await getJWRankings("MOVIE", "IT", 1)).toEqual([])
+    expect(fetchSpy).toHaveBeenCalledTimes(3)
+  })
+
+  it("does not replace an empty local chart or an unrelated GraphQL error with global ranks", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(Response.json({ data: { streamingCharts: { edges: [] } } }))
+      .mockResolvedValueOnce(Response.json({ errors: [{ message: "upstream timeout" }], data: null }))
+    expect(await getJWRankings("MOVIE", "IT", 1)).toEqual([])
+    await expect(getJWRankings("SHOW", "IT", 1)).rejects.toThrow("upstream timeout")
+    expect(fetchSpy).toHaveBeenCalledTimes(2)
+  })
+
   it("sends realistic browser headers including Chrome UA and Referer", async () => {
     let capturedHeaders: Record<string, string> | undefined
 

@@ -87,6 +87,7 @@ interface LangData {
 const LANG: Record<string, LangData> = {
   it: { title: "Titolo Italiano", genre: "Dramma", vote: 7.1, poster: "/clean-it.jpg", logo: "/it-logo.png", backdrop: "/bd-it.jpg" },
   fr: { title: "Titre Francais", genre: "Drame", vote: 8.3, poster: "/clean-fr.jpg", logo: "/fr-logo.png", backdrop: "/bd-fr.jpg" },
+  vi: { title: "Vietnamese title", genre: "Chính kịch", vote: 7.1, poster: "/clean-vi.jpg", logo: "/vi-logo.png", backdrop: "/bd-vi.jpg" },
 }
 
 function detailsFor(lang: string, id: number) {
@@ -236,6 +237,29 @@ describe("GET /api/poster session cache language isolation (Phase 2)", () => {
     expect(again.images.poster).toBe("/clean-fr.jpg")
     expect(mockedGetDetailsWithExternalIds).toHaveBeenCalledTimes(2)
     expect(mockedGetImages).toHaveBeenCalledTimes(2)
+  })
+
+  it("localizes a saved genre when the explicit poster language changes", async () => {
+    const poster = await imageBuffer()
+    vi.spyOn(globalThis, "fetch").mockImplementation(async () => new Response(new Uint8Array(poster), {
+      headers: { "content-type": "image/png" },
+    }))
+    vi.mocked(getById).mockResolvedValue({
+      tmdbId: 778, mediaType: "movie", title: "Saved poster",
+      posterPath: "/m778.jpg", logoPath: null, originalPosterPath: null,
+      language: null, genreName: "Dramma", showBadges: true, rankingBadges: false,
+      updatedAt: "2026-09-20T00:00:00.000Z",
+    })
+    vi.mocked(getImdbAlias).mockResolvedValue(null)
+    expect((await getDebug(autoUrl(778, "fr"))).genre.name).toBe("Drame")
+    const calls = mockedGetDetails.mock.calls.length
+    cacheClear()
+    expect((await getDebug(autoUrl(778, "fr"))).genre.name).toBe("Drame")
+    expect(mockedGetDetails).toHaveBeenCalledTimes(calls)
+    expect((await getDebug(autoUrl(778, "it"))).genre.name).toBe("Dramma")
+    expect((await getDebug(autoUrl(778, "vi"))).genre.name).toBe("Chính kịch")
+    mockedGetDetails.mockRejectedValueOnce(new Error("TMDB unavailable"))
+    expect((await getDebug(autoUrl(778, "de"))).genre.name).toBe("Dramma")
   })
 
   it("landscape fallback isolates languages: IT first, then FR renders its own backdrop", async () => {

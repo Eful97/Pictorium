@@ -1,8 +1,8 @@
 "use client"
 
 import { useState, useRef, useEffect } from "react"
-import { PICKER_LANGS } from "@/lib/utils"
-import { REGIONS } from "@/lib/regions"
+import { UI_LANGUAGES } from "@/lib/utils"
+import { CHART_REGIONS, GLOBAL_REGION_CODE } from "@/lib/regions"
 import { useT } from "@/lib/contexts/TranslationContext"
 import { ChevronLeft, Lock, ArrowRight, ShieldCheck } from "lucide-react"
 import { isMultiUserServer } from "@/lib/guest-guard"
@@ -21,8 +21,8 @@ interface SetupWizardProps {
 
 /**
  * Configurazione guidata iniziale:
- * 1. lingua dell'interfaccia (12 nazionalità),
- * 2. nazionalità delle liste/classifiche (stesse 12),
+ * 1. lingua dell'interfaccia (UI_LANGUAGES, include lingue senza regione chart come `vi`),
+ * 2. ambito delle liste/classifiche (globale o paese supportato),
  * 3. protezione con PIN (solo in single-user: in multi-user ogni utente ha la sua password).
  */
 export function LangPicker({ onPickLang, onPickRegion, onDone, skipPin }: SetupWizardProps) {
@@ -138,8 +138,8 @@ export function LangPicker({ onPickLang, onPickRegion, onDone, skipPin }: SetupW
 
         {step === "lang" && (
           <div key="lang" className="grid grid-cols-2 gap-2 max-h-[52vh] overflow-y-auto pr-0.5 animate-step-enter">
-            {PICKER_LANGS.map((l) => (
-              <button type="button" key={l.key} onClick={() => pickLang(l.code)} className="surface-card flex items-center gap-2 px-4 py-3.5 rounded-2xl hover:-translate-y-0.5 active:scale-[0.97] transition-all duration-200 text-left group cursor-pointer">
+            {UI_LANGUAGES.map((l) => (
+              <button type="button" key={l.code} onClick={() => pickLang(l.code)} className="surface-card flex items-center gap-2 px-4 py-3.5 rounded-2xl hover:-translate-y-0.5 active:scale-[0.97] transition-all duration-200 text-left group cursor-pointer">
                 <span className="text-2xl shrink-0">{l.flag}</span>
                 <div>
                   <p className="text-sm font-medium text-zinc-200 group-hover:text-accent transition-colors">{l.name}</p>
@@ -152,11 +152,11 @@ export function LangPicker({ onPickLang, onPickRegion, onDone, skipPin }: SetupW
 
         {step === "region" && (
           <div key="region" className="grid grid-cols-2 gap-2 max-h-[52vh] overflow-y-auto pr-0.5 animate-step-enter">
-            {REGIONS.map((r) => (
+            {CHART_REGIONS.map((r) => (
               <button type="button" key={r.code} onClick={() => pickRegion(r.code)} className="surface-card flex items-center gap-2 px-4 py-3.5 rounded-2xl hover:-translate-y-0.5 active:scale-[0.97] transition-all duration-200 text-left group cursor-pointer">
                 <span className="text-2xl shrink-0">{r.flag}</span>
                 <div>
-                  <p className="text-sm font-medium text-zinc-200 group-hover:text-accent transition-colors">{r.label}</p>
+                  <p className="text-sm font-medium text-zinc-200 group-hover:text-accent transition-colors">{r.code === GLOBAL_REGION_CODE ? t("ui.regionGlobal") : r.label}</p>
                   <p className="text-xs text-muted uppercase tracking-wider">{r.code}</p>
                 </div>
               </button>
