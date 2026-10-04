@@ -157,7 +157,7 @@ test.describe("Button interactions and immediate updates", () => {
     await page.getByRole("tab", { name: /Preferenze|Preferences/i }).click()
 
     // Test Episode metadata source buttons
-    const episodeSourceSection = page.locator(".flex.gap-1").filter({ hasText: "TMDB" })
+    const episodeSourceSection = page.locator(".flex.gap-2").filter({ hasText: "TMDB" })
     const tvdbBtn = episodeSourceSection.getByRole("button", { name: "TVDB" })
     const tmdbBtn = episodeSourceSection.getByRole("button", { name: "TMDB" })
     await tvdbBtn.click()
@@ -166,8 +166,9 @@ test.describe("Button interactions and immediate updates", () => {
     await expect(tmdbBtn).toHaveClass(/bg-white\/20/)
     await expect(tvdbBtn).not.toHaveClass(/bg-white\/20/)
 
-    // Switch back to Badge tab (il tab "Stile" non esiste più: rinominato Badge)
-    await page.getByRole("tab", { name: /Badge/i }).click()
+    // Switch to Trasforma tab: the Blur toggle ("Sfocatura") lives here
+    // (moved from Badge in 86251aff).
+    await page.getByRole("tab", { name: /Trasforma/i }).click()
 
     // Test Blur toggle switch ("Sfocatura": lo switch; "Sfocatura predefinita"
     // è solo l'intestazione della sezione slider nel tab Trasforma)
@@ -180,8 +181,11 @@ test.describe("Button interactions and immediate updates", () => {
     await blurToggle.click()
     expect(await blurToggle.getAttribute("aria-checked")).toBe(initialBlurChecked)
 
-    // Test Save Defaults button
-    const saveDefaultsBtn = page.getByRole("button", { name: /Salva come Predefiniti/i })
+    // Switch back to Badge tab (il tab "Stile" non esiste più: rinominato Badge)
+    await page.getByRole("tab", { name: /Badge/i }).click()
+
+    // Test Sync Now button (autosave replaced the old Save Defaults button in 86251aff)
+    const saveDefaultsBtn = page.getByRole("button", { name: /Sincronizza ora/i })
     await saveDefaultsBtn.click()
     await expect(page.getByRole("button", { name: /Salvato/i })).toBeVisible()
   })
@@ -250,7 +254,7 @@ test.describe("Button interactions and immediate updates", () => {
 
     // Bottone "URL Stremio" nel footer: apre il modale con URL + anteprima
     // dell'artefatto finale (ex modale "Testa URL").
-    const stremioBtn = page.getByRole("button", { name: "URL Stremio", exact: true })
+    const stremioBtn = page.getByRole("button", { name: "Testa URL Stremio", exact: true })
     await expect(stremioBtn).toBeVisible({ timeout: 15_000 })
     await stremioBtn.click()
     const stremioDialog = page.getByRole("dialog", { name: "Stremio" })
