@@ -142,7 +142,9 @@ describe("regions", () => {
     // UI_LANG_META è l'unica fonte: validazione e picker devono restare
     // sincronizzati (nessuna lista indipendente che diverge in silenzio).
     expect(UI_LANG_META.map((l) => l.code)).toEqual(SUPPORTED_UI_LANGS)
-    expect(UI_LANGUAGES.map((l) => l.code)).toEqual(SUPPORTED_UI_LANGS)
+    // UI_LANGUAGES is sorted alphabetically by display name (same set,
+    // different order: see ui-languages-order.test.ts).
+    expect([...UI_LANGUAGES.map((l) => l.code)].sort()).toEqual([...SUPPORTED_UI_LANGS].sort())
     expect(new Set(UI_LANG_META.map((l) => l.code)).size).toBe(UI_LANG_META.length)
     for (const l of UI_LANGUAGES) {
       expect(l.flag).toBeTruthy()

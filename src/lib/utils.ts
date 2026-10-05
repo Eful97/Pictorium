@@ -123,13 +123,19 @@ export interface UiLangOption {
  * Le lingue selezionabili per l'interfaccia: derivate dalla fonte canonica
  * UI_LANG_META (regions.ts) con l'aggiunta del sottotitolo display.
  * Include `vi` (solo lingua UI, senza regione chart: JustWatch non accetta VN).
+ * Deterministic alphabetical order by native name (not by code/flag):
+ * the canonical UI_LANG_META list stays untouched (validators/defaults);
+ * only a shared display copy is sorted here, consumed by all pickers
+ * (LangPicker language step, PrefsPanel language select).
  */
+const UI_LANG_COLLATOR = new Intl.Collator("en", { sensitivity: "base" })
+
 export const UI_LANGUAGES: readonly UiLangOption[] = UI_LANG_META.map((l) => ({
   code: l.code,
   flag: l.flag,
   name: l.name,
   sub: l.code.toUpperCase(),
-}))
+})).sort((a, b) => UI_LANG_COLLATOR.compare(a.name, b.name))
 
 export interface ImageLists {
   posters: TMDBImage[]
