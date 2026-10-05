@@ -30,6 +30,26 @@ export interface ChangelogRelease {
  *  (which bumps on every commit and would leave the dot permanently on). */
 export const CHANGELOG: ChangelogRelease[] = [
   {
+    version: "1.25.1",
+    date: "2026-10-05",
+    title: "Release 1.25.1",
+    items: [
+      { type: "feature", text: "Share presets and optionally include API keys in backups" },
+      { type: "feature", text: "Add logos manually to posters with embedded titles" },
+      { type: "feature", text: "Add BetterPoster and RPDB poster presets" },
+      { type: "fix", text: "Show today on movie and series ranking badges" },
+      { type: "feature", text: "Position separate ratings and improve landscape editing" },
+      { type: "fix", text: "Authenticate warmup poster refresh behind API keys" },
+      { type: "feature", text: "Add Latin American Spanish language" },
+      { type: "fix", text: "Keep ranking badges in sync with the charts" },
+      { type: "feature", text: "Customize rating sizes and bottom layouts" },
+      { type: "fix", text: "Simplify home carousel cards in light mode" },
+      { type: "fix", text: "Keep dialog text readable in light mode" },
+      { type: "fix", text: "Translate extra badges in all supported languages" },
+      { type: "feature", text: "Sort interface languages alphabetically" },
+    ],
+  },
+  {
     version: "1.25.0",
     date: "2026-10-04",
     title: "Release 1.25.0",

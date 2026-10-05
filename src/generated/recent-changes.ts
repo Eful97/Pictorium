@@ -11,12 +11,4 @@ export interface RecentChange {
 }
 
 export const RECENT_CHANGES: RecentChange[] = [
-  { type: "feature", text: "Add logos manually to posters with embedded titles", sha: "530eb37", date: "2026-10-05" },
-  { type: "feature", text: "Add BetterPoster and RPDB poster presets", sha: "829d451", date: "2026-10-05" },
-  { type: "fix", text: "Show today on movie and series ranking badges", sha: "e51e4cd", date: "2026-10-05" },
-  { type: "feature", text: "Position separate ratings and improve landscape editing", sha: "232d282", date: "2026-10-05" },
-  { type: "fix", text: "Authenticate warmup poster refresh behind API keys", sha: "4291b9a", date: "2026-10-05" },
-  { type: "feature", text: "Add Latin American Spanish language", sha: "00d1ed4", date: "2026-10-05" },
-  { type: "fix", text: "Keep ranking badges in sync with the charts", sha: "41a654a", date: "2026-10-05" },
-  { type: "feature", text: "Customize rating sizes and bottom layouts", sha: "4c78daf", date: "2026-10-05" },
 ]
