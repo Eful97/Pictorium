@@ -251,7 +251,11 @@ export async function POST(req: NextRequest) {
       const batchTimeout = Math.max(1_000, Math.min(20_000, remaining))
       const batchResults = await Promise.all(batch.map(async (target): Promise<WarmupResult> => {
         try {
-          const res = await fetch(buildPosterUrl({ req, target, lang: warmLang }), { signal: AbortSignal.timeout(batchTimeout) })
+          const res = await fetch(buildPosterUrl({ req, target, lang: warmLang }), {
+            signal: AbortSignal.timeout(batchTimeout),
+            // Forward the resolved key via header — never in the URL (no secrets in logs).
+            ...(apiKey ? { headers: { "x-api-key": apiKey } } : {}),
+          })
           if (!res.ok) return { ...target, status: "fail", statusCode: res.status }
           // D2: basta scaldare la cache server — il body non serve: cancellarlo
           // invece di allocare l'intero JPEG nell'orchestratore (prima

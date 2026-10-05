@@ -11,12 +11,11 @@ export interface RecentChange {
 }
 
 export const RECENT_CHANGES: RecentChange[] = [
-  { type: "feature", text: "Light mode with theme picker plus Stremio, AIOMetadata and Nuvio install tabs", sha: "875e9cb", date: "2026-10-04" },
-  { type: "fix", text: "Show saved custom poster image in My Posters tiles and preview", sha: "7e7e0ef", date: "2026-10-04" },
-  { type: "fix", text: "Keep WOWOW out of Prime Video network matches", sha: "bfca284", date: "2026-10-04" },
-  { type: "fix", text: "Localize saved genres in poster route", sha: "9801a1f", date: "2026-10-04" },
-  { type: "feature", text: "Map local anime IDs for AniList and Kitsu artwork", sha: "3908727", date: "2026-10-04" },
-  { type: "fix", text: "Parse IMDb Top 250 only from structured chart data", sha: "3a9e12e", date: "2026-10-04" },
-  { type: "fix", text: "Harden catalog caching with explicit TTLs and KV envelopes", sha: "107e871", date: "2026-10-04" },
-  { type: "feature", text: "Add global rankings scope and Vietnamese language", sha: "b80792b", date: "2026-10-04" },
+  { type: "feature", text: "Add Latin American Spanish language", sha: "00d1ed4", date: "2026-10-05" },
+  { type: "fix", text: "Keep ranking badges in sync with the charts", sha: "41a654a", date: "2026-10-05" },
+  { type: "feature", text: "Customize rating sizes and bottom layouts", sha: "4c78daf", date: "2026-10-05" },
+  { type: "fix", text: "Simplify home carousel cards in light mode", sha: "323f87d", date: "2026-10-05" },
+  { type: "fix", text: "Keep dialog text readable in light mode", sha: "76d5f04", date: "2026-10-05" },
+  { type: "fix", text: "Translate extra badges in all supported languages", sha: "81178a9", date: "2026-10-05" },
+  { type: "feature", text: "Sort interface languages alphabetically", sha: "2de2d15", date: "2026-10-05" },
 ]
