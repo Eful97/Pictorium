@@ -7,14 +7,15 @@ import { useT } from "@/lib/contexts/TranslationContext"
 import { ApiError, http } from "@/lib/http"
 import { MenuItem } from "@/components/ui"
 import { adminAuthHeaders, hasAdminToken } from "@/lib/admin-token"
+import type { BackupExportOptions, BackupImportOptions } from "@/lib/useMappingsStore"
 import { AdminUnlockCard } from "@/components/AdminUnlockCard"
 import { Activity, ChevronDown, Database, Download, ExternalLink, Flame, KeyRound, Lock, Trash2, Upload, Wand2 } from "lucide-react"
 
 /** Scheda Dati & Cache (backup, diagnostica, token admin, PIN). Estratta da SettingsPanel con il suo stato locale. */
 export function DataPanel({ active, exportData, importData, setSettingsOpen, multiUserOn }: {
   active: boolean
-  exportData: () => void
-  importData: () => void
+  exportData: (opts?: BackupExportOptions) => void
+  importData: (opts?: BackupImportOptions) => void
   setSettingsOpen: (v: boolean) => void
   multiUserOn: boolean | null
 }) {
@@ -22,6 +23,10 @@ export function DataPanel({ active, exportData, importData, setSettingsOpen, mul
   const { t } = useT()
   const [clearStatus, setClearStatus] = useState<"idle" | "clearing" | "cleared">("idle")
   const clearTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // Personal-keys backup opt-ins: all OFF by default (fail-closed).
+  const [includeKeysExport, setIncludeKeysExport] = useState(false)
+  const [importKeys, setImportKeys] = useState(false)
+  const [overwriteKeys, setOverwriteKeys] = useState(false)
   const [cacheCount, setCacheCount] = useState<number | null>(null)
   // Disclosure "Diagnostica & manutenzione": chiusa di default, contenuto
   // SMONTATO (niente DOM né fetch finché l'utente non la apre).
@@ -122,12 +127,50 @@ export function DataPanel({ active, exportData, importData, setSettingsOpen, mul
           <Database className="w-4 h-4 text-accent-orange" />
           <span>{t("ui.settingsTabData")}</span>
         </span>
+        {/* Personal API keys (device only, never server keys): consent first,
+            separate opt-ins, all OFF by default. Overwrite is only meaningful
+            with import enabled and resets when import is unchecked. */}
+        <div className="space-y-1 pt-1">
+          <label className="flex items-start gap-2 py-1 cursor-pointer touch-manipulation">
+            <input
+              type="checkbox"
+              checked={includeKeysExport}
+              onChange={(e) => setIncludeKeysExport(e.target.checked)}
+              className="mt-0.5 shrink-0"
+            />
+            <span className="text-xs text-zinc-300 leading-relaxed">{t("ui.backupIncludePersonalKeys")}</span>
+          </label>
+          <label className="flex items-start gap-2 py-1 cursor-pointer touch-manipulation">
+            <input
+              type="checkbox"
+              checked={importKeys}
+              onChange={(e) => {
+                const v = e.target.checked
+                setImportKeys(v)
+                if (!v) setOverwriteKeys(false)
+              }}
+              className="mt-0.5 shrink-0"
+            />
+            <span className="text-xs text-zinc-300 leading-relaxed">{t("ui.backupImportPersonalKeys")}</span>
+          </label>
+          <label className={`flex items-start gap-2 py-1 touch-manipulation ${importKeys ? "cursor-pointer" : "opacity-50"}`}>
+            <input
+              type="checkbox"
+              checked={overwriteKeys}
+              disabled={!importKeys}
+              onChange={(e) => setOverwriteKeys(e.target.checked)}
+              className="mt-0.5 shrink-0"
+            />
+            <span className="text-xs text-zinc-300 leading-relaxed">{t("ui.backupOverwritePersonalKeys")}</span>
+          </label>
+          <p className="text-[10px] text-zinc-500 leading-relaxed">{t("ui.backupKeysPlaintextWarn")}</p>
+        </div>
         <div className="grid grid-cols-2 gap-2.5 pt-1">
           <MenuItem
             icon={<Download className="w-4 h-4 text-accent-orange" />}
             label={t("ui.exportJson")}
             onClick={() => {
-              exportData()
+              exportData({ includePersonalKeys: includeKeysExport })
               setSettingsOpen(false)
             }}
           />
@@ -135,7 +178,7 @@ export function DataPanel({ active, exportData, importData, setSettingsOpen, mul
             icon={<Upload className="w-4 h-4 text-blue-400" />}
             label={t("ui.importJson")}
             onClick={() => {
-              importData()
+              importData({ importPersonalKeys: importKeys, overwritePersonalKeys: importKeys && overwriteKeys })
               setSettingsOpen(false)
             }}
           />

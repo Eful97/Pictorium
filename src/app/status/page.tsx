@@ -7,6 +7,7 @@ import { t, getLang, setLang } from "@/lib/i18n"
 import { APP_COMMIT, APP_VERSION } from "@/generated/app-version"
 import { currentPathUuid, userAuthHeaders } from "@/lib/user-token"
 import { adminAuthHeaders } from "@/lib/admin-token"
+import { writePersonalDeviceKey } from "@/lib/device-keys"
 import { AdminUnlockCard } from "@/components/AdminUnlockCard"
 
 interface CheckResult {
@@ -283,7 +284,8 @@ export default function StatusPage() {
               e.preventDefault()
               const v = keyInput.trim()
               if (!v) return
-              try { localStorage.setItem("tmdb_key", v) } catch {}
+              // Explicit typing: personal provenance for a future export.
+              try { writePersonalDeviceKey(localStorage, "tmdb", v) } catch {}
               setKeyInput("")
               void handleRefresh()
             }}

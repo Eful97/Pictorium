@@ -23,7 +23,7 @@ import { selectBestLogo, autoLogoSelection, logoDefaultScale } from "./logo-sele
 import { useTrending } from "./useTrending"
 import { useSearch } from "./useSearch"
 import { useNavigation } from "./useNavigation"
-import { useMappingsStore } from "./useMappingsStore"
+import { useMappingsStore, type BackupExportOptions, type BackupImportOptions } from "./useMappingsStore"
 import { usePosterEditor, PosterEditorProvider, type LandscapeBlurState } from "./contexts/PosterEditorContext"
 import { usePosterSave } from "./usePosterSave"
 import { usePrefetchTitle } from "./usePrefetchTitle"
@@ -43,6 +43,7 @@ import { useRankingSources } from "./useRankingSources"
 import { useLocalConfigToken } from "./useLocalConfigToken"
 import { slotsReferencingCustom, shouldApplyRankRefresh } from "./ranking-source"
 import { migrateLegacyStorage } from "./storage-migration"
+import { writePersonalDeviceKey } from "./device-keys"
 
 export type ViewType = "search" | "myposters" | "edit" | "cataloghi"
 
@@ -201,8 +202,8 @@ export interface PictoriumCtx {
   setMdblistApiKey: (v: string) => void
   tvdbApiKey: string
   setTvdbApiKey: (v: string) => void
-  exportData: () => Promise<void>
-  importData: () => void
+  exportData: (opts?: BackupExportOptions) => Promise<void>
+  importData: (opts?: BackupImportOptions) => void
   copyUrl: () => Promise<void>
   copied: boolean
   accentColor: string | null
@@ -834,18 +835,19 @@ export function usePictorium(): PictoriumCtx {
   const setTmdbKey = useCallback((val: string) => {
     setTmdbKeyState(val)
     setTmdbKeyInput(val)
-    safeSetItem("tmdb_key", val)
-  }, [safeSetItem])
+    // Explicit user edit: stamp personal provenance for future export. Empty clears.
+    try { writePersonalDeviceKey(localStorage, "tmdb", val) } catch { /* localStorage unavailable */ }
+  }, [])
 
   const setMdblistApiKeyFn = useCallback((val: string) => {
     setMdblistApiKey(val)
-    safeSetItem("mdblist_key", val)
-  }, [safeSetItem])
+    try { writePersonalDeviceKey(localStorage, "mdblist", val) } catch { /* localStorage unavailable */ }
+  }, [])
 
   const setTvdbApiKeyFn = useCallback((val: string) => {
     setTvdbApiKey(val)
-    safeSetItem("tvdb_key", val)
-  }, [safeSetItem])
+    try { writePersonalDeviceKey(localStorage, "tvdb", val) } catch { /* localStorage unavailable */ }
+  }, [])
 
   useEffect(() => {
     if (keyInit.current) return
@@ -860,8 +862,10 @@ export function usePictorium(): PictoriumCtx {
     const savedTheme = safeGetItem("pictorium_theme")
     if (savedTheme === "light" || savedTheme === "dark") setTheme(savedTheme)
 
-    // Se sul dispositivo corrente alcune chiavi sono vuote, interroga /api/defaults
-    // per prelevare le chiavi configurate sul server e pre-popolare il client.
+    // Instance keys: memory only, NEVER localStorage. Persisting here would
+    // label an operator key as a device key and a future export would leak it
+    // (fail-closed provenance, see device-keys.ts). In-memory state is enough:
+    // the server still resolves via its instance fallback.
     // userFetch: su path /u/<uuid> legge i defaults del namespace (token da storage).
     userFetch("/api/defaults")
       .then((r) => (r.ok ? r.json() : null))
@@ -872,21 +876,18 @@ export function usePictorium(): PictoriumCtx {
         if (!savedTmdb && tmdbKey) {
           setTmdbKeyState(tmdbKey)
           setTmdbKeyInput(tmdbKey)
-          safeSetItem("tmdb_key", tmdbKey)
         }
         if (!savedMdblist && mdblistKey) {
           setMdblistApiKey(mdblistKey)
-          safeSetItem("mdblist_key", mdblistKey)
         }
         if (!savedTvdb && tvdbKey) {
           setTvdbApiKey(tvdbKey)
-          safeSetItem("tvdb_key", tvdbKey)
         }
       })
       .catch(() => {
         /* ignore network errors on init */
       })
-  }, [safeGetItem, safeSetItem])
+  }, [safeGetItem])
 
   useEffect(() => {
     safeSetItem("pictorium_theme", theme)

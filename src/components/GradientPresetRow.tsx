@@ -1,7 +1,9 @@
 "use client"
 
-import { useState } from "react"
-import { Plus, X } from "lucide-react"
+import { useRef, useState } from "react"
+import { Download, Plus, Upload, X } from "lucide-react"
+import { useT } from "@/lib/contexts/TranslationContext"
+import { usePresetTransfer } from "@/lib/usePresetTransfer"
 import {
   GRADIENT_PRESET_COLOR,
   NATURAL_GRADIENT_DEFAULTS,
@@ -41,6 +43,9 @@ export function GradientPresetRow({
   deleteLabel,
 }: GradientPresetRowProps) {
   const customs = useCustomGradientPresets()
+  const { t } = useT()
+  const transfer = usePresetTransfer()
+  const fileRef = useRef<HTMLInputElement | null>(null)
   const [naming, setNaming] = useState(false)
   const [name, setName] = useState("")
   const chip = (active: boolean) =>
@@ -80,10 +85,19 @@ export function GradientPresetRow({
               {p.name}
             </button>
             <button type="button"
+                    aria-label={`${t("ui.presetFileExportOne")} ${p.name}`}
+                    title={`${t("ui.presetFileExportOne")} ${p.name}`}
+                    onClick={() => transfer.exportGradient(p)}
+                    disabled={transfer.busy}
+                    className="text-muted hover:text-accent transition-colors px-0.5 rounded disabled:opacity-50">
+              <Download className="w-3 h-3" />
+            </button>
+            <button type="button"
                     aria-label={deleteLabel}
                     title={deleteLabel}
                     onClick={() => deleteCustomGradientPreset(p.id)}
-                    className="text-muted hover:text-danger transition-colors px-0.5 rounded">
+                    disabled={transfer.busy}
+                    className="text-muted hover:text-danger transition-colors px-0.5 rounded disabled:opacity-50">
               <X className="w-3 h-3" />
             </button>
           </span>
@@ -94,7 +108,8 @@ export function GradientPresetRow({
                 aria-label={addTitle}
                 title={addTitle}
                 onClick={() => { setNaming(true); setName("") }}
-                className="text-muted hover:text-accent transition-colors px-1.5 py-0.5 rounded-md border border-dashed border-border/50 hover:border-accent/30">
+                disabled={transfer.busy}
+                className="text-muted hover:text-accent transition-colors px-1.5 py-0.5 rounded-md border border-dashed border-border/50 hover:border-accent/30 disabled:opacity-50">
           <Plus className="w-3 h-3" />
         </button>
       )}
@@ -104,6 +119,7 @@ export function GradientPresetRow({
                maxLength={24}
                placeholder={namePlaceholder}
                aria-label={namePlaceholder}
+               disabled={transfer.busy}
                onChange={(e) => setName(e.target.value)}
                onKeyDown={(e) => {
                  if (e.key === "Enter") save()
@@ -112,6 +128,30 @@ export function GradientPresetRow({
                onBlur={() => { if (!name.trim()) { setNaming(false); setName("") } }}
                className="text-xs bg-surface2/60 border border-border/50 rounded-md px-2 py-0.5 w-28 outline-none focus:border-accent/50 text-zinc-200 placeholder:text-muted" />
       )}
+      <span className="inline-flex items-center gap-1 ml-auto">
+        <button type="button"
+                aria-label={t("ui.presetFileExportGradients")}
+                title={t("ui.presetFileExportGradients")}
+                onClick={() => void transfer.exportGradients()}
+                disabled={transfer.busy}
+                className="text-muted hover:text-accent transition-colors px-1 py-0.5 rounded-md disabled:opacity-50">
+          <Download className="w-3 h-3" />
+        </button>
+        <button type="button"
+                aria-label={t("ui.presetFileImport")}
+                title={t("ui.presetFileImport")}
+                onClick={() => fileRef.current?.click()}
+                disabled={transfer.busy}
+                className="text-muted hover:text-accent transition-colors px-1 py-0.5 rounded-md disabled:opacity-50">
+          <Upload className="w-3 h-3" />
+        </button>
+        <input ref={fileRef} type="file" accept=".json,application/json" className="hidden" aria-hidden="true" tabIndex={-1}
+               onChange={(e) => {
+                 const file = e.target.files?.[0]
+                 e.target.value = ""
+                 if (file && !transfer.busy) void transfer.importFile(file)
+               }} />
+      </span>
     </div>
   )
 }

@@ -2,13 +2,26 @@
 
 import { isSupportedUiLang } from "./regions"
 import { sanitizeCustomPresets } from "./gradient-presets"
+import {
+  DEVICE_KEY_KINDS,
+  DEVICE_KEY_NAMES,
+  MAX_DEVICE_KEY_LENGTH,
+  isPersonalDeviceKey,
+  readPersonalDeviceKey,
+  writePersonalDeviceKey,
+  type DeviceKeyStorage,
+} from "./device-keys"
 
 /**
- * Sezione `local` del backup: preferenze che vivono solo in localStorage
- * (mai sul server). Lettura/scrittura solo tramite lo storage iniettato così
- * resta unit-testabile; MAI qui le chiavi segrete (tmdb_key, mdblist_key,
- * tvdb_key, pictorium-user-token:*, admin token, PIN): non sono lette in
- * export e non sono scritte in import.
+ * The `local` backup section: preferences living only in localStorage (never
+ * on the server). Read/write solely through the injected storage so it stays
+ * unit-testable.
+ *
+ * Device API keys are NOT part of the default backup: `collectLocalBackup`
+ * and `applyLocalBackup` never read or write them. Personal keys travel only
+ * through the opt-in `personalKeys` allowlist (`collectPersonalKeys` /
+ * `applyPersonalKeys`), gated on provenanced values (see device-keys.ts):
+ * instance keys, tokens, admin credentials and PINs can never enter a file.
  */
 
 export interface MinimalStorage {
@@ -25,7 +38,16 @@ export interface LocalBackupSection {
   catalogs?: Record<string, unknown>
   collections?: unknown
   rankingSources?: { movie?: string; series?: string }
+  /**
+   * Personal API keys, opt-in only (see `collectPersonalKeys`): only keys
+   * with valid personal provenance are ever collected here. Secrets without
+   * provenance (instance keys, tokens, PINs) can never appear in this shape.
+   */
+  personalKeys?: PersonalKeysBackup
 }
+
+/** Allowlist of exportable personal keys: fixed kinds, nothing else. */
+export type PersonalKeysBackup = Partial<Record<(typeof DEVICE_KEY_KINDS)[number], string>>
 
 /** Cap per singola voce grezza (il file resta piccolo e innocuo). */
 const RAW_CAPS: Record<string, number> = {
@@ -238,4 +260,92 @@ export function applyLocalBackup(
     }
   } else if (src.rankingSources !== undefined) skipped.push("rankingSources")
   return { applied, skipped }
+}
+
+// ---- Personal API keys (opt-in, provenance-gated) ---------------------------
+// Default export/import never touches device keys: these helpers run only when
+// the caller passes explicit opt-in flags (see useMappingsStore). Collection
+// reads exclusively through `readPersonalDeviceKey`, so unprovenanced values
+// (instance keys, legacy entries) are excluded by construction.
+
+/** Collects only personal-provenance keys. Never throws. */
+export function collectPersonalKeys(storage: DeviceKeyStorage): PersonalKeysBackup {
+  const out: PersonalKeysBackup = {}
+  for (const kind of DEVICE_KEY_KINDS) {
+    const v = readPersonalDeviceKey(storage, kind)
+    if (v !== null) out[kind] = v
+  }
+  return out
+}
+
+function isValidIncomingKey(value: string): boolean {
+  const v = value.trim()
+  return v.length > 0 && v.length <= MAX_DEVICE_KEY_LENGTH && !/\s/.test(v)
+}
+
+/**
+ * Restores a `personalKeys` section onto this device. Fixed allowlist: only
+ * the five known kinds are read (everything else — tokens, PINs, unknown
+ * props, prototype members — is ignored). Null/empty/invalid values never
+ * wipe: they are skipped. An already-stored value (even unprovenanced) is
+ * kept unless `overwrite` is true. Written keys go through
+ * `writePersonalDeviceKey`, gaining a personal marker. Never throws.
+ */
+export function applyPersonalKeys(
+  storage: DeviceKeyStorage,
+  input: unknown,
+  opts?: { overwrite?: boolean },
+): ApplyLocalResult {
+  const applied: string[] = []
+  const skipped: string[] = []
+  if (typeof input !== "object" || input === null || Array.isArray(input)) return { applied, skipped }
+  const src = input as Record<string, unknown>
+  const overwrite = opts?.overwrite === true
+  for (const kind of DEVICE_KEY_KINDS) {
+    const name = `personalKeys.${kind}`
+    if (!Object.prototype.hasOwnProperty.call(src, kind)) continue
+    const raw = src[kind]
+    if (typeof raw !== "string" || !isValidIncomingKey(raw)) {
+      skipped.push(name)
+      continue
+    }
+    const incoming = raw.trim()
+    // Fail-closed on unreadable storage: without the current value we cannot
+    // tell whether overwriting is safe, so skip instead of assuming empty.
+    let existing: string | null = null
+    try {
+      existing = storage.getItem(DEVICE_KEY_NAMES[kind])
+    } catch {
+      skipped.push(name)
+      continue
+    }
+    const existingNorm = typeof existing === "string" && existing.trim() !== "" ? existing.trim() : null
+    if (existingNorm !== null && existingNorm !== incoming && !overwrite) {
+      skipped.push(name)
+      continue
+    }
+    if (existingNorm !== null && existingNorm === incoming && !overwrite && !isPersonalDeviceKey(storage, kind)) {
+      skipped.push(name)
+      continue
+    }
+    if (writePersonalDeviceKey(storage, kind, incoming)) applied.push(name)
+    else skipped.push(name)
+  }
+  return { applied, skipped }
+}
+
+/**
+ * Removes `local.personalKeys` from a backup payload copy before it is POSTed
+ * to `/api/mappings/import`. The server ignores `local` entirely, but secrets
+ * must never leave the device: personal keys are applied locally only.
+ */
+export function stripLocalPersonalKeys(body: unknown): unknown {
+  if (typeof body !== "object" || body === null || Array.isArray(body)) return body
+  const record = body as Record<string, unknown>
+  const local = record.local
+  if (typeof local !== "object" || local === null || Array.isArray(local)) return body
+  if (!Object.prototype.hasOwnProperty.call(local, "personalKeys")) return body
+  const localCopy = { ...(local as Record<string, unknown>) }
+  delete localCopy.personalKeys
+  return { ...record, local: localCopy }
 }

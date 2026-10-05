@@ -27,11 +27,12 @@ import {
 } from "lucide-react"
 import { DefaultsPosterPreview } from "@/components/settings/DefaultsPosterPreview"
 import { VisualPresetsSection } from "@/components/settings/VisualPresetsSection"
+import type { BackupExportOptions, BackupImportOptions } from "@/lib/useMappingsStore"
 
 interface Props {
   setSettingsOpen: (v: boolean) => void
-  exportData: () => void
-  importData: () => void
+  exportData: (opts?: BackupExportOptions) => void
+  importData: (opts?: BackupImportOptions) => void
   mobile?: boolean
   onOpenInstall?: () => void
 }

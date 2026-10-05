@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from "vitest"
+import { describe, it, expect, beforeEach, vi } from "vitest"
 import {
   GRADIENT_PRESET_COLOR,
   NATURAL_GRADIENT_DEFAULTS,
@@ -12,6 +12,7 @@ import {
   addCustomGradientPreset,
   deleteCustomGradientPreset,
   canAddCustomGradientPreset,
+  getCustomGradientPresets,
   resetCustomPresetStore,
 } from "@/lib/gradient-presets"
 import {
@@ -177,5 +178,48 @@ describe("custom gradient presets (local shortcuts, max 3 + 2 built-in = 5)", ()
     ])
     expect(out.map((p) => p.id)).toEqual(["a", "d", "e"])
     expect(sanitizeCustomPresets(null)).toEqual([])
+  })
+
+  it("getCustomGradientPresets mirrors the live store", () => {
+    expect(getCustomGradientPresets()).toEqual([])
+    addCustomGradientPreset("Live", { ...NATURAL_GRADIENT_DEFAULTS })
+    expect(getCustomGradientPresets().map((p) => p.name)).toEqual(["Live"])
+  })
+
+  it("requirePersistence writes storage exactly once on success", () => {
+    const spy = vi.spyOn(Storage.prototype, "setItem")
+    try {
+      expect(addCustomGradientPreset("Once", { ...NATURAL_GRADIENT_DEFAULTS }, { requirePersistence: true })).not.toBeNull()
+      expect(spy).toHaveBeenCalledTimes(1)
+      expect(getCustomGradientPresets().map((p) => p.name)).toEqual(["Once"])
+    } finally {
+      spy.mockRestore()
+    }
+  })
+
+  it("requirePersistence rejects when storage is unavailable, default path keeps memory fallback", () => {
+    const desc = Object.getOwnPropertyDescriptor(window, "localStorage")
+    Object.defineProperty(window, "localStorage", { value: undefined, configurable: true })
+    try {
+      expect(addCustomGradientPreset("NoStore", { ...NATURAL_GRADIENT_DEFAULTS }, { requirePersistence: true })).toBeNull()
+      expect(getCustomGradientPresets()).toEqual([])
+      expect(addCustomGradientPreset("Mem", { ...NATURAL_GRADIENT_DEFAULTS })).not.toBeNull()
+    } finally {
+      if (desc) Object.defineProperty(window, "localStorage", desc)
+    }
+  })
+  it("requirePersistence rejects on storage failure without touching the store", () => {
+    const spy = vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
+      throw new DOMException("quota", "QuotaExceededError")
+    })
+    try {
+      expect(addCustomGradientPreset("Lost", { ...NATURAL_GRADIENT_DEFAULTS }, { requirePersistence: true })).toBeNull()
+      expect(getCustomGradientPresets()).toEqual([])
+      expect(canAddCustomGradientPreset()).toBe(true)
+      // Default path unchanged: in-memory fallback still applies.
+      expect(addCustomGradientPreset("Kept", { ...NATURAL_GRADIENT_DEFAULTS })).not.toBeNull()
+    } finally {
+      spy.mockRestore()
+    }
   })
 })

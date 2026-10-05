@@ -14,6 +14,7 @@ import {
   USER_UNLOCK_EVENT,
 } from "@/lib/user-token"
 import type { UserKeyKind } from "@/lib/user-keys"
+import { DEVICE_KEY_NAMES, clearDeviceKey, writePersonalDeviceKey } from "@/lib/device-keys"
 
 const KINDS: readonly UserKeyKind[] = ["tmdb", "mdblist", "tvdb", "simkl", "fanart"]
 
@@ -168,14 +169,6 @@ const SAVED_KEY_MASKS: Record<UserKeyKind, string> = {
   tvdb: "••••••••••••••••••••••••••••••••", // 32 caratteri (TVDB)
   simkl: "••••••••••••••••••••••••••••••••", // Simkl Client ID
   fanart: "••••••••••••••••••••••••••••••••", // Fanart.tv Project Key
-}
-
-const DEVICE_KEY_NAMES: Record<UserKeyKind, string> = {
-  tmdb: "tmdb_key",
-  mdblist: "mdblist_key",
-  tvdb: "tvdb_key",
-  simkl: "simkl_key",
-  fanart: "fanart_key",
 }
 
 const KIND_LABELS: Record<UserKeyKind, string> = {
@@ -434,13 +427,10 @@ export function UserKeysSection() {
         return { ...base, [kind]: !isDisabled }
       })
       if (!isDisabled) {
-        // Disattivazione: la chiave dispositivo esce di scena (altrimenti
-        // l'editor la userebbe scavalcando il flag server).
-        try {
-          window.localStorage.removeItem(DEVICE_KEY_NAMES[kind])
-        } catch {
-          // storage non disponibile: il reset input basta comunque
-        }
+        // Deactivation: the device key leaves the scene (otherwise the editor
+        // would use it bypassing the server flag). The provenance marker goes
+        // too: re-import will require explicit re-entry.
+        clearDeviceKey(window.localStorage, kind)
         setValues((prev) => ({ ...prev, [kind]: "" }))
         setDirty((prev) => ({ ...prev, [kind]: false }))
         setShow((prev) => ({ ...prev, [kind]: false }))
@@ -448,17 +438,15 @@ export function UserKeysSection() {
         toast.success(t("ui.keyDeactivated", { provider: KIND_LABELS[kind] || kind }))
         return
       }
-      // Riattivazione: refill valore + chiave dispositivo dal server.
+      // Reactivation: refill value + device key from the server. A space key
+      // is the user's own (explicit action): stamp the marker so a future
+      // export recognizes it.
       const v = await ensureValue(kind)
       if (!v) {
         toast.error(t("ui.userKeysSaveError"))
         return
       }
-      try {
-        window.localStorage.setItem(DEVICE_KEY_NAMES[kind], v)
-      } catch {
-        // storage non disponibile: l'input resta comunque valorizzato
-      }
+      writePersonalDeviceKey(window.localStorage, kind, v)
       window.dispatchEvent(new CustomEvent(USER_UNLOCK_EVENT, { detail: { uuid } }))
       toast.success(t("ui.keyReactivated", { provider: KIND_LABELS[kind] || kind }))
     } catch {
@@ -521,6 +509,12 @@ export function UserKeysSection() {
         // resterebbe stantio fino al refresh e i poster non partirebbero.
         // Stesso idioma del cambio password in UserSpaceSection.
         window.dispatchEvent(new CustomEvent(USER_UNLOCK_EVENT, { detail: { uuid } }))
+      }
+      // Successful save = explicit re-entry (dirty fires on typing even when
+      // the value is identical to the previous one): pin to the device with a
+      // personal marker, or clear on deletion ("").
+      for (const kind of Object.keys(payload) as UserKeyKind[]) {
+        writePersonalDeviceKey(window.localStorage, kind, payload[kind] ?? "")
       }
       toast.success(t("ui.userKeysSaved"))
     } catch {

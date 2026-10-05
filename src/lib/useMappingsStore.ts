@@ -4,11 +4,34 @@ import { useState, useCallback, useEffect, useMemo } from "react"
 import type { Mapping } from "./types"
 import { http, userFetch } from "./http"
 import { USER_UNLOCK_EVENT, currentPathUuid } from "./user-token"
-import { applyLocalBackup, collectLocalBackup } from "./backup-local"
+import { applyLocalBackup, applyPersonalKeys, collectLocalBackup, collectPersonalKeys, stripLocalPersonalKeys } from "./backup-local"
 import { t } from "./i18n"
+
+/** Opt-in flags for personal API keys in backup export (all default off). */
+export interface BackupExportOptions {
+  /** Include device keys with valid personal provenance as `local.personalKeys`. */
+  includePersonalKeys?: boolean
+}
+
+/** Opt-in flags for personal API keys in backup import (all default off). */
+export interface BackupImportOptions {
+  /** Apply the file's `local.personalKeys` to this device. */
+  importPersonalKeys?: boolean
+  /** Also replace device keys that already hold a (different or unknown) value. */
+  overwritePersonalKeys?: boolean
+}
 
 /** Flag sessione per il toast post-reload dopo un import con reload. */
 const BACKUP_RESTORED_KEY = "pictorium:backup-restored"
+
+/**
+ * Skipped-keys notice, counts only (never values): omitted keys were NOT
+ * restored, so the toast must not promise a full key restore. No-op at zero.
+ */
+function notifySkippedPersonalKeys(skipped: number): void {
+  if (!(skipped > 0)) return
+  import("sonner").then(({ toast }) => toast(t("ui.backupKeysSkipped", { skipped })))
+}
 
 export function useMappingsStore() {
   const [mappings, setMappings] = useState<Mapping[]>([])
@@ -53,7 +76,7 @@ export function useMappingsStore() {
     import("sonner").then(({ toast }) => toast(t("ui.mappingRemoved")))
   }, [])
 
-  const exportData = useCallback(async () => {
+  const exportData = useCallback(async (opts?: BackupExportOptions) => {
     try {
       const data = await http<Record<string, unknown>>("/api/mappings/export")
       // Sezione `local` (lingua, tema, ricerche recenti, mirror locali):
@@ -62,6 +85,12 @@ export function useMappingsStore() {
       try {
         if (typeof window !== "undefined" && window.localStorage) {
           local = { ...collectLocalBackup(window.localStorage, currentPathUuid()) }
+          // Personal keys: explicit opt-in only, provenance-gated. Default
+          // export never reads device keys.
+          if (opts?.includePersonalKeys === true) {
+            const personalKeys = collectPersonalKeys(window.localStorage)
+            if (Object.keys(personalKeys).length > 0) local = { ...local, personalKeys }
+          }
         }
       } catch {
         local = {}
@@ -80,7 +109,7 @@ export function useMappingsStore() {
     }
   }, [])
 
-  const importData = useCallback(() => {
+  const importData = useCallback((opts?: BackupImportOptions) => {
     const input = document.createElement("input")
     input.type = "file"; input.accept = ".json"
     input.onchange = async (e) => {
@@ -89,11 +118,13 @@ export function useMappingsStore() {
       const text = await file.text()
       try {
         const data = JSON.parse(text)
-        // Il server applica le sezioni server (v1 o v2) e ignora `local`.
+        // Personal keys never leave the device: strip them from the server
+        // payload (the server applies its own sections and ignores `local`)
+        // and apply them locally below, opt-in only.
         const res = await userFetch("/api/mappings/import", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(data),
+          body: JSON.stringify(stripLocalPersonalKeys(data)),
         })
         if (!res.ok) {
           const errBody = await res.json().catch(() => null)
@@ -106,9 +137,25 @@ export function useMappingsStore() {
         // Sezione `local` (solo backup v2): si scrive sul namespace corrente
         // (migrazione tra spazi), mai sulle chiavi d'origine.
         let appliedLocal: string[] = []
+        let appliedPersonalKeys: string[] = []
+        let skippedPersonalKeys: string[] = []
         try {
           if (typeof window !== "undefined" && window.localStorage && data && typeof data === "object" && "local" in data) {
-            appliedLocal = applyLocalBackup(window.localStorage, currentPathUuid(), (data as { local?: unknown }).local).applied
+            const localSection = (data as { local?: unknown }).local
+            appliedLocal = applyLocalBackup(window.localStorage, currentPathUuid(), localSection).applied
+            // Personal keys: explicit opt-in only (default off), never
+            // overwriting existing device values without separate consent.
+            if (opts?.importPersonalKeys === true) {
+              const personalSection =
+                typeof localSection === "object" && localSection !== null && !Array.isArray(localSection)
+                  ? (localSection as { personalKeys?: unknown }).personalKeys
+                  : undefined
+              const personalResult = applyPersonalKeys(window.localStorage, personalSection, {
+                overwrite: opts?.overwritePersonalKeys === true,
+              })
+              appliedPersonalKeys = personalResult.applied
+              skippedPersonalKeys = personalResult.skipped
+            }
           }
         } catch (err) {
           console.warn("[pictorium] Local backup apply failed:", err)
@@ -121,11 +168,14 @@ export function useMappingsStore() {
             posters: imp.mappings ?? 0,
             presets: imp.presets ?? 0,
             aliases: imp.aliases ?? 0,
+            keysApplied: appliedPersonalKeys.length,
+            keysSkipped: skippedPersonalKeys.length,
           }
-          // Impostazioni o preferenze locali: gli state si idratano al mount
-          // (defaults, cataloghi, lingua, tema, gradienti) → reload. Il toast
-          // si mostra dopo il reload via flag di sessione.
-          if ((imp.defaults ?? 0) > 0 || appliedLocal.length > 0) {
+          // Impostazioni, preferenze locali o chiavi personali: gli state si
+          // idratano al mount (defaults, cataloghi, lingua, tema, gradienti,
+          // chiavi) → reload. Il toast si mostra dopo il reload via flag di
+          // sessione. Solo conteggi nel toast, mai valori.
+          if ((imp.defaults ?? 0) > 0 || appliedLocal.length > 0 || appliedPersonalKeys.length > 0) {
             try {
               sessionStorage.setItem(BACKUP_RESTORED_KEY, JSON.stringify(summary))
             } catch { /* reload comunque */ }
@@ -133,6 +183,7 @@ export function useMappingsStore() {
             return
           }
           import("sonner").then(({ toast }) => toast(t("ui.backupImportSuccess", summary)))
+          notifySkippedPersonalKeys(skippedPersonalKeys.length)
         } else {
           import("sonner").then(({ toast }) => toast(t("ui.importSuccess", { count: result.count ?? data.mappings?.length ?? data.length })))
         }
@@ -150,7 +201,7 @@ export function useMappingsStore() {
       const raw = sessionStorage.getItem(BACKUP_RESTORED_KEY)
       if (!raw) return
       sessionStorage.removeItem(BACKUP_RESTORED_KEY)
-      const summary = JSON.parse(raw) as { posters?: number; presets?: number; aliases?: number }
+      const summary = JSON.parse(raw) as { posters?: number; presets?: number; aliases?: number; keysSkipped?: number }
       import("sonner").then(({ toast }) =>
         toast(t("ui.backupImportSuccess", {
           posters: summary.posters ?? 0,
@@ -158,6 +209,7 @@ export function useMappingsStore() {
           aliases: summary.aliases ?? 0,
         })),
       )
+      notifySkippedPersonalKeys(summary.keysSkipped ?? 0)
     } catch { /* niente toast */ }
   }, [])
 

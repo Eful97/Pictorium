@@ -10,6 +10,7 @@ import { getDetails, getDetailsWithExternalIds, getImages, getExternalIds } from
 import { getJWRankings } from "@/lib/justwatch"
 import { fetchMDBList } from "@/lib/mdblist"
 import { cacheClear } from "@/lib/cache"
+import { __resetImageBytesForTest } from "@/lib/image-bytes-cache"
 import { resolveStreamQuality } from "@/lib/stream-quality"
 import { __resetTMDBSessionCache, setTMDBSessionCache } from "@/lib/tmdb-session-cache"
 import type { Mapping } from "@/lib/types"
@@ -148,6 +149,9 @@ async function imageBuffer(color: string, width: number, height: number): Promis
 describe("GET /api/poster/[type]/[id] with saved mappings", () => {
   beforeEach(() => {
     vi.restoreAllMocks()
+    // Byte-LRU is module-level and survives cacheClear: reset it so logo
+    // fetches hit the network and requestedUrls stays observable.
+    __resetImageBytesForTest()
     vi.mocked(fetchCustomRatings).mockReset().mockResolvedValue([])
     vi.mocked(fetchAggregatedRating).mockReset().mockResolvedValue(null)
     vi.mocked(renderMultiRatings).mockClear()
@@ -198,7 +202,7 @@ describe("GET /api/poster/[type]/[id] with saved mappings", () => {
     expect(renderMultiRatings).not.toHaveBeenCalled()
   })
 
-  it("keeps the logo over the backdrop in landscape without a clean poster (portrait drops it)", async () => {
+  it("keeps the manual logo on non-clean posters in landscape and portrait", async () => {
     const backdrop = await imageBuffer("#101010", 768, 432)
     const logo = await imageBuffer("#ffffff", 220, 80)
     const requestedUrls: string[] = []
@@ -228,12 +232,14 @@ describe("GET /api/poster/[type]/[id] with saved mappings", () => {
     const land = await GET(new NextRequest("http://localhost:3000/api/poster/movie/44?rv=81"), { params: Promise.resolve({ type: "movie", id: "44" }) })
     expect(land.status).toBe(200)
     expect(requestedUrls.some((url) => url.includes("/landscape-logo.png"))).toBe(true)
-    // Portrait: poster con testo incorporato, niente logo (invariato).
+    // Manual logo persists on non-clean portrait; reset the byte-LRU (same
+    // logo URL as the landscape half) so the portrait fetch is observed.
     requestedUrls.length = 0
+    __resetImageBytesForTest()
     mockedGetById.mockResolvedValue({ ...nonClean, tmdbId: 45, posterShape: "poster" })
     const port = await GET(new NextRequest("http://localhost:3000/api/poster/movie/45?rv=81"), { params: Promise.resolve({ type: "movie", id: "45" }) })
     expect(port.status).toBe(200)
-    expect(requestedUrls.some((url) => url.includes("/landscape-logo.png"))).toBe(false)
+    expect(requestedUrls.some((url) => url.includes("/landscape-logo.png"))).toBe(true)
   })
 
   it("passes custom ratings to the renderer on a miss and skips the provider on a cache hit", async () => {

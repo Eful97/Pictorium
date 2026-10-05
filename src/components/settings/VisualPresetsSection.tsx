@@ -1,12 +1,13 @@
 "use client"
 
-import { useCallback, useEffect, useState } from "react"
-import { BookmarkPlus, X } from "lucide-react"
+import { useCallback, useEffect, useId, useRef, useState } from "react"
+import { BookmarkPlus, ChevronDown, Download, Upload, X } from "lucide-react"
 import { toast } from "sonner"
 import { useT } from "@/lib/contexts/TranslationContext"
 import { usePosterEditor } from "@/lib/contexts/PosterEditorContext"
 import { usePSelector } from "@/lib/context"
 import { http } from "@/lib/http"
+import { usePresetTransfer } from "@/lib/usePresetTransfer"
 import { captureVisualPreset, MAX_VISUAL_PRESETS, type VisualPreset } from "@/lib/visual-presets"
 
 const endpoint = "/api/defaults/presets"
@@ -20,6 +21,14 @@ export function VisualPresetsSection() {
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState(false)
+  const transfer = usePresetTransfer({ onVisualsChanged: setPresets })
+  const transferBusy = transfer.busy
+  const fileRef = useRef<HTMLInputElement | null>(null)
+  // Collapsible disclosure, closed by default to save vertical space.
+  // Body is unmounted while closed (DataPanel pattern); load still runs at
+  // mount so the header count stays accurate.
+  const [isOpen, setIsOpen] = useState(false)
+  const bodyId = useId()
 
   const load = useCallback(async (signal?: AbortSignal) => {
     setLoading(true)
@@ -62,12 +71,26 @@ export function VisualPresetsSection() {
 
   return (
     <section aria-label={t("ui.visualPresetsTitle")} className="bg-surface/50 border border-surface2/60 rounded-xl p-3.5 space-y-3 text-xs">
-      <div className="flex items-center justify-between gap-2">
-        <h4 className="font-semibold text-zinc-200 flex items-center gap-1.5">
-          <BookmarkPlus className="w-3.5 h-3.5 text-accent-orange" />{t("ui.visualPresetsTitle")}
-        </h4>
-        <span className="text-[10px] text-muted">{presets.length}/{MAX_VISUAL_PRESETS}</span>
-      </div>
+      <button
+        type="button"
+        onClick={() => setIsOpen((prev) => !prev)}
+        aria-expanded={isOpen}
+        aria-controls={bodyId}
+        className="w-full min-h-[44px] py-1 flex items-center justify-between gap-2 cursor-pointer group touch-manipulation"
+      >
+        <span className="font-semibold text-zinc-200 flex items-center gap-1.5">
+          <BookmarkPlus className="w-3.5 h-3.5 text-accent-orange" aria-hidden="true" />{t("ui.visualPresetsTitle")}
+        </span>
+        <span className="flex items-center gap-2">
+          <span className="text-[10px] text-muted">{presets.length}/{MAX_VISUAL_PRESETS}</span>
+          <ChevronDown
+            aria-hidden="true"
+            className={`w-4 h-4 text-zinc-400 transition-transform duration-200 ${isOpen ? "rotate-180" : ""}`}
+          />
+        </span>
+      </button>
+      {isOpen && (
+      <div id={bodyId} className="space-y-3">
       <p className="text-[11px] text-muted">{t("ui.visualPresetsHint")}</p>
       {loading ? <p role="status" className="text-muted">{t("ui.loading")}</p> : error ? (
         <div className="flex items-center gap-2">
@@ -86,7 +109,13 @@ export function VisualPresetsSection() {
                   <span aria-hidden="true" className={`h-1.5 w-1.5 shrink-0 rounded-full ${current === JSON.stringify(preset.values) ? "bg-accent-orange" : "bg-zinc-500"}`} />
                   <span className="max-w-[200px] truncate">{preset.name}</span>
                 </button>
-                <button type="button" disabled={busy} aria-label={`${t("ui.delete")} ${preset.name}`}
+                <button type="button" disabled={busy} aria-label={`${t("ui.presetFileExportOne")} ${preset.name}`}
+                  title={`${t("ui.presetFileExportOne")} ${preset.name}`}
+                  onClick={() => transfer.exportVisual(preset)}
+                  className="absolute -left-2 -top-2 flex h-7 w-7 items-center justify-center rounded-full border border-white/15 bg-[#202024] text-zinc-400 shadow-md hover:border-accent-orange/40 hover:bg-accent-orange/15 hover:text-accent-orange focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-orange transition-colors cursor-pointer disabled:opacity-50">
+                  <Download className="w-3 h-3" />
+                </button>
+                <button type="button" disabled={busy || transferBusy} aria-label={`${t("ui.delete")} ${preset.name}`}
                   title={`${t("ui.delete")} ${preset.name}`}
                   onClick={() => void mutate("DELETE", { id: preset.id })}
                   className="absolute -right-2 -top-2 flex h-7 w-7 items-center justify-center rounded-full border border-white/15 bg-[#202024] text-zinc-400 shadow-md hover:border-red-400/40 hover:bg-red-950 hover:text-red-300 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-orange transition-colors cursor-pointer disabled:opacity-50">
@@ -97,17 +126,37 @@ export function VisualPresetsSection() {
           </div>
           <form className="flex gap-2" onSubmit={(event) => {
             event.preventDefault()
-            if (!busy && canSave) void mutate("POST", { name: name.trim(), values: captureVisualPreset(ed) })
+            if (!busy && !transferBusy && canSave) void mutate("POST", { name: name.trim(), values: captureVisualPreset(ed) })
           }}>
             <input value={name} onChange={(event) => setName(event.target.value)} maxLength={40}
-              aria-label={t("ui.visualPresetName")} placeholder={t("ui.visualPresetName")} disabled={busy}
+              aria-label={t("ui.visualPresetName")} placeholder={t("ui.visualPresetName")} disabled={busy || transferBusy}
               className="min-w-0 flex-1 bg-surface2/60 border border-white/10 rounded-lg px-3 h-11 text-zinc-200 outline-none focus:border-accent-orange/50 disabled:opacity-50" />
-            <button type="submit" disabled={busy || !canSave}
+            <button type="submit" disabled={busy || transferBusy || !canSave}
               className="px-3 h-11 rounded-lg bg-accent-orange/15 text-accent-orange hover:bg-accent-orange/25 cursor-pointer disabled:opacity-50">
               {t("ui.visualPresetSave")}
             </button>
           </form>
+          <div className="flex gap-2 pt-1">
+            <button type="button" disabled={busy || transferBusy}
+              onClick={() => void transfer.exportAll()}
+              className="flex flex-1 items-center justify-center gap-1.5 h-11 rounded-lg bg-white/[0.04] text-zinc-300 hover:text-white hover:bg-white/[0.08] border border-white/[0.08] transition-colors cursor-pointer disabled:opacity-50">
+              <Download className="w-3.5 h-3.5 text-accent-orange" />{t("ui.presetFileExportAll")}
+            </button>
+            <button type="button" disabled={busy || transferBusy}
+              onClick={() => fileRef.current?.click()}
+              className="flex flex-1 items-center justify-center gap-1.5 h-11 rounded-lg bg-white/[0.04] text-zinc-300 hover:text-white hover:bg-white/[0.08] border border-white/[0.08] transition-colors cursor-pointer disabled:opacity-50">
+              <Upload className="w-3.5 h-3.5 text-blue-400" />{t("ui.presetFileImport")}
+            </button>
+            <input ref={fileRef} type="file" accept=".json,application/json" className="hidden" aria-hidden="true" tabIndex={-1}
+              onChange={(event) => {
+                const file = event.target.files?.[0]
+                event.target.value = ""
+                if (file && !transferBusy) void transfer.importFile(file)
+              }} />
+          </div>
         </>
+      )}
+      </div>
       )}
     </section>
   )

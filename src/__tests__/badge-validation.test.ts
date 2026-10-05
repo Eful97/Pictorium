@@ -59,9 +59,9 @@ describe("computeBadge", () => {
   it("prioritizes trend rank over award", () => {
     expect(computeBadge({ ...base, trendRank: 3, award: "Vincitore Oscar" }, t)?.type).toBe("rank")
     expect(computeBadge({ ...base, trendRank: 3 }, t)?.rank).toBe(3)
-    // Label del rank per media type: "Film" per i film, "Serie" per le serie
-    expect(computeBadge({ ...base, trendRank: 3 }, t)?.label).toBe("Film")
-    expect(computeBadge({ ...base, mediaType: "tv", trendRank: 3 }, t)?.label).toBe("Serie")
+    // Label del rank: il periodo della chart ("Oggi") per entrambi i media type
+    expect(computeBadge({ ...base, trendRank: 3 }, t)?.label).toBe("Oggi")
+    expect(computeBadge({ ...base, mediaType: "tv", trendRank: 3 }, t)?.label).toBe("Oggi")
     // Il nastro mostra il periodo ("Oggi", anche per gli anime), non la label per media type
     expect(computeBadge({ ...base, trendRank: 3 }, t)?.ribbonLabel).toBe("Oggi")
     expect(computeBadge({ ...base, mediaType: "tv", trendRank: 3 }, t)?.ribbonLabel).toBe("Oggi")

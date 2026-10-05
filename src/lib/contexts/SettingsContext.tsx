@@ -2,6 +2,7 @@
 
 import { createContext, useContext, useMemo, type ReactNode } from "react"
 import type { PictoriumCtx } from "@/lib/context"
+import type { BackupExportOptions, BackupImportOptions } from "@/lib/useMappingsStore"
 
 /**
  * SettingsCtx — subset di PictoriumCtx per impostazioni (chiavi API, tema, lingua, profilo).
@@ -28,8 +29,8 @@ export interface SettingsCtx {
   lang: string
   t: (key: string, params?: Record<string, string | number>) => string
   pickLang: (l: string) => void
-  exportData: () => Promise<void>
-  importData: () => void
+  exportData: (opts?: BackupExportOptions) => Promise<void>
+  importData: (opts?: BackupImportOptions) => void
   copyUrl: () => Promise<void>
 }
 

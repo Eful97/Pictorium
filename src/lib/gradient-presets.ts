@@ -207,13 +207,19 @@ export function hydrateCustomPresets(): void {
   }
 }
 
+function writeStoredPresets(next: CustomGradientPreset[]): boolean {
+  try {
+    if (typeof window === "undefined" || !window.localStorage) return false
+    window.localStorage.setItem(gradientPresetsStorageKey(), JSON.stringify(next))
+    return true
+  } catch {
+    return false
+  }
+}
+
 function persistPresets(next: CustomGradientPreset[]) {
   customPresets = next
-  try {
-    if (typeof window !== "undefined" && window.localStorage) {
-      window.localStorage.setItem(gradientPresetsStorageKey(), JSON.stringify(next))
-    }
-  } catch {
+  if (!writeStoredPresets(next)) {
     /* preset non salvato: resta in memoria per la sessione */
   }
   emitPresets()
@@ -234,6 +240,11 @@ function subscribePresets(l: PresetListener): () => void {
 
 function getPresetsSnapshot(): CustomGradientPreset[] {
   return customPresets
+}
+
+/** Live in-memory snapshot for import planning: read AFTER async reads, never a stale closure. No hydration here — mirrors exactly what add() mutates. */
+export function getCustomGradientPresets(): CustomGradientPreset[] {
+  return [...customPresets]
 }
 
 /** Snapshot server: sempre vuoto (niente mismatch hydration, vedi hydrate). */
@@ -258,8 +269,8 @@ export function canAddCustomGradientPreset(): boolean {
   return customPresets.length < MAX_CUSTOM_GRADIENT_PRESETS
 }
 
-/** Salva i valori correnti come preset; null se nome vuoto, valori invalidi o slot pieni. */
-export function addCustomGradientPreset(name: string, values: GradientPresetValues): CustomGradientPreset | null {
+/** Save current values as preset; null on empty name, invalid values or full slots. With `requirePersistence` (import path only) a storage write failure rejects BEFORE touching the in-memory store, so a reported success is really persisted. */
+export function addCustomGradientPreset(name: string, values: GradientPresetValues, opts?: { requirePersistence?: boolean }): CustomGradientPreset | null {
   if (typeof window === "undefined") return null
   const clean = name.trim().slice(0, 24)
   if (!clean || !isValidPresetValues(values)) return null
@@ -269,7 +280,16 @@ export function addCustomGradientPreset(name: string, values: GradientPresetValu
     name: clean,
     values: { ...values },
   }
-  persistPresets([...customPresets, preset])
+  const next = [...customPresets, preset]
+  if (opts?.requirePersistence) {
+    // Single storage write: on success update memory + emit directly,
+    // never rewrite via persistPresets (no double setItem).
+    if (!writeStoredPresets(next)) return null
+    customPresets = next
+    emitPresets()
+    return preset
+  }
+  persistPresets(next)
   return preset
 }
 

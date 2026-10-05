@@ -8,6 +8,7 @@ import {
   setStoredUserPassword,
   USER_UNLOCK_EVENT,
 } from "@/lib/user-token"
+import { readPersonalDeviceKey } from "@/lib/device-keys"
 
 const UUID = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"
 
@@ -370,5 +371,89 @@ describe("UserKeysSection", () => {
     })
     expect(window.localStorage.getItem("tmdb_key")).toBe("real-secret-tmdb")
     expect(screen.getByText("ui.userKeysSet")).toBeInTheDocument()
+  })
+
+  it("save riuscito fissa il marker personale anche per valore identico legacy", async () => {
+    // Chiave incerta (senza marker: es. pre-populate istanza storico): l'export
+    // la esclude finché un save esplicito non la rimarca.
+    window.localStorage.setItem("tmdb_key", "legacy-same-key-12345")
+    expect(readPersonalDeviceKey(window.localStorage, "tmdb")).toBeNull()
+    const puts: string[] = []
+    global.fetch = (async (url: unknown, init?: RequestInit) => {
+      const u = String(url)
+      if (u.includes(`/api/users/${UUID}/keys`) && !u.includes("/reveal")) {
+        if (init?.method === "PUT") {
+          puts.push(String(init?.body || ""))
+          return { ok: true, status: 200, json: async () => ({ keys: { tmdb: true } }) }
+        }
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ tmdb: false, mdblist: false, tvdb: false, simkl: false }),
+        }
+      }
+      return { ok: false, status: 404, json: async () => ({}) }
+    }) as unknown as typeof fetch
+
+    renderWithCtx(<UserKeysSection />)
+
+    await waitFor(() => {
+      expect(screen.getByDisplayValue("legacy-same-key-12345")).toBeInTheDocument()
+    })
+    // Automatic prefill is not consent: still unmarked before the save.
+    expect(window.localStorage.getItem("tmdb_key:origin")).toBeNull()
+
+    // Reinserimento esplicito dello STESSO valore (dirty scatta comunque: prima
+    // un valore diverso — React non emette onChange a valore invariato — poi
+    // quello finale, come una re-digitazione reale).
+    const inputs = document.querySelectorAll("input")
+    fireEvent.change(inputs[0], { target: { value: "temporary-other-key" } })
+    fireEvent.change(inputs[0], { target: { value: "legacy-same-key-12345" } })
+    fireEvent.click(screen.getByRole("button", { name: "ui.save" }))
+
+    await waitFor(() => {
+      expect(puts).toHaveLength(1)
+    })
+    expect(JSON.parse(puts[0])).toEqual({ tmdb: "legacy-same-key-12345" })
+    // Il save riuscito ha marcato la provenienza personale.
+    expect(readPersonalDeviceKey(window.localStorage, "tmdb")).toBe("legacy-same-key-12345")
+  })
+
+  it("save fallito non fissa alcun marker (resta fail-closed)", async () => {
+    window.localStorage.setItem("tmdb_key", "unsaved-key-999")
+    const puts: string[] = []
+    global.fetch = (async (url: unknown, init?: RequestInit) => {
+      const u = String(url)
+      if (u.includes(`/api/users/${UUID}/keys`) && !u.includes("/reveal")) {
+        if (init?.method === "PUT") {
+          puts.push(String(init?.body || ""))
+          return { ok: false, status: 500, json: async () => ({}) }
+        }
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ tmdb: false, mdblist: false, tvdb: false, simkl: false }),
+        }
+      }
+      return { ok: false, status: 404, json: async () => ({}) }
+    }) as unknown as typeof fetch
+
+    renderWithCtx(<UserKeysSection />)
+
+    await waitFor(() => {
+      expect(screen.getByDisplayValue("unsaved-key-999")).toBeInTheDocument()
+    })
+
+    const inputs = document.querySelectorAll("input")
+    fireEvent.change(inputs[0], { target: { value: "temporary-other-key" } })
+    fireEvent.change(inputs[0], { target: { value: "unsaved-key-999" } })
+    fireEvent.click(screen.getByRole("button", { name: "ui.save" }))
+
+    // Il save è partito (PUT 500) ma il marker non è stato fissato.
+    await waitFor(() => {
+      expect(puts).toHaveLength(1)
+    })
+    expect(window.localStorage.getItem("tmdb_key:origin")).toBeNull()
+    expect(readPersonalDeviceKey(window.localStorage, "tmdb")).toBeNull()
   })
 })
