@@ -161,6 +161,55 @@ function normalizeQualityResult(raw: StreamQualityResult | StreamQuality | strin
   return { quality: (raw ?? null) as StreamQuality | null, status: "resolved", source: "none" }
 }
 
+/**
+ * Coalesced pre-cache source fetch: concurrent poster requests for the same
+ * chart/list share one upstream call instead of one per title. Inflight-only
+ * (deleted on settle), no TTL cache added. Cleanup attaches dual handlers so
+ * neither the stored promise nor the derived cleanup promise rejects unhandled.
+ */
+const rankSourceInflight = new Map<string, Promise<unknown>>()
+
+function sharedSourceFetch<T>(key: string, start: () => Promise<T>): Promise<T> {
+  const existing = rankSourceInflight.get(key) as Promise<T> | undefined
+  if (existing) return existing
+  const p = start()
+  rankSourceInflight.set(key, p as Promise<unknown>)
+  void p.then(
+    () => { if (rankSourceInflight.get(key) === p) rankSourceInflight.delete(key) },
+    () => { if (rankSourceInflight.get(key) === p) rankSourceInflight.delete(key) },
+  )
+  return p
+}
+
+/**
+ * Per-caller bounded wait on a shared source promise. Settles with the shared
+ * outcome when it wins, otherwise rejects after ms (or on external abort)
+ * without aborting the shared fetch other callers wait on. Timer and listener
+ * are always cleaned up on either path.
+ */
+function awaitWithOwnBudget<T>(promise: Promise<T>, ms: number, external?: AbortSignal | null): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined
+  let onAbort: (() => void) | undefined
+  const cleanup = () => {
+    if (timer !== undefined) { clearTimeout(timer); timer = undefined }
+    if (onAbort !== undefined && external) { external.removeEventListener("abort", onAbort); onAbort = undefined }
+  }
+  const bounded = new Promise<T>((_, reject) => {
+    timer = setTimeout(() => { cleanup(); reject(new DOMException("Aborted", "AbortError")) }, Math.max(1, ms))
+    if (external) {
+      if (external.aborted) { cleanup(); reject(new DOMException("Aborted", "AbortError")) }
+      else {
+        onAbort = () => { cleanup(); reject(new DOMException("Aborted", "AbortError")) }
+        external.addEventListener("abort", onAbort, { once: true })
+      }
+    }
+  })
+  return Promise.race([promise, bounded]).then(
+    (v) => { cleanup(); return v },
+    (e) => { cleanup(); throw e },
+  )
+}
+
 type RouteParams = { type: string; id: string }
 
 /**
@@ -457,6 +506,85 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
   const tvdbApiKey = effTvdbKey
   if (tvdbApiKey) cacheParams.set("tvdb", "1")
   if (typeof cacheParams.sort === "function") cacheParams.sort()
+  // Pre-cache rank snapshot so the cache key carries the live trend/anime rank.
+  // The same snapshot is reused by the render below: no second fetch.
+  // Enabled-flag mirrors the later queryPoster/mapping branches exactly:
+  // explicit query wins, query-poster branch ignores the mapping, otherwise
+  // the mapping decides, unmapped defaults to true.
+  const qRankingPre = req.nextUrl.searchParams.get("ranking")
+  const rankingEnabledPre = qRankingPre !== null
+    ? qRankingPre !== "0"
+    : (!!hardenedParams.get("poster") ? true : (mapping?.rankingBadges ?? true))
+  // Same parsers as the render: qRank overrides trend only (anime stays
+  // independent), and only a valid non-negative int skips the trend fetch.
+  const qRankPre = hardenedParams.get("rank")
+  const qRankParsedPre = qRankPre !== null ? parseInt(qRankPre, 10) : NaN
+  const hasValidQRankOverride = qRankPre !== null && qRankParsedPre >= 0
+  const qAnimeRankParamPre = hardenedParams.get("animerank")
+  const qAnimeRankPre = qAnimeRankParamPre ? Number(qAnimeRankParamPre) : NaN
+  const rankingSelectionPre = {
+    customCatalogs: configOverride?.customCatalogs ?? sd.customCatalogs,
+    rankingSourceMovie: configOverride?.rankingSourceMovie ?? sd.rankingSourceMovie,
+    rankingSourceSeries: configOverride?.rankingSourceSeries ?? sd.rankingSourceSeries,
+  }
+  const rankingSourcePre = resolveRankingSource(
+    rankingSelectionPre,
+    mediaType === "movie" ? "movie" : "series",
+  )
+  const rankingCustomPre = rankingSourcePre.kind === "custom"
+    ? findRankingCustomCatalog(rankingSelectionPre.customCatalogs, rankingSourcePre.customId)
+    : undefined
+  // Bounded preflight using existing caps only. Shared source calls run on a
+  // common timeout signal (never req.signal: a disconnecting first client must
+  // not abort the fetch others are coalesced on).
+  const preflightStart = Date.now()
+  const preflightBudgetMs = Math.max(1, Math.min(POSTER_TMDB_TIMEOUT_MS, RENDER_TIMEOUT_MS - (preflightStart - startTime)))
+  const preflightSourceSignal = AbortSignal.timeout(preflightBudgetMs)
+  const needTrendFetch = rankingEnabledPre && !hasValidQRankOverride
+  const needAnimeFetch = rankingEnabledPre && !(Number.isFinite(qAnimeRankPre) && qAnimeRankPre > 0)
+  const jwSourceKey = `jw:${mediaType === "movie" ? "MOVIE" : "SHOW"}:${posterRegion.code}:20:${posterRegion.lang}`
+  const animeListKey = mediaType === "movie" ? "mdblistAnimeMovie" : "mdblistAnime"
+  const animeKeyUsed = effMdblistKey || envWithFallback("MDBLIST_KEY") || process.env.MDBLIST_KEY || process.env.MDBLIST_API_KEY || undefined
+  const animeSourceKey = `anime:${mediaType}:${hashKey(animeKeyUsed ?? "")}`
+  const customSourceKey = `custom:${mediaType}:${scopedUser ?? "anon"}:${hashKey(JSON.stringify(rankingCustomPre ?? null))}:${hashKey([(effTmdbKey ?? ""), (effMdblistKey ?? ""), (effTvdbKey ?? "")].join("|"))}`
+  const trendPreflight: Promise<number | null> = !needTrendFetch
+    ? Promise.resolve(null)
+    : (rankingSourcePre.kind === "custom" && rankingCustomPre
+      ? awaitWithOwnBudget(sharedSourceFetch(customSourceKey, () => fetchCustomRankingTop20({
+        custom: rankingCustomPre,
+        slot: mediaType === "movie" ? "movie" : "series",
+        apiKey: effTmdbKey,
+        mdblistKey: effMdblistKey,
+        tvdbKey: effTvdbKey,
+        userId: scopedUser,
+        signal: preflightSourceSignal,
+      }))
+        .then((r) => {
+          if (r.status !== "ok") return null
+          const idx = r.items.findIndex((x) => x.tmdbId === tmdbId)
+          return idx >= 0 ? idx + 1 : null
+        }), preflightBudgetMs, req.signal)
+        .catch(() => null)
+      : awaitWithOwnBudget(sharedSourceFetch(jwSourceKey, () => getJWRankings(mediaType === "movie" ? "MOVIE" : "SHOW", posterRegion.code, 20, undefined, posterRegion.lang, preflightSourceSignal))
+        .then((r) => r.find((x) => x.tmdbId === tmdbId)?.rank ?? null), preflightBudgetMs, req.signal)
+        .catch(() => mapping?.badgeRank ?? mapping?.trendRank ?? null))
+  const animePreflight: Promise<number | null> = !needAnimeFetch
+    ? Promise.resolve(rankingEnabledPre ? qAnimeRankPre : null)
+    : awaitWithOwnBudget(sharedSourceFetch(animeSourceKey, () => fetchMDBList(animeListKey, animeKeyUsed, preflightSourceSignal))
+      .then((entries) => {
+        if (!Array.isArray(entries)) return mapping?.animeRank ?? null
+        const idx = entries.findIndex((e) => {
+          const entry = e as MDBListEntry
+          const animeId = Number(entry.tmdb) || Number((entry as unknown as EnrichedAnimeItem).id)
+          return animeId === tmdbId
+        })
+        return idx >= 0 ? idx + 1 : null
+      }), preflightBudgetMs, req.signal)
+      .catch(() => mapping?.animeRank ?? null)
+  const [preTrendRank, preAnimeRank] = await Promise.all([trendPreflight, animePreflight])
+  // Preflight time is subtracted from the watchdog below: preflight does not
+  // extend the existing render budget.
+  const preflightMs = Date.now() - preflightStart
   const cachedRank = mapping?.trendRank ?? null
   const rotateKey = isRotating
     ? (earlyLandscape ? `:bi${mapping?.cleanBackdropIndex ?? "x"}` : `:ci${mapping?.cleanPosterIndex ?? "x"}`)
@@ -492,10 +620,10 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
   const legacyAvif = outputFormat === "avif"
   const canonicalFormat = legacyAvif ? "avif" : DEFAULT_IMAGE_FORMAT
   const formatKey = legacyAvif ? ":fmtavif" : canonicalFormat === "webp" ? ":fmtwebp" : ""
-  const cacheKey = `poster:v${RENDER_VERSION}:${mediaType}:${tmdbId}:reg${posterRegion.code}:r${cachedRank ?? "x"}:sd${sdHash}:${cacheParams.toString()}${rotateKey}${mapVersion}${dynamicBucketKey}${configHash ? `:cfg${configHash}` : ""}${formatKey}`
+  const cacheKey = `poster:v${RENDER_VERSION}:${mediaType}:${tmdbId}:reg${posterRegion.code}:r${cachedRank ?? "x"}:lr${preTrendRank ?? "x"}:la${preAnimeRank ?? "x"}:sd${sdHash}:${cacheParams.toString()}${rotateKey}${mapVersion}${dynamicBucketKey}${configHash ? `:cfg${configHash}` : ""}${formatKey}`
   const needsVariant = !legacyAvif && outputFormat !== canonicalFormat
   const variantKey = needsVariant ? `${cacheKey}:fmt${outputFormat}` : cacheKey
-  const etagBase = hashKey(`v${RENDER_VERSION}:${mediaType}:${tmdbId}:reg${posterRegion.code}:r${cachedRank ?? "x"}:sd${sdHash}:${cacheParams.toString()}${configHash ? `:${configHash}` : ""}`)
+  const etagBase = hashKey(`v${RENDER_VERSION}:${mediaType}:${tmdbId}:reg${posterRegion.code}:r${cachedRank ?? "x"}:lr${preTrendRank ?? "x"}:la${preAnimeRank ?? "x"}:sd${sdHash}:${cacheParams.toString()}${configHash ? `:${configHash}` : ""}`)
   const currentMappingVersion = mappingVersionParam(mapping)
   // Rating dinamici: con provider abilitato niente cache immutable annuale
   // (i rating cambiano) — vale anche il display-aware locale: solo la riga
@@ -704,7 +832,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
     completePosterRender(null, true)
     endZombieRender = recordZombieRenderStart(`${mediaType}:${tmdbId}`)
     releaseSlotOnce()
-  }, RENDER_TIMEOUT_MS)
+  }, Math.max(1, RENDER_TIMEOUT_MS - preflightMs))
   if (typeof renderDeadline.unref === "function") renderDeadline.unref()
 
   // 4. Resolve poster/logo/backdrop paths
@@ -1381,26 +1509,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
     // Segnali grezzi del rilevamento pre-digitale (solo debug=1).
     let preJw: boolean | null = null
     let preDigital: string | null = null
-    // Rank anime inviato dal client nella preview WYSIWYG (override del fetch).
-    const qAnimeRankParam = hardenedParams.get("animerank")
-    const qAnimeRank = qAnimeRankParam ? Number(qAnimeRankParam) : NaN
-    // Global Top 20 source for this title (same selection as catalogs and
-    // trending/rank: config token wins, namespace defaults fill the gaps).
-    // A custom list drives the trendRank channel (Film/Serie label);
-    // JustWatch is never consulted for the slot, misses never fall back to
-    // it, and the anime/platform paths below stay untouched.
-    const rankingSelection = {
-      customCatalogs: configOverride?.customCatalogs ?? sd.customCatalogs,
-      rankingSourceMovie: configOverride?.rankingSourceMovie ?? sd.rankingSourceMovie,
-      rankingSourceSeries: configOverride?.rankingSourceSeries ?? sd.rankingSourceSeries,
-    }
-    const rankingSource = resolveRankingSource(
-      rankingSelection,
-      mediaType === "movie" ? "movie" : "series",
-    )
-    const rankingCustom = rankingSource.kind === "custom"
-      ? findRankingCustomCatalog(rankingSelection.customCatalogs, rankingSource.customId)
-      : undefined
+    // Anime rank parsed pre-cache; only rankingEnabledEarly is needed here.
+    // Ranking source also resolved pre-cache and reused, no recompute.
 
     // Quarto anello QID (mapping legacy senza wikidataId salvato): una
     // external_ids con memo 7gg invece della lotteria SPARQL — il REST diventa
@@ -1457,37 +1567,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
           : logoPath ? fetchLogoImg(logoPath, renderAbort.signal).catch(() => null) : Promise.resolve(null),
         backdropPath ? fetchImg(isLandscape ? landscapeBackdropUrl(backdropPath) : imgSrc(backdropPath), renderAbort.signal).catch(() => null) : Promise.resolve(null),
         rankingEnabledEarly
-          // R3: signal del watchdog — allo scatto della deadline il fetch
-          // abortisce invece di proseguire come zombie in background.
-          // Custom-driven slot: the shared ranking service resolves the rank
-          // in the list Top-20 (trendRank channel, Film/Serie label). Misses,
-          // provider errors and aborts all yield no badge and never consult
-          // JustWatch: under a custom source no saved rank is ever
-          // resuscitated, so a stale JustWatch-era badge can not resurface
-          // during a custom outage.
-          ? (rankingSource.kind === "custom" && rankingCustom
-            ? fetchCustomRankingTop20({
-                custom: rankingCustom,
-                slot: mediaType === "movie" ? "movie" : "series",
-                apiKey: effTmdbKey,
-                mdblistKey: effMdblistKey,
-                tvdbKey: effTvdbKey,
-                userId: scopedUser,
-                signal: renderAbort.signal,
-              })
-              .then((r) => {
-                if (r.status !== "ok") return null
-                const idx = r.items.findIndex((x) => x.tmdbId === tmdbId)
-                return idx >= 0 ? idx + 1 : null
-              })
-              .catch(() => null)
-            : getJWRankings(mediaType === "movie" ? "MOVIE" : "SHOW", posterRegion.code, 20, undefined, posterRegion.lang, renderAbort.signal)
-              .then((r) => r.find((x) => x.tmdbId === tmdbId)?.rank ?? null)
-              // Solo il FETCH FALLITO (rete/outage) ripiega sul rank salvato nel
-              // mapping (degraded esplicito). La miss genuina (fetch riuscito, il
-              // titolo è fuori chart) resta null: MAI resuscitare il rank stantio
-              // del save precedente (es. "top 15" di un titolo oggi fuori top 20).
-              .catch(() => mapping?.badgeRank ?? mapping?.trendRank ?? null))
+          // Pre-cache snapshot reuse: same value as the cache key.
+          ? Promise.resolve(preTrendRank)
           : Promise.resolve(null),
         // Rank anime (media_type=tv): la lista MDBList trending anime senza
         // chiave risponde 503 "Invalid API key" → rank sempre null. Si usa la
@@ -1500,26 +1581,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
         // senza chiavi, come nel WYSIWYG). Miss genuina (titolo fuori chart) →
         // null, mai il rank stantio.
         rankingEnabledEarly
-          ? (Number.isFinite(qAnimeRank) && qAnimeRank > 0
-              ? Promise.resolve(qAnimeRank)
-              : fetchMDBList(
-                  mediaType === "movie" ? "mdblistAnimeMovie" : "mdblistAnime",
-                  // Namespace incluso via effMdblistKey; coda env allargata
-                  // storica di questo sito (MDBLIST_KEY/MDBLIST_API_KEY).
-                  effMdblistKey || envWithFallback("MDBLIST_KEY") || process.env.MDBLIST_KEY || process.env.MDBLIST_API_KEY || undefined,
-                  renderAbort.signal
-                )
-                  .then((entries) => {
-                    // Shape inattesa → come failure: fallback al salvato.
-                    if (!Array.isArray(entries)) return mapping?.animeRank ?? null
-                    const idx = entries.findIndex((e) => {
-                      const entry = e as MDBListEntry
-                      const animeId = Number(entry.tmdb) || Number((entry as unknown as EnrichedAnimeItem).id)
-                      return animeId === tmdbId
-                    })
-                    return idx >= 0 ? idx + 1 : null
-                  })
-                  .catch(() => mapping?.animeRank ?? null))
+          // Pre-cache snapshot reuse, no second fetch.
+          ? Promise.resolve(preAnimeRank)
           : Promise.resolve(null),
         (badgeQualityEarly)
           ? (qQualityParam
