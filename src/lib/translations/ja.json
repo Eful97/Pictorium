@@ -56,7 +56,7 @@
   "ui.reset": "リセット",
   "ui.scale": "拡大縮小",
   "ui.logoSection": "ロゴ",
-  "ui.logoHint": "クリーンポスターを選ぶとロゴが有効になります",
+  "ui.logoHint": "ポスターに適用するロゴを選ぶ",
   "ui.badgeSection": "バッジ",
   "ui.badgeSectionPoster": "バッジ — このポスター",
   "ui.badgePosterHint": "保存するとこのタイトルにのみ固定されます",

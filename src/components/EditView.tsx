@@ -1000,7 +1000,7 @@ export default function EditView() {
                 )}
                 <div key={activeRightTab} className="animate-tab-fade-in space-y-3">
                 {activeRightTab === "logo" && <>
-                  <LogoOptions logos={logos} selectedLogo={selectedLogo} lang={lang} selectLogo={handleSelectLogo} removeLogo={removeLogo} disabled={!cleanPoster && ed.posterShape !== "landscape"} />
+                  <LogoOptions logos={logos} selectedLogo={selectedLogo} lang={lang} selectLogo={handleSelectLogo} removeLogo={removeLogo} disabled={false} />
                   {!cleanPoster && ed.posterShape !== "landscape" && <p className="text-xs text-zinc-400 text-center mt-2 px-1">{t("ui.logoHint")}</p>}
                 </>}
                 {activeRightTab === "badge" && <BadgeControls />}

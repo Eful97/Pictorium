@@ -1518,7 +1518,9 @@ export function usePictorium(): PictoriumCtx {
       if (existing.logoPath) {
         foundLogo = (data.logos || []).find((l: TMDBImage) => l.file_path === existing.logoPath)
         navigation.setSelectedLogo(foundLogo ? { file_path: foundLogo.file_path, iso_639_1: existing.language, vote_average: 0, width: foundLogo.width, height: foundLogo.height } : { file_path: existing.logoPath, iso_639_1: existing.language, vote_average: 0, width: 0, height: 0 })
-      } else if (!existing.logoDisabled) {
+      // Riapertura mapping senza logo esplicito: nessun auto su portrait
+      // non-clean (solo clean o landscape); logoDisabled sempre onorato.
+      } else if (!existing.logoDisabled && (customFile ? true : ((foundPoster ? foundPoster.iso_639_1 === null : previewLang === null) || (existing.posterShape ?? defaultPosterShape) === "landscape"))) {
         const autoLogo = autoLogoSelection(data.logos || [], lang, details.original_language, `${itemType}/${itemId}`)
         if (autoLogo) {
           navigation.setSelectedLogo({ file_path: autoLogo.file_path, iso_639_1: autoLogo.iso_639_1, vote_average: 0, width: autoLogo.width, height: autoLogo.height })

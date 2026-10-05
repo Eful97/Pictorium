@@ -274,6 +274,7 @@ Opt-in (`sep=1`, default OFF): sostituisce la media ★ nel badge con una colonn
 | Margine inferiore | `bottomMarginPct: 12` con badge genere, `10` storico senza (mirror in `context.tsx` per i bound slider) | `bottomMarginPct: hasGenreBadge ? 12 : undefined` (default 10) — solleva il logo sopra il badge basso |
 | Calibrazione Y portrait | `topOffset: PORTRAIT_LOGO_TOP_OFFSET (10)` — logo 10px più in basso (mirror in `context.tsx` per i bound slider, `poster-fit-score.ts` per l'auto-fit; landscape escluso: non baked-in) | Stesso offset (ramo portrait, già solo-portrait) |
 | Calibrazione invisibile landscape | slider sempre a 0 (nessun default visibile) | `LANDSCAPE_LOGO_SHIFT_X/Y (+10/-10)` sommati in `poster-service.ts` agli offset risolti (`ox`/`oy` > mapping > default globali), come `PORTRAIT_LOGO_TOP_OFFSET` in portrait |
+| Logo manuale su portrait non-clean | ammesso: tiles sempre abilitate, preview emette `logo` anche non-clean, mapping/route lo persistono e rendono | default nessun auto (auto solo da clean o landscape); `logoDisabled` sempre onorato; `?logo=` esplicita vince |
 
 ## Files coinvolti
 

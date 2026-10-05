@@ -56,7 +56,7 @@
   "ui.reset": "Återställ",
   "ui.scale": "Skala",
   "ui.logoSection": "Logotyper",
-  "ui.logoHint": "Välj en ren poster för att aktivera logotyper",
+  "ui.logoHint": "Välj en logotyp att applicera på postern",
   "ui.badgeSection": "Badge",
   "ui.badgeSectionPoster": "Badges — denna poster",
   "ui.badgePosterHint": "Att spara fryser dem endast på denna titel",

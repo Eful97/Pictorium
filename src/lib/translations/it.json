@@ -57,7 +57,7 @@
   "ui.reset": "Reset",
   "ui.scale": "Scala",
   "ui.logoSection": "Loghi",
-  "ui.logoHint": "Seleziona un poster clean per abilitare i loghi",
+  "ui.logoHint": "Scegli un logo da applicare al poster",
   "ui.badgeSection": "Badge",
   "ui.badgeSectionPoster": "Badge — questo poster",
   "ui.badgePosterHint": "Salvando restano congelati solo su questo titolo",

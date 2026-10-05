@@ -57,7 +57,7 @@
   "ui.reset": "Reset",
   "ui.scale": "Scale",
   "ui.logoSection": "Logos",
-  "ui.logoHint": "Select a clean poster to enable logos",
+  "ui.logoHint": "Choose a logo to apply to the poster",
   "ui.badgeSection": "Badge",
   "ui.badgeSectionPoster": "Badges — this poster",
   "ui.badgePosterHint": "Saving freezes them on this title only",

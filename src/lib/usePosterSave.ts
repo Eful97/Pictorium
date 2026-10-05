@@ -177,6 +177,14 @@ export function usePosterSave(deps: PosterSaveDeps) {
     // sopravvivono alla scelta di un altro poster. In landscape si ricalibra
     // il profilo Orizzontale (quello visibile in preview), in portrait i flat.
     const isLand = posterShape === "landscape"
+    // Logo manuale su non-clean: scegliendo un DIVERSO poster non-clean in
+    // portrait si azzera il logo in stato (solo locale, mai PUT, mai
+    // logoDisabled) così non si trascina l'auto dal clean; l'utente può poi
+    // applicarlo manualmente. Stesso poster ricliccato = nessun reset.
+    // Landscape invariato (auto-effect dedicato).
+    if (!isLand && image.file_path !== previewPoster?.file_path && image.iso_639_1 !== null) {
+      setSelectedLogo(null)
+    }
     const adj = adjustGradientForPosterChange(
       isLand ? { gradientHeight: landscapeBlur.gradientHeight, blurFade: landscapeBlur.blurFade } : { gradientHeight, blurFade },
       previewPoster,
@@ -191,7 +199,7 @@ export function usePosterSave(deps: PosterSaveDeps) {
       }
     }
     setPreviewId(`${selected.media_type}:${selected.id}`)
-  }, [selected, previewPoster, gradientHeight, blurFade, posterShape, landscapeBlur, setLandscapeBlur]) // eslint-disable-line react-hooks/exhaustive-deps -- setter refs are stable
+  }, [selected, previewPoster, gradientHeight, blurFade, posterShape, landscapeBlur, setLandscapeBlur, setSelectedLogo]) // eslint-disable-line react-hooks/exhaustive-deps -- setter refs are stable
 
   const selectLogo = useCallback(async (logo: TMDBImage) => {
     setSelectedLogo(logo)
@@ -341,7 +349,9 @@ export function usePosterSave(deps: PosterSaveDeps) {
       }
       if (!networkLogoPath && candidates.length) { networkLogoName = candidates[0].name }
     }
-    const effectiveLogoPath = (isClean || posterShape === "landscape") && !logoDisabled ? (selectedLogo?.file_path || null) : null
+    // Logo manuale anche su portrait non-clean: il default resta nessun auto
+    // (auto solo da clean/landscape a monte), ma la scelta manuale persiste.
+    const effectiveLogoPath = !logoDisabled ? (selectedLogo?.file_path || null) : null
     // Dual-format My Posters: gli slider mostrano il profilo del formato in
     // editing, quindi il save scrive il profilo attivo e PRESERVA l'altro dal
     // mapping esistente (mai azzerato dal save dell'altro formato). Per i

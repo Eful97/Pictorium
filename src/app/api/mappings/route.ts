@@ -78,14 +78,11 @@ export async function POST(req: NextRequest) {
   if (!parsed.success) {
     return Response.json({ error: "Validation failed", details: parsed.error.flatten() }, { status: 400 })
   }
-  // Poster non-clean ha già testo → logo non applicabile in portrait
-  // (WYSIWYG: logo solo se iso_639_1 === null). In landscape la base è il
-  // backdrop: il logo resta anche senza poster clean.
-  const isPosterClean = parsed.data.language === null || parsed.data.language === undefined
-  const isLandscapeSave = parsed.data.posterShape === "landscape"
+  // Logo manuale anche su portrait non-clean: nessun strip, la scelta
+  // esplicita persiste (il default nessun auto resta a monte).
   const newMapping = {
     ...parsed.data,
-    logoPath: (isPosterClean || isLandscapeSave) ? (parsed.data.logoPath ?? null) : null,
+    logoPath: parsed.data.logoPath ?? null,
     originalPosterPath: parsed.data.originalPosterPath ?? null,
     language: parsed.data.language ?? null,
     genreName: parsed.data.genreName ?? undefined,

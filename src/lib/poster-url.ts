@@ -324,10 +324,10 @@ export function buildPreviewUrl(ps: PosterState, bp: BadgeParams, configToken?: 
     const title = ps.selected?.title || ps.selected?.name
     if (title) params.push(`title=${encodeURIComponent(title)}`)
   }
-  // Logo sopra il clean; in landscape la base è il backdrop (senza testo),
-  // quindi il logo resta anche se il poster verticale non è clean. In
-  // portrait invariato: mai logo sopra un poster con testo incorporato.
-  if (ps.selectedLogo && (ps.previewPoster?.iso_639_1 === null || bp.posterShape === "landscape")) {
+  // Logo manuale anche su portrait non-clean: se selezionato si emette
+  // sempre (default nessun auto resta a monte). In landscape la base è il
+  // backdrop (senza testo), quindi il logo resta anche senza poster clean.
+  if (ps.selectedLogo) {
     params.push(`logo=${encodeURIComponent(ps.selectedLogo.file_path)}`)
     params.push(`scale=${ps.logoScale}`)
     params.push(`ox=${ps.logoOffsetX}`)

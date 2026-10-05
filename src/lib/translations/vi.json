@@ -57,7 +57,7 @@
   "ui.reset": "Đặt lại",
   "ui.scale": "Tỉ lệ",
   "ui.logoSection": "Logo",
-  "ui.logoHint": "Chọn poster sạch để bật logo",
+  "ui.logoHint": "Chọn logo để áp dụng cho poster",
   "ui.badgeSection": "Huy hiệu",
   "ui.badgeSectionPoster": "Huy hiệu — poster này",
   "ui.badgePosterHint": "Lưu sẽ cố định cho riêng tiêu đề này",

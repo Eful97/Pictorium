@@ -991,13 +991,11 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
     etag = `"p${etagBase}"`
   } else if (mapping) {
     posterPath = mapping.posterPath
-    // Poster non-clean (language !== null) ha già testo incorporato → mai
-    // sovrapporre il logo in portrait. In landscape la base è il backdrop
-    // (senza testo): il logo resta sempre, anche senza poster clean.
-    const isMappingClean = mapping.language === null
-    const effectiveMappingLogo = (isMappingClean || isLandscape) && !mapping.logoDisabled ? mapping.logoPath : null
+    // Logo manuale anche su portrait non-clean: il default resta nessun auto
+    // a monte, ma il logoPath esplicito (mapping o ?logo=) è ammesso in ogni
+    // formato. logoDisabled sempre onorato; query esplicita vince.
+    const effectiveMappingLogo = !mapping.logoDisabled ? mapping.logoPath : null
     logoPath = queryLogo || effectiveMappingLogo
-    if (!isMappingClean && !isLandscape) logoPath = null
     backdropPath = queryBackdrop || mapping?.backdropPath || null
     backdropScale = mapping?.backdropScale ?? 100
     // Fix M5: clamp difensivo anche sui mapping già salvati (pre-bounds zod):

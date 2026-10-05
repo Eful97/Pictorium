@@ -56,7 +56,7 @@
   "ui.reset": "초기화",
   "ui.scale": "크기",
   "ui.logoSection": "로고",
-  "ui.logoHint": "클린 포스터를 선택하면 로고가 활성화됩니다",
+  "ui.logoHint": "포스터에 적용할 로고를 선택하세요",
   "ui.badgeSection": "배지",
   "ui.badgeSectionPoster": "배지 — 이 포스터",
   "ui.badgePosterHint": "저장하면 이 타이틀에만 고정됩니다",

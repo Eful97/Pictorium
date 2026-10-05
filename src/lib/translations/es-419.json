@@ -56,7 +56,7 @@
   "ui.reset": "Restablecer",
   "ui.scale": "Escala",
   "ui.logoSection": "Logos",
-  "ui.logoHint": "Selecciona un póster limpio para activar los logos",
+  "ui.logoHint": "Elige un logo para aplicar al póster",
   "ui.badgeSection": "Insignia",
   "ui.badgeSectionPoster": "Insignias — este póster",
   "ui.badgePosterHint": "Al guardar quedan fijadas solo en este póster",
