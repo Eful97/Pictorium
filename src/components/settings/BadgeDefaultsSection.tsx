@@ -5,6 +5,7 @@ import { ChevronDown, Flame, Layers, Menu, Ribbon, Sparkles, Star, Trophy, Tv, C
 import { useT } from "@/lib/contexts/TranslationContext"
 import { usePosterEditor } from "@/lib/contexts/PosterEditorContext"
 import { Toggle } from "@/components/Toggle"
+import { isBottomSeparateRatingsStyle } from "@/lib/badge-styles"
 import { BadgeStyleSection } from "@/components/settings/BadgeStyleSection"
 import { RatingSourceIcon } from "@/components/RatingSourceIcon"
 import { UI_RATING_SOURCES } from "@/lib/rating-weights"
@@ -112,6 +113,14 @@ export function BadgeDefaultsSection({ active }: { active: boolean }) {
     ed.defaultRankingBadges &&
     ed.defaultNetworkLogo &&
     ed.defaultBadgeStyle === "pill"
+
+  // Stesso comportamento del per-titolo: in bottom i default genere/anno sono
+  // soppressi a render ma conservati (tornando a Colonna si ripristinano, mai distrutti).
+  const defaultBottomActive =
+    ed.defaultGlobalBadges &&
+    ed.defaultBadgeRating &&
+    ed.defaultSeparateRatings &&
+    isBottomSeparateRatingsStyle(ed.defaultSeparateRatingsStyle)
 
   const applyEssential = () => {
     ed.setDefaultGlobalBadges(true)
@@ -250,24 +259,26 @@ export function BadgeDefaultsSection({ active }: { active: boolean }) {
           {/* Sub-controlli Genere / Anno / Voto */}
           {ed.defaultGlobalBadges && (
             <div className="pl-3 py-1 space-y-2 border-l-2 border-surface2 ml-1 animate-fade-in">
-              <div className="flex items-center justify-between">
+              <div className={`flex items-center justify-between ${defaultBottomActive ? "opacity-50" : ""}`} title={defaultBottomActive ? t("ui.separateRatingsBottomHint") : undefined} aria-disabled={defaultBottomActive || undefined}>
                 <span className="text-muted">{t("ui.badgeGenre")}</span>
                 <Toggle
                   value={ed.defaultBadgeGenre}
                   onChange={(v) => {
-                    ed.setDefaultBadgeGenre(v)
+                    if (!defaultBottomActive) ed.setDefaultBadgeGenre(v)
                   }}
                   label={t("ui.badgeGenre")}
+                  disabled={defaultBottomActive}
                 />
               </div>
-              <div className="flex items-center justify-between">
+              <div className={`flex items-center justify-between ${defaultBottomActive ? "opacity-50" : ""}`} title={defaultBottomActive ? t("ui.separateRatingsBottomHint") : undefined} aria-disabled={defaultBottomActive || undefined}>
                 <span className="text-muted">{t("ui.badgeYear")}</span>
                 <Toggle
                   value={ed.defaultBadgeYear}
                   onChange={(v) => {
-                    ed.setDefaultBadgeYear(v)
+                    if (!defaultBottomActive) ed.setDefaultBadgeYear(v)
                   }}
                   label={t("ui.badgeYear")}
+                  disabled={defaultBottomActive}
                 />
               </div>
               <div className="flex items-center justify-between">
@@ -284,6 +295,35 @@ export function BadgeDefaultsSection({ active }: { active: boolean }) {
                 <div className="flex items-center justify-between" title={t("ui.separateRatingsHint")}>
                   <span className="text-muted">{t("ui.separateRatings")}</span>
                   <Toggle value={ed.defaultSeparateRatings} onChange={(v) => ed.setDefaultSeparateRatings(v)} label={t("ui.separateRatings")} />
+                </div>
+              )}
+              {ed.defaultBadgeRating && ed.defaultSeparateRatings && (
+                <div className="pt-1 space-y-1.5" title={t("ui.separateRatingsHint")}>
+                  <span className="text-[11px] text-muted font-medium block">{t("ui.separateRatingsStyle")}</span>
+                  <div className="flex gap-1">
+                    {([
+                      { id: "column", labelKey: "ui.separateRatingsColumn" },
+                      { id: "bottom-bar", labelKey: "ui.separateRatingsBottomBar" },
+                      { id: "bottom-pills", labelKey: "ui.separateRatingsBottomPills" },
+                    ] as const).map((opt) => (
+                      <button
+                        key={opt.id}
+                        type="button"
+                        onClick={() => ed.setDefaultSeparateRatingsStyle(opt.id)}
+                        aria-pressed={ed.defaultSeparateRatingsStyle === opt.id}
+                        className={`flex-1 py-1 px-1 rounded-lg text-[11px] font-semibold transition-all duration-150 cursor-pointer ${
+                          ed.defaultSeparateRatingsStyle === opt.id
+                            ? "bg-white/20 text-white shadow-sm"
+                            : "bg-white/5 text-muted hover:bg-white/10 hover:text-zinc-200"
+                        }`}
+                      >
+                        {t(opt.labelKey)}
+                      </button>
+                    ))}
+                  </div>
+                  {ed.defaultGlobalBadges && ed.defaultBadgeRating && ed.defaultSeparateRatings && isBottomSeparateRatingsStyle(ed.defaultSeparateRatingsStyle) && (
+                    <p className="text-[10px] text-muted italic leading-tight">{t("ui.separateRatingsBottomHint")}</p>
+                  )}
                 </div>
               )}
 

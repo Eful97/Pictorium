@@ -11,6 +11,7 @@ import { useT } from "@/lib/contexts/TranslationContext"
 import { usePosterEditor } from "@/lib/contexts/PosterEditorContext"
 import type { TMDBImage } from "@/lib/types"
 import { effectiveMappingForShape, type LandscapeSettings } from "@/lib/types"
+import { isSeparateRatingsStyle } from "@/lib/badge-styles"
 import { isGradientDirtyForShape, isArtworkDirty, isMappingDirty } from "@/lib/gradient-dirty"
 import { PosterOptions } from "@/components/PosterOptions"
 import { BackdropOptions } from "@/components/BackdropOptions"
@@ -231,6 +232,7 @@ export default function EditView() {
       qualityBadgeScale: ed.qualityBadgeScale,
       qualityBadgeOffsetX: ed.qualityBadgeOffsetX,
       qualityBadgeOffsetY: ed.qualityBadgeOffsetY,
+      separateBadgeScale: ed.separateBadgeScale,
       networkLogoScale: ed.networkLogoScale,
       networkLogoOffsetX: ed.networkLogoOffsetX,
       networkLogoOffsetY: ed.networkLogoOffsetY,
@@ -245,6 +247,7 @@ export default function EditView() {
       badgeQuality: ed.badgeQuality,
       customRatings: ed.customRatings,
       separateRatings: ed.separateRatings,
+      separateRatingsStyle: ed.separateRatingsStyle,
       networkLogo: ed.networkLogo,
       ribbonEnabled: ed.ribbonEnabled,
       networkLogoPosition: ed.networkLogoPosition,
@@ -361,6 +364,8 @@ export default function EditView() {
       topBadgeScale: ed.topBadgeScale, topBadgeOffsetX: ed.topBadgeOffsetX, topBadgeOffsetY: ed.topBadgeOffsetY,
       genreBadgeScale: ed.genreBadgeScale, genreBadgeOffsetX: ed.genreBadgeOffsetX, genreBadgeOffsetY: ed.genreBadgeOffsetY,
       qualityBadgeScale: ed.qualityBadgeScale, qualityBadgeOffsetX: ed.qualityBadgeOffsetX, qualityBadgeOffsetY: ed.qualityBadgeOffsetY,
+      separateBadgeScale: ed.separateBadgeScale,
+      separateRatingsStyle: ed.separateRatingsStyle,
       networkLogoScale: ed.networkLogoScale, networkLogoOffsetX: ed.networkLogoOffsetX, networkLogoOffsetY: ed.networkLogoOffsetY,
       // Sfumatura ESCLUSA: ha profili dedicati per formato (flat = portrait,
       // landscapeBlur = landscape) e non passa più dallo stash.
@@ -390,6 +395,13 @@ export default function EditView() {
       ed.setQualityBadgeScale(src.qualityBadgeScale ?? landFallback?.qualityBadgeScale ?? ed.qualityBadgeScale)
       ed.setQualityBadgeOffsetX(src.qualityBadgeOffsetX ?? landFallback?.qualityBadgeOffsetX ?? ed.qualityBadgeOffsetX)
       ed.setQualityBadgeOffsetY(src.qualityBadgeOffsetY ?? landFallback?.qualityBadgeOffsetY ?? ed.qualityBadgeOffsetY)
+      ed.setSeparateBadgeScale(src.separateBadgeScale ?? landFallback?.separateBadgeScale ?? ed.separateBadgeScale)
+      // Stile dal profilo del formato (stash > salvato): override landscape
+      // rispettato, altrimenti scelta corrente preservata (mai reset).
+      {
+        const styleSrc = src.separateRatingsStyle ?? landFallback?.separateRatingsStyle
+        ed.setSeparateRatingsStyle(isSeparateRatingsStyle(styleSrc) ? styleSrc : ed.separateRatingsStyle)
+      }
       ed.setNetworkLogoScale(src.networkLogoScale ?? landFallback?.networkLogoScale ?? ed.networkLogoScale)
       ed.setNetworkLogoOffsetX(src.networkLogoOffsetX ?? landFallback?.networkLogoOffsetX ?? ed.networkLogoOffsetX)
       ed.setNetworkLogoOffsetY(src.networkLogoOffsetY ?? landFallback?.networkLogoOffsetY ?? ed.networkLogoOffsetY)

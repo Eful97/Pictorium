@@ -664,6 +664,160 @@ test.describe("poster API — visual regression", () => {
     await expect(poster).toHaveScreenshot("poster-separate-ratings-landscape.png", { maxDiffPixelRatio: 0.10 })
   })
 
+  test("separate ratings scale 150 portrait, quality on — screenshot", async ({ page }) => {
+    // Scala dedicata: stessi 3 provider del baseline a100, colonna ingrandita
+    // nativa (font + loghi), ancore invariate.
+    const url = posterUrl({ genreName: "Action", voteAverage: "7.8", badges: "1", ranking: "0", imdbId: "tt0133093", sep: "1", rsrc: "imdb,tmdb,tomatoes", quality: "4K", sepscale: "150" })
+    const poster = await renderPoster(page, url)
+    await expect(poster).toHaveScreenshot("poster-separate-ratings-scale150.png", { maxDiffPixelRatio: 0.10 })
+  })
+
+  test("separate ratings scale 200 max, no quality, ribbon right — screenshot", async ({ page }) => {
+    // Caso limite: scala max con 3 pill, senza badge qualità (stack in alto
+    // a sinistra del nastro a destra) — verifica visiva di non-sovrapposizione.
+    const url = posterUrl({ genreName: "Action", voteAverage: "7.8", badges: "1", ranking: "1", rank: "3", label: "Top 3", rs: "netflix", side: "right", bq: "0", imdbId: "tt0133093", sep: "1", rsrc: "imdb,tmdb,tomatoes", sepscale: "200" })
+    const poster = await renderPoster(page, url)
+    await expect(poster).toHaveScreenshot("poster-separate-ratings-scale200.png", { maxDiffPixelRatio: 0.10 })
+  })
+
+  test("separate ratings scale 150 landscape — screenshot", async ({ page }) => {
+    const url = posterUrl({ backdrop: "/mocked/backdrop.jpg", shape: "landscape", genreName: "Action", voteAverage: "7.8", badges: "1", ranking: "0", imdbId: "tt0133093", sep: "1", rsrc: "imdb,tmdb,tomatoes", sepscale: "150" })
+    const poster = await renderPoster(page, url)
+    await expect(poster).toHaveScreenshot("poster-separate-ratings-scale150-landscape.png", { maxDiffPixelRatio: 0.10 })
+  })
+
+  test("separate ratings scale 200 landscape, quality on — screenshot", async ({ page }) => {
+    // Caso limite 16:9: stack max sotto il badge qualità, badge genere in
+    // basso a destra — verifica visiva di non-sovrapposizione.
+    const url = posterUrl({ backdrop: "/mocked/backdrop.jpg", shape: "landscape", genreName: "Action", voteAverage: "7.8", badges: "1", ranking: "0", imdbId: "tt0133093", sep: "1", rsrc: "imdb,tmdb,tomatoes", quality: "4K", sepscale: "200" })
+    const poster = await renderPoster(page, url)
+    await expect(poster).toHaveScreenshot("poster-separate-ratings-scale200-landscape.png", { maxDiffPixelRatio: 0.10 })
+  })
+
+  test("separate ratings scale 200 landscape, no quality — screenshot", async ({ page }) => {
+    const url = posterUrl({ backdrop: "/mocked/backdrop.jpg", shape: "landscape", genreName: "Action", voteAverage: "7.8", badges: "1", ranking: "0", bq: "0", imdbId: "tt0133093", sep: "1", rsrc: "imdb,tmdb,tomatoes", sepscale: "200" })
+    const poster = await renderPoster(page, url)
+    await expect(poster).toHaveScreenshot("poster-separate-ratings-scale200-landscape-noquality.png", { maxDiffPixelRatio: 0.10 })
+  })
+
+  test("separate ratings bottom-bar portrait (3 providers, genre/year on) — screenshot", async ({ page }) => {
+    // Fascia scura full-width in basso con 3 celle equidistanti (IMDb 8.7,
+    // TMDB 7.9, 88%), genere+anno soppressi pur con bg/by=1.
+    const url = posterUrl({ genreName: "Action", voteAverage: "7.8", year: "2024", badges: "1", ranking: "0", bg: "1", by: "1", imdbId: "tt0133093", sep: "1", sepstyle: "bottom-bar", rsrc: "imdb,tmdb,tomatoes", quality: "4K" })
+    const poster = await renderPoster(page, url)
+    await expect(poster).toHaveScreenshot("poster-separate-bottom-bar.png", { maxDiffPixelRatio: 0.10 })
+  })
+
+  test("separate ratings bottom-pills portrait (3 providers, no quality) — screenshot", async ({ page }) => {
+    // Riga centrata di 3 pill scure (logo + valore inline), margine dal bordo.
+    const url = posterUrl({ genreName: "Action", voteAverage: "7.8", year: "2024", badges: "1", ranking: "0", bg: "1", by: "1", bq: "0", imdbId: "tt0133093", sep: "1", sepstyle: "bottom-pills", rsrc: "imdb,tmdb,tomatoes" })
+    const poster = await renderPoster(page, url)
+    await expect(poster).toHaveScreenshot("poster-separate-bottom-pills.png", { maxDiffPixelRatio: 0.10 })
+  })
+
+  test("separate ratings bottom-bar landscape (lower-third centrato) — screenshot", async ({ page }) => {
+    // In 16:9 la barra è centrata come lower-third invece che full-width.
+    const url = posterUrl({ backdrop: "/mocked/backdrop.jpg", shape: "landscape", genreName: "Action", voteAverage: "7.8", badges: "1", ranking: "0", bg: "1", by: "1", imdbId: "tt0133093", sep: "1", sepstyle: "bottom-bar", rsrc: "imdb,tmdb,tomatoes" })
+    const poster = await renderPoster(page, url)
+    await expect(poster).toHaveScreenshot("poster-separate-bottom-bar-landscape.png", { maxDiffPixelRatio: 0.10 })
+  })
+
+  test("separate ratings bottom-pills landscape — screenshot", async ({ page }) => {
+    const url = posterUrl({ backdrop: "/mocked/backdrop.jpg", shape: "landscape", genreName: "Action", voteAverage: "7.8", badges: "1", ranking: "0", bg: "1", by: "1", bq: "0", imdbId: "tt0133093", sep: "1", sepstyle: "bottom-pills", rsrc: "imdb,tmdb,tomatoes" })
+    const poster = await renderPoster(page, url)
+    await expect(poster).toHaveScreenshot("poster-separate-bottom-pills-landscape.png", { maxDiffPixelRatio: 0.10 })
+  })
+
+  test("separate ratings bottom-bar scale 200 portrait (fit, no clipping) — screenshot", async ({ page }) => {
+    // Scala max: il font si riduce finché le 3 celle entrano — fascia sempre
+    // full-width a filo, mai tagliata.
+    const url = posterUrl({ genreName: "Action", voteAverage: "7.8", badges: "1", ranking: "0", bg: "1", by: "1", imdbId: "tt0133093", sep: "1", sepstyle: "bottom-bar", rsrc: "imdb,tmdb,tomatoes", quality: "4K", sepscale: "200" })
+    const poster = await renderPoster(page, url)
+    await expect(poster).toHaveScreenshot("poster-separate-bottom-bar-scale200.png", { maxDiffPixelRatio: 0.10 })
+  })
+
+  test("separate ratings bottom-bar portrait — band flush at bottom edge", async ({ request }) => {
+    // Prova pixel-reale: fascia SCURA a tutta larghezza sul bordo inferiore —
+    // le ultime righe portano testo/loghi chiari (pochi % luminosi) su fondo
+    // scuro, mai fascia bianca né bordo vuoto.
+    const { default: sharp } = await import("sharp")
+    const url = posterUrl({ genreName: "Action", voteAverage: "7.8", badges: "1", ranking: "0", bg: "1", by: "1", imdbId: "tt0133093", sep: "1", sepstyle: "bottom-bar", rsrc: "imdb,tmdb,tomatoes" })
+    const res = await request.get(url)
+    expect(res.ok()).toBeTruthy()
+    const { data, info } = await sharp(await res.body()).ensureAlpha().raw().toBuffer({ resolveWithObject: true })
+    expect(info.width).toBe(500)
+    expect(info.height).toBe(750)
+    const y0 = info.height - 12
+    let bright = 0
+    const total = (info.width - 20) * (info.height - y0)
+    for (let y = y0; y < info.height; y++) {
+      for (let x = 10; x < info.width - 10; x++) {
+        const i = (y * info.width + x) * 4
+        if ((data[i] + data[i + 1] + data[i + 2]) / 3 >= 100) bright++
+      }
+    }
+    const frac = bright / total
+    console.log(`bottom-bar bottom strip bright fraction: ${frac}`)
+    // Contenuto chiaro presente a filo bordo (flush) ma fascia scura.
+    expect(frac).toBeGreaterThan(0.03)
+    expect(frac).toBeLessThan(0.4)
+  })
+
+  test("separate ratings scale 200 — last pill fully visible (no clipping)", async ({ request }) => {
+    // Prova pixel-reale (non solo HTTP 200): a scala max con 3 provider e
+    // senza badge qualità, la striscia destra in alto contiene SOLO le 3 pill
+    // dello stack — devono essere 3 bande luminose complete, con l'ultima
+    // chiusa da bordo arrotondato + gap scuro (mai tagliata dal canvas).
+    const { default: sharp } = await import("sharp")
+    const url = posterUrl({ genreName: "Action", voteAverage: "7.8", badges: "1", ranking: "0", bq: "0", imdbId: "tt0133093", sep: "1", rsrc: "imdb,tmdb,tomatoes", sepscale: "200" })
+    const res = await request.get(url)
+    expect(res.ok()).toBeTruthy()
+    const { data, info } = await sharp(await res.body()).ensureAlpha().raw().toBuffer({ resolveWithObject: true })
+    expect(info.width).toBe(500)
+    expect(info.height).toBe(750)
+    // Striscia destra alta: solo stack (niente qualità/bordi genere qui).
+    const x0 = Math.round(info.width * 0.70)
+    const x1 = Math.round(info.width * 0.98)
+    const yMax = Math.round(info.height * 0.60)
+    const rows: number[] = []
+    for (let y = 0; y < yMax; y++) {
+      let bright = 0
+      for (let x = x0; x < x1; x++) {
+        const i = (y * info.width + x) * 4
+        if ((data[i] + data[i + 1] + data[i + 2]) / 3 >= 150) bright++
+      }
+      rows.push(bright / (x1 - x0))
+    }
+    // Bande: righe luminose (>10%) con tolleranza gap interni di 3 righe.
+    const bands: { top: number; bottom: number }[] = []
+    let start = -1
+    let darkRun = 0
+    for (let y = 0; y < rows.length; y++) {
+      if (rows[y] > 0.10) {
+        if (start < 0) start = y
+        darkRun = 0
+      } else if (start >= 0) {
+        darkRun++
+        if (darkRun > 3) {
+          bands.push({ top: start, bottom: y - darkRun })
+          start = -1
+          darkRun = 0
+        }
+      }
+    }
+    if (start >= 0) bands.push({ top: start, bottom: rows.length - 1 })
+    console.log(`sep200 bands: ${JSON.stringify(bands)}`)
+    expect(bands.length).toBe(3)
+    for (const b of bands) expect(b.bottom - b.top).toBeGreaterThanOrEqual(20)
+    const last = bands[bands.length - 1]
+    // Ultima pill interamente dentro la regione + bordo inferiore scuro dopo:
+    // se fosse tagliata, le righe luminose arriverebbero a yMax.
+    expect(last.bottom).toBeLessThan(yMax - 10)
+    for (let y = last.bottom + 1; y <= Math.min(last.bottom + 8, yMax - 1); y++) {
+      expect(rows[y]).toBeLessThan(0.10)
+    }
+  })
+
   test("badge font barlow-condensed pill — screenshot", async ({ page }) => {
     const url = posterUrl({ genreName: "Fantascienza", voteAverage: "8.7", bs: "pill", bfont: "barlow-condensed", badges: "1", ranking: "0" })
     const poster = await renderPoster(page, url)

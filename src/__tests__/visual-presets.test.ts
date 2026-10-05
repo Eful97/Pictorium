@@ -96,6 +96,34 @@ describe("personal visual presets", () => {
     hook.unmount()
   })
 
+  it("round-trips separateBadgeScale via capture/apply; legacy presets default to 100", () => {
+    const hook = renderHook(usePosterEditor, { wrapper: ({ children }: { children: ReactNode }) => createElement(PosterEditorProvider, null, children) })
+    act(() => {
+      hook.result.current.setDefaultSeparateBadgeScale(150)
+      hook.result.current.setLandscape({ separateBadgeScale: 130 })
+    })
+    const preset = captureVisualPreset(hook.result.current)
+    expect(preset.defaultSeparateBadgeScale).toBe(150)
+    expect(preset.landscape.separateBadgeScale).toBe(130)
+    act(() => {
+      hook.result.current.setDefaultSeparateBadgeScale(100)
+      hook.result.current.setLandscape({ separateBadgeScale: undefined })
+    })
+    act(() => hook.result.current.applyVisualPreset(preset))
+    expect(hook.result.current.defaultSeparateBadgeScale).toBe(150)
+    expect(hook.result.current.landscape.separateBadgeScale).toBe(130)
+    hook.unmount()
+    // Preset salvati prima del campo: parsing tollerante → 100 (resa storica).
+    const legacy = {
+      ...preset,
+      defaultSeparateBadgeScale: undefined,
+      landscape: { ...preset.landscape, separateBadgeScale: undefined },
+    }
+    const parsed = visualPresetValuesSchema.parse(legacy)
+    expect(parsed.defaultSeparateBadgeScale).toBe(100)
+    expect(parsed.landscape.separateBadgeScale).toBeUndefined()
+  })
+
   for (const mode of ["file", "kv"]) {
     it(`overwrites the same trimmed name and preserves its id using ${mode}`, async () => {
       mocks.mode = mode

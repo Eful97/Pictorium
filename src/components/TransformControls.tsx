@@ -10,6 +10,7 @@ import { defaultGradientHeightForPoster } from "@/lib/gradient-defaults"
 import { naturalGradientForPoster } from "@/lib/gradient-presets"
 import { GradientPresetRow } from "@/components/GradientPresetRow"
 import { SliderRow } from "@/components/SliderRow"
+import { resolveSeparateBadgeScaleFallback } from "@/lib/badge-styles"
 import type { LandscapeBlurState } from "@/lib/contexts/PosterEditorContext"
 
 export function TransformControls() {
@@ -315,6 +316,39 @@ export function TransformControls() {
           setEditText={setEditText}
           editingKey="qualityOY"
           suffix="px"
+        />
+      </div>
+      )}
+
+      {ed.globalBadges && ed.badgeRating && ed.separateRatings && (
+      <div className="bg-surface/50 border border-surface2/60 rounded-xl p-3 space-y-1.5 shadow-sm animate-fade-in">
+        <div className="flex items-center justify-between px-1">
+          <span className="font-semibold text-zinc-200 flex items-center gap-1.5">
+            <Star className="w-3.5 h-3.5 text-amber-400" />
+            {t("ui.separateRatings")} · {isLandShape ? t("ui.posterShapeLandscape") : t("ui.posterShapePortrait")}
+          </span>
+          <button type="button" aria-label={t("ui.reset")}
+                  onClick={() => { const land = ed.landscape; ed.setSeparateBadgeScale(resolveSeparateBadgeScaleFallback({ explicit: isLandShape ? land.separateBadgeScale : undefined, defaultScale: ed.defaultSeparateBadgeScale, defaultStyle: ed.defaultSeparateRatingsStyle, style: ed.separateRatingsStyle })) }}
+                  className="text-xs text-muted hover:text-accent transition-colors px-2 py-0.5 rounded-md border border-border/50 hover:border-accent/30">
+            {t("ui.reset")}
+          </button>
+        </div>
+        <SliderRow
+          icon={<Search className="w-3.5 h-3.5" />}
+          label={t("ui.scale")}
+          value={ed.separateBadgeScale}
+          min={50}
+          max={150}
+          boundsMin={10}
+          boundsMax={200}
+          onChange={(v) => ed.setSeparateBadgeScale(v)}
+          onDoubleClick={() => ed.setSeparateBadgeScale(resolveSeparateBadgeScaleFallback({ explicit: isLandShape ? ed.landscape.separateBadgeScale : undefined, defaultScale: ed.defaultSeparateBadgeScale, defaultStyle: ed.defaultSeparateRatingsStyle, style: ed.separateRatingsStyle }))}
+          editingValue={editingValue}
+          editText={editText}
+          setEditingValue={setEditingValue}
+          setEditText={setEditText}
+          editingKey="separateScale"
+          suffix="%"
         />
       </div>
       )}

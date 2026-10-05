@@ -5,6 +5,7 @@ import { useT } from "@/lib/contexts/TranslationContext"
 import { usePosterEditor } from "@/lib/contexts/PosterEditorContext"
 import { SliderRow } from "@/components/SliderRow"
 import { Toggle } from "@/components/Toggle"
+import { isBottomSeparateRatingsStyle, getSeparateBadgeDefaultScale } from "@/lib/badge-styles"
 import { NATURAL_GRADIENT_DEFAULTS, type GradientPresetValues } from "@/lib/gradient-presets"
 import { GradientPresetRow } from "@/components/GradientPresetRow"
 import { LandscapeDefaultsSection } from "@/components/LandscapeDefaultsSection"
@@ -375,6 +376,77 @@ export function TransformPanel({ active }: { active: boolean }) {
             editingKey="qby"
             suffix="px"
           />
+        </div>
+      </div>
+      )}
+
+      {/* Rating Separati Predefiniti (scala sola, niente offset in MVP) */}
+      {ed.defaultGlobalBadges && ed.defaultBadgeRating && ed.defaultSeparateRatings && (
+      <div className="bg-surface/50 border border-surface2/60 rounded-xl p-3.5 space-y-2.5 shadow-sm animate-fade-in">
+        <div className="flex items-center justify-between">
+          <span className="text-zinc-300 font-medium flex items-center gap-1.5">
+            <Star className="w-3.5 h-3.5 text-amber-400" />
+            {t("ui.separateRatings")}
+          </span>
+          <button type="button" aria-label={t("ui.reset")}
+                  onClick={() => {
+                    ed.setDefaultSeparateBadgeScale(getSeparateBadgeDefaultScale(ed.defaultSeparateRatingsStyle))
+                  }}
+                  className="text-xs text-muted hover:text-accent transition-colors px-2 py-0.5 rounded-md border border-border/50 hover:border-accent/30">
+            {t("ui.reset")}
+          </button>
+        </div>
+
+        <div className="space-y-1.5 pt-1">
+          <SliderRow
+            icon={<Search className="w-3.5 h-3.5" />}
+            label={t("ui.scale")}
+            value={ed.defaultSeparateBadgeScale}
+            min={50}
+            max={150}
+            boundsMin={10}
+            boundsMax={200}
+            onChange={(v) => {
+              ed.setDefaultSeparateBadgeScale(v)
+            }}
+            onDoubleClick={() => {
+              ed.setDefaultSeparateBadgeScale(getSeparateBadgeDefaultScale(ed.defaultSeparateRatingsStyle))
+            }}
+            editingValue={editVal}
+            editText={editTxt}
+            setEditingValue={setEditVal}
+            setEditText={setEditTxt}
+            editingKey="seps"
+            suffix="%"
+          />
+        </div>
+
+        <div className="space-y-1.5 pt-1" title={t("ui.separateRatingsHint")}>
+          <span className="text-[11px] text-muted font-medium block">{t("ui.separateRatingsStyle")}</span>
+          <div className="flex gap-1">
+            {([
+              { id: "column", labelKey: "ui.separateRatingsColumn" },
+              { id: "bottom-bar", labelKey: "ui.separateRatingsBottomBar" },
+              { id: "bottom-pills", labelKey: "ui.separateRatingsBottomPills" },
+            ] as const).map((opt) => (
+              <button
+                key={opt.id}
+                type="button"
+                onClick={() => ed.setDefaultSeparateRatingsStyle(opt.id)}
+                aria-pressed={ed.defaultSeparateRatingsStyle === opt.id}
+                className={`flex-1 py-1 px-1 rounded-lg text-[11px] font-semibold transition-all duration-150 cursor-pointer ${
+                  ed.defaultSeparateRatingsStyle === opt.id
+                    ? "bg-white/20 text-white shadow-sm"
+                    : "bg-white/5 text-muted hover:bg-white/10 hover:text-zinc-200"
+                }`}
+              >
+                {t(opt.labelKey)}
+              </button>
+            ))}
+          </div>
+          {ed.defaultGlobalBadges && ed.defaultBadgeRating && ed.defaultSeparateRatings && isBottomSeparateRatingsStyle(ed.defaultSeparateRatingsStyle) && (
+            <p className="text-[10px] text-muted italic leading-tight">{t("ui.separateRatingsBottomHint")}</p>
+          )}
         </div>
       </div>
       )}

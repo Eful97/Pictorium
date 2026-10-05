@@ -262,6 +262,47 @@ export function LandscapeDefaultsSection({ editVal, editTxt, setEditVal, setEdit
         {scaleGroup(t("ui.genreRatingBadge"), <Star className="w-3.5 h-3.5 text-amber-400" />, "genreBadgeScale", "genreBadgeOffsetX", "genreBadgeOffsetY", ed.defaultGenreBadgeScale, ed.defaultGenreBadgeOffsetX, ed.defaultGenreBadgeOffsetY, "lsg")}
         <hr className="border-surface2/50" />
         {scaleGroup(t("ui.badgeQuality"), <Sparkles className="w-3.5 h-3.5 text-purple-400" />, "qualityBadgeScale", "qualityBadgeOffsetX", "qualityBadgeOffsetY", ed.defaultQualityBadgeScale, ed.defaultQualityBadgeOffsetX, ed.defaultQualityBadgeOffsetY, "lsq")}
+        {ed.defaultGlobalBadges && ed.defaultBadgeRating && ed.defaultSeparateRatings && (
+          <>
+            <hr className="border-surface2/50" />
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between px-1">
+                <span className="font-semibold text-zinc-200 flex items-center gap-1.5">
+                  <Star className="w-3.5 h-3.5 text-amber-400" />
+                  {t("ui.separateRatings")}
+                </span>
+                {isOver("separateBadgeScale") && (
+                  <button
+                    type="button"
+                    title={resetLabel}
+                    aria-label={resetLabel}
+                    onClick={() => clear("separateBadgeScale")}
+                    className="text-xs text-muted hover:text-accent transition-colors px-2 py-0.5 rounded-md border border-border/50 hover:border-accent/30 cursor-pointer"
+                  >
+                    {resetLabel}
+                  </button>
+                )}
+              </div>
+              <SliderRow
+                icon={<Search className="w-3.5 h-3.5" />}
+                label={t("ui.scale")}
+                value={land.separateBadgeScale ?? ed.defaultSeparateBadgeScale}
+                min={50}
+                max={150}
+                boundsMin={10}
+                boundsMax={200}
+                onChange={(v) => set({ separateBadgeScale: v })}
+                onDoubleClick={() => clear("separateBadgeScale")}
+                editingValue={editVal}
+                editText={editTxt}
+                setEditingValue={setEditVal}
+                setEditText={setEditTxt}
+                editingKey="lssepsScale"
+                suffix="%"
+              />
+            </div>
+          </>
+        )}
         <hr className="border-surface2/50" />
         {scaleGroup(t("ui.networkLogo"), <Tv className="w-3.5 h-3.5 text-sky-400" />, "networkLogoScale", "networkLogoOffsetX", "networkLogoOffsetY", ed.defaultNetworkLogoScale, ed.defaultNetworkLogoOffsetX, ed.defaultNetworkLogoOffsetY, "lsn")}
       </div>

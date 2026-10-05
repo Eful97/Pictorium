@@ -2,7 +2,7 @@ import type { NextRequest } from "next/server"
 import { cacheGet, cacheGetStale, cacheSet } from "@/lib/cache"
 import { createLogger } from "@/lib/logger"
 import { envWithFallback } from "@/lib/env-compat"
-import { isBadgeStyle, isRankingBadgeStyle, isBadgeFont } from "@/lib/badge-styles"
+import { isBadgeStyle, isRankingBadgeStyle, isBadgeFont, isSeparateRatingsStyle } from "@/lib/badge-styles"
 import { POSTER_CACHE_ALLOWLIST } from "./poster-params-hardening"
 
 const log = createLogger("poster-cache")
@@ -125,6 +125,17 @@ export function normalizePosterCacheParams(searchParams: URLSearchParams): URLSe
   const rs = params.get("rs")
   if (rs !== null && !isRankingBadgeStyle(rs)) {
     params.delete("rs")
+  }
+  // sepstyle: fail-closed con distinzione dall'assenza (come bfont sopra):
+  // un valore presente ma non valido (garbage o vuoto) rende come column,
+  // mentre l'assenza può ereditare bottom da mapping/default. Cancellarlo
+  // collasserebbe le due chiavi e la prima richiesta avvelenerebbe le
+  // successive (stessa chiave, immagini diverse). Canonical lowercase come
+  // il resolver (query case-insensitive, un'unica policy ovunque).
+  const sepstyle = params.get("sepstyle")
+  if (sepstyle !== null) {
+    const v = sepstyle.toLowerCase()
+    params.set("sepstyle", isSeparateRatingsStyle(v) ? v : "column")
   }
   const bfont = params.get("bfont")
   if (bfont !== null && !isBadgeFont(bfont)) {

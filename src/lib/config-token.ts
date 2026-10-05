@@ -10,7 +10,7 @@ import { z } from "zod"
 // Batch B: clamp condiviso da image-utils.ts (semantica standard, senza round)
 import { clamp } from "@/lib/image-utils"
 import { envWithFallback } from "@/lib/env-compat"
-import { BADGE_STYLES, RANKING_BADGE_STYLES, QUALITY_BADGE_STYLES, BADGE_FONTS } from "@/lib/badge-styles"
+import { BADGE_STYLES, RANKING_BADGE_STYLES, QUALITY_BADGE_STYLES, BADGE_FONTS, SEPARATE_RATINGS_STYLES } from "@/lib/badge-styles"
 
 // ---- Zod schema (Batch C: sostituisce validazione manuale) ----
 
@@ -54,6 +54,8 @@ export const configTokenSchema = z.object({
   customRatings: z.boolean().optional(),
   ratingSources: z.array(z.string().max(20)).optional(),
   separateRatings: z.boolean().optional(),
+  separateBadgeScale: z.number().finite().optional(),
+  separateRatingsStyle: z.enum(SEPARATE_RATINGS_STYLES).optional(),
   badgeStyle: badgeStyleSchema,
   rankingBadgeStyle: rankingBadgeStyleSchema,
   /** Font dei testi badge: opzionale (token vecchi senza campo restano validi). */
@@ -261,6 +263,7 @@ export function decodeConfig(token: string): PictoriumUserConfig | null {
       qualityBadgeScale: result.data.qualityBadgeScale !== undefined ? clamp(Math.round(result.data.qualityBadgeScale), 10, 200) : undefined,
       qualityBadgeOffsetX: result.data.qualityBadgeOffsetX !== undefined ? clamp(Math.round(result.data.qualityBadgeOffsetX), -2000, 2000) : undefined,
       qualityBadgeOffsetY: result.data.qualityBadgeOffsetY !== undefined ? clamp(Math.round(result.data.qualityBadgeOffsetY), -2000, 2000) : undefined,
+      separateBadgeScale: result.data.separateBadgeScale !== undefined ? clamp(Math.round(result.data.separateBadgeScale), 10, 200) : undefined,
       networkLogoScale: result.data.networkLogoScale !== undefined ? clamp(Math.round(result.data.networkLogoScale), 10, 200) : undefined,
       networkLogoOffsetX: result.data.networkLogoOffsetX !== undefined ? clamp(Math.round(result.data.networkLogoOffsetX), -2000, 2000) : undefined,
       networkLogoOffsetY: result.data.networkLogoOffsetY !== undefined ? clamp(Math.round(result.data.networkLogoOffsetY), -2000, 2000) : undefined,

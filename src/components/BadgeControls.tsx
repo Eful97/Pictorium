@@ -16,6 +16,7 @@ import { getUpcomingReleaseLabel } from "@/lib/release-badge"
 import { isPrefixedKey, badgeKey } from "@/lib/i18n"
 import { getAllBadgeOptions, isMiniseriesType, isReturningStatus } from "@/lib/badge-priority"
 import { isManualAccent } from "@/lib/accent-color"
+import { isBottomSeparateRatingsStyle } from "@/lib/badge-styles"
 import { UI_RATING_SOURCES } from "@/lib/rating-weights"
 import { RatingSourceIcon } from "@/components/RatingSourceIcon"
 
@@ -45,6 +46,10 @@ export function BadgeControls() {
 
   const effectiveColor = accentColor || autoAccentColor || "#555555"
   const isCustomColor = isManualAccent(accentColor, autoAccentColor)
+  // Bottom attivo: genere+anno soppressi a render (voto incluso) — i toggle
+  // restano visibili ma disabilitati e i valori salvati intatti (tornando a
+  // Colonna si ripristinano, mai distrutti).
+  const bottomActive = ed.globalBadges && ed.badgeRating && ed.separateRatings && isBottomSeparateRatingsStyle(ed.separateRatingsStyle)
 
   return (
     <div className="space-y-3.5 text-xs">
@@ -71,13 +76,13 @@ export function BadgeControls() {
           {/* Sub-controlli Genere / Anno / Voto */}
           {ed.globalBadges && (
             <div className="pl-3 py-1 space-y-2 border-l-2 border-surface2 ml-1 animate-fade-in">
-              <div className="flex items-center justify-between">
+              <div className={`flex items-center justify-between ${bottomActive ? "opacity-50" : ""}`} title={bottomActive ? t("ui.separateRatingsBottomHint") : undefined} aria-disabled={bottomActive || undefined}>
                 <span className="text-muted">{t("ui.badgeGenre")}</span>
-                <Toggle value={ed.badgeGenre} onChange={(v) => ed.setBadgeGenre(v)} label={t("ui.badgeGenre")} />
+                <Toggle value={ed.badgeGenre} onChange={(v) => { if (!bottomActive) ed.setBadgeGenre(v) }} label={t("ui.badgeGenre")} disabled={bottomActive} />
               </div>
-              <div className="flex items-center justify-between">
+              <div className={`flex items-center justify-between ${bottomActive ? "opacity-50" : ""}`} title={bottomActive ? t("ui.separateRatingsBottomHint") : undefined} aria-disabled={bottomActive || undefined}>
                 <span className="text-muted">{t("ui.badgeYear")}</span>
-                <Toggle value={ed.badgeYear} onChange={(v) => ed.setBadgeYear(v)} label={t("ui.badgeYear")} />
+                <Toggle value={ed.badgeYear} onChange={(v) => { if (!bottomActive) ed.setBadgeYear(v) }} label={t("ui.badgeYear")} disabled={bottomActive} />
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-muted">{t("ui.badgeRating")}</span>
@@ -87,6 +92,35 @@ export function BadgeControls() {
                 <div className="flex items-center justify-between" title={t("ui.separateRatingsHint")}>
                   <span className="text-muted">{t("ui.separateRatings")}</span>
                   <Toggle value={ed.separateRatings} onChange={(v) => ed.setSeparateRatings(v)} label={t("ui.separateRatings")} />
+                </div>
+              )}
+              {ed.badgeRating && ed.separateRatings && (
+                <div className="pt-1 space-y-1.5" title={t("ui.separateRatingsHint")}>
+                  <span className="text-[11px] text-muted font-medium block">{t("ui.separateRatingsStyle")}</span>
+                  <div className="flex gap-1">
+                    {([
+                      { id: "column", labelKey: "ui.separateRatingsColumn" },
+                      { id: "bottom-bar", labelKey: "ui.separateRatingsBottomBar" },
+                      { id: "bottom-pills", labelKey: "ui.separateRatingsBottomPills" },
+                    ] as const).map((opt) => (
+                      <button
+                        key={opt.id}
+                        type="button"
+                        onClick={() => ed.setSeparateRatingsStyle(opt.id)}
+                        aria-pressed={ed.separateRatingsStyle === opt.id}
+                        className={`flex-1 py-1 px-1 rounded-lg text-[11px] font-semibold transition-all duration-150 cursor-pointer ${
+                          ed.separateRatingsStyle === opt.id
+                            ? "bg-white/20 text-white shadow-sm"
+                            : "bg-white/5 text-muted hover:bg-white/10 hover:text-zinc-200"
+                        }`}
+                      >
+                        {t(opt.labelKey)}
+                      </button>
+                    ))}
+                  </div>
+                  {bottomActive && (
+                    <p className="text-[10px] text-muted italic leading-tight">{t("ui.separateRatingsBottomHint")}</p>
+                  )}
                 </div>
               )}
 

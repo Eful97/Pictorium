@@ -1,4 +1,4 @@
-import type { BadgeStyle, RankingBadgeStyle, QualityBadgeStyle, BadgeFont } from "./badge-styles"
+import type { BadgeStyle, RankingBadgeStyle, QualityBadgeStyle, BadgeFont, SeparateRatingsStyle } from "./badge-styles"
 import type { VideoFormat } from "./av-specs"
 /** Formato canvas del poster: verticale standard o orizzontale 16:9 (Nuvio). */
 export type PosterShape = "poster" | "landscape"
@@ -141,6 +141,15 @@ export interface Mapping {
   ratingSources?: string[] | null
   /** Colonna rating separati a destra (sostituisce la media ★). Default OFF. */
   separateRatings?: boolean | null
+  /** Scala % della colonna rating separati (default 100 = resa storica). */
+  separateBadgeScale?: number | null
+  /**
+   * Layout dei rating separati ("column" = colonna destra storica;
+   * "bottom-bar"/"bottom-pills" = modalità bottom con genere+anno soppressi
+   * solo a render — i flag bg/by salvati restano intatti e tornando a column
+   * si ripristinano). Default "column".
+   */
+  separateRatingsStyle?: SeparateRatingsStyle | null
   /** IMDb ID salvato al save: evita getExternalIds per i poster mappati. */
   imdbId?: string | null
   /** QID Wikidata salvato al save: fast-path REST awards senza SPARQL né
@@ -221,6 +230,10 @@ export interface LandscapeSettings {
   qualityBadgeScale?: number | null
   qualityBadgeOffsetX?: number | null
   qualityBadgeOffsetY?: number | null
+  /** Scala % della colonna rating separati (default 100 = resa storica). */
+  separateBadgeScale?: number | null
+  /** Layout dei rating separati (default "column" = colonna storica). */
+  separateRatingsStyle?: SeparateRatingsStyle | null
   networkLogoScale?: number | null
   networkLogoOffsetX?: number | null
   networkLogoOffsetY?: number | null
@@ -256,6 +269,8 @@ export function effectiveMappingForShape(mapping: Mapping | null, shape: PosterS
     qualityBadgeScale: l.qualityBadgeScale ?? mapping.qualityBadgeScale,
     qualityBadgeOffsetX: l.qualityBadgeOffsetX ?? mapping.qualityBadgeOffsetX,
     qualityBadgeOffsetY: l.qualityBadgeOffsetY ?? mapping.qualityBadgeOffsetY,
+    separateBadgeScale: l.separateBadgeScale ?? mapping.separateBadgeScale,
+    separateRatingsStyle: l.separateRatingsStyle ?? mapping.separateRatingsStyle,
     networkLogoScale: l.networkLogoScale ?? mapping.networkLogoScale,
     networkLogoOffsetX: l.networkLogoOffsetX ?? mapping.networkLogoOffsetX,
     networkLogoOffsetY: l.networkLogoOffsetY ?? mapping.networkLogoOffsetY,

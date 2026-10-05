@@ -20,6 +20,7 @@ import { envWithFallback } from "./env-compat"
 import { GENRE_FALLBACK } from "./badges"
 import { isRankKey } from "./i18n"
 import { parseRatingSources } from "./ratings"
+import { isSeparateRatingsStyle } from "./badge-styles"
 import { ANIME_RANK_MAX } from "./badge-priority"
 import { BADGE_PRESET_ID_RE, BADGE_PRESET_REV_RE } from "./badge-preset"
 
@@ -94,10 +95,10 @@ export const POSTER_CACHE_ALLOWLIST: ReadonlySet<string> = new Set([
   "extra", "label", "title", "genreName", "poster", "logo", "backdrop",
   "quality", "formats", "qmin", "lang", "rsrc", "rw", "sash", "imdbId", "wikidata_id",
   "rank", "animerank", "scale", "ox", "oy", "tscale", "tox", "toy",
-  "gscale", "gox", "goy", "qscale", "qox", "qoy", "netscale", "nox", "noy",
+  "gscale", "gox", "goy", "qscale", "qox", "qoy", "sepscale", "netscale", "nox", "noy",
   "bscale", "box", "boy", "gradHeight", "blur", "bf", "bd", "voteAverage",
   "year", "rd", "fad", "mv", "fmt", "format", "shape", "align", "ac",
-  "tl", "bl", "bs", "rs", "bfont", "ts", "dv",
+  "tl", "bl", "bs", "rs", "bfont", "sepstyle", "ts", "dv",
   // Funzionali (letti dalla route / poster-config, mai stile libero).
   "badges", "ranking", "bg", "by", "br", "bq", "qbs", "ribbon", "cr", "sep", "netLogo", "netPos",
   "pre", "side", "hideLogo", "tint", "be", "preview", "u", "user",
@@ -117,7 +118,7 @@ const STEP_5_PARAMS: ReadonlySet<string> = new Set([
 
 // Scale percentuali: step 10.
 const STEP_10_PARAMS: ReadonlySet<string> = new Set([
-  "tscale", "gscale", "qscale", "netscale", "scale", "bscale",
+  "tscale", "gscale", "qscale", "sepscale", "netscale", "scale", "bscale",
 ])
 
 // Metadata hints the route derives server-side (TMDB details / saved mapping)
@@ -263,6 +264,16 @@ export function hardenPosterSearchParams(
     const v = (params.get("netPos") || "").toLowerCase()
     if (v === "top" || v === "auto") params.set("netPos", v)
     else params.delete("netPos")
+  }
+  // sepstyle: enum finita ("column"/"bottom-bar"/"bottom-pills"), query
+  // case-insensitive con canonical lowercase (stessa policy di
+  // resolveSeparateRatingsStyle e normalizePosterCacheParams). Valore
+  // presente ma non valido (garbage o vuoto) → "column" esplicito, MAI
+  // delete: cancellarlo cambierebbe semantica (l'assenza eredita
+  // mapping/default, il garbage rende column).
+  if (params.has("sepstyle")) {
+    const v = (params.get("sepstyle") || "").toLowerCase()
+    params.set("sepstyle", isSeparateRatingsStyle(v) ? v : "column")
   }
 
   return params

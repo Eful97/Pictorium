@@ -2,7 +2,7 @@ import sharp from "sharp"
 import type { RatingItem } from "./custom-rating/types"
 import { renderMultiRatings } from "./multi-rating-renderer"
 import type { SeparateRating } from "./ratings"
-import { renderSeparateRatingStack } from "./separate-rating-renderer"
+import { renderSeparateRatingStack, renderSeparateRatingsBottom } from "./separate-rating-renderer"
 import { cacheGet, cacheSet } from "./cache"
 import { GENRE_FALLBACK, cinematicVignetteSVG, cinematicCornerGradientSVG, topShadeSVG } from "./badges"
 import { applyBlur } from "./blur"
@@ -36,7 +36,7 @@ import type { WikidataResult } from "./awards"
 import { directorBadgeLabel } from "./awards"
 import type { BadgeT } from "./poster-badge"
 import type { BadgeFont } from "./badge-styles"
-import { isRibbonRankingStyle, type BadgeStyle, type RankingBadgeStyle } from "./badge-styles"
+import { isRibbonRankingStyle, isBottomSeparateRatingsStyle, type BadgeStyle, type RankingBadgeStyle, type SeparateRatingsStyle, type SeparateBottomVariant } from "./badge-styles"
 import { normalizeBadgeFont } from "./badge-svg-shared"
 import type { PosterImageFormat } from "@/lib/poster-runtime-cache"
 import { getPresetForUser } from "./badge-preset-store"
@@ -124,6 +124,12 @@ export interface GenerationInput {
   topLight: boolean
   /** Polarità del badge genere in basso (fondo chiaro → pill scura). Default = topLight (comportamento storico). */
   bottomLight?: boolean
+  /**
+   * Visibilità badge di riferimento per la reservation logo (solo geometria):
+   * in bottom la route passa l'equivalente colonna così il logo titolo resta
+   * alla stessa altezza. Assente → si usano i flag effettivi del render.
+   */
+  logoBadgeVisibility?: { genre: boolean; year: boolean; rating: boolean }
   targetCenter: number
   /** Modalità layout nastro Netflix + logo network: "left" (Nuvio, default) o "right" (Stremio). */
   ribbonSide: "left" | "right"
@@ -160,6 +166,15 @@ export interface GenerationInput {
   genreBadgeOffsetY: number
   /** Scala % del badge qualità streaming. */
   qualityBadgeScale: number
+  /** Scala % della colonna rating separati (default 100 = resa storica). */
+  separateBadgeScale: number
+  /**
+   * Layout dei rating separati ("column" = colonna destra storica;
+   * "bottom-bar"/"bottom-pills" = riga in basso con genere+anno+voto
+   * soppressi a monte via flag effettivi). Opzionale con default "column":
+   * i consumer esistenti (test diretti, vecchi adapter) restano invariati.
+   */
+  separateRatingsStyle?: SeparateRatingsStyle
   /** Offset px del badge qualità. */
   qualityBadgeOffsetX: number
   qualityBadgeOffsetY: number
@@ -860,6 +875,7 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
     logoScale, logoOffsetX, logoOffsetY,
     topBadgeScale, topBadgeOffsetX, topBadgeOffsetY,
     genreBadgeScale, qualityBadgeScale, networkLogoScale,
+    separateBadgeScale,
     genreBadgeOffsetX, genreBadgeOffsetY, qualityBadgeOffsetX, qualityBadgeOffsetY,
     networkLogoOffsetX, networkLogoOffsetY,
     mediaType, finalRank, animeRankResult,
@@ -939,6 +955,21 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
   // Il badge è visibile se almeno uno dei 3 componenti è abilitato E disponibile.
   const hasGenreBadge = badgesEnabled
     && ((genreAvailable && badgeGenre) || (ratingAvailable && badgeRating) || (yearAvailable && badgeYear))
+  // Reservation logo: in bottom i flag effettivi sono soppressi ma il titolo
+  // resta alla stessa altezza della colonna equivalente (stesse preferenze e
+  // metadati, anche a 0 provider). La route passa `logoBadgeVisibility` con i
+  // flag colonna; assente → flag effettivi (comportamento storico).
+  const refVis = input.logoBadgeVisibility
+  const logoHasBadges = badgesEnabled
+    && ((genreAvailable && (refVis?.genre ?? badgeGenre)) || (ratingAvailable && (refVis?.rating ?? badgeRating)) || (yearAvailable && (refVis?.year ?? badgeYear)))
+
+  // Riga bottom (bottom-bar/bottom-pills): stile già risolto a monte, max 3
+  // provider. Vince difensivamente sul custom provider anche se l'input
+  // portasse entrambi (la route già esclude il custom in bottom).
+  const bottomStyle = input.separateRatingsStyle ?? "column"
+  const isBottomStyle = isBottomSeparateRatingsStyle(bottomStyle)
+  const bottomVariant: SeparateBottomVariant | null = isBottomStyle ? bottomStyle : null
+  const bottomItemCount = bottomVariant ? (input.separateRatings?.length ?? 0) : 0
 
   // Tinta di scena same-hue UNICA per badge + blur (coerenza dalla stessa
   // radice). Niente crop per-zone: il bottom-40% falliva sui portrait con
@@ -991,11 +1022,11 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
             // PORTRAIT_LOGO_TOP_OFFSET in portrait. Gli slider mostrano 0.
             logoOffsetX: uOx + (isLandscape ? LANDSCAPE_LOGO_SHIFT_X : 0),
             logoOffsetY: uOy + (isLandscape ? LANDSCAPE_LOGO_SHIFT_Y : 0),
-            hasBadges: hasGenreBadge,
+            hasBadges: logoHasBadges,
             // Fondo logo in linea col badge genere (~10px dal bordo, vedi
             // costanti landscape in logo-layout.ts). In portrait margine
             // maggiorato solo col badge genere (12% vs 10% storico).
-            bottomMarginPct: isLandscape ? LANDSCAPE_LOGO_BOTTOM_MARGIN_PCT : (hasGenreBadge ? 12 : undefined),
+            bottomMarginPct: isLandscape ? LANDSCAPE_LOGO_BOTTOM_MARGIN_PCT : (logoHasBadges ? 12 : undefined),
             // Vincoli logo per formato (stessi di context.tsx e
             // poster-fit-score.ts): portrait cap solo altezza + calibrazione
             // +10px; landscape contenuto 40% larghezza / 24% altezza.
@@ -1374,6 +1405,10 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
     comingSoonResult ? fitBadgeToCanvas(comingSoonResult, CW, CH) : Promise.resolve(null),
   ])
 
+  // Rettangolo finale del badge genere (per il contenimento colonna separati
+  // sotto: solo shrink quando lo stack sfora, mai enlarge — a scala 100 lo
+  // spazio basta sempre e il percorso resta byte-identico).
+  let genreBadgeRect: { top: number; left: number; w: number; h: number } | null = null
   if (safeGenreBadgeResult) {
     const landscapeShiftX = shape === "landscape" ? -55 : 0
     // Landscape: badge in basso a DESTRA invece che centrato (vale per
@@ -1393,7 +1428,9 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
         : (isLandscapeLeft
           ? logoAlignPadX(CW) + genreBadgeOffsetX
           : 0) + landscapeShiftX
-      composites.push({ input: safeGenreBadgeResult.png, top: CH - safeGenreBadgeResult.h, left: barLeft })
+      const barTop = CH - safeGenreBadgeResult.h
+      genreBadgeRect = { top: barTop, left: barLeft, w: safeGenreBadgeResult.w, h: safeGenreBadgeResult.h }
+      composites.push({ input: safeGenreBadgeResult.png, top: barTop, left: barLeft })
     } else {
       // Offset solo stili centrati: la barra resta ancorata full-width.
       // In Cinematic Left la riga metadati sta sotto il logo a sinistra.
@@ -1465,13 +1502,17 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
           }
         }
       }
+      genreBadgeRect = { top: genreTop, left: genreLeft, w: genreBox.w, h: genreBox.h }
       composites.push({ input: genreBox.png, top: genreTop, left: genreLeft })
     }
   }
   // Riga custom provider: se renderizzata, la colonna separati si nasconde
-  // (mai due stack di rating impilati — il provider vince).
+  // (mai due stack di rating impilati — il provider vince). In modalità
+  // bottom la riga non si rende mai (vince il bottom, mai duplicati — anche
+  // senza dati: non inventa/fallback provider mentre la route sopprime
+  // genere/anno/voto).
   let customRowRendered = false
-  if (input.ratings?.length) {
+  if (input.ratings?.length && !isBottomStyle) {
     // Optional enrichment must never prevent the original poster from rendering.
     // La riga sta sopra il badge genere, in basso: stessa polarità del fondo.
     const row = await renderMultiRatings(input.ratings, CW - 40, bottomLight, badgeFont).catch(() => null)
@@ -1879,7 +1920,8 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
   // pill verticali logo-sopra/punteggio-sotto a larghezza uniforme,
   // centrato sull'asse verticale del badge qualità (o all'angolo quando la
   // qualità manca). Vale per entrambi i canvas. Mai col custom provider.
-  if (!customRowRendered && input.separateRatings?.length) {
+  // Solo stile colonna: in modalità bottom gli items vanno alla riga sotto.
+  if (!customRowRendered && !isBottomStyle && input.separateRatings?.length) {
     const items = input.separateRatings.slice(0, 3)
     const netPadX = Math.round(18 * CW / 380)
     const netBaseTop = Math.round(18 * CH / 570)
@@ -1890,18 +1932,58 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
       : ((isRibbonRankingStyle(rankingBadgeStyle) && ribbonSide === "right" && topBadge?.type === "rank" && !!finalRankBadge)
         || (showComingSoon && ribbonSide === "right" && !!ribbonLayout))
     const stackTop = qualityStackAnchor ? qualityStackAnchor.top + 6 : netBaseTop - 10
-    const stackKey = badgeCacheKey("separate", items.map((i) => `${i.id}${i.value}`).join(","), CW, badgeFont, topLight)
+    const stackKey = badgeCacheKey("separate", items.map((i) => `${i.id}${i.value}`).join(","), CW, badgeFont, topLight, separateBadgeScale)
     const cached = cacheGet<{ png: Buffer; w: number; h: number }>(stackKey)
     const stack = cached ?? await coalesceBadgeRender(stackKey, () =>
-      renderSeparateRatingStack(items, badgePw, topLight, badgeFont)
+      renderSeparateRatingStack(items, badgePw, topLight, badgeFont, separateBadgeScale)
         .then((r) => { if (r) cacheSet(stackKey, r, ["badge"], BADGE_CACHE_TTL); return r })
     )
     const fitted = stack ? await fitBadgeToCanvas(stack, CW, CH) : null
-    if (fitted) {
+    // Contenimento colonna sopra il badge genere: SOLO per ingrandimenti
+    // (separateBadgeScale > 100). La resa default 100 è un contratto storico
+    // e non viene mai alterata, nemmeno con tuning preesistenti (offset o
+    // scale altrui) che riducono lo spazio disponibile. Soglia 40px: con
+    // offset arbitrari lo spazio può restare insufficiente anche dopo lo
+    // shrink — quel caso è fuori scope (garantito solo il layout normale) e
+    // si conserva leggibilità minima invece di collassare la colonna;
+    // nessuna promessa di zero overlap universale. Mai enlarge.
+    let stackFitted = fitted
+    if (stackFitted && genreBadgeRect && separateBadgeScale > 100) {
+      const finalTop = Math.max(0, stackTop)
+      const maxStackH = genreBadgeRect.top - finalTop - 6
+      if (stackFitted.h > maxStackH && maxStackH >= 40) {
+        stackFitted = await scaleBitmapForLayout(stackFitted, (maxStackH / stackFitted.h) * 100)
+      }
+    }
+    if (stackFitted) {
       const leftPos = qualityStackAnchor
-        ? Math.round(qualityStackAnchor.centerX - fitted.w / 2)
-        : (rightCorner ? netPadX : Math.round(CW - netPadX + 10 - fitted.w))
-      composites.push({ input: fitted.png, top: Math.max(0, stackTop), left: Math.max(0, Math.min(CW - fitted.w, leftPos)) })
+        ? Math.round(qualityStackAnchor.centerX - stackFitted.w / 2)
+        : (rightCorner ? netPadX : Math.round(CW - netPadX + 10 - stackFitted.w))
+      composites.push({ input: stackFitted.png, top: Math.max(0, stackTop), left: Math.max(0, Math.min(CW - stackFitted.w, leftPos)) })
+    }
+  }
+
+  // Riga bottom (bottom-bar/bottom-pills): rimpiazza colonna e badge genere
+  // (già soppresso a monte via flag effettivi) sul bordo inferiore. La barra
+  // in portrait è full-width a filo; in landscape è centrata come lower-third
+  // (stessa convenzione delle barre genere); le pill sono sempre centrate con
+  // margine dal bordo. Forma canvas invariata.
+  if (bottomItemCount > 0 && badgesEnabled && bottomVariant) {
+    const items = input.separateRatings!.slice(0, 3)
+    const isBar = bottomVariant === "bottom-bar"
+    const availW = isBar && !isLandscape ? CW : (isLandscape ? CW - 80 : CW - 36)
+    const bottomKey = badgeCacheKey("separate-bottom", bottomVariant, items.map((i) => `${i.id}${i.value}`).join(","), CW, badgeFont, separateBadgeScale, availW, bottomLight ? "bl1" : "bl0")
+    const cached = cacheGet<{ png: Buffer; w: number; h: number }>(bottomKey)
+    const bottom = cached ?? await coalesceBadgeRender(bottomKey, () =>
+      renderSeparateRatingsBottom(items, badgePw, bottomVariant, badgeFont, separateBadgeScale, availW, bottomLight)
+        .then((r) => { if (r) cacheSet(bottomKey, r, ["badge"], BADGE_CACHE_TTL); return r })
+    )
+    const fitted = bottom ? await fitBadgeToCanvas(bottom, CW, CH) : null
+    if (fitted) {
+      const margin = Math.round(20 * CH / 570)
+      const top = isBar && !isLandscape ? CH - fitted.h : CH - fitted.h - margin
+      const left = isBar && !isLandscape ? 0 : Math.round((CW - fitted.w) / 2)
+      composites.push({ input: fitted.png, top: Math.max(0, top), left: Math.max(0, Math.min(CW - fitted.w, left)) })
     }
   }
 

@@ -72,6 +72,7 @@ function baseInput(overrides: Partial<GenerationInput> = {}): GenerationInput {
     topBadgeOffsetY: 0,
     genreBadgeScale: 100,
     qualityBadgeScale: 100,
+    separateBadgeScale: 100,
     networkLogoScale: 100,
     genreBadgeOffsetX: 0,
     genreBadgeOffsetY: 0,

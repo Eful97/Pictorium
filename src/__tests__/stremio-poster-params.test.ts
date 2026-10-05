@@ -147,7 +147,7 @@ describe("buildStremioPosterSearchParams", () => {
   it("compactTuning drops high-cardinality tuning but keeps style contracts", () => {
     const params = buildStremioPosterSearchParams({ compactTuning: true })
     for (const k of ["gradHeight", "blur", "tint", "bf", "bd", "tscale", "tox", "toy",
-      "gscale", "gox", "goy", "qscale", "qox", "qoy", "netscale", "nox", "noy"]) {
+      "gscale", "gox", "goy", "qscale", "qox", "qoy", "sepscale", "netscale", "nox", "noy"]) {
       expect(params.has(k)).toBe(false)
     }
     // Toggle/enum/funzionali restano espliciti.

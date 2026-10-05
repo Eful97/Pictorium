@@ -18,15 +18,20 @@ import {
   isRankingBadgeStyle,
   isQualityBadgeStyle,
   isBadgeFont,
+  isSeparateRatingsStyle,
+  isBottomSeparateRatingsStyle,
+  getSeparateBadgeDefaultScale,
   nonRibbonRankingStyle,
   DEFAULT_BADGE_STYLE,
   DEFAULT_RANKING_BADGE_STYLE,
   DEFAULT_QUALITY_BADGE_STYLE,
   DEFAULT_BADGE_FONT,
+  DEFAULT_SEPARATE_RATINGS_STYLE,
   type BadgeStyle,
   type RankingBadgeStyle,
   type QualityBadgeStyle,
   type BadgeFont,
+  type SeparateRatingsStyle,
 } from "./badge-styles"
 import { NON_CLEAN_BLUR_FADE, NON_CLEAN_GRADIENT_HEIGHT } from "./gradient-defaults"
 
@@ -57,6 +62,127 @@ export function resolvePosterShape(
   if (configOverride?.posterShape === "landscape" || configOverride?.posterShape === "poster") return configOverride.posterShape
   if (sd.posterShape === "landscape" || sd.posterShape === "poster") return sd.posterShape
   return "poster"
+}
+
+// ---------------------------------------------------------------------------
+// Rating separati: definizione centralizzata (unico punto di verità per route
+// e resolvePosterRenderConfig — mai catene `sep` duplicate che divergono).
+// ---------------------------------------------------------------------------
+
+/**
+ * Flag display dei rating separati — catena: query `sep` > mapping >
+ * config token > server defaults > false (stessa di `cr`).
+ */
+export function resolveSeparateRatingsEnabled(
+  searchParams: URLSearchParams,
+  mapping: Mapping | null,
+  configOverride: PictoriumUserConfig | null,
+  sd: ServerDefaults,
+): boolean {
+  const qSep = searchParams.get("sep")
+  return qSep !== null
+    ? qSep !== "0"
+    : (mapping?.separateRatings ?? configOverride?.separateRatings ?? sd.separateRatings ?? false)
+}
+
+/**
+ * Layout dei rating separati — catena: query `sepstyle` > mapping effettivo
+ * per formato (profilo landscape vince sul flat) > config token > defaults
+ * effettivi per formato > "column".
+ *
+ * Fail-closed con distinzione dall'assenza (stesso pattern `bfont` in
+ * normalizePosterCacheParams): un valore PRESENTE ma non valido (garbage o
+ * stringa vuota) rende `column` esplicito e NON eredita mapping/default —
+ * altrimenti collasserebbe con la chiave dell'assenza (che può ereditare
+ * bottom) avvelenando la cache. La query è case-insensitive (canonical
+ * lowercase, come `netPos`); mapping/config/defaults sono già tipizzati.
+ */
+export function resolveSeparateRatingsStyle(
+  searchParams: URLSearchParams,
+  mapping: Mapping | null,
+  configOverride: PictoriumUserConfig | null,
+  sd: ServerDefaults,
+  shape: PosterShape,
+): SeparateRatingsStyle {
+  if (searchParams.has("sepstyle")) {
+    const v = (searchParams.get("sepstyle") || "").toLowerCase()
+    return isSeparateRatingsStyle(v) ? v : DEFAULT_SEPARATE_RATINGS_STYLE
+  }
+  const m = effectiveMappingForShape(mapping, shape)
+  const esd = effectiveDefaultsForShape(sd, shape)
+  const raw = m?.separateRatingsStyle
+    || configOverride?.separateRatingsStyle
+    || esd.separateRatingsStyle
+  return isSeparateRatingsStyle(raw) ? raw : DEFAULT_SEPARATE_RATINGS_STYLE
+}
+
+export interface BottomSeparateActiveInput {
+  badgesEnabled: boolean
+  badgeRating: boolean
+  separateRatings: boolean
+  separateRatingsStyle: SeparateRatingsStyle | string | null | undefined
+}
+
+/**
+ * Bottom attivo = badgesEnabled && badgeRating && sep && stile bottom —
+ * INDIPENDENTE da sepItems.length: con voti temporaneamente assenti nasconde
+ * comunque genere+anno+voto medio (mai valori inventati).
+ */
+export function isBottomSeparateActive(input: BottomSeparateActiveInput): boolean {
+  return !!input.badgesEnabled
+    && !!input.badgeRating
+    && !!input.separateRatings
+    && isBottomSeparateRatingsStyle(input.separateRatingsStyle)
+}
+
+export interface SeparateDisplayState {
+  /** Colonna storica: sostituisce la media ★ (priorità invariata). */
+  useSeparate: boolean
+  /** Modalità bottom scelta dall'utente (soppressione effettiva, vedi sotto). */
+  bottomActive: boolean
+  effectiveBadgeGenre: boolean
+  effectiveBadgeYear: boolean
+  effectiveBadgeRating: boolean
+  /** In bottom la riga custom provider non si rende (mai duplicata). */
+  suppressCustomRow: boolean
+}
+
+/**
+ * Stato display dei separati da flag già risolti + n. provider disponibili.
+ * La soppressione genere/anno/voto è EFFETTIVA (solo render): i flag salvati
+ * (mapping/defaults) non vengono mutati — tornando a column si ripristinano.
+ * Il custom provider conserva la priorità storica sulla colonna (invariata:
+ * con riga custom renderizzata lo stack si nasconde); in bottom è invece la
+ * riga custom a essere esclusa (mai duplicata).
+ */
+export function resolveSeparateDisplayState(input: {
+  badgesEnabled: boolean
+  badgeGenre: boolean
+  badgeYear: boolean
+  badgeRating: boolean
+  separateRatings: boolean
+  separateRatingsStyle: SeparateRatingsStyle
+  sepItemCount: number
+}): SeparateDisplayState {
+  const bottomActive = isBottomSeparateActive({
+    badgesEnabled: input.badgesEnabled,
+    badgeRating: input.badgeRating,
+    separateRatings: input.separateRatings,
+    separateRatingsStyle: input.separateRatingsStyle,
+  })
+  const useSeparate = !!input.badgesEnabled
+    && !!input.badgeRating
+    && !!input.separateRatings
+    && input.separateRatingsStyle === "column"
+    && input.sepItemCount > 0
+  return {
+    useSeparate,
+    bottomActive,
+    effectiveBadgeGenre: input.badgeGenre && !bottomActive,
+    effectiveBadgeYear: input.badgeYear && !bottomActive,
+    effectiveBadgeRating: input.badgeRating && !useSeparate && !bottomActive,
+    suppressCustomRow: bottomActive,
+  }
 }
 
 export interface PosterRenderConfigInput {
@@ -112,6 +238,10 @@ export interface PosterRenderConfig {
   ratingSources: string[]
   /** Colonna rating separati a destra (sostituisce la media ★). Default OFF. Solo portrait (il gate è al sito d'uso). */
   separateRatings: boolean
+  /** Layout dei rating separati (default "column" = colonna destra storica). */
+  separateRatingsStyle: SeparateRatingsStyle
+  /** Scala % della colonna rating separati (default 100 = resa storica). */
+  separateBadgeScale: number
   logoScale: number | null
   logoOffsetX: number | null
   logoOffsetY: number | null
@@ -374,10 +504,13 @@ export function resolvePosterRenderConfig(input: PosterRenderConfigInput): Poste
   )
 
   // Colonna rating separati — stessa catena (query `sep` > mapping > config >
-  // server defaults > false). Vale per entrambi i canvas: la colonna segue
-  // il badge qualità anche in landscape.
-  const qSep = q.get("sep")
-  const separateRatings = qSep !== null ? qSep !== "0" : (mapping?.separateRatings ?? configOverride?.separateRatings ?? sd.separateRatings ?? false)
+  // server defaults > false, vedi resolveSeparateRatingsEnabled). Vale per
+  // entrambi i canvas: la colonna segue il badge qualità anche in landscape.
+  const separateRatings = resolveSeparateRatingsEnabled(q, mapping, configOverride, sd)
+
+  // Layout dei rating separati — catena query > mapping effettivo per formato
+  // > config > defaults effettivi > "column" (vedi resolveSeparateRatingsStyle).
+  const separateRatingsStyle = resolveSeparateRatingsStyle(q, mapping, configOverride, sd, posterShape)
 
   // Badge style — confinamento della query string al union type: valori non validi
   // cadono sul default (il renderer in passato li trattava come "shadow" nel ramo else).
@@ -507,6 +640,21 @@ export function resolvePosterRenderConfig(input: PosterRenderConfigInput): Poste
     ? (Number.isFinite(qQoyNum) ? clamp(Math.round(qQoyNum), -2000, 2000) : 0)
     : (m?.qualityBadgeOffsetY ?? configOverride?.qualityBadgeOffsetY ?? esd.qualityBadgeOffsetY ?? 0)
 
+  // Colonna rating separati — stessa catena, stessi bound (%, 10..200).
+  // Default unico 130 per tutti gli stili (solo fallthrough "tutto assente").
+  // Query presente ma invalida → 130 (coerente col nuovo default; range/clamp
+  // invariati). Esplicito (incluso 100) da query/mapping/token/defaults vince.
+  const qSepScaleNum = q.get("sepscale") ? Number(q.get("sepscale")) : NaN
+  const separateBadgeScale = q.get("sepscale") !== null
+    ? (Number.isFinite(qSepScaleNum) && qSepScaleNum !== 0 ? clamp(Math.round(qSepScaleNum), 10, 200) : getSeparateBadgeDefaultScale(separateRatingsStyle))
+    : (m?.separateBadgeScale != null && Number.isFinite(m.separateBadgeScale)
+        ? clamp(Math.round(m.separateBadgeScale), 10, 200)
+        : (configOverride?.separateBadgeScale != null && Number.isFinite(configOverride.separateBadgeScale)
+            ? clamp(Math.round(configOverride.separateBadgeScale), 10, 200)
+            : (esd.separateBadgeScale != null && Number.isFinite(esd.separateBadgeScale)
+                ? clamp(Math.round(esd.separateBadgeScale), 10, 200)
+                : getSeparateBadgeDefaultScale(separateRatingsStyle))))
+
   // Logo network — stessa catena, stessi bound (%, 10..200).
   const qNScaleNum = q.get("netscale") ? Number(q.get("netscale")) : NaN
   const networkLogoScale = q.get("netscale") !== null
@@ -598,6 +746,8 @@ export function resolvePosterRenderConfig(input: PosterRenderConfigInput): Poste
     customRatings,
     ratingSources,
     separateRatings,
+    separateRatingsStyle,
+    separateBadgeScale,
     logoScale,
     logoOffsetX,
     logoOffsetY,

@@ -10,7 +10,8 @@ import { hexLuminance, computeBottomLight } from "./accent-color"
 import { normalizeGenreName } from "./genre-normalize"
 import type { SearchResult, TMDBImage } from "./types"
 import type { EnrichedAnimeItem } from "./validation"
-import type { BadgeStyle, RankingBadgeStyle, QualityBadgeStyle, BadgeFont } from "./badge-styles"
+import type { BadgeStyle, RankingBadgeStyle, QualityBadgeStyle, BadgeFont, SeparateRatingsStyle } from "./badge-styles"
+import { getSeparateBadgeDefaultScale } from "./badge-styles"
 import type { VideoFormat } from "./av-specs"
 import type { PosterShape, NetworkLogoPosition } from "./types"
 import { BADGE_PRESET_ID_RE, BADGE_PRESET_REV_RE } from "./badge-preset"
@@ -37,6 +38,12 @@ interface BadgeParams {
   ratingSources?: string[]
   /** Colonna rating separati. Emessa sempre esplicita in preview (`sep=0/1`, WYSIWYG). */
   separateRatings?: boolean
+  /**
+   * Layout dei rating separati. Sempre esplicito in preview (`sepstyle=…`,
+   * default "column"): senza, un mapping salvato bottom scavalcerebbe la
+   * scelta editor (desync WYSIWYG).
+   */
+  separateRatingsStyle?: SeparateRatingsStyle | null
   customBadge: string | null
   badgePresetId?: string | null
   badgePresetRev?: string | null
@@ -62,6 +69,8 @@ interface BadgeParams {
   genreBadgeOffsetY: number
   /** Scala % del badge qualità streaming. */
   qualityBadgeScale: number
+  /** Scala % dei rating separati (default unico 130 per tutti gli stili). */
+  separateBadgeScale?: number | null
   /** Offset px del badge qualità. */
   qualityBadgeOffsetX: number
   qualityBadgeOffsetY: number
@@ -194,6 +203,7 @@ export function buildUrlPattern(bp: BadgeParams & {
     customRatings: bp.customRatings,
     ratingSources: bp.ratingSources,
     separateRatings: bp.separateRatings,
+    separateRatingsStyle: bp.separateRatingsStyle ?? undefined,
     badgeStyle: bp.badgeStyle,
     rankingBadgeStyle: bp.rankingBadgeStyle,
     badgeFont: bp.badgeFont ?? undefined,
@@ -217,6 +227,7 @@ export function buildUrlPattern(bp: BadgeParams & {
     topBadgeOffsetY: bp.topBadgeOffsetY,
     genreBadgeScale: bp.genreBadgeScale,
     qualityBadgeScale: bp.qualityBadgeScale,
+    separateBadgeScale: bp.separateBadgeScale ?? undefined,
     genreBadgeOffsetX: bp.genreBadgeOffsetX,
     genreBadgeOffsetY: bp.genreBadgeOffsetY,
     qualityBadgeOffsetX: bp.qualityBadgeOffsetX,
@@ -265,6 +276,7 @@ export function buildPreviewUrl(ps: PosterState, bp: BadgeParams, configToken?: 
   // customRatings=false scavalcerebbe il toggle editor (desync WYSIWYG).
   params.push(`cr=${bp.customRatings === false ? "0" : "1"}`)
   params.push(`sep=${bp.separateRatings ? "1" : "0"}`)
+  params.push(`sepstyle=${bp.separateRatingsStyle ?? "column"}`)
   if (bp.ratingSources && bp.ratingSources.length > 0) params.push(`rsrc=${encodeURIComponent(bp.ratingSources.join(","))}`)
   if (ps.previewPoster) {
     params.push(`poster=${encodeURIComponent(ps.previewPoster.file_path)}`)
@@ -345,6 +357,7 @@ export function buildPreviewUrl(ps: PosterState, bp: BadgeParams, configToken?: 
   params.push(`gox=${bp.genreBadgeOffsetX}`)
   params.push(`goy=${bp.genreBadgeOffsetY}`)
   params.push(`qscale=${bp.qualityBadgeScale}`)
+  params.push(`sepscale=${bp.separateBadgeScale ?? getSeparateBadgeDefaultScale(bp.separateRatingsStyle)}`)
   params.push(`qox=${bp.qualityBadgeOffsetX}`)
   params.push(`qoy=${bp.qualityBadgeOffsetY}`)
   params.push(`netscale=${bp.networkLogoScale}`)
@@ -464,6 +477,7 @@ export interface DefaultsPreviewParams {
   defaultBadgeQuality?: boolean
   defaultCustomRatings?: boolean
   defaultSeparateRatings?: boolean
+  defaultSeparateRatingsStyle?: SeparateRatingsStyle | null
   defaultRatingSources?: string[]
   defaultBadgeStyle?: BadgeStyle
   defaultRankingBadgeStyle?: RankingBadgeStyle
@@ -484,6 +498,7 @@ export interface DefaultsPreviewParams {
   defaultGenreBadgeOffsetX?: number
   defaultGenreBadgeOffsetY?: number
   defaultQualityBadgeScale?: number
+  defaultSeparateBadgeScale?: number | null
   defaultQualityBadgeOffsetX?: number
   defaultQualityBadgeOffsetY?: number
   defaultNetworkLogoScale?: number
@@ -520,6 +535,7 @@ export function buildDefaultsPreviewUrl(bp: DefaultsPreviewParams): string {
   params.push(`bq=${bp.defaultBadgeQuality !== false ? "1" : "0"}`)
   params.push(`cr=${bp.defaultCustomRatings === false ? "0" : "1"}`)
   params.push(`sep=${bp.defaultSeparateRatings ? "1" : "0"}`)
+  params.push(`sepstyle=${bp.defaultSeparateRatingsStyle ?? "column"}`)
   if (bp.defaultRatingSources && bp.defaultRatingSources.length > 0) {
     params.push(`rsrc=${encodeURIComponent(bp.defaultRatingSources.join(","))}`)
   }
@@ -544,6 +560,7 @@ export function buildDefaultsPreviewUrl(bp: DefaultsPreviewParams): string {
   params.push(`gox=${bp.defaultGenreBadgeOffsetX ?? 0}`)
   params.push(`goy=${bp.defaultGenreBadgeOffsetY ?? 0}`)
   params.push(`qscale=${bp.defaultQualityBadgeScale ?? 100}`)
+  params.push(`sepscale=${bp.defaultSeparateBadgeScale ?? getSeparateBadgeDefaultScale(bp.defaultSeparateRatingsStyle)}`)
   params.push(`qox=${bp.defaultQualityBadgeOffsetX ?? 0}`)
   params.push(`qoy=${bp.defaultQualityBadgeOffsetY ?? 0}`)
   params.push(`netscale=${bp.defaultNetworkLogoScale ?? 100}`)

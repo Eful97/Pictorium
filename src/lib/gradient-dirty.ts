@@ -148,6 +148,10 @@ export interface FullMappingCheckState {
   badgeQuality?: boolean
   customRatings?: boolean
   separateRatings?: boolean
+  /** Scala % colonna rating separati (default 100 = resa storica). */
+  separateBadgeScale?: number | null
+  /** Layout dei rating separati ("column" = colonna destra storica). */
+  separateRatingsStyle?: string
   networkLogo?: boolean
   ribbonEnabled?: boolean
   networkLogoPosition?: string
@@ -209,6 +213,8 @@ export function isMappingDirty(
   if ((current.badgeQuality ?? true) !== (eff.badgeQuality ?? true)) return true
   if ((current.customRatings ?? true) !== (eff.customRatings ?? true)) return true
   if ((current.separateRatings ?? false) !== (eff.separateRatings ?? false)) return true
+  if ((current.separateRatingsStyle ?? "column") !== (eff.separateRatingsStyle ?? "column")) return true
+  if ((current.separateBadgeScale ?? 130) !== (eff.separateBadgeScale ?? 130)) return true
   if ((current.networkLogo ?? true) !== (eff.networkLogo ?? true)) return true
   if ((current.ribbonEnabled ?? true) !== (eff.ribbonEnabled ?? true)) return true
   if ((current.networkLogoPosition ?? "auto") !== (eff.networkLogoPosition ?? "auto")) return true

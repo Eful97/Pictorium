@@ -109,7 +109,7 @@ describe("stremio mapping round-trip (F2)", () => {
     // Tuning numerico ad alta cardinalità: omesso, il server lo riproduce
     // dal mapping (stesso render, chiave convergente).
     for (const k of ["gradHeight", "blur", "tint", "bf", "bd", "tscale", "tox", "toy",
-      "gscale", "gox", "goy", "qscale", "qox", "qoy", "netscale", "nox", "noy"]) {
+      "gscale", "gox", "goy", "qscale", "qox", "qoy", "sepscale", "netscale", "nox", "noy"]) {
       expect(q.has(k)).toBe(false)
     }
     const cfg = resolveFromUrl(url, styledMapping(), null)

@@ -14,6 +14,7 @@ import { t } from "./i18n"
 import { normalizeSashOrder, DEFAULT_SASH_ORDER, type SashBucket } from "./badge-priority"
 import { DEFAULT_QUALITY_BADGE_STYLE, type QualityBadgeStyle } from "./badge-styles"
 import { DEFAULT_BADGE_FONT, isBadgeFont, type BadgeFont } from "./badge-styles"
+import { DEFAULT_SEPARATE_RATINGS_STYLE, isSeparateRatingsStyle, getSeparateBadgeDefaultScale, type SeparateRatingsStyle } from "./badge-styles"
 import { KNOWN_VIDEO_FORMATS, isVideoFormat, type VideoFormat } from "./av-specs"
 
 export type RibbonSide = "left" | "right"
@@ -41,6 +42,8 @@ export interface DefaultsState {
   defaultTopBadgeOffsetY: number
   defaultGenreBadgeScale: number
   defaultQualityBadgeScale: number
+  /** Scala % rating separati di default (default unico 130; esplicito 100 storico preservato). */
+  defaultSeparateBadgeScale: number
   defaultNetworkLogoScale: number
   defaultGenreBadgeOffsetX: number
   defaultGenreBadgeOffsetY: number
@@ -64,6 +67,8 @@ export interface DefaultsState {
   defaultRatingSources: string[]
   /** Colonna rating separati di default (default OFF). */
   defaultSeparateRatings: boolean
+  /** Layout dei rating separati di default ("column" = colonna destra storica). */
+  defaultSeparateRatingsStyle: SeparateRatingsStyle
   /** Bucket sash abilitati (ordine canonico; vuota = tutto spento). */
   defaultSashOrder: SashBucket[]
   defaultAutoRotateClean: boolean
@@ -103,6 +108,8 @@ export interface DefaultsState {
   ratingSources: string[]
   /** Colonna rating separati a destra (default OFF). */
   separateRatings: boolean
+  /** Layout dei rating separati del poster in editing ("column" = colonna storica). */
+  separateRatingsStyle: SeparateRatingsStyle
   networkLogo: boolean
   /** Posizione del logo network del poster in editing. */
   networkLogoPosition: NetworkLogoPosition
@@ -121,6 +128,8 @@ export interface DefaultsState {
   topBadgeOffsetY: number
   genreBadgeScale: number
   qualityBadgeScale: number
+  /** Scala % rating separati del poster in editing (default unico 130). */
+  separateBadgeScale: number
   networkLogoScale: number
   genreBadgeOffsetX: number
   genreBadgeOffsetY: number
@@ -179,6 +188,7 @@ const DEFAULTS: DefaultsState = {
   defaultTopBadgeOffsetY: 0,
   defaultGenreBadgeScale: 100,
   defaultQualityBadgeScale: 100,
+  defaultSeparateBadgeScale: 130,
   defaultNetworkLogoScale: 100,
   defaultGenreBadgeOffsetX: 0,
   defaultGenreBadgeOffsetY: 0,
@@ -195,6 +205,7 @@ const DEFAULTS: DefaultsState = {
   defaultCustomRatings: true,
   defaultRatingSources: ["imdb", "tmdb"],
   defaultSeparateRatings: false,
+  defaultSeparateRatingsStyle: DEFAULT_SEPARATE_RATINGS_STYLE,
   defaultSashOrder: [...DEFAULT_SASH_ORDER],
   defaultAutoRotateClean: false,
   defaultAutoRotateBackdrop: false,
@@ -221,6 +232,7 @@ const DEFAULTS: DefaultsState = {
   customRatings: true,
   ratingSources: ["imdb", "tmdb"],
   separateRatings: false,
+  separateRatingsStyle: DEFAULT_SEPARATE_RATINGS_STYLE,
   networkLogo: true,
   networkLogoPosition: "auto",
   preRelease: false,
@@ -235,6 +247,7 @@ const DEFAULTS: DefaultsState = {
   topBadgeOffsetY: 0,
   genreBadgeScale: 100,
   qualityBadgeScale: 100,
+  separateBadgeScale: 130,
   networkLogoScale: 100,
   genreBadgeOffsetX: 0,
   genreBadgeOffsetY: 0,
@@ -276,6 +289,7 @@ interface StoredDefaults {
   topBadgeOffsetY?: number
   genreBadgeScale?: number
   qualityBadgeScale?: number
+  separateBadgeScale?: number
   networkLogoScale?: number
   genreBadgeOffsetX?: number
   genreBadgeOffsetY?: number
@@ -309,6 +323,7 @@ interface StoredDefaults {
   defaultTopBadgeOffsetY?: number
   defaultGenreBadgeScale?: number
   defaultQualityBadgeScale?: number
+  defaultSeparateBadgeScale?: number
   defaultNetworkLogoScale?: number
   defaultGenreBadgeOffsetX?: number
   defaultGenreBadgeOffsetY?: number
@@ -331,6 +346,9 @@ interface StoredDefaults {
   ratingSources?: string[]
   defaultSeparateRatings?: boolean
   separateRatings?: boolean
+  /** Layout dei rating separati (grezzo dallo storage; validato in buildFromStored). */
+  defaultSeparateRatingsStyle?: SeparateRatingsStyle
+  separateRatingsStyle?: SeparateRatingsStyle
   /** Bucket sash abilitati (grezzi; normalizzati in buildFromStored). */
   defaultSashOrder?: string[]
   /** Chiave server/local piatta (saveDefaults/defaultsToPayload): fallback di lettura. */
@@ -416,6 +434,15 @@ function buildFromStored(d: StoredDefaults | null): DefaultsState {
   const storedShape = isPosterShape(d.posterShape)
     ? d.posterShape
     : (isPosterShape(d.defaultPosterShape) ? d.defaultPosterShape : undefined)
+  // Default scala stile-dipendente: assente + stile bar → 130, altrimenti 100.
+  // Un numerico salvato (incluso 100) si preserva sempre (niente migrazione
+  // silenziosa dei mapping/defaults in load).
+  const storedDefaultStyle = isSeparateRatingsStyle(d.defaultSeparateRatingsStyle)
+    ? d.defaultSeparateRatingsStyle
+    : (isSeparateRatingsStyle(d.separateRatingsStyle) ? d.separateRatingsStyle : DEFAULT_SEPARATE_RATINGS_STYLE)
+  const storedStyle = isSeparateRatingsStyle(d.separateRatingsStyle)
+    ? d.separateRatingsStyle
+    : storedDefaultStyle
   return {
     defaultBadgeStyle: d.defaultBadgeStyle ?? d.badgeStyle ?? "shadow",
     defaultRankingBadgeStyle: d.defaultRankingBadgeStyle ?? d.rankingBadgeStyle ?? "default",
@@ -436,6 +463,7 @@ function buildFromStored(d: StoredDefaults | null): DefaultsState {
     defaultTopBadgeOffsetY: d.defaultTopBadgeOffsetY ?? d.topBadgeOffsetY ?? 0,
     defaultGenreBadgeScale: d.defaultGenreBadgeScale ?? d.genreBadgeScale ?? 100,
     defaultQualityBadgeScale: d.defaultQualityBadgeScale ?? d.qualityBadgeScale ?? 100,
+    defaultSeparateBadgeScale: d.defaultSeparateBadgeScale ?? d.separateBadgeScale ?? getSeparateBadgeDefaultScale(storedDefaultStyle),
     defaultNetworkLogoScale: d.defaultNetworkLogoScale ?? d.networkLogoScale ?? 100,
     defaultGenreBadgeOffsetX: d.defaultGenreBadgeOffsetX ?? d.genreBadgeOffsetX ?? 0,
     defaultGenreBadgeOffsetY: d.defaultGenreBadgeOffsetY ?? d.genreBadgeOffsetY ?? 0,
@@ -454,6 +482,9 @@ function buildFromStored(d: StoredDefaults | null): DefaultsState {
     defaultCustomRatingApiKeyHeader: d.defaultCustomRatingApiKeyHeader ?? d.customRatingApiKeyHeader,
     defaultRatingSources: d.defaultRatingSources ?? d.ratingSources ?? ["imdb", "tmdb"],
     defaultSeparateRatings: d.defaultSeparateRatings ?? d.separateRatings ?? false,
+    defaultSeparateRatingsStyle: isSeparateRatingsStyle(d.defaultSeparateRatingsStyle)
+      ? d.defaultSeparateRatingsStyle
+      : (isSeparateRatingsStyle(d.separateRatingsStyle) ? d.separateRatingsStyle : DEFAULT_SEPARATE_RATINGS_STYLE),
     defaultSashOrder: normalizeSashOrder(d.defaultSashOrder ?? d.sashOrder) ?? [...DEFAULT_SASH_ORDER],
     defaultAutoRotateClean: d.defaultAutoRotateClean ?? d.autoRotateClean ?? false,
     defaultAutoRotateBackdrop: d.defaultAutoRotateBackdrop ?? false,
@@ -483,6 +514,9 @@ function buildFromStored(d: StoredDefaults | null): DefaultsState {
     customRatings: d.customRatings ?? d.defaultCustomRatings ?? true,
     ratingSources: d.ratingSources ?? d.defaultRatingSources ?? ["imdb", "tmdb"],
     separateRatings: d.separateRatings ?? d.defaultSeparateRatings ?? false,
+    separateRatingsStyle: isSeparateRatingsStyle(d.separateRatingsStyle)
+      ? d.separateRatingsStyle
+      : (isSeparateRatingsStyle(d.defaultSeparateRatingsStyle) ? d.defaultSeparateRatingsStyle : DEFAULT_SEPARATE_RATINGS_STYLE),
     networkLogo: d.networkLogo ?? d.defaultNetworkLogo ?? true,
     networkLogoPosition: isNetworkLogoPosition(d.networkLogoPosition)
       ? d.networkLogoPosition
@@ -501,6 +535,7 @@ function buildFromStored(d: StoredDefaults | null): DefaultsState {
     topBadgeOffsetY: d.topBadgeOffsetY ?? d.defaultTopBadgeOffsetY ?? 0,
     genreBadgeScale: d.genreBadgeScale ?? d.defaultGenreBadgeScale ?? 100,
     qualityBadgeScale: d.qualityBadgeScale ?? d.defaultQualityBadgeScale ?? 100,
+    separateBadgeScale: d.separateBadgeScale ?? d.defaultSeparateBadgeScale ?? getSeparateBadgeDefaultScale(storedStyle),
     networkLogoScale: d.networkLogoScale ?? d.defaultNetworkLogoScale ?? 100,
     genreBadgeOffsetX: d.genreBadgeOffsetX ?? d.defaultGenreBadgeOffsetX ?? 0,
     genreBadgeOffsetY: d.genreBadgeOffsetY ?? d.defaultGenreBadgeOffsetY ?? 0,
@@ -556,6 +591,7 @@ function defaultsToPayload(d: DefaultsState): Record<string, unknown> {
     topBadgeOffsetY: d.defaultTopBadgeOffsetY,
     genreBadgeScale: d.defaultGenreBadgeScale,
     qualityBadgeScale: d.defaultQualityBadgeScale,
+    separateBadgeScale: d.defaultSeparateBadgeScale,
     networkLogoScale: d.defaultNetworkLogoScale,
     genreBadgeOffsetX: d.defaultGenreBadgeOffsetX,
     genreBadgeOffsetY: d.defaultGenreBadgeOffsetY,
@@ -576,6 +612,7 @@ function defaultsToPayload(d: DefaultsState): Record<string, unknown> {
     customRatingApiKeyHeader: d.defaultCustomRatingApiKeyHeader ?? "",
     ratingSources: d.defaultRatingSources,
     separateRatings: d.defaultSeparateRatings,
+    separateRatingsStyle: d.defaultSeparateRatingsStyle,
     sashOrder: d.defaultSashOrder,
     autoRotateClean: d.defaultAutoRotateClean,
     defaultAutoRotateBackdrop: d.defaultAutoRotateBackdrop,

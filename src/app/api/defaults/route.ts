@@ -8,7 +8,7 @@ import { rateLimit, rateLimitKey, rateLimitResponse } from "@/lib/rate-limit"
 import { getWarmupCatalogs } from "@/lib/catalog-definitions"
 import { createLogger } from "@/lib/logger"
 import { z } from "zod"
-import { BADGE_STYLES, RANKING_BADGE_STYLES, QUALITY_BADGE_STYLES, BADGE_FONTS } from "@/lib/badge-styles"
+import { BADGE_STYLES, RANKING_BADGE_STYLES, QUALITY_BADGE_STYLES, BADGE_FONTS, SEPARATE_RATINGS_STYLES } from "@/lib/badge-styles"
 import { readJsonBody, BodyTooLargeError, DEFAULT_MAX_BODY_BYTES } from "@/lib/read-body"
 import { envWithFallback } from "@/lib/env-compat"
 
@@ -59,6 +59,7 @@ const defaultsSchema = z.object({
   topBadgeOffsetY: z.number().optional(),
   genreBadgeScale: z.number().optional(),
   qualityBadgeScale: z.number().optional(),
+  separateBadgeScale: z.number().optional(),
   networkLogoScale: z.number().optional(),
   genreBadgeOffsetX: z.number().optional(),
   genreBadgeOffsetY: z.number().optional(),
@@ -88,6 +89,7 @@ const defaultsSchema = z.object({
   customRatingApiKeyHeader: z.string().max(64).optional(),
   ratingSources: z.array(z.string()).optional(),
   separateRatings: z.boolean().optional(),
+  separateRatingsStyle: z.enum(SEPARATE_RATINGS_STYLES).optional(),
   sashOrder: z.array(z.string().max(20)).optional(),
   autoRotateClean: z.boolean().optional(),
   defaultAutoRotateBackdrop: z.boolean().optional(),
@@ -132,6 +134,8 @@ const defaultsSchema = z.object({
     qualityBadgeScale: z.number().optional(),
     qualityBadgeOffsetX: z.number().optional(),
     qualityBadgeOffsetY: z.number().optional(),
+    separateBadgeScale: z.number().optional(),
+    separateRatingsStyle: z.enum(SEPARATE_RATINGS_STYLES).optional(),
     networkLogoScale: z.number().optional(),
     networkLogoOffsetX: z.number().optional(),
     networkLogoOffsetY: z.number().optional(),

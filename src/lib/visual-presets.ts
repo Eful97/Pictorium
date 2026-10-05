@@ -1,5 +1,5 @@
 import { z } from "zod"
-import { BADGE_STYLES, RANKING_BADGE_STYLES, QUALITY_BADGE_STYLES, BADGE_FONTS } from "./badge-styles"
+import { BADGE_STYLES, RANKING_BADGE_STYLES, QUALITY_BADGE_STYLES, BADGE_FONTS, SEPARATE_RATINGS_STYLES } from "./badge-styles"
 import { SASH_BUCKETS } from "./badge-priority"
 
 const percent = z.number().finite().min(0).max(100)
@@ -13,6 +13,9 @@ const landscapeSchema = z.object({
   topBadgeScale: scale.optional(), topBadgeOffsetX: offset.optional(), topBadgeOffsetY: offset.optional(),
   genreBadgeScale: scale.optional(), genreBadgeOffsetX: offset.optional(), genreBadgeOffsetY: offset.optional(),
   qualityBadgeScale: scale.optional(), qualityBadgeOffsetX: offset.optional(), qualityBadgeOffsetY: offset.optional(),
+  separateBadgeScale: scale.optional(),
+  // Stile separati per formato: opzionale (assente = segui il flat condiviso).
+  separateRatingsStyle: z.enum(SEPARATE_RATINGS_STYLES).optional(),
   networkLogoScale: scale.optional(), networkLogoOffsetX: offset.optional(), networkLogoOffsetY: offset.optional(),
 }).strict()
 
@@ -34,6 +37,11 @@ export const visualPresetValuesSchema = z.object({
   defaultTopBadgeScale: scale, defaultTopBadgeOffsetX: offset, defaultTopBadgeOffsetY: offset,
   defaultGenreBadgeScale: scale, defaultGenreBadgeOffsetX: offset, defaultGenreBadgeOffsetY: offset,
   defaultQualityBadgeScale: scale, defaultQualityBadgeOffsetX: offset, defaultQualityBadgeOffsetY: offset,
+  // Scala separati aggiunta dopo: default(130) per i preset salvati senza campo
+  // (legacy); un 100 salvato esplicito si preserva (niente migrazione).
+  defaultSeparateBadgeScale: scale.default(130),
+  // Stile separati aggiunto dopo: default("column") per non invalidare i preset salvati.
+  defaultSeparateRatingsStyle: z.enum(SEPARATE_RATINGS_STYLES).default("column"),
   defaultNetworkLogoScale: scale, defaultNetworkLogoOffsetX: offset, defaultNetworkLogoOffsetY: offset,
   defaultNetworkLogo: z.boolean(), defaultNetworkLogoPosition: z.enum(["auto", "top"]), defaultPreRelease: z.boolean(),
   defaultRibbonEnabled: z.boolean(), defaultRibbonSide: z.enum(["left", "right"]),

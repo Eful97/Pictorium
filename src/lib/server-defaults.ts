@@ -3,7 +3,7 @@ import { existsSync, readFileSync } from "node:fs"
 import path from "node:path"
 import { DATA_DIR } from "@/lib/data-dir"
 import { createLogger } from "@/lib/logger"
-import type { BadgeStyle, RankingBadgeStyle, QualityBadgeStyle, BadgeFont } from "@/lib/badge-styles"
+import type { BadgeStyle, RankingBadgeStyle, QualityBadgeStyle, BadgeFont, SeparateRatingsStyle } from "@/lib/badge-styles"
 import type { StreamQuality } from "@/lib/quality-tiers"
 import type { SashBucket } from "@/lib/badge-priority"
 import type { VideoFormat } from "@/lib/av-specs"
@@ -46,6 +46,10 @@ export interface LandscapeServerDefaults {
   qualityBadgeScale?: number
   qualityBadgeOffsetX?: number
   qualityBadgeOffsetY?: number
+  /** Scala % della colonna rating separati (default 100 = resa storica). */
+  separateBadgeScale?: number
+  /** Layout dei rating separati (default "column" = colonna destra storica). */
+  separateRatingsStyle?: SeparateRatingsStyle
   networkLogoScale?: number
   networkLogoOffsetX?: number
   networkLogoOffsetY?: number
@@ -106,6 +110,10 @@ export interface ServerDefaults {
   ratingSources?: string[]
   /** Colonna rating separati a destra (sostituisce la media ★). Default OFF. */
   separateRatings?: boolean
+  /** Scala % della colonna rating separati (default 100 = resa storica). */
+  separateBadgeScale?: number
+  /** Layout dei rating separati (default "column" = colonna destra storica). */
+  separateRatingsStyle?: SeparateRatingsStyle
   /** Ordine/priorità sash (sottoinsieme ammesso: non listati = spenti). Default = ordine standard. */
   sashOrder?: SashBucket[]
   autoRotateClean?: boolean
@@ -284,6 +292,7 @@ function defaultsFromEnv(): ServerDefaults {
   const qualityBadgeScale = envNum("QUALITY_BADGE_SCALE")
   const qualityBadgeOX = envNum("QUALITY_BADGE_OFFSET_X")
   const qualityBadgeOY = envNum("QUALITY_BADGE_OFFSET_Y")
+  const separateBadgeScale = envNum("SEPARATE_BADGE_SCALE")
   const networkLogoScale = envNum("NETWORK_LOGO_SCALE")
   const networkLogoOX = envNum("NETWORK_LOGO_OFFSET_X")
   const networkLogoOY = envNum("NETWORK_LOGO_OFFSET_Y")
@@ -318,6 +327,7 @@ function defaultsFromEnv(): ServerDefaults {
   if (qualityBadgeScale !== undefined) d.qualityBadgeScale = qualityBadgeScale
   if (qualityBadgeOX !== undefined) d.qualityBadgeOffsetX = qualityBadgeOX
   if (qualityBadgeOY !== undefined) d.qualityBadgeOffsetY = qualityBadgeOY
+  if (separateBadgeScale !== undefined) d.separateBadgeScale = separateBadgeScale
   if (networkLogoScale !== undefined) d.networkLogoScale = networkLogoScale
   if (networkLogoOX !== undefined) d.networkLogoOffsetX = networkLogoOX
   if (networkLogoOY !== undefined) d.networkLogoOffsetY = networkLogoOY

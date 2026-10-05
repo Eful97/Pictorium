@@ -1,5 +1,5 @@
 import { z } from "zod"
-import { BADGE_STYLES, RANKING_BADGE_STYLES, QUALITY_BADGE_STYLES, BADGE_FONTS } from "./badge-styles"
+import { BADGE_STYLES, RANKING_BADGE_STYLES, QUALITY_BADGE_STYLES, BADGE_FONTS, SEPARATE_RATINGS_STYLES } from "./badge-styles"
 import { BADGE_PRESET_ID_RE, BADGE_PRESET_REV_RE } from "./badge-preset"
 
 export const mappingSchema = z.object({
@@ -42,6 +42,8 @@ export const mappingSchema = z.object({
   // strict al render via parseRatingSources (whitelist SUPPORTED_RATING_SOURCES).
   ratingSources: z.array(z.string().max(20)).nullable().optional(),
   separateRatings: z.boolean().nullable().optional(),
+  separateBadgeScale: z.number().int().min(10).max(200).nullable().optional(),
+  separateRatingsStyle: z.enum(SEPARATE_RATINGS_STYLES).nullable().optional(),
   imdbId: z.string().regex(/^tt\d{1,20}$/).nullable().optional(),
   // QID Wikidata per il fast-path REST awards (stesso pattern imdbId).
   // Opzionale: i mapping vecchi senza campo restano validi (SPARQL-fallback).
@@ -117,6 +119,8 @@ export const mappingSchema = z.object({
     qualityBadgeScale: z.number().int().min(10).max(200).nullable().optional(),
     qualityBadgeOffsetX: z.number().int().nullable().optional(),
     qualityBadgeOffsetY: z.number().int().nullable().optional(),
+    separateBadgeScale: z.number().int().min(10).max(200).nullable().optional(),
+    separateRatingsStyle: z.enum(SEPARATE_RATINGS_STYLES).nullable().optional(),
     networkLogoScale: z.number().int().min(10).max(200).nullable().optional(),
     networkLogoOffsetX: z.number().int().nullable().optional(),
     networkLogoOffsetY: z.number().int().nullable().optional(),
@@ -197,6 +201,8 @@ export const posterQuerySchema = z.object({
   qscale: boundedQueryString(12),
   qox: boundedQueryString(12),
   qoy: boundedQueryString(12),
+  sepscale: boundedQueryString(12),
+  sepstyle: boundedQueryString(16),
   netscale: boundedQueryString(12),
   nox: boundedQueryString(12),
   noy: boundedQueryString(12),

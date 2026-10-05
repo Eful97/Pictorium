@@ -92,7 +92,7 @@ import { getTvdbArtworks, getTvdbMovieId, getTvdbSeriesId, pickTvdbPoster } from
 import { validatePosterQuery } from "@/lib/validation"
 import { decodeConfig } from "@/lib/config-token"
 import { createLogger } from "@/lib/logger"
-import { resolvePosterRenderConfig, resolvePosterShape } from "@/lib/poster-config"
+import { resolvePosterRenderConfig, resolvePosterShape, resolveSeparateRatingsEnabled, resolveSeparateDisplayState } from "@/lib/poster-config"
 import { selectBestLogo, logoBestLogoFallbackReason } from "@/lib/logo-selection"
 import { resolveStreamQuality, type StreamQualityResult } from "@/lib/stream-quality"
 import { applyMinQuality, type StreamQuality } from "@/lib/quality-tiers"
@@ -390,12 +390,16 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
     : (mapping?.customRatings ?? configOverride?.customRatings ?? sd.customRatings ?? true)
   const envRatingConfig = resolveCustomRatingConfig({}, sd)
   const customRatingConfig = { ...envRatingConfig, enabled: envRatingConfig.enabled && customRatingsDisplay }
-  // Colonna rating separati (display) — catena: query `sep` > mapping >
-  // config token > server defaults > false (stessa di `cr` sopra).
-  const qSep = req.nextUrl.searchParams.get("sep")
-  const sepDisplay = qSep !== null
-    ? qSep !== "0"
-    : (mapping?.separateRatings ?? configOverride?.separateRatings ?? sd.separateRatings ?? false)
+  // Colonna rating separati (display) — catena centralizzata
+  // (resolveSeparateRatingsEnabled: query `sep` > mapping > config token >
+  // server defaults > false, stessa di `cr` sopra). Unico punto di verità
+  // con resolvePosterRenderConfig: mai catene duplicate che divergono.
+  const sepDisplay = resolveSeparateRatingsEnabled(
+    req.nextUrl.searchParams,
+    mapping,
+    configOverride,
+    sd,
+  )
   const customRatingHash = customRatingConfig.enabled
     ? createHash("sha256").update(JSON.stringify(customRatingConfig)).digest("hex") : ""
   const sdHash = hashKey(JSON.stringify(sd) + customRatingHash)
@@ -1841,9 +1845,11 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
       blurEnabled, blurHeight, blurIntensity, blurFade, blurDarkness, tintStrength, topShade,
       badgesEnabled, rankingEnabled,
       badgeGenre, badgeYear, badgeRating, badgeQuality, minQuality, sashOrder,
+      separateRatings, separateRatingsStyle,
       logoScale, logoOffsetX, logoOffsetY,
       topBadgeScale, topBadgeOffsetX, topBadgeOffsetY,
       genreBadgeScale, qualityBadgeScale, networkLogoScale,
+      separateBadgeScale,
       genreBadgeOffsetX, genreBadgeOffsetY, qualityBadgeOffsetX, qualityBadgeOffsetY,
       networkLogoOffsetX, networkLogoOffsetY,
       queryExtra, qNetLogo, networkLogo, networkLogoPosition, ribbonSide, ribbonEnabled, rankingBadgeAccent,
@@ -1862,11 +1868,49 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
       effBlurFade = NON_CLEAN_BLUR_FADE
     }
 
-    // Colonna rating separati attiva solo con badge voto visibili e almeno un
-    // valore: sostituisce il segmento ★ nel badge genere (sostituire, non
-    // sommare). Senza valori → fallback media invariato.
-    const useSeparate = badgesEnabled && badgeRating && sepItems.length > 0
-    const effectiveBadgeRating = badgeRating && !useSeparate
+    // Rating separati: stato display centralizzato (resolveSeparateDisplayState).
+    // - colonna storica: attiva solo con badge voto visibili e almeno un
+    //   valore; sostituisce il segmento ★ nel badge genere (sostituire, non
+    //   sommare); senza valori → fallback media invariato (il custom provider
+    //   conserva la priorità storica sulla colonna, invariata);
+    // - bottom (bottom-bar/bottom-pills): attivo con badgesEnabled &&
+    //   badgeRating && sep && stile bottom, INDIPENDENTE dai valori (con voti
+    //   temporaneamente assenti nasconde comunque genere+anno+voto, senza
+    //   inventare valori); esclude la riga custom provider (mai duplicata).
+    // La soppressione è EFFETTIVA (solo render): mapping/defaults salvati
+    // (bg/by/br) non mutati — tornando a column si ripristinano.
+    const separateDisplay = resolveSeparateDisplayState({
+      badgesEnabled,
+      badgeGenre,
+      badgeYear,
+      badgeRating,
+      separateRatings,
+      separateRatingsStyle,
+      sepItemCount: sepItems.length,
+    })
+    const useSeparate = separateDisplay.useSeparate
+    const bottomActive = separateDisplay.bottomActive
+    const effectiveBadgeRating = separateDisplay.effectiveBadgeRating
+    const effectiveBadgeGenre = separateDisplay.effectiveBadgeGenre
+    const effectiveBadgeYear = separateDisplay.effectiveBadgeYear
+    // Reservation logo in bottom: geometria della colonna equivalente (stessi
+    // raw flag e sepItemCount, stile `column`) così il logo titolo resta alla
+    // stessa altezza anche a 0 provider o con genere/anno raw OFF. Solo
+    // geometria: nessun genere/anno/media disegnato in bottom.
+    const columnEquiv = bottomActive
+      ? resolveSeparateDisplayState({
+          badgesEnabled,
+          badgeGenre,
+          badgeYear,
+          badgeRating,
+          separateRatings,
+          separateRatingsStyle: "column",
+          sepItemCount: sepItems.length,
+        })
+      : null
+    const logoBadgeVisibility = bottomActive && columnEquiv
+      ? { genre: badgeGenre, year: badgeYear, rating: columnEquiv.effectiveBadgeRating }
+      : undefined
 
     // Render degradato per timeout/errore upstream sulla qualità (solo se il
     // badge FINALE è attivo e senza override esplicito): TTL effimero 120s
@@ -2050,6 +2094,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
             badgeRating,
             badgeQuality,
             separateRatings: useSeparate,
+            separateRatingsStyle,
+            bottomActive,
             sashOrder,
             customBadge: queryExtra,
           },
@@ -2100,21 +2146,25 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
     // 10. Generate poster buffer
     const genInput: GenerationInput = {
       // Custom values override internal sources with the same ID, preserving order.
-      ratings: customRatingConfig.enabled ? [...new Map([...ratings, ...customRatings].map(item => [item.id, item])).values()] : undefined,
+      // In bottom il custom provider non si rende (suppressCustomRow): la
+      // priorità storica della colonna resta invariata.
+      ratings: customRatingConfig.enabled && !separateDisplay.suppressCustomRow ? [...new Map([...ratings, ...customRatings].map(item => [item.id, item])).values()] : undefined,
       posterBuf, logoFetch, backdropFetch: isLandscape ? null : backdropFetch,
       backdropScale, backdropOffsetX, backdropOffsetY,
       blurEnabled, blurHeight: effBlurHeight, blurIntensity, blurFade: effBlurFade, blurDarkness, tintStrength, topShade,
       badgesEnabled, rankingEnabled, genreName, voteAverage, badgeStyle,
-      rankingBadgeStyle, badgeFont, badgeGenre, badgeYear, badgeRating: effectiveBadgeRating, badgeQuality,
+      rankingBadgeStyle, badgeFont, badgeGenre: effectiveBadgeGenre, badgeYear: effectiveBadgeYear, badgeRating: effectiveBadgeRating, badgeQuality,
       qualityBadgeStyle,
       videoFormats: finalVideoFormats,
-      separateRatings: useSeparate ? sepItems : undefined,
+      separateRatings: (useSeparate || (bottomActive && sepItems.length > 0)) ? sepItems : undefined,
+      separateRatingsStyle,
       sashOrder,
       quality: finalQuality,
-      topLight, bottomLight, targetCenter, ribbonSide, ribbonEnabled, rankingBadgeAccent,
+      topLight, bottomLight, logoBadgeVisibility, targetCenter, ribbonSide, ribbonEnabled, rankingBadgeAccent,
       logoScale, logoOffsetX, logoOffsetY,
       topBadgeScale, topBadgeOffsetX, topBadgeOffsetY,
       genreBadgeScale, qualityBadgeScale, networkLogoScale,
+      separateBadgeScale,
       genreBadgeOffsetX, genreBadgeOffsetY, qualityBadgeOffsetX, qualityBadgeOffsetY,
       networkLogoOffsetX, networkLogoOffsetY,
       mediaType: mediaType as "movie" | "tv",
@@ -2155,7 +2205,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
 
     // 10. Fix stale auto ETag: include dynamic data (rank, rating) so when it re-renders, the ETag changes
     if (!mapping && !isPreview) {
-      const sepSig = useSeparate ? sepItems.map((s) => `${s.id}${s.value}`).join(",") : ""
+      const sepSig = (useSeparate || bottomActive) ? sepItems.map((s) => `${s.id}${s.value}`).join(",") : ""
       // Rotazione dinamica: il bucket giorno entra nell'ETag così la
       // rivalidazione tra giorni non risponde mai 304 sul poster di ieri.
       const dynEtagSuffix = dynamicDayBucket !== null ? `:${dynamicDayBucket}` : ""

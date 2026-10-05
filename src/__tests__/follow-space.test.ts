@@ -62,7 +62,7 @@ describe("follow-space template (Segui il mio spazio)", () => {
       "bs=", "rs=", "qbs=", "badges=", "ranking=", "be=",
       "netLogo=", "netPos=", "ribbon=", "side=", "cr=", "sep=",
       "tscale=", "tox=", "toy=", "gscale=", "gox=", "goy=",
-      "qscale=", "qox=", "qoy=", "netscale=", "nox=", "noy=",
+      "qscale=", "qox=", "qoy=", "sepscale=", "netscale=", "nox=", "noy=",
       "lang=", "shape=",
     ]) {
       expect(url).not.toContain(frozen)

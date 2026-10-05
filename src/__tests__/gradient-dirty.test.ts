@@ -205,6 +205,29 @@ describe("isMappingDirty", () => {
     expect(isMappingDirty({ ...baseState, customBadge: "IMAX" }, m, DEFAULTS, "poster")).toBe(true);
   });
 
+  it("true quando la scala separati cambia (flat e profilo landscape)", () => {
+    const m = mapping({ ...baseArtwork, ...DEFAULTS, separateBadgeScale: 100 });
+    expect(isMappingDirty({ ...baseState, separateBadgeScale: 100 }, m, DEFAULTS, "poster")).toBe(false);
+    expect(isMappingDirty({ ...baseState, separateBadgeScale: 150 }, m, DEFAULTS, "poster")).toBe(true);
+    // Mapping senza campo (default 100 implicito): 100 pulito, 150 dirty.
+    const mLegacy = mapping({ ...baseArtwork, ...DEFAULTS });
+    expect(isMappingDirty({ ...baseState, separateBadgeScale: 100 }, mLegacy, DEFAULTS, "poster")).toBe(false);
+    expect(isMappingDirty({ ...baseState, separateBadgeScale: 150 }, mLegacy, DEFAULTS, "poster")).toBe(true);
+  });
+
+  it("scala separati in landscape confrontata contro il profilo landscape", () => {
+    const m = mapping({
+      ...baseArtwork,
+      ...DEFAULTS,
+      posterShape: "landscape",
+      separateBadgeScale: 100,
+      landscape: { separateBadgeScale: 150 },
+    });
+    const landscapeArtwork = { ...baseArtwork, posterShape: "landscape" as const };
+    expect(isMappingDirty({ ...baseState, artwork: landscapeArtwork, separateBadgeScale: 150 }, m, DEFAULTS, "poster")).toBe(false);
+    expect(isMappingDirty({ ...baseState, artwork: landscapeArtwork, separateBadgeScale: 100 }, m, DEFAULTS, "poster")).toBe(true);
+  });
+
   it("in landscape confronta contro il profilo landscape del mapping", () => {
     const m = mapping({
       ...baseArtwork,

@@ -100,6 +100,8 @@ export function buildStremioPosterUrl(input: BuildStremioPosterUrlInput): URL {
     customRatings: mapping?.customRatings ?? sd.customRatings,
     ratingSources: mapping?.ratingSources ?? sd.ratingSources,
     separateRatings: mapping?.separateRatings ?? sd.separateRatings ?? undefined,
+    separateRatingsStyle: eff?.separateRatingsStyle ?? sd.separateRatingsStyle,
+    separateBadgeScale: eff?.separateBadgeScale ?? sd.separateBadgeScale,
     sashOrder: sd.sashOrder ?? undefined,
     badgeStyle: mapping?.badgeStyle ?? sd.badgeStyle,
     rankingBadgeStyle: mapping?.rankingBadgeStyle ?? sd.rankingBadgeStyle,
