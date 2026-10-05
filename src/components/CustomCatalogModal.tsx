@@ -259,7 +259,7 @@ export function CustomCatalogModal({ isOpen, onClose }: CustomCatalogModalProps)
       <div className="flex items-center justify-between px-4 py-3 border-b border-white/10 bg-surface2/40">
         <div className="flex items-center gap-2">
           <ListPlus className="w-4 h-4 text-accent-orange" />
-          <h3 className="text-xs font-bold text-white">{t("ui.newCatalog")}</h3>
+          <h3 className="text-xs font-bold text-foreground">{t("ui.newCatalog")}</h3>
         </div>
         <button
           type="button"
@@ -312,7 +312,7 @@ export function CustomCatalogModal({ isOpen, onClose }: CustomCatalogModalProps)
             placeholder={t("ui.customUrlPh")}
             value={url}
             onChange={(e) => handleUrlChange(e.target.value)}
-            className="w-full px-3 py-2 bg-surface2 border border-white/10 rounded-xl text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-accent-orange transition-colors"
+            className="w-full px-3 py-2 bg-surface2 border border-white/10 rounded-xl text-xs text-foreground placeholder-zinc-500 focus:outline-none focus:border-accent-orange transition-colors"
             required
             autoFocus
           />
@@ -353,7 +353,7 @@ export function CustomCatalogModal({ isOpen, onClose }: CustomCatalogModalProps)
               placeholder="https://www.imdb.com/list/ls..."
               value={sourceUrl}
               onChange={(e) => setSourceUrl(e.target.value)}
-              className="w-full px-3 py-2 bg-surface2 border border-white/10 rounded-xl text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-accent-orange transition-colors"
+              className="w-full px-3 py-2 bg-surface2 border border-white/10 rounded-xl text-xs text-foreground placeholder-zinc-500 focus:outline-none focus:border-accent-orange transition-colors"
             />
           </div>
         </div>
@@ -375,7 +375,7 @@ export function CustomCatalogModal({ isOpen, onClose }: CustomCatalogModalProps)
             placeholder={t("ui.customNamePh")}
             value={name}
             onChange={(e) => setName(e.target.value)}
-            className="w-full px-3 py-2 bg-surface2 border border-white/10 rounded-xl text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-accent-orange transition-colors"
+            className="w-full px-3 py-2 bg-surface2 border border-white/10 rounded-xl text-xs text-foreground placeholder-zinc-500 focus:outline-none focus:border-accent-orange transition-colors"
             required
           />
         </div>

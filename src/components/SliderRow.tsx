@@ -36,7 +36,7 @@ export function SliderRow({ icon, label, value, min, max, boundsMin, boundsMax, 
           onFocus={(e) => e.target.select()}
           onBlur={() => { const v = Math.min(boundsMax, Math.max(boundsMin, Number(editText) || 0)); onChange(v); setEditingValue(null) }}
           onKeyDown={(e) => { if (e.key === "Enter") { (e.target as HTMLInputElement).blur() } }}
-          className="editor-input w-14 text-right px-1.5 py-1 text-xs rounded border border-white/20 bg-zinc-900 text-white"
+          className="editor-input w-14 text-right px-1.5 py-1 text-xs rounded border border-white/20 bg-zinc-900 text-foreground"
         />
       ) : (
         <button

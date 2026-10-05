@@ -333,7 +333,7 @@ export function CatalogManagerModal({ isOpen, onClose }: CatalogManagerModalProp
         <div className="flex items-center gap-2.5">
           <SlidersHorizontal className="w-5 h-5 text-accent-orange" />
           <div>
-            <h3 className="text-sm font-bold text-white">{t("ui.catMgrTitle")}</h3>
+            <h3 className="text-sm font-bold text-foreground">{t("ui.catMgrTitle")}</h3>
             <p className="text-[11px] text-muted">
               {t("ui.catMgrSubtitle")}
             </p>
@@ -532,7 +532,7 @@ export function CatalogManagerModal({ isOpen, onClose }: CatalogManagerModalProp
                           if (e.key === "Enter") saveRename(item.id)
                           if (e.key === "Escape") cancelRename()
                         }}
-                        className="flex-1 px-3 py-1.5 bg-surface border border-accent-orange/50 rounded-xl text-xs text-white focus:outline-none focus:border-accent-orange"
+                        className="flex-1 px-3 py-1.5 bg-surface border border-accent-orange/50 rounded-xl text-xs text-foreground focus:outline-none focus:border-accent-orange"
                         autoFocus
                       />
                       <button
@@ -555,7 +555,7 @@ export function CatalogManagerModal({ isOpen, onClose }: CatalogManagerModalProp
                   </div>
                 ) : (
                   <div className="flex items-center gap-2">
-                    <span className="text-xs font-semibold text-white truncate">{item.name}</span>
+                    <span className="text-xs font-semibold text-foreground truncate">{item.name}</span>
                     <button
                       type="button"
                       onClick={() => startRename(item)}
@@ -568,7 +568,7 @@ export function CatalogManagerModal({ isOpen, onClose }: CatalogManagerModalProp
                       <button
                         type="button"
                         onClick={() => renameCatalog(item.id, "")}
-                        className="text-[10px] text-accent-orange hover:underline shrink-0"
+                        className="text-[10px] text-foreground hover:underline shrink-0"
                         title={t("ui.origName", { name: item.originalName })}
                       >
                         {t("ui.restoreName")}

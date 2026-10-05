@@ -230,7 +230,7 @@ export function AddonCatalogModal({ isOpen, onClose }: { isOpen: boolean; onClos
       onClick={(e) => e.stopPropagation()}
     >
       <div className="flex items-center justify-between px-4 py-3 border-b border-white/10 bg-surface2/40">
-        <h3 className="text-xs font-bold text-white">{t("ui.addonMode")}</h3>
+        <h3 className="text-xs font-bold text-foreground">{t("ui.addonMode")}</h3>
         <button type="button" onClick={onClose} aria-label={t("ui.close")} className="p-1 rounded-lg text-muted hover:text-white hover:bg-white/5 transition-colors">
           <X className="w-3.5 h-3.5" />
         </button>
@@ -245,7 +245,7 @@ export function AddonCatalogModal({ isOpen, onClose }: { isOpen: boolean; onClos
               placeholder={t("ui.addonUrlPh")}
               value={url}
               onChange={(e) => handleUrlChange(e.target.value)}
-              className="flex-1 px-3 py-2 bg-surface2 border border-white/10 rounded-xl text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-accent-orange transition-colors"
+              className="flex-1 px-3 py-2 bg-surface2 border border-white/10 rounded-xl text-xs text-foreground placeholder-zinc-500 focus:outline-none focus:border-accent-orange transition-colors"
               required
               autoFocus
             />
@@ -285,7 +285,7 @@ export function AddonCatalogModal({ isOpen, onClose }: { isOpen: boolean; onClos
                       className="mt-0.5"
                     />
                     <span className="flex-1 min-w-0">
-                      <span className="flex items-center gap-1.5 text-xs font-semibold text-white">
+                      <span className="flex items-center gap-1.5 text-xs font-semibold text-foreground">
                         {c.type === "series" ? <Tv className="w-3 h-3" /> : <Film className="w-3 h-3" />}
                         <span className="truncate">{c.name}</span>
                       </span>

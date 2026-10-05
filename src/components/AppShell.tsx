@@ -296,7 +296,7 @@ export function AppShell() {
             aria-disabled={toolbarLocked || undefined}
             className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-medium transition-all duration-150 active:scale-[0.95] cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${
               view === "cataloghi"
-                ? "bg-white/15 text-white font-semibold border border-white/20"
+                ? "bg-white/15 text-foreground font-semibold border border-white/20"
                 : "text-zinc-300 hover:text-white hover:bg-white/[0.08]"
             }`}
           >
@@ -316,7 +316,7 @@ export function AppShell() {
             aria-disabled={toolbarLocked || undefined}
             className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-medium transition-all duration-150 active:scale-[0.95] cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${
               view === "myposters"
-                ? "bg-white/15 text-white font-semibold border border-white/20"
+                ? "bg-white/15 text-foreground font-semibold border border-white/20"
                 : "text-zinc-300 hover:text-white hover:bg-white/[0.08]"
             }`}
           >
@@ -366,8 +366,8 @@ export function AppShell() {
             onClick={(e) => { e.stopPropagation(); if (toolbarLocked) return; setSettingsOpen((o) => !o) }}
             disabled={toolbarLocked}
             aria-disabled={toolbarLocked || undefined}
-            className={`p-2 rounded-xl text-zinc-400 hover:text-white hover:bg-white/[0.08] active:scale-90 transition-all duration-150 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${
-              settingsOpen ? "bg-white/10 text-white" : ""
+            className={`p-2 rounded-xl hover:text-white hover:bg-white/[0.08] active:scale-90 transition-all duration-150 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${
+              settingsOpen ? "bg-white/10 text-foreground" : "text-zinc-400"
             }`}
           >
             <Settings className="w-4 h-4" />

@@ -39,7 +39,7 @@ export function ChangelogModal({ isOpen, onClose }: Props) {
   return (
     <Modal isOpen={isOpen} onClose={onClose} labelledBy="changelog-title">
       <div className="flex items-center justify-between">
-        <h2 id="changelog-title" className="flex items-center gap-2 text-base font-bold text-white">
+        <h2 id="changelog-title" className="flex items-center gap-2 text-base font-bold text-foreground">
           <Sparkles className="w-4 h-4 text-accent-orange" aria-hidden="true" />
           {t("ui.changelogTitle")}
         </h2>
@@ -77,7 +77,7 @@ export function ChangelogModal({ isOpen, onClose }: Props) {
         {CHANGELOG.map((release) => (
           <section key={release.version} aria-label={`v${release.version}`}>
             <div className="flex items-baseline gap-2 flex-wrap">
-              <span className="text-xs font-mono font-semibold px-2 py-0.5 rounded-md bg-accent-orange/15 text-accent-orange border border-accent-orange/30">
+              <span className="text-xs font-mono font-semibold px-2 py-0.5 rounded-md bg-accent-orange/15 text-foreground border border-accent-orange/30">
                 v{release.version}
               </span>
               <span className="text-[11px] text-zinc-500">{release.date}</span>
@@ -104,7 +104,7 @@ export function ChangelogModal({ isOpen, onClose }: Props) {
           type="button"
           onClick={onClose}
           data-testid="changelog-close"
-          className="px-4 py-1.5 rounded-lg text-xs font-semibold bg-white/10 text-white hover:bg-white/20 transition-colors cursor-pointer"
+          className="px-4 py-1.5 rounded-lg text-xs font-semibold bg-white/10 text-foreground hover:bg-white/20 transition-colors cursor-pointer"
         >
           {t("ui.close")}
         </button>

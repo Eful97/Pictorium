@@ -94,7 +94,7 @@ export function OnboardingTour() {
           </div>
 
           {/* Title */}
-          <h3 className="text-lg font-bold text-white mb-2">
+          <h3 className="text-lg font-bold text-foreground mb-2">
             {t(steps[step].titleKey)}
           </h3>
 
@@ -145,7 +145,7 @@ export function OnboardingTour() {
             ) : (
               <button type="button"
                 onClick={() => setStep((s) => s + 1)}
-                className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-xs font-medium text-white bg-white/10 hover:bg-white/20 transition-all duration-150 active:scale-95"
+                className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-xs font-medium text-foreground bg-white/10 hover:bg-white/20 transition-all duration-150 active:scale-95"
               >
                 {t("ui.next")}
                 <ChevronRight className="w-3.5 h-3.5" />

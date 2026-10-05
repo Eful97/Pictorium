@@ -134,7 +134,7 @@ export function CollectionBar({
           onClick={() => onSelect(null)}
           className={`shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium transition-all duration-150 active:scale-95 ${
             activeId === null
-              ? "bg-accent-orange/15 text-accent-orange border border-accent-orange/25 shadow-[0_0_10px_rgba(232,93,42,0.12)]"
+              ? "bg-accent-orange/15 text-foreground border border-accent-orange/25 shadow-[0_0_10px_rgba(232,93,42,0.12)]"
               : "collection-chip-glass text-muted hover:text-zinc-300"
           }`}
         >
@@ -160,7 +160,7 @@ export function CollectionBar({
                       if (e.key === "Enter") handleRename(col.id)
                       if (e.key === "Escape") { setEditing(null); setNameInput("") }
                     }}
-                    className="w-24 bg-transparent text-xs text-white outline-none"
+                    className="w-24 bg-transparent text-xs text-foreground outline-none"
                     maxLength={40}
                   />
                   <button type="button" onClick={() => handleRename(col.id)} className="p-0.5 text-muted hover:text-accent-orange transition-colors">
@@ -171,7 +171,7 @@ export function CollectionBar({
                 <div
                   className={`flex items-stretch rounded-xl border transition-all duration-150 overflow-hidden ${
                     isActive
-                      ? "bg-accent-orange/15 text-accent-orange border-accent-orange/25 shadow-[0_0_10px_rgba(232,93,42,0.12)]"
+                      ? "bg-accent-orange/15 text-foreground border-accent-orange/25 shadow-[0_0_10px_rgba(232,93,42,0.12)]"
                       : "collection-chip-glass text-muted"
                   }`}
                 >
@@ -223,7 +223,7 @@ export function CollectionBar({
                 if (e.key === "Escape") { setCreating(false); setNameInput("") }
               }}
               placeholder={t("ui.collectionNamePh")}
-              className="w-28 bg-transparent text-xs text-white outline-none placeholder:text-zinc-500"
+              className="w-28 bg-transparent text-xs text-foreground outline-none placeholder:text-zinc-500"
               maxLength={40}
             />
             <button type="button" onClick={handleCreate} className="p-0.5 text-accent-orange hover:text-accent-orange/80 transition-colors">

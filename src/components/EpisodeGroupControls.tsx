@@ -197,7 +197,7 @@ export function EpisodeGroupControls() {
             <span>{t("ui.epOrderTitle")}</span>
           </span>
           {epGroups.length > 0 && (
-            <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-accent-orange/15 text-accent-orange border border-accent-orange/30">
+            <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-accent-orange/15 text-foreground border border-accent-orange/30">
               {t("ui.groupCount", { count: epGroups.length })}
             </span>
           )}
@@ -213,7 +213,7 @@ export function EpisodeGroupControls() {
             onClick={() => ed.setEpisodeGroupId(null)}
             className={`w-full text-left px-2.5 py-2 rounded-lg text-[11px] border transition-all flex items-center justify-between cursor-pointer ${
               !ed.episodeGroupId
-                ? "bg-accent-orange/15 text-white border-accent-orange/40 font-semibold"
+                ? "bg-accent-orange/15 text-foreground border-accent-orange/40 font-semibold"
                 : "bg-surface2/40 text-zinc-300 border-surface2 hover:bg-surface2 hover:text-white"
             }`}
           >
@@ -229,7 +229,7 @@ export function EpisodeGroupControls() {
             onClick={() => ed.setEpisodeGroupId("standard")}
             className={`w-full text-left px-2.5 py-2 rounded-lg text-[11px] border transition-all flex items-center justify-between cursor-pointer ${
               ed.episodeGroupId === "standard"
-                ? "bg-accent-orange/15 text-white border-accent-orange/40 font-semibold"
+                ? "bg-accent-orange/15 text-foreground border-accent-orange/40 font-semibold"
                 : "bg-surface2/40 text-zinc-300 border-surface2 hover:bg-surface2 hover:text-white"
             }`}
           >
@@ -288,7 +288,7 @@ export function EpisodeGroupControls() {
                   key={st.type}
                   onClick={() => ed.setEpisodeGroupId(sentinel)}
                   className={`w-full text-left px-2.5 py-2 rounded-lg text-[11px] border transition-all flex items-center justify-between cursor-pointer ${
-                    isSelected ? "bg-accent-orange/15 text-white border-accent-orange/40 font-semibold" : "bg-surface2/40 text-zinc-300 border-surface2 hover:bg-surface2 hover:text-white"
+                    isSelected ? "bg-accent-orange/15 text-foreground border-accent-orange/40 font-semibold" : "bg-surface2/40 text-zinc-300 border-surface2 hover:bg-surface2 hover:text-white"
                   }`}
                 >
                   <div className="flex flex-col">
@@ -306,7 +306,7 @@ export function EpisodeGroupControls() {
             onClick={() => ed.setEpisodeGroupId("anizip")}
             className={`w-full text-left px-2.5 py-2 rounded-lg text-[11px] border transition-all flex items-center justify-between cursor-pointer ${
               ed.episodeGroupId === "anizip"
-                ? "bg-accent-orange/15 text-white border-accent-orange/40 font-semibold"
+                ? "bg-accent-orange/15 text-foreground border-accent-orange/40 font-semibold"
                 : "bg-surface2/40 text-zinc-300 border-surface2 hover:bg-surface2 hover:text-white"
             }`}
           >
@@ -326,7 +326,7 @@ export function EpisodeGroupControls() {
                 onClick={() => ed.setEpisodeGroupId(g.id)}
                 className={`w-full text-left px-2.5 py-2 rounded-lg text-[11px] border transition-all flex items-center justify-between cursor-pointer ${
                   isSelected
-                    ? "bg-accent-orange/15 text-white border-accent-orange/40 font-semibold"
+                    ? "bg-accent-orange/15 text-foreground border-accent-orange/40 font-semibold"
                     : "bg-surface2/40 text-zinc-300 border-surface2 hover:bg-surface2 hover:text-white"
                 }`}
               >

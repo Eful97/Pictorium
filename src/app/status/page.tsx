@@ -481,7 +481,7 @@ export default function StatusPage() {
                     <div className="pt-2 flex flex-wrap gap-2">
                       {cacheStatus.taggedEntries.map((entry) => (
                         <span key={entry.tag} className="px-2 py-1 rounded-lg bg-zinc-900 border border-zinc-800 text-xs text-zinc-300">
-                          {entry.tag}: <span className="text-white font-semibold">{entry.count}</span>
+                          {entry.tag}: <span className="text-foreground font-semibold">{entry.count}</span>
                         </span>
                       ))}
                     </div>

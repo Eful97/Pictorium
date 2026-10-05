@@ -59,7 +59,7 @@ export function ProxyModal({ isOpen, onClose }: Props) {
             <Sparkles className="w-5 h-5" />
           </div>
           <div>
-            <h3 id="proxy-modal-title" className="text-base font-bold text-white">{t("ui.proxyTitle")}</h3>
+            <h3 id="proxy-modal-title" className="text-base font-bold text-foreground">{t("ui.proxyTitle")}</h3>
             <p className="text-xs text-muted">{t("ui.proxySubtitle")}</p>
           </div>
         </div>
@@ -104,7 +104,7 @@ export function ProxyModal({ isOpen, onClose }: Props) {
 
         {proxyUrl ? (
           <div className="space-y-2 pt-2 border-t border-white/10">
-            <label className="block text-xs font-semibold text-accent-orange flex items-center gap-1.5">
+            <label className="block text-xs font-semibold text-foreground flex items-center gap-1.5">
               <Check className="w-3.5 h-3.5" /> {t("ui.proxyGeneratedLabel")}
             </label>
             <div className="p-3 rounded-xl bg-black/60 border border-accent-orange/20 break-all text-[11px] font-mono text-zinc-200">

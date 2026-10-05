@@ -256,7 +256,7 @@ function CustomCatalogEntry({
             {isMixed ? <Shuffle className="w-3 h-3" /> : isMovie ? <Film className="w-3 h-3" /> : <Tv className="w-3 h-3" />}
             {isMixed ? t("ui.mixedType") : isMovie ? t("ui.movie") : t("ui.tvSeries")}
           </span>
-          <h3 className="text-base font-bold text-white line-clamp-1">{cat.name}</h3>
+          <h3 className="text-base font-bold text-foreground line-clamp-1">{cat.name}</h3>
           {cat.addon && (
             <span className="shrink-0 text-[10px] text-muted truncate max-w-48" title={cat.addon.manifestUrl}>
               {(() => { try { return new URL(cat.addon.manifestUrl).hostname } catch { return cat.addon.manifestUrl } })()} · {cat.addon.catalogId}
@@ -665,7 +665,7 @@ export function CataloghiView() {
             aria-pressed={platformFilter === f.id}
             className={`shrink-0 px-3 py-1.5 rounded-xl text-xs font-medium transition-all duration-150 active:scale-95 ${
               platformFilter === f.id
-                ? "bg-accent-orange/15 text-accent-orange border border-accent-orange/30 shadow-sm font-semibold"
+                ? "bg-accent-orange/15 text-foreground border border-accent-orange/30 shadow-sm font-semibold"
                 : "bg-surface/80 text-muted hover:text-zinc-200 border border-white/5 hover:border-white/10"
             }`}
           >
