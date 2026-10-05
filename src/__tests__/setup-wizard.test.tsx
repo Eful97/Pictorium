@@ -28,14 +28,25 @@ describe("SetupWizard", () => {
 
   it("mostra le lingue UI al passo lingua", () => {
     renderWizard()
-    // 17 voci lingua UI (incl. Tiếng Việt, senza regione chart) + tasto back assente al passo 1
+    // 18 voci lingua UI (incl. Español (Latinoamérica) e Tiếng Việt, senza regione chart) + tasto back assente al passo 1
     expect(screen.getByText("Italiano")).toBeInTheDocument()
     expect(screen.getByText("English")).toBeInTheDocument()
+    expect(screen.getByText("Español (Latinoamérica)")).toBeInTheDocument()
     expect(screen.getByText("Tiếng Việt")).toBeInTheDocument()
-    expect(screen.getAllByRole("button")).toHaveLength(17)
+    expect(screen.getAllByRole("button")).toHaveLength(18)
     // Lo step lingua non accoppia più paese e lingua (vi non ha regione chart)
     expect(screen.queryByText("USA · English")).not.toBeInTheDocument()
     expect(screen.queryByText("ui.back")).not.toBeInTheDocument()
+  })
+
+  it("seleziona es-419 come lingua UI latinoamericana", async () => {
+    const user = userEvent.setup()
+    const { onPickLang } = renderWizard()
+
+    await user.click(screen.getByText("Español (Latinoamérica)"))
+    expect(onPickLang).toHaveBeenCalledWith("es-419")
+    // Passo regione: il Messico resta una scelta paese separata (non tutta LatAm)
+    expect(screen.getByText("Messico")).toBeInTheDocument()
   })
 
   it("passa alla scelta del paese dopo la lingua e completa", async () => {

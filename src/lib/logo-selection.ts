@@ -43,6 +43,12 @@ export function selectLogoTier(
   const tier = (code: string | null) => logos.filter((l) => l.iso_639_1 === code)
   const langTier = tier(lang)
   if (langTier.length > 0) return langTier
+  // Alias-only: the Spanish full locales (explicit ?lang=es-MX, UI es-419)
+  // match their ISO 639-1 base, since TMDB iso_639_1 codes are 2-letter.
+  // Every other locale keeps the previous behavior below (en, original, any).
+  const lowerLang = lang.toLowerCase()
+  const baseTier = lowerLang === "es-419" || lowerLang === "es-mx" ? tier("es") : []
+  if (baseTier.length > 0) return baseTier
   const enTier = lang !== "en" ? tier("en") : []
   if (enTier.length > 0) return enTier
   const origTier = origLang && origLang !== lang ? tier(origLang) : []
@@ -61,6 +67,10 @@ export function logoBestLogoFallbackReason(
 ): "origLang" | "any" | "none" | null {
   if (!selected) return "none"
   if (selected.iso_639_1 === lang) return null
+  // Alias-only like the tier above: a base "es" match counts as exact only
+  // for the Spanish full locales; other locales keep the previous result.
+  const lowerLang = lang.toLowerCase()
+  if ((lowerLang === "es-419" || lowerLang === "es-mx") && selected.iso_639_1 === "es") return null
   if (origLang && selected.iso_639_1 === origLang) return "origLang"
   if (selected.iso_639_1 === "en") return null
   return "any"

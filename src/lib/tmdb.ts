@@ -611,13 +611,43 @@ export interface TMDBSearchResponse {
   total_results: number
 }
 
+/**
+ * Provider-facing TMDB language for a requested locale.
+ * Alias-only mapping: es-419 (UI-only, never a valid TMDB locale) becomes
+ * the canonical es-MX. Every other locale passes through untouched, so
+ * region flows (es-ES, it-IT, ...) and their cache entries are unchanged.
+ * The normalized locale enters the tmdbFetch cache key: es-419 requests
+ * share the es-MX entries (identical provider content), while es stays
+ * a separate entry.
+ */
+export function toProviderLanguage(lang: string): string {
+  return lang.toLowerCase() === "es-419" ? "es-MX" : lang
+}
+
+/**
+ * Token list for `include_image_language` (ISO 639-1 codes only): only the
+ * Spanish variants collapse to their base (es-419/es-MX -> es, case
+ * insensitive), matching what region flows already request. Every other
+ * token is preserved byte-identically (including whitespace and locales
+ * such as it-IT/en-US), and the current en/null fallback order is unchanged.
+ */
+export function toImageLanguages(languages: string): string {
+  return languages
+    .split(",")
+    .map((token) => {
+      const c = token.toLowerCase()
+      return c === "es-419" || c === "es-mx" ? "es" : token
+    })
+    .join(",")
+}
+
 export async function searchMulti(query: string, language = "it-IT", apiKey?: string, page = 1): Promise<TMDBSearchResponse> {
-  const data = await tmdbFetch(`/search/multi?query=${encodeURIComponent(query)}&language=${language}&page=${page}`, apiKey)
+  const data = await tmdbFetch(`/search/multi?query=${encodeURIComponent(query)}&language=${toProviderLanguage(language)}&page=${page}`, apiKey)
   return parseTmdb<TMDBSearchResponse>("search/multi", tmdbSearchResponseSchema, data)
 }
 
 export async function searchMovies(query: string, language = "it-IT", apiKey?: string, page = 1): Promise<TMDBSearchResponse> {
-  const data = await tmdbFetch(`/search/movie?query=${encodeURIComponent(query)}&language=${language}&page=${page}`, apiKey)
+  const data = await tmdbFetch(`/search/movie?query=${encodeURIComponent(query)}&language=${toProviderLanguage(language)}&page=${page}`, apiKey)
   const res = parseTmdb<TMDBSearchResponse>("search/movie", tmdbSearchResponseSchema, data)
   if (res?.results) {
     res.results = res.results.map((r) => ({ ...r, media_type: "movie" }))
@@ -626,7 +656,7 @@ export async function searchMovies(query: string, language = "it-IT", apiKey?: s
 }
 
 export async function searchTV(query: string, language = "it-IT", apiKey?: string, page = 1): Promise<TMDBSearchResponse> {
-  const data = await tmdbFetch(`/search/tv?query=${encodeURIComponent(query)}&language=${language}&page=${page}`, apiKey)
+  const data = await tmdbFetch(`/search/tv?query=${encodeURIComponent(query)}&language=${toProviderLanguage(language)}&page=${page}`, apiKey)
   const res = parseTmdb<TMDBSearchResponse>("search/tv", tmdbSearchResponseSchema, data)
   if (res?.results) {
     res.results = res.results.map((r) => ({ ...r, media_type: "tv" }))
@@ -649,22 +679,22 @@ export interface TMDBGenreListResponse {
  * tmdbFetch le cachа in memoria (LRU 5 min) condividendo l'URL tra richieste.
  */
 export async function getGenreList(mediaType: "movie" | "tv", language = "it-IT", apiKey?: string): Promise<TMDBGenreListResponse> {
-  const data = await tmdbFetch(`/genre/${mediaType}/list?language=${language}`, apiKey)
+  const data = await tmdbFetch(`/genre/${mediaType}/list?language=${toProviderLanguage(language)}`, apiKey)
   return parseTmdb<TMDBGenreListResponse>("genre/list", tmdbGenreListResponseSchema, data)
 }
 
 export async function getPopularMovies(page = 1, language = "it-IT", apiKey?: string): Promise<TMDBSearchResponse> {
-  const data = await tmdbFetch(`/movie/popular?language=${language}&page=${page}&region=IT`, apiKey)
+  const data = await tmdbFetch(`/movie/popular?language=${toProviderLanguage(language)}&page=${page}&region=IT`, apiKey)
   return parseTmdb<TMDBSearchResponse>("movie/popular", tmdbSearchResponseSchema, data)
 }
 
 export async function getPopularTV(page = 1, language = "it-IT", apiKey?: string): Promise<TMDBSearchResponse> {
-  const data = await tmdbFetch(`/tv/popular?language=${language}&page=${page}&region=IT`, apiKey)
+  const data = await tmdbFetch(`/tv/popular?language=${toProviderLanguage(language)}&page=${page}&region=IT`, apiKey)
   return parseTmdb<TMDBSearchResponse>("tv/popular", tmdbSearchResponseSchema, data)
 }
 
 export async function getImages(mediaType: "movie" | "tv", id: number, languages = "en,null", apiKey?: string, signal?: AbortSignal, timeoutMs = 30000): Promise<TMDBImagesResponse> {
-  const data = await tmdbFetch(`/${mediaType}/${id}/images?include_image_language=${encodeURIComponent(languages)}`, apiKey, signal, timeoutMs)
+  const data = await tmdbFetch(`/${mediaType}/${id}/images?include_image_language=${encodeURIComponent(toImageLanguages(languages))}`, apiKey, signal, timeoutMs)
   return parseTmdb<TMDBImagesResponse>("images", tmdbImagesResponseSchema, data)
 }
 
@@ -786,7 +816,7 @@ export interface TMDBDetails {
 }
 
 export async function getDetails(mediaType: "movie" | "tv", id: number, language = "it-IT", apiKey?: string, signal?: AbortSignal, timeoutMs = 30000): Promise<TMDBDetails> {
-  const data = await tmdbFetch(`/${mediaType}/${id}?language=${language}`, apiKey, signal, timeoutMs)
+  const data = await tmdbFetch(`/${mediaType}/${id}?language=${toProviderLanguage(language)}`, apiKey, signal, timeoutMs)
   return parseTmdb<TMDBDetails>("details", tmdbDetailsSchema, data)
 }
 
@@ -798,12 +828,12 @@ export async function getDetails(mediaType: "movie" | "tv", id: number, language
  * dati che il catalogo scarta).
  */
 export async function getDetailsWithExternalIds(mediaType: "movie" | "tv", id: number, language = "it-IT", apiKey?: string, signal?: AbortSignal, timeoutMs = 30000): Promise<TMDBDetails> {
-  const data = await tmdbFetch(`/${mediaType}/${id}?language=${language}&append_to_response=external_ids`, apiKey, signal, timeoutMs)
+  const data = await tmdbFetch(`/${mediaType}/${id}?language=${toProviderLanguage(language)}&append_to_response=external_ids`, apiKey, signal, timeoutMs)
   return parseTmdb<TMDBDetails>("details_with_external_ids", tmdbDetailsSchema, data)
 }
 
 export async function getFullDetails(mediaType: "movie" | "tv", id: number, language = "it-IT", apiKey?: string, signal?: AbortSignal): Promise<TMDBDetails> {
-  const data = await tmdbFetch(`/${mediaType}/${id}?language=${language}&append_to_response=credits,videos,external_ids`, apiKey, signal)
+  const data = await tmdbFetch(`/${mediaType}/${id}?language=${toProviderLanguage(language)}&append_to_response=credits,videos,external_ids`, apiKey, signal)
   return parseTmdb<TMDBDetails>("full_details", tmdbDetailsSchema, data)
 }
 
@@ -829,7 +859,7 @@ export interface TMDBSeasonDetails {
 
 export async function getTVSeason(tvId: number, seasonNumber: number, language = "it-IT", apiKey?: string, signal?: AbortSignal): Promise<TMDBSeasonDetails | null> {
   try {
-    const data = await tmdbFetch(`/tv/${tvId}/season/${seasonNumber}?language=${language}`, apiKey, signal)
+    const data = await tmdbFetch(`/tv/${tvId}/season/${seasonNumber}?language=${toProviderLanguage(language)}`, apiKey, signal)
     return parseTmdb<TMDBSeasonDetails>("season", tmdbSeasonDetailsSchema, data)
   } catch {
     return null
@@ -874,7 +904,7 @@ export async function getTVEpisodeGroups(tvId: number, apiKey?: string, signal?:
 
 export async function getTVEpisodeGroup(groupId: string, language = "it-IT", apiKey?: string, signal?: AbortSignal): Promise<TMDBEpisodeGroupDetails | null> {
   try {
-    const data = await tmdbFetch(`/tv/episode_group/${groupId}?language=${language}`, apiKey, signal)
+    const data = await tmdbFetch(`/tv/episode_group/${groupId}?language=${toProviderLanguage(language)}`, apiKey, signal)
     return parseTmdb<TMDBEpisodeGroupDetails>("episode_group", tmdbEpisodeGroupDetailsSchema, data)
   } catch {
     return null
@@ -921,17 +951,17 @@ export interface TMDBPersonCredits {
 }
 
 export async function searchPerson(query: string, language = "it-IT", apiKey?: string, page = 1, signal?: AbortSignal): Promise<TMDBPersonSearchResponse> {
-  const data = await tmdbFetch(`/search/person?query=${encodeURIComponent(query)}&language=${language}&page=${page}`, apiKey, signal)
+  const data = await tmdbFetch(`/search/person?query=${encodeURIComponent(query)}&language=${toProviderLanguage(language)}&page=${page}`, apiKey, signal)
   return parseTmdb<TMDBPersonSearchResponse>("search/person", tmdbPersonSearchResponseSchema, data)
 }
 
 export async function personMovieCredits(personId: number, language = "it-IT", apiKey?: string, signal?: AbortSignal): Promise<TMDBPersonCredits> {
-  const data = await tmdbFetch(`/person/${personId}/movie_credits?language=${language}`, apiKey, signal)
+  const data = await tmdbFetch(`/person/${personId}/movie_credits?language=${toProviderLanguage(language)}`, apiKey, signal)
   return parseTmdb<TMDBPersonCredits>("person/movie_credits", tmdbPersonCreditsSchema, data)
 }
 
 export async function personTvCredits(personId: number, language = "it-IT", apiKey?: string, signal?: AbortSignal): Promise<TMDBPersonCredits> {
-  const data = await tmdbFetch(`/person/${personId}/tv_credits?language=${language}`, apiKey, signal)
+  const data = await tmdbFetch(`/person/${personId}/tv_credits?language=${toProviderLanguage(language)}`, apiKey, signal)
   return parseTmdb<TMDBPersonCredits>("person/tv_credits", tmdbPersonCreditsSchema, data)
 }
 

@@ -31,6 +31,11 @@ describe("regions", () => {
     expect(contentLanguageForUiLang("vi", "IT")).toBe("vi")
     expect(contentLanguageForUiLang("fr", "US")).toBe("fr")
     expect(contentLanguageForUiLang("es", "MX")).toBe("es-MX")
+    // es-419 is UI-only: providers always receive es-MX, in any chart.
+    for (const region of ["IT", "ES", "MX", "US", "GLOBAL"]) {
+      expect(contentLanguageForUiLang("es-419", region)).toBe("es-MX")
+    }
+    expect(contentLanguageForUiLang("ES-419", "IT")).toBe("es-MX")
     expect(contentLanguageForUiLang("en", "GB")).toBe("en-GB")
     expect(contentLanguageForUiLang("invalid", "IT")).toBe("it-IT")
   })
@@ -128,8 +133,8 @@ describe("regions", () => {
   })
 
   it("supports only the picker UI languages", () => {
-    expect(SUPPORTED_UI_LANGS).toEqual(["it", "pl", "en", "fr", "de", "es", "ja", "ko", "pt", "he", "cs", "ro", "ar", "tr", "nl", "sv", "vi"])
-    for (const l of ["it", "pl", "en", "fr", "de", "es", "ja", "ko", "pt", "he", "cs", "ro", "ar", "tr", "nl", "sv", "vi"]) {
+    expect(SUPPORTED_UI_LANGS).toEqual(["it", "pl", "en", "fr", "de", "es", "es-419", "ja", "ko", "pt", "he", "cs", "ro", "ar", "tr", "nl", "sv", "vi"])
+    for (const l of ["it", "pl", "en", "fr", "de", "es", "es-419", "ja", "ko", "pt", "he", "cs", "ro", "ar", "tr", "nl", "sv", "vi"]) {
       expect(isSupportedUiLang(l)).toBe(true)
     }
     // Lingue del vecchio picker (zh/ru) non più offerte
@@ -191,6 +196,13 @@ describe("regions", () => {
     expect(defaultRegionForLang("pt", "BR")).toBe("BR")
     expect(defaultRegionForLang("ro")).toBe("RO")
     expect(defaultRegionForLang("es")).toBe("ES")
+    // es-419: preserves the current Spanish family (never forces a change),
+    // default without a region (or outside the family) → MX, never ES; GLOBAL stays.
+    expect(defaultRegionForLang("es-419")).toBe("MX")
+    expect(defaultRegionForLang("es-419", "ES")).toBe("ES")
+    expect(defaultRegionForLang("es-419", "MX")).toBe("MX")
+    expect(defaultRegionForLang("es-419", "IT")).toBe("MX")
+    expect(defaultRegionForLang("es-419", "GLOBAL")).toBe("GLOBAL")
     expect(defaultRegionForLang("cs")).toBe("CZ")
     expect(defaultRegionForLang("pl")).toBe("PL")
     expect(defaultRegionForLang("ar")).toBe("SA")

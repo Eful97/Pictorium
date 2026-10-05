@@ -115,7 +115,10 @@ export interface UiLangMeta {
 }
 
 /**
- * Fonte canonica delle lingue UI (codice 2 lettere + metadati display).
+ * Canonical source of UI languages (BCP47 code + display metadata).
+ * Almost all are 2-letter codes; `es-419` (Latin American Spanish,
+ * UN M.49 419) is the exception: UI-only, never sent to providers
+ * (TMDB/JustWatch expect ISO639-1 + ISO3166, e.g. es-MX).
  * `SUPPORTED_UI_LANGS` (validazione, qui sotto) e `UI_LANGUAGES` (voci picker,
  * in utils.ts) derivano entrambi da questa lista: aggiungere una lingua
  * significa aggiungere una riga qui. `vi` è solo lingua UI senza regione
@@ -130,6 +133,7 @@ export const UI_LANG_META: readonly UiLangMeta[] = [
   { code: "fr", flag: "🇫🇷", name: "Français" },
   { code: "de", flag: "🇩🇪", name: "Deutsch" },
   { code: "es", flag: "🇪🇸", name: "Español" },
+  { code: "es-419", flag: "🌎", name: "Español (Latinoamérica)" },
   { code: "ja", flag: "🇯🇵", name: "日本語" },
   { code: "ko", flag: "🇰🇷", name: "한국어" },
   { code: "pt", flag: "🇵🇹", name: "Português" },
@@ -153,6 +157,9 @@ export function isSupportedUiLang(code: string | null | undefined): boolean {
 export function contentLanguageForUiLang(lang: string | null | undefined, regionCode: string): string {
   const region = getRegionDef(regionCode)
   const code = lang?.toLowerCase()
+  // es-419 is UI-only: providers always receive es-MX (valid TMDB locale
+  // ISO639-1 + ISO3166; es-419 is never sent), in any chart.
+  if (code === "es-419") return "es-MX"
   return isSupportedUiLang(code) && code !== region.lang2 ? code! : region.lang
 }
 
@@ -173,10 +180,16 @@ export function defaultRegionForLang(lang: string | null | undefined, currentReg
   const l = lang.toLowerCase().trim()
   if (!isSupportedUiLang(l)) return null
   if (parseRegion(currentRegion) === GLOBAL_REGION_CODE) return GLOBAL_REGION_CODE
+  // es-419 shares the es family (ES/MX): the current Spanish region is
+  // preserved as with "es" (never force a change of an explicit country).
+  const family = l === "es-419" ? "es" : l
   if (currentRegion) {
     const cur = getRegionDef(currentRegion)
-    if (cur && cur.lang2 === l) return cur.code
+    if (cur && cur.lang2 === family) return cur.code
   }
+  // Without a current region (or outside the family): the Latin American
+  // variant points to Mexico (es-MX), never Spain; "es" stays on ES (historic).
+  if (l === "es-419") return "MX"
   const found = REGIONS.find((r) => r.lang2 === l)
   return found?.code ?? GLOBAL_REGION_CODE
 }

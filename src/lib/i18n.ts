@@ -4,6 +4,7 @@ import pl from "./translations/pl.json"
 import fr from "./translations/fr.json"
 import de from "./translations/de.json"
 import es from "./translations/es.json"
+import es419 from "./translations/es-419.json"
 import ja from "./translations/ja.json"
 import ko from "./translations/ko.json"
 import pt from "./translations/pt.json"
@@ -18,7 +19,7 @@ import vi from "./translations/vi.json"
 
 export type Lang = keyof typeof dicts
 
-const dicts: Record<string, Record<string, string>> = { en, it, pl, fr, de, es, ja, ko, pt, he, cs, ro, ar, tr, nl, sv, vi }
+const dicts: Record<string, Record<string, string>> = { en, it, pl, fr, de, es, "es-419": es419, ja, ko, pt, he, cs, ro, ar, tr, nl, sv, vi }
 
 let _currentLang: string = "it"
 
@@ -65,8 +66,16 @@ export function getLang(): string {
   return _currentLang
 }
 
+function canonicalDictLang(lang: string): string {
+  const c = lang.toLowerCase()
+  // The canonical TMDB locale es-MX has no dedicated UI dictionary: it
+  // reuses the Latin American one (never the English fallback).
+  if (c === "es-mx") return "es-419"
+  return c
+}
+
 function lookup(lang: string, key: string): string | undefined {
-  return dicts[lang]?.[key] ?? dicts["en"]?.[key]
+  return dicts[canonicalDictLang(lang)]?.[key] ?? dicts["en"]?.[key]
 }
 
 export function t(key: string, params?: Record<string, string | number>): string {

@@ -4,6 +4,7 @@ import itDict from "@/lib/translations/it.json"
 import frDict from "@/lib/translations/fr.json"
 import deDict from "@/lib/translations/de.json"
 import esDict from "@/lib/translations/es.json"
+import es419Dict from "@/lib/translations/es-419.json"
 import jaDict from "@/lib/translations/ja.json"
 import koDict from "@/lib/translations/ko.json"
 import ptDict from "@/lib/translations/pt.json"
@@ -13,7 +14,7 @@ import roDict from "@/lib/translations/ro.json"
 import plDict from "@/lib/translations/pl.json"
 import viDict from "@/lib/translations/vi.json"
 
-const DICTS: Record<string, Record<string, string>> = { en: enDict, it: itDict, pl: plDict, fr: frDict, de: deDict, es: esDict, ja: jaDict, ko: koDict, pt: ptDict, he: heDict, cs: csDict, ro: roDict, vi: viDict }
+const DICTS: Record<string, Record<string, string>> = { en: enDict, it: itDict, pl: plDict, fr: frDict, de: deDict, es: esDict, "es-419": es419Dict, ja: jaDict, ko: koDict, pt: ptDict, he: heDict, cs: csDict, ro: roDict, vi: viDict }
 const LANGS = Object.keys(DICTS)
 
 function placeholders(s: string): string {
@@ -22,7 +23,7 @@ function placeholders(s: string): string {
 }
 
 describe("translations parity", () => {
-  it("all 13 dictionaries share the exact same key set", () => {
+  it("all 14 dictionaries share the exact same key set", () => {
     const allKeys = new Set<string>()
     for (const l of LANGS) for (const k of Object.keys(DICTS[l])) allKeys.add(k)
     expect(allKeys.size).toBeGreaterThan(500)

@@ -9,7 +9,7 @@ export function cn(...classes: (string | undefined | null | false)[]) {
 }
 
 export const LANG_FLAGS: Record<string, string> = {
-  it: "🇮🇹", en: "🇬🇧", fr: "🇫🇷", de: "🇩🇪", es: "🇪🇸", pt: "🇵🇹",
+  it: "🇮🇹", en: "🇬🇧", fr: "🇫🇷", de: "🇩🇪", es: "🇪🇸", "es-419": "🌎", pt: "🇵🇹",
   ja: "🇯🇵", ko: "🇰🇷", zh: "🇨🇳", ru: "🇷🇺", ar: "🇸🇦", nl: "🇳🇱",
   pl: "🇵🇱", sv: "🇸🇪", tr: "🇹🇷", hi: "🇮🇳", he: "🇮🇱", ro: "🇷🇴",
   cs: "🇨🇿", da: "🇩🇰", no: "🇳🇴", fi: "🇫🇮", el: "🇬🇷", hu: "🇭🇺",
@@ -18,7 +18,7 @@ export const LANG_FLAGS: Record<string, string> = {
 
 export const LANG_NAMES: Record<string, string> = {
   en: "English", it: "Italiano", fr: "Français", de: "Deutsch",
-  es: "Español", pt: "Português", ja: "日本語", ko: "한국어",
+  es: "Español", "es-419": "Español (Latinoamérica)", pt: "Português", ja: "日本語", ko: "한국어",
   zh: "中文", ru: "Русский", ar: "العربية", nl: "Nederlands",
   pl: "Polski", sv: "Svenska", tr: "Türkçe", hi: "हिन्दी",
   he: "עברית", ro: "Română", cs: "Čeština", da: "Dansk",
