@@ -854,6 +854,8 @@
   "ui.configPresetRatingsDesc": "IMDb/TMDB-Werte und Qualität",
   "ui.configPresetFull": "Komplett",
   "ui.configPresetFullDesc": "Alle Badges, Qualität und Ranglisten",
+  "ui.configPresetBetterPosterDesc": "Weicher Blur mit Rankings und vollen Badges",
+  "ui.configPresetRpdbDesc": "Klares Bild mit separater Bewertungsleiste",
   "ui.visualPresetsTitle": "Meine Vorlagen",
   "ui.visualPresetsHint": "Speichere Badges, Logo und Anpassungen. Deine Vorlagen sind auf Geräten mit demselben Bereich oder derselben privaten Instanz verfügbar.",
   "ui.visualPresetName": "Name der Vorlage",

@@ -854,6 +854,8 @@
   "ui.configPresetRatingsDesc": "Scoruri IMDb/TMDB și calitate",
   "ui.configPresetFull": "Complet",
   "ui.configPresetFullDesc": "Toate insignele, calitatea și clasamentele",
+  "ui.configPresetBetterPosterDesc": "Strălucire estompată cu clasamente și insigne complete",
+  "ui.configPresetRpdbDesc": "Imagine clară cu bară de voturi separată",
   "ui.visualPresetsTitle": "Presetările mele",
   "ui.visualPresetsHint": "Salvează insignele, logo-ul și transformările. Accesează presetările pe dispozitivele conectate la același spațiu sau aceeași instanță privată.",
   "ui.visualPresetName": "Numele presetării",

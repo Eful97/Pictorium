@@ -854,6 +854,8 @@
   "ui.configPresetRatingsDesc": "درجات IMDb/TMDB والجودة",
   "ui.configPresetFull": "كامل",
   "ui.configPresetFullDesc": "جميع الشارات والجودة والترتيب",
+  "ui.configPresetBetterPosterDesc": "توهج ضبابي مع الترتيب والشارات الكاملة",
+  "ui.configPresetRpdbDesc": "صورة نظيفة مع شريط تقييمات منفصل",
   "ui.visualPresetsTitle": "إعداداتي المسبقة",
   "ui.visualPresetsHint": "احفظ الشارات والشعار والتحويلات. يمكنك الوصول إليها من أجهزة أخرى متصلة بالمساحة نفسها أو بالخادم الخاص نفسه.",
   "ui.visualPresetName": "اسم الإعداد المسبق",

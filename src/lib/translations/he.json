@@ -854,6 +854,8 @@
   "ui.configPresetRatingsDesc": "ציוני IMDb/TMDB ואיכות",
   "ui.configPresetFull": "מלא",
   "ui.configPresetFullDesc": "כל התגים, איכות ודירוגים",
+  "ui.configPresetBetterPosterDesc": "זוהר מטושטש עם דירוגים ותגים מלאים",
+  "ui.configPresetRpdbDesc": "תמונה נקייה עם סרגל דירוגים נפרד",
   "ui.visualPresetsTitle": "הסגנונות שלי",
   "ui.visualPresetsHint": "שמור תגים, לוגו והתאמות. הסגנונות זמינים במכשירים המחוברים לאותו מרחב או לאותו שרת פרטי.",
   "ui.visualPresetName": "שם הסגנון",

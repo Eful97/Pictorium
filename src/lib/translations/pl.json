@@ -854,6 +854,8 @@
   "ui.configPresetRatingsDesc": "Punkty IMDb/TMDB i jakość",
   "ui.configPresetFull": "Pełny",
   "ui.configPresetFullDesc": "Wszystkie plakietki, jakość i rankingi",
+  "ui.configPresetBetterPosterDesc": "Miękka poświata z rankingami i pełnymi odznakami",
+  "ui.configPresetRpdbDesc": "Czysty obraz z oddzielnym paskiem ocen",
   "ui.visualPresetsTitle": "Moje ustawienia stylu",
   "ui.visualPresetsHint": "Zapisz odznaki, logo i przekształcenia. Korzystaj ze swoich stylów na urządzeniach połączonych z tą samą przestrzenią lub prywatną instancją.",
   "ui.visualPresetName": "Nazwa stylu",

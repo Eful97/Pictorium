@@ -854,6 +854,8 @@
   "ui.configPresetRatingsDesc": "IMDb/TMDB-betyg och kvalitet",
   "ui.configPresetFull": "Fullständig",
   "ui.configPresetFullDesc": "Alla märken, kvalitet och topplistor",
+  "ui.configPresetBetterPosterDesc": "Mjuk glöd med topplistor och fulla märken",
+  "ui.configPresetRpdbDesc": "Ren bild med separat betygsfält",
   "ui.visualPresetsTitle": "Mina förinställningar",
   "ui.visualPresetsHint": "Spara märken, logotyp och justeringar. Dina förinställningar finns på enheter anslutna till samma utrymme eller privata instans.",
   "ui.visualPresetName": "Förinställningens namn",

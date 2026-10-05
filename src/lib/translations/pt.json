@@ -854,6 +854,8 @@
   "ui.configPresetRatingsDesc": "Pontuações IMDb/TMDB e qualidade",
   "ui.configPresetFull": "Completo",
   "ui.configPresetFullDesc": "Todos os emblemas, qualidade e classificações",
+  "ui.configPresetBetterPosterDesc": "Brilho suave com rankings e emblemas completos",
+  "ui.configPresetRpdbDesc": "Imagem limpa com barra de votos separada",
   "ui.visualPresetsTitle": "Meus estilos",
   "ui.visualPresetsHint": "Salve emblemas, logo e transformações. Acesse seus estilos em dispositivos conectados ao mesmo espaço ou instância privada.",
   "ui.visualPresetName": "Nome do estilo",

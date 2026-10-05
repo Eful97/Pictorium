@@ -854,6 +854,8 @@
   "ui.configPresetRatingsDesc": "IMDb/TMDBスコアと画質バッジ",
   "ui.configPresetFull": "フル装備",
   "ui.configPresetFullDesc": "すべてのバッジ、画質、ランキング",
+  "ui.configPresetBetterPosterDesc": "柔らかなブラーとランキング付きフルバッジ",
+  "ui.configPresetRpdbDesc": "セパレート評価バー付きのクリーンな画像",
   "ui.visualPresetsTitle": "マイプリセット",
   "ui.visualPresetsHint": "バッジ、ロゴ、変形設定を保存します。同じスペースまたはプライベートインスタンスに接続した他のデバイスでも使えます。",
   "ui.visualPresetName": "プリセット名",

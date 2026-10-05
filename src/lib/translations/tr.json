@@ -854,6 +854,8 @@
   "ui.configPresetRatingsDesc": "IMDb/TMDB puanları ve kalite",
   "ui.configPresetFull": "Tam",
   "ui.configPresetFullDesc": "Tüm rozetler, kalite ve sıralamalar",
+  "ui.configPresetBetterPosterDesc": "Sıralamalı ve tam rozetli yumuşak parlama",
+  "ui.configPresetRpdbDesc": "Ayrı puan çubuklu temiz görüntü",
   "ui.visualPresetsTitle": "Ön ayarlarım",
   "ui.visualPresetsHint": "Rozetleri, logoyu ve dönüşümleri kaydet. Aynı alana veya özel sunucuya bağlı cihazlarda ön ayarlarına eriş.",
   "ui.visualPresetName": "Ön ayar adı",

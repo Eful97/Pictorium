@@ -854,6 +854,8 @@
   "ui.configPresetRatingsDesc": "Skóre IMDb/TMDB a kvalita",
   "ui.configPresetFull": "Kompletní",
   "ui.configPresetFullDesc": "Všechny odznaky, kvalita a žebříčky",
+  "ui.configPresetBetterPosterDesc": "Jemná záře s žebříčky a plnými odznaky",
+  "ui.configPresetRpdbDesc": "Čistý obraz se samostatným pruhem hodnocení",
   "ui.visualPresetsTitle": "Moje předvolby",
   "ui.visualPresetsHint": "Uložte odznaky, logo a úpravy. Předvolby jsou dostupné na zařízeních připojených ke stejnému prostoru nebo soukromé instanci.",
   "ui.visualPresetName": "Název předvolby",

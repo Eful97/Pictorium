@@ -854,6 +854,8 @@
   "ui.configPresetRatingsDesc": "Puntuaciones IMDb/TMDB y calidad",
   "ui.configPresetFull": "Completo",
   "ui.configPresetFullDesc": "Todas las insignias, calidad y rankings",
+  "ui.configPresetBetterPosterDesc": "Resplandor suave con rankings e insignias completas",
+  "ui.configPresetRpdbDesc": "Imagen limpia con barra de votos separada",
   "ui.visualPresetsTitle": "Mis preajustes",
   "ui.visualPresetsHint": "Guarda insignias, logo y transformaciones. Accede a tus preajustes desde dispositivos conectados al mismo espacio o instancia privada.",
   "ui.visualPresetName": "Nombre del preajuste",

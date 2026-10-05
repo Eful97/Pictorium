@@ -868,6 +868,8 @@
   "ui.configPresetRatingsDesc": "IMDb/TMDB scores and quality",
   "ui.configPresetFull": "Full",
   "ui.configPresetFullDesc": "All badges, quality and rankings",
+  "ui.configPresetBetterPosterDesc": "Soft blur glow with rankings and full badges",
+  "ui.configPresetRpdbDesc": "Clean image with separate ratings bar",
   "ui.visualPresetsTitle": "My presets",
   "ui.visualPresetsHint": "Save badges, logo and transforms. Access your presets on other devices connected to the same space or private instance.",
   "ui.visualPresetName": "Preset name",

@@ -868,6 +868,8 @@
   "ui.configPresetRatingsDesc": "Punteggi IMDb/TMDB e qualità",
   "ui.configPresetFull": "Completo",
   "ui.configPresetFullDesc": "Tutti i badge, qualità e classifiche",
+  "ui.configPresetBetterPosterDesc": "Bagliore morbido con classifiche e badge completi",
+  "ui.configPresetRpdbDesc": "Immagine pulita con barra voti separata",
   "ui.visualPresetsTitle": "I miei preset",
   "ui.visualPresetsHint": "Salva badge, logo e trasformazioni. Ritrova i preset negli altri dispositivi collegati allo stesso spazio o alla stessa istanza privata.",
   "ui.visualPresetName": "Nome del preset",

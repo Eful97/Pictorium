@@ -868,6 +868,8 @@
   "ui.configPresetRatingsDesc": "Điểm IMDb/TMDB và chất lượng",
   "ui.configPresetFull": "Đầy đủ",
   "ui.configPresetFullDesc": "Mọi huy hiệu, chất lượng và xếp hạng",
+  "ui.configPresetBetterPosterDesc": "Ánh mờ nhẹ với xếp hạng và huy hiệu đầy đủ",
+  "ui.configPresetRpdbDesc": "Hình ảnh sắc nét với thanh điểm riêng",
   "ui.visualPresetsTitle": "Preset của tôi",
   "ui.visualPresetsHint": "Lưu huy hiệu, logo và biến đổi. Mở preset trên thiết bị khác cùng không gian hoặc máy riêng.",
   "ui.visualPresetName": "Tên preset",

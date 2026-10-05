@@ -854,6 +854,8 @@
   "ui.configPresetRatingsDesc": "IMDb/TMDB-scores en kwaliteit",
   "ui.configPresetFull": "Compleet",
   "ui.configPresetFullDesc": "Alle badges, kwaliteit en ranglijsten",
+  "ui.configPresetBetterPosterDesc": "Zachte gloed met ranglijsten en volledige badges",
+  "ui.configPresetRpdbDesc": "Scherp beeld met aparte beoordelingsbalk",
   "ui.visualPresetsTitle": "Mijn voorinstellingen",
   "ui.visualPresetsHint": "Bewaar badges, logo en aanpassingen. Je voorinstellingen zijn beschikbaar op apparaten met dezelfde ruimte of privé-instantie.",
   "ui.visualPresetName": "Naam voorinstelling",

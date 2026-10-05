@@ -13,6 +13,13 @@ import { SASH_BUCKETS, DEFAULT_SASH_ORDER, parseSashOrder, moveSashItem, type Sa
 import { formatRating } from "@/lib/custom-rating/formatter"
 import { saveDefaults } from "@/lib/save-defaults"
 import { http } from "@/lib/http"
+import { captureVisualPreset } from "@/lib/visual-presets"
+import {
+  BETTER_POSTER_PRESET_LABEL,
+  BETTER_POSTER_VISUAL_DEFAULTS,
+  RPDB_PRESET_LABEL,
+  RPDB_VISUAL_DEFAULTS,
+} from "@/lib/default-visual-presets"
 
 // Master Trend: OFF spegne tutte le categorie sash (kill-switch globale, vale
 // anche per i titoli già salvati dato che la sash non è congelata per-titolo).
@@ -162,6 +169,24 @@ export function BadgeDefaultsSection({ active }: { active: boolean }) {
     ed.setDefaultBadgeStyle("pill")
   }
 
+  // Built-in 1-click completi (snapshot da backup utente): confronto esatto
+  // sull'intero schema visuale, così l'arancione scatta solo sul match totale.
+  // I 3 sopra restano per costruzione spenti sui due snapshot (Essenziale vuole
+  // year=true, Voti vuole genre=false, Completo vuole quality+ranking+network
+  // con style pill): nessun cambio al loro comportamento.
+  const currentVisualSnapshot = JSON.stringify(captureVisualPreset(ed))
+  const isBetterPoster =
+    currentVisualSnapshot === JSON.stringify(BETTER_POSTER_VISUAL_DEFAULTS)
+  const isRpdb = currentVisualSnapshot === JSON.stringify(RPDB_VISUAL_DEFAULTS)
+
+  const applyBetterPoster = () => {
+    ed.applyVisualPreset(BETTER_POSTER_VISUAL_DEFAULTS)
+  }
+
+  const applyRpdb = () => {
+    ed.applyVisualPreset(RPDB_VISUAL_DEFAULTS)
+  }
+
   return (
     <div
       role="tabpanel"
@@ -181,7 +206,7 @@ export function BadgeDefaultsSection({ active }: { active: boolean }) {
           {t("ui.configPresetDesc")}
         </p>
 
-        <div className="grid grid-cols-3 gap-2 pt-0.5">
+        <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-5 gap-2 pt-0.5">
           <button
             type="button"
             onClick={applyEssential}
@@ -228,6 +253,38 @@ export function BadgeDefaultsSection({ active }: { active: boolean }) {
               {isFull && <Check className="w-3.5 h-3.5 text-accent-orange shrink-0" />}
             </div>
             <span className="text-[10px] text-zinc-400 mt-1 leading-snug">{t("ui.configPresetFullDesc")}</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={applyBetterPoster}
+            className={`flex flex-col text-left p-2.5 rounded-xl border transition-all cursor-pointer ${
+              isBetterPoster
+                ? "bg-accent-orange/15 border-accent-orange/60 text-foreground shadow-sm ring-1 ring-accent-orange/30"
+                : "bg-surface2/40 hover:bg-surface2/70 border-surface2 text-zinc-300 hover:text-foreground"
+            }`}
+          >
+            <div className="flex items-center justify-between w-full">
+              <span className="font-semibold text-xs text-foreground">{BETTER_POSTER_PRESET_LABEL}</span>
+              {isBetterPoster && <Check className="w-3.5 h-3.5 text-accent-orange shrink-0" />}
+            </div>
+            <span className="text-[10px] text-zinc-400 mt-1 leading-snug">{t("ui.configPresetBetterPosterDesc")}</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={applyRpdb}
+            className={`flex flex-col text-left p-2.5 rounded-xl border transition-all cursor-pointer ${
+              isRpdb
+                ? "bg-accent-orange/15 border-accent-orange/60 text-foreground shadow-sm ring-1 ring-accent-orange/30"
+                : "bg-surface2/40 hover:bg-surface2/70 border-surface2 text-zinc-300 hover:text-foreground"
+            }`}
+          >
+            <div className="flex items-center justify-between w-full">
+              <span className="font-semibold text-xs text-foreground">{RPDB_PRESET_LABEL}</span>
+              {isRpdb && <Check className="w-3.5 h-3.5 text-accent-orange shrink-0" />}
+            </div>
+            <span className="text-[10px] text-zinc-400 mt-1 leading-snug">{t("ui.configPresetRpdbDesc")}</span>
           </button>
         </div>
       </div>
