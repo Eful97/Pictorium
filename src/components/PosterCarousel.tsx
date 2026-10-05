@@ -8,7 +8,6 @@ import { useT } from "@/lib/contexts/TranslationContext"
 import { toSearchResult } from "@/lib/types"
 import { titleOf } from "@/lib/utils"
 import { useSecurePosterUrl } from "@/lib/useSecurePosterUrl"
-import { PosterDepthEdge, PosterDepthSheen } from "@/components/PosterDepthGlow"
 
 /** Numero di card del carosello: 20 poster demo scelti a caso tra esempi statici e top. */
 const CAROUSEL_SIZE = 20
@@ -327,19 +326,16 @@ export function PosterCarousel() {
                     onClick={() => navigateToPoster(toSearchResult({ id: ex.id, media_type: ex.type, title: ex.title, name: ex.title }))}
                     className="carousel-card group cursor-pointer h-full flex flex-col bg-white/[0.03] border border-white/[0.06]"
                   >
-                    <PosterDepthEdge edgeStrength={40} edgeCoverage={10} />
                     <div className="relative z-[1] flex flex-col flex-1">
-                    <div className="aspect-[2/3] shrink-0 relative overflow-hidden bg-surface2">
-                      <div className="absolute inset-0 bg-gradient-to-t from-zinc-950/85 via-zinc-950/20 to-transparent z-10" />
-                      {/* M21: la chiave viaggia nell'header x-api-key, mai nel DOM */}
-                    <SecureCarouselImg url={posterUrl} alt={ex.title} className="w-full h-full object-cover transition-transform duration-500 ease-out group-hover:scale-[1.05]" />
-                    </div>
+                      <div className="aspect-[2/3] shrink-0 relative overflow-hidden bg-surface2">
+                        {/* M21: la chiave viaggia nell'header x-api-key, mai nel DOM */}
+                        <SecureCarouselImg url={posterUrl} alt={ex.title} className="w-full h-full object-cover transition-transform duration-500 ease-out group-hover:scale-[1.05]" />
+                      </div>
                     <div className="p-2 sm:p-3 relative z-10 flex-1">
-                      <h3 className="text-[11px] sm:text-xs font-semibold text-zinc-100 group-hover:text-white transition-colors duration-200 line-clamp-1">{ex.title}</h3>
-                      <p className="text-[9px] sm:text-[10px] text-muted group-hover:text-zinc-200 mt-0.5 sm:mt-1 leading-tight sm:leading-relaxed transition-colors duration-200 line-clamp-2">{ex.desc}</p>
+                      <h3 className="text-[11px] sm:text-xs font-semibold text-foreground transition-colors duration-200 line-clamp-1">{ex.title}</h3>
+                      <p className="text-[9px] sm:text-[10px] text-muted mt-0.5 sm:mt-1 leading-tight sm:leading-relaxed transition-colors duration-200 line-clamp-2">{ex.desc}</p>
                     </div>
                     </div>
-                    <PosterDepthSheen sheenStrength={20} />
                     <span className="car-arrow hidden sm:flex" aria-hidden="true">
                       <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
                         <polyline points="9 18 15 12 9 6" />
