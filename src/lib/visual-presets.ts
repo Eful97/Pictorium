@@ -14,6 +14,8 @@ const landscapeSchema = z.object({
   genreBadgeScale: scale.optional(), genreBadgeOffsetX: offset.optional(), genreBadgeOffsetY: offset.optional(),
   qualityBadgeScale: scale.optional(), qualityBadgeOffsetX: offset.optional(), qualityBadgeOffsetY: offset.optional(),
   separateBadgeScale: scale.optional(),
+  separateBadgeOffsetX: offset.optional(),
+  separateBadgeOffsetY: offset.optional(),
   // Stile separati per formato: opzionale (assente = segui il flat condiviso).
   separateRatingsStyle: z.enum(SEPARATE_RATINGS_STYLES).optional(),
   networkLogoScale: scale.optional(), networkLogoOffsetX: offset.optional(), networkLogoOffsetY: offset.optional(),
@@ -40,6 +42,10 @@ export const visualPresetValuesSchema = z.object({
   // Scala separati aggiunta dopo: default(130) per i preset salvati senza campo
   // (legacy); un 100 salvato esplicito si preserva (niente migrazione).
   defaultSeparateBadgeScale: scale.default(130),
+  // Offset separati: default 0 per i preset salvati senza campo
+  // (byte-identici ai legacy).
+  defaultSeparateBadgeOffsetX: offset.default(0),
+  defaultSeparateBadgeOffsetY: offset.default(0),
   // Stile separati aggiunto dopo: default("column") per non invalidare i preset salvati.
   defaultSeparateRatingsStyle: z.enum(SEPARATE_RATINGS_STYLES).default("column"),
   defaultNetworkLogoScale: scale, defaultNetworkLogoOffsetX: offset, defaultNetworkLogoOffsetY: offset,

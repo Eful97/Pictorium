@@ -96,7 +96,7 @@ describe("personal visual presets", () => {
     hook.unmount()
   })
 
-  it("round-trips separateBadgeScale via capture/apply; legacy presets default to 100", () => {
+  it("round-trips separateBadgeScale via capture/apply; legacy presets default to 130", () => {
     const hook = renderHook(usePosterEditor, { wrapper: ({ children }: { children: ReactNode }) => createElement(PosterEditorProvider, null, children) })
     act(() => {
       hook.result.current.setDefaultSeparateBadgeScale(150)
@@ -113,14 +113,14 @@ describe("personal visual presets", () => {
     expect(hook.result.current.defaultSeparateBadgeScale).toBe(150)
     expect(hook.result.current.landscape.separateBadgeScale).toBe(130)
     hook.unmount()
-    // Preset salvati prima del campo: parsing tollerante → 100 (resa storica).
+    // Preset salvati prima del campo: parsing tollerante → 130 (nuovo default unico).
     const legacy = {
       ...preset,
       defaultSeparateBadgeScale: undefined,
       landscape: { ...preset.landscape, separateBadgeScale: undefined },
     }
     const parsed = visualPresetValuesSchema.parse(legacy)
-    expect(parsed.defaultSeparateBadgeScale).toBe(100)
+    expect(parsed.defaultSeparateBadgeScale).toBe(130)
     expect(parsed.landscape.separateBadgeScale).toBeUndefined()
   })
 

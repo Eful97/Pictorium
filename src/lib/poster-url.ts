@@ -11,7 +11,7 @@ import { normalizeGenreName } from "./genre-normalize"
 import type { SearchResult, TMDBImage } from "./types"
 import type { EnrichedAnimeItem } from "./validation"
 import type { BadgeStyle, RankingBadgeStyle, QualityBadgeStyle, BadgeFont, SeparateRatingsStyle } from "./badge-styles"
-import { getSeparateBadgeDefaultScale } from "./badge-styles"
+import { getSeparateBadgeDefaultScale, getSeparateRatingsStyleForShape } from "./badge-styles"
 import type { VideoFormat } from "./av-specs"
 import type { PosterShape, NetworkLogoPosition } from "./types"
 import { BADGE_PRESET_ID_RE, BADGE_PRESET_REV_RE } from "./badge-preset"
@@ -71,6 +71,10 @@ interface BadgeParams {
   qualityBadgeScale: number
   /** Scala % dei rating separati (default unico 130 per tutti gli stili). */
   separateBadgeScale?: number | null
+  /** Offset px del gruppo rating separati, colonna/pills (bar portrait: solo Y). Default 0. */
+  separateBadgeOffsetX?: number | null
+  /** Offset px del gruppo rating separati (negativo = su, positivo = giù). Default 0. */
+  separateBadgeOffsetY?: number | null
   /** Offset px del badge qualità. */
   qualityBadgeOffsetX: number
   qualityBadgeOffsetY: number
@@ -204,6 +208,9 @@ export function buildUrlPattern(bp: BadgeParams & {
     ratingSources: bp.ratingSources,
     separateRatings: bp.separateRatings,
     separateRatingsStyle: bp.separateRatingsStyle ?? undefined,
+    // Template Nuvio a formato dinamico: lo stile resta raw, normalizza il
+    // server per formato effettivo (il portrait resta barra).
+    shapeUnknown: bp.shapePlaceholder === "{shape}",
     badgeStyle: bp.badgeStyle,
     rankingBadgeStyle: bp.rankingBadgeStyle,
     badgeFont: bp.badgeFont ?? undefined,
@@ -228,6 +235,8 @@ export function buildUrlPattern(bp: BadgeParams & {
     genreBadgeScale: bp.genreBadgeScale,
     qualityBadgeScale: bp.qualityBadgeScale,
     separateBadgeScale: bp.separateBadgeScale ?? undefined,
+    separateBadgeOffsetX: bp.separateBadgeOffsetX ?? undefined,
+    separateBadgeOffsetY: bp.separateBadgeOffsetY ?? undefined,
     genreBadgeOffsetX: bp.genreBadgeOffsetX,
     genreBadgeOffsetY: bp.genreBadgeOffsetY,
     qualityBadgeOffsetX: bp.qualityBadgeOffsetX,
@@ -276,7 +285,9 @@ export function buildPreviewUrl(ps: PosterState, bp: BadgeParams, configToken?: 
   // customRatings=false scavalcerebbe il toggle editor (desync WYSIWYG).
   params.push(`cr=${bp.customRatings === false ? "0" : "1"}`)
   params.push(`sep=${bp.separateRatings ? "1" : "0"}`)
-  params.push(`sepstyle=${bp.separateRatingsStyle ?? "column"}`)
+  // Preview WYSIWYG: stile normalizzato per formato (bar landscape → pills,
+  // come il server — raw salvati intatti, mai mutati qui).
+  params.push(`sepstyle=${getSeparateRatingsStyleForShape(bp.separateRatingsStyle ?? "column", bp.posterShape === "landscape" ? "landscape" : "poster")}`)
   if (bp.ratingSources && bp.ratingSources.length > 0) params.push(`rsrc=${encodeURIComponent(bp.ratingSources.join(","))}`)
   if (ps.previewPoster) {
     params.push(`poster=${encodeURIComponent(ps.previewPoster.file_path)}`)
@@ -358,6 +369,8 @@ export function buildPreviewUrl(ps: PosterState, bp: BadgeParams, configToken?: 
   params.push(`goy=${bp.genreBadgeOffsetY}`)
   params.push(`qscale=${bp.qualityBadgeScale}`)
   params.push(`sepscale=${bp.separateBadgeScale ?? getSeparateBadgeDefaultScale(bp.separateRatingsStyle)}`)
+  params.push(`sepox=${bp.separateBadgeOffsetX ?? 0}`)
+  params.push(`sepoy=${bp.separateBadgeOffsetY ?? 0}`)
   params.push(`qox=${bp.qualityBadgeOffsetX}`)
   params.push(`qoy=${bp.qualityBadgeOffsetY}`)
   params.push(`netscale=${bp.networkLogoScale}`)
@@ -499,6 +512,10 @@ export interface DefaultsPreviewParams {
   defaultGenreBadgeOffsetY?: number
   defaultQualityBadgeScale?: number
   defaultSeparateBadgeScale?: number | null
+  /** Offset px del gruppo rating separati (default 0). */
+  defaultSeparateBadgeOffsetX?: number | null
+  /** Offset px del gruppo rating separati (default 0). */
+  defaultSeparateBadgeOffsetY?: number | null
   defaultQualityBadgeOffsetX?: number
   defaultQualityBadgeOffsetY?: number
   defaultNetworkLogoScale?: number
@@ -535,7 +552,8 @@ export function buildDefaultsPreviewUrl(bp: DefaultsPreviewParams): string {
   params.push(`bq=${bp.defaultBadgeQuality !== false ? "1" : "0"}`)
   params.push(`cr=${bp.defaultCustomRatings === false ? "0" : "1"}`)
   params.push(`sep=${bp.defaultSeparateRatings ? "1" : "0"}`)
-  params.push(`sepstyle=${bp.defaultSeparateRatingsStyle ?? "column"}`)
+  // Stile normalizzato per formato default (bar Orizzontale → pills).
+  params.push(`sepstyle=${getSeparateRatingsStyleForShape(bp.defaultSeparateRatingsStyle ?? "column", bp.defaultPosterShape === "landscape" ? "landscape" : "poster")}`)
   if (bp.defaultRatingSources && bp.defaultRatingSources.length > 0) {
     params.push(`rsrc=${encodeURIComponent(bp.defaultRatingSources.join(","))}`)
   }
@@ -561,6 +579,8 @@ export function buildDefaultsPreviewUrl(bp: DefaultsPreviewParams): string {
   params.push(`goy=${bp.defaultGenreBadgeOffsetY ?? 0}`)
   params.push(`qscale=${bp.defaultQualityBadgeScale ?? 100}`)
   params.push(`sepscale=${bp.defaultSeparateBadgeScale ?? getSeparateBadgeDefaultScale(bp.defaultSeparateRatingsStyle)}`)
+  params.push(`sepox=${bp.defaultSeparateBadgeOffsetX ?? 0}`)
+  params.push(`sepoy=${bp.defaultSeparateBadgeOffsetY ?? 0}`)
   params.push(`qox=${bp.defaultQualityBadgeOffsetX ?? 0}`)
   params.push(`qoy=${bp.defaultQualityBadgeOffsetY ?? 0}`)
   params.push(`netscale=${bp.defaultNetworkLogoScale ?? 100}`)

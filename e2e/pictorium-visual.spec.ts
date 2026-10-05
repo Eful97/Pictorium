@@ -643,17 +643,19 @@ test.describe("poster API — visual regression", () => {
 
   test("separate ratings column (3 providers) — screenshot", async ({ page }) => {
     // Colonna a destra con logo sopra / punteggio sotto (IMDb 8.7, TMDB 7.9,
-    // 88%), badge genere senza segmento ★.
+    // 88%), badge genere senza segmento ★. Soglia 0.02 (non 0.10): il mock è
+    // deterministico e un flip di scala/polarità muove il 7-12% dei pixel —
+    // con 0.10 passerebbe inosservato (mai allentare).
     const url = posterUrl({ genreName: "Action", voteAverage: "7.8", badges: "1", ranking: "0", imdbId: "tt0133093", sep: "1", rsrc: "imdb,tmdb,tomatoes", quality: "4K" })
     const poster = await renderPoster(page, url)
-    await expect(poster).toHaveScreenshot("poster-separate-ratings.png", { maxDiffPixelRatio: 0.10 })
+    await expect(poster).toHaveScreenshot("poster-separate-ratings.png", { maxDiffPixelRatio: 0.02 })
   })
 
   test("separate ratings without quality badge (stack rises) — screenshot", async ({ page }) => {
     // Senza badge qualità lo stack parte dall'alto invece che sotto il 4K.
     const url = posterUrl({ genreName: "Action", voteAverage: "7.8", badges: "1", ranking: "0", bq: "0", imdbId: "tt0133093", sep: "1", rsrc: "imdb,tmdb" })
     const poster = await renderPoster(page, url)
-    await expect(poster).toHaveScreenshot("poster-separate-ratings-noquality.png", { maxDiffPixelRatio: 0.10 })
+    await expect(poster).toHaveScreenshot("poster-separate-ratings-noquality.png", { maxDiffPixelRatio: 0.02 })
   })
 
   test("separate ratings column in landscape (average replaced) — screenshot", async ({ page }) => {
@@ -661,7 +663,7 @@ test.describe("poster API — visual regression", () => {
     // nasconde il segmento ★ come in portrait).
     const url = posterUrl({ backdrop: "/mocked/backdrop.jpg", shape: "landscape", genreName: "Action", voteAverage: "7.8", badges: "1", ranking: "0", imdbId: "tt0133093", sep: "1", rsrc: "imdb,tmdb,tomatoes" })
     const poster = await renderPoster(page, url)
-    await expect(poster).toHaveScreenshot("poster-separate-ratings-landscape.png", { maxDiffPixelRatio: 0.10 })
+    await expect(poster).toHaveScreenshot("poster-separate-ratings-landscape.png", { maxDiffPixelRatio: 0.02 })
   })
 
   test("separate ratings scale 150 portrait, quality on — screenshot", async ({ page }) => {
@@ -701,31 +703,39 @@ test.describe("poster API — visual regression", () => {
   })
 
   test("separate ratings bottom-bar portrait (3 providers, genre/year on) — screenshot", async ({ page }) => {
-    // Fascia scura full-width in basso con 3 celle equidistanti (IMDb 8.7,
-    // TMDB 7.9, 88%), genere+anno soppressi pur con bg/by=1.
+    // Fascia adattiva full-width in basso con 3 celle equidistanti (IMDb 8.7,
+    // TMDB 7.9, 88%), genere+anno soppressi pur con bg/by=1 — materiale
+    // chiaro/scuro secondo bottomLight (sul mock scuro: fascia chiara).
     const url = posterUrl({ genreName: "Action", voteAverage: "7.8", year: "2024", badges: "1", ranking: "0", bg: "1", by: "1", imdbId: "tt0133093", sep: "1", sepstyle: "bottom-bar", rsrc: "imdb,tmdb,tomatoes", quality: "4K" })
     const poster = await renderPoster(page, url)
-    await expect(poster).toHaveScreenshot("poster-separate-bottom-bar.png", { maxDiffPixelRatio: 0.10 })
+    await expect(poster).toHaveScreenshot("poster-separate-bottom-bar.png", { maxDiffPixelRatio: 0.02 })
   })
 
   test("separate ratings bottom-pills portrait (3 providers, no quality) — screenshot", async ({ page }) => {
-    // Riga centrata di 3 pill scure (logo + valore inline), margine dal bordo.
+    // Riga centrata di 3 pill adattive (logo + valore inline), margine dal bordo.
     const url = posterUrl({ genreName: "Action", voteAverage: "7.8", year: "2024", badges: "1", ranking: "0", bg: "1", by: "1", bq: "0", imdbId: "tt0133093", sep: "1", sepstyle: "bottom-pills", rsrc: "imdb,tmdb,tomatoes" })
     const poster = await renderPoster(page, url)
-    await expect(poster).toHaveScreenshot("poster-separate-bottom-pills.png", { maxDiffPixelRatio: 0.10 })
+    await expect(poster).toHaveScreenshot("poster-separate-bottom-pills.png", { maxDiffPixelRatio: 0.02 })
   })
 
-  test("separate ratings bottom-bar landscape (lower-third centrato) — screenshot", async ({ page }) => {
-    // In 16:9 la barra è centrata come lower-third invece che full-width.
-    const url = posterUrl({ backdrop: "/mocked/backdrop.jpg", shape: "landscape", genreName: "Action", voteAverage: "7.8", badges: "1", ranking: "0", bg: "1", by: "1", imdbId: "tt0133093", sep: "1", sepstyle: "bottom-bar", rsrc: "imdb,tmdb,tomatoes" })
-    const poster = await renderPoster(page, url)
-    await expect(poster).toHaveScreenshot("poster-separate-bottom-bar-landscape.png", { maxDiffPixelRatio: 0.10 })
+  test("separate ratings bottom-bar landscape normalizes to pills (byte-identical)", async ({ request }) => {
+    // Barra disattivata in 16:9: lo stesso URL con sepstyle=bottom-bar rende
+    // byte-identico a bottom-pills (normalizzazione DOPO cascata, stessa
+    // chiave bottom normalizzata) — niente screenshot duplicato della barra.
+    const base = { backdrop: "/mocked/backdrop.jpg", shape: "landscape", genreName: "Action", voteAverage: "7.8", badges: "1", ranking: "0", bg: "1", by: "1", imdbId: "tt0133093", sep: "1", rsrc: "imdb,tmdb,tomatoes" }
+    const barRes = await request.get(posterUrl({ ...base, sepstyle: "bottom-bar" }))
+    const pillsRes = await request.get(posterUrl({ ...base, sepstyle: "bottom-pills" }))
+    expect(barRes.ok()).toBeTruthy()
+    expect(pillsRes.ok()).toBeTruthy()
+    expect(Buffer.from(await barRes.body()).equals(Buffer.from(await pillsRes.body()))).toBe(true)
   })
 
-  test("separate ratings bottom-pills landscape — screenshot", async ({ page }) => {
+  test("separate ratings bottom-pills landscape (right-anchored) — screenshot", async ({ page }) => {
+    // In 16:9 le pills sono ancorate a DESTRA con la geometria base del badge
+    // genere (non centrate sul canvas).
     const url = posterUrl({ backdrop: "/mocked/backdrop.jpg", shape: "landscape", genreName: "Action", voteAverage: "7.8", badges: "1", ranking: "0", bg: "1", by: "1", bq: "0", imdbId: "tt0133093", sep: "1", sepstyle: "bottom-pills", rsrc: "imdb,tmdb,tomatoes" })
     const poster = await renderPoster(page, url)
-    await expect(poster).toHaveScreenshot("poster-separate-bottom-pills-landscape.png", { maxDiffPixelRatio: 0.10 })
+    await expect(poster).toHaveScreenshot("poster-separate-bottom-pills-landscape.png", { maxDiffPixelRatio: 0.02 })
   })
 
   test("separate ratings bottom-bar scale 200 portrait (fit, no clipping) — screenshot", async ({ page }) => {
@@ -733,34 +743,121 @@ test.describe("poster API — visual regression", () => {
     // full-width a filo, mai tagliata.
     const url = posterUrl({ genreName: "Action", voteAverage: "7.8", badges: "1", ranking: "0", bg: "1", by: "1", imdbId: "tt0133093", sep: "1", sepstyle: "bottom-bar", rsrc: "imdb,tmdb,tomatoes", quality: "4K", sepscale: "200" })
     const poster = await renderPoster(page, url)
-    await expect(poster).toHaveScreenshot("poster-separate-bottom-bar-scale200.png", { maxDiffPixelRatio: 0.10 })
+    await expect(poster).toHaveScreenshot("poster-separate-bottom-bar-scale200.png", { maxDiffPixelRatio: 0.02 })
   })
 
-  test("separate ratings bottom-bar portrait — band flush at bottom edge", async ({ request }) => {
-    // Prova pixel-reale: fascia SCURA a tutta larghezza sul bordo inferiore —
-    // le ultime righe portano testo/loghi chiari (pochi % luminosi) su fondo
-    // scuro, mai fascia bianca né bordo vuoto.
+  test("separate ratings column offsets (-X, +Y move the group) — screenshot", async ({ page }) => {
+    // Offset espliciti sul gruppo colonna (default 0 = baseline invariata):
+    // la colonna si sposta in blocco a sinistra e in basso, ancore invariate.
+    const url = posterUrl({ genreName: "Action", voteAverage: "7.8", badges: "1", ranking: "0", bq: "0", imdbId: "tt0133093", sep: "1", rsrc: "imdb,tmdb", sepox: "-60", sepoy: "60" })
+    const poster = await renderPoster(page, url)
+    await expect(poster).toHaveScreenshot("poster-separate-offsets-column.png", { maxDiffPixelRatio: 0.02 })
+  })
+
+  test("separate ratings bottom-pills offsets portrait (+X, -Y move the group) — screenshot", async ({ page }) => {
+    // Riga pills spostata in blocco a destra e in alto (stessi 3 provider del
+    // baseline pills, dentro il canvas per il clamp).
+    const url = posterUrl({ genreName: "Action", voteAverage: "7.8", year: "2024", badges: "1", ranking: "0", bg: "1", by: "1", bq: "0", imdbId: "tt0133093", sep: "1", sepstyle: "bottom-pills", rsrc: "imdb,tmdb,tomatoes", sepox: "60", sepoy: "-60" })
+    const poster = await renderPoster(page, url)
+    await expect(poster).toHaveScreenshot("poster-separate-offsets-pills.png", { maxDiffPixelRatio: 0.02 })
+  })
+
+  test("separate ratings bottom-pills offsets landscape (-X, -Y move the group) — screenshot", async ({ page }) => {
+    // In 16:9 la riga resta ancorata a destra: gli offset la muovono in blocco
+    // senza mai uscire dal canvas (clamp).
+    const url = posterUrl({ backdrop: "/mocked/backdrop.jpg", shape: "landscape", genreName: "Action", voteAverage: "7.8", badges: "1", ranking: "0", bg: "1", by: "1", bq: "0", imdbId: "tt0133093", sep: "1", sepstyle: "bottom-pills", rsrc: "imdb,tmdb,tomatoes", sepox: "-60", sepoy: "-40" })
+    const poster = await renderPoster(page, url)
+    await expect(poster).toHaveScreenshot("poster-separate-offsets-pills-landscape.png", { maxDiffPixelRatio: 0.02 })
+  })
+
+  test("separate ratings bottom-bar portrait — X ignored (byte-identical), Y moves the band up — screenshot", async ({ page, request }) => {
+    // X sulla barra full-width è ignorata esplicitamente (stessi byte senza
+    // offset); Y solleva la fascia dal filo bordo.
+    const base = { genreName: "Action", voteAverage: "7.8", year: "2024", badges: "1", ranking: "0", bg: "1", by: "1", imdbId: "tt0133093", sep: "1", sepstyle: "bottom-bar", rsrc: "imdb,tmdb,tomatoes", quality: "4K" }
+    const refRes = await request.get(posterUrl(base))
+    const xRes = await request.get(posterUrl({ ...base, sepox: "60" }))
+    expect(refRes.ok()).toBeTruthy()
+    expect(xRes.ok()).toBeTruthy()
+    expect(Buffer.from(await xRes.body()).equals(Buffer.from(await refRes.body()))).toBe(true)
+    const poster = await renderPoster(page, posterUrl({ ...base, sepoy: "-40" }))
+    await expect(poster).toHaveScreenshot("poster-separate-offsets-bar.png", { maxDiffPixelRatio: 0.02 })
+  })
+
+  test("separate ratings bottom-bar portrait — band flush at bottom edge (adaptive both polarities)", async ({ request }) => {
+    // Prova pixel-reale, polarità forzata via `bl` (nessuna assunzione sul
+    // fondo mock). La fascia è a filo in basso per costruzione: le ultime
+    // righe sono materiale puro della barra (il testo è centrato
+    // verticalmente, non sul bordo) — scure con bl=1, chiare con bl=0.
+    // Il contenuto si misura quindi nel corpo barra (rilevato in modo
+    // adattivo come regione dove i due render differiscono), mai allentando
+    // le soglie per far passare.
     const { default: sharp } = await import("sharp")
-    const url = posterUrl({ genreName: "Action", voteAverage: "7.8", badges: "1", ranking: "0", bg: "1", by: "1", imdbId: "tt0133093", sep: "1", sepstyle: "bottom-bar", rsrc: "imdb,tmdb,tomatoes" })
-    const res = await request.get(url)
-    expect(res.ok()).toBeTruthy()
-    const { data, info } = await sharp(await res.body()).ensureAlpha().raw().toBuffer({ resolveWithObject: true })
-    expect(info.width).toBe(500)
-    expect(info.height).toBe(750)
-    const y0 = info.height - 12
-    let bright = 0
-    const total = (info.width - 20) * (info.height - y0)
-    for (let y = y0; y < info.height; y++) {
-      for (let x = 10; x < info.width - 10; x++) {
-        const i = (y * info.width + x) * 4
-        if ((data[i] + data[i + 1] + data[i + 2]) / 3 >= 100) bright++
+    async function render(bl: "0" | "1") {
+      const url = posterUrl({ genreName: "Action", voteAverage: "7.8", badges: "1", ranking: "0", bg: "1", by: "1", imdbId: "tt0133093", sep: "1", sepstyle: "bottom-bar", rsrc: "imdb,tmdb,tomatoes", bl })
+      const res = await request.get(url)
+      expect(res.ok()).toBeTruthy()
+      const body = await res.body()
+      const { data, info } = await sharp(body).ensureAlpha().raw().toBuffer({ resolveWithObject: true })
+      expect(info.width).toBe(500)
+      expect(info.height).toBe(750)
+      return { body, data, info }
+    }
+    function brightFrac(data: Buffer, width: number, y0: number, y1: number) {
+      let bright = 0
+      const total = (width - 20) * (y1 - y0)
+      for (let y = y0; y < y1; y++) {
+        for (let x = 10; x < width - 10; x++) {
+          const i = (y * width + x) * 4
+          if ((data[i] + data[i + 1] + data[i + 2]) / 3 >= 100) bright++
+        }
+      }
+      return bright / total
+    }
+    const dark = await render("1")
+    const light = await render("0")
+    // La polarità guida davvero la fascia (render distinti, niente collasso).
+    expect(light.body.equals(dark.body)).toBe(false)
+    // Flush: ultime 12 righe = materiale barra (scuro vs chiaro per polarità).
+    const darkEdge = brightFrac(dark.data, dark.info.width, dark.info.height - 12, dark.info.height)
+    const lightEdge = brightFrac(light.data, light.info.width, light.info.height - 12, light.info.height)
+    console.log(`bottom-bar edge bright fraction bl=1: ${darkEdge}, bl=0: ${lightEdge}`)
+    expect(darkEdge).toBeLessThan(0.4)
+    expect(lightEdge).toBeGreaterThan(0.6)
+    // Corpo barra: prima riga (dall'alto) dove i due render differiscono —
+    // sopra è poster identico, dentro è la barra. Deve arrivare a filo bordo.
+    const H = dark.info.height
+    const W = dark.info.width
+    let barTop = -1
+    let lastDiff = -1
+    for (let y = 0; y < H; y++) {
+      let diff = 0
+      for (let x = 10; x < W - 10; x += 2) {
+        const i = (y * W + x) * 4
+        if (Math.abs(dark.data[i] - light.data[i]) > 12 || Math.abs(dark.data[i + 1] - light.data[i + 1]) > 12 || Math.abs(dark.data[i + 2] - light.data[i + 2]) > 12) diff++
+      }
+      if (diff / ((W - 20) / 2) > 0.02) {
+        if (barTop < 0) barTop = y
+        lastDiff = y
       }
     }
-    const frac = bright / total
-    console.log(`bottom-bar bottom strip bright fraction: ${frac}`)
-    // Contenuto chiaro presente a filo bordo (flush) ma fascia scura.
-    expect(frac).toBeGreaterThan(0.03)
-    expect(frac).toBeLessThan(0.4)
+    expect(barTop).toBeGreaterThan(H / 2)
+    expect(lastDiff).toBe(H - 1)
+    // Contenuto nel corpo: testo/loghi chiari su fondo scuro (bl=1) e testo
+    // scuro su fondo chiaro (bl=0) — presente ma non dominante.
+    const darkBody = brightFrac(dark.data, W, barTop, H)
+    let darkPixels = 0
+    const bodyTotal = (W - 20) * (H - barTop)
+    for (let y = barTop; y < H; y++) {
+      for (let x = 10; x < W - 10; x++) {
+        const i = (y * W + x) * 4
+        if ((light.data[i] + light.data[i + 1] + light.data[i + 2]) / 3 < 100) darkPixels++
+      }
+    }
+    console.log(`bottom-bar body bright frac bl=1: ${darkBody}, dark frac bl=0: ${darkPixels / bodyTotal}`)
+    expect(darkBody).toBeGreaterThan(0.03)
+    expect(darkBody).toBeLessThan(0.5)
+    expect(darkPixels / bodyTotal).toBeGreaterThan(0.02)
+    expect(darkPixels / bodyTotal).toBeLessThan(0.5)
   })
 
   test("separate ratings scale 200 — last pill fully visible (no clipping)", async ({ request }) => {

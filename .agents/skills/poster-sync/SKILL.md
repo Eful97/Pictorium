@@ -81,5 +81,7 @@ server anymore. Do not reintroduce them.
 - Never edit `src/lib/render-version.ts` by hand.
 - Never duplicate a shared geometry formula in client and server.
 - Never change one side of a param pair without the other.
-- After ANY render-affecting change, run the visual suite (step 5). This is a
-  hard gate, not optional.
+- After ANY render-affecting change, the final visual pass (step 5) is required.
+  This is a hard gate at the final commit, not optional. For during-work vs
+  fresh-clean scheduling, follow `AGENTS.md Verification Strategy` and
+  `.agents/visual-testing.md` (cached in iteration, no clean per edit).

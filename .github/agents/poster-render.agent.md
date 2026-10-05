@@ -37,11 +37,10 @@ the server-rendered Stremio poster MUST stay visually identical (WYSIWYG).
 1. Read the relevant rendering files and identify the exact parameter definition.
 2. Make the minimal change on the server side, then mirror it on the client side
    (or vice versa, whichever is the source).
-3. Run the narrowest relevant test first (unit), then the visual regression suite:
-   `npx playwright test e2e/pictorium-visual.spec.ts`.
+3. During work, run the narrowest relevant test first (unit), then cached visual only when needed in iteration (`npm run e2e:visual`); the fresh visual pass belongs to the final gate (see `AGENTS.md Verification Strategy`).
 4. If snapshots changed, inspect the diff; update only if the change is intentional.
 5. If RENDER_VERSION must change, run `node scripts/write-render-version.mjs`.
-6. Finish with `npm run verify`.
+6. Finish with a single `npm run verify` before the final code-changing commit (no repeat pre-push on identical verified state; CI never replaces local gates).
 
 ## Output Format
 

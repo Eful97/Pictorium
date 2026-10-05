@@ -2733,9 +2733,21 @@ button.status-version:hover {
 [data-theme="light"] .settings-panel .hover\:text-accent:hover {
   color: var(--color-foreground);
 }
-[data-theme="light"] .badge-style-preview {
+[data-theme="light"] .badge-style-preview,
+html.light .badge-style-preview {
   background: #252321;
   padding: 3px 4px;
+}
+/* Tile opzioni stile badge in light — hover senza flash bianchi: i tile non
+   selezionati restano taupe. Nel DOM con sola classe `light` (senza
+   attributo data-theme) gli override `[data-theme="light"]` qui sopra non
+   matchano e `hover:bg-white/10` di Tailwind dipinge il tile quasi bianco
+   (misurato: btn oklab(0.99/0.06) contro taupe in attribute-mode), affogando
+   la pill di preview — l'icona Vetro appare "bianca e buggata". I tile
+   selezionati (accento arancio, senza utility hover) sono esclusi: invariati. */
+[data-theme="light"] button:has(> .badge-style-preview):not([class*="bg-accent-orange"]):hover,
+html.light button:has(> .badge-style-preview):not([class*="bg-accent-orange"]):hover {
+  background-color: rgba(112, 104, 95, 0.08);
 }
 [data-theme="light"] .poster-image-action {
   color: #ffffff !important;

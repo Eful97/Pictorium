@@ -49,6 +49,8 @@ export async function saveDefaults(ed: PosterEditorCtx): Promise<boolean> {
     genreBadgeScale: ed.defaultGenreBadgeScale,
     qualityBadgeScale: ed.defaultQualityBadgeScale,
     separateBadgeScale: ed.defaultSeparateBadgeScale,
+    separateBadgeOffsetX: ed.defaultSeparateBadgeOffsetX,
+    separateBadgeOffsetY: ed.defaultSeparateBadgeOffsetY,
     networkLogoScale: ed.defaultNetworkLogoScale,
     genreBadgeOffsetX: ed.defaultGenreBadgeOffsetX,
     genreBadgeOffsetY: ed.defaultGenreBadgeOffsetY,

@@ -11,6 +11,7 @@ export interface RecentChange {
 }
 
 export const RECENT_CHANGES: RecentChange[] = [
+  { type: "fix", text: "Authenticate warmup poster refresh behind API keys", sha: "4291b9a", date: "2026-10-05" },
   { type: "feature", text: "Add Latin American Spanish language", sha: "00d1ed4", date: "2026-10-05" },
   { type: "fix", text: "Keep ranking badges in sync with the charts", sha: "41a654a", date: "2026-10-05" },
   { type: "feature", text: "Customize rating sizes and bottom layouts", sha: "4c78daf", date: "2026-10-05" },

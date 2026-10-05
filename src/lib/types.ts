@@ -143,6 +143,10 @@ export interface Mapping {
   separateRatings?: boolean | null
   /** Scala % della colonna rating separati (default 100 = resa storica). */
   separateBadgeScale?: number | null
+  /** Offset px del gruppo rating separati (colonna/pills; bar portrait: solo Y). Default 0. */
+  separateBadgeOffsetX?: number | null
+  /** Offset px del gruppo rating separati (negativo = su, positivo = giù). Default 0. */
+  separateBadgeOffsetY?: number | null
   /**
    * Layout dei rating separati ("column" = colonna destra storica;
    * "bottom-bar"/"bottom-pills" = modalità bottom con genere+anno soppressi
@@ -232,6 +236,10 @@ export interface LandscapeSettings {
   qualityBadgeOffsetY?: number | null
   /** Scala % della colonna rating separati (default 100 = resa storica). */
   separateBadgeScale?: number | null
+  /** Offset px del gruppo rating separati (colonna/pills; bar portrait: solo Y). Default 0. */
+  separateBadgeOffsetX?: number | null
+  /** Offset px del gruppo rating separati (negativo = su, positivo = giù). Default 0. */
+  separateBadgeOffsetY?: number | null
   /** Layout dei rating separati (default "column" = colonna storica). */
   separateRatingsStyle?: SeparateRatingsStyle | null
   networkLogoScale?: number | null
@@ -270,6 +278,8 @@ export function effectiveMappingForShape(mapping: Mapping | null, shape: PosterS
     qualityBadgeOffsetX: l.qualityBadgeOffsetX ?? mapping.qualityBadgeOffsetX,
     qualityBadgeOffsetY: l.qualityBadgeOffsetY ?? mapping.qualityBadgeOffsetY,
     separateBadgeScale: l.separateBadgeScale ?? mapping.separateBadgeScale,
+    separateBadgeOffsetX: l.separateBadgeOffsetX ?? mapping.separateBadgeOffsetX,
+    separateBadgeOffsetY: l.separateBadgeOffsetY ?? mapping.separateBadgeOffsetY,
     separateRatingsStyle: l.separateRatingsStyle ?? mapping.separateRatingsStyle,
     networkLogoScale: l.networkLogoScale ?? mapping.networkLogoScale,
     networkLogoOffsetX: l.networkLogoOffsetX ?? mapping.networkLogoOffsetX,

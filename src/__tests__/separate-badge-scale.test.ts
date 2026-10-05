@@ -1,11 +1,17 @@
 /**
  * Scala dedicata della colonna rating separati (`sepscale` / `separateBadgeScale`).
  *
- * Contratto MVP:
- * - default 100 = resa storica byte-identica (font, padding, gap, ombre);
+ * Contratto vigente (decisione utente: default unico 130):
+ * - default 130 per tutti gli stili (`column`/`bottom-bar`/`bottom-pills`,
+ *   helper unico `getSeparateBadgeDefaultScale`); omesso == esplicito 130
+ *   byte-identici a renderer;
+ * - esplicito 100 = percorso storico (font base senza arrotondamenti
+ *   intermedi, geometria invariata — senza baseline pre-130 non si dichiara
+ *   byte-identità tra versioni, solo equivalenza col percorso esplicito);
  * - scala NATIVA via font (testi e loghi crescono davvero, non solo resize);
- * - catena query > mapping(.landscape) > config token > defaults(.landscape) > 100;
- * - clamp 10..200, `0`/non-numerico → 100 (stesso pattern `qscale`);
+ * - catena query > mapping(.landscape) > config token > defaults(.landscape) > 130;
+ * - clamp 10..200, `0`/non-numerico → 130 (range come `qscale`, fallback sul
+ *   nuovo default);
  * - max 3 item e ancore invariati (fuori scope di questo file).
  */
 import sharp from "sharp"
@@ -77,14 +83,27 @@ afterEach(() => {
 })
 
 describe("renderSeparateRatingStack scale", () => {
-  it("default omesso e 100 esplicito sono byte-identici (resa storica)", async () => {
+  it("default omesso ed esplicito 130 sono byte-identici (nuovo default)", async () => {
     const a = await renderSeparateRatingStack([...ITEMS], 380, true, "inter")
-    const b = await renderSeparateRatingStack([...ITEMS], 380, true, "inter", 100)
+    const b = await renderSeparateRatingStack([...ITEMS], 380, true, "inter", 130)
     expect(a).not.toBeNull()
     expect(b).not.toBeNull()
     expect(b!.w).toBe(a!.w)
     expect(b!.h).toBe(a!.h)
     expect(b!.png.equals(a!.png)).toBe(true)
+  })
+
+  it("esplicito 100 = percorso storico (geometria base, più piccolo del 130)", async () => {
+    // Senza baseline pre-130 non si dichiara byte-identità tra versioni: si
+    // verifica il percorso storico — font base esatto (fs=14 a pw=380) e
+    // dimensioni strettamente minori del default 130 (scala nativa reale).
+    const at100 = await renderSeparateRatingStack([...ITEMS], 380, true, "inter", 100)
+    const at130 = await renderSeparateRatingStack([...ITEMS], 380, true, "inter", 130)
+    expect(at100).not.toBeNull()
+    expect(at130).not.toBeNull()
+    expect(at100!.w).toBeLessThan(at130!.w)
+    expect(at100!.h).toBeLessThan(at130!.h)
+    expect(at100!.png.equals(at130!.png)).toBe(false)
   })
 
   it("150 ingrandisce stack, font e loghi (scala nativa)", async () => {
@@ -111,8 +130,39 @@ describe("renderSeparateRatingStack scale", () => {
 })
 
 describe("poster-config separateBadgeScale", () => {
-  it("default 100 senza sorgenti", () => {
-    expect(resolvePosterRenderConfig(cfgInput()).separateBadgeScale).toBe(100)
+  it("default 130 senza sorgenti (unico per tutti gli stili)", () => {
+    expect(resolvePosterRenderConfig(cfgInput()).separateBadgeScale).toBe(130)
+  })
+
+  it("default unico 130 per tutti e tre gli stili (helper single source)", async () => {
+    const { getSeparateBadgeDefaultScale, DEFAULT_SEPARATE_BADGE_SCALE } = await import("@/lib/badge-styles")
+    expect(DEFAULT_SEPARATE_BADGE_SCALE).toBe(130)
+    for (const style of ["column", "bottom-bar", "bottom-pills", undefined, null, "garbage"] as const) {
+      expect(getSeparateBadgeDefaultScale(style)).toBe(130)
+    }
+  })
+
+  it("esplicito 100 vince sul 130 da query/mapping/token/defaults", () => {
+    const q100 = resolvePosterRenderConfig(cfgInput({
+      searchParams: new URLSearchParams({ sepscale: "100" }),
+      mapping: mapping({ separateBadgeScale: 150 }),
+    })).separateBadgeScale
+    expect(q100).toBe(100)
+    const m100 = resolvePosterRenderConfig(cfgInput({
+      mapping: mapping({ separateBadgeScale: 100 }),
+      configOverride: tokenCfg({ separateBadgeScale: 150 }),
+      sd: { separateBadgeScale: 140 },
+    })).separateBadgeScale
+    expect(m100).toBe(100)
+    const t100 = resolvePosterRenderConfig(cfgInput({
+      configOverride: tokenCfg({ separateBadgeScale: 100 }),
+      sd: { separateBadgeScale: 140 },
+    })).separateBadgeScale
+    expect(t100).toBe(100)
+    const d100 = resolvePosterRenderConfig(cfgInput({
+      sd: { separateBadgeScale: 100 },
+    })).separateBadgeScale
+    expect(d100).toBe(100)
   })
 
   it("catena query > mapping > config > defaults", () => {
@@ -146,14 +196,14 @@ describe("poster-config separateBadgeScale", () => {
     expect(r.separateBadgeScale).toBe(150)
   })
 
-  it("clamp e fallback come qscale", () => {
+  it("clamp e fallback come qscale (fallback sul nuovo default 130)", () => {
     const q = (v: string) => resolvePosterRenderConfig(cfgInput({
       searchParams: new URLSearchParams({ sepscale: v }),
     })).separateBadgeScale
     expect(q("999999")).toBe(200)
     expect(q("-50")).toBe(10)
-    expect(q("abc")).toBe(100)
-    expect(q("0")).toBe(100)
+    expect(q("abc")).toBe(130)
+    expect(q("0")).toBe(130)
   })
 })
 
@@ -222,14 +272,14 @@ describe("URL preview/default/Stremio", () => {
     networkLogoScale: 100, networkLogoOffsetX: 0, networkLogoOffsetY: 0,
   }
 
-  it("preview sempre esplicita (default 100 quando assente)", () => {
+  it("preview sempre esplicita (default 130 quando assente)", () => {
     expect(buildPreviewUrl(ps as never, { ...bp, separateBadgeScale: 150 } as never)).toContain("sepscale=150")
-    expect(buildPreviewUrl(ps as never, bp as never)).toContain("sepscale=100")
+    expect(buildPreviewUrl(ps as never, bp as never)).toContain("sepscale=130")
   })
 
   it("default-preview con default globale", () => {
     expect(buildDefaultsPreviewUrl({ defaultSeparateBadgeScale: 150 })).toContain("sepscale=150")
-    expect(buildDefaultsPreviewUrl({})).toContain("sepscale=100")
+    expect(buildDefaultsPreviewUrl({})).toContain("sepscale=130")
   })
 
   it("Stremio: mapping con config esplicito, compact omesso ma dv copre", () => {
@@ -429,7 +479,7 @@ describe("cache e firme sepscale", () => {
     const explicit = buildStremioPosterSearchParams({ separateBadgeScale: 150 })
     expect(explicit.get("sepscale")).toBe("150")
     const def = buildStremioPosterSearchParams({})
-    expect(def.get("sepscale")).toBe("100")
+    expect(def.get("sepscale")).toBe("130")
     const c100 = buildStremioPosterSearchParams({ compactTuning: true, separateBadgeScale: 100 })
     const c150 = buildStremioPosterSearchParams({ compactTuning: true, separateBadgeScale: 150 })
     expect(c100.get("sepscale")).toBeNull()

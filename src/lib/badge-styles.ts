@@ -83,6 +83,27 @@ export function isSeparateRatingsStyle(v: string | null | undefined): v is Separ
 export const DEFAULT_SEPARATE_BADGE_SCALE = 130
 export const BOTTOM_BAR_SEPARATE_BADGE_SCALE = 130
 
+/**
+ * Scala UI relativa dei rating separati (SOLO presentazione, mai storage):
+ * la resa standard (raw 130) si mostra come 100, così lo slider parte da una
+ * baseline familiare senza migrare alcun valore salvato. Il raw nativo resta
+ * l'unica verità (storage/API/font server invariati).
+ */
+export const SEPARATE_BADGE_SCALE_UI_MIN = 8
+export const SEPARATE_BADGE_SCALE_UI_MAX = 154
+
+/** Raw nativo → UI relativa (`130 → 100`, `100 → 77`). Solo lettura. */
+export function separateBadgeScaleToUI(raw: number | null | undefined): number {
+  const r = typeof raw === "number" && Number.isFinite(raw) ? Math.round(raw) : DEFAULT_SEPARATE_BADGE_SCALE
+  return Math.round((r * 100) / DEFAULT_SEPARATE_BADGE_SCALE)
+}
+
+/** UI relativa → raw nativo da persistere (clamp 10..200 come il server). Solo su interazione. */
+export function uiToSeparateBadgeScale(ui: number | null | undefined): number {
+  const u = typeof ui === "number" && Number.isFinite(ui) ? Math.round(ui) : 100
+  return Math.min(200, Math.max(10, Math.round((u * DEFAULT_SEPARATE_BADGE_SCALE) / 100)))
+}
+
 export function getSeparateBadgeDefaultScale(
   _style: SeparateRatingsStyle | string | null | undefined,
 ): number {
@@ -112,6 +133,23 @@ export function resolveSeparateBadgeScaleFallback(args: {
 /** True per le modalità bottom (esclude la colonna storica). */
 export function isBottomSeparateRatingsStyle(v: string | null | undefined): v is "bottom-bar" | "bottom-pills" {
   return v === "bottom-bar" || v === "bottom-pills"
+}
+
+/**
+ * Normalizzazione landscape della barra: `bottom-bar` non si rende mai sul
+ * canvas 16:9 (full-width incoerente con l'ancoraggio basso-destra) —
+ * normalizza a `bottom-pills` DOPO la cascata stile risolto (query >
+ * mapping(.landscape) > token > defaults). I raw salvati non mutano mai
+ * (portrait resta `bottom-bar`); garbage/vuoto → `column` resta fail-closed
+ * a monte. Single source riusata da poster-config (server), poster-service
+ * (difesa per chiamanti diretti), preview/Stremio URL e selettori UI.
+ */
+export function getSeparateRatingsStyleForShape(
+  style: SeparateRatingsStyle,
+  shape: "poster" | "landscape",
+): SeparateRatingsStyle {
+  if (shape === "landscape" && style === "bottom-bar") return "bottom-pills"
+  return style
 }
 
 /** Variante bottom per il renderer riga: colonna esclusa per tipo. */

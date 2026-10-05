@@ -21,6 +21,7 @@ import {
   isSeparateRatingsStyle,
   isBottomSeparateRatingsStyle,
   getSeparateBadgeDefaultScale,
+  getSeparateRatingsStyleForShape,
   nonRibbonRankingStyle,
   DEFAULT_BADGE_STYLE,
   DEFAULT_RANKING_BADGE_STYLE,
@@ -106,14 +107,21 @@ export function resolveSeparateRatingsStyle(
 ): SeparateRatingsStyle {
   if (searchParams.has("sepstyle")) {
     const v = (searchParams.get("sepstyle") || "").toLowerCase()
-    return isSeparateRatingsStyle(v) ? v : DEFAULT_SEPARATE_RATINGS_STYLE
+    // Barra disattivata in landscape DOPO la risoluzione (raw salvati intatti).
+    return getSeparateRatingsStyleForShape(
+      isSeparateRatingsStyle(v) ? v : DEFAULT_SEPARATE_RATINGS_STYLE,
+      shape,
+    )
   }
   const m = effectiveMappingForShape(mapping, shape)
   const esd = effectiveDefaultsForShape(sd, shape)
   const raw = m?.separateRatingsStyle
     || configOverride?.separateRatingsStyle
     || esd.separateRatingsStyle
-  return isSeparateRatingsStyle(raw) ? raw : DEFAULT_SEPARATE_RATINGS_STYLE
+  return getSeparateRatingsStyleForShape(
+    isSeparateRatingsStyle(raw) ? raw : DEFAULT_SEPARATE_RATINGS_STYLE,
+    shape,
+  )
 }
 
 export interface BottomSeparateActiveInput {
@@ -242,6 +250,10 @@ export interface PosterRenderConfig {
   separateRatingsStyle: SeparateRatingsStyle
   /** Scala % della colonna rating separati (default 100 = resa storica). */
   separateBadgeScale: number
+  /** Offset px del gruppo rating separati, colonna/pills (bar portrait: solo Y). Default 0. */
+  separateBadgeOffsetX: number
+  /** Offset px del gruppo rating separati (negativo = su, positivo = giù). Default 0. */
+  separateBadgeOffsetY: number
   logoScale: number | null
   logoOffsetX: number | null
   logoOffsetY: number | null
@@ -655,6 +667,18 @@ export function resolvePosterRenderConfig(input: PosterRenderConfigInput): Poste
                 ? clamp(Math.round(esd.separateBadgeScale), 10, 200)
                 : getSeparateBadgeDefaultScale(separateRatingsStyle))))
 
+  // Offset gruppo rating separati — stessa catena (query > mapping effettivo
+  // per formato > config token > defaults effettivi > 0), clamp px come gli
+  // altri offset. Muovono l'intero gruppo (mai i singoli provider).
+  const qSepoxNum = q.get("sepox") ? Number(q.get("sepox")) : NaN
+  const separateBadgeOffsetX = q.get("sepox") !== null
+    ? (Number.isFinite(qSepoxNum) ? clamp(Math.round(qSepoxNum), -2000, 2000) : 0)
+    : (m?.separateBadgeOffsetX ?? configOverride?.separateBadgeOffsetX ?? esd.separateBadgeOffsetX ?? 0)
+  const qSepoyNum = q.get("sepoy") ? Number(q.get("sepoy")) : NaN
+  const separateBadgeOffsetY = q.get("sepoy") !== null
+    ? (Number.isFinite(qSepoyNum) ? clamp(Math.round(qSepoyNum), -2000, 2000) : 0)
+    : (m?.separateBadgeOffsetY ?? configOverride?.separateBadgeOffsetY ?? esd.separateBadgeOffsetY ?? 0)
+
   // Logo network — stessa catena, stessi bound (%, 10..200).
   const qNScaleNum = q.get("netscale") ? Number(q.get("netscale")) : NaN
   const networkLogoScale = q.get("netscale") !== null
@@ -748,6 +772,8 @@ export function resolvePosterRenderConfig(input: PosterRenderConfigInput): Poste
     separateRatings,
     separateRatingsStyle,
     separateBadgeScale,
+    separateBadgeOffsetX,
+    separateBadgeOffsetY,
     logoScale,
     logoOffsetX,
     logoOffsetY,

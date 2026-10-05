@@ -16,7 +16,7 @@ import { getUpcomingReleaseLabel } from "@/lib/release-badge"
 import { isPrefixedKey, badgeKey } from "@/lib/i18n"
 import { getAllBadgeOptions, isMiniseriesType, isReturningStatus } from "@/lib/badge-priority"
 import { isManualAccent } from "@/lib/accent-color"
-import { isBottomSeparateRatingsStyle } from "@/lib/badge-styles"
+import { isBottomSeparateRatingsStyle, getSeparateRatingsStyleForShape } from "@/lib/badge-styles"
 import { UI_RATING_SOURCES } from "@/lib/rating-weights"
 import { RatingSourceIcon } from "@/components/RatingSourceIcon"
 
@@ -102,22 +102,38 @@ export function BadgeControls() {
                       { id: "column", labelKey: "ui.separateRatingsColumn" },
                       { id: "bottom-bar", labelKey: "ui.separateRatingsBottomBar" },
                       { id: "bottom-pills", labelKey: "ui.separateRatingsBottomPills" },
-                    ] as const).map((opt) => (
-                      <button
-                        key={opt.id}
-                        type="button"
-                        onClick={() => ed.setSeparateRatingsStyle(opt.id)}
-                        aria-pressed={ed.separateRatingsStyle === opt.id}
-                        className={`flex-1 py-1 px-1 rounded-lg text-[11px] font-semibold transition-all duration-150 cursor-pointer ${
-                          ed.separateRatingsStyle === opt.id
-                            ? "bg-white/20 text-white shadow-sm"
-                            : "bg-white/5 text-muted hover:bg-white/10 hover:text-zinc-200"
-                        }`}
-                      >
-                        {t(opt.labelKey)}
-                      </button>
-                    ))}
+                    ] as const).map((opt) => {
+                      // Barra disattivata in landscape (il server normalizza a
+                      // pills): bottone visibile ma disabilitato e mai
+                      // selezionato — il raw salvato resta intatto e in
+                      // portrait torna selezionabile. Selezione mostrata sullo
+                      // stile normalizzato (bar salvata = pills attiva).
+                      const barOff = opt.id === "bottom-bar" && ed.posterShape === "landscape"
+                      const pressed = getSeparateRatingsStyleForShape(
+                        ed.separateRatingsStyle, ed.posterShape === "landscape" ? "landscape" : "poster",
+                      ) === opt.id
+                      return (
+                        <button
+                          key={opt.id}
+                          type="button"
+                          onClick={() => { if (!barOff) ed.setSeparateRatingsStyle(opt.id) }}
+                          aria-pressed={pressed}
+                          disabled={barOff}
+                          title={barOff ? t("ui.separateRatingsBarLandscapeHint") : undefined}
+                          className={`flex-1 py-1 px-1 rounded-lg text-[11px] font-semibold transition-all duration-150 ${
+                            pressed
+                              ? "bg-white/20 text-white shadow-sm"
+                              : "bg-white/5 text-muted hover:bg-white/10 hover:text-zinc-200"
+                          } ${barOff ? "cursor-not-allowed opacity-50" : "cursor-pointer"}`}
+                        >
+                          {t(opt.labelKey)}
+                        </button>
+                      )
+                    })}
                   </div>
+                  {ed.posterShape === "landscape" && (
+                    <p className="text-[10px] text-muted italic leading-tight">{t("ui.separateRatingsBarLandscapeHint")}</p>
+                  )}
                   {bottomActive && (
                     <p className="text-[10px] text-muted italic leading-tight">{t("ui.separateRatingsBottomHint")}</p>
                   )}

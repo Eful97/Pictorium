@@ -5,7 +5,7 @@ import { ChevronDown, Flame, Layers, Menu, Ribbon, Sparkles, Star, Trophy, Tv, C
 import { useT } from "@/lib/contexts/TranslationContext"
 import { usePosterEditor } from "@/lib/contexts/PosterEditorContext"
 import { Toggle } from "@/components/Toggle"
-import { isBottomSeparateRatingsStyle } from "@/lib/badge-styles"
+import { isBottomSeparateRatingsStyle, getSeparateRatingsStyleForShape } from "@/lib/badge-styles"
 import { BadgeStyleSection } from "@/components/settings/BadgeStyleSection"
 import { RatingSourceIcon } from "@/components/RatingSourceIcon"
 import { UI_RATING_SOURCES } from "@/lib/rating-weights"
@@ -305,22 +305,35 @@ export function BadgeDefaultsSection({ active }: { active: boolean }) {
                       { id: "column", labelKey: "ui.separateRatingsColumn" },
                       { id: "bottom-bar", labelKey: "ui.separateRatingsBottomBar" },
                       { id: "bottom-pills", labelKey: "ui.separateRatingsBottomPills" },
-                    ] as const).map((opt) => (
-                      <button
-                        key={opt.id}
-                        type="button"
-                        onClick={() => ed.setDefaultSeparateRatingsStyle(opt.id)}
-                        aria-pressed={ed.defaultSeparateRatingsStyle === opt.id}
-                        className={`flex-1 py-1 px-1 rounded-lg text-[11px] font-semibold transition-all duration-150 cursor-pointer ${
-                          ed.defaultSeparateRatingsStyle === opt.id
-                            ? "bg-white/20 text-white shadow-sm"
-                            : "bg-white/5 text-muted hover:bg-white/10 hover:text-zinc-200"
-                        }`}
-                      >
-                        {t(opt.labelKey)}
-                      </button>
-                    ))}
+                    ] as const).map((opt) => {
+                      // Come il selettore per-titolo: barra disattivata col formato
+                      // Orizzontale di default (raw conservato, mai nascosta).
+                      const barOff = opt.id === "bottom-bar" && ed.defaultPosterShape === "landscape"
+                      const pressed = getSeparateRatingsStyleForShape(
+                        ed.defaultSeparateRatingsStyle, ed.defaultPosterShape === "landscape" ? "landscape" : "poster",
+                      ) === opt.id
+                      return (
+                        <button
+                          key={opt.id}
+                          type="button"
+                          onClick={() => { if (!barOff) ed.setDefaultSeparateRatingsStyle(opt.id) }}
+                          aria-pressed={pressed}
+                          disabled={barOff}
+                          title={barOff ? t("ui.separateRatingsBarLandscapeHint") : undefined}
+                          className={`flex-1 py-1 px-1 rounded-lg text-[11px] font-semibold transition-all duration-150 ${
+                            pressed
+                              ? "bg-white/20 text-white shadow-sm"
+                              : "bg-white/5 text-muted hover:bg-white/10 hover:text-zinc-200"
+                          } ${barOff ? "cursor-not-allowed opacity-50" : "cursor-pointer"}`}
+                        >
+                          {t(opt.labelKey)}
+                        </button>
+                      )
+                    })}
                   </div>
+                  {ed.defaultPosterShape === "landscape" && (
+                    <p className="text-[10px] text-muted italic leading-tight">{t("ui.separateRatingsBarLandscapeHint")}</p>
+                  )}
                   {ed.defaultGlobalBadges && ed.defaultBadgeRating && ed.defaultSeparateRatings && isBottomSeparateRatingsStyle(ed.defaultSeparateRatingsStyle) && (
                     <p className="text-[10px] text-muted italic leading-tight">{t("ui.separateRatingsBottomHint")}</p>
                   )}

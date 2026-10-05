@@ -151,6 +151,82 @@ beforeEach(() => {
   }))
 })
 
+describe("usePosterSave + saveDefaults separateBadgeOffsetX/Y", () => {
+  it("portrait: congela gli offset flat per-titolo", async () => {
+    const { result } = renderHook(() => usePosterSave(baseDeps({
+      separateBadgeOffsetX: 40, separateBadgeOffsetY: -30,
+    })))
+    let ok = false
+    await act(async () => {
+      ok = (await result.current.saveConfig({ silent: true })) === true
+    })
+    expect(ok).toBe(true)
+    const mappings = posted.filter((p) => String(p.url).includes("/api/mappings"))
+    expect(mappings).toHaveLength(1)
+    expect(mappings[0].body.separateBadgeOffsetX).toBe(40)
+    expect(mappings[0].body.separateBadgeOffsetY).toBe(-30)
+  })
+
+  it("landscape: scrive il profilo offset e lo preserva in portrait", async () => {
+    const land = renderHook(() => usePosterSave(baseDeps({
+      posterShape: "landscape", separateBadgeOffsetX: 25, separateBadgeOffsetY: -15,
+    })))
+    await act(async () => {
+      await land.result.current.saveConfig({ silent: true })
+    })
+    const landPost = posted.filter((p) => String(p.url).includes("/api/mappings"))[0]
+    const landProfile = landPost.body.landscape as Record<string, unknown>
+    expect(landProfile.separateBadgeOffsetX).toBe(25)
+    expect(landProfile.separateBadgeOffsetY).toBe(-15)
+
+    // Save portrait con profilo esistente: flat aggiornati, landscape preservato.
+    posted = []
+    const prev = mapping({
+      separateBadgeOffsetX: 1, separateBadgeOffsetY: 2,
+      landscape: { separateBadgeOffsetX: 25, separateBadgeOffsetY: -15 },
+    })
+    const port = renderHook(() => usePosterSave(baseDeps({
+      posterShape: "poster",
+      separateBadgeOffsetX: 40, separateBadgeOffsetY: -30,
+      mappingsMap: new Map([["movie:1", prev]]),
+    })))
+    await act(async () => {
+      await port.result.current.saveConfig({ silent: true })
+    })
+    const portPost = posted.filter((p) => String(p.url).includes("/api/mappings"))[0]
+    expect(portPost.body.separateBadgeOffsetX).toBe(40)
+    expect(portPost.body.separateBadgeOffsetY).toBe(-30)
+    const kept = portPost.body.landscape as Record<string, unknown>
+    expect(kept.separateBadgeOffsetX).toBe(25)
+    expect(kept.separateBadgeOffsetY).toBe(-15)
+  })
+
+  it("saveDefaults: PUT /api/defaults con gli offset globali", async () => {
+    localStorage.setItem("badgeDefaults", JSON.stringify({ defaultSeparateBadgeOffsetX: 12, defaultSeparateBadgeOffsetY: -8 }))
+    const box: { ed: PosterEditorCtx | null } = { ed: null }
+    function Probe() {
+      box.ed = usePosterEditor()
+      return null
+    }
+    render(<Probe />, { wrapper: createWrapper() })
+    await act(async () => {})
+    expect(box.ed?.defaultSeparateBadgeOffsetX).toBe(12)
+    expect(box.ed?.defaultSeparateBadgeOffsetY).toBe(-8)
+    let ok = false
+    await act(async () => {
+      ok = await saveDefaults(box.ed!)
+    })
+    expect(ok).toBe(true)
+    const stored = JSON.parse(localStorage.getItem("badgeDefaults") ?? "{}")
+    expect(stored.separateBadgeOffsetX).toBe(12)
+    expect(stored.separateBadgeOffsetY).toBe(-8)
+    const puts = posted.filter((p) => String(p.url).includes("/api/defaults"))
+    expect(puts.length).toBeGreaterThan(0)
+    expect(puts[puts.length - 1].body.separateBadgeOffsetX).toBe(12)
+    expect(puts[puts.length - 1].body.separateBadgeOffsetY).toBe(-8)
+  })
+})
+
 describe("usePosterSave separateBadgeScale", () => {
   it("portrait: congela il flat per-titolo", async () => {
     const { result } = renderHook(() => usePosterSave(baseDeps()))

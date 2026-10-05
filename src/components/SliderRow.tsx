@@ -26,7 +26,7 @@ export function SliderRow({ icon, label, value, min, max, boundsMin, boundsMax, 
         onChange={(e) => onChange(Number(e.target.value))}
         onDoubleClick={onDoubleClick}
         className="flex-1 min-w-0 h-6 cursor-pointer touch-manipulation focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-orange rounded"
-        style={{ "--pct": `${boundsMax !== boundsMin ? ((value - boundsMin) / (boundsMax - boundsMin)) * 100 : 50}%` } as React.CSSProperties}
+        style={{ "--pct": `${max !== min ? Math.min(100, Math.max(0, ((value - min) / (max - min)) * 100)) : 50}%` } as React.CSSProperties}
       />
       {editingValue === editingKey ? (
         <input

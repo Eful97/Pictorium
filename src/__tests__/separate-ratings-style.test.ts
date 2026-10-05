@@ -19,6 +19,7 @@ import {
   DEFAULT_SEPARATE_RATINGS_STYLE,
   isSeparateRatingsStyle,
   isBottomSeparateRatingsStyle,
+  getSeparateRatingsStyleForShape,
 } from "@/lib/badge-styles"
 import {
   resolvePosterRenderConfig,
@@ -157,23 +158,30 @@ describe("poster-config separateRatingsStyle", () => {
     })).separateRatingsStyle).toBe("bottom-pills")
   })
 
-  it("profilo landscape del mapping vince sul flat", () => {
+  it("profilo landscape del mapping vince sul flat (bar normalizzata a pills)", () => {
+    const saved = mapping({
+      separateRatingsStyle: "column",
+      landscape: { separateRatingsStyle: "bottom-bar" },
+    })
     const r = resolvePosterRenderConfig(cfgInput({
       searchParams: new URLSearchParams({ shape: "landscape" }),
-      mapping: mapping({
-        separateRatingsStyle: "column",
-        landscape: { separateRatingsStyle: "bottom-bar" },
-      }),
+      mapping: saved,
     }))
     expect(r.posterShape).toBe("landscape")
-    expect(r.separateRatingsStyle).toBe("bottom-bar")
-    // Portrait resta sul flat.
+    // Normalizzazione DOPO cascata: il raw salvato resta bottom-bar (il
+    // portrait lo rende ancora come barra), l'effettivo landscape è pills.
+    expect(r.separateRatingsStyle).toBe("bottom-pills")
+    expect(saved.landscape?.separateRatingsStyle).toBe("bottom-bar")
+    // Portrait resta sul flat, barra invariata.
     expect(resolvePosterRenderConfig(cfgInput({
       mapping: mapping({
         separateRatingsStyle: "column",
         landscape: { separateRatingsStyle: "bottom-bar" },
       }),
     })).separateRatingsStyle).toBe("column")
+    expect(resolvePosterRenderConfig(cfgInput({
+      mapping: mapping({ separateRatingsStyle: "bottom-bar" }),
+    })).separateRatingsStyle).toBe("bottom-bar")
   })
 
   it("helper centralizzato concorda con resolvePosterRenderConfig", () => {
@@ -183,6 +191,71 @@ describe("poster-config separateRatingsStyle", () => {
     expect(resolveSeparateRatingsStyle(q, m, null, {}, "poster")).toBe("bottom-bar")
     expect(resolveSeparateRatingsEnabled(new URLSearchParams(), null, null, {})).toBe(false)
     expect(resolveSeparateRatingsEnabled(new URLSearchParams(), m, null, {})).toBe(true)
+  })
+
+  it("helper bar→pills solo in landscape (portrait intatto)", () => {
+    expect(getSeparateRatingsStyleForShape("bottom-bar", "landscape")).toBe("bottom-pills")
+    expect(getSeparateRatingsStyleForShape("bottom-bar", "poster")).toBe("bottom-bar")
+    expect(getSeparateRatingsStyleForShape("bottom-pills", "landscape")).toBe("bottom-pills")
+    expect(getSeparateRatingsStyleForShape("column", "landscape")).toBe("column")
+  })
+
+  it("normalizzazione landscape da tutte e 4 le sorgenti (query/mapping/token/defaults)", () => {
+    const bar = "bottom-bar" as const
+    // Query.
+    expect(resolveSeparateRatingsStyle(
+      new URLSearchParams({ sepstyle: "bottom-bar" }), null, null, {}, "landscape",
+    )).toBe("bottom-pills")
+    // Mapping flat.
+    expect(resolveSeparateRatingsStyle(
+      new URLSearchParams(), mapping({ separateRatingsStyle: bar }), null, {}, "landscape",
+    )).toBe("bottom-pills")
+    // Mapping landscape.
+    expect(resolveSeparateRatingsStyle(
+      new URLSearchParams(),
+      mapping({ landscape: { separateRatingsStyle: bar } }),
+      null, {}, "landscape",
+    )).toBe("bottom-pills")
+    // Config token.
+    expect(resolveSeparateRatingsStyle(
+      new URLSearchParams(), null, tokenCfg({ separateRatingsStyle: bar }), {}, "landscape",
+    )).toBe("bottom-pills")
+    // Server defaults (+ profilo landscape).
+    expect(resolveSeparateRatingsStyle(
+      new URLSearchParams(), null, null, { separateRatingsStyle: bar }, "landscape",
+    )).toBe("bottom-pills")
+    expect(resolveSeparateRatingsStyle(
+      new URLSearchParams(), null, null,
+      { landscape: { separateRatingsStyle: bar } }, "landscape",
+    )).toBe("bottom-pills")
+  })
+
+  it("landscape: garbage/vuoto espliciti → column (fail-closed invariato), column resta column", () => {
+    const bottomMapping = mapping({ separateRatingsStyle: "bottom-bar" })
+    const bottomSd = { separateRatingsStyle: "bottom-pills" as const }
+    for (const sepstyle of ["garbage", ""]) {
+      expect(resolveSeparateRatingsStyle(
+        new URLSearchParams({ sepstyle }), bottomMapping, null, bottomSd, "landscape",
+      )).toBe("column")
+    }
+    expect(resolveSeparateRatingsStyle(
+      new URLSearchParams({ sepstyle: "column" }), bottomMapping, null, bottomSd, "landscape",
+    )).toBe("column")
+    expect(resolveSeparateRatingsStyle(
+      new URLSearchParams(), bottomMapping, null, bottomSd, "landscape",
+    )).toBe("bottom-pills")
+  })
+
+  it("portrait: barra invariata da ogni sorgente (raw portrait intatto)", () => {
+    expect(resolveSeparateRatingsStyle(
+      new URLSearchParams({ sepstyle: "bottom-bar" }), null, null, {}, "poster",
+    )).toBe("bottom-bar")
+    expect(resolveSeparateRatingsStyle(
+      new URLSearchParams(), mapping({ separateRatingsStyle: "bottom-bar" }), null, {}, "poster",
+    )).toBe("bottom-bar")
+    expect(resolvePosterRenderConfig(cfgInput({
+      searchParams: new URLSearchParams({ sepstyle: "bottom-bar" }),
+    })).separateRatingsStyle).toBe("bottom-bar")
   })
 })
 
@@ -328,9 +401,22 @@ describe("URL preview/default/Stremio", () => {
     expect(buildPreviewUrl(ps as never, bp as never)).toContain("sepstyle=column")
   })
 
+  it("preview normalizza bar→pills in landscape (raw mai mutato, portrait intatto)", () => {
+    const landscapeBp = { ...bp, posterShape: "landscape", separateRatingsStyle: "bottom-bar" } as never
+    expect(buildPreviewUrl(ps as never, landscapeBp)).toContain("sepstyle=bottom-pills")
+    expect((landscapeBp as { separateRatingsStyle: string }).separateRatingsStyle).toBe("bottom-bar")
+    expect(buildPreviewUrl(ps as never, { ...bp, separateRatingsStyle: "bottom-bar" } as never)).toContain("sepstyle=bottom-bar")
+    expect(buildPreviewUrl(ps as never, { ...bp, posterShape: "landscape", separateRatingsStyle: "bottom-pills" } as never)).toContain("sepstyle=bottom-pills")
+  })
+
   it("default-preview con default globale", () => {
     expect(buildDefaultsPreviewUrl({ defaultSeparateRatingsStyle: "bottom-pills" })).toContain("sepstyle=bottom-pills")
     expect(buildDefaultsPreviewUrl({})).toContain("sepstyle=column")
+  })
+
+  it("default-preview normalizza col formato Orizzontale", () => {
+    expect(buildDefaultsPreviewUrl({ defaultSeparateRatingsStyle: "bottom-bar", defaultPosterShape: "landscape" })).toContain("sepstyle=bottom-pills")
+    expect(buildDefaultsPreviewUrl({ defaultSeparateRatingsStyle: "bottom-bar" })).toContain("sepstyle=bottom-bar")
   })
 
   it("Stremio: emesso solo quando bottom (legacy invariati), mai in dv", () => {
@@ -348,6 +434,17 @@ describe("URL preview/default/Stremio", () => {
     expect(c1.get("sepstyle")).toBe("bottom-bar")
     expect(c1.get("dv")).toBe(buildStremioPosterSearchParams({ compactTuning: true }).get("dv"))
     expect(c2.get("sepstyle")).toBe("bottom-pills")
+  })
+
+  it("Stremio: normalizza a formato noto, raw a formato ignoto (Nuvio {shape})", () => {
+    const land = buildStremioPosterSearchParams({ separateRatings: true, separateRatingsStyle: "bottom-bar", posterShape: "landscape" })
+    expect(land.get("sepstyle")).toBe("bottom-pills")
+    // Template Nuvio a formato dinamico: raw invariato, normalizza il server.
+    const unknown = buildStremioPosterSearchParams({ separateRatings: true, separateRatingsStyle: "bottom-bar", posterShape: "landscape", shapeUnknown: true })
+    expect(unknown.get("sepstyle")).toBe("bottom-bar")
+    // Portrait invariato in ogni caso.
+    expect(buildStremioPosterSearchParams({ separateRatings: true, separateRatingsStyle: "bottom-bar", posterShape: "poster" }).get("sepstyle")).toBe("bottom-bar")
+    expect(buildStremioPosterSearchParams({ separateRatings: true, separateRatingsStyle: "bottom-bar" }).get("sepstyle")).toBe("bottom-bar")
   })
 
   it("Stremio URL dal mapping: bottom emesso, column omesso", () => {
@@ -405,5 +502,20 @@ describe("cache e hardening sepstyle", () => {
       hasMapping: false,
     })
     expect(preview.get("sepstyle")).toBe("bottom-bar")
+  })
+
+  it("polarità bl separa la cache: bl=0 vs bl=1 chiavi distinte, garbage collassa", () => {
+    // La fascia bottom adattiva dipende da bl: le due polarità non devono
+    // mai condividere la chiave (avvelenamento cache tra fondo chiaro/scuro).
+    const dark = normalizePosterCacheParams(new URLSearchParams("sepstyle=bottom-bar&bl=1")).toString()
+    const light = normalizePosterCacheParams(new URLSearchParams("sepstyle=bottom-bar&bl=0")).toString()
+    expect(dark).toContain("bl=1")
+    expect(light).toContain("bl=0")
+    expect(dark).not.toBe(light)
+    // Garbage collassa (fail-closed come tl): mai chiave distinta a render
+    // che ricade sul computo automatico.
+    const garbage = normalizePosterCacheParams(new URLSearchParams("sepstyle=bottom-bar&bl=maybe")).toString()
+    expect(garbage).not.toContain("bl=")
+    expect(garbage).not.toBe(dark)
   })
 })

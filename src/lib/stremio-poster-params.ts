@@ -1,6 +1,6 @@
 import { POSTER_URL_VERSION } from "@/lib/render-version"
 import type { BadgeStyle, RankingBadgeStyle, QualityBadgeStyle, BadgeFont, SeparateRatingsStyle } from "@/lib/badge-styles"
-import { getSeparateBadgeDefaultScale } from "@/lib/badge-styles"
+import { getSeparateBadgeDefaultScale, getSeparateRatingsStyleForShape } from "@/lib/badge-styles"
 import type { VideoFormat } from "@/lib/av-specs"
 import { parseMinQuality, type StreamQuality } from "@/lib/quality-tiers"
 import { parseSashOrder, isDefaultSashOrder, type SashBucket } from "@/lib/badge-priority"
@@ -35,7 +35,7 @@ export interface StremioPosterParamsInput {
    * Layout dei rating separati: emesso come `sepstyle` solo quando bottom
    * (default "column", cache stabile — gli URL esistenti non cambiano).
    * Enum a bassa cardinalità come bs/rs/bfont: resta esplicito anche in
-   * compact (mai dentro `dv`, che copre solo i 22 numerici).
+   * compact (mai dentro `dv`, che copre solo i 24 numerici).
    */
   readonly separateRatingsStyle?: SeparateRatingsStyle | null
   /** Ordine sash (emesso come `sash` solo quando non-default). */
@@ -83,6 +83,10 @@ export interface StremioPosterParamsInput {
   readonly qualityBadgeScale?: number
   /** Scala % dei rating separati (default unico 130 per tutti gli stili). */
   readonly separateBadgeScale?: number
+  /** Offset px del gruppo rating separati, colonna/pills (bar portrait: solo Y). Default 0. */
+  readonly separateBadgeOffsetX?: number
+  /** Offset px del gruppo rating separati (negativo = su, positivo = giù). Default 0. */
+  readonly separateBadgeOffsetY?: number
   /** Offset px del badge qualità (default 0). */
   readonly qualityBadgeOffsetX?: number
   readonly qualityBadgeOffsetY?: number
@@ -108,6 +112,12 @@ export interface StremioPosterParamsInput {
    *  (il portrait è il default e resta omesso per non invalidare la cache). */
   readonly posterShape?: PosterShape
   /**
+   * Formato ignoto a build-time (template Nuvio `shape={shape}`): lo stile
+   * si emette raw e la normalizzazione bar→pills resta dinamica server-side
+   * (il portrait di quegli URL resta barra, invariato).
+   */
+  readonly shapeUnknown?: boolean
+  /**
    * Allineamento blocco logo/metadati. Emesso solo quando diverso dal
    * default di formato (landscape "left", poster "center"): i default
    * non invalidano la cache e il server li risolve da solo.
@@ -130,7 +140,7 @@ export interface StremioPosterParamsInput {
   readonly user?: string | null
   readonly region?: string | null
   /**
-   * URL compatti (v1.23.0): omette i 22 tuning numerici ad alta cardinalità
+   * URL compatti (v1.23.0): omette i 24 tuning numerici ad alta cardinalità
    * (gradiente/blur/tinta + scale/offset badge + scala/offset logo). Il server li risolve da
    * mapping salvato > defaults (stessa catena, stesso render, chiave più
    * corta e convergente). Mai con `config` (il token perderebbe contro il
@@ -176,6 +186,8 @@ const DEFAULT_STREMIO_POSTER_PARAMS = {
   genreBadgeOffsetY: 0,
   qualityBadgeScale: 100,
   separateBadgeScale: 130,
+  separateBadgeOffsetX: 0,
+  separateBadgeOffsetY: 0,
   qualityBadgeOffsetX: 0,
   qualityBadgeOffsetY: 0,
   networkLogoScale: 100,
@@ -187,7 +199,7 @@ const DEFAULT_STREMIO_POSTER_PARAMS = {
 } as const
 
 /**
- * Firma del tuning omesso negli URL compatti (`compactTuning`): i 22 numerici
+ * Firma del tuning omesso negli URL compatti (`compactTuning`): i 24 numerici
  * ad alta cardinalità non viaggiano nell'URL ma guidano il render server-side
  * (mapping > defaults). Senza firma, un cambio default lascerebbe URL identici
  * e browser/edge/Stremio servirebbero i byte vecchi all'infinito. FNV-1a 32bit
@@ -212,6 +224,8 @@ function tuningSignature(input: StremioPosterParamsInput): string {
     input.genreBadgeOffsetY ?? D.genreBadgeOffsetY,
     input.qualityBadgeScale ?? D.qualityBadgeScale,
     input.separateBadgeScale ?? getSeparateBadgeDefaultScale(input.separateRatingsStyle),
+    input.separateBadgeOffsetX ?? D.separateBadgeOffsetX,
+    input.separateBadgeOffsetY ?? D.separateBadgeOffsetY,
     input.qualityBadgeOffsetX ?? D.qualityBadgeOffsetX,
     input.qualityBadgeOffsetY ?? D.qualityBadgeOffsetY,
     input.networkLogoScale ?? D.networkLogoScale,
@@ -272,8 +286,14 @@ export function buildStremioPosterSearchParams(input: StremioPosterParamsInput):
   if (mq && mq !== "SD") params.set("qmin", mq)
   if (input.customRatings === false) params.set("cr", "0")
   if (input.separateRatings) params.set("sep", "1")
-  if (input.separateRatingsStyle === "bottom-bar" || input.separateRatingsStyle === "bottom-pills") {
-    params.set("sepstyle", input.separateRatingsStyle)
+  // Stile normalizzato per formato noto (bar landscape → pills, come il
+  // server); a formato ignoto (template Nuvio) si emette raw e normalizza il
+  // server per formato effettivo. Raw salvati sempre intatti.
+  const effSepStyle = input.shapeUnknown || input.posterShape !== "landscape"
+    ? input.separateRatingsStyle
+    : getSeparateRatingsStyleForShape(input.separateRatingsStyle ?? "column", "landscape")
+  if (effSepStyle === "bottom-bar" || effSepStyle === "bottom-pills") {
+    params.set("sepstyle", effSepStyle)
   }
   if (input.ratingSources && input.ratingSources.length > 0) params.set("rsrc", input.ratingSources.join(","))
   if (input.sashOrder && !isDefaultSashOrder(input.sashOrder)) {
@@ -346,6 +366,8 @@ export function buildStremioPosterSearchParams(input: StremioPosterParamsInput):
     params.set("goy", String(input.genreBadgeOffsetY ?? DEFAULT_STREMIO_POSTER_PARAMS.genreBadgeOffsetY))
     params.set("qscale", String(input.qualityBadgeScale ?? DEFAULT_STREMIO_POSTER_PARAMS.qualityBadgeScale))
     params.set("sepscale", String(input.separateBadgeScale ?? getSeparateBadgeDefaultScale(input.separateRatingsStyle)))
+    params.set("sepox", String(input.separateBadgeOffsetX ?? DEFAULT_STREMIO_POSTER_PARAMS.separateBadgeOffsetX))
+    params.set("sepoy", String(input.separateBadgeOffsetY ?? DEFAULT_STREMIO_POSTER_PARAMS.separateBadgeOffsetY))
     params.set("qox", String(input.qualityBadgeOffsetX ?? DEFAULT_STREMIO_POSTER_PARAMS.qualityBadgeOffsetX))
     params.set("qoy", String(input.qualityBadgeOffsetY ?? DEFAULT_STREMIO_POSTER_PARAMS.qualityBadgeOffsetY))
     params.set("netscale", String(input.networkLogoScale ?? DEFAULT_STREMIO_POSTER_PARAMS.networkLogoScale))

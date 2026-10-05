@@ -163,6 +163,12 @@ export interface PosterEditorCtx {
   /** Scala % rating separati di default (default unico 130). */
   defaultSeparateBadgeScale: number
   setDefaultSeparateBadgeScale: (v: number | ((prev: number) => number)) => void
+  /** Offset px gruppo rating separati di default (default 0). */
+  defaultSeparateBadgeOffsetX: number
+  setDefaultSeparateBadgeOffsetX: (v: number | ((prev: number) => number)) => void
+  /** Offset px gruppo rating separati di default (default 0). */
+  defaultSeparateBadgeOffsetY: number
+  setDefaultSeparateBadgeOffsetY: (v: number | ((prev: number) => number)) => void
   defaultNetworkLogoScale: number
   setDefaultNetworkLogoScale: (v: number | ((prev: number) => number)) => void
   defaultNetworkLogoOffsetX: number
@@ -306,9 +312,13 @@ export interface PosterEditorCtx {
   qualityBadgeOffsetY: number
   setQualityBadgeOffsetY: (v: number | ((prev: number) => number)) => void
 
-  // ---- Rating separati (scala sola, niente offset in MVP; default unico 130) ----
+  // ---- Rating separati (scala relativa UI su raw 130; offset gruppo, default 0) ----
   separateBadgeScale: number
   setSeparateBadgeScale: (v: number | ((prev: number) => number)) => void
+  separateBadgeOffsetX: number
+  setSeparateBadgeOffsetX: (v: number | ((prev: number) => number)) => void
+  separateBadgeOffsetY: number
+  setSeparateBadgeOffsetY: (v: number | ((prev: number) => number)) => void
 
   // ---- Logo network ----
   networkLogoScale: number
@@ -416,6 +426,7 @@ export function PosterEditorProvider({
     topBadgeScale, topBadgeOffsetX, topBadgeOffsetY,
     genreBadgeScale, qualityBadgeScale, networkLogoScale,
     separateBadgeScale,
+    separateBadgeOffsetX, separateBadgeOffsetY,
     genreBadgeOffsetX, genreBadgeOffsetY, qualityBadgeOffsetX, qualityBadgeOffsetY,
     networkLogoOffsetX, networkLogoOffsetY,
     badgeStyle, rankingBadgeStyle, qualityBadgeStyle, videoFormats,
@@ -427,6 +438,7 @@ export function PosterEditorProvider({
     defaultTopBadgeScale, defaultTopBadgeOffsetX, defaultTopBadgeOffsetY,
     defaultGenreBadgeScale, defaultQualityBadgeScale, defaultNetworkLogoScale,
     defaultSeparateBadgeScale,
+    defaultSeparateBadgeOffsetX, defaultSeparateBadgeOffsetY,
     defaultGenreBadgeOffsetX, defaultGenreBadgeOffsetY, defaultQualityBadgeOffsetX, defaultQualityBadgeOffsetY,
     defaultNetworkLogoOffsetX, defaultNetworkLogoOffsetY,
     defaultBadgeGenre, defaultBadgeYear, defaultBadgeRating, defaultBadgeQuality, defaultCustomRatings, defaultCustomRatingEndpoint, defaultCustomRatingApiKeyHeader, defaultRatingSources, defaultSeparateRatings, defaultSeparateRatingsStyle, defaultSashOrder,
@@ -591,6 +603,16 @@ export function PosterEditorProvider({
       const next = typeof v === "function" ? v(separateBadgeScale) : v
       update({ separateBadgeScale: next })
     }, [separateBadgeScale, update])
+  const setSeparateBadgeOffsetX = useCallback(
+    (v: number | ((prev: number) => number)) => {
+      const next = typeof v === "function" ? v(separateBadgeOffsetX) : v
+      update({ separateBadgeOffsetX: next })
+    }, [separateBadgeOffsetX, update])
+  const setSeparateBadgeOffsetY = useCallback(
+    (v: number | ((prev: number) => number)) => {
+      const next = typeof v === "function" ? v(separateBadgeOffsetY) : v
+      update({ separateBadgeOffsetY: next })
+    }, [separateBadgeOffsetY, update])
   const setNetworkLogoScale = useCallback(
     (v: number | ((prev: number) => number)) => {
       const next = typeof v === "function" ? v(networkLogoScale) : v
@@ -801,6 +823,16 @@ export function PosterEditorProvider({
       const next = typeof v === "function" ? v(defaultSeparateBadgeScale) : v
       update({ defaultSeparateBadgeScale: next })
     }, [defaultSeparateBadgeScale, update])
+  const setDefaultSeparateBadgeOffsetX = useCallback(
+    (v: number | ((prev: number) => number)) => {
+      const next = typeof v === "function" ? v(defaultSeparateBadgeOffsetX) : v
+      update({ defaultSeparateBadgeOffsetX: next })
+    }, [defaultSeparateBadgeOffsetX, update])
+  const setDefaultSeparateBadgeOffsetY = useCallback(
+    (v: number | ((prev: number) => number)) => {
+      const next = typeof v === "function" ? v(defaultSeparateBadgeOffsetY) : v
+      update({ defaultSeparateBadgeOffsetY: next })
+    }, [defaultSeparateBadgeOffsetY, update])
   const setDefaultNetworkLogoScale = useCallback(
     (v: number | ((prev: number) => number)) => {
       const next = typeof v === "function" ? v(defaultNetworkLogoScale) : v
@@ -1094,6 +1126,10 @@ export function PosterEditorProvider({
       setDefaultQualityBadgeScale,
       defaultSeparateBadgeScale,
       setDefaultSeparateBadgeScale,
+      defaultSeparateBadgeOffsetX,
+      setDefaultSeparateBadgeOffsetX,
+      defaultSeparateBadgeOffsetY,
+      setDefaultSeparateBadgeOffsetY,
       defaultQualityBadgeOffsetX,
       setDefaultQualityBadgeOffsetX,
       defaultQualityBadgeOffsetY,
@@ -1214,6 +1250,10 @@ export function PosterEditorProvider({
       // Colonna rating separati
       separateBadgeScale,
       setSeparateBadgeScale,
+      separateBadgeOffsetX,
+      setSeparateBadgeOffsetX,
+      separateBadgeOffsetY,
+      setSeparateBadgeOffsetY,
 
       // Logo network
       networkLogoScale,
@@ -1324,6 +1364,10 @@ export function PosterEditorProvider({
       setDefaultQualityBadgeScale,
       defaultSeparateBadgeScale,
       setDefaultSeparateBadgeScale,
+      defaultSeparateBadgeOffsetX,
+      setDefaultSeparateBadgeOffsetX,
+      defaultSeparateBadgeOffsetY,
+      setDefaultSeparateBadgeOffsetY,
       defaultQualityBadgeOffsetX,
       setDefaultQualityBadgeOffsetX,
       defaultQualityBadgeOffsetY,
@@ -1392,6 +1436,8 @@ export function PosterEditorProvider({
 
       // Colonna rating separati
       separateBadgeScale, setSeparateBadgeScale,
+      separateBadgeOffsetX, setSeparateBadgeOffsetX,
+      separateBadgeOffsetY, setSeparateBadgeOffsetY,
 
       // Logo network
       networkLogoScale, setNetworkLogoScale,

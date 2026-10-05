@@ -63,7 +63,7 @@ describe("tr/nl/sv badge data", () => {
   it("labels sub-genres in tr/nl/sv", () => {
     expect(getSubGenreLabel(["time travel"], "tr")).toBe("Zamanda Yolculuk")
     expect(getSubGenreLabel(["zombie"], "nl")).toBe("Zombie")
-    expect(getSubGenreLabel(["heist"], "sv-SE")).toBe("Kuppfim")
+    expect(getSubGenreLabel(["heist"], "sv-SE")).toBe("Kuppfilm")
   })
 
   it("recognizes tr/nl/sv rank labels in saved mappings", async () => {

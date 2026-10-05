@@ -48,6 +48,10 @@ export interface LandscapeServerDefaults {
   qualityBadgeOffsetY?: number
   /** Scala % della colonna rating separati (default 100 = resa storica). */
   separateBadgeScale?: number
+  /** Offset px del gruppo rating separati (colonna/pills; bar portrait: solo Y). Default 0. */
+  separateBadgeOffsetX?: number
+  /** Offset px del gruppo rating separati (negativo = su, positivo = giù). Default 0. */
+  separateBadgeOffsetY?: number
   /** Layout dei rating separati (default "column" = colonna destra storica). */
   separateRatingsStyle?: SeparateRatingsStyle
   networkLogoScale?: number
@@ -112,6 +116,10 @@ export interface ServerDefaults {
   separateRatings?: boolean
   /** Scala % della colonna rating separati (default 100 = resa storica). */
   separateBadgeScale?: number
+  /** Offset px del gruppo rating separati (colonna/pills; bar portrait: solo Y). Default 0. */
+  separateBadgeOffsetX?: number
+  /** Offset px del gruppo rating separati (negativo = su, positivo = giù). Default 0. */
+  separateBadgeOffsetY?: number
   /** Layout dei rating separati (default "column" = colonna destra storica). */
   separateRatingsStyle?: SeparateRatingsStyle
   /** Ordine/priorità sash (sottoinsieme ammesso: non listati = spenti). Default = ordine standard. */

@@ -192,6 +192,18 @@ test.describe("Button interactions and immediate updates", () => {
 
   test("Editor view buttons and tabs update immediately upon clicking", async ({ page }) => {
     await page.goto("/")
+    // Arrange deterministico via API reale: il test precedente imposta
+    // ranking=bordo nei default globali (autosave) e l'editor per-titolo lo
+    // eredita — senza reset l'assert su Pill non è significativo.
+    await page.evaluate(async () => {
+      const r = await fetch("/api/defaults", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ rankingBadgeStyle: "default" }),
+      })
+      if (!r.ok) throw new Error(`reset defaults: ${r.status} ${await r.text()}`)
+    })
+    await page.goto("/")
     const search = page.getByPlaceholder(/cerca/i)
     await search.fill("avatar")
     await search.press("Enter")
@@ -220,9 +232,14 @@ test.describe("Button interactions and immediate updates", () => {
 
     // Inside Badge tab: test style selector
     const styleGrid = page.locator(".grid.grid-cols-3.sm\\:grid-cols-5").first()
+    // Nomi accessibili = anteprima "Aa" + etichetta: match per substring
+    // (come Pill/Bordo), mai exact sul solo label.
+    const defaultBadge = styleGrid.getByRole("button", { name: "Default" })
     const pillBadge = styleGrid.getByRole("button", { name: "Pill" })
     const bordoBadge = styleGrid.getByRole("button", { name: "Bordo" })
 
+    // Arrange verificato (mai assunto): ranking eredita il default resettato.
+    await expect(defaultBadge).toHaveClass(/bg-accent-orange\/15/)
     await pillBadge.click()
     await expect(pillBadge).toHaveClass(/bg-accent-orange\/15/)
 

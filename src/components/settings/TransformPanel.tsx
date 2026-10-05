@@ -5,7 +5,7 @@ import { useT } from "@/lib/contexts/TranslationContext"
 import { usePosterEditor } from "@/lib/contexts/PosterEditorContext"
 import { SliderRow } from "@/components/SliderRow"
 import { Toggle } from "@/components/Toggle"
-import { isBottomSeparateRatingsStyle, getSeparateBadgeDefaultScale } from "@/lib/badge-styles"
+import { isBottomSeparateRatingsStyle, getSeparateBadgeDefaultScale, getSeparateRatingsStyleForShape, separateBadgeScaleToUI, uiToSeparateBadgeScale, SEPARATE_BADGE_SCALE_UI_MIN, SEPARATE_BADGE_SCALE_UI_MAX } from "@/lib/badge-styles"
 import { NATURAL_GRADIENT_DEFAULTS, type GradientPresetValues } from "@/lib/gradient-presets"
 import { GradientPresetRow } from "@/components/GradientPresetRow"
 import { LandscapeDefaultsSection } from "@/components/LandscapeDefaultsSection"
@@ -19,6 +19,12 @@ export function TransformPanel({ active }: { active: boolean }) {
   const [trasformaShape, setTrasformaShape] = useState<"portrait" | "landscape">("portrait")
   const [editVal, setEditVal] = useState<string | null>(null)
   const [editTxt, setEditTxt] = useState("")
+  // Stile separati effettivo sui default (bar Orizzontale → pills): la X
+  // della barra portrait full-width è disabilitata (mai ghost slider).
+  const defSepEff = getSeparateRatingsStyleForShape(
+    ed.defaultSeparateRatingsStyle, ed.defaultPosterShape === "landscape" ? "landscape" : "poster",
+  )
+  const defBarXOff = ed.defaultPosterShape !== "landscape" && defSepEff === "bottom-bar"
   return (
     <div
       role="tabpanel"
@@ -380,7 +386,7 @@ export function TransformPanel({ active }: { active: boolean }) {
       </div>
       )}
 
-      {/* Rating Separati Predefiniti (scala sola, niente offset in MVP) */}
+      {/* Rating Separati Predefiniti (scala relativa UI + offset gruppo) */}
       {ed.defaultGlobalBadges && ed.defaultBadgeRating && ed.defaultSeparateRatings && (
       <div className="bg-surface/50 border border-surface2/60 rounded-xl p-3.5 space-y-2.5 shadow-sm animate-fade-in">
         <div className="flex items-center justify-between">
@@ -391,6 +397,8 @@ export function TransformPanel({ active }: { active: boolean }) {
           <button type="button" aria-label={t("ui.reset")}
                   onClick={() => {
                     ed.setDefaultSeparateBadgeScale(getSeparateBadgeDefaultScale(ed.defaultSeparateRatingsStyle))
+                    ed.setDefaultSeparateBadgeOffsetX(0)
+                    ed.setDefaultSeparateBadgeOffsetY(0)
                   }}
                   className="text-xs text-muted hover:text-accent transition-colors px-2 py-0.5 rounded-md border border-border/50 hover:border-accent/30">
             {t("ui.reset")}
@@ -401,13 +409,13 @@ export function TransformPanel({ active }: { active: boolean }) {
           <SliderRow
             icon={<Search className="w-3.5 h-3.5" />}
             label={t("ui.scale")}
-            value={ed.defaultSeparateBadgeScale}
+            value={separateBadgeScaleToUI(ed.defaultSeparateBadgeScale)}
             min={50}
             max={150}
-            boundsMin={10}
-            boundsMax={200}
+            boundsMin={SEPARATE_BADGE_SCALE_UI_MIN}
+            boundsMax={SEPARATE_BADGE_SCALE_UI_MAX}
             onChange={(v) => {
-              ed.setDefaultSeparateBadgeScale(v)
+              ed.setDefaultSeparateBadgeScale(uiToSeparateBadgeScale(v))
             }}
             onDoubleClick={() => {
               ed.setDefaultSeparateBadgeScale(getSeparateBadgeDefaultScale(ed.defaultSeparateRatingsStyle))
@@ -419,6 +427,52 @@ export function TransformPanel({ active }: { active: boolean }) {
             editingKey="seps"
             suffix="%"
           />
+          <div title={defBarXOff ? t("ui.separateRatingsBarXDisabledHint") : undefined}>
+          <fieldset disabled={defBarXOff} className="contents">
+          <SliderRow
+            icon={<ArrowLeftRight className="w-3.5 h-3.5" />}
+            label="X"
+            value={ed.defaultSeparateBadgeOffsetX}
+            min={-100}
+            max={100}
+            boundsMin={-500}
+            boundsMax={500}
+            onChange={(v) => {
+              if (!defBarXOff) ed.setDefaultSeparateBadgeOffsetX(v)
+            }}
+            onDoubleClick={() => {
+              ed.setDefaultSeparateBadgeOffsetX(0)
+            }}
+            editingValue={editVal}
+            editText={editTxt}
+            setEditingValue={setEditVal}
+            setEditText={setEditTxt}
+            editingKey="sepsox"
+            suffix="px"
+          />
+          </fieldset>
+          </div>
+          <SliderRow
+            icon={<ArrowUpDown className="w-3.5 h-3.5" />}
+            label="Y"
+            value={ed.defaultSeparateBadgeOffsetY}
+            min={-100}
+            max={100}
+            boundsMin={-500}
+            boundsMax={500}
+            onChange={(v) => {
+              ed.setDefaultSeparateBadgeOffsetY(v)
+            }}
+            onDoubleClick={() => {
+              ed.setDefaultSeparateBadgeOffsetY(0)
+            }}
+            editingValue={editVal}
+            editText={editTxt}
+            setEditingValue={setEditVal}
+            setEditText={setEditTxt}
+            editingKey="sepsoy"
+            suffix="px"
+          />
         </div>
 
         <div className="space-y-1.5 pt-1" title={t("ui.separateRatingsHint")}>
@@ -428,22 +482,35 @@ export function TransformPanel({ active }: { active: boolean }) {
               { id: "column", labelKey: "ui.separateRatingsColumn" },
               { id: "bottom-bar", labelKey: "ui.separateRatingsBottomBar" },
               { id: "bottom-pills", labelKey: "ui.separateRatingsBottomPills" },
-            ] as const).map((opt) => (
-              <button
-                key={opt.id}
-                type="button"
-                onClick={() => ed.setDefaultSeparateRatingsStyle(opt.id)}
-                aria-pressed={ed.defaultSeparateRatingsStyle === opt.id}
-                className={`flex-1 py-1 px-1 rounded-lg text-[11px] font-semibold transition-all duration-150 cursor-pointer ${
-                  ed.defaultSeparateRatingsStyle === opt.id
-                    ? "bg-white/20 text-white shadow-sm"
-                    : "bg-white/5 text-muted hover:bg-white/10 hover:text-zinc-200"
-                }`}
-              >
-                {t(opt.labelKey)}
-              </button>
-            ))}
+            ] as const).map((opt) => {
+              // Come il selettore per-titolo: barra disattivata col formato
+              // Orizzontale di default (raw conservato, mai nascosta).
+              const barOff = opt.id === "bottom-bar" && ed.defaultPosterShape === "landscape"
+              const pressed = getSeparateRatingsStyleForShape(
+                ed.defaultSeparateRatingsStyle, ed.defaultPosterShape === "landscape" ? "landscape" : "poster",
+              ) === opt.id
+              return (
+                <button
+                  key={opt.id}
+                  type="button"
+                  onClick={() => { if (!barOff) ed.setDefaultSeparateRatingsStyle(opt.id) }}
+                  aria-pressed={pressed}
+                  disabled={barOff}
+                  title={barOff ? t("ui.separateRatingsBarLandscapeHint") : undefined}
+                  className={`flex-1 py-1 px-1 rounded-lg text-[11px] font-semibold transition-all duration-150 ${
+                    pressed
+                      ? "bg-white/20 text-white shadow-sm"
+                      : "bg-white/5 text-muted hover:bg-white/10 hover:text-zinc-200"
+                  } ${barOff ? "cursor-not-allowed opacity-50" : "cursor-pointer"}`}
+                >
+                  {t(opt.labelKey)}
+                </button>
+              )
+            })}
           </div>
+          {ed.defaultPosterShape === "landscape" && (
+            <p className="text-[10px] text-muted italic leading-tight">{t("ui.separateRatingsBarLandscapeHint")}</p>
+          )}
           {ed.defaultGlobalBadges && ed.defaultBadgeRating && ed.defaultSeparateRatings && isBottomSeparateRatingsStyle(ed.defaultSeparateRatingsStyle) && (
             <p className="text-[10px] text-muted italic leading-tight">{t("ui.separateRatingsBottomHint")}</p>
           )}

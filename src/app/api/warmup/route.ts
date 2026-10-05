@@ -105,6 +105,8 @@ function buildPosterUrl(input: BuildPosterUrlInput): URL {
     separateRatings: defaults.separateRatings,
     separateRatingsStyle: defaults.separateRatingsStyle,
     separateBadgeScale: defaults.separateBadgeScale,
+    separateBadgeOffsetX: defaults.separateBadgeOffsetX,
+    separateBadgeOffsetY: defaults.separateBadgeOffsetY,
     networkLogoScale: defaults.networkLogoScale,
     genreBadgeOffsetX: defaults.genreBadgeOffsetX,
     genreBadgeOffsetY: defaults.genreBadgeOffsetY,

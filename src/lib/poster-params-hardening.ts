@@ -95,7 +95,7 @@ export const POSTER_CACHE_ALLOWLIST: ReadonlySet<string> = new Set([
   "extra", "label", "title", "genreName", "poster", "logo", "backdrop",
   "quality", "formats", "qmin", "lang", "rsrc", "rw", "sash", "imdbId", "wikidata_id",
   "rank", "animerank", "scale", "ox", "oy", "tscale", "tox", "toy",
-  "gscale", "gox", "goy", "qscale", "qox", "qoy", "sepscale", "netscale", "nox", "noy",
+  "gscale", "gox", "goy", "qscale", "qox", "qoy", "sepscale", "sepox", "sepoy", "netscale", "nox", "noy",
   "bscale", "box", "boy", "gradHeight", "blur", "bf", "bd", "voteAverage",
   "year", "rd", "fad", "mv", "fmt", "format", "shape", "align", "ac",
   "tl", "bl", "bs", "rs", "bfont", "sepstyle", "ts", "dv",
@@ -112,7 +112,7 @@ export const POSTER_CACHE_ALLOWLIST: ReadonlySet<string> = new Set([
 // Numerici 0-100 (gradienti/blur/tinta/fade/ombra-alta) e offset px: step 5.
 const STEP_5_PARAMS: ReadonlySet<string> = new Set([
   "gradHeight", "blur", "bf", "bd", "tint", "ts",
-  "tox", "toy", "gox", "goy", "qox", "qoy", "nox", "noy",
+  "tox", "toy", "gox", "goy", "qox", "qoy", "sepox", "sepoy", "nox", "noy",
   "ox", "oy", "box", "boy",
 ])
 

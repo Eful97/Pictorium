@@ -23,6 +23,7 @@ export const MOCK_CTX: PictoriumCtx = {
   selectedLogo: null,
   setSelectedLogo: stubFn,
   logos: [],
+  titleOrigLang: null,
   posterActivePath: null,
   previewUrl: "",
   urlPattern: "",

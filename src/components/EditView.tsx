@@ -12,6 +12,7 @@ import { usePosterEditor } from "@/lib/contexts/PosterEditorContext"
 import type { TMDBImage } from "@/lib/types"
 import { effectiveMappingForShape, type LandscapeSettings } from "@/lib/types"
 import { isSeparateRatingsStyle } from "@/lib/badge-styles"
+import { selectBestLogo } from "@/lib/logo-selection"
 import { isGradientDirtyForShape, isArtworkDirty, isMappingDirty } from "@/lib/gradient-dirty"
 import { PosterOptions } from "@/components/PosterOptions"
 import { BackdropOptions } from "@/components/BackdropOptions"
@@ -42,6 +43,7 @@ export default function EditView() {
   const goHome = usePSelector((v) => v.goHome)
   const loadingImages = usePSelector((v) => v.loadingImages)
   const logos = usePSelector((v) => v.logos)
+  const titleOrigLang = usePSelector((v) => v.titleOrigLang)
   const mappingsMap = usePSelector((v) => v.mappingsMap)
   const posterActivePath = usePSelector((v) => v.posterActivePath)
   const posters = usePSelector((v) => v.posters)
@@ -233,6 +235,8 @@ export default function EditView() {
       qualityBadgeOffsetX: ed.qualityBadgeOffsetX,
       qualityBadgeOffsetY: ed.qualityBadgeOffsetY,
       separateBadgeScale: ed.separateBadgeScale,
+      separateBadgeOffsetX: ed.separateBadgeOffsetX,
+      separateBadgeOffsetY: ed.separateBadgeOffsetY,
       networkLogoScale: ed.networkLogoScale,
       networkLogoOffsetX: ed.networkLogoOffsetX,
       networkLogoOffsetY: ed.networkLogoOffsetY,
@@ -340,6 +344,25 @@ export default function EditView() {
     void selectBackdrop(first)
   }, [ed.posterShape, ed.selectedBackdrop, hasMapping, selectedMapping, ed.backdrops, ed.excludedBackdrops, selectBackdrop]) // eslint-disable-line react-hooks/exhaustive-deps -- dipendenze granulari intenzionali: `ed` intero rifarebbe scattare l'effetto a ogni tick editor e riselezionerebbe dopo una deselezione volontaria
 
+  // Landscape: senza logo seleziona in automatico il best logo (la base è
+  // il backdrop, senza testo) — parità con l'apertura diretta in Orizzontale
+  // (applyLoadedSelection, ramo defaultPosterShape landscape: stesso
+  // selectBestLogo con lang + original_language). Il cambio formato
+  // (handleShapeChange) non toccava mai il logo: da portrait senza clean
+  // si restava senza logo fino a selezione manuale. Mai quando l'utente ha
+  // rimosso il logo a mano (logoDisabled, con o senza mapping salvato) o
+  // ne ha già uno: in portrait senza clean non c'è mai stata
+  // auto-selezione (nessun flag da propagare), la scelta manuale resta.
+  useEffect(() => {
+    if (ed.posterShape !== "landscape") return
+    if (selectedLogo) return
+    if (ed.logoDisabled) return
+    if (logos.length === 0) return
+    const autoLogo = selectBestLogo(logos, lang, titleOrigLang ?? undefined)
+    if (!autoLogo) return
+    void selectLogo(autoLogo)
+  }, [ed.posterShape, selectedLogo, ed.logoDisabled, logos, lang, titleOrigLang, selectLogo])
+
   // Dual-format: stash degli slider non salvati per formato. Senza, passare
   // da A a B e ritorno perderebbe in silenzio le modifiche non salvate di A
   // (lo switch caricherebbe i valori salvati di B sopra quelle di A). Lo
@@ -365,6 +388,8 @@ export default function EditView() {
       genreBadgeScale: ed.genreBadgeScale, genreBadgeOffsetX: ed.genreBadgeOffsetX, genreBadgeOffsetY: ed.genreBadgeOffsetY,
       qualityBadgeScale: ed.qualityBadgeScale, qualityBadgeOffsetX: ed.qualityBadgeOffsetX, qualityBadgeOffsetY: ed.qualityBadgeOffsetY,
       separateBadgeScale: ed.separateBadgeScale,
+      separateBadgeOffsetX: ed.separateBadgeOffsetX,
+      separateBadgeOffsetY: ed.separateBadgeOffsetY,
       separateRatingsStyle: ed.separateRatingsStyle,
       networkLogoScale: ed.networkLogoScale, networkLogoOffsetX: ed.networkLogoOffsetX, networkLogoOffsetY: ed.networkLogoOffsetY,
       // Sfumatura ESCLUSA: ha profili dedicati per formato (flat = portrait,
@@ -396,6 +421,8 @@ export default function EditView() {
       ed.setQualityBadgeOffsetX(src.qualityBadgeOffsetX ?? landFallback?.qualityBadgeOffsetX ?? ed.qualityBadgeOffsetX)
       ed.setQualityBadgeOffsetY(src.qualityBadgeOffsetY ?? landFallback?.qualityBadgeOffsetY ?? ed.qualityBadgeOffsetY)
       ed.setSeparateBadgeScale(src.separateBadgeScale ?? landFallback?.separateBadgeScale ?? ed.separateBadgeScale)
+      ed.setSeparateBadgeOffsetX(src.separateBadgeOffsetX ?? landFallback?.separateBadgeOffsetX ?? ed.separateBadgeOffsetX)
+      ed.setSeparateBadgeOffsetY(src.separateBadgeOffsetY ?? landFallback?.separateBadgeOffsetY ?? ed.separateBadgeOffsetY)
       // Stile dal profilo del formato (stash > salvato): override landscape
       // rispettato, altrimenti scelta corrente preservata (mai reset).
       {

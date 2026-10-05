@@ -5,4 +5,4 @@
 // APP_COMMIT: SHA corto di HEAD (quale commit gira in produzione);
 // "unknown" senza git.
 export const APP_VERSION = "1.25.0"
-export const APP_COMMIT = "00d1ed4e"
+export const APP_COMMIT = "4291b9aa"

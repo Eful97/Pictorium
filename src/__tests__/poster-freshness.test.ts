@@ -266,10 +266,24 @@ describe("poster freshness: stale entries revalidate before 304 (audit problem 2
     expect(first.status).toBe(200)
     mockedGetJWRankings.mockClear()
     mockedRenderRankingBadge.mockClear()
+    mockedGetDetails.mockClear()
+    mockedGetImages.mockClear()
+    mockedGetExternalIds.mockClear()
+    mockedFetchMDBList.mockClear()
     const conditional = await request(first.headers.get("etag")!)
     expect(conditional.status).toBe(304)
-    expect(mockedGetJWRankings).not.toHaveBeenCalled()
+    // Preflight rank voluto (contratto ranking-sync): UNA sola lookup per
+    // calcolare chiave/ETag, con gli argomenti del chart condiviso —
+    // nessuna generazione (render) e nessun fetch dati extra.
+    expect(mockedGetJWRankings).toHaveBeenCalledTimes(1)
+    expect(mockedGetJWRankings.mock.calls[0].slice(0, 5)).toEqual(["MOVIE", "IT", 20, undefined, "it-IT"])
+    // Stessa famiglia: preflight anime per la chiave (la${preAnimeRank}).
+    expect(mockedFetchMDBList).toHaveBeenCalledTimes(1)
+    expect(mockedFetchMDBList.mock.calls[0].slice(0, 2)).toEqual(["mdblistAnimeMovie", undefined])
     expect(mockedRenderRankingBadge).not.toHaveBeenCalled()
+    expect(mockedGetDetails).not.toHaveBeenCalled()
+    expect(mockedGetImages).not.toHaveBeenCalled()
+    expect(mockedGetExternalIds).not.toHaveBeenCalled()
   })
 
   it("fresh conditional mismatch serves 200 with the available copy", async () => {

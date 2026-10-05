@@ -10,7 +10,7 @@ import { defaultGradientHeightForPoster } from "@/lib/gradient-defaults"
 import { naturalGradientForPoster } from "@/lib/gradient-presets"
 import { GradientPresetRow } from "@/components/GradientPresetRow"
 import { SliderRow } from "@/components/SliderRow"
-import { resolveSeparateBadgeScaleFallback } from "@/lib/badge-styles"
+import { resolveSeparateBadgeScaleFallback, separateBadgeScaleToUI, uiToSeparateBadgeScale, SEPARATE_BADGE_SCALE_UI_MIN, SEPARATE_BADGE_SCALE_UI_MAX, getSeparateRatingsStyleForShape } from "@/lib/badge-styles"
 import type { LandscapeBlurState } from "@/lib/contexts/PosterEditorContext"
 
 export function TransformControls() {
@@ -87,6 +87,17 @@ export function TransformControls() {
     }
   }
   const naturalVals = naturalGradientForPoster(previewPoster, ed.posterShape)
+  // Stile separati effettivo sul canvas corrente (bar landscape → pills):
+  // la X della barra portrait full-width è disabilitata (mai ghost slider).
+  const sepEffStyle = getSeparateRatingsStyleForShape(
+    ed.separateRatingsStyle, isLandShape ? "landscape" : "poster",
+  )
+  const sepBarXOff = !isLandShape && sepEffStyle === "bottom-bar"
+  const resetSeparate = () => {
+    ed.setSeparateBadgeScale(resolveSeparateBadgeScaleFallback({ explicit: isLandShape ? ed.landscape.separateBadgeScale : undefined, defaultScale: ed.defaultSeparateBadgeScale, defaultStyle: ed.defaultSeparateRatingsStyle, style: ed.separateRatingsStyle }))
+    ed.setSeparateBadgeOffsetX(isLandShape ? (ed.landscape.separateBadgeOffsetX ?? ed.defaultSeparateBadgeOffsetX) : ed.defaultSeparateBadgeOffsetX)
+    ed.setSeparateBadgeOffsetY(isLandShape ? (ed.landscape.separateBadgeOffsetY ?? ed.defaultSeparateBadgeOffsetY) : ed.defaultSeparateBadgeOffsetY)
+  }
   const applyGradientPreset = (v: typeof naturalVals) => {
     setGradVals({
       blurEnabled: true,
@@ -328,7 +339,7 @@ export function TransformControls() {
             {t("ui.separateRatings")} · {isLandShape ? t("ui.posterShapeLandscape") : t("ui.posterShapePortrait")}
           </span>
           <button type="button" aria-label={t("ui.reset")}
-                  onClick={() => { const land = ed.landscape; ed.setSeparateBadgeScale(resolveSeparateBadgeScaleFallback({ explicit: isLandShape ? land.separateBadgeScale : undefined, defaultScale: ed.defaultSeparateBadgeScale, defaultStyle: ed.defaultSeparateRatingsStyle, style: ed.separateRatingsStyle })) }}
+                  onClick={resetSeparate}
                   className="text-xs text-muted hover:text-accent transition-colors px-2 py-0.5 rounded-md border border-border/50 hover:border-accent/30">
             {t("ui.reset")}
           </button>
@@ -336,12 +347,12 @@ export function TransformControls() {
         <SliderRow
           icon={<Search className="w-3.5 h-3.5" />}
           label={t("ui.scale")}
-          value={ed.separateBadgeScale}
+          value={separateBadgeScaleToUI(ed.separateBadgeScale)}
           min={50}
           max={150}
-          boundsMin={10}
-          boundsMax={200}
-          onChange={(v) => ed.setSeparateBadgeScale(v)}
+          boundsMin={SEPARATE_BADGE_SCALE_UI_MIN}
+          boundsMax={SEPARATE_BADGE_SCALE_UI_MAX}
+          onChange={(v) => ed.setSeparateBadgeScale(uiToSeparateBadgeScale(v))}
           onDoubleClick={() => ed.setSeparateBadgeScale(resolveSeparateBadgeScaleFallback({ explicit: isLandShape ? ed.landscape.separateBadgeScale : undefined, defaultScale: ed.defaultSeparateBadgeScale, defaultStyle: ed.defaultSeparateRatingsStyle, style: ed.separateRatingsStyle }))}
           editingValue={editingValue}
           editText={editText}
@@ -349,6 +360,44 @@ export function TransformControls() {
           setEditText={setEditText}
           editingKey="separateScale"
           suffix="%"
+        />
+        <div title={sepBarXOff ? t("ui.separateRatingsBarXDisabledHint") : undefined}>
+        <fieldset disabled={sepBarXOff} className="contents">
+        <SliderRow
+          icon={<ArrowLeftRight className="w-3.5 h-3.5" />}
+          label="X"
+          value={ed.separateBadgeOffsetX}
+          min={-100}
+          max={100}
+          boundsMin={-500}
+          boundsMax={500}
+          onChange={(v) => { if (!sepBarXOff) ed.setSeparateBadgeOffsetX(v) }}
+          onDoubleClick={() => ed.setSeparateBadgeOffsetX(isLandShape ? (ed.landscape.separateBadgeOffsetX ?? ed.defaultSeparateBadgeOffsetX) : ed.defaultSeparateBadgeOffsetX)}
+          editingValue={editingValue}
+          editText={editText}
+          setEditingValue={setEditingValue}
+          setEditText={setEditText}
+          editingKey="separateOX"
+          suffix="px"
+        />
+        </fieldset>
+        </div>
+        <SliderRow
+          icon={<ArrowUpDown className="w-3.5 h-3.5" />}
+          label="Y"
+          value={ed.separateBadgeOffsetY}
+          min={-100}
+          max={100}
+          boundsMin={-500}
+          boundsMax={500}
+          onChange={(v) => ed.setSeparateBadgeOffsetY(v)}
+          onDoubleClick={() => ed.setSeparateBadgeOffsetY(isLandShape ? (ed.landscape.separateBadgeOffsetY ?? ed.defaultSeparateBadgeOffsetY) : ed.defaultSeparateBadgeOffsetY)}
+          editingValue={editingValue}
+          editText={editText}
+          setEditingValue={setEditingValue}
+          setEditText={setEditText}
+          editingKey="separateOY"
+          suffix="px"
         />
       </div>
       )}

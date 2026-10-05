@@ -44,6 +44,10 @@ export interface DefaultsState {
   defaultQualityBadgeScale: number
   /** Scala % rating separati di default (default unico 130; esplicito 100 storico preservato). */
   defaultSeparateBadgeScale: number
+  /** Offset px gruppo rating separati di default (default 0). */
+  defaultSeparateBadgeOffsetX: number
+  /** Offset px gruppo rating separati di default (default 0). */
+  defaultSeparateBadgeOffsetY: number
   defaultNetworkLogoScale: number
   defaultGenreBadgeOffsetX: number
   defaultGenreBadgeOffsetY: number
@@ -130,6 +134,10 @@ export interface DefaultsState {
   qualityBadgeScale: number
   /** Scala % rating separati del poster in editing (default unico 130). */
   separateBadgeScale: number
+  /** Offset px gruppo rating separati del poster in editing (default 0). */
+  separateBadgeOffsetX: number
+  /** Offset px gruppo rating separati del poster in editing (default 0). */
+  separateBadgeOffsetY: number
   networkLogoScale: number
   genreBadgeOffsetX: number
   genreBadgeOffsetY: number
@@ -189,6 +197,8 @@ const DEFAULTS: DefaultsState = {
   defaultGenreBadgeScale: 100,
   defaultQualityBadgeScale: 100,
   defaultSeparateBadgeScale: 130,
+  defaultSeparateBadgeOffsetX: 0,
+  defaultSeparateBadgeOffsetY: 0,
   defaultNetworkLogoScale: 100,
   defaultGenreBadgeOffsetX: 0,
   defaultGenreBadgeOffsetY: 0,
@@ -248,6 +258,8 @@ const DEFAULTS: DefaultsState = {
   genreBadgeScale: 100,
   qualityBadgeScale: 100,
   separateBadgeScale: 130,
+  separateBadgeOffsetX: 0,
+  separateBadgeOffsetY: 0,
   networkLogoScale: 100,
   genreBadgeOffsetX: 0,
   genreBadgeOffsetY: 0,
@@ -290,6 +302,8 @@ interface StoredDefaults {
   genreBadgeScale?: number
   qualityBadgeScale?: number
   separateBadgeScale?: number
+  separateBadgeOffsetX?: number
+  separateBadgeOffsetY?: number
   networkLogoScale?: number
   genreBadgeOffsetX?: number
   genreBadgeOffsetY?: number
@@ -324,6 +338,8 @@ interface StoredDefaults {
   defaultGenreBadgeScale?: number
   defaultQualityBadgeScale?: number
   defaultSeparateBadgeScale?: number
+  defaultSeparateBadgeOffsetX?: number
+  defaultSeparateBadgeOffsetY?: number
   defaultNetworkLogoScale?: number
   defaultGenreBadgeOffsetX?: number
   defaultGenreBadgeOffsetY?: number
@@ -464,6 +480,8 @@ function buildFromStored(d: StoredDefaults | null): DefaultsState {
     defaultGenreBadgeScale: d.defaultGenreBadgeScale ?? d.genreBadgeScale ?? 100,
     defaultQualityBadgeScale: d.defaultQualityBadgeScale ?? d.qualityBadgeScale ?? 100,
     defaultSeparateBadgeScale: d.defaultSeparateBadgeScale ?? d.separateBadgeScale ?? getSeparateBadgeDefaultScale(storedDefaultStyle),
+    defaultSeparateBadgeOffsetX: d.defaultSeparateBadgeOffsetX ?? d.separateBadgeOffsetX ?? 0,
+    defaultSeparateBadgeOffsetY: d.defaultSeparateBadgeOffsetY ?? d.separateBadgeOffsetY ?? 0,
     defaultNetworkLogoScale: d.defaultNetworkLogoScale ?? d.networkLogoScale ?? 100,
     defaultGenreBadgeOffsetX: d.defaultGenreBadgeOffsetX ?? d.genreBadgeOffsetX ?? 0,
     defaultGenreBadgeOffsetY: d.defaultGenreBadgeOffsetY ?? d.genreBadgeOffsetY ?? 0,
@@ -536,6 +554,8 @@ function buildFromStored(d: StoredDefaults | null): DefaultsState {
     genreBadgeScale: d.genreBadgeScale ?? d.defaultGenreBadgeScale ?? 100,
     qualityBadgeScale: d.qualityBadgeScale ?? d.defaultQualityBadgeScale ?? 100,
     separateBadgeScale: d.separateBadgeScale ?? d.defaultSeparateBadgeScale ?? getSeparateBadgeDefaultScale(storedStyle),
+    separateBadgeOffsetX: d.separateBadgeOffsetX ?? d.defaultSeparateBadgeOffsetX ?? 0,
+    separateBadgeOffsetY: d.separateBadgeOffsetY ?? d.defaultSeparateBadgeOffsetY ?? 0,
     networkLogoScale: d.networkLogoScale ?? d.defaultNetworkLogoScale ?? 100,
     genreBadgeOffsetX: d.genreBadgeOffsetX ?? d.defaultGenreBadgeOffsetX ?? 0,
     genreBadgeOffsetY: d.genreBadgeOffsetY ?? d.defaultGenreBadgeOffsetY ?? 0,
@@ -592,6 +612,8 @@ function defaultsToPayload(d: DefaultsState): Record<string, unknown> {
     genreBadgeScale: d.defaultGenreBadgeScale,
     qualityBadgeScale: d.defaultQualityBadgeScale,
     separateBadgeScale: d.defaultSeparateBadgeScale,
+    separateBadgeOffsetX: d.defaultSeparateBadgeOffsetX,
+    separateBadgeOffsetY: d.defaultSeparateBadgeOffsetY,
     networkLogoScale: d.defaultNetworkLogoScale,
     genreBadgeOffsetX: d.defaultGenreBadgeOffsetX,
     genreBadgeOffsetY: d.defaultGenreBadgeOffsetY,

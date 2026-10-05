@@ -36,7 +36,7 @@ import type { WikidataResult } from "./awards"
 import { directorBadgeLabel } from "./awards"
 import type { BadgeT } from "./poster-badge"
 import type { BadgeFont } from "./badge-styles"
-import { isRibbonRankingStyle, isBottomSeparateRatingsStyle, type BadgeStyle, type RankingBadgeStyle, type SeparateRatingsStyle, type SeparateBottomVariant } from "./badge-styles"
+import { isRibbonRankingStyle, isBottomSeparateRatingsStyle, getSeparateRatingsStyleForShape, type BadgeStyle, type RankingBadgeStyle, type SeparateRatingsStyle, type SeparateBottomVariant } from "./badge-styles"
 import { normalizeBadgeFont } from "./badge-svg-shared"
 import type { PosterImageFormat } from "@/lib/poster-runtime-cache"
 import { getPresetForUser } from "./badge-preset-store"
@@ -64,6 +64,33 @@ async function scaleBitmapForLayout<T extends { png: Buffer; w: number; h: numbe
   const png = await sharp(r.png).resize(w, h).toBuffer()
   return { ...r, png, w, h }
 }
+
+// Ancoraggio destro landscape (rightPadX in scala + shift ottico verso il
+// bordo, clamp anti-overflow). UNICA definizione: il ramo genere la riusa con
+// extra = gox − sepCenterShift − styleCornerShiftX e shift default 40 (resa
+// byte-identica al legacy); le pills landscape passano opticalShift = 0
+// (margine interno pieno 18*CW/380, niente gox/goy né compensazioni
+// ★/stile-specifiche — solo geometria base).
+function landscapeRightAnchorLeft(contentW: number, CW: number, extra = 0, opticalShift = 40): number {
+  const rightPadX = Math.round(18 * CW / 380)
+  return Math.min(CW - contentW, Math.max(0, CW - contentW - rightPadX + opticalShift + extra))
+}
+
+// Base geometrica pills landscape: -20px X / -10px Y rispetto all'ancoraggio
+// neutro (margine pieno 18*CW/380 + margine basso 20*CH/570). Solo default di
+// geometria: gli slider sepox/sepoy restano neutri a 0 e si sommano sopra;
+// default globali separateBadgeOffset invariati (la colonna non si sposta).
+export const LANDSCAPE_BOTTOM_PILLS_SHIFT_X = -20
+export const LANDSCAPE_BOTTOM_PILLS_SHIFT_Y = -10
+
+// Base geometrica separati portrait: +5px Y (verso il basso) rispetto
+// all'ancoraggio storico, SOLO formato poster/verticale, stili colonna e
+// bottom-pills. Solo default di geometria PRIMA degli offset utente
+// (sepox/sepoy neutri a 0 e additivi dopo, con clamp dentro il canvas);
+// default globali separateBadgeOffset invariati (0 resta 0, nessun fallback
+// landscape toccato). Eccezione: bottom-bar portrait full-width a filo
+// (top = CH - h): il +5 sarebbe annullato dal clamp, resta a filo.
+export const PORTRAIT_SEPARATE_SHIFT_Y = 5
 
 // TTL cache image-level (colori badge, resize logo/backdrop): le immagini TMDB
 // sono immutabili per path → 24h come la badge cache. Le entry si auto-espellono
@@ -168,6 +195,14 @@ export interface GenerationInput {
   qualityBadgeScale: number
   /** Scala % della colonna rating separati (default 100 = resa storica). */
   separateBadgeScale: number
+  /**
+   * Offset px del gruppo rating separati (colonna/pills interi, mai singoli
+   * provider; bar portrait: solo Y, X ignorata). Opzionali con default 0:
+   * i consumer esistenti (test diretti, vecchi adapter) restano invariati e
+   * a 0 il percorso è byte-identico allo storico.
+   */
+  separateBadgeOffsetX?: number
+  separateBadgeOffsetY?: number
   /**
    * Layout dei rating separati ("column" = colonna destra storica;
    * "bottom-bar"/"bottom-pills" = riga in basso con genere+anno+voto
@@ -876,6 +911,7 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
     topBadgeScale, topBadgeOffsetX, topBadgeOffsetY,
     genreBadgeScale, qualityBadgeScale, networkLogoScale,
     separateBadgeScale,
+    separateBadgeOffsetX, separateBadgeOffsetY,
     genreBadgeOffsetX, genreBadgeOffsetY, qualityBadgeOffsetX, qualityBadgeOffsetY,
     networkLogoOffsetX, networkLogoOffsetY,
     mediaType, finalRank, animeRankResult,
@@ -966,10 +1002,18 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
   // Riga bottom (bottom-bar/bottom-pills): stile già risolto a monte, max 3
   // provider. Vince difensivamente sul custom provider anche se l'input
   // portasse entrambi (la route già esclude il custom in bottom).
+  // Difesa: bottom-bar mai in landscape (normalizzazione DOPO cascata, come
+  // in poster-config — copre URL vecchi/mapping/default/token e chiamanti
+  // diretti del service; i raw salvati restano intatti).
   const bottomStyle = input.separateRatingsStyle ?? "column"
-  const isBottomStyle = isBottomSeparateRatingsStyle(bottomStyle)
-  const bottomVariant: SeparateBottomVariant | null = isBottomStyle ? bottomStyle : null
+  const effBottomStyle = getSeparateRatingsStyleForShape(bottomStyle, isLandscape ? "landscape" : "poster")
+  const isBottomStyle = isBottomSeparateRatingsStyle(effBottomStyle)
+  const bottomVariant: SeparateBottomVariant | null = isBottomStyle ? effBottomStyle : null
   const bottomItemCount = bottomVariant ? (input.separateRatings?.length ?? 0) : 0
+  // Offset gruppo rating separati (default 0 = percorso storico byte-identico):
+  // l'intero gruppo si sposta di (ox, oy); positivo Y = giù come gli altri badge.
+  const sepOX = separateBadgeOffsetX ?? 0
+  const sepOY = separateBadgeOffsetY ?? 0
 
   // Tinta di scena same-hue UNICA per badge + blur (coerenza dalla stessa
   // radice). Niente crop per-zone: il bottom-40% falliva sui portrait con
@@ -1464,7 +1508,7 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
         }
       }
       const genreLeftFor = (w: number) => anchorRight
-        ? Math.min(CW - w, Math.max(0, CW - w - rightPadX + anchorShiftX + genreBadgeOffsetX - sepCenterShift - styleCornerShiftX))
+        ? landscapeRightAnchorLeft(w, CW, genreBadgeOffsetX - sepCenterShift - styleCornerShiftX)
         : (isLandscapeLeft
           ? logoAlignPadX(CW) + genreBadgeOffsetX
           : Math.round((CW - w) / 2) + genreBadgeOffsetX) + landscapeShiftX
@@ -1931,7 +1975,8 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
       ? qualityStackAnchor.leftCorner
       : ((isRibbonRankingStyle(rankingBadgeStyle) && ribbonSide === "right" && topBadge?.type === "rank" && !!finalRankBadge)
         || (showComingSoon && ribbonSide === "right" && !!ribbonLayout))
-    const stackTop = qualityStackAnchor ? qualityStackAnchor.top + 6 : netBaseTop - 10
+    const stackTop = (qualityStackAnchor ? qualityStackAnchor.top + 6 : netBaseTop - 10)
+      + (isLandscape ? 0 : PORTRAIT_SEPARATE_SHIFT_Y)
     const stackKey = badgeCacheKey("separate", items.map((i) => `${i.id}${i.value}`).join(","), CW, badgeFont, topLight, separateBadgeScale)
     const cached = cacheGet<{ png: Buffer; w: number; h: number }>(stackKey)
     const stack = cached ?? await coalesceBadgeRender(stackKey, () =>
@@ -1959,15 +2004,21 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
       const leftPos = qualityStackAnchor
         ? Math.round(qualityStackAnchor.centerX - stackFitted.w / 2)
         : (rightCorner ? netPadX : Math.round(CW - netPadX + 10 - stackFitted.w))
-      composites.push({ input: stackFitted.png, top: Math.max(0, stackTop), left: Math.max(0, Math.min(CW - stackFitted.w, leftPos)) })
+      // Clamp dentro il canvas come gli altri badge (a offset 0 identico allo storico).
+      const sepLeft = Math.max(0, Math.min(CW - stackFitted.w, leftPos + sepOX))
+      const sepTop = Math.max(0, Math.min(CH - stackFitted.h, stackTop + sepOY))
+      composites.push({ input: stackFitted.png, top: sepTop, left: sepLeft })
     }
   }
 
   // Riga bottom (bottom-bar/bottom-pills): rimpiazza colonna e badge genere
   // (già soppresso a monte via flag effettivi) sul bordo inferiore. La barra
-  // in portrait è full-width a filo; in landscape è centrata come lower-third
-  // (stessa convenzione delle barre genere); le pill sono sempre centrate con
-  // margine dal bordo. Forma canvas invariata.
+  // in portrait è full-width a filo; in landscape la barra non esiste più
+  // (normalizzata a pills a monte): le pills landscape sono ancorate a DESTRA
+  // con la stessa geometria base del badge genere (landscapeRightAnchorLeft,
+  // extra = 0, opticalShift = 0: margine interno pieno 18*CW/380, senza il
+  // +40 ottico del genere), non centrate sul canvas, con base geometrica
+  // landscape -20 X / -10 Y (LANDSCAPE_BOTTOM_PILLS_SHIFT_*). Forma canvas invariata.
   if (bottomItemCount > 0 && badgesEnabled && bottomVariant) {
     const items = input.separateRatings!.slice(0, 3)
     const isBar = bottomVariant === "bottom-bar"
@@ -1981,9 +2032,55 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
     const fitted = bottom ? await fitBadgeToCanvas(bottom, CW, CH) : null
     if (fitted) {
       const margin = Math.round(20 * CH / 570)
-      const top = isBar && !isLandscape ? CH - fitted.h : CH - fitted.h - margin
-      const left = isBar && !isLandscape ? 0 : Math.round((CW - fitted.w) / 2)
-      composites.push({ input: fitted.png, top: Math.max(0, top), left: Math.max(0, Math.min(CW - fitted.w, left)) })
+      const barFlush = isBar && !isLandscape
+      // Base pills landscape: shift geometrico -20/-10 PRIMA di offset utente
+      // (sepox/sepoy additivi dopo) e collision handling logo. Portrait pills
+      // +5 Y (PORTRAIT_SEPARATE_SHIFT_Y) prima degli offset; colonna portrait
+      // coperta dal ramo colonna; bottom-bar portrait a filo invariata (il +5
+      // sarebbe annullato dal clamp); bottom-bar normalizzata a pills coperta
+      // dallo stesso ramo (in landscape bottomVariant è sempre bottom-pills).
+      const isLandscapePills = isLandscape && bottomVariant === "bottom-pills"
+      const isPortraitPills = !isLandscape && bottomVariant === "bottom-pills"
+      const topFor = (h: number) => barFlush ? CH - h : CH - h - margin + (isLandscapePills ? LANDSCAPE_BOTTOM_PILLS_SHIFT_Y : 0) + (isPortraitPills ? PORTRAIT_SEPARATE_SHIFT_Y : 0)
+      const leftFor = (w: number) => barFlush ? 0 : isLandscape ? landscapeRightAnchorLeft(w, CW, 0, 0) + (isLandscapePills ? LANDSCAPE_BOTTOM_PILLS_SHIFT_X : 0) : Math.round((CW - w) / 2)
+      // Offset sul gruppo intero con clamp dentro il canvas; la barra
+      // portrait è full-width a filo: la X è ignorata esplicitamente (la UI
+      // disabilita lo slider), la Y resta attiva. A offset 0 identico allo storico.
+      const topForOff = (h: number) => Math.max(0, Math.min(CH - h, topFor(h) + sepOY))
+      const leftForOff = (w: number) => barFlush ? 0 : Math.max(0, Math.min(CW - w, leftFor(w) + sepOX))
+      // Pills landscape + logo titolo a sinistra: se la riga copre il logo si
+      // rimpicciolisce la riga (stessa regola del badge genere, min 0.7 — mai
+      // il logo, scala utente esplicita). Solo pills landscape: portrait
+      // byte-identico al passato.
+      let rowBox = fitted
+      if (logoResult && isLandscape && bottomVariant === "bottom-pills") {
+        const overlapsLogo = (w: number, h: number, l: number, t: number) =>
+          l < logoResult.left + logoResult.w && l + w > logoResult.left &&
+          t < logoResult.top + logoResult.h && t + h > logoResult.top
+        if (overlapsLogo(rowBox.w, rowBox.h, leftForOff(rowBox.w), topForOff(rowBox.h))) {
+          let scale = 1
+          const minScale = 0.7
+          let curW = rowBox.w
+          let curH = rowBox.h
+          while (scale > minScale && overlapsLogo(curW, curH, leftForOff(curW), topForOff(curH))) {
+            scale -= 0.1
+            if (scale < minScale) scale = minScale
+            const newW = Math.max(1, Math.round(rowBox.w * scale))
+            const newH = Math.max(1, Math.round(rowBox.h * scale))
+            if (newW === curW && newH === curH) break
+            curW = newW
+            curH = newH
+            if (scale <= minScale) break
+          }
+          if (curW !== rowBox.w || curH !== rowBox.h) {
+            const png = await sharp(rowBox.png).resize(curW, curH).toBuffer()
+            rowBox = { ...rowBox, png, w: curW, h: curH }
+          }
+        }
+      }
+      const top = topForOff(rowBox.h)
+      const left = leftForOff(rowBox.w)
+      composites.push({ input: rowBox.png, top, left })
     }
   }
 

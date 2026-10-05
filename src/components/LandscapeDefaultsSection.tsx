@@ -19,6 +19,7 @@ import { useT } from "@/lib/contexts/TranslationContext"
 import { usePosterEditor } from "@/lib/contexts/PosterEditorContext"
 import { SliderRow } from "@/components/SliderRow"
 import { Toggle } from "@/components/Toggle"
+import { separateBadgeScaleToUI, uiToSeparateBadgeScale, SEPARATE_BADGE_SCALE_UI_MIN, SEPARATE_BADGE_SCALE_UI_MAX } from "@/lib/badge-styles"
 import { GradientPresetRow } from "@/components/GradientPresetRow"
 import type { GradientPresetValues } from "@/lib/gradient-presets"
 import type { LandscapeServerDefaults } from "@/lib/server-defaults"
@@ -271,12 +272,12 @@ export function LandscapeDefaultsSection({ editVal, editTxt, setEditVal, setEdit
                   <Star className="w-3.5 h-3.5 text-amber-400" />
                   {t("ui.separateRatings")}
                 </span>
-                {isOver("separateBadgeScale") && (
+                {(isOver("separateBadgeScale") || isOver("separateBadgeOffsetX") || isOver("separateBadgeOffsetY")) && (
                   <button
                     type="button"
                     title={resetLabel}
                     aria-label={resetLabel}
-                    onClick={() => clear("separateBadgeScale")}
+                    onClick={() => set({ separateBadgeScale: undefined, separateBadgeOffsetX: undefined, separateBadgeOffsetY: undefined })}
                     className="text-xs text-muted hover:text-accent transition-colors px-2 py-0.5 rounded-md border border-border/50 hover:border-accent/30 cursor-pointer"
                   >
                     {resetLabel}
@@ -286,12 +287,12 @@ export function LandscapeDefaultsSection({ editVal, editTxt, setEditVal, setEdit
               <SliderRow
                 icon={<Search className="w-3.5 h-3.5" />}
                 label={t("ui.scale")}
-                value={land.separateBadgeScale ?? ed.defaultSeparateBadgeScale}
+                value={separateBadgeScaleToUI(land.separateBadgeScale ?? ed.defaultSeparateBadgeScale)}
                 min={50}
                 max={150}
-                boundsMin={10}
-                boundsMax={200}
-                onChange={(v) => set({ separateBadgeScale: v })}
+                boundsMin={SEPARATE_BADGE_SCALE_UI_MIN}
+                boundsMax={SEPARATE_BADGE_SCALE_UI_MAX}
+                onChange={(v) => set({ separateBadgeScale: uiToSeparateBadgeScale(v) })}
                 onDoubleClick={() => clear("separateBadgeScale")}
                 editingValue={editVal}
                 editText={editTxt}
@@ -299,6 +300,40 @@ export function LandscapeDefaultsSection({ editVal, editTxt, setEditVal, setEdit
                 setEditText={setEditTxt}
                 editingKey="lssepsScale"
                 suffix="%"
+              />
+              <SliderRow
+                icon={<ArrowLeftRight className="w-3.5 h-3.5" />}
+                label="X"
+                value={land.separateBadgeOffsetX ?? ed.defaultSeparateBadgeOffsetX}
+                min={-100}
+                max={100}
+                boundsMin={-500}
+                boundsMax={500}
+                onChange={(v) => set({ separateBadgeOffsetX: v })}
+                onDoubleClick={() => clear("separateBadgeOffsetX")}
+                editingValue={editVal}
+                editText={editTxt}
+                setEditingValue={setEditVal}
+                setEditText={setEditTxt}
+                editingKey="lssepsOX"
+                suffix="px"
+              />
+              <SliderRow
+                icon={<ArrowUpDown className="w-3.5 h-3.5" />}
+                label="Y"
+                value={land.separateBadgeOffsetY ?? ed.defaultSeparateBadgeOffsetY}
+                min={-100}
+                max={100}
+                boundsMin={-500}
+                boundsMax={500}
+                onChange={(v) => set({ separateBadgeOffsetY: v })}
+                onDoubleClick={() => clear("separateBadgeOffsetY")}
+                editingValue={editVal}
+                editText={editTxt}
+                setEditingValue={setEditVal}
+                setEditText={setEditTxt}
+                editingKey="lssepsOY"
+                suffix="px"
               />
             </div>
           </>

@@ -56,11 +56,20 @@ npm run e2e:ui                      # Playwright UI runner
 npm run verify    # tsc --noEmit && eslint . && vitest run && next build
 ```
 
-Run this before finishing any non-trivial change. It is exactly what the
-`poster-render` agent's workflow ends with.
+Run this once before the final commit that contains code changes. It is exactly what the
+`poster-render` agent's workflow ends with. During work, run only the narrow relevant
+tests; do not run the full gate for micro-tasks or intermediate refactors. For
+docs-only tasks (no code/render/deps/config changes), static read + `git diff` is
+sufficient. Do not repeat the full gate before push if the exact code/config/lock/render-asset
+state is already verified with a recorded success; any change invalidates it — rerun the
+affected narrow tests and the final full gate before push. CI never replaces local gates.
+Run the full serial E2E (`npx playwright test e2e/`) only for broad UI/contract changes or
+before integration, not for every badge edit. On failure: narrow first, understand root cause,
+max 3 focused attempts, never skip/weaken tests; rerun the final full gate after fix when needed.
+Implementation-ready without gate is `verification pending`, not verified.
 
 ## Rules
 
 - Never update snapshots to hide a real divergence — fix the code instead.
-- After ANY render-affecting change: visual suite must pass (hard gate).
+- Render-affecting changes require a final visual pass (hard gate at the final commit, see `.agents/visual-testing.md` for cached-vs-fresh scheduling; not a clean run per edit).
 - Mock server is deterministic — don't rely on the live network in tests.

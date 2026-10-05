@@ -66,3 +66,5 @@ When a poster looks wrong but tests pass (or to eyeball a new feature):
 
 The rules (failure = blocking, review snapshots before committing, snapshots in git
 as the regression contract) live in `.agents/visual-testing.md` — follow those.
+For scheduling, follow `AGENTS.md Verification Strategy` (cached visual during
+iteration, fresh pass once at the final gate); do not run visual after every edit.

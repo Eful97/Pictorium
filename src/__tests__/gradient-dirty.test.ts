@@ -209,9 +209,10 @@ describe("isMappingDirty", () => {
     const m = mapping({ ...baseArtwork, ...DEFAULTS, separateBadgeScale: 100 });
     expect(isMappingDirty({ ...baseState, separateBadgeScale: 100 }, m, DEFAULTS, "poster")).toBe(false);
     expect(isMappingDirty({ ...baseState, separateBadgeScale: 150 }, m, DEFAULTS, "poster")).toBe(true);
-    // Mapping senza campo (default 100 implicito): 100 pulito, 150 dirty.
+    // Mapping senza campo (default 130 implicito): 130 pulito, 100/150 dirty.
     const mLegacy = mapping({ ...baseArtwork, ...DEFAULTS });
-    expect(isMappingDirty({ ...baseState, separateBadgeScale: 100 }, mLegacy, DEFAULTS, "poster")).toBe(false);
+    expect(isMappingDirty({ ...baseState, separateBadgeScale: 130 }, mLegacy, DEFAULTS, "poster")).toBe(false);
+    expect(isMappingDirty({ ...baseState, separateBadgeScale: 100 }, mLegacy, DEFAULTS, "poster")).toBe(true);
     expect(isMappingDirty({ ...baseState, separateBadgeScale: 150 }, mLegacy, DEFAULTS, "poster")).toBe(true);
   });
 
