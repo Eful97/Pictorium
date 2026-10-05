@@ -466,8 +466,7 @@ function computeBadgeParams(ps: PosterState, bp: BadgeParams): string[] {
     const animeRank = selected && ps.mdblistAnimeList.length > 0
       ? (ps.mdblistAnimeList.find((a) => a.id === selected.id)?.rank ?? null) : null
     const rankKey = isRankKey(bp.customBadge)
-    const rankLabelKey = ps.selected?.media_type === "tv" ? "badge.series" : "badge.movie"
-    if ((rankKey === "badge.today" || rankKey === "badge.movie" || rankKey === "badge.series") && ps.trendRank) params.push(`rank=${ps.trendRank}&label=${encodeURIComponent(tFn(rankLabelKey))}`)
+    if ((rankKey === "badge.today" || rankKey === "badge.movie" || rankKey === "badge.series") && ps.trendRank) params.push(`rank=${ps.trendRank}&label=${encodeURIComponent(tFn("badge.today"))}`)
     else if (rankKey === "badge.anime" && animeRank) params.push(`rank=${animeRank}&label=${encodeURIComponent(tFn("badge.anime"))}`)
     else params.push(`extra=${encodeURIComponent(resolveLabel(bp.customBadge))}`)
   }

@@ -7,7 +7,7 @@ export interface BadgeResult {
   rankLabel?: string
   /**
    * Sottotitolo del nastro classifica (stili ribbon): periodo della chart
-   * (es. "Oggi") invece della label per media type ("Film"/"Serie TV").
+   * (es. "Oggi", stessa label del badge centrato).
    * Assente → il nastro ripiega sulla `label`.
    */
   ribbonLabel?: string
@@ -131,11 +131,11 @@ function resolveBucket(bucket: SashBucket, params: BadgeParams, t: T): BadgeResu
       return null
     case "rank":
       if (params.animeRank && params.animeRank <= ANIME_RANK_MAX) return { type: "rank", label: t("badge.anime"), rank: params.animeRank, ribbonLabel: t("badge.today") }
-      // Label del rank per media type: "Film" per i film, "Serie tv" per le serie
-      // (invece del periodo "Oggi"). Il nastro mostra il periodo ("Oggi"):
-      // `ribbonLabel` viaggia separato così i badge centrati (#3 Film) restano invariati.
+      // Label del rank: il periodo della chart ("Oggi", stessa sorgente del
+      // nastro) in tutti gli stili — i badge centrati mostrano "#N Oggi" come
+      // il nastro. `ribbonLabel` resta separato per il sottotitolo del nastro.
       // qLabel/rankLabel possono comunque sovrascrivere.
-      if (params.trendRank) return { type: "rank", label: t(params.mediaType === "movie" ? "badge.movie" : "badge.series"), rank: params.trendRank, ribbonLabel: t("badge.today") }
+      if (params.trendRank) return { type: "rank", label: t("badge.today"), rank: params.trendRank, ribbonLabel: t("badge.today") }
       return null
     case "new":
       if (params.isNewMovie) return { type: "extra", label: t("badge.newMovie") }
@@ -252,7 +252,7 @@ export function getAllBadgeOptions(params: {
   if (params.isNewSeries) options.add(keyed("badge.newSeries"))
   if (params.newSeason) options.add(keyed("badge.newSeason"))
   if (params.justAdded) options.add(params.justAdded)
-  if (params.trendRank) options.add(keyed(params.mediaType === "movie" ? "badge.movie" : "badge.series"))
+  if (params.trendRank) options.add(keyed("badge.today"))
   if (params.animeRank && params.animeRank <= ANIME_RANK_MAX) options.add(keyed("badge.anime"))
   if (params.award) options.add(params.award)
   if (params.awardWins) for (const w of params.awardWins) if (w) options.add(w)
