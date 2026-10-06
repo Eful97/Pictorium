@@ -3,6 +3,7 @@ import sharp from "sharp"
 import { cacheGet, cacheSet } from "./cache"
 import { findAccentColor, findSceneTint } from "@/lib/accent-color"
 import { GENRE_FALLBACK } from "@/lib/badges"
+import { RENDER_VERSION } from "./render-version"
 import { ARTWORKS_BASE } from "@/lib/tvdb"
 import { cachedImageBytes } from "@/lib/image-bytes-cache"
 import { timedFetch } from "@/lib/outbound-stats"
@@ -269,12 +270,12 @@ export async function extractBadgeColor(
 }
 
 /**
- * Estrae la tinta tonale di scena (same-hue) dal poster.
+ * Extracts the tonal same-hue scene tint from the poster.
  *
- * Analizza l'INTERO thumb (niente crop): il crop bottom-40% falliva sui
- * portrait con facce in basso (es. Silo: pelle/tuta arancione nel fondo
- * votavano marrone #86642d invece dello smeraldo della scena, che vive
- * nella parte alta). La famiglia dominante per area vince per costruzione.
+ * Ambilight-style sampling of the OUTER frame only (15% margin, see
+ * analyzeBuckets in accent-color.ts): faces/logos/titles sit in the center
+ * and would hijack the vote (orange skin on Silo); edges almost always see
+ * the background/atmosphere. The area-dominant family wins by construction.
  *
  * Total fail-safe: non lancia mai eccezioni, in caso di errore o buffer corrotto
  * restituisce l'hex di fallback del genere o #555555.
@@ -287,7 +288,13 @@ export async function extractSceneTint(
   cacheKey?: string | null,
 ): Promise<string> {
   const defaultFallback = fallbackGenre ? (GENRE_FALLBACK[fallbackGenre] || "#555555") : "#555555"
-  const key = cacheKey ? `tint:${cacheKey}:${fallbackGenre ?? "x"}` : null
+  // Namespaced by RENDER_VERSION (internal key, never a public param): entries
+  // written by older code (unversioned `tint:<key>:<genre>`) are simply never
+  // read again, so a render-algorithm change cannot serve a stale tint for up
+  // to 24h on long-lived/KV instances. No user-cache flush needed: the new
+  // namespace repopulates lazily, and RENDER_FILES already rotates the
+  // namespace on every future render change.
+  const key = cacheKey ? `tint:${RENDER_VERSION}:${cacheKey}:${fallbackGenre ?? "x"}` : null
   const hit = key ? cacheGet<string>(key) : null
   if (hit !== null) return hit
   try {

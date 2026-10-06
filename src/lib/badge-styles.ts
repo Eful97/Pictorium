@@ -9,21 +9,29 @@
 export const BADGE_STYLES = ["shadow", "pill", "bar", "colored", "bordo", "vetro", "minimal"] as const
 export type BadgeStyle = (typeof BADGE_STYLES)[number]
 
-export const RANKING_BADGE_STYLES = ["default", "colored", "pill", "bordo", "vetro", "netflix", "netflix-color"] as const
+export const RANKING_BADGE_STYLES = ["default", "colored", "pill", "bordo", "vetro", "netflix", "netflix-color", "corner", "number"] as const
 export type RankingBadgeStyle = (typeof RANKING_BADGE_STYLES)[number]
-/** Stile accettato dai badge "extra" (trend/classifica): union dei due set; valori sconosciuti cadono sul default nel renderer. */
-export type ExtraBadgeStyle = BadgeStyle | RankingBadgeStyle
+/**
+ * Standalone extra-badge style (`xbs` query): subset of the existing names —
+ * ribbon/numeral styles (`netflix`, `netflix-color`, `number`) stay
+ * ranking-only and keep reaching extra badges solely through the legacy
+ * `rs` fallback. Absent everywhere = legacy (`rs` drives the extra badge).
+ */
+export const EXTRA_BADGE_STYLES = ["default", "pill", "colored", "bordo", "vetro", "corner"] as const
+export type ExtraBadgeStyle = (typeof EXTRA_BADGE_STYLES)[number]
 
 export const DEFAULT_BADGE_STYLE: BadgeStyle = "shadow"
 export const DEFAULT_RANKING_BADGE_STYLE: RankingBadgeStyle = "default"
 
 /**
- * Stile del badge qualità streaming: "standard" (pill testuale satinata),
- * "mono" (icone monocromatiche da public/quality-badges/mono) o "color"
- * (icone a colori da public/quality-badges/color). Catena come gli altri
- * stili: query `qbs` > mapping per-titolo > config token > server defaults.
+ * Streaming quality badge style: "standard" (satin text pill),
+ * "mono" (monochrome icons from public/quality-badges/mono),
+ * "color" (color icons from public/quality-badges/color) or "knockout"
+ * (white tag with cut-out transparent tier glyphs).
+ * Chain like the other styles: `qbs` query > per-title mapping >
+ * config token > server defaults.
  */
-export const QUALITY_BADGE_STYLES = ["standard", "mono", "color"] as const
+export const QUALITY_BADGE_STYLES = ["standard", "mono", "color", "knockout"] as const
 export type QualityBadgeStyle = (typeof QUALITY_BADGE_STYLES)[number]
 
 export const DEFAULT_QUALITY_BADGE_STYLE: QualityBadgeStyle = "standard"
@@ -34,6 +42,10 @@ export function isBadgeStyle(v: string | null | undefined): v is BadgeStyle {
 
 export function isRankingBadgeStyle(v: string | null | undefined): v is RankingBadgeStyle {
   return !!v && (RANKING_BADGE_STYLES as readonly string[]).includes(v)
+}
+
+export function isExtraBadgeStyle(v: string | null | undefined): v is ExtraBadgeStyle {
+  return !!v && (EXTRA_BADGE_STYLES as readonly string[]).includes(v)
 }
 
 export function isQualityBadgeStyle(v: string | null | undefined): v is QualityBadgeStyle {
@@ -168,4 +180,56 @@ export function isRibbonRankingStyle(v: string | null | undefined): boolean {
 export function nonRibbonRankingStyle(v: RankingBadgeStyle): RankingBadgeStyle {
   if (v === "netflix" || v === "netflix-color" || v === "colored") return "default"
   return v
+}
+
+/**
+ * Default px offset of the streaming quality badge (default only, never
+ * baked geometry: the renderer adds these deltas AFTER anchoring in
+ * `poster-service.ts`). Portrait (Vertical): X -10 / Y +15. Landscape
+ * (Horizontal): 0 / 0 — the horizontal profile does not inherit the
+ * vertical default. Chain unchanged (query > mapping > config > defaults):
+ * any explicit value (including 0) always wins over these fallbacks.
+ */
+export const DEFAULT_QUALITY_BADGE_OFFSET_X = -10
+export const DEFAULT_QUALITY_BADGE_OFFSET_Y = 15
+export const DEFAULT_QUALITY_BADGE_OFFSET_X_LANDSCAPE = 0
+export const DEFAULT_QUALITY_BADGE_OFFSET_Y_LANDSCAPE = 0
+
+/** Shape fallback for the quality offset (X or Y axis). */
+export function getQualityBadgeOffsetDefault(
+  shape: "poster" | "landscape",
+  axis: "x" | "y",
+): number {
+  if (shape === "landscape") {
+    return axis === "x"
+      ? DEFAULT_QUALITY_BADGE_OFFSET_X_LANDSCAPE
+      : DEFAULT_QUALITY_BADGE_OFFSET_Y_LANDSCAPE
+  }
+  return axis === "x" ? DEFAULT_QUALITY_BADGE_OFFSET_X : DEFAULT_QUALITY_BADGE_OFFSET_Y
+}
+
+/**
+ * Style-specific X baseline of rank numerals (`number` style): the bare
+ * digits anchor 20 canvas px left of the shared corner (`cornerAnchoredLeft`),
+ * on both sides and both shapes (left numerals edge outward, right numerals
+ * shift inward). This is a RENDER baseline, not a stored default:
+ * `topBadgeOffsetX` (`tox`) stays the USER adjustment relative to it
+ * (stored 0 = on-baseline = effective -20). Extra badges on the legacy
+ * `rs=number` fallback keep the historic anchor, like every non-number
+ * style. Client-safe (pure const).
+ */
+export const NUMBER_BADGE_BASE_OFFSET_X = -20
+
+/**
+ * Baseline for a top-badge placement: -20 only for an actual rank numeral
+ * (`topBadgeType === "rank"` with effective style `"number"`), else 0.
+ * Callers add it to the stored `topBadgeOffsetX` adjustment; the effective
+ * left feeds geometry/collision rects unchanged (single application —
+ * preview and Stremio URLs keep carrying the raw `tox`).
+ */
+export function resolveNumberBadgeBaseOffsetX(
+  topBadgeType: "rank" | "extra" | null | undefined,
+  effectiveStyle: RankingBadgeStyle | string | null | undefined,
+): number {
+  return topBadgeType === "rank" && effectiveStyle === "number" ? NUMBER_BADGE_BASE_OFFSET_X : 0
 }

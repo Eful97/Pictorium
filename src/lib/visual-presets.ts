@@ -67,6 +67,16 @@ export const MAX_VISUAL_PRESETS = 20
 
 export function captureVisualPreset(source: VisualPresetValues): VisualPresetValues {
   return visualPresetValuesSchema.parse(Object.fromEntries(
-    Object.keys(visualPresetValuesSchema.shape).map((key) => [key, source[key as keyof VisualPresetValues]]),
+    Object.keys(visualPresetValuesSchema.shape).map((key) => [
+      key,
+      // Nested landscape passes through raw: pick only schema-known keys so
+      // profile overrides outside the preset contract never crash capture
+      // (presets keep their legacy numeric-only landscape).
+      key === "landscape" && source.landscape && typeof source.landscape === "object"
+        ? Object.fromEntries(
+            Object.keys(landscapeSchema.shape).map((k) => [k, (source.landscape as Record<string, unknown>)[k]]),
+          )
+        : source[key as keyof VisualPresetValues],
+    ]),
   ))
 }

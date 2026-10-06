@@ -13,6 +13,7 @@
 import { describe, expect, it, vi } from "vitest"
 import { screen, within } from "@testing-library/react"
 import { BadgeStyleSelector } from "@/components/ui/BadgeStyleSelector"
+import { textColorForBg } from "@/lib/accent-color"
 import { renderWithCtx } from "@/__tests__/test-utils"
 
 const t = (k: string) => k
@@ -72,5 +73,55 @@ describe("BadgeStyleSelector preview contract", () => {
     const { icon } = iconOf(/vetro/i)
     expect(icon.classList.contains("text-white")).toBe(true)
     expect(within(screen.getByRole("button", { name: /colored/i })).getByText("Aa")).toBeInTheDocument()
+  })
+
+  it("griglia ranking con corner: anteprima piatta con testo a contrasto condiviso", () => {
+    renderWithCtx(
+      <BadgeStyleSelector
+        value="corner"
+        options={["default", "pill", "colored", "bordo", "vetro", "corner"]}
+        onChange={vi.fn()}
+        t={t}
+        accentColor="#fb923c"
+      />,
+    )
+    const { icon } = iconOf(/ui\.corner/i)
+    // Normalizza i colori come jsdom prima del confronto.
+    const probe = document.createElement("span")
+    probe.style.background = "#fb923c"
+    probe.style.color = textColorForBg("#fb923c")
+    expect(icon.style.background).toBe(probe.style.background)
+    expect(icon.style.color).toBe(probe.style.color)
+    expect(icon.style.color).not.toBe("")
+    expect(icon.classList.contains("text-black")).toBe(false)
+    expect(icon.classList.contains("text-white")).toBe(false)
+  })
+
+  it("quality knockout option: inline cutout swatch with masked 4K glyphs", () => {
+    renderWithCtx(
+      <BadgeStyleSelector
+        value="knockout"
+        options={["standard", "mono", "color", "knockout"]}
+        onChange={vi.fn()}
+        t={t}
+      />,
+    )
+    const btn = screen.getByRole("button", { name: /ui\.qbsKnockout/i })
+    const svg = btn.querySelector("svg")
+    expect(svg).not.toBeNull()
+    // White tag rect driven by a luminance mask…
+    const tag = svg!.querySelector('rect[mask]')
+    expect(tag).not.toBeNull()
+    expect(tag!.getAttribute("fill")).toBe("#ffffff")
+    // …knocking out black 4K glyphs (true cutout, no simulated gray text).
+    const mask = svg!.querySelector("mask")
+    expect(mask).not.toBeNull()
+    const glyph = mask!.querySelector("text")
+    expect(glyph?.textContent).toBe("4K")
+    expect(glyph?.getAttribute("fill")).toBe("#000000")
+    // Oversized cutout glyphs like the poster tag (12px in the 28×16 swatch).
+    expect(glyph?.getAttribute("font-size")).toBe("12")
+    expect(tag!.getAttribute("mask")).toBe(`url(#${mask!.id})`)
+    expect(btn.textContent).not.toContain("Aa")
   })
 })

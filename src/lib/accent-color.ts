@@ -21,19 +21,44 @@ export function contrastRatio(l1: number, l2: number): number {
   return (lighter + 0.05) / (darker + 0.05)
 }
 
+/** Minimum effective contrast for the preferred light text on flat
+ * colored badges: an explicit VISUAL preference requested by the user
+ * (more light text on mid-tone fills), NOT a WCAG readability or
+ * compliance claim — 2:1 is below every WCAG threshold, including the
+ * 3:1 large-text one. Near-white fills (golds, yellows, pastels) still
+ * fall back to dark text via the max-contrast rule below. */
+export const COLORED_BADGE_LIGHT_TEXT_MIN_CONTRAST = 2
+
 /**
- * Sceglie il colore testo con miglior contrasto WCAG.
- * Valuta colore chiaro (`dark`) e scuro (`light`) contro lo sfondo.
+ * Picks the text color for a flat accent background (colored genre,
+ * ranking, extra and corner badges, Netflix ribbon tint, style swatches).
+ * Prefers the light-text candidate (`dark`, default white — legacy param
+ * name: the text color meant for dark backgrounds) while its effective
+ * contrast stays >= COLORED_BADGE_LIGHT_TEXT_MIN_CONTRAST (a visual
+ * preference for light text on colored fills, not a WCAG claim);
+ * on lighter backgrounds where it would wash out, falls back to the
+ * highest-contrast candidate (previous behavior).
+ * This is a readability preference, not a max-contrast claim: e.g. on
+ * #E67E22 white is preferred at ~2.9:1 over dark text at ~5.9:1, while on
+ * yellow/gold/near-white fills (white below 2:1) the dark candidate wins
+ * and stays fully legible.
+ * Param order and semantics are unchanged: the first candidate is always
+ * the preferred one when readable, whichever custom colors callers pass.
+ * Effective (alpha-blended on the background) contrast decides, never the
+ * raw candidate values. Empty `hex` (unresolved accent) keeps the
+ * historical `light` fallback. The former `#555555` special case is gone:
+ * that gray is measured like any real background (white text at ~7.5:1).
+ * Background, tint and shadow treatment are untouched.
  */
 export function textColorForBg(hex: string, dark: string = "#ffffff", light: string = "rgba(0,0,0,0.80)"): string {
-  if (!hex || hex === "#555555") return light
+  if (!hex) return light
   const r = parseInt(hex.slice(1, 3), 16)
   const g = parseInt(hex.slice(3, 5), 16)
   const b = parseInt(hex.slice(5, 7), 16)
 
   const bgLum = relativeLuminance(r, g, b)
 
-  const best = [dark, light]
+  const scored = [dark, light]
     .map((textColor) => {
       const [tr, tg, tb, ta] = parseColor(textColor)
       const effectiveR = ta < 1 ? Math.round(tr * ta + r * (1 - ta)) : tr
@@ -42,9 +67,9 @@ export function textColorForBg(hex: string, dark: string = "#ffffff", light: str
       const textLum = relativeLuminance(effectiveR, effectiveG, effectiveB)
       return { color: textColor, ratio: contrastRatio(textLum, bgLum) }
     })
-    .sort((a, b) => b.ratio - a.ratio)[0]
 
-  return best.color
+  if (scored[0].ratio >= COLORED_BADGE_LIGHT_TEXT_MIN_CONTRAST) return scored[0].color
+  return scored[0].ratio >= scored[1].ratio ? scored[0].color : scored[1].color
 }
 
 /**
@@ -286,15 +311,20 @@ export function findAccentColor(pixels: Uint8ClampedArray | Buffer, width: numbe
 }
 
 /**
- * Calcola la tinta di scena naturale (same-hue) per la sfocatura di fondo.
+ * Computes the natural same-hue scene tint for the background blur.
  *
- * A differenza di findAccentColor:
- * - NESSUNA rotazione a +150°: preserva la famiglia cromatica della scena.
- * - Saturazione preservata in [0.30, 0.80]: scene sature (ori, teal) restano
- *   sature invece di schiacciarsi a oliva spento; scene piatte restano sobrie.
- * - Luminosità L = 0.26: tinta profonda ma luminosa come gli scrim di riferimento.
- * - NESSUNA ricerca dicotomica di contrasto: deve fondersi armoniosamente con l'immagine.
- * - Fallback monocromatico: GENRE_FALLBACK puro senza pushContrast.
+ * Unlike findAccentColor:
+ * - NO +150° rotation: preserves the scene's native hue family.
+ * - NO fixed-lightness HSL synthesis: returns the unweighted RGB medians of
+ *   the winning bucket's valid samples (same sampling, filters and scoring
+ *   as analyzeBuckets, just a dedicated second pass). The tint stays
+ *   representative of the observed background (light backgrounds → light
+ *   tints, dark backgrounds → dark tints) instead of always collapsing to a
+ *   fixed depth; scenic darkening stays the renderer's job (blur
+ *   shade/blurDarkness, which blends toward this tint along the ramp).
+ * - NO saturation/lightness clamping and NO contrast binary search: it must
+ *   blend harmoniously into the artwork.
+ * - Monochrome fallback: pure GENRE_FALLBACK without pushContrast.
  */
 export function findSceneTint(
   pixels: Uint8ClampedArray | Buffer,
@@ -309,17 +339,69 @@ export function findSceneTint(
     return { r, g, b }
   }
 
-  // Same-hue: estrazione diretta della famiglia cromatica nativa della scena.
-  // L medio-scuro (0.26): la tinta di scrim/badge nasce profonda ma luminosa
-  // (riferimento concorrenza ~#7f5401 per Pluribus); lo shade del blur la
-  // porta poi a fondo campo quando la velatura è attiva.
-  const sat = Math.min(0.80, Math.max(0.30, analysis.avgSat))
-  const res = hslToRgb(analysis.hue, sat, 0.26)
-  return {
-    r: Math.max(0, Math.min(255, res.r)),
-    g: Math.max(0, Math.min(255, res.g)),
-    b: Math.max(0, Math.min(255, res.b)),
+  // The winning bucket index is derived from the winner's mean hue
+  // (same decision as analyzeBuckets, no re-scoring): the circular mean of
+  // an arc < 180° stays inside the arc, so floor(hue / 30) identifies the
+  // winning bucket exactly.
+  const winnerBucket = Math.floor(analysis.hue / 30) % 12
+
+  // Second pass over the winner's samples only, using the SAME criteria as
+  // the analyzeBuckets "scene" branch (frame, step, alpha, s/l thresholds):
+  // no arrays for every bucket/mode, cost confined to the scene branch.
+  // These criteria must stay in sync with analyzeBuckets.
+  const step = 2
+  const bx = Math.max(8, Math.floor(width * 0.15))
+  const by = Math.max(8, Math.floor(height * 0.15))
+  const rs: number[] = []
+  const gs: number[] = []
+  const bs: number[] = []
+  for (let y = 0; y < height; y += step) {
+    for (let x = 0; x < width; x += step) {
+      if (x >= bx && x < width - bx && y >= by && y < height - by) continue
+      const i = (y * width + x) * 4
+      const pr = pixels[i], pg = pixels[i + 1], pb = pixels[i + 2]
+      const alpha = pixels[i + 3]
+      if (alpha < 128) continue
+
+      const r = pr / 255, g = pg / 255, b = pb / 255
+      const max = Math.max(r, g, b), min = Math.min(r, g, b)
+      const l = (max + min) / 2, d = max - min
+      const s = l > 0.5 ? d / (2 - max - min) : d / (max + min)
+      if (s < 0.12 || l < 0.08 || l > 0.94) continue
+
+      const hue = fastHue(r, g, b, d, max)
+      if (Math.floor(hue / 30) % 12 !== winnerBucket) continue
+      rs.push(pr)
+      gs.push(pg)
+      bs.push(pb)
+    }
   }
+
+  // Guard: with identical criteria the winner always has ≥1 sample, but a
+  // degenerate buffer must never produce NaN — genre fallback.
+  if (rs.length === 0) {
+    const fb = GENRE_FALLBACK[genre] || "#555555"
+    const [r, g, b] = parseColor(fb)
+    return { r, g, b }
+  }
+
+  return {
+    r: Math.max(0, Math.min(255, Math.round(medianSorted(rs)))),
+    g: Math.max(0, Math.min(255, Math.round(medianSorted(gs)))),
+    b: Math.max(0, Math.min(255, Math.round(medianSorted(bs)))),
+  }
+}
+
+/**
+ * Deterministic median: for even counts, the average of the two middle
+ * values (no randomness, same input → same output, stable ETags/snapshots).
+ */
+function medianSorted(values: number[]): number {
+  const sorted = [...values].sort((a, b) => a - b)
+  const mid = Math.floor(sorted.length / 2)
+  return sorted.length % 2 === 1
+    ? sorted[mid]
+    : (sorted[mid - 1] + sorted[mid]) / 2
 }
 
 /**

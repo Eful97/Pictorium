@@ -1,17 +1,31 @@
 "use client"
 
 import { Palette } from "lucide-react"
-import { usePSelector } from "@/lib/context"
 import { useT } from "@/lib/contexts/TranslationContext"
 import { usePosterEditor } from "@/lib/contexts/PosterEditorContext"
 import { BadgeStyleSelector, VideoFormatSelector, BadgeFontSelector } from "@/components/ui"
 import { KNOWN_VIDEO_FORMATS } from "@/lib/av-specs"
+import { useShapeBadgeDefaults, type BadgeShapeTarget } from "@/components/settings/useShapeDefaults"
+import type { DefaultsPreviewFamily } from "@/lib/poster-url"
 
-/** Stili grafici predefiniti (tab Badge). Estratto da SettingsPanel: solo JSX + context, nessuno stato locale. */
-export function BadgeStyleSection() {
-  const accentColor = usePSelector((v) => v.accentColor)
+/** Default graphic styles (Badge tab). Follows the Badge edit target:
+ * portrait reads/writes the shared flats, landscape the profile overrides.
+ * Sub-groups report their preview family (genre style + font = genre, quality
+ * style = quality) — preview-only, never writes. */
+export function BadgeStyleSection({ shape, qualityEnabled, onPreviewFamilyChange }: { shape?: BadgeShapeTarget; qualityEnabled?: boolean; onPreviewFamilyChange?: (f: DefaultsPreviewFamily) => void }) {
   const { t } = useT()
   const ed = usePosterEditor()
+  const { scoped } = useShapeBadgeDefaults(shape)
+  const [badgeStyle, setBadgeStyle] = scoped("badgeStyle", ed.defaultBadgeStyle, ed.setDefaultBadgeStyle)
+  const [badgeFont, setBadgeFont] = scoped("badgeFont", ed.defaultBadgeFont, ed.setDefaultBadgeFont)
+  const [qualityBadgeStyle, setQualityBadgeStyle] = scoped("qualityBadgeStyle", ed.defaultQualityBadgeStyle, ed.setDefaultQualityBadgeStyle)
+  const [videoFormats, setVideoFormats] = scoped("videoFormats", ed.defaultVideoFormats, ed.setDefaultVideoFormats)
+  const showQuality = qualityEnabled ?? ed.defaultBadgeQuality
+  const famAttrs = (family: DefaultsPreviewFamily) => ({
+    "data-preview-family": family,
+    onFocusCapture: () => onPreviewFamilyChange?.(family),
+    onPointerDownCapture: () => onPreviewFamilyChange?.(family),
+  })
   return (
     <div className="bg-surface/50 border border-surface2/60 rounded-xl p-3.5 space-y-3 shadow-sm">
       <span className="font-semibold text-zinc-200 flex items-center gap-1.5">
@@ -19,57 +33,45 @@ export function BadgeStyleSection() {
         {t("ui.styleDefault")}
       </span>
 
-      <div className="space-y-1.5">
-        <label className="text-[11px] text-muted font-medium block">
-          {t("ui.styleRankingDefault")}
-        </label>
-        <BadgeStyleSelector
-          value={ed.defaultRankingBadgeStyle}
-          options={["default", "pill", "colored", "bordo", "vetro"]}
-          onChange={(v) => {
-            ed.setDefaultRankingBadgeStyle(v)
-          }}
-          t={t}
-          accentColor={accentColor}
-        />
-      </div>
+      {/* Rank/extra looks live in the Classifica + Informazioni cards above
+          (single RankingAppearanceSelector, no duplicated switches here). */}
 
-      <div className="pt-2 border-t border-surface2/50 space-y-1.5">
+      <div {...famAttrs("genre")} className="space-y-1.5">
         <label className="text-[11px] text-muted font-medium block">
           {t("ui.styleGenreBadge")}
         </label>
         <BadgeStyleSelector
-          value={ed.defaultBadgeStyle}
+          value={badgeStyle}
           options={["shadow", "pill", "bar", "colored", "bordo", "vetro", "minimal"]}
           onChange={(v) => {
-            ed.setDefaultBadgeStyle(v)
+            setBadgeStyle(v)
           }}
           t={t}
         />
       </div>
 
-      <div className="pt-2 border-t border-surface2/50 space-y-1.5">
+      <div {...famAttrs("genre")} className="pt-2 border-t border-surface2/50 space-y-1.5">
         <label className="text-[11px] text-muted font-medium block">
           {t("ui.badgeFont")}
         </label>
         <BadgeFontSelector
-          value={ed.defaultBadgeFont}
+          value={badgeFont}
           onChange={(v) => {
-            ed.setDefaultBadgeFont(v)
+            setBadgeFont(v)
           }}
         />
       </div>
 
-      {ed.defaultBadgeQuality && (
-        <div className="pt-2 border-t border-surface2/50 space-y-1.5">
+      {showQuality && (
+        <div {...famAttrs("quality")} className="pt-2 border-t border-surface2/50 space-y-1.5">
           <label className="text-[11px] text-muted font-medium block">
             {t("ui.qualityBadgeStyle")}
           </label>
           <BadgeStyleSelector
-            value={ed.defaultQualityBadgeStyle}
-            options={["standard", "mono", "color"]}
+            value={qualityBadgeStyle}
+            options={["standard", "mono", "color", "knockout"]}
             onChange={(v) => {
-              ed.setDefaultQualityBadgeStyle(v)
+              setQualityBadgeStyle(v)
             }}
             t={t}
           />
@@ -79,8 +81,8 @@ export function BadgeStyleSection() {
               {t("ui.defaultVideoFormats")}
             </label>
             <VideoFormatSelector
-              selectedFormats={ed.defaultVideoFormats ?? KNOWN_VIDEO_FORMATS}
-              onChange={(formats) => ed.setDefaultVideoFormats(formats)}
+              selectedFormats={videoFormats ?? KNOWN_VIDEO_FORMATS}
+              onChange={(formats) => setVideoFormats(formats)}
               t={t}
             />
           </div>

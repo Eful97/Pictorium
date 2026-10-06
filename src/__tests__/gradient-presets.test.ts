@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from "vitest"
 import {
   GRADIENT_PRESET_COLOR,
+  GRADIENT_PRESET_NERO,
   NATURAL_GRADIENT_DEFAULTS,
   naturalGradientForPoster,
   matchesGradientPreset,
@@ -38,17 +39,49 @@ describe("gradient presets (slider shortcuts, no new server param)", () => {
       gradientHeight: 35,
       blurIntensity: 20,
       blurFade: 10,
-      blurDarkness: 0,
+      blurDarkness: 30,
       tintStrength: 100,
       blurEnabled: true,
     })
   })
 
-  it("Colore is taller, more tinted and has no dark veil", () => {
+  it("GRADIENT_PRESET_NERO matches the reference values", () => {
+    expect(GRADIENT_PRESET_NERO).toEqual({
+      gradientHeight: 50,
+      blurIntensity: 1,
+      blurFade: 100,
+      blurDarkness: 100,
+      tintStrength: 0,
+      blurEnabled: true,
+    })
+  })
+
+  it("Nero values stay inside the slider bounds", () => {
+    expect(GRADIENT_PRESET_NERO.gradientHeight).toBeGreaterThanOrEqual(5)
+    expect(GRADIENT_PRESET_NERO.gradientHeight).toBeLessThanOrEqual(100)
+    expect(GRADIENT_PRESET_NERO.blurIntensity).toBeGreaterThanOrEqual(1)
+    expect(GRADIENT_PRESET_NERO.blurIntensity).toBeLessThanOrEqual(100)
+    for (const k of ["blurFade", "blurDarkness", "tintStrength"] as const) {
+      expect(GRADIENT_PRESET_NERO[k]).toBeGreaterThanOrEqual(0)
+      expect(GRADIENT_PRESET_NERO[k]).toBeLessThanOrEqual(100)
+    }
+    expect(GRADIENT_PRESET_NERO.blurEnabled).toBe(true)
+  })
+
+  it("Nero is distinct from Naturale and Colore (matching is exact)", () => {
+    expect(matchesGradientPreset({ ...GRADIENT_PRESET_NERO }, GRADIENT_PRESET_NERO)).toBe(true)
+    expect(matchesGradientPreset({ ...GRADIENT_PRESET_NERO }, GRADIENT_PRESET_COLOR)).toBe(false)
+    expect(matchesGradientPreset({ ...GRADIENT_PRESET_NERO }, NATURAL_GRADIENT_DEFAULTS)).toBe(false)
+    expect(
+      matchesGradientPreset({ ...GRADIENT_PRESET_NERO, tintStrength: 20 }, GRADIENT_PRESET_NERO),
+    ).toBe(false)
+  })
+
+  it("Colore is taller and more tinted than clean Naturale", () => {
     const natural = naturalGradientForPoster({ iso_639_1: null })
     expect(GRADIENT_PRESET_COLOR.gradientHeight).toBeGreaterThan(natural.gradientHeight)
     expect(GRADIENT_PRESET_COLOR.tintStrength).toBeGreaterThan(natural.tintStrength)
-    expect(GRADIENT_PRESET_COLOR.blurDarkness).toBe(0)
+    expect(GRADIENT_PRESET_COLOR.blurDarkness).toBe(30)
     expect(GRADIENT_PRESET_COLOR.blurIntensity).toBe(natural.blurIntensity)
     expect(natural.blurIntensity).toBe(20)
   })
@@ -80,7 +113,7 @@ describe("gradient presets (slider shortcuts, no new server param)", () => {
 
   it("NATURAL_GRADIENT_DEFAULTS matches the Settings Reset values", () => {
     expect(NATURAL_GRADIENT_DEFAULTS).toEqual({
-      gradientHeight: 30,
+      gradientHeight: 35,
       blurIntensity: 20,
       blurFade: 50,
       blurDarkness: 30,
@@ -127,17 +160,18 @@ describe("gradient presets (slider shortcuts, no new server param)", () => {
     expect(defaultFadeForPoster(GRADIENT_PRESET_COLOR.blurFade, nonClean)).toBe(
       GRADIENT_PRESET_COLOR.blurFade,
     )
-    // Default Naturale (30/50 = factory storiche) -> ricalibrazione per tipo.
+    // Default Naturale: fade 50 = factory storica -> ricalibrazione per tipo;
+    // altezza 35 assoluta (non coincide piu' con le factory).
     expect(defaultFadeForPoster(NATURAL_GRADIENT_DEFAULTS.blurFade, { iso_639_1: null })).toBe(50)
   })
 })
 
-describe("custom gradient presets (local shortcuts, max 3 + 2 built-in = 5)", () => {
+describe("custom gradient presets (local shortcuts, max 3 + 3 built-in = 6)", () => {
   beforeEach(() => {
     resetCustomPresetStore()
   })
 
-  it("caps custom slots at 3 (5 totali con Naturale/Colore)", () => {
+  it("caps custom slots at 3 (6 totali con Naturale/Colore/Nero)", () => {
     expect(MAX_CUSTOM_GRADIENT_PRESETS).toBe(3)
     expect(canAddCustomGradientPreset()).toBe(true)
     for (let i = 0; i < MAX_CUSTOM_GRADIENT_PRESETS; i++) {

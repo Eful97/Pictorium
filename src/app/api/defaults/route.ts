@@ -8,7 +8,7 @@ import { rateLimit, rateLimitKey, rateLimitResponse } from "@/lib/rate-limit"
 import { getWarmupCatalogs } from "@/lib/catalog-definitions"
 import { createLogger } from "@/lib/logger"
 import { z } from "zod"
-import { BADGE_STYLES, RANKING_BADGE_STYLES, QUALITY_BADGE_STYLES, BADGE_FONTS, SEPARATE_RATINGS_STYLES } from "@/lib/badge-styles"
+import { BADGE_STYLES, RANKING_BADGE_STYLES, QUALITY_BADGE_STYLES, BADGE_FONTS, SEPARATE_RATINGS_STYLES, EXTRA_BADGE_STYLES } from "@/lib/badge-styles"
 import { readJsonBody, BodyTooLargeError, DEFAULT_MAX_BODY_BYTES } from "@/lib/read-body"
 import { envWithFallback } from "@/lib/env-compat"
 
@@ -43,6 +43,8 @@ const customCatalogSchema = z.object({
 const defaultsSchema = z.object({
   badgeStyle: z.enum(BADGE_STYLES).optional(),
   rankingBadgeStyle: z.enum(RANKING_BADGE_STYLES).optional(),
+  /** Standalone extra-badge style (flat-only): absent = legacy `rs` fallback. */
+  extraBadgeStyle: z.enum(EXTRA_BADGE_STYLES).nullable().optional(),
   badgeFont: z.enum(BADGE_FONTS).optional(),
   qualityBadgeStyle: z.enum(QUALITY_BADGE_STYLES).nullable().optional(),
   videoFormats: z.array(z.enum(["dv", "hdr", "hdr10plus", "atmos", "imax"])).nullable().optional(),
@@ -113,9 +115,10 @@ const defaultsSchema = z.object({
   episodeMetadataSource: z.enum(["tmdb", "tvdb"]).optional(),
   region: z.string().max(32).optional(),
   dateFormat: z.enum(["locale", "dmy", "mdy", "iso"]).optional(),
-  // Profilo default landscape (sfumatura/blur + scale/offset badge, come
-  // LandscapeServerDefaults): chiavi assenti seguono i flat. Validazione
-  // speculare ai flat.
+  // Landscape defaults profile (shared visuals that may diverge per shape +
+  // blur/gradient + badge scales/offsets, mirroring LandscapeServerDefaults):
+  // absent keys follow flats. Mirrors flat validation; explicit
+  // `false`/`[]`/`0` are real values.
   landscape: z.object({
     gradientHeight: z.number().optional(),
     blurEnabled: z.boolean().optional(),
@@ -143,6 +146,27 @@ const defaultsSchema = z.object({
     networkLogoScale: z.number().optional(),
     networkLogoOffsetX: z.number().optional(),
     networkLogoOffsetY: z.number().optional(),
+    badgeStyle: z.enum(BADGE_STYLES).optional(),
+    rankingBadgeStyle: z.enum(RANKING_BADGE_STYLES).optional(),
+    extraBadgeStyle: z.enum(EXTRA_BADGE_STYLES).nullable().optional(),
+    badgeFont: z.enum(BADGE_FONTS).optional(),
+    qualityBadgeStyle: z.enum(QUALITY_BADGE_STYLES).nullable().optional(),
+    videoFormats: z.array(z.enum(["dv", "hdr", "hdr10plus", "atmos", "imax"])).nullable().optional(),
+    globalBadges: z.boolean().optional(),
+    rankingBadges: z.boolean().optional(),
+    badgeGenre: z.boolean().optional(),
+    badgeYear: z.boolean().optional(),
+    badgeRating: z.boolean().optional(),
+    badgeQuality: z.boolean().optional(),
+    minQuality: z.enum(["SD", "HD", "FHD", "4K"]).optional(),
+    customRatings: z.boolean().optional(),
+    separateRatings: z.boolean().optional(),
+    networkLogo: z.boolean().optional(),
+    networkLogoPosition: z.enum(["auto", "top"]).optional(),
+    preRelease: z.boolean().optional(),
+    ribbonSide: z.enum(["left", "right"]).optional(),
+    ribbonEnabled: z.boolean().optional(),
+    sashOrder: z.array(z.string().max(20)).optional(),
   }).optional(),
   customCatalogs: z.array(customCatalogSchema).optional(),
   rankingSourceMovie: z.string().max(64).optional(),

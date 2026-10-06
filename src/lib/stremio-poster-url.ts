@@ -1,5 +1,6 @@
 import { buildPosterPublicUrl } from "@/lib/poster-public-url"
 import { buildStremioPosterSearchParams } from "@/lib/stremio-poster-params"
+import { getQualityBadgeOffsetDefault } from "@/lib/badge-styles"
 import { isRankKey } from "@/lib/i18n"
 import type { ServerDefaults } from "@/lib/server-defaults"
 import { effectiveDefaultsForShape } from "@/lib/server-defaults"
@@ -107,9 +108,10 @@ export function buildStremioPosterUrl(input: BuildStremioPosterUrlInput): URL {
     sashOrder: sd.sashOrder ?? undefined,
     badgeStyle: mapping?.badgeStyle ?? sd.badgeStyle,
     rankingBadgeStyle: mapping?.rankingBadgeStyle ?? sd.rankingBadgeStyle,
-    badgeFont: mapping?.badgeFont ?? sd.badgeFont ?? undefined,
+    extraBadgeStyle: mapping?.extraBadgeStyle ?? sd.extraBadgeStyle ?? input.defaults.extraBadgeStyle ?? undefined,
+    badgeFont: mapping?.badgeFont ?? sd.badgeFont ?? input.defaults.badgeFont ?? undefined,
     qualityBadgeStyle: mapping?.qualityBadgeStyle ?? sd.qualityBadgeStyle,
-    videoFormats: mapping?.videoFormats ?? sd.videoFormats,
+    videoFormats: mapping?.videoFormats ?? sd.videoFormats ?? input.defaults.videoFormats,
     topBadgeScale: eff?.topBadgeScale ?? sd.topBadgeScale,
     topBadgeOffsetX: eff?.topBadgeOffsetX ?? sd.topBadgeOffsetX,
     topBadgeOffsetY: eff?.topBadgeOffsetY ?? sd.topBadgeOffsetY,
@@ -117,8 +119,8 @@ export function buildStremioPosterUrl(input: BuildStremioPosterUrlInput): URL {
     qualityBadgeScale: eff?.qualityBadgeScale ?? sd.qualityBadgeScale,
     genreBadgeOffsetX: eff?.genreBadgeOffsetX ?? sd.genreBadgeOffsetX,
     genreBadgeOffsetY: eff?.genreBadgeOffsetY ?? sd.genreBadgeOffsetY,
-    qualityBadgeOffsetX: eff?.qualityBadgeOffsetX ?? sd.qualityBadgeOffsetX,
-    qualityBadgeOffsetY: eff?.qualityBadgeOffsetY ?? sd.qualityBadgeOffsetY,
+    qualityBadgeOffsetX: eff?.qualityBadgeOffsetX ?? sd.qualityBadgeOffsetX ?? getQualityBadgeOffsetDefault(effShape, "x"),
+    qualityBadgeOffsetY: eff?.qualityBadgeOffsetY ?? sd.qualityBadgeOffsetY ?? getQualityBadgeOffsetDefault(effShape, "y"),
     networkLogoScale: eff?.networkLogoScale ?? sd.networkLogoScale,
     networkLogoOffsetX: eff?.networkLogoOffsetX ?? sd.networkLogoOffsetX,
     networkLogoOffsetY: eff?.networkLogoOffsetY ?? sd.networkLogoOffsetY,

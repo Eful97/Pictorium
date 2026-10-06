@@ -15,6 +15,9 @@ async function openSettings(page: Page) {
     if (!await dialog.count()) await page.getByRole("button", { name: /Configura tutti i poster|Impostazioni/i }).filter({ visible: true }).click()
     await expect(dialog).toBeVisible({ timeout: 1000 })
   }).toPass()
+  // Personal presets live in a disclosure closed by default: expand it first
+  // (body unmounts while closed). All save/apply/delete assertions unchanged.
+  await dialog.getByRole("button", { name: /I miei preset/ }).click()
   await expect(dialog.getByRole("button", { name: "Salva stile attuale" })).toBeVisible()
   return dialog
 }
@@ -49,6 +52,11 @@ test("personal styles are saved on the server and can be applied from another de
     await expect(secondDialog.locator('input[type="range"]').first()).toHaveValue("65")
     await secondPage.screenshot({ path: "artifacts/personal-visual-presets.png" })
     await secondPage.setViewportSize({ width: 390, height: 844 })
+    // Resize swaps the responsive branch and remounts the section (collapsed
+    // by design): reopen the disclosure. Assertions below are unchanged.
+    if ((await secondDialog.getByRole("button", { name, exact: true }).count()) === 0) {
+      await secondDialog.getByRole("button", { name: /I miei preset/ }).click()
+    }
     const presetButton = secondDialog.getByRole("button", { name, exact: true })
     const deleteButton = secondDialog.getByRole("button", { name: `Elimina ${name}`, exact: true })
     await expect(presetButton).toBeVisible()

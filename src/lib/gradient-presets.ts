@@ -20,17 +20,29 @@ export interface GradientPresetValues {
 type PosterKind = { iso_639_1?: string | null } | null | undefined
 
 /**
- * Look "Colore" (da riferimento concorrenza): banda alta quasi piatta che
- * copre anche il logo, tinta di scena forte, NESSUNA velatura scura — il
- * colore resta luminoso. Valori assoluti dentro i bound degli slider
- * (height 5-100, intensity 1-100, gli altri 0-100) — da calibrare a occhio.
+ * Look "Colore" (da riferimento concorrenza): banda alta che copre anche il
+ * logo, tinta di scena forte, velatura scura media. Valori assoluti dentro i
+ * bound degli slider (height 5-100, intensity 1-100, gli altri 0-100).
  */
 export const GRADIENT_PRESET_COLOR: GradientPresetValues = {
   gradientHeight: 35,
   blurIntensity: 20,
   blurFade: 10,
-  blurDarkness: 0,
+  blurDarkness: 30,
   tintStrength: 100,
+  blurEnabled: true,
+}
+
+/**
+ * Look "Nero": banda fonda e intensa, velatura scura piena, nessuna tinta di
+ * scena. Valori assoluti dentro i bound degli slider.
+ */
+export const GRADIENT_PRESET_NERO: GradientPresetValues = {
+  gradientHeight: 50,
+  blurIntensity: 1,
+  blurFade: 100,
+  blurDarkness: 100,
+  tintStrength: 0,
   blurEnabled: true,
 }
 
@@ -41,7 +53,7 @@ export const GRADIENT_PRESET_COLOR: GradientPresetValues = {
  * e apply assoluti.
  */
 export const NATURAL_GRADIENT_DEFAULTS: GradientPresetValues = {
-  gradientHeight: 30,
+  gradientHeight: 35,
   blurIntensity: 20,
   blurFade: 50,
   blurDarkness: 30,
@@ -53,8 +65,8 @@ export const NATURAL_GRADIENT_DEFAULTS: GradientPresetValues = {
  * Factory storiche (pre-preset) di altezza/fade: distinguono "default mai
  * toccato" (ancora soggetto ad auto-calibrazione per tipo poster) da un
  * default personalizzato (assoluto). NON allinearle a NATURAL_GRADIENT_DEFAULTS:
- * il Naturale (30/50) coincide con le factory — i default mai toccati seguono
- * il tipo poster, solo un valore personalizzato diverso resta assoluto.
+ * il Naturale resta ancorato alle factory solo per il fade (50) — l'altezza
+ * Naturale (35) è un valore personalizzato assoluto e non si ricalibra.
  */
 const LEGACY_GRADIENT_HEIGHT = 30
 const LEGACY_BLUR_FADE = 50
@@ -134,7 +146,7 @@ export interface CustomGradientPreset {
   values: GradientPresetValues
 }
 
-/** Slot personali: 2 built-in (Naturale/Colore) + 3 custom = 5 totali. */
+/** Slot personali: 3 built-in (Naturale/Colore/Nero) + 3 custom = 6 totali. */
 export const MAX_CUSTOM_GRADIENT_PRESETS = 3
 
 export function gradientPresetsStorageKey(): string {

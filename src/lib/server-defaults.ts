@@ -3,7 +3,7 @@ import { existsSync, readFileSync } from "node:fs"
 import path from "node:path"
 import { DATA_DIR } from "@/lib/data-dir"
 import { createLogger } from "@/lib/logger"
-import type { BadgeStyle, RankingBadgeStyle, QualityBadgeStyle, BadgeFont, SeparateRatingsStyle } from "@/lib/badge-styles"
+import type { BadgeStyle, RankingBadgeStyle, QualityBadgeStyle, BadgeFont, SeparateRatingsStyle, ExtraBadgeStyle } from "@/lib/badge-styles"
 import type { StreamQuality } from "@/lib/quality-tiers"
 import type { SashBucket } from "@/lib/badge-priority"
 import type { VideoFormat } from "@/lib/av-specs"
@@ -19,10 +19,14 @@ import { getCatalogEpoch } from "@/lib/catalog-epoch"
 const log = createLogger("server-defaults")
 
 /**
- * Default di resa per il formato landscape: sfumatura/blur + scale e offset
- * dei badge (gli stessi parametri regolabili per-titolo per formato). Stili,
- * toggle, tinta e ombra restano condivisi tra i formati per scelta.
- * Ogni chiave assente/undefined segue il flat (portrait).
+ * Landscape render defaults: same tunable fields as portrait plus the shared
+ * visuals that may diverge per shape (styles, toggles, sash priority, A/V
+ * formats, network placement, pre-release, ribbon). Always shared, never per
+ * shape: vote sources (`ratingSources`), Top 20 source, region, date format,
+ * API keys/catalogs, logo fit and rotations (already split elsewhere).
+ * Absent keys follow portrait flats; explicit `false`/`[]`/`0` win over
+ * flats, `null` counts as absent (logo scale/offset keep their own
+ * null-means-auto/zero contract below).
  */
 export interface LandscapeServerDefaults {
   gradientHeight?: number
@@ -57,6 +61,40 @@ export interface LandscapeServerDefaults {
   networkLogoScale?: number
   networkLogoOffsetX?: number
   networkLogoOffsetY?: number
+  /** Genre/rating badge style ("shadow" historic default). */
+  badgeStyle?: BadgeStyle
+  /** Rank badge style ("default" = auto-detect). */
+  rankingBadgeStyle?: RankingBadgeStyle
+  /** Standalone extra-badge style (absent = legacy `rs`). */
+  extraBadgeStyle?: ExtraBadgeStyle | null
+  /** Badge text font ("inter" historic default). */
+  badgeFont?: BadgeFont | null
+  /** Quality badge icon style (standard = text pill). */
+  qualityBadgeStyle?: QualityBadgeStyle | null
+  /** Enabled A/V formats (dv, hdr, hdr10plus, atmos, imax). */
+  videoFormats?: VideoFormat[] | null
+  globalBadges?: boolean
+  rankingBadges?: boolean
+  badgeGenre?: boolean
+  badgeYear?: boolean
+  badgeRating?: boolean
+  badgeQuality?: boolean
+  /** Minimum streaming quality tier (SD < HD < FHD < 4K). */
+  minQuality?: StreamQuality
+  /** Custom rating provider row (display). */
+  customRatings?: boolean
+  /** Separate ratings column (replaces the ★ average). */
+  separateRatings?: boolean
+  networkLogo?: boolean
+  /** Network logo placement ("auto" = dynamic mirror, "top" = ribbon-side corner). */
+  networkLogoPosition?: import("@/lib/types").NetworkLogoPosition
+  /** Pre-digital effect (darken + Coming Soon badge, movies only). */
+  preRelease?: boolean
+  ribbonSide?: "left" | "right"
+  /** Corner Netflix-style ribbon (false = centered rank badge). */
+  ribbonEnabled?: boolean
+  /** Enabled sash buckets (canonical order; empty = all off). */
+  sashOrder?: SashBucket[]
 }
 
 /** Solo chiavi definite (undefined = segui il flat, mai clobberare). */
@@ -81,6 +119,8 @@ export function effectiveDefaultsForShape(defaults: ServerDefaults, shape: "post
 export interface ServerDefaults {
   badgeStyle?: BadgeStyle
   rankingBadgeStyle?: RankingBadgeStyle
+  /** Standalone extra-badge style (flat-only): absent = legacy `rs` fallback. */
+  extraBadgeStyle?: ExtraBadgeStyle | null
   /** Font dei testi badge ("inter" = resa storica). */
   badgeFont?: BadgeFont | null
   /** Stile icone del badge qualità (standard = pill testuale). */

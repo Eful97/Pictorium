@@ -11,4 +11,5 @@ export interface RecentChange {
 }
 
 export const RECENT_CHANGES: RecentChange[] = [
+  { type: "fix", text: "Keep daily poster rotation in your profile", sha: "9fbe11c", date: "2026-10-06" },
 ]

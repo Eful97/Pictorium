@@ -33,7 +33,7 @@ describe("SettingsPanel", () => {
     expect(screen.getAllByText("ui.genreRatingBadge")).toHaveLength(2)
   })
 
-  it("renders trend badge toggle", () => {
+  it("renders top badge toggle", () => {
     renderWithCtx(
       <SettingsPanel
         setSettingsOpen={() => {}}
@@ -41,12 +41,13 @@ describe("SettingsPanel", () => {
         importData={() => {}}
       />
     )
-    expect(screen.getByText("ui.trendBadge")).toBeInTheDocument()
+    expect(screen.getAllByText("ui.topBadge").length).toBeGreaterThan(0)
+    expect(screen.getByRole("switch", { name: "ui.topBadge" })).toBeInTheDocument()
     // Hint: il default non muove i salvati, il kill-switch globale è la sash Classifiche.
     expect(screen.getByText("ui.trendDefaultHint")).toBeInTheDocument()
   })
 
-  it("trend master toggle turns all sash categories off and restores them on", () => {
+  it("top badge master toggle turns all sash categories off and restores them on", () => {
     renderWithCtx(
       <SettingsPanel
         setSettingsOpen={() => {}}
@@ -54,7 +55,7 @@ describe("SettingsPanel", () => {
         importData={() => {}}
       />
     )
-    const trend = screen.getByRole("switch", { name: "ui.trendBadge" })
+    const trend = screen.getByRole("switch", { name: "ui.topBadge" })
     const sashNames = ["ui.sash_upcoming", "ui.sash_rank", "ui.sash_new", "ui.sash_award", "ui.sash_extra"]
     const sashSwitches = () => sashNames.map((n) => screen.getByRole("switch", { name: n }))
     // Precondizione: master ON e categorie tutte ON (default).
@@ -324,7 +325,8 @@ describe("SettingsPanel", () => {
     const panel = screen.getByRole("tabpanel", { name: "ui.transform" })
     // Default: sezione Verticale, quella Orizzontale non è nel DOM.
     expect(within(panel).queryByText("ui.landscapeDefaultsHint")).not.toBeInTheDocument()
-    fireEvent.click(within(panel).getByRole("button", { name: "ui.posterShapeLandscape" }))
+    // Single edit-target selector lives outside the tabpanel (shared with Badge).
+    fireEvent.click(within(screen.getByTestId("format-target-selector")).getByText("ui.posterShapeLandscape"))
     expect(await within(panel).findByText("ui.landscapeDefaultsHint")).toBeInTheDocument()
   })
 
@@ -339,7 +341,7 @@ describe("SettingsPanel", () => {
     fireEvent.click(screen.getByRole("tab", { name: "ui.transform" }))
     const panel = screen.getByRole("tabpanel", { name: "ui.transform" })
     expect(within(panel).getByRole("switch", { name: "ui.blurSection" })).toBeInTheDocument()
-    fireEvent.click(within(panel).getByRole("button", { name: "ui.posterShapeLandscape" }))
+    fireEvent.click(within(screen.getByTestId("format-target-selector")).getByText("ui.posterShapeLandscape"))
     expect(within(panel).getByRole("switch", { name: "ui.blurSection · ui.posterShapeLandscape" })).toBeInTheDocument()
   })
 
@@ -361,8 +363,8 @@ describe("SettingsPanel", () => {
       // Verticale: default flat 80%.
       const portraitSliders = within(panel).getAllByRole("slider", { name: "ui.scale" })
       expect(portraitSliders.some((s) => s.getAttribute("aria-valuetext") === "80%")).toBe(true)
-      // Orizzontale: override 60%.
-      fireEvent.click(within(panel).getByRole("button", { name: "ui.posterShapeLandscape" }))
+      // Orizzontale via the single external selector: override 60%.
+      fireEvent.click(within(screen.getByTestId("format-target-selector")).getByText("ui.posterShapeLandscape"))
       const landscapeSliders = within(panel).getAllByRole("slider", { name: "ui.scale" })
       expect(landscapeSliders.some((s) => s.getAttribute("aria-valuetext") === "60%")).toBe(true)
     } finally {

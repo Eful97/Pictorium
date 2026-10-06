@@ -19,16 +19,20 @@ import { useT } from "@/lib/contexts/TranslationContext"
 import { usePosterEditor } from "@/lib/contexts/PosterEditorContext"
 import { SliderRow } from "@/components/SliderRow"
 import { Toggle } from "@/components/Toggle"
-import { separateBadgeScaleToUI, uiToSeparateBadgeScale, SEPARATE_BADGE_SCALE_UI_MIN, SEPARATE_BADGE_SCALE_UI_MAX } from "@/lib/badge-styles"
+import { separateBadgeScaleToUI, uiToSeparateBadgeScale, SEPARATE_BADGE_SCALE_UI_MIN, SEPARATE_BADGE_SCALE_UI_MAX, NUMBER_BADGE_BASE_OFFSET_X } from "@/lib/badge-styles"
 import { GradientPresetRow } from "@/components/GradientPresetRow"
 import type { GradientPresetValues } from "@/lib/gradient-presets"
 import type { LandscapeServerDefaults } from "@/lib/server-defaults"
+import type { DefaultsPreviewFamily } from "@/lib/poster-url"
 
 interface Props {
   editVal: string | null
   editTxt: string
   setEditVal: (v: string | null) => void
   setEditTxt: (v: string) => void
+  /** Preview-only editing family (owned by SettingsPanel): each numeric group
+   *  reports its family on press/focus — text-only state lift, never writes. */
+  onPreviewFamilyChange?: (f: DefaultsPreviewFamily) => void
 }
 
 type LandKey = keyof LandscapeServerDefaults
@@ -43,7 +47,7 @@ type LandKey = keyof LandscapeServerDefaults
  * URL/chiave cache: il server risolve dal profilo salvato (già coperto da
  * firma defaults e sd-hash).
  */
-export function LandscapeDefaultsSection({ editVal, editTxt, setEditVal, setEditTxt }: Props) {
+export function LandscapeDefaultsSection({ editVal, editTxt, setEditVal, setEditTxt, onPreviewFamilyChange }: Props) {
   const { t } = useT()
   const ed = usePosterEditor()
   const land = ed.landscape
@@ -52,6 +56,21 @@ export function LandscapeDefaultsSection({ editVal, editTxt, setEditVal, setEdit
   const isOver = (key: LandKey) => land[key] !== undefined
   const resetLabel = t("ui.reset")
   const enabled = land.blurEnabled ?? ed.defaultBlurEnabled
+  // Preview-family scope (U2): same helper as the other settings cards —
+  // explicit press or keyboard focus reports only (never hover), no focus
+  // moves, no unmounts.
+  const famAttrs = (family: DefaultsPreviewFamily) => ({
+    "data-preview-family": family,
+    onFocusCapture: () => onPreviewFamilyChange?.(family),
+    onPointerDownCapture: () => onPreviewFamilyChange?.(family),
+  })
+  // Separate-ratings numerics gate on the EFFECTIVE flags (`land ?? flat`),
+  // matching the Badge tab scoped bindings and the preview builder: raw root
+  // flags alone would show/hide this group against the edited target.
+  const effSepGate =
+    (land.globalBadges ?? ed.defaultGlobalBadges) &&
+    (land.badgeRating ?? ed.defaultBadgeRating) &&
+    (land.separateRatings ?? ed.defaultSeparateRatings)
 
   const applyPreset = (v: GradientPresetValues) => {
     set({
@@ -103,8 +122,9 @@ export function LandscapeDefaultsSection({ editVal, editTxt, setEditVal, setEdit
     flatX: number,
     flatY: number,
     prefix: string,
+    family: DefaultsPreviewFamily,
   ) => (
-    <div className="space-y-1.5" key={prefix}>
+    <div {...famAttrs(family)} className="space-y-1.5">
       <div className="flex items-center justify-between px-1">
         <span className="font-semibold text-zinc-200 flex items-center gap-1.5">
           {icon}
@@ -139,23 +159,40 @@ export function LandscapeDefaultsSection({ editVal, editTxt, setEditVal, setEdit
         editingKey={`${prefix}Scale`}
         suffix="%"
       />
-      <SliderRow
-        icon={<ArrowLeftRight className="w-3.5 h-3.5" />}
-        label="X"
-        value={land[xKey] ?? flatX}
-        min={-100}
-        max={100}
-        boundsMin={-500}
-        boundsMax={500}
-        onChange={(v) => set({ [xKey]: v } as Partial<LandscapeServerDefaults>)}
-        onDoubleClick={() => clear(xKey)}
-        editingValue={editVal}
-        editText={editTxt}
-        setEditingValue={setEditVal}
-        setEditText={setEditTxt}
-        editingKey={`${prefix}OX`}
-        suffix="px"
-      />
+      {(() => {
+        // Effective rank style for the landscape target: the profile
+        // override wins, else the portrait flat (styles are independent per
+        // shape). Rank numerals (`number`) render on a -20px X baseline, so
+        // show the REAL effective X (stored + baseline) and convert edits
+        // back to the stored adjustment. Other groups pass through untouched
+        // (base 0). Reset/dblclick clear the override (land follows the
+        // flat), never touching other settings or stored raws.
+        const landRankStyle = land.rankingBadgeStyle ?? ed.defaultRankingBadgeStyle
+        const numBase =
+          xKey === "topBadgeOffsetX" && landRankStyle === "number"
+            ? NUMBER_BADGE_BASE_OFFSET_X
+            : 0
+        const effX = (land[xKey] ?? flatX) + numBase
+        return (
+          <SliderRow
+            icon={<ArrowLeftRight className="w-3.5 h-3.5" />}
+            label="X"
+            value={effX}
+            min={-100}
+            max={100}
+            boundsMin={-500}
+            boundsMax={500}
+            onChange={(v) => set({ [xKey]: v - numBase } as Partial<LandscapeServerDefaults>)}
+            onDoubleClick={() => clear(xKey)}
+            editingValue={editVal}
+            editText={editTxt}
+            setEditingValue={setEditVal}
+            setEditText={setEditTxt}
+            editingKey={`${prefix}OX`}
+            suffix="px"
+          />
+        )
+      })()}
       <SliderRow
         icon={<ArrowUpDown className="w-3.5 h-3.5" />}
         label="Y"
@@ -181,7 +218,7 @@ export function LandscapeDefaultsSection({ editVal, editTxt, setEditVal, setEdit
       <p className="text-[11px] text-zinc-400 italic">{t("ui.landscapeDefaultsHint")}</p>
 
       {/* Logo: stessa card del Verticale (doppio click = segui) */}
-      <div className="bg-surface/50 border border-surface2/60 rounded-xl p-3.5 space-y-1.5 shadow-sm animate-fade-in">
+      <div {...famAttrs("logo")} className="bg-surface/50 border border-surface2/60 rounded-xl p-3.5 space-y-1.5 shadow-sm animate-fade-in">
         <div className="flex items-center justify-between px-1">
           <span className="font-semibold text-zinc-200 flex items-center gap-1.5">
             <ImageIcon className="w-3.5 h-3.5 text-accent-orange" />
@@ -258,15 +295,15 @@ export function LandscapeDefaultsSection({ editVal, editTxt, setEditVal, setEdit
       {/* Stesso ordine del Verticale: badge superiore, genere, qualità,
           network — sfumatura per ultima. */}
       <div className="bg-surface/50 border border-surface2/60 rounded-xl p-3.5 space-y-3 shadow-sm">
-        {scaleGroup(t("ui.topBadge"), <Trophy className="w-3.5 h-3.5 text-amber-500" />, "topBadgeScale", "topBadgeOffsetX", "topBadgeOffsetY", ed.defaultTopBadgeScale, ed.defaultTopBadgeOffsetX, ed.defaultTopBadgeOffsetY, "lst")}
+        {scaleGroup(t("ui.topBadge"), <Trophy className="w-3.5 h-3.5 text-amber-500" />, "topBadgeScale", "topBadgeOffsetX", "topBadgeOffsetY", ed.defaultTopBadgeScale, ed.defaultTopBadgeOffsetX, ed.defaultTopBadgeOffsetY, "lst", "rank")}
         <hr className="border-surface2/50" />
-        {scaleGroup(t("ui.genreRatingBadge"), <Star className="w-3.5 h-3.5 text-amber-400" />, "genreBadgeScale", "genreBadgeOffsetX", "genreBadgeOffsetY", ed.defaultGenreBadgeScale, ed.defaultGenreBadgeOffsetX, ed.defaultGenreBadgeOffsetY, "lsg")}
+        {scaleGroup(t("ui.genreRatingBadge"), <Star className="w-3.5 h-3.5 text-amber-400" />, "genreBadgeScale", "genreBadgeOffsetX", "genreBadgeOffsetY", ed.defaultGenreBadgeScale, ed.defaultGenreBadgeOffsetX, ed.defaultGenreBadgeOffsetY, "lsg", "genre")}
         <hr className="border-surface2/50" />
-        {scaleGroup(t("ui.badgeQuality"), <Sparkles className="w-3.5 h-3.5 text-purple-400" />, "qualityBadgeScale", "qualityBadgeOffsetX", "qualityBadgeOffsetY", ed.defaultQualityBadgeScale, ed.defaultQualityBadgeOffsetX, ed.defaultQualityBadgeOffsetY, "lsq")}
-        {ed.defaultGlobalBadges && ed.defaultBadgeRating && ed.defaultSeparateRatings && (
+        {scaleGroup(t("ui.badgeQuality"), <Sparkles className="w-3.5 h-3.5 text-purple-400" />, "qualityBadgeScale", "qualityBadgeOffsetX", "qualityBadgeOffsetY", ed.defaultQualityBadgeScale, ed.defaultQualityBadgeOffsetX, ed.defaultQualityBadgeOffsetY, "lsq", "quality")}
+        {effSepGate && (
           <>
             <hr className="border-surface2/50" />
-            <div className="space-y-1.5">
+            <div {...famAttrs("ratings")} className="space-y-1.5">
               <div className="flex items-center justify-between px-1">
                 <span className="font-semibold text-zinc-200 flex items-center gap-1.5">
                   <Star className="w-3.5 h-3.5 text-amber-400" />
@@ -339,10 +376,10 @@ export function LandscapeDefaultsSection({ editVal, editTxt, setEditVal, setEdit
           </>
         )}
         <hr className="border-surface2/50" />
-        {scaleGroup(t("ui.networkLogo"), <Tv className="w-3.5 h-3.5 text-sky-400" />, "networkLogoScale", "networkLogoOffsetX", "networkLogoOffsetY", ed.defaultNetworkLogoScale, ed.defaultNetworkLogoOffsetX, ed.defaultNetworkLogoOffsetY, "lsn")}
+        {scaleGroup(t("ui.networkLogo"), <Tv className="w-3.5 h-3.5 text-sky-400" />, "networkLogoScale", "networkLogoOffsetX", "networkLogoOffsetY", ed.defaultNetworkLogoScale, ed.defaultNetworkLogoOffsetX, ed.defaultNetworkLogoOffsetY, "lsn", "logo")}
       </div>
 
-      <div className="bg-surface/50 border border-surface2/60 rounded-xl p-3.5 space-y-2.5 shadow-sm">
+      <div {...famAttrs("gradient")} className="bg-surface/50 border border-surface2/60 rounded-xl p-3.5 space-y-2.5 shadow-sm">
         <div className="flex items-center justify-between">
           <span className="text-zinc-200 font-semibold flex items-center gap-1.5">
             <Cloud className="w-3.5 h-3.5 text-cyan-400" />
@@ -382,6 +419,7 @@ export function LandscapeDefaultsSection({ editVal, editTxt, setEditVal, setEdit
               onApply={applyPreset}
               naturalLabel={t("ui.gradientPresetNatural")}
               colorLabel={t("ui.gradientPresetColor")}
+              neroLabel="Nero"
               addTitle={t("ui.gradientPresetAdd")}
               namePlaceholder={t("ui.gradientPresetName")}
               deleteLabel={t("ui.gradientPresetDelete")}

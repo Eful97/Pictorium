@@ -1,5 +1,5 @@
 import { POSTER_URL_VERSION } from "@/lib/render-version"
-import type { BadgeStyle, RankingBadgeStyle, QualityBadgeStyle, BadgeFont, SeparateRatingsStyle } from "@/lib/badge-styles"
+import type { BadgeStyle, RankingBadgeStyle, QualityBadgeStyle, BadgeFont, SeparateRatingsStyle, ExtraBadgeStyle } from "@/lib/badge-styles"
 import { getSeparateBadgeDefaultScale, getSeparateRatingsStyleForShape } from "@/lib/badge-styles"
 import type { VideoFormat } from "@/lib/av-specs"
 import { parseMinQuality, type StreamQuality } from "@/lib/quality-tiers"
@@ -42,9 +42,11 @@ export interface StremioPosterParamsInput {
   readonly sashOrder?: readonly SashBucket[] | null
   readonly badgeStyle?: BadgeStyle
   readonly rankingBadgeStyle?: RankingBadgeStyle
+  /** Standalone extra-badge style: emitted as `xbs` only when defined. */
+  readonly extraBadgeStyle?: ExtraBadgeStyle | null
   /** Font dei testi badge ("inter" = resa storica). */
   readonly badgeFont?: BadgeFont
-  /** Stile icone qualità: emesso come `qbs` solo quando non-standard (cache stabile). */
+  /** Quality style: emitted as `qbs` only when non-standard (stable cache). */
   readonly qualityBadgeStyle?: QualityBadgeStyle | null
   /** Formati A/V abilitati: emessi come `formats` solo se specificati. */
   readonly videoFormats?: readonly VideoFormat[] | null
@@ -345,13 +347,17 @@ export function buildStremioPosterSearchParams(input: StremioPosterParamsInput):
   if (input.compactTuning) params.set("dv", tuningSignature(input))
   params.set("bs", input.badgeStyle || DEFAULT_STREMIO_POSTER_PARAMS.badgeStyle)
   params.set("rs", input.rankingBadgeStyle || DEFAULT_STREMIO_POSTER_PARAMS.rankingBadgeStyle)
+  // Standalone extra style: opt-in only (absent = legacy `rs` fallback,
+  // existing Stremio URLs stay byte-identical). Low cardinality like bs/rs:
+  // stays explicit in compact mode, never inside `dv`.
+  if (input.extraBadgeStyle) params.set("xbs", input.extraBadgeStyle)
   // Font badge sempre esplicito (come bs/rs): assente ≠ default nella catena
   // query > mapping > config > defaults (un mapping salvato non-"inter"
   // vincerebbe sul default dello spazio senza il parametro).
   params.set("bfont", input.badgeFont || "inter")
-  // Stile icone qualità solo quando non-standard: gli URL esistenti restano
-  // identici e la cache non si invalida (il server risolve lo standard da solo).
-  if (input.qualityBadgeStyle === "mono" || input.qualityBadgeStyle === "color") {
+  // Quality style only when non-standard: existing URLs stay identical
+  // and the cache is not invalidated (the server resolves standard alone).
+  if (input.qualityBadgeStyle === "mono" || input.qualityBadgeStyle === "color" || input.qualityBadgeStyle === "knockout") {
     params.set("qbs", input.qualityBadgeStyle)
   }
   if (input.videoFormats !== undefined && input.videoFormats !== null) {

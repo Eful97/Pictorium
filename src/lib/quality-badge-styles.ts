@@ -13,7 +13,7 @@ export type QualityTier = "4K" | "FHD" | "HD" | "SD"
 
 export const QUALITY_TIERS: readonly QualityTier[] = ["4K", "FHD", "HD", "SD"]
 
-const QUALITY_BADGE_FILES: Record<Exclude<QualityBadgeStyle, "standard">, Record<QualityTier, string>> = {
+const QUALITY_BADGE_FILES: Record<Exclude<QualityBadgeStyle, "standard" | "knockout">, Record<QualityTier, string>> = {
   mono: {
     "4K": "4k-label-icon.svg",
     FHD: "full-hd-label-icon.svg",

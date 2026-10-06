@@ -1,12 +1,12 @@
 import { textColorForBg } from "./accent-color"
 import { FONT_FILES } from "./fonts"
-import { estimateTextWidth, fontFamilyFor, buildExtraPillSvg, buildExtraGlassSvg, buildExtraBorderedSvg, buildExtraDefaultSvg, buildQualityBadgeSvg, buildCustomBadgeSvg, escSvg, buildHouseGenreSvg, buildHouseRankingSvg, buildHousePresetSvg, TRANSLUCENT_BADGE_TEXT } from "./badge-svg-shared"
+import { estimateTextWidth, fontFamilyFor, buildExtraPillSvg, buildExtraGlassSvg, buildExtraBorderedSvg, buildExtraDefaultSvg, buildRankingCornerSvg, buildQualityBadgeSvg, buildQualityKnockoutSvg, buildCustomBadgeSvg, escSvg, buildHouseGenreSvg, buildHouseRankingSvg, buildHousePresetSvg, TRANSLUCENT_BADGE_TEXT } from "./badge-svg-shared"
 export { buildNetflixRankBadgeSVG } from "./badge-svg-shared"
 import type { GenreParts, HousePresetScene } from "./badge-svg-shared"
 import { normalizeBadgeFont } from "./badge-svg-shared"
 import { resolveBadgeText, type BadgeVariableContext } from "./badge-variables"
 import { scaleBadgeDesign, type BadgePreset } from "./badge-preset"
-import type { BadgeStyle, RankingBadgeStyle, ExtraBadgeStyle, BadgeFont } from "./badge-styles"
+import type { BadgeStyle, RankingBadgeStyle, BadgeFont } from "./badge-styles"
 import { isRibbonRankingStyle } from "./badge-styles"
 
 
@@ -48,7 +48,7 @@ export async function buildExtraBadgeSVG(
   label: string,
   pw: number,
   topLight?: boolean,
-  badgeStyle?: ExtraBadgeStyle,
+  badgeStyle?: BadgeStyle | RankingBadgeStyle,
   accentColor?: string,
   /** Placca fluttuante con 4 angoli raccordati (badge staccato dal top via toy). */
   detached = false,
@@ -82,6 +82,15 @@ export async function buildExtraBadgeSVG(
   let result: { svg: string; w: number; h: number }
   if (s === "pill") {
     result = buildExtraPillSvg(label, fs, fg, bg, !!topLight, true, f)
+  } else if (s === "corner") {
+    // Corner style for every top badge (rank or extra): same flat accent
+    // pill as the ranking corner, fed by the extra label. The 65% cap,
+    // font and accent fallback above apply unchanged.
+    result = buildRankingCornerSvg(label, fs, accentColor || "#555555", f)
+  } else if (s === "number") {
+    // An extra badge carries no digits: degrade to the corner flat pill so
+    // rank and extra share the same corner anchor under `rs=number`.
+    result = buildRankingCornerSvg(label, fs, accentColor || "#555555", f)
   } else if (isGlass) {
     result = buildExtraGlassSvg(label, fs, fg, bg, !!topLight, f)
   } else if (s === "bordo") {
@@ -169,7 +178,7 @@ export async function renderRankingBadge(
 
 export async function renderExtraBadge(
   label: string, pw: number, topLight?: boolean,
-  badgeStyle?: ExtraBadgeStyle, accentColor?: string,
+  badgeStyle?: BadgeStyle | RankingBadgeStyle, accentColor?: string,
   detached = false,
   /** Font dei testi (default "inter" = resa storica). */
   font: BadgeFont = "inter",
@@ -261,6 +270,24 @@ export async function renderQualityBadge(
   const bg = topLight ? "rgba(0,0,0,0.80)" : "rgba(255,255,255,0.80)"
   const fg = topLight ? "rgba(255,255,255,0.80)" : "rgba(0,0,0,0.80)"
   const result = buildQualityBadgeSvg(quality, fs, fg, bg, !!topLight, normalizeBadgeFont(font))
+  const png = await renderSVG(result.svg, result.w)
+  return { png, w: result.w, h: result.h }
+}
+
+/**
+ * Renders the `knockout` quality tag: opaque white rounded tag with the
+ * tier glyphs cut out (transparent). Same 17px base and box model as the
+ * standard pill, so scale/offset/anchor math downstream is unchanged;
+ * the mask glyphs render oversized (~1.35x) inside the unchanged box.
+ */
+export async function renderQualityKnockoutBadge(
+  quality: string,
+  pw: number,
+  /** Font del testo (default "inter" = resa storica). */
+  font: BadgeFont = "inter",
+): Promise<{ png: Buffer; w: number; h: number }> {
+  const fs = Math.round(Math.max(17 * pw / 380, 10))
+  const result = buildQualityKnockoutSvg(quality, fs, normalizeBadgeFont(font))
   const png = await renderSVG(result.svg, result.w)
   return { png, w: result.w, h: result.h }
 }

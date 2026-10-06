@@ -473,6 +473,78 @@ export function buildRankingPillSvg(fullText: string, fs: number, textColor: str
   return { svg: `<svg xmlns="http://www.w3.org/2000/svg" width="${renderW}" height="${renderH}" viewBox="0 0 ${renderW} ${renderH}">${defs}${bgEl}${textEl}</svg>`, w: renderW, h: renderH }
 }
 
+/**
+ * Flat accent pill for the ranking `corner` style (top-left anchor):
+ * same box model as the satin pill but flat-filled with `accentColorRank`
+ * (already-resolved scene tint or `ac=` override), readability-preferred
+ * text via `textColorForBg` (white while its effective contrast stays >= 2:1,
+ * a visual preference — see COLORED_BADGE_LIGHT_TEXT_MIN_CONTRAST).
+ * No satin gradient, no stroke — only the shared 3D shadow.
+ */
+export function buildRankingCornerSvg(fullText: string, fs: number, accentColor: string, font: BadgeFont = "inter") {
+  const px = Math.round(fs * BADGE_BOX_PAD_X_FACTOR)
+  const textW = Math.max(estimateTextWidth(fullText, fs, font), fs)
+  const totalW = textW + px * 2
+  const boxH = badgeBoxHeight(fs)
+  // Contained rounded-rectangle radius (reference look, ~0.25 boxH),
+  // not a full pill.
+  const r = Math.round(boxH * 0.25)
+  const renderW = totalW + TOP_SHADOW_PAD * 2
+  const renderH = boxH + TOP_SHADOW_PAD * 2
+  const ox = TOP_SHADOW_PAD
+  const oy = TOP_SHADOW_PAD
+  const textColor = textColorForBg(accentColor || "")
+  const defs = `<defs>${TOP_SHADOW_FILTER}</defs>`
+  const textEl = `<text x="${ox + totalW / 2}" y="${oy + boxH / 2}" text-anchor="middle" dominant-baseline="central" font-family="${fontFamilyFor(fullText, font)}" font-weight="700" font-size="${fs}" fill="${textColor}"${textFitAttrs(textW)}>${escSvg(fullText)}</text>`
+  const bgEl = `<rect x="${ox}" y="${oy}" width="${totalW}" height="${boxH}" rx="${r}" fill="${accentColor}" filter="url(#tds)"/>`
+  return { svg: `<svg xmlns="http://www.w3.org/2000/svg" width="${renderW}" height="${renderH}" viewBox="0 0 ${renderW} ${renderH}">${defs}${bgEl}${textEl}</svg>`, w: renderW, h: renderH }
+}
+
+/**
+ * Big standalone rank numeral for the ranking `number` style (look inspired
+ * by PostersPlus `trending_rank.py`, independent SVG/resvg implementation):
+ * bare Inter Bold digits with a vertical white→silver gradient and a soft
+ * drop shadow. No plate, no ribbon, no "#" and no label — the number sits
+ * directly on the artwork in the top corner (placement lives in
+ * `poster-service.ts`, same anchor as `corner`, mirrored with `side=right`).
+ * Sized as a fraction of the render width so it scales with `pw` like every
+ * other badge; `topBadgeScale` applies downstream as a bitmap resize.
+ */
+export function buildRankingNumberSvg(rank: number, pw: number, font: BadgeFont = "inter") {
+  const digits = String(rank)
+  // Digit ink height ≈ 0.19 × pw (reference look); Inter Bold digit cap
+  // height is ≈ 0.72em, so fs ≈ 0.19/0.72 × pw. Tight tracking like display
+  // numerals at large sizes.
+  const fs = Math.max(Math.round(pw * 0.264), 10)
+  const track = -Math.round(fs * 0.03)
+  const advances = [...digits].map((ch) => estimateTextWidth(ch, fs, font))
+  const textW = Math.max(
+    advances.reduce((a, b) => a + b, 0) + track * Math.max(0, digits.length - 1),
+    fs * 0.35,
+  )
+  const inkH = Math.round(fs * 0.72)
+  // Room for the soft shadow blur + offset on every side (no plate).
+  const pad = Math.max(8, Math.round(pw * 0.03))
+  const renderW = Math.ceil(textW) + pad * 2
+  const renderH = inkH + pad * 2
+  const blur = Math.max(2, Math.round(pw * 0.012))
+  const off = Math.max(1, Math.round(pw * 0.004))
+  const gradId = "ranknumg"
+  const shadowId = "ranknumsh"
+  const defs =
+    `<defs><linearGradient id="${gradId}" x1="0" y1="0" x2="0" y2="1">` +
+    `<stop offset="0%" stop-color="#FFFFFF"/><stop offset="55%" stop-color="#D6D8DC"/>` +
+    `<stop offset="100%" stop-color="#A8ACB4"/></linearGradient>` +
+    `<filter id="${shadowId}" x="-40%" y="-40%" width="180%" height="180%">` +
+    `<feDropShadow dx="0" dy="${off}" stdDeviation="${blur}" flood-color="#000000" flood-opacity="0.59"/>` +
+    `</filter></defs>`
+  const textEl =
+    `<text x="${pad + textW / 2}" y="${renderH / 2}" text-anchor="middle" dominant-baseline="central" ` +
+    `font-family="${fontFamilyFor(digits, font)}" font-weight="${RANKING_FONT_WEIGHT}" font-size="${fs}" ` +
+    `fill="url(#${gradId})" filter="url(#${shadowId})"${textFitAttrs(textW)}>${escSvg(digits)}</text>`
+  return { svg: `<svg xmlns="http://www.w3.org/2000/svg" width="${renderW}" height="${renderH}" viewBox="0 0 ${renderW} ${renderH}">${defs}${textEl}</svg>`, w: renderW, h: renderH }
+}
+
 export function buildRankingGlassSvg(fullText: string, fs: number, textColor: string, _bg: string, topLight: boolean, font: BadgeFont = "inter") {
   const px = Math.round(fs * BADGE_BOX_PAD_X_FACTOR)
   const textW = Math.max(estimateTextWidth(fullText, fs, font), fs)
@@ -608,6 +680,45 @@ export function buildQualityBadgeSvg(quality: string, fs: number, _textColor: st
   const defs = `<defs><linearGradient id="qg" x1="0" y1="0" x2="0" y2="1">${satinPillStops(topLight)}</linearGradient>${TOP_SHADOW_FILTER}</defs>`
   const bgEl = `<rect x="${ox}" y="${oy}" width="${totalW}" height="${boxH}" rx="${r}" fill="url(#qg)" stroke="${stroke}" stroke-width="1.5" filter="url(#tds)"/>`
   return { svg: `<svg xmlns="http://www.w3.org/2000/svg" width="${renderW}" height="${renderH}" viewBox="0 0 ${renderW} ${renderH}">${defs}${bgEl}${textEl}</svg>`, w: renderW, h: renderH }
+}
+
+/**
+ * White knockout tag for the `knockout` quality style: opaque white
+ * rounded tag (contained radius, not a full pill) with the tier glyphs cut
+ * out via SVG mask, so the poster shows through the letters. The tag box
+ * keeps the standard pill metrics (same totalW/boxH from the base `fs`),
+ * while the mask glyphs render at ~1.35x `fs` to fill the interior with
+ * small anti-clipping margins. Only the shared translucent 3D shadow is
+ * applied — no stroke, no fill inside the glyphs.
+ */
+export function buildQualityKnockoutSvg(quality: string, fs: number, font: BadgeFont = "inter") {
+  const px = Math.round(fs * BADGE_BOX_PAD_X_FACTOR)
+  // Same tracking as the standard technical-mark pill: 0.06em per gap.
+  const track = quality.length > 1 ? Math.round(0.06 * fs * (quality.length - 1)) : 0
+  const textW = Math.max(estimateTextWidth(quality, fs, font) + track, fs)
+  const totalW = textW + px * 2
+  const boxH = badgeBoxHeight(fs)
+  // Contained rounded-rectangle radius (reference look), not a full pill.
+  const r = Math.round(boxH * 0.30)
+  const renderW = totalW + TOP_SHADOW_PAD * 2
+  const renderH = boxH + TOP_SHADOW_PAD * 2
+  const ox = TOP_SHADOW_PAD
+  const oy = TOP_SHADOW_PAD
+  const cx = ox + totalW / 2
+  const cy = oy + boxH / 2
+  const family = fontFamilyFor(quality, font)
+  // Oversized mask glyphs inside the unchanged box: more ink width/height
+  // than the base `fs`, clamped to the interior with a small margin so
+  // resvg never clips (all tiers/fonts).
+  const maskFs = Math.round(fs * 1.35)
+  const maskTrack = quality.length > 1 ? Math.round(0.06 * maskFs * (quality.length - 1)) : 0
+  const maskNatural = Math.max(estimateTextWidth(quality, maskFs, font) + maskTrack, maskFs)
+  const maskMargin = Math.max(2, Math.round(fs * 0.15))
+  const maskTextW = Math.min(maskNatural, Math.max(totalW - maskMargin * 2, maskFs))
+  const fit = textFitAttrs(maskTextW)
+  const defs = `<defs><mask id="qkm"><rect x="${ox}" y="${oy}" width="${totalW}" height="${boxH}" rx="${r}" fill="#ffffff"/><text x="${cx}" y="${cy}" text-anchor="middle" dominant-baseline="central" font-family="${family}" font-weight="700" font-size="${maskFs}" letter-spacing="0.06em" fill="#000000"${fit}>${escSvg(quality)}</text></mask>${TOP_SHADOW_FILTER}</defs>`
+  const bgEl = `<rect x="${ox}" y="${oy}" width="${totalW}" height="${boxH}" rx="${r}" fill="#ffffff" mask="url(#qkm)" filter="url(#tds)"/>`
+  return { svg: `<svg xmlns="http://www.w3.org/2000/svg" width="${renderW}" height="${renderH}" viewBox="0 0 ${renderW} ${renderH}">${defs}${bgEl}</svg>`, w: renderW, h: renderH }
 }
 
 // --- Custom preset badges (Badge Lab + poster Stremio: stessa funzione) ---
@@ -996,6 +1107,12 @@ export function buildHouseRankingSvg(input: HouseRankingInput): { svg: string; w
     })
   } else if (s === "pill") {
     return buildRankingPillSvg(fullText, fs, fg, bg, !!topLight, true, font)
+  } else if (s === "corner") {
+    return buildRankingCornerSvg(fullText, fs, accentColor || "#555555", font)
+  } else if (s === "number") {
+    // Standalone numeral: no plate/label — only the rank digits matter, so
+    // the pill-text overflow cap above is irrelevant (fs unused here).
+    return buildRankingNumberSvg(rank, pw, font)
   } else if (s === "vetro") {
     return buildRankingGlassSvg(fullText, fs, fg, bg, !!topLight, font)
   } else if (s === "bordo") {

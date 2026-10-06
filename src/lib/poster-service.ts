@@ -18,7 +18,7 @@ import {
   PosterComposite,
 } from "./poster-render-helpers"
 import { LAND_W, LAND_H } from "./image-utils"
-import { renderGenreBadge, renderRankingBadge, renderExtraBadge, renderQualityBadge, renderComingSoonRibbon, comingSoonRibbonLayout, renderSVG, buildCustomPresetBadgeSVG, buildHousePresetBadgeSVG } from "./svg-badge"
+import { renderGenreBadge, renderRankingBadge, renderExtraBadge, renderQualityBadge, renderQualityKnockoutBadge, renderComingSoonRibbon, comingSoonRibbonLayout, renderSVG, buildCustomPresetBadgeSVG, buildHousePresetBadgeSVG } from "./svg-badge"
 import { buildLogoScrim, logoContrast, logoInkLuminance, logoScrimStrength, posterLogoZoneLuminance } from "./logo-contrast"
 import { renderFirstMatchingNetworkLogoBadge, renderFirstMatchingNetworkRawBadge, renderFirstMatchingNetworkLogoBadgeHybrid, renderFirstMatchingNetworkRawBadgeHybrid, type NetworkCandidate } from "./network-svgs"
 import { computeLogoLayout, logoAlignPadX, PORTRAIT_LOGO_MAX_HEIGHT_PCT, PORTRAIT_LOGO_TOP_OFFSET, LANDSCAPE_LOGO_MAX_WIDTH_PCT, LANDSCAPE_LOGO_MAX_HEIGHT_PCT, LANDSCAPE_LOGO_BOTTOM_MARGIN_PCT, LANDSCAPE_LOGO_TOP_OFFSET, LANDSCAPE_LOGO_SHIFT_X, LANDSCAPE_LOGO_SHIFT_Y } from "./logo-layout"
@@ -27,6 +27,7 @@ import fs from "fs"
 import path from "path"
 import { estimateTextWidth, fontFamilyFor, escSvg, badgeBoxHeight, TOP_SHADOW_PAD } from "./badge-svg-shared"
 import { computeTopBadge, isNetworkStudio, type BadgeInput } from "./poster-badge"
+import { DEMO_SAMPLE_NETWORK } from "./demo-samples"
 import type { DateFormat } from "./release-badge"
 import type { SashBucket } from "./badge-priority"
 import { PRE_RELEASE_DIM_ALPHA, PRE_RELEASE_BLUR_SIGMA } from "./pre-release"
@@ -36,7 +37,7 @@ import type { WikidataResult } from "./awards"
 import { directorBadgeLabel } from "./awards"
 import type { BadgeT } from "./poster-badge"
 import type { BadgeFont } from "./badge-styles"
-import { isRibbonRankingStyle, isBottomSeparateRatingsStyle, getSeparateRatingsStyleForShape, type BadgeStyle, type RankingBadgeStyle, type SeparateRatingsStyle, type SeparateBottomVariant } from "./badge-styles"
+import { isRibbonRankingStyle, isBottomSeparateRatingsStyle, getSeparateRatingsStyleForShape, resolveNumberBadgeBaseOffsetX, type BadgeStyle, type RankingBadgeStyle, type ExtraBadgeStyle, type SeparateRatingsStyle, type SeparateBottomVariant } from "./badge-styles"
 import { normalizeBadgeFont } from "./badge-svg-shared"
 import type { PosterImageFormat } from "@/lib/poster-runtime-cache"
 import { getPresetForUser } from "./badge-preset-store"
@@ -134,6 +135,8 @@ export interface GenerationInput {
   voteAverage: number | null
   badgeStyle: BadgeStyle
   rankingBadgeStyle: RankingBadgeStyle
+  /** Standalone extra-badge style: null = legacy `rankingBadgeStyle` fallback. */
+  extraBadgeStyle?: ExtraBadgeStyle | null
   /** Quali componenti del badge genere/rating mostrare (default tutti ON). */
   badgeGenre: boolean
   badgeYear: boolean
@@ -266,6 +269,13 @@ export interface GenerationInput {
   queryExtra: string | null
   qNetLogo: string | null
   networkLogo?: boolean
+  /**
+   * Demo samples (Settings defaults preview only, route-gated with preview=1
+   * plus the explicit flag): when the ordered network candidates resolve
+   * nothing, retry once with the bundled brand. Real brands keep absolute
+   * priority (order untouched); toggle-off never reaches the lookup.
+   */
+  demoSamples?: boolean
   /**
    * Posizione del logo network ("top" = sempre all'angolo superiore, lato
    * del nastro effettivo; "auto" = specchio dinamico odierno). Default "auto"
@@ -540,13 +550,18 @@ export async function renderQualityBadgeGroup(
   /** Font della pill testuale (default "inter" = resa storica; le icone mono/color restano invariate). */
   font: BadgeFont = "inter",
 ): Promise<{ png: Buffer; w: number; h: number } | null> {
-  const qualityIconPath = qualityBadgeIconPath(qualityBadgeStyle, quality)
+  const isKnockout = qualityBadgeStyle === "knockout"
+  // Knockout has no icon asset (qualityBadgeIconPath stays null by design):
+  // it renders its own tag below and never falls back to the standard pill.
+  const qualityIconPath = isKnockout ? null : qualityBadgeIconPath(qualityBadgeStyle, quality)
   let resBadge: { png: Buffer; w: number; h: number } | null = null
   if (qualityIconPath) {
     resBadge = await renderQualityIconBadge(qualityIconPath, pw, topLight)
   }
   if (!resBadge) {
-    resBadge = await renderQualityBadge(quality, pw, topLight, normalizeBadgeFont(font))
+    resBadge = isKnockout
+      ? await renderQualityKnockoutBadge(quality, pw, normalizeBadgeFont(font))
+      : await renderQualityBadge(quality, pw, topLight, normalizeBadgeFont(font))
   }
   if (!resBadge) return null
   if (!videoFormats || videoFormats.length === 0) return resBadge
@@ -559,7 +574,9 @@ export async function renderQualityBadgeGroup(
   let useCombo = hasDV && hasAtmos
   let comboIcon: { png: Buffer; w: number; h: number } | null = null
   if (useCombo) {
-    comboIcon = await renderQualityIconBadge("quality-badges/video/dolby-vision-atmos.svg", pw, topLight)
+    // Knockout keeps the Dolby mark white even on light tops (reference
+    // look); every other style and format keeps the polarity behavior.
+    comboIcon = await renderQualityIconBadge("quality-badges/video/dolby-vision-atmos.svg", pw, isKnockout ? false : topLight)
     if (!comboIcon) useCombo = false
   }
 
@@ -572,12 +589,15 @@ export async function renderQualityBadgeGroup(
     if (useCombo && (fmt === "dv" || fmt === "atmos")) {
       continue
     }
-    const icon = await renderQualityIconBadge(FORMAT_ICON_PATHS[fmt], pw, topLight)
+    const isDolbySingle = fmt === "dv" || fmt === "atmos"
+    const icon = await renderQualityIconBadge(FORMAT_ICON_PATHS[fmt], pw, isKnockout && isDolbySingle ? false : topLight)
     if (icon) formatBadges.push(icon)
   }
   if (formatBadges.length === 0) return resBadge
 
   const gap = Math.round(5 * pw / 380)
+  // Vertical stack for every style (knockout included): the tier tag on
+  // top, every verified format below — Dolby like any other format.
   const allBadges = [resBadge, ...formatBadges]
   const visWidths = allBadges.map((b) => Math.max(1, b.w - TOP_SHADOW_PAD * 2))
   const visHeights = allBadges.map((b) => Math.max(1, b.h - TOP_SHADOW_PAD * 2))
@@ -884,6 +904,216 @@ export async function resizeBackdropCached(
 }
 
 // ---------------------------------------------------------------------------
+// Corner rank layout helpers (pure, unit-tested). Corner-style only.
+// ---------------------------------------------------------------------------
+
+export interface CornerRankRect {
+  readonly left: number
+  readonly top: number
+  readonly w: number
+  readonly h: number
+}
+
+/**
+ * Styles anchored to the top corner like `corner` (flat pill): `number`
+ * shares the same anchor, gap, Coming Soon stacking and network/quality
+ * collision handling — only the bitmap differs (bare numeral, no plate).
+ */
+export function isCornerAnchoredStyle(v: string | null | undefined): boolean {
+  return v === "corner" || v === "number"
+}
+
+/**
+ * Effective top-badge style for builders, placement, collisions and cache:
+ * rank badges always use `rankingBadgeStyle`; extra badges use the standalone
+ * `extraBadgeStyle` when set, else the legacy `rankingBadgeStyle` fallback
+ * (absent everywhere = byte-identical legacy render).
+ */
+export function resolveTopBadgeStyle(params: {
+  readonly topBadgeType: "rank" | "extra" | null | undefined
+  readonly rankingBadgeStyle: RankingBadgeStyle
+  readonly extraBadgeStyle?: ExtraBadgeStyle | null
+}): RankingBadgeStyle {
+  if (params.topBadgeType === "extra") return params.extraBadgeStyle ?? params.rankingBadgeStyle
+  return params.rankingBadgeStyle
+}
+
+/**
+ * Top offset for a `corner` rank pill: stacked below a left Coming Soon
+ * ribbon sharing its corner, else the fixed top gap. The ribbon itself
+ * is never moved.
+ */
+export function cornerRankTop(params: {
+  comingSoonLeft: boolean
+  ribbonExtent: number
+  gap: number
+  pillTopGap: number
+}): number {
+  if (params.comingSoonLeft) return params.ribbonExtent + params.gap
+  return params.pillTopGap
+}
+
+/**
+ * Left anchor for a corner-anchored top badge (`corner` or `number`): the
+ * historic top-left box margin (`netPadX`), mirrored to the top-right
+ * corner when `mirrorRight` (only `number` with `side="right"` mirrors;
+ * `corner` always passes false). Exact historic margins — no drift.
+ */
+export function cornerAnchoredLeft(params: {
+  readonly canvasW: number
+  readonly badgeW: number
+  readonly mirrorRight: boolean
+  readonly offsetX: number
+}): number {
+  if (params.mirrorRight) return Math.round(params.canvasW - params.badgeW - 18 * params.canvasW / 380) + params.offsetX
+  return Math.round(18 * params.canvasW / 380) + params.offsetX
+}
+
+/**
+ * Whether a `number`-style numeral occupies the top-right corner (mirrored
+ * with `side="right"`): trailing badges (quality pill, separate stack) move
+ * to the left corner like with a right ribbon instead of shrinking in place
+ * against the bare digits. Left-anchored numerals need nothing (quality sits
+ * in the opposite corner). Other styles never match.
+ */
+export function isNumberRightCorner(params: {
+  readonly rankingBadgeStyle: string | null | undefined
+  readonly ribbonSide: string | null | undefined
+  readonly hasTopBadge: boolean
+}): boolean {
+  return params.rankingBadgeStyle === "number" && params.ribbonSide === "right" && params.hasTopBadge
+}
+
+/**
+ * Single composition behind both right-corner checks (quality pill at 2253
+ * and separate stack at 2357): the `number` test runs on the effective
+ * top-badge style, so an explicit extra style can never split quality left
+ * and stack right. Rank numerals keep the legacy behavior.
+ */
+export function isTopBadgeNumberRightCorner(params: {
+  readonly topBadgeType: "rank" | "extra" | null | undefined
+  readonly rankingBadgeStyle: RankingBadgeStyle
+  readonly extraBadgeStyle?: ExtraBadgeStyle | null
+  readonly ribbonSide: string | null | undefined
+  readonly hasTopBadge: boolean
+}): boolean {
+  return isNumberRightCorner({
+    rankingBadgeStyle: resolveTopBadgeStyle({
+      topBadgeType: params.topBadgeType,
+      rankingBadgeStyle: params.rankingBadgeStyle,
+      extraBadgeStyle: params.extraBadgeStyle,
+    }),
+    ribbonSide: params.ribbonSide,
+    hasTopBadge: params.hasTopBadge,
+  })
+}
+
+/**
+ * Whether a `number`-style numeral shares its corner with the Coming Soon
+ * ribbon and must stack below it. The numeral mirrors with `side="right"`,
+ * so unlike the historic left-only corner rule the shared corner is
+ * whichever side the numeral sits on: overlap is tested against the real
+ * boxes (Coming Soon composite rect + numeral rect at its unstacked
+ * candidate top), so explicit tox/toy that move the numeral away don't
+ * force a useless stack. Corner keeps its historic rule (never calls this).
+ */
+export function numberSharesComingSoonCorner(params: {
+  readonly canvasW: number
+  readonly hasTopBadge: boolean
+  readonly showComingSoon: boolean
+  readonly ribbonSide: string | null | undefined
+  /** Fitted Coming Soon bitmap width; null when no ribbon is rendered. */
+  readonly ribbonW: number | null
+  /** Negative composite offset of the Coming Soon layer (`ribbonLayout.offset`). */
+  readonly ribbonOffset: number | null
+  /** Visible extent of the ribbon from the corner (`ribbonLayout.extent`). */
+  readonly ribbonExtent: number | null
+  /** Numeral rect at its unstacked candidate top (final left incl. tox). */
+  readonly numLeft: number
+  readonly numTop: number
+  readonly numW: number
+  readonly numH: number
+}): boolean {
+  if (!params.hasTopBadge || !params.showComingSoon) return false
+  if (params.ribbonW == null || params.ribbonOffset == null || params.ribbonExtent == null) return false
+  const csLeft = params.ribbonSide === "right"
+    ? Math.round(params.canvasW - params.ribbonW + params.ribbonOffset)
+    : -params.ribbonOffset
+  const overlapX = params.numLeft < csLeft + params.ribbonW && params.numLeft + params.numW > csLeft
+  const overlapY = params.numTop < params.ribbonExtent && params.numTop + params.numH > 0
+  return overlapX && overlapY
+}
+
+/**
+ * Editorial nudge applied to every network pill at composite time
+ * (`top + NETWORK_LOGO_SHIFT_Y`): global tuning, not a user offset.
+ * Anchor math must subtract it so the on-poster gap stays exact.
+ */
+export const NETWORK_LOGO_SHIFT_Y = 10
+
+export interface CornerNetworkAboveTitleInput {
+  readonly logoTop: number
+  readonly logoLeft: number
+  readonly logoW: number
+  readonly netW: number
+  readonly netH: number
+  readonly gap: number
+  /**
+   * Visible Y shift applied at composite time (defaults to
+   * NETWORK_LOGO_SHIFT_Y): subtracted here so the on-poster gap stays `gap`.
+   */
+  readonly visibleShiftY?: number
+}
+
+/**
+ * Anchor for a `corner`-style network pill above the title logo (landscape
+ * default): same formula as the portrait branch (`logoTop - netH - gap`),
+ * corrected for the visible shift and centered on the title bounding box in
+ * every layout — centered, Cinematic Left or explicitly shifted titles all
+ * share the title center (`logoLeft + (logoW - netW) / 2`). Null when there
+ * is no room above the title — callers fall back to the historic top-left
+ * anchor. Never moves the title. Rank and extra alike: only the corner
+ * anchor matters, never the badge kind.
+ */
+export function cornerNetworkAboveTitle(
+  input: CornerNetworkAboveTitleInput,
+): { top: number; left: number } | null {
+  const shift = input.visibleShiftY ?? NETWORK_LOGO_SHIFT_Y
+  const top = input.logoTop - input.netH - input.gap - shift
+  if (top < 0) return null
+  const left = Math.round(input.logoLeft + (input.logoW - input.netW) / 2)
+  return { top, left }
+}
+
+/**
+ * Top coordinate stacking the network logo below a `corner` top pill when
+ * its anchored box overlaps the pill; null when there is no collision (or
+ * when there is no corner top badge). Corner-style only — every other
+ * style keeps its own placement, and shrinking alone is not enough once
+ * the logo dwarfs to its floor while staying in place.
+ */
+export function stackNetworkBelowCornerRank(params: {
+  rankingBadgeStyle: string | null | undefined
+  hasTopBadge: boolean
+  rank: CornerRankRect | null
+  netLeft: number
+  netTop: number
+  netW: number
+  netH: number
+  gap: number
+}): number | null {
+  if (!isCornerAnchoredStyle(params.rankingBadgeStyle) || !params.hasTopBadge || !params.rank) return null
+  const rankR = params.rank.left + params.rank.w
+  const rankB = params.rank.top + params.rank.h
+  const netR = params.netLeft + params.netW
+  const netB = params.netTop + params.netH
+  const overlapX = params.netLeft < rankR + 6 && netR > params.rank.left - 6
+  const overlapY = params.netTop < rankB + 4 && netB > params.rank.top - 4
+  if (overlapX && overlapY) return rankB + params.gap
+  return null
+}
+
+// ---------------------------------------------------------------------------
 // Main entry
 // ---------------------------------------------------------------------------
 
@@ -897,7 +1127,7 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
     // Ombra superiore: default 50 = catena di default (test diretti inclusi).
     topShade = 50,
     badgesEnabled, rankingEnabled, genreName, voteAverage, badgeStyle,
-    rankingBadgeStyle, badgeGenre, badgeYear, badgeRating, badgeQuality, quality,
+    rankingBadgeStyle, extraBadgeStyle, badgeGenre, badgeYear, badgeRating, badgeQuality, quality,
     qualityBadgeStyle, videoFormats,
     sashOrder,
     topLight, targetCenter, ribbonSide,
@@ -1015,13 +1245,15 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
   const sepOX = separateBadgeOffsetX ?? 0
   const sepOY = separateBadgeOffsetY ?? 0
 
-  // Tinta di scena same-hue UNICA per badge + blur (coerenza dalla stessa
-  // radice). Niente crop per-zone: il bottom-40% falliva sui portrait con
-  // facce in basso (es. Silo: votava pelle/tuta #86642d invece dello
-  // smeraldo della scena). L'override `ac=` esplicito vince sempre; rete di
-  // sicurezza: fallback genere/grigio. resolveBadgeColors resta esportata e
-  // testata ma non è più sul path render.
-  const sceneTintHex = (blurEnabled || hasGenreBadge || rankingEnabled)
+  // Single same-hue scene tint for badges + blur (consistent from the same
+  // root). No per-zone crop: the bottom-40% voted skin/suit #86642d on
+  // portraits with faces at the bottom (e.g. Silo) instead of the scene
+  // emerald. An explicit `ac=` override always wins; safety net: genre/gray
+  // fallback. resolveBadgeColors stays exported and tested but is no longer
+  // on the render path. The gate also covers the extra top badge with
+  // ranking off (via preRelease, the only branch turning it on without
+  // rankingEnabled): the corner tint stays automatic there too.
+  const sceneTintHex = (blurEnabled || hasGenreBadge || rankingEnabled || preRelease)
     ? await extractSceneTint(posterBuf, genreName, analysisKey ? `${analysisKey}:${genreName ?? "x"}` : null)
     : null
 
@@ -1236,7 +1468,7 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
   // preservata: il raw resta usato solo se la pill matcha (stesso match,
   // resa diversa: pill stilizzata vs colori originali). Il doppio
   // download/scan TMDB è eliminato dalla memo in network-svgs.
-  const [pillLogoResult, rawLogoResult] = netLogoEnabled
+  let [pillLogoResult, rawLogoResult] = netLogoEnabled
     ? await Promise.all([
         hasDetailed
           ? renderFirstMatchingNetworkLogoBadgeHybrid(networkCandidatesHybrid as NetworkCandidate[], badgePw, topLight)
@@ -1246,6 +1478,16 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
           : renderFirstMatchingNetworkRawBadge(stringCandidates, badgePw),
       ])
     : [null, null]
+  // Demo samples network fallback: the ordered candidates above keep full
+  // priority (real brands, wikidata studios, saved mapping); the bundled
+  // brand renders solely when nothing matched. Same renderer, zero network.
+  if (netLogoEnabled && !pillLogoResult && input.demoSamples) {
+    const demoCandidates = [{ name: DEMO_SAMPLE_NETWORK.name, logoPath: DEMO_SAMPLE_NETWORK.logoPath }]
+    pillLogoResult = await renderFirstMatchingNetworkLogoBadgeHybrid(demoCandidates, badgePw, topLight)
+    rawLogoResult = pillLogoResult
+      ? await renderFirstMatchingNetworkRawBadgeHybrid(demoCandidates, badgePw, topLight)
+      : null
+  }
   const networkLogoResult = pillLogoResult
   // Network: sempre visibile quando abilitato, subito sopra il logo film, quasi attaccato — SVG resta raw, TMDB fallback è A (ricolor + ombra) per non risultare scuro.
   const networkRawResult = networkLogoResult ? rawLogoResult : null
@@ -1264,27 +1506,32 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
   // Anime ranking: il badge anime mostra il numero grande con "anime" sotto.
   // Rilevato quando il topBadge è un rank derivato da animeRankResult.
   const isAnimeRank = topBadge?.type === "rank" && animeRankResult !== null && topBadge.rank === animeRankResult
+  // Effective top-badge style (rank = `rs`, extra = `xbs ?? rs` legacy).
+  // Number mirroring and corner anchoring follow this, never `rs` alone: an
+  // explicit extra style detaches the extra badge from the ranking style.
+  const topBadgeStyle = resolveTopBadgeStyle({ topBadgeType: topBadge?.type, rankingBadgeStyle, extraBadgeStyle })
 
   const hasQualityBadge = badgeQuality !== false && !!quality
-  // Icona built-in per stile+tier (null = pill standard). Lo stile entra
-  // nella chiave cache: cambio stile = bitmap nuovi, mai collisione.
-  const qualityIconPath = qualityBadgeIconPath(qualityBadgeStyle, quality)
+  // Built-in icon per style+tier (null = standard pill or knockout tag).
+  // The style enters the cache key in both cases: style change = new
+  // bitmaps, never a collision (knockout and standard share "std").
+  const qualityIconPath = qualityBadgeStyle === "knockout" ? null : qualityBadgeIconPath(qualityBadgeStyle, quality)
 
   // Placca staccata: solo gli stili centrati (il nastro resta ancorato)
   // con offset Y esplicito arrotondano tutti e 4 gli angoli. Calcolato qui
   // (non nel layout sotto) perché entra nella chiave cache: il bitmap cambia.
   const isRankNetflixRibbonStyle = isRibbonRankingStyle(rankingBadgeStyle) && topBadge?.type === "rank"
-  const isRankDetached = !!topBadge && !isRankNetflixRibbonStyle && topBadgeOffsetY !== 0
+  const isRankDetached = !!topBadge && !isRankNetflixRibbonStyle && topBadgeStyle !== "number" && topBadgeOffsetY !== 0
 
   const genreBadgeKey = hasGenreBadge
     ? badgeCacheKey("genre", genreName, voteAverage, CW, year, badgeStyle, badgeFont, accentColorGenre, bottomLight, badgeGenre, badgeYear, badgeRating, genreBadgeScale)
     : null
   const rankBadgeKey = !showComingSoon && topBadge
-    ? badgeCacheKey("rank", topBadge.type === "extra" ? topBadge.label : `${(topBadge as { rank: number }).rank}:${topBadge!.label}:${(topBadge as { ribbonLabel?: string }).ribbonLabel ?? ""}`, CW, topLight, rankingBadgeStyle, badgeFont, accentColorRank, ribbonSide, isAnimeRank, topBadgeScale, isRankDetached ? "detached" : undefined, rankingBadgeAccent ? "accent" : undefined)
+    ? badgeCacheKey("rank", topBadge.type === "extra" ? topBadge.label : `${(topBadge as { rank: number }).rank}:${topBadge!.label}:${(topBadge as { ribbonLabel?: string }).ribbonLabel ?? ""}`, CW, topLight, topBadgeStyle, badgeFont, accentColorRank, ribbonSide, isAnimeRank, topBadgeScale, isRankDetached ? "detached" : undefined, rankingBadgeAccent ? "accent" : undefined)
     : null
   const formatsKey = (videoFormats && videoFormats.length > 0) ? videoFormats.join(",") : "none"
   const qualityBadgeKey = hasQualityBadge
-    ? badgeCacheKey("quality", quality, CW, topLight, badgeFont, qualityBadgeScale, qualityIconPath ?? "std", formatsKey)
+    ? badgeCacheKey("quality", quality, CW, topLight, badgeFont, qualityBadgeScale, qualityBadgeStyle ?? "standard", qualityIconPath ?? "std", formatsKey)
     : null
   const comingSoonKey = showComingSoon
     ? badgeCacheKey("comingsoon", comingSoonLabel, CW, badgeFont, topLight, ribbonSide)
@@ -1329,9 +1576,9 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
       ? (cacheGet<{ png: Buffer; w: number; h: number; isRank?: boolean }>(rankBadgeKey)
           || coalesceBadgeRender(rankBadgeKey, () => {
               if (topBadge!.type === "extra") {
-                // Senza nastro il "colored" colora il badge default (il builder
-                // extra centra già di suo con tinta accent: stesso contratto).
-                return renderExtraBadge(topBadge!.label, topBadgePw, topLight, rankingBadgeAccent ? "colored" : rankingBadgeStyle, accentColorRank, isRankDetached, badgeFont)
+                // Extra badges render with the standalone style when set, else
+                // the legacy `rs` fallback (plus the no-ribbon accent rule).
+                return renderExtraBadge(topBadge!.label, topBadgePw, topLight, extraBadgeStyle ?? (rankingBadgeAccent ? "colored" : rankingBadgeStyle), accentColorRank, isRankDetached, badgeFont)
                   .then((r) => { const v = { ...r, isRank: false }; cacheSet(rankBadgeKey, v, ["badge"], BADGE_CACHE_TTL); return v })
               }
               return renderRankingBadge((topBadge as { rank: number }).rank, isRibbonRankingStyle(rankingBadgeStyle) ? badgePw : topBadgePw, topBadge!.label, topLight, rankingBadgeStyle, accentColorRank, ribbonSide, isAnimeRank, isRankDetached, rankingBadgeAccent, (topBadge as { ribbonLabel?: string }).ribbonLabel, badgeFont)
@@ -1594,14 +1841,37 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
     // Offset X/Y solo sui centrati: il nastro resta ancorato (per scelta
     // utente esplicita gli offset non lo toccano).
     const isCentered = !isNetflixRibbon
-    // La pill centrale è staccata di 10px dal bordo alto (misura fissa decisa
-    // in editor). Default a filo top. Solo pill, indipendente dal badge qualità.
-    const pillTopGap = rankingBadgeStyle === "pill" ? 10 : 0
+    // The pill (centered or corner) sits 10px below the top edge (fixed
+    // editorial measure). Default is flush with the top. Pill/corner only,
+    // independent of the quality badge.
+    const pillTopGap = topBadgeStyle === "pill" || isCornerAnchoredStyle(topBadgeStyle) ? 10 : 0
     let left: number
     if (isNetflixRibbon && (presetIsRibbon ? presetRibbonRight : isRightRibbon)) {
       left = Math.round(CW - safeRankBadgeResult.w) // nastro a destra (Stremio o side del preset)
     } else if (isNetflixRibbon) {
       left = 0 // nastro Netflix a sinistra (Nuvio, default)
+    } else if (isCornerAnchoredStyle(topBadgeStyle) && topBadge) {
+      // Corner style: flat pill anchored to the top-left corner
+      // (same box margin as the network logo: netPadX) for every top
+      // badge, rank or extra. A colliding network logo stacks below the
+      // pill via stackNetworkBelowCornerRank; quality avoids it via
+      // shrinkToAvoidRank (generic over the top rect).
+      // Number style: same anchor, mirrored to the top-right corner with
+      // side="right" (the existing ribbon side switch). Corner keeps its
+      // historic left anchor (mirrorRight=false).
+      const mirrorRight = topBadgeStyle === "number" && ribbonSide === "right"
+      // Rank numerals sit on the style baseline (NUMBER_BADGE_BASE_OFFSET_X):
+      // `topBadgeOffsetX` stays the user adjustment relative to it (stored
+      // values untouched, no new params). Extra badges on the legacy
+      // `rs=number` fallback keep the historic anchor. The final left below
+      // feeds the collision rects (quality/network stacking, Coming Soon),
+      // so they follow the shifted numeral with no extra change.
+      left = cornerAnchoredLeft({
+        canvasW: CW,
+        badgeW: safeRankBadgeResult.w,
+        mirrorRight,
+        offsetX: topBadgeOffsetX + resolveNumberBadgeBaseOffsetX(topBadge?.type, topBadgeStyle),
+      })
     } else {
       // Badge grande al centro, dimensione invariata: in caso di sovrapposizione
       // si rimpiccioliscono i badge laterali (network e qualità agli angoli opposti).
@@ -1609,7 +1879,38 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
     }
     finalRankBadge = safeRankBadgeResult
     finalRankLeft = left
-    finalRankTop = isCentered ? topBadgeOffsetY + pillTopGap : 0
+    // Corner top badge stacked below a left Coming Soon ribbon sharing its
+    // corner (the ribbon itself is untouched); otherwise the fixed top gap.
+    // Historic corner keeps its left-only rule. Number mirrors with
+    // side="right", so the shared corner is whichever side the numeral sits
+    // on: overlap is tested against the real boxes (Coming Soon composite
+    // rect + numeral rect at its unstacked candidate top), so explicit
+    // tox/toy that move the numeral away don't force a useless stack.
+    const isCornerTop = isCornerAnchoredStyle(topBadgeStyle) && !!topBadge
+    const comingSoonSharesCorner = topBadgeStyle === "number"
+      ? numberSharesComingSoonCorner({
+          canvasW: CW,
+          hasTopBadge: !!topBadge,
+          showComingSoon,
+          ribbonSide,
+          ribbonW: safeComingSoonResult?.w ?? null,
+          ribbonOffset: ribbonLayout?.offset ?? null,
+          ribbonExtent: ribbonLayout?.extent ?? null,
+          numLeft: left,
+          numTop: topBadgeOffsetY + pillTopGap,
+          numW: safeRankBadgeResult.w,
+          numH: safeRankBadgeResult.h,
+        })
+      : showComingSoon && !!ribbonLayout && !!safeComingSoonResult && ribbonSide !== "right"
+    const cornerTop = isCornerTop
+      ? cornerRankTop({
+          comingSoonLeft: comingSoonSharesCorner,
+          ribbonExtent: ribbonLayout?.extent ?? 0,
+          gap: Math.round(6 * CH / 570),
+          pillTopGap,
+        })
+      : pillTopGap
+    finalRankTop = isCentered ? topBadgeOffsetY + cornerTop : 0
 
     // Il badge centrale resta invariato — la gestione overlap vive nei blocchi
     // network/qualità qui sotto (shrink dei laterali).
@@ -1636,8 +1937,8 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
   // altrimenti a sinistra). Senza logo film resta
   // il layout storico (top-left, o a fianco del nastro).
   // netTopLeftBottom traccia il fondo del logo network quando occupa il top-left (per qualità Stremio sotto).
-  // Tuning editoriale globale (default per tutti i poster): pill network +10px Y.
-  const NETWORK_LOGO_SHIFT_Y = 10
+  // Tuning editoriale globale (default per tutti i poster): pill network
+  // +10px Y (module-scope NETWORK_LOGO_SHIFT_Y, shared with the anchor).
   let netTopLeftBottom: number | null = null
   // Modalità "in alto" (query `netPos=top` > mapping > config > defaults):
   // sempre all'angolo superiore. "auto" = specchio dinamico odierno.
@@ -1655,6 +1956,29 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
       const hasComingSoonCorner = showComingSoon && !!ribbonLayout && !!safeComingSoonResult
       const netPadX = Math.round(18 * CW / 380)
       const netPadY = Math.round(18 * CH / 570)
+      // Corner rank rect for the below-pill network stacking (null unless a
+      // corner rank badge was rendered). Corner-style only.
+      const cornerRankRect: CornerRankRect | null =
+        finalRankBadge && finalRankLeft !== null
+          ? { left: finalRankLeft, top: finalRankTop, w: finalRankBadge.w, h: finalRankBadge.h }
+          : null
+      // Anchored network size for the collision check (insertions run before
+      // any shrink, so this is the full-size box).
+      const netRawW = fittedRaw.w
+      const netRawH = fittedRaw.h
+      const stackBelowCornerRank = (top: number, left: number): { top: number; left: number } => {
+        const stacked = stackNetworkBelowCornerRank({
+          rankingBadgeStyle: topBadgeStyle,
+          hasTopBadge: !!topBadge,
+          rank: cornerRankRect,
+          netLeft: left,
+          netTop: top,
+          netW: netRawW,
+          netH: netRawH,
+          gap,
+        })
+        return stacked !== null ? { top: stacked, left: netPadX } : { top, left }
+      }
 
       // Vista Stremio: il logo network specchia a destra quando l'angolo
       // destro è occupato — di fianco al nastro rank (come a sinistra in
@@ -1746,17 +2070,26 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
             }
           }
         }
+        // Corner rank at the same corner: stack below the pill instead of
+        // shrinking in place (corner-style only, no-op otherwise).
+        const cornerStackedTop = stackBelowCornerRank(top, left)
+        top = cornerStackedTop.top
+        left = cornerStackedTop.left
         fittedRaw = await shrinkToAvoidRank(fittedRaw, top, left)
         // Solo a sinistra alimenta lo stacking qualità (a destra la qualità
         // ha già traslocato a sinistra, niente da impilare).
         if (!sideRight) netTopLeftBottom = top + NETWORK_LOGO_SHIFT_Y + fittedRaw.h
         else netAnchoredRight = true
       } else if (isLandscape && logoResult) {
-        // Landscape col logo film: mai sopra il logo (zona bassa) — sempre
-        // in alto: a fianco del nastro se occupa l'angolo sinistro (stile
-        // Netflix), sotto il Coming Soon se occupa quell'angolo, altrimenti
-        // top-left (con shrink vs badge centrale). Solo landscape: il
-        // portrait resta sul ramo storico sotto.
+        // Landscape with a title logo: never above the logo (bottom zone) —
+        // always on top: beside the ribbon when it takes the left corner
+        // (Netflix style), below Coming Soon when it takes that corner,
+        // otherwise top-left (with shrink vs the centered badge), EXCEPT the
+        // `corner` style (rank or extra): by default the network pill sits
+        // above the title logo as in portrait (same formula, centered on the
+        // title box). Portrait keeps the historic branch below.
+        // Explicit netPos=top lives in the branch above and is unchanged.
+        let cornerAboveTitlePlaced = false
         const leftRibbon =
           ((isRibbonRankingStyle(rankingBadgeStyle) && topBadge?.type === "rank") || presetIsRibbon) &&
           (presetIsRibbon ? !presetRibbonRight : ribbonSide !== "right")
@@ -1787,17 +2120,78 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
           top = ribbonLayout.extent + gap
           left = netPadX
         } else {
-          top = netPadY
-          left = netPadX
-          fittedRaw = await shrinkToAvoidRank(fittedRaw, top, left)
+          // Corner style with a title logo: try above the title first (same
+          // anchor as portrait, shift-corrected and centered on the title
+          // box). The corner pill itself never moves: on collision the
+          // network only shrinks in place, and when it still collides (or
+          // there is no room above the title) the historic top-left anchor
+          // below applies.
+          let aboveTitle: { top: number; left: number } | null = null
+          if (isCornerAnchoredStyle(topBadgeStyle) && topBadge && cornerRankRect) {
+            const anchor = cornerNetworkAboveTitle({
+              logoTop: logoResult.top,
+              logoLeft: logoResult.left,
+              logoW: logoResult.w,
+              netW: netRawW,
+              netH: netRawH,
+              gap,
+            })
+            if (anchor) {
+              const shrunk = await shrinkToAvoidRank(fittedRaw, anchor.top, anchor.left)
+              // Recompute the anchor on the final (possibly shrunk) size so
+              // the title centering and the visible gap hold exactly; a
+              // smaller box can only move down, never above y=0.
+              const finalAnchor = cornerNetworkAboveTitle({
+                logoTop: logoResult.top,
+                logoLeft: logoResult.left,
+                logoW: logoResult.w,
+                netW: shrunk.w,
+                netH: shrunk.h,
+                gap,
+              }) ?? anchor
+              const clash = stackNetworkBelowCornerRank({
+                rankingBadgeStyle: topBadgeStyle,
+                hasTopBadge: !!topBadge,
+                rank: cornerRankRect,
+                netLeft: finalAnchor.left,
+                netTop: finalAnchor.top,
+                netW: shrunk.w,
+                netH: shrunk.h,
+                gap,
+              })
+              // Keep the above-title placement only once the collision is
+              // resolved: never moved back over the corner pill.
+              if (clash === null) {
+                aboveTitle = finalAnchor
+                fittedRaw = shrunk
+              }
+            }
+          }
+          if (aboveTitle) {
+            top = aboveTitle.top
+            left = aboveTitle.left
+            cornerAboveTitlePlaced = true
+          } else {
+            top = netPadY
+            left = netPadX
+            const cornerStackedLandscape = stackBelowCornerRank(top, left)
+            top = cornerStackedLandscape.top
+            left = cornerStackedLandscape.left
+            fittedRaw = await shrinkToAvoidRank(fittedRaw, top, left)
+          }
         }
-        if (rightRankRibbonLeft === null && !mirrorNetworkBelow) netTopLeftBottom = top + NETWORK_LOGO_SHIFT_Y + fittedRaw.h
+        // Above the title the network does not take the top-left corner:
+        // quality keeps its corner anchor (netTopLeftBottom stays null).
+        if (rightRankRibbonLeft === null && !mirrorNetworkBelow && !cornerAboveTitlePlaced) netTopLeftBottom = top + NETWORK_LOGO_SHIFT_Y + fittedRaw.h
       } else if (logoResult && (finalRankBadge || hasComingSoonCorner)) {
         // Con logo film + badge alto (nastro Netflix, badge centrale
         // rank/extra, o Coming Soon): subito sopra il logo film
         // (in Cinematic Left allineato a sinistra come sopratitolo, non centrato).
         top = Math.max(0, logoResult.top - fittedRaw.h - gap)
         left = isLandscapeLeft ? logoResult.left : Math.round((CW - fittedRaw.w) / 2)
+        const cornerStackedLogoTop = stackBelowCornerRank(top, left)
+        top = cornerStackedLogoTop.top
+        left = cornerStackedLogoTop.left
       } else if (!isNetflixRibbon && !logoResult) {
         // Senza logo film e senza nastro Netflix: in alto a sinistra;
         // con il nastro Coming Soon impilato sotto di esso (stesso angolo).
@@ -1809,6 +2203,9 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
           top = (showComingSoon && ribbonLayout && ribbonSide !== "right") ? ribbonLayout.extent + gap : netPadY
           left = netPadX
         }
+        const cornerStackedPlain = stackBelowCornerRank(top, left)
+        top = cornerStackedPlain.top
+        left = cornerStackedPlain.left
         fittedRaw = await shrinkToAvoidRank(fittedRaw, top, left)
         if (!mirrorNetworkBelow) netTopLeftBottom = top + NETWORK_LOGO_SHIFT_Y + fittedRaw.h
       } else if (logoResult) {
@@ -1822,6 +2219,9 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
           top = netPadY
           left = netPadX
         }
+        const cornerStackedLogo = stackBelowCornerRank(top, left)
+        top = cornerStackedLogo.top
+        left = cornerStackedLogo.left
         fittedRaw = await shrinkToAvoidRank(fittedRaw, top, left)
         if (!mirrorNetworkBelow) netTopLeftBottom = top + NETWORK_LOGO_SHIFT_Y + fittedRaw.h
       } else {
@@ -1877,9 +2277,22 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
     const netPadX = Math.round(18 * CW / 380)
     const isNetflixRight = isRibbonRankingStyle(rankingBadgeStyle) && ribbonSide === "right" && topBadge?.type === "rank"
     const isComingSoonRight = showComingSoon && ribbonSide === "right" && !!ribbonLayout
+    // Number mirrored right occupies the top-right corner exactly like a
+    // right ribbon: the quality pill moves left instead of overlapping the
+    // bare digits (shrink-in-place bottoms out at 0.55x and still collides).
+    // Follows the effective top-badge style (same source as the separate
+    // stack below): an explicit extra style never mirrors, so quality and
+    // stack stay on the same corner.
+    const isNumberRight = isTopBadgeNumberRightCorner({
+      topBadgeType: topBadge?.type,
+      rankingBadgeStyle,
+      extraBadgeStyle,
+      ribbonSide,
+      hasTopBadge: !!finalRankBadge,
+    })
     // Network "in alto" finito a destra: la qualità trasloca a sinistra
     // come col nastro a destra (stesso branch, niente overlap sull'angolo).
-    const isRightRibbonCorner = (isNetflixRight && !!finalRankBadge) || isComingSoonRight || (presetRibbonRight && !!finalRankBadge) || (!!networkLogoForLayout && netAnchoredRight)
+    const isRightRibbonCorner = (isNetflixRight && !!finalRankBadge) || isComingSoonRight || (presetRibbonRight && !!finalRankBadge) || (!!networkLogoForLayout && netAnchoredRight) || isNumberRight
 
     // Ancoraggio base: top = netBaseTop - 10 + 5 (storia editoriale: era -20).
     // Griglia laterale a box: il respiro del box qualità è uguale a quello del
@@ -1970,11 +2383,13 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
     const netPadX = Math.round(18 * CW / 380)
     const netBaseTop = Math.round(18 * CH / 570)
     // Senza qualità ma con nastro a destra, lo stack segue a sinistra come
-    // farebbe la qualità (stessa condizione del blocco sopra).
+    // farebbe la qualità (stessa condizione del blocco sopra). Vale anche
+    // per il numerale specchiato a destra (stesso angolo occupato).
     const rightCorner = qualityStackAnchor
       ? qualityStackAnchor.leftCorner
       : ((isRibbonRankingStyle(rankingBadgeStyle) && ribbonSide === "right" && topBadge?.type === "rank" && !!finalRankBadge)
-        || (showComingSoon && ribbonSide === "right" && !!ribbonLayout))
+        || (showComingSoon && ribbonSide === "right" && !!ribbonLayout)
+        || isTopBadgeNumberRightCorner({ topBadgeType: topBadge?.type, rankingBadgeStyle, extraBadgeStyle, ribbonSide, hasTopBadge: !!finalRankBadge }))
     const stackTop = (qualityStackAnchor ? qualityStackAnchor.top + 6 : netBaseTop - 10)
       + (isLandscape ? 0 : PORTRAIT_SEPARATE_SHIFT_Y)
     const stackKey = badgeCacheKey("separate", items.map((i) => `${i.id}${i.value}`).join(","), CW, badgeFont, topLight, separateBadgeScale)

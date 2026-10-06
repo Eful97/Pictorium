@@ -5,7 +5,7 @@ import type { TMDBImage, NetworkLogoPosition, PosterShape } from "@/lib/types"
 import { useDefaults } from "@/lib/useDefaults"
 import type { LandscapeServerDefaults } from "@/lib/server-defaults"
 import type { DateFormat } from "@/lib/release-badge"
-import type { BadgeStyle, RankingBadgeStyle, QualityBadgeStyle, BadgeFont, SeparateRatingsStyle } from "@/lib/badge-styles"
+import type { BadgeStyle, RankingBadgeStyle, ExtraBadgeStyle, QualityBadgeStyle, BadgeFont, SeparateRatingsStyle } from "@/lib/badge-styles"
 import { getSeparateBadgeDefaultScale } from "@/lib/badge-styles"
 import type { SashBucket } from "@/lib/badge-priority"
 import type { VideoFormat } from "@/lib/av-specs"
@@ -77,6 +77,9 @@ export interface PosterEditorCtx {
   setBadgeStyle: (v: BadgeStyle | ((prev: BadgeStyle) => BadgeStyle)) => void
   rankingBadgeStyle: RankingBadgeStyle
   setRankingBadgeStyle: (v: RankingBadgeStyle | ((prev: RankingBadgeStyle) => RankingBadgeStyle)) => void
+  /** Standalone extra-badge style in editing (null = legacy `rs` fallback). */
+  extraBadgeStyle: ExtraBadgeStyle | null
+  setExtraBadgeStyle: (v: ExtraBadgeStyle | null | ((prev: ExtraBadgeStyle | null) => ExtraBadgeStyle | null)) => void
   /** Font dei testi badge del poster in editing ("inter" = resa storica). */
   badgeFont: BadgeFont
   setBadgeFont: (v: BadgeFont | ((prev: BadgeFont) => BadgeFont)) => void
@@ -119,6 +122,9 @@ export interface PosterEditorCtx {
   setDefaultBadgeStyle: (v: BadgeStyle | ((prev: BadgeStyle) => BadgeStyle)) => void
   defaultRankingBadgeStyle: RankingBadgeStyle
   setDefaultRankingBadgeStyle: (v: RankingBadgeStyle | ((prev: RankingBadgeStyle) => RankingBadgeStyle)) => void
+  /** Standalone extra-badge style default (null = legacy `rs` fallback). */
+  defaultExtraBadgeStyle: ExtraBadgeStyle | null
+  setDefaultExtraBadgeStyle: (v: ExtraBadgeStyle | null | ((prev: ExtraBadgeStyle | null) => ExtraBadgeStyle | null)) => void
   /** Font dei testi badge di default ("inter" = resa storica). */
   defaultBadgeFont: BadgeFont
   setDefaultBadgeFont: (v: BadgeFont | ((prev: BadgeFont) => BadgeFont)) => void
@@ -430,8 +436,10 @@ export function PosterEditorProvider({
     genreBadgeOffsetX, genreBadgeOffsetY, qualityBadgeOffsetX, qualityBadgeOffsetY,
     networkLogoOffsetX, networkLogoOffsetY,
     badgeStyle, rankingBadgeStyle, qualityBadgeStyle, videoFormats,
+    extraBadgeStyle,
     badgeFont, defaultBadgeFont,
     defaultBadgeStyle, defaultRankingBadgeStyle, defaultQualityBadgeStyle, defaultVideoFormats,
+    defaultExtraBadgeStyle,
     defaultBlurEnabled, defaultBlurIntensity, defaultBlurFade, defaultBlurDarkness, defaultTintStrength, defaultTopShade,
     defaultGradientHeight, defaultGlobalBadges, defaultRankingBadges,
     defaultLogoScale, defaultLogoOffsetX, defaultLogoOffsetY,
@@ -688,6 +696,11 @@ export function PosterEditorProvider({
       const next = typeof v === "function" ? v(rankingBadgeStyle) : v
       update({ rankingBadgeStyle: next })
     }, [rankingBadgeStyle, update])
+  const setExtraBadgeStyle = useCallback(
+    (v: ExtraBadgeStyle | null | ((prev: ExtraBadgeStyle | null) => ExtraBadgeStyle | null)) => {
+      const next = typeof v === "function" ? v(extraBadgeStyle) : v
+      update({ extraBadgeStyle: next })
+    }, [extraBadgeStyle, update])
   const setBadgeFont = useCallback(
     (v: BadgeFont | ((prev: BadgeFont) => BadgeFont)) => {
       const next = typeof v === "function" ? v(badgeFont) : v
@@ -713,6 +726,11 @@ export function PosterEditorProvider({
       const next = typeof v === "function" ? v(defaultRankingBadgeStyle) : v
       update({ defaultRankingBadgeStyle: next })
     }, [defaultRankingBadgeStyle, update])
+  const setDefaultExtraBadgeStyle = useCallback(
+    (v: ExtraBadgeStyle | null | ((prev: ExtraBadgeStyle | null) => ExtraBadgeStyle | null)) => {
+      const next = typeof v === "function" ? v(defaultExtraBadgeStyle) : v
+      update({ defaultExtraBadgeStyle: next })
+    }, [defaultExtraBadgeStyle, update])
   const setDefaultBadgeFont = useCallback(
     (v: BadgeFont | ((prev: BadgeFont) => BadgeFont)) => {
       const next = typeof v === "function" ? v(defaultBadgeFont) : v
@@ -976,8 +994,10 @@ export function PosterEditorProvider({
   // sync server come gli altri default.
   const setLandscape = useCallback(
     (patch: Partial<LandscapeServerDefaults>) => {
-      update({ landscape: { ...landscapeDefaults, ...patch } })
-    }, [landscapeDefaults, update])
+      // Functional merge: back-to-back patches in one handler never clobber
+      // each other on the stale `landscapeDefaults` closure.
+      update((prev) => ({ landscape: { ...prev.landscape, ...patch } }))
+    }, [update])
   const resetLandscape = useCallback(
     () => {
       update({ landscape: {} })
@@ -1048,6 +1068,8 @@ export function PosterEditorProvider({
       setBadgeStyle,
       rankingBadgeStyle,
       setRankingBadgeStyle,
+      extraBadgeStyle,
+      setExtraBadgeStyle,
       badgeFont,
       setBadgeFont,
       qualityBadgeStyle,
@@ -1084,6 +1106,8 @@ export function PosterEditorProvider({
       setDefaultBadgeStyle,
       defaultRankingBadgeStyle,
       setDefaultRankingBadgeStyle,
+      defaultExtraBadgeStyle,
+      setDefaultExtraBadgeStyle,
       defaultBadgeFont,
       setDefaultBadgeFont,
       defaultQualityBadgeStyle,
@@ -1317,6 +1341,7 @@ export function PosterEditorProvider({
       separateRatingsStyle, setSeparateRatingsStyle,
       badgeStyle, setBadgeStyle,
       rankingBadgeStyle, setRankingBadgeStyle,
+      extraBadgeStyle, setExtraBadgeStyle,
       badgeFont, setBadgeFont,
       qualityBadgeStyle, setQualityBadgeStyle,
       videoFormats, setVideoFormats,
@@ -1338,6 +1363,7 @@ export function PosterEditorProvider({
       // Defaults
       defaultBadgeStyle, setDefaultBadgeStyle,
       defaultRankingBadgeStyle, setDefaultRankingBadgeStyle,
+      defaultExtraBadgeStyle, setDefaultExtraBadgeStyle,
       defaultBadgeFont, setDefaultBadgeFont,
       defaultQualityBadgeStyle, setDefaultQualityBadgeStyle,
       defaultVideoFormats, setDefaultVideoFormats,

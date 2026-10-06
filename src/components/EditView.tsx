@@ -258,6 +258,7 @@ export default function EditView() {
       qualityBadgeStyle: ed.qualityBadgeStyle,
       badgeStyle: ed.badgeStyle,
       rankingBadgeStyle: ed.rankingBadgeStyle,
+      extraBadgeStyle: ed.extraBadgeStyle,
       badgeFont: ed.badgeFont,
       customBadge: ed.customBadge,
     },
@@ -323,26 +324,51 @@ export default function EditView() {
   // Landscape: senza sfondo esplicito seleziona in automatico uno sfondo.
   // - Titolo con mapping che HA un backdrop: ripristina quello salvato
   //   (mai sovrascritto dal primo TMDB).
-  // - Mapping senza backdrop o titolo nuovo: primo sfondo TMDB.
+  // - Title without backdrop in mapping, or fresh title: first VISIBLE
+  //   backdrop (same eligibility as the BackdropOptions grid: clean and not
+  //   excluded — never an invisible localized tile as the "first image").
+  // Init once per title lifecycle in landscape: a voluntary deselection
+  // (clear) stays empty, never reselected; leaving landscape clears the mark
+  // so re-entering reinitializes (historical shape-switch behavior).
+  const backdropInitKeyRef = useRef<string | null>(null)
   useEffect(() => {
-    if (ed.posterShape !== "landscape") return
-    if (ed.selectedBackdrop) return
+    if (!selectedMappingKey) {
+      backdropInitKeyRef.current = null
+      return
+    }
+    if (ed.posterShape !== "landscape") {
+      backdropInitKeyRef.current = null
+      return
+    }
+    if (backdropInitKeyRef.current === selectedMappingKey) return
+    if (ed.selectedBackdrop) {
+      backdropInitKeyRef.current = selectedMappingKey
+      return
+    }
     // Mai riselezionare uno sfondo escluso: dopo l'esclusione dell'unico
     // sfondo l'autosave invia backdropPath:null e la selezione resta nulla.
     const excluded = new Set(ed.excludedBackdrops ?? [])
     if (selectedMapping?.backdropPath) {
-      if (excluded.has(selectedMapping.backdropPath)) return
+      if (excluded.has(selectedMapping.backdropPath)) {
+        backdropInitKeyRef.current = selectedMappingKey
+        return
+      }
       // Ripristino diretto (NON selectBackdrop: quello azzererebbe
       // backdropScale/offset già caricati dal mapping).
       const saved = ed.backdrops.find((b) => b.file_path === selectedMapping.backdropPath)
       ed.setSelectedBackdrop(saved ?? { file_path: selectedMapping.backdropPath, iso_639_1: null, vote_average: 0, width: 0, height: 0 })
+      backdropInitKeyRef.current = selectedMappingKey
       return
     }
-    if (hasMapping) return
-    const first = ed.backdrops.find((b) => !excluded.has(b.file_path))
+    if (hasMapping) {
+      backdropInitKeyRef.current = selectedMappingKey
+      return
+    }
+    const first = ed.backdrops.find((b) => b.iso_639_1 === null && !excluded.has(b.file_path))
     if (!first) return
     void selectBackdrop(first)
-  }, [ed.posterShape, ed.selectedBackdrop, hasMapping, selectedMapping, ed.backdrops, ed.excludedBackdrops, selectBackdrop]) // eslint-disable-line react-hooks/exhaustive-deps -- dipendenze granulari intenzionali: `ed` intero rifarebbe scattare l'effetto a ogni tick editor e riselezionerebbe dopo una deselezione volontaria
+    backdropInitKeyRef.current = selectedMappingKey
+  }, [ed.posterShape, ed.selectedBackdrop, hasMapping, selectedMapping, selectedMappingKey, ed.backdrops, ed.excludedBackdrops, selectBackdrop]) // eslint-disable-line react-hooks/exhaustive-deps -- dipendenze granulari intenzionali: `ed` intero rifarebbe scattare l'effetto a ogni tick editor
 
   // Landscape: senza logo seleziona in automatico il best logo (la base è
   // il backdrop, senza testo) — parità con l'apertura diretta in Orizzontale

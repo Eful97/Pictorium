@@ -13,7 +13,7 @@ import { checkAdminToken } from "@/lib/auth"
 import { userRateLimitKey } from "@/lib/user-auth"
 import { touchUserActivity } from "@/lib/user-activity"
 import { rateLimit, rateLimitKey, rateLimitResponse } from "@/lib/rate-limit"
-import { getServerDefaultsForUser, getServerDefaultsChecked } from "@/lib/server-defaults"
+import { getServerDefaultsForUser, getServerDefaultsChecked, effectiveDefaultsForShape } from "@/lib/server-defaults"
 import { getRegionDef, normalizeRegion, parseRegion, defaultRegionForLang } from "@/lib/regions"
 import { BEST_FIT_GLOBAL, resolveLogoFitEnabled } from "@/lib/best-fit-config"
 import { selectAutoFitCandidates, selectBestLogoFitPosterPath } from "@/lib/poster-auto-fit"
@@ -66,6 +66,7 @@ import {
 } from "@/lib/poster-runtime-cache"
 import { hashUserFragment, userTagFragment } from "@/lib/cache"
 import { hardenPosterSearchParams, isPresetsPosterMode, isPreviewAuthRequired, isPreviewDowngraded, isPublicPosterInstance } from "@/lib/poster-params-hardening"
+import { DEMOSAMPLES_FLAG, DEMO_SAMPLE_GENRE, DEMO_SAMPLE_MOVIE_DATE, DEMO_SAMPLE_QUALITY, DEMO_SAMPLE_RANK, DEMO_SAMPLE_TV_DATE, isDemoSamplesRequest, mergeDemoSampleRatings } from "@/lib/demo-samples"
 import {
   STD_H,
   STD_W,
@@ -407,6 +408,10 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
   // (cleanBackdrops), in portrait il poster (cleanPosters). Stessa catena
   // query > mapping > config > defaults usata dal render.
   const earlyLandscape = resolvePosterShape(req.nextUrl.searchParams, mapping, configOverride, sd) === "landscape"
+  // Effective defaults for the requested shape: the pre-render flags below
+  // (customRatings, separate, badgeQuality, preRelease, formats) follow the
+  // landscape profile like the render does, not the flats.
+  const earlyEffSd = effectiveDefaultsForShape(sd, earlyLandscape ? "landscape" : "poster")
 
   // Auto-rotate 24h: sfondi landscape o poster verticali a seconda del formato.
   let isRotating = false
@@ -436,7 +441,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
   const qCr = req.nextUrl.searchParams.get("cr")
   const customRatingsDisplay = qCr !== null
     ? qCr !== "0"
-    : (mapping?.customRatings ?? configOverride?.customRatings ?? sd.customRatings ?? true)
+    : (mapping?.customRatings ?? configOverride?.customRatings ?? earlyEffSd.customRatings ?? sd.customRatings ?? true)
   const envRatingConfig = resolveCustomRatingConfig({}, sd)
   const customRatingConfig = { ...envRatingConfig, enabled: envRatingConfig.enabled && customRatingsDisplay }
   // Colonna rating separati (display) — catena centralizzata
@@ -447,6 +452,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
     req.nextUrl.searchParams,
     mapping,
     configOverride,
+    earlyEffSd,
     sd,
   )
   const customRatingHash = customRatingConfig.enabled
@@ -469,6 +475,11 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
   // Preview declassata (blindatura opt-in): senza il flag la chiave resterebbe
   // separata dalle anonime — rimuovendolo condivide la entry canonica.
   if (rawPreview && !isPreview) hardenedParams.delete("preview")
+  // Demo samples (Settings defaults preview only): accepted solely on an
+  // effective preview with the explicit flag. A downgraded preview drops it
+  // so the entry collapses to the canonical key (same render, no split).
+  const demoSamples = isDemoSamplesRequest({ isPreview, flag: hardenedParams.get(DEMOSAMPLES_FLAG) })
+  if (!isPreview) hardenedParams.delete(DEMOSAMPLES_FLAG)
   const cacheParams = normalizePosterCacheParams(hardenedParams)
   cacheParams.delete("config")
   cacheParams.delete("c")
@@ -1499,11 +1510,11 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
     // devono valere.
     const hasQueryEarly = !!queryPoster || !!mapping || !!configToken
     const rankingEnabledEarly = qRankingEarly !== null ? qRankingEarly !== "0" : (hasQueryEarly ? rankingBadges : true)
-    const badgeQualityEarly = qBqEarly !== null ? qBqEarly !== "0" : (mapping?.badgeQuality ?? configOverride?.badgeQuality ?? sd.badgeQuality ?? true)
+    const badgeQualityEarly = qBqEarly !== null ? qBqEarly !== "0" : (mapping?.badgeQuality ?? configOverride?.badgeQuality ?? earlyEffSd.badgeQuality ?? sd.badgeQuality ?? true)
     // Flag pre-digitale per il fetch condizionato: query `pre` > config token
     // > server defaults > false (stessa catena di poster-config, senza mapping).
     const qPreEarly = req.nextUrl.searchParams.get("pre")
-    const preReleaseEnabledEarly = qPreEarly !== null ? qPreEarly !== "0" : (configOverride?.preRelease ?? sd.preRelease ?? false)
+    const preReleaseEnabledEarly = qPreEarly !== null ? qPreEarly !== "0" : (configOverride?.preRelease ?? earlyEffSd.preRelease ?? sd.preRelease ?? false)
     // Segnali grezzi del rilevamento pre-digitale (solo debug=1).
     let preJw: boolean | null = null
     let preDigital: string | null = null
@@ -1753,26 +1764,36 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
     // RATING_WAIT_MS si usa il voto TMDB già impostato (niente blocco lungo).
     // Dopo la race, se il fetch è ancora in corso viene abortito (no-op se ha
     // già vinto): il risultato è scartato, non ha senso tenerlo in background.
+    // Demo samples: merge gap-only sulle fonti richieste (i voti reali non si
+    // toccano mai). Nessuna attesa aggiuntiva: la race sotto è quella esistente,
+    // saltata del tutto senza promise di fetch. Il rendering resta gated dai
+    // toggle a valle (br/custom/sep), mai forzato qui.
+    let aggregated: Awaited<ReturnType<typeof fetchAggregatedRating>> = null
     if (aggregatedRating) {
       // Fix L3: timer della race RATING_WAIT cancellato se vince il fetch.
       let ratingTimer: ReturnType<typeof setTimeout> | undefined
       const ratingTimeout = new Promise<Awaited<ReturnType<typeof fetchAggregatedRating>>>((resolve) => {
         ratingTimer = setTimeout(() => resolve(null), RATING_WAIT_MS)
       })
-      const aggregated = await Promise.race([aggregatedRating, ratingTimeout])
+      aggregated = await Promise.race([aggregatedRating, ratingTimeout])
       if (ratingTimer) clearTimeout(ratingTimer)
-      const imdbRating = aggregated?.sources.imdb
+      ratingAbort?.abort()
+    }
+    // Copia merged (mai in place: l'aggregato reale può essere cachato).
+    const effectiveAggregated = demoSamples ? mergeDemoSampleRatings(aggregated, reqRatingSources) : aggregated
+    if (effectiveAggregated) {
+      const imdbRating = effectiveAggregated?.sources.imdb
       if (customRatingConfig.enabled && typeof imdbRating === "number" && Number.isFinite(imdbRating) && imdbRating > 0 && imdbRating <= 10) {
         ratings.push({ id: "imdb", name: "IMDb", value: imdbRating, format: "decimal" })
       }
       if (!multiRatingOnly) {
-        const avgVote = computeVote(aggregated, reqRatingSources)
+        const avgVote = computeVote(effectiveAggregated, reqRatingSources)
         if (typeof avgVote === "number" && avgVote > 0) voteAverage = avgVote
       }
       // Colonna separati: dai sources aggregati (anche con media skippata via
       // multiRatingOnly — i sources servono comunque). Vuoto → fallback media.
       // Vale per entrambi i canvas (la colonna segue il badge qualità).
-      if (sepDisplay) sepItems = pickSeparateRatings(aggregated, reqRatingSources)
+      if (sepDisplay) sepItems = pickSeparateRatings(effectiveAggregated, reqRatingSources)
       ratingAbort?.abort()
     }
 
@@ -1798,7 +1819,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
     // su fetch fallito (nei catch sopra), MAI su miss genuina. Altrimenti un
     // titolo uscito dalla chart mostrerebbe per sempre il rank del save
     // precedente (es. "top 15" di un titolo oggi fuori top 20).
-    const rankingRank = rankingResult
+    const rankingRank = rankingResult ?? (demoSamples && rankingEnabledEarly ? DEMO_SAMPLE_RANK : null)
     // rank/label dalla query hardenata (stessa del cache key): su presets il
     // label free-text è droppato/canonicalizzato, il rank numerico resta.
     const qRank = hardenedParams.get("rank")
@@ -1903,6 +1924,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
     })
     const {
       badgeStyle, rankingBadgeStyle, qualityBadgeStyle, badgeFont,
+    extraBadgeStyle,
       blurEnabled, blurHeight, blurIntensity, blurFade, blurDarkness, tintStrength, topShade,
       badgesEnabled, rankingEnabled,
       badgeGenre, badgeYear, badgeRating, badgeQuality, minQuality, sashOrder,
@@ -2009,7 +2031,9 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
     const localSpec = lookupAVSpecs(imdbId)
     // Soglia minima qualità all'uscita: la cache upstream (`resolveStreamQuality`)
     // tiene sempre il raw — qui si sopprime solo il badge sotto soglia.
-    const effectiveRawQuality = qQualityParam || localSpec?.quality || liveQuality || null
+    // Demo samples: tier dimostrativo solo quando nessuna fonte reale risolve
+    // (mai formati inventati: `availableFormats` resta da localSpec reale).
+    const effectiveRawQuality = qQualityParam || localSpec?.quality || liveQuality || (demoSamples && badgeQuality ? DEMO_SAMPLE_QUALITY : null)
     const finalQuality = applyMinQuality(
       effectiveRawQuality as StreamQuality | null,
       minQuality,
@@ -2023,7 +2047,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
     const qFormats = qFormatsRaw !== null
       ? (qFormatsRaw === "none" || qFormatsRaw === "" ? [] : (qFormatsRaw.split(",").map((s) => s.trim().toLowerCase()).filter(isVideoFormat) as VideoFormat[]))
       : null
-    const allowedFormats = sd.videoFormats
+    const allowedFormats = earlyEffSd.videoFormats ?? sd.videoFormats
     const requestedFormats = qFormats ?? mapping?.videoFormats ?? null
 
     const effectiveFormats = availableFormats.filter((f) => {
@@ -2046,6 +2070,15 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
     // preview e poster Stremio non divergono e i mapping storici grezzi si
     // sanano senza migrazione. Idempotente.
     genreName = normalizeGenreName(genreName, locale) || null
+    // Demo samples: genere/anno reali quando disponibili, fallback fissi
+    // (passato deterministico: nessun badge upcoming/new) quando assenti.
+    if (demoSamples) {
+      if (!genreName) genreName = normalizeGenreName(DEMO_SAMPLE_GENRE, locale) || DEMO_SAMPLE_GENRE
+      if (!releaseDate && !firstAirDate) {
+        if (mediaType === "tv") firstAirDate = DEMO_SAMPLE_TV_DATE
+        else releaseDate = DEMO_SAMPLE_MOVIE_DATE
+      }
+    }
     const targetCenter = Math.round(30 * (isLandscape ? LAND_H : STD_H) / 570)
 
     // 8. Pre-resolve accent color override
@@ -2215,7 +2248,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
       backdropScale, backdropOffsetX, backdropOffsetY,
       blurEnabled, blurHeight: effBlurHeight, blurIntensity, blurFade: effBlurFade, blurDarkness, tintStrength, topShade,
       badgesEnabled, rankingEnabled, genreName, voteAverage, badgeStyle,
-      rankingBadgeStyle, badgeFont, badgeGenre: effectiveBadgeGenre, badgeYear: effectiveBadgeYear, badgeRating: effectiveBadgeRating, badgeQuality,
+      rankingBadgeStyle, extraBadgeStyle, badgeFont, badgeGenre: effectiveBadgeGenre, badgeYear: effectiveBadgeYear, badgeRating: effectiveBadgeRating, badgeQuality,
       qualityBadgeStyle,
       videoFormats: finalVideoFormats,
       separateRatings: (useSeparate || (bottomActive && sepItems.length > 0)) ? sepItems : undefined,
@@ -2239,6 +2272,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
       wikidataResult, tmdbKeywords, locale, t,
       dateFormat,
       qLabel, queryExtra, qNetLogo, networkLogo, networkLogoPosition, sd,
+      demoSamples,
       accentOverride, imdbTop250, preRelease: applyPreRelease,
       shape: posterShape,
       logoAlign,

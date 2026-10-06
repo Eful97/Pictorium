@@ -2,7 +2,7 @@ import type { NextRequest } from "next/server"
 import { cacheGet, cacheGetStale, cacheSet } from "@/lib/cache"
 import { createLogger } from "@/lib/logger"
 import { envWithFallback } from "@/lib/env-compat"
-import { isBadgeStyle, isRankingBadgeStyle, isBadgeFont, isSeparateRatingsStyle } from "@/lib/badge-styles"
+import { isBadgeStyle, isRankingBadgeStyle, isExtraBadgeStyle, isBadgeFont, isSeparateRatingsStyle } from "@/lib/badge-styles"
 import { POSTER_CACHE_ALLOWLIST } from "./poster-params-hardening"
 
 const log = createLogger("poster-cache")
@@ -118,6 +118,13 @@ export function normalizePosterCacheParams(searchParams: URLSearchParams): URLSe
   if (bl !== null && bl !== "1" && bl !== "0" && bl !== "true" && bl !== "false") {
     params.delete("bl")
   }
+  // demosamples: flag booleano fail-closed. Solo "1" abilita i campioni (e
+  // solo in preview accettata); garbage collassa sull'assenza, che rende
+  // identico (niente avvelenamento chiave).
+  const demosamples = params.get("demosamples")
+  if (demosamples !== null && demosamples !== "1") {
+    params.delete("demosamples")
+  }
   const bs = params.get("bs")
   if (bs !== null && !isBadgeStyle(bs)) {
     params.delete("bs")
@@ -125,6 +132,12 @@ export function normalizePosterCacheParams(searchParams: URLSearchParams): URLSe
   const rs = params.get("rs")
   if (rs !== null && !isRankingBadgeStyle(rs)) {
     params.delete("rs")
+  }
+  // xbs: present-but-invalid behaves as absent (the resolver falls through
+  // the chain), so drop it from the key — same render, one key.
+  const xbs = params.get("xbs")
+  if (xbs !== null && !isExtraBadgeStyle(xbs)) {
+    params.delete("xbs")
   }
   // sepstyle: fail-closed con distinzione dall'assenza (come bfont sopra):
   // un valore presente ma non valido (garbage o vuoto) rende come column,

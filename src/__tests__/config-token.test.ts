@@ -93,6 +93,18 @@ describe("encodeConfig / decodeConfig round-trip", () => {
     expect(decodeConfig(token)).toEqual(config)
   })
 
+  it("round-trips the corner rankingBadgeStyle", async () => {
+    const { encodeConfig, decodeConfig } = await importConfigToken()
+    const config: PictoriumUserConfig = { ...SAMPLE_CONFIG, rankingBadgeStyle: "corner" }
+    expect(decodeConfig(encodeConfig(config))).toEqual(config)
+  })
+
+  it("round-trips the knockout qualityBadgeStyle", async () => {
+    const { encodeConfig, decodeConfig } = await importConfigToken()
+    const config: PictoriumUserConfig = { ...SAMPLE_CONFIG, qualityBadgeStyle: "knockout" }
+    expect(decodeConfig(encodeConfig(config))).toEqual(config)
+  })
+
   it("degrades legacy rankingBadgeStyle 'bar' to 'default' instead of rejecting the token", async () => {
     const { decodeConfig } = await importConfigToken()
     // Token firmato prima della rimozione della barra: bypassa i tipi con un

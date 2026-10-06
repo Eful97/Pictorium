@@ -1,6 +1,54 @@
 import { expect, test } from "@playwright/test"
+import { DEFAULT_BADGE_STYLE, DEFAULT_RANKING_BADGE_STYLE } from "../src/lib/badge-styles"
+import { DEFAULT_RATING_SOURCES } from "../src/lib/rating-weights"
 
 test.describe("Button interactions and immediate updates", () => {
+  // The Settings flows below persist through the shared single-instance
+  // defaults namespace (MULTI_USER is off in E2E, PUT shallow-merges so
+  // omitted keys can never delete). Restore the mutated root keys to the
+  // single-source code defaults on exit, otherwise later specs inherit style
+  // / sources / rank choices (xbs/rsrc/rs leaks observed in serial runs).
+  // Explicit code defaults are absence-equivalent in every resolution chain.
+  test.afterEach(async ({ page }) => {
+    // Settle trailing debounced UI autosaves (500ms in useDefaults) BEFORE
+    // the restore PUT, never after it.
+    await page.waitForTimeout(1200)
+    await page.goto("/")
+    const clean = {
+      badgeStyle: DEFAULT_BADGE_STYLE,
+      extraBadgeStyle: null,
+      ratingSources: [...DEFAULT_RATING_SOURCES],
+      rankingBadgeStyle: DEFAULT_RANKING_BADGE_STYLE,
+    }
+    await page.evaluate(async (body) => {
+      const r = await fetch("/api/defaults", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      })
+      if (!r.ok) throw new Error(`restore defaults: ${r.status} ${await r.text()}`)
+    }, clean)
+    const got = (await page.evaluate(async () => {
+      const r = await fetch("/api/defaults")
+      if (!r.ok) throw new Error(`verify defaults: ${r.status}`)
+      return (await r.json()) as Record<string, unknown>
+    })) as Record<string, unknown>
+    expect(got.badgeStyle).toBe(clean.badgeStyle)
+    expect(got.extraBadgeStyle).toBe(clean.extraBadgeStyle)
+    expect(got.ratingSources).toEqual(clean.ratingSources)
+    expect(got.rankingBadgeStyle).toBe(clean.rankingBadgeStyle)
+    // The "Salva Poster" flow persists a per-title mapping for the shared
+    // fixture id (movie:19995, Avatar) in the data-dir shared by all e2e
+    // files. Its saved extraBadgeStyle/rankingBadgeStyle/quality offsets
+    // shadow query legacy semantics (xbs-absent `rs` fallback) and the
+    // landscape quality-offset factory in later specs (proven G2: with this
+    // mapping the F1 pair renders byte-identical and the F2 landscape shot
+    // reproduces the recorded actual PNG sha256 exactly). Delete it on exit,
+    // mirroring custom-poster.spec.ts cleanup for seeded mappings.
+    await page.evaluate(async () => {
+      await fetch("/api/mappings/movie:19995", { method: "DELETE" })
+    })
+  })
   test.beforeEach(async ({ page }) => {
     await page.addInitScript(() => {
       try {
@@ -144,14 +192,21 @@ test.describe("Button interactions and immediate updates", () => {
     await imdbOnlyBtn.click()
     await expect(page.getByText(/1\/16/).first()).toBeVisible()
 
-    // Test Ribbon side buttons
-    const stremioRibbon = page.getByRole("button", { name: "Stremio" }).first()
-    const nuvioRibbon = page.getByRole("button", { name: "Nuvio" }).first()
-    await nuvioRibbon.click()
-    await expect(nuvioRibbon).toHaveClass(/bg-white\/20/)
-    await stremioRibbon.click()
-    await expect(stremioRibbon).toHaveClass(/bg-white\/20/)
-    await expect(nuvioRibbon).not.toHaveClass(/bg-white\/20/)
+    // Test rank side control: position radios Sinistra/Destra (defaults-only —
+    // shared by the ribbon AND the Numero numeral, T5 RankingAppearanceSelector).
+    // Select Numero first so the Posizione row is reachable, then flip sides.
+    const rankGroup = page.getByRole("radiogroup", { name: "Classifica" })
+    await rankGroup.getByRole("radio", { name: "Numero" }).click()
+    const sideGroup = page.getByRole("radiogroup", { name: "Posizione" })
+    await expect(sideGroup).toBeVisible()
+    const leftSide = sideGroup.getByRole("radio", { name: "Sinistra" })
+    const rightSide = sideGroup.getByRole("radio", { name: "Destra" })
+    await rightSide.click()
+    await expect(rightSide).toHaveAttribute("aria-checked", "true")
+    await expect(leftSide).toHaveAttribute("aria-checked", "false")
+    await leftSide.click()
+    await expect(leftSide).toHaveAttribute("aria-checked", "true")
+    await expect(rightSide).toHaveAttribute("aria-checked", "false")
 
     // Switch to Preferences tab
     await page.getByRole("tab", { name: /Preferenze|Preferences/i }).click()
@@ -230,25 +285,44 @@ test.describe("Button interactions and immediate updates", () => {
     await expect(badgeTab).toHaveAttribute("aria-selected", "true")
     await expect(page.getByText(/Stile badge/i).first()).toBeVisible()
 
-    // Inside Badge tab: test style selector
-    const styleGrid = page.locator(".grid.grid-cols-3.sm\\:grid-cols-5").first()
-    // Nomi accessibili = anteprima "Aa" + etichetta: match per substring
-    // (come Pill/Bordo), mai exact sul solo label.
-    const defaultBadge = styleGrid.getByRole("button", { name: "Default" })
-    const pillBadge = styleGrid.getByRole("button", { name: "Pill" })
-    const bordoBadge = styleGrid.getByRole("button", { name: "Bordo" })
+    // Inside Badge tab: single rank appearance (Nastro/Numero/Badge + variants,
+    // T5 RankingAppearanceSelector — no separate style grid, no per-title side).
+    const seen: string[] = []
+    page.on("request", (req) => {
+      const url = req.url()
+      if (/\/api\/poster\/(movie|tv)\//.test(url) && url.includes("preview=1") && !url.includes("demosamples=1")) seen.push(url)
+    })
+    const rankGroup = page.getByRole("radiogroup", { name: "Classifica" })
+    await expect(rankGroup).toBeVisible()
+    await expect(rankGroup.getByRole("radio")).toHaveCount(3)
+    // Arrange verificato (mai assunto): default+ribbon eredita Nastro.
+    await expect(rankGroup.getByRole("radio", { name: "Nastro" })).toHaveAttribute("aria-checked", "true")
+    // Side is defaults-only: never rendered per-title (not persistible).
+    await expect(page.getByRole("radiogroup", { name: "Posizione" })).toHaveCount(0)
+    // Badge appearance exposes the 6 centered variants; back to Numero.
+    await rankGroup.getByRole("radio", { name: "Badge", exact: true }).click()
+    const variantGroup = page.getByRole("radiogroup", { name: "Stile badge ranking predefinito" })
+    await expect(variantGroup).toBeVisible()
+    await expect(variantGroup.getByRole("radio")).toHaveCount(6)
+    const mark = seen.length
+    await rankGroup.getByRole("radio", { name: "Numero" }).click()
+    await expect(rankGroup.getByRole("radio", { name: "Numero" })).toHaveAttribute("aria-checked", "true")
+    // Immediate preview: the new request carries rs=number (single ribbon flag).
+    let preview: URLSearchParams | null = null
+    await expect
+      .poll(
+        () => {
+          const raw = seen.slice(mark).find((u) => new URL(u).searchParams.get("rs") === "number") ?? null
+          preview = raw ? new URL(raw).searchParams : null
+          return preview ? "ok" : null
+        },
+        { timeout: 30_000 },
+      )
+      .toBe("ok")
+    expect((preview as unknown as URLSearchParams).getAll("ribbon")).toEqual(["1"])
 
-    // Arrange verificato (mai assunto): ranking eredita il default resettato.
-    await expect(defaultBadge).toHaveClass(/bg-accent-orange\/15/)
-    await pillBadge.click()
-    await expect(pillBadge).toHaveClass(/bg-accent-orange\/15/)
-
-    await bordoBadge.click()
-    await expect(bordoBadge).toHaveClass(/bg-accent-orange\/15/)
-    await expect(pillBadge).not.toHaveClass(/bg-accent-orange\/15/)
-
-    // Test switch toggle in Badge tab
-    const trendSwitch = page.getByRole("switch", { name: "Trend" })
+    // Test master toggle in Badge tab (per-title top badges: "Badge superiore").
+    const trendSwitch = page.getByRole("switch", { name: "Badge superiore" })
     const initialTrend = await trendSwitch.getAttribute("aria-checked")
     await trendSwitch.click()
     const nextTrend = await trendSwitch.getAttribute("aria-checked")

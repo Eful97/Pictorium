@@ -78,6 +78,168 @@ describe("findSceneTint (same-hue scene tint extraction)", () => {
   })
 })
 
+describe("findSceneTint (background representative medians)", () => {
+  function createTealNavyFrame(): Buffer {
+    // Teal #5195a3 background with a navy strip in the frame (~12% of
+    // samples, like the hoodie edges on Tuner) + tall black band (skipped
+    // for l < 0.08): the winner stays teal.
+    const w = 200, h = 300
+    const buf = Buffer.alloc(w * h * 4)
+    for (let y = 0; y < h; y++) {
+      for (let x = 0; x < w; x++) {
+        const i = (y * w + x) * 4
+        const navy = x < 12
+        const blackBand = y < 6
+        const [r, g, b] = blackBand ? [10, 10, 10] : navy ? [20, 30, 60] : [81, 149, 163]
+        buf[i] = r
+        buf[i + 1] = g
+        buf[i + 2] = b
+        buf[i + 3] = 255
+      }
+    }
+    return buf
+  }
+
+  it("teal background with navy frame patches returns the teal itself, near #5195a3", () => {
+    const raw = createTealNavyFrame()
+    const tint = findSceneTint(raw, 200, 300, "Crime")
+    // Winning-bucket medians = pure teal pixels (navy votes bucket 7,
+    // black is excluded by the filters) → exact background color.
+    expect(tint).toEqual({ r: 81, g: 149, b: 163 })
+    // Robust threshold vs target (12.7 euclidean measured on the real poster
+    // for edge teal-navy blends; 0 here by construction).
+    const dR = 81 - tint.r, dG = 149 - tint.g, dB = 163 - tint.b
+    expect(Math.sqrt(dR * dR + dG * dG + dB * dB)).toBeLessThan(25)
+    // Teal signature, not navy (navy: g - r ≈ 10).
+    expect(tint.g).toBeGreaterThan(tint.r + 30)
+  })
+
+  it("dark scene preserves the dark background lightness (no lift to scrim band)", () => {
+    const w = 200, h = 300
+    const raw = Buffer.alloc(w * h * 4)
+    for (let y = 0; y < h; y++) {
+      for (let x = 0; x < w; x++) {
+        const i = (y * w + x) * 4
+        const lamp = x >= w * 0.6 && x < w * 0.8 && y >= h * 0.55 && y < h * 0.7
+        const [r, g, b] = lamp ? [210, 140, 60] : [22, 30, 52]
+        raw[i] = r
+        raw[i + 1] = g
+        raw[i + 2] = b
+        raw[i + 3] = 255
+      }
+    }
+    const tint = findSceneTint(raw, w, h, "Crime")
+    // Center lamp = outside the frame → medians = exact dark background,
+    // darker than the old fixed band (L = 0.26): scenic darkening stays the
+    // renderer's job, not the extractor's.
+    expect(tint).toEqual({ r: 22, g: 30, b: 52 })
+    expect(tint.b).toBeGreaterThan(tint.g)
+    expect(tint.g).toBeGreaterThan(tint.r)
+  })
+
+  it("uniform saturated color returns the color itself", () => {
+    const raw = createSolidRawRgba(100, 100, 81, 149, 163)
+    expect(findSceneTint(raw, 100, 100, "Crime")).toEqual({ r: 81, g: 149, b: 163 })
+  })
+})
+
+describe("findSceneTint (median edge cases)", () => {
+  it("even sample count averages the two middle values deterministically", () => {
+    // 20x20 with 8px frame margins: paint 12 saturated pixels on the top
+    // frame row, six R=80 + six R=82 (same G/B/hue bucket) → median R is
+    // exactly (80 + 82) / 2 = 81, on every run.
+    const w = 20, h = 20
+    const buf = Buffer.alloc(w * h * 4)
+    for (let i = 0; i < w * h; i++) {
+      buf[i * 4] = 128
+      buf[i * 4 + 1] = 128
+      buf[i * 4 + 2] = 128
+      buf[i * 4 + 3] = 255
+    }
+    const paint = (x: number, y: number, r: number) => {
+      const i = (y * w + x) * 4
+      buf[i] = r
+      buf[i + 1] = 150
+      buf[i + 2] = 160
+      buf[i + 3] = 255
+    }
+    for (let x = 0; x < 20; x += 2) paint(x, 0, x < 8 ? 80 : 82)
+    paint(0, 2, 80)
+    paint(2, 2, 80)
+    const first = findSceneTint(buf, w, h, "Action")
+    expect(first).toEqual({ r: 81, g: 150, b: 160 })
+    expect(findSceneTint(buf, w, h, "Action")).toEqual(first)
+  })
+
+  it("fully transparent pixels never vote (alpha = 0 excluded)", () => {
+    // The teal majority is fully transparent; only the opaque navy strip
+    // votes. If transparent teal leaked in, teal would dominate by area.
+    const w = 100, h = 100
+    const buf = Buffer.alloc(w * h * 4)
+    for (let y = 0; y < h; y++) {
+      for (let x = 0; x < w; x++) {
+        const i = (y * w + x) * 4
+        if (x < 50) {
+          buf[i] = 20
+          buf[i + 1] = 30
+          buf[i + 2] = 60
+          buf[i + 3] = 255
+        } else {
+          buf[i] = 81
+          buf[i + 1] = 149
+          buf[i + 2] = 163
+          buf[i + 3] = 0
+        }
+      }
+    }
+    expect(findSceneTint(buf, w, h, "Crime")).toEqual({ r: 20, g: 30, b: 60 })
+  })
+
+  it("desaturated grey and near-black pixels never vote", () => {
+    // The frame is grey + near-black noise; only a small saturated teal
+    // patch at the corner contributes weight → teal wins, medians exact.
+    const w = 100, h = 100
+    const buf = Buffer.alloc(w * h * 4)
+    for (let y = 0; y < h; y++) {
+      for (let x = 0; x < w; x++) {
+        const i = (y * w + x) * 4
+        const tealPatch = x < 12 && y < 12
+        const nearBlack = !tealPatch && (x + y) % 3 === 0
+        const [r, g, b] = tealPatch ? [81, 149, 163] : nearBlack ? [5, 5, 5] : [150, 150, 150]
+        buf[i] = r
+        buf[i + 1] = g
+        buf[i + 2] = b
+        buf[i + 3] = 255
+      }
+    }
+    expect(findSceneTint(buf, w, h, "Crime")).toEqual({ r: 81, g: 149, b: 163 })
+  })
+
+  it("red straddling the 0/360 boundary keeps every sample in-family", () => {
+    // Left half hue ≈ 356.5° (bucket 11), right half hue ≈ 3.5° (bucket 0):
+    // deriving the winner from the mean hue must attribute each sample to
+    // its own bucket instead of dropping the red family.
+    const w = 100, h = 100
+    const buf = Buffer.alloc(w * h * 4)
+    for (let y = 0; y < h; y++) {
+      for (let x = 0; x < w; x++) {
+        const i = (y * w + x) * 4
+        const left = x < 50
+        buf[i] = 200
+        buf[i + 1] = left ? 30 : 40
+        buf[i + 2] = left ? 40 : 30
+        buf[i + 3] = 255
+      }
+    }
+    const tint = findSceneTint(buf, w, h, "Action")
+    // Whichever side wins, the medians are exactly that side's color —
+    // never a blend, never the fallback, always red-dominant.
+    expect([[200, 30, 40], [200, 40, 30]]).toContainEqual([tint.r, tint.g, tint.b])
+    expect(tint.r).toBeGreaterThan(tint.g + 100)
+    expect(tint.r).toBeGreaterThan(tint.b + 100)
+  })
+})
+
 describe("extractSceneTint (poster-render-helpers)", () => {
   it("extracts valid #rrggbb hex string from a synthetic JPEG buffer", async () => {
     const jpegBuf = await sharp({

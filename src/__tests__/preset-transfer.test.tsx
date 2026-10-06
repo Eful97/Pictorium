@@ -3,6 +3,7 @@ import { act, fireEvent, renderHook, screen } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { BETTER_POSTER_VISUAL_DEFAULTS } from "@/lib/default-visual-presets"
 import {
+  GRADIENT_PRESET_NERO,
   NATURAL_GRADIENT_DEFAULTS,
   addCustomGradientPreset,
   resetCustomPresetStore,
@@ -395,5 +396,26 @@ describe("preset transfer UI", () => {
     )
     expect(screen.getByRole("button", { name: "ui.presetFileExportGradients" })).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "ui.presetFileImport" })).toBeInTheDocument()
+  })
+
+  it("GradientPresetRow applies the Nero built-in via its chip", () => {
+    const onApply = vi.fn()
+    renderWithCtx(
+      <GradientPresetRow
+        current={{ ...GRADIENT_PRESET_NERO }}
+        onApply={onApply}
+        naturalLabel="Naturale"
+        colorLabel="Colore"
+        neroLabel="Nero"
+        addTitle="Aggiungi"
+        namePlaceholder="Nome"
+        deleteLabel="Elimina"
+      />,
+    )
+    const nero = screen.getByRole("button", { name: "Nero" })
+    expect(nero).toHaveAttribute("aria-pressed", "true")
+    fireEvent.click(nero)
+    expect(onApply).toHaveBeenCalledTimes(1)
+    expect(onApply).toHaveBeenCalledWith(GRADIENT_PRESET_NERO)
   })
 })

@@ -162,4 +162,91 @@ describe("buildHouseRankingSvg", () => {
     expect(res.svg).toContain("<rect")
     expect(res.svg).not.toContain("TOP")
   })
+
+  it("renders corner style as a flat accent pill with contrasting text", () => {
+    const res = buildHouseRankingSvg({
+      rank: 4,
+      label: "Oggi",
+      pw: 380,
+      topLight: false,
+      style: "corner",
+      accentColor: "#e50914",
+    })
+    expect(res.svg).toContain("#4 Oggi")
+    expect(res.svg).toContain("<rect")
+    // Flat accent fill, never a satin gradient, and no stroke.
+    expect(res.svg).toContain('fill="#e50914"')
+    expect(res.svg).not.toContain("url(#rpg)")
+    expect(res.svg).not.toContain("url(#rdg)")
+    expect(res.svg).not.toContain("url(#nrg)")
+    expect(res.svg).not.toContain("stroke")
+    expect(res.svg).not.toContain("TOP")
+  })
+
+  it("renders corner style with white text on a dark accent", () => {
+    const res = buildHouseRankingSvg({
+      rank: 4,
+      label: "Oggi",
+      pw: 380,
+      topLight: false,
+      style: "corner",
+      accentColor: "#1a2b4a",
+    })
+    expect(res.svg).toContain("#4 Oggi")
+    expect(res.svg).toContain('fill="#1a2b4a"')
+    expect(res.svg).toContain('fill="#ffffff"')
+  })
+
+  it("renders corner style with dark text on a light accent", () => {
+    const res = buildHouseRankingSvg({
+      rank: 4,
+      label: "Oggi",
+      pw: 380,
+      topLight: false,
+      style: "corner",
+      accentColor: "#f2c94c",
+    })
+    expect(res.svg).toContain("#4 Oggi")
+    expect(res.svg).toContain('fill="#f2c94c"')
+    expect(res.svg).toContain('fill="rgba(0,0,0,0.80)"')
+  })
+
+  it("renders corner style with readable text on the sentinel gray fallback", () => {
+    const res = buildHouseRankingSvg({
+      rank: 4,
+      label: "Oggi",
+      pw: 380,
+      topLight: false,
+      style: "corner",
+      accentColor: "#555555",
+    })
+    expect(res.svg).toContain("#4 Oggi")
+    expect(res.svg).toContain('fill="#555555"')
+  })
+
+  it("standard (netflix) and colored ribbons genuinely differ (satin vs accent)", () => {
+    const satin = buildHouseRankingSvg({
+      rank: 2,
+      label: "Oggi",
+      pw: 380,
+      topLight: false,
+      style: "netflix",
+      accentColor: "#e50914",
+    })
+    const accent = buildHouseRankingSvg({
+      rank: 2,
+      label: "Oggi",
+      pw: 380,
+      topLight: false,
+      style: "colored",
+      accentColor: "#e50914",
+    })
+    // Standard = satin gradient ribbon; Colorato = flat accent ribbon.
+    expect(satin.svg).toContain('fill="url(#nrg)"')
+    expect(satin.svg).toContain("TOP")
+    expect(accent.svg).toContain('fill="#e50914"')
+    expect(accent.svg).toContain("TOP")
+    expect(accent.svg).not.toContain("url(#nrg)")
+    expect(accent.svg).not.toEqual(satin.svg)
+  })
 })

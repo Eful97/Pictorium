@@ -165,7 +165,7 @@ describe("BadgeControls landscape: barra disabilitata, pills attiva, raw intatto
   })
 })
 
-describe("BadgeDefaultsSection Orizzontale: barra default disabilitata (defaultPosterShape)", () => {
+describe("BadgeDefaultsSection Orizzontale: barra disabilitata (edit target)", () => {
   const DEFAULTS_LANDSCAPE_BAR = {
     defaultGlobalBadges: true,
     defaultBadgeRating: true,
@@ -174,9 +174,9 @@ describe("BadgeDefaultsSection Orizzontale: barra default disabilitata (defaultP
     defaultPosterShape: "landscape",
   }
 
-  it("con default Orizzontale + barra: barra disabilitata, pills attiva", () => {
+  it("con target Orizzontale + barra: barra disabilitata, pills attiva", () => {
     seedDefaults(DEFAULTS_LANDSCAPE_BAR)
-    renderWithCtx(<BadgeDefaultsSection active />)
+    renderWithCtx(<BadgeDefaultsSection active shape="landscape" />)
     const bar = screen.getByRole("button", { name: "ui.separateRatingsBottomBar" })
     const pills = screen.getByRole("button", { name: "ui.separateRatingsBottomPills" })
     expect(bar).toBeDisabled()
@@ -185,12 +185,20 @@ describe("BadgeDefaultsSection Orizzontale: barra default disabilitata (defaultP
     expect(screen.getByText("ui.separateRatingsBarLandscapeHint")).toBeInTheDocument()
   })
 
-  it("con default Verticale la barra resta abilitata e selezionata", () => {
+  it("con target Verticale la barra resta abilitata e selezionata", () => {
     seedDefaults({ ...DEFAULTS_LANDSCAPE_BAR, defaultPosterShape: "poster" })
-    renderWithCtx(<BadgeDefaultsSection active />)
+    renderWithCtx(<BadgeDefaultsSection active shape="portrait" />)
     const bar = screen.getByRole("button", { name: "ui.separateRatingsBottomBar" })
     expect(bar).not.toBeDisabled()
     expect(bar).toHaveAttribute("aria-pressed", "true")
     expect(screen.queryByText("ui.separateRatingsBarLandscapeHint")).not.toBeInTheDocument()
+  })
+
+  it("senza shape il target default è portrait (retrocompatibilità)", () => {
+    seedDefaults(DEFAULTS_LANDSCAPE_BAR)
+    renderWithCtx(<BadgeDefaultsSection active />)
+    const bar = screen.getByRole("button", { name: "ui.separateRatingsBottomBar" })
+    expect(bar).not.toBeDisabled()
+    expect(bar).toHaveAttribute("aria-pressed", "true")
   })
 })

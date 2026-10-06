@@ -1,6 +1,6 @@
 import sharp from "sharp"
 import { describe, expect, it } from "vitest"
-import { buildGenrePillSvg, buildGenreTextSvg, buildGenreBarSvg, buildRankingDefaultSvg, buildExtraDefaultSvg, buildQualityBadgeSvg, glassStops, satinPillStops, buildGenreGlassSvg, buildGenreBorderedSvg, buildRankingGlassSvg, buildRankingBorderedSvg, buildExtraBorderedSvg, buildHouseRankingSvg } from "@/lib/badge-svg-shared"
+import { buildGenrePillSvg, buildGenreTextSvg, buildGenreBarSvg, buildRankingDefaultSvg, buildExtraDefaultSvg, buildQualityBadgeSvg, glassStops, satinPillStops, buildGenreGlassSvg, buildGenreBorderedSvg, buildRankingGlassSvg, buildRankingBorderedSvg, buildExtraBorderedSvg, buildHouseRankingSvg, buildRankingCornerSvg } from "@/lib/badge-svg-shared"
 import { buildGenreBadgeSVG, buildRankingBadgeSVG, buildExtraBadgeSVG, buildNetflixRankBadgeSVG, renderComingSoonRibbon, comingSoonRibbonLayout } from "@/lib/svg-badge"
 
 async function alphaBounds(png: Buffer) {
@@ -478,6 +478,54 @@ describe("buildExtraBadgeSVG", () => {
     const badge = await buildExtraBadgeSVG("Oscar 2024", 1000, false, "vetro", "#555555")
     expect(badge).not.toBeNull()
     expect(badge!.w).toBeGreaterThan(50)
+  })
+
+  it("renders corner extra badges with the flat accent pill (all top categories)", async () => {
+    // Same builder as the ranking corner, fed by the extra label: short
+    // labels match its box exactly (no 65% cap involved).
+    const badge = await buildExtraBadgeSVG("Oscar 2024", 380, false, "corner", "#e50914")
+    expect(badge).not.toBeNull()
+    const ref = buildRankingCornerSvg("Oscar 2024", 27, "#e50914")
+    expect(badge!.w).toBe(ref.w)
+    expect(badge!.h).toBe(ref.h)
+    // Corner differs from the default satin plaque (never the old fallback).
+    const def = await buildExtraBadgeSVG("Oscar 2024", 380, false, "default", "#e50914")
+    expect(Buffer.compare(badge!.png, def!.png)).not.toBe(0)
+  })
+
+  it("keeps the 65% cap for long corner extra labels", async () => {
+    const badge = await buildExtraBadgeSVG("Supercalifragilistichespiralidosamente lungo", 500, false, "corner", "#e50914")
+    expect(badge).not.toBeNull()
+    expect(badge!.w).toBeLessThanOrEqual(500)
+    expect(badge!.w).toBeGreaterThan(0)
+  })
+
+  it("routes real extra categories (new season, returning) to the corner style", async () => {
+    const { computeBadge } = await import("@/lib/badge-priority")
+    const base = {
+      mediaType: "tv" as const,
+      upcomingRelease: null,
+      isNewMovie: false,
+      isNewSeries: false,
+      animeRank: null,
+      trendRank: null,
+      award: null,
+      nomination: null,
+      studio: null,
+      director: null,
+      extra: null,
+    }
+    // Priority unchanged: new season and returning still resolve as extra…
+    const season = computeBadge({ ...base, newSeason: "Nuova stagione S2" })
+    const back = computeBadge({ ...base, returning: "Ritorna" })
+    expect(season?.type).toBe("extra")
+    expect(back?.type).toBe("extra")
+    // …and the corner style renders them as flat accent pills.
+    for (const label of [season!.label, back!.label]) {
+      const badge = await buildExtraBadgeSVG(label, 380, false, "corner", "#e50914")
+      expect(badge).not.toBeNull()
+      expect(badge!.w).toBeGreaterThan(50)
+    }
   })
 })
 

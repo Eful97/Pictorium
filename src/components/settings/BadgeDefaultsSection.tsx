@@ -1,10 +1,30 @@
 "use client"
 
 import { useState } from "react"
-import { ChevronDown, Flame, Layers, Menu, Ribbon, Sparkles, Star, Trophy, Tv, Check } from "lucide-react"
+import { ChevronDown, Flame, Layers, Menu, Sparkles, Star, Trophy, Tv, Check } from "lucide-react"
 import { useT } from "@/lib/contexts/TranslationContext"
 import { usePosterEditor } from "@/lib/contexts/PosterEditorContext"
+import { usePSelector } from "@/lib/context"
+import { useShapeBadgeDefaults, BADGE_VISUAL_LAND_KEYS, type BadgeShapeTarget } from "@/components/settings/useShapeDefaults"
+import {
+  RankingAppearanceSelector,
+  resolveRankingAppearance,
+  resolveRankVariant,
+  resolveRibbonVariant,
+  rankingAppearanceValue,
+  rankVariantValue,
+  ribbonVariantValue,
+  legacyExtraStyleForRank,
+  type RankingAppearance,
+  type RankBadgeVariant,
+  type RankRibbonVariant,
+} from "@/components/RankingAppearanceSelector"
+import { type ExtraBadgeStyle, type RankingBadgeStyle } from "@/lib/badge-styles"
+import type { LandscapeServerDefaults } from "@/lib/server-defaults"
+import type { VisualPresetValues } from "@/lib/visual-presets"
 import { Toggle } from "@/components/Toggle"
+import { BadgeStyleSelector } from "@/components/ui"
+import type { DefaultsPreviewFamily } from "@/lib/poster-url"
 import { isBottomSeparateRatingsStyle, getSeparateRatingsStyleForShape } from "@/lib/badge-styles"
 import { BadgeStyleSection } from "@/components/settings/BadgeStyleSection"
 import { RatingSourceIcon } from "@/components/RatingSourceIcon"
@@ -21,23 +41,29 @@ import {
   RPDB_VISUAL_DEFAULTS,
 } from "@/lib/default-visual-presets"
 
-// Master Trend: OFF spegne tutte le categorie sash (kill-switch globale, vale
-// anche per i titoli già salvati dato che la sash non è congelata per-titolo).
-// La selezione precedente viene stashata in sessione così il ri-ON la ripristina
-// invece di forzare l'ordine completo (mai perdere la personalizzazione).
+// Master Trend stash, one slot per edit target: portrait keeps the legacy
+// key (existing stashes survive), landscape gets its own so restoring one
+// format never resurrects the other format's order.
 const TREND_SASH_STASH_KEY = "pictorium_trend_sash_stash"
+const TREND_SASH_STASH_KEY_LANDSCAPE = "pictorium_trend_sash_stash:landscape"
 
-function stashSashOrder(order: readonly SashBucket[] | null | undefined): void {
+// Rank-only stash, separate from the master stash: rank OFF remembers the
+// exact order (rank position included) per edit target, so rank ON restores
+// it without reshuffling the other categories. Never clobbers the master stash.
+const RANK_SASH_STASH_KEY = "pictorium_rank_sash_stash"
+const RANK_SASH_STASH_KEY_LANDSCAPE = "pictorium_rank_sash_stash:landscape"
+
+function stashSashOrder(key: string, order: readonly SashBucket[] | null | undefined): void {
   try {
-    if (order && order.length > 0) localStorage.setItem(TREND_SASH_STASH_KEY, JSON.stringify(order))
+    if (order && order.length > 0) localStorage.setItem(key, JSON.stringify(order))
   } catch {}
 }
 
-function popStashedSashOrder(): SashBucket[] | null {
+function popStashedSashOrder(key: string): SashBucket[] | null {
   try {
-    const raw = localStorage.getItem(TREND_SASH_STASH_KEY)
+    const raw = localStorage.getItem(key)
     if (!raw) return null
-    localStorage.removeItem(TREND_SASH_STASH_KEY)
+    localStorage.removeItem(key)
     const arr: unknown = JSON.parse(raw)
     if (!Array.isArray(arr)) return null
     const parsed = parseSashOrder(arr.join(","))
@@ -47,12 +73,163 @@ function popStashedSashOrder(): SashBucket[] | null {
   }
 }
 
-/** Scheda Badge default. Estratta da SettingsPanel con il suo stato locale: nessun prop tranne `active`. */
-export function BadgeDefaultsSection({ active }: { active: boolean }) {
+/**
+ * Whether the ribbon side control (Nuvio/Stremio) is visible. The side
+ * switch also mirrors the `number` rank numeral, so it stays reachable
+ * when the ranking style is `number` even with the ribbon itself off.
+ * Every other style keeps the historic ribbon-only rule.
+ */
+export function isSideControlVisible(args: {
+  ribbonEnabled: boolean | null | undefined
+  rankingBadgeStyle: string | null | undefined
+}): boolean {
+  return !!args.ribbonEnabled || args.rankingBadgeStyle === "number"
+}
+
+/** Badge defaults tab. `shape` selects the edit target (T1 single selector):
+ * portrait reads/writes the shared flats, landscape the `landscape` profile.
+ * Data sources, endpoints, region, date format and API settings stay global.
+ * `onPreviewFamilyChange` (optional) reports which card the user is editing so
+ * the preview owner can show a pertinent sample — preview-only, never writes. */
+export function BadgeDefaultsSection({ active, shape, onPreviewFamilyChange }: { active: boolean; shape?: BadgeShapeTarget; onPreviewFamilyChange?: (f: DefaultsPreviewFamily) => void }) {
   const { t } = useT()
   const ed = usePosterEditor()
+  const accentColor = usePSelector((v) => v.accentColor)
+  const { isLandscape, scoped } = useShapeBadgeDefaults(shape)
+  const targetShape = isLandscape ? "landscape" : "portrait"
+  const sashStashKey = isLandscape ? TREND_SASH_STASH_KEY_LANDSCAPE : TREND_SASH_STASH_KEY
   const [sourcesOpen, setSourcesOpen] = useState(false)
   const [sashDrag, setSashDrag] = useState<SashBucket | null>(null)
+
+  // Preview-family scope (U2): each card reports its family on explicit press
+  // or keyboard focus so the preview shows a pertinent sample. Press (not
+  // hover) avoids preview flicker/fetch storms from mere mouse transit.
+  // Text-only state lift — never moves focus, never unmounts controls (no
+  // focus trap), identical values bail out in the owner setter.
+  const famAttrs = (family: DefaultsPreviewFamily) => ({
+    "data-preview-family": family,
+    onFocusCapture: () => onPreviewFamilyChange?.(family),
+    onPointerDownCapture: () => onPreviewFamilyChange?.(family),
+  })
+
+  // Scoped bindings: portrait = shared flats, landscape = profile override.
+  const [globalBadges, setGlobalBadges] = scoped("globalBadges", ed.defaultGlobalBadges, ed.setDefaultGlobalBadges)
+  const [badgeGenre, setBadgeGenre] = scoped("badgeGenre", ed.defaultBadgeGenre, ed.setDefaultBadgeGenre)
+  const [badgeYear, setBadgeYear] = scoped("badgeYear", ed.defaultBadgeYear, ed.setDefaultBadgeYear)
+  const [badgeRating, setBadgeRating] = scoped("badgeRating", ed.defaultBadgeRating, ed.setDefaultBadgeRating)
+  const [separateRatings, setSeparateRatings] = scoped("separateRatings", ed.defaultSeparateRatings, ed.setDefaultSeparateRatings)
+  const [separateRatingsStyle, setSeparateRatingsStyle] = scoped("separateRatingsStyle", ed.defaultSeparateRatingsStyle, ed.setDefaultSeparateRatingsStyle)
+  const [customRatings, setCustomRatings] = scoped("customRatings", ed.defaultCustomRatings, ed.setDefaultCustomRatings)
+  const [rankingBadges, setRankingBadges] = scoped("rankingBadges", ed.defaultRankingBadges, ed.setDefaultRankingBadges)
+  const [sashOrder, setSashOrder] = scoped("sashOrder", ed.defaultSashOrder, ed.setDefaultSashOrder)
+  const [preRelease, setPreRelease] = scoped("preRelease", ed.defaultPreRelease, ed.setDefaultPreRelease)
+  const [ribbonEnabled, setRibbonEnabled] = scoped("ribbonEnabled", ed.defaultRibbonEnabled, ed.setDefaultRibbonEnabled)
+  const [ribbonSide, setRibbonSide] = scoped("ribbonSide", ed.defaultRibbonSide, ed.setDefaultRibbonSide)
+  const [badgeQuality, setBadgeQuality] = scoped("badgeQuality", ed.defaultBadgeQuality, ed.setDefaultBadgeQuality)
+  const [networkLogo, setNetworkLogo] = scoped("networkLogo", ed.defaultNetworkLogo, ed.setDefaultNetworkLogo)
+  const [networkLogoPosition, setNetworkLogoPosition] = scoped("networkLogoPosition", ed.defaultNetworkLogoPosition, ed.setDefaultNetworkLogoPosition)
+  const [badgeStyle] = scoped("badgeStyle", ed.defaultBadgeStyle, ed.setDefaultBadgeStyle)
+  const [rankingBadgeStyle, setRankingBadgeStyle] = scoped("rankingBadgeStyle", ed.defaultRankingBadgeStyle, ed.setDefaultRankingBadgeStyle)
+  const [extraBadgeStyle, setExtraBadgeStyle] = scoped("extraBadgeStyle", ed.defaultExtraBadgeStyle, ed.setDefaultExtraBadgeStyle)
+  // Scoped reset: clears only this tab's landscape overrides (numeric and
+  // gradient overrides owned by Transform stay intact).
+  const hasVisualOverrides = isLandscape && BADGE_VISUAL_LAND_KEYS.some((k) => ed.landscape[k] !== undefined)
+  const resetVisualOverrides = () => {
+    ed.setLandscape(Object.fromEntries(BADGE_VISUAL_LAND_KEYS.map((k) => [k, undefined])) as Partial<LandscapeServerDefaults>)
+  }
+
+  // Rank bucket toggle: surgical rank on/off inside sashOrder (extra and the
+  // rest untouched). OFF stashes the exact order under the rank-only target
+  // key; ON restores rank at its stashed position without reshuffling the
+  // other categories (canonical slot only when no stash exists).
+  const rankOn = sashOrder.includes("rank")
+  const rankSashStashKey = isLandscape ? RANK_SASH_STASH_KEY_LANDSCAPE : RANK_SASH_STASH_KEY
+  function toggleBucket(bucket: SashBucket, on: boolean) {
+    // The rank bucket always goes through the stashed path so the advanced
+    // priority list and the Classifica switch behave identically.
+    if (bucket === "rank") {
+      setRankBucket(on)
+      return
+    }
+    const cur = sashOrder
+    if (on) {
+      if (cur.includes(bucket)) return
+      const home = DEFAULT_SASH_ORDER.indexOf(bucket)
+      setSashOrder([
+        ...cur.filter((x) => DEFAULT_SASH_ORDER.indexOf(x) < home),
+        bucket,
+        ...cur.filter((x) => DEFAULT_SASH_ORDER.indexOf(x) > home),
+      ])
+    } else {
+      setSashOrder(cur.filter((x) => x !== bucket))
+    }
+  }
+  function setRankBucket(on: boolean) {
+    if (on) {
+      if (sashOrder.includes("rank" as SashBucket)) return
+      const stashed = popStashedSashOrder(rankSashStashKey)
+      const home = stashed ? stashed.indexOf("rank" as SashBucket) : -1
+      const without = sashOrder.filter((x) => x !== "rank")
+      if (stashed && home >= 0) {
+        const at = Math.min(home, without.length)
+        setSashOrder([...without.slice(0, at), "rank" as SashBucket, ...without.slice(at)])
+        return
+      }
+      const slot = DEFAULT_SASH_ORDER.indexOf("rank" as SashBucket)
+      setSashOrder([
+        ...without.filter((x) => DEFAULT_SASH_ORDER.indexOf(x) < slot),
+        "rank" as SashBucket,
+        ...without.filter((x) => DEFAULT_SASH_ORDER.indexOf(x) > slot),
+      ])
+    } else {
+      if (!sashOrder.includes("rank" as SashBucket)) return
+      stashSashOrder(rankSashStashKey, sashOrder)
+      setSashOrder(sashOrder.filter((x) => x !== "rank"))
+    }
+  }
+
+  // Single rank appearance (effective rendering): legacy default+ribbon reads
+  // Nastro, legacy default without ribbon reads Badge (standard variant).
+  const appearance = resolveRankingAppearance({ rankingBadgeStyle: rankingBadgeStyle, ribbonEnabled: ribbonEnabled })
+  const variant: RankBadgeVariant = resolveRankVariant(rankingBadgeStyle)
+  const ribbonVariant: RankRibbonVariant = resolveRibbonVariant(rankingBadgeStyle)
+  // Freeze the legacy extra look before a rank style change moves it
+  // (explicit user choice, never on mount): the extra badge keeps its pixels.
+  function writeRankingStyle(rs: RankingBadgeStyle) {
+    if (extraBadgeStyle == null) setExtraBadgeStyle(legacyExtraStyleForRank(rankingBadgeStyle))
+    setRankingBadgeStyle(rs)
+  }
+  function handleAppearance(a: RankingAppearance) {
+    const v = rankingAppearanceValue(a)
+    if (v.rankingBadgeStyle === rankingBadgeStyle && v.ribbonEnabled === ribbonEnabled) return
+    writeRankingStyle(v.rankingBadgeStyle)
+    setRibbonEnabled(v.ribbonEnabled)
+  }
+  function handleVariant(v: RankBadgeVariant) {
+    const next = rankVariantValue(v)
+    if (next.rankingBadgeStyle === rankingBadgeStyle && next.ribbonEnabled === ribbonEnabled) return
+    writeRankingStyle(next.rankingBadgeStyle)
+    setRibbonEnabled(next.ribbonEnabled)
+  }
+  function handleRibbonVariant(v: RankRibbonVariant) {
+    const next = ribbonVariantValue(v)
+    if (next.rankingBadgeStyle === rankingBadgeStyle && next.ribbonEnabled === ribbonEnabled) return
+    writeRankingStyle(next.rankingBadgeStyle)
+    setRibbonEnabled(next.ribbonEnabled)
+  }
+
+  // Extra style options: colored only when already set (legacy compat).
+  const extraOptions: ExtraBadgeStyle[] = ["default", "pill", "corner", "vetro", "bordo"]
+  if (extraBadgeStyle === "colored") extraOptions.push("colored")
+  const EXTRA_STYLE_LABELS: Record<ExtraBadgeStyle, string> = {
+    default: "ui.bsDefault",
+    pill: "ui.pill",
+    corner: "ui.corner",
+    vetro: "ui.vetro",
+    bordo: "ui.bordo",
+    colored: "ui.colored",
+  }
+  const [advancedOpen, setAdvancedOpen] = useState(false)
 
   // Test provider custom rating (sample fisso server-side, chiave mai esposta).
   const [crTestBusy, setCrTestBusy] = useState(false)
@@ -92,99 +269,196 @@ export function BadgeDefaultsSection({ active }: { active: boolean }) {
   }
 
   const isEssential =
-    ed.defaultGlobalBadges &&
-    ed.defaultBadgeGenre &&
-    ed.defaultBadgeYear &&
-    !ed.defaultBadgeRating &&
-    !ed.defaultBadgeQuality &&
-    !ed.defaultRankingBadges &&
-    !ed.defaultNetworkLogo &&
-    ed.defaultBadgeStyle === "minimal"
+    globalBadges &&
+    badgeGenre &&
+    badgeYear &&
+    !badgeRating &&
+    !badgeQuality &&
+    !rankingBadges &&
+    !networkLogo &&
+    badgeStyle === "minimal"
 
   const isRatings =
-    ed.defaultGlobalBadges &&
-    !ed.defaultBadgeGenre &&
-    ed.defaultBadgeYear &&
-    ed.defaultBadgeRating &&
-    ed.defaultBadgeQuality &&
-    !ed.defaultRankingBadges &&
-    !ed.defaultNetworkLogo &&
-    ed.defaultBadgeStyle === "pill"
+    globalBadges &&
+    !badgeGenre &&
+    badgeYear &&
+    badgeRating &&
+    badgeQuality &&
+    !rankingBadges &&
+    !networkLogo &&
+    badgeStyle === "pill"
 
   const isFull =
-    ed.defaultGlobalBadges &&
-    ed.defaultBadgeGenre &&
-    ed.defaultBadgeYear &&
-    ed.defaultBadgeRating &&
-    ed.defaultBadgeQuality &&
-    ed.defaultRankingBadges &&
-    ed.defaultNetworkLogo &&
-    ed.defaultBadgeStyle === "pill"
+    globalBadges &&
+    badgeGenre &&
+    badgeYear &&
+    badgeRating &&
+    badgeQuality &&
+    rankingBadges &&
+    networkLogo &&
+    badgeStyle === "pill"
 
-  // Stesso comportamento del per-titolo: in bottom i default genere/anno sono
-  // soppressi a render ma conservati (tornando a Colonna si ripristinano, mai distrutti).
+  // Same as the per-title behavior: in bottom, genre/year defaults are
+  // render-suppressed but kept (back to Column restores them, never lost).
   const defaultBottomActive =
-    ed.defaultGlobalBadges &&
-    ed.defaultBadgeRating &&
-    ed.defaultSeparateRatings &&
-    isBottomSeparateRatingsStyle(ed.defaultSeparateRatingsStyle)
+    globalBadges &&
+    badgeRating &&
+    separateRatings &&
+    isBottomSeparateRatingsStyle(separateRatingsStyle)
 
   const applyEssential = () => {
-    ed.setDefaultGlobalBadges(true)
-    ed.setDefaultBadgeGenre(true)
-    ed.setDefaultBadgeYear(true)
-    ed.setDefaultBadgeRating(false)
-    ed.setDefaultBadgeQuality(false)
-    ed.setDefaultRankingBadges(false)
-    ed.setDefaultNetworkLogo(false)
-    ed.setDefaultBadgeStyle("minimal")
+    if (!isLandscape) {
+      ed.setDefaultGlobalBadges(true)
+      ed.setDefaultBadgeGenre(true)
+      ed.setDefaultBadgeYear(true)
+      ed.setDefaultBadgeRating(false)
+      ed.setDefaultBadgeQuality(false)
+      ed.setDefaultRankingBadges(false)
+      ed.setDefaultNetworkLogo(false)
+      ed.setDefaultBadgeStyle("minimal")
+      return
+    }
+    ed.setLandscape({ globalBadges: true, badgeGenre: true, badgeYear: true, badgeRating: false, badgeQuality: false, rankingBadges: false, networkLogo: false, badgeStyle: "minimal" })
   }
 
   const applyRatings = () => {
-    ed.setDefaultGlobalBadges(true)
-    ed.setDefaultBadgeGenre(false)
-    ed.setDefaultBadgeYear(true)
-    ed.setDefaultBadgeRating(true)
-    ed.setDefaultSeparateRatings(false)
+    // Rating sources stay global in both targets.
     ed.setDefaultRatingSources(["imdb", "tmdb"])
-    ed.setDefaultBadgeQuality(true)
-    ed.setDefaultQualityBadgeStyle("standard")
-    ed.setDefaultRankingBadges(false)
-    ed.setDefaultNetworkLogo(false)
-    ed.setDefaultBadgeStyle("pill")
+    if (!isLandscape) {
+      ed.setDefaultGlobalBadges(true)
+      ed.setDefaultBadgeGenre(false)
+      ed.setDefaultBadgeYear(true)
+      ed.setDefaultBadgeRating(true)
+      ed.setDefaultSeparateRatings(false)
+      ed.setDefaultBadgeQuality(true)
+      ed.setDefaultQualityBadgeStyle("standard")
+      ed.setDefaultRankingBadges(false)
+      ed.setDefaultNetworkLogo(false)
+      ed.setDefaultBadgeStyle("pill")
+      return
+    }
+    ed.setLandscape({ globalBadges: true, badgeGenre: false, badgeYear: true, badgeRating: true, separateRatings: false, badgeQuality: true, qualityBadgeStyle: "standard", rankingBadges: false, networkLogo: false, badgeStyle: "pill" })
   }
 
   const applyFull = () => {
-    ed.setDefaultGlobalBadges(true)
-    ed.setDefaultBadgeGenre(true)
-    ed.setDefaultBadgeYear(true)
-    ed.setDefaultBadgeRating(true)
-    ed.setDefaultSeparateRatings(false)
+    // Rating sources stay global in both targets.
     ed.setDefaultRatingSources(["imdb", "tmdb"])
-    ed.setDefaultBadgeQuality(true)
-    ed.setDefaultQualityBadgeStyle("standard")
-    ed.setDefaultRankingBadges(true)
-    ed.setDefaultRankingBadgeStyle("default")
-    ed.setDefaultNetworkLogo(true)
-    ed.setDefaultBadgeStyle("pill")
+    if (!isLandscape) {
+      ed.setDefaultGlobalBadges(true)
+      ed.setDefaultBadgeGenre(true)
+      ed.setDefaultBadgeYear(true)
+      ed.setDefaultBadgeRating(true)
+      ed.setDefaultSeparateRatings(false)
+      ed.setDefaultBadgeQuality(true)
+      ed.setDefaultQualityBadgeStyle("standard")
+      ed.setDefaultRankingBadges(true)
+      ed.setDefaultRankingBadgeStyle("default")
+      ed.setDefaultNetworkLogo(true)
+      ed.setDefaultBadgeStyle("pill")
+      return
+    }
+    ed.setLandscape({ globalBadges: true, badgeGenre: true, badgeYear: true, badgeRating: true, separateRatings: false, badgeQuality: true, qualityBadgeStyle: "standard", rankingBadges: true, rankingBadgeStyle: "default", networkLogo: true, badgeStyle: "pill" })
   }
 
-  // Built-in 1-click completi (snapshot da backup utente): confronto esatto
-  // sull'intero schema visuale, così l'arancione scatta solo sul match totale.
-  // I 3 sopra restano per costruzione spenti sui due snapshot (Essenziale vuole
-  // year=true, Voti vuole genre=false, Completo vuole quality+ranking+network
-  // con style pill): nessun cambio al loro comportamento.
-  const currentVisualSnapshot = JSON.stringify(captureVisualPreset(ed))
+  // Snapshot preset keys that live in the landscape profile: `defaultX` maps
+  // to the `x` profile key. Everything else (rating sources, logo align, fit
+  // flags, …) stays global. Delivery shape never follows a preset here.
+  const PRESET_TO_LAND: Record<string, keyof LandscapeServerDefaults> = {
+    defaultGlobalBadges: "globalBadges",
+    defaultRankingBadges: "rankingBadges",
+    defaultBadgeGenre: "badgeGenre",
+    defaultBadgeYear: "badgeYear",
+    defaultBadgeRating: "badgeRating",
+    defaultBadgeQuality: "badgeQuality",
+    defaultCustomRatings: "customRatings",
+    defaultSeparateRatings: "separateRatings",
+    defaultSeparateRatingsStyle: "separateRatingsStyle",
+    defaultBadgeStyle: "badgeStyle",
+    defaultRankingBadgeStyle: "rankingBadgeStyle",
+    defaultBadgeFont: "badgeFont",
+    defaultQualityBadgeStyle: "qualityBadgeStyle",
+    defaultVideoFormats: "videoFormats",
+    defaultSashOrder: "sashOrder",
+    defaultNetworkLogo: "networkLogo",
+    defaultNetworkLogoPosition: "networkLogoPosition",
+    defaultPreRelease: "preRelease",
+    defaultRibbonEnabled: "ribbonEnabled",
+    defaultRibbonSide: "ribbonSide",
+    defaultLogoScale: "logoScale",
+    defaultLogoOffsetX: "logoOffsetX",
+    defaultLogoOffsetY: "logoOffsetY",
+    defaultBlurEnabled: "blurEnabled",
+    defaultBlurIntensity: "blurIntensity",
+    defaultBlurFade: "blurFade",
+    defaultBlurDarkness: "blurDarkness",
+    defaultTintStrength: "tintStrength",
+    defaultTopShade: "topShade",
+    defaultGradientHeight: "gradientHeight",
+    defaultTopBadgeScale: "topBadgeScale",
+    defaultTopBadgeOffsetX: "topBadgeOffsetX",
+    defaultTopBadgeOffsetY: "topBadgeOffsetY",
+    defaultGenreBadgeScale: "genreBadgeScale",
+    defaultGenreBadgeOffsetX: "genreBadgeOffsetX",
+    defaultGenreBadgeOffsetY: "genreBadgeOffsetY",
+    defaultQualityBadgeScale: "qualityBadgeScale",
+    defaultQualityBadgeOffsetX: "qualityBadgeOffsetX",
+    defaultQualityBadgeOffsetY: "qualityBadgeOffsetY",
+    defaultSeparateBadgeScale: "separateBadgeScale",
+    defaultSeparateBadgeOffsetX: "separateBadgeOffsetX",
+    defaultSeparateBadgeOffsetY: "separateBadgeOffsetY",
+    defaultNetworkLogoScale: "networkLogoScale",
+    defaultNetworkLogoOffsetX: "networkLogoOffsetX",
+    defaultNetworkLogoOffsetY: "networkLogoOffsetY",
+  }
+
+  // Full snapshots read through the edit target, so the highlight matches
+  // what this tab edits (root in portrait, profile in landscape).
+  const presetSource = (() => {
+    const base = captureVisualPreset(ed)
+    if (!isLandscape) return base
+    const eff = { ...base }
+    for (const [presetKey, landKey] of Object.entries(PRESET_TO_LAND)) {
+      const lv = ed.landscape[landKey]
+      if (lv !== undefined) (eff as Record<string, unknown>)[presetKey] = lv
+    }
+    return eff
+  })()
+  const currentVisualSnapshot = JSON.stringify(captureVisualPreset(presetSource))
   const isBetterPoster =
     currentVisualSnapshot === JSON.stringify(BETTER_POSTER_VISUAL_DEFAULTS)
   const isRpdb = currentVisualSnapshot === JSON.stringify(RPDB_VISUAL_DEFAULTS)
 
+  // Snapshot presets apply to the edit target only: landscape-capable keys
+  // go to the profile, truly shared globals go to root, delivery shape and
+  // the preset's own nested landscape never touch anything else. Single
+  // setLandscape call plus distinct root keys: no stale-merge loss.
+  const applySnapshotForTarget = (values: VisualPresetValues) => {
+    if (!isLandscape) {
+      // Portrait target: flats only; the existing landscape profile and the
+      // delivery shape stay byte-identical.
+      ed.applyVisualPreset({ ...values, landscape: ed.landscape, defaultPosterShape: ed.defaultPosterShape })
+      return
+    }
+    const landPatch: Partial<LandscapeServerDefaults> = {}
+    for (const [k, v] of Object.entries(values)) {
+      if (k === "defaultPosterShape" || k === "landscape") continue
+      const lk = PRESET_TO_LAND[k]
+      if (lk) (landPatch as Record<string, unknown>)[lk] = v
+    }
+    if (values.landscape) Object.assign(landPatch, values.landscape)
+    ed.setLandscape(landPatch)
+    ed.setDefaultRatingSources(values.defaultRatingSources)
+    ed.setDefaultLogoAlign(values.defaultLogoAlign)
+    ed.setDefaultPortraitFitEnabled(values.defaultPortraitFitEnabled)
+    ed.setDefaultLandscapeFitEnabled(values.defaultLandscapeFitEnabled)
+  }
+
   const applyBetterPoster = () => {
-    ed.applyVisualPreset(BETTER_POSTER_VISUAL_DEFAULTS)
+    applySnapshotForTarget(BETTER_POSTER_VISUAL_DEFAULTS)
   }
 
   const applyRpdb = () => {
-    ed.applyVisualPreset(RPDB_VISUAL_DEFAULTS)
+    applySnapshotForTarget(RPDB_VISUAL_DEFAULTS)
   }
 
   return (
@@ -194,7 +468,19 @@ export function BadgeDefaultsSection({ active }: { active: boolean }) {
       className={`space-y-3.5 text-xs ${active ? "block animate-tab-fade-in" : "hidden"}`}
     >
       {/* CARD 0: Configurazioni Rapide Iniziali */}
-      <div className="bg-surface/50 border border-surface2/60 rounded-xl p-3.5 space-y-2.5 shadow-sm">
+      {hasVisualOverrides && (
+        <div className="flex items-center justify-end gap-2">
+          <button
+            type="button"
+            onClick={resetVisualOverrides}
+            title={t("ui.formatTargetHint")}
+            className="shrink-0 text-[11px] font-semibold text-muted hover:text-zinc-200 bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg px-2.5 py-1 transition-colors cursor-pointer"
+          >
+            {t("ui.reset")} · {t("ui.posterShapeLandscape")}
+          </button>
+        </div>
+      )}
+      <div {...famAttrs("auto")} className="bg-surface/50 border border-surface2/60 rounded-xl p-3.5 space-y-2.5 shadow-sm">
         <div className="flex items-center justify-between">
           <span className="font-semibold text-zinc-200 flex items-center gap-1.5">
             <Sparkles className="w-3.5 h-3.5 text-accent-orange" />
@@ -289,13 +575,72 @@ export function BadgeDefaultsSection({ active }: { active: boolean }) {
         </div>
       </div>
 
-      {/* Badge & Provider Predefiniti */}
-      <div className="bg-surface/50 border border-surface2/60 rounded-xl p-3.5 space-y-3 shadow-sm">
+      {/* CARD Rankings: rank bucket + single appearance + position */}
+      <div {...famAttrs("rank")} className="bg-surface/50 border border-surface2/60 rounded-xl p-3.5 space-y-3 shadow-sm">
         <span className="font-semibold text-zinc-200 flex items-center gap-1.5">
-          <Layers className="w-3.5 h-3.5 text-accent-orange" />
-          {t("ui.badgeSection")}
+          <Trophy className="w-3.5 h-3.5 text-amber-500" />
+          {t("ui.rankFamily")}
         </span>
         <p className="text-[11px] text-zinc-400 italic -mt-1">{t("ui.badgeDefaultsHint")}</p>
+
+        {/* Top badge master (legacy): general switch for top badges */}
+        <div className="flex items-center justify-between py-1">
+          <span className="text-zinc-300 font-medium flex items-center gap-1.5">
+            <Layers className="w-3.5 h-3.5 text-zinc-400" />
+            {t("ui.topBadge")}
+          </span>
+          <Toggle
+            value={rankingBadges}
+            onChange={(v) => {
+              setRankingBadges(v)
+              if (v) {
+                // Master ON restores this target's categories (or all).
+                setSashOrder(popStashedSashOrder(sashStashKey) ?? [...DEFAULT_SASH_ORDER])
+              } else {
+                // Master OFF clears this target's sash; single categories
+                // stay switchable below.
+                stashSashOrder(sashStashKey, sashOrder)
+                setSashOrder([])
+              }
+            }}
+            label={t("ui.topBadge")}
+          />
+        </div>
+        <p className="text-[11px] text-zinc-400 italic mt-1">{t("ui.trendDefaultHint")}</p>
+
+        {/* Rankings toggle: rank bucket only, extra and the rest untouched */}
+        <div className="flex items-center justify-between py-1">
+          <span className="text-zinc-300 font-medium flex items-center gap-1.5">
+            <Trophy className="w-3.5 h-3.5 text-amber-500" />
+            {t("ui.sash_rank")}
+          </span>
+          <Toggle
+            value={rankOn}
+            onChange={(v) => setRankBucket(v)}
+            label={t("ui.sash_rank")}
+          />
+        </div>
+
+        <div className="pt-1">
+          <RankingAppearanceSelector
+            appearance={appearance}
+            variant={variant}
+            ribbonVariant={ribbonVariant}
+            side={ribbonSide}
+            onAppearance={handleAppearance}
+            onVariant={handleVariant}
+            onRibbonVariant={handleRibbonVariant}
+            onSide={(s) => setRibbonSide(s)}
+          />
+        </div>
+      </div>
+
+      {/* CARD Title info: genre/year, extra style, categories, Coming Soon */}
+      <div {...famAttrs("info")} className="bg-surface/50 border border-surface2/60 rounded-xl p-3.5 space-y-3 shadow-sm">
+        <span className="font-semibold text-zinc-200 flex items-center gap-1.5">
+          <Layers className="w-3.5 h-3.5 text-accent-orange" />
+          {t("ui.titleInfoFamily")}
+        </span>
 
         {/* Master Toggle Genere / Rating */}
         <div className="space-y-2">
@@ -305,23 +650,23 @@ export function BadgeDefaultsSection({ active }: { active: boolean }) {
               {t("ui.genreRatingBadge")}
             </span>
             <Toggle
-              value={ed.defaultGlobalBadges}
+              value={globalBadges}
               onChange={(v) => {
-                ed.setDefaultGlobalBadges(v)
+                setGlobalBadges(v)
               }}
               label={t("ui.genreRatingBadge")}
             />
           </div>
 
           {/* Sub-controlli Genere / Anno / Voto */}
-          {ed.defaultGlobalBadges && (
+          {globalBadges && (
             <div className="pl-3 py-1 space-y-2 border-l-2 border-surface2 ml-1 animate-fade-in">
               <div className={`flex items-center justify-between ${defaultBottomActive ? "opacity-50" : ""}`} title={defaultBottomActive ? t("ui.separateRatingsBottomHint") : undefined} aria-disabled={defaultBottomActive || undefined}>
                 <span className="text-muted">{t("ui.badgeGenre")}</span>
                 <Toggle
-                  value={ed.defaultBadgeGenre}
+                  value={badgeGenre}
                   onChange={(v) => {
-                    if (!defaultBottomActive) ed.setDefaultBadgeGenre(v)
+                    if (!defaultBottomActive) setBadgeGenre(v)
                   }}
                   label={t("ui.badgeGenre")}
                   disabled={defaultBottomActive}
@@ -330,31 +675,165 @@ export function BadgeDefaultsSection({ active }: { active: boolean }) {
               <div className={`flex items-center justify-between ${defaultBottomActive ? "opacity-50" : ""}`} title={defaultBottomActive ? t("ui.separateRatingsBottomHint") : undefined} aria-disabled={defaultBottomActive || undefined}>
                 <span className="text-muted">{t("ui.badgeYear")}</span>
                 <Toggle
-                  value={ed.defaultBadgeYear}
+                  value={badgeYear}
                   onChange={(v) => {
-                    if (!defaultBottomActive) ed.setDefaultBadgeYear(v)
+                    if (!defaultBottomActive) setBadgeYear(v)
                   }}
                   label={t("ui.badgeYear")}
                   disabled={defaultBottomActive}
                 />
               </div>
+            </div>
+          )}
+
+        {/* Extra badge style: own look, never a fallback.
+            Without an explicit choice it shows the effective inherited style. */}
+        <div className="pt-1 space-y-1.5">
+          <span className="text-[11px] text-muted font-medium block">{t("ui.extraBadgeStyle")}</span>
+          {extraBadgeStyle == null && (
+            <p className="text-[10px] text-muted italic leading-tight">
+              {t("ui.inherited")}: {t(EXTRA_STYLE_LABELS[legacyExtraStyleForRank(rankingBadgeStyle)])}
+            </p>
+          )}
+          <BadgeStyleSelector
+            value={extraBadgeStyle ?? legacyExtraStyleForRank(rankingBadgeStyle)}
+            options={extraOptions}
+            onChange={(v) => {
+              setExtraBadgeStyle(v)
+            }}
+            t={t}
+            accentColor={accentColor}
+          />
+        </div>
+
+        {/* Non-rank sash categories (top badge family, always reachable) */}
+        <div className="pt-1 space-y-1.5">
+          {(["upcoming", "new", "award", "extra"] as const).map((b) => (
+            <div key={b} className="flex items-center justify-between">
+              <span className="text-muted">{t(`ui.sash_${b}`)}</span>
+              <Toggle
+                value={sashOrder.includes(b)}
+                onChange={(v) => toggleBucket(b, v)}
+                label={t(`ui.sash_${b}`)}
+              />
+            </div>
+          ))}
+        </div>
+
+        {/* Coming Soon: release state only. The angular ribbon follows the
+            shared legacy ribbon flag (no independent switch on purpose). */}
+        <div className="pt-1 space-y-1.5" title={t("ui.preReleaseHint")}>
+          <div className="flex items-center justify-between">
+            <span className="text-zinc-300 font-medium flex items-center gap-1.5">
+              <Flame className="w-3.5 h-3.5 text-orange-400" />
+              {t("ui.preRelease")}
+            </span>
+            <Toggle
+              value={preRelease}
+              onChange={(v) => {
+                setPreRelease(v)
+              }}
+              label={t("ui.preRelease")}
+            />
+          </div>
+        </div>
+
+        {/* Advanced: global top-badge priority (a single badge wins) */}
+        <div className="pt-1">
+          <button
+            type="button"
+            onClick={() => setAdvancedOpen((v) => !v)}
+            aria-expanded={advancedOpen}
+            className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg bg-surface2/70 hover:bg-surface2 text-zinc-200 hover:text-foreground border border-surface2 transition-all cursor-pointer"
+          >
+            <span className="text-[11px] font-semibold">{t("ui.advancedBadgePriority")}</span>
+            <ChevronDown
+              className={`w-3.5 h-3.5 text-zinc-400 transition-transform duration-200 ${
+                advancedOpen ? "rotate-180" : ""
+              }`}
+            />
+          </button>
+          <p className="text-[10px] text-muted italic leading-tight mt-1">{t("ui.singleBadgeHint")}</p>
+          {advancedOpen && (
+          <div className="space-y-1.5 pt-1.5">
+            <span className="text-[10px] font-semibold uppercase tracking-wide text-muted block">
+              {t("ui.sashTitle")}
+            </span>
+            <div className="space-y-1.5">
+              {(() => {
+                const sash = sashOrder ?? [...DEFAULT_SASH_ORDER]
+                // Enabled buckets in saved order, disabled ones appended canonically.
+                const ordered: SashBucket[] = [...sash, ...SASH_BUCKETS.filter((b) => !sash.includes(b))]
+                const drop = (target: SashBucket) => {
+                  if (sashDrag && sashDrag !== target) {
+                    setSashOrder(moveSashItem(sash, sashDrag, sash.indexOf(target)))
+                  }
+                  setSashDrag(null)
+                }
+                return ordered.map((b) => {
+                  const isOn = sash.includes(b)
+                  const dragging = sashDrag === b
+                  return (
+                    <div key={b}
+                         draggable={isOn}
+                         onDragStart={() => { if (isOn) setSashDrag(b) }}
+                         onDragEnd={() => setSashDrag(null)}
+                         onDragOver={isOn ? (e) => e.preventDefault() : undefined}
+                         onDrop={isOn ? (e) => { e.preventDefault(); drop(b) } : undefined}
+                         className={`flex items-center justify-between gap-1 rounded-md select-none ${dragging ? "opacity-40" : ""} ${sashDrag && !dragging && isOn ? "outline outline-1 outline-accent/30" : ""}`}>
+                      <span className="inline-flex items-center gap-1 min-w-0">
+                        {isOn && (
+                          <span title={t("ui.dragOne")}
+                                className="pointer-coarse:hidden cursor-grab active:cursor-grabbing p-1 rounded-md hover:bg-white/10 text-muted hover:text-accent transition-colors">
+                            <Menu className="w-4 h-4 stroke-[2.5]" />
+                          </span>
+                        )}
+                        <span className={`text-zinc-300 font-medium ${isOn ? "" : "opacity-50"}`}>{t(`ui.sash_${b}`)}</span>
+                      </span>
+                      <span className="inline-flex items-center gap-0.5">
+                        <Toggle
+                          value={isOn}
+                          onChange={(v) => toggleBucket(b, v)}
+                          label={t(`ui.sash_${b}`)}
+                        />
+                      </span>
+                    </div>
+                  )
+                })
+              })()}
+            </div>
+          </div>
+          )}
+        </div>
+          </div>
+        </div>
+
+      {/* CARD Ratings: vote, separate, sources, custom */}
+      <div {...famAttrs("ratings")} className="bg-surface/50 border border-surface2/60 rounded-xl p-3.5 space-y-3 shadow-sm">
+        <span className="font-semibold text-zinc-200 flex items-center gap-1.5">
+          <Star className="w-3.5 h-3.5 text-amber-400" />
+          {t("ui.ratingsFamily")}
+        </span>
+        <div className="space-y-2">
+          {globalBadges && (
+            <div className="pl-3 py-1 space-y-2 border-l-2 border-surface2 ml-1 animate-fade-in">
               <div className="flex items-center justify-between">
                 <span className="text-muted">{t("ui.badgeRating")}</span>
                 <Toggle
-                  value={ed.defaultBadgeRating}
+                  value={badgeRating}
                   onChange={(v) => {
-                    ed.setDefaultBadgeRating(v)
+                    setBadgeRating(v)
                   }}
                   label={t("ui.badgeRating")}
                 />
               </div>
-              {ed.defaultBadgeRating && (
+              {badgeRating && (
                 <div className="flex items-center justify-between" title={t("ui.separateRatingsHint")}>
                   <span className="text-muted">{t("ui.separateRatings")}</span>
-                  <Toggle value={ed.defaultSeparateRatings} onChange={(v) => ed.setDefaultSeparateRatings(v)} label={t("ui.separateRatings")} />
+                  <Toggle value={separateRatings} onChange={(v) => setSeparateRatings(v)} label={t("ui.separateRatings")} />
                 </div>
               )}
-              {ed.defaultBadgeRating && ed.defaultSeparateRatings && (
+              {badgeRating && separateRatings && (
                 <div className="pt-1 space-y-1.5" title={t("ui.separateRatingsHint")}>
                   <span className="text-[11px] text-muted font-medium block">{t("ui.separateRatingsStyle")}</span>
                   <div className="flex gap-1">
@@ -363,17 +842,17 @@ export function BadgeDefaultsSection({ active }: { active: boolean }) {
                       { id: "bottom-bar", labelKey: "ui.separateRatingsBottomBar" },
                       { id: "bottom-pills", labelKey: "ui.separateRatingsBottomPills" },
                     ] as const).map((opt) => {
-                      // Come il selettore per-titolo: barra disattivata col formato
-                      // Orizzontale di default (raw conservato, mai nascosta).
-                      const barOff = opt.id === "bottom-bar" && ed.defaultPosterShape === "landscape"
+                      // Bar disabled on the landscape target (server normalizes
+                      // to pills): raw value kept, never hidden.
+                      const barOff = opt.id === "bottom-bar" && targetShape === "landscape"
                       const pressed = getSeparateRatingsStyleForShape(
-                        ed.defaultSeparateRatingsStyle, ed.defaultPosterShape === "landscape" ? "landscape" : "poster",
+                        separateRatingsStyle, targetShape === "landscape" ? "landscape" : "poster",
                       ) === opt.id
                       return (
                         <button
                           key={opt.id}
                           type="button"
-                          onClick={() => { if (!barOff) ed.setDefaultSeparateRatingsStyle(opt.id) }}
+                          onClick={() => { if (!barOff) setSeparateRatingsStyle(opt.id) }}
                           aria-pressed={pressed}
                           disabled={barOff}
                           title={barOff ? t("ui.separateRatingsBarLandscapeHint") : undefined}
@@ -388,17 +867,17 @@ export function BadgeDefaultsSection({ active }: { active: boolean }) {
                       )
                     })}
                   </div>
-                  {ed.defaultPosterShape === "landscape" && (
+                  {targetShape === "landscape" && (
                     <p className="text-[10px] text-muted italic leading-tight">{t("ui.separateRatingsBarLandscapeHint")}</p>
                   )}
-                  {ed.defaultGlobalBadges && ed.defaultBadgeRating && ed.defaultSeparateRatings && isBottomSeparateRatingsStyle(ed.defaultSeparateRatingsStyle) && (
+                  {globalBadges && badgeRating && separateRatings && isBottomSeparateRatingsStyle(separateRatingsStyle) && (
                     <p className="text-[10px] text-muted italic leading-tight">{t("ui.separateRatingsBottomHint")}</p>
                   )}
                 </div>
               )}
 
-              {/* Accordion Provider del voto */}
-              {ed.defaultBadgeRating && (
+              {/* Rating sources stay global in both targets. */}
+              {badgeRating && (
                 <div className="pt-2 pb-1 space-y-2 border-t border-surface2/50">
                   <button
                     type="button"
@@ -504,15 +983,15 @@ export function BadgeDefaultsSection({ active }: { active: boolean }) {
                 {t("ui.customRatings")}
               </span>
               <Toggle
-                value={ed.defaultCustomRatings}
+                value={customRatings}
                 onChange={(v) => {
-                  ed.setDefaultCustomRatings(v)
+                  setCustomRatings(v)
                 }}
                 label={t("ui.customRatings")}
               />
             </div>
 
-            {ed.defaultCustomRatings && (
+            {customRatings && (
               <div className="pl-3 py-1 space-y-2 border-l-2 border-surface2 ml-1 animate-fade-in mt-1.5">
                 <div>
                   <label className="text-[11px] text-muted block mb-1">{t("ui.customRatingEndpoint")}</label>
@@ -561,180 +1040,11 @@ export function BadgeDefaultsSection({ active }: { active: boolean }) {
               </div>
             )}
           </div>
-        </div>
-
-        <hr className="border-surface2/50" />
-
-        {/* Trend, Fasce & Priorità */}
-        <div className="space-y-2.5">
-          <div>
-            <div className="flex items-center justify-between">
-              <span className="text-zinc-300 font-medium flex items-center gap-1.5">
-                <Trophy className="w-3.5 h-3.5 text-amber-500" />
-                {t("ui.trendBadge")}
-              </span>
-              <Toggle
-                value={ed.defaultRankingBadges}
-                onChange={(v) => {
-                  ed.setDefaultRankingBadges(v)
-                  if (v) {
-                    // Master ON: ripristina le categorie precedenti (o tutte).
-                    ed.setDefaultSashOrder(popStashedSashOrder() ?? [...DEFAULT_SASH_ORDER])
-                  } else {
-                    // Master OFF: spegne In uscita/Classifiche/Novità/Premi/Extra
-                    // ovunque (la sash è globale, non congelata per-titolo). Le
-                    // singole categorie restano riaccendibili a mano qui sotto.
-                    stashSashOrder(ed.defaultSashOrder)
-                    ed.setDefaultSashOrder([])
-                  }
-                }}
-                label={t("ui.trendBadge")}
-              />
-            </div>
-            <p className="text-[11px] text-zinc-400 italic mt-1">{t("ui.trendDefaultHint")}</p>
-          </div>
-
-          <div title={t("ui.preReleaseHint")}>
-            <div className="flex items-center justify-between">
-              <span className="text-zinc-300 font-medium flex items-center gap-1.5">
-                <Flame className="w-3.5 h-3.5 text-orange-400" />
-                {t("ui.preRelease")}
-              </span>
-              <Toggle
-                value={ed.defaultPreRelease}
-                onChange={(v) => {
-                  ed.setDefaultPreRelease(v)
-                }}
-                label={t("ui.preRelease")}
-              />
-            </div>
-            <p className="text-[11px] text-zinc-400 italic mt-1">{t("ui.preReleaseHint")}</p>
-          </div>
-
-          <div>
-            <div className="flex items-center justify-between" title={t("ui.ribbonHint")}>
-              <span className="text-zinc-300 font-medium flex items-center gap-1.5">
-                <Ribbon className="w-3.5 h-3.5 text-red-400" />
-                {t("ui.ribbon")}
-              </span>
-              <Toggle
-                value={ed.defaultRibbonEnabled}
-                onChange={(v) => {
-                  ed.setDefaultRibbonEnabled(v)
-                }}
-                label={t("ui.ribbon")}
-              />
-            </div>
-            <p className="text-[11px] text-zinc-400 italic mt-1">{t("ui.ribbonHint")}</p>
-
-            {/* Posizione Ribbon: adiacente al toggle */}
-            {ed.defaultRibbonEnabled && (
-              <div className="flex items-center justify-between gap-3 pt-2 pl-5 animate-fade-in" title={t("ui.ribbonHint")}>
-                <span className="text-zinc-400 font-medium text-[11px]">
-                  {t("ui.ribbonPosition")}
-                </span>
-                <div className="flex gap-1 flex-1 max-w-[160px]">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      ed.setDefaultRibbonSide("left")
-                    }}
-                    className={`flex-1 py-1 rounded-lg text-[11px] font-semibold transition-all duration-150 cursor-pointer ${
-                      ed.defaultRibbonSide === "left"
-                        ? "bg-white/20 text-foreground shadow-sm"
-                        : "bg-white/5 text-muted hover:bg-white/10 hover:text-zinc-200"
-                    }`}
-                  >
-                    Nuvio
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      ed.setDefaultRibbonSide("right")
-                    }}
-                    className={`flex-1 py-1 rounded-lg text-[11px] font-semibold transition-all duration-150 cursor-pointer ${
-                      ed.defaultRibbonSide === "right"
-                        ? "bg-white/20 text-foreground shadow-sm"
-                        : "bg-white/5 text-muted hover:bg-white/10 hover:text-zinc-200"
-                    }`}
-                  >
-                    Stremio
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* Scala priorità sash: l'ordine in lista è l'ordine di vittoria del badge superiore */}
-          <div className="pt-2">
-            <span className="text-[10px] font-semibold uppercase tracking-wide text-muted block">
-              {t("ui.sashTitle")}
-            </span>
-            <p className="text-[11px] text-zinc-400 italic mt-0.5 mb-1.5">
-              {t("ui.sashHint")}
-            </p>
-            <div className="space-y-1.5">
-              {(() => {
-                const sash = ed.defaultSashOrder ?? [...DEFAULT_SASH_ORDER]
-                // Accese nell'ordine salvato, spente in coda in ordine canonico.
-                const ordered: SashBucket[] = [...sash, ...SASH_BUCKETS.filter((b) => !sash.includes(b))]
-                const drop = (target: SashBucket) => {
-                  if (sashDrag && sashDrag !== target) {
-                    ed.setDefaultSashOrder(moveSashItem(sash, sashDrag, sash.indexOf(target)))
-                  }
-                  setSashDrag(null)
-                }
-                return ordered.map((b) => {
-                  const isOn = sash.includes(b)
-                  const dragging = sashDrag === b
-                  return (
-                    <div key={b}
-                         draggable={isOn}
-                         onDragStart={() => { if (isOn) setSashDrag(b) }}
-                         onDragEnd={() => setSashDrag(null)}
-                         onDragOver={isOn ? (e) => e.preventDefault() : undefined}
-                         onDrop={isOn ? (e) => { e.preventDefault(); drop(b) } : undefined}
-                         className={`flex items-center justify-between gap-1 rounded-md select-none ${dragging ? "opacity-40" : ""} ${sashDrag && !dragging && isOn ? "outline outline-1 outline-accent/30" : ""}`}>
-                      <span className="inline-flex items-center gap-1 min-w-0">
-                        {isOn && (
-                          <span title={t("ui.dragOne")}
-                                className="pointer-coarse:hidden cursor-grab active:cursor-grabbing p-1 rounded-md hover:bg-white/10 text-muted hover:text-accent transition-colors">
-                            <Menu className="w-4 h-4 stroke-[2.5]" />
-                          </span>
-                        )}
-                        <span className={`text-zinc-300 font-medium ${isOn ? "" : "opacity-50"}`}>{t(`ui.sash_${b}`)}</span>
-                      </span>
-                      <span className="inline-flex items-center gap-0.5">
-                        <Toggle
-                          value={isOn}
-                          onChange={(v) => {
-                            // Riaccensione nello slot canonico, le altre mantengono
-                            // l'ordine relativo (niente reset della scala).
-                            const next: SashBucket[] = v
-                              ? (() => {
-                                  const home = DEFAULT_SASH_ORDER.indexOf(b)
-                                  return [
-                                    ...sash.filter((x) => DEFAULT_SASH_ORDER.indexOf(x) < home),
-                                    b,
-                                    ...sash.filter((x) => DEFAULT_SASH_ORDER.indexOf(x) > home),
-                                  ]
-                                })()
-                              : sash.filter((x) => x !== b)
-                            ed.setDefaultSashOrder(next)
-                          }}
-                          label={t(`ui.sash_${b}`)}
-                        />
-                      </span>
-                    </div>
-                  )
-                })
-              })()}
-            </div>
           </div>
         </div>
 
-        <hr className="border-surface2/50" />
-
+      {/* CARD Quality & Network */}
+      <div {...famAttrs("quality")} className="bg-surface/50 border border-surface2/60 rounded-xl p-3.5 space-y-3 shadow-sm">
         {/* Specifiche Tecniche & Network */}
         <div className="space-y-2">
           <div className="flex items-center justify-between">
@@ -743,9 +1053,9 @@ export function BadgeDefaultsSection({ active }: { active: boolean }) {
               {t("ui.badgeQuality")}
             </span>
             <Toggle
-              value={ed.defaultBadgeQuality}
+              value={badgeQuality}
               onChange={(v) => {
-                ed.setDefaultBadgeQuality(v)
+                setBadgeQuality(v)
               }}
               label={t("ui.badgeQuality")}
             />
@@ -757,15 +1067,15 @@ export function BadgeDefaultsSection({ active }: { active: boolean }) {
               {t("ui.networkLogo")}
             </span>
             <Toggle
-              value={ed.defaultNetworkLogo}
+              value={networkLogo}
               onChange={(v) => {
-                ed.setDefaultNetworkLogo(v)
+                setNetworkLogo(v)
               }}
               label={t("ui.networkLogo")}
             />
           </div>
 
-          {ed.defaultNetworkLogo && (
+          {networkLogo && (
             <div className="flex items-center justify-between gap-3" title={t("ui.networkLogoPosition")}>
               <span className="text-zinc-400 font-medium text-[11px] pl-5">
                 {t("ui.networkLogoPosition")}
@@ -775,9 +1085,9 @@ export function BadgeDefaultsSection({ active }: { active: boolean }) {
                   <button
                     key={pos}
                     type="button"
-                    onClick={() => ed.setDefaultNetworkLogoPosition(pos)}
+                    onClick={() => setNetworkLogoPosition(pos)}
                     className={`flex-1 py-1 rounded-lg text-[11px] font-semibold transition-all duration-150 cursor-pointer ${
-                      ed.defaultNetworkLogoPosition === pos
+                      networkLogoPosition === pos
                         ? "bg-white/20 text-foreground shadow-sm"
                         : "bg-white/5 text-muted hover:bg-white/10 hover:text-zinc-200"
                     }`}
@@ -792,7 +1102,7 @@ export function BadgeDefaultsSection({ active }: { active: boolean }) {
       </div>
 
       {/* Stili Grafici Predefiniti */}
-      <BadgeStyleSection />
+      <BadgeStyleSection shape={targetShape} qualityEnabled={badgeQuality} onPreviewFamilyChange={onPreviewFamilyChange} />
     </div>
   )
 }

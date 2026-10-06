@@ -1,6 +1,7 @@
 import sharp from "sharp"
 import { beforeEach, describe, expect, it, vi } from "vitest"
-import { cacheClear } from "@/lib/cache"
+import { cacheClear, cacheSet } from "@/lib/cache"
+import { RENDER_VERSION } from "@/lib/render-version"
 
 // Mock solo extractBadgeColor: gli altri export di poster-render-helpers restano
 // reali (STD_W/STD_H, isValidHex, fitBadgeToCanvas, ...).
@@ -177,6 +178,26 @@ describe("extractSceneTint + luminance (cache analisi pixel)", () => {
     expect(redFresh).toMatch(/^#[0-9a-f]{6}$/)
     expect(blueFresh).toMatch(/^#[0-9a-f]{6}$/)
     expect(redFresh).not.toBe(blueFresh)
+  })
+
+  it("tint: legacy unversioned key is ignored after the render-version migration", async () => {
+    const teal = await solidPoster("#5195a3")
+    // Preseed the OLD key format with a stale color: simulates a 24h entry
+    // written by pre-migration code still present in L1/KV. The new code
+    // must not read it — solid teal medians are exactly teal.
+    cacheSet("tint:test:tint:B:Crime", "#112233", ["poster-extract"], 24 * 60 * 60 * 1000)
+    expect(await extractSceneTint(teal, "Crime", "test:tint:B")).toBe("#5195a3")
+    // Same-version entry now populated: different bytes reuse it (hit).
+    expect(await extractSceneTint(await solidPoster("#c02020"), "Crime", "test:tint:B")).toBe("#5195a3")
+  })
+
+  it("tint: same input with different genre uses isolated keys", async () => {
+    const teal = await solidPoster("#5195a3")
+    // Poison only the Comedy entry of this key: Crime must compute fresh
+    // while Comedy hits its own isolated entry.
+    cacheSet(`tint:${RENDER_VERSION}:test:tint:C:Comedy`, "#112233", ["poster-extract"], 24 * 60 * 60 * 1000)
+    expect(await extractSceneTint(teal, "Crime", "test:tint:C")).toBe("#5195a3")
+    expect(await extractSceneTint(teal, "Comedy", "test:tint:C")).toBe("#112233")
   })
 
   it("luminance: same key reuses, different keys recompute", async () => {

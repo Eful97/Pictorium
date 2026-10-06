@@ -10,7 +10,7 @@ import { z } from "zod"
 // Batch B: clamp condiviso da image-utils.ts (semantica standard, senza round)
 import { clamp } from "@/lib/image-utils"
 import { envWithFallback } from "@/lib/env-compat"
-import { BADGE_STYLES, RANKING_BADGE_STYLES, QUALITY_BADGE_STYLES, BADGE_FONTS, SEPARATE_RATINGS_STYLES } from "@/lib/badge-styles"
+import { BADGE_STYLES, RANKING_BADGE_STYLES, QUALITY_BADGE_STYLES, BADGE_FONTS, SEPARATE_RATINGS_STYLES, EXTRA_BADGE_STYLES } from "@/lib/badge-styles"
 
 // ---- Zod schema (Batch C: sostituisce validazione manuale) ----
 
@@ -45,6 +45,8 @@ const customCatalogSchema = z.object({
 })
 
 export const configTokenSchema = z.object({
+  // No landscape subset by contract: flat values here apply to both shapes.
+  // Tokens carrying an unknown `landscape` key keep validating (stripped).
   globalBadges: z.boolean(),
   rankingBadges: z.boolean(),
   badgeGenre: z.boolean().optional(),
@@ -60,6 +62,8 @@ export const configTokenSchema = z.object({
   separateRatingsStyle: z.enum(SEPARATE_RATINGS_STYLES).optional(),
   badgeStyle: badgeStyleSchema,
   rankingBadgeStyle: rankingBadgeStyleSchema,
+  /** Standalone extra-badge style (flat-only): absent = legacy `rs` fallback. */
+  extraBadgeStyle: z.enum(EXTRA_BADGE_STYLES).nullable().optional(),
   /** Font dei testi badge: opzionale (token vecchi senza campo restano validi). */
   badgeFont: z.enum(BADGE_FONTS).nullable().optional(),
   // Stile icone qualità: opzionale+nullable (token vecchi senza campo restano validi).

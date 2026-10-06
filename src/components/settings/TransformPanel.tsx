@@ -5,32 +5,77 @@ import { useT } from "@/lib/contexts/TranslationContext"
 import { usePosterEditor } from "@/lib/contexts/PosterEditorContext"
 import { SliderRow } from "@/components/SliderRow"
 import { Toggle } from "@/components/Toggle"
-import { isBottomSeparateRatingsStyle, getSeparateBadgeDefaultScale, getSeparateRatingsStyleForShape, separateBadgeScaleToUI, uiToSeparateBadgeScale, SEPARATE_BADGE_SCALE_UI_MIN, SEPARATE_BADGE_SCALE_UI_MAX } from "@/lib/badge-styles"
+import { isBottomSeparateRatingsStyle, getSeparateBadgeDefaultScale, getSeparateRatingsStyleForShape, separateBadgeScaleToUI, uiToSeparateBadgeScale, SEPARATE_BADGE_SCALE_UI_MIN, SEPARATE_BADGE_SCALE_UI_MAX, DEFAULT_QUALITY_BADGE_OFFSET_X, DEFAULT_QUALITY_BADGE_OFFSET_Y, NUMBER_BADGE_BASE_OFFSET_X } from "@/lib/badge-styles"
 import { NATURAL_GRADIENT_DEFAULTS, type GradientPresetValues } from "@/lib/gradient-presets"
 import { GradientPresetRow } from "@/components/GradientPresetRow"
 import { LandscapeDefaultsSection } from "@/components/LandscapeDefaultsSection"
+import { useShapeBadgeDefaults } from "@/components/settings/useShapeDefaults"
+import type { DefaultsPreviewFamily } from "@/lib/poster-url"
 import { ArrowLeftRight, ArrowUpDown, Circle, Cloud, Image as ImageIcon, Minus, Ruler, Search, Sparkles, Star, Trophy, Tv } from "lucide-react"
 
-/** Scheda Trasforma default (specchio del tab Trasforma dell'editor). Estratta da SettingsPanel con il suo stato locale: nessun prop tranne `active`. */
-export function TransformPanel({ active }: { active: boolean }) {
+/** Trasforma defaults tab (mirrors the editor Transform tab). The portrait /
+ *  landscape target is owned by SettingsPanel and arrives as a controlled
+ *  `previewShape`: it drives preview + visible section (numbers/gradient on
+ *  the existing `land ?? flat` profile), never persisted defaults. The inner
+ *  switch renders only when uncontrolled (standalone reuse); hidden when
+ *  controlled so duplicate selectors cannot diverge. */
+export function TransformPanel({ active, previewShape, onPreviewShapeChange, onPreviewFamilyChange }: {
+  active: boolean
+  /** Edit-target switch (lifted to SettingsPanel): guides preview + section
+   *  only, never the persisted `defaultPosterShape`. Absent = local state
+   *  (standalone test/reuse fallback). */
+  previewShape?: "portrait" | "landscape"
+  onPreviewShapeChange?: (shape: "portrait" | "landscape") => void
+  /** Preview-only editing family (owned by SettingsPanel): each numeric group
+   *  reports its family on press/focus — text-only state lift, never writes. */
+  onPreviewFamilyChange?: (f: DefaultsPreviewFamily) => void
+}) {
   const { t } = useT()
   const ed = usePosterEditor()
-  // Sotto-tab Verticale/Orizzontale (solo UI).
-  const [trasformaShape, setTrasformaShape] = useState<"portrait" | "landscape">("portrait")
+  // Portrait/landscape sub-tab (UI only): parent-controlled when `previewShape`
+  // is provided (SettingsPanel single selector), local state otherwise.
+  const [innerShape, setInnerShape] = useState<"portrait" | "landscape">("portrait")
+  const controlled = previewShape !== undefined
+  const trasformaShape = previewShape ?? innerShape
+  const setTrasformaShape = (shape: "portrait" | "landscape") => {
+    setInnerShape(shape)
+    onPreviewShapeChange?.(shape)
+  }
   const [editVal, setEditVal] = useState<string | null>(null)
   const [editTxt, setEditTxt] = useState("")
+  // Separate style follows the same edit target as the Badge tab (shared
+  // hook): portrait reads/writes the flat, landscape the profile override.
+  const { scoped } = useShapeBadgeDefaults(trasformaShape)
+  const [separateRatingsStyle, setSeparateRatingsStyle] = scoped("separateRatingsStyle", ed.defaultSeparateRatingsStyle, ed.setDefaultSeparateRatingsStyle)
   // Stile separati effettivo sui default (bar Orizzontale → pills): la X
   // della barra portrait full-width è disabilitata (mai ghost slider).
   const defSepEff = getSeparateRatingsStyleForShape(
-    ed.defaultSeparateRatingsStyle, ed.defaultPosterShape === "landscape" ? "landscape" : "poster",
+    separateRatingsStyle, trasformaShape === "landscape" ? "landscape" : "poster",
   )
-  const defBarXOff = ed.defaultPosterShape !== "landscape" && defSepEff === "bottom-bar"
+  const defBarXOff = trasformaShape !== "landscape" && defSepEff === "bottom-bar"
+  // Rank numerals (`number` style) render on a -20px style baseline: the X
+  // slider shows the REAL effective position (stored adjustment + baseline),
+  // edits convert back to the stored adjustment (no silent writes — the raw
+  // value is preserved and style switches never rewrite it). Reset/dblclick
+  // restore the stored 0, i.e. the -20 visual baseline.
+  const defTopXBase = ed.defaultRankingBadgeStyle === "number" ? NUMBER_BADGE_BASE_OFFSET_X : 0
+  // Preview-family scope (U2): same helper as the Badge tab — explicit press
+  // or keyboard focus reports only (never hover: no flicker/fetch storms),
+  // no focus moves, no unmounts.
+  const famAttrs = (family: DefaultsPreviewFamily) => ({
+    "data-preview-family": family,
+    onFocusCapture: () => onPreviewFamilyChange?.(family),
+    onPointerDownCapture: () => onPreviewFamilyChange?.(family),
+  })
   return (
     <div
       role="tabpanel"
       aria-label={t("ui.transform")}
       className={`space-y-3.5 text-xs ${active ? "block animate-tab-fade-in" : "hidden"}`}
     >
+      {/* Inner switch for uncontrolled use only: SettingsPanel renders the
+          single selector above the controls and drives this panel. */}
+      {!controlled && (
       <div className="flex gap-1 p-1 rounded-xl bg-black/40 border border-white/10" aria-label={t("ui.transform")}>
         {(["portrait", "landscape"] as const).map((shape) => (
           <button
@@ -48,17 +93,19 @@ export function TransformPanel({ active }: { active: boolean }) {
           </button>
         ))}
       </div>
+      )}
       {trasformaShape === "landscape" ? (
         <LandscapeDefaultsSection
           editVal={editVal}
           editTxt={editTxt}
           setEditVal={setEditVal}
           setEditTxt={setEditTxt}
+          onPreviewFamilyChange={onPreviewFamilyChange}
         />
       ) : (
       <>
       {/* Logo Predefinito (null = auto-fit per aspect, storico) */}
-      <div className="bg-surface/50 border border-surface2/60 rounded-xl p-3.5 space-y-1.5 shadow-sm animate-fade-in">
+      <div {...famAttrs("logo")} className="bg-surface/50 border border-surface2/60 rounded-xl p-3.5 space-y-1.5 shadow-sm animate-fade-in">
         <div className="flex items-center justify-between px-1">
           <span className="font-semibold text-zinc-200 flex items-center gap-1.5">
             <ImageIcon className="w-3.5 h-3.5 text-accent-orange" />
@@ -127,7 +174,7 @@ export function TransformPanel({ active }: { active: boolean }) {
       </div>
       {/* Badge Superiore Predefinito */}
       {ed.defaultRankingBadges && (
-      <div className="bg-surface/50 border border-surface2/60 rounded-xl p-3.5 space-y-2.5 shadow-sm animate-fade-in">
+      <div {...famAttrs("rank")} className="bg-surface/50 border border-surface2/60 rounded-xl p-3.5 space-y-2.5 shadow-sm animate-fade-in">
         <div className="flex items-center justify-between">
           <span className="text-zinc-300 font-medium flex items-center gap-1.5">
             <Trophy className="w-3.5 h-3.5 text-amber-500" />
@@ -169,13 +216,13 @@ export function TransformPanel({ active }: { active: boolean }) {
           <SliderRow
             icon={<ArrowLeftRight className="w-3.5 h-3.5" />}
             label="X"
-            value={ed.defaultTopBadgeOffsetX}
+            value={ed.defaultTopBadgeOffsetX + defTopXBase}
             min={-100}
             max={100}
             boundsMin={-500}
             boundsMax={500}
             onChange={(v) => {
-              ed.setDefaultTopBadgeOffsetX(v)
+              ed.setDefaultTopBadgeOffsetX(v - defTopXBase)
             }}
             onDoubleClick={() => {
               ed.setDefaultTopBadgeOffsetX(0)
@@ -214,7 +261,7 @@ export function TransformPanel({ active }: { active: boolean }) {
 
       {/* Badge Genere Predefinito */}
       {ed.defaultGlobalBadges && (
-      <div className="bg-surface/50 border border-surface2/60 rounded-xl p-3.5 space-y-2.5 shadow-sm animate-fade-in">
+      <div {...famAttrs("genre")} className="bg-surface/50 border border-surface2/60 rounded-xl p-3.5 space-y-2.5 shadow-sm animate-fade-in">
         <div className="flex items-center justify-between">
           <span className="text-zinc-300 font-medium flex items-center gap-1.5">
             <Star className="w-3.5 h-3.5 text-amber-400" />
@@ -301,7 +348,7 @@ export function TransformPanel({ active }: { active: boolean }) {
 
       {/* Badge Qualità Predefinito */}
       {ed.defaultBadgeQuality && (
-      <div className="bg-surface/50 border border-surface2/60 rounded-xl p-3.5 space-y-2.5 shadow-sm animate-fade-in">
+      <div {...famAttrs("quality")} className="bg-surface/50 border border-surface2/60 rounded-xl p-3.5 space-y-2.5 shadow-sm animate-fade-in">
         <div className="flex items-center justify-between">
           <span className="text-zinc-300 font-medium flex items-center gap-1.5">
             <Sparkles className="w-3.5 h-3.5 text-purple-400" />
@@ -310,8 +357,8 @@ export function TransformPanel({ active }: { active: boolean }) {
           <button type="button" aria-label={t("ui.reset")}
                   onClick={() => {
                     ed.setDefaultQualityBadgeScale(100)
-                    ed.setDefaultQualityBadgeOffsetX(0)
-                    ed.setDefaultQualityBadgeOffsetY(0)
+                    ed.setDefaultQualityBadgeOffsetX(DEFAULT_QUALITY_BADGE_OFFSET_X)
+                    ed.setDefaultQualityBadgeOffsetY(DEFAULT_QUALITY_BADGE_OFFSET_Y)
                   }}
                   className="text-xs text-muted hover:text-accent transition-colors px-2 py-0.5 rounded-md border border-border/50 hover:border-accent/30">
             {t("ui.reset")}
@@ -352,7 +399,7 @@ export function TransformPanel({ active }: { active: boolean }) {
               ed.setDefaultQualityBadgeOffsetX(v)
             }}
             onDoubleClick={() => {
-              ed.setDefaultQualityBadgeOffsetX(0)
+              ed.setDefaultQualityBadgeOffsetX(DEFAULT_QUALITY_BADGE_OFFSET_X)
             }}
             editingValue={editVal}
             editText={editTxt}
@@ -373,7 +420,7 @@ export function TransformPanel({ active }: { active: boolean }) {
               ed.setDefaultQualityBadgeOffsetY(v)
             }}
             onDoubleClick={() => {
-              ed.setDefaultQualityBadgeOffsetY(0)
+              ed.setDefaultQualityBadgeOffsetY(DEFAULT_QUALITY_BADGE_OFFSET_Y)
             }}
             editingValue={editVal}
             editText={editTxt}
@@ -388,7 +435,7 @@ export function TransformPanel({ active }: { active: boolean }) {
 
       {/* Rating Separati Predefiniti (scala relativa UI + offset gruppo) */}
       {ed.defaultGlobalBadges && ed.defaultBadgeRating && ed.defaultSeparateRatings && (
-      <div className="bg-surface/50 border border-surface2/60 rounded-xl p-3.5 space-y-2.5 shadow-sm animate-fade-in">
+      <div {...famAttrs("ratings")} className="bg-surface/50 border border-surface2/60 rounded-xl p-3.5 space-y-2.5 shadow-sm animate-fade-in">
         <div className="flex items-center justify-between">
           <span className="text-zinc-300 font-medium flex items-center gap-1.5">
             <Star className="w-3.5 h-3.5 text-amber-400" />
@@ -483,17 +530,17 @@ export function TransformPanel({ active }: { active: boolean }) {
               { id: "bottom-bar", labelKey: "ui.separateRatingsBottomBar" },
               { id: "bottom-pills", labelKey: "ui.separateRatingsBottomPills" },
             ] as const).map((opt) => {
-              // Come il selettore per-titolo: barra disattivata col formato
-              // Orizzontale di default (raw conservato, mai nascosta).
-              const barOff = opt.id === "bottom-bar" && ed.defaultPosterShape === "landscape"
+              // Portrait target always allows the bar (landscape normalizes
+              // it to pills); the raw value is kept, never hidden.
+              const barOff = false
               const pressed = getSeparateRatingsStyleForShape(
-                ed.defaultSeparateRatingsStyle, ed.defaultPosterShape === "landscape" ? "landscape" : "poster",
+                separateRatingsStyle, "poster",
               ) === opt.id
               return (
                 <button
                   key={opt.id}
                   type="button"
-                  onClick={() => { if (!barOff) ed.setDefaultSeparateRatingsStyle(opt.id) }}
+                  onClick={() => { if (!barOff) setSeparateRatingsStyle(opt.id) }}
                   aria-pressed={pressed}
                   disabled={barOff}
                   title={barOff ? t("ui.separateRatingsBarLandscapeHint") : undefined}
@@ -508,10 +555,7 @@ export function TransformPanel({ active }: { active: boolean }) {
               )
             })}
           </div>
-          {ed.defaultPosterShape === "landscape" && (
-            <p className="text-[10px] text-muted italic leading-tight">{t("ui.separateRatingsBarLandscapeHint")}</p>
-          )}
-          {ed.defaultGlobalBadges && ed.defaultBadgeRating && ed.defaultSeparateRatings && isBottomSeparateRatingsStyle(ed.defaultSeparateRatingsStyle) && (
+          {ed.defaultGlobalBadges && ed.defaultBadgeRating && ed.defaultSeparateRatings && isBottomSeparateRatingsStyle(separateRatingsStyle) && (
             <p className="text-[10px] text-muted italic leading-tight">{t("ui.separateRatingsBottomHint")}</p>
           )}
         </div>
@@ -520,7 +564,7 @@ export function TransformPanel({ active }: { active: boolean }) {
 
       {/* Logo Network Predefinito */}
       {ed.defaultNetworkLogo && (
-      <div className="bg-surface/50 border border-surface2/60 rounded-xl p-3.5 space-y-2.5 shadow-sm animate-fade-in">
+      <div {...famAttrs("logo")} className="bg-surface/50 border border-surface2/60 rounded-xl p-3.5 space-y-2.5 shadow-sm animate-fade-in">
         <div className="flex items-center justify-between">
           <span className="text-zinc-300 font-medium flex items-center gap-1.5">
             <Tv className="w-3.5 h-3.5 text-sky-400" />
@@ -606,7 +650,7 @@ export function TransformPanel({ active }: { active: boolean }) {
       )}
 
       {/* Sfumatura & Blur Predefiniti */}
-      <div className="bg-surface/50 border border-surface2/60 rounded-xl p-3.5 space-y-2.5 shadow-sm animate-fade-in">
+      <div {...famAttrs("gradient")} className="bg-surface/50 border border-surface2/60 rounded-xl p-3.5 space-y-2.5 shadow-sm animate-fade-in">
         <div className="flex items-center justify-between">
           <span className="text-zinc-200 font-semibold flex items-center gap-1.5">
             <Cloud className="w-3.5 h-3.5 text-cyan-400" />
@@ -649,6 +693,7 @@ export function TransformPanel({ active }: { active: boolean }) {
           }}
           naturalLabel={t("ui.gradientPresetNatural")}
           colorLabel={t("ui.gradientPresetColor")}
+          neroLabel="Nero"
           addTitle={t("ui.gradientPresetAdd")}
           namePlaceholder={t("ui.gradientPresetName")}
           deleteLabel={t("ui.gradientPresetDelete")}
@@ -799,8 +844,8 @@ export function TransformPanel({ active }: { active: boolean }) {
           ed.setDefaultGenreBadgeOffsetX(0)
           ed.setDefaultGenreBadgeOffsetY(0)
           ed.setDefaultQualityBadgeScale(100)
-          ed.setDefaultQualityBadgeOffsetX(0)
-          ed.setDefaultQualityBadgeOffsetY(0)
+          ed.setDefaultQualityBadgeOffsetX(DEFAULT_QUALITY_BADGE_OFFSET_X)
+          ed.setDefaultQualityBadgeOffsetY(DEFAULT_QUALITY_BADGE_OFFSET_Y)
           ed.setDefaultNetworkLogoScale(100)
           ed.setDefaultNetworkLogoOffsetX(0)
           ed.setDefaultNetworkLogoOffsetY(0)

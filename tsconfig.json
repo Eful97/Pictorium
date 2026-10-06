@@ -48,7 +48,11 @@
     ".next-bench/types/**/*.ts",
     ".next-bench/dev/types/**/*.ts",
     ".next-tune/types/**/*.ts",
-    ".next-tune/dev/types/**/*.ts"
+    ".next-tune/dev/types/**/*.ts",
+    ".next-e2e-l1/types/**/*.ts",
+    ".next-e2e-l1/dev/types/**/*.ts",
+    ".next-e2e-l2/types/**/*.ts",
+    ".next-e2e-l2/dev/types/**/*.ts"
   ],
   "exclude": [
     "node_modules",

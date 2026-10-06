@@ -35,6 +35,8 @@ export function __resetMdblistBreaker(): void {
 }
 
 const RATINGS_NULL_TTL_MS = 60_000
+/** Explicit TTL for valid aggregated results: 6h (success only, never null/fail). */
+export const RATINGS_SUCCESS_TTL_MS = 6 * 60 * 60 * 1000
 const RATINGS_NULL_MAX = 500
 const ratingsNullAt = new Map<string, number>()
 
@@ -205,7 +207,7 @@ export interface FetchAggregatedOptions {
    * quando MDBList manca (quota/outage): senza, a MDBList down spariscono
    * imdb E tmdb insieme pur avendo la chiave TMDB funzionante. Vale solo in
    * assenza del tmdb da MDBList (mai sovrascrittura) e non entra nel cache
-   * key (staleness 30min come tutte le fonti). Solo voto TMDB genuino —
+   * key (staleness 6h come il TTL success). Solo voto TMDB genuino —
    * mai medie congelate da mapping/query.
    */
   tmdbFallbackVote?: number | null
@@ -328,7 +330,7 @@ export async function fetchAggregatedRating(
   const simklHash = wantSimkl && opts?.simklKey ? crypto.createHash("sha1").update(opts.simklKey.trim()).digest("hex").slice(0, 8) : "nosk"
   // Le fonti anime cambiano i sources → parte del cache key (flag, mai ID).
   // Stesso per wantImdb (Cinemeta): senza, togglare rsrc in editor servirebbe
-  // entry con/senza imdb a caso dentro i 30min di TTL.
+  // entry con/senza imdb a caso dentro le 6h di TTL.
   // Il lato TMDB entra nella chiave quando le fonti anime sono attive: gli id
   // numerici sono condivisi tra movie e tv e lo stesso imdb non deve servire
   // entry con l'anime dell'altro lato (P1: tv/128 vs movie/128).
@@ -393,7 +395,7 @@ export async function fetchAggregatedRating(
         average: avg(valuesToAvg),
         count: Object.keys(sources).length,
       }
-      cacheSet(cacheKey, result, wantAnime ? ["mdb", "simkl", "anime"] : ["mdb", "simkl"])
+      cacheSet(cacheKey, result, wantAnime ? ["mdb", "simkl", "anime"] : ["mdb", "simkl"], RATINGS_SUCCESS_TTL_MS)
       return result
     }
 

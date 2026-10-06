@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect, useCallback, useRef } from "react"
-import type { BadgeStyle, RankingBadgeStyle } from "./badge-styles"
+import type { BadgeStyle, RankingBadgeStyle, ExtraBadgeStyle } from "./badge-styles"
 import type { NetworkLogoPosition, PosterShape } from "./types"
 import { isNetworkLogoPosition, isPosterShape } from "./types"
 import type { LandscapeServerDefaults } from "./server-defaults"
@@ -15,6 +15,8 @@ import { normalizeSashOrder, DEFAULT_SASH_ORDER, type SashBucket } from "./badge
 import { DEFAULT_QUALITY_BADGE_STYLE, type QualityBadgeStyle } from "./badge-styles"
 import { DEFAULT_BADGE_FONT, isBadgeFont, type BadgeFont } from "./badge-styles"
 import { DEFAULT_SEPARATE_RATINGS_STYLE, isSeparateRatingsStyle, getSeparateBadgeDefaultScale, type SeparateRatingsStyle } from "./badge-styles"
+import { isExtraBadgeStyle } from "./badge-styles"
+import { DEFAULT_QUALITY_BADGE_OFFSET_X, DEFAULT_QUALITY_BADGE_OFFSET_Y, DEFAULT_QUALITY_BADGE_OFFSET_X_LANDSCAPE, DEFAULT_QUALITY_BADGE_OFFSET_Y_LANDSCAPE } from "./badge-styles"
 import { KNOWN_VIDEO_FORMATS, isVideoFormat, type VideoFormat } from "./av-specs"
 
 export type RibbonSide = "left" | "right"
@@ -22,6 +24,8 @@ export type RibbonSide = "left" | "right"
 export interface DefaultsState {
   defaultBadgeStyle: BadgeStyle
   defaultRankingBadgeStyle: RankingBadgeStyle
+  /** Standalone extra-badge style default (null = legacy `rs` fallback). */
+  defaultExtraBadgeStyle: ExtraBadgeStyle | null
   /** Font dei testi badge di default ("inter" = resa storica). */
   defaultBadgeFont: BadgeFont
   /** Stile icone del badge qualità di default (default "standard"). */
@@ -159,6 +163,8 @@ export interface DefaultsState {
   topShade: number
   badgeStyle: BadgeStyle
   rankingBadgeStyle: RankingBadgeStyle
+  /** Standalone extra-badge style in editing (null = legacy `rs` fallback). */
+  extraBadgeStyle: ExtraBadgeStyle | null
   /** Font dei testi badge del poster in editing. */
   badgeFont: BadgeFont
   /** Stile icone del badge qualità del poster in editing. */
@@ -181,6 +187,7 @@ export interface DefaultsState {
 const DEFAULTS: DefaultsState = {
   defaultBadgeStyle: "shadow",
   defaultRankingBadgeStyle: "default",
+  defaultExtraBadgeStyle: null,
   defaultBadgeFont: DEFAULT_BADGE_FONT,
   defaultQualityBadgeStyle: DEFAULT_QUALITY_BADGE_STYLE,
   defaultVideoFormats: [...KNOWN_VIDEO_FORMATS],
@@ -202,8 +209,8 @@ const DEFAULTS: DefaultsState = {
   defaultNetworkLogoScale: 100,
   defaultGenreBadgeOffsetX: 0,
   defaultGenreBadgeOffsetY: 0,
-  defaultQualityBadgeOffsetX: 0,
-  defaultQualityBadgeOffsetY: 0,
+  defaultQualityBadgeOffsetX: DEFAULT_QUALITY_BADGE_OFFSET_X,
+  defaultQualityBadgeOffsetY: DEFAULT_QUALITY_BADGE_OFFSET_Y,
   defaultNetworkLogoOffsetX: 0,
   defaultNetworkLogoOffsetY: 0,
   defaultGlobalBadges: true,
@@ -275,13 +282,20 @@ const DEFAULTS: DefaultsState = {
   topShade: 50,
   badgeStyle: "shadow",
   rankingBadgeStyle: "default",
+  extraBadgeStyle: null,
   badgeFont: DEFAULT_BADGE_FONT,
   qualityBadgeStyle: DEFAULT_QUALITY_BADGE_STYLE,
   videoFormats: null,
   defaultLogoScale: null,
   defaultLogoOffsetX: null,
   defaultLogoOffsetY: null,
-  landscape: {},
+  // Profilo landscape per i nuovi settings: qualità a 0/0 storico (non segue
+  // il nuovo default verticale -10/+10); gli altri offset restano in follow
+  // dei flat. Vedi buildFromStored per gli stored esistenti.
+  landscape: {
+    qualityBadgeOffsetX: DEFAULT_QUALITY_BADGE_OFFSET_X_LANDSCAPE,
+    qualityBadgeOffsetY: DEFAULT_QUALITY_BADGE_OFFSET_Y_LANDSCAPE,
+  },
 }
 
 interface StoredDefaults {
@@ -319,10 +333,12 @@ interface StoredDefaults {
   topShade?: number
   badgeStyle?: BadgeStyle
   rankingBadgeStyle?: RankingBadgeStyle
+  extraBadgeStyle?: ExtraBadgeStyle | null
   qualityBadgeStyle?: QualityBadgeStyle
   badgeFont?: BadgeFont
   defaultBadgeStyle?: BadgeStyle
   defaultRankingBadgeStyle?: RankingBadgeStyle
+  defaultExtraBadgeStyle?: ExtraBadgeStyle | null
   defaultBadgeFont?: BadgeFont
   defaultQualityBadgeStyle?: QualityBadgeStyle
   defaultBlurEnabled?: boolean
@@ -441,6 +457,37 @@ function safeSetItem(key: string, val: string) {
   try { localStorage.setItem(key, val) } catch { /* localStorage non disponibile */ }
 }
 
+function numOrUndef(v: unknown): number | undefined {
+  return typeof v === "number" && Number.isFinite(v) ? v : undefined
+}
+
+/**
+ * Profilo landscape idratato con provenance dai dati RAW (vedi nota al sito
+ * d'uso in buildFromStored). Ritorna sempre un plain object; non scrive mai
+ * sullo storage (la persistenza resta il normale auto-persist dell'hook).
+ */
+function seedLandscapeQualityOffsets(
+  rawLandscape: Record<string, unknown> | null | undefined,
+  rawFlatOffsetX: unknown,
+  rawFlatOffsetY: unknown,
+): LandscapeServerDefaults {
+  const base: Record<string, unknown> =
+    rawLandscape !== null && typeof rawLandscape === "object" && !Array.isArray(rawLandscape)
+      ? { ...rawLandscape }
+      : {}
+  const landX = numOrUndef(base.qualityBadgeOffsetX)
+  const landY = numOrUndef(base.qualityBadgeOffsetY)
+  const flatX = numOrUndef(rawFlatOffsetX)
+  const flatY = numOrUndef(rawFlatOffsetY)
+  return {
+    ...(base as Partial<LandscapeServerDefaults>),
+    // Solo il ramo tutto-implicito materializza 0/0; il ramo flat-esplicito
+    // resta undefined (= follow dinamico dei flat, anche futuri).
+    qualityBadgeOffsetX: landX ?? (flatX === undefined ? 0 : undefined),
+    qualityBadgeOffsetY: landY ?? (flatY === undefined ? 0 : undefined),
+  }
+}
+
 function buildFromStored(d: StoredDefaults | null): DefaultsState {
   if (!d) return { ...DEFAULTS }
   // Lo storage è JSON non validato: solo shape noti, mai spazzatura.
@@ -462,6 +509,9 @@ function buildFromStored(d: StoredDefaults | null): DefaultsState {
   return {
     defaultBadgeStyle: d.defaultBadgeStyle ?? d.badgeStyle ?? "shadow",
     defaultRankingBadgeStyle: d.defaultRankingBadgeStyle ?? d.rankingBadgeStyle ?? "default",
+    defaultExtraBadgeStyle: isExtraBadgeStyle(d.defaultExtraBadgeStyle)
+      ? d.defaultExtraBadgeStyle
+      : (isExtraBadgeStyle(d.extraBadgeStyle) ? d.extraBadgeStyle : null),
     defaultBadgeFont: isBadgeFont(d.defaultBadgeFont) ? d.defaultBadgeFont : (isBadgeFont(d.badgeFont) ? d.badgeFont : DEFAULT_BADGE_FONT),
     defaultQualityBadgeStyle: d.defaultQualityBadgeStyle ?? d.qualityBadgeStyle ?? DEFAULT_QUALITY_BADGE_STYLE,
     defaultVideoFormats: Array.isArray(d.defaultVideoFormats)
@@ -485,8 +535,8 @@ function buildFromStored(d: StoredDefaults | null): DefaultsState {
     defaultNetworkLogoScale: d.defaultNetworkLogoScale ?? d.networkLogoScale ?? 100,
     defaultGenreBadgeOffsetX: d.defaultGenreBadgeOffsetX ?? d.genreBadgeOffsetX ?? 0,
     defaultGenreBadgeOffsetY: d.defaultGenreBadgeOffsetY ?? d.genreBadgeOffsetY ?? 0,
-    defaultQualityBadgeOffsetX: d.defaultQualityBadgeOffsetX ?? d.qualityBadgeOffsetX ?? 0,
-    defaultQualityBadgeOffsetY: d.defaultQualityBadgeOffsetY ?? d.qualityBadgeOffsetY ?? 0,
+    defaultQualityBadgeOffsetX: d.defaultQualityBadgeOffsetX ?? d.qualityBadgeOffsetX ?? DEFAULT_QUALITY_BADGE_OFFSET_X,
+    defaultQualityBadgeOffsetY: d.defaultQualityBadgeOffsetY ?? d.qualityBadgeOffsetY ?? DEFAULT_QUALITY_BADGE_OFFSET_Y,
     defaultNetworkLogoOffsetX: d.defaultNetworkLogoOffsetX ?? d.networkLogoOffsetX ?? 0,
     defaultNetworkLogoOffsetY: d.defaultNetworkLogoOffsetY ?? d.networkLogoOffsetY ?? 0,
     defaultGlobalBadges: d.defaultGlobalBadges ?? d.globalBadges ?? true,
@@ -559,8 +609,8 @@ function buildFromStored(d: StoredDefaults | null): DefaultsState {
     networkLogoScale: d.networkLogoScale ?? d.defaultNetworkLogoScale ?? 100,
     genreBadgeOffsetX: d.genreBadgeOffsetX ?? d.defaultGenreBadgeOffsetX ?? 0,
     genreBadgeOffsetY: d.genreBadgeOffsetY ?? d.defaultGenreBadgeOffsetY ?? 0,
-    qualityBadgeOffsetX: d.qualityBadgeOffsetX ?? d.defaultQualityBadgeOffsetX ?? 0,
-    qualityBadgeOffsetY: d.qualityBadgeOffsetY ?? d.defaultQualityBadgeOffsetY ?? 0,
+    qualityBadgeOffsetX: d.qualityBadgeOffsetX ?? d.defaultQualityBadgeOffsetX ?? DEFAULT_QUALITY_BADGE_OFFSET_X,
+    qualityBadgeOffsetY: d.qualityBadgeOffsetY ?? d.defaultQualityBadgeOffsetY ?? DEFAULT_QUALITY_BADGE_OFFSET_Y,
     networkLogoOffsetX: d.networkLogoOffsetX ?? d.defaultNetworkLogoOffsetX ?? 0,
     networkLogoOffsetY: d.networkLogoOffsetY ?? d.defaultNetworkLogoOffsetY ?? 0,
     blurIntensity: d.blurIntensity ?? d.defaultBlurIntensity ?? 20,
@@ -573,6 +623,9 @@ function buildFromStored(d: StoredDefaults | null): DefaultsState {
     topShade: d.topShade ?? d.defaultTopShade ?? 50,
     badgeStyle: d.badgeStyle ?? d.defaultBadgeStyle ?? "shadow",
     rankingBadgeStyle: d.rankingBadgeStyle ?? d.defaultRankingBadgeStyle ?? "default",
+    extraBadgeStyle: isExtraBadgeStyle(d.extraBadgeStyle)
+      ? d.extraBadgeStyle
+      : (isExtraBadgeStyle(d.defaultExtraBadgeStyle) ? d.defaultExtraBadgeStyle : null),
     badgeFont: isBadgeFont(d.badgeFont) ? d.badgeFont : (isBadgeFont(d.defaultBadgeFont) ? d.defaultBadgeFont : DEFAULT_BADGE_FONT),
     qualityBadgeStyle: d.qualityBadgeStyle ?? d.defaultQualityBadgeStyle ?? DEFAULT_QUALITY_BADGE_STYLE,
     videoFormats: Array.isArray(d.videoFormats) ? d.videoFormats.filter(isVideoFormat) : null,
@@ -580,10 +633,18 @@ function buildFromStored(d: StoredDefaults | null): DefaultsState {
     defaultLogoOffsetX: typeof d.defaultLogoOffsetX === "number" ? d.defaultLogoOffsetX : (typeof d.logoOffsetX === "number" ? d.logoOffsetX : null),
     defaultLogoOffsetY: typeof d.defaultLogoOffsetY === "number" ? d.defaultLogoOffsetY : (typeof d.logoOffsetY === "number" ? d.logoOffsetY : null),
     // Profilo landscape: solo plain object (mai array/null dallo storage);
-    // la validazione vera avviene sul server al sync (PUT).
-    landscape: (d.landscape !== null && typeof d.landscape === "object" && !Array.isArray(d.landscape))
-      ? (d.landscape as LandscapeServerDefaults)
-      : {},
+    // la validazione vera avviene sul server al sync (PUT). Seed qualità da
+    // RAW prima del merge (mai confronto valori): override landscape
+    // esplicito vince (incluso 0); senza, si segue il flat esplicito
+    // (inclusi alias legacy e -10/+10 deliberati); solo quando anche il flat
+    // è implicito (nuovi settings) si fissa 0/0 storico, mentre il portrait
+    // adotta il nuovo default. Chiave presente-ma-undefined si comporta come
+    // assente (??) e non persiste in JSON — nessuna migrazione degli stored.
+    landscape: seedLandscapeQualityOffsets(
+      d.landscape,
+      d.defaultQualityBadgeOffsetX ?? d.qualityBadgeOffsetX,
+      d.defaultQualityBadgeOffsetY ?? d.qualityBadgeOffsetY,
+    ),
   }
 }
 
@@ -597,6 +658,7 @@ function defaultsToPayload(d: DefaultsState): Record<string, unknown> {
   return {
     badgeStyle: d.defaultBadgeStyle,
     rankingBadgeStyle: d.defaultRankingBadgeStyle,
+    extraBadgeStyle: d.defaultExtraBadgeStyle ?? null,
     badgeFont: d.defaultBadgeFont,
     qualityBadgeStyle: d.defaultQualityBadgeStyle,
     blurEnabled: d.defaultBlurEnabled,
@@ -790,8 +852,8 @@ export function useDefaults() {
     return () => clearTimeout(timer)
   }, [state, hydrated])
 
-  const update = useCallback((patch: Partial<DefaultsState>) => {
-    setState((prev) => ({ ...prev, ...patch }))
+  const update = useCallback((patch: Partial<DefaultsState> | ((prev: DefaultsState) => Partial<DefaultsState>)) => {
+    setState((prev) => ({ ...prev, ...(typeof patch === "function" ? patch(prev) : patch) }))
   }, [])
 
   const loadDefaultsToState = useCallback(() => {

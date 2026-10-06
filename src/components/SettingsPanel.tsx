@@ -26,6 +26,9 @@ import {
   Download,
 } from "lucide-react"
 import { DefaultsPosterPreview } from "@/components/settings/DefaultsPosterPreview"
+import type { DefaultsPreviewFamily } from "@/lib/poster-url"
+import { usePSelector } from "@/lib/context"
+import { usePreviewDemoMedia } from "@/lib/defaults-preview-media"
 import { VisualPresetsSection } from "@/components/settings/VisualPresetsSection"
 import type { BackupExportOptions, BackupImportOptions } from "@/lib/useMappingsStore"
 
@@ -57,6 +60,23 @@ export function SettingsPanel({ setSettingsOpen, exportData, importData, mobile,
     const requested: SettingsTabId | null = consumeSettingsTab()
     if (requested) setActiveTab(requested)
   }, [])
+  // Edit target (portrait/landscape), owned here and passed down controlled.
+  // Drives preview shape and the Transform section only; never the persisted
+  // delivery format. Badge toggles/styles stay shared. Survives tab switches.
+  const [editTargetShape, setEditTargetShape] = useState<"portrait" | "landscape">("portrait")
+  // Preview-only editing family (U2 scoped defaults screen): owned here as the
+  // single source of truth, updated when the user focuses/interacts with a
+  // settings card. Drives the defaults preview sample only — never persisted
+  // defaults, storage, or delivery. Survives tab + target switches.
+  const [previewFamily, setPreviewFamily] = useState<DefaultsPreviewFamily>("auto")
+  const isVisualTab = activeTab === "badge" || activeTab === "trasforma"
+  // Preview follows the edit target on visual tabs, without touching defaults.
+  const defaultsPreviewShapeOverride = isVisualTab ? editTargetShape : undefined
+  // Preview-only demo title (default Avatar): persisted per profile in
+  // browser storage, surviving close/reopen and reload. Never persisted to
+  // defaults/mapping/shape. Selection writes sync; reset removes the slot.
+  const currentUserId = usePSelector((v) => v.currentUserId)
+  const [previewDemoMedia, setPreviewDemoMedia] = usePreviewDemoMedia(currentUserId)
   const [saved, setSaved] = useState(false)
   const [saving, setSaving] = useState(false)
   const settingsRef = useRef<HTMLDivElement>(null)
@@ -234,14 +254,55 @@ export function SettingsPanel({ setSettingsOpen, exportData, importData, mobile,
     </div>
   )
 
-  // Scheda 1: Badge (specchio del tab Badge dell'editor, valori default)
-  const badgePanel = (
-    <BadgeDefaultsSection active={activeTab === "badge"} />
+  // Single edit-target selector, rendered before the controls on visual tabs.
+  // Shares state with the Transform panel (controlled): no divergence possible.
+  const formatTargetSelector = (
+    <div data-testid="format-target-selector" className="shrink-0 px-4 sm:px-6 pt-3">
+      <div className="bg-surface/50 border border-surface2/60 rounded-xl p-3 shadow-sm">
+        <div className="flex items-center justify-between gap-3">
+          <span className="font-semibold text-zinc-200 text-xs">{t("ui.formatTarget")}</span>
+          <div
+            className="flex gap-1 p-1 rounded-xl bg-black/40 border border-white/10"
+            role="group"
+            aria-label={t("ui.formatTarget")}
+          >
+            {(["portrait", "landscape"] as const).map((shape) => (
+              <button
+                key={shape}
+                type="button"
+                aria-pressed={editTargetShape === shape}
+                onClick={() => setEditTargetShape(shape)}
+                className={`flex-1 py-1.5 px-3 rounded-lg text-[11px] font-semibold transition-all cursor-pointer whitespace-nowrap ${
+                  editTargetShape === shape
+                    ? "bg-white/15 text-foreground shadow-sm"
+                    : "text-muted hover:bg-white/5 hover:text-zinc-200"
+                }`}
+              >
+                {shape === "portrait" ? t("ui.posterShapePortrait") : t("ui.posterShapeLandscape")}
+              </button>
+            ))}
+          </div>
+        </div>
+        <p className="text-[11px] text-zinc-400 italic mt-1.5 leading-snug">{t("ui.formatTargetHint")}</p>
+      </div>
+    </div>
   )
 
-  // Scheda 2: Trasforma (specchio del tab Trasforma dell'editor, valori default)
+  // Scheda 1: Badge (specchio del tab Badge dell'editor, valori default)
+  const badgePanel = (
+    <BadgeDefaultsSection active={activeTab === "badge"} shape={editTargetShape} onPreviewFamilyChange={setPreviewFamily} />
+  )
+
+  // Scheda 2: Trasforma (specchio del tab Trasforma dell'editor, valori default).
+  // Gets the single edit target (controlled); its inner switch stays hidden
+  // in this mode so the two selectors cannot diverge.
   const trasformaPanel = (
-    <TransformPanel active={activeTab === "trasforma"} />
+    <TransformPanel
+      active={activeTab === "trasforma"}
+      previewShape={editTargetShape}
+      onPreviewShapeChange={setEditTargetShape}
+      onPreviewFamilyChange={setPreviewFamily}
+    />
   )
 
   // Scheda 3: Preferenze & Sistema
@@ -331,9 +392,10 @@ export function SettingsPanel({ setSettingsOpen, exportData, importData, mobile,
     return (
       <div ref={settingsRef} className="settings-panel flex flex-col h-full min-h-0 w-full">
         {tabsNav}
+        {isVisualTab && formatTargetSelector}
         {mobileViewport === true && (activeTab === "badge" || activeTab === "trasforma") && (
           <div className="shrink-0 px-4 pt-3">
-            <DefaultsPosterPreview compact />
+            <DefaultsPosterPreview compact previewShape={defaultsPreviewShapeOverride} demoMedia={previewDemoMedia} onDemoMediaChange={setPreviewDemoMedia} previewFamily={previewFamily} onPreviewFamilyChange={setPreviewFamily} />
           </div>
         )}
         <div className="flex-1 min-h-0 overflow-y-auto p-4 space-y-4 pb-8" data-testid="settings-controls">
@@ -350,8 +412,6 @@ export function SettingsPanel({ setSettingsOpen, exportData, importData, mobile,
       </div>
     )
   }
-
-  const isVisualTab = activeTab === "badge" || activeTab === "trasforma"
 
   // Layout Desktop: Modal Dialog centrato con backdrop blur
   return (
@@ -395,6 +455,8 @@ export function SettingsPanel({ setSettingsOpen, exportData, importData, mobile,
 
         {tabsNav}
 
+        {isVisualTab && formatTargetSelector}
+
         {/* Contenuto scrollabile */}
         <div className={`flex-1 min-h-0 ${isVisualTab ? "flex flex-col md:grid md:grid-cols-[minmax(0,1fr)_minmax(220px,32%)]" : "flex flex-col"}`}>
           <div className="min-w-0 min-h-0 overflow-y-auto p-4 sm:p-6 space-y-4" data-testid="settings-controls">
@@ -406,8 +468,8 @@ export function SettingsPanel({ setSettingsOpen, exportData, importData, mobile,
             {showSpaceTab && spazioPanel}
           </div>
           {isVisualTab && (
-            <div className="hidden md:block min-h-0 p-4 pl-0" data-testid="settings-preview">
-              {mobileViewport === false && <DefaultsPosterPreview />}
+            <div className="hidden md:block min-h-0 p-4 pl-0 overflow-y-auto" data-testid="settings-preview">
+              {mobileViewport === false && <DefaultsPosterPreview previewShape={defaultsPreviewShapeOverride} demoMedia={previewDemoMedia} onDemoMediaChange={setPreviewDemoMedia} previewFamily={previewFamily} onPreviewFamilyChange={setPreviewFamily} />}
             </div>
           )}
         </div>

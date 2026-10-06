@@ -307,6 +307,99 @@ test.describe("poster API — functional", () => {
     expect(buffer.length).toBeGreaterThan(1000)
   })
 
+  test("ranking style: corner — valid image", async ({ request }) => {
+    const url = posterUrl({ genreName: "Action", voteAverage: "7.8", badges: "1", ranking: "1", rank: "4", label: "Top 4", rs: "corner" })
+    const res = await request.get(url)
+    expect(res.ok()).toBeTruthy()
+    const buffer = await res.body()
+    expect(buffer.length).toBeGreaterThan(1000)
+  })
+
+  test("ranking style: number — valid image", async ({ request }) => {
+    const url = posterUrl({ genreName: "Action", voteAverage: "7.8", badges: "1", ranking: "1", rank: "3", label: "Top 3", rs: "number" })
+    const res = await request.get(url)
+    expect(res.ok()).toBeTruthy()
+    const buffer = await res.body()
+    expect(buffer.length).toBeGreaterThan(1000)
+  })
+
+  test("ranking number differs from corner and default (same rank)", async ({ request }) => {
+    // Avatar is #1 in the mock JW chart: the badge uses the trendRank (wins
+    // over the query rank, same for all three) — bytes isolate the style.
+    const base = { genreName: "Action", voteAverage: "7.8", badges: "1", ranking: "1", rank: "3", label: "Top 3" }
+    const numRes = await request.get(posterUrl({ ...base, rs: "number" }))
+    expect(numRes.ok()).toBeTruthy()
+    const numBuffer = await numRes.body()
+    for (const rs of ["corner", "default"]) {
+      const res = await request.get(posterUrl({ ...base, rs }))
+      expect(res.ok()).toBeTruthy()
+      expect(Buffer.compare(numBuffer, await res.body())).not.toBe(0)
+    }
+  })
+
+  test("ranking number pre-release with unknown availability — fail-open renders numeral", async ({ request }) => {
+    // Matrix (id 603) is absent from the mock JW responses → jwAvailable null
+    // → documented fail-open: pre=1 renders the normal poster with the numeral
+    // (no veil/ribbon). Coming Soon stacking is covered by unit tests with real
+    // ribbonLayout values (numberSharesComingSoonCorner), unreachable in e2e.
+    // rd is relative to today (never rendered): stable detection.
+    const rd = new Date(Date.now() - 30 * 24 * 3600 * 1000).toISOString().slice(0, 10)
+    const base = { genreName: "Action", voteAverage: "7.8", badges: "1", ranking: "1", rank: "3", label: "Top 3", rs: "number", title: "Matrix", rd }
+    const preRes = await request.get(posterUrl({ ...base, pre: "1" }, "movie", 603))
+    expect(preRes.ok()).toBeTruthy()
+    const preBuffer = await preRes.body()
+    expect(preBuffer.length).toBeGreaterThan(1000)
+    const plainRes = await request.get(posterUrl(base, "movie", 603))
+    expect(plainRes.ok()).toBeTruthy()
+    expect(Buffer.compare(preBuffer, await plainRes.body())).toBe(0)
+    // side=right specchia comunque il numerale (stesso switch del nastro).
+    const rightRes = await request.get(posterUrl({ ...base, pre: "1", side: "right" }, "movie", 603))
+    expect(rightRes.ok()).toBeTruthy()
+    expect(Buffer.compare(preBuffer, await rightRes.body())).not.toBe(0)
+  })
+
+  test("quality style: knockout with verified Dolby — stacked group differs from formats=none", async ({ request }) => {
+    // tt0068646 (The Godfather) is in the local AV specs DB with 4K +
+    // dv/atmos: quality tier AND formats are verified data, no override.
+    const withDolby = posterUrl({ genreName: "Action", voteAverage: "7.8", badges: "1", ranking: "0", imdbId: "tt0068646", qbs: "knockout" })
+    const resDolby = await request.get(withDolby)
+    expect(resDolby.ok()).toBeTruthy()
+    const bufDolby = await resDolby.body()
+    expect(bufDolby.length).toBeGreaterThan(1000)
+    // formats=none filters every verified format out: lone knockout tag.
+    const noFormats = posterUrl({ genreName: "Action", voteAverage: "7.8", badges: "1", ranking: "0", imdbId: "tt0068646", qbs: "knockout", formats: "none" })
+    const resNone = await request.get(noFormats)
+    expect(resNone.ok()).toBeTruthy()
+    const bufNone = await resNone.body()
+    expect(bufNone.length).toBeGreaterThan(1000)
+    // Vertical stack (tier tag on top, Dolby below) vs lone tag: different bytes.
+    expect(Buffer.compare(bufDolby, bufNone)).not.toBe(0)
+  })
+
+  test("quality style: knockout without Dolby — lone tag differs from standard", async ({ request }) => {
+    // Avatar has no AV specs entry: no Dolby possible, tier via override.
+    const ko = posterUrl({ genreName: "Action", voteAverage: "7.8", badges: "1", ranking: "0", quality: "4K", qbs: "knockout" })
+    const resKo = await request.get(ko)
+    expect(resKo.ok()).toBeTruthy()
+    const bufKo = await resKo.body()
+    expect(bufKo.length).toBeGreaterThan(1000)
+    const std = posterUrl({ genreName: "Action", voteAverage: "7.8", badges: "1", ranking: "0", quality: "4K", qbs: "standard" })
+    const resStd = await request.get(std)
+    expect(resStd.ok()).toBeTruthy()
+    const bufStd = await resStd.body()
+    // Knockout tag is never the standard pill.
+    expect(Buffer.compare(bufKo, bufStd)).not.toBe(0)
+  })
+
+  test("ranking corner + quality knockout together — valid image", async ({ request }) => {
+    // Opposite corners, no overlap: top-left rank pill, top-right quality.
+    const url = posterUrl({ genreName: "Action", voteAverage: "7.8", badges: "1", ranking: "1", rank: "4", label: "Top 4", rs: "corner", quality: "4K", qbs: "knockout" })
+    const res = await request.get(url)
+    expect(res.ok()).toBeTruthy()
+    const buffer = await res.body()
+    expect(buffer.length).toBeGreaterThan(1000)
+  })
+
   test("ranking badge (removed bar style degrades to default) — valid image", async ({ request }) => {
     // Stile "bar" rimosso: ?rs=bar degrada a default senza 400.
     const url = posterUrl({ genreName: "Action", voteAverage: "7.8", badges: "1", ranking: "1", rank: "3", label: "Top 3", rs: "bar" })
@@ -322,6 +415,33 @@ test.describe("poster API — functional", () => {
     expect(res.ok()).toBeTruthy()
     const buffer = await res.body()
     expect(buffer.length).toBeGreaterThan(1000)
+  })
+
+  test("extra corner: new season — valid image", async ({ request }) => {
+    // No rank number: the extra label takes the corner anchor (top-left).
+    const url = posterUrl({ genreName: "Action", voteAverage: "7.8", badges: "1", ranking: "1", extra: "Nuova stagione S2", rs: "corner" })
+    const res = await request.get(url)
+    expect(res.ok()).toBeTruthy()
+    const buffer = await res.body()
+    expect(buffer.length).toBeGreaterThan(1000)
+  })
+
+  test("extra corner: returning series — valid image", async ({ request }) => {
+    const url = posterUrl({ genreName: "Action", voteAverage: "7.8", badges: "1", ranking: "1", extra: "Serie in corso", rs: "corner" })
+    const res = await request.get(url)
+    expect(res.ok()).toBeTruthy()
+    const buffer = await res.body()
+    expect(buffer.length).toBeGreaterThan(1000)
+  })
+
+  test("extra corner differs from extra default (same label)", async ({ request }) => {
+    const corner = posterUrl({ genreName: "Action", voteAverage: "7.8", badges: "1", ranking: "1", extra: "Nuova stagione S2", rs: "corner" })
+    const def = posterUrl({ genreName: "Action", voteAverage: "7.8", badges: "1", ranking: "1", extra: "Nuova stagione S2", rs: "default" })
+    const resCorner = await request.get(corner)
+    const resDef = await request.get(def)
+    expect(resCorner.ok()).toBeTruthy()
+    expect(resDef.ok()).toBeTruthy()
+    expect(Buffer.compare(await resCorner.body(), await resDef.body())).not.toBe(0)
   })
 
   test("gradient height — valid image", async ({ request }) => {
@@ -562,6 +682,56 @@ test.describe("poster API — visual regression", () => {
     await expect(poster).toHaveScreenshot("poster-ranking-default.png", { maxDiffPixelRatio: 0.10 })
   })
 
+  test("ranking corner — screenshot", async ({ page }) => {
+    const url = posterUrl({ genreName: "Action", voteAverage: "7.8", badges: "1", ranking: "1", rank: "4", label: "Today", rs: "corner" })
+    const poster = await renderPoster(page, url)
+    await expect(poster).toHaveScreenshot("poster-ranking-corner.png", { maxDiffPixelRatio: 0.10 })
+  })
+
+  test("ranking number — screenshot", async ({ page }) => {
+    // Avatar is #1 in the mock JW chart: the numeral shows the trendRank
+    // (not the query rank). The 20th Century network mark from the mocks stays
+    // in the corner: it used to sit above the pill and now sits below the
+    // numeral (corner-shared collision stacking).
+    const url = posterUrl({ genreName: "Action", voteAverage: "7.8", badges: "1", ranking: "1", rank: "1", label: "Today", rs: "number" })
+    const poster = await renderPoster(page, url)
+    await expect(poster).toHaveScreenshot("poster-ranking-number.png", { maxDiffPixelRatio: 0.10 })
+  })
+
+  test("ranking number two digits + quality — screenshot", async ({ page }) => {
+    // Matrix is off-chart: the explicit two-digit rank applies (details stay
+    // the Avatar fixture — the mock ignores the id — like the netflix test).
+    // 4K quality badge via override in the opposite corner (no overlap).
+    const url = posterUrl({ genreName: "Action", voteAverage: "7.8", badges: "1", ranking: "1", rank: "12", label: "Today", rs: "number", quality: "4K" }, "movie", 603)
+    const poster = await renderPoster(page, url)
+    await expect(poster).toHaveScreenshot("poster-ranking-number-quality.png", { maxDiffPixelRatio: 0.10 })
+  })
+
+  test("ranking number right side + quality — screenshot", async ({ page }) => {
+    // side=right mirrors the numeral into the top-right corner (same switch
+    // as the ribbon, without ribbon). The 4K quality badge translociates left
+    // below the network mark instead of overlapping the bare digits.
+    const url = posterUrl({ genreName: "Action", voteAverage: "7.8", badges: "1", ranking: "1", rank: "3", label: "Today", rs: "number", side: "right", quality: "4K" }, "movie", 603)
+    const poster = await renderPoster(page, url)
+    await expect(poster).toHaveScreenshot("poster-ranking-number-right.png", { maxDiffPixelRatio: 0.10 })
+  })
+
+  test("ranking corner + quality knockout — screenshot", async ({ page }) => {
+    // Verified Dolby fixture (tt0068646: 4K + dv/atmos in the AV specs DB),
+    // so the baseline shows the real vertical stack (baseline lands at the final visual gate).
+    const url = posterUrl({ genreName: "Action", voteAverage: "7.8", badges: "1", ranking: "1", rank: "4", label: "Today", rs: "corner", imdbId: "tt0068646", qbs: "knockout" })
+    const poster = await renderPoster(page, url)
+    await expect(poster).toHaveScreenshot("poster-ranking-corner-quality-knockout.png", { maxDiffPixelRatio: 0.10 })
+  })
+
+  test("quality knockout without Dolby (formats=none) — screenshot", async ({ page }) => {
+    // Same verified title with every format filtered out: lone knockout tag,
+    // proving the cutout without the Dolby stack.
+    const url = posterUrl({ genreName: "Action", voteAverage: "7.8", badges: "1", ranking: "0", imdbId: "tt0068646", qbs: "knockout", formats: "none" })
+    const poster = await renderPoster(page, url)
+    await expect(poster).toHaveScreenshot("poster-quality-knockout-none.png", { maxDiffPixelRatio: 0.10 })
+  })
+
   test("anime ranking (netflix ribbon) — screenshot", async ({ page }) => {
     // media_type=tv + id 19995 (Avatar) nella MDBList anime mockata → animeRankResult=1.
     // Il mock MDBList anime (mock-server.mjs) mette Avatar in posizione #1.
@@ -582,6 +752,18 @@ test.describe("poster API — visual regression", () => {
     const url = posterUrl({ genreName: "Action", voteAverage: "7.8", badges: "1", ranking: "1", extra: "Oscar 2024" })
     const poster = await renderPoster(page, url)
     await expect(poster).toHaveScreenshot("poster-extra.png", { maxDiffPixelRatio: 0.10 })
+  })
+
+  test("extra corner new season — screenshot", async ({ page }) => {
+    const url = posterUrl({ genreName: "Action", voteAverage: "7.8", badges: "1", ranking: "1", extra: "Nuova stagione S2", rs: "corner" })
+    const poster = await renderPoster(page, url)
+    await expect(poster).toHaveScreenshot("poster-extra-corner-new-season.png", { maxDiffPixelRatio: 0.10 })
+  })
+
+  test("extra corner returning series — screenshot", async ({ page }) => {
+    const url = posterUrl({ genreName: "Action", voteAverage: "7.8", badges: "1", ranking: "1", extra: "Serie in corso", rs: "corner" })
+    const poster = await renderPoster(page, url)
+    await expect(poster).toHaveScreenshot("poster-extra-corner-returning.png", { maxDiffPixelRatio: 0.10 })
   })
 
   test("gradient height — screenshot", async ({ page }) => {
@@ -633,6 +815,37 @@ test.describe("poster API — visual regression", () => {
     await expect(poster).toHaveScreenshot("poster-landscape-rank.png", { maxDiffPixelRatio: 0.10 })
   })
 
+  test("landscape corner rank with title logo — screenshot", async ({ page }) => {
+    // Stile corner in 16:9 col logo titolo (default di formato): la pill
+    // corner resta all'angolo e il mark network (20th Century Studios dai
+    // mock, asset built-in) sta sopra la zona titolo invece che in alto a
+    // sinistra. Il centraggio esatto sul box titolo è coperto dai pixel-test
+    // `landscape-corner-network` (col mock il logo è invisibile: stessa art
+    // del backdrop). NOTA: `align=center` in query non sposta nulla in e2e
+    // (da indagare nel plumbing preview/queryPoster) — non forzato qui.
+    const url = posterUrl({ backdrop: "/mocked/backdrop.jpg", logo: "/mocked/logo.png", shape: "landscape", genreName: "Action", voteAverage: "7.8", badges: "1", ranking: "1", rank: "3", label: "Top 3", rs: "corner" })
+    const poster = await renderPoster(page, url)
+    await expect(poster).toHaveScreenshot("poster-landscape-corner-title.png", { maxDiffPixelRatio: 0.10 })
+  })
+
+  test("landscape corner extra with title, Cinematic Left — screenshot", async ({ page }) => {
+    // Extra corner + titolo a sinistra: il mark network segue il centro del
+    // titolo, non l'angolo né il centro canvas.
+    const url = posterUrl({ backdrop: "/mocked/backdrop.jpg", logo: "/mocked/logo.png", shape: "landscape", genreName: "Action", voteAverage: "7.8", badges: "1", ranking: "1", extra: "Nuova stagione S2", rs: "corner", align: "left" })
+    const poster = await renderPoster(page, url)
+    await expect(poster).toHaveScreenshot("poster-landscape-corner-title-left.png", { maxDiffPixelRatio: 0.10 })
+  })
+
+  test("colored + corner on explicit teal accent — white text priority — screenshot", async ({ page }) => {
+    // Tinta Tuner ~#4a9daa via override pubblico `ac` (deterministico, nessun
+    // hardcode di produzione): su questo teal il bianco resta leggibile
+    // (3.1:1, testi large/bold) e vince sul nero — pill corner e badge
+    // colored mostrano testo bianco.
+    const url = posterUrl({ genreName: "Action", voteAverage: "7.8", badges: "1", ranking: "1", rank: "4", label: "Oggi", bs: "colored", rs: "corner", ac: "#4a9daa" })
+    const poster = await renderPoster(page, url)
+    await expect(poster).toHaveScreenshot("poster-corner-teal-white-text.png", { maxDiffPixelRatio: 0.10 })
+  })
+
   test("landscape bakes the logo, genre badge bottom-right - screenshot", async ({ page }) => {
     // Layout landscape con logo baked-in (coi vincoli 16:9) e badge genere
     // a destra: il logo passato via query finisce nel composite.
@@ -645,8 +858,10 @@ test.describe("poster API — visual regression", () => {
     // Colonna a destra con logo sopra / punteggio sotto (IMDb 8.7, TMDB 7.9,
     // 88%), badge genere senza segmento ★. Soglia 0.02 (non 0.10): il mock è
     // deterministico e un flip di scala/polarità muove il 7-12% dei pixel —
-    // con 0.10 passerebbe inosservato (mai allentare).
-    const url = posterUrl({ genreName: "Action", voteAverage: "7.8", badges: "1", ranking: "0", imdbId: "tt0133093", sep: "1", rsrc: "imdb,tmdb,tomatoes", quality: "4K" })
+    // con 0.10 passerebbe inosservato (mai allentare). gradHeight/bf espliciti
+    // ai code default portrait (30/50): come nel test landscape, i default
+    // salvati non devono poter spostare il render.
+    const url = posterUrl({ genreName: "Action", voteAverage: "7.8", badges: "1", ranking: "0", imdbId: "tt0133093", sep: "1", rsrc: "imdb,tmdb,tomatoes", quality: "4K", gradHeight: "30", bf: "50" })
     const poster = await renderPoster(page, url)
     await expect(poster).toHaveScreenshot("poster-separate-ratings.png", { maxDiffPixelRatio: 0.02 })
   })
@@ -660,8 +875,11 @@ test.describe("poster API — visual regression", () => {
 
   test("separate ratings column in landscape (average replaced) — screenshot", async ({ page }) => {
     // La colonna segue il badge qualità anche in 16:9 (il badge genere
-    // nasconde il segmento ★ come in portrait).
-    const url = posterUrl({ backdrop: "/mocked/backdrop.jpg", shape: "landscape", genreName: "Action", voteAverage: "7.8", badges: "1", ranking: "0", imdbId: "tt0133093", sep: "1", rsrc: "imdb,tmdb,tomatoes" })
+    // nasconde il segmento ★ come in portrait). gradHeight/bf espliciti ai
+    // code default landscape (20/70): i default salvati (echo di fabbrica
+    // 30/50 via autosave) li adombrerebbero altrimenti in modo
+    // stato-dipendente (stesso motivo dei baseline aggiornati in P4).
+    const url = posterUrl({ backdrop: "/mocked/backdrop.jpg", shape: "landscape", genreName: "Action", voteAverage: "7.8", badges: "1", ranking: "0", imdbId: "tt0133093", sep: "1", rsrc: "imdb,tmdb,tomatoes", gradHeight: "20", bf: "70" })
     const poster = await renderPoster(page, url)
     await expect(poster).toHaveScreenshot("poster-separate-ratings-landscape.png", { maxDiffPixelRatio: 0.02 })
   })

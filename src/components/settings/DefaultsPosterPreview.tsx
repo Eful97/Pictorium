@@ -4,19 +4,67 @@ import { useEffect, useRef, useState } from "react"
 import { ImageOff, RefreshCw, Sparkles } from "lucide-react"
 import { usePosterEditor } from "@/lib/contexts/PosterEditorContext"
 import { useT } from "@/lib/contexts/TranslationContext"
-import { buildDefaultsPreviewUrl } from "@/lib/poster-url"
+import { buildDefaultsPreviewUrl, type DefaultsPreviewDemoMedia, type DefaultsPreviewFamily } from "@/lib/poster-url"
+import { DEFAULT_SASH_ORDER, type SashBucket } from "@/lib/badge-priority"
 import { usePSelector } from "@/lib/context"
+import { getRegionDef } from "@/lib/regions"
+import { Modal } from "@/components/ui/Modal"
+import { DefaultsPreviewTitleSearch } from "@/components/settings/DefaultsPreviewTitleSearch"
 
 interface DefaultsPosterPreviewProps {
-  /** Modalità compatta per mobile sopra i controlli. */
+  /** Compact mode for mobile above the controls. */
   compact?: boolean
+  /** Preview-only shape (Horizontal tab): wins over the persisted
+   *  `defaultPosterShape` without modifying it. Absent = follow the default. */
+  previewShape?: "portrait" | "landscape" | null
+  /** Preview-only demo title (default Avatar): only changes the preview
+   *  `{type}/{id}` path, never mapping/default/shape. Lifted to SettingsPanel
+   *  so the selection survives desktop/mobile switches (a single responsive
+   *  instance is mounted at a time). */
+  demoMedia?: DefaultsPreviewDemoMedia | null
+  onDemoMediaChange?: (m: DefaultsPreviewDemoMedia | null) => void
+  /** Preview-only editing family (owned by SettingsPanel): narrows the sample
+   *  to what the user is editing without touching saved defaults. Absent =
+   *  `auto` (effective saved priority). */
+  previewFamily?: DefaultsPreviewFamily | null
+  /** Reset callback (owned by SettingsPanel): the chip offers a return to the
+   *  full `auto` preview — preview-only, never writes defaults. */
+  onPreviewFamilyChange?: (f: DefaultsPreviewFamily) => void
 }
 
-export function DefaultsPosterPreview({ compact }: DefaultsPosterPreviewProps) {
+/**
+ * Preview-only sample label per informational sash bucket (Informazioni
+ * family): existing badge keys, resolved server-side in the request language
+ * via the `extra=` path — no new translations, no new fetch, real data still
+ * wins everywhere else (only the top badge is forced, exactly like an editor
+ * custom badge, and only while this family is edited).
+ */
+const INFO_FAMILY_SAMPLE_KEY: Record<SashBucket, string | null> = {
+  upcoming: "__badge.comingSoon",
+  rank: null,
+  new: "__badge.newMovie",
+  award: "__badge.absoluteCinema",
+  extra: "__badge.trending",
+}
+
+/** Family chip label: every family reuses an existing i18n key. */
+const PREVIEW_FAMILY_LABEL_KEY: Record<DefaultsPreviewFamily, string> = {
+  auto: "ui.previewEditingAuto",
+  rank: "ui.rankFamily",
+  info: "ui.titleInfoFamily",
+  genre: "ui.genreRatingBadge",
+  ratings: "ui.ratingsFamily",
+  quality: "ui.badgeQuality",
+  logo: "ui.logoSection",
+  gradient: "ui.blurSection",
+}
+
+export function DefaultsPosterPreview({ compact, previewShape, demoMedia, onDemoMediaChange, previewFamily, onPreviewFamilyChange }: DefaultsPosterPreviewProps) {
   const ed = usePosterEditor()
   const { t, lang } = useT()
   const tmdbKey = usePSelector((v) => v.tmdbKey)
   const userId = usePSelector((v) => v.currentUserId)
+  const serverHasTmdbKey = usePSelector((v) => v.serverHasTmdbKey)
 
   const [debouncedUrl, setDebouncedUrl] = useState("")
   const [imgSrc, setImgSrc] = useState("")
@@ -25,6 +73,7 @@ export function DefaultsPosterPreview({ compact }: DefaultsPosterPreviewProps) {
   const [loadProgress, setLoadProgress] = useState(0)
   const [imageError, setImageError] = useState(false)
   const [retryNonce, setRetryNonce] = useState(0)
+  const [zoomed, setZoomed] = useState(false)
 
   const xhrRef = useRef<XMLHttpRequest | null>(null)
   const loadDelayRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -32,12 +81,34 @@ export function DefaultsPosterPreview({ compact }: DefaultsPosterPreviewProps) {
   const shownRef = useRef("")
   const lastProgressRef = useRef(-1)
 
+  const demoTitle = demoMedia?.title?.trim() ? demoMedia.title.trim() : "Avatar"
+  const searchLanguage = getRegionDef(ed.defaultRegion).lang
+
+  // Previewed shape mirrors the builder rule (`land ?? flat` only applies in
+  // landscape): portrait always reads the shared flats.
+  const previewIsLandscape =
+    previewShape === "landscape" || (previewShape == null && ed.defaultPosterShape === "landscape")
+  // Effective sash + master for the previewed shape (same rule as the
+  // builder): drives the info-family sample only, never persisted.
+  const effPreviewSashForFamily =
+    (previewIsLandscape ? ed.landscape.sashOrder : undefined) ?? ed.defaultSashOrder ?? [...DEFAULT_SASH_ORDER]
+  const effPreviewRankingForFamily =
+    ((previewIsLandscape ? ed.landscape.rankingBadges : undefined) ?? ed.defaultRankingBadges) !== false
+  // First enabled informational bucket in saved priority order: no enabled
+  // info bucket (or master off) = no sample, never a phantom badge.
+  const infoSampleBucket =
+    previewFamily === "info" && effPreviewRankingForFamily
+      ? effPreviewSashForFamily.find((b) => b === "upcoming" || b === "new" || b === "award" || b === "extra")
+      : undefined
+  const previewExtra = infoSampleBucket ? INFO_FAMILY_SAMPLE_KEY[infoSampleBucket] : null
+
   // Calcolo URL con debounce a 200ms per non sovraccaricare il server durante lo scorrimento dei controlli
   useEffect(() => {
     const url = buildDefaultsPreviewUrl({
       tmdbKey,
       userId,
       lang,
+      demoMedia: demoMedia ?? null,
       defaultLogoScale: ed.defaultLogoScale,
       defaultLogoOffsetX: ed.defaultLogoOffsetX,
       defaultLogoOffsetY: ed.defaultLogoOffsetY,
@@ -52,6 +123,7 @@ export function DefaultsPosterPreview({ compact }: DefaultsPosterPreviewProps) {
       defaultRatingSources: ed.defaultRatingSources,
       defaultBadgeStyle: ed.defaultBadgeStyle,
       defaultRankingBadgeStyle: ed.defaultRankingBadgeStyle,
+      defaultExtraBadgeStyle: ed.defaultExtraBadgeStyle,
       defaultBadgeFont: ed.defaultBadgeFont,
       defaultQualityBadgeStyle: ed.defaultQualityBadgeStyle,
       defaultVideoFormats: ed.defaultVideoFormats,
@@ -72,6 +144,8 @@ export function DefaultsPosterPreview({ compact }: DefaultsPosterPreviewProps) {
       defaultQualityBadgeOffsetX: ed.defaultQualityBadgeOffsetX,
       defaultQualityBadgeOffsetY: ed.defaultQualityBadgeOffsetY,
       defaultSeparateBadgeScale: ed.defaultSeparateBadgeScale,
+      defaultSeparateBadgeOffsetX: ed.defaultSeparateBadgeOffsetX,
+      defaultSeparateBadgeOffsetY: ed.defaultSeparateBadgeOffsetY,
       defaultSeparateRatingsStyle: ed.defaultSeparateRatingsStyle,
       defaultNetworkLogoScale: ed.defaultNetworkLogoScale,
       defaultNetworkLogoOffsetX: ed.defaultNetworkLogoOffsetX,
@@ -84,6 +158,14 @@ export function DefaultsPosterPreview({ compact }: DefaultsPosterPreviewProps) {
       defaultLogoAlign: ed.defaultLogoAlign,
       defaultDateFormat: ed.defaultDateFormat,
       defaultRegion: ed.defaultRegion,
+      // Profilo Orizzontale live (stessi slider del Verticale): chiavi definite
+      // vincono sui flat SOLO con shape Orizzontale (regola `land ?? flat` nel
+      // builder). Nessun persist/mapping qui: sola lettura per la preview.
+      landscape: ed.landscape,
+      previewShape: previewShape ?? null,
+      defaultSashOrder: ed.defaultSashOrder,
+      previewFamily: previewFamily ?? null,
+      previewExtra,
     })
 
     const timer = setTimeout(() => {
@@ -95,6 +177,7 @@ export function DefaultsPosterPreview({ compact }: DefaultsPosterPreviewProps) {
     tmdbKey,
     userId,
     lang,
+    demoMedia,
     ed.defaultLogoScale,
     ed.defaultLogoOffsetX,
     ed.defaultLogoOffsetY,
@@ -109,6 +192,7 @@ export function DefaultsPosterPreview({ compact }: DefaultsPosterPreviewProps) {
     ed.defaultRatingSources,
     ed.defaultBadgeStyle,
     ed.defaultRankingBadgeStyle,
+    ed.defaultExtraBadgeStyle,
     ed.defaultBadgeFont,
     ed.defaultQualityBadgeStyle,
     ed.defaultVideoFormats,
@@ -129,6 +213,8 @@ export function DefaultsPosterPreview({ compact }: DefaultsPosterPreviewProps) {
     ed.defaultQualityBadgeOffsetX,
     ed.defaultQualityBadgeOffsetY,
     ed.defaultSeparateBadgeScale,
+    ed.defaultSeparateBadgeOffsetX,
+    ed.defaultSeparateBadgeOffsetY,
     ed.defaultSeparateRatingsStyle,
     ed.defaultNetworkLogoScale,
     ed.defaultNetworkLogoOffsetX,
@@ -141,6 +227,11 @@ export function DefaultsPosterPreview({ compact }: DefaultsPosterPreviewProps) {
     ed.defaultLogoAlign,
     ed.defaultDateFormat,
     ed.defaultRegion,
+    ed.defaultSashOrder,
+    ed.landscape,
+    previewShape,
+    previewFamily,
+    previewExtra,
     retryNonce,
   ])
 
@@ -252,7 +343,85 @@ export function DefaultsPosterPreview({ compact }: DefaultsPosterPreviewProps) {
     }
   }, [])
 
-  const isLandscape = ed.defaultPosterShape === "landscape"
+  // Aspect conforme all'URL (stessa shape effettiva del builder): switch
+  // immediato, senza mixing durante il debounce (l'immagine precedente resta
+  // in buffer finché la nuova non è pronta).
+  const isLandscape = previewShape === "landscape" || (previewShape == null && ed.defaultPosterShape === "landscape")
+
+  // Accessible zoom (shared Modal: focus trap, Escape, backdrop, focus/scroll
+  // restore): overlay above the settings dialog (z-[80]). A second click on
+  // the enlarged image closes (restore) with no layout shift underneath
+  // (Modal locks scroll in a portal).
+  const zoomModal = (
+    <Modal
+      isOpen={zoomed}
+      onClose={() => setZoomed(false)}
+      labelledBy="defaults-preview-zoom-title"
+      overlayClassName="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-fade-in"
+      className="max-w-3xl text-center"
+    >
+      <h3 id="defaults-preview-zoom-title" className="sr-only">{demoTitle}</h3>
+      {imgSrc ? (
+        <button
+          type="button"
+          onClick={() => setZoomed(false)}
+          aria-label={t("ui.defaultsPreviewZoomClose")}
+          className="block w-full cursor-zoom-out"
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={imgSrc}
+            alt={demoTitle}
+            className="mx-auto max-h-[78dvh] w-auto max-w-full object-contain rounded-xl"
+          />
+        </button>
+      ) : null}
+    </Modal>
+  )
+
+  const editingFamily: DefaultsPreviewFamily = previewFamily ?? "auto"
+  // "What am I editing" chip: always visible (compact mobile included), text
+  // only — never moves focus, never unmounts controls. A small reset button
+  // appears while a family is targeted so the full `auto` preview is one
+  // click away (preview-only: it only lifts "auto" to the owner).
+  const editingChip = (
+    <div className="w-full flex justify-center [@media(max-height:760px)]:order-2">
+      <span
+        data-testid="defaults-preview-editing"
+        title={t("ui.previewEditingHint")}
+        className="inline-flex max-w-full items-center gap-1 rounded-full bg-accent-orange/15 border border-accent-orange/30 text-accent-orange text-[10px] font-semibold px-2 py-0.5 truncate"
+      >
+        <span className="truncate">
+          {t("ui.previewEditingNow")}:{" "}
+          {isLandscape ? t("ui.posterShapeLandscape") : t("ui.posterShapePortrait")} ·{" "}
+          {t(PREVIEW_FAMILY_LABEL_KEY[editingFamily])}
+        </span>
+        {editingFamily !== "auto" && onPreviewFamilyChange && (
+          <button
+            type="button"
+            data-testid="defaults-preview-reset-family"
+            onClick={() => onPreviewFamilyChange("auto")}
+            aria-label={t("ui.reset")}
+            title={t("ui.previewEditingHint")}
+            className="shrink-0 ml-1 underline decoration-dotted underline-offset-2 hover:text-white transition-colors cursor-pointer"
+          >
+            {"× "}
+            {t(PREVIEW_FAMILY_LABEL_KEY.auto)}
+          </button>
+        )}
+      </span>
+    </div>
+  )
+
+  const searchRow = (
+    <DefaultsPreviewTitleSearch
+      tmdbKey={tmdbKey}
+      hasServerKey={serverHasTmdbKey}
+      language={searchLanguage}
+      demoMedia={demoMedia ?? null}
+      onDemoMediaChange={(m) => onDemoMediaChange?.(m)}
+    />
+  )
 
   if (compact) {
     return (
@@ -263,9 +432,10 @@ export function DefaultsPosterPreview({ compact }: DefaultsPosterPreviewProps) {
             <span>{t("ui.defaultsPreviewTitle")}</span>
           </div>
           <span className="text-[10px] text-zinc-400 font-mono">
-            {t("ui.defaultsPreviewSubtitle")}
+            {demoMedia?.title ? demoTitle : t("ui.defaultsPreviewSubtitle")}
           </span>
         </div>
+        {editingChip}
 
         <div className="flex justify-center">
           <div className={`relative select-none bg-zinc-950/80 rounded-xl overflow-hidden shadow-inner border border-white/10 ${
@@ -291,13 +461,21 @@ export function DefaultsPosterPreview({ compact }: DefaultsPosterPreviewProps) {
             )}
 
             {imgSrc ? (
-              /* eslint-disable-next-line @next/next/no-img-element */
-              <img
-                src={imgSrc}
-                alt="Avatar"
-                onLoad={handleImgLoad}
-                className={`absolute inset-0 w-full h-full transition-opacity duration-150 ${isLandscape ? "object-contain" : "object-cover"}`}
-              />
+              <button
+                type="button"
+                onClick={() => setZoomed(true)}
+                aria-label={t("ui.defaultsPreviewZoomOpen")}
+                aria-expanded={zoomed}
+                className="absolute inset-0 w-full h-full cursor-zoom-in"
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={imgSrc}
+                  alt={demoTitle}
+                  onLoad={handleImgLoad}
+                  className={`absolute inset-0 w-full h-full transition-opacity duration-150 ${isLandscape ? "object-contain" : "object-cover"}`}
+                />
+              </button>
             ) : (
               <div className="absolute inset-0 bg-surface2/40 animate-pulse" />
             )}
@@ -318,23 +496,32 @@ export function DefaultsPosterPreview({ compact }: DefaultsPosterPreviewProps) {
             )}
           </div>
         </div>
+        {searchRow}
+        <p className="text-[10px] text-amber-200/70 text-center mt-2 px-2 select-none leading-relaxed">
+          {t("ui.defaultsPreviewSamplesNotice")}
+        </p>
+        {zoomModal}
       </div>
     )
   }
 
   return (
     <div className="w-full flex flex-col items-center bg-surface/40 border border-surface2/60 rounded-2xl p-4 shadow-md">
-      <div className="w-full flex items-center justify-between mb-3 px-1">
+      <div className="w-full flex items-center justify-between mb-3 px-1 [@media(max-height:760px)]:order-1">
         <div className="flex items-center gap-1.5 text-xs font-semibold text-zinc-200">
           <Sparkles className="w-3.5 h-3.5 text-accent-orange" />
           <span>{t("ui.defaultsPreviewTitle")}</span>
         </div>
         <span className="text-[10px] text-zinc-400 font-mono">
-          {t("ui.defaultsPreviewSubtitle")}
+          {demoMedia?.title ? demoTitle : t("ui.defaultsPreviewSubtitle")}
         </span>
       </div>
+      {editingChip}
+      <p className="text-[10px] text-zinc-500 text-center mt-1.5 px-2 select-none leading-relaxed [@media(max-height:760px)]:order-4">
+        {t("ui.previewEditingHint")}
+      </p>
 
-      <div className={`relative select-none bg-zinc-950/90 rounded-2xl overflow-hidden shadow-2xl border border-white/10 w-full ${
+      <div className={`relative select-none bg-zinc-950/90 rounded-2xl overflow-hidden shadow-2xl border border-white/10 w-full [@media(max-height:760px)]:order-3 ${
         isLandscape ? "aspect-video" : "aspect-[2/3] max-w-[calc(58dvh_-_200px)]"
       }`}>
         {previewLoading && (
@@ -364,13 +551,21 @@ export function DefaultsPosterPreview({ compact }: DefaultsPosterPreviewProps) {
         )}
 
         {imgSrc ? (
-          /* eslint-disable-next-line @next/next/no-img-element */
-          <img
-            src={imgSrc}
-            alt="Avatar"
-            onLoad={handleImgLoad}
-            className={`absolute inset-0 w-full h-full transition-opacity duration-150 ${isLandscape ? "object-contain" : "object-cover"}`}
-          />
+          <button
+            type="button"
+            onClick={() => setZoomed(true)}
+            aria-label={t("ui.defaultsPreviewZoomOpen")}
+            aria-expanded={zoomed}
+            className="absolute inset-0 w-full h-full cursor-zoom-in"
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={imgSrc}
+              alt={demoTitle}
+              onLoad={handleImgLoad}
+              className={`absolute inset-0 w-full h-full transition-opacity duration-150 ${isLandscape ? "object-contain" : "object-cover"}`}
+            />
+          </button>
         ) : (
           <div className="absolute inset-0 bg-surface2/40 animate-pulse flex items-center justify-center">
             <span className="w-5 h-5 rounded-full border-2 border-accent-orange/40 border-t-accent-orange animate-spin" />
@@ -394,7 +589,15 @@ export function DefaultsPosterPreview({ compact }: DefaultsPosterPreviewProps) {
         )}
       </div>
 
-      <p className="text-[10px] text-zinc-500 text-center mt-2.5 px-2 select-none leading-relaxed">
+      <div className="w-full [@media(max-height:760px)]:order-2">
+        {searchRow}
+      </div>
+      <p className="text-[10px] text-amber-200/70 text-center mt-2 px-2 select-none leading-relaxed [@media(max-height:760px)]:order-4">
+        {t("ui.defaultsPreviewSamplesNotice")}
+      </p>
+      {zoomModal}
+
+      <p className="text-[10px] text-zinc-500 text-center mt-2.5 px-2 select-none leading-relaxed [@media(max-height:760px)]:order-5">
         {t("ui.settingsGlobalDesc")}
       </p>
     </div>

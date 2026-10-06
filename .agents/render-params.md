@@ -57,7 +57,7 @@ ombra trasparente `TOP_SHADOW_PAD=14`):
 | Stili badge (`badgeStyle`) | `shadow` — textShadow; `minimal` — separatore pipe `|` + textShadow discreto (1px); `pill` — gradiente satinato `satinPillStops(bottomLight)` + stroke adattivo 1.5px (`bottomLight ? black 0.12 : white 0.22`, come quality/bar) + testo ad alto contrasto (`bottomLight ? 0.95 white : 0.88 black`) + ombra 3D singola + padding simmetrico 14; `bar` — gradiente satinato `satinPillStops(bottomLight)` full-width (polarità del fondo) + bordo profilo 1.5px adattivo + testo ad alto contrasto (`bottomLight ? 0.95 white : 0.88 black`), nessuna ombra esterna; `colored` — bg tinta di scena same-hue (bottom per genere, top per ranking; `ac=` vince) + testo adattivo (pill piatta, niente satinatura); `bordo` — rect arrotondato con bordo 2px + stroke calibrato + bg fumé (`bottomLight ? 0.06 : 0.08`) + testo adattivo (`bottomLight ? dark : #e5e7eb`, come vetro); `vetro` — vetro liquido iOS (gradiente multi-stop + bordo 1.5px, stesso box model e dimensioni identiche al bordo: padding e rect coincidenti) + testo adattivo come bordo |
 | Sfondo pill/bar | bar (`buildGenreBarSvg`) = gradiente satinato `satinPillStops(bottomLight)` full-width + bordo profilo 1.5px adattivo + ombra 3D singola (code tagliate = bordo poster, invisibili); pill genere = gradiente satinato `satinPillStops(bottomLight)` (polarità del fondo, non del top) + ombra 3D singola + padding simmetrico 14 (colored inclusa: tinta piatta + ombra); pill ranking/extra = `satinPillStops(topLight)` |
 | Posizione Y unificata | Box model normalizzato: zero salti di baseline tra stili (`genreStyleShiftY` rimosso); altezza uniforme `badgeBoxHeight(fs)`; la riga multi-rating segue sopra il badge |
-| Testo pill/bar | bar = ad alto contrasto `bottomLight ? "rgba(255,255,255,0.95)" : "rgba(0,0,0,0.88)"` (su fondi chiari la barra diventa grafite scura, come la pill); pill genere/ranking/extra = ad alto contrasto (`bottomLight`/`topLight ? 0.95 white : 0.88 black`, come quality); nastro Netflix e riga multi-rating restano `0.80` (hanno textShadow dedicato); pill colored resta tinta piatta + `textColorForBg` |
+| Testo pill/bar | bar = ad alto contrasto `bottomLight ? "rgba(255,255,255,0.95)" : "rgba(0,0,0,0.88)"` (su fondi chiari la barra diventa grafite scura, come la pill); pill genere/ranking/extra = ad alto contrasto (`bottomLight`/`topLight ? 0.95 white : 0.88 black`, come quality); nastro Netflix e riga multi-rating restano `0.80` (hanno textShadow dedicato); pill colored resta tinta piatta + `textColorForBg` (preferenza visiva bianco mentre il contrasto effettivo resta ≥2:1, non soglia WCAG — es. `#E67E22` bianco 2.9 vs nero 5.9 → bianco; fondi troppo chiari/gialli restano neri) |
 | Stella voto | gradiente oro verticale `#FCD34D → #F59E0B` (`linearGradient#starg`) sul `tspan` stella; bullet `•` a opacità 0.45 (solo ingombro visivo, metriche invariate); stile `colored` su accent caldo (`isWarmGoldAccent`: hue 20-70, sat > 0.35): stella piatta in colore testo (l'oro annegherebbe) |
 | Bordo bar | profilo 1.5px adattivo (`bottomLight ? "rgba(0,0,0,0.12)" : "rgba(255,255,255,0.22)"`), come quality-badge; la vecchia `line` 1px `rgba(0,0,0,0.10)` è rimossa |
 | Box Model Unificato | Altezza scatola `badgeBoxHeight(fs) = fs + round(fs * 0.40) * 2` (`1.8 * fs`), padding X `round(fs * 0.75)`, ombra uniforme `badgeShadowBox(h)` (`blur = max(round(h * 0.20), 4), off = max(round(h * 0.10), 2)`) condiviso da tutti i badge centrati |
@@ -73,15 +73,15 @@ ombra trasparente `TOP_SHADOW_PAD=14`):
 | Border radius | `r = round(finalFontSize * 0.45)` per default (`RANKING_DEFAULT_RADIUS_FACTOR`: squadrata ma non a spigolo), `boxH / 2` per pill (lo stile `bar` del ranking è rimosso: `?rs=bar` degrada a default) |
 | Ombra | `default`/extra-default: ombra 3D singola stile nastro (`dx=3, dy=3, blur 3.5, 0.65`, solo contenitore) + padding `TOP_SHADOW_PAD=14` su lati/basso (in alto la placca resta a filo, altrimenti sembra staccata); `pill` ranking-extra: stesso filtro ma padding simmetrico 14 anche sopra (`boxH + 28`, `oy = PAD`) perché la pill è staccata di `pillTopGap` dal top — prima l'ombra superiore era tagliata; `badgeShadowBox` resta per stime overflow — `blur = max(round(boxH * 0.20), 4)`, `off = max(round(boxH * 0.10), 2)` dove ancora usato |
 | Sfondo | `default`/extra-default/`pill` — gradiente satinato `satinPillStops(topLight)` + bordo sagomato polarizzato 1.5px (`topLight ? "rgba(0,0,0,0.12)" : "rgba(255,255,255,0.22)"`) + ombra 3D singola sul contenitore, canvas = box + padding ombra (`totalW + 28 × boxH + 14`, filo in alto; `pill` invece `boxH + 28`, simmetrico); `netflix` — nastro satinato con stroke polarizzato come quality (`topLight ? black 0.12 : white 0.22`) e ombra 3D propria, testo `0.80` (ha textShadow dedicato); `colored` — tinta accent piatta + `textColorForBg` (lo stile `bar` del ranking è rimosso) |
-| Testo | `topLight ? "rgba(255,255,255,0.95)" : "rgba(0,0,0,0.88)"` (default/pill, come badge qualità); `colored` = `textColorForBg`; `vetro`/`bordo` traslucidi: adattivo inverso (`topLight ? dark : #e5e7eb`, come qualità/netflix ma sul vetro) |
+| Testo | `topLight ? "rgba(255,255,255,0.95)" : "rgba(0,0,0,0.88)"` (default/pill, come badge qualità); `colored` = `textColorForBg` (preferenza visiva bianco se contrasto effettivo ≥2:1, non soglia WCAG; non è una pretesa di contrasto massimo — su fondi chiari vince il nero); `vetro`/`bordo` traslucidi: adattivo inverso (`topLight ? dark : #e5e7eb`, come qualità/netflix ma sul vetro) |
 | Stabilizzazione testo | `textLength` + `lengthAdjust="spacingAndGlyphs"` sul `<text>` per evitare differenze metriche tra Windows/local e Linux/HF |
 | Overflow protection | Stessa formula con `pw - 20`, fattori `3.55` (ranking, include shadow) e `3.2` (extra); extra compatti cappati al 65% di `pw` (solo label oltre il cap si rimpiccioliscono) |
-| Posizione | Composito a `top: 0, left: round((pw - w) / 2)` (default/pill/colored); nastro Netflix a `left: 0` (Nuvio) o `left: STD_W - w` specchiato (Stremio, `side=right`); logo network segue a destra del nastro (`w + 10`) o a sinistra (`STD_W - w - 10 - logoW`) |
+| Posizione | Composito a `top: 0, left: round((pw - w) / 2)` (default/pill/colored); `corner` a `left: netPadX + tox`, `top: pillTopGap + toy` (alto-sx, rank ed extra: stesso anchor, il logo network in collisione impila sotto via `stackNetworkBelowCornerRank`); nastro Netflix a `left: 0` (Nuvio) o `left: STD_W - w` specchiato (Stremio, `side=right`); logo network segue a destra del nastro (`w + 10`) o a sinistra (`STD_W - w - 10 - logoW`) |
 | Scala badge superiore (`topBadgeScale`) | Resize bitmap dopo il render (tutti gli stili; la **barra genere** scala nativa via font per restare full-width), prima di `fitBadgeToCanvas`; `%` 10..200, default 100; entra nella `rankBadgeKey` |
 | Geometria staccata (`isDetached`) | Solo stili centrati (default/extra; il nastro resta ancorato) con `toy !== 0`: tutti e 4 gli angoli raccordati (`rx = r`) invece del tetto dritto; stesso box di render; entra nella `rankBadgeKey` come `detached` (bitmap diverso) |
 | Offset badge superiore (`topBadgeOffsetX/Y`) | Solo stili centrati: `left = center + tox`, `top = 0 + toy` (px, default 0) + `pillTopGap` per la pill (`+10` fisso dal bordo alto); il nastro resta ancorato; la matematica overlap usa `finalRankTop + h` |
 | Posizione badge qualità | Angolo in alto a destra, margini a box: box destro a `netPadX` dal bordo (`left = CW - netPadX - boxW - pad`, pad in scala), `top = padY - 10 + 5` (bitmap; box a +14 pad); con nastro Netflix a destra (Stremio) va a **sinistra** con box sinistro a `netPadX` (`left = netPadX - pad`) per non restargli accanto, impilato sotto il logo network se occupa il top-left (`top = netBottom + gap`, senza shift) |
-| Sfondo badge qualità | Gradiente satinato traslucido a polarità pill (`satinPillStops(topLight)`); altezza unificata `badgeBoxHeight(fs)`; bordo `topLight ? "rgba(0,0,0,0.12)" : "rgba(255,255,255,0.22)"` 1.5px; ombra 3D singola + padding simmetrico 14; testo invariato (`topLight ? "rgba(255,255,255,0.95)" : "rgba(0,0,0,0.88)"`) + crenatura `letter-spacing="0.06em"` (marchio tecnico; `textLength` pinnato su stima+tracking); font base `17 * pw / 380` (era `14`) |
+| Sfondo badge qualità | Gradiente satinato traslucido a polarità pill (`satinPillStops(topLight)`); altezza unificata `badgeBoxHeight(fs)`; bordo `topLight ? "rgba(0,0,0,0.12)" : "rgba(255,255,255,0.22)"` 1.5px; ombra 3D singola + padding simmetrico 14; testo invariato (`topLight ? "rgba(255,255,255,0.95)" : "rgba(0,0,0,0.88)"`) + crenatura `letter-spacing="0.06em"` (marchio tecnico; `textLength` pinnato su stima+tracking); font base `17 * pw / 380` (era `14`). Stile `knockout` (`qbs`, come `mono`/`color` in preview esplicito e Stremio solo-non-standard): targhetta bianca opaca con glifi ritagliati via mask (stesso box esterno della pill, `rx = 0.30 * boxH`, niente stroke/gradiente; glifi mask a `~1.35x fs` con `textLength` pinnato sulla stima oversize e margini anti-clipping); con Dolby (verificato `localSpec`, combo `dv+atmos` o singolo) e altri formati impilati sotto il tier in colonna verticale come gli altri stili (Dolby resta bianco anche su top chiari); senza Dolby resta il tier knockout (mai fallback a standard) |
 
 ## Pill Network Logo
 
@@ -91,7 +91,7 @@ ombra trasparente `TOP_SHADOW_PAD=14`):
 | Bordo | `topLight ? "rgba(0,0,0,0.15)" : "rgba(255,255,255,0.20)"` stroke-width 1px |
 | Padding | `px = round(fs * 0.65)`, `pt = pb = round(fs * 0.32)` dove `fs = round(max(18 * pw / 380, 12))` |
 | Raggio | `r = round(pillH * 0.35)` (squircle, identico al badge qualità) |
-| Posizione | default in alto a sinistra (`top = round(18 * STD_H / 570) + 10`, `left = round(18 * STD_W / 380)`, resta a sinistra anche con `side="right"`); centrato sopra il logo film (`top = logoTop - h - gap + 10`) con logo film + badge alto (nastro Netflix, badge centrale rank/extra, o Coming Soon); senza logo film e con nastro: a fianco del nastro (`w + 10`). Vista Stremio: specchia a destra con angolo destro occupato (nastro rank / Coming Soon). Solo landscape col logo film: mai sopra il logo (zona bassa) — sempre in alto (a fianco del nastro se occupa l'angolo sinistro, sotto il Coming Soon, altrimenti top-left con shrink vs badge centrale). Se si sovrappone al badge centrale, rimpicciolisce fino a 0.55x |
+| Posizione | default in alto a sinistra (`top = round(18 * STD_H / 570) + 10`, `left = round(18 * STD_W / 380)`, resta a sinistra anche con `side="right"`); centrato sopra il logo film (`top = logoTop - h - gap + 10`) con logo film + badge alto (nastro Netflix, badge centrale rank/extra, o Coming Soon); senza logo film e con nastro: a fianco del nastro (`w + 10`). Vista Stremio: specchia a destra con angolo destro occupato (nastro rank / Coming Soon). Solo landscape col logo film: mai sopra il logo (zona bassa) — sempre in alto (a fianco del nastro se occupa l'angolo sinistro, sotto il Coming Soon, altrimenti top-left con shrink vs badge centrale). ECCEZIONE stile `corner` (rank o extra) col logo film: di default sopra il logo titolo come in portrait (`cornerNetworkAboveTitle` in `poster-service.ts`: `logoTop - h - gap - NETWORK_LOGO_SHIFT_Y`, centrato sul box del logo titolo in tutti i layout — centrato, Cinematic Left e titoli spostati; gap visivo = `gap`, scale/offset `netscale`/`nox`/`noy` invariati, dopo shrink ricalcolato sulle dimensioni finali); senza spazio sopra il titolo o con collisione irrisolta alla shrink minima → top-left storico; `netPos=top` esplicito e gli altri stili restano invariati, Coming Soon/nastri invariati. Se si sovrappone al badge centrale, rimpicciolisce fino a 0.55x |
 | Scala (`netscale`) | Resize bitmap dopo il fetch, prima del fit; `%` 10..200, default 100 |
 | Offset (`nox`/`noy`) | `top += noy`, `left += nox` (px, default 0) dopo il posizionamento automatico |
 | Logo interno | `topLight ? rgba(255,255,255,0.85) : rgba(18,18,22,0.88)` (eccetto Marvel a colori brand) |
@@ -145,11 +145,11 @@ Opt-in (`sep=1`, default OFF): sostituisce la media ★ nel badge con una colonn
 | Fade | `0% trasp → svgFadeEnd% trasp → svgSolidPct% opaco → 100% opaco` |
 | Posizione badge genere | `badgeY = ph - h - round(20 * ph / 570)` |
 
-> **Preset sfumatura (Naturale/Colore + 3 custom, solo client):** scorciatoie in
+> **Preset sfumatura (Naturale/Colore/Nero + 3 custom, solo client):** scorciatoie in
 > `TransformControls.tsx` (per-titolo) e `SettingsPanel.tsx` (default globali)
 > che scrivono i 5 slider esistenti (`gradHeight`/`blur`/`bf`/`bd`/`tint`) —
 > nessun nuovo parametro URL, nessuna chiave cache. Riga condivisa
-> `GradientPresetRow.tsx` (2 built-in + fino a 3 personali = 5 totali). Logica in
+> `GradientPresetRow.tsx` (3 built-in + fino a 3 personali = 6 totali). Logica in
 > `src/lib/gradient-presets.ts` (`GRADIENT_PRESET_COLOR`,
 > `NATURAL_GRADIENT_DEFAULTS`, `adjustGradientForPosterChange`,
 > `defaultHeightForPoster`/`defaultFadeForPoster`, store custom con
@@ -180,6 +180,59 @@ Opt-in (`sep=1`, default OFF): sostituisce la media ★ nel badge con una colonn
 > involontario al save portrait). Lo stash al cambio formato non copre le
 > chiavi sfumatura. La sezione Trasforma per-titolo è singola e segue il
 > formato in editing (stessa riga preset condivisa).
+>
+> **Badge per formato (Verticale/Orizzontale):** unico selettore `editTargetShape`
+> (`SettingsPanel`, `data-testid="format-target-selector"`, prima dei controlli
+> nelle tab visive, stato condiviso Badge/Trasforma): sceglie solo il target di
+> modifica — anteprima e default Badge seguono il formato in modifica, il formato
+> di consegna (`defaultPosterShape`, Stremio) non cambia mai; fonti dati, regione,
+> formato data e API restano condivisi. La tab Badge lega i campi via
+> `useShapeBadgeDefaults` (`BadgeDefaultsSection`, `BADGE_VISUAL_LAND_KEYS`):
+> portrait = flat condivisi, landscape = profilo `landscape` (`land ?? flat`,
+> `null` = eredita — tranne scala/offset logo dove `null` resta auto/zero da
+> contratto storico). Il profilo server `landscape` (`server-defaults.ts`,
+> `effectiveDefaultsForShape`) copre anche gli stili (`badgeStyle`,
+> `rankingBadgeStyle`, `extraBadgeStyle`, `badgeFont`, `qualityBadgeStyle`,
+> `videoFormats`), i toggle (`globalBadges`/`rankingBadges`/`badgeGenre`/
+> `badgeYear`/`badgeRating`/`badgeQuality`/`customRatings`/`separateRatings`/
+> `networkLogo`/`networkLogoPosition`/`preRelease`/`ribbonSide`/`ribbonEnabled`),
+> `sashOrder` e `minQuality`; restano sempre condivisi fonti voto, fonte Top 20,
+> regione, formato data, API/cataloghi, fit logo e rotazioni. Risoluzione server:
+> query > mapping(.landscape) > config token > defaults(.landscape) > default di
+> formato. `xbs` è solo-extra: assente ovunque = legacy `rs` (numeri/nastri
+> degradano a pill angolo/piastra come oggi, mai migrazione in lettura), invalido
+> = assente, il rank usa sempre `rs`. `RankingAppearanceSelector` (default e
+> per-titolo): Nastro = `netflix`+ribbon, Numero = `number`+ribbon, Badge =
+> `pill`+ribbon; le varianti `colored`/`standard` spengono il nastro (col nastro
+> il renderer mostrerebbe il nastro, non il badge), `default` legacy è pura
+> lettura (`resolveRankingAppearance`/`resolveRankVariant`, mai scritture). La
+> riga posizione (Sinistra/Destra) vive solo nei default: nel per-titolo
+> (`BadgeControls`) è omessa — un'anteprima non persistibile al save. Card
+> default: Classifica (master `topBadge` + bucket rank chirurgico su `sashOrder`
+> + singola appearance, mai secondo switch nastro), Info (genere/anno + stile
+> extra indipendente + categorie + Coming Soon), Valutazioni
+> (fonti/separati/custom), Qualità (tier/formati/icone/network), Avanzate
+> (priorità `sashOrder`, reset del solo profilo).
+>
+> **Nastro Standard vs Colorato (U1):** stessa geometria nastro Netflix
+> (`buildNetflixRankBadgeSVG`); Standard (`rs=netflix`) = satinato
+> `satinPillStops(topLight)` + testo `0.80`, Colorato (`rs=colored`+ribbon) =
+> tinta accent piatta + `textColorForBg` (stesso criterio dei badge colored).
+> Legacy `netflix-color`/`default`+ribbon leggono Standard senza migrare il
+> valore salvato (`resolveRibbonVariant`/`ribbonVariantValue`, mai scritture);
+> `colored` come Badge spegne il nastro (`rankVariantValue`), come Nastro lo
+> accende. Stesso accent → PNG diversi tra Standard e Colorato.
+>
+> **Preview contestuale default (U2):** `previewFamily` (`auto`/`rank`/`info`/…)
+> + `previewExtra` (campione `__badge.*` risolto server-side) viaggiano solo
+> nella preview default (`buildDefaultsPreviewUrl`, stesso endpoint poster,
+> nessun renderer duplicato) e non si salvano mai. `auto` rende la priorità
+> effettiva salvata per forma (`sash`, `rank` incluso quando abilitato);
+> `rank` restringe a `rank` (vuoto se rank spento, mai fallback info);
+> `info` forza il primo campione info abilitato con `xbs` proprio (niente
+> campione a categorie spente). Le card segnalano la family su focus/pointer
+> (mai hover, nessun move focus); Auto ripristina sash effettivo e rimuove
+> `extra` forzato.
 
 ## Parametri URL (query string)
 
@@ -217,12 +270,13 @@ Opt-in (`sep=1`, default OFF): sostituisce la media ★ nel badge con una colonn
 | `extra` | `badge.label` (se extra) o `customBadge` | `queryExtra` — forza badge extra |
 | `bs` | `badgeStyle` | `qBs` — "shadow"/"pill"/"bar"/"colored"/"bordo"/"vetro"/"minimal" (vale per entrambi i formati; il default landscape sceglie lo stile orizzontale) |
 | `bfont` | `badgeFont` | `q.get("bfont")` — "inter"/"barlow-condensed"/"oswald" (default "inter" = resa storica; assente o non valido → Inter). Vale per entrambi i formati. I preset custom/house del Badge Lab hanno tipografia propria e lo ignorano. |
-| `rs` | `rankingBadgeStyle` | `qRs` — "default"/"colored"/"pill"/"bordo"/"vetro"/"netflix" ("bar" rimosso: degrada a "default") |
-| `tscale`/`tox`/`toy` | `topBadgeScale`/`topBadgeOffsetX`/`topBadgeOffsetY` (badge superiore) | scala `%` 10..200 (default 100, tutti gli stili) + offset px (default 0, solo centrati) |
+| `rs` | `rankingBadgeStyle` | `qRs` — "default"/"colored"/"pill"/"bordo"/"vetro"/"netflix"/"corner"/"number" ("bar" rimosso: degrada a "default"; "corner" = pill piatta tinta accent ancorata alto-sx; "number" = solo cifre Inter Bold con gradiente bianco→argento e ombra morbida, senza piastra/nastro/`#`/label, ancorato alto-sx come `corner` ma specchiato a dx con `side=right`; collisioni network/qualità/Coming Soon condivise col `corner`; i rank `number` rendono su una baseline X di stile `NUMBER_BADGE_BASE_OFFSET_X=-20` canvas px — vedi `tox`) |
+| `xbs` | `extraBadgeStyle` (per-titolo o default; assente = legacy `rs`) | `qXbs` — "default"/"pill"/"colored"/"bordo"/"vetro"/"corner" (solo extra; assente ovunque = legacy `rs`; invalido = assente; rank usa sempre `rs`) |
+| `tscale`/`tox`/`toy` | `topBadgeScale`/`topBadgeOffsetX`/`topBadgeOffsetY` (badge superiore) | scala `%` 10..200 (default 100, tutti gli stili) + offset px (default 0, solo centrati). Semantica `tox` = baseline di stile + aggiustamento utente: per un rank `number` (`topBadge.type=rank`, stile effettivo `number`) la X effettiva è `tox + NUMBER_BADGE_BASE_OFFSET_X(-20)` (stesso su sx/dx e portrait/landscape; gli slider UI mostrano l'effettivo e convertono l'edit in aggiustamento, i raw salvati non migrano mai); extra in fallback legacy `rs=number` e tutti gli altri stili restano sulla baseline storica (X effettiva = `tox`). URL preview/Stremio emettono sempre il `tox` raw (mai doppio conteggio: la baseline si applica una sola volta al render) |
 | `gscale` | `genreBadgeScale` (badge genere/rating in basso) | scala `%` 10..200 (default 100 su base 28.6px nativa; la **barra** scala nativa via font per restare full-width) |
 | `gox`/`goy` | `genreBadgeOffsetX`/`genreBadgeOffsetY` | offset px (default 0, solo stili non-bar) |
 | `qscale` | `qualityBadgeScale` (badge qualità streaming) | scala `%` 10..200 (default 100 su base 17px nativa) |
-| `qox`/`qoy` | `qualityBadgeOffsetX`/`qualityBadgeOffsetY` | offset px (default 0) |
+| `qox`/`qoy` | `qualityBadgeOffsetX`/`qualityBadgeOffsetY` | offset px (default portrait -10/+15, landscape 0/0; espliciti incl. 0 vincono) |
 | `sepox`/`sepoy` | `separateBadgeOffsetX`/`separateBadgeOffsetY` (gruppo separati) | offset px (default 0; colonna/pills entrambi gli assi, `bottom-bar` portrait solo Y — X ignorata, mai nuovo renderer) |
 | `netscale` | `networkLogoScale` (logo network) | scala `%` 10..200 (default 100) |
 | `netPos` | `networkLogoPosition` (sempre esplicito in preview: `auto`/`top`; Stremio solo in modo `top`) | `auto` = specchio dinamico; `top` = sempre all'angolo superiore, lato del nastro effettivo (destra solo con nastro rank/preset o Coming Soon a destra, sinistra con tutti gli altri badge o senza — anche in vista Stremio; stacking Coming Soon del lato + shift nastro stesso lato + shrink vs centrale; qualità trasloca a sinistra quando il network finisce a destra). Catena: query > mapping (`networkLogoPosition`) > config token > server defaults > `auto` |
@@ -253,6 +307,8 @@ Opt-in (`sep=1`, default OFF): sostituisce la media ★ nel badge con una colonn
 > Hardening anti cache-busting (v1.23.0, `poster-params-hardening.ts`, `PICTORIUM_POSTER_PARAMS=presets`, auto-on su `PUBLIC_INSTANCE=1`/`HOSTED_BY=elfhosted`/`MULTI_USER=1`): cache key con allowlist rigida (`POSTER_CACHE_ALLOWLIST`, junk `?x=` collassa, repeat deduplicati al primo valore); non-preview con presets → numerici quantizzati (step 5/10/5px), `ac` solo palette `GENRE_FALLBACK`, `extra`/`label` solo da mapping curato (canonicalizzati, mai free-text), override `poster`/`logo`/`backdrop` ignorati su pubbliche anonime. Preview (`preview=1`) live per spazi utente e sessioni sbloccate; sulle istanze pubbliche le preview anonime sono declassate a normale (auto-on, override `PICTORIUM_PREVIEW_AUTH=1/0`). Valori salvati mai toccati.
 
 > Formato Stremio: se il default globale è `landscape`, cataloghi e meta Pictorium emettono `posterShape: landscape` e un URL `shape=landscape` anche per i mapping salvati `poster`. Con default `poster`, il formato per-titolo continua a prevalere. Il mapping salvato non viene modificato.
+>
+> Demo samples (solo preview default Impostazioni, `demo-samples.ts`): `buildDefaultsPreviewUrl` emette sempre `demosamples=1`; la route lo accetta solo con preview effettiva post-downgrade (`preview=1` + flag `1`, fail-closed; declassata → flag rimosso dalla chiave). Dataset sintetico fisso, zero fetch/chiavi: rank 11, tier `4K` (passa sempre `qmin`), network Netflix (SVG già bundlato, fallback nel service DOPO i candidati reali in ordine invariato), voti per le sole fonti `rsrc` richieste con merge gap-only (reali intatti, media regola imdb+tmdb), genere/anno fallback solo se assenti (date passate fisse). I toggle/stili restano l'unico gate di rendering (`ranking=0` → niente rank, `formats=none` invariato, niente premi/upcoming/Top250/Coming Soon campionati); `queryExtra`/preset seguono l'API reale. In chiave cache via allowlist (campione/genuino separati); le preview non si scrivono mai. Mai in `buildPreviewUrl` editor né negli URL Stremio. UI: avviso `ui.defaultsPreviewSamplesNotice`.
 
 ## Bordo poster
 
@@ -294,7 +350,7 @@ Opt-in (`sep=1`, default OFF): sostituisce la media ★ nel badge con una colonn
 - `src/lib/badge-labels.ts` — label pure client-safe (match studio/network, label premi/nomination, QID regex; foglia senza import server, in RENDER_FILES)
 - `src/lib/award-ids.ts` — liste ID premi curate (Oscar/Globe/Emmy/Cannes/Venezia, namespace film/serie separati, update annuale; in RENDER_FILES)
 - `src/lib/logo-layout.ts` — geometria condivisa logo preview/server
-- `src/lib/gradient-presets.ts` — preset sfumatura Naturale/Colore (solo client) + regola pristine al cambio artwork
+- `src/lib/gradient-presets.ts` — preset sfumatura Naturale/Colore/Nero (solo client) + regola pristine al cambio artwork
 - `src/app/api/poster/[type]/[id]/route.ts` — composizione poster finale (preview + Stremio usano la stessa route)
 - `src/lib/poster-params-hardening.ts` — allowlist cache key, quantizzazione presets, palette `ac`, canonicalizzazione `extra`, strip override keyless (in RENDER_FILES)
 - `src/lib/stremio-poster-params.ts` — `compactTuning`: omette il tuning numerico senza `config` (in RENDER_FILES)

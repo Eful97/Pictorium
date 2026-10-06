@@ -10,8 +10,10 @@ import { hexLuminance, computeBottomLight } from "./accent-color"
 import { normalizeGenreName } from "./genre-normalize"
 import type { SearchResult, TMDBImage } from "./types"
 import type { EnrichedAnimeItem } from "./validation"
-import type { BadgeStyle, RankingBadgeStyle, QualityBadgeStyle, BadgeFont, SeparateRatingsStyle } from "./badge-styles"
-import { getSeparateBadgeDefaultScale, getSeparateRatingsStyleForShape } from "./badge-styles"
+import type { BadgeStyle, RankingBadgeStyle, QualityBadgeStyle, BadgeFont, SeparateRatingsStyle, ExtraBadgeStyle } from "./badge-styles"
+import { getSeparateBadgeDefaultScale, getSeparateRatingsStyleForShape, getQualityBadgeOffsetDefault } from "./badge-styles"
+import type { LandscapeServerDefaults } from "./server-defaults"
+import { DEFAULT_SASH_ORDER, type SashBucket } from "./badge-priority"
 import type { VideoFormat } from "./av-specs"
 import type { PosterShape, NetworkLogoPosition } from "./types"
 import { BADGE_PRESET_ID_RE, BADGE_PRESET_REV_RE } from "./badge-preset"
@@ -22,6 +24,8 @@ interface BadgeParams {
   rankingBadges: boolean
   badgeStyle: BadgeStyle
   rankingBadgeStyle: RankingBadgeStyle
+  /** Standalone extra-badge style: emitted as `xbs` only when defined. */
+  extraBadgeStyle?: ExtraBadgeStyle | null
   /** Font dei testi badge (default "inter" = resa storica). */
   badgeFont?: BadgeFont | null
   /** Stile icone del badge qualità (default "standard"). */
@@ -213,6 +217,7 @@ export function buildUrlPattern(bp: BadgeParams & {
     shapeUnknown: bp.shapePlaceholder === "{shape}",
     badgeStyle: bp.badgeStyle,
     rankingBadgeStyle: bp.rankingBadgeStyle,
+    extraBadgeStyle: bp.extraBadgeStyle ?? undefined,
     badgeFont: bp.badgeFont ?? undefined,
     qualityBadgeStyle: bp.qualityBadgeStyle,
     gradientHeight: bp.gradientHeight,
@@ -352,12 +357,15 @@ export function buildPreviewUrl(ps: PosterState, bp: BadgeParams, configToken?: 
   params.push(`ts=${bp.topShade ?? 50}`)
   params.push(`bs=${bp.badgeStyle}`)
   params.push(`rs=${bp.rankingBadgeStyle}`)
+  // Standalone extra style: opt-in only (absent = legacy `rs` fallback,
+  // existing preview URLs stay byte-identical).
+  if (bp.extraBadgeStyle) params.push(`xbs=${bp.extraBadgeStyle}`)
   // Font badge SEMPRE esplicito in preview (come bs/rs): senza, un mapping
   // salvato con font diverso scavalcerebbe la scelta editor (desync WYSIWYG).
   params.push(`bfont=${bp.badgeFont ?? "inter"}`)
-  // Stile icone qualità SEMPRE esplicito in preview (come bs/rs): senza, un
-  // mapping salvato con stile diverso scavalcerebbe la scelta editor (desync).
-  params.push(`qbs=${bp.qualityBadgeStyle === "mono" || bp.qualityBadgeStyle === "color" ? bp.qualityBadgeStyle : "standard"}`)
+  // Quality style ALWAYS explicit in preview (like bs/rs): without it, a
+  // saved mapping with a different style would override the editor choice (desync).
+  params.push(`qbs=${bp.qualityBadgeStyle === "mono" || bp.qualityBadgeStyle === "color" || bp.qualityBadgeStyle === "knockout" ? bp.qualityBadgeStyle : "standard"}`)
   if (bp.videoFormats !== undefined && bp.videoFormats !== null) {
     params.push(`formats=${bp.videoFormats.length === 0 ? "none" : bp.videoFormats.join(",")}`)
   }
@@ -474,7 +482,18 @@ function computeBadgeParams(ps: PosterState, bp: BadgeParams): string[] {
   return params
 }
 
+export interface DefaultsPreviewDemoMedia {
+  mediaType: "movie" | "tv"
+  id: number
+  /** Titolo demo solo per alt/caption client, mai in query. */
+  title?: string | null
+}
+
 export interface DefaultsPreviewParams {
+  /** Titolo demo preview-only (default Avatar movie/19995): cambia solo il
+   *  path `{type}/{id}`, maiMapping/mapping/default/shape. Id non valido =
+   *  fallback al demo di default. Nessun nuovo nome in query. */
+  demoMedia?: DefaultsPreviewDemoMedia | null
   defaultLogoScale?: number | null
   defaultLogoOffsetX?: number | null
   defaultLogoOffsetY?: number | null
@@ -493,6 +512,8 @@ export interface DefaultsPreviewParams {
   defaultRatingSources?: string[]
   defaultBadgeStyle?: BadgeStyle
   defaultRankingBadgeStyle?: RankingBadgeStyle
+  /** Standalone extra-badge style default: emitted as `xbs` only when defined. */
+  defaultExtraBadgeStyle?: ExtraBadgeStyle | null
   defaultBadgeFont?: BadgeFont | null
   defaultQualityBadgeStyle?: QualityBadgeStyle | null
   defaultVideoFormats?: readonly VideoFormat[] | null
@@ -526,8 +547,30 @@ export interface DefaultsPreviewParams {
   defaultRibbonSide?: "left" | "right"
   defaultPosterShape?: PosterShape
   defaultLogoAlign?: "left" | "center" | null
+  /** Profilo Orizzontale dei default (stessi slider del Verticale): chiavi
+   *  definite vincono sui flat SOLO in preview landscape — stessa regola
+   *  `land ?? flat` della UI (`LandscapeDefaultsSection`) e del server
+   *  (`effectiveDefaultsForShape`). Mai persistito da qui. */
+  landscape?: LandscapeServerDefaults | null
+  /** Shape preview-only (tab Trasforma): vince sul `defaultPosterShape`
+   *  persistito senza modificarlo. Assente/null = segui il default. */
+  previewShape?: "portrait" | "landscape" | null
   defaultDateFormat?: DateFormat | null
   defaultRegion?: string
+  /** Effective top-badge priority for the previewed shape (portrait flat or
+   *  landscape profile override): always emitted explicitly as `sash=` so
+   *  category switches and priority edits are WYSIWYG in preview. Absent =
+   *  the canonical default order. */
+  defaultSashOrder?: readonly SashBucket[] | null
+  /** Preview-only editing family: `rank` targets the rank bucket (`sash=rank`
+   *  when enabled, `sash=` empty when disabled so nothing renders); every
+   *  other family keeps the effective saved priority. Never persisted. */
+  previewFamily?: DefaultsPreviewFamily | null
+  /** Preview-only info sample label (e.g. a `__badge.*` key resolved
+   *  server-side in the request language): emitted as `extra=` so the
+   *  Informazioni family shows a pertinent sample even when the demo title has
+   *  no real informational badge. Absent = genuine data path. */
+  previewExtra?: string | null
 }
 
 export const DEFAULTS_PREVIEW_DEMO_MEDIA = {
@@ -535,62 +578,119 @@ export const DEFAULTS_PREVIEW_DEMO_MEDIA = {
   id: 19995,
 } as const
 
+/**
+ * Preview-only editing family (Settings defaults screen): narrows the preview
+ * sample to what the user is editing. `auto` (default) keeps the effective
+ * saved priority untouched; `genre` (aggregate genre/year/rating style) also
+ * keeps it (full actual preview, no forced sample). Never persisted, never
+ * sent to Stremio/editor — the same render endpoint, only different query
+ * values.
+ */
+export type DefaultsPreviewFamily =
+  | "auto"
+  | "rank"
+  | "info"
+  | "genre"
+  | "ratings"
+  | "quality"
+  | "logo"
+  | "gradient"
+
 export function buildDefaultsPreviewUrl(bp: DefaultsPreviewParams): string {
-  const params: string[] = [`rv=${RENDER_VERSION}`, "preview=1"]
+  // Demo samples (Settings preview only): la route applica campioni dimostrativi
+  // ai soli dati assenti, mai a Stremio/editor (builder dedicati intatti).
+  const params: string[] = [`rv=${RENDER_VERSION}`, "preview=1", "demosamples=1"]
   if (bp.tmdbKey) params.push(`api_key=${encodeURIComponent(bp.tmdbKey)}`)
   if (bp.userId) params.push(`u=${encodeURIComponent(bp.userId)}`)
+  // Shape preview-only (tab Trasforma Orizzontale): vince sul default
+  // persistito senza modificarlo; assente = segui `defaultPosterShape`.
+  const previewLandscape =
+    bp.previewShape === "landscape" || (bp.previewShape == null && bp.defaultPosterShape === "landscape")
+  // Profilo Orizzontale effettivo: `land ?? flat` (come UI e server).
+  // `undefined` = segui il flat (mai clobberare); `0` vince sempre; logo
+  // `null` = auto-fit. In portrait il profilo è vuoto → URL byte-identici.
+  const land: LandscapeServerDefaults = previewLandscape ? (bp.landscape ?? {}) : {}
+  const pick = <T>(v: T | undefined, fb: T | null | undefined): T | null | undefined =>
+    (v !== undefined ? v : fb)
+  const effSepStyle = land.separateRatingsStyle ?? bp.defaultSeparateRatingsStyle ?? "column"
   // Explicit zero restores automatic sizing/no offset instead of inheriting a saved override.
-  params.push(`scale=${bp.defaultLogoScale ?? 0}`)
-  params.push(`ox=${bp.defaultLogoOffsetX ?? 0}`)
-  params.push(`oy=${bp.defaultLogoOffsetY ?? 0}`)
-  params.push(`badges=${bp.defaultGlobalBadges !== false ? "1" : "0"}`)
-  params.push(`ranking=${bp.defaultRankingBadges !== false ? "1" : "0"}`)
-  params.push(`bg=${bp.defaultBadgeGenre !== false ? "1" : "0"}`)
-  params.push(`by=${bp.defaultBadgeYear !== false ? "1" : "0"}`)
-  params.push(`br=${bp.defaultBadgeRating !== false ? "1" : "0"}`)
-  params.push(`bq=${bp.defaultBadgeQuality !== false ? "1" : "0"}`)
-  params.push(`cr=${bp.defaultCustomRatings === false ? "0" : "1"}`)
-  params.push(`sep=${bp.defaultSeparateRatings ? "1" : "0"}`)
-  // Stile normalizzato per formato default (bar Orizzontale → pills).
-  params.push(`sepstyle=${getSeparateRatingsStyleForShape(bp.defaultSeparateRatingsStyle ?? "column", bp.defaultPosterShape === "landscape" ? "landscape" : "poster")}`)
+  params.push(`scale=${pick(land.logoScale, bp.defaultLogoScale) ?? 0}`)
+  params.push(`ox=${pick(land.logoOffsetX, bp.defaultLogoOffsetX) ?? 0}`)
+  params.push(`oy=${pick(land.logoOffsetY, bp.defaultLogoOffsetY) ?? 0}`)
+  params.push(`badges=${pick(land.globalBadges, bp.defaultGlobalBadges) !== false ? "1" : "0"}`)
+  const effPreviewRanking = pick(land.rankingBadges, bp.defaultRankingBadges) !== false
+  params.push(`ranking=${effPreviewRanking ? "1" : "0"}`)
+  // Effective top-badge priority for the previewed shape, ALWAYS explicit
+  // (even when it matches the default): without it a saved non-default order
+  // or an emptied sash (master OFF) would render the server fallback instead
+  // of the edited categories (desync WYSIWYG). `rank` family targets the rank
+  // bucket only: when rank is actually enabled it narrows to `sash=rank` (the
+  // existing demosamples rank fills the badge); when rank is disabled it
+  // renders `sash=[]` preview-only — no rank sample and no info fallback, so
+  // an unranked/disabled target shows no top decoration at all. `auto`
+  // restores the effective saved priority untouched.
+  const effPreviewSash: readonly SashBucket[] = land.sashOrder ?? bp.defaultSashOrder ?? [...DEFAULT_SASH_ORDER]
+  const rankSampled = effPreviewRanking && effPreviewSash.includes("rank")
+  const previewSash: readonly SashBucket[] =
+    bp.previewFamily === "rank" ? (rankSampled ? ["rank"] : []) : effPreviewSash
+  params.push(`sash=${previewSash.join(",")}`)
+  // Preview-only info sample (Informazioni family): explicit `extra=` wins
+  // over the computed badge exactly like an editor custom badge; ignored when
+  // ranking is off, so a disabled master never shows a phantom sample.
+  if (bp.previewExtra) params.push(`extra=${encodeURIComponent(bp.previewExtra)}`)
+  params.push(`bg=${pick(land.badgeGenre, bp.defaultBadgeGenre) !== false ? "1" : "0"}`)
+  params.push(`by=${pick(land.badgeYear, bp.defaultBadgeYear) !== false ? "1" : "0"}`)
+  params.push(`br=${pick(land.badgeRating, bp.defaultBadgeRating) !== false ? "1" : "0"}`)
+  params.push(`bq=${pick(land.badgeQuality, bp.defaultBadgeQuality) !== false ? "1" : "0"}`)
+  params.push(`cr=${pick(land.customRatings, bp.defaultCustomRatings) === false ? "0" : "1"}`)
+  params.push(`sep=${pick(land.separateRatings, bp.defaultSeparateRatings) ? "1" : "0"}`)
+  // Stile normalizzato per formato effettivo (bar Orizzontale → pills).
+  params.push(`sepstyle=${getSeparateRatingsStyleForShape(effSepStyle, previewLandscape ? "landscape" : "poster")}`)
   if (bp.defaultRatingSources && bp.defaultRatingSources.length > 0) {
     params.push(`rsrc=${encodeURIComponent(bp.defaultRatingSources.join(","))}`)
   }
-  params.push(`bs=${bp.defaultBadgeStyle ?? "shadow"}`)
-  params.push(`rs=${bp.defaultRankingBadgeStyle ?? "default"}`)
-  params.push(`bfont=${bp.defaultBadgeFont ?? "inter"}`)
-  params.push(`qbs=${bp.defaultQualityBadgeStyle === "mono" || bp.defaultQualityBadgeStyle === "color" ? bp.defaultQualityBadgeStyle : "standard"}`)
-  if (bp.defaultVideoFormats !== undefined && bp.defaultVideoFormats !== null) {
-    params.push(`formats=${bp.defaultVideoFormats.length === 0 ? "none" : bp.defaultVideoFormats.join(",")}`)
+  params.push(`bs=${pick(land.badgeStyle, bp.defaultBadgeStyle) ?? "shadow"}`)
+  params.push(`rs=${pick(land.rankingBadgeStyle, bp.defaultRankingBadgeStyle) ?? "default"}`)
+  // Nullable inherit-null fields: explicit landscape `null` follows the flat
+  // (unlike logo scale/offset, where null means auto/zero).
+  const effPreviewXbs = pick(land.extraBadgeStyle ?? undefined, bp.defaultExtraBadgeStyle)
+  if (effPreviewXbs) params.push(`xbs=${effPreviewXbs}`)
+  params.push(`bfont=${pick(land.badgeFont ?? undefined, bp.defaultBadgeFont) ?? "inter"}`)
+  const effPreviewQbs = pick(land.qualityBadgeStyle ?? undefined, bp.defaultQualityBadgeStyle)
+  params.push(`qbs=${effPreviewQbs === "mono" || effPreviewQbs === "color" || effPreviewQbs === "knockout" ? effPreviewQbs : "standard"}`)
+  const effPreviewFormats = pick(land.videoFormats ?? undefined, bp.defaultVideoFormats)
+  if (effPreviewFormats !== undefined && effPreviewFormats !== null) {
+    params.push(`formats=${effPreviewFormats.length === 0 ? "none" : effPreviewFormats.join(",")}`)
   }
-  params.push(`gradHeight=${bp.defaultGradientHeight ?? 30}`)
-  params.push(`blur=${bp.defaultBlurIntensity ?? 20}`)
-  params.push(`bf=${bp.defaultBlurFade ?? 50}`)
-  params.push(`bd=${bp.defaultBlurDarkness ?? 30}`)
-  params.push(`be=${bp.defaultBlurEnabled !== false ? "1" : "0"}`)
-  params.push(`tint=${bp.defaultTintStrength ?? 20}`)
-  params.push(`ts=${bp.defaultTopShade ?? 50}`)
-  params.push(`tscale=${bp.defaultTopBadgeScale ?? 100}`)
-  params.push(`tox=${bp.defaultTopBadgeOffsetX ?? 0}`)
-  params.push(`toy=${bp.defaultTopBadgeOffsetY ?? 0}`)
-  params.push(`gscale=${bp.defaultGenreBadgeScale ?? 100}`)
-  params.push(`gox=${bp.defaultGenreBadgeOffsetX ?? 0}`)
-  params.push(`goy=${bp.defaultGenreBadgeOffsetY ?? 0}`)
-  params.push(`qscale=${bp.defaultQualityBadgeScale ?? 100}`)
-  params.push(`sepscale=${bp.defaultSeparateBadgeScale ?? getSeparateBadgeDefaultScale(bp.defaultSeparateRatingsStyle)}`)
-  params.push(`sepox=${bp.defaultSeparateBadgeOffsetX ?? 0}`)
-  params.push(`sepoy=${bp.defaultSeparateBadgeOffsetY ?? 0}`)
-  params.push(`qox=${bp.defaultQualityBadgeOffsetX ?? 0}`)
-  params.push(`qoy=${bp.defaultQualityBadgeOffsetY ?? 0}`)
-  params.push(`netscale=${bp.defaultNetworkLogoScale ?? 100}`)
-  params.push(`nox=${bp.defaultNetworkLogoOffsetX ?? 0}`)
-  params.push(`noy=${bp.defaultNetworkLogoOffsetY ?? 0}`)
-  params.push(`netLogo=${bp.defaultNetworkLogo !== false ? "1" : "0"}`)
-  params.push(`netPos=${bp.defaultNetworkLogoPosition === "top" ? "top" : "auto"}`)
-  params.push(`ribbon=${bp.defaultRibbonEnabled === false ? "0" : "1"}`)
-  if (bp.defaultRibbonSide) params.push(`side=${bp.defaultRibbonSide}`)
-  params.push(`shape=${bp.defaultPosterShape === "landscape" ? "landscape" : "poster"}`)
-  if (bp.defaultPosterShape === "landscape" && bp.defaultLogoAlign) {
+  params.push(`gradHeight=${pick(land.gradientHeight, bp.defaultGradientHeight) ?? 30}`)
+  params.push(`blur=${pick(land.blurIntensity, bp.defaultBlurIntensity) ?? 20}`)
+  params.push(`bf=${pick(land.blurFade, bp.defaultBlurFade) ?? 50}`)
+  params.push(`bd=${pick(land.blurDarkness, bp.defaultBlurDarkness) ?? 30}`)
+  params.push(`be=${pick(land.blurEnabled, bp.defaultBlurEnabled) !== false ? "1" : "0"}`)
+  params.push(`tint=${pick(land.tintStrength, bp.defaultTintStrength) ?? 20}`)
+  params.push(`ts=${pick(land.topShade, bp.defaultTopShade) ?? 50}`)
+  params.push(`tscale=${pick(land.topBadgeScale, bp.defaultTopBadgeScale) ?? 100}`)
+  params.push(`tox=${pick(land.topBadgeOffsetX, bp.defaultTopBadgeOffsetX) ?? 0}`)
+  params.push(`toy=${pick(land.topBadgeOffsetY, bp.defaultTopBadgeOffsetY) ?? 0}`)
+  params.push(`gscale=${pick(land.genreBadgeScale, bp.defaultGenreBadgeScale) ?? 100}`)
+  params.push(`gox=${pick(land.genreBadgeOffsetX, bp.defaultGenreBadgeOffsetX) ?? 0}`)
+  params.push(`goy=${pick(land.genreBadgeOffsetY, bp.defaultGenreBadgeOffsetY) ?? 0}`)
+  params.push(`qscale=${pick(land.qualityBadgeScale, bp.defaultQualityBadgeScale) ?? 100}`)
+  params.push(`sepscale=${pick(land.separateBadgeScale, bp.defaultSeparateBadgeScale) ?? getSeparateBadgeDefaultScale(effSepStyle)}`)
+  params.push(`sepox=${pick(land.separateBadgeOffsetX, bp.defaultSeparateBadgeOffsetX) ?? 0}`)
+  params.push(`sepoy=${pick(land.separateBadgeOffsetY, bp.defaultSeparateBadgeOffsetY) ?? 0}`)
+  params.push(`qox=${pick(land.qualityBadgeOffsetX, bp.defaultQualityBadgeOffsetX) ?? getQualityBadgeOffsetDefault(previewLandscape ? "landscape" : "poster", "x")}`)
+  params.push(`qoy=${pick(land.qualityBadgeOffsetY, bp.defaultQualityBadgeOffsetY) ?? getQualityBadgeOffsetDefault(previewLandscape ? "landscape" : "poster", "y")}`)
+  params.push(`netscale=${pick(land.networkLogoScale, bp.defaultNetworkLogoScale) ?? 100}`)
+  params.push(`nox=${pick(land.networkLogoOffsetX, bp.defaultNetworkLogoOffsetX) ?? 0}`)
+  params.push(`noy=${pick(land.networkLogoOffsetY, bp.defaultNetworkLogoOffsetY) ?? 0}`)
+  params.push(`netLogo=${pick(land.networkLogo, bp.defaultNetworkLogo) !== false ? "1" : "0"}`)
+  params.push(`netPos=${pick(land.networkLogoPosition ?? undefined, bp.defaultNetworkLogoPosition) === "top" ? "top" : "auto"}`)
+  params.push(`ribbon=${pick(land.ribbonEnabled, bp.defaultRibbonEnabled) === false ? "0" : "1"}`)
+  const effPreviewSide = pick(land.ribbonSide, bp.defaultRibbonSide)
+  if (effPreviewSide) params.push(`side=${effPreviewSide}`)
+  params.push(`shape=${previewLandscape ? "landscape" : "poster"}`)
+  if (previewLandscape && bp.defaultLogoAlign) {
     params.push(`align=${bp.defaultLogoAlign === "left" ? "left" : "center"}`)
   }
   if (bp.lang) params.push(`lang=${encodeURIComponent(bp.lang)}`)
@@ -598,5 +698,20 @@ export function buildDefaultsPreviewUrl(bp: DefaultsPreviewParams): string {
   if (bp.defaultDateFormat) params.push(`df=${bp.defaultDateFormat}`)
 
   const qs = "?" + params.join("&")
-  return `${getDomain()}/api/poster/${DEFAULTS_PREVIEW_DEMO_MEDIA.mediaType}/${DEFAULTS_PREVIEW_DEMO_MEDIA.id}${qs}`
+  const demo = resolveDemoMedia(bp.demoMedia)
+  return `${getDomain()}/api/poster/${demo.mediaType}/${demo.id}${qs}`
+}
+
+function resolveDemoMedia(
+  dm: DefaultsPreviewDemoMedia | null | undefined,
+): { mediaType: "movie" | "tv"; id: number } {
+  if (
+    dm &&
+    (dm.mediaType === "movie" || dm.mediaType === "tv") &&
+    Number.isSafeInteger(dm.id) &&
+    dm.id > 0
+  ) {
+    return { mediaType: dm.mediaType, id: dm.id }
+  }
+  return { mediaType: DEFAULTS_PREVIEW_DEMO_MEDIA.mediaType, id: DEFAULTS_PREVIEW_DEMO_MEDIA.id }
 }

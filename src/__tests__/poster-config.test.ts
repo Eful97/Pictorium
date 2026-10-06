@@ -115,6 +115,17 @@ describe("resolvePosterRenderConfig", () => {
     expect(r.rankingBadgeStyle).toBe("pill")
   })
 
+  it("query rs=corner is accepted and never auto-promoted to the netflix ribbon", () => {
+    const r = resolvePosterRenderConfig(baseInput({
+      searchParams: new URLSearchParams({ rs: "corner" }),
+      mapping: mapping({ rankingBadgeStyle: "colored" }),
+      configOverride: config({ rankingBadgeStyle: "bordo" }),
+      sd: { rankingBadgeStyle: "netflix" },
+      rankingResult: 4,
+    }))
+    expect(r.rankingBadgeStyle).toBe("corner")
+  })
+
   it("mapping rankingBadgeStyle 'default' is treated as no override (falls to config/sd)", () => {
     const r = resolvePosterRenderConfig(baseInput({
       mapping: mapping({ rankingBadgeStyle: "default" }),
@@ -463,12 +474,12 @@ describe("resolvePosterRenderConfig", () => {
     expect(resolvePosterRenderConfig(baseInput({ searchParams: new URLSearchParams({ qscale: "0" }) })).qualityBadgeScale).toBe(100)
   })
 
-  it("genre/quality offsets default to 0; query > mapping > config > defaults", () => {
+  it("genre offsets default to 0, quality to the portrait default; query > mapping > config > defaults", () => {
     const r = resolvePosterRenderConfig(baseInput())
     expect(r.genreBadgeOffsetX).toBe(0)
     expect(r.genreBadgeOffsetY).toBe(0)
-    expect(r.qualityBadgeOffsetX).toBe(0)
-    expect(r.qualityBadgeOffsetY).toBe(0)
+    expect(r.qualityBadgeOffsetX).toBe(-10)
+    expect(r.qualityBadgeOffsetY).toBe(15)
     const q = resolvePosterRenderConfig(baseInput({
       searchParams: new URLSearchParams({ gox: "5", goy: "-3", qox: "7", qoy: "-9" }),
       mapping: mapping({ genreBadgeOffsetX: 1, genreBadgeOffsetY: 2, qualityBadgeOffsetX: 3, qualityBadgeOffsetY: 4 }),
@@ -647,11 +658,21 @@ describe("resolvePosterRenderConfig", () => {
     expect(rMapping.qualityBadgeStyle).toBe("standard")
   })
 
+  it("query qbs=knockout is accepted across the chain", () => {
+    expect(resolvePosterRenderConfig(baseInput({
+      searchParams: new URLSearchParams({ qbs: "knockout" }),
+    }))).toMatchObject({ qualityBadgeStyle: "knockout" })
+    expect(resolvePosterRenderConfig(baseInput({
+      mapping: mapping({ qualityBadgeStyle: "knockout" }),
+    }))).toMatchObject({ qualityBadgeStyle: "knockout" })
+  })
+
   it("qbs is emitted only for non-standard styles (cache-stable URLs)", () => {
     expect(buildStremioPosterSearchParams({}).get("qbs")).toBeNull()
     expect(buildStremioPosterSearchParams({ qualityBadgeStyle: "standard" }).get("qbs")).toBeNull()
     expect(buildStremioPosterSearchParams({ qualityBadgeStyle: "mono" }).get("qbs")).toBe("mono")
     expect(buildStremioPosterSearchParams({ qualityBadgeStyle: "color" }).get("qbs")).toBe("color")
+    expect(buildStremioPosterSearchParams({ qualityBadgeStyle: "knockout" }).get("qbs")).toBe("knockout")
   })
 
   it("preRelease defaults to false; query/config/sd chain wins in order", () => {

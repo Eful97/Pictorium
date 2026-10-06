@@ -10,7 +10,7 @@ import { defaultGradientHeightForPoster } from "@/lib/gradient-defaults"
 import { naturalGradientForPoster } from "@/lib/gradient-presets"
 import { GradientPresetRow } from "@/components/GradientPresetRow"
 import { SliderRow } from "@/components/SliderRow"
-import { resolveSeparateBadgeScaleFallback, separateBadgeScaleToUI, uiToSeparateBadgeScale, SEPARATE_BADGE_SCALE_UI_MIN, SEPARATE_BADGE_SCALE_UI_MAX, getSeparateRatingsStyleForShape } from "@/lib/badge-styles"
+import { resolveSeparateBadgeScaleFallback, separateBadgeScaleToUI, uiToSeparateBadgeScale, SEPARATE_BADGE_SCALE_UI_MIN, SEPARATE_BADGE_SCALE_UI_MAX, getSeparateRatingsStyleForShape, NUMBER_BADGE_BASE_OFFSET_X } from "@/lib/badge-styles"
 import type { LandscapeBlurState } from "@/lib/contexts/PosterEditorContext"
 
 export function TransformControls() {
@@ -87,6 +87,12 @@ export function TransformControls() {
     }
   }
   const naturalVals = naturalGradientForPoster(previewPoster, ed.posterShape)
+  // X slider shows the effective position when Number is selected (stored
+  // adjustment + render baseline); edits convert back to the stored
+  // adjustment (raw preserved, style switches never rewrite it). The rendered
+  // badge type is unknown here (rank vs extra with legacy fallback), so this
+  // is a style-level presentation mapping only.
+  const topXBase = ed.rankingBadgeStyle === "number" ? NUMBER_BADGE_BASE_OFFSET_X : 0
   // Stile separati effettivo sul canvas corrente (bar landscape → pills):
   // la X della barra portrait full-width è disabilitata (mai ghost slider).
   const sepEffStyle = getSeparateRatingsStyleForShape(
@@ -163,12 +169,12 @@ export function TransformControls() {
         <SliderRow
           icon={<ArrowLeftRight className="w-3.5 h-3.5" />}
           label="X"
-          value={ed.topBadgeOffsetX}
+          value={ed.topBadgeOffsetX + topXBase}
           min={-100}
           max={100}
           boundsMin={-500}
           boundsMax={500}
-            onChange={(v) => ed.setTopBadgeOffsetX(v)}
+            onChange={(v) => ed.setTopBadgeOffsetX(v - topXBase)}
             onDoubleClick={() => ed.setTopBadgeOffsetX(isLandShape ? (ed.landscape.topBadgeOffsetX ?? ed.defaultTopBadgeOffsetX) : ed.defaultTopBadgeOffsetX)}
           editingValue={editingValue}
           editText={editText}
@@ -488,6 +494,7 @@ export function TransformControls() {
           onApply={applyGradientPreset}
           naturalLabel={t("ui.gradientPresetNatural")}
           colorLabel={t("ui.gradientPresetColor")}
+          neroLabel="Nero"
           addTitle={t("ui.gradientPresetAdd")}
           namePlaceholder={t("ui.gradientPresetName")}
           deleteLabel={t("ui.gradientPresetDelete")}

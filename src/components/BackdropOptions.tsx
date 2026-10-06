@@ -82,12 +82,23 @@ export function BackdropOptions({ backdrops, backdropActivePath, selectBackdrop,
   const [sortByFit, setSortByFit] = useState(false)
   const [visibleCount, setVisibleCount] = useState(VISIBLE_BACKDROP_COUNT)
   const autoSelectedFitKeyRef = useRef<string | null>(null)
+  // Explicit user gesture per title (media:id): a manual pick or a voluntary
+  // clear wins over late automation (best-fit) while the same title stays
+  // open — no choice override, no automatic reorder.
+  const userPickedKeyRef = useRef<string | null>(null)
+  const titleKey = selected ? `${selected.media_type === "tv" ? "tv" : "movie"}:${selected.id}` : null
+  const markUserPicked = () => {
+    if (titleKey) userPickedKeyRef.current = titleKey
+  }
 
   useEffect(() => {
     setSortByFit(false)
     setVisibleCount(VISIBLE_BACKDROP_COUNT)
     autoSelectedFitKeyRef.current = null
-  }, [selected?.id])
+    // A new title re-arms automation. Keyed by media:id (not bare id) so
+    // movie:7 -> tv:7 also resets; same-title rerenders never reach here.
+    userPickedKeyRef.current = null
+  }, [titleKey])
 
   // Auto-selezione best backdrop (mirror dei verticali): solo titoli non
   // salvati, solo al cambio chiave (niente loop con l'effetto "primo sfondo"
@@ -113,6 +124,10 @@ export function BackdropOptions({ backdrops, backdropActivePath, selectBackdrop,
       autoSelectedFitKeyRef.current = null
       return
     }
+    // An explicit manual choice for the same title: late results neither
+    // override it nor reorder the grid on their own. Without any gesture,
+    // automation stays (preserved feature).
+    if (titleKey && userPickedKeyRef.current === titleKey) return
     if (!autoSelectFitKey || !bestBackdrop || fitLoading) {
       if (!autoSelectFitKey) autoSelectedFitKeyRef.current = null
       return
@@ -125,7 +140,7 @@ export function BackdropOptions({ backdrops, backdropActivePath, selectBackdrop,
     autoSelectedFitKeyRef.current = autoSelectFitKey
     setSortByFit(true)
     selectBackdrop(bestBackdrop)
-  }, [autoSelectFitKey, bestBackdrop, fitLoading, isBestSelected, isSavedBackdrop, selectBackdrop])
+  }, [autoSelectFitKey, bestBackdrop, fitLoading, isBestSelected, isSavedBackdrop, selectBackdrop, titleKey])
 
   useEffect(() => {
     setVisibleCount(VISIBLE_BACKDROP_COUNT)
@@ -214,6 +229,7 @@ export function BackdropOptions({ backdrops, backdropActivePath, selectBackdrop,
   }
 
   const handleSelect = (img: TMDBImage) => {
+    markUserPicked()
     if (backdropActivePath === img.file_path) clearBackdrop()
     else selectBackdrop(img)
   }
@@ -270,7 +286,7 @@ export function BackdropOptions({ backdrops, backdropActivePath, selectBackdrop,
         {(bestBackdrop && !isBestSelected && !fitLoading) && (
           <button type="button"
             aria-label={t("ui.chooseBestBackdropAria")}
-            onClick={() => selectBackdrop(bestBackdrop)}
+            onClick={() => { markUserPicked(); selectBackdrop(bestBackdrop) }}
             className="w-full flex items-center justify-center gap-1.5 px-3 py-1.5 text-[11px] font-semibold rounded-lg transition-all duration-150 bg-accent-orange/15 text-accent-orange hover:bg-accent-orange/25 active:scale-[0.98]"
           >
             <Sparkles className="w-3 h-3" />{t("ui.chooseBestBackdrop")}

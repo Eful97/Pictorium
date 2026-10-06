@@ -6,6 +6,7 @@ import { useT } from "@/lib/contexts/TranslationContext"
 import { usePresetTransfer } from "@/lib/usePresetTransfer"
 import {
   GRADIENT_PRESET_COLOR,
+  GRADIENT_PRESET_NERO,
   NATURAL_GRADIENT_DEFAULTS,
   MAX_CUSTOM_GRADIENT_PRESETS,
   matchesGradientPreset,
@@ -22,6 +23,8 @@ interface GradientPresetRowProps {
   onApply: (v: GradientPresetValues) => void
   naturalLabel: string
   colorLabel: string
+  /** Etichetta chip Nero: opzionale, default "Nero" (nome proprio, identico IT/EN). */
+  neroLabel?: string
   addTitle: string
   namePlaceholder: string
   deleteLabel: string
@@ -29,7 +32,7 @@ interface GradientPresetRowProps {
 
 /**
  * Riga preset sfumatura condivisa tra editor (per-titolo) e Impostazioni
- * (default globali): 2 built-in + fino a 3 personali (5 totali). I personali
+ * (default globali): 3 built-in + fino a 3 personali (6 totali). I personali
  * sono scorciatoie locali (localStorage per namespace): fotografano gli
  * slider correnti, non viaggiano mai al server.
  */
@@ -38,6 +41,7 @@ export function GradientPresetRow({
   onApply,
   naturalLabel,
   colorLabel,
+  neroLabel = "Nero",
   addTitle,
   namePlaceholder,
   deleteLabel,
@@ -72,6 +76,12 @@ export function GradientPresetRow({
               onClick={() => onApply(GRADIENT_PRESET_COLOR)}
               className={chip(matchesGradientPreset(current, GRADIENT_PRESET_COLOR))}>
         {colorLabel}
+      </button>
+      <button type="button"
+              aria-pressed={matchesGradientPreset(current, GRADIENT_PRESET_NERO)}
+              onClick={() => onApply(GRADIENT_PRESET_NERO)}
+              className={chip(matchesGradientPreset(current, GRADIENT_PRESET_NERO))}>
+        {neroLabel}
       </button>
       {customs.map((p) => {
         const active = matchesGradientPreset(current, p.values)

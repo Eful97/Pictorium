@@ -18,6 +18,9 @@ interface ModalProps {
   /** id dell'elemento titolo per aria-labelledby. */
   labelledBy?: string
   className?: string
+  /** Override classi overlay (default z-50): la zoom preview settings deve
+   *  stare sopra il dialog settings (z-[80]). */
+  overlayClassName?: string
   children: React.ReactNode
 }
 
@@ -27,7 +30,7 @@ interface ModalProps {
  */
 export function Modal({
   isOpen, onClose, closeOnEscape = true, closeOnBackdrop = true,
-  labelledBy, className = "", children,
+  labelledBy, className = "", overlayClassName, children,
 }: ModalProps) {
   const panelRef = useRef<HTMLDivElement>(null)
 
@@ -46,6 +49,10 @@ export function Modal({
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape" && closeOnEscape) {
         e.preventDefault()
+        // A consumed Escape must not reach outer bubble listeners (e.g. the
+        // desktop settings dialog also closes on Escape): the topmost modal
+        // owns it. Capture runs before any outer bubble handler.
+        e.stopPropagation()
         onClose()
         return
       }
@@ -62,9 +69,9 @@ export function Modal({
         first.focus()
       }
     }
-    window.addEventListener("keydown", handleKeyDown)
+    window.addEventListener("keydown", handleKeyDown, true)
     return () => {
-      window.removeEventListener("keydown", handleKeyDown)
+      window.removeEventListener("keydown", handleKeyDown, true)
       document.body.style.overflow = ""
       previouslyFocused?.focus()
       window.scrollTo(scrollX, scrollY)
@@ -79,7 +86,7 @@ export function Modal({
       aria-modal="true"
       aria-labelledby={labelledBy}
       onClick={(e) => { if (closeOnBackdrop && e.target === e.currentTarget) onClose() }}
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-md animate-fade-in"
+      className={overlayClassName ?? "fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-md animate-fade-in"}
     >
       <div
         ref={panelRef}

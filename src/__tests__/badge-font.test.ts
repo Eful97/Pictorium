@@ -213,6 +213,38 @@ describe("Badge font contract (bfont)", () => {
     expect(buildDefaultsPreviewUrl({ defaultBadgeFont: "oswald" })).toContain("bfont=oswald")
   })
 
+  it("preview and Stremio URLs carry rs=corner and qbs=knockout explicitly", () => {
+    const ps = {
+      selected: { id: 1, media_type: "movie", poster_path: "/p.jpg" },
+      previewPoster: { file_path: "/p.jpg", iso_639_1: "it", vote_average: 7.8, width: 500, height: 750 },
+      selectedLogo: null,
+      selectedBackdrop: null,
+      logoScale: 60, logoOffsetX: 0, logoOffsetY: 0,
+      backdropScale: 100, backdropOffsetX: 0, backdropOffsetY: 0,
+      metaInfo: { genres: [{ id: 1, name: "Action" }], voteAverage: 7.8 },
+      trendRank: null, mdblistAnimeList: [],
+      topEdgeColor: null, accentColor: null, autoAccentColor: null,
+      lang: "it", tmdbKey: "",
+    }
+    const bp = {
+      globalBadges: true, rankingBadges: true,
+      badgeStyle: "shadow", rankingBadgeStyle: "corner",
+      badgeFont: "inter", qualityBadgeStyle: "knockout",
+      customBadge: null,
+      gradientHeight: 30, blurIntensity: 20, blurFade: 50, blurDarkness: 30, blurEnabled: true,
+      topBadgeScale: 100, topBadgeOffsetX: 0, topBadgeOffsetY: 0,
+      genreBadgeScale: 100, genreBadgeOffsetX: 0, genreBadgeOffsetY: 0,
+      qualityBadgeScale: 100, qualityBadgeOffsetX: 0, qualityBadgeOffsetY: 0,
+      networkLogoScale: 100, networkLogoOffsetX: 0, networkLogoOffsetY: 0,
+    }
+    expect(buildPreviewUrl(ps as never, bp as never)).toContain("rs=corner")
+    expect(buildPreviewUrl(ps as never, bp as never)).toContain("qbs=knockout")
+    expect(buildStremioPosterSearchParams({ rankingBadgeStyle: "corner", qualityBadgeStyle: "knockout" }).get("rs")).toBe("corner")
+    expect(buildStremioPosterSearchParams({ rankingBadgeStyle: "corner", qualityBadgeStyle: "knockout" }).get("qbs")).toBe("knockout")
+    expect(buildDefaultsPreviewUrl({ defaultRankingBadgeStyle: "corner", defaultQualityBadgeStyle: "knockout" } as never)).toContain("rs=corner")
+    expect(buildDefaultsPreviewUrl({ defaultRankingBadgeStyle: "corner", defaultQualityBadgeStyle: "knockout" } as never)).toContain("qbs=knockout")
+  })
+
   it("visual presets persist the font; legacy presets without the key default to inter", () => {
     const withFont = visualPresetValuesSchema.parse({
       defaultGlobalBadges: true, defaultRankingBadges: true,

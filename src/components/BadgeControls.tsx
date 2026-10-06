@@ -1,12 +1,26 @@
 "use client"
 
 import { useState } from "react"
-import { ChevronDown, Star, Trophy, Tv, Sparkles, Palette, Layers, Cloud, RotateCcw, Ribbon } from "lucide-react"
+import { ChevronDown, Star, Trophy, Tv, Sparkles, Palette, Layers, Cloud, RotateCcw } from "lucide-react"
 import { usePSelector } from "@/lib/context"
 import { useT } from "@/lib/contexts/TranslationContext"
 import { usePosterEditor } from "@/lib/contexts/PosterEditorContext"
 import { Toggle } from "@/components/Toggle"
 import { BadgeStyleSelector, BadgeFontSelector } from "@/components/ui"
+import {
+  RankingAppearanceSelector,
+  resolveRankingAppearance,
+  resolveRankVariant,
+  resolveRibbonVariant,
+  rankingAppearanceValue,
+  rankVariantValue,
+  ribbonVariantValue,
+  legacyExtraStyleForRank,
+  type RankingAppearance,
+  type RankBadgeVariant,
+  type RankRibbonVariant,
+} from "@/components/RankingAppearanceSelector"
+import type { ExtraBadgeStyle, RankingBadgeStyle } from "@/lib/badge-styles"
 import { lookupAVSpecs, KNOWN_VIDEO_FORMATS } from "@/lib/av-specs"
 import { getAwardBadgeLabel, getNominationBadgeLabel } from "@/lib/badge-labels"
 import { getNewSeasonLabel, getSeriesEndedLabel, isKDramaOrigin } from "@/lib/poster-badge"
@@ -50,6 +64,50 @@ export function BadgeControls() {
   // restano visibili ma disabilitati e i valori salvati intatti (tornando a
   // Colonna si ripristinano, mai distrutti).
   const bottomActive = ed.globalBadges && ed.badgeRating && ed.separateRatings && isBottomSeparateRatingsStyle(ed.separateRatingsStyle)
+
+  // Single rank appearance (effective rendering, same contract as the
+  // defaults panel): legacy default+ribbon reads Nastro, legacy default
+  // without ribbon reads Badge (standard variant). Pure read — never writes.
+  const appearance = resolveRankingAppearance({ rankingBadgeStyle: ed.rankingBadgeStyle, ribbonEnabled: ed.ribbonEnabled })
+  const variant: RankBadgeVariant = resolveRankVariant(ed.rankingBadgeStyle)
+  const ribbonVariant: RankRibbonVariant = resolveRibbonVariant(ed.rankingBadgeStyle)
+  // Freeze the legacy extra look before a rank style change moves it
+  // (explicit user choice only, never on mount): the extra badge keeps pixels.
+  function writeRankingStyle(rs: RankingBadgeStyle) {
+    if (ed.extraBadgeStyle == null) ed.setExtraBadgeStyle(legacyExtraStyleForRank(ed.rankingBadgeStyle))
+    ed.setRankingBadgeStyle(rs)
+  }
+  function handleAppearance(a: RankingAppearance) {
+    const v = rankingAppearanceValue(a)
+    if (v.rankingBadgeStyle === ed.rankingBadgeStyle && v.ribbonEnabled === ed.ribbonEnabled) return
+    writeRankingStyle(v.rankingBadgeStyle)
+    ed.setRibbonEnabled(v.ribbonEnabled)
+  }
+  function handleVariant(v: RankBadgeVariant) {
+    const next = rankVariantValue(v)
+    if (next.rankingBadgeStyle === ed.rankingBadgeStyle && next.ribbonEnabled === ed.ribbonEnabled) return
+    writeRankingStyle(next.rankingBadgeStyle)
+    ed.setRibbonEnabled(next.ribbonEnabled)
+  }
+  function handleRibbonVariant(v: RankRibbonVariant) {
+    const next = ribbonVariantValue(v)
+    if (next.rankingBadgeStyle === ed.rankingBadgeStyle && next.ribbonEnabled === ed.ribbonEnabled) return
+    writeRankingStyle(next.rankingBadgeStyle)
+    ed.setRibbonEnabled(next.ribbonEnabled)
+  }
+
+  // Extra style options: colored only when already set (legacy compat, same
+  // as the defaults panel — never offered fresh).
+  const extraOptions: ExtraBadgeStyle[] = ["default", "pill", "corner", "vetro", "bordo"]
+  if (ed.extraBadgeStyle === "colored") extraOptions.push("colored")
+  const EXTRA_STYLE_LABELS: Record<ExtraBadgeStyle, string> = {
+    default: "ui.bsDefault",
+    pill: "ui.pill",
+    corner: "ui.corner",
+    vetro: "ui.vetro",
+    bordo: "ui.bordo",
+    colored: "ui.colored",
+  }
 
   return (
     <div className="space-y-3.5 text-xs">
@@ -229,23 +287,17 @@ export function BadgeControls() {
 
         <hr className="border-surface2/50" />
 
-        {/* Trend & Network logo & Ribbon side */}
+        {/* Badge superiore (master top badge: rank + extra, single winner).
+            No per-title sash: categories/priorities stay global in Settings. */}
         <div className="space-y-2">
           <div className="flex items-center justify-between">
             <span className="text-zinc-300 font-medium flex items-center gap-1.5">
-              <Trophy className="w-3.5 h-3.5 text-amber-500" />
-              {t("ui.trendBadge")}
+              <Layers className="w-3.5 h-3.5 text-zinc-400" />
+              {t("ui.topBadge")}
             </span>
-            <Toggle value={ed.rankingBadges} onChange={(v) => ed.setRankingBadges(v)} label={t("ui.trendBadge")} />
+            <Toggle value={ed.rankingBadges} onChange={(v) => ed.setRankingBadges(v)} label={t("ui.topBadge")} />
           </div>
-
-          <div className="flex items-center justify-between" title={t("ui.ribbonHint")}>
-            <span className="text-zinc-300 font-medium flex items-center gap-1.5">
-              <Ribbon className="w-3.5 h-3.5 text-red-400" />
-              {t("ui.ribbon")}
-            </span>
-            <Toggle value={ed.ribbonEnabled} onChange={(v) => ed.setRibbonEnabled(v)} label={t("ui.ribbon")} />
-          </div>
+          <p className="text-[10px] text-muted italic leading-tight">{t("ui.singleBadgeHint")}</p>
 
           <div className="flex items-center justify-between">
             <span className="text-zinc-300 font-medium flex items-center gap-1.5">
@@ -261,7 +313,7 @@ export function BadgeControls() {
                 <label className="text-[11px] text-muted font-medium block mb-1">{t("ui.qualityBadgeStyle")}</label>
                 <BadgeStyleSelector
                   value={ed.qualityBadgeStyle}
-                  options={["standard", "mono", "color"]}
+                  options={["standard", "mono", "color", "knockout"]}
                   onChange={ed.setQualityBadgeStyle}
                   t={t}
                 />
@@ -452,13 +504,42 @@ export function BadgeControls() {
           )}
         </div>
 
-        {/* Stile Badge Classifica */}
+        {/* Classifica: single rank appearance (Nastro/Numero/Badge + variants).
+            No side control here: side is global-only (defaults), so a
+            per-title switch would preview a choice the save cannot keep. */}
         <div className="pt-2 border-t border-surface2/50 space-y-1.5">
-          <label className="text-[11px] text-muted font-medium block">{t("ui.styleRankingExtra")}</label>
+          <span className="text-[11px] text-muted font-medium flex items-center gap-1.5">
+            <Trophy className="w-3 h-3 text-amber-500" />
+            {t("ui.rankFamily")}
+          </span>
+          <RankingAppearanceSelector
+            appearance={appearance}
+            variant={variant}
+            ribbonVariant={ribbonVariant}
+            onAppearance={handleAppearance}
+            onVariant={handleVariant}
+            onRibbonVariant={handleRibbonVariant}
+          />
+          {appearance !== "badge" && (
+            <p className="text-[10px] text-muted italic leading-tight">{t("ui.ribbonPosition")}: {t("ui.settings")}</p>
+          )}
+        </div>
+
+        {/* Informazioni sul titolo: own extra look, never a fallback.
+            Without an explicit choice it shows the effective inherited style.
+            Always reachable, even with the genre master off (like defaults). */}
+        <div className="pt-2 border-t border-surface2/50 space-y-1.5">
+          <span className="text-[11px] text-muted font-medium block">{t("ui.titleInfoFamily")}</span>
+          <span className="text-[11px] text-muted font-medium block">{t("ui.extraBadgeStyle")}</span>
+          {ed.extraBadgeStyle == null && (
+            <p className="text-[10px] text-muted italic leading-tight">
+              {t("ui.inherited")}: {t(EXTRA_STYLE_LABELS[legacyExtraStyleForRank(ed.rankingBadgeStyle)])}
+            </p>
+          )}
           <BadgeStyleSelector
-            value={ed.rankingBadgeStyle}
-            options={["default", "pill", "colored", "bordo", "vetro"]}
-            onChange={ed.setRankingBadgeStyle}
+            value={ed.extraBadgeStyle ?? legacyExtraStyleForRank(ed.rankingBadgeStyle)}
+            options={extraOptions}
+            onChange={(v) => ed.setExtraBadgeStyle(v)}
             t={t}
             accentColor={accentColor}
           />
