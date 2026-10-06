@@ -415,12 +415,12 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
       if (earlyLandscape) {
         const backdropState = getEffectiveBackdropRotationState(mapping)
         isRotating = backdropState.isRotating
-        const rotated = await tryRotateBackdrop(mapping, backdropState)
+        const rotated = await tryRotateBackdrop(mapping, backdropState, scopedUser)
         if (rotated) mapping = rotated
       } else {
         const posterState = getEffectiveRotationState(mapping)
         isRotating = posterState.isRotating
-        const rotated = await tryRotatePoster(mapping, posterState)
+        const rotated = await tryRotatePoster(mapping, posterState, scopedUser)
         if (rotated) mapping = rotated
       }
     } catch (error) {

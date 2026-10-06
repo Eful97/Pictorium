@@ -73,20 +73,24 @@ export async function withRotationLock<T>(key: string, fn: () => Promise<T>): Pr
  * Check if a poster needs rotation, and atomically advance it.
  * Returns the updated mapping if rotation occurred, or null if no change needed.
  * The caller should replace their local mapping reference with the returned one.
+ * `userId` scopes the re-read/write to the caller's namespace (null = global,
+ * same default as the store); it is also part of the lock key so namespaces
+ * never block each other.
  */
 export async function tryRotatePoster(
   mapping: Mapping,
   rotationState: EffectiveRotationState,
+  userId?: string | null,
 ): Promise<Mapping | null> {
   if (!rotationState.isRotating || rotationState.availablePosters.length < 2) {
     return null
   }
 
-  const key = `${mapping.mediaType}:${mapping.tmdbId}`
+  const key = `${userId ?? "global"}:${mapping.mediaType}:${mapping.tmdbId}`
   return withRotationLock(key, async () => {
     // Re-read mapping from store to get the latest state
     const { getById } = await import("@/lib/store")
-    const currentMapping = await getById(mapping.mediaType, mapping.tmdbId)
+    const currentMapping = await getById(mapping.mediaType, mapping.tmdbId, userId ?? null)
     if (!currentMapping) return null
 
     const lastUpdate = currentMapping.cleanPosterUpdatedAt
@@ -110,7 +114,7 @@ export async function tryRotatePoster(
       // Same path — just update the timestamp
       currentMapping.cleanPosterUpdatedAt = new Date(now).toISOString()
       currentMapping.updatedAt = new Date(now).toISOString()
-      await upsert(currentMapping)
+      await upsert(currentMapping, userId ?? null)
       return null
     }
 
@@ -118,7 +122,7 @@ export async function tryRotatePoster(
     currentMapping.cleanPosterIndex = newIndex
     currentMapping.cleanPosterUpdatedAt = new Date(now).toISOString()
     currentMapping.updatedAt = new Date(now).toISOString()
-    await upsert(currentMapping)
+    await upsert(currentMapping, userId ?? null)
     return currentMapping
   })
 }
@@ -127,20 +131,22 @@ export async function tryRotatePoster(
  * Rotazione 24h dello sfondo landscape (mirror di tryRotatePoster): avanza
  * `backdropPath` tra i backdrop disponibili. Stessa riga mapping dei poster,
  * quindi stesso lock per-id (niente race tra le due rotazioni).
+ * `userId` come sopra: namespace di re-read/write e parte della chiave lock.
  * Ritorna il mapping aggiornato o null se non serve ruotare.
  */
 export async function tryRotateBackdrop(
   mapping: Mapping,
   rotationState: EffectiveBackdropRotationState,
+  userId?: string | null,
 ): Promise<Mapping | null> {
   if (!rotationState.isRotating || rotationState.availableBackdrops.length < 2) {
     return null
   }
 
-  const key = `${mapping.mediaType}:${mapping.tmdbId}`
+  const key = `${userId ?? "global"}:${mapping.mediaType}:${mapping.tmdbId}`
   return withRotationLock(key, async () => {
     const { getById } = await import("@/lib/store")
-    const currentMapping = await getById(mapping.mediaType, mapping.tmdbId)
+    const currentMapping = await getById(mapping.mediaType, mapping.tmdbId, userId ?? null)
     if (!currentMapping) return null
 
     const lastUpdate = currentMapping.cleanBackdropUpdatedAt
@@ -162,7 +168,7 @@ export async function tryRotateBackdrop(
     if (newBackdropPath === currentMapping.backdropPath) {
       currentMapping.cleanBackdropUpdatedAt = new Date(now).toISOString()
       currentMapping.updatedAt = new Date(now).toISOString()
-      await upsert(currentMapping)
+      await upsert(currentMapping, userId ?? null)
       return null
     }
 
@@ -170,7 +176,7 @@ export async function tryRotateBackdrop(
     currentMapping.cleanBackdropIndex = newIndex
     currentMapping.cleanBackdropUpdatedAt = new Date(now).toISOString()
     currentMapping.updatedAt = new Date(now).toISOString()
-    await upsert(currentMapping)
+    await upsert(currentMapping, userId ?? null)
     return currentMapping
   })
 }
