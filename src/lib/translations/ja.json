@@ -259,6 +259,8 @@
   "ui.tmdbKey": "個人TMDBキー",
   "ui.keyTooShort": "キーは20文字以上必要です",
   "ui.networkLogo": "ネットワークロゴ",
+  "ui.followTitleLogo": "タイトルロゴに追従",
+  "ui.networkFreezeEmpty": "ネットワークロゴが描画されていません — 追従を維持します",
   "ui.networkLogoPosition": "ネットワークロゴの位置",
   "ui.networkLogoPositionTop": "上",
   "ui.preRelease": "デジタル事前エフェクト",

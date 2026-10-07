@@ -259,6 +259,8 @@
   "ui.tmdbKey": "Cheie TMDB personală",
   "ui.keyTooShort": "Cheia trebuie să aibă cel puțin 20 de caractere",
   "ui.networkLogo": "Logo rețea",
+  "ui.followTitleLogo": "Urmărește sigla titlului",
+  "ui.networkFreezeEmpty": "Sigla rețelei nu este randată — urmărirea rămâne activă",
   "ui.networkLogoPosition": "Poziția logo-ului de rețea",
   "ui.networkLogoPositionTop": "Sus",
   "ui.preRelease": "Efect pre-digital",

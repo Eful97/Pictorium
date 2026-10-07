@@ -259,6 +259,8 @@
   "ui.tmdbKey": "Personlig TMDB-nyckel",
   "ui.keyTooShort": "Nyckeln måste vara minst 20 tecken lång",
   "ui.networkLogo": "Nätverkslogotyp",
+  "ui.followTitleLogo": "Följ titelloggan",
+  "ui.networkFreezeEmpty": "Nätverksloggan renderas inte — följning förblir på",
   "ui.networkLogoPosition": "Nätverkslogotypens position",
   "ui.networkLogoPositionTop": "Överst",
   "ui.preRelease": "Pre-digital effekt",

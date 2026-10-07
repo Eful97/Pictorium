@@ -259,6 +259,8 @@
   "ui.tmdbKey": "Osobní TMDB klíč",
   "ui.keyTooShort": "Klíč musí mít aspoň 20 znaků",
   "ui.networkLogo": "Logo sítě",
+  "ui.followTitleLogo": "Sledovat logo titulku",
+  "ui.networkFreezeEmpty": "Logo sítě se nevykreslilo — sledování zůstává zapnuté",
   "ui.networkLogoPosition": "Pozice loga sítě",
   "ui.networkLogoPositionTop": "Nahoře",
   "ui.preRelease": "Před-digitální efekt",

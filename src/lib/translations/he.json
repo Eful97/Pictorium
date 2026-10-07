@@ -259,6 +259,8 @@
   "ui.tmdbKey": "Personal TMDB Key",
   "ui.keyTooShort": "The key must be at least 20 characters long",
   "ui.networkLogo": "Network logo",
+  "ui.followTitleLogo": "לעקוב אחר לוגו הכותרת",
+  "ui.networkFreezeEmpty": "לוגו הרשת לא עבר רינדור — המעקב נשמר",
   "ui.networkLogoPosition": "Network logo position",
   "ui.networkLogoPositionTop": "Top",
   "ui.preRelease": "אפקט טרום-דיגיטלי",

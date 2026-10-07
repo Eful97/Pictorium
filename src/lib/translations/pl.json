@@ -259,6 +259,8 @@
   "ui.tmdbKey": "Osobisty klucz TMDB",
   "ui.keyTooShort": "Klucz musi mieć co najmniej 20 znaków",
   "ui.networkLogo": "Logo sieci",
+  "ui.followTitleLogo": "Podążaj za logo tytułu",
+  "ui.networkFreezeEmpty": "Logo sieci nie zostało wyrenderowane — śledzenie pozostaje włączone",
   "ui.networkLogoPosition": "Pozycja logo sieci",
   "ui.networkLogoPositionTop": "U góry",
   "ui.preRelease": "Efekt przedpremierowy",

@@ -255,6 +255,8 @@
   "ui.tmdbKey": "Clé TMDB personnelle",
   "ui.keyTooShort": "La clé doit contenir au moins 20 caractères",
   "ui.networkLogo": "Logo du réseau",
+  "ui.followTitleLogo": "Suivre le logo du titre",
+  "ui.networkFreezeEmpty": "Logo réseau non affiché — le suivi reste activé",
   "ui.networkLogoPosition": "Position du logo réseau",
   "ui.networkLogoPositionTop": "En haut",
   "ui.preRelease": "Effet pré-numérique",

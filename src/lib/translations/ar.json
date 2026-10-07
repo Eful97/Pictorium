@@ -259,6 +259,8 @@
   "ui.tmdbKey": "مفتاح TMDB الشخصي",
   "ui.keyTooShort": "يجب أن يكون المفتاح 20 حرفا على الأقل",
   "ui.networkLogo": "شعار الشبكة",
+  "ui.followTitleLogo": "اتبع شعار العنوان",
+  "ui.networkFreezeEmpty": "لم يتم عرض شعار الشبكة — تظل المتابعة مفعّلة",
   "ui.networkLogoPosition": "موضع شعار الشبكة",
   "ui.networkLogoPositionTop": "أعلى",
   "ui.preRelease": "تأثير ما قبل الرقمي",

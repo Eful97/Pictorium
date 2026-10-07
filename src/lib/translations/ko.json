@@ -259,6 +259,8 @@
   "ui.tmdbKey": "개인 TMDB 키",
   "ui.keyTooShort": "키는 20자 이상이어야 합니다",
   "ui.networkLogo": "네트워크 로고",
+  "ui.followTitleLogo": "타이틀 로고 따라가기",
+  "ui.networkFreezeEmpty": "네트워크 로고가 렌더링되지 않음 — 따라가기 유지",
   "ui.networkLogoPosition": "네트워크 로고 위치",
   "ui.networkLogoPositionTop": "위",
   "ui.preRelease": "프리디지털 효과",

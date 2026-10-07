@@ -259,6 +259,8 @@
   "ui.tmdbKey": "Persoonlijke TMDB-sleutel",
   "ui.keyTooShort": "De sleutel moet minstens 20 tekens lang zijn",
   "ui.networkLogo": "Netwerklogo",
+  "ui.followTitleLogo": "Titel-logo volgen",
+  "ui.networkFreezeEmpty": "Netwerklogo niet gerenderd — volgen blijft aan",
   "ui.networkLogoPosition": "Netwerklogo-positie",
   "ui.networkLogoPositionTop": "Boven",
   "ui.preRelease": "Pre-digitaal effect",

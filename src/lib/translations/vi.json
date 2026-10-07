@@ -260,6 +260,8 @@
   "ui.tmdbKey": "Key TMDB cá nhân",
   "ui.keyTooShort": "Key phải dài ít nhất 20 ký tự",
   "ui.networkLogo": "Logo nhà đài",
+  "ui.followTitleLogo": "Theo logo tiêu đề",
+  "ui.networkFreezeEmpty": "Logo mạng chưa được hiển thị — vẫn giữ theo dõi",
   "ui.networkLogoPosition": "Vị trí logo nhà đài",
   "ui.networkLogoPositionTop": "Trên cùng",
   "ui.preRelease": "Hiệu ứng trước phát hành số",

@@ -259,6 +259,8 @@
   "ui.tmdbKey": "Kişisel TMDB Anahtarı",
   "ui.keyTooShort": "Anahtar en az 20 karakter olmalı",
   "ui.networkLogo": "Ağ logosu",
+  "ui.followTitleLogo": "Başlık logosunu takip et",
+  "ui.networkFreezeEmpty": "Ağ logosu oluşturulmadı — takip açık kalıyor",
   "ui.networkLogoPosition": "Ağ logosu konumu",
   "ui.networkLogoPositionTop": "Üst",
   "ui.preRelease": "Dijital öncesi efekti",

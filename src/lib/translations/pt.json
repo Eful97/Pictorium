@@ -259,6 +259,8 @@
   "ui.tmdbKey": "Chave TMDB pessoal",
   "ui.keyTooShort": "A chave deve ter pelo menos 20 caracteres",
   "ui.networkLogo": "Logo da rede",
+  "ui.followTitleLogo": "Seguir o logotipo do título",
+  "ui.networkFreezeEmpty": "Logotipo da emissora não renderizado — mantendo o acompanhamento",
   "ui.networkLogoPosition": "Posição do logo da rede",
   "ui.networkLogoPositionTop": "Em cima",
   "ui.preRelease": "Efeito pré-digital",
