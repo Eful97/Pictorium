@@ -9,7 +9,7 @@
  * - unmount during backoff writes no state and refetches nothing;
  * - a user edit during backoff survives via the localStorage merge;
  * - generation ownership: a newer refresh (StrictMode remount, post-unlock
- *   event) invalidates the older chain — no stale retry, no obsolete data,
+ *   event) invalidates the older chain -- no stale retry, no obsolete data,
  *   no attempts beyond the owner budget.
  */
 import { StrictMode, type ReactNode } from "react"
@@ -203,7 +203,7 @@ describe("useDefaults hydration retry on 429", () => {
     })
     // The retry still fired (no wedging) and the edit is preserved: the
     // merge favors local by design, so the server pill stays shadowed by
-    // the factory local — what matters is nothing is lost and nothing throws.
+    // the factory local -- what matters is nothing is lost and nothing throws.
     expect(getCount).toBe(2)
     expect(result.current.defaultTopBadgeScale).toBe(150)
     unmount()

@@ -786,9 +786,19 @@ function defaultsToPayload(d: DefaultsState): Record<string, unknown> {
   }
 }
 
-// Tentativi totali (prima fetch + retry) dell'hydration GET su 429: spec
-// esplicito, bounded — mai retry infiniti contro un bucket saturo.
+// Total attempts (initial fetch + retries) for hydration GET on 429:
+// explicit spec, bounded -- never endless retries against a hot bucket.
 const HYDRATION_MAX_ATTEMPTS = 3
+
+// Live per-title draft keys: bare editing-scope fields, never persisted
+// (defaultsToPayload carries only default* + landscape -- note its bare-named
+// keys like `rankingBadgeStyle` always carry default values, never live
+// drafts). Values written here via update() are title/UI scope with no
+// dedicated server truth; a late hydration must not reset them to server
+// defaults, or just-clicked per-title edits get wiped.
+const LIVE_DRAFT_KEYS: ReadonlySet<string> = new Set(
+  Object.keys(DEFAULTS).filter((k) => !k.startsWith("default") && k !== "landscape"),
+)
 
 export function useDefaults() {
   // Stato iniziale deterministico (DEFAULTS): la lettura di localStorage è rimandata
@@ -829,6 +839,12 @@ export function useDefaults() {
   // StrictMode remounts or concurrent post-unlock refreshes.
   const refreshSeqRef = useRef(0)
   const refreshAbortRef = useRef<AbortController | null>(null)
+  // Bare keys explicitly written via update() (per-title drafts, UI-only
+  // targets): hydration preserves their live values instead of resetting
+  // them to server defaults. Never cleared: values are read live at apply
+  // time, so later resets flow through naturally. default* keys are never
+  // tracked — server truth always applies to them.
+  const touchedLiveRef = useRef<Set<string>>(new Set())
   const mountedRef = useRef(true)
   useEffect(() => {
     mountedRef.current = true
@@ -914,13 +930,13 @@ export function useDefaults() {
   // Refresh defaults dal server (namespace via userFetch su /u/<uuid>).
   // Estratto per riuso post-unlock: la prima fetch può aver girato senza
   // token (race col #key=) e il merge server→locale va rifatto a sblocco.
-  // Hydration retry: il bucket `defaults` è condiviso (30 burst / 3 al sec)
-  // e sotto carico va in 429 ANCHE sulla GET di hydration — senza retry
-  // l'editor restava ai factory per tutta la pagina (preview con rs=default
-  // invece dei salvati). Solo il 429 aspetta il Retry-After e riprova, al
-  // massimo HYDRATION_MAX_ATTEMPTS tentativi totali; 401/404/network e
-  // 429 persistenti mantengono la semantica precedente (unconfirmed, mai
-  // loading infinito). Niente 5xx speculativi: solo il caso dimostrato.
+  // Hydration retry: the shared `defaults` bucket (30 burst / 3 per sec)
+  // hits 429 on the hydration GET too under load -- without a retry the
+  // editor stayed on factory values for the whole page (previews with
+  // rs=default instead of the saved ones). Only 429 waits out Retry-After
+  // and retries, at most HYDRATION_MAX_ATTEMPTS total attempts; 401/404/
+  // network and persistent 429s keep the previous semantics (unconfirmed,
+  // never infinite loading). No speculative 5xx: demonstrated case only.
   const refreshFromServer = useCallback(() => {
     // New generation invalidates the previous chain first: its retry timer
     // is cancelled and its inflight GET aborted (userFetch already takes an
@@ -993,7 +1009,19 @@ export function useDefaults() {
           const storedOk = safeSetItem(defaultsStorageKey(), mergedStr)
           lastPersistRef.current = mergedStr
           if (!isOwner()) return
-          setState(updated)
+          // Live drafts win over hydration: re-apply the current values of
+          // keys written via update() since they carry title/UI scope with
+          // no server truth. Untouched keys (and all default*) hydrate
+          // normally; values are read live so later resets hold.
+          setState((prev) => {
+            if (touchedLiveRef.current.size === 0) return updated
+            const keep: Partial<DefaultsState> = {}
+            for (const key of touchedLiveRef.current) {
+              const k = key as keyof DefaultsState
+              ;(keep as Record<string, unknown>)[key] = prev[k]
+            }
+            return { ...updated, ...keep }
+          })
           if (!storedOk) {
             // Local write failed: local-failed (never synced).
             setSyncStatus((prev) => (prev === "idle" ? "local-failed" : prev))
@@ -1071,7 +1099,15 @@ export function useDefaults() {
   }, [state, hydrated, syncSend])
 
   const update = useCallback((patch: Partial<DefaultsState> | ((prev: DefaultsState) => Partial<DefaultsState>)) => {
-    setState((prev) => ({ ...prev, ...(typeof patch === "function" ? patch(prev) : patch) }))
+    setState((prev) => {
+      const resolved = typeof patch === "function" ? patch(prev) : patch
+      // Record live-draft keys here (not in the body) so the function form
+      // is covered too; Set-add is idempotent under StrictMode re-invokes.
+      for (const key of Object.keys(resolved)) {
+        if (LIVE_DRAFT_KEYS.has(key)) touchedLiveRef.current.add(key)
+      }
+      return { ...prev, ...resolved }
+    })
   }, [])
 
   const loadDefaultsToState = useCallback(() => {
