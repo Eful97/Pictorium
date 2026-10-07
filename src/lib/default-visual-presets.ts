@@ -89,6 +89,9 @@ const SHARED_VISUAL_BASE = {
   defaultNetworkLogoOffsetY: 0,
   defaultNetworkLogo: false,
   defaultNetworkLogoPosition: "auto",
+  // Follow storico esplicito (i preset precedono il campo: assente = ON,
+  // ma l'highlight confronta patch complete e il capture lo include sempre).
+  defaultNetworkLogoFollowTitle: true,
   defaultRibbonEnabled: false,
   defaultRibbonSide: "left",
   defaultPosterShape: "poster",
@@ -182,6 +185,8 @@ export const APPLE_VISUAL_DEFAULTS: VisualPresetValues = captureVisualPreset({
   defaultNetworkLogoOffsetY: 0,
   defaultNetworkLogo: true,
   defaultNetworkLogoPosition: "auto",
+  // Come sopra: follow storico esplicito per l'highlight patch-complete.
+  defaultNetworkLogoFollowTitle: true,
   defaultPreRelease: true,
   defaultRibbonEnabled: true,
   defaultRibbonSide: "left",

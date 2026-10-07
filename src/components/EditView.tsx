@@ -13,6 +13,7 @@ import type { TMDBImage } from "@/lib/types"
 import { effectiveMappingForShape, type LandscapeSettings } from "@/lib/types"
 import { isSeparateRatingsStyle } from "@/lib/badge-styles"
 import { selectBestLogo } from "@/lib/logo-selection"
+import { resolveNetworkEffectiveView } from "@/lib/network-follow"
 import { isGradientDirtyForShape, isArtworkDirty, isMappingDirty } from "@/lib/gradient-dirty"
 import { PosterOptions } from "@/components/PosterOptions"
 import { BackdropOptions } from "@/components/BackdropOptions"
@@ -228,6 +229,9 @@ export default function EditView() {
       topBadgeScale: ed.topBadgeScale,
       topBadgeOffsetX: ed.topBadgeOffsetX,
       topBadgeOffsetY: ed.topBadgeOffsetY,
+      extraBadgeScale: ed.extraBadgeScale,
+      extraBadgeOffsetX: ed.extraBadgeOffsetX,
+      extraBadgeOffsetY: ed.extraBadgeOffsetY,
       genreBadgeScale: ed.genreBadgeScale,
       genreBadgeOffsetX: ed.genreBadgeOffsetX,
       genreBadgeOffsetY: ed.genreBadgeOffsetY,
@@ -255,6 +259,7 @@ export default function EditView() {
       networkLogo: ed.networkLogo,
       ribbonEnabled: ed.ribbonEnabled,
       networkLogoPosition: ed.networkLogoPosition,
+      networkLogoFollowTitle: ed.networkLogoFollowTitle,
       qualityBadgeStyle: ed.qualityBadgeStyle,
       badgeStyle: ed.badgeStyle,
       rankingBadgeStyle: ed.rankingBadgeStyle,
@@ -421,6 +426,7 @@ export default function EditView() {
     shapeStashRef.current[prev] = {
       logoScale: ed.logoScale, logoOffsetX: ed.logoOffsetX, logoOffsetY: ed.logoOffsetY,
       topBadgeScale: ed.topBadgeScale, topBadgeOffsetX: ed.topBadgeOffsetX, topBadgeOffsetY: ed.topBadgeOffsetY,
+      extraBadgeScale: ed.extraBadgeScale, extraBadgeOffsetX: ed.extraBadgeOffsetX, extraBadgeOffsetY: ed.extraBadgeOffsetY,
       genreBadgeScale: ed.genreBadgeScale, genreBadgeOffsetX: ed.genreBadgeOffsetX, genreBadgeOffsetY: ed.genreBadgeOffsetY,
       qualityBadgeScale: ed.qualityBadgeScale, qualityBadgeOffsetX: ed.qualityBadgeOffsetX, qualityBadgeOffsetY: ed.qualityBadgeOffsetY,
       separateBadgeScale: ed.separateBadgeScale,
@@ -428,6 +434,7 @@ export default function EditView() {
       separateBadgeOffsetY: ed.separateBadgeOffsetY,
       separateRatingsStyle: ed.separateRatingsStyle,
       networkLogoScale: ed.networkLogoScale, networkLogoOffsetX: ed.networkLogoOffsetX, networkLogoOffsetY: ed.networkLogoOffsetY,
+      networkLogoFollowTitle: ed.networkLogoFollowTitle,
       // Sfumatura ESCLUSA: ha profili dedicati per formato (flat = portrait,
       // landscapeBlur = landscape) e non passa più dallo stash.
     }
@@ -447,9 +454,14 @@ export default function EditView() {
       ed.setLogoScale(src.logoScale ?? ed.logoScale)
       ed.setLogoOffsetX(src.logoOffsetX ?? landFallback?.logoOffsetX ?? ed.logoOffsetX)
       ed.setLogoOffsetY(src.logoOffsetY ?? landFallback?.logoOffsetY ?? ed.logoOffsetY)
-      ed.setTopBadgeScale(src.topBadgeScale ?? landFallback?.topBadgeScale ?? ed.topBadgeScale)
-      ed.setTopBadgeOffsetX(src.topBadgeOffsetX ?? landFallback?.topBadgeOffsetX ?? ed.topBadgeOffsetX)
-      ed.setTopBadgeOffsetY(src.topBadgeOffsetY ?? landFallback?.topBadgeOffsetY ?? ed.topBadgeOffsetY)
+      ed.setTopBadgeScale(src.topBadgeScale ?? landFallback?.topBadgeScale ?? ed.topBadgeScale, { materialize: false })
+      ed.setTopBadgeOffsetX(src.topBadgeOffsetX ?? landFallback?.topBadgeOffsetX ?? ed.topBadgeOffsetX, { materialize: false })
+      ed.setTopBadgeOffsetY(src.topBadgeOffsetY ?? landFallback?.topBadgeOffsetY ?? ed.topBadgeOffsetY, { materialize: false })
+      // Independent extra: stash, then saved profile, then null (never live
+      // values from the other shape nor classifica defaults; null = legacy fallback).
+      ed.setExtraBadgeScale(src.extraBadgeScale ?? landFallback?.extraBadgeScale ?? null)
+      ed.setExtraBadgeOffsetX(src.extraBadgeOffsetX ?? landFallback?.extraBadgeOffsetX ?? null)
+      ed.setExtraBadgeOffsetY(src.extraBadgeOffsetY ?? landFallback?.extraBadgeOffsetY ?? null)
       ed.setGenreBadgeScale(src.genreBadgeScale ?? landFallback?.genreBadgeScale ?? ed.genreBadgeScale)
       ed.setGenreBadgeOffsetX(src.genreBadgeOffsetX ?? landFallback?.genreBadgeOffsetX ?? ed.genreBadgeOffsetX)
       ed.setGenreBadgeOffsetY(src.genreBadgeOffsetY ?? landFallback?.genreBadgeOffsetY ?? ed.genreBadgeOffsetY)
@@ -466,8 +478,34 @@ export default function EditView() {
         ed.setSeparateRatingsStyle(isSeparateRatingsStyle(styleSrc) ? styleSrc : ed.separateRatingsStyle)
       }
       ed.setNetworkLogoScale(src.networkLogoScale ?? landFallback?.networkLogoScale ?? ed.networkLogoScale)
-      ed.setNetworkLogoOffsetX(src.networkLogoOffsetX ?? landFallback?.networkLogoOffsetX ?? ed.networkLogoOffsetX)
-      ed.setNetworkLogoOffsetY(src.networkLogoOffsetY ?? landFallback?.networkLogoOffsetY ?? ed.networkLogoOffsetY)
+      // Effective network view composing the saved mapping with the global
+      // defaults (server semantics): with no stash/mapping network keys, a
+      // portrait-fixed flat never leaks its absolutes into landscape — and a
+      // landscape-modified live value never leaks back into portrait. Saved
+      // per-shape overrides always win via `src` first.
+      const shapeNetView = resolveNetworkEffectiveView(
+        selectedMapping ?? null,
+        {
+          networkLogoFollowTitle: ed.defaultNetworkLogoFollowTitle,
+          networkLogoOffsetX: ed.defaultNetworkLogoOffsetX,
+          networkLogoOffsetY: ed.defaultNetworkLogoOffsetY,
+        },
+        next === "landscape" ? landFallback : null,
+        next === "landscape" ? "landscape" : "poster",
+      )
+      const shapeNetX = shapeNetView.follow ? shapeNetView.relativeX : (shapeNetView.fixedX ?? 0)
+      const shapeNetY = shapeNetView.follow ? shapeNetView.relativeY : (shapeNetView.fixedY ?? 0)
+      if (next === "landscape") {
+        ed.setNetworkLogoOffsetX(src.networkLogoOffsetX ?? shapeNetX)
+        ed.setNetworkLogoOffsetY(src.networkLogoOffsetY ?? shapeNetY)
+        // Follow per-shape (mai leak tra formati): stash/profilo salvato,
+        // altrimenti l'effettivo da mapping + default (mai il flat raw).
+        ed.setNetworkLogoFollowTitle(src.networkLogoFollowTitle ?? shapeNetView.follow)
+      } else {
+        ed.setNetworkLogoOffsetX(src.networkLogoOffsetX ?? shapeNetX)
+        ed.setNetworkLogoOffsetY(src.networkLogoOffsetY ?? shapeNetY)
+        ed.setNetworkLogoFollowTitle(src.networkLogoFollowTitle ?? shapeNetView.follow)
+      }
       // Sfumatura esclusa dallo stash (profili dedicati per formato).
     }
   }, [ed, removeBackdrop, selectedMapping, selectedMappingKey])

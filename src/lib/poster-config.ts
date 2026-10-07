@@ -38,6 +38,12 @@ import {
   type SeparateRatingsStyle,
 } from "./badge-styles"
 import { NON_CLEAN_BLUR_FADE, NON_CLEAN_GRADIENT_HEIGHT } from "./gradient-defaults"
+import {
+  resolveEffectiveNetworkFollow,
+  resolveLandscapeNetworkOffsets,
+  resolveNetworkFixedCoords,
+  resolveNetworkFollowTitle,
+} from "./network-follow"
 
 export function clamp(v: number, min: number, max: number): number {
   return Math.min(Math.max(v, min), max)
@@ -199,6 +205,18 @@ export function resolveSeparateDisplayState(input: {
   }
 }
 
+/**
+ * Risoluzione follow/coords network: definizioni in `network-follow.ts`
+ * (modulo browser-safe, importato anche dai builder URL). Qui ri-esportate
+ * per i consumer server/test esistenti.
+ */
+export {
+  resolveNetworkFollowTitle,
+  resolveEffectiveNetworkFollow,
+  resolveNetworkFixedCoords,
+  resolveLandscapeNetworkOffsets,
+} from "./network-follow"
+
 export interface PosterRenderConfigInput {
   searchParams: URLSearchParams
   mapping: Mapping | null
@@ -273,6 +291,14 @@ export interface PosterRenderConfig {
   topBadgeScale: number
   topBadgeOffsetX: number
   topBadgeOffsetY: number
+  /**
+   * Tuning EXTRA superiore risolto (null = assente ovunque: il render applica
+   * il fallback legacy sul tuning classifica). Catena: query `exscale`/`exox`/
+   * `exoy` > mapping per-shape > config token > defaults per-shape > null.
+   */
+  extraBadgeScale: number | null
+  extraBadgeOffsetX: number | null
+  extraBadgeOffsetY: number | null
   /** Scala % del badge genere/rating in basso (default 100). */
   genreBadgeScale: number
   /** Offset px del badge genere/rating, solo stili non-bar. */
@@ -288,6 +314,20 @@ export interface PosterRenderConfig {
   /** Offset px del logo network. */
   networkLogoOffsetX: number
   networkLogoOffsetY: number
+  /**
+   * Il network segue il layout storico ancorato al titolo (default true).
+   * Catena: query `netFollow` ("0" = false, presente-altro = true) > mapping
+   * per-titolo > config token > server defaults effettivi > true.
+   * False esplicito prevale sempre (anche su default ereditati true).
+   */
+  networkLogoFollowTitle: boolean
+  /**
+   * Coordinate assolute del box network (top-left) in px nel canvas del
+   * formato, solo con follow spento. Null = layout storico. Per-shape, mai
+   * fallback cross-shape (il portrait non eredita dal landscape e viceversa).
+   */
+  networkFixedX: number | null
+  networkFixedY: number | null
   queryExtra: string | null
   qNetLogo: string | null
   networkLogo: boolean
@@ -641,6 +681,29 @@ export function resolvePosterRenderConfig(input: PosterRenderConfigInput): Poste
     ? (Number.isFinite(qToyNum) ? clamp(Math.round(qToyNum), -2000, 2000) : 0)
     : (m?.topBadgeOffsetY ?? configOverride?.topBadgeOffsetY ?? esd.topBadgeOffsetY ?? 0)
 
+  // Badge extra superiore — stessa catena (query > mapping per-shape > config
+  // token > defaults per-shape), ma NULLABLE con fallback legacy: assente
+  // ovunque (o query invalida) = null e il render usa il tuning classifica.
+  // Mai default 100/0 baked qui: il fallback vive al sito d'uso per kind.
+  const qExScaleNum = q.get("exscale") ? Number(q.get("exscale")) : NaN
+  const extraBadgeScale = q.get("exscale") !== null
+    ? (Number.isFinite(qExScaleNum) && qExScaleNum !== 0 ? clamp(Math.round(qExScaleNum), 10, 200) : null)
+    : (m?.extraBadgeScale != null && Number.isFinite(m.extraBadgeScale)
+        ? clamp(Math.round(m.extraBadgeScale), 10, 200)
+        : (configOverride?.extraBadgeScale != null && Number.isFinite(configOverride.extraBadgeScale)
+            ? clamp(Math.round(configOverride.extraBadgeScale), 10, 200)
+            : (esd.extraBadgeScale != null && Number.isFinite(esd.extraBadgeScale)
+                ? clamp(Math.round(esd.extraBadgeScale), 10, 200)
+                : null)))
+  const qExoxNum = q.get("exox") ? Number(q.get("exox")) : NaN
+  const extraBadgeOffsetX = q.get("exox") !== null
+    ? (Number.isFinite(qExoxNum) ? clamp(Math.round(qExoxNum), -2000, 2000) : null)
+    : (m?.extraBadgeOffsetX ?? configOverride?.extraBadgeOffsetX ?? esd.extraBadgeOffsetX ?? null)
+  const qExoyNum = q.get("exoy") ? Number(q.get("exoy")) : NaN
+  const extraBadgeOffsetY = q.get("exoy") !== null
+    ? (Number.isFinite(qExoyNum) ? clamp(Math.round(qExoyNum), -2000, 2000) : null)
+    : (m?.extraBadgeOffsetY ?? configOverride?.extraBadgeOffsetY ?? esd.extraBadgeOffsetY ?? null)
+
   // Badge genere/rating in basso — stessa catena (query > mapping > config >
   // server defaults > default), stessi bound della scala (%, 10..200).
   const qGScaleNum = q.get("gscale") ? Number(q.get("gscale")) : NaN
@@ -727,15 +790,37 @@ export function resolvePosterRenderConfig(input: PosterRenderConfigInput): Poste
                 ? clamp(Math.round(esd.networkLogoScale), 10, 200)
                 : 100)))
 
-  // Offset logo network — stessa catena, clamp px come il logo.
+  // Offset logo network — stessa catena, clamp px come il logo. In landscape
+  // la risoluzione esclude i flat di un layer fixed (follow===false): sono
+  // assoluti di un'altra shape e non devono rientrare come relativi
+  // (vedi network-follow.ts); il portrait resta sul ramo storico byte-identico.
+  const landNetOffsets = posterShape === "landscape"
+    ? resolveLandscapeNetworkOffsets(q, mapping, configOverride, sd)
+    : null
   const qNoxNum = q.get("nox") ? Number(q.get("nox")) : NaN
-  const networkLogoOffsetX = q.get("nox") !== null
-    ? (Number.isFinite(qNoxNum) ? clamp(Math.round(qNoxNum), -2000, 2000) : 0)
-    : (m?.networkLogoOffsetX ?? configOverride?.networkLogoOffsetX ?? esd.networkLogoOffsetX ?? 0)
+  // Flat di un layer fixed (follow===false) esclusi anche qui: sono assoluti
+  // della loro shape, mai offset relativi (mode switch/reset a 0,0).
+  const mNoxOff = mapping?.networkLogoFollowTitle === false ? undefined : m?.networkLogoOffsetX
+  const cNoxOff = configOverride?.networkLogoFollowTitle === false
+    ? undefined
+    : configOverride?.networkLogoOffsetX
+  const sNoxOff = sd.networkLogoFollowTitle === false ? undefined : esd.networkLogoOffsetX
+  const networkLogoOffsetX = landNetOffsets
+    ? landNetOffsets.x
+    : (q.get("nox") !== null
+      ? (Number.isFinite(qNoxNum) ? clamp(Math.round(qNoxNum), -2000, 2000) : 0)
+      : (mNoxOff ?? cNoxOff ?? sNoxOff ?? 0))
   const qNoyNum = q.get("noy") ? Number(q.get("noy")) : NaN
-  const networkLogoOffsetY = q.get("noy") !== null
-    ? (Number.isFinite(qNoyNum) ? clamp(Math.round(qNoyNum), -2000, 2000) : 0)
-    : (m?.networkLogoOffsetY ?? configOverride?.networkLogoOffsetY ?? esd.networkLogoOffsetY ?? 0)
+  const mNoyOff = mapping?.networkLogoFollowTitle === false ? undefined : m?.networkLogoOffsetY
+  const cNoyOff = configOverride?.networkLogoFollowTitle === false
+    ? undefined
+    : configOverride?.networkLogoOffsetY
+  const sNoyOff = sd.networkLogoFollowTitle === false ? undefined : esd.networkLogoOffsetY
+  const networkLogoOffsetY = landNetOffsets
+    ? landNetOffsets.y
+    : (q.get("noy") !== null
+      ? (Number.isFinite(qNoyNum) ? clamp(Math.round(qNoyNum), -2000, 2000) : 0)
+      : (mNoyOff ?? cNoyOff ?? sNoyOff ?? 0))
 
   // Fix L32: le label prefissate (__badge.*) vengono risolte con la lingua
   // della richiesta — prima un customBadge "__badge.anime" dal config token
@@ -784,6 +869,14 @@ export function resolvePosterRenderConfig(input: PosterRenderConfigInput): Poste
   const qHideLogo = q.get("hideLogo")
   const hideLogo = qHideLogo !== null ? qHideLogo !== "0" : false
 
+  // Follow network: toggle semplice + coordinate assolute riusate da
+  // nox/noy (interpretazione condizionata al follow, vedi sopra). Il follow
+  // è effettivo solo con coordinate fisse configurate per la shape:
+  // spento-senza-coords rende follow, mai una modalità falsa incoerente.
+  const networkFollowRaw = resolveNetworkFollowTitle(q, mapping, configOverride, sd, posterShape)
+  const networkFixed = resolveNetworkFixedCoords(q, mapping, configOverride, sd, posterShape)
+  const networkLogoFollowTitle = resolveEffectiveNetworkFollow(networkFollowRaw, networkFixed)
+
   return {
     badgeStyle,
     rankingBadgeStyle,
@@ -818,6 +911,9 @@ export function resolvePosterRenderConfig(input: PosterRenderConfigInput): Poste
     topBadgeScale,
     topBadgeOffsetX,
     topBadgeOffsetY,
+    extraBadgeScale,
+    extraBadgeOffsetX,
+    extraBadgeOffsetY,
     genreBadgeScale,
     qualityBadgeScale,
     genreBadgeOffsetX,
@@ -827,6 +923,9 @@ export function resolvePosterRenderConfig(input: PosterRenderConfigInput): Poste
     networkLogoScale,
     networkLogoOffsetX,
     networkLogoOffsetY,
+    networkLogoFollowTitle,
+    networkFixedX: networkFixed.x,
+    networkFixedY: networkFixed.y,
     queryExtra,
     qNetLogo,
     networkLogo,

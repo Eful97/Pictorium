@@ -1,8 +1,14 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useRef } from "react"
 import { useT } from "@/lib/contexts/TranslationContext"
 import { usePosterEditor } from "@/lib/contexts/PosterEditorContext"
+import { usePSelector } from "@/lib/context"
+import { isFollowOffDisabled, neutralFollowOffsets } from "@/lib/network-freeze"
+import { useNetworkFreeze } from "@/lib/useNetworkFreeze"
+import { useNetworkGeometry } from "@/lib/useNetworkGeometry"
+import { buildDefaultsPreviewUrlFromEditor } from "@/components/settings/DefaultsPosterPreview"
+import type { DefaultsPreviewDemoMedia } from "@/lib/poster-url"
 import { SliderRow } from "@/components/SliderRow"
 import { Toggle } from "@/components/Toggle"
 import { isBottomSeparateRatingsStyle, getSeparateBadgeDefaultScale, getSeparateRatingsStyleForShape, separateBadgeScaleToUI, uiToSeparateBadgeScale, SEPARATE_BADGE_SCALE_UI_MIN, SEPARATE_BADGE_SCALE_UI_MAX, DEFAULT_QUALITY_BADGE_OFFSET_X, DEFAULT_QUALITY_BADGE_OFFSET_Y, NUMBER_BADGE_BASE_OFFSET_X } from "@/lib/badge-styles"
@@ -20,7 +26,7 @@ import { getBadgeOffsetRange } from "@/lib/badge-offset-ranges"
  *  the existing `land ?? flat` profile), never persisted defaults. The inner
  *  switch renders only when uncontrolled (standalone reuse); hidden when
  *  controlled so duplicate selectors cannot diverge. */
-export function TransformPanel({ active, previewShape, onPreviewShapeChange, onPreviewFamilyChange }: {
+export function TransformPanel({ active, previewShape, onPreviewShapeChange, onPreviewFamilyChange, demoMedia, previewFamily }: {
   active: boolean
   /** Edit-target switch (lifted to SettingsPanel): guides preview + section
    *  only, never the persisted `defaultPosterShape`. Absent = local state
@@ -30,8 +36,13 @@ export function TransformPanel({ active, previewShape, onPreviewShapeChange, onP
   /** Preview-only editing family (owned by SettingsPanel): each numeric group
    *  reports its family on press/focus — text-only state lift, never writes. */
   onPreviewFamilyChange?: (f: DefaultsPreviewFamily) => void
+  /** Preview-only demo title (SettingsPanel): the freeze reads the same sample
+   *  as the displayed defaults preview (exact URL + netgeo, no client recompute). */
+  demoMedia?: DefaultsPreviewDemoMedia | null
+  /** Family being edited (SettingsPanel): same sample as the preview. */
+  previewFamily?: DefaultsPreviewFamily | null
 }) {
-  const { t } = useT()
+  const { t, lang } = useT()
   const ed = usePosterEditor()
   // Portrait/landscape sub-tab (UI only): parent-controlled when `previewShape`
   // is provided (SettingsPanel single selector), local state otherwise.
@@ -75,6 +86,88 @@ export function TransformPanel({ active, previewShape, onPreviewShapeChange, onP
     onFocusCapture: () => onPreviewFamilyChange?.(family),
     onPointerDownCapture: () => onPreviewFamilyChange?.(family),
   })
+  // Global network follow ("Follow the title logo", default ON): same freeze
+  // as the per-title card, but on the exact defaults-preview URL being
+  // displayed (same builder, same sample, same shape) + netgeo=1. OFF locks
+  // the actual top/left + effective post-shrink scale into the flat defaults;
+  // ON restores the stashed priors else neutral 0,0 (stored fixed absolutes
+  // never re-enter as relative offsets).
+  const { freezing: netFreezing, freezeOff: freezeNetworkOff, turnOn: turnNetworkOn } = useNetworkFreeze()
+  const tmdbKey = usePSelector((v) => v.tmdbKey)
+  const userId = usePSelector((v) => v.currentUserId)
+  const freezeLiveRef = useRef({
+    ed, demoMedia: demoMedia ?? null,
+    previewShape: trasformaShape,
+    previewFamily: previewFamily ?? null,
+    tmdbKey, userId, lang,
+  })
+  freezeLiveRef.current = {
+    ed, demoMedia: demoMedia ?? null,
+    previewShape: trasformaShape,
+    previewFamily: previewFamily ?? null,
+    tmdbKey, userId, lang,
+  }
+  const buildFreezePreview = () => {
+    const L = freezeLiveRef.current
+    return buildDefaultsPreviewUrlFromEditor(L.ed, {
+      tmdbKey: L.tmdbKey,
+      userId: L.userId,
+      lang: L.lang,
+      demoMedia: L.demoMedia,
+      previewShape: L.previewShape,
+      previewFamily: L.previewFamily,
+    })
+  }
+  const freezePreviewUrl = buildFreezePreview().url
+  const portraitFollowOn = ed.defaultNetworkLogoFollowTitle !== false
+  const netGeoEnabled = active && trasformaShape === "portrait" && ed.defaultNetworkLogo && portraitFollowOn && !!freezePreviewUrl
+  const { geometry: netGeometry, geometryLoading: netGeometryLoading } = useNetworkGeometry(freezePreviewUrl, netGeoEnabled)
+  const followOffDisabled = isFollowOffDisabled({
+    networkLogo: ed.defaultNetworkLogo,
+    hasPreviewUrl: !!freezePreviewUrl,
+    hasTitle: true,
+    freezing: netFreezing,
+    geometryLoading: netGeometryLoading,
+    hasGeometry: netGeometry !== null,
+  })
+  const handleGlobalFollowChange = (v: boolean) => {
+    if (v) {
+      const neutral = neutralFollowOffsets({ fixed: true })
+      turnNetworkOn({
+        titleKey: "defaults",
+        shape: "poster",
+        neutralX: neutral.x,
+        neutralY: neutral.y,
+        applyOn: ({ follow, offsetX, offsetY }) => {
+          ed.setDefaultNetworkLogoFollowTitle(follow)
+          ed.setDefaultNetworkLogoOffsetX(offsetX)
+          ed.setDefaultNetworkLogoOffsetY(offsetY)
+        },
+      })
+      return
+    }
+    const built = buildFreezePreview()
+    if (!built.url || built.shape !== "poster") return
+    void freezeNetworkOff({
+      titleKey: "defaults",
+      shape: "poster",
+      previewUrl: built.url,
+      networkLogo: ed.defaultNetworkLogo,
+      currentScale: ed.defaultNetworkLogoScale,
+      currentOffsetX: ed.defaultNetworkLogoOffsetX,
+      currentOffsetY: ed.defaultNetworkLogoOffsetY,
+      applyFixed: ({ follow, scale, offsetX, offsetY }) => {
+        ed.setDefaultNetworkLogoFollowTitle(follow)
+        ed.setDefaultNetworkLogoScale(scale)
+        ed.setDefaultNetworkLogoOffsetX(offsetX)
+        ed.setDefaultNetworkLogoOffsetY(offsetY)
+      },
+      getLive: () => {
+        const b = buildFreezePreview()
+        return { titleKey: "defaults", shape: b.shape, previewUrl: b.url }
+      },
+    })
+  }
   return (
     <div
       role="tabpanel"
@@ -109,6 +202,9 @@ export function TransformPanel({ active, previewShape, onPreviewShapeChange, onP
           setEditVal={setEditVal}
           setEditTxt={setEditTxt}
           onPreviewFamilyChange={onPreviewFamilyChange}
+          demoMedia={demoMedia}
+          previewFamily={previewFamily}
+          controlsVisible={active}
         />
       ) : (
       <>
@@ -182,13 +278,13 @@ export function TransformPanel({ active, previewShape, onPreviewShapeChange, onP
           suffix="px"
         />
       </div>
-      {/* Badge Superiore Predefinito */}
+      {/* Badge Classifica Predefinito */}
       {ed.defaultRankingBadges && (
       <div {...famAttrs("rank")} className="bg-surface/50 border border-surface2/60 rounded-xl p-3.5 space-y-2.5 shadow-sm animate-fade-in">
         <div className="flex items-center justify-between">
           <span className="text-zinc-300 font-medium flex items-center gap-1.5">
             <Trophy className="w-3.5 h-3.5 text-amber-500" />
-            {t("ui.topBadge")}
+            {t("ui.rankFamily")}
           </span>
           <button type="button" aria-label={t("ui.reset")}
                   onClick={() => {
@@ -265,6 +361,95 @@ export function TransformPanel({ active, previewShape, onPreviewShapeChange, onP
             setEditingValue={setEditVal}
             setEditText={setEditTxt}
             editingKey="tby"
+            suffix="px"
+          />
+        </div>
+      </div>
+      )}
+
+      {/* Badge Extra Predefinito (indipendente dalla classifica; reset = segui) */}
+      {ed.defaultRankingBadges && (
+      <div {...famAttrs("rank")} className="bg-surface/50 border border-surface2/60 rounded-xl p-3.5 space-y-2.5 shadow-sm animate-fade-in">
+        <div className="flex items-center justify-between">
+          <span className="text-zinc-300 font-medium flex items-center gap-1.5">
+            <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
+            {t("ui.sash_extra")}
+          </span>
+          <button type="button" aria-label={t("ui.reset")}
+                  onClick={() => {
+                    ed.setDefaultExtraBadgeScale(null)
+                    ed.setDefaultExtraBadgeOffsetX(null)
+                    ed.setDefaultExtraBadgeOffsetY(null)
+                  }}
+                  className="text-xs text-muted hover:text-accent transition-colors px-2 py-0.5 rounded-md border border-border/50 hover:border-accent/30">
+            {t("ui.reset")}
+          </button>
+        </div>
+
+        <div className="space-y-1.5 pt-1">
+          <SliderRow
+            icon={<Search className="w-3.5 h-3.5" />}
+            label={t("ui.scale")}
+            value={ed.defaultExtraBadgeScale ?? ed.defaultTopBadgeScale}
+            min={50}
+            max={150}
+            boundsMin={10}
+            boundsMax={200}
+            onChange={(v) => {
+              ed.setDefaultExtraBadgeScale(v)
+            }}
+            onDoubleClick={() => {
+              ed.setDefaultExtraBadgeScale(null)
+            }}
+            editingValue={editVal}
+            editText={editTxt}
+            setEditingValue={setEditVal}
+            setEditText={setEditTxt}
+            editingKey="exs"
+            suffix="%"
+          />
+          <SliderRow
+            icon={<ArrowLeftRight className="w-3.5 h-3.5" />}
+            label="X"
+            value={ed.defaultExtraBadgeOffsetX ?? ed.defaultTopBadgeOffsetX}
+            min={defOffRangeX.min}
+            max={defOffRangeX.max}
+            boundsMin={defOffRangeX.boundsMin}
+            boundsMax={defOffRangeX.boundsMax}
+            step={1}
+            onChange={(v) => {
+              ed.setDefaultExtraBadgeOffsetX(v)
+            }}
+            onDoubleClick={() => {
+              ed.setDefaultExtraBadgeOffsetX(null)
+            }}
+            editingValue={editVal}
+            editText={editTxt}
+            setEditingValue={setEditVal}
+            setEditText={setEditTxt}
+            editingKey="exx"
+            suffix="px"
+          />
+          <SliderRow
+            icon={<ArrowUpDown className="w-3.5 h-3.5" />}
+            label="Y"
+            value={ed.defaultExtraBadgeOffsetY ?? ed.defaultTopBadgeOffsetY}
+            min={defOffRangeY.min}
+            max={defOffRangeY.max}
+            boundsMin={defOffRangeY.boundsMin}
+            boundsMax={defOffRangeY.boundsMax}
+            step={1}
+            onChange={(v) => {
+              ed.setDefaultExtraBadgeOffsetY(v)
+            }}
+            onDoubleClick={() => {
+              ed.setDefaultExtraBadgeOffsetY(null)
+            }}
+            editingValue={editVal}
+            editText={editTxt}
+            setEditingValue={setEditVal}
+            setEditText={setEditTxt}
+            editingKey="exy"
             suffix="px"
           />
         </div>
@@ -592,6 +777,7 @@ export function TransformPanel({ active, previewShape, onPreviewShapeChange, onP
           </span>
           <button type="button" aria-label={t("ui.reset")}
                   onClick={() => {
+                    ed.setDefaultNetworkLogoFollowTitle(true)
                     ed.setDefaultNetworkLogoScale(100)
                     ed.setDefaultNetworkLogoOffsetX(0)
                     ed.setDefaultNetworkLogoOffsetY(0)
@@ -599,6 +785,15 @@ export function TransformPanel({ active, previewShape, onPreviewShapeChange, onP
                   className="text-xs text-muted hover:text-accent transition-colors px-2 py-0.5 rounded-md border border-border/50 hover:border-accent/30">
             {t("ui.reset")}
           </button>
+        </div>
+        <div className="flex items-center justify-between px-1 gap-2">
+          <span className="text-zinc-300">{t("ui.followTitleLogo")}</span>
+          <Toggle
+            value={portraitFollowOn}
+            onChange={handleGlobalFollowChange}
+            label={t("ui.followTitleLogo")}
+            disabled={netFreezing || (portraitFollowOn && followOffDisabled)}
+          />
         </div>
 
         <div className="space-y-1.5 pt-1">
@@ -862,12 +1057,16 @@ export function TransformPanel({ active, previewShape, onPreviewShapeChange, onP
           ed.setDefaultTopBadgeScale(100)
           ed.setDefaultTopBadgeOffsetX(0)
           ed.setDefaultTopBadgeOffsetY(0)
+          ed.setDefaultExtraBadgeScale(null)
+          ed.setDefaultExtraBadgeOffsetX(null)
+          ed.setDefaultExtraBadgeOffsetY(null)
           ed.setDefaultGenreBadgeScale(100)
           ed.setDefaultGenreBadgeOffsetX(0)
           ed.setDefaultGenreBadgeOffsetY(0)
           ed.setDefaultQualityBadgeScale(100)
           ed.setDefaultQualityBadgeOffsetX(DEFAULT_QUALITY_BADGE_OFFSET_X)
           ed.setDefaultQualityBadgeOffsetY(DEFAULT_QUALITY_BADGE_OFFSET_Y)
+          ed.setDefaultNetworkLogoFollowTitle(true)
           ed.setDefaultNetworkLogoScale(100)
           ed.setDefaultNetworkLogoOffsetX(0)
           ed.setDefaultNetworkLogoOffsetY(0)

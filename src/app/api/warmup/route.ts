@@ -100,6 +100,10 @@ function buildPosterUrl(input: BuildPosterUrlInput): URL {
     topBadgeScale: defaults.topBadgeScale,
     topBadgeOffsetX: defaults.topBadgeOffsetX,
     topBadgeOffsetY: defaults.topBadgeOffsetY,
+    // Extra tuning: explicit only (undefined = absent = legacy fallback, `dv` invariato).
+    extraBadgeScale: defaults.extraBadgeScale ?? undefined,
+    extraBadgeOffsetX: defaults.extraBadgeOffsetX ?? undefined,
+    extraBadgeOffsetY: defaults.extraBadgeOffsetY ?? undefined,
     genreBadgeScale: defaults.genreBadgeScale,
     qualityBadgeScale: defaults.qualityBadgeScale,
     separateRatings: defaults.separateRatings,

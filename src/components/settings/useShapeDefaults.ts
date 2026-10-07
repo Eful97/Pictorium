@@ -52,6 +52,7 @@ export const BADGE_VISUAL_LAND_KEYS = [
   "sashOrder",
   "networkLogo",
   "networkLogoPosition",
+  "networkLogoFollowTitle",
   "preRelease",
   "ribbonSide",
   "ribbonEnabled",

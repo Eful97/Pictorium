@@ -107,6 +107,22 @@ export interface Mapping {
   /** Offset px del logo network. */
   networkLogoOffsetX?: number | null
   networkLogoOffsetY?: number | null
+  /**
+   * Scala % del badge EXTRA superiore (default 100). Offset solo stili
+   * centrati. Null/assente = fallback legacy sul tuning classifica
+   * (`topBadgeScale/OffsetX/Y`): i due gruppi restano indipendenti solo dopo
+   * migrazione esplicita (il primo edit classifica materializza l'extra).
+   */
+  extraBadgeScale?: number | null
+  /** Offset px del badge EXTRA superiore (vedi sopra). */
+  extraBadgeOffsetX?: number | null
+  extraBadgeOffsetY?: number | null
+  /**
+   * Il network segue il layout storico ancorato al titolo (default true).
+   * False + nox/noy valorizzati (per-shape) = posizione assoluta. Null/assente
+   * = eredita (mai adattivi impliciti).
+   */
+  networkLogoFollowTitle?: boolean | null
   backdropPath?: string | null
   backdropScale?: number | null
   backdropOffsetX?: number | null
@@ -230,6 +246,10 @@ export interface LandscapeSettings {
   topBadgeScale?: number | null
   topBadgeOffsetX?: number | null
   topBadgeOffsetY?: number | null
+  /** Tuning EXTRA superiore (null/assente = fallback legacy classifica). */
+  extraBadgeScale?: number | null
+  extraBadgeOffsetX?: number | null
+  extraBadgeOffsetY?: number | null
   genreBadgeScale?: number | null
   genreBadgeOffsetX?: number | null
   genreBadgeOffsetY?: number | null
@@ -247,6 +267,8 @@ export interface LandscapeSettings {
   networkLogoScale?: number | null
   networkLogoOffsetX?: number | null
   networkLogoOffsetY?: number | null
+  /** Il network segue il titolo (default true). False + nox/noy = assoluta landscape. Null/assente = eredita. */
+  networkLogoFollowTitle?: boolean | null
   gradientHeight?: number | null
   blurEnabled?: boolean | null
   blurIntensity?: number | null
@@ -273,6 +295,9 @@ export function effectiveMappingForShape(mapping: Mapping | null, shape: PosterS
     topBadgeScale: l.topBadgeScale ?? mapping.topBadgeScale,
     topBadgeOffsetX: l.topBadgeOffsetX ?? mapping.topBadgeOffsetX,
     topBadgeOffsetY: l.topBadgeOffsetY ?? mapping.topBadgeOffsetY,
+    extraBadgeScale: l.extraBadgeScale ?? mapping.extraBadgeScale,
+    extraBadgeOffsetX: l.extraBadgeOffsetX ?? mapping.extraBadgeOffsetX,
+    extraBadgeOffsetY: l.extraBadgeOffsetY ?? mapping.extraBadgeOffsetY,
     genreBadgeScale: l.genreBadgeScale ?? mapping.genreBadgeScale,
     genreBadgeOffsetX: l.genreBadgeOffsetX ?? mapping.genreBadgeOffsetX,
     genreBadgeOffsetY: l.genreBadgeOffsetY ?? mapping.genreBadgeOffsetY,
@@ -286,6 +311,7 @@ export function effectiveMappingForShape(mapping: Mapping | null, shape: PosterS
     networkLogoScale: l.networkLogoScale ?? mapping.networkLogoScale,
     networkLogoOffsetX: l.networkLogoOffsetX ?? mapping.networkLogoOffsetX,
     networkLogoOffsetY: l.networkLogoOffsetY ?? mapping.networkLogoOffsetY,
+    networkLogoFollowTitle: l.networkLogoFollowTitle ?? mapping.networkLogoFollowTitle,
     gradientHeight: l.gradientHeight ?? mapping.gradientHeight,
     blurEnabled: l.blurEnabled ?? mapping.blurEnabled,
     blurIntensity: l.blurIntensity ?? mapping.blurIntensity,

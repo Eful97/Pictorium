@@ -1,4 +1,5 @@
 "use client"
+import { useRef } from "react"
 
 import {
   Star,
@@ -17,6 +18,13 @@ import {
 } from "lucide-react"
 import { useT } from "@/lib/contexts/TranslationContext"
 import { usePosterEditor } from "@/lib/contexts/PosterEditorContext"
+import { usePSelector } from "@/lib/context"
+import { isFollowOffDisabled, neutralFollowOffsets } from "@/lib/network-freeze"
+import { resolveNetworkShapeView } from "@/lib/network-follow"
+import { useNetworkFreeze } from "@/lib/useNetworkFreeze"
+import { useNetworkGeometry } from "@/lib/useNetworkGeometry"
+import { buildDefaultsPreviewUrlFromEditor } from "@/components/settings/DefaultsPosterPreview"
+import type { DefaultsPreviewDemoMedia, DefaultsPreviewFamily } from "@/lib/poster-url"
 import { SliderRow } from "@/components/SliderRow"
 import { Toggle } from "@/components/Toggle"
 import { separateBadgeScaleToUI, uiToSeparateBadgeScale, SEPARATE_BADGE_SCALE_UI_MIN, SEPARATE_BADGE_SCALE_UI_MAX, NUMBER_BADGE_BASE_OFFSET_X } from "@/lib/badge-styles"
@@ -24,7 +32,7 @@ import { getBadgeOffsetRange } from "@/lib/badge-offset-ranges"
 import { GradientPresetRow } from "@/components/GradientPresetRow"
 import type { GradientPresetValues } from "@/lib/gradient-presets"
 import type { LandscapeServerDefaults } from "@/lib/server-defaults"
-import type { DefaultsPreviewFamily } from "@/lib/poster-url"
+
 
 interface Props {
   editVal: string | null
@@ -34,6 +42,14 @@ interface Props {
   /** Preview-only editing family (owned by SettingsPanel): each numeric group
    *  reports its family on press/focus — text-only state lift, never writes. */
   onPreviewFamilyChange?: (f: DefaultsPreviewFamily) => void
+  /** Preview-only demo title (SettingsPanel): the freeze reads the same sample
+   *  as the displayed defaults preview (exact URL + netgeo, no client recompute). */
+  demoMedia?: DefaultsPreviewDemoMedia | null
+  /** Family being edited (SettingsPanel): same sample as the preview. */
+  previewFamily?: DefaultsPreviewFamily | null
+  /** True while this section is actually shown (Transform tab + landscape
+   *  target): the geometry prefetch only runs then, never per slider tick. */
+  controlsVisible?: boolean
 }
 
 type LandKey = keyof LandscapeServerDefaults
@@ -48,8 +64,8 @@ type LandKey = keyof LandscapeServerDefaults
  * URL/chiave cache: il server risolve dal profilo salvato (già coperto da
  * firma defaults e sd-hash).
  */
-export function LandscapeDefaultsSection({ editVal, editTxt, setEditVal, setEditTxt, onPreviewFamilyChange }: Props) {
-  const { t } = useT()
+export function LandscapeDefaultsSection({ editVal, editTxt, setEditVal, setEditTxt, onPreviewFamilyChange, demoMedia, previewFamily, controlsVisible }: Props) {
+  const { t, lang } = useT()
   const ed = usePosterEditor()
   const land = ed.landscape
   const set = (patch: Partial<LandscapeServerDefaults>) => ed.setLandscape(patch)
@@ -71,6 +87,101 @@ export function LandscapeDefaultsSection({ editVal, editTxt, setEditVal, setEdit
     onFocusCapture: () => onPreviewFamilyChange?.(family),
     onPointerDownCapture: () => onPreviewFamilyChange?.(family),
   })
+  // Landscape network follow ("Follow the title logo", default ON): same
+  // freeze as the portrait card, on the landscape defaults-preview URL (same
+  // builder, same sample) + netgeo=1. OFF locks actual top/left + effective
+  // post-shrink scale into the landscape profile; ON restores the stashed
+  // priors else neutral 0,0 (stored fixed absolutes never re-enter as
+  // relative offsets). Reset clears the profile override (follows portrait).
+  const { freezing: netFreezing, freezeOff: freezeNetworkOff, turnOn: turnNetworkOn } = useNetworkFreeze()
+  const tmdbKey = usePSelector((v) => v.tmdbKey)
+  const userId = usePSelector((v) => v.currentUserId)
+  // Effective landscape view with server semantics (flat never leaks into
+  // landscape absolutes, follow without fixed coords reads ON): checkbox,
+  // sliders and freeze priors always agree with the render.
+  const netView = resolveNetworkShapeView(
+    {
+      networkLogoFollowTitle: ed.defaultNetworkLogoFollowTitle,
+      networkLogoOffsetX: ed.defaultNetworkLogoOffsetX,
+      networkLogoOffsetY: ed.defaultNetworkLogoOffsetY,
+    },
+    ed.landscape,
+    "landscape",
+  )
+  const landFollowOn = netView.follow
+  const landNetworkOn = (land.networkLogo ?? ed.defaultNetworkLogo) !== false
+  const freezeLiveRef = useRef({
+    ed, demoMedia: demoMedia ?? null,
+    previewFamily: previewFamily ?? null,
+    tmdbKey, userId, lang,
+  })
+  freezeLiveRef.current = {
+    ed, demoMedia: demoMedia ?? null,
+    previewFamily: previewFamily ?? null,
+    tmdbKey, userId, lang,
+  }
+  const buildFreezePreview = () => {
+    const L = freezeLiveRef.current
+    return buildDefaultsPreviewUrlFromEditor(L.ed, {
+      tmdbKey: L.tmdbKey,
+      userId: L.userId,
+      lang: L.lang,
+      demoMedia: L.demoMedia,
+      previewShape: "landscape",
+      previewFamily: L.previewFamily,
+    })
+  }
+  const freezePreviewUrl = buildFreezePreview().url
+  const netGeoEnabled = (controlsVisible ?? false) && landNetworkOn && landFollowOn && !!freezePreviewUrl
+  const { geometry: netGeometry, geometryLoading: netGeometryLoading } = useNetworkGeometry(freezePreviewUrl, netGeoEnabled)
+  const followOffDisabled = isFollowOffDisabled({
+    networkLogo: landNetworkOn,
+    hasPreviewUrl: !!freezePreviewUrl,
+    hasTitle: true,
+    freezing: netFreezing,
+    geometryLoading: netGeometryLoading,
+    hasGeometry: netGeometry !== null,
+  })
+  const handleLandscapeFollowChange = (v: boolean) => {
+    if (v) {
+      const neutral = neutralFollowOffsets({ fixed: true })
+      turnNetworkOn({
+        titleKey: "defaults",
+        shape: "landscape",
+        neutralX: neutral.x,
+        neutralY: neutral.y,
+        applyOn: ({ follow, offsetX, offsetY }) => {
+          set({ networkLogoFollowTitle: follow, networkLogoOffsetX: offsetX, networkLogoOffsetY: offsetY })
+        },
+      })
+      return
+    }
+    const built = buildFreezePreview()
+    if (!built.url || built.shape !== "landscape") return
+    void freezeNetworkOff({
+      titleKey: "defaults",
+      shape: "landscape",
+      previewUrl: built.url,
+      networkLogo: landNetworkOn,
+      currentScale: land.networkLogoScale ?? ed.defaultNetworkLogoScale,
+      // Stash priors are the effective relative offsets (never leaked flat
+      // absolutes): the way back ON restores them, or neutral 0,0 on miss.
+      currentOffsetX: netView.relativeX,
+      currentOffsetY: netView.relativeY,
+      applyFixed: ({ follow, scale, offsetX, offsetY }) => {
+        set({
+          networkLogoFollowTitle: follow,
+          networkLogoScale: scale,
+          networkLogoOffsetX: offsetX,
+          networkLogoOffsetY: offsetY,
+        })
+      },
+      getLive: () => {
+        const b = buildFreezePreview()
+        return { titleKey: "defaults", shape: b.shape, previewUrl: b.url }
+      },
+    })
+  }
   // Separate-ratings numerics gate on the EFFECTIVE flags (`land ?? flat`),
   // matching the Badge tab scoped bindings and the preview builder: raw root
   // flags alone would show/hide this group against the edited target.
@@ -122,14 +233,15 @@ export function LandscapeDefaultsSection({ editVal, editTxt, setEditVal, setEdit
   const scaleGroup = (
     title: string,
     icon: React.ReactNode,
-    sKey: Extract<LandKey, "topBadgeScale" | "genreBadgeScale" | "qualityBadgeScale" | "networkLogoScale">,
-    xKey: Extract<LandKey, "topBadgeOffsetX" | "genreBadgeOffsetX" | "qualityBadgeOffsetX" | "networkLogoOffsetX">,
-    yKey: Extract<LandKey, "topBadgeOffsetY" | "genreBadgeOffsetY" | "qualityBadgeOffsetY" | "networkLogoOffsetY">,
+    sKey: Extract<LandKey, "topBadgeScale" | "extraBadgeScale" | "genreBadgeScale" | "qualityBadgeScale" | "networkLogoScale">,
+    xKey: Extract<LandKey, "topBadgeOffsetX" | "extraBadgeOffsetX" | "genreBadgeOffsetX" | "qualityBadgeOffsetX" | "networkLogoOffsetX">,
+    yKey: Extract<LandKey, "topBadgeOffsetY" | "extraBadgeOffsetY" | "genreBadgeOffsetY" | "qualityBadgeOffsetY" | "networkLogoOffsetY">,
     flatS: number,
     flatX: number,
     flatY: number,
     prefix: string,
     family: DefaultsPreviewFamily,
+    followKey?: Extract<LandKey, "networkLogoFollowTitle">,
   ) => (
     <div {...famAttrs(family)} className="space-y-1.5">
       <div className="flex items-center justify-between px-1">
@@ -137,18 +249,29 @@ export function LandscapeDefaultsSection({ editVal, editTxt, setEditVal, setEdit
           {icon}
           {title}
         </span>
-        {(isOver(sKey) || isOver(xKey) || isOver(yKey)) && (
+        {(isOver(sKey) || isOver(xKey) || isOver(yKey) || (followKey && isOver(followKey))) && (
           <button
             type="button"
             title={resetLabel}
             aria-label={resetLabel}
-            onClick={() => set({ [sKey]: undefined, [xKey]: undefined, [yKey]: undefined } as Partial<LandscapeServerDefaults>)}
+            onClick={() => set({ [sKey]: undefined, [xKey]: undefined, [yKey]: undefined, ...(followKey ? { [followKey]: undefined } : null) } as Partial<LandscapeServerDefaults>)}
             className="text-xs text-muted hover:text-accent transition-colors px-2 py-0.5 rounded-md border border-border/50 hover:border-accent/30 cursor-pointer"
           >
             {resetLabel}
           </button>
         )}
       </div>
+      {followKey && (
+        <div className="flex items-center justify-between px-1 gap-2">
+          <span className="text-zinc-300">{t("ui.followTitleLogo")}</span>
+          <Toggle
+            value={landFollowOn}
+            onChange={handleLandscapeFollowChange}
+            label={t("ui.followTitleLogo")}
+            disabled={netFreezing || (landFollowOn && followOffDisabled)}
+          />
+        </div>
+      )}
       <SliderRow
         icon={<Search className="w-3.5 h-3.5" />}
         label={t("ui.scale")}
@@ -179,7 +302,13 @@ export function LandscapeDefaultsSection({ editVal, editTxt, setEditVal, setEdit
           xKey === "topBadgeOffsetX" && landRankStyle === "number"
             ? NUMBER_BADGE_BASE_OFFSET_X
             : 0
-        const effX = (land[xKey] ?? flatX) + numBase
+        // Network follow card: show the effective view (relative offsets
+        // when ON, fixed absolutes when OFF) — raw `land ?? flat` would leak
+        // portrait-fixed absolutes into the landscape sliders.
+        const storedX = followKey
+          ? (netView.follow ? netView.relativeX : (netView.fixedX ?? flatX))
+          : (land[xKey] ?? flatX)
+        const effX = storedX + numBase
         return (
           <SliderRow
             icon={<ArrowLeftRight className="w-3.5 h-3.5" />}
@@ -204,7 +333,7 @@ export function LandscapeDefaultsSection({ editVal, editTxt, setEditVal, setEdit
       <SliderRow
         icon={<ArrowUpDown className="w-3.5 h-3.5" />}
         label="Y"
-        value={land[yKey] ?? flatY}
+        value={followKey ? (netView.follow ? netView.relativeY : (netView.fixedY ?? flatY)) : (land[yKey] ?? flatY)}
         min={landOffRangeY.min}
         max={landOffRangeY.max}
         boundsMin={landOffRangeY.boundsMin}
@@ -303,10 +432,12 @@ export function LandscapeDefaultsSection({ editVal, editTxt, setEditVal, setEdit
         />
       </div>
 
-      {/* Stesso ordine del Verticale: badge superiore, genere, qualità,
-          network — sfumatura per ultima. */}
+      {/* Stesso ordine del Verticale: badge classifica, extra, genere,
+          qualità, network — sfumatura per ultima. */}
       <div className="bg-surface/50 border border-surface2/60 rounded-xl p-3.5 space-y-3 shadow-sm">
-        {scaleGroup(t("ui.topBadge"), <Trophy className="w-3.5 h-3.5 text-amber-500" />, "topBadgeScale", "topBadgeOffsetX", "topBadgeOffsetY", ed.defaultTopBadgeScale, ed.defaultTopBadgeOffsetX, ed.defaultTopBadgeOffsetY, "lst", "rank")}
+        {scaleGroup(t("ui.rankFamily"), <Trophy className="w-3.5 h-3.5 text-amber-500" />, "topBadgeScale", "topBadgeOffsetX", "topBadgeOffsetY", ed.defaultTopBadgeScale, ed.defaultTopBadgeOffsetX, ed.defaultTopBadgeOffsetY, "lst", "rank")}
+        <hr className="border-surface2/50" />
+        {scaleGroup(t("ui.sash_extra"), <Sparkles className="w-3.5 h-3.5 text-emerald-400" />, "extraBadgeScale", "extraBadgeOffsetX", "extraBadgeOffsetY", ed.defaultExtraBadgeScale ?? land.topBadgeScale ?? ed.defaultTopBadgeScale, ed.defaultExtraBadgeOffsetX ?? land.topBadgeOffsetX ?? ed.defaultTopBadgeOffsetX, ed.defaultExtraBadgeOffsetY ?? land.topBadgeOffsetY ?? ed.defaultTopBadgeOffsetY, "lse", "rank")}
         <hr className="border-surface2/50" />
         {scaleGroup(t("ui.genreRatingBadge"), <Star className="w-3.5 h-3.5 text-amber-400" />, "genreBadgeScale", "genreBadgeOffsetX", "genreBadgeOffsetY", ed.defaultGenreBadgeScale, ed.defaultGenreBadgeOffsetX, ed.defaultGenreBadgeOffsetY, "lsg", "genre")}
         <hr className="border-surface2/50" />
@@ -388,8 +519,12 @@ export function LandscapeDefaultsSection({ editVal, editTxt, setEditVal, setEdit
             </div>
           </>
         )}
-        <hr className="border-surface2/50" />
-        {scaleGroup(t("ui.networkLogo"), <Tv className="w-3.5 h-3.5 text-sky-400" />, "networkLogoScale", "networkLogoOffsetX", "networkLogoOffsetY", ed.defaultNetworkLogoScale, ed.defaultNetworkLogoOffsetX, ed.defaultNetworkLogoOffsetY, "lsn", "logo")}
+        {landNetworkOn && (
+          <>
+            <hr className="border-surface2/50" />
+            {scaleGroup(t("ui.networkLogo"), <Tv className="w-3.5 h-3.5 text-sky-400" />, "networkLogoScale", "networkLogoOffsetX", "networkLogoOffsetY", ed.defaultNetworkLogoScale, ed.defaultNetworkLogoOffsetX, ed.defaultNetworkLogoOffsetY, "lsn", "logo", "networkLogoFollowTitle")}
+          </>
+        )}
       </div>
 
       <div {...famAttrs("gradient")} className="bg-surface/50 border border-surface2/60 rounded-xl p-3.5 space-y-2.5 shadow-sm">

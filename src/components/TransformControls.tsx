@@ -1,10 +1,15 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useRef } from "react"
 import { Search, ArrowLeftRight, ArrowUpDown, Ruler, Cloud, Minus, Circle, Trophy, Star, Sparkles, Tv, Image as ImageIcon } from "lucide-react"
 import { usePSelector } from "@/lib/context"
 import { useT } from "@/lib/contexts/TranslationContext"
 import { usePosterEditor } from "@/lib/contexts/PosterEditorContext"
+import { Toggle } from "@/components/Toggle"
+import { isFollowOffDisabled, neutralFollowOffsets } from "@/lib/network-freeze"
+import { useNetworkFreeze } from "@/lib/useNetworkFreeze"
+import { useNetworkGeometry } from "@/lib/useNetworkGeometry"
+import { resolveNetworkShapeView } from "@/lib/network-follow"
 import { logoDefaultScale } from "@/lib/logo-selection"
 import { defaultGradientHeightForPoster } from "@/lib/gradient-defaults"
 import { naturalGradientForPoster } from "@/lib/gradient-presets"
@@ -18,8 +23,21 @@ export function TransformControls() {
   const selectedLogo = usePSelector((v) => v.selectedLogo)
   const logoBounds = usePSelector((v) => v.logoBounds)
   const previewPoster = usePSelector((v) => v.previewPoster)
+  const previewUrl = usePSelector((v) => v.previewUrl)
+  const selected = usePSelector((v) => v.selected)
   const { t } = useT()
   const ed = usePosterEditor()
+  const { freezing, freezeOff, turnOn } = useNetworkFreeze()
+  const isLandShape = ed.posterShape === "landscape"
+  // Live snapshot for the freeze stale guard (title/shape/URL at response
+  // time, never the click-time ones).
+  const liveRef = useRef({ titleKey: "", shape: "poster", previewUrl: "" })
+  const titleKey = selected ? `${selected.media_type}:${selected.id}` : ""
+  liveRef.current = {
+    titleKey,
+    shape: ed.posterShape,
+    previewUrl: previewUrl || "",
+  }
   // B1: editingValue/editText LOCALI (prima nel context condiviso → ri-render di
   // tutti i consumer a ogni tasto). Come in BadgeControls/SettingsPanel.
   const [editingValue, setEditingValue] = useState<string | null>(null)
@@ -37,7 +55,6 @@ export function TransformControls() {
   // Orizzontale (landscapeBlur, sfumatura completa di tinta e ombra),
   // in portrait i flat.
   const land = ed.landscapeBlur
-  const isLandShape = ed.posterShape === "landscape"
   interface GradVals {
     gradientHeight: number
     blurIntensity: number
@@ -99,6 +116,63 @@ export function TransformControls() {
   // dynamic logoBounds; scale/gradient sliders are untouched.
   const offRangeX = getBadgeOffsetRange(ed.posterShape, "x")
   const offRangeY = getBadgeOffsetRange(ed.posterShape, "y")
+  // Follow network ("Follow the title logo", default ON): OFF freezes the
+  // actually composed geometry (debug fetch on the exact preview URL, never
+  // a client recompute) and writes actual top/left + effective post-shrink
+  // scale into the sliders; ON restores the priors or neutral offsets.
+  // Title+shape key + live-URL guard against stale responses. OFF stays
+  // disabled until the shared geometry prefetch proves the network box is
+  // actually rendered (same URL the freeze reads, debounced).
+  const geoEnabled = ed.networkLogo && ed.networkLogoFollowTitle && !!previewUrl && !!selected
+  const { geometry: netGeometry, geometryLoading: netGeometryLoading } = useNetworkGeometry(previewUrl || "", geoEnabled)
+  const followOffDisabled = isFollowOffDisabled({
+    networkLogo: ed.networkLogo,
+    hasPreviewUrl: !!previewUrl,
+    hasTitle: !!selected,
+    freezing,
+    geometryLoading: netGeometryLoading,
+    hasGeometry: netGeometry !== null,
+  })
+  const handleFollowChange = (v: boolean) => {
+    if (v) {
+      // Stash miss (e.g. reload with fixed absolutes stored): neutral 0,0 —
+      // stored fixed coords must never re-enter as relative offsets.
+      const neutral = neutralFollowOffsets({
+        fixed: !ed.networkLogoFollowTitle || ed.defaultNetworkLogoFollowTitle === false,
+        relativeX: ed.defaultNetworkLogoOffsetX,
+        relativeY: ed.defaultNetworkLogoOffsetY,
+      })
+      turnOn({
+        titleKey,
+        shape: isLandShape ? "landscape" : "poster",
+        neutralX: neutral.x,
+        neutralY: neutral.y,
+        applyOn: ({ follow, offsetX, offsetY }) => {
+          ed.setNetworkLogoFollowTitle(follow)
+          ed.setNetworkLogoOffsetX(offsetX)
+          ed.setNetworkLogoOffsetY(offsetY)
+        },
+      })
+      return
+    }
+    if (!titleKey) return
+    void freezeOff({
+      titleKey,
+      shape: isLandShape ? "landscape" : "poster",
+      previewUrl,
+      networkLogo: ed.networkLogo,
+      currentScale: ed.networkLogoScale,
+      currentOffsetX: ed.networkLogoOffsetX,
+      currentOffsetY: ed.networkLogoOffsetY,
+      applyFixed: ({ follow, scale, offsetX, offsetY }) => {
+        ed.setNetworkLogoFollowTitle(follow)
+        ed.setNetworkLogoScale(scale)
+        ed.setNetworkLogoOffsetX(offsetX)
+        ed.setNetworkLogoOffsetY(offsetY)
+      },
+      getLive: () => ({ ...liveRef.current }),
+    })
+  }
   // Stile separati effettivo sul canvas corrente (bar landscape → pills):
   // la X della barra portrait full-width è disabilitata (mai ghost slider).
   const sepEffStyle = getSeparateRatingsStyleForShape(
@@ -147,7 +221,7 @@ export function TransformControls() {
         <div className="flex items-center justify-between px-1">
           <span className="font-semibold text-zinc-200 flex items-center gap-1.5">
             <Trophy className="w-3.5 h-3.5 text-amber-500" />
-            {t("ui.topBadge")} · {isLandShape ? t("ui.posterShapeLandscape") : t("ui.posterShapePortrait")}
+            {t("ui.rankFamily")} · {isLandShape ? t("ui.posterShapeLandscape") : t("ui.posterShapePortrait")}
           </span>
           <button type="button" aria-label={t("ui.reset")}
                   onClick={() => { const land = ed.landscape; ed.setTopBadgeScale(isLandShape ? (land.topBadgeScale ?? ed.defaultTopBadgeScale) : ed.defaultTopBadgeScale); ed.setTopBadgeOffsetX(isLandShape ? (land.topBadgeOffsetX ?? ed.defaultTopBadgeOffsetX) : ed.defaultTopBadgeOffsetX); ed.setTopBadgeOffsetY(isLandShape ? (land.topBadgeOffsetY ?? ed.defaultTopBadgeOffsetY) : ed.defaultTopBadgeOffsetY) }}
@@ -206,6 +280,75 @@ export function TransformControls() {
           setEditingValue={setEditingValue}
           setEditText={setEditText}
           editingKey="topBadgeOY"
+          suffix="px"
+        />
+      </div>
+      )}
+
+      {ed.rankingBadges && (
+      <div className="bg-surface/50 border border-surface2/60 rounded-xl p-3 space-y-1.5 shadow-sm animate-fade-in">
+        <div className="flex items-center justify-between px-1">
+          <span className="font-semibold text-zinc-200 flex items-center gap-1.5">
+            <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
+            {t("ui.sash_extra")} · {isLandShape ? t("ui.posterShapeLandscape") : t("ui.posterShapePortrait")}
+          </span>
+          <button type="button" aria-label={t("ui.reset")}
+                  onClick={() => { ed.setExtraBadgeScale(null); ed.setExtraBadgeOffsetX(null); ed.setExtraBadgeOffsetY(null) }}
+                  className="text-xs text-muted hover:text-accent transition-colors px-2 py-0.5 rounded-md border border-border/50 hover:border-accent/30">
+            {t("ui.reset")}
+          </button>
+        </div>
+        <SliderRow
+          icon={<Search className="w-3.5 h-3.5" />}
+          label={t("ui.scale")}
+          value={ed.extraBadgeScale ?? ed.defaultExtraBadgeScale ?? ed.topBadgeScale}
+          min={50}
+          max={150}
+          boundsMin={10}
+          boundsMax={200}
+            onChange={(v) => ed.setExtraBadgeScale(v)}
+            onDoubleClick={() => ed.setExtraBadgeScale(null)}
+          editingValue={editingValue}
+          editText={editText}
+          setEditingValue={setEditingValue}
+          setEditText={setEditText}
+          editingKey="extraScale"
+          suffix="%"
+        />
+        <SliderRow
+          icon={<ArrowLeftRight className="w-3.5 h-3.5" />}
+          label="X"
+          value={ed.extraBadgeOffsetX ?? ed.defaultExtraBadgeOffsetX ?? ed.topBadgeOffsetX}
+          min={offRangeX.min}
+          max={offRangeX.max}
+          boundsMin={offRangeX.boundsMin}
+          boundsMax={offRangeX.boundsMax}
+          step={1}
+            onChange={(v) => ed.setExtraBadgeOffsetX(v)}
+            onDoubleClick={() => ed.setExtraBadgeOffsetX(null)}
+          editingValue={editingValue}
+          editText={editText}
+          setEditingValue={setEditingValue}
+          setEditText={setEditText}
+          editingKey="extraOX"
+          suffix="px"
+        />
+        <SliderRow
+          icon={<ArrowUpDown className="w-3.5 h-3.5" />}
+          label="Y"
+          value={ed.extraBadgeOffsetY ?? ed.defaultExtraBadgeOffsetY ?? ed.topBadgeOffsetY}
+          min={offRangeY.min}
+          max={offRangeY.max}
+          boundsMin={offRangeY.boundsMin}
+          boundsMax={offRangeY.boundsMax}
+          step={1}
+            onChange={(v) => ed.setExtraBadgeOffsetY(v)}
+            onDoubleClick={() => ed.setExtraBadgeOffsetY(null)}
+          editingValue={editingValue}
+          editText={editText}
+          setEditingValue={setEditingValue}
+          setEditText={setEditText}
+          editingKey="extraOY"
           suffix="px"
         />
       </div>
@@ -430,10 +573,19 @@ export function TransformControls() {
             {t("ui.networkLogo")} · {isLandShape ? t("ui.posterShapeLandscape") : t("ui.posterShapePortrait")}
           </span>
           <button type="button" aria-label={t("ui.reset")}
-                  onClick={() => { const land = ed.landscape; ed.setNetworkLogoScale(isLandShape ? (land.networkLogoScale ?? ed.defaultNetworkLogoScale) : ed.defaultNetworkLogoScale); ed.setNetworkLogoOffsetX(isLandShape ? (land.networkLogoOffsetX ?? ed.defaultNetworkLogoOffsetX) : ed.defaultNetworkLogoOffsetX); ed.setNetworkLogoOffsetY(isLandShape ? (land.networkLogoOffsetY ?? ed.defaultNetworkLogoOffsetY) : ed.defaultNetworkLogoOffsetY) }}
+                  onClick={() => { const land = ed.landscape; const netView = resolveNetworkShapeView({ networkLogoFollowTitle: ed.defaultNetworkLogoFollowTitle, networkLogoOffsetX: ed.defaultNetworkLogoOffsetX, networkLogoOffsetY: ed.defaultNetworkLogoOffsetY }, land, isLandShape ? "landscape" : "poster"); ed.setNetworkLogoScale(isLandShape ? (land.networkLogoScale ?? ed.defaultNetworkLogoScale) : ed.defaultNetworkLogoScale); ed.setNetworkLogoOffsetX(netView.follow ? netView.relativeX : (netView.fixedX ?? 0)); ed.setNetworkLogoOffsetY(netView.follow ? netView.relativeY : (netView.fixedY ?? 0)); ed.setNetworkLogoFollowTitle(netView.follow) }}
                   className="text-xs text-muted hover:text-accent transition-colors px-2 py-0.5 rounded-md border border-border/50 hover:border-accent/30">
             {t("ui.reset")}
           </button>
+        </div>
+        <div className="flex items-center justify-between px-1 gap-2">
+          <span className="text-zinc-300">{t("ui.followTitleLogo")}</span>
+          <Toggle
+            value={ed.networkLogoFollowTitle}
+            onChange={handleFollowChange}
+            label={t("ui.followTitleLogo")}
+            disabled={freezing || (ed.networkLogoFollowTitle && followOffDisabled)}
+          />
         </div>
         <SliderRow
           icon={<Search className="w-3.5 h-3.5" />}

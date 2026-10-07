@@ -328,13 +328,16 @@ export function SettingsPanel({ setSettingsOpen, exportData, importData, mobile,
 
   // Scheda 2: Trasforma (specchio del tab Trasforma dell'editor, valori default).
   // Gets the single edit target (controlled); its inner switch stays hidden
-  // in this mode so the two selectors cannot diverge.
+  // in this mode so the two selectors cannot diverge. The network follow
+  // freeze reads the same demo sample/family as the displayed preview.
   const trasformaPanel = (
     <TransformPanel
       active={activeTab === "trasforma"}
       previewShape={editTargetShape}
       onPreviewShapeChange={setEditTargetShape}
       onPreviewFamilyChange={setPreviewFamily}
+      demoMedia={previewDemoMedia}
+      previewFamily={previewFamily}
     />
   )
 

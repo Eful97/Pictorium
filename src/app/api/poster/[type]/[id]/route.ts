@@ -83,7 +83,7 @@ import { computeBottomLight } from "@/lib/accent-color"
 import { normalizeGenreName } from "@/lib/genre-normalize"
 import { NON_CLEAN_BLUR_FADE, NON_CLEAN_GRADIENT_HEIGHT } from "@/lib/gradient-defaults"
 import { LAND_W, LAND_H, landscapeBackdropUrl, pillarboxLandscapeBase, cropBackdropToPortrait } from "@/lib/image-utils"
-import { generatePosterBuffer, type GenerationInput } from "@/lib/poster-service"
+import { generatePosterBuffer, type GenerationInput, type NetworkGeometry } from "@/lib/poster-service"
 import { computeTopBadge } from "@/lib/poster-badge"
 import { parseDateFormat } from "@/lib/release-badge"
 import { fetchPosterBaseWithCustom, customBaseAnalysisKey, resolveEffectiveCustomUrl, safeTmdbImgSrc, isAllowedQueryImagePath } from "@/lib/custom-poster-base"
@@ -649,6 +649,10 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
   // Percorso "Segui il mio spazio": politica di rivalidazione (non forza il
   // render). Stessi header su 200 e 304, mai immutable (vedi isImmutable...).
   const isLive = isLivePosterRequest(req.nextUrl.searchParams)
+  // Geometria network (`netgeo=1`, solo con `debug=1`): deve sempre
+  // renderizzare fresco — mai poster bytes/304/stale dalla cache al posto
+  // del JSON diagnostico. Non scrive comunque in cache (return prima).
+  const wantNetGeo = req.nextUrl.searchParams.get("netgeo") === "1"
   // isPreview effettivo calcolato a inizio richiesta (può essere declassato
   // dalla blindatura opt-in PICTORIUM_PREVIEW_AUTH) — non rileggere la query.
   // Poster non-mappato (composto al volo con dati dinamici): TTL ridotto (6h)
@@ -682,7 +686,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
       opts = { ...opts, ttlMs: canonical.ttlSec * 1000 }
     }
     const variantHit = readCachedPoster(variantKey)
-    if (variantHit.payload && !variantHit.stale) {
+    if (!wantNetGeo && variantHit.payload && !variantHit.stale) {
       if (isConditional && ifNoneMatch === variantHit.payload.etag) {
         log.debug("Poster cache: 304 (variant)", { mediaType, tmdbId, ms: Date.now() - startTime })
         return new Response(null, { status: 304, headers: posterNotModifiedHeaders(variantHit.payload.etag, variantHit.immutable ?? immutablePoster, dynamicPoster, variantHit.ttlSec ?? variantTtlSec, isLive) })
@@ -727,7 +731,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
   // fallback (conversione) quando la variante è assente/scadata.
   if (needsVariant && !refreshRequest) {
     const variantHit = readCachedPoster(variantKey)
-    if (variantHit.payload && !variantHit.stale) {
+    if (!wantNetGeo && variantHit.payload && !variantHit.stale) {
       recordPosterRequest(true, outputFormat)
       if (isConditional && ifNoneMatch === variantHit.payload.etag) {
         log.debug("Poster cache: 304 (variant)", { mediaType, tmdbId, ms: Date.now() - startTime })
@@ -736,7 +740,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
       log.debug("Poster cache: fresh variant hit", { mediaType, tmdbId, ms: Date.now() - startTime })
       return posterResponse(variantHit.payload, variantHit.immutable ?? immutablePoster, isPreview, dynamicPoster, outputFormat, variantHit.ttlSec ?? variantTtlSec, undefined, isLive)
     }
-    if (variantHit.payload && !isConditional && !isLive) {
+    if (variantHit.payload && !isConditional && !isLive && !wantNetGeo) {
       recordPosterRequest(true, outputFormat)
       recordPosterStaleHit()
       schedulePosterRefresh(req, isPreview)
@@ -747,7 +751,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
     // canonico sotto (fresco → conversione; scaduto/assente → render).
   }
   const cachedPoster = readCachedPoster(cacheKey)
-  if (cachedPoster.payload && !cachedPoster.stale) {
+  if (!wantNetGeo && cachedPoster.payload && !cachedPoster.stale) {
     recordPosterRequest(true, outputFormat)
     if (!needsVariant && isConditional && ifNoneMatch === cachedPoster.payload.etag) {
       log.debug("Poster cache: 304", { mediaType, tmdbId, ms: Date.now() - startTime })
@@ -758,7 +762,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
     return posterResponse(cachedPoster.payload, cachedPoster.immutable ?? immutablePoster, isPreview, dynamicPoster, outputFormat, cachedPoster.ttlSec ?? dynamicTtlSec,
       serverTimingValue([{ name: "cache", desc: "HIT" }, { name: "total", durMs: Date.now() - startTime }]), isLive)
   }
-  if (cachedPoster.payload && !isConditional && !isLive && !refreshRequest) {
+  if (!wantNetGeo && cachedPoster.payload && !isConditional && !isLive && !refreshRequest) {
     recordPosterRequest(true, outputFormat)
     recordPosterStaleHit()
     schedulePosterRefresh(req, isPreview)
@@ -771,7 +775,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
   // finale). Se la rivalidazione fallisce, errore — mai un falso 304.
 
   const pendingPoster = getPendingPoster(cacheKey)
-  if (pendingPoster) {
+  if (pendingPoster && !wantNetGeo) {
     // F8: il waiter coalesced attende al massimo RENDER_SLOT_WAIT_MS, poi 503
     // con Retry-After invece di tenere la connessione fino all'INFLIGHT_TIMEOUT
     // (60s) del render lento. Fix L3: il timer della race viene cancellato se
@@ -1948,12 +1952,14 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
       separateRatings, separateRatingsStyle,
       logoScale, logoOffsetX, logoOffsetY,
       topBadgeScale, topBadgeOffsetX, topBadgeOffsetY,
+      extraBadgeScale, extraBadgeOffsetX, extraBadgeOffsetY,
       genreBadgeScale, qualityBadgeScale, networkLogoScale,
       separateBadgeScale,
       separateBadgeOffsetX, separateBadgeOffsetY,
       genreBadgeOffsetX, genreBadgeOffsetY, qualityBadgeOffsetX, qualityBadgeOffsetY,
       networkLogoOffsetX, networkLogoOffsetY,
       queryExtra, qNetLogo, networkLogo, networkLogoPosition, ribbonSide, ribbonEnabled, rankingBadgeAccent,
+      networkLogoFollowTitle, networkFixedX, networkFixedY,
       preRelease, posterShape, logoAlign, hideLogo,
     } = renderConfig
 
@@ -2106,8 +2112,13 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
         ? { genreColor: mapping.accentColor, rankColor: mapping.accentColor }
         : null
 
-    // 9. Debug mode — return JSON with all computed data instead of rendering
+    // 9. Debug mode — JSON instead of the poster (no render, no cache write,
+    // no 304). With `netgeo=1` generation runs first and the return below
+    // adds the actually rendered network geometry (single renderer source
+    // for the UI freeze); plain `debug=1` stays render-free for existing
+    // consumers. Normal poster responses are unchanged either way.
     const isDebug = req.nextUrl.searchParams.get("debug") === "1"
+    let debugJson: Record<string, unknown> | null = null
     if (isDebug) {
       const badgeInput = {
         mediaType: mediaType as "movie" | "tv",
@@ -2132,8 +2143,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
       }
       const badgeComputed = computeTopBadge(badgeInput, t, locale, sashOrder, dateFormat)
       log.info("Debug mode", { mediaType, tmdbId, imdbId, imdbTop250: !!imdbTop250, badge: badgeComputed.badge?.label ?? "null", vote: voteAverage, genre: genreName, quality: finalQuality })
-      completePosterRender(null)
-      return Response.json({
+      debugJson = {
         meta: {
           tmdbId,
           mediaType,
@@ -2234,16 +2244,28 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
           offsetX: logoOffsetX,
           offsetY: logoOffsetY,
           networkLogo,
+          networkLogoFollowTitle,
+          networkFixedX: networkFixedX ?? null,
+          networkFixedY: networkFixedY ?? null,
         },
         topBadge: {
           scale: topBadgeScale,
           offsetX: topBadgeOffsetX,
           offsetY: topBadgeOffsetY,
         },
+        extraBadge: {
+          scale: extraBadgeScale ?? null,
+          offsetX: extraBadgeOffsetX ?? null,
+          offsetY: extraBadgeOffsetY ?? null,
+        },
         genreBadge: {
           scale: genreBadgeScale,
         },
-      })
+      }
+      if (!wantNetGeo) {
+        completePosterRender(null)
+        return Response.json(debugJson)
+      }
     }
 
     // Fallback mapping network logo per poster salvati (quando non c'è fetch live)
@@ -2256,6 +2278,9 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
     }
 
     // 10. Generate poster buffer
+    // Collettore geometria network per il debug (solo numeri): in fissa è la
+    // fonte del freeze senza salto; nel path normale resta inutilizzato.
+    let netGeo: NetworkGeometry | null = null
     const genInput: GenerationInput = {
       // Custom values override internal sources with the same ID, preserving order.
       // In bottom il custom provider non si rende (suppressCustomRow): la
@@ -2275,6 +2300,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
       topLight, bottomLight, logoBadgeVisibility, targetCenter, ribbonSide, ribbonEnabled, rankingBadgeAccent,
       logoScale, logoOffsetX, logoOffsetY,
       topBadgeScale, topBadgeOffsetX, topBadgeOffsetY,
+      extraBadgeScale, extraBadgeOffsetX, extraBadgeOffsetY,
       genreBadgeScale, qualityBadgeScale, networkLogoScale,
       separateBadgeScale,
       separateBadgeOffsetX, separateBadgeOffsetY,
@@ -2289,6 +2315,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
       wikidataResult, tmdbKeywords, locale, t,
       dateFormat,
       qLabel, queryExtra, qNetLogo, networkLogo, networkLogoPosition, sd,
+      networkLogoFollowTitle, networkFixedX, networkFixedY,
+      onNetworkGeometry: isDebug && wantNetGeo ? (geo) => { netGeo = geo } : undefined,
       demoSamples,
       accentOverride, imdbTop250, preRelease: applyPreRelease,
       shape: posterShape,
@@ -2308,6 +2336,14 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
     // Fine della fase prep (resize, config, accent): da qui solo composite CPU.
     const tCompositeStart = Date.now()
     const composited = await generatePosterBuffer(genInput)
+    // Debug with netgeo=1 (plain debug returned early above): pre-composite
+    // payload plus the actually rendered network geometry. Numbers and
+    // resolved config only, no sensitive data. Normal poster responses
+    // below are unchanged.
+    if (isDebug && wantNetGeo) {
+      completePosterRender(null)
+      return Response.json({ ...(debugJson ?? {}), network: netGeo ?? null })
+    }
     // 10. Il validatore rappresenta i byte effettivi: hash del buffer finale
     // (audit, problema 1). Rank live, rating, qualità, premi e ogni altra
     // dipendenza dinamica cambiano i byte → cambia l'ETag. Sulle cache hit il

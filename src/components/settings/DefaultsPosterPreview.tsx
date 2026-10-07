@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, useId } from "react"
 import { ChevronDown, ImageOff, RefreshCw, Sparkles } from "lucide-react"
-import { usePosterEditor } from "@/lib/contexts/PosterEditorContext"
+import { usePosterEditor, type PosterEditorCtx } from "@/lib/contexts/PosterEditorContext"
 import { useT } from "@/lib/contexts/TranslationContext"
 import { buildDefaultsPreviewUrl, type DefaultsPreviewDemoMedia, type DefaultsPreviewFamily } from "@/lib/poster-url"
 import { DEFAULT_SASH_ORDER, type SashBucket } from "@/lib/badge-priority"
@@ -63,36 +63,30 @@ const PREVIEW_FAMILY_LABEL_KEY: Record<DefaultsPreviewFamily, string> = {
   gradient: "ui.blurSection",
 }
 
-export function DefaultsPosterPreview({ compact, previewShape, demoMedia, onDemoMediaChange, previewFamily, onPreviewFamilyChange, collapsed = false, onCollapsedChange }: DefaultsPosterPreviewProps) {
-  const ed = usePosterEditor()
-  const { t, lang } = useT()
-  const bodyId = useId()
-  const tmdbKey = usePSelector((v) => v.tmdbKey)
-  const userId = usePSelector((v) => v.currentUserId)
-  const serverHasTmdbKey = usePSelector((v) => v.serverHasTmdbKey)
+export interface DefaultsPreviewBuildOpts {
+  tmdbKey: string
+  userId: string | null
+  lang: string
+  demoMedia: DefaultsPreviewDemoMedia | null
+  previewShape: "portrait" | "landscape" | null
+  previewFamily: DefaultsPreviewFamily | null
+}
 
-  const [debouncedUrl, setDebouncedUrl] = useState("")
-  const [imgSrc, setImgSrc] = useState("")
-  const [prevSrc, setPrevSrc] = useState<string | null>(null)
-  const [previewLoading, setPreviewLoading] = useState(false)
-  const [loadProgress, setLoadProgress] = useState(0)
-  const [imageError, setImageError] = useState(false)
-  const [retryNonce, setRetryNonce] = useState(0)
-  const [zoomed, setZoomed] = useState(false)
-
-  const xhrRef = useRef<XMLHttpRequest | null>(null)
-  const loadDelayRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const prevObjUrlRef = useRef("")
-  const shownRef = useRef("")
-  const lastProgressRef = useRef(-1)
-
-  const demoTitle = demoMedia?.title?.trim() ? demoMedia.title.trim() : "Avatar"
-  const searchLanguage = getRegionDef(ed.defaultRegion).lang
-
+/**
+ * URL preview defaults costruito dagli stessi input della preview
+ * visualizzata (stesso builder, stesso sample, stessa shape): unica fonte
+ * anche per il freeze geometria (nessuna duplicazione dei parametri).
+ * Ritorna anche la shape canvas ("poster"/"landscape") per il routing
+ * per-shape dello stato.
+ */
+export function buildDefaultsPreviewUrlFromEditor(
+  ed: PosterEditorCtx,
+  opts: DefaultsPreviewBuildOpts,
+): { url: string; shape: "poster" | "landscape" } {
   // Previewed shape mirrors the builder rule (`land ?? flat` only applies in
   // landscape): portrait always reads the shared flats.
   const previewIsLandscape =
-    previewShape === "landscape" || (previewShape == null && ed.defaultPosterShape === "landscape")
+    opts.previewShape === "landscape" || (opts.previewShape == null && ed.defaultPosterShape === "landscape")
   // Effective sash + master for the previewed shape (same rule as the
   // builder): drives the info-family sample only, never persisted.
   const effPreviewSashForFamily =
@@ -102,19 +96,16 @@ export function DefaultsPosterPreview({ compact, previewShape, demoMedia, onDemo
   // First enabled informational bucket in saved priority order: no enabled
   // info bucket (or master off) = no sample, never a phantom badge.
   const infoSampleBucket =
-    previewFamily === "info" && effPreviewRankingForFamily
+    opts.previewFamily === "info" && effPreviewRankingForFamily
       ? effPreviewSashForFamily.find((b) => b === "upcoming" || b === "new" || b === "award" || b === "extra")
       : undefined
   const previewExtra = infoSampleBucket ? INFO_FAMILY_SAMPLE_KEY[infoSampleBucket] : null
-
-  // Calcolo URL con debounce a 200ms per non sovraccaricare il server durante lo scorrimento dei controlli
-  useEffect(() => {
-    const url = buildDefaultsPreviewUrl({
-      tmdbKey,
-      userId,
-      lang,
-      demoMedia: demoMedia ?? null,
-      defaultLogoScale: ed.defaultLogoScale,
+  const url = buildDefaultsPreviewUrl({
+    tmdbKey: opts.tmdbKey,
+    userId: opts.userId,
+    lang: opts.lang,
+    demoMedia: opts.demoMedia ?? null,
+    defaultLogoScale: ed.defaultLogoScale,
       defaultLogoOffsetX: ed.defaultLogoOffsetX,
       defaultLogoOffsetY: ed.defaultLogoOffsetY,
       defaultGlobalBadges: ed.defaultGlobalBadges,
@@ -157,6 +148,7 @@ export function DefaultsPosterPreview({ compact, previewShape, demoMedia, onDemo
       defaultNetworkLogoOffsetY: ed.defaultNetworkLogoOffsetY,
       defaultNetworkLogo: ed.defaultNetworkLogo,
       defaultNetworkLogoPosition: ed.defaultNetworkLogoPosition,
+      defaultNetworkLogoFollowTitle: ed.defaultNetworkLogoFollowTitle,
       defaultRibbonEnabled: ed.defaultRibbonEnabled,
       defaultRibbonSide: ed.defaultRibbonSide,
       defaultPosterShape: ed.defaultPosterShape,
@@ -167,10 +159,49 @@ export function DefaultsPosterPreview({ compact, previewShape, demoMedia, onDemo
       // vincono sui flat SOLO con shape Orizzontale (regola `land ?? flat` nel
       // builder). Nessun persist/mapping qui: sola lettura per la preview.
       landscape: ed.landscape,
-      previewShape: previewShape ?? null,
+      previewShape: opts.previewShape ?? null,
       defaultSashOrder: ed.defaultSashOrder,
-      previewFamily: previewFamily ?? null,
+      previewFamily: opts.previewFamily ?? null,
       previewExtra,
+    })
+  return { url, shape: previewIsLandscape ? "landscape" as const : "poster" as const }
+}
+
+export function DefaultsPosterPreview({ compact, previewShape, demoMedia, onDemoMediaChange, previewFamily, onPreviewFamilyChange, collapsed = false, onCollapsedChange }: DefaultsPosterPreviewProps) {
+  const ed = usePosterEditor()
+  const { t, lang } = useT()
+  const bodyId = useId()
+  const tmdbKey = usePSelector((v) => v.tmdbKey)
+  const userId = usePSelector((v) => v.currentUserId)
+  const serverHasTmdbKey = usePSelector((v) => v.serverHasTmdbKey)
+
+  const [debouncedUrl, setDebouncedUrl] = useState("")
+  const [imgSrc, setImgSrc] = useState("")
+  const [prevSrc, setPrevSrc] = useState<string | null>(null)
+  const [previewLoading, setPreviewLoading] = useState(false)
+  const [loadProgress, setLoadProgress] = useState(0)
+  const [imageError, setImageError] = useState(false)
+  const [retryNonce, setRetryNonce] = useState(0)
+  const [zoomed, setZoomed] = useState(false)
+
+  const xhrRef = useRef<XMLHttpRequest | null>(null)
+  const loadDelayRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const prevObjUrlRef = useRef("")
+  const shownRef = useRef("")
+  const lastProgressRef = useRef(-1)
+
+  const demoTitle = demoMedia?.title?.trim() ? demoMedia.title.trim() : "Avatar"
+  const searchLanguage = getRegionDef(ed.defaultRegion).lang
+
+  // Calcolo URL con debounce a 200ms per non sovraccaricare il server durante lo scorrimento dei controlli
+  useEffect(() => {
+    const { url } = buildDefaultsPreviewUrlFromEditor(ed, {
+      tmdbKey,
+      userId,
+      lang,
+      demoMedia: demoMedia ?? null,
+      previewShape: previewShape ?? null,
+      previewFamily: previewFamily ?? null,
     })
 
     const timer = setTimeout(() => {
@@ -226,6 +257,7 @@ export function DefaultsPosterPreview({ compact, previewShape, demoMedia, onDemo
     ed.defaultNetworkLogoOffsetY,
     ed.defaultNetworkLogo,
     ed.defaultNetworkLogoPosition,
+    ed.defaultNetworkLogoFollowTitle,
     ed.defaultRibbonEnabled,
     ed.defaultRibbonSide,
     ed.defaultPosterShape,
@@ -236,8 +268,8 @@ export function DefaultsPosterPreview({ compact, previewShape, demoMedia, onDemo
     ed.landscape,
     previewShape,
     previewFamily,
-    previewExtra,
     retryNonce,
+    ed,
   ])
 
   // Anti-blank tra anteprime (buffer precedente mantenuto finché il nuovo non è pronto)

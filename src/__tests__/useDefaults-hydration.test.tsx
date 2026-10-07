@@ -22,6 +22,9 @@ import { resetGuestGuardForTests } from "@/lib/guest-guard"
 // Valori utente salvati (forma del payload scritto da saveDefaults):
 // badgeYear OFF, gradientHeight 45, blurIntensity 9 — tutto il resto factory.
 // `region` è parte del payload da quando le classifiche sono multi-paese.
+// `extraBadge*` nulli espliciti: dal split classifica/extra il payload li
+// include sempre (null = fallback legacy, serve anche a propagare il reset
+// al server via merge) — mai spazzatura, mai factory numerici.
 const USER_SAVED = {
   badgeStyle: "shadow",
   rankingBadgeStyle: "default",
@@ -39,6 +42,9 @@ const USER_SAVED = {
   topBadgeScale: 100,
   topBadgeOffsetX: 0,
   topBadgeOffsetY: 0,
+  extraBadgeScale: null,
+  extraBadgeOffsetX: null,
+  extraBadgeOffsetY: null,
   genreBadgeScale: 100,
   qualityBadgeScale: 100,
   separateBadgeScale: 100,
@@ -71,6 +77,7 @@ const USER_SAVED = {
   defaultLandscapeFitEnabled: true,
   networkLogo: true,
   networkLogoPosition: "auto",
+  networkLogoFollowTitle: true,
   preRelease: false,
   ribbonSide: "left",
   ribbonEnabled: true,

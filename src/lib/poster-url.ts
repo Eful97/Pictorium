@@ -1,4 +1,10 @@
 import { getDomain } from "./utils"
+import {
+  resolveEffectiveNetworkFollow,
+  resolveLandscapeNetworkOffsets,
+  resolveNetworkFixedCoords,
+  resolveNetworkFollowTitle,
+} from "./network-follow"
 import { resolveLabel, isRankKey, t as tFn } from "./i18n"
 import { getPosterPublicBaseUrl } from "./poster-public-url"
 import { buildStremioPosterSearchParams } from "./stremio-poster-params"
@@ -66,6 +72,13 @@ interface BadgeParams {
   topBadgeScale: number
   topBadgeOffsetX: number
   topBadgeOffsetY: number
+  /**
+   * Tuning EXTRA superiore (opt-in: assente = fallback legacy classifica,
+   * URL invariati). B2 lo materializza all'edit classifica.
+   */
+  extraBadgeScale?: number | null
+  extraBadgeOffsetX?: number | null
+  extraBadgeOffsetY?: number | null
   /** Scala % del badge genere/rating in basso. */
   genreBadgeScale: number
   /** Offset px del badge genere/rating, solo stili non-bar. */
@@ -90,6 +103,11 @@ interface BadgeParams {
   networkLogo?: boolean
   /** Ancoraggio orizzontale del logo network (preview WYSIWYG, sempre esplicito). */
   networkLogoPosition?: NetworkLogoPosition
+  /**
+   * Il network segue il titolo (preview WYSIWYG, esplicito quando definito:
+   * assente = legacy invariato).
+   */
+  networkLogoFollowTitle?: boolean
   /** Effetto pre-digitale (darken + Coming Soon, solo film). Default OFF. */
   preRelease?: boolean
   ribbonSide?: "left" | "right"
@@ -229,6 +247,7 @@ export function buildUrlPattern(bp: BadgeParams & {
     topShade: bp.topShade,
     networkLogo: bp.networkLogo,
     networkLogoPosition: bp.networkLogoPosition,
+    networkLogoFollowTitle: bp.networkLogoFollowTitle,
     preRelease: bp.preRelease,
     ribbonSide: bp.ribbonSide,
     ribbonEnabled: bp.ribbonEnabled,
@@ -237,6 +256,9 @@ export function buildUrlPattern(bp: BadgeParams & {
     topBadgeScale: bp.topBadgeScale,
     topBadgeOffsetX: bp.topBadgeOffsetX,
     topBadgeOffsetY: bp.topBadgeOffsetY,
+    extraBadgeScale: bp.extraBadgeScale ?? undefined,
+    extraBadgeOffsetX: bp.extraBadgeOffsetX ?? undefined,
+    extraBadgeOffsetY: bp.extraBadgeOffsetY ?? undefined,
     genreBadgeScale: bp.genreBadgeScale,
     qualityBadgeScale: bp.qualityBadgeScale,
     separateBadgeScale: bp.separateBadgeScale ?? undefined,
@@ -372,6 +394,11 @@ export function buildPreviewUrl(ps: PosterState, bp: BadgeParams, configToken?: 
   params.push(`tscale=${bp.topBadgeScale}`)
   params.push(`tox=${bp.topBadgeOffsetX}`)
   params.push(`toy=${bp.topBadgeOffsetY}`)
+  // Extra tuning: opt-in only (absent = legacy classifica fallback,
+  // existing preview URLs stay byte-identical).
+  if (bp.extraBadgeScale != null) params.push(`exscale=${bp.extraBadgeScale}`)
+  if (bp.extraBadgeOffsetX != null) params.push(`exox=${bp.extraBadgeOffsetX}`)
+  if (bp.extraBadgeOffsetY != null) params.push(`exoy=${bp.extraBadgeOffsetY}`)
   params.push(`gscale=${bp.genreBadgeScale}`)
   params.push(`gox=${bp.genreBadgeOffsetX}`)
   params.push(`goy=${bp.genreBadgeOffsetY}`)
@@ -391,6 +418,12 @@ export function buildPreviewUrl(ps: PosterState, bp: BadgeParams, configToken?: 
   // SEMPRE esplicito (come ribbon/side): senza, un mapping salvato con
   // posizione forzata scavalcerebbe lo stato editor (desync WYSIWYG).
   params.push(`netPos=${bp.networkLogoPosition === "top" ? "top" : "auto"}`)
+  // Esplicito quando definito (come netPos): senza, un mapping salvato con
+  // follow spento scavalcerebbe lo stato editor e viceversa (desync
+  // WYSIWYG). Assente = URL legacy invariati.
+  if (bp.networkLogoFollowTitle !== undefined) {
+    params.push(`netFollow=${bp.networkLogoFollowTitle ? "1" : "0"}`)
+  }
   if (bp.preRelease) params.push("pre=1")
   // Fix M2: side viene emesso SEMPRE (left|right) — prima soltanto "right";
   // senza il parametro il server risolve dal mapping/config salvati (di
@@ -527,6 +560,10 @@ export interface DefaultsPreviewParams {
   defaultTopBadgeScale?: number
   defaultTopBadgeOffsetX?: number
   defaultTopBadgeOffsetY?: number
+  /** Tuning EXTRA superiore (opt-in: assente = fallback legacy classifica). */
+  defaultExtraBadgeScale?: number | null
+  defaultExtraBadgeOffsetX?: number | null
+  defaultExtraBadgeOffsetY?: number | null
   defaultGenreBadgeScale?: number
   defaultGenreBadgeOffsetX?: number
   defaultGenreBadgeOffsetY?: number
@@ -543,6 +580,9 @@ export interface DefaultsPreviewParams {
   defaultNetworkLogoOffsetY?: number
   defaultNetworkLogo?: boolean
   defaultNetworkLogoPosition?: NetworkLogoPosition
+  /** Il network segue il titolo (default globale, per-shape via `landscape`).
+   *  Emesso solo quando definito: default legacy = URL invariati. */
+  defaultNetworkLogoFollowTitle?: boolean | null
   defaultRibbonEnabled?: boolean
   defaultRibbonSide?: "left" | "right"
   defaultPosterShape?: PosterShape
@@ -672,6 +712,14 @@ export function buildDefaultsPreviewUrl(bp: DefaultsPreviewParams): string {
   params.push(`tscale=${pick(land.topBadgeScale, bp.defaultTopBadgeScale) ?? 100}`)
   params.push(`tox=${pick(land.topBadgeOffsetX, bp.defaultTopBadgeOffsetX) ?? 0}`)
   params.push(`toy=${pick(land.topBadgeOffsetY, bp.defaultTopBadgeOffsetY) ?? 0}`)
+  // Extra tuning: opt-in only (absent = legacy classifica fallback,
+  // existing preview URLs stay byte-identical). Profilo landscape incluso.
+  const effExScale = pick(land.extraBadgeScale, bp.defaultExtraBadgeScale)
+  const effExOX = pick(land.extraBadgeOffsetX, bp.defaultExtraBadgeOffsetX)
+  const effExOY = pick(land.extraBadgeOffsetY, bp.defaultExtraBadgeOffsetY)
+  if (effExScale != null) params.push(`exscale=${effExScale}`)
+  if (effExOX != null) params.push(`exox=${effExOX}`)
+  if (effExOY != null) params.push(`exoy=${effExOY}`)
   params.push(`gscale=${pick(land.genreBadgeScale, bp.defaultGenreBadgeScale) ?? 100}`)
   params.push(`gox=${pick(land.genreBadgeOffsetX, bp.defaultGenreBadgeOffsetX) ?? 0}`)
   params.push(`goy=${pick(land.genreBadgeOffsetY, bp.defaultGenreBadgeOffsetY) ?? 0}`)
@@ -682,8 +730,38 @@ export function buildDefaultsPreviewUrl(bp: DefaultsPreviewParams): string {
   params.push(`qox=${pick(land.qualityBadgeOffsetX, bp.defaultQualityBadgeOffsetX) ?? getQualityBadgeOffsetDefault(previewLandscape ? "landscape" : "poster", "x")}`)
   params.push(`qoy=${pick(land.qualityBadgeOffsetY, bp.defaultQualityBadgeOffsetY) ?? getQualityBadgeOffsetDefault(previewLandscape ? "landscape" : "poster", "y")}`)
   params.push(`netscale=${pick(land.networkLogoScale, bp.defaultNetworkLogoScale) ?? 100}`)
-  params.push(`nox=${pick(land.networkLogoOffsetX, bp.defaultNetworkLogoOffsetX) ?? 0}`)
-  params.push(`noy=${pick(land.networkLogoOffsetY, bp.defaultNetworkLogoOffsetY) ?? 0}`)
+  // Follow network per-shape con unità di layer (stesso resolver del
+  // server, sui default in anteprima: niente mapping/config/query qui).
+  // Portrait: fixed solo dal flat; landscape: fixed solo dal profilo (mai
+  // leak cross-shape: un flat portrait non diventa assoluto su LAND).
+  const netSdLike = {
+    networkLogoFollowTitle: bp.defaultNetworkLogoFollowTitle ?? undefined,
+    networkLogoOffsetX: bp.defaultNetworkLogoOffsetX ?? undefined,
+    networkLogoOffsetY: bp.defaultNetworkLogoOffsetY ?? undefined,
+    landscape: bp.landscape ?? undefined,
+  }
+  const netShape = previewLandscape ? "landscape" as const : "poster" as const
+  const netFollowRaw = resolveNetworkFollowTitle(new URLSearchParams(), null, null, netSdLike, netShape)
+  const netFixed = resolveNetworkFixedCoords(new URLSearchParams(), null, null, netSdLike, netShape)
+  const netFollowEff = resolveEffectiveNetworkFollow(netFollowRaw, netFixed)
+  if (!netFollowEff) {
+    params.push("netFollow=0")
+    params.push(`nox=${netFixed.x as number}`)
+    params.push(`noy=${netFixed.y as number}`)
+  } else {
+    // ON: netFollow=1 solo se un follow non-nullo è definito da qualche
+    // parte (override esplicito di un fixed server); nox/noy restano offset
+    // legacy con fallback flat (byte-identici quando tutto è assente/null).
+    const followDefined = (previewLandscape
+      ? (land.networkLogoFollowTitle ?? bp.defaultNetworkLogoFollowTitle)
+      : bp.defaultNetworkLogoFollowTitle) != null
+    if (followDefined) params.push("netFollow=1")
+    // ON: stessi offset del resolver (profilo, poi flat salvo fixed-layer,
+    // poi 0) — mai assoluti di altra shape come relativi.
+    const netOn = resolveLandscapeNetworkOffsets(new URLSearchParams(), null, null, netSdLike)
+    params.push(`nox=${previewLandscape ? netOn.x : (pick(land.networkLogoOffsetX, bp.defaultNetworkLogoOffsetX) ?? 0)}`)
+    params.push(`noy=${previewLandscape ? netOn.y : (pick(land.networkLogoOffsetY, bp.defaultNetworkLogoOffsetY) ?? 0)}`)
+  }
   params.push(`netLogo=${pick(land.networkLogo, bp.defaultNetworkLogo) !== false ? "1" : "0"}`)
   params.push(`netPos=${pick(land.networkLogoPosition ?? undefined, bp.defaultNetworkLogoPosition) === "top" ? "top" : "auto"}`)
   params.push(`ribbon=${pick(land.ribbonEnabled, bp.defaultRibbonEnabled) === false ? "0" : "1"}`)

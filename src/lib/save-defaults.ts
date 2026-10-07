@@ -47,6 +47,10 @@ export async function saveDefaults(ed: PosterEditorCtx): Promise<boolean> {
     topBadgeScale: ed.defaultTopBadgeScale,
     topBadgeOffsetX: ed.defaultTopBadgeOffsetX,
     topBadgeOffsetY: ed.defaultTopBadgeOffsetY,
+    // Extra indipendente (null = fallback legacy classifica, mai migrato qui).
+    extraBadgeScale: ed.defaultExtraBadgeScale ?? null,
+    extraBadgeOffsetX: ed.defaultExtraBadgeOffsetX ?? null,
+    extraBadgeOffsetY: ed.defaultExtraBadgeOffsetY ?? null,
     genreBadgeScale: ed.defaultGenreBadgeScale,
     qualityBadgeScale: ed.defaultQualityBadgeScale,
     separateBadgeScale: ed.defaultSeparateBadgeScale,
@@ -66,6 +70,7 @@ export async function saveDefaults(ed: PosterEditorCtx): Promise<boolean> {
     defaultLandscapeFitEnabled: ed.defaultLandscapeFitEnabled,
     defaultNetworkLogo: ed.defaultNetworkLogo,
     networkLogoPosition: ed.defaultNetworkLogoPosition,
+    networkLogoFollowTitle: ed.defaultNetworkLogoFollowTitle,
     preRelease: ed.defaultPreRelease,
     defaultRibbonSide: ed.defaultRibbonSide,
     defaultEpisodeMetadataSource: ed.defaultEpisodeMetadataSource,

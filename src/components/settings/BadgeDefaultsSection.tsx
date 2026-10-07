@@ -34,7 +34,8 @@ import { SASH_BUCKETS, DEFAULT_SASH_ORDER, parseSashOrder, moveSashItem, type Sa
 import { formatRating } from "@/lib/custom-rating/formatter"
 import { saveDefaults } from "@/lib/save-defaults"
 import { http } from "@/lib/http"
-import { captureVisualPreset } from "@/lib/visual-presets"
+import { captureVisualPreset, normalizePresetExtraTuning } from "@/lib/visual-presets"
+import { clearedExtraForPresetApply } from "@/lib/extra-materialize"
 import {
   applyLandscapeIsolated,
   applyPortraitIsolated,
@@ -452,6 +453,7 @@ export function BadgeDefaultsSection({ active, shape, onPreviewFamilyChange }: {
     } as unknown as VisualPresetValues
     ed.applyVisualPreset(
       isLandscape ? applyLandscapeIsolated(live, desired) : applyPortraitIsolated(live, desired),
+      isLandscape ? "landscape" : "portrait",
     )
   }
 
@@ -504,6 +506,9 @@ export function BadgeDefaultsSection({ active, shape, onPreviewFamilyChange }: {
     defaultTopBadgeScale: "topBadgeScale",
     defaultTopBadgeOffsetX: "topBadgeOffsetX",
     defaultTopBadgeOffsetY: "topBadgeOffsetY",
+    defaultExtraBadgeScale: "extraBadgeScale",
+    defaultExtraBadgeOffsetX: "extraBadgeOffsetX",
+    defaultExtraBadgeOffsetY: "extraBadgeOffsetY",
     defaultGenreBadgeScale: "genreBadgeScale",
     defaultGenreBadgeOffsetX: "genreBadgeOffsetX",
     defaultGenreBadgeOffsetY: "genreBadgeOffsetY",
@@ -540,16 +545,19 @@ export function BadgeDefaultsSection({ active, shape, onPreviewFamilyChange }: {
   }
   function matchesSnapshotPreset(preset: VisualPresetValues): boolean {
     if (!snapshotGlobalsMatch(snapshotHighlightSource, preset)) return false
+    // Extra-tuning normalized on both sides first (effective extra per
+    // axis): legacy looks without explicit extra compare by their own rank
+    // tuning, modern explicit extra compares verbatim.
     if (!isLandscape) {
-      const cur = portraitPresetPatch(snapshotHighlightSource) as unknown as Record<string, unknown>
-      const pre = portraitPresetPatch(preset) as unknown as Record<string, unknown>
+      const cur = portraitPresetPatch(normalizePresetExtraTuning(snapshotHighlightSource)) as unknown as Record<string, unknown>
+      const pre = portraitPresetPatch(normalizePresetExtraTuning(preset)) as unknown as Record<string, unknown>
       for (const k of Object.keys(pre)) {
         if (!snapshotFieldEqual(cur[k], pre[k])) return false
       }
       return true
     }
-    const curEff = resolveEffectiveLandscape(snapshotHighlightSource) as unknown as Record<string, unknown>
-    const preEff = resolveEffectiveLandscape(preset) as unknown as Record<string, unknown>
+    const curEff = resolveEffectiveLandscape(normalizePresetExtraTuning(snapshotHighlightSource)) as unknown as Record<string, unknown>
+    const preEff = resolveEffectiveLandscape(normalizePresetExtraTuning(preset)) as unknown as Record<string, unknown>
     for (const k of Object.keys(preEff)) {
       if (!snapshotFieldEqual(curEff[k], preEff[k])) return false
     }
@@ -570,16 +578,17 @@ export function BadgeDefaultsSection({ active, shape, onPreviewFamilyChange }: {
   const appleHighlightSource = captureVisualPreset(ed)
   const isApple =
     JSON.stringify(
-      isLandscape ? resolveEffectiveLandscape(appleHighlightSource) : portraitPresetPatch(appleHighlightSource),
+      normalizePresetExtraTuning(isLandscape ? resolveEffectiveLandscape(appleHighlightSource) : portraitPresetPatch(appleHighlightSource)),
     ) ===
     JSON.stringify(
-      isLandscape ? resolveEffectiveLandscape(APPLE_VISUAL_DEFAULTS) : portraitPresetPatch(APPLE_VISUAL_DEFAULTS),
+      normalizePresetExtraTuning(isLandscape ? resolveEffectiveLandscape(APPLE_VISUAL_DEFAULTS) : portraitPresetPatch(APPLE_VISUAL_DEFAULTS)),
     )
   const applyApple = () => {
     ed.applyVisualPreset(
       isLandscape
         ? applyLandscapeIsolated(appleLive, APPLE_VISUAL_DEFAULTS)
         : applyPortraitIsolated(appleLive, APPLE_VISUAL_DEFAULTS),
+      isLandscape ? "landscape" : "portrait",
     )
   }
 
@@ -591,7 +600,7 @@ export function BadgeDefaultsSection({ active, shape, onPreviewFamilyChange }: {
     if (!isLandscape) {
       // Portrait target: flats only; the existing landscape profile and the
       // delivery shape stay byte-identical.
-      ed.applyVisualPreset({ ...values, landscape: ed.landscape, defaultPosterShape: ed.defaultPosterShape })
+      ed.applyVisualPreset({ ...values, landscape: ed.landscape, defaultPosterShape: ed.defaultPosterShape }, "portrait")
       return
     }
     const landPatch: Partial<LandscapeServerDefaults> = {}
@@ -601,7 +610,20 @@ export function BadgeDefaultsSection({ active, shape, onPreviewFamilyChange }: {
       if (lk) (landPatch as Record<string, unknown>)[lk] = v
     }
     if (values.landscape) Object.assign(landPatch, values.landscape)
-    ed.setLandscape(landPatch)
+    // Legacy preset without profile extra: clear to null (follow the
+    // preset's own landscape rank); explicit wins; flats untouched (the
+    // other shape). No setLandscape materialization here: a full look
+    // apply is not a single classifica edit.
+    const clearedLandExtra = clearedExtraForPresetApply(
+      { scale: landPatch.topBadgeScale, offsetX: landPatch.topBadgeOffsetX, offsetY: landPatch.topBadgeOffsetY },
+      { scale: landPatch.extraBadgeScale, offsetX: landPatch.extraBadgeOffsetX, offsetY: landPatch.extraBadgeOffsetY },
+    )
+    if (clearedLandExtra) {
+      landPatch.extraBadgeScale = clearedLandExtra.scale
+      landPatch.extraBadgeOffsetX = clearedLandExtra.offsetX
+      landPatch.extraBadgeOffsetY = clearedLandExtra.offsetY
+    }
+    ed.setLandscape(landPatch, { materialize: false })
     ed.setDefaultRatingSources(values.defaultRatingSources)
     ed.setDefaultLogoAlign(values.defaultLogoAlign)
     ed.setDefaultPortraitFitEnabled(values.defaultPortraitFitEnabled)

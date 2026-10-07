@@ -2,7 +2,7 @@
 
 import { createContext, useContext, useState, useMemo, useCallback } from "react"
 import type { TMDBImage, NetworkLogoPosition, PosterShape } from "@/lib/types"
-import { useDefaults, type DefaultSyncStatus } from "@/lib/useDefaults"
+import { useDefaults, type DefaultSyncStatus, type DefaultsState } from "@/lib/useDefaults"
 import type { LandscapeServerDefaults } from "@/lib/server-defaults"
 import type { DateFormat } from "@/lib/release-badge"
 import type { BadgeStyle, RankingBadgeStyle, ExtraBadgeStyle, QualityBadgeStyle, BadgeFont, SeparateRatingsStyle } from "@/lib/badge-styles"
@@ -10,6 +10,7 @@ import { getSeparateBadgeDefaultScale } from "@/lib/badge-styles"
 import type { SashBucket } from "@/lib/badge-priority"
 import type { VideoFormat } from "@/lib/av-specs"
 import type { VisualPresetValues } from "@/lib/visual-presets"
+import { materializeExtraTuning, clearedExtraForPresetApply } from "@/lib/extra-materialize"
 
 /**
  * PosterEditorCtx — possiede il proprio stato di editing (badge defaults,
@@ -47,7 +48,7 @@ export const LANDSCAPE_BLUR_DEFAULTS: LandscapeBlurState = {
 }
 
 export interface PosterEditorCtx {
-  applyVisualPreset: (values: VisualPresetValues) => void
+  applyVisualPreset: (values: VisualPresetValues, target?: "portrait" | "landscape") => void
   // ---- Badges ----
   globalBadges: boolean
   setGlobalBadges: (v: boolean | ((prev: boolean) => boolean)) => void
@@ -99,6 +100,9 @@ export interface PosterEditorCtx {
   setNetworkLogo: (v: boolean | ((prev: boolean) => boolean)) => void
   networkLogoPosition: NetworkLogoPosition
   setNetworkLogoPosition: (v: NetworkLogoPosition | ((prev: NetworkLogoPosition) => NetworkLogoPosition)) => void
+  /** Il network segue il titolo nel poster in editing (false = posizione assoluta). */
+  networkLogoFollowTitle: boolean
+  setNetworkLogoFollowTitle: (v: boolean | ((prev: boolean) => boolean)) => void
   preRelease: boolean
   setPreRelease: (v: boolean | ((prev: boolean) => boolean)) => void
   ribbonSide: "left" | "right"
@@ -157,11 +161,18 @@ export interface PosterEditorCtx {
   defaultLogoOffsetY: number | null
   setDefaultLogoOffsetY: (v: number | null | ((prev: number | null) => number | null)) => void
   defaultTopBadgeScale: number
-  setDefaultTopBadgeScale: (v: number | ((prev: number) => number)) => void
+  setDefaultTopBadgeScale: (v: number | ((prev: number) => number), opts?: { materialize?: boolean }) => void
   defaultTopBadgeOffsetX: number
-  setDefaultTopBadgeOffsetX: (v: number | ((prev: number) => number)) => void
+  setDefaultTopBadgeOffsetX: (v: number | ((prev: number) => number), opts?: { materialize?: boolean }) => void
   defaultTopBadgeOffsetY: number
-  setDefaultTopBadgeOffsetY: (v: number | ((prev: number) => number)) => void
+  setDefaultTopBadgeOffsetY: (v: number | ((prev: number) => number), opts?: { materialize?: boolean }) => void
+  /** Tuning EXTRA superiore di default (null = fallback legacy classifica). */
+  defaultExtraBadgeScale: number | null
+  setDefaultExtraBadgeScale: (v: number | null | ((prev: number | null) => number | null)) => void
+  defaultExtraBadgeOffsetX: number | null
+  setDefaultExtraBadgeOffsetX: (v: number | null | ((prev: number | null) => number | null)) => void
+  defaultExtraBadgeOffsetY: number | null
+  setDefaultExtraBadgeOffsetY: (v: number | null | ((prev: number | null) => number | null)) => void
   defaultGenreBadgeScale: number
   setDefaultGenreBadgeScale: (v: number | ((prev: number) => number)) => void
   defaultQualityBadgeScale: number
@@ -234,6 +245,9 @@ export interface PosterEditorCtx {
   setDefaultNetworkLogo: (v: boolean | ((prev: boolean) => boolean)) => void
   defaultNetworkLogoPosition: NetworkLogoPosition
   setDefaultNetworkLogoPosition: (v: NetworkLogoPosition | ((prev: NetworkLogoPosition) => NetworkLogoPosition)) => void
+  /** Il network segue il titolo di default (true = layout storico). */
+  defaultNetworkLogoFollowTitle: boolean
+  setDefaultNetworkLogoFollowTitle: (v: boolean | ((prev: boolean) => boolean)) => void
   defaultPreRelease: boolean
   setDefaultPreRelease: (v: boolean | ((prev: boolean) => boolean)) => void
   defaultRibbonSide: "left" | "right"
@@ -252,7 +266,7 @@ export interface PosterEditorCtx {
    * seguono i flat (portrait). Patch parziale; reset = segui tutto.
    */
   landscape: LandscapeServerDefaults
-  setLandscape: (patch: Partial<LandscapeServerDefaults>) => void
+  setLandscape: (patch: Partial<LandscapeServerDefaults>, opts?: { materialize?: boolean }) => void
   resetLandscape: () => void
   defaultRegion: string
   setDefaultRegion: (v: string | ((prev: string) => string)) => void
@@ -300,11 +314,18 @@ export interface PosterEditorCtx {
 
   // ---- Badge superiore (rank/extra in alto) ----
   topBadgeScale: number
-  setTopBadgeScale: (v: number | ((prev: number) => number)) => void
+  setTopBadgeScale: (v: number | ((prev: number) => number), opts?: { materialize?: boolean }) => void
   topBadgeOffsetX: number
-  setTopBadgeOffsetX: (v: number | ((prev: number) => number)) => void
+  setTopBadgeOffsetX: (v: number | ((prev: number) => number), opts?: { materialize?: boolean }) => void
   topBadgeOffsetY: number
-  setTopBadgeOffsetY: (v: number | ((prev: number) => number)) => void
+  setTopBadgeOffsetY: (v: number | ((prev: number) => number), opts?: { materialize?: boolean }) => void
+  /** Tuning EXTRA superiore in editing (null = fallback legacy classifica). */
+  extraBadgeScale: number | null
+  setExtraBadgeScale: (v: number | null | ((prev: number | null) => number | null)) => void
+  extraBadgeOffsetX: number | null
+  setExtraBadgeOffsetX: (v: number | null | ((prev: number | null) => number | null)) => void
+  extraBadgeOffsetY: number | null
+  setExtraBadgeOffsetY: (v: number | null | ((prev: number | null) => number | null)) => void
 
   // ---- Badge genere/rating in basso ----
   genreBadgeScale: number
@@ -430,10 +451,11 @@ export function PosterEditorProvider({
   const [badgePresetRev, setBadgePresetRev] = useState<string | null>(null)
 
   const {
-    globalBadges, rankingBadges, networkLogo, networkLogoPosition, preRelease, ribbonSide, ribbonEnabled, posterShape, logoAlign,
+    globalBadges, rankingBadges, networkLogo, networkLogoPosition, networkLogoFollowTitle, preRelease, ribbonSide, ribbonEnabled, posterShape, logoAlign,
     badgeGenre, badgeYear, badgeRating, badgeQuality, customRatings, ratingSources, separateRatings, separateRatingsStyle,
     gradientHeight, blurIntensity, blurFade, blurDarkness, blurEnabled, tintStrength, topShade,
     topBadgeScale, topBadgeOffsetX, topBadgeOffsetY,
+    extraBadgeScale, extraBadgeOffsetX, extraBadgeOffsetY,
     genreBadgeScale, qualityBadgeScale, networkLogoScale,
     separateBadgeScale,
     separateBadgeOffsetX, separateBadgeOffsetY,
@@ -448,13 +470,14 @@ export function PosterEditorProvider({
     defaultGradientHeight, defaultGlobalBadges, defaultRankingBadges,
     defaultLogoScale, defaultLogoOffsetX, defaultLogoOffsetY,
     defaultTopBadgeScale, defaultTopBadgeOffsetX, defaultTopBadgeOffsetY,
+    defaultExtraBadgeScale, defaultExtraBadgeOffsetX, defaultExtraBadgeOffsetY,
     defaultGenreBadgeScale, defaultQualityBadgeScale, defaultNetworkLogoScale,
     defaultSeparateBadgeScale,
     defaultSeparateBadgeOffsetX, defaultSeparateBadgeOffsetY,
     defaultGenreBadgeOffsetX, defaultGenreBadgeOffsetY, defaultQualityBadgeOffsetX, defaultQualityBadgeOffsetY,
     defaultNetworkLogoOffsetX, defaultNetworkLogoOffsetY,
     defaultBadgeGenre, defaultBadgeYear, defaultBadgeRating, defaultBadgeQuality, defaultCustomRatings, defaultCustomRatingEndpoint, defaultCustomRatingApiKeyHeader, defaultRatingSources, defaultSeparateRatings, defaultSeparateRatingsStyle, defaultSashOrder,
-    defaultAutoRotateClean, defaultAutoRotateBackdrop, defaultPortraitFitEnabled, defaultLandscapeFitEnabled, defaultNetworkLogo, defaultNetworkLogoPosition, defaultPreRelease, defaultRibbonSide, defaultRibbonEnabled, defaultPosterShape, defaultLogoAlign,
+    defaultAutoRotateClean, defaultAutoRotateBackdrop, defaultPortraitFitEnabled, defaultLandscapeFitEnabled, defaultNetworkLogo, defaultNetworkLogoPosition, defaultNetworkLogoFollowTitle, defaultPreRelease, defaultRibbonSide, defaultRibbonEnabled, defaultPosterShape, defaultLogoAlign,
     defaultDisableCleanPosters,
     landscape: landscapeDefaults,
     episodeMetadataSource, defaultEpisodeMetadataSource,
@@ -528,6 +551,11 @@ export function PosterEditorProvider({
       const next = typeof v === "function" ? v(networkLogoPosition) : v
       update({ networkLogoPosition: next })
     }, [networkLogoPosition, update])
+  const setNetworkLogoFollowTitle = useCallback(
+    (v: boolean | ((prev: boolean) => boolean)) => {
+      const next = typeof v === "function" ? v(networkLogoFollowTitle) : v
+      update({ networkLogoFollowTitle: next })
+    }, [networkLogoFollowTitle, update])
   const setPreRelease = useCallback(
     (v: boolean | ((prev: boolean) => boolean)) => {
       const next = typeof v === "function" ? v(preRelease) : v
@@ -566,21 +594,65 @@ export function PosterEditorProvider({
       const next = typeof v === "function" ? v(gradientHeight) : v
       update({ gradientHeight: next })
     }, [gradientHeight, update])
+  // Editing CLASSIFICA first materializes the previous independent EXTRA
+  // (all still-following axes) BEFORE the rank change, so the extra badge
+  // keeps its pixels. Sync paths (shape switch, mapping load, defaults
+  // propagation) pass { materialize: false }: they restore/move values,
+  // never edit them. Editing EXTRA never touches the classifica.
   const setTopBadgeScale = useCallback(
-    (v: number | ((prev: number) => number)) => {
+    (v: number | ((prev: number) => number), opts?: { materialize?: boolean }) => {
       const next = typeof v === "function" ? v(topBadgeScale) : v
-      update({ topBadgeScale: next })
-    }, [topBadgeScale, update])
+      const mat = opts?.materialize === false ? null : materializeExtraTuning({
+        rank: { scale: topBadgeScale, offsetX: topBadgeOffsetX, offsetY: topBadgeOffsetY },
+        nextRank: { scale: next },
+        extra: { scale: extraBadgeScale, offsetX: extraBadgeOffsetX, offsetY: extraBadgeOffsetY },
+        fallbackExtra: { scale: defaultExtraBadgeScale, offsetX: defaultExtraBadgeOffsetX, offsetY: defaultExtraBadgeOffsetY },
+      })
+      update(mat
+        ? { topBadgeScale: next, extraBadgeScale: mat.scale, extraBadgeOffsetX: mat.offsetX, extraBadgeOffsetY: mat.offsetY }
+        : { topBadgeScale: next })
+    }, [topBadgeScale, topBadgeOffsetX, topBadgeOffsetY, extraBadgeScale, extraBadgeOffsetX, extraBadgeOffsetY, defaultExtraBadgeScale, defaultExtraBadgeOffsetX, defaultExtraBadgeOffsetY, update])
   const setTopBadgeOffsetX = useCallback(
-    (v: number | ((prev: number) => number)) => {
+    (v: number | ((prev: number) => number), opts?: { materialize?: boolean }) => {
       const next = typeof v === "function" ? v(topBadgeOffsetX) : v
-      update({ topBadgeOffsetX: next })
-    }, [topBadgeOffsetX, update])
+      const mat = opts?.materialize === false ? null : materializeExtraTuning({
+        rank: { scale: topBadgeScale, offsetX: topBadgeOffsetX, offsetY: topBadgeOffsetY },
+        nextRank: { offsetX: next },
+        extra: { scale: extraBadgeScale, offsetX: extraBadgeOffsetX, offsetY: extraBadgeOffsetY },
+        fallbackExtra: { scale: defaultExtraBadgeScale, offsetX: defaultExtraBadgeOffsetX, offsetY: defaultExtraBadgeOffsetY },
+      })
+      update(mat
+        ? { topBadgeOffsetX: next, extraBadgeScale: mat.scale, extraBadgeOffsetX: mat.offsetX, extraBadgeOffsetY: mat.offsetY }
+        : { topBadgeOffsetX: next })
+    }, [topBadgeScale, topBadgeOffsetX, topBadgeOffsetY, extraBadgeScale, extraBadgeOffsetX, extraBadgeOffsetY, defaultExtraBadgeScale, defaultExtraBadgeOffsetX, defaultExtraBadgeOffsetY, update])
   const setTopBadgeOffsetY = useCallback(
-    (v: number | ((prev: number) => number)) => {
+    (v: number | ((prev: number) => number), opts?: { materialize?: boolean }) => {
       const next = typeof v === "function" ? v(topBadgeOffsetY) : v
-      update({ topBadgeOffsetY: next })
-    }, [topBadgeOffsetY, update])
+      const mat = opts?.materialize === false ? null : materializeExtraTuning({
+        rank: { scale: topBadgeScale, offsetX: topBadgeOffsetX, offsetY: topBadgeOffsetY },
+        nextRank: { offsetY: next },
+        extra: { scale: extraBadgeScale, offsetX: extraBadgeOffsetX, offsetY: extraBadgeOffsetY },
+        fallbackExtra: { scale: defaultExtraBadgeScale, offsetX: defaultExtraBadgeOffsetX, offsetY: defaultExtraBadgeOffsetY },
+      })
+      update(mat
+        ? { topBadgeOffsetY: next, extraBadgeScale: mat.scale, extraBadgeOffsetX: mat.offsetX, extraBadgeOffsetY: mat.offsetY }
+        : { topBadgeOffsetY: next })
+    }, [topBadgeScale, topBadgeOffsetX, topBadgeOffsetY, extraBadgeScale, extraBadgeOffsetX, extraBadgeOffsetY, defaultExtraBadgeScale, defaultExtraBadgeOffsetX, defaultExtraBadgeOffsetY, update])
+  const setExtraBadgeScale = useCallback(
+    (v: number | null | ((prev: number | null) => number | null)) => {
+      const next = typeof v === "function" ? v(extraBadgeScale) : v
+      update({ extraBadgeScale: next })
+    }, [extraBadgeScale, update])
+  const setExtraBadgeOffsetX = useCallback(
+    (v: number | null | ((prev: number | null) => number | null)) => {
+      const next = typeof v === "function" ? v(extraBadgeOffsetX) : v
+      update({ extraBadgeOffsetX: next })
+    }, [extraBadgeOffsetX, update])
+  const setExtraBadgeOffsetY = useCallback(
+    (v: number | null | ((prev: number | null) => number | null)) => {
+      const next = typeof v === "function" ? v(extraBadgeOffsetY) : v
+      update({ extraBadgeOffsetY: next })
+    }, [extraBadgeOffsetY, update])
   const setGenreBadgeScale = useCallback(
     (v: number | ((prev: number) => number)) => {
       const next = typeof v === "function" ? v(genreBadgeScale) : v
@@ -782,10 +854,32 @@ export function PosterEditorProvider({
       update({ defaultGradientHeight: next })
     }, [defaultGradientHeight, update])
   const setDefaultTopBadgeScale = useCallback(
-    (v: number | ((prev: number) => number)) => {
+    (v: number | ((prev: number) => number), opts?: { materialize?: boolean }) => {
       const next = typeof v === "function" ? v(defaultTopBadgeScale) : v
-      update({ defaultTopBadgeScale: next })
-    }, [defaultTopBadgeScale, update])
+      const mat = opts?.materialize === false ? null : materializeExtraTuning({
+        rank: { scale: defaultTopBadgeScale, offsetX: defaultTopBadgeOffsetX, offsetY: defaultTopBadgeOffsetY },
+        nextRank: { scale: next },
+        extra: { scale: defaultExtraBadgeScale, offsetX: defaultExtraBadgeOffsetX, offsetY: defaultExtraBadgeOffsetY },
+      })
+      update(mat
+        ? { defaultTopBadgeScale: next, defaultExtraBadgeScale: mat.scale, defaultExtraBadgeOffsetX: mat.offsetX, defaultExtraBadgeOffsetY: mat.offsetY }
+        : { defaultTopBadgeScale: next })
+    }, [defaultTopBadgeScale, defaultTopBadgeOffsetX, defaultTopBadgeOffsetY, defaultExtraBadgeScale, defaultExtraBadgeOffsetX, defaultExtraBadgeOffsetY, update])
+  const setDefaultExtraBadgeScale = useCallback(
+    (v: number | null | ((prev: number | null) => number | null)) => {
+      const next = typeof v === "function" ? v(defaultExtraBadgeScale) : v
+      update({ defaultExtraBadgeScale: next })
+    }, [defaultExtraBadgeScale, update])
+  const setDefaultExtraBadgeOffsetX = useCallback(
+    (v: number | null | ((prev: number | null) => number | null)) => {
+      const next = typeof v === "function" ? v(defaultExtraBadgeOffsetX) : v
+      update({ defaultExtraBadgeOffsetX: next })
+    }, [defaultExtraBadgeOffsetX, update])
+  const setDefaultExtraBadgeOffsetY = useCallback(
+    (v: number | null | ((prev: number | null) => number | null)) => {
+      const next = typeof v === "function" ? v(defaultExtraBadgeOffsetY) : v
+      update({ defaultExtraBadgeOffsetY: next })
+    }, [defaultExtraBadgeOffsetY, update])
   const setDefaultLogoScale = useCallback(
     (v: number | null | ((prev: number | null) => number | null)) => {
       const next = typeof v === "function" ? v(defaultLogoScale) : v
@@ -802,15 +896,29 @@ export function PosterEditorProvider({
       update({ defaultLogoOffsetY: next })
     }, [defaultLogoOffsetY, update])
   const setDefaultTopBadgeOffsetX = useCallback(
-    (v: number | ((prev: number) => number)) => {
+    (v: number | ((prev: number) => number), opts?: { materialize?: boolean }) => {
       const next = typeof v === "function" ? v(defaultTopBadgeOffsetX) : v
-      update({ defaultTopBadgeOffsetX: next })
-    }, [defaultTopBadgeOffsetX, update])
+      const mat = opts?.materialize === false ? null : materializeExtraTuning({
+        rank: { scale: defaultTopBadgeScale, offsetX: defaultTopBadgeOffsetX, offsetY: defaultTopBadgeOffsetY },
+        nextRank: { offsetX: next },
+        extra: { scale: defaultExtraBadgeScale, offsetX: defaultExtraBadgeOffsetX, offsetY: defaultExtraBadgeOffsetY },
+      })
+      update(mat
+        ? { defaultTopBadgeOffsetX: next, defaultExtraBadgeScale: mat.scale, defaultExtraBadgeOffsetX: mat.offsetX, defaultExtraBadgeOffsetY: mat.offsetY }
+        : { defaultTopBadgeOffsetX: next })
+    }, [defaultTopBadgeScale, defaultTopBadgeOffsetX, defaultTopBadgeOffsetY, defaultExtraBadgeScale, defaultExtraBadgeOffsetX, defaultExtraBadgeOffsetY, update])
   const setDefaultTopBadgeOffsetY = useCallback(
-    (v: number | ((prev: number) => number)) => {
+    (v: number | ((prev: number) => number), opts?: { materialize?: boolean }) => {
       const next = typeof v === "function" ? v(defaultTopBadgeOffsetY) : v
-      update({ defaultTopBadgeOffsetY: next })
-    }, [defaultTopBadgeOffsetY, update])
+      const mat = opts?.materialize === false ? null : materializeExtraTuning({
+        rank: { scale: defaultTopBadgeScale, offsetX: defaultTopBadgeOffsetX, offsetY: defaultTopBadgeOffsetY },
+        nextRank: { offsetY: next },
+        extra: { scale: defaultExtraBadgeScale, offsetX: defaultExtraBadgeOffsetX, offsetY: defaultExtraBadgeOffsetY },
+      })
+      update(mat
+        ? { defaultTopBadgeOffsetY: next, defaultExtraBadgeScale: mat.scale, defaultExtraBadgeOffsetX: mat.offsetX, defaultExtraBadgeOffsetY: mat.offsetY }
+        : { defaultTopBadgeOffsetY: next })
+    }, [defaultTopBadgeScale, defaultTopBadgeOffsetX, defaultTopBadgeOffsetY, defaultExtraBadgeScale, defaultExtraBadgeOffsetX, defaultExtraBadgeOffsetY, update])
   const setDefaultGenreBadgeScale = useCallback(
     (v: number | ((prev: number) => number)) => {
       const next = typeof v === "function" ? v(defaultGenreBadgeScale) : v
@@ -974,6 +1082,11 @@ export function PosterEditorProvider({
       const next = typeof v === "function" ? v(defaultNetworkLogoPosition) : v
       update({ defaultNetworkLogoPosition: next })
     }, [defaultNetworkLogoPosition, update])
+  const setDefaultNetworkLogoFollowTitle = useCallback(
+    (v: boolean | ((prev: boolean) => boolean)) => {
+      const next = typeof v === "function" ? v(defaultNetworkLogoFollowTitle) : v
+      update({ defaultNetworkLogoFollowTitle: next })
+    }, [defaultNetworkLogoFollowTitle, update])
   const setDefaultPreRelease = useCallback(
     (v: boolean | ((prev: boolean) => boolean)) => {
       const next = typeof v === "function" ? v(defaultPreRelease) : v
@@ -996,12 +1109,55 @@ export function PosterEditorProvider({
     }, [defaultPosterShape, update])
   // Profilo default landscape: patch parziale (chiavi assenti = segui i flat),
   // reset = svuota (torna a seguire tutto). Passa da update → auto-persist +
-  // sync server come gli altri default.
+  // sync server come gli altri default. Un edit classifica materializza prima
+  // l'extra indipendente precedente (stesse regole dei flat); i sync che
+  // ripristinano valori passano { materialize: false }.
   const setLandscape = useCallback(
-    (patch: Partial<LandscapeServerDefaults>) => {
+    (patch: Partial<LandscapeServerDefaults>, opts?: { materialize?: boolean }) => {
       // Functional merge: back-to-back patches in one handler never clobber
       // each other on the stale `landscapeDefaults` closure.
-      update((prev) => ({ landscape: { ...prev.landscape, ...patch } }))
+      update((prev) => {
+        // Rank-key PRESENCE (not value): group resets/dblclick send own keys
+        // as undefined, but the effective rank still changes (profile cleared
+        // falls back to flats), so the extra must freeze instead of dragging.
+        const rankKeys = ["topBadgeScale", "topBadgeOffsetX", "topBadgeOffsetY"] as const
+        const touchesRank = rankKeys.some((k) => k in patch)
+        // Next effective rank AFTER this patch (explicit undefined = cleared
+        // and falls back to flats), compared against the current effective.
+        const nextEff = (
+          key: (typeof rankKeys)[number],
+          flat: number,
+        ): number => ((key in patch ? patch[key] : prev.landscape[key]) ?? flat) as number
+        const mat = opts?.materialize === false || !touchesRank ? null : materializeExtraTuning({
+          rank: {
+            scale: prev.landscape.topBadgeScale ?? prev.defaultTopBadgeScale,
+            offsetX: prev.landscape.topBadgeOffsetX ?? prev.defaultTopBadgeOffsetX,
+            offsetY: prev.landscape.topBadgeOffsetY ?? prev.defaultTopBadgeOffsetY,
+          },
+          nextRank: {
+            scale: nextEff("topBadgeScale", prev.defaultTopBadgeScale),
+            offsetX: nextEff("topBadgeOffsetX", prev.defaultTopBadgeOffsetX),
+            offsetY: nextEff("topBadgeOffsetY", prev.defaultTopBadgeOffsetY),
+          },
+          extra: {
+            scale: prev.landscape.extraBadgeScale,
+            offsetX: prev.landscape.extraBadgeOffsetX,
+            offsetY: prev.landscape.extraBadgeOffsetY,
+          },
+          fallbackExtra: {
+            scale: prev.defaultExtraBadgeScale,
+            offsetX: prev.defaultExtraBadgeOffsetX,
+            offsetY: prev.defaultExtraBadgeOffsetY,
+          },
+        })
+        return {
+          landscape: {
+            ...prev.landscape,
+            ...(mat ? { extraBadgeScale: mat.scale, extraBadgeOffsetX: mat.offsetX, extraBadgeOffsetY: mat.offsetY } : null),
+            ...patch,
+          },
+        }
+      })
     }, [update])
   const resetLandscape = useCallback(
     () => {
@@ -1043,7 +1199,63 @@ export function PosterEditorProvider({
       update({ defaultDateFormat: next })
     }, [defaultDateFormat, update])
 
-  const applyVisualPreset = useCallback((values: VisualPresetValues) => update(values), [update])
+  const applyVisualPreset = useCallback((values: VisualPresetValues, target: "portrait" | "landscape" = "portrait") => {
+    // Preset senza follow (legacy) o null = eredita: mai null nello stato
+    // (i default restano booleani come gli altri toggle).
+    const { defaultNetworkLogoFollowTitle, ...rest } = values
+    const patch = { ...(defaultNetworkLogoFollowTitle == null ? rest : { ...rest, defaultNetworkLogoFollowTitle }) } as Record<string, unknown>
+    // Full look application per edit target: a legacy preset without extra
+    // clears the TARGET's missing/null extra axes to null (follow the
+    // target's own rank, keeps legacy URLs); a modern preset with explicit
+    // extra always wins. The other shape is never touched (its frozen
+    // preservation from the isolated helpers survives). Layers without rank
+    // keys (partial other-family patches) are left untouched.
+    if (target === "landscape") {
+      const land = patch.landscape
+      if (land != null && typeof land === "object") {
+        // Copy: patch.landscape may alias the caller's object (live profile
+        // or a frozen preset), never mutate input.
+        const l = { ...(land as Record<string, unknown>) }
+        const cleared = clearedExtraForPresetApply(
+          {
+            scale: l.topBadgeScale as number | null | undefined,
+            offsetX: l.topBadgeOffsetX as number | null | undefined,
+            offsetY: l.topBadgeOffsetY as number | null | undefined,
+          },
+          {
+            scale: l.extraBadgeScale as number | null | undefined,
+            offsetX: l.extraBadgeOffsetX as number | null | undefined,
+            offsetY: l.extraBadgeOffsetY as number | null | undefined,
+          },
+        )
+        if (cleared) {
+          l.extraBadgeScale = cleared.scale
+          l.extraBadgeOffsetX = cleared.offsetX
+          l.extraBadgeOffsetY = cleared.offsetY
+        }
+        patch.landscape = l
+      }
+    } else {
+      const cleared = clearedExtraForPresetApply(
+        {
+          scale: patch.defaultTopBadgeScale as number | null | undefined,
+          offsetX: patch.defaultTopBadgeOffsetX as number | null | undefined,
+          offsetY: patch.defaultTopBadgeOffsetY as number | null | undefined,
+        },
+        {
+          scale: patch.defaultExtraBadgeScale as number | null | undefined,
+          offsetX: patch.defaultExtraBadgeOffsetX as number | null | undefined,
+          offsetY: patch.defaultExtraBadgeOffsetY as number | null | undefined,
+        },
+      )
+      if (cleared) {
+        patch.defaultExtraBadgeScale = cleared.scale
+        patch.defaultExtraBadgeOffsetX = cleared.offsetX
+        patch.defaultExtraBadgeOffsetY = cleared.offsetY
+      }
+    }
+    update(patch as Partial<DefaultsState>)
+  }, [update])
 
   const editorCtx = useMemo<PosterEditorCtx>(
     () => ({
@@ -1091,6 +1303,8 @@ export function PosterEditorProvider({
       setNetworkLogo,
       networkLogoPosition,
       setNetworkLogoPosition,
+      networkLogoFollowTitle,
+      setNetworkLogoFollowTitle,
       preRelease,
       setPreRelease,
       ribbonSide,
@@ -1145,6 +1359,12 @@ export function PosterEditorProvider({
       setDefaultTopBadgeOffsetX,
       defaultTopBadgeOffsetY,
       setDefaultTopBadgeOffsetY,
+      defaultExtraBadgeScale,
+      setDefaultExtraBadgeScale,
+      defaultExtraBadgeOffsetX,
+      setDefaultExtraBadgeOffsetX,
+      defaultExtraBadgeOffsetY,
+      setDefaultExtraBadgeOffsetY,
       defaultGenreBadgeScale,
       setDefaultGenreBadgeScale,
       defaultGenreBadgeOffsetX,
@@ -1209,6 +1429,8 @@ export function PosterEditorProvider({
       setDefaultNetworkLogo,
       defaultNetworkLogoPosition,
       setDefaultNetworkLogoPosition,
+      defaultNetworkLogoFollowTitle,
+      setDefaultNetworkLogoFollowTitle,
       defaultPreRelease,
       setDefaultPreRelease,
       defaultRibbonSide,
@@ -1261,6 +1483,12 @@ export function PosterEditorProvider({
       setTopBadgeOffsetX,
       topBadgeOffsetY,
       setTopBadgeOffsetY,
+      extraBadgeScale,
+      setExtraBadgeScale,
+      extraBadgeOffsetX,
+      setExtraBadgeOffsetX,
+      extraBadgeOffsetY,
+      setExtraBadgeOffsetY,
 
       // Badge genere
       genreBadgeScale,
@@ -1357,6 +1585,7 @@ export function PosterEditorProvider({
       badgePresetRev, setBadgePresetRev,
       networkLogo, setNetworkLogo,
       networkLogoPosition, setNetworkLogoPosition,
+      networkLogoFollowTitle, setNetworkLogoFollowTitle,
       preRelease, setPreRelease,
       ribbonSide, setRibbonSide,
       ribbonEnabled, setRibbonEnabled,
@@ -1387,6 +1616,9 @@ export function PosterEditorProvider({
       defaultTopBadgeScale, setDefaultTopBadgeScale,
       defaultTopBadgeOffsetX, setDefaultTopBadgeOffsetX,
       defaultTopBadgeOffsetY, setDefaultTopBadgeOffsetY,
+      defaultExtraBadgeScale, setDefaultExtraBadgeScale,
+      defaultExtraBadgeOffsetX, setDefaultExtraBadgeOffsetX,
+      defaultExtraBadgeOffsetY, setDefaultExtraBadgeOffsetY,
       defaultGenreBadgeScale,
       setDefaultGenreBadgeScale,
       defaultGenreBadgeOffsetX,
@@ -1431,6 +1663,7 @@ export function PosterEditorProvider({
       defaultLandscapeFitEnabled, setDefaultLandscapeFitEnabled,
       defaultNetworkLogo, setDefaultNetworkLogo,
       defaultNetworkLogoPosition, setDefaultNetworkLogoPosition,
+      defaultNetworkLogoFollowTitle, setDefaultNetworkLogoFollowTitle,
       defaultPreRelease, setDefaultPreRelease,
       defaultRibbonSide, setDefaultRibbonSide,
       defaultRibbonEnabled, setDefaultRibbonEnabled,
@@ -1457,6 +1690,9 @@ export function PosterEditorProvider({
       topBadgeScale, setTopBadgeScale,
       topBadgeOffsetX, setTopBadgeOffsetX,
       topBadgeOffsetY, setTopBadgeOffsetY,
+      extraBadgeScale, setExtraBadgeScale,
+      extraBadgeOffsetX, setExtraBadgeOffsetX,
+      extraBadgeOffsetY, setExtraBadgeOffsetY,
 
       // Badge genere
       genreBadgeScale, setGenreBadgeScale,

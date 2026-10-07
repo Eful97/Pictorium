@@ -189,6 +189,14 @@ export interface GenerationInput {
   topBadgeScale: number
   topBadgeOffsetX: number
   topBadgeOffsetY: number
+  /**
+   * Tuning EXTRA superiore risolto (null = assente ovunque: il render
+   * applica il fallback legacy sul tuning classifica). Opzionale: i consumer
+   * esistenti restano invariati e il percorso legacy è byte-identico.
+   */
+  extraBadgeScale?: number | null
+  extraBadgeOffsetX?: number | null
+  extraBadgeOffsetY?: number | null
   /** Scala % del badge genere/rating in basso, su tutti gli stili (barra nativa via font). */
   genreBadgeScale: number
   /** Offset px del badge genere/rating, solo stili non-bar. */
@@ -283,6 +291,28 @@ export interface GenerationInput {
    * (byte-identico al passato).
    */
   networkLogoPosition?: NetworkLogoPosition
+  /**
+   * Il network segue il layout storico ancorato al titolo (default true =
+   * comportamento attuale). false + coordinate fisse valorizzate = posizione
+   * assoluta top-left in px nel canvas del formato: salta TUTTI i
+   * reposition/shrink da titolo/badge/mirror; la scala resta ancorata
+   * top-left. Opzionale: i consumer esistenti restano invariati.
+   */
+  networkLogoFollowTitle?: boolean
+  /**
+   * Coordinate assolute del box network (angolo top-left) in px nel canvas
+   * del formato, solo quando `networkLogoFollowTitle === false`. Null/assenti
+   * = layout storico anche con follow spento (mai (0,0) implicito).
+   * Per-shape (mai fallback cross-shape): risolte in poster-config.
+   */
+  networkFixedX?: number | null
+  networkFixedY?: number | null
+  /**
+   * Collettore una-tantum della geometria network effettivamente composta
+   * (o null se non resa): unica fonte per il freeze senza salto (debug).
+   * Solo numeri, nessun dato sensibile. Assente = nessun overhead.
+   */
+  onNetworkGeometry?: ((geo: NetworkGeometry | null) => void) | null
   sd: ServerDefaults
   accentOverride: { genreColor: string; rankColor: string } | null
   /** Pre-resolved IMDb Top 250 membership. Falls back gracefully when falsy. */
@@ -1046,6 +1076,27 @@ export function numberSharesComingSoonCorner(params: {
 }
 
 /**
+ * Geometria network effettivamente composta (final composite, shift e offset
+ * inclusi) oppure assenza. Unica fonte per il freeze senza salto: il client
+ * non duplica mai il layout network.
+ */
+export interface NetworkGeometry {
+  readonly top: number
+  readonly left: number
+  readonly w: number
+  readonly h: number
+  /**
+   * Dimensioni nominali pre-shrink (stessa scala, prima dell'anti-overlap):
+   * uguali a w/h senza shrink. Servono al freeze dopo shrink — la UI
+   * ricalibra la scala effettiva come actual/nominal (ancora top-left).
+   */
+  readonly nominalW: number
+  readonly nominalH: number
+  /** false = posizione assoluta congelata; true = layout storico che segue il titolo. */
+  readonly followTitle: boolean
+}
+
+/**
  * Editorial nudge applied to every network pill at composite time
  * (`top + NETWORK_LOGO_SHIFT_Y`): global tuning, not a user offset.
  * Anchor math must subtract it so the on-poster gap stays exact.
@@ -1140,6 +1191,7 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
     bottomLight: bottomLightOpt,
     logoScale, logoOffsetX, logoOffsetY,
     topBadgeScale, topBadgeOffsetX, topBadgeOffsetY,
+    extraBadgeScale, extraBadgeOffsetX, extraBadgeOffsetY,
     genreBadgeScale, qualityBadgeScale, networkLogoScale,
     separateBadgeScale,
     separateBadgeOffsetX, separateBadgeOffsetY,
@@ -1151,7 +1203,7 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
     tvType, tvStatus, releaseDate, firstAirDate,
     lastAirDate, seasonCount, originCountries,
     wikidataResult, tmdbKeywords, locale, t,
-    qLabel, queryExtra, qNetLogo, networkLogo, networkLogoPosition = "auto", sd, accentOverride, imdbTop250,
+    qLabel, queryExtra, qNetLogo, networkLogo, networkLogoPosition = "auto", networkLogoFollowTitle, networkFixedX, networkFixedY, onNetworkGeometry, sd, accentOverride, imdbTop250,
     logoSrc, backdropSrc, analysisKey,
     preRelease = false,
     hideLogo = false,
@@ -1512,6 +1564,17 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
   // explicit extra style detaches the extra badge from the ranking style.
   const topBadgeStyle = resolveTopBadgeStyle({ topBadgeType: topBadge?.type, rankingBadgeStyle, extraBadgeStyle })
 
+  // Independent CLASSIFICA vs EXTRA tuning: the effective top-badge tuning
+  // follows the KIND of the final topBadge (selected above, after network
+  // suppression), never the other group's values. Rank (ribbon included)
+  // always uses the legacy classifica tuning; extra uses its own once
+  // migrated, else the legacy fallback — editing one never moves or resizes
+  // the other.
+  const isExtraTopBadge = topBadge?.type === "extra"
+  const effTopBadgeScale = isExtraTopBadge ? (extraBadgeScale ?? topBadgeScale) : topBadgeScale
+  const effTopBadgeOffsetX = isExtraTopBadge ? (extraBadgeOffsetX ?? topBadgeOffsetX) : topBadgeOffsetX
+  const effTopBadgeOffsetY = isExtraTopBadge ? (extraBadgeOffsetY ?? topBadgeOffsetY) : topBadgeOffsetY
+
   const hasQualityBadge = badgeQuality !== false && !!quality
   // Built-in icon per style+tier (null = standard pill or knockout tag).
   // The style enters the cache key in both cases: style change = new
@@ -1522,13 +1585,13 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
   // con offset Y esplicito arrotondano tutti e 4 gli angoli. Calcolato qui
   // (non nel layout sotto) perché entra nella chiave cache: il bitmap cambia.
   const isRankNetflixRibbonStyle = isRibbonRankingStyle(rankingBadgeStyle) && topBadge?.type === "rank"
-  const isRankDetached = !!topBadge && !isRankNetflixRibbonStyle && topBadgeStyle !== "number" && topBadgeOffsetY !== 0
+  const isRankDetached = !!topBadge && !isRankNetflixRibbonStyle && topBadgeStyle !== "number" && effTopBadgeOffsetY !== 0
 
   const genreBadgeKey = hasGenreBadge
     ? badgeCacheKey("genre", genreName, voteAverage, CW, year, badgeStyle, badgeFont, accentColorGenre, bottomLight, badgeGenre, badgeYear, badgeRating, genreBadgeScale)
     : null
   const rankBadgeKey = !showComingSoon && topBadge
-    ? badgeCacheKey("rank", topBadge.type === "extra" ? topBadge.label : `${(topBadge as { rank: number }).rank}:${topBadge!.label}:${(topBadge as { ribbonLabel?: string }).ribbonLabel ?? ""}`, CW, topLight, topBadgeStyle, badgeFont, accentColorRank, ribbonSide, isAnimeRank, topBadgeScale, isRankDetached ? "detached" : undefined, rankingBadgeAccent ? "accent" : undefined)
+    ? badgeCacheKey("rank", topBadge.type === "extra" ? topBadge.label : `${(topBadge as { rank: number }).rank}:${topBadge!.label}:${(topBadge as { ribbonLabel?: string }).ribbonLabel ?? ""}`, CW, topLight, topBadgeStyle, badgeFont, accentColorRank, ribbonSide, isAnimeRank, effTopBadgeScale, isRankDetached ? "detached" : undefined, rankingBadgeAccent ? "accent" : undefined)
     : null
   const formatsKey = (videoFormats && videoFormats.length > 0) ? videoFormats.join(",") : "none"
   const qualityBadgeKey = hasQualityBadge
@@ -1665,8 +1728,8 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
           // resize sharp in serie sullo stesso bitmap). Stesse dimensioni
           // finali del vecchio codice, un solo passaggio di ricampionamento.
           if (shape === "landscape") {
-            const scaledH = Math.max(1, Math.round(rankBadgeResult.h * topBadgeScale / 100))
-            const scaledW = Math.max(1, Math.round(rankBadgeResult.w * topBadgeScale / 100))
+            const scaledH = Math.max(1, Math.round(rankBadgeResult.h * effTopBadgeScale / 100))
+            const scaledW = Math.max(1, Math.round(rankBadgeResult.w * effTopBadgeScale / 100))
             const targetH = Math.max(1, scaledH - 20)
             const targetW = Math.max(1, Math.round(scaledW * (targetH / scaledH)))
             if (targetH !== rankBadgeResult.h || targetW !== rankBadgeResult.w) {
@@ -1675,8 +1738,8 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
             }
             return rankBadgeResult
           }
-          return topBadgeScale !== 100
-            ? await scaleBitmapForLayout(rankBadgeResult, topBadgeScale)
+          return effTopBadgeScale !== 100
+            ? await scaleBitmapForLayout(rankBadgeResult, effTopBadgeScale)
             : rankBadgeResult
         })()
       : Promise.resolve(null),
@@ -1862,21 +1925,22 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
       // historic left anchor (mirrorRight=false).
       const mirrorRight = topBadgeStyle === "number" && ribbonSide === "right"
       // Rank numerals sit on the style baseline (NUMBER_BADGE_BASE_OFFSET_X):
-      // `topBadgeOffsetX` stays the user adjustment relative to it (stored
-      // values untouched, no new params). Extra badges on the legacy
-      // `rs=number` fallback keep the historic anchor. The final left below
-      // feeds the collision rects (quality/network stacking, Coming Soon),
-      // so they follow the shifted numeral with no extra change.
+      // the effective offset stays the user adjustment relative to it
+      // (stored values untouched, no new params). Extra badges on the legacy
+      // `rs=number` fallback keep the historic anchor (no -20 for extra).
+      // The final left below feeds the collision rects (quality/network
+      // stacking, Coming Soon), so they follow the shifted numeral with no
+      // extra change.
       left = cornerAnchoredLeft({
         canvasW: CW,
         badgeW: safeRankBadgeResult.w,
         mirrorRight,
-        offsetX: topBadgeOffsetX + resolveNumberBadgeBaseOffsetX(topBadge?.type, topBadgeStyle),
+        offsetX: effTopBadgeOffsetX + resolveNumberBadgeBaseOffsetX(topBadge?.type, topBadgeStyle),
       })
     } else {
       // Badge grande al centro, dimensione invariata: in caso di sovrapposizione
       // si rimpiccioliscono i badge laterali (network e qualità agli angoli opposti).
-      left = Math.round((CW - safeRankBadgeResult.w) / 2) + topBadgeOffsetX
+      left = Math.round((CW - safeRankBadgeResult.w) / 2) + effTopBadgeOffsetX
     }
     finalRankBadge = safeRankBadgeResult
     finalRankLeft = left
@@ -1898,7 +1962,7 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
           ribbonOffset: ribbonLayout?.offset ?? null,
           ribbonExtent: ribbonLayout?.extent ?? null,
           numLeft: left,
-          numTop: topBadgeOffsetY + pillTopGap,
+          numTop: effTopBadgeOffsetY + pillTopGap,
           numW: safeRankBadgeResult.w,
           numH: safeRankBadgeResult.h,
         })
@@ -1911,7 +1975,7 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
           pillTopGap,
         })
       : pillTopGap
-    finalRankTop = isCentered ? topBadgeOffsetY + cornerTop : 0
+    finalRankTop = isCentered ? effTopBadgeOffsetY + cornerTop : 0
 
     // Il badge centrale resta invariato — la gestione overlap vive nei blocchi
     // network/qualità qui sotto (shrink dei laterali).
@@ -1947,6 +2011,14 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
   // La qualità legge da qui se il network è finito a destra in modo "top"
   // (trasloca a sinistra come col nastro a destra).
   let netAnchoredRight = false
+  // Posizione assoluta congelata (checkbox OFF): salta TUTTI i rami di
+  // reposition/shrink da titolo/badge/mirror sotto. Le coordinate sono gli
+  // actual finali (shift editoriale e offset già inclusi al freeze): nessun
+  // clamp dimensionale, nessun ricalcolo. Null/assenti = layout storico.
+  const isFixedNetwork = networkLogoFollowTitle === false && networkFixedX != null && networkFixedY != null
+  // Actual finale per il freeze senza salto (solo numeri): valorizzato al
+  // composite, null se il network non viene reso.
+  let netGeo: NetworkGeometry | null = null
   if (networkLogoForLayout) {
     const gap = Math.round(6 * CH / 570)
     let fittedRaw = await fitBadgeToCanvas(networkLogoForLayout, CW, CH)
@@ -2031,7 +2103,12 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
         return box
       }
 
-      if (netForceTop) {
+      if (isFixedNetwork) {
+        // OFF: coordinate assolute, nessun reposition/shrink. La scala resta
+        // ancorata top-left (fittedRaw invariato qui).
+        top = networkFixedY as number
+        left = networkFixedX as number
+      } else if (netForceTop) {
         // Angolo superiore, lato del nastro EFFETTIVO (reso, non impostato):
         // solo con nastro rank/preset o Coming Soon a destra va a destra,
         // con tutti gli altri badge (o senza) resta a sinistra — anche in
@@ -2255,17 +2332,29 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
         }
         if (rightRankRibbonLeft === null && !mirrorNetworkBelow) netTopLeftBottom = top + NETWORK_LOGO_SHIFT_Y + fittedRaw.h
       }
+      // In fissa le coordinate sono già gli actual finali (shift e offset
+      // inclusi al freeze): composite esatto. In storica restano gli offset
+      // post-ancoraggio + shift editoriale.
+      const finalNetTop = isFixedNetwork ? top : top + networkLogoOffsetY + NETWORK_LOGO_SHIFT_Y
+      const finalNetLeft = isFixedNetwork ? left : left + networkLogoOffsetX
+      if (isFixedNetwork) {
+        // Il fondo effettivo alimenta lo stacking qualità (che resta); la
+        // qualità non sposta mai il network.
+        netTopLeftBottom = finalNetTop + fittedRaw.h
+      }
+      netGeo = { top: finalNetTop, left: finalNetLeft, w: fittedRaw.w, h: fittedRaw.h, nominalW: netRawW, nominalH: netRawH, followTitle: !isFixedNetwork }
       composites.push({
         input: fittedRaw.png,
         // Offset applicati DOPO il posizionamento automatico (come il badge
         // qualità): la logica overlap/shrink ragiona sulla posizione ancorata.
         // NETWORK_LOGO_SHIFT_Y è default globale (tuning editoriale), non
         // offset utente: sposta anche l'ancora netTopLeftBottom sotto.
-        top: top + networkLogoOffsetY + NETWORK_LOGO_SHIFT_Y,
-        left: left + networkLogoOffsetX,
+        top: finalNetTop,
+        left: finalNetLeft,
       })
     }
   }
+  onNetworkGeometry?.(netGeo)
 
   // Qualità: in alto a destra di default; con nastro Netflix o Coming Soon a destra (Stremio)
   // va a sinistra per non restargli accanto — sopra il logo network se libero,

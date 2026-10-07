@@ -14,6 +14,7 @@ import {
   captureVisualPreset,
   portraitPresetPatch,
   resolveEffectiveLandscape,
+  normalizePresetExtraTuning,
   MAX_VISUAL_PRESETS,
   type VisualPreset,
   type VisualPresetShape,
@@ -118,16 +119,16 @@ export function VisualPresetsSection({ shape = "portrait" }: { shape?: VisualPre
   // replaces the profile object); `clean` stays schema-only for storage.
   const clean = captureVisualPreset(ed)
   const live = { ...clean, landscape: ed.landscape }
-  const current = JSON.stringify(shape === "landscape" ? resolveEffectiveLandscape(clean) : portraitPresetPatch(clean))
+  const current = JSON.stringify(normalizePresetExtraTuning(shape === "landscape" ? resolveEffectiveLandscape(clean) : portraitPresetPatch(clean)))
   const presetSnapshot = (preset: VisualPreset) =>
-    JSON.stringify(shape === "landscape" ? resolveEffectiveLandscape(preset.values) : portraitPresetPatch(preset.values))
+    JSON.stringify(normalizePresetExtraTuning(shape === "landscape" ? resolveEffectiveLandscape(preset.values) : portraitPresetPatch(preset.values)))
   const canSave = fresh && Boolean(name.trim()) && (presets.length < MAX_VISUAL_PRESETS || presets.some((preset) => preset.name === name.trim()))
 
   // Target-only apply, single atomic update: portrait freezes the other
   // format's effective output first (see applyPortraitIsolated), landscape
   // writes the profile only. Raw extras ride along untouched.
   const applyPreset = (preset: VisualPreset) => {
-    ed.applyVisualPreset(shape === "landscape" ? applyLandscapeIsolated(live, preset.values) : applyPortraitIsolated(live, preset.values))
+    ed.applyVisualPreset(shape === "landscape" ? applyLandscapeIsolated(live, preset.values) : applyPortraitIsolated(live, preset.values), shape)
     setName(preset.name)
   }
 

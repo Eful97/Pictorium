@@ -217,7 +217,7 @@ function renderWithProbe(ui: ReactNode) {
 }
 
 function topCard(): HTMLElement {
-  const title = screen.getByText("ui.topBadge")
+  const title = screen.getByText("ui.rankFamily")
   const card = title.closest("div.rounded-xl")
   expect(card).not.toBeNull()
   return card as HTMLElement
@@ -226,7 +226,7 @@ function topCard(): HTMLElement {
 /** Landscape profile: all scaleGroups share one outer card — scope to the
  *  title's own group (flex head row -> group div). */
 function topGroup(): HTMLElement {
-  const title = screen.getByText("ui.topBadge")
+  const title = screen.getByText("ui.rankFamily")
   const headRow = title.closest("div.flex")
   expect(headRow?.parentElement).not.toBeNull()
   return headRow!.parentElement as HTMLElement
@@ -419,7 +419,7 @@ describe("LandscapeDefaultsSection top X slider (number baseline)", () => {
 
 describe("TransformControls per-title X slider (number baseline)", () => {
   function topTitleCard(): HTMLElement {
-    const title = screen.getByText("ui.topBadge · ui.posterShapePortrait")
+    const title = screen.getByText("ui.rankFamily · ui.posterShapePortrait")
     const card = title.closest("div.rounded-xl")
     expect(card).not.toBeNull()
     return card as HTMLElement

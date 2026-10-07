@@ -128,6 +128,10 @@ export interface FullMappingCheckState {
   topBadgeScale?: number | null
   topBadgeOffsetX?: number | null
   topBadgeOffsetY?: number | null
+  /** Tuning EXTRA superiore (null = fallback legacy classifica). */
+  extraBadgeScale?: number | null
+  extraBadgeOffsetX?: number | null
+  extraBadgeOffsetY?: number | null
   genreBadgeScale?: number | null
   genreBadgeOffsetX?: number | null
   genreBadgeOffsetY?: number | null
@@ -159,6 +163,8 @@ export interface FullMappingCheckState {
   networkLogo?: boolean
   ribbonEnabled?: boolean
   networkLogoPosition?: string
+  /** Il network segue il titolo (assente = legacy ON). */
+  networkLogoFollowTitle?: boolean
   qualityBadgeStyle?: string
   badgeStyle?: string
   rankingBadgeStyle?: string
@@ -191,6 +197,10 @@ export function isMappingDirty(
   if ((current.topBadgeScale ?? 100) !== (eff.topBadgeScale ?? 100)) return true
   if ((current.topBadgeOffsetX ?? 0) !== (eff.topBadgeOffsetX ?? 0)) return true
   if ((current.topBadgeOffsetY ?? 0) !== (eff.topBadgeOffsetY ?? 0)) return true
+  // Extra indipendente (null = fallback legacy su entrambi i lati).
+  if ((current.extraBadgeScale ?? null) !== (eff.extraBadgeScale ?? null)) return true
+  if ((current.extraBadgeOffsetX ?? null) !== (eff.extraBadgeOffsetX ?? null)) return true
+  if ((current.extraBadgeOffsetY ?? null) !== (eff.extraBadgeOffsetY ?? null)) return true
 
   if ((current.genreBadgeScale ?? 100) !== (eff.genreBadgeScale ?? 100)) return true
   if ((current.genreBadgeOffsetX ?? 0) !== (eff.genreBadgeOffsetX ?? 0)) return true
@@ -225,6 +235,9 @@ export function isMappingDirty(
   if ((current.networkLogo ?? true) !== (eff.networkLogo ?? true)) return true
   if ((current.ribbonEnabled ?? true) !== (eff.ribbonEnabled ?? true)) return true
   if ((current.networkLogoPosition ?? "auto") !== (eff.networkLogoPosition ?? "auto")) return true
+  // Follow off with no saved field: the mapping follows the defaults, so a
+  // per-title change must read as unsaved (same rule as the other frozen toggles).
+  if ((current.networkLogoFollowTitle ?? true) !== (eff.networkLogoFollowTitle ?? true)) return true
   if ((current.qualityBadgeStyle ?? "standard") !== (eff.qualityBadgeStyle ?? "standard")) return true
   if ((current.badgeStyle ?? "shadow") !== (eff.badgeStyle ?? "shadow")) return true
   if ((current.rankingBadgeStyle ?? "default") !== (eff.rankingBadgeStyle ?? "default")) return true

@@ -12,6 +12,9 @@ const landscapeSchema = z.object({
   gradientHeight: percent.optional(), blurEnabled: z.boolean().optional(), blurIntensity: percent.optional(),
   blurFade: percent.optional(), blurDarkness: percent.optional(), tintStrength: percent.optional(), topShade: percent.optional(),
   topBadgeScale: scale.optional(), topBadgeOffsetX: offset.optional(), topBadgeOffsetY: offset.optional(),
+  extraBadgeScale: scale.nullable().optional(),
+  extraBadgeOffsetX: offset.nullable().optional(),
+  extraBadgeOffsetY: offset.nullable().optional(),
   genreBadgeScale: scale.optional(), genreBadgeOffsetX: offset.optional(), genreBadgeOffsetY: offset.optional(),
   qualityBadgeScale: scale.optional(), qualityBadgeOffsetX: offset.optional(), qualityBadgeOffsetY: offset.optional(),
   separateBadgeScale: scale.optional(),
@@ -20,6 +23,7 @@ const landscapeSchema = z.object({
   // Stile separati per formato: opzionale (assente = segui il flat condiviso).
   separateRatingsStyle: z.enum(SEPARATE_RATINGS_STYLES).optional(),
   networkLogoScale: scale.optional(), networkLogoOffsetX: offset.optional(), networkLogoOffsetY: offset.optional(),
+  networkLogoFollowTitle: z.boolean().nullable().optional(),
   // Profilo visuale completo per formato (stesse semantiche di
   // `LandscapeServerDefaults`, mai nuove): assente = eredita i flat.
   // Solo chiavi con corrispondenza flat<->profilo, piu le landscape-only
@@ -56,6 +60,11 @@ export const visualPresetValuesSchema = z.object({
   defaultBlurEnabled: z.boolean(), defaultBlurIntensity: percent, defaultBlurFade: percent, defaultBlurDarkness: percent,
   defaultTintStrength: percent, defaultTopShade: percent, defaultGradientHeight: percent,
   defaultTopBadgeScale: scale, defaultTopBadgeOffsetX: offset, defaultTopBadgeOffsetY: offset,
+  // Tuning EXTRA superiore: opzionale+nullable (preset legacy senza campo
+  // restano validi; null/assente = fallback legacy classifica).
+  defaultExtraBadgeScale: scale.nullable().optional(),
+  defaultExtraBadgeOffsetX: offset.nullable().optional(),
+  defaultExtraBadgeOffsetY: offset.nullable().optional(),
   defaultGenreBadgeScale: scale, defaultGenreBadgeOffsetX: offset, defaultGenreBadgeOffsetY: offset,
   defaultQualityBadgeScale: scale, defaultQualityBadgeOffsetX: offset, defaultQualityBadgeOffsetY: offset,
   // Scala separati aggiunta dopo: default(130) per i preset salvati senza campo
@@ -69,6 +78,9 @@ export const visualPresetValuesSchema = z.object({
   defaultSeparateRatingsStyle: z.enum(SEPARATE_RATINGS_STYLES).default("column"),
   defaultNetworkLogoScale: scale, defaultNetworkLogoOffsetX: offset, defaultNetworkLogoOffsetY: offset,
   defaultNetworkLogo: z.boolean(), defaultNetworkLogoPosition: z.enum(["auto", "top"]), defaultPreRelease: z.boolean(),
+  // Follow aggiunto dopo: opzionale per non invalidare preset salvati
+  // (legacy senza campo) né forzare lo stato editor; null/assente = eredita.
+  defaultNetworkLogoFollowTitle: z.boolean().nullable().optional(),
   defaultRibbonEnabled: z.boolean(), defaultRibbonSide: z.enum(["left", "right"]),
   defaultPosterShape: z.enum(["poster", "landscape"]), defaultLogoAlign: z.enum(["left", "center"]).nullable(),
   defaultPortraitFitEnabled: z.boolean(), defaultLandscapeFitEnabled: z.boolean(),
@@ -92,6 +104,113 @@ export const visualPresetDeleteSchema = z.object({
 export type VisualPreset = z.infer<typeof visualPresetSchema>
 /** Quota applies PER shape: 20 portrait + 20 landscape, same name allowed across shapes. */
 export const MAX_VISUAL_PRESETS = 20
+
+/**
+ * Normalize a preset snapshot's extra tuning to its own classifica values
+ * (per axis, flat + nested landscape profile with flat fallback): a legacy
+ * preset without explicit extra renders with its own rank tuning, so the
+ * normalized form is what apply writes and what highlight compares. Modern
+ * explicit extra always wins (never overwritten). Key order follows the
+ * schema sequences, so normalized snapshots stringify identically on both
+ * sides of a highlight compare. Pure.
+ */
+/**
+ * Snapshot shape accepted by normalizePresetExtraTuning (full preset values,
+ * portrait projections and bare landscape profiles all satisfy it).
+ */
+export interface ExtraNormalizableSnapshot {
+  defaultTopBadgeScale?: number | null
+  defaultTopBadgeOffsetX?: number | null
+  defaultTopBadgeOffsetY?: number | null
+  defaultExtraBadgeScale?: number | null
+  defaultExtraBadgeOffsetX?: number | null
+  defaultExtraBadgeOffsetY?: number | null
+  topBadgeScale?: number | null
+  topBadgeOffsetX?: number | null
+  topBadgeOffsetY?: number | null
+  extraBadgeScale?: number | null
+  extraBadgeOffsetX?: number | null
+  extraBadgeOffsetY?: number | null
+  landscape?: {
+    topBadgeScale?: number | null
+    topBadgeOffsetX?: number | null
+    topBadgeOffsetY?: number | null
+    extraBadgeScale?: number | null
+    extraBadgeOffsetX?: number | null
+    extraBadgeOffsetY?: number | null
+  } | null
+  [k: string]: unknown
+}
+
+export function normalizePresetExtraTuning<T extends ExtraNormalizableSnapshot>(snapshot: T): T {
+  const flat = { ...(snapshot as Record<string, unknown>) }
+  // Original flat extra (pre-fill): the landscape fallback must see the
+  // snapshot's own values, not the filled ones below.
+  const origFlatExS = flat.defaultExtraBadgeScale
+  const origFlatExX = flat.defaultExtraBadgeOffsetX
+  const origFlatExY = flat.defaultExtraBadgeOffsetY
+  // Flat defaults level.
+  if (flat.defaultExtraBadgeScale == null && flat.defaultTopBadgeScale != null)
+    flat.defaultExtraBadgeScale = flat.defaultTopBadgeScale
+  if (flat.defaultExtraBadgeOffsetX == null && flat.defaultTopBadgeOffsetX != null)
+    flat.defaultExtraBadgeOffsetX = flat.defaultTopBadgeOffsetX
+  if (flat.defaultExtraBadgeOffsetY == null && flat.defaultTopBadgeOffsetY != null)
+    flat.defaultExtraBadgeOffsetY = flat.defaultTopBadgeOffsetY
+  // Bare profile level (resolveEffectiveLandscape outputs the profile
+  // itself, not wrapped): same fill from its own rank tuning.
+  if (flat.extraBadgeScale == null && flat.topBadgeScale != null)
+    flat.extraBadgeScale = flat.topBadgeScale
+  if (flat.extraBadgeOffsetX == null && flat.topBadgeOffsetX != null)
+    flat.extraBadgeOffsetX = flat.topBadgeOffsetX
+  if (flat.extraBadgeOffsetY == null && flat.topBadgeOffsetY != null)
+    flat.extraBadgeOffsetY = flat.topBadgeOffsetY
+  // Nested landscape profile, only when it carries its own rank look
+  // (otherwise it keeps inheriting and stays sparse): missing axes resolve
+  // exactly like the server (profile extra > flat extra > profile rank >
+  // flat rank), so filling is pixel-identical either way.
+  const land = flat.landscape
+  if (land != null && typeof land === "object") {
+    const l = { ...(land as Record<string, unknown>) }
+    const landHasRank = l.topBadgeScale !== undefined || l.topBadgeOffsetX !== undefined || l.topBadgeOffsetY !== undefined
+    if (landHasRank) {
+      if (l.extraBadgeScale == null)
+        l.extraBadgeScale = origFlatExS ?? l.topBadgeScale ?? flat.defaultTopBadgeScale
+      if (l.extraBadgeOffsetX == null)
+        l.extraBadgeOffsetX = origFlatExX ?? l.topBadgeOffsetX ?? flat.defaultTopBadgeOffsetX
+      if (l.extraBadgeOffsetY == null)
+        l.extraBadgeOffsetY = origFlatExY ?? l.topBadgeOffsetY ?? flat.defaultTopBadgeOffsetY
+    }
+    flat.landscape = l
+  }
+  // Canonical key order (schema sequences): filled keys must not trail after
+  // raw literals, or identical looks stringify differently. Bare profiles
+  // follow the landscape sequence instead.
+  const bareProfile = !("defaultTopBadgeScale" in flat) && !("defaultExtraBadgeScale" in flat)
+    && ("topBadgeScale" in flat || "extraBadgeScale" in flat)
+  const topOrder = bareProfile
+    ? Object.keys(landscapeSchema.shape)
+    : Object.keys(visualPresetValuesSchema.shape)
+  const ordered: Record<string, unknown> = {}
+  for (const k of topOrder) {
+    if (k in flat) ordered[k] = flat[k]
+  }
+  for (const k of Object.keys(flat)) {
+    if (!(k in ordered)) ordered[k] = flat[k]
+  }
+  const orderedLand = ordered.landscape
+  if (orderedLand != null && typeof orderedLand === "object") {
+    const l = orderedLand as Record<string, unknown>
+    const landOrdered: Record<string, unknown> = {}
+    for (const k of Object.keys(landscapeSchema.shape)) {
+      if (k in l) landOrdered[k] = l[k]
+    }
+    for (const k of Object.keys(l)) {
+      if (!(k in landOrdered)) landOrdered[k] = l[k]
+    }
+    ordered.landscape = landOrdered
+  }
+  return ordered as T
+}
 
 export function captureVisualPreset(source: VisualPresetValues): VisualPresetValues {
   return visualPresetValuesSchema.parse(Object.fromEntries(
@@ -137,6 +256,7 @@ export const PRESET_FLAT_TO_LANDSCAPE: Record<string, keyof LandscapeServerDefau
   defaultSashOrder: "sashOrder",
   defaultNetworkLogo: "networkLogo",
   defaultNetworkLogoPosition: "networkLogoPosition",
+  defaultNetworkLogoFollowTitle: "networkLogoFollowTitle",
   defaultPreRelease: "preRelease",
   defaultRibbonEnabled: "ribbonEnabled",
   defaultRibbonSide: "ribbonSide",
@@ -153,6 +273,9 @@ export const PRESET_FLAT_TO_LANDSCAPE: Record<string, keyof LandscapeServerDefau
   defaultTopBadgeScale: "topBadgeScale",
   defaultTopBadgeOffsetX: "topBadgeOffsetX",
   defaultTopBadgeOffsetY: "topBadgeOffsetY",
+  defaultExtraBadgeScale: "extraBadgeScale",
+  defaultExtraBadgeOffsetX: "extraBadgeOffsetX",
+  defaultExtraBadgeOffsetY: "extraBadgeOffsetY",
   defaultGenreBadgeScale: "genreBadgeScale",
   defaultGenreBadgeOffsetX: "genreBadgeOffsetX",
   defaultGenreBadgeOffsetY: "genreBadgeOffsetY",
@@ -196,7 +319,9 @@ export function portraitPresetPatch(values: VisualPresetValues): Partial<VisualP
  */
 export function landscapeProfilePatch(values: VisualPresetValues): Partial<LandscapeServerDefaults> {
   const patch: Record<string, unknown> = {}
+  const flatFixed = isFlatFixedLayer(values as unknown as Record<string, unknown>)
   for (const [flatKey, landKey] of Object.entries(PRESET_FLAT_TO_LANDSCAPE)) {
+    if (flatFixed && NO_FLAT_DERIVED_LANDSCAPE_KEYS.has(landKey)) continue
     const v = (values as Record<string, unknown>)[flatKey]
     if (v !== undefined) patch[landKey] = v
   }
@@ -223,6 +348,23 @@ const LANDSCAPE_TO_FLAT: Record<string, string> = Object.fromEntries(
  */
 const NULL_INHERIT_LANDSCAPE_KEYS = new Set(["extraBadgeStyle", "badgeFont", "qualityBadgeStyle", "videoFormats"])
 
+/**
+ * Network fixed coords never derive from the flat into the landscape
+ * profile WHEN the flat layer is fixed (follow===false): absolute coords are
+ * per-shape, and a flat copy would later read as an explicit fixed landscape
+ * layer (portrait values rendered on LAND). In ON mode the legacy
+ * derive/freeze is preserved byte-identically (relative offsets keep
+ * inheriting at render via `??` chains). The toggle keeps its flat
+ * derivation (harmless: coords gate the fixed layer). Explicit profile
+ * values always pass through untouched.
+ */
+const NO_FLAT_DERIVED_LANDSCAPE_KEYS = new Set(["networkLogoOffsetX", "networkLogoOffsetY"])
+
+/** True when the flat network layer is fixed (absolute portrait coords). */
+function isFlatFixedLayer(values: Record<string, unknown>): boolean {
+  return values["defaultNetworkLogoFollowTitle"] === false
+}
+
 function presetValuesEqual(a: unknown, b: unknown): boolean {
   if (a === b) return true
   if (typeof a !== typeof b || a === null || b === null) return false
@@ -243,6 +385,7 @@ function presetValuesEqual(a: unknown, b: unknown): boolean {
 export function resolveEffectiveLandscape(values: VisualPresetValues): VisualPresetValues["landscape"] {
   const land = ((values.landscape ?? {}) as Record<string, unknown>)
   const source = values as unknown as Record<string, unknown>
+  const flatFixed = isFlatFixedLayer(source)
   const out: Record<string, unknown> = {}
   for (const landKey of Object.keys(landscapeSchema.shape)) {
     const raw = land[landKey]
@@ -250,6 +393,7 @@ export function resolveEffectiveLandscape(values: VisualPresetValues): VisualPre
       out[landKey] = raw
       continue
     }
+    if (flatFixed && NO_FLAT_DERIVED_LANDSCAPE_KEYS.has(landKey)) continue
     const flatKey = LANDSCAPE_TO_FLAT[landKey]
     if (flatKey !== undefined) {
       const v = source[flatKey]
@@ -277,7 +421,11 @@ export function applyPortraitIsolated(current: VisualPresetValues, preset: Visua
   const cur = current as unknown as Record<string, unknown>
   const pre = preset as unknown as Record<string, unknown>
   const landscape = { ...((cur.landscape as Record<string, unknown> | undefined) ?? {}) }
+  // Mai congelare coordinate assolute da un flat fixed (né verso un preset
+  // fixed): creerebbero un fixed landscape finto con valori portrait.
+  const skipCoords = isFlatFixedLayer(cur) || isFlatFixedLayer(pre)
   for (const [flatKey, landKey] of Object.entries(PRESET_FLAT_TO_LANDSCAPE)) {
+    if (skipCoords && NO_FLAT_DERIVED_LANDSCAPE_KEYS.has(landKey)) continue
     const inherited = landscape[landKey] === undefined ||
       (landscape[landKey] === null && NULL_INHERIT_LANDSCAPE_KEYS.has(landKey))
     if (inherited && pre[flatKey] !== undefined && cur[flatKey] !== undefined && !presetValuesEqual(pre[flatKey], cur[flatKey])) {

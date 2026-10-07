@@ -96,6 +96,10 @@ interface PosterSaveDeps {
   topBadgeScale: number
   topBadgeOffsetX: number
   topBadgeOffsetY: number
+  /** Tuning EXTRA superiore per-titolo (congelato al save; null = fallback legacy). */
+  extraBadgeScale: number | null
+  extraBadgeOffsetX: number | null
+  extraBadgeOffsetY: number | null
   genreBadgeScale: number
   qualityBadgeScale: number
   /** Scala % colonna rating separati per-titolo (congelata al save). */
@@ -131,6 +135,8 @@ interface PosterSaveDeps {
   networkLogo: boolean
   /** Ancoraggio orizzontale del logo network per-titolo (congelato al save). */
   networkLogoPosition: NetworkLogoPosition
+  /** Il network segue il titolo per-titolo (congelato al save, per-shape). */
+  networkLogoFollowTitle: boolean
   /** Nastro stile Netflix all'angolo per-titolo (congelato al save). */
   ribbonEnabled: boolean
   lang: string
@@ -163,13 +169,13 @@ export function usePosterSave(deps: PosterSaveDeps) {
     badgeGenre, badgeYear, badgeRating, badgeQuality, customRatings, ratingSources, separateRatings, separateRatingsStyle,
     defaultBadgeStyle, defaultRankingBadgeStyle, defaultExtraBadgeStyle,
     blurEnabled, blurIntensity, blurFade, blurDarkness, landscapeBlur, landscapeBlurDirty, setLandscapeBlur, defaultLogoScale, defaultLogoOffsetX, defaultLogoOffsetY, landscapeDefaults, tintStrength, topShade, gradientHeight, setGradientHeight, setBlurFade,
-    topBadgeScale, topBadgeOffsetX, topBadgeOffsetY, genreBadgeScale, qualityBadgeScale, networkLogoScale, separateBadgeScale,
+    topBadgeScale, topBadgeOffsetX, topBadgeOffsetY, extraBadgeScale, extraBadgeOffsetX, extraBadgeOffsetY, genreBadgeScale, qualityBadgeScale, networkLogoScale, separateBadgeScale,
     separateBadgeOffsetX, separateBadgeOffsetY,
     genreBadgeOffsetX, genreBadgeOffsetY, qualityBadgeOffsetX, qualityBadgeOffsetY,
     networkLogoOffsetX, networkLogoOffsetY,
     rotationPosters, autoRotateClean, defaultAutoRotateClean, excludedPosters, accentColor, autoAccentColor, logoDisabled, setLogoDisabled,
     rotationBackdrops, autoRotateBackdrop, defaultAutoRotateBackdrop, excludedBackdrops, backdrops,
-    setLogoScale, setLogoOffsetX, setLogoOffsetY,     networkLogo, networkLogoPosition, ribbonEnabled, lang, episodeGroupId, posterShape,
+    setLogoScale, setLogoOffsetX, setLogoOffsetY,     networkLogo, networkLogoPosition, networkLogoFollowTitle, ribbonEnabled, lang, episodeGroupId, posterShape,
     defaultSashOrder,
   } = deps
 
@@ -384,12 +390,14 @@ export function usePosterSave(deps: PosterSaveDeps) {
       ? {
           logoScale, logoOffsetX, logoOffsetY,
           topBadgeScale, topBadgeOffsetX, topBadgeOffsetY,
+          extraBadgeScale, extraBadgeOffsetX, extraBadgeOffsetY,
           genreBadgeScale, genreBadgeOffsetX, genreBadgeOffsetY,
           qualityBadgeScale, qualityBadgeOffsetX, qualityBadgeOffsetY,
           separateBadgeScale,
           separateBadgeOffsetX, separateBadgeOffsetY,
           separateRatingsStyle,
           networkLogoScale, networkLogoOffsetX, networkLogoOffsetY,
+          networkLogoFollowTitle,
           ...landscapeBlurPatch,
         }
       : (useLandscapeBlur || prevMapping?.landscape
@@ -498,6 +506,11 @@ export function usePosterSave(deps: PosterSaveDeps) {
           topBadgeScale: keepFlat(topBadgeScale, prevMapping?.topBadgeScale),
           topBadgeOffsetX: keepFlat(topBadgeOffsetX, prevMapping?.topBadgeOffsetX),
           topBadgeOffsetY: keepFlat(topBadgeOffsetY, prevMapping?.topBadgeOffsetY),
+          // Tuning extra: null = fallback legacy (mai migrato in automatico:
+          // solo un edit extra esplicito lo scrive, vedi materializzazione).
+          extraBadgeScale: keepFlat(extraBadgeScale, prevMapping?.extraBadgeScale),
+          extraBadgeOffsetX: keepFlat(extraBadgeOffsetX, prevMapping?.extraBadgeOffsetX),
+          extraBadgeOffsetY: keepFlat(extraBadgeOffsetY, prevMapping?.extraBadgeOffsetY),
           genreBadgeScale: keepFlat(genreBadgeScale, prevMapping?.genreBadgeScale),
           qualityBadgeScale: keepFlat(qualityBadgeScale, prevMapping?.qualityBadgeScale),
           separateBadgeScale: keepFlat(separateBadgeScale, prevMapping?.separateBadgeScale),
@@ -522,6 +535,12 @@ export function usePosterSave(deps: PosterSaveDeps) {
           excludedBackdrops: nextExcludedBackdrops.length > 0 ? nextExcludedBackdrops : undefined,
           logoDisabled: logoDisabled || undefined,
           networkLogo: networkLogo !== undefined ? networkLogo : undefined,
+          // Follow congelato per-titolo (flat in portrait, preservato in
+          // landscape come gli altri tuning per-shape): in landscape il flat
+          // resta quello salvato, mai clobberato dal valore del formato.
+          networkLogoFollowTitle: isLandscapeMode
+            ? (prevMapping?.networkLogoFollowTitle ?? undefined)
+            : networkLogoFollowTitle,
           // Posizione congelata per-titolo (freeze come gli altri toggle):
           // "auto" esplicito così il titolo non segue più i default dopo il save.
           networkLogoPosition,
@@ -553,7 +572,7 @@ export function usePosterSave(deps: PosterSaveDeps) {
       if (overrides.silent) throw error
       return false
     }
-  }, [selected, previewPoster, selectedLogo, metaInfo, logoScale, logoOffsetX, logoOffsetY, trendRank, globalBadges, rankingBadges, badgeGenre, badgeYear, badgeRating, badgeQuality, customRatings, ratingSources, separateRatings, separateRatingsStyle, mdblistAnimeList, loadMappings, customBadge, badgePresetId, badgePresetRev, badgeStyle, rankingBadgeStyle, extraBadgeStyle, badgeFont, qualityBadgeStyle, videoFormats, blurEnabled, blurIntensity, blurFade, blurDarkness, landscapeBlur, landscapeBlurDirty, tintStrength, topShade, gradientHeight, topBadgeScale, topBadgeOffsetX, topBadgeOffsetY, genreBadgeScale, qualityBadgeScale, separateBadgeScale, separateBadgeOffsetX, separateBadgeOffsetY, networkLogoScale, genreBadgeOffsetX, genreBadgeOffsetY, qualityBadgeOffsetX, qualityBadgeOffsetY, networkLogoOffsetX, networkLogoOffsetY, rotationPosters, autoRotateClean, defaultAutoRotateClean, excludedPosters, rotationBackdrops, autoRotateBackdrop, defaultAutoRotateBackdrop, excludedBackdrops, backdrops, defaultBadgeStyle, defaultRankingBadgeStyle, defaultExtraBadgeStyle, posters, mappingsMap, accentColor, autoAccentColor, backdropOffsetX, backdropOffsetY, backdropScale, selectedBackdrop, networkLogo, networkLogoPosition, ribbonEnabled, episodeGroupId, posterShape]) // eslint-disable-line react-hooks/exhaustive-deps -- intentionally complete to save all poster state
+  }, [selected, previewPoster, selectedLogo, metaInfo, logoScale, logoOffsetX, logoOffsetY, trendRank, globalBadges, rankingBadges, badgeGenre, badgeYear, badgeRating, badgeQuality, customRatings, ratingSources, separateRatings, separateRatingsStyle, mdblistAnimeList, loadMappings, customBadge, badgePresetId, badgePresetRev, badgeStyle, rankingBadgeStyle, extraBadgeStyle, badgeFont, qualityBadgeStyle, videoFormats, blurEnabled, blurIntensity, blurFade, blurDarkness, landscapeBlur, landscapeBlurDirty, tintStrength, topShade, gradientHeight, topBadgeScale, topBadgeOffsetX, topBadgeOffsetY, extraBadgeScale, extraBadgeOffsetX, extraBadgeOffsetY, genreBadgeScale, qualityBadgeScale, separateBadgeScale, separateBadgeOffsetX, separateBadgeOffsetY, networkLogoScale, genreBadgeOffsetX, genreBadgeOffsetY, qualityBadgeOffsetX, qualityBadgeOffsetY, networkLogoOffsetX, networkLogoOffsetY, rotationPosters, autoRotateClean, defaultAutoRotateClean, excludedPosters, rotationBackdrops, autoRotateBackdrop, defaultAutoRotateBackdrop, excludedBackdrops, backdrops, defaultBadgeStyle, defaultRankingBadgeStyle, defaultExtraBadgeStyle, posters, mappingsMap, accentColor, autoAccentColor, backdropOffsetX, backdropOffsetY, backdropScale, selectedBackdrop, networkLogo, networkLogoPosition, networkLogoFollowTitle, ribbonEnabled, episodeGroupId, posterShape]) // eslint-disable-line react-hooks/exhaustive-deps -- intentionally complete to save all poster state
 
   return { selectPoster, selectLogo, removeLogo, selectBackdrop, removeBackdrop, saveConfig }
 }

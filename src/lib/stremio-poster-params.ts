@@ -71,11 +71,19 @@ export interface StremioPosterParamsInput {
    * esistenti non cambiano e il server risolve `auto` da solo).
    */
   readonly networkLogoPosition?: import("@/lib/types").NetworkLogoPosition
-  /** Scala % del badge superiore (default 100). */
+  /** Scala % del badge CLASSIFICA superiore (default 100). */
   readonly topBadgeScale?: number
-  /** Offset px del badge superiore, solo stili centrati (default 0). */
+  /** Offset px del badge CLASSIFICA superiore, solo stili centrati (default 0). */
   readonly topBadgeOffsetX?: number
   readonly topBadgeOffsetY?: number
+  /**
+   * Tuning EXTRA superiore (`exscale`/`exox`/`exoy`). Emesso esplicito solo
+   * quando definito (come `xbs` opt-in); in compact entra in `dv` solo in
+   * quel caso. Assente = fallback legacy classifica, URL e firma invariati.
+   */
+  readonly extraBadgeScale?: number | null
+  readonly extraBadgeOffsetX?: number | null
+  readonly extraBadgeOffsetY?: number | null
   /** Scala % del badge genere/rating in basso (default 100). */
   readonly genreBadgeScale?: number
   /** Offset px del badge genere/rating, solo stili non-bar (default 0). */
@@ -97,6 +105,12 @@ export interface StremioPosterParamsInput {
   /** Offset px del logo network (default 0). */
   readonly networkLogoOffsetX?: number
   readonly networkLogoOffsetY?: number
+  /**
+   * Il network segue il titolo. Emesso come `netFollow=0` solo quando spento
+   * (default ON, cache stabile); mai in `dv` (bassa cardinalità come
+   * ribbon/netPos). Assente = legacy invariato.
+   */
+  readonly networkLogoFollowTitle?: boolean | null
   /** Scala % logo film (null = auto-fit per aspect). In compact coperta da `dv`. */
   readonly logoScale?: number | null
   /** Offset px logo film (null = 0). In compact coperti da `dv`. */
@@ -207,7 +221,9 @@ const DEFAULT_STREMIO_POSTER_PARAMS = {
  * e browser/edge/Stremio servirebbero i byte vecchi all'infinito. FNV-1a 32bit
  * (8 hex): cache-buster, non sicurezza — niente import, funziona anche client.
  * Copre ESATTAMENTE i campi omessi in compact, con gli stessi fallback
- * dell'emissione esplicita qui sotto.
+ * dell'emissione esplicita qui sotto, più il tuning extra SOLO quando è
+ * esplicito da qualche parte (assente = fallback legacy classifica e firma
+ * storica invariata).
  */
 function tuningSignature(input: StremioPosterParamsInput): string {
   const D = DEFAULT_STREMIO_POSTER_PARAMS
@@ -221,6 +237,16 @@ function tuningSignature(input: StremioPosterParamsInput): string {
     input.topBadgeScale ?? D.topBadgeScale,
     input.topBadgeOffsetX ?? D.topBadgeOffsetX,
     input.topBadgeOffsetY ?? D.topBadgeOffsetY,
+    // Extra tuning: appended ONLY when explicitly set anywhere — absent
+    // (legacy classifica fallback) keeps the historic signature bytes, so
+    // existing compact URLs and cache entries stay valid.
+    ...(input.extraBadgeScale != null || input.extraBadgeOffsetX != null || input.extraBadgeOffsetY != null
+      ? [
+        input.extraBadgeScale ?? D.topBadgeScale,
+        input.extraBadgeOffsetX ?? D.topBadgeOffsetX,
+        input.extraBadgeOffsetY ?? D.topBadgeOffsetY,
+      ]
+      : []),
     input.genreBadgeScale ?? D.genreBadgeScale,
     input.genreBadgeOffsetX ?? D.genreBadgeOffsetX,
     input.genreBadgeOffsetY ?? D.genreBadgeOffsetY,
@@ -314,6 +340,7 @@ export function buildStremioPosterSearchParams(input: StremioPosterParamsInput):
   }
   if (input.title) params.set("title", input.title)
   if (!networkLogo) params.set("netLogo", "0")
+  if (input.networkLogoFollowTitle === false) params.set("netFollow", "0")
   if (input.networkLogoPosition === "top") {
     params.set("netPos", "top")
   }
@@ -367,6 +394,11 @@ export function buildStremioPosterSearchParams(input: StremioPosterParamsInput):
     params.set("tscale", String(input.topBadgeScale ?? DEFAULT_STREMIO_POSTER_PARAMS.topBadgeScale))
     params.set("tox", String(input.topBadgeOffsetX ?? DEFAULT_STREMIO_POSTER_PARAMS.topBadgeOffsetX))
     params.set("toy", String(input.topBadgeOffsetY ?? DEFAULT_STREMIO_POSTER_PARAMS.topBadgeOffsetY))
+    // Extra tuning: opt-in only (absent = legacy classifica fallback,
+    // existing explicit URLs stay byte-identical).
+    if (input.extraBadgeScale != null) params.set("exscale", String(input.extraBadgeScale))
+    if (input.extraBadgeOffsetX != null) params.set("exox", String(input.extraBadgeOffsetX))
+    if (input.extraBadgeOffsetY != null) params.set("exoy", String(input.extraBadgeOffsetY))
     params.set("gscale", String(input.genreBadgeScale ?? DEFAULT_STREMIO_POSTER_PARAMS.genreBadgeScale))
     params.set("gox", String(input.genreBadgeOffsetX ?? DEFAULT_STREMIO_POSTER_PARAMS.genreBadgeOffsetX))
     params.set("goy", String(input.genreBadgeOffsetY ?? DEFAULT_STREMIO_POSTER_PARAMS.genreBadgeOffsetY))

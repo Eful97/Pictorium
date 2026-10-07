@@ -56,6 +56,10 @@ export interface DefaultsState {
   defaultTopBadgeScale: number
   defaultTopBadgeOffsetX: number
   defaultTopBadgeOffsetY: number
+  /** Tuning EXTRA superiore di default (null = fallback legacy classifica). */
+  defaultExtraBadgeScale: number | null
+  defaultExtraBadgeOffsetX: number | null
+  defaultExtraBadgeOffsetY: number | null
   defaultGenreBadgeScale: number
   defaultQualityBadgeScale: number
   /** Scala % rating separati di default (default unico 130; esplicito 100 storico preservato). */
@@ -102,6 +106,8 @@ export interface DefaultsState {
   defaultNetworkLogo: boolean
   /** Posizione del logo network di default ("auto" = specchio dinamico, "top" = angolo alto lato nastro). */
   defaultNetworkLogoPosition: NetworkLogoPosition
+  /** Il network segue il titolo di default (true = layout storico). */
+  defaultNetworkLogoFollowTitle: boolean
   defaultPreRelease: boolean
   defaultRibbonSide: RibbonSide
   /** Nastro stile Netflix all'angolo di default (false = badge classifica centrato). */
@@ -133,6 +139,8 @@ export interface DefaultsState {
   networkLogo: boolean
   /** Posizione del logo network del poster in editing. */
   networkLogoPosition: NetworkLogoPosition
+  /** Il network segue il titolo nel poster in editing (false = posizione assoluta). */
+  networkLogoFollowTitle: boolean
   preRelease: boolean
   ribbonSide: RibbonSide
   /** Nastro stile Netflix all'angolo (false = badge classifica centrato). */
@@ -146,6 +154,10 @@ export interface DefaultsState {
   topBadgeScale: number
   topBadgeOffsetX: number
   topBadgeOffsetY: number
+  /** Tuning EXTRA superiore in editing (null = fallback legacy classifica). */
+  extraBadgeScale: number | null
+  extraBadgeOffsetX: number | null
+  extraBadgeOffsetY: number | null
   genreBadgeScale: number
   qualityBadgeScale: number
   /** Scala % rating separati del poster in editing (default unico 130). */
@@ -213,6 +225,9 @@ const DEFAULTS: DefaultsState = {
   defaultTopBadgeScale: 100,
   defaultTopBadgeOffsetX: 0,
   defaultTopBadgeOffsetY: 0,
+  defaultExtraBadgeScale: null,
+  defaultExtraBadgeOffsetX: null,
+  defaultExtraBadgeOffsetY: null,
   defaultGenreBadgeScale: 100,
   defaultQualityBadgeScale: 100,
   defaultSeparateBadgeScale: 130,
@@ -243,6 +258,7 @@ const DEFAULTS: DefaultsState = {
   defaultLandscapeFitEnabled: true,
   defaultNetworkLogo: true,
   defaultNetworkLogoPosition: "auto",
+  defaultNetworkLogoFollowTitle: true,
   defaultPreRelease: false,
   defaultRibbonSide: "left",
   defaultRibbonEnabled: true,
@@ -264,6 +280,7 @@ const DEFAULTS: DefaultsState = {
   separateRatingsStyle: DEFAULT_SEPARATE_RATINGS_STYLE,
   networkLogo: true,
   networkLogoPosition: "auto",
+  networkLogoFollowTitle: true,
   preRelease: false,
   ribbonSide: "left",
   ribbonEnabled: true,
@@ -274,6 +291,9 @@ const DEFAULTS: DefaultsState = {
   topBadgeScale: 100,
   topBadgeOffsetX: 0,
   topBadgeOffsetY: 0,
+  extraBadgeScale: null,
+  extraBadgeOffsetX: null,
+  extraBadgeOffsetY: null,
   genreBadgeScale: 100,
   qualityBadgeScale: 100,
   separateBadgeScale: 130,
@@ -325,6 +345,10 @@ interface StoredDefaults {
   topBadgeScale?: number
   topBadgeOffsetX?: number
   topBadgeOffsetY?: number
+  /** Chiavi flat extra (saveDefaults/auto-persist): fallback di lettura. */
+  extraBadgeScale?: number | null
+  extraBadgeOffsetX?: number | null
+  extraBadgeOffsetY?: number | null
   genreBadgeScale?: number
   qualityBadgeScale?: number
   separateBadgeScale?: number
@@ -363,6 +387,9 @@ interface StoredDefaults {
   defaultTopBadgeScale?: number
   defaultTopBadgeOffsetX?: number
   defaultTopBadgeOffsetY?: number
+  defaultExtraBadgeScale?: number | null
+  defaultExtraBadgeOffsetX?: number | null
+  defaultExtraBadgeOffsetY?: number | null
   defaultGenreBadgeScale?: number
   defaultQualityBadgeScale?: number
   defaultSeparateBadgeScale?: number
@@ -408,7 +435,9 @@ interface StoredDefaults {
   defaultLogoFitEnabled?: boolean
   defaultNetworkLogo?: boolean
   defaultNetworkLogoPosition?: NetworkLogoPosition
+  defaultNetworkLogoFollowTitle?: boolean
   networkLogoPosition?: NetworkLogoPosition
+  networkLogoFollowTitle?: boolean
   defaultPreRelease?: boolean
   preRelease?: boolean
   defaultRibbonSide?: RibbonSide
@@ -479,6 +508,11 @@ function numOrUndef(v: unknown): number | undefined {
   return typeof v === "number" && Number.isFinite(v) ? v : undefined
 }
 
+/** Numerico finito o null (mai spazzatura dallo storage: garbage = fallback legacy). */
+function numOrNull(v: unknown): number | null {
+  return typeof v === "number" && Number.isFinite(v) ? v : null
+}
+
 /**
  * Profilo landscape idratato con provenance dai dati RAW (vedi nota al sito
  * d'uso in buildFromStored). Ritorna sempre un plain object; non scrive mai
@@ -545,6 +579,10 @@ function buildFromStored(d: StoredDefaults | null): DefaultsState {
     defaultTopBadgeScale: d.defaultTopBadgeScale ?? d.topBadgeScale ?? 100,
     defaultTopBadgeOffsetX: d.defaultTopBadgeOffsetX ?? d.topBadgeOffsetX ?? 0,
     defaultTopBadgeOffsetY: d.defaultTopBadgeOffsetY ?? d.topBadgeOffsetY ?? 0,
+    // Extra: no legacy alias (new field). Garbage falls back, never invented numbers.
+    defaultExtraBadgeScale: numOrNull(d.defaultExtraBadgeScale ?? d.extraBadgeScale),
+    defaultExtraBadgeOffsetX: numOrNull(d.defaultExtraBadgeOffsetX ?? d.extraBadgeOffsetX),
+    defaultExtraBadgeOffsetY: numOrNull(d.defaultExtraBadgeOffsetY ?? d.extraBadgeOffsetY),
     defaultGenreBadgeScale: d.defaultGenreBadgeScale ?? d.genreBadgeScale ?? 100,
     defaultQualityBadgeScale: d.defaultQualityBadgeScale ?? d.qualityBadgeScale ?? 100,
     defaultSeparateBadgeScale: d.defaultSeparateBadgeScale ?? d.separateBadgeScale ?? getSeparateBadgeDefaultScale(storedDefaultStyle),
@@ -579,6 +617,7 @@ function buildFromStored(d: StoredDefaults | null): DefaultsState {
     defaultPortraitFitEnabled: d.defaultPortraitFitEnabled ?? d.defaultLogoFitEnabled ?? true,
     defaultLandscapeFitEnabled: d.defaultLandscapeFitEnabled ?? d.defaultLogoFitEnabled ?? true,
     defaultNetworkLogo: d.defaultNetworkLogo ?? d.networkLogo ?? true,
+    defaultNetworkLogoFollowTitle: d.defaultNetworkLogoFollowTitle ?? d.networkLogoFollowTitle ?? true,
     defaultNetworkLogoPosition: isNetworkLogoPosition(d.defaultNetworkLogoPosition)
       ? d.defaultNetworkLogoPosition
       : (isNetworkLogoPosition(d.networkLogoPosition) ? d.networkLogoPosition : "auto"),
@@ -604,6 +643,7 @@ function buildFromStored(d: StoredDefaults | null): DefaultsState {
       ? d.separateRatingsStyle
       : (isSeparateRatingsStyle(d.defaultSeparateRatingsStyle) ? d.defaultSeparateRatingsStyle : DEFAULT_SEPARATE_RATINGS_STYLE),
     networkLogo: d.networkLogo ?? d.defaultNetworkLogo ?? true,
+    networkLogoFollowTitle: d.networkLogoFollowTitle ?? d.defaultNetworkLogoFollowTitle ?? true,
     networkLogoPosition: isNetworkLogoPosition(d.networkLogoPosition)
       ? d.networkLogoPosition
       : (isNetworkLogoPosition(d.defaultNetworkLogoPosition) ? d.defaultNetworkLogoPosition : "auto"),
@@ -619,6 +659,9 @@ function buildFromStored(d: StoredDefaults | null): DefaultsState {
     topBadgeScale: d.topBadgeScale ?? d.defaultTopBadgeScale ?? 100,
     topBadgeOffsetX: d.topBadgeOffsetX ?? d.defaultTopBadgeOffsetX ?? 0,
     topBadgeOffsetY: d.topBadgeOffsetY ?? d.defaultTopBadgeOffsetY ?? 0,
+    extraBadgeScale: numOrNull(d.extraBadgeScale ?? d.defaultExtraBadgeScale),
+    extraBadgeOffsetX: numOrNull(d.extraBadgeOffsetX ?? d.defaultExtraBadgeOffsetX),
+    extraBadgeOffsetY: numOrNull(d.extraBadgeOffsetY ?? d.defaultExtraBadgeOffsetY),
     genreBadgeScale: d.genreBadgeScale ?? d.defaultGenreBadgeScale ?? 100,
     qualityBadgeScale: d.qualityBadgeScale ?? d.defaultQualityBadgeScale ?? 100,
     separateBadgeScale: d.separateBadgeScale ?? d.defaultSeparateBadgeScale ?? getSeparateBadgeDefaultScale(storedStyle),
@@ -689,6 +732,9 @@ function defaultsToPayload(d: DefaultsState): Record<string, unknown> {
     topBadgeScale: d.defaultTopBadgeScale,
     topBadgeOffsetX: d.defaultTopBadgeOffsetX,
     topBadgeOffsetY: d.defaultTopBadgeOffsetY,
+    extraBadgeScale: d.defaultExtraBadgeScale ?? null,
+    extraBadgeOffsetX: d.defaultExtraBadgeOffsetX ?? null,
+    extraBadgeOffsetY: d.defaultExtraBadgeOffsetY ?? null,
     genreBadgeScale: d.defaultGenreBadgeScale,
     qualityBadgeScale: d.defaultQualityBadgeScale,
     separateBadgeScale: d.defaultSeparateBadgeScale,
@@ -723,6 +769,7 @@ function defaultsToPayload(d: DefaultsState): Record<string, unknown> {
     defaultLandscapeFitEnabled: d.defaultLandscapeFitEnabled,
     networkLogo: d.defaultNetworkLogo,
     networkLogoPosition: d.defaultNetworkLogoPosition,
+    networkLogoFollowTitle: d.defaultNetworkLogoFollowTitle,
     preRelease: d.defaultPreRelease,
     ribbonSide: d.defaultRibbonSide,
     ribbonEnabled: d.defaultRibbonEnabled,

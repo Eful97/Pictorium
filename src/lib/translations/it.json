@@ -260,6 +260,8 @@
   "ui.tmdbKey": "Chiave TMDB personale",
   "ui.keyTooShort": "La chiave deve essere lunga almeno 20 caratteri",
   "ui.networkLogo": "Logo Network",
+  "ui.followTitleLogo": "Segui il logo del titolo",
+  "ui.networkFreezeEmpty": "Logo network non renderizzato — seguo il titolo",
   "ui.networkLogoPosition": "Posizione logo network",
   "ui.networkLogoPositionTop": "In alto",
   "ui.preRelease": "Effetto pre-digitale",

@@ -6,6 +6,12 @@ import type { ServerDefaults } from "@/lib/server-defaults"
 import { effectiveDefaultsForShape } from "@/lib/server-defaults"
 import { effectiveMappingForShape, isPosterShape, type Mapping, type PosterShape } from "@/lib/types"
 import { NON_CLEAN_GRADIENT_HEIGHT, NON_CLEAN_BLUR_FADE } from "@/lib/gradient-defaults"
+import {
+  resolveEffectiveNetworkFollow,
+  resolveLandscapeNetworkOffsets,
+  resolveNetworkFixedCoords,
+  resolveNetworkFollowTitle,
+} from "@/lib/network-follow"
 
 export type StremioPosterType = "movie" | "series"
 
@@ -74,6 +80,19 @@ export function buildStremioPosterUrl(input: BuildStremioPosterUrlInput): URL {
   const customBadge = mapping?.customBadge && !isRankKey(mapping.customBadge)
     ? mapping.customBadge
     : undefined
+  // Follow/coords network per-shape a unità di layer (stessi resolver del
+  // server; il token resta opaco e si risolve server-side): in fissa gli
+  // assoluti risolti alimentano sia dv che query esplicita, altrimenti i
+  // merged offset legacy (byte-identici quando niente è configurato).
+  const netFollowRaw = resolveNetworkFollowTitle(new URLSearchParams(), mapping, null, input.defaults, effShape)
+  const netFixedRaw = resolveNetworkFixedCoords(new URLSearchParams(), mapping, null, input.defaults, effShape)
+  const netFollowEff = resolveEffectiveNetworkFollow(netFollowRaw, netFixedRaw)
+  const netFixedOff = netFollowEff ? { x: null, y: null } : netFixedRaw
+  // Offset landscape con guardia fixed-layer (assoluti di altra shape mai
+  // come relativi); portrait sul ramo storico byte-identico.
+  const netLandOffsets = effShape === "landscape"
+    ? resolveLandscapeNetworkOffsets(new URLSearchParams(), mapping, null, input.defaults)
+    : null
   const params = buildStremioPosterSearchParams({
     config: input.config,
     animerank: input.animerank,
@@ -115,6 +134,11 @@ export function buildStremioPosterUrl(input: BuildStremioPosterUrlInput): URL {
     topBadgeScale: eff?.topBadgeScale ?? sd.topBadgeScale,
     topBadgeOffsetX: eff?.topBadgeOffsetX ?? sd.topBadgeOffsetX,
     topBadgeOffsetY: eff?.topBadgeOffsetY ?? sd.topBadgeOffsetY,
+    // Extra tuning: explicit layers only (mapping/profile/flat, null = absent) —
+    // undefined keeps URLs and `dv` byte-identical to legacy until migrated.
+    extraBadgeScale: eff?.extraBadgeScale ?? sd.extraBadgeScale ?? undefined,
+    extraBadgeOffsetX: eff?.extraBadgeOffsetX ?? sd.extraBadgeOffsetX ?? undefined,
+    extraBadgeOffsetY: eff?.extraBadgeOffsetY ?? sd.extraBadgeOffsetY ?? undefined,
     genreBadgeScale: eff?.genreBadgeScale ?? sd.genreBadgeScale,
     qualityBadgeScale: eff?.qualityBadgeScale ?? sd.qualityBadgeScale,
     genreBadgeOffsetX: eff?.genreBadgeOffsetX ?? sd.genreBadgeOffsetX,
@@ -122,8 +146,13 @@ export function buildStremioPosterUrl(input: BuildStremioPosterUrlInput): URL {
     qualityBadgeOffsetX: eff?.qualityBadgeOffsetX ?? sd.qualityBadgeOffsetX ?? getQualityBadgeOffsetDefault(effShape, "x"),
     qualityBadgeOffsetY: eff?.qualityBadgeOffsetY ?? sd.qualityBadgeOffsetY ?? getQualityBadgeOffsetDefault(effShape, "y"),
     networkLogoScale: eff?.networkLogoScale ?? sd.networkLogoScale,
-    networkLogoOffsetX: eff?.networkLogoOffsetX ?? sd.networkLogoOffsetX,
-    networkLogoOffsetY: eff?.networkLogoOffsetY ?? sd.networkLogoOffsetY,
+    // Offset network: in fissa gli assoluti risolti, altrimenti merged legacy
+    // (landscape con guardia fixed-layer, portrait storico byte-identico).
+    // Stessi valori in dv e in chiaro: stessa chiave, stesso render.
+    networkLogoOffsetX: (netFixedOff.x ?? (netLandOffsets ? netLandOffsets.x : undefined))
+      ?? eff?.networkLogoOffsetX ?? sd.networkLogoOffsetX,
+    networkLogoOffsetY: (netFixedOff.y ?? (netLandOffsets ? netLandOffsets.y : undefined))
+      ?? eff?.networkLogoOffsetY ?? sd.networkLogoOffsetY,
     // Scala/offset logo: in compact viaggiano solo dentro `dv` (firma), ma
     // vanno passati espliciti al builder altrimenti un cambio dei default
     // non invaliderebbe l'URL (cache stantia su browser/edge/Stremio).
@@ -151,6 +180,9 @@ export function buildStremioPosterUrl(input: BuildStremioPosterUrlInput): URL {
     dateFormat: sd.dateFormat ?? undefined,
     title: mapping?.title ?? undefined,
     networkLogo: mapping?.networkLogo ?? sd.networkLogo,
+    // Follow spento effettivo viaggia (acceso/assente resta omesso per URL e
+    // cache stabili; il server risolverebbe lo stesso dagli stessi dati).
+    networkLogoFollowTitle: netFollowEff ? undefined : false,
     // Ancoraggio network: per-titolo vince sul default globale (come networkLogo).
     networkLogoPosition: mapping?.networkLogoPosition ?? sd.networkLogoPosition,
     preRelease: sd.preRelease,

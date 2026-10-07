@@ -95,15 +95,16 @@ export const POSTER_CACHE_ALLOWLIST: ReadonlySet<string> = new Set([
   "extra", "label", "title", "genreName", "poster", "logo", "backdrop",
   "quality", "formats", "qmin", "lang", "rsrc", "rw", "sash", "imdbId", "wikidata_id",
   "rank", "animerank", "scale", "ox", "oy", "tscale", "tox", "toy",
+  "exscale", "exox", "exoy",
   "gscale", "gox", "goy", "qscale", "qox", "qoy", "sepscale", "sepox", "sepoy", "netscale", "nox", "noy",
   "bscale", "box", "boy", "gradHeight", "blur", "bf", "bd", "voteAverage",
   "year", "rd", "fad", "mv", "fmt", "format", "shape", "align", "ac",
   "tl", "bl", "bs", "rs", "xbs", "bfont", "sepstyle", "ts", "dv",
   // Funzionali (letti dalla route / poster-config, mai stile libero).
-  "badges", "ranking", "bg", "by", "br", "bq", "qbs", "ribbon", "cr", "sep", "netLogo", "netPos",
+  "badges", "ranking", "bg", "by", "br", "bq", "qbs", "ribbon", "cr", "sep", "netLogo", "netPos", "netFollow",
   "pre", "side", "hideLogo", "tint", "be", "preview", "u", "user",
   "config", "c", "api_key", "mdblist_key", "simkl_key", "tvdb_key",
-  "region", "country", "logoFit", "debug",
+  "region", "country", "logoFit", "debug", "netgeo",
   "badgePreset", "prv", "df",
   // Segui-spazio: politica di rivalidazione (entra in chiave/ETag via serializzazione).
   "live",
@@ -115,13 +116,13 @@ export const POSTER_CACHE_ALLOWLIST: ReadonlySet<string> = new Set([
 // Numerici 0-100 (gradienti/blur/tinta/fade/ombra-alta) e offset px: step 5.
 const STEP_5_PARAMS: ReadonlySet<string> = new Set([
   "gradHeight", "blur", "bf", "bd", "tint", "ts",
-  "tox", "toy", "gox", "goy", "qox", "qoy", "sepox", "sepoy", "nox", "noy",
+  "tox", "toy", "exox", "exoy", "gox", "goy", "qox", "qoy", "sepox", "sepoy", "nox", "noy",
   "ox", "oy", "box", "boy",
 ])
 
 // Scale percentuali: step 10.
 const STEP_10_PARAMS: ReadonlySet<string> = new Set([
-  "tscale", "gscale", "qscale", "sepscale", "netscale", "scale", "bscale",
+  "tscale", "exscale", "gscale", "qscale", "sepscale", "netscale", "scale", "bscale",
 ])
 
 // Metadata hints the route derives server-side (TMDB details / saved mapping)

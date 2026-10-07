@@ -44,6 +44,10 @@ export interface LandscapeServerDefaults {
   topBadgeScale?: number
   topBadgeOffsetX?: number
   topBadgeOffsetY?: number
+  /** Tuning EXTRA superiore (null/assente = fallback legacy classifica). */
+  extraBadgeScale?: number | null
+  extraBadgeOffsetX?: number | null
+  extraBadgeOffsetY?: number | null
   genreBadgeScale?: number
   genreBadgeOffsetX?: number
   genreBadgeOffsetY?: number
@@ -61,6 +65,8 @@ export interface LandscapeServerDefaults {
   networkLogoScale?: number
   networkLogoOffsetX?: number
   networkLogoOffsetY?: number
+  /** Il network segue il titolo (default true). False = fisso con nox/noy per-shape. Null/assente = eredita. */
+  networkLogoFollowTitle?: boolean | null
   /** Genre/rating badge style ("shadow" historic default). */
   badgeStyle?: BadgeStyle
   /** Rank badge style ("default" = auto-detect). */
@@ -182,11 +188,15 @@ export interface ServerDefaults {
   /** Offset px logo film (null = 0). */
   logoOffsetX?: number | null
   logoOffsetY?: number | null
-  /** Scala % del badge superiore (rank/extra). Default 100. */
+  /** Scala % del badge CLASSIFICA superiore. Default 100. */
   topBadgeScale?: number
-  /** Offset px del badge superiore (solo stili centrati). Default 0. */
+  /** Offset px del badge CLASSIFICA superiore (solo stili centrati). Default 0. */
   topBadgeOffsetX?: number
   topBadgeOffsetY?: number
+  /** Tuning EXTRA superiore (null/assente = fallback legacy classifica). */
+  extraBadgeScale?: number | null
+  extraBadgeOffsetX?: number | null
+  extraBadgeOffsetY?: number | null
   /** Scala % del badge genere/rating in basso. Default 100. */
   genreBadgeScale?: number
   /** Offset px del badge genere/rating (solo stili non-bar). Default 0. */
@@ -202,6 +212,8 @@ export interface ServerDefaults {
   /** Offset px del logo network. Default 0. */
   networkLogoOffsetX?: number
   networkLogoOffsetY?: number
+  /** Il network segue il titolo (default true). False = fisso con nox/noy per-shape. Null/assente = eredita. */
+  networkLogoFollowTitle?: boolean | null
   /** Effetto pre-digitale (darken + badge Coming Soon, solo film). Default OFF. */
   preRelease?: boolean
   ribbonSide?: "left" | "right"

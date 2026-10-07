@@ -74,7 +74,8 @@ const ALL_ON = {
 }
 
 const FAMILIES = [
-  "ui.topBadge",
+  "ui.rankFamily",
+  "ui.sash_extra",
   "ui.genreRatingBadge",
   "ui.badgeQuality",
   "ui.separateRatings",
@@ -171,7 +172,7 @@ describe("SliderRow step prop", () => {
 })
 
 describe("TransformControls portrait offset ranges", () => {
-  it("all 5 families drag a full canvas crossing with pixel step", () => {
+  it("all 6 families drag a full canvas crossing with pixel step", () => {
     seedDefaults(ALL_ON)
     const { ctx } = renderWithProbe(createElement(TransformControls))
     for (const family of FAMILIES) {
@@ -227,7 +228,7 @@ describe("TransformControls landscape offset ranges", () => {
 
 describe("TransformControls top X with number baseline", () => {
   function topPortraitCard(): HTMLElement {
-    return cardByTitle("ui.topBadge · ui.posterShapePortrait")
+    return cardByTitle("ui.rankFamily · ui.posterShapePortrait")
   }
 
   it("shows the effective value on the shifted range, edit stores the adjustment", () => {
@@ -283,7 +284,7 @@ describe("TransformPanel portrait defaults offset ranges", () => {
     return card as HTMLElement
   }
 
-  it("all 5 families drag a full canvas crossing with pixel step, mount writes nothing", () => {
+  it("all 6 families drag a full canvas crossing with pixel step, mount writes nothing", () => {
     seedDefaults(ALL_ON)
     const { ctx } = renderWithProbe(createElement(TransformPanel, { active: true }))
     for (const family of FAMILIES) {
@@ -342,7 +343,7 @@ describe("TransformPanel portrait defaults offset ranges", () => {
   it("number baseline: shifted range, edit stores the adjustment, numeric clamps to contract", () => {
     seedDefaults({ ...ALL_ON, defaultRankingBadgeStyle: "number" })
     const { ctx } = renderWithProbe(createElement(TransformPanel, { active: true }))
-    const card = defCard("ui.topBadge")
+    const card = defCard("ui.rankFamily")
     const x = within(card).getByRole("slider", { name: "X" })
     expect(x.getAttribute("min")).toBe("-520")
     expect(x.getAttribute("max")).toBe("480")
@@ -383,7 +384,7 @@ describe("LandscapeDefaultsSection offset ranges", () => {
     seedDefaults({ ...ALL_ON, landscape: {} })
     const { ctx } = renderWithProbe(createElement(TransformPanel, { active: true }))
     openLandscape()
-    for (const family of ["ui.topBadge", "ui.genreRatingBadge", "ui.badgeQuality", "ui.networkLogo"] as const) {
+    for (const family of ["ui.rankFamily", "ui.sash_extra", "ui.genreRatingBadge", "ui.badgeQuality", "ui.networkLogo"] as const) {
       const group = landGroup(family)
       const x = within(group).getByRole("slider", { name: "X" })
       const y = within(group).getByRole("slider", { name: "Y" })
@@ -458,7 +459,7 @@ describe("LandscapeDefaultsSection offset ranges", () => {
     seedDefaults({ ...ALL_ON, defaultRankingBadgeStyle: "number", landscape: {} })
     const { ctx } = renderWithProbe(createElement(TransformPanel, { active: true }))
     openLandscape()
-    const x = within(landGroup("ui.topBadge")).getByRole("slider", { name: "X" })
+    const x = within(landGroup("ui.rankFamily")).getByRole("slider", { name: "X" })
     expect(x.getAttribute("min")).toBe("-788")
     expect(x.getAttribute("max")).toBe("748")
     expect(x.getAttribute("step")).toBe("1")
