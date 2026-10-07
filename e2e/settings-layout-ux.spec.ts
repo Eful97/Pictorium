@@ -73,19 +73,26 @@ const FACTORY_SETUP = {
 }
 
 async function seed(page: Page, lang: string) {
-  await page.addInitScript((l: string) => {
-    try {
-      localStorage.clear()
-      localStorage.setItem("pictorium_profile_id", DEMO_PROFILE)
-      localStorage.setItem("pictorium_profile_stateless", "1")
-      localStorage.setItem("pictorium_onboarding_done", "true")
-      localStorage.setItem("preferred_lang", l)
-      localStorage.setItem("tmdb_key", "mock-tmdb-key-0000000000")
-    } catch {}
-  }, lang)
+  await page.addInitScript(
+    ({ l, p }: { l: string; p: string }) => {
+      try {
+        localStorage.clear()
+        localStorage.setItem("pictorium_profile_id", p)
+        localStorage.setItem("pictorium_profile_stateless", "1")
+        localStorage.setItem("pictorium_onboarding_done", "true")
+        localStorage.setItem("preferred_lang", l)
+        localStorage.setItem("tmdb_key", "mock-tmdb-key-0000000000")
+      } catch {}
+    },
+    { l: lang, p: DEMO_PROFILE },
+  )
 }
 
 async function putFactory(page: Page) {
+  // Single boot: the first goto provides the fetch origin; the trailing
+  // reload is dropped (the test navigates right after). Each navigation
+  // boots ~11 GETs into the shared `defaults` bucket (30 burst, 3/sec
+  // refill), so redundant boots trip 429s across the serial file run.
   await page.goto("/")
   await page.evaluate(async (body) => {
     const r = await fetch("/api/defaults", {
@@ -95,7 +102,6 @@ async function putFactory(page: Page) {
     })
     if (!r.ok) throw new Error(`setup defaults: ${r.status} ${await r.text()}`)
   }, FACTORY_SETUP)
-  await page.goto("/")
 }
 
 async function getDefaults(page: Page): Promise<Record<string, unknown>> {
@@ -110,9 +116,27 @@ test.beforeEach(async ({ page }) => {
   await putFactory(page)
 })
 
+// Set by tests whose UI writes non-factory server state (autosaved
+// switches); read-only tests skip the restore below entirely (canonical
+// badge-format-defaults pattern: zero requests keeps the shared `defaults`
+// bucket under its 30-burst limit across the serial run).
+let defaultsDirty = false
+
 test.afterEach(async ({ page }) => {
+  if (!defaultsDirty) return
+  defaultsDirty = false
+  // Settle trailing debounced UI autosaves (500ms debounce in useDefaults)
+  // so they land BEFORE the restore PUT, never after it.
   await page.waitForTimeout(1200)
-  await putFactory(page)
+  await page.goto("/")
+  await page.evaluate(async (body) => {
+    const r = await fetch("/api/defaults", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    })
+    if (!r.ok) throw new Error(`restore defaults: ${r.status} ${await r.text()}`)
+  }, FACTORY_SETUP)
   const got = await getDefaults(page)
   expect(got).toMatchObject(FACTORY_SETUP)
 })
@@ -274,6 +298,9 @@ test.describe("desktop layout + header slot", () => {
       expect(Math.abs(s.height - shapes[0].height)).toBeLessThanOrEqual(16)
     }
     await expect(dialog.getByRole("button", { name: "Done", exact: true })).toBeVisible()
+    // Back to Badge: the loop ends on Data & Cache, but the macro-group
+    // toggle below lives on the Badge tab.
+    await setTab(dialog, "Badge", false)
     // Macro-group headers stay reachable; collapsed bodies hide, toggles don't.
     const overlayToggle = dialog.getByTestId("badge-group-overlay-toggle")
     await expect(overlayToggle).toBeVisible()
@@ -357,6 +384,8 @@ test.describe("mobile collapse + groups + footer", () => {
   })
 
   test("macro-groups: real switches portrait + landscape write isolated profiles", async ({ page }) => {
+    // This test writes non-factory server state (autosaved switches).
+    defaultsDirty = true
     await page.setViewportSize({ width: 390, height: 844 })
     await seed(page, "it")
     await page.goto("/")
@@ -369,13 +398,16 @@ test.describe("mobile collapse + groups + footer", () => {
     await overlayToggle.click()
     await expect(overlayToggle).toHaveAttribute("aria-expanded", "true")
     // Real portrait switch: rank bucket off writes the flat sash.
+    // 500ms poll interval (canonical badge-format pattern): the condition
+    // follows a debounced server autosave, and tight polling trips the
+    // shared defaults rate limiter (30 burst, 3/sec refill).
     await panel.getByRole("switch", { name: "Classifiche" }).click()
     await expect
-      .poll(async () => (await getDefaults(page)).sashOrder, { timeout: 15_000 })
+      .poll(async () => (await getDefaults(page)).sashOrder, { timeout: 15_000, intervals: [500] })
       .not.toContain("rank")
     await panel.getByRole("switch", { name: "Classifiche" }).click()
     await expect
-      .poll(async () => (await getDefaults(page)).sashOrder, { timeout: 15_000 })
+      .poll(async () => (await getDefaults(page)).sashOrder, { timeout: 15_000, intervals: [500] })
       .toContain("rank")
     // Landscape target: quality toggle writes the landscape profile only.
     await panel.getByTestId("format-target-selector").getByText("Orizzontale", { exact: true }).click()
@@ -384,7 +416,8 @@ test.describe("mobile collapse + groups + footer", () => {
     await expect
       .poll(
         async () => ((await getDefaults(page)).landscape as Record<string, unknown> | undefined)?.badgeQuality,
-        { timeout: 15_000 },
+        // 500ms poll interval (see above): tight polling trips the limiter.
+        { timeout: 15_000, intervals: [500] },
       )
       .toBe(false)
     const d = await getDefaults(page)
@@ -392,6 +425,8 @@ test.describe("mobile collapse + groups + footer", () => {
   })
 
   test("footer retry recovers a failed PUT (single-instance namespace)", async ({ page }) => {
+    // This test writes non-factory server state (switch + retry PUTs).
+    defaultsDirty = true
     await page.setViewportSize({ width: 1280, height: 900 })
     await seed(page, "it")
     await page.goto("/")

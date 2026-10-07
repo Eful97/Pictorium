@@ -345,6 +345,9 @@ test.describe("Settings demo samples: search, zoom, badges", () => {
     const overflowX = () => page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)
     expect(await overflowX()).toBeLessThanOrEqual(1)
     const search = dialog.locator('[data-testid="defaults-preview-title-search"]')
+    // Mobile compact: the search body starts closed by design; expand it via
+    // the public toggle before asserting the textbox.
+    await search.getByTestId("defaults-preview-search-toggle").click()
     const box = search.getByRole("textbox")
     await expect(box).toBeVisible()
     await box.fill("casa")

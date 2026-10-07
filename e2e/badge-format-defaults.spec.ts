@@ -297,12 +297,10 @@ test.describe("Badge Verticale/Orizzontale: isolation + persistence", () => {
     const badgePanel = dialog.getByRole("tabpanel", { name: "Badge" })
     await expect(badgePanel).toBeVisible()
 
-    // T3 macro-groups: Overlay/Quality start collapsed; expand for rank/quality edits.
-    await badgePanel.getByTestId("badge-group-overlay-toggle").click()
-    await badgePanel.getByTestId("badge-group-quality-toggle").click()
-
     // Format selector sits BEFORE the controls (single edit target, shared
-    // with Trasforma): geometry proof, not just visibility.
+    // with Trasforma): geometry proof, not just visibility. Measured BEFORE
+    // expanding the macro-groups below: their clicks scroll the dialog and
+    // would invalidate viewport-relative boxes.
     const formatTarget = dialog.getByTestId("format-target-selector")
     await expect(formatTarget).toBeVisible()
     const selBox = await formatTarget.boundingBox()
@@ -310,6 +308,10 @@ test.describe("Badge Verticale/Orizzontale: isolation + persistence", () => {
     expect(selBox).not.toBeNull()
     expect(panelBox).not.toBeNull()
     expect(selBox!.y + selBox!.height).toBeLessThanOrEqual(panelBox!.y + 8)
+
+    // T3 macro-groups: Overlay/Quality start collapsed; expand for rank/quality edits.
+    await badgePanel.getByTestId("badge-group-overlay-toggle").click()
+    await badgePanel.getByTestId("badge-group-quality-toggle").click()
 
     // Orizzontale: same values (profile inherits flats), landscape shape.
     p = await nextPreview(

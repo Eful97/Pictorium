@@ -30,11 +30,13 @@ import { VisualPresetsSection } from "@/components/settings/VisualPresetsSection
 import type { BackupExportOptions, BackupImportOptions } from "@/lib/useMappingsStore"
 
 // Shared header-card chrome for the settings tab header slot, used by both
-// the visual edit-target selector and the non-visual tab title. Compact on
-// mobile (no height floor, no hint): same card on both, desktop keeps the
-// 96px floor. Exact runtime offsets are covered by the e2e gate.
+// the visual edit-target selector and the non-visual tab title. Same floor on
+// both form factors (64px mobile, 96px desktop): the visual selector row can
+// wrap to two lines on narrow screens, so without a shared mobile floor the
+// slot height jumps between visual and non-visual tabs (e2e gate ≤16px).
+// Exact runtime offsets are covered by the e2e gate.
 const TAB_HEADER_CARD_CLASS =
-  "bg-surface/50 border border-surface2/60 rounded-xl p-2 sm:p-3 shadow-sm sm:min-h-[96px]"
+  "bg-surface/50 border border-surface2/60 rounded-xl p-2 sm:p-3 shadow-sm min-h-[64px] sm:min-h-[96px]"
 
 interface Props {
   setSettingsOpen: (v: boolean) => void

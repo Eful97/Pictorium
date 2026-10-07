@@ -243,8 +243,9 @@ test.describe("Button interactions and immediate updates", () => {
 
     // T4 footer: autosave status truth + Fine primary (no SyncNow button).
     // Autosave already synced the toggles above; the live region confirms it
-    // and Fine closes the dialog.
-    await expect(page.getByTestId("defaults-sync-status")).toContainText(/Sincronizzato/i)
+    // and Fine closes the dialog. Scoped to the visible panel: desktop dialog
+    // and mobile panel both mount the shared footer.
+    await expect(page.locator(".settings-panel:visible").first().getByTestId("defaults-sync-status")).toContainText(/Sincronizzato/i)
     await page.getByRole("button", { name: "Fine", exact: true }).click()
     await expect(page.getByRole("dialog")).toHaveCount(0)
   })
