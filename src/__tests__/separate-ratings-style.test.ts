@@ -86,9 +86,9 @@ afterEach(() => {
 })
 
 describe("separateRatingsStyle enum", () => {
-  it("default column, tre valori, guardie", () => {
+  it("default column, five additive styles, guards", () => {
     expect(DEFAULT_SEPARATE_RATINGS_STYLE).toBe("column")
-    expect([...SEPARATE_RATINGS_STYLES].sort()).toEqual(["bottom-bar", "bottom-pills", "column"])
+    expect([...SEPARATE_RATINGS_STYLES].sort()).toEqual(["bottom-bar", "bottom-color", "bottom-mono", "bottom-pills", "column"])
     expect(isSeparateRatingsStyle("column")).toBe(true)
     expect(isSeparateRatingsStyle("bottom-bar")).toBe(true)
     expect(isSeparateRatingsStyle("bottom-pills")).toBe(true)
@@ -97,6 +97,11 @@ describe("separateRatingsStyle enum", () => {
     expect(isSeparateRatingsStyle(null)).toBe(false)
     expect(isBottomSeparateRatingsStyle("bottom-bar")).toBe(true)
     expect(isBottomSeparateRatingsStyle("bottom-pills")).toBe(true)
+    for (const style of ["bottom-mono", "bottom-color"] as const) {
+      expect(isSeparateRatingsStyle(style)).toBe(true)
+      expect(isBottomSeparateRatingsStyle(style)).toBe(true)
+      expect(getSeparateRatingsStyleForShape(style, "landscape")).toBe(style)
+    }
     expect(isBottomSeparateRatingsStyle("column")).toBe(false)
     expect(isBottomSeparateRatingsStyle("garbage")).toBe(false)
   })
@@ -264,6 +269,8 @@ describe("bottom-active e suppression (solo render, mai stored)", () => {
     const base = { badgesEnabled: true, badgeRating: true, separateRatings: true, separateRatingsStyle: "bottom-bar" as const }
     expect(isBottomSeparateActive(base)).toBe(true)
     expect(isBottomSeparateActive({ ...base, separateRatingsStyle: "bottom-pills" })).toBe(true)
+    expect(isBottomSeparateActive({ ...base, separateRatingsStyle: "bottom-mono" })).toBe(true)
+    expect(isBottomSeparateActive({ ...base, separateRatingsStyle: "bottom-color" })).toBe(true)
     expect(isBottomSeparateActive({ ...base, separateRatingsStyle: "column" })).toBe(false)
     expect(isBottomSeparateActive({ ...base, badgesEnabled: false })).toBe(false)
     expect(isBottomSeparateActive({ ...base, badgeRating: false })).toBe(false)
@@ -310,7 +317,7 @@ describe("bottom-active e suppression (solo render, mai stored)", () => {
   })
 
   it("a sep OFF o badgeRating OFF nessuna soppressione (qualsiasi stile)", () => {
-    for (const style of ["column", "bottom-bar", "bottom-pills"] as const) {
+    for (const style of ["column", "bottom-bar", "bottom-pills", "bottom-mono", "bottom-color"] as const) {
       const off = resolveSeparateDisplayState({
         badgesEnabled: true, badgeGenre: true, badgeYear: true, badgeRating: true,
         separateRatings: false, separateRatingsStyle: style, sepItemCount: 3,
@@ -399,6 +406,14 @@ describe("URL preview/default/Stremio", () => {
   it("preview sempre esplicita (column di default, sovrascrive il mapping)", () => {
     expect(buildPreviewUrl(ps as never, { ...bp, separateRatingsStyle: "bottom-bar" } as never)).toContain("sepstyle=bottom-bar")
     expect(buildPreviewUrl(ps as never, bp as never)).toContain("sepstyle=column")
+  })
+
+  it.each(["bottom-mono", "bottom-color"] as const)("preview editor reale emette sepstyle=%s (portrait e landscape, raw intatto)", (style) => {
+    expect(buildPreviewUrl(ps as never, { ...bp, separateRatingsStyle: style } as never)).toContain(`sepstyle=${style}`)
+    expect(buildPreviewUrl(ps as never, { ...bp, posterShape: "landscape", separateRatingsStyle: style } as never)).toContain(`sepstyle=${style}`)
+    const raw = { ...bp, separateRatingsStyle: style } as { separateRatingsStyle: string }
+    buildPreviewUrl(ps as never, raw as never)
+    expect(raw.separateRatingsStyle).toBe(style)
   })
 
   it("preview normalizza bar→pills in landscape (raw mai mutato, portrait intatto)", () => {

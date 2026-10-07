@@ -1,6 +1,6 @@
 import { POSTER_URL_VERSION } from "@/lib/render-version"
 import type { BadgeStyle, RankingBadgeStyle, QualityBadgeStyle, BadgeFont, SeparateRatingsStyle, ExtraBadgeStyle } from "@/lib/badge-styles"
-import { getSeparateBadgeDefaultScale, getSeparateRatingsStyleForShape } from "@/lib/badge-styles"
+import { getSeparateBadgeDefaultScale, getSeparateRatingsStyleForShape, isBottomSeparateRatingsStyle } from "@/lib/badge-styles"
 import type { VideoFormat } from "@/lib/av-specs"
 import { parseMinQuality, type StreamQuality } from "@/lib/quality-tiers"
 import { parseSashOrder, isDefaultSashOrder, type SashBucket } from "@/lib/badge-priority"
@@ -294,7 +294,7 @@ export function buildStremioPosterSearchParams(input: StremioPosterParamsInput):
   const effSepStyle = input.shapeUnknown || input.posterShape !== "landscape"
     ? input.separateRatingsStyle
     : getSeparateRatingsStyleForShape(input.separateRatingsStyle ?? "column", "landscape")
-  if (effSepStyle === "bottom-bar" || effSepStyle === "bottom-pills") {
+  if (isBottomSeparateRatingsStyle(effSepStyle)) {
     params.set("sepstyle", effSepStyle)
   }
   if (input.ratingSources && input.ratingSources.length > 0) params.set("rsrc", input.ratingSources.join(","))

@@ -120,6 +120,8 @@
   "ui.separateRatingsColumn": "Colonna",
   "ui.separateRatingsBottomBar": "Barra in basso",
   "ui.separateRatingsBottomPills": "Pill in basso",
+  "ui.separateRatingsBottomMono": "Monocolore",
+  "ui.separateRatingsBottomColor": "Icone colorate",
   "ui.separateRatingsBottomHint": "In basso genere e anno sono nascosti (conservati): tornano con Colonna.",
   "ui.separateRatingsBarLandscapeHint": "In orizzontale la barra è disattivata: si usano le pill (in verticale resta la barra).",
   "ui.separateRatingsScaleHint": "100 = dimensione standard (relativa al default 130).",

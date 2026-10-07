@@ -64,6 +64,49 @@ async function loadSeparateRatingLogo(source: string, targetH: number): Promise<
   }
 }
 
+/** Round marks for the container-free layouts; legacy brand assets stay untouched. */
+async function loadRoundRatingLogo(
+  source: string,
+  diameter: number,
+  monochrome: boolean,
+  bottomLight: boolean,
+): Promise<{ png: Buffer; w: number; h: number } | null> {
+  const id = source.toLowerCase()
+  const filename = SEPARATE_RATING_ICON_FILES[id]
+  if (!filename) return null
+  try {
+    let svg = await fs.promises.readFile(path.join(RATINGS_DIR, filename), "utf8")
+    // IMDb's existing asset includes a yellow rectangle. Keep only its letters
+    // on the new round plate, without changing the column/bar/pill asset.
+    if (id === "imdb") svg = svg.replace(/<use\b[^>]*xlink:href="#d1pwhf9wy2"[^>]*\/>/g, "")
+    const d = Math.max(2, diameter)
+    const naturalTomato = id === "tomatoes" && !monochrome
+    const inset = naturalTomato ? 0 : Math.round(d * 0.14)
+    const glyphSize = Math.max(1, d - inset * 2)
+    const { data, info } = await sharp(Buffer.from(svg), { density: 288 })
+      .resize(glyphSize, glyphSize, { fit: "contain", background: "#00000000" })
+      .ensureAlpha().raw().toBuffer({ resolveWithObject: true })
+    const tone = bottomLight ? 32 : 208
+    if (monochrome) {
+      // Preserve white countershapes (e.g. Metacritic's m) while all brand
+      // colours become the same dark ink against the monochrome plate.
+      for (let i = 0; i < data.length; i += 4) {
+        const white = Math.min(data[i], data[i + 1], data[i + 2]) > 230
+        const v = white ? tone : (bottomLight ? 208 : 32)
+        data[i] = data[i + 1] = data[i + 2] = v
+      }
+    }
+    const glyph = await sharp(data, { raw: info }).png().toBuffer()
+    const plateColor = monochrome ? `rgb(${tone},${tone},${tone})` : id === "imdb" ? "#f6c700" : "#032541"
+    const plate = `<svg xmlns="http://www.w3.org/2000/svg" width="${d}" height="${d}">` +
+      (naturalTomato ? "" : `<circle cx="${d / 2}" cy="${d / 2}" r="${d / 2}" fill="${plateColor}"/>`) +
+      `<image href="data:image/png;base64,${glyph.toString("base64")}" x="${inset}" y="${inset}" width="${glyphSize}" height="${glyphSize}"/></svg>`
+    return { png: await renderSVG(plate, d), w: d, h: d }
+  } catch {
+    return null
+  }
+}
+
 export interface SeparateRatingStack {
   readonly png: Buffer
   readonly w: number
@@ -141,11 +184,14 @@ export async function renderSeparateRatingStack(
  * affiancati in linea, max MAX_SEPARATE_RATINGS (clamp anche su chiamate
  * dirette), vuota → null (mai placeholder senza dati).
  *
- * Due varianti in stile Pictorium (mai clone di layout esterni):
+ * Quattro varianti in stile Pictorium (mai clone di layout esterni):
  * - `bottom-bar`: fascia satinata a tutta larghezza `width` sul bordo
  *   inferiore, celle equidistanti centrate (logo + valore inline);
  * - `bottom-pills`: 1-3 pill orizzontali satinate con contorno sottile e
  *   ombra coerente, riga centrata di larghezza naturale (max `width`).
+ * - `bottom-mono` / `bottom-color`: icone tonde + voto senza pillola/barra
+ *   né contenitore (mono = piastra grigia + voto monocolore, color = piastra
+ *   brand originale + voto chiaro su scuro); base font 23 (15 per bar/pills).
  *
  * Riuso esistente: loghi brand `loadSeparateRatingLogo`, `formatSeparateValue`
  * (percent per la famiglia percent), `estimateTextWidth`/`fontFamilyFor` per
@@ -179,13 +225,16 @@ export async function renderSeparateRatingsBottom(
   const list = items.slice(0, MAX_SEPARATE_RATINGS)
   if (list.length === 0) return null
   const isBar = variant === "bottom-bar"
+  const isBare = variant === "bottom-mono" || variant === "bottom-color"
   const f = normalizeBadgeFont(font)
-  const baseFs = Math.round(Math.max(15 * pw / 380, 11))
+  const baseFs = Math.round(Math.max((isBare ? 23 : 15) * pw / 380, 11))
   const scale = Number.isFinite(scalePct) ? Math.min(Math.max(Math.round(scalePct), 10), 200) : 130
   const reqFs = scale === 100 ? baseFs : Math.max(1, Math.round(baseFs * scale / 100))
   // Materiale adattivo (stessa convenzione del badge genere): fondo chiaro →
   // pill scura + testo chiaro, fondo scuro → pill chiara + testo scuro.
-  const fg = bottomLight ? "rgba(255,255,255,0.95)" : "rgba(0,0,0,0.88)"
+  const fg = isBare
+    ? (bottomLight ? "#202020" : "#d0d0d0")
+    : (bottomLight ? "rgba(255,255,255,0.95)" : "rgba(0,0,0,0.88)")
   const stroke = bottomLight ? "rgba(0,0,0,0.12)" : "rgba(255,255,255,0.22)"
   const bandW = Math.max(1, Math.round(width ?? pw))
   const maxW = Math.max(1, Math.round(width ?? pw))
@@ -196,8 +245,8 @@ export async function renderSeparateRatingsBottom(
   const floorFs = Math.max(8, Math.round(baseFs * 0.55))
   interface BottomRow { logo: { png: Buffer; w: number; h: number }; display: string; textW: number; contentW: number; contentH: number }
   const rowW = (rows: BottomRow[], fs: number): number => {
-    const px = Math.round(fs * 0.7)
-    const pillGap = Math.max(6, Math.round(fs * 0.45))
+    const px = isBare ? 0 : Math.round(fs * 0.7)
+    const pillGap = Math.max(6, Math.round(fs * (isBare ? 0.75 : 0.45)))
     return rows.reduce((acc, row) => acc + row.contentW + px * 2, 0) + pillGap * (rows.length - 1)
   }
   // Costruzione righe a un fs dato (loghi caricati a quell'altezza: misure
@@ -207,7 +256,9 @@ export async function renderSeparateRatingsBottom(
     const gap = Math.max(3, Math.round(size * 0.35))
     const out: BottomRow[] = []
     for (const item of list) {
-      const logo = await loadSeparateRatingLogo(item.id, logoH)
+      const logo = isBare
+        ? await loadRoundRatingLogo(item.id, logoH, variant === "bottom-mono", bottomLight)
+        : await loadSeparateRatingLogo(item.id, logoH)
       if (!logo) continue
       const display = formatSeparateValue(item.id, item.value)
       const textW = Math.max(estimateTextWidth(display, size, f), 1)
@@ -260,6 +311,22 @@ export async function renderSeparateRatingsBottom(
       `<rect width="${natW}" height="${natH}" fill="url(#sepg)" stroke="${stroke}" stroke-width="1.5"/>` +
       cells.join("") +
       `</svg>`
+  } else if (isBare) {
+    // No band, pill, border or background behind the values. Only round
+    // provider marks + scores, using the existing fit/scale/font pipeline.
+    const rowGap = Math.max(6, Math.round(fs * 0.75))
+    const py = Math.max(2, Math.round(fs * 0.2))
+    natH = Math.max(...rows.map((row) => row.contentH)) + py * 2
+    natW = rowW(rows, fs)
+    let x = 0
+    const cells = rows.map((row) => {
+      const part =
+        `<image href="data:image/png;base64,${row.logo.png.toString("base64")}" x="${x}" y="${Math.round((natH - row.logo.h) / 2)}" width="${row.logo.w}" height="${row.logo.h}"/>` +
+        `<text x="${x + row.logo.w + inlineGap + row.textW / 2}" y="${Math.round(natH / 2)}" text-anchor="middle" dominant-baseline="central" font-family="${fontFamilyFor(row.display, f)}" font-weight="700" font-size="${fs}" fill="${fg}" textLength="${row.textW}" lengthAdjust="spacingAndGlyphs">${escSvg(row.display)}</text>`
+      x += row.contentW + rowGap
+      return part
+    })
+    svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${natW}" height="${natH}">${cells.join("")}</svg>`
   } else {
     const px = Math.round(fs * 0.7)
     const py = Math.max(3, Math.round(fs * 0.35))

@@ -26,6 +26,7 @@ import {
   hardenPosterSearchParams,
 } from "@/lib/poster-params-hardening"
 import { posterQuerySchema, mappingSchema, validatePosterQuery } from "@/lib/validation"
+import type { SeparateRatingsStyle } from "@/lib/badge-styles"
 import type { Mapping } from "@/lib/types"
 import type { PictoriumUserConfig } from "@/lib/config-token"
 
@@ -366,15 +367,19 @@ describe("poster-service offset placement", () => {
     return { minX, maxX, minY, maxY, n }
   }
 
-  it("omesso == esplicito 0 byte-identici (2 shape × 3 stili)", async () => {
+  it("omesso == esplicito 0 byte-identici (2 shape × 5 stili)", async () => {
     const base = await darkBase()
     const land = await darkBase(LAND_W, LAND_H)
-    const cases: { style: "column" | "bottom-bar" | "bottom-pills"; shape: "poster" | "landscape"; buf: Buffer }[] = [
+    const cases: { style: SeparateRatingsStyle; shape: "poster" | "landscape"; buf: Buffer }[] = [
       { style: "column", shape: "poster", buf: base },
       { style: "column", shape: "landscape", buf: land },
       { style: "bottom-bar", shape: "poster", buf: base },
       { style: "bottom-pills", shape: "poster", buf: base },
       { style: "bottom-pills", shape: "landscape", buf: land },
+      { style: "bottom-mono", shape: "poster", buf: base },
+      { style: "bottom-mono", shape: "landscape", buf: land },
+      { style: "bottom-color", shape: "poster", buf: base },
+      { style: "bottom-color", shape: "landscape", buf: land },
     ]
     for (const c of cases) {
       const omitted = await generatePosterBuffer({
@@ -439,6 +444,54 @@ describe("poster-service offset placement", () => {
     expect(ref.minY - up.minY).toBeGreaterThanOrEqual(52)
     expect(ref.minY - up.minY).toBeLessThanOrEqual(68)
     expect(Math.abs(up.minX - ref.minX)).toBeLessThanOrEqual(8)
+  }, 120000)
+
+  it("bare portrait (bottom-mono/bottom-color): +X a destra, -Y in su (gruppo intero)", async () => {
+    const base = await darkBase()
+    const region: Region = { x0: 0, x1: 500, y0: 560, y1: 750 }
+    for (const style of ["bottom-mono", "bottom-color"] as const) {
+      const ref = await brightBox(await generatePosterBuffer({
+        ...svcInput(), posterBuf: base, separateRatingsStyle: style,
+      }), region)
+      expect(ref.n).toBeGreaterThan(200)
+      const right = await brightBox(await generatePosterBuffer({
+        ...svcInput(), posterBuf: base, separateRatingsStyle: style, separateBadgeOffsetX: 40,
+      }), region)
+      expect(right.maxX - ref.maxX).toBeGreaterThanOrEqual(32)
+      expect(right.maxX - ref.maxX).toBeLessThanOrEqual(48)
+      expect(Math.abs(right.minY - ref.minY)).toBeLessThanOrEqual(8)
+      const up = await brightBox(await generatePosterBuffer({
+        ...svcInput(), posterBuf: base, separateRatingsStyle: style, separateBadgeOffsetY: -60,
+      }), region)
+      expect(ref.minY - up.minY).toBeGreaterThanOrEqual(52)
+      expect(ref.minY - up.minY).toBeLessThanOrEqual(68)
+      expect(Math.abs(up.minX - ref.minX)).toBeLessThanOrEqual(8)
+    }
+  }, 120000)
+
+  it("bare landscape: offset utente additivi sul gruppo intero", async () => {
+    const land = await darkBase(LAND_W, LAND_H)
+    const region: Region = { x0: 0, x1: LAND_W, y0: LAND_H - 130, y1: LAND_H }
+    for (const style of ["bottom-mono", "bottom-color"] as const) {
+      const ref = await brightBox(await generatePosterBuffer({
+        ...svcInput(), posterBuf: land, shape: "landscape", separateRatingsStyle: style,
+      }), region)
+      expect(ref.n).toBeGreaterThan(200)
+      const left = await brightBox(await generatePosterBuffer({
+        ...svcInput(), posterBuf: land, shape: "landscape",
+        separateRatingsStyle: style, separateBadgeOffsetX: -60,
+      }), region)
+      expect(ref.minX - left.minX).toBeGreaterThanOrEqual(52)
+      expect(ref.minX - left.minX).toBeLessThanOrEqual(68)
+      expect(Math.abs(left.minY - ref.minY)).toBeLessThanOrEqual(8)
+      const up = await brightBox(await generatePosterBuffer({
+        ...svcInput(), posterBuf: land, shape: "landscape",
+        separateRatingsStyle: style, separateBadgeOffsetY: -30,
+      }), region)
+      expect(ref.minY - up.minY).toBeGreaterThanOrEqual(22)
+      expect(ref.minY - up.minY).toBeLessThanOrEqual(38)
+      expect(Math.abs(up.minX - ref.minX)).toBeLessThanOrEqual(8)
+    }
   }, 120000)
 
   it("bar portrait: X ignorata (byte-identica), Y attiva", async () => {

@@ -208,9 +208,10 @@ export interface GenerationInput {
   separateBadgeOffsetY?: number
   /**
    * Layout dei rating separati ("column" = colonna destra storica;
-   * "bottom-bar"/"bottom-pills" = riga in basso con genere+anno+voto
-   * soppressi a monte via flag effettivi). Opzionale con default "column":
-   * i consumer esistenti (test diretti, vecchi adapter) restano invariati.
+   * "bottom-bar"/"bottom-pills"/"bottom-mono"/"bottom-color" = riga in basso
+   * con genere+anno+voto soppressi a monte via flag effettivi). Opzionale con
+   * default "column": i consumer esistenti (test diretti, vecchi adapter)
+   * restano invariati.
    */
   separateRatingsStyle?: SeparateRatingsStyle
   /** Offset px del badge qualità. */
@@ -2426,10 +2427,12 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
     }
   }
 
-  // Riga bottom (bottom-bar/bottom-pills): rimpiazza colonna e badge genere
+  // Riga bottom (bottom-bar/bottom-pills/bottom-mono/bottom-color):
+  // rimpiazza colonna e badge genere
   // (già soppresso a monte via flag effettivi) sul bordo inferiore. La barra
   // in portrait è full-width a filo; in landscape la barra non esiste più
-  // (normalizzata a pills a monte): le pills landscape sono ancorate a DESTRA
+  // (normalizzata a pills a monte): le righe non-bar in landscape sono
+  // ancorate a DESTRA
   // con la stessa geometria base del badge genere (landscapeRightAnchorLeft,
   // extra = 0, opticalShift = 0: margine interno pieno 18*CW/380, senza il
   // +40 ottico del genere), non centrate sul canvas, con base geometrica
@@ -2448,14 +2451,15 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
     if (fitted) {
       const margin = Math.round(20 * CH / 570)
       const barFlush = isBar && !isLandscape
-      // Base pills landscape: shift geometrico -20/-10 PRIMA di offset utente
-      // (sepox/sepoy additivi dopo) e collision handling logo. Portrait pills
-      // +5 Y (PORTRAIT_SEPARATE_SHIFT_Y) prima degli offset; colonna portrait
-      // coperta dal ramo colonna; bottom-bar portrait a filo invariata (il +5
-      // sarebbe annullato dal clamp); bottom-bar normalizzata a pills coperta
-      // dallo stesso ramo (in landscape bottomVariant è sempre bottom-pills).
-      const isLandscapePills = isLandscape && bottomVariant === "bottom-pills"
-      const isPortraitPills = !isLandscape && bottomVariant === "bottom-pills"
+      // Base righe non-bar in landscape: shift geometrico -20/-10 PRIMA di
+      // offset utente (sepox/sepoy additivi dopo) e collision handling logo.
+      // Portrait non-bar +5 Y (PORTRAIT_SEPARATE_SHIFT_Y) prima degli offset;
+      // colonna portrait coperta dal ramo colonna; bottom-bar portrait a filo
+      // invariata (il +5 sarebbe annullato dal clamp); bottom-bar
+      // normalizzata a pills coperta dallo stesso ramo (in landscape i bare
+      // restano invariati, solo la barra normalizza).
+      const isLandscapePills = isLandscape && !isBar
+      const isPortraitPills = !isLandscape && !isBar
       const topFor = (h: number) => barFlush ? CH - h : CH - h - margin + (isLandscapePills ? LANDSCAPE_BOTTOM_PILLS_SHIFT_Y : 0) + (isPortraitPills ? PORTRAIT_SEPARATE_SHIFT_Y : 0)
       const leftFor = (w: number) => barFlush ? 0 : isLandscape ? landscapeRightAnchorLeft(w, CW, 0, 0) + (isLandscapePills ? LANDSCAPE_BOTTOM_PILLS_SHIFT_X : 0) : Math.round((CW - w) / 2)
       // Offset sul gruppo intero con clamp dentro il canvas; la barra
@@ -2463,12 +2467,12 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
       // disabilita lo slider), la Y resta attiva. A offset 0 identico allo storico.
       const topForOff = (h: number) => Math.max(0, Math.min(CH - h, topFor(h) + sepOY))
       const leftForOff = (w: number) => barFlush ? 0 : Math.max(0, Math.min(CW - w, leftFor(w) + sepOX))
-      // Pills landscape + logo titolo a sinistra: se la riga copre il logo si
-      // rimpicciolisce la riga (stessa regola del badge genere, min 0.7 — mai
-      // il logo, scala utente esplicita). Solo pills landscape: portrait
-      // byte-identico al passato.
+      // Righe non-bar in landscape + logo titolo a sinistra: se la riga copre
+      // il logo si rimpicciolisce la riga (stessa regola del badge genere,
+      // min 0.7 — mai il logo, scala utente esplicita). Solo non-bar in
+      // landscape: portrait byte-identico al passato.
       let rowBox = fitted
-      if (logoResult && isLandscape && bottomVariant === "bottom-pills") {
+      if (logoResult && isLandscape && !isBar) {
         const overlapsLogo = (w: number, h: number, l: number, t: number) =>
           l < logoResult.left + logoResult.w && l + w > logoResult.left &&
           t < logoResult.top + logoResult.h && t + h > logoResult.top

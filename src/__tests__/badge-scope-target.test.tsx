@@ -159,6 +159,63 @@ describe("badge target scope", () => {
     expect(p.get("sep")).toBe("1")
   })
 
+  it.each([
+    { id: "bottom-mono", label: "ui.separateRatingsBottomMono" },
+    { id: "bottom-color", label: "ui.separateRatingsBottomColor" },
+  ] as const)("portrait: $id writes the flat; column/bar/pills kept", async ({ id, label }) => {
+    const { ctx } = renderBadge("portrait")
+    await act(async () => {})
+    const sepSwitch = badgeSwitch("ui.separateRatings")
+    if (sepSwitch.getAttribute("aria-checked") !== "true") fireEvent.click(sepSwitch)
+    // Tutte e 5 le voci restano selezionabili (nessuna rimozione legacy).
+    for (const legacy of [
+      "ui.separateRatingsColumn",
+      "ui.separateRatingsBottomBar",
+      "ui.separateRatingsBottomPills",
+      "ui.separateRatingsBottomMono",
+      "ui.separateRatingsBottomColor",
+    ]) {
+      expect(screen.getByText(legacy)).toBeTruthy()
+    }
+    fireEvent.click(screen.getByText(label))
+    expect(ctx().defaultSeparateRatingsStyle).toBe(id)
+    expect(ctx().landscape.separateRatingsStyle).toBeUndefined()
+    expect(screen.getByText(label).getAttribute("aria-pressed")).toBe("true")
+  })
+
+  it.each([
+    { id: "bottom-mono", label: "ui.separateRatingsBottomMono" },
+    { id: "bottom-color", label: "ui.separateRatingsBottomColor" },
+  ] as const)("landscape: $id writes the profile; flat stays column, preview emits sepstyle", async ({ id, label }) => {
+    const { ctx } = renderSettings()
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(100)
+    })
+    fireEvent.click(within(screen.getByTestId("format-target-selector")).getByText("ui.posterShapeLandscape"))
+    const sepSwitch = badgeSwitch("ui.separateRatings")
+    if (sepSwitch.getAttribute("aria-checked") !== "true") fireEvent.click(sepSwitch)
+    for (const legacy of [
+      "ui.separateRatingsColumn",
+      "ui.separateRatingsBottomBar",
+      "ui.separateRatingsBottomPills",
+      "ui.separateRatingsBottomMono",
+      "ui.separateRatingsBottomColor",
+    ]) {
+      expect(screen.getByText(legacy)).toBeTruthy()
+    }
+    // Le nuove voci bare restano abilitate in landscape (solo la barra è off).
+    expect(screen.getByText(label).hasAttribute("disabled")).toBe(false)
+    fireEvent.click(screen.getByText(label))
+    expect(ctx().landscape.separateRatingsStyle).toBe(id)
+    expect(ctx().defaultSeparateRatingsStyle).toBe("column")
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(600)
+    })
+    const p = paramsOf(opened[opened.length - 1])
+    expect(p.get("sepstyle")).toBe(id)
+    expect(p.get("sep")).toBe("1")
+  })
+
   it("false/[] persist to storage + PUT; current editor and delivery untouched", async () => {
     const { ctx } = renderBadge("landscape")
     await act(async () => {})
