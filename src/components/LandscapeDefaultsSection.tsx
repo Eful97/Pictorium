@@ -20,6 +20,7 @@ import { usePosterEditor } from "@/lib/contexts/PosterEditorContext"
 import { SliderRow } from "@/components/SliderRow"
 import { Toggle } from "@/components/Toggle"
 import { separateBadgeScaleToUI, uiToSeparateBadgeScale, SEPARATE_BADGE_SCALE_UI_MIN, SEPARATE_BADGE_SCALE_UI_MAX, NUMBER_BADGE_BASE_OFFSET_X } from "@/lib/badge-styles"
+import { getBadgeOffsetRange } from "@/lib/badge-offset-ranges"
 import { GradientPresetRow } from "@/components/GradientPresetRow"
 import type { GradientPresetValues } from "@/lib/gradient-presets"
 import type { LandscapeServerDefaults } from "@/lib/server-defaults"
@@ -56,6 +57,12 @@ export function LandscapeDefaultsSection({ editVal, editTxt, setEditVal, setEdit
   const isOver = (key: LandKey) => land[key] !== undefined
   const resetLabel = t("ui.reset")
   const enabled = land.blurEnabled ?? ed.defaultBlurEnabled
+  // Badge offset ranges (landscape profile): full 16:9 canvas crossing on
+  // drag, server contract ±2000 on numeric edit. Default logo offsets share
+  // the same ranges; scale/gradient untouched. (Per-title film logo keeps
+  // its dynamic logoBounds in TransformControls/context — never this helper.)
+  const landOffRangeX = getBadgeOffsetRange("landscape", "x")
+  const landOffRangeY = getBadgeOffsetRange("landscape", "y")
   // Preview-family scope (U2): same helper as the other settings cards —
   // explicit press or keyboard focus reports only (never hover), no focus
   // moves, no unmounts.
@@ -178,10 +185,11 @@ export function LandscapeDefaultsSection({ editVal, editTxt, setEditVal, setEdit
             icon={<ArrowLeftRight className="w-3.5 h-3.5" />}
             label="X"
             value={effX}
-            min={-100}
-            max={100}
-            boundsMin={-500}
-            boundsMax={500}
+            min={landOffRangeX.min + numBase}
+            max={landOffRangeX.max + numBase}
+            boundsMin={landOffRangeX.boundsMin + numBase}
+            boundsMax={landOffRangeX.boundsMax + numBase}
+            step={1}
             onChange={(v) => set({ [xKey]: v - numBase } as Partial<LandscapeServerDefaults>)}
             onDoubleClick={() => clear(xKey)}
             editingValue={editVal}
@@ -197,10 +205,11 @@ export function LandscapeDefaultsSection({ editVal, editTxt, setEditVal, setEdit
         icon={<ArrowUpDown className="w-3.5 h-3.5" />}
         label="Y"
         value={land[yKey] ?? flatY}
-        min={-100}
-        max={100}
-        boundsMin={-500}
-        boundsMax={500}
+        min={landOffRangeY.min}
+        max={landOffRangeY.max}
+        boundsMin={landOffRangeY.boundsMin}
+        boundsMax={landOffRangeY.boundsMax}
+        step={1}
         onChange={(v) => set({ [yKey]: v } as Partial<LandscapeServerDefaults>)}
         onDoubleClick={() => clear(yKey)}
         editingValue={editVal}
@@ -260,10 +269,11 @@ export function LandscapeDefaultsSection({ editVal, editTxt, setEditVal, setEdit
           icon={<ArrowLeftRight className="w-3.5 h-3.5" />}
           label="X"
           value={land.logoOffsetX ?? ed.defaultLogoOffsetX ?? 0}
-          min={-100}
-          max={100}
-          boundsMin={-500}
-          boundsMax={500}
+          min={landOffRangeX.min}
+          max={landOffRangeX.max}
+          boundsMin={landOffRangeX.boundsMin}
+          boundsMax={landOffRangeX.boundsMax}
+          step={1}
           onChange={(v) => set({ logoOffsetX: v })}
           onDoubleClick={() => clear("logoOffsetX")}
           editingValue={editVal}
@@ -277,10 +287,11 @@ export function LandscapeDefaultsSection({ editVal, editTxt, setEditVal, setEdit
           icon={<ArrowUpDown className="w-3.5 h-3.5" />}
           label="Y"
           value={land.logoOffsetY ?? ed.defaultLogoOffsetY ?? 0}
-          min={-100}
-          max={100}
-          boundsMin={-500}
-          boundsMax={500}
+          min={landOffRangeY.min}
+          max={landOffRangeY.max}
+          boundsMin={landOffRangeY.boundsMin}
+          boundsMax={landOffRangeY.boundsMax}
+          step={1}
           onChange={(v) => set({ logoOffsetY: v })}
           onDoubleClick={() => clear("logoOffsetY")}
           editingValue={editVal}
@@ -342,10 +353,11 @@ export function LandscapeDefaultsSection({ editVal, editTxt, setEditVal, setEdit
                 icon={<ArrowLeftRight className="w-3.5 h-3.5" />}
                 label="X"
                 value={land.separateBadgeOffsetX ?? ed.defaultSeparateBadgeOffsetX}
-                min={-100}
-                max={100}
-                boundsMin={-500}
-                boundsMax={500}
+                min={landOffRangeX.min}
+                max={landOffRangeX.max}
+                boundsMin={landOffRangeX.boundsMin}
+                boundsMax={landOffRangeX.boundsMax}
+                step={1}
                 onChange={(v) => set({ separateBadgeOffsetX: v })}
                 onDoubleClick={() => clear("separateBadgeOffsetX")}
                 editingValue={editVal}
@@ -359,10 +371,11 @@ export function LandscapeDefaultsSection({ editVal, editTxt, setEditVal, setEdit
                 icon={<ArrowUpDown className="w-3.5 h-3.5" />}
                 label="Y"
                 value={land.separateBadgeOffsetY ?? ed.defaultSeparateBadgeOffsetY}
-                min={-100}
-                max={100}
-                boundsMin={-500}
-                boundsMax={500}
+                min={landOffRangeY.min}
+                max={landOffRangeY.max}
+                boundsMin={landOffRangeY.boundsMin}
+                boundsMax={landOffRangeY.boundsMax}
+                step={1}
                 onChange={(v) => set({ separateBadgeOffsetY: v })}
                 onDoubleClick={() => clear("separateBadgeOffsetY")}
                 editingValue={editVal}

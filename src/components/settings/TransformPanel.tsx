@@ -12,6 +12,7 @@ import { LandscapeDefaultsSection } from "@/components/LandscapeDefaultsSection"
 import { useShapeBadgeDefaults } from "@/components/settings/useShapeDefaults"
 import type { DefaultsPreviewFamily } from "@/lib/poster-url"
 import { ArrowLeftRight, ArrowUpDown, Circle, Cloud, Image as ImageIcon, Minus, Ruler, Search, Sparkles, Star, Trophy, Tv } from "lucide-react"
+import { getBadgeOffsetRange } from "@/lib/badge-offset-ranges"
 
 /** Trasforma defaults tab (mirrors the editor Transform tab). The portrait /
  *  landscape target is owned by SettingsPanel and arrives as a controlled
@@ -59,6 +60,13 @@ export function TransformPanel({ active, previewShape, onPreviewShapeChange, onP
   // value is preserved and style switches never rewrite it). Reset/dblclick
   // restore the stored 0, i.e. the -20 visual baseline.
   const defTopXBase = ed.defaultRankingBadgeStyle === "number" ? NUMBER_BADGE_BASE_OFFSET_X : 0
+  // Badge offset ranges (portrait branch only: landscape renders
+  // LandscapeDefaultsSection): full canvas crossing per axis on drag,
+  // server contract ±2000 on numeric edit. Default logo offsets share the
+  // same ranges; scale/gradient untouched. (Per-title film logo keeps its
+  // dynamic logoBounds in TransformControls/context — never this helper.)
+  const defOffRangeX = getBadgeOffsetRange("poster", "x")
+  const defOffRangeY = getBadgeOffsetRange("poster", "y")
   // Preview-family scope (U2): same helper as the Badge tab — explicit press
   // or keyboard focus reports only (never hover: no flicker/fetch storms),
   // no focus moves, no unmounts.
@@ -141,10 +149,11 @@ export function TransformPanel({ active, previewShape, onPreviewShapeChange, onP
           icon={<ArrowLeftRight className="w-3.5 h-3.5" />}
           label="X"
           value={ed.defaultLogoOffsetX ?? 0}
-          min={-100}
-          max={100}
-          boundsMin={-500}
-          boundsMax={500}
+          min={defOffRangeX.min}
+          max={defOffRangeX.max}
+          boundsMin={defOffRangeX.boundsMin}
+          boundsMax={defOffRangeX.boundsMax}
+          step={1}
           onChange={(v) => { ed.setDefaultLogoOffsetX(v) }}
           onDoubleClick={() => { ed.setDefaultLogoOffsetX(null) }}
           editingValue={editVal}
@@ -158,10 +167,11 @@ export function TransformPanel({ active, previewShape, onPreviewShapeChange, onP
           icon={<ArrowUpDown className="w-3.5 h-3.5" />}
           label="Y"
           value={ed.defaultLogoOffsetY ?? 0}
-          min={-100}
-          max={100}
-          boundsMin={-500}
-          boundsMax={500}
+          min={defOffRangeY.min}
+          max={defOffRangeY.max}
+          boundsMin={defOffRangeY.boundsMin}
+          boundsMax={defOffRangeY.boundsMax}
+          step={1}
           onChange={(v) => { ed.setDefaultLogoOffsetY(v) }}
           onDoubleClick={() => { ed.setDefaultLogoOffsetY(null) }}
           editingValue={editVal}
@@ -217,10 +227,11 @@ export function TransformPanel({ active, previewShape, onPreviewShapeChange, onP
             icon={<ArrowLeftRight className="w-3.5 h-3.5" />}
             label="X"
             value={ed.defaultTopBadgeOffsetX + defTopXBase}
-            min={-100}
-            max={100}
-            boundsMin={-500}
-            boundsMax={500}
+            min={defOffRangeX.min + defTopXBase}
+            max={defOffRangeX.max + defTopXBase}
+            boundsMin={defOffRangeX.boundsMin + defTopXBase}
+            boundsMax={defOffRangeX.boundsMax + defTopXBase}
+            step={1}
             onChange={(v) => {
               ed.setDefaultTopBadgeOffsetX(v - defTopXBase)
             }}
@@ -238,10 +249,11 @@ export function TransformPanel({ active, previewShape, onPreviewShapeChange, onP
             icon={<ArrowUpDown className="w-3.5 h-3.5" />}
             label="Y"
             value={ed.defaultTopBadgeOffsetY}
-            min={-100}
-            max={100}
-            boundsMin={-500}
-            boundsMax={500}
+            min={defOffRangeY.min}
+            max={defOffRangeY.max}
+            boundsMin={defOffRangeY.boundsMin}
+            boundsMax={defOffRangeY.boundsMax}
+            step={1}
             onChange={(v) => {
               ed.setDefaultTopBadgeOffsetY(v)
             }}
@@ -304,10 +316,11 @@ export function TransformPanel({ active, previewShape, onPreviewShapeChange, onP
             icon={<ArrowLeftRight className="w-3.5 h-3.5" />}
             label="X"
             value={ed.defaultGenreBadgeOffsetX}
-            min={-100}
-            max={100}
-            boundsMin={-500}
-            boundsMax={500}
+            min={defOffRangeX.min}
+            max={defOffRangeX.max}
+            boundsMin={defOffRangeX.boundsMin}
+            boundsMax={defOffRangeX.boundsMax}
+            step={1}
             onChange={(v) => {
               ed.setDefaultGenreBadgeOffsetX(v)
             }}
@@ -325,10 +338,11 @@ export function TransformPanel({ active, previewShape, onPreviewShapeChange, onP
             icon={<ArrowUpDown className="w-3.5 h-3.5" />}
             label="Y"
             value={ed.defaultGenreBadgeOffsetY}
-            min={-100}
-            max={100}
-            boundsMin={-500}
-            boundsMax={500}
+            min={defOffRangeY.min}
+            max={defOffRangeY.max}
+            boundsMin={defOffRangeY.boundsMin}
+            boundsMax={defOffRangeY.boundsMax}
+            step={1}
             onChange={(v) => {
               ed.setDefaultGenreBadgeOffsetY(v)
             }}
@@ -391,10 +405,11 @@ export function TransformPanel({ active, previewShape, onPreviewShapeChange, onP
             icon={<ArrowLeftRight className="w-3.5 h-3.5" />}
             label="X"
             value={ed.defaultQualityBadgeOffsetX}
-            min={-100}
-            max={100}
-            boundsMin={-500}
-            boundsMax={500}
+            min={defOffRangeX.min}
+            max={defOffRangeX.max}
+            boundsMin={defOffRangeX.boundsMin}
+            boundsMax={defOffRangeX.boundsMax}
+            step={1}
             onChange={(v) => {
               ed.setDefaultQualityBadgeOffsetX(v)
             }}
@@ -412,10 +427,11 @@ export function TransformPanel({ active, previewShape, onPreviewShapeChange, onP
             icon={<ArrowUpDown className="w-3.5 h-3.5" />}
             label="Y"
             value={ed.defaultQualityBadgeOffsetY}
-            min={-100}
-            max={100}
-            boundsMin={-500}
-            boundsMax={500}
+            min={defOffRangeY.min}
+            max={defOffRangeY.max}
+            boundsMin={defOffRangeY.boundsMin}
+            boundsMax={defOffRangeY.boundsMax}
+            step={1}
             onChange={(v) => {
               ed.setDefaultQualityBadgeOffsetY(v)
             }}
@@ -480,10 +496,11 @@ export function TransformPanel({ active, previewShape, onPreviewShapeChange, onP
             icon={<ArrowLeftRight className="w-3.5 h-3.5" />}
             label="X"
             value={ed.defaultSeparateBadgeOffsetX}
-            min={-100}
-            max={100}
-            boundsMin={-500}
-            boundsMax={500}
+            min={defOffRangeX.min}
+            max={defOffRangeX.max}
+            boundsMin={defOffRangeX.boundsMin}
+            boundsMax={defOffRangeX.boundsMax}
+            step={1}
             onChange={(v) => {
               if (!defBarXOff) ed.setDefaultSeparateBadgeOffsetX(v)
             }}
@@ -503,10 +520,11 @@ export function TransformPanel({ active, previewShape, onPreviewShapeChange, onP
             icon={<ArrowUpDown className="w-3.5 h-3.5" />}
             label="Y"
             value={ed.defaultSeparateBadgeOffsetY}
-            min={-100}
-            max={100}
-            boundsMin={-500}
-            boundsMax={500}
+            min={defOffRangeY.min}
+            max={defOffRangeY.max}
+            boundsMin={defOffRangeY.boundsMin}
+            boundsMax={defOffRangeY.boundsMax}
+            step={1}
             onChange={(v) => {
               ed.setDefaultSeparateBadgeOffsetY(v)
             }}
@@ -607,10 +625,11 @@ export function TransformPanel({ active, previewShape, onPreviewShapeChange, onP
             icon={<ArrowLeftRight className="w-3.5 h-3.5" />}
             label="X"
             value={ed.defaultNetworkLogoOffsetX}
-            min={-100}
-            max={100}
-            boundsMin={-500}
-            boundsMax={500}
+            min={defOffRangeX.min}
+            max={defOffRangeX.max}
+            boundsMin={defOffRangeX.boundsMin}
+            boundsMax={defOffRangeX.boundsMax}
+            step={1}
             onChange={(v) => {
               ed.setDefaultNetworkLogoOffsetX(v)
             }}
@@ -628,10 +647,11 @@ export function TransformPanel({ active, previewShape, onPreviewShapeChange, onP
             icon={<ArrowUpDown className="w-3.5 h-3.5" />}
             label="Y"
             value={ed.defaultNetworkLogoOffsetY}
-            min={-100}
-            max={100}
-            boundsMin={-500}
-            boundsMax={500}
+            min={defOffRangeY.min}
+            max={defOffRangeY.max}
+            boundsMin={defOffRangeY.boundsMin}
+            boundsMax={defOffRangeY.boundsMax}
+            step={1}
             onChange={(v) => {
               ed.setDefaultNetworkLogoOffsetY(v)
             }}

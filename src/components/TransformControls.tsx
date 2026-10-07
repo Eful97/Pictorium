@@ -11,6 +11,7 @@ import { naturalGradientForPoster } from "@/lib/gradient-presets"
 import { GradientPresetRow } from "@/components/GradientPresetRow"
 import { SliderRow } from "@/components/SliderRow"
 import { resolveSeparateBadgeScaleFallback, separateBadgeScaleToUI, uiToSeparateBadgeScale, SEPARATE_BADGE_SCALE_UI_MIN, SEPARATE_BADGE_SCALE_UI_MAX, getSeparateRatingsStyleForShape, NUMBER_BADGE_BASE_OFFSET_X } from "@/lib/badge-styles"
+import { getBadgeOffsetRange } from "@/lib/badge-offset-ranges"
 import type { LandscapeBlurState } from "@/lib/contexts/PosterEditorContext"
 
 export function TransformControls() {
@@ -93,6 +94,11 @@ export function TransformControls() {
   // badge type is unknown here (rank vs extra with legacy fallback), so this
   // is a style-level presentation mapping only.
   const topXBase = ed.rankingBadgeStyle === "number" ? NUMBER_BADGE_BASE_OFFSET_X : 0
+  // Badge offset drag ranges: full canvas crossing per axis/shape (slider),
+  // server contract ±2000 (numeric edit). Film-logo sliders keep their
+  // dynamic logoBounds; scale/gradient sliders are untouched.
+  const offRangeX = getBadgeOffsetRange(ed.posterShape, "x")
+  const offRangeY = getBadgeOffsetRange(ed.posterShape, "y")
   // Stile separati effettivo sul canvas corrente (bar landscape → pills):
   // la X della barra portrait full-width è disabilitata (mai ghost slider).
   const sepEffStyle = getSeparateRatingsStyleForShape(
@@ -170,10 +176,11 @@ export function TransformControls() {
           icon={<ArrowLeftRight className="w-3.5 h-3.5" />}
           label="X"
           value={ed.topBadgeOffsetX + topXBase}
-          min={-100}
-          max={100}
-          boundsMin={-500}
-          boundsMax={500}
+          min={offRangeX.min + topXBase}
+          max={offRangeX.max + topXBase}
+          boundsMin={offRangeX.boundsMin + topXBase}
+          boundsMax={offRangeX.boundsMax + topXBase}
+          step={1}
             onChange={(v) => ed.setTopBadgeOffsetX(v - topXBase)}
             onDoubleClick={() => ed.setTopBadgeOffsetX(isLandShape ? (ed.landscape.topBadgeOffsetX ?? ed.defaultTopBadgeOffsetX) : ed.defaultTopBadgeOffsetX)}
           editingValue={editingValue}
@@ -187,10 +194,11 @@ export function TransformControls() {
           icon={<ArrowUpDown className="w-3.5 h-3.5" />}
           label="Y"
           value={ed.topBadgeOffsetY}
-          min={-100}
-          max={100}
-          boundsMin={-500}
-          boundsMax={500}
+          min={offRangeY.min}
+          max={offRangeY.max}
+          boundsMin={offRangeY.boundsMin}
+          boundsMax={offRangeY.boundsMax}
+          step={1}
             onChange={(v) => ed.setTopBadgeOffsetY(v)}
             onDoubleClick={() => ed.setTopBadgeOffsetY(isLandShape ? (ed.landscape.topBadgeOffsetY ?? ed.defaultTopBadgeOffsetY) : ed.defaultTopBadgeOffsetY)}
           editingValue={editingValue}
@@ -237,10 +245,11 @@ export function TransformControls() {
           icon={<ArrowLeftRight className="w-3.5 h-3.5" />}
           label="X"
           value={ed.genreBadgeOffsetX}
-          min={-100}
-          max={100}
-          boundsMin={-500}
-          boundsMax={500}
+          min={offRangeX.min}
+          max={offRangeX.max}
+          boundsMin={offRangeX.boundsMin}
+          boundsMax={offRangeX.boundsMax}
+          step={1}
           onChange={(v) => ed.setGenreBadgeOffsetX(v)}
           onDoubleClick={() => ed.setGenreBadgeOffsetX(isLandShape ? (ed.landscape.genreBadgeOffsetX ?? ed.defaultGenreBadgeOffsetX) : ed.defaultGenreBadgeOffsetX)}
           editingValue={editingValue}
@@ -254,10 +263,11 @@ export function TransformControls() {
           icon={<ArrowUpDown className="w-3.5 h-3.5" />}
           label="Y"
           value={ed.genreBadgeOffsetY}
-          min={-100}
-          max={100}
-          boundsMin={-500}
-          boundsMax={500}
+          min={offRangeY.min}
+          max={offRangeY.max}
+          boundsMin={offRangeY.boundsMin}
+          boundsMax={offRangeY.boundsMax}
+          step={1}
           onChange={(v) => ed.setGenreBadgeOffsetY(v)}
           onDoubleClick={() => ed.setGenreBadgeOffsetY(isLandShape ? (ed.landscape.genreBadgeOffsetY ?? ed.defaultGenreBadgeOffsetY) : ed.defaultGenreBadgeOffsetY)}
           editingValue={editingValue}
@@ -304,10 +314,11 @@ export function TransformControls() {
           icon={<ArrowLeftRight className="w-3.5 h-3.5" />}
           label="X"
           value={ed.qualityBadgeOffsetX}
-          min={-100}
-          max={100}
-          boundsMin={-500}
-          boundsMax={500}
+          min={offRangeX.min}
+          max={offRangeX.max}
+          boundsMin={offRangeX.boundsMin}
+          boundsMax={offRangeX.boundsMax}
+          step={1}
           onChange={(v) => ed.setQualityBadgeOffsetX(v)}
           onDoubleClick={() => ed.setQualityBadgeOffsetX(isLandShape ? (ed.landscape.qualityBadgeOffsetX ?? ed.defaultQualityBadgeOffsetX) : ed.defaultQualityBadgeOffsetX)}
           editingValue={editingValue}
@@ -321,10 +332,11 @@ export function TransformControls() {
           icon={<ArrowUpDown className="w-3.5 h-3.5" />}
           label="Y"
           value={ed.qualityBadgeOffsetY}
-          min={-100}
-          max={100}
-          boundsMin={-500}
-          boundsMax={500}
+          min={offRangeY.min}
+          max={offRangeY.max}
+          boundsMin={offRangeY.boundsMin}
+          boundsMax={offRangeY.boundsMax}
+          step={1}
           onChange={(v) => ed.setQualityBadgeOffsetY(v)}
           onDoubleClick={() => ed.setQualityBadgeOffsetY(isLandShape ? (ed.landscape.qualityBadgeOffsetY ?? ed.defaultQualityBadgeOffsetY) : ed.defaultQualityBadgeOffsetY)}
           editingValue={editingValue}
@@ -373,10 +385,11 @@ export function TransformControls() {
           icon={<ArrowLeftRight className="w-3.5 h-3.5" />}
           label="X"
           value={ed.separateBadgeOffsetX}
-          min={-100}
-          max={100}
-          boundsMin={-500}
-          boundsMax={500}
+          min={offRangeX.min}
+          max={offRangeX.max}
+          boundsMin={offRangeX.boundsMin}
+          boundsMax={offRangeX.boundsMax}
+          step={1}
           onChange={(v) => { if (!sepBarXOff) ed.setSeparateBadgeOffsetX(v) }}
           onDoubleClick={() => ed.setSeparateBadgeOffsetX(isLandShape ? (ed.landscape.separateBadgeOffsetX ?? ed.defaultSeparateBadgeOffsetX) : ed.defaultSeparateBadgeOffsetX)}
           editingValue={editingValue}
@@ -392,10 +405,11 @@ export function TransformControls() {
           icon={<ArrowUpDown className="w-3.5 h-3.5" />}
           label="Y"
           value={ed.separateBadgeOffsetY}
-          min={-100}
-          max={100}
-          boundsMin={-500}
-          boundsMax={500}
+          min={offRangeY.min}
+          max={offRangeY.max}
+          boundsMin={offRangeY.boundsMin}
+          boundsMax={offRangeY.boundsMax}
+          step={1}
           onChange={(v) => ed.setSeparateBadgeOffsetY(v)}
           onDoubleClick={() => ed.setSeparateBadgeOffsetY(isLandShape ? (ed.landscape.separateBadgeOffsetY ?? ed.defaultSeparateBadgeOffsetY) : ed.defaultSeparateBadgeOffsetY)}
           editingValue={editingValue}
@@ -442,10 +456,11 @@ export function TransformControls() {
           icon={<ArrowLeftRight className="w-3.5 h-3.5" />}
           label="X"
           value={ed.networkLogoOffsetX}
-          min={-100}
-          max={100}
-          boundsMin={-500}
-          boundsMax={500}
+          min={offRangeX.min}
+          max={offRangeX.max}
+          boundsMin={offRangeX.boundsMin}
+          boundsMax={offRangeX.boundsMax}
+          step={1}
           onChange={(v) => ed.setNetworkLogoOffsetX(v)}
           onDoubleClick={() => ed.setNetworkLogoOffsetX(isLandShape ? (ed.landscape.networkLogoOffsetX ?? ed.defaultNetworkLogoOffsetX) : ed.defaultNetworkLogoOffsetX)}
           editingValue={editingValue}
@@ -459,10 +474,11 @@ export function TransformControls() {
           icon={<ArrowUpDown className="w-3.5 h-3.5" />}
           label="Y"
           value={ed.networkLogoOffsetY}
-          min={-100}
-          max={100}
-          boundsMin={-500}
-          boundsMax={500}
+          min={offRangeY.min}
+          max={offRangeY.max}
+          boundsMin={offRangeY.boundsMin}
+          boundsMax={offRangeY.boundsMax}
+          step={1}
           onChange={(v) => ed.setNetworkLogoOffsetY(v)}
           onDoubleClick={() => ed.setNetworkLogoOffsetY(isLandShape ? (ed.landscape.networkLogoOffsetY ?? ed.defaultNetworkLogoOffsetY) : ed.defaultNetworkLogoOffsetY)}
           editingValue={editingValue}

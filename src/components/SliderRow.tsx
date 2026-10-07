@@ -2,15 +2,15 @@
 
 import { RotateCcw } from "lucide-react"
 
-export function SliderRow({ icon, label, value, min, max, boundsMin, boundsMax, onChange, onDoubleClick, editingValue, editText, setEditingValue, setEditText, editingKey, suffix }: {
-  icon?: React.ReactNode; label: string; value: number; min: number; max: number; boundsMin: number; boundsMax: number;
+export function SliderRow({ icon, label, value, min, max, boundsMin, boundsMax, step: stepProp, onChange, onDoubleClick, editingValue, editText, setEditingValue, setEditText, editingKey, suffix }: {
+  icon?: React.ReactNode; label: string; value: number; min: number; max: number; boundsMin: number; boundsMax: number; step?: number;
   onChange: (v: number) => void; onDoubleClick: () => void;
   editingValue: string | null; editText: string;
   setEditingValue: (v: string | null) => void; setEditText: (v: string) => void;
   editingKey: string; suffix?: string
 }) {
   const range = max - min
-  const step = Math.max(1, Math.round(range / 100))
+  const step = stepProp ?? Math.max(1, Math.round(range / 100))
   return (
     <div className="control-row flex items-center gap-2 group min-h-[38px] py-0.5">
       <span className="text-sm text-zinc-400 w-6 shrink-0 text-center flex items-center justify-center">{icon}</span>
