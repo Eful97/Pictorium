@@ -194,8 +194,9 @@ function abortion(signal: AbortSignal): unknown {
  * Parsa l'header `Retry-After` (429). Accetta sia delta-secondi che HTTP-date.
  * Su input malformato o data già passata torna a un fallback breve; un cap di
  * 30s evita che un valore gigante (o una data lontana) congelì le retry.
+ * Esportata per il retry limitato dell'hydration defaults (stessa semantica).
  */
-function parseRetryAfter(header: string | null): number {
+export function parseRetryAfter(header: string | null): number {
   const raw = (header || "").trim()
   if (!raw) return 1000
   if (/^\d+$/.test(raw)) {

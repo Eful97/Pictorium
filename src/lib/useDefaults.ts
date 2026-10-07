@@ -8,7 +8,7 @@ import type { LandscapeServerDefaults } from "./server-defaults"
 import { parseDateFormat, type DateFormat } from "./release-badge"
 import { normalizeRegion } from "./regions"
 import { isProfilelessOnMultiUser, notifyProfilelessOnce, shouldSkipServerSync } from "./guest-guard"
-import { userFetch } from "./http"
+import { userFetch, parseRetryAfter } from "./http"
 import { USER_UNLOCK_EVENT, currentPathUuid } from "./user-token"
 import { t } from "./i18n"
 import { normalizeSashOrder, DEFAULT_SASH_ORDER, type SashBucket } from "./badge-priority"
@@ -786,6 +786,10 @@ function defaultsToPayload(d: DefaultsState): Record<string, unknown> {
   }
 }
 
+// Tentativi totali (prima fetch + retry) dell'hydration GET su 429: spec
+// esplicito, bounded — mai retry infiniti contro un bucket saturo.
+const HYDRATION_MAX_ATTEMPTS = 3
+
 export function useDefaults() {
   // Stato iniziale deterministico (DEFAULTS): la lettura di localStorage è rimandata
   // al mount via useEffect. Durante la SSR `window` non esiste (readStoredDefaults
@@ -815,12 +819,27 @@ export function useDefaults() {
   const syncTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   // Inflight PUT cancellation (superseded send or unmount).
   const syncAbortRef = useRef<AbortController | null>(null)
+  // Pending hydration-retry timer (429 backoff below): cleared on unmount so
+  // a retry never fires after teardown (state writes stay mounted-guarded).
+  const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // Hydration generation ownership: each refreshFromServer call invalidates
+  // the previous one (timer cleared, inflight GET aborted). Stale chains
+  // resolve into no-ops, so only the latest refresh can write state or
+  // schedule retries — attempts stay bounded per owner even across
+  // StrictMode remounts or concurrent post-unlock refreshes.
+  const refreshSeqRef = useRef(0)
+  const refreshAbortRef = useRef<AbortController | null>(null)
   const mountedRef = useRef(true)
   useEffect(() => {
     mountedRef.current = true
     return () => {
       mountedRef.current = false
       if (syncTimerRef.current) clearTimeout(syncTimerRef.current)
+      if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current)
+      refreshAbortRef.current?.abort()
+      // Invalidate any hydration chain that outlives this unmount (StrictMode
+      // remount starts a fresh owned generation below).
+      refreshSeqRef.current += 1
       syncAbortRef.current?.abort()
     }
   }, [])
@@ -895,62 +914,106 @@ export function useDefaults() {
   // Refresh defaults dal server (namespace via userFetch su /u/<uuid>).
   // Estratto per riuso post-unlock: la prima fetch può aver girato senza
   // token (race col #key=) e il merge server→locale va rifatto a sblocco.
+  // Hydration retry: il bucket `defaults` è condiviso (30 burst / 3 al sec)
+  // e sotto carico va in 429 ANCHE sulla GET di hydration — senza retry
+  // l'editor restava ai factory per tutta la pagina (preview con rs=default
+  // invece dei salvati). Solo il 429 aspetta il Retry-After e riprova, al
+  // massimo HYDRATION_MAX_ATTEMPTS tentativi totali; 401/404/network e
+  // 429 persistenti mantengono la semantica precedente (unconfirmed, mai
+  // loading infinito). Niente 5xx speculativi: solo il caso dimostrato.
   const refreshFromServer = useCallback(() => {
-    userFetch("/api/defaults")
-      .then((r) => (r.ok ? r.json() : null))
-      .then(async (serverData) => {
-        if (!mountedRef.current) return
-        if (!serverData) {
-          // Completed without server confirmation (fail/non-ok): locally
-          // loaded but unverified — never infinite loading, retry available.
-          await settleIdle("unconfirmed")
-          return
-        }
-        const currentStored = readStoredDefaults()
-        const merged: StoredDefaults = {
-          ...(serverData || {}),
-          ...(currentStored || {}),
-        }
-        if (!currentStored?.episodeMetadataSource && !currentStored?.defaultEpisodeMetadataSource && serverData.episodeMetadataSource) {
-          merged.defaultEpisodeMetadataSource = serverData.episodeMetadataSource
-          merged.episodeMetadataSource = serverData.episodeMetadataSource
-        }
-        if (!currentStored?.ratingSources && !currentStored?.defaultRatingSources && Array.isArray(serverData.ratingSources)) {
-          merged.defaultRatingSources = serverData.ratingSources
-          merged.ratingSources = serverData.ratingSources
-        }
-        if (!currentStored?.defaultSashOrder && !currentStored?.sashOrder && Array.isArray(serverData.sashOrder)) {
-          merged.defaultSashOrder = serverData.sashOrder
-        }
-        if (!currentStored?.defaultVideoFormats && Array.isArray(serverData.videoFormats)) {
-          merged.defaultVideoFormats = serverData.videoFormats
-        }
-        const updated = buildFromStored(merged)
-        const mergedStr = JSON.stringify(defaultsToPayload(updated))
-        // Server-only canonical payload: a GET ok confirms the merged one
-        // only when both are equal (local precedence may differ).
-        const serverStr = JSON.stringify(defaultsToPayload(buildFromStored(serverData)))
-        const storedOk = safeSetItem(defaultsStorageKey(), mergedStr)
-        lastPersistRef.current = mergedStr
-        if (!mountedRef.current) return
-        setState(updated)
-        if (!storedOk) {
-          // Local write failed: local-failed (never synced).
-          setSyncStatus((prev) => (prev === "idle" ? "local-failed" : prev))
-          return
-        }
-        // Truthful hydration from idle only, no auto-PUT at startup: the
-        // server confirms the merged payload only when its canonical form
-        // equals it, otherwise these values were never seen server-side.
-        // The guest consult decides local-only vs the confirmed state.
-        await settleIdle(serverStr === mergedStr ? "synced" : "unconfirmed")
-      })
-      .catch(() => {
-        // Network rejection / JSON exception: same completion as a failed
-        // attempt (never infinite idle), mounted-guarded.
-        if (!mountedRef.current) return
-        void settleIdle("unconfirmed")
-      })
+    // New generation invalidates the previous chain first: its retry timer
+    // is cancelled and its inflight GET aborted (userFetch already takes an
+    // AbortSignal). Late resolutions of the old chain hit the owner guard
+    // below and stay silent — an old 429 never schedules over the new
+    // refresh, an old 200 never applies obsolete data.
+    refreshSeqRef.current += 1
+    const gen = refreshSeqRef.current
+    refreshAbortRef.current?.abort()
+    const ctrl = new AbortController()
+    refreshAbortRef.current = ctrl
+    if (refreshTimerRef.current) {
+      clearTimeout(refreshTimerRef.current)
+      refreshTimerRef.current = null
+    }
+    const isOwner = (): boolean => gen === refreshSeqRef.current && mountedRef.current
+    const attemptLoad = (attempt: number): void => {
+      if (!isOwner()) return
+      userFetch("/api/defaults", { signal: ctrl.signal })
+        .then((r) => {
+          if (!isOwner()) return undefined
+          if (r.status === 429 && attempt < HYDRATION_MAX_ATTEMPTS) {
+            const waitMs = parseRetryAfter(r.headers.get("Retry-After"))
+            // Observability (same convention as the syncSend warn): hydration
+            // 429s used to be silent — the retry stays measurable in logs
+            // without changing behavior.
+            console.warn(`[defaults] Hydration 429: retry ${attempt + 1}/${HYDRATION_MAX_ATTEMPTS} in ${waitMs}ms`)
+            refreshTimerRef.current = setTimeout(() => {
+              refreshTimerRef.current = null
+              if (!isOwner()) return
+              attemptLoad(attempt + 1)
+            }, waitMs)
+            return undefined
+          }
+          return r.ok ? r.json() : null
+        })
+        .then(async (serverData) => {
+          if (!isOwner()) return
+          if (serverData === undefined) return // 429 retry scheduled above
+          if (!serverData) {
+            // Completed without server confirmation (fail/non-ok): locally
+            // loaded but unverified — never infinite loading, retry available.
+            await settleIdle("unconfirmed")
+            return
+          }
+          const currentStored = readStoredDefaults()
+          const merged: StoredDefaults = {
+            ...(serverData || {}),
+            ...(currentStored || {}),
+          }
+          if (!currentStored?.episodeMetadataSource && !currentStored?.defaultEpisodeMetadataSource && serverData.episodeMetadataSource) {
+            merged.defaultEpisodeMetadataSource = serverData.episodeMetadataSource
+            merged.episodeMetadataSource = serverData.episodeMetadataSource
+          }
+          if (!currentStored?.ratingSources && !currentStored?.defaultRatingSources && Array.isArray(serverData.ratingSources)) {
+            merged.defaultRatingSources = serverData.ratingSources
+            merged.ratingSources = serverData.ratingSources
+          }
+          if (!currentStored?.defaultSashOrder && !currentStored?.sashOrder && Array.isArray(serverData.sashOrder)) {
+            merged.defaultSashOrder = serverData.sashOrder
+          }
+          if (!currentStored?.defaultVideoFormats && Array.isArray(serverData.videoFormats)) {
+            merged.defaultVideoFormats = serverData.videoFormats
+          }
+          const updated = buildFromStored(merged)
+          const mergedStr = JSON.stringify(defaultsToPayload(updated))
+          // Server-only canonical payload: a GET ok confirms the merged one
+          // only when both are equal (local precedence may differ).
+          const serverStr = JSON.stringify(defaultsToPayload(buildFromStored(serverData)))
+          const storedOk = safeSetItem(defaultsStorageKey(), mergedStr)
+          lastPersistRef.current = mergedStr
+          if (!isOwner()) return
+          setState(updated)
+          if (!storedOk) {
+            // Local write failed: local-failed (never synced).
+            setSyncStatus((prev) => (prev === "idle" ? "local-failed" : prev))
+            return
+          }
+          // Truthful hydration from idle only, no auto-PUT at startup: the
+          // server confirms the merged payload only when its canonical form
+          // equals it, otherwise these values were never seen server-side.
+          // The guest consult decides local-only vs the confirmed state.
+          await settleIdle(serverStr === mergedStr ? "synced" : "unconfirmed")
+        })
+        .catch(() => {
+          // Network rejection / JSON exception / aborted superseded chain:
+          // same completion as a failed attempt (never infinite idle),
+          // owner-guarded so stale generations stay silent.
+          if (!isOwner()) return
+          void settleIdle("unconfirmed")
+        })
+    }
+    attemptLoad(1)
   }, [settleIdle])
 
   useEffect(() => {
