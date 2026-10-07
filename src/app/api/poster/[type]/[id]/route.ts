@@ -65,6 +65,7 @@ import {
   type PosterErrorStatus,
 } from "@/lib/poster-runtime-cache"
 import { hashUserFragment, userTagFragment } from "@/lib/cache"
+import { FormatOverloadError, runFormatConversion } from "@/lib/poster-format-gate"
 import { hardenPosterSearchParams, isPresetsPosterMode, isPreviewAuthRequired, isPreviewDowngraded, isPublicPosterInstance } from "@/lib/poster-params-hardening"
 import { DEMOSAMPLES_FLAG, DEMO_SAMPLE_GENRE, DEMO_SAMPLE_MOVIE_DATE, DEMO_SAMPLE_QUALITY, DEMO_SAMPLE_RANK, DEMO_SAMPLE_TV_DATE, isDemoSamplesRequest, mergeDemoSampleRatings } from "@/lib/demo-samples"
 import {
@@ -688,7 +689,23 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
       }
       return posterResponse(variantHit.payload, variantHit.immutable ?? immutablePoster, isPreview, dynamicPoster, outputFormat, variantHit.ttlSec ?? variantTtlSec, undefined, isLive)
     }
-    const converted = canonicalFormat === "webp" ? await convertToJpeg(canonical.buffer) : await convertPosterFormat(canonical.buffer)
+    // Format gate: same-revision concurrent conversions share one native
+    // encode (key = variant + canonical ETag + format); distinct ones are
+    // bounded to 2 natives on a dedicated budget. Overload answers 503 here,
+    // never via the negative error cache. Cache hits above never convert.
+    const conversionKey = `${variantKey}:${canonical.etag}:${outputFormat}`
+    let converted: Buffer
+    try {
+      converted = canonicalFormat === "webp"
+        ? await runFormatConversion(conversionKey, () => convertToJpeg(canonical.buffer))
+        : await runFormatConversion(conversionKey, () => convertPosterFormat(canonical.buffer))
+    } catch (e) {
+      if (e instanceof FormatOverloadError) {
+        log.debug("Poster format gate overloaded", { mediaType, tmdbId, ms: Date.now() - startTime })
+        return posterErrorResponse(503)
+      }
+      throw e
+    }
     const variant: PosterCachePayload = { buffer: converted, etag: variantEtagFor(canonical.etag, outputFormat as "jpeg" | "webp") }
     // Le preview editor (`preview=1`, ogni tick di slider) non sporcano lo
     // storage: la chiave le separa già, ma scrivere ogni tick è flood.

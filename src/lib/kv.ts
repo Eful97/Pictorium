@@ -20,9 +20,13 @@ export class KvTimeoutError extends Error {
 }
 
 /**
- * Gara con tetto perentorio per le letture KV (Redis o Upstash REST): allo
- * scadere rigetta con KvTimeoutError così gli inflight dei caller si chiudono
- * sempre (finally) e la chiave non resta avvelenata. Il timer è sempre pulito.
+ * Race of a KV command against a hard timeout: on expiry rejects with
+ * KvTimeoutError. The timer is always cleared in `finally`.
+ *
+ * The timeout does not cancel the underlying operation: no abort is sent,
+ * the original promise keeps running and its late outcome is ignored. A
+ * write that times out may still complete, so its result is uncertain —
+ * this helper does not retry.
  */
 export function withKvTimeout<T>(promise: Promise<T>, ms = KV_COMMAND_TIMEOUT_MS): Promise<T> {
   let timer: ReturnType<typeof setTimeout> | undefined
@@ -33,6 +37,50 @@ export function withKvTimeout<T>(promise: Promise<T>, ms = KV_COMMAND_TIMEOUT_MS
     if (timer !== undefined) clearTimeout(timer)
   })
 }
+
+/**
+ * Central cap on every remote-client primitive: each `KvClient` method
+ * settles caller-side within `KV_COMMAND_TIMEOUT_MS` even if the underlying
+ * promise never settles. Same signatures and backend selection; non-timeout
+ * errors propagate unchanged. A timed-out write may still complete, so its
+ * result is uncertain (no retry here). Each `scan` is capped as a single
+ * call. `closeKvClient` is lifecycle, not part of `KvClient`, and is not
+ * wrapped.
+ */
+function wrapKvWithTimeout(inner: KvClient): KvClient {
+  return {
+    get: <T = unknown>(key: string): Promise<T | null> => withKvTimeout(inner.get<T>(key)),
+    set: (key: string, value: unknown, opts?: { ex?: number }): Promise<void> =>
+      withKvTimeout(inner.set(key, value, opts)),
+    del: (key: string): Promise<number> => withKvTimeout(inner.del(key)),
+    hgetall: <T = Record<string, unknown>>(key: string): Promise<T | null> =>
+      withKvTimeout(inner.hgetall<T>(key)),
+    hset: (key: string, obj: Record<string, unknown>): Promise<number> =>
+      withKvTimeout(inner.hset(key, obj)),
+    hdel: (key: string, ...fields: string[]): Promise<number> => withKvTimeout(inner.hdel(key, ...fields)),
+    incr: (key: string): Promise<number> => withKvTimeout(inner.incr(key)),
+    expire: (key: string, seconds: number): Promise<number> => withKvTimeout(inner.expire(key, seconds)),
+    scan: (cursor: number, opts?: { match?: string; count?: number }): Promise<[number, string[]]> =>
+      withKvTimeout(inner.scan(cursor, opts)),
+    sadd: (key: string, ...members: string[]): Promise<number> => withKvTimeout(inner.sadd(key, ...members)),
+    srem: (key: string, ...members: string[]): Promise<number> => withKvTimeout(inner.srem(key, ...members)),
+    smembers: (key: string): Promise<string[]> => withKvTimeout(inner.smembers(key)),
+    zadd: (key: string, score: number, member: string): Promise<number> =>
+      withKvTimeout(inner.zadd(key, score, member)),
+    zrem: (key: string, ...members: string[]): Promise<number> => withKvTimeout(inner.zrem(key, ...members)),
+    zincrby: (key: string, increment: number, member: string): Promise<number> =>
+      withKvTimeout(inner.zincrby(key, increment, member)),
+    zrevrange: (key: string, start: number, stop: number): Promise<string[]> =>
+      withKvTimeout(inner.zrevrange(key, start, stop)),
+    zscore: (key: string, member: string): Promise<number | null> =>
+      withKvTimeout(inner.zscore(key, member)),
+  }
+}
+
+// Cached wrappers (stable identity per backend). They point at the
+// `redisKv`/`upstashKv` singletons; `closeKvClient` only resets the connection.
+let redisTimed: KvClient | null = null
+let upstashTimed: KvClient | null = null
 
 /**
  * Storage Key-Value unificato (Step 1: solo definizione + selezione backend).
@@ -116,9 +164,13 @@ function warnBothConfiguredOnce(): void {
 export function getKv(): KvClient {
   if (isRedisConfigured()) {
     if (isKvConfigured()) warnBothConfiguredOnce()
-    return redisKv
+    redisTimed ??= wrapKvWithTimeout(redisKv)
+    return redisTimed
   }
-  if (isKvConfigured()) return upstashKv
+  if (isKvConfigured()) {
+    upstashTimed ??= wrapKvWithTimeout(upstashKv)
+    return upstashTimed
+  }
   throw new Error("No KV backend configured (set PICTORIUM_REDIS_URL or KV_REST_API_URL/KV_REST_API_TOKEN)")
 }
 
