@@ -66,8 +66,18 @@ function evictFor(size: number): void {
  * (la logica esistente del chiamante: SSRF check, signal, validazione size)
  * e memorizzazione solo su successo. Stesso pattern di coalescing di tmdb.ts:
  * N waiter concorrenti sullo stesso URL condividono un solo download.
+ *
+ * Un waiter non eredita il fallimento del download altrui: il leader gira col
+ * PROPRIO signal (deadline del suo render, cap 5s del best-fit), quindi il suo
+ * abort non dice nulla sul waiter. Su rejection del leader il waiter rientra
+ * una sola volta col proprio `doFetch` (coalescing di nuovo attivo tra i
+ * waiter che riprovano; nessun secondo retry, niente catene).
  */
 export async function cachedImageBytes(url: string, doFetch: () => Promise<Buffer>): Promise<Buffer> {
+  return cachedImageBytesOnce(url, doFetch, true)
+}
+
+async function cachedImageBytesOnce(url: string, doFetch: () => Promise<Buffer>, retryAsWaiter: boolean): Promise<Buffer> {
   if (IMG_CACHE_BUDGET_BYTES <= 0) return doFetch()
   const hit = bytesCache.get(url)
   if (hit) {
@@ -82,7 +92,11 @@ export async function cachedImageBytes(url: string, doFetch: () => Promise<Buffe
     cachedBytes -= hit.buf.length
   }
   const existing = inflightBytes.get(url)
-  if (existing) return existing
+  if (existing) {
+    return retryAsWaiter
+      ? existing.catch(() => cachedImageBytesOnce(url, doFetch, false))
+      : existing
+  }
   bytesStats.misses++
   const promise = doFetch().then(
     (buf) => {

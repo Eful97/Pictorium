@@ -65,6 +65,35 @@ describe("cachedImageBytes", () => {
     expect(calls).toBe(1)
   })
 
+  it("a waiter does not inherit the leader's abort: it retries with its own fetch", async () => {
+    const url = "https://image.tmdb.org/t/p/w342/leader-abort.jpg"
+    let rejectLeader!: (e: Error) => void
+    const leader = cachedImageBytes(url, () => new Promise<Buffer>((_, reject) => { rejectLeader = reject }))
+    const waiterFetch = vi.fn(async () => Buffer.from([4, 2]))
+    const waiter = cachedImageBytes(url, waiterFetch)
+    rejectLeader(new DOMException("The operation was aborted.", "TimeoutError"))
+    await expect(leader).rejects.toThrow("aborted")
+    await expect(waiter).resolves.toEqual(Buffer.from([4, 2]))
+    expect(waiterFetch).toHaveBeenCalledTimes(1)
+    expect(imageBytesStats()).toMatchObject({ entries: 1, bytes: 2 })
+  })
+
+  it("a waiter retries at most once (no retry chains on persistent failures)", async () => {
+    const url = "https://image.tmdb.org/t/p/w342/always-404.jpg"
+    const doFetch = vi.fn(async () => {
+      await new Promise((r) => setTimeout(r, 5))
+      throw new Error("fetch failed: 404")
+    })
+    const results = await Promise.allSettled([
+      cachedImageBytes(url, doFetch),
+      cachedImageBytes(url, doFetch),
+      cachedImageBytes(url, doFetch),
+    ])
+    expect(results.every((r) => r.status === "rejected")).toBe(true)
+    // 1 leader download + 1 shared retry among the waiters.
+    expect(doFetch).toHaveBeenCalledTimes(2)
+  })
+
   it("evicts oldest beyond the entry cap", async () => {
     vi.spyOn(globalThis, "fetch").mockImplementation(async () =>
       new Response(new Uint8Array([7]), { status: 200, headers: { "content-type": "image/jpeg" } }),
