@@ -11,6 +11,7 @@ export interface RecentChange {
 }
 
 export const RECENT_CHANGES: RecentChange[] = [
+  { type: "feature", text: "Simplify settings and reset quick preset transforms", sha: "1b88010", date: "2026-10-07" },
   { type: "feature", text: "Separate presets by format and add inspired styles", sha: "0f0d5f1", date: "2026-10-07" },
   { type: "fix", text: "Move logos and badges across the poster", sha: "0784575", date: "2026-10-07" },
   { type: "fix", text: "Queued poster image downloads survive when the first request aborts", sha: "7d334b3", date: "2026-10-07" },
