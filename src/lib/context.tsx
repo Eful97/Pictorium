@@ -475,7 +475,7 @@ export function usePictorium(): PictoriumCtx {
     customBadge, setCustomBadge,
     networkLogo, setNetworkLogo,
     networkLogoPosition, setNetworkLogoPosition,
-    preRelease,
+    preRelease, setPreRelease,
     ribbonSide,
     ribbonEnabled, setRibbonEnabled,
     posterShape, setPosterShape,
@@ -1496,6 +1496,69 @@ export function usePictorium(): PictoriumCtx {
     return (axis === "x" ? land?.logoOffsetX : land?.logoOffsetY) ?? flat ?? null
   }
 
+  // Fresh-title landscape init (N5): a new title (never saved, no mapping)
+  // opened with defaultPosterShape landscape starts from the landscape
+  // profile (`land ?? flat`, same `effectiveDefaultsForShape` rule as the
+  // settings preview and the server). Data sources, region and ratingSources
+  // stay shared; the flat gradient (= portrait profile, landscapeBlur is
+  // separate) and logoAlign (absent from LandscapeServerDefaults) stay
+  // shared too. Never on the mapping branch:
+  // saved per-title values always win. Called both at open (immediate UI)
+  // and after load (applyLoadedSelection re-runs loadDefaultsToState, which
+  // resets the flats from storage).
+  const applyFreshLandscapeDefaults = () => {
+    const land = landscapeDefaults
+    setBadgeStyle(land?.badgeStyle ?? defaultBadgeStyle)
+    setRankingBadgeStyle(land?.rankingBadgeStyle ?? defaultRankingBadgeStyle)
+    setExtraBadgeStyle(land?.extraBadgeStyle ?? defaultExtraBadgeStyle)
+    setBadgeFont(land?.badgeFont ?? defaultBadgeFont)
+    setGlobalBadges(land?.globalBadges ?? defaultGlobalBadges)
+    setRankingBadges(land?.rankingBadges ?? defaultRankingBadges)
+    setBadgeGenre(land?.badgeGenre ?? defaultBadgeGenre)
+    setBadgeYear(land?.badgeYear ?? defaultBadgeYear)
+    setBadgeRating(land?.badgeRating ?? defaultBadgeRating)
+    setBadgeQuality(land?.badgeQuality ?? defaultBadgeQuality)
+    setQualityBadgeStyle(land?.qualityBadgeStyle ?? defaultQualityBadgeStyle)
+    setCustomRatings(land?.customRatings ?? defaultCustomRatings)
+    setSeparateRatings(land?.separateRatings ?? defaultSeparateRatings)
+    // A/V formats stay explicit per-title (same freeze contract as the other
+    // visuals): the auto-persisted flat `videoFormats` key would otherwise
+    // leak the portrait flat into this state and the preview would emit it,
+    // overriding the landscape profile server-side. `null` must not survive
+    // here: the server treats an absent query as "inherit the profile", but
+    // this state is rehydrated from storage where the flat key is present.
+    setVideoFormats(land?.videoFormats ?? defaultVideoFormats)
+    // Per-title pre-release flag (preview-only `pre=1`, no mapping field):
+    // without this the fresh preview would render the flat value while the
+    // server resolves the landscape profile (desync WYSIWYG).
+    setPreRelease(land?.preRelease ?? defaultPreRelease)
+    setTopBadgeScale(land?.topBadgeScale ?? defaultTopBadgeScale)
+    setTopBadgeOffsetX(land?.topBadgeOffsetX ?? defaultTopBadgeOffsetX)
+    setTopBadgeOffsetY(land?.topBadgeOffsetY ?? defaultTopBadgeOffsetY)
+    setGenreBadgeScale(land?.genreBadgeScale ?? defaultGenreBadgeScale)
+    setGenreBadgeOffsetX(land?.genreBadgeOffsetX ?? defaultGenreBadgeOffsetX)
+    setGenreBadgeOffsetY(land?.genreBadgeOffsetY ?? defaultGenreBadgeOffsetY)
+    setQualityBadgeScale(land?.qualityBadgeScale ?? defaultQualityBadgeScale)
+    // Explicit profile scale wins; a saved custom default (≠ its style
+    // default) is preserved; otherwise it follows the land style default
+    // (same rule as the existing-mapping branch).
+    setSeparateBadgeScale(resolveSeparateBadgeScaleFallback({ explicit: land?.separateBadgeScale, defaultScale: defaultSeparateBadgeScale, defaultStyle: defaultSeparateRatingsStyle, style: isSeparateRatingsStyle(land?.separateRatingsStyle) ? land.separateRatingsStyle : defaultSeparateRatingsStyle }))
+    setSeparateBadgeOffsetX(land?.separateBadgeOffsetX ?? defaultSeparateBadgeOffsetX)
+    setSeparateBadgeOffsetY(land?.separateBadgeOffsetY ?? defaultSeparateBadgeOffsetY)
+    // Style from the landscape profile when present (override respected),
+    // otherwise the shared flat default.
+    setSeparateRatingsStyle(isSeparateRatingsStyle(land?.separateRatingsStyle) ? land.separateRatingsStyle : defaultSeparateRatingsStyle)
+    setQualityBadgeOffsetX(land?.qualityBadgeOffsetX ?? defaultQualityBadgeOffsetX)
+    setQualityBadgeOffsetY(land?.qualityBadgeOffsetY ?? defaultQualityBadgeOffsetY)
+    setNetworkLogoScale(land?.networkLogoScale ?? defaultNetworkLogoScale)
+    setNetworkLogoOffsetX(land?.networkLogoOffsetX ?? defaultNetworkLogoOffsetX)
+    setNetworkLogoOffsetY(land?.networkLogoOffsetY ?? defaultNetworkLogoOffsetY)
+    setNetworkLogo(land?.networkLogo ?? defaultNetworkLogo)
+    setNetworkLogoPosition(land?.networkLogoPosition ?? defaultNetworkLogoPosition)
+    setRibbonSide(land?.ribbonSide ?? defaultRibbonSide)
+    setRibbonEnabled(land?.ribbonEnabled ?? defaultRibbonEnabled)
+  }
+
   // Shared initial artwork selection (saved-mapping restore or auto chain),
   // used by both openPosterBrowser and the language/region refresh: a refresh
   // that supersedes the open before any poster was picked must still land an
@@ -1599,6 +1662,11 @@ export function usePictorium(): PictoriumCtx {
         }
       }
       if (!skipDefaultsSync) loadDefaultsToState()
+      // loadDefaultsToState resets the flats from storage: with a landscape
+      // default the landscape profile is re-applied (same open-time values,
+      // never another format's tweaks). With skipDefaultsSync (locale
+      // refresh) the in-memory state stays intact.
+      if (!skipDefaultsSync && defaultPosterShape === "landscape") applyFreshLandscapeDefaults()
       if (chosenPoster) {
         // Default personalizzati (es. preset Colore) restano assoluti;
         // solo il legacy Naturale si ricalibra per tipo poster.
@@ -1711,6 +1779,12 @@ export function usePictorium(): PictoriumCtx {
     navigation.setSelectedLogo(null)
     setSelectedBackdrop(null)
     navigation.setPreviewPoster(null)
+    // N8: drop the previous title's image lists in the same batch — the
+    // landscape init would otherwise auto-pick a stale tile and mark the
+    // new title done (empty lists reuse the grid loading state).
+    navigation.setPosters([])
+    navigation.setLogos([])
+    setBackdrops([])
     setTrendRank(null)
     setMdblistMatch(null)
     setMetaInfo({ genres: [], voteAverage: 0 })
@@ -1854,33 +1928,16 @@ export function usePictorium(): PictoriumCtx {
         tintStrength: landscapeDefaults?.tintStrength ?? defaultTintStrength,
         topShade: landscapeDefaults?.topShade ?? defaultTopShade,
       })
-      // Scale badge: con default Orizzontale gli slider partono dai default
-      // globali Orizzontale (come la sfumatura sopra); in portrait resta lo
-      // storico (valori correnti preservati, mai resettati all'apertura).
-      if (defaultPosterShape === "landscape") {
-        setTopBadgeScale(landscapeDefaults?.topBadgeScale ?? defaultTopBadgeScale)
-        setTopBadgeOffsetX(landscapeDefaults?.topBadgeOffsetX ?? defaultTopBadgeOffsetX)
-        setTopBadgeOffsetY(landscapeDefaults?.topBadgeOffsetY ?? defaultTopBadgeOffsetY)
-        setGenreBadgeScale(landscapeDefaults?.genreBadgeScale ?? defaultGenreBadgeScale)
-        setGenreBadgeOffsetX(landscapeDefaults?.genreBadgeOffsetX ?? defaultGenreBadgeOffsetX)
-        setGenreBadgeOffsetY(landscapeDefaults?.genreBadgeOffsetY ?? defaultGenreBadgeOffsetY)
-        setQualityBadgeScale(landscapeDefaults?.qualityBadgeScale ?? defaultQualityBadgeScale)
-        setSeparateBadgeScale(resolveSeparateBadgeScaleFallback({ explicit: landscapeDefaults?.separateBadgeScale, defaultScale: defaultSeparateBadgeScale, defaultStyle: defaultSeparateRatingsStyle, style: isSeparateRatingsStyle(landscapeDefaults?.separateRatingsStyle) ? landscapeDefaults.separateRatingsStyle : defaultSeparateRatingsStyle }))
-        setSeparateBadgeOffsetX(landscapeDefaults?.separateBadgeOffsetX ?? defaultSeparateBadgeOffsetX)
-        setSeparateBadgeOffsetY(landscapeDefaults?.separateBadgeOffsetY ?? defaultSeparateBadgeOffsetY)
-        // Stile dal profilo Orizzontale se presente (override rispettato),
-        // altrimenti default flat condiviso.
-        setSeparateRatingsStyle(isSeparateRatingsStyle(landscapeDefaults?.separateRatingsStyle) ? landscapeDefaults.separateRatingsStyle : defaultSeparateRatingsStyle)
-        setQualityBadgeOffsetX(landscapeDefaults?.qualityBadgeOffsetX ?? defaultQualityBadgeOffsetX)
-        setQualityBadgeOffsetY(landscapeDefaults?.qualityBadgeOffsetY ?? defaultQualityBadgeOffsetY)
-        setNetworkLogoScale(landscapeDefaults?.networkLogoScale ?? defaultNetworkLogoScale)
-        setNetworkLogoOffsetX(landscapeDefaults?.networkLogoOffsetX ?? defaultNetworkLogoOffsetX)
-        setNetworkLogoOffsetY(landscapeDefaults?.networkLogoOffsetY ?? defaultNetworkLogoOffsetY)
-      }
       setNetworkLogo(defaultNetworkLogo)
       setNetworkLogoPosition(defaultNetworkLogoPosition)
       setRibbonSide(defaultRibbonSide)
       setRibbonEnabled(defaultRibbonEnabled)
+      // Fresh landscape init (N5, see applyFreshLandscapeDefaults above):
+      // runs AFTER the last flat setters so the landscape profile wins while
+      // the fetch is still in flight (immediate WYSIWYG, no portrait flash).
+      if (defaultPosterShape === "landscape") {
+        applyFreshLandscapeDefaults()
+      }
       setPosterShape(defaultPosterShape)
       setLogoAlign(defaultPosterShape === "landscape" ? (defaultLogoAlign ?? "left") : "center")
       setCustomBadge(null)

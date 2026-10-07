@@ -321,12 +321,17 @@ export default function EditView() {
   // Mobile: dopo il tap su un poster salta ad "Anteprima" (nella tab Poster
   // non si vedrebbe alcun feedback). Solo sotto lg, dove lo switcher esiste;
   // su desktop resti dove sei per confrontare varianti.
-  // Landscape: senza sfondo esplicito seleziona in automatico uno sfondo.
-  // - Titolo con mapping che HA un backdrop: ripristina quello salvato
-  //   (mai sovrascritto dal primo TMDB).
-  // - Title without backdrop in mapping, or fresh title: first VISIBLE
-  //   backdrop (same eligibility as the BackdropOptions grid: clean and not
-  //   excluded — never an invisible localized tile as the "first image").
+  // Landscape: without an explicit backdrop, select one automatically.
+  // - Title whose mapping HAS a backdrop: restore the saved one
+  //   (never overwritten by the first TMDB entry).
+  // - Mapping saved explicitly in landscape WITHOUT a backdrop: the user
+  //   chose the "automatic TMDB backdrop" fallback on clear (landscape saves
+  //   persist null, portrait saves preserve the previous value). Never
+  //   override that choice with an auto-pick.
+  // - Fresh title or legacy (portrait/shapeless) mapping without backdrop:
+  //   first VISIBLE backdrop (same eligibility as the BackdropOptions grid:
+  //   clean and not excluded — never an invisible localized tile as the
+  //   "first image").
   // Init once per title lifecycle in landscape: a voluntary deselection
   // (clear) stays empty, never reselected; leaving landscape clears the mark
   // so re-entering reinitializes (historical shape-switch behavior).
@@ -360,7 +365,12 @@ export default function EditView() {
       backdropInitKeyRef.current = selectedMappingKey
       return
     }
-    if (hasMapping) {
+    // A mapping saved explicitly in landscape without a backdrop is an
+    // intentional "automatic TMDB backdrop" choice (see saveConfig:
+    // landscape saves write null on clear, portrait saves preserve the
+    // previous value). Keep it empty; legacy portrait/shapeless mappings
+    // without a backdrop fall through to the first-visible auto-pick below.
+    if (hasMapping && (selectedMapping?.posterShape ?? null) === "landscape") {
       backdropInitKeyRef.current = selectedMappingKey
       return
     }
