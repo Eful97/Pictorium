@@ -246,7 +246,7 @@ describe("snapshot presets respect the edit target", () => {
       await vi.advanceTimersByTimeAsync(100)
     })
     fireEvent.click(within(screen.getByTestId("format-target-selector")).getByText("ui.posterShapeLandscape"))
-    fireEvent.click(screen.getByText("BetterPoster"))
+    fireEvent.click(screen.getByText("Stile BetterPoster"))
     // Snapshot values land on the target profile (flat ranking style + own landscape profile win).
     expect(ctx().landscape.rankingBadgeStyle).toBe("default")
     expect(ctx().landscape.globalBadges).toBe(true)
@@ -272,7 +272,7 @@ describe("snapshot presets respect the edit target", () => {
       await vi.advanceTimersByTimeAsync(100)
     })
     const landBefore = JSON.stringify(ctx().landscape)
-    fireEvent.click(screen.getByText("RPDB"))
+    fireEvent.click(screen.getByText("Stile RPDB"))
     expect(ctx().defaultPosterShape).toBe("landscape")
     expect(JSON.stringify(ctx().landscape)).toBe(landBefore)
     expect(ctx().defaultBadgeStyle).toBe("minimal")

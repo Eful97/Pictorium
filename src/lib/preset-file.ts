@@ -13,6 +13,8 @@ import {
   MAX_VISUAL_PRESETS,
   captureVisualPreset,
   visualPresetInputSchema,
+  visualPresetShapeSchema,
+  type VisualPresetShape,
   type VisualPresetValues,
 } from "./visual-presets";
 import {
@@ -31,6 +33,8 @@ export const MAX_PRESET_FILE_GRADIENT = MAX_CUSTOM_GRADIENT_PRESETS;
 
 export interface VisualFileEntry {
   name: string;
+  /** Orientation list. Absent in legacy v1 files = portrait. */
+  shape: VisualPresetShape;
   values: VisualPresetValues;
 }
 
@@ -109,6 +113,13 @@ function pickNameValues(item: unknown): { name: unknown; values: unknown } {
   return { name: raw.name, values: raw.values };
 }
 
+/** Visual entries additionally carry the optional orientation shape. */
+function pickNameValuesShape(item: unknown): { name: unknown; shape: unknown; values: unknown } {
+  if (typeof item !== "object" || item === null) return { name: undefined, shape: undefined, values: undefined };
+  const raw = item as Record<string, unknown>;
+  return { name: raw.name, shape: raw.shape, values: raw.values };
+}
+
 export function presetFileTextSizeBytes(text: string): number {
   return new TextEncoder().encode(text).length;
 }
@@ -132,18 +143,24 @@ export function parsePresetFileData(data: unknown): ParsePresetFileResult {
   const visual: VisualFileEntry[] = [];
   const gradient: GradientFileEntry[] = [];
   const skipped: PresetFileSkipped = { ...EMPTY_SKIPPED };
+  // Section cap is per orientation list (20 portrait + 20 landscape).
+  const shapeCounts: Record<VisualPresetShape, number> = { portrait: 0, landscape: 0 };
 
   for (const item of visualRaw) {
-    const parsed = visualPresetInputSchema.safeParse(pickNameValues(item));
+    // Absent shape defaults to portrait (legacy v1); invalid shape fails
+    // the strict schema and counts as skipped, like bad values.
+    const parsed = visualPresetInputSchema.safeParse(pickNameValuesShape(item));
     if (!parsed.success) {
       skipped.visual += 1;
       continue;
     }
-    if (visual.length >= MAX_PRESET_FILE_VISUAL) {
+    const shape = parsed.data.shape;
+    if (shapeCounts[shape] >= MAX_PRESET_FILE_VISUAL) {
       skipped.visualOverCap += 1;
       continue;
     }
-    visual.push(parsed.data);
+    shapeCounts[shape] += 1;
+    visual.push({ name: parsed.data.name, shape, values: parsed.data.values });
   }
 
   for (const item of gradientRaw) {
@@ -181,8 +198,8 @@ export function parsePresetFileText(text: string): ParsePresetFileResult {
 }
 
 export interface BuildPresetFileInput {
-  /** Live visual presets (store shape with id, or bare {name, values}). */
-  visual?: ReadonlyArray<{ name: string; values: unknown }>;
+  /** Live visual presets (store shape with id+shape, or bare {name, values[, shape]}). */
+  visual?: ReadonlyArray<{ name: string; shape?: unknown; values: unknown }>;
   /** Live custom gradient presets (store shape with id, or bare {name, values}). */
   gradient?: ReadonlyArray<{ name: string; values: unknown }>;
 }
@@ -192,23 +209,29 @@ const gradientNameSchema = z.string().trim().min(1).max(24);
 
 /**
  * Build a transfer file from live data. Allowlist picks only:
- * visual -> trimmed name + `captureVisualPreset(values)` (stray secrets
- * stripped, preset preserved); gradient -> trimmed name + the 6 slider
- * keys (validated). Invalid entries are skipped. Builtins are NEVER
+ * visual -> trimmed name + shape (absent/invalid = portrait, never fails
+ * the entry) + `captureVisualPreset(values)` (stray secrets stripped,
+ * preset preserved); gradient -> trimmed name + the 6 slider keys
+ * (validated). Invalid entries are skipped. Builtins are NEVER
  * added here — the caller passes exactly what to export (all or one).
  */
 export function buildPresetFile(input: BuildPresetFileInput = {}): PresetFileData {
   const visualPresets: VisualFileEntry[] = [];
+  const visualCounts: Record<VisualPresetShape, number> = { portrait: 0, landscape: 0 };
   for (const item of input.visual ?? []) {
-    if (visualPresets.length >= MAX_PRESET_FILE_VISUAL) break;
     if (typeof item !== "object" || item === null) continue;
     const name = visualNameSchema.safeParse((item as { name?: unknown }).name);
     if (!name.success) continue;
+    const shape = visualPresetShapeSchema.safeParse((item as { shape?: unknown }).shape);
+    const entryShape = shape.success ? shape.data : "portrait";
+    if (visualCounts[entryShape] >= MAX_PRESET_FILE_VISUAL) continue;
     try {
       visualPresets.push({
         name: name.data,
+        shape: entryShape,
         values: captureVisualPreset((item as { values?: VisualPresetValues }).values as VisualPresetValues),
       });
+      visualCounts[entryShape] += 1;
     } catch {
       continue;
     }
@@ -292,15 +315,43 @@ function planImport<T extends { name: string }>(
 }
 
 /**
- * Additive visual import plan. Skips case-insensitive name collisions
- * (the store upserts on exact name — this avoids both silent overwrite
- * and confusing near-dupes) and quota overflow beyond 20 total.
+ * Additive visual import plan, namespaced PER orientation list: same name is
+ * allowed across shapes, quota is 20 per shape. Incoming entries without a
+ * resolved shape count as portrait (legacy v1). File order is preserved
+ * across shapes (single pass). Counts existing rows, not deduped names.
  */
 export function planVisualImport(
-  existing: ReadonlyArray<string | { name: string }>,
-  incoming: ReadonlyArray<VisualFileEntry>,
+  existingByShape: Record<VisualPresetShape, ReadonlyArray<string | { name: string }>>,
+  incoming: ReadonlyArray<{ name: string; shape?: VisualPresetShape; values: VisualPresetValues }>,
 ): PresetImportPlan<VisualFileEntry> {
-  return planImport(existing, incoming, MAX_PRESET_FILE_VISUAL);
+  const seen: Record<VisualPresetShape, Set<string>> = {
+    portrait: existingNameSet(existingByShape.portrait),
+    landscape: existingNameSet(existingByShape.landscape ?? []),
+  };
+  const baseCount: Record<VisualPresetShape, number> = {
+    portrait: existingByShape.portrait.length,
+    landscape: (existingByShape.landscape ?? []).length,
+  };
+  const added: Record<VisualPresetShape, number> = { portrait: 0, landscape: 0 };
+  const toAdd: VisualFileEntry[] = [];
+  let skippedDuplicate = 0;
+  let skippedQuota = 0;
+  for (const item of incoming) {
+    const shape = item.shape ?? "portrait";
+    const norm = normalizePresetName(item.name);
+    if (seen[shape].has(norm)) {
+      skippedDuplicate += 1;
+      continue;
+    }
+    if (baseCount[shape] + added[shape] >= MAX_PRESET_FILE_VISUAL) {
+      skippedQuota += 1;
+      continue;
+    }
+    seen[shape].add(norm);
+    added[shape] += 1;
+    toAdd.push({ name: item.name, shape, values: item.values });
+  }
+  return { toAdd, skippedDuplicate, skippedQuota };
 }
 
 /**

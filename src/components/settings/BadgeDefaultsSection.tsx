@@ -35,9 +35,14 @@ import { saveDefaults } from "@/lib/save-defaults"
 import { http } from "@/lib/http"
 import { captureVisualPreset } from "@/lib/visual-presets"
 import {
-  BETTER_POSTER_PRESET_LABEL,
+  applyLandscapeIsolated,
+  applyPortraitIsolated,
+  portraitPresetPatch,
+  resolveEffectiveLandscape,
+} from "@/lib/visual-presets"
+import {
+  APPLE_VISUAL_DEFAULTS,
   BETTER_POSTER_VISUAL_DEFAULTS,
-  RPDB_PRESET_LABEL,
   RPDB_VISUAL_DEFAULTS,
 } from "@/lib/default-visual-presets"
 
@@ -428,6 +433,31 @@ export function BadgeDefaultsSection({ active, shape, onPreviewFamilyChange }: {
     currentVisualSnapshot === JSON.stringify(BETTER_POSTER_VISUAL_DEFAULTS)
   const isRpdb = currentVisualSnapshot === JSON.stringify(RPDB_VISUAL_DEFAULTS)
 
+  // Apple builtin, stesso path isolato dei preset personali (mai lo snapshot
+  // con globali condivisi di BetterPoster/RPDB): portrait scrive solo i flat
+  // mappati congelando l'effettivo dell'altro formato, landscape solo il
+  // profilo. Fonti voti, logo align, fit flag e delivery restano intatti in
+  // entrambi i target. `live` fonde il profilo RAW (extra fuori contratto,
+  // es. chiavi server, sopravvivono all'apply); l'highlight confronta la
+  // proiezione intera per forma (flat mappati in portrait, effettivo
+  // landscape in orizzontale), mai un subset di chiavi.
+  const appleLive = { ...captureVisualPreset(ed), landscape: ed.landscape }
+  const appleHighlightSource = captureVisualPreset(ed)
+  const isApple =
+    JSON.stringify(
+      isLandscape ? resolveEffectiveLandscape(appleHighlightSource) : portraitPresetPatch(appleHighlightSource),
+    ) ===
+    JSON.stringify(
+      isLandscape ? resolveEffectiveLandscape(APPLE_VISUAL_DEFAULTS) : portraitPresetPatch(APPLE_VISUAL_DEFAULTS),
+    )
+  const applyApple = () => {
+    ed.applyVisualPreset(
+      isLandscape
+        ? applyLandscapeIsolated(appleLive, APPLE_VISUAL_DEFAULTS)
+        : applyPortraitIsolated(appleLive, APPLE_VISUAL_DEFAULTS),
+    )
+  }
+
   // Snapshot presets apply to the edit target only: landscape-capable keys
   // go to the profile, truly shared globals go to root, delivery shape and
   // the preset's own nested landscape never touch anything else. Single
@@ -492,7 +522,7 @@ export function BadgeDefaultsSection({ active, shape, onPreviewFamilyChange }: {
           {t("ui.configPresetDesc")}
         </p>
 
-        <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-5 gap-2 pt-0.5">
+        <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-2 pt-0.5">
           <button
             type="button"
             onClick={applyEssential}
@@ -551,7 +581,7 @@ export function BadgeDefaultsSection({ active, shape, onPreviewFamilyChange }: {
             }`}
           >
             <div className="flex items-center justify-between w-full">
-              <span className="font-semibold text-xs text-foreground">{BETTER_POSTER_PRESET_LABEL}</span>
+              <span className="font-semibold text-xs text-foreground">{t("ui.configPresetBetterPoster")}</span>
               {isBetterPoster && <Check className="w-3.5 h-3.5 text-accent-orange shrink-0" />}
             </div>
             <span className="text-[10px] text-zinc-400 mt-1 leading-snug">{t("ui.configPresetBetterPosterDesc")}</span>
@@ -567,12 +597,31 @@ export function BadgeDefaultsSection({ active, shape, onPreviewFamilyChange }: {
             }`}
           >
             <div className="flex items-center justify-between w-full">
-              <span className="font-semibold text-xs text-foreground">{RPDB_PRESET_LABEL}</span>
+              <span className="font-semibold text-xs text-foreground">{t("ui.configPresetRpdb")}</span>
               {isRpdb && <Check className="w-3.5 h-3.5 text-accent-orange shrink-0" />}
             </div>
             <span className="text-[10px] text-zinc-400 mt-1 leading-snug">{t("ui.configPresetRpdbDesc")}</span>
           </button>
+
+          <button
+            type="button"
+            onClick={applyApple}
+            className={`flex flex-col text-left p-2.5 rounded-xl border transition-all cursor-pointer ${
+              isApple
+                ? "bg-accent-orange/15 border-accent-orange/60 text-foreground shadow-sm ring-1 ring-accent-orange/30"
+                : "bg-surface2/40 hover:bg-surface2/70 border-surface2 text-zinc-300 hover:text-foreground"
+            }`}
+          >
+            <div className="flex items-center justify-between w-full">
+              <span className="font-semibold text-xs text-foreground">{t("ui.configPresetApple")}</span>
+              {isApple && <Check className="w-3.5 h-3.5 text-accent-orange shrink-0" />}
+            </div>
+            <span className="text-[10px] text-zinc-400 mt-1 leading-snug">{t("ui.configPresetAppleDesc")}</span>
+          </button>
         </div>
+        <p className="text-[10px] text-zinc-500 italic leading-snug pt-0.5">
+          {t("ui.configPresetUnofficialNote")}
+        </p>
       </div>
 
       {/* CARD Rankings: rank bucket + single appearance + position */}

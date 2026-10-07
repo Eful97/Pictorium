@@ -17,7 +17,8 @@ import {
   addCustomGradientPreset,
   getCustomGradientPresets,
 } from "@/lib/gradient-presets"
-import type { VisualPreset } from "@/lib/visual-presets"
+import type { VisualPreset, VisualPresetShape } from "@/lib/visual-presets"
+import { visualPresetShapeSchema } from "@/lib/visual-presets"
 
 const endpoint = "/api/defaults/presets"
 
@@ -40,21 +41,22 @@ function dateStamp(): string {
   return new Date().toISOString().slice(0, 10)
 }
 
-async function readPresets(): Promise<VisualPreset[]> {
-  const result = await http<{ presets: VisualPreset[] }>(endpoint, { retries: 0 })
+async function readPresets(shape: VisualPresetShape): Promise<VisualPreset[]> {
+  const result = await http<{ presets: VisualPreset[] }>(`${endpoint}?shape=${shape}`, { retries: 0 })
   return result.presets
 }
 
 /**
  * Shared preset-file transfer (visual + custom gradients). Import is
- * additive only: the fresh server list is loaded before planning, so
- * existing names are skipped (never overwritten) and only missing names
- * are POSTed one by one; gradients go through `addCustomGradientPreset`
- * with persistence required. Zero applied is info (never success); any
- * POST/auth/storage failure is error, partial counts included.
+ * additive only: fresh server lists are loaded per orientation BEFORE
+ * planning, so existing names are skipped per-shape (never overwritten) and
+ * only missing names are POSTed one by one with their shape; gradients go
+ * through `addCustomGradientPreset` with persistence required. Zero applied
+ * is info (never success); any POST/auth/storage failure is error, partial
+ * counts included. List refreshes fire per affected shape only.
  */
 export function usePresetTransfer(options?: {
-  onVisualsChanged?: (next: VisualPreset[]) => void
+  onVisualsChanged?: (shape: VisualPresetShape, next: VisualPreset[]) => void
 }) {
   const { onVisualsChanged } = options ?? {}
   const { t } = useT()
@@ -63,7 +65,7 @@ export function usePresetTransfer(options?: {
   const exportAll = useCallback(async () => {
     setBusy(true)
     try {
-      const visuals = await readPresets()
+      const visuals = [...(await readPresets("portrait")), ...(await readPresets("landscape"))]
       downloadJson(`pictorium-presets-${dateStamp()}.json`, buildPresetFile({ visual: visuals, gradient: getCustomGradientPresets() }))
       toast.success(t("ui.saved"))
     } catch {
@@ -73,8 +75,12 @@ export function usePresetTransfer(options?: {
     }
   }, [t])
 
-  const exportVisual = useCallback((preset: { name: string; values: unknown }) => {
-    downloadJson(`pictorium-visual-preset-${slugify(preset.name)}.json`, buildPresetFile({ visual: [preset] }))
+  const exportVisual = useCallback((preset: { name: string; shape?: unknown; values: unknown }) => {
+    const shape = visualPresetShapeSchema.safeParse(preset.shape)
+    downloadJson(
+      `pictorium-visual-preset-${slugify(preset.name)}.json`,
+      buildPresetFile({ visual: [{ ...preset, shape: shape.success ? shape.data : "portrait" }] }),
+    )
     toast.success(t("ui.saved"))
   }, [t])
 
@@ -109,25 +115,34 @@ export function usePresetTransfer(options?: {
       }
       // Server round-trip only when the file carries visuals: gradient-only
       // files import fully offline (no auth needed) and never touch visuals.
-      let fresh: VisualPreset[] | null = null
+      // Fresh lists load per orientation present in the file (legacy files
+      // are portrait-only, so a single GET).
+      const presentShapes = [...new Set(parsed.visual.map((entry) => entry.shape ?? "portrait"))]
+      const lists: Record<VisualPresetShape, VisualPreset[] | null> = { portrait: null, landscape: null }
       if (parsed.visual.length > 0) {
         try {
-          fresh = await readPresets()
+          for (const shape of presentShapes) lists[shape] = await readPresets(shape)
         } catch {
           toast.error(t("ui.presetFileImportError"))
           return
         }
       }
-      const visualPlan = planVisualImport(fresh ?? [], parsed.visual)
+      const visualPlan = planVisualImport(
+        { portrait: lists.portrait ?? [], landscape: lists.landscape ?? [] },
+        parsed.visual,
+      )
       let visualOk = 0
       let failed = 0
+      const touched = new Set<VisualPresetShape>()
       for (const entry of visualPlan.toAdd) {
-        const body: VisualFileEntry = entry
+        const shape = entry.shape ?? "portrait"
+        const body: VisualFileEntry = { name: entry.name, shape, values: entry.values }
         try {
           const result = await http<{ presets: VisualPreset[] }>(endpoint, {
             method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body), retries: 0,
           })
-          fresh = result.presets
+          lists[shape] = result.presets
+          touched.add(shape)
           visualOk += 1
         } catch {
           failed += 1
@@ -145,7 +160,11 @@ export function usePresetTransfer(options?: {
         if (addCustomGradientPreset(added.name, added.values, { requirePersistence: true })) gradientOk += 1
         else failed += 1
       }
-      if (fresh) onVisualsChanged?.(fresh)
+      // Refresh only the orientation lists this import actually changed.
+      for (const shape of touched) {
+        const list = lists[shape]
+        if (list) onVisualsChanged?.(shape, list)
+      }
       const skipped =
         parsed.skipped.visual + parsed.skipped.visualOverCap +
         parsed.skipped.gradient + parsed.skipped.gradientOverCap +

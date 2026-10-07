@@ -156,6 +156,10 @@ const itDict: Record<string, string> = {
   "ui.hostedByGuide": "guida gratuita agli addon",
   "ui.hostedByGuideLine": "Nuovo di Stremio? Dai un'occhiata alla {guide}.",
   "ui.hostedByMinimize": "Riduci a icona",
+  "ui.configPresetBetterPoster": "Stile BetterPoster",
+  "ui.configPresetRpdb": "Stile RPDB",
+  "ui.configPresetApple": "Stile Apple",
+  "ui.configPresetUnofficialNote": "Preset non ufficiali, senza affiliazione ai marchi citati.",
 }
 
 function mockT(key: string, params?: Record<string, string | number>): string {

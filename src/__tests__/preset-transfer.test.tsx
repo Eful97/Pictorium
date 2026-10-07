@@ -56,16 +56,20 @@ function mockAnchors() {
   })
 }
 
-function mockHttpList(fresh: VisualPreset[], failPost = false) {
+function mockHttpList(fresh: VisualPreset[], landscapeFresh: VisualPreset[] = [], failPost = false) {
+  const lists = { portrait: [...fresh], landscape: [...landscapeFresh] }
   httpMock.mockImplementation(async (_path: string, opts?: { method?: string; body?: BodyInit | null }) => {
     methods.push(opts?.method)
     if (opts?.method === "POST") {
       const body = JSON.parse(String(opts.body))
       posted.push(body)
       if (failPost) throw new Error("denied")
-      return { presets: [...fresh, { id: UID, ...body }] }
+      const target = body.shape === "landscape" ? "landscape" : "portrait"
+      lists[target] = [...lists[target], { id: UID, ...body }]
+      return { presets: lists[target] }
     }
-    return { presets: fresh }
+    const target = String(_path).includes("shape=landscape") ? "landscape" : "portrait"
+    return { presets: lists[target] }
   })
 }
 
@@ -136,11 +140,11 @@ describe("usePresetTransfer", () => {
     })
     await act(async () => { await result.current.importFile(file) })
     expect(posted).toHaveLength(1)
-    expect(posted[0]).toEqual({ name: "Fresh", values: VISUAL })
+    expect(posted[0]).toEqual({ name: "Fresh", shape: "portrait", values: VISUAL })
     expect(methods).not.toContain("PUT")
     expect(methods).not.toContain("DELETE")
     expect(JSON.stringify(posted)).not.toContain("SECRET")
-    expect(onVisualsChanged).toHaveBeenCalled()
+    expect(onVisualsChanged).toHaveBeenCalledWith("portrait", expect.any(Array))
     expect(toastMock.success).toHaveBeenCalledTimes(1)
     expect(toastMock.success.mock.calls[0]?.[0]).toBe("ui.presetFileImportOk")
   })
@@ -159,6 +163,48 @@ describe("usePresetTransfer", () => {
     expect(toastMock.success).not.toHaveBeenCalled()
     expect(toastMock.info).toHaveBeenCalledTimes(1)
     expect(toastMock.info.mock.calls[0]?.[0]).toBe("ui.presetFileImportEmpty")
+  })
+
+  it("import routes entries per shape with separate namespaces and per-shape refresh", async () => {
+    mockHttpList([visualEntry("Twin")], [{ ...visualEntry("Wide"), shape: "landscape" }])
+    const onVisualsChanged = vi.fn()
+    const { result } = renderHook(() => usePresetTransfer({ onVisualsChanged }), { wrapper: createWrapper() })
+    const file = presetFile({
+      kind: "pictorium-presets",
+      formatVersion: 1,
+      visualPresets: [
+        { name: "  TWIN  ", values: VISUAL },
+        { name: "Twin", shape: "landscape", values: VISUAL },
+        { name: "Fresh", shape: "landscape", values: VISUAL },
+      ],
+    })
+    await act(async () => { await result.current.importFile(file) })
+    // Portrait "Twin" collides (skipped); landscape twins are a separate
+    // namespace, so both landscape entries POST with their shape.
+    expect(posted).toEqual([
+      { name: "Twin", shape: "landscape", values: VISUAL },
+      { name: "Fresh", shape: "landscape", values: VISUAL },
+    ])
+    expect(onVisualsChanged).toHaveBeenCalledWith("landscape", expect.any(Array))
+    expect(onVisualsChanged).not.toHaveBeenCalledWith("portrait", expect.any(Array))
+    expect(toastMock.success.mock.calls[0]?.[0]).toBe("ui.presetFileImportOk")
+  })
+
+  it("export-all carries both lists with shapes; single export preserves shape", async () => {
+    mockHttpList([visualEntry("Look")], [{ ...visualEntry("Wide"), shape: "landscape" }])
+    const { result } = renderHook(() => usePresetTransfer(), { wrapper: createWrapper() })
+    await act(async () => { await result.current.exportAll() })
+    await flushBlobs()
+    const body = JSON.parse(downloaded[0]?.json ?? "{}")
+    expect(body.visualPresets.map((v: { name: string; shape: string }) => [v.name, v.shape])).toEqual([
+      ["Look", "portrait"],
+      ["Wide", "landscape"],
+    ])
+    act(() => { result.current.exportVisual({ name: "Wide", shape: "landscape", values: VISUAL }) })
+    await flushBlobs()
+    expect(JSON.parse(downloaded[1]?.json ?? "{}").visualPresets).toEqual([
+      { name: "Wide", shape: "landscape", values: expect.any(Object) },
+    ])
   })
 
   it("import adds gradients to the live store so the UI refreshes", async () => {
@@ -266,7 +312,7 @@ describe("usePresetTransfer", () => {
   })
 
   it("partial failure (POST down, gradient ok) reports partial error with counts", async () => {
-    mockHttpList([], true)
+    mockHttpList([], [], true)
     const { result } = renderHook(() => usePresetTransfer(), { wrapper: createWrapper() })
     const file = presetFile({
       kind: "pictorium-presets",
@@ -300,7 +346,7 @@ describe("usePresetTransfer", () => {
   })
 
   it("POST/auth failure is an error, never a success", async () => {
-    mockHttpList([], true)
+    mockHttpList([], [], true)
     const onVisualsChanged = vi.fn()
     const { result } = renderHook(() => usePresetTransfer({ onVisualsChanged }), { wrapper: createWrapper() })
     const file = presetFile({
@@ -312,7 +358,8 @@ describe("usePresetTransfer", () => {
     expect(posted).toHaveLength(1)
     expect(toastMock.error).toHaveBeenCalledTimes(1)
     expect(toastMock.success).not.toHaveBeenCalled()
-    expect(onVisualsChanged).toHaveBeenCalled()
+    // Total failure changes no list: no refresh callback, error toast only.
+    expect(onVisualsChanged).not.toHaveBeenCalled()
   })
 })
 

@@ -399,7 +399,7 @@ export function SettingsPanel({ setSettingsOpen, exportData, importData, mobile,
           </div>
         )}
         <div className="flex-1 min-h-0 overflow-y-auto p-4 space-y-4 pb-8" data-testid="settings-controls">
-          {mobileViewport === true && (activeTab === "badge" || activeTab === "trasforma") && <VisualPresetsSection />}
+          {mobileViewport === true && (activeTab === "badge" || activeTab === "trasforma") && <VisualPresetsSection shape={editTargetShape} />}
           {badgePanel}
           {trasformaPanel}
           {prefsPanel}
@@ -460,7 +460,7 @@ export function SettingsPanel({ setSettingsOpen, exportData, importData, mobile,
         {/* Contenuto scrollabile */}
         <div className={`flex-1 min-h-0 ${isVisualTab ? "flex flex-col md:grid md:grid-cols-[minmax(0,1fr)_minmax(220px,32%)]" : "flex flex-col"}`}>
           <div className="min-w-0 min-h-0 overflow-y-auto p-4 sm:p-6 space-y-4" data-testid="settings-controls">
-            {mobileViewport === false && isVisualTab && <VisualPresetsSection />}
+            {mobileViewport === false && isVisualTab && <VisualPresetsSection shape={editTargetShape} />}
             {badgePanel}
             {trasformaPanel}
             {prefsPanel}

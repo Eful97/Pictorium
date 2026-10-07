@@ -130,7 +130,7 @@ describe("preset-file codec (visual + gradient, kind pictorium-presets v1)", () 
     });
     expect(parsed.ok).toBe(true);
     if (!parsed.ok) return;
-    expect(parsed.visual).toEqual([{ name: "Keep", values: VISUAL }]);
+    expect(parsed.visual).toEqual([{ name: "Keep", shape: "portrait", values: VISUAL }]);
     expect(parsed.gradient).toEqual([{ name: "KeepG", values: GRADIENT }]);
     expect(JSON.stringify(parsed)).not.toContain('"id"');
   });
@@ -143,7 +143,7 @@ describe("preset-file codec (visual + gradient, kind pictorium-presets v1)", () 
     expect(file.visualPresets).toHaveLength(1);
     expect(file.gradientPresets).toHaveLength(1);
     expect(JSON.stringify(file)).not.toContain("SECRET");
-    expect(Object.keys(file.visualPresets[0]!).sort()).toEqual(["name", "values"]);
+    expect(Object.keys(file.visualPresets[0]!).sort()).toEqual(["name", "shape", "values"]);
     expect(Object.keys(file.gradientPresets[0]!.values).sort()).toEqual(
       ["blurDarkness", "blurEnabled", "blurFade", "blurIntensity", "gradientHeight", "tintStrength"],
     );
@@ -218,13 +218,13 @@ describe("preset-file codec (visual + gradient, kind pictorium-presets v1)", () 
       { name: "  LOOK  ", values: RPDB_VISUAL_DEFAULTS },
       { name: "Fresh", values: VISUAL },
     ];
-    const plan = planVisualImport([{ name: "look" }], incoming);
+    const plan = planVisualImport({ portrait: [{ name: "look" }], landscape: [] }, incoming);
     expect(plan.toAdd.map((v) => v.name)).toEqual(["Fresh"]);
     expect(plan.skippedDuplicate).toBe(2);
     expect(plan.skippedQuota).toBe(0);
 
     const existing19 = Array.from({ length: 19 }, (_, i) => `E${i}`);
-    const quotaPlan = planVisualImport(existing19, [
+    const quotaPlan = planVisualImport({ portrait: existing19, landscape: [] }, [
       { name: "N1", values: VISUAL },
       { name: "N2", values: VISUAL },
       { name: "N1", values: VISUAL },
@@ -239,7 +239,7 @@ describe("preset-file codec (visual + gradient, kind pictorium-presets v1)", () 
     // "dup"/"DUP" resta un solo slot libero (non due).
     const existing = [...Array.from({ length: 17 }, (_, i) => `E${i}`), "dup", "DUP"];
     expect(existing).toHaveLength(19);
-    const plan = planVisualImport(existing, [
+    const plan = planVisualImport({ portrait: existing, landscape: [] }, [
       { name: "N1", values: VISUAL },
       { name: "N2", values: VISUAL },
     ]);
@@ -273,9 +273,78 @@ describe("preset-file codec (visual + gradient, kind pictorium-presets v1)", () 
     expect(parsed.ok).toBe(true);
     if (!parsed.ok) return;
     expect(parsed.visual).toHaveLength(2);
-    const plan = planVisualImport([], parsed.visual);
+    const plan = planVisualImport({ portrait: [], landscape: [] }, parsed.visual);
     expect(plan.toAdd).toHaveLength(1);
     expect(plan.toAdd[0]?.values).toEqual(VISUAL);
     expect(plan.skippedDuplicate).toBe(1);
+  });
+
+  it("resolves visual entry shapes: legacy absent is portrait, explicit landscape kept, garbage skipped", () => {
+    const parsed = parsePresetFileData({
+      kind: "pictorium-presets",
+      formatVersion: 1,
+      visualPresets: [
+        { name: "Legacy", values: VISUAL },
+        { name: "Wide", shape: "landscape", values: VISUAL },
+        { name: "Flat", shape: "portrait", values: VISUAL },
+        { name: "Bogus", shape: "diagonal", values: VISUAL },
+      ],
+    });
+    expect(parsed.ok).toBe(true);
+    if (!parsed.ok) return;
+    expect(parsed.visual.map((v) => [v.name, v.shape])).toEqual([
+      ["Legacy", "portrait"],
+      ["Wide", "landscape"],
+      ["Flat", "portrait"],
+    ]);
+    expect(parsed.skipped.visual).toBe(1);
+  });
+
+  it("caps and namespaces visual entries per orientation list", () => {
+    const portrait20 = Array.from({ length: 20 }, (_, i) => ({ name: `P${i}`, values: VISUAL }));
+    const landscape20 = Array.from({ length: 20 }, (_, i) => ({ name: `L${i}`, shape: "landscape", values: VISUAL }));
+    const parsed = parsePresetFileData({
+      kind: "pictorium-presets",
+      formatVersion: 1,
+      visualPresets: [...portrait20, ...landscape20, { name: "Overflow", values: VISUAL }],
+    });
+    expect(parsed.ok).toBe(true);
+    if (!parsed.ok) return;
+    // 20 portrait + 20 landscape kept (per-shape quota), only the 21st portrait over cap.
+    expect(parsed.visual).toHaveLength(40);
+    expect(parsed.skipped.visualOverCap).toBe(1);
+    // Same name allowed across shapes, collisions only within a shape.
+    const plan = planVisualImport(
+      { portrait: [{ name: "Twin" }], landscape: [] },
+      [
+        { name: "Twin", shape: "portrait", values: VISUAL },
+        { name: "Twin", shape: "landscape", values: VISUAL },
+      ],
+    );
+    expect(plan.toAdd.map((v) => v.shape)).toEqual(["landscape"]);
+    expect(plan.skippedDuplicate).toBe(1);
+  });
+
+  it("build writes explicit shapes and round-trips them", () => {
+    const file = buildPresetFile({
+      visual: [
+        { name: "Look A", values: VISUAL },
+        { name: "Look B", shape: "landscape", values: VISUAL },
+        { name: "Look C", shape: "sideways", values: VISUAL },
+      ],
+    });
+    expect(file.visualPresets.map((v) => [v.name, v.shape])).toEqual([
+      ["Look A", "portrait"],
+      ["Look B", "landscape"],
+      ["Look C", "portrait"],
+    ]);
+    const parsed = parsePresetFileText(JSON.stringify(file));
+    expect(parsed.ok).toBe(true);
+    if (!parsed.ok) return;
+    expect(parsed.visual.map((v) => [v.name, v.shape])).toEqual([
+      ["Look A", "portrait"],
+      ["Look B", "landscape"],
+      ["Look C", "portrait"],
+    ]);
   });
 });

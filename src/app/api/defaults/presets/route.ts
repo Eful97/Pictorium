@@ -5,6 +5,7 @@ import { extractUserParam, getScopedUserId, isMultiUserEnabled, checkUserAuth, i
 import { rateLimit, rateLimitKey, rateLimitResponse } from "@/lib/rate-limit"
 import { readJsonBody, BodyTooLargeError, InvalidJsonBodyError } from "@/lib/read-body"
 import { listVisualPresets, mutateVisualPreset } from "@/lib/visual-preset-store"
+import { visualPresetShapeSchema, type VisualPresetShape } from "@/lib/visual-presets"
 import { createLogger } from "@/lib/logger"
 
 const log = createLogger("visual-presets")
@@ -17,9 +18,18 @@ async function handle(req: NextRequest, operation?: "save" | "delete") {
   if (user ? !await checkUserAuth(req, user) : !checkAdminToken(req)) return user ? userAuthResponse() : adminAuthResponse()
   if (operation && !isSameOrigin(req)) return originMismatchResponse()
   try {
-    const presets = operation
-      ? await mutateVisualPreset(user, operation, await readJsonBody(req, 16 * 1024))
-      : await listVisualPresets(user)
+    if (!operation) {
+      // Legacy GET without `shape` reads the portrait list only.
+      const rawShape = req.nextUrl.searchParams.get("shape")
+      let shape: VisualPresetShape = "portrait"
+      if (rawShape !== null) {
+        const parsed = visualPresetShapeSchema.safeParse(rawShape)
+        if (!parsed.success) return Response.json({ error: "Invalid shape" }, { status: 400 })
+        shape = parsed.data
+      }
+      return Response.json({ presets: await listVisualPresets(user, shape) }, { headers: { "Cache-Control": "no-store" } })
+    }
+    const presets = await mutateVisualPreset(user, operation, await readJsonBody(req, 16 * 1024))
     return Response.json({ presets }, { headers: { "Cache-Control": "no-store" } })
   } catch (error) {
     if (error instanceof ZodError || error instanceof InvalidJsonBodyError) return Response.json({ error: "Invalid preset" }, { status: 400 })

@@ -8,11 +8,25 @@ import { usePosterEditor } from "@/lib/contexts/PosterEditorContext"
 import { usePSelector } from "@/lib/context"
 import { http } from "@/lib/http"
 import { usePresetTransfer } from "@/lib/usePresetTransfer"
-import { captureVisualPreset, MAX_VISUAL_PRESETS, type VisualPreset } from "@/lib/visual-presets"
+import {
+  applyLandscapeIsolated,
+  applyPortraitIsolated,
+  captureVisualPreset,
+  portraitPresetPatch,
+  resolveEffectiveLandscape,
+  MAX_VISUAL_PRESETS,
+  type VisualPreset,
+  type VisualPresetShape,
+} from "@/lib/visual-presets"
 
 const endpoint = "/api/defaults/presets"
 
-export function VisualPresetsSection() {
+/**
+ * Personal visual presets for one orientation. The parent passes the current
+ * format target (existing selector); each list is fully independent
+ * (server-scoped names/quota, target-only apply). Not necessarily simultaneous.
+ */
+export function VisualPresetsSection({ shape = "portrait" }: { shape?: VisualPresetShape }) {
   const { t } = useT()
   const ed = usePosterEditor()
   const userId = usePSelector((v) => v.currentUserId)
@@ -21,7 +35,16 @@ export function VisualPresetsSection() {
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState(false)
-  const transfer = usePresetTransfer({ onVisualsChanged: setPresets })
+  // Preset-file transfer is shape-aware (format v1 entries default to
+  // portrait): refresh only the matching view, never clobber the other one —
+  // including imports that resolve after a target switch (ref, not closure).
+  const transfer = usePresetTransfer({
+    onVisualsChanged: (s, next) => {
+      if (shapeRef.current !== s) return
+      setPresets(next)
+      setListedShape(s)
+    },
+  })
   const transferBusy = transfer.busy
   const fileRef = useRef<HTMLInputElement | null>(null)
   // Collapsible disclosure, closed by default to save vertical space.
@@ -29,19 +52,36 @@ export function VisualPresetsSection() {
   // mount so the header count stays accurate.
   const [isOpen, setIsOpen] = useState(false)
   const bodyId = useId()
+  // Live target for async guards: closures capture the shape at call time,
+  // the ref tells whether it is still current at resolve time.
+  const shapeRef = useRef(shape)
+  shapeRef.current = shape
+  // Which shape the shown entries belong to (null = none yet/stale). Set on
+  // every successful load/mutation; reset on target switch so stale entries
+  // are never rendered nor clickable — not even for the paint before the
+  // reload effect flushes (render-phase reset, derived-state pattern).
+  const [listedShape, setListedShape] = useState<VisualPresetShape | null>(shape)
+  if (listedShape !== null && listedShape !== shape) setListedShape(null)
+  const fresh = listedShape === shape
+  const visiblePresets = fresh ? presets : []
 
   const load = useCallback(async (signal?: AbortSignal) => {
+    const target = shape
     setLoading(true)
     setError(false)
     try {
-      const result = await http<{ presets: VisualPreset[] }>(endpoint, { signal, retries: 0 })
-      if (!signal?.aborted) setPresets(result.presets)
+      const result = await http<{ presets: VisualPreset[] }>(`${endpoint}?shape=${target}`, { signal, retries: 0 })
+      if (signal?.aborted || shapeRef.current !== target) return
+      setPresets(result.presets)
+      setListedShape(target)
     } catch {
-      if (!signal?.aborted) setError(true)
+      if (signal?.aborted || shapeRef.current !== target) return
+      setError(true)
+      setListedShape(target)
     } finally {
-      if (!signal?.aborted) setLoading(false)
+      if (!signal?.aborted && shapeRef.current === target) setLoading(false)
     }
-  }, [])
+  }, [shape])
 
   useEffect(() => {
     const controller = new AbortController()
@@ -51,12 +91,17 @@ export function VisualPresetsSection() {
   }, [load, userId])
 
   const mutate = async (method: "POST" | "DELETE", body: unknown) => {
+    const target = shape
     setBusy(true)
     try {
       const result = await http<{ presets: VisualPreset[] }>(endpoint, {
         method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body), retries: 0,
       })
+      // A Resolve-after-switch must not overwrite the new list (nor clear
+      // the new view's input); toasts still fire for the user's own action.
+      if (shapeRef.current !== target) return
       setPresets(result.presets)
+      setListedShape(target)
       if (method === "POST") {
         setName("")
         toast.success(t("ui.saved"))
@@ -66,8 +111,31 @@ export function VisualPresetsSection() {
     } finally { setBusy(false) }
   }
 
-  const current = JSON.stringify(captureVisualPreset(ed))
-  const canSave = Boolean(name.trim()) && (presets.length < MAX_VISUAL_PRESETS || presets.some((preset) => preset.name === name.trim()))
+  // Shape-aware snapshot: portrait compares the isolated flat projection
+  // (what portrait apply actually writes), landscape the effective profile.
+  // `live` merges the RAW profile (extras outside the preset contract, e.g.
+  // server-supported minQuality, must survive apply commits — update()
+  // replaces the profile object); `clean` stays schema-only for storage.
+  const clean = captureVisualPreset(ed)
+  const live = { ...clean, landscape: ed.landscape }
+  const current = JSON.stringify(shape === "landscape" ? resolveEffectiveLandscape(clean) : portraitPresetPatch(clean))
+  const presetSnapshot = (preset: VisualPreset) =>
+    JSON.stringify(shape === "landscape" ? resolveEffectiveLandscape(preset.values) : portraitPresetPatch(preset.values))
+  const canSave = fresh && Boolean(name.trim()) && (presets.length < MAX_VISUAL_PRESETS || presets.some((preset) => preset.name === name.trim()))
+
+  // Target-only apply, single atomic update: portrait freezes the other
+  // format's effective output first (see applyPortraitIsolated), landscape
+  // writes the profile only. Raw extras ride along untouched.
+  const applyPreset = (preset: VisualPreset) => {
+    ed.applyVisualPreset(shape === "landscape" ? applyLandscapeIsolated(live, preset.values) : applyPortraitIsolated(live, preset.values))
+    setName(preset.name)
+  }
+
+  // Landscape presets store the current effective resolution (self-contained);
+  // portrait presets keep the raw capture (stored landscape ignored on apply).
+  const captureForShape = () => {
+    return shape === "landscape" ? { ...clean, landscape: resolveEffectiveLandscape(clean) } : clean
+  }
 
   return (
     <section aria-label={t("ui.visualPresetsTitle")} className="bg-surface/50 border border-surface2/60 rounded-xl p-3.5 space-y-3 text-xs">
@@ -79,10 +147,10 @@ export function VisualPresetsSection() {
         className="w-full min-h-[44px] py-1 flex items-center justify-between gap-2 cursor-pointer group touch-manipulation"
       >
         <span className="font-semibold text-zinc-200 flex items-center gap-1.5">
-          <BookmarkPlus className="w-3.5 h-3.5 text-accent-orange" aria-hidden="true" />{t("ui.visualPresetsTitle")}
+          <BookmarkPlus className="w-3.5 h-3.5 text-accent-orange" aria-hidden="true" />{t("ui.visualPresetsTitle")} · {t(shape === "landscape" ? "ui.posterShapeLandscape" : "ui.posterShapePortrait")}
         </span>
         <span className="flex items-center gap-2">
-          <span className="text-[10px] text-muted">{presets.length}/{MAX_VISUAL_PRESETS}</span>
+          <span className="text-[10px] text-muted">{visiblePresets.length}/{MAX_VISUAL_PRESETS}</span>
           <ChevronDown
             aria-hidden="true"
             className={`w-4 h-4 text-zinc-400 transition-transform duration-200 ${isOpen ? "rotate-180" : ""}`}
@@ -92,7 +160,7 @@ export function VisualPresetsSection() {
       {isOpen && (
       <div id={bodyId} className="space-y-3">
       <p className="text-[11px] text-muted">{t("ui.visualPresetsHint")}</p>
-      {loading ? <p role="status" className="text-muted">{t("ui.loading")}</p> : error ? (
+      {loading || !fresh ? <p role="status" className="text-muted">{t("ui.loading")}</p> : error ? (
         <div className="flex items-center gap-2">
           <p role="alert" className="text-muted">{t("ui.visualPresetsError")}</p>
           <button type="button" onClick={() => void load()} className="text-accent-orange cursor-pointer">{t("ui.retry")}</button>
@@ -100,13 +168,13 @@ export function VisualPresetsSection() {
       ) : (
         <>
           <div className="flex flex-wrap gap-3 pt-2">
-            {presets.map((preset) => (
+            {visiblePresets.map((preset) => (
               <div key={preset.id} className="relative max-w-full">
-                <button type="button" disabled={busy} aria-pressed={current === JSON.stringify(preset.values)}
+                <button type="button" disabled={busy} aria-pressed={current === presetSnapshot(preset)}
                   title={preset.name}
-                  onClick={() => { ed.applyVisualPreset(preset.values); setName(preset.name) }}
+                  onClick={() => applyPreset(preset)}
                   className="flex items-center gap-2 max-w-full min-h-[44px] rounded-2xl border border-white/10 bg-linear-to-b from-white/[0.06] to-white/[0.02] py-2 pl-3.5 pr-5 text-zinc-300 shadow-sm hover:border-white/25 hover:text-white aria-pressed:border-accent-orange/40 aria-pressed:from-accent-orange/15 aria-pressed:to-accent-orange/5 aria-pressed:text-accent-orange transition-colors cursor-pointer disabled:opacity-50">
-                  <span aria-hidden="true" className={`h-1.5 w-1.5 shrink-0 rounded-full ${current === JSON.stringify(preset.values) ? "bg-accent-orange" : "bg-zinc-500"}`} />
+                  <span aria-hidden="true" className={`h-1.5 w-1.5 shrink-0 rounded-full ${current === presetSnapshot(preset) ? "bg-accent-orange" : "bg-zinc-500"}`} />
                   <span className="max-w-[200px] truncate">{preset.name}</span>
                 </button>
                 <button type="button" disabled={busy} aria-label={`${t("ui.presetFileExportOne")} ${preset.name}`}
@@ -117,7 +185,7 @@ export function VisualPresetsSection() {
                 </button>
                 <button type="button" disabled={busy || transferBusy} aria-label={`${t("ui.delete")} ${preset.name}`}
                   title={`${t("ui.delete")} ${preset.name}`}
-                  onClick={() => void mutate("DELETE", { id: preset.id })}
+                  onClick={() => void mutate("DELETE", { id: preset.id, shape })}
                   className="absolute -right-2 -top-2 flex h-7 w-7 items-center justify-center rounded-full border border-white/15 bg-[#202024] text-zinc-400 shadow-md hover:border-red-400/40 hover:bg-red-950 hover:text-red-300 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-orange transition-colors cursor-pointer disabled:opacity-50">
                   <X className="w-3 h-3" />
                 </button>
@@ -126,7 +194,7 @@ export function VisualPresetsSection() {
           </div>
           <form className="flex gap-2" onSubmit={(event) => {
             event.preventDefault()
-            if (!busy && !transferBusy && canSave) void mutate("POST", { name: name.trim(), values: captureVisualPreset(ed) })
+            if (!busy && !transferBusy && canSave) void mutate("POST", { name: name.trim(), shape, values: captureForShape() })
           }}>
             <input value={name} onChange={(event) => setName(event.target.value)} maxLength={40}
               aria-label={t("ui.visualPresetName")} placeholder={t("ui.visualPresetName")} disabled={busy || transferBusy}
