@@ -20,6 +20,15 @@ beforeEach(() => {
   vi.stubGlobal("fetch", vi.fn(async () => ({ ok: false, json: async () => ({}) })))
 })
 
+// T3 macro-groups: overlay/quality start collapsed (bodies mounted + hidden).
+// Open disclosures before touching their controls; assertions unchanged.
+function openBadgeGroup(...ids: Array<"style" | "base" | "overlay" | "quality">) {
+  for (const id of ids) {
+    const t = screen.getByTestId(`badge-group-${id}-toggle`)
+    if (t.getAttribute("aria-expanded") !== "true") fireEvent.click(t)
+  }
+}
+
 describe("SettingsPanel", () => {
   it("renders genre/rating badge toggle and mirror card", () => {
     renderWithCtx(
@@ -41,6 +50,7 @@ describe("SettingsPanel", () => {
         importData={() => {}}
       />
     )
+    openBadgeGroup("overlay")
     expect(screen.getAllByText("ui.topBadge").length).toBeGreaterThan(0)
     expect(screen.getByRole("switch", { name: "ui.topBadge" })).toBeInTheDocument()
     // Hint: il default non muove i salvati, il kill-switch globale è la sash Classifiche.
@@ -55,6 +65,7 @@ describe("SettingsPanel", () => {
         importData={() => {}}
       />
     )
+    openBadgeGroup("overlay")
     const trend = screen.getByRole("switch", { name: "ui.topBadge" })
     const sashNames = ["ui.sash_upcoming", "ui.sash_rank", "ui.sash_new", "ui.sash_award", "ui.sash_extra"]
     const sashSwitches = () => sashNames.map((n) => screen.getByRole("switch", { name: n }))
@@ -106,6 +117,7 @@ describe("SettingsPanel", () => {
         importData={() => {}}
       />
     )
+    openBadgeGroup("overlay")
     expect(screen.getByTitle("ui.preReleaseHint")).toBeInTheDocument()
     // Accordion provider: il bottone dice il vero (reset a solo IMDb).
     fireEvent.click(screen.getByRole("button", { name: /ui\.ratingSources/ }))
@@ -198,7 +210,7 @@ describe("SettingsPanel", () => {
     expect(badgeTab).toHaveAttribute("aria-selected", "false")
   })
 
-  it("calls setSettingsOpen(false) when close button is clicked", async () => {
+  it("calls setSettingsOpen(false) when Fine button is clicked", async () => {
     const { fireEvent } = await import("@testing-library/react")
     const closeSpy = vi.fn()
     renderWithCtx(
@@ -208,7 +220,7 @@ describe("SettingsPanel", () => {
         importData={() => {}}
       />
     )
-    const closeButtons = screen.getAllByRole("button", { name: /Chiudi|ui\.close/i })
+    const closeButtons = screen.getAllByRole("button", { name: /Fine|ui\.settingsDone/i })
     expect(closeButtons.length).toBeGreaterThan(0)
     fireEvent.click(closeButtons[0])
     expect(closeSpy).toHaveBeenCalledWith(false)
@@ -557,7 +569,7 @@ describe("SettingsPanel", () => {
     }
   })
 
-  it("renders auto-saved notice and syncNow action button in footer", async () => {
+  it("renders truthful sync status with Fine primary and no SyncNow button", async () => {
     renderWithCtx(
       <SettingsPanel
         setSettingsOpen={() => {}}
@@ -565,8 +577,10 @@ describe("SettingsPanel", () => {
         importData={() => {}}
       />
     )
-    expect(screen.getByText("ui.defaultsAutoSaved")).toBeInTheDocument()
-    expect(screen.getByText("ui.syncNow")).toBeInTheDocument()
+    expect(screen.getByTestId("defaults-sync-status")).toBeInTheDocument()
+    expect(screen.getByText("ui.settingsDone")).toBeInTheDocument()
+    expect(screen.queryByText("ui.syncNow")).not.toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: /Riprova|ui\.retry/i })).not.toBeInTheDocument()
   })
 
   it("traps focus inside the desktop dialog on Tab and Shift+Tab", async () => {
@@ -622,8 +636,129 @@ describe("SettingsPanel", () => {
     const scrollBody = container.querySelector(".overflow-y-auto")
     expect(scrollBody).toBeInTheDocument()
     // Il footer non è contenuto all'interno del corpo scrollabile
-    expect(within(scrollBody as HTMLElement).queryByText("ui.syncNow")).not.toBeInTheDocument()
+    expect(within(scrollBody as HTMLElement).queryByText("ui.settingsDone")).not.toBeInTheDocument()
     // Il footer è presente nel pannello mobile complessivo
-    expect(screen.getByText("ui.syncNow")).toBeInTheDocument()
+    expect(screen.getByText("ui.settingsDone")).toBeInTheDocument()
+  })
+
+  it("keeps a stable tab header slot: selector only on visual tabs, target preserved", async () => {
+    renderWithCtx(
+      <SettingsPanel
+        setSettingsOpen={() => {}}
+        exportData={() => {}}
+        importData={() => {}}
+      />
+    )
+    // Slot always present on the initial visual tab, selector inside.
+    const slot = screen.getByTestId("settings-tab-header-slot")
+    expect(screen.getByTestId("format-target-selector")).toBeInTheDocument()
+    // Landscape target, then Badge → Trasforma: selector and target kept.
+    fireEvent.click(within(screen.getByTestId("format-target-selector")).getByText("ui.posterShapeLandscape"))
+    fireEvent.click(screen.getByRole("tab", { name: "ui.transform" }))
+    expect(screen.getByTestId("format-target-selector")).toBeInTheDocument()
+    expect(screen.getByTestId("settings-tab-header-slot")).toBe(slot)
+    const landscapeBtn = within(screen.getByTestId("format-target-selector")).getByText("ui.posterShapeLandscape").closest("button")
+    expect(landscapeBtn).toHaveAttribute("aria-pressed", "true")
+    // → Prefs (non-visual): selector unmounted, slot reused for the title.
+    fireEvent.click(screen.getByRole("tab", { name: "ui.settingsTabPrefs" }))
+    expect(screen.queryByTestId("format-target-selector")).not.toBeInTheDocument()
+    expect(screen.getByTestId("settings-tab-header-slot")).toBe(slot)
+    expect(within(slot).getByText("ui.settingsTabPrefs")).toBeInTheDocument()
+    // → Data: same slot, no selector.
+    fireEvent.click(screen.getByRole("tab", { name: "ui.settingsTabData" }))
+    expect(screen.queryByTestId("format-target-selector")).not.toBeInTheDocument()
+    expect(screen.getByTestId("settings-tab-header-slot")).toBe(slot)
+    expect(within(slot).getByText("ui.settingsTabData")).toBeInTheDocument()
+    // Back to Badge: selector visible again, still Landscape target.
+    fireEvent.click(screen.getByRole("tab", { name: "ui.badgeSection" }))
+    expect(screen.getByTestId("format-target-selector")).toBeInTheDocument()
+    const landscapeBack = within(screen.getByTestId("format-target-selector")).getByText("ui.posterShapeLandscape").closest("button")
+    expect(landscapeBack).toHaveAttribute("aria-pressed", "true")
+  })
+
+  it("shares one compact header sizing contract between visual selector and tab title", async () => {
+    renderWithCtx(
+      <SettingsPanel
+        setSettingsOpen={() => {}}
+        exportData={() => {}}
+        importData={() => {}}
+      />
+    )
+    // Selector card chrome: compact on mobile (no floor), desktop 96px floor.
+    const selectorCard = screen.getByTestId("format-target-selector").firstElementChild as HTMLElement | null
+    expect(selectorCard).not.toBeNull()
+    const selectorTokens = selectorCard!.className.split(/\s+/)
+    expect(selectorTokens).toContain("sm:min-h-[96px]")
+    expect(selectorTokens).not.toContain("min-h-[128px]")
+    // Mobile: format hint hidden (desktop-only), keeping the card compact.
+    const hint = screen.getByText("ui.formatTargetHint")
+    expect(hint.className).toContain("hidden")
+    // → Prefs: title card reuses every selector token plus its own layout.
+    fireEvent.click(screen.getByRole("tab", { name: "ui.settingsTabPrefs" }))
+    const titleCard = screen.getByTestId("settings-tab-title")
+    const titleTokens = titleCard.className.split(/\s+/)
+    for (const token of selectorTokens) expect(titleTokens).toContain(token)
+    expect(within(titleCard).getByText("ui.settingsTabPrefs")).toBeInTheDocument()
+    expect(within(titleCard).getByText("ui.settingsSubtitle")).toBeInTheDocument()
+  })
+
+  it("widens the desktop preview column for landscape, keeps portrait proportions", async () => {
+    renderWithCtx(
+      <SettingsPanel
+        setSettingsOpen={() => {}}
+        exportData={() => {}}
+        importData={() => {}}
+      />
+    )
+    const grid = screen.getByTestId("settings-controls").parentElement as HTMLElement
+    // Portrait default: narrow preview column.
+    expect(grid.className).toContain("minmax(220px,32%)")
+    // Landscape target: wider adaptive column (md vs lg steps).
+    fireEvent.click(within(screen.getByTestId("format-target-selector")).getByText("ui.posterShapeLandscape"))
+    expect(grid.className).toContain("lg:grid-cols-")
+    expect(grid.className).not.toContain("minmax(220px,32%)")
+    // Back to portrait: narrow column restored.
+    fireEvent.click(within(screen.getByTestId("format-target-selector")).getByText("ui.posterShapePortrait"))
+    expect(grid.className).toContain("minmax(220px,32%)")
+  })
+
+  it("collapses the mobile preview in place and preserves state across tabs", async () => {
+    const prevWidth = window.innerWidth
+    Object.defineProperty(window, "innerWidth", { configurable: true, writable: true, value: 390 })
+    try {
+      const { container } = renderWithCtx(
+        <SettingsPanel
+          mobile
+          setSettingsOpen={() => {}}
+          exportData={() => {}}
+          importData={() => {}}
+        />
+      )
+      // Expanded by default, toggle owns the body via aria-controls.
+      const toggle = screen.getByTestId("defaults-preview-collapse")
+      expect(toggle).toHaveAttribute("aria-expanded", "true")
+      expect(toggle).toHaveAttribute("aria-label", "ui.previewCollapse")
+      expect(toggle.className).toContain("min-h-[44px]")
+      const bodyId = toggle.getAttribute("aria-controls")
+      expect(bodyId).toBeTruthy()
+      const body = document.getElementById(bodyId!)
+      expect(body).not.toBeNull()
+      // Toggle lives outside the collapsible body.
+      expect(body).not.toContainElement(toggle)
+      // Collapse: same body node hidden, preview stays mounted (no refetch).
+      fireEvent.click(toggle)
+      expect(toggle).toHaveAttribute("aria-expanded", "false")
+      expect(toggle).toHaveAttribute("aria-label", "ui.previewExpand")
+      expect(document.getElementById(bodyId!)).toBe(body)
+      expect(body).toHaveClass("hidden")
+      // Tab switch away and back preserves the collapsed state.
+      const category = container.querySelector("#mobile-settings-category") as HTMLSelectElement
+      fireEvent.change(category, { target: { value: "prefs" } })
+      expect(screen.queryByTestId("defaults-preview-collapse")).not.toBeInTheDocument()
+      fireEvent.change(category, { target: { value: "badge" } })
+      expect(screen.getByTestId("defaults-preview-collapse")).toHaveAttribute("aria-expanded", "false")
+    } finally {
+      Object.defineProperty(window, "innerWidth", { configurable: true, writable: true, value: prevWidth })
+    }
   })
 })

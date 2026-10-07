@@ -401,3 +401,152 @@ describe("DefaultsPosterPreview title search + zoom (transport mocks, real build
     expect(screen.queryByText("parent closed")).toBeNull()
   })
 })
+
+describe("DefaultsPreviewTitleSearch compact toggle (mobile only)", () => {
+  beforeEach(() => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response("not found", { status: 404 })),
+    )
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  function renderCompact() {
+    renderWithCtx(
+      <DefaultsPreviewTitleSearch
+        tmdbKey="test-key"
+        hasServerKey={false}
+        language="it-IT"
+        demoMedia={null}
+        onDemoMediaChange={() => {}}
+        compact
+      />,
+    )
+  }
+
+  it("starts closed behind a 44px icon toggle with expanded/controls wiring", async () => {
+    renderCompact()
+    const toggle = screen.getByTestId("defaults-preview-search-toggle")
+    expect(toggle).toHaveAttribute("aria-expanded", "false")
+    expect(toggle).toHaveAttribute("aria-label", "ui.defaultsPreviewSearchLabel")
+    expect(toggle.className).toContain("min-w-[44px]")
+    expect(toggle.className).toContain("min-h-[44px]")
+    const bodyId = toggle.getAttribute("aria-controls")
+    expect(bodyId).toBeTruthy()
+    const body = document.getElementById(bodyId!)
+    expect(body).not.toBeNull()
+    expect(body).toHaveClass("hidden")
+    // Toggle lives outside the collapsible body.
+    expect(body).not.toContainElement(toggle)
+    // Desktop (non-compact) keeps the always-open search with no toggle.
+    // (Covered by the isolation suite above: textbox present without toggle.)
+  })
+
+  it("desktop search stays always open with no toggle", async () => {
+    renderWithCtx(
+      <DefaultsPreviewTitleSearch
+        tmdbKey="test-key"
+        hasServerKey={false}
+        language="it-IT"
+        demoMedia={null}
+        onDemoMediaChange={() => {}}
+      />,
+    )
+    expect(screen.queryByTestId("defaults-preview-search-toggle")).toBeNull()
+    expect(screen.getByRole("textbox")).toBeInTheDocument()
+  })
+
+  it("opens on toggle with autofocus, closes with focus back on the toggle", async () => {
+    const user = userEvent.setup()
+    renderCompact()
+    const toggle = screen.getByTestId("defaults-preview-search-toggle")
+    await user.click(toggle)
+    expect(toggle).toHaveAttribute("aria-expanded", "true")
+    const body = document.getElementById(toggle.getAttribute("aria-controls")!)
+    expect(body).not.toHaveClass("hidden")
+    expect(document.activeElement).toBe(screen.getByRole("textbox"))
+    // Close via the same toggle: focus returns to the toggle.
+    await user.click(toggle)
+    expect(toggle).toHaveAttribute("aria-expanded", "false")
+    expect(document.activeElement).toBe(toggle)
+  })
+
+  it("Escape inside the open body closes and returns focus to the toggle", async () => {
+    const user = userEvent.setup()
+    renderCompact()
+    const toggle = screen.getByTestId("defaults-preview-search-toggle")
+    await user.click(toggle)
+    expect(document.activeElement).toBe(screen.getByRole("textbox"))
+    await user.keyboard("{Escape}")
+    expect(toggle).toHaveAttribute("aria-expanded", "false")
+    expect(document.activeElement).toBe(toggle)
+  })
+})
+
+describe("DefaultsPosterPreview compact sizing (mobile only)", () => {
+  let blobN = 0
+
+  beforeEach(() => {
+    FakeXHR.urls = []
+    blobN = 0
+    vi.stubGlobal("XMLHttpRequest", FakeXHR)
+    Object.assign(URL, {
+      createObjectURL: vi.fn(() => `blob:fake-${++blobN}`),
+      revokeObjectURL: vi.fn(),
+    })
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response("not found", { status: 404 })),
+    )
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it("portrait uses a larger responsive frame with aspect 2/3 intact and no demo notice", async () => {
+    renderWithCtx(<DefaultsPosterPreview compact previewShape="portrait" />)
+    const media = await screen.findByTestId("defaults-preview-media")
+    expect(media.className).toContain("w-[120px]")
+    expect(media.className).toContain("max-w-[44vw]")
+    expect(media.className).toContain("aspect-[2/3]")
+    expect(media.className).not.toContain("w-20")
+    expect(media.className).not.toContain("max-w-[240px]")
+    // Mobile drops the demo-data notice (desktop keeps it).
+    expect(screen.queryByText("ui.defaultsPreviewSamplesNotice")).toBeNull()
+    // Search starts collapsed behind the icon toggle.
+    expect(screen.getByTestId("defaults-preview-search-toggle")).toBeInTheDocument()
+  })
+
+  it("landscape uses the full width with no cap and keeps the collapse body mounted", async () => {
+    const user = userEvent.setup()
+    function CollapsibleHost() {
+      const [collapsed, setCollapsed] = useState(false)
+      return <DefaultsPosterPreview compact previewShape="landscape" collapsed={collapsed} onCollapsedChange={setCollapsed} />
+    }
+    renderWithCtx(<CollapsibleHost />)
+    const media = await screen.findByTestId("defaults-preview-media")
+    expect(media.className).toContain("w-full")
+    expect(media.className).toContain("aspect-video")
+    expect(media.className).not.toContain("max-w-[240px]")
+    // Collapse toggle preserves the mounted body (no refetch on expand).
+    const toggle = screen.getByTestId("defaults-preview-collapse")
+    const bodyId = toggle.getAttribute("aria-controls")!
+    const body = document.getElementById(bodyId)!
+    await user.click(toggle)
+    expect(body).toHaveClass("hidden")
+    expect(document.getElementById(bodyId)).toBe(body)
+    await user.click(toggle)
+    expect(body).not.toHaveClass("hidden")
+  })
+
+  it("desktop keeps the samples notice and the always-open search", async () => {
+    renderWithCtx(<DefaultsPosterPreview previewShape="portrait" />)
+    expect(await screen.findByText("ui.defaultsPreviewSamplesNotice")).toBeInTheDocument()
+    expect(screen.queryByTestId("defaults-preview-search-toggle")).toBeNull()
+    expect(screen.getByRole("textbox")).toBeInTheDocument()
+  })
+})

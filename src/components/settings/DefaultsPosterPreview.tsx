@@ -1,7 +1,7 @@
 "use client"
 
-import { useEffect, useRef, useState } from "react"
-import { ImageOff, RefreshCw, Sparkles } from "lucide-react"
+import { useEffect, useRef, useState, useId } from "react"
+import { ChevronDown, ImageOff, RefreshCw, Sparkles } from "lucide-react"
 import { usePosterEditor } from "@/lib/contexts/PosterEditorContext"
 import { useT } from "@/lib/contexts/TranslationContext"
 import { buildDefaultsPreviewUrl, type DefaultsPreviewDemoMedia, type DefaultsPreviewFamily } from "@/lib/poster-url"
@@ -30,6 +30,10 @@ interface DefaultsPosterPreviewProps {
   /** Reset callback (owned by SettingsPanel): the chip offers a return to the
    *  full `auto` preview — preview-only, never writes defaults. */
   onPreviewFamilyChange?: (f: DefaultsPreviewFamily) => void
+  /** Compact collapse state (owned by SettingsPanel, in-memory): the body
+   *  stays mounted when collapsed so no refetch happens. Compact only. */
+  collapsed?: boolean
+  onCollapsedChange?: (v: boolean) => void
 }
 
 /**
@@ -59,9 +63,10 @@ const PREVIEW_FAMILY_LABEL_KEY: Record<DefaultsPreviewFamily, string> = {
   gradient: "ui.blurSection",
 }
 
-export function DefaultsPosterPreview({ compact, previewShape, demoMedia, onDemoMediaChange, previewFamily, onPreviewFamilyChange }: DefaultsPosterPreviewProps) {
+export function DefaultsPosterPreview({ compact, previewShape, demoMedia, onDemoMediaChange, previewFamily, onPreviewFamilyChange, collapsed = false, onCollapsedChange }: DefaultsPosterPreviewProps) {
   const ed = usePosterEditor()
   const { t, lang } = useT()
+  const bodyId = useId()
   const tmdbKey = usePSelector((v) => v.tmdbKey)
   const userId = usePSelector((v) => v.currentUserId)
   const serverHasTmdbKey = usePSelector((v) => v.serverHasTmdbKey)
@@ -420,26 +425,42 @@ export function DefaultsPosterPreview({ compact, previewShape, demoMedia, onDemo
       language={searchLanguage}
       demoMedia={demoMedia ?? null}
       onDemoMediaChange={(m) => onDemoMediaChange?.(m)}
+      compact={compact}
     />
   )
 
   if (compact) {
     return (
-      <div className="w-full bg-surface/60 border border-surface2/80 rounded-2xl p-3 mb-3 shadow-md">
-        <div className="flex items-center justify-between mb-2">
-          <div className="flex items-center gap-1.5 text-xs font-semibold text-zinc-200">
-            <Sparkles className="w-3.5 h-3.5 text-accent-orange" />
-            <span>{t("ui.defaultsPreviewTitle")}</span>
+      <div className="w-full bg-surface/60 border border-surface2/80 rounded-2xl p-2 mb-2 shadow-md">
+        <div className="flex items-center justify-between gap-2 mb-1.5">
+          <div className="flex items-center gap-1.5 text-xs font-semibold text-zinc-200 min-w-0">
+            <Sparkles className="w-3.5 h-3.5 text-accent-orange shrink-0" />
+            <span className="truncate">{t("ui.defaultsPreviewTitle")}</span>
           </div>
-          <span className="text-[10px] text-zinc-400 font-mono">
-            {demoMedia?.title ? demoTitle : t("ui.defaultsPreviewSubtitle")}
-          </span>
+          <div className="flex items-center gap-1 min-w-0">
+            <span className="text-[10px] text-zinc-400 font-mono truncate">
+              {demoMedia?.title ? demoTitle : t("ui.defaultsPreviewSubtitle")}
+            </span>
+            <button
+              type="button"
+              data-testid="defaults-preview-collapse"
+              onClick={() => onCollapsedChange?.(!collapsed)}
+              aria-expanded={!collapsed}
+              aria-controls={bodyId}
+              aria-label={t(collapsed ? "ui.previewExpand" : "ui.previewCollapse")}
+              title={t(collapsed ? "ui.previewExpand" : "ui.previewCollapse")}
+              className="shrink-0 min-w-[44px] min-h-[44px] -my-2 -mr-2 px-2 flex items-center justify-center rounded-lg text-zinc-400 hover:text-white hover:bg-white/10 transition-all active:scale-90 cursor-pointer touch-manipulation"
+            >
+              <ChevronDown className={`w-4 h-4 transition-transform duration-200 ${collapsed ? "" : "rotate-180"}`} />
+            </button>
+          </div>
         </div>
+        <div id={bodyId} className={collapsed ? "hidden" : undefined}>
         {editingChip}
 
         <div className="flex justify-center">
-          <div className={`relative select-none bg-zinc-950/80 rounded-xl overflow-hidden shadow-inner border border-white/10 ${
-            isLandscape ? "w-full max-w-[240px] aspect-video" : "w-20 sm:w-24 aspect-[2/3]"
+          <div data-testid="defaults-preview-media" className={`relative select-none bg-zinc-950/80 rounded-xl overflow-hidden shadow-inner border border-white/10 ${
+            isLandscape ? "w-full aspect-video" : "w-[120px] max-w-[44vw] aspect-[2/3]"
           }`}>
             {previewLoading && (
               <div className="absolute top-0 inset-x-0 h-0.5 bg-accent-orange/30 z-30 overflow-hidden">
@@ -497,9 +518,7 @@ export function DefaultsPosterPreview({ compact, previewShape, demoMedia, onDemo
           </div>
         </div>
         {searchRow}
-        <p className="text-[10px] text-amber-200/70 text-center mt-2 px-2 select-none leading-relaxed">
-          {t("ui.defaultsPreviewSamplesNotice")}
-        </p>
+        </div>
         {zoomModal}
       </div>
     )

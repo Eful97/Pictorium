@@ -297,6 +297,10 @@ test.describe("Badge Verticale/Orizzontale: isolation + persistence", () => {
     const badgePanel = dialog.getByRole("tabpanel", { name: "Badge" })
     await expect(badgePanel).toBeVisible()
 
+    // T3 macro-groups: Overlay/Quality start collapsed; expand for rank/quality edits.
+    await badgePanel.getByTestId("badge-group-overlay-toggle").click()
+    await badgePanel.getByTestId("badge-group-quality-toggle").click()
+
     // Format selector sits BEFORE the controls (single edit target, shared
     // with Trasforma): geometry proof, not just visibility.
     const formatTarget = dialog.getByTestId("format-target-selector")
@@ -492,6 +496,8 @@ test.describe("Badge Verticale/Orizzontale: isolation + persistence", () => {
     expect(p.get("shape")).toBe("landscape")
 
     const rankGroup = panel.getByRole("radiogroup", { name: "Classifica" })
+    // T3 macro-groups: Overlay starts collapsed; expand for rank edits.
+    await panel.getByTestId("badge-group-overlay-toggle").click()
     p = await nextPreview(
       seen,
       async () => {

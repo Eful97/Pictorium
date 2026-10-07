@@ -13,7 +13,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import { act, fireEvent, screen } from "@testing-library/react"
 import { createElement } from "react"
-import { BadgeStyleSection } from "@/components/settings/BadgeStyleSection"
+import { GenreStyleSection, QualityStyleSection } from "@/components/settings/BadgeStyleSection"
 import { TransformPanel } from "@/components/settings/TransformPanel"
 import { LandscapeDefaultsSection } from "@/components/LandscapeDefaultsSection"
 import { DefaultsPosterPreview } from "@/components/settings/DefaultsPosterPreview"
@@ -89,14 +89,23 @@ describe("genre family wiring (press reports, no writes)", () => {
     const spy = vi.fn()
     const seen: string[] = []
     renderWithCtx(
-      createElement(BadgeStyleSection, {
-        shape: "portrait",
-        qualityEnabled: true,
-        onPreviewFamilyChange: (f) => {
-          seen.push(f)
-          spy(f)
-        },
-      }),
+      createElement("div", null,
+        createElement(GenreStyleSection, {
+          shape: "portrait",
+          onPreviewFamilyChange: (f) => {
+            seen.push(f)
+            spy(f)
+          },
+        }),
+        createElement(QualityStyleSection, {
+          shape: "portrait",
+          qualityEnabled: true,
+          onPreviewFamilyChange: (f) => {
+            seen.push(f)
+            spy(f)
+          },
+        }),
+      ),
     )
     await act(async () => {})
     const storedBefore = localStorage.getItem("badgeDefaults")

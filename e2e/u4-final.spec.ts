@@ -246,6 +246,8 @@ test.describe("U4 U1 ribbon Standard/Colorato (defaults)", () => {
     expect(p.get("ribbon")).toBe("1")
 
     // Side row is defaults-only and visible with a ribbon appearance ahead.
+    // T3 macro-groups: Overlay starts collapsed; expand for rank edits.
+    await badgePanel.getByTestId("badge-group-overlay-toggle").click()
     const rankGroup = badgePanel.getByRole("radiogroup", { name: "Classifica" })
     await expect(rankGroup).toBeVisible()
 
@@ -441,6 +443,8 @@ test.describe("U4 U2 contextual preview (defaults)", () => {
       (u) => u.searchParams.get("sash") === "upcoming,rank,new,award,extra" && u.searchParams.get("extra") === null,
     )
     const hoverFrom = seen.urls.length
+    // T3 macro-groups: Overlay starts collapsed; expand for the sash switches below.
+    await badgePanel.getByTestId("badge-group-overlay-toggle").click()
     const infoTitle = badgePanel.getByText("Informazioni sul titolo", { exact: true })
     await infoTitle.hover()
     await page.waitForTimeout(900)
@@ -704,6 +708,8 @@ test.describe("U4 U3 number baseline (transport + slider)", () => {
     await expect(badgePanel).toBeVisible()
 
     // Select Numero (saved write): preview carries rs=number, tox stays raw 0.
+    // T3 macro-groups: Overlay starts collapsed; expand for rank edits.
+    await badgePanel.getByTestId("badge-group-overlay-toggle").click()
     const rankGroup = badgePanel.getByRole("radiogroup", { name: "Classifica" })
     const p = await nextPreview(
       seen,

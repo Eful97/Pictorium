@@ -260,8 +260,9 @@ for (const viewport of [
 
     const dialog = page.getByRole("dialog", { name: "Configura tutti i poster" }).filter({ visible: true })
     await expect(dialog).toBeVisible()
-    await expect(dialog.getByRole("button", { name: "Sincronizza ora", exact: true })).toBeVisible()
-    await expect(dialog.getByRole("status")).toHaveCount(0)
+    await expect(dialog.getByRole("button", { name: "Fine", exact: true })).toBeVisible()
+    // T4 footer live region: exactly one status (the footer one, no stray toasts).
+    await expect(dialog.getByRole("status")).toHaveCount(1)
     // Async server-defaults hydration remounts conditional rows (rank
     // appearance/variant/side): start only after the first preview round-trip
     // committed them. Assertions below traverse the full order in both
@@ -304,7 +305,7 @@ for (const viewport of [
     expect(forward.distinct).toBe(initialCount + 1)
     await expect(dialog.getByTestId("defaults-preview-reset-family")).toBeVisible()
     expect(forward.visited.some((d) => d.includes("defaults-preview-reset-family"))).toBe(true)
-    expect(forward.visited.some((d) => d.includes("Sincronizza ora"))).toBe(true)
+    expect(forward.visited.some((d) => d.includes("Fine"))).toBe(true)
 
     // Backward: every Shift+Tab lands on the exact live-previous node,
     // including the wrap from the initial close control to the footer. The
@@ -315,7 +316,7 @@ for (const viewport of [
     const backward = await coverAll(page, controls, forward.end, start, "backward", cap, "coverage")
     expect(backward.rounds).toBe(1)
     expect(backward.distinct).toBeGreaterThanOrEqual(await controls.count())
-    expect(backward.visited.some((d) => d.includes("Sincronizza ora"))).toBe(true)
+    expect(backward.visited.some((d) => d.includes("Fine"))).toBe(true)
 
     await page.keyboard.press("Escape")
     await expect(dialog).toBeHidden()

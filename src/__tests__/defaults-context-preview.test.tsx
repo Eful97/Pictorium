@@ -31,6 +31,15 @@ function paramsOf(url: string): URLSearchParams {
   return new URL(String(url), "http://localhost").searchParams
 }
 
+// T3 macro-groups: overlay/quality start collapsed (bodies mounted + hidden).
+// Open disclosures before touching their controls; assertions unchanged.
+function openBadgeGroup(...ids: Array<"style" | "base" | "overlay" | "quality">) {
+  for (const id of ids) {
+    const t = screen.getByTestId(`badge-group-${id}-toggle`)
+    if (t.getAttribute("aria-expanded") !== "true") fireEvent.click(t)
+  }
+}
+
 class FakeXHR {
   static opened: string[] = []
   onload: (() => void) | null = null
@@ -190,6 +199,7 @@ describe("card press/focus reports the family without mutating anything", () => 
       )
     }
     const ui = renderWithCtx(createElement(Harness))
+    openBadgeGroup("overlay")
     return { ui }
   }
 
@@ -254,6 +264,7 @@ describe("card press/focus reports the family without mutating anything", () => 
         createElement(p.Probe),
       ),
     )
+    openBadgeGroup("overlay")
     await act(async () => {})
     expect(p.ctx().defaultPosterShape).toBe("poster")
     fireEvent.focus(screen.getByRole("switch", { name: "ui.sash_rank" }))

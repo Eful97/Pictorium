@@ -1,10 +1,8 @@
 "use client"
 
 import { useState, useEffect, useRef } from "react"
-import { toast } from "sonner"
 import { useT } from "@/lib/contexts/TranslationContext"
 import { usePosterEditor } from "@/lib/contexts/PosterEditorContext"
-import { saveDefaults } from "@/lib/save-defaults"
 import { UserKeysSection } from "@/components/UserKeysSection"
 import { UserSpaceSection } from "@/components/UserSpaceSection"
 import { BadgeDefaultsSection } from "@/components/settings/BadgeDefaultsSection"
@@ -15,7 +13,6 @@ import { isMultiUserServer } from "@/lib/guest-guard"
 import { currentPathUuid } from "@/lib/user-token"
 import { consumeSettingsTab, type SettingsTabId } from "@/lib/settings-tab"
 import {
-  Check,
   SlidersHorizontal,
   Move,
   Database,
@@ -31,6 +28,13 @@ import { usePSelector } from "@/lib/context"
 import { usePreviewDemoMedia } from "@/lib/defaults-preview-media"
 import { VisualPresetsSection } from "@/components/settings/VisualPresetsSection"
 import type { BackupExportOptions, BackupImportOptions } from "@/lib/useMappingsStore"
+
+// Shared header-card chrome for the settings tab header slot, used by both
+// the visual edit-target selector and the non-visual tab title. Compact on
+// mobile (no height floor, no hint): same card on both, desktop keeps the
+// 96px floor. Exact runtime offsets are covered by the e2e gate.
+const TAB_HEADER_CARD_CLASS =
+  "bg-surface/50 border border-surface2/60 rounded-xl p-2 sm:p-3 shadow-sm sm:min-h-[96px]"
 
 interface Props {
   setSettingsOpen: (v: boolean) => void
@@ -72,21 +76,17 @@ export function SettingsPanel({ setSettingsOpen, exportData, importData, mobile,
   const isVisualTab = activeTab === "badge" || activeTab === "trasforma"
   // Preview follows the edit target on visual tabs, without touching defaults.
   const defaultsPreviewShapeOverride = isVisualTab ? editTargetShape : undefined
+  // Landscape preview gets a wider desktop column (md vs lg steps); portrait
+  // keeps its column so proportions never change.
+  const previewIsLandscape = isVisualTab && editTargetShape === "landscape"
+  // Mobile preview collapse: in-memory only, survives tab switches.
+  const [previewCollapsed, setPreviewCollapsed] = useState(false)
   // Preview-only demo title (default Avatar): persisted per profile in
   // browser storage, surviving close/reopen and reload. Never persisted to
   // defaults/mapping/shape. Selection writes sync; reset removes the slot.
   const currentUserId = usePSelector((v) => v.currentUserId)
   const [previewDemoMedia, setPreviewDemoMedia] = usePreviewDemoMedia(currentUserId)
-  const [saved, setSaved] = useState(false)
-  const [saving, setSaving] = useState(false)
   const settingsRef = useRef<HTMLDivElement>(null)
-  const savedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-
-  useEffect(() => {
-    return () => {
-      if (savedTimerRef.current) clearTimeout(savedTimerRef.current)
-    }
-  }, [])
 
   // Multi-user ON: la sezione PIN sparisce (lì l'admin è ADMIN_TOKEN e il
   // cancello è per-spazio). null = ancora ignoto: si mostra come oggi
@@ -177,21 +177,29 @@ export function SettingsPanel({ setSettingsOpen, exportData, importData, mobile,
     return () => window.removeEventListener("keydown", handleKeyDown)
   }, [mobile, setSettingsOpen])
 
-  const handleSaveDefaults = async () => {
-    setSaving(true)
-    try {
-      const synced = await saveDefaults(ed)
-      if (!synced) {
-        toast.warning(t("ui.defaultsSyncFailed"))
-        return
-      }
-      setSaved(true)
-      if (savedTimerRef.current) clearTimeout(savedTimerRef.current)
-      savedTimerRef.current = setTimeout(() => setSaved(false), 1500)
-    } finally {
-      setSaving(false)
-    }
+  // Manual sync + explicit retry through the authoritative hook state: the
+  // footer status always reflects the latest send, never a stale guess.
+  // Close still just closes (no flush); custom-rating test keeps its own flush.
+  const handleRetry = () => {
+    void ed.retryDefaultSync()
   }
+  const syncStatus = ed.defaultSyncStatus
+  const showRetry =
+    syncStatus === "failed" || syncStatus === "local-failed" || syncStatus === "unconfirmed"
+  const syncStatusText =
+    syncStatus === "pending"
+      ? t("ui.savedLocalSyncing")
+      : syncStatus === "failed"
+        ? t("ui.defaultsSyncFailed")
+        : syncStatus === "local-failed"
+          ? t("ui.localSaveFailed")
+          : syncStatus === "local-only"
+            ? t("ui.defaultsLocalOnly")
+            : syncStatus === "unconfirmed"
+              ? t("ui.unconfirmed")
+              : syncStatus === "synced"
+                ? t("ui.synced")
+                : t("ui.loading")
 
   const tabs: { id: SettingsTabId; label: string; icon: typeof Tags }[] = [
     { id: "badge", label: t("ui.badgeSection"), icon: Tags },
@@ -205,7 +213,7 @@ export function SettingsPanel({ setSettingsOpen, exportData, importData, mobile,
   const tabsNav = (
     <div className="shrink-0">
       {/* Mobile Category Selector */}
-      <div className="sm:hidden px-3 py-2 bg-white/[0.03] border-b border-white/10 flex items-center justify-between gap-2">
+      <div className="sm:hidden px-3 py-1.5 bg-white/[0.03] border-b border-white/10 flex items-center justify-between gap-2">
         <label htmlFor={mobile ? "mobile-settings-category" : "desktop-settings-category"} className="text-xs font-semibold text-zinc-400 shrink-0">
           {t("ui.section") || "Sezione"}:
         </label>
@@ -257,8 +265,8 @@ export function SettingsPanel({ setSettingsOpen, exportData, importData, mobile,
   // Single edit-target selector, rendered before the controls on visual tabs.
   // Shares state with the Transform panel (controlled): no divergence possible.
   const formatTargetSelector = (
-    <div data-testid="format-target-selector" className="shrink-0 px-4 sm:px-6 pt-3">
-      <div className="bg-surface/50 border border-surface2/60 rounded-xl p-3 shadow-sm">
+    <div data-testid="format-target-selector" className="shrink-0 px-3 sm:px-6 pt-2 sm:pt-3">
+      <div className={TAB_HEADER_CARD_CLASS}>
         <div className="flex items-center justify-between gap-3">
           <span className="font-semibold text-zinc-200 text-xs">{t("ui.formatTarget")}</span>
           <div
@@ -283,8 +291,31 @@ export function SettingsPanel({ setSettingsOpen, exportData, importData, mobile,
             ))}
           </div>
         </div>
-        <p className="text-[11px] text-zinc-400 italic mt-1.5 leading-snug">{t("ui.formatTargetHint")}</p>
+        <p className="hidden sm:block text-[11px] text-zinc-400 italic mt-1.5 leading-snug">{t("ui.formatTargetHint")}</p>
       </div>
+    </div>
+  )
+
+  // Header slot shared by visual and non-visual tabs. Visual tabs render the
+  // single edit-target selector; other tabs render the active tab title +
+  // subtitle in the same card chrome. Same wrapper, same padding, same floor.
+  const activeTabDef = tabs.find((tab) => tab.id === activeTab)
+  const ActiveTabIcon = activeTabDef?.icon ?? SlidersHorizontal
+  const tabHeaderSlot = (
+    <div data-testid="settings-tab-header-slot" className="shrink-0">
+      {isVisualTab ? (
+        formatTargetSelector
+      ) : (
+        <div className="px-3 sm:px-6 pt-2 sm:pt-3">
+          <div data-testid="settings-tab-title" className={`${TAB_HEADER_CARD_CLASS} flex flex-col justify-center gap-1`}>
+            <span className="font-semibold text-zinc-200 text-xs flex items-center gap-1.5">
+              <ActiveTabIcon className="w-3.5 h-3.5 text-accent-orange shrink-0" />
+              {activeTabDef?.label ?? ""}
+            </span>
+            <p className="hidden sm:block text-[11px] text-zinc-400 leading-snug">{t("ui.settingsSubtitle")}</p>
+          </div>
+        </div>
+      )}
     </div>
   )
 
@@ -336,8 +367,8 @@ export function SettingsPanel({ setSettingsOpen, exportData, importData, mobile,
   // Actions Footer (condiviso desktop/mobile)
   const footer = (
     <div className="settings-dialog-footer border-t border-white/10 bg-[#0d0d10]/95 backdrop-blur-md px-4 sm:px-6 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] flex flex-col sm:flex-row items-center justify-between gap-3 shrink-0">
-      <p className="text-xs text-zinc-400 text-center sm:text-left select-none">
-        {t("ui.defaultsAutoSaved")}
+      <p role="status" data-testid="defaults-sync-status" className="text-xs text-zinc-400 text-center sm:text-left select-none">
+        {syncStatusText}
       </p>
       <div className="flex items-center justify-between sm:justify-end gap-2.5 w-full sm:w-auto">
         {onOpenInstall && (
@@ -353,35 +384,22 @@ export function SettingsPanel({ setSettingsOpen, exportData, importData, mobile,
             <span>{t("ui.install")}</span>
           </button>
         )}
+        {showRetry && (
+          <button
+            type="button"
+            onClick={handleRetry}
+            className="px-5 py-2.5 min-h-[44px] h-11 rounded-xl bg-white/[0.06] hover:bg-white/[0.1] text-xs sm:text-sm font-semibold text-zinc-300 hover:text-white transition-all active:scale-95 cursor-pointer touch-manipulation flex items-center justify-center gap-2"
+          >
+            <RotateCw className="w-3.5 h-3.5" />
+            <span>{t("ui.retry")}</span>
+          </button>
+        )}
         <button
           type="button"
           onClick={() => setSettingsOpen(false)}
-          className="px-5 py-2.5 min-h-[44px] h-11 rounded-xl bg-white/[0.06] hover:bg-white/[0.1] text-xs sm:text-sm font-semibold text-zinc-300 hover:text-white transition-all active:scale-95 cursor-pointer touch-manipulation flex items-center justify-center"
+          className="flex items-center justify-center gap-2 px-5 py-2.5 min-h-[44px] h-11 rounded-xl text-xs sm:text-sm font-semibold bg-accent-orange hover:bg-accent-orange/90 text-white shadow-lg shadow-accent-orange/25 active:scale-95 transition-all cursor-pointer touch-manipulation"
         >
-          {t("ui.close")}
-        </button>
-        <button
-          type="button"
-          onClick={handleSaveDefaults}
-          disabled={saving}
-          className="flex items-center justify-center gap-2 px-5 py-2.5 min-h-[44px] h-11 rounded-xl text-xs sm:text-sm font-semibold bg-accent-orange hover:bg-accent-orange/90 text-white shadow-lg shadow-accent-orange/25 active:scale-95 transition-all cursor-pointer touch-manipulation disabled:opacity-50"
-        >
-          {saving ? (
-            <>
-              <RotateCw className="w-3.5 h-3.5 animate-spin" />
-              <span>{t("ui.syncing")}</span>
-            </>
-          ) : saved ? (
-            <>
-              <Check className="w-3.5 h-3.5" />
-              <span>{t("ui.saved")}</span>
-            </>
-          ) : (
-            <>
-              <RotateCw className="w-3.5 h-3.5" />
-              <span>{t("ui.syncNow")}</span>
-            </>
-          )}
+          <span>{t("ui.settingsDone")}</span>
         </button>
       </div>
     </div>
@@ -392,13 +410,13 @@ export function SettingsPanel({ setSettingsOpen, exportData, importData, mobile,
     return (
       <div ref={settingsRef} className="settings-panel flex flex-col h-full min-h-0 w-full">
         {tabsNav}
-        {isVisualTab && formatTargetSelector}
+        {tabHeaderSlot}
         {mobileViewport === true && (activeTab === "badge" || activeTab === "trasforma") && (
-          <div className="shrink-0 px-4 pt-3">
-            <DefaultsPosterPreview compact previewShape={defaultsPreviewShapeOverride} demoMedia={previewDemoMedia} onDemoMediaChange={setPreviewDemoMedia} previewFamily={previewFamily} onPreviewFamilyChange={setPreviewFamily} />
+          <div className="shrink-0 px-3 pt-2">
+            <DefaultsPosterPreview compact collapsed={previewCollapsed} onCollapsedChange={setPreviewCollapsed} previewShape={defaultsPreviewShapeOverride} demoMedia={previewDemoMedia} onDemoMediaChange={setPreviewDemoMedia} previewFamily={previewFamily} onPreviewFamilyChange={setPreviewFamily} />
           </div>
         )}
-        <div className="flex-1 min-h-0 overflow-y-auto p-4 space-y-4 pb-8" data-testid="settings-controls">
+        <div className="flex-1 min-h-0 overflow-y-auto p-3 space-y-4 pb-8" data-testid="settings-controls">
           {mobileViewport === true && (activeTab === "badge" || activeTab === "trasforma") && <VisualPresetsSection shape={editTargetShape} />}
           {badgePanel}
           {trasformaPanel}
@@ -455,10 +473,10 @@ export function SettingsPanel({ setSettingsOpen, exportData, importData, mobile,
 
         {tabsNav}
 
-        {isVisualTab && formatTargetSelector}
+        {tabHeaderSlot}
 
         {/* Contenuto scrollabile */}
-        <div className={`flex-1 min-h-0 ${isVisualTab ? "flex flex-col md:grid md:grid-cols-[minmax(0,1fr)_minmax(220px,32%)]" : "flex flex-col"}`}>
+        <div className={`flex-1 min-h-0 ${isVisualTab ? (previewIsLandscape ? "flex flex-col md:grid md:grid-cols-[minmax(0,1fr)_minmax(300px,40%)] lg:grid-cols-[minmax(0,1fr)_minmax(360px,44%)]" : "flex flex-col md:grid md:grid-cols-[minmax(0,1fr)_minmax(220px,32%)]") : "flex flex-col"}`}>
           <div className="min-w-0 min-h-0 overflow-y-auto p-4 sm:p-6 space-y-4" data-testid="settings-controls">
             {mobileViewport === false && isVisualTab && <VisualPresetsSection shape={editTargetShape} />}
             {badgePanel}

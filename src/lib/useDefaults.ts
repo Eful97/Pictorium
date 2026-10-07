@@ -21,6 +21,18 @@ import { KNOWN_VIDEO_FORMATS, isVideoFormat, type VideoFormat } from "./av-specs
 
 export type RibbonSide = "left" | "right"
 
+/**
+ * Authoritative defaults sync state (single source: useDefaults).
+ * idle = loading, before any completed attempt; pending = device-saved with
+ * the server send outstanding; synced = latest payload server-confirmed;
+ * failed = server rejected (device copy intact); local-failed = device write
+ * failed; local-only = server sync skipped by design (guest); unconfirmed =
+ * locally loaded but never server-confirmed (attempt failed or diverged).
+ * Seq is bumped at every new payload arrival (effect or retry), never at PUT
+ * start, so a stale send resolving later announces nothing.
+ */
+export type DefaultSyncStatus = "idle" | "pending" | "synced" | "failed" | "local-only" | "local-failed" | "unconfirmed"
+
 export interface DefaultsState {
   defaultBadgeStyle: BadgeStyle
   defaultRankingBadgeStyle: RankingBadgeStyle
@@ -453,8 +465,14 @@ export function defaultsStorageKey(): string {
   return uuid ? `badgeDefaults:${uuid}` : "badgeDefaults"
 }
 
-function safeSetItem(key: string, val: string) {
-  try { localStorage.setItem(key, val) } catch { /* localStorage non disponibile */ }
+function safeSetItem(key: string, val: string): boolean {
+  try {
+    localStorage.setItem(key, val)
+    return true
+  } catch {
+    // Quota/private-mode write failure: callers must not mistake it for saved.
+    return false
+  }
 }
 
 function numOrUndef(v: unknown): number | undefined {
@@ -740,14 +758,107 @@ export function useDefaults() {
   // caricato, così il primo run dell'effetto di sync trova payload identico e non scrive.
   const lastPersistRef = useRef<string>("")
 
+  const [syncStatus, setSyncStatus] = useState<DefaultSyncStatus>("idle")
+  // Monotonic send id, bumped at every new payload arrival (effect body or
+  // retry): a stale send resolving later announces nothing.
+  const syncSeqRef = useRef(0)
+  // Pending debounce timer (ref, so manual retry can flush it: no double PUT).
+  // No effect cleanup: only a new payload arrival (body above) or retry
+  // replaces the timer, and unmount is covered by the mounted effect below.
+  const syncTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // Inflight PUT cancellation (superseded send or unmount).
+  const syncAbortRef = useRef<AbortController | null>(null)
+  const mountedRef = useRef(true)
+  useEffect(() => {
+    mountedRef.current = true
+    return () => {
+      mountedRef.current = false
+      if (syncTimerRef.current) clearTimeout(syncTimerRef.current)
+      syncAbortRef.current?.abort()
+    }
+  }, [])
+
+  // Single server send for an exact payload string. Never reads component
+  // state: retry and debounce share it, so they cannot diverge or double-PUT.
+  // True only when the server confirmed; never on skip/local/network failure.
+  const syncSend = useCallback(async (payloadStr: string, seq: number): Promise<boolean> => {
+    if (seq !== syncSeqRef.current || !mountedRef.current) return false
+    // Guest guard: guest without session stays local-only by design, never
+    // overwriting the owner's instance defaults (existing skip semantics).
+    if (await shouldSkipServerSync()) {
+      if (seq !== syncSeqRef.current || !mountedRef.current) return false
+      lastPersistRef.current = ""
+      setSyncStatus("local-only")
+      console.debug("[defaults] Server sync skipped (guest without session, or no profile)")
+      void isProfilelessOnMultiUser().then((profileless) => {
+        if (profileless) notifyProfilelessOnce()
+      })
+      return false
+    }
+    // Slow guard + newer payload: never send a stale PUT after the guard.
+    if (seq !== syncSeqRef.current || !mountedRef.current) return false
+    const ctrl = new AbortController()
+    syncAbortRef.current = ctrl
+    let res: Response
+    try {
+      res = await userFetch("/api/defaults", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: payloadStr,
+        signal: ctrl.signal,
+      })
+    } catch (error: unknown) {
+      // Superseded, aborted or unmounted sends never announce anything.
+      if (seq !== syncSeqRef.current || !mountedRef.current || ctrl.signal.aborted) return false
+      lastPersistRef.current = ""
+      setSyncStatus("failed")
+      const message = error instanceof Error ? error.message : String(error)
+      console.warn(`[defaults] Auto-sync failed: ${message}`)
+      void import("sonner").then(({ toast }) =>
+        toast.warning(t("ui.defaultsSyncFailed")),
+      )
+      return false
+    }
+    if (seq !== syncSeqRef.current || !mountedRef.current) return false
+    if (res.ok) {
+      setSyncStatus("synced")
+      return true
+    }
+    // 401 (admin fail-closed), 403 origin, 5xx persist: il client crede di
+    // aver salvato (localStorage) ma i default d'istanza restano vecchi —
+    // e su Stremio i poster dei cataloghi usano QUELLI. Segnala il desync.
+    lastPersistRef.current = ""
+    setSyncStatus("failed")
+    console.warn(`[defaults] Auto-sync failed: HTTP ${res.status}`)
+    void import("sonner").then(({ toast }) =>
+      toast.warning(t("ui.defaultsSyncFailed")),
+    )
+    return false
+  }, [])
+
+  // Idle-only completion helper for server refresh: guests present
+  // local-only (never a false synced), everyone else the given state.
+  // Newer edit states are never overwritten; unmounted no-op.
+  const settleIdle = useCallback(async (nonGuest: DefaultSyncStatus): Promise<void> => {
+    const skip = await shouldSkipServerSync().catch(() => false)
+    if (!mountedRef.current) return
+    setSyncStatus((prev) => (prev === "idle" ? (skip ? "local-only" : nonGuest) : prev))
+  }, [])
+
   // Refresh defaults dal server (namespace via userFetch su /u/<uuid>).
   // Estratto per riuso post-unlock: la prima fetch può aver girato senza
   // token (race col #key=) e il merge server→locale va rifatto a sblocco.
   const refreshFromServer = useCallback(() => {
     userFetch("/api/defaults")
       .then((r) => (r.ok ? r.json() : null))
-      .then((serverData) => {
-        if (!serverData) return
+      .then(async (serverData) => {
+        if (!mountedRef.current) return
+        if (!serverData) {
+          // Completed without server confirmation (fail/non-ok): locally
+          // loaded but unverified — never infinite loading, retry available.
+          await settleIdle("unconfirmed")
+          return
+        }
         const currentStored = readStoredDefaults()
         const merged: StoredDefaults = {
           ...(serverData || {}),
@@ -768,12 +879,32 @@ export function useDefaults() {
           merged.defaultVideoFormats = serverData.videoFormats
         }
         const updated = buildFromStored(merged)
+        const mergedStr = JSON.stringify(defaultsToPayload(updated))
+        // Server-only canonical payload: a GET ok confirms the merged one
+        // only when both are equal (local precedence may differ).
+        const serverStr = JSON.stringify(defaultsToPayload(buildFromStored(serverData)))
+        const storedOk = safeSetItem(defaultsStorageKey(), mergedStr)
+        lastPersistRef.current = mergedStr
+        if (!mountedRef.current) return
         setState(updated)
-        lastPersistRef.current = JSON.stringify(defaultsToPayload(updated))
-        safeSetItem(defaultsStorageKey(), JSON.stringify(defaultsToPayload(updated)))
+        if (!storedOk) {
+          // Local write failed: local-failed (never synced).
+          setSyncStatus((prev) => (prev === "idle" ? "local-failed" : prev))
+          return
+        }
+        // Truthful hydration from idle only, no auto-PUT at startup: the
+        // server confirms the merged payload only when its canonical form
+        // equals it, otherwise these values were never seen server-side.
+        // The guest consult decides local-only vs the confirmed state.
+        await settleIdle(serverStr === mergedStr ? "synced" : "unconfirmed")
       })
-      .catch(() => {})
-  }, [])
+      .catch(() => {
+        // Network rejection / JSON exception: same completion as a failed
+        // attempt (never infinite idle), mounted-guarded.
+        if (!mountedRef.current) return
+        void settleIdle("unconfirmed")
+      })
+  }, [settleIdle])
 
   useEffect(() => {
     const stored = readStoredDefaults()
@@ -796,6 +927,7 @@ export function useDefaults() {
   // e tenta il sync server (/api/defaults). Dedup via payload string — se cambiano
   // solo i valori "corrente" il payload resta identico e non viene riscritta.
   // Il gate `hydrated` blocca il run del primo commit (state ancora factory).
+  // Debounce invariato a 500ms; lo stato di sync resta autorevole qui.
   useEffect(() => {
     if (!hydrated) return
     const payload = defaultsToPayload(state)
@@ -803,54 +935,30 @@ export function useDefaults() {
     if (lastPersistRef.current === payloadStr) return
     lastPersistRef.current = payloadStr
 
-    // Scrittura immediata e sincrona in localStorage ad ogni cambio
-    safeSetItem(defaultsStorageKey(), payloadStr)
+    // Invalidate at payload arrival (before local write/debounce): a stale
+    // send resolving later — even during this debounce — announces nothing,
+    // the pending timer is replaced, never stacked, and the previous inflight
+    // PUT is aborted. The timer captures the already-allocated seq.
+    const seq = ++syncSeqRef.current
+    if (syncTimerRef.current) {
+      clearTimeout(syncTimerRef.current)
+      syncTimerRef.current = null
+    }
+    syncAbortRef.current?.abort()
 
-    const timer = setTimeout(() => {
-      // Guest guard: ospite da link altrui senza sessione su istanza con PIN
-      // → resta tutto locale, mai sovrascrivere i default del proprietario
-      // (es. cambio lingua che sposta la regione). Come sul 401: ref azzerato
-      // così un cambio successivo (es. dopo il login) riprova il sync.
-      void shouldSkipServerSync().then((skip) => {
-        if (skip) {
-          lastPersistRef.current = ""
-          console.debug("[defaults] Server sync skipped (guest without session, or no profile)")
-          void isProfilelessOnMultiUser().then((profileless) => {
-            if (profileless) notifyProfilelessOnce()
-          })
-          return
-        }
-        userFetch("/api/defaults", {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: payloadStr,
-        })
-        .then((res) => {
-          if (res.ok) return
-          // 401 (admin fail-closed), 403 origin, 5xx persist: il client crede di
-          // aver salvato (localStorage) ma i default d'istanza restano vecchi —
-          // e su Stremio i poster dei cataloghi usano QUELLI. Segnala il desync.
-          lastPersistRef.current = ""
-          console.warn(`[defaults] Auto-sync failed: HTTP ${res.status}`)
-          void import("sonner").then(({ toast }) =>
-            toast.warning(t("ui.defaultsSyncFailed")),
-          )
-        })
-        .catch((error: unknown) => {
-          // Se il PUT fallisce (rete, serverless cold start) resetta il ref
-          // così un successivo cambio di default riprova invece di considerare "sincronizzato".
-          lastPersistRef.current = ""
-          const message = error instanceof Error ? error.message : String(error)
-          console.warn(`[defaults] Auto-sync failed: ${message}`)
-          void import("sonner").then(({ toast }) =>
-            toast.warning(t("ui.defaultsSyncFailed")),
-          )
-        })
-      })
+    // Immediate synchronous local write; a failed write is a local failure
+    // (explicit status + retry), never silently treated as saved.
+    if (!safeSetItem(defaultsStorageKey(), payloadStr)) {
+      setSyncStatus("local-failed")
+      return
+    }
+    setSyncStatus("pending")
+
+    syncTimerRef.current = setTimeout(() => {
+      syncTimerRef.current = null
+      void syncSend(payloadStr, seq)
     }, 500)
-
-    return () => clearTimeout(timer)
-  }, [state, hydrated])
+  }, [state, hydrated, syncSend])
 
   const update = useCallback((patch: Partial<DefaultsState> | ((prev: DefaultsState) => Partial<DefaultsState>)) => {
     setState((prev) => ({ ...prev, ...(typeof patch === "function" ? patch(prev) : patch) }))
@@ -862,5 +970,29 @@ export function useDefaults() {
     lastPersistRef.current = JSON.stringify(defaultsToPayload(buildFromStored(stored)))
   }, [])
 
-  return { ...state, update, loadDefaultsToState }
+  // Manual recovery + explicit retry: invalidates first (a slow
+  // guard/debounce from a previous payload must not win), clears the pending
+  // timer before writing, then sends the current payload immediately (single
+  // PUT, same shape as auto-sync, no new edit required). The local write is
+  // attempted again, so recovery from a local failure also needs no new edit.
+  // True only when the server confirmed.
+  const retryDefaultSync = useCallback((): Promise<boolean> => {
+    if (!hydrated) return Promise.resolve(false)
+    const seq = ++syncSeqRef.current
+    if (syncTimerRef.current) {
+      clearTimeout(syncTimerRef.current)
+      syncTimerRef.current = null
+    }
+    syncAbortRef.current?.abort()
+    const payloadStr = JSON.stringify(defaultsToPayload(state))
+    lastPersistRef.current = payloadStr
+    if (!safeSetItem(defaultsStorageKey(), payloadStr)) {
+      setSyncStatus("local-failed")
+      return Promise.resolve(false)
+    }
+    setSyncStatus("pending")
+    return syncSend(payloadStr, seq)
+  }, [state, hydrated, syncSend])
+
+  return { ...state, update, loadDefaultsToState, defaultSyncStatus: syncStatus, retryDefaultSync }
 }

@@ -11,6 +11,10 @@ export interface RecentChange {
 }
 
 export const RECENT_CHANGES: RecentChange[] = [
+  { type: "feature", text: "Separate presets by format and add inspired styles", sha: "0f0d5f1", date: "2026-10-07" },
+  { type: "fix", text: "Move logos and badges across the poster", sha: "0784575", date: "2026-10-07" },
+  { type: "fix", text: "Queued poster image downloads survive when the first request aborts", sha: "7d334b3", date: "2026-10-07" },
+  { type: "fix", text: "Show the right artwork when opening landscape posters", sha: "528ea61", date: "2026-10-07" },
   { type: "feature", text: "Improve poster badges and landscape editing", sha: "b8f389b", date: "2026-10-06" },
   { type: "fix", text: "Keep daily poster rotation in your profile", sha: "9fbe11c", date: "2026-10-06" },
 ]

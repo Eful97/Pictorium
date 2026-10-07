@@ -17,6 +17,7 @@ import { render, renderHook, act } from "@testing-library/react"
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest"
 import { useDefaults } from "@/lib/useDefaults"
 import { PosterEditorProvider, usePosterEditor, type PosterEditorCtx } from "@/lib/contexts/PosterEditorContext"
+import { resetGuestGuardForTests } from "@/lib/guest-guard"
 
 // Valori utente salvati (forma del payload scritto da saveDefaults):
 // badgeYear OFF, gradientHeight 45, blurIntensity 9 — tutto il resto factory.
@@ -111,6 +112,9 @@ describe("useDefaults hydration", () => {
   let storage: StorageStub
 
   beforeEach(() => {
+    // Memo di rete del guest-guard isolate tra i test (il refresh consulta
+    // la guard: promise memoizzate pending avvelenerebbero i test seguenti).
+    resetGuestGuardForTests()
     // jsdom qui non ha localStorage (origin opaca): stub in-memory condiviso
     // sia per `localStorage` bare che per `window.localStorage`.
     storage = createStorageStub()

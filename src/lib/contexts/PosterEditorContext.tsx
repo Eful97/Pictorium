@@ -2,7 +2,7 @@
 
 import { createContext, useContext, useState, useMemo, useCallback } from "react"
 import type { TMDBImage, NetworkLogoPosition, PosterShape } from "@/lib/types"
-import { useDefaults } from "@/lib/useDefaults"
+import { useDefaults, type DefaultSyncStatus } from "@/lib/useDefaults"
 import type { LandscapeServerDefaults } from "@/lib/server-defaults"
 import type { DateFormat } from "@/lib/release-badge"
 import type { BadgeStyle, RankingBadgeStyle, ExtraBadgeStyle, QualityBadgeStyle, BadgeFont, SeparateRatingsStyle } from "@/lib/badge-styles"
@@ -260,6 +260,10 @@ export interface PosterEditorCtx {
   defaultDateFormat: DateFormat
   setDefaultDateFormat: (v: DateFormat | ((prev: DateFormat) => DateFormat)) => void
   loadDefaultsToState: () => void
+  /** Authoritative defaults sync state (local + server truth for the footer). */
+  defaultSyncStatus: DefaultSyncStatus
+  /** Immediate server retry of the current defaults payload (single PUT). */
+  retryDefaultSync: () => Promise<boolean>
 
   // ---- Blur ----
   blurEnabled: boolean
@@ -457,6 +461,7 @@ export function PosterEditorProvider({
     region, defaultRegion, defaultDateFormat,
     loadDefaultsToState, update,
   } = defaults
+  const { defaultSyncStatus, retryDefaultSync } = defaults
 
   const setGlobalBadges = useCallback(
     (v: boolean | ((prev: boolean) => boolean)) => {
@@ -1222,6 +1227,8 @@ export function PosterEditorProvider({
       defaultDateFormat,
       setDefaultDateFormat,
       loadDefaultsToState,
+      defaultSyncStatus,
+      retryDefaultSync,
 
       // Blur
       blurEnabled,
@@ -1431,6 +1438,7 @@ export function PosterEditorProvider({
       landscapeDefaults, setLandscape, resetLandscape,
       defaultLogoAlign, setDefaultLogoAlign,
       loadDefaultsToState, applyVisualPreset,
+      defaultSyncStatus, retryDefaultSync,
 
       // Blur
       blurEnabled, setBlurEnabled,

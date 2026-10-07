@@ -194,6 +194,8 @@ test.describe("Button interactions and immediate updates", () => {
 
     // Test rank side control: position radios Sinistra/Destra (defaults-only —
     // shared by the ribbon AND the Numero numeral, T5 RankingAppearanceSelector).
+    // T3 macro-groups: Overlay starts collapsed; expand for rank edits.
+    await page.locator(".settings-panel:visible").first().getByTestId("badge-group-overlay-toggle").click()
     // Select Numero first so the Posizione row is reachable, then flip sides.
     const rankGroup = page.getByRole("radiogroup", { name: "Classifica" })
     await rankGroup.getByRole("radio", { name: "Numero" }).click()
@@ -239,10 +241,12 @@ test.describe("Button interactions and immediate updates", () => {
     // Switch back to Badge tab (il tab "Stile" non esiste più: rinominato Badge)
     await page.getByRole("tab", { name: /Badge/i }).click()
 
-    // Test Sync Now button (autosave replaced the old Save Defaults button in 86251aff)
-    const saveDefaultsBtn = page.getByRole("button", { name: /Sincronizza ora/i })
-    await saveDefaultsBtn.click()
-    await expect(page.getByRole("button", { name: /Salvato/i })).toBeVisible()
+    // T4 footer: autosave status truth + Fine primary (no SyncNow button).
+    // Autosave already synced the toggles above; the live region confirms it
+    // and Fine closes the dialog.
+    await expect(page.getByTestId("defaults-sync-status")).toContainText(/Sincronizzato/i)
+    await page.getByRole("button", { name: "Fine", exact: true }).click()
+    await expect(page.getByRole("dialog")).toHaveCount(0)
   })
 
   test("Editor view buttons and tabs update immediately upon clicking", async ({ page }) => {

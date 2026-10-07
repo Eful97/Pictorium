@@ -48,6 +48,7 @@ function renderBadge(shape: "portrait" | "landscape") {
     return null
   }
   renderWithCtx(createElement("div", null, createElement(BadgeDefaultsSection, { active: true, shape }), createElement(Probe)))
+  openBadgeGroup("overlay")
   return { ctx: () => ctx as PosterEditorCtx }
 }
 
@@ -65,6 +66,7 @@ function renderSettings() {
       createElement(Probe),
     ),
   )
+  openBadgeGroup("overlay")
   return { ctx: () => ctx as PosterEditorCtx }
 }
 
@@ -74,6 +76,15 @@ function paramsOf(url: string): URLSearchParams {
 
 function badgeSwitch(name: string): HTMLElement {
   return screen.getByRole("switch", { name })
+}
+
+// T3 macro-groups: overlay/quality start collapsed (bodies mounted + hidden).
+// Open disclosures before touching their controls; assertions unchanged.
+function openBadgeGroup(...ids: Array<"style" | "base" | "overlay" | "quality">) {
+  for (const id of ids) {
+    const t = screen.getByTestId(`badge-group-${id}-toggle`)
+    if (t.getAttribute("aria-expanded") !== "true") fireEvent.click(t)
+  }
 }
 
 describe("badge target scope", () => {

@@ -1,7 +1,7 @@
 "use client"
 
-import { useCallback, useEffect, useRef, useState } from "react"
-import { Loader2, RotateCcw } from "lucide-react"
+import { useCallback, useEffect, useId, useRef, useState } from "react"
+import { Loader2, RotateCcw, Search, X } from "lucide-react"
 import { SearchBar } from "@/components/SearchBar"
 import { useT } from "@/lib/contexts/TranslationContext"
 import { http } from "@/lib/http"
@@ -15,6 +15,9 @@ interface DefaultsPreviewTitleSearchProps {
   language: string
   demoMedia: DefaultsPreviewDemoMedia | null
   onDemoMediaChange: (m: DefaultsPreviewDemoMedia | null) => void
+  /** Mobile compact: closed by default behind a 44px icon toggle.
+   *  Desktop (`false`) keeps the always-open search unchanged. */
+  compact?: boolean
 }
 
 interface SearchPayload {
@@ -43,6 +46,7 @@ export function DefaultsPreviewTitleSearch({
   language,
   demoMedia,
   onDemoMediaChange,
+  compact = false,
 }: DefaultsPreviewTitleSearchProps) {
   const { t } = useT()
   const [text, setText] = useState("")
@@ -53,6 +57,12 @@ export function DefaultsPreviewTitleSearch({
   const revRef = useRef(0)
   const abortRef = useRef<AbortController | null>(null)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // Compact (mobile) collapsed state: closed by default, body stays mounted
+  // under `hidden` so no state is lost. Desktop never collapses.
+  const [open, setOpen] = useState(false)
+  const rootRef = useRef<HTMLDivElement>(null)
+  const toggleRef = useRef<HTMLButtonElement>(null)
+  const bodyId = useId()
 
   // Drops any in-flight request: stale responses must never repopulate state.
   const invalidateFlight = useCallback(() => {
@@ -178,11 +188,62 @@ export function DefaultsPreviewTitleSearch({
   const yearOf = (r: SearchResult) =>
     r.release_date?.slice(0, 4) || r.first_air_date?.slice(0, 4) || ""
 
+  // Compact open: move focus into the input. Compact close: return focus to
+  // the toggle (Escape also closes from inside the body).
+  useEffect(() => {
+    if (!compact) return
+    if (open) {
+      rootRef.current?.querySelector<HTMLInputElement>('input[type="text"], input:not([type])')?.focus()
+    }
+  }, [compact, open])
+
+  const closeCompactSearch = useCallback(() => {
+    setOpen(false)
+    // The toggle stays mounted: return focus synchronously so keyboard
+    // users land back on it (click-close keeps focus naturally).
+    toggleRef.current?.focus()
+  }, [])
+
   return (
-    <div className="w-full mt-3" data-testid="defaults-preview-title-search">
-      <p className="block text-[11px] font-semibold text-zinc-400 mb-1.5 px-1">
-        {t("ui.defaultsPreviewSearchLabel")}
-      </p>
+    <div ref={rootRef} className="w-full mt-2 sm:mt-3" data-testid="defaults-preview-title-search">
+      {compact ? (
+        <div className="flex items-center gap-2 px-1">
+          <p className="min-w-0 flex-1 truncate text-[11px] font-semibold text-zinc-400">
+            {demoMedia?.title ? demoMedia.title : t("ui.defaultsPreviewSearchLabel")}
+          </p>
+          <button
+            ref={toggleRef}
+            type="button"
+            data-testid="defaults-preview-search-toggle"
+            onClick={() => {
+              if (open) closeCompactSearch()
+              else setOpen(true)
+            }}
+            aria-expanded={open}
+            aria-controls={bodyId}
+            aria-label={open ? t("ui.close") : t("ui.defaultsPreviewSearchLabel")}
+            title={open ? t("ui.close") : t("ui.defaultsPreviewSearchLabel")}
+            className="shrink-0 w-[44px] h-[44px] min-w-[44px] min-h-[44px] flex items-center justify-center rounded-xl text-zinc-300 hover:text-white hover:bg-white/10 active:scale-90 transition-all cursor-pointer touch-manipulation"
+          >
+            {open ? <X className="w-4 h-4" /> : <Search className="w-4 h-4" />}
+          </button>
+        </div>
+      ) : (
+        <p className="block text-[11px] font-semibold text-zinc-400 mb-1.5 px-1">
+          {t("ui.defaultsPreviewSearchLabel")}
+        </p>
+      )}
+      <div
+        id={compact ? bodyId : undefined}
+        className={compact && !open ? "hidden" : undefined}
+        onKeyDown={compact ? (e) => {
+          if (e.key === "Escape") {
+            e.stopPropagation()
+            closeCompactSearch()
+          }
+        } : undefined}
+      >
+      <div className={compact ? "mt-1" : undefined}>
       <SearchBar
         tmdbKey={tmdbKey}
         hasServerKey={hasServerKey}
@@ -266,6 +327,8 @@ export function DefaultsPreviewTitleSearch({
           })}
         </ul>
       ) : null}
+      </div>
+      </div>
     </div>
   )
 }
