@@ -19,6 +19,7 @@ import { generatePosterBuffer, LANDSCAPE_BOTTOM_PILLS_SHIFT_X, type GenerationIn
 import { LAND_W, LAND_H } from "@/lib/image-utils"
 import { formatSeparateValue, MAX_SEPARATE_RATINGS } from "@/lib/ratings"
 import { resolveSeparateDisplayState } from "@/lib/poster-config"
+import type { SeparateRatingsStyle } from "@/lib/badge-styles"
 import type { WikidataResult } from "@/lib/awards"
 import type { ServerDefaults } from "@/lib/server-defaults"
 
@@ -174,8 +175,8 @@ describe("renderSeparateRatingsBottom base", () => {
 
 describe("resolveSeparateDisplayState: mai righe duplicate", () => {
   it("useSeparate e bottomActive mai insieme; suppressCustomRow solo in bottom", () => {
-    const combos: { style: "column" | "bottom-bar" | "bottom-pills"; count: number }[] = []
-    for (const style of ["column", "bottom-bar", "bottom-pills"] as const) {
+    const combos: { style: SeparateRatingsStyle; count: number }[] = []
+    for (const style of ["column", "bottom-bar", "bottom-pills", "bottom-mono", "bottom-color"] as const) {
       for (const count of [0, 1, 3]) combos.push({ style, count })
     }
     for (const { style, count } of combos) {
@@ -467,7 +468,7 @@ describe("logo anchor invariance column/bottom (reservation logoBadgeVisibility)
    * wiring che la route non produce mai.
    */
   function routeLikeFlags(
-    style: "column" | "bottom-bar" | "bottom-pills",
+    style: SeparateRatingsStyle,
     rawGenre: boolean,
     rawYear: boolean,
     itemCount: number,
@@ -512,6 +513,28 @@ describe("logo anchor invariance column/bottom (reservation logoBadgeVisibility)
     }
   }, 120000)
 
+  it("portrait: stesso top logo in column/bottom-mono/bottom-color (genere+anno ON e OFF)", async () => {
+    const base = await darkBase()
+    const logo = await magentaLogo()
+    for (const prefs of [
+      { badgeGenre: true, badgeYear: true },
+      { badgeGenre: false, badgeYear: false },
+    ]) {
+      const tops: number[] = []
+      for (const style of ["column", "bottom-mono", "bottom-color"] as const) {
+        const buf = await generatePosterBuffer({
+          ...logoInput(), posterBuf: base, logoFetch: logo,
+          ...routeLikeFlags(style, prefs.badgeGenre, prefs.badgeYear, ITEMS.length),
+          separateRatingsStyle: style,
+        })
+        const top = await logoTop(buf)
+        expect(top).toBeGreaterThanOrEqual(0)
+        tops.push(top)
+      }
+      expect(new Set(tops).size).toBe(1)
+    }
+  }, 120000)
+
   it("portrait: invarianza anche a 0/1 provider (reservation copre i miss)", async () => {
     const base = await darkBase()
     const logo = await magentaLogo()
@@ -538,6 +561,23 @@ describe("logo anchor invariance column/bottom (reservation logoBadgeVisibility)
     const logo = await magentaLogo()
     const tops: number[] = []
     for (const style of ["column", "bottom-bar", "bottom-pills"] as const) {
+      const buf = await generatePosterBuffer({
+        ...logoInput(), posterBuf: base, logoFetch: logo, shape: "landscape",
+        ...routeLikeFlags(style, true, true, ITEMS.length),
+        separateRatingsStyle: style,
+      })
+      const top = await logoTop(buf)
+      expect(top).toBeGreaterThanOrEqual(0)
+      tops.push(top)
+    }
+    expect(new Set(tops).size).toBe(1)
+  }, 120000)
+
+  it("landscape: stesso top logo in column/bottom-mono/bottom-color (genere+anno ON)", async () => {
+    const base = await landBase()
+    const logo = await magentaLogo()
+    const tops: number[] = []
+    for (const style of ["column", "bottom-mono", "bottom-color"] as const) {
       const buf = await generatePosterBuffer({
         ...logoInput(), posterBuf: base, logoFetch: logo, shape: "landscape",
         ...routeLikeFlags(style, true, true, ITEMS.length),

@@ -155,11 +155,13 @@ export function BadgeControls() {
               {ed.badgeRating && ed.separateRatings && (
                 <div className="pt-1 space-y-1.5" title={t("ui.separateRatingsHint")}>
                   <span className="text-[11px] text-muted font-medium block">{t("ui.separateRatingsStyle")}</span>
-                  <div className="flex gap-1">
+                  <div className="grid grid-cols-3 gap-1">
                     {([
                       { id: "column", labelKey: "ui.separateRatingsColumn" },
                       { id: "bottom-bar", labelKey: "ui.separateRatingsBottomBar" },
                       { id: "bottom-pills", labelKey: "ui.separateRatingsBottomPills" },
+                      { id: "bottom-mono", labelKey: "ui.separateRatingsBottomMono" },
+                      { id: "bottom-color", labelKey: "ui.separateRatingsBottomColor" },
                     ] as const).map((opt) => {
                       // Barra disattivata in landscape (il server normalizza a
                       // pills): bottone visibile ma disabilitato e mai

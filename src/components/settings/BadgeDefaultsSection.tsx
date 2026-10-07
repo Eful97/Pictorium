@@ -860,11 +860,13 @@ export function BadgeDefaultsSection({ active, shape, onPreviewFamilyChange }: {
               {badgeRating && separateRatings && (
                 <div className="pt-1 space-y-1.5" title={t("ui.separateRatingsHint")}>
                   <span className="text-[11px] text-muted font-medium block">{t("ui.separateRatingsStyle")}</span>
-                  <div className="flex gap-1">
+                  <div className="grid grid-cols-3 gap-1">
                     {([
                       { id: "column", labelKey: "ui.separateRatingsColumn" },
                       { id: "bottom-bar", labelKey: "ui.separateRatingsBottomBar" },
                       { id: "bottom-pills", labelKey: "ui.separateRatingsBottomPills" },
+                      { id: "bottom-mono", labelKey: "ui.separateRatingsBottomMono" },
+                      { id: "bottom-color", labelKey: "ui.separateRatingsBottomColor" },
                     ] as const).map((opt) => {
                       // Bar disabled on the landscape target (server normalizes
                       // to pills): raw value kept, never hidden.

@@ -542,11 +542,13 @@ export function TransformPanel({ active, previewShape, onPreviewShapeChange, onP
 
         <div className="space-y-1.5 pt-1" title={t("ui.separateRatingsHint")}>
           <span className="text-[11px] text-muted font-medium block">{t("ui.separateRatingsStyle")}</span>
-          <div className="flex gap-1">
+          <div className="grid grid-cols-3 gap-1">
             {([
               { id: "column", labelKey: "ui.separateRatingsColumn" },
               { id: "bottom-bar", labelKey: "ui.separateRatingsBottomBar" },
               { id: "bottom-pills", labelKey: "ui.separateRatingsBottomPills" },
+              { id: "bottom-mono", labelKey: "ui.separateRatingsBottomMono" },
+              { id: "bottom-color", labelKey: "ui.separateRatingsBottomColor" },
             ] as const).map((opt) => {
               // Portrait target always allows the bar (landscape normalizes
               // it to pills); the raw value is kept, never hidden.

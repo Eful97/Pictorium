@@ -70,12 +70,14 @@ export function isBadgeFont(v: string | null | undefined): v is BadgeFont {
 
 /**
  * Layout dei rating separati: "column" (colonna destra, resa storica) oppure
- * modalità bottom ("bottom-bar" barra piena / "bottom-pills" pill singole,
- * max 3 provider con genere+anno soppressi). Catena come gli altri visuali:
+ * modalità bottom ("bottom-bar" barra piena / "bottom-pills" pill singole /
+ * "bottom-mono" icone tonde + voti monocolore senza contenitore /
+ * "bottom-color" icone tonde brand + voti senza contenitore, max 3 provider
+ * con genere+anno soppressi). Catena come gli altri visuali:
  * query `sepstyle` > mapping per-titolo > config token > server defaults >
  * "column". Assente o non valido → column (URL e mapping esistenti invariati).
  */
-export const SEPARATE_RATINGS_STYLES = ["column", "bottom-bar", "bottom-pills"] as const
+export const SEPARATE_RATINGS_STYLES = ["column", "bottom-bar", "bottom-pills", "bottom-mono", "bottom-color"] as const
 export type SeparateRatingsStyle = (typeof SEPARATE_RATINGS_STYLES)[number]
 
 export const DEFAULT_SEPARATE_RATINGS_STYLE: SeparateRatingsStyle = "column"
@@ -143,8 +145,8 @@ export function resolveSeparateBadgeScaleFallback(args: {
 }
 
 /** True per le modalità bottom (esclude la colonna storica). */
-export function isBottomSeparateRatingsStyle(v: string | null | undefined): v is "bottom-bar" | "bottom-pills" {
-  return v === "bottom-bar" || v === "bottom-pills"
+export function isBottomSeparateRatingsStyle(v: string | null | undefined): v is SeparateBottomVariant {
+  return isSeparateRatingsStyle(v) && v !== "column"
 }
 
 /**
