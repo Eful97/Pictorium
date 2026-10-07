@@ -160,7 +160,7 @@ test.describe("Trasforma Verticale/Orizzontale preview-only", () => {
     expect(p.get("gradHeight")).toBe("25")
 
     // Scala badge superiore Orizzontale 120 → 125.
-    const topCard = landSection.getByText("Badge superiore", { exact: true }).locator("xpath=../..")
+    const topCard = landSection.getByText("Classifica", { exact: true }).locator("xpath=../..")
     const scale = topCard.getByLabel("Scala", { exact: true })
     await expect(scale).toHaveValue("120")
     await scale.focus()

@@ -227,9 +227,14 @@ test.describe("U4 U1 ribbon Standard/Colorato (defaults)", () => {
     const formatTarget = dialog.getByTestId("format-target-selector")
     await expect(formatTarget).toBeVisible()
 
-    // Portrait baseline: pill + ribbon on.
-    let p = await nextPreview(seen, async () => {}, (u) => u.searchParams.get("shape") === "poster")
-    expect(p.get("rs")).toBe("pill")
+    // Portrait baseline: pill + ribbon on. The predicate includes rs=pill:
+    // on a fresh page the first preview can fire pre-hydration with factory
+    // rs=default under load; the settled URL must carry the RESET pill.
+    let p = await nextPreview(
+      seen,
+      async () => {},
+      (u) => u.searchParams.get("shape") === "poster" && u.searchParams.get("rs") === "pill",
+    )
     expect(p.get("ribbon")).toBe("1")
 
     // Side row is defaults-only and visible with a ribbon appearance ahead.
@@ -713,7 +718,7 @@ test.describe("U4 U3 number baseline (transport + slider)", () => {
     await dialog.getByRole("tab", { name: "Trasforma", exact: true }).click()
     const trasforma = dialog.getByRole("tabpanel", { name: "Trasforma" })
     await expect(trasforma).toBeVisible()
-    const topCard = trasforma.locator("div.rounded-xl", { hasText: "Badge superiore" }).first()
+    const topCard = trasforma.locator("div.rounded-xl", { hasText: "Classifica" }).first()
     await expect(topCard).toBeVisible()
     const xSlider = topCard.getByRole("slider", { name: "X" })
     await expect(xSlider).toHaveValue("-20")
@@ -741,7 +746,7 @@ test.describe("U4 U3 number baseline (transport + slider)", () => {
     await dialog.getByRole("tab", { name: "Trasforma", exact: true }).click()
     const trasforma2 = dialog.getByRole("tabpanel", { name: "Trasforma" })
     await expect(trasforma2).toBeVisible()
-    const topCard2 = trasforma2.locator("div.rounded-xl", { hasText: "Badge superiore" }).first()
+    const topCard2 = trasforma2.locator("div.rounded-xl", { hasText: "Classifica" }).first()
     await expect(topCard2.getByRole("slider", { name: "X" })).toHaveValue("10")
   })
 })
