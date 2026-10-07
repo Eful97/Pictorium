@@ -1,4 +1,5 @@
-import { cacheGetShared, cacheSet } from "./cache"
+import { cacheGet, cacheGetShared, cacheSet } from "./cache"
+import { getPersistedWikidata, setPersistedWikidata, WIKIDATA_PERSIST_FRESH_MS, type WikidataPersisted } from "./wikidata-cache"
 import { matchStudios, isValidWikidataQid } from "./badge-labels"
 
 // Re-export per compatibilità: le label pure vivono in badge-labels.ts
@@ -104,7 +105,11 @@ function release(): void {
 
 // ---- SPARQL helper ----
 
-async function sparqlQuery(query: string, signal?: AbortSignal): Promise<Record<string, { value: string; type: string }>[] | null> {
+async function sparqlQuery(
+  query: string,
+  signal?: AbortSignal,
+  opts?: { noRetryOnAbort?: boolean },
+): Promise<Record<string, { value: string; type: string }>[] | null> {
   if (isBreakerOpen()) return null
   // R3: signal esterno già abortito → niente rete inutile.
   if (signal?.aborted) return null
@@ -117,6 +122,11 @@ async function sparqlQuery(query: string, signal?: AbortSignal): Promise<Record<
     const url = `${sparqlBase}?format=json&query=${encodeURIComponent(query)}`
     // Retry once with jitter on failure (but not on breaker)
     for (let attempt = 0; attempt < 2; attempt++) {
+      // Stale-flow only (flag): a budget abort suppresses the retry here and
+      // records nothing locally — a real upstream timeout is counted exactly
+      // once by the stale-budget wrapper, while a caller abort counts
+      // nothing. Without the flag the original retry + count is unchanged.
+      if (signal?.aborted && opts?.noRetryOnAbort) return null
       const timeout = 5000 + Math.round(Math.random() * 1000)
       try {
         const res = await timedFetch(url, {
@@ -139,6 +149,9 @@ async function sparqlQuery(query: string, signal?: AbortSignal): Promise<Record<
         const json = await res.json()
         return json?.results?.bindings || []
       } catch {
+        // Stale-flow only (flag): see above. Without the flag the original
+        // retry + count behavior is unchanged.
+        if (signal?.aborted && opts?.noRetryOnAbort) return null
         if (attempt === 1) {
           recordFailure()
           return null
@@ -246,7 +259,49 @@ export function directorBadgeLabel(name: string | null, t?: (key: string, params
   return t ? t("badge.director", { name: canonical }) : `Di ${canonical}`
 }
 
-const WIKIDATA_CACHE_TTL = 24 * 60 * 60 * 1000
+const WIKIDATA_CACHE_TTL = 7 * 24 * 60 * 60 * 1000
+
+/**
+ * Hot-path budgets for the durable layer (declared, no new config):
+ * - PERSISTED_READ_BUDGET_MS: extra wait for the durable snapshot after a
+ *   shared-cache miss. File reads are ~ms, KV reads are capped at 1500ms
+ *   inside the helper; the hot path stops waiting after 250ms and treats a
+ *   stalled store as a miss (fail-open, late settlement ignored). A shared
+ *   hit never waits for durable storage at all (returns first).
+ * - STALE_UPSTREAM_BUDGET_MS: with a stale (≤30d) snapshot retained, slow
+ *   upstream gets at most this long to deliver fresh data (further capped by
+ *   STALE_TOTAL_BUDGET_MS below); on expiry the upstream is aborted and the
+ *   stale is served degraded:true — a slow SPARQL with retries alone would
+ *   otherwise outlive the route's race and make the stale unreachable.
+ */
+const PERSISTED_READ_BUDGET_MS = 250
+const STALE_UPSTREAM_BUDGET_MS = 1500
+/**
+ * Total deadline for the stale fallback measured from fetchAllWikidata start
+ * (margin under the route's 2500ms race): the upstream refresh gets at most
+ * min(1500, 2250 - elapsed). Shared reads are capped at 1500ms by the helper,
+ * so the remaining budget is normally the full 1500ms.
+ */
+const STALE_TOTAL_BUDGET_MS = 2250
+
+/**
+ * Fire-and-forget durable persist of an upstream success. Only an explicit
+ * `degraded: false` is stored (genuine empties included): degraded results,
+ * missing flags, or invalid payloads are refused by the helper without
+ * writing, so an outage never overwrites older good data. Never awaited:
+ * storage delay stays off the critical render path; late rejections are
+ * swallowed (fail-open).
+ */
+function persistWikidataGoodAsync(tmdbId: number, mediaType: "movie" | "tv", result: WikidataResult): void {
+  if (result.degraded !== false) return
+  void setPersistedWikidata(tmdbId, mediaType, {
+    awards: result.awards,
+    nominations: result.nominations,
+    studios: result.studios,
+    director: result.director,
+    degraded: false,
+  }).catch(() => {})
+}
 
 // Negative cache in-memory per i fallimenti transitori (breaker, timeout,
 // 5xx): senza, un outage SPARQL fa pagare la race da 2500ms a OGNI render.
@@ -397,36 +452,119 @@ export async function fetchAllWikidata(
   opts?: { wikidataId?: string | null },
 ): Promise<WikidataResult> {
   const cacheKey = `wikidata:v2:${mediaType}:${tmdbId}`
+  const startTime = Date.now()
+  const emptyDegraded = (): WikidataResult => ({ awards: [], nominations: [], studios: [], director: null, degraded: true })
 
+  // L1 sync fast path: no I/O, never touches durable storage.
+  const l1 = cacheGet<WikidataResult>(cacheKey)
+  if (l1) return l1
+
+  // Durable prefetch starts NOW, in parallel with the shared L2 read below
+  // (never sequential). Fail-open with no unhandled rejection; abortable so
+  // a stalled store leaves no orphan disk read.
+  const persistedCtrl = new AbortController()
+  const persistedP: Promise<WikidataPersisted | null> = getPersistedWikidata(
+    tmdbId,
+    mediaType,
+    persistedCtrl.signal,
+  ).then(
+    (v) => v,
+    () => null,
+  )
+  // Shared L2 (L1 re-check + ≤1500ms KV cap when enabled; immediate miss
+  // when KV_CACHE=0/file mode). A shared HIT returns right away WITHOUT
+  // waiting for the slower durable read: the prefetch is aborted (no orphan
+  // disk read) instead of settling detached.
+  const cached = await cacheGetShared<WikidataResult>(cacheKey, ["wikidata"])
   // Check shared cache first (typed, with TTL). L1 + L2 KV cross-istanza:
   // la prima istanza che riesce condivide con tutte (prima ogni istanza
   // ritirava i dadi SPARQL per conto suo → lotteria badge multi-istanza).
-  const cached = await cacheGetShared<WikidataResult>(cacheKey, ["wikidata"])
-  if (cached) return cached
-  if (wikidataNegativeHit(cacheKey)) {
-    return { awards: [], nominations: [], studios: [], director: null, degraded: true }
+  if (cached) {
+    persistedCtrl.abort()
+    return cached
   }
-
-  // Fast-path REST a costo zero RTT TMDB (QID già in mano dalla route via
-  // append_to_response=external_ids). Successo → stessa cache condivisa 24h
-  // dello SPARQL; fallimento → fallback SPARQL sotto (QID null o assente
-  // compreso: TMDB lo restituisce null per una fetta reale di titoli).
-  if (isValidWikidataQid(opts?.wikidataId)) {
-    const rest = await fetchWikidataRest(opts.wikidataId, mediaType, signal).catch(() => null)
-    if (rest) {
-      // Osservabilità path (Dexter): con PICTORIUM_LOG_LEVEL=debug si vede se
-      // il badge è arrivato via REST veloce o via lotteria SPARQL.
-      log.debug("Wikidata fast-path REST hit", { mediaType, tmdbId, awards: rest.awards.length })
-      const hit: WikidataResult = { ...rest, degraded: false }
-      cacheSet(cacheKey, hit, ["wikidata"], WIKIDATA_CACHE_TTL)
-      return hit
+  // Shared miss: the durable snapshot is awaited ONLY within the declared
+  // hot-path budget (PERSISTED_READ_BUDGET_MS). Added latency vs the old
+  // shared-only read is at most that budget; a stalled store is a miss and
+  // its late settlement is ignored (fail-open).
+  let persisted: WikidataPersisted | null = null
+  {
+    let timer: ReturnType<typeof setTimeout> | undefined
+    try {
+      persisted = await Promise.race([
+        persistedP,
+        new Promise<null>((resolve) => {
+          timer = setTimeout(() => {
+            persistedCtrl.abort()
+            resolve(null)
+          }, PERSISTED_READ_BUDGET_MS)
+        }),
+      ])
+    } finally {
+      if (timer !== undefined) clearTimeout(timer)
     }
   }
-  log.debug("Wikidata SPARQL fallback", { mediaType, tmdbId, hadQid: isValidWikidataQid(opts?.wikidataId) })
+  // Durable fresh (≤7d): repopulate the shared cache with the REMAINING
+  // fresh lifetime, never a fresh 7d from now (no sliding expiration past
+  // the absolute 7d age). Stale (≤30d) is retained as fail-open fallback
+  // and never cached as fresh nor rewritten.
+  let staleFallback: WikidataResult | null = null
+  if (persisted) {
+    if (persisted.status === "fresh") {
+      const remaining = WIKIDATA_PERSIST_FRESH_MS - (Date.now() - persisted.fetchedAt)
+      if (remaining > 0) {
+        const fresh: WikidataResult = { ...persisted.payload, degraded: false }
+        cacheSet(cacheKey, fresh, ["wikidata"], remaining)
+        return fresh
+      }
+      // Clock moved past 7d since the read: still usable as stale (≤30d).
+      staleFallback = { ...persisted.payload, degraded: true }
+    } else {
+      staleFallback = { ...persisted.payload, degraded: true }
+    }
+  }
+  if (wikidataNegativeHit(cacheKey)) {
+    if (staleFallback) return staleFallback
+    return emptyDegraded()
+  }
+  // Caller aborted (route watchdog fired): no new outbound Wikidata call;
+  // the retained stale snapshot is still useful, existing acquire/retry
+  // rules below stay intact for the live path.
+  if (signal?.aborted) {
+    if (staleFallback) return staleFallback
+    return emptyDegraded()
+  }
 
-  const tmdbProp = mediaType === "movie" ? "P4947" : "P4983"
-  const networkQuery = mediaType === "tv" ? `OPTIONAL { ?item wdt:P449 ?network . ?network rdfs:label ?networkLabel . FILTER(LANG(?networkLabel) = "en") }` : ""
-  const query = `SELECT ?awardLabel ?nominationLabel ?networkLabel ?directorLabel ?director WHERE {
+  // Live upstream path (REST then SPARQL), isolated so the stale-budget
+  // race below can wrap it. Returns a genuine success, or null on any
+  // failure (transient negative already recorded inside, as before).
+  // Historic cache entries without an explicit `degraded` flag are never
+  // persisted blindly (only `degraded: false` is stored, see below).
+  const liveFetch = async (
+    upstreamSignal?: AbortSignal,
+    liveOpts?: { noRetryOnAbort?: boolean },
+  ): Promise<WikidataResult | null> => {
+    // Fast-path REST a costo zero RTT TMDB (QID già in mano dalla route via
+    // append_to_response=external_ids). Successo → stessa cache condivisa 7d
+    // dello SPARQL; fallimento → fallback SPARQL sotto (QID null o assente
+    // compreso: TMDB lo restituisce null per una fetta reale di titoli).
+    if (isValidWikidataQid(opts?.wikidataId)) {
+      const rest = await fetchWikidataRest(opts.wikidataId, mediaType, upstreamSignal).catch(() => null)
+      if (rest) {
+        // Osservabilità path (Dexter): con PICTORIUM_LOG_LEVEL=debug si vede se
+        // il badge è arrivato via REST veloce o via lotteria SPARQL.
+        log.debug("Wikidata fast-path REST hit", { mediaType, tmdbId, awards: rest.awards.length })
+        const hit: WikidataResult = { ...rest, degraded: false }
+        cacheSet(cacheKey, hit, ["wikidata"], WIKIDATA_CACHE_TTL)
+        persistWikidataGoodAsync(tmdbId, mediaType, hit)
+        return hit
+      }
+    }
+    log.debug("Wikidata SPARQL fallback", { mediaType, tmdbId, hadQid: isValidWikidataQid(opts?.wikidataId) })
+
+    const tmdbProp = mediaType === "movie" ? "P4947" : "P4983"
+    const networkQuery = mediaType === "tv" ? `OPTIONAL { ?item wdt:P449 ?network . ?network rdfs:label ?networkLabel . FILTER(LANG(?networkLabel) = "en") }` : ""
+    const query = `SELECT ?awardLabel ?nominationLabel ?networkLabel ?directorLabel ?director WHERE {
     ?item wdt:${tmdbProp} "${tmdbId}" .
     OPTIONAL { ?item wdt:P166 ?award . ?award rdfs:label ?awardLabel . FILTER(LANG(?awardLabel) = "en") }
     OPTIONAL { ?item wdt:P1411 ?nomination . ?nomination rdfs:label ?nominationLabel . FILTER(LANG(?nominationLabel) = "en") }
@@ -435,61 +573,106 @@ export async function fetchAllWikidata(
     OPTIONAL { ?director rdfs:label ?directorLabel . FILTER(LANG(?directorLabel) = "en") }
   }`
 
-  try {
-    const bindings = await sparqlQuery(query, signal)
-    if (bindings === null) {
-      // Fallimento transitorio (breaker, timeout, 5xx): non inquinare la cache 24h,
-      // ma registra la negativa breve così l'outage non tassa ogni render.
-      // Mai a breaker già aperto: lì sopprime già lui (stesso TTL), e la
-      // negativa non deve nascondere i fallimenti che il breaker deve contare.
-      if (!isBreakerOpen()) wikidataNegativeSet(cacheKey)
-      return { awards: [], nominations: [], studios: [], director: null, degraded: true }
-    }
-
-    const awardLabels = new Set<string>()
-    const nominationLabels = new Set<string>()
-    const networkLabels = new Set<string>()
-    const directorLabels = new Set<string>()
-    const directorQids = new Set<string>()
-
-    for (const b of bindings) {
-      if (b.awardLabel?.value) awardLabels.add(b.awardLabel.value)
-      if (b.nominationLabel?.value) nominationLabels.add(b.nominationLabel.value)
-      if (b.networkLabel?.value) networkLabels.add(b.networkLabel.value)
-      if (b.directorLabel?.value) directorLabels.add(b.directorLabel.value)
-      const qid = qidFromEntityUri(b.director?.value)
-      if (qid) directorQids.add(qid)
-    }
-
-    // Titolo enwiki come fallback quando l'item regista non ha label
-    // (vandalismo/decadimento dati: es. Q25191 senza label ma con sitelink
-    // "Christopher Nolan"). Solo quando la label manca: 1 chiamata API
-    // veloce, mai join sitelink in SPARQL (troppo lento, manda in timeout
-    // l'intera query). In cache va il nome canonico (matchDirectorName),
-    // mai reso: la chiave non contiene la lingua.
-    let director = [...directorLabels][0] || null
-    if (!director) {
-      const fallbackQid = [...directorQids][0]
-      if (fallbackQid) {
-        const wikiTitle = await enwikiTitle(fallbackQid, signal).catch(() => null)
-        if (wikiTitle) director = wikiTitle
+    try {
+      const bindings = await sparqlQuery(query, upstreamSignal, liveOpts)
+      if (bindings === null) {
+        // Fallimento transitorio (breaker, timeout, 5xx): non inquinare la cache 7d,
+        // ma registra la negativa breve così l'outage non tassa ogni render.
+        // Mai a breaker già aperto: lì sopprime già lui (stesso TTL), e la
+        // negativa non deve nascondere i fallimenti che il breaker deve contare.
+        if (!isBreakerOpen()) wikidataNegativeSet(cacheKey)
+        return null
       }
-    }
-    const directorName = matchDirectorName(director)
 
-    const result: WikidataResult = {
-      awards: matchRules([...awardLabels]),
-      nominations: matchRules([...nominationLabels]),
-      studios: matchStudios([...networkLabels]),
-      director: directorName,
-      degraded: false,
-    }
+      const awardLabels = new Set<string>()
+      const nominationLabels = new Set<string>()
+      const networkLabels = new Set<string>()
+      const directorLabels = new Set<string>()
+      const directorQids = new Set<string>()
 
-    // Store in shared cache with tags for targeted invalidation
-    cacheSet(cacheKey, result, ["wikidata"], WIKIDATA_CACHE_TTL)
-    return result
-  } catch {
-    return { awards: [], nominations: [], studios: [], director: null, degraded: true }
+      for (const b of bindings) {
+        if (b.awardLabel?.value) awardLabels.add(b.awardLabel.value)
+        if (b.nominationLabel?.value) nominationLabels.add(b.nominationLabel.value)
+        if (b.networkLabel?.value) networkLabels.add(b.networkLabel.value)
+        if (b.directorLabel?.value) directorLabels.add(b.directorLabel.value)
+        const qid = qidFromEntityUri(b.director?.value)
+        if (qid) directorQids.add(qid)
+      }
+
+      // Titolo enwiki come fallback quando l'item regista non ha label
+      // (vandalismo/decadimento dati: es. Q25191 senza label ma con sitelink
+      // "Christopher Nolan"). Solo quando la label manca: 1 chiamata API
+      // veloce, mai join sitelink in SPARQL (troppo lento, manda in timeout
+      // l'intera query). In cache va il nome canonico (matchDirectorName),
+      // mai reso: la chiave non contiene la lingua.
+      let director = [...directorLabels][0] || null
+      if (!director) {
+        const fallbackQid = [...directorQids][0]
+        if (fallbackQid) {
+          const wikiTitle = await enwikiTitle(fallbackQid, upstreamSignal).catch(() => null)
+          if (wikiTitle) director = wikiTitle
+        }
+      }
+      const directorName = matchDirectorName(director)
+
+      const result: WikidataResult = {
+        awards: matchRules([...awardLabels]),
+        nominations: matchRules([...nominationLabels]),
+        studios: matchStudios([...networkLabels]),
+        director: directorName,
+        degraded: false,
+      }
+
+      // Store in shared cache with tags for targeted invalidation
+      cacheSet(cacheKey, result, ["wikidata"], WIKIDATA_CACHE_TTL)
+      persistWikidataGoodAsync(tmdbId, mediaType, result)
+      return result
+    } catch {
+      return null
+    }
+  }
+
+  if (!staleFallback) {
+    // No stale available: existing behavior unchanged (same caps, same
+    // empty-degraded failure).
+    return (await liveFetch(signal)) ?? emptyDegraded()
+  }
+  // Stale retained: the upstream gets a bounded chance to refresh, within
+  // the TOTAL stale deadline from function start (STALE_TOTAL_BUDGET_MS, a
+  // margin under the route's 2500ms race — worst case can no longer exceed
+  // it). On expiry the upstream is aborted (never orphaned: it respects the
+  // signal, no retry after abort in this flow only) and the stale is served
+  // degraded:true. A real upstream timeout counts EXACTLY ONCE as a breaker
+  // failure (outage, not caller abort — the caller-aborted case below counts
+  // nothing); the transient 60s negative is preserved unless the breaker is
+  // already open. The stale itself is never cached as fresh. A late genuine
+  // success still persists through the normal path (fail-open refresh);
+  // failures can never overwrite durable data.
+  // Timer races use plain setTimeout like the route's own races
+  // (wikidataTimeout/coalesceTimeout): AbortSignal.timeout is NOT driven by
+  // vitest fake timers, which the timing contract tests require.
+  const upstreamBudgetMs = Math.min(STALE_UPSTREAM_BUDGET_MS, STALE_TOTAL_BUDGET_MS - (Date.now() - startTime))
+  if (upstreamBudgetMs <= 0) return staleFallback
+  const upstreamCtrl = new AbortController()
+  const liveSignal = signal ? combineAbortSignals(signal, upstreamCtrl.signal) : upstreamCtrl.signal
+  let staleTimer: ReturnType<typeof setTimeout> | undefined
+  try {
+    const winner: { refreshed: true; result: WikidataResult | null } | { refreshed: false } = await Promise.race([
+      liveFetch(liveSignal, { noRetryOnAbort: true }).then((result) => ({ refreshed: true as const, result })),
+      new Promise<{ refreshed: false }>((resolve) => {
+        staleTimer = setTimeout(() => resolve({ refreshed: false }), upstreamBudgetMs)
+      }),
+    ])
+    if (!winner.refreshed) {
+      upstreamCtrl.abort()
+      if (signal?.aborted) return staleFallback
+      if (!isBreakerOpen()) wikidataNegativeSet(cacheKey)
+      recordFailure()
+      return staleFallback
+    }
+    return winner.result ?? staleFallback
+  } finally {
+    if (staleTimer !== undefined) clearTimeout(staleTimer)
   }
 }
 

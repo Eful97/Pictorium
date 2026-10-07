@@ -1,4 +1,9 @@
 import { describe, expect, it, vi } from "vitest"
+// Real dictionaries via the server facade (eager registration). The global
+// setup.ts mock of @/lib/i18n must stay off in this file: it lacks
+// registerDictionary, so the facade could not register into it. No test in
+// this file relies on the mock (all t() are passed explicitly as real).
+vi.unmock("@/lib/i18n")
 import { isMiniseriesType, isReturningStatus } from "@/lib/badge-priority"
 import { getSeriesEndedLabel } from "@/lib/poster-badge"
 import { getSubGenreLabel } from "@/lib/subgenres"
@@ -22,7 +27,7 @@ describe("tr/nl/sv TMDB status/type matching (verificati su TMDB)", () => {
   })
 
   it("detects recently ended series in tr/nl/sv", async () => {
-    const { createT: realCreateT } = await vi.importActual<typeof import("@/lib/i18n")>("@/lib/i18n")
+    const { createT: realCreateT } = await vi.importActual<typeof import("@/lib/i18n-server")>("@/lib/i18n-server")
     const lastAir = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
     expect(getSeriesEndedLabel({ tvStatus: "Bitti", lastAirDate: lastAir, t: realCreateT("tr") })).toBe(
       realCreateT("tr")("badge.seriesEnded"),
@@ -67,7 +72,7 @@ describe("tr/nl/sv badge data", () => {
   })
 
   it("recognizes tr/nl/sv rank labels in saved mappings", async () => {
-    const { isRankKey: realIsRankKey } = await vi.importActual<typeof import("@/lib/i18n")>("@/lib/i18n")
+    const { isRankKey: realIsRankKey } = await vi.importActual<typeof import("@/lib/i18n-server")>("@/lib/i18n-server")
     expect(realIsRankKey("Bugün")).toBe("badge.today")
     expect(realIsRankKey("Dizi")).toBe("badge.series")
     expect(realIsRankKey("Vandaag")).toBe("badge.today")

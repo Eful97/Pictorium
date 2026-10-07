@@ -1,5 +1,11 @@
 import sharp from "sharp"
 import { describe, expect, it, vi } from "vitest"
+// Real dictionaries via the server facade (eager registration). The global
+// setup.ts mock of @/lib/i18n must stay off in this file: it lacks
+// registerDictionary, so the facade could not register into it. No test in
+// this file relies on the mock (all t() are passed explicitly as real;
+// parity checks import JSON directly).
+vi.unmock("@/lib/i18n")
 import { buildExtraDefaultSvg, buildGenreTextSvg, fontFamilyFor } from "@/lib/badge-svg-shared"
 import { buildExtraBadgeSVG, buildGenreBadgeSVG, buildNetflixRankBadgeSVG, renderSVG } from "@/lib/svg-badge"
 import { isMiniseriesType, isReturningStatus, stripArabicDiacritics } from "@/lib/badge-priority"
@@ -125,7 +131,7 @@ describe("Arabic TMDB status/type matching", () => {
   })
 
   it("detects a recently ended series from the vocalized Arabic status", async () => {
-    const { createT: realCreateT } = await vi.importActual<typeof import("@/lib/i18n")>("@/lib/i18n")
+    const { createT: realCreateT } = await vi.importActual<typeof import("@/lib/i18n-server")>("@/lib/i18n-server")
     const t = realCreateT("ar")
     expect(t("badge.seriesEnded")).toBe("انتهى المسلسل")
     const lastAir = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
@@ -154,7 +160,7 @@ describe("Arabic badge data", () => {
 
   it("recognizes Arabic rank labels in saved mappings", async () => {
     // NB: setup.ts mocca i18n (isRankKey: () => null) — qui serve il modulo reale.
-    const { isRankKey: realIsRankKey } = await vi.importActual<typeof import("@/lib/i18n")>("@/lib/i18n")
+    const { isRankKey: realIsRankKey } = await vi.importActual<typeof import("@/lib/i18n-server")>("@/lib/i18n-server")
     expect(realIsRankKey("اليوم")).toBe("badge.today")
     expect(realIsRankKey("أنمي")).toBe("badge.anime")
     expect(realIsRankKey("فيلم")).toBe("badge.movie")
@@ -163,7 +169,7 @@ describe("Arabic badge data", () => {
   })
 
   it("formats upcoming dates Gregorian with Latin digits (never Hijri)", async () => {
-    const { createT: realCreateT } = await vi.importActual<typeof import("@/lib/i18n")>("@/lib/i18n")
+    const { createT: realCreateT } = await vi.importActual<typeof import("@/lib/i18n-server")>("@/lib/i18n-server")
     const t = realCreateT("ar")
     const f = new Date()
     f.setDate(f.getDate() + 1)

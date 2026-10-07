@@ -1,4 +1,5 @@
 import { test, expect, type Locator, type Page } from "@playwright/test"
+import { putDefaultsWithRetry } from "./defaults-retry"
 
 // Settings layout UX acceptance (T1-T4, runtime only — no snapshots here):
 // responsive grid (portrait/landscape, no overflow), stable tab header slot,
@@ -93,15 +94,9 @@ async function putFactory(page: Page) {
   // reload is dropped (the test navigates right after). Each navigation
   // boots ~11 GETs into the shared `defaults` bucket (30 burst, 3/sec
   // refill), so redundant boots trip 429s across the serial file run.
+  // The PUT itself retries a legitimate 429 via the shared helper.
   await page.goto("/")
-  await page.evaluate(async (body) => {
-    const r = await fetch("/api/defaults", {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    })
-    if (!r.ok) throw new Error(`setup defaults: ${r.status} ${await r.text()}`)
-  }, FACTORY_SETUP)
+  await putDefaultsWithRetry(page, "setup defaults", FACTORY_SETUP)
 }
 
 async function getDefaults(page: Page): Promise<Record<string, unknown>> {
@@ -129,14 +124,7 @@ test.afterEach(async ({ page }) => {
   // so they land BEFORE the restore PUT, never after it.
   await page.waitForTimeout(1200)
   await page.goto("/")
-  await page.evaluate(async (body) => {
-    const r = await fetch("/api/defaults", {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    })
-    if (!r.ok) throw new Error(`restore defaults: ${r.status} ${await r.text()}`)
-  }, FACTORY_SETUP)
+  await putDefaultsWithRetry(page, "restore defaults", FACTORY_SETUP)
   const got = await getDefaults(page)
   expect(got).toMatchObject(FACTORY_SETUP)
 })

@@ -1,11 +1,45 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+import fsp from "node:fs/promises"
+import os from "node:os"
+import path from "node:path"
+import { existsSync } from "node:fs"
 import { __resetCircuitBreaker, __resetWikidataNegativeForTest, fetchAllWikidata } from "@/lib/awards"
 import { cacheClear } from "@/lib/cache"
 
-beforeEach(() => {
+const tmpDirs: string[] = []
+
+/** Isolate the durable wikidata layer: per-test DATA_DIR in file mode, so the
+ *  fire-and-forget persist never touches the repo ./data (cross-suite
+ *  pollution) nor a real KV backend. */
+async function stubDurableIsolation(): Promise<void> {
+  let base = os.tmpdir()
+  try {
+    const scoped = path.join(os.tmpdir(), "opencode")
+    if (existsSync(scoped)) base = scoped
+  } catch {
+    // platform default
+  }
+  const dir = await fsp.mkdtemp(path.join(base, "pictorium-awards-"))
+  tmpDirs.push(dir)
+  vi.stubEnv("PICTORIUM_DATA_DIR", dir)
+  vi.stubEnv("PICTORIUM_REDIS_URL", "")
+  vi.stubEnv("POSTERIUM_REDIS_URL", "")
+  vi.stubEnv("REDIS_URL", "")
+  vi.stubEnv("KV_REST_API_URL", "")
+  vi.stubEnv("KV_REST_API_TOKEN", "")
+}
+
+beforeEach(async () => {
+  await stubDurableIsolation()
   cacheClear()
   __resetCircuitBreaker()
   __resetWikidataNegativeForTest()
+})
+
+afterAll(async () => {
+  for (const dir of tmpDirs) {
+    await fsp.rm(dir, { recursive: true, force: true })
+  }
 })
 
 afterEach(() => {

@@ -79,6 +79,8 @@ describe("vi lang/region persistence (real PictoriumRoot)", () => {
     })
     render(<PictoriumRoot><Probe /></PictoriumRoot>)
     await flush()
+    // Async init: the vi dict loads before the language commit.
+    await vi.waitFor(() => expect(ctx!.lang).toBe("vi"))
     await act(async () => {
       ctx!.setSelected({ id: 550, media_type: "movie", title: "Fight Club", poster_path: null })
       ctx!.setStremioPreview(true)
@@ -86,6 +88,7 @@ describe("vi lang/region persistence (real PictoriumRoot)", () => {
     await flush()
     expect(ctx!.stremioPreviewUrl).toContain("lang=vi&region=GLOBAL")
     await act(async () => { ctx!.pickLang("fr") })
+    await vi.waitFor(() => expect(ctx!.lang).toBe("fr"))
     await flush()
     expect(ctx!.stremioPreviewUrl).toContain("lang=fr&region=GLOBAL")
     const calls = fetchSpy.mock.calls.map(([input]) => String(input)).filter((url) => url.startsWith("/meta/"))
@@ -109,11 +112,13 @@ describe("vi lang/region persistence (real PictoriumRoot)", () => {
 
     // A supported language still selects its national chart.
     await act(async () => { ctx!.pickLang("fr") })
+    await vi.waitFor(() => expect(ctx!.lang).toBe("fr"))
     await flush()
     expect(editorRegion).toBe("FR")
 
     // Vietnamese has no national chart: select and persist global rankings.
     await act(async () => { ctx!.pickLang("vi") })
+    await vi.waitFor(() => expect(ctx!.lang).toBe("vi"))
     await flush()
     expect(ctx!.lang).toBe("vi")
     expect(localStorage.getItem("preferred_lang")).toBe("vi")
@@ -130,7 +135,7 @@ describe("vi lang/region persistence (real PictoriumRoot)", () => {
       </PictoriumRoot>,
     )
     await flush()
-    expect(ctx!.lang).toBe("vi")
+    await vi.waitFor(() => expect(ctx!.lang).toBe("vi"))
     expect(ctx!.showLangPicker).toBe(false)
     expect(editorRegion).toBe("GLOBAL")
     expect(localStorage.getItem("preferred_lang")).toBe("vi")

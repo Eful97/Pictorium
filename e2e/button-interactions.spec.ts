@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test"
+import { putDefaultsWithRetry } from "./defaults-retry"
 import { DEFAULT_BADGE_STYLE, DEFAULT_RANKING_BADGE_STYLE } from "../src/lib/badge-styles"
 import { DEFAULT_RATING_SOURCES } from "../src/lib/rating-weights"
 
@@ -20,14 +21,7 @@ test.describe("Button interactions and immediate updates", () => {
       ratingSources: [...DEFAULT_RATING_SOURCES],
       rankingBadgeStyle: DEFAULT_RANKING_BADGE_STYLE,
     }
-    await page.evaluate(async (body) => {
-      const r = await fetch("/api/defaults", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      })
-      if (!r.ok) throw new Error(`restore defaults: ${r.status} ${await r.text()}`)
-    }, clean)
+    await putDefaultsWithRetry(page, "restore defaults", clean)
     const got = (await page.evaluate(async () => {
       const r = await fetch("/api/defaults")
       if (!r.ok) throw new Error(`verify defaults: ${r.status}`)
@@ -255,14 +249,7 @@ test.describe("Button interactions and immediate updates", () => {
     // Arrange deterministico via API reale: il test precedente imposta
     // ranking=bordo nei default globali (autosave) e l'editor per-titolo lo
     // eredita — senza reset l'assert su Pill non è significativo.
-    await page.evaluate(async () => {
-      const r = await fetch("/api/defaults", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ rankingBadgeStyle: "default" }),
-      })
-      if (!r.ok) throw new Error(`reset defaults: ${r.status} ${await r.text()}`)
-    })
+    await putDefaultsWithRetry(page, "reset defaults", { rankingBadgeStyle: "default" })
     await page.goto("/")
     const search = page.getByPlaceholder(/cerca/i)
     await search.fill("avatar")

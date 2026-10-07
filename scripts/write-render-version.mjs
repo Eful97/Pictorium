@@ -63,6 +63,7 @@ const RENDER_FILES = [
   "src/lib/stremio-poster-url.ts",
   "src/lib/subgenres.ts",
   "src/lib/svg-badge.ts",
+  "src/lib/wikidata-cache.ts",
   "public/quality-badges/mono/4k-label-icon.svg",
   "public/quality-badges/mono/full-hd-label-icon.svg",
   "public/quality-badges/mono/hd-label-icon.svg",

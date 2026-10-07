@@ -10,7 +10,8 @@ type LogoAlign = "left" | "center"
 import { posterUrl, titleOf, yearOf, STREAMING_PLATFORMS, mergeImageLists, isCustomPosterUrl, type ImageLists } from "./utils"
 export { mergeImageLists, type ImageLists } from "./utils"
 import { matchTMDBStudios } from "./badge-labels"
-import { setLang as setI18nLang, createT } from "./i18n"
+import { setLang as setI18nLang, createT, isDictionaryLoaded } from "./i18n"
+import { loadLanguage } from "./i18n-loader"
 import { isSupportedUiLang, getRegionDef, defaultRegionForLang, contentLanguageForUiLang } from "./regions"
 import type { EnrichedAnimeItem } from "./validation"
 import { http, userFetch } from "./http"
@@ -447,9 +448,32 @@ export function usePictorium(): PictoriumCtx {
   }, [uiAccent])
   const keyInit = useRef(false)
   const langInit = useRef(false)
+  // Serialize language commits (init + picker): only the last successfully
+  // resolved request applies lang/global/storage/region.
+  const langRequestRef = useRef(0)
+  // StrictMode runs setup -> cleanup -> setup on mount: the flag must be
+  // re-armed by every setup, otherwise the interim cleanup leaves it false
+  // and the remounted init load is dropped. No request-nonce bump here: every
+  // language continuation already checks this flag first, init runs add their
+  // own per-run cancelled flag, and a full remount allocates fresh refs — so
+  // falsifying the flag invalidates all pendings on unmount by itself.
+  // (Bumping the nonce in a cleanup also trips react-hooks/exhaustive-deps,
+  // which flags ref reads inside cleanups as potentially stale values.)
+  const langMountedRef = useRef(false)
+  useEffect(() => {
+    langMountedRef.current = true
+    return () => {
+      langMountedRef.current = false
+    }
+  }, [])
 
   const navigation = useNavigation()
   const editorCtx = usePosterEditor()
+  // Live mirror of the editor default region for delayed language commits:
+  // their closures capture the render-time editor object, so without this
+  // the commit would derive (and overwrite) from a stale region.
+  const defaultRegionLiveRef = useRef(editorCtx.defaultRegion)
+  defaultRegionLiveRef.current = editorCtx.defaultRegion
   const trending = useTrending(tmdbKey, mdblistApiKey, editorCtx.defaultRegion, serverHasTmdbKey)
   const tmdbLang = getRegionDef(editorCtx.defaultRegion).lang
   const search = useSearch(tmdbKey, tmdbLang, serverHasTmdbKey)
@@ -899,28 +923,82 @@ export function usePictorium(): PictoriumCtx {
     if (langInit.current) return
     langInit.current = true
     const saved = safeGetItem("preferred_lang")
-    // Solo le lingue UI supportate (SUPPORTED_UI_LANGS, include lingue senza
-    // regione chart come `vi`); un valore legacy (zh/ru del vecchio picker)
-    // rimostra la scelta.
-    if (saved && isSupportedUiLang(saved)) {
-      setLang(saved.toLowerCase())
-      setI18nLang(saved.toLowerCase())
-    } else {
+    // Only supported UI languages (SUPPORTED_UI_LANGS, including chart-less
+    // ones like `vi`); a legacy value (zh/ru from the old picker) re-shows
+    // the picker.
+    if (!saved || !isSupportedUiLang(saved)) {
       setShowLangPicker(true)
+      return
+    }
+    const code = saved.toLowerCase()
+    // Dictionary ready: commit immediately. Otherwise the dict loads before
+    // the commit (no optimistic language with fallback labels).
+    if (isDictionaryLoaded(code)) {
+      setLang(code)
+      setI18nLang(code)
+      return
+    }
+    const id = ++langRequestRef.current
+    let cancelled = false
+    void loadLanguage(code).then(
+      () => {
+        if (cancelled || !langMountedRef.current || langRequestRef.current !== id) return
+        setLang(code)
+        setI18nLang(code)
+      },
+      () => {
+        if (cancelled || !langMountedRef.current || langRequestRef.current !== id) return
+        // Keep the active language; re-show the picker so the user can
+        // choose/retry instead of sitting on a stale claimed language.
+        setShowLangPicker(true)
+      },
+    )
+    return () => {
+      // Drop this run's continuations and let a remount (e.g. the second
+      // StrictMode setup) retry the init instead of hitting the guard above.
+      // No request-nonce bump here: falsifying the mounted flag already
+      // invalidates pending requests on unmount.
+      cancelled = true
+      langInit.current = false
     }
   }, [safeGetItem])
 
   const pickLang = (l: string) => {
     if (!isSupportedUiLang(l)) return
     const code = l.toLowerCase()
-    setLang(code)
-    setI18nLang(code)
-    safeSetItem("preferred_lang", code)
-    const matchingRegion = defaultRegionForLang(code, editorCtx.defaultRegion)
-    if (matchingRegion) {
-      editorCtx.setDefaultRegion(matchingRegion)
-      editorCtx.setRegion(matchingRegion)
+    // Snapshot the default region at request time: the wizard picks the chart
+    // region right after the language while the dictionary is still loading.
+    // A manual change in between must survive the delayed commit.
+    const requestedRegion = editorCtx.defaultRegion
+    const commit = () => {
+      setLang(code)
+      setI18nLang(code)
+      safeSetItem("preferred_lang", code)
+      // A manual region change since the request wins over the language
+      // default: skip only the region write, lang/global/storage still commit.
+      if (defaultRegionLiveRef.current !== requestedRegion) return
+      const matchingRegion = defaultRegionForLang(code, requestedRegion)
+      if (matchingRegion) {
+        editorCtx.setDefaultRegion(matchingRegion)
+        editorCtx.setRegion(matchingRegion)
+      }
     }
+    if (isDictionaryLoaded(code)) {
+      // Invalidate pending loads: this latest commit wins.
+      langRequestRef.current++
+      commit()
+      return
+    }
+    const id = ++langRequestRef.current
+    void loadLanguage(code).then(
+      () => {
+        if (!langMountedRef.current || langRequestRef.current !== id) return
+        commit()
+      },
+      () => {
+        // No commit: the active language stays consistent, retry stays possible.
+      },
+    )
   }
 
   // --- Settings panels ---

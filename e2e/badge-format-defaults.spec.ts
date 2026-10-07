@@ -1,4 +1,5 @@
 import { test, expect, type Page } from "@playwright/test"
+import { putDefaultsWithRetry } from "./defaults-retry"
 
 // T6 badge-format-final: Badge tab per-format editing (Verticale/Orizzontale),
 // rank Numero + extra Angolo + quality toggle isolation, per-title rules, and
@@ -89,14 +90,7 @@ let defaultsDirty = false
 
 async function putDefaults(page: Page, payload: Record<string, unknown>) {
   await page.goto("/")
-  await page.evaluate(async (body) => {
-    const r = await fetch("/api/defaults", {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    })
-    if (!r.ok) throw new Error(`reset defaults: ${r.status} ${await r.text()}`)
-  }, payload)
+  await putDefaultsWithRetry(page, "reset defaults", payload)
   defaultsDirty = true
   await page.goto("/")
 }
@@ -203,14 +197,7 @@ test.afterEach(async ({ page }) => {
   // so they land BEFORE the restore PUT, never after it.
   await page.waitForTimeout(1200)
   await page.goto("/")
-  await page.evaluate(async (body) => {
-    const r = await fetch("/api/defaults", {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    })
-    if (!r.ok) throw new Error(`restore defaults: ${r.status} ${await r.text()}`)
-  }, FACTORY_RESTORE)
+  await putDefaultsWithRetry(page, "restore defaults", FACTORY_RESTORE)
   // Verify the full canonical surface — a mismatch is a real leak
   // (merge-only PUT cannot delete keys, so every autosaved key must be
   // covered above with its factory value).

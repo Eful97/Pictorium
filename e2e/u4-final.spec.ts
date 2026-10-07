@@ -1,4 +1,5 @@
 import { test, expect, type Page } from "@playwright/test"
+import { putDefaultsWithRetry } from "./defaults-retry"
 import sharp from "sharp"
 import { cornerAnchoredLeft } from "../src/lib/poster-service"
 import { NUMBER_BADGE_BASE_OFFSET_X } from "../src/lib/badge-styles"
@@ -116,14 +117,7 @@ let defaultsDirty = false
 
 async function putDefaults(page: Page, payload: Record<string, unknown>) {
   await page.goto("/")
-  await page.evaluate(async (body) => {
-    const r = await fetch("/api/defaults", {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    })
-    if (!r.ok) throw new Error(`reset defaults: ${r.status} ${await r.text()}`)
-  }, payload)
+  await putDefaultsWithRetry(page, "reset defaults", payload)
   defaultsDirty = true
   await page.goto("/")
 }
@@ -151,14 +145,7 @@ test.afterEach(async ({ page }) => {
   // restore PUT, never after it.
   await page.waitForTimeout(1200)
   await page.goto("/")
-  await page.evaluate(async (body) => {
-    const r = await fetch("/api/defaults", {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    })
-    if (!r.ok) throw new Error(`restore defaults: ${r.status} ${await r.text()}`)
-  }, RESET_PAYLOAD)
+  await putDefaultsWithRetry(page, "restore defaults", RESET_PAYLOAD)
   const got = await getDefaults(page)
   expect(got.posterShape).toBe(RESET_PAYLOAD.posterShape)
   expect(got.rankingBadgeStyle).toBe(RESET_PAYLOAD.rankingBadgeStyle)

@@ -1,4 +1,5 @@
 import { test, expect, type Page } from "@playwright/test"
+import { putDefaultsWithRetry } from "./defaults-retry"
 
 // Settings > Trasforma preview-only (Verticale/Orizzontale).
 // Nessuno snapshot: solo trasporto reale (request preview demo) e aspect.
@@ -92,24 +93,17 @@ async function seed(page: Page) {
  */
 async function resetServerDefaults(page: Page) {
   await page.goto("/")
-  await page.evaluate(async () => {
-    const r = await fetch("/api/defaults", {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        gradientHeight: 30,
-        topBadgeScale: 100,
-        qualityBadgeOffsetX: -10,
-        qualityBadgeOffsetY: 15,
-        landscape: {
-          gradientHeight: 20,
-          topBadgeScale: 120,
-          qualityBadgeOffsetX: 7,
-          qualityBadgeOffsetY: -7,
-        },
-      }),
-    })
-    if (!r.ok) throw new Error(`reset defaults: ${r.status} ${await r.text()}`)
+  await putDefaultsWithRetry(page, "reset defaults", {
+    gradientHeight: 30,
+    topBadgeScale: 100,
+    qualityBadgeOffsetX: -10,
+    qualityBadgeOffsetY: 15,
+    landscape: {
+      gradientHeight: 20,
+      topBadgeScale: 120,
+      qualityBadgeOffsetX: 7,
+      qualityBadgeOffsetY: -7,
+    },
   })
   await page.goto("/")
 }

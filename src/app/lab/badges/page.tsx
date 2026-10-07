@@ -3,7 +3,8 @@
 import { useEffect, useMemo, useState } from "react"
 import type { CSSProperties } from "react"
 import Link from "next/link"
-import { t, getLang, setLang } from "@/lib/i18n"
+import { t, getLang, setLang, isDictionaryLoaded } from "@/lib/i18n"
+import { loadLanguage } from "@/lib/i18n-loader"
 import { currentPathUuid } from "@/lib/user-token"
 import { Toggle } from "@/components/Toggle"
 import {
@@ -260,11 +261,23 @@ export default function BadgeLabPage() {
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
+    let cancelled = false
     try {
       const saved = window.localStorage.getItem("pictorium-lang")
       if (saved && saved !== getLang()) {
-        setLang(saved)
-        setLangTick((n) => n + 1)
+        if (isDictionaryLoaded(saved)) {
+          setLang(saved)
+          setLangTick((n) => n + 1)
+        } else {
+          void loadLanguage(saved).then(
+            () => {
+              if (cancelled) return
+              setLang(saved)
+              setLangTick((n) => n + 1)
+            },
+            () => {},
+          )
+        }
       }
     } catch {
       /* storage indisponibile */
@@ -289,6 +302,9 @@ export default function BadgeLabPage() {
       }
     } catch {
       /* URL illeggibile: editor vuoto */
+    }
+    return () => {
+      cancelled = true
     }
   }, [])
 

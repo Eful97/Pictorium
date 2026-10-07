@@ -1,4 +1,5 @@
 import { defineConfig, devices } from "@playwright/test"
+import crypto from "node:crypto"
 import path from "path"
 
 const isCi = process.env.CI === "true"
@@ -16,7 +17,11 @@ const mockPort = process.env.MOCK_PORT || "8790"
 const mockUrl = `http://127.0.0.1:${mockPort}`
 // A fresh app must also get fresh settings: a previous test run can leave
 // badgeRating=false (or mappings) behind in the persistent build directory.
-const testDataDir = path.join(__dirname, ".next-e2e", reuseApp ? "data" : `data-${process.pid}`)
+// The directory is unique per invocation (pid + random suffix), not just per
+// pid: OS pid recycling could otherwise hand a new run a previous run's dirty
+// state (e.g. a persisted gradientHeight from an applied preset), making
+// cross-run order-dependent failures look like regressions.
+const testDataDir = path.join(__dirname, ".next-e2e", reuseApp ? "data" : `data-${process.pid}-${crypto.randomUUID().slice(0, 8)}`)
 
 export default defineConfig({
   testDir: "./e2e",

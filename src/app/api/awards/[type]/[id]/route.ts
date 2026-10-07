@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server"
 import { fetchAllWikidata, directorBadgeLabel, isValidWikidataQid } from "@/lib/awards"
-import { createT } from "@/lib/i18n"
+import { createT } from "@/lib/i18n-server"
 import { getKeywords, resolveRouteApiKey } from "@/lib/tmdb"
 import { rateLimit, rateLimitKey, rateLimitResponse } from "@/lib/rate-limit"
 import { createLogger } from "@/lib/logger"

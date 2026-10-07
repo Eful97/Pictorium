@@ -2,7 +2,8 @@
 
 import { useCallback, useEffect, useState } from "react"
 import Link from "next/link"
-import { t, getLang, setLang } from "@/lib/i18n"
+import { t, getLang, setLang, isDictionaryLoaded } from "@/lib/i18n"
+import { loadLanguage } from "@/lib/i18n-loader"
 import { currentPathUuid } from "@/lib/user-token"
 import {
   downloadPresetFile,
@@ -26,16 +27,31 @@ export default function PresetsPage() {
   const [busyId, setBusyId] = useState<string | null>(null)
 
   useEffect(() => {
+    let cancelled = false
     try {
       const saved = window.localStorage.getItem("pictorium-lang")
       if (saved && saved !== getLang()) {
-        setLang(saved)
-        setLangTick((n) => n + 1)
+        if (isDictionaryLoaded(saved)) {
+          setLang(saved)
+          setLangTick((n) => n + 1)
+        } else {
+          void loadLanguage(saved).then(
+            () => {
+              if (cancelled) return
+              setLang(saved)
+              setLangTick((n) => n + 1)
+            },
+            () => {},
+          )
+        }
       }
     } catch {
       /* storage indisponibile: lingua di default */
     }
     setUuid(currentPathUuid())
+    return () => {
+      cancelled = true
+    }
   }, [])
 
   const load = useCallback(

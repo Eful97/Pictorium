@@ -172,15 +172,21 @@ function mockT(key: string, params?: Record<string, string | number>): string {
   return val
 }
 
-vi.mock("@/lib/i18n", () => ({
-  t: mockT,
-  createT: () => mockT,
-  setLang: vi.fn(),
-  getLang: () => "it",
-  isPrefixedKey: (val: string) => val.startsWith("__"),
-  badgeKey: (val: string) => val.startsWith("__") ? val.slice(2) : val,
-  resolveLabel: (val: string) => mockT(val.startsWith("__") ? val.slice(2) : val),
-  resolveLabelFor: (val: string, _lang: string) => mockT(val.startsWith("__") ? val.slice(2) : val),
-  isRankKey: () => null,
-  BADGE_KEY_PREFIX: "__",
-}))
+vi.mock("@/lib/i18n", async (importOriginal) => {
+  // The real registry stays available to the loader (canonicalDictLang,
+  // registerDictionary, ...): the mock only fakes synchronous resolution.
+  const actual = await importOriginal<typeof import("@/lib/i18n")>()
+  return {
+    ...actual,
+    t: mockT,
+    createT: () => mockT,
+    setLang: vi.fn(),
+    getLang: () => "it",
+    isPrefixedKey: (val: string) => val.startsWith("__"),
+    badgeKey: (val: string) => val.startsWith("__") ? val.slice(2) : val,
+    resolveLabel: (val: string) => mockT(val.startsWith("__") ? val.slice(2) : val),
+    resolveLabelFor: (val: string, _lang: string) => mockT(val.startsWith("__") ? val.slice(2) : val),
+    isRankKey: () => null,
+    BADGE_KEY_PREFIX: "__",
+  }
+})

@@ -4,7 +4,11 @@
  * batch) invece dello SPARQL lento. Fallback SPARQL su QID assente/invalido
  * o REST fallito; stessa cache condivisa v2; breaker REST isolato.
  */
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest"
+import { describe, it, expect, vi, beforeEach, afterEach, afterAll } from "vitest"
+import fsp from "node:fs/promises"
+import os from "node:os"
+import path from "node:path"
+import { existsSync } from "node:fs"
 import {
   fetchAllWikidata,
   fetchWikidataRest,
@@ -14,6 +18,42 @@ import {
   __resetWikidataNegativeForTest,
 } from "@/lib/awards"
 import { cacheClear } from "@/lib/cache"
+
+const tmpDirs: string[] = []
+
+/** Isolate the durable wikidata layer: per-test DATA_DIR in file mode, so the
+ *  fire-and-forget persist never touches the repo ./data (cross-suite
+ *  pollution) nor a real KV backend. */
+async function stubDurableIsolation(): Promise<void> {
+  let base = os.tmpdir()
+  try {
+    const scoped = path.join(os.tmpdir(), "opencode")
+    if (existsSync(scoped)) base = scoped
+  } catch {
+    // platform default
+  }
+  const dir = await fsp.mkdtemp(path.join(base, "pictorium-awards-"))
+  tmpDirs.push(dir)
+  vi.stubEnv("PICTORIUM_DATA_DIR", dir)
+  vi.stubEnv("PICTORIUM_REDIS_URL", "")
+  vi.stubEnv("POSTERIUM_REDIS_URL", "")
+  vi.stubEnv("REDIS_URL", "")
+  vi.stubEnv("KV_REST_API_URL", "")
+  vi.stubEnv("KV_REST_API_TOKEN", "")
+}
+
+function resetAwardsState(): void {
+  cacheClear()
+  __resetCircuitBreaker()
+  __resetWikidataRestBreakerForTest()
+  __resetWikidataNegativeForTest()
+}
+
+afterAll(async () => {
+  for (const dir of tmpDirs) {
+    await fsp.rm(dir, { recursive: true, force: true })
+  }
+})
 
 function claim(id: string) {
   return { mainsnak: { datavalue: { value: { id } } } }
@@ -95,11 +135,9 @@ describe("isValidWikidataQid", () => {
 })
 
 describe("fetchWikidataRest", () => {
-  beforeEach(() => {
-    cacheClear()
-    __resetCircuitBreaker()
-    __resetWikidataRestBreakerForTest()
-    __resetWikidataNegativeForTest()
+  beforeEach(async () => {
+    await stubDurableIsolation()
+    resetAwardsState()
   })
 
   afterEach(() => {
@@ -145,11 +183,9 @@ describe("fetchWikidataRest", () => {
 })
 
 describe("fetchAllWikidata fast-path integration", () => {
-  beforeEach(() => {
-    cacheClear()
-    __resetCircuitBreaker()
-    __resetWikidataRestBreakerForTest()
-    __resetWikidataNegativeForTest()
+  beforeEach(async () => {
+    await stubDurableIsolation()
+    resetAwardsState()
   })
 
   afterEach(() => {

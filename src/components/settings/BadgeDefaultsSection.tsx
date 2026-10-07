@@ -518,30 +518,45 @@ export function BadgeDefaultsSection({ active, shape, onPreviewFamilyChange }: {
     defaultNetworkLogoOffsetY: "networkLogoOffsetY",
   }
 
-  // Full snapshots read through the edit target, so the highlight matches
-  // what this tab edits (root in portrait, profile in landscape).
-  const presetSource = (() => {
-    const base = captureVisualPreset(ed)
-    if (!isLandscape) return base
-    const eff = { ...base }
-    for (const [presetKey, landKey] of Object.entries(PRESET_TO_LAND)) {
-      const lv = ed.landscape[landKey]
-      if (lv === undefined) continue
-      // Null-inherit profile keys (mirror NULL_INHERIT_LANDSCAPE_KEYS in
-      // visual-presets.ts): null means "follow the flat", so keep the base
-      // flat instead of copying null into the strict non-nullable preset
-      // contract (captureVisualPreset below would throw). Logo nulls stay
-      // explicit (auto/zero contract) and are copied as-is. extraBadgeStyle
-      // is landscape-only (no flat mapping) so it never reaches this loop.
-      if (lv === null && (landKey === "badgeFont" || landKey === "qualityBadgeStyle" || landKey === "videoFormats")) continue
-      ;(eff as Record<string, unknown>)[presetKey] = lv
+  // Snapshot highlight per target (recognition only, never apply/params):
+  // portrait = mapped flats + applied globals, ignores the other-format
+  // profile and delivery; landscape = preset-covered effective + applied
+  // globals, ignores delivery and preserved keys absent from the preset
+  // (e.g. extraBadgeStyle). Per-field comparison (no whole-object JSON:
+  // nested key order is not canonical). Reuses existing helpers.
+  const snapshotHighlightSource = captureVisualPreset(ed)
+  function snapshotFieldEqual(a: unknown, b: unknown): boolean {
+    if (a === b) return true
+    if (Array.isArray(a) || Array.isArray(b)) return JSON.stringify(a) === JSON.stringify(b)
+    return false
+  }
+  function snapshotGlobalsMatch(cur: VisualPresetValues, preset: VisualPresetValues): boolean {
+    return (
+      snapshotFieldEqual(cur.defaultRatingSources, preset.defaultRatingSources) &&
+      cur.defaultLogoAlign === preset.defaultLogoAlign &&
+      cur.defaultPortraitFitEnabled === preset.defaultPortraitFitEnabled &&
+      cur.defaultLandscapeFitEnabled === preset.defaultLandscapeFitEnabled
+    )
+  }
+  function matchesSnapshotPreset(preset: VisualPresetValues): boolean {
+    if (!snapshotGlobalsMatch(snapshotHighlightSource, preset)) return false
+    if (!isLandscape) {
+      const cur = portraitPresetPatch(snapshotHighlightSource) as unknown as Record<string, unknown>
+      const pre = portraitPresetPatch(preset) as unknown as Record<string, unknown>
+      for (const k of Object.keys(pre)) {
+        if (!snapshotFieldEqual(cur[k], pre[k])) return false
+      }
+      return true
     }
-    return eff
-  })()
-  const currentVisualSnapshot = JSON.stringify(captureVisualPreset(presetSource))
-  const isBetterPoster =
-    currentVisualSnapshot === JSON.stringify(BETTER_POSTER_VISUAL_DEFAULTS)
-  const isRpdb = currentVisualSnapshot === JSON.stringify(RPDB_VISUAL_DEFAULTS)
+    const curEff = resolveEffectiveLandscape(snapshotHighlightSource) as unknown as Record<string, unknown>
+    const preEff = resolveEffectiveLandscape(preset) as unknown as Record<string, unknown>
+    for (const k of Object.keys(preEff)) {
+      if (!snapshotFieldEqual(curEff[k], preEff[k])) return false
+    }
+    return true
+  }
+  const isBetterPoster = matchesSnapshotPreset(BETTER_POSTER_VISUAL_DEFAULTS)
+  const isRpdb = matchesSnapshotPreset(RPDB_VISUAL_DEFAULTS)
 
   // Apple builtin, stesso path isolato dei preset personali (mai lo snapshot
   // con globali condivisi di BetterPoster/RPDB): portrait scrive solo i flat

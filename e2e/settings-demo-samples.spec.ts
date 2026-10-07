@@ -1,4 +1,5 @@
 import { test, expect, type Page } from "@playwright/test"
+import { putDefaultsWithRetry } from "./defaults-retry"
 
 // Settings defaults preview: title search (Avatar -> TV), click-to-zoom and
 // demo-samples badges. Transport-level only (mock TMDB via mock-server +
@@ -93,68 +94,91 @@ async function seed(page: Page) {
 }
 
 /** Deterministic badge toggles ON (isolates from other specs' persisted defaults).
- * Covers the full Essenziale preset surface (8 setters, portrait branch in
- * BadgeDefaultsSection.applyEssential): without badgeStyle a previous
- * Essenziale click leaks bs=minimal into later preview URLs. */
-/**
- * Parse dell'header `Retry-After` (429) per il backoff mirato: delta-secondi
- * o HTTP-date, cap 30s come il server (`parseRetryAfter` in src/lib/http.ts);
- * header assente/invalido → 3000ms (refill documentato del bucket defaults:
- * burst 30, 3 token/sec). Solo lettura header, nessun segreto coinvolto.
- */
-function retryAfterMs(header: string | null): number {
-  const raw = (header ?? "").trim()
-  if (/^\d+$/.test(raw)) return Math.min(Number(raw), 30) * 1000
-  const asDate = Date.parse(raw)
-  if (Number.isFinite(asDate)) {
-    const waitMs = asDate - Date.now()
-    return waitMs > 0 ? Math.min(waitMs, 30_000) : 3000
-  }
-  return 3000
-}
-
-// resetBadgeToggles: helper condiviso dai test del file (non esportato).
+ * Resets the full factory surface (same canonical payload as
+ * settings-layout-ux / settings-keyboard / badge-format-defaults specs),
+ * not just the Essenziale setters: the Essenziale button persists
+ * quickTransformPatch via debounced autosave, so a partial reset would leak
+ * state into later tests. */
+// resetBadgeToggles: shared test helper in this file (not exported).
+// 429 retries live in the shared e2e/defaults-retry helper.
 async function resetBadgeToggles(page: Page) {
   await page.goto("/")
-  const payload = {
-    globalBadges: true,
-    rankingBadges: true,
-    badgeGenre: true,
-    badgeYear: true,
-    badgeRating: true,
-    badgeQuality: true,
-    networkLogo: true,
-    badgeStyle: "shadow",
-  }
-  // Retry limitato al solo 429 del rate limiter (burst seriale): max 3 tentativi
-  // totali (iniziale + 2), attesa Retry-After o 3000ms via page.waitForTimeout.
-  // Qualsiasi altro status lancia subito; il 429 finale lancia con errore chiaro.
-  let lastStatus = 0
-  let lastBody = ""
-  for (let attempt = 1; attempt <= 3; attempt++) {
-    const res = await page.evaluate(async (body) => {
-      const r = await fetch("/api/defaults", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      })
-      return {
-        ok: r.ok,
-        status: r.status,
-        retryAfter: r.headers.get("Retry-After"),
-        body: (await r.text()).slice(0, 200),
-      }
-    }, payload)
-    if (res.ok) {
-      await page.goto("/")
-      return
-    }
-    lastStatus = res.status
-    lastBody = res.body
-    if (res.status !== 429 || attempt === 3) break
-    await page.waitForTimeout(retryAfterMs(res.retryAfter))
-  }
-  throw new Error(`reset defaults: ${lastStatus} ${lastBody} (after 3 attempts)`)
+  await putDefaultsWithRetry(page, "reset defaults", FACTORY_DEFAULTS)
+  await page.goto("/")
+}
+
+/** Deterministic factory defaults (canonical values shared with
+ * settings-layout-ux / settings-keyboard / badge-format-defaults specs).
+ * /api/defaults PUT shallow-merges, so a partial reset cannot delete keys:
+ * the Essenziale button persists quickTransformPatch (NATURAL_GRADIENT_DEFAULTS
+ * gradientHeight 35 + badgeStyle minimal + ranking off) via debounced autosave,
+ * and the old 8-field reset left gradientHeight=35 stored — the next test then
+ * rendered pre-hydration gradHeight=30 vs post-reload 35. Full payload keeps
+ * every autosaveable key at its factory value; landscape is replaced wholesale
+ * so frozen portrait echoes are dropped too. */
+const FACTORY_DEFAULTS = {
+  badgeStyle: "shadow",
+  rankingBadgeStyle: "default",
+  extraBadgeStyle: null,
+  badgeFont: "inter",
+  qualityBadgeStyle: "standard",
+  videoFormats: null,
+  blurEnabled: true,
+  blurIntensity: 20,
+  blurFade: 50,
+  blurDarkness: 30,
+  tintStrength: 20,
+  topShade: 50,
+  gradientHeight: 30,
+  topBadgeScale: 100,
+  topBadgeOffsetX: 0,
+  topBadgeOffsetY: 0,
+  genreBadgeScale: 100,
+  qualityBadgeScale: 100,
+  separateBadgeScale: 130,
+  separateBadgeOffsetX: 0,
+  separateBadgeOffsetY: 0,
+  networkLogoScale: 100,
+  genreBadgeOffsetX: 0,
+  genreBadgeOffsetY: 0,
+  qualityBadgeOffsetX: -10,
+  qualityBadgeOffsetY: 15,
+  networkLogoOffsetX: 0,
+  networkLogoOffsetY: 0,
+  globalBadges: true,
+  rankingBadges: true,
+  badgeGenre: true,
+  badgeYear: true,
+  badgeRating: true,
+  badgeQuality: true,
+  customRatings: true,
+  customRatingEndpoint: "",
+  customRatingApiKeyHeader: "",
+  ratingSources: ["imdb", "tmdb"],
+  separateRatings: false,
+  separateRatingsStyle: "column",
+  sashOrder: ["upcoming", "rank", "new", "award", "extra"],
+  networkLogo: true,
+  networkLogoPosition: "auto",
+  preRelease: false,
+  ribbonSide: "left",
+  ribbonEnabled: true,
+  posterShape: "poster",
+  region: "IT",
+  dateFormat: "locale",
+  episodeMetadataSource: "tmdb",
+  logoAlign: null,
+  logoScale: null,
+  logoOffsetX: null,
+  logoOffsetY: null,
+  defaultAutoRotateBackdrop: false,
+  defaultLandscapeFitEnabled: true,
+  defaultPortraitFitEnabled: true,
+  disableCleanPosters: false,
+  landscape: {
+    qualityBadgeOffsetX: 0,
+    qualityBadgeOffsetY: 0,
+  },
 }
 
 /** Seed without clearing storage (persistence across reload must survive). */

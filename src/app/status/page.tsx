@@ -3,7 +3,8 @@
 import React, { useEffect, useState, useCallback } from "react"
 import Link from "next/link"
 import { RefreshCw } from "lucide-react"
-import { t, getLang, setLang } from "@/lib/i18n"
+import { t, getLang, setLang, isDictionaryLoaded } from "@/lib/i18n"
+import { loadLanguage } from "@/lib/i18n-loader"
 import { APP_COMMIT, APP_VERSION } from "@/generated/app-version"
 import { currentPathUuid, userAuthHeaders } from "@/lib/user-token"
 import { adminAuthHeaders } from "@/lib/admin-token"
@@ -134,13 +135,29 @@ export default function StatusPage() {
   // così la pagina non resta mai in italiano dopo un cambio lingua + refresh.
   const [, setLangTick] = useState(0)
   useEffect(() => {
+    let cancelled = false
     try {
       const saved = localStorage.getItem("preferred_lang")
       if (saved && saved !== getLang()) {
-        setLang(saved)
-        setLangTick((n) => n + 1)
+        // The dict loads before the commit: no fallback labels.
+        if (isDictionaryLoaded(saved)) {
+          setLang(saved)
+          setLangTick((n) => n + 1)
+        } else {
+          void loadLanguage(saved).then(
+            () => {
+              if (cancelled) return
+              setLang(saved)
+              setLangTick((n) => n + 1)
+            },
+            () => {},
+          )
+        }
       }
     } catch {}
+    return () => {
+      cancelled = true
+    }
   }, [])
 
   async function loadCacheStatus() {

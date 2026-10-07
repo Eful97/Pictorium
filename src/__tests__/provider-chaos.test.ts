@@ -13,7 +13,11 @@
 // key), id TMDB distinti per request (cold garantito, niente hit di cache).
 
 import sharp from "sharp"
-import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest"
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest"
+import fsp from "node:fs/promises"
+import os from "node:os"
+import path from "node:path"
+import { existsSync } from "node:fs"
 import { NextRequest } from "next/server"
 import { request as undiciRequest } from "undici"
 import { GET as posterGET } from "@/app/api/poster/[type]/[id]/route"
@@ -210,6 +214,29 @@ function resetAll() {
   for (const k of Object.keys(calls) as (keyof typeof calls)[]) calls[k] = 0
 }
 
+const tmpDirs: string[] = []
+
+/** Isolate the durable wikidata layer: per-test DATA_DIR in file mode, so the
+ *  fire-and-forget persist of the real poster pipeline never touches the repo
+ *  ./data (cross-suite pollution) nor a real KV backend. */
+async function stubDurableIsolation(): Promise<void> {
+  let base = os.tmpdir()
+  try {
+    const scoped = path.join(os.tmpdir(), "opencode")
+    if (existsSync(scoped)) base = scoped
+  } catch {
+    // platform default
+  }
+  const dir = await fsp.mkdtemp(path.join(base, "pictorium-awards-"))
+  tmpDirs.push(dir)
+  vi.stubEnv("PICTORIUM_DATA_DIR", dir)
+  vi.stubEnv("PICTORIUM_REDIS_URL", "")
+  vi.stubEnv("POSTERIUM_REDIS_URL", "")
+  vi.stubEnv("REDIS_URL", "")
+  vi.stubEnv("KV_REST_API_URL", "")
+  vi.stubEnv("KV_REST_API_TOKEN", "")
+}
+
 describe("provider chaos (slot ↔ timeout ↔ race ↔ breaker ↔ render)", () => {
   beforeAll(async () => {
     posterPng = await sharp({
@@ -219,11 +246,18 @@ describe("provider chaos (slot ↔ timeout ↔ race ↔ breaker ↔ render)", ()
       .toBuffer()
   })
 
-  beforeEach(() => {
+  beforeEach(async () => {
     resetAll()
     vi.spyOn(globalThis, "fetch").mockImplementation(router as typeof fetch)
     vi.mocked(undiciRequest).mockReset()
     vi.unstubAllEnvs()
+    await stubDurableIsolation()
+  })
+
+  afterAll(async () => {
+    for (const dir of tmpDirs) {
+      await fsp.rm(dir, { recursive: true, force: true })
+    }
   })
 
   afterEach(() => {

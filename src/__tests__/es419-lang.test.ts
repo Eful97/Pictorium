@@ -1,9 +1,11 @@
 import { describe, expect, it, vi } from "vitest"
 // The global test setup mocks @/lib/i18n with a fixed Italian dictionary:
 // opt out to exercise the real dictionaries (pattern used by
-// translations-parity, which imports JSON directly).
+// translations-parity, which imports JSON directly). Real dictionaries come
+// from the server facade (eager registration); the client base only bundles
+// en/it since the lazy-loading split.
 vi.unmock("@/lib/i18n")
-import { createT } from "@/lib/i18n"
+import { createT } from "@/lib/i18n-server"
 import esDict from "@/lib/translations/es.json"
 import es419Dict from "@/lib/translations/es-419.json"
 import {

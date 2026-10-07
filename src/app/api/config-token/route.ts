@@ -1,4 +1,8 @@
 import { NextRequest } from "next/server"
+// Full dictionary registry for resolveLabelFor inside resolvePosterRenderConfig
+// (customBadge "__..." labels). Side-effect only: this route never calls
+// createT directly, but poster-config reads the shared registry.
+import "@/lib/i18n-server"
 import { configTokenSchema, encodeConfig, partialCatalogTokenSchema, type PictoriumUserConfig } from "@/lib/config-token"
 import { getServerDefaultsChecked } from "@/lib/server-defaults"
 import { resolvePosterRenderConfig } from "@/lib/poster-config"

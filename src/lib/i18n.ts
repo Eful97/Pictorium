@@ -1,25 +1,18 @@
+// Client-safe base: only the synchronous fallback dictionaries are bundled
+// statically. Every other language is registered at runtime — eagerly on the
+// server via "./i18n-server" (route entry points), on demand on the client via
+// "./i18n-loader". The sync APIs below never change signature: before a
+// language is registered they resolve through the English fallback.
 import en from "./translations/en.json"
 import it from "./translations/it.json"
-import pl from "./translations/pl.json"
-import fr from "./translations/fr.json"
-import de from "./translations/de.json"
-import es from "./translations/es.json"
-import es419 from "./translations/es-419.json"
-import ja from "./translations/ja.json"
-import ko from "./translations/ko.json"
-import pt from "./translations/pt.json"
-import he from "./translations/he.json"
-import cs from "./translations/cs.json"
-import ro from "./translations/ro.json"
-import ar from "./translations/ar.json"
-import tr from "./translations/tr.json"
-import nl from "./translations/nl.json"
-import sv from "./translations/sv.json"
-import vi from "./translations/vi.json"
 
-export type Lang = keyof typeof dicts
+export type Lang =
+  | "en" | "it" | "pl" | "fr" | "de" | "es" | "es-419" | "ja" | "ko"
+  | "pt" | "he" | "cs" | "ro" | "ar" | "tr" | "nl" | "sv" | "vi"
 
-const dicts: Record<string, Record<string, string>> = { en, it, pl, fr, de, es, "es-419": es419, ja, ko, pt, he, cs, ro, ar, tr, nl, sv, vi }
+export type Dictionary = Record<string, string>
+
+const dicts: Record<string, Dictionary> = { en, it }
 
 let _currentLang: string = "it"
 
@@ -66,12 +59,30 @@ export function getLang(): string {
   return _currentLang
 }
 
-function canonicalDictLang(lang: string): string {
+export function canonicalDictLang(lang: string): string {
   const c = lang.toLowerCase()
   // The canonical TMDB locale es-MX has no dedicated UI dictionary: it
   // reuses the Latin American one (never the English fallback).
   if (c === "es-mx") return "es-419"
   return c
+}
+
+/**
+ * Register (or replace) the dictionary for a language. Server entry points
+ * register every language eagerly via "./i18n-server"; the client loader
+ * registers one language per dynamic import. Overwriting is idempotent: the
+ * same content registered twice resolves identically.
+ */
+export function registerDictionary(lang: string, dict: Dictionary): void {
+  dicts[canonicalDictLang(lang)] = dict
+}
+
+export function isDictionaryLoaded(lang: string): boolean {
+  return dicts[canonicalDictLang(lang)] !== undefined
+}
+
+export function getDictionary(lang: string): Dictionary | undefined {
+  return dicts[canonicalDictLang(lang)]
 }
 
 function lookup(lang: string, key: string): string | undefined {

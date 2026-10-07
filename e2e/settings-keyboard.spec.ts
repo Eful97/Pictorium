@@ -1,4 +1,5 @@
 import { expect, test, type Locator, type Page } from "@playwright/test"
+import { putDefaultsWithRetry } from "./defaults-retry"
 
 // Canonical factory defaults (single-source values from useDefaults factory +
 // per-shape code defaults). The settings dialog renders conditional rows from
@@ -72,14 +73,7 @@ const FACTORY_SETUP = {
 
 async function putFactoryDefaults(page: Page) {
   await page.goto("/")
-  await page.evaluate(async (body) => {
-    const r = await fetch("/api/defaults", {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    })
-    if (!r.ok) throw new Error(`setup defaults: ${r.status} ${await r.text()}`)
-  }, FACTORY_SETUP)
+  await putDefaultsWithRetry(page, "setup defaults", FACTORY_SETUP)
 }
 
 test.beforeEach(async ({ page }) => {
