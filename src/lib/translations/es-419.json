@@ -119,6 +119,8 @@
   "ui.separateRatingsColumn": "Columna",
   "ui.separateRatingsBottomBar": "Barra inferior",
   "ui.separateRatingsBottomPills": "Píldoras inferiores",
+  "ui.separateRatingsBottomMono": "Monocromo",
+  "ui.separateRatingsBottomColor": "Iconos de colores",
   "ui.separateRatingsBottomHint": "Los modos inferiores ocultan género y año (conservados) — vuelven con Columna.",
   "ui.separateRatingsBarLandscapeHint": "La barra está desactivada en horizontal: se usan las píldoras (en vertical se mantiene).",
   "ui.separateRatingsScaleHint": "100 = tamaño estándar (relativo al valor 130).",

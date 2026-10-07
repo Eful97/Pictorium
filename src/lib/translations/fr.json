@@ -119,6 +119,8 @@
   "ui.separateRatingsColumn": "Column",
   "ui.separateRatingsBottomBar": "Bottom bar",
   "ui.separateRatingsBottomPills": "Bottom pills",
+  "ui.separateRatingsBottomMono": "Monochrome",
+  "ui.separateRatingsBottomColor": "Icônes colorées",
   "ui.separateRatingsBottomHint": "Bottom modes hide genre and year (kept) — they return with Column.",
   "ui.separateRatingsBarLandscapeHint": "Bar is off in landscape — pills are used instead (portrait keeps the bar).",
   "ui.separateRatingsScaleHint": "100 = standard size (relative to the 130 default).",
