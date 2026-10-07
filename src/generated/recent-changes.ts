@@ -11,12 +11,12 @@ export interface RecentChange {
 }
 
 export const RECENT_CHANGES: RecentChange[] = [
+  { type: "fix", text: "Translate the new rating style options", sha: "eacb854", date: "2026-10-07" },
+  { type: "feature", text: "Add monochrome and colorful rating icons", sha: "ed56437", date: "2026-10-07" },
+  { type: "feature", text: "Load languages on demand and retain award data", sha: "41eb716", date: "2026-10-07" },
+  { type: "fix", text: "Keep posters responsive under heavy load", sha: "11dc00a", date: "2026-10-07" },
+  { type: "fix", text: "Keep settings headers stable on small screens", sha: "f0bfb75", date: "2026-10-07" },
   { type: "fix", text: "Translate inspired preset styles in every language", sha: "d55d40a", date: "2026-10-07" },
   { type: "feature", text: "Simplify settings and reset quick preset transforms", sha: "1b88010", date: "2026-10-07" },
   { type: "feature", text: "Separate presets by format and add inspired styles", sha: "0f0d5f1", date: "2026-10-07" },
-  { type: "fix", text: "Move logos and badges across the poster", sha: "0784575", date: "2026-10-07" },
-  { type: "fix", text: "Queued poster image downloads survive when the first request aborts", sha: "7d334b3", date: "2026-10-07" },
-  { type: "fix", text: "Show the right artwork when opening landscape posters", sha: "528ea61", date: "2026-10-07" },
-  { type: "feature", text: "Improve poster badges and landscape editing", sha: "b8f389b", date: "2026-10-06" },
-  { type: "fix", text: "Keep daily poster rotation in your profile", sha: "9fbe11c", date: "2026-10-06" },
 ]
