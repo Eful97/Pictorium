@@ -11,6 +11,7 @@ import type { SashBucket } from "@/lib/badge-priority"
 import type { VideoFormat } from "@/lib/av-specs"
 import type { VisualPresetValues } from "@/lib/visual-presets"
 import { materializeExtraTuning, clearedExtraForPresetApply } from "@/lib/extra-materialize"
+import { projectPerTitleVisualPreset } from "@/lib/per-title-preset"
 import { logoDefaultScale } from "@/lib/logo-selection"
 import { resolveNetworkEffectiveView } from "@/lib/network-follow"
 
@@ -51,6 +52,19 @@ export const LANDSCAPE_BLUR_DEFAULTS: LandscapeBlurState = {
 
 export interface PosterEditorCtx {
   applyVisualPreset: (values: VisualPresetValues, target?: "portrait" | "landscape") => void
+  /**
+   * Applica uno snapshot visuale (built-in/salvato) al SOLO titolo corrente,
+   * nel formato in editing: proiezione allowlisted via
+   * `projectPerTitleVisualPreset` (mai `applyVisualPreset`, che scrive i
+   * `default*` globali). Nessun cambio default, nessun autosave, artwork e
+   * orientamento preservati. Gradiente del formato attivo incluso (flat in
+   * portrait, profilo Orizzontale in landscape via `setLandscapeBlur`).
+   * `logo` (il logo selezionato del titolo, task2 UI lo passa): serve a
+   * risolvere la scala `null` del preset (documented auto-fit) via
+   * `logoDefaultScale(logo) ?? 75`; assente/senza dimensioni = 75. La
+   * selezione artwork non cambia mai.
+   */
+  applyPerTitleVisualPreset: (values: VisualPresetValues, logo?: Pick<TMDBImage, "width" | "height"> | null) => void
   /**
    * Riporta TUTTI i visuali per-titolo ai default globali (stessi fallback
    * `mapping-assente ?? default*` dell'apertura titolo senza mapping), senza
@@ -1273,6 +1287,33 @@ export function PosterEditorProvider({
     update(patch as Partial<DefaultsState>)
   }, [update])
 
+  // Per-title preset apply (EditView quick chooser): proiezione pura sul
+  // formato in editing, MAI default*. Un solo merge atomico di chiavi bare
+  // via update() (live draft: nessun PUT default, payload invariato); logo e
+  // sfumatura landscape vivono in useState locali e passano dai setter
+  // dedicati (setLandscapeBlur alza il dirty come un edit, guida il save).
+  // posterShape/artwork/Badge Lab binding intoccati (la proiezione non li
+  // emette).
+  const applyPerTitleVisualPreset = useCallback((values: VisualPresetValues, logo?: Pick<TMDBImage, "width" | "height"> | null) => {
+    const projection = projectPerTitleVisualPreset(values, posterShape)
+    if (Object.keys(projection.bare).length > 0) {
+      update(projection.bare)
+    }
+    if (projection.logo.scale !== undefined) {
+      // Explicit number = exact; null = documented auto-fit request on the
+      // CURRENT title's logo (single source logoDefaultScale, fallback 75
+      // like TransformControls/usePosterSave). Never preserve the live scale.
+      setLogoScale(projection.logo.scale === null
+        ? (logo ? (logoDefaultScale(logo as TMDBImage) ?? 75) : 75)
+        : projection.logo.scale)
+    }
+    if (projection.logo.offsetX !== undefined) setLogoOffsetX(projection.logo.offsetX)
+    if (projection.logo.offsetY !== undefined) setLogoOffsetY(projection.logo.offsetY)
+    if (posterShape === "landscape" && Object.keys(projection.landscapeBlur).length > 0) {
+      setLandscapeBlur(projection.landscapeBlur)
+    }
+  }, [posterShape, update, setLogoScale, setLogoOffsetX, setLogoOffsetY, setLandscapeBlur])
+
   // Reset post-"solo copertina": un solo merge atomico dei bare visuali ai
   // default EFFETTIVI di formato (stessa `effectiveDefaultsForShape` del
   // server: in landscape il profilo Orizzontale vince sui flat chiave per
@@ -1378,6 +1419,7 @@ export function PosterEditorProvider({
   const editorCtx = useMemo<PosterEditorCtx>(
     () => ({
       applyVisualPreset,
+      applyPerTitleVisualPreset,
       resetPerTitleVisuals,
       // Badges
       globalBadges,
@@ -1789,7 +1831,7 @@ export function PosterEditorProvider({
       defaultPosterShape, setDefaultPosterShape,
       landscapeDefaults, setLandscape, resetLandscape,
       defaultLogoAlign, setDefaultLogoAlign,
-      loadDefaultsToState, applyVisualPreset, resetPerTitleVisuals,
+      loadDefaultsToState, applyVisualPreset, applyPerTitleVisualPreset, resetPerTitleVisuals,
       defaultSyncStatus, retryDefaultSync,
 
       // Blur

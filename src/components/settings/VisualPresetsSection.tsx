@@ -139,15 +139,16 @@ export function VisualPresetsSection({ shape = "portrait" }: { shape?: VisualPre
   }
 
   return (
-    <section aria-label={t("ui.visualPresetsTitle")} className="bg-surface/50 border border-surface2/60 rounded-xl p-3.5 space-y-3 text-xs">
+    <section aria-label={t("ui.visualPresetsTitle")} data-testid="visual-presets-section" className="space-y-3 text-xs">
       <button
         type="button"
         onClick={() => setIsOpen((prev) => !prev)}
         aria-expanded={isOpen}
         aria-controls={bodyId}
-        className="w-full min-h-[44px] py-1 flex items-center justify-between gap-2 cursor-pointer group touch-manipulation"
+        data-testid="visual-presets-toggle"
+        className="w-full flex items-center justify-between gap-2 px-1 py-1 min-h-[44px] cursor-pointer touch-manipulation"
       >
-        <span className="font-semibold text-zinc-200 flex items-center gap-1.5">
+        <span className="flex items-center gap-1.5 text-xs font-bold text-zinc-100">
           <BookmarkPlus className="w-3.5 h-3.5 text-accent-orange" aria-hidden="true" />{t("ui.visualPresetsTitle")} · {t(shape === "landscape" ? "ui.posterShapeLandscape" : "ui.posterShapePortrait")}
         </span>
         <span className="flex items-center gap-2">

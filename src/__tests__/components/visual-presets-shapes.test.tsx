@@ -218,3 +218,33 @@ describe("VisualPresetsSection orientation lists", () => {
     expect(screen.getByRole("button", { name: "Wide" })).toBeInTheDocument()
   })
 })
+
+describe("VisualPresetsSection borderless styling", () => {
+  it("outer section has no card chrome and the header matches the BadgeGroup pattern", async () => {
+    store.portrait = [entry("portrait", "Mine", { ...BETTER_POSTER_VISUAL_DEFAULTS }, "id-mine")]
+    renderWithCtx(<><Probe /><VisualPresetsSection shape="portrait" /></>)
+    const section = await screen.findByTestId("visual-presets-section")
+    const outer = section.getAttribute("class") ?? ""
+    // Borderless like the Style/Base/Overlays/Quality groups: no
+    // background/border/rounded/padded card (chips keep their own borders).
+    expect(outer).not.toContain("bg-surface")
+    expect(outer).not.toContain("border")
+    expect(outer).not.toContain("rounded-xl")
+    expect(outer).not.toContain("p-3.5")
+
+    // Header aligns with BadgeDefaultsSection BadgeGroup
+    // (px-1 py-1 min-h-44, bold zinc-100 label, 44px target).
+    const header = screen.getByTestId("visual-presets-toggle")
+    const headerCls = header.getAttribute("class") ?? ""
+    for (const token of ["px-1", "py-1", "min-h-[44px]"]) expect(headerCls).toContain(token)
+    const label = header.querySelector("span")
+    expect(label?.getAttribute("class") ?? "").toContain("font-bold")
+    expect(label?.getAttribute("class") ?? "").toContain("text-zinc-100")
+
+    // Expanded: body preset chips keep their bordered chip styling.
+    await openDisclosure()
+    await screen.findByRole("button", { name: "Mine" })
+    expect(screen.getByRole("button", { name: "Mine" }).getAttribute("class") ?? "").toContain("border")
+    expect(section.getAttribute("class") ?? "").not.toContain("border")
+  })
+})

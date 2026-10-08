@@ -29,6 +29,7 @@ import { PosterCarousel } from "@/components/PosterCarousel"
 import { ScrollReveal } from "@/components/ScrollReveal"
 import { HomeHero } from "@/components/HomeHero"
 import { PosterPreview } from "@/components/PosterPreview"
+import { PerTitlePresetChooser } from "@/components/PerTitlePresetChooser"
 import { PosterDepthEdge, PosterDepthSheen } from "@/components/PosterDepthGlow"
 import { BadgeControls } from "@/components/BadgeControls"
 import { TransformControls } from "@/components/TransformControls"
@@ -1153,6 +1154,10 @@ export default function EditView() {
                     </div>
                   </div>
                 )}
+                <PerTitlePresetChooser
+                  key={selectedMappingKey}
+                  shape={ed.posterShape === "landscape" ? "landscape" : "portrait"}
+                />
                 <div key={activeRightTab} className="animate-tab-fade-in space-y-3">
                 {activeRightTab === "logo" && <>
                   <LogoOptions logos={logos} selectedLogo={selectedLogo} lang={lang} selectLogo={handleSelectLogo} removeLogo={removeLogo} disabled={false} />
