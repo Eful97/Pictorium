@@ -183,6 +183,53 @@ describe("poster freshness: ETag represents the actual bytes (audit problem 1)",
     expect(second.headers.get("etag")).not.toBe(oldEtag)
   })
 
+  it("rank change bypasses a still-fresh internal poster without clearing the cache", async () => {
+    const id = 920030
+    const { request } = await freshnessFixture(id)
+    const first = await request()
+    expect(first.status).toBe(200)
+    const oldBody = Buffer.from(await first.arrayBuffer())
+    const oldEtag = first.headers.get("etag")!
+    mockedGetJWRankings.mockResolvedValue([{ tmdbId: id, rank: 2 } as never])
+    mockedRenderRankingBadge.mockClear()
+
+    const changed = await request(oldEtag)
+    expect(changed.status).toBe(200)
+    expect(mockedRenderRankingBadge.mock.calls[0][0]).toBe(2)
+    expect(changed.headers.get("etag")).not.toBe(oldEtag)
+    expect(Buffer.from(await changed.arrayBuffer()).equals(oldBody)).toBe(false)
+  })
+
+  it("leaving the chart removes the badge even with a fresh cached poster and a saved rank", async () => {
+    const { request } = await freshnessFixture(920031)
+    const first = await request()
+    expect(first.status).toBe(200)
+    expect(mockedRenderRankingBadge).toHaveBeenCalled()
+    mockedGetJWRankings.mockResolvedValue([])
+    mockedRenderRankingBadge.mockClear()
+
+    const changed = await request(first.headers.get("etag")!)
+    expect(changed.status).toBe(200)
+    expect(changed.headers.get("etag")).not.toBe(first.headers.get("etag"))
+    expect(mockedRenderRankingBadge).not.toHaveBeenCalled()
+  })
+
+  it("a failed ranking lookup can restore the older saved rank instead of the last live rank", async () => {
+    const id = 920032
+    const { request } = await freshnessFixture(id)
+    mockedGetJWRankings.mockResolvedValue([{ tmdbId: id, rank: 2 } as never])
+    const first = await request()
+    expect(first.status).toBe(200)
+    expect(mockedRenderRankingBadge.mock.calls[0][0]).toBe(2)
+    mockedGetJWRankings.mockRejectedValue(new Error("Ranking source unavailable"))
+    mockedRenderRankingBadge.mockClear()
+
+    const changed = await request(first.headers.get("etag")!)
+    expect(changed.status).toBe(200)
+    expect(mockedRenderRankingBadge.mock.calls[0][0]).toBe(1)
+    expect(changed.headers.get("etag")).not.toBe(first.headers.get("etag"))
+  })
+
   it("cold conditional request resolves live data instead of exiting early", async () => {
     const { request } = await freshnessFixture(920002)
     const first = await request()
