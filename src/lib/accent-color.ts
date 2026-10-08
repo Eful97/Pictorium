@@ -133,6 +133,62 @@ function fastHue(r: number, g: number, b: number, d: number, max: number): numbe
   return h < 0 ? h + 360 : h
 }
 
+/** Convert RGB [0,255] to HSL (H: 0-360, S: 0-1, L: 0-1), inverse of hslToRgb. */
+function rgbToHsl(r: number, g: number, b: number): { h: number; s: number; l: number } {
+  const rn = r / 255, gn = g / 255, bn = b / 255
+  const max = Math.max(rn, gn, bn), min = Math.min(rn, gn, bn)
+  const l = (max + min) / 2, d = max - min
+  if (d === 0) return { h: 0, s: 0, l }
+  const s = l > 0.5 ? d / (2 - max - min) : d / (max + min)
+  let h: number
+  if (max === rn) h = ((gn - bn) / d) % 6
+  else if (max === gn) h = (bn - rn) / d + 2
+  else h = (rn - gn) / d + 4
+  h *= 60
+  if (h < 0) h += 360
+  return { h, s, l }
+}
+
+/**
+ * Fixed lightness of the AUTOMATIC badge accent: 100/240 of the Windows
+ * dialog = 5/12 HSL (~0.4167), hue-independent. Hue and saturation of the
+ * detected tint stay intact; only L is brought back to the target. MANUAL
+ * overrides (`ac=`, `accentOverride`) never pass through here: they stay
+ * byte-identical.
+ */
+export const AUTO_BADGE_ACCENT_LIGHTNESS = 5 / 12
+
+/**
+ * Normalize an automatic accent to 5/12 HSL lightness, preserving hue and
+ * saturation (pure: no I/O, no genre fallback). Achromatic grays (s = 0)
+ * become neutral gray at L = 5/12 (#6a6a6a).
+ */
+export function normalizeAutomaticAccent(color: AccentResult): AccentResult {
+  const { h, s } = rgbToHsl(color.r, color.g, color.b)
+  const hue = ((h % 360) + 360) % 360
+  const out = hslToRgb(hue, s, AUTO_BADGE_ACCENT_LIGHTNESS)
+  return {
+    r: Math.max(0, Math.min(255, out.r)),
+    g: Math.max(0, Math.min(255, out.g)),
+    b: Math.max(0, Math.min(255, out.b)),
+  }
+}
+
+/**
+ * Hex variant of normalizeAutomaticAccent for paths working in "#rrggbb"
+ * (sceneTintHex, genre fallback). Non-hex or malformed input = returned
+ * intact (never an invented color).
+ */
+export function normalizeAutomaticAccentHex(hex: string): string {
+  if (typeof hex !== "string" || !hex.startsWith("#")) return hex
+  const [r, g, b, a] = parseColor(hex)
+  if (a !== 1 || ![r, g, b].every(Number.isFinite)) return hex
+  if (!/^#[0-9a-fA-F]{6}$/.test(hex)) return hex
+  const out = normalizeAutomaticAccent({ r, g, b })
+  const to2 = (n: number) => n.toString(16).padStart(2, "0")
+  return `#${to2(out.r)}${to2(out.g)}${to2(out.b)}`
+}
+
 /** Convert HSL to RGB (H: 0-360, S: 0-1, L: 0-1) */
 function hslToRgb(H: number, S: number, L: number): AccentResult {
   const c = (1 - Math.abs(2 * L - 1)) * S

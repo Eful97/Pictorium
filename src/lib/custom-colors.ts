@@ -16,6 +16,7 @@ import {
 import {
   bottomEdgeAverage,
   findSceneTint,
+  normalizeAutomaticAccent,
   topEdgeAverage,
 } from "./accent-color"
 
@@ -53,7 +54,9 @@ export async function sampleCustomImageColors(
       .toBuffer({ resolveWithObject: true })
     if (!info.width || !info.height || data.length === 0) return null
     const g = genre || ""
-    const accent = toHex(findSceneTint(data, info.width, info.height, g))
+    // Only the badge accent is normalized to 5/12 HSL lightness (like the
+    // server render): top/bottom stay the natural edge averages.
+    const accent = toHex(normalizeAutomaticAccent(findSceneTint(data, info.width, info.height, g)))
     const topEdge = toHex(topEdgeAverage(data, info.width, info.height))
     const bottomEdge = toHex(bottomEdgeAverage(data, info.width, info.height))
     if (!accent || !topEdge || !bottomEdge) return null

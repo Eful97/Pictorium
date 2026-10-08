@@ -18,6 +18,7 @@ import {
   PosterComposite,
 } from "./poster-render-helpers"
 import { LAND_W, LAND_H } from "./image-utils"
+import { normalizeAutomaticAccentHex } from "./accent-color"
 import { renderGenreBadge, renderRankingBadge, renderExtraBadge, renderQualityBadge, renderQualityKnockoutBadge, renderComingSoonRibbon, comingSoonRibbonLayout, renderSVG, buildCustomPresetBadgeSVG, buildHousePresetBadgeSVG } from "./svg-badge"
 import { buildLogoScrim, logoContrast, logoInkLuminance, logoScrimStrength, posterLogoZoneLuminance } from "./logo-contrast"
 import { renderFirstMatchingNetworkLogoBadge, renderFirstMatchingNetworkRawBadge, renderFirstMatchingNetworkLogoBadgeHybrid, renderFirstMatchingNetworkRawBadgeHybrid, type NetworkCandidate } from "./network-svgs"
@@ -1310,11 +1311,17 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
     ? await extractSceneTint(posterBuf, genreName, analysisKey ? `${analysisKey}:${genreName ?? "x"}` : null)
     : null
 
-  const accentColorGenre = accentOverride?.genreColor ?? sceneTintHex ?? (GENRE_FALLBACK[genreName || ""] || "#555555")
-  const accentColorRank = accentOverride?.rankColor ?? sceneTintHex ?? "#555555"
+  // Automatic badge accent at fixed 5/12 HSL lightness (Windows dialog
+  // 100/240): scene-tint hue/saturation stay, only L is normalized — this
+  // also applies to the automatic genre/gray fallbacks. The manual `ac=`
+  // override never goes through normalization. Blur stays on the natural
+  // tint (never from the normalized badge): with no scene the fallback is
+  // the natural genre/gray, not the normalized accent.
+  const accentColorGenre = accentOverride?.genreColor ?? normalizeAutomaticAccentHex(sceneTintHex ?? (GENRE_FALLBACK[genreName || ""] || "#555555"))
+  const accentColorRank = accentOverride?.rankColor ?? normalizeAutomaticAccentHex(sceneTintHex ?? "#555555")
 
   // Override esplicito `ac=` vince sempre; poi tinta di scena; rete di sicurezza: fallback genere
-  const blurTintHex = accentOverride?.genreColor ?? sceneTintHex ?? accentColorGenre
+  const blurTintHex = accentOverride?.genreColor ?? sceneTintHex ?? (GENRE_FALLBACK[genreName || ""] || "#555555")
 
   // Logo baked-in in entrambi i formati (hideLogo esplicito lo salta:
   // veicolo del banner Nuvio pulito). In landscape valgono i vincoli del

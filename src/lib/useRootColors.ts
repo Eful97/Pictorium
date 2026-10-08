@@ -8,7 +8,7 @@
 import { useEffect } from "react"
 import type { TMDBImage } from "./types"
 import { isCustomPosterUrl } from "./utils"
-import { findSceneTint, topEdgeAverage, bottomEdgeAverage } from "./accent-color"
+import { findSceneTint, normalizeAutomaticAccent, topEdgeAverage, bottomEdgeAverage } from "./accent-color"
 
 function parseHexColor(value: unknown): { r: number; g: number; b: number } | null {
   if (typeof value !== "string" || !/^#[0-9a-f]{6}$/i.test(value)) return null
@@ -72,6 +72,11 @@ export function useRootColors(
     const img = new Image()
     img.crossOrigin = "anonymous"
     const setRootColors = (r: number, g: number, b: number, edgeR: number, edgeG: number, edgeB: number, bottomR: number, bottomG: number, bottomB: number) => {
+      // Only the auto accent is normalized to 5/12 HSL lightness (like the
+      // server render, so `isManualAccent` stays correct): top/bottom edges
+      // stay natural. Idempotent on the custom path (accent already normalized).
+      const auto = normalizeAutomaticAccent({ r, g, b })
+      r = auto.r; g = auto.g; b = auto.b
       const c = `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`
       root.style.setProperty("--color-accent", c)
       root.style.setProperty("--color-accent-r", String(r))
