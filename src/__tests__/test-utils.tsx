@@ -52,6 +52,7 @@ export const MOCK_CTX: PictoriumCtx = {
   previewId: null,
   setPreviewId: stubFn,
   saveConfig: asyncStubFn,
+  saveCoverOnly: asyncStubFn,
   removeMapping: asyncStubFn,
   mappingsMap: new Map(),
   goHome: stubFn,

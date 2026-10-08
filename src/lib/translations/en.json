@@ -50,6 +50,8 @@
   "ui.movie": "Movie",
   "ui.tvSeries": "TV Series",
   "ui.savePoster": "Save Poster",
+  "ui.saveCoverOnly": "Save poster only",
+  "ui.saveCoverOnlyHint": "Saves the chosen poster and logo only — badges, effects and all other styling follow your global defaults. Clears any previously saved custom styling for this title.",
   "ui.saveState": "Auto-save",
   "ui.unsavedChanges": "Unsaved changes",
   "ui.remove": "Remove",

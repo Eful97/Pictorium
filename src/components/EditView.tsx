@@ -35,7 +35,7 @@ import { TransformControls } from "@/components/TransformControls"
 import { EpisodeGroupControls } from "@/components/EpisodeGroupControls"
 import { JwRankBadge } from "@/components/JwRankBadge"
 import { usePosterPreview } from "@/lib/usePosterPreview"
-import { Check, Clock, Save, Trash2, X, ChevronLeft, ChevronDown, RectangleVertical, RectangleHorizontal, Tv, AlertTriangle, Loader2, AlertCircle } from "lucide-react"
+import { Check, Clock, Save, Image as ImageIcon, Trash2, X, ChevronLeft, ChevronDown, RectangleVertical, RectangleHorizontal, Tv, AlertTriangle, Loader2, AlertCircle } from "lucide-react"
 
 export default function EditView() {
   const accentColor = usePSelector((v) => v.accentColor)
@@ -56,6 +56,7 @@ export default function EditView() {
   const removeRecentSearch = usePSelector((v) => v.removeRecentSearch)
   const router = usePSelector((v) => v.router)
   const saveConfig = usePSelector((v) => v.saveConfig)
+  const saveCoverOnly = usePSelector((v) => v.saveCoverOnly)
   const selected = usePSelector((v) => v.selected)
   const selectedLogo = usePSelector((v) => v.selectedLogo)
   const selectLogo = usePSelector((v) => v.selectLogo)
@@ -287,22 +288,58 @@ export default function EditView() {
   ), [ed, previewPosterFilePath, previewCustomPosterUrl, selectedLogo?.file_path, selectedMapping, isLandscapeTuning])
 
   const [saveState, setSaveState] = useState<"idle" | "saving" | "error">("idle")
+  const saveStateRef = useRef(saveState)
+  saveStateRef.current = saveState
   const handleSave = useCallback(async () => {
+    if (saveStateRef.current === "saving") return
+    // Synchronous guard: the ref assignment above only runs on render, so a
+    // second call before rerender would slip through — mark in-flight now.
+    saveStateRef.current = "saving"
     setSaveState("saving")
     try {
       const ok = await saveConfig()
       if (ok !== false) {
+        saveStateRef.current = "idle"
         setSaveState("idle")
         setSaveFlash(true)
         if (saveFlashTimerRef.current) clearTimeout(saveFlashTimerRef.current)
         saveFlashTimerRef.current = setTimeout(() => setSaveFlash(false), 600)
       } else {
+        saveStateRef.current = "error"
         setSaveState("error")
       }
     } catch {
+      saveStateRef.current = "error"
       setSaveState("error")
     }
   }, [saveConfig])
+
+  // Second action: cover-only save shares the progress state (simultaneous
+  // actions disabled while saving); on success the context resets the
+  // editor visuals to the global defaults, on failure all edits are kept.
+  // Shared in-flight guard (anche per Ctrl+S): nessuna delle due azioni parte
+  // mentre l'altra è in volo.
+  const handleSaveCoverOnly = useCallback(async () => {
+    if (saveStateRef.current === "saving") return
+    saveStateRef.current = "saving"
+    setSaveState("saving")
+    try {
+      const ok = await saveCoverOnly()
+      if (ok) {
+        saveStateRef.current = "idle"
+        setSaveState("idle")
+        setSaveFlash(true)
+        if (saveFlashTimerRef.current) clearTimeout(saveFlashTimerRef.current)
+        saveFlashTimerRef.current = setTimeout(() => setSaveFlash(false), 600)
+      } else {
+        saveStateRef.current = "error"
+        setSaveState("error")
+      }
+    } catch {
+      saveStateRef.current = "error"
+      setSaveState("error")
+    }
+  }, [saveCoverOnly])
 
   // Tile custom di sessione (URL esterni aggiunti via box, non ancora salvati):
   // per-titolo, persistiti in localStorage come i draft (sopravvivono al
@@ -771,6 +808,26 @@ export default function EditView() {
                   )}
                 </button>
               )}
+              {previewPoster && (
+                <button
+                  type="button"
+                  aria-label={t("ui.saveCoverOnly")}
+                  title={t("ui.saveCoverOnlyHint")}
+                  onClick={handleSaveCoverOnly}
+                  disabled={saveState === "saving"}
+                  className={`flex items-center px-3 py-2 rounded-xl border border-white/10 bg-surface font-semibold text-xs shrink-0 cursor-pointer transition-all active:scale-95 ${
+                    saveState === "saving"
+                      ? "text-zinc-500 opacity-70 cursor-wait"
+                      : "text-zinc-300 hover:text-white"
+                  }`}
+                >
+                  {saveState === "saving" ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  ) : (
+                    <ImageIcon className="w-3.5 h-3.5" />
+                  )}
+                </button>
+              )}
             </div>
 
             {/* Mobile Segmented Switcher (Scegli Poster o Sfondi / Anteprima / Modifica) */}
@@ -938,6 +995,30 @@ export default function EditView() {
                         <>
                           <Save className="w-4 h-4" />
                           <span>{t("ui.savePoster")}</span>
+                        </>
+                      )}
+                    </button>
+                    <button
+                      type="button"
+                      aria-label={t("ui.saveCoverOnly")}
+                      title={t("ui.saveCoverOnlyHint")}
+                      onClick={handleSaveCoverOnly}
+                      disabled={saveState === "saving"}
+                      className={`min-h-[44px] px-5 rounded-xl font-semibold text-xs flex items-center gap-2 cursor-pointer transition-all ${
+                        saveState === "saving"
+                          ? "bg-zinc-800 text-zinc-400 border border-white/10 opacity-70 cursor-wait"
+                          : "btn-secondary"
+                      }`}
+                    >
+                      {saveState === "saving" ? (
+                        <>
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                          <span>{t("ui.saving")}</span>
+                        </>
+                      ) : (
+                        <>
+                          <ImageIcon className="w-4 h-4" />
+                          <span>{t("ui.saveCoverOnly")}</span>
                         </>
                       )}
                     </button>
@@ -1173,8 +1254,11 @@ export default function EditView() {
               <div className="mt-3 flex items-center gap-2 rounded-xl border border-amber-400/30 bg-amber-400/10 px-3 py-2 text-xs text-amber-200">
                 <AlertTriangle className="h-4 w-4 shrink-0" />
                 <span className="flex-1">{t("ui.unsavedChanges")}</span>
-                <button type="button" aria-label={t("ui.savePoster")} onClick={() => { void handleSave() }} className="shrink-0 rounded-lg border border-amber-400/40 px-3 py-1.5 font-semibold hover:bg-amber-400/20 transition-colors">
+                <button type="button" aria-label={t("ui.savePoster")} onClick={() => { void handleSave() }} disabled={saveState === "saving"} className="shrink-0 rounded-lg border border-amber-400/40 px-3 py-1.5 font-semibold hover:bg-amber-400/20 transition-colors disabled:opacity-60 disabled:cursor-wait">
                   {t("ui.savePoster")}
+                </button>
+                <button type="button" aria-label={t("ui.saveCoverOnly")} title={t("ui.saveCoverOnlyHint")} onClick={() => { void handleSaveCoverOnly() }} disabled={saveState === "saving"} className="shrink-0 rounded-lg border border-white/10 px-3 py-1.5 font-semibold text-zinc-300 hover:bg-white/10 transition-colors disabled:opacity-60">
+                  {t("ui.saveCoverOnly")}
                 </button>
               </div>
             )}

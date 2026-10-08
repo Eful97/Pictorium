@@ -138,6 +138,14 @@ export interface PictoriumCtx {
   previewId: string | null
   setPreviewId: React.Dispatch<React.SetStateAction<string | null>>
   saveConfig: () => Promise<boolean | void>
+  /**
+   * Cover-only save ("Salva solo poster"): persists the chosen cover image
+   * and logo identity; everything else follows the global defaults
+   * (previously frozen custom styling is cleared). On success the editor
+   * visuals reset to the global defaults so the preview matches the saved
+   * poster.
+   */
+  saveCoverOnly: () => Promise<boolean | void>
   removeMapping: (m: Mapping) => Promise<void>
   mappingsMap: Map<string, Mapping>
   goHome: () => void
@@ -2155,7 +2163,7 @@ export function usePictorium(): PictoriumCtx {
 
   const posterActivePath = navigation.previewPoster?.file_path
 
-  const { selectPoster, selectLogo, removeLogo, selectBackdrop, removeBackdrop, saveConfig: savePosterConfig } = usePosterSave({
+  const { selectPoster, selectLogo, removeLogo, selectBackdrop, removeBackdrop, saveConfig: savePosterConfig, saveCoverOnly: saveCoverOnlyPost } = usePosterSave({
     selected: navigation.selected, previewPoster: navigation.previewPoster, selectedLogo: navigation.selectedLogo,
     setSelectedLogo: navigation.setSelectedLogo, setPreviewPoster: navigation.setPreviewPoster, setPreviewId: navigation.setPreviewId,
     posters: navigation.posters, metaInfo, trendRank, mdblistAnimeList: trending.mdblistAnimeList,
@@ -2180,6 +2188,75 @@ export function usePictorium(): PictoriumCtx {
   const saveConfig = useCallback(async () => {
     return await savePosterConfig()
   }, [savePosterConfig])
+
+  const saveCoverOnly = useCallback(async () => {
+    // Snapshot pre-save: il payload cover-only preserva l'altro formato dal
+    // mapping salvato (mai dal live unsaved) e azzera la rotazione del
+    // formato selezionato — a successo il live va riconciliato al salvato,
+    // altrimenti la UI claimerebbe rotazioni/backdrop mai persistiti.
+    const key = navigation.selected ? `${navigation.selected.media_type}:${navigation.selected.id}` : null
+    const prev = key ? (mappingsMap.get(key) ?? null) : null
+    const shapeAtSave = posterShape
+    const ok = await saveCoverOnlyPost()
+    if (ok === true) {
+      // Il mapping salvato congela solo cover + logo: riconcilia l'editor ai
+      // default globali così la preview (sempre esplicita) corrisponde al
+      // poster salvato — inclusi preset applicati in precedenza. Logo
+      // selezionato e disabled intenzionale restano (congelati dal save e
+      // ripassati per l'auto-fit della scala); shape ed episodeGroupId sono
+      // preservati da resetPerTitleVisuals. Rotazioni/esclusioni/artwork
+      // sotto: formato selezionato azzerato (pinned, come il payload che
+      // omette le liste), altro formato riallineato al salvato (mai live
+      // unsaved). Il reload del mapping è già completato dentro
+      // saveCoverOnlyPost. Fallimento = edit conservati.
+      if (shapeAtSave === "landscape") {
+        setRotationBackdrops([])
+        setAutoRotateBackdrop(false)
+        setRotationPosters(prev?.cleanPosters ?? [])
+        setAutoRotateClean(prev?.autoRotateClean ?? false)
+        setExcludedPosters(prev?.excludedPosters ?? [])
+        setExcludedBackdrops(prev?.excludedBackdrops ?? [])
+        // Portrait preservato dal salvato (mai preview unsaved): riallinea la
+        // preview all'identità salvata quando esiste.
+        if (prev) {
+          const savedFile = prev.customPosterUrl && isCustomPosterUrl(prev.customPosterUrl)
+            ? prev.customPosterUrl
+            : prev.posterPath
+          if (savedFile && savedFile !== navigation.previewPoster?.file_path) {
+            navigation.setPreviewPoster({
+              file_path: savedFile,
+              iso_639_1: prev.customPosterUrl && isCustomPosterUrl(prev.customPosterUrl) ? null : (prev.language ?? null),
+              vote_average: 0,
+              width: 0,
+              height: 0,
+            })
+          }
+        }
+      } else {
+        setRotationPosters([])
+        setAutoRotateClean(false)
+        setRotationBackdrops(prev?.cleanBackdrops ?? [])
+        setAutoRotateBackdrop(prev?.autoRotateBackdrop ?? false)
+        setExcludedPosters(prev?.excludedPosters ?? [])
+        setExcludedBackdrops(prev?.excludedBackdrops ?? [])
+        // Backdrop preservato dal salvato in portrait (il payload ignora il
+        // live unsaved): riallinea la selezione al salvato.
+        if (prev?.backdropPath) {
+          if (selectedBackdrop?.file_path !== prev.backdropPath) {
+            setSelectedBackdrop({ file_path: prev.backdropPath, iso_639_1: null, vote_average: 0, width: 0, height: 0 })
+          }
+        } else if (selectedBackdrop && !prev?.backdropPath) {
+          // Nessun backdrop salvato: la preview teneva un unsaved che il save
+          // portrait non ha persistito — azzera per corrispondere al salvato.
+          // (In portrait lo sfondo non è editabile: ogni valore live è unsaved.)
+          setSelectedBackdrop(null)
+        }
+      }
+      editorCtx.resetPerTitleVisuals(navigation.selectedLogo)
+      setAccentColor(null)
+    }
+    return ok
+  }, [saveCoverOnlyPost, editorCtx, navigation, mappingsMap, posterShape, selectedBackdrop, setRotationPosters, setAutoRotateClean, setExcludedPosters, setRotationBackdrops, setAutoRotateBackdrop, setExcludedBackdrops, setSelectedBackdrop, setAccentColor])
 
   const autoSaveExcludedPosters = useCallback(async (nextExcluded: string[], nextRotationPosters?: string[], nextPreviewPoster?: TMDBImage) => {
     await savePosterConfig({
@@ -2236,7 +2313,7 @@ export function usePictorium(): PictoriumCtx {
     imdbTop250,
     metaInfo,
     previewId: navigation.previewId, setPreviewId: navigation.setPreviewId,
-    saveConfig, removeMapping, mappingsMap,
+    saveConfig, saveCoverOnly, removeMapping, mappingsMap,
     goHome: goHomeAbort, sourceView: navigation.sourceView, navigateToPoster: (item: SearchResult, source?: string) => { navigation.navigateToPoster(item, source); openPosterBrowserRef.current(item) },
     refreshLists: trending.refreshLists, loadPlatform: trending.loadPlatform,
     tmdbKey, setQuery: search.setQuery, doSearch: search.doSearch, loadMore: search.loadMore, loadMoreFiltered: search.loadMoreFiltered, retryFailed: search.retryFailed, failedPage: search.failedPage, hasSearched: search.hasSearched,
@@ -2281,7 +2358,7 @@ export function usePictorium(): PictoriumCtx {
     navigation.logos, titleOrigLang, posterActivePath, previewUrl, stremioPreview, stremioPreviewUrl, urlPattern, lang,
     openSections, posterScrollInfo, logoBounds,
     trendRank, mdblistMatch, imdbTop250, metaInfo, navigation.previewId,
-    selectPoster, selectLogo, saveConfig, removeLogo, goHomeAbort,
+    selectPoster, selectLogo, saveConfig, saveCoverOnly, removeLogo, goHomeAbort,
     mappingsMap, tmdbKey, search.query, search.results, search.searching, search.totalResults, search.totalPages, search.searchPage, search.recentSearches, search.clearRecentSearches,
     search.doSearch, search.loadMore, search.loadMoreFiltered, search.retryFailed, search.failedPage, search.hasSearched, search.error,
     mappings,

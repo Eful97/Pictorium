@@ -3,6 +3,7 @@
 import { useCallback } from "react"
 import type { SearchResult, TMDBImage, Mapping, NetworkLogoPosition, PosterShape } from "./types"
 import { titleOf, isCustomPosterUrl, splitCustomPosterSave } from "./utils"
+import { buildCoverOnlyPayload } from "./cover-only-save"
 import { computeTopBadge, resolveSavedBadgeExtra, type BadgeInput } from "./poster-badge"
 import type { SashBucket } from "./badge-priority"
 import { adjustGradientForPosterChange } from "./gradient-presets"
@@ -574,5 +575,54 @@ export function usePosterSave(deps: PosterSaveDeps) {
     }
   }, [selected, previewPoster, selectedLogo, metaInfo, logoScale, logoOffsetX, logoOffsetY, trendRank, globalBadges, rankingBadges, badgeGenre, badgeYear, badgeRating, badgeQuality, customRatings, ratingSources, separateRatings, separateRatingsStyle, mdblistAnimeList, loadMappings, customBadge, badgePresetId, badgePresetRev, badgeStyle, rankingBadgeStyle, extraBadgeStyle, badgeFont, qualityBadgeStyle, videoFormats, blurEnabled, blurIntensity, blurFade, blurDarkness, landscapeBlur, landscapeBlurDirty, tintStrength, topShade, gradientHeight, topBadgeScale, topBadgeOffsetX, topBadgeOffsetY, extraBadgeScale, extraBadgeOffsetX, extraBadgeOffsetY, genreBadgeScale, qualityBadgeScale, separateBadgeScale, separateBadgeOffsetX, separateBadgeOffsetY, networkLogoScale, genreBadgeOffsetX, genreBadgeOffsetY, qualityBadgeOffsetX, qualityBadgeOffsetY, networkLogoOffsetX, networkLogoOffsetY, rotationPosters, autoRotateClean, defaultAutoRotateClean, excludedPosters, rotationBackdrops, autoRotateBackdrop, defaultAutoRotateBackdrop, excludedBackdrops, backdrops, defaultBadgeStyle, defaultRankingBadgeStyle, defaultExtraBadgeStyle, posters, mappingsMap, accentColor, autoAccentColor, backdropOffsetX, backdropOffsetY, backdropScale, selectedBackdrop, networkLogo, networkLogoPosition, networkLogoFollowTitle, ribbonEnabled, episodeGroupId, posterShape]) // eslint-disable-line react-hooks/exhaustive-deps -- intentionally complete to save all poster state
 
-  return { selectPoster, selectLogo, removeLogo, selectBackdrop, removeBackdrop, saveConfig }
+  /**
+   * Cover-only save ("Salva solo poster" / "Save poster only"): persists
+   * the cover image + logo identity plus non-visual title metadata
+   * (see buildCoverOnlyPayload — genreName/voteAverage deliberately carried
+   * as legacy mapped metadata so the mapped render branch keeps Genre/Rating
+   * badges) via
+   * full-replace POST — never PUT, whose merge would preserve previously
+   * frozen styling instead of clearing it. Everything else follows the
+   * global defaults after save. Exclusion autosaves keep using saveConfig
+   * (full-save, unchanged).
+   */
+  const saveCoverOnly = useCallback(async () => {
+    if (!selected) return
+    const key = `${selected.media_type}:${selected.id}`
+    const body = buildCoverOnlyPayload({
+      selected,
+      previewPoster,
+      selectedBackdrop,
+      selectedLogo,
+      logoDisabled,
+      prevMapping: mappingsMap.get(key) ?? null,
+      metaInfo,
+      lang,
+      episodeGroupId,
+      posterShape,
+    })
+    if (!body) return
+    try {
+      await http("/api/mappings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      })
+      setPreviewId(`${selected.media_type}:${selected.id}`)
+      import("sonner").then(({ toast }) => toast.success(t("ui.saveSuccess"), {
+        duration: 2500,
+      }))
+      await loadMappings()
+      return true
+    } catch (error) {
+      if (error instanceof ApiError && error.status === 401) {
+        import("sonner").then(({ toast }) => toast.error(t("ui.clearCacheUnauthorized")))
+      } else {
+        import("sonner").then(({ toast }) => toast.error(t("ui.saveError")))
+      }
+      return false
+    }
+  }, [selected, previewPoster, selectedLogo, logoDisabled, selectedBackdrop, mappingsMap, metaInfo, lang, episodeGroupId, posterShape, loadMappings]) // eslint-disable-line react-hooks/exhaustive-deps -- setter refs are stable
+
+  return { selectPoster, selectLogo, removeLogo, selectBackdrop, removeBackdrop, saveConfig, saveCoverOnly }
 }

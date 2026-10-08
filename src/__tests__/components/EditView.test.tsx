@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest"
-import { screen } from "@testing-library/react"
+import { screen, fireEvent, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import EditView from "@/components/EditView"
 import { renderWithCtx } from "@/__tests__/test-utils"
@@ -200,5 +200,78 @@ describe("EditView", () => {
 
     // Should indicate saved
     expect(screen.getAllByText("ui.savedShort").length).toBeGreaterThan(0)
+  })
+
+  it("shows the cover-only save action next to the full save", () => {
+    renderWithCtx(<EditView />, {
+      selected: mockSelected,
+      previewPoster: { file_path: "/clean.jpg", iso_639_1: null, vote_average: 0, width: 1000, height: 1500 },
+    })
+    // Desktop/footer full-label button with translated accessible label + help.
+    const coverBtns = screen.getAllByRole("button", { name: "ui.saveCoverOnly" })
+    expect(coverBtns.length).toBeGreaterThanOrEqual(2)
+    const footerBtn = coverBtns.find((b) => b.textContent === "ui.saveCoverOnly")
+    expect(footerBtn).toBeInTheDocument()
+    expect(footerBtn).toHaveAttribute("title", "ui.saveCoverOnlyHint")
+    // Mobile top bar carries the same action (icon button, same label).
+    // Full save still present.
+    expect(screen.getByText("ui.savePoster")).toBeInTheDocument()
+  })
+
+  it("invokes saveCoverOnly when the cover-only action is clicked", async () => {
+    const u = userEvent.setup()
+    const saveCoverOnly = vi.fn(async () => true)
+    renderWithCtx(<EditView />, {
+      selected: mockSelected,
+      previewPoster: { file_path: "/clean.jpg", iso_639_1: null, vote_average: 0, width: 1000, height: 1500 },
+      saveCoverOnly,
+    })
+    // Footer button is enabled with idle state; click the first match.
+    const btns = screen.getAllByRole("button", { name: "ui.saveCoverOnly" })
+    expect(btns[0]).toBeEnabled()
+    await u.click(btns[0])
+    expect(saveCoverOnly).toHaveBeenCalledTimes(1)
+  })
+
+  it("blocks full save and Ctrl+S while a cover-only save is in flight", async () => {
+    const u = userEvent.setup()
+    let resolveCover!: (v: boolean) => void
+    const saveCoverOnly = vi.fn(() => new Promise<boolean>((res) => { resolveCover = res }))
+    const saveConfig = vi.fn(async () => true)
+    renderWithCtx(<EditView />, {
+      selected: mockSelected,
+      previewPoster: { file_path: "/clean.jpg", iso_639_1: null, vote_average: 0, width: 1000, height: 1500 },
+      saveCoverOnly,
+      saveConfig,
+    })
+    const coverBtns = screen.getAllByRole("button", { name: "ui.saveCoverOnly" })
+    const footerCover = coverBtns.find((b) => b.textContent === "ui.saveCoverOnly") ?? coverBtns[0]
+    const fullBtns = screen.getAllByRole("button", { name: "ui.savePoster" })
+    const footerFull = fullBtns.find((b) => b.textContent === "ui.savePoster") ?? fullBtns[0]
+    expect(footerCover).toBeEnabled()
+    expect(footerFull).toBeEnabled()
+    // Start the deferred cover-only save (do not await: stays in flight).
+    const inFlight = u.click(footerCover)
+    await waitFor(() => expect(saveCoverOnly).toHaveBeenCalledTimes(1))
+    // While in flight both actions are disabled …
+    await waitFor(() => {
+      expect(footerCover).toBeDisabled()
+      expect(footerFull).toBeDisabled()
+    })
+    // … and competing triggers (full-save click has no handler on a disabled
+    // button; Ctrl+S reaches handleSave via the shared synchronous ref guard)
+    // must not start a second save.
+    fireEvent.click(footerFull)
+    fireEvent.click(footerCover)
+    fireEvent.keyDown(window, { key: "s", ctrlKey: true })
+    expect(saveConfig).not.toHaveBeenCalled()
+    expect(saveCoverOnly).toHaveBeenCalledTimes(1)
+    // Release: both actions re-enable.
+    resolveCover(true)
+    await inFlight
+    await waitFor(() => {
+      expect(footerCover).toBeEnabled()
+      expect(footerFull).toBeEnabled()
+    })
   })
 });

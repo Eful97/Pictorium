@@ -11,6 +11,8 @@ import type { SashBucket } from "@/lib/badge-priority"
 import type { VideoFormat } from "@/lib/av-specs"
 import type { VisualPresetValues } from "@/lib/visual-presets"
 import { materializeExtraTuning, clearedExtraForPresetApply } from "@/lib/extra-materialize"
+import { logoDefaultScale } from "@/lib/logo-selection"
+import { resolveNetworkEffectiveView } from "@/lib/network-follow"
 
 /**
  * PosterEditorCtx — possiede il proprio stato di editing (badge defaults,
@@ -49,6 +51,20 @@ export const LANDSCAPE_BLUR_DEFAULTS: LandscapeBlurState = {
 
 export interface PosterEditorCtx {
   applyVisualPreset: (values: VisualPresetValues, target?: "portrait" | "landscape") => void
+  /**
+   * Riporta TUTTI i visuali per-titolo ai default globali (stessi fallback
+   * `mapping-assente ?? default*` dell'apertura titolo senza mapping), senza
+   * toccare i default stessi. Usato dopo un salvataggio "solo copertina":
+   * il mapping salvato congela solo cover + logo, quindi la preview (sempre
+   * esplicita) deve mostrare i default per corrispondere al poster salvato.
+   * Artwork (poster/backdrop/logo selezionati), logoDisabled, formato canvas,
+   * rotazioni, esclusioni ed episodeGroupId restano intatti; `logo` (il logo
+   * mantenuto) serve a risolvere la scala come `selectLogo` (default di
+   * formato > default globali > auto-fit `logoDefaultScale(logo) ?? 75`,
+   * stessa catena del server per mapping senza tuning). L'accent manuale si
+   * azzera dal chiamante (stato context).
+   */
+  resetPerTitleVisuals: (logo?: Pick<TMDBImage, "width" | "height"> | null) => void
   // ---- Badges ----
   globalBadges: boolean
   setGlobalBadges: (v: boolean | ((prev: boolean) => boolean)) => void
@@ -1257,9 +1273,112 @@ export function PosterEditorProvider({
     update(patch as Partial<DefaultsState>)
   }, [update])
 
+  // Reset post-"solo copertina": un solo merge atomico dei bare visuali ai
+  // default EFFETTIVI di formato (stessa `effectiveDefaultsForShape` del
+  // server: in landscape il profilo Orizzontale vince sui flat chiave per
+  // chiave, mai i flat grezzi — altrimenti preview=100 e salvato=140).
+  // Extra: esplicito effettivo (profilo ?? globale, null = fallback legacy
+  // preservato con check undefined — mai sempre-null); videoFormats:
+  // effettivo esplicito (profilo ?? globale, null eredita il globale via
+  // ??). Network follow/offset via `resolveNetworkEffectiveView` (stessa
+  // semantica server: un flat fixed portrait non leakka assoluti in
+  // landscape). Logo e disabled preservati (congelati dal save); la scala
+  // segue `selectLogo` (default di formato > default globali > auto-fit sul
+  // logo mantenuto, mai il live manuale). Sfumatura landscape dal profilo
+  // Orizzontale (dirty azzerato via resetLandscapeBlur); i flat sfumatura
+  // restano il profilo portrait. Intoccati: logoDisabled, posterShape,
+  // logoAlign, artwork, rotazioni, esclusioni, episodeGroupId,
+  // preRelease/ribbonSide (solo globali).
+  const resetPerTitleVisuals = useCallback((logo?: Pick<TMDBImage, "width" | "height"> | null) => {
+    const isLandReset = posterShape === "landscape"
+    const land = isLandReset ? (landscapeDefaults ?? null) : null
+    // Effective network view (server semantics, mapping assente: solo default
+    // globali + profilo — mai leak di assoluti portrait in landscape).
+    const netResetView = resolveNetworkEffectiveView(
+      null,
+      {
+        networkLogoFollowTitle: defaultNetworkLogoFollowTitle,
+        networkLogoOffsetX: defaultNetworkLogoOffsetX,
+        networkLogoOffsetY: defaultNetworkLogoOffsetY,
+      },
+      land,
+      isLandReset ? "landscape" : "poster",
+    )
+    update({
+      globalBadges: land?.globalBadges ?? defaultGlobalBadges,
+      rankingBadges: land?.rankingBadges ?? defaultRankingBadges,
+      badgeGenre: land?.badgeGenre ?? defaultBadgeGenre,
+      badgeYear: land?.badgeYear ?? defaultBadgeYear,
+      badgeRating: land?.badgeRating ?? defaultBadgeRating,
+      badgeQuality: land?.badgeQuality ?? defaultBadgeQuality,
+      customRatings: land?.customRatings ?? defaultCustomRatings,
+      ratingSources: defaultRatingSources,
+      separateRatings: land?.separateRatings ?? defaultSeparateRatings,
+      separateRatingsStyle: land?.separateRatingsStyle ?? defaultSeparateRatingsStyle,
+      badgeStyle: land?.badgeStyle ?? defaultBadgeStyle,
+      rankingBadgeStyle: land?.rankingBadgeStyle ?? defaultRankingBadgeStyle,
+      extraBadgeStyle: land?.extraBadgeStyle ?? defaultExtraBadgeStyle,
+      badgeFont: land?.badgeFont ?? defaultBadgeFont,
+      qualityBadgeStyle: land?.qualityBadgeStyle ?? defaultQualityBadgeStyle,
+      videoFormats: land?.videoFormats ?? defaultVideoFormats,
+      networkLogo: land?.networkLogo ?? defaultNetworkLogo,
+      networkLogoPosition: land?.networkLogoPosition ?? defaultNetworkLogoPosition,
+      networkLogoFollowTitle: netResetView.follow,
+      ribbonEnabled: land?.ribbonEnabled ?? defaultRibbonEnabled,
+      gradientHeight: defaultGradientHeight,
+      blurEnabled: defaultBlurEnabled,
+      blurIntensity: defaultBlurIntensity,
+      blurFade: defaultBlurFade,
+      blurDarkness: defaultBlurDarkness,
+      tintStrength: defaultTintStrength,
+      topShade: defaultTopShade,
+      topBadgeScale: land?.topBadgeScale ?? defaultTopBadgeScale,
+      topBadgeOffsetX: land?.topBadgeOffsetX ?? defaultTopBadgeOffsetX,
+      topBadgeOffsetY: land?.topBadgeOffsetY ?? defaultTopBadgeOffsetY,
+      // Null esplicito del profilo = fallback legacy (preservato): solo
+      // undefined eredita il globale. Mai sempre-null (rispetta l'extra
+      // globale esplicito).
+      extraBadgeScale: land?.extraBadgeScale !== undefined ? land.extraBadgeScale : defaultExtraBadgeScale,
+      extraBadgeOffsetX: land?.extraBadgeOffsetX !== undefined ? land.extraBadgeOffsetX : defaultExtraBadgeOffsetX,
+      extraBadgeOffsetY: land?.extraBadgeOffsetY !== undefined ? land.extraBadgeOffsetY : defaultExtraBadgeOffsetY,
+      genreBadgeScale: land?.genreBadgeScale ?? defaultGenreBadgeScale,
+      genreBadgeOffsetX: land?.genreBadgeOffsetX ?? defaultGenreBadgeOffsetX,
+      genreBadgeOffsetY: land?.genreBadgeOffsetY ?? defaultGenreBadgeOffsetY,
+      qualityBadgeScale: land?.qualityBadgeScale ?? defaultQualityBadgeScale,
+      qualityBadgeOffsetX: land?.qualityBadgeOffsetX ?? defaultQualityBadgeOffsetX,
+      qualityBadgeOffsetY: land?.qualityBadgeOffsetY ?? defaultQualityBadgeOffsetY,
+      separateBadgeScale: land?.separateBadgeScale ?? defaultSeparateBadgeScale,
+      separateBadgeOffsetX: land?.separateBadgeOffsetX ?? defaultSeparateBadgeOffsetX,
+      separateBadgeOffsetY: land?.separateBadgeOffsetY ?? defaultSeparateBadgeOffsetY,
+      networkLogoScale: land?.networkLogoScale ?? defaultNetworkLogoScale,
+      networkLogoOffsetX: netResetView.follow ? netResetView.relativeX : (netResetView.fixedX ?? defaultNetworkLogoOffsetX),
+      networkLogoOffsetY: netResetView.follow ? netResetView.relativeY : (netResetView.fixedY ?? defaultNetworkLogoOffsetY),
+    })
+    const isLand = posterShape === "landscape"
+    setLogoScale((isLand ? landscapeDefaults?.logoScale : undefined) ?? defaultLogoScale ?? (logo ? (logoDefaultScale(logo as TMDBImage) ?? 75) : 75))
+    setLogoOffsetX((isLand ? landscapeDefaults?.logoOffsetX : undefined) ?? defaultLogoOffsetX ?? 0)
+    setLogoOffsetY((isLand ? landscapeDefaults?.logoOffsetY : undefined) ?? defaultLogoOffsetY ?? 0)
+    setBackdropScale(100)
+    setBackdropOffsetX(0)
+    setBackdropOffsetY(0)
+    setCustomBadge(null)
+    setBadgePresetId(null)
+    setBadgePresetRev(null)
+    resetLandscapeBlur({
+      gradientHeight: landscapeDefaults?.gradientHeight ?? defaultGradientHeight,
+      blurEnabled: landscapeDefaults?.blurEnabled ?? defaultBlurEnabled,
+      blurIntensity: landscapeDefaults?.blurIntensity ?? defaultBlurIntensity,
+      blurFade: landscapeDefaults?.blurFade ?? defaultBlurFade ?? 70,
+      blurDarkness: landscapeDefaults?.blurDarkness ?? defaultBlurDarkness,
+      tintStrength: landscapeDefaults?.tintStrength ?? defaultTintStrength,
+      topShade: landscapeDefaults?.topShade ?? defaultTopShade,
+    })
+  }, [update, posterShape, landscapeDefaults, defaultGlobalBadges, defaultRankingBadges, defaultBadgeGenre, defaultBadgeYear, defaultBadgeRating, defaultBadgeQuality, defaultCustomRatings, defaultRatingSources, defaultSeparateRatings, defaultSeparateRatingsStyle, defaultBadgeStyle, defaultRankingBadgeStyle, defaultExtraBadgeStyle, defaultBadgeFont, defaultQualityBadgeStyle, defaultVideoFormats, defaultNetworkLogo, defaultNetworkLogoPosition, defaultNetworkLogoFollowTitle, defaultRibbonEnabled, defaultGradientHeight, defaultBlurEnabled, defaultBlurIntensity, defaultBlurFade, defaultBlurDarkness, defaultTintStrength, defaultTopShade, defaultTopBadgeScale, defaultTopBadgeOffsetX, defaultTopBadgeOffsetY, defaultExtraBadgeScale, defaultExtraBadgeOffsetX, defaultExtraBadgeOffsetY, defaultGenreBadgeScale, defaultGenreBadgeOffsetX, defaultGenreBadgeOffsetY, defaultQualityBadgeScale, defaultQualityBadgeOffsetX, defaultQualityBadgeOffsetY, defaultSeparateBadgeScale, defaultSeparateBadgeOffsetX, defaultSeparateBadgeOffsetY, defaultNetworkLogoScale, defaultNetworkLogoOffsetX, defaultNetworkLogoOffsetY, defaultLogoScale, defaultLogoOffsetX, defaultLogoOffsetY]) // eslint-disable-line react-hooks/exhaustive-deps -- setter refs are stable
+
   const editorCtx = useMemo<PosterEditorCtx>(
     () => ({
       applyVisualPreset,
+      resetPerTitleVisuals,
       // Badges
       globalBadges,
       setGlobalBadges,
@@ -1670,7 +1789,7 @@ export function PosterEditorProvider({
       defaultPosterShape, setDefaultPosterShape,
       landscapeDefaults, setLandscape, resetLandscape,
       defaultLogoAlign, setDefaultLogoAlign,
-      loadDefaultsToState, applyVisualPreset,
+      loadDefaultsToState, applyVisualPreset, resetPerTitleVisuals,
       defaultSyncStatus, retryDefaultSync,
 
       // Blur
