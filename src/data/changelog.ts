@@ -30,6 +30,30 @@ export interface ChangelogRelease {
  *  (which bumps on every commit and would leave the dot permanently on). */
 export const CHANGELOG: ChangelogRelease[] = [
   {
+    version: "1.25.2",
+    date: "2026-10-08",
+    title: "Release 1.25.2",
+    items: [
+      { type: "fix", text: "Keep badge edits when settings finish loading" },
+      { type: "fix", text: "Keep extra badge adjustments visible in settings previews" },
+      { type: "fix", text: "Retry loading settings when requests are temporarily limited" },
+      { type: "feature", text: "Place network logos freely and adjust ranking and extra badges separately" },
+      { type: "fix", text: "Translate the new rating style options" },
+      { type: "feature", text: "Add monochrome and colorful rating icons" },
+      { type: "feature", text: "Load languages on demand and retain award data" },
+      { type: "fix", text: "Keep posters responsive under heavy load" },
+      { type: "fix", text: "Keep settings headers stable on small screens" },
+      { type: "fix", text: "Translate inspired preset styles in every language" },
+      { type: "feature", text: "Simplify settings and reset quick preset transforms" },
+      { type: "feature", text: "Separate presets by format and add inspired styles" },
+      { type: "fix", text: "Move logos and badges across the poster" },
+      { type: "fix", text: "Queued poster image downloads survive when the first request aborts" },
+      { type: "fix", text: "Show the right artwork when opening landscape posters" },
+      { type: "feature", text: "Improve poster badges and landscape editing" },
+      { type: "fix", text: "Keep daily poster rotation in your profile" },
+    ],
+  },
+  {
     version: "1.25.1",
     date: "2026-10-05",
     title: "Release 1.25.1",
