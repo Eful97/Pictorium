@@ -13,7 +13,7 @@
  *   storage, or delivery changes from family switches.
  */
 import { beforeEach, describe, expect, it, vi } from "vitest"
-import { act, fireEvent, screen } from "@testing-library/react"
+import { act, fireEvent, screen, within } from "@testing-library/react"
 import { createElement, useEffect, useState } from "react"
 import { BadgeDefaultsSection } from "@/components/settings/BadgeDefaultsSection"
 import { TransformPanel } from "@/components/settings/TransformPanel"
@@ -485,5 +485,157 @@ describe("u2 i18n (18 lingue)", () => {
         expect(dict[key]?.trim(), `${langs[i]}:${key}`).toBeTruthy()
       }
     })
+  })
+})
+
+describe("transform Extra family (portrait + landscape)", () => {
+  function renderTransformHarness(shape: "portrait" | "landscape", spy?: (f: DefaultsPreviewFamily) => void) {
+    function Harness() {
+      const [family, setFamily] = useState<DefaultsPreviewFamily>("auto")
+      const handle = (f: DefaultsPreviewFamily) => {
+        spy?.(f)
+        // Same bail-out rule as SettingsPanel: identical values never update.
+        setFamily((prev) => (prev === f ? prev : f))
+      }
+      return createElement(
+        "div",
+        null,
+        createElement(TransformPanel, {
+          active: true,
+          previewShape: shape,
+          onPreviewFamilyChange: handle,
+        }),
+        createElement(DefaultsPosterPreview, {
+          previewShape: shape,
+          previewFamily: family,
+          onPreviewFamilyChange: handle,
+        }),
+        createElement("div", { "data-testid": "family" }, family),
+      )
+    }
+    return renderWithCtx(createElement(Harness))
+  }
+
+  function slidersIn(titleKey: string): HTMLElement[] {
+    const group = screen.getByText(titleKey).closest("[data-preview-family]") as HTMLElement
+    expect(group).not.toBeNull()
+    // SliderRow renders a native range input (implicit slider role, no
+    // literal role attribute): query by ARIA role, not by attribute.
+    return within(group).getAllByRole("slider") as HTMLElement[]
+  }
+
+  it("portrait Extra press on scale/X/Y reports info and previews the info sample", async () => {
+    localStorage.setItem("badgeDefaults", JSON.stringify({ defaultSashOrder: [...DEFAULT_SASH_ORDER] }))
+    const spy = vi.fn()
+    renderTransformHarness("portrait", spy)
+    await act(async () => {})
+    const storedAfterMount = localStorage.getItem("badgeDefaults")
+    const sliders = slidersIn("ui.sash_extra")
+    expect(sliders).toHaveLength(3)
+    for (const s of sliders) {
+      await act(async () => {
+        fireEvent.pointerDown(s)
+      })
+    }
+    expect(screen.getByTestId("family").textContent).toBe("info")
+    expect(spy).toHaveBeenCalledWith("info")
+    // No rank report leaked from the Extra card.
+    expect(spy.mock.calls.flat()).not.toContain("rank")
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(500)
+    })
+    const params = lastPreviewUrl()
+    expect(params.get("extra")).toBe("__badge.comingSoon")
+    expect(params.get("sash")).toBe([...DEFAULT_SASH_ORDER].join(","))
+    // Preview-only interaction: persisted defaults untouched since mount.
+    expect(localStorage.getItem("badgeDefaults")).toBe(storedAfterMount)
+  })
+
+  it("portrait Extra keyboard focus on scale/X/Y reports info", async () => {
+    localStorage.setItem("badgeDefaults", JSON.stringify({ defaultSashOrder: [...DEFAULT_SASH_ORDER] }))
+    renderTransformHarness("portrait")
+    await act(async () => {})
+    const sliders = slidersIn("ui.sash_extra")
+    expect(sliders).toHaveLength(3)
+    for (const s of sliders) {
+      await act(async () => {
+        s.focus()
+      })
+      fireEvent.focus(s)
+    }
+    expect(screen.getByTestId("family").textContent).toBe("info")
+    // No focus trap: the last focused control keeps keyboard focus.
+    expect(document.activeElement).toBe(sliders[2])
+  })
+
+  it("portrait rank scale/X/Y press+focus still report rank and narrow the preview", async () => {
+    localStorage.setItem("badgeDefaults", JSON.stringify({ defaultSashOrder: [...DEFAULT_SASH_ORDER] }))
+    renderTransformHarness("portrait")
+    await act(async () => {})
+    const storedAfterMount = localStorage.getItem("badgeDefaults")
+    const sliders = slidersIn("ui.rankFamily")
+    expect(sliders).toHaveLength(3)
+    await act(async () => {
+      fireEvent.pointerDown(sliders[0])
+    })
+    fireEvent.focus(sliders[1])
+    await act(async () => {
+      sliders[2].focus()
+    })
+    fireEvent.focus(sliders[2])
+    expect(screen.getByTestId("family").textContent).toBe("rank")
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(500)
+    })
+    expect(lastPreviewUrl().get("sash")).toBe("rank")
+    expect(localStorage.getItem("badgeDefaults")).toBe(storedAfterMount)
+  })
+
+  it("landscape Extra press+focus report info with the landscape sample; rank stays rank", async () => {
+    localStorage.setItem(
+      "badgeDefaults",
+      JSON.stringify({
+        defaultSashOrder: [...DEFAULT_SASH_ORDER],
+        landscape: { sashOrder: ["award", "rank", "extra"] },
+      }),
+    )
+    const spy = vi.fn()
+    renderTransformHarness("landscape", spy)
+    await act(async () => {})
+    const storedAfterMount = localStorage.getItem("badgeDefaults")
+    const extra = slidersIn("ui.sash_extra")
+    expect(extra).toHaveLength(3)
+    await act(async () => {
+      fireEvent.pointerDown(extra[0])
+    })
+    await act(async () => {
+      extra[1].focus()
+    })
+    fireEvent.focus(extra[1])
+    await act(async () => {
+      fireEvent.pointerDown(extra[2])
+    })
+    expect(screen.getByTestId("family").textContent).toBe("info")
+    expect(spy).toHaveBeenCalledWith("info")
+    expect(spy.mock.calls.flat()).not.toContain("rank")
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(500)
+    })
+    const params = lastPreviewUrl()
+    // Effective landscape order wins: first info bucket is now `award`.
+    expect(params.get("sash")).toBe("award,rank,extra")
+    expect(params.get("extra")).toBe("__badge.absoluteCinema")
+    // Rank controls keep selecting rank.
+    const rank = slidersIn("ui.rankFamily")
+    await act(async () => {
+      fireEvent.pointerDown(rank[0])
+    })
+    fireEvent.focus(rank[0])
+    expect(screen.getByTestId("family").textContent).toBe("rank")
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(500)
+    })
+    expect(lastPreviewUrl().get("sash")).toBe("rank")
+    expect(localStorage.getItem("badgeDefaults")).toBe(storedAfterMount)
   })
 })

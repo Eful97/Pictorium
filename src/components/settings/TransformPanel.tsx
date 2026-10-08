@@ -369,7 +369,7 @@ export function TransformPanel({ active, previewShape, onPreviewShapeChange, onP
 
       {/* Badge Extra Predefinito (indipendente dalla classifica; reset = segui) */}
       {ed.defaultRankingBadges && (
-      <div {...famAttrs("rank")} className="bg-surface/50 border border-surface2/60 rounded-xl p-3.5 space-y-2.5 shadow-sm animate-fade-in">
+      <div {...famAttrs("info")} className="bg-surface/50 border border-surface2/60 rounded-xl p-3.5 space-y-2.5 shadow-sm animate-fade-in">
         <div className="flex items-center justify-between">
           <span className="text-zinc-300 font-medium flex items-center gap-1.5">
             <Sparkles className="w-3.5 h-3.5 text-emerald-400" />

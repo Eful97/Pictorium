@@ -143,7 +143,7 @@ describe("genre family wiring (press reports, no writes)", () => {
     )
     await act(async () => {})
     // X sliders without the separate group: logo, top, extra, genre,
-    // quality, network (the extra group shares the rank preview family).
+    // quality, network (the extra group reports the info preview family).
     const sliders = screen.getAllByRole("slider", { name: "X" })
     expect(sliders.length).toBe(6)
     fireEvent.pointerDown(sliders[1])

@@ -437,7 +437,7 @@ export function LandscapeDefaultsSection({ editVal, editTxt, setEditVal, setEdit
       <div className="bg-surface/50 border border-surface2/60 rounded-xl p-3.5 space-y-3 shadow-sm">
         {scaleGroup(t("ui.rankFamily"), <Trophy className="w-3.5 h-3.5 text-amber-500" />, "topBadgeScale", "topBadgeOffsetX", "topBadgeOffsetY", ed.defaultTopBadgeScale, ed.defaultTopBadgeOffsetX, ed.defaultTopBadgeOffsetY, "lst", "rank")}
         <hr className="border-surface2/50" />
-        {scaleGroup(t("ui.sash_extra"), <Sparkles className="w-3.5 h-3.5 text-emerald-400" />, "extraBadgeScale", "extraBadgeOffsetX", "extraBadgeOffsetY", ed.defaultExtraBadgeScale ?? land.topBadgeScale ?? ed.defaultTopBadgeScale, ed.defaultExtraBadgeOffsetX ?? land.topBadgeOffsetX ?? ed.defaultTopBadgeOffsetX, ed.defaultExtraBadgeOffsetY ?? land.topBadgeOffsetY ?? ed.defaultTopBadgeOffsetY, "lse", "rank")}
+        {scaleGroup(t("ui.sash_extra"), <Sparkles className="w-3.5 h-3.5 text-emerald-400" />, "extraBadgeScale", "extraBadgeOffsetX", "extraBadgeOffsetY", ed.defaultExtraBadgeScale ?? land.topBadgeScale ?? ed.defaultTopBadgeScale, ed.defaultExtraBadgeOffsetX ?? land.topBadgeOffsetX ?? ed.defaultTopBadgeOffsetX, ed.defaultExtraBadgeOffsetY ?? land.topBadgeOffsetY ?? ed.defaultTopBadgeOffsetY, "lse", "info")}
         <hr className="border-surface2/50" />
         {scaleGroup(t("ui.genreRatingBadge"), <Star className="w-3.5 h-3.5 text-amber-400" />, "genreBadgeScale", "genreBadgeOffsetX", "genreBadgeOffsetY", ed.defaultGenreBadgeScale, ed.defaultGenreBadgeOffsetX, ed.defaultGenreBadgeOffsetY, "lsg", "genre")}
         <hr className="border-surface2/50" />
