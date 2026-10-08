@@ -140,6 +140,9 @@ const FACTORY_RESTORE = {
   topBadgeScale: 100,
   topBadgeOffsetX: 0,
   topBadgeOffsetY: 0,
+  extraBadgeScale: null,
+  extraBadgeOffsetX: null,
+  extraBadgeOffsetY: null,
   genreBadgeScale: 100,
   qualityBadgeScale: 100,
   separateBadgeScale: 130,
@@ -167,6 +170,7 @@ const FACTORY_RESTORE = {
   sashOrder: ["upcoming", "rank", "new", "award", "extra"],
   networkLogo: true,
   networkLogoPosition: "auto",
+  networkLogoFollowTitle: true,
   preRelease: false,
   ribbonSide: "left",
   ribbonEnabled: true,
@@ -545,6 +549,10 @@ test.describe("Per-title appearance + extra (no side, no ribbon duplicate)", () 
     const rankGroup = editor.getByRole("radiogroup", { name: "Classifica" })
     await expect(rankGroup).toBeVisible()
     await rankGroup.getByRole("radio", { name: "Numero" }).click()
+    // The live draft must hold: fail fast if the click did not stick (G4
+    // trace showed Nastro still checked at timeout with no rs=number URL
+    // ever emitted, while Angolo applied onto rs=default).
+    await expect(rankGroup.getByRole("radio", { name: "Numero" })).toBeChecked()
 
     // Side is defaults-only: no Posizione control per-title (not persistible).
     await expect(editor.getByRole("radiogroup", { name: "Posizione" })).toHaveCount(0)
@@ -552,14 +560,20 @@ test.describe("Per-title appearance + extra (no side, no ribbon duplicate)", () 
     const extraCard = editor
       .getByText("Stile badge extra", { exact: true })
       .locator("xpath=..")
-    await extraCard.getByRole("button", { name: "Angolo" }).click()
-
+    // The Angolo click runs INSIDE nextPreview: n is captured before the
+    // action, so the combined rs=number/xbs=corner emission cannot slip
+    // through the observation window (G4 called nextPreview with an empty
+    // action after both clicks, missing an already-emitted URL forever).
     const p = await nextPreview(
       seen,
-      async () => {},
+      async () => {
+        await extraCard.getByRole("button", { name: "Angolo" }).click()
+      },
       (u) => u.searchParams.get("rs") === "number" && u.searchParams.get("xbs") === "corner",
       (u) => u.searchParams.get("demosamples") !== "1",
     )
+    // Draft must survive both clicks through the settled preview.
+    await expect(rankGroup.getByRole("radio", { name: "Numero" })).toBeChecked()
     expect(p.get("rs")).toBe("number")
     expect(p.get("xbs")).toBe("corner")
     // Single ribbon switch, never duplicated (one param, numeral has no ribbon).

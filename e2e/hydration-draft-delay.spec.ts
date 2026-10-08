@@ -8,54 +8,86 @@ import { putDefaultsWithRetry, withDefaultsRetry } from "./defaults-retry"
 // Numero (ribbon renders, no rs=number URL ever fires); with it the preview
 // carries rs=number with xbs=corner. PUTs always pass through untouched.
 //
-// Isolation: the pre-mutation server values for every field this probe (or
-// the app autosave) can mutate are captured up front and restored in
-// afterEach (flush autosaves, reload, verify). Previously set explicit values
-// win over factory fallbacks, so a preceding non-factory style survives us.
+// Isolation: the debounced UI autosave persists FULL editor state, so this
+// file restores the canonical factory surface in afterEach (same contract
+// as badge-format-defaults) — later specs inherit factory, never our dirt.
 
 interface Seen {
   urls: string[]
 }
 
-// Server fields this probe (or the editor autosave under it) may mutate.
-// Snapshot values win on restore; keys absent initially fall back to the
-// effective factory values below.
-const RELEVANT_KEYS = [
-  "posterShape",
-  "rankingBadgeStyle",
-  "extraBadgeStyle",
-  "ribbonEnabled",
-  "ribbonSide",
-  "topBadgeScale",
-  "topBadgeOffsetX",
-  "topBadgeOffsetY",
-  "extraBadgeScale",
-  "extraBadgeOffsetX",
-  "extraBadgeOffsetY",
-  "networkLogoFollowTitle",
-  "networkLogoScale",
-  "networkLogoOffsetX",
-  "networkLogoOffsetY",
-] as const
-
-// Effective factory values (client DEFAULTS + u4 RESET precedent) for keys
-// absent from the pre-test snapshot.
-const FACTORY_FALLBACK: Record<string, unknown> = {
-  posterShape: "poster",
+// Canonical factory restore (same surface as badge-format-defaults
+// FACTORY_RESTORE): the debounced UI autosave persists FULL editor state,
+// so a partial restore leaves echoes that later specs inherit. Merge-only
+// PUT cannot delete keys: every autosaveable key is covered below at its
+// factory value, verified with toMatchObject.
+const FACTORY_RESTORE = {
+  badgeStyle: "shadow",
   rankingBadgeStyle: "default",
   extraBadgeStyle: null,
-  ribbonEnabled: true,
-  ribbonSide: "left",
+  badgeFont: "inter",
+  qualityBadgeStyle: "standard",
+  videoFormats: null,
+  blurEnabled: true,
+  blurIntensity: 20,
+  blurFade: 50,
+  blurDarkness: 30,
+  tintStrength: 20,
+  topShade: 50,
+  gradientHeight: 30,
   topBadgeScale: 100,
   topBadgeOffsetX: 0,
   topBadgeOffsetY: 0,
   extraBadgeScale: null,
   extraBadgeOffsetX: null,
   extraBadgeOffsetY: null,
-  networkLogoFollowTitle: true,
+  genreBadgeScale: 100,
+  qualityBadgeScale: 100,
+  separateBadgeScale: 130,
+  separateBadgeOffsetX: 0,
+  separateBadgeOffsetY: 0,
   networkLogoScale: 100,
+  genreBadgeOffsetX: 0,
+  genreBadgeOffsetY: 0,
+  qualityBadgeOffsetX: -10,
+  qualityBadgeOffsetY: 15,
   networkLogoOffsetX: 0,
   networkLogoOffsetY: 0,
+  globalBadges: true,
+  rankingBadges: true,
+  badgeGenre: true,
+  badgeYear: true,
+  badgeRating: true,
+  badgeQuality: true,
+  customRatings: true,
+  customRatingEndpoint: "",
+  customRatingApiKeyHeader: "",
+  ratingSources: ["imdb", "tmdb"],
+  separateRatings: false,
+  separateRatingsStyle: "column",
+  sashOrder: ["upcoming", "rank", "new", "award", "extra"],
+  networkLogo: true,
+  networkLogoPosition: "auto",
+  networkLogoFollowTitle: true,
+  preRelease: false,
+  ribbonSide: "left",
+  ribbonEnabled: true,
+  posterShape: "poster",
+  region: "IT",
+  dateFormat: "locale",
+  episodeMetadataSource: "tmdb",
+  logoAlign: null,
+  logoScale: null,
+  logoOffsetX: null,
+  logoOffsetY: null,
+  defaultAutoRotateBackdrop: false,
+  defaultLandscapeFitEnabled: true,
+  defaultPortraitFitEnabled: true,
+  disableCleanPosters: false,
+  landscape: {
+    qualityBadgeOffsetX: 0,
+    qualityBadgeOffsetY: 0,
+  },
 }
 
 function isPosterRequest(raw: string): URL | null {
@@ -134,25 +166,14 @@ async function getDefaultsWithRetry(page: Page, label: string): Promise<Record<s
   return JSON.parse(res.body) as Record<string, unknown>
 }
 
-function restorePayload(snapshot: Record<string, unknown>): Record<string, unknown> {
-  const payload: Record<string, unknown> = {}
-  for (const key of RELEVANT_KEYS) {
-    const v = snapshot[key]
-    payload[key] = v === undefined ? FACTORY_FALLBACK[key] : v
-  }
-  return payload
-}
-
-async function restoreDefaults(page: Page, snapshot: Record<string, unknown>) {
-  await putDefaultsWithRetry(page, "restore defaults", restorePayload(snapshot))
+async function restoreFactory(page: Page) {
+  await putDefaultsWithRetry(page, "restore defaults", FACTORY_RESTORE)
+  // Verify the full canonical surface — a mismatch is a real leak
+  // (merge-only PUT cannot delete keys, so every autosaved key must be
+  // covered above with its factory value).
   const got = await getDefaultsWithRetry(page, "verify restore")
-  for (const key of RELEVANT_KEYS) {
-    const want = snapshot[key] === undefined ? FACTORY_FALLBACK[key] : snapshot[key]
-    expect(got[key]).toEqual(want)
-  }
+  expect(got).toMatchObject(FACTORY_RESTORE)
 }
-
-let savedSnapshot: Record<string, unknown> | null = null
 
 test.afterEach(async ({ page }) => {
   await page.unroute("**/api/defaults*").catch(() => null)
@@ -160,10 +181,7 @@ test.afterEach(async ({ page }) => {
   // restore PUT, never after it (u4-final precedent).
   await page.waitForTimeout(1200)
   await page.goto("/")
-  if (savedSnapshot) {
-    await restoreDefaults(page, savedSnapshot)
-  }
-  savedSnapshot = null
+  await restoreFactory(page)
 })
 
 test("desktop: delayed hydration keeps clicked Numero, preview rs=number xbs=corner", async ({
@@ -172,7 +190,6 @@ test("desktop: delayed hydration keeps clicked Numero, preview rs=number xbs=cor
   await seed(page)
   await page.setViewportSize({ width: 1280, height: 900 })
   await page.goto("/")
-  savedSnapshot = await getDefaultsWithRetry(page, "snapshot defaults")
 
   // Hold every defaults GET until explicitly released (PUTs pass through).
   // Held routes on navigated-away pages abort: continue() then rejects and
@@ -260,27 +277,21 @@ test("desktop: delayed hydration keeps clicked Numero, preview rs=number xbs=cor
   expect(p.getAll("ribbon")).toEqual(["1"])
 })
 
-test("restore returns pre-seeded non-factory values", async ({ page }) => {
+test("factory restore neutralizes seeded non-factory values", async ({ page }) => {
   await seed(page)
   await page.setViewportSize({ width: 1280, height: 900 })
   await page.goto("/")
-  // Seed explicit non-factory values, then snapshot them as the prior state.
+  // Seed explicit non-factory values, then run the same factory restore the
+  // afterEach uses: the canonical surface must come back exactly.
   await putDefaultsWithRetry(page, "seed non-factory", {
     topBadgeScale: 130,
     ribbonEnabled: false,
     extraBadgeStyle: "corner",
     networkLogoFollowTitle: false,
+    separateBadgeScale: 200,
   })
-  const snapshot = await getDefaultsWithRetry(page, "snapshot seeded")
-  expect(snapshot.topBadgeScale).toBe(130)
-  expect(snapshot.ribbonEnabled).toBe(false)
-  // Mutate away, then restore via the same helper the afterEach uses.
-  await putDefaultsWithRetry(page, "mutate", {
-    topBadgeScale: 100,
-    ribbonEnabled: true,
-    extraBadgeStyle: null,
-    networkLogoFollowTitle: true,
-  })
-  await page.goto("/")
-  await restoreDefaults(page, snapshot)
+  const seeded = await getDefaultsWithRetry(page, "verify seeded")
+  expect(seeded.topBadgeScale).toBe(130)
+  expect(seeded.ribbonEnabled).toBe(false)
+  await restoreFactory(page)
 })
