@@ -12,13 +12,13 @@
  * - catena query > mapping(.landscape) > config token > defaults(.landscape) > 130;
  * - clamp 10..200, `0`/non-numerico → 130 (range come `qscale`, fallback sul
  *   nuovo default);
- * - max 3 item e ancore invariati (fuori scope di questo file).
+ * - max 5 item e ancore invariati (fuori scope di questo file).
  */
 import sharp from "sharp"
 import { describe, it, expect, vi, afterEach } from "vitest"
-import { renderSeparateRatingStack } from "@/lib/separate-rating-renderer"
+import { renderSeparateRatingStack, SEPARATE_STACK_GAP } from "@/lib/separate-rating-renderer"
 import { generatePosterBuffer, type GenerationInput } from "@/lib/poster-service"
-import { LAND_W, LAND_H } from "@/lib/image-utils"
+import { LAND_W, LAND_H, STD_W } from "@/lib/image-utils"
 import type { WikidataResult } from "@/lib/awards"
 import type { ServerDefaults } from "@/lib/server-defaults"
 import { buildPreviewUrl, buildDefaultsPreviewUrl } from "@/lib/poster-url"
@@ -438,22 +438,54 @@ describe("contenimento landscape-200 (no overlap col badge genere)", () => {
     expect(genreTop - stackBottom).toBeGreaterThanOrEqual(4)
   }, 60000)
 
-  it("a 100 nessuno shrink anche con spazio ridotto (contratto storico)", async () => {
+  it("a 100 shrink SOLO sull'overflow reale (mai per conteggio)", async () => {
     // Genere spostato di 150px verso lo stack: pressione reale (fusione delle
-    // bande), ma la colonna a scala 100 non deve restringersi mai.
+    // bande). Col cap 5 lo shrink scatta sull'overflow a qualsiasi scala —
+    // il vecchio contratto "mai shrink a 100" valeva solo col cap 3.
     const backdrop = await darkBackdrop()
     const ref = await generatePosterBuffer({ ...landInput(100), posterBuf: backdrop })
     const tight = await generatePosterBuffer({ ...landInput(100), posterBuf: backdrop, genreBadgeOffsetY: -150 })
     const refBands = await rightBands(ref)
     const tightBands = await rightBands(tight)
     expect(refBands.length).toBeGreaterThanOrEqual(5)
-    expect(tightBands.length).toBeLessThan(refBands.length)
-    // Prima pill (banda sopra il genere spostato in entrambi): stessi bordi
-    // esatti → nessuno shrink a 100. Soglie al 10%: immuni al rumore encoder.
-    const p1ref = refBands[2]
-    const p1tight = tightBands[2]
-    expect(p1tight.top).toBe(p1ref.top)
-    expect(p1tight.bottom).toBe(p1ref.bottom)
+    // Sforamento reale: la colonna si riduce e le bande restano distinte
+    // (gap scuro tra ultima pill e genere), invece di fondersi.
+    expect(tightBands.length).toBeGreaterThanOrEqual(refBands.length)
+    const stackBottom = tightBands[tightBands.length - 2].bottom
+    const genreTop = tightBands[tightBands.length - 1].top
+    expect(genreTop - stackBottom).toBeGreaterThanOrEqual(4)
+  }, 60000)
+
+  it("at 100 without pressure the column keeps the requested renderer geometry (no count-driven shrink)", async () => {
+    // Meaningful no-shrink proof: rendering the same input twice would pass
+    // even with a count-driven shrink in place. Instead the composited pills
+    // must match the dimensions requested from renderSeparateRatingStack —
+    // same pill height, same gaps, same total span — with a dark gap left
+    // before the genre badge.
+    const items3 = [
+      { id: "imdb", value: 8.7 },
+      { id: "tmdb", value: 7.9 },
+      { id: "tomatoes", value: 88 },
+    ] as const
+    const requested = await renderSeparateRatingStack([...items3], STD_W, false, "inter", 100)
+    expect(requested).not.toBeNull()
+    // Uniform pills: per-pill height derived from the requested stack bitmap.
+    const pillH = (requested!.h - SEPARATE_STACK_GAP * (items3.length - 1)) / items3.length
+    expect(Number.isInteger(pillH)).toBe(true)
+    const backdrop = await darkBackdrop()
+    const buf = await generatePosterBuffer({ ...landInput(100), posterBuf: backdrop })
+    const bands = await rightBands(buf)
+    // Right strip holds quality group + 3 pills + genre: the 3 bands right
+    // before the genre band are the composited stack pills.
+    expect(bands.length).toBeGreaterThanOrEqual(5)
+    const pills = bands.slice(bands.length - 4, bands.length - 1)
+    expect(pills).toHaveLength(3)
+    for (const pill of pills) expect(pill.bottom - pill.top + 1).toBe(pillH)
+    expect(pills[2].bottom - pills[0].top + 1).toBe(requested!.h)
+    expect(pills[1].top - pills[0].bottom).toBeGreaterThanOrEqual(4)
+    expect(pills[2].top - pills[1].bottom).toBeGreaterThanOrEqual(4)
+    const genreTop = bands[bands.length - 1].top
+    expect(genreTop - pills[2].bottom).toBeGreaterThanOrEqual(4)
   }, 60000)
 })
 

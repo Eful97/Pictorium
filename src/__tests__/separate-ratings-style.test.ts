@@ -279,8 +279,8 @@ describe("bottom-active e suppression (solo render, mai stored)", () => {
     expect(isBottomSeparateActive({ ...base, separateRatingsStyle: null })).toBe(false)
   })
 
-  it("con bg/by=1 il bottom sopprime genere+anno+voto (0-1-3 provider)", () => {
-    for (const count of [0, 1, 3]) {
+  it("con bg/by=1 il bottom sopprime genere+anno+voto (0-1-3-5 provider)", () => {
+    for (const count of [0, 1, 3, 5]) {
       const s = resolveSeparateDisplayState({
         badgesEnabled: true, badgeGenre: true, badgeYear: true, badgeRating: true,
         separateRatings: true, separateRatingsStyle: "bottom-bar", sepItemCount: count,
@@ -330,10 +330,16 @@ describe("bottom-active e suppression (solo render, mai stored)", () => {
   })
 })
 
-describe("pickSeparateRatings (0-1-3 provider, missing → [])", () => {
-  it("cap max 3 in ordine rsrc, skip miss/0", () => {
-    const agg = { sources: { imdb: 8.7, tmdb: 7.3, tomatoes: 8.8, letterboxd: 4.1 }, average: 8, count: 4 }
-    expect(pickSeparateRatings(agg, ["imdb", "tmdb", "tomatoes", "letterboxd"])).toHaveLength(3)
+describe("pickSeparateRatings (0-1-5 provider, missing → [])", () => {
+  it("cap max 5 in ordine rsrc, skip miss/0", () => {
+    const agg = { sources: { imdb: 8.7, tmdb: 7.3, tomatoes: 8.8, letterboxd: 4.1, trakt: 7.5, simkl: 8.0 }, average: 8, count: 6 }
+    expect(pickSeparateRatings(agg, ["imdb", "tmdb", "tomatoes", "letterboxd", "trakt", "simkl"])).toEqual([
+      { id: "imdb", value: 8.7 },
+      { id: "tmdb", value: 7.3 },
+      { id: "tomatoes", value: 8.8 },
+      { id: "letterboxd", value: 4.1 },
+      { id: "trakt", value: 7.5 },
+    ])
     expect(pickSeparateRatings(null, ["imdb"])).toEqual([])
     expect(pickSeparateRatings({ sources: {}, average: 0, count: 0 }, ["imdb"])).toEqual([])
   })

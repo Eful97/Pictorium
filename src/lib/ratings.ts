@@ -153,7 +153,7 @@ export function calculateAverageRating(
 }
 
 /** Cap display colonna rating separati: oltre, la colonna destra mangia il poster. */
-export const MAX_SEPARATE_RATINGS = 3
+export const MAX_SEPARATE_RATINGS = 5
 
 /** Fonti mostrate in percentuale invece che in decimi (valore /10 → `88%`). */
 const PERCENT_SOURCES: ReadonlySet<string> = new Set(["tomatoes", "popcorntime"])
@@ -166,7 +166,7 @@ export interface SeparateRating {
 /**
  * Sottoinsieme ordinato delle fonti aggregate per la colonna separata:
  * ordine di selezione `requestedSources`, skip valori mancanti/0, cap
- * MAX_SEPARATE_RATINGS. Ritorna [] quando niente è mostrabile (il chiamante
+ * MAX_SEPARATE_RATINGS (=5). Ritorna [] quando niente è mostrabile (il chiamante
  * ripiega sulla media ★).
  */
 export function pickSeparateRatings(

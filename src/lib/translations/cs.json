@@ -114,7 +114,7 @@
   "ui.ratingSources": "Provideři hodnocení",
   "ui.ratingSourcesHint": "Spočítá průměr všech aktivních poskytovatelů vybraných níže.",
   "ui.separateRatings": "Oddělená hodnocení",
-  "ui.separateRatingsHint": "Pravý sloupec s jedním hodnocením na poskytovatele (max. 3), nahrazuje průměr ★.",
+  "ui.separateRatingsHint": "Pravý sloupec s jedním hodnocením na poskytovatele (max. 5), nahrazuje průměr ★.",
   "ui.separateRatingsStyle": "Layout",
   "ui.separateRatingsColumn": "Column",
   "ui.separateRatingsBottomBar": "Bottom bar",

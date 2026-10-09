@@ -135,6 +135,9 @@ export async function renderSeparateRatingStack(
   const scale = Number.isFinite(scalePct) ? Math.min(Math.max(Math.round(scalePct), 10), 200) : 130
   // A 100 il font resta l'esatto storico (nessun arrotondamento intermedio):
   // padding, gap, loghi e ombre risultano byte-identici al passato.
+  // Cap condiviso: oltre MAX_SEPARATE_RATINGS la colonna mangerebbe il poster
+  // (stesso clamp della riga bottom; l'ordine di selezione resta al chiamante).
+  const capped = items.slice(0, MAX_SEPARATE_RATINGS)
   const fs = scale === 100 ? baseFs : Math.max(1, Math.round(baseFs * scale / 100))
   const px = Math.round(fs * 0.6)
   const pt = Math.max(2, Math.round(fs * 0.22))
@@ -144,7 +147,7 @@ export async function renderSeparateRatingStack(
   const stroke = topLight ? "rgba(0,0,0,0.12)" : "rgba(255,255,255,0.22)"
 
   const rows: { logo: { png: Buffer; w: number; h: number }; display: string; textW: number; pillH: number }[] = []
-  for (const item of items) {
+  for (const item of capped) {
     const logo = await loadSeparateRatingLogo(item.id, logoH)
     if (!logo) continue
     const display = formatSeparateValue(item.id, item.value)
@@ -181,13 +184,13 @@ export async function renderSeparateRatingStack(
 
 /**
  * Riga rating separati in basso (modalità bottom): logo provider + valore
- * affiancati in linea, max MAX_SEPARATE_RATINGS (clamp anche su chiamate
+ * affiancati in linea, max MAX_SEPARATE_RATINGS (=5, clamp anche su chiamate
  * dirette), vuota → null (mai placeholder senza dati).
  *
  * Quattro varianti in stile Pictorium (mai clone di layout esterni):
  * - `bottom-bar`: fascia satinata a tutta larghezza `width` sul bordo
  *   inferiore, celle equidistanti centrate (logo + valore inline);
- * - `bottom-pills`: 1-3 pill orizzontali satinate con contorno sottile e
+ * - `bottom-pills`: 1-5 pill orizzontali satinate con contorno sottile e
  *   ombra coerente, riga centrata di larghezza naturale (max `width`).
  * - `bottom-mono` / `bottom-color`: icone tonde + voto senza pillola/barra
  *   né contenitore (mono = piastra grigia + voto monocolore, color = piastra
@@ -200,7 +203,7 @@ export async function renderSeparateRatingStack(
  * chiaro, fondo scuro → pill chiara con testo scuro): loghi brand invariati.
  * Scala % nativa via font 10..200 (a 100 percorso
  * identico); se la riga non entra in `width` (valori lunghi tipo `100%`,
- * tre provider, scala max) fit sul font + shrink proporzionale del bitmap —
+ * cinque provider, scala max) fit sul font + shrink proporzionale del bitmap —
  * mai clipping, mai numeri minuscoli a scala 100.
  */
 export async function renderSeparateRatingsBottom(

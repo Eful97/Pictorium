@@ -2,6 +2,7 @@ import sharp from "sharp"
 import type { RatingItem } from "./custom-rating/types"
 import { renderMultiRatings } from "./multi-rating-renderer"
 import type { SeparateRating } from "./ratings"
+import { MAX_SEPARATE_RATINGS } from "./ratings"
 import { renderSeparateRatingStack, renderSeparateRatingsBottom } from "./separate-rating-renderer"
 import { cacheGet, cacheSet } from "./cache"
 import { GENRE_FALLBACK, cinematicVignetteSVG, cinematicCornerGradientSVG, topShadeSVG } from "./badges"
@@ -104,7 +105,7 @@ const IMAGE_CACHE_TAG = "poster-extract"
 
 export interface GenerationInput {
   ratings?: RatingItem[]
-  /** Colonna rating separati a destra (sostituisce la media ★), max 3. */
+  /** Colonna rating separati a destra (sostituisce la media ★), max 5. */
   separateRatings?: readonly SeparateRating[]
   // Images (already fetched)
   posterBuf: Buffer
@@ -1423,7 +1424,7 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
   const logoHasBadges = badgesEnabled
     && ((genreAvailable && (refVis?.genre ?? badgeGenre)) || (ratingAvailable && (refVis?.rating ?? badgeRating)) || (yearAvailable && (refVis?.year ?? badgeYear)))
 
-  // Riga bottom (bottom-bar/bottom-pills): stile già risolto a monte, max 3
+  // Riga bottom (bottom-bar/bottom-pills): stile già risolto a monte, max 5
   // provider. Vince difensivamente sul custom provider anche se l'input
   // portasse entrambi (la route già esclude il custom in bottom).
   // Difesa: bottom-bar mai in landscape (normalizzazione DOPO cascata, come
@@ -2589,7 +2590,7 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
   // Solo stile colonna: in modalità bottom gli items vanno alla riga sotto.
   // Fresh: i valori vivono come righe testo nella colonna meta (sotto).
   if (!customRowRendered && !isBottomStyle && input.separateRatings?.length && !isFresh) {
-    const items = input.separateRatings.slice(0, 3)
+    const items = input.separateRatings.slice(0, MAX_SEPARATE_RATINGS)
     const netPadX = Math.round(18 * CW / 380)
     const netBaseTop = Math.round(18 * CH / 570)
     // Senza qualità ma con nastro a destra, lo stack segue a sinistra come
@@ -2609,19 +2610,23 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
         .then((r) => { if (r) cacheSet(stackKey, r, ["badge"], BADGE_CACHE_TTL); return r })
     )
     const fitted = stack ? await fitBadgeToCanvas(stack, CW, CH) : null
-    // Contenimento colonna sopra il badge genere: SOLO per ingrandimenti
-    // (separateBadgeScale > 100). La resa default 100 è un contratto storico
-    // e non viene mai alterata, nemmeno con tuning preesistenti (offset o
-    // scale altrui) che riducono lo spazio disponibile. Soglia 40px: con
-    // offset arbitrari lo spazio può restare insufficiente anche dopo lo
-    // shrink — quel caso è fuori scope (garantito solo il layout normale) e
-    // si conserva leggibilità minima invece di collassare la colonna;
-    // nessuna promessa di zero overlap universale. Mai enlarge.
+    // Contenimento colonna sopra il badge genere (o dentro il canvas senza
+    // genere): SOLO shrink sull'overflow reale, mai per conteggio. La misura
+    // riusa il placement finale voluto (stackTop + sepOY, clamp dentro il
+    // canvas) e il bordo genere effettivo con gap 6px; senza genere il bordo
+    // è il fondo canvas col margine genere (20*CH/570). Gruppi 1-5 che
+    // entrano restano byte-identici a qualsiasi scala (nessun enlarge mai);
+    // solo lo sforamento scala il bitmap in proporzione. Spazio nullo o
+    // negativo (offset patologici) resta fuori scope: nessuna promessa di
+    // zero overlap universale, si conserva la colonna leggibile.
     let stackFitted = fitted
-    if (stackFitted && genreBadgeRect && separateBadgeScale > 100) {
-      const finalTop = Math.max(0, stackTop)
-      const maxStackH = genreBadgeRect.top - finalTop - 6
-      if (stackFitted.h > maxStackH && maxStackH >= 40) {
+    if (stackFitted) {
+      const intendedTop = Math.max(0, Math.min(Math.max(0, CH - 1), stackTop + sepOY))
+      const bottomEdge = genreBadgeRect
+        ? genreBadgeRect.top
+        : CH - Math.round(20 * CH / 570)
+      const maxStackH = bottomEdge - intendedTop - 6
+      if (stackFitted.h > maxStackH && maxStackH > 0) {
         stackFitted = await scaleBitmapForLayout(stackFitted, (maxStackH / stackFitted.h) * 100)
       }
     }
@@ -2648,7 +2653,7 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
   // landscape -20 X / -10 Y (LANDSCAPE_BOTTOM_PILLS_SHIFT_*). Forma canvas invariata.
   // Fresh: nessun bitmap bottom storico (i valori sono nella colonna meta).
   if (bottomItemCount > 0 && badgesEnabled && bottomVariant && !isFresh) {
-    const items = input.separateRatings!.slice(0, 3)
+    const items = input.separateRatings!.slice(0, MAX_SEPARATE_RATINGS)
     const isBar = bottomVariant === "bottom-bar"
     const availW = isBar && !isLandscape ? CW : (isLandscape ? CW - 80 : CW - 36)
     const bottomKey = badgeCacheKey("separate-bottom", bottomVariant, items.map((i) => `${i.id}${i.value}`).join(","), CW, badgeFont, separateBadgeScale, availW, bottomLight ? "bl1" : "bl0")

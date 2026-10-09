@@ -114,7 +114,7 @@
   "ui.ratingSources": "Proveedores de puntuación",
   "ui.ratingSourcesHint": "Calcula el promedio de todos los proveedores activos seleccionados abajo.",
   "ui.separateRatings": "Notas separadas",
-  "ui.separateRatingsHint": "Columna derecha con una nota por proveedor (máx. 3), reemplaza el promedio ★.",
+  "ui.separateRatingsHint": "Columna derecha con una nota por proveedor (máx. 5), reemplaza el promedio ★.",
   "ui.separateRatingsStyle": "Layout",
   "ui.separateRatingsColumn": "Column",
   "ui.separateRatingsBottomBar": "Bottom bar",

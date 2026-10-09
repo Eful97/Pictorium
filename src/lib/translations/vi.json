@@ -115,7 +115,7 @@
   "ui.ratingSources": "Nguồn đánh giá poster",
   "ui.ratingSourcesHint": "Tính trung bình tất cả nhà cung cấp đánh giá đang bật bên dưới.",
   "ui.separateRatings": "Đánh giá riêng lẻ",
-  "ui.separateRatingsHint": "Cột phải với một điểm cho mỗi nhà cung cấp (tối đa 3), thay cho điểm ★ trung bình.",
+  "ui.separateRatingsHint": "Cột phải với một điểm cho mỗi nhà cung cấp (tối đa 5), thay cho điểm ★ trung bình.",
   "ui.separateRatingsStyle": "Layout",
   "ui.separateRatingsColumn": "Column",
   "ui.separateRatingsBottomBar": "Bottom bar",

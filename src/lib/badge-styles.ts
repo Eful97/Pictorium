@@ -72,7 +72,7 @@ export function isBadgeFont(v: string | null | undefined): v is BadgeFont {
  * Layout dei rating separati: "column" (colonna destra, resa storica) oppure
  * modalità bottom ("bottom-bar" barra piena / "bottom-pills" pill singole /
  * "bottom-mono" icone tonde + voti monocolore senza contenitore /
- * "bottom-color" icone tonde brand + voti senza contenitore, max 3 provider
+ * "bottom-color" icone tonde brand + voti senza contenitore, max 5 provider
  * con genere+anno soppressi). Catena come gli altri visuali:
  * query `sepstyle` > mapping per-titolo > config token > server defaults >
  * "column". Assente o non valido → column (URL e mapping esistenti invariati).

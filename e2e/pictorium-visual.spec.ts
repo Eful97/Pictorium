@@ -553,6 +553,24 @@ test.describe("poster API — functional", () => {
     expect(buffer.length).toBeGreaterThan(1000)
   })
 
+  test("separate ratings (sep=1) — five providers column — valid image", async ({ request }) => {
+    // Smoke check only: the five-source and three-source requests both render
+    // valid posters with different bytes. Different bytes alone do not prove
+    // all five pills are drawn — the five-pill layout is covered by unit
+    // geometry in separate-ratings-cap5.test.ts. This guards the end-to-end
+    // path (route → aggregation → column) for the five-source request.
+    const fiveUrl = posterUrl({ genreName: "Action", voteAverage: "7.8", badges: "1", ranking: "0", imdbId: "tt0133093", sep: "1", rsrc: "imdb,tmdb,tomatoes,popcorntime,metacritic" })
+    const threeUrl = posterUrl({ genreName: "Action", voteAverage: "7.8", badges: "1", ranking: "0", imdbId: "tt0133093", sep: "1", rsrc: "imdb,tmdb,tomatoes" })
+    const fiveRes = await request.get(fiveUrl)
+    expect(fiveRes.ok()).toBeTruthy()
+    const fiveBuffer = await fiveRes.body()
+    expect(fiveBuffer.length).toBeGreaterThan(1000)
+    const threeRes = await request.get(threeUrl)
+    expect(threeRes.ok()).toBeTruthy()
+    const threeBuffer = await threeRes.body()
+    expect(Buffer.compare(fiveBuffer, threeBuffer)).not.toBe(0)
+  })
+
   test("anime ratings (anilist+kitsu) — aggregated + separate column — valid image", async ({ request }) => {
     // imdbId anime in query → snapshot locale mappa tt0388629 (unico:
     // anilist 21/kitsu 12, zero /mappings), voti AniList/Kitsu dal mock,

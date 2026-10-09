@@ -40,4 +40,26 @@ describe("renderSeparateRatingStack (colonna uniforme: logo sopra, punteggio sot
     expect(await renderSeparateRatingStack([{ id: "nope", value: 7.0 }], 380, true)).toBeNull()
     expect(await renderSeparateRatingStack([], 380, true)).toBeNull()
   })
+
+  it("cap condiviso a 5: 1-5 invariati per conteggio, 6+ clampati in ordine", async () => {
+    const five = [
+      { id: "imdb", value: 8.4 },
+      { id: "tmdb", value: 8.0 },
+      { id: "tomatoes", value: 9.2 },
+      { id: "letterboxd", value: 4.1 },
+      { id: "trakt", value: 7.5 },
+    ]
+    const three = await renderSeparateRatingStack(five.slice(0, 3), 380, true)
+    const fiveRow = await renderSeparateRatingStack(five, 380, true)
+    const sixRow = await renderSeparateRatingStack([...five, { id: "simkl", value: 8.1 }], 380, true)
+    expect(three).not.toBeNull()
+    expect(fiveRow).not.toBeNull()
+    expect(sixRow).not.toBeNull()
+    // Più provider = colonna più alta, stessa larghezza di colonna dritta.
+    expect(fiveRow!.h).toBeGreaterThan(three!.h)
+    // Il sesto non cambia un pixel (ordine preservato, clamp a 5).
+    expect(sixRow!.w).toBe(fiveRow!.w)
+    expect(sixRow!.h).toBe(fiveRow!.h)
+    expect(sixRow!.png.equals(fiveRow!.png)).toBe(true)
+  })
 })

@@ -33,7 +33,7 @@ describe.each(STYLES)("%s round ratings", (style) => {
     else expect(colored).toBeGreaterThan(100)
   })
 
-  it("supports both background polarities, font/scale, small widths and the max-3 cap", async () => {
+  it("supports both background polarities, font/scale, small widths and the max-5 cap", async () => {
     const base = await renderSeparateRatingsBottom(ITEMS, 500, style, "inter", 100, 464, false)
     const light = await renderSeparateRatingsBottom(ITEMS, 500, style, "inter", 100, 464, true)
     const large = await renderSeparateRatingsBottom(ITEMS, 500, style, "oswald", 150, 1000, false)
@@ -41,8 +41,13 @@ describe.each(STYLES)("%s round ratings", (style) => {
     expect(light!.png.equals(base!.png)).toBe(false)
     expect(large!.h).toBeGreaterThan(base!.h)
     expect(narrow!.w).toBeLessThanOrEqual(100)
-    const extra = await renderSeparateRatingsBottom([...ITEMS, { id: "letterboxd", value: 8 }], 500, style, "inter", 100, 464, false)
-    expect(extra!.png.equals(base!.png)).toBe(true)
+    // Quarto/quinto provider allargano la riga (cap 5, non più 3); il sesto è clamp.
+    const four = await renderSeparateRatingsBottom([...ITEMS, { id: "letterboxd", value: 8 }], 500, style, "inter", 100, 1000, false)
+    expect(four!.png.equals(base!.png)).toBe(false)
+    const five = [...ITEMS, { id: "letterboxd", value: 8 }, { id: "trakt", value: 7.5 }]
+    const fiveRow = await renderSeparateRatingsBottom(five, 500, style, "inter", 100, 1000, false)
+    const sixRow = await renderSeparateRatingsBottom([...five, { id: "simkl", value: 8.1 }], 500, style, "inter", 100, 1000, false)
+    expect(sixRow!.png.equals(fiveRow!.png)).toBe(true)
     expect(await renderSeparateRatingsBottom([], 500, style)).toBeNull()
     expect(await renderSeparateRatingsBottom([{ id: "unknown", value: 7 }], 500, style)).toBeNull()
   })

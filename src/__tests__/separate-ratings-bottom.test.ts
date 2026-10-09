@@ -3,7 +3,7 @@
  * (renderer + layout, nessuna UI).
  *
  * Contratto:
- * - logo + valore inline, max 3 (clamp anche su chiamate dirette), vuota → null;
+ * - logo + valore inline, max 5 (clamp anche su chiamate dirette), vuota → null;
  * - percent per la famiglia percent, font/scala esistenti, scala 10..200 nativa;
  * - fit sicuro: font-loop + shrink proporzionale, mai clipping;
  * - colonna byte-identica (qui solo regressione indiretta: i test colonna
@@ -30,15 +30,26 @@ const ITEMS = [
 ] as const
 
 describe("renderSeparateRatingsBottom base", () => {
-  it("max 3 provider anche su chiamate dirette (4 → clamp a 3)", async () => {
-    expect(MAX_SEPARATE_RATINGS).toBe(3)
+  it("max 5 provider anche su chiamate dirette (3 invariati, 6 → clamp a 5)", async () => {
+    expect(MAX_SEPARATE_RATINGS).toBe(5)
     const three = await renderSeparateRatingsBottom([...ITEMS], 500, "bottom-pills")
     const four = await renderSeparateRatingsBottom([...ITEMS, { id: "letterboxd", value: 4.1 }], 500, "bottom-pills")
+    // Caso storico a 3 invariato: il quarto provider si disegna davvero.
     expect(three).not.toBeNull()
     expect(four).not.toBeNull()
-    expect(four!.w).toBe(three!.w)
-    expect(four!.h).toBe(three!.h)
-    expect(four!.png.equals(three!.png)).toBe(true)
+    expect(four!.png.equals(three!.png)).toBe(false)
+    // La riga resta contenuta in maxWidth (fit sul font se serve, mai clipping).
+    expect(four!.w).toBeLessThanOrEqual(500)
+    // Cap a 5 senza interferenze di fit (width larga): il sesto provider non
+    // cambia più un pixel (ordine preservato).
+    const fiveItems = [...ITEMS, { id: "letterboxd", value: 4.1 }, { id: "trakt", value: 7.5 }] as const
+    const five = await renderSeparateRatingsBottom([...fiveItems], 500, "bottom-pills", "inter", 130, 2000)
+    const six = await renderSeparateRatingsBottom([...fiveItems, { id: "simkl", value: 8.0 }], 500, "bottom-pills", "inter", 130, 2000)
+    expect(five).not.toBeNull()
+    expect(six).not.toBeNull()
+    expect(six!.w).toBe(five!.w)
+    expect(six!.h).toBe(five!.h)
+    expect(six!.png.equals(five!.png)).toBe(true)
   })
 
   it("vuota → null (mai placeholder senza dati)", async () => {
@@ -54,7 +65,7 @@ describe("renderSeparateRatingsBottom base", () => {
     expect(formatSeparateValue("imdb", 8.75)).toBe("8.8")
   })
 
-  it("bar full-width, pills 1/2/3 crescenti", async () => {
+  it("bar full-width, pills 1/2/3/5 crescenti (3 storico invariato)", async () => {
     const bar = await renderSeparateRatingsBottom([...ITEMS], 500, "bottom-bar", "inter", 100, 500)
     expect(bar).not.toBeNull()
     expect(bar!.w).toBe(500)
@@ -66,6 +77,16 @@ describe("renderSeparateRatingsBottom base", () => {
     expect(two!.w).toBeGreaterThan(one!.w)
     expect(three!.w).toBeGreaterThan(two!.w)
     expect(three!.h).toBe(one!.h)
+    // Quinto provider senza interferenze di fit (width larga): la riga cresce
+    // ancora in larghezza, stessa altezza (nessun wrap, nessuna riga in più).
+    const wide3 = await renderSeparateRatingsBottom([...ITEMS], 500, "bottom-pills", "inter", 130, 2000)
+    const wide5 = await renderSeparateRatingsBottom(
+      [...ITEMS, { id: "letterboxd", value: 4.1 }, { id: "trakt", value: 7.5 }],
+      500, "bottom-pills", "inter", 130, 2000,
+    )
+    expect(wide5).not.toBeNull()
+    expect(wide5!.w).toBeGreaterThan(wide3!.w)
+    expect(wide5!.h).toBe(wide3!.h)
   })
 
   it("scala nativa 100→150, bound 10..200, garbage → 130 (nuovo default)", async () => {
@@ -620,21 +641,23 @@ describe("logo anchor invariance column/bottom (reservation logoBadgeVisibility)
   }, 120000)
 
   it("landscape pills: ancoraggio destro esatto in entrambe le polarità (mai centrate)", async () => {
+    const fiveItems = [...ITEMS, { id: "letterboxd", value: 4.1 }, { id: "trakt", value: 7.5 }] as const
     for (const bottomLight of [false, true]) {
-      for (const count of [1, 2, 3]) {
+      for (const count of [1, 2, 3, 5]) {
+      const items = count === 5 ? [...fiveItems] : [...ITEMS].slice(0, count)
       const bg = bottomLight
         ? await sharp({ create: { width: LAND_W, height: LAND_H, channels: 3, background: "#e8e8e8" } }).jpeg().toBuffer()
         : await landBase()
       const buf = await generatePosterBuffer({
         ...logoInput(), posterBuf: bg, shape: "landscape",
         ...routeLikeFlags("bottom-pills", true, true, count),
-        separateRatingsStyle: "bottom-pills", separateRatings: [...ITEMS].slice(0, count),
+        separateRatingsStyle: "bottom-pills", separateRatings: items,
         topLight: false, bottomLight,
       })
       // Larghezza attesa dagli stessi argomenti del service (badgePw=500 in
       // landscape, availW=CW-80, scala 130): le pills usano il margine
       // interno pieno 18*CW/380 senza il +40 ottico del genere.
-      const row = await renderSeparateRatingsBottom([...ITEMS].slice(0, count), 500, "bottom-pills", "inter", 130, LAND_W - 80, bottomLight)
+      const row = await renderSeparateRatingsBottom(items, 500, "bottom-pills", "inter", 130, LAND_W - 80, bottomLight)
       expect(row).not.toBeNull()
       const rightPad = Math.round(18 * LAND_W / 380)
       // Base landscape -20 X (LANDSCAPE_BOTTOM_PILLS_SHIFT_X) dopo l'ancoraggio
@@ -643,7 +666,9 @@ describe("logo anchor invariance column/bottom (reservation logoBadgeVisibility)
       // Margine destro pieno + rientro 20 (~56px su 768), mai a filo bordo.
       expect(LAND_W - (expectedLeft + row!.w)).toBe(rightPad - LANDSCAPE_BOTTOM_PILLS_SHIFT_X)
       const centeredLeft = Math.round((LAND_W - row!.w) / 2)
-      expect(Math.abs(expectedLeft - centeredLeft)).toBeGreaterThan(50)
+      // Righe strette mai centrate; a 5 provider la riga è quasi full-width e
+      // l'ancoraggio destro coincide quasi col centro (solo pixel-check sotto).
+      if (count <= 3) expect(Math.abs(expectedLeft - centeredLeft)).toBeGreaterThan(50)
       const { data, info } = await sharp(buf).ensureAlpha().raw().toBuffer({ resolveWithObject: true })
       let minX = info.width, maxX = -1, countPx = 0
       for (let y = info.height - 130; y < info.height; y++) {
@@ -662,7 +687,7 @@ describe("logo anchor invariance column/bottom (reservation logoBadgeVisibility)
     }
   }, 180000)
 
-  it("landscape pills scala 200: max 3 senza clipping, titolo mai coperto", async () => {
+  it("landscape pills scala 200: max 5 senza clipping, titolo mai coperto", async () => {
     const base = await landBase()
     const logo = await magentaLogo()
     const shared = {

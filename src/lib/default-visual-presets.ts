@@ -11,7 +11,7 @@ import { captureVisualPreset, type VisualPresetValues } from "./visual-presets"
  * mappings per-titolo, alias,
  * preset utente, cataloghi, endpoint/chiavi custom rating, region, lingue,
  * gradienti custom locali. `ratingSources` preserva la lista esatta a 16
- * (preferenze/priorità): il renderer mostra al max MAX_SEPARATE_RATINGS=3.
+ * (preferenze/priorità): il renderer mostra al max MAX_SEPARATE_RATINGS=5.
  */
 
 export const BETTER_POSTER_PRESET_LABEL = "BetterPoster"

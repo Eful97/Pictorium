@@ -148,15 +148,20 @@ describe("pickSeparateRatings / formatSeparateValue (colonna separati)", () => {
   }
 
   it("ordine di selezione, skip miss/zero, cap MAX_SEPARATE_RATINGS", () => {
-    expect(MAX_SEPARATE_RATINGS).toBe(3)
+    expect(MAX_SEPARATE_RATINGS).toBe(5)
     expect(pickSeparateRatings(sample, ["tmdb", "imdb"])).toEqual([
       { id: "tmdb", value: 8.0 },
       { id: "imdb", value: 8.4 },
     ])
     // Miss skippata, ordine preservato
     expect(pickSeparateRatings(sample, ["letterboxd", "tomatoes"])).toEqual([{ id: "tomatoes", value: 9.2 }])
-    // Cap a 3 anche con 4 disponibili
-    expect(pickSeparateRatings(sample, ["imdb", "tmdb", "tomatoes", "popcorntime"])).toHaveLength(3)
+    // Cap a 5: 4 disponibili passano tutti, in ordine di selezione
+    expect(pickSeparateRatings(sample, ["imdb", "tmdb", "tomatoes", "popcorntime"])).toEqual([
+      { id: "imdb", value: 8.4 },
+      { id: "tmdb", value: 8.0 },
+      { id: "tomatoes", value: 9.2 },
+      { id: "popcorntime", value: 7.9 },
+    ])
     // Zero/mancanti → []
     expect(pickSeparateRatings(sample, ["letterboxd", "mal"])).toEqual([])
     expect(pickSeparateRatings(null, ["imdb"])).toEqual([])
@@ -164,6 +169,29 @@ describe("pickSeparateRatings / formatSeparateValue (colonna separati)", () => {
     expect(pickSeparateRatings(sample)).toEqual([
       { id: "imdb", value: 8.4 },
       { id: "tmdb", value: 8.0 },
+    ])
+  })
+
+  it("cap a 5 con 6+ fonti: ordine rsrc preservato, miss/zero skippati prima del cap", () => {
+    const six = {
+      sources: { imdb: 8.4, tmdb: 8.0, tomatoes: 9.2, popcorntime: 7.9, letterboxd: 4.1, trakt: 7.5, mal: 0 },
+      average: 7.5,
+      count: 7,
+    }
+    expect(pickSeparateRatings(six, ["imdb", "tmdb", "tomatoes", "popcorntime", "letterboxd", "trakt", "mal"])).toEqual([
+      { id: "imdb", value: 8.4 },
+      { id: "tmdb", value: 8.0 },
+      { id: "tomatoes", value: 9.2 },
+      { id: "popcorntime", value: 7.9 },
+      { id: "letterboxd", value: 4.1 },
+    ])
+    // Miss/zero non consumano il cap: saltati prima di contare i visibili.
+    expect(pickSeparateRatings(six, ["mal", "imdb", "tmdb", "tomatoes", "popcorntime", "letterboxd", "trakt"])).toEqual([
+      { id: "imdb", value: 8.4 },
+      { id: "tmdb", value: 8.0 },
+      { id: "tomatoes", value: 9.2 },
+      { id: "popcorntime", value: 7.9 },
+      { id: "letterboxd", value: 4.1 },
     ])
   })
 

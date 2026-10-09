@@ -2,7 +2,7 @@ import sharp from "sharp"
 import type { RatingItem } from "./custom-rating/types"
 import { formatRating } from "./custom-rating/formatter"
 import type { SeparateRating } from "./ratings"
-import { formatSeparateValue } from "./ratings"
+import { formatSeparateValue, MAX_SEPARATE_RATINGS } from "./ratings"
 import type { PosterComposite } from "./poster-render-helpers"
 import { renderSVG } from "./svg-badge"
 import { escSvg, estimateTextWidth, fontFamilyFor, normalizeBadgeFont, textFitAttrs } from "./badge-svg-shared"
@@ -641,7 +641,7 @@ export interface FreshMetaRow {
  *   separate rows, never duplicated);
  * - custom rows keep the existing MAX_CUSTOM_RATINGS cap with the existing
  *   finite-only filter (same as renderMultiRatings); separate rows keep the
- *   existing 3-item cap. No row without a real value.
+ *   existing MAX_SEPARATE_RATINGS (=5) cap. No row without a real value.
  */
 export function freshMetaRows(input: FreshMetaInput): FreshMetaRow[] {
   if (!input.badgesEnabled) return []
@@ -662,7 +662,7 @@ export function freshMetaRows(input: FreshMetaInput): FreshMetaRow[] {
     .filter((c) => Number.isFinite(c.value))
     .slice(0, MAX_CUSTOM_RATINGS)
   const showCustom = input.customRatingsEnabled && !display.suppressCustomRow && customItems.length > 0
-  const separates = (input.separateRatings ?? []).slice(0, 3)
+  const separates = (input.separateRatings ?? []).slice(0, MAX_SEPARATE_RATINGS)
   const showSeparate = !showCustom && separates.length > 0 && (display.useSeparate || display.bottomActive)
   if (showCustom) {
     for (const c of customItems) {
@@ -1685,7 +1685,7 @@ export function freshUnrankedPlacement(
  * shade never darkens that chrome; base + blur + encoding stay with the
  * single renderer (canonical pipeline, abort/slot protections unchanged).
  * Meta, provider and logo are clamped inside the canvas even with the
- * maximum row count (custom MAX_CUSTOM_RATINGS + 3 separate).
+ * maximum row count (custom MAX_CUSTOM_RATINGS + MAX_SEPARATE_RATINGS separate).
  */
 export async function composeFreshOverlay(input: ComposeFreshInput): Promise<PosterComposite[]> {
   const layers: PosterComposite[] = []

@@ -265,7 +265,7 @@ describe("fresh meta rows (shared gates)", () => {
     expect(rows.map((r) => r.kind)).toEqual(["genre", "year"])
   })
 
-  it("prefers separate values over the average and caps at 3", () => {
+  it("prefers separate values over the average and caps at 5", () => {
     const rows = freshMetaRows(
       metaInput({
         separateRatingsEnabled: true,
@@ -274,10 +274,19 @@ describe("fresh meta rows (shared gates)", () => {
           { id: "tmdb", value: 7.9 },
           { id: "tomatoes", value: 8.8 },
           { id: "mal", value: 8.1 },
+          { id: "trakt", value: 7.5 },
+          { id: "simkl", value: 8.0 },
         ],
       }),
     )
-    expect(rows.filter((r) => r.kind === "separate")).toHaveLength(3)
+    expect(rows.filter((r) => r.kind === "separate")).toHaveLength(5)
+    expect(rows.filter((r) => r.kind === "separate").map((r) => r.text)).toEqual([
+      "8.7 IMDB",
+      "7.9 TMDB",
+      "88% TOMATOES",
+      "8.1 MAL",
+      "7.5 TRAKT",
+    ])
     expect(rows.some((r) => r.kind === "rating")).toBe(false)
   })
 

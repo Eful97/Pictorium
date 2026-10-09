@@ -117,7 +117,7 @@
   "ui.ratingSources": "Poster Providers",
   "ui.ratingSourcesHint": "Calculates the average of all active rating providers selected below.",
   "ui.separateRatings": "Separate ratings",
-  "ui.separateRatingsHint": "Right column with one score per provider (max 3), replacing the ★ average.",
+  "ui.separateRatingsHint": "Right column with one score per provider (max 5), replacing the ★ average.",
   "ui.separateRatingsStyle": "Layout",
   "ui.separateRatingsColumn": "Column",
   "ui.separateRatingsBottomBar": "Bottom bar",

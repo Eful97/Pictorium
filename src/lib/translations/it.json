@@ -117,7 +117,7 @@
   "ui.ratingSources": "Provider del voto",
   "ui.ratingSourcesHint": "Calcola la media di tutti i provider attivi selezionati sotto.",
   "ui.separateRatings": "Rating separati",
-  "ui.separateRatingsHint": "Colonna a destra con un voto per provider (max 3), al posto della media ★.",
+  "ui.separateRatingsHint": "Colonna a destra con un voto per provider (max 5), al posto della media ★.",
   "ui.separateRatingsStyle": "Layout",
   "ui.separateRatingsColumn": "Colonna",
   "ui.separateRatingsBottomBar": "Barra in basso",
