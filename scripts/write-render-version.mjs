@@ -10,9 +10,13 @@ const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..")
 // Stremio vengono invalidate senza dover bumpare nulla a mano.
 // NB: NON includere `render-version.ts` (è l'output dello script).
 // File esclusi intenzionalmente: poster-runtime-cache.ts, cache.ts,
-// flixpatrol.ts, ratings.ts — influenzano ranking/cache ma non il rendering
-// visivo byte-level; non devono invalidare rv. justwatch.ts È incluso da
-// quando le offerte JW guidano l'effetto pre-digitale (velo + badge).
+// flixpatrol.ts — influenzano ranking/cache ma non il rendering visivo
+// byte-level; non devono invalidare rv. justwatch.ts È incluso da quando le
+// offerte JW guidano l'effetto pre-digitale (velo + badge). ratings.ts È
+// incluso da quando i layout Card aggregano i valori separati (cap condiviso
+// + normalizzazione /10 guidano i pixel della banda card via card-layout.ts);
+// prima guidava solo ranking/cache ed era fuori elenco (fail-closed
+// render-version-files.test.ts).
 const RENDER_FILES = [
   "src/app/api/poster/[type]/[id]/route.ts",
   "src/lib/accent-color.ts",
@@ -30,6 +34,9 @@ const RENDER_FILES = [
   "src/lib/badge-variables.ts",
   "src/lib/badges.ts",
   "src/lib/blur.ts",
+  "src/lib/card-layout-geometry.ts",
+  "src/lib/card-layout-skins.ts",
+  "src/lib/card-layout.ts",
   "src/lib/config-token.ts",
   "src/lib/custom-image-validate.ts",
   "src/lib/custom-poster-base.ts",
@@ -57,6 +64,7 @@ const RENDER_FILES = [
   "src/lib/poster-service.ts",
   "src/lib/poster-url.ts",
   "src/lib/pre-release.ts",
+  "src/lib/ratings.ts",
   "src/lib/release-badge.ts",
   "src/lib/separate-rating-renderer.ts",
   "src/lib/server-defaults.ts",

@@ -8,20 +8,29 @@ export function isPosterShape(value: unknown): value is PosterShape {
 }
 
 /**
- * Graphical poster layout: "standard" (historic render, default) or "fresh"
- * (opt-in graphical layout). Shared by the query key (`layout`), per-title
+ * Graphical poster layout: "standard" (historic render, default), "fresh"
+ * (opt-in graphical layout), or one of the cover layouts ("provider-glass",
+ * "nuvio", "stremio" — accepted and serialized intact through the whole
+ * query > mapping > config token > defaults chain, rendered by a later
+ * delivery). Shared by the query key (`layout`), per-title
  * mapping (flat + landscape profile), config token, server defaults (flat +
  * landscape profile) and the render config; the single renderer draws
  * "fresh" via fresh-layout.ts (shade + glass numeral + meta column),
  * reusing the standard base/blur/chrome.
  */
-export const POSTER_LAYOUTS = ["standard", "fresh"] as const
+export const POSTER_LAYOUTS = ["standard", "fresh", "provider-glass", "nuvio", "stremio"] as const
 export type PosterLayout = (typeof POSTER_LAYOUTS)[number]
 
 export const DEFAULT_POSTER_LAYOUT: PosterLayout = "standard"
 
 export function isPosterLayout(value: unknown): value is PosterLayout {
-  return value === "standard" || value === "fresh"
+  return (
+    value === "standard" ||
+    value === "fresh" ||
+    value === "provider-glass" ||
+    value === "nuvio" ||
+    value === "stremio"
+  )
 }
 
 /**

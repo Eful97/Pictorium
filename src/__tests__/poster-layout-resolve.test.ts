@@ -64,3 +64,36 @@ describe("resolveOpenPosterLayout (mapping effective > effective shape default)"
     expect(resolveOpenPosterLayout(null, "poster", "standard", { posterLayout: "fresh" })).toBe("standard")
   })
 })
+
+const COVER_LAYOUTS = ["provider-glass", "nuvio", "stremio"] as const
+
+describe("cover layouts contract-only (portrait + landscape)", () => {
+  it.each(COVER_LAYOUTS)("portrait follows the flat default for %s", (layout) => {
+    expect(effectiveShapeDefaultLayout(layout, {}, "poster")).toBe(layout)
+    expect(effectiveShapeDefaultLayout(layout, { posterLayout: "fresh" }, "poster")).toBe(layout)
+  })
+
+  it.each(COVER_LAYOUTS)("landscape prefers the profile, absent keys follow the flat for %s", (layout) => {
+    expect(effectiveShapeDefaultLayout("standard", { posterLayout: layout }, "landscape")).toBe(layout)
+    expect(effectiveShapeDefaultLayout(layout, { posterLayout: "standard" }, "landscape")).toBe("standard")
+    expect(effectiveShapeDefaultLayout(layout, null, "landscape")).toBe(layout)
+  })
+
+  it.each(COVER_LAYOUTS)("open resolution keeps %s per shape independently", (layout) => {
+    const other = layout === "nuvio" ? "stremio" : "nuvio"
+    const m = mapping({ posterLayout: layout, landscape: { posterLayout: other } })
+    expect(resolveOpenPosterLayout(m, "poster", "standard", null)).toBe(layout)
+    expect(resolveOpenPosterLayout(m, "landscape", "standard", null)).toBe(other)
+  })
+
+  it.each(COVER_LAYOUTS)("flat mapping %s is the landscape fallback when the profile is absent", (layout) => {
+    const m = mapping({ posterLayout: layout })
+    expect(resolveOpenPosterLayout(m, "landscape", "standard", null)).toBe(layout)
+    expect(resolveOpenPosterLayout(m, "poster", "standard", null)).toBe(layout)
+  })
+
+  it.each(COVER_LAYOUTS)("null mapping follows the effective shape default for %s", (layout) => {
+    expect(resolveOpenPosterLayout(null, "poster", layout, { posterLayout: "fresh" })).toBe(layout)
+    expect(resolveOpenPosterLayout(null, "landscape", "standard", { posterLayout: layout })).toBe(layout)
+  })
+})

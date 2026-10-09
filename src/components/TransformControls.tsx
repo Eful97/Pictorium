@@ -11,6 +11,7 @@ import { useNetworkFreeze } from "@/lib/useNetworkFreeze"
 import { useNetworkGeometry } from "@/lib/useNetworkGeometry"
 import { resolveNetworkShapeView } from "@/lib/network-follow"
 import { logoEffectiveAutoScale, resolveLogoDisplayedRank, FRESH_TITLE_LOGO_MAX_SCALE, STANDARD_TITLE_LOGO_MAX_SCALE } from "@/lib/logo-selection"
+import { isCardSkin } from "@/lib/card-layout-skins"
 import { defaultGradientHeightForPoster } from "@/lib/gradient-defaults"
 import { naturalGradientForPoster } from "@/lib/gradient-presets"
 import { GradientPresetRow } from "@/components/GradientPresetRow"
@@ -65,6 +66,20 @@ export function TransformControls() {
   // auto e il save null lo garantiscono).
   const isFreshSelected = ed.posterLayout === "fresh"
   const titleScaleMax = isFreshSelected ? FRESH_TITLE_LOGO_MAX_SCALE : STANDARD_TITLE_LOGO_MAX_SCALE
+  // Card skins (provider-glass/nuvio/stremio) compose fixed geometry in the
+  // service (card-layout.ts): the rank numeral, metadata grid, provider mark
+  // and title slot never move, so their rank/title-offset/provider-offset
+  // Transform sliders are shown disabled with a hint — values are never
+  // rewritten and re-apply when switching back to Standard/Fresh. Title and
+  // network SCALES still resize their base bitmaps (shrink-only into the
+  // fixed slots), quality/extra/blur/shade stay live, so those stay enabled.
+  // P15: the genre badge SCALE is live on Card too (it sizes the standard
+  // main badge fed to the below-card band via the shared overlay slot);
+  // only the genre X/Y offsets stay fixed (band-centered) and disabled.
+  // Fresh auto-100 math is deliberately NOT extended here: Card keeps the
+  // historic aspect auto and the Standard 100 cap.
+  const isCardLayout = isCardSkin(ed.posterLayout)
+  const cardFixedTitle = isCardLayout ? t("ui.posterLayoutCardHint") : undefined
 
   // Preset sfumatura: scorciatoie che scrivono gli slider esistenti (nessun
   // nuovo parametro server — la preview/Stremio ricevono gli stessi valori).
@@ -231,8 +246,15 @@ export function TransformControls() {
           </button>
         </div>
         <SliderRow icon={<Search className="w-3.5 h-3.5" />} label={t("ui.scale")} value={ed.logoScale} min={10} max={titleScaleMax} boundsMin={10} boundsMax={titleScaleMax} onChange={ed.setLogoScale} onDoubleClick={defaultLogoScale} editingValue={editingValue} editText={editText} setEditingValue={setEditingValue} setEditText={setEditText} editingKey="scale" />
+        <div title={cardFixedTitle} className={isCardLayout ? "opacity-60" : undefined} aria-disabled={isCardLayout || undefined}>
+        <fieldset disabled={isCardLayout} className="contents">
         <SliderRow icon={<ArrowLeftRight className="w-3.5 h-3.5" />} label="X" value={ed.logoOffsetX} min={logoBounds.minX} max={logoBounds.maxX} boundsMin={logoBounds.minX} boundsMax={logoBounds.maxX} onChange={ed.setLogoOffsetX} onDoubleClick={() => ed.setLogoOffsetX(0)} editingValue={editingValue} editText={editText} setEditingValue={setEditingValue} setEditText={setEditText} editingKey="ox" />
         <SliderRow icon={<ArrowUpDown className="w-3.5 h-3.5" />} label="Y" value={ed.logoOffsetY} min={logoBounds.minY} max={logoBounds.maxY} boundsMin={logoBounds.minY} boundsMax={logoBounds.maxY} onChange={ed.setLogoOffsetY} onDoubleClick={() => ed.setLogoOffsetY(0)} editingValue={editingValue} editText={editText} setEditingValue={setEditingValue} setEditText={setEditText} editingKey="oy" />
+        </fieldset>
+        </div>
+        {isCardLayout && (
+          <p className="text-[10px] text-muted italic leading-tight px-1">{t("ui.posterLayoutCardHint")}</p>
+        )}
       </div>
       )}
 
@@ -249,6 +271,8 @@ export function TransformControls() {
             {t("ui.reset")}
           </button>
         </div>
+        <div title={cardFixedTitle} className={isCardLayout ? "opacity-60" : undefined} aria-disabled={isCardLayout || undefined}>
+        <fieldset disabled={isCardLayout} className="contents">
         <SliderRow
           icon={<Search className="w-3.5 h-3.5" />}
           label={t("ui.scale")}
@@ -302,6 +326,11 @@ export function TransformControls() {
           editingKey="topBadgeOY"
           suffix="px"
         />
+        </fieldset>
+        </div>
+        {isCardLayout && (
+          <p className="text-[10px] text-muted italic leading-tight px-1">{t("ui.posterLayoutCardHint")}</p>
+        )}
       </div>
       )}
 
@@ -404,6 +433,8 @@ export function TransformControls() {
           editingKey="genreScale"
           suffix="%"
         />
+        <div title={cardFixedTitle} className={isCardLayout ? "opacity-60" : undefined} aria-disabled={isCardLayout || undefined}>
+        <fieldset disabled={isCardLayout} className="contents">
         <SliderRow
           icon={<ArrowLeftRight className="w-3.5 h-3.5" />}
           label="X"
@@ -440,6 +471,11 @@ export function TransformControls() {
           editingKey="genreOY"
           suffix="px"
         />
+        </fieldset>
+        </div>
+        {isCardLayout && (
+          <p className="text-[10px] text-muted italic leading-tight px-1">{t("ui.posterLayoutCardHint")}</p>
+        )}
       </div>
       )}
 
@@ -598,13 +634,13 @@ export function TransformControls() {
             {t("ui.reset")}
           </button>
         </div>
-        <div className="flex items-center justify-between px-1 gap-2">
+        <div className={`flex items-center justify-between px-1 gap-2 ${isCardLayout ? "opacity-60" : ""}`} title={cardFixedTitle} aria-disabled={isCardLayout || undefined}>
           <span className="text-zinc-300">{t("ui.followTitleLogo")}</span>
           <Toggle
             value={ed.networkLogoFollowTitle}
             onChange={handleFollowChange}
             label={t("ui.followTitleLogo")}
-            disabled={freezing || (ed.networkLogoFollowTitle && followOffDisabled)}
+            disabled={isCardLayout || freezing || (ed.networkLogoFollowTitle && followOffDisabled)}
           />
         </div>
         <SliderRow
@@ -624,6 +660,8 @@ export function TransformControls() {
           editingKey="networkScale"
           suffix="%"
         />
+        <div title={cardFixedTitle} className={isCardLayout ? "opacity-60" : undefined} aria-disabled={isCardLayout || undefined}>
+        <fieldset disabled={isCardLayout} className="contents">
         <SliderRow
           icon={<ArrowLeftRight className="w-3.5 h-3.5" />}
           label="X"
@@ -660,6 +698,11 @@ export function TransformControls() {
           editingKey="networkOY"
           suffix="px"
         />
+        </fieldset>
+        </div>
+        {isCardLayout && (
+          <p className="text-[10px] text-muted italic leading-tight px-1">{t("ui.posterLayoutCardHint")}</p>
+        )}
       </div>
       )}
 

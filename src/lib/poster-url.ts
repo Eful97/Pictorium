@@ -22,6 +22,7 @@ import type { LandscapeServerDefaults } from "./server-defaults"
 import { DEFAULT_SASH_ORDER, type SashBucket } from "./badge-priority"
 import type { VideoFormat } from "./av-specs"
 import type { PosterShape, NetworkLogoPosition, PosterLayout, PosterFreshScope } from "./types"
+import { isPosterLayout } from "./types"
 import { BADGE_PRESET_ID_RE, BADGE_PRESET_REV_RE } from "./badge-preset"
 import type { DateFormat } from "./release-badge"
 
@@ -117,7 +118,7 @@ interface BadgeParams {
   posterShape?: PosterShape
   /**
    * Graphical poster layout in editing. Sempre esplicito in preview
-   * (`layout=standard|fresh`, default "standard"): senza, un mapping o un
+   * (`layout=standard|fresh|provider-glass|nuvio|stremio`, default "standard"): senza, un mapping o un
    * default salvato fresh scavalcerebbe la scelta editor (desync WYSIWYG) —
    * e uno standard esplicito non prevarrebbe su un fresh ereditato.
    */
@@ -470,7 +471,9 @@ export function buildPreviewUrl(ps: PosterState, bp: BadgeParams, configToken?: 
   // Layout SEMPRE esplicito in preview (come shape): senza, un mapping o un
   // default salvato fresh scavalcerebbe la scelta editor — e tornando a
   // standard senza parametro il server erediterebbe fresh (desync WYSIWYG).
-  params.push(`layout=${bp.posterLayout === "fresh" ? "fresh" : "standard"}`)
+  // Cover layouts (provider-glass/nuvio/stremio) viaggiano intatti; garbage
+  // cade su standard (stessa fail-closed del resolver).
+  params.push(`layout=${isPosterLayout(bp.posterLayout) ? bp.posterLayout : "standard"}`)
   // Scope SEMPRE esplicito in preview (come layout): senza, un mapping o un
   // default salvato ranked scavalcerebbe la scelta editor — e tornando ad
   // all senza parametro il server erediterebbe ranked (desync WYSIWYG).
@@ -629,7 +632,7 @@ export interface DefaultsPreviewParams {
    * Graphical poster layout di default (flat). In preview landscape vince il
    * profilo Orizzontale (`land.posterLayout ?? flat`, stessa regola
    * `land ?? flat` della UI e del server) — sempre esplicito in preview
-   * (`layout=standard|fresh`), mai persistito da qui.
+   * (`layout=standard|fresh|provider-glass|nuvio|stremio`), mai persistito da qui.
    */
   defaultPosterLayout?: PosterLayout | null
   /**
@@ -824,7 +827,7 @@ export function buildDefaultsPreviewUrl(bp: DefaultsPreviewParams): string {
   // server): SEMPRE esplicito in preview (come sash), così la preview dei
   // default mostra davvero il layout selezionato per quel formato.
   const effPreviewLayout = (previewLandscape ? land.posterLayout : undefined) ?? bp.defaultPosterLayout
-  params.push(`layout=${effPreviewLayout === "fresh" ? "fresh" : "standard"}`)
+  params.push(`layout=${isPosterLayout(effPreviewLayout) ? effPreviewLayout : "standard"}`)
   // Scope effettivo del formato in anteprima (`land ?? flat`, come UI e
   // server): SEMPRE esplicito in preview (come layout), così la preview dei
   // default mostra davvero lo scope selezionato per quel formato.

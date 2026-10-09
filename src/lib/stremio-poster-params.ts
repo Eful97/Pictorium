@@ -6,6 +6,7 @@ import { parseMinQuality, type StreamQuality } from "@/lib/quality-tiers"
 import { parseSashOrder, isDefaultSashOrder, type SashBucket } from "@/lib/badge-priority"
 import { BADGE_PRESET_ID_RE, BADGE_PRESET_REV_RE } from "@/lib/badge-preset"
 import type { PosterShape, PosterLayout, PosterFreshScope } from "@/lib/types"
+import { isPosterLayout } from "@/lib/types"
 import type { DateFormat } from "@/lib/release-badge"
 
 export interface StremioPosterParamsInput {
@@ -128,8 +129,8 @@ export interface StremioPosterParamsInput {
    *  (il portrait è il default e resta omesso per non invalidare la cache). */
   readonly posterShape?: PosterShape
   /**
-   * Graphical poster layout: emitted as `layout=fresh` when fresh and as
-   * `layout=standard` when explicitly standard — the explicit standard
+   * Graphical poster layout: emitted as `layout=<id>` when explicit
+   * (standard, fresh, provider-glass, nuvio, stremio) — the explicit standard
    * overrides a fresh inherited from config/defaults for unsaved/template
    * consumers (an absent param would inherit fresh server-side, so dropping
    * it would lose the override). Absent (undefined/null) stays absent:
@@ -375,7 +376,8 @@ export function buildStremioPosterSearchParams(input: StremioPosterParamsInput):
     params.set("shape", "landscape")
     if (input.logoAlign === "center") params.set("align", "center")
   }
-  // Layout grafico: emesso quando ESPLICITO (fresh o standard). Lo standard
+  // Layout grafico: emesso quando ESPLICITO (standard, fresh o cover layout
+  // provider-glass/nuvio/stremio). Lo standard
   // esplicito deve viaggiare (`layout=standard`): ometterlo collasserebbe
   // sull'assenza e il server erediterebbe fresh da config/defaults per i
   // consumer senza mapping salvato (template/unsaved) — override perso.
@@ -383,10 +385,8 @@ export function buildStremioPosterSearchParams(input: StremioPosterParamsInput):
   // specificati restano byte-identici e la cache non si invalida. Strict
   // enum: garbage non tipizzato non viaggia mai (fail-closed, come il
   // resolver).
-  if (input.posterLayout === "fresh") {
-    params.set("layout", "fresh")
-  } else if (input.posterLayout === "standard") {
-    params.set("layout", "standard")
+  if (isPosterLayout(input.posterLayout)) {
+    params.set("layout", input.posterLayout)
   }
   // Fresh apply scope: same explicit/absent contract as `layout` above.
   if (input.posterFreshScope === "ranked") {

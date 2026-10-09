@@ -2301,6 +2301,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
       // mostrerebbe mai i separati. Standard invariato (usa gli effettivi).
       freshRawBadgeRating: badgeRating,
       freshRawSeparateRatings: separateRatings,
+      freshRawBadgeGenre: badgeGenre,
+      freshRawBadgeYear: badgeYear,
       sashOrder,
       quality: finalQuality,
       topLight, bottomLight, logoBadgeVisibility, targetCenter, ribbonSide, ribbonEnabled, rankingBadgeAccent,

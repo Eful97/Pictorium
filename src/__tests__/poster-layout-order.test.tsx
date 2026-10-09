@@ -1,8 +1,10 @@
 /**
- * Task17 UIORDER: cover-layout card position (order only, no behavior change).
+ * Task17 UIORDER (+ P6 Card exposure): cover-layout card position (order only,
+ * no behavior change except the intentional P6 scope widening).
  * - BadgeControls (per-title badge tab): the layout card (both selectors,
  *   scope, hint, controlled callbacks) is the FIRST card, single instance,
- *   ahead of every other card; scope stays Fresh-only with stored value kept.
+ *   ahead of every other card; scope shows for Fresh AND Card skins with the
+ *   stored value kept (Standard hides it).
  * - BadgeDefaultsSection (settings, portrait AND landscape): preset block,
  *   then layout card, then the remaining controls; scoped setters/inheritance
  *   intact (portrait=flat, landscape=profile override, reset clears override).
@@ -82,15 +84,13 @@ describe("per-title layout card first (BadgeControls)", () => {
     expect(precedes(card, screen.getByText("ui.customBadge"))).toBe(true)
   })
 
-  it("selectors stay enabled with working callbacks; scope is Fresh-only and stored", () => {
+  it("selectors stay enabled with working callbacks; scope is Fresh/Card-only and stored", () => {
     const { ctx } = renderEditor()
-    const freshRadio = within(layoutGroup()).getByRole("radio", {
-      name: "ui.posterLayoutFresh",
-    })
-    expect(freshRadio).toBeEnabled()
+    const layoutRadios = within(layoutGroup()).getAllByRole("radio")
+    for (const radio of layoutRadios) expect(radio).toBeEnabled()
     // Standard: scope control absent (stored preference untouched).
     expect(screen.queryByTestId("fresh-scope-selector")).toBeNull()
-    fireEvent.click(freshRadio)
+    fireEvent.click(within(layoutGroup()).getByRole("radio", { name: "ui.posterLayoutFresh" }))
     expect(ctx().posterLayout).toBe("fresh")
     const scopeSelect = screen.getByTestId("fresh-scope-select")
     expect(scopeSelect).toBeEnabled()
@@ -101,6 +101,20 @@ describe("per-title layout card first (BadgeControls)", () => {
       within(layoutGroup()).getByRole("radio", { name: "ui.posterLayoutStandard" }),
     )
     expect(ctx().posterLayout).toBe("standard")
+    expect(screen.queryByTestId("fresh-scope-selector")).toBeNull()
+    expect(ctx().posterFreshScope).toBe("all")
+    // Card skins share the same scope control (generic wording, same stored
+    // value): visible for provider-glass, hidden again on Standard, kept.
+    fireEvent.click(
+      within(layoutGroup()).getByRole("radio", { name: "ui.posterLayoutProviderGlass" }),
+    )
+    expect(ctx().posterLayout).toBe("provider-glass")
+    expect(screen.getByTestId("fresh-scope-select")).toBeEnabled()
+    expect(screen.getByText("ui.posterLayoutScope")).toBeTruthy()
+    expect(screen.getByText("ui.posterLayoutScopeHint")).toBeTruthy()
+    fireEvent.click(
+      within(layoutGroup()).getByRole("radio", { name: "ui.posterLayoutStandard" }),
+    )
     expect(screen.queryByTestId("fresh-scope-selector")).toBeNull()
     expect(ctx().posterFreshScope).toBe("all")
   })
@@ -141,7 +155,7 @@ describe("settings defaults order: presets, then layout, then rest", () => {
     },
   )
 
-  it("portrait writes the flat default; scope selector is Fresh-only", async () => {
+  it("portrait writes the flat default; scope selector is Fresh/Card-only", async () => {
     const { ctx } = renderBadge("portrait")
     await act(async () => {})
     const freshRadio = within(layoutGroup()).getByRole("radio", {
@@ -157,6 +171,13 @@ describe("settings defaults order: presets, then layout, then rest", () => {
     fireEvent.change(scopeSelect, { target: { value: "all" } })
     expect(ctx().defaultPosterFreshScope).toBe("all")
     expect(ctx().landscape.posterFreshScope).toBeUndefined()
+    // Card skins reuse the same scope control with generic wording.
+    fireEvent.click(
+      within(layoutGroup()).getByRole("radio", { name: "ui.posterLayoutStremio" }),
+    )
+    expect(ctx().defaultPosterLayout).toBe("stremio")
+    expect(screen.getByTestId("fresh-scope-select")).toBeEnabled()
+    expect(screen.getByText("ui.posterLayoutScopeHint")).toBeTruthy()
   })
 
   it("landscape writes only the profile override; reset restores flat inheritance", async () => {

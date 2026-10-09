@@ -391,6 +391,52 @@ describe("per-title layout selector (BadgeControls)", () => {
     expect(onChange).toHaveBeenCalledWith("fresh")
     expect(screen.getByText("ui.posterLayoutHint")).toBeTruthy()
   })
+
+  // Intentional exposure change (P6): all five cover layouts are now
+  // selectable in the UI (historic Standard, full-bleed Fresh, and the three
+  // integrated Card skins). The previous 2-button assertion had to go because
+  // the contract/storage chain already carries the three cover IDs intact and
+  // the selector is the only missing surface — not test-gaming, the product
+  // requirement changed and the old expectation contradicts it.
+  it("exposes all five layouts: Standard, Fresh, Provider Glass, Nuvio, Stremio", () => {
+    const onChange = vi.fn()
+    renderWithCtx(
+      createElement(PosterLayoutSelector, { value: "standard", onChange }),
+    )
+    const group = screen.getByRole("radiogroup", { name: "ui.posterLayout" })
+    const radios = within(group).getAllByRole("radio")
+    expect(radios).toHaveLength(5)
+    const names = [
+      "ui.posterLayoutStandard",
+      "ui.posterLayoutFresh",
+      "ui.posterLayoutProviderGlass",
+      "ui.posterLayoutNuvio",
+      "ui.posterLayoutStremio",
+    ]
+    // Each choice is reachable by its accessible label (thumbnails are
+    // aria-hidden illustrative CSS, never part of the name).
+    for (const name of names) {
+      expect(within(group).getByRole("radio", { name })).toBeTruthy()
+    }
+    // Every choice is clickable and reports its own ID (controlled).
+    const ids = ["fresh", "provider-glass", "nuvio", "stremio"] as const
+    ids.forEach((id, i) => {
+      fireEvent.click(within(group).getByRole("radio", { name: names[i + 1] }))
+      expect(onChange).toHaveBeenCalledWith(id)
+    })
+  })
+
+  it("fails closed to Standard on garbage, keeping the control usable", () => {
+    const onChange = vi.fn()
+    renderWithCtx(
+      createElement(PosterLayoutSelector, { value: "bogus", onChange }),
+    )
+    const group = screen.getByRole("radiogroup", { name: "ui.posterLayout" })
+    expect(
+      within(group).getByRole("radio", { name: "ui.posterLayoutStandard" }),
+    ).toHaveAttribute("aria-checked", "true")
+    expect(within(group).getAllByRole("radio")).toHaveLength(5)
+  })
 })
 
 describe("global layout defaults scoped per edit target", () => {
@@ -667,7 +713,7 @@ describe("layout i18n (18 lingue)", () => {
       import("@/lib/translations/vi.json"),
     ])
     const langs = ["ar","cs","de","en","es-419","es","fr","he","it","ja","ko","nl","pl","pt","ro","sv","tr","vi"] as const
-    const keys = ["ui.posterLayout","ui.posterLayoutStandard","ui.posterLayoutFresh","ui.posterLayoutHint"] as const
+    const keys = ["ui.posterLayout","ui.posterLayoutStandard","ui.posterLayoutFresh","ui.posterLayoutHint","ui.posterLayoutProviderGlass","ui.posterLayoutNuvio","ui.posterLayoutStremio","ui.posterLayoutScope","ui.posterLayoutScopeHint","ui.posterLayoutCardHint"] as const
     expect(mods).toHaveLength(18)
     mods.forEach((mod, i) => {
       const dict = (mod as { default: Record<string, string> }).default ?? (mod as unknown as Record<string, string>)
