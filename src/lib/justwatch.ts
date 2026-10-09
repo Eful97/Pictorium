@@ -398,6 +398,11 @@ export async function getJWRankings(
         }),
       })
     } catch (err) {
+      // Cancellazione del chiamante (abort navigazione / fase JW chiusa dalla
+      // route per deadline owner): non è un outage del provider — mai a carico
+      // del breaker condiviso. Resta failure il timeout interno (signal esterno
+      // non abortito: upstream lento davvero) e ogni errore HTTP/rete.
+      if (signal?.aborted) throw err
       recordCircuitFailure()
       throw err
     }
