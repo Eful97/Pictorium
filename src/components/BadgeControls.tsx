@@ -1,11 +1,12 @@
 "use client"
 
 import { useState } from "react"
-import { ChevronDown, Star, Trophy, Tv, Sparkles, Palette, Layers, Cloud, RotateCcw } from "lucide-react"
+import { ChevronDown, Star, Trophy, Tv, Sparkles, Palette, Layers, LayoutTemplate, Cloud, RotateCcw } from "lucide-react"
 import { usePSelector } from "@/lib/context"
 import { useT } from "@/lib/contexts/TranslationContext"
 import { usePosterEditor } from "@/lib/contexts/PosterEditorContext"
 import { Toggle } from "@/components/Toggle"
+import { PosterLayoutSelector, PosterFreshScopeSelector } from "@/components/PosterLayoutSelector"
 import { BadgeStyleSelector, BadgeFontSelector } from "@/components/ui"
 import {
   RankingAppearanceSelector,
@@ -111,6 +112,20 @@ export function BadgeControls() {
 
   return (
     <div className="space-y-3.5 text-xs">
+      {/* Layout copertina: scelta grafica separata dallo stile classifica
+          (Nastro/Numero/Badge sopra). Non muta badge/logo/transform: i valori
+          restano e tornando a Standard si riapplicano. */}
+      <div data-testid="poster-layout-card" className="bg-surface/50 border border-surface2/60 rounded-xl p-3 space-y-3 shadow-sm">
+        <div className="flex items-center justify-between">
+          <span className="font-semibold text-zinc-200 flex items-center gap-1.5">
+            <LayoutTemplate className="w-3.5 h-3.5 text-accent-orange" />
+            {t("ui.posterLayout")}
+          </span>
+        </div>
+        <PosterLayoutSelector value={ed.posterLayout} onChange={(v) => ed.setPosterLayout(v)} />
+        <PosterFreshScopeSelector layout={ed.posterLayout} value={ed.posterFreshScope} onChange={(v) => ed.setPosterFreshScope(v)} />
+      </div>
+
       {/* CARD 1: Visibilità & Posizione Badge */}
       <div className="bg-surface/50 border border-surface2/60 rounded-xl p-3 space-y-3 shadow-sm">
         <div className="flex items-center justify-between">

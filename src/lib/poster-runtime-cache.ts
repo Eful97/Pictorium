@@ -3,6 +3,7 @@ import { cacheGet, cacheGetStale, cacheSet } from "@/lib/cache"
 import { createLogger } from "@/lib/logger"
 import { envWithFallback } from "@/lib/env-compat"
 import { isBadgeStyle, isRankingBadgeStyle, isExtraBadgeStyle, isBadgeFont, isSeparateRatingsStyle } from "@/lib/badge-styles"
+import { isPosterLayout, isPosterFreshScope, DEFAULT_POSTER_FRESH_SCOPE } from "@/lib/types"
 import { POSTER_CACHE_ALLOWLIST } from "./poster-params-hardening"
 
 const log = createLogger("poster-cache")
@@ -149,6 +150,33 @@ export function normalizePosterCacheParams(searchParams: URLSearchParams): URLSe
   if (sepstyle !== null) {
     const v = sepstyle.toLowerCase()
     params.set("sepstyle", isSeparateRatingsStyle(v) ? v : "column")
+  }
+  // layout: stessa distinzione fail-closed presente/assente di sepstyle
+  // sopra: un valore presente ma non valido (garbage o vuoto) rende come
+  // standard, mentre l'assenza può ereditare fresh da mapping/default.
+  // Cancellarlo collasserebbe le due chiavi e la prima richiesta
+  // avvelenerebbe le successive (stessa chiave, immagini diverse).
+  // Canonical lowercase come il resolver (query case-insensitive, un'unica
+  // policy ovunque). `standard` esplicito e assenza restano chiavi distinte:
+  // solo così lo standard esplicito può prevalere su un fresh ereditato.
+  const layout = params.get("layout")
+  if (layout !== null) {
+    const v = layout.toLowerCase()
+    params.set("layout", isPosterLayout(v) ? v : "standard")
+  }
+  // freshScope: stessa distinzione fail-closed presente/assente di layout
+  // sopra: un valore presente ma non valido (garbage o vuoto) rende come
+  // ranked (default condiviso), mentre l'assenza può ereditare all da
+  // mapping/default.
+  // Cancellarlo collasserebbe le due chiavi e la prima richiesta
+  // avvelenerebbe le successive (stessa chiave, immagini diverse).
+  // Canonical lowercase come il resolver (query case-insensitive, un'unica
+  // policy ovunque). `all` esplicito e assenza restano chiavi distinte:
+  // solo così l'all esplicito può prevalere su un ranked ereditato.
+  const freshScope = params.get("freshScope")
+  if (freshScope !== null) {
+    const v = freshScope.toLowerCase()
+    params.set("freshScope", isPosterFreshScope(v) ? v : DEFAULT_POSTER_FRESH_SCOPE)
   }
   const bfont = params.get("bfont")
   if (bfont !== null && !isBadgeFont(bfont)) {

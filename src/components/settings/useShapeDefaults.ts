@@ -56,4 +56,6 @@ export const BADGE_VISUAL_LAND_KEYS = [
   "preRelease",
   "ribbonSide",
   "ribbonEnabled",
+  "posterLayout",
+  "posterFreshScope",
 ] as const satisfies readonly (keyof LandscapeServerDefaults)[]

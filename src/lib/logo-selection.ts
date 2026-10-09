@@ -121,3 +121,121 @@ export function logoDefaultScale(logo: TMDBImage): number | null {
   if (!logo.width || !logo.height) return null
   return logoDefaultScaleFromAspect(logo.width, logo.height)
 }
+
+/**
+ * Default scala titolo per layout SELEZIONATO (legacy rank-agnostic, task8a).
+ *
+ * ATTENZIONE (correzione c1): NON usarla per gli auto per-titolo — con layout
+ * Fresh selezionato ma rank assente/ignoto (fallback Standard effettivo)
+ * forzerebbe un 100 baked sui titoli Standard (regressione utente "vedo anche
+ * gli altri al 100"). Gli auto usano `logoEffectiveAutoScale` (Fresh
+ * EFFETTIVO: rank mostrato + rankingEnabled + scope) col sentinel auto
+ * (`scale=0` in preview, `null` al save); questa resta solo per i default
+ * globali/di formato senza rank noto e per compat storica. Espliciti
+ * (anche 75) e Standard invariati ovunque.
+ */
+export const FRESH_TITLE_LOGO_DEFAULT_SCALE = 100
+
+/**
+ * Scala titolo massima per layout (controlli UI + clamp salvataggi):
+ * Fresh 10..200 (richiesta utente "margine fino 150 o 200"), Standard 10..100
+ * (limiti storici invariati). Il server accetta 10..200 ovunque (stesso clamp
+ * in poster-config.ts); solo la UI per-titolo Standard resta a 100.
+ */
+export const TITLE_LOGO_SCALE_MIN = 10
+export const FRESH_TITLE_LOGO_MAX_SCALE = 200
+export const STANDARD_TITLE_LOGO_MAX_SCALE = 100
+
+export function clampTitleLogoScale(
+  v: number,
+  posterLayout: string | null | undefined,
+): number {
+  const max = posterLayout === "fresh" ? FRESH_TITLE_LOGO_MAX_SCALE : STANDARD_TITLE_LOGO_MAX_SCALE
+  if (!Number.isFinite(v)) return FRESH_TITLE_LOGO_DEFAULT_SCALE
+  return Math.min(max, Math.max(TITLE_LOGO_SCALE_MIN, Math.round(v)))
+}
+
+/**
+ * Rank mostrato per l'eleggibilità Fresh EFFETTIVA (client mirror del service
+ * priority in poster-service.ts: `topBadge.type === "rank" ? rank : null`, già
+ * rankingEnabled-gated). Il client conosce trendRank + rank anime: il primo
+ * numerale valido 1..100 vince; ranking spento, rank assente/invalido o
+ * ignoto (fetch ancora in volo) = null = fallback Standard sotto scope
+ * ranked. Mai appartenenza al catalogo, mai testi badge custom.
+ */
+export function resolveLogoDisplayedRank(input: {
+  trendRank?: number | null
+  animeRank?: number | null
+  rankingEnabled?: boolean
+  /**
+   * Already-resolved display suppression (client mirror of the service
+   * `topBadge` priority, never a second rank resolution): when the service
+   * shows an extra badge (custom text, award/new/extra bucket win) or the
+   * Coming Soon extra (pre-release without theatrical upcoming), there is no
+   * displayed numeral even with valid rank data — return null so the slider
+   * never promises Fresh-100 while the service renders Standard. Absent =
+   * legacy rank-only behavior (backward compatible). Unknown/pending rank
+   * state stays null (auto sentinel / UI pending, never a false promise).
+   */
+  topBadgeType?: "rank" | "extra" | null
+  showComingSoon?: boolean
+  hasCustomExtra?: boolean
+}): number | null {
+  if (input.rankingEnabled === false) return null
+  if (input.showComingSoon === true) return null
+  if (input.hasCustomExtra === true) return null
+  if (input.topBadgeType === "extra") return null
+  const candidates = [input.trendRank, input.animeRank]
+  for (const c of candidates) {
+    if (typeof c === "number" && Number.isInteger(c) && c >= 1 && c <= 100) return c
+  }
+  return null
+}
+
+export interface LogoEffectiveFreshInput {
+  posterLayout?: string | null
+  posterFreshScope?: string | null
+  /** Rank GIÀ rankingEnabled-gated (usare resolveLogoDisplayedRank). */
+  displayedRank?: number | null
+}
+
+/**
+ * Eleggibilità Fresh EFFETTIVA (client-safe mirror di isEffectiveFreshLayout
+ * in fresh-layout.ts, che importa sharp e non può entrare nel bundle client):
+ * layout fresh E (scope "all" esplicito O numerale valido mostrato). Scope
+ * assente = "ranked" (fail-closed, default condiviso). Rank ignoto/pending =
+ * non-Fresh sotto ranked (il chiamante tiene il sentinel auto, mai un 100
+ * forzato che congelerebbe i titoli Standard).
+ */
+export function isEffectiveFreshForLogo(input: LogoEffectiveFreshInput): boolean {
+  if (input.posterLayout !== "fresh") return false
+  if (input.posterFreshScope === "all") return true
+  const r = input.displayedRank
+  return typeof r === "number" && Number.isInteger(r) && r >= 1 && r <= 100
+}
+
+/**
+ * Scala auto EFFETTIVA del logo titolo: 100 solo sotto Fresh effettivo,
+ * altrimenti la curva aspect storica (`logoDefaultScale ?? 75`). Rank
+ * ignoto/pending sotto scope ranked = aspect Standard (mai 100 baked):
+ * la preview auto (`scale=0`) risolve comunque 100 sul server quando il rank
+ * c'è, e l'effetto al rank-arrival riallinea lo slider (solo auto, mai gli
+ * espliciti). Espliciti (anche 75/100/150/200) vincono sempre a monte.
+ */
+export function logoEffectiveAutoScale(
+  logo: Pick<TMDBImage, "width" | "height"> | null | undefined,
+  input: LogoEffectiveFreshInput,
+): number {
+  if (isEffectiveFreshForLogo(input)) return FRESH_TITLE_LOGO_DEFAULT_SCALE
+  if (!logo?.width || !logo?.height) return 75
+  return logoDefaultScaleFromAspect(logo.width, logo.height) ?? 75
+}
+
+export function logoAutoScaleForLayout(
+  logo: Pick<TMDBImage, "width" | "height"> | null | undefined,
+  posterLayout: string | null | undefined,
+): number {
+  if (posterLayout === "fresh") return FRESH_TITLE_LOGO_DEFAULT_SCALE
+  if (!logo?.width || !logo?.height) return 75
+  return logoDefaultScaleFromAspect(logo.width, logo.height) ?? 75
+}

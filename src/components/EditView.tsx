@@ -10,7 +10,7 @@ import { UserSpacesList } from "@/components/UserSpaceSection"
 import { useT } from "@/lib/contexts/TranslationContext"
 import { usePosterEditor } from "@/lib/contexts/PosterEditorContext"
 import type { TMDBImage } from "@/lib/types"
-import { effectiveMappingForShape, type LandscapeSettings } from "@/lib/types"
+import { effectiveMappingForShape, isPosterLayout, isPosterFreshScope, DEFAULT_POSTER_FRESH_SCOPE, type LandscapeSettings } from "@/lib/types"
 import { isSeparateRatingsStyle } from "@/lib/badge-styles"
 import { selectBestLogo } from "@/lib/logo-selection"
 import { resolveNetworkEffectiveView } from "@/lib/network-follow"
@@ -258,6 +258,8 @@ export default function EditView() {
       customRatings: ed.customRatings,
       separateRatings: ed.separateRatings,
       separateRatingsStyle: ed.separateRatingsStyle,
+      posterLayout: ed.posterLayout,
+      posterFreshScope: ed.posterFreshScope,
       networkLogo: ed.networkLogo,
       ribbonEnabled: ed.ribbonEnabled,
       networkLogoPosition: ed.networkLogoPosition,
@@ -448,6 +450,11 @@ export default function EditView() {
   // stash è per-titolo: cambiando titolo si azzera (selectedMappingKey).
   const shapeStashRef = useRef<Partial<Record<"poster" | "landscape", LandscapeSettings>>>({})
   const shapeStashKeyRef = useRef<string | null>(null)
+  // Provenance scala titolo per formato (correzione c1): lo stash sopra salva
+  // il valore mostrato ma non se è auto o esplicito — senza, il ritorno al
+  // formato promuoverebbe un auto a esplicito (setLogoScale di default marca
+  // explicit) e un 100 automatico Fresh diventerebbe un 100 Standard baked.
+  const shapeLogoExplicitRef = useRef<Partial<Record<"poster" | "landscape", boolean>>>({})
   // Cambio formato: portrait deseleziona sempre lo sfondo (in verticale
   // `poster=` + `backdrop=` comporrebbero la banda sopra il poster),
   // landscape lascia fare all'effetto sopra. Gli slider passano al profilo
@@ -459,8 +466,10 @@ export default function EditView() {
     const stashKey = selectedMappingKey ?? "new"
     if (shapeStashKeyRef.current !== stashKey) {
       shapeStashRef.current = {}
+      shapeLogoExplicitRef.current = {}
       shapeStashKeyRef.current = stashKey
     }
+    shapeLogoExplicitRef.current[prev] = ed.logoScaleExplicit
     shapeStashRef.current[prev] = {
       logoScale: ed.logoScale, logoOffsetX: ed.logoOffsetX, logoOffsetY: ed.logoOffsetY,
       topBadgeScale: ed.topBadgeScale, topBadgeOffsetX: ed.topBadgeOffsetX, topBadgeOffsetY: ed.topBadgeOffsetY,
@@ -471,6 +480,8 @@ export default function EditView() {
       separateBadgeOffsetX: ed.separateBadgeOffsetX,
       separateBadgeOffsetY: ed.separateBadgeOffsetY,
       separateRatingsStyle: ed.separateRatingsStyle,
+      posterLayout: ed.posterLayout,
+      posterFreshScope: ed.posterFreshScope,
       networkLogoScale: ed.networkLogoScale, networkLogoOffsetX: ed.networkLogoOffsetX, networkLogoOffsetY: ed.networkLogoOffsetY,
       networkLogoFollowTitle: ed.networkLogoFollowTitle,
       // Sfumatura ESCLUSA: ha profili dedicati per formato (flat = portrait,
@@ -489,7 +500,23 @@ export default function EditView() {
       ?? (selectedMapping ? effectiveMappingForShape(selectedMapping, next) : null)
       ?? landFallback
     if (src) {
-      ed.setLogoScale(src.logoScale ?? ed.logoScale)
+      // Provenance ripristinata dallo stash (correzione c1): un auto resta
+      // auto (preview sentinel, rank-effect lo riallinea), un esplicito resta
+      // esplicito. Senza stash di provenance, l'assenza nel profilo salvato
+      // (null) resta auto, il valore salvato resta esplicito.
+      const stashedExplicit = shapeLogoExplicitRef.current[next]
+      const srcHasExplicit = src.logoScale != null
+      if (stashedExplicit !== undefined) {
+        // Stash di formato: valore + provenance dello stesso formato.
+        // src.logoScale assente ma stash presente = il formato non aveva scala
+        // propria: si tiene il live corrente marcando la provenance stashed.
+        ed.setLogoScale(src.logoScale ?? ed.logoScale, stashedExplicit ? undefined : { auto: true })
+      } else if (srcHasExplicit) {
+        // Profilo salvato/default senza stash: valore esplicito salvato.
+        ed.setLogoScale(src.logoScale as number)
+      }
+      // Altrimenti (nessuno stash, nessun valore nel profilo): live e
+      // provenance intatti — mai promuovere/demotivare in silenzio.
       ed.setLogoOffsetX(src.logoOffsetX ?? landFallback?.logoOffsetX ?? ed.logoOffsetX)
       ed.setLogoOffsetY(src.logoOffsetY ?? landFallback?.logoOffsetY ?? ed.logoOffsetY)
       ed.setTopBadgeScale(src.topBadgeScale ?? landFallback?.topBadgeScale ?? ed.topBadgeScale, { materialize: false })
@@ -514,6 +541,20 @@ export default function EditView() {
       {
         const styleSrc = src.separateRatingsStyle ?? landFallback?.separateRatingsStyle
         ed.setSeparateRatingsStyle(isSeparateRatingsStyle(styleSrc) ? styleSrc : ed.separateRatingsStyle)
+      }
+      // Layout grafico dal profilo del formato (stash > salvato > default
+      // Orizzontale > default flat): ogni formato ricorda la propria scelta
+      // senza toccare gli altri visuali.
+      {
+        const layoutSrc = src.posterLayout ?? landFallback?.posterLayout ?? ed.defaultPosterLayout
+        ed.setPosterLayout(isPosterLayout(layoutSrc) ? layoutSrc : "standard")
+      }
+      // Fresh apply scope dal profilo del formato (stash > salvato > default
+      // Orizzontale > default flat): ogni formato ricorda la propria scelta
+      // senza toccare gli altri visuali.
+      {
+        const scopeSrc = src.posterFreshScope ?? landFallback?.posterFreshScope ?? ed.defaultPosterFreshScope
+        ed.setPosterFreshScope(isPosterFreshScope(scopeSrc) ? scopeSrc : DEFAULT_POSTER_FRESH_SCOPE)
       }
       ed.setNetworkLogoScale(src.networkLogoScale ?? landFallback?.networkLogoScale ?? ed.networkLogoScale)
       // Effective network view composing the saved mapping with the global

@@ -177,6 +177,34 @@ describe("PUT /api/defaults", () => {
     const bad = await PUT(mockPutRequest({ landscape: { blurFade: "much" } }) as unknown as NextRequest)
     expect(bad.status).toBe(400)
   })
+
+  it("persists valid flat and landscape fresh posterLayout through PUT", async () => {
+    delete process.env.ADMIN_TOKEN
+    // Single PUT (the shared "defaults" rate-limit bucket caps the whole
+    // file at 30 requests): one body covers both the flat key and the
+    // landscape profile. Persistence is verified on the stored file, like
+    // the "partial PUT preserves global defaults" test below — no extra
+    // GET request spent.
+    const res = await PUT(
+      mockPutRequest({ posterLayout: "fresh", landscape: { posterLayout: "fresh" } }) as unknown as NextRequest,
+    )
+    expect(res.status).toBe(200)
+
+    const stored = JSON.parse(await fsp.readFile(path.join(DATA_DIR, "defaults.json"), "utf-8"))
+    expect(stored).toMatchObject({ posterLayout: "fresh", landscape: { posterLayout: "fresh" } })
+  })
+
+  it("rejects an invalid posterLayout instead of silently stripping it", async () => {
+    delete process.env.ADMIN_TOKEN
+    // Without the enum in the schema, zod would strip the keys and the PUT
+    // would answer 200 while dropping the values. Single body covers both
+    // the flat key and the landscape profile (either stripped key alone
+    // would still yield 200 under the stripping bug).
+    const res = await PUT(
+      mockPutRequest({ posterLayout: "bogus", landscape: { posterLayout: "bogus" } }) as unknown as NextRequest,
+    )
+    expect(res.status).toBe(400)
+  })
 })
 
 describe("GET /api/defaults hasInstanceKeys", () => {

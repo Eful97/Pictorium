@@ -208,7 +208,11 @@ export function TransformPanel({ active, previewShape, onPreviewShapeChange, onP
         />
       ) : (
       <>
-      {/* Logo Predefinito (null = auto-fit per aspect, storico) */}
+      {/* Logo Predefinito (null = auto-fit per aspect, storico; esplicito fino a
+          200 per il titolo Fresh — correzione c1, richiesto utente). Il max
+          segue il layout default EFFETTIVO del Verticale (flat): Fresh 10..200,
+          Standard 10..100 invariato. L'auto mostrato segue lo scope effettivo:
+          Fresh-all = 100, altrimenti 75 (fallback Standard storico, mai baked). */}
       <div {...famAttrs("logo")} className="bg-surface/50 border border-surface2/60 rounded-xl p-3.5 space-y-1.5 shadow-sm animate-fade-in">
         <div className="flex items-center justify-between px-1">
           <span className="font-semibold text-zinc-200 flex items-center gap-1.5">
@@ -224,14 +228,20 @@ export function TransformPanel({ active, previewShape, onPreviewShapeChange, onP
             {t("ui.reset")}
           </button>
         </div>
+        {(() => {
+          const flatFresh = ed.defaultPosterLayout === "fresh"
+          const flatFreshAll = flatFresh && ed.defaultPosterFreshScope === "all"
+          const logoMax = flatFresh ? 200 : 100
+          const logoShown = ed.defaultLogoScale ?? (flatFreshAll ? 100 : 75)
+          return (
         <SliderRow
           icon={<Search className="w-3.5 h-3.5" />}
           label={t("ui.scale")}
-          value={ed.defaultLogoScale ?? 75}
+          value={logoShown}
           min={10}
-          max={100}
+          max={logoMax}
           boundsMin={10}
-          boundsMax={100}
+          boundsMax={logoMax}
           onChange={(v) => { ed.setDefaultLogoScale(v) }}
           onDoubleClick={() => { ed.setDefaultLogoScale(null) }}
           editingValue={editVal}
@@ -241,6 +251,8 @@ export function TransformPanel({ active, previewShape, onPreviewShapeChange, onP
           editingKey="dlogoScale"
           suffix="%"
         />
+          )
+        })()}
         <SliderRow
           icon={<ArrowLeftRight className="w-3.5 h-3.5" />}
           label="X"

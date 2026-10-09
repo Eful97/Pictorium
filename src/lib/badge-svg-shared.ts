@@ -123,7 +123,7 @@ export function estimateTextWidth(text: string, fs: number, font: BadgeFont | st
   return Math.round(w * condensed)
 }
 
-function textFitAttrs(width: number): string {
+export function textFitAttrs(width: number): string {
   return ` textLength="${Math.max(Math.round(width), 1)}" lengthAdjust="spacingAndGlyphs"`
 }
 

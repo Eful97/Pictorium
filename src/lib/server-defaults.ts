@@ -99,6 +99,10 @@ export interface LandscapeServerDefaults {
   ribbonSide?: "left" | "right"
   /** Corner Netflix-style ribbon (false = centered rank badge). */
   ribbonEnabled?: boolean
+  /** Graphical poster layout ("standard" = historic render, "fresh" = opt-in). */
+  posterLayout?: import("@/lib/types").PosterLayout
+  /** Fresh apply scope ("ranked" = default: solo con rank; "all" = override esplicito). */
+  posterFreshScope?: import("@/lib/types").PosterFreshScope
   /** Enabled sash buckets (canonical order; empty = all off). */
   sashOrder?: SashBucket[]
 }
@@ -221,6 +225,10 @@ export interface ServerDefaults {
   ribbonEnabled?: boolean
   /** Formato canvas globale: "landscape" = 16:9 da backdrop TMDB. Default portrait. */
   posterShape?: import("@/lib/types").PosterShape
+  /** Graphical poster layout globale ("standard" = resa storica, "fresh" = opt-in). Default standard. */
+  posterLayout?: import("@/lib/types").PosterLayout
+  /** Fresh apply scope globale ("ranked" = default: solo con rank; "all" = override esplicito). */
+  posterFreshScope?: import("@/lib/types").PosterFreshScope
   /** Allineamento blocco logo/metadati (default di formato se assente). */
   logoAlign?: "left" | "center"
   episodeMetadataSource?: "tmdb" | "tvdb"

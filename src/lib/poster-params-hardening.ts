@@ -21,6 +21,7 @@ import { GENRE_FALLBACK } from "./badges"
 import { isRankKey } from "./i18n"
 import { parseRatingSources } from "./ratings"
 import { isSeparateRatingsStyle } from "./badge-styles"
+import { isPosterLayout, isPosterFreshScope, DEFAULT_POSTER_FRESH_SCOPE } from "./types"
 import { ANIME_RANK_MAX } from "./badge-priority"
 import { BADGE_PRESET_ID_RE, BADGE_PRESET_REV_RE } from "./badge-preset"
 
@@ -98,7 +99,7 @@ export const POSTER_CACHE_ALLOWLIST: ReadonlySet<string> = new Set([
   "exscale", "exox", "exoy",
   "gscale", "gox", "goy", "qscale", "qox", "qoy", "sepscale", "sepox", "sepoy", "netscale", "nox", "noy",
   "bscale", "box", "boy", "gradHeight", "blur", "bf", "bd", "voteAverage",
-  "year", "rd", "fad", "mv", "fmt", "format", "shape", "align", "ac",
+  "year", "rd", "fad", "mv", "fmt", "format", "shape", "layout", "freshScope", "align", "ac",
   "tl", "bl", "bs", "rs", "xbs", "bfont", "sepstyle", "ts", "dv",
   // Funzionali (letti dalla route / poster-config, mai stile libero).
   "badges", "ranking", "bg", "by", "br", "bq", "qbs", "ribbon", "cr", "sep", "netLogo", "netPos", "netFollow",
@@ -278,6 +279,25 @@ export function hardenPosterSearchParams(
   if (params.has("sepstyle")) {
     const v = (params.get("sepstyle") || "").toLowerCase()
     params.set("sepstyle", isSeparateRatingsStyle(v) ? v : "column")
+  }
+  // layout: enum finita ("standard"/"fresh"), query case-insensitive con
+  // canonical lowercase (stessa policy di resolvePosterLayout e
+  // normalizePosterCacheParams). Valore presente ma non valido (garbage o
+  // vuoto) → "standard" esplicito, MAI delete: cancellarlo cambierebbe
+  // semantica (l'assenza eredita mapping/default, il garbage rende standard).
+  if (params.has("layout")) {
+    const v = (params.get("layout") || "").toLowerCase()
+    params.set("layout", isPosterLayout(v) ? v : "standard")
+  }
+  // freshScope: enum finita ("all"/"ranked"), query case-insensitive con
+  // canonical lowercase (stessa policy di resolvePosterFreshScope e
+  // normalizePosterCacheParams). Valore presente ma non valido (garbage o
+  // vuoto) → "ranked" esplicito (default condiviso, fail-closed: restringe
+  // Fresh invece di allargarlo), MAI delete: cancellarlo cambierebbe
+  // semantica (l'assenza eredita mapping/default, il garbage rende ranked).
+  if (params.has("freshScope")) {
+    const v = (params.get("freshScope") || "").toLowerCase()
+    params.set("freshScope", isPosterFreshScope(v) ? v : DEFAULT_POSTER_FRESH_SCOPE)
   }
 
   return params

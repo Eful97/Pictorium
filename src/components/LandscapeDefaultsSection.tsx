@@ -355,7 +355,12 @@ export function LandscapeDefaultsSection({ editVal, editTxt, setEditVal, setEdit
     <div className="space-y-3.5">
       <p className="text-[11px] text-zinc-400 italic">{t("ui.landscapeDefaultsHint")}</p>
 
-      {/* Logo: stessa card del Verticale (doppio click = segui) */}
+      {/* Logo: stessa card del Verticale (doppio click = segui; esplicito fino a
+          200 per il titolo Fresh — correzione c1). Il max segue il layout
+          default EFFETTIVO dell'Orizzontale (`land ?? flat`, ereditarietà
+          piatta): Fresh 10..200, Standard 10..100 invariato. L'auto mostrato
+          segue lo scope effettivo (`land ?? flat`): Fresh-all = 100,
+          altrimenti il flat esplicito o 75 (fallback Standard, mai baked). */}
       <div {...famAttrs("logo")} className="bg-surface/50 border border-surface2/60 rounded-xl p-3.5 space-y-1.5 shadow-sm animate-fade-in">
         <div className="flex items-center justify-between px-1">
           <span className="font-semibold text-zinc-200 flex items-center gap-1.5">
@@ -377,14 +382,22 @@ export function LandscapeDefaultsSection({ editVal, editTxt, setEditVal, setEdit
             </button>
           )}
         </div>
+        {(() => {
+          const effLandLayout = land.posterLayout ?? ed.defaultPosterLayout
+          const effLandScope = land.posterFreshScope ?? ed.defaultPosterFreshScope
+          const landFresh = effLandLayout === "fresh"
+          const landFreshAll = landFresh && effLandScope === "all"
+          const landLogoMax = landFresh ? 200 : 100
+          const landLogoShown = land.logoScale ?? ed.defaultLogoScale ?? (landFreshAll ? 100 : 75)
+          return (
         <SliderRow
           icon={<Search className="w-3.5 h-3.5" />}
           label={t("ui.scale")}
-          value={land.logoScale ?? ed.defaultLogoScale ?? 75}
+          value={landLogoShown}
           min={10}
-          max={100}
+          max={landLogoMax}
           boundsMin={10}
-          boundsMax={100}
+          boundsMax={landLogoMax}
           onChange={(v) => set({ logoScale: v })}
           onDoubleClick={() => clear("logoScale")}
           editingValue={editVal}
@@ -394,6 +407,8 @@ export function LandscapeDefaultsSection({ editVal, editTxt, setEditVal, setEdit
           editingKey="lslogoScale"
           suffix="%"
         />
+          )
+        })()}
         <SliderRow
           icon={<ArrowLeftRight className="w-3.5 h-3.5" />}
           label="X"

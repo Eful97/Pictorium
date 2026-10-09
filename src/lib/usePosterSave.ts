@@ -7,13 +7,14 @@ import { buildCoverOnlyPayload } from "./cover-only-save"
 import { computeTopBadge, resolveSavedBadgeExtra, type BadgeInput } from "./poster-badge"
 import type { SashBucket } from "./badge-priority"
 import { adjustGradientForPosterChange } from "./gradient-presets"
-import { logoDefaultScale } from "./logo-selection"
+import { logoEffectiveAutoScale, resolveLogoDisplayedRank } from "./logo-selection"
 import { t } from "./i18n"
 import { isManualAccent } from "./accent-color"
 import { normalizeGenreName } from "./genre-normalize"
 import type { EnrichedAnimeItem } from "./validation"
 import type { VideoFormat } from "./av-specs"
 import type { SeparateRatingsStyle, ExtraBadgeStyle } from "./badge-styles"
+import type { PosterLayout, PosterFreshScope } from "./types"
 import type { LandscapeBlurState } from "./contexts/PosterEditorContext"
 import type { LandscapeServerDefaults } from "./server-defaults"
 import { http, ApiError } from "./http"
@@ -130,7 +131,13 @@ interface PosterSaveDeps {
   autoAccentColor?: string | null
   logoDisabled: boolean
   setLogoDisabled: (v: boolean) => void
-  setLogoScale: (v: number) => void
+  setLogoScale: (v: number, opts?: { auto?: boolean }) => void
+  /**
+   * Provenance scala titolo (correzione c1): false/assente = auto (il save
+   * scrive null così il poster resta auto al rank-change; mai 100 baked sui
+   * fallback Standard). True = esplicito (congelato, anche 75/100/150/200).
+   */
+  logoScaleExplicit?: boolean
   setLogoOffsetX: (v: number) => void
   setLogoOffsetY: (v: number) => void
   networkLogo: boolean
@@ -146,6 +153,10 @@ interface PosterSaveDeps {
   episodeGroupId?: string | null
   /** Formato canvas in editing (congelato per-titolo al save). */
   posterShape: PosterShape
+  /** Graphical poster layout in editing (congelato per-titolo al save, per-shape). */
+  posterLayout: PosterLayout
+  /** Fresh apply scope in editing (congelato per-titolo al save, per-shape). */
+  posterFreshScope: PosterFreshScope
 }
 
 export interface SaveConfigOverrides {
@@ -176,8 +187,8 @@ export function usePosterSave(deps: PosterSaveDeps) {
     networkLogoOffsetX, networkLogoOffsetY,
     rotationPosters, autoRotateClean, defaultAutoRotateClean, excludedPosters, accentColor, autoAccentColor, logoDisabled, setLogoDisabled,
     rotationBackdrops, autoRotateBackdrop, defaultAutoRotateBackdrop, excludedBackdrops, backdrops,
-    setLogoScale, setLogoOffsetX, setLogoOffsetY,     networkLogo, networkLogoPosition, networkLogoFollowTitle, ribbonEnabled, lang, episodeGroupId, posterShape,
-    defaultSashOrder,
+    setLogoScale, setLogoOffsetX, setLogoOffsetY,     networkLogo, networkLogoPosition, networkLogoFollowTitle, ribbonEnabled, lang, episodeGroupId, posterShape, posterLayout, posterFreshScope,
+    defaultSashOrder, logoScaleExplicit,
   } = deps
 
   const selectPoster = useCallback(async (image: TMDBImage) => {
@@ -214,10 +225,24 @@ export function usePosterSave(deps: PosterSaveDeps) {
   const selectLogo = useCallback(async (logo: TMDBImage) => {
     setSelectedLogo(logo)
     setLogoDisabled(false)
-    // Scala/offset logo: default globali per formato > auto-fit per aspect.
-    // Senza default si resta sullo storico (auto + 0), mai regressioni.
+    // Scala/offset logo: default globali per formato (espliciti, anche 75) >
+    // auto EFFETTIVO (correzione c1: Fresh effettivo = 100, fallback Standard
+    // = aspect — mai 100 baked sui no-rank). Default → esplicito; puro auto →
+    // provenance auto (preview sentinel, save null, rank-effect lo riallinea).
+    // Senza default si resta sullo storico (auto + 0), mai regressioni;
+    // espliciti salvati altrove invariati.
     const landLogo = posterShape === "landscape" ? landscapeDefaults : undefined
-    setLogoScale(landLogo?.logoScale ?? defaultLogoScale ?? logoDefaultScale(logo) ?? 75)
+    const shapeDefault = landLogo?.logoScale ?? defaultLogoScale ?? null
+    if (shapeDefault != null) {
+      setLogoScale(shapeDefault)
+    } else {
+      const animeRank = mdblistAnimeList?.find((a) => a.id === selected?.id)?.rank ?? null
+      const displayed = resolveLogoDisplayedRank({ trendRank, animeRank, rankingEnabled: rankingBadges })
+      setLogoScale(
+        logoEffectiveAutoScale(logo, { posterLayout, posterFreshScope, displayedRank: displayed }),
+        { auto: true },
+      )
+    }
     setLogoOffsetX(landLogo?.logoOffsetX ?? defaultLogoOffsetX ?? 0)
     setLogoOffsetY(landLogo?.logoOffsetY ?? defaultLogoOffsetY ?? 0)
     if (!previewPoster && selected) {
@@ -235,7 +260,7 @@ export function usePosterSave(deps: PosterSaveDeps) {
       }
     }
     if (selected) setPreviewId(`${selected.media_type}:${selected.id}`)
-  }, [selected, previewPoster, mappingsMap, posters, posterShape, landscapeDefaults, defaultLogoScale, defaultLogoOffsetX, defaultLogoOffsetY]) // eslint-disable-line react-hooks/exhaustive-deps -- setter refs are stable
+  }, [selected, previewPoster, mappingsMap, posters, posterShape, posterLayout, posterFreshScope, landscapeDefaults, defaultLogoScale, defaultLogoOffsetX, defaultLogoOffsetY, trendRank, mdblistAnimeList, rankingBadges]) // eslint-disable-line react-hooks/exhaustive-deps -- setter refs are stable
 
   const removeLogo = useCallback(async () => {
     if (!selected) return
@@ -389,7 +414,10 @@ export function usePosterSave(deps: PosterSaveDeps) {
     }
     const landscapeProfile = isLandscapeMode
       ? {
-          logoScale, logoOffsetX, logoOffsetY,
+          // Correzione c1: auto (provenance) → null (resta auto al
+          // rank-change; mai 100 baked sui fallback Standard). Espliciti
+          // (anche 75/100/150/200) congelati invariati.
+          logoScale: logoScaleExplicit === false ? null : logoScale, logoOffsetX, logoOffsetY,
           topBadgeScale, topBadgeOffsetX, topBadgeOffsetY,
           extraBadgeScale, extraBadgeOffsetX, extraBadgeOffsetY,
           genreBadgeScale, genreBadgeOffsetX, genreBadgeOffsetY,
@@ -397,6 +425,8 @@ export function usePosterSave(deps: PosterSaveDeps) {
           separateBadgeScale,
           separateBadgeOffsetX, separateBadgeOffsetY,
           separateRatingsStyle,
+          posterLayout,
+          posterFreshScope,
           networkLogoScale, networkLogoOffsetX, networkLogoOffsetY,
           networkLogoFollowTitle,
           ...landscapeBlurPatch,
@@ -441,7 +471,7 @@ export function usePosterSave(deps: PosterSaveDeps) {
           logoPath: effectiveLogoPath,
           originalPosterPath: selected.poster_path,
           language: posterToSave.iso_639_1,
-          logoScale: keepFlat(logoScale, prevMapping?.logoScale),
+          logoScale: keepFlat(logoScaleExplicit === false ? null : logoScale, prevMapping?.logoScale),
           logoOffsetX: keepFlat(logoOffsetX, prevMapping?.logoOffsetX),
           logoOffsetY: keepFlat(logoOffsetY, prevMapping?.logoOffsetY),
           backdropPath: backdropToSave,
@@ -550,6 +580,13 @@ export function usePosterSave(deps: PosterSaveDeps) {
           networkLogoName: networkLogoName ?? null,
           episodeGroupId: episodeGroupId || undefined,
           posterShape,
+          // Graphical layout congelato per-titolo (flat in portrait, preservato
+          // in landscape come gli altri tuning per-shape): in landscape il flat
+          // resta quello salvato, mai clobberato dal valore del formato.
+          posterLayout: keepFlat(posterLayout, prevMapping?.posterLayout),
+          // Fresh apply scope congelato per-titolo (stessa regola per-shape
+          // del layout sopra): in landscape il flat resta quello salvato.
+          posterFreshScope: keepFlat(posterFreshScope, prevMapping?.posterFreshScope),
           landscape: landscapeProfile,
         }),
       })
@@ -573,7 +610,7 @@ export function usePosterSave(deps: PosterSaveDeps) {
       if (overrides.silent) throw error
       return false
     }
-  }, [selected, previewPoster, selectedLogo, metaInfo, logoScale, logoOffsetX, logoOffsetY, trendRank, globalBadges, rankingBadges, badgeGenre, badgeYear, badgeRating, badgeQuality, customRatings, ratingSources, separateRatings, separateRatingsStyle, mdblistAnimeList, loadMappings, customBadge, badgePresetId, badgePresetRev, badgeStyle, rankingBadgeStyle, extraBadgeStyle, badgeFont, qualityBadgeStyle, videoFormats, blurEnabled, blurIntensity, blurFade, blurDarkness, landscapeBlur, landscapeBlurDirty, tintStrength, topShade, gradientHeight, topBadgeScale, topBadgeOffsetX, topBadgeOffsetY, extraBadgeScale, extraBadgeOffsetX, extraBadgeOffsetY, genreBadgeScale, qualityBadgeScale, separateBadgeScale, separateBadgeOffsetX, separateBadgeOffsetY, networkLogoScale, genreBadgeOffsetX, genreBadgeOffsetY, qualityBadgeOffsetX, qualityBadgeOffsetY, networkLogoOffsetX, networkLogoOffsetY, rotationPosters, autoRotateClean, defaultAutoRotateClean, excludedPosters, rotationBackdrops, autoRotateBackdrop, defaultAutoRotateBackdrop, excludedBackdrops, backdrops, defaultBadgeStyle, defaultRankingBadgeStyle, defaultExtraBadgeStyle, posters, mappingsMap, accentColor, autoAccentColor, backdropOffsetX, backdropOffsetY, backdropScale, selectedBackdrop, networkLogo, networkLogoPosition, networkLogoFollowTitle, ribbonEnabled, episodeGroupId, posterShape]) // eslint-disable-line react-hooks/exhaustive-deps -- intentionally complete to save all poster state
+  }, [selected, previewPoster, selectedLogo, metaInfo, logoScale, logoOffsetX, logoOffsetY, trendRank, globalBadges, rankingBadges, badgeGenre, badgeYear, badgeRating, badgeQuality, customRatings, ratingSources, separateRatings, separateRatingsStyle, mdblistAnimeList, loadMappings, customBadge, badgePresetId, badgePresetRev, badgeStyle, rankingBadgeStyle, extraBadgeStyle, badgeFont, qualityBadgeStyle, videoFormats, blurEnabled, blurIntensity, blurFade, blurDarkness, landscapeBlur, landscapeBlurDirty, tintStrength, topShade, gradientHeight, topBadgeScale, topBadgeOffsetX, topBadgeOffsetY, extraBadgeScale, extraBadgeOffsetX, extraBadgeOffsetY, genreBadgeScale, qualityBadgeScale, separateBadgeScale, separateBadgeOffsetX, separateBadgeOffsetY, networkLogoScale, genreBadgeOffsetX, genreBadgeOffsetY, qualityBadgeOffsetX, qualityBadgeOffsetY, networkLogoOffsetX, networkLogoOffsetY, rotationPosters, autoRotateClean, defaultAutoRotateClean, excludedPosters, rotationBackdrops, autoRotateBackdrop, defaultAutoRotateBackdrop, excludedBackdrops, backdrops, defaultBadgeStyle, defaultRankingBadgeStyle, defaultExtraBadgeStyle, posters, mappingsMap, accentColor, autoAccentColor, backdropOffsetX, backdropOffsetY, backdropScale, selectedBackdrop, networkLogo, networkLogoPosition, networkLogoFollowTitle, ribbonEnabled, episodeGroupId, posterShape, posterLayout, posterFreshScope]) // eslint-disable-line react-hooks/exhaustive-deps -- intentionally complete to save all poster state
 
   /**
    * Cover-only save ("Salva solo poster" / "Save poster only"): persists

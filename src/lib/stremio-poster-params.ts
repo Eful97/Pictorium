@@ -5,7 +5,7 @@ import type { VideoFormat } from "@/lib/av-specs"
 import { parseMinQuality, type StreamQuality } from "@/lib/quality-tiers"
 import { parseSashOrder, isDefaultSashOrder, type SashBucket } from "@/lib/badge-priority"
 import { BADGE_PRESET_ID_RE, BADGE_PRESET_REV_RE } from "@/lib/badge-preset"
-import type { PosterShape } from "@/lib/types"
+import type { PosterShape, PosterLayout, PosterFreshScope } from "@/lib/types"
 import type { DateFormat } from "@/lib/release-badge"
 
 export interface StremioPosterParamsInput {
@@ -127,6 +127,28 @@ export interface StremioPosterParamsInput {
   /** Formato canvas: emesso come `shape=landscape` solo quando landscape
    *  (il portrait è il default e resta omesso per non invalidare la cache). */
   readonly posterShape?: PosterShape
+  /**
+   * Graphical poster layout: emitted as `layout=fresh` when fresh and as
+   * `layout=standard` when explicitly standard — the explicit standard
+   * overrides a fresh inherited from config/defaults for unsaved/template
+   * consumers (an absent param would inherit fresh server-side, so dropping
+   * it would lose the override). Absent (undefined/null) stays absent:
+   * legacy unspecified URLs keep no param and stay byte-identical.
+   * Enum a bassa cardinalità come sepstyle/xbs: resta esplicito anche in
+   * compact (mai dentro `dv`).
+   */
+  readonly posterLayout?: PosterLayout | null
+  /**
+   * Fresh apply scope: emitted as `freshScope=all|ranked` when EXPLICIT
+   * (like `layout` above: an explicit `all` overrides a ranked inherited
+   * from config/defaults for unsaved/template consumers — an absent param
+   * would inherit ranked server-side, so dropping it would lose the
+   * override). Absent (undefined/null) stays absent: legacy unspecified
+   * URLs keep no param and stay byte-identical. Strict enum: garbage never
+   * travels (fail-closed, like the resolver). Low cardinality: stays
+   * explicit in compact mode, never inside `dv`.
+   */
+  readonly posterFreshScope?: PosterFreshScope | null
   /**
    * Formato ignoto a build-time (template Nuvio `shape={shape}`): lo stile
    * si emette raw e la normalizzazione bar→pills resta dinamica server-side
@@ -352,6 +374,25 @@ export function buildStremioPosterSearchParams(input: StremioPosterParamsInput):
   if (input.posterShape === "landscape") {
     params.set("shape", "landscape")
     if (input.logoAlign === "center") params.set("align", "center")
+  }
+  // Layout grafico: emesso quando ESPLICITO (fresh o standard). Lo standard
+  // esplicito deve viaggiare (`layout=standard`): ometterlo collasserebbe
+  // sull'assenza e il server erediterebbe fresh da config/defaults per i
+  // consumer senza mapping salvato (template/unsaved) — override perso.
+  // L'assenza (undefined/null) resta senza parametro: gli URL legacy non
+  // specificati restano byte-identici e la cache non si invalida. Strict
+  // enum: garbage non tipizzato non viaggia mai (fail-closed, come il
+  // resolver).
+  if (input.posterLayout === "fresh") {
+    params.set("layout", "fresh")
+  } else if (input.posterLayout === "standard") {
+    params.set("layout", "standard")
+  }
+  // Fresh apply scope: same explicit/absent contract as `layout` above.
+  if (input.posterFreshScope === "ranked") {
+    params.set("freshScope", "ranked")
+  } else if (input.posterFreshScope === "all") {
+    params.set("freshScope", "all")
   }
   params.set("lang", input.lang || "it")
   if (!blurEnabled) params.set("be", "0")

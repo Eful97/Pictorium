@@ -9,6 +9,7 @@ import { getWarmupCatalogs } from "@/lib/catalog-definitions"
 import { createLogger } from "@/lib/logger"
 import { z } from "zod"
 import { BADGE_STYLES, RANKING_BADGE_STYLES, QUALITY_BADGE_STYLES, BADGE_FONTS, SEPARATE_RATINGS_STYLES, EXTRA_BADGE_STYLES } from "@/lib/badge-styles"
+import { POSTER_LAYOUTS, POSTER_FRESH_SCOPES } from "@/lib/types"
 import { readJsonBody, BodyTooLargeError, DEFAULT_MAX_BODY_BYTES } from "@/lib/read-body"
 import { envWithFallback } from "@/lib/env-compat"
 
@@ -116,6 +117,10 @@ const defaultsSchema = z.object({
   ribbonSide: z.enum(["left", "right"]).optional(),
   ribbonEnabled: z.boolean().optional(),
   posterShape: z.enum(["poster", "landscape"]).optional(),
+  /** Graphical poster layout (flat): absent = standard historic render. */
+  posterLayout: z.enum(POSTER_LAYOUTS).optional(),
+  /** Fresh apply scope (flat): absent = all historic render. */
+  posterFreshScope: z.enum(POSTER_FRESH_SCOPES).optional(),
   logoAlign: z.enum(["left", "center"]).nullable().optional(),
   episodeMetadataSource: z.enum(["tmdb", "tvdb"]).optional(),
   region: z.string().max(32).optional(),
@@ -151,6 +156,8 @@ const defaultsSchema = z.object({
     separateBadgeOffsetX: z.number().optional(),
     separateBadgeOffsetY: z.number().optional(),
     separateRatingsStyle: z.enum(SEPARATE_RATINGS_STYLES).optional(),
+    posterLayout: z.enum(POSTER_LAYOUTS).optional(),
+    posterFreshScope: z.enum(POSTER_FRESH_SCOPES).optional(),
     networkLogoScale: z.number().optional(),
     networkLogoOffsetX: z.number().optional(),
     networkLogoOffsetY: z.number().optional(),

@@ -1,4 +1,4 @@
-import { effectiveMappingForShape, type Mapping, type PosterShape } from "./types"
+import { effectiveMappingForShape, DEFAULT_POSTER_FRESH_SCOPE, type Mapping, type PosterShape } from "./types"
 import { isCustomPosterUrl } from "./utils"
 
 /** I 7 slider del blocco sfumatura/blur (quelli che scrivono i preset). */
@@ -160,6 +160,10 @@ export interface FullMappingCheckState {
   separateBadgeOffsetY?: number | null
   /** Layout dei rating separati ("column" = colonna destra storica). */
   separateRatingsStyle?: string
+  /** Graphical poster layout ("standard" = resa storica, "fresh" = opt-in). */
+  posterLayout?: string
+  /** Fresh apply scope ("ranked" = default: solo con rank; "all" = override esplicito). */
+  posterFreshScope?: string
   networkLogo?: boolean
   ribbonEnabled?: boolean
   networkLogoPosition?: string
@@ -229,6 +233,10 @@ export function isMappingDirty(
   if ((current.customRatings ?? true) !== (eff.customRatings ?? true)) return true
   if ((current.separateRatings ?? false) !== (eff.separateRatings ?? false)) return true
   if ((current.separateRatingsStyle ?? "column") !== (eff.separateRatingsStyle ?? "column")) return true
+  // Graphical layout per-shape (flat/landscape profile via eff): assente =
+  // standard su entrambi i lati (mapping storici invariati).
+  if ((current.posterLayout ?? "standard") !== (eff.posterLayout ?? "standard")) return true
+  if ((current.posterFreshScope ?? DEFAULT_POSTER_FRESH_SCOPE) !== (eff.posterFreshScope ?? DEFAULT_POSTER_FRESH_SCOPE)) return true
   if ((current.separateBadgeScale ?? 130) !== (eff.separateBadgeScale ?? 130)) return true
   if ((current.separateBadgeOffsetX ?? 0) !== (eff.separateBadgeOffsetX ?? 0)) return true
   if ((current.separateBadgeOffsetY ?? 0) !== (eff.separateBadgeOffsetY ?? 0)) return true

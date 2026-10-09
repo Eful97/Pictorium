@@ -2,8 +2,8 @@
 
 import { useState, useEffect, useCallback, useRef } from "react"
 import type { BadgeStyle, RankingBadgeStyle, ExtraBadgeStyle } from "./badge-styles"
-import type { NetworkLogoPosition, PosterShape } from "./types"
-import { isNetworkLogoPosition, isPosterShape } from "./types"
+import type { NetworkLogoPosition, PosterLayout, PosterFreshScope, PosterShape } from "./types"
+import { isNetworkLogoPosition, isPosterLayout, isPosterFreshScope, isPosterShape } from "./types"
 import type { LandscapeServerDefaults } from "./server-defaults"
 import { parseDateFormat, type DateFormat } from "./release-badge"
 import { normalizeRegion } from "./regions"
@@ -93,6 +93,10 @@ export interface DefaultsState {
   defaultSeparateRatings: boolean
   /** Layout dei rating separati di default ("column" = colonna destra storica). */
   defaultSeparateRatingsStyle: SeparateRatingsStyle
+  /** Graphical poster layout di default ("standard" = resa storica, "fresh" = opt-in). */
+  defaultPosterLayout: PosterLayout
+  /** Fresh apply scope di default ("ranked" = default: solo con rank; "all" = override esplicito). */
+  defaultPosterFreshScope: PosterFreshScope
   /** Bucket sash abilitati (ordine canonico; vuota = tutto spento). */
   defaultSashOrder: SashBucket[]
   defaultAutoRotateClean: boolean
@@ -136,6 +140,10 @@ export interface DefaultsState {
   separateRatings: boolean
   /** Layout dei rating separati del poster in editing ("column" = colonna storica). */
   separateRatingsStyle: SeparateRatingsStyle
+  /** Graphical poster layout del poster in editing ("standard" = resa storica). */
+  posterLayout: PosterLayout
+  /** Fresh apply scope del poster in editing ("ranked" = default: solo con rank). */
+  posterFreshScope: PosterFreshScope
   networkLogo: boolean
   /** Posizione del logo network del poster in editing. */
   networkLogoPosition: NetworkLogoPosition
@@ -250,6 +258,8 @@ const DEFAULTS: DefaultsState = {
   defaultRatingSources: ["imdb", "tmdb"],
   defaultSeparateRatings: false,
   defaultSeparateRatingsStyle: DEFAULT_SEPARATE_RATINGS_STYLE,
+  defaultPosterLayout: "standard",
+  defaultPosterFreshScope: "ranked",
   defaultSashOrder: [...DEFAULT_SASH_ORDER],
   defaultAutoRotateClean: false,
   defaultAutoRotateBackdrop: false,
@@ -278,6 +288,8 @@ const DEFAULTS: DefaultsState = {
   ratingSources: ["imdb", "tmdb"],
   separateRatings: false,
   separateRatingsStyle: DEFAULT_SEPARATE_RATINGS_STYLE,
+  posterLayout: "standard",
+  posterFreshScope: "ranked",
   networkLogo: true,
   networkLogoPosition: "auto",
   networkLogoFollowTitle: true,
@@ -420,6 +432,12 @@ interface StoredDefaults {
   /** Layout dei rating separati (grezzo dallo storage; validato in buildFromStored). */
   defaultSeparateRatingsStyle?: SeparateRatingsStyle
   separateRatingsStyle?: SeparateRatingsStyle
+  /** Graphical poster layout (grezzo dallo storage; validato in buildFromStored). */
+  defaultPosterLayout?: PosterLayout
+  posterLayout?: PosterLayout
+  /** Fresh apply scope (grezzo dallo storage; validato in buildFromStored). */
+  defaultPosterFreshScope?: PosterFreshScope
+  posterFreshScope?: PosterFreshScope
   /** Bucket sash abilitati (grezzi; normalizzati in buildFromStored). */
   defaultSashOrder?: string[]
   /** Chiave server/local piatta (saveDefaults/defaultsToPayload): fallback di lettura. */
@@ -609,6 +627,12 @@ function buildFromStored(d: StoredDefaults | null): DefaultsState {
     defaultSeparateRatingsStyle: isSeparateRatingsStyle(d.defaultSeparateRatingsStyle)
       ? d.defaultSeparateRatingsStyle
       : (isSeparateRatingsStyle(d.separateRatingsStyle) ? d.separateRatingsStyle : DEFAULT_SEPARATE_RATINGS_STYLE),
+    defaultPosterLayout: isPosterLayout(d.defaultPosterLayout)
+      ? d.defaultPosterLayout
+      : (isPosterLayout(d.posterLayout) ? d.posterLayout : "standard"),
+    defaultPosterFreshScope: isPosterFreshScope(d.defaultPosterFreshScope)
+      ? d.defaultPosterFreshScope
+      : (isPosterFreshScope(d.posterFreshScope) ? d.posterFreshScope : "ranked"),
     defaultSashOrder: normalizeSashOrder(d.defaultSashOrder ?? d.sashOrder) ?? [...DEFAULT_SASH_ORDER],
     defaultAutoRotateClean: d.defaultAutoRotateClean ?? d.autoRotateClean ?? false,
     defaultAutoRotateBackdrop: d.defaultAutoRotateBackdrop ?? false,
@@ -642,6 +666,12 @@ function buildFromStored(d: StoredDefaults | null): DefaultsState {
     separateRatingsStyle: isSeparateRatingsStyle(d.separateRatingsStyle)
       ? d.separateRatingsStyle
       : (isSeparateRatingsStyle(d.defaultSeparateRatingsStyle) ? d.defaultSeparateRatingsStyle : DEFAULT_SEPARATE_RATINGS_STYLE),
+    posterLayout: isPosterLayout(d.posterLayout)
+      ? d.posterLayout
+      : (isPosterLayout(d.defaultPosterLayout) ? d.defaultPosterLayout : "standard"),
+    posterFreshScope: isPosterFreshScope(d.posterFreshScope)
+      ? d.posterFreshScope
+      : (isPosterFreshScope(d.defaultPosterFreshScope) ? d.defaultPosterFreshScope : "ranked"),
     networkLogo: d.networkLogo ?? d.defaultNetworkLogo ?? true,
     networkLogoFollowTitle: d.networkLogoFollowTitle ?? d.defaultNetworkLogoFollowTitle ?? true,
     networkLogoPosition: isNetworkLogoPosition(d.networkLogoPosition)
@@ -761,6 +791,8 @@ function defaultsToPayload(d: DefaultsState): Record<string, unknown> {
     ratingSources: d.defaultRatingSources,
     separateRatings: d.defaultSeparateRatings,
     separateRatingsStyle: d.defaultSeparateRatingsStyle,
+    posterLayout: d.defaultPosterLayout,
+    posterFreshScope: d.defaultPosterFreshScope,
     sashOrder: d.defaultSashOrder,
     autoRotateClean: d.defaultAutoRotateClean,
     defaultAutoRotateBackdrop: d.defaultAutoRotateBackdrop,

@@ -1,8 +1,9 @@
 "use client"
 
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef, useMemo, useSyncExternalStore } from "react"
-import type { SearchResult, TMDBImage, Mapping, CustomCatalogConfig, NetworkLogoPosition, PosterShape } from "./types"
-import { effectiveMappingForShape } from "./types"
+import type { SearchResult, TMDBImage, Mapping, CustomCatalogConfig, NetworkLogoPosition, PosterLayout, PosterFreshScope, PosterShape } from "./types"
+import { effectiveMappingForShape, DEFAULT_POSTER_FRESH_SCOPE } from "./types"
+import { effectiveShapeDefaultLayout, resolveOpenPosterLayout, effectiveShapeDefaultFreshScope, resolveOpenPosterFreshScope } from "./poster-layout-resolve"
 import type { BadgeStyle, RankingBadgeStyle, ExtraBadgeStyle, QualityBadgeStyle, BadgeFont, SeparateRatingsStyle } from "./badge-styles"
 import { isSeparateRatingsStyle, resolveSeparateBadgeScaleFallback } from "./badge-styles"
 import { resolveNetworkShapeView, resolveNetworkEffectiveView } from "./network-follow"
@@ -21,7 +22,7 @@ import { copyText } from "./clipboard"
 import { useRootColors } from "./useRootColors"
 import { normalizeGenreName } from "./genre-normalize"
 import { buildUrlPattern, buildPreviewUrl } from "./poster-url"
-import { selectBestLogo, autoLogoSelection, logoDefaultScale } from "./logo-selection"
+import { selectBestLogo, autoLogoSelection, logoEffectiveAutoScale, resolveLogoDisplayedRank } from "./logo-selection"
 import { useTrending } from "./useTrending"
 import { useSearch } from "./useSearch"
 import { useNavigation } from "./useNavigation"
@@ -499,6 +500,8 @@ export function usePictorium(): PictoriumCtx {
     ratingSources, setRatingSources,
     separateRatings, setSeparateRatings,
     separateRatingsStyle, setSeparateRatingsStyle,
+    posterLayout, setPosterLayout,
+    posterFreshScope, setPosterFreshScope,
     badgeStyle, setBadgeStyle,
     rankingBadgeStyle, setRankingBadgeStyle,
     extraBadgeStyle, setExtraBadgeStyle,
@@ -531,6 +534,8 @@ export function usePictorium(): PictoriumCtx {
     defaultRatingSources,
     defaultSeparateRatings,
     defaultSeparateRatingsStyle,
+    defaultPosterLayout,
+    defaultPosterFreshScope,
     defaultSashOrder,
     defaultRibbonSide,
     defaultRibbonEnabled,
@@ -604,6 +609,7 @@ export function usePictorium(): PictoriumCtx {
     networkLogoOffsetY, setNetworkLogoOffsetY,
     // Logo
     logoScale, setLogoScale,
+    logoScaleExplicit,
     logoOffsetX, setLogoOffsetX,
     logoOffsetY, setLogoOffsetY,
     logoDisabled, setLogoDisabled,
@@ -1079,6 +1085,24 @@ export function usePictorium(): PictoriumCtx {
       ribbonSide: noPreview ? defaultRibbonSide : ribbonSide,
       ribbonEnabled: noPreview ? defaultRibbonEnabled : ribbonEnabled,
       posterShape: noPreview ? defaultPosterShape : posterShape,
+      // Defaults-only template follows the effective per-shape default
+      // (`land ?? flat`, same rule as the server and the open path): with a
+      // landscape delivery default the baked layout is the landscape profile.
+      // Known Nuvio limitation: `shape={shape}` templates bake this single
+      // value for the default delivery shape — a divergent per-shape pair
+      // (portrait standard / landscape fresh) cannot freeze both in one
+      // explicit param; the dynamic shape then renders this baked value for
+      // both shapes. Per-shape delivery needs follow-space (live) or
+      // per-shape fixed templates. Same freeze rule for `posterFreshScope`
+      // below (one baked scope per template).
+      posterLayout: noPreview
+        ? effectiveShapeDefaultLayout(defaultPosterLayout, landscapeDefaults, defaultPosterShape)
+        : posterLayout,
+      // Fresh scope: stessa regola del layout (land ?? flat) — i template
+      // seguono il default effettivo per forma, come il server.
+      posterFreshScope: noPreview
+        ? effectiveShapeDefaultFreshScope(defaultPosterFreshScope, landscapeDefaults, defaultPosterShape)
+        : posterFreshScope,
       logoAlign: noPreview ? (defaultLogoAlign ?? undefined) : logoAlign,
       topBadgeScale: noPreview ? defaultTopBadgeScale : topBadgeScale,
       topBadgeOffsetX: noPreview ? defaultTopBadgeOffsetX : topBadgeOffsetX,
@@ -1118,7 +1142,7 @@ export function usePictorium(): PictoriumCtx {
     setUrlPatternNuvio(buildUrlPattern({ ...base, idPlaceholder: "{tmdb_id}", shapePlaceholder: "{shape}" }))
     setUrlPatternNuvioImdb(buildUrlPattern({ ...base, idPlaceholder: "{imdb_id}", shapePlaceholder: "{shape}" }))
     setUrlPatternNuvioAuto(buildUrlPattern({ ...base, idPlaceholder: "{tmdb_id|imdb_id}", shapePlaceholder: "{shape}" }))
-    }, [globalBadges, rankingBadges, badgeGenre, badgeYear, badgeRating, badgeQuality, qualityBadgeStyle, customRatings, ratingSources, separateRatings, separateRatingsStyle, networkLogo, networkLogoPosition, networkLogoFollowTitle, preRelease, ribbonSide, ribbonEnabled, posterShape, logoAlign, gradientHeight, blurIntensity, blurFade, blurDarkness, blurEnabled, landscapeBlur, tintStrength, topShade, badgeStyle, rankingBadgeStyle, extraBadgeStyle, badgeFont, topBadgeScale, topBadgeOffsetX, topBadgeOffsetY, extraBadgeScale, extraBadgeOffsetX, extraBadgeOffsetY, genreBadgeScale, qualityBadgeScale, networkLogoScale, separateBadgeScale, separateBadgeOffsetX, separateBadgeOffsetY, genreBadgeOffsetX, genreBadgeOffsetY, qualityBadgeOffsetX, qualityBadgeOffsetY, networkLogoOffsetX, networkLogoOffsetY, tmdbKey, lang, mdblistApiKey, currentUserId, localConfigToken, serverKeyStatus, linkMode, navigation.previewId, defaultGlobalBadges, defaultRankingBadges, defaultBadgeStyle, defaultRankingBadgeStyle, defaultExtraBadgeStyle, defaultBadgeFont, defaultQualityBadgeStyle, defaultBadgeGenre, defaultBadgeYear, defaultBadgeRating, defaultBadgeQuality, defaultCustomRatings, defaultRatingSources, defaultSeparateRatings, defaultSeparateRatingsStyle, defaultGradientHeight, defaultBlurIntensity, defaultBlurFade, defaultBlurDarkness, defaultBlurEnabled, defaultTintStrength, defaultTopShade, defaultNetworkLogo, defaultNetworkLogoPosition, defaultNetworkLogoFollowTitle, defaultPreRelease, defaultDateFormat, defaultRibbonSide, defaultRibbonEnabled, defaultPosterShape, defaultLogoAlign, defaultTopBadgeScale, defaultTopBadgeOffsetX, defaultTopBadgeOffsetY, defaultExtraBadgeScale, defaultExtraBadgeOffsetX, defaultExtraBadgeOffsetY, defaultGenreBadgeScale, defaultQualityBadgeScale, defaultNetworkLogoScale, defaultSeparateBadgeScale, defaultSeparateBadgeOffsetX, defaultSeparateBadgeOffsetY, defaultGenreBadgeOffsetX, defaultGenreBadgeOffsetY, defaultQualityBadgeOffsetX, defaultQualityBadgeOffsetY, defaultNetworkLogoOffsetX, defaultNetworkLogoOffsetY]) // eslint-disable-line react-hooks/exhaustive-deps -- customBadge intentionally excluded to avoid loop
+    }, [globalBadges, rankingBadges, badgeGenre, badgeYear, badgeRating, badgeQuality, qualityBadgeStyle, customRatings, ratingSources, separateRatings, separateRatingsStyle, posterLayout, posterFreshScope, defaultPosterLayout, defaultPosterFreshScope, networkLogo, networkLogoPosition, networkLogoFollowTitle, preRelease, ribbonSide, ribbonEnabled, posterShape, logoAlign, gradientHeight, blurIntensity, blurFade, blurDarkness, blurEnabled, landscapeBlur, tintStrength, topShade, badgeStyle, rankingBadgeStyle, extraBadgeStyle, badgeFont, topBadgeScale, topBadgeOffsetX, topBadgeOffsetY, extraBadgeScale, extraBadgeOffsetX, extraBadgeOffsetY, genreBadgeScale, qualityBadgeScale, networkLogoScale, separateBadgeScale, separateBadgeOffsetX, separateBadgeOffsetY, genreBadgeOffsetX, genreBadgeOffsetY, qualityBadgeOffsetX, qualityBadgeOffsetY, networkLogoOffsetX, networkLogoOffsetY, tmdbKey, lang, mdblistApiKey, currentUserId, localConfigToken, serverKeyStatus, linkMode, navigation.previewId, defaultGlobalBadges, defaultRankingBadges, defaultBadgeStyle, defaultRankingBadgeStyle, defaultExtraBadgeStyle, defaultBadgeFont, defaultQualityBadgeStyle, defaultBadgeGenre, defaultBadgeYear, defaultBadgeRating, defaultBadgeQuality, defaultCustomRatings, defaultRatingSources, defaultSeparateRatings, defaultSeparateRatingsStyle, defaultGradientHeight, defaultBlurIntensity, defaultBlurFade, defaultBlurDarkness, defaultBlurEnabled, defaultTintStrength, defaultTopShade, defaultNetworkLogo, defaultNetworkLogoPosition, defaultNetworkLogoFollowTitle, defaultPreRelease, defaultDateFormat, defaultRibbonSide, defaultRibbonEnabled, defaultPosterShape, defaultLogoAlign, defaultTopBadgeScale, defaultTopBadgeOffsetX, defaultTopBadgeOffsetY, defaultExtraBadgeScale, defaultExtraBadgeOffsetX, defaultExtraBadgeOffsetY, defaultGenreBadgeScale, defaultQualityBadgeScale, defaultNetworkLogoScale, defaultSeparateBadgeScale, defaultSeparateBadgeOffsetX, defaultSeparateBadgeOffsetY, defaultGenreBadgeOffsetX, defaultGenreBadgeOffsetY, defaultQualityBadgeOffsetX, defaultQualityBadgeOffsetY, defaultNetworkLogoOffsetX, defaultNetworkLogoOffsetY]) // eslint-disable-line react-hooks/exhaustive-deps -- customBadge intentionally excluded to avoid loop
 
   // --- Default live sul titolo corrente ---
   // Una modifica ai default (barra Impostazioni) si riflette subito sulla
@@ -1135,6 +1159,8 @@ export function usePictorium(): PictoriumCtx {
       badgeRating: defaultBadgeRating, badgeQuality: defaultBadgeQuality, customRatings: defaultCustomRatings,
       ratingSources: defaultRatingSources, separateRatings: defaultSeparateRatings,
       separateRatingsStyle: defaultSeparateRatingsStyle,
+      posterLayout: defaultPosterLayout,
+      posterFreshScope: defaultPosterFreshScope,
       networkLogo: defaultNetworkLogo, networkLogoPosition: defaultNetworkLogoPosition, networkLogoFollowTitle: defaultNetworkLogoFollowTitle, ribbonSide: defaultRibbonSide, ribbonEnabled: defaultRibbonEnabled, posterShape: defaultPosterShape,
       logoAlign: defaultLogoAlign, gradientHeight: defaultGradientHeight, blurIntensity: defaultBlurIntensity,
       tintStrength: defaultTintStrength, topShade: defaultTopShade, blurFade: defaultBlurFade, blurDarkness: defaultBlurDarkness,
@@ -1186,6 +1212,30 @@ export function usePictorium(): PictoriumCtx {
     if (changed("ratingSources")) setRatingSources(cur.ratingSources as string[])
     if (changed("separateRatings")) setSeparateRatings(cur.separateRatings as boolean)
     if (changed("separateRatingsStyle")) setSeparateRatingsStyle(cur.separateRatingsStyle as SeparateRatingsStyle)
+    // Graphical poster layout live (unmapped title only, like the other
+    // defaults): saved overrides stay protected — mapped titles never follow.
+    // Shape-aware: in landscape an explicit profile is preserved (`land ??
+    // flat`, same rule as the server and the open path) — a flat edit must
+    // never clobber the landscape override; with no profile the flat is
+    // followed. The landscape block below repairs profile edits the same way.
+    if (changed("posterLayout")) {
+      const flatLayout = cur.posterLayout as PosterLayout
+      setPosterLayout(
+        posterShape === "landscape"
+          ? effectiveShapeDefaultLayout(flatLayout, (cur.landscape ?? {}) as Parameters<typeof effectiveShapeDefaultLayout>[1], "landscape")
+          : flatLayout,
+      )
+    }
+    // Fresh apply scope live (unmapped title only, like the layout above):
+    // saved overrides stay protected — mapped titles never follow.
+    if (changed("posterFreshScope")) {
+      const flatScope = cur.posterFreshScope as PosterFreshScope
+      setPosterFreshScope(
+        posterShape === "landscape"
+          ? effectiveShapeDefaultFreshScope(flatScope, (cur.landscape ?? {}) as Parameters<typeof effectiveShapeDefaultFreshScope>[1], "landscape")
+          : flatScope,
+      )
+    }
     if (changed("networkLogo")) setNetworkLogo(cur.networkLogo as boolean)
     if (changed("networkLogoPosition")) setNetworkLogoPosition(cur.networkLogoPosition as NetworkLogoPosition)
     // Flat network follow/offsets propagate raw in portrait; in landscape the
@@ -1272,6 +1322,11 @@ export function usePictorium(): PictoriumCtx {
       // mostrano il profilo Verticale e non si toccano). Chiavi assenti =
       // segui i default flat (come il server).
       if (posterShape === "landscape") {
+        // Graphical layout landscape profile (unmapped title only): the open
+        // poster follows `land ?? flat`, same rule as the server and the open
+        // path. Absent profile key = follow the flat default.
+        if (landKeyChanged("posterLayout")) setPosterLayout((eff("posterLayout", defaultPosterLayout) ?? "standard") as PosterLayout)
+        if (landKeyChanged("posterFreshScope")) setPosterFreshScope((eff("posterFreshScope", defaultPosterFreshScope) ?? DEFAULT_POSTER_FRESH_SCOPE) as PosterFreshScope)
         if (landKeyChanged("topBadgeScale")) setTopBadgeScale(eff("topBadgeScale", defaultTopBadgeScale) as number, { materialize: false })
         if (landKeyChanged("topBadgeOffsetX")) setTopBadgeOffsetX(eff("topBadgeOffsetX", defaultTopBadgeOffsetX) as number, { materialize: false })
         if (landKeyChanged("topBadgeOffsetY")) setTopBadgeOffsetY(eff("topBadgeOffsetY", defaultTopBadgeOffsetY) as number, { materialize: false })
@@ -1384,6 +1439,9 @@ export function usePictorium(): PictoriumCtx {
         selectedLogo: navigation.selectedLogo,
         selectedBackdrop,
         logoScale, logoOffsetX, logoOffsetY,
+        // Correzione c1: gli auto emettono il sentinel `scale=0` (il server
+        // risolve Fresh-100 vs aspect dal rank mostrato); gli espliciti il valore.
+        logoScaleIsAuto: !logoScaleExplicit,
         backdropScale, backdropOffsetX, backdropOffsetY,
         metaInfo, trendRank, mdblistAnimeList: trending.mdblistAnimeList,
         topEdgeColor, bottomEdgeColor, accentColor, autoAccentColor, lang, tmdbKey,
@@ -1392,15 +1450,15 @@ export function usePictorium(): PictoriumCtx {
         // Preview WYSIWYG nel namespace (altrimenti mostra il globale).
         userId: currentUserId,
       },
-      { globalBadges, rankingBadges, badgeStyle, rankingBadgeStyle, extraBadgeStyle, badgeFont, qualityBadgeStyle, videoFormats, badgeGenre, badgeYear, badgeRating, badgeQuality, customRatings, ratingSources, separateRatings, separateRatingsStyle, customBadge, gradientHeight: isLandscapePreview ? landscapeBlur.gradientHeight : gradientHeight, blurIntensity: isLandscapePreview ? landscapeBlur.blurIntensity : blurIntensity, blurFade: isLandscapePreview ? landscapeBlur.blurFade : blurFade, blurDarkness: isLandscapePreview ? landscapeBlur.blurDarkness : blurDarkness, blurEnabled: isLandscapePreview ? landscapeBlur.blurEnabled : blurEnabled, tintStrength: isLandscapePreview ? landscapeBlur.tintStrength : tintStrength, topShade: isLandscapePreview ? landscapeBlur.topShade : topShade, networkLogo, networkLogoPosition, networkLogoFollowTitle, preRelease, ribbonSide, ribbonEnabled, posterShape, logoAlign, topBadgeScale, topBadgeOffsetX, topBadgeOffsetY, extraBadgeScale: extraBadgeScale ?? undefined, extraBadgeOffsetX: extraBadgeOffsetX ?? undefined, extraBadgeOffsetY: extraBadgeOffsetY ?? undefined, genreBadgeScale, qualityBadgeScale, networkLogoScale, separateBadgeScale, separateBadgeOffsetX, separateBadgeOffsetY, genreBadgeOffsetX, genreBadgeOffsetY, qualityBadgeOffsetX, qualityBadgeOffsetY, networkLogoOffsetX, networkLogoOffsetY },
+      { globalBadges, rankingBadges, badgeStyle, rankingBadgeStyle, extraBadgeStyle, badgeFont, qualityBadgeStyle, videoFormats, badgeGenre, badgeYear, badgeRating, badgeQuality, customRatings, ratingSources, separateRatings, separateRatingsStyle, posterLayout, posterFreshScope, customBadge, gradientHeight: isLandscapePreview ? landscapeBlur.gradientHeight : gradientHeight, blurIntensity: isLandscapePreview ? landscapeBlur.blurIntensity : blurIntensity, blurFade: isLandscapePreview ? landscapeBlur.blurFade : blurFade, blurDarkness: isLandscapePreview ? landscapeBlur.blurDarkness : blurDarkness, blurEnabled: isLandscapePreview ? landscapeBlur.blurEnabled : blurEnabled, tintStrength: isLandscapePreview ? landscapeBlur.tintStrength : tintStrength, topShade: isLandscapePreview ? landscapeBlur.topShade : topShade, networkLogo, networkLogoPosition, networkLogoFollowTitle, preRelease, ribbonSide, ribbonEnabled, posterShape, logoAlign, topBadgeScale, topBadgeOffsetX, topBadgeOffsetY, extraBadgeScale: extraBadgeScale ?? undefined, extraBadgeOffsetX: extraBadgeOffsetX ?? undefined, extraBadgeOffsetY: extraBadgeOffsetY ?? undefined, genreBadgeScale, qualityBadgeScale, networkLogoScale, separateBadgeScale, separateBadgeOffsetX, separateBadgeOffsetY, genreBadgeOffsetX, genreBadgeOffsetY, qualityBadgeOffsetX, qualityBadgeOffsetY, networkLogoOffsetX, networkLogoOffsetY },
       localConfigToken,
     )
     setPreviewUrl(url)
   }, [stremioPreview, stremioPreviewUrl, navigation.selected, navigation.previewPoster, navigation.selectedLogo, selectedBackdrop,
-    logoScale, logoOffsetX, logoOffsetY, backdropScale, backdropOffsetX, backdropOffsetY,
+    logoScale, logoScaleExplicit, logoOffsetX, logoOffsetY, backdropScale, backdropOffsetX, backdropOffsetY,
     metaInfo, trendRank, trending.mdblistAnimeList, topEdgeColor, bottomEdgeColor, accentColor, autoAccentColor, lang, tmdbKey,
     editorCtx.defaultRegion, editorCtx.defaultDateFormat, currentUserId, localConfigToken, localConfigTokenStatus,
-    globalBadges, rankingBadges, badgeStyle, rankingBadgeStyle, extraBadgeStyle, badgeFont, qualityBadgeStyle, videoFormats, badgeGenre, badgeYear, badgeRating, badgeQuality, customRatings, ratingSources, separateRatings, separateRatingsStyle, customBadge, gradientHeight, blurIntensity, blurFade, blurDarkness, blurEnabled, landscapeBlur, tintStrength, topShade, networkLogo, networkLogoPosition, networkLogoFollowTitle, preRelease, ribbonSide, ribbonEnabled, posterShape, logoAlign, topBadgeScale, topBadgeOffsetX, topBadgeOffsetY, extraBadgeScale, extraBadgeOffsetX, extraBadgeOffsetY, genreBadgeScale, qualityBadgeScale, networkLogoScale, separateBadgeScale, separateBadgeOffsetX, separateBadgeOffsetY, genreBadgeOffsetX, genreBadgeOffsetY, qualityBadgeOffsetX, qualityBadgeOffsetY, networkLogoOffsetX, networkLogoOffsetY])
+    globalBadges, rankingBadges, badgeStyle, rankingBadgeStyle, extraBadgeStyle, badgeFont, qualityBadgeStyle, videoFormats, badgeGenre, badgeYear, badgeRating, badgeQuality, customRatings, ratingSources, separateRatings, separateRatingsStyle, posterLayout, posterFreshScope, customBadge, gradientHeight, blurIntensity, blurFade, blurDarkness, blurEnabled, landscapeBlur, tintStrength, topShade, networkLogo, networkLogoPosition, networkLogoFollowTitle, preRelease, ribbonSide, ribbonEnabled, posterShape, logoAlign, topBadgeScale, topBadgeOffsetX, topBadgeOffsetY, extraBadgeScale, extraBadgeOffsetX, extraBadgeOffsetY, genreBadgeScale, qualityBadgeScale, networkLogoScale, separateBadgeScale, separateBadgeOffsetX, separateBadgeOffsetY, genreBadgeOffsetX, genreBadgeOffsetY, qualityBadgeOffsetX, qualityBadgeOffsetY, networkLogoOffsetX, networkLogoOffsetY])
 
   // A1: trailing debounce della preview URL (200ms). Ogni tick di slider
   // cambia l'identità di buildPreviewUrlCb → senza debounce ogni pixel di
@@ -1702,6 +1760,12 @@ export function usePictorium(): PictoriumCtx {
     // Style from the landscape profile when present (override respected),
     // otherwise the shared flat default.
     setSeparateRatingsStyle(isSeparateRatingsStyle(land?.separateRatingsStyle) ? land.separateRatingsStyle : defaultSeparateRatingsStyle)
+    // Graphical poster layout from the landscape profile when present
+    // (override respected), otherwise the shared flat default.
+    setPosterLayout(land?.posterLayout ?? defaultPosterLayout)
+    // Fresh apply scope from the landscape profile when present (override
+    // respected), otherwise the shared flat default.
+    setPosterFreshScope(land?.posterFreshScope ?? defaultPosterFreshScope)
     setQualityBadgeOffsetX(land?.qualityBadgeOffsetX ?? defaultQualityBadgeOffsetX)
     setQualityBadgeOffsetY(land?.qualityBadgeOffsetY ?? defaultQualityBadgeOffsetY)
     setNetworkLogoScale(land?.networkLogoScale ?? defaultNetworkLogoScale)
@@ -1739,6 +1803,23 @@ export function usePictorium(): PictoriumCtx {
     const itemId = item.id
     setTitleOrigLang(details.original_language ?? null)
     const existing = mappingsMap.get(`${itemType}:${itemId}`)
+    // Layout/scope aperti (mapping effettivo > default effettivo di formato):
+    // guidano l'auto EFFETTIVO col rank. Rank-aware deliberato (correzione
+    // c1): il rank mostrato è ignoto all'apertura (arriva dopo il fetch) e gli
+    // auto partono conservativi (ranked = aspect Standard, all + fresh = 100)
+    // col sentinel auto (preview `scale=0`, save null) — mai 100 baked che
+    // congelerebbe i fallback Standard; il rank-effect sotto riallinea i soli
+    // auto al rank noto. Espliciti salvati (mapping/default, anche 75/100)
+    // vincono sempre e non vengono mai clobberati.
+    const openShape = (existing?.posterShape ?? defaultPosterShape) as "poster" | "landscape"
+    const openLayout = resolveOpenPosterLayout(existing ?? null, openShape, defaultPosterLayout, landscapeDefaults ?? null)
+    // Scope aperto (mapping effettivo > default effettivo di formato):
+    // guida l'auto EFFETTIVO col rank (mai 100 baked sui no-rank).
+    const openScope = resolveOpenPosterFreshScope(existing ?? null, openShape, defaultPosterFreshScope, landscapeDefaults ?? null)
+    // True quando il ramo auto-logo sotto ha già impostato la scala (con le
+    // dimensioni del logo): il reconciler dopo non deve clobberarla con
+    // l'auto senza dimensioni.
+    let scaledByAutoLogo = false
     if (existing) {
       // Base custom salvata: la preview parte dal tile custom (highlight e
       // preview coerenti), non dal riferimento TMDB di fallback.
@@ -1759,12 +1840,35 @@ export function usePictorium(): PictoriumCtx {
         const autoLogo = autoLogoSelection(data.logos || [], lang, details.original_language, `${itemType}/${itemId}`)
         if (autoLogo) {
           navigation.setSelectedLogo({ file_path: autoLogo.file_path, iso_639_1: autoLogo.iso_639_1, vote_average: 0, width: autoLogo.width, height: autoLogo.height })
-          // Scala logo: default globale per formato > auto-fit per aspect.
-          const scale = logoScaleDefaultFor(existing.posterShape ?? defaultPosterShape) ?? logoDefaultScale(autoLogo)
-          if (scale !== null) setLogoScale(scale)
+          // Scala logo: default globale per formato (esplicito) > auto
+          // EFFETTIVO (correzione c1: Fresh effettivo = 100, fallback
+          // Standard = aspect — rank ancora ignoto qui, quindi ranked =
+          // aspect conservativo; il rank-effect riallinea i soli auto).
+          // Mai curva/100 baked come esplicito.
+          const shapeDefault = logoScaleDefaultFor(existing.posterShape ?? defaultPosterShape)
+          if (shapeDefault != null) setLogoScale(shapeDefault)
+          else {
+            setLogoScale(
+              logoEffectiveAutoScale(autoLogo, { posterLayout: openLayout, posterFreshScope: openScope, displayedRank: null }),
+              { auto: true },
+            )
+          }
+          scaledByAutoLogo = true
         }
       }
-      setLogoScale(effectiveMappingForShape(existing, existing.posterShape ?? defaultPosterShape)?.logoScale ?? logoScaleDefaultFor(existing.posterShape ?? defaultPosterShape) ?? 75)
+      // Scala salvata esplicita (mapping/default, anche 75/100/150/200) sempre
+      // preservata come esplicita; solo l'assenza resta auto EFFETTIVO
+      // (correzione c1: mai 100 baked sui fallback Standard; il rank-effect
+      // riallinea i soli auto al rank noto). Il ramo auto-logo sopra ha già
+      // impostato l'auto con le dimensioni: non clobberarlo.
+      const savedOrDefault = effectiveMappingForShape(existing, existing.posterShape ?? defaultPosterShape)?.logoScale ?? logoScaleDefaultFor(existing.posterShape ?? defaultPosterShape)
+      if (savedOrDefault != null) setLogoScale(savedOrDefault)
+      else if (!scaledByAutoLogo) {
+        setLogoScale(
+          logoEffectiveAutoScale(null, { posterLayout: openLayout, posterFreshScope: openScope, displayedRank: null }),
+          { auto: true },
+        )
+      }
       if (existing.backdropPath && data.backdrops) {
         const foundBackdrop = data.backdrops.find((b: TMDBImage) => b.file_path === existing.backdropPath)
         setSelectedBackdrop(foundBackdrop || { file_path: existing.backdropPath, iso_639_1: null, vote_average: 0, width: 0, height: 0 })
@@ -1793,9 +1897,16 @@ export function usePictorium(): PictoriumCtx {
           chosenPoster = clean
           navigation.setPreviewPoster({ file_path: clean.file_path, iso_639_1: null, vote_average: 0, width: 0, height: 0 })
           navigation.setSelectedLogo({ file_path: autoLogo.file_path, iso_639_1: autoLogo.iso_639_1, vote_average: 0, width: autoLogo.width, height: autoLogo.height })
-          // Scala logo: default globale per formato > auto-fit per aspect.
-          const scale = logoScaleDefaultFor(defaultPosterShape) ?? logoDefaultScale(autoLogo)
-          if (scale !== null) setLogoScale(scale)
+          // Scala logo: default globale per formato (esplicito) > auto
+          // EFFETTIVO (correzione c1 — mai 100 baked; vedi ramo mapping).
+          const cleanDefault = logoScaleDefaultFor(defaultPosterShape)
+          if (cleanDefault != null) setLogoScale(cleanDefault)
+          else {
+            setLogoScale(
+              logoEffectiveAutoScale(autoLogo, { posterLayout: openLayout, posterFreshScope: openScope, displayedRank: null }),
+              { auto: true },
+            )
+          }
         } else {
           const enPoster = data.posters?.find((p: TMDBImage) => p.iso_639_1 === "en")
           const origPoster = details.original_language ? data.posters?.find((p: TMDBImage) => p.iso_639_1 === details.original_language) : undefined
@@ -1823,9 +1934,16 @@ export function usePictorium(): PictoriumCtx {
         const autoLogo = autoLogoSelection(data.logos || [], lang, details.original_language, `${itemType}/${itemId}`)
         if (autoLogo) {
           navigation.setSelectedLogo({ file_path: autoLogo.file_path, iso_639_1: autoLogo.iso_639_1, vote_average: 0, width: autoLogo.width, height: autoLogo.height })
-          // Scala logo: default globale per formato > auto-fit per aspect.
-          const landscapeLogoScale = logoScaleDefaultFor(defaultPosterShape) ?? logoDefaultScale(autoLogo)
-          if (landscapeLogoScale !== null) setLogoScale(landscapeLogoScale)
+          // Scala logo: default globale per formato (esplicito) > auto
+          // EFFETTIVO (correzione c1 — mai 100 baked; vedi ramo mapping).
+          const landDefault = logoScaleDefaultFor(defaultPosterShape)
+          if (landDefault != null) setLogoScale(landDefault)
+          else {
+            setLogoScale(
+              logoEffectiveAutoScale(autoLogo, { posterLayout: openLayout, posterFreshScope: openScope, displayedRank: null }),
+              { auto: true },
+            )
+          }
         }
       }
       if (!skipDefaultsSync) loadDefaultsToState()
@@ -1842,6 +1960,30 @@ export function usePictorium(): PictoriumCtx {
       }
     }
   }
+
+  // --- Rank-effect scala titolo (correzione c1) ---
+  // Rank-arrival/change, ranking on/off, scope ranked↔all e switch layout
+  // riallineano i SOLI auto (provenance) al Fresh EFFETTIVO (rank mostrato +
+  // rankingEnabled + scope, stessa priorità del service: trendRank ?? animeRank
+  // validati 1..100). Gli espliciti (scelta utente o default, anche 75/100/
+  // 150/200) non si toccano mai; layout toggle/reset non promuovono un 100
+  // automatico a 100 esplicito Standard. Entrambi i formati (per-shape).
+  // Soppressione extra/Coming Soon (c2): con custom esplicito o pre-release
+  // (extra Coming Soon del service) il rank mostrato è null — lo slider non
+  // promette Fresh-100 mentre il service rende Standard. Rank ignoto/pending
+  // resta null (sentinel auto / UI pending, mai falsa promessa).
+  useEffect(() => {
+    if (!navigation.selected || !navigation.selectedLogo) return
+    if (logoScaleExplicit) return
+    const animeRank = trending.mdblistAnimeList?.find((a) => a.id === navigation.selected!.id)?.rank ?? null
+    const hasCustomExtra = typeof customBadge === "string" && customBadge.trim().length > 0
+    const displayed = resolveLogoDisplayedRank({ trendRank, animeRank, rankingEnabled: rankingBadges, hasCustomExtra, showComingSoon: preRelease && !hasCustomExtra && ribbonEnabled })
+    const next = logoEffectiveAutoScale(
+      navigation.selectedLogo,
+      { posterLayout, posterFreshScope, displayedRank: displayed },
+    )
+    if (next !== logoScale) setLogoScale(next, { auto: true })
+  }, [navigation.selected, navigation.selectedLogo, logoScaleExplicit, logoScale, trendRank, trending.mdblistAnimeList, rankingBadges, posterLayout, posterFreshScope, customBadge, preRelease, ribbonEnabled, setLogoScale])
 
   // --- Poster image refresh ---
   const loadLocaleRef = useRef({ lang, region: editorCtx.defaultRegion })
@@ -2017,6 +2159,17 @@ export function usePictorium(): PictoriumCtx {
       // override landscape salvato si rispetta (mai desync); il mapping storico
       // senza campo segue i default. Lo stile resta a scelta singola in UI.
       setSeparateRatingsStyle(isSeparateRatingsStyle(eff?.separateRatingsStyle) ? eff.separateRatingsStyle : defaultSeparateRatingsStyle)
+      // Graphical poster layout dal mapping EFFETTIVO per formato (profilo
+      // landscape vince sul flat, stessa regola del server): il mapping
+      // storico senza campo segue il default EFFETTIVO di formato
+      // (`landscapeDefaults.posterLayout ?? flat`, mai il solo flat — un
+      // landscape salvato senza layout con profilo Orizzontale fresh deve
+      // aprire fresh anche se il flat è standard). Scelta singola in UI — gli
+      // altri visuali (badge/logo/transform) restano intatti.
+      setPosterLayout(resolveOpenPosterLayout(existing ?? null, (existing?.posterShape ?? defaultPosterShape) as PosterShape, defaultPosterLayout, landscapeDefaults ?? null))
+      // Fresh apply scope dal mapping EFFETTIVO per formato (stessa regola
+      // del layout sopra): la preferenza resta anche con Standard.
+      setPosterFreshScope(resolveOpenPosterFreshScope(existing ?? null, (existing?.posterShape ?? defaultPosterShape) as PosterShape, defaultPosterFreshScope, landscapeDefaults ?? null))
       setNetworkLogoScale(eff?.networkLogoScale ?? defaultNetworkLogoScale)
       // Effective network view composing the saved mapping with the global
       // defaults (server semantics): without mapping network fields a
@@ -2120,6 +2273,9 @@ export function usePictorium(): PictoriumCtx {
       // the fetch is still in flight (immediate WYSIWYG, no portrait flash).
       if (defaultPosterShape === "landscape") {
         applyFreshLandscapeDefaults()
+      } else {
+        setPosterLayout(defaultPosterLayout)
+        setPosterFreshScope(defaultPosterFreshScope)
       }
       setPosterShape(defaultPosterShape)
       setLogoAlign(defaultPosterShape === "landscape" ? (defaultLogoAlign ?? "left") : "center")
@@ -2181,8 +2337,8 @@ export function usePictorium(): PictoriumCtx {
     setGradientHeight, setBlurFade,
     rotationPosters, autoRotateClean, defaultAutoRotateClean, excludedPosters, accentColor, autoAccentColor, logoDisabled, setLogoDisabled,
     rotationBackdrops, autoRotateBackdrop, defaultAutoRotateBackdrop, excludedBackdrops, backdrops,
-    setLogoScale, setLogoOffsetX, setLogoOffsetY, networkLogo, networkLogoPosition, networkLogoFollowTitle, ribbonEnabled, lang, episodeGroupId, posterShape,
-    defaultSashOrder,
+    setLogoScale, setLogoOffsetX, setLogoOffsetY, networkLogo, networkLogoPosition, networkLogoFollowTitle, ribbonEnabled, lang, episodeGroupId, posterShape, posterLayout, posterFreshScope,
+    defaultSashOrder, logoScaleExplicit,
   })
 
   const saveConfig = useCallback(async () => {

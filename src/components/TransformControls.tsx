@@ -10,7 +10,7 @@ import { isFollowOffDisabled, neutralFollowOffsets } from "@/lib/network-freeze"
 import { useNetworkFreeze } from "@/lib/useNetworkFreeze"
 import { useNetworkGeometry } from "@/lib/useNetworkGeometry"
 import { resolveNetworkShapeView } from "@/lib/network-follow"
-import { logoDefaultScale } from "@/lib/logo-selection"
+import { logoEffectiveAutoScale, resolveLogoDisplayedRank, FRESH_TITLE_LOGO_MAX_SCALE, STANDARD_TITLE_LOGO_MAX_SCALE } from "@/lib/logo-selection"
 import { defaultGradientHeightForPoster } from "@/lib/gradient-defaults"
 import { naturalGradientForPoster } from "@/lib/gradient-presets"
 import { GradientPresetRow } from "@/components/GradientPresetRow"
@@ -25,6 +25,8 @@ export function TransformControls() {
   const previewPoster = usePSelector((v) => v.previewPoster)
   const previewUrl = usePSelector((v) => v.previewUrl)
   const selected = usePSelector((v) => v.selected)
+  const trendRank = usePSelector((v) => v.trendRank)
+  const mdblistAnime = usePSelector((v) => v.mdblistAnimeList)
   const { t } = useT()
   const ed = usePosterEditor()
   const { freezing, freezeOff, turnOn } = useNetworkFreeze()
@@ -44,10 +46,25 @@ export function TransformControls() {
   const [editText, setEditText] = useState("")
 
   const defaultLogoScale = () => {
-    const l = selectedLogo
-    if (!l) { ed.setLogoScale(75); return }
-    ed.setLogoScale(logoDefaultScale(l) ?? 75)
+    // Reset = torna AUTO (correzione c1): Fresh effettivo = 100, fallback
+    // Standard = aspect — mai 75/100 baked come esplicito. Il rank-effect in
+    // context riallinea al rank noto. Soppressione extra/Coming Soon (c2):
+    // custom o pre-release (nastro attivo) = nessun rank mostrato.
+    const animeRank = selected ? (mdblistAnime?.find((a) => a.id === selected.id)?.rank ?? null) : null
+    const hasCustomExtra = typeof ed.customBadge === "string" && ed.customBadge.trim().length > 0
+    const displayed = resolveLogoDisplayedRank({ trendRank, animeRank, rankingEnabled: ed.rankingBadges, hasCustomExtra, showComingSoon: ed.preRelease && !hasCustomExtra && ed.ribbonEnabled })
+    ed.setLogoScale(
+      logoEffectiveAutoScale(selectedLogo, { posterLayout: ed.posterLayout, posterFreshScope: ed.posterFreshScope, displayedRank: displayed }),
+      { auto: true },
+    )
   }
+  // Titolo Fresh selezionato: scala 10..200 (richiesta utente); Standard
+  // invariato 10..100. Con Fresh selezionato ma fallback Standard effettivo il
+  // controllo 200 resta disponibile come preferenza, ma finché la scala è auto
+  // lo Standard non si muove (solo un adjust esplicito lo cambia — la preview
+  // auto e il save null lo garantiscono).
+  const isFreshSelected = ed.posterLayout === "fresh"
+  const titleScaleMax = isFreshSelected ? FRESH_TITLE_LOGO_MAX_SCALE : STANDARD_TITLE_LOGO_MAX_SCALE
 
   // Preset sfumatura: scorciatoie che scrivono gli slider esistenti (nessun
   // nuovo parametro server — la preview/Stremio ricevono gli stessi valori).
@@ -203,6 +220,9 @@ export function TransformControls() {
           <span className="font-semibold text-zinc-200 flex items-center gap-1.5">
             <ImageIcon className="w-3.5 h-3.5 text-accent-orange" />
             {t("ui.logoSection")} · {isLandShape ? t("ui.posterShapeLandscape") : t("ui.posterShapePortrait")}
+            {!ed.logoScaleExplicit && (
+              <span className="text-[10px] font-medium text-muted">· {t("ui.auto")}</span>
+            )}
           </span>
           <button type="button" aria-label={t("ui.reset")}
                   onClick={() => { defaultLogoScale(); ed.setLogoOffsetX(0); ed.setLogoOffsetY(0) }}
@@ -210,7 +230,7 @@ export function TransformControls() {
             {t("ui.reset")}
           </button>
         </div>
-        <SliderRow icon={<Search className="w-3.5 h-3.5" />} label={t("ui.scale")} value={ed.logoScale} min={10} max={100} boundsMin={10} boundsMax={100} onChange={ed.setLogoScale} onDoubleClick={defaultLogoScale} editingValue={editingValue} editText={editText} setEditingValue={setEditingValue} setEditText={setEditText} editingKey="scale" />
+        <SliderRow icon={<Search className="w-3.5 h-3.5" />} label={t("ui.scale")} value={ed.logoScale} min={10} max={titleScaleMax} boundsMin={10} boundsMax={titleScaleMax} onChange={ed.setLogoScale} onDoubleClick={defaultLogoScale} editingValue={editingValue} editText={editText} setEditingValue={setEditingValue} setEditText={setEditText} editingKey="scale" />
         <SliderRow icon={<ArrowLeftRight className="w-3.5 h-3.5" />} label="X" value={ed.logoOffsetX} min={logoBounds.minX} max={logoBounds.maxX} boundsMin={logoBounds.minX} boundsMax={logoBounds.maxX} onChange={ed.setLogoOffsetX} onDoubleClick={() => ed.setLogoOffsetX(0)} editingValue={editingValue} editText={editText} setEditingValue={setEditingValue} setEditText={setEditText} editingKey="ox" />
         <SliderRow icon={<ArrowUpDown className="w-3.5 h-3.5" />} label="Y" value={ed.logoOffsetY} min={logoBounds.minY} max={logoBounds.maxY} boundsMin={logoBounds.minY} boundsMax={logoBounds.maxY} onChange={ed.setLogoOffsetY} onDoubleClick={() => ed.setLogoOffsetY(0)} editingValue={editingValue} editText={editText} setEditingValue={setEditingValue} setEditText={setEditText} editingKey="oy" />
       </div>

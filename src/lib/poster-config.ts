@@ -6,7 +6,7 @@
 // ---------------------------------------------------------------------------
 
 import type { PictoriumUserConfig } from "./config-token"
-import { effectiveMappingForShape, type Mapping, type NetworkLogoPosition, type PosterShape } from "./types"
+import { effectiveMappingForShape, isPosterLayout, isPosterFreshScope, DEFAULT_POSTER_LAYOUT, DEFAULT_POSTER_FRESH_SCOPE, type Mapping, type NetworkLogoPosition, type PosterLayout, type PosterFreshScope, type PosterShape } from "./types"
 import { effectiveDefaultsForShape } from "./server-defaults"
 import type { ServerDefaults } from "./server-defaults"
 import { resolveLabelFor } from "./i18n"
@@ -134,6 +134,70 @@ export function resolveSeparateRatingsStyle(
     isSeparateRatingsStyle(raw) ? raw : DEFAULT_SEPARATE_RATINGS_STYLE,
     shape,
   )
+}
+
+/**
+ * Graphical poster layout — catena: query `layout` > mapping effettivo per
+ * formato (profilo landscape vince sul flat) > config token > defaults
+ * effettivi per formato > "standard".
+ *
+ * Fail-closed con distinzione dall'assenza (stesso pattern `sepstyle`/`bfont`
+ * in normalizePosterCacheParams): un valore PRESENTE ma non valido (garbage
+ * o stringa vuota) rende `standard` esplicito e NON eredita mapping/default —
+ * altrimenti collasserebbe con la chiave dell'assenza (che può ereditare
+ * fresh) avvelenando la cache. La query è case-insensitive (canonical
+ * lowercase); mapping/config/defaults sono già tipizzati. Un `standard`
+ * esplicito valido prevale sempre su un fresh ereditato.
+ */
+export function resolvePosterLayout(
+  searchParams: URLSearchParams,
+  mapping: Mapping | null,
+  configOverride: PictoriumUserConfig | null,
+  sd: ServerDefaults,
+  shape: PosterShape,
+): PosterLayout {
+  if (searchParams.has("layout")) {
+    const v = (searchParams.get("layout") || "").toLowerCase()
+    return isPosterLayout(v) ? v : DEFAULT_POSTER_LAYOUT
+  }
+  const m = effectiveMappingForShape(mapping, shape)
+  const esd = effectiveDefaultsForShape(sd, shape)
+  const raw = m?.posterLayout
+    || configOverride?.posterLayout
+    || esd.posterLayout
+  return isPosterLayout(raw) ? raw : DEFAULT_POSTER_LAYOUT
+}
+
+/**
+ * Fresh apply scope — catena: query `freshScope` > mapping effettivo per
+ * formato (profilo landscape vince sul flat) > config token > defaults
+ * effettivi per formato > "ranked" (default condiviso).
+ *
+ * Fail-closed con distinzione dall'assenza (stesso pattern `layout` sopra):
+ * un valore PRESENTE ma non valido (garbage o stringa vuota) rende `ranked`
+ * esplicito e NON eredita mapping/default — altrimenti collasserebbe con la
+ * chiave dell'assenza (che può ereditare all) avvelenando la cache. La
+ * query è case-insensitive (canonical lowercase); mapping/config/defaults
+ * sono già tipizzati. Un `all` esplicito valido prevale sempre su un ranked
+ * ereditato.
+ */
+export function resolvePosterFreshScope(
+  searchParams: URLSearchParams,
+  mapping: Mapping | null,
+  configOverride: PictoriumUserConfig | null,
+  sd: ServerDefaults,
+  shape: PosterShape,
+): PosterFreshScope {
+  if (searchParams.has("freshScope")) {
+    const v = (searchParams.get("freshScope") || "").toLowerCase()
+    return isPosterFreshScope(v) ? v : DEFAULT_POSTER_FRESH_SCOPE
+  }
+  const m = effectiveMappingForShape(mapping, shape)
+  const esd = effectiveDefaultsForShape(sd, shape)
+  const raw = m?.posterFreshScope
+    || configOverride?.posterFreshScope
+    || esd.posterFreshScope
+  return isPosterFreshScope(raw) ? raw : DEFAULT_POSTER_FRESH_SCOPE
 }
 
 export interface BottomSeparateActiveInput {
@@ -355,6 +419,19 @@ export interface PosterRenderConfig {
   preRelease: boolean
   /** Formato canvas (query `shape` > mapping > config > defaults > "poster"). */
   posterShape: PosterShape
+  /**
+   * Graphical poster layout (query `layout` > mapping effettivo per formato
+   * > config token > defaults effettivi per formato > "standard").
+   * "fresh" compone il layout alternativo nel renderer unico (fresh-layout).
+   */
+  posterLayout: PosterLayout
+  /**
+   * Fresh apply scope (query `freshScope` > mapping effettivo per formato
+   * > config token > defaults effettivi per formato > "ranked"). Il renderer
+   * decide il layout EFFETTIVO: con "ranked" e senza rank valido mostrato
+   * rende Standard byte-identico.
+   */
+  posterFreshScope: PosterFreshScope
   /**
    * Nasconde il logo film dal composite (solo query `hideLogo`, default false).
    * Veicolo del banner pulito (i client che lo leggono sovrappongono già il
@@ -594,6 +671,13 @@ export function resolvePosterRenderConfig(input: PosterRenderConfigInput): Poste
   // Layout dei rating separati — catena query > mapping effettivo per formato
   // > config > defaults effettivi > "column" (vedi resolveSeparateRatingsStyle).
   const separateRatingsStyle = resolveSeparateRatingsStyle(q, mapping, configOverride, sd, posterShape)
+
+  // Graphical poster layout — catena query > mapping effettivo per formato
+  // > config > defaults effettivi > "standard" (vedi resolvePosterLayout).
+  const posterLayout = resolvePosterLayout(q, mapping, configOverride, sd, posterShape)
+
+  // Fresh apply scope — stessa catena (vedi resolvePosterFreshScope).
+  const posterFreshScope = resolvePosterFreshScope(q, mapping, configOverride, sd, posterShape)
 
   // Badge style — confinamento della query string al union type: valori non validi
   // cadono sul default (il renderer in passato li trattava come "shadow" nel ramo else).
@@ -935,6 +1019,8 @@ export function resolvePosterRenderConfig(input: PosterRenderConfigInput): Poste
     rankingBadgeAccent,
     preRelease,
     posterShape,
+    posterLayout,
+    posterFreshScope,
     logoAlign,
     hideLogo,
   }

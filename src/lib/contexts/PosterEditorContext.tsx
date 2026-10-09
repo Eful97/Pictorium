@@ -1,7 +1,7 @@
 "use client"
 
 import { createContext, useContext, useState, useMemo, useCallback } from "react"
-import type { TMDBImage, NetworkLogoPosition, PosterShape } from "@/lib/types"
+import type { TMDBImage, NetworkLogoPosition, PosterLayout, PosterFreshScope, PosterShape } from "@/lib/types"
 import { useDefaults, type DefaultSyncStatus, type DefaultsState } from "@/lib/useDefaults"
 import type { LandscapeServerDefaults } from "@/lib/server-defaults"
 import type { DateFormat } from "@/lib/release-badge"
@@ -12,7 +12,7 @@ import type { VideoFormat } from "@/lib/av-specs"
 import type { VisualPresetValues } from "@/lib/visual-presets"
 import { materializeExtraTuning, clearedExtraForPresetApply } from "@/lib/extra-materialize"
 import { projectPerTitleVisualPreset } from "@/lib/per-title-preset"
-import { logoDefaultScale } from "@/lib/logo-selection"
+import { logoEffectiveAutoScale } from "@/lib/logo-selection"
 import { resolveNetworkEffectiveView } from "@/lib/network-follow"
 
 /**
@@ -61,8 +61,11 @@ export interface PosterEditorCtx {
    * portrait, profilo Orizzontale in landscape via `setLandscapeBlur`).
    * `logo` (il logo selezionato del titolo, task2 UI lo passa): serve a
    * risolvere la scala `null` del preset (documented auto-fit) via
-   * `logoDefaultScale(logo) ?? 75`; assente/senza dimensioni = 75. La
-   * selezione artwork non cambia mai.
+   * `logoEffectiveAutoScale(logo, { posterLayout, posterFreshScope,
+   * displayedRank: null })` (Fresh effettivo scope-all = 100, ranked + rank
+   * ignoto = aspect conservativo riallineato dal rank-effect; Standard =
+   * `logoDefaultScale(logo) ?? 75`); assente/senza dimensioni in Standard = 75. La
+   * selezione artwork non cambia mai. Auto marca provenance (mai baked).
    */
   applyPerTitleVisualPreset: (values: VisualPresetValues, logo?: Pick<TMDBImage, "width" | "height"> | null) => void
   /**
@@ -74,8 +77,10 @@ export interface PosterEditorCtx {
    * Artwork (poster/backdrop/logo selezionati), logoDisabled, formato canvas,
    * rotazioni, esclusioni ed episodeGroupId restano intatti; `logo` (il logo
    * mantenuto) serve a risolvere la scala come `selectLogo` (default di
-   * formato > default globali > auto-fit `logoDefaultScale(logo) ?? 75`,
-   * stessa catena del server per mapping senza tuning). L'accent manuale si
+   * formato espliciti > auto EFFETTIVO `logoEffectiveAutoScale`
+   * (Fresh scope-all = 100, ranked + rank ignoto = aspect, Standard = auto-fit
+   * `logoDefaultScale(logo) ?? 75`), stessa catena del server per mapping senza
+   * tuning; gli auto marcano provenance, mai baked). L'accent manuale si
    * azzera dal chiamante (stato context).
    */
   resetPerTitleVisuals: (logo?: Pick<TMDBImage, "width" | "height"> | null) => void
@@ -104,6 +109,12 @@ export interface PosterEditorCtx {
   /** Layout dei rating separati del poster in editing ("column" = colonna storica). */
   separateRatingsStyle: SeparateRatingsStyle
   setSeparateRatingsStyle: (v: SeparateRatingsStyle | ((prev: SeparateRatingsStyle) => SeparateRatingsStyle)) => void
+  /** Graphical poster layout del poster in editing ("standard" = resa storica). */
+  posterLayout: PosterLayout
+  setPosterLayout: (v: PosterLayout | ((prev: PosterLayout) => PosterLayout)) => void
+  /** Fresh apply scope del poster in editing ("ranked" = default: solo con rank). */
+  posterFreshScope: PosterFreshScope
+  setPosterFreshScope: (v: PosterFreshScope | ((prev: PosterFreshScope) => PosterFreshScope)) => void
   badgeStyle: BadgeStyle
   setBadgeStyle: (v: BadgeStyle | ((prev: BadgeStyle) => BadgeStyle)) => void
   rankingBadgeStyle: RankingBadgeStyle
@@ -256,6 +267,12 @@ export interface PosterEditorCtx {
   /** Layout dei rating separati di default ("column" = colonna destra storica). */
   defaultSeparateRatingsStyle: SeparateRatingsStyle
   setDefaultSeparateRatingsStyle: (v: SeparateRatingsStyle | ((prev: SeparateRatingsStyle) => SeparateRatingsStyle)) => void
+  /** Graphical poster layout di default ("standard" = resa storica). */
+  defaultPosterLayout: PosterLayout
+  setDefaultPosterLayout: (v: PosterLayout | ((prev: PosterLayout) => PosterLayout)) => void
+  /** Fresh apply scope di default ("ranked" = default: solo con rank; "all" = override esplicito). */
+  defaultPosterFreshScope: PosterFreshScope
+  setDefaultPosterFreshScope: (v: PosterFreshScope | ((prev: PosterFreshScope) => PosterFreshScope)) => void
   /** Bucket sash abilitati (ordine canonico; vuota = tutto spento). */
   defaultSashOrder: SashBucket[]
   setDefaultSashOrder: (v: SashBucket[] | ((prev: SashBucket[]) => SashBucket[])) => void
@@ -391,7 +408,18 @@ export interface PosterEditorCtx {
 
   // ---- Logo ----
   logoScale: number
-  setLogoScale: (v: number | ((prev: number) => number)) => void
+  setLogoScale: (v: number | ((prev: number) => number), opts?: { auto?: boolean }) => void
+  /**
+   * Provenance della scala titolo (correzione c1: esplicito vs automatico):
+   * true = scelta utente/default esplicito (preview emette il valore, il save
+   * lo congela, rank/scope/layout non lo toccano mai); false = auto (preview
+   * emette il sentinel `scale=0` e il server risolve Fresh-100 vs aspect
+   * Standard, il save scrive null, solo gli auto si ricalcolano al
+   * rank-arrival/change, ranking on/off, scope ranked↔all e reset/switch).
+   * Un 100 automatico non è mai un 100 esplicito: toggle/reset non lo
+   * promuovono a Standard baked.
+   */
+  logoScaleExplicit: boolean
   logoOffsetX: number
   setLogoOffsetX: (v: number | ((prev: number) => number)) => void
   logoOffsetY: number
@@ -452,7 +480,18 @@ export function PosterEditorProvider({
   const defaults = useDefaults()
 
   // ---- Logo state ----
-  const [logoScale, setLogoScale] = useState(75)
+  // logoScaleExplicit (correzione c1): false = auto (sentinel: preview
+  // `scale=0`, save null, ricalcolato solo dagli auto-path), true = scelta
+  // utente o default esplicito (congelato, mai toccato dal rank-effect).
+  // Stato iniziale auto (75 = fallback aspect senza dimensioni, mai baked).
+  const [logoScale, setLogoScaleState] = useState(75)
+  const [logoScaleExplicit, setLogoScaleExplicit] = useState(false)
+  const setLogoScale = useCallback(
+    (v: number | ((prev: number) => number), opts?: { auto?: boolean }) => {
+      const next = typeof v === "function" ? v(logoScale) : v
+      setLogoScaleState(next)
+      setLogoScaleExplicit(opts?.auto !== true)
+    }, [logoScale])
   const [logoOffsetX, setLogoOffsetX] = useState(0)
   const [logoOffsetY, setLogoOffsetY] = useState(0)
   const [logoDisabled, setLogoDisabled] = useState(false)
@@ -482,7 +521,7 @@ export function PosterEditorProvider({
 
   const {
     globalBadges, rankingBadges, networkLogo, networkLogoPosition, networkLogoFollowTitle, preRelease, ribbonSide, ribbonEnabled, posterShape, logoAlign,
-    badgeGenre, badgeYear, badgeRating, badgeQuality, customRatings, ratingSources, separateRatings, separateRatingsStyle,
+    badgeGenre, badgeYear, badgeRating, badgeQuality, customRatings, ratingSources, separateRatings, separateRatingsStyle, posterLayout, posterFreshScope,
     gradientHeight, blurIntensity, blurFade, blurDarkness, blurEnabled, tintStrength, topShade,
     topBadgeScale, topBadgeOffsetX, topBadgeOffsetY,
     extraBadgeScale, extraBadgeOffsetX, extraBadgeOffsetY,
@@ -506,7 +545,7 @@ export function PosterEditorProvider({
     defaultSeparateBadgeOffsetX, defaultSeparateBadgeOffsetY,
     defaultGenreBadgeOffsetX, defaultGenreBadgeOffsetY, defaultQualityBadgeOffsetX, defaultQualityBadgeOffsetY,
     defaultNetworkLogoOffsetX, defaultNetworkLogoOffsetY,
-    defaultBadgeGenre, defaultBadgeYear, defaultBadgeRating, defaultBadgeQuality, defaultCustomRatings, defaultCustomRatingEndpoint, defaultCustomRatingApiKeyHeader, defaultRatingSources, defaultSeparateRatings, defaultSeparateRatingsStyle, defaultSashOrder,
+    defaultBadgeGenre, defaultBadgeYear, defaultBadgeRating, defaultBadgeQuality, defaultCustomRatings, defaultCustomRatingEndpoint, defaultCustomRatingApiKeyHeader, defaultRatingSources, defaultSeparateRatings, defaultSeparateRatingsStyle, defaultPosterLayout, defaultPosterFreshScope, defaultSashOrder,
     defaultAutoRotateClean, defaultAutoRotateBackdrop, defaultPortraitFitEnabled, defaultLandscapeFitEnabled, defaultNetworkLogo, defaultNetworkLogoPosition, defaultNetworkLogoFollowTitle, defaultPreRelease, defaultRibbonSide, defaultRibbonEnabled, defaultPosterShape, defaultLogoAlign,
     defaultDisableCleanPosters,
     landscape: landscapeDefaults,
@@ -571,6 +610,21 @@ export function PosterEditorProvider({
         ? { separateRatingsStyle: next, separateBadgeScale: getSeparateBadgeDefaultScale(next) }
         : { separateRatingsStyle: next })
     }, [separateRatingsStyle, separateBadgeScale, update])
+  // Graphical poster layout in editing: scelta esplicita per formato, mai
+  // migrazione degli altri visuali (tornando a standard badge/logo/transform
+  // restano intatti — il layout non li tocca).
+  const setPosterLayout = useCallback(
+    (v: PosterLayout | ((prev: PosterLayout) => PosterLayout)) => {
+      const next = typeof v === "function" ? v(posterLayout) : v
+      update({ posterLayout: next })
+    }, [posterLayout, update])
+  // Fresh apply scope in editing: scelta esplicita indipendente dal layout —
+  // selezionare Standard conserva la preferenza (tornando a Fresh si ritrova).
+  const setPosterFreshScope = useCallback(
+    (v: PosterFreshScope | ((prev: PosterFreshScope) => PosterFreshScope)) => {
+      const next = typeof v === "function" ? v(posterFreshScope) : v
+      update({ posterFreshScope: next })
+    }, [posterFreshScope, update])
   const setNetworkLogo = useCallback(
     (v: boolean | ((prev: boolean) => boolean)) => {
       const next = typeof v === "function" ? v(networkLogo) : v
@@ -1072,6 +1126,16 @@ export function PosterEditorProvider({
         ? { defaultSeparateRatingsStyle: next, defaultSeparateBadgeScale: getSeparateBadgeDefaultScale(next) }
         : { defaultSeparateRatingsStyle: next })
     }, [defaultSeparateRatingsStyle, defaultSeparateBadgeScale, update])
+  const setDefaultPosterLayout = useCallback(
+    (v: PosterLayout | ((prev: PosterLayout) => PosterLayout)) => {
+      const next = typeof v === "function" ? v(defaultPosterLayout) : v
+      update({ defaultPosterLayout: next })
+    }, [defaultPosterLayout, update])
+  const setDefaultPosterFreshScope = useCallback(
+    (v: PosterFreshScope | ((prev: PosterFreshScope) => PosterFreshScope)) => {
+      const next = typeof v === "function" ? v(defaultPosterFreshScope) : v
+      update({ defaultPosterFreshScope: next })
+    }, [defaultPosterFreshScope, update])
   const setDefaultSashOrder = useCallback(
     (v: SashBucket[] | ((prev: SashBucket[]) => SashBucket[])) => {
       const next = typeof v === "function" ? v(defaultSashOrder) : v
@@ -1300,19 +1364,28 @@ export function PosterEditorProvider({
       update(projection.bare)
     }
     if (projection.logo.scale !== undefined) {
-      // Explicit number = exact; null = documented auto-fit request on the
-      // CURRENT title's logo (single source logoDefaultScale, fallback 75
-      // like TransformControls/usePosterSave). Never preserve the live scale.
-      setLogoScale(projection.logo.scale === null
-        ? (logo ? (logoDefaultScale(logo as TMDBImage) ?? 75) : 75)
-        : projection.logo.scale)
+      // Explicit number = exact (explicit); null = documented auto-fit request
+      // on the CURRENT title's logo (correzione c1: Fresh EFFETTIVO via
+      // logoEffectiveAutoScale con rank ignoto qui — scope "all" = 100, ranked
+      // = aspect conservativo riallineato dal rank-effect in context — mai 100
+      // baked; Standard = single source logoDefaultScale, fallback 75).
+      // Never preserve the live scale. Auto marks provenance (preview
+      // sentinel, save null); explicit marks explicit.
+      if (projection.logo.scale === null) {
+        setLogoScale(
+          logoEffectiveAutoScale(logo, { posterLayout, posterFreshScope, displayedRank: null }),
+          { auto: true },
+        )
+      } else {
+        setLogoScale(projection.logo.scale)
+      }
     }
     if (projection.logo.offsetX !== undefined) setLogoOffsetX(projection.logo.offsetX)
     if (projection.logo.offsetY !== undefined) setLogoOffsetY(projection.logo.offsetY)
     if (posterShape === "landscape" && Object.keys(projection.landscapeBlur).length > 0) {
       setLandscapeBlur(projection.landscapeBlur)
     }
-  }, [posterShape, update, setLogoScale, setLogoOffsetX, setLogoOffsetY, setLandscapeBlur])
+  }, [posterShape, posterLayout, posterFreshScope, update, setLogoScale, setLogoOffsetX, setLogoOffsetY, setLandscapeBlur])
 
   // Reset post-"solo copertina": un solo merge atomico dei bare visuali ai
   // default EFFETTIVI di formato (stessa `effectiveDefaultsForShape` del
@@ -1356,6 +1429,8 @@ export function PosterEditorProvider({
       ratingSources: defaultRatingSources,
       separateRatings: land?.separateRatings ?? defaultSeparateRatings,
       separateRatingsStyle: land?.separateRatingsStyle ?? defaultSeparateRatingsStyle,
+      posterLayout: land?.posterLayout ?? defaultPosterLayout,
+      posterFreshScope: land?.posterFreshScope ?? defaultPosterFreshScope,
       badgeStyle: land?.badgeStyle ?? defaultBadgeStyle,
       rankingBadgeStyle: land?.rankingBadgeStyle ?? defaultRankingBadgeStyle,
       extraBadgeStyle: land?.extraBadgeStyle ?? defaultExtraBadgeStyle,
@@ -1396,7 +1471,22 @@ export function PosterEditorProvider({
       networkLogoOffsetY: netResetView.follow ? netResetView.relativeY : (netResetView.fixedY ?? defaultNetworkLogoOffsetY),
     })
     const isLand = posterShape === "landscape"
-    setLogoScale((isLand ? landscapeDefaults?.logoScale : undefined) ?? defaultLogoScale ?? (logo ? (logoDefaultScale(logo as TMDBImage) ?? 75) : 75))
+    // Scala titolo: default effettivi di formato (espliciti, anche 75/200) >
+    // auto EFFETTIVO sul logo mantenuto (correzione c1: scope "all" + fresh =
+    // 100, ranked + rank ignoto = aspect conservativo — mai 75/100 baked come
+    // esplicito; il rank-effect in context riallinea i soli auto al rank noto).
+    // Espliciti sempre preservati; gli auto marcano provenance (save null).
+    const resetLayout = (isLand ? landscapeDefaults?.posterLayout : undefined) ?? defaultPosterLayout
+    const resetScope = (isLand ? landscapeDefaults?.posterFreshScope : undefined) ?? defaultPosterFreshScope
+    const resetDefaultScale = (isLand ? landscapeDefaults?.logoScale : undefined) ?? defaultLogoScale
+    if (resetDefaultScale != null) {
+      setLogoScale(resetDefaultScale)
+    } else {
+      setLogoScale(
+        logoEffectiveAutoScale(logo, { posterLayout: resetLayout, posterFreshScope: resetScope, displayedRank: null }),
+        { auto: true },
+      )
+    }
     setLogoOffsetX((isLand ? landscapeDefaults?.logoOffsetX : undefined) ?? defaultLogoOffsetX ?? 0)
     setLogoOffsetY((isLand ? landscapeDefaults?.logoOffsetY : undefined) ?? defaultLogoOffsetY ?? 0)
     setBackdropScale(100)
@@ -1414,7 +1504,7 @@ export function PosterEditorProvider({
       tintStrength: landscapeDefaults?.tintStrength ?? defaultTintStrength,
       topShade: landscapeDefaults?.topShade ?? defaultTopShade,
     })
-  }, [update, posterShape, landscapeDefaults, defaultGlobalBadges, defaultRankingBadges, defaultBadgeGenre, defaultBadgeYear, defaultBadgeRating, defaultBadgeQuality, defaultCustomRatings, defaultRatingSources, defaultSeparateRatings, defaultSeparateRatingsStyle, defaultBadgeStyle, defaultRankingBadgeStyle, defaultExtraBadgeStyle, defaultBadgeFont, defaultQualityBadgeStyle, defaultVideoFormats, defaultNetworkLogo, defaultNetworkLogoPosition, defaultNetworkLogoFollowTitle, defaultRibbonEnabled, defaultGradientHeight, defaultBlurEnabled, defaultBlurIntensity, defaultBlurFade, defaultBlurDarkness, defaultTintStrength, defaultTopShade, defaultTopBadgeScale, defaultTopBadgeOffsetX, defaultTopBadgeOffsetY, defaultExtraBadgeScale, defaultExtraBadgeOffsetX, defaultExtraBadgeOffsetY, defaultGenreBadgeScale, defaultGenreBadgeOffsetX, defaultGenreBadgeOffsetY, defaultQualityBadgeScale, defaultQualityBadgeOffsetX, defaultQualityBadgeOffsetY, defaultSeparateBadgeScale, defaultSeparateBadgeOffsetX, defaultSeparateBadgeOffsetY, defaultNetworkLogoScale, defaultNetworkLogoOffsetX, defaultNetworkLogoOffsetY, defaultLogoScale, defaultLogoOffsetX, defaultLogoOffsetY]) // eslint-disable-line react-hooks/exhaustive-deps -- setter refs are stable
+  }, [update, posterShape, landscapeDefaults, defaultGlobalBadges, defaultRankingBadges, defaultBadgeGenre, defaultBadgeYear, defaultBadgeRating, defaultBadgeQuality, defaultCustomRatings, defaultRatingSources, defaultSeparateRatings, defaultSeparateRatingsStyle, defaultPosterLayout, defaultPosterFreshScope, defaultBadgeStyle, defaultRankingBadgeStyle, defaultExtraBadgeStyle, defaultBadgeFont, defaultQualityBadgeStyle, defaultVideoFormats, defaultNetworkLogo, defaultNetworkLogoPosition, defaultNetworkLogoFollowTitle, defaultRibbonEnabled, defaultGradientHeight, defaultBlurEnabled, defaultBlurIntensity, defaultBlurFade, defaultBlurDarkness, defaultTintStrength, defaultTopShade, defaultTopBadgeScale, defaultTopBadgeOffsetX, defaultTopBadgeOffsetY, defaultExtraBadgeScale, defaultExtraBadgeOffsetX, defaultExtraBadgeOffsetY, defaultGenreBadgeScale, defaultGenreBadgeOffsetX, defaultGenreBadgeOffsetY, defaultQualityBadgeScale, defaultQualityBadgeOffsetX, defaultQualityBadgeOffsetY, defaultSeparateBadgeScale, defaultSeparateBadgeOffsetX, defaultSeparateBadgeOffsetY, defaultNetworkLogoScale, defaultNetworkLogoOffsetX, defaultNetworkLogoOffsetY, defaultLogoScale, defaultLogoOffsetX, defaultLogoOffsetY]) // eslint-disable-line react-hooks/exhaustive-deps -- setter refs are stable
 
   const editorCtx = useMemo<PosterEditorCtx>(
     () => ({
@@ -1442,6 +1532,10 @@ export function PosterEditorProvider({
       setSeparateRatings,
       separateRatingsStyle,
       setSeparateRatingsStyle,
+      posterLayout,
+      setPosterLayout,
+      posterFreshScope,
+      setPosterFreshScope,
       badgeStyle,
       setBadgeStyle,
       rankingBadgeStyle,
@@ -1574,6 +1668,10 @@ export function PosterEditorProvider({
       setDefaultSeparateRatings,
       defaultSeparateRatingsStyle,
       setDefaultSeparateRatingsStyle,
+      defaultPosterLayout,
+      setDefaultPosterLayout,
+      defaultPosterFreshScope,
+      setDefaultPosterFreshScope,
       defaultSashOrder,
       setDefaultSashOrder,
       defaultAutoRotateClean,
@@ -1686,6 +1784,7 @@ export function PosterEditorProvider({
       // Logo
       logoScale,
       setLogoScale,
+      logoScaleExplicit,
       logoOffsetX,
       setLogoOffsetX,
       logoOffsetY,
@@ -1735,6 +1834,8 @@ export function PosterEditorProvider({
       ratingSources, setRatingSources,
       separateRatings, setSeparateRatings,
       separateRatingsStyle, setSeparateRatingsStyle,
+      posterLayout, setPosterLayout,
+      posterFreshScope, setPosterFreshScope,
       badgeStyle, setBadgeStyle,
       rankingBadgeStyle, setRankingBadgeStyle,
       extraBadgeStyle, setExtraBadgeStyle,
@@ -1816,6 +1917,8 @@ export function PosterEditorProvider({
       defaultRatingSources, setDefaultRatingSources,
       defaultSeparateRatings, setDefaultSeparateRatings,
       defaultSeparateRatingsStyle, setDefaultSeparateRatingsStyle,
+      defaultPosterLayout, setDefaultPosterLayout,
+      defaultPosterFreshScope, setDefaultPosterFreshScope,
       defaultSashOrder, setDefaultSashOrder,
       defaultAutoRotateClean, setDefaultAutoRotateClean,
       defaultDisableCleanPosters, setDefaultDisableCleanPosters,
@@ -1876,7 +1979,7 @@ export function PosterEditorProvider({
       networkLogoOffsetY, setNetworkLogoOffsetY,
 
       // Logo
-      logoScale, setLogoScale,
+      logoScale, setLogoScale, logoScaleExplicit,
       logoOffsetX, setLogoOffsetX,
       logoOffsetY, setLogoOffsetY,
       logoDisabled, setLogoDisabled,

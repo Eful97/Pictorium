@@ -23,7 +23,7 @@ import { renderGenreBadge, renderRankingBadge, renderExtraBadge, renderQualityBa
 import { buildLogoScrim, logoContrast, logoInkLuminance, logoScrimStrength, posterLogoZoneLuminance } from "./logo-contrast"
 import { renderFirstMatchingNetworkLogoBadge, renderFirstMatchingNetworkRawBadge, renderFirstMatchingNetworkLogoBadgeHybrid, renderFirstMatchingNetworkRawBadgeHybrid, type NetworkCandidate } from "./network-svgs"
 import { computeLogoLayout, logoAlignPadX, PORTRAIT_LOGO_MAX_HEIGHT_PCT, PORTRAIT_LOGO_TOP_OFFSET, LANDSCAPE_LOGO_MAX_WIDTH_PCT, LANDSCAPE_LOGO_MAX_HEIGHT_PCT, LANDSCAPE_LOGO_BOTTOM_MARGIN_PCT, LANDSCAPE_LOGO_TOP_OFFSET, LANDSCAPE_LOGO_SHIFT_X, LANDSCAPE_LOGO_SHIFT_Y } from "./logo-layout"
-import { logoDefaultScaleFromAspect } from "./logo-selection"
+import { logoDefaultScaleFromAspect, FRESH_TITLE_LOGO_DEFAULT_SCALE } from "./logo-selection"
 import fs from "fs"
 import path from "path"
 import { estimateTextWidth, fontFamilyFor, escSvg, badgeBoxHeight, TOP_SHADOW_PAD } from "./badge-svg-shared"
@@ -32,7 +32,8 @@ import { DEMO_SAMPLE_NETWORK } from "./demo-samples"
 import type { DateFormat } from "./release-badge"
 import type { SashBucket } from "./badge-priority"
 import { PRE_RELEASE_DIM_ALPHA, PRE_RELEASE_BLUR_SIGMA } from "./pre-release"
-import type { Mapping, NetworkLogoPosition } from "./types"
+import type { Mapping, NetworkLogoPosition, PosterLayout, PosterFreshScope } from "./types"
+import { isPosterFreshScope, DEFAULT_POSTER_FRESH_SCOPE } from "./types"
 import type { ServerDefaults } from "./server-defaults"
 import type { WikidataResult } from "./awards"
 import { directorBadgeLabel } from "./awards"
@@ -48,6 +49,7 @@ import type { QualityBadgeStyle } from "./badge-styles"
 import { FORMAT_ICON_PATHS, type VideoFormat } from "./av-specs"
 import type { BadgeVariableContext } from "./badge-variables"
 import { isRankKey } from "./i18n"
+import { composeFreshOverlay, isEffectiveFreshLayout, isFreshRank, prepareFreshReconstructedBackground } from "./fresh-layout"
 
 // ---------------------------------------------------------------------------
 // Types
@@ -338,6 +340,41 @@ export interface GenerationInput {
    * "left" = Cinematic). Default center (byte-identico al passato).
    */
   logoAlign?: "left" | "center"
+  /**
+   * Graphical poster layout risolto dalla route (query `layout` > mapping
+   * effettivo per formato > config token > defaults effettivi > "standard").
+   * "fresh" compone il layout grafico alternativo nel blocco 6b (shade
+   * dedicata + numerale vetro + colonna meta + provider + logo ancorato),
+   * riusando base/blur/qualita/ribbon/extra standard. Opzionale: i consumer
+   * esistenti restano invariati.
+   */
+  posterLayout?: PosterLayout | null
+  /**
+   * Fresh apply scope risolto dalla route (query `freshScope` > mapping
+   * effettivo per formato > config token > defaults effettivi > "ranked").
+   * Con "ranked" il renderer decide il layout EFFETTIVO dal rank mostrato
+   * (vedi isEffectiveFreshLayout): senza rank valido rende Standard
+   * byte-identico. Opzionale: assente = "ranked" (default condiviso).
+   */
+  posterFreshScope?: PosterFreshScope | null
+  /**
+   * Raw (pre-suppression) rating-component toggle for the fresh meta column.
+   * The route resolves `badgeRating` raw from query/mapping/config/defaults
+   * and passes the EFFECTIVE (suppressed) value in `badgeRating`; fresh needs
+   * the raw toggle to apply the shared gates itself
+   * (resolveSeparateDisplayState). Absent = backward compat for direct
+   * service callers (raw toggle = effective `badgeRating`). Never inferred
+   * from array existence: an explicit `badgeRating: false` with populated
+   * arrays still renders no separate rows.
+   */
+  freshRawBadgeRating?: boolean
+  /**
+   * Raw separate-ratings toggle (`sep` chain) for the fresh meta column.
+   * Same contract as `freshRawBadgeRating`: route passes the raw config,
+   * absent = array-defined (direct callers declaring arrays keep them
+   * active, still gated by the raw rating toggle).
+   */
+  freshRawSeparateRatings?: boolean
   /**
    * Effetto pre-digitale già risolto dalla route (flag `pre` ON + film
    * rilevato senza disponibilità digitale/streaming): velo scuro + badge
@@ -1223,6 +1260,11 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
   const bottomLight = bottomLightOpt ?? topLight
   // Font badge normalizzato (assente/invalido → "inter" = resa storica).
   const badgeFont = normalizeBadgeFont(input.badgeFont)
+  // Fresh apply scope (assente/invalido → default condiviso "ranked",
+  // fail-closed: senza rank valido rende Standard). Il layout
+  // EFFETTIVO si decide sotto, DOPO la selezione del topBadge (il rank
+  // mostrato determina l'eleggibilità, non l'appartenenza al catalogo).
+  const rawFreshScope = isPosterFreshScope(input.posterFreshScope) ? input.posterFreshScope : DEFAULT_POSTER_FRESH_SCOPE
 
   // Dimensioni canvas: portrait (default, byte-identico al passato) o
   // landscape 16:9 (prova ?shape=landscape, base = backdrop TMDB).
@@ -1246,6 +1288,103 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
   const topBadgePw = shape === "landscape" ? Math.round(badgePw * 1.2) : badgePw
 
   // -----------------------------------------------------------------------
+  // 0. Badge computation (prima dei layer: il topBadge mostrato decide il
+  // layout Fresh EFFETTIVO sotto scope "ranked"). Blocco puro spostato qui
+  // dal passo 4: stessi input, stesso ordine, nessun cambio di output — solo
+  // la posizione, così ogni gate `!isFresh` sotto (backdrop, vignetta, logo,
+  // badge) usa già l'effettivo.
+  // -----------------------------------------------------------------------
+
+  const badgeInput: BadgeInput = {
+    mediaType,
+    tmdbId: input.tmdbId ?? null,
+    digitalReleaseDate: input.digitalReleaseDate ?? null,
+    releaseDate: releaseDate ?? null,
+    firstAirDate: firstAirDate ?? null,
+    lastAirDate: lastAirDate ?? null,
+    seasonCount: seasonCount ?? null,
+    originCountries: [...originCountries],
+    voteAverage: voteAverage ?? 0,
+    trendRank: finalRank,
+    animeRank: animeRankResult,
+    awards: wikidataResult.awards,
+    nominations: wikidataResult.nominations,
+    studios: wikidataResult.studios,
+    director: directorBadgeLabel(wikidataResult.director, t),
+    tvType: tvType ?? null,
+    tvStatus,
+    keywords: [...tmdbKeywords],
+    imdbTop250: !!imdbTop250,
+  }
+  const computed = computeTopBadge(badgeInput, t, locale, sashOrder ?? null, input.dateFormat ?? "locale")
+  const studioBadge = computed.studioBadge
+  const isNetStudio = isNetworkStudio(studioBadge)
+
+  let topBadge: { type: "extra"; label: string } | { type: "rank"; rank: number; label: string; ribbonLabel?: string } | null = null
+  if (rankingEnabled) {
+    if (queryExtra) {
+      topBadge = { type: "extra" as const, label: queryExtra }
+    } else if (computed.badge) {
+      const b = computed.badge
+      if (b.type === "extra") {
+        topBadge = { type: "extra" as const, label: b.label }
+      } else {
+        // Sottotitolo nastro: override custom esplicito (non rank-key) vince,
+        // altrimenti il periodo computato ("Oggi", anche per gli anime).
+        const customRibbon = qLabel && !isRankKey(qLabel) ? qLabel : undefined
+        topBadge = { type: "rank" as const, rank: b.rank!, label: qLabel || b.rankLabel || b.label, ribbonLabel: customRibbon ?? b.ribbonLabel ?? b.label }
+      }
+    }
+  }
+  // Badge Coming Soon: vince sul badge calcolato ma non sul custom esplicito
+  // (`queryExtra`) né sull'upcomingRelease teatrale (che ha già la data).
+  // Indipendente da rankingEnabled: è stato del contenuto, non decorazione.
+  // Reso come nastro angolare rosso in alto a sinistra (non pill centrale).
+  const comingSoonLabel = t("badge.comingSoon")
+  if (preRelease && !queryExtra) {
+    const isUpcoming = computed.upcomingRelease
+      && topBadge?.type === "extra"
+      && topBadge.label === computed.upcomingRelease
+    if (!isUpcoming) {
+      topBadge = { type: "extra" as const, label: comingSoonLabel }
+    }
+  }
+  const showComingSoon = !!preRelease && !queryExtra
+    && topBadge?.type === "extra" && topBadge.label === comingSoonLabel
+    // Nastro disattivato: il Coming Soon resta come badge extra centrale
+    // (ramo rank standard) invece del nastro angolare rosso.
+    && ribbonEnabled
+  const ribbonLayout = showComingSoon ? comingSoonRibbonLayout(badgePw) : null
+
+  // Fresh opt-in layout EFFETTIVO: stessa risoluzione input, composizione
+  // separata. Ogni gate sotto è `&& !isFresh` attorno a un push/ramo: a false
+  // (default, assente, "standard", o "ranked" senza rank valido mostrato) il
+  // percorso standard esegue le stesse operazioni byte-identiche. Deciso QUI
+  // — prima dei rami layout-specific soppressi e con lo stesso helper del
+  // numerale (isFreshRank via isEffectiveFreshLayout, nessuna seconda
+  // derivazione del rank): il rank è quello mostrato (topBadge numerale, già
+  // rankingEnabled-gated sopra), mai l'appartenenza al catalogo.
+  const isFresh = isEffectiveFreshLayout(
+    input.posterLayout,
+    rawFreshScope,
+    topBadge?.type === "rank" ? topBadge.rank : null,
+  )
+
+  // Task16 experiment (ONE reversible candidate, Fresh WITH valid numeral
+  // ONLY): the full-bleed base shifts right ~6% CW with the vacated left gap
+  // filled by a blurred mirrored edge extension (prepare helper in
+  // fresh-layout). `freshBaseBuf` is the pipeline base + the buffer forwarded
+  // to composeFreshOverlay (glass + left-blur sample the NEW view); color
+  // analysis above/below stays on the ORIGINAL `posterBuf`. Standard,
+  // Fresh-unranked and invalid-rank paths keep the original buffer
+  // byte-identically (no extra ops, no re-encode).
+  const freshBgRank = topBadge?.type === "rank" ? topBadge.rank : null
+  const useFreshReconstructedBg = isFresh && isFreshRank(freshBgRank)
+  const freshBaseBuf = useFreshReconstructedBg
+    ? (await prepareFreshReconstructedBackground(posterBuf, CW, CH)).png
+    : posterBuf
+
+  // -----------------------------------------------------------------------
   // 1. Backdrop composite layer
   // -----------------------------------------------------------------------
   const composites: PosterComposite[] = []
@@ -1262,7 +1401,8 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
     const bX = Math.round((CW - bResizedW) / 2 + backdropOffsetX)
     const bY = Math.round((CH - bResizedH) / 2 + backdropOffsetY)
     const backdropResized = await resizeBackdropCached(backdropFetch, bResizedW, bResizedH, backdropSrc)
-    composites.push({ input: backdropResized.input, top: bY, left: bX })
+    // Fresh: base full-bleed già in posterBuf, nessun layer backdrop storico.
+    if (!isFresh) composites.push({ input: backdropResized.input, top: bY, left: bX })
   }
 
   // -----------------------------------------------------------------------
@@ -1328,7 +1468,7 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
   // canvas 16:9 — stessi di context.tsx e poster-fit-score.ts (Golden Rule).
   const [blurOverlay, logoResult] = await Promise.all([
     applyBlur({
-      posterBuf,
+      posterBuf: freshBaseBuf,
       blurEnabled,
       blurHeight,
       blurIntensity,
@@ -1346,7 +1486,14 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
           const lh = lMeta.height || 100
           // Single source: logoDefaultScaleFromAspect (logo-selection.ts).
           // (lw/lh hanno sempre fallback > 0, niente guardia null.)
-          const defScale = logoDefaultScaleFromAspect(lw, lh) ?? 75
+          // Fresh EFFETTIVO + scala auto (null) = 100 (task8a: il default
+          // Fresh non segue la curva aspect da 75 — impostazione 100, non
+          // canvas 100%: il bound resta il title cap fresh + canvas).
+          // Espliciti (anche 75) invariati; fallback Standard effettivo
+          // (fresh+ranked senza rank valido) resta sulla curva aspect.
+          const defScale = isFresh && logoScale == null
+            ? FRESH_TITLE_LOGO_DEFAULT_SCALE
+            : (logoDefaultScaleFromAspect(lw, lh) ?? 75)
           const uScale = logoScale ?? defScale
           const uOx = logoOffsetX ?? 0
           const uOy = logoOffsetY ?? 0
@@ -1366,12 +1513,22 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
             // Vincoli logo per formato (stessi di context.tsx e
             // poster-fit-score.ts): portrait cap solo altezza + calibrazione
             // +10px; landscape contenuto 40% larghezza / 24% altezza.
-            ...(isLandscape
-              ? { maxWidthPct: LANDSCAPE_LOGO_MAX_WIDTH_PCT, maxHeightPct: LANDSCAPE_LOGO_MAX_HEIGHT_PCT, topOffset: LANDSCAPE_LOGO_TOP_OFFSET }
-              : {
-                  maxHeightPct: PORTRAIT_LOGO_MAX_HEIGHT_PCT,
-                  topOffset: PORTRAIT_LOGO_TOP_OFFSET,
-                }),
+            // Fresh EFFETTIVO: l'utente comanda fino al canvas — i cap di
+            // formato standard cadono SEMPRE (auto e esplicito condividono lo
+            // stesso percorso: auto fresh vale 100 come esplicito 100, quindi
+            // auto==esplicito100 byte-identici; l'unico bound resta il title
+            // cap fresh, ingrandito della stessa % nel blocco 6b, più il
+            // canvas). Standard e fallback Standard (ranked senza rank)
+            // restano storici, quindi i render neutrali non-fresh sono
+            // byte-identici.
+            ...(isFresh
+              ? {}
+              : (isLandscape
+                ? { maxWidthPct: LANDSCAPE_LOGO_MAX_WIDTH_PCT, maxHeightPct: LANDSCAPE_LOGO_MAX_HEIGHT_PCT, topOffset: LANDSCAPE_LOGO_TOP_OFFSET }
+                : {
+                    maxHeightPct: PORTRAIT_LOGO_MAX_HEIGHT_PCT,
+                    topOffset: PORTRAIT_LOGO_TOP_OFFSET,
+                  })),
             align,
           })
           const resized = await resizeLogoCached(logoFetch, layout.width, layout.height, logoSrc)
@@ -1386,10 +1543,11 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
   // 3. Vignette + logo (il blur resta un overlay grezzo, composto nel passo 7)
   // -----------------------------------------------------------------------
   const vigBuf = await getVignette(CW, CH)
-  composites.push({ input: vigBuf, top: 0, left: 0 })
+  // Fresh: leggibilità via shade dedicata (composeFreshOverlay), non vignetta.
+  if (!isFresh) composites.push({ input: vigBuf, top: 0, left: 0 })
   // Cinematic Left: scrim d'angolo per la leggibilità del blocco a sinistra
   // (si somma alla fascia blur bassa, che resta controllata dall'utente).
-  if (isLandscapeLeft) {
+  if (isLandscapeLeft && !isFresh) {
     composites.push({ input: await getLandscapeScrim(), top: 0, left: 0 })
   }
   // Velo pre-digitale: sopra poster/vignetta ma sotto logo e badge (restano
@@ -1402,7 +1560,9 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
   if (topShade > 0) {
     composites.push({ input: await getTopShade(CW, CH, topShade), top: 0, left: 0 })
   }
-  if (logoResult) {
+  // Fresh: il logo titolo riusa il bitmap già ridimensionato ma ancorato in
+  // basso a destra (composeFreshOverlay) — qui nessun composite storico.
+  if (logoResult && !isFresh) {
     // Rete di sicurezza per la leggibilità: quando il logo e la fascia di poster
     // sotto hanno quasi la stessa luminosità, il logo sparisce. La selezione a
     // monte prova già a evitarlo, ma su un titolo con un solo logo e un solo
@@ -1434,69 +1594,10 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
   }
 
   // -----------------------------------------------------------------------
-  // 4. Badge computation
+  // 4. Badge computation — vedi passo 0 sopra: badgeInput/computed/topBadge/
+  // Coming Soon sono già risolti prima dei layer (decidono `isFresh` via
+  // `isEffectiveFreshLayout`).
   // -----------------------------------------------------------------------
-
-  const badgeInput: BadgeInput = {
-    mediaType,
-    tmdbId: input.tmdbId ?? null,
-    digitalReleaseDate: input.digitalReleaseDate ?? null,
-    releaseDate: releaseDate ?? null,
-    firstAirDate: firstAirDate ?? null,
-    lastAirDate: lastAirDate ?? null,
-    seasonCount: seasonCount ?? null,
-    originCountries: [...originCountries],
-    voteAverage: voteAverage ?? 0,
-    trendRank: finalRank,
-    animeRank: animeRankResult,
-    awards: wikidataResult.awards,
-    nominations: wikidataResult.nominations,
-    studios: wikidataResult.studios,
-    director: directorBadgeLabel(wikidataResult.director, t),
-    tvType: tvType ?? null,
-    tvStatus,
-    keywords: [...tmdbKeywords],
-    imdbTop250: !!imdbTop250,
-  }
-  const computed = computeTopBadge(badgeInput, t, locale, sashOrder ?? null, input.dateFormat ?? "locale")
-  const studioBadge = computed.studioBadge
-  const isNetStudio = isNetworkStudio(studioBadge)
-
-  let topBadge: { type: "extra"; label: string } | { type: "rank"; rank: number; label: string; ribbonLabel?: string } | null = null
-  if (rankingEnabled) {
-    if (queryExtra) {
-      topBadge = { type: "extra" as const, label: queryExtra }
-    } else if (computed.badge) {
-      const b = computed.badge
-      if (b.type === "extra") {
-        topBadge = { type: "extra" as const, label: b.label }
-      } else {
-        // Sottotitolo nastro: override custom esplicito (non rank-key) vince,
-        // altrimenti il periodo computato ("Oggi", anche per gli anime).
-        const customRibbon = qLabel && !isRankKey(qLabel) ? qLabel : undefined
-        topBadge = { type: "rank" as const, rank: b.rank!, label: qLabel || b.rankLabel || b.label, ribbonLabel: customRibbon ?? b.ribbonLabel ?? b.label }
-      }
-    }
-  }
-  // Badge Coming Soon: vince sul badge calcolato ma non sul custom esplicito
-  // (`queryExtra`) né sull'upcomingRelease teatrale (che ha già la data).
-  // Indipendente da rankingEnabled: è stato del contenuto, non decorazione.
-  // Reso come nastro angolare rosso in alto a sinistra (non pill centrale).
-  const comingSoonLabel = t("badge.comingSoon")
-  if (preRelease && !queryExtra) {
-    const isUpcoming = computed.upcomingRelease
-      && topBadge?.type === "extra"
-      && topBadge.label === computed.upcomingRelease
-    if (!isUpcoming) {
-      topBadge = { type: "extra" as const, label: comingSoonLabel }
-    }
-  }
-  const showComingSoon = !!preRelease && !queryExtra
-    && topBadge?.type === "extra" && topBadge.label === comingSoonLabel
-    // Nastro disattivato: il Coming Soon resta come badge extra centrale
-    // (ramo rank standard) invece del nastro angolare rosso.
-    && ribbonEnabled
-  const ribbonLayout = showComingSoon ? comingSoonRibbonLayout(badgePw) : null
 
   // Network logo (parallel with badge render) — SVG first, TMDB fallback
   const netLogoEnabled = networkLogo ?? (qNetLogo !== null ? qNetLogo !== "0" : (sd.networkLogo !== false && (mapping?.networkLogo ?? true) !== false))
@@ -1771,7 +1872,8 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
   // sotto: solo shrink quando lo stack sfora, mai enlarge — a scala 100 lo
   // spazio basta sempre e il percorso resta byte-identico).
   let genreBadgeRect: { top: number; left: number; w: number; h: number } | null = null
-  if (safeGenreBadgeResult) {
+  // Fresh: la colonna meta sostituisce il badge genere (nessun duplicato).
+  if (safeGenreBadgeResult && !isFresh) {
     const landscapeShiftX = shape === "landscape" ? -55 : 0
     // Landscape: badge in basso a DESTRA invece che centrato (vale per
     // preview, poster e banner — unica verità visiva). Il portrait resta storico.
@@ -1874,7 +1976,8 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
   // senza dati: non inventa/fallback provider mentre la route sopprime
   // genere/anno/voto).
   let customRowRendered = false
-  if (input.ratings?.length && !isBottomStyle) {
+  // Fresh: i provider custom vivono come righe testo nella colonna meta.
+  if (input.ratings?.length && !isBottomStyle && !isFresh) {
     // Optional enrichment must never prevent the original poster from rendering.
     // La riga sta sopra il badge genere, in basso: stessa polarità del fondo.
     const row = await renderMultiRatings(input.ratings, CW - 40, bottomLight, badgeFont).catch(() => null)
@@ -1987,7 +2090,8 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
     // Il badge centrale resta invariato — la gestione overlap vive nei blocchi
     // network/qualità qui sotto (shrink dei laterali).
   }
-  if (finalRankBadge && finalRankLeft !== null) {
+  // Fresh: il rank vive nel numerale vetro (sotto); qui solo gli extra.
+  if (finalRankBadge && finalRankLeft !== null && !isFresh) {
     composites.push({
       input: finalRankBadge.png,
       top: finalRankTop,
@@ -1996,6 +2100,13 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
   }
   // Nastro Coming Soon: angolo in alto (a sinistra; a destra con side="right"), sopra il badge centrale
   // (quando coesistono per custom esplicito) e sopra il velo pre-digitale.
+  // Fresh: l'insertion point dei layer fresh è qui — shade/numerale/meta
+  // stanno SOPRA velo/ombra (come i badge standard, restano luminosi) ma
+  // SOTTO il chrome conservato (Coming Soon, qualità, extra), così la shade
+  // non scurisce mai il chrome e il ribbon resta visibile.
+  // (Dichiarata qui, usata nel blocco 6b: splice prima del chrome.)
+  let freshInsertAt: number | null = null
+  if (isFresh) freshInsertAt = composites.length
   if (safeComingSoonResult && ribbonLayout) {
     composites.push({
       input: safeComingSoonResult.png,
@@ -2026,7 +2137,8 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
   // Actual finale per il freeze senza salto (solo numeri): valorizzato al
   // composite, null se il network non viene reso.
   let netGeo: NetworkGeometry | null = null
-  if (networkLogoForLayout) {
+  // Fresh: il mark provider riusa il bitmap raw nella colonna meta (sotto).
+  if (networkLogoForLayout && !isFresh) {
     const gap = Math.round(6 * CH / 570)
     let fittedRaw = await fitBadgeToCanvas(networkLogoForLayout, CW, CH)
     if (fittedRaw) {
@@ -2475,7 +2587,8 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
   // centrato sull'asse verticale del badge qualità (o all'angolo quando la
   // qualità manca). Vale per entrambi i canvas. Mai col custom provider.
   // Solo stile colonna: in modalità bottom gli items vanno alla riga sotto.
-  if (!customRowRendered && !isBottomStyle && input.separateRatings?.length) {
+  // Fresh: i valori vivono come righe testo nella colonna meta (sotto).
+  if (!customRowRendered && !isBottomStyle && input.separateRatings?.length && !isFresh) {
     const items = input.separateRatings.slice(0, 3)
     const netPadX = Math.round(18 * CW / 380)
     const netBaseTop = Math.round(18 * CH / 570)
@@ -2533,7 +2646,8 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
   // extra = 0, opticalShift = 0: margine interno pieno 18*CW/380, senza il
   // +40 ottico del genere), non centrate sul canvas, con base geometrica
   // landscape -20 X / -10 Y (LANDSCAPE_BOTTOM_PILLS_SHIFT_*). Forma canvas invariata.
-  if (bottomItemCount > 0 && badgesEnabled && bottomVariant) {
+  // Fresh: nessun bitmap bottom storico (i valori sono nella colonna meta).
+  if (bottomItemCount > 0 && badgesEnabled && bottomVariant && !isFresh) {
     const items = input.separateRatings!.slice(0, 3)
     const isBar = bottomVariant === "bottom-bar"
     const availW = isBar && !isLandscape ? CW : (isLandscape ? CW - 80 : CW - 36)
@@ -2601,6 +2715,90 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
 
 
   // -----------------------------------------------------------------------
+  // 6b. Fresh composition (solo layout=fresh): shade dedicata + numerale
+  // vetro + colonna meta + provider + logo titolo. I layer entrano
+  // all'insertion point registrato prima del chrome conservato (Coming Soon
+  // e qualità già in `composites`, extra subito dopo): la shade resta sotto
+  // il chrome e non lo scurisce mai. Velo pre-digitale e ombra superiore
+  // restano sotto come nello standard (i badge fresh restano luminosi come
+  // quelli standard); blur pipeline e ribbon invariati.
+  // -----------------------------------------------------------------------
+  if (isFresh) {
+    // Stessa priorità dello standard: il rank arriva dal topBadge già
+    // risolto (queryExtra > computato > Coming Soon). Mai inventato: solo un
+    // rank reale disegna il numerale.
+    const freshRank = topBadge?.type === "rank" ? topBadge.rank : null
+    // La route pre-filtra già gli input rating per lo standard (flag
+    // effettivi, custom soppresso in bottom, separate definiti solo quando
+    // attivi) e passa i toggle raw equivalenti nei campi freshRaw* —
+    // così freshMetaRows applica gli stessi gate condivisi
+    // (resolveSeparateDisplayState) sui valori RAW, non su quelli effettivi
+    // (già soppressi: con la colonna attiva l'effettivo sarebbe sempre OFF
+    // e fresh non mostrerebbe mai i separati). I chiamanti diretti del
+    // service senza campi freshRaw* usano `badgeRating` così com'è (mai
+    // riacceso dall'esistenza degli array) e l'array definito come toggle
+    // separato — `badgeRating: false` + array popolati = nessuna riga
+    // separata, come nello standard.
+    const freshRawBadgeRating = input.freshRawBadgeRating ?? input.badgeRating
+    const freshRawSeparateEnabled = input.freshRawSeparateRatings ?? (input.separateRatings !== undefined)
+    const freshLayers = await composeFreshOverlay({
+      posterBuf: freshBaseBuf,
+      CW,
+      CH,
+      rank: freshRank,
+      meta: {
+        badgesEnabled,
+        badgeGenre,
+        badgeYear,
+        badgeRating: freshRawBadgeRating,
+        separateRatingsEnabled: freshRawSeparateEnabled,
+        separateRatingsStyle: isBottomStyle && bottomVariant ? bottomVariant : "column",
+        customRatingsEnabled: input.ratings !== undefined,
+        genreName,
+        year,
+        voteAverage,
+        separateRatings: input.separateRatings,
+        customRatings: input.ratings,
+      },
+      logo: logoResult ? { png: logoResult.input, w: logoResult.w, h: logoResult.h } : null,
+      provider: networkLogoForLayout ? { png: networkLogoForLayout.png, w: networkLogoForLayout.w, h: networkLogoForLayout.h } : null,
+      badgeFont,
+      // Existing per-shape Transform controls, no new params: the rank
+      // numeral follows the classifica tuning, the meta column the genre
+      // tuning, the provider its offsets (+ the follow/fixed contract), the
+      // title logo its offsets once. Provider/logo SCALES ride the bitmaps
+      // above (`netscale` in networkLogoForLayout, `logoScale` in
+      // logoResult) and are never re-applied as a second resize inside
+      // fresh-layout: the same % only enlarges the slot caps there, so one
+      // fit grows the mark linearly until the canvas edge (neutral 100 =
+      // historic caps, byte-identical; null logoScale counts as 100).
+      transforms: {
+        numeralScale: topBadgeScale,
+        numeralOffsetX: topBadgeOffsetX,
+        numeralOffsetY: topBadgeOffsetY,
+        metaScale: genreBadgeScale,
+        metaOffsetX: genreBadgeOffsetX,
+        metaOffsetY: genreBadgeOffsetY,
+        providerScale: networkLogoScale,
+        providerOffsetX: networkLogoOffsetX,
+        providerOffsetY: networkLogoOffsetY,
+        providerFollowTitle: networkLogoFollowTitle ?? true,
+        providerFixedX: networkFixedX ?? null,
+        providerFixedY: networkFixedY ?? null,
+        logoScale: logoScale ?? null,
+        logoOffsetX: logoOffsetX ?? null,
+        logoOffsetY: logoOffsetY ?? null,
+      },
+    })
+    composites.splice(freshInsertAt ?? composites.length, 0, ...freshLayers)
+    // Badge extra non-rank: bitmap standard riusato al top (stesso anchor).
+    if (isExtraTopBadge && finalRankBadge && finalRankLeft !== null) {
+      composites.push({ input: finalRankBadge.png, top: finalRankTop, left: finalRankLeft })
+    }
+  }
+
+
+  // -----------------------------------------------------------------------
   // 7. Final composite
   // -----------------------------------------------------------------------
   const safeComposites = (await Promise.all(composites.map((layer) => fitCompositeToCanvas(layer, CW, CH))))
@@ -2608,13 +2806,14 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
 
   // Il blur è un overlay RGBA grezzo (nessun PNG intermedio): entra come primo
   // layer, sotto backdrop/vignetta/badge — stesso ordine del vecchio blur "cotto"
-  // nella base. La base (posterBuf) non subisce ritocchi colore: niente modulate,
-  // l'artwork TMDB passa invariato nel composite finale.
+  // nella base. La base non subisce ritocchi colore: niente modulate,
+  // l'artwork TMDB passa invariato nel composite finale (task16: la base è il
+  // background ricostruito solo in Fresh-ranked, originale altrove).
   const layers: Array<PosterComposite | { input: Buffer; raw: { width: number; height: number; channels: 4 }; top: number; left: number }> = blurOverlay
     ? [{ input: blurOverlay.overlay, raw: { width: CW, height: blurOverlay.height, channels: 4 }, top: blurOverlay.top, left: 0 }, ...safeComposites]
     : safeComposites
 
-  let pipeline = sharp(posterBuf)
+  let pipeline = sharp(freshBaseBuf)
 
   if (showComingSoon) {
     pipeline = pipeline.blur(PRE_RELEASE_BLUR_SIGMA)

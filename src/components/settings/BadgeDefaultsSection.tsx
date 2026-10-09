@@ -23,6 +23,7 @@ import { type ExtraBadgeStyle, type RankingBadgeStyle } from "@/lib/badge-styles
 import type { LandscapeServerDefaults } from "@/lib/server-defaults"
 import type { VisualPresetValues } from "@/lib/visual-presets"
 import { Toggle } from "@/components/Toggle"
+import { PosterLayoutSelector, PosterFreshScopeSelector } from "@/components/PosterLayoutSelector"
 import { BadgeStyleSelector } from "@/components/ui"
 import type { DefaultsPreviewFamily } from "@/lib/poster-url"
 import { isBottomSeparateRatingsStyle, getSeparateRatingsStyleForShape, DEFAULT_QUALITY_BADGE_OFFSET_X, DEFAULT_QUALITY_BADGE_OFFSET_Y, DEFAULT_QUALITY_BADGE_OFFSET_X_LANDSCAPE, DEFAULT_QUALITY_BADGE_OFFSET_Y_LANDSCAPE, getSeparateBadgeDefaultScale } from "@/lib/badge-styles"
@@ -177,6 +178,13 @@ export function BadgeDefaultsSection({ active, shape, onPreviewFamilyChange }: {
   const [badgeStyle] = scoped("badgeStyle", ed.defaultBadgeStyle, ed.setDefaultBadgeStyle)
   const [rankingBadgeStyle, setRankingBadgeStyle] = scoped("rankingBadgeStyle", ed.defaultRankingBadgeStyle, ed.setDefaultRankingBadgeStyle)
   const [extraBadgeStyle, setExtraBadgeStyle] = scoped("extraBadgeStyle", ed.defaultExtraBadgeStyle, ed.setDefaultExtraBadgeStyle)
+  // Graphical cover layout, scoped per edit target like the badge styles:
+  // portrait writes the shared flat default, landscape the profile override
+  // (reset below clears it back to following the flat).
+  const [posterLayout, setPosterLayout] = scoped("posterLayout", ed.defaultPosterLayout, ed.setDefaultPosterLayout)
+  // Fresh apply scope, scoped per edit target like the layout above:
+  // portrait writes the shared flat default, landscape the profile override.
+  const [posterFreshScope, setPosterFreshScope] = scoped("posterFreshScope", ed.defaultPosterFreshScope, ed.setDefaultPosterFreshScope)
   // Scoped reset: clears only this tab's landscape overrides (numeric and
   // gradient overrides owned by Transform stay intact).
   const hasVisualOverrides = isLandscape && BADGE_VISUAL_LAND_KEYS.some((k) => ed.landscape[k] !== undefined)
@@ -771,6 +779,18 @@ export function BadgeDefaultsSection({ active, shape, onPreviewFamilyChange }: {
         <p className="text-[10px] text-zinc-500 italic leading-snug pt-0.5">
           {t("ui.configPresetUnofficialNote")}
         </p>
+      </div>
+
+      {/* Cover layout default (separate from the ranking style above):
+          portrait edits the shared flat, landscape the profile override
+          (cleared by the reset above, back to following the flat). */}
+      <div data-testid="poster-layout-card" className="bg-surface/50 border border-surface2/60 rounded-xl p-3.5 space-y-1.5 shadow-sm">
+        <span className="font-semibold text-zinc-200 flex items-center gap-1.5">
+          <Layers className="w-3.5 h-3.5 text-accent-orange" />
+          {t("ui.posterLayout")}
+        </span>
+        <PosterLayoutSelector value={posterLayout} onChange={(v) => setPosterLayout(v)} />
+        <PosterFreshScopeSelector layout={posterLayout} value={posterFreshScope} onChange={(v) => setPosterFreshScope(v)} />
       </div>
 
       <GenreStyleSection shape={targetShape} onPreviewFamilyChange={onPreviewFamilyChange} />

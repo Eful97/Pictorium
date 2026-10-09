@@ -31,6 +31,8 @@ export async function saveDefaults(ed: PosterEditorCtx): Promise<boolean> {
     ratingSources: ed.defaultRatingSources,
     separateRatings: ed.defaultSeparateRatings,
     separateRatingsStyle: ed.defaultSeparateRatingsStyle,
+    posterLayout: ed.defaultPosterLayout,
+    posterFreshScope: ed.defaultPosterFreshScope,
     sashOrder: ed.defaultSashOrder,
     badgeStyle: ed.defaultBadgeStyle,
     rankingBadgeStyle: ed.defaultRankingBadgeStyle,

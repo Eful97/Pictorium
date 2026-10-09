@@ -11,6 +11,7 @@ import { z } from "zod"
 import { clamp } from "@/lib/image-utils"
 import { envWithFallback } from "@/lib/env-compat"
 import { BADGE_STYLES, RANKING_BADGE_STYLES, QUALITY_BADGE_STYLES, BADGE_FONTS, SEPARATE_RATINGS_STYLES, EXTRA_BADGE_STYLES } from "@/lib/badge-styles"
+import { POSTER_LAYOUTS, POSTER_FRESH_SCOPES } from "@/lib/types"
 
 // ---- Zod schema (Batch C: sostituisce validazione manuale) ----
 
@@ -98,6 +99,10 @@ export const configTokenSchema = z.object({
   networkLogoFollowTitle: z.boolean().nullable().optional(),
   preRelease: z.boolean().optional(),
   posterShape: z.enum(["poster", "landscape"]).optional(),
+  /** Graphical poster layout (flat-only like posterShape): absent = standard. */
+  posterLayout: z.enum(POSTER_LAYOUTS).optional(),
+  /** Fresh apply scope (flat-only like posterShape): absent = ranked (default condiviso). */
+  posterFreshScope: z.enum(POSTER_FRESH_SCOPES).optional(),
   autoRotateClean: z.boolean(),
   // Opzionale (finding 13): i token generati prima dell'aggiunta del campo
   // (best-fit) non devono fallire il safeParse — il render usa il default del

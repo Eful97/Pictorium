@@ -1,5 +1,6 @@
 import { z } from "zod"
 import { BADGE_STYLES, RANKING_BADGE_STYLES, QUALITY_BADGE_STYLES, BADGE_FONTS, SEPARATE_RATINGS_STYLES, EXTRA_BADGE_STYLES } from "./badge-styles"
+import { POSTER_LAYOUTS, POSTER_FRESH_SCOPES } from "./types"
 import { BADGE_PRESET_ID_RE, BADGE_PRESET_REV_RE } from "./badge-preset"
 
 export const mappingSchema = z.object({
@@ -113,6 +114,10 @@ export const mappingSchema = z.object({
   ribbonSide: z.enum(["left", "right"]).nullable().optional(),
   ribbonEnabled: z.boolean().nullable().optional(),
   posterShape: z.enum(["poster", "landscape"]).nullable().optional(),
+  /** Graphical poster layout per-titolo ("standard" = historic, "fresh" = opt-in). */
+  posterLayout: z.enum(POSTER_LAYOUTS).nullable().optional(),
+  /** Fresh apply scope per-titolo ("ranked" = default: solo con rank; "all" = override esplicito). */
+  posterFreshScope: z.enum(POSTER_FRESH_SCOPES).nullable().optional(),
   // Profilo di tuning landscape 16:9 (vedi LandscapeSettings in types.ts):
   // stessi bound dei campi flat. Chiavi assenti/null = fallback al flat.
   landscape: z.object({
@@ -135,6 +140,8 @@ export const mappingSchema = z.object({
     separateBadgeOffsetX: z.number().int().nullable().optional(),
     separateBadgeOffsetY: z.number().int().nullable().optional(),
     separateRatingsStyle: z.enum(SEPARATE_RATINGS_STYLES).nullable().optional(),
+    posterLayout: z.enum(POSTER_LAYOUTS).nullable().optional(),
+    posterFreshScope: z.enum(POSTER_FRESH_SCOPES).nullable().optional(),
     networkLogoScale: z.number().int().min(10).max(200).nullable().optional(),
     networkLogoOffsetX: z.number().int().nullable().optional(),
     networkLogoOffsetY: z.number().int().nullable().optional(),
@@ -244,6 +251,10 @@ export const posterQuerySchema = z.object({
   format: boundedQueryString(8),
   shape: boundedQueryString(16),
   align: boundedQueryString(8),
+  /** Graphical poster layout (`standard` historic default, `fresh` opt-in). */
+  layout: boundedQueryString(16),
+  /** Fresh apply scope (`ranked` = default: solo con rank; `all` = override esplicito). */
+  freshScope: boundedQueryString(16),
   ac: boundedQueryString(10),
   tl: boundedQueryString(8),
   bl: boundedQueryString(8),

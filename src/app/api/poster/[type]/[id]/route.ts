@@ -1960,7 +1960,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
       networkLogoOffsetX, networkLogoOffsetY,
       queryExtra, qNetLogo, networkLogo, networkLogoPosition, ribbonSide, ribbonEnabled, rankingBadgeAccent,
       networkLogoFollowTitle, networkFixedX, networkFixedY,
-      preRelease, posterShape, logoAlign, hideLogo,
+      preRelease, posterShape, posterLayout, posterFreshScope, logoAlign, hideLogo,
     } = renderConfig
 
     // Allineamento blur non-clean (Golden Rule col client): se il poster
@@ -2295,6 +2295,12 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
       videoFormats: finalVideoFormats,
       separateRatings: (useSeparate || (bottomActive && sepItems.length > 0)) ? sepItems : undefined,
       separateRatingsStyle,
+      // Toggle raw (pre-suppressione) per la colonna meta fresh: fresh
+      // applica gli stessi gate condivisi sui valori raw — con i soli flag
+      // effettivi (soppressi quando la colonna/bottom è attiva) non
+      // mostrerebbe mai i separati. Standard invariato (usa gli effettivi).
+      freshRawBadgeRating: badgeRating,
+      freshRawSeparateRatings: separateRatings,
       sashOrder,
       quality: finalQuality,
       topLight, bottomLight, logoBadgeVisibility, targetCenter, ribbonSide, ribbonEnabled, rankingBadgeAccent,
@@ -2320,6 +2326,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
       demoSamples,
       accentOverride, imdbTop250, preRelease: applyPreRelease,
       shape: posterShape,
+      posterLayout,
+      posterFreshScope,
       logoAlign,
       hideLogo,
       posterSrc: isLandscape ? backdropPath : posterPath,

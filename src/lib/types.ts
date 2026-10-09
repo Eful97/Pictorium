@@ -8,6 +8,41 @@ export function isPosterShape(value: unknown): value is PosterShape {
 }
 
 /**
+ * Graphical poster layout: "standard" (historic render, default) or "fresh"
+ * (opt-in graphical layout). Shared by the query key (`layout`), per-title
+ * mapping (flat + landscape profile), config token, server defaults (flat +
+ * landscape profile) and the render config; the single renderer draws
+ * "fresh" via fresh-layout.ts (shade + glass numeral + meta column),
+ * reusing the standard base/blur/chrome.
+ */
+export const POSTER_LAYOUTS = ["standard", "fresh"] as const
+export type PosterLayout = (typeof POSTER_LAYOUTS)[number]
+
+export const DEFAULT_POSTER_LAYOUT: PosterLayout = "standard"
+
+export function isPosterLayout(value: unknown): value is PosterLayout {
+  return value === "standard" || value === "fresh"
+}
+
+/**
+ * Fresh layout apply scope: "ranked" (default: Fresh only for titles with a
+ * valid displayed rank 1..100; anything else falls back to a byte-identical
+ * Standard render) or "all" (explicit override: Fresh for every title).
+ * Shared by the query key (`freshScope`), per-title mapping (flat + landscape
+ * profile), config token, server defaults (flat + landscape profile) and the
+ * render config; the single renderer decides the EFFECTIVE layout from scope
+ * + displayed rank.
+ */
+export const POSTER_FRESH_SCOPES = ["all", "ranked"] as const
+export type PosterFreshScope = (typeof POSTER_FRESH_SCOPES)[number]
+
+export const DEFAULT_POSTER_FRESH_SCOPE: PosterFreshScope = "ranked"
+
+export function isPosterFreshScope(value: unknown): value is PosterFreshScope {
+  return value === "all" || value === "ranked"
+}
+
+/**
  * Posizione del logo network: "auto" = specchio dinamico odierno (destra in
  * vista Stremio con angolo destro occupato, sinistra altrove), "top" =
  * sempre all'angolo superiore, lato del nastro effettivo (destra solo con
@@ -215,6 +250,19 @@ export interface Mapping {
   /** Formato canvas per-titolo: "landscape" = 16:9 da backdrop TMDB. Default portrait. */
   posterShape?: PosterShape | null
   /**
+   * Graphical poster layout per-titolo ("standard" = resa storica, "fresh" =
+   * opt-in). Default standard. Il flat è il profilo verticale E il fallback
+   * per il landscape assente; il profilo `landscape` sotto può divergere per
+   * formato (stessa regola degli altri condivisi).
+   */
+  posterLayout?: PosterLayout | null
+  /**
+   * Fresh apply scope per-titolo ("ranked" = default: solo titoli con rank
+   * valido; "all" = override esplicito per tutti i titoli). Stessa regola
+   * per-formato del layout (flat + profilo `landscape`).
+   */
+  posterFreshScope?: PosterFreshScope | null
+  /**
    * Tuning di resa specifico per il canvas landscape 16:9 (profilo
    * orizzontale). I campi flat restano il profilo verticale E il fallback
    * per ogni chiave landscape assente/null. I mapping senza `landscape` si
@@ -264,6 +312,10 @@ export interface LandscapeSettings {
   separateBadgeOffsetY?: number | null
   /** Layout dei rating separati (default "column" = colonna storica). */
   separateRatingsStyle?: SeparateRatingsStyle | null
+  /** Graphical poster layout ("standard" = resa storica, "fresh" = opt-in). */
+  posterLayout?: PosterLayout | null
+  /** Fresh apply scope ("ranked" = default: solo con rank; "all" = override esplicito). */
+  posterFreshScope?: PosterFreshScope | null
   networkLogoScale?: number | null
   networkLogoOffsetX?: number | null
   networkLogoOffsetY?: number | null
@@ -308,6 +360,8 @@ export function effectiveMappingForShape(mapping: Mapping | null, shape: PosterS
     separateBadgeOffsetX: l.separateBadgeOffsetX ?? mapping.separateBadgeOffsetX,
     separateBadgeOffsetY: l.separateBadgeOffsetY ?? mapping.separateBadgeOffsetY,
     separateRatingsStyle: l.separateRatingsStyle ?? mapping.separateRatingsStyle,
+    posterLayout: l.posterLayout ?? mapping.posterLayout,
+    posterFreshScope: l.posterFreshScope ?? mapping.posterFreshScope,
     networkLogoScale: l.networkLogoScale ?? mapping.networkLogoScale,
     networkLogoOffsetX: l.networkLogoOffsetX ?? mapping.networkLogoOffsetX,
     networkLogoOffsetY: l.networkLogoOffsetY ?? mapping.networkLogoOffsetY,

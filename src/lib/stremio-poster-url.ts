@@ -196,6 +196,17 @@ export function buildStremioPosterUrl(input: BuildStremioPosterUrlInput): URL {
     // Il default orizzontale prevale sui mapping portrait solo per Stremio.
     // Emesso solo quando landscape (vedi params); forceShape resta esplicito.
     posterShape: effShape,
+    // Graphical layout: raw effective per-title value per shape, then raw
+    // effective global default (landscape included) — NEVER a synthesized
+    // "standard": absent stays absent (legacy unspecified URLs keep no param
+    // and stay byte-identical), while an explicit standard travels as
+    // `layout=standard` (see params) so it overrides inherited fresh.
+    posterLayout: eff?.posterLayout ?? sd.posterLayout,
+    // Fresh apply scope: same raw/absent contract as `layout` above — absent
+    // stays absent (legacy URLs keep no param, server resolves "ranked"), while
+    // an explicit `all` travels as `freshScope=all` so it overrides an
+    // inherited ranked for unsaved/template consumers.
+    posterFreshScope: eff?.posterFreshScope ?? sd.posterFreshScope,
     // Allineamento: solo globale (il mapping non ha il campo) e solo
     // landscape — i portrait non portano mai `align` (sempre centrati).
     logoAlign: effShape === "landscape"

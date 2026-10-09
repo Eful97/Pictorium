@@ -21,7 +21,7 @@ import { getSeparateBadgeDefaultScale, getSeparateRatingsStyleForShape, getQuali
 import type { LandscapeServerDefaults } from "./server-defaults"
 import { DEFAULT_SASH_ORDER, type SashBucket } from "./badge-priority"
 import type { VideoFormat } from "./av-specs"
-import type { PosterShape, NetworkLogoPosition } from "./types"
+import type { PosterShape, NetworkLogoPosition, PosterLayout, PosterFreshScope } from "./types"
 import { BADGE_PRESET_ID_RE, BADGE_PRESET_REV_RE } from "./badge-preset"
 import type { DateFormat } from "./release-badge"
 
@@ -115,6 +115,20 @@ interface BadgeParams {
   ribbonEnabled?: boolean
   /** Formato canvas del poster in editing (preview WYSIWYG). */
   posterShape?: PosterShape
+  /**
+   * Graphical poster layout in editing. Sempre esplicito in preview
+   * (`layout=standard|fresh`, default "standard"): senza, un mapping o un
+   * default salvato fresh scavalcerebbe la scelta editor (desync WYSIWYG) —
+   * e uno standard esplicito non prevarrebbe su un fresh ereditato.
+   */
+  posterLayout?: PosterLayout | null
+  /**
+   * Fresh apply scope in editing. Sempre esplicito in preview
+   * (`freshScope=all|ranked`, default "ranked"): senza, un mapping o un
+   * default salvato all scavalcerebbe la scelta editor (desync WYSIWYG) —
+   * e un ranked esplicito non prevarrebbe su un all ereditato.
+   */
+  posterFreshScope?: PosterFreshScope | null
   /** Allineamento blocco logo/metadati in editing (preview WYSIWYG). */
   logoAlign?: "left" | "center"
 }
@@ -125,6 +139,16 @@ interface PosterState {
   selectedLogo: TMDBImage | null
   selectedBackdrop: TMDBImage | null
   logoScale: number
+  /**
+   * Provenance scala titolo (correzione c1): true = auto (la preview emette
+   * il sentinel `scale=0` e il server risolve Fresh-100 vs aspect Standard in
+   * base al rank mostrato; lo slider mostra comunque il valore auto risolto
+   * col rank noto). False/assente = esplicito (preview emette il valore).
+   * Contratto intenzionale: con Fresh selezionato ma fallback Standard il
+   * controllo può offrire fino a 200 come preferenza, ma finché resta auto lo
+   * Standard effettivo non cambia (solo un adjust esplicito lo muove).
+   */
+  logoScaleIsAuto?: boolean
   logoOffsetX: number
   logoOffsetY: number
   backdropScale: number
@@ -253,6 +277,8 @@ export function buildUrlPattern(bp: BadgeParams & {
     ribbonEnabled: bp.ribbonEnabled,
     posterShape: bp.posterShape,
     logoAlign: bp.logoAlign,
+    posterLayout: bp.posterLayout ?? undefined,
+    posterFreshScope: bp.posterFreshScope ?? undefined,
     topBadgeScale: bp.topBadgeScale,
     topBadgeOffsetX: bp.topBadgeOffsetX,
     topBadgeOffsetY: bp.topBadgeOffsetY,
@@ -356,7 +382,11 @@ export function buildPreviewUrl(ps: PosterState, bp: BadgeParams, configToken?: 
   // backdrop (senza testo), quindi il logo resta anche senza poster clean.
   if (ps.selectedLogo) {
     params.push(`logo=${encodeURIComponent(ps.selectedLogo.file_path)}`)
-    params.push(`scale=${ps.logoScale}`)
+    // Auto (correzione c1): sentinel `scale=0` = auto-fit server-side (Fresh
+    // effettivo = 100, fallback Standard = curva aspect). Mai un 100 baked:
+    // i titoli Standard con Fresh selezionato senza rank restano aspect.
+    // Espliciti (anche 75/100/150/200) viaggiano invariati.
+    params.push(`scale=${ps.logoScaleIsAuto ? 0 : ps.logoScale}`)
     params.push(`ox=${ps.logoOffsetX}`)
     params.push(`oy=${ps.logoOffsetY}`)
   }
@@ -437,6 +467,14 @@ export function buildPreviewUrl(ps: PosterState, bp: BadgeParams, configToken?: 
   // mapping salvato con shape diversa scavalcerebbe il toggle editor (desync
   // WYSIWYG) — vedi catena query > mapping > config > defaults.
   params.push(`shape=${bp.posterShape === "landscape" ? "landscape" : "poster"}`)
+  // Layout SEMPRE esplicito in preview (come shape): senza, un mapping o un
+  // default salvato fresh scavalcerebbe la scelta editor — e tornando a
+  // standard senza parametro il server erediterebbe fresh (desync WYSIWYG).
+  params.push(`layout=${bp.posterLayout === "fresh" ? "fresh" : "standard"}`)
+  // Scope SEMPRE esplicito in preview (come layout): senza, un mapping o un
+  // default salvato ranked scavalcerebbe la scelta editor — e tornando ad
+  // all senza parametro il server erediterebbe ranked (desync WYSIWYG).
+  params.push(`freshScope=${bp.posterFreshScope === "all" ? "all" : "ranked"}`)
   // Align in preview: rilevante solo per il layout landscape (i portrait
   // restano sempre centrati per contratto).
   if (bp.posterShape === "landscape") {
@@ -587,6 +625,20 @@ export interface DefaultsPreviewParams {
   defaultRibbonSide?: "left" | "right"
   defaultPosterShape?: PosterShape
   defaultLogoAlign?: "left" | "center" | null
+  /**
+   * Graphical poster layout di default (flat). In preview landscape vince il
+   * profilo Orizzontale (`land.posterLayout ?? flat`, stessa regola
+   * `land ?? flat` della UI e del server) — sempre esplicito in preview
+   * (`layout=standard|fresh`), mai persistito da qui.
+   */
+  defaultPosterLayout?: PosterLayout | null
+  /**
+   * Fresh apply scope di default (flat). In preview landscape vince il
+   * profilo Orizzontale (`land.posterFreshScope ?? flat`, stessa regola
+   * `land ?? flat` della UI e del server) — sempre esplicito in preview
+   * (`freshScope=all|ranked`), mai persistito da qui.
+   */
+  defaultPosterFreshScope?: PosterFreshScope | null
   /** Profilo Orizzontale dei default (stessi slider del Verticale): chiavi
    *  definite vincono sui flat SOLO in preview landscape — stessa regola
    *  `land ?? flat` della UI (`LandscapeDefaultsSection`) e del server
@@ -768,6 +820,16 @@ export function buildDefaultsPreviewUrl(bp: DefaultsPreviewParams): string {
   const effPreviewSide = pick(land.ribbonSide, bp.defaultRibbonSide)
   if (effPreviewSide) params.push(`side=${effPreviewSide}`)
   params.push(`shape=${previewLandscape ? "landscape" : "poster"}`)
+  // Layout effettivo del formato in anteprima (`land ?? flat`, come UI e
+  // server): SEMPRE esplicito in preview (come sash), così la preview dei
+  // default mostra davvero il layout selezionato per quel formato.
+  const effPreviewLayout = (previewLandscape ? land.posterLayout : undefined) ?? bp.defaultPosterLayout
+  params.push(`layout=${effPreviewLayout === "fresh" ? "fresh" : "standard"}`)
+  // Scope effettivo del formato in anteprima (`land ?? flat`, come UI e
+  // server): SEMPRE esplicito in preview (come layout), così la preview dei
+  // default mostra davvero lo scope selezionato per quel formato.
+  const effPreviewScope = (previewLandscape ? land.posterFreshScope : undefined) ?? bp.defaultPosterFreshScope
+  params.push(`freshScope=${effPreviewScope === "all" ? "all" : "ranked"}`)
   if (previewLandscape && bp.defaultLogoAlign) {
     params.push(`align=${bp.defaultLogoAlign === "left" ? "left" : "center"}`)
   }

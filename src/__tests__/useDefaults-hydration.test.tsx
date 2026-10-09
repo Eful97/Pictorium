@@ -69,6 +69,8 @@ const USER_SAVED = {
   ratingSources: ["imdb", "tmdb"],
   separateRatings: false,
   separateRatingsStyle: "column",
+  posterLayout: "standard",
+  posterFreshScope: "all",
   sashOrder: ["upcoming", "rank", "new", "award", "extra"],
   autoRotateClean: false,
   defaultAutoRotateBackdrop: false,
