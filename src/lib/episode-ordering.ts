@@ -1,7 +1,12 @@
 import type { TMDBEpisodeGroupDetails } from "@/lib/tmdb"
 import type { StremioVideo } from "@/lib/meta-handler"
 import { posterUrl } from "@/lib/tmdb"
-import { getTvdbEpisodes, getTvdbSeriesId, formatTvdbImageUrl } from "@/lib/tvdb"
+import { getTvdbEpisodesResult, getTvdbSeriesId, formatTvdbImageUrl } from "@/lib/tvdb"
+import { combineAbortSignals } from "@/lib/abort-signal"
+
+// Per-fetch AniZip cap: preserves the previous 5s internal timeout; when a
+// budget signal is present the combined signal fires on whichever comes first.
+const ANIZIP_FETCH_TIMEOUT_MS = 5000
 
 type PreviewVideo = StremioVideo
 
@@ -109,6 +114,11 @@ function anizipCacheSet(key: string, value: unknown) {
   ANIZIP_CACHE.set(key, { value, expiry: Date.now() + ANIZIP_TTL_MS })
 }
 
+/** Test-only: clears the in-memory AniZip cache. */
+export function __clearAnizipCache(): void {
+  ANIZIP_CACHE.clear()
+}
+
 interface AnizipEpisode {
   tvdbShowId?: number
   seasonNumber?: number
@@ -127,15 +137,15 @@ interface AnizipPayload {
   mappings?: Record<string, unknown>
 }
 
-async function fetchAnizip(tmdbId: number): Promise<AnizipPayload | null> {
+async function fetchAnizip(tmdbId: number, signal?: AbortSignal): Promise<AnizipPayload | null> {
   const key = `tmdb:${tmdbId}`
   const cached = anizipCacheGet(key) as AnizipPayload | undefined
   if (cached) return cached
-  const controller = new AbortController()
-  const t = setTimeout(() => controller.abort(), 5000)
+  if (signal?.aborted) return null
+  const combined = signal ? combineAbortSignals(signal, ANIZIP_FETCH_TIMEOUT_MS) : AbortSignal.timeout(ANIZIP_FETCH_TIMEOUT_MS)
   try {
     const res = await fetch(`https://api.ani.zip/mappings?themoviedb_id=${tmdbId}`, {
-      signal: controller.signal,
+      signal: combined,
       headers: { Accept: "application/json" },
     })
     if (!res.ok) return null
@@ -145,13 +155,11 @@ async function fetchAnizip(tmdbId: number): Promise<AnizipPayload | null> {
     return data
   } catch {
     return null
-  } finally {
-    clearTimeout(t)
   }
 }
 
-export async function buildVideosFromAnizip(tmdbId: number, primaryId: string): Promise<PreviewVideo[]> {
-  const payload = await fetchAnizip(tmdbId)
+export async function buildVideosFromAnizip(tmdbId: number, primaryId: string, signal?: AbortSignal): Promise<PreviewVideo[]> {
+  const payload = await fetchAnizip(tmdbId, signal)
   if (!payload?.episodes) return []
   const eps = Object.values(payload.episodes)
   // filtra S* specials, ordina per assoluto o stagione/episodio
@@ -175,35 +183,80 @@ export async function buildVideosFromAnizip(tmdbId: number, primaryId: string): 
 }
 
 /**
- * Costruisce i video da TheTVDB (ordinamento scelto esplicitamente).
- * Stessa regola dell'arricchimento: solo link confermati (IMDb o tvdb_id),
- * mai fallback fuzzy su `remoteid/<tmdbId>` — senza link certo torna []
- * e i chiamanti degradano allo standard TMDB (fail-open).
+ * True when the TMDB /season response can be considered complete against the
+ * episode_count declared in the details. Null/missing payloads, unexpectedly
+ * empty lists and short lists mark partial (callers serve with a short TTL
+ * and retry); zero-episode seasons and not-yet-aired future seasons stay
+ * complete by construction and must never mark partial.
+ *
+ * Truncation rule: with a known positive expected count, any short list is
+ * partial even when it already contains a future-dated episode (one future
+ * entry does not prove the tail arrived). Full-length lists stay complete
+ * even when they include future dates. A missing payload with an unknown
+ * expected count cannot prove completeness, so it marks partial; only an
+ * explicit zero count may be complete.
  */
-export async function buildVideosFromTvdb(
+export function isSeasonEpisodesComplete(
+  season: { episodes?: { air_date?: string }[] | null } | null | undefined,
+  expectedCount?: number | null,
+  seasonAirDate?: string | null,
+): boolean {
+  const hasExpected = typeof expectedCount === "number" && Number.isFinite(expectedCount)
+  const episodes = season?.episodes
+  if (!Array.isArray(episodes)) {
+    if (hasExpected && expectedCount! <= 0) return true
+    if (hasExpected && isFutureDate(seasonAirDate)) return true
+    return false
+  }
+  if (episodes.length === 0) {
+    if (hasExpected && expectedCount! <= 0) return true
+    if (hasExpected && isFutureDate(seasonAirDate)) return true
+    return false
+  }
+  if (hasExpected && expectedCount! > 0 && episodes.length < expectedCount!) return false
+  return true
+}
+
+function isFutureDate(value: string | null | undefined): boolean {
+  if (!value || typeof value !== "string") return false
+  const t = Date.parse(value)
+  return Number.isFinite(t) && t > Date.now()
+}
+
+/**
+ * Builds videos from TheTVDB (explicitly chosen ordering), reporting whether
+ * the fetch is complete. Interrupted lists (budget/timeout/error) are served
+ * with a short TTL, never frozen long-term.
+ * Same enrichment rule: only confirmed links (IMDb or tvdb_id), never a fuzzy
+ * `remoteid/<tmdbId>` fallback — without a certain link it returns []
+ * (complete: true, the downstream standard fallback has its own guard) and
+ * callers degrade to the standard TMDB list (fail-open).
+ */
+export async function buildVideosFromTvdbDetailed(
   imdbId: string | null,
   tmdbId: number | null,
   primaryId: string,
   tvdbApiKey: string,
   seasonType: string = "default",
   tmdbApiKey?: string,
-): Promise<PreviewVideo[]> {
-  if (!tvdbApiKey) return []
+  signal?: AbortSignal,
+): Promise<{ videos: PreviewVideo[]; complete: boolean }> {
+  if (!tvdbApiKey) return { videos: [], complete: true }
   let tvdbSeriesId: number | null = null
-  if (imdbId) tvdbSeriesId = await getTvdbSeriesId(imdbId, tvdbApiKey)
+  if (imdbId) tvdbSeriesId = await getTvdbSeriesId(imdbId, tvdbApiKey, signal)
   if (!tvdbSeriesId && tmdbApiKey && tmdbId) {
     try {
       const { getExternalIds } = await import("@/lib/tmdb")
-      const ext = await getExternalIds("tv", tmdbId, tmdbApiKey)
+      const ext = await getExternalIds("tv", tmdbId, tmdbApiKey, signal, 5000)
       if (ext?.tvdb_id && ext.tvdb_id > 0) {
         tvdbSeriesId = ext.tvdb_id
       } else if (ext?.imdb_id) {
-        tvdbSeriesId = await getTvdbSeriesId(ext.imdb_id, tvdbApiKey)
+        tvdbSeriesId = await getTvdbSeriesId(ext.imdb_id, tvdbApiKey, signal)
       }
     } catch {}
   }
-  if (!tvdbSeriesId) return []
-  const tvdbEps = await getTvdbEpisodes(tvdbSeriesId, "ita", tvdbApiKey, seasonType)
+  if (!tvdbSeriesId) return { videos: [], complete: true }
+  const { episodes: tvdbEps, complete } = await getTvdbEpisodesResult(tvdbSeriesId, "ita", tvdbApiKey, seasonType, signal)
   const sorted = [...tvdbEps].sort((a, b) => a.seasonNumber - b.seasonNumber || a.number - b.number)
   const videos: PreviewVideo[] = []
   for (const ep of sorted) {
@@ -218,5 +271,23 @@ export async function buildVideosFromTvdb(
       released: ep.aired ? `${ep.aired}T00:00:00.000Z` : undefined,
     })
   }
-  return videos
+  return { videos, complete }
+}
+
+/**
+ * Builds videos from TheTVDB (explicitly chosen ordering).
+ * Same enrichment rule: only confirmed links (IMDb or tvdb_id), never a fuzzy
+ * `remoteid/<tmdbId>` fallback — without a certain link it returns [] and
+ * callers degrade to the standard TMDB list (fail-open).
+ */
+export async function buildVideosFromTvdb(
+  imdbId: string | null,
+  tmdbId: number | null,
+  primaryId: string,
+  tvdbApiKey: string,
+  seasonType: string = "default",
+  tmdbApiKey?: string,
+  signal?: AbortSignal,
+): Promise<PreviewVideo[]> {
+  return (await buildVideosFromTvdbDetailed(imdbId, tmdbId, primaryId, tvdbApiKey, seasonType, tmdbApiKey, signal)).videos
 }

@@ -230,7 +230,12 @@ function lookupJWGenreCode(genreName: string): string | null {
 }
 
 const rankingsCache = new Map<string, { data: JWRankEntry[]; timestamp: number }>()
-const CACHE_TTL = 30 * 60 * 1000
+// JustWatch source cache TTL: 6h. Covers rankings (streamingCharts),
+// titles (popularTitles), quality and availability — same cache shared with
+// `/api/trending/rank` and warmup. Platforms read this data via the
+// JW fast-path, so they inherit 6h with no dedicated plumbing.
+// Negative cache stays at 60s (NEGATIVE_TTL, unchanged).
+const CACHE_TTL = 6 * 60 * 60 * 1000
 // Cap allargato (v1.23.0): su istanze pubbliche le combinazioni
 // regione/pacchetti/tipo sfrattavano le entry utili (ogni miss = GraphQL).
 // Voci piccole (~1-2KB): 1000 ≈ pochi MB al massimo.

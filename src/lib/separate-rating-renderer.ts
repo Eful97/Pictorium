@@ -44,7 +44,7 @@ export const SEPARATE_STACK_GAP = 5
  * loghi network). Ritorna null se l'asset manca o non rasterizza: la pill
  * viene skippata invece di rompere il render.
  */
-async function loadSeparateRatingLogo(source: string, targetH: number): Promise<{ png: Buffer; w: number; h: number } | null> {
+export async function loadSeparateRatingLogo(source: string, targetH: number): Promise<{ png: Buffer; w: number; h: number } | null> {
   const filename = SEPARATE_RATING_ICON_FILES[source.toLowerCase()]
   if (!filename) return null
   const filePath = path.join(RATINGS_DIR, filename)

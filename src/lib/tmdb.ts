@@ -972,6 +972,20 @@ export function __clearTMDBCache(): void {
 }
 
 /**
+ * Evicts cached TMDB season payloads for one series/season (all languages).
+ * Successful-but-partial season responses must not linger in the 5-minute
+ * shared fetch cache past the short meta (60s) / preview (30s) TTL: callers
+ * evict a season as soon as they flag it partial, so the retry after expiry
+ * refetches upstream instead of re-serving the stale truncated list.
+ */
+export function evictTVSeasonCache(tvId: number, seasonNumber: number): void {
+  const needle = `/tv/${tvId}/season/${seasonNumber}`
+  for (const key of [...fetchCache.keys()]) {
+    if (key.includes(needle)) fetchCache.delete(key)
+  }
+}
+
+/**
  * Risolve un id IMDb (tt...) al corrispondente id TMDB via /find (fix L22).
  * Riusa il layer condiviso (cache 5min a chiave neutra + inflight coalescing)
  * invece di un fetch dedicato come faceva imdb-resolver.

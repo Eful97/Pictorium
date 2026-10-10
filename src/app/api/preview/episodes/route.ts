@@ -9,11 +9,15 @@ import {
   type TMDBEpisodeGroupDetails,
   posterUrl,
   resolveRouteApiKey,
+  evictTVSeasonCache,
 } from "@/lib/tmdb"
-import { enrichVideosWithTvdb } from "@/lib/tvdb"
-import { buildVideosFromAnizip, buildVideosFromGroups, buildVideosFromTvdb, concurrentMap, resolveSeasonNumbers, seasonNumberForGroup } from "@/lib/episode-ordering"
+import { enrichVideosWithTvdbDetailed } from "@/lib/tvdb"
+import { buildVideosFromAnizip, buildVideosFromGroups, buildVideosFromTvdbDetailed, concurrentMap, isSeasonEpisodesComplete, resolveSeasonNumbers, seasonNumberForGroup } from "@/lib/episode-ordering"
 import { groupDetailsEpisodeCount, groupDetailsRegularEpisodeCount, resolveDefaultEpisodeGroupId } from "@/lib/episode-group-default"
 import { envWithFallback } from "@/lib/env-compat"
+import { combineAbortSignals } from "@/lib/abort-signal"
+
+const PREVIEW_EPISODES_BUDGET_MS = 15000
 
 interface PreviewVideo {
   id: string
@@ -28,6 +32,28 @@ interface PreviewVideo {
 
 function hashFragment(value: string): string {
   return crypto.createHash("sha1").update(value).digest("hex").slice(0, 8)
+}
+
+interface PreviewEpisodesBody {
+  videos: PreviewVideo[]
+  seasons: { season: number; name: string; overview?: string; episodes: PreviewVideo[] }[]
+  totalEpisodes: number
+  totalSeasons: number
+  tmdbId: number
+  episodeGroupId: string
+  autoDefault: { groupId: string; name: string } | null
+  language: string
+}
+
+function previewCacheHeaders(isPartial: boolean): Record<string, string> {
+  // Partial: short downstream TTL with no SWR, so 30s is a hard upper stale
+  // bound and the retry can actually serve the recovery.
+  return {
+    "Cache-Control": isPartial
+      ? "public, max-age=30"
+      : "public, max-age=60, stale-while-revalidate=120",
+    "Access-Control-Allow-Origin": "*",
+  }
 }
 
 export async function GET(req: NextRequest) {
@@ -52,18 +78,21 @@ export async function GET(req: NextRequest) {
   // "auto" (parametro assente) e "standard" esplicito hanno chiavi diverse:
   // l'automatico può risolvere un gruppo Parts, lo standard mai.
   const cacheKey = `preview:episodes:tv:${tmdbId}:eg${episodeGroupId ?? "auto"}:lang${language}:ak${apiKey ? hashFragment(apiKey) : "none"}:es${episodeMetadataSource}:tk${tvdbApiKey ? hashFragment(tvdbApiKey) : "none"}`
-  const cached = cacheGet<{ videos: PreviewVideo[]; seasons: { season: number; name: string; overview?: string; episodes: PreviewVideo[] }[] }>(cacheKey)
+  const cached = cacheGet<{ body: PreviewEpisodesBody; partial: boolean }>(cacheKey)
   if (cached) {
-    return Response.json(cached, {
-      headers: {
-        "Cache-Control": "public, max-age=60, stale-while-revalidate=120",
-        "Access-Control-Allow-Origin": "*",
-      },
+    return Response.json(cached.body, {
+      headers: previewCacheHeaders(cached.partial === true),
     })
   }
 
   try {
-    const details = await getFullDetails("tv", tmdbId, language, apiKey)
+    // Single request-wide budget (15s) combined with the incoming signal
+    // (client disconnect): every phase below derives from it with per-phase caps.
+    const requestSignal = combineAbortSignals(
+      (req as { signal?: AbortSignal }).signal ?? null,
+      PREVIEW_EPISODES_BUDGET_MS,
+    )
+    const details = await getFullDetails("tv", tmdbId, language, apiKey, requestSignal)
     if (!details || !details.id) {
       return Response.json({ videos: [], seasons: [] }, { status: 200 })
     }
@@ -73,7 +102,7 @@ export async function GET(req: NextRequest) {
     if (!imdbId) {
       try {
         const { getExternalIds } = await import("@/lib/tmdb")
-        const ext = await getExternalIds("tv", tmdbId, apiKey)
+        const ext = await getExternalIds("tv", tmdbId, apiKey, requestSignal, 5000)
         imdbId = ext.imdb_id ?? null
       } catch {
         imdbId = null
@@ -82,6 +111,7 @@ export async function GET(req: NextRequest) {
     const primaryId = imdbId || `tmdb:${tmdbId}`
 
     const videos: PreviewVideo[] = []
+    let isPartialSeasonData = false
     let groupDetails: TMDBEpisodeGroupDetails | null = null
 
     // TVDB / AniZip ordering sentinel (shared helper) — supporta tvdb:<seasonType>
@@ -89,14 +119,16 @@ export async function GET(req: NextRequest) {
     if (isTvdbPreview) {
       const seasonType = episodeGroupId === "tvdb" ? "default" : (episodeGroupId!.slice(5) || "default")
       try {
-        const tvdbVideos = await buildVideosFromTvdb(imdbId, tmdbId, primaryId, tvdbApiKey || "", seasonType, apiKey)
-        if (tvdbVideos.length > 0) videos.push(...(tvdbVideos as unknown as PreviewVideo[]))
+        const orderingSignal = combineAbortSignals(requestSignal, 10000)
+        const tvdbOrdered = await buildVideosFromTvdbDetailed(imdbId, tmdbId, primaryId, tvdbApiKey || "", seasonType, apiKey, orderingSignal)
+        if (tvdbOrdered.videos.length > 0) videos.push(...(tvdbOrdered.videos as unknown as PreviewVideo[]))
+        if (!tvdbOrdered.complete) isPartialSeasonData = true
       } catch {
         // fallback silenzioso a TMDB standard
       }
     } else if (episodeGroupId === "anizip") {
       try {
-        const anizipVideos = await buildVideosFromAnizip(tmdbId, primaryId)
+        const anizipVideos = await buildVideosFromAnizip(tmdbId, primaryId, combineAbortSignals(requestSignal, 8000))
         if (anizipVideos.length > 0) videos.push(...(anizipVideos as unknown as PreviewVideo[]))
       } catch {
         // fallback silenzioso a TMDB standard
@@ -105,7 +137,7 @@ export async function GET(req: NextRequest) {
 
     const isGroupPreview = episodeGroupId !== null && episodeGroupId !== "standard" && !isTvdbPreview && episodeGroupId !== "anizip"
     if (videos.length === 0 && isGroupPreview) {
-      groupDetails = await getTVEpisodeGroup(episodeGroupId!, language, apiKey)
+      groupDetails = await getTVEpisodeGroup(episodeGroupId!, language, apiKey, combineAbortSignals(requestSignal, 8000))
     }
 
     if (groupDetails?.groups && groupDetails.groups.length > 0) {
@@ -125,9 +157,9 @@ export async function GET(req: NextRequest) {
         const standardEpisodeCount = regularSeasons.reduce((n, s) => n + ((s as { episode_count?: number }).episode_count || 0), 0)
         const totalEpisodeCountWithSpecials = details.seasons.reduce((n, s) => n + ((s as { episode_count?: number }).episode_count || 0), 0)
         if (regularSeasons.length > 0 && standardEpisodeCount > 0) {
-          const autoId = await resolveDefaultEpisodeGroupId(tmdbId, regularSeasons.length, standardEpisodeCount, apiKey, totalEpisodeCountWithSpecials)
+          const autoId = await resolveDefaultEpisodeGroupId(tmdbId, regularSeasons.length, standardEpisodeCount, apiKey, totalEpisodeCountWithSpecials, combineAbortSignals(requestSignal, 8000))
           if (autoId) {
-            const autoDetails = await getTVEpisodeGroup(autoId, language, apiKey).catch(() => null)
+            const autoDetails = await getTVEpisodeGroup(autoId, language, apiKey, combineAbortSignals(requestSignal, 6000)).catch(() => null)
             const count = groupDetailsEpisodeCount(autoDetails)
             const regularCount = groupDetailsRegularEpisodeCount(autoDetails)
             const countMatches =
@@ -155,10 +187,17 @@ export async function GET(req: NextRequest) {
     // Fallback standard — limitato a 5 richieste parallele per evitare burst TMDB
     if (videos.length === 0 && details.seasons && details.seasons.length > 0) {
       const regularSeasons = details.seasons.filter((s) => s.season_number > 0)
-      const seasonsData = await concurrentMap(regularSeasons, (s) => getTVSeason(tmdbId, s.season_number!, language, apiKey), 5)
-      for (const sData of seasonsData) {
-        if (!sData || !sData.episodes) continue
-        for (const ep of sData.episodes) {
+      const seasonSignal = combineAbortSignals(requestSignal, 10000)
+      const seasonsData = await concurrentMap(regularSeasons, (s) => getTVSeason(tmdbId, s.season_number!, language, apiKey, seasonSignal), 5)
+      for (let i = 0; i < regularSeasons.length; i++) {
+        const sData = seasonsData[i]
+        const expected = (regularSeasons[i] as unknown as { episode_count?: number }).episode_count
+        const aired = (regularSeasons[i] as unknown as { air_date?: string }).air_date
+        if (!isSeasonEpisodesComplete(sData, expected, aired)) {
+          isPartialSeasonData = true
+          evictTVSeasonCache(tmdbId, (regularSeasons[i] as unknown as { season_number?: number }).season_number!)
+        }
+        for (const ep of sData?.episodes ?? []) {
           videos.push({
             id: `${primaryId}:${ep.season_number}:${ep.episode_number}`,
             name: ep.name || `Episodio ${ep.episode_number}`,
@@ -175,7 +214,9 @@ export async function GET(req: NextRequest) {
 
     const isTvdbPreviewForEnrich = episodeGroupId === "tvdb" || (episodeGroupId?.startsWith("tvdb:") ?? false)
     if (videos.length > 0 && episodeMetadataSource === "tvdb" && tvdbApiKey && !isTvdbPreviewForEnrich && !videosFromGroup) {
-      await enrichVideosWithTvdb(videos as unknown as import("@/lib/meta-handler").StremioVideo[], imdbId, tmdbId, tvdbApiKey, "ita", apiKey)
+      const enrichSignal = combineAbortSignals(requestSignal, 8000)
+      const enrichComplete = await enrichVideosWithTvdbDetailed(videos as unknown as import("@/lib/meta-handler").StremioVideo[], imdbId, tmdbId, tvdbApiKey, "ita", apiKey, enrichSignal)
+      if (!enrichComplete) isPartialSeasonData = true
     }
 
     // Raggruppa per stagione per l'anteprima
@@ -215,13 +256,14 @@ export async function GET(req: NextRequest) {
         episodes: episodes.sort((a, b) => a.episode - b.episode),
       }))
 
-    const payload = { videos, seasons, totalEpisodes: videos.length, totalSeasons: seasons.length, tmdbId, episodeGroupId: episodeGroupId ?? "standard", autoDefault, language }
-    cacheSet(cacheKey, payload, ["preview"], 5 * 60 * 1000)
+    const payload: PreviewEpisodesBody = { videos, seasons, totalEpisodes: videos.length, totalSeasons: seasons.length, tmdbId, episodeGroupId: episodeGroupId ?? "standard", autoDefault, language }
+    if (!isPartialSeasonData) {
+      cacheSet(cacheKey, { body: payload, partial: false }, ["preview"], 5 * 60 * 1000)
+    } else {
+      cacheSet(cacheKey, { body: payload, partial: true }, ["preview"], 30 * 1000)
+    }
     return Response.json(payload, {
-      headers: {
-        "Cache-Control": "public, max-age=60, stale-while-revalidate=120",
-        "Access-Control-Allow-Origin": "*",
-      },
+      headers: previewCacheHeaders(isPartialSeasonData),
     })
   } catch {
     // Mai e.message in chiaro nel body: può contenere URL/chiavi upstream.

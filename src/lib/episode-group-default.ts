@@ -134,11 +134,12 @@ export async function resolveDefaultEpisodeGroupId(
   standardEpisodeCount: number,
   apiKey?: string,
   totalEpisodeCountWithSpecials?: number,
+  signal?: AbortSignal,
 ): Promise<string | null> {
   try {
     let groups = groupListCacheGet(tvId)
     if (!groups) {
-      groups = await getTVEpisodeGroups(tvId, apiKey)
+      groups = await getTVEpisodeGroups(tvId, apiKey, signal)
       groupListCacheSet(tvId, groups)
     }
     const picked = pickDefaultEpisodeGroupId(

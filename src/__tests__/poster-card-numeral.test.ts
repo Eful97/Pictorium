@@ -2,6 +2,7 @@ import sharp from "sharp"
 import { describe, expect, it } from "vitest"
 import {
   CARD_NUMERAL_CORE_THRESHOLD,
+  boxDownsample2xAlpha,
   cardNumeralColumns,
   cardNumeralContourRing,
   cardNumeralMaskSvg,
@@ -1127,4 +1128,121 @@ describe("card numeral P18: Euclidean contour helper invariants (pure, no raster
     expect(cardNumeralContourRing(new Uint8Array(10), 10, 10, 3).length).toBe(0)
     expect(cardNumeralContourRing(full, 0, 10, 3).length).toBe(0)
   })
+})
+
+describe("card numeral P21: 2x-supersampled contour is smoother at the same weight", () => {
+  it("boxDownsample2xAlpha averages exact 2x2 blocks and rejects bad grids (pure)", () => {
+    const down = boxDownsample2xAlpha(
+      new Uint8Array([255, 255, 0, 0, 255, 128, 64, 32]),
+      4,
+      2,
+    )
+    expect(down).not.toBeNull()
+    expect(down!.w).toBe(2)
+    expect(down!.h).toBe(1)
+    // (255+255+255+128)/4 = 223.25 -> 223; (0+0+64+32)/4 = 24.
+    expect(down!.alpha[0]).toBe(223)
+    expect(down!.alpha[1]).toBe(24)
+    // Constant blocks pass through unchanged (coverage-preserving).
+    const flat = boxDownsample2xAlpha(new Uint8Array(16).fill(200), 4, 4)
+    expect(flat).not.toBeNull()
+    expect(flat!.alpha.every((v) => v === 200)).toBe(true)
+    // Guards: odd dims, tiny grids, short buffers.
+    expect(boxDownsample2xAlpha(new Uint8Array(15), 5, 3)).toBeNull()
+    expect(boxDownsample2xAlpha(new Uint8Array(4), 1, 4)).toBeNull()
+    expect(boxDownsample2xAlpha(new Uint8Array(7), 4, 2)).toBeNull()
+  })
+
+  it("2/4/7/11/20: edge error vs the independent 4x reference drops, weight unchanged, no spurs", async () => {
+    for (const rank of [2, 4, 7, 11, 20] as const) {
+      const geo = cardLayoutGeometry("poster", STD_W, STD_H, rank)!
+      const n = geo.numeral!
+      const half = n.strokeWidth / 2
+      // Shipped (P21) unfiltered contour on the glyph grid.
+      const spec = await renderCardNumeralLayer(
+        rank, n.fontSize, n.letterSpacing, n.strokeWidth, "provider-glass", ACCENT, n.condenseX,
+      )
+      const shipRaw = await sharp(spec.ringPng).ensureAlpha().raw().toBuffer({ resolveWithObject: true })
+      expect(shipRaw.info.width).toBe(spec.svgW)
+      expect(shipRaw.info.height).toBe(spec.svgH)
+      const ship = new Uint8Array(spec.svgW * spec.svgH)
+      for (let i = 0; i < ship.length; i++) ship[i] = shipRaw.data[i * 4 + 3] ?? 0
+      // Pre-P21 pipeline replicated INDEPENDENTLY (same exported helper on
+      // the 1x raster — exactly what production computed before P21, no
+      // production internals reused beyond the helper itself).
+      const maskSpec = cardNumeralMaskSvg(rank, n.fontSize, n.letterSpacing, n.strokeWidth, n.condenseX)
+      const mask1 = await renderSVG(maskSpec.svg, maskSpec.svgW)
+      const raw1 = await sharp(mask1).ensureAlpha().raw().toBuffer({ resolveWithObject: true })
+      const alpha1 = new Uint8Array(maskSpec.svgW * maskSpec.svgH)
+      for (let i = 0; i < alpha1.length; i++) alpha1[i] = raw1.data[i * 4 + 3] ?? 0
+      const old = cardNumeralContourRing(alpha1, maskSpec.svgW, maskSpec.svgH, half)
+      // Independent 4x reference: 4x raster, ring at 4x, 4x4 box average
+      // back to the glyph grid (test-local averaging, not the production
+      // 2x2 helper — the reference shares no code with the fix).
+      const mask4 = await renderSVG(maskSpec.svg, maskSpec.svgW * 4)
+      const raw4 = await sharp(mask4).ensureAlpha().raw().toBuffer({ resolveWithObject: true })
+      expect(raw4.info.width).toBe(maskSpec.svgW * 4)
+      expect(raw4.info.height).toBe(maskSpec.svgH * 4)
+      const alpha4 = new Uint8Array(raw4.info.width * raw4.info.height)
+      for (let i = 0; i < alpha4.length; i++) alpha4[i] = raw4.data[i * 4 + 3] ?? 0
+      const ring4 = cardNumeralContourRing(alpha4, raw4.info.width, raw4.info.height, half * 4)
+      const W = maskSpec.svgW
+      const H = maskSpec.svgH
+      const ref = new Float64Array(W * H)
+      for (let y = 0; y < H; y++) {
+        for (let x = 0; x < W; x++) {
+          let s = 0
+          for (let dy = 0; dy < 4; dy++) {
+            for (let dx = 0; dx < 4; dx++) {
+              s += ring4[(4 * y + dy) * raw4.info.width + 4 * x + dx] ?? 0
+            }
+          }
+          ref[y * W + x] = s / 16
+        }
+      }
+      // Edge band only (partial reference alpha): solid zones must agree
+      // exactly-ish instead (no-spur proof below).
+      let oldErr = 0
+      let newErr = 0
+      let band = 0
+      let spur = 0
+      let gap = 0
+      for (let i = 0; i < W * H; i++) {
+        const b = ref[i]!
+        if (b > 4 && b < 251) {
+          band++
+          oldErr += Math.abs((old[i] ?? 0) - b)
+          newErr += Math.abs((ship[i] ?? 0) - b)
+        } else if (b <= 4) {
+          if ((ship[i] ?? 0) > 32) spur++
+        } else {
+          if ((ship[i] ?? 0) < 223) gap++
+        }
+      }
+      expect(band).toBeGreaterThan(500)
+      const oldMean = oldErr / band
+      const newMean = newErr / band
+      // Smoother: strictly less edge error than the pre-P21 1x ring…
+      expect(newMean).toBeLessThan(oldMean)
+      // …by a visible margin (measured pre-fix: 26-68% reduction)…
+      expect(newMean).toBeLessThanOrEqual(oldMean * 0.8)
+      // …with an honest absolute cap (measured new means: 22-44)…
+      expect(newMean).toBeLessThanOrEqual(45)
+      // …and no new ink where the reference is empty, no holes where it
+      // is solid (crisp rim, not a blurry displaced contour).
+      expect(spur).toBe(0)
+      expect(gap).toBe(0)
+      // Same optical weight (never the rejected half stroke): solid-ink
+      // coverage matches the pre-P21 ring within 10%.
+      let oldCore = 0
+      let newCore = 0
+      for (let i = 0; i < W * H; i++) {
+        if ((old[i] ?? 0) > 80) oldCore++
+        if ((ship[i] ?? 0) > 80) newCore++
+      }
+      expect(oldCore).toBeGreaterThan(200)
+      expect(newCore / oldCore).toBeGreaterThanOrEqual(0.9)
+      expect(newCore / oldCore).toBeLessThanOrEqual(1.1)
+    }
+  }, 240000)
 })

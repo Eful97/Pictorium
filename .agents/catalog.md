@@ -42,7 +42,7 @@ emette solo ID `pictorium-*`.
 | `pictorium-search-movies` / `pictorium-search-series` | TMDB search diretto (`searchMovies`/`searchTV`) | movie/series | Chiave TMDB |
 
 Warmup automatico: `pictorium-jw-movies`, `pictorium-jw-series`, `pictorium-netflix-movies/series`, `pictorium-prime-movies/series`, `pictorium-anime-movies`, `pictorium-anime`
-(`WARMUP_CATALOG_IDS` — 8 cataloghi). I restanti 10 platform restano cold ma beneficiano della cache JustWatch 30 min condivisa.
+(`WARMUP_CATALOG_IDS` — 8 cataloghi). I restanti 10 platform restano cold ma beneficiano della cache JustWatch condivisa (6 ore).
 
 ## Flusso per catalogo
 
@@ -59,7 +59,7 @@ FlixPatrol. I filtri genere globali si applicano dopo l'arricchimento TMDB.
 1. `getJWRankings("MOVIE"|"SHOW", region.code, ...)` in `lib/justwatch.ts` — query GraphQL
    a `apis.justwatch.com` (o `JUSTWATCH_API_URL` nei test). Regione da `lib/regions.ts`
    (18 paesi: `?region=` > config-token > default server `PICTORIUM_REGION` > `IT`);
-   la lingua query JW e i titoli TMDB seguono la regione. Cache condivisa 30 min
+    la lingua query JW e i titoli TMDB seguono la regione. Cache condivisa 6 ore
    con `/api/trending/rank` e warmup (cache key include `:r<CODE>`).
    Restituisce `{ tmdbId, imdbId, rank }`:
    **l'`imdbId` arriva già da JustWatch** — non rifare una chiamata TMDB per ottenerlo.
@@ -74,12 +74,12 @@ FlixPatrol. I filtri genere globali si applicano dopo l'arricchimento TMDB.
    regionali (Prime: `prv` in IT, `amp` in US/GB/DE/JP; Paramount in ES è SkyShowtime `sst`; NOW negli
    USA mappa Peacock `pct`/`pcp`): si passa sempre l'unione, JW ignora i codici assenti per regione. Il fast-path JW in
    `getTop10` vale per tutte le 18 regioni supportate (prima solo Italia).
-2. Se JustWatch non restituisce righe, fallback trasparente su FlixPatrol `getTop10(slug, region.flixSlug, apiKey)`.
+2. Se JustWatch non restituisce righe, fallback trasparente su FlixPatrol `getTop10(slug, region.flixSlug, apiKey)` (cache disco+memoria 12 ore).
 3. Deduplicazione rigorosa per `tmdbId` (nessun doppione nei primi 10).
 
 ### Anime (`pictorium-anime-movies`, `pictorium-anime`)
 `fetchMDBList(listKey, key)` — usa `mdblistAnimeMovie` per i film anime e `mdblistAnime`
-per le serie. Funziona sia con chiave MDBList sia con endpoint pubblico JSON di fallback.
+per le serie (cache sorgente 12 ore, 60 s sui vuoti). Funziona sia con chiave MDBList sia con endpoint pubblico JSON di fallback.
 Risolve i dettagli TMDB e deduplica per `tmdbId`.
 
 ## Fonte ranking Top 20 (`rankingSourceMovie` / `rankingSourceSeries`)
@@ -165,7 +165,7 @@ chiave d'istanza condivisa) resta valida per quel caso.
   epoch globale (`lib/catalog-epoch.ts`, bump su ogni scrittura
   mapping/defaults) e hash dei server defaults — ogni save cambia la chiave su
   tutte le istanze.
-- Cache JustWatch (30 min) condivisa anche da `/api/trending/rank` e warmup.
+- Cache JustWatch (6 ore) condivisa anche da `/api/trending/rank` e warmup.
 - `metas: []` = catalogo non riconosciuto, chiave mancante o errore. Rate limit →
   429 con `Retry-After`.
 - Header risposta: `Cache-Control: no-cache`, CORS `*`.

@@ -26,7 +26,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
   // e può riprovare al tick successivo, senza che nessun altro veda dati falsi.
   let data: Awaited<ReturnType<typeof getImages>>
   try {
-    data = await getImages(type as "movie" | "tv", Number(id), languages, apiKey)
+    const imagesSignal = typeof AbortSignal !== "undefined" && "timeout" in AbortSignal ? AbortSignal.timeout(8000) : undefined
+    data = await getImages(type as "movie" | "tv", Number(id), languages, apiKey, imagesSignal, 8000)
   } catch {
     return jsonGzip({ error: "TMDB images unavailable" }, 502, undefined, acceptEncoding)
   }

@@ -334,20 +334,22 @@ export async function getTop10(platformSlug: string, country = "italy", apiKey?:
   // No worldwide fp-crawler catalog exists: never fill global ranks with national data.
   if (globalChart) return { platform: platformSlug, platformName, country, movies: [], tv: [] }
 
+  // fp-crawler source cache validity (memory + disk): 12h. The
+  // platform JustWatch fast-path uses the shared 6h JW cache.
   const now = Date.now()
-  const FOUR_HOURS = 4 * 60 * 60 * 1000
+  const TWELVE_HOURS = 12 * 60 * 60 * 1000
   let cached = memCache.get(country)
   // Memoria stantia → prova il file su disco (fallback persistente) prima di rifare fetch.
-  if (!cached?.catalog || (cached && now - cached.timestamp > FOUR_HOURS)) {
+  if (!cached?.catalog || (cached && now - cached.timestamp > TWELVE_HOURS)) {
     const disk = loadCache(country)
-    if (disk.catalog && now - disk.timestamp <= FOUR_HOURS) {
+    if (disk.catalog && now - disk.timestamp <= TWELVE_HOURS) {
       cached = disk
       memCache.set(country, cached)
     }
   }
   let catalog = cached?.catalog
 
-  if (!catalog || (cached && now - cached.timestamp > FOUR_HOURS)) {
+  if (!catalog || (cached && now - cached.timestamp > TWELVE_HOURS)) {
     try {
       catalog = await fetchCatalog(country)
       cached = { catalog, timestamp: now }

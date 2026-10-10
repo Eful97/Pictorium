@@ -1,5 +1,6 @@
 import crypto from "node:crypto"
 import { cacheGet, cacheSet } from "@/lib/cache"
+import { combineAbortSignals } from "@/lib/abort-signal"
 import { fetchCustomMDBList, type MDBListEntry } from "@/lib/mdblist"
 import { createLogger } from "@/lib/logger"
 import { envWithFallback } from "@/lib/env-compat"
@@ -13,6 +14,10 @@ export type { CatalogProviderType, ProviderDetectionResult } from "./catalog-pro
 
 const log = createLogger("custom-catalogs")
 const CACHE_TTL_MS = 30 * 60 * 1000
+// MDBList lists have a 12h source cache (mdblist.ts): the outer cache
+// honors 12h ONLY for the mdblist provider — TVDB and other sources
+// stay at 30min.
+const MDBLIST_OUTER_TTL_MS = 12 * 60 * 60 * 1000
 
 /**
  * Esito tipizzato del fetch catalogo (Fase 5): la pipeline Stremio tratta
@@ -32,6 +37,14 @@ export type CatalogFetchStatus =
 export interface UnifiedCatalogResult {
   items: MDBListEntry[]
   status: CatalogFetchStatus
+  /**
+   * Internal completeness flag (correction1): true when pagination was
+   * interrupted (abort mid-pages, page fetch error) and `items` is only a
+   * partial prefix. The outer dispatcher must NEVER long-cache partials;
+   * the catalog handler serves them short-TTL so the retry recovers.
+   * Absent/false = complete (healthy results cache normally).
+   */
+  incomplete?: boolean
 }
 
 /** Item di lista Letterboxd via StremThru (solo i campi che leggiamo). */
@@ -112,7 +125,7 @@ interface TmdbListPart {
  * Scarica una lista Letterboxd tramite header HEAD x-letterboxd-identifier + StremThru API.
  * Fase 4: errori distinti (privata/non trovata/rate-limit/down/vuota).
  */
-async function fetchLetterboxdList(url: string, limit: number = 500): Promise<UnifiedCatalogResult> {
+async function fetchLetterboxdList(url: string, limit: number = 500, signal?: AbortSignal): Promise<UnifiedCatalogResult> {
   const empty = (status: CatalogFetchStatus): UnifiedCatalogResult => ({ items: [], status })
   try {
     const trimmed = url.trim()
@@ -142,7 +155,7 @@ async function fetchLetterboxdList(url: string, limit: number = 500): Promise<Un
         "User-Agent": "Mozilla/5.0 Pictorium",
         "Accept-Language": "en-US,en;q=0.9",
       },
-      signal: AbortSignal.timeout(8000),
+      signal: combineAbortSignals(signal, 8000),
     }).catch(() => null)
 
     const identifier = headRes?.headers?.get("x-letterboxd-identifier")
@@ -170,7 +183,7 @@ async function fetchLetterboxdList(url: string, limit: number = 500): Promise<Un
         Accept: "application/json",
         "User-Agent": "Mozilla/5.0 Pictorium",
       },
-      signal: AbortSignal.timeout(12000),
+      signal: combineAbortSignals(signal, 12000),
     }).catch(() => null)
 
     if (!res) {
@@ -221,11 +234,14 @@ async function fetchLetterboxdList(url: string, limit: number = 500): Promise<Un
  * le liste pubbliche non richiedono OAuth. Watchlist e liste private
  * restano non supportate (niente account linking in questo rilascio).
  */
-async function fetchTraktList(url: string, limit: number = 500): Promise<UnifiedCatalogResult> {
+async function fetchTraktList(url: string, limit: number = 500, signal?: AbortSignal): Promise<UnifiedCatalogResult> {
   const empty = (status: CatalogFetchStatus): UnifiedCatalogResult => ({ items: [], status })
-  const done = (items: MDBListEntry[]): UnifiedCatalogResult => ({
+  // Partial prefix: pagination was interrupted (abort/page error) — the
+  // caller may serve it but must never long-cache it (`incomplete`).
+  const done = (items: MDBListEntry[], incomplete = false): UnifiedCatalogResult => ({
     items: items.slice(0, limit),
     status: items.length > 0 ? "ok" : "empty",
+    ...(incomplete ? { incomplete: true as const } : {}),
   })
   try {
     const trimmed = url.trim()
@@ -263,13 +279,14 @@ async function fetchTraktList(url: string, limit: number = 500): Promise<Unified
     const maxPages = Math.max(1, Math.min(25, Math.ceil(limit / TRAKT_PAGE_LIMIT)))
     const items: MDBListEntry[] = []
     for (let page = 1; page <= maxPages; page++) {
+      if (signal?.aborted) return items.length ? done(items, true) : empty("unavailable")
       const pageUrl = `${base}${path}?page=${page}&limit=${TRAKT_PAGE_LIMIT}`
       const res = await fetch(pageUrl, {
         headers,
-        signal: AbortSignal.timeout(TRAKT_TIMEOUT_MS),
+        signal: combineAbortSignals(signal, TRAKT_TIMEOUT_MS),
       }).catch(() => null)
 
-      if (!res) return items.length ? done(items) : empty("unavailable")
+      if (!res) return items.length ? done(items, true) : empty("unavailable")
       if (res.status === 401 || res.status === 403) {
         log.warn("Trakt list is private or forbidden", { status: res.status })
         return empty("private")
@@ -285,11 +302,29 @@ async function fetchTraktList(url: string, limit: number = 500): Promise<Unified
       }
       if (!res.ok) {
         log.warn("Trakt fetch failed", { status: res.status })
-        return items.length ? done(items) : empty("unavailable")
+        return items.length ? done(items, true) : empty("unavailable")
       }
 
       const json = await res.json().catch(() => null)
-      const rawItems: TraktApiItem[] = Array.isArray(json) ? json : (json?.data?.items || json?.items || [])
+      // Explicit shape validation (correction2): malformed JSON (parse threw
+      // => null) or a 200 without the expected page array is a failed page,
+      // not a healthy empty tail. With a landed prefix the result is partial
+      // (incomplete, never long-cached); with no rows yet it is transient.
+      // A present (even empty) array stays healthy so legitimate last pages
+      // never flag incomplete.
+      let rawItems: TraktApiItem[] | null = null
+      if (Array.isArray(json)) {
+        rawItems = json
+      } else if (json && typeof json === "object") {
+        const dataItems = (json as { data?: { items?: unknown }; items?: unknown }).data?.items
+        const flatItems = (json as { items?: unknown }).items
+        if (Array.isArray(dataItems)) rawItems = dataItems as TraktApiItem[]
+        else if (Array.isArray(flatItems)) rawItems = flatItems as TraktApiItem[]
+      }
+      if (rawItems === null) {
+        log.warn("Trakt page malformed", { page })
+        return items.length ? done(items, true) : empty("unavailable")
+      }
       if (rawItems.length === 0) break
 
       for (const it of rawItems) {
@@ -345,7 +380,7 @@ function tvdbApiBase(): string {
 // Su 401 il token si butta e si rifà login una volta (token scaduto).
 const tvdbTokenCache = new Map<string, { token: string; exp: number }>()
 
-async function tvdbLogin(tvdbKey: string): Promise<{ token: string | null; status: CatalogFetchStatus }> {
+async function tvdbLogin(tvdbKey: string, signal?: AbortSignal): Promise<{ token: string | null; status: CatalogFetchStatus }> {
   const h = crypto.createHash("sha1").update(tvdbKey).digest("hex").slice(0, 8)
   const cached = tvdbTokenCache.get(h)
   if (cached && cached.exp > Date.now()) return { token: cached.token, status: "ok" }
@@ -354,7 +389,7 @@ async function tvdbLogin(tvdbKey: string): Promise<{ token: string | null; statu
     method: "POST",
     headers: { Accept: "application/json", "Content-Type": "application/json", "User-Agent": "Mozilla/5.0 Pictorium" },
     body: JSON.stringify({ apikey: tvdbKey }),
-    signal: AbortSignal.timeout(TVDB_TIMEOUT_MS),
+    signal: combineAbortSignals(signal, TVDB_TIMEOUT_MS),
   }).catch(() => null)
   if (!res || !res.ok) {
     log.warn("TVDB login failed", res ? { status: res.status } : {})
@@ -373,7 +408,7 @@ export function __resetTvdbTokenCache(): void {
   tvdbTokenCache.clear()
 }
 
-async function fetchTvdbList(url: string, tvdbKey: string | undefined, limit: number = 500): Promise<UnifiedCatalogResult> {
+async function fetchTvdbList(url: string, tvdbKey: string | undefined, limit: number = 500, signal?: AbortSignal): Promise<UnifiedCatalogResult> {
   const empty = (status: CatalogFetchStatus): UnifiedCatalogResult => ({ items: [], status })
   try {
     const trimmed = url.trim()
@@ -388,7 +423,7 @@ async function fetchTvdbList(url: string, tvdbKey: string | undefined, limit: nu
       return empty("key_missing")
     }
 
-    const login = await tvdbLogin(tvdbKey)
+    const login = await tvdbLogin(tvdbKey, signal)
     if (!login.token) return empty(login.status)
     let token = login.token
     let authFailure: CatalogFetchStatus | null = null
@@ -396,7 +431,7 @@ async function fetchTvdbList(url: string, tvdbKey: string | undefined, limit: nu
     const get = async (apiPath: string): Promise<Response | null> =>
       fetch(`${tvdbApiBase()}${apiPath}`, {
         headers: { Accept: "application/json", Authorization: `Bearer ${token}`, "User-Agent": "Mozilla/5.0 Pictorium" },
-        signal: AbortSignal.timeout(TVDB_TIMEOUT_MS),
+        signal: combineAbortSignals(signal, TVDB_TIMEOUT_MS),
       }).catch(() => null)
 
     // GET con un solo retry su 401 (token scaduto → re-login). Se anche il
@@ -405,7 +440,7 @@ async function fetchTvdbList(url: string, tvdbKey: string | undefined, limit: nu
       let res = await get(apiPath)
       if (res && res.status === 401) {
         tvdbTokenCache.delete(crypto.createHash("sha1").update(tvdbKey).digest("hex").slice(0, 8))
-        const refreshed = await tvdbLogin(tvdbKey)
+        const refreshed = await tvdbLogin(tvdbKey, signal)
         if (!refreshed.token) {
           authFailure = refreshed.status
           return null
@@ -466,55 +501,94 @@ async function fetchTvdbList(url: string, tvdbKey: string | undefined, limit: nu
 
 /**
  * Scarica i film di una TMDb Collection (saga) o TMDb List.
+ * Ritorna anche `incomplete` (correction1): true quando la paginazione è
+ * stata interrotta (abort) o una pagina è fallita (catch) e `items` è solo
+ * un prefisso parziale — il dispatcher non deve mai cacharlo a lungo.
  */
 async function fetchTmdbCollectionOrList(
   provider: "tmdb_collection" | "tmdb_list",
   identifier: string,
   apiKey?: string,
   limit: number = 500,
-): Promise<MDBListEntry[]> {
+  signal?: AbortSignal,
+): Promise<{ items: MDBListEntry[]; incomplete: boolean }> {
   const key = apiKey || envWithFallback("TMDB_KEY") || process.env.TMDB_KEY || process.env.TMDB_API_KEY
-  if (!key || !identifier) return []
+  if (!key || !identifier) return { items: [], incomplete: false }
 
   try {
     if (provider === "tmdb_collection") {
       const endpoint = `https://api.themoviedb.org/3/collection/${encodeURIComponent(identifier)}?api_key=${encodeURIComponent(key)}&language=it-IT`
-      const res = await fetch(endpoint, { signal: AbortSignal.timeout(8000) }).catch(() => null)
-      if (!res || !res.ok) return []
+      const res = await fetch(endpoint, { signal: combineAbortSignals(signal, 8000) }).catch(() => null)
+      if (!res || !res.ok) return { items: [], incomplete: false }
 
       const data = await res.json()
       const rawParts: TmdbListPart[] = data?.parts || []
 
-      return rawParts.slice(0, limit).map((p) => ({
-        imdb: "",
-        tmdb: Number(p.id) || undefined,
-        title: p.title || p.name || "",
-        year: Number((p.release_date || p.first_air_date || "").slice(0, 4)) || 0,
-        mediatype: "movie",
-        poster_path: p.poster_path ?? null,
-      }))
+      return {
+        items: rawParts.slice(0, limit).map((p) => ({
+          imdb: "",
+          tmdb: Number(p.id) || undefined,
+          title: p.title || p.name || "",
+          year: Number((p.release_date || p.first_air_date || "").slice(0, 4)) || 0,
+          mediatype: "movie",
+          poster_path: p.poster_path ?? null,
+        })),
+        incomplete: false,
+      }
     }
 
     // provider === "tmdb_list"
     // 1. Prova prima endpoint v3: /3/list/{list_id}
     const v3Endpoint = `https://api.themoviedb.org/3/list/${encodeURIComponent(identifier)}?api_key=${encodeURIComponent(key)}&language=it-IT`
-    const res = await fetch(v3Endpoint, { signal: AbortSignal.timeout(8000) }).catch(() => null)
+    const res = await fetch(v3Endpoint, { signal: combineAbortSignals(signal, 8000) }).catch(() => null)
     const data = res && res.ok ? await res.json() : null
     let rawParts: TmdbListPart[] = data?.items || data?.parts || []
+    let incomplete = false
+    // A page that fails (non-ok, bad JSON, throw/abort) leaves a partial
+    // prefix: mark it so the dispatcher never long-caches the window.
+    const fetchPage = async (
+      pageUrl: string,
+      pick: (d: { items?: TmdbListPart[]; parts?: TmdbListPart[]; results?: TmdbListPart[] } | null) => TmdbListPart[],
+      expectedKeys: string[],
+    ): Promise<TmdbListPart[]> => {
+      try {
+        const r = await fetch(pageUrl, { signal: combineAbortSignals(signal, 8000) })
+        if (!r.ok) {
+          incomplete = true
+          return []
+        }
+        const d = await r.json().catch(() => null)
+        // Explicit shape validation (correction2): malformed JSON (null) or
+        // a 200 without the expected page array is a failed page, not a
+        // healthy empty tail. A present (even empty) array stays healthy so
+        // legitimate last pages never flag incomplete.
+        if (
+          !d ||
+          typeof d !== "object" ||
+          !expectedKeys.some((k) => Array.isArray((d as unknown as Record<string, unknown>)[k]))
+        ) {
+          incomplete = true
+          return []
+        }
+        return pick(d)
+      } catch {
+        incomplete = true
+        return []
+      }
+    }
 
     if (data?.total_pages && data.total_pages > 1 && rawParts.length < limit) {
       const maxPages = Math.min(data.total_pages, Math.ceil(limit / 20))
       const CHUNK_SIZE = 5
       for (let i = 2; i <= maxPages; i += CHUNK_SIZE) {
+        if (signal?.aborted) {
+          incomplete = true
+          break
+        }
         const chunkPromises: Promise<TmdbListPart[]>[] = []
         for (let p = i; p < Math.min(i + CHUNK_SIZE, maxPages + 1); p++) {
           const pageUrl = `https://api.themoviedb.org/3/list/${encodeURIComponent(identifier)}?api_key=${encodeURIComponent(key)}&language=it-IT&page=${p}`
-          chunkPromises.push(
-            fetch(pageUrl, { signal: AbortSignal.timeout(8000) })
-              .then((r) => (r.ok ? r.json() : null))
-              .then((d) => (d?.items || d?.parts || []) as TmdbListPart[])
-              .catch(() => [] as TmdbListPart[])
-          )
+          chunkPromises.push(fetchPage(pageUrl, (d) => (d?.items || d?.parts || []) as TmdbListPart[], ["items", "parts"]))
         }
         const pageResults = await Promise.all(chunkPromises)
         for (const items of pageResults) {
@@ -527,7 +601,7 @@ async function fetchTmdbCollectionOrList(
     // 2. Se v3 non trova la lista (es. 404 per liste create su TMDB v4) o non ha elementi, tenta endpoint v4: /4/list/{list_id}
     if (rawParts.length === 0) {
       const v4Endpoint = `https://api.themoviedb.org/4/list/${encodeURIComponent(identifier)}?api_key=${encodeURIComponent(key)}&language=it-IT`
-      const resV4 = await fetch(v4Endpoint, { signal: AbortSignal.timeout(8000) }).catch(() => null)
+      const resV4 = await fetch(v4Endpoint, { signal: combineAbortSignals(signal, 8000) }).catch(() => null)
       if (resV4 && resV4.ok) {
         const dataV4 = await resV4.json()
         rawParts = dataV4?.results || []
@@ -535,15 +609,14 @@ async function fetchTmdbCollectionOrList(
           const maxPages = Math.min(dataV4.total_pages, Math.ceil(limit / 20))
           const CHUNK_SIZE = 5
           for (let i = 2; i <= maxPages; i += CHUNK_SIZE) {
+            if (signal?.aborted) {
+              incomplete = true
+              break
+            }
             const chunkPromises: Promise<TmdbListPart[]>[] = []
             for (let p = i; p < Math.min(i + CHUNK_SIZE, maxPages + 1); p++) {
               const pageUrl = `https://api.themoviedb.org/4/list/${encodeURIComponent(identifier)}?api_key=${encodeURIComponent(key)}&language=it-IT&page=${p}`
-              chunkPromises.push(
-                fetch(pageUrl, { signal: AbortSignal.timeout(8000) })
-                  .then((r) => (r.ok ? r.json() : null))
-                  .then((d) => (d?.results || []) as TmdbListPart[])
-                  .catch(() => [] as TmdbListPart[])
-              )
+              chunkPromises.push(fetchPage(pageUrl, (d) => (d?.results || []) as TmdbListPart[], ["results"]))
             }
             const pageResults = await Promise.all(chunkPromises)
             for (const items of pageResults) {
@@ -555,17 +628,20 @@ async function fetchTmdbCollectionOrList(
       }
     }
 
-    return rawParts.slice(0, limit).map((p) => ({
-      imdb: "",
-      tmdb: Number(p.id) || undefined,
-      title: p.title || p.name || "",
-      year: Number((p.release_date || p.first_air_date || "").slice(0, 4)) || 0,
-      mediatype: p.media_type === "tv" ? "tv" : "movie",
-      poster_path: p.poster_path ?? null,
-    }))
+    return {
+      items: rawParts.slice(0, limit).map((p) => ({
+        imdb: "",
+        tmdb: Number(p.id) || undefined,
+        title: p.title || p.name || "",
+        year: Number((p.release_date || p.first_air_date || "").slice(0, 4)) || 0,
+        mediatype: p.media_type === "tv" ? "tv" : "movie",
+        poster_path: p.poster_path ?? null,
+      })),
+      incomplete,
+    }
   } catch (err) {
     log.error("Error fetching TMDb collection or list", { provider, identifier, error: (err as Error).message })
-    return []
+    return { items: [], incomplete: false }
   }
 }
 
@@ -602,12 +678,14 @@ export interface UnifiedCatalogOptions {
   limit?: number
   datasetId?: string
   userId?: string | null
+  signal?: AbortSignal
 }
 
 /**
- * Dispatcher universale per recuperare gli elementi di qualsiasi catalogo o
- * lista esterna, con esito tipizzato (Fase 5). Solo gli "ok" con item vanno
- * in cache 30 min; gli errori transienti non avvelenano la cache.
+ * Universal dispatcher for fetching items from any catalog or
+ * external list, with a typed outcome (Phase 5). Only successful "ok"
+ * results with items go into cache (30min, 12h for the mdblist
+ * provider); transient errors never poison the cache.
  */
 export async function fetchUnifiedCatalogResult(
   urlOrSlug: string,
@@ -636,21 +714,25 @@ export async function fetchUnifiedCatalogResult(
 
   switch (provider) {
     case "letterboxd":
-      result = await fetchLetterboxdList(trimmed, limit)
+      result = await fetchLetterboxdList(trimmed, limit, options?.signal)
       break
     case "trakt":
-      result = await fetchTraktList(trimmed, limit)
+      result = await fetchTraktList(trimmed, limit, options?.signal)
       break
     case "tmdb_collection":
     case "tmdb_list": {
-      const parts = detection?.identifier
-        ? await fetchTmdbCollectionOrList(provider, detection.identifier, options?.apiKey, limit)
-        : []
-      result = { items: parts, status: parts.length > 0 ? "ok" : "empty" }
+      const fetched = detection?.identifier
+        ? await fetchTmdbCollectionOrList(provider, detection.identifier, options?.apiKey, limit, options?.signal)
+        : { items: [] as MDBListEntry[], incomplete: false }
+      result = {
+        items: fetched.items,
+        status: fetched.items.length > 0 ? "ok" : "empty",
+        ...(fetched.incomplete ? { incomplete: true as const } : {}),
+      }
       break
     }
     case "tvdb":
-      result = await fetchTvdbList(trimmed, options?.tvdbKey, limit)
+      result = await fetchTvdbList(trimmed, options?.tvdbKey, limit, options?.signal)
       break
     case "imdb": {
       // Solo snapshot CSV importati: niente scraping delle pagine IMDb.
@@ -668,7 +750,7 @@ export async function fetchUnifiedCatalogResult(
     }
     case "mdblist":
     default: {
-      const entries = await fetchCustomMDBList(trimmed, options?.mdblistKey, limit)
+      const entries = await fetchCustomMDBList(trimmed, options?.mdblistKey, limit, options?.signal)
       result = { items: entries, status: entries.length > 0 ? "ok" : "empty" }
       break
     }
@@ -678,8 +760,15 @@ export async function fetchUnifiedCatalogResult(
   if (items.length > 0) {
     items = normalizeCatalogEntries(items, limit)
   }
+  // Interrupted provider pagination must NEVER long-cache: a partial prefix
+  // stays servable this request but is not written to the 30min/12h source
+  // cache (healthy TTLs untouched). The flag propagates so the catalog
+  // handler serves the body short-TTL and the retry refetches.
+  if (result.incomplete) {
+    return { items, status: items.length > 0 ? "ok" : result.status, incomplete: true as const }
+  }
   if (items.length > 0) {
-    cacheSet(cacheKey, items, ["custom_catalogs"], CACHE_TTL_MS)
+    cacheSet(cacheKey, items, ["custom_catalogs"], provider === "mdblist" ? MDBLIST_OUTER_TTL_MS : CACHE_TTL_MS)
     return { items, status: "ok" }
   }
   // Normalizzazione che svuota tutto (solo-titoli) = catalogo inutilizzabile.

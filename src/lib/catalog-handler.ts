@@ -15,7 +15,7 @@ import { fetchMDBList } from "@/lib/mdblist"
 import { resolveRankingSource } from "@/lib/ranking-source"
 import { fetchCustomRankingTop20, findRankingCustomCatalog } from "@/lib/custom-ranking"
 import { buildNoticeMeta, noticeCatalogId, NOTICE_CUSTOM_RANKING_UNAVAILABLE, NOTICE_CUSTOM_RANKING_UNAVAILABLE_DESCRIPTION, NOTICE_CUSTOM_RANKING_UNAVAILABLE_TITLE, NOTICE_MISSING_TVDB_KEY, NOTICE_MISSING_TVDB_KEY_TITLE, NOTICE_MISSING_TVDB_KEY_DESCRIPTION } from "@/lib/notice-meta"
-import { fetchUnifiedCatalogItems } from "@/lib/custom-catalog-providers"
+import { fetchUnifiedCatalogResult } from "@/lib/custom-catalog-providers"
 import { detectCatalogProvider } from "@/lib/catalog-provider-detect"
 import { fetchAddonCatalogPage } from "@/lib/stremio-addon-server"
 import { parseSupportedTmdbRef } from "@/lib/stremio-addon"
@@ -27,6 +27,7 @@ import { getCatalogEpoch } from "@/lib/catalog-epoch"
 import { createLogger } from "@/lib/logger"
 import { concurrentMap } from "@/lib/episode-ordering"
 import { envWithFallback } from "@/lib/env-compat"
+import { combineAbortSignals } from "@/lib/abort-signal"
 import { isPersonQuery, pickTopPerson } from "@/lib/person-search"
 import { normalizeCatalogId, normalizeCatalogIdKeys, normalizeCatalogIdList } from "@/lib/catalog-definitions"
 import type { PosterShape } from "@/lib/types"
@@ -43,6 +44,9 @@ const CATALOG_TMDB_TIMEOUT_MS = (() => {
   const n = raw ? parseInt(raw, 10) : 2500
   return Number.isFinite(n) && n >= 500 && n <= 15000 ? n : 2500
 })()
+
+/** Budget massimo complessivo per la risoluzione/arricchimento di liste custom non indicizzate */
+const CATALOG_CUSTOM_BUDGET_MS = 10000
 
 /** TTL cache risposte catalogo non vuote: 1h dalla generazione (esplicito,
  *  vince sul refresh schedulato del tag `catalog`, che resta per poster/logo). */
@@ -383,7 +387,7 @@ function genreNamesFromIds(genreIds: number[] | undefined, genreNames: Map<numbe
   return names.length > 0 ? names : undefined
 }
 
-async function catalogLogo(mediaType: "movie" | "tv", tmdbId: number, apiKey?: string, tmdbLang = "it-IT"): Promise<string | undefined> {
+async function catalogLogo(mediaType: "movie" | "tv", tmdbId: number, apiKey?: string, tmdbLang = "it-IT", signal?: AbortSignal): Promise<string | undefined> {
   // A5: memo 24h (hit) / 1h (miss). Il logo in catalogo è richiesto per ogni
   // item a ogni catalogo freddo (fino a 3N upstream con details+externalIds):
   // i path TMDB sono immutabili, quindi l'hit vale 24h; il miss solo 1h così
@@ -400,8 +404,8 @@ async function catalogLogo(mediaType: "movie" | "tv", tmdbId: number, apiKey?: s
     // D4: tetto 1500ms (prima 2500). Il logo in catalogo è guarnizione: su
     // cold catalog 20 loghi × coda/concorrenza 5 valgono secondi di route
     // (maxDuration 60). Oltre il tetto → undefined, il poster resta completo.
-    const signal = typeof AbortSignal !== "undefined" && "timeout" in AbortSignal ? AbortSignal.timeout(1500) : undefined
-    const images = await getImages(mediaType, tmdbId, `${primary},en,null`, apiKey, signal)
+    const logoSignal = combineAbortSignals(signal, 1500)
+    const images = await getImages(mediaType, tmdbId, `${primary},en,null`, apiKey, logoSignal)
     if (images?.logos && images.logos.length > 0) {
       const itLogo = images.logos.find((l) => l.iso_639_1 === primary) || images.logos[0]
       if (itLogo?.file_path) {
@@ -410,6 +414,11 @@ async function catalogLogo(mediaType: "movie" | "tv", tmdbId: number, apiKey?: s
         return logoUrl
       }
     }
+    // A miss memo is only valid when the lookup actually ran: on
+    // cancellation (request budget abort or the 1500ms logo cap firing) the
+    // outcome is "unknown", and freezing a null for an hour would hide a
+    // logo that resolves fine on retry.
+    if (signal?.aborted || logoSignal.aborted) return undefined
     cacheSet(memoKey, { logo: null }, ["catalog", "tmdb"], 60 * 60 * 1000)
   } catch {
     // logo opzionale — ignora errori (rate limit, 404, timeout)
@@ -771,6 +780,11 @@ export async function pictoriumCatalog(
   if (cached) return catalogResponse(cached)
 
   let isCustomGenreFiltered = false
+  // Budget-incomplete flag (task B): when the shared 10s deadline fires
+  // before the scan/details/enrichment prove the window, the body stays
+  // servable but caches short (60s, like empties) so a retry refetches
+  // instead of freezing a shifted/partial window for an hour.
+  let customBudgetIncomplete = false
   // Ramo addon: la fonte ha già filtrato (genre/search inoltrati) — il filtro
   // locale per nome genere non deve girare (es. Cinemeta year con genre=2024
   // contro genres=['Drama'] eliminerebbe risultati validi).
@@ -894,7 +908,20 @@ export async function pictoriumCatalog(
             })],
           })
         }
-        let items = await fetchUnifiedCatalogItems(customCat2.url, { apiKey, mdblistKey, tvdbKey, limit: 500, datasetId: customCat2.datasetId, userId: scopedUser })
+        // Shared whole-upstream budget (10s): starts BEFORE the provider
+        // fetch and covers list fetch, id resolution, details and final
+        // IMDb/logo enrichment. Combined with the incoming request signal
+        // (client disconnect) — first abort wins, no Promise.race leaks.
+        // Per-step caps stay via combineAbortSignals(budget, STEP_MS).
+        const incomingSignal = (req as unknown as { signal?: AbortSignal }).signal ?? undefined
+        const customBudgetSignal = combineAbortSignals(incomingSignal, CATALOG_CUSTOM_BUDGET_MS)
+
+        const providerResult = await fetchUnifiedCatalogResult(customCat2.url, { apiKey, mdblistKey, tvdbKey, limit: 500, datasetId: customCat2.datasetId, userId: scopedUser, signal: customBudgetSignal })
+        // Interrupted provider pagination (abort/page error) is servable
+        // but partial: flag it so the body caches short (60s) and the retry
+        // refetches instead of freezing a shifted window for an hour.
+        if (providerResult.incomplete) customBudgetIncomplete = true
+        let items = providerResult.items
         // Se la lista è mista o contiene mediatype, filtra in base al tipo di catalogo richiesto
         if (customCat2.type === "mixed") {
           if (stType === "movie") {
@@ -904,39 +931,102 @@ export async function pictoriumCatalog(
           }
         }
 
-        const seenTmdb = new Set<number>()
-        const validItems: typeof items = []
-        for (const item of items) {
-          let tmdbId = Number(item.tmdb)
-          if (!tmdbId && item.imdb && apiKey) {
-            tmdbId = await tmdbFindByImdb(item.imdb, stType === "movie" ? "movie" : "tv", apiKey) || 0
-            item.tmdb = tmdbId
-          }
-          if (!tmdbId && item.tvdb && apiKey) {
-            tmdbId = await tmdbFindByTvdb(item.tvdb, stType === "movie" ? "movie" : "tv", apiKey) || 0
-            item.tmdb = tmdbId
-          }
-          if (tmdbId && !seenTmdb.has(tmdbId)) {
-            seenTmdb.add(tmdbId)
-            validItems.push(item)
-          }
-        }
-
         const skip = typeof extra.skip === "number" && extra.skip > 0 ? extra.skip : 0
         isCustomGenreFiltered = !!(extra.genre && extra.genre !== "Tutti")
-        // Ottimizzazione I/O: se non c'è filtro genere, arricchisce solo la finestra richiesta (20 item)
-        const pagedItems = isCustomGenreFiltered ? validItems.slice(0, 100) : validItems.slice(skip, skip + 20)
-        const rankOffset = isCustomGenreFiltered ? 0 : skip
 
+        // Stable pagination in source order: dedupe on globally-unique
+        // resolved TMDB ids BEFORE applying skip/page-20 — never slice raw
+        // candidates first (raw duplicates/unresolvable rows before the
+        // window would otherwise short-change the page and shift later
+        // pages). The scan resolves bounded 20-row strides in order and
+        // stops once the window proves full (skip+20 unique, or the first
+        // 100 unique when a genre filter applies at the tail), so the first
+        // page of an indexed list costs zero /find calls and a late-tail
+        // page never resolves all 500 rows. Direct tmdb ids dedupe with no
+        // I/O but keep source order and page-relative ranks.
+        const uniqueTarget = isCustomGenreFiltered ? 100 : skip + 20
+        const rankOffset = isCustomGenreFiltered ? 0 : skip
+        const seenTmdb = new Set<number>()
+        const uniqueResolved: typeof items = []
+        const RESOLVE_STRIDE = 20
+        // A /find that THROWS (timeout/outage/abort) is transient: the row
+        // drops but later rows shift into its rank, so the window is only a
+        // prefix guess — flag incomplete (short TTL, retry recovers). A
+        // confirmed miss (resolves null, no throw) is NOT transient: the row
+        // genuinely has no TMDB id and later rows legitimately take its place.
+        let scanTransientFailure = false
+        let scanned = 0
+        for (; scanned < items.length && uniqueResolved.length < uniqueTarget; scanned += RESOLVE_STRIDE) {
+          if (customBudgetSignal.aborted) break
+          const stride = items.slice(scanned, scanned + RESOLVE_STRIDE)
+          const resolvedStride = await concurrentMap(stride, async (item) => {
+            if (customBudgetSignal.aborted) return null
+            const direct = Number(item.tmdb)
+            if (direct > 0) return item
+            const itemSignal = combineAbortSignals(customBudgetSignal, CATALOG_TMDB_TIMEOUT_MS)
+            if (item.imdb && apiKey) {
+              try {
+                const found = (await tmdbFindByImdb(item.imdb, stType === "movie" ? "movie" : "tv", apiKey, itemSignal)) || 0
+                if (found) {
+                  item.tmdb = found
+                  return item
+                }
+              } catch {
+                // transient /find failure (not a confirmed miss) → the
+                // window may have shifted: drop the row but flag it.
+                scanTransientFailure = true
+              }
+            }
+            if (item.tvdb && apiKey) {
+              try {
+                const found = (await tmdbFindByTvdb(item.tvdb, stType === "movie" ? "movie" : "tv", apiKey, itemSignal)) || 0
+                if (found) {
+                  item.tmdb = found
+                  return item
+                }
+              } catch {
+                scanTransientFailure = true
+              }
+            }
+            return null
+          }, 5)
+          for (const entry of resolvedStride) {
+            if (!entry) continue
+            const entryId = Number(entry.tmdb)
+            if (entryId > 0 && !seenTmdb.has(entryId)) {
+              seenTmdb.add(entryId)
+              uniqueResolved.push(entry)
+              if (uniqueResolved.length >= uniqueTarget) break
+            }
+          }
+        }
+        // Honesty about stable skip: when the budget dies (or the scan stops
+        // early) before proving skip+20 unique, earlier unresolved rows may
+        // shift the window — serve what resolved but flag partial so the
+        // body caches short and the retry recovers instead of freezing.
+        if (customBudgetSignal.aborted) customBudgetIncomplete = true
+        if (uniqueResolved.length < uniqueTarget && scanned < items.length) customBudgetIncomplete = true
+        // A transient /find failure (throw, not confirmed miss) may have
+        // shifted the window: serve what resolved but short-TTL the body.
+        if (scanTransientFailure) customBudgetIncomplete = true
+
+        const pagedItems = isCustomGenreFiltered ? uniqueResolved.slice(0, 100) : uniqueResolved.slice(skip, skip + 20)
+
+        // A details fetch that throws (timeout/outage) loses genre data but
+        // the row stays servable from list data — still flag incomplete so a
+        // genre-less partial never freezes for an hour.
+        let detailsTransientFailure = false
         const results = await concurrentMap(pagedItems, async (item, idx) => {
           const tmdbId = Number(item.tmdb)
           if (!tmdbId) return null
           let details: TMDBDetails | null = null
           if (apiKey) {
             try {
-              details = await getDetails(stType === "movie" ? "movie" : "tv", tmdbId, tmdbLang, apiKey)
+              const detailsSignal = combineAbortSignals(customBudgetSignal, CATALOG_TMDB_TIMEOUT_MS)
+              details = await getDetails(stType === "movie" ? "movie" : "tv", tmdbId, tmdbLang, apiKey, detailsSignal, CATALOG_TMDB_TIMEOUT_MS)
             } catch {
               details = null
+              detailsTransientFailure = true
             }
           }
           const title = details?.title || details?.name || item.title || "Titolo"
@@ -953,12 +1043,18 @@ export async function pictoriumCatalog(
             voteAverage: details?.vote_average ?? undefined,
           }
         }, 5)
+        if (customBudgetSignal.aborted) customBudgetIncomplete = true
+        if (detailsTransientFailure) customBudgetIncomplete = true
         const validResults = results.filter((r): r is NonNullable<typeof r> => r !== null)
         metas = await concurrentMap(validResults, async (r) => {
+          // Final enrichment rides the same shared deadline: per-step caps
+          // via combined signals, cancellation at the 10s bound, no extra
+          // background work past it.
+          const enrichSignal = combineAbortSignals(customBudgetSignal, CATALOG_TMDB_TIMEOUT_MS)
           const [imdbId, posterAndShape, logo] = await Promise.all([
-            r.imdb ? Promise.resolve(r.imdb) : resolveImdbId(stType === "movie" ? "movie" : "tv", r.tmdbId, apiKey),
+            r.imdb ? Promise.resolve(r.imdb) : resolveImdbId(stType === "movie" ? "movie" : "tv", r.tmdbId, apiKey, CATALOG_TMDB_TIMEOUT_MS, enrichSignal),
             pictoriumPosterAndShape(req, stType, r.tmdbId, configParam, userParam, r.rank, posterLang, region.code),
-            apiKey ? catalogLogo(stType === "movie" ? "movie" : "tv", r.tmdbId, apiKey, tmdbLang) : Promise.resolve(undefined),
+            apiKey ? catalogLogo(stType === "movie" ? "movie" : "tv", r.tmdbId, apiKey, tmdbLang, customBudgetSignal) : Promise.resolve(undefined),
           ])
           const { poster, banner, landscapePoster, posterShape } = posterAndShape
           const background = catalogBackground(r.backdropPath)
@@ -978,6 +1074,7 @@ export async function pictoriumCatalog(
             description: r.description,
           }
         }, 5)
+        if (customBudgetSignal.aborted) customBudgetIncomplete = true
       }
       }
     } else if (catalogId.startsWith("pictorium-jw")) {
@@ -1341,7 +1438,14 @@ export async function pictoriumCatalog(
     }
 
     const body = { metas }
-    cacheSet(cacheKey, body, ["stremio", "catalog"], metas.length > 0 ? CATALOG_TTL_MS : CATALOG_EMPTY_TTL_MS)
+    // Budget-incomplete custom pages (deadline hit mid-scan/details, lost
+    // genre data, unproven stable skip) must not poison the long cache:
+    // short TTL like empties so the retry refetches. Healthy 1h/60s and all
+    // source TTLs (FlixPatrol/MDBList 12h, JW 6h) are untouched.
+    const responseTtl = metas.length > 0
+      ? (customBudgetIncomplete ? CATALOG_EMPTY_TTL_MS : CATALOG_TTL_MS)
+      : CATALOG_EMPTY_TTL_MS
+    cacheSet(cacheKey, body, ["stremio", "catalog"], responseTtl)
     return catalogResponse(body)
   } catch (e) {
     log.error("Catalog error", { error: e instanceof Error ? e.message : String(e) })

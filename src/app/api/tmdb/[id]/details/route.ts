@@ -55,9 +55,10 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   const cached = cacheGet<{ title?: string; name?: string; genres: Genre[]; voteAverage: number; voteCount: number; type?: string; status?: string; release_date?: string; first_air_date?: string; last_air_date?: string; next_episode_to_air?: Episode | null; number_of_seasons?: number; number_of_episodes?: number; networks?: { id: number; name: string; logo_path: string | null; origin_country: string }[]; production_companies?: { id: number; name: string; logo_path: string | null; origin_country: string }[]; imdb_id?: string | null; wikidata_id?: string | null; original_language?: string }>(cacheKey)
   if (cached) return Response.json({ ...cached, anime_ids })
   try {
+    const detailsSignal = typeof AbortSignal !== "undefined" && "timeout" in AbortSignal ? AbortSignal.timeout(8000) : undefined
     const [data, extIds] = await Promise.all([
-      getDetails(mediaType, tmdbId, language, apiKey),
-      getExternalIds(mediaType, tmdbId, apiKey).catch(() => ({ imdb_id: null, wikidata_id: null })),
+      getDetails(mediaType, tmdbId, language, apiKey, detailsSignal, 8000),
+      getExternalIds(mediaType, tmdbId, apiKey, detailsSignal, 8000).catch(() => ({ imdb_id: null, wikidata_id: null })),
     ])
     const imdbId = extIds.imdb_id
     let aggregatedData: Awaited<ReturnType<typeof fetchAggregatedRating>> = null

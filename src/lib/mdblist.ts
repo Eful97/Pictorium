@@ -23,14 +23,14 @@ export const MDBLISTS = [
   { key: 'mdblistAnimeMovie', label: 'Film anime di tendenza', url: 'https://mdblist.com/lists/snoak/trending-anime-movies' },
 ] as const
 
-// A2: TTL cache liste. Solo risultati NON vuoti vengono cachati: un errore di
-// rete (catch → []) non deve congelare la lista per 30min, si ritenta al
-// prossimo accesso.
-const CACHE_TTL_MS = 30 * 60 * 1000
+// A2: 12h list cache TTL. Only NON-empty results are cached long-term:
+// a network error (catch → []) must not freeze the list, it retries on
+// the next access (empties at 60s, unchanged).
+const CACHE_TTL_MS = 12 * 60 * 60 * 1000
 
-// Blocco unico cachato per lista: Stremio pagina con skip=0,20,40... su
-// finestre da 20, ma l'upstream viene chiamato 1 sola volta ogni 30min.
-// Allineato a fetchCustomMDBList (default limit 500).
+// Single cached block per list: Stremio paginates with skip=0,20,40...
+// over 20-item windows, but upstream is called only once every 12h.
+// Aligned with fetchCustomMDBList (default limit 500).
 export const MDBLIST_BLOCK_SIZE = 500
 
 export async function fetchMDBList(
@@ -159,7 +159,7 @@ export function parseMDBListTarget(input: string): { user?: string; slug?: strin
   return null
 }
 
-export async function fetchCustomMDBList(urlOrSlug: string, apiKey?: string, limit: number = 500): Promise<MDBListEntry[]> {
+export async function fetchCustomMDBList(urlOrSlug: string, apiKey?: string, limit: number = 500, signal?: AbortSignal): Promise<MDBListEntry[]> {
   const target = parseMDBListTarget(urlOrSlug)
   if (!target) return []
 
@@ -176,7 +176,7 @@ export async function fetchCustomMDBList(urlOrSlug: string, apiKey?: string, lim
 
     if (explicitUrl) {
       const slug = target.slug || target.id || "custom"
-      res = await timedFetch(`${explicitUrl}/lists/custom/${slug}`, { signal: AbortSignal.timeout(10000) }).catch(() => null)
+      res = await timedFetch(`${explicitUrl}/lists/custom/${slug}`, { signal: combineAbortSignals(signal, 10000) }).catch(() => null)
     } else if (key) {
       let keyUrl = ""
       if (target.id) {
@@ -189,7 +189,7 @@ export async function fetchCustomMDBList(urlOrSlug: string, apiKey?: string, lim
       if (keyUrl) {
         res = await timedFetch(keyUrl, {
           headers: { "User-Agent": "Mozilla/5.0 Pictorium" },
-          signal: AbortSignal.timeout(10000),
+          signal: combineAbortSignals(signal, 10000),
         }).catch(() => null)
       }
     }
@@ -207,7 +207,7 @@ export async function fetchCustomMDBList(urlOrSlug: string, apiKey?: string, lim
       if (publicUrl) {
         res = await timedFetch(publicUrl, {
           headers: { "User-Agent": "Mozilla/5.0 Pictorium" },
-          signal: AbortSignal.timeout(10000),
+          signal: combineAbortSignals(signal, 10000),
         }).catch(() => null)
       }
     }

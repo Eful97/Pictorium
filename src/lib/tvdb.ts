@@ -499,24 +499,41 @@ export function pickTvdbPoster(
   return scored[0]?.art ?? null
 }
 
+export interface TvdbEpisodesResult {
+  episodes: TvdbEpisode[];
+  /**
+   * False when pagination was interrupted (budget/timeout/error/page cap):
+   * the list may be truncated and must never land in long-lived caches
+   * (source/meta/preview). Partial data stays available to be served
+   * with a short TTL + retry.
+   */
+  complete: boolean;
+}
+
 /**
- * Recupera la lista degli episodi con trame e copertine still da TheTVDB.
- */export async function getTvdbEpisodes(tvdbSeriesId: number, language = "ita", apiKey: string, seasonType: string = "default", signal?: AbortSignal): Promise<TvdbEpisode[]> {
+ * Fetches the episode list with plots and still covers from TheTVDB,
+ * reporting pagination completeness. Only complete results are cached
+ * (6h); interrupted ones are never cached so truncated lists cannot
+ * poison source, meta, and preview.
+ */
+export async function getTvdbEpisodesResult(tvdbSeriesId: number, language = "ita", apiKey: string, seasonType: string = "default", signal?: AbortSignal, budgetUntilParam?: number): Promise<TvdbEpisodesResult> {
   const normalizedType = seasonType?.trim() || "default"
   const cacheKey = `${tvdbSeriesId}:${language}:${normalizedType}`
   const cached = episodesCache.get(cacheKey)
   if (cached && Date.now() < cached.expiry) {
-    return cached.episodes
+    // Only complete results reach the cache (see below): hit == complete.
+    return { episodes: cached.episodes, complete: true }
   }
 
   const token = await getTvdbToken(apiKey, signal)
-  if (!token) return []
+  if (!token) return { episodes: [], complete: false }
 
+  const allEpisodes: TvdbEpisode[] = []
   try {
-    const allEpisodes: TvdbEpisode[] = []
     let page = 0
     let hasMore = true
-    const budgetUntil = Date.now() + TVDB_EPISODES_BUDGET_MS
+    let interrupted = signal?.aborted === true
+    const budgetUntil = budgetUntilParam ?? (Date.now() + TVDB_EPISODES_BUDGET_MS)
 
     // Fix M5: cap alzato da 10 a 50 pagine (100 ep/page → 5000 ep) per serie
     // long-running (es. One Piece >1000 ep). Il loop termina comunque su
@@ -524,7 +541,10 @@ export function pickTvdbPoster(
     while (hasMore && page < 50) {
       // Budget totale: su upstream lento interrompe il loop invece di
       // trattenere la route meta fino al maxDuration (fallback standard).
-      if (Date.now() >= budgetUntil) break
+      if (Date.now() >= budgetUntil) {
+        interrupted = true
+        break
+      }
       const langSegment = language && language !== "default" ? `/${encodeURIComponent(language)}` : ""
       const url = `${TVDB_API}/series/${tvdbSeriesId}/episodes/${encodeURIComponent(normalizedType)}${langSegment}?page=${page}`
       const res = await tvdbFetch(
@@ -540,10 +560,11 @@ export function pickTvdbPoster(
       )
 
       if (!res || !res.ok) {
-        // Se la lingua specifica (es. ita) fallisce o non ha episodi, prova il default
-        if (page === 0 && language !== "default") {
-          return getTvdbEpisodes(tvdbSeriesId, "default", apiKey, normalizedType, signal)
+        // If the specific language (e.g. ita) fails or has no episodes, retry with the default (honoring the remaining budget)
+        if (page === 0 && language !== "default" && Date.now() < budgetUntil) {
+          return getTvdbEpisodesResult(tvdbSeriesId, "default", apiKey, normalizedType, signal, budgetUntil)
         }
+        interrupted = true
         break
       }
 
@@ -556,7 +577,14 @@ export function pickTvdbPoster(
         epList = json.data.episodes
       }
 
-      if (epList.length === 0) break
+      // Controllo paginazione
+      const totalPages = json.links?.total_pages
+
+      if (epList.length === 0) {
+        // Empty page while more pages are expected = interruption, not end.
+        if (typeof totalPages === "number" && page + 1 < totalPages) interrupted = true
+        break
+      }
 
       for (const ep of epList) {
         if (ep.image) {
@@ -565,8 +593,6 @@ export function pickTvdbPoster(
         allEpisodes.push(ep)
       }
 
-      // Controllo paginazione
-      const totalPages = json.links?.total_pages
       if (typeof totalPages === "number") {
         page++
         hasMore = page < totalPages
@@ -575,15 +601,27 @@ export function pickTvdbPoster(
       }
     }
 
-    if (allEpisodes.length > 0) {
+    // Loop exit with pages left over (safety page cap) = truncated.
+    if (hasMore) interrupted = true
+
+    if (!interrupted && allEpisodes.length > 0) {
       setBounded(episodesCache, cacheKey, { episodes: allEpisodes, expiry: Date.now() + CACHE_TTL_EPISODES }, MAX_EPISODE_ENTRIES)
     }
 
-    return allEpisodes
+    return { episodes: allEpisodes, complete: !interrupted }
   } catch (e) {
     log.error("TVDB getEpisodes exception", { error: e instanceof Error ? e.message : String(e) })
-    return []
+    // Keep the partial rows collected so far, marked as incomplete.
+    return { episodes: allEpisodes, complete: false }
   }
+}
+
+/**
+ * Fetches the episode list with plots and still covers from TheTVDB.
+ * Thin wrapper over getTvdbEpisodesResult; pagination completeness is dropped here.
+ */
+export async function getTvdbEpisodes(tvdbSeriesId: number, language = "ita", apiKey: string, seasonType: string = "default", signal?: AbortSignal, budgetUntilParam?: number): Promise<TvdbEpisode[]> {
+  return (await getTvdbEpisodesResult(tvdbSeriesId, language, apiKey, seasonType, signal, budgetUntilParam)).episodes
 }
 
 /** Formatta l'URL immagine TVDB aggiungendo il base URL se necessario. */
@@ -596,7 +634,12 @@ export function formatTvdbImageUrl(imagePath?: string | null): string | undefine
 }
 
 /**
- * Arricchisce i video di Stremio con copertine (screencap) e trame provenienti da TheTVDB.
+ * Enriches Stremio videos with cover screencaps and plots from TheTVDB,
+ * reporting whether enrichment is complete. Returns false when the TVDB
+ * fetch was interrupted (TMDB videos stay intact, never destroyed) so
+ * callers can serve with a short TTL and retry. Returns true when there
+ * is nothing to do (no confirmed link: intentional no-op) or when
+ * enrichment succeeded.
  *
  * Solo link confermati: IMDb id oppure tvdb_id esplicito dagli external_ids
  * TMDB (serve `tmdbApiKey`). NIENTE fallback fuzzy su `remoteid/<tmdbId>`:
@@ -604,7 +647,7 @@ export function formatTvdbImageUrl(imagePath?: string | null): string | undefine
  * uno split di stagione) e sovrascrivere nomi/trame corretti con quelli
  * sbagliati. Senza link certo: no-op, restano i dati TMDB.
  */
-export async function enrichVideosWithTvdb(
+export async function enrichVideosWithTvdbDetailed(
   videos: Array<{
     id: string
     name?: string
@@ -620,32 +663,33 @@ export async function enrichVideosWithTvdb(
   apiKey: string,
   language = "ita",
   tmdbApiKey?: string,
-): Promise<void> {
-  if (!videos || videos.length === 0 || !apiKey) return
+  signal?: AbortSignal,
+): Promise<boolean> {
+  if (!videos || videos.length === 0 || !apiKey) return true
 
   // Risoluzione ID TheTVDB: prima IMDb ID, poi tvdb_id dagli external_ids
   // TMDB (con chiave: senza, la chiamata lancia e il ramo resterebbe morto
   // come prima del fix, quando getExternalIds veniva invocato senza chiave).
   let tvdbSeriesId: number | null = null
   if (imdbId) {
-    tvdbSeriesId = await getTvdbSeriesId(imdbId, apiKey)
+    tvdbSeriesId = await getTvdbSeriesId(imdbId, apiKey, signal)
   }
   if (!tvdbSeriesId && tmdbApiKey && tmdbId) {
     try {
       const { getExternalIds } = await import("@/lib/tmdb")
-      const ext = await getExternalIds("tv", tmdbId, tmdbApiKey)
+      const ext = await getExternalIds("tv", tmdbId, tmdbApiKey, signal, 5000)
       if (ext?.tvdb_id && ext.tvdb_id > 0) {
         tvdbSeriesId = ext.tvdb_id
       } else if (ext?.imdb_id) {
-        tvdbSeriesId = await getTvdbSeriesId(ext.imdb_id, apiKey)
+        tvdbSeriesId = await getTvdbSeriesId(ext.imdb_id, apiKey, signal)
       }
     } catch {}
   }
 
-  if (!tvdbSeriesId) return
+  if (!tvdbSeriesId) return true
 
-  const tvdbEps = await getTvdbEpisodes(tvdbSeriesId, language, apiKey)
-  if (!tvdbEps || tvdbEps.length === 0) return
+  const { episodes: tvdbEps, complete } = await getTvdbEpisodesResult(tvdbSeriesId, language, apiKey, "default", signal)
+  if (!tvdbEps || tvdbEps.length === 0) return complete
 
   // Costruisce mappa season:number -> TvdbEpisode
   const map = new Map<string, TvdbEpisode>()
@@ -672,4 +716,31 @@ export async function enrichVideosWithTvdb(
       }
     }
   }
+  return complete
+}
+
+/**
+ * Enriches Stremio videos with covers (screencaps) and plots from TheTVDB.
+ * Thin wrapper over enrichVideosWithTvdbDetailed (see it for the confirmed-link
+ * policy); pagination completeness is dropped here.
+ */
+export async function enrichVideosWithTvdb(
+  videos: Array<{
+    id: string
+    name?: string
+    season: number
+    episode: number
+    overview?: string
+    thumbnail?: string
+    released?: string
+    rating?: string
+  }>,
+  imdbId: string | null | undefined,
+  tmdbId: number | null | undefined,
+  apiKey: string,
+  language = "ita",
+  tmdbApiKey?: string,
+  signal?: AbortSignal,
+): Promise<void> {
+  await enrichVideosWithTvdbDetailed(videos, imdbId, tmdbId, apiKey, language, tmdbApiKey, signal)
 }

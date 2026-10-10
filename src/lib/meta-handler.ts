@@ -18,6 +18,7 @@ import {
   resolveUserApiKeys,
   tmdbFindByImdb,
   tmdbFindByTvdb,
+  evictTVSeasonCache,
 } from "@/lib/tmdb"
 import { resolveImdbId } from "@/lib/imdb-cache"
 import { getCatalogEpoch } from "@/lib/catalog-epoch"
@@ -28,12 +29,16 @@ import { getScopedUserId, userExists, userRateLimitKey } from "@/lib/user-auth"
 import { touchUserActivity } from "@/lib/user-activity"
 import { buildStremioPosterUrl, stremioPosterShape } from "@/lib/stremio-poster-url"
 import { getOriginFromRequest } from "@/lib/poster-public-url"
-import { enrichVideosWithTvdb } from "@/lib/tvdb"
-import { buildVideosFromAnizip, buildVideosFromGroups, buildVideosFromTvdb, concurrentMap } from "@/lib/episode-ordering"
+import { enrichVideosWithTvdbDetailed } from "@/lib/tvdb"
+import { buildVideosFromAnizip, buildVideosFromGroups, buildVideosFromTvdbDetailed, concurrentMap, isSeasonEpisodesComplete } from "@/lib/episode-ordering"
 import { groupDetailsEpisodeCount, groupDetailsRegularEpisodeCount, resolveDefaultEpisodeGroupId } from "@/lib/episode-group-default"
 import { createLogger } from "@/lib/logger"
 
 const log = createLogger("meta")
+
+import { combineAbortSignals } from "@/lib/abort-signal"
+
+const META_TOTAL_BUDGET_MS = 15000
 
 export interface StremioVideo {
   id: string
@@ -79,15 +84,20 @@ export interface StremioMetaDetail {
   videos?: StremioVideo[]
 }
 
-function metaResponse(body: { meta: StremioMetaDetail | null }): Response {
+function metaResponse(body: { meta: StremioMetaDetail | null }, isPartial = false): Response {
   return Response.json(body, {
     headers: {
-      // Stremio Web usa CDN con cache lunga: 12h rendeva invisibile il cambio
-      // ordinamento (Re:ZERO: funzionava su Nuvio/bypass, non su Stremio web).
-      // 5 min + SWR breve è sufficiente per le performance e permette al
-      // cambio episodeGroupId di propagarsi velocemente. Il server invalida
-      // comunque la cache interna su PUT/POST mapping.
-      "Cache-Control": "public, max-age=300, stale-while-revalidate=600",
+      // Stremio Web uses a CDN with long caching: 12h made ordering changes
+      // invisible (Re:ZERO: worked on Nuvio/bypass, not on Stremio web).
+      // 5 min + a short SWR is enough for performance and lets episodeGroupId
+      // changes propagate quickly. The server still invalidates the internal
+      // cache on PUT/POST mapping.
+      // Partial data (interrupted/truncated seasons): short downstream TTL
+      // with no SWR, so 60s is a hard upper stale bound and the retry can
+      // actually serve the recovery instead of extended-stale content.
+      "Cache-Control": isPartial
+        ? "public, max-age=60"
+        : "public, max-age=300, stale-while-revalidate=600",
       "Access-Control-Allow-Origin": "*",
     },
   })
@@ -183,6 +193,17 @@ export async function pictoriumMeta(
     })
   }
   const tmdbMediaType = stType === "movie" ? "movie" : "tv"
+  // Single request-wide budget (15s): created BEFORE upstream ID resolution
+  // so even very slow /find calls stay under the total cap. It combines the
+  // incoming signal (client disconnect) with the internal timeout and fires
+  // on whichever comes first. Every phase below (find/details/images/
+  // external_ids, episode-group listing/detail, AniZip, TVDB ordering/
+  // enrichment, standard seasons) derives from it with per-phase caps via
+  // combineAbortSignals.
+  const requestSignal = combineAbortSignals(
+    (req as { signal?: AbortSignal }).signal ?? null,
+    META_TOTAL_BUDGET_MS,
+  )
   // Namespace utente (multi-user): null con flag OFF o senza `?u=` → globale.
   // Spazi inventati → anonimo (v1.23.0): niente cache key separate.
   let scopedUser = getScopedUserId(userParam)
@@ -225,16 +246,16 @@ export async function pictoriumMeta(
   try {
     if (cleanId.startsWith("tt")) {
       imdbId = cleanId
-      tmdbId = await tmdbFindByImdb(cleanId, tmdbMediaType, apiKey)
+      tmdbId = await tmdbFindByImdb(cleanId, tmdbMediaType, apiKey, requestSignal)
     } else if (cleanId.startsWith("tmdb:")) {
       const parsed = parseInt(cleanId.slice(5), 10)
       if (!Number.isNaN(parsed) && parsed > 0) tmdbId = parsed
     } else if (cleanId.startsWith("tvdb:")) {
       const tvdbRaw = cleanId.slice(5)
-      tmdbId = await tmdbFindByTvdb(tvdbRaw, tmdbMediaType, apiKey)
+      tmdbId = await tmdbFindByTvdb(tvdbRaw, tmdbMediaType, apiKey, requestSignal)
     } else if (cleanId.startsWith("tvdbc:")) {
       const tvdbRaw = cleanId.slice(6)
-      tmdbId = await tmdbFindByTvdb(tvdbRaw, tmdbMediaType, apiKey)
+      tmdbId = await tmdbFindByTvdb(tvdbRaw, tmdbMediaType, apiKey, requestSignal)
     } else if (/^\d+$/.test(cleanId)) {
       const parsed = parseInt(cleanId, 10)
       if (!Number.isNaN(parsed) && parsed > 0) tmdbId = parsed
@@ -274,11 +295,12 @@ export async function pictoriumMeta(
   const sdHash = hashFragment(JSON.stringify(effectiveDefaults))
   const freshness = `:e${epoch}:sd${sdHash}`
   const cacheKey = `stremio:meta:${stType}:${cleanId}:pv${POSTER_URL_VERSION}${scopedUser ? `:u${hashUserFragment(scopedUser)}` : ""}:ak${apiKey ? hashFragment(apiKey) : "none"}${configParam ? `:cfg${hashFragment(configParam)}` : ""}${mdblistKey ? `:mk${hashFragment(mdblistKey)}` : ""}${tvdbApiKey ? `:tk${hashFragment(tvdbApiKey)}` : ""}:es${episodeMetadataSource}:eg${hashFragment(egKey)}:r${region.code}:l${posterLang}${stType === "series" ? ":eo2" : ""}${freshness}`
-  const cached = await cacheGetShared<{ meta: StremioMetaDetail }>(cacheKey, ["stremio", "meta"])
-  if (cached) return metaResponse(cached)
+  const cached = await cacheGetShared<{ meta: StremioMetaDetail; __partial?: boolean }>(cacheKey, ["stremio", "meta"])
+  // __partial is only an internal signal for the hit HTTP header: never in the JSON.
+  if (cached) return metaResponse({ meta: cached.meta }, cached.__partial === true)
 
   try {
-    const details = await getFullDetails(tmdbMediaType, tmdbId, tmdbLang, apiKey)
+    const details = await getFullDetails(tmdbMediaType, tmdbId, tmdbLang, apiKey, requestSignal)
     if (!details || !details.id) {
       return metaResponse({ meta: null })
     }
@@ -287,7 +309,7 @@ export async function pictoriumMeta(
       imdbId = details.external_ids.imdb_id
     }
     if (!imdbId) {
-      imdbId = await resolveImdbId(tmdbMediaType, tmdbId, apiKey)
+      imdbId = await resolveImdbId(tmdbMediaType, tmdbId, apiKey, 5000, requestSignal)
     }
 
     const primaryId = imdbId || `tmdb:${tmdbId}`
@@ -300,7 +322,7 @@ export async function pictoriumMeta(
     // Risoluzione Logo
     let logo: string | undefined
     try {
-      const images = await getImages(tmdbMediaType, tmdbId, `${posterLang},en,null`, apiKey)
+      const images = await getImages(tmdbMediaType, tmdbId, `${posterLang},en,null`, apiKey, requestSignal, 5000)
       if (images?.logos && images.logos.length > 0) {
         // Stessa scala del render poster (lingua → inglese → lingua originale
         // → primo): prima si prendeva il PRIMO logo disponibile appena mancava
@@ -325,6 +347,7 @@ export async function pictoriumMeta(
       .map((v) => ({ source: v.key, type: "Trailer" }))
 
     let videos: StremioVideo[] | undefined
+    let isPartialSeasonData = false
 
     if (stType === "series") {
       videos = []
@@ -336,14 +359,18 @@ export async function pictoriumMeta(
       if (isTvdbSentinel) {
         const seasonType = sentinel === "tvdb" ? "default" : (sentinel!.slice(5) || "default")
         try {
-          const tvdbVideos = await buildVideosFromTvdb(imdbId, tmdbId, primaryId, tvdbApiKey || "", seasonType, apiKey)
-          if (tvdbVideos.length > 0) videos.push(...(tvdbVideos as StremioVideo[]))
+          const orderingSignal = combineAbortSignals(requestSignal, 10000)
+          const tvdbOrdered = await buildVideosFromTvdbDetailed(imdbId, tmdbId, primaryId, tvdbApiKey || "", seasonType, apiKey, orderingSignal)
+          if (tvdbOrdered.videos.length > 0) videos.push(...(tvdbOrdered.videos as StremioVideo[]))
+          // Interrupted TVDB ordering: partials stay servable but with a
+          // short TTL, never frozen long-term.
+          if (!tvdbOrdered.complete) isPartialSeasonData = true
         } catch (e) {
           log.warn("TVDB ordering failed, fallback to standard", { error: e instanceof Error ? e.message : String(e) })
         }
       } else if (sentinel === "anizip") {
         try {
-          const anizipVideos = await buildVideosFromAnizip(tmdbId, primaryId)
+          const anizipVideos = await buildVideosFromAnizip(tmdbId, primaryId, combineAbortSignals(requestSignal, 8000))
           if (anizipVideos.length > 0) videos.push(...(anizipVideos as StremioVideo[]))
         } catch (e) {
           log.warn("AniZip ordering failed, fallback to standard", { error: e instanceof Error ? e.message : String(e) })
@@ -361,7 +388,7 @@ export async function pictoriumMeta(
       // Default: stagioni standard TMDB. Si usa un Episode Group solo se
       // l'utente ha salvato esplicitamente un episodeGroupId diverso da "standard", "tvdb:*" e "anizip".
       if (videos.length === 0 && isGroupSentinel) {
-        groupDetails = await getTVEpisodeGroup(sentinel!, tmdbLang, apiKey)
+        groupDetails = await getTVEpisodeGroup(sentinel!, tmdbLang, apiKey, combineAbortSignals(requestSignal, 8000))
       }
 
       if (groupDetails?.groups && groupDetails.groups.length > 0) {
@@ -385,9 +412,10 @@ export async function pictoriumMeta(
               standardEpisodeCount,
               apiKey,
               totalEpisodeCountWithSpecials,
+              combineAbortSignals(requestSignal, 8000),
             )
             if (autoId) {
-              const autoDetails = await getTVEpisodeGroup(autoId, tmdbLang, apiKey).catch(() => null)
+              const autoDetails = await getTVEpisodeGroup(autoId, tmdbLang, apiKey, combineAbortSignals(requestSignal, 6000)).catch(() => null)
               const count = groupDetailsEpisodeCount(autoDetails)
               const regularCount = groupDetailsRegularEpisodeCount(autoDetails)
               const countMatches =
@@ -413,11 +441,21 @@ export async function pictoriumMeta(
       // Fallback alle stagioni standard se non ci sono Episode Groups alternativi
       if (videos.length === 0 && details.seasons && details.seasons.length > 0) {
         const regularSeasons = details.seasons.filter((s) => s.season_number > 0)
-        const seasonsData = await concurrentMap(regularSeasons, (s) => getTVSeason(tmdbId, s.season_number!, tmdbLang, apiKey), 5)
+        const seasonSignal = combineAbortSignals(requestSignal, 10000)
+        const seasonsData = await concurrentMap(regularSeasons, (s) => getTVSeason(tmdbId, s.season_number!, tmdbLang, apiKey, seasonSignal), 5)
 
-        for (const sData of seasonsData) {
-          if (!sData || !sData.episodes) continue
-          for (const ep of sData.episodes) {
+        for (let i = 0; i < regularSeasons.length; i++) {
+          const sData = seasonsData[i]
+          // Null/missing payloads, unexpectedly empty seasons (episode_count
+          // > 0) and short lists mark partial (short TTL + retry); zero-count
+          // seasons, future seasons and full-length lists with future episodes
+          // stay complete (see helper). Evict partial seasons from the shared
+          // 5-minute TMDB cache so the post-TTL retry refetches upstream.
+          if (!isSeasonEpisodesComplete(sData, regularSeasons[i]?.episode_count, regularSeasons[i]?.air_date)) {
+            isPartialSeasonData = true
+            evictTVSeasonCache(tmdbId, regularSeasons[i]!.season_number!)
+          }
+          for (const ep of sData?.episodes ?? []) {
             videos.push({
               id: `${primaryId}:${ep.season_number}:${ep.episode_number}`,
               name: ep.name || `Episodio ${ep.episode_number}`,
@@ -438,7 +476,11 @@ export async function pictoriumMeta(
       // Parti assegnerebbe nome/cover/trama dell'episodio sbagliato.
       const isTvdbOrdering = (mapping?.episodeGroupId === "tvdb" || (mapping?.episodeGroupId?.startsWith("tvdb:") ?? false))
       if (videos.length > 0 && episodeMetadataSource === "tvdb" && tvdbApiKey && !isTvdbOrdering && !videosFromGroup) {
-        await enrichVideosWithTvdb(videos, imdbId, tmdbId, tvdbApiKey, "ita", apiKey)
+        const enrichSignal = combineAbortSignals(requestSignal, 8000)
+        // Interrupted enrichment: TMDB videos stay intact but the meta goes to
+        // a short TTL so TVDB covers/synopses are retried.
+        const enrichComplete = await enrichVideosWithTvdbDetailed(videos, imdbId, tmdbId, tvdbApiKey, "ita", apiKey, enrichSignal)
+        if (!enrichComplete) isPartialSeasonData = true
       }
     }
 
@@ -470,8 +512,15 @@ export async function pictoriumMeta(
     }
 
     const body = { meta }
-    cacheSet(cacheKey, body, ["stremio", "meta"], 12 * 60 * 60 * 1000)
-    return metaResponse(body)
+    // Never freeze partial/incomplete season data (upstream timeout or error)
+    // for 12h: a short TTL lets the next request retry the missing seasons.
+    // __partial only travels in cache for the hit HTTP header, never in JSON.
+    if (!isPartialSeasonData) {
+      cacheSet(cacheKey, body, ["stremio", "meta"], 12 * 60 * 60 * 1000)
+    } else {
+      cacheSet(cacheKey, { ...body, __partial: true as const }, ["stremio", "meta"], 60 * 1000)
+    }
+    return metaResponse(body, isPartialSeasonData)
   } catch (e) {
     log.error("Meta retrieval error", { error: e instanceof Error ? e.message : String(e) })
     return metaResponse({ meta: null })

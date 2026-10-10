@@ -3,6 +3,7 @@ import type { RatingItem } from "./custom-rating/types"
 import { formatRating } from "./custom-rating/formatter"
 import type { SeparateRating } from "./ratings"
 import { formatSeparateValue, MAX_SEPARATE_RATINGS } from "./ratings"
+import { loadSeparateRatingLogo } from "./separate-rating-renderer"
 import type { PosterComposite } from "./poster-render-helpers"
 import { renderSVG } from "./svg-badge"
 import { escSvg, estimateTextWidth, fontFamilyFor, normalizeBadgeFont, textFitAttrs } from "./badge-svg-shared"
@@ -89,7 +90,11 @@ import { resolveSeparateDisplayState } from "./poster-config"
 //   columns and bottom rows are suppressed in fresh (they would duplicate the
 //   left column).
 // - Separate/custom ratings have no column bitmap in fresh: values render as
-//   text lines inside the left meta column (same data, no invented values).
+//   rows inside the left meta column (same data, no invented values).
+//   Built-in separate rows render the brand icon + formatted score (no
+//   textual provider label; unsupported/missing-icon sources keep the
+//   historic score + name text fallback instead of throwing). Custom rows
+//   keep their historic name + score text rendering, unchanged.
 //   Gates, priority and caps are the existing shared ones
 //   (resolveSeparateDisplayState + MAX_CUSTOM_RATINGS, same as the standard
 //   renderer): the custom provider row keeps its historic priority over the
@@ -623,8 +628,20 @@ export interface FreshMetaInput {
 
 export interface FreshMetaRow {
   readonly kind: "genre" | "rating" | "separate" | "year" | "custom"
+  /**
+   * Display text. For `separate` rows this is ONLY the formatted score
+   * (e.g. "8.7", "88%") — the column renders the built-in brand icon beside
+   * it (see `source`); the historic `score + NAME` text survives only as the
+   * missing-icon fallback inside the column renderer. Every other kind keeps
+   * its historic full text (custom rows keep `score + NAME`).
+   */
   readonly text: string
   readonly star: boolean
+  /**
+   * Built-in rating source id for `separate` rows (e.g. "imdb",
+   * "metacriticuser"). Absent for every other kind.
+   */
+  readonly source?: string
 }
 
 /**
@@ -639,6 +656,8 @@ export interface FreshMetaRow {
  *   row above the genre badge);
  * - bottom styles suppress the custom row (values still render once via the
  *   separate rows, never duplicated);
+ * - genre/year follow their own toggles in Fresh independent of the separate
+ *   rating style (bottom suppression applies to Standard only);
  * - custom rows keep the existing MAX_CUSTOM_RATINGS cap with the existing
  *   finite-only filter (same as renderMultiRatings); separate rows keep the
  *   existing MAX_SEPARATE_RATINGS (=5) cap. No row without a real value.
@@ -655,7 +674,7 @@ export function freshMetaRows(input: FreshMetaInput): FreshMetaRow[] {
     sepItemCount: (input.separateRatings ?? []).length,
   })
   const rows: FreshMetaRow[] = []
-  if (display.effectiveBadgeGenre && input.genreName) {
+  if (input.badgeGenre && input.genreName) {
     rows.push({ kind: "genre", text: input.genreName.toUpperCase(), star: false })
   }
   const customItems = (input.customRatings ?? [])
@@ -671,12 +690,12 @@ export function freshMetaRows(input: FreshMetaInput): FreshMetaRow[] {
   }
   if (showSeparate) {
     for (const s of separates) {
-      rows.push({ kind: "separate", text: `${formatSeparateValue(s.id, s.value)} ${s.id.toUpperCase()}`, star: false })
+      rows.push({ kind: "separate", text: formatSeparateValue(s.id, s.value), source: s.id, star: false })
     }
   } else if (display.effectiveBadgeRating && input.voteAverage !== null && input.voteAverage > 0) {
     rows.push({ kind: "rating", text: input.voteAverage.toFixed(1), star: true })
   }
-  if (display.effectiveBadgeYear && input.year) {
+  if (input.badgeYear && input.year) {
     rows.push({ kind: "year", text: input.year, star: false })
   }
   return rows
@@ -1335,6 +1354,48 @@ export async function prepareFreshReconstructedBackground(
   return { png, shiftX, CW: W, CH: H }
 }
 
+/**
+ * Built-in separate-rating brand marks for the Fresh meta column reuse the
+ * standard separate column raster (`loadSeparateRatingLogo`, same assets:
+ * metacriticuser→metacritic, filmwebcritics→filmweb) inside the Fresh common
+ * maximum box (aspect preserved, never stretched).
+ */
+
+/** Icon display height per row font size (1:1 with the score digits). */
+const FRESH_SEPARATE_ICON_H_FACTOR = 1
+/**
+ * Common maximum icon width per row font size. Every brand mark fits inside
+ * this box preserving its aspect (never stretched); the column then reserves
+ * ONE uniform slot (the widest fitted mark) so all scores align.
+ */
+const FRESH_SEPARATE_ICON_MAX_W_FACTOR = 2.5
+/** Gap between the icon slot and the score (mirrors the bottom inline gap). */
+const FRESH_SEPARATE_ICON_GAP_FACTOR = 0.35
+
+/**
+ * Brand-color provider mark for the Fresh meta column: the shared standard
+ * raster (`loadSeparateRatingLogo`, same 2x-then-downsample recipe, same
+ * assets) fitted into the Fresh common maximum width box preserving its
+ * aspect (never stretched). Embedded by the column as a base64 PNG `<image>`
+ * — the asset SVG source is never inlined, so asset-internal ids, gradients
+ * and styles can never collide with the column SVG. Returns null when the
+ * source has no asset or the raster fails: the caller falls back to text
+ * (never a throw, no network, no new dependencies).
+ */
+export async function loadFreshSeparateIcon(
+  source: string,
+  targetH: number,
+): Promise<{ png: Buffer; w: number; h: number } | null> {
+  const h = Math.max(1, Math.round(targetH * FRESH_SEPARATE_ICON_H_FACTOR))
+  const maxW = Math.max(1, Math.round(targetH * FRESH_SEPARATE_ICON_MAX_W_FACTOR))
+  const logo = await loadSeparateRatingLogo(source, h)
+  if (!logo) return null
+  if (logo.w <= maxW) return logo
+  const fitH = Math.max(1, Math.round((logo.h * maxW) / logo.w))
+  const png = await sharp(logo.png).resize(maxW, fitH).toBuffer()
+  return { png, w: maxW, h: fitH }
+}
+
 /** Meta text column (genre / rating / year / separate / custom lines).
  *
  * Rows fit the column in two layers: each row measures its text with the
@@ -1353,13 +1414,25 @@ export async function prepareFreshReconstructedBackground(
  * The whole block then shrinks to maxH when present (caller reserves the
  * provider slot + bottom margin). Star rows scale as one unit. Nothing is
  * truncated and nothing leaves the block.
+ *
+ * Built-in separate rows render as one centered icon + score unit: the
+ * brand mark (rasterized asset PNG embedded as `<image>`, never inline SVG
+ * — no id/style collisions) in a UNIFORM slot (the widest fitted mark, so
+ * every score aligns) plus the score digits, with NO textual provider
+ * label. Icon height tracks the row font 1:1 inside a common maximum box
+ * (aspect preserved, never stretched); the width fit counts slot + gap +
+ * score and the maxH fit counts the icon height, so narrow columns and
+ * height scaling shrink the row as one unit instead of clipping or
+ * overlapping. Sources without a built-in asset (or a failed raster) keep
+ * the historic centered `score + NAME` text fallback — never a throw.
+ * Custom rows keep their historic `score + NAME` text rendering, unchanged.
  */
 export async function renderFreshMetaColumn(
   rows: readonly FreshMetaRow[],
   geo: FreshLayoutGeometry,
   font: BadgeFont = "inter",
   maxH?: number,
-): Promise<{ png: Buffer; w: number; h: number } | null> {
+): Promise<{ png: Buffer; w: number; h: number; svg: string } | null> {
   if (rows.length === 0) return null
   const f = normalizeBadgeFont(font)
   const w = Math.max(24, geo.zoneW)
@@ -1393,11 +1466,11 @@ export async function renderFreshMetaColumn(
   const lockW = (text: string, size: number, tracking: number, cap: number): number =>
     Math.min(cap, estimateTextWidth(text, size, f) + tracking)
   const baseGap = Math.round(geo.ratingSize * 0.35)
-  type Spec = { text: string; base: number; spacingBase: number; weight: number; fill: string; opacity: number; star: boolean; size: number }
+  type Spec = { text: string; base: number; spacingBase: number; weight: number; fill: string; opacity: number; star: boolean; size: number; separate: boolean; source: string | null }
   const specs: Spec[] = rows.map((row) => {
     if (row.kind === "genre") {
       const spacingBase = geo.genreSize * 0.12
-      return { text: row.text, base: geo.genreSize, spacingBase, weight: 800, fill: "#ffffff", opacity: 0.92, star: false, size: fitRowSize(row.text, geo.genreSize, spacingBase, 0) }
+      return { text: row.text, base: geo.genreSize, spacingBase, weight: 800, fill: "#ffffff", opacity: 0.92, star: false, size: fitRowSize(row.text, geo.genreSize, spacingBase, 0), separate: false, source: null }
     }
     if (row.kind === "rating") {
       // Star + gap occupy horizontal space with the digits: fit as one unit.
@@ -1408,19 +1481,101 @@ export async function renderFreshMetaColumn(
         if (total <= fitW || size <= FRESH_META_MIN_SIZE) break
         size = Math.max(FRESH_META_MIN_SIZE, Math.floor((size * fitW) / Math.max(1, total)))
       }
-      return { text: row.text, base: geo.ratingSize, spacingBase: 0, weight: 800, fill: "#ffffff", opacity: 0.92, star: true, size }
+      return { text: row.text, base: geo.ratingSize, spacingBase: 0, weight: 800, fill: "#ffffff", opacity: 0.92, star: true, size, separate: false, source: null }
     }
-    return { text: row.text, base: geo.smallSize, spacingBase: 1, weight: 700, fill: "#ffffff", opacity: 0.78, star: false, size: fitRowSize(row.text, geo.smallSize, 1, 0) }
+    if (row.kind === "separate") {
+      // Score-only fit here (the provider label is replaced by the brand
+      // icon); rows that end up without an icon are refit below against the
+      // full historic `score + NAME` fallback text.
+      const source = typeof row.source === "string" ? row.source : null
+      return { text: row.text, base: geo.smallSize, spacingBase: 0, weight: 700, fill: "#ffffff", opacity: 0.78, star: false, size: fitRowSize(row.text, geo.smallSize, 0, 0), separate: true, source }
+    }
+    return { text: row.text, base: geo.smallSize, spacingBase: 1, weight: 700, fill: "#ffffff", opacity: 0.78, star: false, size: fitRowSize(row.text, geo.smallSize, 1, 0), separate: false, source: null }
   })
+  // Built-in brand icons, one raster per separate row at its fitted size.
+  // Sources without an asset stay null → text fallback, never a throw.
+  const icons: ({ png: Buffer; w: number; h: number } | null)[] = await Promise.all(
+    specs.map((s) => (s.separate && s.source ? loadFreshSeparateIcon(s.source, s.size) : Promise.resolve(null))),
+  )
+  const refitFallback = (s: Spec): void => {
+    if (!s.source) return
+    s.spacingBase = 1
+    s.size = Math.min(s.size, fitRowSize(`${s.text} ${s.source.toUpperCase()}`, geo.smallSize, 1, 0))
+  }
+  // Missing-icon fallback: fit against the full historic text so long
+  // provider names still converge exactly like before (same spacing cap +
+  // textLength lock as the generic path below, which renders them).
+  specs.forEach((s, i) => {
+    if (s.separate && !icons[i] && s.source) refitFallback(s)
+  })
+  const iconGap = (size: number): number => Math.max(3, Math.round(size * FRESH_SEPARATE_ICON_GAP_FACTOR))
+  // Icon-aware width fit: the uniform slot + gap join the score in the fit,
+  // so narrow columns shrink the row (font and mark together) instead of
+  // clipping or overlapping. A shared shrink keeps every score aligned.
+  for (let guard = 0; guard < 4; guard++) {
+    let slotW = 0
+    specs.forEach((s, i) => {
+      const icon = icons[i]
+      if (s.separate && icon) slotW = Math.max(slotW, icon.w)
+    })
+    if (slotW === 0) break
+    let worst = 1
+    specs.forEach((s, i) => {
+      if (!s.separate || !icons[i]) return
+      const total = slotW + iconGap(s.size) + estimateTextWidth(s.text, s.size, f)
+      if (total > fitW) worst = Math.max(worst, total / fitW)
+    })
+    if (worst <= 1) break
+    let shrunk = false
+    specs.forEach((s, i) => {
+      if (!s.separate || !icons[i]) return
+      const next = Math.max(FRESH_META_MIN_SIZE, Math.floor(s.size / worst))
+      if (next < s.size) { s.size = next; shrunk = true }
+    })
+    if (!shrunk) break
+    await Promise.all(
+      specs.map(async (s, i) => {
+        if (s.separate && s.source && icons[i]) icons[i] = await loadFreshSeparateIcon(s.source, s.size)
+      }),
+    )
+    // A shrink-time load failure degrades that row to the text fallback.
+    specs.forEach((s, i) => {
+      if (s.separate && !icons[i] && s.source) refitFallback(s)
+    })
+  }
   // Block height fit: shrink every row proportionally (gap follows the rating
   // row) so meta + reserved provider slot + bottom margin stay on canvas.
+  // Icon rows stand max(mark, score-cap) tall with both vertically centered
+  // in that row (a width-capped short mark never overlaps its score or the
+  // next row); text rows stand one cap height. During the fit below the icon
+  // height is PREDICTED from the live font size (marks scale 1:1 with their
+  // scores, so the prediction is the raster height times the size ratio —
+  // both scale linearly, so the capped/uncapped class is size-invariant);
+  // the buffers re-raster once at the final size below instead of every
+  // iteration, and a fit against stale buffers would keep shrinking long
+  // after the real block already fits (flooring every score for nothing).
+  const capHFor = (size: number): number => Math.round(size * 0.73)
+  // Size at which each icon buffer was rastered: predictions scale from here.
+  const iconRasterSize: number[] = specs.map((s) => s.size)
+  const predIconH = (idx: number): number => {
+    const icon = icons[idx]
+    if (!icon) return 0
+    const at = iconRasterSize[idx] ?? specs[idx]!.size
+    if (!(at > 0)) return icon.h
+    return Math.max(1, Math.round((icon.h * specs[idx]!.size) / at))
+  }
+  const rowHFit = (idx: number): number => {
+    if (icons[idx]) return Math.max(predIconH(idx), capHFor(specs[idx]!.size))
+    return capHFor(specs[idx]!.size)
+  }
   const blockH = (gap: number): number => {
     let t = 0
-    for (const s of specs) t += Math.round(s.size * 0.73) + gap
+    for (let i = 0; i < specs.length; i++) t += rowHFit(i) + gap
     return specs.length > 0 ? t - gap + 8 : 1
   }
   let lineGap = baseGap
   if (typeof maxH === "number" && Number.isFinite(maxH) && maxH > 0) {
+    const before = specs.map((s) => s.size)
     for (let guard = 0; guard < 16 && blockH(lineGap) > maxH; guard++) {
       const ratio = maxH / Math.max(1, blockH(lineGap))
       let shrunk = false
@@ -1432,22 +1587,110 @@ export async function renderFreshMetaColumn(
       if (nextGap < lineGap) { lineGap = nextGap; shrunk = true }
       if (!shrunk) break
     }
+    // The shrink above only moves fonts: re-raster icons at their final
+    // sizes so marks scale with their scores (only when something shrank).
+    if (specs.some((s, i) => s.size !== before[i])) {
+      await Promise.all(
+        specs.map(async (s, i) => {
+          if (s.separate && s.source && icons[i]) icons[i] = await loadFreshSeparateIcon(s.source, s.size)
+        }),
+      )
+      specs.forEach((s, i) => {
+        if (s.separate && !icons[i] && s.source) refitFallback(s)
+      })
+    }
   }
-  type Placed = { y: number; size: number; base: number; spacingBase: number; weight: number; fill: string; opacity: number; star: boolean; text: string }
+  // Uniform icon slot across the block (widest final mark); scores share it
+  // so the column reads as one aligned icon + score rhythm.
+  let iconSlotW = 0
+  specs.forEach((s, i) => {
+    const icon = icons[i]
+    if (s.separate && icon) iconSlotW = Math.max(iconSlotW, icon.w)
+  })
+  // Degenerate narrow-column guard: when even the slot + gap + a minimal
+  // score no longer fit, scale every mark down uniformly (aspect preserved)
+  // instead of clipping or overlapping the scores. The shrink reserves the
+  // historic 8px score width while space allows (moderate columns render
+  // byte-identical to before); past that it keeps shrinking to what fits —
+  // a fixed 0.25 floor would leave slot + gap + score wider than the ink
+  // region on extreme narrow columns. The score lock below compresses to the
+  // ink region in that case, so the unit never exceeds it and the available
+  // score width never goes negative.
+  if (iconSlotW > 0) {
+    const iconSizes = specs.filter((s, i) => s.separate && icons[i]).map((s) => s.size)
+    const refGap = iconGap(Math.max(...iconSizes, FRESH_META_MIN_SIZE))
+    if (iconSlotW + refGap + 8 > fitW && iconSlotW > 1) {
+      const factor = Math.min(1, (fitW - refGap - 8) / iconSlotW)
+      // 1px floor, never zero/negative: even a fully degenerate column keeps
+      // a valid bitmap and the unit fits via the compressed score lock.
+      const fitFactor = Math.max(1 / iconSlotW, factor)
+      if (fitFactor < 1) {
+        await Promise.all(
+          specs.map(async (s, i) => {
+            const icon = icons[i]
+            if (!s.separate || !icon) return
+            const nw = Math.max(1, Math.round(icon.w * fitFactor))
+            const nh = Math.max(1, Math.round(icon.h * fitFactor))
+            icons[i] = { png: await sharp(icon.png).resize(nw, nh).toBuffer(), w: nw, h: nh }
+          }),
+        )
+        iconSlotW = 0
+        specs.forEach((s, i) => {
+          const icon = icons[i]
+          if (s.separate && icon) iconSlotW = Math.max(iconSlotW, icon.w)
+        })
+      }
+    }
+  }
+  type Placed = { y: number; top: number; iconY: number; size: number; base: number; spacingBase: number; weight: number; fill: string; opacity: number; star: boolean; text: string; icon: { png: Buffer; w: number; h: number } | null; scoreLock: number; gap: number }
   const placed: Placed[] = []
   let y = 0
-  const push = (spec: Spec) => {
-    const capH = Math.round(spec.size * 0.73)
-    y += capH
-    placed.push({ y, size: spec.size, base: spec.base, spacingBase: spec.spacingBase, weight: spec.weight, fill: spec.fill, opacity: spec.opacity, star: spec.star, text: spec.text })
-    y += lineGap
+  // Available score width for an icon row: never negative (1px floor). The
+  // lock keeps the historic 8px floor while the ink region allows it
+  // (byte-identical there) and compresses to the region past that, so the
+  // unit (slot + gap + locked score) never exceeds the ink region.
+  const scoreAvail = (size: number): number => Math.max(1, fitW - iconSlotW - iconGap(size))
+  const scoreLockFor = (text: string, size: number): number => {
+    const avail = scoreAvail(size)
+    return Math.max(Math.min(8, avail), Math.min(estimateTextWidth(text, size, f), avail))
   }
-  for (const spec of specs) push(spec)
+  specs.forEach((s, i) => {
+    const icon = s.separate ? (icons[i] ?? null) : null
+    if (icon) {
+      const capH = capHFor(s.size)
+      const rowHt = Math.max(icon.h, capH)
+      const top = y
+      // Both mark and digits center in the taller row (identical to the old
+      // anchor while the mark stands tallest).
+      const iconY = top + (rowHt - icon.h) / 2
+      placed.push({ y: top + rowHt / 2 + capH / 2, top, iconY, size: s.size, base: s.base, spacingBase: 0, weight: s.weight, fill: s.fill, opacity: s.opacity, star: false, text: s.text, icon, scoreLock: scoreLockFor(s.text, s.size), gap: iconGap(s.size) })
+      y += rowHt + lineGap
+      return
+    }
+    // Text rows (genre / ★ average / year / custom / missing-icon separate
+    // fallback): historic centered rendering. The fallback shows the full
+    // historic `score + NAME` text — the same string as before this change.
+    const display = s.separate && s.source ? `${s.text} ${s.source.toUpperCase()}` : s.text
+    const capH = capHFor(s.size)
+    y += capH
+    placed.push({ y, top: y - capH, iconY: 0, size: s.size, base: s.base, spacingBase: s.spacingBase, weight: s.weight, fill: s.fill, opacity: s.opacity, star: s.star, text: display, icon: null, scoreLock: 0, gap: 0 })
+    y += lineGap
+  })
   const h = Math.max(1, y - lineGap + 8)
   const starUnit = (size: number): number => Math.round(size * 0.42)
   const body = placed
     .map((p) => {
       const family = fontFamilyFor(p.text, f)
+      if (p.icon) {
+        // Built-in separate row: brand mark in the uniform slot + score, the
+        // whole unit centered on the column. No provider label anywhere.
+        const scoreW = lockW(p.text, p.size, 0, p.scoreLock)
+        const unitW = iconSlotW + p.gap + scoreW
+        const x0 = w / 2 - unitW / 2
+        const iconX = x0 + (iconSlotW - p.icon.w) / 2
+        return `<image href="data:image/png;base64,${p.icon.png.toString("base64")}" x="${iconX.toFixed(1)}" y="${p.iconY.toFixed(1)}" width="${p.icon.w}" height="${p.icon.h}"/>` +
+          `<text x="${(x0 + iconSlotW + p.gap).toFixed(1)}" y="${p.y}" font-family="${family}" font-size="${p.size}" font-weight="${p.weight}" fill="${p.fill}" fill-opacity="${p.opacity}"${textFitAttrs(scoreW)}>${escSvg(p.text)}</text>`
+      }
       if (p.star) {
         const starR = starUnit(p.size)
         const gap = Math.round(p.size * 0.25)
@@ -1482,7 +1725,7 @@ export async function renderFreshMetaColumn(
     `<feDropShadow dx="0" dy="2" stdDeviation="3" flood-color="#000000" flood-opacity="0.8"/>` +
     `</filter></defs><g filter="url(#freshMetaShadow)">${body}</g></svg>`
   const png = await renderSVG(svg, w)
-  return { png, w, h }
+  return { png, w, h, svg }
 }
 
 /** Scale a bitmap down to fit the provider slot (never enlarges).

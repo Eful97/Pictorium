@@ -2,10 +2,10 @@
 name: metadata-sources
 description: >
   External metadata/ranking sources used by Pictorium catalogs and badges:
-  JustWatch StreamingCharts (GraphQL, getJWRankings, 30 min cache, shared with
+  JustWatch StreamingCharts (GraphQL, getJWRankings, 6 h cache, shared with
   /api/trending/rank and warmup), FlixPatrol Top 10 (fp-crawler catalogs,
-  SUPPORTED_COUNTRIES fail-closed, disk+memory cache), MDBList lists
-  (mdblistMovie/Show/Anime, key-hashed cache keys, 30 min TTL). Covers cache
+  SUPPORTED_COUNTRIES fail-closed, disk+memory cache, 12 h validity), MDBList lists
+  (mdblistMovie/Show/Anime, key-hashed cache keys, 12 h TTL). Covers cache
   tags, TTLs, and ID resolution fallbacks. Trigger: "justwatch", "flixpatrol",
   "mdblist", "ranking", "top 10", "trending", "classifica", "badge trend",
   "fonte metadati", "graphql".
@@ -22,7 +22,7 @@ and/or the trend badges. Full architecture: `.agents/catalog.md`.
   filter `DAILY_POPULARITY_SAME_CONTENT_TYPE`, language `it-IT`.
 - Returns `{ tmdbId, imdbId, rank }[]` — **imdbId comes from JustWatch itself**;
   do NOT re-fetch TMDB external_ids for these rows.
-- In-memory cache 30 min, max 100 entries, key `{objectType}:{country}:{first}`.
+- In-memory cache 6 h, max 100 entries, key `{objectType}:{country}:{first}`.
   Shared with `/api/trending/rank` (trend badge) and warmup. Test hook clears it.
 - Timeout 15 s.
 
@@ -36,7 +36,7 @@ and/or the trend badges. Full architecture: `.agents/catalog.md`.
   paramount-plus.
 - Cache: disk file `flixpatrol_cache_{country}.json` under `DATA_DIR` (falls back
   to `os.tmpdir()` when DATA_DIR is not writable, e.g. serverless) + in-memory
-  Map. Per-country cache files exist under `data/`.
+  Map, 12 h validity for both. Per-country cache files exist under `data/`.
 - Source does NOT provide imdbId → catalog depends entirely on `resolveImdbId`
   (TMDB external_ids).
 - Also drives the network badge (which platform + rank).
@@ -49,7 +49,7 @@ and/or the trend badges. Full architecture: `.agents/catalog.md`.
 - Key resolution: explicit request key only (no instance key). The key is hashed
   (sha1, 8 chars) into the cache key so different keys don't collide, never in
   plaintext.
-- Cache: `cacheSet`/`cacheGet` (tag `mdblist`), TTL 30 min. Only NON-empty
+- Cache: `cacheSet`/`cacheGet` (tag `mdblist`), TTL 12 h. Only NON-empty
   results are cached — network errors return `[]` and are retried on next access.
 - `MDBLIST_API_URL` env (mock server in e2e) always wins over the real endpoint.
 - `checkMDBLists(imdbId)` → list key + rank for the MDBList badge.

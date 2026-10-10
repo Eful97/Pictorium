@@ -17,16 +17,19 @@ function imdbIdCacheSet(key: string, value: string | null, ttlMs: number): void 
   imdbIdCache.set(key, { value, expiry: Date.now() + ttlMs })
 }
 
-export async function resolveImdbId(mediaType: "movie" | "tv", tmdbId: number, apiKey?: string, timeoutMs = 30000): Promise<string | null> {
+export async function resolveImdbId(mediaType: "movie" | "tv", tmdbId: number, apiKey?: string, timeoutMs = 30000, signal?: AbortSignal): Promise<string | null> {
   const cacheKey = `${mediaType}:${tmdbId}`
   const cached = imdbIdCache.get(cacheKey)
   if (cached && Date.now() < cached.expiry) return cached.value
   try {
-    const result = await getExternalIds(mediaType, tmdbId, apiKey, undefined, timeoutMs).then((r) => r.imdb_id ?? null)
+    const result = await getExternalIds(mediaType, tmdbId, apiKey, signal, timeoutMs).then((r) => r.imdb_id ?? null)
     const ttl = result !== null ? 7 * 24 * 60 * 60 * 1000 : 24 * 60 * 60 * 1000
     imdbIdCacheSet(cacheKey, result, ttl)
     return result
   } catch {
+    // Cancellation (budget abort) means "unknown", not "no IMDb id": never
+    // freeze a null on an aborted signal, the retry must refetch upstream.
+    if (signal?.aborted) return null
     imdbIdCacheSet(cacheKey, null, 60_000)
     return null
   }

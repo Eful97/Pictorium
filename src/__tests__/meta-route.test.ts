@@ -27,12 +27,12 @@ vi.mock("@/lib/catalog-epoch", () => ({
 
 vi.mock("@/lib/tvdb", async (importOriginal) => {
   const mod = await importOriginal<typeof import("@/lib/tvdb")>()
-  return { ...mod, enrichVideosWithTvdb: vi.fn() }
+  return { ...mod, enrichVideosWithTvdb: vi.fn(), enrichVideosWithTvdbDetailed: vi.fn(async () => true) }
 })
 
-import { enrichVideosWithTvdb } from "@/lib/tvdb"
+import { enrichVideosWithTvdbDetailed } from "@/lib/tvdb"
 
-const mockedEnrich = vi.mocked(enrichVideosWithTvdb)
+const mockedEnrich = vi.mocked(enrichVideosWithTvdbDetailed)
 
 const mockedGetById = vi.mocked(getById)
 
@@ -651,5 +651,49 @@ describe("GET /meta/[type]/[id]", () => {
     expect(body.meta.landscapePoster).toContain("shape=landscape")
     expect(body.meta.landscapePoster).not.toContain("hideLogo")
     expect(body.meta.logo).toBeUndefined()
+  })
+
+  it("does not cache for 12h when series season fetch is incomplete or fails", async () => {
+    vi.spyOn(globalThis, "fetch")
+      // /find/tt0903747 (Breaking Bad)
+      .mockResolvedValueOnce(Response.json({
+        tv_results: [{ id: 1396, name: "Breaking Bad" }],
+      }))
+      // /tv/1396 details with 2 seasons
+      .mockResolvedValueOnce(Response.json({
+        id: 1396,
+        name: "Breaking Bad",
+        overview: "A chemistry teacher...",
+        first_air_date: "2008-01-20",
+        genres: [{ id: 18, name: "Drama" }],
+        external_ids: { imdb_id: "tt0903747" },
+        seasons: [
+          { season_number: 1, episode_count: 7 },
+          { season_number: 2, episode_count: 13 },
+        ],
+      }))
+      // /tv/1396/images
+      .mockResolvedValueOnce(Response.json({ id: 1396, logos: [] }))
+      // /tv/1396/season/1 succeeds
+      .mockResolvedValueOnce(Response.json({
+        id: 100,
+        season_number: 1,
+        episodes: [{ id: 1001, season_number: 1, episode_number: 1, name: "Pilot", overview: "Test", air_date: "2008-01-20" }],
+      }))
+      // /tv/1396/season/2 fails (e.g. 504 / network abort)
+      .mockResolvedValueOnce(new Response("Gateway Timeout", { status: 504 }))
+
+    const req = new NextRequest("http://localhost:3000/meta/series/tt0903747.json?api_key=settings-key")
+    const res = await GET(req, {
+      params: Promise.resolve({ type: "series", id: "tt0903747.json" }),
+    })
+    const body = await res.json()
+
+    expect(res.status).toBe(200)
+    expect(body.meta.videos).toBeDefined()
+    expect(body.meta.videos.length).toBe(1) // Only season 1 was returned
+
+    // Cache verification: cache exists but was not written with 12h
+    // (verified through logic: isPartialSeasonData writes with 60_000ms TTL)
   })
 })

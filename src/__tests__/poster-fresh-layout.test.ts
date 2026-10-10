@@ -280,12 +280,21 @@ describe("fresh meta rows (shared gates)", () => {
       }),
     )
     expect(rows.filter((r) => r.kind === "separate")).toHaveLength(5)
+    // Icon + score rows: score-only text plus the source id (the column
+    // renders the brand mark, no textual provider label).
     expect(rows.filter((r) => r.kind === "separate").map((r) => r.text)).toEqual([
-      "8.7 IMDB",
-      "7.9 TMDB",
-      "88% TOMATOES",
-      "8.1 MAL",
-      "7.5 TRAKT",
+      "8.7",
+      "7.9",
+      "88%",
+      "8.1",
+      "7.5",
+    ])
+    expect(rows.filter((r) => r.kind === "separate").map((r) => r.source)).toEqual([
+      "imdb",
+      "tmdb",
+      "tomatoes",
+      "mal",
+      "trakt",
     ])
     expect(rows.some((r) => r.kind === "rating")).toBe(false)
   })
