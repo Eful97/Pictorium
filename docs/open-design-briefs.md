@@ -99,7 +99,7 @@ Slides:
 6. Automatic data: JustWatch Italy, FlixPatrol Top 10, MDBList, IMDb Top
    250, Oscar/Cannes/BAFTA/Emmy awards (Wikidata), cult directors.
 7. Personalization: per-title config, cloud profile (UUID + password),
-   per-link config tokens (HMAC), multi-language UI (5 languages).
+   per-link config tokens (HMAC), multi-language UI (18 languages).
 8. Deploy: Docker, Vercel, HF Spaces, Oracle Cloud, Termux, VPS — no
    instance API keys, per-user keys only.
 9. Closing: "Your library, your posters." + AGPL-3.0 note.

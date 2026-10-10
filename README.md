@@ -52,6 +52,8 @@ New to Pictorium? The fastest path uses a public instance — no install needed:
 
 Want to self-host instead? See [Quick Deploy](#-quick-deploy): [Vercel](#-vercel-recommended) · [Docker & Compose](#-docker--compose). Reference: [Environment Variables](#-environment-variables).
 
+**Detailed setup guides:** step-by-step English guides, suited for sharing as Markdown files and Discord attachments — [setup guides index](docs/setup-guides.md) · [Stremio addon](docs/discord-stremio-addon-guide.md) · [AIOMetadata](docs/discord-aiometadata-guide.md) · [Nuvio](docs/discord-nuvio-guide.md).
+
 ---
 
 ## 📸 Preview
