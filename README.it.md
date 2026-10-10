@@ -40,6 +40,20 @@ pinned: false
 
 ---
 
+## 🚀 Inizia qui
+
+Prima volta con Pictorium? La strada più veloce usa un'istanza pubblica — nessuna installazione:
+
+1. **Apri un'istanza pubblica** (link in alto) e **crea il tuo spazio personale** — ogni spazio ha il suo URL `/u/<uuid>/configure` con impostazioni e chiavi API separate.
+2. **Ottieni la tua chiave API TMDB gratuita (v3 auth)** da **Impostazioni → API** su [themoviedb.org](https://www.themoviedb.org/signup), poi incollala nelle impostazioni di Pictorium.
+3. **Scegli un titolo e personalizzalo** nell'editor WYSIWYG con anteprima live.
+4. **Salva il poster**, poi **Installa su Stremio** — oppure copia il template **Segui il mio spazio** (`live=1`) in un client di cataloghi esterno supportato come Nuvio o AIOMetadata. Le modifiche salvate si applicano senza sostituire il link; **Impostazioni fisse nel link** resta disponibile nelle opzioni avanzate.
+5. **Gli aggiornamenti si rivalidano, non si spingono**: i link Segui rivalidano a ogni richiesta, quindi il nuovo render viene servito quando il client lo richiede di nuovo. Le copie già in cache altrove si aggiornano secondo i tempi di quel client.
+
+Preferisci il self-hosting? Vedi [Deploy Rapido](#-deploy-rapido): [Vercel](#-vercel-consigliato) · [Docker & Compose](#-docker--compose). Riferimento: [Variabili d'Ambiente](#-variabili-dambiente).
+
+---
+
 ## 📸 Anteprima
 
 <div align="center">
@@ -98,9 +112,9 @@ pinned: false
 | 📺 **Ordinamento Intelligente Parti & Anime** | Rileva automaticamente i gruppi **Original Parts** (*La Casa di Carta*, *Lupin*) e spacchetta le mega-stagioni anime compresse su TMDB (*Re:ZERO*, *Jujutsu Kaisen*) nelle vere stagioni ufficiali. |
 | 🏷️ **Badge Qualità & Voti** | Visualizza in tempo reale risoluzione video (4K/FHD/HD), voti aggregati da oltre 16 fonti (IMDb, TMDB, Rotten Tomatoes, Letterboxd, MAL), premi Oscar/Cannes e nastri Netflix Top 10. |
 | 🌐 **Cataloghi & Liste Personalizzate** | Importa watchlist e collezioni da **Letterboxd, Trakt, TMDb, TheTVDB, MDBList**, file CSV esportati da IMDb e classifiche trend in tempo reale tramite JustWatch GraphQL. |
-| 🌍 **Interfaccia Multilingua Dinamica** | Interfaccia localizzata in 17 lingue con cambio istantaneo in tempo reale senza ricaricare la pagina. |
+| 🌍 **Interfaccia Multilingua Dinamica** | Interfaccia disponibile in 18 lingue con cambio in tempo reale senza ricaricare la pagina. |
 | 🔒 **Protezione PIN & Spazi Multi-Utente** | Protezione con codice PIN per istanze singole, oppure modalità multi-utente con spazi isolati, crittografia AES-256-GCM e backup/ripristino completo. Locandine e manifest Stremio rimangono sempre funzionanti. |
-| ⚡ **Zero Conflitti di Cache** | Versioning deterministico con `RENDER_VERSION` e `APP_VERSION` automatiche: ogni modifica grafica aggiorna istantaneamente le immagini su Stremio. |
+| ⚡ **Aggiornamenti Cache Versionati** | Versioning deterministico con `RENDER_VERSION` e `APP_VERSION` automatiche. I link Segui (`live=1`) rivalidano a ogni richiesta, quindi i client ricevono i nuovi render quando li richiedono di nuovo; le copie già in cache altrove si aggiornano secondo i tempi di quel client. |
 
 ---
 
@@ -133,6 +147,8 @@ pinned: false
 * **Gestione Massiva ne I Miei Poster**: Selezione multipla dei poster salvati con eliminazione di gruppo per riordinare la propria libreria in pochi click.
 * **Backup Completo & Ripristino**: Esporta e ripristina con un click l'intera configurazione dello spazio (poster salvati, preset personalizzati, stili e preferenze) in formato JSON.
 * **Template URL per Nuvio & AIOMetadata**: Template dedicati per gestori di cataloghi esterni (come Nuvio e AIOMetadata) con risoluzione automatica degli ID TMDB.
+  Gli spazi utente usano di default **Segui il mio spazio**: copia il nuovo template una volta sola e le modifiche salvate si applicano senza sostituire di nuovo il link. **Impostazioni fisse nel link** resta disponibile nelle opzioni avanzate e i template esistenti mantengono i loro override espliciti. La variante automatica Nuvio lascia comunque al client la scelta del formato immagine.
+  I link Segui (`live=1`) richiedono rivalidazione HTTP e riusano i render interni aggiornati. AIOMetadata e gli altri proxy di immagini devono rispettare questa policy; aggiorna le immagini già in cache usando i controlli disponibili nella versione installata. I nuovi header non possono eliminare le copie esterne esistenti e un poster già mostrato si aggiorna solo quando il client lo richiede di nuovo. Ranking live e altri dati upstream mantengono i loro tempi di aggiornamento interni.
 
 ### 🔒 Sicurezza: PIN & Spazi Multi-Utente
 
@@ -148,7 +164,7 @@ Attivando `PICTORIUM_MULTI_USER=1`, l'istanza permette a più utenti di condivid
 * **Crittografia a Riposo**: Le chiavi API dell'utente sono salvate su disco cifrate con AES-256-GCM tramite `PROFILE_ENCRYPTION_KEY`.
 * **Autenticazione & Recovery**:
   * **Password di Sessione**: richiesta ad ogni visita per sbloccare l'editor (non viene salvata permanentemente nel browser).
-  * **Recovery Key (Secret)**: codice segreto mostrato una sola volta alla creazione per recuperare l'accesso in caso di smarrimento o ruotare le credenziali.
+  * **Recovery Key (Secret)**: chiave mostrata una sola volta alla creazione — salvala subito. Resta valida per recuperare l'accesso o ruotare le credenziali finché non la ruoti.
 * **Protezione Anti-Brute-Force**: Limite automatico sui tentativi di inserimento password errati e protezione da abusi.
 
 > 📢 Per segnalare vulnerabilità in privato (mai con issue pubbliche), vedi [SECURITY.md](SECURITY.md).

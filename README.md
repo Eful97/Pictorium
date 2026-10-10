@@ -40,6 +40,20 @@ pinned: false
 
 ---
 
+## 🚀 Start here
+
+New to Pictorium? The fastest path uses a public instance — no install needed:
+
+1. **Open a public instance** (see links at the top) and **create your personal space** — each space has its own `/u/<uuid>/configure` URL with separate settings and API keys.
+2. **Obtain your free TMDB API key (v3 auth)** from **Settings → API** on [themoviedb.org](https://www.themoviedb.org/signup), then paste it into Pictorium settings.
+3. **Pick a title and customize it** in the WYSIWYG editor with live preview.
+4. **Save the poster**, then **Install to Stremio** — or copy the **Follow my space** template (`live=1`) into a supported external catalog client such as Nuvio or AIOMetadata. Saved changes then apply without replacing the link; **Fixed settings in the link** stays available under advanced options.
+5. **Updates are revalidated, not pushed**: follow links revalidate on every request, so a new render is served when the client asks again. Copies already cached elsewhere refresh on that client's schedule.
+
+Want to self-host instead? See [Quick Deploy](#-quick-deploy): [Vercel](#-vercel-recommended) · [Docker & Compose](#-docker--compose). Reference: [Environment Variables](#-environment-variables).
+
+---
+
 ## 📸 Preview
 
 <div align="center">
@@ -98,9 +112,9 @@ pinned: false
 | 📺 **Smart Parts & Anime Splitting** | Automatically detects **Original Parts** (*Money Heist*, *Lupin*) and splits giant single-season anime entries on TMDB (*Re:ZERO*, *Jujutsu Kaisen*) into their true release seasons. |
 | 🏷️ **Quality Badges & Ratings** | Real-time video resolution detection (4K/FHD/HD), aggregated ratings from over 16 sources (IMDb, TMDB, Rotten Tomatoes, Letterboxd, MAL), Academy/Cannes awards, and Netflix Top 10 ribbons. |
 | 🌐 **Custom Catalogs & Lists** | Import watchlists and custom lists from **Letterboxd, Trakt, TMDb, TheTVDB (your API key), MDBList**, plus official IMDb CSV exports, along with real-time trending charts via JustWatch GraphQL. |
-| 🌍 **Dynamic Multilingual UI** | Fully localized interface in 17 languages with instant real-time language switching without page refresh. |
+| 🌍 **Dynamic Multilingual UI** | Interface available in 18 languages with real-time language switching without page refresh. |
 | 🔒 **PIN Protection & User Spaces** | PIN code lock protection for single instances, or full multi-user support with isolated spaces, AES-256-GCM encryption, and full-space backup/restore. Stremio manifests and posters remain permanently functional. |
-| ⚡ **Zero Cache Conflicts** | Deterministic versioning with automated `RENDER_VERSION` and `APP_VERSION`. Change any styling parameter and Stremio updates cached images immediately. |
+| ⚡ **Versioned Cache Updates** | Deterministic versioning with automated `RENDER_VERSION` and `APP_VERSION`. Follow-space links (`live=1`) revalidate on every request, so clients pick up new renders when they re-request; copies already cached elsewhere refresh on that client's schedule. |
 
 ---
 
@@ -150,7 +164,7 @@ When `PICTORIUM_MULTI_USER=1` is enabled, multiple users can share a single serv
 * **Encrypted at Rest**: User API keys are stored encrypted on disk using AES-256-GCM via `PROFILE_ENCRYPTION_KEY`.
 * **Authentication & Recovery**:
   * **Session Password**: Required on each visit to unlock the editor (never stored permanently in the browser).
-  * **Recovery Key (Secret)**: Single-use code shown upon account creation to recover access or rotate credentials.
+  * **Recovery Key (Secret)**: Shown once at account creation — save it now. It stays valid to recover access or rotate credentials until you rotate it.
 * **Anti-Brute-Force Protection**: Automatic rate limiting on incorrect password attempts to prevent attacks.
 
 > 📢 To report vulnerabilities privately (never via public issues), see [SECURITY.md](SECURITY.md).
