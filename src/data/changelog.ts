@@ -30,6 +30,24 @@ export interface ChangelogRelease {
  *  (which bumps on every commit and would leave the dot permanently on). */
 export const CHANGELOG: ChangelogRelease[] = [
   {
+    version: "1.25.3",
+    date: "2026-10-10",
+    title: "Release 1.25.3",
+    items: [
+      { type: "feature", text: "Improve Hebrew translations" },
+      { type: "feature", text: "Add Anton and CoMix Wave Films logos" },
+      { type: "fix", text: "Smooth poster numbers and improve catalog reliability" },
+      { type: "feature", text: "Add glass poster layouts and flexible ratings" },
+      { type: "feature", text: "Show up to five separate ratings" },
+      { type: "fix", text: "Keep JustWatch Top 20 responsive during outages" },
+      { type: "feature", text: "Fresh cover layouts and adjustable rank styling" },
+      { type: "fix", text: "Keep automatic badge colors at fixed lightness" },
+      { type: "feature", text: "Apply presets to individual posters" },
+      { type: "feature", text: "Save poster and logo without freezing style" },
+      { type: "fix", text: "Show the Extra badge when editing its settings" },
+    ],
+  },
+  {
     version: "1.25.2",
     date: "2026-10-08",
     title: "Release 1.25.2",
