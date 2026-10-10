@@ -22,6 +22,31 @@ vi.mock("next/font/google", () => {
 // la modalità deve essere esplicita via POSTERIUM_PUBLIC_INSTANCE=1 (vedi auth.ts).
 process.env.POSTERIUM_PUBLIC_INSTANCE = "1"
 
+// Node >=25 defines a global `localStorage` accessor that returns undefined
+// without --localstorage-file (ExperimentalWarning). Since it is an
+// own-property of globalThis, the Vitest jsdom environment does not forward the
+// real Storage from the jsdom window (getWindowKeys skips keys already present
+// on globals unless hardcoded in KEYS): globalThis.localStorage and
+// window.localStorage stay undefined. The same filter excludes
+// sessionStorage (here the native Node one remains, not the isolated per-file
+// jsdom instance). Rebind to the REAL Storages of the jsdom window created by
+// Vitest (globalThis.jsdom, no mock/fake): true DOM semantics and
+// localStorage === window.localStorage identity. With --no-experimental-webstorage
+// or Node without global WebStorage, Vitest already forwards jsdom and the block is a no-op.
+const jsdomWindow = (
+  globalThis as unknown as { jsdom?: { window?: Pick<Window, "localStorage" | "sessionStorage"> } }
+).jsdom?.window
+for (const key of ["localStorage", "sessionStorage"] as const) {
+  const real = jsdomWindow?.[key]
+  if (real && (globalThis as unknown as Record<string, unknown>)[key] !== real) {
+    Object.defineProperty(globalThis, key, {
+      value: real,
+      writable: true,
+      configurable: true,
+    })
+  }
+}
+
 afterEach(() => {
   cleanup()
   vi.unstubAllEnvs()

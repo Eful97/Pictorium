@@ -11,6 +11,8 @@ export interface RecentChange {
 }
 
 export const RECENT_CHANGES: RecentChange[] = [
+  { type: "feature", text: "Add Anton and CoMix Wave Films logos", sha: "aea0ad9", date: "2026-10-10" },
+  { type: "fix", text: "Smooth poster numbers and improve catalog reliability", sha: "fb02b5b", date: "2026-10-10" },
   { type: "feature", text: "Add glass poster layouts and flexible ratings", sha: "d25287f", date: "2026-10-09" },
   { type: "feature", text: "Show up to five separate ratings", sha: "48b0858", date: "2026-10-09" },
   { type: "fix", text: "Keep JustWatch Top 20 responsive during outages", sha: "34b58aa", date: "2026-10-09" },
