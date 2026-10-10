@@ -778,6 +778,8 @@ const NETWORK_FILES_COMBINED: Record<string, string> = {
   gracie: "Gracie_Films_logo_webp.png",
   deseo: "deseo.svg",
   bellanova: "bellanova-big.png",
+  anton: "Anton_United_Kingdom_logo.png",
+  comix_wave: "CoMix Wave Films logo.svg",
 }
 
 // B4: memo per (networkKey, targetH, fg). Gli SVG in public/networks/ sono

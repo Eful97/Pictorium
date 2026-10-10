@@ -106,6 +106,8 @@ const NETWORK_FILES: Record<string, string> = {
   gracie: "Gracie_Films_logo_webp.png",
   deseo: "deseo.svg",
   bellanova: "bellanova-big.png",
+  anton: "Anton_United_Kingdom_logo.png",
+  comix_wave: "CoMix Wave Films logo.svg",
 }
 
 // Falso positivo NBC giapponese (Jujutsu Kaisen tmdb 95479): network list contiene 25+ regionali tra cui "NBC" (Nagasaki Broadcasting).
@@ -193,6 +195,8 @@ const NETWORK_TARGET_W: Record<string, number> = {
   gracie: 58,
   deseo: 48,
   bellanova: 54,
+  anton: 54,
+  comix_wave: 62,
 }
 
 function getNetworkKey(networkName: string): string | null {
@@ -292,6 +296,11 @@ function getNetworkKey(networkName: string): string | null {
   if (lower.includes("gracie")) return "gracie"
   if (lower.includes("deseo")) return "deseo"
   if (lower.includes("bellanova")) return "bellanova"
+  // Anton: strict word boundary — "Danton"/"Antonia"/"Stanton" must NOT match.
+  if (/\banton\b/.test(lower)) return "anton"
+  // CoMix Wave Films: full "comix wave" phrase (with or without "Films") —
+  // generic "Wave"/"Films" alone must NOT match.
+  if (lower.includes("comix wave")) return "comix_wave"
   return null
 }
 

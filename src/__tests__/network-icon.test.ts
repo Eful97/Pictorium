@@ -418,5 +418,96 @@ describe("network-svgs", () => {
       expect(pill!.h).toBeGreaterThan(0)
     }
   })
+
+  it("matches Anton with strict word boundary (not substrings)", () => {
+    expect(getNetworkSvgResult("Anton", 500)?.networkKey).toBe("anton")
+    expect(getNetworkSvgResult("ANTON", 500)?.networkKey).toBe("anton")
+    expect(getNetworkSvgResult("  Anton  ", 500)?.networkKey).toBe("anton")
+    expect(getNetworkSvgResult("Anton Corp", 500)?.networkKey).toBe("anton")
+    expect(getNetworkSvgResult("Anton Studios", 500)?.networkKey).toBe("anton")
+    // Substring collisions must NOT match
+    expect(getNetworkSvgResult("Danton")).toBeNull()
+    expect(getNetworkSvgResult("Antonia")).toBeNull()
+    expect(getNetworkSvgResult("Stanton")).toBeNull()
+  })
+
+  it("matches CoMix Wave Films on the full phrase only (case-insensitive)", () => {
+    expect(getNetworkSvgResult("CoMix Wave Films", 500)?.networkKey).toBe("comix_wave")
+    expect(getNetworkSvgResult("COMIX WAVE FILMS", 500)?.networkKey).toBe("comix_wave")
+    expect(getNetworkSvgResult("comix wave films", 500)?.networkKey).toBe("comix_wave")
+    expect(getNetworkSvgResult("CoMix Wave", 500)?.networkKey).toBe("comix_wave")
+    // Generic words alone must NOT match
+    expect(getNetworkSvgResult("Wave")).toBeNull()
+    expect(getNetworkSvgResult("Films")).toBeNull()
+    expect(getNetworkSvgResult("Wave Films")).toBeNull()
+    expect(getNetworkSvgResult("New Wave")).toBeNull()
+  })
+
+  it("renders PNG buffers for Anton and CoMix Wave Films (adaptive light/dark)", async () => {
+    for (const [name, key] of [["Anton", "anton"], ["CoMix Wave Films", "comix_wave"]] as const) {
+      const res = await renderNetworkLogoBadge(name, 500)
+      expect(res, `logo for ${key}`).not.toBeNull()
+      expect(res!.networkKey).toBe(key)
+      expect(res!.png).toBeInstanceOf(Buffer)
+      expect(res!.w).toBeGreaterThan(0)
+      expect(res!.h).toBeGreaterThan(0)
+      // Silhouette monocromatica adattiva come gli altri (non keepColor)
+      const light = await renderNetworkLogoBadge(name, 500, true)
+      const dark = await renderNetworkLogoBadge(name, 500, false)
+      expect(light!.png.equals(dark!.png), `topLight adapts ${key}`).toBe(false)
+    }
+  })
+
+  it("renders real decoded pixels with adaptive brightness for Anton and CoMix Wave Films", async () => {
+    const sharp = (await import("sharp")).default
+    async function visibleStats(png: Buffer): Promise<{ frac: number; mean: number }> {
+      const { data, info } = await sharp(png).ensureAlpha().raw().toBuffer({ resolveWithObject: true })
+      const total = info.width * info.height
+      let vis = 0
+      let sum = 0
+      for (let i = 0; i < data.length; i += 4) {
+        if (data[i + 3] >= 128) {
+          vis++
+          sum += (data[i] + data[i + 1] + data[i + 2]) / 3
+        }
+      }
+      return { frac: vis / total, mean: vis ? sum / vis : 0 }
+    }
+    for (const [name, key] of [["Anton", "anton"], ["CoMix Wave Films", "comix_wave"]] as const) {
+      const light = await renderNetworkLogoBadge(name, 500, true)
+      const dark = await renderNetworkLogoBadge(name, 500, false)
+      expect(light, `light logo for ${key}`).not.toBeNull()
+      expect(dark, `dark logo for ${key}`).not.toBeNull()
+      const ls = await visibleStats(light!.png)
+      const ds = await visibleStats(dark!.png)
+      // Contenuto visibile reale: né render invisibile né blocco opaco
+      expect(ls.frac, `light visible fraction ${key}`).toBeGreaterThan(0.02)
+      expect(ls.frac, `light visible fraction ${key}`).toBeLessThan(0.98)
+      expect(ds.frac, `dark visible fraction ${key}`).toBeGreaterThan(0.02)
+      expect(ds.frac, `dark visible fraction ${key}`).toBeLessThan(0.98)
+      // Silhouette adattiva: scura su top chiaro, bianca su top scuro
+      expect(ls.mean, `adaptive brightness ${key}`).toBeLessThan(ds.mean)
+    }
+  })
+
+  it("resolves Anton and CoMix Wave Films via the hybrid (SVG-first) path", async () => {
+    for (const [name, key] of [["Anton", "anton"], ["CoMix Wave Films", "comix_wave"]] as const) {
+      const res = await renderFirstMatchingNetworkLogoBadgeHybrid([{ name, logoPath: null }], 500)
+      expect(res, `hybrid logo for ${key}`).not.toBeNull()
+      expect(res!.networkKey).toBe(key)
+      expect(res!.matchedName).toBe(name)
+      expect(res!.png).toBeInstanceOf(Buffer)
+    }
+  })
+
+  it("renders pill badges for Anton and CoMix Wave Films (NETWORK_FILES_COMBINED)", async () => {
+    for (const key of ["anton", "comix_wave"] as const) {
+      const pill = await renderNetworkOnlyLargePill(key, 500, false)
+      expect(pill, `pill for ${key}`).not.toBeNull()
+      expect(pill!.png).toBeInstanceOf(Buffer)
+      expect(pill!.w).toBeGreaterThan(0)
+      expect(pill!.h).toBeGreaterThan(0)
+    }
+  })
 })
 
