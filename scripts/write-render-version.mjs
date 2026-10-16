@@ -25,6 +25,7 @@ const RENDER_FILES = [
   "src/lib/badge-labels.ts",
   "src/lib/badge-preset-store.ts",
   "src/lib/badge-preset.ts",
+  "src/lib/badge-preset-binding.ts",
   "src/lib/badge-priority.ts",
   "src/lib/av-specs.ts",
   "src/data/av-specs.json",

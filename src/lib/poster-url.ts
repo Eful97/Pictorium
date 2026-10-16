@@ -267,8 +267,9 @@ export function buildUrlPattern(bp: BadgeParams & {
     badgeQuality: bp.badgeQuality,
     ageBadge: bp.ageBadge ?? undefined,
     ageCountry: bp.ageCountry ?? undefined,
-    // Stile pill età globale (nessun per-titolo): sempre il default, a titolo
-    // aperto come senza (il server risolverebbe comunque lo stesso valore).
+    // Stile pill età effettivo per-titolo (il chiamante passa il live del
+    // titolo in editing o il default di forma senza titolo; il server
+    // risolverebbe comunque lo stesso valore).
     ageBadgeStyle: bp.ageBadgeStyle ?? undefined,
     customRatings: bp.customRatings,
     ratingSources: bp.ratingSources,

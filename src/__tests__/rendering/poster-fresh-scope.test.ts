@@ -899,6 +899,12 @@ describe("save freezes the scope per shape", () => {
     await runLandscape()
     const landscapeBody = bodies[bodies.length - 1] as Record<string, unknown>
     expect((landscapeBody.landscape as Record<string, unknown>).posterFreshScope).toBe("ranked")
-    expect(landscapeBody.posterFreshScope).toBe("ranked")
+    // Correction c1 save boundary (same as posterLayout): a new mapping has
+    // no portrait look to preserve, so a landscape-first save leaves the flat
+    // absent (inherit — portrait renders the defaults chain) instead of
+    // cloning the landscape live value into it. A staged portrait edit
+    // (both-shape edits before first save) travels as `otherShapeStash` and
+    // freezes as the flat.
+    expect("posterFreshScope" in landscapeBody).toBe(false)
   })
 })

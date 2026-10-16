@@ -349,9 +349,15 @@ describe("open-title age follows the selected shape (portrait ON / landscape OFF
     expectPatternConsistent(SD_A)
     expectServerParity(SD_A)
 
-    // Switching shape updates the URL immediately (no stale flat).
+    // Switching shape updates the URL immediately (no stale flat). The
+    // per-title live age follows via the EditView restore (simulated here by
+    // syncing the live trio to the shape-effective values — the real-handler
+    // path is covered by the per-title shape-switch suites).
     await act(async () => {
       ed!.setPosterShape("landscape")
+      ed!.setAgeBadge(false)
+      ed!.setAgeCountry("IT")
+      ed!.setAgeBadgeStyle("standard")
     })
     await settlePreview()
     expect(ed!.posterShape).toBe("landscape")
@@ -366,6 +372,9 @@ describe("open-title age follows the selected shape (portrait ON / landscape OFF
     await openFresh9101()
     await act(async () => {
       ed!.setPosterShape("landscape")
+      ed!.setAgeBadge(false)
+      ed!.setAgeCountry("IT")
+      ed!.setAgeBadgeStyle("standard")
     })
     await settlePreview()
     expect(trioOf(lastPreviewParams())).toEqual({ age: "0", agecountry: "IT", agebs: "standard" })
@@ -387,6 +396,9 @@ describe("open-title age follows the selected shape (portrait ON / landscape OFF
     // Portrait flats untouched by the landscape-only edits.
     await act(async () => {
       ed!.setPosterShape("poster")
+      ed!.setAgeBadge(true)
+      ed!.setAgeCountry("US")
+      ed!.setAgeBadgeStyle("knockout")
     })
     await settlePreview()
     expect(trioOf(lastPreviewParams())).toEqual({ age: "1", agecountry: "US", agebs: "knockout" })
@@ -421,6 +433,9 @@ describe("open-title age follows the selected shape (portrait OFF / landscape ON
 
     await act(async () => {
       ed!.setPosterShape("landscape")
+      ed!.setAgeBadge(true)
+      ed!.setAgeCountry("DE")
+      ed!.setAgeBadgeStyle("knockout")
     })
     await settlePreview()
     expect(trioOf(lastPreviewParams())).toEqual({ age: "1", agecountry: "DE", agebs: "knockout" })

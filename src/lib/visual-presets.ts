@@ -1,5 +1,5 @@
 import { z } from "zod"
-import { BADGE_STYLES, RANKING_BADGE_STYLES, EXTRA_BADGE_STYLES, EXTRA_BADGE_FOLLOW_RANK, QUALITY_BADGE_STYLES, AGE_BADGE_STYLES, BADGE_FONTS, SEPARATE_RATINGS_STYLES, DEFAULT_AGE_BADGE_STYLE, isAgeBadgeStyle, DEFAULT_BADGE_FONT, isBadgeFont, DEFAULT_QUALITY_BADGE_STYLE, isQualityBadgeStyle, isExtraBadgeStyle, isExtraFollowRank, DEFAULT_QUALITY_BADGE_OFFSET_X_LANDSCAPE, DEFAULT_QUALITY_BADGE_OFFSET_Y_LANDSCAPE } from "./badge-styles"
+import { BADGE_STYLES, RANKING_BADGE_STYLES, EXTRA_BADGE_STYLES, EXTRA_BADGE_FOLLOW_RANK, QUALITY_BADGE_STYLES, AGE_BADGE_STYLES, BADGE_FONTS, SEPARATE_RATINGS_STYLES, DEFAULT_AGE_BADGE_STYLE, DEFAULT_BADGE_FONT, DEFAULT_BADGE_STYLE, DEFAULT_QUALITY_BADGE_STYLE, DEFAULT_RANKING_BADGE_STYLE, isAgeBadgeStyle, isBadgeFont, isBadgeStyle, isExtraBadgeStyle, isExtraFollowRank, isQualityBadgeStyle, isRankingBadgeStyle, DEFAULT_QUALITY_BADGE_OFFSET_X_LANDSCAPE, DEFAULT_QUALITY_BADGE_OFFSET_Y_LANDSCAPE } from "./badge-styles"
 import { KNOWN_VIDEO_FORMATS, isVideoFormat, type VideoFormat } from "./av-specs"
 import { SASH_BUCKETS } from "./badge-priority"
 import { DEFAULT_AGE_COUNTRY, normalizeCertificationCountry } from "./certification"
@@ -1176,4 +1176,259 @@ export function independentLandscapeDefaults(
     ageCountry: DEFAULT_AGE_COUNTRY,
     ageBadgeStyle: DEFAULT_AGE_BADGE_STYLE,
   } as LandscapeServerDefaults
+}
+
+/**
+ * Per-title style/toggle keys with a landscape counterpart (flat key =
+ * landscape key, identity). The portrait flat is both the vertical profile
+ * and the fallback for an absent/inherit landscape key. Data/shared fields
+ * (ratingSources, language, titles) and global-only controls
+ * (sash/minQuality/ribbonSide, preRelease without a per-title field) stay
+ * flat by design and are absent here. The formerly-shared visuals customBadge
+ * (extra text, null/"" = automatic), accentColor (manual override, null =
+ * automatic) and the Badge Lab binding badgePresetId/badgePresetRev (atomic
+ * pair, null/null = no preset) are independent per shape with
+ * explicit-null-shadows semantics (see effectiveMappingForShape in types.ts):
+ * an absent profile key inherits the flat (legacy profiles unchanged), a
+ * present key — including explicit null — wins for the landscape shape and
+ * never resurrects the flat.
+ */
+export const MAPPING_SHAPE_LAND_KEYS = [
+  "showBadges",
+  "rankingBadges",
+  "badgeGenre",
+  "badgeYear",
+  "badgeRating",
+  "badgeQuality",
+  "ageBadge",
+  "ageCountry",
+  "ageBadgeStyle",
+  "customRatings",
+  "separateRatings",
+  "badgeStyle",
+  "rankingBadgeStyle",
+  "extraBadgeStyle",
+  "badgeFont",
+  "qualityBadgeStyle",
+  "videoFormats",
+  "networkLogo",
+  "networkLogoPosition",
+  "ribbonEnabled",
+  "customBadge",
+  "accentColor",
+  "badgePresetId",
+  "badgePresetRev",
+] as const
+
+export type MappingShapeLandKey = (typeof MAPPING_SHAPE_LAND_KEYS)[number]
+
+/**
+ * Portrait-save backfill for per-title shape independence: freeze the
+ * pre-edit flat values into the landscape profile for inherited keys, so a
+ * portrait edit can no longer move the landscape look. Only keys in
+ * MAPPING_SHAPE_LAND_KEYS are considered; owned profile keys (explicit
+ * values, including `false`/`0`/`[]` and the explicit extra `follow-rank`
+ * sentinel) are never touched; arrays are cloned so the snapshot never
+ * aliases the live flat. Legacy `null`/absent flats on inherit keys freeze
+ * the canonical historic effective (same `canonicalInheritFreeze` as the
+ * global boundary); other `undefined` flats are skipped (the shape keeps
+ * following, pixel-identical). Network fixed offsets keep the global guard:
+ * with a fixed flat (`follow === false`) the absolutes are per-shape and a
+ * flat copy would render a fake fixed landscape layer — skipped here (the
+ * caller owns the offset keys separately when needed). Pure; client- and
+ * server-safe (same imports as the global boundary above).
+ */
+export function snapshotMissingMappingLandscape(
+  flats: Record<string, unknown>,
+  landscape: Record<string, unknown>,
+): Partial<Record<MappingShapeLandKey, unknown>> {
+  const adds: Record<string, unknown> = {}
+  for (const landKey of MAPPING_SHAPE_LAND_KEYS) {
+    if (isLandscapeKeyPresent(landscape, landKey)) continue
+    const v = flats[landKey]
+    if (
+      (v === undefined || v === null) &&
+      (SHAPE_NULL_INHERIT_KEYS.has(landKey) || landKey === "extraBadgeStyle")
+    ) {
+      const frozen = canonicalInheritFreeze(landKey, v)
+      if (!frozen.freeze) continue
+      adds[landKey] = frozen.value
+      continue
+    }
+    if (v === undefined) continue
+    adds[landKey] = cloneSnapshotValue(v)
+  }
+  return adds as Partial<Record<MappingShapeLandKey, unknown>>
+}
+
+/**
+ * LandscapeServerDefaults profile key for one per-title style key
+ * (correction c1 save boundary): every key shares the flat bare name except
+ * the badge master, which the global defaults call `globalBadges` (same
+ * asymmetry as the editor stash restore reading `landFb?.globalBadges` for
+ * `showBadges`).
+ */
+const MAPPING_SHAPE_PROFILE_KEY: Record<MappingShapeLandKey, string> = {
+  showBadges: "globalBadges",
+  rankingBadges: "rankingBadges",
+  badgeGenre: "badgeGenre",
+  badgeYear: "badgeYear",
+  badgeRating: "badgeRating",
+  badgeQuality: "badgeQuality",
+  ageBadge: "ageBadge",
+  ageCountry: "ageCountry",
+  ageBadgeStyle: "ageBadgeStyle",
+  customRatings: "customRatings",
+  separateRatings: "separateRatings",
+  badgeStyle: "badgeStyle",
+  rankingBadgeStyle: "rankingBadgeStyle",
+  extraBadgeStyle: "extraBadgeStyle",
+  badgeFont: "badgeFont",
+  qualityBadgeStyle: "qualityBadgeStyle",
+  videoFormats: "videoFormats",
+  networkLogo: "networkLogo",
+  networkLogoPosition: "networkLogoPosition",
+  ribbonEnabled: "ribbonEnabled",
+  // Identity (flat bare name = profile key): the formerly-shared visuals.
+  customBadge: "customBadge",
+  accentColor: "accentColor",
+  badgePresetId: "badgePresetId",
+  badgePresetRev: "badgePresetRev",
+}
+
+/**
+ * Historic factory render value per per-title style key (correction c1 save
+ * boundary, last resort only): the exact hardcoded fallback each render
+ * chain uses when query, mapping, config token and defaults are all absent —
+ * toggles `?? true`/`?? false` (poster-config badgeGenre/badgeYear/
+ * badgeRating/badgeQuality/customRatings/ribbonEnabled/networkLogo `?? true`,
+ * separateRatings `?? false`, Stremio saved renders default masters ON),
+ * styles fail-closed (`DEFAULT_BADGE_STYLE` "shadow",
+ * `DEFAULT_RANKING_BADGE_STYLE` "default" which renders as follow-defaults,
+ * `DEFAULT_BADGE_FONT` "inter", `DEFAULT_QUALITY_BADGE_STYLE` "standard",
+ * full `KNOWN_VIDEO_FORMATS` — the route shows every available format when
+ * allowed is null/absent), network position fail-closed `"auto"`
+ * (`=== "top" ? "top" : "auto"`), and the standalone extra style as the
+ * explicit shape-local follow-own-rank marker (pixel-identical legacy, same
+ * marker `canonicalInheritFreeze` produces).
+ */
+export const MAPPING_SHAPE_FACTORY: Record<MappingShapeLandKey, unknown> = {
+  showBadges: true,
+  rankingBadges: true,
+  badgeGenre: true,
+  badgeYear: true,
+  badgeRating: true,
+  badgeQuality: true,
+  // Badge età per-titolo (stesse semantiche fail-closed del render: OFF/IT/
+  // standard quando la chain non conosce il valore — mai spazzatura).
+  ageBadge: false,
+  ageCountry: DEFAULT_AGE_COUNTRY,
+  ageBadgeStyle: DEFAULT_AGE_BADGE_STYLE,
+  customRatings: true,
+  separateRatings: false,
+  badgeStyle: DEFAULT_BADGE_STYLE,
+  rankingBadgeStyle: DEFAULT_RANKING_BADGE_STYLE,
+  extraBadgeStyle: EXTRA_BADGE_FOLLOW_RANK,
+  badgeFont: DEFAULT_BADGE_FONT,
+  qualityBadgeStyle: DEFAULT_QUALITY_BADGE_STYLE,
+  videoFormats: [...KNOWN_VIDEO_FORMATS],
+  networkLogo: true,
+  networkLogoPosition: "auto",
+  ribbonEnabled: true,
+  // Formerly-shared visuals (explicit-null-shadows, see types.ts): the
+  // factory is "none/automatic" — an absent saved flat keeps inheriting at
+  // the boundary (sparse profile), never a factory guess over live state.
+  customBadge: null,
+  accentColor: null,
+  badgePresetId: null,
+  badgePresetRev: null,
+}
+
+/**
+ * Chain-correct pre-edit effective look for one per-title style key when the
+ * saved flat is inherit-null/absent and the landscape profile key is missing
+ * (correction c1 portrait-save boundary): the other shape rendered the
+ * DEFAULTS chain, not the flat — landscape-defaults profile first, flat
+ * default second, historic factory last (fail-closed per key, mirroring the
+ * render chains). `flatDefaults` uses mapping-bare names (`showBadges`,
+ * `badgeStyle`, …); `profileDefaults` uses LandscapeServerDefaults names
+ * (`globalBadges` for `showBadges`, rest identical). Returns `{ known: false
+ * }` only when NEITHER default level knows the key — callers keep the legacy
+ * factory/skip fallback there (documented; the app always passes provenance).
+ * Pure; client- and server-safe.
+ */
+export function mappingShapeChainEffective(
+  landKey: MappingShapeLandKey,
+  flatDefaults: Record<string, unknown> | null,
+  profileDefaults: Record<string, unknown> | null,
+): { known: boolean; value?: unknown } {
+  const prof = profileDefaults?.[MAPPING_SHAPE_PROFILE_KEY[landKey]]
+  const flat = flatDefaults?.[landKey]
+  if (prof === undefined && flat === undefined) return { known: false }
+  const raw = prof ?? flat ?? null
+  switch (landKey) {
+    case "showBadges":
+    case "rankingBadges":
+    case "badgeGenre":
+    case "badgeYear":
+    case "badgeRating":
+    case "badgeQuality":
+    case "customRatings":
+    case "separateRatings":
+    case "networkLogo":
+    case "ribbonEnabled":
+      return { known: true, value: typeof raw === "boolean" ? raw : MAPPING_SHAPE_FACTORY[landKey] }
+    // Badge età per-titolo (stesse semantiche fail-closed di
+    // resolveAgeBadgeRequest: OFF quando non booleano, paese validato su IT
+    // — mai GLOBAL/cross-country —, stile validato su "standard").
+    case "ageBadge":
+      return { known: true, value: typeof raw === "boolean" ? raw : false }
+    case "ageCountry":
+      return { known: true, value: normalizeCertificationCountry(raw) ?? DEFAULT_AGE_COUNTRY }
+    case "ageBadgeStyle":
+      return {
+        known: true,
+        value: isAgeBadgeStyle(typeof raw === "string" ? raw : null)
+          ? raw
+          : DEFAULT_AGE_BADGE_STYLE,
+      }
+    case "networkLogoPosition":
+      return { known: true, value: raw === "top" ? "top" : "auto" }
+    case "badgeStyle":
+      return {
+        known: true,
+        value: isBadgeStyle(typeof raw === "string" ? raw : null) ? raw : DEFAULT_BADGE_STYLE,
+      }
+    case "rankingBadgeStyle":
+      return {
+        known: true,
+        value: isRankingBadgeStyle(typeof raw === "string" ? raw : null)
+          ? raw
+          : DEFAULT_RANKING_BADGE_STYLE,
+      }
+    case "badgeFont":
+    case "qualityBadgeStyle":
+    case "videoFormats":
+    case "extraBadgeStyle": {
+      // Shared single truth with the global boundary: validated value wins,
+      // otherwise the canonical historic effective (never the edited live).
+      const frozen = canonicalInheritFreeze(landKey, raw)
+      const value = Array.isArray(frozen.value) ? [...frozen.value] : frozen.value
+      return { known: true, value }
+    }
+    case "customBadge":
+    case "accentColor":
+    case "badgePresetId":
+    case "badgePresetRev":
+      // By design: no defaults provenance exists for the formerly-shared
+      // visuals (no server-defaults/defaults profile carries them), so the
+      // boundary keeps the legacy skip fallback — an absent saved flat keeps
+      // the profile sparse (inherit, pixel-identical), a concrete/null saved
+      // flat freezes verbatim via the legacy path. Never the edited live.
+      return { known: false }
+  }
+  // Unreachable: the switch covers every MappingShapeLandKey (kept without a
+  // `default` so a new key fails to compile here instead of silently falling
+  // through to a factory guess).
+  return { known: false }
 }

@@ -71,15 +71,17 @@ export function buildStremioPosterUrl(input: BuildStremioPosterUrlInput): URL {
   // Default di resa per formato: in landscape il profilo `landscape` vince sui
   // flat chiave-per-chiave (chiavi fuori dal subset restano flat per tipo).
   const sd = effectiveDefaultsForShape(input.defaults, effShape)
-  // Custom badge testuale salvato per-titolo: emesso come `extra` (il server
-  // risolve le label prefissate __badge.* con la lingua della richiesta).
+  // Custom badge testuale per-titolo con indipendenza per formato: il valore
+  // effettivo della forma (profilo landscape vince sul flat, assente/null =
+  // vedi effectiveMappingForShape) è emesso come `extra` (il server risolve
+  // le label prefissate __badge.* con la lingua della richiesta).
   // Le rank-key (__badge.today/anime/movie/series e label equivalenti) sono
   // ESCLUSE: la preview WYSIWYG le rende come badge rank via rank/label, e il
   // server le riproduce da solo (rank live + fallback mapping.badgeRank/
   // trendRank/animeRank). Emetterle come `extra` duplicherebbe il badge perché
   // queryExtra vince sul badge calcolato (poster-service).
-  const customBadge = mapping?.customBadge && !isRankKey(mapping.customBadge)
-    ? mapping.customBadge
+  const customBadge = eff?.customBadge && !isRankKey(eff.customBadge)
+    ? eff.customBadge
     : undefined
   // Follow/coords network per-shape a unità di layer (stessi resolver del
   // server; il token resta opaco e si risolve server-side): in fissa gli
@@ -98,8 +100,9 @@ export function buildStremioPosterUrl(input: BuildStremioPosterUrlInput): URL {
   // including explicit `null` (follow own rank) — the portrait flat must not
   // travel into the landscape URL (these builders emit per shape, so omission
   // resolves own-rank server-side, pixels intact, legacy URLs byte-identical
-  // while the profile stays absent). Per-title mapping precedence is unchanged
-  // (the mapping has no landscape style key: it stays flat for both shapes).
+  // while the profile stays absent). Per-title mapping precedence is
+  // shape-effective (`eff` above already overlays the title's landscape
+  // style keys, so a title-owned landscape style shadows the flat here).
   // Shape-local extra follow marker: owned follow-rank shadows the flat;
   // legacy null/absent/invalid inherits (byte-identical).
   const rawLandForXbs = effShape === "landscape" ? input.defaults.landscape : null
@@ -132,34 +135,37 @@ export function buildStremioPosterUrl(input: BuildStremioPosterUrlInput): URL {
     // configOverride.globalBadges vince su mapping.showBadges). Il server
     // applica query > mapping > config > defaults, quindi l'esplicito è
     // sempre fedele al mapping senza alterare i titoli senza mapping.
-    globalBadges: mapping?.showBadges ?? sd.globalBadges,
-    rankingBadges: mapping?.rankingBadges ?? sd.rankingBadges,
-    badgeGenre: input.mapping?.badgeGenre ?? sd.badgeGenre,
-    badgeYear: input.mapping?.badgeYear ?? sd.badgeYear,
-    badgeRating: input.mapping?.badgeRating ?? sd.badgeRating,
-    badgeQuality: input.mapping?.badgeQuality ?? sd.badgeQuality,
-    // Badge età per-shape (nessun per-titolo): default effettivi della forma
-    // (`sd` è già landscape-aware) + paese + stile. Con `config` viaggiano
-    // espliciti così la query vince sul token condiviso (stesso contratto
-    // config/age degli altri visual).
-    ageBadge: sd.ageBadge,
-    ageCountry: sd.ageCountry ?? undefined,
-    ageBadgeStyle: sd.ageBadgeStyle ?? undefined,
+    globalBadges: eff?.showBadges ?? sd.globalBadges,
+    rankingBadges: eff?.rankingBadges ?? sd.rankingBadges,
+    badgeGenre: eff?.badgeGenre ?? sd.badgeGenre,
+    badgeYear: eff?.badgeYear ?? sd.badgeYear,
+    badgeRating: eff?.badgeRating ?? sd.badgeRating,
+    badgeQuality: eff?.badgeQuality ?? sd.badgeQuality,
+    // Badge età per-titolo con indipendenza per formato (stessa effettività
+    // del server — query > mapping effettivo > config > defaults): il titolo
+    // vince sui default globali con emissione esplicita in query (come gli
+    // altri visual sopra). Mapping legacy senza chiavi = default effettivi
+    // della forma (`sd` è già landscape-aware), URL legacy byte-identici.
+    // Con `config` viaggiano espliciti così la query vince sul token
+    // condiviso (stesso contratto config/age degli altri visual).
+    ageBadge: eff?.ageBadge ?? sd.ageBadge,
+    ageCountry: eff?.ageCountry ?? sd.ageCountry ?? undefined,
+    ageBadgeStyle: eff?.ageBadgeStyle ?? sd.ageBadgeStyle ?? undefined,
     minQuality: sd.minQuality ?? undefined,
-    customRatings: mapping?.customRatings ?? sd.customRatings,
+    customRatings: eff?.customRatings ?? sd.customRatings,
     ratingSources: mapping?.ratingSources ?? sd.ratingSources,
-    separateRatings: mapping?.separateRatings ?? sd.separateRatings ?? undefined,
+    separateRatings: eff?.separateRatings ?? sd.separateRatings ?? undefined,
     separateRatingsStyle: eff?.separateRatingsStyle ?? sd.separateRatingsStyle,
     separateBadgeScale: eff?.separateBadgeScale ?? sd.separateBadgeScale,
     separateBadgeOffsetX: eff?.separateBadgeOffsetX ?? sd.separateBadgeOffsetX,
     separateBadgeOffsetY: eff?.separateBadgeOffsetY ?? sd.separateBadgeOffsetY,
     sashOrder: sd.sashOrder ?? undefined,
-    badgeStyle: mapping?.badgeStyle ?? sd.badgeStyle,
-    rankingBadgeStyle: mapping?.rankingBadgeStyle ?? sd.rankingBadgeStyle,
-    extraBadgeStyle: mapping?.extraBadgeStyle ?? shapeExtraStyle ?? undefined,
-    badgeFont: mapping?.badgeFont ?? sd.badgeFont ?? input.defaults.badgeFont ?? undefined,
-    qualityBadgeStyle: mapping?.qualityBadgeStyle ?? sd.qualityBadgeStyle,
-    videoFormats: mapping?.videoFormats ?? sd.videoFormats ?? input.defaults.videoFormats,
+    badgeStyle: eff?.badgeStyle ?? sd.badgeStyle,
+    rankingBadgeStyle: eff?.rankingBadgeStyle ?? sd.rankingBadgeStyle,
+    extraBadgeStyle: eff?.extraBadgeStyle ?? shapeExtraStyle ?? undefined,
+    badgeFont: eff?.badgeFont ?? sd.badgeFont ?? input.defaults.badgeFont ?? undefined,
+    qualityBadgeStyle: eff?.qualityBadgeStyle ?? sd.qualityBadgeStyle,
+    videoFormats: eff?.videoFormats ?? sd.videoFormats ?? input.defaults.videoFormats,
     topBadgeScale: eff?.topBadgeScale ?? sd.topBadgeScale,
     topBadgeOffsetX: eff?.topBadgeOffsetX ?? sd.topBadgeOffsetX,
     topBadgeOffsetY: eff?.topBadgeOffsetY ?? sd.topBadgeOffsetY,
@@ -206,24 +212,29 @@ export function buildStremioPosterUrl(input: BuildStremioPosterUrlInput): URL {
     topShade: eff?.topShade ?? sd.topShade ?? 50,
     topShadeHeight: eff?.topShadeHeight ?? sd.topShadeHeight ?? 25,
     customBadge,
-    badgePresetId: mapping?.badgePresetId,
-    badgePresetRev: mapping?.badgePresetRev,
+    // Binding Badge Lab atomico a coppia per formato: il valore effettivo
+    // della forma (profilo landscape vince sul flat a coppia, mai mescolati —
+    // vedi effectiveMappingForShape). Legacy senza profilo = flat invariato.
+    badgePresetId: eff?.badgePresetId,
+    badgePresetRev: eff?.badgePresetRev,
     dateFormat: sd.dateFormat ?? undefined,
     title: mapping?.title ?? undefined,
-    networkLogo: mapping?.networkLogo ?? sd.networkLogo,
+    networkLogo: eff?.networkLogo ?? sd.networkLogo,
     // Follow spento effettivo viaggia (acceso/assente resta omesso per URL e
     // cache stabili; il server risolverebbe lo stesso dagli stessi dati).
     networkLogoFollowTitle: netFollowEff ? undefined : false,
-    // Ancoraggio network: per-titolo vince sul default globale (come networkLogo).
-    networkLogoPosition: mapping?.networkLogoPosition ?? sd.networkLogoPosition,
+    // Ancoraggio network: effettivo per formato (profilo landscape vince sul
+    // flat), poi default globale (come networkLogo).
+    networkLogoPosition: eff?.networkLogoPosition ?? sd.networkLogoPosition,
     preRelease: sd.preRelease,
     // hideLogo viaggia solo sul banner (il chiamante lo imposta insieme a
     // forceShape): poster/preview/Stremio non lo vedono mai.
     hideLogo: input.hideLogo,
     // ribbonSide solo globale: i mapping storici con valore salvato lo ignorano.
     ribbonSide: sd.ribbonSide,
-    // Nastro: per-titolo vince sul default globale (come networkLogo).
-    ribbonEnabled: mapping?.ribbonEnabled ?? sd.ribbonEnabled,
+    // Nastro: effettivo per formato (profilo landscape vince sul flat), poi
+    // default globale (come networkLogo).
+    ribbonEnabled: eff?.ribbonEnabled ?? sd.ribbonEnabled,
     // Il default orizzontale prevale sui mapping portrait solo per Stremio.
     // Emesso solo quando landscape (vedi params); forceShape resta esplicito.
     posterShape: effShape,

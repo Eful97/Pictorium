@@ -321,7 +321,7 @@ describe("posterLayout/posterFreshScope audit", () => {
     expect(landscape.bare.extraBadgeStyle).toBe("follow-rank")
   })
 
-  it("never projects age keys (global-only, no mapping contract)", () => {
+  it("never projects age keys (dedicated per-title control, never from a preset)", () => {
     const values = captureVisualPreset({
       ...APPLE_VISUAL_DEFAULTS,
       defaultAgeBadge: true,

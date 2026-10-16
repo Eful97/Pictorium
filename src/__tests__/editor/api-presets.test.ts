@@ -283,6 +283,7 @@ describe("presets rate limiting + poster hardening", () => {
   it("allows badgePreset/prv in the poster cache key and drops junk", async () => {
     expect(POSTER_CACHE_ALLOWLIST.has("badgePreset")).toBe(true)
     expect(POSTER_CACHE_ALLOWLIST.has("prv")).toBe(true)
+    expect(POSTER_CACHE_ALLOWLIST.has("pt")).toBe(true)
     const base = { presets: true, preview: false, anonymous: false, publicInstance: true, hasMapping: false } as const
     const good = hardenPosterSearchParams(new URLSearchParams("badgePreset=Abc123-_XyZ&prv=deadbeef"), base)
     expect(good.get("badgePreset")).toBe("Abc123-_XyZ")
@@ -290,5 +291,14 @@ describe("presets rate limiting + poster hardening", () => {
     const bad = hardenPosterSearchParams(new URLSearchParams("badgePreset=<script>&prv=random"), base)
     expect(bad.has("badgePreset")).toBe(false)
     expect(bad.has("prv")).toBe(false)
+  })
+
+  it("drops an orphan or invalid pt (server-side target fragment only)", async () => {
+    const base = { presets: true, preview: false, anonymous: false, publicInstance: true, hasMapping: false } as const
+    const orphan = hardenPosterSearchParams(new URLSearchParams("pt=top"), base)
+    expect(orphan.has("pt")).toBe(false)
+    const badEnum = hardenPosterSearchParams(new URLSearchParams("badgePreset=Abc123-_XyZ&pt=sideways"), base)
+    expect(badEnum.get("badgePreset")).toBe("Abc123-_XyZ")
+    expect(badEnum.has("pt")).toBe(false)
   })
 })

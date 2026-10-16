@@ -170,7 +170,7 @@ describe("resolveAgeBadgeRequest style (agebs)", () => {
 })
 
 describe("resolvePosterRenderConfig age pair", () => {
-  it("resolves ageBadge/ageCountry with global-only chain (no mapping)", () => {
+  it("resolves ageBadge/ageCountry with per-title chain (query wins)", () => {
     const r = resolvePosterRenderConfig(baseInput({
       searchParams: new URLSearchParams({ age: "1", agecountry: "FR" }),
     }))
@@ -178,7 +178,7 @@ describe("resolvePosterRenderConfig age pair", () => {
     expect(r.ageCountry).toBe("FR")
   })
 
-  it("ignores mapping for age (global-only like minQuality)", () => {
+  it("legacy mapping without age keys inherits the shape defaults (no migration)", () => {
     const r = resolvePosterRenderConfig(baseInput({
       mapping: { tmdbId: 1, mediaType: "movie", title: "T", posterPath: "/p.jpg", logoPath: null, originalPosterPath: null, language: null, updatedAt: "2026-01-01", badgeQuality: true } as never,
       sd: { ageBadge: true, ageCountry: "US" },
@@ -187,13 +187,23 @@ describe("resolvePosterRenderConfig age pair", () => {
     expect(r.ageCountry).toBe("US")
   })
 
+  it("per-title mapping age wins over the shape defaults", () => {
+    const r = resolvePosterRenderConfig(baseInput({
+      mapping: { tmdbId: 1, mediaType: "movie", title: "T", posterPath: "/p.jpg", logoPath: null, originalPosterPath: null, language: null, updatedAt: "2026-01-01", ageBadge: false, ageCountry: "FR", ageBadgeStyle: "knockout" } as never,
+      sd: { ageBadge: true, ageCountry: "US", ageBadgeStyle: "standard" },
+    }))
+    expect(r.ageBadge).toBe(false)
+    expect(r.ageCountry).toBe("FR")
+    expect(r.ageBadgeStyle).toBe("knockout")
+  })
+
   it("default OFF preserves the legacy render path", () => {
     const r = resolvePosterRenderConfig(baseInput())
     expect(r.ageBadge).toBe(false)
     expect(r.ageCountry).toBe("IT")
   })
 
-  it("threads the global-only age style (query > token > defaults > standard)", () => {
+  it("threads the per-title age style (query > mapping > token > defaults > standard)", () => {
     expect(resolvePosterRenderConfig(baseInput()).ageBadgeStyle).toBe("standard")
     expect(resolvePosterRenderConfig(baseInput({
       searchParams: new URLSearchParams({ agebs: "knockout" }),

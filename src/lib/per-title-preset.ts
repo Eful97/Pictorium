@@ -61,9 +61,10 @@ import {
  * resolves fresh+ranked, personal resolves its stored recipe. Legacy
  * snapshots without the keys resolve the canonical factory values
  * (standard/ranked, same source as the global defaults) — never the live
- * title's layout. `ageBadge`/`ageCountry`/`ageBadgeStyle` stay global-only:
- * the mapping carries no age keys, so presets never project them here (no
- * invented mapping contract; the chooser says so explicitly).
+ * title's layout. `ageBadge`/`ageCountry`/`ageBadgeStyle` stay out of the
+ * projection by design (the mapping carries the keys, but presets own the
+ * shared visual recipe — age is edited via the dedicated per-title control,
+ * never invented from a preset snapshot; the chooser says so explicitly).
  *
  * Network follow: `null`/absent follow = inherit the title's current layer
  * (untouched). In landscape with a non-boolean follow, offsets are omitted
@@ -294,7 +295,8 @@ export function projectPerTitleVisualPreset(
     // the normalized snapshot — legacy `null`/filled-canonical (follow own
     // rank / standard / ranked) wins over the live title, never inherits it.
     // A nested landscape profile style never leaks in (portrait reads the
-    // flat only). Age stays global-only (no mapping keys — never projected).
+    // flat only). Age is excluded by design (dedicated per-title control —
+    // never projected from a preset).
     setBare("extraBadgeStyle", flat.defaultExtraBadgeStyle)
     setBare("posterLayout", flat.defaultPosterLayout)
     setBare("posterFreshScope", flat.defaultPosterFreshScope)
@@ -311,7 +313,8 @@ export function projectPerTitleVisualPreset(
   // an inheriting extra-style profile materializes the explicit
   // follow-own-rank marker, so the edited landscape owns its full recipe.
   // `sashOrder` has no per-title target and is absent from the allowlist
-  // below by design (global-only). Age stays global-only (no mapping keys).
+  // below by design (global-only). Age is excluded by design (dedicated
+  // per-title control — never projected from a preset).
   const eff = resolveEffectiveLandscape(normalizePersonalPreset(values)) as unknown as Record<string, unknown>
   const effBare: PerTitleVisualBareKey[] = [
     "globalBadges", "rankingBadges",

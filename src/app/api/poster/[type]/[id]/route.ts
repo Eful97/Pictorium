@@ -14,6 +14,10 @@ import { userRateLimitKey } from "@/lib/user-auth"
 import { touchUserActivity } from "@/lib/user-activity"
 import { rateLimit, rateLimitKey, rateLimitResponse } from "@/lib/rate-limit"
 import { getServerDefaultsForUser, getServerDefaultsChecked, effectiveDefaultsForShape } from "@/lib/server-defaults"
+import { effectiveMappingForShape } from "@/lib/types"
+import { resolvePresetBinding } from "@/lib/badge-preset-binding"
+import { getPresetForUser } from "@/lib/badge-preset-store"
+import type { BadgePreset } from "@/lib/badge-preset"
 import { getRegionDef, normalizeRegion, parseRegion, defaultRegionForLang, GLOBAL_REGION_CODE } from "@/lib/regions"
 import { fetchTop20Ranking } from "@/lib/top20-ranking"
 import { BEST_FIT_GLOBAL, resolveLogoFitEnabled } from "@/lib/best-fit-config"
@@ -445,6 +449,12 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
   }
 
   // 2. Cache key
+  // Mapping effettivo per la forma richiesta: i pre-gate sotto (customRatings,
+  // separate, ranking, badgeQuality, showBadges, formats) seguono il profilo
+  // landscape come il render, non i flat (stessa `effectiveMappingForShape`
+  // di resolvePosterRenderConfig). Calcolato qui — dopo la rotazione, che non
+  // tocca i campi visivi — così chiave di cache e render non divergono.
+  const earlyEffMapping = effectiveMappingForShape(mapping, earlyLandscape ? "landscape" : "poster")
   // Riga rating custom: il provider deve essere configurato (env) E il display
   // abilitato (catena query `cr` > mapping > config > defaults > true, come
   // bg/by/br — vedi resolvePosterRenderConfig). `cr` resta nei cacheParams e
@@ -452,7 +462,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
   const qCr = req.nextUrl.searchParams.get("cr")
   const customRatingsDisplay = qCr !== null
     ? qCr !== "0"
-    : (mapping?.customRatings ?? configOverride?.customRatings ?? earlyEffSd.customRatings ?? sd.customRatings ?? true)
+    : (earlyEffMapping?.customRatings ?? configOverride?.customRatings ?? earlyEffSd.customRatings ?? sd.customRatings ?? true)
   const envRatingConfig = resolveCustomRatingConfig({}, sd)
   const customRatingConfig = { ...envRatingConfig, enabled: envRatingConfig.enabled && customRatingsDisplay }
   // Colonna rating separati (display) — catena centralizzata
@@ -465,6 +475,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
     configOverride,
     earlyEffSd,
     sd,
+    earlyLandscape ? "landscape" : "poster",
   )
   const customRatingHash = customRatingConfig.enabled
     ? createHash("sha256").update(JSON.stringify(customRatingConfig)).digest("hex") : ""
@@ -481,7 +492,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
     anonymous: !scopedUser,
     publicInstance: isPublicPosterInstance(),
     hasMapping: !!mapping,
-    mappingCustomBadge: mapping?.customBadge ?? null,
+    mappingCustomBadge: earlyEffMapping?.customBadge ?? null,
   })
   // Preview declassata (blindatura opt-in): senza il flag la chiave resterebbe
   // separata dalle anonime — rimuovendolo condivide la entry canonica.
@@ -510,6 +521,53 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
   } else {
     cacheParams.delete("u")
     cacheParams.delete("user")
+  }
+  // Binding Badge Lab effettivo (stessa `effectiveMappingForShape` del
+  // render): query valida > coppia salvata per formato; la preview effettiva
+  // non eredita mai il mapping (un clear esplicito non deve resuscitare il
+  // flat/profilo salvato).
+  const presetBindingKey = resolvePresetBinding({
+    queryId: hardenedParams.get("badgePreset"),
+    queryRev: hardenedParams.get("prv"),
+    mapping: earlyEffMapping,
+    shape: earlyLandscape ? "landscape" : "poster",
+    isPreview,
+  })
+  // Verità autorizzata corrente PRIMA del lookup della poster cache. La `prv`
+  // pinnata (mapping salvato o URL bookmarkato) non si muove quando BadgeLab
+  // edita/cancella/revoca il preset: una chiave costruita sul pin servirebbe
+  // byte pre-edit per ore e copie pubbliche dopo una revoca. Il frammento
+  // chiave usa quindi revision (+target: la revision copre solo il design)
+  // letti dallo store con il SOLO namespace risolto della richiesta — mai un
+  // parametro libero — e il preset risolto viaggia nel render (stessa verità
+  // per chiave e byte, nessuna rilettura stantia). Binding morto (preset
+  // cancellato, privato altrui, store in panne fail-open) = frammento
+  // rimosso → chiave standard, render standard. Senza binding nessun accesso
+  // allo store: il path senza preset resta invariato.
+  const presetTruth = new Map<string, BadgePreset | null>()
+  const authorizedPreset = async (id: string): Promise<BadgePreset | null> => {
+    const known = presetTruth.get(id)
+    if (known !== undefined) return known
+    let resolved: BadgePreset | null = null
+    try {
+      resolved = (await getPresetForUser(id, scopedUser ?? ""))?.preset ?? null
+    } catch {
+      resolved = null
+    }
+    presetTruth.set(id, resolved)
+    return resolved
+  }
+  const keyPreset = presetBindingKey.id ? await authorizedPreset(presetBindingKey.id) : null
+  if (presetBindingKey.id) {
+    if (keyPreset) {
+      cacheParams.set("badgePreset", keyPreset.id)
+      cacheParams.set("prv", keyPreset.revision)
+      cacheParams.set("pt", keyPreset.target)
+    } else {
+      cacheParams.delete("badgePreset")
+      cacheParams.delete("prv")
+      cacheParams.delete("pt")
+    }
   }
   // api_key non influisce sul rendering: rimuoverla evita frammentazione della
   // cache per utente e segreti in memoria nelle chiavi.
@@ -544,7 +602,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
   const qRankingPre = req.nextUrl.searchParams.get("ranking")
   const rankingEnabledPre = qRankingPre !== null
     ? qRankingPre !== "0"
-    : (!!hardenedParams.get("poster") ? true : (mapping?.rankingBadges ?? true))
+    : (!!hardenedParams.get("poster") ? true : (earlyEffMapping?.rankingBadges ?? true))
   // Same parsers as the render: qRank overrides trend only (anime stays
   // independent), and only a valid non-negative int skips the trend fetch.
   const qRankPre = hardenedParams.get("rank")
@@ -1267,7 +1325,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
     // A saved genre is a localized string, not a language-independent ID.
     // Explicit poster language wins, just as it does for automatic posters.
     const genreLang = req.nextUrl.searchParams.get("lang")
-    if (genreName && genreLang && effTmdbKey && mapping.showBadges !== false && !queryGenre) {
+    if (genreName && genreLang && effTmdbKey && (earlyEffMapping?.showBadges ?? mapping.showBadges) !== false && !queryGenre) {
       try {
         const cached = getTMDBSessionCache(mediaType, tmdbId, genreLang)
         const localizedDetails = cached?.details
@@ -1281,8 +1339,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
       }
     }
     voteAverage = mapping.voteAverage ?? null
-    showBadges = mapping.showBadges ?? true
-    rankingBadges = mapping.rankingBadges ?? true
+    showBadges = earlyEffMapping?.showBadges ?? mapping.showBadges ?? true
+    rankingBadges = earlyEffMapping?.rankingBadges ?? mapping.rankingBadges ?? true
     // IMDb ID salvato al save (il path `tt...` vince se presente): evita il
     // fallback getExternalIds che richiede una chiave TMDB assente in Stremio.
     imdbId = imdbId ?? mapping.imdbId ?? null
@@ -1771,8 +1829,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
     // trend. Con un config token la personalizzazione è esplicita → i flag off
     // devono valere.
     const hasQueryEarly = !!queryPoster || !!mapping || !!configToken
-    const rankingEnabledEarly = qRankingEarly !== null ? qRankingEarly !== "0" : (hasQueryEarly ? rankingBadges : true)
-    const badgeQualityEarly = qBqEarly !== null ? qBqEarly !== "0" : (mapping?.badgeQuality ?? configOverride?.badgeQuality ?? earlyEffSd.badgeQuality ?? sd.badgeQuality ?? true)
+    const rankingEnabledEarly = qRankingEarly !== null ? qRankingEarly !== "0" : (hasQueryEarly ? (earlyEffMapping?.rankingBadges ?? rankingBadges) : true)
+    const badgeQualityEarly = qBqEarly !== null ? qBqEarly !== "0" : (earlyEffMapping?.badgeQuality ?? configOverride?.badgeQuality ?? earlyEffSd.badgeQuality ?? sd.badgeQuality ?? true)
     // Flag pre-digitale per il fetch condizionato: query `pre` > config token
     // > server defaults > false (stessa catena di poster-config, senza mapping).
     const qPreEarly = req.nextUrl.searchParams.get("pre")
@@ -1780,10 +1838,12 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
     // Segnali grezzi del rilevamento pre-digitale (solo debug=1).
     let preJw: boolean | null = null
     let preDigital: string | null = null
-    // Badge età (default OFF): stessa catena per-shape del render finale
-    // (resolveAgeBadgeRequest — mai catene duplicate). Spento = nessun fetch
-    // TMDB extra in Block B (zero rete, zero byte diversi).
-    const ageEarly = resolveAgeBadgeRequest(req.nextUrl.searchParams, configOverride, earlyEffSd, sd)
+    // Badge età (default OFF): stessa catena per-shape con per-titolo del
+    // render finale (resolveAgeBadgeRequest sul mapping effettivo — mai
+    // catene duplicate). Spento = nessun fetch TMDB extra in Block B
+    // (zero rete, zero byte diversi); un OFF esplicito per-titolo spegne il
+    // fetch anche con default ON.
+    const ageEarly = resolveAgeBadgeRequest(req.nextUrl.searchParams, configOverride, earlyEffSd, sd, earlyEffMapping)
     const ageBadgeEnabledEarly = ageEarly.ageBadge
     const ageCountryEarly = ageEarly.ageCountry
     // Master badge globale con la STESSA risoluzione canonica del render
@@ -1798,8 +1858,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
     const badgesEnabledEarly: boolean | undefined = qBadgesEarly !== null
       ? qBadgesEarly !== "0"
       : (isLiveFollowEarly
-        ? (mapping?.showBadges ?? configOverride?.globalBadges ?? earlyEffSd.globalBadges ?? sd.globalBadges ?? showBadges)
-        : (hasQueryEarly ? (configOverride !== null ? configOverride.globalBadges : showBadges) : true))
+        ? (earlyEffMapping?.showBadges ?? configOverride?.globalBadges ?? earlyEffSd.globalBadges ?? sd.globalBadges ?? showBadges)
+        : (hasQueryEarly ? (configOverride !== null ? configOverride.globalBadges : (earlyEffMapping?.showBadges ?? showBadges)) : true))
     const ageFetchEnabledEarly = badgesEnabledEarly !== false && ageBadgeEnabledEarly
     // Anime rank parsed pre-cache; only rankingEnabledEarly is needed here.
     // Ranking source also resolved pre-cache and reused, no recompute.
@@ -2376,7 +2436,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
       ? (qFormatsRaw === "none" || qFormatsRaw === "" ? [] : (qFormatsRaw.split(",").map((s) => s.trim().toLowerCase()).filter(isVideoFormat) as VideoFormat[]))
       : null
     const allowedFormats = earlyEffSd.videoFormats ?? sd.videoFormats
-    const requestedFormats = qFormats ?? mapping?.videoFormats ?? null
+    const requestedFormats = qFormats ?? earlyEffMapping?.videoFormats ?? null
 
     const effectiveFormats = availableFormats.filter((f) => {
       if (requestedFormats !== null) {
@@ -2541,12 +2601,37 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
     const targetCenter = Math.round(30 * (isLandscape ? LAND_H : STD_H) / 570)
 
     // 8. Pre-resolve accent color override
+    // Query `ac=` manuale vince; altrimenti il manuale salvato EFFETTIVO per
+    // forma (profilo landscape vince sul flat a chiave presente — null di
+    // profilo = automatico esplicito, mai resurrect del flat; assente =
+    // eredita). Solo manuali persistiti: gli auto effettivi non si congelano.
     const qAc = hardenedParams.get("ac")
+    const effAccentForShape = effectiveMappingForShape(mapping, isLandscape ? "landscape" : "poster")?.accentColor
     const accentOverride = (qAc && isValidHex(qAc))
       ? { genreColor: qAc, rankColor: qAc }
-      : mapping?.accentColor
-        ? { genreColor: mapping.accentColor, rankColor: mapping.accentColor }
+      : effAccentForShape
+        ? { genreColor: effAccentForShape, rankColor: effAccentForShape }
         : null
+
+    // 8-bis. Binding Badge Lab effettivo per il renderer unico: stessa
+    // risoluzione della chiave di cache sopra ma con la forma finale (il
+    // namespace è quello risolto della richiesta, mai un parametro libero:
+    // i privati restano visibili solo al proprietario, il resto degrada).
+    // La verità autorizzata è quella pre-risolta prima del lookup cache
+    // (stessa Map per id: una sola lettura store per richiesta anche se la
+    // forma finale seleziona un altro profilo): chiave e byte non divergono.
+    const presetBinding = resolvePresetBinding({
+      queryId: hardenedParams.get("badgePreset"),
+      queryRev: hardenedParams.get("prv"),
+      mapping: effectiveMappingForShape(mapping, isLandscape ? "landscape" : "poster"),
+      shape: isLandscape ? "landscape" : "poster",
+      isPreview,
+    })
+    const renderPreset = presetBinding.id ? await authorizedPreset(presetBinding.id) : undefined
+    const effectivePresetBinding = {
+      id: renderPreset ? renderPreset.id : null,
+      rev: renderPreset ? renderPreset.revision : null,
+    }
 
     // 9. Debug mode — JSON instead of the poster (no render, no cache write,
     // no 304). With `netgeo=1` generation runs first and the return below
@@ -2771,6 +2856,10 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
       networkLogoOffsetX, networkLogoOffsetY,
       mediaType: mediaType as "movie" | "tv",
       finalRank, animeRankResult, rankingResult,
+      badgePresetId: effectivePresetBinding.id,
+      badgePresetRev: effectivePresetBinding.rev,
+      badgePresetUser: scopedUser,
+      badgePresetResolved: renderPreset,
       mapping, tmdbId, digitalReleaseDate: preDigital ?? null, tmdbNetworks, productionCompanies, tmdbStudios,
       tmdbNetworksDetailed, productionCompaniesDetailed,
       tvType, tvStatus, releaseDate, firstAirDate,

@@ -1,4 +1,4 @@
-import type { BadgeStyle, RankingBadgeStyle, QualityBadgeStyle, BadgeFont, SeparateRatingsStyle, ExtraBadgeStyle, ExtraBadgeFollowRank } from "./badge-styles"
+import type { BadgeStyle, RankingBadgeStyle, QualityBadgeStyle, BadgeFont, SeparateRatingsStyle, ExtraBadgeStyle, ExtraBadgeFollowRank, AgeBadgeStyle } from "./badge-styles"
 import type { VideoFormat } from "./av-specs"
 /** Formato canvas del poster: verticale standard o orizzontale 16:9 (Nuvio). */
 export type PosterShape = "poster" | "landscape"
@@ -193,6 +193,24 @@ export interface Mapping {
   badgeYear?: boolean | null
   badgeRating?: boolean | null
   badgeQuality?: boolean | null
+  /**
+   * Badge età per-titolo (default OFF). Null/assente = eredita i default
+   * effettivi di forma (mai migrazione in lettura dei mapping vecchi).
+   * False esplicito vince su un default ON (stesso contratto degli altri
+   * toggle per-titolo).
+   */
+  ageBadge?: boolean | null
+  /**
+   * Paese della classificazione età per-titolo ("IT" = resa storica).
+   * Null/assente/invalido = eredita i default effettivi di forma
+   * (fail-closed: mai fallback cross-country, mai GLOBAL).
+   */
+  ageCountry?: string | null
+  /**
+   * Stile della pill età per-titolo ("standard" = resa storica).
+   * Null/assente/invalido = eredita i default effettivi di forma.
+   */
+  ageBadgeStyle?: AgeBadgeStyle | null
   /** Riga rating custom provider (display). Default ON quando il provider è configurato. */
   customRatings?: boolean | null
   /** Fonti del voto medio ★ per-titolo (catena: query `rsrc` > mapping >
@@ -298,9 +316,17 @@ export interface Mapping {
 
 /**
  * Parametri di resa con tuning separato per formato canvas. Sottoinsieme dei
- * campi di Mapping: solo quelli di tuning visivo (logo, badge, gradienti,
- * blur). Stili, toggle, metadati condivisi (titolo, rating, generi, date) e
- * base (posterPath/backdropPath) restano unici per titolo.
+ * campi di Mapping: tuning visivo (logo, badge, gradienti, blur) PIÙ gli
+ * stili/toggle visivi per-titolo (badge, ranking, qualità/formati, network)
+ * PIÙ i visuali un tempo condivisi customBadge (extra testuale), accentColor
+ * (override manuale) e binding Badge Lab badgePresetId/badgePresetRev
+ * (coppia atomica: vedi effectiveMappingForShape). I metadati condivisi
+ * (titolo, ratingSources, generi, date, language) e la consegna
+ * (posterShape, basi poster/backdrop, rotazioni) restano unici per titolo; i
+ * controlli global-only (sash/minQuality/ribbonSide, preRelease senza
+ * campo per-titolo) seguono i default effettivi per forma. I mapping senza
+ * `landscape` si comportano esattamente come prima (chiavi assenti/null =
+ * fallback al flat, backward compatible).
  */
 export interface LandscapeSettings {
   logoScale?: number | null
@@ -348,6 +374,80 @@ export interface LandscapeSettings {
    * storico). 0 = ombra disattivata qualunque sia `topShade`.
    */
   topShadeHeight?: number | null
+  /**
+   * Stili/toggle visivi per-titolo con indipendenza per formato (stessa
+   * regola chiave-per-chiave del tuning sopra: il profilo landscape vince
+   * sul flat, assente/null = eredita il flat). Toggle booleani, stili enum,
+   * formati A/V come array (per copia, mai alias).
+   */
+  /** Master badge (default ON). Flat `showBadges`. */
+  showBadges?: boolean | null
+  /** Master classifica (default ON). */
+  rankingBadges?: boolean | null
+  /** Componente genere del badge basso (default ON). */
+  badgeGenre?: boolean | null
+  /** Componente anno del badge basso (default ON). */
+  badgeYear?: boolean | null
+  /** Componente voto del badge basso (default ON). */
+  badgeRating?: boolean | null
+  /** Componente qualità del badge basso (default ON). */
+  badgeQuality?: boolean | null
+  /** Badge età per-titolo (default OFF). Null/assente = eredita il flat. */
+  ageBadge?: boolean | null
+  /** Paese della classificazione età per-titolo (null/assente = eredita il flat). */
+  ageCountry?: string | null
+  /** Stile della pill età per-titolo (null/assente = eredita il flat). */
+  ageBadgeStyle?: AgeBadgeStyle | null
+  /** Riga rating custom provider (display, default ON quando configurato). */
+  customRatings?: boolean | null
+  /** Colonna rating separati (default OFF). */
+  separateRatings?: boolean | null
+  /** Stile badge genere/rating ("shadow" = resa storica). */
+  badgeStyle?: BadgeStyle | null
+  /** Stile badge classifica ("default" = auto-detect). */
+  rankingBadgeStyle?: RankingBadgeStyle | null
+  /**
+   * Stile standalone extra-badge (assente/null = legacy `rs` fallback;
+   * "follow-rank" = own-rank esplicito della forma, ombreggia il flat).
+   */
+  extraBadgeStyle?: ExtraBadgeStyle | ExtraBadgeFollowRank | null
+  /** Font dei testi badge ("inter" = resa storica, null = eredita). */
+  badgeFont?: BadgeFont | null
+  /** Stile icone del badge qualità (null = eredita). */
+  qualityBadgeStyle?: QualityBadgeStyle | null
+  /** Formati A/V abilitati (null = eredita). */
+  videoFormats?: VideoFormat[] | null
+  /** Logo network (default ON). */
+  networkLogo?: boolean | null
+  /** Ancoraggio logo network ("auto" = specchio dinamico). */
+  networkLogoPosition?: NetworkLogoPosition | null
+  /** Nastro stile Netflix all'angolo (default ON). */
+  ribbonEnabled?: boolean | null
+  /**
+   * Badge extra testuale ("Hi", "__badge.today", …; null/"" = selezione
+   * automatica). Chiave PRESENTE nel profilo (inclusa null/"") = vince sul
+   * flat per la forma landscape; assente = eredita il flat (legacy invariato).
+   * Null e "" nel profilo rendono automatica la forma landscape (mai resurrect
+   * del flat); segue la selezione automatica del server.
+   */
+  customBadge?: string | null
+  /**
+   * Override manuale del colore accent (hex #rgb/#rrggbb; null = automatico).
+   * Chiave PRESENTE nel profilo (inclusa null) = vince sul flat; assente =
+   * eredita il flat. Solo manuali nel mapping: gli auto effettivi non si
+   * congelano mai (il save scrive manual-or-null per forma).
+   */
+  accentColor?: string | null
+  /**
+   * Binding Badge Lab, COPPIA atomica (vedi effectiveMappingForShape): se UNA
+   * delle due chiavi è presente nel profilo (inclusa null), la coppia
+   * effettiva landscape viene interamente dal profilo (lato mancante = null,
+   * mai il flat); entrambe assenti = eredita la coppia flat. Null/null =
+   * nessun preset per la forma (mai resurrect del flat).
+   */
+  badgePresetId?: string | null
+  /** Vedi sopra (revisione FNV-1a 8 hex del preset). */
+  badgePresetRev?: string | null
 }
 
 /**
@@ -355,12 +455,29 @@ export interface LandscapeSettings {
  * di `mapping.landscape` vincono sui campi flat, che restano il fallback
  * chiave-per-chiave. Ritorna lo stesso oggetto quando non c'è overlay da
  * applicare (shape portrait o nessun profilo landscape salvato).
+ *
+ * Eccezioni con null-esplicito (indipendenza approvata dei visuali un tempo
+ * condivisi): per `customBadge`/`accentColor` una chiave PRESENTE nel profilo
+ * (inclusa null, per customBadge anche "") vince sul flat — null/"" nel
+ * profilo rendono automatica la forma landscape senza resuscitare il flat;
+ * assente (`undefined`) = eredita il flat (legacy invariato).
+ * Il binding preset è atomico a coppia: se UNA tra `badgePresetId`/
+ * `badgePresetRev` è presente nel profilo, ENTRAMBE le effettive vengono dal
+ * profilo (lato mancante = null, mai il flat) così id/rev non si mescolano
+ * mai tra le forme; entrambe assenti = coppia flat.
  */
 export function effectiveMappingForShape(mapping: Mapping | null, shape: PosterShape): Mapping | null {
   if (!mapping || shape !== "landscape" || !mapping.landscape) return mapping
   const l = mapping.landscape
+  // Binding preset atomico a coppia (vedi sopra): una sola chiave presente
+  // nel profilo rende la coppia effettiva interamente di profilo.
+  const landOwnsPresetPair = l.badgePresetId !== undefined || l.badgePresetRev !== undefined
   return {
     ...mapping,
+    customBadge: l.customBadge !== undefined ? l.customBadge : mapping.customBadge,
+    accentColor: l.accentColor !== undefined ? l.accentColor : mapping.accentColor,
+    badgePresetId: landOwnsPresetPair ? (l.badgePresetId ?? null) : mapping.badgePresetId,
+    badgePresetRev: landOwnsPresetPair ? (l.badgePresetRev ?? null) : mapping.badgePresetRev,
     logoScale: l.logoScale ?? mapping.logoScale,
     logoOffsetX: l.logoOffsetX ?? mapping.logoOffsetX,
     logoOffsetY: l.logoOffsetY ?? mapping.logoOffsetY,
@@ -394,6 +511,28 @@ export function effectiveMappingForShape(mapping: Mapping | null, shape: PosterS
     tintStrength: l.tintStrength ?? mapping.tintStrength,
     topShade: l.topShade ?? mapping.topShade,
     topShadeHeight: l.topShadeHeight ?? mapping.topShadeHeight,
+    showBadges: l.showBadges ?? mapping.showBadges,
+    rankingBadges: l.rankingBadges ?? mapping.rankingBadges,
+    badgeGenre: l.badgeGenre ?? mapping.badgeGenre,
+    badgeYear: l.badgeYear ?? mapping.badgeYear,
+    badgeRating: l.badgeRating ?? mapping.badgeRating,
+    badgeQuality: l.badgeQuality ?? mapping.badgeQuality,
+    customRatings: l.customRatings ?? mapping.customRatings,
+    separateRatings: l.separateRatings ?? mapping.separateRatings,
+    // Badge età per-titolo (stessa regola `??` degli altri toggle/stili:
+    // null/assente nel profilo = eredita il flat, mai shadow esplicito).
+    ageBadge: l.ageBadge ?? mapping.ageBadge,
+    ageCountry: l.ageCountry ?? mapping.ageCountry,
+    ageBadgeStyle: l.ageBadgeStyle ?? mapping.ageBadgeStyle,
+    badgeStyle: l.badgeStyle ?? mapping.badgeStyle,
+    rankingBadgeStyle: l.rankingBadgeStyle ?? mapping.rankingBadgeStyle,
+    extraBadgeStyle: l.extraBadgeStyle ?? mapping.extraBadgeStyle,
+    badgeFont: l.badgeFont ?? mapping.badgeFont,
+    qualityBadgeStyle: l.qualityBadgeStyle ?? mapping.qualityBadgeStyle,
+    videoFormats: l.videoFormats ?? mapping.videoFormats,
+    networkLogo: l.networkLogo ?? mapping.networkLogo,
+    networkLogoPosition: l.networkLogoPosition ?? mapping.networkLogoPosition,
+    ribbonEnabled: l.ribbonEnabled ?? mapping.ribbonEnabled,
   }
 }
 

@@ -56,6 +56,23 @@ export function clamp(v: number, min: number, max: number): number {
 }
 
 /**
+ * Raw landscape ownership for historic-sentinel style keys. The effective
+ * overlay (`effectiveMappingForShape`) loses provenance, so an owned
+ * landscape `shadow`/`inter`/`default` would be filtered as absent and lose
+ * to token/defaults. Only a concrete owned landscape value (valid enum,
+ * including the historic sentinels) wins here; null/absent/invalid inherits
+ * (fail-closed, byte-identical legacy). Portrait never has ownership.
+ */
+function ownedLandscapeEnum<T>(mapping: Mapping | null, shape: PosterShape, key: string, guard: (v: string | null | undefined) => boolean): T | undefined {
+  if (shape !== "landscape") return undefined
+  const land = mapping?.landscape as Record<string, unknown> | null | undefined
+  if (!land || !(key in land)) return undefined
+  const raw = land[key]
+  if (raw === null || raw === undefined) return undefined
+  return guard(raw as string | null | undefined) ? (raw as T) : undefined
+}
+
+/**
  * Formato canvas — precedenza: query `shape` > mapping salvato >
  * config token > server defaults > "poster". Solo "landscape" attiva il
  * ramo 16:9 (base = backdrop TMDB); "poster" e "square" (fallback esplicito
@@ -86,10 +103,13 @@ export function resolvePosterShape(
 // ---------------------------------------------------------------------------
 
 /**
- * Separate ratings display flag — chain: query `sep` > mapping > config
- * token > effective per-shape defaults > flat > false (same as `cr`).
+ * Separate ratings display flag — chain: query `sep` > mapping effettivo per
+ * formato (profilo landscape vince sul flat) > config token > effective
+ * per-shape defaults > flat > false (same as `cr`).
  * The 5th arg carries flats when `sd` is already shape-effective
- * (shape-aware callers always pass it).
+ * (shape-aware callers always pass it); the optional 6th arg selects the
+ * shape for the mapping overlay (default "poster" = legacy flat read,
+ * byte-identical for callers that never pass a shape).
  */
 export function resolveSeparateRatingsEnabled(
   searchParams: URLSearchParams,
@@ -97,11 +117,12 @@ export function resolveSeparateRatingsEnabled(
   configOverride: PictoriumUserConfig | null,
   sd: ServerDefaults,
   flatSd?: ServerDefaults | null,
+  shape?: PosterShape,
 ): boolean {
   const qSep = searchParams.get("sep")
-  return qSep !== null
-    ? qSep !== "0"
-    : (mapping?.separateRatings ?? configOverride?.separateRatings ?? sd.separateRatings ?? flatSd?.separateRatings ?? false)
+  if (qSep !== null) return qSep !== "0"
+  const eff = shape === "landscape" ? effectiveMappingForShape(mapping, "landscape") : mapping
+  return (eff?.separateRatings ?? configOverride?.separateRatings ?? sd.separateRatings ?? flatSd?.separateRatings ?? false)
 }
 
 /**
@@ -345,21 +366,23 @@ export interface PosterRenderConfig {
   badgeYear: boolean
   badgeRating: boolean
   badgeQuality: boolean
-  /** Badge testuale di classificazione per età (default OFF). Per-shape:
-   *  query `age` > config token > defaults effettivi per forma > flat > false
-   *  (nessun per-titolo, come minQuality/sashOrder). */
+  /** Badge testuale di classificazione per età (default OFF). Per-shape con
+   *  per-titolo: query `age` > mapping effettivo per formato > config token >
+   *  defaults effettivi per forma > flat > false (come gli altri toggle
+   *  per-titolo: un OFF esplicito vince su un default ON). */
   ageBadge: boolean
   /** Paese della classificazione età (default "IT", impostazione
    *  indipendente da lingua UI/regione streaming, mai auto-cambiata).
-   *  Per-shape come il toggle: query `agecountry` > config token > defaults
-   *  effettivi per forma > flat > "IT" (fail-closed: valori ignoti/GLOBAL/
-   *  confini cadono sul livello successivo, mai su fetch arbitrari). */
+   *  Per-shape con per-titolo come il toggle: query `agecountry` > mapping
+   *  effettivo per formato > config token > defaults effettivi per forma >
+   *  flat > "IT" (fail-closed: valori ignoti/GLOBAL/confini cadono sul
+   *  livello successivo, mai su fetch arbitrari). */
   ageCountry: string
   /** Stile della pill di classificazione per età (default "standard" = resa
-   *  storica). Per-shape come il toggle età (nessun per-titolo): query
-   *  `agebs` > config token > defaults effettivi per forma > flat >
-   *  "standard" (query presente-ma-invalida = "standard" esplicito,
-   *  fail-closed). */
+   *  storica). Per-shape con per-titolo come il toggle: query `agebs` >
+   *  mapping effettivo per formato > config token > defaults effettivi per
+   *  forma > flat > "standard" (query presente-ma-invalida = "standard"
+   *  esplicito, fail-closed). */
   ageBadgeStyle: AgeBadgeStyle
   /** Soglia minima tier qualità streaming — catena: query `qmin` > server defaults > "SD". Globale (nessun per-titolo). */
   minQuality: StreamQuality
@@ -482,12 +505,13 @@ export interface PosterRenderConfig {
 /**
  * Age-badge request flags — UNICO punto di verità per route (early gating
  * del fetch) e resolvePosterRenderConfig (valori finali): mai catene `age`
- * duplicate che divergono. Per-shape senza per-titolo (come
- * minQuality/sashOrder): query `age`/`agecountry`/`agebs` > config token >
- * effective per-shape defaults > flat > OFF/"IT"/"standard". Il token resta
- * trasporto condiviso (flat): un override esplicito del profilo della forma
- * selezionata viaggia in query e vince sul token (stesso contratto degli
- * altri visual scoped).
+ * duplicate che divergono. Query `age`/`agecountry`/`agebs` > mapping
+ * effettivo per formato > config token > effective per-shape defaults > flat
+ * > OFF/"IT"/"standard". Il token resta trasporto condiviso (flat): un
+ * override esplicito del mapping o del profilo della forma selezionata
+ * viaggia in query e vince sul token (stesso contratto degli altri visual
+ * scoped). Mapping null/assente/invalido = eredita (mai migrazione in
+ * lettura dei mapping vecchi senza chiavi età).
  */
 export interface AgeBadgeRequest {
   ageBadge: boolean
@@ -500,26 +524,34 @@ export function resolveAgeBadgeRequest(
   configOverride: PictoriumUserConfig | null,
   sd: ServerDefaults,
   flatSd?: ServerDefaults | null,
+  mapping?: Pick<Mapping, "ageBadge" | "ageCountry" | "ageBadgeStyle"> | null,
 ): AgeBadgeRequest {
   const qAge = searchParams.get("age")
+  const mappingAge = typeof mapping?.ageBadge === "boolean" ? mapping.ageBadge : undefined
   const ageBadge = qAge !== null
     ? qAge !== "0"
-    : (configOverride?.ageBadge ?? sd.ageBadge ?? flatSd?.ageBadge ?? false)
+    : (mappingAge ?? configOverride?.ageBadge ?? sd.ageBadge ?? flatSd?.ageBadge ?? false)
   const ageCountry = normalizeCertificationCountry(searchParams.get("agecountry"))
+    ?? normalizeCertificationCountry(mapping?.ageCountry)
     ?? normalizeCertificationCountry(configOverride?.ageCountry)
     ?? normalizeCertificationCountry(sd.ageCountry ?? flatSd?.ageCountry)
     ?? DEFAULT_AGE_COUNTRY
-  // Stile pill età — stessa catena per-shape: query `agebs` presente-ma-invalida
-  // = "standard" esplicito (fail-closed, mai ereditare un knockout da
-  // token/defaults con la stessa chiave — come `bfont` invalido = Inter);
-  // assente = cascata token > defaults effettivi per forma > "standard".
+  // Stile pill età — stessa catena per-shape con per-titolo: query `agebs`
+  // presente-ma-invalida = "standard" esplicito (fail-closed, mai ereditare
+  // un knockout da mapping/token/defaults con la stessa chiave — come
+  // `bfont` invalido = Inter); assente = mapping (se valido) > token >
+  // defaults effettivi per forma > "standard".
   const qAgeStyle = searchParams.get("agebs")
+  const mappingAgeStyle = typeof mapping?.ageBadgeStyle === "string" && isAgeBadgeStyle(mapping.ageBadgeStyle)
+    ? mapping.ageBadgeStyle
+    : undefined
   const sdAgeStyle = sd.ageBadgeStyle ?? flatSd?.ageBadgeStyle
   const ageBadgeStyle: AgeBadgeStyle = qAgeStyle !== null
     ? (isAgeBadgeStyle(qAgeStyle) ? qAgeStyle : DEFAULT_AGE_BADGE_STYLE)
-    : (isAgeBadgeStyle(configOverride?.ageBadgeStyle)
-      ? configOverride.ageBadgeStyle
-      : (isAgeBadgeStyle(sdAgeStyle) ? sdAgeStyle : DEFAULT_AGE_BADGE_STYLE))
+    : (mappingAgeStyle
+      ?? (isAgeBadgeStyle(configOverride?.ageBadgeStyle)
+        ? configOverride.ageBadgeStyle
+        : (isAgeBadgeStyle(sdAgeStyle) ? sdAgeStyle : DEFAULT_AGE_BADGE_STYLE)))
   return { ageBadge, ageCountry, ageBadgeStyle }
 }
 
@@ -540,13 +572,17 @@ export function resolvePosterRenderConfig(input: PosterRenderConfigInput): Poste
   // explicit `false`/`[]`/`0` win.
   const esd = effectiveDefaultsForShape(sd, posterShape)
 
-  // Ranking style — precedenza: query `rs` > mapping salvato > config token > server defaults > default.
+  // Ranking style — precedenza: query `rs` > mapping effettivo per formato
+  // (profilo landscape vince sul flat) > config token > server defaults > default.
   // (Coerente con `badgeStyle` sotto: la query vince sul mapping — M6 WYSIWYG.
   // Il sentinel "default" del mapping è trattato come "nessun override", identico
-  // a come "shadow" lo è per badgeStyle.)
+  // a come "shadow" lo è per badgeStyle — ECCETTO un `default` landscape-owned
+  // esplicito, che vince su token/defaults diversi pur restando auto-detect.)
+  const ownedLandscapeRs = ownedLandscapeEnum<RankingBadgeStyle>(mapping, posterShape, "rankingBadgeStyle", isRankingBadgeStyle)
   const rawRs =
     q.get("rs") ||
-    (mapping?.rankingBadgeStyle && mapping.rankingBadgeStyle !== "default" ? mapping.rankingBadgeStyle : undefined) ||
+    ownedLandscapeRs ||
+    (m?.rankingBadgeStyle && m.rankingBadgeStyle !== "default" ? m.rankingBadgeStyle : undefined) ||
     configOverride?.rankingBadgeStyle ||
     esd.rankingBadgeStyle ||
     sd.rankingBadgeStyle
@@ -554,13 +590,13 @@ export function resolvePosterRenderConfig(input: PosterRenderConfigInput): Poste
 
   const qRankParam = q.get("rank")
   const hasRank = !!(input.animeRank || input.rankingResult || mapping?.badgeRank || mapping?.trendRank || qRankParam || input.finalRank)
-  // Nastro stile Netflix — catena: query `ribbon=0/1` > mapping per-titolo >
-  // config token > server defaults > true (ON storico). Su false gli stili
+  // Nastro stile Netflix — catena: query `ribbon=0/1` > mapping effettivo
+  // per formato > config token > server defaults > true (ON storico). Su false gli stili
   // nastro degradano all'equivalente centrato (mai nascosti, WYSIWYG).
   const qRibbon = q.get("ribbon")
   const ribbonEnabled = qRibbon !== null
     ? qRibbon !== "0"
-    : (mapping?.ribbonEnabled ?? configOverride?.ribbonEnabled ?? esd.ribbonEnabled ?? sd.ribbonEnabled ?? true)
+    : (m?.ribbonEnabled ?? configOverride?.ribbonEnabled ?? esd.ribbonEnabled ?? sd.ribbonEnabled ?? true)
   // "default" = auto-detect: mostra il badge stile Netflix se c'è un rank,
   // altrimenti badge standard. Se il sorgente (mapping/query/config) specifica
   // un valore esplicito (pill/colored/bordo/vetro/netflix), viene rispettato
@@ -597,7 +633,7 @@ export function resolvePosterRenderConfig(input: PosterRenderConfigInput): Poste
   }
   const qXbsRaw = q.get("xbs")
   const qXbs = qXbsRaw !== null ? parseExtraLayer(qXbsRaw) : undefined
-  const mXbsRaw = mapping?.extraBadgeStyle as unknown
+  const mXbsRaw = m?.extraBadgeStyle as unknown
   const mXbs = mXbsRaw !== undefined ? parseExtraLayer(mXbsRaw) : undefined
   const cXbsRaw = configOverride?.extraBadgeStyle as unknown
   const cXbs = cXbsRaw !== undefined ? parseExtraLayer(cXbsRaw) : undefined
@@ -733,38 +769,38 @@ export function resolvePosterRenderConfig(input: PosterRenderConfigInput): Poste
   const badgesEnabled = qBadges !== null
     ? qBadges !== "0"
     : (isLiveFollow
-      ? (mapping?.showBadges ?? configOverride?.globalBadges ?? esd.globalBadges ?? sd.globalBadges ?? showBadges)
+      ? (m?.showBadges ?? configOverride?.globalBadges ?? esd.globalBadges ?? sd.globalBadges ?? showBadges)
       : (hasQuery
       ? (configOverride !== null
         ? configOverride.globalBadges
-        : showBadges)
+        : (m?.showBadges ?? showBadges))
       : true))
   const rankingEnabled = qRanking !== null
     ? qRanking !== "0"
     : (isLiveFollow
-      ? (mapping?.rankingBadges ?? configOverride?.rankingBadges ?? esd.rankingBadges ?? sd.rankingBadges ?? rankingBadges)
+      ? (m?.rankingBadges ?? configOverride?.rankingBadges ?? esd.rankingBadges ?? sd.rankingBadges ?? rankingBadges)
       : (hasQuery
       ? (configOverride !== null
         ? configOverride.rankingBadges
-        : rankingBadges)
+        : (m?.rankingBadges ?? rankingBadges))
       : true))
 
-  // Componenti badge genere/rating — precedenza: query `bg/by/br` > mapping salvato
-  // > config token/profilo > server defaults > true (tutti ON di default).
+  // Componenti badge genere/rating — precedenza: query `bg/by/br` > mapping
+  // effettivo per formato > config token/profilo > server defaults > true (tutti ON di default).
   const qBg = q.get("bg")
   const qBy = q.get("by")
   const qBr = q.get("br")
   const qBq = q.get("bq")
-  const badgeGenre = qBg !== null ? qBg !== "0" : (mapping?.badgeGenre ?? configOverride?.badgeGenre ?? esd.badgeGenre ?? sd.badgeGenre ?? true)
-  const badgeYear = qBy !== null ? qBy !== "0" : (mapping?.badgeYear ?? configOverride?.badgeYear ?? esd.badgeYear ?? sd.badgeYear ?? true)
-  const badgeRating = qBr !== null ? qBr !== "0" : (mapping?.badgeRating ?? configOverride?.badgeRating ?? esd.badgeRating ?? sd.badgeRating ?? true)
-  const badgeQuality = qBq !== null ? qBq !== "0" : (mapping?.badgeQuality ?? configOverride?.badgeQuality ?? esd.badgeQuality ?? sd.badgeQuality ?? true)
+  const badgeGenre = qBg !== null ? qBg !== "0" : (m?.badgeGenre ?? configOverride?.badgeGenre ?? esd.badgeGenre ?? sd.badgeGenre ?? true)
+  const badgeYear = qBy !== null ? qBy !== "0" : (m?.badgeYear ?? configOverride?.badgeYear ?? esd.badgeYear ?? sd.badgeYear ?? true)
+  const badgeRating = qBr !== null ? qBr !== "0" : (m?.badgeRating ?? configOverride?.badgeRating ?? esd.badgeRating ?? sd.badgeRating ?? true)
+  const badgeQuality = qBq !== null ? qBq !== "0" : (m?.badgeQuality ?? configOverride?.badgeQuality ?? esd.badgeQuality ?? sd.badgeQuality ?? true)
 
-  // Badge età (classificazione regionale testuale) — per-shape senza
+  // Badge età (classificazione regionale testuale) — per-shape con
   // per-titolo via resolveAgeBadgeRequest (unico punto di verità con la
   // route, che lo riusa per il gating del fetch): default OFF = nessun
   // fetch TMDB extra e nessun cambio di resa finché non abilitato.
-  const { ageBadge, ageCountry, ageBadgeStyle } = resolveAgeBadgeRequest(q, configOverride, esd, sd)
+  const { ageBadge, ageCountry, ageBadgeStyle } = resolveAgeBadgeRequest(q, configOverride, esd, sd, m)
 
   // Minimum streaming quality tier — chain: query `qmin` > effective
   // per-shape defaults > "SD" (show all). Invalid values → default. No
@@ -777,11 +813,11 @@ export function resolvePosterRenderConfig(input: PosterRenderConfigInput): Poste
   const sashOrder: SashBucket[] = parseSashOrder(q.get("sash"))
     ?? normalizeSashOrder(esd.sashOrder ?? sd.sashOrder) ?? [...DEFAULT_SASH_ORDER]
 
-  // Custom rating provider row (display) — precedence: query `cr` > saved
-  // mapping > config token/profile > effective per-shape defaults > true
+  // Custom rating provider row (display) — precedence: query `cr` > mapping
+  // effettivo per formato > config token/profile > effective per-shape defaults > true
   // (ON by default). Rendering still requires a configured provider (env).
   const qCr = q.get("cr")
-  const customRatings = qCr !== null ? qCr !== "0" : (mapping?.customRatings ?? configOverride?.customRatings ?? esd.customRatings ?? sd.customRatings ?? true)
+  const customRatings = qCr !== null ? qCr !== "0" : (m?.customRatings ?? configOverride?.customRatings ?? esd.customRatings ?? sd.customRatings ?? true)
 
   // Fonti voto medio ★ — catena canonica: query `rsrc` > mapping per-titolo >
   // config token > server defaults > imdb+tmdb. Stessa dell'URL Stremio.
@@ -792,10 +828,10 @@ export function resolvePosterRenderConfig(input: PosterRenderConfigInput): Poste
     sd.ratingSources,
   )
 
-  // Separate ratings column — same chain (query `sep` > mapping > config >
-  // effective per-shape defaults > false, see resolveSeparateRatingsEnabled).
+  // Separate ratings column — same chain (query `sep` > mapping effettivo per
+  // formato > config > effective per-shape defaults > false, see resolveSeparateRatingsEnabled).
   // Both canvases: the column follows the quality badge in landscape too.
-  const separateRatings = resolveSeparateRatingsEnabled(q, mapping, configOverride, esd, sd)
+  const separateRatings = resolveSeparateRatingsEnabled(q, mapping, configOverride, esd, sd, posterShape)
 
   // Layout dei rating separati — catena query > mapping effettivo per formato
   // > config > defaults effettivi > "column" (vedi resolveSeparateRatingsStyle).
@@ -810,9 +846,14 @@ export function resolvePosterRenderConfig(input: PosterRenderConfigInput): Poste
 
   // Badge style — confinamento della query string al union type: valori non validi
   // cadono sul default (il renderer in passato li trattava come "shadow" nel ramo else).
-  // Vale per entrambi i formati (i default per-formato scelgono lo stile landscape).
+  // Catena: query `bs` > mapping effettivo per formato > config token >
+  // server defaults (i default per-formato scelgono lo stile landscape).
+  // Un `shadow` landscape-owned esplicito vince su token/defaults diversi
+  // (resta la resa storica, non un fallback); il flat `shadow` resta assente.
+  const ownedLandscapeBs = ownedLandscapeEnum<BadgeStyle>(mapping, posterShape, "badgeStyle", isBadgeStyle)
   const rawBs = q.get("bs")
-    || (mapping?.badgeStyle && mapping.badgeStyle !== "shadow" ? mapping.badgeStyle : undefined)
+    || ownedLandscapeBs
+    || (m?.badgeStyle && m.badgeStyle !== "shadow" ? m.badgeStyle : undefined)
     || configOverride?.badgeStyle
     || esd.badgeStyle
     || sd.badgeStyle
@@ -822,25 +863,29 @@ export function resolvePosterRenderConfig(input: PosterRenderConfigInput): Poste
   // degrada a default. Vale per preview e Stremio (stesso endpoint).
   if (posterShape === "landscape" && badgeStyle === "bar") badgeStyle = DEFAULT_BADGE_STYLE
 
-  // Stile icone qualità — catena: query `qbs` > mapping salvato >
+  // Stile icone qualità — catena: query `qbs` > mapping effettivo per formato >
   // config token > server defaults > "standard". Valori non validi → standard.
   const rawQbs = q.get("qbs")
-    || mapping?.qualityBadgeStyle
+    || m?.qualityBadgeStyle
     || configOverride?.qualityBadgeStyle
     || esd.qualityBadgeStyle
     || sd.qualityBadgeStyle
   const qualityBadgeStyle: QualityBadgeStyle = isQualityBadgeStyle(rawQbs) ? rawQbs : DEFAULT_QUALITY_BADGE_STYLE
 
   // Font dei testi badge — stessa catena degli stili: query `bfont` >
-  // mapping salvato (non-"inter" = override, come "shadow" per badgeStyle) >
-  // config token > server defaults > "inter". Valori non validi → inter
+  // mapping effettivo per formato (non-"inter" = override, come "shadow" per badgeStyle) >
+  // config token > server defaults > "inter". Un `inter` landscape-owned
+  // esplicito vince su token/defaults diversi (resta Inter storico);
+  // il flat `inter` resta assente. Valori non validi → inter
   // (resa storica, URL esistenti invariati). La query usa `??` e non `||`:
   // `?bfont=` (stringa vuota) è un valore presente ma invalido → inter, come
   // lo normalizza la chiave cache; con `||` cadrebbe sui default (es. Oswald)
   // con la stessa chiave di `bfont=inter` ma byte diversi.
+  const ownedLandscapeBfont = ownedLandscapeEnum<BadgeFont>(mapping, posterShape, "badgeFont", isBadgeFont)
   const rawBfont =
     q.get("bfont") ??
-    (mapping?.badgeFont && mapping.badgeFont !== "inter" ? mapping.badgeFont : undefined) ??
+    ownedLandscapeBfont ??
+    (m?.badgeFont && m.badgeFont !== "inter" ? m.badgeFont : undefined) ??
     configOverride?.badgeFont ??
     esd.badgeFont ??
     sd.badgeFont
@@ -1043,15 +1088,15 @@ export function resolvePosterRenderConfig(input: PosterRenderConfigInput): Poste
   const rawNetLogo = q.get("netLogo")
   const networkLogo: boolean = rawNetLogo !== null
     ? rawNetLogo !== "0"
-    : (mapping?.networkLogo ?? (configOverride !== null ? configOverride.networkLogo : undefined) ?? esd.networkLogo ?? sd.networkLogo ?? true)
+    : (m?.networkLogo ?? (configOverride !== null ? configOverride.networkLogo : undefined) ?? esd.networkLogo ?? sd.networkLogo ?? true)
   const qNetLogo = networkLogo ? (rawNetLogo ?? (configOverride !== null ? (configOverride.networkLogo ? "1" : null) : null)) : "0"
   // Posizione logo network: query esplicita (`top` o `auto`) vince sempre;
-  // poi il valore salvato per-titolo (anche `auto`), poi config token, poi
-  // server defaults. Assente o garbage cade al livello successivo della catena.
+  // poi il valore effettivo per formato (profilo landscape vince sul flat),
+  // poi config token, poi server defaults. Assente o garbage cade al livello successivo della catena.
   const qNetPosRaw = q.get("netPos")
   const qNetPosNorm = (qNetPosRaw || "").toLowerCase()
-  const savedNetPos = mapping?.networkLogoPosition === "top" || mapping?.networkLogoPosition === "auto"
-    ? mapping.networkLogoPosition
+  const savedNetPos = m?.networkLogoPosition === "top" || m?.networkLogoPosition === "auto"
+    ? m.networkLogoPosition
     : null
   const configNetPos = configOverride?.networkLogoPosition === "top" || configOverride?.networkLogoPosition === "auto"
     ? configOverride.networkLogoPosition

@@ -213,8 +213,11 @@ Opt-in (`sep=1`, default OFF): sostituisce la media ★ nel badge con una colonn
 > Orizzontale > default di formato) e `ServerDefaults.landscape` per i default
 > globali (tab Impostazioni · Trasforma con sotto-tab Verticale/Orizzontale:
 > sfumatura completa — altezza/intensità/fade/darkness/tinta/ombra — + logo
-> (scala null = auto-fit, offset null = 0) + scale/offset badge; stili e toggle
-> restano condivisi). Risoluzione server:
+> (scala null = auto-fit, offset null = 0) + scale/offset badge + stili/toggle
+> per-titolo del profilo `landscape` (badge, classifica, qualità/formati/età,
+> network — vedi "Badge per-titolo per formato" sotto); restano condivisi solo
+> i controlli global-only (sash/qualità-minima/lato-nastro, senza campo
+> per-titolo). Risoluzione server:
 > query > mapping(.landscape) > config > defaults(.landscape) > default di
 > formato (`effectiveDefaultsForShape` in `server-defaults.ts`, usato da
 > `poster-config` e `stremio-poster-url`). L'editor segue gli stessi fallback:
@@ -260,6 +263,83 @@ Opt-in (`sep=1`, default OFF): sostituisce la media ★ nel badge con una colonn
 > extra indipendente + categorie + Coming Soon), Valutazioni
 > (fonti/separati/custom), Qualità (tier/formati/icone/network), Avanzate
 > (priorità `sashOrder`, reset del solo profilo).
+>
+> **Badge per-titolo per formato (Verticale/Orizzontale):** gli stessi stili e
+> toggle dei default vivono anche nel profilo per-titolo `mapping.landscape`
+> (`LandscapeSettings`: `showBadges`/`rankingBadges`/`badgeGenre`/`badgeYear`/
+> `badgeRating`/`badgeQuality`/`ageBadge`/`ageCountry`/`ageBadgeStyle`/
+> `customRatings`/`separateRatings` + `badgeStyle`/
+> `rankingBadgeStyle`/`extraBadgeStyle`/`badgeFont`/`qualityBadgeStyle`/
+> `videoFormats` + `networkLogo`/`networkLogoPosition`/`ribbonEnabled` +
+> `customBadge`/`accentColor`/`badgePresetId`/`badgePresetRev`; chiavi
+> assenti = eredita il flat, mai migrazione in lettura — con semantica
+> explicit-null-shadows per i quattro visuali un tempo condivisi: chiave
+> PRESENTE nel profilo (inclusa `null`, per customBadge anche `""`) vince sul
+> flat per la forma landscape (`null`/`""` nel profilo = la forma landscape
+> rende automatico, mai resurrect del flat); il binding preset è atomico a coppia (una sola chiave presente =
+> coppia intera di profilo, mai mescolata col flat). Solo i manuali persistono
+> per l'accento (auto mai congelato). Risoluzione
+> server identica ai default: query > mapping effettivo per formato
+> (`effectiveMappingForShape` in `types.ts`, riusato da `poster-config`,
+> route pre-gate e `stremio-poster-url`) > config token > defaults effettivi
+> per forma > default di formato; `xbs` segue le stesse regole own-rank dei
+> default (`follow-rank` ombreggia il flat, legacy `null`/assente eredita).
+> Restano condivisi per-titolo: fonti voto (`ratingSources`,
+> intenzionalmente condiviso per disegno server), metadati/base/rotazioni; e i
+> global-only senza campo
+> per-titolo (sash/qualità-minima/lato-nastro) seguono i default effettivi
+> per forma. L'età è per-titolo dal mapping effettivo (`ageBadge`/`ageCountry`/
+> `ageBadgeStyle`, flat + profilo `landscape`, stessa regola degli altri
+> toggle/stili: assente/null = eredita, `false` esplicito vince sul default
+> ON). Editor: stato unico per formato in editing con stash al cambio
+> (`EditView`, come il tuning) e init dal mapping effettivo (`context`); il
+> save scrive il flat in portrait (preservando il profilo + backfill dei
+> pre-edit cambiati via `snapshotMissingMappingLandscape`, con repair
+> atomica della coppia preset) e il profilo in
+> landscape (preservando il flat verbatim; accent solo-manuale); "salva solo poster" azzera le custom come
+> prima. Nessun nuovo parametro URL/chiave cache (`extra`/`ac`/`badgePreset`/
+> `prv` esistenti veicolano i valori effettivi di forma).
+>
+> **Boundary di salvataggio (l'indipendenza è reale solo se il save preserva
+> l'altro formato — il POST `/api/mappings` è full-replace, la risoluzione
+> per-formato da sola non basta).** Regole (`usePosterSave`, puri in
+> `visual-presets.ts`): save landscape = flat portrait preservato VERBATIM
+> dal salvato (concreto resta, `null` resta `null`, assente resta assente —
+> mai il live landscape; mapping nuovo = assente/eredita, mai clone del
+> landscape); save portrait = backfill nel profilo del PRE-EDIT effettivo
+> per le sole chiavi che l'edit muove (profilo sparse altrimenti): flat
+> concreto = verbatim, flat inherit-`null`/assente = chain-effective
+> (`mappingShapeChainEffective`: profilo default Orizzontale > default flat >
+> factory storica fail-closed — mai il live editato, mai guess ciechi sotto
+> default non-canonici; senza provenance resta il fallback legacy
+> factory/skip, mai il live). Entrambi i formati editati prima di un singolo
+> save = stash dell'altro formato (`otherShapeStash`: il
+> portrait vince per i flat nel save landscape, il landscape vince per il
+> profilo nel save portrait; tutte le 24 chiavi per-titolo — tuning/logo/sfumatura
+> sulle regole esistenti). Lo stash dell'altro formato è condiviso per-titolo
+> in `PosterEditorContext` (vedi `src/lib/shape-draft.ts`: un solo owner alla
+> volta, chiave `userId:media_type:id` — un nuovo titolo, anche non salvato ma
+> con identità reale, non legge mai lo stash del precedente; key mismatch =
+> null): EditView vi specchia lo stash allo switch di formato e lo dichiara
+> sul titolo aperto; il Save manuale passa il proprio stash esplicito (vince),
+> TUTTI gli altri full-save (`saveConfig` senza stash esplicito e gli autosave
+> di esclusione poster/backdrop via `useSharedShapeStash`) risolvono lo shared
+> sullo stesso boundary — mai caduta al mapping salvato per lo staged. Il
+> cover-only non viaggia mai sullo stash (clear intenzionale, contratto
+> invariato). Stash verbatim (false/0/[]/`follow-rank` preservati, mai
+> filtrati); la provenance logo-scale del ripristino allo switch resta locale
+> in EditView (il save consuma i draft verbatim come il path esplicito).
+> Resta condiviso per disegno server solo `ratingSources` (fonti voto, senza
+> chiave profilo). Azzeramento portrait (accento automatico esplicito):
+> l'apertura ripristina il manuale salvato nel live e lo stash portrait
+> dichiara la chiave PRESENTE (`null` = auto esplicito, mai inherit
+> intoccato), quindi il save landscape azzera il flat (drop = auto, stesso
+> contratto del save portrait dove `undefined` = drop = auto); senza visita
+> portrait (chiave assente) il save landscape preserva il salvato verbatim.
+> Il ricalcolo auto (`useRootColors`) riempie solo il canale auto e non
+> clobbera mai un manuale esplicito (ripristinato all'apertura o dallo stash
+> al cambio formato). L'accento automatico esplicito in landscape si scrive
+> `null` di profilo (ombreggia il flat, mai resurrect).
 >
 > **Nastro Standard vs Colorato (U1):** stessa geometria nastro Netflix
 > (`buildNetflixRankBadgeSVG`); Standard (`rs=netflix`) = satinato
@@ -313,9 +393,9 @@ Opt-in (`sep=1`, default OFF): sostituisce la media ★ nel badge con una colonn
 | `qmin` | — (solo default globale, nessun per-titolo in Fase 1) | `q.get("qmin")` > server defaults (`PICTORIUM_QUALITY_MIN`) > `"SD"` — tier sotto soglia = niente badge; emesso negli URL Stremio solo quando ≠ `SD` |
 | `sash` | — (solo default globale via 5 toggle Impostazioni, nessun per-titolo in Fase 4) | `q.get("sash")` > server defaults (`PICTORIUM_SASH_ORDER`) > ordine standard (`upcoming,rank,new,award,extra`) — sottoinsieme ordinato, non listati = spenti, `sash=` vuoto = tutto spento, garbage = default; emesso negli URL Stremio solo quando ≠ default |
 | `df` | default globale `defaultDateFormat` (tendina Impostazioni: `locale`/`dmy`/`mdy`/`iso`); preview sempre esplicita (`df=locale/…`, WYSIWYG) | formato data badge "in uscita": query > server defaults (`dateFormat`) > `locale` (fail-closed: ignoti = `locale`); emesso negli URL Stremio solo quando ≠ `locale` (URL esistenti invariati) |
-| `age` | default globale `defaultAgeBadge` (toggle Impostazioni · Badge, default OFF); preview sempre esplicita (`age=0/1`, WYSIWYG) | badge testuale di classificazione per età: pill neutra tra tier qualità e formati A/V top-right (sotto il 4K, sopra DV/Atmos, stessi offset/scale/cap; rende anche senza 4K). Catena globale senza per-titolo: query > config token > server defaults (`PICTORIUM_AGE_BADGE`) > false. Spento = zero fetch TMDB extra e resa storica invariata; richiede il master `badgesEnabled` (lo spegne tutto). Emesso negli URL Stremio solo quando ON (+ `age=0` esplicito con `config`) |
-| `agecountry` | default globale `defaultAgeCountry` (tendina Impostazioni · Badge, default `IT`, mai auto-cambiata con lingua/regione); preview sempre esplicita (`agecountry=IT/…`, WYSIWYG) | paese della classificazione età (ISO-2 maiuscolo, `GLOBAL` escluso): query > config token > server defaults (`PICTORIUM_AGE_COUNTRY`) > `IT` (fail-closed per livello: garbage/`GLOBAL`/non ISO-2 cade sul livello successivo; etichetta originale del paese senza conversioni né fallback cross-country, dati assenti = badge nascosto). Emesso negli URL Stremio solo col badge attivo |
-| `agebs` | default globale stile pill età (selettore Impostazioni · Badge, default `standard` = resa storica; `knockout` = tag bianco con glifi ritagliati, stesso builder condiviso della qualità knockout); preview sempre esplicita (`agebs=standard/knockout`, WYSIWYG) | stile della pill età nell'ordine fisso qualità → età → formati A/V top-right (tra tier 4K e icone Dolby/HDR, stessi offset/scale/cap; rende anche senza 4K). Catena globale senza per-titolo: query > config token > server defaults > `standard` (query presente-ma-invalida = `standard` esplicito, fail-closed come `bfont`). In allowlist cache key (`agebs` invalido → `standard`, mai delete: l'assenza può ereditare knockout) |
+| `age` | default globale `defaultAgeBadge` (toggle Impostazioni · Badge, default OFF) + per-titolo editor (`BadgeControls` famiglia Qualità, indipendente per formato); preview sempre esplicita (`age=0/1`, WYSIWYG) | badge testuale di classificazione per età: pill neutra tra tier qualità e formati A/V top-right (sotto il 4K, sopra DV/Atmos, stessi offset/scale/cap; rende anche senza 4K). Catena con per-titolo: query > mapping effettivo per formato > config token > server defaults effettivi per forma (`PICTORIUM_AGE_BADGE`) > false. Spento = zero fetch TMDB extra e resa storica invariata; richiede il master `badgesEnabled` (lo spegne tutto). Emesso negli URL Stremio solo quando ON (+ `age=0` esplicito con `config`) |
+| `agecountry` | default globale `defaultAgeCountry` (tendina Impostazioni · Badge, default `IT`, mai auto-cambiata con lingua/regione) + per-titolo editor (stessa tendina, indipendente per formato); preview sempre esplicita (`agecountry=IT/…`, WYSIWYG) | paese della classificazione età (ISO-2 maiuscolo, `GLOBAL` escluso): query > mapping effettivo per formato > config token > server defaults effettivi per forma (`PICTORIUM_AGE_COUNTRY`) > `IT` (fail-closed per livello: garbage/`GLOBAL`/non ISO-2 cade sul livello successivo; etichetta originale del paese senza conversioni né fallback cross-country, dati assenti = badge nascosto). Emesso negli URL Stremio solo col badge attivo |
+| `agebs` | default globale stile pill età (selettore Impostazioni · Badge, default `standard` = resa storica; `knockout` = tag bianco con glifi ritagliati, stesso builder condiviso della qualità knockout) + per-titolo editor (stesso selettore, indipendente per formato); preview sempre esplicita (`agebs=standard/knockout`, WYSIWYG) | stile della pill età nell'ordine fisso qualità → età → formati A/V top-right (tra tier 4K e icone Dolby/HDR, stessi offset/scale/cap; rende anche senza 4K). Catena con per-titolo: query > mapping effettivo per formato > config token > server defaults effettivi per forma > `standard` (query presente-ma-invalida = `standard` esplicito, fail-closed come `bfont`). In allowlist cache key (`agebs` invalido → `standard`, mai delete: l'assenza può ereditare knockout) |
 | `pre` | `preRelease` editor live per-titolo (preview titolo) + default globale `defaultPreRelease` (toggle Impostazioni · Badge, default OFF, per-shape `land ?? flat` in landscape); preview titolo/defaults SEMPRE esplicita (`pre=0/1`, WYSIWYG — come `ribbon`/`cr`/`sep`: senza, un default salvato ON scavalcerebbe lo staged OFF e la preview mostrerebbe il nastro a effetto spento) | `qPre` — effetto pre-digitale: velo scuro (sotto logo e badge, che restano luminosi) + nastro angolare rosso "coming soon!" in alto (a sinistra; a destra con side="right") sui film senza disponibilità digitale/streaming (JW offerte non-CINEMA > TMDB type 4). Catena: query > config token > server defaults (`PICTORIUM_PRE_RELEASE`, effettivi per forma) > false. Emesso negli URL Stremio solo quando ON (+ `pre=0/1` esplicito con `config`, come `badges`/`ranking`/`age`) |
 | `hideLogo` | mai dal client (solo banner Stremio) | solo query `hideLogo=1`: salta il composite logo film (fetch tenuto per i colori accent). Vale per entrambi i canvas: il landscape cuoce il logo come il portrait (vincoli 16:9), solo il banner pulito lo nasconde. Col banner (landscape) il badge genere va in basso a DESTRA (ancoraggio destro, niente shift landscape) e il network segue i rami "senza logo" (top-left / a fianco del nastro) |
 | `rd`/`fad` | date complete `release_date`/`first_air_date` (solo se valide `YYYY-MM-DD`) | ramo query: date a piena precisione per rilevamento pre-digitale (fallback `year` → `${y}-01-01`) |
@@ -326,10 +406,10 @@ Opt-in (`sep=1`, default OFF): sostituisce la media ★ nel badge con una colonn
 | `animerank` | rank anime del titolo selezionato (da `mdblistAnimeList`, solo preview WYSIWYG) | `qAnimeRank` — override del rank anime (`media_type=tv`); senza, il server lo calcola da `fetchMDBList` con la chiave della richiesta o il fallback d'istanza (`PICTORIUM_MDBLIST_KEY`) |
 | `label` | `badge.rankLabel \|\| badge.label` | `qLabel` — override label ranking |
 | `extra` | `badge.label` (se extra) o `customBadge` | `queryExtra` — forza badge extra |
-| `bs` | `badgeStyle` | `qBs` — "shadow"/"pill"/"bar"/"colored"/"bordo"/"vetro"/"minimal" (vale per entrambi i formati; il default landscape sceglie lo stile orizzontale) |
-| `bfont` | `badgeFont` | `q.get("bfont")` — "inter"/"barlow-condensed"/"oswald" (default "inter" = resa storica; assente o non valido → Inter). Vale per entrambi i formati. I preset custom/house del Badge Lab hanno tipografia propria e lo ignorano. |
+| `bs` | `badgeStyle` | `qBs` — "shadow"/"pill"/"bar"/"colored"/"bordo"/"vetro"/"minimal" (catena query > mapping effettivo per formato > config > defaults effettivi per forma; il default landscape sceglie lo stile orizzontale) |
+| `bfont` | `badgeFont` | `q.get("bfont")` — "inter"/"barlow-condensed"/"oswald" (default "inter" = resa storica; assente o non valido → Inter). Catena query > mapping effettivo per formato > config > defaults effettivi per forma. I preset custom/house del Badge Lab hanno tipografia propria e lo ignorano. |
 | `rs` | `rankingBadgeStyle` | `qRs` — "default"/"colored"/"pill"/"bordo"/"vetro"/"netflix"/"corner"/"number" ("bar" rimosso: degrada a "default"; "corner" = pill piatta tinta accent ancorata alto-sx; "number" = solo cifre Inter Bold con gradiente bianco→argento e ombra morbida, senza piastra/nastro/`#`/label, ancorato alto-sx come `corner` ma specchiato a dx con `side=right`; collisioni network/qualità/Coming Soon condivise col `corner`; i rank `number` rendono su una baseline X di stile `NUMBER_BADGE_BASE_OFFSET_X=-20` canvas px — vedi `tox`) |
-| `xbs` | `extraBadgeStyle` (per-titolo o default; assente = legacy `rs`) | `qXbs` — "default"/"pill"/"colored"/"bordo"/"vetro"/"corner" (solo extra; assente ovunque = legacy `rs`; invalido = assente; rank usa sempre `rs`). Sentinel esplicito `follow-rank` (query/mapping/token/profilo, entrambi i formati) = own-rank del formato effettivo (renderer: `null` via fallback `rs`, nastri/numeri inclusi; query vince su mapping/token/profilo). Legacy `null`/assente/invalido = eredita il livello successivo (mai shadow, URL legacy byte-identici; il per-titolo resta flat condiviso per entrambi i canvas) |
+| `xbs` | `extraBadgeStyle` (per-titolo o default; assente = legacy `rs`) | `qXbs` — "default"/"pill"/"colored"/"bordo"/"vetro"/"corner" (solo extra; assente ovunque = legacy `rs`; invalido = assente; rank usa sempre `rs`). Sentinel esplicito `follow-rank` (query/mapping/token/profilo, entrambi i formati) = own-rank del formato effettivo (renderer: `null` via fallback `rs`, nastri/numeri inclusi; query vince su mapping/token/profilo). Legacy `null`/assente/invalido = eredita il livello successivo (mai shadow, URL legacy byte-identici; il per-titolo segue il profilo `landscape` con fallback al flat) |
 | `tscale`/`tox`/`toy` | `topBadgeScale`/`topBadgeOffsetX`/`topBadgeOffsetY` (badge CLASSIFICA superiore) | scala `%` 10..200 (default 100, tutti gli stili) + offset px (default 0, solo centrati). Semantica `tox` = baseline di stile + aggiustamento utente: per un rank `number` (`topBadge.type=rank`, stile effettivo `number`) la X effettiva è `tox + NUMBER_BADGE_BASE_OFFSET_X(-20)` (stesso su sx/dx e portrait/landscape; gli slider UI mostrano l'effettivo e convertono l'edit in aggiustamento, i raw salvati non migrano mai); extra in fallback legacy `rs=number` e tutti gli altri stili restano sulla baseline storica (X effettiva = `tox`). URL preview/Stremio emettono sempre il `tox` raw (mai doppio conteggio: la baseline si applica una sola volta al render) |
 | `exscale`/`exox`/`exoy` | `extraBadgeScale`/`extraBadgeOffsetX`/`extraBadgeOffsetY` (badge EXTRA superiore) | opt-in, stessi bound classifica; assente (o query invalida) = fallback legacy sul tuning classifica (URL invariati). Catena: query > mapping per-shape > config token > defaults per-shape > legacy. Il render seleziona il tuning per kind del topBadge effettivo (rank → classifica, extra → extra-dopo-fallback): nastro sempre classifica, `number` mai -20 su extra. Emissione esplicita solo se definito; in compact entra in `dv` solo in quel caso (altrimenti firma storica invariata). Regola indipendenza (implementata in `extra-materialize.ts`, applicata da setter classifica + `applyVisualPreset`): il primo edit classifica materializza l'extra precedente indipendente (tutti gli assi ancora in follow) PRIMA di cambiare il rank; l'edit extra non tocca mai la classifica. Reset extra = torna a null (segui) |
 | `gscale` | `genreBadgeScale` (badge genere/rating in basso) | scala `%` 10..200 (default 100 su base 28.6px nativa; la **barra** scala nativa via font per restare full-width) |
@@ -344,6 +424,7 @@ Opt-in (`sep=1`, default OFF): sostituisce la media ★ nel badge con una colonn
 | `shape` | `posterShape` (sempre esplicito in preview: `poster`/`landscape`; default globale `defaultPosterShape`, per-titolo dal mapping) | catena `shape` > mapping (`posterShape`) > config token > server defaults (`PICTORIUM_POSTER_SHAPE`) > `"poster"` — solo `landscape` attiva il canvas 16:9 (`LAND_W=768/LAND_H=432`, base = backdrop TMDB via `posterUrlOriginal`); emesso negli URL Stremio solo quando landscape (il portrait resta omesso per non invalidare la cache) |
 | `align` | `logoAlign` per-shape (sempre esplicito in preview landscape; mai in portrait) | `left`/`center` esplicito > override profilo Orizzontale (concreto vince, `null`/assente = segue il flat) > flat `sd.logoAlign` > default di formato (landscape `left`, poster `center`) — i portrait sono sempre centrati, nessun globale li sposta mai; in portrait l'opzione Sinistra è un no-op dimostrato (disabilitata in UI) |
 | `ac` | `accentColor` SOLO se manuale (`isManualAccent`: diverso da `autoAccentColor` auto-rilevato via `useRootColors`, come il server) — mai l'auto, mai nel mapping salvato | `qAc` — override colore accent (vince su tutto: badge colored, blur tint, scrim) |
+| `badgePreset`/`prv` | `badgePresetId`/`badgePresetRev` per-titolo (preview solo quando impostati; Stremio dal mapping) | binding Badge Lab effettivo (`resolvePresetBinding` in `badge-preset-binding.ts`, unico renderer `getPresetForPoster` + `generatePosterBuffer`): query valida vince; altrimenti fuori-preview la coppia salvata effettiva per formato (profilo `landscape` atomico via `effectiveMappingForShape`, mai mescolata col flat); la preview effettiva non eredita mai il mapping (un clear non resuscita il salvato). Utente = namespace risolto della richiesta (privati solo al proprietario, resto fail-open sullo standard). Prima del lookup cache la route legge dallo store la revisione+target CORRENTI autorizzati per quel namespace (`getPresetForUser`, una sola lettura per richiesta, stesso snapshot in `genInput`): `prv` non è un pin storico, edit/revoca si riflettono subito; binding morto/non autorizzato = standard. Chiave cache: frammento corrente revisione+target (+ hash `u` per namespace); ETag resta l'hash dei byte finali |
 | `live` | mai dallo stato editor (solo template "Segui il mio spazio": `followSpace` in `buildUrlPattern`, o `live: true` esplicito nel builder) | `live=1` — politica di rivalidazione (non forza il render): header `public, no-cache, max-age=0, must-revalidate` senza SWR su 200 e 304 + mai immutable; i parametri assenti seguono lo spazio (`badges`/`ranking`/`be` compresi, vedi sotto) |
 | `tvdb_key` | mai dal client (solo manuale; Stremio usa il fallback d'istanza) | chiave TVDB per il rescue poster B1: solo ramo non-mappato, solo senza clean TMDB + con logo + solo portrait. Solo il textless (`includesText === false`) salva il logo; con testo il logo si azzera (no doppio logo). La chiave non entra mai nella cache key (segreto); il flag server-side `tvdb=1` separa le entry con rescue attivo |
 

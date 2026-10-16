@@ -1,13 +1,14 @@
 "use client"
 
-import { createContext, useContext, useState, useMemo, useCallback } from "react"
-import type { TMDBImage, NetworkLogoPosition, PosterLayout, PosterFreshScope, PosterShape } from "@/lib/types"
+import { createContext, useContext, useState, useMemo, useCallback, useRef } from "react"
+import type { TMDBImage, NetworkLogoPosition, PosterLayout, PosterFreshScope, PosterShape, LandscapeSettings } from "@/lib/types"
 import { useDefaults, type DefaultSyncStatus, type DefaultsState, type StagedSaveResult } from "@/lib/useDefaults"
 import type { LandscapeServerDefaults } from "@/lib/server-defaults"
 import type { DateFormat } from "@/lib/release-badge"
 import type { BadgeStyle, RankingBadgeStyle, ExtraBadgeStyle, ExtraBadgeFollowRank, QualityBadgeStyle, BadgeFont, SeparateRatingsStyle } from "@/lib/badge-styles"
 import type { AgeBadgeStyle } from "@/lib/badge-styles"
-import { getSeparateBadgeDefaultScale } from "@/lib/badge-styles"
+import { DEFAULT_AGE_BADGE_STYLE, getSeparateBadgeDefaultScale, isAgeBadgeStyle } from "@/lib/badge-styles"
+import { DEFAULT_AGE_COUNTRY, normalizeCertificationCountry } from "@/lib/certification"
 import type { SashBucket } from "@/lib/badge-priority"
 import type { VideoFormat } from "@/lib/av-specs"
 import type { VisualPresetValues } from "@/lib/visual-presets"
@@ -16,6 +17,7 @@ import { materializeExtraTuning, clearedExtraForPresetApply } from "@/lib/extra-
 import { projectPerTitleVisualPreset } from "@/lib/per-title-preset"
 import { logoEffectiveAutoScale } from "@/lib/logo-selection"
 import { resolveNetworkEffectiveView } from "@/lib/network-follow"
+import { cloneShapeDraft, type ShapeDraftShape } from "@/lib/shape-draft"
 
 /**
  * PosterEditorCtx — possiede il proprio stato di editing (badge defaults,
@@ -103,6 +105,15 @@ export interface PosterEditorCtx {
   setBadgeRating: (v: boolean | ((prev: boolean) => boolean)) => void
   badgeQuality: boolean
   setBadgeQuality: (v: boolean | ((prev: boolean) => boolean)) => void
+  /** Badge età per-titolo del poster in editing (default OFF). */
+  ageBadge: boolean
+  setAgeBadge: (v: boolean | ((prev: boolean) => boolean)) => void
+  /** Paese della classificazione età per-titolo ("IT" = resa storica). */
+  ageCountry: string
+  setAgeCountry: (v: string | ((prev: string) => string)) => void
+  /** Stile della pill età per-titolo ("standard" = resa storica). */
+  ageBadgeStyle: AgeBadgeStyle
+  setAgeBadgeStyle: (v: AgeBadgeStyle | ((prev: AgeBadgeStyle) => AgeBadgeStyle)) => void
   /** Riga rating custom provider (default ON quando il provider è configurato). */
   customRatings: boolean
   setCustomRatings: (v: boolean | ((prev: boolean) => boolean)) => void
@@ -486,6 +497,22 @@ export interface PosterEditorCtx {
   // ---- Episode Group (TV Series parts/seasons order) ----
   episodeGroupId: string | null
   setEpisodeGroupId: (v: string | null | ((prev: string | null) => string | null)) => void
+  /**
+   * Shared per-title other-shape draft stash (see `src/lib/shape-draft.ts`):
+   * single owner keyed by `perTitleDraftKey(userId, mediaType, id)`. EditView
+   * mirrors its shape-switch stash here; normal Save passes its local stash
+   * explicitly (wins) while exclusion autosaves resolve the shared draft via
+   * `useSharedShapeStash` — same `otherShapeStash` save boundary. Per
+   * provider instance (refs, never module-global): nothing leaks across
+   * sessions. Key mismatch reads null; a new key claim drops the old entry,
+   * so a new title identity never consumes the previous title's draft.
+   */
+  /** Mirror a staged other-shape draft (ownership moves to `titleKey`). */
+  stashShapeDraft: (titleKey: string, shape: ShapeDraftShape, draft: LandscapeSettings) => void
+  /** Read a staged draft for exactly `titleKey` (null on key mismatch). */
+  readShapeDraft: (titleKey: string, shape: ShapeDraftShape) => LandscapeSettings | null
+  /** Claim ownership for `titleKey` with empty drafts (title open). */
+  resetShapeDraftsForTitle: (titleKey: string) => void
 }
 
 const Ctx = createContext<PosterEditorCtx | null>(null)
@@ -544,10 +571,44 @@ export function PosterEditorProvider({
   // ---- Episode Group state ----
   const [episodeGroupId, setEpisodeGroupId] = useState<string | null>(null)
 
+  // Shared per-title other-shape draft stash (boundary documented in
+  // `src/lib/shape-draft.ts`): single owner + per-shape staged drafts, refs
+  // only (no re-render on stash — readers pull synchronously at save time).
+  const shapeDraftOwnerRef = useRef<string | null>(null)
+  const shapeDraftsRef = useRef(new Map<ShapeDraftShape, LandscapeSettings>())
+  const stashShapeDraft = useCallback(
+    (titleKey: string, shape: ShapeDraftShape, draft: LandscapeSettings) => {
+      if (shapeDraftOwnerRef.current !== titleKey) {
+        shapeDraftsRef.current.clear()
+        shapeDraftOwnerRef.current = titleKey
+      }
+      shapeDraftsRef.current.set(shape, cloneShapeDraft(draft))
+    }, [])
+  const readShapeDraft = useCallback(
+    (titleKey: string, shape: ShapeDraftShape): LandscapeSettings | null => {
+      if (shapeDraftOwnerRef.current !== titleKey) return null
+      const found = shapeDraftsRef.current.get(shape)
+      return found ? cloneShapeDraft(found) : null
+    }, [])
+  const resetShapeDraftsForTitle = useCallback((titleKey: string) => {
+    if (shapeDraftOwnerRef.current !== titleKey) {
+      shapeDraftsRef.current.clear()
+      shapeDraftOwnerRef.current = titleKey
+    }
+  }, [])
+
   // ---- Custom badge ----
   const [customBadge, setCustomBadge] = useState<string | null>(null)
   const [badgePresetId, setBadgePresetId] = useState<string | null>(null)
   const [badgePresetRev, setBadgePresetRev] = useState<string | null>(null)
+  // Badge età per-titolo (stesso pattern dei visuali un tempo condivisi
+  // sopra: stato live per-titolo, mai nei default persistiti — i default
+  // restano i `defaultAge*`, con legacy alias bare `ageBadge*` intatti).
+  // Iniziali = resa storica (l'apertura titolo li riallinea sempre a
+  // mapping-effettivo > default di forma, mai colori/valori stantii).
+  const [ageBadge, setAgeBadgeState] = useState<boolean>(false)
+  const [ageCountry, setAgeCountryState] = useState<string>(DEFAULT_AGE_COUNTRY)
+  const [ageBadgeStyle, setAgeBadgeStyleState] = useState<AgeBadgeStyle>(DEFAULT_AGE_BADGE_STYLE)
 
   const {
     globalBadges, rankingBadges, networkLogo, networkLogoPosition, networkLogoFollowTitle, preRelease, ribbonSide, ribbonEnabled, posterShape, logoAlign,
@@ -615,6 +676,27 @@ export function PosterEditorProvider({
       const next = typeof v === "function" ? v(badgeQuality) : v
       update({ badgeQuality: next })
     }, [badgeQuality, update])
+  // Badge età per-titolo: stato live dedicato (vedi sopra), mai `update()`
+  // sui default. Paese/stile validati fail-closed come il server (mai
+  // GLOBAL/spazzatura nel live — il render li normalizza comunque).
+  const setAgeBadge = useCallback(
+    (v: boolean | ((prev: boolean) => boolean)) => {
+      setAgeBadgeState((prev) => (typeof v === "function" ? v(prev) : v))
+    }, [])
+  const setAgeCountry = useCallback(
+    (v: string | ((prev: string) => string)) => {
+      setAgeCountryState((prev) => {
+        const next = typeof v === "function" ? v(prev) : v
+        return normalizeCertificationCountry(next) ?? DEFAULT_AGE_COUNTRY
+      })
+    }, [])
+  const setAgeBadgeStyle = useCallback(
+    (v: AgeBadgeStyle | ((prev: AgeBadgeStyle) => AgeBadgeStyle)) => {
+      setAgeBadgeStyleState((prev) => {
+        const next = typeof v === "function" ? v(prev) : v
+        return isAgeBadgeStyle(next) ? next : DEFAULT_AGE_BADGE_STYLE
+      })
+    }, [])
   const setCustomRatings = useCallback(
     (v: boolean | ((prev: boolean) => boolean)) => {
       const next = typeof v === "function" ? v(customRatings) : v
@@ -1582,6 +1664,12 @@ export function PosterEditorProvider({
     setCustomBadge(null)
     setBadgePresetId(null)
     setBadgePresetRev(null)
+    // Badge età per-titolo: default effettivi di forma (mai il live del
+    // titolo precedente — stesso isolamento degli altri visuali; i setter
+    // validano fail-closed come il server).
+    setAgeBadge(isLandReset ? (land?.ageBadge ?? defaultAgeBadge) : defaultAgeBadge)
+    setAgeCountry(isLandReset ? (land?.ageCountry ?? defaultAgeCountry) : defaultAgeCountry)
+    setAgeBadgeStyle(isLandReset ? (land?.ageBadgeStyle ?? defaultAgeBadgeStyle) : defaultAgeBadgeStyle)
     resetLandscapeBlur({
       gradientHeight: landscapeDefaults?.gradientHeight ?? defaultGradientHeight,
       blurEnabled: landscapeDefaults?.blurEnabled ?? defaultBlurEnabled,
@@ -1592,7 +1680,7 @@ export function PosterEditorProvider({
       topShade: landscapeDefaults?.topShade ?? defaultTopShade,
       topShadeHeight: landscapeDefaults?.topShadeHeight ?? defaultTopShadeHeight,
     })
-  }, [update, posterShape, landscapeDefaults, defaultGlobalBadges, defaultRankingBadges, defaultBadgeGenre, defaultBadgeYear, defaultBadgeRating, defaultBadgeQuality, defaultCustomRatings, defaultRatingSources, defaultSeparateRatings, defaultSeparateRatingsStyle, defaultPosterLayout, defaultPosterFreshScope, defaultBadgeStyle, defaultRankingBadgeStyle, defaultExtraBadgeStyle, defaultBadgeFont, defaultQualityBadgeStyle, defaultVideoFormats, defaultNetworkLogo, defaultNetworkLogoPosition, defaultNetworkLogoFollowTitle, defaultRibbonEnabled, defaultGradientHeight, defaultBlurEnabled, defaultBlurIntensity, defaultBlurFade, defaultBlurDarkness, defaultTintStrength, defaultTopShade, defaultTopShadeHeight, defaultTopBadgeScale, defaultTopBadgeOffsetX, defaultTopBadgeOffsetY, defaultExtraBadgeScale, defaultExtraBadgeOffsetX, defaultExtraBadgeOffsetY, defaultGenreBadgeScale, defaultGenreBadgeOffsetX, defaultGenreBadgeOffsetY, defaultQualityBadgeScale, defaultQualityBadgeOffsetX, defaultQualityBadgeOffsetY, defaultSeparateBadgeScale, defaultSeparateBadgeOffsetX, defaultSeparateBadgeOffsetY, defaultNetworkLogoScale, defaultNetworkLogoOffsetX, defaultNetworkLogoOffsetY, defaultLogoScale, defaultLogoOffsetX, defaultLogoOffsetY]) // eslint-disable-line react-hooks/exhaustive-deps -- setter refs are stable
+  }, [update, posterShape, landscapeDefaults, defaultGlobalBadges, defaultRankingBadges, defaultBadgeGenre, defaultBadgeYear, defaultBadgeRating, defaultBadgeQuality, defaultAgeBadge, defaultAgeCountry, defaultAgeBadgeStyle, defaultCustomRatings, defaultRatingSources, defaultSeparateRatings, defaultSeparateRatingsStyle, defaultPosterLayout, defaultPosterFreshScope, defaultBadgeStyle, defaultRankingBadgeStyle, defaultExtraBadgeStyle, defaultBadgeFont, defaultQualityBadgeStyle, defaultVideoFormats, defaultNetworkLogo, defaultNetworkLogoPosition, defaultNetworkLogoFollowTitle, defaultRibbonEnabled, defaultGradientHeight, defaultBlurEnabled, defaultBlurIntensity, defaultBlurFade, defaultBlurDarkness, defaultTintStrength, defaultTopShade, defaultTopShadeHeight, defaultTopBadgeScale, defaultTopBadgeOffsetX, defaultTopBadgeOffsetY, defaultExtraBadgeScale, defaultExtraBadgeOffsetX, defaultExtraBadgeOffsetY, defaultGenreBadgeScale, defaultGenreBadgeOffsetX, defaultGenreBadgeOffsetY, defaultQualityBadgeScale, defaultQualityBadgeOffsetX, defaultQualityBadgeOffsetY, defaultSeparateBadgeScale, defaultSeparateBadgeOffsetX, defaultSeparateBadgeOffsetY, defaultNetworkLogoScale, defaultNetworkLogoOffsetX, defaultNetworkLogoOffsetY, defaultLogoScale, defaultLogoOffsetX, defaultLogoOffsetY, setAgeBadge, setAgeCountry, setAgeBadgeStyle]) // eslint-disable-line react-hooks/exhaustive-deps -- setter refs are stable
 
   const editorCtx = useMemo<PosterEditorCtx>(
     () => ({
@@ -1612,6 +1700,12 @@ export function PosterEditorProvider({
       setBadgeRating,
       badgeQuality,
       setBadgeQuality,
+      ageBadge,
+      setAgeBadge,
+      ageCountry,
+      setAgeCountry,
+      ageBadgeStyle,
+      setAgeBadgeStyle,
       customRatings,
       setCustomRatings,
       ratingSources,
@@ -1920,6 +2014,11 @@ export function PosterEditorProvider({
       // Episode Group
       episodeGroupId,
       setEpisodeGroupId,
+
+      // Shared per-title other-shape draft stash (save boundary)
+      stashShapeDraft,
+      readShapeDraft,
+      resetShapeDraftsForTitle,
     }),
     [
       // Badges
@@ -1929,6 +2028,9 @@ export function PosterEditorProvider({
       badgeYear, setBadgeYear,
       badgeRating, setBadgeRating,
       badgeQuality, setBadgeQuality,
+      ageBadge, setAgeBadge,
+      ageCountry, setAgeCountry,
+      ageBadgeStyle, setAgeBadgeStyle,
       customRatings, setCustomRatings,
       ratingSources, setRatingSources,
       separateRatings, setSeparateRatings,
@@ -2105,6 +2207,9 @@ export function PosterEditorProvider({
 
       // Episode Group
       episodeGroupId, setEpisodeGroupId,
+
+      // Shared per-title other-shape draft stash (stable callbacks)
+      stashShapeDraft, readShapeDraft, resetShapeDraftsForTitle,
     ],
   )
 

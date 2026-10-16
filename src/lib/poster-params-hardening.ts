@@ -23,7 +23,7 @@ import { parseRatingSources } from "./ratings"
 import { isSeparateRatingsStyle } from "./badge-styles"
 import { isPosterLayout, isPosterFreshScope, DEFAULT_POSTER_FRESH_SCOPE } from "./types"
 import { ANIME_RANK_MAX } from "./badge-priority"
-import { BADGE_PRESET_ID_RE, BADGE_PRESET_REV_RE } from "./badge-preset"
+import { BADGE_PRESET_ID_RE, BADGE_PRESET_REV_RE, BADGE_TARGETS } from "./badge-preset"
 
 // Env a module level (convenzione del repo: un cambio richiede restart).
 const POSTER_PARAMS_MODE = (envWithFallback("POSTER_PARAMS") || "").toLowerCase().trim()
@@ -107,7 +107,7 @@ export const POSTER_CACHE_ALLOWLIST: ReadonlySet<string> = new Set([
   "pre", "side", "hideLogo", "tint", "be", "preview", "u", "user",
   "config", "c", "api_key", "mdblist_key", "simkl_key", "tvdb_key",
   "region", "country", "logoFit", "debug", "netgeo",
-  "badgePreset", "prv", "df",
+  "badgePreset", "prv", "pt", "df",
   // Segui-spazio: politica di rivalidazione (entra in chiave/ETag via serializzazione).
   "live",
   // Effective-accent display sync (server-only, Stage 1): read-only JSON
@@ -270,6 +270,19 @@ export function hardenPosterSearchParams(
     const prv = params.get("prv")
     if (!prv || !BADGE_PRESET_REV_RE.test(prv)) {
       params.delete("prv")
+    }
+  }
+  // pt (preset target, solo frammento chiave server-side scritto dalla route
+  // con il target autorizzato corrente): enum finita top/genre — la revision
+  // copre solo il design, quindi un flip di target a design identico deve
+  // comunque far girare la chiave. Orfano (senza badgePreset valido) o
+  // invalido → delete, mai eredita/veleni.
+  if (!params.has("badgePreset")) {
+    params.delete("pt")
+  } else if (params.has("pt")) {
+    const pt = params.get("pt")
+    if (!pt || !(BADGE_TARGETS as readonly string[]).includes(pt)) {
+      params.delete("pt")
     }
   }
   // netPos: enum finita ("top"/"auto") — garbage collassato (stesso render di

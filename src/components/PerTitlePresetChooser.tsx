@@ -24,9 +24,9 @@ const endpoint = "/api/defaults/presets"
  * no global defaults change, no autosave — the normal Save persists the
  * change. The projection owns the title's full visual recipe (badge visuals
  * + layout/scope + standalone extra style, canonically normalized for legacy
- * snapshots); the age/classification badge stays global-only (the mapping
- * carries no age keys — presets here never change it, said explicitly
- * below). Deliberately NO active-preset highlight (no full live-value
+ * snapshots); the age/classification badge is excluded by design (edited via
+ * the dedicated per-title control — presets here never change it, said
+ * explicitly below). Deliberately NO active-preset highlight (no full live-value
  * comparison here) and no preset management (save/import/export live in the
  * global Defaults panels).
  *

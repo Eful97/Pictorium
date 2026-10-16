@@ -4,7 +4,7 @@ import React, { createContext, useContext, useState, useEffect, useCallback, use
 import type { SearchResult, TMDBImage, Mapping, CustomCatalogConfig, NetworkLogoPosition, PosterLayout, PosterFreshScope, PosterShape } from "./types"
 import { effectiveMappingForShape, DEFAULT_POSTER_FRESH_SCOPE } from "./types"
 import { effectiveShapeDefaultLayout, resolveOpenPosterLayout, effectiveShapeDefaultFreshScope, resolveOpenPosterFreshScope, effectiveShapeDefaultAge } from "./poster-layout-resolve"
-import type { BadgeStyle, RankingBadgeStyle, ExtraBadgeStyle, ExtraBadgeFollowRank, QualityBadgeStyle, BadgeFont, SeparateRatingsStyle } from "./badge-styles"
+import type { BadgeStyle, RankingBadgeStyle, ExtraBadgeStyle, ExtraBadgeFollowRank, QualityBadgeStyle, BadgeFont, SeparateRatingsStyle, AgeBadgeStyle } from "./badge-styles"
 import { isSeparateRatingsStyle, resolveSeparateBadgeScaleFallback, isExtraBadgeStyle, isExtraFollowRank } from "./badge-styles"
 import { resolveNetworkShapeView, resolveNetworkEffectiveView } from "./network-follow"
 import type { RibbonSide } from "./useDefaults"
@@ -29,7 +29,8 @@ import { useSearch } from "./useSearch"
 import { useNavigation } from "./useNavigation"
 import { useMappingsStore, type BackupExportOptions, type BackupImportOptions } from "./useMappingsStore"
 import { usePosterEditor, PosterEditorProvider, type LandscapeBlurState } from "./contexts/PosterEditorContext"
-import { usePosterSave } from "./usePosterSave"
+import { usePosterSave, type SaveConfigOverrides } from "./usePosterSave"
+import { useSharedShapeStash } from "./shape-draft"
 import { usePrefetchTitle } from "./usePrefetchTitle"
 import { defaultHeightForPoster, defaultFadeForPoster, adjustGradientForPosterChange } from "./gradient-presets"
 import { computeLogoOffsetBounds, PORTRAIT_LOGO_MAX_HEIGHT_PCT, PORTRAIT_LOGO_TOP_OFFSET, LANDSCAPE_LOGO_MAX_WIDTH_PCT, LANDSCAPE_LOGO_MAX_HEIGHT_PCT, LANDSCAPE_LOGO_BOTTOM_MARGIN_PCT, LANDSCAPE_LOGO_TOP_OFFSET } from "./logo-layout"
@@ -45,6 +46,7 @@ import { MappingsProvider } from "./contexts/MappingsContext"
 import { useCustomCatalogs } from "./useCustomCatalogs"
 import type { CatalogShapes } from "./catalog-shape"
 import { useRankingSources } from "./useRankingSources"
+import { isManualAccent } from "./accent-color"
 import { useLocalConfigToken } from "./useLocalConfigToken"
 import { slotsReferencingCustom, shouldApplyRankRefresh } from "./ranking-source"
 import { migrateLegacyStorage } from "./storage-migration"
@@ -140,7 +142,7 @@ export interface PictoriumCtx {
   metaInfo: MetaInfo
   previewId: string | null
   setPreviewId: React.Dispatch<React.SetStateAction<string | null>>
-  saveConfig: () => Promise<boolean | void>
+  saveConfig: (overrides?: SaveConfigOverrides) => Promise<boolean | void>
   /**
    * Cover-only save ("Salva solo poster"): persists the chosen cover image
    * and logo identity; everything else follows the global defaults
@@ -567,6 +569,9 @@ export function usePictorium(): PictoriumCtx {
     badgeYear, setBadgeYear,
     badgeRating, setBadgeRating,
     badgeQuality, setBadgeQuality,
+    ageBadge, setAgeBadge,
+    ageCountry, setAgeCountry,
+    ageBadgeStyle, setAgeBadgeStyle,
     customRatings, setCustomRatings,
     ratingSources, setRatingSources,
     separateRatings, setSeparateRatings,
@@ -580,6 +585,8 @@ export function usePictorium(): PictoriumCtx {
     qualityBadgeStyle, setQualityBadgeStyle,
     videoFormats, setVideoFormats,
     customBadge, setCustomBadge,
+    badgePresetId, setBadgePresetId,
+    badgePresetRev, setBadgePresetRev,
     networkLogo, setNetworkLogo,
     networkLogoPosition, setNetworkLogoPosition,
     networkLogoFollowTitle, setNetworkLogoFollowTitle,
@@ -1096,15 +1103,11 @@ export function usePictorium(): PictoriumCtx {
     // Template WYSIWYG: a titolo aperto la sfumatura segue il profilo del
     // formato in editing (landscapeBlur in orizzontale), come la preview.
     const tmplLandscape = !noPreview && posterShape === "landscape"
-    // Badge età (nessun per-titolo): il template segue il trio effettivo per
-    // forma (`land ?? flat`, stessa regola della preview, di layout/scope e
-    // del server). A titolo aperto decide il formato in editing, senza titolo
-    // la forma di consegna — un portrait ON non accende mai un landscape e
-    // viceversa (WYSIWYG preview/template/Stremio).
-    const tmplAge = effectiveShapeDefaultAge(
-      defaultAgeBadge, defaultAgeCountry, defaultAgeBadgeStyle,
-      landscapeDefaults, tmplLandscape ? "landscape" : "poster",
-    )
+    // Badge età per i template senza titolo: il template segue il trio
+    // effettivo per forma (`land ?? flat`, stessa regola della preview, di
+    // layout/scope e del server) nella forma di consegna — un portrait ON
+    // non accende mai un landscape e viceversa (WYSIWYG preview/template/
+    // Stremio). A titolo aperto il live per-titolo vince (vedi base sotto).
     const deliveryAge = effectiveShapeDefaultAge(
       defaultAgeBadge, defaultAgeCountry, defaultAgeBadgeStyle,
       landscapeDefaults, defaultPosterShape === "landscape" ? "landscape" : "poster",
@@ -1141,10 +1144,12 @@ export function usePictorium(): PictoriumCtx {
       badgeYear: noPreview ? defaultBadgeYear : badgeYear,
       badgeRating: noPreview ? defaultBadgeRating : badgeRating,
       badgeQuality: noPreview ? defaultBadgeQuality : badgeQuality,
-      // Badge età (nessun per-titolo): vedi tmplAge/deliveryAge sopra.
-      ageBadge: noPreview ? deliveryAge.ageBadge : tmplAge.ageBadge,
-      ageCountry: noPreview ? deliveryAge.ageCountry : tmplAge.ageCountry,
-      ageBadgeStyle: noPreview ? deliveryAge.ageBadgeStyle : tmplAge.ageBadgeStyle,
+      // Badge età per-titolo: vedi tmplAge/deliveryAge sopra per i default;
+      // a titolo aperto vince il live del titolo (già effettivo per forma),
+      // senza titolo il default effettivo della forma di consegna.
+      ageBadge: noPreview ? deliveryAge.ageBadge : ageBadge,
+      ageCountry: noPreview ? deliveryAge.ageCountry : ageCountry,
+      ageBadgeStyle: noPreview ? deliveryAge.ageBadgeStyle : ageBadgeStyle,
       customRatings: noPreview ? defaultCustomRatings : customRatings,
       ratingSources: noPreview ? defaultRatingSources : ratingSources,
       separateRatings: noPreview ? defaultSeparateRatings : separateRatings,
@@ -1237,6 +1242,9 @@ export function usePictorium(): PictoriumCtx {
       badgeStyle: defaultBadgeStyle, rankingBadgeStyle: defaultRankingBadgeStyle, extraBadgeStyle: defaultExtraBadgeStyle, badgeFont: defaultBadgeFont, qualityBadgeStyle: defaultQualityBadgeStyle, videoFormats: defaultVideoFormats, globalBadges: defaultGlobalBadges,
       rankingBadges: defaultRankingBadges, badgeGenre: defaultBadgeGenre, badgeYear: defaultBadgeYear,
       badgeRating: defaultBadgeRating, badgeQuality: defaultBadgeQuality, customRatings: defaultCustomRatings,
+      // Badge età per-titolo: propagazione live sotto (stessa regola degli
+      // altri visuali — solo senza mapping salvato, mai clobberare).
+      ageBadge: defaultAgeBadge, ageCountry: defaultAgeCountry, ageBadgeStyle: defaultAgeBadgeStyle,
       ratingSources: defaultRatingSources, separateRatings: defaultSeparateRatings,
       separateRatingsStyle: defaultSeparateRatingsStyle,
       posterLayout: defaultPosterLayout,
@@ -1299,6 +1307,35 @@ export function usePictorium(): PictoriumCtx {
     if (changed("badgeYear")) setBadgeYear(cur.badgeYear as boolean)
     if (changed("badgeRating")) setBadgeRating(cur.badgeRating as boolean)
     if (changed("badgeQuality")) setBadgeQuality(cur.badgeQuality as boolean)
+    // Badge età per-titolo live (unmapped title only, like the other
+    // defaults): portrait follows the flat; landscape follows the effective
+    // profile (`land ?? flat`, same rule as the open path) — a flat edit
+    // under an owned profile resolves back to the profile (harmless no-op,
+    // never a clobber); profile edits arrive via the landscape block below.
+    if (changed("ageBadge") || changed("ageCountry") || changed("ageBadgeStyle")) {
+      const curLandRec = (cur.landscape ?? {}) as Record<string, unknown>
+      if (changed("ageBadge")) {
+        setAgeBadge(
+          posterShape === "landscape"
+            ? ((curLandRec.ageBadge as boolean | undefined) ?? (cur.ageBadge as boolean))
+            : (cur.ageBadge as boolean),
+        )
+      }
+      if (changed("ageCountry")) {
+        setAgeCountry(
+          posterShape === "landscape"
+            ? ((curLandRec.ageCountry as string | undefined) ?? (cur.ageCountry as string))
+            : (cur.ageCountry as string),
+        )
+      }
+      if (changed("ageBadgeStyle")) {
+        setAgeBadgeStyle(
+          posterShape === "landscape"
+            ? ((curLandRec.ageBadgeStyle as AgeBadgeStyle | undefined) ?? (cur.ageBadgeStyle as AgeBadgeStyle))
+            : (cur.ageBadgeStyle as AgeBadgeStyle),
+        )
+      }
+    }
     if (changed("customRatings")) setCustomRatings(cur.customRatings as boolean)
     if (changed("ratingSources")) setRatingSources(cur.ratingSources as string[])
     if (changed("separateRatings")) setSeparateRatings(cur.separateRatings as boolean)
@@ -1450,6 +1487,12 @@ export function usePictorium(): PictoriumCtx {
         // poster follows `land ?? flat`, same rule as the server and the open
         // path. Absent profile key = follow the flat default.
         if (landKeyChanged("preRelease")) setPreRelease(eff("preRelease", defaultPreRelease) as boolean)
+        // Badge età per-titolo nel profilo Orizzontale (unmapped title
+        // only): il poster aperto segue `land ?? flat`, stessa regola del
+        // server e dell'open path. Chiave assente = segue il flat.
+        if (landKeyChanged("ageBadge")) setAgeBadge(eff("ageBadge", defaultAgeBadge) as boolean)
+        if (landKeyChanged("ageCountry")) setAgeCountry(eff("ageCountry", defaultAgeCountry) as string)
+        if (landKeyChanged("ageBadgeStyle")) setAgeBadgeStyle(eff("ageBadgeStyle", defaultAgeBadgeStyle) as AgeBadgeStyle)
         // Task 3B2: standalone extra + logo alignment follow the landscape
         // profile live (unmapped title only). Owned `null` extra = follow own
         // rank (never the portrait flat); deleted key = follow the flat.
@@ -1568,13 +1611,17 @@ export function usePictorium(): PictoriumCtx {
     // live della sezione Orizzontale (quelli salvati nel profilo), in
     // portrait i flat. Tinta e ombra superiore restano condivise (flat).
     const isLandscapePreview = posterShape === "landscape"
-    // Badge età (nessun per-titolo): la preview segue il trio effettivo per
-    // il formato in editing (`land ?? flat`, come template e server) così la
-    // query esplicita vince sul server per la forma mostrata (WYSIWYG).
-    const previewAge = effectiveShapeDefaultAge(
+    // Badge età per-titolo: la preview segue il live del titolo in editing
+    // (già effettivo per formato all'apertura e allo switch — mapping >
+    // default di forma), così la query esplicita vince sul server per la
+    // forma mostrata (WYSIWYG). Senza titolo si segue il default di forma.
+    const previewAgeDefaults = effectiveShapeDefaultAge(
       defaultAgeBadge, defaultAgeCountry, defaultAgeBadgeStyle,
       landscapeDefaults, isLandscapePreview ? "landscape" : "poster",
     )
+    const previewAgeBadge = navigation.selected ? ageBadge : previewAgeDefaults.ageBadge
+    const previewAgeCountry = navigation.selected ? ageCountry : previewAgeDefaults.ageCountry
+    const previewAgeBadgeStyle = navigation.selected ? ageBadgeStyle : previewAgeDefaults.ageBadgeStyle
     const url = buildPreviewUrl(
       {
         selected: navigation.selected,
@@ -1593,7 +1640,7 @@ export function usePictorium(): PictoriumCtx {
         // Preview WYSIWYG nel namespace (altrimenti mostra il globale).
         userId: currentUserId,
       },
-      { globalBadges, rankingBadges, badgeStyle, rankingBadgeStyle, extraBadgeStyle, badgeFont, qualityBadgeStyle, videoFormats, badgeGenre, badgeYear, badgeRating, badgeQuality, ageBadge: previewAge.ageBadge, ageCountry: previewAge.ageCountry, ageBadgeStyle: previewAge.ageBadgeStyle, customRatings, ratingSources, separateRatings, separateRatingsStyle, posterLayout, posterFreshScope, customBadge, gradientHeight: isLandscapePreview ? landscapeBlur.gradientHeight : gradientHeight, blurIntensity: isLandscapePreview ? landscapeBlur.blurIntensity : blurIntensity, blurFade: isLandscapePreview ? landscapeBlur.blurFade : blurFade, blurDarkness: isLandscapePreview ? landscapeBlur.blurDarkness : blurDarkness, blurEnabled: isLandscapePreview ? landscapeBlur.blurEnabled : blurEnabled, tintStrength: isLandscapePreview ? landscapeBlur.tintStrength : tintStrength, topShade: isLandscapePreview ? landscapeBlur.topShade : topShade, topShadeHeight: isLandscapePreview ? landscapeBlur.topShadeHeight : topShadeHeight, networkLogo, networkLogoPosition, networkLogoFollowTitle, preRelease, ribbonSide, ribbonEnabled, posterShape, logoAlign, topBadgeScale, topBadgeOffsetX, topBadgeOffsetY, extraBadgeScale: extraBadgeScale ?? undefined, extraBadgeOffsetX: extraBadgeOffsetX ?? undefined, extraBadgeOffsetY: extraBadgeOffsetY ?? undefined, genreBadgeScale, qualityBadgeScale, networkLogoScale, separateBadgeScale, separateBadgeOffsetX, separateBadgeOffsetY, genreBadgeOffsetX, genreBadgeOffsetY, qualityBadgeOffsetX, qualityBadgeOffsetY, networkLogoOffsetX, networkLogoOffsetY },
+      { globalBadges, rankingBadges, badgeStyle, rankingBadgeStyle, extraBadgeStyle, badgeFont, qualityBadgeStyle, videoFormats, badgeGenre, badgeYear, badgeRating, badgeQuality, ageBadge: previewAgeBadge, ageCountry: previewAgeCountry, ageBadgeStyle: previewAgeBadgeStyle, customRatings, ratingSources, separateRatings, separateRatingsStyle, posterLayout, posterFreshScope, customBadge, gradientHeight: isLandscapePreview ? landscapeBlur.gradientHeight : gradientHeight, blurIntensity: isLandscapePreview ? landscapeBlur.blurIntensity : blurIntensity, blurFade: isLandscapePreview ? landscapeBlur.blurFade : blurFade, blurDarkness: isLandscapePreview ? landscapeBlur.blurDarkness : blurDarkness, blurEnabled: isLandscapePreview ? landscapeBlur.blurEnabled : blurEnabled, tintStrength: isLandscapePreview ? landscapeBlur.tintStrength : tintStrength, topShade: isLandscapePreview ? landscapeBlur.topShade : topShade, topShadeHeight: isLandscapePreview ? landscapeBlur.topShadeHeight : topShadeHeight, networkLogo, networkLogoPosition, networkLogoFollowTitle, preRelease, ribbonSide, ribbonEnabled, posterShape, logoAlign, topBadgeScale, topBadgeOffsetX, topBadgeOffsetY, extraBadgeScale: extraBadgeScale ?? undefined, extraBadgeOffsetX: extraBadgeOffsetX ?? undefined, extraBadgeOffsetY: extraBadgeOffsetY ?? undefined, genreBadgeScale, qualityBadgeScale, networkLogoScale, separateBadgeScale, separateBadgeOffsetX, separateBadgeOffsetY, genreBadgeOffsetX, genreBadgeOffsetY, qualityBadgeOffsetX, qualityBadgeOffsetY, networkLogoOffsetX, networkLogoOffsetY },
       localConfigToken,
     )
     setPreviewUrl(url)
@@ -1601,7 +1648,7 @@ export function usePictorium(): PictoriumCtx {
     logoScale, logoScaleExplicit, logoOffsetX, logoOffsetY, backdropScale, backdropOffsetX, backdropOffsetY,
     metaInfo, trendRank, trending.mdblistAnimeList, topEdgeColor, bottomEdgeColor, accentColor, autoAccentColor, lang, tmdbKey,
     editorCtx.defaultRegion, editorCtx.defaultDateFormat, currentUserId, localConfigToken, localConfigTokenStatus,
-    globalBadges, rankingBadges, badgeStyle, rankingBadgeStyle, extraBadgeStyle, badgeFont, qualityBadgeStyle, videoFormats, badgeGenre, badgeYear, badgeRating, badgeQuality, defaultAgeBadge, defaultAgeCountry, defaultAgeBadgeStyle, customRatings, ratingSources, separateRatings, separateRatingsStyle, posterLayout, posterFreshScope, customBadge, gradientHeight, blurIntensity, blurFade, blurDarkness, blurEnabled, landscapeBlur, landscapeDefaults, tintStrength, topShade, topShadeHeight, networkLogo, networkLogoPosition, networkLogoFollowTitle, preRelease, ribbonSide, ribbonEnabled, posterShape, logoAlign, topBadgeScale, topBadgeOffsetX, topBadgeOffsetY, extraBadgeScale, extraBadgeOffsetX, extraBadgeOffsetY, genreBadgeScale, qualityBadgeScale, networkLogoScale, separateBadgeScale, separateBadgeOffsetX, separateBadgeOffsetY, genreBadgeOffsetX, genreBadgeOffsetY, qualityBadgeOffsetX, qualityBadgeOffsetY, networkLogoOffsetX, networkLogoOffsetY])
+    globalBadges, rankingBadges, badgeStyle, rankingBadgeStyle, extraBadgeStyle, badgeFont, qualityBadgeStyle, videoFormats, badgeGenre, badgeYear, badgeRating, badgeQuality, ageBadge, ageCountry, ageBadgeStyle, defaultAgeBadge, defaultAgeCountry, defaultAgeBadgeStyle, customRatings, ratingSources, separateRatings, separateRatingsStyle, posterLayout, posterFreshScope, customBadge, gradientHeight, blurIntensity, blurFade, blurDarkness, blurEnabled, landscapeBlur, landscapeDefaults, tintStrength, topShade, topShadeHeight, networkLogo, networkLogoPosition, networkLogoFollowTitle, preRelease, ribbonSide, ribbonEnabled, posterShape, logoAlign, topBadgeScale, topBadgeOffsetX, topBadgeOffsetY, extraBadgeScale, extraBadgeOffsetX, extraBadgeOffsetY, genreBadgeScale, qualityBadgeScale, networkLogoScale, separateBadgeScale, separateBadgeOffsetX, separateBadgeOffsetY, genreBadgeOffsetX, genreBadgeOffsetY, qualityBadgeOffsetX, qualityBadgeOffsetY, networkLogoOffsetX, networkLogoOffsetY])
 
   // A1: trailing debounce della preview URL (200ms). Ogni tick di slider
   // cambia l'identità di buildPreviewUrlCb → senza debounce ogni pixel di
@@ -1626,11 +1673,27 @@ export function usePictorium(): PictoriumCtx {
   // da lì (w780, tier backdrop), come fa il server sulla stessa immagine —
   // altrimenti `ac=`/`tl=` in preview contraddicono il render.
   const landscapePreview = posterShape === "landscape"
+  // Ricalcolo auto mai distruttivo (correction 1/3): l'effetto async di
+  // useRootColors ricampiona l'auto a ogni cambio poster, ma un manuale
+  // esplicito (salvato ripristinato all'apertura, o ripristinato dallo stash
+  // al cambio formato) non deve esserne clobberato — altrimenti aprire un
+  // manuale mostrerebbe auto e il save dropperebbe il manuale. Solo il canale
+  // auto segue il ricalcolo; il manuale resta finché l'utente non lo azzera
+  // (Reset) o ne sceglie un altro. I ref specchiano lo stato così la guardia
+  // vede i valori live senza riavviare l'effetto (mai loop su deps).
+  const accentColorRef = useRef<string | null>(null)
+  const autoAccentColorRef = useRef<string | null>(null)
+  accentColorRef.current = accentColor
+  autoAccentColorRef.current = autoAccentColor
+  const setAccentColorFromAuto = useCallback((v: string | null) => {
+    if (isManualAccent(accentColorRef.current, autoAccentColorRef.current)) return
+    setAccentColor(v)
+  }, [])
   useRootColors(
     landscapePreview ? (selectedBackdrop ?? navigation.previewPoster) : navigation.previewPoster,
     normalizeGenreName(metaInfo.genres[0]?.name, lang) || undefined,
     posterUrl,
-    { setAccentColor, setAutoAccentColor, setTopEdgeColor, setBottomEdgeColor },
+    { setAccentColor: setAccentColorFromAuto, setAutoAccentColor, setTopEdgeColor, setBottomEdgeColor },
     landscapePreview ? "w780" : "w342",
   )
 
@@ -2280,30 +2343,48 @@ export function usePictorium(): PictoriumCtx {
     // conferma invece di gareggiare con un fetch su fonti diverse.
     const nextSources = existing?.ratingSources ?? defaultRatingSources
     if (existing) {
-      setBadgeStyle(existing.badgeStyle ?? defaultBadgeStyle)
-      setRankingBadgeStyle(existing.rankingBadgeStyle ?? defaultRankingBadgeStyle)
-      // Task 3B2: saved per-title extra wins; otherwise a landscape open
-      // follows the owned landscape profile (explicit `null` = follow own
-      // rank, never the portrait flat) — same ownership rule as the server.
-      setExtraBadgeStyle(existing.extraBadgeStyle ?? (isExtraFollowRank((landscapeDefaults as { extraBadgeStyle?: unknown } | null)?.extraBadgeStyle) || isExtraBadgeStyle(typeof (landscapeDefaults as { extraBadgeStyle?: unknown } | null)?.extraBadgeStyle === "string" ? (landscapeDefaults as { extraBadgeStyle?: string }).extraBadgeStyle : null) && (existing.posterShape ?? defaultPosterShape) === "landscape" && landscapeDefaults != null && "extraBadgeStyle" in landscapeDefaults ? (landscapeDefaults.extraBadgeStyle as ExtraBadgeStyle | ExtraBadgeFollowRank) : defaultExtraBadgeStyle))
-      setBadgeFont(existing.badgeFont ?? defaultBadgeFont)
-      setQualityBadgeStyle(existing.qualityBadgeStyle ?? defaultQualityBadgeStyle)
-      setVideoFormats(existing.videoFormats ?? null)
-      setGlobalBadges(existing.showBadges ?? defaultGlobalBadges)
-      setRankingBadges(existing.rankingBadges ?? defaultRankingBadges)
-      setBadgeGenre(existing.badgeGenre ?? defaultBadgeGenre)
-      setBadgeYear(existing.badgeYear ?? defaultBadgeYear)
-      setBadgeRating(existing.badgeRating ?? defaultBadgeRating)
-      setBadgeQuality(existing.badgeQuality ?? defaultBadgeQuality)
-      setCustomRatings(existing.customRatings ?? defaultCustomRatings)
+      // Profili per-formato: all'apertura gli stili/toggle mostrano il valore
+      // effettivo del formato salvato (profilo landscape vince sul flat, che
+      // resta il fallback chiave-per-chiave); senza override salvato si segue
+      // il default effettivo di formato (profilo Orizzontale > flat).
+      const openShape = (existing.posterShape ?? defaultPosterShape) as PosterShape
+      const eff = effectiveMappingForShape(existing ?? null, openShape)
+      const landDef = openShape === "landscape" ? landscapeDefaults : null
+      setBadgeStyle(eff?.badgeStyle ?? landDef?.badgeStyle ?? defaultBadgeStyle)
+      setRankingBadgeStyle(eff?.rankingBadgeStyle ?? landDef?.rankingBadgeStyle ?? defaultRankingBadgeStyle)
+      // Task 3B2 + per-title shape: vince l'extra effettivo per formato
+      // (profilo landscape del titolo incluso — sentinel "follow-rank" =
+      // own-rank esplicito, mai il flat portrait); senza, il profilo
+      // Orizzontale dei default (se owned) o il default flat.
+      {
+        const openXbs = eff?.extraBadgeStyle
+        setExtraBadgeStyle(isExtraFollowRank(openXbs) || isExtraBadgeStyle(typeof openXbs === "string" ? openXbs : null) ? (openXbs as ExtraBadgeStyle | ExtraBadgeFollowRank) : (openShape === "landscape" && landDef != null && "extraBadgeStyle" in landDef && (isExtraFollowRank((landDef as { extraBadgeStyle?: unknown }).extraBadgeStyle) || isExtraBadgeStyle(typeof (landDef as { extraBadgeStyle?: unknown }).extraBadgeStyle === "string" ? (landDef as { extraBadgeStyle?: string }).extraBadgeStyle : null)) ? (landDef.extraBadgeStyle as ExtraBadgeStyle | ExtraBadgeFollowRank) : defaultExtraBadgeStyle))
+      }
+      setBadgeFont(eff?.badgeFont ?? landDef?.badgeFont ?? defaultBadgeFont)
+      setQualityBadgeStyle(eff?.qualityBadgeStyle ?? landDef?.qualityBadgeStyle ?? defaultQualityBadgeStyle)
+      setVideoFormats(eff?.videoFormats ?? null)
+      setGlobalBadges(eff?.showBadges ?? landDef?.globalBadges ?? defaultGlobalBadges)
+      setRankingBadges(eff?.rankingBadges ?? landDef?.rankingBadges ?? defaultRankingBadges)
+      setBadgeGenre(eff?.badgeGenre ?? landDef?.badgeGenre ?? defaultBadgeGenre)
+      setBadgeYear(eff?.badgeYear ?? landDef?.badgeYear ?? defaultBadgeYear)
+      setBadgeRating(eff?.badgeRating ?? landDef?.badgeRating ?? defaultBadgeRating)
+      setBadgeQuality(eff?.badgeQuality ?? landDef?.badgeQuality ?? defaultBadgeQuality)
+      // Badge età per-titolo (stessa effettività degli altri visuali:
+      // mapping effettivo per formato > default effettivi di forma; i mapping
+      // vecchi senza chiavi seguono i default, mai migrazione in lettura; i
+      // setter validano fail-closed come il server).
+      setAgeBadge(eff?.ageBadge ?? landDef?.ageBadge ?? defaultAgeBadge)
+      setAgeCountry(eff?.ageCountry ?? landDef?.ageCountry ?? defaultAgeCountry)
+      setAgeBadgeStyle(eff?.ageBadgeStyle ?? landDef?.ageBadgeStyle ?? defaultAgeBadgeStyle)
+      setCustomRatings(eff?.customRatings ?? landDef?.customRatings ?? defaultCustomRatings)
       setRatingSources(nextSources)
-      setSeparateRatings(existing.separateRatings ?? defaultSeparateRatings)
-      setNetworkLogo(existing.networkLogo ?? defaultNetworkLogo)
-      setNetworkLogoPosition(existing.networkLogoPosition ?? defaultNetworkLogoPosition)
+      setSeparateRatings(eff?.separateRatings ?? landDef?.separateRatings ?? defaultSeparateRatings)
+      setNetworkLogo(eff?.networkLogo ?? landDef?.networkLogo ?? defaultNetworkLogo)
+      setNetworkLogoPosition(eff?.networkLogoPosition ?? landDef?.networkLogoPosition ?? defaultNetworkLogoPosition)
       // ribbonSide solo globale: i mapping storici con valore salvato lo ignorano,
       // così la preview resta sincrona con Stremio (side dal default d'istanza).
       setRibbonSide(defaultRibbonSide)
-      setRibbonEnabled(existing.ribbonEnabled ?? defaultRibbonEnabled)
+      setRibbonEnabled(eff?.ribbonEnabled ?? landDef?.ribbonEnabled ?? defaultRibbonEnabled)
       setPosterShape(existing.posterShape ?? defaultPosterShape)
       // Allineamento per formato (verticale sempre centro per contratto,
       // orizzontale profilo Orizzontale > default globale > sinistra):
@@ -2313,8 +2394,8 @@ export function usePictorium(): PictoriumCtx {
       // effettivo del formato salvato (landscape = profilo orizzontale).
       // I flat sfumatura sono il profilo PORTRAIT (la sezione Orizzontale ha
       // il suo store dedicato landscapeBlur, inizializzato qui sotto).
-      const eff = effectiveMappingForShape(existing ?? null, existing?.posterShape ?? defaultPosterShape)
-      setGradientHeight(existing?.gradientHeight ?? defaultGradientHeight)
+      // (`eff` sopra: mapping effettivo per il formato salvato, riusato qui.)
+      setGradientHeight(eff?.gradientHeight ?? defaultGradientHeight)
       setTopBadgeScale(eff?.topBadgeScale ?? defaultTopBadgeScale, { materialize: false })
       setTopBadgeOffsetX(eff?.topBadgeOffsetX ?? defaultTopBadgeOffsetX, { materialize: false })
       setTopBadgeOffsetY(eff?.topBadgeOffsetY ?? defaultTopBadgeOffsetY, { materialize: false })
@@ -2364,16 +2445,16 @@ export function usePictorium(): PictoriumCtx {
       setGenreBadgeOffsetY(eff?.genreBadgeOffsetY ?? defaultGenreBadgeOffsetY)
       setQualityBadgeOffsetX(eff?.qualityBadgeOffsetX ?? ((existing?.posterShape ?? defaultPosterShape) === "landscape" ? (landscapeDefaults?.qualityBadgeOffsetX ?? defaultQualityBadgeOffsetX) : defaultQualityBadgeOffsetX))
       setQualityBadgeOffsetY(eff?.qualityBadgeOffsetY ?? ((existing?.posterShape ?? defaultPosterShape) === "landscape" ? (landscapeDefaults?.qualityBadgeOffsetY ?? defaultQualityBadgeOffsetY) : defaultQualityBadgeOffsetY))
-      setBlurIntensity(existing?.blurIntensity ?? defaultBlurIntensity)
+      setBlurIntensity(eff?.blurIntensity ?? defaultBlurIntensity)
       setTintStrength(eff?.tintStrength ?? defaultTintStrength)
-      // Ombra superiore: solo per-titolo (flat, niente profilo landscape) —
-      // default globale quando il mapping non ce l'ha. Stessa regola per
-      // l'altezza (25 = look storico).
-      setTopShade(existing.topShade ?? defaultTopShade)
-      setTopShadeHeight(existing.topShadeHeight ?? defaultTopShadeHeight)
-      setBlurFade(existing?.blurFade ?? defaultBlurFade)
-      setBlurDarkness(existing?.blurDarkness ?? defaultBlurDarkness)
-      setBlurEnabled(existing?.blurEnabled ?? defaultBlurEnabled)
+      // Ombra superiore e tinta: effettive per formato (profilo landscape
+      // vince sul flat, come gli altri tuning) — default globale quando il
+      // mapping non ce l'ha. Stessa regola per l'altezza (25 = look storico).
+      setTopShade(eff?.topShade ?? defaultTopShade)
+      setTopShadeHeight(eff?.topShadeHeight ?? defaultTopShadeHeight)
+      setBlurFade(eff?.blurFade ?? defaultBlurFade)
+      setBlurDarkness(eff?.blurDarkness ?? defaultBlurDarkness)
+      setBlurEnabled(eff?.blurEnabled ?? defaultBlurEnabled)
       // Profilo sfumatura landscape (sezione Orizzontale): mapping.landscape
       // con fallback ai default globali Orizzontale, poi al default flat
       // (come il server), poi al default di formato (fade 70).
@@ -2388,7 +2469,20 @@ export function usePictorium(): PictoriumCtx {
         topShade: landEff?.topShade ?? landscapeDefaults?.topShade ?? defaultTopShade,
         topShadeHeight: landEff?.topShadeHeight ?? landscapeDefaults?.topShadeHeight ?? defaultTopShadeHeight,
       })
-      setCustomBadge(existing.customBadge ?? null)
+      setCustomBadge(eff?.customBadge ?? null)
+      // Accent live effettivo per il formato di apertura (profilo landscape
+      // vince sul flat, come gli altri visuali): il manuale salvato si
+      // ripristina nel live così provenance (`isManualAccent`) e Reset
+      // auto restano distinguibili — senza, l'apertura mostrerebbe auto e un
+      // save successivo dropperebbe il manuale. Null/assente = automatico in
+      // attesa del ricalcolo (mai colori campionati congelati qui).
+      setAccentColor(eff?.accentColor ?? null)
+      // Binding Badge Lab atomico a coppia per il formato di apertura
+      // (profilo landscape vince sul flat a coppia, mai mescolati): il live
+      // segue l'effettivo così preview/save non mescolano le forme. Legacy
+      // senza profilo = coppia flat invariata.
+      setBadgePresetId(eff?.badgePresetId ?? null)
+      setBadgePresetRev(eff?.badgePresetRev ?? null)
       setRotationPosters(existing.cleanPosters || [])
       setAutoRotateClean(existing.autoRotateClean ?? defaultAutoRotateClean)
       setExcludedPosters(existing.excludedPosters || [])
@@ -2405,26 +2499,33 @@ export function usePictorium(): PictoriumCtx {
       setBackdropOffsetX(existing.backdropOffsetX ?? 0)
       setBackdropOffsetY(existing.backdropOffsetY ?? 0)
     } else {
-      setBadgeStyle(defaultBadgeStyle)
-      setRankingBadgeStyle(defaultRankingBadgeStyle)
+      const unmappedLand = defaultPosterShape === "landscape" ? landscapeDefaults : null
+      setBadgeStyle(unmappedLand?.badgeStyle ?? defaultBadgeStyle)
+      setRankingBadgeStyle(unmappedLand?.rankingBadgeStyle ?? defaultRankingBadgeStyle)
       setExtraBadgeStyle(defaultPosterShape === "landscape" && landscapeDefaults != null && "extraBadgeStyle" in landscapeDefaults && (isExtraFollowRank((landscapeDefaults as { extraBadgeStyle?: unknown }).extraBadgeStyle) || isExtraBadgeStyle(typeof (landscapeDefaults as { extraBadgeStyle?: unknown }).extraBadgeStyle === "string" ? (landscapeDefaults as { extraBadgeStyle?: string }).extraBadgeStyle : null)) ? (landscapeDefaults.extraBadgeStyle as ExtraBadgeStyle | ExtraBadgeFollowRank) : defaultExtraBadgeStyle)
-      setBadgeFont(defaultBadgeFont)
-      setGlobalBadges(defaultGlobalBadges)
-      setRankingBadges(defaultRankingBadges)
-      setBadgeGenre(defaultBadgeGenre)
-      setBadgeYear(defaultBadgeYear)
-      setBadgeRating(defaultBadgeRating)
-      setBadgeQuality(defaultBadgeQuality)
-      setQualityBadgeStyle(defaultQualityBadgeStyle)
+      setBadgeFont(unmappedLand?.badgeFont ?? defaultBadgeFont)
+      setGlobalBadges(unmappedLand?.globalBadges ?? defaultGlobalBadges)
+      setRankingBadges(unmappedLand?.rankingBadges ?? defaultRankingBadges)
+      setBadgeGenre(unmappedLand?.badgeGenre ?? defaultBadgeGenre)
+      setBadgeYear(unmappedLand?.badgeYear ?? defaultBadgeYear)
+      setBadgeRating(unmappedLand?.badgeRating ?? defaultBadgeRating)
+      setBadgeQuality(unmappedLand?.badgeQuality ?? defaultBadgeQuality)
+      // Badge età per-titolo senza mapping: default effettivi di forma
+      // (profilo Orizzontale in landscape, come gli altri visuali).
+      setAgeBadge(unmappedLand?.ageBadge ?? defaultAgeBadge)
+      setAgeCountry(unmappedLand?.ageCountry ?? defaultAgeCountry)
+      setAgeBadgeStyle(unmappedLand?.ageBadgeStyle ?? defaultAgeBadgeStyle)
+      setQualityBadgeStyle(unmappedLand?.qualityBadgeStyle ?? defaultQualityBadgeStyle)
       // Fresh per-title formats stay explicit (same freeze contract as the
       // other visuals): portrait installs the flat default, landscape the
       // land profile (re-asserted by applyFreshLandscapeDefaults below).
       // Null would emit no `formats` param and leak the previous title's
       // state through the shared per-title slot.
       setVideoFormats(defaultPosterShape === "landscape" ? (landscapeDefaults?.videoFormats ?? defaultVideoFormats) : defaultVideoFormats)
-      setCustomRatings(defaultCustomRatings)
+      setCustomRatings(unmappedLand?.customRatings ?? defaultCustomRatings)
       setRatingSources(nextSources)
-      setSeparateRatings(defaultSeparateRatings)
+      setSeparateRatings(unmappedLand?.separateRatings ?? defaultSeparateRatings)
+      setSeparateRatingsStyle(isSeparateRatingsStyle(unmappedLand?.separateRatingsStyle) ? unmappedLand.separateRatingsStyle : defaultSeparateRatingsStyle)
       setGradientHeight(defaultGradientHeight)
       setBlurIntensity(defaultBlurIntensity)
       setTintStrength(defaultTintStrength)
@@ -2445,10 +2546,10 @@ export function usePictorium(): PictoriumCtx {
         topShade: landscapeDefaults?.topShade ?? defaultTopShade,
         topShadeHeight: landscapeDefaults?.topShadeHeight ?? defaultTopShadeHeight,
       })
-      setNetworkLogo(defaultNetworkLogo)
-      setNetworkLogoPosition(defaultNetworkLogoPosition)
+      setNetworkLogo(unmappedLand?.networkLogo ?? defaultNetworkLogo)
+      setNetworkLogoPosition(unmappedLand?.networkLogoPosition ?? defaultNetworkLogoPosition)
       setRibbonSide(defaultRibbonSide)
-      setRibbonEnabled(defaultRibbonEnabled)
+      setRibbonEnabled(unmappedLand?.ribbonEnabled ?? defaultRibbonEnabled)
       // Fresh landscape init (N5, see applyFreshLandscapeDefaults above):
       // runs AFTER the last flat setters so the landscape profile wins while
       // the fetch is still in flight (immediate WYSIWYG, no portrait flash).
@@ -2464,6 +2565,10 @@ export function usePictorium(): PictoriumCtx {
       // portraits stay centered by contract.
       setLogoAlign(defaultPosterShape === "landscape" ? (landscapeDefaults?.logoAlign ?? defaultLogoAlign ?? "left") : "center")
       setCustomBadge(null)
+      // Titolo senza mapping: nessun manuale da ripristinare — l'accent live
+      // riparte da automatico (isolamento dal titolo precedente; il ricalcolo
+      // lo riempie, mai colori stantii).
+      setAccentColor(null)
       setRotationPosters([])
       setAutoRotateClean(defaultAutoRotateClean)
       setExcludedPosters([])
@@ -2513,9 +2618,10 @@ export function usePictorium(): PictoriumCtx {
     mappingsMap, loadMappings, logoScale, logoOffsetX, logoOffsetY,
     selectedBackdrop, setSelectedBackdrop: setSelectedBackdrop, backdropScale, backdropOffsetX, backdropOffsetY,
     setBackdropScale, setBackdropOffsetX, setBackdropOffsetY,
-    globalBadges, rankingBadges, customBadge, badgeStyle, rankingBadgeStyle, extraBadgeStyle, badgeFont, qualityBadgeStyle, videoFormats,
-    badgeGenre, badgeYear, badgeRating, badgeQuality, customRatings, ratingSources, separateRatings, separateRatingsStyle,
+    globalBadges, rankingBadges, customBadge, badgePresetId, badgePresetRev, badgeStyle, rankingBadgeStyle, extraBadgeStyle, badgeFont, qualityBadgeStyle, videoFormats,
+    badgeGenre, badgeYear, badgeRating, badgeQuality, ageBadge, ageCountry, ageBadgeStyle, customRatings, ratingSources, separateRatings, separateRatingsStyle,
     defaultBadgeStyle, defaultRankingBadgeStyle, defaultExtraBadgeStyle, blurEnabled, blurIntensity, blurFade, blurDarkness, landscapeBlur, landscapeBlurDirty, setLandscapeBlur, defaultLogoScale, defaultLogoOffsetX, defaultLogoOffsetY, landscapeDefaults, tintStrength, topShade, topShadeHeight, gradientHeight,
+    defaultGlobalBadges, defaultRankingBadges, defaultBadgeGenre, defaultBadgeYear, defaultBadgeRating, defaultBadgeQuality, defaultAgeBadge, defaultAgeCountry, defaultAgeBadgeStyle, defaultCustomRatings, defaultSeparateRatings, defaultBadgeFont, defaultQualityBadgeStyle, defaultVideoFormats, defaultNetworkLogo, defaultNetworkLogoPosition, defaultRibbonEnabled,
     topBadgeScale, topBadgeOffsetX, topBadgeOffsetY, extraBadgeScale, extraBadgeOffsetX, extraBadgeOffsetY, genreBadgeScale, qualityBadgeScale, networkLogoScale,
     separateBadgeScale,
     separateBadgeOffsetX, separateBadgeOffsetY,
@@ -2528,9 +2634,21 @@ export function usePictorium(): PictoriumCtx {
     defaultSashOrder, logoScaleExplicit,
   })
 
-  const saveConfig = useCallback(async () => {
-    return await savePosterConfig()
-  }, [savePosterConfig])
+  // Shared per-title other-shape draft boundary (see src/lib/shape-draft.ts):
+  // the normal Save passes its local stash explicitly (that wins inside the
+  // hook); exclusion autosaves below resolve the staged other-format draft
+  // here — same full-save contract, same `otherShapeStash`. Cover-only saves
+  // never call this (intentional clear-customization contract, unchanged).
+  const withSharedShapeStash = useSharedShapeStash<SaveConfigOverrides>({
+    selected: navigation.selected,
+    userId: currentUserId,
+    shape: posterShape,
+    readDraft: editorCtx.readShapeDraft,
+  })
+
+  const saveConfig = useCallback(async (overrides?: SaveConfigOverrides) => {
+    return await savePosterConfig(withSharedShapeStash(overrides ?? {}))
+  }, [savePosterConfig, withSharedShapeStash])
 
   const saveCoverOnly = useCallback(async () => {
     // Snapshot pre-save: il payload cover-only preserva l'altro formato dal
@@ -2608,22 +2726,22 @@ export function usePictorium(): PictoriumCtx {
   }, [saveCoverOnlyPost, editorCtx, navigation, mappingsMap, posterShape, selectedBackdrop, setRotationPosters, setAutoRotateClean, setExcludedPosters, setRotationBackdrops, setAutoRotateBackdrop, setExcludedBackdrops, setSelectedBackdrop, setAccentColor])
 
   const autoSaveExcludedPosters = useCallback(async (nextExcluded: string[], nextRotationPosters?: string[], nextPreviewPoster?: TMDBImage) => {
-    await savePosterConfig({
+    await savePosterConfig(withSharedShapeStash({
       excludedPosters: nextExcluded,
       rotationPosters: nextRotationPosters ?? rotationPosters,
       previewPoster: nextPreviewPoster,
       silent: true,
-    })
-  }, [savePosterConfig, rotationPosters])
+    }))
+  }, [savePosterConfig, withSharedShapeStash, rotationPosters])
 
   const autoSaveExcludedBackdrops = useCallback(async (nextExcluded: string[], nextRotationBackdrops?: string[], nextBackdrop?: TMDBImage | null) => {
-    await savePosterConfig({
+    await savePosterConfig(withSharedShapeStash({
       excludedBackdrops: nextExcluded,
       rotationBackdrops: nextRotationBackdrops ?? rotationBackdrops,
       ...(nextBackdrop !== undefined ? { selectedBackdrop: nextBackdrop } : {}),
       silent: true,
-    })
-  }, [savePosterConfig, rotationBackdrops])
+    }))
+  }, [savePosterConfig, withSharedShapeStash, rotationBackdrops])
 
   // Prefetch hover sui risultati di ricerca — implementazione in
   // usePrefetchTitle.ts (stesse deps, stessa identità del callback).

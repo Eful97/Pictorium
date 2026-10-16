@@ -732,9 +732,12 @@ describe("save freezes the layout per shape", () => {
     await runLandscape()
     const landscapeBody = bodies[bodies.length - 1] as Record<string, unknown>
     expect((landscapeBody.landscape as Record<string, unknown>).posterLayout).toBe("fresh")
-    // New mapping in landscape: the flat inherits the live sliders (portrait
-    // works immediately), exactly like separateRatingsStyle.
-    expect(landscapeBody.posterLayout).toBe("fresh")
+    // Correction c1 save boundary: a new mapping has no portrait look to
+    // preserve, so a landscape-first save leaves the flat absent (inherit —
+    // portrait renders the defaults chain) instead of cloning the landscape
+    // live value into it. A staged portrait edit (both-shape edits before
+    // first save) travels as `otherShapeStash` and freezes as the flat.
+    expect("posterLayout" in landscapeBody).toBe(false)
   })
 })
 

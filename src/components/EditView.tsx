@@ -11,7 +11,10 @@ import { useT } from "@/lib/contexts/TranslationContext"
 import { usePosterEditor } from "@/lib/contexts/PosterEditorContext"
 import type { TMDBImage } from "@/lib/types"
 import { effectiveMappingForShape, isPosterLayout, isPosterFreshScope, DEFAULT_POSTER_FRESH_SCOPE, type LandscapeSettings } from "@/lib/types"
+import { perTitleDraftKey } from "@/lib/shape-draft"
+import { MAPPING_SHAPE_FACTORY, mappingShapeChainEffective, type MappingShapeLandKey } from "@/lib/visual-presets"
 import { isSeparateRatingsStyle } from "@/lib/badge-styles"
+import { isManualAccent } from "@/lib/accent-color"
 import { selectBestLogo } from "@/lib/logo-selection"
 import { resolveNetworkEffectiveView } from "@/lib/network-follow"
 import { isGradientDirtyForShape, isArtworkDirty, isMappingDirty } from "@/lib/gradient-dirty"
@@ -41,6 +44,8 @@ import { Check, Clock, Save, Image as ImageIcon, Trash2, X, ChevronLeft, Chevron
 
 export default function EditView() {
   const accentColor = usePSelector((v) => v.accentColor)
+  const autoAccentColor = usePSelector((v) => v.autoAccentColor)
+  const setAccentColor = usePSelector((v) => v.setAccentColor)
   const clearRecentSearches = usePSelector((v) => v.clearRecentSearches)
   const doSearch = usePSelector((v) => v.doSearch)
   const goHome = usePSelector((v) => v.goHome)
@@ -298,6 +303,51 @@ export default function EditView() {
   const [saveState, setSaveState] = useState<"idle" | "saving" | "error">("idle")
   const saveStateRef = useRef(saveState)
   saveStateRef.current = saveState
+  // Dual-format: stash degli slider non salvati per formato. Senza, passare
+  // da A a B e ritorno perderebbe in silenzio le modifiche non salvate di A
+  // (lo switch caricherebbe i valori salvati di B sopra quelle di A). Lo
+  // stash è per-titolo: cambiando titolo si azzera (identità reale tipo:id).
+  // Map (non plain object): le mutation via metodi non violano la regola
+  // react-hooks/immutability che flaggava l'assegnazione diretta di `.current`.
+  const shapeStashRef = useRef(new Map<"poster" | "landscape", LandscapeSettings>())
+  // Provenance scala titolo per formato (correzione c1): lo stash sopra salva
+  // il valore mostrato ma non se è auto o esplicito — senza, il ritorno al
+  // formato promuoverebbe un auto a esplicito (setLogoScale di default marca
+  // explicit) e un 100 automatico Fresh diventerebbe un 100 Standard baked.
+  const shapeLogoExplicitRef = useRef(new Map<"poster" | "landscape", boolean>())
+  // Stash per-titolo con reset affidabile al cambio selezione (correzione
+  // ciclo 3): l'azzeramento vive in un effetto guidato dall'identità reale
+  // del titolo (tipo:id), non nel solo controllo stale dentro
+  // handleShapeChange — un callback con closure vecchia non può essere
+  // l'unico reset. Il reset avviene all'apertura del titolo, PRIMA di
+  // qualsiasi edit dell'utente sul nuovo titolo: gli edit correnti dopo
+  // l'apertura appartengono al nuovo titolo e vanno stashati normalmente
+  // al primo switch di formato (mai scartati). La chiave è uno state (non
+  // un ref assegnato dentro gli hook: react-hooks/immutability vieta
+  // `ref.current =` sui valori catturati dagli hook); le Map restano ref
+  // perché le mutation via metodi sono consentite. Dichiarato prima di
+  // handleSave perché la chiave entra nelle sue dipendenze.
+  const [shapeStashKey, setShapeStashKey] = useState<string | null>(null)
+  // Per-title identity for the shape stash (local + shared): the user
+  // namespace qualifies the title so two spaces editing the same title in
+  // one session never share unsaved drafts. New (unsaved) titles still carry
+  // a real media_type:id, so they own a distinct key too — only the
+  // nothing-selected state shares the inert "new" bucket (no save possible).
+  const selectedStashKey = selected ? perTitleDraftKey(currentUserId, selected.media_type, selected.id) : "new"
+  // Stable access to the shared draft store (PosterEditorContext callbacks
+  // are stable; the ref keeps the title-change effect and the shape-switch
+  // handler off the `ed` identity so neither resets nor re-creates on every
+  // editor tick).
+  const sharedDraftsRef = useRef({ stash: ed.stashShapeDraft, reset: ed.resetShapeDraftsForTitle })
+  sharedDraftsRef.current = { stash: ed.stashShapeDraft, reset: ed.resetShapeDraftsForTitle }
+  useEffect(() => {
+    shapeStashRef.current.clear()
+    shapeLogoExplicitRef.current.clear()
+    setShapeStashKey(selectedStashKey)
+    // Claim shared ownership for the new title (drops the previous title's
+    // entry): a new title identity can never consume the old title's draft.
+    sharedDraftsRef.current.reset(selectedStashKey)
+  }, [selectedStashKey])
   const handleSave = useCallback(async () => {
     if (saveStateRef.current === "saving") return
     // Synchronous guard: the ref assignment above only runs on render, so a
@@ -305,7 +355,19 @@ export default function EditView() {
     saveStateRef.current = "saving"
     setSaveState("saving")
     try {
-      const ok = await saveConfig()
+      // Both-shape edits before save: the staged other-shape style values
+      // (shape stash, newer than the saved mapping) travel with the save so
+      // the non-editing shape's look is preserved verbatim — never the edited
+      // live value, never dropped. Absent when the other shape was never
+      // visited (boundary from the saved mapping). Identity-gated: the stash
+      // belongs to exactly one title (shapeStashKey) — after opening
+      // title B, title A's stash must never be forwarded into B's save.
+      const otherShape = ed.posterShape === "landscape" ? "poster" : "landscape"
+      const saveKey = selected ? perTitleDraftKey(currentUserId, selected.media_type, selected.id) : "new"
+      const stashed = shapeStashKey === saveKey
+        ? (shapeStashRef.current.get(otherShape) ?? null)
+        : null
+      const ok = await saveConfig(stashed ? { otherShapeStash: stashed } : undefined)
       if (ok !== false) {
         saveStateRef.current = "idle"
         setSaveState("idle")
@@ -320,7 +382,7 @@ export default function EditView() {
       saveStateRef.current = "error"
       setSaveState("error")
     }
-  }, [saveConfig])
+  }, [saveConfig, ed.posterShape, selected, currentUserId, shapeStashKey])
 
   // Second action: cover-only save shares the progress state (simultaneous
   // actions disabled while saving); on success the context resets the
@@ -457,14 +519,11 @@ export default function EditView() {
   // Dual-format: stash degli slider non salvati per formato. Senza, passare
   // da A a B e ritorno perderebbe in silenzio le modifiche non salvate di A
   // (lo switch caricherebbe i valori salvati di B sopra quelle di A). Lo
-  // stash è per-titolo: cambiando titolo si azzera (selectedMappingKey).
-  const shapeStashRef = useRef<Partial<Record<"poster" | "landscape", LandscapeSettings>>>({})
-  const shapeStashKeyRef = useRef<string | null>(null)
-  // Provenance scala titolo per formato (correzione c1): lo stash sopra salva
-  // il valore mostrato ma non se è auto o esplicito — senza, il ritorno al
-  // formato promuoverebbe un auto a esplicito (setLogoScale di default marca
-  // explicit) e un 100 automatico Fresh diventerebbe un 100 Standard baked.
-  const shapeLogoExplicitRef = useRef<Partial<Record<"poster" | "landscape", boolean>>>({})
+  // stash è per-titolo: cambiando titolo si azzera (identità reale tipo:id).
+  // Map (non plain object): le mutation via metodi non violano la regola
+  // react-hooks/immutability che flaggava l'assegnazione diretta di `.current`.
+  // (Dichiarazione spostata sopra handleSave: la chiave di identità entra
+  // nelle dipendenze del save e deve precederlo.)
   // Cambio formato: portrait deseleziona sempre lo sfondo (in verticale
   // `poster=` + `backdrop=` comporrebbero la banda sopra il poster),
   // landscape lascia fare all'effetto sopra. Gli slider passano al profilo
@@ -473,14 +532,27 @@ export default function EditView() {
   const handleShapeChange = useCallback((next: "poster" | "landscape") => {
     const prev = ed.posterShape
     if (prev === next) return
-    const stashKey = selectedMappingKey ?? "new"
-    if (shapeStashKeyRef.current !== stashKey) {
-      shapeStashRef.current = {}
-      shapeLogoExplicitRef.current = {}
-      shapeStashKeyRef.current = stashKey
+    // Stash per-titolo con identità reale del titolo (namespace + tipo:id
+    // selezionato via perTitleDraftKey): due titoli nuovi/non salvati non
+    // condividono mai lo stash. Solo senza selezione si usa la chiave
+    // generica "new". Il reset affidabile vive
+    // nell'effetto su selectedStashKey sopra; qui si riallinea solo in caso
+    // di closure/effetto non ancora scattato — e si stashano SEMPRE i live
+    // correnti: dopo l'apertura del nuovo titolo i live appartengono al
+    // nuovo titolo (open inizializza sul nuovo), quindi scartarli
+    // perderebbe gli edit validi dell'utente prima del primo switch.
+    const stashKey = selected ? perTitleDraftKey(currentUserId, selected.media_type, selected.id) : "new"
+    if (shapeStashKey !== stashKey) {
+      shapeStashRef.current.clear()
+      shapeLogoExplicitRef.current.clear()
+      setShapeStashKey(stashKey)
     }
-    shapeLogoExplicitRef.current[prev] = ed.logoScaleExplicit
-    shapeStashRef.current[prev] = {
+    // Dopo il riallineamento qui sopra lo stash appartiene per costruzione
+    // al titolo corrente (o era già suo, o è stato appena azzerato): le
+    // letture sotto usano le Map direttamente, senza gate stale.
+    // Singolo oggetto draft (mai due copie della lista campi): il locale e
+    // lo shared store ricevono lo stesso contenuto (clonato dal ricevente).
+    const draft: LandscapeSettings = {
       logoScale: ed.logoScale, logoOffsetX: ed.logoOffsetX, logoOffsetY: ed.logoOffsetY,
       topBadgeScale: ed.topBadgeScale, topBadgeOffsetX: ed.topBadgeOffsetX, topBadgeOffsetY: ed.topBadgeOffsetY,
       extraBadgeScale: ed.extraBadgeScale, extraBadgeOffsetX: ed.extraBadgeOffsetX, extraBadgeOffsetY: ed.extraBadgeOffsetY,
@@ -494,9 +566,36 @@ export default function EditView() {
       posterFreshScope: ed.posterFreshScope,
       networkLogoScale: ed.networkLogoScale, networkLogoOffsetX: ed.networkLogoOffsetX, networkLogoOffsetY: ed.networkLogoOffsetY,
       networkLogoFollowTitle: ed.networkLogoFollowTitle,
+      // Stili/toggle per formato: stessa regola del tuning (ogni formato
+      // ricorda la propria veste non salvata senza toccare l'altro).
+      showBadges: ed.globalBadges, rankingBadges: ed.rankingBadges,
+      badgeGenre: ed.badgeGenre, badgeYear: ed.badgeYear, badgeRating: ed.badgeRating, badgeQuality: ed.badgeQuality,
+      // Badge età per-titolo per formato: ogni formato ricorda la propria
+      // scelta non salvata senza toccare l'altro (come gli stili sopra).
+      ageBadge: ed.ageBadge, ageCountry: ed.ageCountry, ageBadgeStyle: ed.ageBadgeStyle,
+      customRatings: ed.customRatings, separateRatings: ed.separateRatings,
+      badgeStyle: ed.badgeStyle, rankingBadgeStyle: ed.rankingBadgeStyle, extraBadgeStyle: ed.extraBadgeStyle,
+      badgeFont: ed.badgeFont, qualityBadgeStyle: ed.qualityBadgeStyle, videoFormats: ed.videoFormats,
+      networkLogo: ed.networkLogo, networkLogoPosition: ed.networkLogoPosition, ribbonEnabled: ed.ribbonEnabled,
+      // Visuali un tempo condivisi, per-formato come gli stili sopra: ogni
+      // formato ricorda i propri non salvati. Accent: solo il manuale viaggia
+      // (null = automatico esplicito); un auto effettivo non si congela mai
+      // nello stash — il ripristino materializza l'effettivo (sotto), quindi
+      // un null stashato non è mai un inherit intoccato. Preset a coppia.
+      customBadge: ed.customBadge,
+      accentColor: isManualAccent(accentColor, autoAccentColor) ? accentColor : null,
+      badgePresetId: ed.badgePresetId,
+      badgePresetRev: ed.badgePresetRev,
       // Sfumatura ESCLUSA: ha profili dedicati per formato (flat = portrait,
       // landscapeBlur = landscape) e non passa più dallo stash.
     }
+    shapeLogoExplicitRef.current.set(prev, ed.logoScaleExplicit)
+    shapeStashRef.current.set(prev, draft)
+    // Mirror nello shared store (stesso contenuto, clonato dal ricevente):
+    // gli autosave di esclusione risolvono da qui lo staged dell'altro
+    // formato sullo stesso boundary del Save manuale. Solo con selezione
+    // reale: il bucket "new" senza titolo non salva mai.
+    if (selected) sharedDraftsRef.current.stash(stashKey, prev, draft)
     if (next === "poster") removeBackdrop()
     ed.setPosterShape(next)
     ed.setLogoAlign(next === "landscape" ? (ed.defaultLogoAlign ?? "left") : "center")
@@ -506,15 +605,19 @@ export default function EditView() {
     // La calibrazione +10/-10 vive nel renderer (invisibile, slider a 0).
     // La sfumatura è esclusa (profili dedicati flat/landscapeBlur).
     const landFallback: Partial<LandscapeSettings> | null = next === "landscape" ? (ed.landscape ?? null) : null
-    const src = shapeStashRef.current[next]
+    // Consumo dallo stash appena riallineato (appartiene al titolo corrente
+    // per costruzione, vedi sopra): nessuna lettura cross-titolo possibile.
+    const stashForRead = shapeStashRef.current
+    const src = stashForRead?.get(next)
       ?? (selectedMapping ? effectiveMappingForShape(selectedMapping, next) : null)
       ?? landFallback
     if (src) {
       // Provenance ripristinata dallo stash (correzione c1): un auto resta
       // auto (preview sentinel, rank-effect lo riallinea), un esplicito resta
       // esplicito. Senza stash di provenance, l'assenza nel profilo salvato
-      // (null) resta auto, il valore salvato resta esplicito.
-      const stashedExplicit = shapeLogoExplicitRef.current[next]
+      // (null) resta auto, il valore salvato resta esplicito. La provenance
+      // segue lo stesso riallineamento dello stash (stesso titolo).
+      const stashedExplicit = stashForRead ? shapeLogoExplicitRef.current.get(next) : undefined
       const srcHasExplicit = src.logoScale != null
       if (stashedExplicit !== undefined) {
         // Stash di formato: valore + provenance dello stesso formato.
@@ -546,25 +649,41 @@ export default function EditView() {
       ed.setSeparateBadgeScale(src.separateBadgeScale ?? landFallback?.separateBadgeScale ?? ed.separateBadgeScale)
       ed.setSeparateBadgeOffsetX(src.separateBadgeOffsetX ?? landFallback?.separateBadgeOffsetX ?? ed.separateBadgeOffsetX)
       ed.setSeparateBadgeOffsetY(src.separateBadgeOffsetY ?? landFallback?.separateBadgeOffsetY ?? ed.separateBadgeOffsetY)
-      // Stile dal profilo del formato (stash > salvato): override landscape
-      // rispettato, altrimenti scelta corrente preservata (mai reset).
+      // Stile separati dal profilo del formato (stash > salvato > default di
+      // forma, mai il live dell'altro formato): portrait = default flat,
+      // landscape = profilo Orizzontale ?? flat.
       {
-        const styleSrc = src.separateRatingsStyle ?? landFallback?.separateRatingsStyle
-        ed.setSeparateRatingsStyle(isSeparateRatingsStyle(styleSrc) ? styleSrc : ed.separateRatingsStyle)
+        const styleSrc = src.separateRatingsStyle ?? landFallback?.separateRatingsStyle ?? (next === "landscape" ? undefined : ed.defaultSeparateRatingsStyle)
+        const landRec = ed.landscape as unknown as Record<string, unknown>
+        const shapeDefault: string | null | undefined = next === "landscape"
+          ? ((landRec.separateRatingsStyle as string | null | undefined) ?? ed.defaultSeparateRatingsStyle)
+          : ed.defaultSeparateRatingsStyle
+        const resolved = isSeparateRatingsStyle(styleSrc) ? styleSrc : (isSeparateRatingsStyle(shapeDefault) ? shapeDefault : "column")
+        ed.setSeparateRatingsStyle(resolved)
       }
       // Layout grafico dal profilo del formato (stash > salvato > default
       // Orizzontale > default flat): ogni formato ricorda la propria scelta
       // senza toccare gli altri visuali.
       {
-        const layoutSrc = src.posterLayout ?? landFallback?.posterLayout ?? ed.defaultPosterLayout
-        ed.setPosterLayout(isPosterLayout(layoutSrc) ? layoutSrc : "standard")
+        const layoutSrc = src.posterLayout ?? landFallback?.posterLayout ?? (next === "landscape" ? undefined : ed.defaultPosterLayout)
+        const landRec = ed.landscape as unknown as Record<string, unknown>
+        const shapeDefault: unknown = next === "landscape"
+          ? (landRec.posterLayout ?? ed.defaultPosterLayout)
+          : ed.defaultPosterLayout
+        const resolved = isPosterLayout(layoutSrc) ? layoutSrc : (isPosterLayout(shapeDefault) ? shapeDefault : "standard")
+        ed.setPosterLayout(resolved)
       }
       // Fresh apply scope dal profilo del formato (stash > salvato > default
       // Orizzontale > default flat): ogni formato ricorda la propria scelta
       // senza toccare gli altri visuali.
       {
-        const scopeSrc = src.posterFreshScope ?? landFallback?.posterFreshScope ?? ed.defaultPosterFreshScope
-        ed.setPosterFreshScope(isPosterFreshScope(scopeSrc) ? scopeSrc : DEFAULT_POSTER_FRESH_SCOPE)
+        const scopeSrc = src.posterFreshScope ?? landFallback?.posterFreshScope ?? (next === "landscape" ? undefined : ed.defaultPosterFreshScope)
+        const landRec = ed.landscape as unknown as Record<string, unknown>
+        const shapeDefault: unknown = next === "landscape"
+          ? (landRec.posterFreshScope ?? ed.defaultPosterFreshScope)
+          : ed.defaultPosterFreshScope
+        const resolved = isPosterFreshScope(scopeSrc) ? scopeSrc : (isPosterFreshScope(shapeDefault) ? shapeDefault : DEFAULT_POSTER_FRESH_SCOPE)
+        ed.setPosterFreshScope(resolved)
       }
       ed.setNetworkLogoScale(src.networkLogoScale ?? landFallback?.networkLogoScale ?? ed.networkLogoScale)
       // Effective network view composing the saved mapping with the global
@@ -597,7 +716,105 @@ export default function EditView() {
       }
       // Sfumatura esclusa dallo stash (profili dedicati per formato).
     }
-  }, [ed, removeBackdrop, selectedMapping, selectedMappingKey])
+    // Stili/toggle per formato, SEMPRE (anche senza stash/salvato/profilo):
+    // stash > mapping effettivo salvato > default effettivi di forma >
+    // factory storica — MAI il live editato dell'altro formato. Il live resta
+    // solo come valore di stash per il formato che si lascia (scritto sopra),
+    // mai come fallback per il formato di arrivo. `showBadges` legge il
+    // profilo globale `globalBadges` (stesso valore, nome del default).
+    {
+      // Stash appena riallineato al titolo corrente (vedi sopra): mai
+      // cross-titolo, anche in caso di effetto non ancora scattato.
+      const stashedTarget = shapeStashRef.current.get(next) as Partial<Record<MappingShapeLandKey | string, unknown>> | undefined
+      const savedEff = selectedMapping ? (effectiveMappingForShape(selectedMapping, next) as unknown as Record<string, unknown>) : null
+      const flatDefaultsChain: Record<string, unknown> = {
+        showBadges: ed.defaultGlobalBadges,
+        rankingBadges: ed.defaultRankingBadges,
+        badgeGenre: ed.defaultBadgeGenre,
+        badgeYear: ed.defaultBadgeYear,
+        badgeRating: ed.defaultBadgeRating,
+        badgeQuality: ed.defaultBadgeQuality,
+        ageBadge: ed.defaultAgeBadge,
+        ageCountry: ed.defaultAgeCountry,
+        ageBadgeStyle: ed.defaultAgeBadgeStyle,
+        customRatings: ed.defaultCustomRatings,
+        separateRatings: ed.defaultSeparateRatings,
+        badgeStyle: ed.defaultBadgeStyle,
+        rankingBadgeStyle: ed.defaultRankingBadgeStyle,
+        extraBadgeStyle: ed.defaultExtraBadgeStyle,
+        badgeFont: ed.defaultBadgeFont,
+        qualityBadgeStyle: ed.defaultQualityBadgeStyle,
+        videoFormats: ed.defaultVideoFormats,
+        networkLogo: ed.defaultNetworkLogo,
+        networkLogoPosition: ed.defaultNetworkLogoPosition,
+        ribbonEnabled: ed.defaultRibbonEnabled,
+      }
+      const profileDefaults = next === "landscape" ? ((ed.landscape ?? null) as unknown as Record<string, unknown> | null) : null
+      const resolveBadge = (key: MappingShapeLandKey): unknown => {
+        const stashed = stashedTarget?.[key]
+        if (stashed !== undefined) return Array.isArray(stashed) ? [...(stashed as unknown[])] : stashed
+        const saved = savedEff?.[key]
+        if (saved !== undefined && saved !== null) return Array.isArray(saved) ? [...(saved as unknown[])] : saved
+        const chain = mappingShapeChainEffective(key, flatDefaultsChain, profileDefaults)
+        if (chain.known) return Array.isArray(chain.value) ? [...(chain.value as unknown[])] : chain.value
+        return MAPPING_SHAPE_FACTORY[key]
+      }
+      ed.setGlobalBadges(resolveBadge("showBadges") as boolean)
+      ed.setRankingBadges(resolveBadge("rankingBadges") as boolean)
+      ed.setBadgeGenre(resolveBadge("badgeGenre") as boolean)
+      ed.setBadgeYear(resolveBadge("badgeYear") as boolean)
+      ed.setBadgeRating(resolveBadge("badgeRating") as boolean)
+      ed.setBadgeQuality(resolveBadge("badgeQuality") as boolean)
+      ed.setAgeBadge(resolveBadge("ageBadge") as boolean)
+      ed.setAgeCountry(resolveBadge("ageCountry") as string)
+      ed.setAgeBadgeStyle(resolveBadge("ageBadgeStyle") as typeof ed.ageBadgeStyle)
+      ed.setCustomRatings(resolveBadge("customRatings") as boolean)
+      ed.setSeparateRatings(resolveBadge("separateRatings") as boolean)
+      ed.setBadgeStyle(resolveBadge("badgeStyle") as typeof ed.badgeStyle)
+      ed.setRankingBadgeStyle(resolveBadge("rankingBadgeStyle") as typeof ed.rankingBadgeStyle)
+      ed.setExtraBadgeStyle(resolveBadge("extraBadgeStyle") as typeof ed.extraBadgeStyle)
+      ed.setBadgeFont(resolveBadge("badgeFont") as typeof ed.badgeFont)
+      ed.setQualityBadgeStyle(resolveBadge("qualityBadgeStyle") as typeof ed.qualityBadgeStyle)
+      ed.setVideoFormats(resolveBadge("videoFormats") as typeof ed.videoFormats)
+      ed.setNetworkLogo(resolveBadge("networkLogo") as boolean)
+      ed.setNetworkLogoPosition(resolveBadge("networkLogoPosition") as typeof ed.networkLogoPosition)
+      ed.setRibbonEnabled(resolveBadge("ribbonEnabled") as boolean)
+    }
+    // Visuali un tempo condivisi, per-formato come gli stili sopra (SEMPRE,
+    // anche senza stash/salvato/profilo): stash > mapping effettivo salvato >
+    // neutro — MAI il live editato dell'altro formato. customBadge null/""
+    // = automatico per la forma ripristinata; accent null = automatico (solo
+    // manuali viaggiano, mai auto congelati); preset a coppia (mai mescolati
+    // tra forme). Lo stash porta sempre entrambe le chiavi preset (draft
+    // unico, mai due copie).
+    {
+      const stashedTarget = shapeStashRef.current.get(next) as Partial<Record<string, unknown>> | undefined
+      const savedEff = selectedMapping ? (effectiveMappingForShape(selectedMapping, next) as unknown as Record<string, unknown>) : null
+      const stashedCustom = stashedTarget?.customBadge
+      const savedCustom = savedEff?.customBadge
+      const restoredCustom = stashedCustom !== undefined ? stashedCustom : savedCustom
+      // "" (clear esplicito storico) si normalizza a null: entrambi rendono
+      // auto a ogni livello, mai resurrect del flat.
+      ed.setCustomBadge(
+        typeof restoredCustom === "string" && restoredCustom.length > 0 ? restoredCustom : null,
+      )
+      const stashedAccent = stashedTarget?.accentColor
+      const savedAccent = savedEff?.accentColor
+      const restoredAccent = stashedAccent !== undefined ? stashedAccent : savedAccent
+      setAccentColor(
+        typeof restoredAccent === "string" && restoredAccent.length > 0 ? restoredAccent : autoAccentColor,
+      )
+      const stashedId = stashedTarget?.badgePresetId
+      const stashedRev = stashedTarget?.badgePresetRev
+      if (stashedId !== undefined || stashedRev !== undefined) {
+        ed.setBadgePresetId((stashedId ?? null) as string | null)
+        ed.setBadgePresetRev((stashedRev ?? null) as string | null)
+      } else {
+        ed.setBadgePresetId((savedEff?.badgePresetId ?? null) as string | null)
+        ed.setBadgePresetRev((savedEff?.badgePresetRev ?? null) as string | null)
+      }
+    }
+  }, [ed, removeBackdrop, selectedMapping, selected, currentUserId, shapeStashKey, setShapeStashKey, accentColor, autoAccentColor, setAccentColor])
 
   const handleSelectPoster = useCallback((img: TMDBImage) => {
     void selectPoster(img)

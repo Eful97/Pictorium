@@ -279,6 +279,16 @@ export interface GenerationInput {
   badgePresetRev?: string | null
   /** Namespace utente per i preset privati (solo il proprietario li rende). */
   badgePresetUser?: string | null
+  /**
+   * Preset già risolto dalla route (verità autorizzata corrente dello store
+   * letta PRIMA del lookup della poster cache). Quando definito — anche null
+   * (binding morto: preset cancellato/revocato) — il render lo riusa senza
+   * rileggere lo store: la chiave poster e i byte restano coerenti nella
+   * stessa richiesta e nessuna copia JSON stantia può filtrare dopo una
+   * revoca. Indefinito = percorso legacy (resolve via getPresetForPoster);
+   * il path senza preset (id null) resta invariato.
+   */
+  badgePresetResolved?: BadgePreset | null
   /** Data uscita digitale già calcolata dal pre-release: Just Added. */
   digitalReleaseDate?: string | null
   finalRank: number | null
@@ -536,18 +546,26 @@ export async function getPresetForPoster(
   userUuid: string | null | undefined,
 ): Promise<BadgePreset | null> {
   if (!id) return null
+  // Identità di cache per-namespace: un preset privato cachato per il
+  // proprietario non deve mai servire un altro namespace con lo stesso id
+  // (i pubblici occupano semplicemente una entry per lettore). Il
+  // separatore `:` è fuori da entrambi gli alfabeti (UUID lowercase
+  // hex+trattini via sanitizeUserId, id preset [A-Za-z0-9_-]) e l'UUID ha
+  // lunghezza fissa (36) contro id di max 24: nessuna collisione possibile
+  // tra (`userA`,`idA`) e (`userB`,`idB`) distinti.
+  const presetCacheKey = `${userUuid ?? ""}:${id}`
   const now = Date.now()
-  const hit = presetJsonCache.get(id)
+  const hit = presetJsonCache.get(presetCacheKey)
   if (hit && hit.expires > now && (!expectedRev || hit.preset.revision === expectedRev)) {
     return hit.preset
   }
   try {
     const stored = await getPresetForUser(id, userUuid ?? "")
     if (!stored) {
-      presetJsonCache.delete(id)
+      presetJsonCache.delete(presetCacheKey)
       return null
     }
-    presetJsonCache.set(id, { preset: stored.preset, expires: now + PRESET_JSON_TTL_MS })
+    presetJsonCache.set(presetCacheKey, { preset: stored.preset, expires: now + PRESET_JSON_TTL_MS })
     if (presetJsonCache.size > PRESET_JSON_CACHE_MAX) {
       const oldest = presetJsonCache.keys().next().value
       if (oldest !== undefined) presetJsonCache.delete(oldest)
@@ -556,7 +574,7 @@ export async function getPresetForPoster(
   } catch {
     // Store in panne (KV irraggiungibile, file corrotto): fail-open, il
     // chiamante degrada sullo stile standard e il poster resta 200.
-    presetJsonCache.delete(id)
+    presetJsonCache.delete(presetCacheKey)
     return null
   }
 }
@@ -2115,7 +2133,13 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
   // esistenti. Il preset segue i master toggle dello slot (badgesEnabled /
   // rankingEnabled) ma non richiede valori computati; assente, privato
   // altrui o con testo vuoto → fallback silenzioso sullo stile standard.
-  const presetForPoster = await getPresetForPoster(badgePresetId, badgePresetRev, badgePresetUser)
+  // La route pre-risolve la verità autorizzata corrente
+  // (`badgePresetResolved`) prima del lookup della poster cache così la
+  // chiave e i byte non divergono dopo un Lab-edit/delete/revoca; il
+  // fallback qui sotto resta per i chiamanti senza pre-risoluzione.
+  const presetForPoster = input.badgePresetResolved !== undefined
+    ? input.badgePresetResolved
+    : await getPresetForPoster(badgePresetId, badgePresetRev, badgePresetUser)
   const presetVarCtx: BadgeVariableContext = {
     rating: voteAverage ? voteAverage.toFixed(1) : null,
     year: year ?? null,

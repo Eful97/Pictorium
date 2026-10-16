@@ -14,11 +14,13 @@ import { isManualAccent } from "./accent-color"
 import { normalizeGenreName } from "./genre-normalize"
 import type { EnrichedAnimeItem } from "./validation"
 import type { VideoFormat } from "./av-specs"
-import type { SeparateRatingsStyle, ExtraBadgeStyle, ExtraBadgeFollowRank } from "./badge-styles"
-import { isExtraBadgeStyleTransport } from "./badge-styles"
+import type { SeparateRatingsStyle, ExtraBadgeStyle, ExtraBadgeFollowRank, AgeBadgeStyle } from "./badge-styles"
+import { isExtraBadgeStyleTransport, isExtraFollowRank, isAgeBadgeStyle, DEFAULT_AGE_BADGE_STYLE } from "./badge-styles"
+import { DEFAULT_AGE_COUNTRY } from "./certification"
 import type { PosterLayout, PosterFreshScope } from "./types"
 import type { LandscapeBlurState } from "./contexts/PosterEditorContext"
 import type { LandscapeServerDefaults } from "./server-defaults"
+import { MAPPING_SHAPE_LAND_KEYS, isLandscapeKeyPresent, mappingShapeChainEffective, snapshotMissingMappingLandscape, type MappingShapeLandKey } from "./visual-presets"
 import { http, ApiError } from "./http"
 
 interface PosterSaveDeps {
@@ -53,6 +55,12 @@ interface PosterSaveDeps {
   badgeYear: boolean
   badgeRating: boolean
   badgeQuality: boolean
+  /** Badge età per-titolo in editing (congelato al save; assente = default effettivi, mai migrato). */
+  ageBadge?: boolean
+  /** Paese classificazione età per-titolo in editing (fail-closed al render). */
+  ageCountry?: string
+  /** Stile pill età per-titolo in editing ("standard" = resa storica). */
+  ageBadgeStyle?: AgeBadgeStyle
   customRatings: boolean
   /** Fonti del voto medio ★ per-titolo (congelate al save come gli altri badge). */
   ratingSources: string[]
@@ -76,6 +84,27 @@ interface PosterSaveDeps {
   defaultBadgeStyle: string
   defaultRankingBadgeStyle: string
   defaultExtraBadgeStyle: ExtraBadgeStyle | ExtraBadgeFollowRank | string | null
+  /** Flat style defaults for the save independence boundary (chain-correct
+   *  backfill when a legacy flat is inherit-null/absent). All optional:
+   *  absent = legacy factory/skip fallback (never the edited live value). */
+  defaultGlobalBadges?: boolean
+  defaultRankingBadges?: boolean
+  defaultBadgeGenre?: boolean
+  defaultBadgeYear?: boolean
+  defaultBadgeRating?: boolean
+  defaultBadgeQuality?: boolean
+  /** Provenance default per-titolo per il boundary di indipendenza (vedi sopra). */
+  defaultAgeBadge?: boolean
+  defaultAgeCountry?: string
+  defaultAgeBadgeStyle?: AgeBadgeStyle
+  defaultCustomRatings?: boolean
+  defaultSeparateRatings?: boolean
+  defaultBadgeFont?: string
+  defaultQualityBadgeStyle?: string
+  defaultVideoFormats?: VideoFormat[] | null
+  defaultNetworkLogo?: boolean
+  defaultNetworkLogoPosition?: NetworkLogoPosition
+  defaultRibbonEnabled?: boolean
   blurEnabled: boolean
   blurIntensity: number
   blurFade: number
@@ -171,6 +200,15 @@ export interface SaveConfigOverrides {
   previewPoster?: TMDBImage
   selectedBackdrop?: TMDBImage | null
   silent?: boolean
+  /**
+   * Staged style values of the shape NOT in editing (EditView shape stash,
+   * newer than the saved mapping): portrait values for a landscape save,
+   * landscape values for a portrait save. Only MAPPING_SHAPE_LAND_KEYS are
+   * consumed (tuning, logo and gradient keep their existing rules); absent =
+   * no staged edits (boundary from the saved mapping). Enables both-shape
+   * edits before a single save without leaking either look into the other.
+   */
+  otherShapeStash?: Partial<Record<MappingShapeLandKey, unknown>> | null
 }
 
 /**
@@ -196,8 +234,12 @@ export function usePosterSave(deps: PosterSaveDeps) {
     setBackdropScale, setBackdropOffsetX, setBackdropOffsetY,
     globalBadges, rankingBadges, customBadge, badgePresetId, badgePresetRev, badgeStyle, rankingBadgeStyle, extraBadgeStyle, badgeFont, qualityBadgeStyle,
     videoFormats,
-    badgeGenre, badgeYear, badgeRating, badgeQuality, customRatings, ratingSources, separateRatings, separateRatingsStyle,
+    badgeGenre, badgeYear, badgeRating, badgeQuality, ageBadge, ageCountry, ageBadgeStyle, customRatings, ratingSources, separateRatings, separateRatingsStyle,
     defaultBadgeStyle, defaultRankingBadgeStyle, defaultExtraBadgeStyle,
+    defaultGlobalBadges, defaultRankingBadges, defaultBadgeGenre, defaultBadgeYear,
+    defaultBadgeRating, defaultBadgeQuality, defaultAgeBadge, defaultAgeCountry, defaultAgeBadgeStyle, defaultCustomRatings, defaultSeparateRatings,
+    defaultBadgeFont, defaultQualityBadgeStyle, defaultVideoFormats,
+    defaultNetworkLogo, defaultNetworkLogoPosition, defaultRibbonEnabled,
     blurEnabled, blurIntensity, blurFade, blurDarkness, landscapeBlur, landscapeBlurDirty, setLandscapeBlur, defaultLogoScale, defaultLogoOffsetX, defaultLogoOffsetY, landscapeDefaults, tintStrength, topShade, topShadeHeight, gradientHeight, setGradientHeight, setBlurFade,
     topBadgeScale, topBadgeOffsetX, topBadgeOffsetY, extraBadgeScale, extraBadgeOffsetX, extraBadgeOffsetY, genreBadgeScale, qualityBadgeScale, networkLogoScale, separateBadgeScale,
     separateBadgeOffsetX, separateBadgeOffsetY,
@@ -421,8 +463,54 @@ export function usePosterSave(deps: PosterSaveDeps) {
     // il 16:9 (oggi removeBackdrop + save portrait = backdrop perso).
     const prevMapping = mappingsMap.get(`${selected.media_type}:${selected.id}`) ?? null
     const isLandscapeMode = posterShape === "landscape"
-    const keepFlat = <T>(current: T, saved: T | null | undefined): T =>
-      isLandscapeMode ? (prevMapping ? (saved ?? current) : current) : current
+    // Flat defaults for the independence boundary, in mapping-bare names
+    // (`showBadges`, `badgeStyle`, …): the chain-effective freeze for
+    // inherit-null/absent saved flats. A level the caller did not pass stays
+    // `undefined` (= unknown provenance → legacy fallback, documented).
+    const flatDefaultsChain: Record<string, unknown> = {
+      showBadges: defaultGlobalBadges,
+      rankingBadges: defaultRankingBadges,
+      badgeGenre: defaultBadgeGenre,
+      badgeYear: defaultBadgeYear,
+      badgeRating: defaultBadgeRating,
+      badgeQuality: defaultBadgeQuality,
+      // Badge età per-titolo: provenance per il freeze chain-correct del
+      // backfill (un OFF esplicito con default ON congela ON nel profilo
+      // dell'altro formato; assente = fallback legacy, mai il live editato).
+      ageBadge: defaultAgeBadge,
+      ageCountry: defaultAgeCountry,
+      ageBadgeStyle: defaultAgeBadgeStyle,
+      customRatings: defaultCustomRatings,
+      separateRatings: defaultSeparateRatings,
+      badgeStyle: defaultBadgeStyle,
+      rankingBadgeStyle: defaultRankingBadgeStyle,
+      extraBadgeStyle: defaultExtraBadgeStyle,
+      badgeFont: defaultBadgeFont,
+      qualityBadgeStyle: defaultQualityBadgeStyle,
+      videoFormats: defaultVideoFormats,
+      networkLogo: defaultNetworkLogo,
+      networkLogoPosition: defaultNetworkLogoPosition,
+      ribbonEnabled: defaultRibbonEnabled,
+    }
+    // Staged edits of the shape NOT in editing (EditView shape stash, passed
+    // as `otherShapeStash`): portrait values for a landscape save, landscape
+    // values for a portrait save. Newer than the saved mapping when present.
+    const otherStash = (overrides.otherShapeStash ?? null) as Record<string, unknown> | null
+    const portraitStash = isLandscapeMode ? otherStash : null
+    const landscapeStash = !isLandscapeMode ? otherStash : null
+    // Portrait-flat writer (correction c1): a landscape save preserves the
+    // flat VERBATIM — staged portrait value when present (newer than the
+    // saved mapping, or the only portrait value for a new mapping), else the
+    // saved flat (concrete stays, null stays null, absent stays absent on the
+    // full-replace POST), else absent for a new mapping (inherit — never a
+    // clone of the edited landscape live value into the portrait flat).
+    const keepFlatKey = <T>(key: string, current: T): T => {
+      if (!isLandscapeMode) return current
+      const stashed = portraitStash?.[key]
+      if (stashed !== undefined) return stashed as T
+      if (prevMapping) return (prevMapping as unknown as Record<string, unknown>)[key] as T
+      return undefined as T
+    }
     // Sfumatura landscape: i valori live della sezione Orizzontale vincono
     // quando la sezione è stata toccata oppure il save avviene in landscape
     // (la preview li mostra) — altrimenti il profilo salvato resta intatto
@@ -437,6 +525,149 @@ export function usePosterSave(deps: PosterSaveDeps) {
       tintStrength: landscapeBlur.tintStrength,
       topShade: landscapeBlur.topShade,
       topShadeHeight: landscapeBlur.topShadeHeight,
+    }
+    // Stili/toggle per-titolo con indipendenza per formato (stessa regola del
+    // tuning): i live sono la veste del formato in editing. Normalizzati come
+    // il flat storico (extra transport-validated, formati null = eredita).
+    const styleLive: Record<string, unknown> = {
+      showBadges: globalBadges,
+      rankingBadges,
+      badgeGenre,
+      badgeYear,
+      badgeRating,
+      badgeQuality,
+      // Badge età per-titolo live (fallback default/factory per i chiamanti
+      // legacy senza live: mai undefined nel boundary — un undefined
+      // congelerebbe un backfill spurio nel profilo dell'altro formato).
+      ageBadge: ageBadge ?? defaultAgeBadge ?? false,
+      ageCountry: ageCountry ?? defaultAgeCountry ?? DEFAULT_AGE_COUNTRY,
+      ageBadgeStyle: isAgeBadgeStyle(ageBadgeStyle)
+        ? ageBadgeStyle
+        : (isAgeBadgeStyle(defaultAgeBadgeStyle) ? defaultAgeBadgeStyle : DEFAULT_AGE_BADGE_STYLE),
+      customRatings,
+      separateRatings,
+      badgeStyle,
+      rankingBadgeStyle,
+      extraBadgeStyle: isExtraBadgeStyleTransport(extraBadgeStyle) ? extraBadgeStyle : null,
+      badgeFont,
+      qualityBadgeStyle,
+      videoFormats: videoFormats ?? null,
+      networkLogo,
+      networkLogoPosition,
+      ribbonEnabled,
+    }
+    // Backfill portrait-save: for keys the edit moves away from the saved flat,
+    // the landscape profile freezes the PRE-EDIT value (never the new flat),
+    // so a portrait edit cannot move the landscape look. Only missing profile
+    // keys (owned keys are never rebased); arrays cloned; inherit-null via the
+    // shared snapshot helper. For inherit-null/absent saved flats the other
+    // shape rendered the CHAIN (defaults), not the flat: freeze the
+    // chain-effective value — but only when the edit actually moves it,
+    // keeping the profile sparse otherwise. Unknown provenance (no defaults
+    // passed: tests/legacy callers) keeps the legacy factory/skip fallback,
+    // byte-identical to the pre-correction boundary. New mappings: no saved
+    // flat to preserve, but an unvisited landscape would otherwise inherit the
+    // new portrait flat and shadow the landscape defaults — so freeze the
+    // CHAIN-effective look (landscape-defaults profile > flat default >
+    // factory, never the edited live) for keys where it differs from the new
+    // flat; staged landscape edits still win below.
+    const prevFlatForBackfill: Record<string, unknown> = {}
+    if (!isLandscapeMode && prevMapping) {
+      const prevRec = prevMapping as unknown as Record<string, unknown>
+      const prevLand = (prevMapping?.landscape ?? {}) as Record<string, unknown>
+      for (const k of MAPPING_SHAPE_LAND_KEYS) {
+        if (isLandscapeKeyPresent(prevLand, k)) continue
+        const live = styleLive[k]
+        const prev = prevRec[k]
+        if (prev !== undefined && prev !== null) {
+          const same = Array.isArray(live) || Array.isArray(prev)
+            ? JSON.stringify(live ?? null) === JSON.stringify(prev ?? null)
+            : (live ?? null) === (prev ?? null)
+          if (!same) prevFlatForBackfill[k] = prev
+          continue
+        }
+        const chain = mappingShapeChainEffective(
+          k,
+          flatDefaultsChain,
+          (landscapeDefaults ?? null) as Record<string, unknown> | null,
+        )
+        if (!chain.known) {
+          // Legacy fallback, byte-identical to the pre-correction boundary.
+          if (prev === undefined) continue
+          const same = Array.isArray(live) || Array.isArray(prev)
+            ? JSON.stringify(live ?? null) === JSON.stringify(prev ?? null)
+            : (live ?? null) === (prev ?? null)
+          if (!same) prevFlatForBackfill[k] = prev
+          continue
+        }
+        const target = chain.value
+        if (k === "extraBadgeStyle" && (live == null) && isExtraFollowRank(target)) continue
+        const moved = Array.isArray(live) || Array.isArray(target)
+          ? JSON.stringify(live ?? null) !== JSON.stringify(target ?? null)
+          : (live ?? null) !== (target ?? null)
+        if (moved) prevFlatForBackfill[k] = target
+      }
+    }
+    const styleBackfill = (!isLandscapeMode && prevMapping)
+      ? snapshotMissingMappingLandscape(
+        prevFlatForBackfill,
+        (prevMapping?.landscape ?? {}) as Record<string, unknown>,
+      )
+      : (!isLandscapeMode && !prevMapping)
+        ? (() => {
+            const fresh: Record<string, unknown> = {}
+            const stashRec = (landscapeStash ?? null) as Record<string, unknown> | null
+            for (const k of MAPPING_SHAPE_LAND_KEYS) {
+              if (stashRec?.[k] !== undefined) continue
+              const chain = mappingShapeChainEffective(
+                k,
+                flatDefaultsChain,
+                (landscapeDefaults ?? null) as Record<string, unknown> | null,
+              )
+              if (!chain.known) continue
+              const live = styleLive[k]
+              const target = chain.value
+              // Legacy null extra renders pixel-identical to the follow-rank
+              // marker (own-rank): never freeze a marker over a legacy null on
+              // a new map — keep the profile sparse.
+              if (k === "extraBadgeStyle" && (live == null) && isExtraFollowRank(target)) continue
+              const moved = Array.isArray(live) || Array.isArray(target)
+                ? JSON.stringify(live ?? null) !== JSON.stringify(target ?? null)
+                : (live ?? null) !== (target ?? null)
+              if (moved) fresh[k] = Array.isArray(target) ? [...(target as unknown[])] : target
+            }
+            return fresh
+          })()
+        : {}
+    // Staged landscape style edits (both-shape edits before save): the stash
+    // holds the last landscape live values (true effective, user intent) and
+    // wins over the pre-edit backfill for the style keys it carries. Tuning,
+    // logo and gradient keep their existing rules (prev-preserved / dirty).
+    // The formerly-shared visuals travel in the same stash verbatim
+    // (customBadge/accent/preset draft, null included: explicit auto/none —
+    // the switch-restore materializes the effective look into live, so a
+    // stashed null is never an untouched inherit).
+    const landscapeStashStyles: Record<string, unknown> = {}
+    if (landscapeStash) {
+      const stashRec = landscapeStash as Record<string, unknown>
+      for (const k of MAPPING_SHAPE_LAND_KEYS) {
+        const v = stashRec[k]
+        if (v !== undefined) landscapeStashStyles[k] = v
+      }
+    }
+    // Binding preset atomico a coppia nel merge portrait-save: il backfill è
+    // per-chiave, ma id/rev non devono mai mescolare i lati flat e profilo.
+    // Se il profilo risultante possiede UNA sola delle due chiavi, l'altra si
+    // completa dal flat salvato (mai dal live portrait): la coppia resta di
+    // un solo lato. Entrambe assenti = eredita (legacy invariato).
+    const repairPresetPair = (profile: Record<string, unknown> | null): void => {
+      if (!profile) return
+      const hasId = profile.badgePresetId !== undefined
+      const hasRev = profile.badgePresetRev !== undefined
+      if (hasId === hasRev) return
+      const prevRec = (prevMapping ?? null) as unknown as Record<string, unknown> | null
+      if (!hasId) profile.badgePresetId = (prevRec?.badgePresetId ?? null) as unknown
+      else profile.badgePresetRev = (prevRec?.badgePresetRev ?? null) as unknown
     }
     const landscapeProfile = isLandscapeMode
       ? {
@@ -455,10 +686,24 @@ export function usePosterSave(deps: PosterSaveDeps) {
           posterFreshScope,
           networkLogoScale, networkLogoOffsetX, networkLogoOffsetY,
           networkLogoFollowTitle,
+          ...styleLive,
+          // Visuali un tempo condivisi, per-formato in landscape: il profilo
+          // possiede il live della forma in editing (mai il flat portrait).
+          // customBadge verbatim (null = auto, mai resurrect); accentColor
+          // manual-or-null (null = automatico esplicito, mai auto congelato);
+          // preset coppia atomica (null/null = nessun preset per la forma).
+          customBadge,
+          accentColor: isManualAccent(accentColor, autoAccentColor) ? accentColor : null,
+          badgePresetId: badgePresetId ?? null,
+          badgePresetRev: badgePresetRev ?? null,
           ...landscapeBlurPatch,
         }
-      : (useLandscapeBlur || prevMapping?.landscape
-          ? { ...(prevMapping?.landscape ?? null), ...(useLandscapeBlur ? landscapeBlurPatch : {}) }
+      : (useLandscapeBlur || prevMapping?.landscape || Object.keys(styleBackfill).length > 0 || Object.keys(landscapeStashStyles).length > 0
+          ? (() => {
+            const merged = { ...(prevMapping?.landscape ?? null), ...styleBackfill, ...landscapeStashStyles, ...(useLandscapeBlur ? landscapeBlurPatch : {}) }
+            repairPresetPair(merged)
+            return merged
+          })()
           : null)
     const backdropToSave = isLandscapeMode
       ? (backdropToSaveOverride?.file_path || null)
@@ -497,9 +742,9 @@ export function usePosterSave(deps: PosterSaveDeps) {
           logoPath: effectiveLogoPath,
           originalPosterPath: selected.poster_path,
           language: posterToSave.iso_639_1,
-          logoScale: keepFlat(logoScaleExplicit === false ? null : logoScale, prevMapping?.logoScale),
-          logoOffsetX: keepFlat(logoOffsetX, prevMapping?.logoOffsetX),
-          logoOffsetY: keepFlat(logoOffsetY, prevMapping?.logoOffsetY),
+          logoScale: keepFlatKey("logoScale", logoScaleExplicit === false ? null : logoScale),
+          logoOffsetX: keepFlatKey("logoOffsetX", logoOffsetX),
+          logoOffsetY: keepFlatKey("logoOffsetY", logoOffsetY),
           backdropPath: backdropToSave,
           backdropScale: backdropScaleToSave,
           backdropOffsetX: backdropOffsetXToSave,
@@ -515,24 +760,57 @@ export function usePosterSave(deps: PosterSaveDeps) {
           // Solo scelta manuale: l'auto-rilevato coincide con autoAccentColor e
           // non deve congelarsi nel mapping, altrimenti il calcolo server non
           // girerebbe più per questo titolo (né in preview né su Stremio).
-          accentColor: isManualAccent(accentColor, autoAccentColor) ? accentColor : undefined,
-          showBadges: globalBadges,
-          rankingBadges,
+          // Per-formato: in landscape il flat resta quello salvato VERBATIM
+          // (mai clobberato dal live dell'altro formato); dallo stash portrait
+          // vince la chiave PRESENTE (stessa semantica presence di keepFlatKey:
+          // manuale valido stashato, oppure null = automatico ESPLICITO che
+          // azzera il flat come un save portrait — mai resurrect del manuale
+          // salvato; assente = mai visitato = salvato verbatim). Gli auto
+          // effettivi non si congelano mai (il save scrive manual-or-null per
+          // forma, mai l'hex campionato). Azzerare il flat portrait
+          // (automatico) viaggia anche via save landscape quando lo stash
+          // portrait lo dichiara esplicito; senza stash resta il salvato.
+          accentColor: isLandscapeMode
+            ? (() => {
+              if (portraitStash != null && "accentColor" in portraitStash) {
+                const stashed = (portraitStash as Record<string, unknown>).accentColor
+                if (stashed === null) return undefined
+                if (
+                  typeof stashed === "string" &&
+                  /^#[0-9a-fA-F]{3}([0-9a-fA-F]{3})?$/.test(stashed)
+                ) {
+                  return stashed
+                }
+              }
+              return ((prevMapping?.accentColor ?? undefined) as string | undefined)
+            })()
+            : (isManualAccent(accentColor, autoAccentColor) ? accentColor : undefined),
+          showBadges: keepFlatKey("showBadges", globalBadges),
+          rankingBadges: keepFlatKey("rankingBadges", rankingBadges),
           // Snapshot esplicito per-titolo (freeze): valori pieni, mai
           // `undefined`="segui i default". Così cambiare le Impostazioni dopo
           // il save non muove più questo poster. I mapping vecchi con
           // `undefined` continuano a seguire i default finché non risalvati.
-          badgeGenre,
-          badgeYear,
-          badgeRating,
-          badgeQuality,
-          customRatings,
+          // Per-formato: in landscape il flat resta quello salvato (mai
+          // clobberato dalla veste dell'altro formato), come il tuning.
+          badgeGenre: keepFlatKey("badgeGenre", badgeGenre),
+          badgeYear: keepFlatKey("badgeYear", badgeYear),
+          badgeRating: keepFlatKey("badgeRating", badgeRating),
+          badgeQuality: keepFlatKey("badgeQuality", badgeQuality),
+          // Badge età congelato per-titolo (stessa regola per-shape degli
+          // altri toggle/stili: flat preservato in landscape, live in
+          // portrait). I mapping vecchi senza chiavi restano senza chiavi
+          // finché non risalvati (mai migrazione in lettura).
+          ageBadge: keepFlatKey("ageBadge", ageBadge),
+          ageCountry: keepFlatKey("ageCountry", ageCountry),
+          ageBadgeStyle: keepFlatKey("ageBadgeStyle", ageBadgeStyle),
+          customRatings: keepFlatKey("customRatings", customRatings),
           ratingSources: ratingSources ?? undefined,
-          separateRatings,
+          separateRatings: keepFlatKey("separateRatings", separateRatings),
           // Stile condiviso ma con profilo landscape preservato: in landscape
           // il flat resta quello salvato (mai clobberato dallo slider del
-          // formato), come le altre scale con keepFlat.
-          separateRatingsStyle: keepFlat(separateRatingsStyle, prevMapping?.separateRatingsStyle),
+          // formato), come le altre scale con keepFlatKey.
+          separateRatingsStyle: keepFlatKey("separateRatingsStyle", separateRatingsStyle),
           tvType: metaInfo.type || null,
           tvStatus: metaInfo.status || null,
           releaseDate: metaInfo.release_date || null,
@@ -541,48 +819,55 @@ export function usePosterSave(deps: PosterSaveDeps) {
           badgeRank,
           badgeLabel,
           animeRank: animeRankData?.rank ?? null,
-          customBadge,
-          badgePresetId: badgePresetId ?? null,
-          badgePresetRev: badgePresetRev ?? null,
-          badgeStyle,
-          rankingBadgeStyle,
+          // Extra testuale per-titolo: in portrait il live ("" mai dal UI —
+          // blur coerce a null), in landscape il flat salvato VERBATIM (mai
+          // clobberato dal live dell'altro formato; staged portrait vince).
+          customBadge: keepFlatKey("customBadge", customBadge),
+          // Binding Badge Lab atomico a coppia: in portrait il live (null =
+          // nessun preset, come oggi); in landscape il flat salvato VERBATIM
+          // con la stessa regola keepFlatKey (mai il live landscape).
+          badgePresetId: keepFlatKey("badgePresetId", badgePresetId ?? null),
+          badgePresetRev: keepFlatKey("badgePresetRev", badgePresetRev ?? null),
+          badgeStyle: keepFlatKey("badgeStyle", badgeStyle),
+          rankingBadgeStyle: keepFlatKey("rankingBadgeStyle", rankingBadgeStyle),
           // Transport snapshot (renderer boundary escluso): stili concreti e
           // sentinel "follow-rank" viaggiano validati; null/garbage = legacy.
-          extraBadgeStyle: isExtraBadgeStyleTransport(extraBadgeStyle) ? extraBadgeStyle : null,
-          badgeFont,
-          qualityBadgeStyle,
-          videoFormats: videoFormats !== undefined ? videoFormats : undefined,
+          // Per-formato come gli altri stili (flat preservato in landscape).
+          extraBadgeStyle: keepFlatKey("extraBadgeStyle", isExtraBadgeStyleTransport(extraBadgeStyle) ? extraBadgeStyle : null),
+          badgeFont: keepFlatKey("badgeFont", badgeFont),
+          qualityBadgeStyle: keepFlatKey("qualityBadgeStyle", qualityBadgeStyle),
+          videoFormats: keepFlatKey("videoFormats", videoFormats !== undefined ? videoFormats : undefined),
           defaultBadgeStyle,
           defaultRankingBadgeStyle,
           defaultExtraBadgeStyle,
-          blurEnabled: keepFlat(blurEnabled, prevMapping?.blurEnabled),
-          blurIntensity: keepFlat(blurIntensity, prevMapping?.blurIntensity),
-          blurFade: keepFlat(blurFade, prevMapping?.blurFade),
-          blurDarkness: keepFlat(blurDarkness, prevMapping?.blurDarkness),
-          tintStrength: keepFlat(tintStrength, prevMapping?.tintStrength),
-          topShade: keepFlat(topShade, prevMapping?.topShade),
-          topShadeHeight: keepFlat(topShadeHeight, prevMapping?.topShadeHeight),
-          gradientHeight: keepFlat(gradientHeight, prevMapping?.gradientHeight),
-          topBadgeScale: keepFlat(topBadgeScale, prevMapping?.topBadgeScale),
-          topBadgeOffsetX: keepFlat(topBadgeOffsetX, prevMapping?.topBadgeOffsetX),
-          topBadgeOffsetY: keepFlat(topBadgeOffsetY, prevMapping?.topBadgeOffsetY),
+          blurEnabled: keepFlatKey("blurEnabled", blurEnabled),
+          blurIntensity: keepFlatKey("blurIntensity", blurIntensity),
+          blurFade: keepFlatKey("blurFade", blurFade),
+          blurDarkness: keepFlatKey("blurDarkness", blurDarkness),
+          tintStrength: keepFlatKey("tintStrength", tintStrength),
+          topShade: keepFlatKey("topShade", topShade),
+          topShadeHeight: keepFlatKey("topShadeHeight", topShadeHeight),
+          gradientHeight: keepFlatKey("gradientHeight", gradientHeight),
+          topBadgeScale: keepFlatKey("topBadgeScale", topBadgeScale),
+          topBadgeOffsetX: keepFlatKey("topBadgeOffsetX", topBadgeOffsetX),
+          topBadgeOffsetY: keepFlatKey("topBadgeOffsetY", topBadgeOffsetY),
           // Tuning extra: null = fallback legacy (mai migrato in automatico:
           // solo un edit extra esplicito lo scrive, vedi materializzazione).
-          extraBadgeScale: keepFlat(extraBadgeScale, prevMapping?.extraBadgeScale),
-          extraBadgeOffsetX: keepFlat(extraBadgeOffsetX, prevMapping?.extraBadgeOffsetX),
-          extraBadgeOffsetY: keepFlat(extraBadgeOffsetY, prevMapping?.extraBadgeOffsetY),
-          genreBadgeScale: keepFlat(genreBadgeScale, prevMapping?.genreBadgeScale),
-          qualityBadgeScale: keepFlat(qualityBadgeScale, prevMapping?.qualityBadgeScale),
-          separateBadgeScale: keepFlat(separateBadgeScale, prevMapping?.separateBadgeScale),
-          separateBadgeOffsetX: keepFlat(separateBadgeOffsetX, prevMapping?.separateBadgeOffsetX),
-          separateBadgeOffsetY: keepFlat(separateBadgeOffsetY, prevMapping?.separateBadgeOffsetY),
-          networkLogoScale: keepFlat(networkLogoScale, prevMapping?.networkLogoScale),
-          genreBadgeOffsetX: keepFlat(genreBadgeOffsetX, prevMapping?.genreBadgeOffsetX),
-          genreBadgeOffsetY: keepFlat(genreBadgeOffsetY, prevMapping?.genreBadgeOffsetY),
-          qualityBadgeOffsetX: keepFlat(qualityBadgeOffsetX, prevMapping?.qualityBadgeOffsetX),
-          qualityBadgeOffsetY: keepFlat(qualityBadgeOffsetY, prevMapping?.qualityBadgeOffsetY),
-          networkLogoOffsetX: keepFlat(networkLogoOffsetX, prevMapping?.networkLogoOffsetX),
-          networkLogoOffsetY: keepFlat(networkLogoOffsetY, prevMapping?.networkLogoOffsetY),
+          extraBadgeScale: keepFlatKey("extraBadgeScale", extraBadgeScale),
+          extraBadgeOffsetX: keepFlatKey("extraBadgeOffsetX", extraBadgeOffsetX),
+          extraBadgeOffsetY: keepFlatKey("extraBadgeOffsetY", extraBadgeOffsetY),
+          genreBadgeScale: keepFlatKey("genreBadgeScale", genreBadgeScale),
+          qualityBadgeScale: keepFlatKey("qualityBadgeScale", qualityBadgeScale),
+          separateBadgeScale: keepFlatKey("separateBadgeScale", separateBadgeScale),
+          separateBadgeOffsetX: keepFlatKey("separateBadgeOffsetX", separateBadgeOffsetX),
+          separateBadgeOffsetY: keepFlatKey("separateBadgeOffsetY", separateBadgeOffsetY),
+          networkLogoScale: keepFlatKey("networkLogoScale", networkLogoScale),
+          genreBadgeOffsetX: keepFlatKey("genreBadgeOffsetX", genreBadgeOffsetX),
+          genreBadgeOffsetY: keepFlatKey("genreBadgeOffsetY", genreBadgeOffsetY),
+          qualityBadgeOffsetX: keepFlatKey("qualityBadgeOffsetX", qualityBadgeOffsetX),
+          qualityBadgeOffsetY: keepFlatKey("qualityBadgeOffsetY", qualityBadgeOffsetY),
+          networkLogoOffsetX: keepFlatKey("networkLogoOffsetX", networkLogoOffsetX),
+          networkLogoOffsetY: keepFlatKey("networkLogoOffsetY", networkLogoOffsetY),
           cleanPosters: effectiveRotationPosters.length > 0 ? effectiveRotationPosters : undefined,
           cleanPosterIndex: 0,
           cleanPosterUpdatedAt: new Date().toISOString(),
@@ -594,7 +879,7 @@ export function usePosterSave(deps: PosterSaveDeps) {
           autoRotateBackdrop: effectiveRotationBackdrops.length > 1 ? autoRotateBackdrop : undefined,
           excludedBackdrops: nextExcludedBackdrops.length > 0 ? nextExcludedBackdrops : undefined,
           logoDisabled: logoDisabled || undefined,
-          networkLogo: networkLogo !== undefined ? networkLogo : undefined,
+          networkLogo: keepFlatKey("networkLogo", networkLogo !== undefined ? networkLogo : undefined),
           // Follow congelato per-titolo (flat in portrait, preservato in
           // landscape come gli altri tuning per-shape): in landscape il flat
           // resta quello salvato, mai clobberato dal valore del formato.
@@ -603,8 +888,9 @@ export function usePosterSave(deps: PosterSaveDeps) {
             : networkLogoFollowTitle,
           // Posizione congelata per-titolo (freeze come gli altri toggle):
           // "auto" esplicito così il titolo non segue più i default dopo il save.
-          networkLogoPosition,
-          ribbonEnabled: ribbonEnabled !== undefined ? ribbonEnabled : undefined,
+          // Per-formato: in landscape il flat resta quello salvato.
+          networkLogoPosition: keepFlatKey("networkLogoPosition", networkLogoPosition),
+          ribbonEnabled: keepFlatKey("ribbonEnabled", ribbonEnabled !== undefined ? ribbonEnabled : undefined),
           networkLogoPath: networkLogoPath ?? null,
           networkLogoName: networkLogoName ?? null,
           episodeGroupId: episodeGroupId || undefined,
@@ -612,10 +898,10 @@ export function usePosterSave(deps: PosterSaveDeps) {
           // Graphical layout congelato per-titolo (flat in portrait, preservato
           // in landscape come gli altri tuning per-shape): in landscape il flat
           // resta quello salvato, mai clobberato dal valore del formato.
-          posterLayout: keepFlat(posterLayout, prevMapping?.posterLayout),
+          posterLayout: keepFlatKey("posterLayout", posterLayout),
           // Fresh apply scope congelato per-titolo (stessa regola per-shape
           // del layout sopra): in landscape il flat resta quello salvato.
-          posterFreshScope: keepFlat(posterFreshScope, prevMapping?.posterFreshScope),
+          posterFreshScope: keepFlatKey("posterFreshScope", posterFreshScope),
           landscape: landscapeProfile,
         }),
       })
@@ -645,7 +931,7 @@ export function usePosterSave(deps: PosterSaveDeps) {
       if (overrides.silent) throw error
       return false
     }
-  }, [selected, previewPoster, selectedLogo, metaInfo, logoScale, logoOffsetX, logoOffsetY, trendRank, globalBadges, rankingBadges, badgeGenre, badgeYear, badgeRating, badgeQuality, customRatings, ratingSources, separateRatings, separateRatingsStyle, mdblistAnimeList, loadMappings, customBadge, badgePresetId, badgePresetRev, badgeStyle, rankingBadgeStyle, extraBadgeStyle, badgeFont, qualityBadgeStyle, videoFormats, blurEnabled, blurIntensity, blurFade, blurDarkness, landscapeBlur, landscapeBlurDirty, tintStrength, topShade, topShadeHeight, gradientHeight, topBadgeScale, topBadgeOffsetX, topBadgeOffsetY, extraBadgeScale, extraBadgeOffsetX, extraBadgeOffsetY, genreBadgeScale, qualityBadgeScale, separateBadgeScale, separateBadgeOffsetX, separateBadgeOffsetY, networkLogoScale, genreBadgeOffsetX, genreBadgeOffsetY, qualityBadgeOffsetX, qualityBadgeOffsetY, networkLogoOffsetX, networkLogoOffsetY, rotationPosters, autoRotateClean, defaultAutoRotateClean, excludedPosters, rotationBackdrops, autoRotateBackdrop, defaultAutoRotateBackdrop, excludedBackdrops, backdrops, defaultBadgeStyle, defaultRankingBadgeStyle, defaultExtraBadgeStyle, posters, mappingsMap, accentColor, autoAccentColor, backdropOffsetX, backdropOffsetY, backdropScale, selectedBackdrop, networkLogo, networkLogoPosition, networkLogoFollowTitle, ribbonEnabled, episodeGroupId, posterShape, posterLayout, posterFreshScope]) // eslint-disable-line react-hooks/exhaustive-deps -- intentionally complete to save all poster state
+  }, [selected, previewPoster, selectedLogo, metaInfo, logoScale, logoOffsetX, logoOffsetY, trendRank, globalBadges, rankingBadges, badgeGenre, badgeYear, badgeRating, badgeQuality, ageBadge, ageCountry, ageBadgeStyle, customRatings, ratingSources, separateRatings, separateRatingsStyle, mdblistAnimeList, loadMappings, customBadge, badgePresetId, badgePresetRev, badgeStyle, rankingBadgeStyle, extraBadgeStyle, badgeFont, qualityBadgeStyle, videoFormats, blurEnabled, blurIntensity, blurFade, blurDarkness, landscapeBlur, landscapeBlurDirty, tintStrength, topShade, topShadeHeight, gradientHeight, topBadgeScale, topBadgeOffsetX, topBadgeOffsetY, extraBadgeScale, extraBadgeOffsetX, extraBadgeOffsetY, genreBadgeScale, qualityBadgeScale, separateBadgeScale, separateBadgeOffsetX, separateBadgeOffsetY, networkLogoScale, genreBadgeOffsetX, genreBadgeOffsetY, qualityBadgeOffsetX, qualityBadgeOffsetY, networkLogoOffsetX, networkLogoOffsetY, rotationPosters, autoRotateClean, defaultAutoRotateClean, excludedPosters, rotationBackdrops, autoRotateBackdrop, defaultAutoRotateBackdrop, excludedBackdrops, backdrops, defaultBadgeStyle, defaultRankingBadgeStyle, defaultExtraBadgeStyle, defaultGlobalBadges, defaultRankingBadges, defaultBadgeGenre, defaultBadgeYear, defaultBadgeRating, defaultBadgeQuality, defaultAgeBadge, defaultAgeCountry, defaultAgeBadgeStyle, defaultCustomRatings, defaultSeparateRatings, defaultBadgeFont, defaultQualityBadgeStyle, defaultVideoFormats, defaultNetworkLogo, defaultNetworkLogoPosition, defaultRibbonEnabled, posters, mappingsMap, accentColor, autoAccentColor, backdropOffsetX, backdropOffsetY, backdropScale, selectedBackdrop, networkLogo, networkLogoPosition, networkLogoFollowTitle, ribbonEnabled, episodeGroupId, posterShape, posterLayout, posterFreshScope]) // eslint-disable-line react-hooks/exhaustive-deps -- intentionally complete to save all poster state
 
   /**
    * Cover-only save ("Salva solo poster" / "Save poster only"): persists

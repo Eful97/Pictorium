@@ -1,5 +1,5 @@
 import { z } from "zod"
-import { BADGE_STYLES, RANKING_BADGE_STYLES, QUALITY_BADGE_STYLES, BADGE_FONTS, SEPARATE_RATINGS_STYLES, EXTRA_BADGE_STYLES, EXTRA_BADGE_FOLLOW_RANK } from "./badge-styles"
+import { BADGE_STYLES, RANKING_BADGE_STYLES, QUALITY_BADGE_STYLES, AGE_BADGE_STYLES, BADGE_FONTS, SEPARATE_RATINGS_STYLES, EXTRA_BADGE_STYLES, EXTRA_BADGE_FOLLOW_RANK } from "./badge-styles"
 import { POSTER_LAYOUTS, POSTER_FRESH_SCOPES } from "./types"
 import { BADGE_PRESET_ID_RE, BADGE_PRESET_REV_RE } from "./badge-preset"
 
@@ -43,6 +43,14 @@ export const mappingSchema = z.object({
   badgeGenre: z.boolean().nullable().optional(),
   badgeYear: z.boolean().nullable().optional(),
   badgeRating: z.boolean().nullable().optional(),
+  /** Componente qualità del badge basso (default ON). Flat mancante nei vecchi mapping: mai migrato in lettura. */
+  badgeQuality: z.boolean().nullable().optional(),
+  /** Badge età per-titolo (default OFF). Flat mancante nei vecchi mapping: mai migrato in lettura. */
+  ageBadge: z.boolean().nullable().optional(),
+  /** Paese classificazione età per-titolo (fail-closed al render, mai GLOBAL). */
+  ageCountry: z.string().max(8).nullable().optional(),
+  /** Stile pill età per-titolo ("standard" = resa storica). */
+  ageBadgeStyle: z.enum(AGE_BADGE_STYLES).nullable().optional(),
   customRatings: z.boolean().nullable().optional(),
   // Fonti voto medio per-titolo: lasco al save (max 20 char come il token),
   // strict al render via parseRatingSources (whitelist SUPPORTED_RATING_SOURCES).
@@ -155,6 +163,41 @@ export const mappingSchema = z.object({
     tintStrength: z.number().nullable().optional(),
     topShade: z.number().nullable().optional(),
     topShadeHeight: z.number().nullable().optional(),
+    // Stili/toggle visivi per-titolo con indipendenza per formato (vedi
+    // LandscapeSettings in types.ts): stessi vincoli dei campi flat.
+    // Chiavi assenti/null = fallback al flat (backward compatible).
+    showBadges: z.boolean().nullable().optional(),
+    rankingBadges: z.boolean().nullable().optional(),
+    badgeGenre: z.boolean().nullable().optional(),
+    badgeYear: z.boolean().nullable().optional(),
+    badgeRating: z.boolean().nullable().optional(),
+    badgeQuality: z.boolean().nullable().optional(),
+    customRatings: z.boolean().nullable().optional(),
+    separateRatings: z.boolean().nullable().optional(),
+    // Badge età per-titolo con indipendenza per formato (stessa regola degli
+    // altri: chiavi assenti/null = fallback al flat, backward compatible).
+    ageBadge: z.boolean().nullable().optional(),
+    ageCountry: z.string().max(8).nullable().optional(),
+    ageBadgeStyle: z.enum(AGE_BADGE_STYLES).nullable().optional(),
+    badgeStyle: z.enum(BADGE_STYLES).nullable().optional(),
+    rankingBadgeStyle: z.enum(RANKING_BADGE_STYLES).nullable().optional(),
+    extraBadgeStyle: z.union([z.enum(EXTRA_BADGE_STYLES), z.literal(EXTRA_BADGE_FOLLOW_RANK)]).nullable().optional(),
+    badgeFont: z.enum(BADGE_FONTS).nullable().optional(),
+    qualityBadgeStyle: z.enum(QUALITY_BADGE_STYLES).nullable().optional(),
+    videoFormats: z.array(z.enum(["dv", "hdr", "hdr10plus", "atmos", "imax"])).nullable().optional(),
+    networkLogo: z.boolean().nullable().optional(),
+    networkLogoPosition: z.enum(["auto", "top"]).nullable().optional(),
+    ribbonEnabled: z.boolean().nullable().optional(),
+    // Visuali per-titolo con indipendenza per formato (stessa regola degli
+    // altri: chiave PRESENTE nel profilo — inclusa null — vince sul flat,
+    // assente = eredita). customBadge "" = auto come null (mai resurrect del
+    // flat); accentColor null = automatico (solo manuali persistiti);
+    // badgePresetId/Rev coppia atomica (vedi effectiveMappingForShape).
+    // Stessi vincoli dei flat (profilo legacy senza chiavi invariato).
+    customBadge: z.string().max(40).nullable().optional(),
+    accentColor: z.string().regex(/^#[0-9a-fA-F]{3}([0-9a-fA-F]{3})?$/).nullable().optional(),
+    badgePresetId: z.string().regex(BADGE_PRESET_ID_RE).nullable().optional(),
+    badgePresetRev: z.string().regex(BADGE_PRESET_REV_RE).nullable().optional(),
   }).nullable().optional(),
   networkLogoPath: z.string().nullable().optional(),
   networkLogoName: z.string().nullable().optional(),

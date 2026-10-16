@@ -13,8 +13,9 @@
  *   fresh+ranked on both profiles, personal owns its stored layout/scope/
  *   extra verbatim; legacy snapshots without the keys resolve the canonical
  *   factory values (standard/ranked/legacy-null/follow-rank) — never live;
- *   no `default*`/landscape/artwork/global keys, no age keys (global-only:
- *   the mapping carries no age contract — the chooser says so explicitly).
+ *   no `default*`/landscape/artwork/global keys, no age keys (excluded by
+ *   design: the dedicated per-title control owns age — the chooser says so
+ *   explicitly).
  * - Shape isolation: portrait writes bare flats (+ empty landscapeBlur),
  *   landscape writes the profile (+ local gradient, never bare gradient).
  * - Save trace: every emitted bare key persists per-title (flat or landscape

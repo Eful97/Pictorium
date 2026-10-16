@@ -34,6 +34,7 @@ import { getAllBadgeOptions, isMiniseriesType, isReturningStatus } from "@/lib/b
 import { isManualAccent } from "@/lib/accent-color"
 import { resolveAccentPickerDisplay, useEffectiveAccent } from "@/lib/useEffectiveAccent"
 import { isBottomSeparateRatingsStyle, getSeparateRatingsStyleForShape } from "@/lib/badge-styles"
+import { REGIONS } from "@/lib/regions"
 import { UI_RATING_SOURCES } from "@/lib/rating-weights"
 import { RatingSourceIcon } from "@/components/RatingSourceIcon"
 
@@ -699,6 +700,52 @@ export function BadgeControls() {
               })()}
             </div>
           )}
+
+          {/* Per-title age rating (opt-in, independent per shape): the same
+              activation/country/style trio as the global defaults, persisted
+              per title (flat + landscape profile). Master badges still gate
+              the render; OFF adds no TMDB fetch. */}
+          <div className="pt-1 space-y-2 border-t border-surface2/50">
+            <div className="flex items-center justify-between">
+              <span className="text-zinc-300 font-medium flex items-center gap-1.5">
+                {t("ui.ageBadge")}
+              </span>
+              <Toggle value={ed.ageBadge} onChange={(v) => ed.setAgeBadge(v)} label={t("ui.ageBadge")} />
+            </div>
+            <p className="text-[11px] text-zinc-500 leading-relaxed">{t("ui.ageBadgeHint")}</p>
+            {ed.ageBadge && (
+              <>
+                <div className="flex items-center justify-between gap-3">
+                  <span className="text-zinc-400 font-medium text-[11px] ps-5">
+                    {t("ui.ageBadgeCountry")}
+                  </span>
+                  <select
+                    value={ed.ageCountry}
+                    onChange={(e) => ed.setAgeCountry(e.target.value)}
+                    aria-label={t("ui.ageBadgeCountry")}
+                    className="max-w-[190px] truncate px-2.5 py-1.5 rounded-lg text-[11px] font-medium bg-white/5 text-zinc-100 border border-white/10 hover:bg-white/10 focus:outline-none focus:border-teal-500/50 cursor-pointer"
+                  >
+                    {REGIONS.map((r) => (
+                      <option key={r.code} value={r.code} className="bg-zinc-900 text-zinc-100">
+                        {r.flag} {r.label} ({r.code})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-[11px] text-muted font-medium block">
+                    {t("ui.ageBadgeStyle")}
+                  </label>
+                  <BadgeStyleSelector
+                    value={ed.ageBadgeStyle}
+                    options={["standard", "knockout"] as const}
+                    onChange={ed.setAgeBadgeStyle}
+                    t={t}
+                  />
+                </div>
+              </>
+            )}
+          </div>
 
         </div>
       </div>
