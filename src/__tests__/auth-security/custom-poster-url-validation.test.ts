@@ -32,6 +32,24 @@ describe("mappingSchema customPosterUrl", () => {
     ).toBe(false)
   })
 
+  it("accetta l'asset diretto TPDb salvato (gate di rete, non di schema)", () => {
+    const parsed = mappingSchema.safeParse({ ...base, customPosterUrl: "https://theposterdb.com/api/assets/757201/view" })
+    expect(parsed.success).toBe(true)
+    if (parsed.success) expect(parsed.data.customPosterUrl).toBe("https://theposterdb.com/api/assets/757201/view")
+  })
+
+  it("accetta il bare asset TPDb e il CDN TMDB al save (gate di rete, non di schema)", () => {
+    for (const url of [
+      "https://theposterdb.com/api/assets/670524",
+      "https://image.tmdb.org/t/p/original/dZSyWJ7F78W725BI7CKQIesvmKy.jpg",
+      "https://image.tmdb.org/t/p/w500/abc123.jpg",
+    ]) {
+      const parsed = mappingSchema.safeParse({ ...base, customPosterUrl: url })
+      expect(parsed.success).toBe(true)
+      if (parsed.success) expect(parsed.data.customPosterUrl).toBe(url)
+    }
+  })
+
   it("rifiuta URL oltre il cap di lunghezza", () => {
     const long = `https://i.imgur.com/${"a".repeat(2100)}.jpg`
     expect(mappingSchema.safeParse({ ...base, customPosterUrl: long }).success).toBe(false)

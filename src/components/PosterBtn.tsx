@@ -18,8 +18,32 @@ interface PosterBtnProps {
   imgSize?: string
 }
 
+/**
+ * Vero per i soli link asset diretti TPDb raw (`/api/assets/<id>` con
+ * `/view` opzionale, host esatto): TPDb rifiuta con 403 le miniature
+ * hotlinkate che inviano Referer, quindi il tile omette il Referer
+ * (`referrerPolicy="no-referrer"`, normale privacy policy del browser).
+ * Check client-safe minimale (mai importare `resolve-image.ts` nel client:
+ * tira dentro fetch/dns/sharp server-only) — stesso gate esatto del server.
+ */
+const TPDB_DIRECT_ASSET_RE = /^\/api\/assets\/\d+\/view\/?$/
+const TPDB_DIRECT_ASSET_BARE_RE = /^\/api\/assets\/\d+\/?$/
+
+export function isTpdbDirectAssetSrc(src: string): boolean {
+  let u: URL
+  try {
+    u = new URL(src.trim())
+  } catch {
+    return false
+  }
+  if (u.protocol !== "http:" && u.protocol !== "https:") return false
+  if (u.hostname.toLowerCase().replace(/\.$/, "") !== "theposterdb.com") return false
+  return TPDB_DIRECT_ASSET_RE.test(u.pathname) || TPDB_DIRECT_ASSET_BARE_RE.test(u.pathname)
+}
+
 export const PosterBtn = React.memo(function PosterBtn({ img, active, onSelect, title, staggerIndex, landscape, imgSize = "w154" }: PosterBtnProps) {
   const { t } = useT()
+  const src = posterUrl(img.file_path, imgSize)
   return (
     <button type="button"
       onClick={() => onSelect(img)}
@@ -29,7 +53,7 @@ export const PosterBtn = React.memo(function PosterBtn({ img, active, onSelect, 
     >
       <div className={`relative overflow-hidden ${landscape ? "aspect-video" : "aspect-[2/3]"}`}>
         {/* eslint-disable-next-line @next/next/no-img-element -- TMDB dynamic URL */}
-        <img src={posterUrl(img.file_path, imgSize)} alt="" loading="lazy" decoding="async" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
+        <img src={src} alt="" loading="lazy" decoding="async" referrerPolicy={isTpdbDirectAssetSrc(src) ? "no-referrer" : undefined} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
         {active && (
           <>
             <div className="absolute inset-0 bg-accent-orange/10" />

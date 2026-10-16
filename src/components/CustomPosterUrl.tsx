@@ -27,8 +27,10 @@ interface Props {
 }
 
 /**
- * Base poster da URL esterno (Pinterest/Imgur/Reddit) per il titolo
- * selezionato. Solo portrait: il landscape resta sul backdrop TMDB.
+ * Base poster da URL esterno (Pinterest/Imgur/Reddit + link asset diretti
+ * TPDb "Copy Poster Link" /api/assets/<id>/view — mai pagine poster/set)
+ * per il titolo selezionato. Solo portrait: il landscape resta sul backdrop
+ * TMDB.
  *
  * Semantica add-only: "Aggiungi" risolve l'URL e aggiunge subito il tile in
  * griglia (selezionato). Il salvataggio resta sul bottone Salva principale

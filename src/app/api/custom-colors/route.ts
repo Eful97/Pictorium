@@ -3,7 +3,7 @@ import { sampleCustomImageColors } from "@/lib/custom-colors"
 import { rateLimit, rateLimitKey, rateLimitResponse } from "@/lib/rate-limit"
 import { cacheGet, cacheSet } from "@/lib/cache"
 import { jsonGzip } from "@/lib/json-response"
-import { isAllowedResolveHost } from "@/lib/resolve-image"
+import { isAllowedCustomImageUrl } from "@/lib/resolve-image"
 import { hashKey } from "@/lib/poster-render-helpers"
 import type { CustomImageColors } from "@/lib/custom-colors"
 
@@ -21,17 +21,17 @@ export async function GET(req: NextRequest) {
   if (!rl.ok) return rateLimitResponse(rl.retAfter)
   const rawUrl = (req.nextUrl.searchParams.get("url") || "").trim()
   const genre = (req.nextUrl.searchParams.get("genre") || "").trim().slice(0, 60)
-  let host: string
   try {
     const parsed = new URL(rawUrl)
     if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
       return Response.json({ error: "Only HTTP/HTTPS URLs allowed" }, { status: 400 })
     }
-    host = parsed.hostname
   } catch {
     return Response.json({ error: "Invalid url" }, { status: 400 })
   }
-  if (!isAllowedResolveHost(host)) {
+  // Gate completo (host + shape diretta per gli host direct-only come
+  // TPDb): le pagine non si campionano mai, come non si rendono mai.
+  if (!isAllowedCustomImageUrl(rawUrl)) {
     return Response.json({ error: "Host not in the image-source allowlist" }, { status: 403 })
   }
   const cacheKey = `custom-colors:${hashKey(rawUrl)}:${genre}`

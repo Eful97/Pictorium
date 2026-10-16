@@ -20,7 +20,11 @@ const MAX_IMAGE_BYTES = 10 * 1024 * 1024
 
 /**
  * Allowlist v1 (chiusa e verificabile): solo Pinterest, Imgur e Reddit con i
- * rispettivi CDN. Vale sia per la pagina di partenza che per l'immagine
+ * rispettivi CDN, più Fanart.tv, artwork TVDB, asset diretti TPDb
+ * (direct-only: /api/assets/<id> con /view opzionale, mai pagine — vedi
+ * TPDB_HOST) e immagini dirette dal CDN TMDB (direct-only: host esatto
+ * image.tmdb.org + /t/p/<size>/<file> raster — vedi TMDB_IMAGE_HOST).
+ * Vale sia per la pagina di partenza che per l'immagine
  * finale (og:image incluso): una pagina allowlisted che punta a un CDN fuori
  * lista viene rifiutata. Estensioni future = aggiungere radici qui + test.
  *
@@ -43,11 +47,110 @@ const FANART_HOST_RE = /(^|\.)fanart\.tv$/
 // DNS/IP/redirect via safeFetchRemote + raster-only via validateImageBytes,
 // quindi gli SVG/logo vettoriali restano rifiutati al fetch).
 const TVDB_ARTWORKS_HOST = "artworks.thetvdb.com"
+// TPDb direct-only: SOLO il "Copy Poster Link" dell'utente (asset raw
+// originale — la FAQ garantisce raw su download/copy-link/expand, non
+// l'ottimizzata servita nelle listing). Shape osservata sulle pagine poster
+// pubbliche (lightbox "click to expand" di /poster/<id>; HEAD anonimo 200
+// image/png, inline, senza redirect):
+//   https://theposterdb.com/api/assets/<numeric-id>/view
+// The bare asset id without /view serves an image directly (anonymous
+// HEAD: 200 image/jpeg, no redirect — raw-original/variant equivalence with
+// /view NOT verified from that HEAD alone). It is accepted as-is, never
+// rewritten to /view — the served resolution variant may differ between the
+// two shapes:
+//   https://theposterdb.com/api/assets/<numeric-id>
+// Host ESATTO (niente sottodomini/generici/lookalike — www./api./images.
+// restano fuori), path ESATTO (niente /poster/, /posters/, /set/, /search,
+// /login): mai fetch di pagine né scraping HTML/og:image, direct-only.
+export const TPDB_HOST = "theposterdb.com"
+const TPDB_DIRECT_ASSET_RE = /^\/api\/assets\/\d+\/view\/?$/
+const TPDB_DIRECT_ASSET_BARE_RE = /^\/api\/assets\/\d+\/?$/
+// TMDB image CDN, direct-only: EXACT host (no subdomains, no lookalikes —
+// same boundary bar as the TVDB artworks host) + constrained path
+// /t/p/<documented-size>/<raster-file>. Documented TMDB image sizes across
+// posters, backdrops, logos, profiles and stills (w45 w92 w154 w185 w300
+// w342 w500 w780 w1280 h632 + original); the file must be raster (same
+// extension set as IMAGE_EXT_RE below, so .svg and extension-less HTML-ish
+// paths never pass). Accepted as-is: original stays original, the resolver
+// never rewrites the size tier.
+export const TMDB_IMAGE_HOST = "image.tmdb.org"
+const TMDB_DIRECT_IMAGE_RE =
+  /^\/t\/p\/(w45|w92|w154|w185|w300|w342|w500|w780|w1280|h632|original)\/[^/]+$/
+const TMDB_RASTER_FILE_RE = /\.(jpg|jpeg|png|webp|gif|avif)$/i
+
+function isTpdbHostname(hostname: string): boolean {
+  return hostname.toLowerCase().replace(/\.$/, "") === TPDB_HOST
+}
+
+function isTmdbImageHostname(hostname: string): boolean {
+  return hostname.toLowerCase().replace(/\.$/, "") === TMDB_IMAGE_HOST
+}
+
+/**
+ * Vero per i link asset diretti TPDb (raw original): host+path esatti,
+ * http(s). /view is optional: both /api/assets/<id> and
+ * /api/assets/<id>/view are served raw. Puro e testabile — stesso gate per
+ * resolve, render e query.
+ */
+export function isTpdbDirectAssetUrl(rawUrl: string): boolean {
+  let u: URL
+  try {
+    u = new URL(rawUrl.trim())
+  } catch {
+    return false
+  }
+  if (u.protocol !== "http:" && u.protocol !== "https:") return false
+  if (!isTpdbHostname(u.hostname)) return false
+  return TPDB_DIRECT_ASSET_RE.test(u.pathname) || TPDB_DIRECT_ASSET_BARE_RE.test(u.pathname)
+}
+
+/**
+ * True for direct TMDB image CDN URLs: exact host + constrained
+ * /t/p/<documented-size>/<raster-file> path, http(s). Pure and testable —
+ * same gate for resolve, render and query.
+ */
+export function isTmdbImageCdnUrl(rawUrl: string): boolean {
+  let u: URL
+  try {
+    u = new URL(rawUrl.trim())
+  } catch {
+    return false
+  }
+  if (u.protocol !== "http:" && u.protocol !== "https:") return false
+  if (!isTmdbImageHostname(u.hostname)) return false
+  return TMDB_DIRECT_IMAGE_RE.test(u.pathname) && TMDB_RASTER_FILE_RE.test(u.pathname)
+}
+
+/**
+ * Gate URL completo per le immagini custom (resolve + render + query):
+ * host allowlist + shape diretta per gli host direct-only (TPDb, TMDB
+ * image CDN). Le pagine TPDb (/poster/, /set/, …) e i path TMDB non
+ * immagine passano l'host ma NON il gate: mai fetch di pagine né scraping.
+ */
+export function isAllowedCustomImageUrl(value: URL | string): boolean {
+  let u: URL
+  try {
+    u = value instanceof URL ? value : new URL(value.trim())
+  } catch {
+    return false
+  }
+  if (u.protocol !== "http:" && u.protocol !== "https:") return false
+  if (!isAllowedResolveHost(u.hostname)) return false
+  if (isTpdbHostname(u.hostname)) {
+    return TPDB_DIRECT_ASSET_RE.test(u.pathname) || TPDB_DIRECT_ASSET_BARE_RE.test(u.pathname)
+  }
+  if (isTmdbImageHostname(u.hostname)) {
+    return TMDB_DIRECT_IMAGE_RE.test(u.pathname) && TMDB_RASTER_FILE_RE.test(u.pathname)
+  }
+  return true
+}
 
 export function isAllowedResolveHost(hostname: string): boolean {
   const h = hostname.toLowerCase().replace(/\.$/, "")
   if (h === "pin.it" || h.endsWith(".pin.it")) return true
   if (h === TVDB_ARTWORKS_HOST) return true
+  if (h === TPDB_HOST) return true
+  if (h === TMDB_IMAGE_HOST) return true
   return (
     PINTEREST_HOST_RE.test(h) ||
     PINIMG_HOST_RE.test(h) ||
@@ -67,7 +170,8 @@ function isImageCdnHost(hostname: string): boolean {
     h === "preview.redd.it" ||
     h === "share.redd.it" ||
     h === "assets.fanart.tv" ||
-    h === TVDB_ARTWORKS_HOST
+    h === TVDB_ARTWORKS_HOST ||
+    isTmdbImageHostname(hostname)
   )
 }
 
@@ -146,7 +250,10 @@ async function defaultFetchRemote(url: string, signal: AbortSignal): Promise<Res
   try {
     return await safeFetchRemote(url, {
       signal,
-      isAllowedUrl: (u) => isAllowedResolveHost(u.hostname),
+      // Gate URL completo (host + shape diretta per gli host direct-only
+      // come TPDb) su OGNI hop: un gate solo-host lascerebbe FETCHARE le
+      // pagine TPDb raggiunte via redirect da sorgenti allowlisted.
+      isAllowedUrl: (u) => isAllowedCustomImageUrl(u),
       maxRedirects: 3,
     })
   } catch (e) {
@@ -186,6 +293,20 @@ export async function resolveToImageUrl(rawUrl: string, deps?: ResolveDeps): Pro
   if (!isAllowedResolveHost(parsed.hostname)) {
     throw new ResolveImageError(403, "Host not in the image-source allowlist")
   }
+  // TPDb direct-only: pagine/set/search/login rifiutati PRIMA di qualsiasi
+  // fetch (niente HTML da scrapare, niente login-wall). Solo l'asset diretto
+  // /api/assets/<id> (con /view opzionale) prosegue.
+  const tpdbEntry = isTpdbHostname(parsed.hostname)
+  if (tpdbEntry && !isTpdbDirectAssetUrl(parsed.href)) {
+    throw new ResolveImageError(403, "Only direct TPDb asset links (/api/assets/<id> with optional /view) are supported")
+  }
+  // TMDB image CDN direct-only: only constrained /t/p/<size>/<file> image
+  // paths proceed. Anything else on the exact host (API-ish paths, HTML-ish
+  // paths, unknown sizes) is rejected BEFORE any fetch — never scraped.
+  const tmdbEntry = isTmdbImageHostname(parsed.hostname)
+  if (tmdbEntry && !isTmdbImageCdnUrl(parsed.href)) {
+    throw new ResolveImageError(403, "Only direct TMDB image CDN URLs (/t/p/<size>/<file>) are supported")
+  }
   if (await checkBlocked(parsed.href)) {
     throw new ResolveImageError(403, "Target blocked")
   }
@@ -213,7 +334,24 @@ export async function resolveToImageUrl(rawUrl: string, deps?: ResolveDeps): Pro
     return { imageUrl: verified.url, source: "direct", width: verified.width, height: verified.height }
   }
 
-  // Caso pagina: solo HTML, body cappato, poi og:image.
+  // Caso pagina: solo HTML, body cappato, poi og:image. TPDb e TMDB image
+  // CDN sono direct-only: un asset che serve HTML (login-wall, rimosso) non
+  // si scrapa MAI — niente og:image/twitter:image da pagine
+  // theposterdb.com o image.tmdb.org. Il gate guarda anche l'URL finale
+  // post-redirect (finalUrlOf): una sorgente allowlisted non-direct-only che
+  // redirige a un host direct-only che serve HTML non deve raggiungere lo
+  // scraping og:image.
+  const finalHref = finalUrlOf(res, parsed.href)
+  let finalIsDirectOnly = tpdbEntry || tmdbEntry
+  try {
+    const finalHost = new URL(finalHref).hostname
+    finalIsDirectOnly = isTpdbHostname(finalHost) || isTmdbImageHostname(finalHost)
+  } catch {
+    finalIsDirectOnly = tpdbEntry || tmdbEntry
+  }
+  if (finalIsDirectOnly) {
+    throw new ResolveImageError(415, "URL did not resolve to an image")
+  }
   if (!contentType.includes("html") && !contentType.includes("xml") && contentType.length > 0) {
     throw new ResolveImageError(415, `Unsupported content type: ${contentType || "unknown"}`)
   }
@@ -238,7 +376,7 @@ export async function resolveToImageUrl(rawUrl: string, deps?: ResolveDeps): Pro
   if (resolved.protocol !== "http:" && resolved.protocol !== "https:") {
     throw new ResolveImageError(502, "Extracted image URL is invalid")
   }
-  if (!isAllowedResolveHost(resolved.hostname)) {
+  if (!isAllowedCustomImageUrl(resolved)) {
     throw new ResolveImageError(403, "Extracted image host not in the allowlist")
   }
   if (await checkBlocked(resolved.href)) {

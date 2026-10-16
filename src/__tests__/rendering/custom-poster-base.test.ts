@@ -14,6 +14,27 @@ import {
 } from "@/lib/custom-poster-base"
 import { __resetImageBytesForTest } from "@/lib/image-bytes-cache"
 import { isCustomPosterUrl } from "@/lib/utils"
+import { resetSafeFetchForTests } from "@/lib/safe-remote-fetch"
+import { fetch as undiciFetch } from "undici"
+
+// Stesso harness redirect del resolver: default fetch di produzione
+// (safeFetchRemote → undici mockato) con 302 pilotati e DNS pubblico finto.
+vi.mock("undici", () => ({
+  Agent: class MockUndiciAgent {
+    constructor(_opts?: unknown) {}
+  },
+  fetch: vi.fn(),
+}))
+
+vi.mock("node:dns", () => ({
+  default: { promises: { lookup: async () => [{ address: "93.184.216.34", family: 4 }] } },
+  promises: { lookup: async () => [{ address: "93.184.216.34", family: 4 }] },
+}))
+
+// Stesso boundary tipizzato della produzione (safeFetchRemote tratta la
+// fetch undici come DOM fetch: `undiciFetch as unknown as typeof fetch`):
+// il mock accetta gli stub DOM Response come la fetch reale usata dal codice.
+const mockUndiciFetch = vi.mocked(undiciFetch as unknown as typeof fetch)
 
 const PNG_1X1 = Buffer.from(
   "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
@@ -38,6 +59,8 @@ beforeEach(() => {
   signal = AbortSignal.timeout(60_000)
   __resetImageBytesForTest()
   __resetCustomImageStateForTests()
+  resetSafeFetchForTests()
+  mockUndiciFetch.mockReset()
 })
 
 afterEach(() => {
@@ -158,6 +181,118 @@ describe("fetchValidatedCustomImage", () => {
       }),
     ).toBeNull()
   })
+
+  it("accetta l'asset diretto TPDb salvato (stessi byte del render)", async () => {
+    const buf = await fetchValidatedCustomImage("https://theposterdb.com/api/assets/757201/view", signal, {
+      ...noBlock,
+      fetchRemote: async () => imageResponse(PNG_1X1, "image/png"),
+    })
+    expect(buf).not.toBeNull()
+    expect(buf?.length).toBe(PNG_1X1.length)
+  })
+
+  it("rifiuta le pagine TPDb salvate SENZA rete (null → fallback TMDB)", async () => {
+    for (const u of [
+      "https://theposterdb.com/poster/757201",
+      "https://theposterdb.com/set/426918",
+      "https://theposterdb.com/login",
+      "https://theposterdb.com/api/assets/757201/view.jpg",
+    ]) {
+      let calls = 0
+      const buf = await fetchValidatedCustomImage(u, signal, {
+        ...noBlock,
+        fetchRemote: async () => {
+          calls++
+          return imageResponse(PNG_1X1, "image/png")
+        },
+      })
+      expect(buf).toBeNull()
+      expect(calls).toBe(0)
+    }
+  })
+
+  it("redirect a pagina TPDb /poster/...: null senza fetch del target (gate per-hop host+path)", async () => {
+    const entry = "https://i.imgur.com/redirect-hop-e.jpg"
+    const forbidden = "https://theposterdb.com/poster/757201"
+    mockUndiciFetch
+      .mockResolvedValueOnce(new Response(null, { status: 302, headers: { location: forbidden } }))
+      .mockResolvedValueOnce(imageResponse(PNG_1X1, "image/png"))
+    // Solo il DNS-check d'ingresso è iniettato: il fetch segue il default
+    // di produzione, così un gate redirect solo-host fetcherebbe il target.
+    const buf = await fetchValidatedCustomImage(entry, signal, { checkBlocked: async () => false })
+    expect(buf).toBeNull()
+    expect(mockUndiciFetch.mock.calls.map((c) => String(c[0]))).toEqual([entry])
+  })
+
+  it("redirect asset TPDb → asset TPDb valido: accettato (niente over-blocking)", async () => {
+    const entry = "https://theposterdb.com/api/assets/757203/view"
+    const target = "https://theposterdb.com/api/assets/757203/view/"
+    mockUndiciFetch
+      .mockResolvedValueOnce(new Response(null, { status: 302, headers: { location: target } }))
+      .mockResolvedValueOnce(imageResponse(PNG_1X1, "image/png"))
+    const buf = await fetchValidatedCustomImage(entry, signal, { checkBlocked: async () => false })
+    expect(buf).not.toBeNull()
+    expect(mockUndiciFetch.mock.calls.map((c) => String(c[0]))).toEqual([entry, target])
+  })
+
+  it("accetta il bare asset TPDb e il CDN TMDB original (stessi byte del render)", async () => {
+    for (const u of [
+      "https://theposterdb.com/api/assets/670524",
+      "https://image.tmdb.org/t/p/original/dZSyWJ7F78W725BI7CKQIesvmKy.jpg",
+      "https://image.tmdb.org/t/p/w500/dZSyWJ7F78W725BI7CKQIesvmKy.jpg",
+    ]) {
+      const buf = await fetchValidatedCustomImage(u, signal, {
+        ...noBlock,
+        fetchRemote: async () => imageResponse(PNG_1X1, "image/jpeg"),
+      })
+      expect(buf).not.toBeNull()
+      expect(buf?.length).toBe(PNG_1X1.length)
+    }
+  })
+
+  it("rifiuta spoof e path TMDB fuori forma SENZA rete (null → fallback TMDB)", async () => {
+    for (const u of [
+      "https://www.image.tmdb.org/t/p/w500/x.jpg",
+      "https://image.tmdb.org.evil.com/t/p/w500/x.jpg",
+      "https://image.tmdb.org/t/p/w999/x.jpg",
+      "https://image.tmdb.org/t/p/original/x.svg",
+      "https://image.tmdb.org/posters/x.jpg",
+      "https://www.theposterdb.com/api/assets/670524",
+    ]) {
+      let calls = 0
+      const buf = await fetchValidatedCustomImage(u, signal, {
+        ...noBlock,
+        fetchRemote: async () => {
+          calls++
+          return imageResponse(PNG_1X1, "image/png")
+        },
+      })
+      expect(buf).toBeNull()
+      expect(calls).toBe(0)
+    }
+  })
+
+  it("redirect a path TMDB fuori forma: null senza fetch del target (gate per-hop host+path)", async () => {
+    const entry = "https://i.imgur.com/redirect-hop-tmdb.jpg"
+    const forbidden = "https://image.tmdb.org/t/p/w999/x.jpg"
+    mockUndiciFetch
+      .mockResolvedValueOnce(new Response(null, { status: 302, headers: { location: forbidden } }))
+      .mockResolvedValueOnce(imageResponse(PNG_1X1, "image/png"))
+    const buf = await fetchValidatedCustomImage(entry, signal, { checkBlocked: async () => false })
+    expect(buf).toBeNull()
+    expect(mockUndiciFetch.mock.calls.map((c) => String(c[0]))).toEqual([entry])
+  })
+
+  it("redirect CDN TMDB valido → CDN TMDB valido: accettato", async () => {
+    const entry = "https://image.tmdb.org/t/p/w500/x.jpg"
+    const target = "https://image.tmdb.org/t/p/original/x.jpg"
+    mockUndiciFetch
+      .mockResolvedValueOnce(new Response(null, { status: 302, headers: { location: target } }))
+      .mockResolvedValueOnce(imageResponse(PNG_1X1, "image/jpeg"))
+    const buf = await fetchValidatedCustomImage(entry, signal, { checkBlocked: async () => false })
+    expect(buf).not.toBeNull()
+    expect(mockUndiciFetch.mock.calls.map((c) => String(c[0]))).toEqual([entry, target])
+  })
 })
 
 describe("fetchPosterBaseWithCustom", () => {
@@ -268,6 +403,20 @@ describe("isAllowedQueryImagePath", () => {
     expect(isAllowedQueryImagePath("/abc123.jpg")).toBe(true)
     expect(isAllowedQueryImagePath("https://i.pinimg.com/originals/93/9f/d0/x.jpg")).toBe(true)
     expect(isAllowedQueryImagePath("https://www.pinterest.it/pin/123/")).toBe(true)
+    expect(isAllowedQueryImagePath("https://theposterdb.com/api/assets/757201/view")).toBe(true)
+    expect(isAllowedQueryImagePath("https://theposterdb.com/api/assets/670524")).toBe(true)
+    expect(isAllowedQueryImagePath("https://image.tmdb.org/t/p/original/dZSyWJ7F78W725BI7CKQIesvmKy.jpg")).toBe(true)
+    expect(isAllowedQueryImagePath("https://image.tmdb.org/t/p/w500/abc123.jpg")).toBe(true)
+  })
+
+  it("rifiuta pagine TPDb (direct-only) oltre a host fuori allowlist", () => {
+    expect(isAllowedQueryImagePath("https://theposterdb.com/poster/757201")).toBe(false)
+    expect(isAllowedQueryImagePath("https://theposterdb.com/set/426918")).toBe(false)
+    expect(isAllowedQueryImagePath("https://images.theposterdb.com/api/assets/757201/view")).toBe(false)
+    expect(isAllowedQueryImagePath("https://image.tmdb.org/t/p/w999/abc123.jpg")).toBe(false)
+    expect(isAllowedQueryImagePath("https://image.tmdb.org/t/p/original/abc123.svg")).toBe(false)
+    expect(isAllowedQueryImagePath("https://www.image.tmdb.org/t/p/w500/abc123.jpg")).toBe(false)
+    expect(isAllowedQueryImagePath("https://image.tmdb.org.evil.com/t/p/w500/abc123.jpg")).toBe(false)
   })
 
   it("rifiuta host fuori allowlist e scheme non-HTTP", () => {

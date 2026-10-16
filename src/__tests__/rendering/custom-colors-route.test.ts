@@ -41,6 +41,27 @@ describe("GET /api/custom-colors", () => {
     expect(mockedSample).not.toHaveBeenCalled()
   })
 
+  it("403 su shape direct-only invalida (mai rete), 200 su bare/ TMDB validi", async () => {
+    for (const bad of [
+      "url=https://image.tmdb.org/t/p/w999/x.jpg",
+      "url=https://image.tmdb.org/t/p/original/x.svg",
+      "url=https://theposterdb.com/poster/757201",
+      "url=https://www.image.tmdb.org/t/p/w500/x.jpg",
+    ]) {
+      const res = await GET(makeRequest(bad))
+      expect(res.status).toBe(403)
+    }
+    expect(mockedSample).not.toHaveBeenCalled()
+    for (const good of [
+      "url=https://theposterdb.com/api/assets/670524",
+      "url=https://image.tmdb.org/t/p/original/dZSyWJ7F78W725BI7CKQIesvmKy.jpg",
+    ]) {
+      const res = await GET(makeRequest(good))
+      expect(res.status).toBe(200)
+    }
+    expect(mockedSample).toHaveBeenCalledTimes(2)
+  })
+
   it("200 con accent/top/bottom e cache al secondo hit", async () => {
     const params = "url=https://assets.fanart.tv/fanart/movies/1/movieposter/a.jpg&genre=Dramma"
     const first = await GET(makeRequest(params))

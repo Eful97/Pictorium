@@ -3,7 +3,7 @@ import { ImageValidationError, validateImageBytes } from "@/lib/custom-image-val
 import { peekImageBytes, storeImageBytes } from "@/lib/image-bytes-cache"
 import { combineAbortSignals, raceWithAbort } from "@/lib/abort-signal"
 export { splitCustomPosterSave, type PosterSaveSplit } from "@/lib/utils"
-import { isAllowedResolveHost } from "@/lib/resolve-image"
+import { isAllowedCustomImageUrl } from "@/lib/resolve-image"
 import {
   BodyTooLargeError,
   readBodyCapped,
@@ -192,7 +192,9 @@ export async function fetchValidatedCustomImage(
     ((url: string, sig: AbortSignal) =>
       safeFetchRemote(url, {
         signal: sig,
-        isAllowedUrl: (u) => isAllowedResolveHost(u.hostname),
+        // Stesso gate completo del resolver su OGNI hop (host + shape
+        // diretta TPDb): i redirect verso pagine proibite non si fetchano.
+        isAllowedUrl: (u) => isAllowedCustomImageUrl(u),
         maxRedirects: 3,
       }))
   const checkBlocked = deps?.checkBlocked ?? resolveAndCheckBlocked
@@ -204,7 +206,9 @@ export async function fetchValidatedCustomImage(
     return null
   }
   if (parsed.protocol !== "http:" && parsed.protocol !== "https:") return null
-  if (!isAllowedResolveHost(parsed.hostname)) return null
+  // Gate completo (host + shape diretta per gli host direct-only come TPDb):
+  // le pagine TPDb salvate non si scaricano mai (null → fallback TMDB).
+  if (!isAllowedCustomImageUrl(parsed)) return null
   // Chiave = URL salvato normalizzato (non il finale post-redirect, che può
   // variare per geo/instance e frammenterebbe la cache).
   const key = parsed.href
@@ -300,16 +304,26 @@ export function safeTmdbImgSrc(path: string): string | null {
  */
 export function isAllowedQueryImagePath(value: string): boolean {
   try {
-    imgSrc(value)
+    const built = imgSrc(value)
+    // imgSrc passes any path under the exact TMDB CDN prefix, but the custom
+    // render gate is stricter (documented sizes + raster file only): run
+    // absolute URLs through the shared gate so the R2 query check matches
+    // resolve, render and custom-colors. TMDB relative paths stay accepted
+    // (historic behavior: they 404 at fetch, never SSRF).
+    if (/^https?:\/\//i.test(value.trim())) {
+      try {
+        return isAllowedCustomImageUrl(new URL(built))
+      } catch {
+        return false
+      }
+    }
     return true
   } catch {
-    // Non-TMDB: solo URL http(s) su host allowlist delle sorgenti custom.
+    // Non-TMDB: solo URL http(s) su host allowlist delle sorgenti custom
+    // (con shape diretta per gli host direct-only come TPDb).
     try {
       const u = new URL(value.trim())
-      return (
-        (u.protocol === "http:" || u.protocol === "https:") &&
-        isAllowedResolveHost(u.hostname)
-      )
+      return isAllowedCustomImageUrl(u)
     } catch {
       return false
     }

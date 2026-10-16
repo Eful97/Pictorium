@@ -65,4 +65,34 @@ describe("sampleCustomImageColors", () => {
       await sampleCustomImageColors("ftp://assets.fanart.tv/x.jpg", "", signal, { checkBlocked: async () => false }),
     ).toBeNull()
   })
+
+  it("campiona dal bare asset TPDb e dal CDN TMDB (stesso gate del render)", async () => {
+    const png = await solidPng()
+    const noBlock = { checkBlocked: async () => false }
+    for (const url of [
+      "https://theposterdb.com/api/assets/670524",
+      "https://image.tmdb.org/t/p/original/dZSyWJ7F78W725BI7CKQIesvmKy.jpg",
+    ]) {
+      const colors = await sampleCustomImageColors(url, "Dramma", signal, {
+        ...noBlock,
+        fetchRemote: async () => imageResponse(png, "image/png"),
+      })
+      expect(colors).not.toBeNull()
+      expect(colors?.accent).toMatch(HEX_RE)
+    }
+  })
+
+  it("null su shape direct-only invalida senza rete", async () => {
+    let calls = 0
+    const noBlock = {
+      checkBlocked: async () => false,
+      fetchRemote: async () => {
+        calls++
+        return imageResponse(await solidPng(), "image/png")
+      },
+    }
+    expect(await sampleCustomImageColors("https://image.tmdb.org/t/p/w999/x.jpg", "", signal, noBlock)).toBeNull()
+    expect(await sampleCustomImageColors("https://theposterdb.com/poster/757201", "", signal, noBlock)).toBeNull()
+    expect(calls).toBe(0)
+  })
 })
