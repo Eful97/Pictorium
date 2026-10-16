@@ -28,6 +28,37 @@ export interface CircuitBreaker {
   trip(customBackoffMs?: number): void
   /** Test-only: reset all state. */
   reset(): void
+  /**
+   * Relinquishes an admitted half-open trial WITHOUT recording an outcome —
+   * for the trial owner whose caller aborted before or while the upstream
+   * request executed. The `token` must be the value returned by
+   * `currentTrial()` captured synchronously when this request was admitted;
+   * a request admitted while CLOSED captures null and is never the trial.
+   * Clears the in-flight trial flag ONLY when the token still identifies the
+   * currently held trial: a stale abort (older CLOSED-state request, or an
+   * older trial superseded by a new trip + trial) is a no-op and can never
+   * release a newer live trial. The failure count and backoff window are
+   * untouched, so a genuine outage keeps its cooldown and the next request
+   * may admit a fresh trial.
+   */
+  releaseTrial(token: number | null): void
+  /**
+   * Token of the currently held half-open trial, or null when no trial is
+   * held (CLOSED breaker, open window, or trial already settled/released).
+   * Request paths must capture this SYNCHRONOUSLY right after `isOpen()`
+   * admits them (no await in between) and hand it to `releaseTrial()` on
+   * caller abort — that pairing is what makes a non-trial abort a safe
+   * no-op instead of clearing a newer live trial.
+   */
+  currentTrial(): number | null
+  /**
+   * Read-only status: true when requests would currently be rejected,
+   * WITHOUT admitting a half-open trial. Telemetry/status surfaces must use
+   * this: isOpen() admits exactly one trial and must only be called by paths
+   * that will actually run the trial and record its outcome, otherwise the
+   * admitted trial is orphaned and the breaker wedges open.
+   */
+  peekOpen(): boolean
 }
 
 /**
@@ -64,6 +95,11 @@ export function createCircuitBreaker(options: CircuitBreakerOptions): CircuitBre
   let failures = 0
   let openUntil = 0
   let halfOpen = false
+  // Monotonic id of the currently held half-open trial. Incremented on every
+  // admission, never reused: a token captured by an older request (or an
+  // older trial superseded by a new trip) can never equal the live one, so a
+  // stale caller abort cannot release a newer trial.
+  let trialId = 0
 
   function effectiveBackoff(customBackoffMs?: number): number {
     return typeof customBackoffMs === "number"
@@ -79,6 +115,7 @@ export function createCircuitBreaker(options: CircuitBreakerOptions): CircuitBre
       if (failures >= threshold) {
         if (halfOpen) return true // a trial is already in flight → reject
         halfOpen = true
+        trialId++
         log.info("Circuit breaker half-open: one trial request allowed")
         return false
       }
@@ -115,6 +152,32 @@ export function createCircuitBreaker(options: CircuitBreakerOptions): CircuitBre
       failures = 0
       openUntil = 0
       halfOpen = false
+    },
+
+    releaseTrial(token: number | null): void {
+      // Owner-guarded: only the request still holding the live trial may
+      // relinquish it. A null token (admitted while CLOSED — never the
+      // trial) and a stale token (older trial after a new trip/admission)
+      // are no-ops, so neither wedges nor double-admits the breaker.
+      if (token !== null && halfOpen && trialId === token) {
+        halfOpen = false
+      }
+    },
+
+    currentTrial(): number | null {
+      return halfOpen ? trialId : null
+    },
+
+    peekOpen(): boolean {
+      const now = Date.now()
+      if (openUntil > now) return true
+      if (failures >= threshold) {
+        // A trial already in flight still rejects the rest; an expired
+        // window with no trial held simply reports recoverable — admission
+        // stays exclusively with isOpen().
+        return halfOpen
+      }
+      return false
     },
   }
 }

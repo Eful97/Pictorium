@@ -327,7 +327,10 @@ function isCircuitOpen(): boolean {
 }
 
 export function isJustwatchBreakerOpen(): boolean {
-  return justwatchBreaker.isOpen()
+  // Read-only telemetry (e.g. /api/cache/status): must never admit — and
+  // orphan — the half-open trial. Request paths keep using isCircuitOpen()
+  // (admission) so the admitted trial always runs and records its outcome.
+  return justwatchBreaker.peekOpen()
 }
 
 function recordCircuitSuccess(): void {
@@ -338,6 +341,16 @@ function recordCircuitFailure(status?: number): void {
   // 403 DataDome: hard block, apre subito per 5 min senza aspettare i 5 colpi.
   if (status === 403) justwatchBreaker.trip(CIRCUIT_COOLDOWN_BLOCK_MS)
   else justwatchBreaker.recordFailure()
+}
+
+function releaseCircuitTrial(token: number | null): void {
+  // Trial owner whose caller aborted (before or while the upstream request
+  // ran) relinquishes the admitted half-open slot WITHOUT recording an
+  // outcome — a genuine outage keeps its failure count and cooldown. Only the
+  // live-trial owner releases: a null/stale token (request that was never the
+  // trial, a joiner that shared a live transport, or a trial superseded by a
+  // new trip) is a safe no-op.
+  justwatchBreaker.releaseTrial(token)
 }
 
 function jwRankingsCacheKey(
@@ -400,6 +413,10 @@ export async function getJWRankings(
   if (isCircuitOpen()) {
     return []
   }
+  // Trial ownership, captured synchronously at admission (no await above or
+  // below until the fetch): null when admitted while CLOSED (never the
+  // trial), the live id when admitted as the half-open trial.
+  const trial = justwatchBreaker.currentTrial()
 
   const filter: Record<string, unknown> = {
     objectType,
@@ -436,9 +453,14 @@ export async function getJWRankings(
     } catch (err) {
       // Cancellazione del chiamante (abort navigazione / fase JW chiusa dalla
       // route per deadline owner): non è un outage del provider — mai a carico
-      // del breaker condiviso. Resta failure il timeout interno (signal esterno
-      // non abortito: upstream lento davvero) e ogni errore HTTP/rete.
-      if (signal?.aborted) throw err
+      // del breaker condiviso. Se era il trial half-open ammesso, lo slot
+      // viene restituito senza esito (mai success/failure/reset fasulli).
+      // Resta failure il timeout interno (signal esterno non abortito:
+      // upstream lento davvero) e ogni errore HTTP/rete.
+      if (signal?.aborted) {
+        releaseCircuitTrial(trial)
+        throw err
+      }
       recordCircuitFailure()
       throw err
     }
@@ -622,6 +644,9 @@ export async function getJWTitles(opts: JWTitleOptions): Promise<JWRankEntry[]> 
     return []
   }
 
+  // Come sopra: ownership del trial catturata in modo sincrono all'ammissione.
+  const trial = justwatchBreaker.currentTrial()
+
   const filter: Record<string, unknown> = {
     objectTypes: [objectType],
   }
@@ -659,7 +684,12 @@ export async function getJWTitles(opts: JWTitleOptions): Promise<JWRankEntry[]> 
       }),
     })
   } catch (err) {
-    if (signal?.aborted) throw err
+    // Come getJWRankings: l'abort del chiamante non è un outage — restituisce
+    // anche l'eventuale slot di trial half-open senza registrare esiti.
+    if (signal?.aborted) {
+      releaseCircuitTrial(trial)
+      throw err
+    }
     recordCircuitFailure()
     throw err
   }
@@ -774,10 +804,6 @@ export async function getJWTitleQualityResult(
     return { quality: cached.data, ok: true }
   }
 
-  if (isCircuitOpen()) {
-    return { quality: null, ok: false }
-  }
-
   const filter: Record<string, unknown> = {
     objectTypes: [objectType],
   }
@@ -785,7 +811,23 @@ export async function getJWTitleQualityResult(
     filter.searchQuery = searchTitle
   }
 
-  const payload = await fetchTitleOffersShared(country, language, filter, signal)
+  // Transport ownership BEFORE admission: when an identical GetTitleOffers is
+  // already in flight, join it without admitting a half-open trial. Admitting
+  // first would orphan the token (fetchTitleOffersShared returns the existing
+  // promise and discards the new token) while the live transport still holds
+  // the older token — the older abort then cannot release the joined trial
+  // and the breaker wedges. Joiners hold null (never the trial), so their
+  // abort is a safe no-op and only the executor records the outcome.
+  const joined = titleOffersInflight.has(titleOffersInflightKey(country, language, filter))
+  let trial: number | null = null
+  if (!joined) {
+    if (isCircuitOpen()) {
+      return { quality: null, ok: false }
+    }
+    trial = justwatchBreaker.currentTrial()
+  }
+
+  const payload = await fetchTitleOffersShared(country, language, filter, signal, trial)
   // Payload null = fallimento di trasporto (non miss genuina): ok=false così
   // il chiamante applica TTL effimero invece di congelare il degradato.
   // (hasJWOffers sotto resta fail-open a null: semantica invariata.)
@@ -831,15 +873,27 @@ interface TitleOffersPayload {
 // invariati: cambia solo il trasporto condiviso, mai la semantica.
 const titleOffersInflight = new Map<string, Promise<TitleOffersPayload | null>>()
 
+function titleOffersInflightKey(
+  country: string,
+  language: string,
+  filter: Record<string, unknown>,
+): string {
+  // Same normalization as the transport: offers are localized facts and
+  // require a real country, so GLOBAL shares the US flight.
+  const normalized = country === GLOBAL_REGION_CODE ? "US" : country
+  return `${normalized}|${language}|${JSON.stringify(filter)}`
+}
+
 async function fetchTitleOffersShared(
   country: string,
   language: string,
   filter: Record<string, unknown>,
   signal?: AbortSignal,
+  trial: number | null = null,
 ): Promise<TitleOffersPayload | null> {
+  const key = titleOffersInflightKey(country, language, filter)
   // Offers are localized facts, not chart ranks, and require a real country.
   if (country === GLOBAL_REGION_CODE) country = "US"
-  const key = `${country}|${language}|${JSON.stringify(filter)}`
   const existing = titleOffersInflight.get(key)
   if (existing) return existing
   const promise: Promise<TitleOffersPayload | null> = (async (): Promise<TitleOffersPayload | null> => {
@@ -871,7 +925,15 @@ async function fetchTitleOffersShared(
       recordCircuitSuccess()
       return { edges: json?.data?.popularTitles?.edges || [] }
     } catch {
-      recordCircuitFailure()
+      // Cancellazione del chiamante (deadline render già scattata): non è un
+      // outage del provider — mai a carico del breaker condiviso. Se era il
+      // trial half-open ammesso, lo slot viene restituito senza esito così un
+      // trial cancellato non wedgia il breaker. Resta failure il timeout
+      // interno (signal esterno non abortito) e ogni errore HTTP/rete.
+      // Solo il proprietario del trial live lo restituisce: token null
+      // (ammesso da chiuso) o stantio (trial superato da un nuovo trip) = no-op.
+      if (signal?.aborted) releaseCircuitTrial(trial)
+      else recordCircuitFailure()
       return null
     } finally {
       // Stesso pattern di tmdb.ts: delete per chiave al settle. Nessuna race:
@@ -904,10 +966,6 @@ export async function hasJWOffers(
     return cached.data
   }
 
-  if (isCircuitOpen()) {
-    return null
-  }
-
   const filter: Record<string, unknown> = {
     objectTypes: [objectType],
   }
@@ -915,7 +973,18 @@ export async function hasJWOffers(
     filter.searchQuery = searchTitle
   }
 
-  const payload = await fetchTitleOffersShared(country, language, filter, signal)
+  // Same transport-ownership rule as quality above: join a live identical
+  // flight without admitting a trial, so a joined waiter never orphans one.
+  const joined = titleOffersInflight.has(titleOffersInflightKey(country, language, filter))
+  let trial: number | null = null
+  if (!joined) {
+    if (isCircuitOpen()) {
+      return null
+    }
+    trial = justwatchBreaker.currentTrial()
+  }
+
+  const payload = await fetchTitleOffersShared(country, language, filter, signal, trial)
   if (!payload) return null
   {
     const edges = payload.edges
