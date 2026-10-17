@@ -1,6 +1,6 @@
 import { textColorForBg } from "./accent-color"
 import { FONT_FILES } from "./fonts"
-import { estimateTextWidth, fontFamilyFor, buildExtraPillSvg, buildExtraGlassSvg, buildExtraBorderedSvg, buildExtraDefaultSvg, buildRankingCornerSvg, buildQualityBadgeSvg, buildQualityTierBadgeSvg, buildQualityKnockoutSvg, buildCustomBadgeSvg, escSvg, buildHouseGenreSvg, buildHouseRankingSvg, buildHousePresetSvg, TRANSLUCENT_BADGE_TEXT } from "./badge-svg-shared"
+import { estimateTextWidth, fontFamilyFor, buildExtraPillSvg, buildExtraGlassSvg, buildExtraBorderedSvg, buildExtraDefaultSvg, buildRankingCornerSvg, buildQualityBadgeSvg, buildQualityTierBadgeSvg, buildQualityKnockoutSvg, buildAgeKnockoutSvg, buildCustomBadgeSvg, escSvg, buildHouseGenreSvg, buildHouseRankingSvg, buildHousePresetSvg, TRANSLUCENT_BADGE_TEXT } from "./badge-svg-shared"
 export { buildNetflixRankBadgeSVG } from "./badge-svg-shared"
 import type { GenreParts, HousePresetScene } from "./badge-svg-shared"
 import { normalizeBadgeFont } from "./badge-svg-shared"
@@ -309,6 +309,27 @@ export async function renderQualityKnockoutBadge(
 ): Promise<{ png: Buffer; w: number; h: number }> {
   const fs = Math.round(Math.max(17 * pw / 380, 10))
   const result = buildQualityKnockoutSvg(quality, fs, normalizeBadgeFont(font))
+  const png = await renderSVG(result.svg, result.w)
+  return { png, w: result.w, h: result.h }
+}
+
+/**
+ * Renders the age `knockout` style (age ONLY): opaque white tag with the
+ * label glyphs cut out (transparent, poster shows through — see
+ * `buildAgeKnockoutSvg`). Same 17px base and box model as the quality
+ * knockout, so scale/offset/anchor math downstream is unchanged; unlike
+ * the shared quality knockout the mask glyphs render at the normal base
+ * `fs` (no oversize) inside a roomier box. The shared quality knockout
+ * (`renderQualityKnockoutBadge`) is untouched.
+ */
+export async function renderAgeKnockoutBadge(
+  label: string,
+  pw: number,
+  /** Text font (default "inter" = historic look). */
+  font: BadgeFont = "inter",
+): Promise<{ png: Buffer; w: number; h: number }> {
+  const fs = Math.round(Math.max(17 * pw / 380, 10))
+  const result = buildAgeKnockoutSvg(label, fs, normalizeBadgeFont(font))
   const png = await renderSVG(result.svg, result.w)
   return { png, w: result.w, h: result.h }
 }

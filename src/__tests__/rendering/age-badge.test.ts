@@ -11,7 +11,7 @@ import { buildStremioPosterSearchParams } from "@/lib/stremio-poster-params"
 import { normalizePosterCacheParams } from "@/lib/poster-runtime-cache"
 import { buildDefaultsPreviewUrl, buildPreviewUrl } from "@/lib/poster-url"
 import { generatePosterBuffer, renderQualityBadgeGroup, renderQualityIconBadge, type GenerationInput } from "@/lib/poster-service"
-import { renderQualityBadge, renderQualityKnockoutBadge } from "@/lib/svg-badge"
+import { renderQualityBadge, renderAgeKnockoutBadge } from "@/lib/svg-badge"
 import { STD_W, STD_H } from "@/lib/poster-render-helpers"
 import { TOP_SHADOW_PAD } from "@/lib/badge-svg-shared"
 import type { WikidataResult } from "@/lib/awards"
@@ -592,7 +592,7 @@ describe("renderQualityBadgeGroup age style + order (quality, age, formats)", ()
 
   it("stacks quality, knockout age, then formats top-to-bottom", async () => {
     const q = await renderQualityBadge("4K", PW, true, "inter")
-    const ko = await renderQualityKnockoutBadge("VM14", PW, "inter")
+    const ko = await renderAgeKnockoutBadge("VM14", PW, "inter")
     const icon = await renderQualityIconBadge(FORMAT_ICON_PATHS["imax"], PW, true)
     expect(icon).not.toBeNull()
     const group = await renderQualityBadgeGroup("4K", "standard", ["imax"], PW, true, "inter", "VM14", "knockout")
@@ -621,7 +621,7 @@ describe("renderQualityBadgeGroup age style + order (quality, age, formats)", ()
 
   it("renders age between quality and formats without a tier (missing quality)", async () => {
     const group = await renderQualityBadgeGroup(null, "standard", ["imax"], PW, true, "inter", "VM14", "knockout")
-    const ko = await renderQualityKnockoutBadge("VM14", PW, "inter")
+    const ko = await renderAgeKnockoutBadge("VM14", PW, "inter")
     const icon = await renderQualityIconBadge(FORMAT_ICON_PATHS["imax"], PW, true)
     expect(group).not.toBeNull()
     expect(icon).not.toBeNull()

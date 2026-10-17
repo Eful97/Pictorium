@@ -757,6 +757,64 @@ export function buildQualityKnockoutSvg(quality: string, fs: number, font: Badge
   return { svg: `<svg xmlns="http://www.w3.org/2000/svg" width="${renderW}" height="${renderH}" viewBox="0 0 ${renderW} ${renderH}">${defs}${bgEl}</svg>`, w: renderW, h: renderH }
 }
 
+/**
+ * Horizontal padding of the age `knockout` tag (sober alternative style,
+ * age ONLY): roomier than the shared quality builder for long labels
+ * (VM14/PG-13/TV-MA).
+ */
+export const AGE_KNOCKOUT_PAD_X_FACTOR = 1.0
+
+/** Contained radius of the age `knockout` tag (sober rectangle, not a pill). */
+export const AGE_KNOCKOUT_RADIUS_FACTOR = 0.30
+
+/** Opaque white body of the age `knockout` tag (the glyphs are cut out —
+ *  the body itself is never transparent). */
+export const AGE_KNOCKOUT_BG = "#ffffff"
+
+/**
+ * White knockout tag for the age `knockout` style (age ONLY — never the
+ * quality path): opaque white rounded rectangle with the label glyphs cut
+ * out via SVG mask, so the poster shows through the letters — same genuine
+ * knockout look as the shared quality tag. Unlike the shared quality
+ * builder, the mask glyphs render at the normal base `fs` (no 1.35x
+ * oversize) and the box is roomier (`1.0 × fs` padding, contained `0.30 ×
+ * boxH` radius), so long labels (VM14/PG-13/TV-MA) keep breathing room.
+ * Same 17px base, box height, tracking (`0.06em` technical-mark kerning,
+ * `textLength` pinned on estimate + tracking), font metrics
+ * (`fontFamilyFor` / `estimateTextWidth`), escaping (`escSvg`) and
+ * shadow/padding geometry as the shared quality knockout, so
+ * scale/offset/anchor math downstream is unchanged. No stroke, no gradient
+ * — only the shared 3D shadow, like the quality knockout. The shared
+ * `buildQualityKnockoutSvg` stays byte-identical (quality/4K untouched).
+ * The transparent lettering is intentional (accepted tradeoff on bright
+ * artwork): never add opaque text or contrast-adaptation fallbacks here.
+ */
+export function buildAgeKnockoutSvg(label: string, fs: number, font: BadgeFont = "inter") {
+  const px = Math.round(fs * AGE_KNOCKOUT_PAD_X_FACTOR)
+  // Same tracking as the quality technical-mark pills: 0.06em per gap.
+  const track = label.length > 1 ? Math.round(0.06 * fs * (label.length - 1)) : 0
+  const textW = Math.max(estimateTextWidth(label, fs, font) + track, fs)
+  const totalW = textW + px * 2
+  const boxH = badgeBoxHeight(fs)
+  const r = Math.round(boxH * AGE_KNOCKOUT_RADIUS_FACTOR)
+  const renderW = totalW + TOP_SHADOW_PAD * 2
+  const renderH = boxH + TOP_SHADOW_PAD * 2
+  const ox = TOP_SHADOW_PAD
+  const oy = TOP_SHADOW_PAD
+  const cx = ox + totalW / 2
+  const cy = oy + boxH / 2
+  const family = fontFamilyFor(label, font)
+  // Mask glyphs at the normal base `fs` (not oversized): the wider age box
+  // already gives long labels room, so the cut-out stays comfortable with
+  // small anti-clipping margins (same margin rule as the quality builder).
+  const maskMargin = Math.max(2, Math.round(fs * 0.15))
+  const maskTextW = Math.min(textW, Math.max(totalW - maskMargin * 2, fs))
+  const fit = textFitAttrs(maskTextW)
+  const defs = `<defs><mask id="akm"><rect x="${ox}" y="${oy}" width="${totalW}" height="${boxH}" rx="${r}" fill="#ffffff"/><text x="${cx}" y="${cy}" text-anchor="middle" dominant-baseline="central" font-family="${family}" font-weight="700" font-size="${fs}" letter-spacing="0.06em" fill="#000000"${fit}>${escSvg(label)}</text></mask>${TOP_SHADOW_FILTER}</defs>`
+  const bgEl = `<rect x="${ox}" y="${oy}" width="${totalW}" height="${boxH}" rx="${r}" fill="${AGE_KNOCKOUT_BG}" mask="url(#akm)" filter="url(#tds)"/>`
+  return { svg: `<svg xmlns="http://www.w3.org/2000/svg" width="${renderW}" height="${renderH}" viewBox="0 0 ${renderW} ${renderH}">${defs}${bgEl}</svg>`, w: renderW, h: renderH }
+}
+
 // --- Custom preset badges (Badge Lab + poster Stremio: stessa funzione) ---
 
 /** `#RGB/#RRGGBB/#RRGGBBAA` + opacity 0-100 → `rgba(...)` deterministico. */

@@ -226,7 +226,8 @@ export function normalizePosterCacheParams(searchParams: URLSearchParams): URLSe
     if (/^[A-Z]{2}$/.test(v) && v !== "GLOBAL") params.set("agecountry", v)
     else params.delete("agecountry")
   }
-  // agebs: stile pill età ("standard" resa storica / "knockout" tag bianco).
+  // agebs: age pill style ("standard" historic look / "knockout" white tag
+  // with cut-out transparent glyphs, age ONLY).
   // Presente-ma-invalido → "standard" esplicito (fail-closed, come bfont):
   // l'assenza può ereditare knockout da token/defaults, il garbage rende
   // standard — cancellarlo collasserebbe le chiavi avvelenando i render.

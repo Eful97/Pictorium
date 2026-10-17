@@ -27,7 +27,7 @@ import {
 import { LAND_W, LAND_H } from "./image-utils"
 import { normalizeAutomaticAccentHex } from "./accent-color"
 import type { EffectiveAccentMeta } from "./effective-accent"
-import { renderGenreBadge, renderRankingBadge, renderExtraBadge, renderQualityBadge, renderQualityTierBadge, renderQualityKnockoutBadge, renderComingSoonRibbon, comingSoonRibbonLayout, renderSVG, buildCustomPresetBadgeSVG, buildHousePresetBadgeSVG } from "./svg-badge"
+import { renderGenreBadge, renderRankingBadge, renderExtraBadge, renderQualityBadge, renderQualityTierBadge, renderQualityKnockoutBadge, renderAgeKnockoutBadge, renderComingSoonRibbon, comingSoonRibbonLayout, renderSVG, buildCustomPresetBadgeSVG, buildHousePresetBadgeSVG } from "./svg-badge"
 import { buildLogoScrim, logoContrast, logoInkLuminance, logoScrimStrength, posterLogoZoneLuminance } from "./logo-contrast"
 import { renderFirstMatchingNetworkLogoBadge, renderFirstMatchingNetworkRawBadge, renderFirstMatchingNetworkLogoBadgeHybrid, renderFirstMatchingNetworkRawBadgeHybrid, type NetworkCandidate } from "./network-svgs"
 import { computeLogoLayout, logoAlignPadX, PORTRAIT_LOGO_MAX_HEIGHT_PCT, PORTRAIT_LOGO_TOP_OFFSET, LANDSCAPE_LOGO_MAX_WIDTH_PCT, LANDSCAPE_LOGO_MAX_HEIGHT_PCT, LANDSCAPE_LOGO_BOTTOM_MARGIN_PCT, LANDSCAPE_LOGO_TOP_OFFSET, LANDSCAPE_LOGO_SHIFT_X, LANDSCAPE_LOGO_SHIFT_Y } from "./logo-layout"
@@ -171,8 +171,10 @@ export interface GenerationInput {
    *  della qualità. */
   ageLabel?: string | null
   /** Stile della pill di classificazione per età ("standard" = resa storica;
-   *  "knockout" = tag bianco con glifi ritagliati, stesso builder della
-   *  qualità knockout). Assente/invalido = "standard". */
+   *  "knockout" = white tag with mask-cut glyphs (transparent cut-out,
+   *  dedicated age-only builder — never the shared quality-knockout
+   *  builder, which stays byte-identical).
+   *  Absent/invalid = "standard". */
   ageBadgeStyle?: AgeBadgeStyle | null
   /** Font dei testi badge ("inter" = resa storica; i preset custom/house e i loghi restano invariati). */
   badgeFont?: BadgeFont | null
@@ -678,8 +680,9 @@ export async function renderQualityIconBadge(
  * Se non ci sono formati o falliscono, ritorna il singolo badge di risoluzione.
  * `ageLabel` (etichetta età già sanificata, es. "VM14"): pill testuale in
  * stile `ageStyle` ("standard" = stessa pill neutra della qualità, base 17px;
- * "knockout" = tag bianco con glifi ritagliati via mask, stesso builder
- * condiviso della qualità knockout) tra tier e formati, con gli stessi
+ * "knockout" = white tag with mask-cut glyphs (transparent cut-out,
+ * dedicated age-only builder — never the shared quality-knockout builder,
+ * which stays byte-identical)) between tier and formats, with the same
  * offset/scale/cap del gruppo a valle. Senza qualità né formati ma con
  * età, il gruppo rende la sola pill età (il badge non richiede il 4K).
  * Senza nessuno dei tre → null (nessun composite, percorso storico intatto).
@@ -749,13 +752,14 @@ export async function renderQualityBadgeGroup(
   }
   // Pill età in stile `ageStyle`: standard = stessa pill testuale neutra
   // della qualità (base 17px, polarità topLight, font badge); knockout =
-  // tag bianco con glifi ritagliati (stesso builder condiviso della qualità
-  // knockout: stesso box esterno, niente stroke/gradiente). Testo sanificato
+  // white tag with mask-cut glyphs (transparent cut-out, builder
+  // dedicated age-only `renderAgeKnockoutBadge` builder: never the shared
+  // quality-knockout builder, which stays byte-identical). Sanitized text
   // maiuscolo-minuscolo preservato (escSvg nel builder, mai HTML grezzo).
   const renderAgePill = async (): Promise<{ png: Buffer; w: number; h: number } | null> => {
     if (ageText === "") return null
     return effAgeStyle === "knockout"
-      ? renderQualityKnockoutBadge(ageText, pw, normalizeBadgeFont(font))
+      ? renderAgeKnockoutBadge(ageText, pw, normalizeBadgeFont(font))
       : renderQualityBadge(ageText, pw, topLight, normalizeBadgeFont(font))
   }
   const agePill = await renderAgePill()

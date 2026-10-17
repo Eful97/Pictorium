@@ -54,8 +54,11 @@ export const DEFAULT_QUALITY_BADGE_STYLE: QualityBadgeStyle = "standard"
 
 /**
  * Age certification badge style: "standard" (neutral satin text pill, the
- * historic age look) or "knockout" (opaque white tag with cut-out
- * transparent glyphs, reusing the shared quality knockout builder).
+ * historic age look) or "knockout" (white tag with cut-out transparent
+ * glyphs — age-only builder `buildAgeKnockoutSvg`, never the shared quality
+ * knockout: same knockout look, but normal base `fs` glyphs in a roomier
+ * box for long labels). The legacy `knockout`
+ * identifier is preserved (enum/URL/persistence unchanged).
  * Per-shape chain like the age toggle itself: `agebs` query > config
  * token > effective per-shape server defaults > flat > "standard".
  */
