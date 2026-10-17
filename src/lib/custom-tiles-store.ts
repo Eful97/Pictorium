@@ -5,6 +5,9 @@ const MAX_TILES = 20
 
 const keyFor = (tmdbId: number): string => `pictorium_custom_posters_${tmdbId}`
 
+/** Session tiles for custom logos: separate namespace from posters (same validation bar). */
+const keyForLogo = (titleKey: string): string => `pictorium_custom_logos_${titleKey}`
+
 function isStoredTile(value: unknown): value is TMDBImage {
   if (typeof value !== "object" || value === null) return false
   const v = value as Record<string, unknown>
@@ -48,5 +51,40 @@ export function storeCustomTiles(tmdbId: number | null | undefined, tiles: TMDBI
     localStorage.setItem(keyFor(tmdbId), JSON.stringify(tiles.slice(0, MAX_TILES)))
   } catch {
     // Quota piena o storage bloccato: i tile restano in memoria di sessione.
+  }
+}
+
+/**
+ * Unsaved custom logo tiles, persisted per title in localStorage
+ * (same contract as posters: they survive reload, the mapping stays the
+ * truth after Save). Separate key: posters and logos never mix.
+ * The title key includes the media type (`movie:550`): movie and tv share
+ * the numeric id space, so an id-only key would leak tiles across types.
+ */
+export function loadCustomLogoTiles(titleKey: string | null | undefined): TMDBImage[] {
+  if (!titleKey) return []
+  try {
+    if (typeof localStorage === "undefined") return []
+    const raw = localStorage.getItem(keyForLogo(titleKey))
+    if (!raw) return []
+    const parsed: unknown = JSON.parse(raw)
+    if (!Array.isArray(parsed)) return []
+    return parsed.filter(isStoredTile).slice(0, MAX_TILES)
+  } catch {
+    return []
+  }
+}
+
+export function storeCustomLogoTiles(titleKey: string | null | undefined, tiles: TMDBImage[]): void {
+  if (!titleKey) return
+  try {
+    if (typeof localStorage === "undefined") return
+    if (tiles.length === 0) {
+      localStorage.removeItem(keyForLogo(titleKey))
+      return
+    }
+    localStorage.setItem(keyForLogo(titleKey), JSON.stringify(tiles.slice(0, MAX_TILES)))
+  } catch {
+    // Full quota or blocked storage: tiles stay in session memory.
   }
 }

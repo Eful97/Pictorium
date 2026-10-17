@@ -8,7 +8,7 @@ import { usePSelector } from "@/lib/context"
 import { usePosterEditor } from "@/lib/contexts/PosterEditorContext"
 import { useTvdbArtworks } from "@/lib/useTvdbArtworks"
 import { RatingSourceIcon } from "@/components/RatingSourceIcon"
-import { Check, Trash2, ChevronDown, Loader2 } from "lucide-react"
+import { Check, Trash2, ChevronDown, Loader2, X } from "lucide-react"
 
 interface Props {
   logos: TMDBImage[]
@@ -17,9 +17,17 @@ interface Props {
   selectLogo: (img: TMDBImage) => void
   removeLogo: () => void
   disabled?: boolean
+  /** Session custom logo tiles (external URLs, first in the grid, removable). */
+  customLogos?: TMDBImage[]
+  /** Saved custom logo from the mapping (in the grid without removal: via the box). */
+  savedCustomLogo?: TMDBImage | null
+  /** Session tile removal (customLogos only, never the saved tile). */
+  onRemoveCustomLogo?: (filePath: string) => void
+  /** Slot for the URL import box (below the tabs, above the grid). */
+  topSlot?: React.ReactNode
 }
 
-export const LogoOptions = React.memo(function LogoOptions({ logos, selectedLogo, lang, selectLogo, removeLogo, disabled }: Props) {
+export const LogoOptions = React.memo(function LogoOptions({ logos, selectedLogo, lang, selectLogo, removeLogo, disabled, customLogos = [], savedCustomLogo = null, onRemoveCustomLogo, topSlot }: Props) {
   const { t } = useT()
   const { logoDisabled, setLogoDisabled } = usePosterEditor()
   const selected = usePSelector((v) => v.selected)
@@ -63,6 +71,47 @@ export const LogoOptions = React.memo(function LogoOptions({ logos, selectedLogo
 
   return (
     <div>
+      {topSlot}
+      {(customLogos.length > 0 || savedCustomLogo) && (
+        <div className="grid grid-cols-2 gap-2 mb-3">
+          {/* Session custom tiles: first in the grid, with a remove button. */}
+          {customLogos.map((img) => {
+            const isActive = selectedLogo?.file_path === img.file_path
+            return (
+              <div key={`custom:${img.file_path}`} className="relative group">
+                <button type="button" disabled={disabled} onClick={() => selectLogo(img)} className={`poster-tile group relative p-2 rounded-xl transition-all duration-200 ease-out flex items-center justify-center h-20 w-full ${disabled ? "opacity-40 cursor-not-allowed" : ""} ${isActive ? "poster-tile-active bg-accent-orange/10" : ""}`} title={t("ui.customLogoActive")}>
+                  {/* eslint-disable-next-line @next/next/no-img-element -- custom absolute URL */}
+                  <img src={posterUrl(img.file_path, "w154")} alt="" loading="lazy" decoding="async" className="max-h-14 max-w-full object-contain transition-transform duration-200 group-hover:scale-110" />
+                  {isActive && <div className="absolute top-1 right-1 rounded-md bg-accent-orange text-white p-0.5 shadow-sm shadow-accent-orange/40"><Check className="w-3 h-3" /></div>}
+                </button>
+                {onRemoveCustomLogo && (
+                  <div className="absolute top-1.5 right-1.5 z-20 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
+                    <button type="button"
+                      aria-label={t("ui.remove")}
+                      title={t("ui.remove")}
+                      disabled={disabled}
+                      onClick={(e) => { e.stopPropagation(); onRemoveCustomLogo(img.file_path) }}
+                      className={`poster-image-action w-6 h-6 rounded-lg flex items-center justify-center backdrop-blur-md border transition-all duration-150 bg-black/55 border-white/10 text-zinc-300 hover:bg-red-500/90 hover:text-white hover:border-red-400/60 ${disabled ? "opacity-40 cursor-not-allowed" : ""}`}
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                )}
+              </div>
+            )
+          })}
+          {/* Saved custom tile: in the grid without removal (via the box). */}
+          {savedCustomLogo && (
+            <div key={`custom-saved:${savedCustomLogo.file_path}`} className="relative group">
+              <button type="button" disabled={disabled} onClick={() => selectLogo(savedCustomLogo)} className={`poster-tile group relative p-2 rounded-xl transition-all duration-200 ease-out flex items-center justify-center h-20 w-full ${disabled ? "opacity-40 cursor-not-allowed" : ""} ${selectedLogo?.file_path === savedCustomLogo.file_path ? "poster-tile-active bg-accent-orange/10" : ""}`} title={t("ui.customLogoActive")}>
+                {/* eslint-disable-next-line @next/next/no-img-element -- custom absolute URL */}
+                <img src={posterUrl(savedCustomLogo.file_path, "w154")} alt="" loading="lazy" decoding="async" className="max-h-14 max-w-full object-contain transition-transform duration-200 group-hover:scale-110" />
+                {selectedLogo?.file_path === savedCustomLogo.file_path && <div className="absolute top-1 right-1 rounded-md bg-accent-orange text-white p-0.5 shadow-sm shadow-accent-orange/40"><Check className="w-3 h-3" /></div>}
+              </button>
+            </div>
+          )}
+        </div>
+      )}
       {selected && (
         <div className="flex gap-1 mb-2 overflow-x-auto scrollbar-none">
           <button type="button"

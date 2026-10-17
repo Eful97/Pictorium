@@ -238,12 +238,14 @@ export const posterQuerySchema = z.object({
   label: boundedQueryString(80),
   title: boundedQueryString(200),
   genreName: boundedQueryString(60),
-  // Base custom da URL esterno (tile custom in preview / mapping salvato):
-  // bound largo come il mapping (customPosterUrl max 2000) — gli URL diretti
-  // dei CDN superano i 160 char dei path TMDB. Resta un bound anti-flood:
-  // ogni valore distinto è una entry cache separata.
+  // Custom base from an external URL (custom tile in preview / saved mapping):
+  // wide bound like the mapping (customPosterUrl max 2000) — direct CDN URLs
+  // exceed the 160 chars of TMDB paths. An anti-flood bound stays: each
+  // distinct value is a separate cache entry. `logo` shares the same bound:
+  // custom logos travel on the same allowlist policy as custom bases
+  // (isAllowedQueryImagePath), never SVG (raster-only).
   poster: boundedQueryString(2048),
-  logo: boundedQueryString(160),
+  logo: boundedQueryString(2048),
   backdrop: boundedQueryString(160),
   quality: boundedQueryString(16),
   formats: boundedQueryString(64),

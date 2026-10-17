@@ -61,4 +61,52 @@ describe("LogoOptions", () => {
       expect(btn).toBeDisabled()
     })
   })
+
+  it("renders custom logo tiles first with remove buttons, saved without", async () => {
+    const u = userEvent.setup()
+    const selectLogo = vi.fn()
+    const onRemoveCustomLogo = vi.fn()
+    const custom = { file_path: "https://i.imgur.com/logo.png", iso_639_1: null, vote_average: 0, width: 400, height: 200 }
+    const saved = { file_path: "https://i.imgur.com/saved.png", iso_639_1: null, vote_average: 0, width: 0, height: 0 }
+    const { container } = renderWithCtx(
+      <LogoOptions logos={mockLogos} selectedLogo={null} lang="it" selectLogo={selectLogo} removeLogo={() => {}} customLogos={[custom]} savedCustomLogo={saved} onRemoveCustomLogo={onRemoveCustomLogo} />,
+    )
+    const imgs = container.querySelectorAll("img")
+    const srcs = Array.from(imgs).map((img) => img.getAttribute("src") ?? "")
+    expect(srcs.some((s) => s.includes("i.imgur.com/logo.png"))).toBe(true)
+    expect(srcs.some((s) => s.includes("i.imgur.com/saved.png"))).toBe(true)
+    // Custom tiles precede TMDB ones in the DOM.
+    expect(srcs.findIndex((s) => s.includes("i.imgur.com"))).toBeLessThan(
+      srcs.findIndex((s) => s.includes("/logo_en1.png")),
+    )
+    // Clicking the custom tile selects the logo.
+    const tile = container.querySelector<HTMLButtonElement>('button.poster-tile[title="ui.customLogoActive"]')
+    expect(tile).toBeTruthy()
+    await u.click(tile!)
+    expect(selectLogo).toHaveBeenCalledWith(custom)
+    // Only the session tile has the remove button.
+    const removeBtns = screen.getAllByRole("button", { name: "ui.remove" })
+    expect(removeBtns.length).toBe(1)
+    await u.click(removeBtns[0])
+    expect(onRemoveCustomLogo).toHaveBeenCalledWith("https://i.imgur.com/logo.png")
+  })
+
+  it("marks the active custom logo tile as selected", () => {
+    const custom = { file_path: "https://i.imgur.com/logo.png", iso_639_1: null, vote_average: 0, width: 400, height: 200 }
+    renderWithCtx(
+      <LogoOptions logos={mockLogos} selectedLogo={custom} lang="it" selectLogo={() => {}} removeLogo={() => {}} customLogos={[custom]} />,
+    )
+    expect(screen.getByText("ui.logoSelected")).toBeInTheDocument()
+  })
+
+  it("renders the import topSlot above the grid", () => {
+    const { container } = renderWithCtx(
+      <LogoOptions logos={mockLogos} selectedLogo={null} lang="it" selectLogo={() => {}} removeLogo={() => {}} topSlot={<div data-testid="logo-import-slot" />} />,
+    )
+    const slot = container.querySelector('[data-testid="logo-import-slot"]')
+    expect(slot).toBeTruthy()
+    const firstTile = container.querySelector("button.poster-tile")
+    expect(firstTile).toBeTruthy()
+    expect(slot!.compareDocumentPosition(firstTile!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
 })

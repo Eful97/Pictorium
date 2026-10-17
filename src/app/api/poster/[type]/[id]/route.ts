@@ -99,7 +99,7 @@ import { LAND_W, LAND_H, landscapeBackdropUrl, pillarboxLandscapeBase, cropBackd
 import { generatePosterBuffer, type GenerationInput, type NetworkGeometry } from "@/lib/poster-service"
 import { computeTopBadge } from "@/lib/poster-badge"
 import { getUpcomingReleaseLabel, parseDateFormat } from "@/lib/release-badge"
-import { fetchPosterBaseWithCustom, customBaseAnalysisKey, resolveEffectiveCustomUrl, safeTmdbImgSrc, isAllowedQueryImagePath } from "@/lib/custom-poster-base"
+import { fetchPosterBaseWithCustom, customBaseAnalysisKey, resolveEffectiveCustomUrl, safeTmdbImgSrc, isAllowedQueryImagePath, fetchValidatedCustomImage } from "@/lib/custom-poster-base"
 import { isCustomPosterUrl } from "@/lib/utils"
 
 import { resolveImdbToTmdb } from "@/lib/imdb-resolver"
@@ -384,17 +384,19 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
   // funzione usata dal render — nessuna deriva). Prima un URL esterno
   // falliva dentro il try del render → 500 + negative-cache per un errore
   // del client, intasando log e slot. Ora 400 immediato.
-  // Eccezione: `poster` accetta anche URL http(s) su host allowlist (base
-  // custom da tile esterno — isAllowedQueryImagePath). Logo/backdrop restano
-  // strict TMDB/TVDB: il custom è portrait-only, mai sfondi o loghi.
+  // Exception: `poster` and `logo` also accept http(s) URLs on allowlisted
+  // hosts (custom base/logo from an external tile — isAllowedQueryImagePath,
+  // same resolve policy: raster-only, no SVG). Backdrop stays strict
+  // TMDB/TVDB: custom covers the portrait base and opt-in logos, never
+  // backdrops.
   for (const imgKey of ["poster", "logo", "backdrop"] as const) {
     const imgPath = req.nextUrl.searchParams.get(imgKey)
     if (imgPath) {
       try {
-        if (imgKey === "poster") {
-          if (!isAllowedQueryImagePath(imgPath)) throw new Error(`Blocked query image URL`)
-        } else {
+        if (imgKey === "backdrop") {
           imgSrc(imgPath)
+        } else if (!isAllowedQueryImagePath(imgPath)) {
+          throw new Error(`Blocked query image URL`)
         }
       } catch {
         return new Response(`Invalid query parameter: ${imgKey}`, { status: 400, headers: corsHeaders() })
@@ -1470,8 +1472,14 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
       // veniva scelto solo dentro il ramo "esiste un poster clean", quindi il
       // ramo senza clean non ne aveva mai uno.
       if (queryLogo) {
-        const exact = allLogos.find((l: TMDBImage) => l.file_path === queryLogo)
-        if (exact) logoPath = exact.file_path
+        // Custom logo from an external tile (same policy as the custom base):
+        // wins directly without a TMDB list match. TMDB paths stay bound to
+        // the exact list match as before.
+        if (isCustomPosterUrl(queryLogo)) logoPath = queryLogo
+        else {
+          const exact = allLogos.find((l: TMDBImage) => l.file_path === queryLogo)
+          if (exact) logoPath = exact.file_path
+        }
       }
       if (!logoPath) {
         // Default = primo logo del gruppo lingua, lo stesso che mostra il
@@ -1526,6 +1534,15 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
                 // Byte-LRU (F3): key = URL finale (imgSrc lancia su URL esterni
                 // come prima, fuori dalla cache). B5: signal combinato col
                 // watchdog così dopo la deadline non restano zombie.
+                // Custom logo from an external URL: same safe pipeline as the
+                // render (allowlist + SSRF + raster-only); a failure throws
+                // like a failed TMDB fetch (best-fit degrades to the
+                // historical fallback, never 500).
+                if (isCustomPosterUrl(path)) {
+                  const buf = await fetchValidatedCustomImage(path, combineAbortSignals(renderAbort.signal, 5000))
+                  if (!buf) throw new Error("Custom logo fetch failed")
+                  return buf
+                }
                 const url = imgSrc(path)
                 return cachedImageBytes(url, async () => {
                   const res = await timedFetch(url, { signal: combineAbortSignals(renderAbort.signal, 5000) })
@@ -1916,7 +1933,15 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
             : fetchImg(imgSrc(posterPath), renderAbort.signal).catch(() => null).then((buf) => (buf ? { buf, custom: false } : null)),
         logoPathBuffer
           ? Promise.resolve(logoPathBuffer)
-          : logoPath ? fetchLogoImg(logoPath, renderAbort.signal).catch(() => null) : Promise.resolve(null),
+          // Custom logo from an external URL: same safe pipeline as the custom
+          // base (allowlist + SSRF + raster-only, no SVG); a definitive
+          // failure resolves to null + logo-less composition, never 500. A
+          // render abort propagates (never a zombie fallback).
+          : logoPath
+            ? (isCustomPosterUrl(logoPath)
+              ? fetchValidatedCustomImage(logoPath, renderAbort.signal).catch(() => null)
+              : fetchLogoImg(logoPath, renderAbort.signal).catch(() => null))
+            : Promise.resolve(null),
         backdropPath ? fetchImg(isLandscape ? landscapeBackdropUrl(backdropPath) : imgSrc(backdropPath), renderAbort.signal).catch(() => null) : Promise.resolve(null),
         rankingEnabledEarly
           // Pre-cache snapshot reuse: same value as the cache key.

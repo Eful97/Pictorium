@@ -21,12 +21,13 @@ import { isGradientDirtyForShape, isArtworkDirty, isMappingDirty } from "@/lib/g
 import { PosterOptions } from "@/components/PosterOptions"
 import { BackdropOptions } from "@/components/BackdropOptions"
 import { CustomPosterUrl } from "@/components/CustomPosterUrl"
+import { CustomLogoUrl } from "@/components/CustomLogoUrl"
 import { LogoOptions } from "@/components/LogoOptions"
 import { EditorPanel } from "@/components/EditorPanel"
 import { copyText } from "@/lib/clipboard"
 import { isCustomPosterUrl } from "@/lib/utils"
 import { isTvdbArtworkUrl } from "@/lib/tvdb-gallery-types"
-import { loadCustomTiles, storeCustomTiles } from "@/lib/custom-tiles-store"
+import { loadCustomTiles, storeCustomTiles, loadCustomLogoTiles, storeCustomLogoTiles } from "@/lib/custom-tiles-store"
 import { userFetch } from "@/lib/http"
 import { SearchBar } from "@/components/SearchBar"
 import { PosterCarousel } from "@/components/PosterCarousel"
@@ -434,6 +435,47 @@ export default function EditView() {
     const savedLang = isTvdbArtworkUrl(savedCustomUrl) ? (selectedMapping?.language ?? null) : null
     return { file_path: savedCustomUrl, iso_639_1: savedLang, vote_average: 0, width: 0, height: 0 } as TMDBImage
   }, [customTiles, savedCustomUrl, selectedMapping])
+
+  // Session custom logo tiles (external URLs added via the import box, not
+  // yet saved): same contract as posters — per title, persisted in
+  // localStorage under a separate key; the mapping stays the truth after Save.
+  // The key includes the media type (`movie:550`): movie and tv share the
+  // numeric id space. The skip flag owns the title switch: without it the
+  // store effect would run in the same commit with the NEW key and the OLD
+  // tiles, overwriting the incoming title's storage before the load commits.
+  const logoTilesKey = selected ? `${selected.media_type}:${selected.id}` : null
+  const [customLogoTiles, setCustomLogoTiles] = useState<TMDBImage[]>(() => loadCustomLogoTiles(logoTilesKey))
+  const skipLogoStoreRef = useRef(false)
+  useEffect(() => {
+    skipLogoStoreRef.current = true
+    setCustomLogoTiles(loadCustomLogoTiles(logoTilesKey))
+  }, [logoTilesKey])
+  useEffect(() => {
+    if (skipLogoStoreRef.current) {
+      skipLogoStoreRef.current = false
+      return
+    }
+    storeCustomLogoTiles(logoTilesKey, customLogoTiles)
+  }, [logoTilesKey, customLogoTiles])
+  // Live refs for the async remove path: the import box awaits PUT +
+  // loadMappings, so a captured closure would read a stale selection. Refs
+  // always see the current title/selection without widening the callback deps.
+  const selectedLogoRef = useRef(selectedLogo)
+  selectedLogoRef.current = selectedLogo
+  const customLogoTilesRef = useRef(customLogoTiles)
+  customLogoTilesRef.current = customLogoTiles
+  const logosRef = useRef(logos)
+  logosRef.current = logos
+  // Saved custom logo in the mapping (logoPath URL, deduplicated by URL):
+  // shown in the grid without a remove button, like the saved custom base.
+  const savedCustomLogoUrl = selectedMapping?.logoPath && isCustomPosterUrl(selectedMapping.logoPath)
+    ? selectedMapping.logoPath
+    : null
+  const savedCustomLogoTile = useMemo(() => {
+    if (!savedCustomLogoUrl) return null
+    if (customLogoTiles.some((tile) => tile.file_path === savedCustomLogoUrl)) return null
+    return { file_path: savedCustomLogoUrl, iso_639_1: null, vote_average: 0, width: 0, height: 0 } as TMDBImage
+  }, [customLogoTiles, savedCustomLogoUrl])
 
   // Mobile: dopo il tap su un poster salta ad "Anteprima" (nella tab Poster
   // non si vedrebbe alcun feedback). Solo sotto lg, dove lo switcher esiste;
@@ -879,6 +921,53 @@ export default function EditView() {
       setMobileSection("preview")
     }
   }, [selectLogo])
+
+  // Custom logo URL box: Add creates the grid tile and selects it at once
+  // (the live preview shows the custom logo via query logo=).
+  const handleAddCustomLogo = useCallback((image: { url: string; width: number; height: number }) => {
+    const tile: TMDBImage = {
+      file_path: image.url,
+      iso_639_1: null,
+      vote_average: 0,
+      width: image.width,
+      height: image.height,
+    }
+    setCustomLogoTiles((prev) => (prev.some((t) => t.file_path === tile.file_path) ? prev : [tile, ...prev]))
+    handleSelectLogo(tile)
+  }, [handleSelectLogo])
+
+  // Session logo tile removal: when it was the current logo, fall back to
+  // another custom tile, the saved one, or the first TMDB logo.
+  const handleDeleteCustomLogoTile = useCallback((filePath: string) => {
+    setCustomLogoTiles((prev) => prev.filter((tile) => tile.file_path !== filePath))
+    if (selectedLogo?.file_path === filePath) {
+      const fallback = customLogoTiles.find((tile) => tile.file_path !== filePath)
+        ?? savedCustomLogoTile
+        ?? logos[0]
+        ?? null
+      if (fallback) handleSelectLogo(fallback)
+      else removeLogo()
+    }
+  }, [customLogoTiles, handleSelectLogo, logos, removeLogo, savedCustomLogoTile, selectedLogo])
+
+  // Import-box onRemove (the saved custom logo is already cleared in the
+  // mapping when this runs): the removed URL arrives explicitly because the
+  // closure captured before PUT + loadMappings is stale — the old code read
+  // selectedMapping.logoPath === current, which is always true for the logo
+  // just removed, so the active custom logo survived and the next Save could
+  // resurrect it. Actual removal clears the saved URL from the session tiles
+  // and, only when the LIVE selection still points at the removed URL, falls
+  // back to a remaining custom tile, the first TMDB logo, or no logo. A
+  // different current selection or title is never touched.
+  const handleRemoveCustomLogo = useCallback((removedUrl: string) => {
+    if (!isCustomPosterUrl(removedUrl)) return
+    setCustomLogoTiles((prev) => prev.filter((tile) => tile.file_path !== removedUrl))
+    if (selectedLogoRef.current?.file_path !== removedUrl) return
+    const remaining = customLogoTilesRef.current.filter((tile) => tile.file_path !== removedUrl)
+    const fallback = remaining[0] ?? logosRef.current[0] ?? null
+    if (fallback) handleSelectLogo(fallback)
+    else removeLogo()
+  }, [handleSelectLogo, removeLogo])
 
   const searchBar = (
     <div className={selected ? "w-full max-w-lg relative z-[100] isolate" : "max-w-lg mx-auto relative z-[100] isolate mb-8"}>
@@ -1428,7 +1517,20 @@ export default function EditView() {
                 />
                 <div key={activeRightTab} className="animate-tab-fade-in space-y-3">
                 {activeRightTab === "logo" && <>
-                  <LogoOptions logos={logos} selectedLogo={selectedLogo} lang={lang} selectLogo={handleSelectLogo} removeLogo={removeLogo} disabled={false} />
+                  <LogoOptions
+                    logos={logos}
+                    selectedLogo={selectedLogo}
+                    lang={lang}
+                    selectLogo={handleSelectLogo}
+                    removeLogo={removeLogo}
+                    disabled={false}
+                    customLogos={customLogoTiles}
+                    savedCustomLogo={savedCustomLogoTile}
+                    onRemoveCustomLogo={handleDeleteCustomLogoTile}
+                    // The import box mirrors the grid disabled state (same
+                    // value): a disabled grid must never stay importable.
+                    topSlot={<CustomLogoUrl onAdd={handleAddCustomLogo} onRemove={handleRemoveCustomLogo} collapsible disabled={false} />}
+                  />
                   {!cleanPoster && ed.posterShape !== "landscape" && <p className="text-xs text-zinc-400 text-center mt-2 px-1">{t("ui.logoHint")}</p>}
                 </>}
                 {activeRightTab === "badge" && <BadgeControls />}

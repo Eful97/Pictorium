@@ -424,9 +424,10 @@ describe("isAllowedQueryImagePath", () => {
     expect(isAllowedQueryImagePath("http://evil.com/x.jpg")).toBe(false)
     expect(isAllowedQueryImagePath("https://evilpinterest.com/x.jpg")).toBe(false)
     expect(isAllowedQueryImagePath("https://i.imgur.com.evil.com/x.jpg")).toBe(false)
-    // "ftp://…" non inizia per "http": come prima vale come path TMDB (404
-    // al fetch verso image.tmdb.org, mai SSRF) — parità storica, non un buco.
-    expect(isAllowedQueryImagePath("ftp://i.imgur.com/x.jpg")).toBe(true)
+    // Absolute non-HTTP(S) schemes are never relative TMDB paths: the shared
+    // poster/logo gate rejects them before imgSrc can mistake them for one
+    // (intentional hardening for the custom logo path, same gate).
+    expect(isAllowedQueryImagePath("ftp://i.imgur.com/x.jpg")).toBe(false)
     // Stringa non-URL senza scheme: come prima, vale come path TMDB (404 al
     // fetch, mai 400) — comportamento storico invariato.
     expect(isAllowedQueryImagePath("not-a-url")).toBe(true)

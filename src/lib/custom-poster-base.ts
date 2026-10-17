@@ -296,13 +296,22 @@ export function safeTmdbImgSrc(path: string): string | null {
 }
 
 /**
- * Gate R2 per i path immagine in query: TMDB/TVDB via imgSrc (invariato) +
- * URL esterni http(s) su host allowlist (solo `poster`, la base custom).
- * La SSRF piena (DNS/IP/redirect) resta al fetch dentro
- * fetchPosterBaseWithCustom; qui solo check sintattico veloce prima di
- * cache key/slot/inflight. Logo/backdrop restano strict (mai URL custom).
+ * R2 gate for image paths in query: TMDB/TVDB via imgSrc (unchanged) +
+ * external http(s) URLs on allowlisted hosts (custom `poster` base and custom
+ * `logo`: same resolve policy — raster-only, no SVG).
+ * Full SSRF (DNS/IP/redirect) stays at fetch time inside
+ * fetchPosterBaseWithCustom / fetchValidatedCustomImage; here only a fast
+ * syntactic check before cache key/slot/inflight. Backdrop stays strict
+ * (never a custom URL): the route enforces it upstream.
  */
 export function isAllowedQueryImagePath(value: string): boolean {
+  // Absolute non-HTTP(S) scheme (ftp:, javascript:, data:, …): never a
+  // relative TMDB path — reject before imgSrc mistakes it for one (it would
+  // concatenate it onto the TMDB CDN). Applies to poster and logo (shared gate).
+  const trimmed = value.trim()
+  if (/^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(trimmed) && !/^https?:\/\//i.test(trimmed)) {
+    return false
+  }
   try {
     const built = imgSrc(value)
     // imgSrc passes any path under the exact TMDB CDN prefix, but the custom
@@ -319,8 +328,8 @@ export function isAllowedQueryImagePath(value: string): boolean {
     }
     return true
   } catch {
-    // Non-TMDB: solo URL http(s) su host allowlist delle sorgenti custom
-    // (con shape diretta per gli host direct-only come TPDb).
+    // Non-TMDB: only http(s) URLs on the custom-source allowlist hosts
+    // (with the direct shape for direct-only hosts like TPDb).
     try {
       const u = new URL(value.trim())
       return isAllowedCustomImageUrl(u)
@@ -330,7 +339,7 @@ export function isAllowedQueryImagePath(value: string): boolean {
   }
 }
 
-/** Selezione pura della base: custom valida vince, altrimenti TMDB, altrimenti null. */
+/** Pure base selection: a valid custom wins, else TMDB, else null. */
 export function pickPosterBase(custom: Buffer | null, tmdb: Buffer | null): PosterBaseResult | null {
   if (custom) return { buf: custom, custom: true }
   if (tmdb) return { buf: tmdb, custom: false }
