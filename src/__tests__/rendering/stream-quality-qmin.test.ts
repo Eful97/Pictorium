@@ -4,10 +4,6 @@ import {
   isQualityAtLeast,
   applyMinQuality,
 } from "@/lib/quality-tiers"
-import {
-  resolveStreamQuality,
-  __resetStreamQualityCache,
-} from "@/lib/stream-quality"
 import { resolvePosterRenderConfig } from "@/lib/poster-config"
 import { buildStremioPosterSearchParams } from "@/lib/stremio-poster-params"
 
@@ -21,7 +17,6 @@ function torrentioFetch(_url: string | URL | Request) {
 describe("qmin — soglia minima qualità streaming", () => {
   afterEach(() => {
     vi.unstubAllGlobals()
-    __resetStreamQualityCache()
     vi.clearAllMocks()
   })
 
@@ -58,19 +53,29 @@ describe("qmin — soglia minima qualità streaming", () => {
   })
 
   it("niente cache pollution: la cache tiene il raw, il filtro è solo all'uscita", async () => {
-    const fetchMock = vi.fn(torrentioFetch)
-    vi.stubGlobal("fetch", fetchMock)
+    // Legacy Torrentio chain pinned (backwards-compatible opt-in),
+    // independent of the runtime default (justwatch).
+    vi.resetModules()
+    vi.stubEnv("PICTORIUM_QUALITY_SOURCE", "torrentio")
+    const tio = await import("@/lib/stream-quality")
+    try {
+      const fetchMock = vi.fn(torrentioFetch)
+      vi.stubGlobal("fetch", fetchMock)
 
-    // Prima richiesta con qmin=4K: badge soppresso…
-    const raw = (await resolveStreamQuality("movie", "tt999")).quality
-    expect(raw).toBe("FHD")
-    expect(applyMinQuality(raw, "4K")).toBeNull()
+      // First request with qmin=4K: badge suppressed…
+      const raw = (await tio.resolveStreamQuality("movie", "tt999")).quality
+      expect(raw).toBe("FHD")
+      expect(applyMinQuality(raw, "4K")).toBeNull()
 
-    // …ma la seconda richiesta (qmin=SD) vede ancora FHD con ZERO nuove fetch.
-    const raw2 = (await resolveStreamQuality("movie", "tt999")).quality
-    expect(raw2).toBe("FHD")
-    expect(applyMinQuality(raw2, "SD")).toBe("FHD")
-    expect(fetchMock).toHaveBeenCalledTimes(1)
+      // …but the second request (qmin=SD) still sees FHD with ZERO new fetches.
+      const raw2 = (await tio.resolveStreamQuality("movie", "tt999")).quality
+      expect(raw2).toBe("FHD")
+      expect(applyMinQuality(raw2, "SD")).toBe("FHD")
+      expect(fetchMock).toHaveBeenCalledTimes(1)
+    } finally {
+      vi.unstubAllEnvs()
+      vi.resetModules()
+    }
   })
 
   it("poster-config: catena query > server defaults > SD", () => {

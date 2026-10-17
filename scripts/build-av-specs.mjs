@@ -67,15 +67,15 @@ const EXPANDED_DATA = {
   "tt0770828": { "quality": "4K", "formats": ["dv", "atmos"] }, // Man of Steel
   "tt1477834": { "quality": "4K", "formats": ["dv", "atmos", "imax"] }, // Aquaman
   "tt0451279": { "quality": "4K", "formats": ["dv", "atmos"] }, // Wonder Woman
-  "tt6334354": { "quality": "4K", "formats": ["dv", "atmos", "imax"] }, // The Suicide Squad
-  "tt8579674": { "quality": "4K", "formats": ["dv", "atmos", "imax"] }, // 1917
+  "tt6334354": { "quality": "4K", "formats": ["dv", "atmos", "imax", "hdr10plus"] }, // The Suicide Squad — 4K UHD specs list DV + HDR10+ https://www.blu-ray.com/movies/The-Suicide-Squad-4K-Blu-ray/295757/ (US 2021-10-26 edition)
+  "tt8579674": { "quality": "4K", "formats": ["dv", "atmos", "imax", "hdr10plus"] }, // 1917 — 4K UHD specs list DV + HDR10+ https://www.blu-ray.com/movies/1917-4K-Blu-ray/259242/ (US 2020-03-24 edition)
   "tt8946378": { "quality": "4K", "formats": ["dv", "atmos"] }, // Knives Out
   "tt11564570": { "quality": "4K", "formats": ["dv", "atmos"] }, // Glass Onion
   "tt2382320": { "quality": "4K", "formats": ["dv", "atmos", "imax"] }, // No Time to Die
   "tt10466872": { "quality": "4K", "formats": ["dv", "atmos"] }, // Dune: Prophecy
 
   // --- Christopher Nolan Filmography ---
-  "tt0816692": { "quality": "4K", "formats": ["imax"] }, // Interstellar
+  "tt0816692": { "quality": "4K", "formats": ["imax", "hdr"] }, // Interstellar — 4K HDR10 per HighDefWatch review (https://www.highdefwatch.com/post/outstanding-interstellar-gets-an-outstanding-4k-treatment, article 2024-12-20, accessed 2026-10-17); no DV/Atmos claimed
   "tt1375666": { "quality": "4K", "formats": ["imax"] }, // Inception
   "tt0468569": { "quality": "4K", "formats": ["imax"] }, // The Dark Knight
   "tt1345836": { "quality": "4K", "formats": ["imax"] }, // The Dark Knight Rises
@@ -163,9 +163,9 @@ const EXPANDED_DATA = {
   "tt1462764": { "quality": "4K", "formats": ["dv", "atmos"] }, // Dial of Destiny
 
   // --- Back to the Future ---
-  "tt0088763": { "quality": "4K", "formats": ["dv", "atmos"] }, // Back to the Future
-  "tt0096874": { "quality": "4K", "formats": ["dv", "atmos"] }, // Part II
-  "tt0099088": { "quality": "4K", "formats": ["dv", "atmos"] }, // Part III
+  "tt0088763": { "quality": "4K", "formats": ["dv", "atmos", "hdr10plus"] }, // Back to the Future — 4K UHD specs list DV + HDR10+ + Atmos https://www.blu-ray.com/movies/Back-to-the-Future-4K-Blu-ray/255542/ (Universal; Liebman review 2020-10-18)
+  "tt0096874": { "quality": "4K", "formats": ["dv", "atmos", "hdr10plus"] }, // Back to the Future Part II — same DV + HDR10+ + Atmos spec https://www.blu-ray.com/movies/Back-to-the-Future-Part-II-4K-Blu-ray/255544/ (Universal; Liebman review 2020-10-18)
+  "tt0099088": { "quality": "4K", "formats": ["dv", "atmos", "hdr10plus"] }, // Back to the Future Part III — same DV + HDR10+ + Atmos spec https://www.blu-ray.com/movies/Back-to-the-Future-Part-III-4K-Blu-ray/255546/ (Universal; Liebman review 2020-10-18)
 
   // --- Harry Potter Collection ---
   "tt0241527": { "quality": "4K", "formats": ["dv", "atmos"] }, // Sorcerer's Stone
@@ -229,7 +229,7 @@ const EXPANDED_DATA = {
   "tt0169547": { "quality": "4K", "formats": ["dv"] }, // American Beauty
   "tt1877830": { "quality": "4K", "formats": ["dv", "atmos"] }, // Whiplash
   "tt2124787": { "quality": "4K", "formats": ["dv", "atmos"] }, // Whiplash (alt)
-  "tt0081505": { "quality": "4K", "formats": ["dv"] }, // The Shining
+  "tt0081505": { "quality": "4K", "formats": ["dv", "hdr10plus"] }, // The Shining — 4K UHD specs list DV + HDR10+ https://www.blu-ray.com/movies/The-Shining-4K-Blu-ray/238513/ (US 2019-10-01 edition)
   "tt0057012": { "quality": "4K", "formats": ["dv"] }, // Dr. Strangelove
   "tt0040522": { "quality": "4K", "formats": ["dv"] }, // Bicycle Thieves
   "tt0118715": { "quality": "4K", "formats": ["dv"] }, // The Big Lebowski
@@ -249,7 +249,7 @@ const EXPANDED_DATA = {
   "tt0892791": { "quality": "4K", "formats": ["dv"] }, // Shutter Island
   "tt1130884": { "quality": "4K", "formats": ["dv"] }, // Shutter Island (alt)
   "tt0993846": { "quality": "4K", "formats": ["dv"] }, // The Wolf of Wall Street
-  "tt6751668": { "quality": "4K", "formats": ["dv"] }, // Parasite
+  "tt6751668": { "quality": "4K", "formats": ["dv", "atmos"] }, // Parasite — Korean Dolby Atmos on Universal 4K UHD https://www.blu-ray.com/movies/Parasite-4K-Blu-ray/265925/ (Liebman review 2020-06-06; Korean-language track)
   "tt0073195": { "quality": "4K", "formats": ["dv", "atmos"] }, // Jaws
   "tt0074285": { "quality": "4K", "formats": ["dv"] }, // Taxi Driver
   "tt0081696": { "quality": "4K", "formats": ["dv"] }, // Raging Bull
@@ -258,14 +258,46 @@ const EXPANDED_DATA = {
   "tt0087363": { "quality": "4K", "formats": ["dv", "atmos"] }, // Amadeus
   "tt0093779": { "quality": "4K", "formats": ["dv"] }, // The Princess Bride
   "tt0095016": { "quality": "4K", "formats": ["dv"] }, // Die Hard
-  "tt0097165": { "quality": "4K", "formats": ["dv"] }, // Dead Poets Society
-  "tt0107290": { "quality": "4K", "formats": ["dv"] }, // Jurassic Park
+  "tt0097165": { "quality": "4K", "formats": ["dv", "atmos"] }, // Dead Poets Society — English Dolby Atmos on Disney 2026-09-29 4K UHD https://www.blu-ray.com/movies/Dead-Poets-Society-4K-Blu-ray/419349/ (Kauffman review 2026-09-26)
+  "tt0107290": { "quality": "4K", "formats": ["dv", "atmos"] }, // Jurassic Park — English Dolby Atmos on 2026 Universal remaster https://www.blu-ray.com/movies/Jurassic-Park-4K-Blu-ray/387296/ + announcement https://www.blu-ray.com/news/?id=37789 (2026-01-23; March 17 street)
   "tt0112573": { "quality": "4K", "formats": ["dv", "atmos"] }, // Braveheart
   "tt0113277": { "quality": "4K", "formats": ["dv", "atmos"] }, // Heat
   "tt0116282": { "quality": "4K", "formats": ["dv"] }, // Fargo
   "tt0119217": { "quality": "4K", "formats": ["dv"] }, // Good Will Hunting
   "tt0119488": { "quality": "4K", "formats": ["dv"] }, // L.A. Confidential
-  "tt0120382": { "quality": "4K", "formats": ["dv"] }, // The Truman Show
+  "tt0120382": { "quality": "4K", "formats": ["dv", "atmos"] }, // The Truman Show — English Dolby Atmos on 25th Anniversary 4K UHD https://www.blu-ray.com/movies/The-Truman-Show-4K-Blu-ray/336821/
+  "tt0083791": { "quality": "4K", "formats": ["dv", "atmos"] }, // The Dark Crystal — English Dolby Atmos on Anniversary 4K UHD https://www.blu-ray.com/movies/The-Dark-Crystal-4K-Blu-ray/195134/ (Sony 2018-03-06 edition; Liebman review 2018-03-18; checked 2026-10-17)
+  "tt0084805": { "quality": "4K", "formats": ["dv", "atmos"] }, // Tootsie — English Dolby Atmos on Columbia Classics Vol.5 4K UHD https://www.blu-ray.com/movies/Tootsie-4K-Blu-ray/366189/ (Sony 2024-10-22 edition; Brown review 2024-11-14; checked 2026-10-17)
+  "tt0087332": { "quality": "4K", "formats": ["dv", "atmos"] }, // Ghostbusters — English Dolby Atmos on 4K UHD https://www.blu-ray.com/movies/Ghostbusters-4K-Blu-ray/151359/ (Sony 2016-06-07 edition; Liebman review 2016-06-09; checked 2026-10-17)
+  "tt0087538": { "quality": "4K", "formats": ["dv", "atmos"] }, // The Karate Kid — English Dolby Atmos on 35th Anniversary 4K UHD https://www.blu-ray.com/movies/The-Karate-Kid-4K-Blu-ray/227191/ (Sony 2019-04-16 edition; Liebman review 2019-04-20; checked 2026-10-17)
+  "tt0087781": { "quality": "4K", "formats": ["dv", "atmos"] }, // The Natural — English Dolby Atmos on 4K UHD https://www.blu-ray.com/movies/The-Natural-4K-Blu-ray/237391/ (Sony 2019-06-04 edition; Liebman review 2019-06-02; checked 2026-10-17)
+  "tt0087800": { "quality": "4K", "formats": ["dv", "atmos"] }, // A Nightmare on Elm Street — English Dolby Atmos on 4K UHD https://www.blu-ray.com/movies/A-Nightmare-on-Elm-Street-4K-Blu-ray/367160/ (Warner 2024-10-15 edition; Miller review 2024-10-10; checked 2026-10-17)
+  "tt0088247": { "quality": "4K", "formats": ["dv", "atmos"] }, // The Terminator — English Dolby Atmos on 40th Anniversary 4K UHD https://www.blu-ray.com/movies/The-Terminator-4K-Blu-ray/369248/ (Warner 2024-11-19 edition; Miller review 2024-11-15; checked 2026-10-17)
+  "tt0089175": { "quality": "4K", "formats": ["dv", "atmos"] }, // Fright Night — English Dolby Atmos on SteelBook-only 4K UHD https://www.blu-ray.com/movies/Fright-Night-4K-Blu-ray/320147/ (Sony 2022-10-04 edition; Liebman review 2022-10-12; checked 2026-10-17)
+  "tt0089755": { "quality": "4K", "formats": ["dv", "atmos"] }, // Out of Africa — English Dolby Atmos on 40th Anniversary 4K UHD https://www.blu-ray.com/movies/Out-of-Africa-4K-Blu-ray/396916/ (Universal edition; Dekker review 2026-01-09; checked 2026-10-17)
+  "tt0089767": { "quality": "4K", "formats": ["dv", "atmos"] }, // Pale Rider — English Dolby Atmos on 4K UHD https://www.blu-ray.com/movies/Pale-Rider-4K-Blu-ray/382393/ (Warner 2025-04-29 edition; Miller review 2025-04-25; checked 2026-10-17)
+  "tt0090022": { "quality": "4K", "formats": ["dv", "atmos"] }, // Silverado — English Dolby Atmos on SteelBook-only 40th Anniversary 4K UHD https://www.blu-ray.com/movies/Silverado-4K-Blu-ray/392589/ (Sony 2025-10-07 edition; Brown review 2025-09-26; checked 2026-10-17)
+  "tt0091042": { "quality": "4K", "formats": ["dv", "atmos"] }, // Ferris Bueller's Day Off — English Dolby Atmos on 4K UHD https://www.blu-ray.com/movies/Ferris-Buellers-Day-Off-4K-Blu-ray/339081/ (Paramount 2023-08-01 edition; Liebman review 2023-08-17; checked 2026-10-17)
+  "tt0092005": { "quality": "4K", "formats": ["dv", "atmos"] }, // Stand by Me — English Dolby Atmos on 4K UHD https://www.blu-ray.com/movies/Stand-by-Me-4K-Blu-ray/243031/ (Sony 2019-08-27 edition; Liebman review 2019-08-21; checked 2026-10-17)
+  "tt0092890": { "quality": "4K", "formats": ["dv", "atmos"] }, // Dirty Dancing — English Dolby Atmos on 35th Anniversary 4K UHD https://www.blu-ray.com/movies/Dirty-Dancing-4K-Blu-ray/319254/ (Lionsgate 2022-08-23 edition; Kauffman review 2022-08-28; checked 2026-10-17)
+  "tt0093409": { "quality": "4K", "formats": ["dv", "atmos"] }, // Lethal Weapon — English Dolby Atmos on 4K UHD https://www.blu-ray.com/movies/Lethal-Weapon-4K-Blu-ray/387483/ (Warner 2025-06-24 edition; Miller review 2025-06-24; checked 2026-10-17)
+  "tt0093870": { "quality": "4K", "formats": ["dv", "atmos"] }, // RoboCop — English Dolby Atmos on Arrow Limited Edition 4K UHD https://www.blu-ray.com/movies/RoboCop-4K-Blu-ray/307415/ (Arrow 2022-04-12 edition; Kauffman review 2022-04-12; checked 2026-10-17)
+  "tt0094721": { "quality": "4K", "formats": ["dv", "atmos"] }, // Beetlejuice — English Dolby Atmos on 4K UHD https://www.blu-ray.com/movies/Beetlejuice-4K-Blu-ray/270987/ (Warner 2020-09-01 edition; Miller review 2020-08-30; checked 2026-10-17)
+  "tt0096256": { "quality": "4K", "formats": ["dv", "atmos"] }, // They Live — English Dolby Atmos on Collector's Edition 4K UHD https://www.blu-ray.com/movies/They-Live-4K-Blu-ray/276277/ (Shout Factory 2021-01-19 edition; checked 2026-10-17)
+  "tt0096438": { "quality": "4K", "formats": ["dv", "atmos"] }, // Who Framed Roger Rabbit — English Dolby Atmos on 4K UHD https://www.blu-ray.com/movies/Who-Framed-Roger-Rabbit-4K-Blu-ray/288676/ (Disney / Buena Vista 2021-12-07 edition; checked 2026-10-17)
+  "tt0097441": { "quality": "4K", "formats": ["dv", "atmos"] }, // Glory — English Dolby Atmos on 30th Anniversary 4K UHD https://www.blu-ray.com/movies/Glory-4K-Blu-ray/240867/ (Sony Pictures 2019-07-30 edition; checked 2026-10-17)
+  "tt0097757": { "quality": "4K", "formats": ["dv", "atmos"] }, // The Little Mermaid — English Dolby Atmos on Anniversary Signature Collection 4K UHD https://www.blu-ray.com/movies/The-Little-Mermaid-4K-Blu-ray/227169/ (Disney / Buena Vista 2019-02-26 edition; checked 2026-10-17)
+  "tt0098067": { "quality": "4K", "formats": ["dv", "atmos"] }, // Parenthood — English Dolby Atmos on 4K UHD https://www.blu-ray.com/movies/Parenthood-4K-Blu-ray/409825/ (Universal Studios 2026-05-26 edition; checked 2026-10-17)
+  "tt0098384": { "quality": "4K", "formats": ["dv", "atmos"] }, // Steel Magnolias — English Dolby Atmos on 35th Anniversary 4K UHD https://www.blu-ray.com/movies/Steel-Magnolias-4K-Blu-ray/356073/ (Sony Pictures 2024-04-23 edition; checked 2026-10-17)
+  "tt0100802": { "quality": "4K", "formats": ["dv", "atmos"] }, // Total Recall — English Dolby Atmos on 4K UHD https://www.blu-ray.com/movies/Total-Recall-4K-Blu-ray/257346/ (Lionsgate Films 2020-12-08 edition; checked 2026-10-17)
+  "tt0101414": { "quality": "4K", "formats": ["dv", "atmos"] }, // Beauty and the Beast — English Dolby Atmos on Signature Collection 4K UHD https://www.blu-ray.com/movies/Beauty-and-the-Beast-4K-Blu-ray/259304/ (Disney / Buena Vista 2020-03-10 edition; checked 2026-10-17)
+  "tt0103639": { "quality": "4K", "formats": ["dv", "atmos"] }, // Aladdin — English Dolby Atmos on Signature Collection Ultimate Collector's Edition 4K UHD https://www.blu-ray.com/movies/Aladdin-4K-Blu-ray/246900/ (Disney / Buena Vista 2019-09-10 edition; checked 2026-10-17)
+  "tt0103874": { "quality": "4K", "formats": ["dv", "atmos"] }, // Bram Stoker's Dracula — English Dolby Atmos on SteelBook 30th Anniversary 4K UHD https://www.blu-ray.com/movies/Bram-Stokers-Dracula-4K-Blu-ray/319180/ (Sony Pictures 2022-10-04 edition; checked 2026-10-17)
+  "tt0106977": { "quality": "4K", "formats": ["dv", "atmos"] }, // The Fugitive — English Dolby Atmos on 30th Anniversary 4K UHD https://www.blu-ray.com/movies/The-Fugitive-4K-Blu-ray/342384/ (Warner Bros. 2023-11-21 edition; checked 2026-10-17)
+  "tt0107818": { "quality": "4K", "formats": ["dv", "atmos"] }, // Philadelphia — English Dolby Atmos on 25th Anniversary 4K UHD https://www.blu-ray.com/movies/Philadelphia-4K-Blu-ray/211292/ (Sony Pictures 2018-11-27 edition; checked 2026-10-17)
+  "tt0108002": { "quality": "4K", "formats": ["dv", "atmos"] }, // Rudy — English Dolby Atmos on SteelBook 30th Anniversary 4K UHD https://www.blu-ray.com/movies/Rudy-4K-Blu-ray/344866/ (Sony Pictures 2023-11-14 edition; checked 2026-10-17)
+  "tt0113627": { "quality": "4K", "formats": ["dv", "atmos"] }, // Leaving Las Vegas — English Dolby Atmos on 4K UHD https://www.blu-ray.com/movies/Leaving-Las-Vegas-4K-Blu-ray/93662/ (Shout Factory 2025-12-16 edition; checked 2026-10-17)
+  "tt0114388": { "quality": "4K", "formats": ["dv", "imax", "atmos"] }, // Sense and Sensibility — English Dolby Atmos on Columbia Classics Collection 4K UHD https://www.blu-ray.com/movies/Sense-and-Sensibility-4K-Blu-ray/293228/ (Sony Pictures 2021-10-12 edition; pre-existing imax preserved; checked 2026-10-17)
   "tt0120586": { "quality": "4K", "formats": ["dv"] }, // American History X
   "tt0172495": { "quality": "4K", "formats": ["dv"] }, // Gladiator
   "tt0066921": { "quality": "4K", "formats": ["dv"] }, // A Clockwork Orange

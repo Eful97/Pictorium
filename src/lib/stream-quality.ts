@@ -16,10 +16,12 @@ const TORRENTIO_BASE_URL = (envWithFallback("TORRENTIO_URL") || process.env.TORR
 const STREAM_CACHE_TTL = 30 * 60 * 1000 // 30 minutes
 const STREAM_CACHE_TTL_NULL = 2 * 60 * 1000 // 2 minutes for null (evita cache avvelenata su Vercel)
 
-// Sorgente qualità (v1.23.0): "torrentio" (default, catena attuale con
-// fallback JW), "justwatch" (solo JW, niente Torrentio), "none" (nessun
-// provider: badge mai mostrato, zero upstream). A module level: restart.
-const QUALITY_SOURCE = (envWithFallback("QUALITY_SOURCE") || "torrentio").toLowerCase().trim()
+// Quality source: "justwatch" (default: JW only, no Torrentio),
+// "torrentio" (legacy chain with JW fallback, explicit opt-in for
+// backwards compatibility), "none" (no provider: badge never shown, zero
+// upstream). Module level: restart. The local AV database (av-specs.json)
+// stays first upstream (poster route: qQuality > av-specs.json > live).
+const QUALITY_SOURCE = (envWithFallback("QUALITY_SOURCE") || "justwatch").toLowerCase().trim()
 
 // Esito del rilevamento qualità: "resolved" = chiamata completata (anche con
 // quality null = esito negativo accertato, es. film 1950 senza stream);
