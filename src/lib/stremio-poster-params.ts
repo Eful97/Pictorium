@@ -4,6 +4,7 @@ import { getSeparateBadgeDefaultScale, getSeparateRatingsStyleForShape, isAgeBad
 import type { AgeBadgeStyle } from "@/lib/badge-styles"
 import type { VideoFormat } from "@/lib/av-specs"
 import { parseMinQuality, type StreamQuality } from "@/lib/quality-tiers"
+import { normalizeSeasonalTheme } from "./seasonal-theme"
 import { parseSashOrder, isDefaultSashOrder, type SashBucket } from "@/lib/badge-priority"
 import { BADGE_PRESET_ID_RE, BADGE_PRESET_REV_RE } from "@/lib/badge-preset"
 import type { PosterShape, PosterLayout, PosterFreshScope } from "@/lib/types"
@@ -154,6 +155,15 @@ export interface StremioPosterParamsInput {
   /** Formato canvas: emesso come `shape=landscape` solo quando landscape
    *  (il portrait è il default e resta omesso per non invalidare la cache). */
   readonly posterShape?: PosterShape
+  /**
+   * Seasonal frame theme: emitted as `theme=<canonical>` only when set
+   * (`halloween`/`christmas` — ephemeral originating-catalog context; each
+   * shape renders its OWN asset, so themed portrait and landscape URLs each
+   * carry it while the clean banner never receives it from the caller).
+   * Absent = unframed (legacy URLs unchanged). Low cardinality like
+   * sepstyle/xbs: stays explicit in compact mode, never inside `dv`.
+   */
+  readonly seasonalTheme?: import("./seasonal-theme").SeasonalTheme | null
   /**
    * Graphical poster layout: emitted as `layout=<id>` when explicit
    * (standard, fresh, provider-glass, nuvio, stremio) — the explicit standard
@@ -439,6 +449,14 @@ export function buildStremioPosterSearchParams(input: StremioPosterParamsInput):
   if (input.posterShape === "landscape") {
     params.set("shape", "landscape")
     if (input.logoAlign === "center") params.set("align", "center")
+  }
+  // Seasonal frame (per-shape, catalog-context): explicit opt-in, absent
+  // stays absent (legacy URLs byte-identical, no mass cache invalidation).
+  // Any canonical theme travels (`halloween`, `christmas`); invalid
+  // normalizes to absent (unframed) via the shared leaf.
+  const normalizedTheme = normalizeSeasonalTheme(input.seasonalTheme ?? null)
+  if (normalizedTheme) {
+    params.set("theme", normalizedTheme)
   }
   // Layout grafico: emesso quando ESPLICITO (standard, fresh o cover layout
   // provider-glass/nuvio/stremio). Lo standard

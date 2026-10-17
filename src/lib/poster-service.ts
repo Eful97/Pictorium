@@ -41,6 +41,7 @@ import type { DateFormat } from "./release-badge"
 import type { SashBucket } from "./badge-priority"
 import { PRE_RELEASE_DIM_ALPHA, PRE_RELEASE_BLUR_SIGMA } from "./pre-release"
 import type { Mapping, NetworkLogoPosition, PosterLayout, PosterFreshScope } from "./types"
+import { seasonalFrameAssetPath, type SeasonalTheme } from "./seasonal-theme"
 import { isPosterFreshScope, DEFAULT_POSTER_FRESH_SCOPE } from "./types"
 import type { ServerDefaults } from "./server-defaults"
 import type { WikidataResult } from "./awards"
@@ -452,6 +453,18 @@ export interface GenerationInput {
    * cuoce il logo come il portrait, coi vincoli del canvas 16:9.
    */
   hideLogo?: boolean
+  /**
+   * Seasonal frame theme (ephemeral originating-catalog context, already
+   * resolved query-only by the route via `resolveSeasonalTheme`). Any
+   * canonical theme (`halloween`, `christmas`) renders on BOTH canvases —
+   * each with its OWN user-supplied asset (portrait `500×750`, landscape
+   * `768×432` via `seasonalFrameAssetPath`, never a stretch) — in every
+   * layout (standard, Fresh and Card: the frame sits ABOVE the background /
+   * picture treatment but BELOW ALL chrome — logo, badges and the composed
+   * Fresh/Card overlays — by explicit user request).
+   * Null/absent = unframed.
+   */
+  seasonalTheme?: SeasonalTheme | null
 }
 
 // ---- Vignette SVG cache (una entry per dimensioni canvas) ----
@@ -501,6 +514,49 @@ async function getPreReleaseDim(canvasW: number = STD_W, canvasH: number = STD_H
     p = fresh
   }
   return p
+}
+
+// ---- Seasonal frame overlay (one entry per theme + shape + canvas size) ----
+// Loads the CANONICAL asset from `public/seasonal-frames/` via the explicit
+// `seasonalFrameAssetPath(theme, shape)` mapping (portrait `halloween.svg` /
+// `christmas.svg`, landscape `halloween landscape.svg` /
+// `christmas landscape.svg` — each canvas its OWN user-supplied art, never a
+// stretch): the renderer embeds no vector code, it reads this single file.
+// `public/` ships inside the container image (Dockerfile copies it) and
+// Vercel serves it, so the path resolves in every runtime. The offline
+// `design/seasonal-frames/` prototype board is not shipped — this folder is
+// the only runtime source (no synchronized copy to keep aligned).
+// Reset su reject: vedi getVignette sopra.
+const _seasonalFrameCache = new Map<string, Promise<Buffer>>()
+async function loadSeasonalFrame(
+  canvasW: number,
+  canvasH: number,
+  theme: SeasonalTheme,
+  shape: "poster" | "landscape",
+): Promise<Buffer> {
+  const key = `${theme}:${shape}:${canvasW}x${canvasH}`
+  let p = _seasonalFrameCache.get(key)
+  if (!p) {
+    const fresh = (async (): Promise<Buffer> => {
+      // Il tema è già normalizzato a monte (`normalizeSeasonalTheme`) e la
+      // mappa esplicita accetta solo i temi canonici: nessun path traversal
+      // è costruibile (nessun segmento di path arriva mai dal raw input).
+      const rel = seasonalFrameAssetPath(theme, shape)
+      if (!rel) throw new Error("Unsupported seasonal theme/shape")
+      const full = path.join(process.cwd(), ...rel.split("/"))
+      const svg = await fs.promises.readFile(full, "utf8")
+      return sharp(Buffer.from(svg)).resize(canvasW, canvasH, { fit: "fill" }).png().toBuffer()
+    })()
+    fresh.catch(() => { if (_seasonalFrameCache.get(key) === fresh) _seasonalFrameCache.delete(key) })
+    _seasonalFrameCache.set(key, fresh)
+    p = fresh
+  }
+  return p
+}
+
+/** Solo test: svuota la memo dei frame stagionali. */
+export function __resetSeasonalFrameCacheForTests(): void {
+  _seasonalFrameCache.clear()
 }
 
 // ---- Top shade overlay (una entry per dimensioni canvas + intensità + altezza) ----
@@ -1531,6 +1587,7 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
     logoSrc, backdropSrc, analysisKey,
     preRelease = false,
     hideLogo = false,
+    seasonalTheme = null,
     logoScrimDisabled,
     logoAlign,
     shape,
@@ -1939,6 +1996,16 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
   if (topShade > 0 && topShadeHeight > 0) {
     composites.push({ input: await getTopShade(CW, CH, topShade, topShadeHeight), top: 0, left: 0 })
   }
+  // Ancora d'ordine della cornice stagionale (contratto sotto-chrome): a
+  // questo punto `composites` contiene SOLO sfondo/trattamento immagine
+  // (backdrop, vignetta, scrim landscape, velo pre-release, ombra superiore)
+  // — l'ultimo elemento è l'ultimo trattamento prima di QUALSIASI chrome
+  // (logo, badge, overlay Fresh/Card, in entrambi i formati). La sezione 7
+  // inserisce la cornice subito dopo di esso: sopra il trattamento, sotto
+  // tutto il chrome, in ogni layout senza esclusioni. Senza trattamento
+  // l'ancora resta null e la cornice va in testa (comunque sotto il chrome).
+  let seasonalFrameAfter: PosterComposite | null = null
+  if (composites.length > 0) seasonalFrameAfter = composites[composites.length - 1]
   // Fresh: il logo titolo riusa il bitmap già ridimensionato ma ancorato in
   // basso a destra (composeFreshOverlay) — qui nessun composite storico.
   // Card: il bitmap riusato alimenta lo slot titolo dentro la card (blocco
@@ -3706,6 +3773,37 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
   const safeComposites = (await Promise.all(composites.map((layer) => fitCompositeToCanvas(layer, CW, CH))))
     .filter((layer): layer is PosterComposite => layer !== null)
 
+  // Cornice stagionale (qualunque tema canonico valido, su ENTRAMBI i canvas
+  // col proprio asset 500×750 / 768×432 — mai stirata — in TUTTI i layout:
+  // standard, Fresh e Card, senza esclusioni): la cornice sta SOPRA lo
+  // sfondo/il trattamento immagine (backdrop, vignetta, velo
+  // pre-release, ombra superiore, blur) ma SOTTO TUTTO il chrome — logo,
+  // rank/extra, Coming Soon, network, qualità, genere, separati, età e gli
+  // overlay composti Fresh/Card (richiesta utente esplicita aggiornata: la
+  // cornice va al di sotto di tutti i badge e loghi). L'ancora
+  // `seasonalFrameAfter` (ultimo trattamento pre-chrome) fissa la posizione:
+  // gli splice Fresh e il chrome conservato Card atterrano dopo di essa,
+  // quindi la cornice resta sotto di loro in ogni layout. Fail-open: asset
+  // illeggibile = poster storico, mai 500.
+  let seasonalFrameLayer: PosterComposite | null = null
+  if (seasonalTheme !== null) {
+    try {
+      const frame = await loadSeasonalFrame(CW, CH, seasonalTheme, isLandscape ? "landscape" : "poster")
+      const fitted = await fitCompositeToCanvas({ input: frame, top: 0, left: 0 }, CW, CH)
+      if (fitted) {
+        const anchorIdx = seasonalFrameAfter ? safeComposites.indexOf(seasonalFrameAfter) : -1
+        // Ancora trovata: subito dopo il trattamento. Ancora assente o
+        // scartata (mai attesa: i trattamenti sono full-canvas validi): in
+        // testa, comunque sotto tutto il chrome.
+        if (anchorIdx >= 0) safeComposites.splice(anchorIdx + 1, 0, fitted)
+        else safeComposites.splice(0, 0, fitted)
+        seasonalFrameLayer = fitted
+      }
+    } catch {
+      // asset mancante/illeggibile — il poster resta quello storico
+    }
+  }
+
   // Il blur è un overlay RGBA grezzo (nessun PNG intermedio): entra come primo
   // layer, sotto backdrop/vignetta/badge — stesso ordine del vecchio blur "cotto"
   // nella base. La base non subisce ritocchi colore: niente modulate,
@@ -3735,6 +3833,21 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
     : freshBlurAt >= 0
       ? [...safeComposites.slice(0, freshBlurAt), blurRawLayer, ...safeComposites.slice(freshBlurAt)]
       : [blurRawLayer, ...safeComposites]
+
+  // La cornice resta sopra il trattamento immagine ritardato: con Fresh +
+  // blur attivo il blur grezzo si intercala prima della shade di leggibilità
+  // (dopo l'ancora), quindi finirebbe sopra la cornice — la si risolleva
+  // subito sopra il blur, restando sotto shade/contenuti Fresh e sotto tutto
+  // il chrome. Con blur in testa (standard) o senza blur è già sopra: nessun
+  // movimento, zero pixel cambiati.
+  if (seasonalFrameLayer && blurRawLayer) {
+    const frameIdx = layers.indexOf(seasonalFrameLayer)
+    const blurIdx = layers.indexOf(blurRawLayer)
+    if (frameIdx >= 0 && blurIdx >= 0 && frameIdx < blurIdx) {
+      layers.splice(frameIdx, 1)
+      layers.splice(layers.indexOf(blurRawLayer) + 1, 0, seasonalFrameLayer)
+    }
+  }
 
   let pipeline = sharp(isCard && cardPng ? cardPng : freshBaseBuf)
 

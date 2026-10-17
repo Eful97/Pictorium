@@ -28,6 +28,7 @@ import { isSupportedUiLang, contentLanguageForUiLang } from "@/lib/regions"
 import { getScopedUserId, userExists, userRateLimitKey } from "@/lib/user-auth"
 import { touchUserActivity } from "@/lib/user-activity"
 import { buildStremioPosterUrl, stremioPosterShape } from "@/lib/stremio-poster-url"
+import { normalizeSeasonalTheme } from "@/lib/seasonal-theme"
 import { getOriginFromRequest } from "@/lib/poster-public-url"
 import { enrichVideosWithTvdbDetailed } from "@/lib/tvdb"
 import { buildVideosFromAnizip, buildVideosFromGroups, buildVideosFromTvdbDetailed, concurrentMap, isSeasonEpisodesComplete } from "@/lib/episode-ordering"
@@ -129,6 +130,7 @@ async function pictoriumPosterUrl(
   userParam?: string | null,
   posterLang = "it",
   posterRegion?: string,
+  seasonalTheme?: string | null,
 ): Promise<{ poster: string; posterShape: "poster" | "landscape" }> {
   const scopedUser = getScopedUserId(userParam)
   const serverDefaults = scopedUser ? await getServerDefaultsForUser(scopedUser) : await getServerDefaultsChecked()
@@ -147,6 +149,11 @@ async function pictoriumPosterUrl(
     config: configParam || undefined,
     user: userParam || undefined,
     forceShape: posterShape,
+    // Ephemeral originating-catalog context (explicit `theme=` only): both
+    // canvases render their own frame asset; the clean banner never
+    // receives a theme (hideLogo gate in the shared builder), so it stays
+    // byte-identical and absent/invalid stays unframed.
+    seasonalTheme: seasonalTheme ?? undefined,
   }).toString()
   return { poster, posterShape }
 }
@@ -234,6 +241,13 @@ export async function pictoriumMeta(
   const requestedLang = req.nextUrl.searchParams.get("lang")?.toLowerCase()
   const posterLang = isSupportedUiLang(requestedLang) ? requestedLang! : region.lang2
   const tmdbLang = contentLanguageForUiLang(posterLang, region.code)
+  // Ephemeral originating-catalog seasonal context (explicit `theme=` only,
+  // e.g. the editor "Testa URL Stremio" flow from a Halloween/Christmas
+  // list). Generic /meta without it stays byte-identical: absent/invalid normalizes to null
+  // (unframed), and the shared Stremio builder keeps the clean banner
+  // unthemed (hideLogo gate) while poster/landscapePoster carry the context.
+  const metaSeasonalTheme = normalizeSeasonalTheme(req.nextUrl.searchParams.get("theme"))
+  const metaThemeFragment = metaSeasonalTheme ? `:th${metaSeasonalTheme}` : ""
 
   // Risoluzione ID TMDB e IMDb
   let tmdbId: number | null = null
@@ -294,7 +308,7 @@ export async function pictoriumMeta(
   const epoch = await getCatalogEpoch(scopedUser)
   const sdHash = hashFragment(JSON.stringify(effectiveDefaults))
   const freshness = `:e${epoch}:sd${sdHash}`
-  const cacheKey = `stremio:meta:${stType}:${cleanId}:pv${POSTER_URL_VERSION}${scopedUser ? `:u${hashUserFragment(scopedUser)}` : ""}:ak${apiKey ? hashFragment(apiKey) : "none"}${configParam ? `:cfg${hashFragment(configParam)}` : ""}${mdblistKey ? `:mk${hashFragment(mdblistKey)}` : ""}${tvdbApiKey ? `:tk${hashFragment(tvdbApiKey)}` : ""}:es${episodeMetadataSource}:eg${hashFragment(egKey)}:r${region.code}:l${posterLang}${stType === "series" ? ":eo2" : ""}${freshness}`
+  const cacheKey = `stremio:meta:${stType}:${cleanId}:pv${POSTER_URL_VERSION}${scopedUser ? `:u${hashUserFragment(scopedUser)}` : ""}:ak${apiKey ? hashFragment(apiKey) : "none"}${configParam ? `:cfg${hashFragment(configParam)}` : ""}${mdblistKey ? `:mk${hashFragment(mdblistKey)}` : ""}${tvdbApiKey ? `:tk${hashFragment(tvdbApiKey)}` : ""}:es${episodeMetadataSource}:eg${hashFragment(egKey)}:r${region.code}:l${posterLang}${stType === "series" ? ":eo2" : ""}${metaThemeFragment}${freshness}`
   const cached = await cacheGetShared<{ meta: StremioMetaDetail; __partial?: boolean }>(cacheKey, ["stremio", "meta"])
   // __partial is only an internal signal for the hit HTTP header: never in the JSON.
   if (cached) return metaResponse({ meta: cached.meta }, cached.__partial === true)
@@ -313,7 +327,7 @@ export async function pictoriumMeta(
     }
 
     const primaryId = imdbId || `tmdb:${tmdbId}`
-    const { poster, posterShape } = await pictoriumPosterUrl(req, stType, tmdbId, configParam, userParam, posterLang, region.code)
+    const { poster, posterShape } = await pictoriumPosterUrl(req, stType, tmdbId, configParam, userParam, posterLang, region.code, metaSeasonalTheme)
     // NuvioTV: per i titoli landscape, URL del render con logo baked-in
     // (stesso profilo del poster), inclusi i titoli forzati dal default.
     const landscapePoster = posterShape === "landscape" ? poster : undefined

@@ -1,5 +1,6 @@
 import { buildPosterPublicUrl } from "@/lib/poster-public-url"
 import { buildStremioPosterSearchParams } from "@/lib/stremio-poster-params"
+import { normalizeSeasonalTheme, type SeasonalTheme } from "@/lib/seasonal-theme"
 import { getQualityBadgeOffsetDefault, isExtraBadgeStyle, isExtraFollowRank } from "@/lib/badge-styles"
 import { isRankKey } from "@/lib/i18n"
 import type { ServerDefaults } from "@/lib/server-defaults"
@@ -42,6 +43,15 @@ export interface BuildStremioPosterUrlInput {
    * l'overlay logo che quei client applicano da catalogo.
    */
   readonly hideLogo?: boolean
+  /**
+   * Seasonal frame theme (ephemeral originating-catalog context). Emitted
+   * into the URL for poster AND landscapePoster (each canvas renders its OWN
+   * 500×750 / 768×432 asset, never a stretch). The CLEAN banner
+   * (forceShape landscape + hideLogo) NEVER carries it — see the hideLogo
+   * gate below — so it stays byte-identical to legacy. Invalid values
+   * normalize to absent (unframed).
+   */
+  readonly seasonalTheme?: SeasonalTheme | string | null
 }
 
 export function mappingVersionParam(mapping: Mapping | null | undefined): string | null {
@@ -238,6 +248,13 @@ export function buildStremioPosterUrl(input: BuildStremioPosterUrlInput): URL {
     // Il default orizzontale prevale sui mapping portrait solo per Stremio.
     // Emesso solo quando landscape (vedi params); forceShape resta esplicito.
     posterShape: effShape,
+    // Seasonal frame: each canvas renders its OWN asset (portrait 500×750,
+    // landscape 768×432 — never a stretch). Only the clean banner
+    // (shape=landscape + hideLogo) stays byte-identical to legacy: it never
+    // carries a theme even when the caller passes originating-list context.
+    // A portrait with hideLogo keeps its frame (hideLogo hides only the
+    // logo, never the frame). Invalid = absent (unframed).
+    seasonalTheme: input.hideLogo && effShape === "landscape" ? undefined : normalizeSeasonalTheme(input.seasonalTheme),
     // Graphical layout: raw effective per-title value per shape, then raw
     // effective global default (landscape included) — NEVER a synthesized
     // "standard": absent stays absent (legacy unspecified URLs keep no param

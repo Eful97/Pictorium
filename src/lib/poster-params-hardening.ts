@@ -101,6 +101,12 @@ export const POSTER_CACHE_ALLOWLIST: ReadonlySet<string> = new Set([
   "bscale", "box", "boy", "gradHeight", "blur", "bf", "bd", "voteAverage",
   "year", "rd", "fad", "mv", "fmt", "format", "shape", "layout", "freshScope", "align", "ac",
   "tl", "bl", "bs", "rs", "xbs", "bfont", "sepstyle", "ts", "tsh", "dv",
+  // Seasonal frame (ephemeral catalog context, both canvases with their own
+  // asset): low cardinality enum like sepstyle/xbs — stays explicit in
+  // compact mode, never inside `dv`. Valid value = own key; anything else
+  // collapses onto absent (same unframed render, no poisoning — see
+  // seasonal-theme.ts).
+  "theme",
   // Funzionali (letti dalla route / poster-config, mai stile libero).
   "badges", "ranking", "bg", "by", "br", "bq", "qbs", "ribbon", "cr", "sep", "netLogo", "netPos", "netFollow",
   "age", "agecountry", "agebs",

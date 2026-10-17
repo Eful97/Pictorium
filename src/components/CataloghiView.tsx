@@ -4,7 +4,10 @@ import { usePSelector } from "@/lib/context"
 import { useT } from "@/lib/contexts/TranslationContext"
 import { usePosterEditor } from "@/lib/contexts/PosterEditorContext"
 import { getRegionDef } from "@/lib/regions"
-import { toSearchResult } from "@/lib/types"
+import { toSearchResult, type CustomCatalogConfig } from "@/lib/types"
+import { PICTORIUM_CATALOGS, normalizeCatalogId, regionJwName } from "@/lib/catalog-definitions"
+import { rankingSourceCatalogName } from "@/lib/ranking-source"
+import { resolveEffectiveCatalogDisplayName } from "@/lib/seasonal-theme"
 import { useState, useEffect, useMemo, useRef, useCallback, type ReactNode } from "react"
 import { Modal } from "@/components/ui/Modal"
 import { catalogStatusErrorKey } from "@/lib/catalog-provider-detect"
@@ -108,15 +111,71 @@ function resolvedTmdbId(item: SimklCardItem): number | null {
   return typeof id === "number" && Number.isSafeInteger(id) && id > 0 ? id : null
 }
 
+/**
+ * Full manifest catalog id for a custom list section (mirrors
+ * `build-manifest.ts` + `catalog-handler.ts`): addon → single
+ * `pictorium-custom-<type>-<id>`; `mixed` → per-section
+ * `pictorium-custom-<movie|series>-<id>`; else per-type.
+ * (Client sections are `movie`|`tv`, the manifest/server slot is
+ * `movie`|`series`: `tv` normalizes to `series` so section renames hit.)
+ */
+function customFullId(cat: CustomCatalogConfig, section: "movie" | "tv"): string {
+  if (cat.addon) return `pictorium-custom-${cat.type}-${cat.id}`
+  const slot = section === "tv" ? "series" : "movie"
+  if (cat.type === "mixed") return `pictorium-custom-${slot}-${cat.id}`
+  return `pictorium-custom-${cat.type}-${cat.id}`
+}
+
+/**
+ * Effective visible name of a custom list section: user rename (full
+ * manifest id) wins, else the stored list name. The theme is detected from
+ * THIS string at click time (never from movie titles) and travels
+ * ephemerally to the editor preview.
+ */
+function effectiveCustomListName(
+  cat: CustomCatalogConfig,
+  section: "movie" | "tv",
+  renames: Record<string, string>,
+): string {
+  const r = renames[normalizeCatalogId(customFullId(cat, section))]?.trim()
+  return r || cat.name
+}
+
+/** Server catalog-id prefix per client platform slug (vedi PLATFORM_SLUGS). */
+const PLATFORM_CATALOG_PREFIX: Record<string, string> = {
+  netflix: "netflix",
+  "amazon-prime": "prime",
+  disney: "disney",
+  now: "now",
+  "apple-tv": "apple",
+  "hbo-max": "hbo",
+  "paramount-plus": "paramount",
+  crunchyroll: "crunchyroll",
+}
+
 interface CatalogPage {
   items: SimklCardItem[]
   total: number | null
   nextOffset: number | null
 }
 
-interface GridSource {
+interface CustomGridSource {
+  kind: "custom"
   cat: import("@/lib/types").CustomCatalogConfig
   section: "movie" | "tv"
+}
+
+interface BuiltinGridSource {
+  kind: "builtin"
+  movieId: string
+  seriesId: string
+  section: "movie" | "tv"
+}
+
+type GridSource = CustomGridSource | BuiltinGridSource
+
+function isCustomGridSource(source: GridSource): source is CustomGridSource {
+  return source.kind === "custom"
 }
 
 const CUSTOM_PAGE_SIZE = 30
@@ -182,7 +241,7 @@ function CustomCatalogEntry({
 }: {
   cat: import("@/lib/types").CustomCatalogConfig
   openGrid: (items: GridViewItem[], title: string, notice?: string, source?: GridSource) => void
-  onItemClick: (item: SimklCardItem) => void
+  onItemClick: (item: SimklCardItem, listName?: string) => void
   savedKeys: Set<string>
   toggleCustomCatalog: (id: string) => void
   removeCustomCatalog: (id: string) => void
@@ -193,6 +252,7 @@ function CustomCatalogEntry({
   registerRefresh: (id: string, refresh: (() => Promise<boolean>) | null) => void
 }) {
   const { t } = useT()
+  const catalogRenames = usePSelector((v) => v.catalogRenames)
   const [items, setItems] = useState<SimklCardItem[]>([])
   // Visibilità emoji solo display: il nome salvato (cat.name) resta intatto.
   const showEmojis = usePSelector((v) => v.catalogShowEmojis)
@@ -202,6 +262,12 @@ function CustomCatalogEntry({
   const [loadError, setLoadError] = useState<string | null>(null)
   const previewControllerRef = useRef<AbortController | null>(null)
   const isEnabled = cat.enabled !== false
+  // Click su tile: il nome effettivo della sezione (rename vince) viaggia
+  // come contesto effimero verso la preview editor (mai dal titolo film).
+  const handleItemClick = (item: SimklCardItem) => {
+    const section = (item.media_type || item.mediaType) === "movie" ? ("movie" as const) : ("tv" as const)
+    onItemClick(item, effectiveCustomListName(cat, section, catalogRenames))
+  }
   const isHomeVisible = !homeDisabledCatalogIds.includes(cat.id)
   const isMixed = cat.type === "mixed"
   const isMovie = cat.type === "movie"
@@ -238,7 +304,7 @@ function CustomCatalogEntry({
   }, [cat.id, namespaceUuid, loadPreview, registerRefresh])
 
   const expandAndOpen = (_preview: GridViewItem[], title: string, section: "movie" | "tv") => {
-    openGrid([], title, undefined, { cat, section })
+    openGrid([], title, undefined, { kind: "custom", cat, section })
   }
 
   const movies = items.filter((it) => (it.media_type || it.mediaType) === "movie")
@@ -345,7 +411,7 @@ function CustomCatalogEntry({
           openGrid={(gridItems, title, section) => {
             void expandAndOpen(gridItems, title, section)
           }}
-          onItemClick={onItemClick}
+          onItemClick={handleItemClick}
           savedKeys={savedKeys}
           showEmpty
         />
@@ -362,7 +428,7 @@ function CustomCatalogEntry({
           openGrid={(gridItems, title, section) => {
             void expandAndOpen(gridItems, title, section)
           }}
-          onItemClick={onItemClick}
+          onItemClick={handleItemClick}
           savedKeys={savedKeys}
         />
       ) : (
@@ -378,7 +444,7 @@ function CustomCatalogEntry({
           openGrid={(gridItems, title, section) => {
             void expandAndOpen(gridItems, title, section)
           }}
-          onItemClick={onItemClick}
+          onItemClick={handleItemClick}
           savedKeys={savedKeys}
         />
       )}
@@ -425,15 +491,15 @@ export function CataloghiView() {
   const customCatalogs = usePSelector((v) => v.customCatalogs)
   const removeCustomCatalog = usePSelector((v) => v.removeCustomCatalog)
   const toggleCustomCatalog = usePSelector((v) => v.toggleCustomCatalog)
+  const catalogRenames = usePSelector((v) => v.catalogRenames)
+  const rankingSourceMovie = usePSelector((v) => v.rankingSourceMovie)
+  const rankingSourceSeries = usePSelector((v) => v.rankingSourceSeries)
   const homeDisabledCatalogIds = usePSelector((v) => v.homeDisabledCatalogIds)
   const toggleCatalogHome = usePSelector((v) => v.toggleCatalogHome)
   const tmdbKey = usePSelector((v) => v.tmdbKey)
   const serverHasTmdbKey = usePSelector((v) => v.serverHasTmdbKey)
   const hasKey = !!tmdbKey || serverHasTmdbKey
   const mdblistApiKey = usePSelector((v) => v.mdblistApiKey)
-  const rankingSourceMovie = usePSelector((v) => v.rankingSourceMovie)
-  const rankingSourceSeries = usePSelector((v) => v.rankingSourceSeries)
-  const catalogRenames = usePSelector((v) => v.catalogRenames)
   const catalogShowEmojis = usePSelector((v) => v.catalogShowEmojis)
   const { t } = useT()
   const platformFilters = useMemo(() => [
@@ -475,6 +541,20 @@ export function CataloghiView() {
   const isJwSourceCustomized = Boolean(jwMovieRename ?? jwMovieRankingName ?? jwSeriesRename ?? jwSeriesRankingName)
   const jwSectionBase = isJwSourceCustomized ? t("ui.rankingSourceTitle") : t("ui.justwatchTop20")
   const jwSectionHeading = catalogShowEmojis !== false ? `${jwSectionBase} ${regionFlag}` : jwSectionBase
+  // Nome effettivo di un catalogo built-in (stessa precedenza del manifest e
+  // del catalog-handler: rename > ranking override > nome regionale JW > base
+  // — vedi resolveEffectiveCatalogDisplayName). Guida il contesto effimero
+  // della preview quando il titolo è aperto da queste sezioni.
+  const builtinListName = useCallback((catalogId: string, slot: "movie" | "series"): string => {
+    const region = getRegionDef(ed.defaultRegion)
+    const base = PICTORIUM_CATALOGS.find((c) => c.id === catalogId)?.name ?? ""
+    return resolveEffectiveCatalogDisplayName({
+      baseName: base,
+      customName: catalogRenames[normalizeCatalogId(catalogId)],
+      rankingName: rankingSourceCatalogName(catalogId, slot, { customCatalogs, rankingSourceMovie, rankingSourceSeries }),
+      jwName: regionJwName(catalogId, slot, region),
+    })
+  }, [catalogRenames, customCatalogs, rankingSourceMovie, rankingSourceSeries, ed.defaultRegion])
   const movieTrending = trending.filter((r) => r.media_type === "movie").slice(0, 20)
   const tvTrending = trending.filter((r) => r.media_type === "tv").slice(0, 20)
   const animeMovies = mdblistAnimeList.filter((r) => r.media_type === "movie")
@@ -506,13 +586,14 @@ export function CataloghiView() {
     setGridTotal(null)
     setGridNextOffset(null)
     setGridError(null)
-    setGridLoading(!!source)
+    // Only custom grids paginate via fetch (builtin grids arrive complete).
+    setGridLoading(!!source && isCustomGridSource(source))
     setGridNotice(notice)
     setGridItems(items)
     setGridTitle(title)
   }
 
-  const loadGridPage = useCallback(async (source: GridSource, skip: number) => {
+  const loadGridPage = useCallback(async (source: CustomGridSource, skip: number) => {
     if (gridPendingRef.current) return
     const ctrl = new AbortController()
     gridControllerRef.current = ctrl
@@ -538,21 +619,21 @@ export function CataloghiView() {
   }, [tmdbKey, mdblistApiKey])
 
   useEffect(() => {
-    if (!gridSource) return
+    if (!gridSource || !isCustomGridSource(gridSource)) return
     gridPendingRef.current = false
     void loadGridPage(gridSource, 0)
     return () => { gridControllerRef.current?.abort(); gridPendingRef.current = false }
   }, [gridSource, loadGridPage])
 
   useEffect(() => {
-    if (gridSource && !customCatalogs.some(cat => cat.id === gridSource.cat.id && cat.url === gridSource.cat.url)) {
+    if (gridSource && isCustomGridSource(gridSource) && !customCatalogs.some(cat => cat.id === gridSource.cat.id && cat.url === gridSource.cat.url)) {
       gridControllerRef.current?.abort()
       setGridSource(null)
       setGridItems(null)
     }
   }, [customCatalogs, gridSource])
 
-  const navigateToItem = (item: SimklCardItem) => {
+  const navigateToItem = (item: SimklCardItem, listName?: string) => {
     const id = resolvedTmdbId(item)
     if (!id) return
     const mediaType = (item.media_type || item.mediaType) as "movie" | "tv" || "movie"
@@ -563,7 +644,19 @@ export function CataloghiView() {
       title,
       name: title,
       poster_path: item.poster_path ?? item.posterPath,
-    }), "cataloghi")
+    }), "cataloghi", listName)
+  }
+  // Click da sezioni built-in (Film/Serie affiancate): il nome effettivo del
+  // catalogo del media-type cliccato viaggia come contesto effimero.
+  // (Il client chiama la TV `tv`, gli helper server `series`: si mappa qui.)
+  const navigateToBuiltinItem = (movieId: string, seriesId: string) => (item: SimklCardItem) => {
+    const slot = (item.media_type || item.mediaType) === "movie" ? ("movie" as const) : ("series" as const)
+    navigateToItem(item, builtinListName(slot === "movie" ? movieId : seriesId, slot))
+  }
+  // Click da sezione piattaforma (slug client → prefisso id server).
+  const navigateToPlatformItem = (slug: string) => {
+    const prefix = PLATFORM_CATALOG_PREFIX[slug] ?? slug
+    return navigateToBuiltinItem(`pictorium-${prefix}-movies`, `pictorium-${prefix}-series`)
   }
 
   const customRefreshers = useRef(new Map<string, () => Promise<boolean>>())
@@ -762,8 +855,8 @@ export function CataloghiView() {
               tvTitle={jwSeriesTitle}
               movieGridTitle={jwMovieGridTitle}
               tvGridTitle={jwSeriesGridTitle}
-              openGrid={openGrid}
-              onItemClick={navigateToItem}
+              openGrid={(items, title, section) => openGrid(items, title, undefined, { kind: "builtin", movieId: "pictorium-jw-movies", seriesId: "pictorium-jw-series", section })}
+              onItemClick={navigateToBuiltinItem("pictorium-jw-movies", "pictorium-jw-series")}
               savedKeys={savedKeys}
             />
           </div>
@@ -794,8 +887,11 @@ export function CataloghiView() {
                     tvTitle={`${t("ui.tvSeries")} — Top 10`}
                     movieGridTitle={`${sp.name} — ${t("ui.movie")}`}
                     tvGridTitle={`${sp.name} — ${t("ui.tvSeries")}`}
-                    openGrid={openGrid}
-                    onItemClick={navigateToItem}
+                    openGrid={(items, title, section) => {
+                      const prefix = PLATFORM_CATALOG_PREFIX[sp.slug] ?? sp.slug
+                      openGrid(items, title, undefined, { kind: "builtin", movieId: `pictorium-${prefix}-movies`, seriesId: `pictorium-${prefix}-series`, section })
+                    }}
+                    onItemClick={navigateToPlatformItem(sp.slug)}
                     savedKeys={savedKeys}
                   /> : <div className="rounded-xl border border-white/5 p-6 text-xs text-muted">
                     {platformErrors[sp.slug] ? <>
@@ -829,8 +925,8 @@ export function CataloghiView() {
               tvTitle={`${t("ui.tvSeries")} — Top 20`}
               movieGridTitle={`Anime — ${t("ui.movie")}`}
               tvGridTitle={`Anime — ${t("ui.tvSeries")}`}
-              openGrid={openGrid}
-              onItemClick={navigateToItem}
+              openGrid={(items, title, section) => openGrid(items, title, undefined, { kind: "builtin", movieId: "pictorium-anime-movies", seriesId: "pictorium-anime", section })}
+              onItemClick={navigateToBuiltinItem("pictorium-anime-movies", "pictorium-anime")}
               savedKeys={savedKeys}
             />
           </div>
@@ -939,13 +1035,27 @@ export function CataloghiView() {
                     disabled={item.tmdbId === null}
                     onClick={() => {
                       if (item.tmdbId) {
+                        // Contesto effimero: griglie custom dal nome effettivo
+                        // della lista (rename vince), griglie built-in dal nome
+                        // effettivo del catalogo d'origine (stessa risoluzione
+                        // del click compatto: rename > ranking > JW > base,
+                        // risolta al click così rinomine/ranking tardivi
+                        // seguono). Mai dal titolo griglia né dal titolo film.
+                        const gridListName = !gridSource
+                          ? gridTitle
+                          : isCustomGridSource(gridSource)
+                            ? effectiveCustomListName(gridSource.cat, gridSource.section, catalogRenames)
+                            : builtinListName(
+                              item.mediaType === "movie" ? gridSource.movieId : gridSource.seriesId,
+                              item.mediaType === "movie" ? "movie" : "series",
+                            )
                         navigateToPoster(toSearchResult({
                           id: item.tmdbId,
                           media_type: item.mediaType,
                           title: item.title,
                           name: item.title,
                           poster_path: item.posterPath,
-                        }), "cataloghi")
+                        }), "cataloghi", gridListName)
                       }
                     }}
                     className={`group relative aspect-[2/3] rounded-xl overflow-hidden bg-surface2 transition-all focus:outline-none focus:ring-2 focus:ring-accent ${
@@ -980,11 +1090,11 @@ export function CataloghiView() {
             </div>
             {gridError && <div role="alert" className="flex items-center gap-3 text-xs text-danger">
               <span>{t(gridError)}</span>
-              <button type="button" disabled={gridLoading} onClick={() => { if (gridSource) void loadGridPage(gridSource, gridNextOffset ?? 0) }} className="btn-ghost px-3 py-2">{t("ui.retry")}</button>
+              <button type="button" disabled={gridLoading} onClick={() => { if (gridSource && isCustomGridSource(gridSource)) void loadGridPage(gridSource, gridNextOffset ?? 0) }} className="btn-ghost px-3 py-2">{t("ui.retry")}</button>
             </div>}
             {gridLoading && <p role="status" className="text-sm text-muted">{t("ui.loading")}</p>}
             {!gridLoading && !gridError && gridSource && gridItems?.length === 0 && <p className="text-sm text-muted">{t("ui.customNoTitles")}</p>}
-            {gridSource && gridNextOffset !== null && !gridError && <button type="button" disabled={gridLoading} onClick={() => { void loadGridPage(gridSource, gridNextOffset) }} className="btn-ghost px-4 py-2 text-sm">{t("ui.showMore")}</button>}
+            {gridSource && isCustomGridSource(gridSource) && gridNextOffset !== null && !gridError && <button type="button" disabled={gridLoading} onClick={() => { void loadGridPage(gridSource, gridNextOffset) }} className="btn-ghost px-4 py-2 text-sm">{t("ui.showMore")}</button>}
       </Modal>
     </div>
   )

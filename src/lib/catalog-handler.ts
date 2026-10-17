@@ -12,7 +12,7 @@ import { decodeConfig, type PictoriumUserConfig } from "@/lib/config-token"
 import { getDetails, getDetailsWithExternalIds, getGenreList, getImages, personMovieCredits, personTvCredits, posterUrlOriginal, resolveUserApiKeys, searchMovies, searchPerson, searchTV, tmdbFindByImdb, tmdbFindByTvdb, type TMDBDetails } from "@/lib/tmdb"
 import { resolveImdbId } from "@/lib/imdb-cache"
 import { fetchMDBList } from "@/lib/mdblist"
-import { resolveRankingSource } from "@/lib/ranking-source"
+import { resolveRankingSource, rankingSourceCatalogName } from "@/lib/ranking-source"
 import { findRankingCustomCatalog } from "@/lib/custom-ranking"
 import { fetchTop20Ranking } from "@/lib/top20-ranking"
 import { buildNoticeMeta, noticeCatalogId, NOTICE_CUSTOM_RANKING_UNAVAILABLE, NOTICE_CUSTOM_RANKING_UNAVAILABLE_DESCRIPTION, NOTICE_CUSTOM_RANKING_UNAVAILABLE_TITLE, NOTICE_MISSING_TVDB_KEY, NOTICE_MISSING_TVDB_KEY_TITLE, NOTICE_MISSING_TVDB_KEY_DESCRIPTION } from "@/lib/notice-meta"
@@ -30,9 +30,10 @@ import { concurrentMap } from "@/lib/episode-ordering"
 import { envWithFallback } from "@/lib/env-compat"
 import { combineAbortSignals } from "@/lib/abort-signal"
 import { isPersonQuery, pickTopPerson } from "@/lib/person-search"
-import { normalizeCatalogId, normalizeCatalogIdKeys, normalizeCatalogIdList } from "@/lib/catalog-definitions"
+import { normalizeCatalogId, normalizeCatalogIdKeys, normalizeCatalogIdList, PICTORIUM_CATALOGS, regionJwName } from "@/lib/catalog-definitions"
+import { detectSeasonalThemeFromCatalogName, resolveEffectiveCatalogDisplayName, type SeasonalTheme } from "@/lib/seasonal-theme"
 import { getExplicitCatalogShape, normalizeCatalogShapeKeys } from "@/lib/catalog-shape"
-import type { PosterShape } from "@/lib/types"
+import type { PosterShape, CustomCatalogConfig } from "@/lib/types"
 
 const log = createLogger("catalog")
 
@@ -321,6 +322,7 @@ async function pictoriumPosterAndShape(
   posterRegion?: string | null,
   catalogId?: string | null,
   rankBusterParam?: number | string | null,
+  seasonalTheme?: SeasonalTheme | null,
 ): Promise<{ poster: string; banner: string; landscapePoster?: string; posterShape: PosterShape }> {
   const scopedUser = getScopedUserId(userParam)
   const serverDefaults = scopedUser ? await getServerDefaultsForUser(scopedUser) : await getServerDefaultsChecked()
@@ -339,6 +341,7 @@ async function pictoriumPosterAndShape(
     user: userParam || undefined,
     animerank: animeRankParam ?? undefined,
     rankBuster: rankBusterParam ?? undefined,
+    seasonalTheme: seasonalTheme ?? undefined,
   } as const
   // Per-catalog format (TaskB): an explicit poster|landscape override for THIS
   // catalog id always wins (either direction, mapping ignored); absent keys
@@ -349,7 +352,11 @@ async function pictoriumPosterAndShape(
     ? getExplicitCatalogShape(catalogId, normalizeCatalogShapeKeys(defaults.catalogShapes))
     : undefined
   const posterShape = explicitShape ?? stremioPosterShape(mapping, defaults)
-  const poster = buildStremioPosterUrl({ ...base, forceShape: posterShape }).toString()
+  // Cornice stagionale (contesto effimero del catalogo di origine): viaggia
+  // nel `poster` su entrambi i canvas (ognuno rende il proprio asset
+  // 500×750 / 768×432, mai stirato) — il banner pulito resta byte-identico
+  // (canvas landscape SENZA tema: il builder lo esclude via hideLogo).
+  const poster = buildStremioPosterUrl({ ...base, forceShape: posterShape, seasonalTheme }).toString()
   // Banner pulito: canvas landscape senza logo baked-in (per i client che
   // sovrappongono già il logo da catalogo) + badge genere in basso a destra.
   const banner = buildStremioPosterUrl({ ...base, forceShape: "landscape", hideLogo: true }).toString()
@@ -461,6 +468,62 @@ async function catalogLogo(mediaType: "movie" | "tv", tmdbId: number, apiKey?: s
  */
 function catalogMetaId(_imdbId: string | null | undefined, tmdbId: number): string {
   return `tmdb:${tmdbId}`
+}
+
+/**
+ * Seasonal frame theme for a Stremio catalog response: detected from the
+ * EFFECTIVE visible catalog name (same precedence as the manifest in
+ * `build-manifest.ts`: rename > ranking-source override > regional
+ * JustWatch name > base name — see `resolveEffectiveCatalogDisplayName`).
+ * Custom lists mirror the manifest split names (`<name> — Film/Serie TV`
+ * for `mixed`). Unknown/search ids contribute no base name (ids NEVER
+ * match — only display names do). Same title in another list stays
+ * unframed; no global or per-title state is read or written.
+ */
+export function resolveCatalogSeasonalTheme(
+  catalogId: string,
+  stType: "movie" | "series",
+  opts: {
+    customCatalogs?: readonly CustomCatalogConfig[] | null
+    catalogRenames?: Record<string, string> | null | undefined
+    rankingSourceMovie?: string | null
+    rankingSourceSeries?: string | null
+    region: RegionDef
+  },
+): SeasonalTheme | null {
+  const rankingName = rankingSourceCatalogName(
+    catalogId,
+    stType,
+    {
+      customCatalogs: opts.customCatalogs,
+      rankingSourceMovie: opts.rankingSourceMovie,
+      rankingSourceSeries: opts.rankingSourceSeries,
+    },
+  )
+  const jwName = regionJwName(catalogId, stType, opts.region)
+  let baseName = PICTORIUM_CATALOGS.find((c) => c.id === catalogId)?.name ?? ""
+  if (!baseName && catalogId.startsWith("pictorium-custom-")) {
+    let customId = catalogId.replace(/^pictorium-custom-/, "")
+    if (customId.startsWith("movie-")) customId = customId.slice(6)
+    else if (customId.startsWith("series-")) customId = customId.slice(7)
+    const found = opts.customCatalogs?.find((c) => c.id === customId)
+    if (found && found.enabled !== false && typeof found.name === "string") {
+      // Only slots the manifest actually declares (see build-manifest.ts):
+      // `mixed` splits into both, single-type (incl. addon) only into its own.
+      if (found.type === "mixed") {
+        baseName = `${found.name} — ${stType === "movie" ? "Film" : "Serie TV"}`
+      } else if (found.type === stType) {
+        baseName = found.name
+      }
+    }
+  }
+  const effective = resolveEffectiveCatalogDisplayName({
+    baseName,
+    customName: opts.catalogRenames?.[catalogId],
+    rankingName,
+    jwName,
+  })
+  return detectSeasonalThemeFromCatalogName(effective)
 }
 
 /**
@@ -585,6 +648,20 @@ export async function pictoriumCatalog(
         ? `:rsjw_${rankingSource.mode}`
         : ":rsjw"
 
+  // Seasonal frame (ephemeral originating-list context): detected from the
+  // effective visible catalog name (rename > ranking override > regional JW
+  // > base — same precedence as the manifest). The fragment isolates themed
+  // bodies even where the other fragments already differ; the poster URLs
+  // below carry `theme=` so the poster cache splits per title too.
+  const catalogTheme = resolveCatalogSeasonalTheme(catalogId, stType, {
+    customCatalogs: userConfig?.customCatalogs,
+    catalogRenames: userConfig?.catalogRenames,
+    rankingSourceMovie: userConfig?.rankingSourceMovie,
+    rankingSourceSeries: userConfig?.rankingSourceSeries,
+    region,
+  })
+  const themeFragment = catalogTheme ? `:th${catalogTheme}` : ""
+
   // --- Gestione Ricerca Stremio (sia via barra di ricerca che catalogo dedicato) ---
   // Eccezione addon: se il catalogo importato dichiara `search`, la query va
   // inoltrata alla fonte (ramo addon sotto), non alla ricerca TMDB globale.
@@ -613,7 +690,7 @@ export async function pictoriumCatalog(
         })
       }
       const page = Math.floor((extra.skip || 0) / 20) + 1
-      const searchCacheKey = `stremio:search:people:${stType}:${hashFragment(extra.search)}:p${page}:pv${POSTER_URL_VERSION}${scopedUser ? `:u${hashUserFragment(scopedUser)}` : ""}:ak${hashFragment(apiKey)}${configParam ? `:cfg${hashFragment(configParam)}` : ""}${mdblistKey ? `:mk${hashFragment(mdblistKey)}` : ""}${regionFragment}${freshness}`
+      const searchCacheKey = `stremio:search:people:${stType}:${hashFragment(extra.search)}:p${page}:pv${POSTER_URL_VERSION}${scopedUser ? `:u${hashUserFragment(scopedUser)}` : ""}:ak${hashFragment(apiKey)}${configParam ? `:cfg${hashFragment(configParam)}` : ""}${mdblistKey ? `:mk${hashFragment(mdblistKey)}` : ""}${regionFragment}${themeFragment}${freshness}`
       const cachedSearch = cacheGet<{ metas: StremioMeta[] }>(searchCacheKey)
       if (cachedSearch) return catalogResponse(cachedSearch)
 
@@ -668,7 +745,7 @@ export async function pictoriumCatalog(
 
         const results: (StremioMeta | null)[] = await concurrentMap(paged, async (item) => {
           if (!item.id) return null
-          const { poster, banner, landscapePoster, posterShape } = await pictoriumPosterAndShape(req, stType, item.id, configParam, userParam, undefined, posterLang, region.code, catalogId)
+          const { poster, banner, landscapePoster, posterShape } = await pictoriumPosterAndShape(req, stType, item.id, configParam, userParam, undefined, posterLang, region.code, catalogId, undefined, catalogTheme)
           const releaseInfo = (item.release_date || item.first_air_date || "").slice(0, 4) || undefined
           return {
             id: catalogMetaId(null, item.id),
@@ -702,7 +779,7 @@ export async function pictoriumCatalog(
       })
     }
     const page = Math.floor((extra.skip || 0) / 20) + 1
-    const searchCacheKey = `stremio:search:${stType}:${hashFragment(extra.search)}:p${page}:pv${POSTER_URL_VERSION}${scopedUser ? `:u${hashUserFragment(scopedUser)}` : ""}:ak${hashFragment(apiKey)}${configParam ? `:cfg${hashFragment(configParam)}` : ""}${mdblistKey ? `:mk${hashFragment(mdblistKey)}` : ""}${regionFragment}${freshness}`
+    const searchCacheKey = `stremio:search:${stType}:${hashFragment(extra.search)}:p${page}:pv${POSTER_URL_VERSION}${scopedUser ? `:u${hashUserFragment(scopedUser)}` : ""}:ak${hashFragment(apiKey)}${configParam ? `:cfg${hashFragment(configParam)}` : ""}${mdblistKey ? `:mk${hashFragment(mdblistKey)}` : ""}${regionFragment}${themeFragment}${freshness}`
     const cachedSearch = cacheGet<{ metas: StremioMeta[] }>(searchCacheKey)
     if (cachedSearch) return catalogResponse(cachedSearch)
 
@@ -724,7 +801,7 @@ export async function pictoriumCatalog(
         }
         const d = await getDetails(stType === "movie" ? "movie" : "tv", foundId, tmdbLang, apiKey)
         const genreNames = await tmdbGenreNames(stType, apiKey, tmdbLang)
-        const { poster, banner, landscapePoster, posterShape } = await pictoriumPosterAndShape(req, stType, foundId, configParam, userParam, undefined, posterLang, region.code, catalogId)
+        const { poster, banner, landscapePoster, posterShape } = await pictoriumPosterAndShape(req, stType, foundId, configParam, userParam, undefined, posterLang, region.code, catalogId, undefined, catalogTheme)
         const body = {
           metas: [
             {
@@ -761,7 +838,7 @@ export async function pictoriumCatalog(
       const genreNames = await tmdbGenreNames(stType, apiKey, tmdbLang)
       const results: (StremioMeta | null)[] = await concurrentMap(items, async (item) => {
         if (!item.id) return null
-        const { poster, banner, landscapePoster, posterShape } = await pictoriumPosterAndShape(req, stType, item.id, configParam, userParam, undefined, posterLang, region.code, catalogId)
+        const { poster, banner, landscapePoster, posterShape } = await pictoriumPosterAndShape(req, stType, item.id, configParam, userParam, undefined, posterLang, region.code, catalogId, undefined, catalogTheme)
         const releaseInfo = (item.release_date || item.first_air_date || "").slice(0, 4) || undefined
         return {
           id: catalogMetaId(null, item.id),
@@ -848,7 +925,7 @@ export async function pictoriumCatalog(
       }
     }
   }
-  const cacheKey = `stremio:catalog:v2:${stType}:${catalogId}:pv${POSTER_URL_VERSION}${scopedUser ? `:u${hashUserFragment(scopedUser)}` : ""}:ak${apiKey ? hashFragment(apiKey) : "none"}${configParam ? `:cfg${hashFragment(configParam)}` : ""}${mdblistKey ? `:mk${hashFragment(mdblistKey)}` : ""}${tvdbKey ? `:tv${hashFragment(tvdbKey)}` : ""}${genreFragment}${skipFragment}${searchFragment}${regionFragment}${rankingFragment}${traktGenFragment}${freshness}`
+  const cacheKey = `stremio:catalog:v2:${stType}:${catalogId}:pv${POSTER_URL_VERSION}${scopedUser ? `:u${hashUserFragment(scopedUser)}` : ""}:ak${apiKey ? hashFragment(apiKey) : "none"}${configParam ? `:cfg${hashFragment(configParam)}` : ""}${mdblistKey ? `:mk${hashFragment(mdblistKey)}` : ""}${tvdbKey ? `:tv${hashFragment(tvdbKey)}` : ""}${genreFragment}${skipFragment}${searchFragment}${regionFragment}${rankingFragment}${traktGenFragment}${themeFragment}${freshness}`
   // C1: L1 + L2 condivisa (KV su multi-istanza, no-op locale/VPS).
   // Il selettore conserva il TTL originale anche dopo il ripopolamento L1
   // da KV (il payload KV non trasporta la scadenza): pieno → 1h, vuoto → 60s.
@@ -969,7 +1046,7 @@ export async function pictoriumCatalog(
               tmdbId = await tmdbFindByTvdb(ref.tvdb, stType === "movie" ? "movie" : "tv", apiKey).catch(() => null)
             }
             if (!tmdbId) return base
-            const posterAndShape = await pictoriumPosterAndShape(req, stType, tmdbId, configParam, userParam, undefined, posterLang, region.code, catalogId)
+            const posterAndShape = await pictoriumPosterAndShape(req, stType, tmdbId, configParam, userParam, undefined, posterLang, region.code, catalogId, undefined, catalogTheme)
             const logo = apiKey
               ? await catalogLogo(stType === "movie" ? "movie" : "tv", tmdbId, apiKey, tmdbLang).catch(() => undefined)
               : undefined
@@ -1177,7 +1254,7 @@ export async function pictoriumCatalog(
             // let it override the selected source (animeRank wins over
             // trendRank in badge precedence). The anime catalog branch below
             // keeps its genuine MDBList-chart `animerank`.
-            pictoriumPosterAndShape(req, stType, r.tmdbId, configParam, userParam, undefined, posterLang, region.code, catalogId),
+            pictoriumPosterAndShape(req, stType, r.tmdbId, configParam, userParam, undefined, posterLang, region.code, catalogId, undefined, catalogTheme),
             apiKey ? catalogLogo(stType === "movie" ? "movie" : "tv", r.tmdbId, apiKey, tmdbLang, customBudgetSignal) : Promise.resolve(undefined),
           ])
           const { poster, banner, landscapePoster, posterShape } = posterAndShape
@@ -1341,7 +1418,7 @@ export async function pictoriumCatalog(
       metas = await concurrentMap(validResults, async (r) => {
         const [imdbId, posterAndShape, logo] = await Promise.all([
           r.imdbId || r.d?.external_ids?.imdb_id || null,
-          pictoriumPosterAndShape(req, stType, r.tmdbId, configParam, userParam, undefined, posterLang, region.code, catalogId, r.rank),
+          pictoriumPosterAndShape(req, stType, r.tmdbId, configParam, userParam, undefined, posterLang, region.code, catalogId, r.rank, catalogTheme),
           apiKey ? catalogLogo(stType === "movie" ? "movie" : "tv", r.tmdbId, apiKey, tmdbLang) : Promise.resolve(undefined),
         ])
         const { poster, banner, landscapePoster, posterShape } = posterAndShape
@@ -1410,7 +1487,7 @@ export async function pictoriumCatalog(
       metas = await concurrentMap(validResults, async (r) => {
         const [imdbId, posterAndShape, logo] = await Promise.all([
           r.imdb ? Promise.resolve(r.imdb) : resolveImdbId(mediaType, r.tmdbId, apiKey, CATALOG_TMDB_TIMEOUT_MS),
-          pictoriumPosterAndShape(req, stType, r.tmdbId, configParam, userParam, r.rank, posterLang, region.code, catalogId),
+          pictoriumPosterAndShape(req, stType, r.tmdbId, configParam, userParam, r.rank, posterLang, region.code, catalogId, undefined, catalogTheme),
           apiKey ? catalogLogo(mediaType, r.tmdbId, apiKey, tmdbLang) : Promise.resolve(undefined),
         ])
         const { poster, banner, landscapePoster, posterShape } = posterAndShape
@@ -1506,7 +1583,7 @@ export async function pictoriumCatalog(
           metas = await concurrentMap(validResults, async (r) => {
             const [imdbId, posterAndShape, logo] = await Promise.all([
               r.imdbId || r.externalImdbId || null,
-              pictoriumPosterAndShape(req, stType, r.tmdbId, configParam, userParam, undefined, posterLang, region.code, catalogId),
+              pictoriumPosterAndShape(req, stType, r.tmdbId, configParam, userParam, undefined, posterLang, region.code, catalogId, undefined, catalogTheme),
               apiKey ? catalogLogo(stType === "movie" ? "movie" : "tv", r.tmdbId, apiKey, tmdbLang) : Promise.resolve(undefined),
             ])
             const { poster, banner, landscapePoster, posterShape } = posterAndShape
@@ -1546,7 +1623,7 @@ export async function pictoriumCatalog(
               const [imdbId, details, posterAndShape, logo] = await Promise.all([
                 resolveImdbId(stType === "movie" ? "movie" : "tv", item.tmdbId, apiKey, CATALOG_TMDB_TIMEOUT_MS),
                 getDetails(stType === "movie" ? "movie" : "tv", item.tmdbId, tmdbLang, apiKey, catalogTimeoutSignal(), CATALOG_TMDB_TIMEOUT_MS).catch(() => null),
-                pictoriumPosterAndShape(req, stType, item.tmdbId, configParam, userParam, undefined, posterLang, region.code, catalogId),
+                pictoriumPosterAndShape(req, stType, item.tmdbId, configParam, userParam, undefined, posterLang, region.code, catalogId, undefined, catalogTheme),
                 catalogLogo(stType === "movie" ? "movie" : "tv", item.tmdbId, apiKey, tmdbLang),
               ])
               const { poster, banner, landscapePoster, posterShape } = posterAndShape

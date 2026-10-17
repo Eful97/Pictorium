@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef, useMemo } from "react"
 import type { SearchResult, TMDBImage } from "./types"
+import { detectSeasonalThemeFromCatalogName, type SeasonalTheme } from "./seasonal-theme"
 import { pushView, replaceView, goBack, type View } from "./router"
 
 export function useNavigation() {
@@ -15,6 +16,13 @@ export function useNavigation() {
   const fetchIdRef = useRef(0)
 
   const [sourceView, setSourceView] = useState<View | null>(null)
+
+  // Contesto effimero della lista/catalogo di origine (nome visibile della
+  // lista da cui il titolo è stato aperto): guida SOLO il `theme=` della
+  // preview editor (stesso renderer condiviso di Stremio). Si azzera a ogni
+  // navigazione senza nome, all'uscita (goHome/reset/popstate) e da liste
+  // non-matching — mai leakage verso altri titoli o viste.
+  const [seasonalTheme, setSeasonalTheme] = useState<SeasonalTheme | null>(null)
 
   const setView = useCallback((v: View) => {
     setViewState(v)
@@ -37,15 +45,19 @@ export function useNavigation() {
     setPosters([])
     setLogos([])
     setSourceView(null)
+    setSeasonalTheme(null)
   }, [])
 
   const incrementFetchId = useCallback(() => {
     return ++fetchIdRef.current
   }, [])
 
-  const navigateToPoster = useCallback((item: SearchResult, _source?: string) => {
+  const navigateToPoster = useCallback((item: SearchResult, _source?: string, _originatingListName?: string | null) => {
     const src = (_source as View) || view || "edit"
     setSourceView(src)
+    // Il tema deriva SOLO dal nome visibile della lista di origine (mai dal
+    // titolo del film): omesso/null = si azzera (niente leakage).
+    setSeasonalTheme(detectSeasonalThemeFromCatalogName(_originatingListName))
     replaceView(src)
     pushView("edit", { source: src })
   }, [view])
@@ -58,11 +70,13 @@ export function useNavigation() {
     setPreviewId(null)
     setPosters([])
     setSourceView(null)
+    setSeasonalTheme(null)
   }, [])
 
   useEffect(() => {
     const handler = (e: PopStateEvent) => {
       incrementFetchId()
+      setSeasonalTheme(null)
       const source = e.state?.source
       const targetView = e.state?.view || source
 
@@ -104,6 +118,7 @@ export function useNavigation() {
     view, setView,
     router,
     sourceView, setSourceView,
+    seasonalTheme, setSeasonalTheme,
     selected, setSelected,
     previewPoster, setPreviewPoster,
     selectedLogo, setSelectedLogo,

@@ -314,6 +314,8 @@ export const posterQuerySchema = z.object({
   layout: boundedQueryString(16),
   /** Fresh apply scope (`ranked` = default: solo con rank; `all` = override esplicito). */
   freshScope: boundedQueryString(16),
+  /** Seasonal frame theme (ephemeral catalog context, canonical themes only). */
+  theme: boundedQueryString(16),
   ac: boundedQueryString(10),
   tl: boundedQueryString(8),
   bl: boundedQueryString(8),

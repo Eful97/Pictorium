@@ -8,6 +8,7 @@ import {
 import { resolveLabel, isRankKey, t as tFn } from "./i18n"
 import { getPosterPublicBaseUrl } from "./poster-public-url"
 import { buildStremioPosterSearchParams } from "./stremio-poster-params"
+import { normalizeSeasonalTheme } from "./seasonal-theme"
 import { isManualAccent } from "./accent-color"
 import { RENDER_VERSION } from "./render-version"
 import { isValidWikidataQid } from "./badge-labels"
@@ -200,6 +201,14 @@ interface PosterState {
   tmdbKey: string
   /** Namespace utente (multi-user): emesso come `u=` così la preview rende il mapping del namespace. */
   userId?: string | null
+  /**
+   * Contesto effimero della lista di origine (nome lista/catalogo da cui il
+   * titolo è stato aperto): emesso come `theme=<canonico>` solo quando il
+   * nome contiene il match intero (vedi seasonal-theme.ts), su entrambi i
+   * canvas (ognuno rende il proprio asset). Mai persistito: all'uscita o da
+   * un'altra lista non-matching si azzera.
+   */
+  seasonalTheme?: string | null
 }
 
 export function buildUrlPattern(bp: BadgeParams & {
@@ -506,6 +515,12 @@ export function buildPreviewUrl(ps: PosterState, bp: BadgeParams, configToken?: 
   // mapping salvato con shape diversa scavalcerebbe il toggle editor (desync
   // WYSIWYG) — vedi catena query > mapping > config > defaults.
   params.push(`shape=${bp.posterShape === "landscape" ? "landscape" : "poster"}`)
+  // Cornice stagionale (contesto effimero lista di origine): su entrambi i
+  // canvas col proprio asset (portrait 500×750, landscape 768×432) — senza
+  // contesto nessun parametro (URL legacy invariati, niente leakage tra
+  // liste). Solo il banner pulito (landscape + hideLogo) resta senza tema.
+  const previewTheme = normalizeSeasonalTheme(ps.seasonalTheme)
+  if (previewTheme) params.push(`theme=${previewTheme}`)
   // Layout SEMPRE esplicito in preview (come shape): senza, un mapping o un
   // default salvato fresh scavalcerebbe la scelta editor — e tornando a
   // standard senza parametro il server erediterebbe fresh (desync WYSIWYG).

@@ -2382,7 +2382,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
       networkLogoOffsetX, networkLogoOffsetY,
       queryExtra, qNetLogo, networkLogo, networkLogoPosition, ribbonSide, ribbonEnabled, rankingBadgeAccent,
       networkLogoFollowTitle, networkFixedX, networkFixedY,
-      preRelease, posterShape, posterLayout, posterFreshScope, logoAlign, hideLogo,
+      preRelease, posterShape, posterLayout, posterFreshScope, logoAlign, seasonalTheme, hideLogo,
     } = renderConfig
 
     // Allineamento blur non-clean (Golden Rule col client): se il poster
@@ -2948,6 +2948,9 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
       posterLayout,
       posterFreshScope,
       logoAlign,
+      // Cornice stagionale (contesto effimero del catalogo di origine,
+      // query-only via renderConfig — mai mapping/config/defaults).
+      seasonalTheme,
       hideLogo,
       posterSrc: isLandscape ? backdropPath : posterPath,
       analysisKey,

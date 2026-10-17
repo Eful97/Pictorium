@@ -6,6 +6,7 @@
 // ---------------------------------------------------------------------------
 
 import type { PictoriumUserConfig } from "./config-token"
+import { normalizeSeasonalTheme, type SeasonalTheme } from "./seasonal-theme"
 import { effectiveMappingForShape, isPosterLayout, isPosterFreshScope, DEFAULT_POSTER_LAYOUT, DEFAULT_POSTER_FRESH_SCOPE, type Mapping, type NetworkLogoPosition, type PosterLayout, type PosterFreshScope, type PosterShape } from "./types"
 import { effectiveDefaultsForShape } from "./server-defaults-shape"
 import type { ServerDefaults } from "./server-defaults"
@@ -95,6 +96,24 @@ export function resolvePosterShape(
   if (configOverride?.posterShape === "landscape" || configOverride?.posterShape === "poster") return configOverride.posterShape
   if (sd.posterShape === "landscape" || sd.posterShape === "poster") return sd.posterShape
   return "poster"
+}
+
+/**
+ * Seasonal frame theme — query `theme` ONLY (ephemeral originating-list
+ * context from the catalog handler or the client editor). No mapping,
+ * config-token, or defaults chain: there is deliberately no selector,
+ * global default, or persisted per-title theme. Both canvases frame with
+ * their OWN user-supplied asset (portrait `500×750`, landscape `768×432`
+ * via `seasonalFrameAssetPath` — the portrait art is never stretched over
+ * 16:9). Invalid values behave exactly as absent (unframed) — same render,
+ * one cache key.
+ */
+export function resolveSeasonalTheme(
+  searchParams: URLSearchParams,
+  shape: PosterShape,
+): SeasonalTheme | null {
+  void shape
+  return normalizeSeasonalTheme(searchParams.get("theme"))
 }
 
 // ---------------------------------------------------------------------------
@@ -485,6 +504,11 @@ export interface PosterRenderConfig {
    * rende Standard byte-identico.
    */
   posterFreshScope: PosterFreshScope
+  /**
+   * Seasonal frame theme (ephemeral catalog context, query-only — see
+   * `resolveSeasonalTheme`). Null = unframed (default, byte-identical).
+   */
+  seasonalTheme: SeasonalTheme | null
   /**
    * Nasconde il logo film dal composite (solo query `hideLogo`, default false).
    * Veicolo del banner pulito (i client che lo leggono sovrappongono già il
@@ -1127,6 +1151,15 @@ export function resolvePosterRenderConfig(input: PosterRenderConfigInput): Poste
   const qHideLogo = q.get("hideLogo")
   const hideLogo = qHideLogo !== null ? qHideLogo !== "0" : false
 
+  // Cornice stagionale: solo query `theme` effimera, su entrambi i canvas
+  // (vedi resolveSeasonalTheme) — nessuna catena mapping/config/defaults.
+  // Solo il banner pulito (canvas landscape + `hideLogo`, senza logo per i
+  // client che lo sovrappongono da catalogo) resta sempre senza cornice
+  // anche con `theme=` esplicito: nessun asset viene stirato e i byte
+  // restano quelli storici. Un portrait con `hideLogo` conserva invece la
+  // cornice (`hideLogo` nasconde solo il logo, mai il frame).
+  const seasonalTheme = hideLogo && posterShape === "landscape" ? null : resolveSeasonalTheme(q, posterShape)
+
   // Follow network: toggle semplice + coordinate assolute riusate da
   // nox/noy (interpretazione condizionata al follow, vedi sopra). Il follow
   // è effettivo solo con coordinate fisse configurate per la shape:
@@ -1200,6 +1233,7 @@ export function resolvePosterRenderConfig(input: PosterRenderConfigInput): Poste
     posterLayout,
     posterFreshScope,
     logoAlign,
+    seasonalTheme,
     hideLogo,
   }
 }

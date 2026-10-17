@@ -155,7 +155,12 @@ export interface PictoriumCtx {
   mappingsMap: Map<string, Mapping>
   goHome: () => void
   sourceView: "edit" | "search" | "myposters" | "cataloghi" | null
-  navigateToPoster: (item: SearchResult, source?: string) => void
+  /**
+   * Apre un titolo nell'editor. `originatingListName` è il nome visibile
+   * della lista/catalogo di origine (contesto effimero per il `theme=`
+   * della preview): omesso = contesto azzerato (niente leakage).
+   */
+  navigateToPoster: (item: SearchResult, source?: string, originatingListName?: string | null) => void
   refreshLists: (refreshCustom?: () => Promise<number>) => Promise<void>
   tmdbKey: string
   setQuery: React.Dispatch<React.SetStateAction<string>>
@@ -1582,6 +1587,12 @@ export function usePictorium(): PictoriumCtx {
     params.set("lang", lang)
     params.set("region", editorCtx.defaultRegion)
     if (localConfigToken) params.set("config", localConfigToken)
+    // Contesto stagionale effimero della lista di origine
+    // (navigation.seasonalTheme, whole-word dal nome lista): viaggia come
+    // `theme=` esplicito così il Testa URL Stremio rende la stessa cornice
+    // della preview. Assente = nessun parametro (URL legacy byte-identici);
+    // il banner pulito resta senza tema nel builder condiviso server-side.
+    if (navigation.seasonalTheme) params.set("theme", navigation.seasonalTheme)
     const qs = params.toString() ? `?${params.toString()}` : ""
     let live = true
     // no-store: /meta risponde `max-age=300` per Stremio, ma qui serve
@@ -1594,7 +1605,7 @@ export function usePictorium(): PictoriumCtx {
     return () => { live = false }
     // mappingsMap: dopo un save il mapping (e il suo `mv`) cambia — l'URL va
     // ririsolta o il modale mostra l'artefatto pre-save (stale).
-  }, [stremioPreview, navigation.selected, currentUserId, tmdbKey, mappingsMap, lang, editorCtx.defaultRegion, localConfigToken, localConfigTokenStatus])
+  }, [stremioPreview, navigation.selected, navigation.seasonalTheme, currentUserId, tmdbKey, mappingsMap, lang, editorCtx.defaultRegion, localConfigToken, localConfigTokenStatus])
 
   const buildPreviewUrlCb = useCallback(() => {
     // Token suspend: while the device config is minting (or failed), no
@@ -1628,6 +1639,9 @@ export function usePictorium(): PictoriumCtx {
         previewPoster: navigation.previewPoster,
         selectedLogo: navigation.selectedLogo,
         selectedBackdrop,
+        // Contesto effimero lista di origine (vedi useNavigation): guida il
+        // `theme=` della preview, stesso renderer di Stremio (WYSIWYG).
+        seasonalTheme: navigation.seasonalTheme,
         logoScale, logoOffsetX, logoOffsetY,
         // Correzione c1: gli auto emettono il sentinel `scale=0` (il server
         // risolve Fresh-100 vs aspect dal rank mostrato); gli espliciti il valore.
@@ -1644,7 +1658,7 @@ export function usePictorium(): PictoriumCtx {
       localConfigToken,
     )
     setPreviewUrl(url)
-  }, [stremioPreview, stremioPreviewUrl, navigation.selected, navigation.previewPoster, navigation.selectedLogo, selectedBackdrop,
+  }, [stremioPreview, stremioPreviewUrl, navigation.selected, navigation.previewPoster, navigation.selectedLogo, navigation.seasonalTheme, selectedBackdrop,
     logoScale, logoScaleExplicit, logoOffsetX, logoOffsetY, backdropScale, backdropOffsetX, backdropOffsetY,
     metaInfo, trendRank, trending.mdblistAnimeList, topEdgeColor, bottomEdgeColor, accentColor, autoAccentColor, lang, tmdbKey,
     editorCtx.defaultRegion, editorCtx.defaultDateFormat, currentUserId, localConfigToken, localConfigTokenStatus,
@@ -2786,7 +2800,7 @@ export function usePictorium(): PictoriumCtx {
     metaInfo,
     previewId: navigation.previewId, setPreviewId: navigation.setPreviewId,
     saveConfig, saveCoverOnly, removeMapping, mappingsMap,
-    goHome: goHomeAbort, sourceView: navigation.sourceView, navigateToPoster: (item: SearchResult, source?: string) => { navigation.navigateToPoster(item, source); openPosterBrowserRef.current(item) },
+    goHome: goHomeAbort, sourceView: navigation.sourceView, navigateToPoster: (item: SearchResult, source?: string, originatingListName?: string | null) => { navigation.navigateToPoster(item, source, originatingListName); openPosterBrowserRef.current(item) },
     refreshLists: trending.refreshLists, loadPlatform: trending.loadPlatform,
     tmdbKey, setQuery: search.setQuery, doSearch: search.doSearch, loadMore: search.loadMore, loadMoreFiltered: search.loadMoreFiltered, retryFailed: search.retryFailed, failedPage: search.failedPage, hasSearched: search.hasSearched,
     titleOf, yearOf, posterUrl,

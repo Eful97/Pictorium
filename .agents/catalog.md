@@ -216,6 +216,47 @@ Ogni catalogo può forzare il proprio formato card (`catalogShapes` in
   ignoti rifiutati dal server (mai default silenziosi), tetto ragionevole
   come gli altri record catalogo. Nessuna chiave API negli URL.
 
+## Cornici stagionali (Halloween + Natale, automatico dal nome lista)
+
+Riconoscimento AUTOMATICO dal nome visibile effettivo del catalogo/lista:
+`halloween` whole-word case-insensitive (`Halloween`, `HALLOWEEN`,
+`🎃 Halloween!` sì; `Halloweens`, `HalloweenParty` no) e Natale in tutte le
+lingue UI supportate (`Natale`, `Christmas`/`Xmas`, `Weihnachten`,
+`Noël`/`Noel`, `Navidad`, `Natal`, `Kerst`/`Kerstmis`,
+`Boże Narodzenie`, `Vánoce`, `Crăciun`, `Jul`, `Giáng sinh`,
+`クリスマス`, `크리스마스`, `חג המולד`, `عيد الميلاد`/`الكريسماس` —
+indipendente dalla lingua UI selezionata; `Natalie`, `July`, `Noelani`,
+`ChristmasParty` no; nomi misti → `halloween` per precedenza).
+Precedenza del nome come il manifest (rename > ranking override > nome
+regionale JW > base; liste custom con split `— Film/Serie TV` per `mixed`):
+`resolveCatalogSeasonalTheme` in `catalog-handler.ts`, leaf condiviso
+`src/lib/seasonal-theme.ts`.
+
+- `halloween`/`christmas`, su entrambi i canvas col proprio asset utente
+  (`poster` → `public/seasonal-frames/<tema>.svg` 500×750,
+  `landscape` → `public/seasonal-frames/<tema> landscape.svg` 768×432,
+  mai stirati — mappa esplicita `seasonalFrameAssetPath` in
+  `seasonal-theme.ts`): il `poster` del catalogo porta `theme=<tema>`
+  (stesso renderer condiviso `/api/poster/{type}/{id}`, cornice come strato
+  sopra lo sfondo/trattamento ma SOTTO tutto il chrome — logo e badge
+  (rank/extra, Coming Soon, network, qualità, genere, separati, età) e gli
+  overlay Fresh/Card — in ogni layout (standard, Fresh e Card, portrait e
+  landscape senza esclusioni), per richiesta utente esplicita);
+  `banner` (pulito: `forceShape` + `hideLogo`, mai alcun `theme=`) resta
+  senza tema (byte-identico).
+  Stesso titolo in altra lista = invariato; nessun default globale,
+  selettore o tema persistito per-titolo; il `/meta` generico resta senza
+  contesto (byte-identico): accetta un `theme=` esplicito solo come
+  contesto effimero lista/test Stremio («Testa URL Stremio»), su entrambi i
+  canvas con isolamento cache (`:th<tema>` in chiave meta; `shape` già in
+  chiave poster a sé).
+- Isolamento cache: `:th<tema>` nella chiave catalogo/search + `theme`
+  in allowlist/poster-key (invalido = assente = unframed; i due temi hanno
+  chiavi distinte tra loro).
+- Client: il click da lista Halloween/Natale porta il nome effettivo come
+  contesto effimero (`navigateToPoster(item, src, listName)` → `theme=` in
+  preview, azzerato all'uscita/altra lista); le tile restano TMDB grezze.
+
 ## Cosa NON fare
 
 - Non emettere mai `id` numerici nudi nel catalogo.

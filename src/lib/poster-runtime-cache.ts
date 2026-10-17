@@ -235,6 +235,19 @@ export function normalizePosterCacheParams(searchParams: URLSearchParams): URLSe
   if (agebs !== null) {
     params.set("agebs", isAgeBadgeStyle(agebs) ? agebs : "standard")
   }
+  // theme: cornice stagionale effimera (temi canonici `halloween` /
+  // `christmas`, su entrambi i canvas col proprio asset). Presente-ma-invalido → delete: il
+  // resolver lo ignora esattamente come l'assenza (stesso render unframed, un'unica chiave — niente
+  // distinzione presente/assente qui perché non esiste ereditarietà da
+  // mapping/config/defaults). Canonical lowercase come il resolver.
+  // La forma canvas (`shape`) viaggia in chiave a sé: stesso tema su
+  // portrait e landscape = chiavi distinte (asset diversi).
+  const theme = params.get("theme")
+  if (theme !== null) {
+    const v = theme.trim().toLowerCase()
+    if (v === "halloween" || v === "christmas") params.set("theme", v)
+    else params.delete("theme")
+  }
 
   return params
 }
