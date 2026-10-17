@@ -591,10 +591,35 @@ describe("buildRankingDefaultSvg", () => {
 
   it("shares the vetro satin stops (no opaque silver)", () => {
     expect(glassStops(false)).toContain('stop-color="rgba(255,255,255,0.45)"')
-    expect(glassStops(false)).toContain('stop-color="rgba(0,0,0,0.35)"')
+    expect(glassStops(false)).toContain('stop-color="rgba(0,0,0,0.45)"')
     expect(glassStops(true)).toContain('stop-color="rgba(255,255,255,0.92)"')
     expect(glassStops(true)).not.toContain("#FFFFFF")
     expect(glassStops(true)).not.toContain("#E2E8F0")
+  })
+
+  it("keeps vetro readable on both polarities (milky on bright, smoky on dark)", () => {
+    // Bright tops: light milky body behind near-black text, top sheen kept.
+    expect(glassStops(true)).toContain('stop-color="rgba(255,255,255,0.55)"')
+    expect(glassStops(true)).toContain('stop-color="rgba(255,255,255,0.38)"')
+    // Dark tops: top sheen kept, smoky protective center/base behind near-white text.
+    expect(glassStops(false)).toContain('stop-color="rgba(0,0,0,0.22)"')
+    expect(glassStops(false)).toContain('stop-color="rgba(0,0,0,0.45)"')
+  })
+
+  it("gives bordo a flat readable backing on both polarities (all three families)", () => {
+    const darkGenre = buildGenreBorderedSvg("Dramma", "8.2", "2024", 34, "#fff", false)
+    const lightGenre = buildGenreBorderedSvg("Dramma", "8.2", "2024", 34, "#fff", true)
+    expect(darkGenre.svg).toContain('fill="rgba(0,0,0,0.32)"')
+    expect(lightGenre.svg).toContain('fill="rgba(255,255,255,0.55)"')
+    expect(buildRankingBorderedSvg("#1 Oggi", 30, "#fff", false).svg).toContain('fill="rgba(0,0,0,0.32)"')
+    expect(buildRankingBorderedSvg("#1 Oggi", 30, "#fff", true).svg).toContain('fill="rgba(255,255,255,0.55)"')
+    expect(buildExtraBorderedSvg("Oscar 2024", 30, "#fff", false).svg).toContain('fill="rgba(0,0,0,0.32)"')
+    expect(buildExtraBorderedSvg("Oscar 2024", 30, "#fff", true).svg).toContain('fill="rgba(255,255,255,0.55)"')
+    // Bordo stays flat with its distinct 2px outline on both polarities.
+    expect(darkGenre.svg).toContain('stroke-width="2"')
+    expect(darkGenre.svg).toContain('stroke="rgba(255,255,255,0.60)"')
+    expect(lightGenre.svg).toContain('stroke-width="2"')
+    expect(lightGenre.svg).toContain('stroke="rgba(0,0,0,0.50)"')
   })
 
   it("renders ranking-default with satin gradient (dark top → light pill)", () => {
