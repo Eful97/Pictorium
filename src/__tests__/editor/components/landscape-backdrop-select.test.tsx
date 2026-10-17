@@ -12,7 +12,7 @@
  *   griglia (clean non escluso), mai un localizzato invisibile.
  */
 import { beforeEach, describe, expect, it, vi } from "vitest"
-import { act, render, screen } from "@testing-library/react"
+import { act, render, screen, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { useEffect, useState } from "react"
 import { BackdropOptions } from "@/components/BackdropOptions"
@@ -328,5 +328,193 @@ describe("EditView: init landscape una tantum + primo visibile (cause A/C)", () 
     expect(editor().backdropScale).toBe(150)
     expect(editor().backdropOffsetX).toBe(5)
     expect(editor().backdropOffsetY).toBe(-3)
+  })
+})
+
+describe("EditView: per-format independent landscape custom (customBackdropUrl)", () => {
+  const CUSTOM_URL = "https://i.imgur.com/custom-land.jpg"
+  const customTile = (file_path: string): TMDBImage =>
+    ({ file_path, iso_639_1: null, vote_average: 0, width: 1920, height: 1080 })
+
+  async function switchShape(label: "ui.posterShapeLandscape" | "ui.posterShapePortrait") {
+    const u = userEvent.setup()
+    await u.click(screen.getByRole("button", { name: label }))
+  }
+
+  it("saved customBackdropUrl restores directly without selectBackdrop", async () => {
+    const mapping: Mapping = {
+      tmdbId: 101,
+      mediaType: "movie",
+      title: "Alpha",
+      posterPath: "/a.jpg",
+      logoPath: null,
+      originalPosterPath: null,
+      language: null,
+      updatedAt: "2026-01-01",
+      posterShape: "landscape",
+      backdropPath: "/bd1.jpg",
+      customBackdropUrl: CUSTOM_URL,
+    }
+    const { editor, selectBackdrop } = renderLandscapeEditor({
+      mappingsMap: new Map([["movie:101", mapping]]),
+    })
+    act(() => {
+      editor().setBackdrops([BD1, BD2])
+    })
+    await switchShape("ui.posterShapeLandscape")
+    // The saved custom tile wins over the TMDB backdropPath…
+    expect(editor().selectedBackdrop?.file_path).toBe(CUSTOM_URL)
+    // …via direct restore, never selectBackdrop (no scale/offset reset).
+    expect(selectBackdrop).not.toHaveBeenCalled()
+  })
+
+  it("session custom selection survives a portrait round-trip (stash, no re-pick)", async () => {
+    const { editor, selectBackdrop } = renderLandscapeEditor()
+    const u = userEvent.setup()
+    act(() => {
+      editor().setBackdrops([BD1, BD2])
+    })
+    await switchShape("ui.posterShapeLandscape")
+    expect(selectBackdrop).toHaveBeenCalledTimes(1)
+    // The user picks the custom tile (real state, as selectBackdrop would).
+    act(() => {
+      editor().setSelectedBackdrop(customTile(CUSTOM_URL))
+    })
+    // Portrait round-trip: the stash retains the selection…
+    await u.click(screen.getByRole("button", { name: "ui.posterShapePortrait" }))
+    // …while entering portrait clears the live state (simulates the real
+    // removeBackdrop: the mock does not touch editor state).
+    act(() => {
+      editor().setSelectedBackdrop(null)
+    })
+    // …and on re-entry the custom selection is restored, with no re-pick.
+    await switchShape("ui.posterShapeLandscape")
+    expect(editor().selectedBackdrop?.file_path).toBe(CUSTOM_URL)
+    expect(selectBackdrop).toHaveBeenCalledTimes(1)
+  })
+
+  it("import box visible in landscape: add creates the session tile and selects it", async () => {
+    const realFetch = global.fetch
+    const u = userEvent.setup()
+    try {
+      global.fetch = (async (input: RequestInfo | URL) => {
+        if (String(input).includes("/api/resolve-image")) {
+          return new Response(
+            JSON.stringify({ imageUrl: CUSTOM_URL, source: "direct", width: 1920, height: 1080 }),
+            { status: 200, headers: { "content-type": "application/json" } },
+          )
+        }
+        return realFetch(input)
+      }) as unknown as typeof fetch
+      const { selectBackdrop } = renderLandscapeEditor()
+      await switchShape("ui.posterShapeLandscape")
+      expect(screen.getByTestId("custom-poster-url")).toBeTruthy()
+      await u.click(screen.getByRole("button", { name: /customPosterTitle/ }))
+      await u.type(screen.getByLabelText(/customPosterTitle/), "https://imgur.com/gallery/abc")
+      await u.click(screen.getByRole("button", { name: /customPosterAdd/ }))
+      await waitFor(() =>
+        expect(selectBackdrop).toHaveBeenCalledWith(expect.objectContaining({ file_path: CUSTOM_URL })),
+      )
+    } finally {
+      global.fetch = realFetch
+    }
+  })
+
+  it("remove with a session tile carrying the URL keeps the preview (portrait parity)", async () => {
+    const realFetch = global.fetch
+    const u = userEvent.setup()
+    try {
+      // Session tile pre-seeded (same key as the store): the saved remove
+      // must not touch it, so the live selection survives — like portrait.
+      localStorage.setItem(
+        "pictorium_custom_backdrops_movie:101",
+        JSON.stringify([{ file_path: CUSTOM_URL, iso_639_1: null, vote_average: 0, width: 1920, height: 1080 }]),
+      )
+      global.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+        if (String(input).includes("/api/mappings/movie:101") && init?.method === "PUT") {
+          return new Response(JSON.stringify({ ok: true }), {
+            status: 200,
+            headers: { "content-type": "application/json" },
+          })
+        }
+        return realFetch(input, init)
+      }) as unknown as typeof fetch
+      const mapping: Mapping = {
+        tmdbId: 101,
+        mediaType: "movie",
+        title: "Alpha",
+        posterPath: "/a.jpg",
+        logoPath: null,
+        originalPosterPath: null,
+        language: null,
+        updatedAt: "2026-01-01",
+        posterShape: "landscape",
+        backdropPath: "/bd1.jpg",
+        customBackdropUrl: CUSTOM_URL,
+      }
+      const { editor, selectBackdrop } = renderLandscapeEditor({
+        mappingsMap: new Map([["movie:101", mapping]]),
+      })
+      act(() => {
+        editor().setBackdrops([BD1, BD2])
+      })
+      await switchShape("ui.posterShapeLandscape")
+      expect(editor().selectedBackdrop?.file_path).toBe(CUSTOM_URL)
+      await u.click(screen.getByRole("button", { name: /customPosterTitle/ }))
+      await u.click(screen.getByRole("button", { name: /customPosterRemove/ }))
+      await waitFor(() => expect(editor().selectedBackdrop?.file_path).toBe(CUSTOM_URL))
+      // No TMDB fallback: the session tile still carries the selection.
+      expect(selectBackdrop).not.toHaveBeenCalled()
+    } finally {
+      global.fetch = realFetch
+    }
+  })
+
+  it("remove without any session tile falls back to the TMDB backdrop", async () => {
+    const realFetch = global.fetch
+    const u = userEvent.setup()
+    try {
+      global.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+        if (String(input).includes("/api/mappings/movie:101") && init?.method === "PUT") {
+          return new Response(JSON.stringify({ ok: true }), {
+            status: 200,
+            headers: { "content-type": "application/json" },
+          })
+        }
+        return realFetch(input, init)
+      }) as unknown as typeof fetch
+      const mapping: Mapping = {
+        tmdbId: 101,
+        mediaType: "movie",
+        title: "Alpha",
+        posterPath: "/a.jpg",
+        logoPath: null,
+        originalPosterPath: null,
+        language: null,
+        updatedAt: "2026-01-01",
+        posterShape: "landscape",
+        backdropPath: "/bd1.jpg",
+        customBackdropUrl: CUSTOM_URL,
+      }
+      const { editor, selectBackdrop } = renderLandscapeEditor({
+        mappingsMap: new Map([["movie:101", mapping]]),
+      })
+      act(() => {
+        editor().setBackdrops([BD1, BD2])
+      })
+      await switchShape("ui.posterShapeLandscape")
+      expect(editor().selectedBackdrop?.file_path).toBe(CUSTOM_URL)
+      await u.click(screen.getByRole("button", { name: /customPosterTitle/ }))
+      await u.click(screen.getByRole("button", { name: /customPosterRemove/ }))
+      // The confirmed removal (PUT ok) returns the preview to TMDB even
+      // though the committed mapping has not re-rendered yet (captured
+      // selectedMapping would still carry the URL — the removed URL travels
+      // explicitly instead).
+      await waitFor(() =>
+        expect(selectBackdrop).toHaveBeenCalledWith(expect.objectContaining({ file_path: "/bd1.jpg" })),
+      )
+    } finally {
+      global.fetch = realFetch
+    }
   })
 })

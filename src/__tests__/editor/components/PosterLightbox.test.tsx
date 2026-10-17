@@ -73,14 +73,34 @@ describe("PosterLightbox customPosterUrl", () => {
     await waitFor(() => expect(screen.getByAltText("Fight Club").getAttribute("src")).toBe(CUSTOM_NEXT))
   })
 
-  it("in orizzontale conserva backdrop e fallback, ignorando il custom", () => {
+  it("landscape keeps the backdrop and fallback, ignoring the portrait custom", () => {
     renderLightbox(
       baseMapping({ posterShape: "landscape", backdropPath: "/bd.jpg", customPosterUrl: CUSTOM }),
     )
     const img = screen.getByAltText("Fight Club")
     expect(img.getAttribute("src")).toBe(posterUrlFn("/bd.jpg", "w780"))
-    // Errore sul backdrop: fallback attuale, mai il custom
+    // Error on the backdrop: current fallback, never the portrait custom
     fireEvent.error(img)
     expect(screen.queryByAltText("Fight Club")).toBeNull()
+  })
+
+  it("landscape shows the saved customBackdropUrl (independent of portrait)", () => {
+    renderLightbox(
+      baseMapping({ posterShape: "landscape", backdropPath: "/bd.jpg", customPosterUrl: CUSTOM, customBackdropUrl: CUSTOM_NEXT }),
+    )
+    expect(screen.getByAltText("Fight Club").getAttribute("src")).toBe(CUSTOM_NEXT)
+    // First error: fallback to the TMDB backdrop, never to the portrait custom
+    fireEvent.error(screen.getByAltText("Fight Club"))
+    expect(screen.getByAltText("Fight Club").getAttribute("src")).toBe(posterUrlFn("/bd.jpg", "w780"))
+    // Second error (fallback exhausted): placeholder, no return to the custom
+    fireEvent.error(screen.getByAltText("Fight Club"))
+    expect(screen.queryByAltText("Fight Club")).toBeNull()
+  })
+
+  it("landscape without a backdrop falls back to the poster after a custom error", () => {
+    renderLightbox(baseMapping({ posterShape: "landscape", customBackdropUrl: CUSTOM }))
+    expect(screen.getByAltText("Fight Club").getAttribute("src")).toBe(CUSTOM)
+    fireEvent.error(screen.getByAltText("Fight Club"))
+    expect(screen.getByAltText("Fight Club").getAttribute("src")).toBe(posterUrlFn("/abc.jpg", "w500"))
   })
 })

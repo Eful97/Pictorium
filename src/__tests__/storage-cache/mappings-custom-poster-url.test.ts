@@ -115,3 +115,43 @@ describe("PUT /api/mappings/[id] customPosterUrl", () => {
     expect(parsed.success).toBe(true)
   })
 })
+
+describe("PUT /api/mappings/[id] customBackdropUrl (per-format independence)", () => {
+  it("saves the landscape URL without touching the portrait one", async () => {
+    vi.mocked(getById).mockResolvedValue({ ...existingMapping(), customPosterUrl: "https://i.imgur.com/portrait.jpg" })
+    const res = await PUT(putRequest({ customBackdropUrl: "https://i.imgur.com/land.jpg" }), params)
+    expect(res.status).toBe(200)
+    const saved = vi.mocked(upsert).mock.calls[0][0] as Mapping
+    expect(saved.customBackdropUrl).toBe("https://i.imgur.com/land.jpg")
+    expect(saved.customPosterUrl).toBe("https://i.imgur.com/portrait.jpg")
+    expect(saved.updatedAt).not.toBe("2026-01-01T00:00:00.000Z")
+  })
+
+  it("preserves the existing landscape when the body only touches the portrait", async () => {
+    vi.mocked(getById).mockResolvedValue({ ...existingMapping(), customBackdropUrl: "https://i.imgur.com/land.jpg" })
+    const res = await PUT(putRequest({ customPosterUrl: "https://i.imgur.com/x.jpg" }), params)
+    expect(res.status).toBe(200)
+    const saved = vi.mocked(upsert).mock.calls[0][0] as Mapping
+    expect(saved.customPosterUrl).toBe("https://i.imgur.com/x.jpg")
+    expect(saved.customBackdropUrl).toBe("https://i.imgur.com/land.jpg")
+  })
+
+  it("removes ONLY the landscape with an explicit null", async () => {
+    vi.mocked(getById).mockResolvedValue({
+      ...existingMapping(),
+      customPosterUrl: "https://i.imgur.com/portrait.jpg",
+      customBackdropUrl: "https://i.imgur.com/land.jpg",
+    })
+    const res = await PUT(putRequest({ customBackdropUrl: null }), params)
+    expect(res.status).toBe(200)
+    const saved = vi.mocked(upsert).mock.calls[0][0] as Mapping
+    expect(saved.customBackdropUrl).toBeNull()
+    expect(saved.customPosterUrl).toBe("https://i.imgur.com/portrait.jpg")
+  })
+
+  it("rejects non-HTTP schemes without touching the store", async () => {
+    const res = await PUT(putRequest({ customBackdropUrl: "ftp://evil.com/x.jpg" }), params)
+    expect(res.status).toBe(400)
+    expect(upsert).not.toHaveBeenCalled()
+  })
+})

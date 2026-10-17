@@ -109,6 +109,7 @@ const NETWORK_FILES: Record<string, string> = {
   anton: "Anton_United_Kingdom_logo.png",
   comix_wave: "CoMix Wave Films logo.svg",
   filmauro: "cdnlogo.com_filmauro-logo.svg",
+  next_ent: "new.svg",
 }
 
 // Falso positivo NBC giapponese (Jujutsu Kaisen tmdb 95479): network list contiene 25+ regionali tra cui "NBC" (Nagasaki Broadcasting).
@@ -199,6 +200,7 @@ const NETWORK_TARGET_W: Record<string, number> = {
   anton: 54,
   comix_wave: 62,
   filmauro: 62,
+  next_ent: 62,
 }
 
 function getNetworkKey(networkName: string): string | null {
@@ -304,6 +306,9 @@ function getNetworkKey(networkName: string): string | null {
   // generic "Wave"/"Films" alone must NOT match.
   if (lower.includes("comix wave")) return "comix_wave"
   if (lower.includes("filmauro")) return "filmauro"
+  // Next Entertainment World (NEW): full-phrase match only — a bare /new/
+  // matcher would collide with New Line Cinema and generic "New …" names.
+  if (lower.includes("next entertainment world")) return "next_ent"
   return null
 }
 

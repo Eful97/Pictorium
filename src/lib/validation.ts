@@ -15,6 +15,13 @@ export const mappingSchema = z.object({
     (v) => v.startsWith("http://") || v.startsWith("https://"),
     { message: "Only HTTP/HTTPS URLs allowed" },
   ).nullable().optional(),
+  // External landscape base (custom URL import, the `customPosterUrl`
+  // mirror): same bounds/security (SSRF enforced at render, non-URLs rejected
+  // here).
+  customBackdropUrl: z.string().url().max(2000).refine(
+    (v) => v.startsWith("http://") || v.startsWith("https://"),
+    { message: "Only HTTP/HTTPS URLs allowed" },
+  ).nullable().optional(),
   logoPath: z.string().nullable().optional(),
   originalPosterPath: z.string().nullable().optional(),
   language: z.string().nullable().optional(),
@@ -246,7 +253,11 @@ export const posterQuerySchema = z.object({
   // (isAllowedQueryImagePath), never SVG (raster-only).
   poster: boundedQueryString(2048),
   logo: boundedQueryString(2048),
-  backdrop: boundedQueryString(160),
+  // Landscape custom backdrop from an external URL (tile selected in
+  // preview, saved base): same wide bound as poster/logo (direct CDNs exceed
+  // the 160 chars of TMDB paths). Anti-flood unchanged: each distinct value
+  // is a separate entry.
+  backdrop: boundedQueryString(2048),
   quality: boundedQueryString(16),
   formats: boundedQueryString(64),
   qmin: boundedQueryString(8),

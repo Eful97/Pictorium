@@ -1,9 +1,20 @@
-import { afterEach, describe, expect, it, vi } from "vitest"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { screen, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { CustomPosterUrl } from "@/components/CustomPosterUrl"
 import { renderWithCtx } from "@/__tests__/test-utils"
 import type { Mapping } from "@/lib/types"
+
+// Editing shape controlled by the test (the component reads ONLY
+// posterShape from the editor): portrait default, landscape on demand.
+let mockPosterShape: "poster" | "landscape" = "poster"
+vi.mock("@/lib/contexts/PosterEditorContext", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/contexts/PosterEditorContext")>()
+  return {
+    ...actual,
+    usePosterEditor: () => ({ posterShape: mockPosterShape }),
+  }
+})
 
 const selected = {
   id: 550,
@@ -31,6 +42,11 @@ const realFetch = global.fetch
 afterEach(() => {
   global.fetch = realFetch
   vi.restoreAllMocks()
+  mockPosterShape = "poster"
+})
+
+beforeEach(() => {
+  mockPosterShape = "poster"
 })
 
 function mockFetch(handler: (url: string, init?: RequestInit) => Response) {
@@ -121,5 +137,75 @@ describe("CustomPosterUrl", () => {
     expect(screen.getByRole("button", { name: /customPosterAdd/ })).toBeTruthy()
     await user.click(screen.getByRole("button", { name: /cancel/ }))
     expect(screen.queryByRole("button", { name: /customPosterAdd/ })).toBeNull()
+  })
+});
+
+describe("CustomPosterUrl in landscape", () => {
+  beforeEach(() => {
+    mockPosterShape = "landscape"
+  })
+
+  it("visible in landscape too (per-format independent base)", () => {
+    renderWithCtx(<CustomPosterUrl onAdd={() => {}} onRemove={() => {}} collapsible />, { selected })
+    expect(screen.getByTestId("custom-poster-url")).toBeTruthy()
+    expect(screen.getByRole("button", { name: /customPosterTitle/ })).toBeTruthy()
+  })
+
+  it("shows the active state from customBackdropUrl (portrait does not interfere)", () => {
+    const mappingsMap = new Map([["movie:550", mappingWithCustom("https://i.imgur.com/x.jpg")]])
+    ;(mappingsMap.get("movie:550") as Mapping).customBackdropUrl = "https://i.imgur.com/land.jpg"
+    renderWithCtx(<CustomPosterUrl onAdd={() => {}} onRemove={() => {}} />, { selected, mappingsMap })
+    expect(screen.getByRole("button", { name: /customPosterRemove/ })).toBeTruthy()
+    expect(screen.queryByText(/customPosterActive/)).not.toBeNull()
+  })
+
+  it("no landscape custom: no active badge even with a saved portrait custom", () => {
+    const mappingsMap = new Map([["movie:550", mappingWithCustom("https://i.imgur.com/x.jpg")]])
+    renderWithCtx(<CustomPosterUrl onAdd={() => {}} onRemove={() => {}} />, { selected, mappingsMap })
+    expect(screen.queryByText(/customPosterActive/)).toBeNull()
+    expect(screen.queryByRole("button", { name: /customPosterRemove/ })).toBeNull()
+  })
+
+  it("Add in landscape resolves and calls onAdd (same portrait flow)", async () => {
+    const user = userEvent.setup()
+    const onAdd = vi.fn()
+    mockFetch(() => {
+      return new Response(
+        JSON.stringify({ imageUrl: "https://i.imgur.com/land.jpg", source: "direct", width: 1920, height: 1080 }),
+        { status: 200, headers: { "content-type": "application/json" } },
+      )
+    })
+    renderWithCtx(<CustomPosterUrl onAdd={onAdd} onRemove={() => {}} />, { selected })
+
+    await user.type(screen.getByLabelText(/customPosterTitle/), "https://imgur.com/gallery/abc")
+    await user.click(screen.getByRole("button", { name: /customPosterAdd/ }))
+
+    await waitFor(() => expect(onAdd).toHaveBeenCalledWith({ url: "https://i.imgur.com/land.jpg", width: 1920, height: 1080 }))
+    expect(screen.queryByText(/customPosterActive/)).toBeNull()
+  })
+
+  it("Remove in landscape clears ONLY customBackdropUrl (portrait stays)", async () => {
+    const user = userEvent.setup()
+    const calls: Array<{ url: string; init?: RequestInit }> = []
+    mockFetch((url, init) => {
+      calls.push({ url, init })
+      return new Response(JSON.stringify({ ok: true }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      })
+    })
+    const mapping = mappingWithCustom("https://i.imgur.com/x.jpg")
+    mapping.customBackdropUrl = "https://i.imgur.com/land.jpg"
+    const mappingsMap = new Map([["movie:550", mapping]])
+    const loadMappings = vi.fn(async () => {})
+    const onRemove = vi.fn()
+    renderWithCtx(<CustomPosterUrl onAdd={() => {}} onRemove={onRemove} />, { selected, mappingsMap, loadMappings })
+
+    await user.click(screen.getByRole("button", { name: /customPosterRemove/ }))
+
+    await waitFor(() => expect(onRemove).toHaveBeenCalled())
+    const put = calls.find((c) => c.url.includes("/api/mappings/movie:550") && c.init?.method === "PUT")
+    expect(put).toBeTruthy()
+    expect(JSON.parse(String(put!.init!.body))).toEqual({ customBackdropUrl: null })
   })
 });

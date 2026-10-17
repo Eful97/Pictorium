@@ -133,14 +133,23 @@ export function buildCoverOnlyPayload(input: CoverOnlySaveInput): Record<string,
   if (logoDisabled) body.logoDisabled = true
 
   if (isLandscape) {
-    // The landscape cover IS the backdrop: chosen one, or null for the
-    // automatic TMDB backdrop (an intentional choice, never auto-filled
-    // here — the editor already auto-picks the first visible backdrop on
-    // entering landscape, so null means the user cleared it on purpose).
-    // Portrait rotation/exclusion from the previous mapping is preserved
+    // The landscape cover IS the backdrop: chosen, or null for the automatic
+    // TMDB backdrop (an intentional choice, never auto-filled here). A custom
+    // tile splits like the portrait one (backdropPath keeps the TMDB fallback
+    // reference, never a URL; the URL goes to customBackdropUrl). Portrait rotation/exclusion from the previous mapping is preserved
     // untouched (other format); backdrop rotation is omitted so the pinned
     // backdrop cannot rotate away.
-    body.backdropPath = selectedBackdrop?.file_path ?? null
+    const bdFile = selectedBackdrop?.file_path ?? null
+    const prevBdTmdb = prevMapping?.backdropPath && !isCustomPosterUrl(prevMapping.backdropPath)
+      ? prevMapping.backdropPath
+      : null
+    if (bdFile && isCustomPosterUrl(bdFile)) {
+      body.backdropPath = prevBdTmdb
+      body.customBackdropUrl = bdFile
+    } else {
+      body.backdropPath = bdFile
+      body.customBackdropUrl = null
+    }
     if (prevMapping?.cleanPosters !== undefined) body.cleanPosters = prevMapping.cleanPosters
     if (prevMapping?.cleanPosterIndex !== undefined) body.cleanPosterIndex = prevMapping.cleanPosterIndex
     if (prevMapping?.cleanPosterUpdatedAt !== undefined) body.cleanPosterUpdatedAt = prevMapping.cleanPosterUpdatedAt
@@ -151,7 +160,10 @@ export function buildCoverOnlyPayload(input: CoverOnlySaveInput): Record<string,
     // Portrait save preserves the other-format (landscape) image, rotation
     // and exclusions; without them every vertical save would wipe the 16:9
     // cover. Portrait rotation is omitted (pinned poster opt-out, see above).
+    // The landscape custom base is other-format cover identity: preserved
+    // verbatim (never touched by the portrait save).
     body.backdropPath = prevMapping?.backdropPath ?? null
+    if (prevMapping?.customBackdropUrl !== undefined) body.customBackdropUrl = prevMapping.customBackdropUrl
     if (prevMapping?.cleanBackdrops !== undefined) body.cleanBackdrops = prevMapping.cleanBackdrops
     if (prevMapping?.cleanBackdropIndex !== undefined) body.cleanBackdropIndex = prevMapping.cleanBackdropIndex
     if (prevMapping?.cleanBackdropUpdatedAt !== undefined) body.cleanBackdropUpdatedAt = prevMapping.cleanBackdropUpdatedAt

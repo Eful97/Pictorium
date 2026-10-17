@@ -2,7 +2,7 @@ import { fetchImg, hashKey, imgSrc } from "@/lib/poster-render-helpers"
 import { ImageValidationError, validateImageBytes } from "@/lib/custom-image-validate"
 import { peekImageBytes, storeImageBytes } from "@/lib/image-bytes-cache"
 import { combineAbortSignals, raceWithAbort } from "@/lib/abort-signal"
-export { splitCustomPosterSave, type PosterSaveSplit } from "@/lib/utils"
+export { splitCustomPosterSave, splitCustomBackdropSave, type PosterSaveSplit } from "@/lib/utils"
 import { isAllowedCustomImageUrl } from "@/lib/resolve-image"
 import {
   BodyTooLargeError,
@@ -381,11 +381,14 @@ export async function fetchPosterBaseWithCustom(
 }
 
 /**
- * Chiave analisi pixel per base custom: hash dell'URL, mai l'URL in chiaro
- * (lunghezza variabile e query potenzialmente instabili nella chiave cache).
+ * Pixel-analysis key for a custom base: hash of the URL, never the URL in
+ * the clear (variable length and potentially unstable query strings in the
+ * cache key). The shape segment separates portrait/landscape entries (the
+ * same URL used as a base on both canvases samples different strips).
+ * Default portrait: historic callers stay byte-identical.
  */
-export function customBaseAnalysisKey(customUrl: string): string {
-  return `portrait:custom:${hashKey(customUrl)}`
+export function customBaseAnalysisKey(customUrl: string, shape: "portrait" | "landscape" = "portrait"): string {
+  return `${shape}:custom:${hashKey(customUrl)}`
 }
 
 export interface EffectiveCustomUrlInput {

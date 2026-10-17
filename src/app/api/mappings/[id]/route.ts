@@ -102,10 +102,12 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<RouteP
     badgeRank: parsed.data.badgeRank ?? existing.badgeRank,
     badgeLabel: parsed.data.badgeLabel ?? existing.badgeLabel,
     animeRank: hasField("animeRank") ? (parsed.data.animeRank ?? null) : existing.animeRank,
-    // Base custom da URL esterno: presente → salva (null = rimuovi), assente →
-    // preserva. updatedAt viene sempre bumpato → `mv` negli URL Stremio e
-    // `:mu` nella cache key invalidano il poster precedente.
+    // External-URL custom base: present → save (null = remove), absent →
+    // preserve. updatedAt is always bumped → `mv` in Stremio URLs and `:mu`
+    // in the cache key invalidate the previous poster. The two bases are
+    // per-format independent: each PUT only touches the key it names.
     customPosterUrl: hasField("customPosterUrl") ? (parsed.data.customPosterUrl ?? null) : existing.customPosterUrl,
+    customBackdropUrl: hasField("customBackdropUrl") ? (parsed.data.customBackdropUrl ?? null) : existing.customBackdropUrl,
     releaseDate: parsed.data.releaseDate ?? existing.releaseDate,
     firstAirDate: parsed.data.firstAirDate ?? existing.firstAirDate,
     logoDisabled: parsed.data.logoDisabled ?? existing.logoDisabled,

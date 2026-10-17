@@ -2,7 +2,7 @@
 
 import { useCallback } from "react"
 import type { SearchResult, TMDBImage, Mapping, NetworkLogoPosition, PosterShape } from "./types"
-import { titleOf, isCustomPosterUrl, splitCustomPosterSave } from "./utils"
+import { titleOf, isCustomPosterUrl, splitCustomPosterSave, splitCustomBackdropSave } from "./utils"
 import { isTvdbArtworkUrl } from "./tvdb-gallery-types"
 import { buildCoverOnlyPayload } from "./cover-only-save"
 import { computeTopBadge, resolveSavedBadgeExtra, type BadgeInput } from "./poster-badge"
@@ -708,6 +708,20 @@ export function usePosterSave(deps: PosterSaveDeps) {
     const backdropToSave = isLandscapeMode
       ? (backdropToSaveOverride?.file_path || null)
       : (backdropToSaveOverride?.file_path ?? prevMapping?.backdropPath ?? null)
+    // Landscape custom split (portrait mirror above): custom tile →
+    // backdropPath keeps the TMDB reference (render fallback if the URL dies)
+    // and the URL goes to customBackdropUrl; TMDB tile or missing backdrop
+    // (automatic) → custom cleared, the save freezes the shown state. The
+    // portrait save preserves the saved customBackdropUrl verbatim
+    // (per-format independence: portrait never touches landscape).
+    const prevBackdropTmdbRef = prevMapping?.backdropPath && !isCustomPosterUrl(prevMapping.backdropPath)
+      ? prevMapping.backdropPath
+      : null
+    const backdropSplit = isLandscapeMode
+      ? (backdropToSave
+        ? splitCustomBackdropSave(backdropToSave, prevBackdropTmdbRef)
+        : { backdropPath: null as string | null, customBackdropUrl: null as string | null })
+      : { backdropPath: backdropToSave, customBackdropUrl: prevMapping?.customBackdropUrl ?? null }
     // Esclusione con fallback (override presente): mirror di selectBackdrop,
     // che resetta scala/offset a 100/0/0 insieme alla selezione — senza, il save
     // conserverebbe le trasformazioni dello sfondo appena escluso.
@@ -738,14 +752,20 @@ export function usePosterSave(deps: PosterSaveDeps) {
           mediaType: selected.media_type,
           title: titleOf(selected),
           posterPath: saveSplit.posterPath,
-          customPosterUrl: saveSplit.customPosterUrl,
+          // Portrait cover identity: on landscape saves the saved flat stays
+          // saved (never clobbered by the other shape's live value — same
+          // keepFlatKey rule as tuning/styles and the cover-only strict
+          // split). Only without a mapping (first save) is the live value
+          // frozen, like cover-only from the portrait file.
+          customPosterUrl: isLandscapeMode && prevMapping ? (prevMapping.customPosterUrl ?? null) : saveSplit.customPosterUrl,
           logoPath: effectiveLogoPath,
           originalPosterPath: selected.poster_path,
           language: posterToSave.iso_639_1,
           logoScale: keepFlatKey("logoScale", logoScaleExplicit === false ? null : logoScale),
           logoOffsetX: keepFlatKey("logoOffsetX", logoOffsetX),
           logoOffsetY: keepFlatKey("logoOffsetY", logoOffsetY),
-          backdropPath: backdropToSave,
+          backdropPath: backdropSplit.backdropPath,
+          customBackdropUrl: backdropSplit.customBackdropUrl,
           backdropScale: backdropScaleToSave,
           backdropOffsetX: backdropOffsetXToSave,
           backdropOffsetY: backdropOffsetYToSave,

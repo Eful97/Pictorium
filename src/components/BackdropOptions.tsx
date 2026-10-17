@@ -10,7 +10,7 @@ import { useT } from "@/lib/contexts/TranslationContext"
 import { usePosterFit } from "@/lib/usePosterFit"
 import { useTvdbArtworks } from "@/lib/useTvdbArtworks"
 import { RatingSourceIcon } from "@/components/RatingSourceIcon"
-import { ArrowUpDown, Check, ChevronDown, Clock, EyeOff, Loader2, RotateCcw, Sparkles } from "lucide-react"
+import { ArrowUpDown, Check, ChevronDown, Clock, EyeOff, Loader2, RotateCcw, Sparkles, X } from "lucide-react"
 
 /** Sfondi visibili prima del "carica altri" (come i poster: paging, non scroll infinito). */
 const VISIBLE_BACKDROP_COUNT = 10
@@ -26,6 +26,14 @@ interface BackdropOptionsProps {
   clearBackdrop: () => void
   /** True mentre le immagini del titolo stanno ancora caricando. */
   loading?: boolean
+  /** Session custom tiles (external URLs not saved yet): first in the grid. */
+  customBackdrops?: TMDBImage[]
+  /** Saved custom tile (from the mapping): in the grid without a remove button. */
+  savedCustomBackdrop?: TMDBImage | null
+  /** Session-tile removal (customBackdrops only, never the saved one). */
+  onRemoveCustomBackdrop?: (filePath: string) => void
+  /** Import-box slot (CustomPosterUrl) above the grid, like the posters. */
+  topSlot?: React.ReactNode
 }
 
 /**
@@ -35,7 +43,7 @@ interface BackdropOptionsProps {
  * Include il best-fit orizzontale (shape landscape, 768×432, Cinematic Left):
  * ordinamento TMDB/Best Fit, badge sul vincente e selezione in 1 click.
  */
-export function BackdropOptions({ backdrops, backdropActivePath, selectBackdrop, clearBackdrop, loading }: BackdropOptionsProps) {
+export function BackdropOptions({ backdrops, backdropActivePath, selectBackdrop, clearBackdrop, loading, customBackdrops = [], savedCustomBackdrop = null, onRemoveCustomBackdrop, topSlot }: BackdropOptionsProps) {
   const { t } = useT()
   const ed = usePosterEditor()
   const selectedLogo = usePSelector((v) => v.selectedLogo)
@@ -253,6 +261,51 @@ export function BackdropOptions({ backdrops, backdropActivePath, selectBackdrop,
 
   return (
     <div>
+      {topSlot}
+      {/* Session + saved custom tiles (vertical PosterOptions mirror):
+          first in the grid, with the remove button on session tiles only. */}
+      {(customBackdrops.length > 0 || savedCustomBackdrop) && (
+        <div className="grid grid-cols-2 gap-2 mb-2">
+          {customBackdrops.map((img, ci) => (
+            <div key={`custom:${img.file_path}`} className="relative group rounded-xl overflow-hidden">
+              <PosterBtn
+                staggerIndex={ci}
+                img={img}
+                landscape
+                imgSize="w300"
+                active={backdropActivePath === img.file_path}
+                onSelect={handleSelect}
+                title={t("ui.customPosterActive")}
+              />
+              {onRemoveCustomBackdrop && (
+                <div className="absolute top-1.5 right-1.5 z-20 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
+                  <button type="button"
+                    aria-label={t("ui.remove")}
+                    title={t("ui.remove")}
+                    onClick={(e) => { e.stopPropagation(); onRemoveCustomBackdrop(img.file_path) }}
+                    className="poster-image-action w-6 h-6 rounded-lg flex items-center justify-center backdrop-blur-md border transition-all duration-150 bg-black/55 border-white/10 text-zinc-300 hover:bg-red-500/90 hover:text-white hover:border-red-400/60"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              )}
+            </div>
+          ))}
+          {savedCustomBackdrop && (
+            <div key={`custom-saved:${savedCustomBackdrop.file_path}`}>
+              <PosterBtn
+                staggerIndex={customBackdrops.length}
+                img={savedCustomBackdrop}
+                landscape
+                imgSize="w300"
+                active={backdropActivePath === savedCustomBackdrop.file_path}
+                onSelect={handleSelect}
+                title={t("ui.customPosterActive")}
+              />
+            </div>
+          )}
+        </div>
+      )}
       {selected && (
         <div className="flex gap-1 mb-3 overflow-x-auto scrollbar-none">
           <button type="button"

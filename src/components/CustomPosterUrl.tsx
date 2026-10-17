@@ -19,7 +19,7 @@ interface Props {
   /** Chiamato con l'URL diretto risolto: il parent aggiunge il tile in griglia. */
   onAdd: (image: { url: string; width: number; height: number }) => void
   /** Chiamato dopo la rimozione del custom salvato: il parent pulisce i tile. */
-  onRemove: () => void
+  onRemove: (removedUrl: string) => void
   /** Abilita modalità collassabile con pulsante apri/chiudi (default false). */
   collapsible?: boolean
   /** Stato aperto iniziale quando collapsible=true (default false). */
@@ -27,15 +27,18 @@ interface Props {
 }
 
 /**
- * Base poster da URL esterno (Pinterest/Imgur/Reddit + link asset diretti
- * TPDb "Copy Poster Link" /api/assets/<id>/view — mai pagine poster/set)
- * per il titolo selezionato. Solo portrait: il landscape resta sul backdrop
- * TMDB.
+ * External-URL base (Pinterest/Imgur/Reddit plus direct TPDb asset links
+ * "Copy Poster Link" /api/assets/<id>/view — never poster/set pages) for the
+ * selected title, in the editing shape: portrait freezes `customPosterUrl`,
+ * landscape freezes `customBackdropUrl` (per-format independent bases). Live
+ * visual verification runs in the central preview (the preview already emits
+ * `poster=`/`backdrop=`: the selected custom tile travels in query and the
+ * server validates it through the same flow as the saved one).
  *
- * Semantica add-only: "Aggiungi" risolve l'URL e aggiunge subito il tile in
- * griglia (selezionato). Il salvataggio resta sul bottone Salva principale
- * (congela `customPosterUrl` nel mapping); la verifica visiva è live nella
- * preview centrale. La rimozione cancella il custom salvato.
+ * Add-only semantics: "Add" resolves the URL and immediately appends the tile
+ * to the grid (selected). Saving stays on the main Save button (freezes the
+ * custom in the mapping); removal deletes the saved custom of ONLY the
+ * editing shape (the other shape stays intact).
  */
 export function CustomPosterUrl({ onAdd, onRemove, collapsible = false, defaultOpen = false }: Props) {
   const [isOpen, setIsOpen] = useState(defaultOpen)
@@ -46,20 +49,28 @@ export function CustomPosterUrl({ onAdd, onRemove, collapsible = false, defaultO
   const { t } = useT()
 
   const key = selected ? `${selected.media_type}:${selected.id}` : null
-  const savedUrl = key ? (mappingsMap.get(key)?.customPosterUrl ?? null) : null
+  // Saved base of the editing shape: the two bases are independent —
+  // add/remove here touch only the shown shape.
+  const isLandscape = posterShape === "landscape"
+  const savedUrl = key
+    ? (isLandscape
+      ? (mappingsMap.get(key)?.customBackdropUrl ?? null)
+      : (mappingsMap.get(key)?.customPosterUrl ?? null))
+    : null
 
   const [input, setInput] = useState("")
   const [resolving, setResolving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [removing, setRemoving] = useState(false)
 
-  // Pulisci l'input al cambio titolo (i tile di sessione vivono nel parent).
+  // Clear the input on title or shape change (session tiles live in the
+  // parent, separated per shape: never leak between portrait and landscape).
   useEffect(() => {
     setInput("")
     setError(null)
-  }, [key])
+  }, [key, isLandscape])
 
-  if (!selected || posterShape === "landscape") return null
+  if (!selected) return null
 
   const handleAdd = async () => {
     const url = input.trim()
@@ -82,16 +93,24 @@ export function CustomPosterUrl({ onAdd, onRemove, collapsible = false, defaultO
 
   const handleRemove = async () => {
     if (!key || removing) return
+    // Removed URL captured at click time: after PUT + loadMappings the mapping
+    // may not have recommitted yet (same staleness documented for logos in
+    // EditView) — the parent must not re-read it from the mapping.
+    const removedUrl = savedUrl
+    if (!removedUrl) return
     setRemoving(true)
     try {
       const { http } = await import("@/lib/http")
+      // Removes ONLY the editing shape's base (the other shape stays intact
+      // in the mapping: server-side per-key merge PUT).
+      const body = isLandscape ? { customBackdropUrl: null } : { customPosterUrl: null }
       await http(`/api/mappings/${key}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ customPosterUrl: null }),
+        body: JSON.stringify(body),
       })
       await loadMappings()
-      onRemove()
+      onRemove(removedUrl)
       toast.success(t("ui.customPosterRemoved"))
     } catch {
       toast.error(t("ui.saveError"))

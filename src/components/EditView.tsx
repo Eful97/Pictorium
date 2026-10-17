@@ -27,7 +27,7 @@ import { EditorPanel } from "@/components/EditorPanel"
 import { copyText } from "@/lib/clipboard"
 import { isCustomPosterUrl } from "@/lib/utils"
 import { isTvdbArtworkUrl } from "@/lib/tvdb-gallery-types"
-import { loadCustomTiles, storeCustomTiles, loadCustomLogoTiles, storeCustomLogoTiles } from "@/lib/custom-tiles-store"
+import { loadCustomTiles, storeCustomTiles, loadCustomLogoTiles, storeCustomLogoTiles, loadCustomBackdropTiles, storeCustomBackdropTiles } from "@/lib/custom-tiles-store"
 import { userFetch } from "@/lib/http"
 import { SearchBar } from "@/components/SearchBar"
 import { PosterCarousel } from "@/components/PosterCarousel"
@@ -203,26 +203,32 @@ export default function EditView() {
   // non salvato → Stremio mostra ancora il primo TMDB).
   const previewPosterFilePath = previewPoster?.file_path ?? null
   const previewCustomPosterUrl = previewPosterFilePath && isCustomPosterUrl(previewPosterFilePath) ? previewPosterFilePath : null
+  // Landscape current base (same derivation as the portrait one above): a
+  // selected custom tile counts as custom, never as a TMDB backdropPath.
+  const selectedBackdropFilePath = ed.selectedBackdrop?.file_path ?? null
+  const selectedCustomBackdropUrl = selectedBackdropFilePath && isCustomPosterUrl(selectedBackdropFilePath) ? selectedBackdropFilePath : null
 
   const artworkDirty = useMemo(() => isArtworkDirty(
     {
       posterPath: previewPosterFilePath,
       customPosterUrl: previewCustomPosterUrl,
-      backdropPath: ed.selectedBackdrop?.file_path ?? null,
+      backdropPath: selectedBackdropFilePath,
+      customBackdropUrl: selectedCustomBackdropUrl,
       posterShape: ed.posterShape,
       logoPath: selectedLogo?.file_path ?? null,
       logoDisabled: ed.logoDisabled,
     },
     selectedMapping ?? null,
     ed.defaultPosterShape,
-  ), [previewPosterFilePath, previewCustomPosterUrl, ed.selectedBackdrop?.file_path, ed.posterShape, selectedLogo?.file_path, ed.logoDisabled, selectedMapping, ed.defaultPosterShape])
+  ), [previewPosterFilePath, previewCustomPosterUrl, selectedBackdropFilePath, selectedCustomBackdropUrl, ed.posterShape, selectedLogo?.file_path, ed.logoDisabled, selectedMapping, ed.defaultPosterShape])
 
   const mappingDirty = useMemo(() => isMappingDirty(
     {
       artwork: {
         posterPath: previewPosterFilePath,
         customPosterUrl: previewCustomPosterUrl,
-        backdropPath: ed.selectedBackdrop?.file_path ?? null,
+        backdropPath: selectedBackdropFilePath,
+        customBackdropUrl: selectedCustomBackdropUrl,
         posterShape: ed.posterShape,
         logoPath: selectedLogo?.file_path ?? null,
         logoDisabled: ed.logoDisabled,
@@ -299,7 +305,7 @@ export default function EditView() {
         topShadeHeight: ed.defaultTopShadeHeight,
       },
     ed.defaultPosterShape,
-  ), [ed, previewPosterFilePath, previewCustomPosterUrl, selectedLogo?.file_path, selectedMapping, isLandscapeTuning])
+  ), [ed, previewPosterFilePath, previewCustomPosterUrl, selectedBackdropFilePath, selectedCustomBackdropUrl, selectedLogo?.file_path, selectedMapping, isLandscapeTuning])
 
   const [saveState, setSaveState] = useState<"idle" | "saving" | "error">("idle")
   const saveStateRef = useRef(saveState)
@@ -316,6 +322,13 @@ export default function EditView() {
   // formato promuoverebbe un auto a esplicito (setLogoScale di default marca
   // explicit) e un 100 automatico Fresh diventerebbe un 100 Standard baked.
   const shapeLogoExplicitRef = useRef(new Map<"poster" | "landscape", boolean>())
+  // Landscape backdrop-selection stash, per title (landscape → portrait →
+  // landscape): entering portrait always clears selectedBackdrop (the
+  // vertical preview must not carry `backdrop=`), but the unsaved landscape
+  // selection must survive the round-trip — custom tiles included. Only
+  // non-null selections (an intentional clear stays clear and follows the
+  // init effect's mapping/auto logic). Identity-gated like the stashes above.
+  const backdropStashRef = useRef<{ key: string | null, backdrop: TMDBImage | null }>({ key: null, backdrop: null })
   // Stash per-titolo con reset affidabile al cambio selezione (correzione
   // ciclo 3): l'azzeramento vive in un effetto guidato dall'identità reale
   // del titolo (tipo:id), non nel solo controllo stale dentro
@@ -344,6 +357,7 @@ export default function EditView() {
   useEffect(() => {
     shapeStashRef.current.clear()
     shapeLogoExplicitRef.current.clear()
+    backdropStashRef.current = { key: null, backdrop: null }
     setShapeStashKey(selectedStashKey)
     // Claim shared ownership for the new title (drops the previous title's
     // entry): a new title identity can never consume the old title's draft.
@@ -436,6 +450,35 @@ export default function EditView() {
     return { file_path: savedCustomUrl, iso_639_1: savedLang, vote_average: 0, width: 0, height: 0 } as TMDBImage
   }, [customTiles, savedCustomUrl, selectedMapping])
 
+  // Landscape session tiles (external URLs added via the box, not saved
+  // yet): per-title, persisted in localStorage under a dedicated key (never
+  // mixed with portrait/logo); the mapping stays the truth after Save. The key
+  // includes the media type (`movie:550`), like the logos. The skip flag owns
+  // the title switch (same logo contract).
+  const backdropTilesKey = selected ? `${selected.media_type}:${selected.id}` : null
+  const [customBackdropTiles, setCustomBackdropTiles] = useState<TMDBImage[]>(() => loadCustomBackdropTiles(backdropTilesKey))
+  const skipBackdropStoreRef = useRef(false)
+  useEffect(() => {
+    skipBackdropStoreRef.current = true
+    setCustomBackdropTiles(loadCustomBackdropTiles(backdropTilesKey))
+  }, [backdropTilesKey])
+  useEffect(() => {
+    if (skipBackdropStoreRef.current) {
+      skipBackdropStoreRef.current = false
+      return
+    }
+    storeCustomBackdropTiles(backdropTilesKey, customBackdropTiles)
+  }, [backdropTilesKey, customBackdropTiles])
+  // Effective session tiles (= customBackdropTiles) + saved landscape custom
+  // in the mapping (deduplicated by URL): the saved one renders in the grid
+  // without a remove button, like the portrait one.
+  const savedCustomBackdropUrl = selectedMapping?.customBackdropUrl ?? null
+  const savedCustomBackdropTile = useMemo(() => {
+    if (!savedCustomBackdropUrl || !isCustomPosterUrl(savedCustomBackdropUrl)) return null
+    if (customBackdropTiles.some((tile) => tile.file_path === savedCustomBackdropUrl)) return null
+    return { file_path: savedCustomBackdropUrl, iso_639_1: null, vote_average: 0, width: 0, height: 0 } as TMDBImage
+  }, [customBackdropTiles, savedCustomBackdropUrl])
+
   // Session custom logo tiles (external URLs added via the import box, not
   // yet saved): same contract as posters — per title, persisted in
   // localStorage under a separate key; the mapping stays the truth after Save.
@@ -506,6 +549,18 @@ export default function EditView() {
     }
     if (backdropInitKeyRef.current === selectedMappingKey) return
     if (ed.selectedBackdrop) {
+      backdropInitKeyRef.current = selectedMappingKey
+      return
+    }
+    // Saved landscape custom base: direct restore of the custom tile (never
+    // the TMDB auto-pick, never the fallback backdropPath — the custom is the
+    // effective base, like the renderer). Direct, not selectBackdrop (it would
+    // reset the mapping/profile scale and offsets).
+    const savedCustomBackdrop = selectedMapping?.customBackdropUrl && isCustomPosterUrl(selectedMapping.customBackdropUrl)
+      ? selectedMapping.customBackdropUrl
+      : null
+    if (savedCustomBackdrop) {
+      ed.setSelectedBackdrop({ file_path: savedCustomBackdrop, iso_639_1: null, vote_average: 0, width: 0, height: 0 })
       backdropInitKeyRef.current = selectedMappingKey
       return
     }
@@ -638,7 +693,18 @@ export default function EditView() {
     // formato sullo stesso boundary del Save manuale. Solo con selezione
     // reale: il bucket "new" senza titolo non salva mai.
     if (selected) sharedDraftsRef.current.stash(stashKey, prev, draft)
+    // Stash/restore the landscape backdrop selection (see ref above): the
+    // stash happens BEFORE the portrait clear; restoring on landscape entry
+    // uses setSelectedBackdrop directly (never selectBackdrop: it would reset
+    // scale/offset), so the init effect sees a selection and skips the
+    // mapping/auto fallback.
+    if (prev === "landscape") {
+      backdropStashRef.current = { key: stashKey, backdrop: ed.selectedBackdrop ?? null }
+    }
     if (next === "poster") removeBackdrop()
+    if (next === "landscape" && backdropStashRef.current.key === stashKey && backdropStashRef.current.backdrop) {
+      ed.setSelectedBackdrop(backdropStashRef.current.backdrop)
+    }
     ed.setPosterShape(next)
     ed.setLogoAlign(next === "landscape" ? (ed.defaultLogoAlign ?? "left") : "center")
     // Fallback a tre livelli: stash non salvato > profilo salvato > default
@@ -913,6 +979,52 @@ export default function EditView() {
       setMobileSection("preview")
     }
   }, [selectBackdrop])
+
+  // Landscape custom-URL box (below the backdrops): Add creates the grid
+  // tile and selects it at once (the live preview shows the custom base via
+  // the `backdrop=` query). Portrait mirror, per-shape session state.
+  const handleAddCustomBackdrop = useCallback((image: { url: string; width: number; height: number }) => {
+    const tile: TMDBImage = {
+      file_path: image.url,
+      iso_639_1: null,
+      vote_average: 0,
+      width: image.width,
+      height: image.height,
+    }
+    setCustomBackdropTiles((prev) => (prev.some((t) => t.file_path === tile.file_path) ? prev : [tile, ...prev]))
+    handleSelectBackdrop(tile)
+  }, [handleSelectBackdrop])
+
+  // Landscape session-tile removal: when it was the current backdrop, fall
+  // back to another custom tile, the saved one, or the first TMDB backdrop
+  // (none → automatic via removeBackdrop, like the grid X).
+  const handleDeleteCustomBackdropTile = useCallback((filePath: string) => {
+    setCustomBackdropTiles((prev) => prev.filter((tile) => tile.file_path !== filePath))
+    if (ed.selectedBackdrop?.file_path === filePath) {
+      const fallback = customBackdropTiles.find((tile) => tile.file_path !== filePath)
+        ?? savedCustomBackdropTile
+        ?? ed.backdrops[0]
+        ?? null
+      if (fallback) handleSelectBackdrop(fallback)
+      else removeBackdrop()
+    }
+  }, [customBackdropTiles, handleSelectBackdrop, ed.selectedBackdrop, ed.backdrops, savedCustomBackdropTile, removeBackdrop])
+
+  // Box onRemove for landscape (saved custom already cleared in the mapping):
+  // removedUrl arrives explicitly from the box (captured at click) so the
+  // decision never depends on the recommitted mapping — loadMappings resolves
+  // before the re-render (same staleness documented for logos). Session tiles
+  // are left alone (same portrait contract): when the selection lives on a
+  // tile it stays; only with no tile does it fall back to TMDB.
+  const handleRemoveCustomBackdrop = useCallback((removedUrl: string) => {
+    if (!isCustomPosterUrl(removedUrl)) return
+    if (ed.selectedBackdrop?.file_path !== removedUrl) return
+    const stillPresent = customBackdropTiles.some((tile) => tile.file_path === removedUrl)
+    if (stillPresent) return
+    const fallback = ed.backdrops[0] ?? null
+    if (fallback) handleSelectBackdrop(fallback)
+    else removeBackdrop()
+  }, [customBackdropTiles, handleSelectBackdrop, ed.selectedBackdrop, ed.backdrops, removeBackdrop])
 
   // Mobile: tap su un logo salta all'anteprima (come poster e backdrop).
   const handleSelectLogo = useCallback((img: TMDBImage) => {
@@ -1249,7 +1361,11 @@ export default function EditView() {
                 {loadingImages ? (
                   <div className="space-y-2">{Array.from({ length: 4 }).map((_, i) => <div key={i} className="h-8 rounded-lg skeleton-shimmer" />)}</div>
                 ) : isLandscape ? (
-                  <BackdropOptions backdrops={ed.backdrops} backdropActivePath={ed.selectedBackdrop?.file_path ?? null} selectBackdrop={handleSelectBackdrop} clearBackdrop={removeBackdrop} loading={loadingImages} />
+                  <BackdropOptions backdrops={ed.backdrops} backdropActivePath={ed.selectedBackdrop?.file_path ?? null} selectBackdrop={handleSelectBackdrop} clearBackdrop={removeBackdrop} loading={loadingImages}
+                    customBackdrops={customBackdropTiles}
+                    savedCustomBackdrop={savedCustomBackdropTile}
+                    onRemoveCustomBackdrop={handleDeleteCustomBackdropTile}
+                    topSlot={<CustomPosterUrl onAdd={handleAddCustomBackdrop} onRemove={handleRemoveCustomBackdrop} collapsible />} />
                 ) : (
                     <PosterOptions posters={posters} posterActivePath={posterActivePath}
                       lang={lang} selectPoster={handleSelectPoster} activeGroup={activePosterTab} onActiveGroupChange={setActivePosterTab}

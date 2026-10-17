@@ -384,18 +384,16 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
   // funzione usata dal render — nessuna deriva). Prima un URL esterno
   // falliva dentro il try del render → 500 + negative-cache per un errore
   // del client, intasando log e slot. Ora 400 immediato.
-  // Exception: `poster` and `logo` also accept http(s) URLs on allowlisted
-  // hosts (custom base/logo from an external tile — isAllowedQueryImagePath,
-  // same resolve policy: raster-only, no SVG). Backdrop stays strict
-  // TMDB/TVDB: custom covers the portrait base and opt-in logos, never
-  // backdrops.
+  // Exception: `poster`, `logo` e `backdrop` accettano anche http(s) URL su
+  // host allowlisted (custom base portrait/landscape da tile esterni + custom
+  // logo: isAllowedQueryImagePath, stessa resolve policy — raster-only, no
+  // SVG). SSRF pieno (DNS/IP/redirect) resta al fetch dentro
+  // fetchPosterBaseWithCustom / fetchValidatedCustomImage.
   for (const imgKey of ["poster", "logo", "backdrop"] as const) {
     const imgPath = req.nextUrl.searchParams.get(imgKey)
     if (imgPath) {
       try {
-        if (imgKey === "backdrop") {
-          imgSrc(imgPath)
-        } else if (!isAllowedQueryImagePath(imgPath)) {
+        if (!isAllowedQueryImagePath(imgPath)) {
           throw new Error(`Blocked query image URL`)
         }
       } catch {
@@ -1890,25 +1888,30 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
       wikidataId = await resolveWikidataId(mediaType, tmdbId, effTmdbKey, 1500)
     }
 
-    // Base custom da URL salvato: solo portrait (il landscape usa il backdrop
-    // TMDB). Scaricata in PARALLELO al TMDB con fallback automatico — mai in
-    // serie (deadline render 8.5s su Vercel). La validazione SSRF avviene a
-    // ogni render dentro fetchPosterBaseWithCustom: l'URL salvato resta input
-    // utente, mai fidato. safeTmdbImgSrc: un posterPath non-TMDB (mapping
-    // legacy scritto a mano) non deve far lanciare il render → fallback null.
-    const mappingCustomUrl = !earlyLandscape && mapping?.customPosterUrl ? mapping.customPosterUrl : null
+    // Saved custom base: portrait from customPosterUrl, landscape from
+    // customBackdropUrl (per-format independent). Downloaded IN PARALLEL with
+    // TMDB plus automatic fallback — never serial (8.5s render deadline on
+    // Vercel). SSRF validation runs on every render inside
+    // fetchPosterBaseWithCustom: the saved URL stays user input, never
+    // trusted. safeTmdbImgSrc: a non-TMDB posterPath (hand-written legacy
+    // mapping) must not throw the render → null fallback.
+    const mappingCustomUrl = earlyLandscape
+      ? (mapping?.customBackdropUrl ? mapping.customBackdropUrl : null)
+      : (mapping?.customPosterUrl ? mapping.customPosterUrl : null)
     const tmdbFallbackSrc = mapping?.posterPath ? safeTmdbImgSrc(mapping.posterPath) : null
-    // Scelta custom esplicita in query (tile custom selezionata in preview ma
-    // non ancora salvata): vince sul mapping salvato, come queryPoster vince
-    // su mapping.posterPath nel ramo query. Solo portrait, solo URL validati.
-    // La precedenza completa (preview vs Stremio) vive in
-    // resolveEffectiveCustomUrl: in preview un click su tile TMDB mostra
-    // davvero quel tile, su Stremio comanda sempre lo stato salvato.
-    const queryCustomUrl =
-      !earlyLandscape && queryPoster && isCustomPosterUrl(queryPoster) ? queryPoster : null
+    // Explicit custom choice in query (custom tile selected in preview but
+    // not saved yet): wins over the saved mapping, just like queryPoster wins
+    // over mapping.posterPath in the query branch. Portrait via `poster=`,
+    // landscape via `backdrop=` (same allowlist + direct shape — see R2 gate
+    // above). The full precedence (preview vs Stremio) lives in
+    // resolveEffectiveCustomUrl: in preview a click on a TMDB tile really
+    // shows that tile, on Stremio the saved state always wins.
+    const queryCustomUrl = earlyLandscape
+      ? (queryBackdrop && isCustomPosterUrl(queryBackdrop) ? queryBackdrop : null)
+      : (queryPoster && isCustomPosterUrl(queryPoster) ? queryPoster : null)
     const effectiveCustomUrl = resolveEffectiveCustomUrl({
       queryCustomUrl,
-      hasQueryPoster: queryPoster ? true : false,
+      hasQueryPoster: (earlyLandscape ? queryBackdrop : queryPoster) ? true : false,
       mappingCustomUrl,
       isPreview: hardenedParams.get("preview") === "1",
     })
@@ -1920,6 +1923,34 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
     // Esito temporale della race Wikidata, per debug=1 e TTL effimero: la
     // degraded del risultato copre i fallimenti strutturali, questa il timeout.
     let wikidataRaceTimedOut = false
+    // Portrait custom for the poster base: in portrait the effective value
+    // (query or saved, unchanged); in landscape ONLY the explicit query (a
+    // portrait custom tile selected in preview — otherwise the pillarbox
+    // would 500 on imgSrc) — never the saved one, which belongs to the other
+    // shape. Feeds only the pillarbox when the backdrop is missing (the base
+    // stays the backdrop).
+    const queryPosterCustomUrl = queryPoster && isCustomPosterUrl(queryPoster) ? queryPoster : null
+    const posterCustomForFetch = isLandscape ? queryPosterCustomUrl : effectiveCustomUrl
+    // TMDB fallback for the custom base (never a custom URL inside
+    // landscapeBackdropUrl/imgSrc: the former would throw on non-TMDB hosts).
+    const tmdbBackdropSrc = (() => {
+      if (!backdropPath || isCustomPosterUrl(backdropPath)) return null
+      try {
+        return isLandscape ? landscapeBackdropUrl(backdropPath) : imgSrc(backdropPath)
+      } catch {
+        return null
+      }
+    })()
+    // Explicit custom URL in backdropPath (preview with the custom tile, or
+    // a hand-crafted query): same validated pipeline, never 500 on
+    // allowlisted URLs (in preview it coincides with the effectiveCustomUrl
+    // below).
+    const explicitBackdropCustomUrl = backdropPath && isCustomPosterUrl(backdropPath) ? backdropPath : null
+    // Custom base for the backdrop slot: in landscape the explicit preview
+    // query or the saved customBackdropUrl; in portrait ONLY the explicit URL
+    // in backdropPath (the portrait custom travels on the poster slot, never
+    // here). Without a custom the TMDB branch below stays verbatim.
+    const backdropCustomForFetch = (isLandscape ? effectiveCustomUrl : null) ?? explicitBackdropCustomUrl
     const [
       [originalBase, logoFetch, backdropFetch, rankingResult, animeRankResult, rawLiveQuality, preReleaseDetected],
       [wikidataResult, tmdbKeywords, imdbTop250, ageCert],
@@ -1928,8 +1959,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
       Promise.all([
         posterPathBuffer
           ? Promise.resolve({ buf: posterPathBuffer, custom: false })
-          : effectiveCustomUrl
-            ? fetchPosterBaseWithCustom(effectiveCustomUrl, tmdbFallbackSrc ?? safeTmdbImgSrc(posterPath), renderAbort.signal)
+          : posterCustomForFetch
+            ? fetchPosterBaseWithCustom(posterCustomForFetch, tmdbFallbackSrc ?? safeTmdbImgSrc(posterPath), renderAbort.signal)
             : fetchImg(imgSrc(posterPath), renderAbort.signal).catch(() => null).then((buf) => (buf ? { buf, custom: false } : null)),
         logoPathBuffer
           ? Promise.resolve(logoPathBuffer)
@@ -1942,7 +1973,18 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
               ? fetchValidatedCustomImage(logoPath, renderAbort.signal).catch(() => null)
               : fetchLogoImg(logoPath, renderAbort.signal).catch(() => null))
             : Promise.resolve(null),
-        backdropPath ? fetchImg(isLandscape ? landscapeBackdropUrl(backdropPath) : imgSrc(backdropPath), renderAbort.signal).catch(() => null) : Promise.resolve(null),
+        // Landscape custom base (explicit preview query or saved
+        // customBackdropUrl): same validated pipeline as the portrait base
+        // (allowlist + SSRF + raster-only, parallel TMDB fallback, never 500).
+        // Without a custom the TMDB branch stays verbatim (including the
+        // historic throw on non-TMDB paths: never changed here). A custom URL
+        // in backdropPath never goes through landscapeBackdropUrl/imgSrc
+        // (they would throw on non-TMDB hosts).
+        backdropCustomForFetch
+          ? fetchPosterBaseWithCustom(backdropCustomForFetch, tmdbBackdropSrc, renderAbort.signal).then((r) => (r ? r.buf : null))
+          : backdropPath
+            ? fetchImg(isLandscape ? landscapeBackdropUrl(backdropPath) : imgSrc(backdropPath), renderAbort.signal).catch(() => null)
+            : Promise.resolve(null),
         rankingEnabledEarly
           // Pre-cache snapshot reuse: same value as the cache key.
           ? Promise.resolve(preTrendRank)
@@ -2237,15 +2279,20 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
     const qTopLight = req.nextUrl.searchParams.get("tl")
     const qBottomLight = req.nextUrl.searchParams.get("bl")
 
-    // Base custom: hash dell'URL, mai l'URL in chiaro (e mai il posterPath
-    // TMDB, che con base custom non descrive i byte renderizzati). Stessa
-    // effettività del fetch sopra: effectiveCustomUrl decide in un solo punto.
+    // Custom base: hash of the URL, never the URL in the clear (and never
+    // the TMDB posterPath, which does not describe the rendered bytes with a
+    // custom base). Same effectiveness as the fetch above: effectiveCustomUrl
+    // decides in a single place. In landscape the key prefers the effective
+    // custom (query or saved) over the nominal backdropPath (with a custom
+    // the TMDB path does not describe the bytes).
     const analysisKey = !isLandscape
       ? (effectiveCustomUrl
         ? customBaseAnalysisKey(effectiveCustomUrl)
         : (posterPath && !isCustomPosterUrl(posterPath) ? `portrait:poster:${posterPath}` : null))
       : backdropFetch
-        ? (backdropPath ? `landscape:backdrop:${backdropPath}` : null)
+        ? (backdropCustomForFetch
+          ? customBaseAnalysisKey(backdropCustomForFetch, "landscape")
+          : (backdropPath ? `landscape:backdrop:${backdropPath}` : null))
         : (posterPath ? `landscape:pillarbox:${posterPath}` : null)
 
     // Apply mapping TV metadata (synchronous — no race, no side-effects in parallel closures)

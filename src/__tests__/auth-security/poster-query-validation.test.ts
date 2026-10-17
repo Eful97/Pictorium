@@ -60,11 +60,13 @@ describe("posterQuerySchema", () => {
   it("rejects oversized image paths", () => {
     expect(validatePosterQuery(params({ poster: `/${"x".repeat(2100)}.jpg` }))).toContain("poster")
     expect(validatePosterQuery(params({ logo: `/${"x".repeat(2100)}.png` }))).toContain("logo")
-    expect(validatePosterQuery(params({ backdrop: `/${"x".repeat(200)}.jpg` }))).toContain("backdrop")
+    expect(validatePosterQuery(params({ backdrop: `/${"x".repeat(2100)}.jpg` }))).toContain("backdrop")
   })
 
   it("enforces image path length boundaries (total string length)", () => {
-    // Query caps (src/lib/validation.ts): poster/logo 2048, backdrop 160.
+    // Query caps (src/lib/validation.ts): poster/logo/backdrop 2048 (the
+    // backdrop carries landscape custom bases like poster/logo carry portrait
+    // ones).
     // Bounds apply to the full param value, not the repeated filler alone.
     const posterAccept = `/${"x".repeat(2043)}.jpg`
     const posterReject = `/${"x".repeat(2044)}.jpg`
@@ -80,10 +82,10 @@ describe("posterQuerySchema", () => {
     expect(validatePosterQuery(params({ logo: logoAccept }))).toBeNull()
     expect(validatePosterQuery(params({ logo: logoReject }))).toContain("logo")
 
-    const backdropAccept = `/${"x".repeat(155)}.jpg`
-    const backdropReject = `/${"x".repeat(156)}.jpg`
-    expect(backdropAccept.length).toBe(160)
-    expect(backdropReject.length).toBe(161)
+    const backdropAccept = `/${"x".repeat(2043)}.jpg`
+    const backdropReject = `/${"x".repeat(2044)}.jpg`
+    expect(backdropAccept.length).toBe(2048)
+    expect(backdropReject.length).toBe(2049)
     expect(validatePosterQuery(params({ backdrop: backdropAccept }))).toBeNull()
     expect(validatePosterQuery(params({ backdrop: backdropReject }))).toContain("backdrop")
   })
@@ -91,6 +93,12 @@ describe("posterQuerySchema", () => {
   it("accepts custom image URLs in poster (same cap as the mapping)", () => {
     expect(
       validatePosterQuery(params({ poster: "https://i.pinimg.com/originals/ab/12/abcdef1234567890.jpg" })),
+    ).toBeNull()
+  })
+
+  it("accepts custom image URLs in backdrop (landscape base, same cap)", () => {
+    expect(
+      validatePosterQuery(params({ backdrop: "https://i.pinimg.com/originals/ab/12/abcdef1234567890.jpg" })),
     ).toBeNull()
   })
 

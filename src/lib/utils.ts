@@ -66,6 +66,23 @@ export function splitCustomPosterSave(previewFilePath: string, tmdbRef: string |
   return { posterPath: previewFilePath, customPosterUrl: null }
 }
 
+/**
+ * Save split when the selected backdrop may be a custom tile. Mirrors
+ * splitCustomPosterSave for landscape: custom tile → backdropPath keeps the
+ * TMDB reference (render fallback if the URL dies) and the URL goes to
+ * customBackdropUrl. TMDB tile → custom cleared (the save freezes the shown
+ * state, so returning to a TMDB backdrop removes the previously saved custom
+ * base). Only the landscape shape writes customBackdropUrl: the portrait
+ * save preserves the saved value verbatim (never touched).
+ */
+export function splitCustomBackdropSave(selectedFilePath: string, tmdbRef: string | null): { backdropPath: string | null; customBackdropUrl: string | null } {
+  if (isCustomPosterUrl(selectedFilePath)) {
+    const fallback = tmdbRef && !isCustomPosterUrl(tmdbRef) ? tmdbRef : null
+    return { backdropPath: fallback, customBackdropUrl: selectedFilePath.trim() }
+  }
+  return { backdropPath: selectedFilePath, customBackdropUrl: null }
+}
+
 export function titleOf(r: SearchResult) {
   return r.title || r.name || "Unknown"
 }

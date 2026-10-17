@@ -2097,7 +2097,12 @@ export function usePictorium(): PictoriumCtx {
           { auto: true },
         )
       }
-      if (existing.backdropPath && data.backdrops) {
+      // Saved landscape custom base: the selection restarts from the custom
+      // tile (like the portrait one above), not from the TMDB fallback — so
+      // shape switches and previews immediately show the frozen base.
+      if (existing.customBackdropUrl && isCustomPosterUrl(existing.customBackdropUrl)) {
+        setSelectedBackdrop({ file_path: existing.customBackdropUrl, iso_639_1: null, vote_average: 0, width: 0, height: 0 })
+      } else if (existing.backdropPath && data.backdrops) {
         const foundBackdrop = data.backdrops.find((b: TMDBImage) => b.file_path === existing.backdropPath)
         setSelectedBackdrop(foundBackdrop || { file_path: existing.backdropPath, iso_639_1: null, vote_average: 0, width: 0, height: 0 })
       }

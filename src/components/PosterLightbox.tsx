@@ -40,14 +40,19 @@ export function PosterLightbox({
   const rect = lightbox?.rect ?? null
   const posterKey = mapping ? `${mapping.mediaType}:${mapping.tmdbId}` : null
   const isLandscape = mapping?.posterShape === "landscape"
-  // Stessa scelta della tile: verticale con custom salvato → custom, con
-  // fallback al posterPath TMDB a errore esaurito; orizzontale invariato.
-  const customBase = !isLandscape && mapping?.customPosterUrl?.trim() ? mapping.customPosterUrl.trim() : null
+  // Same choice as the tile: saved custom of the editing shape, with a TMDB
+  // fallback once the error is exhausted (portrait → posterPath, landscape →
+  // backdropPath with poster fallback).
+  const customBase = isLandscape
+    ? (mapping?.customBackdropUrl?.trim() ? mapping.customBackdropUrl.trim() : null)
+    : (mapping?.customPosterUrl?.trim() ? mapping.customPosterUrl.trim() : null)
   const tmdbSrc = mapping?.posterPath ? posterUrlFn(mapping.posterPath, "w500") : null
+  const landscapeFallbackSrc = mapping?.backdropPath ? posterUrlFn(mapping.backdropPath, "w780") : tmdbSrc
+  const shapeFallbackSrc = isLandscape ? landscapeFallbackSrc : tmdbSrc
   const [customFailed, setCustomFailed] = useState(false)
   const mediaSrc = imgFailed
     ? null
-    : (customFailed ? tmdbSrc : (customBase ?? tmdbSrc))
+    : (customFailed ? shapeFallbackSrc : (customBase ?? shapeFallbackSrc))
 
   // Start animation on mount
   useEffect(() => {
@@ -58,11 +63,11 @@ export function PosterLightbox({
     return () => cancelAnimationFrame(raf)
   }, [mapping])
 
-  // Reset dei fallback quando cambiano poster o URL: la nuova immagine riprova.
+  // Reset the fallbacks when the poster or URL changes: the new image retries.
   useEffect(() => {
     setImgFailed(false)
     setCustomFailed(false)
-  }, [posterKey, mapping?.customPosterUrl, mapping?.posterPath, mapping?.posterShape])
+  }, [posterKey, mapping?.customPosterUrl, mapping?.customBackdropUrl, mapping?.posterPath, mapping?.backdropPath, mapping?.posterShape])
 
   // Set transform-origin on the card once measured
   useEffect(() => {
@@ -138,7 +143,7 @@ export function PosterLightbox({
   const displaySrc = imgFailed
     ? null
     : isLandscape
-      ? (mapping?.backdropPath ? posterUrlFn(mapping.backdropPath, "w780") : (mapping?.posterPath ? posterUrlFn(mapping.posterPath, "w500") : null))
+      ? (customFailed ? landscapeFallbackSrc : (customBase ?? landscapeFallbackSrc))
       : mediaSrc
 
   const isInCol = (colId: string) =>
@@ -189,9 +194,9 @@ export function PosterLightbox({
                 alt={mapping.title}
                 className="w-full h-full object-cover"
                 onError={() => {
-                  // Custom verticale non caricabile → fallback TMDB una sola
-                  // volta; mai cicli (customFailed resta vero fino al cambio URL).
-                  if (!isLandscape && customBase && !customFailed && tmdbSrc && displaySrc === customBase) {
+                  // Shape custom unloadable → one TMDB fallback; never loops
+                  // (customFailed stays true until the URL changes).
+                  if (customBase && !customFailed && shapeFallbackSrc && displaySrc === customBase) {
                     setCustomFailed(true)
                     return
                   }

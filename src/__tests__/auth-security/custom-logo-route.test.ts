@@ -205,13 +205,20 @@ describe("GET /api/poster custom logo path", () => {
     expect(await res.text()).toContain("logo")
   })
 
-  it("keeps backdrop strict: a custom backdrop query stays 400", async () => {
+  it("backdrop custom allowlisted passes the gate (same bar as poster/logo, landscape bases)", async () => {
     mockedGetById.mockResolvedValue(null)
     const res = await GET(new NextRequest(`http://localhost:3000/api/poster/movie/42?backdrop=${encodeURIComponent(CUSTOM_LOGO)}`), {
       params: Promise.resolve({ type: "movie", id: "42" }),
     })
-    expect(res.status).toBe(400)
-    expect(await res.text()).toContain("backdrop")
+    // Gate: allowlisted custom backdrops are accepted like custom poster/logo
+    // (server consumption via the shared validated fetch — see
+    // custom-backdrop-route.test.ts). Off-allowlist hosts stay 400.
+    expect(res.status).not.toBe(400)
+    const evil = await GET(new NextRequest("http://localhost:3000/api/poster/movie/42?backdrop=https://evil.com/x.png"), {
+      params: Promise.resolve({ type: "movie", id: "42" }),
+    })
+    expect(evil.status).toBe(400)
+    expect(await evil.text()).toContain("backdrop")
   })
 
   it("query custom logo succeeds through the shared validated fetch", async () => {

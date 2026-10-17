@@ -71,11 +71,13 @@ export function isGradientDirtyForShape(
   )
 }
 
-/** Selezione artwork corrente dell'editor (quella che la preview WYSIWYG mostra). */
+/** Current editor artwork selection (what the WYSIWYG preview shows). */
 export interface ArtworkSelection {
   posterPath: string | null
   customPosterUrl?: string | null
   backdropPath: string | null
+  /** Landscape base from a custom URL import (independent of portrait). */
+  customBackdropUrl?: string | null
   posterShape: PosterShape
   logoPath: string | null
   logoDisabled?: boolean
@@ -101,6 +103,7 @@ export function isArtworkDirty(
       current.posterPath ||
       current.customPosterUrl ||
       current.backdropPath ||
+      current.customBackdropUrl ||
       current.logoPath ||
       current.posterShape !== defaultShape
     )
@@ -115,7 +118,16 @@ export function isArtworkDirty(
   const currentPoster = currentCustom ?? (current.posterPath ?? null)
 
   if (savedPoster !== currentPoster) return true
-  if ((m.backdropPath ?? null) !== (current.backdropPath ?? null)) return true
+  // Landscape base: the saved custom wins over backdropPath (like portrait
+  // above); a custom URL left in backdropPath (legacy TVDB or an unsplit
+  // tile) counts as the current custom. Only the landscape shape compares the
+  // custom (portrait preserves the saved value).
+  const savedBackdrop = (m.customBackdropUrl && isCustomPosterUrl(m.customBackdropUrl))
+    ? m.customBackdropUrl
+    : (m.backdropPath ?? null)
+  const currentCustomBd = current.customBackdropUrl ?? (current.backdropPath && isCustomPosterUrl(current.backdropPath) ? current.backdropPath : null)
+  const currentBackdrop = currentCustomBd ?? (current.backdropPath ?? null)
+  if (savedBackdrop !== currentBackdrop) return true
   const savedLogo = m.logoDisabled ? null : (m.logoPath ?? null)
   const currentLogo = current.logoDisabled ? null : (current.logoPath ?? null)
   if (savedLogo !== currentLogo) return true

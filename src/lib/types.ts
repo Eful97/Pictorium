@@ -124,6 +124,12 @@ export interface Mapping {
   posterPath: string
   /** Base image esterna da custom URL import (solo portrait). Null = base TMDB. */
   customPosterUrl?: string | null
+  /**
+   * External landscape base from a custom URL import (landscape-only, the
+   * portrait mirror of `customPosterUrl`). Null = TMDB backdrop base. The two
+   * bases are independent: each shape freezes only its own.
+   */
+  customBackdropUrl?: string | null
   logoPath: string | null
   originalPosterPath: string | null
   language: string | null

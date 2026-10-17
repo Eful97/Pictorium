@@ -684,3 +684,100 @@ describe("save boundary for customBadge/accent/preset (per-shape visuals)", () =
     expect(effectiveMappingForShape(saved, "landscape")?.badgePresetRev).toBe("abcdef12")
   })
 })
+
+describe("landscape custom base save boundary (customBackdropUrl)", () => {
+  const LAND_URL = "https://i.imgur.com/land.jpg"
+  const PORTRAIT_URL = "https://i.imgur.com/portrait.jpg"
+  const tile = (file_path: string) => ({ file_path, iso_639_1: null, vote_average: 0, width: 500, height: 750 })
+
+  it("landscape save freezes the landscape custom tile (split) and keeps the saved portrait custom", async () => {
+    const prev = mapping({ posterPath: "/p.jpg", backdropPath: "/bd.jpg", customPosterUrl: PORTRAIT_URL })
+    const { result } = renderHook(() => usePosterSave(baseDeps({
+      posterShape: "landscape",
+      previewPoster: tile(PORTRAIT_URL),
+      selectedBackdrop: tile(LAND_URL),
+      mappingsMap: new Map([["movie:1", prev]]),
+    })))
+    await act(async () => { await result.current.saveConfig({ silent: true }) })
+    const posts = mappingPosts()
+    expect(posts).toHaveLength(1)
+    expect(posts[0].body.backdropPath).toBe("/bd.jpg")
+    expect(posts[0].body.customBackdropUrl).toBe(LAND_URL)
+    expect(posts[0].body.customPosterUrl).toBe(PORTRAIT_URL)
+  })
+
+  it("landscape save never rewrites the saved portrait custom from a divergent live tile", async () => {
+    const prev = mapping({ posterPath: "/p.jpg", backdropPath: "/bd.jpg", customPosterUrl: PORTRAIT_URL })
+    const { result } = renderHook(() => usePosterSave(baseDeps({
+      posterShape: "landscape",
+      // Unsaved portrait edit (TMDB tile clicked, custom still live in preview
+      // only until a portrait save): the landscape save must not freeze it.
+      previewPoster: tile("/p-new.jpg"),
+      selectedBackdrop: tile(LAND_URL),
+      mappingsMap: new Map([["movie:1", prev]]),
+    })))
+    await act(async () => { await result.current.saveConfig({ silent: true }) })
+    const posts = mappingPosts()
+    expect(posts).toHaveLength(1)
+    expect(posts[0].body.customBackdropUrl).toBe(LAND_URL)
+    expect(posts[0].body.customPosterUrl).toBe(PORTRAIT_URL)
+  })
+
+  it("new-mapping landscape save freezes a live portrait custom tile (no saved state to preserve)", async () => {
+    const { result } = renderHook(() => usePosterSave(baseDeps({
+      posterShape: "landscape",
+      previewPoster: tile(PORTRAIT_URL),
+      selectedBackdrop: tile(LAND_URL),
+    })))
+    await act(async () => { await result.current.saveConfig({ silent: true }) })
+    const posts = mappingPosts()
+    expect(posts).toHaveLength(1)
+    expect(posts[0].body.customPosterUrl).toBe(PORTRAIT_URL)
+    expect(posts[0].body.customBackdropUrl).toBe(LAND_URL)
+  })
+
+  it("portrait save preserves the saved landscape custom verbatim", async () => {
+    const prev = mapping({ posterPath: "/p.jpg", backdropPath: "/bd.jpg", customBackdropUrl: LAND_URL })
+    const { result } = renderHook(() => usePosterSave(baseDeps({
+      posterShape: "poster",
+      previewPoster: tile("/p.jpg"),
+      selectedBackdrop: tile("/bd.jpg"),
+      mappingsMap: new Map([["movie:1", prev]]),
+    })))
+    await act(async () => { await result.current.saveConfig({ silent: true }) })
+    const posts = mappingPosts()
+    expect(posts).toHaveLength(1)
+    expect(posts[0].body.backdropPath).toBe("/bd.jpg")
+    expect(posts[0].body.customBackdropUrl).toBe(LAND_URL)
+  })
+
+  it("landscape save with a TMDB backdrop clears the landscape custom (freezes shown state)", async () => {
+    const prev = mapping({ posterPath: "/p.jpg", backdropPath: "/bd.jpg", customBackdropUrl: LAND_URL })
+    const { result } = renderHook(() => usePosterSave(baseDeps({
+      posterShape: "landscape",
+      previewPoster: tile("/p.jpg"),
+      selectedBackdrop: tile("/bd2.jpg"),
+      mappingsMap: new Map([["movie:1", prev]]),
+    })))
+    await act(async () => { await result.current.saveConfig({ silent: true }) })
+    const posts = mappingPosts()
+    expect(posts).toHaveLength(1)
+    expect(posts[0].body.backdropPath).toBe("/bd2.jpg")
+    expect(posts[0].body.customBackdropUrl).toBeNull()
+  })
+
+  it("landscape save cleared to automatic clears the landscape custom", async () => {
+    const prev = mapping({ posterPath: "/p.jpg", backdropPath: "/bd.jpg", customBackdropUrl: LAND_URL })
+    const { result } = renderHook(() => usePosterSave(baseDeps({
+      posterShape: "landscape",
+      previewPoster: tile("/p.jpg"),
+      selectedBackdrop: null,
+      mappingsMap: new Map([["movie:1", prev]]),
+    })))
+    await act(async () => { await result.current.saveConfig({ silent: true }) })
+    const posts = mappingPosts()
+    expect(posts).toHaveLength(1)
+    expect(posts[0].body.backdropPath).toBeNull()
+    expect(posts[0].body.customBackdropUrl).toBeNull()
+  })
+})

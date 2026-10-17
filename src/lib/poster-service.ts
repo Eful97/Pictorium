@@ -878,6 +878,7 @@ const NETWORK_FILES_COMBINED: Record<string, string> = {
   anton: "Anton_United_Kingdom_logo.png",
   comix_wave: "CoMix Wave Films logo.svg",
   filmauro: "cdnlogo.com_filmauro-logo.svg",
+  next_ent: "new.svg",
 }
 
 // B4: memo per (networkKey, targetH, fg). Gli SVG in public/networks/ sono

@@ -54,18 +54,22 @@ export const MoodBoardTile = React.memo(function MoodBoardTile({
   // landscape con fallback al poster) e il tuning effettivo di quel formato.
   const isLandscape = m.posterShape === "landscape"
   const eff = effectiveMappingForShape(m, isLandscape ? "landscape" : "poster")
-  // Base custom da URL salvato: solo verticale (il landscape usa il backdrop
-  // TMDB, come il renderer). A custom esaurito vale il posterPath TMDB.
-  const customBase = !isLandscape && m.customPosterUrl?.trim() ? m.customPosterUrl.trim() : null
+  // Per-format independent base (portrait from customPosterUrl, landscape
+  // from customBackdropUrl — like the renderer). The TMDB fallback of the
+  // shape applies once the custom is exhausted.
+  const customBase = isLandscape
+    ? (m.customBackdropUrl?.trim() ? m.customBackdropUrl.trim() : null)
+    : (m.customPosterUrl?.trim() ? m.customPosterUrl.trim() : null)
   const fallbackSrc = m.posterPath ? posterUrl(m.posterPath, isLandscape ? "w500" : "w342") : null
   const [customFailed, setCustomFailed] = useState(false)
-  // Al cambio di poster o URL l'errore si azzera: la nuova immagine riprova.
+  // When the poster, backdrop, or URL changes the error resets: the new image retries.
   useEffect(() => {
     setCustomFailed(false)
-  }, [customBase, m.posterPath])
-  const displaySrc = isLandscape
+  }, [customBase, m.posterPath, m.backdropPath])
+  const shapeFallbackSrc = isLandscape
     ? (m.backdropPath ? posterUrl(m.backdropPath, "w780") : fallbackSrc)
-    : (customBase && !customFailed ? customBase : fallbackSrc)
+    : fallbackSrc
+  const displaySrc = (customBase && !customFailed ? customBase : null) ?? shapeFallbackSrc
 
   return (
     <div
@@ -114,9 +118,9 @@ export const MoodBoardTile = React.memo(function MoodBoardTile({
             decoding="async"
             className="w-full h-full object-cover transition-transform duration-[400ms] ease-out group-hover:scale-[1.06]"
             onError={(e) => {
-              // Custom non caricabile → una sola volta si passa al fallback
-              // TMDB; mai cicli (customFailed resta vero fino al cambio URL).
-              if (customBase && !customFailed && fallbackSrc && displaySrc === customBase) {
+              // Unloadable custom → one fallback to the shape's TMDB base;
+              // never loops (customFailed stays true until the URL changes).
+              if (customBase && !customFailed && shapeFallbackSrc && displaySrc === customBase) {
                 setCustomFailed(true)
                 return
               }

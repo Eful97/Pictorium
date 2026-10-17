@@ -86,15 +86,59 @@ describe("MoodBoardTile customPosterUrl", () => {
     await waitFor(() => expect(img.getAttribute("src")).toBe(CUSTOM_NEXT))
   })
 
-  it("in orizzontale conserva backdrop e fallback, ignorando il custom", () => {
+  it("landscape keeps the backdrop and fallback, ignoring the portrait custom", () => {
     renderTile(
       baseMapping({ posterShape: "landscape", backdropPath: "/bd.jpg", customPosterUrl: CUSTOM }),
     )
     const img = screen.getByAltText("Fight Club") as HTMLImageElement
     expect(img.getAttribute("src")).toBe(posterUrl("/bd.jpg", "w780"))
-    // Errore sul backdrop: fallback attuale (nascosta), mai il custom
+    // Error on the backdrop: current fallback (hidden), never the portrait custom
     fireEvent.error(img)
     expect(img.style.display).toBe("none")
     expect(img.getAttribute("src")).toBe(posterUrl("/bd.jpg", "w780"))
+  })
+
+  it("landscape shows the saved customBackdropUrl (independent of portrait)", () => {
+    renderTile(
+      baseMapping({ posterShape: "landscape", backdropPath: "/bd.jpg", customPosterUrl: CUSTOM, customBackdropUrl: CUSTOM_NEXT }),
+    )
+    const img = screen.getByAltText("Fight Club") as HTMLImageElement
+    expect(img.getAttribute("src")).toBe(CUSTOM_NEXT)
+    // First error: fallback to the TMDB backdrop, never to the portrait custom
+    fireEvent.error(img)
+    expect(img.getAttribute("src")).toBe(posterUrl("/bd.jpg", "w780"))
+    expect(img.style.display).not.toBe("none")
+    // Second error (fallback exhausted): hidden, no return to the custom
+    fireEvent.error(img)
+    expect(img.style.display).toBe("none")
+    expect(img.getAttribute("src")).toBe(posterUrl("/bd.jpg", "w780"))
+  })
+
+  it("landscape without a backdrop falls back to the poster after a custom error", () => {
+    renderTile(
+      baseMapping({ posterShape: "landscape", customBackdropUrl: CUSTOM }),
+    )
+    const img = screen.getByAltText("Fight Club") as HTMLImageElement
+    expect(img.getAttribute("src")).toBe(CUSTOM)
+    fireEvent.error(img)
+    expect(img.getAttribute("src")).toBe(posterUrl("/abc.jpg", "w500"))
+  })
+
+  it("a landscape URL change after an error retries the new image", async () => {
+    const view = renderTile(baseMapping({ posterShape: "landscape", backdropPath: "/bd.jpg", customBackdropUrl: CUSTOM }))
+    const img = screen.getByAltText("Fight Club") as HTMLImageElement
+    fireEvent.error(img)
+    expect(img.getAttribute("src")).toBe(posterUrl("/bd.jpg", "w780"))
+    view.rerender(
+      <MoodBoardTile
+        mapping={baseMapping({ posterShape: "landscape", backdropPath: "/bd.jpg", customBackdropUrl: CUSTOM_NEXT })}
+        idx={0}
+        selectMode={false}
+        isSelected={false}
+        handlers={handlers}
+        t={t}
+      />,
+    )
+    await waitFor(() => expect(img.getAttribute("src")).toBe(CUSTOM_NEXT))
   })
 })
