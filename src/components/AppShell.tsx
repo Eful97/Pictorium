@@ -103,6 +103,11 @@ export function AppShell() {
     setIsUnlocked(true)
   }
 
+  // Walled PIN lock: same condition as the mount below. While it is
+  // visible the app shell is inert (see div.app-shell) and onboarding stays
+  // parked — a single active dialog, no split focus.
+  const pinLocked = Boolean(hasPinConfigured && !isUnlocked && !showLangPicker && !isUserPath)
+
 
   const [installOpen, setInstallOpen] = useState(false)
 
@@ -182,7 +187,15 @@ export function AppShell() {
 
   return (
     <>
-    <div className="app-shell text-foreground relative overflow-x-hidden" style={{ "--bg-accent": accentColor ?? undefined } as CSSProperties}>
+    <div
+      className="app-shell text-foreground relative overflow-x-hidden"
+      style={{ "--bg-accent": accentColor ?? undefined } as CSSProperties}
+      // While the PIN lock is visible the underlying app is inert and
+      // hidden from assistive technology: the lock is the only active dialog
+      // (same pattern as the settings panel under the exit confirm).
+      inert={pinLocked || undefined}
+      aria-hidden={pinLocked || undefined}
+    >
       {serviceErrors.tmdb && (
         <div className="mx-auto max-w-lg mt-2 mb-0 px-4 py-2 bg-red-900/40 border border-red-800/50 rounded-xl text-xs text-red-300 text-center">
           {t("ui.statusTmdbUnavailable")}
@@ -475,7 +488,7 @@ export function AppShell() {
         />
       )}
     </div>
-    {!showLangPicker && <OnboardingTour />}
+    {!showLangPicker && !pinLocked && <OnboardingTour />}
     {hasPinConfigured && !isUnlocked && !showLangPicker && !isUserPath && (
       <PinLockModal onSuccess={handlePinUnlock} />
     )}

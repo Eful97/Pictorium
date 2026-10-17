@@ -408,7 +408,7 @@ describe("task11 full-range numeral bounds (actual glass layers, 1..100 default)
       const t0 = performance.now()
       for (let rank = 1; rank <= 100; rank++) {
         const box = freshGeometry(CW, CH, rank).numeral!
-        const num = await renderFreshGlassNumeral(base, CW, CH, box)
+        const num = (await renderFreshGlassNumeral(base, CW, CH, box))!
         expect(num.left).toBeGreaterThanOrEqual(0)
         expect(num.top).toBeGreaterThanOrEqual(0)
         expect(num.left + num.w).toBeLessThanOrEqual(CW)
@@ -490,8 +490,8 @@ describe("task11 compositor alignment + resampling (actual overlays)", () => {
       const poster = await patternedBase(CW, CH)
       const box = freshGeometry(CW, CH, 14).numeral!
       const movedBox = freshGeometry(CW, CH, 14, { numeralOffsetX: 40 }).numeral!
-      const ref = await renderFreshGlassNumeral(poster, CW, CH, box)
-      const moved = await renderFreshGlassNumeral(poster, CW, CH, movedBox)
+      const ref = (await renderFreshGlassNumeral(poster, CW, CH, box))!
+      const moved = (await renderFreshGlassNumeral(poster, CW, CH, movedBox))!
       expect(movedBox.left).toBe(box.left + 40)
       expect(movedBox.fontSize).toBe(box.fontSize)
       // Same size, different artwork underneath: the fill resamples.

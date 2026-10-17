@@ -99,7 +99,7 @@ describe("task15 rim stops (gentle highlight trim only)", () => {
         for (const bg of ["#0b0d14", "#e8ecf4"] as const) {
           const base = await flatBase(CW, CH, bg);
           const { renderFreshGlassNumeral } = await import("@/lib/fresh-layout");
-          const num = await renderFreshGlassNumeral(base, CW, CH, box);
+          const num = (await renderFreshGlassNumeral(base, CW, CH, box))!;
           const pa = await alphaPlane(num.png);
           let nvis = 0;
           for (let i = 0; i < pa.a.length; i++) if ((pa.a[i] ?? 0) > 30) nvis++;

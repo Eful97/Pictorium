@@ -218,7 +218,7 @@ describe("default visible ink top moves exactly 90 with no clipping (portrait 1.
       expect(inkTop).toBeGreaterThanOrEqual(0)
       // Full glass layer (fill + modeling + rim + shadow): in-canvas, no
       // clipped edge pixel — never weakened to accommodate the new default.
-      const num = await renderFreshGlassNumeral(base, STD_W, STD_H, box)
+      const num = (await renderFreshGlassNumeral(base, STD_W, STD_H, box))!
       expect(num.left).toBeGreaterThanOrEqual(0)
       expect(num.top).toBeGreaterThanOrEqual(0)
       expect(num.left + num.w).toBeLessThanOrEqual(STD_W)

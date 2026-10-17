@@ -994,7 +994,7 @@ export async function renderFreshGlassNumeral(
   CW: number,
   CH: number,
   box: FreshNumeralBox,
-): Promise<{ png: Buffer; w: number; h: number; left: number; top: number }> {
+): Promise<{ png: Buffer; w: number; h: number; left: number; top: number } | null> {
   const svg = numeralSvgBox(box)
   const { svgW, svgH, rim } = svg
   const maskFull = (await renderFreshNumeralMask(box)).png
@@ -1029,13 +1029,14 @@ export async function renderFreshGlassNumeral(
   const rx1 = Math.min(CW, layerLeft + layerW + FRESH_NUMERAL_BLEED)
   const ry1 = Math.min(CH, layerTop + layerH + FRESH_NUMERAL_BLEED)
   // Extreme user offsets can push the transformed box fully outside the
-  // canvas: there is no artwork to sample, so the fill/modeling drop out
-  // and only the rim survives (the downstream composite clips off-canvas
-  // layers natively — never a throw, never an invalid extract).
+  // canvas: there is no artwork to sample and the rim itself has no visible
+  // pixels either (the ROI above already expands the layer by the bleed, so
+  // an empty ROI means the layer cannot intersect the canvas). Emit no layer
+  // at all: returning the full-size rim at an offscreen position would exceed
+  // the canvas dims and the sharp compositor rejects oversized overlays
+  // ("must have same dimensions or smaller") regardless of position.
   if (rx1 <= rx0 || ry1 <= ry0) {
-    const rimFull = (await renderFreshNumeralRim(box)).png
-    const rimPng = await sharp(rimFull).extract(crop).png().toBuffer()
-    return { png: rimPng, w: layerW, h: layerH, left: layerLeft, top: layerTop }
+    return null
   }
   const roiW = Math.max(1, rx1 - rx0)
   const roiH = Math.max(1, ry1 - ry0)
@@ -2044,7 +2045,9 @@ async function composeFreshInner(
     // the glass fill ROI below samples the transformed location — never a
     // post-resize of a neutrally sampled fill.
     const num = await renderFreshGlassNumeral(input.posterBuf, input.CW, input.CH, geo.numeral)
-    layers.push({ input: num.png, top: num.top, left: num.left })
+    // Fully-offscreen numeral (extreme user offsets): no visible pixels, so
+    // no layer — same skip contract as the left-blur strip above.
+    if (num) layers.push({ input: num.png, top: num.top, left: num.left })
   }
   // Ranked composition keeps the historic left column at neutral transforms;
   // anything without a valid numeral moves the meta block to the bottom

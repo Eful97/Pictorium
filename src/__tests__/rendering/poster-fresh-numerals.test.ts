@@ -186,7 +186,7 @@ describe("fresh numeral layers (full output)", () => {
       const t0 = performance.now()
       for (const rank of RANKS_1_20) {
         const box = freshGeometry(CW, CH, rank).numeral!
-        const num = await renderFreshGlassNumeral(base, CW, CH, box)
+        const num = (await renderFreshGlassNumeral(base, CW, CH, box))!
         // Anchor preserved: default left/top placement from the geometry box.
         expect(num.left).toBeGreaterThanOrEqual(0)
         expect(num.top).toBeGreaterThanOrEqual(0)

@@ -86,8 +86,19 @@ Run these against the deployed instance:
   `KV_REST_API_TOKEN`) is required for **server-side
   persistence** of mappings/defaults. Without either the filesystem is read-only and
   mapping saves fail; the stateless path is config-token links (`?config=`,
-  needs CONFIG_HMAC_SECRET). There is no `/api/profile` endpoint and no profile
-  key store — `?u=` is identity/tracking only, never a key source.
+  needs CONFIG_HMAC_SECRET). There is no `/api/profile` endpoint — per-namespace
+  API keys live in an encrypted profile key store (`src/lib/user-keys.ts`:
+  AES-256-GCM via `PROFILE_ENCRYPTION_KEY`, `users/<uuid>/keys.json` mode `0600`
+  or KV `user:<uuid>:keys`; `GET/PUT /api/users/[uuid]/keys` plus single-key
+  `POST .../reveal`, all owner-authenticated, presence/health only by default).
+  `?u=` (or `/u/<uuid>/`) selects that namespace for key resolution (effective
+  only with `MULTI_USER=1`; unknown UUIDs declass to global in catalogs) — it is
+  identity, never a credential: private writes require `x-user-token` /
+  `Authorization: Bearer` or `x-user-password` (headers only, never query; see
+  `checkUserAuth` in `src/lib/user-auth.ts`). Resolution order is explicit
+  request > namespace store > permitted instance env fallback (see the `tmdb-api`
+  skill); with multi-user ON, scoped requests skip the env fallback unless
+  `PICTORIUM_MULTI_USER_ALLOW_ENV_FALLBACK=1`.
 - The stateless fallback requires `CONFIG_HMAC_SECRET` (or
   `ENCRYPTION_KEY_SECRET`) to sign the token — without the secret, config token
   creation fails with an explanatory 500.
@@ -110,8 +121,15 @@ Run these against the deployed instance:
 
 - No TMDB/MDBList API keys in env or `.env`, except the opt-in
   `PICTORIUM_TMDB_KEY`/`PICTORIUM_MDBLIST_KEY` instance fallback for personal
-  single-user deploys — keys are otherwise request-scoped (see the `tmdb-api`
-  skill). There is no profile key store.
+  single-user deploys — keys are otherwise request-scoped or namespace-scoped
+  (see the `tmdb-api` skill). Never set instance fallback keys on public
+  multi-user instances: global (unscoped) requests keep the env fallback, and
+  scoped (`?u=`) requests reuse it too once
+  `PICTORIUM_MULTI_USER_ALLOW_ENV_FALLBACK=1` is set — either way the
+  operator's quota is exposed. `PROFILE_ENCRYPTION_KEY` (64-hex, `openssl rand -hex 32`) is required
+  when `MULTI_USER=1`; rotating it makes stored namespace keys unreadable until
+  re-entered. Stored keys never enter cache keys (sha1-hashed fragments only),
+  logs, or error messages.
 - `PICTORIUM_TRUST_PROXY=1` only behind a trusted edge that overwrites IP
   headers (Cloudflare/HF edge/Nginx).
 - Env table + full defaults live in README "Variabili d'Ambiente" — keep this

@@ -8,6 +8,13 @@ interface PinLockModalProps {
   onSuccess: () => void
 }
 
+// Same selector as the shared dialog (ui/Modal): disabled buttons
+// (unlock with a short PIN) stay out of the tab cycle.
+const FOCUSABLE = [
+  "a[href]", "button:not([disabled])", "input:not([disabled])", "select:not([disabled])",
+  "textarea:not([disabled])", '[tabindex]:not([tabindex="-1"])',
+].join(",")
+
 export function PinLockModal({ onSuccess }: PinLockModalProps) {
   const { t } = useT()
   const [pin, setPin] = useState("")
@@ -15,10 +22,46 @@ export function PinLockModal({ onSuccess }: PinLockModalProps) {
   const [error, setError] = useState<string | null>(null)
   const [shake, setShake] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
+  const dialogRef = useRef<HTMLDivElement>(null)
 
+  // Initial PIN focus + scroll lock + restore of the previous state
+  // on unmount (unlock): same contract as the shared dialog.
   useEffect(() => {
+    const previouslyFocused = document.activeElement as HTMLElement | null
+    const prevOverflow = document.body.style.overflow
+    const dialogNode = dialogRef.current
+    document.body.style.overflow = "hidden"
     inputRef.current?.focus()
+    return () => {
+      document.body.style.overflow = prevOverflow
+      // Restore focus only if it is still inside the lock (or lost): a
+      // subsequent dialog already moved focus elsewhere, do not steal it.
+      const active = document.activeElement
+      if (!active || active === document.body || (dialogNode && dialogNode.contains(active))) {
+        previouslyFocused?.focus?.()
+      }
+    }
   }, [])
+
+  // Tab containment: the lock is modal, focus stays inside. No Escape /
+  // backdrop handler: the lock is INTENTIONALLY nondismissible (no
+  // keyboard/click unlock — only the correct PIN calls onSuccess).
+  const handleTrapTab = (e: React.KeyboardEvent) => {
+    if (e.key !== "Tab") return
+    const container = dialogRef.current
+    if (!container) return
+    const focusables = Array.from(container.querySelectorAll<HTMLElement>(FOCUSABLE))
+    if (focusables.length === 0) return
+    const first = focusables[0]
+    const last = focusables[focusables.length - 1]
+    if (e.shiftKey && document.activeElement === first) {
+      e.preventDefault()
+      last.focus()
+    } else if (!e.shiftKey && document.activeElement === last) {
+      e.preventDefault()
+      first.focus()
+    }
+  }
 
   const handleSubmit = async (e?: React.FormEvent) => {
     if (e) e.preventDefault()
@@ -66,7 +109,15 @@ export function PinLockModal({ onSuccess }: PinLockModalProps) {
   }
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/90 backdrop-blur-2xl p-4 animate-fade-scale-in">
+    <div
+      ref={dialogRef}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="pin-lock-title"
+      aria-describedby="pin-lock-subtitle"
+      onKeyDown={handleTrapTab}
+      className="fixed inset-0 z-[100] flex items-center justify-center bg-black/90 backdrop-blur-2xl p-4 animate-fade-scale-in"
+    >
       <div
         className={`w-full max-w-sm rounded-3xl bg-zinc-900/90 border border-white/10 p-6 sm:p-8 shadow-2xl shadow-black/80 flex flex-col items-center text-center transition-transform duration-150 ${
           shake ? "animate-shake" : ""
@@ -76,18 +127,24 @@ export function PinLockModal({ onSuccess }: PinLockModalProps) {
           <Lock className="w-7 h-7" />
         </div>
 
-        <h2 className="text-lg font-bold text-zinc-100 mb-1">{t("ui.pinLockTitle")}</h2>
-        <p className="text-xs text-zinc-400 mb-6">{t("ui.pinLockSubtitle")}</p>
+        <h2 id="pin-lock-title" className="text-lg font-bold text-zinc-100 mb-1">{t("ui.pinLockTitle")}</h2>
+        <p id="pin-lock-subtitle" className="text-xs text-zinc-400 mb-6">{t("ui.pinLockSubtitle")}</p>
 
         {/* Input PIN visivo */}
         <form onSubmit={handleSubmit} className="w-full mb-6">
+          <label htmlFor="pin-lock-input" className="sr-only">
+            {t("ui.pinLockSubtitle")}
+          </label>
           <input
             ref={inputRef}
+            id="pin-lock-input"
             type="password"
             inputMode="numeric"
             pattern="[0-9]*"
             maxLength={8}
             value={pin}
+            aria-invalid={error ? true : undefined}
+            aria-describedby={error ? "pin-lock-subtitle pin-lock-error" : "pin-lock-subtitle"}
             onChange={(e) => {
               const val = e.target.value.replace(/\D/g, "")
               setPin(val)
@@ -100,7 +157,7 @@ export function PinLockModal({ onSuccess }: PinLockModalProps) {
           />
 
           {error && (
-            <div className="flex items-center justify-center gap-1.5 text-xs text-rose-400 mt-2.5 font-medium">
+            <div id="pin-lock-error" role="alert" className="flex items-center justify-center gap-1.5 text-xs text-rose-400 mt-2.5 font-medium">
               <ShieldAlert className="w-3.5 h-3.5 flex-shrink-0" />
               <span>{error}</span>
             </div>

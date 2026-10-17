@@ -406,7 +406,7 @@ describe("task12 full-range bounds + seam (actual glass layers)", () => {
         // condensed estimate (condensation scales both together).
         const ratio = (ink!.maxX - ink!.minX + 1) / Math.max(1, box.estW)
         if (ratio > worst.ratio) worst = { ratio, rank, shape: name }
-        const num = await renderFreshGlassNumeral(base, CW, CH, box)
+        const num = (await renderFreshGlassNumeral(base, CW, CH, box))!
         expect(num.left).toBeGreaterThanOrEqual(0)
         expect(num.top).toBeGreaterThanOrEqual(0)
         expect(num.left + num.w).toBeLessThanOrEqual(CW)
@@ -464,8 +464,8 @@ describe("task12 compositor: transforms once, blur follows condensed ink", () =>
       const box = freshGeometry(CW, CH, 14).numeral!
       const movedBox = freshGeometry(CW, CH, 14, { numeralOffsetX: 40 }).numeral!
       expect(movedBox.left).toBe(box.left + 40)
-      const refLayer = await renderFreshGlassNumeral(poster, CW, CH, box)
-      const moved = await renderFreshGlassNumeral(poster, CW, CH, movedBox)
+      const refLayer = (await renderFreshGlassNumeral(poster, CW, CH, box))!
+      const moved = (await renderFreshGlassNumeral(poster, CW, CH, movedBox))!
       expect(moved.png.equals(refLayer.png)).toBe(false)
       expect(moved.left).toBeGreaterThanOrEqual(0)
       expect(moved.left + moved.w).toBeLessThanOrEqual(CW)

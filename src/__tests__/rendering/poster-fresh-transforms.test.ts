@@ -397,7 +397,7 @@ describe("rank numeral follows the classifica controls", () => {
     // window is clamped to the canvas on at least one side.
     for (const scale of [10, 200]) {
       const box = freshGeometry(STD_W, STD_H, 20, { numeralScale: scale }).numeral!
-      const num = await renderFreshGlassNumeral(poster, STD_W, STD_H, box)
+      const num = (await renderFreshGlassNumeral(poster, STD_W, STD_H, box))!
       expect(num.left).toBeGreaterThanOrEqual(0)
       expect(num.top).toBeGreaterThanOrEqual(0)
       expect(num.left + num.w).toBeLessThanOrEqual(STD_W)

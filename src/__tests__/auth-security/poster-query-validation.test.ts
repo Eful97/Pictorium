@@ -59,8 +59,33 @@ describe("posterQuerySchema", () => {
 
   it("rejects oversized image paths", () => {
     expect(validatePosterQuery(params({ poster: `/${"x".repeat(2100)}.jpg` }))).toContain("poster")
-    expect(validatePosterQuery(params({ logo: `/${"x".repeat(200)}.png` }))).toContain("logo")
+    expect(validatePosterQuery(params({ logo: `/${"x".repeat(2100)}.png` }))).toContain("logo")
     expect(validatePosterQuery(params({ backdrop: `/${"x".repeat(200)}.jpg` }))).toContain("backdrop")
+  })
+
+  it("enforces image path length boundaries (total string length)", () => {
+    // Query caps (src/lib/validation.ts): poster/logo 2048, backdrop 160.
+    // Bounds apply to the full param value, not the repeated filler alone.
+    const posterAccept = `/${"x".repeat(2043)}.jpg`
+    const posterReject = `/${"x".repeat(2044)}.jpg`
+    expect(posterAccept.length).toBe(2048)
+    expect(posterReject.length).toBe(2049)
+    expect(validatePosterQuery(params({ poster: posterAccept }))).toBeNull()
+    expect(validatePosterQuery(params({ poster: posterReject }))).toContain("poster")
+
+    const logoAccept = `/${"x".repeat(2043)}.png`
+    const logoReject = `/${"x".repeat(2044)}.png`
+    expect(logoAccept.length).toBe(2048)
+    expect(logoReject.length).toBe(2049)
+    expect(validatePosterQuery(params({ logo: logoAccept }))).toBeNull()
+    expect(validatePosterQuery(params({ logo: logoReject }))).toContain("logo")
+
+    const backdropAccept = `/${"x".repeat(155)}.jpg`
+    const backdropReject = `/${"x".repeat(156)}.jpg`
+    expect(backdropAccept.length).toBe(160)
+    expect(backdropReject.length).toBe(161)
+    expect(validatePosterQuery(params({ backdrop: backdropAccept }))).toBeNull()
+    expect(validatePosterQuery(params({ backdrop: backdropReject }))).toContain("backdrop")
   })
 
   it("accepts custom image URLs in poster (same cap as the mapping)", () => {
