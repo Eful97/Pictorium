@@ -329,6 +329,46 @@ const EXPANDED_DATA = {
   "tt3397884": { "quality": "4K", "formats": ["dv", "atmos"] }, // Sicario
 }
 
+// Batch 4 wave2 — QualiCache-accepted observations (user accepted QC as sufficient
+// source for this batch). Additive ONLY: formats union into the existing entry, local
+// quality never changed, a format omitted from one QC release is never removed.
+// These rows are NOT independently corroborated against Blu-ray edition pages and make
+// no guarantee about actual Stremio playback; provenance is QC observation, not curation.
+const QC_ACCEPTED_DATA = {
+  "tt0104257": { "quality": "4K", "formats": ["atmos"] }, // A Few Good Men — QualiCache observation (min_trust high, observed trusted, captured 2026-10-17, source updated 2026-08-13) via public PostersPlus dev docs; user-accepted source, not independently corroborated; pre-existing dv preserved as title-level edition union
+  "tt0110148": { "quality": "4K", "formats": ["atmos"] }, // Interview with the Vampire — QualiCache observation (min_trust high, observed trusted, captured 2026-10-17, source updated 2026-09-18) via public PostersPlus dev docs; user-accepted source, not independently corroborated; QC release observed atmos-only, dv omission is not deletion, preserved as title-level edition union
+  "tt0110322": { "quality": "4K", "formats": ["atmos"] }, // Legends of the Fall — QualiCache observation (min_trust high, observed trusted, captured 2026-10-17, source updated 2026-08-16) via public PostersPlus dev docs; user-accepted source, not independently corroborated; pre-existing dv preserved as title-level edition union
+  "tt0116695": { "quality": "4K", "formats": ["atmos"] }, // Jerry Maguire — QualiCache observation (min_trust high, observed trusted, captured 2026-10-17, source updated 2026-08-16) via public PostersPlus dev docs; user-accepted source, not independently corroborated; pre-existing dv preserved as title-level edition union
+  "tt0119654": { "quality": "4K", "formats": ["atmos"] }, // Men in Black — QualiCache observation (min_trust high, observed trusted, captured 2026-10-17, source updated 2026-08-13) via public PostersPlus dev docs; user-accepted source, not independently corroborated; pre-existing dv preserved as title-level edition union
+  "tt0119822": { "quality": "4K", "formats": ["atmos"] }, // As Good as It Gets — QualiCache observation (min_trust high, observed trusted, captured 2026-10-17, source updated 2026-08-16) via public PostersPlus dev docs; user-accepted source, not independently corroborated; pre-existing dv preserved as title-level edition union
+  "tt0120655": { "quality": "4K", "formats": ["atmos"] }, // Dogma — QualiCache observation (min_trust high, observed trusted, captured 2026-10-17, source updated 2026-08-13) via public PostersPlus dev docs; user-accepted source, not independently corroborated; pre-existing dv preserved as title-level edition union
+  "tt0120762": { "quality": "4K", "formats": ["atmos"] }, // Mulan — QualiCache observation (min_trust high, observed trusted, captured 2026-10-17, source updated 2026-08-16) via public PostersPlus dev docs; user-accepted source, not independently corroborated; pre-existing dv preserved as title-level edition union
+  "tt0121164": { "quality": "4K", "formats": ["atmos"] }, // Corpse Bride — QualiCache observation (min_trust high, observed trusted, captured 2026-10-17, source updated 2026-08-13) via public PostersPlus dev docs; user-accepted source, not independently corroborated; pre-existing dv preserved as title-level edition union
+  "tt0138704": { "quality": "4K", "formats": ["atmos"] }, // Pi — QualiCache observation (min_trust high, observed trusted, captured 2026-10-17, source updated 2026-08-13) via public PostersPlus dev docs; user-accepted source, not independently corroborated; pre-existing dv preserved as title-level edition union
+  "tt0139654": { "quality": "4K", "formats": ["atmos"] }, // Training Day — QualiCache observation (min_trust high, observed trusted, captured 2026-10-17, source updated 2026-08-15) via public PostersPlus dev docs; user-accepted source, not independently corroborated; pre-existing dv preserved as title-level edition union
+  "tt0144084": { "quality": "4K", "formats": ["atmos"] }, // American Psycho — QualiCache observation (min_trust high, observed trusted, captured 2026-10-17, source updated 2026-10-08) via public PostersPlus dev docs; user-accepted source, not independently corroborated; pre-existing dv preserved as title-level edition union
+  "tt0145487": { "quality": "4K", "formats": ["atmos"] }, // Spider-Man — QualiCache observation (min_trust high, observed trusted, captured 2026-10-17, source updated 2026-08-13) via public PostersPlus dev docs; user-accepted source, not independently corroborated; pre-existing dv preserved as title-level edition union
+  "tt0177789": { "quality": "4K", "formats": ["atmos"] }, // Galaxy Quest — QualiCache observation (min_trust high, observed trusted, captured 2026-10-17, source updated 2026-08-13) via public PostersPlus dev docs; user-accepted source, not independently corroborated; pre-existing dv preserved as title-level edition union
+  "tt0180093": { "quality": "4K", "formats": ["atmos"] }, // Requiem for a Dream — QualiCache observation (min_trust high, observed trusted, captured 2026-10-17, source updated 2026-09-18) via public PostersPlus dev docs; user-accepted source, not independently corroborated; pre-existing dv preserved as title-level edition union
+  "tt0230600": { "quality": "4K", "formats": ["atmos"] }, // The Others — QualiCache observation (min_trust high, observed trusted, captured 2026-10-17, source updated 2026-08-13) via public PostersPlus dev docs; user-accepted source, not independently corroborated; QC release observed atmos-only, dv omission is not deletion, preserved as title-level edition union
+  "tt0268126": { "quality": "4K", "formats": ["atmos"] }, // Adaptation — QualiCache observation (min_trust high, observed trusted, captured 2026-10-17, source updated 2026-08-15) via public PostersPlus dev docs; user-accepted source, not independently corroborated; pre-existing dv preserved as title-level edition union
+  "tt0311113": { "quality": "4K", "formats": ["atmos"] }, // Master and Commander — QualiCache observation (min_trust high, observed trusted, captured 2026-10-17, source updated 2026-09-19) via public PostersPlus dev docs; user-accepted source, not independently corroborated; pre-existing dv preserved as title-level edition union
+  "tt0316654": { "quality": "4K", "formats": ["atmos"] }, // Spider-Man 2 — QualiCache observation (min_trust high, observed trusted, captured 2026-10-17, source updated 2026-08-13) via public PostersPlus dev docs; user-accepted source, not independently corroborated; pre-existing dv preserved as title-level edition union
+  "tt0317219": { "quality": "4K", "formats": ["atmos"] }, // Cars — QualiCache observation (min_trust high, observed trusted, captured 2026-10-17, source updated 2026-08-16) via public PostersPlus dev docs; user-accepted source, not independently corroborated; pre-existing dv preserved as title-level edition union
+  "tt0318627": { "quality": "4K", "formats": ["atmos"] }, // Resident Evil: Apocalypse — QualiCache observation (min_trust high, observed trusted, captured 2026-10-17, source updated 2026-08-13) via public PostersPlus dev docs; user-accepted source, not independently corroborated; pre-existing dv preserved as title-level edition union
+  "tt0325980": { "quality": "4K", "formats": ["atmos"] }, // Pirates of the Caribbean: The Curse of the Black Pearl — QualiCache observation (min_trust high, observed trusted, captured 2026-10-17, source updated 2026-08-13) via public PostersPlus dev docs; user-accepted source, not independently corroborated; pre-existing dv preserved as title-level edition union
+  "tt0327597": { "quality": "4K", "formats": ["atmos"] }, // Coraline — QualiCache observation (min_trust high, observed trusted, captured 2026-10-17, source updated 2026-08-16) via public PostersPlus dev docs; user-accepted source, not independently corroborated; pre-existing dv preserved as title-level edition union
+  "tt0352248": { "quality": "4K", "formats": ["atmos"] }, // Cinderella Man — QualiCache observation (min_trust high, observed trusted, captured 2026-10-17, source updated 2026-08-13) via public PostersPlus dev docs; user-accepted source, not independently corroborated; pre-existing dv preserved as title-level edition union
+  "tt0369610": { "quality": "4K", "formats": ["atmos"] }, // Jurassic World — QualiCache observation (min_trust high, observed trusted, captured 2026-10-17, source updated 2026-08-13) via public PostersPlus dev docs; user-accepted source, not independently corroborated; pre-existing dv preserved as title-level edition union
+  "tt0383574": { "quality": "4K", "formats": ["atmos"] }, // Pirates of the Caribbean: Dead Man's Chest — QualiCache observation (min_trust high, observed trusted, captured 2026-10-17, source updated 2026-09-16) via public PostersPlus dev docs; user-accepted source, not independently corroborated; pre-existing dv preserved as title-level edition union
+  "tt0387564": { "quality": "4K", "formats": ["atmos"] }, // Saw — QualiCache observation (min_trust high, observed trusted, captured 2026-10-17, source updated 2026-08-16) via public PostersPlus dev docs; user-accepted source, not independently corroborated; pre-existing dv preserved as title-level edition union
+  "tt0399295": { "quality": "4K", "formats": ["atmos"] }, // Lord of War — QualiCache observation (min_trust high, observed trusted, captured 2026-10-17, source updated 2026-08-16) via public PostersPlus dev docs; user-accepted source, not independently corroborated; pre-existing dv preserved as title-level edition union
+  "tt0416449": { "quality": "4K", "formats": ["atmos"] }, // 300 — QualiCache observation (min_trust high, observed trusted, captured 2026-10-17, source updated 2026-08-13) via public PostersPlus dev docs; user-accepted source, not independently corroborated; pre-existing dv preserved as title-level edition union
+  "tt0434409": { "quality": "4K", "formats": ["atmos"] }, // V for Vendetta — QualiCache observation (min_trust high, observed trusted, captured 2026-10-17, source updated 2026-08-13) via public PostersPlus dev docs; user-accepted source, not independently corroborated; pre-existing dv preserved as title-level edition union
+  "tt0441773": { "quality": "4K", "formats": ["atmos", "hdr"] }, // Kung Fu Panda — QualiCache observation (min_trust high, observed trusted, captured 2026-10-17, source updated 2026-08-13, explicit HDR10) via public PostersPlus dev docs; user-accepted source, not independently corroborated; pre-existing dv preserved as title-level edition union (NOT one single DV+HDR+Atmos edition claim)
+  "tt0446029": { "quality": "4K", "formats": ["atmos"] }, // Scott Pilgrim vs. the World — QualiCache observation (min_trust high, observed trusted, captured 2026-10-17, source updated 2026-08-15) via public PostersPlus dev docs; user-accepted source, not independently corroborated; pre-existing dv preserved as title-level edition union
+}
+
 async function main() {
   console.log("=== Pictorium AV Specs Bulk Expander ===")
   const current = JSON.parse(await fs.readFile(dataFile, "utf8"))
@@ -344,6 +384,19 @@ async function main() {
       const formats = Array.from(new Set([...(merged[id].formats || []), ...(data.formats || [])]))
       merged[id] = {
         quality: data.quality || merged[id].quality || "4K",
+        formats,
+      }
+    }
+  }
+
+  // QC-accepted observations merge additively: formats union, local quality kept.
+  for (const [id, data] of Object.entries(QC_ACCEPTED_DATA)) {
+    if (!merged[id]) {
+      merged[id] = data
+    } else {
+      const formats = Array.from(new Set([...(merged[id].formats || []), ...(data.formats || [])]))
+      merged[id] = {
+        quality: merged[id].quality || data.quality || "4K",
         formats,
       }
     }

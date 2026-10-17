@@ -184,6 +184,46 @@ describe("av-specs lookup", () => {
     expect(lookupAVSpecs("tt0107048")?.formats).toEqual(["dv"])
   })
 
+  it("batch 4 wave2 QC-accepted additions (atmos x32, hdr x1); user-accepted source, additive only", () => {
+    // User accepted QualiCache as sufficient source for this batch (captured
+    // 2026-10-17; all 32 rows ready/trusted, min_trust high, stale false,
+    // fresh <=90d, same 4K tier). NOT independently corroborated against
+    // Blu-ray edition pages: pre-existing formats are preserved as a
+    // title-level edition union (a format omitted from one QC release is not
+    // deletion proof; Kung Fu Panda's dv+atmos+hdr is NOT one single-edition
+    // claim).
+    const ATMOS_29 = ["tt0104257", "tt0110322", "tt0116695", "tt0119654", "tt0119822", "tt0120655", "tt0120762", "tt0121164", "tt0138704", "tt0139654", "tt0144084", "tt0145487", "tt0177789", "tt0180093", "tt0268126", "tt0311113", "tt0316654", "tt0317219", "tt0318627", "tt0325980", "tt0327597", "tt0352248", "tt0369610", "tt0383574", "tt0387564", "tt0399295", "tt0416449", "tt0434409", "tt0446029"]
+    for (const id of ATMOS_29) {
+      const specs = lookupAVSpecs(id)
+      expect(specs).not.toBeNull()
+      expect(specs?.quality).toBe("4K")
+      expect(specs?.formats).toEqual(["dv", "atmos"])
+    }
+
+    // QC observed atmos-only releases here: pre-existing dv preserved via union.
+    expect(lookupAVSpecs("tt0110148")?.formats).toEqual(["dv", "atmos"])
+    expect(lookupAVSpecs("tt0110148")?.quality).toBe("4K")
+    expect(lookupAVSpecs("tt0230600")?.formats).toEqual(["dv", "atmos"])
+    expect(lookupAVSpecs("tt0230600")?.quality).toBe("4K")
+
+    // Kung Fu Panda: QC observed HDR10+Atmos; pre-existing dv preserved
+    // (title-level edition union, not one DV+HDR+Atmos edition claim).
+    expect(lookupAVSpecs("tt0441773")?.quality).toBe("4K")
+    expect(lookupAVSpecs("tt0441773")?.formats).toEqual(["dv", "atmos", "hdr"])
+
+    // No-change controls stay byte-identical: 4 parity (QC exact tier+formats),
+    // 3 QC-lower-tier rows (never merged across editions), 2 QC-empty rows.
+    for (const id of ["tt0268978", "tt0275847", "tt0298148", "tt0413300", "tt0120791", "tt0289043", "tt0398286", "tt0104694", "tt0120201"]) {
+      const specs = lookupAVSpecs(id)
+      expect(specs?.quality).toBe("4K")
+      expect(specs?.formats).toEqual(["dv"])
+    }
+
+    // Additive-only batch: no new DB keys (all 32 ids already present).
+    const db = JSON.parse(fs.readFileSync(path.join(ROOT, "src", "data", "av-specs.json"), "utf8"))
+    expect(Object.keys(db).length).toBe(1430)
+  })
+
   it("returns null for unknown IDs or invalid inputs", () => {
     expect(lookupAVSpecs("tt00000000000")).toBeNull()
     expect(lookupAVSpecs(null)).toBeNull()
