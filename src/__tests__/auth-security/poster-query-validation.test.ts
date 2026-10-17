@@ -57,10 +57,37 @@ describe("posterQuerySchema", () => {
     expect(validatePosterQuery(params({ rs: "x".repeat(17) }))).toContain("rs")
   })
 
-  it("rejects oversized image paths", () => {
-    expect(validatePosterQuery(params({ poster: `/${"x".repeat(2100)}.jpg` }))).toContain("poster")
-    expect(validatePosterQuery(params({ logo: `/${"x".repeat(200)}.png` }))).toContain("logo")
-    expect(validatePosterQuery(params({ backdrop: `/${"x".repeat(200)}.jpg` }))).toContain("backdrop")
+  it("enforces poster/logo 2048 caps with exact boundaries (custom URL contract)", () => {
+    const httpsUrlOfLength = (total: number): string => {
+      const prefix = "https://i.imgur.com/";
+      const suffix = ".png";
+      return `${prefix}${"a".repeat(total - prefix.length - suffix.length)}${suffix}`;
+    };
+    const poster2048 = httpsUrlOfLength(2048);
+    const poster2049 = httpsUrlOfLength(2049);
+    const logo2048 = httpsUrlOfLength(2048);
+    const logo2049 = httpsUrlOfLength(2049);
+    expect(poster2048).toHaveLength(2048);
+    expect(poster2049).toHaveLength(2049);
+    expect(logo2048).toHaveLength(2048);
+    expect(logo2049).toHaveLength(2049);
+    expect(validatePosterQuery(params({ poster: poster2048 }))).toBeNull();
+    expect(validatePosterQuery(params({ poster: poster2049 }))).toContain("poster");
+    expect(validatePosterQuery(params({ logo: logo2048 }))).toBeNull();
+    expect(validatePosterQuery(params({ logo: logo2049 }))).toContain("logo");
+    // Supported custom logo https example stays accepted, as do normal relative paths.
+    expect(validatePosterQuery(params({ logo: "https://i.imgur.com/logo123.png" }))).toBeNull();
+    expect(validatePosterQuery(params({ logo: "/logo.png" }))).toBeNull();
+    expect(validatePosterQuery(params({ poster: "/abc123.jpg" }))).toBeNull();
+  });
+
+  it("keeps the backdrop 160 cap with exact boundaries", () => {
+    const backdrop160 = `/${"x".repeat(155)}.jpg`;
+    const backdrop161 = `/${"x".repeat(156)}.jpg`;
+    expect(backdrop160).toHaveLength(160);
+    expect(backdrop161).toHaveLength(161);
+    expect(validatePosterQuery(params({ backdrop: backdrop160 }))).toBeNull();
+    expect(validatePosterQuery(params({ backdrop: backdrop161 }))).toContain("backdrop");
   })
 
   it("accepts custom image URLs in poster (same cap as the mapping)", () => {

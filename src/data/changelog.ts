@@ -30,6 +30,21 @@ export interface ChangelogRelease {
  *  (which bumps on every commit and would leave the dot permanently on). */
 export const CHANGELOG: ChangelogRelease[] = [
   {
+    version: "1.25.6",
+    date: "2026-10-17",
+    title: "Release 1.25.6",
+    items: [
+      { type: "feature", text: "Add Atmos metadata to more movie posters" },
+      { type: "feature", text: "Expand HDR and Atmos coverage for posters" },
+      { type: "fix", text: "Improve outlined and glass badge readability" },
+      { type: "feature", text: "Add custom logo URLs to posters" },
+      { type: "fix", text: "Give age badges more breathing room" },
+      { type: "feature", text: "Separate poster looks by format and add age controls" },
+      { type: "fix", text: "Keep JustWatch catalogs from getting stuck empty" },
+      { type: "feature", text: "Add TPDb and TMDB custom poster links" },
+    ],
+  },
+  {
     version: "1.25.5",
     date: "2026-10-16",
     title: "Release 1.25.5",

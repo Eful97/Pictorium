@@ -92,13 +92,16 @@ describe("AppShell PinLockModal bypass sui path /u/", () => {
     const dialogs = await screen.findAllByRole("dialog", { name: "ui.settingsGlobalTitle" }, { timeout: 4000 })
     expect(dialogs.length).toBeGreaterThan(0)
     expect(await screen.findAllByText("ui.userSpaceUuidLabel", {}, { timeout: 4000 })).not.toHaveLength(0)
-    // STALE-role migration — source evidence: SettingsPanel.tsx renders Space
-    // in the desktop secondary nav as a compact button (aria-pressed, never
-    // role=tab); settings-tab.ts documents secondary tabs (Prefs/Data/Space)
-    // as "never equal primary tabs". Intent preserved: the key icon opens the
-    // settings dialog on the Space section (no PIN modal, UUID visible).
-    const spaceBtns = screen.getAllByRole("button", { name: "ui.settingsTabSpace" })
+    // Space is a secondary button (aria-pressed), never a primary tab.
+    // Use the stable hook to avoid a repeated full-tree role/name scan;
+    // assert the accessible name on the located button instead.
+    const spaceBtns = screen.getAllByTestId("settings-secondary-spazio")
     expect(spaceBtns.length).toBeGreaterThan(0)
+    for (const b of spaceBtns) {
+      expect(b.tagName).toBe("BUTTON")
+      expect(b).toHaveAccessibleName("ui.settingsTabSpace")
+      expect(b.textContent).toContain("ui.settingsTabSpace")
+    }
     const activeSpace = spaceBtns.filter((b) => b.getAttribute("aria-pressed") === "true")
     expect(activeSpace.length).toBeGreaterThan(0)
     // Five equal primary tabs only — Space is not among them.
