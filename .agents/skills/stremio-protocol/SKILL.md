@@ -39,9 +39,9 @@ external addons like AIOMetadata.
 Catalog `id` values are emitted so they resolve (now via Pictorium's own `/meta`,
 previously only via AIOMetadata). A bare number (`12345`) is NOT a portable id:
 use `tt...` (IMDb) or `provider:id` (e.g. `tmdb:12345`). Pictorium's own
-catalogs currently emit `tmdb:<id>` unconditionally via `catalogMetaId` in
-`src/lib/catalog-handler.ts`; its `_imdbId` argument is intentionally ignored.
-Do not restore the historical IMDb-first flow.
+catalogs are IMDb-first via `catalogMetaId` in `src/lib/catalog-handler.ts`:
+the valid source IMDb id (fail-closed `tt` + 7-10 digits, lowercased) wins,
+`tmdb:<id>` is the fallback when absent/invalid.
 
 Never emit a bare numeric `id` as the catalog meta id.
 
@@ -66,6 +66,9 @@ profile) and `config=` (config token) — both enter cache keys and poster URLs.
 
 - Empty `metas: []` = unknown catalog, missing key, or error. Rate limit → 429
   with `Retry-After`. `Cache-Control: no-cache`, CORS `*`.
+- Movie previews carry video navigation (Easy parity): `behaviorHints:
+  { defaultVideoId: <emitted id>, hasScheduledVideos: false }` and `videos: []`;
+  series carry no movie hints (episodes/videos unchanged).
 - `maxDuration = 60`: a cold catalog does ~20 `getDetails` + ranking calls.
 
 ## Poster endpoint

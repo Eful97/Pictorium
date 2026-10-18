@@ -285,7 +285,7 @@ describe("custom catalog stable pagination (global dedup before skip)", () => {
 
     expect(res.status).toBe(200)
     expect(body.metas).toHaveLength(20)
-    expect(body.metas[0].id).toBe("tmdb:9001")
+    expect(body.metas[0].id).toBe("tt9000001")
     // The scan walks past the junk and fills the window from later rows.
     expect(body.metas.map((m) => m.id)).toContain("tmdb:9118")
     expect(body.metas.map((m) => m.id)).not.toContain("tmdb:9119")
@@ -909,8 +909,8 @@ describe("transient row failures flag incomplete; confirmed misses do not", () =
     expect(first.res.status).toBe(200)
     expect(first.body.metas).toHaveLength(20)
     // Row 0 dropped transiently: later rows shift up (row 1 leads).
-    expect(first.body.metas[0].id).toBe("tmdb:9601")
-    expect(first.body.metas.map((m) => m.id)).not.toContain("tmdb:9600")
+    expect(first.body.metas[0].id).toBe("tt9300001")
+    expect(first.body.metas.map((m) => m.id)).not.toContain("tt9300000")
     const findAfterFirst = counters.find
 
     // Short TTL, not frozen: after 60s the retry recomputes (fresh /find for
@@ -918,8 +918,8 @@ describe("transient row failures flag incomplete; confirmed misses do not", () =
     now += 61_000
     const retry = await getCatalog(cid, token)
     expect(retry.body.metas).toHaveLength(20)
-    expect(retry.body.metas[0].id).toBe("tmdb:9600")
-    expect(retry.body.metas.map((m) => m.id)).toContain("tmdb:9619")
+    expect(retry.body.metas[0].id).toBe("tt9300000")
+    expect(retry.body.metas.map((m) => m.id)).toContain("tt9300019")
     expect(counters.find).toBeGreaterThan(findAfterFirst)
     expect(counters.provider).toBe(1)
   }, 30000)
@@ -1218,7 +1218,7 @@ describe("deterministic total timeout (trakt path: exactly one root 10s)", () =>
     // past the consumed budget.
     expect(res.status).toBe(200)
     expect(body.metas).toHaveLength(3)
-    expect(body.metas.map((m: { id: string }) => m.id).sort()).toEqual(["tmdb:7300", "tmdb:7301", "tmdb:7302"])
+    expect(body.metas.map((m: { id: string }) => m.id).sort()).toEqual(["tt8007300", "tt8007301", "tt8007302"])
     expect(elapsed).toBeLessThan(5000)
     expect(incomingSignal?.aborted).toBe(false)
     expect(fired).toBe(true)

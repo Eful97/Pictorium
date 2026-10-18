@@ -85,7 +85,7 @@ describe("GET /catalog/[type]/[id]", () => {
 
     expect(res.status).toBe(200)
     expect(body.metas[0]).toMatchObject({
-      id: "tmdb:94997",
+      id: "tt11198330",
       type: "series",
       name: "House of the Dragon",
       poster: expect.stringContaining("/api/poster/series/94997"),
@@ -200,7 +200,7 @@ describe("GET /catalog/[type]/[id]", () => {
 
     expect(res.status).toBe(200)
     expect(body.metas[0]).toMatchObject({
-      id: "tmdb:94997",
+      id: "tt11198330",
       type: "series",
       name: "House of the Dragon",
       poster: expect.stringContaining("/api/poster/series/94997"),
@@ -370,7 +370,7 @@ describe("GET /catalog/[type]/[id]", () => {
     const body = await res.json()
 
     expect(res.status).toBe(200)
-    expect(body.metas[0]).toMatchObject({ id: "tmdb:123456", type: "series" })
+    expect(body.metas[0]).toMatchObject({ id: "tt9999999", type: "series" })
     const urls = fetchSpy.mock.calls.map((c) => String(c[0]))
     expect(urls.some((u) => u.includes("append_to_response=external_ids"))).toBe(true)
     expect(urls.some((u) => u.includes("/external_ids"))).toBe(false)
@@ -505,7 +505,7 @@ describe("GET /catalog/[type]/[id]", () => {
     expect(res.status).toBe(200)
     expect(body.metas).toHaveLength(1)
     expect(body.metas[0]).toMatchObject({
-      id: "tmdb:8282",
+      id: "tt0848228",
       type: "movie",
       name: "House of the Dragon",
       poster: expect.stringContaining("/api/poster/movie/8282"),
@@ -533,7 +533,7 @@ describe("GET /catalog/[type]/[id]", () => {
   })
 
   it("handles Stremio search query in movie search catalog", async () => {
-    vi.spyOn(globalThis, "fetch")
+    const fetchSpy = vi.spyOn(globalThis, "fetch")
       .mockResolvedValueOnce(Response.json({
         page: 1,
         results: [
@@ -543,6 +543,7 @@ describe("GET /catalog/[type]/[id]", () => {
         total_results: 1,
       }))
       .mockResolvedValueOnce(Response.json({ genres: [{ id: 28, name: "Azione" }] }))
+      .mockResolvedValueOnce(Response.json({ id: 550, imdb_id: "tt0137523" }))
 
     const req = new NextRequest("http://localhost:3000/catalog/movie/pictorium-search-movies/search=fight%20club.json?api_key=settings-key")
     const res = await GET_EXTRA(req, {
@@ -557,11 +558,228 @@ describe("GET /catalog/[type]/[id]", () => {
     expect(res.status).toBe(200)
     expect(body.metas).toHaveLength(1)
     expect(body.metas[0]).toMatchObject({
-      id: "tmdb:550",
+      id: "tt0137523",
       type: "movie",
       name: "Fight Club",
       releaseInfo: "1999",
       poster: expect.stringContaining("/api/poster/movie/550"),
+    })
+    // IMDb-first via external_ids with the request credentials, numeric poster identity kept.
+    expect(fetchSpy.mock.calls.some(([url]) => String(url).includes("/movie/550/external_ids") && String(url).includes("api_key=settings-key"))).toBe(true)
+  })
+
+  it("emits tmdb: fallback for full-text search rows without a resolvable IMDb id", async () => {
+    vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(Response.json({
+        page: 1,
+        results: [
+          { id: 771, title: "Titolo Senza IMDb", release_date: "2021-05-01" },
+        ],
+        total_pages: 1,
+        total_results: 1,
+      }))
+      .mockResolvedValueOnce(Response.json({ genres: [{ id: 28, name: "Azione" }] }))
+      .mockResolvedValueOnce(Response.json({ id: 771, imdb_id: null }))
+
+    const req = new NextRequest("http://localhost:3000/catalog/movie/pictorium-search-movies/search=sconosciuto.json?api_key=settings-key")
+    const res = await GET_EXTRA(req, {
+      params: Promise.resolve({
+        type: "movie",
+        id: "pictorium-search-movies",
+        extra: ["search=sconosciuto.json"],
+      }),
+    })
+    const body = await res.json()
+
+    expect(res.status).toBe(200)
+    expect(body.metas).toHaveLength(1)
+    expect(body.metas[0]).toMatchObject({
+      id: "tmdb:771",
+      type: "movie",
+      name: "Titolo Senza IMDb",
+      poster: expect.stringContaining("/api/poster/movie/771"),
+    })
+  })
+
+  it("fails closed to tmdb: for invalid IMDb ids from search external_ids", async () => {
+    vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(Response.json({
+        page: 1,
+        results: [
+          { id: 772, title: "Titolo Spurio", release_date: "2020-01-01" },
+        ],
+        total_pages: 1,
+        total_results: 1,
+      }))
+      .mockResolvedValueOnce(Response.json({ genres: [{ id: 28, name: "Azione" }] }))
+      .mockResolvedValueOnce(Response.json({ id: 772, imdb_id: "tt123" }))
+
+    const req = new NextRequest("http://localhost:3000/catalog/movie/pictorium-search-movies/search=spurio.json?api_key=settings-key")
+    const res = await GET_EXTRA(req, {
+      params: Promise.resolve({
+        type: "movie",
+        id: "pictorium-search-movies",
+        extra: ["search=spurio.json"],
+      }),
+    })
+    const body = await res.json()
+
+    expect(res.status).toBe(200)
+    expect(body.metas).toHaveLength(1)
+    // Never the garbage string, never a bare number — typed TMDB fallback.
+    expect(body.metas[0].id).toBe("tmdb:772")
+  })
+
+  it("keeps serving full-text search rows when IMDb resolution fails", async () => {
+    vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(Response.json({
+        page: 1,
+        results: [
+          { id: 773, title: "Titolo Resiliente", release_date: "2019-03-03" },
+        ],
+        total_pages: 1,
+        total_results: 1,
+      }))
+      .mockResolvedValueOnce(Response.json({ genres: [{ id: 28, name: "Azione" }] }))
+      .mockRejectedValueOnce(new Error("external_ids boom"))
+
+    const req = new NextRequest("http://localhost:3000/catalog/movie/pictorium-search-movies/search=resiliente.json?api_key=settings-key")
+    const res = await GET_EXTRA(req, {
+      params: Promise.resolve({
+        type: "movie",
+        id: "pictorium-search-movies",
+        extra: ["search=resiliente.json"],
+      }),
+    })
+    const body = await res.json()
+
+    expect(res.status).toBe(200)
+    expect(body.metas).toHaveLength(1)
+    expect(body.metas[0]).toMatchObject({
+      id: "tmdb:773",
+      type: "movie",
+      name: "Titolo Resiliente",
+      poster: expect.stringContaining("/api/poster/movie/773"),
+    })
+  })
+
+  it("resolves IMDb-first ids for series full-text search with order and numeric posters preserved", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(Response.json({
+        page: 1,
+        results: [
+          { id: 1396, name: "Breaking Bad", first_air_date: "2008-01-20" },
+          { id: 1399, name: "Senza IMDb Serie", first_air_date: "2011-04-17" },
+          { id: 1402, name: "The Walking Dead", first_air_date: "2010-10-31" },
+        ],
+        total_pages: 1,
+        total_results: 3,
+      }))
+      .mockResolvedValueOnce(Response.json({ genres: [{ id: 18, name: "Dramma" }] }))
+      .mockResolvedValueOnce(Response.json({ id: 1396, imdb_id: "tt0903747" }))
+      .mockResolvedValueOnce(Response.json({ id: 1399, imdb_id: null }))
+      .mockResolvedValueOnce(Response.json({ id: 1402, imdb_id: "tt1520211" }))
+
+    const req = new NextRequest("http://localhost:3000/catalog/series/pictorium-search-series/search=dramma.json?api_key=settings-key")
+    const res = await GET_EXTRA(req, {
+      params: Promise.resolve({
+        type: "series",
+        id: "pictorium-search-series",
+        extra: ["search=dramma.json"],
+      }),
+    })
+    const body = await res.json()
+
+    expect(res.status).toBe(200)
+    expect(body.metas).toHaveLength(3)
+    expect(body.metas.map((m: { id: string }) => m.id)).toEqual(["tt0903747", "tmdb:1399", "tt1520211"])
+    expect(body.metas[0].poster).toContain("/api/poster/series/1396")
+    expect(body.metas[1].poster).toContain("/api/poster/series/1399")
+    expect(body.metas[2].poster).toContain("/api/poster/series/1402")
+    const urls = fetchSpy.mock.calls.map(([url]) => String(url))
+    // One bounded external_ids lookup per row, no full details fetch per row.
+    expect(urls.filter((u) => u.includes("/external_ids"))).toHaveLength(3)
+    expect(urls.filter((u) => /\/tv\/\d+\?/.test(u))).toHaveLength(0)
+  })
+
+  it("resolves IMDb-first ids for person-search credit rows", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(Response.json({
+        page: 1,
+        results: [
+          { id: 287, name: "Brad Pitt", popularity: 35, known_for: [{ id: 603, vote_count: 9000 }] },
+        ],
+        total_pages: 1,
+        total_results: 1,
+      }))
+      .mockResolvedValueOnce(Response.json({
+        id: 287,
+        cast: [
+          { id: 27205, title: "Inception", release_date: "2010-07-15", media_type: "movie", popularity: 10 },
+          { id: 603, title: "Fight Club", release_date: "1999-10-15", media_type: "movie", popularity: 90 },
+        ],
+        crew: [],
+      }))
+      .mockResolvedValueOnce(Response.json({ genres: [{ id: 28, name: "Azione" }] }))
+      .mockResolvedValueOnce(Response.json({ id: 603, imdb_id: "tt0137523" }))
+      .mockResolvedValueOnce(Response.json({ id: 27205, imdb_id: "tt1375666" }))
+
+    const req = new NextRequest("http://localhost:3000/catalog/movie/pictorium-search-people-movies/search=brad%20pitt.json?api_key=settings-key")
+    const res = await GET_EXTRA(req, {
+      params: Promise.resolve({
+        type: "movie",
+        id: "pictorium-search-people-movies",
+        extra: ["search=brad%20pitt.json"],
+      }),
+    })
+    const body = await res.json()
+
+    expect(res.status).toBe(200)
+    expect(body.metas).toHaveLength(2)
+    // Popularity-desc order kept, IMDb-first ids, numeric poster identity.
+    expect(body.metas.map((m: { id: string }) => m.id)).toEqual(["tt0137523", "tt1375666"])
+    expect(body.metas.map((m: { name: string }) => m.name)).toEqual(["Fight Club", "Inception"])
+    expect(body.metas[0].poster).toContain("/api/poster/movie/603")
+    expect(fetchSpy.mock.calls.some(([url]) => String(url).includes("/movie/603/external_ids") && String(url).includes("api_key=settings-key"))).toBe(true)
+  })
+
+  it("falls back to tmdb: for person-search rows without a resolvable IMDb id", async () => {
+    vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(Response.json({
+        page: 1,
+        results: [
+          { id: 287, name: "Brad Pitt", popularity: 35, known_for: [{ id: 680, vote_count: 9000 }] },
+        ],
+        total_pages: 1,
+        total_results: 1,
+      }))
+      .mockResolvedValueOnce(Response.json({
+        id: 287,
+        cast: [
+          { id: 680, title: "Pulp Fiction", release_date: "1994-10-14", media_type: "movie", popularity: 80 },
+        ],
+        crew: [],
+      }))
+      .mockResolvedValueOnce(Response.json({ genres: [{ id: 28, name: "Azione" }] }))
+      .mockResolvedValueOnce(Response.json({ id: 680, imdb_id: null }))
+
+    const req = new NextRequest("http://localhost:3000/catalog/movie/pictorium-search-people-movies/search=brad%20pitt.json?api_key=settings-key")
+    const res = await GET_EXTRA(req, {
+      params: Promise.resolve({
+        type: "movie",
+        id: "pictorium-search-people-movies",
+        extra: ["search=brad%20pitt.json"],
+      }),
+    })
+    const body = await res.json()
+
+    expect(res.status).toBe(200)
+    expect(body.metas).toHaveLength(1)
+    expect(body.metas[0]).toMatchObject({
+      id: "tmdb:680",
+      type: "movie",
+      name: "Pulp Fiction",
+      poster: expect.stringContaining("/api/poster/movie/680"),
     })
   })
 
@@ -609,7 +827,7 @@ describe("GET /catalog/[type]/[id]", () => {
     expect(res.status).toBe(200)
     expect(body.metas).toHaveLength(1)
     expect(body.metas[0]).toMatchObject({
-      id: "tmdb:550",
+      id: "tt0137523",
       type: "movie",
       name: "Fight Club",
       releaseInfo: "1999",
@@ -662,7 +880,7 @@ describe("GET /catalog/[type]/[id]", () => {
     expect(res.status).toBe(200)
     expect(body.metas).toHaveLength(1)
     expect(body.metas[0]).toMatchObject({
-      id: "tmdb:1311031",
+      id: "tt32820897",
       type: "movie",
       name: "Demon Slayer: Il castello dell'Infinito",
       releaseInfo: "2025",
@@ -708,8 +926,8 @@ describe("GET /catalog/[type]/[id]", () => {
     expect(res.status).toBe(200)
     // Solo i 2 unici devono essere presenti, il duplicato 866398 al rank 2 è scartato
     expect(body.metas).toHaveLength(2)
-    expect(body.metas[0].id).toBe("tmdb:866398")
-    expect(body.metas[1].id).toBe("tmdb:1588838")
+    expect(body.metas[0].id).toBe("tt15314262")
+    expect(body.metas[1].id).toBe("tt31234567")
   })
 
   it("serves catalog from /c/[config]/catalog/[type]/[id] route", async () => {

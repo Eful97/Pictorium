@@ -20,10 +20,15 @@ Il resolver `/meta` di Pictorium risolve gli id **solo** da `tt...` (IMDb) o
 fallback TMDB ed è un id non portabile → evitare sempre.
 
 Risoluzione dell'id (helper `catalogMetaId` in `catalog-handler.ts`):
-oggi sempre `tmdb:<id>` (il resolver `/meta` di Pictorium risolve `tmdb:` nativamente;
-storicamente `imdbId` → `resolveImdbId` → `tmdb:` — ora il parametro `_imdbId` è
-ignorato per mantenere Pictorium 100% standalone senza dipendenza da Cinemeta/AIOMetadata).
-Mai emettere un id numerico nudo come `id` del meta.
+IMDb-first — se la fonte fornisce un `imdbId` valido (`tt` + 7-10 cifre,
+fail-closed come `isValidImdbId` in `imdb-csv.ts`; normalizzato in minuscolo
+perché il resolver `/meta` matcha il prefisso `tt` minuscolo) l'id del meta
+è l'imdbId stesso; altrimenti fallback `tmdb:<id>` (il resolver `/meta` di
+Pictorium risolve entrambi nativamente). Mai emettere un id numerico nudo
+come `id` del meta. Dedup, mapping e poster URL restano sul tmdbId numerico:
+l'id emesso non si usa mai come chiave di selezione (i `tt` possono essere
+condivisi tra entry split della stessa franchise — vedi escape hatch
+alias/mapping `imdbId` nel contratto poster).
 
 ## Cataloghi supportati (`PICTORIUM_CATALOGS` in `catalog-definitions.ts`)
 
@@ -65,8 +70,22 @@ FlixPatrol. I filtri genere globali si applicano dopo l'arricchimento TMDB.
    **l'`imdbId` arriva già da JustWatch** — non rifare una chiamata TMDB per ottenerlo.
 2. Per ogni riga: dettagli TMDB nella lingua effettiva del catalogo, con la
    chiave risolta da `resolveUserApiKeys(req, scopedUser)`.
-3. Id del meta: `tmdb:<id>` via `catalogMetaId`; l'IMDb della fonte resta disponibile per gli altri consumer, ma non decide l'id del catalogo.
+3. Id del meta: `catalogMetaId` — l'`imdbId` valido della fonte (JustWatch lo
+   fornisce già: nessuna chiamata TMDB extra per ottenerlo) oppure
+   `tmdb:<id>` in fallback quando assente/invalido.
 4. Poster: `/api/poster/{type}/{tmdbId}?rv=...` (+ `mv` se esiste un mapping salvato).
+
+### Ricerca (`pictorium-search-movies` / `pictorium-search-series`, `pictorium-search-people-*`)
+Ricerca TMDB diretta (`searchMovies`/`searchTV`, max 20 risultati, pagine via
+`skip`); persone via `searchPerson` → `pickTopPerson` → crediti film/serie
+(dedup per `tmdbId` numerico, ordine per popolarità). Id del meta
+IMDb-first come gli altri cataloghi: `catalogMetaId` sull'`imdb_id`
+risolto via `resolveImdbId` (`external_ids` leggero e cachato in
+`imdb-cache`, con la chiave della richiesta e tetto fail-open —
+assente/invalido/errore ricade su `tmdb:<id>` e la riga resta servita),
+senza secondo `getDetails` per riga (full-text/crediti bastano). Dedup,
+mapping e poster URL restano sul tmdbId numerico. L'id `tt` esatto resta
+risolto via `/find` senza full-text (invariato).
 
 ### Piattaforme Streaming (`pictorium-netflix-*`, `pictorium-prime-*`, ecc.)
 1. `getJustWatchRankings(type, region.code, 10, packages, region.lang)` con i pacchetti della piattaforma
@@ -155,13 +174,28 @@ chiave d'istanza condivisa) resta valida per quel caso.
   grezzo per l'hero dettaglio. I titoli portrait non emettono `landscapePoster`
   e mantengono il `logo` separato (comportamento invariato).
 
+- Navigazione video solo film (parità Easy Catalogs): le preview movie
+  espongono `behaviorHints: { defaultVideoId: <id emesso>, hasScheduledVideos: false }`
+  e `videos: []` (stessa shape di Easy); `/meta` movie espone gli stessi campi
+  (`defaultVideoId` = `primaryId` esistente: id IMDb valido nel caso normale,
+  fallback tipato `tmdb:<id>`). Le serie restano byte-identiche
+  (episodi/videos e nessun hint film). I cataloghi addon preservano il
+  passthrough remoto (nessun hint sintetico).
+
 - Cache catalogo (`cacheSet`/`cacheGet` in `lib/cache.ts`): key include tipo,
   `catalogId`, `POSTER_URL_VERSION`, hash `config` e hash `mdblist_key`.
+  La key è `stremio:catalog:v4` (v4 con hints video film: le entry v3 senza
+  `behaviorHints`/`videos:[]` non vengono più lette e scadono naturalmente;
+  le chiavi search dedicate portano il frammento `:idv2` (v2 = id IMDb-first
+  via external_ids + hints film: le entry pre-fix non vengono più lette e
+  scadono col TTL breve da 10 min).
   TTL: 1h dalla generazione per il catalogo **non vuoto** (TTL esplicito, vince
   sul refresh schedulato del tag `catalog`); catalogo **vuoto** → 60 s.
 - Cache meta (`meta-handler.ts`): key include `episodeGroupId:updatedAt` del
   mapping (film e serie) così save poster/ordinamento invalidano anche
-  cross-instance; TTL 12h.
+  cross-instance; frammento `:mhv1` (hints video film: le entry pre-fix senza
+  `hasScheduledVideos`/`videos:[]` non vengono più lette e scadono col TTL);
+  TTL 12h.
 - Su deploy multi-istanza (Vercel serverless) la `cacheInvalidate("stremio")`
   del save non raggiunge le altre istanze: il cache key catalogo include anche
   epoch globale (`lib/catalog-epoch.ts`, bump su ogni scrittura
@@ -287,6 +321,8 @@ regionale JW > base; liste custom con split `— Film/Serie TV` per `mixed`):
 - Non emettere mai `id` numerici nudi nel catalogo.
 - Non reintrodurre la chiamata TMDB extra per l'`imdbId` nei cataloghi JustWatch:
   la fonte lo fornisce già.
+- Non usare l'id emesso (`tt`, potenzialmente condiviso tra entry split) per
+  dedup/selezione: dedup, mapping salvati e poster URL restano sul tmdbId numerico.
 - Non rimuovere il passaggio della chiave della richiesta in `resolveImdbId`.
 - Non hardcoddare nuovi cataloghi nel route: aggiungili a `PICTORIUM_CATALOGS` (e a
   `WARMUP_CATALOG_IDS` se devono essere preriscaldati).

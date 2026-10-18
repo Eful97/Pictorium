@@ -781,7 +781,7 @@ describe("Trakt media discovery consumers: preview, manifest, catalog", () => {
       params: Promise.resolve({ type: "movie", id: `pictorium-custom-movie-${cid}.json` }),
     })
     const movieBody = (await movieRes.json()) as { metas: Array<{ id: string }> }
-    expect(movieBody.metas.map((m) => m.id)).toEqual(["tmdb:1726"])
+    expect(movieBody.metas.map((m) => m.id)).toEqual(["tt0371746"])
 
     const seriesReq = new NextRequest(
       `http://localhost:3000/catalog/series/pictorium-custom-series-${cid}.json?api_key=test-key&config=${token}`,
@@ -790,6 +790,6 @@ describe("Trakt media discovery consumers: preview, manifest, catalog", () => {
       params: Promise.resolve({ type: "series", id: `pictorium-custom-series-${cid}.json` }),
     })
     const seriesBody = (await seriesRes.json()) as { metas: Array<{ id: string }> }
-    expect(seriesBody.metas.map((m) => m.id)).toEqual(["tmdb:1396"])
+    expect(seriesBody.metas.map((m) => m.id)).toEqual(["tt0903747"])
   })
 })

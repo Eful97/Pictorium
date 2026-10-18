@@ -3,7 +3,7 @@ import { test, expect } from "@playwright/test"
 // Catalog / Meta / Manifest API tests — no TMDB key needed (mock server)
 
 test.describe("catalog API", () => {
-  test("pictorium-jw-movies returns metas with tmdb: ids", async ({ request }) => {
+  test("pictorium-jw-movies returns metas with resolvable ids (tt preferred, tmdb: fallback)", async ({ request }) => {
     const res = await request.get("/catalog/movie/pictorium-jw-movies.json", {
       headers: { "x-api-key": "e2e-key" },
     })
@@ -12,7 +12,8 @@ test.describe("catalog API", () => {
     expect(Array.isArray(body.metas)).toBeTruthy()
     expect(body.metas.length).toBeGreaterThan(0)
     for (const m of body.metas) {
-      expect(m.id.startsWith("tmdb:")).toBeTruthy()
+      // IMDb-first: tt... quando la fonte lo fornisce, mai numeri nudi.
+      expect(String(m.id)).toMatch(/^(tt\d{7,10}|tmdb:\d+)$/)
       expect(m.poster).toContain("/api/poster/")
     }
   })
@@ -25,8 +26,25 @@ test.describe("catalog API", () => {
     const body = await res.json()
     expect(body.metas.length).toBeGreaterThan(0)
     for (const m of body.metas) {
-      expect(m.id.startsWith("tmdb:")).toBeTruthy()
+      expect(String(m.id)).toMatch(/^(tt\d{7,10}|tmdb:\d+)$/)
     }
+  })
+
+  test("first catalog id resolves through /meta (catalog -> meta round trip)", async ({ request }) => {
+    const res = await request.get("/catalog/movie/pictorium-jw-movies.json", {
+      headers: { "x-api-key": "e2e-key" },
+    })
+    expect(res.ok()).toBeTruthy()
+    const body = await res.json()
+    expect(body.metas.length).toBeGreaterThan(0)
+    const firstId = String(body.metas[0].id)
+    const metaRes = await request.get(`/meta/movie/${firstId}.json`, {
+      headers: { "x-api-key": "e2e-key" },
+    })
+    expect(metaRes.ok()).toBeTruthy()
+    const metaBody = await metaRes.json()
+    expect(metaBody.meta).not.toBeNull()
+    expect(String(metaBody.meta.id)).toBe(firstId)
   })
 
   test("search catalog with query returns results", async ({ request }) => {
@@ -37,6 +55,11 @@ test.describe("catalog API", () => {
     const body = await res.json()
     expect(body.metas.length).toBeGreaterThan(0)
     expect(body.metas[0].name).toContain("Avatar")
+    // IMDb-first: id risolvibili (tt preferito, tmdb: fallback), mai numeri nudi.
+    for (const m of body.metas) {
+      expect(String(m.id)).toMatch(/^(tt\d{7,10}|tmdb:\d+)$/)
+      expect(m.poster).toContain("/api/poster/")
+    }
   })
 
   test("search metas carry rating, background, genres and description like AIOMetadata", async ({ request }) => {

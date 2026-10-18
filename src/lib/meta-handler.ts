@@ -81,6 +81,7 @@ export interface StremioMetaDetail {
   trailers?: StremioTrailer[]
   behaviorHints?: {
     defaultVideoId?: string
+    hasScheduledVideos?: boolean
   }
   videos?: StremioVideo[]
 }
@@ -315,7 +316,7 @@ export async function pictoriumMeta(
   const epoch = await getCatalogEpoch(scopedUser)
   const sdHash = hashFragment(JSON.stringify(effectiveDefaults))
   const freshness = `:e${epoch}:sd${sdHash}`
-  const cacheKey = `stremio:meta:${stType}:${cleanId}:pv${POSTER_URL_VERSION}${scopedUser ? `:u${hashUserFragment(scopedUser)}` : ""}:ak${apiKey ? hashFragment(apiKey) : "none"}${configParam ? `:cfg${hashFragment(configParam)}` : ""}${mdblistKey ? `:mk${hashFragment(mdblistKey)}` : ""}${tvdbApiKey ? `:tk${hashFragment(tvdbApiKey)}` : ""}:es${episodeMetadataSource}:eg${hashFragment(egKey)}:r${region.code}:l${posterLang}${stType === "series" ? ":eo2" : ""}${metaThemeFragment}${freshness}`
+  const cacheKey = `stremio:meta:${stType}:${cleanId}:pv${POSTER_URL_VERSION}${scopedUser ? `:u${hashUserFragment(scopedUser)}` : ""}:ak${apiKey ? hashFragment(apiKey) : "none"}${configParam ? `:cfg${hashFragment(configParam)}` : ""}${mdblistKey ? `:mk${hashFragment(mdblistKey)}` : ""}${tvdbApiKey ? `:tk${hashFragment(tvdbApiKey)}` : ""}:es${episodeMetadataSource}:eg${hashFragment(egKey)}:r${region.code}:l${posterLang}${stType === "series" ? ":eo2" : ""}${metaThemeFragment}:mhv1${freshness}`
   const cached = await cacheGetShared<{ meta: StremioMetaDetail; __partial?: boolean }>(cacheKey, ["stremio", "meta"])
   // __partial is only an internal signal for the hit HTTP header: never in the JSON.
   if (cached) return metaResponse({ meta: cached.meta }, cached.__partial === true)
@@ -528,8 +529,8 @@ export async function pictoriumMeta(
       director: director.length > 0 ? director : undefined,
       writer: writers.length > 0 ? writers : undefined,
       trailers: trailers.length > 0 ? trailers : undefined,
-      behaviorHints: stType === "movie" ? { defaultVideoId: primaryId } : undefined,
-      videos: videos && videos.length > 0 ? videos : undefined,
+      behaviorHints: stType === "movie" ? { defaultVideoId: primaryId, hasScheduledVideos: false } : undefined,
+      videos: stType === "movie" ? [] : (videos && videos.length > 0 ? videos : undefined),
     }
 
     const body = { meta }

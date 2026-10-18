@@ -146,7 +146,7 @@ describe("GET /catalog with custom ranking source", () => {
     const body = await res.json()
 
     expect(res.status).toBe(200)
-    expect(body.metas.map((m: { id: string }) => m.id)).toEqual(["tmdb:101", "tmdb:102", "tmdb:103"])
+    expect(body.metas.map((m: { id: string }) => m.id)).toEqual(["tt0000101", "tt0000102", "tt0000103"])
     expect(jwCalls).toBe(0)
   })
 
@@ -193,7 +193,7 @@ describe("GET /catalog with custom ranking source", () => {
     const body = await res.json()
 
     expect(res.status).toBe(200)
-    expect(body.metas[0].id).toBe("tmdb:94997")
+    expect(body.metas[0].id).toBe("tt11198330")
     expect(jwCalls).toBe(1)
   })
 
@@ -216,7 +216,7 @@ describe("GET /catalog with custom ranking source", () => {
     )
     const body = await res.json()
 
-    expect(body.metas[0].id).toBe("tmdb:94997")
+    expect(body.metas[0].id).toBe("tt11198330")
     expect(jwCalls).toBe(1)
   })
 
@@ -241,7 +241,7 @@ describe("GET /catalog with custom ranking source", () => {
     )
     const body = await res.json()
 
-    expect(body.metas.map((m: { id: string }) => m.id)).toEqual(["tmdb:302"])
+    expect(body.metas.map((m: { id: string }) => m.id)).toEqual(["tt0000302"])
   })
 
   it("returns an empty grid (no JW filler) for a genuinely empty list", async () => {
@@ -319,7 +319,7 @@ describe("GET /catalog with custom ranking source", () => {
     )
     const body = await res.json()
 
-    expect(body.metas.map((m: { id: string }) => m.id)).toEqual(["tmdb:111"])
+    expect(body.metas.map((m: { id: string }) => m.id)).toEqual(["tt0000111"])
     expect(jwCalls).toBe(0)
   })
 
@@ -391,7 +391,7 @@ describe("GET /catalog with custom ranking source", () => {
     )
     const body = await res.json()
 
-    expect(body.metas[0].id).toBe("tmdb:555")
+    expect(body.metas[0].id).toBe("tt0000555")
     expect(jwCalls).toBe(1)
   })
 

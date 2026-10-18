@@ -57,6 +57,12 @@ export const CATALOG_TTL_MS = 60 * 60 * 1000
 /** TTL catalogo vuoto: resta 60s (errori transient non congelati). */
 export const CATALOG_EMPTY_TTL_MS = 60_000
 
+/** Versione identità per le chiavi search dedicate: v2 = id IMDb-first via
+ *  external_ids + hints video film (`behaviorHints`/`videos:[]`, parità Easy).
+ *  Ruota le entry search cachate pre-hints (10 min di TTL breve, scadono
+ *  naturalmente) senza toccare le chiavi catalogo. */
+const SEARCH_IDENTITY_VERSION = "idv2"
+
 /** Signal per-titolo nei cataloghi (stesso pattern del tetto loghi a riga ~350). */
 function catalogTimeoutSignal(): AbortSignal | undefined {
   return typeof AbortSignal !== "undefined" && "timeout" in AbortSignal
@@ -89,6 +95,14 @@ interface StremioMeta {
   genres?: string[]
   description?: string
   posterShape?: string
+  /** Navigazione video solo film (parità Easy): `behaviorHints` con
+   *  `defaultVideoId` = id emesso + `hasScheduledVideos:false`, `videos:[]`.
+   *  Assente sulle serie (byte-identiche). */
+  behaviorHints?: {
+    defaultVideoId?: string
+    hasScheduledVideos?: boolean
+  }
+  videos?: Array<{ id: string }>
 }
 
 export interface CatalogExtraParams {
@@ -466,12 +480,36 @@ async function catalogLogo(mediaType: "movie" | "tv", tmdbId: number, apiKey?: s
 
 
 /**
- * ID del catalogo Stremio: esponendo l'id provider (`tmdb:<id>`), Stremio
- * interroga direttamente Pictorium per la risorsa `meta` invece di delegare a Cinemeta,
- * permettendo la gestione autonoma di loghi, trame e ordinamento parti/stagioni.
+ * ID del catalogo Stremio: l'imdbId valido della fonte vince (così Stremio
+ * interroga direttamente Pictorium per la risorsa `meta` con l'id portabile
+ * `tt...`); senza imdbId valido si ricade sul provider id `tmdb:<id>`.
+ * Validazione fail-closed (`tt` + 7-10 cifre, come `isValidImdbId` in
+ * `imdb-csv.ts`): stringhe vuote/spurie e numeri nudi non escono mai come
+ * id del meta. Normalizzazione in minuscolo: il resolver `/meta` matcha il
+ * prefisso `tt` minuscolo.
  */
-function catalogMetaId(_imdbId: string | null | undefined, tmdbId: number): string {
+const CATALOG_IMDB_ID_RE = /^tt\d{7,10}$/i
+
+function catalogMetaId(imdbId: string | null | undefined, tmdbId: number): string {
+  const clean = typeof imdbId === "string" ? imdbId.trim() : ""
+  if (CATALOG_IMDB_ID_RE.test(clean)) return clean.toLowerCase()
   return `tmdb:${tmdbId}`
+}
+
+/**
+ * Navigazione video solo film (parità Easy Catalogs): le preview movie
+ * espongono `behaviorHints.defaultVideoId` = id emesso giocabile (id IMDb
+ * valido nel caso normale, fallback tipato `tmdb:<id>`) con
+ * `hasScheduledVideos:false` e `videos:[]` (shape Easy). Unico punto di
+ * costruzione: i rami serie restano byte-identici (nessun hint applicato).
+ */
+function movieCatalogVideoHints(metaId: string): Pick<StremioMeta, "behaviorHints" | "videos"> {
+  return { behaviorHints: { defaultVideoId: metaId, hasScheduledVideos: false }, videos: [] }
+}
+
+function withMovieCatalogHints(metas: StremioMeta[], stType: StremioCatalogType): StremioMeta[] {
+  if (stType !== "movie") return metas
+  return metas.map((m) => ({ ...m, ...movieCatalogVideoHints(m.id) }))
 }
 
 /**
@@ -712,7 +750,7 @@ export async function pictoriumCatalog(
         })
       }
       const page = Math.floor((extra.skip || 0) / 20) + 1
-      const searchCacheKey = `stremio:search:people:${stType}:${hashFragment(extra.search)}:p${page}:pv${POSTER_URL_VERSION}${scopedUser ? `:u${hashUserFragment(scopedUser)}` : ""}:ak${hashFragment(apiKey)}${configParam ? `:cfg${hashFragment(configParam)}` : ""}${mdblistKey ? `:mk${hashFragment(mdblistKey)}` : ""}${regionFragment}${themeFragment}${freshness}`
+      const searchCacheKey = `stremio:search:people:${stType}:${hashFragment(extra.search)}:p${page}:pv${POSTER_URL_VERSION}:${SEARCH_IDENTITY_VERSION}${scopedUser ? `:u${hashUserFragment(scopedUser)}` : ""}:ak${hashFragment(apiKey)}${configParam ? `:cfg${hashFragment(configParam)}` : ""}${mdblistKey ? `:mk${hashFragment(mdblistKey)}` : ""}${regionFragment}${themeFragment}${freshness}`
       const cachedSearch = cacheGet<{ metas: StremioMeta[] }>(searchCacheKey)
       if (cachedSearch) return catalogResponse(cachedSearch)
 
@@ -767,10 +805,17 @@ export async function pictoriumCatalog(
 
         const results: (StremioMeta | null)[] = await concurrentMap(paged, async (item) => {
           if (!item.id) return null
-          const { poster, banner, landscapePoster, posterShape } = await pictoriumPosterAndShape(req, stType, item.id, configParam, userParam, undefined, posterLang, region.code, catalogId, undefined, catalogTheme)
+          // IMDb-first come gli altri cataloghi: external_ids leggero e
+          // cachato (imdb-cache) con la chiave della richiesta e tetto
+          // fail-open — assente/invalido/errore ricade su `tmdb:`, la riga
+          // resta servita. Mai un secondo details fetch (i crediti bastano).
+          const [imdbId, { poster, banner, landscapePoster, posterShape }] = await Promise.all([
+            resolveImdbId(stType === "movie" ? "movie" : "tv", item.id, apiKey, CATALOG_TMDB_TIMEOUT_MS, catalogTimeoutSignal()),
+            pictoriumPosterAndShape(req, stType, item.id, configParam, userParam, undefined, posterLang, region.code, catalogId, undefined, catalogTheme),
+          ])
           const releaseInfo = (item.release_date || item.first_air_date || "").slice(0, 4) || undefined
           return {
-            id: catalogMetaId(null, item.id),
+            id: catalogMetaId(imdbId, item.id),
             type: stType,
             name: item.title || item.name || "",
             poster,
@@ -785,7 +830,7 @@ export async function pictoriumCatalog(
           }
         }, 5)
         const metas = results.filter((m): m is StremioMeta => m !== null)
-        const body = { metas }
+        const body = { metas: withMovieCatalogHints(metas, stType) }
         cacheSet(searchCacheKey, body, ["stremio", "search"], 10 * 60 * 1000)
         return catalogResponse(body)
       } catch (e) {
@@ -801,7 +846,7 @@ export async function pictoriumCatalog(
       })
     }
     const page = Math.floor((extra.skip || 0) / 20) + 1
-    const searchCacheKey = `stremio:search:${stType}:${hashFragment(extra.search)}:p${page}:pv${POSTER_URL_VERSION}${scopedUser ? `:u${hashUserFragment(scopedUser)}` : ""}:ak${hashFragment(apiKey)}${configParam ? `:cfg${hashFragment(configParam)}` : ""}${mdblistKey ? `:mk${hashFragment(mdblistKey)}` : ""}${regionFragment}${themeFragment}${freshness}`
+    const searchCacheKey = `stremio:search:${stType}:${hashFragment(extra.search)}:p${page}:pv${POSTER_URL_VERSION}:${SEARCH_IDENTITY_VERSION}${scopedUser ? `:u${hashUserFragment(scopedUser)}` : ""}:ak${hashFragment(apiKey)}${configParam ? `:cfg${hashFragment(configParam)}` : ""}${mdblistKey ? `:mk${hashFragment(mdblistKey)}` : ""}${regionFragment}${themeFragment}${freshness}`
     const cachedSearch = cacheGet<{ metas: StremioMeta[] }>(searchCacheKey)
     if (cachedSearch) return catalogResponse(cachedSearch)
 
@@ -825,9 +870,9 @@ export async function pictoriumCatalog(
         const genreNames = await tmdbGenreNames(stType, apiKey, tmdbLang)
         const { poster, banner, landscapePoster, posterShape } = await pictoriumPosterAndShape(req, stType, foundId, configParam, userParam, undefined, posterLang, region.code, catalogId, undefined, catalogTheme)
         const body = {
-          metas: [
+          metas: withMovieCatalogHints([
             {
-              id: catalogMetaId(null, foundId),
+              id: catalogMetaId(imdbQuery, foundId),
               type: stType,
               name: d?.title || d?.name || imdbQuery,
               poster,
@@ -840,7 +885,7 @@ export async function pictoriumCatalog(
               genres: genreNamesFromIds(d?.genres?.map((g) => g.id), genreNames),
               description: d?.overview ?? undefined,
             },
-          ] as StremioMeta[],
+          ] as StremioMeta[], stType),
         }
         cacheSet(searchCacheKey, body, ["stremio", "search"], 10 * 60 * 1000)
         return catalogResponse(body)
@@ -860,10 +905,17 @@ export async function pictoriumCatalog(
       const genreNames = await tmdbGenreNames(stType, apiKey, tmdbLang)
       const results: (StremioMeta | null)[] = await concurrentMap(items, async (item) => {
         if (!item.id) return null
-        const { poster, banner, landscapePoster, posterShape } = await pictoriumPosterAndShape(req, stType, item.id, configParam, userParam, undefined, posterLang, region.code, catalogId, undefined, catalogTheme)
+        // IMDb-first come gli altri cataloghi: external_ids leggero e
+        // cachato (imdb-cache) con la chiave della richiesta e tetto
+        // fail-open — assente/invalido/errore ricade su `tmdb:`, la riga
+        // resta servita. Mai un secondo details fetch (il full-text basta).
+        const [imdbId, { poster, banner, landscapePoster, posterShape }] = await Promise.all([
+          resolveImdbId(stType === "movie" ? "movie" : "tv", item.id, apiKey, CATALOG_TMDB_TIMEOUT_MS, catalogTimeoutSignal()),
+          pictoriumPosterAndShape(req, stType, item.id, configParam, userParam, undefined, posterLang, region.code, catalogId, undefined, catalogTheme),
+        ])
         const releaseInfo = (item.release_date || item.first_air_date || "").slice(0, 4) || undefined
         return {
-          id: catalogMetaId(null, item.id),
+          id: catalogMetaId(imdbId, item.id),
           type: stType,
           name: item.title || item.name || "",
           poster,
@@ -878,7 +930,7 @@ export async function pictoriumCatalog(
         }
       }, 5)
       const metas = results.filter((m): m is StremioMeta => m !== null)
-      const body = { metas }
+      const body = { metas: withMovieCatalogHints(metas, stType) }
       cacheSet(searchCacheKey, body, ["stremio", "search"], 10 * 60 * 1000)
       return catalogResponse(body)
     } catch (e) {
@@ -947,7 +999,7 @@ export async function pictoriumCatalog(
       }
     }
   }
-  const cacheKey = `stremio:catalog:v2:${stType}:${catalogId}:pv${POSTER_URL_VERSION}${scopedUser ? `:u${hashUserFragment(scopedUser)}` : ""}:ak${apiKey ? hashFragment(apiKey) : "none"}${configParam ? `:cfg${hashFragment(configParam)}` : ""}${mdblistKey ? `:mk${hashFragment(mdblistKey)}` : ""}${tvdbKey ? `:tv${hashFragment(tvdbKey)}` : ""}${genreFragment}${skipFragment}${searchFragment}${regionFragment}${rankingFragment}${traktGenFragment}${themeFragment}${freshness}`
+  const cacheKey = `stremio:catalog:v4:${stType}:${catalogId}:pv${POSTER_URL_VERSION}${scopedUser ? `:u${hashUserFragment(scopedUser)}` : ""}:ak${apiKey ? hashFragment(apiKey) : "none"}${configParam ? `:cfg${hashFragment(configParam)}` : ""}${mdblistKey ? `:mk${hashFragment(mdblistKey)}` : ""}${tvdbKey ? `:tv${hashFragment(tvdbKey)}` : ""}${genreFragment}${skipFragment}${searchFragment}${regionFragment}${rankingFragment}${traktGenFragment}${themeFragment}${freshness}`
   // C1: L1 + L2 condivisa (KV su multi-istanza, no-op locale/VPS).
   // Il selettore conserva il TTL originale anche dopo il ripopolamento L1
   // da KV (il payload KV non trasporta la scadenza): pieno → 1h, vuoto → 60s.
@@ -1708,7 +1760,9 @@ export async function pictoriumCatalog(
       metas = metas.slice(extra.skip)
     }
 
-    const body = { metas }
+    // Navigazione video solo film (parità Easy Catalogs): il ramo addon
+  // preserva il passthrough remoto (nessun hint sintetico Pictorium).
+  const body = { metas: !isAddonCatalog ? withMovieCatalogHints(metas, stType) : metas }
     // Coerenza outer-cache ↔ provider fetch (correction cycle 1, solo path
     // Trakt privati con item owner-fetchati): un fence mai verificato per
     // questa richiesta serve fresco senza mai persistere; un fence

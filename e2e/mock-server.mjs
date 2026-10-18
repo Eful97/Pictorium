@@ -48,11 +48,17 @@ function posterItem() {
   return { aspect_ratio: 0.667, file_path: MOCKED_POSTER_PATH, height: 1500, iso_639_1: null, vote_average: 7.9, width: 1000 }
 }
 
-function detailFor(type) {
+function detailFor(type, tmdbId) {
+  // Per-title IMDb id (IMDb-first catalogs desde v-identità: ogni item del
+  // catalogo deve risolvere a un tt distinto — un costante condiviso
+  // colliderebbe su tutti gli id del catalogo). Zero-padded a 7 cifre:
+  // sempre valido (^tt\d{7,10}$) e round-trip via /find/ numerico sotto.
+  const numericId = Number(tmdbId) || 0
+  const imdbId = numericId > 0 ? `tt${String(numericId).padStart(7, "0")}` : "tt1234567"
   const base = {
     credits: { cast: [{ id: 1, name: "Actor One" }], crew: [{ id: 2, name: "Director One", job: "Director" }] },
     videos: { results: [{ id: "v1", key: "abc123", site: "YouTube", type: "Trailer", name: "Trailer" }] },
-    external_ids: { imdb_id: "tt1234567", wikidata_id: "Q12345" },
+    external_ids: { imdb_id: imdbId, wikidata_id: "Q12345" },
   }
   if (type === "tv") {
     return {
@@ -204,7 +210,13 @@ const server = http.createServer(async (req, res) => {
       return json(res, 200, { genres: [{ id: 28, name: "Azione" }, { id: 12, name: "Avventura" }] })
     }
     if (pathname === "/3/find/tt1234567" || pathname.startsWith("/3/find/")) {
-      return json(res, 200, { movie_results: [{ id: 19995 }], tv_results: [{ id: 19995 }] })
+      // Legacy tt1234567 → fixture Avatar; i tt per-id (detailFor sopra)
+      // risolvono numericamente (tt0019995 → 19995) per il round-trip
+      // catalogo → /meta.
+      const m = pathname.match(/^\/3\/find\/(tt\d+)$/)
+      const tt = m ? m[1] : ""
+      const id = tt === "tt1234567" ? 19995 : (tt ? Number(tt.slice(2)) || 19995 : 19995)
+      return json(res, 200, { movie_results: [{ id }], tv_results: [{ id }] })
     }
     if (
       pathname === "/3/movie/popular" ||
@@ -215,7 +227,7 @@ const server = http.createServer(async (req, res) => {
     }
     const detailsMatch = pathname.match(/^\/3\/(movie|tv)\/(\d+)$/)
     if (detailsMatch) {
-      return json(res, 200, detailFor(detailsMatch[1]))
+      return json(res, 200, detailFor(detailsMatch[1], detailsMatch[2]))
     }
     const imagesMatch = pathname.match(/^\/3\/(movie|tv)\/(\d+)\/images$/)
     if (imagesMatch) {
@@ -223,8 +235,15 @@ const server = http.createServer(async (req, res) => {
     }
     const extIdsMatch = pathname.match(/^\/3\/(movie|tv)\/(\d+)\/external_ids$/)
     if (extIdsMatch) {
-      // imdb_id volutamente NON in IMDb Top 250, per poster deterministici
-      return json(res, 200, { id: Number(extIdsMatch[2]), imdb_id: "tt1234567", wikidata_id: "Q12345" })
+      // imdb_id volutamente NON in IMDb Top 250, per poster deterministici.
+      // Per-id come in detailFor: i cataloghi IMDb-first emettono un tt per
+      // item e un costante condiviso produrrebbe id duplicati.
+      const numericId = Number(extIdsMatch[2]) || 0
+      return json(res, 200, {
+        id: numericId,
+        imdb_id: numericId > 0 ? `tt${String(numericId).padStart(7, "0")}` : "tt1234567",
+        wikidata_id: "Q12345",
+      })
     }
     const kwMatch = pathname.match(/^\/3\/(movie|tv)\/(\d+)\/keywords$/)
     if (kwMatch) {
@@ -399,7 +418,9 @@ const server = http.createServer(async (req, res) => {
                   content: {
                     title: item.title,
                     originalReleaseDate: item.release_date || "2020-01-01",
-                    externalIds: { tmdbId: item.id, imdbId: "tt" + item.id },
+                    // Per-id valido (^tt\d{7,10}$): "tt" + id nudo non
+                    // passerebbe la validazione fail-closed dei cataloghi.
+                    externalIds: { tmdbId: item.id, imdbId: "tt" + String(item.id).padStart(7, "0") },
                   },
                 },
               })),
