@@ -59,7 +59,10 @@ export async function fetchImg(url: string, signal?: AbortSignal): Promise<Buffe
     }
   }
   // Byte-LRU (F3): a parità di URL i re-download spariscono; SSRF check,
-  // signal/timeout e cap size restano dentro doFetch, invariati.
+  // signal/timeout e cap size restano dentro doFetch, invariati. Il combined
+  // (caller + 15s interni) viaggia anche come signal del waiter coalesced:
+  // senza, un waiter resterebbe ostaggio del download del leader oltre la
+  // propria scadenza (deadline del suo render / timeout interno).
   return cachedImageBytes(url, async () => {
     const res = await timedFetch(url, { signal: combined })
     if (!res.ok) throw new Error(`fetch failed: ${res.status}`)
@@ -68,7 +71,7 @@ export async function fetchImg(url: string, signal?: AbortSignal): Promise<Buffe
     const buf = Buffer.from(await readResponseBody(res))
     if (buf.length > MAX_IMG_SIZE) throw new Error("image too large")
     return buf
-  })
+  }, combined)
 }
 
 export function isValidHex(color: string): boolean {

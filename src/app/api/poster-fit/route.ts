@@ -57,14 +57,16 @@ interface PosterFitResponse {
 
 async function fetchImage(url: string, signal: AbortSignal): Promise<Buffer> {
   // Byte-LRU (F3): a parità di URL (logo + candidati per toggle) niente
-  // re-download; il check <100 resta dentro, invariato.
+  // re-download; il check <100 resta dentro, invariato. Il signal viaggia
+  // anche come waiter coalesced (stesso fix di fetchImg): un candidato lento
+  // del leader non trattiene gli altri oltre i loro 5s.
   return cachedImageBytes(url, async () => {
     const res = await timedFetch(url, { signal })
     if (!res.ok) throw new Error(`HTTP ${res.status}`)
     const buf = Buffer.from(await res.arrayBuffer())
     if (buf.length < 100) throw new Error(`Image too small (${buf.length} bytes)`)
     return buf
-  })
+  }, signal)
 }
 
 const MAX_BODY_BYTES = 50_000

@@ -1280,11 +1280,12 @@ export async function pictoriumCatalog(
 
         const pagedItems = isCustomGenreFiltered ? uniqueResolved.slice(0, 100) : uniqueResolved.slice(skip, skip + 20)
 
-        // A details fetch that throws (timeout/outage) loses genre data but
-        // the row stays servable from list data — still flag incomplete so a
-        // genre-less partial never freezes for an hour.
+        // Pipelined per-item (no whole-batch barrier): details then
+        // imdb/poster/logo sequentially within each item task, concurrency 5
+        // across titles. A fast item's enrichment no longer waits for a slow
+        // item's details; order preserved by concurrentMap index slots.
         let detailsTransientFailure = false
-        const results = await concurrentMap(pagedItems, async (item) => {
+        metas = (await concurrentMap(pagedItems, async (item): Promise<StremioMeta | null> => {
           const tmdbId = Number(item.tmdb)
           if (!tmdbId) return null
           let details: TMDBDetails | null = null
@@ -1299,7 +1300,7 @@ export async function pictoriumCatalog(
           }
           const title = details?.title || details?.name || item.title || "Titolo"
           const releaseInfo = (details?.release_date || details?.first_air_date || (item.year ? String(item.year) : "")).slice(0, 4) || undefined
-          return {
+          const r = {
             tmdbId,
             imdb: item.imdb,
             title,
@@ -1309,11 +1310,6 @@ export async function pictoriumCatalog(
             description: details?.overview ?? undefined,
             voteAverage: details?.vote_average ?? undefined,
           }
-        }, 5)
-        if (customBudgetSignal.aborted) customBudgetIncomplete = true
-        if (detailsTransientFailure) customBudgetIncomplete = true
-        const validResults = results.filter((r): r is NonNullable<typeof r> => r !== null)
-        metas = await concurrentMap(validResults, async (r) => {
           // Final enrichment rides the same shared deadline: per-step caps
           // via combined signals, cancellation at the 10s bound, no extra
           // background work past it.
@@ -1348,8 +1344,9 @@ export async function pictoriumCatalog(
             genres: r.genres,
             description: r.description,
           }
-        }, 5)
+        }, 5)).filter((m): m is StremioMeta => m !== null)
         if (customBudgetSignal.aborted) customBudgetIncomplete = true
+        if (detailsTransientFailure) customBudgetIncomplete = true
       }
       }
     } else if (catalogId.startsWith("pictorium-jw")) {
@@ -1475,44 +1472,46 @@ export async function pictoriumCatalog(
         }
       }
 
-      const results = await concurrentMap(uniqueRows, async (row) => {
+      // Pipelined per-item (no whole-batch barrier): details then
+      // imdb/poster/logo sequentially within each item task, concurrency 5
+      // across titles. A fast item's enrichment no longer waits for a slow
+      // item's details; order preserved by concurrentMap index slots.
+      metas = (await concurrentMap(uniqueRows, async (row): Promise<StremioMeta | null> => {
+        // D4: external_ids in append — niente secondo fetch per-titolo.
+        // Tetto fail-open: uno straggler non appende tutto il catalogo.
+        let d: Awaited<ReturnType<typeof getDetailsWithExternalIds>> | null = null
         try {
-          // D4: external_ids in append — niente secondo fetch per-titolo.
-          // Tetto fail-open: uno straggler non appende tutto il catalogo.
-          const d = await getDetailsWithExternalIds(stType === "movie" ? "movie" : "tv", row.tmdbId, tmdbLang, apiKey, catalogTimeoutSignal(), CATALOG_TMDB_TIMEOUT_MS)
-          if (!d?.id) return { d: null, tmdbId: row.tmdbId, imdbId: row.imdbId, title: row.title, rank: row.rank }
-          return { d, tmdbId: row.tmdbId, imdbId: row.imdbId, title: row.title, rank: row.rank }
+          const fetched = await getDetailsWithExternalIds(stType === "movie" ? "movie" : "tv", row.tmdbId, tmdbLang, apiKey, catalogTimeoutSignal(), CATALOG_TMDB_TIMEOUT_MS)
+          if (fetched?.id) d = fetched
         } catch {
           // Fail-open come il ramo piattaforme: il titolo JustWatch resta
           // anche senza dettagli (prima la riga veniva scartata del tutto).
-          return { d: null, tmdbId: row.tmdbId, imdbId: row.imdbId, title: row.title, rank: row.rank }
+          d = null
         }
-      }, 5)
-      const validResults = results.filter((r): r is NonNullable<typeof r> => r !== null && (!!r.d || !!(r.title && r.title.length > 0)))
-      metas = await concurrentMap(validResults, async (r) => {
+        if (!d && !(row.title && row.title.length > 0)) return null
         const [imdbId, posterAndShape, logo] = await Promise.all([
-          r.imdbId || r.d?.external_ids?.imdb_id || null,
-          pictoriumPosterAndShape(req, stType, r.tmdbId, configParam, userParam, undefined, posterLang, region.code, catalogId, r.rank, catalogTheme),
-          apiKey ? catalogLogo(stType === "movie" ? "movie" : "tv", r.tmdbId, apiKey, tmdbLang) : Promise.resolve(undefined),
+          row.imdbId || d?.external_ids?.imdb_id || null,
+          pictoriumPosterAndShape(req, stType, row.tmdbId, configParam, userParam, undefined, posterLang, region.code, catalogId, row.rank, catalogTheme),
+          apiKey ? catalogLogo(stType === "movie" ? "movie" : "tv", row.tmdbId, apiKey, tmdbLang) : Promise.resolve(undefined),
         ])
         const { poster, banner, landscapePoster, posterShape } = posterAndShape
-        const background = catalogBackground(r.d?.backdrop_path ?? null)
+        const background = catalogBackground(d?.backdrop_path ?? null)
         return {
-          id: catalogMetaId(imdbId, r.tmdbId),
+          id: catalogMetaId(imdbId, row.tmdbId),
           type: stType,
-          name: r.d?.title || r.d?.name || r.title || "",
+          name: d?.title || d?.name || row.title || "",
           poster,
           posterShape,
           background,
           banner,
           landscapePoster,
           logo: catalogLogoForShape(posterShape, logo),
-          releaseInfo: (r.d?.release_date || r.d?.first_air_date || "").slice(0, 4) || undefined,
-          imdbRating: r.d?.vote_average ? r.d.vote_average.toFixed(1) : undefined,
-          genres: (r.d?.genres || []).map((g) => g.name).filter(Boolean),
-          description: r.d?.overview ?? undefined,
+          releaseInfo: (d?.release_date || d?.first_air_date || "").slice(0, 4) || undefined,
+          imdbRating: d?.vote_average ? d.vote_average.toFixed(1) : undefined,
+          genres: (d?.genres || []).map((g) => g.name).filter(Boolean),
+          description: d?.overview ?? undefined,
         }
-      }, 5)
+      }, 5)).filter((m): m is StremioMeta => m !== null)
     } else if (catalogId.startsWith("pictorium-anime")) {
       const isMovie = catalogId === "pictorium-anime-movies" || stType === "movie"
       const listKey = isMovie ? "mdblistAnimeMovie" : "mdblistAnime"
@@ -1526,7 +1525,10 @@ export async function pictoriumCatalog(
       const animeSkip = typeof extra.skip === "number" && extra.skip > 0 ? extra.skip : 0
       const pagedItems = items.slice(animeSkip, animeSkip + 20)
       const seenTmdb = new Set<number>()
-      const results = await concurrentMap(pagedItems, async (item, idx) => {
+      // Pipelined per-item (no whole-batch barrier): resolve/details then
+      // imdb/poster/logo sequentially within each item task, concurrency 5
+      // across titles. Order preserved by concurrentMap index slots.
+      metas = (await concurrentMap(pagedItems, async (item, idx): Promise<StremioMeta | null> => {
         let tmdbId = Number(item.tmdb)
         if (!tmdbId && item.imdb && apiKey) {
           tmdbId = await tmdbFindByImdb(item.imdb, mediaType, apiKey, catalogTimeoutSignal()).catch(() => 0) || 0
@@ -1543,45 +1545,32 @@ export async function pictoriumCatalog(
             d = null
           }
         }
+        const rank = animeSkip + idx + 1
+        const [imdbId, posterAndShape, logo] = await Promise.all([
+          item.imdb ? Promise.resolve(item.imdb) : resolveImdbId(mediaType, tmdbId, apiKey, CATALOG_TMDB_TIMEOUT_MS),
+          pictoriumPosterAndShape(req, stType, tmdbId, configParam, userParam, rank, posterLang, region.code, catalogId, undefined, catalogTheme),
+          apiKey ? catalogLogo(mediaType, tmdbId, apiKey, tmdbLang) : Promise.resolve(undefined),
+        ])
+        const { poster, banner, landscapePoster, posterShape } = posterAndShape
+        const background = catalogBackground(d?.backdrop_path ?? null)
         const name = d?.title || d?.name || item.title || "Anime"
         const releaseInfo = (d?.release_date || d?.first_air_date || (item.year ? String(item.year) : "")).slice(0, 4) || undefined
         return {
-          tmdbId,
-          imdb: item.imdb,
-          name,
-          releaseInfo,
-          rank: animeSkip + idx + 1,
-          genres: (d?.genres || []).map((g) => g.name).filter(Boolean),
-          backdropPath: d?.backdrop_path ?? null,
-          description: d?.overview ?? undefined,
-          voteAverage: d?.vote_average ?? undefined,
-        }
-      }, 5)
-      const validResults = results.filter((r): r is NonNullable<typeof r> => r !== null)
-      metas = await concurrentMap(validResults, async (r) => {
-        const [imdbId, posterAndShape, logo] = await Promise.all([
-          r.imdb ? Promise.resolve(r.imdb) : resolveImdbId(mediaType, r.tmdbId, apiKey, CATALOG_TMDB_TIMEOUT_MS),
-          pictoriumPosterAndShape(req, stType, r.tmdbId, configParam, userParam, r.rank, posterLang, region.code, catalogId, undefined, catalogTheme),
-          apiKey ? catalogLogo(mediaType, r.tmdbId, apiKey, tmdbLang) : Promise.resolve(undefined),
-        ])
-        const { poster, banner, landscapePoster, posterShape } = posterAndShape
-        const background = catalogBackground(r.backdropPath)
-        return {
-          id: catalogMetaId(imdbId, r.tmdbId),
+          id: catalogMetaId(imdbId, tmdbId),
           type: stType,
-          name: r.name,
+          name,
           poster,
           posterShape,
           background,
           banner,
           landscapePoster,
           logo: catalogLogoForShape(posterShape, logo),
-          releaseInfo: r.releaseInfo,
-          imdbRating: r.voteAverage ? r.voteAverage.toFixed(1) : undefined,
-          genres: r.genres,
-          description: r.description,
+          releaseInfo,
+          imdbRating: d?.vote_average ? d.vote_average.toFixed(1) : undefined,
+          genres: (d?.genres || []).map((g) => g.name).filter(Boolean),
+          description: d?.overview ?? undefined,
         }
-      }, 5)
+      }, 5)).filter((m): m is StremioMeta => m !== null)
     } else {
       let platformKey = ""
       let slug = ""
@@ -1629,7 +1618,10 @@ export async function pictoriumCatalog(
             return true
           }).slice(sliceOffset, sliceOffset + 10)
 
-          const results = await concurrentMap(uniqueJwRows, async (row) => {
+          // Pipelined per-item (no whole-batch barrier): details then
+          // imdb/poster/logo sequentially within each item task, concurrency
+          // 5 across titles. Order preserved by concurrentMap index slots.
+          metas = (await concurrentMap(uniqueJwRows, async (row): Promise<StremioMeta | null> => {
             let details: TMDBDetails | null = null
             if (apiKey) {
               try {
@@ -1641,43 +1633,30 @@ export async function pictoriumCatalog(
               }
             }
             const title = details?.title || details?.name || row.title || ""
-            return {
-              tmdbId: row.tmdbId,
-              imdbId: row.imdbId,
-              externalImdbId: details?.external_ids?.imdb_id ?? null,
-              title,
-              releaseInfo: (details?.release_date || details?.first_air_date || "").slice(0, 4) || undefined,
-              genres: (details?.genres || []).map((g) => g.name).filter(Boolean),
-              backdropPath: details?.backdrop_path ?? null,
-              description: details?.overview ?? undefined,
-              voteAverage: details?.vote_average ?? undefined,
-            }
-          }, 5)
-          const validResults = results.filter((r) => r.title.length > 0)
-          metas = await concurrentMap(validResults, async (r) => {
+            if (title.length === 0) return null
             const [imdbId, posterAndShape, logo] = await Promise.all([
-              r.imdbId || r.externalImdbId || null,
-              pictoriumPosterAndShape(req, stType, r.tmdbId, configParam, userParam, undefined, posterLang, region.code, catalogId, undefined, catalogTheme),
-              apiKey ? catalogLogo(stType === "movie" ? "movie" : "tv", r.tmdbId, apiKey, tmdbLang) : Promise.resolve(undefined),
+              row.imdbId || details?.external_ids?.imdb_id || null,
+              pictoriumPosterAndShape(req, stType, row.tmdbId, configParam, userParam, undefined, posterLang, region.code, catalogId, undefined, catalogTheme),
+              apiKey ? catalogLogo(stType === "movie" ? "movie" : "tv", row.tmdbId, apiKey, tmdbLang) : Promise.resolve(undefined),
             ])
             const { poster, banner, landscapePoster, posterShape } = posterAndShape
-            const background = catalogBackground(r.backdropPath)
+            const background = catalogBackground(details?.backdrop_path ?? null)
             return {
-              id: catalogMetaId(imdbId, r.tmdbId),
+              id: catalogMetaId(imdbId, row.tmdbId),
               type: stType,
-              name: r.title,
+              name: title,
               poster,
               posterShape,
               background,
               banner,
               landscapePoster,
               logo: catalogLogoForShape(posterShape, logo),
-              releaseInfo: r.releaseInfo,
-              imdbRating: r.voteAverage ? r.voteAverage.toFixed(1) : undefined,
-              genres: r.genres,
-              description: r.description,
+              releaseInfo: (details?.release_date || details?.first_air_date || "").slice(0, 4) || undefined,
+              imdbRating: details?.vote_average ? details.vote_average.toFixed(1) : undefined,
+              genres: (details?.genres || []).map((g) => g.name).filter(Boolean),
+              description: details?.overview ?? undefined,
             }
-          }, 5)
+          }, 5)).filter((m): m is StremioMeta => m !== null)
         } else if (slug && apiKey) {
           // Fallback secondario: FlixPatrol Top 10
           const data = await getTop10(slug, region.flixSlug, apiKey, { enrich: false }).catch(() => null)

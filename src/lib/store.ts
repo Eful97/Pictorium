@@ -408,7 +408,7 @@ async function persist(data: Record<string, Mapping>) {
   await ensureDataDir()
   const tmp = `${DATA_FILE}.${process.pid}.${Date.now()}.${Math.random().toString(36).slice(2, 8)}.tmp`
   try {
-    await fsp.writeFile(tmp, JSON.stringify(data, null, 2))
+    await fsp.writeFile(tmp, JSON.stringify(data))
     try {
       await fsp.rename(tmp, DATA_FILE)
     } catch (e) {
@@ -519,7 +519,7 @@ async function persistUser(userId: string, data: Record<string, Mapping>) {
   })
   const tmp = `${file}.${process.pid}.${Date.now()}.${Math.random().toString(36).slice(2, 8)}.tmp`
   try {
-    await fsp.writeFile(tmp, JSON.stringify(data, null, 2))
+    await fsp.writeFile(tmp, JSON.stringify(data))
     try {
       await fsp.rename(tmp, file)
     } catch (e) {
@@ -893,7 +893,7 @@ async function persistAliases(data: Record<string, ImdbAlias>) {
   await ensureDataDir()
   const tmp = `${ALIAS_FILE}.${process.pid}.${Date.now()}.${Math.random().toString(36).slice(2, 8)}.tmp`
   try {
-    await fsp.writeFile(tmp, JSON.stringify(data, null, 2))
+    await fsp.writeFile(tmp, JSON.stringify(data))
     try {
       await fsp.rename(tmp, ALIAS_FILE)
     } catch (e) {
@@ -961,7 +961,7 @@ async function persistUserAliases(userId: string, data: Record<string, ImdbAlias
   })
   const tmp = `${file}.${process.pid}.${Date.now()}.${Math.random().toString(36).slice(2, 8)}.tmp`
   try {
-    await fsp.writeFile(tmp, JSON.stringify(data, null, 2))
+    await fsp.writeFile(tmp, JSON.stringify(data))
     try {
       await fsp.rename(tmp, file)
     } catch (e) {

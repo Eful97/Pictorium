@@ -1542,22 +1542,24 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
                   return buf
                 }
                 const url = imgSrc(path)
+                const imgSignal = combineAbortSignals(renderAbort.signal, 5000)
                 return cachedImageBytes(url, async () => {
-                  const res = await timedFetch(url, { signal: combineAbortSignals(renderAbort.signal, 5000) })
+                  const res = await timedFetch(url, { signal: imgSignal })
                   if (!res.ok) throw new Error(`HTTP ${res.status}`)
                   return Buffer.from(await readResponseBody(res))
-                })
+                }, imgSignal)
               },
               fetchCandidateImage: async (path: string) => {
                 if (path.startsWith("http") && !path.startsWith("https://image.tmdb.org/t/p/")) {
                   throw new Error("Blocked external URL in fetchCandidateImage")
                 }
                 const url = path.startsWith("http") ? path : `https://image.tmdb.org/t/p/w342${path}`
+                const candidateSignal = combineAbortSignals(renderAbort.signal, 5000)
                 return cachedImageBytes(url, async () => {
-                  const res = await timedFetch(url, { signal: combineAbortSignals(renderAbort.signal, 5000) })
+                  const res = await timedFetch(url, { signal: candidateSignal })
                   if (!res.ok) throw new Error(`HTTP ${res.status}`)
                   return Buffer.from(await readResponseBody(res))
-                })
+                }, candidateSignal)
               },
               hasBadges: true,
             })
@@ -1694,11 +1696,12 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
                 logoPath,
                 fetchImage: async (path: string) => {
                   const url = imgSrc(path)
+                  const imgSignal = combineAbortSignals(renderAbort.signal, 5000)
                   return cachedImageBytes(url, async () => {
-                    const res = await timedFetch(url, { signal: combineAbortSignals(renderAbort.signal, 5000) })
+                    const res = await timedFetch(url, { signal: imgSignal })
                     if (!res.ok) throw new Error(`HTTP ${res.status}`)
                     return Buffer.from(await readResponseBody(res))
-                  })
+                  }, imgSignal)
                 },
                 fetchCandidateImage: async (path: string) => {
                   if (path.startsWith("http") && !path.startsWith("https://image.tmdb.org/t/p/")) {
@@ -1707,11 +1710,12 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
                   // w780 come il client (BackdropOptions): a w342 il testo dei
                   // backdrop si perderebbe e la cleanliness sbaglierebbe.
                   const url = path.startsWith("http") ? path : `https://image.tmdb.org/t/p/w780${path}`
+                  const candidateSignal = combineAbortSignals(renderAbort.signal, 5000)
                   return cachedImageBytes(url, async () => {
-                    const res = await timedFetch(url, { signal: combineAbortSignals(renderAbort.signal, 5000) })
+                    const res = await timedFetch(url, { signal: candidateSignal })
                     if (!res.ok) throw new Error(`HTTP ${res.status}`)
                     return Buffer.from(await readResponseBody(res))
-                  })
+                  }, candidateSignal)
                 },
                 hasBadges: true,
                 shape: "landscape",
@@ -2253,6 +2257,53 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
       return new Response(isLandscape ? "Landscape backdrop not available" : "Poster image not available", { status: 404, headers: corsHeaders() })
     }
 
+    // Details recovery starts BEFORE the sharp resize below so a session-miss
+    // fetch overlaps resize CPU instead of extending the critical path after
+    // it. The promise is awaited in the luminance Promise.all; outcome and
+    // field application are unchanged (the mapping TV metadata assignments
+    // below overwrite unconditionally when present, the recovery guards only
+    // fill nulls — final values are identical in either order).
+    const needsDetailsRecovery = tmdbNetworks.length === 0 && productionCompanies.length === 0
+    const detailsRecovery = needsDetailsRecovery
+      ? (async () => {
+        const apiKey = effTmdbKey
+        const preferredLang = req.nextUrl.searchParams.get("lang") || mapping?.language || posterRegion.lang2
+        // F6: anche il refetch dei dettagli TV riusa la session cache.
+        // Un singolo retry sul fallimento transitorio (cold-start
+        // upstream): senza dettagli saltano studio/network badge e il
+        // render resta cachato così per tutto il TTL.
+        const attempt = () => getDetails(mediaType, tmdbId, preferredLang, apiKey, renderAbort.signal, POSTER_TMDB_TIMEOUT_MS).catch(() => null)
+        const details = getTMDBSessionCache(mediaType, tmdbId, preferredLang)?.details
+          ?? (await attempt())
+          // Hard abort/deadline stops the retry: past the watchdog the caller
+          // is already gone and a second full-cap wait only delays the zombie
+          // settle (the inflight entry stays held meanwhile). The recovery
+          // still settles via the first attempt (abort-fast or cache hit).
+          ?? (renderAbort.signal.aborted ? null : await attempt())
+        if (!details) return
+        if (!releaseDate) releaseDate = details.release_date || null
+        if (!firstAirDate) firstAirDate = details.first_air_date || null
+        if (!lastAirDate) lastAirDate = details.last_air_date || null
+        if (seasonCount == null) seasonCount = details.number_of_seasons ?? null
+        if (originCountries.length === 0) {
+          originCountries = [...(details.networks || []), ...(details.production_companies || [])]
+            .map((c) => c.origin_country)
+            .filter((c): c is string => !!c)
+        }
+        if (!tvType) tvType = details.type || null
+        if (!tvStatus) tvStatus = details.status || null
+        if (details.networks) {
+          tmdbNetworks = details.networks.map((n: TMDBCompany) => n.name)
+          tmdbNetworksDetailed = details.networks.map((n: TMDBCompany) => ({ name: n.name, logoPath: n.logo_path }))
+        }
+        if (details.production_companies) {
+          productionCompanies = details.production_companies.map((c: TMDBCompany) => c.name)
+          productionCompaniesDetailed = details.production_companies.map((c: TMDBCompany) => ({ name: c.name, logoPath: c.logo_path }))
+        }
+        if (tmdbNetworks.length || productionCompanies.length) tmdbStudios = matchTMDBStudios([...tmdbNetworks, ...productionCompanies])
+      })().catch((e: unknown) => { log.error("Details fetch failed", { error: e instanceof Error ? e.message : String(e) }) })
+      : null
+
     // rankingResult è autoritativo: il fallback al mapping salvato avviene solo
     // su fetch fallito (nei catch sopra), MAI su miss genuina. Altrimenti un
     // titolo uscito dalla chart mostrerebbe per sempre il rank del save
@@ -2301,7 +2352,9 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
     if (mapping?.releaseDate) releaseDate = mapping.releaseDate
     if (mapping?.firstAirDate) firstAirDate = mapping.firstAirDate
 
-    // Luminance + optional TV details fetch (parallel, independent)
+    // Luminance + optional TV details fetch (parallel, independent).
+    // detailsRecovery was started above (before the sharp resize) so a
+    // session-miss fetch overlaps resize CPU; awaited here with the rest.
     const [customRatings, topLum, bottomLum] = await Promise.all([
       customRatingConfig.enabled ? fetchCustomRatings(imdbId, customRatingConfig, renderAbort.signal) : Promise.resolve([]),
       (async (): Promise<number | null> => {
@@ -2312,40 +2365,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
         if (qBottomLight === "1" || qBottomLight === "0" || qBottomLight === "true" || qBottomLight === "false") return null
         return await bottomLuminance(posterBuf, analysisKey)
       })(),
-      (tmdbNetworks.length === 0 && productionCompanies.length === 0)
-          ? (async () => {
-            const apiKey = effTmdbKey
-            const preferredLang = req.nextUrl.searchParams.get("lang") || mapping?.language || posterRegion.lang2
-            // F6: anche il refetch dei dettagli TV riusa la session cache.
-            // Un singolo retry sul fallimento transitorio (cold-start
-            // upstream): senza dettagli saltano studio/network badge e il
-            // render resta cachato così per tutto il TTL.
-            const details = getTMDBSessionCache(mediaType, tmdbId, preferredLang)?.details
-              ?? (await getDetails(mediaType, tmdbId, preferredLang, apiKey, renderAbort.signal, POSTER_TMDB_TIMEOUT_MS).catch(() => null))
-              ?? (await getDetails(mediaType, tmdbId, preferredLang, apiKey, renderAbort.signal, POSTER_TMDB_TIMEOUT_MS).catch(() => null))
-            if (!details) return
-            if (!releaseDate) releaseDate = details.release_date || null
-            if (!firstAirDate) firstAirDate = details.first_air_date || null
-            if (!lastAirDate) lastAirDate = details.last_air_date || null
-            if (seasonCount == null) seasonCount = details.number_of_seasons ?? null
-            if (originCountries.length === 0) {
-              originCountries = [...(details.networks || []), ...(details.production_companies || [])]
-                .map((c) => c.origin_country)
-                .filter((c): c is string => !!c)
-            }
-            if (!tvType) tvType = details.type || null
-            if (!tvStatus) tvStatus = details.status || null
-            if (details.networks) {
-              tmdbNetworks = details.networks.map((n: TMDBCompany) => n.name)
-              tmdbNetworksDetailed = details.networks.map((n: TMDBCompany) => ({ name: n.name, logoPath: n.logo_path }))
-            }
-            if (details.production_companies) {
-              productionCompanies = details.production_companies.map((c: TMDBCompany) => c.name)
-              productionCompaniesDetailed = details.production_companies.map((c: TMDBCompany) => ({ name: c.name, logoPath: c.logo_path }))
-            }
-            if (tmdbNetworks.length || productionCompanies.length) tmdbStudios = matchTMDBStudios([...tmdbNetworks, ...productionCompanies])
-          })().catch((e: unknown) => { log.error("Details fetch failed", { error: e instanceof Error ? e.message : String(e) }) })
-        : Promise.resolve(),
+      detailsRecovery ?? Promise.resolve(),
     ])
 
     const topLight = (qTopLight === "1" || qTopLight === "true") ? true : (qTopLight === "0" || qTopLight === "false") ? false : (topLum ?? 0.5) > TOP_LIGHT_LUMINANCE

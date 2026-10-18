@@ -17,6 +17,7 @@
  */
 
 import { envWithFallback } from "./env-compat"
+import { raceWithAbort, signalAbortReason } from "./abort-signal"
 
 const IMG_BYTES_TTL_MS = 24 * 60 * 60 * 1000
 const MAX_ENTRY_BYTES = 10 * 1024 * 1024
@@ -51,6 +52,11 @@ export interface ImageBytesStats {
   readonly budgetBytes: number
 }
 
+function bytesCacheHasFresh(url: string): boolean {
+  const hit = bytesCache.get(url)
+  return !!hit && Date.now() - hit.ts < IMG_BYTES_TTL_MS
+}
+
 function evictFor(size: number): void {
   while (bytesCache.size > 0 && cachedBytes + size > IMG_CACHE_BUDGET_BYTES) {
     const oldest = bytesCache.keys().next().value!
@@ -72,13 +78,40 @@ function evictFor(size: number): void {
  * abort non dice nulla sul waiter. Su rejection del leader il waiter rientra
  * una sola volta col proprio `doFetch` (coalescing di nuovo attivo tra i
  * waiter che riprovano; nessun secondo retry, niente catene).
+ *
+ * Il waiter non eredita nemmeno l'attesa del leader: con `signal` il waiter
+ * gareggia col proprio abort (raceWithAbort, come tmdb.ts) invece di restare
+ * ostaggio di un download lento oltre il proprio timeout interno (15s di
+ * fetchImg) o la deadline del proprio render. Il detach non abortisce il
+ * leader né gli altri waiter (solo la propria attesa); dopo il proprio abort
+ * mai retry (l'entry condivisa resta del leader). Senza `signal` il percorso
+ * resta byte-identico a prima.
  */
-export async function cachedImageBytes(url: string, doFetch: () => Promise<Buffer>): Promise<Buffer> {
-  return cachedImageBytesOnce(url, doFetch, true)
+export async function cachedImageBytes(
+  url: string,
+  doFetch: () => Promise<Buffer>,
+  signal?: AbortSignal,
+): Promise<Buffer> {
+  return cachedImageBytesOnce(url, doFetch, true, signal)
 }
 
-async function cachedImageBytesOnce(url: string, doFetch: () => Promise<Buffer>, retryAsWaiter: boolean): Promise<Buffer> {
-  if (IMG_CACHE_BUDGET_BYTES <= 0) return doFetch()
+function abortRejection(signal: AbortSignal): Promise<never> {
+  return Promise.reject(signalAbortReason(signal))
+}
+
+async function cachedImageBytesOnce(
+  url: string,
+  doFetch: () => Promise<Buffer>,
+  retryAsWaiter: boolean,
+  signal?: AbortSignal,
+): Promise<Buffer> {
+  // Waiter pre-abortito: mai join/start/retry — ma una hit già disponibile
+  // resta servita (stessa semantica degli altri layer: la cache non abortisce).
+  if (signal?.aborted && !bytesCacheHasFresh(url)) return abortRejection(signal)
+  if (IMG_CACHE_BUDGET_BYTES <= 0) {
+    if (signal?.aborted) return abortRejection(signal)
+    return doFetch()
+  }
   const hit = bytesCache.get(url)
   if (hit) {
     if (Date.now() - hit.ts < IMG_BYTES_TTL_MS) {
@@ -93,9 +126,22 @@ async function cachedImageBytesOnce(url: string, doFetch: () => Promise<Buffer>,
   }
   const existing = inflightBytes.get(url)
   if (existing) {
-    return retryAsWaiter
-      ? existing.catch(() => cachedImageBytesOnce(url, doFetch, false))
-      : existing
+    // Gara col proprio abort (come tmdb.ts): il waiter esce alla propria
+    // scadenza senza abortire il leader né gli altri waiter — solo la sua
+    // attesa. Senza signal il percorso resta byte-identico a prima.
+    if (!retryAsWaiter) return raceWithAbort(existing, signal)
+    if (!signal) return existing.catch(() => cachedImageBytesOnce(url, doFetch, false))
+    try {
+      return await raceWithAbort(existing, signal)
+    } catch {
+      // Abort proprio: mai retry dopo il proprio abort (né join all'entry
+      // fresca del retry altrui: l'attesa è finita). Fallimento del leader a
+      // waiter sano: un solo retry col proprio doFetch, come prima.
+      if (signal.aborted) {
+        throw signalAbortReason(signal)
+      }
+      return cachedImageBytesOnce(url, doFetch, false, signal)
+    }
   }
   bytesStats.misses++
   const promise = doFetch().then(
