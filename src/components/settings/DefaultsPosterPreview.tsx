@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useRef, useState, useId } from "react"
-import { ChevronDown, ImageOff, RefreshCw, Sparkles } from "lucide-react"
+import { ChevronDown, ImageOff, RefreshCw, Search, Sparkles } from "lucide-react"
 import { usePosterEditor, type PosterEditorCtx } from "@/lib/contexts/PosterEditorContext"
 import { useT } from "@/lib/contexts/TranslationContext"
 import { buildDefaultsPreviewUrl, type DefaultsPreviewDemoMedia, type DefaultsPreviewFamily } from "@/lib/poster-url"
@@ -36,7 +36,8 @@ interface DefaultsPosterPreviewProps {
   onCollapsedChange?: (v: boolean) => void
   /** Floating overlay mode (mobile settings): minimal live thumbnail card —
    *  same single owner, same blob URL/state/zoom modal as the other modes,
-   *  only narrower chrome (no header/chip/search). */
+   *  only narrower chrome (no header/chip/inline search: a 44px trigger opens
+   *  the shared title-search dialog, preview-only). */
   floating?: boolean
   /** Suspend overlays: while true (settings exit-confirm owns the focus) an
    *  open zoom is closed so two dialogs are never active at once. */
@@ -297,6 +298,17 @@ export function DefaultsPosterPreview({ compact, floating, suspended, previewSha
   const [imageError, setImageError] = useState(false)
   const [retryNonce, setRetryNonce] = useState(0)
   const [zoomed, setZoomed] = useState(false)
+  // Floating-only title search (mobile): a 44x44 icon trigger overlaid
+  // inside the existing thumbnail (top-right, above the zoom target) opens
+  // ONE bounded dialog reusing the existing isolated
+  // DefaultsPreviewTitleSearch (same preview-only onDemoMediaChange, no
+  // navigation, no persisted defaults). Overlaid + absolute = the mini
+  // preview outer footprint is unchanged (no added row height over the
+  // controls). The preview owner stays mounted (no refetch on open); the
+  // dialog unmounts on close (desktop owns the always-open inline search
+  // instead).
+  const [mobileSearchOpen, setMobileSearchOpen] = useState(false)
+  const searchDialogBodyId = useId()
 
   const xhrRef = useRef<XMLHttpRequest | null>(null)
   const loadDelayRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -513,9 +525,25 @@ export function DefaultsPosterPreview({ compact, floating, suspended, previewSha
   // Exit-confirm supersedes the zoom overlay: close it so two dialogs are
   // never active (the shared Modal skips focus-restore when focus already
   // moved to the superseding dialog; closing here never discards or saves).
+  // The floating search dialog yields the same way.
   useEffect(() => {
-    if (suspended) setZoomed(false)
+    if (suspended) {
+      setZoomed(false)
+      setMobileSearchOpen(false)
+    }
   }, [suspended])
+
+  // Desktop owns the always-open inline search: letting the floating dialog
+  // survive a resize to the static column would mount two title-search
+  // owners (duplicate fetches), so it closes on the flip.
+  useEffect(() => {
+    if (!floating && mobileSearchOpen) setMobileSearchOpen(false)
+  }, [floating, mobileSearchOpen])
+
+  const openMobileSearch = () => {
+    setZoomed(false)
+    setMobileSearchOpen(true)
+  }
 
   // Aspect conforme all'URL (stessa shape effettiva del builder): switch
   // immediato, senza mixing durante il debounce (l'immagine precedente resta
@@ -715,9 +743,11 @@ export function DefaultsPosterPreview({ compact, floating, suspended, previewSha
 
   // Floating overlay mode (mobile settings): a minimal LIVE thumbnail card —
   // the same single owner, same blob URL/state/zoom modal as every other
-  // mode, only narrower chrome (no header, chip or search: the thumbnail
-  // tap opens the shared zoom, the owner wrapper provides minimize + corner
-  // controls). The frame keeps the true ratio (2/3 portrait, 16/9
+  // mode, only narrower chrome (no header, chip or inline search: a 44x44
+  // search icon overlaid top-right INSIDE the thumbnail opens the shared
+  // title-search dialog preview-only, so the outer footprint stays at the
+  // true ratio with no row below it; the owner wrapper provides minimize +
+  // corner controls). The frame keeps the true ratio (2/3 portrait, 16/9
   // landscape) and the full image is always visible (no inner scroll).
   if (floating) {
     return (
@@ -781,7 +811,59 @@ export function DefaultsPosterPreview({ compact, floating, suspended, previewSha
               </button>
             </div>
           )}
-        </div>
+            {/* Overlaid 44x44 search trigger: absolute INSIDE the existing
+                thumbnail (sibling of the zoom target, never nested in it) so
+                the card footprint is unchanged. Above the zoom layer (z-30):
+                the tap reaches this button, never the zoom. Pointer-down is
+                stopped so the floating corner-drag never starts from here. */}
+            <button
+              type="button"
+              data-testid="floating-preview-search"
+              onClick={(e) => { e.stopPropagation(); openMobileSearch(); }}
+              onPointerDown={(e) => { e.stopPropagation(); }}
+              aria-expanded={mobileSearchOpen}
+              aria-controls={searchDialogBodyId}
+              aria-label={t("ui.defaultsPreviewSearchLabel")}
+              title={t("ui.defaultsPreviewSearchLabel")}
+              className="absolute right-1 top-1 z-30 flex h-[44px] w-[44px] items-center justify-center rounded-xl bg-black/60 border border-white/15 text-zinc-200 transition-all hover:bg-white/10 hover:text-white active:scale-90 cursor-pointer touch-manipulation"
+            >
+              <Search className="w-4 h-4 shrink-0 text-accent-orange" />
+            </button>
+          </div>
+        <Modal
+          isOpen={mobileSearchOpen}
+          onClose={() => setMobileSearchOpen(false)}
+          labelledBy="floating-preview-search-title"
+          testId="floating-preview-search-dialog"
+          overlayClassName="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-fade-in overflow-y-auto"
+          className="max-w-sm w-full text-left min-w-0 max-h-[calc(100dvh-2rem)] overflow-y-auto"
+        >
+          {/* Portal-bubbled pointer gestures reach the floating drag wrapper
+              through the React tree: stop them here so typing/scrolling the
+              results never starts a corner drag. */}
+          <div id={searchDialogBodyId} onPointerDown={(e) => e.stopPropagation()}>
+            <h3 id="floating-preview-search-title" className="text-sm font-bold text-zinc-100">
+              {t("ui.defaultsPreviewSearchLabel")}
+            </h3>
+            <div className="mt-2">
+              <DefaultsPreviewTitleSearch
+                tmdbKey={tmdbKey}
+                hasServerKey={serverHasTmdbKey}
+                language={searchLanguage}
+                demoMedia={demoMedia ?? null}
+                onDemoMediaChange={(m) => onDemoMediaChange?.(m)}
+              />
+            </div>
+            <button
+              type="button"
+              data-testid="floating-preview-search-close"
+              onClick={() => setMobileSearchOpen(false)}
+              className="mt-3 w-full min-h-[44px] rounded-xl bg-white/10 hover:bg-white/20 text-xs font-semibold text-zinc-100 transition-all active:scale-95 cursor-pointer touch-manipulation"
+            >
+              {t("ui.close")}
+            </button>
+          </div>
+        </Modal>
         {zoomModal}
       </div>
     )

@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
-import { fireEvent, screen, within, act } from "@testing-library/react"
+import { fireEvent, screen, within, act, waitFor } from "@testing-library/react"
+import userEvent from "@testing-library/user-event"
 import { createElement } from "react"
 import { SettingsPanel } from "@/components/SettingsPanel"
 import { renderWithCtx } from "@/__tests__/test-utils"
@@ -13,6 +14,26 @@ vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn(), info: vi.f
 
 let puts: { url: string; body: Record<string, unknown> }[]
 
+/** Deterministic preview-title results for the floating search dialog. */
+const FLOATING_SEARCH_RESULTS = [
+  {
+    id: 1399,
+    media_type: "tv",
+    name: "La casa di carta",
+    poster_path: "/casa.jpg",
+    first_air_date: "2017-05-02",
+    vote_average: 8.2,
+  },
+  {
+    id: 19995,
+    media_type: "movie",
+    title: "Avatar",
+    poster_path: "/avatar.jpg",
+    release_date: "2009-12-10",
+    vote_average: 7.6,
+  },
+]
+
 function stubFetch() {
   vi.stubGlobal(
     "fetch",
@@ -20,15 +41,31 @@ function stubFetch() {
       const u = String(url)
       if (init?.method === "PUT" && u.includes("/api/defaults")) {
         puts.push({ url: u, body: JSON.parse(init.body as string) })
-        return { ok: true, status: 200, headers: { get: () => null }, json: async () => ({}) }
+        return { ok: true, status: 200, headers: { get: () => null }, json: async () => ({}), text: async () => "{}" }
       }
       if (u.includes("/api/defaults/presets")) {
-        return { ok: true, status: 200, headers: { get: () => null }, json: async () => ({ presets: [] }) }
+        return { ok: true, status: 200, headers: { get: () => null }, json: async () => ({ presets: [] }), text: async () => '{"presets":[]}' }
       }
       if (u.includes("/api/custom-rating/test")) {
-        return { ok: true, status: 200, headers: { get: () => null }, json: async () => ({ ok: true }) }
+        return { ok: true, status: 200, headers: { get: () => null }, json: async () => ({ ok: true }), text: async () => '{"ok":true}' }
       }
-      return { ok: false, status: 404, headers: { get: () => null }, json: async () => ({}) }
+      if (u.includes("/api/tmdb/search")) {
+        const q = new URL(u, "http://localhost").searchParams.get("q") ?? ""
+        const results = q.toLowerCase().includes("empty")
+          ? []
+          : FLOATING_SEARCH_RESULTS.filter((r) =>
+              (r.title || r.name || "").toLowerCase().includes(q.trim().toLowerCase().slice(0, 4)),
+            )
+        const payload = { results, total_results: results.length, total_pages: 1 }
+        return {
+          ok: true,
+          status: 200,
+          headers: { get: () => null },
+          json: async () => payload,
+          text: async () => JSON.stringify(payload),
+        }
+      }
+      return { ok: false, status: 404, headers: { get: () => null }, json: async () => ({}), text: async () => "" }
     }),
   )
 }
@@ -320,5 +357,201 @@ describe("settings mobile resize + save contract", () => {
       expect(screen.getByTestId("defaults-preview-editing")).toHaveTextContent("ui.previewEditingAuto")
       expect(puts).toHaveLength(0)
     }
+  })
+})
+
+describe("settings mobile floating title search (preview-only dialog)", () => {
+  beforeEach(() => {
+    FakeXHR.urls = []
+    let blobN = 0
+    vi.stubGlobal("XMLHttpRequest", FakeXHR)
+    Object.assign(URL, {
+      createObjectURL: vi.fn(() => `blob:fake-${++blobN}`),
+      revokeObjectURL: vi.fn(),
+    })
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    stubFetch()
+  })
+
+  function openSearch() {
+    const trigger = screen.getByTestId("floating-preview-search")
+    // Explicit focus mirrors the real tap (fireEvent.click alone does not
+    // move jsdom focus); the dialog restores to this trigger on close.
+    trigger.focus()
+    fireEvent.click(trigger)
+    return trigger
+  }
+
+  /** Scoped to the floating dialog: the settings body mounts other textboxes. */
+  function dialogSearchBox() {
+    return within(screen.getByTestId("floating-preview-search-dialog")).getByRole("textbox")
+  }
+
+  it("exposes an overlaid 44x44 search trigger with dialog wiring, no mounted dialog, no PUT", async () => {
+    renderPanel()
+    await screen.findByTestId("presets-panel")
+    const trigger = screen.getByTestId("floating-preview-search")
+    expect(trigger).toHaveAttribute("aria-label", "ui.defaultsPreviewSearchLabel")
+    expect(trigger).toHaveAttribute("aria-expanded", "false")
+    const controlsId = trigger.getAttribute("aria-controls")
+    expect(controlsId).toBeTruthy()
+    // Overlaid INSIDE the existing thumbnail (absolute, no added row): fixed
+    // 44px on both axes, mounted once beside the zoom target (never nested).
+    expect(trigger.className).toMatch(/h-\[44px\]/)
+    expect(trigger.className).toMatch(/w-\[44px\]/)
+    expect(trigger.className).toMatch(/absolute/)
+    expect(trigger.closest('[data-testid="defaults-preview-media"]')).not.toBeNull()
+    expect(trigger.closest('button[data-testid="defaults-preview-zoom-open"]')).toBeNull()
+    // Dialog mounts only on open: no second search owner beside the preview.
+    expect(screen.queryByTestId("floating-preview-search-dialog")).toBeNull()
+    expect(screen.queryByTestId("defaults-preview-title-search")).toBeNull()
+    expect(screen.getAllByTestId("defaults-preview-media")).toHaveLength(1)
+    expect(puts).toHaveLength(0)
+  })
+
+  it("opens on click with focus in the search box; Escape closes with focus restore, settings stays open", async () => {
+    renderPanel()
+    await screen.findByTestId("presets-panel")
+    const mediaBefore = screen.getByTestId("defaults-preview-media")
+    const trigger = openSearch()
+    expect(trigger).toHaveAttribute("aria-expanded", "true")
+    const dialog = await screen.findByTestId("floating-preview-search-dialog")
+    expect(dialog).toBeInTheDocument()
+    // Exactly one search owner mounted (the dialog one).
+    expect(screen.getAllByTestId("defaults-preview-title-search")).toHaveLength(1)
+    // Focus lands in the search box (Modal first-focusable), not on open.
+    expect(document.activeElement).toBe(dialogSearchBox())
+    // Opening mounts no second preview and persists nothing.
+    expect(screen.getByTestId("defaults-preview-media")).toBe(mediaBefore)
+    expect(puts).toHaveLength(0)
+    // Escape closes only the dialog (capture + stopPropagation, like zoom):
+    // focus returns to the trigger, the settings panel stays mounted.
+    fireEvent.keyDown(dialogSearchBox(), { key: "Escape" })
+    await waitFor(() => expect(screen.queryByTestId("floating-preview-search-dialog")).toBeNull())
+    expect(document.activeElement).toBe(trigger)
+    expect(screen.getByTestId("settings-preview")).toBeInTheDocument()
+    expect(trigger).toHaveAttribute("aria-expanded", "false")
+    expect(puts).toHaveLength(0)
+  })
+
+  it("keyboard Enter on the focused trigger opens the dialog", async () => {
+    const user = userEvent.setup()
+    renderPanel()
+    await screen.findByTestId("presets-panel")
+    const trigger = screen.getByTestId("floating-preview-search")
+    trigger.focus()
+    await user.keyboard("{Enter}")
+    expect(await screen.findByTestId("floating-preview-search-dialog")).toBeInTheDocument()
+    expect(document.activeElement).toBe(dialogSearchBox())
+    expect(puts).toHaveLength(0)
+  })
+
+  it("selecting a tv title switches only the preview path/alt, keeps shape and draft clean", async () => {
+    renderPanel()
+    await screen.findByTestId("presets-panel")
+    openSearch()
+    await screen.findByTestId("floating-preview-search-dialog")
+    const box = dialogSearchBox()
+    fireEvent.change(box, { target: { value: "casa" } })
+    fireEvent.keyDown(box, { key: "Enter" })
+    const option = await screen.findByRole("option", { name: /La casa di carta/ })
+    await waitFor(() => {
+      expect(FakeXHR.urls.some((u) => u.includes("/api/poster/movie/19995"))).toBe(true)
+    })
+    const n = FakeXHR.urls.length
+    fireEvent.click(option)
+    // Preview-only: the poster path flips to tv/1399 while the staged draft
+    // stays clean (Save disabled) and the shape stays portrait.
+    await waitFor(() => {
+      expect(FakeXHR.urls.slice(n).some((u) => u.includes("/api/poster/tv/1399"))).toBe(true)
+    })
+    expect(await screen.findByAltText("La casa di carta")).toBeInTheDocument()
+    expect(screen.getByTestId("defaults-preview-media").className).toMatch(/aspect-\[2\/3\]/)
+    expect(screen.queryByAltText("Avatar")).toBeNull()
+    // Still inside settings: no navigation, no PUT, dialog stays for reset.
+    expect(screen.getByTestId("settings-preview")).toBeInTheDocument()
+    expect(screen.getByTestId("settings-save")).toBeDisabled()
+    expect(screen.getByTestId("floating-preview-search-dialog")).toBeInTheDocument()
+    expect(puts).toHaveLength(0)
+    // Reset restores the Avatar sample without persisting.
+    fireEvent.click(screen.getByLabelText("ui.defaultsPreviewReset"))
+    await waitFor(() => {
+      expect(FakeXHR.urls.filter((u) => u.includes("/api/poster/movie/19995")).length).toBeGreaterThanOrEqual(2)
+    })
+    expect(await screen.findByAltText("Avatar")).toBeInTheDocument()
+    expect(screen.getByTestId("settings-save")).toBeDisabled()
+    expect(puts).toHaveLength(0)
+  })
+
+  it("shows the no-key notice without credentials and never fails", async () => {
+    renderWithCtx(
+      createElement(SettingsPanel, {
+        setSettingsOpen: () => {},
+        exportData: () => {},
+        importData: () => {},
+      }),
+      { tmdbKey: "", serverHasTmdbKey: false },
+    )
+    await screen.findByTestId("presets-panel")
+    openSearch()
+    await screen.findByTestId("floating-preview-search-dialog")
+    expect(screen.getByText("ui.noKey")).toBeInTheDocument()
+    expect(screen.queryByRole("listbox")).toBeNull()
+    expect(puts).toHaveLength(0)
+  })
+
+  it("resize to desktop closes the dialog so owners never duplicate; desktop keeps the always-open search", async () => {
+    renderPanel()
+    await screen.findByTestId("presets-panel")
+    openSearch()
+    await screen.findByTestId("floating-preview-search-dialog")
+    expect(screen.getAllByTestId("defaults-preview-title-search")).toHaveLength(1)
+    setMobileWidth(1280)
+    act(() => { window.dispatchEvent(new Event("resize")) })
+    // Dialog unmounts on the flip (desktop owns the inline search instead).
+    expect(screen.queryByTestId("floating-preview-search-dialog")).toBeNull()
+    expect(screen.queryByTestId("floating-preview-search")).toBeNull()
+    expect(within(screen.getByTestId("settings-preview")).getByRole("textbox")).toBeInTheDocument()
+    expect(screen.queryByTestId("defaults-preview-search-toggle")).toBeNull()
+    expect(screen.getAllByTestId("defaults-preview-media")).toHaveLength(1)
+    expect(screen.getAllByTestId("defaults-preview-title-search")).toHaveLength(1)
+    expect(puts).toHaveLength(0)
+  })
+
+  it("pointer gestures starting inside the dialog never re-dock the corner", async () => {
+    renderPanel()
+    await screen.findByTestId("presets-panel")
+    openSearch()
+    await screen.findByTestId("floating-preview-search-dialog")
+    const float = screen.getByTestId("settings-preview")
+    expect(float).toHaveAttribute("data-corner", "tr")
+    const box = dialogSearchBox()
+    // Typing/scrolling gesture inside the dialog (portal-bubbled through the
+    // React tree) must not start a corner drag on the floating wrapper.
+    fireEvent.pointerDown(box, { pointerId: 9, pointerType: "touch", clientX: 200, clientY: 400 })
+    fireEvent.pointerMove(box, { pointerId: 9, pointerType: "touch", clientX: 210, clientY: 430 })
+    fireEvent.pointerUp(box, { pointerId: 9, pointerType: "touch", clientX: 210, clientY: 430 })
+    expect(float).toHaveAttribute("data-corner", "tr")
+    expect(screen.getByTestId("floating-preview-search-dialog")).toBeInTheDocument()
+    expect(puts).toHaveLength(0)
+  })
+
+  it("minimize hides the trigger with the preview; restore brings it back mounted once", async () => {
+    renderPanel()
+    await screen.findByTestId("presets-panel")
+    const trigger = screen.getByTestId("floating-preview-search")
+    fireEvent.click(screen.getByTestId("floating-preview-minimize"))
+    // Hidden with the single owner under `hidden` (same contract as the
+    // thumbnail: still mounted once, no refetch on restore).
+    expect(trigger.closest("div.hidden")).not.toBeNull()
+    expect(screen.queryByTestId("floating-preview-search-dialog")).toBeNull()
+    fireEvent.click(screen.getByTestId("floating-preview-restore"))
+    expect(trigger.closest("div.hidden")).toBeNull()
+    expect(screen.getByTestId("floating-preview-search")).toBeInTheDocument()
+    expect(screen.getAllByTestId("defaults-preview-media")).toHaveLength(1)
+    expect(puts).toHaveLength(0)
   })
 })
