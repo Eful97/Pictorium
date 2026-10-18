@@ -90,6 +90,49 @@ describe("posterQuerySchema", () => {
     expect(validatePosterQuery(params({ backdrop: backdropReject }))).toContain("backdrop")
   })
 
+  it("enforces poster/logo 2048 caps with exact boundaries (custom URL contract)", () => {
+    const httpsUrlOfLength = (total: number): string => {
+      const prefix = "https://i.imgur.com/"
+      const suffix = ".png"
+      return `${prefix}${"a".repeat(total - prefix.length - suffix.length)}${suffix}`
+    }
+    const poster2048 = httpsUrlOfLength(2048)
+    const poster2049 = httpsUrlOfLength(2049)
+    const logo2048 = httpsUrlOfLength(2048)
+    const logo2049 = httpsUrlOfLength(2049)
+    expect(poster2048).toHaveLength(2048)
+    expect(poster2049).toHaveLength(2049)
+    expect(logo2048).toHaveLength(2048)
+    expect(logo2049).toHaveLength(2049)
+    expect(validatePosterQuery(params({ poster: poster2048 }))).toBeNull()
+    expect(validatePosterQuery(params({ poster: poster2049 }))).toContain("poster")
+    expect(validatePosterQuery(params({ logo: logo2048 }))).toBeNull()
+    expect(validatePosterQuery(params({ logo: logo2049 }))).toContain("logo")
+    // Supported custom logo https example stays accepted, as do normal relative paths.
+    expect(validatePosterQuery(params({ logo: "https://i.imgur.com/logo123.png" }))).toBeNull()
+    expect(validatePosterQuery(params({ logo: "/logo.png" }))).toBeNull()
+    expect(validatePosterQuery(params({ poster: "/abc123.jpg" }))).toBeNull()
+  })
+
+  it("enforces backdrop 2048 cap with exact boundaries (custom URL contract)", () => {
+    // Resolution evidence: the incoming "backdrop 160 cap" assertion is
+    // outdated. src/lib/validation.ts bounds poster/logo/backdrop ALL at 2048
+    // (custom CDN URL feature: direct CDN URLs exceed 160 chars), so the
+    // backdrop gets the same HTTPS 2048/2049 boundary coverage as
+    // poster/logo above instead of the stale 160 cap.
+    const httpsUrlOfLength = (total: number): string => {
+      const prefix = "https://i.imgur.com/"
+      const suffix = ".jpg"
+      return `${prefix}${"a".repeat(total - prefix.length - suffix.length)}${suffix}`
+    }
+    const backdrop2048 = httpsUrlOfLength(2048)
+    const backdrop2049 = httpsUrlOfLength(2049)
+    expect(backdrop2048).toHaveLength(2048)
+    expect(backdrop2049).toHaveLength(2049)
+    expect(validatePosterQuery(params({ backdrop: backdrop2048 }))).toBeNull()
+    expect(validatePosterQuery(params({ backdrop: backdrop2049 }))).toContain("backdrop")
+  })
+
   it("accepts custom image URLs in poster (same cap as the mapping)", () => {
     expect(
       validatePosterQuery(params({ poster: "https://i.pinimg.com/originals/ab/12/abcdef1234567890.jpg" })),

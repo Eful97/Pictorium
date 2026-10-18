@@ -1,6 +1,6 @@
 // Test del deadline complessivo del render (F2) e della negative cache (F3).
 // Env a module level impostate PRIMA del dynamic import: RENDER_TIMEOUT_MS
-// corto (1s), un solo slot, slot-wait di 150ms — così i test sono veloci e
+// corto (2s), un solo slot, slot-wait di 500ms — così i test sono veloci e
 // deterministici senza mockare i timer.
 process.env.POSTERIUM_RENDER_TIMEOUT_MS = "2000"
 process.env.POSTERIUM_MAX_CONCURRENT_RENDERS = "1"
@@ -118,20 +118,52 @@ const MAPPED = {
   updatedAt: "2026-07-16T10:15:30.000Z",
 }
 
-// fetch che pende finché il signal non abbatte: simula upstream degradato su
-// cui il deadline del render deve intervenire.
-function hangingFetch() {
+// Fetch that hangs until the render watchdog aborts it: simulates degraded
+// upstream that the render deadline must interrupt. Resolves the returned
+// barrier on the first invocation.
+function hangingFetch(): Promise<void> {
+  let resolveStarted!: () => void
+  const fetchStarted = new Promise<void>((resolve) => {
+    resolveStarted = resolve
+  })
+  let observed = false
   vi.spyOn(globalThis, "fetch").mockImplementation((_input: RequestInfo | URL, init?: RequestInit) => {
+    // First live fetch runs downstream of slot acquisition, so this barrier
+    // proves p1 holds the single slot with explicit ordering.
+    if (!observed) {
+      observed = true
+      resolveStarted()
+    }
     return new Promise<Response>((_resolve, reject) => {
-      ;(init?.signal as AbortSignal | undefined)?.addEventListener("abort", () => {
+      const signal = init?.signal as AbortSignal | undefined
+      // Already-aborted signal (fetch issued after the deadline): reject at
+      // once, otherwise the promise would hang until the defensive timeout.
+      if (signal?.aborted) {
+        reject(new DOMException("Aborted", "AbortError"))
+        return
+      }
+      signal?.addEventListener("abort", () => {
         reject(new DOMException("Aborted", "AbortError"))
       }, { once: true })
     })
   })
+  return fetchStarted
 }
 
 function req(id: number): NextRequest {
   return new NextRequest(`http://localhost:3000/api/poster/movie/${id}`)
+}
+
+// Wait until p1 has provably reached its first post-slot fetch. If p1 settles
+// first, the fetch never began and the test fails explicitly instead of
+// hanging on the barrier.
+async function awaitFetchStarted(fetchStarted: Promise<void>, p1: Promise<Response>): Promise<void> {
+  await Promise.race([
+    fetchStarted,
+    p1.then(() => {
+      throw new Error("p1 settled before its first fetch started")
+    }),
+  ])
 }
 
 describe("render deadline watchdog (F2)", () => {
@@ -163,11 +195,13 @@ describe("render deadline watchdog (F2)", () => {
 
   it("answers 503 with Retry-After while the only slot is busy, and negative-caches it", async () => {
     mockedGetById.mockResolvedValue(MAPPED as never)
-    hangingFetch()
+    const fetchStarted = hangingFetch()
 
     // La prima richiesta occupa l'unico slot (render appeso fino al deadline).
+    // Explicit ordering: the barrier proves p1 holds the slot before the
+    // saturation check below runs.
     const p1 = GET(req(42), { params: Promise.resolve({ type: "movie", id: "42" }) })
-    await new Promise((r) => setTimeout(r, 50))
+    await awaitFetchStarted(fetchStarted, p1)
     expect(await acquirePosterRenderSlot()).toBeNull()
 
     // La seconda richiesta su un titolo diverso: attende RENDER_SLOT_WAIT_MS
@@ -183,11 +217,11 @@ describe("render deadline watchdog (F2)", () => {
 
   it("serves the negative cache immediately for a recently failed cache key (F3)", async () => {
     mockedGetById.mockResolvedValue(MAPPED as never)
-    hangingFetch()
+    const fetchStarted = hangingFetch()
 
     // Occupa lo slot, forza un 503 → writePosterError scrive la negative cache.
     const p1 = GET(req(42), { params: Promise.resolve({ type: "movie", id: "42" }) })
-    await new Promise((r) => setTimeout(r, 50))
+    await awaitFetchStarted(fetchStarted, p1)
     await GET(req(43), { params: Promise.resolve({ type: "movie", id: "43" }) })
 
     // Rilascio lo slot (finisce il render appeso) così la negative cache è la
