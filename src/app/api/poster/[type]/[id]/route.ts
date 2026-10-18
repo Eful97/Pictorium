@@ -2362,6 +2362,9 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
       animeRank: animeRankResult,
       rankingResult,
       finalRank,
+      // Effective authorized preview (downgrade-aware): staged `theme=` wins
+      // over the saved mapping; a downgraded preview resolves as non-preview.
+      isPreview,
       // Fix L32: lingua per la risoluzione delle label prefissate (__badge.*).
       lang: req.nextUrl.searchParams.get("lang") || mapping?.language || posterRegion.lang2,
     })

@@ -1104,5 +1104,18 @@
   "ui.rankingSourceJWTrendingDesc": "Ordinamento Tendenze JustWatch.",
   "ui.rankingSourceGlobalUnsupported": "Non disponibile per la regione Mondiale.",
   "ui.rankingSourceIncompatible": "Non supportata nella regione Mondiale. Scegli un'altra fonte o cambia regione.",
-  "ui.rankingSourceIncompatibleBadge": "Incompatibile con Mondiale"
+  "ui.rankingSourceIncompatibleBadge": "Incompatibile con Mondiale",
+  "ui.seasonalFrame": "Cornice stagionale",
+  "ui.seasonalFrameAutomatic": "Automatica",
+  "ui.seasonalFrameNone": "Nessuna",
+  "ui.seasonalFrameHalloween": "Halloween",
+  "ui.seasonalFrameChristmas": "Natale",
+  "ui.seasonalFrameHint": "Una scelta esplicita segue questo titolo ovunque; Nessuna nasconde una cornice ereditata dalla lista; Automatica segue la lista di origine.",
+  "ui.seasonalKeywordsTitle": "Parole chiave stagionali",
+  "ui.seasonalKeywordsHint": "Parole extra confrontate coi nomi dei cataloghi con le stesse regole whole-word dei built-in. Su nomi misti vince Halloween.",
+  "ui.seasonalHalloweenKeywords": "Parole chiave Halloween",
+  "ui.seasonalChristmasKeywords": "Parole chiave Natale",
+  "ui.seasonalKeywordsPlaceholder": "es. spooky, zucca — separate da virgole",
+  "ui.seasonalKeywordsFieldHint": "{count}/{max} parole salvate",
+  "ui.seasonalKeywordsReset": "Reimposta"
 }

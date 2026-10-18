@@ -1104,5 +1104,18 @@
   "ui.rankingSourceJWTrendingDesc": "JustWatch Trending ranking.",
   "ui.rankingSourceGlobalUnsupported": "Not available for the Global region.",
   "ui.rankingSourceIncompatible": "Not supported in the Global region. Choose another source or change region.",
-  "ui.rankingSourceIncompatibleBadge": "Incompatible with Global"
+  "ui.rankingSourceIncompatibleBadge": "Incompatible with Global",
+  "ui.seasonalFrame": "Sezónní rámeček",
+  "ui.seasonalFrameAutomatic": "Automaticky",
+  "ui.seasonalFrameNone": "Žádný",
+  "ui.seasonalFrameHalloween": "Halloween",
+  "ui.seasonalFrameChristmas": "Vánoce",
+  "ui.seasonalFrameHint": "Výslovná volba platí pro tento titul všude; Žádný skryje rámeček zděděný ze seznamu; Automaticky se řídí zdrojovým seznamem.",
+  "ui.seasonalKeywordsTitle": "Sezónní klíčová slova",
+  "ui.seasonalKeywordsHint": "Další slova porovnávaná s názvy katalogů podle stejných pravidel celých slov. U smíšených názvů vítězí Halloween.",
+  "ui.seasonalHalloweenKeywords": "Halloweenská klíčová slova",
+  "ui.seasonalChristmasKeywords": "Vánoční klíčová slova",
+  "ui.seasonalKeywordsPlaceholder": "např. spooky, dýně — oddělená čárkami",
+  "ui.seasonalKeywordsFieldHint": "uloženo {count}/{max} slov",
+  "ui.seasonalKeywordsReset": "Obnovit"
 }

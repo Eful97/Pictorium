@@ -302,6 +302,15 @@ export interface Mapping {
    */
   posterFreshScope?: PosterFreshScope | null
   /**
+   * Seasonal frame choice per-titolo ("halloween"/"christmas" = cornice
+   * esplicita che segue il titolo ovunque; "none" = sopprime un tema
+   * ereditato dalla lista; null/assente = Automatico, segue la lista di
+   * origine). Condiviso tra i formati (flat unico, nessun profilo
+   * landscape indipendente): vale per entrambi i canvas, ognuno col
+   * proprio asset. Mapping vecchi senza campo = Automatico (invariato).
+   */
+  seasonalTheme?: import("./seasonal-theme").SeasonalThemeChoice | null
+  /**
    * Tuning di resa specifico per il canvas landscape 16:9 (profilo
    * orizzontale). I campi flat restano il profilo verticale E il fallback
    * per ogni chiave landscape assente/null. I mapping senza `landscape` si

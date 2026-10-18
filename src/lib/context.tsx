@@ -4,6 +4,7 @@ import React, { createContext, useContext, useState, useEffect, useCallback, use
 import type { SearchResult, TMDBImage, Mapping, CustomCatalogConfig, NetworkLogoPosition, PosterLayout, PosterFreshScope, PosterShape } from "./types"
 import { effectiveMappingForShape, DEFAULT_POSTER_FRESH_SCOPE } from "./types"
 import { effectiveShapeDefaultLayout, resolveOpenPosterLayout, effectiveShapeDefaultFreshScope, resolveOpenPosterFreshScope, effectiveShapeDefaultAge } from "./poster-layout-resolve"
+import { normalizeSeasonalThemeChoice, resolveEffectiveSeasonalTheme } from "./seasonal-theme"
 import type { BadgeStyle, RankingBadgeStyle, ExtraBadgeStyle, ExtraBadgeFollowRank, QualityBadgeStyle, BadgeFont, SeparateRatingsStyle, AgeBadgeStyle } from "./badge-styles"
 import { isSeparateRatingsStyle, resolveSeparateBadgeScaleFallback, isExtraBadgeStyle, isExtraFollowRank } from "./badge-styles"
 import { resolveNetworkShapeView, resolveNetworkEffectiveView } from "./network-follow"
@@ -160,7 +161,7 @@ export interface PictoriumCtx {
    * della lista/catalogo di origine (contesto effimero per il `theme=`
    * della preview): omesso = contesto azzerato (niente leakage).
    */
-  navigateToPoster: (item: SearchResult, source?: string, originatingListName?: string | null) => void
+  navigateToPoster: (item: SearchResult, source?: string, originatingListName?: string | null, seasonalKeywords?: { halloween?: readonly string[]; christmas?: readonly string[] } | null) => void
   refreshLists: (refreshCustom?: () => Promise<number>) => Promise<void>
   tmdbKey: string
   setQuery: React.Dispatch<React.SetStateAction<string>>
@@ -271,6 +272,16 @@ export interface PictoriumCtx {
   setCatalogShapes: (shapes: CatalogShapes) => void
   setCatalogShape: (id: string, shape: "poster" | "landscape" | null) => void
   resetCatalogShapes: () => void
+  /**
+   * Custom seasonal keywords per theme (user-scoped): extra whole-word/phrase
+   * matches for the automatic catalog-name recognition (built-ins always
+   * retained). Empty = built-ins only (legacy).
+   */
+  seasonalHalloweenKeywords: string[]
+  setSeasonalHalloweenKeywords: (keywords: string[]) => void
+  seasonalChristmasKeywords: string[]
+  setSeasonalChristmasKeywords: (keywords: string[]) => void
+  resetSeasonalKeywords: () => void
   /** Raw Top 20 source ids (`""` = explicit JustWatch); resolved via the pure resolver. */
   rankingSourceMovie: string
   rankingSourceSeries: string
@@ -533,6 +544,11 @@ export function usePictorium(): PictoriumCtx {
     setCatalogShapes,
     setCatalogShape,
     resetCatalogShapes,
+    seasonalHalloweenKeywords,
+    setSeasonalHalloweenKeywords,
+    seasonalChristmasKeywords,
+    setSeasonalChristmasKeywords,
+    resetSeasonalKeywords,
   } = useCustomCatalogs(safeGetItem, safeSetItem)
 
   // --- Top 20 Ranking Sources (global movie/series charts) ---
@@ -546,7 +562,7 @@ export function usePictorium(): PictoriumCtx {
 
   // Signed device config for namespace-less spaces (null otherwise).
   const { token: localConfigToken, status: localConfigTokenStatus } =
-    useLocalConfigToken({ customCatalogs, rankingSourceMovie, rankingSourceSeries, catalogShapes, catalogShowEmojis })
+    useLocalConfigToken({ customCatalogs, rankingSourceMovie, rankingSourceSeries, catalogShapes, catalogShowEmojis, seasonalHalloweenKeywords, seasonalChristmasKeywords })
 
   const trending = useTrending(tmdbKey, mdblistApiKey, editorCtx.defaultRegion, serverHasTmdbKey, {
     movieSource: rankingSourceMovie,
@@ -583,6 +599,7 @@ export function usePictorium(): PictoriumCtx {
     separateRatingsStyle, setSeparateRatingsStyle,
     posterLayout, setPosterLayout,
     posterFreshScope, setPosterFreshScope,
+    seasonalTheme, setSeasonalTheme,
     badgeStyle, setBadgeStyle,
     rankingBadgeStyle, setRankingBadgeStyle,
     extraBadgeStyle, setExtraBadgeStyle,
@@ -1588,11 +1605,17 @@ export function usePictorium(): PictoriumCtx {
     params.set("region", editorCtx.defaultRegion)
     if (localConfigToken) params.set("config", localConfigToken)
     // Contesto stagionale effimero della lista di origine
-    // (navigation.seasonalTheme, whole-word dal nome lista): viaggia come
-    // `theme=` esplicito così il Testa URL Stremio rende la stessa cornice
-    // della preview. Assente = nessun parametro (URL legacy byte-identici);
-    // il banner pulito resta senza tema nel builder condiviso server-side.
-    if (navigation.seasonalTheme) params.set("theme", navigation.seasonalTheme)
+    // (navigation.seasonalTheme, whole-word dal nome lista): la scelta
+    // per-titolo salvata vince sul contesto (esplicita segue il titolo,
+    // `none` lo sopprime, assente = Automatico segue la lista) — stesso
+    // renderer di Stremio (WYSIWYG). Assente = nessun parametro (URL legacy
+    // byte-identici); il banner pulito resta senza tema nel builder
+    // condiviso server-side.
+    const stremioPreviewTheme = resolveEffectiveSeasonalTheme(
+      seasonalTheme ?? null,
+      navigation.seasonalTheme,
+    )
+    if (stremioPreviewTheme) params.set("theme", stremioPreviewTheme)
     const qs = params.toString() ? `?${params.toString()}` : ""
     let live = true
     // no-store: /meta risponde `max-age=300` per Stremio, ma qui serve
@@ -1605,7 +1628,7 @@ export function usePictorium(): PictoriumCtx {
     return () => { live = false }
     // mappingsMap: dopo un save il mapping (e il suo `mv`) cambia — l'URL va
     // ririsolta o il modale mostra l'artefatto pre-save (stale).
-  }, [stremioPreview, navigation.selected, navigation.seasonalTheme, currentUserId, tmdbKey, mappingsMap, lang, editorCtx.defaultRegion, localConfigToken, localConfigTokenStatus])
+  }, [stremioPreview, navigation.selected, navigation.seasonalTheme, seasonalTheme, currentUserId, tmdbKey, mappingsMap, lang, editorCtx.defaultRegion, localConfigToken, localConfigTokenStatus])
 
   const buildPreviewUrlCb = useCallback(() => {
     // Token suspend: while the device config is minting (or failed), no
@@ -1639,9 +1662,11 @@ export function usePictorium(): PictoriumCtx {
         previewPoster: navigation.previewPoster,
         selectedLogo: navigation.selectedLogo,
         selectedBackdrop,
-        // Contesto effimero lista di origine (vedi useNavigation): guida il
+        // Contesto effimero lista di origine (vedi useNavigation) sotto la
+        // scelta per-titolo in editing (`seasonalThemeChoice`): guida il
         // `theme=` della preview, stesso renderer di Stremio (WYSIWYG).
         seasonalTheme: navigation.seasonalTheme,
+        seasonalThemeChoice: seasonalTheme ?? null,
         logoScale, logoOffsetX, logoOffsetY,
         // Correzione c1: gli auto emettono il sentinel `scale=0` (il server
         // risolve Fresh-100 vs aspect dal rank mostrato); gli espliciti il valore.
@@ -1658,7 +1683,7 @@ export function usePictorium(): PictoriumCtx {
       localConfigToken,
     )
     setPreviewUrl(url)
-  }, [stremioPreview, stremioPreviewUrl, navigation.selected, navigation.previewPoster, navigation.selectedLogo, navigation.seasonalTheme, selectedBackdrop,
+  }, [stremioPreview, stremioPreviewUrl, navigation.selected, navigation.previewPoster, navigation.selectedLogo, navigation.seasonalTheme, seasonalTheme, selectedBackdrop,
     logoScale, logoScaleExplicit, logoOffsetX, logoOffsetY, backdropScale, backdropOffsetX, backdropOffsetY,
     metaInfo, trendRank, trending.mdblistAnimeList, topEdgeColor, bottomEdgeColor, accentColor, autoAccentColor, lang, tmdbKey,
     editorCtx.defaultRegion, editorCtx.defaultDateFormat, currentUserId, localConfigToken, localConfigTokenStatus,
@@ -2020,6 +2045,9 @@ export function usePictorium(): PictoriumCtx {
     setNetworkLogoFollowTitle(freshNetView.follow)
     setRibbonSide(land?.ribbonSide ?? defaultRibbonSide)
     setRibbonEnabled(land?.ribbonEnabled ?? defaultRibbonEnabled)
+    // Cornice stagionale: i titoli nuovi partono da Automatico (segue la
+    // lista di origine) — nessun default globale, nessun profilo landscape.
+    setSeasonalTheme(null)
   }
 
   // Shared initial artwork selection (saved-mapping restore or auto chain),
@@ -2441,6 +2469,10 @@ export function usePictorium(): PictoriumCtx {
       // Fresh apply scope dal mapping EFFETTIVO per formato (stessa regola
       // del layout sopra): la preferenza resta anche con Standard.
       setPosterFreshScope(resolveOpenPosterFreshScope(existing ?? null, (existing?.posterShape ?? defaultPosterShape) as PosterShape, defaultPosterFreshScope, landscapeDefaults ?? null))
+      // Cornice stagionale dal mapping salvato (flat unico condiviso tra i
+      // formati): esplicita segue il titolo, `none` sopprime la lista,
+      // assente/invalida = Automatico (segue la lista di origine).
+      setSeasonalTheme(normalizeSeasonalThemeChoice(existing?.seasonalTheme ?? null))
       setNetworkLogoScale(eff?.networkLogoScale ?? defaultNetworkLogoScale)
       // Effective network view composing the saved mapping with the global
       // defaults (server semantics): without mapping network fields a
@@ -2584,6 +2616,9 @@ export function usePictorium(): PictoriumCtx {
       // portraits stay centered by contract.
       setLogoAlign(defaultPosterShape === "landscape" ? (landscapeDefaults?.logoAlign ?? defaultLogoAlign ?? "left") : "center")
       setCustomBadge(null)
+      // Titolo senza mapping: nessuna scelta salvata — la cornice riparte da
+      // Automatico (isolamento dal titolo precedente).
+      setSeasonalTheme(null)
       // Titolo senza mapping: nessun manuale da ripristinare — l'accent live
       // riparte da automatico (isolamento dal titolo precedente; il ricalcolo
       // lo riempie, mai colori stantii).
@@ -2639,6 +2674,7 @@ export function usePictorium(): PictoriumCtx {
     setBackdropScale, setBackdropOffsetX, setBackdropOffsetY,
     globalBadges, rankingBadges, customBadge, badgePresetId, badgePresetRev, badgeStyle, rankingBadgeStyle, extraBadgeStyle, badgeFont, qualityBadgeStyle, videoFormats,
     badgeGenre, badgeYear, badgeRating, badgeQuality, ageBadge, ageCountry, ageBadgeStyle, customRatings, ratingSources, separateRatings, separateRatingsStyle,
+    seasonalTheme,
     defaultBadgeStyle, defaultRankingBadgeStyle, defaultExtraBadgeStyle, blurEnabled, blurIntensity, blurFade, blurDarkness, landscapeBlur, landscapeBlurDirty, setLandscapeBlur, defaultLogoScale, defaultLogoOffsetX, defaultLogoOffsetY, landscapeDefaults, tintStrength, topShade, topShadeHeight, gradientHeight,
     defaultGlobalBadges, defaultRankingBadges, defaultBadgeGenre, defaultBadgeYear, defaultBadgeRating, defaultBadgeQuality, defaultAgeBadge, defaultAgeCountry, defaultAgeBadgeStyle, defaultCustomRatings, defaultSeparateRatings, defaultBadgeFont, defaultQualityBadgeStyle, defaultVideoFormats, defaultNetworkLogo, defaultNetworkLogoPosition, defaultRibbonEnabled,
     topBadgeScale, topBadgeOffsetX, topBadgeOffsetY, extraBadgeScale, extraBadgeOffsetX, extraBadgeOffsetY, genreBadgeScale, qualityBadgeScale, networkLogoScale,
@@ -2800,7 +2836,7 @@ export function usePictorium(): PictoriumCtx {
     metaInfo,
     previewId: navigation.previewId, setPreviewId: navigation.setPreviewId,
     saveConfig, saveCoverOnly, removeMapping, mappingsMap,
-    goHome: goHomeAbort, sourceView: navigation.sourceView, navigateToPoster: (item: SearchResult, source?: string, originatingListName?: string | null) => { navigation.navigateToPoster(item, source, originatingListName); openPosterBrowserRef.current(item) },
+    goHome: goHomeAbort, sourceView: navigation.sourceView, navigateToPoster: (item: SearchResult, source?: string, originatingListName?: string | null, seasonalKeywords?: { halloween?: readonly string[]; christmas?: readonly string[] } | null) => { navigation.navigateToPoster(item, source, originatingListName, seasonalKeywords); openPosterBrowserRef.current(item) },
     refreshLists: trending.refreshLists, loadPlatform: trending.loadPlatform,
     tmdbKey, setQuery: search.setQuery, doSearch: search.doSearch, loadMore: search.loadMore, loadMoreFiltered: search.loadMoreFiltered, retryFailed: search.retryFailed, failedPage: search.failedPage, hasSearched: search.hasSearched,
     titleOf, yearOf, posterUrl,
@@ -2837,6 +2873,8 @@ export function usePictorium(): PictoriumCtx {
     catalogRenames, setCatalogRenames, renameCatalog, resetCatalogNames, resetCatalogOrder,
     catalogShowEmojis, setCatalogShowEmojis,
     catalogShapes, setCatalogShapes, setCatalogShape, resetCatalogShapes,
+    seasonalHalloweenKeywords, setSeasonalHalloweenKeywords,
+    seasonalChristmasKeywords, setSeasonalChristmasKeywords, resetSeasonalKeywords,
     rankingSourceMovie, rankingSourceSeries, rankingSourceStatus, setRankingSource, rankSourceNonce, refreshCurrentRank,
     localConfigToken, localConfigTokenStatus,
     t,
@@ -2860,7 +2898,7 @@ export function usePictorium(): PictoriumCtx {
     trending.trending, trending.trendingError, trending.trendingStatus, trending.streamingCharts, trending.platformErrors, trending.mdblistAnimeList, trending.animeStatus, trending.animeSource, trending.refreshNonce,
     trending.refreshLists, trending.loadPlatform,
     theme, uiAccent, serviceErrors, hasNetflixRank,
-    customCatalogs, disabledCatalogIds, homeDisabledCatalogIds, catalogOrder, catalogRenames, catalogShapes, catalogShowEmojis,
+    customCatalogs, disabledCatalogIds, homeDisabledCatalogIds, catalogOrder, catalogRenames, catalogShapes, catalogShowEmojis, seasonalHalloweenKeywords, seasonalChristmasKeywords,
     rankingSourceMovie, rankingSourceSeries, rankSourceNonce, catalogsSyncNonce, localConfigToken, localConfigTokenStatus,
   ])
 }

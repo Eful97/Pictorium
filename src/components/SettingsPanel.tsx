@@ -13,6 +13,7 @@ import { TransformPanel } from "@/components/settings/TransformPanel"
 import { DataPanel } from "@/components/settings/DataPanel"
 import { PrefsPanel } from "@/components/settings/PrefsPanel"
 import { PresetsPanel } from "@/components/settings/PresetsPanel"
+import { SeasonalKeywordsSection } from "@/components/SeasonalKeywordsSection"
 import { isMultiUserServer } from "@/lib/guest-guard"
 import { currentPathUuid } from "@/lib/user-token"
 import { consumeSettingsTab } from "@/lib/settings-tab"
@@ -37,7 +38,7 @@ import { usePreviewDemoMedia } from "@/lib/defaults-preview-media"
 import type { BackupExportOptions, BackupImportOptions } from "@/lib/useMappingsStore"
 
 type PrimaryTabId = "preset" | "rankings" | "information" | "badge" | "transform"
-type SecondaryTabId = "prefs" | "data" | "spazio"
+type SecondaryTabId = "prefs" | "data" | "catalogs" | "spazio"
 type TabId = PrimaryTabId | SecondaryTabId
 
 const PRIMARY_TABS: ReadonlyArray<{ id: PrimaryTabId; labelKey: string; icon: typeof Sparkles }> = [
@@ -49,6 +50,7 @@ const PRIMARY_TABS: ReadonlyArray<{ id: PrimaryTabId; labelKey: string; icon: ty
 ]
 
 const SECONDARY_TABS: ReadonlyArray<{ id: SecondaryTabId; labelKey: string; icon: typeof SlidersHorizontal }> = [
+  { id: "catalogs", labelKey: "ui.catalogsTitle", icon: SlidersHorizontal },
   { id: "prefs", labelKey: "ui.settingsTabPrefs", icon: SlidersHorizontal },
   { id: "data", labelKey: "ui.settingsTabData", icon: Database },
   { id: "spazio", labelKey: "ui.settingsTabSpace", icon: KeyRound },
@@ -63,6 +65,7 @@ function normalizeTab(tab: string | null): TabId | null {
     tab === "trasforma" ||
     tab === "prefs" ||
     tab === "data" ||
+    tab === "catalogs" ||
     tab === "spazio"
   ) {
     return (tab === "trasforma" ? "transform" : tab) as TabId
@@ -114,6 +117,9 @@ export function SettingsPanel({ setSettingsOpen, exportData, importData, mobile,
   // Preview-only editing family + demo title: never persisted.
   const [previewFamily, setPreviewFamily] = useState<DefaultsPreviewFamily>("auto")
   const currentUserId = usePSelector((v) => v.currentUserId)
+  // Agreed Settings -> Catalogs entry: same seasonal keywords section plus a
+  // guarded link to the catalog manager (single owner stays CataloghiView).
+  const router = usePSelector((v) => v.router)
   const [previewDemoMedia, setPreviewDemoMedia] = usePreviewDemoMedia(currentUserId)
   // Floating mini-preview state (mobile overlay only, in-memory): corner
   // snap + minimize survive tab switches and resize (the single preview
@@ -400,7 +406,7 @@ export function SettingsPanel({ setSettingsOpen, exportData, importData, mobile,
             ? t("ui.synced")
             : t("ui.settingsNotSavedYet")
 
-  const isPrimary = activeTab !== "prefs" && activeTab !== "data" && activeTab !== "spazio"
+  const isPrimary = activeTab !== "prefs" && activeTab !== "data" && activeTab !== "catalogs" && activeTab !== "spazio"
   const showPreview = isPrimary
   const previewIsLandscape = editTargetShape === "landscape"
 
@@ -462,7 +468,7 @@ export function SettingsPanel({ setSettingsOpen, exportData, importData, mobile,
           )
         })}
       </div>
-      {/* Desktop secondary nav (Prefs/Data/Space): compact links, never equal tabs */}
+      {/* Desktop secondary nav (Catalogs/Prefs/Data/Space): compact links, never equal tabs */}
       <div
         aria-label={t("ui.settingsGroupSecondary")}
         className="hidden sm:flex items-center gap-1 px-3 sm:px-6 py-1.5 bg-white/[0.01] border-b border-white/5"
@@ -777,6 +783,26 @@ export function SettingsPanel({ setSettingsOpen, exportData, importData, mobile,
               <TraktAccountSection active={activeTab === "spazio"} onRequestExternalAction={requestAction} />
             </div>
           )}
+          <div
+            role="tabpanel"
+            aria-label={t("ui.catalogsTitle")}
+            className={`space-y-3.5 text-xs ${activeTab === "catalogs" ? "block animate-tab-fade-in" : "hidden"}`}
+          >
+            <SeasonalKeywordsSection />
+            <div className="px-4 py-3">
+              <button
+                type="button"
+                data-testid="settings-open-catalog-manager"
+                onClick={() => requestAction(() => {
+                  doClose()
+                  router.push("cataloghi")
+                })}
+                className="flex items-center gap-2 px-4 py-2.5 min-h-[44px] rounded-xl bg-white/10 hover:bg-white/20 text-xs sm:text-sm font-semibold text-zinc-100 transition-all active:scale-95 cursor-pointer touch-manipulation"
+              >
+                {t("ui.priorityNames")}
+              </button>
+            </div>
+          </div>
         </div>
       </div>
     </PosterEditorValueOverride>

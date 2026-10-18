@@ -31,7 +31,7 @@ import { envWithFallback } from "@/lib/env-compat"
 import { combineAbortSignals } from "@/lib/abort-signal"
 import { isPersonQuery, pickTopPerson } from "@/lib/person-search"
 import { normalizeCatalogId, normalizeCatalogIdKeys, normalizeCatalogIdList, PICTORIUM_CATALOGS, regionJwName } from "@/lib/catalog-definitions"
-import { detectSeasonalThemeFromCatalogName, resolveEffectiveCatalogDisplayName, type SeasonalTheme } from "@/lib/seasonal-theme"
+import { detectSeasonalThemeFromCatalogName, resolveEffectiveCatalogDisplayName, resolveEffectiveSeasonalTheme, sanitizeSeasonalCustomKeywords, type SeasonalCustomKeywordsInput, type SeasonalTheme } from "@/lib/seasonal-theme"
 import { getExplicitCatalogShape, normalizeCatalogShapeKeys } from "@/lib/catalog-shape"
 import type { PosterShape, CustomCatalogConfig } from "@/lib/types"
 
@@ -356,7 +356,11 @@ async function pictoriumPosterAndShape(
   // nel `poster` su entrambi i canvas (ognuno rende il proprio asset
   // 500×750 / 768×432, mai stirato) — il banner pulito resta byte-identico
   // (canvas landscape SENZA tema: il builder lo esclude via hideLogo).
-  const poster = buildStremioPosterUrl({ ...base, forceShape: posterShape, seasonalTheme }).toString()
+  // La scelta per-titolo salvata vince sul contesto lista (esplicita a tema
+  // segue il titolo ovunque, `none` lo sopprime, assente = Automatico segue
+  // la lista) — vedi resolveEffectiveSeasonalTheme.
+  const effectiveTheme = resolveEffectiveSeasonalTheme(mapping?.seasonalTheme ?? null, seasonalTheme ?? null)
+  const poster = buildStremioPosterUrl({ ...base, forceShape: posterShape, seasonalTheme: effectiveTheme ?? undefined }).toString()
   // Banner pulito: canvas landscape senza logo baked-in (per i client che
   // sovrappongono già il logo da catalogo) + badge genere in basso a destra.
   const banner = buildStremioPosterUrl({ ...base, forceShape: "landscape", hideLogo: true }).toString()
@@ -475,10 +479,14 @@ function catalogMetaId(_imdbId: string | null | undefined, tmdbId: number): stri
  * EFFECTIVE visible catalog name (same precedence as the manifest in
  * `build-manifest.ts`: rename > ranking-source override > regional
  * JustWatch name > base name — see `resolveEffectiveCatalogDisplayName`).
- * Custom lists mirror the manifest split names (`<name> — Film/Serie TV`
- * for `mixed`). Unknown/search ids contribute no base name (ids NEVER
- * match — only display names do). Same title in another list stays
- * unframed; no global or per-title state is read or written.
+ * Custom user keywords (`opts.seasonalKeywords`, same whole-word/phrase
+ * rules as the built-ins, Halloween precedence kept) extend the match;
+ * built-ins are always retained. Custom lists mirror the manifest split
+ * names (`<name> — Film/Serie TV` for `mixed`). Unknown/search ids
+ * contribute no base name (ids NEVER match — only display names do). Same
+ * title in another list stays unframed; no per-title state is read here
+ * (the per-title override is applied per item in
+ * `pictoriumPosterAndShape`).
  */
 export function resolveCatalogSeasonalTheme(
   catalogId: string,
@@ -489,6 +497,7 @@ export function resolveCatalogSeasonalTheme(
     rankingSourceMovie?: string | null
     rankingSourceSeries?: string | null
     region: RegionDef
+    seasonalKeywords?: SeasonalCustomKeywordsInput | null
   },
 ): SeasonalTheme | null {
   const rankingName = rankingSourceCatalogName(
@@ -523,7 +532,7 @@ export function resolveCatalogSeasonalTheme(
     rankingName,
     jwName,
   })
-  return detectSeasonalThemeFromCatalogName(effective)
+  return detectSeasonalThemeFromCatalogName(effective, opts.seasonalKeywords ?? null)
 }
 
 /**
@@ -652,13 +661,26 @@ export async function pictoriumCatalog(
   // effective visible catalog name (rename > ranking override > regional JW
   // > base — same precedence as the manifest). The fragment isolates themed
   // bodies even where the other fragments already differ; the poster URLs
-  // below carry `theme=` so the poster cache splits per title too.
+  // below carry `theme=` so the poster cache splits per title too. Custom
+  // user keywords (namespace defaults, token override wins) extend the same
+  // list-name match; the per-title mapping override is applied per item in
+  // `pictoriumPosterAndShape` (mapping version already in the poster key, so
+  // no extra fragment is needed here).
+  const seasonalKeywords = {
+    halloween: sanitizeSeasonalCustomKeywords(
+      userConfig?.seasonalHalloweenKeywords ?? effectiveDefaults.seasonalHalloweenKeywords,
+    ),
+    christmas: sanitizeSeasonalCustomKeywords(
+      userConfig?.seasonalChristmasKeywords ?? effectiveDefaults.seasonalChristmasKeywords,
+    ),
+  }
   const catalogTheme = resolveCatalogSeasonalTheme(catalogId, stType, {
     customCatalogs: userConfig?.customCatalogs,
     catalogRenames: userConfig?.catalogRenames,
     rankingSourceMovie: userConfig?.rankingSourceMovie,
     rankingSourceSeries: userConfig?.rankingSourceSeries,
     region,
+    seasonalKeywords,
   })
   const themeFragment = catalogTheme ? `:th${catalogTheme}` : ""
 

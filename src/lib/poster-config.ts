@@ -6,7 +6,7 @@
 // ---------------------------------------------------------------------------
 
 import type { PictoriumUserConfig } from "./config-token"
-import { normalizeSeasonalTheme, type SeasonalTheme } from "./seasonal-theme"
+import { normalizeSeasonalTheme, resolveEffectiveSeasonalTheme, type SeasonalTheme } from "./seasonal-theme"
 import { effectiveMappingForShape, isPosterLayout, isPosterFreshScope, DEFAULT_POSTER_LAYOUT, DEFAULT_POSTER_FRESH_SCOPE, type Mapping, type NetworkLogoPosition, type PosterLayout, type PosterFreshScope, type PosterShape } from "./types"
 import { effectiveDefaultsForShape } from "./server-defaults-shape"
 import type { ServerDefaults } from "./server-defaults"
@@ -342,6 +342,14 @@ export interface PosterRenderConfigInput {
   finalRank: number | null
   /** lingua per la risoluzione delle label prefissate (__badge.*) — fix L32 */
   lang?: string
+  /**
+   * Effective authorized preview (WYSIWYG editor): the staged `theme=` query
+   * value wins over the saved per-title mapping (see `seasonalTheme` below).
+   * Absent/false = normal render (saved choice beats ephemeral list context).
+   * The route passes its downgrade-aware `isPreview`: a downgraded preview
+   * behaves as non-preview, same render as Stremio.
+   */
+  isPreview?: boolean
 }
 
 export interface PosterRenderConfig {
@@ -505,8 +513,11 @@ export interface PosterRenderConfig {
    */
   posterFreshScope: PosterFreshScope
   /**
-   * Seasonal frame theme (ephemeral catalog context, query-only — see
-   * `resolveSeasonalTheme`). Null = unframed (default, byte-identical).
+   * Seasonal frame theme. Effective preview (`isPreview`): staged `theme=`
+   * query wins, saved mapping ignored (WYSIWYG, no resurrect before save).
+   * Otherwise the saved per-title choice wins over the ephemeral list
+   * context (see `resolveSeasonalTheme`). Null = unframed (default,
+   * byte-identical).
    */
   seasonalTheme: SeasonalTheme | null
   /**
@@ -580,7 +591,7 @@ export function resolveAgeBadgeRequest(
 }
 
 export function resolvePosterRenderConfig(input: PosterRenderConfigInput): PosterRenderConfig {
-  const { searchParams: q, mapping, configOverride, sd, hasQuery, showBadges, rankingBadges } = input
+  const { searchParams: q, mapping, configOverride, sd, hasQuery, showBadges, rankingBadges, isPreview = false } = input
 
   // Canvas shape first: feeds the per-shape defaults below (20% gradient in
   // landscape, landscape profiles). Same chain as the other params — see
@@ -1151,14 +1162,30 @@ export function resolvePosterRenderConfig(input: PosterRenderConfigInput): Poste
   const qHideLogo = q.get("hideLogo")
   const hideLogo = qHideLogo !== null ? qHideLogo !== "0" : false
 
-  // Cornice stagionale: solo query `theme` effimera, su entrambi i canvas
-  // (vedi resolveSeasonalTheme) — nessuna catena mapping/config/defaults.
-  // Solo il banner pulito (canvas landscape + `hideLogo`, senza logo per i
-  // client che lo sovrappongono da catalogo) resta sempre senza cornice
-  // anche con `theme=` esplicito: nessun asset viene stirato e i byte
-  // restano quelli storici. Un portrait con `hideLogo` conserva invece la
-  // cornice (`hideLogo` nasconde solo il logo, mai il frame).
-  const seasonalTheme = hideLogo && posterShape === "landscape" ? null : resolveSeasonalTheme(q, posterShape)
+  // Cornice stagionale — nessuna catena config/defaults. Solo il banner
+  // pulito (canvas landscape + `hideLogo`, senza logo per i client che lo
+  // sovrappongono da catalogo) resta sempre senza cornice anche con `theme=`
+  // esplicito: nessun asset viene stirato e i byte restano quelli storici. Un
+  // portrait con `hideLogo` conserva invece la cornice (`hideLogo` nasconde
+  // solo il logo, mai il frame).
+  // Precedenza effettiva (vedi resolveSeasonalTheme +
+  // resolveEffectiveSeasonalTheme):
+  // - preview effettiva autorizzata (`isPreview`, mai declassata): vince il
+  //   `theme=` staged (valore effettivo gia risolto dal builder via
+  //   resolveEffectiveSeasonalTheme: esplicita a tema, `none` = assente,
+  //   Automatica = lista di origine); il mapping salvato e ignorato cosi lo
+  //   staged non resuscita mai il salvato prima del save — WYSIWYG;
+  // - resto (Stremio, preview declassata, URL bookmark): la scelta per-titolo
+  //   salvata vince sul `theme` effimero di lista (`none` sopprime,
+  //   assente = Automatica segue la lista).
+  const seasonalTheme = hideLogo && posterShape === "landscape"
+    ? null
+    : isPreview
+      ? resolveSeasonalTheme(q, posterShape)
+      : resolveEffectiveSeasonalTheme(
+        mapping?.seasonalTheme ?? null,
+        resolveSeasonalTheme(q, posterShape),
+      )
 
   // Follow network: toggle semplice + coordinate assolute riusate da
   // nox/noy (interpretazione condizionata al follow, vedi sopra). Il follow

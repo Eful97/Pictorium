@@ -23,6 +23,7 @@ import {
   type RankRibbonVariant,
 } from "@/components/RankingAppearanceSelector"
 import type { ExtraBadgeStyle, RankingBadgeStyle } from "@/lib/badge-styles"
+import type { SeasonalThemeChoice } from "@/lib/seasonal-theme"
 import { lookupAVSpecs, KNOWN_VIDEO_FORMATS } from "@/lib/av-specs"
 import { getAwardBadgeLabel, getNominationBadgeLabel } from "@/lib/badge-labels"
 import { getNewSeasonLabel, getSeriesEndedLabel, isKDramaOrigin } from "@/lib/poster-badge"
@@ -517,6 +518,37 @@ export function BadgeControls() {
             )}
           </div>
         </div>
+      </div>
+
+      {/* Cornice stagionale per-titolo (flat unico, entrambe le forme):
+          Automatica = segue la lista di origine (contesto effimero `theme=`);
+          Nessuna = sopprime un tema ereditato; Halloween/Natale = scelta
+          esplicita che segue il titolo ovunque (cataloghi + meta). */}
+      <div data-testid="badge-family-seasonal" className="bg-surface/50 border border-surface2/60 rounded-xl p-3 space-y-2 shadow-sm">
+        <div className="flex items-center justify-between gap-2">
+          <label htmlFor="seasonal-frame-selector" className="text-zinc-300 font-medium flex items-center gap-1.5">
+            <Sparkles className="w-3.5 h-3.5 text-orange-400" />
+            {t("ui.seasonalFrame")}
+          </label>
+          <select
+            id="seasonal-frame-selector"
+            data-testid="seasonal-frame-selector"
+            value={ed.seasonalTheme ?? "__automatic__"}
+            onChange={(e) => {
+              const v = e.target.value
+              const next: SeasonalThemeChoice | null =
+                v === "halloween" ? "halloween" : v === "christmas" ? "christmas" : v === "none" ? "none" : null
+              ed.setSeasonalTheme(next)
+            }}
+            className="editor-input w-44 max-w-[55%] min-w-0 text-right px-2 py-1 cursor-pointer truncate font-medium"
+          >
+            <option value="__automatic__">{t("ui.seasonalFrameAutomatic")}</option>
+            <option value="none">{t("ui.seasonalFrameNone")}</option>
+            <option value="halloween">{t("ui.seasonalFrameHalloween")}</option>
+            <option value="christmas">{t("ui.seasonalFrameChristmas")}</option>
+          </select>
+        </div>
+        <p className="text-[10px] text-muted italic leading-tight">{t("ui.seasonalFrameHint")}</p>
       </div>
 
       {/* FAMILY 3: Extra badges — automatic/custom choice + their style.

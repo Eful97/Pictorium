@@ -8,7 +8,7 @@ import {
 import { resolveLabel, isRankKey, t as tFn } from "./i18n"
 import { getPosterPublicBaseUrl } from "./poster-public-url"
 import { buildStremioPosterSearchParams } from "./stremio-poster-params"
-import { normalizeSeasonalTheme } from "./seasonal-theme"
+import { normalizeSeasonalTheme, resolveEffectiveSeasonalTheme } from "./seasonal-theme"
 import { isManualAccent } from "./accent-color"
 import { RENDER_VERSION } from "./render-version"
 import { isValidWikidataQid } from "./badge-labels"
@@ -206,9 +206,19 @@ interface PosterState {
    * titolo è stato aperto): emesso come `theme=<canonico>` solo quando il
    * nome contiene il match intero (vedi seasonal-theme.ts), su entrambi i
    * canvas (ognuno rende il proprio asset). Mai persistito: all'uscita o da
-   * un'altra lista non-matching si azzera.
+   * un'altra lista non-matching si azzera. La scelta per-titolo
+   * (`seasonalThemeChoice`) vince sul contesto lista (vedi
+   * resolveEffectiveSeasonalTheme).
    */
   seasonalTheme?: string | null
+  /**
+   * Scelta per-titolo della cornice in editing (flat unico, entrambe le
+   * forme): `halloween`/`christmas` = esplicita (segue il titolo),
+   * `none` = sopprime il contesto lista, null/assente = Automatico (segue
+   * la lista). Solo la scelta esplicita viaggia in preview (come `theme=`);
+   * `none`/Automatico senza contesto = nessun parametro (URL invariati).
+   */
+  seasonalThemeChoice?: unknown
 }
 
 export function buildUrlPattern(bp: BadgeParams & {
@@ -515,11 +525,15 @@ export function buildPreviewUrl(ps: PosterState, bp: BadgeParams, configToken?: 
   // mapping salvato con shape diversa scavalcerebbe il toggle editor (desync
   // WYSIWYG) — vedi catena query > mapping > config > defaults.
   params.push(`shape=${bp.posterShape === "landscape" ? "landscape" : "poster"}`)
-  // Cornice stagionale (contesto effimero lista di origine): su entrambi i
-  // canvas col proprio asset (portrait 500×750, landscape 768×432) — senza
-  // contesto nessun parametro (URL legacy invariati, niente leakage tra
-  // liste). Solo il banner pulito (landscape + hideLogo) resta senza tema.
-  const previewTheme = normalizeSeasonalTheme(ps.seasonalTheme)
+  // Cornice stagionale (scelta per-titolo sopra il contesto lista di
+  // origine, su entrambi i canvas col proprio asset — portrait 500×750,
+  // landscape 768×432; senza contesto né scelta nessun parametro (URL
+  // legacy invariati, niente leakage tra liste). Solo il banner pulito
+  // (landscape + hideLogo) resta senza tema.
+  const previewTheme = resolveEffectiveSeasonalTheme(
+    ps.seasonalThemeChoice ?? null,
+    normalizeSeasonalTheme(ps.seasonalTheme),
+  )
   if (previewTheme) params.push(`theme=${previewTheme}`)
   // Layout SEMPRE esplicito in preview (come shape): senza, un mapping o un
   // default salvato fresh scavalcerebbe la scelta editor — e tornando a

@@ -1104,5 +1104,18 @@
   "ui.rankingSourceJWTrendingDesc": "JustWatch Trending ranking.",
   "ui.rankingSourceGlobalUnsupported": "Not available for the Global region.",
   "ui.rankingSourceIncompatible": "Not supported in the Global region. Choose another source or change region.",
-  "ui.rankingSourceIncompatibleBadge": "Incompatible with Global"
+  "ui.rankingSourceIncompatibleBadge": "Incompatible with Global",
+  "ui.seasonalFrame": "מסגרת עונתית",
+  "ui.seasonalFrameAutomatic": "אוטומטי",
+  "ui.seasonalFrameNone": "ללא",
+  "ui.seasonalFrameHalloween": "האלווין",
+  "ui.seasonalFrameChristmas": "חג המולד",
+  "ui.seasonalFrameHint": "בחירה מפורשת חלה על כותר זה בכל מקום; ללא מסתיר מסגרת שעברה בירושה מהרשימה; אוטומטי עוקב אחר רשימת המקור.",
+  "ui.seasonalKeywordsTitle": "מילות מפתח עונתיות",
+  "ui.seasonalKeywordsHint": "מילים נוספות המותאמות לשמות קטלוגים לפי אותם כללי מילה שלמה. האלווין מנצח בשמות מעורבים.",
+  "ui.seasonalHalloweenKeywords": "מילות מפתח האלווין",
+  "ui.seasonalChristmasKeywords": "מילות מפתח חג המולד",
+  "ui.seasonalKeywordsPlaceholder": "למשל spooky, דלעת — מופרדות בפסיקים",
+  "ui.seasonalKeywordsFieldHint": "נשמרו {count}/{max} מילים",
+  "ui.seasonalKeywordsReset": "איפוס"
 }

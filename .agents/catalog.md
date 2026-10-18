@@ -244,12 +244,37 @@ regionale JW > base; liste custom con split `— Film/Serie TV` per `mixed`):
   landscape senza esclusioni), per richiesta utente esplicita);
   `banner` (pulito: `forceShape` + `hideLogo`, mai alcun `theme=`) resta
   senza tema (byte-identico).
-  Stesso titolo in altra lista = invariato; nessun default globale,
-  selettore o tema persistito per-titolo; il `/meta` generico resta senza
-  contesto (byte-identico): accetta un `theme=` esplicito solo come
-  contesto effimero lista/test Stremio («Testa URL Stremio»), su entrambi i
-  canvas con isolamento cache (`:th<tema>` in chiave meta; `shape` già in
-  chiave poster a sé).
+  Stesso titolo in altra lista = invariato; nessun default globale; il
+  `/meta` generico resta senza contesto (byte-identico): accetta un `theme=`
+  esplicito solo come contesto effimero lista/test Stremio («Testa URL
+  Stremio»), su entrambi i canvas con isolamento cache (`:th<tema>` in
+  chiave meta; `shape` già in chiave poster a sé).
+
+  **Parole chiave custom (per utente, bounded):** oltre ai built-in, ogni
+  spazio può definire fino a 20 parole/frasi per tema
+  (`seasonalHalloweenKeywords` / `seasonalChristmasKeywords` in
+  `ServerDefaults`, max 40 caratteri l'una): stesso match whole-word/phrase
+  sui soli nomi lista (mai titoli, mai regex — i metacaratteri valgono
+  letterali; la precedenza Halloween resta, built-in sempre conservati).
+  Persistite come gli altri record catalogo (PUT `/api/defaults` +
+  localStorage + token config catalog-only per gli spazi
+  local-only/profileless); sanitize a ogni scrittura/lettura
+  (`sanitizeSeasonalCustomKeywords` in `seasonal-theme.ts`). Server
+  (`resolveCatalogSeasonalTheme(..., { seasonalKeywords })`) e client
+  (`navigateToPoster(item, src, listName, seasonalKeywords)`) usano lo
+  stesso matcher/leaf. Il cambio ruota le chiavi via `sdHash` (defaults) o
+  `cfg` (token); nessun frammento extra (il per-titolo viaggia via mapping).
+
+  **Scelta per-titolo (Automatica/Nessuna/Halloween/Natale):** campo flat
+  `seasonalTheme` nel mapping (`"halloween"`/`"christmas"`/`"none"`/assente,
+  condiviso tra i formati — nessun profilo `landscape`). Esplicita a tema
+  vince sul contesto lista e segue il titolo ovunque nei percorsi non-preview (cataloghi + meta +
+  URL Stremio via `resolveEffectiveSeasonalTheme`); in preview effettiva autorizzata il `theme=` staged vince sul mapping salvato (mai resurrect); `none`
+  esplicito sopprime un tema ereditato; assente = Automatica (segue la
+  lista). Editor: selettore in `BadgeControls` (+ `theme=` effettivo in
+  preview); copertina-only la azzera (contratto stili). Cache sicura:
+  versione mapping (`mv`/`updatedAt`) distingue le scelte a parità di
+  query; il banner pulito resta sempre senza tema.
 - Isolamento cache: `:th<tema>` nella chiave catalogo/search + `theme`
   in allowlist/poster-key (invalido = assente = unframed; i due temi hanno
   chiavi distinte tra loro).

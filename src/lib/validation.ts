@@ -134,6 +134,11 @@ export const mappingSchema = z.object({
   posterLayout: z.enum(POSTER_LAYOUTS).nullable().optional(),
   /** Fresh apply scope per-titolo ("ranked" = default: solo con rank; "all" = override esplicito). */
   posterFreshScope: z.enum(POSTER_FRESH_SCOPES).nullable().optional(),
+  // Seasonal frame per-titolo (flat unico condiviso tra i formati, nessun
+  // profilo landscape): "halloween"/"christmas" = scelta esplicita che segue
+  // il titolo; "none" = sopprime un tema ereditato dalla lista;
+  // null/assente = Automatico (segue la lista, mapping vecchi invariati).
+  seasonalTheme: z.enum(["halloween", "christmas", "none"]).nullable().optional(),
   // Profilo di tuning landscape 16:9 (vedi LandscapeSettings in types.ts):
   // stessi bound dei campi flat. Chiavi assenti/null = fallback al flat.
   landscape: z.object({

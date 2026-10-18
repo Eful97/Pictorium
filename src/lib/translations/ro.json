@@ -1104,5 +1104,18 @@
   "ui.rankingSourceJWTrendingDesc": "JustWatch Trending ranking.",
   "ui.rankingSourceGlobalUnsupported": "Not available for the Global region.",
   "ui.rankingSourceIncompatible": "Not supported in the Global region. Choose another source or change region.",
-  "ui.rankingSourceIncompatibleBadge": "Incompatible with Global"
+  "ui.rankingSourceIncompatibleBadge": "Incompatible with Global",
+  "ui.seasonalFrame": "Chenar sezonier",
+  "ui.seasonalFrameAutomatic": "Automat",
+  "ui.seasonalFrameNone": "Niciunul",
+  "ui.seasonalFrameHalloween": "Halloween",
+  "ui.seasonalFrameChristmas": "Crăciun",
+  "ui.seasonalFrameHint": "O alegere explicită urmează acest titlu peste tot; Niciunul ascunde un chenar moștenit din listă; Automat urmează lista de origine.",
+  "ui.seasonalKeywordsTitle": "Cuvinte-cheie sezoniere",
+  "ui.seasonalKeywordsHint": "Cuvinte suplimentare comparate cu numele cataloagelor după aceleași reguli de cuvânt întreg. Halloween câștigă la numele mixte.",
+  "ui.seasonalHalloweenKeywords": "Cuvinte-cheie Halloween",
+  "ui.seasonalChristmasKeywords": "Cuvinte-cheie Crăciun",
+  "ui.seasonalKeywordsPlaceholder": "ex. spooky, dovleac — separate prin virgule",
+  "ui.seasonalKeywordsFieldHint": "{count}/{max} cuvinte salvate",
+  "ui.seasonalKeywordsReset": "Resetează"
 }

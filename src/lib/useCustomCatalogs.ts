@@ -11,9 +11,14 @@ import {
   type CatalogShapes,
 } from "./catalog-shape"
 import { isProfilelessOnMultiUser, notifyProfilelessOnce, shouldSkipServerSync } from "./guest-guard"
+import { sanitizeSeasonalCustomKeywords } from "./seasonal-theme"
 import { userFetch } from "./http"
 import { USER_UNLOCK_EVENT } from "./user-token"
 import { t } from "./i18n"
+
+/** localStorage keys for the user-scoped seasonal keyword settings. */
+export const SEASONAL_HALLOWEEN_KEYWORDS_STORAGE_KEY = "pictorium_seasonal_halloween_keywords"
+export const SEASONAL_CHRISTMAS_KEYWORDS_STORAGE_KEY = "pictorium_seasonal_christmas_keywords"
 
 export function useCustomCatalogs(
   safeGetItem: (key: string) => string | null,
@@ -25,6 +30,13 @@ export function useCustomCatalogs(
   const [catalogOrder, setCatalogOrderState] = useState<string[]>([])
   const [catalogRenames, setCatalogRenamesState] = useState<Record<string, string>>({})
   const [catalogShapes, setCatalogShapesState] = useState<CatalogShapes>({})
+  // Custom seasonal keywords per theme (user-scoped): extra whole-word/phrase
+  // matches for the automatic catalog-name recognition (seasonal-theme.ts).
+  // Same persistence as the other catalog records: localStorage + canonical
+  // catalog PUT to /api/defaults (+ profileless config token, see
+  // useLocalConfigToken). Sanitized on every write and read.
+  const [seasonalHalloweenKeywords, setSeasonalHalloweenKeywordsState] = useState<string[]>([])
+  const [seasonalChristmasKeywords, setSeasonalChristmasKeywordsState] = useState<string[]>([])
   // Catalog-name emoji visibility (display only, default shown): true unless
   // explicitly set to false. Stored names are never rewritten by the toggle.
   const [catalogShowEmojis, setCatalogShowEmojisState] = useState(true)
@@ -64,6 +76,8 @@ export function useCustomCatalogs(
     const savedRenames = hasSaved("pictorium_catalog_renames", true)
     const savedShapes = hasSaved(CATALOG_SHAPES_STORAGE_KEY, true)
     const savedEmojis = safeGetItem("pictorium_catalog_show_emojis") !== null
+    const savedSeasonalHalloween = hasSaved(SEASONAL_HALLOWEEN_KEYWORDS_STORAGE_KEY)
+    const savedSeasonalChristmas = hasSaved(SEASONAL_CHRISTMAS_KEYWORDS_STORAGE_KEY)
     // Hydrate missing or server-configured defaults
     userFetch("/api/defaults")
       .then((r) => (r.ok ? r.json() : null))
@@ -77,6 +91,8 @@ export function useCustomCatalogs(
           catalogRenames: data.catalogRenames ?? {},
           catalogShapes: normalizeCatalogShapeKeys(data.catalogShapes) ?? {},
           catalogShowEmojis: data.catalogShowEmojis ?? true,
+          seasonalHalloweenKeywords: sanitizeSeasonalCustomKeywords(data.seasonalHalloweenKeywords),
+          seasonalChristmasKeywords: sanitizeSeasonalCustomKeywords(data.seasonalChristmasKeywords),
         })
         if (Array.isArray(data.customCatalogs) && !savedCustomCats) {
           setCustomCatalogsState((prev) => {
@@ -138,6 +154,20 @@ export function useCustomCatalogs(
           setCatalogShowEmojisState(serverShow)
           safeSetItem("pictorium_catalog_show_emojis", JSON.stringify(serverShow))
         }
+        if (!savedSeasonalHalloween) {
+          const clean = sanitizeSeasonalCustomKeywords(data.seasonalHalloweenKeywords)
+          if (clean.length > 0) {
+            setSeasonalHalloweenKeywordsState(clean)
+            safeSetItem(SEASONAL_HALLOWEEN_KEYWORDS_STORAGE_KEY, JSON.stringify(clean))
+          }
+        }
+        if (!savedSeasonalChristmas) {
+          const clean = sanitizeSeasonalCustomKeywords(data.seasonalChristmasKeywords)
+          if (clean.length > 0) {
+            setSeasonalChristmasKeywordsState(clean)
+            safeSetItem(SEASONAL_CHRISTMAS_KEYWORDS_STORAGE_KEY, JSON.stringify(clean))
+          }
+        }
       })
       .catch(() => {})
       .finally(() => setHydrated(true))
@@ -152,6 +182,8 @@ export function useCustomCatalogs(
     let localRenames: Record<string, string> = {}
     let localShapes: CatalogShapes = {}
     let localShowEmojis = true
+    let localSeasonalHalloween: string[] = []
+    let localSeasonalChristmas: string[] = []
 
     const savedCustomCats = safeGetItem("pictorium_custom_catalogs")
     if (savedCustomCats) {
@@ -223,6 +255,22 @@ export function useCustomCatalogs(
         }
       } catch {}
     }
+    const savedSeasonalHalloweenRaw = safeGetItem(SEASONAL_HALLOWEEN_KEYWORDS_STORAGE_KEY)
+    if (savedSeasonalHalloweenRaw) {
+      try {
+        const clean = sanitizeSeasonalCustomKeywords(JSON.parse(savedSeasonalHalloweenRaw))
+        localSeasonalHalloween = clean
+        setSeasonalHalloweenKeywordsState(clean)
+      } catch {}
+    }
+    const savedSeasonalChristmasRaw = safeGetItem(SEASONAL_CHRISTMAS_KEYWORDS_STORAGE_KEY)
+    if (savedSeasonalChristmasRaw) {
+      try {
+        const clean = sanitizeSeasonalCustomKeywords(JSON.parse(savedSeasonalChristmasRaw))
+        localSeasonalChristmas = clean
+        setSeasonalChristmasKeywordsState(clean)
+      } catch {}
+    }
 
     lastSyncRef.current = JSON.stringify({
       customCatalogs: localCustom,
@@ -232,6 +280,8 @@ export function useCustomCatalogs(
       catalogRenames: localRenames,
       catalogShapes: localShapes,
       catalogShowEmojis: localShowEmojis,
+      seasonalHalloweenKeywords: localSeasonalHalloween,
+      seasonalChristmasKeywords: localSeasonalChristmas,
     })
 
     refreshCatalogsFromServer()
@@ -245,7 +295,7 @@ export function useCustomCatalogs(
   }, [refreshCatalogsFromServer])
 
   // Keep the latest desired payload separate from the last acknowledged PUT.
-  const payloadStr = JSON.stringify({ customCatalogs, disabledCatalogIds, homeDisabledCatalogIds, catalogOrder, catalogRenames, catalogShapes, catalogShowEmojis })
+  const payloadStr = JSON.stringify({ customCatalogs, disabledCatalogIds, homeDisabledCatalogIds, catalogOrder, catalogRenames, catalogShapes, catalogShowEmojis, seasonalHalloweenKeywords, seasonalChristmasKeywords })
   useEffect(() => {
     pendingRef.current = payloadStr
     if (!hydrated || lastSyncRef.current === payloadStr) return
@@ -439,6 +489,31 @@ export function useCustomCatalogs(
     try { localStorage.removeItem(CATALOG_SHAPES_STORAGE_KEY) } catch {}
   }, [])
 
+  /**
+   * Custom seasonal keywords per theme (see seasonal-theme.ts): sanitized on
+   * every write (literal whole-word/phrase match, no regex), persisted
+   * locally and synced through the canonical catalog PUT. An empty list =
+   * built-ins only (legacy behavior).
+   */
+  const setSeasonalHalloweenKeywords = useCallback((keywords: string[]) => {
+    const clean = sanitizeSeasonalCustomKeywords(keywords)
+    setSeasonalHalloweenKeywordsState(clean)
+    safeSetItem(SEASONAL_HALLOWEEN_KEYWORDS_STORAGE_KEY, JSON.stringify(clean))
+  }, [safeSetItem])
+
+  const setSeasonalChristmasKeywords = useCallback((keywords: string[]) => {
+    const clean = sanitizeSeasonalCustomKeywords(keywords)
+    setSeasonalChristmasKeywordsState(clean)
+    safeSetItem(SEASONAL_CHRISTMAS_KEYWORDS_STORAGE_KEY, JSON.stringify(clean))
+  }, [safeSetItem])
+
+  const resetSeasonalKeywords = useCallback(() => {
+    setSeasonalHalloweenKeywordsState([])
+    setSeasonalChristmasKeywordsState([])
+    try { localStorage.removeItem(SEASONAL_HALLOWEEN_KEYWORDS_STORAGE_KEY) } catch {}
+    try { localStorage.removeItem(SEASONAL_CHRISTMAS_KEYWORDS_STORAGE_KEY) } catch {}
+  }, [])
+
   const resetCatalogOrder = useCallback(() => {
     setCatalogOrderState([])
     try { localStorage.removeItem("pictorium_catalog_order") } catch {}
@@ -471,5 +546,10 @@ export function useCustomCatalogs(
     setCatalogShapes,
     setCatalogShape,
     resetCatalogShapes,
+    seasonalHalloweenKeywords,
+    setSeasonalHalloweenKeywords,
+    seasonalChristmasKeywords,
+    setSeasonalChristmasKeywords,
+    resetSeasonalKeywords,
   }
 }

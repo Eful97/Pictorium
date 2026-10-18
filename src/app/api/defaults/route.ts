@@ -229,6 +229,11 @@ const defaultsSchema = z.object({
     if (keys.length > 200) return false
     return !keys.some((k) => k === "__proto__" || k === "constructor" || k === "prototype")
   }, { message: "catalogShapes must have at most 200 entries and no prototype keys" }),
+  // Custom seasonal keywords per theme (user-scoped): extra whole-word/phrase
+  // matches for the automatic catalog-name recognition (see seasonal-theme.ts).
+  // Bounded like the other catalog records; sanitized again at match time.
+  seasonalHalloweenKeywords: z.array(z.string().max(40)).max(20).optional(),
+  seasonalChristmasKeywords: z.array(z.string().max(40)).max(20).optional(),
 })
 
 function isPlainLandscapeRecord(v: unknown): v is Record<string, unknown> {

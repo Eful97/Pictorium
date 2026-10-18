@@ -1104,5 +1104,18 @@
   "ui.rankingSourceJWTrendingDesc": "JustWatch Trending ranking.",
   "ui.rankingSourceGlobalUnsupported": "Not available for the Global region.",
   "ui.rankingSourceIncompatible": "Not supported in the Global region. Choose another source or change region.",
-  "ui.rankingSourceIncompatibleBadge": "Incompatible with Global"
+  "ui.rankingSourceIncompatibleBadge": "Incompatible with Global",
+  "ui.seasonalFrame": "Khung theo mùa",
+  "ui.seasonalFrameAutomatic": "Tự động",
+  "ui.seasonalFrameNone": "Không",
+  "ui.seasonalFrameHalloween": "Halloween",
+  "ui.seasonalFrameChristmas": "Giáng sinh",
+  "ui.seasonalFrameHint": "Lựa chọn rõ ràng áp dụng cho tiêu đề này ở mọi nơi; Không ẩn khung kế thừa từ danh sách; Tự động theo danh sách gốc.",
+  "ui.seasonalKeywordsTitle": "Từ khóa theo mùa",
+  "ui.seasonalKeywordsHint": "Các từ bổ sung so với tên danh mục theo cùng quy tắc khớp nguyên từ. Halloween thắng với tên hỗn hợp.",
+  "ui.seasonalHalloweenKeywords": "Từ khóa Halloween",
+  "ui.seasonalChristmasKeywords": "Từ khóa Giáng sinh",
+  "ui.seasonalKeywordsPlaceholder": "vd. spooky, bí ngô — cách nhau bằng dấu phẩy",
+  "ui.seasonalKeywordsFieldHint": "đã lưu {count}/{max} từ khóa",
+  "ui.seasonalKeywordsReset": "Đặt lại"
 }

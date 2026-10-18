@@ -1104,5 +1104,18 @@
   "ui.rankingSourceJWTrendingDesc": "JustWatch Trending ranking.",
   "ui.rankingSourceGlobalUnsupported": "Not available for the Global region.",
   "ui.rankingSourceIncompatible": "Not supported in the Global region. Choose another source or change region.",
-  "ui.rankingSourceIncompatibleBadge": "Incompatible with Global"
+  "ui.rankingSourceIncompatibleBadge": "Incompatible with Global",
+  "ui.seasonalFrame": "シーズンフレーム",
+  "ui.seasonalFrameAutomatic": "自動",
+  "ui.seasonalFrameNone": "なし",
+  "ui.seasonalFrameHalloween": "ハロウィン",
+  "ui.seasonalFrameChristmas": "クリスマス",
+  "ui.seasonalFrameHint": "明示的な選択はこのタイトルに常に従います。「なし」はリスト継承のフレームを非表示にし、「自動」は元のリストに従います。",
+  "ui.seasonalKeywordsTitle": "季節キーワード",
+  "ui.seasonalKeywordsHint": "カタログ名と照合する追加ワード(組み込みと同じ単語単位ルール)。混在名ではハロウィンが優先されます。",
+  "ui.seasonalHalloweenKeywords": "ハロウィンキーワード",
+  "ui.seasonalChristmasKeywords": "クリスマスキーワード",
+  "ui.seasonalKeywordsPlaceholder": "例: spooky、かぼちゃ — カンマ区切り",
+  "ui.seasonalKeywordsFieldHint": "{count}/{max} 件のキーワードを保存",
+  "ui.seasonalKeywordsReset": "リセット"
 }

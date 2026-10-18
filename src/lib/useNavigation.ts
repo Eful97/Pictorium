@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef, useMemo } from "react"
 import type { SearchResult, TMDBImage } from "./types"
-import { detectSeasonalThemeFromCatalogName, type SeasonalTheme } from "./seasonal-theme"
+import { detectSeasonalThemeFromCatalogName, type SeasonalCustomKeywordsInput, type SeasonalTheme } from "./seasonal-theme"
 import { pushView, replaceView, goBack, type View } from "./router"
 
 export function useNavigation() {
@@ -52,12 +52,14 @@ export function useNavigation() {
     return ++fetchIdRef.current
   }, [])
 
-  const navigateToPoster = useCallback((item: SearchResult, _source?: string, _originatingListName?: string | null) => {
+  const navigateToPoster = useCallback((item: SearchResult, _source?: string, _originatingListName?: string | null, _seasonalKeywords?: SeasonalCustomKeywordsInput | null) => {
     const src = (_source as View) || view || "edit"
     setSourceView(src)
     // Il tema deriva SOLO dal nome visibile della lista di origine (mai dal
-    // titolo del film): omesso/null = si azzera (niente leakage).
-    setSeasonalTheme(detectSeasonalThemeFromCatalogName(_originatingListName))
+    // titolo del film): omesso/null = si azzera (niente leakage). Le keyword
+    // custom dell'utente estendono lo stesso match sui nomi lista (mai regex,
+    // precedenza Halloween invariata); senza, valgono i soli built-in.
+    setSeasonalTheme(detectSeasonalThemeFromCatalogName(_originatingListName, _seasonalKeywords ?? null))
     replaceView(src)
     pushView("edit", { source: src })
   }, [view])

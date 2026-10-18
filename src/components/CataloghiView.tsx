@@ -501,6 +501,15 @@ export function CataloghiView() {
   const hasKey = !!tmdbKey || serverHasTmdbKey
   const mdblistApiKey = usePSelector((v) => v.mdblistApiKey)
   const catalogShowEmojis = usePSelector((v) => v.catalogShowEmojis)
+  // Custom seasonal keywords (user-scoped): estendono il match sui nomi
+  // lista con le stesse regole dei built-in (vedi seasonal-theme.ts) sia
+  // nella navigazione client che nel resolver server.
+  const seasonalHalloweenKeywords = usePSelector((v) => v.seasonalHalloweenKeywords)
+  const seasonalChristmasKeywords = usePSelector((v) => v.seasonalChristmasKeywords)
+  const seasonalKeywords = useMemo(
+    () => ({ halloween: seasonalHalloweenKeywords, christmas: seasonalChristmasKeywords }),
+    [seasonalHalloweenKeywords, seasonalChristmasKeywords],
+  )
   const { t } = useT()
   const platformFilters = useMemo(() => [
     { id: "all", label: t("ui.all") },
@@ -644,7 +653,7 @@ export function CataloghiView() {
       title,
       name: title,
       poster_path: item.poster_path ?? item.posterPath,
-    }), "cataloghi", listName)
+    }), "cataloghi", listName, seasonalKeywords)
   }
   // Click da sezioni built-in (Film/Serie affiancate): il nome effettivo del
   // catalogo del media-type cliccato viaggia come contesto effimero.
@@ -1055,7 +1064,7 @@ export function CataloghiView() {
                           title: item.title,
                           name: item.title,
                           poster_path: item.posterPath,
-                        }), "cataloghi", gridListName)
+                        }), "cataloghi", gridListName, seasonalKeywords)
                       }
                     }}
                     className={`group relative aspect-[2/3] rounded-xl overflow-hidden bg-surface2 transition-all focus:outline-none focus:ring-2 focus:ring-accent ${

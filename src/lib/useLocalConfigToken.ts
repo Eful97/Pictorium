@@ -11,6 +11,8 @@ export interface LocalConfigTokenInput {
   readonly rankingSourceSeries: string
   readonly catalogShapes?: Readonly<Record<string, string>>
   readonly catalogShowEmojis?: boolean
+  readonly seasonalHalloweenKeywords?: readonly string[]
+  readonly seasonalChristmasKeywords?: readonly string[]
 }
 
 /**
@@ -74,6 +76,14 @@ export function useLocalConfigToken(input: LocalConfigTokenInput): LocalConfigTo
         // Display-only pref: carried only when hidden so default URLs stay
         // byte-identical (no token churn, no refetch while shown).
         ...(input.catalogShowEmojis === false ? { catalogShowEmojis: false } : {}),
+        // Custom seasonal keywords: carried only when non-empty (same
+        // byte-identical-URLs rule); the server sanitizes again at match.
+        ...(input.seasonalHalloweenKeywords && input.seasonalHalloweenKeywords.length > 0
+          ? { seasonalHalloweenKeywords: [...input.seasonalHalloweenKeywords] }
+          : {}),
+        ...(input.seasonalChristmasKeywords && input.seasonalChristmasKeywords.length > 0
+          ? { seasonalChristmasKeywords: [...input.seasonalChristmasKeywords] }
+          : {}),
       })
       if (cancelled) return
       if (minted) {
@@ -96,7 +106,7 @@ export function useLocalConfigToken(input: LocalConfigTokenInput): LocalConfigTo
     return () => {
       cancelled = true
     }
-  }, [input.customCatalogs, input.rankingSourceMovie, input.rankingSourceSeries, input.catalogShapes, input.catalogShowEmojis])
+  }, [input.customCatalogs, input.rankingSourceMovie, input.rankingSourceSeries, input.catalogShapes, input.catalogShowEmojis, input.seasonalHalloweenKeywords, input.seasonalChristmasKeywords])
 
   return { token, status }
 }

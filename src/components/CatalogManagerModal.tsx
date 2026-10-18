@@ -28,6 +28,7 @@ import { rankingSourceCatalogName, resolveCatalogDisplayName } from "@/lib/ranki
 import { getRegionDef } from "@/lib/regions"
 import { EmojiPicker } from "@/components/ui"
 import { Modal } from "@/components/ui/Modal"
+import { SeasonalKeywordsSection } from "@/components/SeasonalKeywordsSection"
 
 interface CatalogManagerModalProps {
   isOpen: boolean
@@ -469,6 +470,7 @@ export function CatalogManagerModal({ isOpen, onClose }: CatalogManagerModalProp
       </div>
 
       {/* Catalog List */}
+      <SeasonalKeywordsSection />
       <div className="p-4 space-y-2 overflow-y-auto flex-1 min-h-0 scrollbar-thin">
         {allCatalogs.map((item, index) => {
           const isEditing = editingId === item.id

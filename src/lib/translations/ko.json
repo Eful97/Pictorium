@@ -1104,5 +1104,18 @@
   "ui.rankingSourceJWTrendingDesc": "JustWatch Trending ranking.",
   "ui.rankingSourceGlobalUnsupported": "Not available for the Global region.",
   "ui.rankingSourceIncompatible": "Not supported in the Global region. Choose another source or change region.",
-  "ui.rankingSourceIncompatibleBadge": "Incompatible with Global"
+  "ui.rankingSourceIncompatibleBadge": "Incompatible with Global",
+  "ui.seasonalFrame": "시즌 프레임",
+  "ui.seasonalFrameAutomatic": "자동",
+  "ui.seasonalFrameNone": "없음",
+  "ui.seasonalFrameHalloween": "할로윈",
+  "ui.seasonalFrameChristmas": "크리스마스",
+  "ui.seasonalFrameHint": "명시적 선택은 이 타이틀을 어디서나 따릅니다. 없음은 목록에서 상속된 프레임을 숨기고, 자동은 원본 목록을 따릅니다.",
+  "ui.seasonalKeywordsTitle": "시즌 키워드",
+  "ui.seasonalKeywordsHint": "카탈로그 이름과 대조하는 추가 단어(내장 규칙과 동일한 단어 단위 규칙). 혼합 이름에서는 할로윈이 우선합니다.",
+  "ui.seasonalHalloweenKeywords": "할로윈 키워드",
+  "ui.seasonalChristmasKeywords": "크리스마스 키워드",
+  "ui.seasonalKeywordsPlaceholder": "예: spooky, 호박 — 쉼표로 구분",
+  "ui.seasonalKeywordsFieldHint": "{count}/{max}개 키워드 저장됨",
+  "ui.seasonalKeywordsReset": "초기화"
 }

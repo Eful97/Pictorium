@@ -1104,5 +1104,18 @@
   "ui.rankingSourceJWTrendingDesc": "JustWatch Trending ranking.",
   "ui.rankingSourceGlobalUnsupported": "Not available for the Global region.",
   "ui.rankingSourceIncompatible": "Not supported in the Global region. Choose another source or change region.",
-  "ui.rankingSourceIncompatibleBadge": "Incompatible with Global"
+  "ui.rankingSourceIncompatibleBadge": "Incompatible with Global",
+  "ui.seasonalFrame": "Sezonluk çerçeve",
+  "ui.seasonalFrameAutomatic": "Otomatik",
+  "ui.seasonalFrameNone": "Hiçbiri",
+  "ui.seasonalFrameHalloween": "Halloween",
+  "ui.seasonalFrameChristmas": "Noel",
+  "ui.seasonalFrameHint": "Açık bir seçim bu başlığı her yerde izler; Hiçbiri listeden devralınan çerçeveyi gizler; Otomatik kaynak listeyi izler.",
+  "ui.seasonalKeywordsTitle": "Sezonluk anahtar kelimeler",
+  "ui.seasonalKeywordsHint": "Katalog adlarıyla aynı tam-sözcük kurallarıyla eşleşen ek kelimeler. Karışık adlarda Halloween kazanır.",
+  "ui.seasonalHalloweenKeywords": "Halloween anahtar kelimeleri",
+  "ui.seasonalChristmasKeywords": "Noel anahtar kelimeleri",
+  "ui.seasonalKeywordsPlaceholder": "örn. spooky, balkabağı — virgülle ayrılmış",
+  "ui.seasonalKeywordsFieldHint": "{count}/{max} kelime kaydedildi",
+  "ui.seasonalKeywordsReset": "Sıfırla"
 }

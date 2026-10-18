@@ -1104,5 +1104,18 @@
   "ui.rankingSourceJWTrendingDesc": "JustWatch Trending ranking.",
   "ui.rankingSourceGlobalUnsupported": "Not available for the Global region.",
   "ui.rankingSourceIncompatible": "Not supported in the Global region. Choose another source or change region.",
-  "ui.rankingSourceIncompatibleBadge": "Incompatible with Global"
+  "ui.rankingSourceIncompatibleBadge": "Incompatible with Global",
+  "ui.seasonalFrame": "Seizoenskader",
+  "ui.seasonalFrameAutomatic": "Automatisch",
+  "ui.seasonalFrameNone": "Geen",
+  "ui.seasonalFrameHalloween": "Halloween",
+  "ui.seasonalFrameChristmas": "Kerst",
+  "ui.seasonalFrameHint": "Een expliciete keuze volgt deze titel overal; Geen verbergt een geërfd lijstkader; Automatisch volgt de bronlijst.",
+  "ui.seasonalKeywordsTitle": "Seizoenszoekwoorden",
+  "ui.seasonalKeywordsHint": "Extra woorden vergeleken met catalogusnamen met dezelfde hele-woordregels. Halloween wint bij gemengde namen.",
+  "ui.seasonalHalloweenKeywords": "Halloween-zoekwoorden",
+  "ui.seasonalChristmasKeywords": "Kerst-zoekwoorden",
+  "ui.seasonalKeywordsPlaceholder": "bijv. spooky, pompoen — door komma’s gescheiden",
+  "ui.seasonalKeywordsFieldHint": "{count}/{max} zoekwoorden opgeslagen",
+  "ui.seasonalKeywordsReset": "Opnieuw instellen"
 }

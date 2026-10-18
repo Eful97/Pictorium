@@ -1104,5 +1104,18 @@
   "ui.rankingSourceJWTrendingDesc": "JustWatch Trending ranking.",
   "ui.rankingSourceGlobalUnsupported": "Not available for the Global region.",
   "ui.rankingSourceIncompatible": "Not supported in the Global region. Choose another source or change region.",
-  "ui.rankingSourceIncompatibleBadge": "Incompatible with Global"
+  "ui.rankingSourceIncompatibleBadge": "Incompatible with Global",
+  "ui.seasonalFrame": "Säsongsram",
+  "ui.seasonalFrameAutomatic": "Automatisk",
+  "ui.seasonalFrameNone": "Ingen",
+  "ui.seasonalFrameHalloween": "Halloween",
+  "ui.seasonalFrameChristmas": "Jul",
+  "ui.seasonalFrameHint": "Ett explicit val följer denna titel överallt; Ingen döljer en ram ärvd från listan; Automatisk följer ursprungslistan.",
+  "ui.seasonalKeywordsTitle": "Säsongsnyckelord",
+  "ui.seasonalKeywordsHint": "Extra ord matchade mot katalognamn med samma helordsregler. Halloween vinner vid blandade namn.",
+  "ui.seasonalHalloweenKeywords": "Halloween-nyckelord",
+  "ui.seasonalChristmasKeywords": "Julnyckelord",
+  "ui.seasonalKeywordsPlaceholder": "t.ex. spooky, pumpa — kommaseparerade",
+  "ui.seasonalKeywordsFieldHint": "{count}/{max} nyckelord sparade",
+  "ui.seasonalKeywordsReset": "Återställ"
 }

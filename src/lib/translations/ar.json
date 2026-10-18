@@ -1104,5 +1104,18 @@
   "ui.rankingSourceJWTrendingDesc": "JustWatch Trending ranking.",
   "ui.rankingSourceGlobalUnsupported": "Not available for the Global region.",
   "ui.rankingSourceIncompatible": "Not supported in the Global region. Choose another source or change region.",
-  "ui.rankingSourceIncompatibleBadge": "Incompatible with Global"
+  "ui.rankingSourceIncompatibleBadge": "Incompatible with Global",
+  "ui.seasonalFrame": "إطار موسمي",
+  "ui.seasonalFrameAutomatic": "تلقائي",
+  "ui.seasonalFrameNone": "بلا",
+  "ui.seasonalFrameHalloween": "هالووين",
+  "ui.seasonalFrameChristmas": "عيد الميلاد",
+  "ui.seasonalFrameHint": "الاختيار الصريح يتبع هذا العنوان في كل مكان؛ بلا يخفي إطارًا موروثًا من القائمة؛ تلقائي يتبع القائمة الأصلية.",
+  "ui.seasonalKeywordsTitle": "كلمات مفتاحية موسمية",
+  "ui.seasonalKeywordsHint": "كلمات إضافية تُطابق أسماء الكتالوجات بنفس قواعد الكلمة الكاملة. هالووين يفوز في الأسماء المختلطة.",
+  "ui.seasonalHalloweenKeywords": "كلمات هالووين المفتاحية",
+  "ui.seasonalChristmasKeywords": "كلمات عيد الميلاد المفتاحية",
+  "ui.seasonalKeywordsPlaceholder": "مثال: spooky، يقطين — مفصولة بفواصل",
+  "ui.seasonalKeywordsFieldHint": "تم حفظ {count}/{max} من الكلمات",
+  "ui.seasonalKeywordsReset": "إعادة تعيين"
 }

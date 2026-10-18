@@ -28,7 +28,7 @@ import { isSupportedUiLang, contentLanguageForUiLang } from "@/lib/regions"
 import { getScopedUserId, userExists, userRateLimitKey } from "@/lib/user-auth"
 import { touchUserActivity } from "@/lib/user-activity"
 import { buildStremioPosterUrl, stremioPosterShape } from "@/lib/stremio-poster-url"
-import { normalizeSeasonalTheme } from "@/lib/seasonal-theme"
+import { normalizeSeasonalTheme, resolveEffectiveSeasonalTheme } from "@/lib/seasonal-theme"
 import { getOriginFromRequest } from "@/lib/poster-public-url"
 import { enrichVideosWithTvdbDetailed } from "@/lib/tvdb"
 import { buildVideosFromAnizip, buildVideosFromGroups, buildVideosFromTvdbDetailed, concurrentMap, isSeasonEpisodesComplete } from "@/lib/episode-ordering"
@@ -149,11 +149,18 @@ async function pictoriumPosterUrl(
     config: configParam || undefined,
     user: userParam || undefined,
     forceShape: posterShape,
-    // Ephemeral originating-catalog context (explicit `theme=` only): both
+    // Ephemeral originating-catalog context (explicit `theme=` only) under
+    // the saved per-title choice: explicit themed choice follows the title
+    // across catalogs and meta (generic meta with no list = query absent =
+    // unframed unless the mapping sets it), explicit `none` suppresses an
+    // inherited list theme, absent (Automatic) follows the list. Both
     // canvases render their own frame asset; the clean banner never
     // receives a theme (hideLogo gate in the shared builder), so it stays
     // byte-identical and absent/invalid stays unframed.
-    seasonalTheme: seasonalTheme ?? undefined,
+    seasonalTheme: resolveEffectiveSeasonalTheme(
+      mapping?.seasonalTheme ?? null,
+      normalizeSeasonalTheme(seasonalTheme),
+    ) ?? undefined,
   }).toString()
   return { poster, posterShape }
 }

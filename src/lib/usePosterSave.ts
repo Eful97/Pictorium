@@ -68,6 +68,13 @@ interface PosterSaveDeps {
   separateRatings: boolean
   /** Layout dei rating separati per-titolo (congelato al save, default "column"). */
   separateRatingsStyle: SeparateRatingsStyle
+  /**
+   * Cornice stagionale per-titolo in editing (flat unico, entrambe le
+   * forme): null = Automatico (assente nel payload = segue la lista),
+   * "none"/temi = congelati al save. Condiviso tra i formati (mai profilo
+   * landscape, mai backfill per-formato).
+   */
+  seasonalTheme?: import("./seasonal-theme").SeasonalThemeChoice | null
   customBadge: string | null
   badgePresetId?: string | null
   badgePresetRev?: string | null
@@ -235,6 +242,7 @@ export function usePosterSave(deps: PosterSaveDeps) {
     globalBadges, rankingBadges, customBadge, badgePresetId, badgePresetRev, badgeStyle, rankingBadgeStyle, extraBadgeStyle, badgeFont, qualityBadgeStyle,
     videoFormats,
     badgeGenre, badgeYear, badgeRating, badgeQuality, ageBadge, ageCountry, ageBadgeStyle, customRatings, ratingSources, separateRatings, separateRatingsStyle,
+    seasonalTheme,
     defaultBadgeStyle, defaultRankingBadgeStyle, defaultExtraBadgeStyle,
     defaultGlobalBadges, defaultRankingBadges, defaultBadgeGenre, defaultBadgeYear,
     defaultBadgeRating, defaultBadgeQuality, defaultAgeBadge, defaultAgeCountry, defaultAgeBadgeStyle, defaultCustomRatings, defaultSeparateRatings,
@@ -922,6 +930,12 @@ export function usePosterSave(deps: PosterSaveDeps) {
           // Fresh apply scope congelato per-titolo (stessa regola per-shape
           // del layout sopra): in landscape il flat resta quello salvato.
           posterFreshScope: keepFlatKey("posterFreshScope", posterFreshScope),
+          // Cornice stagionale congelata per-titolo (flat unico condiviso
+          // tra i formati: nessuna indipendenza per-formato, nessuno stash
+          // landscape, nessun backfill — come ratingSources sopra). Null =
+          // Automatico (assente nel payload = segue la lista di origine);
+          // "none" = sopprime un tema ereditato; i temi seguono il titolo.
+          seasonalTheme: seasonalTheme ?? undefined,
           landscape: landscapeProfile,
         }),
       })
@@ -951,7 +965,7 @@ export function usePosterSave(deps: PosterSaveDeps) {
       if (overrides.silent) throw error
       return false
     }
-  }, [selected, previewPoster, selectedLogo, metaInfo, logoScale, logoOffsetX, logoOffsetY, trendRank, globalBadges, rankingBadges, badgeGenre, badgeYear, badgeRating, badgeQuality, ageBadge, ageCountry, ageBadgeStyle, customRatings, ratingSources, separateRatings, separateRatingsStyle, mdblistAnimeList, loadMappings, customBadge, badgePresetId, badgePresetRev, badgeStyle, rankingBadgeStyle, extraBadgeStyle, badgeFont, qualityBadgeStyle, videoFormats, blurEnabled, blurIntensity, blurFade, blurDarkness, landscapeBlur, landscapeBlurDirty, tintStrength, topShade, topShadeHeight, gradientHeight, topBadgeScale, topBadgeOffsetX, topBadgeOffsetY, extraBadgeScale, extraBadgeOffsetX, extraBadgeOffsetY, genreBadgeScale, qualityBadgeScale, separateBadgeScale, separateBadgeOffsetX, separateBadgeOffsetY, networkLogoScale, genreBadgeOffsetX, genreBadgeOffsetY, qualityBadgeOffsetX, qualityBadgeOffsetY, networkLogoOffsetX, networkLogoOffsetY, rotationPosters, autoRotateClean, defaultAutoRotateClean, excludedPosters, rotationBackdrops, autoRotateBackdrop, defaultAutoRotateBackdrop, excludedBackdrops, backdrops, defaultBadgeStyle, defaultRankingBadgeStyle, defaultExtraBadgeStyle, defaultGlobalBadges, defaultRankingBadges, defaultBadgeGenre, defaultBadgeYear, defaultBadgeRating, defaultBadgeQuality, defaultAgeBadge, defaultAgeCountry, defaultAgeBadgeStyle, defaultCustomRatings, defaultSeparateRatings, defaultBadgeFont, defaultQualityBadgeStyle, defaultVideoFormats, defaultNetworkLogo, defaultNetworkLogoPosition, defaultRibbonEnabled, posters, mappingsMap, accentColor, autoAccentColor, backdropOffsetX, backdropOffsetY, backdropScale, selectedBackdrop, networkLogo, networkLogoPosition, networkLogoFollowTitle, ribbonEnabled, episodeGroupId, posterShape, posterLayout, posterFreshScope]) // eslint-disable-line react-hooks/exhaustive-deps -- intentionally complete to save all poster state
+  }, [selected, previewPoster, selectedLogo, metaInfo, logoScale, logoOffsetX, logoOffsetY, trendRank, globalBadges, rankingBadges, badgeGenre, badgeYear, badgeRating, badgeQuality, ageBadge, ageCountry, ageBadgeStyle, customRatings, ratingSources, separateRatings, separateRatingsStyle, seasonalTheme, mdblistAnimeList, loadMappings, customBadge, badgePresetId, badgePresetRev, badgeStyle, rankingBadgeStyle, extraBadgeStyle, badgeFont, qualityBadgeStyle, videoFormats, blurEnabled, blurIntensity, blurFade, blurDarkness, landscapeBlur, landscapeBlurDirty, tintStrength, topShade, topShadeHeight, gradientHeight, topBadgeScale, topBadgeOffsetX, topBadgeOffsetY, extraBadgeScale, extraBadgeOffsetX, extraBadgeOffsetY, genreBadgeScale, qualityBadgeScale, separateBadgeScale, separateBadgeOffsetX, separateBadgeOffsetY, networkLogoScale, genreBadgeOffsetX, genreBadgeOffsetY, qualityBadgeOffsetX, qualityBadgeOffsetY, networkLogoOffsetX, networkLogoOffsetY, rotationPosters, autoRotateClean, defaultAutoRotateClean, excludedPosters, rotationBackdrops, autoRotateBackdrop, defaultAutoRotateBackdrop, excludedBackdrops, backdrops, defaultBadgeStyle, defaultRankingBadgeStyle, defaultExtraBadgeStyle, defaultGlobalBadges, defaultRankingBadges, defaultBadgeGenre, defaultBadgeYear, defaultBadgeRating, defaultBadgeQuality, defaultAgeBadge, defaultAgeCountry, defaultAgeBadgeStyle, defaultCustomRatings, defaultSeparateRatings, defaultBadgeFont, defaultQualityBadgeStyle, defaultVideoFormats, defaultNetworkLogo, defaultNetworkLogoPosition, defaultRibbonEnabled, posters, mappingsMap, accentColor, autoAccentColor, backdropOffsetX, backdropOffsetY, backdropScale, selectedBackdrop, networkLogo, networkLogoPosition, networkLogoFollowTitle, ribbonEnabled, episodeGroupId, posterShape, posterLayout, posterFreshScope]) // eslint-disable-line react-hooks/exhaustive-deps -- intentionally complete to save all poster state
 
   /**
    * Cover-only save ("Salva solo poster" / "Save poster only"): persists

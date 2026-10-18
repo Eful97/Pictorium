@@ -144,6 +144,11 @@ export const configTokenSchema = z.object({
   // existence and type compatibility are decided by the resolver.
   rankingSourceMovie: z.string().max(64).optional(),
   rankingSourceSeries: z.string().max(64).optional(),
+  // Custom seasonal keywords per theme (user-scoped): extra whole-word/phrase
+  // matches for the automatic catalog-name recognition (seasonal-theme.ts).
+  // Bounded like the defaults schema; sanitized again at match time.
+  seasonalHalloweenKeywords: z.array(z.string().max(40)).max(20).optional(),
+  seasonalChristmasKeywords: z.array(z.string().max(40)).max(20).optional(),
   disabledCatalogIds: z.array(z.string().max(80)).optional(),
   homeDisabledCatalogIds: z.array(z.string().max(80)).optional(),
   episodeMetadataSource: z.enum(["tmdb", "tvdb"]).optional(),
@@ -168,6 +173,10 @@ export const partialCatalogTokenSchema = z.object({
   customCatalogs: z.array(customCatalogSchema).optional(),
   rankingSourceMovie: z.string().max(64).optional(),
   rankingSourceSeries: z.string().max(64).optional(),
+  // Custom seasonal keywords travel in the catalog-only token too:
+  // local-only/profileless spaces resolve list themes from the token alone.
+  seasonalHalloweenKeywords: z.array(z.string().max(40)).max(20).optional(),
+  seasonalChristmasKeywords: z.array(z.string().max(40)).max(20).optional(),
   disabledCatalogIds: z.array(z.string().max(80)).optional(),
   homeDisabledCatalogIds: z.array(z.string().max(80)).optional(),
   catalogOrder: z.array(z.string().max(80)).optional(),

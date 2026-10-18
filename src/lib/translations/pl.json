@@ -1104,5 +1104,18 @@
   "ui.rankingSourceJWTrendingDesc": "JustWatch Trending ranking.",
   "ui.rankingSourceGlobalUnsupported": "Not available for the Global region.",
   "ui.rankingSourceIncompatible": "Not supported in the Global region. Choose another source or change region.",
-  "ui.rankingSourceIncompatibleBadge": "Incompatible with Global"
+  "ui.rankingSourceIncompatibleBadge": "Incompatible with Global",
+  "ui.seasonalFrame": "Ramka sezonowa",
+  "ui.seasonalFrameAutomatic": "Automatyczna",
+  "ui.seasonalFrameNone": "Brak",
+  "ui.seasonalFrameHalloween": "Halloween",
+  "ui.seasonalFrameChristmas": "Boże Narodzenie",
+  "ui.seasonalFrameHint": "Jawny wybór dotyczy tego tytułu wszędzie; Brak ukrywa ramkę odziedziczoną z listy; Automatyczna podąża za listą źródłową.",
+  "ui.seasonalKeywordsTitle": "Sezonowe słowa kluczowe",
+  "ui.seasonalKeywordsHint": "Dodatkowe słowa porównywane z nazwami katalogów według tych samych reguł całych wyrazów. Przy nazwach mieszanych wygrywa Halloween.",
+  "ui.seasonalHalloweenKeywords": "Słowa kluczowe Halloween",
+  "ui.seasonalChristmasKeywords": "Słowa kluczowe świąteczne",
+  "ui.seasonalKeywordsPlaceholder": "np. spooky, dynia — oddzielone przecinkami",
+  "ui.seasonalKeywordsFieldHint": "zapisano {count}/{max} słów",
+  "ui.seasonalKeywordsReset": "Resetuj"
 }

@@ -310,6 +310,16 @@ export interface ServerDefaults {
    * `catalog-shape.ts` for the resolution contract.
    */
   catalogShapes?: Record<string, import("@/lib/types").PosterShape>
+  /**
+   * Custom seasonal keywords per theme (user-scoped setting): extra
+   * whole-word/phrase matches for the automatic catalog-name recognition
+   * (see `seasonal-theme.ts`). Bounded (max 20 entries, max 40 chars each),
+   * literal matching (no regex), Halloween precedence kept. Built-in
+   * aliases are always retained. Absent = built-ins only (legacy).
+   */
+  seasonalHalloweenKeywords?: string[]
+  /** Custom Christmas keywords (same bounds/semantics as above). */
+  seasonalChristmasKeywords?: string[]
 }
 
 const FILE = path.join(DATA_DIR, "defaults.json")

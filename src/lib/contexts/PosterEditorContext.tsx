@@ -10,6 +10,7 @@ import type { AgeBadgeStyle } from "@/lib/badge-styles"
 import { DEFAULT_AGE_BADGE_STYLE, getSeparateBadgeDefaultScale, isAgeBadgeStyle } from "@/lib/badge-styles"
 import { DEFAULT_AGE_COUNTRY, normalizeCertificationCountry } from "@/lib/certification"
 import type { SashBucket } from "@/lib/badge-priority"
+import { normalizeSeasonalThemeChoice, type SeasonalThemeChoice } from "@/lib/seasonal-theme"
 import type { VideoFormat } from "@/lib/av-specs"
 import type { VisualPresetValues } from "@/lib/visual-presets"
 import { independentLandscapeDefaults } from "@/lib/visual-presets"
@@ -131,6 +132,14 @@ export interface PosterEditorCtx {
   /** Fresh apply scope del poster in editing ("ranked" = default: solo con rank). */
   posterFreshScope: PosterFreshScope
   setPosterFreshScope: (v: PosterFreshScope | ((prev: PosterFreshScope) => PosterFreshScope)) => void
+  /**
+   * Cornice stagionale per-titolo in editing (flat unico, entrambe le
+   * forme): null = Automatico (segue la lista di origine), "none" =
+   * sopprime il tema ereditato, "halloween"/"christmas" = scelta esplicita
+   * che segue il titolo. Nessun default globale, nessun profilo landscape.
+   */
+  seasonalTheme: SeasonalThemeChoice | null
+  setSeasonalTheme: (v: SeasonalThemeChoice | null | ((prev: SeasonalThemeChoice | null) => SeasonalThemeChoice | null)) => void
   badgeStyle: BadgeStyle
   setBadgeStyle: (v: BadgeStyle | ((prev: BadgeStyle) => BadgeStyle)) => void
   rankingBadgeStyle: RankingBadgeStyle
@@ -609,6 +618,11 @@ export function PosterEditorProvider({
   const [ageBadge, setAgeBadgeState] = useState<boolean>(false)
   const [ageCountry, setAgeCountryState] = useState<string>(DEFAULT_AGE_COUNTRY)
   const [ageBadgeStyle, setAgeBadgeStyleState] = useState<AgeBadgeStyle>(DEFAULT_AGE_BADGE_STYLE)
+  // Cornice stagionale per-titolo: stato live dedicato (come l'età sopra),
+  // null = Automatico (segue la lista di origine). Iniziale = Automatico
+  // (l'apertura titolo lo riallinea sempre al mapping salvato, mai valori
+  // stantii del titolo precedente).
+  const [seasonalTheme, setSeasonalThemeState] = useState<SeasonalThemeChoice | null>(null)
 
   const {
     globalBadges, rankingBadges, networkLogo, networkLogoPosition, networkLogoFollowTitle, preRelease, ribbonSide, ribbonEnabled, posterShape, logoAlign,
@@ -737,6 +751,17 @@ export function PosterEditorProvider({
       const next = typeof v === "function" ? v(posterFreshScope) : v
       update({ posterFreshScope: next })
     }, [posterFreshScope, update])
+  // Cornice stagionale per-titolo: stato live dedicato (mai `update()` sui
+  // default — non esiste un default globale). Null = Automatico (segue la
+  // lista); valori non validi normalizzati ad Automatico (fail-closed come
+  // il server, mai spazzatura nel live).
+  const setSeasonalTheme = useCallback(
+    (v: SeasonalThemeChoice | null | ((prev: SeasonalThemeChoice | null) => SeasonalThemeChoice | null)) => {
+      setSeasonalThemeState((prev) => {
+        const next = typeof v === "function" ? v(prev) : v
+        return normalizeSeasonalThemeChoice(next)
+      })
+    }, [])
   const setNetworkLogo = useCallback(
     (v: boolean | ((prev: boolean) => boolean)) => {
       const next = typeof v === "function" ? v(networkLogo) : v
@@ -1670,6 +1695,10 @@ export function PosterEditorProvider({
     setAgeBadge(isLandReset ? (land?.ageBadge ?? defaultAgeBadge) : defaultAgeBadge)
     setAgeCountry(isLandReset ? (land?.ageCountry ?? defaultAgeCountry) : defaultAgeCountry)
     setAgeBadgeStyle(isLandReset ? (land?.ageBadgeStyle ?? defaultAgeBadgeStyle) : defaultAgeBadgeStyle)
+    // Cornice stagionale per-titolo: il save "solo copertina" azzera la
+    // scelta (Automatico = segue la lista) come gli altri visuali custom —
+    // il mapping congelato contiene solo cover/logo/metadati.
+    setSeasonalTheme(null)
     resetLandscapeBlur({
       gradientHeight: landscapeDefaults?.gradientHeight ?? defaultGradientHeight,
       blurEnabled: landscapeDefaults?.blurEnabled ?? defaultBlurEnabled,
@@ -1680,7 +1709,7 @@ export function PosterEditorProvider({
       topShade: landscapeDefaults?.topShade ?? defaultTopShade,
       topShadeHeight: landscapeDefaults?.topShadeHeight ?? defaultTopShadeHeight,
     })
-  }, [update, posterShape, landscapeDefaults, defaultGlobalBadges, defaultRankingBadges, defaultBadgeGenre, defaultBadgeYear, defaultBadgeRating, defaultBadgeQuality, defaultAgeBadge, defaultAgeCountry, defaultAgeBadgeStyle, defaultCustomRatings, defaultRatingSources, defaultSeparateRatings, defaultSeparateRatingsStyle, defaultPosterLayout, defaultPosterFreshScope, defaultBadgeStyle, defaultRankingBadgeStyle, defaultExtraBadgeStyle, defaultBadgeFont, defaultQualityBadgeStyle, defaultVideoFormats, defaultNetworkLogo, defaultNetworkLogoPosition, defaultNetworkLogoFollowTitle, defaultRibbonEnabled, defaultGradientHeight, defaultBlurEnabled, defaultBlurIntensity, defaultBlurFade, defaultBlurDarkness, defaultTintStrength, defaultTopShade, defaultTopShadeHeight, defaultTopBadgeScale, defaultTopBadgeOffsetX, defaultTopBadgeOffsetY, defaultExtraBadgeScale, defaultExtraBadgeOffsetX, defaultExtraBadgeOffsetY, defaultGenreBadgeScale, defaultGenreBadgeOffsetX, defaultGenreBadgeOffsetY, defaultQualityBadgeScale, defaultQualityBadgeOffsetX, defaultQualityBadgeOffsetY, defaultSeparateBadgeScale, defaultSeparateBadgeOffsetX, defaultSeparateBadgeOffsetY, defaultNetworkLogoScale, defaultNetworkLogoOffsetX, defaultNetworkLogoOffsetY, defaultLogoScale, defaultLogoOffsetX, defaultLogoOffsetY, setAgeBadge, setAgeCountry, setAgeBadgeStyle]) // eslint-disable-line react-hooks/exhaustive-deps -- setter refs are stable
+  }, [update, posterShape, landscapeDefaults, defaultGlobalBadges, defaultRankingBadges, defaultBadgeGenre, defaultBadgeYear, defaultBadgeRating, defaultBadgeQuality, defaultAgeBadge, defaultAgeCountry, defaultAgeBadgeStyle, defaultCustomRatings, defaultRatingSources, defaultSeparateRatings, defaultSeparateRatingsStyle, defaultPosterLayout, defaultPosterFreshScope, defaultBadgeStyle, defaultRankingBadgeStyle, defaultExtraBadgeStyle, defaultBadgeFont, defaultQualityBadgeStyle, defaultVideoFormats, defaultNetworkLogo, defaultNetworkLogoPosition, defaultNetworkLogoFollowTitle, defaultRibbonEnabled, defaultGradientHeight, defaultBlurEnabled, defaultBlurIntensity, defaultBlurFade, defaultBlurDarkness, defaultTintStrength, defaultTopShade, defaultTopShadeHeight, defaultTopBadgeScale, defaultTopBadgeOffsetX, defaultTopBadgeOffsetY, defaultExtraBadgeScale, defaultExtraBadgeOffsetX, defaultExtraBadgeOffsetY, defaultGenreBadgeScale, defaultGenreBadgeOffsetX, defaultGenreBadgeOffsetY, defaultQualityBadgeScale, defaultQualityBadgeOffsetX, defaultQualityBadgeOffsetY, defaultSeparateBadgeScale, defaultSeparateBadgeOffsetX, defaultSeparateBadgeOffsetY, defaultNetworkLogoScale, defaultNetworkLogoOffsetX, defaultNetworkLogoOffsetY, defaultLogoScale, defaultLogoOffsetX, defaultLogoOffsetY, setAgeBadge, setAgeCountry, setAgeBadgeStyle, setSeasonalTheme]) // eslint-disable-line react-hooks/exhaustive-deps -- setter refs are stable
 
   const editorCtx = useMemo<PosterEditorCtx>(
     () => ({
@@ -1718,6 +1747,8 @@ export function PosterEditorProvider({
       setPosterLayout,
       posterFreshScope,
       setPosterFreshScope,
+      seasonalTheme,
+      setSeasonalTheme,
       badgeStyle,
       setBadgeStyle,
       rankingBadgeStyle,
@@ -2037,6 +2068,7 @@ export function PosterEditorProvider({
       separateRatingsStyle, setSeparateRatingsStyle,
       posterLayout, setPosterLayout,
       posterFreshScope, setPosterFreshScope,
+      seasonalTheme, setSeasonalTheme,
       badgeStyle, setBadgeStyle,
       rankingBadgeStyle, setRankingBadgeStyle,
       extraBadgeStyle, setExtraBadgeStyle,

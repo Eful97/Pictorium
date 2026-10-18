@@ -127,9 +127,18 @@ describe("SettingsPanel five-tab navigation", () => {
   })
 
   it("secondary Prefs/Data links live outside the primary tablist; Space only with content", async () => {
-    renderPanel()
+    const { container } = renderPanel()
     await screen.findByTestId("presets-panel")
     expect(primaryTabs()).toHaveLength(5)
+    // Catalogs leads the secondary row, directly after the Transform primary tab.
+    const secondaryIds = Array.from(
+      container.querySelectorAll('[data-testid^="settings-secondary-"]'),
+    ).map((el) => el.getAttribute("data-testid"))
+    expect(secondaryIds).toEqual([
+      "settings-secondary-catalogs",
+      "settings-secondary-prefs",
+      "settings-secondary-data",
+    ])
     expect(screen.getByTestId("settings-secondary-prefs")).toBeInTheDocument()
     expect(screen.getByTestId("settings-secondary-data")).toBeInTheDocument()
     expect(screen.queryByTestId("settings-secondary-spazio")).not.toBeInTheDocument()
@@ -175,8 +184,9 @@ describe("SettingsPanel five-tab navigation", () => {
     expect(select).toBeInTheDocument()
     const groups = Array.from(select.querySelectorAll("optgroup")).map((g) => g.getAttribute("label"))
     expect(groups).toEqual(["ui.settingsGroupPrimary", "ui.settingsGroupSecondary"])
+    // Full navigation order: Catalogs directly after Transform, before Prefs/Data.
     const values = Array.from(select.querySelectorAll("option")).map((o) => o.getAttribute("value"))
-    expect(values).toEqual(["preset", "rankings", "information", "badge", "transform", "prefs", "data"])
+    expect(values).toEqual(["preset", "rankings", "information", "badge", "transform", "catalogs", "prefs", "data"])
   })
 
   it("does not render API key inputs", async () => {

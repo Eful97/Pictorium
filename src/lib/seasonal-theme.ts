@@ -18,11 +18,20 @@
  *   `🎄 Natale!` match; `Natalie`, `ChristmasParty`, `July` do not.
  * - Never infer from movie titles, ranking sources, generic words
  *   (`birthday`, `holiday`, `winter`, snow) or persisted per-title state:
- *   the ONLY signal is the originating catalog/list display name, carried
- *   ephemerally (query `theme=`, navigation context). No selector, no
- *   global default, no persisted per-title theme.
+ *   the ONLY list signal is the originating catalog/list display name,
+ *   carried ephemerally (query `theme=`, navigation context). Custom
+ *   user keywords (see `sanitizeSeasonalCustomKeywords`) extend the SAME
+ *   list-name match — never title inference, never regex.
+ * - Per-title choice (`SeasonalThemeChoice`: `halloween` / `christmas` /
+ *   `none` / automatic-absent) is a flat title-level override shared by
+ *   both shapes: explicit themed choice beats the list-derived theme and
+ *   follows the title across catalogs and meta; explicit `none` suppresses
+ *   an inherited list theme; absent (Automatic) follows the originating
+ *   list (generic meta with no list = unframed). See
+ *   `resolveEffectiveSeasonalTheme`.
  * - Mixed Halloween+Christmas names resolve deterministically to
- *   `halloween` (existing Halloween precedence, no regression).
+ *   `halloween` (existing Halloween precedence, no regression — custom
+ *   Halloween keywords included).
  */
 
 /** A supported seasonal theme (portrait AND landscape canvases, each with
@@ -172,22 +181,154 @@ const CHRISTMAS_CJK_PHRASES: readonly string[] = (["ja", "ko"] as const).flatMap
   (locale) => CHRISTMAS_ALIASES_BY_LOCALE[locale].map((a) => normalizeForSeasonalMatch(a)),
 )
 
+/** Max custom keywords stored per theme (bounded user-scoped setting). */
+export const SEASONAL_CUSTOM_KEYWORDS_MAX_COUNT = 20
+
+/** Max raw length per custom keyword (display names are short phrases). */
+export const SEASONAL_CUSTOM_KEYWORD_MAX_LENGTH = 40
+
+/**
+ * Sanitize a raw custom-keyword list: arrays only, non-empty trimmed
+ * strings, raw length within bound, deduplicated on the normalized match
+ * form (case/diacritic-insensitive), capped at MAX_COUNT (first wins).
+ * Returns the trimmed raw phrases (display form); matching normalizes
+ * both sides via `normalizeForSeasonalMatch`.
+ */
+export function sanitizeSeasonalCustomKeywords(value: unknown): string[] {
+  if (!Array.isArray(value)) return []
+  const out: string[] = []
+  const seen = new Set<string>()
+  for (const raw of value) {
+    if (typeof raw !== "string") continue
+    const t = raw.trim()
+    if (!t || t.length > SEASONAL_CUSTOM_KEYWORD_MAX_LENGTH) continue
+    const n = normalizeForSeasonalMatch(t)
+    if (!n || seen.has(n)) continue
+    seen.add(n)
+    out.push(t)
+    if (out.length >= SEASONAL_CUSTOM_KEYWORDS_MAX_COUNT) break
+  }
+  return out
+}
+
+/** Custom keywords input (user-scoped settings): raw lists per theme. */
+export interface SeasonalCustomKeywordsInput {
+  readonly halloween?: readonly unknown[] | null
+  readonly christmas?: readonly unknown[] | null
+}
+
+interface SanitizedSeasonalCustomKeywords {
+  readonly halloween: readonly string[]
+  readonly christmasBounded: readonly string[]
+  readonly christmasSubstrings: readonly string[]
+}
+
+function sanitizeSeasonalCustomInput(custom?: SeasonalCustomKeywordsInput | null): SanitizedSeasonalCustomKeywords {
+  const halloween = sanitizeSeasonalCustomKeywords(custom?.halloween)
+  const christmas = sanitizeSeasonalCustomKeywords(custom?.christmas)
+  const bounded: string[] = []
+  const substrings: string[] = []
+  for (const phrase of christmas) {
+    // Phrases containing CJK match by substring (spaceless concatenated
+    // catalog names carry no boundaries); everything else uses the
+    // letter-number boundary rule, same as the built-ins.
+    if (/[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff\uac00-\ud7af]/.test(phrase)) {
+      const n = normalizeForSeasonalMatch(phrase)
+      if (n) substrings.push(n)
+    } else {
+      bounded.push(phrase)
+    }
+  }
+  return { halloween, christmasBounded: bounded, christmasSubstrings: substrings }
+}
+
+function buildCustomKeywordRes(phrases: readonly string[]): RegExp[] {
+  const out: RegExp[] = []
+  for (const phrase of phrases) {
+    const n = normalizeForSeasonalMatch(phrase)
+    // Literal match only: metacharacters are escaped, never regex.
+    if (n) out.push(new RegExp(`(^|[^\\p{L}\\p{N}])${escapeRegExp(n)}($|[^\\p{L}\\p{N}])`, "u"))
+  }
+  return out
+}
+
+/**
+ * Per-title seasonal choice: `halloween` / `christmas` (explicit themed
+ * choice, follows the title across catalogs and meta), `none` (explicit
+ * suppression of an inherited list theme), absent/null (Automatic — follow
+ * the originating list; generic meta with no list = unframed). Invalid
+ * values normalize to null (Automatic, legacy-identical).
+ */
+export const SEASONAL_THEME_NONE = "none" as const
+
+export type SeasonalThemeChoice = SeasonalTheme | typeof SEASONAL_THEME_NONE
+
+export function normalizeSeasonalThemeChoice(value: unknown): SeasonalThemeChoice | null {
+  if (typeof value !== "string") return null
+  const v = value.trim().toLowerCase()
+  if (v === SEASONAL_THEME_HALLOWEEN) return SEASONAL_THEME_HALLOWEEN
+  if (v === SEASONAL_THEME_CHRISTMAS) return SEASONAL_THEME_CHRISTMAS
+  if (v === SEASONAL_THEME_NONE) return SEASONAL_THEME_NONE
+  return null
+}
+
+/**
+ * Resolve the effective theme for a title: an explicit per-title choice
+ * wins over the list-derived theme (`none` suppresses it → unframed);
+ * absent/invalid choice (Automatic) inherits the list theme (null list =
+ * unframed, e.g. generic meta with no originating list). Pure helper
+ * shared by the server renderer, the Stremio/catalog URL builders, the
+ * client preview and the navigation context.
+ */
+export function resolveEffectiveSeasonalTheme(
+  mappingChoice: unknown,
+  listTheme: SeasonalTheme | null | undefined,
+): SeasonalTheme | null {
+  const choice = normalizeSeasonalThemeChoice(mappingChoice)
+  if (choice === SEASONAL_THEME_HALLOWEEN) return SEASONAL_THEME_HALLOWEEN
+  if (choice === SEASONAL_THEME_CHRISTMAS) return SEASONAL_THEME_CHRISTMAS
+  if (choice === SEASONAL_THEME_NONE) return null
+  return listTheme ?? null
+}
+
 /**
  * Detect the seasonal theme from an EFFECTIVE visible catalog/list name.
  * Halloween is tested FIRST: a mixed `Halloween + Natale` list determin-
  * istically resolves to `halloween` (precedence preserved, no regression).
  * Christmas matches any supported-locale alias (UI-locale independent).
+ *
+ * Custom user keywords (`custom`) extend the SAME list-name match and obey
+ * the SAME rules: literal case-insensitive whole-word/phrase matching (no
+ * user regex — metacharacters match literally), Halloween (built-in OR
+ * custom) before Christmas (built-in OR custom). Custom phrases containing
+ * CJK characters use substring match like the built-in CJK aliases
+ * (spaceless concatenated catalog names); all other custom phrases use the
+ * letter-number boundary rule (`Natalie`, `ChristmasParty` never match a
+ * `Natal`/`Christmas` keyword). Built-in aliases are ALWAYS retained.
  */
-export function detectSeasonalThemeFromCatalogName(name: unknown): SeasonalTheme | null {
+export function detectSeasonalThemeFromCatalogName(
+  name: unknown,
+  custom?: SeasonalCustomKeywordsInput | null,
+): SeasonalTheme | null {
   if (typeof name !== "string" || name.length === 0) return null
   const n = normalizeForSeasonalMatch(name)
   if (!n) return null
+  const clean = sanitizeSeasonalCustomInput(custom)
   if (HALLOWEEN_RE.test(n)) return SEASONAL_THEME_HALLOWEEN
+  for (const re of buildCustomKeywordRes(clean.halloween)) {
+    if (re.test(n)) return SEASONAL_THEME_HALLOWEEN
+  }
   for (const re of CHRISTMAS_LATIN_RTL_RES) {
     if (re.test(n)) return SEASONAL_THEME_CHRISTMAS
   }
   for (const phrase of CHRISTMAS_CJK_PHRASES) {
     if (phrase && n.includes(phrase)) return SEASONAL_THEME_CHRISTMAS
+  }
+  for (const phrase of clean.christmasSubstrings) {
+    if (phrase && n.includes(phrase)) return SEASONAL_THEME_CHRISTMAS
+  }
+  for (const re of buildCustomKeywordRes(clean.christmasBounded)) {
+    if (re.test(n)) return SEASONAL_THEME_CHRISTMAS
   }
   return null
 }
