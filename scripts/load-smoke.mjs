@@ -865,6 +865,7 @@ async function run() {
       WIKIDATA_API_URL: `${mockUrl}/w/api.php`,
       IMDB_CHART_URL: `${mockUrl}/chart/top`,
       MDBLIST_API_URL: `${mockUrl}/mdblist/api`,
+      CINEMETA_API_URL: `${mockUrl}/cinemeta`,
     }
     if (adminToken) {
       childEnv.PICTORIUM_ADMIN_TOKEN = adminToken
