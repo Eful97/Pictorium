@@ -1,6 +1,6 @@
 import { useState } from "react"
 import { describe, expect, it, vi, beforeEach } from "vitest"
-import { fireEvent, screen } from "@testing-library/react"
+import { fireEvent, screen, within } from "@testing-library/react"
 import { CatalogManagerModal } from "@/components/CatalogManagerModal"
 import { renderWithCtx } from "@/__tests__/test-utils"
 import { PICTORIUM_CATALOGS } from "@/lib/catalog-definitions"
@@ -37,6 +37,30 @@ function openManager(overrides?: Parameters<typeof renderWithCtx>[1]) {
   fireEvent.click(trigger)
   const dialog = screen.getByRole("dialog", { name: "ui.catMgrTitle" })
   return { view, trigger, dialog }
+}
+
+// The rename editor input is unlabeled; the modal also hosts the two labeled
+// seasonal keyword fields (ui.seasonalHalloweenKeywords /
+// ui.seasonalChristmasKeywords). Scope rename queries to the scrollable list
+// body so the keyword fields never collide, and assert them by label so the
+// new controls stay visible to the suite.
+function listBody(): HTMLElement {
+  const body = screen.getByTestId("catalog-manager-modal").querySelector(".overflow-y-auto.flex-1")
+  expect(body).not.toBeNull()
+  return body as HTMLElement
+}
+
+function renameBox(): HTMLElement {
+  return within(listBody()).getByRole("textbox")
+}
+
+function queryRenameBox(): HTMLElement | null {
+  return within(listBody()).queryByRole("textbox")
+}
+
+function expectSeasonalKeywordFields() {
+  expect(screen.getByLabelText("ui.seasonalHalloweenKeywords")).toBeInTheDocument()
+  expect(screen.getByLabelText("ui.seasonalChristmasKeywords")).toBeInTheDocument()
 }
 
 describe("CatalogManagerModal central dialog", () => {
@@ -110,10 +134,12 @@ describe("CatalogManagerModal central dialog", () => {
     const { view } = openManager()
     // Start rename on the first row.
     fireEvent.click(screen.getAllByTitle("ui.renameCatalog")[0])
-    expect(screen.getByRole("textbox")).toBeInTheDocument()
+    expectSeasonalKeywordFields()
+    expect(renameBox()).toBeInTheDocument()
     fireEvent.keyDown(window, { key: "Escape" })
     expect(screen.queryByRole("dialog")).toBeInTheDocument()
-    expect(screen.queryByRole("textbox")).not.toBeInTheDocument()
+    expect(queryRenameBox()).toBeNull()
+    expectSeasonalKeywordFields()
     // Select all, then Escape clears the selection instead of closing.
     fireEvent.click(screen.getByRole("button", { name: "ui.selectAll" }))
     expect(screen.getByText("ui.selectedCount")).toBeInTheDocument()
@@ -132,7 +158,8 @@ describe("CatalogManagerModal preserved behaviors", () => {
     const renameButtons = screen.getAllByTitle("ui.renameCatalog")
     // Built-in row rename persists the trimmed name.
     fireEvent.click(renameButtons[0])
-    fireEvent.change(screen.getByRole("textbox"), { target: { value: "  Top Movies  " } })
+    expectSeasonalKeywordFields()
+    fireEvent.change(renameBox(), { target: { value: "  Top Movies  " } })
     fireEvent.click(screen.getByTitle("ui.saveName"))
     expect(renameCatalog).toHaveBeenCalledWith(PICTORIUM_CATALOGS[0].id, "Top Movies")
     // Custom row rename equal to the default deletes the override ("").
@@ -257,7 +284,8 @@ describe("CatalogManagerModal ranking-source names", () => {
       catalogRenames: { "pictorium-jw-movies": "🚀 La mia classifica" },
     })
     fireEvent.click(screen.getAllByTitle("ui.renameCatalog")[0])
-    expect(screen.getByRole("textbox")).toHaveValue("🚀 La mia classifica")
+    expectSeasonalKeywordFields()
+    expect(renameBox()).toHaveValue("🚀 La mia classifica")
     view.unmount()
   })
 

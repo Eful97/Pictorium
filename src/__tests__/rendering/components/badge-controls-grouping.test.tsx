@@ -2,7 +2,8 @@
  * BadgeControls family grouping (UI-only reorganization, no renderer changes):
  * every control is still accessible exactly once, lives in its own family,
  * ranking (Nastro/Numero/Badge/Fresh/Card) and custom-extra controls are no
- * longer mixed, and conditional details still follow their masters.
+ * longer mixed, the seasonal frame family sits between ranking and extra,
+ * and conditional details still follow their masters.
  *
  * Uses the existing harness (`renderWithCtx`, raw-key `t`) like the other
  * BadgeControls suites — no production code touched here.
@@ -57,18 +58,19 @@ beforeEach(() => {
   vi.stubGlobal("fetch", vi.fn(async () => ({ ok: false, json: async () => ({}) })))
 })
 
-describe("BadgeControls families: five groups, each control exactly once", () => {
-  it("renders the five families exactly once with the shared card layout", () => {
+describe("BadgeControls families: six groups, each control exactly once", () => {
+  it("renders the six families exactly once with the shared card layout", () => {
     renderEditor()
     const ids = [
       "badge-family-genre",
       "badge-family-ranking",
+      "badge-family-seasonal",
       "badge-family-extra",
       "badge-family-quality",
       "badge-family-common",
     ]
     for (const id of ids) expect(family(id)).toBeInTheDocument()
-    expect(document.querySelectorAll('[data-testid^="badge-family-"]')).toHaveLength(5)
+    expect(document.querySelectorAll('[data-testid^="badge-family-"]')).toHaveLength(6)
     for (const id of ids) {
       expect(family(id).className).toMatch(/rounded-xl/)
       expect(family(id).className).toMatch(/bg-surface\/50/)
@@ -101,6 +103,15 @@ describe("BadgeControls families: five groups, each control exactly once", () =>
     }
   })
 
+  it("seasonal family owns the per-title frame selector", () => {
+    renderEditor()
+    const seasonal = family("badge-family-seasonal")
+    expect(within(seasonal).getByText("ui.seasonalFrame")).toBeInTheDocument()
+    expect(within(seasonal).getByTestId("seasonal-frame-selector")).toBeInTheDocument()
+    expect(within(seasonal).getByText("ui.seasonalFrameHint")).toBeInTheDocument()
+    expect(screen.getAllByTestId("seasonal-frame-selector")).toHaveLength(1)
+  })
+
   it("extra family owns automatic/custom choice plus its own style", () => {
     renderEditor()
     const extra = family("badge-family-extra")
@@ -129,8 +140,8 @@ describe("BadgeControls families: five groups, each control exactly once", () =>
   })
 })
 
-describe("BadgeControls families: approved DOM order genre/ranking/extra/quality/common", () => {
-  it("renders the five families in the approved visual/DOM order", () => {
+describe("BadgeControls families: approved DOM order genre/ranking/seasonal/extra/quality/common", () => {
+  it("renders the six families in the approved visual/DOM order", () => {
     renderEditor()
     const order = Array.from(document.querySelectorAll('[data-testid^="badge-family-"]')).map((el) =>
       el.getAttribute("data-testid"),
@@ -138,6 +149,7 @@ describe("BadgeControls families: approved DOM order genre/ranking/extra/quality
     expect(order).toEqual([
       "badge-family-genre",
       "badge-family-ranking",
+      "badge-family-seasonal",
       "badge-family-extra",
       "badge-family-quality",
       "badge-family-common",
@@ -186,6 +198,11 @@ describe("BadgeControls families: ranking and custom-extra are never mixed", () 
     expect(within(extra).queryByRole("radiogroup", { name: "ui.rankFamily" })).toBeNull()
     expect(within(extra).queryByRole("switch", { name: "ui.topBadge" })).toBeNull()
     expect(within(extra).queryByText("ui.singleBadgeHint")).toBeNull()
+    // The seasonal frame selector lives in its own family, never mixed in.
+    expect(within(ranking).queryByTestId("seasonal-frame-selector")).toBeNull()
+    expect(within(extra).queryByTestId("seasonal-frame-selector")).toBeNull()
+    expect(within(family("badge-family-seasonal")).queryByRole("radiogroup", { name: "ui.rankFamily" })).toBeNull()
+    expect(within(family("badge-family-seasonal")).queryByText("ui.customBadge")).toBeNull()
   })
 })
 

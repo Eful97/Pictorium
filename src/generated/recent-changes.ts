@@ -11,6 +11,7 @@ export interface RecentChange {
 }
 
 export const RECENT_CHANGES: RecentChange[] = [
+  { type: "fix", text: "Recognize catalog and search titles in watchlists", sha: "80dc48d", date: "2026-10-18" },
   { type: "feature", text: "Customize seasonal frames for lists and posters", sha: "1c2db60", date: "2026-10-18" },
   { type: "feature", text: "Add automatic Halloween and Christmas poster frames", sha: "2b74681", date: "2026-10-17" },
   { type: "feature", text: "Add custom landscape posters and Next Entertainment World logos", sha: "e091af3", date: "2026-10-17" },
@@ -18,5 +19,4 @@ export const RECENT_CHANGES: RecentChange[] = [
   { type: "feature", text: "Add Atmos metadata to more movie posters", sha: "dd44d16", date: "2026-10-17" },
   { type: "feature", text: "Expand HDR and Atmos coverage for posters", sha: "29fef8d", date: "2026-10-17" },
   { type: "fix", text: "Improve outlined and glass badge readability", sha: "73417d1", date: "2026-10-17" },
-  { type: "feature", text: "Add custom logo URLs to posters", sha: "88ae0ff", date: "2026-10-17" },
 ]
