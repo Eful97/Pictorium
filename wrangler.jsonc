@@ -1,0 +1,37 @@
+{
+  // Pictorium poster edge cache (tiered Workers Caching, opt-in).
+  // NOT deployed by this repo: no deploy script, no account writes.
+  // Validated with `wrangler deploy --dry-run` (see task evidence).
+  // Use pinned wrangler@4.151.1 (clean, zero warnings);
+  // wrangler@4.107.0 warns on `observability.redact_query_string`
+  // and `observability.issues` (schema added later).
+  // Semantics: gateway `default` entrypoint stays uncached; only the
+  // `PosterCacheTier` entrypoint is cached (per-entrypoint override of the
+  // top-level default). Requires PICTORIUM_TIERED_CACHE=1 at runtime,
+  // otherwise the Worker keeps its legacy local-only cache behavior.
+  "name": "pictorium",
+  "main": "scripts/cloudflare-poster-worker.mjs",
+  "compatibility_date": "2026-09-19",
+  "workers_dev": true,
+  "vars": {
+    "PICTORIUM_TIERED_CACHE": "1",
+    "ORIGIN_URL": "https://pictorium.duckdns.org"
+  },
+  "cache": { "enabled": false },
+  "exports": {
+    "default": { "type": "worker", "cache": { "enabled": false } },
+    "PosterCacheTier": { "type": "worker", "cache": { "enabled": true } }
+  },
+  "observability": {
+    "enabled": false,
+    "redact_query_string": true,
+    "logs": {
+      "enabled": true,
+      "head_sampling_rate": 1,
+      "invocation_logs": true,
+      "persist": true
+    },
+    "traces": { "enabled": false },
+    "issues": { "enabled": true }
+  }
+}

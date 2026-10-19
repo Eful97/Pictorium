@@ -25,6 +25,10 @@ export default defineConfig({
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
+      // The Workers runtime builtin `cloudflare:workers` does not exist
+      // under Node: map it to a local stub so the paste-ready worker module
+      // stays importable in unit tests (production uses the real builtin).
+      "cloudflare:workers": path.resolve(__dirname, "./src/__tests__/cloudflare-workers-stub.ts"),
     },
   },
 })

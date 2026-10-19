@@ -1,8 +1,11 @@
+import { WorkerEntrypoint } from "cloudflare:workers";
+
 // scripts/cloudflare-poster-worker.mjs
 //
 // Optional edge cache for the Pictorium poster origin. NOT deployed by this
-// repo (no wrangler config, no deploy script): paste this file's content into
-// a Cloudflare Worker manually.
+// repo (ships wrangler.jsonc, no deploy script / no automatic deploy): paste
+// this file's content into a Cloudflare Worker manually, or deploy it with
+// wrangler for the native tiered path.
 //
 // Usage:
 //   1. Create a Worker with this file's content (Cloudflare dashboard).
@@ -11,6 +14,95 @@
 //      host; the worker never derives the host from the request path.
 //   3. Route poster paths to it (e.g. `posters.example.com/api/poster/*`).
 //      Anything else is proxied without caching.
+//
+// Tiered edge caching (OPT-IN, off by default):
+//   The `caches.default` layer below is LOCAL to each data center: the Cache
+//   API "does not participate in tiered caching" (official Workers docs,
+//   "Relationship to other caches"). Tiering comes from Workers Caching
+//   (https://developers.cloudflare.com/workers/cache/), which is "tiered by
+//   default" (lower tier per data center + shared upper tier; same topology
+//   as zone Tiered Cache, applied automatically to the Worker, no zone
+//   configuration). It keys entries by target entrypoint + path + query
+//   string (order matters) + `ctx.props` + anti-poisoning headers, and it
+//   partitions variants by the response `Vary` header (all names honored,
+//   values compared verbatim; `Vary: *` disables caching).
+//
+//   This file implements the documented gateway pattern: the `default`
+//   entrypoint (gateway, caching DISABLED) runs every request and keeps all
+//   conservative rules below; eligible requests are forwarded over
+//   `ctx.exports` to the `PosterCacheTier` named entrypoint (caching
+//   ENABLED), whose responses the upper tier stores. Only requests that pass
+//   the bypass gate (no credentials, no preview/refresh/live, no
+//   conditional/range, poster GET only) ever reach the inner entrypoint, so
+//   per-user secrets can never be collapsed into a shared upper-tier entry.
+//   The inner entrypoint additionally refuses upper-tier storage (neutralized
+//   `Cache-Control: no-store` with the original smuggled for gateway
+//   restore) for any response the shared storage gate rejects, and for any
+//   response whose `Vary` does not cover the tracked request headers present
+//   on the request (upper tier could not partition it correctly).
+//
+//   The upper-tier key is keyed PROACTIVELY, never via `Vary` alone: the
+//   gateway passes the full canonical digest (origin + path + sorted query
+//   + RAW Accept/RSC classes incl. null-vs-empty absence) as the documented
+//   `cf.cacheKey` override on the `ctx.exports` loopback (same-account
+//   only, honored per "Custom cache keys"; entrypoint + `ctx.props` still
+//   apply). `Vary` alone cannot isolate raw classes the response does not
+//   list: e.g. a `Vary: Accept` response stored for a headerless request
+//   would otherwise HIT for an `rsc: 1` request before the inner entrypoint
+//   ever runs. The `Vary`-coverage check below stays as defense in depth.
+//
+//   Upper-tier freshness matches the legacy contract exactly: Workers
+//   Caching honors `stale-while-revalidate`/`stale-if-error` (and, without
+//   an explicit `stale-if-error`, serves stale on Worker error indefinitely
+//   unless `s-maxage`/`must-revalidate`/`proxy-revalidate` is present),
+//   while the legacy Cache API never serves stale. Passing the origin policy
+//   through untouched would therefore EXTEND stale serving beyond the
+//   explicit no-SWR Worker contract. The inner entrypoint stores an
+//   edge-normalized copy upstream instead (`edgeCacheControl`: SWR/SIE
+//   stripped, `stale-if-error=0` pinned so the indefinite-error default
+//   cannot add stale serving) while smuggling the untouched original in
+//   `x-pictorium-tier-edge-cc` for gateway restore. The client always sees
+//   the exact origin policy (`Age` passthrough is header fidelity only,
+//   never an expiration proof); the normalized
+//   copy exists only in the upper tier. Successful tier responses are NEVER
+//   duplicated into the manual `caches.default` layer: Workers Caching
+//   already provides the lower + upper tiers with exact expiration, so a
+//   second manual copy would only add unproven `Age`/TTL handoff semantics.
+//   Pre-existing manual entries are still read before the tier hop (they
+//   obey the existing finite TTL of the legacy path); only WRITES from
+//   tier-served responses are skipped. Legacy behavior (flag OFF, runtime
+//   without `ctx.exports`, tier failure fallback) still writes the manual
+//   cache exactly as before.
+//
+//   Enable with ALL of the following (anything missing = legacy local-only
+//   behavior, byte-identical to before):
+//   - `PICTORIUM_TIERED_CACHE=1` (or `true`) in the Worker variables.
+//   - Wrangler `cache.enabled` with a per-entrypoint split (requires
+//     Wrangler 4.107.0+, see "Per-entrypoint caching" in the official docs):
+//       { "cache": { "enabled": true },
+//         "exports": { "default": { "type": "worker", "cache": { "enabled": false } },
+//                        "PosterCacheTier": { "type": "worker", "cache": { "enabled": true } } } }
+//     WARNING: enabling caching on the `default` entrypoint is UNSAFE here:
+//     the upper-tier key does not isolate credential headers (`Cookie`,
+//     `x-api-key`, ...), so a cached gateway response could be served across
+//     credentials. The gateway must stay uncached; only `PosterCacheTier`
+//     may be cached.
+//   - The dashboard paste flow alone keeps the legacy local cache: it has no
+//     wrangler config surface (this repo ships wrangler.jsonc for the native
+//     tiered deployment instead). Enabling Workers Caching currently requires
+//     a wrangler-based deployment (or a dashboard equivalent if/when
+//     available).
+//   Rejected alternative: `fetch()` subrequest `cf` tiering (zone Tiered
+//   Cache / `cacheEverything` / custom `cacheKey`). The subrequest cache is
+//   tiered per the TARGET zone, which here is the poster's origin host (not
+//   user-controlled by default); `cacheEverything: true` would force-cache
+//   private/no-store responses; custom `cacheKey` is Enterprise-only; and
+//   `cf.vary` normalization would mimic origin negotiation instead of
+//   tracking the raw classes below. None of that preserves the contracts.
+//
+//   LIVE behavior unverified in this repo (no account/zone access, no
+//   deploy): verify `Cf-Cache-Status`, origin-call reduction, and header
+//   fidelity on the deployed Worker before claiming tiered gains.
 //
 // Conservative by design (mirrors src/lib/poster-runtime-cache.ts semantics):
 //   - Cache key tracks the RAW Accept header (opaque SHA-256, never in the
@@ -89,6 +181,24 @@ const TRACKED_KEY_HEADERS = [
 // Reserved internal header holding the FULL origin `Vary` on the stored copy.
 // Synthetic cache metadata: never sent to the client (stripped on HIT).
 const ORIGIN_VARY_HEADER = "x-pictorium-worker-origin-vary";
+// Opt-in flag for the tiered upper layer (Workers Caching gateway pattern).
+const TIERED_FLAG_NAME = "PICTORIUM_TIERED_CACHE";
+// Reserved internal header smuggling the original `Cache-Control` when the
+// inner entrypoint neutralizes a response for the upper tier. Gateway-only
+// metadata: never sent to the client (restored/stripped in finalize).
+const TIER_ORIG_CC_HEADER = "x-pictorium-tier-orig-cc";
+// Reserved internal header smuggling the ORIGINAL `Cache-Control` when the
+// inner entrypoint stores an edge-normalized copy upstream (SWR/SIE
+// stripped, `stale-if-error=0` pinned; see `edgeCacheControl`).
+// Gateway-only metadata: the gateway restores the exact original for the
+// client, so the freshness contract never changes. Spoofed values are stripped
+// in the inner entrypoint before either header is ever set.
+const TIER_EDGE_CC_HEADER = "x-pictorium-tier-edge-cc";
+// Prefix for the documented `cf.cacheKey` override on the `ctx.exports`
+// loopback: the suffix is the opaque canonical digest (origin + path +
+// sorted query + raw Accept/RSC classes), so the upper-tier key partitions
+// every raw class the lower-tier synthetic key tracks.
+const TIER_CACHE_KEY_PREFIX = "pictorium-poster-tier:";
 
 export { DEFAULT_ORIGIN_URL };
 
@@ -108,6 +218,19 @@ export function resolveOrigin(env) {
     return { ok: false, reason: "credentials" };
   }
   return { ok: true, origin: `${parsed.protocol}//${parsed.host}` };
+}
+
+/**
+ * Tiered opt-in: explicit `PICTORIUM_TIERED_CACHE=1|true` (trimmed,
+ * case-insensitive) AND `ctx.exports.PosterCacheTier.fetch` available at
+ * request time. Anything else keeps the legacy local-only path. Fail-closed:
+ * unknown values ("yes", "on", ...) stay OFF.
+ */
+export function resolveTiered(env) {
+  const raw = String(env?.[TIERED_FLAG_NAME] ?? "")
+    .trim()
+    .toLowerCase();
+  return raw === "1" || raw === "true";
 }
 
 /**
@@ -151,23 +274,38 @@ async function sha256Hex(text) {
 }
 
 /**
+ * Opaque canonical digest input: normalized target (origin + path + sorted
+ * query with internal keys stripped) plus the RAW Accept header (exact,
+ * uninterpreted) and the RAW values (with null-vs-empty presence) of the
+ * tracked Next.js RSC request headers as a stable JSON tuple. Query
+ * credentials never reach this function (bypass gate first), so the input
+ * carries no secrets. Explicit `?fmt=` stays distinct via the query,
+ * origin-default formats and RSC variants stay distinct via the raw
+ * classes, without mimicking origin negotiation. Shared by the lower-tier
+ * synthetic key and the upper-tier `cf.cacheKey` override so both layers
+ * partition identically.
+ */
+export function cacheDigestInput(request, target, sortedQuery) {
+  const acceptValue = request.headers.get("accept");
+  const tracked = TRACKED_KEY_HEADERS.map((name) => [name, request.headers.get(name)]);
+  return ["GET", target.origin, target.pathname, sortedQuery, JSON.stringify({ accept: acceptValue, tracked })].join("\n");
+}
+
+export async function cacheDigestHex(request, target, sortedQuery) {
+  return sha256Hex(cacheDigestInput(request, target, sortedQuery));
+}
+
+/**
  * Opaque cache key on the WORKER's own hostname under a reserved path, so
- * secrets hashed into the input never appear in the clear. The input is the
- * normalized target URL plus the RAW Accept header (exact, uninterpreted)
- * and the RAW values (with null-vs-empty presence) of the tracked Next.js
- * RSC request headers as a stable JSON tuple: explicit `?fmt=` stays
- * distinct via the query, origin-default formats and RSC variants stay
- * distinct via the raw classes, without mimicking origin negotiation.
+ * secrets hashed into the input never appear in the clear. The `digest`
+ * (same canonical input the upper tier is keyed with) is also returned so
+ * the gateway can pass it as the documented `cf.cacheKey` override.
  */
 export async function cacheKeyFor(request, target, sortedQuery) {
   const workerUrl = new URL(request.url);
-  const acceptValue = request.headers.get("accept");
-  const rawAccept = acceptValue ?? "";
-  const tracked = TRACKED_KEY_HEADERS.map((name) => [name, request.headers.get(name)]);
-  const canonical = ["GET", target.origin, target.pathname, sortedQuery, JSON.stringify({ accept: acceptValue, tracked })].join("\n");
-  const hex = await sha256Hex(canonical);
-  const keyUrl = new URL(`${CACHE_KEY_PREFIX}${hex}`, workerUrl.origin);
-  return { key: new Request(keyUrl.toString()), rawAccept };
+  const digest = await cacheDigestHex(request, target, sortedQuery);
+  const keyUrl = new URL(`${CACHE_KEY_PREFIX}${digest}`, workerUrl.origin);
+  return { key: new Request(keyUrl.toString()), rawAccept: request.headers.get("accept") ?? "", digest };
 }
 
 /**
@@ -244,10 +382,45 @@ function hasBlockingDirective(directives) {
   );
 }
 
+// Stale-serving directives: honored by Workers Caching per RFC 9111 (incl.
+// the indefinite stale-on-error default when none of `stale-if-error`,
+// `s-maxage`, `must-revalidate`, `proxy-revalidate` is present), ignored by
+// the legacy Cache API. Stripped from every copy stored in the upper tier.
+const STALE_DIRECTIVES = new Set(["stale-while-revalidate", "stale-if-error"]);
+
+/**
+ * Edge-normalized `Cache-Control` for the UPPER tier only. Passing the
+ * origin policy through untouched would EXTEND stale serving beyond the
+ * explicit no-SWR Worker contract (Workers Caching honors SWR/SIE, the
+ * legacy Cache API does not). Stripping SWR/SIE and pinning
+ * `stale-if-error=0` (explicit opt-out of the indefinite-error default, per
+ * the official configuration docs) keeps upper-tier freshness exactly
+ * `max-age`/`s-maxage`: still `public` + positive TTL, so the copy remains
+ * storable upstream. Every other directive (`public`, TTLs, `immutable`,
+ * `must-revalidate`, ...) passes through untouched. The gateway restores
+ * the exact original from `TIER_EDGE_CC_HEADER`, so the client never
+ * sees this rewrite.
+ */
+export function edgeCacheControl(cacheControlValue) {
+  const kept = [];
+  for (const directive of parseDirectives(cacheControlValue)) {
+    const name = directive.split("=")[0].trim();
+    if (!STALE_DIRECTIVES.has(name)) kept.push(directive);
+  }
+  if (!kept.some((directive) => directive.split("=")[0].trim() === "stale-if-error")) {
+    kept.push("stale-if-error=0");
+  }
+  return kept.join(", ");
+}
+
 /**
  * Storage gate: only `200` + exact `public` token with a positive shared TTL,
  * without `private`/`no-cache`/`no-store` (incl. valued forms)/`Set-Cookie`,
  * and without meaningful `Vary` beyond the tracked tokens/`Accept-Encoding`.
+ * NOTE: `stale-while-revalidate`/`stale-if-error` do NOT block storage here:
+ * the legacy Cache API never serves stale, and the upper tier receives an
+ * edge-normalized policy (`edgeCacheControl`) that removes them, so the
+ * freshness contract is identical on both layers.
  */
 export function isCacheableResponse(response) {
   if (response.status !== 200) return false;
@@ -298,6 +471,179 @@ export function storageHeaders(response) {
     else headers.set("vary", kept.join(", "));
   }
   return headers;
+}
+
+/**
+ * Canonical inner URL for the tiered hop: worker host + poster path + the
+ * normalized (sorted, internal-keys-stripped) query. Never requested at the
+ * origin and never used as an origin URL: the inner entrypoint re-derives
+ * the origin target from it via `buildTarget`. Canonicalizing here keeps
+ * the upper-tier key (which is query-order-sensitive) converged with the
+ * lower-tier synthetic key.
+ */
+function canonicalTierUrl(url, sorted) {
+  const canonical = new URL(url.pathname, url.origin);
+  if (sorted) canonical.search = sorted;
+  return canonical.toString();
+}
+
+/**
+ * True when the response `Vary` lets the upper tier partition every tracked
+ * request header present on this request (`Accept` plus the Next.js RSC
+ * tokens). Workers Caching honors all `Vary` names with verbatim values, so
+ * a covered header is isolated exactly like in the lower-tier synthetic
+ * key; an UNCOVERED-but-present header would collapse distinct raw classes
+ * into one upper-tier entry. Absent request headers share one variant
+ * legitimately (identical absence class); `Vary: *` never qualifies.
+ */
+export function tierVaryCoversRequest(response, request) {
+  const raw = response.headers.get("vary");
+  if (!raw) return false;
+  const tokens = new Set(
+    raw
+      .split(",")
+      .map((part) => part.trim().toLowerCase())
+      .filter(Boolean),
+  );
+  if (tokens.has("*")) return false;
+  if (request.headers.get("accept") !== null && !tokens.has("accept")) return false;
+  for (const name of TRACKED_KEY_HEADERS) {
+    if (request.headers.get(name) !== null && !tokens.has(name)) return false;
+  }
+  return true;
+}
+
+/**
+ * Neutralize a response for the upper tier: force `Cache-Control: no-store`
+ * (Workers Caching bypasses and stores nothing) while smuggling the
+ * original value in `TIER_ORIG_CC_HEADER` for gateway restore. Overwrites
+ * spoofed smuggle headers first (both markers, so a neutralized response
+ * can never be mistaken for an edge-transformed one). Body/status/headers
+ * otherwise untouched, so the gateway can rebuild the exact origin-faithful
+ * client response.
+ */
+function neutralizeTierResponse(response) {
+  const headers = new Headers(response.headers);
+  headers.delete(TIER_ORIG_CC_HEADER);
+  headers.delete(TIER_EDGE_CC_HEADER);
+  headers.set(TIER_ORIG_CC_HEADER, response.headers.get("cache-control") ?? "");
+  headers.set("cache-control", "no-store");
+  return new Response(response.body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers,
+  });
+}
+
+/**
+ * Attach the edge-normalized upstream policy while smuggling the exact
+ * origin `Cache-Control` in `TIER_EDGE_CC_HEADER` for gateway restore.
+ * Every storable upstream copy carries this header; the gateway treats its
+ * presence (without `TIER_ORIG_CC_HEADER`) as "storable upstream, restore
+ * the original for the client and the lower tier".
+ */
+function withEdgePolicy(response) {
+  const headers = new Headers(response.headers);
+  headers.delete(TIER_EDGE_CC_HEADER);
+  headers.set(TIER_EDGE_CC_HEADER, response.headers.get("cache-control") ?? "");
+  headers.set("cache-control", edgeCacheControl(response.headers.get("cache-control")));
+  return new Response(response.body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers,
+  });
+}
+
+/**
+ * Inner tier entrypoint logic (pure function for testability): fetch the
+ * origin and return either an edge-normalized storable response (passes the
+ * shared storage gate AND the Vary-coverage check; original policy smuggled
+ * for gateway restore) or a neutralized response the upper tier will not
+ * store. The gateway restores both shapes before replying to the client.
+ */
+export async function serveTierInner(request, env) {
+  const resolved = resolveOrigin(env);
+  if (!resolved.ok) return new Response("Bad origin configuration", { status: 500 });
+
+  const url = new URL(request.url);
+  const target = buildTarget(url, resolved.origin);
+
+  if (bypassReason(request, url) !== null) {
+    // Defense in depth: the gateway never forwards these. Proxy without
+    // storing so the upper tier cannot keep credential/conditional traffic.
+    return neutralizeTierResponse(await proxyOnce(target, request));
+  }
+
+  const originRes = await proxyOnce(target, request);
+  // Manual redirects are returned as-is (never followed); neutralize so the
+  // upper tier cannot store them (the legacy layer never stores non-200).
+  if (REDIRECT_STATUSES.has(originRes.status)) return neutralizeTierResponse(originRes);
+  if (!isCacheableResponse(originRes) || !tierVaryCoversRequest(originRes, request)) {
+    return neutralizeTierResponse(originRes);
+  }
+  // Storable for the upper tier: strip spoofed tier-internal headers first,
+  // otherwise the gateway would mistake them for neutralization or
+  // edge-policy signals and restore attacker-chosen `Cache-Control`.
+  if (originRes.headers.has(TIER_ORIG_CC_HEADER) || originRes.headers.has(TIER_EDGE_CC_HEADER)) {
+    const headers = new Headers(originRes.headers);
+    headers.delete(TIER_ORIG_CC_HEADER);
+    headers.delete(TIER_EDGE_CC_HEADER);
+    return withEdgePolicy(
+      new Response(originRes.body, {
+        status: originRes.status,
+        statusText: originRes.statusText,
+        headers,
+      }),
+    );
+  }
+  return withEdgePolicy(originRes);
+}
+
+/**
+ * Gateway-side restore for an inner response: reinstate the smuggled
+ * original `Cache-Control` (or absence) from either marker, strip all
+ * tier-internal metadata, and mark the manual-tier outcome. Returns
+ * `{ response, neutralized }`. The gateway never writes tier-served
+ * responses into the manual lower tier (Workers Caching owns both tiers
+ * and exact expiration); `neutralized` stays for test introspection.
+ */
+function finalizeTierResponse(innerRes) {
+  const headers = new Headers(innerRes.headers);
+  const smuggled = headers.get(TIER_ORIG_CC_HEADER);
+  const edge = headers.get(TIER_EDGE_CC_HEADER);
+  headers.delete(TIER_ORIG_CC_HEADER);
+  headers.delete(TIER_EDGE_CC_HEADER);
+  const original = smuggled !== null ? smuggled : edge;
+  if (original !== null) {
+    if (original) headers.set("cache-control", original);
+    else headers.delete("cache-control");
+  }
+  // Same marker convention as the legacy path: manual redirects are BYPASS,
+  // origin/upper-tier serves are MISS (marker reports the lower-tier miss).
+  headers.set("x-pictorium-worker", REDIRECT_STATUSES.has(innerRes.status) ? "BYPASS" : "MISS");
+  const response = new Response(innerRes.body, {
+    status: innerRes.status,
+    statusText: innerRes.statusText,
+    headers,
+  });
+  return { response, neutralized: smuggled !== null };
+}
+
+/**
+ * Named entrypoint for the tiered upper layer. Requires the wrangler
+ * per-entrypoint split (`default` caching DISABLED, `PosterCacheTier`
+ * caching ENABLED): Workers Caching stores what THIS entrypoint returns,
+ * keyed by (entrypoint, `cf.cacheKey` override or canonical path+query,
+ * `ctx.props`, Vary variants). The gateway only ever forwards gate-passing
+ * (credential-free) requests here, with the canonical digest as
+ * `cf.cacheKey` so every raw Accept/RSC class partitions proactively.
+ * `cloudflare:workers` exists only in the Workers runtime; the base class
+ * here is structural (a `fetch(request)` method using `this.env`).
+ */
+export class PosterCacheTier extends WorkerEntrypoint {
+  async fetch(request) {
+    return serveTierInner(request, this.env);
+  }
 }
 
 function hitResponse(stored) {
@@ -361,7 +707,7 @@ const pictoriumPosterWorker = {
     }
 
     const sorted = sortedQueryString(target.searchParams);
-    const { key } = await cacheKeyFor(request, target, sorted);
+    const { key, digest } = await cacheKeyFor(request, target, sorted);
     const cache = globalThis.caches?.default ?? null;
 
     if (cache) {
@@ -371,6 +717,46 @@ const pictoriumPosterWorker = {
       } catch {
         console.warn("[pictorium-worker] cache lookup failed");
       }
+    }
+
+    // Tiered upper layer (opt-in): forward gate-passing requests to the
+    // cached `PosterCacheTier` entrypoint over `ctx.exports`. The bypass
+    // gate above already excluded credentials/preview/live/conditionals, so
+    // only anonymous cache-eligible traffic reaches the shared upper tier.
+    // The documented `cf.cacheKey` override carries the SAME canonical
+    // digest as the lower-tier synthetic key (origin + raw Accept/RSC
+    // classes): the upper tier partitions every raw class proactively
+    // instead of relying on `Vary` coverage. Marker semantics in tiered
+    // mode: the marker reports the manual LOWER-tier outcome ("MISS" =
+    // manual miss, served by origin or natively by the upper tier, which
+    // is never duplicated into the manual cache).
+    const tierFetch = resolveTiered(env) ? ctx?.exports?.PosterCacheTier?.fetch : undefined;
+    if (typeof tierFetch === "function") {
+      let innerRes = null;
+      try {
+        const innerReq = new Request(canonicalTierUrl(url, sorted), {
+          method: "GET",
+          headers: request.headers,
+        });
+        innerRes = await ctx.exports.PosterCacheTier.fetch(innerReq, {
+          cf: { cacheKey: `${TIER_CACHE_KEY_PREFIX}${digest}` },
+        });
+      } catch {
+        console.warn("[pictorium-worker] tier fetch failed");
+        innerRes = null;
+      }
+      if (innerRes instanceof Response) {
+        // Never duplicated into the manual `caches.default` layer: Workers
+        // Caching already stores this response in the lower + upper tiers
+        // with exact expiration, and re-storing the restored copy would
+        // assume unproven `Age`/TTL handoff semantics. Repeats are served
+        // natively (marker stays MISS = manual-tier miss, served by origin
+        // or the upper tier); pre-existing manual entries are still read
+        // above and obey their own finite TTL.
+        const { response: clientRes } = finalizeTierResponse(innerRes);
+        return clientRes;
+      }
+      // Fall through to the legacy origin path on unexpected inner results.
     }
 
     const originRes = await proxyOnce(target, request);
