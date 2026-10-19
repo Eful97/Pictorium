@@ -25,6 +25,12 @@ export interface BadgeInput {
   seasonCount: number | null
   /** Origin country di network + production companies (ISO-3166) — per "K-Drama". */
   originCountries: string[]
+  /**
+   * ID generi TMDB canonici (16 = Animation) — per escludere le serie animate
+   * dal K-Drama automatico. Opzionale per compatibilità: assente/null/vuoto =
+   * non animato (comportamento storico invariato, mai un'invenzione).
+   */
+  genreIds?: readonly number[] | null
   voteAverage: number
   trendRank: number | null
   animeRank: number | null
@@ -206,6 +212,32 @@ export function isKDramaOrigin(originCountries: readonly string[] | undefined | 
   return !!originCountries?.some((c) => c?.trim().toUpperCase() === "KR")
 }
 
+/** ID genere TMDB canonico per Animation (stabile tra lingue, a differenza dei nomi). */
+export const TMDB_ANIMATION_GENRE_ID = 16
+
+/**
+ * True se i generi TMDB includono Animation (id 16 canonico).
+ * Assente/null/vuoto = non animato (fail-open verso il comportamento storico:
+ * mai escludere un titolo per dati mancanti).
+ */
+export function isAnimationGenreIds(genreIds: readonly number[] | undefined | null): boolean {
+  return !!genreIds?.some((id) => id === TMDB_ANIMATION_GENRE_ID)
+}
+
+/**
+ * Eleggibilità al K-Drama AUTOMATICO: KR live-action soltanto.
+ * Le serie animate (anche coreane, es. Solo Leveling) non ricevono mai il
+ * K-Drama automatico; i generi mancanti restano eleggibili (compatibilità).
+ * Le etichette manuali esplicite ("K-Drama" scelto dall'utente) non passano
+ * di qui e restano sempre onorate (queryExtra vince sul calcolato).
+ */
+export function isKDramaBadgeEligible(
+  originCountries: readonly string[] | undefined | null,
+  genreIds?: readonly number[] | undefined | null,
+): boolean {
+  return isKDramaOrigin(originCountries) && !isAnimationGenreIds(genreIds)
+}
+
 /**
  * Single entry point for badge computation — shared by server (route.ts)
  * and client (usePosterSave.ts, poster-url.ts).
@@ -273,7 +305,7 @@ export function computeTopBadge(input: BadgeInput, t: BadgeT, locale?: string, o
         t,
       })
     : null
-  const isKDrama = input.mediaType === "tv" && isKDramaOrigin(input.originCountries)
+  const isKDrama = input.mediaType === "tv" && isKDramaBadgeEligible(input.originCountries, input.genreIds)
   // Miniserie (formato permanente) e serie in corso (status transitorio):
   // stesse condizioni del dropdown (getAllBadgeOptions), promosse ad auto in
   // coda all'extra. Una sola placca: miniserie vince su returning.

@@ -1211,6 +1211,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
   let lastAirDate: string | null = null
   let seasonCount: number | null = null
   let originCountries: string[] = []
+  /** ID generi TMDB canonici (16 = Animation) — escludono l'animazione dal K-Drama automatico. */
+  let genreIds: number[] | null = null
   let tvType: string | null = null
   let tvStatus: string | null = null
   let tmdbStudios: string[] = []
@@ -1334,6 +1336,9 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
           setTMDBSessionCache(mediaType, tmdbId, genreLang, { ...cached ?? undefined, details: localizedDetails })
         }
         genreName = localizedDetails?.genres?.[0]?.name || genreName
+        if (Array.isArray(localizedDetails?.genres)) {
+          genreIds = localizedDetails.genres.map((g) => g.id).filter((id): id is number => Number.isFinite(id))
+        }
       } catch {
         // Keep the saved genre if TMDB is unavailable.
       }
@@ -1431,6 +1436,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
           }).catch(() => null)
         : Promise.resolve(null)
       genreName = details.genres[0]?.name || null
+      genreIds = Array.isArray(details.genres) ? details.genres.map((g) => g.id).filter((id): id is number => Number.isFinite(id)) : null
       voteAverage = details.vote_average ?? 0
       releaseDate = details.release_date || null
       firstAirDate = details.first_air_date || null
@@ -2290,6 +2296,9 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
             .map((c) => c.origin_country)
             .filter((c): c is string => !!c)
         }
+        if (genreIds == null && Array.isArray(details.genres)) {
+          genreIds = details.genres.map((g) => g.id).filter((id): id is number => Number.isFinite(id))
+        }
         if (!tvType) tvType = details.type || null
         if (!tvStatus) tvStatus = details.status || null
         if (details.networks) {
@@ -2745,6 +2754,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
         lastAirDate: lastAirDate ?? null,
         seasonCount: seasonCount ?? null,
         originCountries: [...originCountries],
+        genreIds: genreIds ? [...genreIds] : null,
         voteAverage: voteAverage ?? 0,
         trendRank: finalRank,
         animeRank: animeRankResult,
@@ -2958,7 +2968,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
       mapping, tmdbId, digitalReleaseDate: preDigital ?? null, tmdbNetworks, productionCompanies, tmdbStudios,
       tmdbNetworksDetailed, productionCompaniesDetailed,
       tvType, tvStatus, releaseDate, firstAirDate,
-      lastAirDate, seasonCount, originCountries,
+      lastAirDate, seasonCount, originCountries, genreIds,
       wikidataResult, tmdbKeywords, locale, t,
       dateFormat,
       qLabel, queryExtra, qNetLogo, networkLogo, networkLogoPosition, sd,

@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest"
 import { computeBadge, computeAbsoluteCinema, getAllBadgeOptions } from "@/lib/badge-priority"
-import { computeTopBadge, getNewSeasonLabel, isKDramaOrigin, resolveSavedBadgeExtra } from "@/lib/poster-badge"
+import { computeTopBadge, getNewSeasonLabel, isAnimationGenreIds, isKDramaBadgeEligible, isKDramaOrigin, resolveSavedBadgeExtra } from "@/lib/poster-badge"
 import { getUpcomingReleaseLabel, parseDateFormat } from "@/lib/release-badge"
 import { mappingSchema } from "@/lib/validation"
 import { createT } from "@/lib/i18n"
@@ -390,6 +390,85 @@ describe("isKDramaOrigin", () => {
     expect(isKDramaOrigin([])).toBe(false)
     expect(isKDramaOrigin(null)).toBe(false)
     expect(isKDramaOrigin(undefined)).toBe(false)
+  })
+})
+
+describe("K-Drama animation exclusion (TMDB genre 16)", () => {
+  it("detects Animation by canonical TMDB id 16 only", () => {
+    expect(isAnimationGenreIds([16])).toBe(true)
+    expect(isAnimationGenreIds([16, 18])).toBe(true)
+    expect(isAnimationGenreIds([18])).toBe(false)
+    expect(isAnimationGenreIds([])).toBe(false)
+    expect(isAnimationGenreIds(null)).toBe(false)
+    expect(isAnimationGenreIds(undefined)).toBe(false)
+  })
+
+  it("excludes animated KR series from automatic K-Drama, keeps live-action eligible", () => {
+    expect(isKDramaBadgeEligible(["KR"], [16])).toBe(false)
+    expect(isKDramaBadgeEligible(["KR"], [16, 10759])).toBe(false)
+    expect(isKDramaBadgeEligible(["KR"], [18])).toBe(true)
+    expect(isKDramaBadgeEligible(["KR"], [])).toBe(true)
+    expect(isKDramaBadgeEligible(["KR"], null)).toBe(true)
+    expect(isKDramaBadgeEligible(["KR"])).toBe(true)
+    expect(isKDramaBadgeEligible(["US"], [16])).toBe(false)
+    expect(isKDramaBadgeEligible(["JP"], [16])).toBe(false)
+    expect(isKDramaBadgeEligible([], [16])).toBe(false)
+  })
+
+  it("computeTopBadge never auto-labels animated KR series as K-Drama (Solo Leveling-like)", () => {
+    const daysAgo = (n: number) => new Date(Date.now() - n * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
+    const neutral = {
+      mediaType: "tv" as const,
+      releaseDate: null,
+      firstAirDate: daysAgo(400),
+      lastAirDate: null as string | null,
+      seasonCount: null as number | null,
+      voteAverage: 8,
+      trendRank: null,
+      animeRank: null,
+      awards: [] as string[],
+      nominations: [] as string[],
+      studios: [] as string[],
+      director: null,
+      tvType: null,
+      tvStatus: null,
+      keywords: [] as string[],
+      imdbTop250: false,
+    }
+    // Solo Leveling-like: KR origin + Animation genre → no K-Drama (null, no fallback invented).
+    const animated = computeTopBadge({ ...neutral, originCountries: ["KR"], genreIds: [16, 10759] }, t, "it")
+    expect(animated.badge).toBeNull()
+    // Same KR title without Animation → K-Drama retained.
+    const live = computeTopBadge({ ...neutral, originCountries: ["KR"], genreIds: [18] }, t, "it")
+    expect(live.badge).toEqual({ type: "extra", label: "K-Drama" })
+    // Missing genres stay eligible (fail-open, legacy behavior preserved).
+    const unknown = computeTopBadge({ ...neutral, originCountries: ["KR"] }, t, "it")
+    expect(unknown.badge).toEqual({ type: "extra", label: "K-Drama" })
+    // Films never get K-Drama even when KR + non-animated.
+    const film = computeTopBadge({ ...neutral, mediaType: "movie" as const, originCountries: ["KR"], genreIds: [18] }, t, "it")
+    expect(film.badge).toBeNull()
+    // Non-KR animation never gets K-Drama.
+    const jp = computeTopBadge({ ...neutral, originCountries: ["JP"], genreIds: [16] }, t, "it")
+    expect(jp.badge).toBeNull()
+  })
+
+  it("suggestion options exclude K-Drama for animated KR titles (shared eligibility)", () => {
+    const liveOptions = getAllBadgeOptions({
+      upcomingRelease: null, isNewMovie: false, isNewSeries: false,
+      newSeason: null, animeRank: null, trendRank: null,
+      award: null, nomination: null, studio: null, director: null,
+      subGenre: null, isKDrama: isKDramaBadgeEligible(["KR"], [18]), imdbTop250: false, extra: null,
+      mediaType: "tv", voteAverage: 8, tvType: null, tvStatus: null,
+    })
+    expect(liveOptions).toContain("K-Drama")
+    const animatedOptions = getAllBadgeOptions({
+      upcomingRelease: null, isNewMovie: false, isNewSeries: false,
+      newSeason: null, animeRank: null, trendRank: null,
+      award: null, nomination: null, studio: null, director: null,
+      subGenre: null, isKDrama: isKDramaBadgeEligible(["KR"], [16]), imdbTop250: false, extra: null,
+      mediaType: "tv", voteAverage: 8, tvType: null, tvStatus: null,
+    })
+    expect(animatedOptions).not.toContain("K-Drama")
   })
 })
 

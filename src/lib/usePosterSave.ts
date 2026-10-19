@@ -412,6 +412,7 @@ export function usePosterSave(deps: PosterSaveDeps) {
       originCountries: [...(metaInfo.networksDetailed ?? []), ...(metaInfo.productionCompaniesDetailed ?? [])]
         .map((c) => c.origin_country)
         .filter((c): c is string => !!c),
+      genreIds: Array.isArray(metaInfo.genres) ? metaInfo.genres.map((g) => g.id).filter((id): id is number => Number.isFinite(id)) : null,
       voteAverage: metaInfo.voteAverage,
       trendRank: trendRank ?? null,
       animeRank: animeRankData?.rank ?? null,

@@ -26,7 +26,7 @@ import type { ExtraBadgeStyle, RankingBadgeStyle } from "@/lib/badge-styles"
 import type { SeasonalThemeChoice } from "@/lib/seasonal-theme"
 import { lookupAVSpecs, KNOWN_VIDEO_FORMATS } from "@/lib/av-specs"
 import { getAwardBadgeLabel, getNominationBadgeLabel } from "@/lib/badge-labels"
-import { getNewSeasonLabel, getSeriesEndedLabel, isKDramaOrigin } from "@/lib/poster-badge"
+import { getNewSeasonLabel, getSeriesEndedLabel, isKDramaBadgeEligible } from "@/lib/poster-badge"
 import { withIdAwards, withIdNoms } from "@/lib/award-ids"
 import { getSubGenreLabel } from "@/lib/subgenres"
 import { getUpcomingReleaseLabel } from "@/lib/release-badge"
@@ -624,10 +624,11 @@ export function BadgeControls() {
                   seasonCount: metaInfo.number_of_seasons,
                   t,
                 }) : null
-                const isKDrama = selected.media_type === "tv" && isKDramaOrigin([
+                const isKDrama = selected.media_type === "tv" && isKDramaBadgeEligible([
                   ...(metaInfo.networksDetailed ?? []),
                   ...(metaInfo.productionCompaniesDetailed ?? []),
-                ].map((c) => c.origin_country).filter((c): c is string => !!c))
+                ].map((c) => c.origin_country).filter((c): c is string => !!c),
+                  Array.isArray(metaInfo.genres) ? metaInfo.genres.map((g) => g.id).filter((id): id is number => Number.isFinite(id)) : null)
                 const options = getAllBadgeOptions({
                   upcomingRelease, isNewMovie, isNewSeries, newSeason, animeRank, trendRank: trendRank,
                   // justAdded: data digitale solo server-side (pre-release) —

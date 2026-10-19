@@ -312,6 +312,8 @@ export interface GenerationInput {
   lastAirDate: string | null
   seasonCount: number | null
   originCountries: readonly string[]
+  /** ID generi TMDB canonici (16 = Animation) — escludono l'animazione dal K-Drama automatico. */
+  genreIds?: readonly number[] | null
   wikidataResult: WikidataResult
   tmdbKeywords: readonly string[]
   locale: string
@@ -1581,7 +1583,7 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
     mapping, tmdbNetworks, productionCompanies, tmdbStudios,
     tmdbNetworksDetailed, productionCompaniesDetailed,
     tvType, tvStatus, releaseDate, firstAirDate,
-    lastAirDate, seasonCount, originCountries,
+    lastAirDate, seasonCount, originCountries, genreIds,
     wikidataResult, tmdbKeywords, locale, t,
     qLabel, queryExtra, qNetLogo, networkLogo, networkLogoPosition = "auto", networkLogoFollowTitle, networkFixedX, networkFixedY, onNetworkGeometry, onAccentMeta, sd, accentOverride, imdbTop250,
     logoSrc, backdropSrc, analysisKey,
@@ -1650,6 +1652,7 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
     lastAirDate: lastAirDate ?? null,
     seasonCount: seasonCount ?? null,
     originCountries: [...originCountries],
+    genreIds: genreIds ? [...genreIds] : null,
     voteAverage: voteAverage ?? 0,
     trendRank: finalRank,
     animeRank: animeRankResult,
