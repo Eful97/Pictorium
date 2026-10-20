@@ -528,24 +528,60 @@ async function tmdbFetch(path: string, apiKey?: string, signal?: AbortSignal, ti
   // stessa URL — il transport è unico (signal/timeout dell'owner). Ogni waiter
   // applica comunque il proprio cap (signal + timeoutMs) solo sulla propria
   // attesa: scade senza abortire l'owner né rimuovere l'entry condivisa.
-  const promise = (async () => {
+  //
+  // Deadline FORZATA dell'owner sullo stesso signal del transport: un
+  // transport che ignora l'abort o un body che non completa mai (`res.json()`
+  // non ha signal) non devono trattenere l'entry all'infinito — ogni waiter
+  // futuro sulla stessa chiave coalescerebbe sulla promise morta e scadrebbe
+  // al proprio cap, con la chiave avvelenata in modo selettivo (stessa URL
+  // 502, permutazioni sane). `raceWithAbort` rigetta al cap senza abortire
+  // null'altro; l'entry si libera e la chiave si riprende al retry. Il
+  // transport zombie resta orfano in background senza bloccare nessuno.
+  // Nessun timer nuovo: il cap è lo stesso `AbortSignal.timeout` già passato
+  // al transport (stesso wall-clock di prima per i transport cooperativi).
+  // `raceWithAbort` su signal già abortito rigetta senza sottoscrivere la
+  // promise creata comunque dall'argomento, lasciandone il reject orfano
+  // (unhandled rejection nei log). L'assorbimento conserva il comportamento
+  // osservabile storico (il transport viene comunque tentato e abortisce
+  // subito) senza orfani.
+  const raceOwner = <T>(promise: Promise<T>, sig: AbortSignal): Promise<T> => {
+    if (sig.aborted) promise.catch(() => {})
+    return raceWithAbort(promise, sig)
+  }
+  const current: { promise?: Promise<unknown> } = {}
+  const work = (async () => {
     tmdbStats.networkCalls++
     tmdbStats.lastCallTime = new Date().toISOString()
     // D5: tetto interno combinato col signal esterno (default 30s). Il path
     // poster passa 8s: un TMDB appeso non deve tenere uno slot di render.
-    const res = await timedFetch(fetchUrl.toString(), { signal: combineAbortSignals(signal, timeoutMs) })
-    if (res.status === 401) markKey401(key)
-    if (!res.ok) throw new Error(`TMDB fetch failed: ${res.status}`)
-    const data = await res.json()
-    // Evict LRU (first key = least-recently-used) when at capacity
-    if (fetchCache.size >= CACHE_MAX) fetchCache.delete(fetchCache.keys().next().value!)
-    fetchCache.set(cacheKey, { data, timestamp: Date.now() })
-    return data
+    const transportSignal = combineAbortSignals(signal, timeoutMs)
+    try {
+      const res = (await raceOwner(
+        timedFetch(fetchUrl.toString(), { signal: transportSignal }),
+        transportSignal,
+      )) as Response
+      if (res.status === 401) markKey401(key)
+      if (!res.ok) throw new Error(`TMDB fetch failed: ${res.status}`)
+      // Il body non ha signal: stessa deadline totale dell'owner, mai attesa
+      // illimitata con l'entry trattenuta.
+      const data = await raceOwner(res.json(), transportSignal)
+      // Late settlement dopo un ricambio (scaduto e già liberato): non deve
+      // né cancellare l'entry del nuovo owner né scriverci sopra dati stantii.
+      if (inflight.get(cacheKey) !== current.promise) return data
+      // Evict LRU (first key = least-recently-used) when at capacity
+      if (fetchCache.size >= CACHE_MAX) fetchCache.delete(fetchCache.keys().next().value!)
+      fetchCache.set(cacheKey, { data, timestamp: Date.now() })
+      return data
+    } finally {
+      if (inflight.get(cacheKey) === current.promise) inflight.delete(cacheKey)
+    }
   })()
-    .finally(() => inflight.delete(cacheKey))
+  current.promise = work.finally(() => {
+    if (inflight.get(cacheKey) === current.promise) inflight.delete(cacheKey)
+  })
 
-  inflight.set(cacheKey, promise)
-  return promise
+  inflight.set(cacheKey, current.promise)
+  return current.promise
 }
 
 /**
