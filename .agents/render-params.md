@@ -130,6 +130,29 @@ non decodificano nulla e tengono il valore legacy stabile in chiave cache.
 | Posizione badge qualità | Angolo in alto a destra, margini a box: box destro a `netPadX` dal bordo (`left = CW - netPadX - boxW - pad`, pad in scala), `top = padY - 10 + 5` (bitmap; box a +14 pad); con nastro Netflix a destra (Stremio) va a **sinistra** con box sinistro a `netPadX` (`left = netPadX - pad`) per non restargli accanto, impilato sotto il logo network se occupa il top-left (`top = netBottom + gap`, senza shift) |
 | Sfondo badge qualità | Gradiente satinato traslucido a polarità pill (`satinPillStops(topLight)`); altezza unificata `badgeBoxHeight(fs)`; bordo `topLight ? "rgba(0,0,0,0.12)" : "rgba(255,255,255,0.22)"` 1.5px; ombra 3D singola + padding simmetrico 14; testo invariato (`topLight ? "rgba(255,255,255,0.95)" : "rgba(0,0,0,0.88)"`) + crenatura `letter-spacing="0.06em"` (marchio tecnico; `textLength` pinnato su stima+tracking); font base `17 * pw / 380` (era `14`). Tag tier `standard` (`buildQualityTierBadgeSvg` in `badge-svg-shared.ts` via `renderQualityTierBadge`, SOLO qualità — la pill età resta sulla pill neutra storica byte-identica): padding X `1.0 × fs` (più largo, era `0.75 × fs`) e raggio contenuto `0.32 × boxH` (meno tondo, era mezza altezza); stessa altezza/satinatura/bordo/ombra/testo/crenatura della neutra (ancoraggi, scale e offset invariati; niente clipping: scatola solo allargata). Tutti i tier condividono la scatola; `mono`/`color` (asset icona) e `knockout` invariati. Marchi formato A/V (`renderQualityIconBadge`, unico set per tutti gli stili): glifi nudi senza contenitore — `hdr`/`hdr10-plus` senza cornice, viewBox ritagliata all'inchiostro + padding ottico uniforme (frazione d'inchiostro verticale ~0.74 come i singoli Dolby, misurata via resvg); `dv`/`atmos` (già nudi, ~0.74) invariati; etichetta generica `HDR` preservata (mai `HDR10`); `combo` (lockup due righe storico) e `imax` (pinnato dal test raw-coords) invariati. Stile `knockout` (`qbs`, SOLO qualità — l'età `knockout` usa il builder dedicato SOLO età `buildAgeKnockoutSvg`, mai questo; come `mono`/`color` in preview esplicito e Stremio solo-non-standard): targhetta bianca opaca con glifi ritagliati via mask (stesso box esterno della pill, `rx = 0.30 * boxH`, niente stroke/gradiente; glifi mask a `~1.35x fs` con `textLength` pinnato sulla stima oversize e margini anti-clipping); con Dolby (verificato `localSpec`, combo `dv+atmos` o singolo) e altri formati impilati sotto il tier in colonna verticale come gli altri stili (Dolby resta bianco anche su top chiari); senza Dolby resta il tier knockout (mai fallback a standard) |
 
+## Badge contenuto: vera storia / libro / prossimo episodio / soli N episodi
+
+Quattro badge automatici opt-out via bucket `sash` (nessun nuovo parametro
+URL, nessun nuovo contratto): riusano i fetch esistenti
+(`next_episode_to_air`/`number_of_episodes` dai details, keyword dal fetch
+keyword già usato per i sottogeneri) e il renderer unico esistente.
+Selezione manuale dagli stessi meccanismi (dropdown `BadgeControls` =
+`getAllBadgeOptions`, override custom salvato vince sempre).
+
+| Badge | Regola server (`poster-badge.ts`) | Priorità |
+|---|---|---|
+| `badge.trueStory` ("Based on a true story") | `getTrueStoryLabel`: match ESATTO su keyword TMDB normalizzata (lowercase+trim) in {`based on true story`, `based on a true story`} — mai sottostringhe né testo del titolo; film e serie | Extra, dopo il sottogenere e prima del libro (ordine deterministico documentato, sotto novità/rank/premi) |
+| `badge.basedOnBook` ("Based on a book") | `getBasedOnBookLabel`: match esatto in {`based on novel or book`, `based on novel`, `based on book`, `based on young adult novel`} — `based on comic book` resta fuori; film e serie; con storia vera valgono entrambe, auto = storia vera | Extra, dopo la storia vera (stesso bucket, mai sopra) |
+| `badge.nextEpisode` ("Nuovo episodio · {data}") | `getNextEpisodeLabel`: SOLO serie TV, `air_date` futura di 1..14 giorni DI CALENDARIO (diff UTC DST-safe, oggi/passato/>14/assente/invalido esclusi; film mai); data formattata come l'upcoming (`df`/locale) | Bucket `new`, subito dopo la nuova stagione e sopra i premi (stesso ordine del fork); MAI congelato nel mapping (`resolveSavedBadgeExtra` lo esclude come upcoming/nuova stagione) + TTL effimero 120s quando mostrato, così la data non resta stantia oltre la messa in onda |
+| `badge.onlyEpisodes` ("Solo {n} episodi") | `getFewEpisodesLabel`: SOLO tipo miniserie (`isMiniseriesType`, mai una serie ordinaria breve) con conteggio intero noto 1..8; fuori bound = Miniserie semplice invariata | Arricchisce la Miniserie in coda all'extra (stesso slot, non un nuovo bucket); congelabile come la Miniserie (formato permanente) |
+
+Liste keyword e idee riusate dal fork kesemb2/Pictorium-HE al commit
+pinnato documentato in NOTICE (solo `s_truestory`/`s_book`, `fewEpisodes`,
+`getNextEpisodeLabel` + inserimento dopo la nuova stagione; niente rotazione
+giornaliera né altre tag del fork). Finestra calendario DST-safe,
+chiavi i18n 18 lingue, lifetime effimero e wiring editor sono integrazione
+originale.
+
 ## Pill Network Logo
 
 | Parametro | Server (`network-svgs.ts:loadNetworkPng` & `poster-service.ts`) |

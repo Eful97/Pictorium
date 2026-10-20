@@ -38,7 +38,8 @@ import { logoDefaultScaleFromAspect, FRESH_TITLE_LOGO_DEFAULT_SCALE } from "./lo
 import fs from "fs"
 import path from "path"
 import { estimateTextWidth, fontFamilyFor, escSvg, badgeBoxHeight, TOP_SHADOW_PAD } from "./badge-svg-shared"
-import { computeTopBadge, isNetworkStudio, shouldSuppressExtraTopBadgeForNetwork, type BadgeInput } from "./poster-badge"
+import { computeTopBadge, getNextEpisodeLabel, isNetworkStudio, shouldSuppressExtraTopBadgeForNetwork, type BadgeInput } from "./poster-badge"
+import { isNextEpisodeBadgeKey } from "./badge-priority"
 import { DEMO_SAMPLE_NETWORK } from "./demo-samples"
 import type { DateFormat } from "./release-badge"
 import type { SashBucket } from "./badge-priority"
@@ -290,6 +291,9 @@ export interface GenerationInput {
   /** Ultima messa in onda + n. stagioni + origin country (badge Nuova stagione / K-Drama). */
   lastAirDate: string | null
   seasonCount: number | null
+  /** `next_episode_to_air.air_date` + `number_of_episodes` TMDB (badge Nuovo episodio / Solo N episodi). */
+  nextEpisodeAirDate?: string | null
+  numberOfEpisodes?: number | null
   originCountries: readonly string[]
   /** ID generi TMDB canonici (16 = Animation) — escludono l'animazione dal K-Drama automatico. */
   genreIds?: readonly number[] | null
@@ -1505,7 +1509,7 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
     mapping, tmdbNetworks, productionCompanies, tmdbStudios,
     tmdbNetworksDetailed, productionCompaniesDetailed,
     tvType, tvStatus, releaseDate, firstAirDate,
-    lastAirDate, seasonCount, originCountries, genreIds,
+    lastAirDate, seasonCount, nextEpisodeAirDate, numberOfEpisodes, originCountries, genreIds,
     wikidataResult, tmdbKeywords, locale, t,
     qLabel, queryExtra, qNetLogo, networkLogo, networkLogoPosition = "auto", networkLogoFollowTitle, networkFixedX, networkFixedY, onNetworkGeometry, onAccentMeta, sd, accentOverride, imdbTop250,
     logoSrc, backdropSrc, analysisKey,
@@ -1569,6 +1573,8 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
     firstAirDate: firstAirDate ?? null,
     lastAirDate: lastAirDate ?? null,
     seasonCount: seasonCount ?? null,
+    nextEpisodeAirDate: nextEpisodeAirDate ?? null,
+    numberOfEpisodes: numberOfEpisodes ?? null,
     originCountries: [...originCountries],
     genreIds: genreIds ? [...genreIds] : null,
     voteAverage: voteAverage ?? 0,
@@ -1588,9 +1594,23 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
   const isNetStudio = isNetworkStudio(studioBadge)
 
   let topBadge: { type: "extra"; label: string } | { type: "rank"; rank: number; label: string; ribbonLabel?: string } | null = null
+  // Canonical manual next-episode identity resolves to the CURRENT dated
+  // label (or nothing when elapsed). Any other manual text wins verbatim;
+  // an elapsed identity falls through to the computed badge (no stale date).
+  const isManualNextToken = isNextEpisodeBadgeKey(queryExtra ?? null)
+  const manualNextLabel = isManualNextToken
+    ? getNextEpisodeLabel({
+      mediaType,
+      airDate: nextEpisodeAirDate ?? null,
+      locale,
+      dateFormat: input.dateFormat ?? "locale",
+      t,
+    })
+    : null
+  const effectiveQueryExtra = isManualNextToken ? manualNextLabel : queryExtra
   if (rankingEnabled) {
-    if (queryExtra) {
-      topBadge = { type: "extra" as const, label: queryExtra }
+    if (effectiveQueryExtra) {
+      topBadge = { type: "extra" as const, label: effectiveQueryExtra }
     } else if (computed.badge) {
       const b = computed.badge
       if (b.type === "extra") {
@@ -1608,7 +1628,7 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
   // Indipendente da rankingEnabled: è stato del contenuto, non decorazione.
   // Reso come nastro angolare rosso in alto a sinistra (non pill centrale).
   const comingSoonLabel = t("badge.comingSoon")
-  if (preRelease && !queryExtra) {
+  if (preRelease && !effectiveQueryExtra) {
     const isUpcoming = computed.upcomingRelease
       && topBadge?.type === "extra"
       && topBadge.label === computed.upcomingRelease
@@ -1616,7 +1636,7 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
       topBadge = { type: "extra" as const, label: comingSoonLabel }
     }
   }
-  const showComingSoon = !!preRelease && !queryExtra
+  const showComingSoon = !!preRelease && !effectiveQueryExtra
     && topBadge?.type === "extra" && topBadge.label === comingSoonLabel
     // Nastro disattivato: il Coming Soon resta come badge extra centrale
     // (ramo rank standard) invece del nastro angolare rosso.
@@ -2048,7 +2068,7 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
       shouldSuppressExtraTopBadgeForNetwork({
         label: topBadge.label,
         type: topBadge.type,
-        manualOverride: !!queryExtra,
+        manualOverride: !!effectiveQueryExtra,
         networkLogo: {
           networkKey: networkLogoResult.networkKey,
           matchedName: networkLogoResult.matchedName,

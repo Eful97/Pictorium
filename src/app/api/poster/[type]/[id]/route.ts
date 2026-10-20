@@ -62,6 +62,7 @@ import {
   recordPosterError,
   recordPosterStaleHit,
   recordPosterCoalescedHit,
+  recordPosterLatency,
   recordTvdbRescue,
   recordBackdropCropRescue,
   serverTimingValue,
@@ -94,7 +95,7 @@ import { normalizeGenreName } from "@/lib/genre-normalize"
 import { NON_CLEAN_BLUR_FADE, NON_CLEAN_GRADIENT_HEIGHT } from "@/lib/gradient-defaults"
 import { LAND_W, LAND_H, landscapeBackdropUrl, pillarboxLandscapeBase, cropBackdropToPortrait } from "@/lib/image-utils"
 import { generatePosterBuffer, type GenerationInput, type NetworkGeometry } from "@/lib/poster-service"
-import { computeTopBadge } from "@/lib/poster-badge"
+import { computeTopBadge, isNextEpisodeDisplayed } from "@/lib/poster-badge"
 import { getUpcomingReleaseLabel, parseDateFormat } from "@/lib/release-badge"
 import { fetchPosterBaseWithCustom, customBaseAnalysisKey, resolveEffectiveCustomUrl, safeTmdbImgSrc, isAllowedQueryImagePath, fetchValidatedCustomImage } from "@/lib/custom-poster-base"
 import { isCustomPosterUrl } from "@/lib/utils"
@@ -816,7 +817,18 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
   // Il chiamante garantisce un canonico fresco o appena renderizzato: una
   // variante scaduta non viene MAI servita da qui (si riconverte e si
   // sovrascrive); solo una variante fresca evita la conversione.
-  const serveResponseVariant = async (canonical: PosterCachePayload, opts?: { ttlMs?: number; immutable?: boolean; factCapped?: boolean; expiresAt?: number }): Promise<Response> => {
+  // Latency: measured to the terminal response, conversion encode included.
+  // "cached" when the caller serves from cache (fresh/stale canonical hits);
+  // "render" when the caller just rendered (fresh render, revalidation render
+  // — recorded here at terminal success so a failed conversion never counts
+  // as a served render); "skip" when the caller records for itself or the
+  // sample is excluded by contract (coalesced waiter: it awaited another
+  // request's render, never its own).
+  const serveResponseVariant = async (canonical: PosterCachePayload, opts?: { ttlMs?: number; immutable?: boolean; factCapped?: boolean; expiresAt?: number }, latencyOrigin: "cached" | "render" | "skip" = "skip"): Promise<Response> => {
+    const noteTerminalServe = (): void => {
+      if (latencyOrigin === "cached") recordPosterLatency("cached", Date.now() - startTime)
+      else if (latencyOrigin === "render") recordPosterLatency("render", Date.now() - startTime)
+    }
     // Task D: carry the canonical absolute deadline — no variant may extend
     // the canonical fact expiry. Canonical payload/read carries expiresAt +
     // factCapped (HIT sidecar or fresh render); opts from a fresh render win
@@ -852,8 +864,10 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
       const variantCapped = variantHit.factCapped ?? canonicalFactCapped ?? false
       if (isConditional && ifNoneMatch === variantHit.payload.etag) {
         log.debug("Poster cache: 304 (variant)", { mediaType, tmdbId, ms: Date.now() - startTime })
+        noteTerminalServe()
         return new Response(null, { status: 304, headers: posterNotModifiedHeaders(variantHit.payload.etag, variantHit.immutable ?? immutablePoster, dynamicPoster, variantHttpSec, isLive, variantHit.payload.accentMeta, variantCapped) })
       }
+      noteTerminalServe()
       return posterResponse(variantHit.payload, variantHit.immutable ?? immutablePoster, isPreview, dynamicPoster, outputFormat, variantHttpSec, undefined, isLive, variantCapped)
     }
     // Format gate: same-revision concurrent conversions share one native
@@ -930,8 +944,10 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
     }
     if (isConditional && ifNoneMatch === variant.etag) {
       log.debug("Poster cache: 304 (fresh variant)", { mediaType, tmdbId, ms: Date.now() - startTime })
+      noteTerminalServe()
       return new Response(null, { status: 304, headers: posterNotModifiedHeaders(variant.etag, opts?.immutable ?? immutablePoster, dynamicPoster, freshVariantHttpSec, isLive, variant.accentMeta, variantCappedFresh) })
     }
+    noteTerminalServe()
     return posterResponse(variant, opts?.immutable ?? immutablePoster, isPreview, dynamicPoster, outputFormat, freshVariantHttpSec, undefined, isLive, variantCappedFresh)
   }
 
@@ -947,6 +963,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
     const variantHit = readCachedPoster(variantKey, variantHitNow)
     if (!wantNetGeo && variantHit.payload && !variantHit.stale) {
       recordPosterRequest(true, outputFormat)
+      recordPosterLatency("cached", Date.now() - startTime)
       const variantHitHttpSec = variantHit.factCapped
         ? httpRemainingSec(variantHit.remainingMs, variantHit.ttlSec ?? variantTtlSec, variantHitNow, variantHit.expiresAt)
         : (variantHit.ttlSec ?? variantTtlSec)
@@ -960,6 +977,9 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
     if (variantHit.payload && !isConditional && !isLive && !wantNetGeo && canServePosterStaleHit(variantHit)) {
       recordPosterRequest(true, outputFormat)
       recordPosterStaleHit()
+      // Stale/SWR serve: no render here — the scheduled background refresh
+      // records its own "render" sample when it completes.
+      recordPosterLatency("cached", Date.now() - startTime)
       schedulePosterRefresh(req, isPreview)
       log.debug("Poster cache: stale variant hit (refresh scheduled)", { mediaType, tmdbId, ms: Date.now() - startTime })
       return posterResponse(variantHit.payload, variantHit.immutable ?? immutablePoster, isPreview, dynamicPoster, outputFormat, undefined, undefined, isLive)
@@ -974,21 +994,29 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
     const cachedHttpSec = cachedPoster.factCapped
       ? httpRemainingSec(cachedPoster.remainingMs, cachedPoster.ttlSec ?? dynamicTtlSec, cachedPosterNow, cachedPoster.expiresAt)
       : (cachedPoster.ttlSec ?? dynamicTtlSec)
+    // needsVariant: the "cached" sample for conversions is recorded inside
+    // serveResponseVariant (conversion encode included); direct path only here.
+    if (needsVariant) return serveResponseVariant(cachedPoster.payload, undefined, "cached")
+    recordPosterLatency("cached", Date.now() - startTime)
     if (!needsVariant && isConditional && ifNoneMatch === cachedPoster.payload.etag) {
       log.debug("Poster cache: 304", { mediaType, tmdbId, ms: Date.now() - startTime })
       return new Response(null, { status: 304, headers: posterNotModifiedHeaders(cachedPoster.payload.etag, cachedPoster.immutable ?? immutablePoster, dynamicPoster, cachedHttpSec, isLive, cachedPoster.payload.accentMeta, cachedPoster.factCapped) })
     }
     log.debug("Poster cache: fresh hit", { mediaType, tmdbId, ms: Date.now() - startTime })
-    if (needsVariant) return serveResponseVariant(cachedPoster.payload)
     return posterResponse(cachedPoster.payload, cachedPoster.immutable ?? immutablePoster, isPreview, dynamicPoster, outputFormat, cachedHttpSec,
       serverTimingValue([{ name: "cache", desc: "HIT" }, { name: "total", durMs: Date.now() - startTime }]), isLive, cachedPoster.factCapped)
   }
   if (!wantNetGeo && cachedPoster.payload && !isConditional && !isLive && !refreshRequest && canServePosterStaleHit(cachedPoster)) {
     recordPosterRequest(true, outputFormat)
     recordPosterStaleHit()
+    // Stale/SWR serve: no render here — the scheduled background refresh
+    // re-renders separately and records its own "render" sample on success.
+    // Scheduled BEFORE branching (historical ordering) so variant responses
+    // warm the edge cache too; each path records one "cached" sample.
     schedulePosterRefresh(req, isPreview)
     log.debug("Poster cache: stale hit (refresh scheduled)", { mediaType, tmdbId, ms: Date.now() - startTime })
-    if (needsVariant) return serveResponseVariant(cachedPoster.payload)
+    if (needsVariant) return serveResponseVariant(cachedPoster.payload, undefined, "cached")
+    recordPosterLatency("cached", Date.now() - startTime)
     return posterResponse(cachedPoster.payload, cachedPoster.immutable ?? immutablePoster, isPreview, dynamicPoster, outputFormat, cachedPoster.factCapped ? httpRemainingSec(cachedPoster.remainingMs, cachedPoster.ttlSec ?? dynamicTtlSec, Date.now(), cachedPoster.expiresAt) : (cachedPoster.ttlSec ?? dynamicTtlSec), undefined, isLive, cachedPoster.factCapped)
   }
   // Copia scaduta con condizionale o live=1, oppure nessuna copia: si
@@ -1011,6 +1039,10 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
       log.debug("Poster cache: coalesced with in-flight render", { mediaType, tmdbId, ms: Date.now() - startTime })
       recordPosterRequest(true, outputFormat)
       recordPosterCoalescedHit()
+      // Latency: NO sample — the waiter awaited ANOTHER request's render, so
+      // its latency measures queue + someone else's pipeline, never its own
+      // cache nor its own render. The effective render records its own
+      // "render" sample once at terminal success.
       // Finding 5: il waiter della preview deve ricevere gli header no-store
       // anche quando si coalesce con un render in flight (era hardcoded false).
       // C3: il payload condiviso è canonico — il waiter non-canonico converte.
@@ -1173,6 +1205,9 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
   let firstAirDate: string | null = null
   let lastAirDate: string | null = null
   let seasonCount: number | null = null
+  /** TMDB `next_episode_to_air.air_date` + `number_of_episodes` (TV series: New Episode / Only N Episodes inputs). */
+  let nextEpisodeAirDate: string | null = null
+  let numberOfEpisodes: number | null = null
   let originCountries: string[] = []
   /** ID generi TMDB canonici (16 = Animation) — escludono l'animazione dal K-Drama automatico. */
   let genreIds: number[] | null = null
@@ -1405,6 +1440,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
       firstAirDate = details.first_air_date || null
       lastAirDate = details.last_air_date || null
       seasonCount = details.number_of_seasons ?? null
+      nextEpisodeAirDate = details.next_episode_to_air?.air_date || null
+      numberOfEpisodes = details.number_of_episodes ?? null
       originCountries = [...(details.networks || []), ...(details.production_companies || [])]
         .map((c) => c.origin_country)
         .filter((c): c is string => !!c)
@@ -2254,6 +2291,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
         if (!firstAirDate) firstAirDate = details.first_air_date || null
         if (!lastAirDate) lastAirDate = details.last_air_date || null
         if (seasonCount == null) seasonCount = details.number_of_seasons ?? null
+        if (!nextEpisodeAirDate) nextEpisodeAirDate = details.next_episode_to_air?.air_date || null
+        if (numberOfEpisodes == null) numberOfEpisodes = details.number_of_episodes ?? null
         if (originCountries.length === 0) {
           originCountries = [...(details.networks || []), ...(details.production_companies || [])]
             .map((c) => c.origin_country)
@@ -2467,7 +2506,50 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
     // Solo fallback reale (custom richiesto ma base TMDB): custom riuscito o
     // nessun custom = TTL pieno invariato.
     const customFallbackEphemeral = !!effectiveCustomUrl && originalBase !== null && !originalBase.custom
-    const ephemeralTtl = qualityEphemeral || wikidataEphemeral || customFallbackEphemeral || ageEphemeral
+    // Next-episode freshness: cap to 120s ONLY when the next-episode badge
+    // is the EFFECTIVE displayed top badge (auto or canonical manual
+    // identity). A merely eligible date that loses to rank/upcoming/awards,
+    // a manual override, a disabled `new` sash bucket, or Coming Soon keeps
+    // the existing TTL untouched. An elapsed manual identity shows nothing
+    // (no stale date, no cap). Shared selection, no divergent chain.
+    const ephemeralLocale = req.nextUrl.searchParams.get("lang") || mapping?.language || posterRegion.lang2
+    const ephemeralDateFormat = parseDateFormat(hardenedParams.get("df") ?? sd.dateFormat ?? null) ?? "locale"
+    const nextEpisodeEphemeral = isNextEpisodeDisplayed({
+      mediaType,
+      rankingEnabled,
+      badgesEnabled,
+      queryExtra,
+      badgeInput: {
+        mediaType,
+        tmdbId,
+        digitalReleaseDate: preDigital ?? null,
+        releaseDate: releaseDate ?? null,
+        firstAirDate: firstAirDate ?? null,
+        lastAirDate: lastAirDate ?? null,
+        seasonCount: seasonCount ?? null,
+        nextEpisodeAirDate: nextEpisodeAirDate ?? null,
+        numberOfEpisodes: numberOfEpisodes ?? null,
+        originCountries: [...originCountries],
+        genreIds: genreIds ? [...genreIds] : null,
+        voteAverage: voteAverage ?? 0,
+        trendRank: finalRank,
+        animeRank: animeRankResult,
+        awards: wikidataResult.awards,
+        nominations: wikidataResult.nominations,
+        studios: [...wikidataResult.studios],
+        director: directorBadgeLabel(wikidataResult.director, t),
+        tvType: tvType ?? null,
+        tvStatus: tvStatus ?? null,
+        keywords: [...tmdbKeywords],
+        imdbTop250: !!imdbTop250,
+      },
+      locale: ephemeralLocale,
+      sashOrder,
+      dateFormat: ephemeralDateFormat,
+      preRelease: !!(preRelease && preReleaseDetected),
+      t,
+    })
+    const ephemeralTtl = qualityEphemeral || wikidataEphemeral || customFallbackEphemeral || ageEphemeral || !!nextEpisodeEphemeral
     // Task D: riassegnato sotto dal freshness cap (solo restrizione, mai estensione).
     let effectiveTtlSec: number | undefined = ephemeralTtl ? QUALITY_EPHEMERAL_TTL_SEC : dynamicTtlSec
     const effectiveImmutable = immutablePoster && !ephemeralTtl
@@ -2696,6 +2778,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
         firstAirDate: firstAirDate ?? null,
         lastAirDate: lastAirDate ?? null,
         seasonCount: seasonCount ?? null,
+        nextEpisodeAirDate: nextEpisodeAirDate ?? null,
+        numberOfEpisodes: numberOfEpisodes ?? null,
         originCountries: [...originCountries],
         genreIds: genreIds ? [...genreIds] : null,
         voteAverage: voteAverage ?? 0,
@@ -2907,7 +2991,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
       mapping, tmdbId, digitalReleaseDate: preDigital ?? null, tmdbNetworks, productionCompanies, tmdbStudios,
       tmdbNetworksDetailed, productionCompaniesDetailed,
       tvType, tvStatus, releaseDate, firstAirDate,
-      lastAirDate, seasonCount, originCountries, genreIds,
+      lastAirDate, seasonCount, nextEpisodeAirDate, numberOfEpisodes, originCountries, genreIds,
       wikidataResult, tmdbKeywords, locale, t,
       dateFormat,
       qLabel, queryExtra, qNetLogo, networkLogo, networkLogoPosition, sd,
@@ -3044,16 +3128,25 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
     }
     completePosterRender(payload)
     recordPosterRequest(false, outputFormat)
+    // Latency "render": the pipeline ran for this response (canonical and
+    // variant renders, previews, background refreshes, revalidation renders).
+    // Recorded once at terminal success — conversion encode included, failed
+    // conversions excluded (they answer 500/503, never a success sample).
     // Confronto finale sul validatore della rappresentazione richiesta: una
     // rivalidazione (copia scaduta/assente + condizionale) risponde 304 solo
     // se il contenuto ri-risolto è davvero invariato (audit, problema 2).
     const responseEtag = needsVariant ? variantEtagFor(etag, outputFormat as "jpeg" | "webp") : etag
     if (isConditional && ifNoneMatch === responseEtag) {
+      recordPosterLatency("render", Date.now() - startTime)
       return new Response(null, { status: 304, headers: posterNotModifiedHeaders(responseEtag, effectiveImmutable, dynamicPoster, finalTtlSec ?? effectiveTtlSec, isLive, collectedAccentMeta, finalFactCapped) })
     }
     log.info("Poster rendered", { mediaType, tmdbId, ms: Date.now() - startTime, bytes: composited.byteLength, cached: !!mappingTag, format: outputFormat, fetchMs: tFetchMs, prepMs: tCompositeStart - startTime - tFetchMs, compositeMs: Date.now() - tCompositeStart })
     // C3: il non-canonico è variante di risposta (convertita + cachata), non un render.
-    if (needsVariant) return serveResponseVariant(payload, finalTtlMs !== undefined ? { ttlMs: finalTtlMs, immutable: effectiveImmutable, ...(finalFactCapped ? { factCapped: true as const } : {}), ...(payloadExpiresAt !== undefined ? { expiresAt: payloadExpiresAt } : {}) } : { immutable: effectiveImmutable, ...(payloadExpiresAt !== undefined ? { expiresAt: payloadExpiresAt } : {}), ...(finalFactCapped ? { factCapped: true as const } : {}) })
+    // Await (not bare return): an async conversion rejection must settle
+    // inside this try so the inner catch converts it to the standard
+    // 500 + negative-cache response; a bare return would let it escape GET.
+    if (needsVariant) return await serveResponseVariant(payload, finalTtlMs !== undefined ? { ttlMs: finalTtlMs, immutable: effectiveImmutable, ...(finalFactCapped ? { factCapped: true as const } : {}), ...(payloadExpiresAt !== undefined ? { expiresAt: payloadExpiresAt } : {}) } : { immutable: effectiveImmutable, ...(payloadExpiresAt !== undefined ? { expiresAt: payloadExpiresAt } : {}), ...(finalFactCapped ? { factCapped: true as const } : {}) }, "render")
+    recordPosterLatency("render", Date.now() - startTime)
     const renderHeaders = {
       ...posterHeaders(etag, factExpiredAtWrite ? false : effectiveImmutable, isPreview, dynamicPoster, outputFormat, factExpiredAtWrite ? 0 : (finalTtlSec ?? effectiveTtlSec), isLive, collectedAccentMeta, finalFactCapped),
       "Server-Timing": serverTimingValue([

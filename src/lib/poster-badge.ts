@@ -3,11 +3,13 @@
  * Used by both the server route and client hooks, ensuring the same badge
  * logic applies in preview (WYSIWYG) and final poster.
  */
-import { computeBadge, computeAbsoluteCinema, isMiniseriesType, isReturningStatus, stripArabicDiacritics, type BadgeResult, type SashBucket } from "./badge-priority"
+import { computeBadge, computeAbsoluteCinema, isMiniseriesType, isReturningStatus, stripArabicDiacritics, NEXT_EPISODE_BADGE_KEY, isNextEpisodeBadgeKey, type BadgeResult, type SashBucket } from "./badge-priority"
 import { getAwardBadgeLabel, getNominationBadgeLabel } from "./badge-labels"
 import { withIdAwards, withIdNoms } from "./award-ids"
-import { getUpcomingReleaseLabel, type DateFormat } from "./release-badge"
+import { formatReleaseDate, getUpcomingReleaseLabel, type DateFormat } from "./release-badge"
 import { getSubGenreLabel } from "./subgenres"
+
+export { NEXT_EPISODE_BADGE_KEY, isNextEpisodeBadgeKey }
 
 export type BadgeT = (key: string, params?: Record<string, string | number>) => string
 
@@ -40,6 +42,10 @@ export interface BadgeInput {
   director: string | null
   tvType: string | null | undefined
   tvStatus: string | null | undefined
+  /** TMDB `next_episode_to_air.air_date` (TV) — "Next episode" badge input. */
+  nextEpisodeAirDate?: string | null
+  /** TMDB `number_of_episodes` (TV) — enriches Miniseries 1..8. */
+  numberOfEpisodes?: number | null
   networkLogoMatched?: boolean
   keywords?: string[]
   /** IMDb Top 250 badge flag — resolved externally (async fetch). */
@@ -52,12 +58,15 @@ export interface ComputedTopBadge {
   readonly isNewMovie: boolean
   readonly isNewSeries: boolean
   readonly newSeason: string | null
+  readonly nextEpisode: string | null
   readonly justAdded: string | null
   readonly seriesEnded: string | null
   readonly extraFallback: string | null
   readonly awardBadge: string | null
   readonly studioBadge: string | null
   readonly subGenreBadge: string | null
+  readonly trueStory: string | null
+  readonly basedOnBook: string | null
 }
 
 export function isNetworkStudio(studioName: string | null): boolean {
@@ -158,6 +167,136 @@ export function getNewSeasonLabel(input: {
 }
 
 /**
+ * Strict `YYYY-MM-DD` calendar parse for the next-episode badge ONLY.
+ * The shared upcoming helper (`parseTmdbDate`) stays loose on purpose and is
+ * left untouched. This parser requires exact zero-padded shape, a real month
+ * (1-12), and a real day via round-trip (rejects overflow like 2026-02-30 or
+ * 2026-10-32, month 13, non-padded parts, and trailing junk).
+ */
+export function parseStrictTmdbDate(value?: string | null): Date | null {
+  if (typeof value !== "string") return null
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value)
+  if (!match) return null
+  const y = Number(match[1])
+  const m = Number(match[2])
+  const d = Number(match[3])
+  if (!Number.isInteger(y) || !Number.isInteger(m) || !Number.isInteger(d)) return null
+  if (m < 1 || m > 12 || d < 1 || d > 31) return null
+  const daysInMonth = new Date(Date.UTC(y, m, 0)).getUTCDate()
+  if (d > daysInMonth) return null
+  const date = new Date(y, m - 1, d)
+  if (date.getFullYear() !== y || date.getMonth() !== m - 1 || date.getDate() !== d) return null
+  return date
+}
+
+/**
+ * "Next episode {date}" badge from the TMDB `next_episode_to_air.air_date`.
+ * Only future dates inside the 14 calendar-day window: an aired episode is
+ * covered by "new season", one months away is noise. TV only.
+ */
+export function getNextEpisodeLabel(input: {
+  mediaType: "movie" | "tv"
+  airDate?: string | null
+  locale?: string
+  dateFormat?: DateFormat | null
+  t: BadgeT
+}): string | null {
+  if (input.mediaType !== "tv") return null
+  const date = parseStrictTmdbDate(input.airDate)
+  if (!date) return null
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  // Calendar-day difference (UTC, DST-safe: across a DST switch a plain
+  // ms/86400000 division yields 14.04 and would wrongly drop day 14).
+  const days = Math.round(
+    (Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()) -
+      Date.UTC(today.getFullYear(), today.getMonth(), today.getDate())) / (24 * 60 * 60 * 1000),
+  )
+  if (days < 1 || days > 14) return null
+  return input.t("badge.nextEpisode", { date: formatReleaseDate(date, input.locale ?? "it", input.dateFormat ?? "locale") })
+}
+
+/**
+ * Resolve a canonical manual next-episode selection to its CURRENT label.
+ * Exact token match only (`__badge.nextEpisode`); any other value — including
+ * free-text that happens to look like a next-episode badge — returns null so
+ * existing manual text is never reinterpreted. Returns null when the window
+ * elapsed (no stale dated text is ever resurrected).
+ */
+export function resolveManualNextEpisodeLabel(
+  queryExtra: string | null | undefined,
+  input: {
+    mediaType: "movie" | "tv"
+    airDate?: string | null
+    locale?: string
+    dateFormat?: DateFormat | null
+    t: BadgeT
+  },
+): string | null {
+  if (!isNextEpisodeBadgeKey(queryExtra ?? null)) return null
+  return getNextEpisodeLabel({
+    mediaType: input.mediaType,
+    airDate: input.airDate ?? null,
+    locale: input.locale,
+    dateFormat: input.dateFormat ?? null,
+    t: input.t,
+  })
+}
+
+/**
+ * Canonical TMDB keyword sets (lowercase, exact match — never substrings or
+ * title text) for the "true story" and "book" content badges.
+ */
+const TRUE_STORY_KEYWORDS: ReadonlySet<string> = new Set([
+  "based on true story",
+  "based on a true story",
+])
+
+const BASED_ON_BOOK_KEYWORDS: ReadonlySet<string> = new Set([
+  "based on novel or book",
+  "based on novel",
+  "based on book",
+  "based on young adult novel",
+])
+
+/**
+ * "Based on a true story" badge: exact match on normalized TMDB keywords
+ * (lowercase + trim). Movies and series.
+ */
+export function getTrueStoryLabel(keywords: readonly string[] | undefined | null, t: BadgeT): string | null {
+  if (!keywords?.length) return null
+  const hit = keywords.some((k) => TRUE_STORY_KEYWORDS.has(k.toLowerCase().trim()))
+  return hit ? t("badge.trueStory") : null
+}
+
+/**
+ * "Based on a book" badge: exact match on normalized TMDB keywords.
+ * Movies and series. Independent from the true-story badge: when both apply,
+ * both are selectable and auto follows the documented priority (story first).
+ */
+export function getBasedOnBookLabel(keywords: readonly string[] | undefined | null, t: BadgeT): string | null {
+  if (!keywords?.length) return null
+  const hit = keywords.some((k) => BASED_ON_BOOK_KEYWORDS.has(k.toLowerCase().trim()))
+  return hit ? t("badge.basedOnBook") : null
+}
+
+/**
+ * Episode count for the "Only N episodes" enrichment: only a typed miniseries
+ * (same match as isMiniseriesType, never a short regular series) with a known
+ * integer count 1..8. Out of bounds = null (plain Miniseries unchanged).
+ */
+export function getFewEpisodesLabel(input: {
+  tvType: string | null | undefined
+  episodeCount?: number | null
+  t: BadgeT
+}): string | null {
+  if (!isMiniseriesType(input.tvType)) return null
+  const n = input.episodeCount
+  if (typeof n !== "number" || !Number.isInteger(n) || n < 1 || n > 8) return null
+  return input.t("badge.onlyEpisodes", { n })
+}
+
+/**
  * Badge "Just Added": film con uscita digitale recente (<14gg, mai futura).
  * Solo film: la data digitale arriva dal rilevamento pre-release (route),
  * assente = niente bollino (mai una chiamata forzata, mai un'invenzione).
@@ -247,10 +386,10 @@ export function isKDramaBadgeEligible(
 export function computeTopBadge(input: BadgeInput, t: BadgeT, locale?: string, order?: readonly SashBucket[] | null, dateFormat?: DateFormat | null): ComputedTopBadge {
   const now = Date.now()
   const TWO_WEEKS_MS = 14 * 24 * 60 * 60 * 1000
-  // Date FUTURE bug: con una data di uscita in avanti, (now - date) era negativo
-  // e quindi < TWO_WEEKS_MS sempre → badge "nuovo" per tutto il periodo pre-release.
-  // Il badge "nuovo" vale SOLO se la data è nel passato e dentro le 2 settimane;
-  // le date future sono gestite dal badge "in arrivo" (upcomingRelease).
+  // Future-date guard: with a forward date, (now - date) is negative and
+  // therefore always < TWO_WEEKS_MS, which would badge everything as "new"
+  // through the whole pre-release window. "New" only applies to past dates
+  // inside two weeks; future dates belong to the upcoming badge.
   const releaseTime = input.releaseDate ? new Date(input.releaseDate).getTime() : NaN
   const isNewMovie = input.mediaType === "movie" && Number.isFinite(releaseTime)
     ? releaseTime <= now && (now - releaseTime) < TWO_WEEKS_MS
@@ -260,8 +399,8 @@ export function computeTopBadge(input: BadgeInput, t: BadgeT, locale?: string, o
     ? firstAirTime <= now && (now - firstAirTime) < TWO_WEEKS_MS
     : false
 
-  // Premi certi da liste ID prima delle label generiche Wikidata (stesse
-  // stringhe canoniche = stesso sync dropdown/cache, vedi award-ids.ts).
+  // Certain awards from curated ID lists first, then generic Wikidata labels
+  // (same canonical strings keep dropdown/cache in sync, see award-ids.ts).
   const mergedAwards = withIdAwards(input.tmdbId, input.mediaType, input.awards)
   const mergedNoms = withIdNoms(input.tmdbId, input.mediaType, input.nominations)
   const awardBadge = mergedAwards.length ? getAwardBadgeLabel(mergedAwards, t) : null
@@ -295,8 +434,8 @@ export function computeTopBadge(input: BadgeInput, t: BadgeT, locale?: string, o
   const seriesEnded = input.mediaType === "tv"
     ? getSeriesEndedLabel({ tvStatus: input.tvStatus, lastAirDate: input.lastAirDate, t })
     : null
-  // Una serie appena finita NON è "nuova stagione": il finale sopprime la
-  // label (stessa regola nel dropdown, mai forkare la formula).
+  // A just-ended series is NOT a "new season": the finale suppresses that
+  // label (same rule as the dropdown, never fork the formula).
   const newSeason = input.mediaType === "tv" && !seriesEnded
     ? getNewSeasonLabel({
         lastAirDate: input.lastAirDate,
@@ -305,14 +444,29 @@ export function computeTopBadge(input: BadgeInput, t: BadgeT, locale?: string, o
         t,
       })
     : null
+  const trueStory = getTrueStoryLabel(input.keywords || [], t)
+  const basedOnBook = getBasedOnBookLabel(input.keywords || [], t)
+  const nextEpisode = input.mediaType === "tv"
+    ? getNextEpisodeLabel({
+        mediaType: "tv",
+        airDate: input.nextEpisodeAirDate,
+        locale: locale || "it",
+        dateFormat: dateFormat ?? "locale",
+        t,
+      })
+    : null
   const isKDrama = input.mediaType === "tv" && isKDramaBadgeEligible(input.originCountries, input.genreIds)
-  // Miniserie (formato permanente) e serie in corso (status transitorio):
-  // stesse condizioni del dropdown (getAllBadgeOptions), promosse ad auto in
-  // coda all'extra. Una sola placca: miniserie vince su returning.
-  // I match vivono in isMiniseriesType/isReturningStatus (badge-priority):
-  // coprono en/it/ar senza forkare la formula.
+  // Miniseries (permanent format) and returning series (transient status):
+  // same conditions as the dropdown (getAllBadgeOptions), promoted to auto
+  // at the extra tail. Single badge: miniseries wins over returning. Matchers
+  // live in isMiniseriesType/isReturningStatus (badge-priority). With a known
+  // count 1..8 the miniseries enriches to "Only N episodes" (never a short
+  // regular series: miniseries type only, see getFewEpisodesLabel).
+  const fewEpisodes = input.mediaType === "tv"
+    ? getFewEpisodesLabel({ tvType: input.tvType, episodeCount: input.numberOfEpisodes, t })
+    : null
   const miniseries = input.mediaType === "tv" && isMiniseriesType(input.tvType)
-    ? t("badge.miniseries")
+    ? (fewEpisodes ?? t("badge.miniseries"))
     : null
   const returning = input.mediaType === "tv" && !miniseries && isReturningStatus(input.tvStatus)
     ? t("badge.returning")
@@ -325,6 +479,7 @@ export function computeTopBadge(input: BadgeInput, t: BadgeT, locale?: string, o
     isNewSeries,
     justAdded,
     newSeason,
+    nextEpisode,
     animeRank: input.animeRank,
     trendRank: input.trendRank,
     award: awardBadge,
@@ -335,6 +490,8 @@ export function computeTopBadge(input: BadgeInput, t: BadgeT, locale?: string, o
     returning,
     seriesEnded,
     subGenre: subGenreBadge,
+    trueStory,
+    basedOnBook,
     isKDrama,
     imdbTop250: !!input.imdbTop250,
     extra: extraFallback,
@@ -346,31 +503,91 @@ export function computeTopBadge(input: BadgeInput, t: BadgeT, locale?: string, o
     isNewMovie,
     isNewSeries,
     newSeason,
+    nextEpisode,
     justAdded,
     seriesEnded,
     extraFallback,
     awardBadge,
     studioBadge,
     subGenreBadge,
+    trueStory,
+    basedOnBook,
   }
 }
 
 /**
- * Decide cosa congelare in `badgeExtra` del mapping salvato. I badge
- * time-bound non si congelano mai (resterebbero per sempre): "In uscita",
- * "Nuova stagione", "Ritorna", "Just Added" e "Serie conclusa" (lo status è
- * transitorio, Stremio lo ricalcola a runtime). "Miniserie" resta
- * congelabile (formato permanente).
+ * Which badge value to freeze into the saved mapping's `badgeExtra`.
+ * Time-bound badges are never frozen (they would stick forever): upcoming,
+ * new season, next episode (ephemeral date), returning, Just Added, and
+ * ended series (transient status, recomputed at runtime). Miniseries (even
+ * enriched to "Only N episodes"), true story, and book stay freezable
+ * (permanent properties).
  */
 export function resolveSavedBadgeExtra(
-  computed: Pick<ComputedTopBadge, "badge" | "upcomingRelease" | "newSeason"> & Partial<Pick<ComputedTopBadge, "justAdded" | "seriesEnded">>,
+  computed: Pick<ComputedTopBadge, "badge" | "upcomingRelease" | "newSeason"> & Partial<Pick<ComputedTopBadge, "justAdded" | "seriesEnded" | "nextEpisode">>,
   t: BadgeT,
 ): string | undefined {
   if (computed.badge?.type !== "extra") return undefined
   if (computed.upcomingRelease && computed.badge.label === computed.upcomingRelease) return undefined
   if (computed.newSeason && computed.badge.label === computed.newSeason) return undefined
+  if (computed.nextEpisode && computed.badge.label === computed.nextEpisode) return undefined
   if (computed.badge.label === t("badge.returning")) return undefined
   if (computed.justAdded && computed.badge.label === computed.justAdded) return undefined
   if (computed.seriesEnded && computed.badge.label === computed.seriesEnded) return undefined
   return computed.badge.label
+}
+
+/**
+ * True when the EFFECTIVE displayed top badge is the next-episode badge
+ * (auto or canonical manual identity). Uses the shared selection
+ * (`computeTopBadge`) — no divergent priority chain.
+ *
+ * - Manual token (`__badge.nextEpisode`) wins when eligible (same as the
+ *   renderer: explicit override beats computed, Coming Soon never overrides a
+ *   manual choice); elapsed token = miss, never a stale date.
+ * - Any other manual text wins over auto (auto next is not displayed).
+ * - Auto path reuses `computeTopBadge` with the same inputs, so rank,
+ *   upcoming, awards, sash-disabled (`new` off), and Coming Soon overrides
+ *   all behave exactly like the render: only a truly displayed next badge
+ *   returns true.
+ * - Network/logo suppression cannot trigger for dated next-episode labels
+ *   (exact dated text never equals a provider name, and the Sky-family guard
+ *   skips manual overrides), so it needs no separate branch here.
+ */
+export function isNextEpisodeDisplayed(input: {
+  mediaType: "movie" | "tv"
+  rankingEnabled: boolean
+  badgesEnabled?: boolean
+  queryExtra: string | null | undefined
+  badgeInput: BadgeInput
+  locale?: string
+  sashOrder?: readonly SashBucket[] | null
+  dateFormat?: DateFormat | null
+  preRelease?: boolean
+  t: BadgeT
+}): boolean {
+  if (input.mediaType !== "tv") return false
+  if (!input.rankingEnabled) return false
+  if (input.badgesEnabled === false) return false
+  const locale = input.locale ?? "it"
+  const dateFormat = input.dateFormat ?? "locale"
+  const nextLabel = getNextEpisodeLabel({
+    mediaType: "tv",
+    airDate: input.badgeInput.nextEpisodeAirDate ?? null,
+    locale,
+    dateFormat,
+    t: input.t,
+  })
+  if (!nextLabel) return false
+  const raw = input.queryExtra ?? null
+  if (isNextEpisodeBadgeKey(raw)) return true
+  if (raw) return false
+  const computed = computeTopBadge(input.badgeInput, input.t, locale, input.sashOrder ?? null, dateFormat)
+  if (!computed.badge || computed.badge.type !== "extra") return false
+  if (computed.badge.label !== nextLabel) return false
+  if (input.preRelease) {
+    const isUpcoming = !!computed.upcomingRelease && computed.badge.label === computed.upcomingRelease
+    if (!isUpcoming) return false
+  }
+  return true
 }

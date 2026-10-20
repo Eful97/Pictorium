@@ -13,7 +13,7 @@ import type { ServerDefaults } from "./server-defaults"
 import { resolveLabelFor } from "./i18n"
 import { resolveRatingSources } from "./rating-weights"
 import { parseMinQuality, type StreamQuality } from "./quality-tiers"
-import { parseSashOrder, normalizeSashOrder, DEFAULT_SASH_ORDER, type SashBucket } from "./badge-priority"
+import { parseSashOrder, normalizeSashOrder, DEFAULT_SASH_ORDER, NEXT_EPISODE_BADGE_KEY, type SashBucket } from "./badge-priority"
 import {
   isBadgeStyle,
   isRankingBadgeStyle,
@@ -1115,11 +1115,15 @@ export function resolvePosterRenderConfig(input: PosterRenderConfigInput): Poste
       ? (Number.isFinite(qNoyNum) ? clamp(Math.round(qNoyNum), -2000, 2000) : 0)
       : (mNoyOff ?? cNoyOff ?? sNoyOff ?? 0))
 
-  // Fix L32: le label prefissate (__badge.*) vengono risolte con la lingua
-  // della richiesta — prima un customBadge "__badge.anime" dal config token
-  // arrivava letterale al renderer (la preview invece la risolveva → desync).
+  // Prefixed labels (`__badge.*`) resolve in the request language — a
+  // `__badge.anime` customBadge from a config token used to reach the
+  // renderer literally (preview desync). The canonical next-episode identity
+  // passes through verbatim: the renderer resolves it to the CURRENT dated
+  // label (or nothing when elapsed), never to a `{date}` placeholder.
   const rawExtra = q.get("extra") || configOverride?.customBadge || null
-  const queryExtra = rawExtra ? resolveLabelFor(rawExtra, input.lang || "it") : null
+  const queryExtra = rawExtra === NEXT_EPISODE_BADGE_KEY
+    ? rawExtra
+    : rawExtra ? resolveLabelFor(rawExtra, input.lang || "it") : null
   const rawNetLogo = q.get("netLogo")
   const networkLogo: boolean = rawNetLogo !== null
     ? rawNetLogo !== "0"

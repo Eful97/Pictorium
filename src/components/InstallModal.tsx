@@ -6,6 +6,7 @@ import { X, Check, Copy, Download, ExternalLink, Tv } from "lucide-react"
 import QRCode from "qrcode"
 import { useT } from "@/lib/contexts/TranslationContext"
 import { copyText } from "@/lib/clipboard"
+import { InstallCheckSection } from "@/components/InstallCheckSection"
 import { Modal } from "@/components/ui/Modal"
 
 interface InstallModalProps {
@@ -486,6 +487,9 @@ export function InstallModal({
                   <p dir="auto" className="text-xs text-zinc-400 text-center">{t("ui.scanQr")}</p>
                 </div>
               </details>
+
+              {/* Live diagnostics of the selected context: never blocking. */}
+              <InstallCheckSection manifestUrl={resolvedManifestUrl} />
             </div>
           </div>
 

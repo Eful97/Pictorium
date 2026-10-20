@@ -5,6 +5,7 @@ import { toast } from "sonner"
 import { usePSelector } from "@/lib/context"
 import { useT } from "@/lib/contexts/TranslationContext"
 import { ApiError, http } from "@/lib/http"
+import { requestOnboardingReplay } from "@/lib/onboarding-progress"
 import { MenuItem } from "@/components/ui"
 import { adminAuthHeaders, hasAdminToken } from "@/lib/admin-token"
 import type { BackupExportOptions, BackupImportOptions } from "@/lib/useMappingsStore"
@@ -32,6 +33,7 @@ export function DataPanel({ active, exportData, importData, setSettingsOpen, mul
     else run()
   }
   const setShowLangPicker = usePSelector((v) => v.setShowLangPicker)
+  const currentUserId = usePSelector((v) => v.currentUserId)
   const { t } = useT()
   const [clearStatus, setClearStatus] = useState<"idle" | "clearing" | "cleared">("idle")
   const clearTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -201,8 +203,14 @@ export function DataPanel({ active, exportData, importData, setSettingsOpen, mul
         </div>
         <button
           type="button"
+          data-testid="repeat-setup"
           onClick={() => {
             guarded(() => {
+              // Explicit replay intent for the current namespace only: the
+              // wizard runs first (LangPicker), then AppShell opens the new
+              // action checklist once. Keys, posters and settings are
+              // untouched; other namespaces never see this intent.
+              requestOnboardingReplay(currentUserId ?? null)
               setSettingsOpen(false)
               setShowLangPicker(true)
             })

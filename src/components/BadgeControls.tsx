@@ -26,12 +26,12 @@ import type { ExtraBadgeStyle, RankingBadgeStyle } from "@/lib/badge-styles"
 import type { SeasonalThemeChoice } from "@/lib/seasonal-theme"
 import { lookupAVSpecs, KNOWN_VIDEO_FORMATS } from "@/lib/av-specs"
 import { getAwardBadgeLabel, getNominationBadgeLabel } from "@/lib/badge-labels"
-import { getNewSeasonLabel, getSeriesEndedLabel, isKDramaBadgeEligible } from "@/lib/poster-badge"
+import { getBasedOnBookLabel, getFewEpisodesLabel, getNewSeasonLabel, getNextEpisodeLabel, getSeriesEndedLabel, getTrueStoryLabel, isKDramaBadgeEligible } from "@/lib/poster-badge"
 import { withIdAwards, withIdNoms } from "@/lib/award-ids"
 import { getSubGenreLabel } from "@/lib/subgenres"
 import { getUpcomingReleaseLabel } from "@/lib/release-badge"
 import { isPrefixedKey, badgeKey } from "@/lib/i18n"
-import { getAllBadgeOptions, isMiniseriesType, isReturningStatus } from "@/lib/badge-priority"
+import { getAllBadgeOptions, isMiniseriesType, isReturningStatus, NEXT_EPISODE_BADGE_KEY } from "@/lib/badge-priority"
 import { isManualAccent } from "@/lib/accent-color"
 import { resolveAccentPickerDisplay, useEffectiveAccent } from "@/lib/useEffectiveAccent"
 import { isBottomSeparateRatingsStyle, getSeparateRatingsStyleForShape } from "@/lib/badge-styles"
@@ -624,32 +624,53 @@ export function BadgeControls() {
                   seasonCount: metaInfo.number_of_seasons,
                   t,
                 }) : null
+                // Same formulas as the server (computeTopBadge): future episode
+                // 1..14d (never movies), exact keywords, miniseries 1..8.
+                const nextEpisode = selected.media_type === "tv" ? getNextEpisodeLabel({
+                  mediaType: "tv",
+                  airDate: metaInfo.next_episode_to_air?.air_date ?? null,
+                  locale: lang,
+                  dateFormat: ed.defaultDateFormat,
+                  t,
+                }) : null
+                const trueStory = getTrueStoryLabel(metaInfo.keywords || [], t)
+                const basedOnBook = getBasedOnBookLabel(metaInfo.keywords || [], t)
+                const fewEpisodes = selected.media_type === "tv" ? getFewEpisodesLabel({
+                  tvType: metaInfo.type,
+                  episodeCount: metaInfo.number_of_episodes ?? null,
+                  t,
+                }) : null
                 const isKDrama = selected.media_type === "tv" && isKDramaBadgeEligible([
                   ...(metaInfo.networksDetailed ?? []),
                   ...(metaInfo.productionCompaniesDetailed ?? []),
                 ].map((c) => c.origin_country).filter((c): c is string => !!c),
                   Array.isArray(metaInfo.genres) ? metaInfo.genres.map((g) => g.id).filter((id): id is number => Number.isFinite(id)) : null)
                 const options = getAllBadgeOptions({
-                  upcomingRelease, isNewMovie, isNewSeries, newSeason, animeRank, trendRank: trendRank,
-                  // justAdded: data digitale solo server-side (pre-release) —
-                  // il dropdown non può calcolarlo, l'auto-badge resta server.
+                  upcomingRelease, isNewMovie, isNewSeries, newSeason, nextEpisode, animeRank, trendRank: trendRank,
+                  // justAdded needs server-side digital data (pre-release):
+                  // the dropdown cannot compute it, auto stays server-side.
                   justAdded: null,
                   award, awardWins: mergedAwards, nomination, studio,
-                  director: metaInfo.director || null, subGenre, isKDrama, extra,
+                  director: metaInfo.director || null, subGenre, trueStory, basedOnBook, fewEpisodes, isKDrama, extra,
                   seriesEnded,
                   mediaType: selected.media_type === "tv" ? "tv" : "movie",
                   voteAverage: metaInfo.voteAverage, tvType, tvStatus,
                   imdbTop250: !!imdbTop250,
                 })
                 const savedMissing = ed.customBadge && !options.includes(ed.customBadge) ? ed.customBadge : null
+                // The canonical next-episode token is stored, but the menu
+                // shows the current dated label for readability.
+                const displayFor = (o: string): string => {
+                  if (o === NEXT_EPISODE_BADGE_KEY) return nextEpisode ?? t("badge.nextEpisode", { date: "" }).trim()
+                  return isPrefixedKey(o) ? t(badgeKey(o)) : o
+                }
                 return (
                   <>
                     {options.map((o) => {
-                      const display = isPrefixedKey(o) ? t(badgeKey(o)) : o
-                      return <option key={o} value={o}>{display}</option>
+                      return <option key={o} value={o}>{displayFor(o)}</option>
                     })}
                     {savedMissing && (
-                      <option value={savedMissing}>{isPrefixedKey(savedMissing) ? t(badgeKey(savedMissing)) : savedMissing}</option>
+                      <option value={savedMissing}>{displayFor(savedMissing)}</option>
                     )}
                   </>
                 )

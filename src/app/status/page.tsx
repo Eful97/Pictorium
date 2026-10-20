@@ -61,6 +61,12 @@ interface CacheStatusData {
       webp: number
       avif: number
     }
+    latency?: {
+      windowMs: number
+      capacity: number
+      cached: { count: number; p50Ms: number | null; p95Ms: number | null }
+      render: { count: number; p50Ms: number | null; p95Ms: number | null }
+    }
     activeRenders: number
     queuedRenders: number
     maxConcurrent: number
@@ -483,6 +489,28 @@ export default function StatusPage() {
                             <span>AVIF <span className="text-emerald-400 font-semibold">{f.avif} ({pct(f.avif)}%)</span></span>
                             <span>JPEG <span className="text-zinc-300 font-semibold">{f.jpeg} ({pct(f.jpeg)}%)</span></span>
                           </div>
+                        </>
+                      )
+                    })()}
+                  </div>
+
+                  {/* Poster response latency, cached vs render (per-process diagnostics, rolling window) */}
+                  <div className="pt-2">
+                    <span className="text-xs text-zinc-400 block mb-1.5">{t("ui.statusPosterLatencyTitle")}</span>
+                    {(() => {
+                      const lat = cacheStatus.poster.latency
+                      const minutes = lat ? Math.max(1, Math.round(lat.windowMs / 60000)) : 15
+                      const sample = (s?: { count: number; p50Ms: number | null; p95Ms: number | null }) =>
+                        s && s.count > 0 && s.p50Ms !== null && s.p95Ms !== null
+                          ? t("ui.statusPosterLatencyValue", { count: s.count, p50: s.p50Ms, p95: s.p95Ms })
+                          : t("ui.statusPosterLatencyNoData")
+                      return (
+                        <>
+                          <div className="space-y-1">
+                            <StatusRow label={t("ui.statusPosterLatencyCached")} ok={null} extra={sample(lat?.cached)} />
+                            <StatusRow label={t("ui.statusPosterLatencyFresh")} ok={null} extra={sample(lat?.render)} />
+                          </div>
+                          <p className="text-[11px] text-zinc-500 mt-1.5">{t("ui.statusPosterLatencyNote", { minutes })}</p>
                         </>
                       )
                     })()}

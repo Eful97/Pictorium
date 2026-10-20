@@ -1,5 +1,19 @@
 import { BADGE_KEY_PREFIX } from "./i18n"
 
+/**
+ * Stable identity for a manual "next episode" selection. The dropdown offers
+ * the current dated label for readability, but the saved mapping stores this
+ * token (never the dated text) so the runtime can resolve the CURRENT
+ * eligible label — or nothing once the window elapses. Exact match only;
+ * free-text badges are never pattern-matched against it.
+ */
+export const NEXT_EPISODE_BADGE_KEY = `${BADGE_KEY_PREFIX}badge.nextEpisode`
+
+/** Exact-match check for the canonical next-episode identity (never a regex). */
+export function isNextEpisodeBadgeKey(value: string | null | undefined): boolean {
+  return value === NEXT_EPISODE_BADGE_KEY
+}
+
 export interface BadgeResult {
   type: "extra" | "rank"
   label: string
@@ -18,12 +32,13 @@ type T = (key: string, params?: Record<string, string | number>) => string
 const _idT: T = (k) => k
 
 /**
- * Categorie sash (bucket) in ordine di priorità di default — IDENTICO
- * all'ex if-chain (upcoming > animeRank > trendRank > isNewMovie >
- * isNewSeries > newSeason > award > imdbTop250 > nomination > subGenre >
- * isKDrama > director > studio > extra). L'ordine interno a ogni bucket è
- * fisso e preservato; la lista è pilotabile (sottoinsieme/riordino) via
- * query `sash` o default globali — mai DSL.
+ * Default sash-bucket priority — identical to the former if-chain
+ * (upcoming > animeRank > trendRank > isNewMovie >
+ * isNewSeries > newSeason > nextEpisode > award > imdbTop250 > nomination >
+ * subGenre > trueStory > basedOnBook >
+ * isKDrama > director > studio > extra). Order inside each bucket is fixed;
+ * the list is steerable (subset/reorder) via `sash` query or global
+ * defaults — never a DSL.
  */
 export const SASH_BUCKETS = ["upcoming", "rank", "new", "award", "extra"] as const
 
@@ -103,17 +118,22 @@ export interface BadgeParams {
   isNewSeries: boolean
   /** Film con uscita digitale recente (da getJustAddedLabel) o null. */
   justAdded?: string | null
-  /** Label "Nuova stagione [S2]" già localizzata (da getNewSeasonLabel) o null. */
+  /** Already-localized "New season [S2]" label (from getNewSeasonLabel). */
   newSeason?: string | null
+  /** Already-localized "Next episode {date}" label (from getNextEpisodeLabel). */
+  nextEpisode?: string | null
   animeRank: number | null
   trendRank: number | null
   award: string | null
   nomination: string | null
   studio: string | null
   director: string | null
-  /** Miniserie (formato permanente) — auto in coda all'extra, prima di returning. */
+  /** Already-localized "true story / book" content labels. */
+  trueStory?: string | null
+  basedOnBook?: string | null
+  /** Permanent format (auto at the extra tail, before returning). */
   miniseries?: string | null
-  /** Serie in corso — auto in coda all'extra; MAI congelato nei mapping (transitorio). */
+  /** Ongoing series (auto at the extra tail; NEVER frozen into mappings). */
   returning?: string | null
   subGenre?: string | null
   /** Serie TV prodotta in Corea del Sud (origin country KR). */
@@ -142,6 +162,9 @@ function resolveBucket(bucket: SashBucket, params: BadgeParams, t: T): BadgeResu
       if (params.isNewSeries) return { type: "extra", label: t("badge.newSeries") }
       if (params.justAdded) return { type: "extra", label: params.justAdded }
       if (params.newSeason) return { type: "extra", label: params.newSeason }
+      // Time-sensitive like "new season": right after it and above awards,
+      // which never expire.
+      if (params.nextEpisode) return { type: "extra", label: params.nextEpisode }
       return null
     case "award":
       if (params.award) return { type: "extra", label: params.award }
@@ -150,6 +173,10 @@ function resolveBucket(bucket: SashBucket, params: BadgeParams, t: T): BadgeResu
       return null
     case "extra":
       if (params.subGenre) return { type: "extra", label: params.subGenre }
+      // Permanent content below news/rank/awards: true story before book
+      // (deterministic documented order, both below sub-genre).
+      if (params.trueStory) return { type: "extra", label: params.trueStory }
+      if (params.basedOnBook) return { type: "extra", label: params.basedOnBook }
       if (params.isKDrama) return { type: "extra", label: "K-Drama" }
       if (params.director) return { type: "extra", label: params.director }
       if (params.studio) return { type: "extra", label: params.studio }
@@ -228,6 +255,8 @@ export function getAllBadgeOptions(params: {
   isNewSeries: boolean
   newSeason?: string | null
   justAdded?: string | null
+  /** Already-localized "Next episode {date}" label (manual menu). */
+  nextEpisode?: string | null
   animeRank: number | null
   trendRank: number | null
   award: string | null
@@ -237,6 +266,11 @@ export function getAllBadgeOptions(params: {
   studio: string | null
   director: string | null
   subGenre?: string | null
+  /** Already-localized content labels (manual menu). */
+  trueStory?: string | null
+  basedOnBook?: string | null
+  /** Already-localized "Only N episodes" label: replaces the plain Miniseries. */
+  fewEpisodes?: string | null
   isKDrama?: boolean
   imdbTop250?: boolean
   seriesEnded?: string | null
@@ -252,6 +286,9 @@ export function getAllBadgeOptions(params: {
   if (params.isNewSeries) options.add(keyed("badge.newSeries"))
   if (params.newSeason) options.add(keyed("badge.newSeason"))
   if (params.justAdded) options.add(params.justAdded)
+  // Manual next-episode stores the stable token identity, never the dated
+  // text: the runtime resolves the current label (or nothing when elapsed).
+  if (params.nextEpisode) options.add(NEXT_EPISODE_BADGE_KEY)
   if (params.trendRank) options.add(keyed("badge.today"))
   if (params.animeRank && params.animeRank <= ANIME_RANK_MAX) options.add(keyed("badge.anime"))
   if (params.award) options.add(params.award)
@@ -259,11 +296,13 @@ export function getAllBadgeOptions(params: {
   if (params.mediaType === "movie" && params.imdbTop250) options.add(keyed("badge.absoluteCinema"))
   if (params.nomination) options.add(params.nomination)
   if (params.subGenre) options.add(params.subGenre)
+  if (params.trueStory) options.add(params.trueStory)
+  if (params.basedOnBook) options.add(params.basedOnBook)
   if (params.isKDrama) options.add("K-Drama")
   if (params.director) options.add(params.director)
   if (params.studio) options.add(params.studio)
   if (params.mediaType === "tv") {
-    if (isMiniseriesType(params.tvType)) options.add(keyed("badge.miniseries"))
+    if (isMiniseriesType(params.tvType)) options.add(params.fewEpisodes ?? keyed("badge.miniseries"))
     if (isReturningStatus(params.tvStatus)) options.add(keyed("badge.returning"))
     if (params.seriesEnded) options.add(params.seriesEnded)
   }

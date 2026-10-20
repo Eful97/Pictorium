@@ -1116,6 +1116,143 @@ export function __resetPosterStatsForTest(): void {
   posterMetrics.formats.jpeg = 0
   posterMetrics.formats.webp = 0
   posterMetrics.formats.avif = 0
+  __resetPosterLatencyForTests()
+}
+
+// ---------------------------------------------------------------------------
+// Poster latency diagnostics (rolling per-process observations, cached vs NEW)
+// ---------------------------------------------------------------------------
+// Two buckets, separated by what the request actually cost the pipeline:
+// - "cached": served WITHOUT running the render pipeline — fresh cache hits
+//   (canonical + variant-conversion hits), stale/SWR serves (the scheduled
+//   background refresh re-renders separately and records its own "render"
+//   sample), and 304s answered from a cached entry.
+// - "render": the full render pipeline ran for this response — canonical and
+//   variant renders alike, preview (`preview=1`) renders, background-refresh
+//   renders, and revalidation renders (stale/expired + conditional that
+//   re-rendered instead of answering 304).
+// Explicitly EXCLUDED (no sample in either bucket, never double-counted):
+// - coalesced waiters: they await ANOTHER request's render, so their latency
+//   measures queue + someone else's pipeline, not own-cache nor own-render.
+//   Counted in the existing coalescedHits counter, not here.
+// - error responses: negative-cache hits, 500/503/404/400, slot/format-gate
+//   overload 503s, deadline-abandoned 503s. Counted in errors/negative stats.
+// - diagnostic JSON branches (`?accentmeta=1`, `?netgeo=1` debug): not poster
+//   bytes, and they never touch the request counters either.
+// - variant conversion encode: INCLUDED in whichever bucket served the
+//   response — "cached" conversions dominate their sample honestly, and
+//   "render" is recorded at terminal success (after conversion), so a failed
+//   conversion (500/503) never counts as a served render.
+// No PII/telemetry: only {ms, at} numbers. Bounded fixed memory (capacity
+// × 2 buckets), rolling window expiry, quantiles computed on diagnostic read
+// (getPosterStats, served by the admin-only /api/cache/status) — never sorted
+// or aggregated on the per-request path. Single-process scope: other
+// instances/CDN-cold answer from their own window, never merged.
+
+export type PosterLatencyKind = "cached" | "render"
+
+/** Rolling observation window (15min): samples older than this are pruned. */
+export const POSTER_LATENCY_WINDOW_MS = 15 * 60 * 1000
+/** Max retained samples PER bucket (fixed memory: 2 × capacity entries). */
+export const POSTER_LATENCY_MAX_SAMPLES = 1024
+
+interface PosterLatencySample {
+  readonly ms: number
+  readonly at: number
+}
+
+const posterLatency: Record<PosterLatencyKind, PosterLatencySample[]> = {
+  cached: [],
+  render: [],
+}
+
+function prunePosterLatency(kind: PosterLatencyKind, nowMs: number): void {
+  const arr = posterLatency[kind]
+  const cutoff = nowMs - POSTER_LATENCY_WINDOW_MS
+  let drop = 0
+  while (drop < arr.length && arr[drop]!.at <= cutoff) drop++
+  if (drop > 0) arr.splice(0, drop)
+  while (arr.length > POSTER_LATENCY_MAX_SAMPLES) arr.shift()
+}
+
+/**
+ * Record one poster-response latency sample. Invalid inputs are dropped
+ * silently (fail-closed: negative/NaN/Infinite durations or timestamps never
+ * enter the window, so clock adjustments cannot poison the quantiles).
+ * Unknown kinds are ignored (never create buckets).
+ */
+export function recordPosterLatency(
+  kind: PosterLatencyKind,
+  ms: number,
+  nowMs: number = Date.now(),
+): void {
+  if (kind !== "cached" && kind !== "render") return
+  if (!Number.isFinite(ms) || ms < 0) return
+  if (!Number.isFinite(nowMs) || nowMs < 0) return
+  posterLatency[kind].push({ ms, at: nowMs })
+  prunePosterLatency(kind, nowMs)
+}
+
+/**
+ * Quantile by linear interpolation on SORTED values (R-7 / numpy "linear":
+ * rank = q * (n - 1), interpolate between adjacent ranks). Single value →
+ * itself; empty → null (honest no-data, never zero).
+ */
+export function posterLatencyQuantile(sorted: readonly number[], q: number): number | null {
+  if (sorted.length === 0) return null
+  if (sorted.length === 1) return sorted[0]!
+  const rank = q * (sorted.length - 1)
+  const lo = Math.floor(rank)
+  const hi = Math.ceil(rank)
+  if (lo === hi) return sorted[lo]!
+  const frac = rank - lo
+  return sorted[lo]! + (sorted[hi]! - sorted[lo]!) * frac
+}
+
+export interface PosterLatencySummary {
+  readonly count: number
+  /** Median of the rolling window, 1-decimal ms; null when count is 0. */
+  readonly p50Ms: number | null
+  /** 95th percentile of the rolling window, 1-decimal ms; null when count is 0. */
+  readonly p95Ms: number | null
+}
+
+export interface PosterLatencyStats {
+  readonly windowMs: number
+  readonly capacity: number
+  readonly cached: PosterLatencySummary
+  readonly render: PosterLatencySummary
+}
+
+/**
+ * Diagnostic read: prune expired samples, then compute count/p50/p95 per
+ * bucket. Sorting + quantiles happen HERE (admin poll cadence), never on the
+ * per-request recording path.
+ */
+export function getPosterLatencyStats(nowMs: number = Date.now()): PosterLatencyStats {
+  const summarize = (kind: PosterLatencyKind): PosterLatencySummary => {
+    prunePosterLatency(kind, nowMs)
+    const values = posterLatency[kind].map((s) => s.ms).sort((a, b) => a - b)
+    if (values.length === 0) return { count: 0, p50Ms: null, p95Ms: null }
+    const round1 = (n: number): number => Math.round(n * 10) / 10
+    return {
+      count: values.length,
+      p50Ms: round1(posterLatencyQuantile(values, 0.5) ?? 0),
+      p95Ms: round1(posterLatencyQuantile(values, 0.95) ?? 0),
+    }
+  }
+  return {
+    windowMs: POSTER_LATENCY_WINDOW_MS,
+    capacity: POSTER_LATENCY_MAX_SAMPLES,
+    cached: summarize("cached"),
+    render: summarize("render"),
+  }
+}
+
+/** Test-only: clears latency observations (both buckets). */
+export function __resetPosterLatencyForTests(): void {
+  posterLatency.cached.length = 0
+  posterLatency.render.length = 0
 }
 
 export function getPosterStats() {
@@ -1133,6 +1270,9 @@ export function getPosterStats() {
     hitRate: `${hitRate}%`,
     hitRateNum: hitRate,
     formats: { ...posterMetrics.formats },
+    // Rolling cached-vs-render latency (additive: shapes the admin status
+    // payload via /api/cache/status, never exposed on public /api/status).
+    latency: getPosterLatencyStats(),
     activeRenders,
     zombieRenders,
     zombieGraceExpired,

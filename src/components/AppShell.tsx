@@ -9,6 +9,8 @@ import { LangPicker } from "@/components/LangPicker"
 import { HomeStatusStrip } from "@/components/HomeStatusStrip"
 import { currentPathUuid, isUserUnlocked, requestUserUnlock, USER_UNLOCK_EVENT } from "@/lib/user-token"
 import { requestSettingsTab } from "@/lib/settings-tab"
+import { ONBOARDING_INSTALL_OPENED_EVENT } from "@/lib/onboarding-progress"
+import { useOnboardingReplayIntent } from "@/lib/use-onboarding-replay"
 import { isMultiUserServer } from "@/lib/guest-guard"
 import { Settings, Plug, QrCode, Images, Library, KeyRound } from "lucide-react"
 import { DesktopCommunityLinks, MobileCommunityLinks } from "@/components/HeaderCommunityLinks"
@@ -111,6 +113,31 @@ export function AppShell() {
 
   const [installOpen, setInstallOpen] = useState(false)
 
+  // Explicit onboarding replay ("Repeat guided setup"): transient intent,
+  // scoped to the requesting namespace and consumed once when the setup
+  // wizard finishes. In-memory only — a reload never auto-replays. Keys,
+  // posters and settings are untouched; the wizard (LangPicker) always runs
+  // first and the tour opens after it closes (never stacked). State machine
+  // lives in the hook (same wiring the integration tests exercise); the tour
+  // retires the active intent on manual dismiss via onReplayClosed so a
+  // dismissed session never replays on a later remount.
+  const { activeReplay, promotePendingReplay, clearActiveReplay } =
+    useOnboardingReplayIntent(currentUserId)
+
+  // The wizard owns the focus while open (the tour stays parked via the
+  // !showLangPicker gate below). Only a replay requested from the current
+  // namespace activates; anything else is dropped, never replayed later.
+  const handleWizardDone = useCallback(() => {
+    setShowLangPicker(false)
+    promotePendingReplay()
+  }, [promotePendingReplay, setShowLangPicker])
+
+  // First-use onboarding: the tour checklist advances when the install modal
+  // actually opens (real action, not the click) — including toolbar opens.
+  useEffect(() => {
+    if (installOpen) window.dispatchEvent(new CustomEvent(ONBOARDING_INSTALL_OPENED_EVENT))
+  }, [installOpen])
+
   // Lock toolbar pre-auth (multi-user): senza uuid o senza unlock di sessione
   // i bottoni top-right + bottom-nav restano disabilitati — l'auth passa solo
   // dal gate centrale (UserSpacesList) o dal modal di sblocco. Single-user
@@ -205,7 +232,7 @@ export function AppShell() {
         <LangPicker
           onPickLang={pickLang}
           onPickRegion={(regionCode) => { ed.setDefaultRegion(regionCode); ed.setRegion(regionCode) }}
-          onDone={() => setShowLangPicker(false)}
+          onDone={handleWizardDone}
           skipPin={isUserPath || uuidShortcutVisible}
         />
       )}
@@ -488,7 +515,7 @@ export function AppShell() {
         />
       )}
     </div>
-    {!showLangPicker && !pinLocked && <OnboardingTour />}
+    {!showLangPicker && !pinLocked && <OnboardingTour onOpenInstall={() => setInstallOpen(true)} replayRequest={activeReplay} onReplayClosed={clearActiveReplay} />}
     {hasPinConfigured && !isUnlocked && !showLangPicker && !isUserPath && (
       <PinLockModal onSuccess={handlePinUnlock} />
     )}

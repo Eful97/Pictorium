@@ -39,14 +39,14 @@ export function getUpcomingReleaseLabel(input: {
   return translate("badge.upcomingRelease", { date: formatReleaseDate(date, input.locale ?? "it", input.dateFormat ?? "locale") })
 }
 
-function parseTmdbDate(value?: string | null): Date | null {
+export function parseTmdbDate(value?: string | null): Date | null {
   if (!value) return null
   const [year, month, day] = value.split("-").map(Number)
   if (!year || !month || !day) return null
   return new Date(year, month - 1, day)
 }
 
-function formatReleaseDate(date: Date, locale: string, dateFormat: DateFormat): string {
+export function formatReleaseDate(date: Date, locale: string, dateFormat: DateFormat): string {
   // Formati espliciti: uguali in ogni lingua, anno a 2 cifre per dmy/mdy
   // (stessa larghezza badge del passato), ISO a 4 cifre (non ambiguo).
   if (dateFormat !== "locale") {

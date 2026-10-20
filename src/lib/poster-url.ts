@@ -23,7 +23,7 @@ import { isAgeBadgeStyle } from "./badge-styles"
 import { isExtraBadgeStyle, isExtraFollowRank } from "./badge-styles"
 import { getSeparateBadgeDefaultScale, getSeparateRatingsStyleForShape, getQualityBadgeOffsetDefault } from "./badge-styles"
 import type { LandscapeServerDefaults } from "./server-defaults"
-import { DEFAULT_SASH_ORDER, type SashBucket } from "./badge-priority"
+import { DEFAULT_SASH_ORDER, NEXT_EPISODE_BADGE_KEY, type SashBucket } from "./badge-priority"
 import type { VideoFormat } from "./av-specs"
 import type { PosterShape, NetworkLogoPosition, PosterLayout, PosterFreshScope } from "./types"
 import { isPosterLayout } from "./types"
@@ -605,10 +605,16 @@ function computeBadgeParams(ps: PosterState, bp: BadgeParams): string[] {
     const selected = ps.selected
     const animeRank = selected && ps.mdblistAnimeList.length > 0
       ? (ps.mdblistAnimeList.find((a) => a.id === selected.id)?.rank ?? null) : null
+    // Canonical next-episode identity travels verbatim: the server resolves
+    // the current dated label (or nothing when elapsed) in both preview and
+    // Stremio, so the two never diverge.
+    if (bp.customBadge === NEXT_EPISODE_BADGE_KEY) params.push(`extra=${encodeURIComponent(bp.customBadge)}`)
+    else {
     const rankKey = isRankKey(bp.customBadge)
     if ((rankKey === "badge.today" || rankKey === "badge.movie" || rankKey === "badge.series") && ps.trendRank) params.push(`rank=${ps.trendRank}&label=${encodeURIComponent(tFn("badge.today"))}`)
     else if (rankKey === "badge.anime" && animeRank) params.push(`rank=${animeRank}&label=${encodeURIComponent(tFn("badge.anime"))}`)
     else params.push(`extra=${encodeURIComponent(resolveLabel(bp.customBadge))}`)
+    }
   }
   // For auto badges, let the server compute from its own TMDB data
   return params

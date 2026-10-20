@@ -23,3 +23,21 @@ modified the work, with a relevant date (AGPL-3.0 section 5(a)).
 Fork provenance: if you publish a derivative on GitHub, please use the
 "Fork" button on https://github.com/Eful97/Pictorium so the fork network
 stays connected to the original project.
+
+Fork contributions reused here (this section only):
+four badge ideas/code paths reused from the fork kesemb2/Pictorium-HE
+(https://github.com/kesemb2/Pictorium-HE) at pinned commit
+9bbd83961d2d9cc368c9ec21efd9bda927a2e292 (source verified 2026-10-20):
+1. exact TMDB keyword matching for "based on (a) true story" and the
+   "based on novel or book" variants (tag-catalog.ts KEYWORD_TAGS
+   s_truestory/s_book) — only these two entries;
+2. "Only N episodes" enrichment for miniseries with a known episode
+   count of 1..8 (tag-catalog.ts fewEpisodes);
+3. future next-episode label within 14 days (poster-badge.ts
+   getNextEpisodeLabel);
+4. its priority placement right after the new-season badge
+   (badge-priority.ts, `new` bucket).
+Daily tag rotation, trending/highly-rated badges and every other fork tag
+were deliberately NOT reused. All surrounding integration (calendar-day
+window, 18-locale keys, ephemeral cache lifetime, editor wiring) is
+original work, not fork-attributed.
