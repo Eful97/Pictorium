@@ -209,8 +209,12 @@ function getNetworkKey(networkName: string): string | null {
   const lower = networkName.toLowerCase().trim()
   if (lower.includes("netflix")) return "netflix"
   if (lower.includes("hbo") || lower === "max") return "hbo"
-  // MGM+ (ex Epix) va prima del generico MGM/Amazon MGM → prime
+  // MGM+ (ex Epix) va prima del generico MGM/Amazon MGM → mgm
   if (lower.includes("mgm+") || lower.includes("mgm plus") || lower === "mgm+" || lower === "mgm plus") return "mgm_plus"
+  // Verity: Amazon MGM è identità studio (MGM), non disponibilità Prime Video.
+  // "Amazon MGM Studios" contiene "amazon" ma non deve finire sul logo Prime:
+  // usa l'asset MGM esistente (nessun asset Amazon MGM dedicato in public/networks).
+  if (/\bamazon[\s-]+mgm\b/.test(lower)) return "mgm"
   // Walt Disney Pictures va prima di Disney generico per non clashare con Disney+
   if (lower.includes("walt disney")) return "disney_pictures"
   if (lower.includes("disney")) return "disney"
@@ -311,9 +315,9 @@ function getNetworkKey(networkName: string): string | null {
   // Next Entertainment World (NEW): full-phrase match only — a bare /new/
   // matcher would collide with New Line Cinema and generic "New …" names.
   if (lower.includes("next entertainment world")) return "next_ent"
-  // Studio Bones (anime studio, yellow-square "bones" wordmark): distinctive
-  // studio token, same includes-pattern as the other studio wordmarks.
-  if (lower.includes("bones")) return "bones"
+  // Studio Bones (anime studio, yellow-square "bones" wordmark): strict word
+  // boundary — "Heartbones Entertainment" and other embedded tokens must NOT match.
+  if (/\bbones\b/.test(lower)) return "bones"
   return null
 }
 
@@ -627,7 +631,7 @@ async function loadTmdbNetworkRawPng(logoPath: string, pw: number, topLight: boo
 }
 
 /** Ibrido SVG-first → TMDB-fallback, per candidati con name + logoPath.
- *  Priorità richiesta: tutti gli SVG prima, poi fallback TMDB solo se nessun SVG matcha (es. Project Hail Mary: Lord Miller TMDB non deve anticipare Amazon MGM → Prime SVG). */
+ *  Priorità richiesta: tutti gli SVG prima, poi fallback TMDB solo se nessun SVG matcha (es. Project Hail Mary: Lord Miller TMDB non deve anticipare Amazon MGM → MGM SVG). */
 export async function renderFirstMatchingNetworkLogoBadgeHybrid(
   candidates: (NetworkCandidate | string | null | undefined)[],
   pw: number = 500,

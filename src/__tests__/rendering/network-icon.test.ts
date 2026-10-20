@@ -37,7 +37,7 @@ describe("network-svgs", () => {
     expect(getNetworkSvgResult("Metro-Goldwyn-Mayer", 500)?.networkKey).toBe("mgm")
     expect(getNetworkSvgResult("Metro-Goldwyn-Mayer (MGM)", 500)?.networkKey).toBe("mgm")
     expect(getNetworkSvgResult("MGM", 500)?.networkKey).toBe("mgm")
-    expect(getNetworkSvgResult("Amazon MGM Studios", 500)?.networkKey).toBe("prime")
+    expect(getNetworkSvgResult("Amazon MGM Studios", 500)?.networkKey).toBe("mgm")
     expect(getNetworkSvgResult("MGM+", 500)?.networkKey).toBe("mgm_plus")
   })
 
@@ -576,6 +576,38 @@ describe("network-svgs", () => {
     const pill = await renderNetworkOnlyLargePill("bones", 500, false)
     expect(pill).not.toBeNull()
     expect(pill!.png).toBeInstanceOf(Buffer)
+  })
+
+  it("does NOT brand Amazon MGM Studios as Prime Video (studio identity, not availability)", async () => {
+    // Verity: Amazon MGM Studios is a studio identity (MGM), not Prime Video availability.
+    expect(getNetworkSvgResult("Amazon MGM Studios", 500)?.networkKey).toBe("mgm")
+    expect(getNetworkSvgResult("AMAZON MGM STUDIOS", 500)?.networkKey).toBe("mgm")
+    expect(getNetworkSvgResult("amazon mgm studios", 500)?.networkKey).toBe("mgm")
+    expect(getNetworkSvgResult("Amazon MGM", 500)?.networkKey).toBe("mgm")
+    expect(getNetworkSvgResult("  Amazon MGM Studios  ", 500)?.networkKey).toBe("mgm")
+    // Existing MGM asset renders for the studio name (no invented asset).
+    const mgmRes = await renderNetworkLogoBadge("Amazon MGM Studios", 500)
+    expect(mgmRes).not.toBeNull()
+    expect(mgmRes!.networkKey).toBe("mgm")
+    expect(mgmRes!.png).toBeInstanceOf(Buffer)
+    // Genuine Prime/Amazon availability aliases still resolve as before.
+    expect(getNetworkSvgResult("Amazon Prime Video", 500)?.networkKey).toBe("prime")
+    expect(getNetworkSvgResult("Prime Video", 500)?.networkKey).toBe("prime")
+    expect(getNetworkSvgResult("Amazon Studios", 500)?.networkKey).toBe("prime")
+  })
+
+  it("does NOT match Bones for embedded tokens like Heartbones Entertainment", () => {
+    // Verity producer false positive: "Heartbones" embeds "bones" but is not the anime studio.
+    expect(getNetworkSvgResult("Heartbones Entertainment", 500)).toBeNull()
+    expect(getNetworkSvgResult("HEARTBONES ENTERTAINMENT", 500)).toBeNull()
+    // Embedded prefix/suffix collisions must NOT match either
+    expect(getNetworkSvgResult("Bonesaw", 500)).toBeNull()
+    expect(getNetworkSvgResult("Superbones", 500)).toBeNull()
+    // Genuine Bones names retain resolution
+    expect(getNetworkSvgResult("Bones", 500)?.networkKey).toBe("bones")
+    expect(getNetworkSvgResult("BONES", 500)?.networkKey).toBe("bones")
+    expect(getNetworkSvgResult("Studio Bones", 500)?.networkKey).toBe("bones")
+    expect(getNetworkSvgResult("BONES Studio", 500)?.networkKey).toBe("bones")
   })
 })
 
