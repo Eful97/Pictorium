@@ -2,7 +2,7 @@ import crypto from "node:crypto"
 import { NextRequest } from "next/server"
 import { rateLimit, rateLimitKey, rateLimitResponse } from "@/lib/rate-limit"
 import { cacheGetShared, cacheSet, hashUserFragment } from "@/lib/cache"
-import { effectiveDefaultsForShape, getServerDefaultsChecked, getServerDefaultsForUser, type ServerDefaults } from "@/lib/server-defaults"
+import { getServerDefaultsChecked, getServerDefaultsForUser, type ServerDefaults } from "@/lib/server-defaults"
 import { POSTER_URL_VERSION } from "@/lib/render-version"
 import { getById } from "@/lib/store"
 import { decodeConfig, type PictoriumUserConfig } from "@/lib/config-token"
@@ -150,10 +150,6 @@ async function pictoriumPosterUrl(
     config: configParam || undefined,
     user: userParam || undefined,
     forceShape: posterShape,
-    // Global family default map: pure shape-effective SERVER defaults (the
-    // merged `defaults` above can carry a config token, which is a config
-    // level). Cache-only dependency, never a `bp` override.
-    defaultsBadgePresets: effectiveDefaultsForShape(serverDefaults, posterShape).badgePresets ?? null,
     // Ephemeral originating-catalog context (explicit `theme=` only) under
     // the saved per-title choice: explicit themed choice follows the title
     // across catalogs and meta (generic meta with no list = query absent =

@@ -74,7 +74,7 @@ describe("preset tab (five-tab staged session)", () => {
       "aria-selected",
       "true",
     )
-    expect(screen.getAllByRole("tab")).toHaveLength(6)
+    expect(screen.getAllByRole("tab")).toHaveLength(5)
     // Gallery looks visible without opening anything.
     for (const id of ["poster-style-apple", "poster-style-better-poster", "poster-style-rpdb"]) {
       expect(screen.getByTestId(id)).toBeInTheDocument()

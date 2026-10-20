@@ -21,9 +21,6 @@ import type { PosterLayout, PosterFreshScope } from "./types"
 import type { LandscapeBlurState } from "./contexts/PosterEditorContext"
 import type { LandscapeServerDefaults } from "./server-defaults"
 import { MAPPING_SHAPE_LAND_KEYS, isLandscapeKeyPresent, mappingShapeChainEffective, snapshotMissingMappingLandscape, type MappingShapeLandKey } from "./visual-presets"
-import { isBadgePresetId, isBadgePresetRev, resolveLegacyTargetFamilies, BADGE_FAMILY_IDS, type BadgeTarget } from "./badge-preset"
-import { backfillLandscapeFamilyGuard, isEmptyFamilyMap, mergeFamilyFollowsForSave, mergeFamilyMapForSave, sanitizeFamilyFollows, sanitizeFamilyMap } from "./family-preset-save"
-import { isFamilyFollowDrop, sanitizeFamilyDraft, type FamilyStagedDraft } from "./family-preset-follow"
 import { http, ApiError } from "./http"
 
 interface PosterSaveDeps {
@@ -79,18 +76,6 @@ interface PosterSaveDeps {
    */
   seasonalTheme?: import("./seasonal-theme").SeasonalThemeChoice | null
   customBadge: string | null
-  badgePresetId?: string | null
-  badgePresetRev?: string | null
-  /**
-   * Staged per-family Badge Lab bindings for the shape in editing (sparse:
-   * absent = follow saved, present null = explicit Standard clear, present
-   * follow-drop = delete the saved key at save so the family follows the
-   * space settings). Merged over the stored side at save; the other shape
-   * travels via otherShapeStash (`badgePresets` key) or stays verbatim.
-   */
-  badgePresets?: FamilyStagedDraft | null
-  /** Resolved legacy singleton target for the open title (preview/save share it; save falls back to a bounded resolve). */
-  legacyPresetTarget?: BadgeTarget | null
   badgeStyle: string
   rankingBadgeStyle: string
   /** Standalone extra-badge style per-titolo (congelato al save; null = legacy eredita, "follow-rank" = own-rank esplicito persistito). */
@@ -224,13 +209,12 @@ export interface SaveConfigOverrides {
    * Staged style values of the shape NOT in editing (EditView shape stash,
    * newer than the saved mapping): portrait values for a landscape save,
    * landscape values for a portrait save. Only MAPPING_SHAPE_LAND_KEYS are
-   * consumed (tuning, logo and gradient keep their existing rules) plus the
-   * `badgePresets` staged family map (merged per family, never wholesale);
+   * consumed (tuning, logo and gradient keep their existing rules);
    * absent = no staged edits (boundary from the saved mapping). Enables
    * both-shape edits before a single save without leaking either look into
    * the other.
    */
-  otherShapeStash?: Partial<Record<MappingShapeLandKey | "badgePresets", unknown>> | null
+  otherShapeStash?: Partial<Record<MappingShapeLandKey, unknown>> | null
 }
 
 /**
@@ -254,7 +238,7 @@ export function usePosterSave(deps: PosterSaveDeps) {
     logoScale, logoOffsetX, logoOffsetY,
     selectedBackdrop, setSelectedBackdrop, backdropScale, backdropOffsetX, backdropOffsetY,
     setBackdropScale, setBackdropOffsetX, setBackdropOffsetY,
-    globalBadges, rankingBadges, customBadge, badgePresetId, badgePresetRev, badgePresets, legacyPresetTarget, badgeStyle, rankingBadgeStyle, extraBadgeStyle, badgeFont, qualityBadgeStyle,
+    globalBadges, rankingBadges, customBadge, badgeStyle, rankingBadgeStyle, extraBadgeStyle, badgeFont, qualityBadgeStyle,
     videoFormats,
     badgeGenre, badgeYear, badgeRating, badgeQuality, ageBadge, ageCountry, ageBadgeStyle, customRatings, ratingSources, separateRatings, separateRatingsStyle,
     seasonalTheme,
@@ -679,133 +663,16 @@ export function usePosterSave(deps: PosterSaveDeps) {
         if (v !== undefined) landscapeStashStyles[k] = v
       }
     }
-    // Binding preset atomico a coppia nel merge portrait-save: il backfill è
-    // per-chiave, ma id/rev non devono mai mescolare i lati flat e profilo.
-    // Se il profilo risultante possiede UNA sola delle due chiavi, l'altra si
-    // completa dal flat salvato (mai dal live portrait): la coppia resta di
-    // un solo lato. Entrambe assenti = eredita (legacy invariato).
-    const repairPresetPair = (profile: Record<string, unknown> | null): void => {
-      if (!profile) return
-      const hasId = profile.badgePresetId !== undefined
-      const hasRev = profile.badgePresetRev !== undefined
-      if (hasId === hasRev) return
-      const prevRec = (prevMapping ?? null) as unknown as Record<string, unknown> | null
-      if (!hasId) profile.badgePresetId = (prevRec?.badgePresetId ?? null) as unknown
-      else profile.badgePresetRev = (prevRec?.badgePresetRev ?? null) as unknown
-    }
-    // Per-family Badge Lab map (staged draft sparse over stored, per shape,
-    // G2 c1): each shape merges ONLY its own staged draft (portrait save =
-    // live staged over stored flat; landscape save = portrait stash over
-    // stored flat — newer than the saved flat, like keepFlatKey). The
-    // landscape profile merges the other side's draft the same way, then the
-    // inheritance guard freezes the OLD effective look for moved families so
-    // the other shape never inherits a new edit accidentally. Owned keys
-    // never rebased, explicit clears never resurrect the singleton/siblings.
-    // Follow-drops (client-only `__follow__` staged markers) persist as
-    // `badgePresetFollows` flags per shape (never as map values, never a
-    // global legacy clear): the flag bypasses the stored pin AND the legacy
-    // singleton for that family/shape server-side, so a landscape-only drop
-    // can follow the space settings while the flat pin stays intact (and
-    // vice versa). The legacy pair itself is preserved verbatim per shape
-    // (keepFlatKey + profile preserve) — no cross-shape clear/materialize.
-    const prevFamilyFlat = (prevMapping?.badgePresets ?? null) as unknown
-    const prevFamilyProfile = (prevMapping?.landscape?.badgePresets ?? null) as unknown
-    const prevFollowsFlat = (prevMapping?.badgePresetFollows ?? null) as unknown
-    const prevFollowsProfile = (prevMapping?.landscape?.badgePresetFollows ?? null) as unknown
-    const portraitStashFamilies = isLandscapeMode && portraitStash
-      ? sanitizeFamilyDraft((portraitStash as Record<string, unknown>).badgePresets)
-      : {}
-    const landscapeStashFamilies = !isLandscapeMode && landscapeStash
-      ? sanitizeFamilyDraft((landscapeStash as Record<string, unknown>).badgePresets)
-      : {}
-    const liveStagedFamilies = sanitizeFamilyDraft(badgePresets)
-    // Per-shape staged drafts (Source1 fix): a save touches ONLY the staged
-    // draft of the edited shape for each side — never the union. Portrait
-    // side = live draft on portrait saves, portrait stash on landscape
-    // saves; landscape side = live draft on landscape saves, landscape
-    // stash on portrait saves. A drop staged for one shape must not move,
-    // clear or rematerialize the other shape.
-    const portraitSideStaged = isLandscapeMode ? portraitStashFamilies : liveStagedFamilies
-    const landscapeSideStaged = isLandscapeMode ? liveStagedFamilies : landscapeStashFamilies
-    const newFamilyFlat = mergeFamilyMapForSave(
-      prevFamilyFlat as import("./badge-preset").BadgeFamilyBindings | null,
-      Object.keys(portraitSideStaged).length > 0 ? portraitSideStaged : null,
-    )
-    const newFamilyProfileBase = mergeFamilyMapForSave(
-      prevFamilyProfile as import("./badge-preset").BadgeFamilyBindings | null,
-      Object.keys(landscapeSideStaged).length > 0 ? landscapeSideStaged : null,
-    )
-    // Per-shape follow flags from the same staged drafts: a drop persists
-    // `true` for THAT shape only; an explicit binding/clear on a shape
-    // removes that shape's flag (the pin shadows follow again). Untouched
-    // shapes keep their stored flags verbatim.
-    const toFlagStaged = (staged: FamilyStagedDraft): Partial<Record<import("./badge-preset").BadgeFamilyId, boolean | null>> => {
-      const out: Partial<Record<import("./badge-preset").BadgeFamilyId, boolean | null>> = {}
-      for (const f of BADGE_FAMILY_IDS) {
-        if (!Object.prototype.hasOwnProperty.call(staged, f)) continue
-        out[f] = isFamilyFollowDrop((staged as Record<string, unknown>)[f]) ? true : false
-      }
-      return out
-    }
-    const newFollowsFlat = mergeFamilyFollowsForSave(
-      prevFollowsFlat as Partial<Record<import("./badge-preset").BadgeFamilyId, true>> | null,
-      toFlagStaged(portraitSideStaged),
-    )
-    const newFollowsProfile = mergeFamilyFollowsForSave(
-      prevFollowsProfile as Partial<Record<import("./badge-preset").BadgeFamilyId, true>> | null,
-      toFlagStaged(landscapeSideStaged),
-    )
-    // Effective legacy singleton for the LANDSCAPE shape (profile-owned pair
-    // when the profile owns it, else the flat pair) — only the inheritance
-    // guard below needs it (freeze the old effective look, never a drop
-    // abort: drops persist as flags and never clear the pair).
-    const prevLandRaw = (prevMapping?.landscape ?? null) as Record<string, unknown> | null
-    const prevLandOwnsLegacyPair =
-      prevLandRaw != null && (prevLandRaw.badgePresetId !== undefined || prevLandRaw.badgePresetRev !== undefined)
-    const prevLegacyRaw = prevLandOwnsLegacyPair
-      ? { id: prevLandRaw?.badgePresetId, rev: prevLandRaw?.badgePresetRev }
-      : { id: prevMapping?.badgePresetId, rev: prevMapping?.badgePresetRev }
-    const prevLegacyBinding =
-      prevLegacyRaw && isBadgePresetId(prevLegacyRaw.id)
-        ? { id: prevLegacyRaw.id, rev: isBadgePresetRev(prevLegacyRaw.rev) ? prevLegacyRaw.rev : null }
-        : null
-    const legacyTargetForGuard: BadgeTarget | null | undefined = legacyPresetTarget ?? undefined
-    const coveredByLegacy = prevLegacyBinding && legacyTargetForGuard
-      ? resolveLegacyTargetFamilies(legacyTargetForGuard)
-      : []
-    // Inheritance guard: the save moved the flat for some families while the
-    // landscape side does not own them — freeze the old effective look. Runs
-    // on both save shapes (a landscape save carrying portrait-stash edits can
-    // move the flat too); no-op when nothing moved. The effective legacy
-    // singleton freezes for families it covered instead of native null, so a
-    // portrait edit never clears an opposite-shape legacy look. The known
-    // target narrows the freeze to covered families (a mapped family never
-    // blocks the freeze of its siblings). Families the landscape shape now
-    // explicitly follows (profile flag, or inherited flat flag without a
-    // profile pin) are SKIPPED: they follow the space settings, not the old
-    // flat look.
-    const familyGuardRaw = backfillLandscapeFamilyGuard({
-      prevFlat: prevFamilyFlat as import("./badge-preset").BadgeFamilyBindings | null,
-      newFlat: newFamilyFlat,
-      mergedProfile: newFamilyProfileBase,
-      prevLegacy: prevLegacyBinding,
-      prevLegacyFamilies: coveredByLegacy.length > 0 ? [...coveredByLegacy] : null,
-    })
-    const familyGuard: typeof familyGuardRaw = {}
-    for (const f of BADGE_FAMILY_IDS) {
-      if (!Object.prototype.hasOwnProperty.call(familyGuardRaw, f)) continue
-      if (Object.prototype.hasOwnProperty.call(newFollowsProfile, f)) continue
-      if (
-        Object.prototype.hasOwnProperty.call(newFamilyProfileBase, f) === false &&
-        Object.prototype.hasOwnProperty.call(newFollowsFlat, f)
-      ) continue
-      ;(familyGuard as Record<string, unknown>)[f] = (familyGuardRaw as Record<string, unknown>)[f]
-    }
-    const newFamilyProfile = { ...newFamilyProfileBase, ...familyGuard }
-    const familyFlatBody = isEmptyFamilyMap(newFamilyFlat) && isEmptyFamilyMap(sanitizeFamilyMap(prevFamilyFlat)) ? undefined : newFamilyFlat
-    const familyProfileBody = isEmptyFamilyMap(newFamilyProfile) && isEmptyFamilyMap(sanitizeFamilyMap(prevFamilyProfile)) ? undefined : newFamilyProfile
-    const followsFlatBody = isEmptyFamilyMap(newFollowsFlat) && isEmptyFamilyMap(sanitizeFamilyFollows(prevFollowsFlat)) ? undefined : newFollowsFlat
-    const followsProfileBody = isEmptyFamilyMap(newFollowsProfile) && isEmptyFamilyMap(sanitizeFamilyFollows(prevFollowsProfile)) ? undefined : newFollowsProfile
+    // Retired Badge Lab (custom badge library removed): the editor no longer
+    // stages family bindings, so the stored values round-trip verbatim —
+    // never edited, never deleted by a save (full-replace upsert would drop
+    // omitted keys). The renderer ignores them unconditionally.
+    const prevRec = (prevMapping ?? null) as unknown as Record<string, unknown> | null
+    const carryStored = (key: string): unknown =>
+      prevRec && Object.prototype.hasOwnProperty.call(prevRec, key) ? prevRec[key] : undefined
+    const prevLandRec = (prevMapping?.landscape ?? null) as unknown as Record<string, unknown> | null
+    const carryStoredLand = (key: string): unknown =>
+      prevLandRec && Object.prototype.hasOwnProperty.call(prevLandRec, key) ? prevLandRec[key] : undefined
     const landscapeProfile = isLandscapeMode
       ? {
           // Correzione c1: auto (provenance) → null (resta auto al
@@ -831,24 +698,17 @@ export function usePosterSave(deps: PosterSaveDeps) {
           // preset coppia atomica (null/null = nessun preset per la forma).
           customBadge,
           accentColor: isManualAccent(accentColor, autoAccentColor) ? accentColor : null,
-          // Binding preset legacy: preservato verbatim per forma (keepFlatKey
-          // sotto per il flat, repair atomica per il profilo) — i drop
-          // persistono come flag `badgePresetFollows` e ombreggiano il
-          // singleton per forma senza mai azzerarlo globalmente.
-          badgePresetId: (badgePresetId ?? null),
-          badgePresetRev: (badgePresetRev ?? null),
-          // Per-family map: the landscape profile owns the live staged map of
-          // the shape in editing (merged over stored with the guard above);
-          // absent families inherit the flat, explicit null clears the shape.
-          ...(familyProfileBody !== undefined ? { badgePresets: familyProfileBody } : {}),
-          // Follow flags landscape (G2 c1): sparse opt-in, mai `__follow__`.
-          ...(followsProfileBody !== undefined ? { badgePresetFollows: followsProfileBody } : {}),
+          // Retired Badge Lab (custom badge library removed): the stored
+          // profile keys round-trip verbatim (never edited, never deleted).
+          ...(carryStoredLand("badgePresetId") !== undefined ? { badgePresetId: carryStoredLand("badgePresetId") } : {}),
+          ...(carryStoredLand("badgePresetRev") !== undefined ? { badgePresetRev: carryStoredLand("badgePresetRev") } : {}),
+          ...(carryStoredLand("badgePresets") !== undefined ? { badgePresets: carryStoredLand("badgePresets") } : {}),
+          ...(carryStoredLand("badgePresetFollows") !== undefined ? { badgePresetFollows: carryStoredLand("badgePresetFollows") } : {}),
           ...landscapeBlurPatch,
         }
-      : (useLandscapeBlur || prevMapping?.landscape || Object.keys(styleBackfill).length > 0 || Object.keys(landscapeStashStyles).length > 0 || familyProfileBody !== undefined || followsProfileBody !== undefined
+      : (useLandscapeBlur || prevMapping?.landscape || Object.keys(styleBackfill).length > 0 || Object.keys(landscapeStashStyles).length > 0
           ? (() => {
-            const merged = { ...(prevMapping?.landscape ?? null), ...styleBackfill, ...landscapeStashStyles, ...(useLandscapeBlur ? landscapeBlurPatch : {}), ...(familyProfileBody !== undefined ? { badgePresets: familyProfileBody } : {}), ...(followsProfileBody !== undefined ? { badgePresetFollows: followsProfileBody } : {}) }
-            repairPresetPair(merged)
+            const merged = { ...(prevMapping?.landscape ?? null), ...styleBackfill, ...landscapeStashStyles, ...(useLandscapeBlur ? landscapeBlurPatch : {}) }
             return merged
           })()
           : null)
@@ -990,21 +850,12 @@ export function usePosterSave(deps: PosterSaveDeps) {
           // blur coerce a null), in landscape il flat salvato VERBATIM (mai
           // clobberato dal live dell'altro formato; staged portrait vince).
           customBadge: keepFlatKey("customBadge", customBadge),
-          // Binding Badge Lab atomico a coppia: in portrait il live (null =
-          // nessun preset, come oggi); in landscape il flat salvato VERBATIM
-          // con la stessa regola keepFlatKey (mai il live landscape). I drop
-          // persistono come flag e ombreggiano il singleton per forma senza
-          // mai azzerarlo (legacy intatto per la forma opposta).
-          badgePresetId: keepFlatKey("badgePresetId", badgePresetId ?? null),
-          badgePresetRev: keepFlatKey("badgePresetRev", badgePresetRev ?? null),
-          // Mappa per-family: in portrait il merge staged-over-stored di
-          // questa save (mai resurrect, mai leak tra sorelle); in landscape il
-          // flat salvato VERBATIM o fuso con lo staged portrait (stessa regola
-          // degli altri visuali — mai il live landscape). Assente = nessun
-          // override (URL legacy byte-identici, legacy singleton intatto).
-          ...(familyFlatBody !== undefined ? { badgePresets: familyFlatBody } : {}),
-          // Follow flags flat/portrait (G2 c1): sparse opt-in, mai `__follow__`.
-          ...(followsFlatBody !== undefined ? { badgePresetFollows: followsFlatBody } : {}),
+          // Retired Badge Lab (custom badge library removed): the stored flat
+          // keys round-trip verbatim (never edited, never deleted).
+          ...(carryStored("badgePresetId") !== undefined ? { badgePresetId: carryStored("badgePresetId") } : {}),
+          ...(carryStored("badgePresetRev") !== undefined ? { badgePresetRev: carryStored("badgePresetRev") } : {}),
+          ...(carryStored("badgePresets") !== undefined ? { badgePresets: carryStored("badgePresets") } : {}),
+          ...(carryStored("badgePresetFollows") !== undefined ? { badgePresetFollows: carryStored("badgePresetFollows") } : {}),
           badgeStyle: keepFlatKey("badgeStyle", badgeStyle),
           rankingBadgeStyle: keepFlatKey("rankingBadgeStyle", rankingBadgeStyle),
           // Transport snapshot (renderer boundary escluso): stili concreti e
@@ -1114,7 +965,7 @@ export function usePosterSave(deps: PosterSaveDeps) {
       if (overrides.silent) throw error
       return false
     }
-  }, [selected, previewPoster, selectedLogo, metaInfo, logoScale, logoOffsetX, logoOffsetY, trendRank, globalBadges, rankingBadges, badgeGenre, badgeYear, badgeRating, badgeQuality, ageBadge, ageCountry, ageBadgeStyle, customRatings, ratingSources, separateRatings, separateRatingsStyle, seasonalTheme, mdblistAnimeList, loadMappings, customBadge, badgePresetId, badgePresetRev, badgePresets, badgeStyle, rankingBadgeStyle, extraBadgeStyle, badgeFont, qualityBadgeStyle, videoFormats, blurEnabled, blurIntensity, blurFade, blurDarkness, landscapeBlur, landscapeBlurDirty, tintStrength, topShade, topShadeHeight, gradientHeight, topBadgeScale, topBadgeOffsetX, topBadgeOffsetY, extraBadgeScale, extraBadgeOffsetX, extraBadgeOffsetY, genreBadgeScale, qualityBadgeScale, separateBadgeScale, separateBadgeOffsetX, separateBadgeOffsetY, networkLogoScale, genreBadgeOffsetX, genreBadgeOffsetY, qualityBadgeOffsetX, qualityBadgeOffsetY, networkLogoOffsetX, networkLogoOffsetY, rotationPosters, autoRotateClean, defaultAutoRotateClean, excludedPosters, rotationBackdrops, autoRotateBackdrop, defaultAutoRotateBackdrop, excludedBackdrops, backdrops, defaultBadgeStyle, defaultRankingBadgeStyle, defaultExtraBadgeStyle, defaultGlobalBadges, defaultRankingBadges, defaultBadgeGenre, defaultBadgeYear, defaultBadgeRating, defaultBadgeQuality, defaultAgeBadge, defaultAgeCountry, defaultAgeBadgeStyle, defaultCustomRatings, defaultSeparateRatings, defaultBadgeFont, defaultQualityBadgeStyle, defaultVideoFormats, defaultNetworkLogo, defaultNetworkLogoPosition, defaultRibbonEnabled, posters, mappingsMap, accentColor, autoAccentColor, backdropOffsetX, backdropOffsetY, backdropScale, selectedBackdrop, networkLogo, networkLogoPosition, networkLogoFollowTitle, ribbonEnabled, episodeGroupId, posterShape, posterLayout, posterFreshScope, legacyPresetTarget]) // eslint-disable-line react-hooks/exhaustive-deps -- intentionally complete to save all poster state
+  }, [selected, previewPoster, selectedLogo, metaInfo, logoScale, logoOffsetX, logoOffsetY, trendRank, globalBadges, rankingBadges, badgeGenre, badgeYear, badgeRating, badgeQuality, ageBadge, ageCountry, ageBadgeStyle, customRatings, ratingSources, separateRatings, separateRatingsStyle, seasonalTheme, mdblistAnimeList, loadMappings, customBadge, badgeStyle, rankingBadgeStyle, extraBadgeStyle, badgeFont, qualityBadgeStyle, videoFormats, blurEnabled, blurIntensity, blurFade, blurDarkness, landscapeBlur, landscapeBlurDirty, tintStrength, topShade, topShadeHeight, gradientHeight, topBadgeScale, topBadgeOffsetX, topBadgeOffsetY, extraBadgeScale, extraBadgeOffsetX, extraBadgeOffsetY, genreBadgeScale, qualityBadgeScale, separateBadgeScale, separateBadgeOffsetX, separateBadgeOffsetY, networkLogoScale, genreBadgeOffsetX, genreBadgeOffsetY, qualityBadgeOffsetX, qualityBadgeOffsetY, networkLogoOffsetX, networkLogoOffsetY, rotationPosters, autoRotateClean, defaultAutoRotateClean, excludedPosters, rotationBackdrops, autoRotateBackdrop, defaultAutoRotateBackdrop, excludedBackdrops, backdrops, defaultBadgeStyle, defaultRankingBadgeStyle, defaultExtraBadgeStyle, defaultGlobalBadges, defaultRankingBadges, defaultBadgeGenre, defaultBadgeYear, defaultBadgeRating, defaultBadgeQuality, defaultAgeBadge, defaultAgeCountry, defaultAgeBadgeStyle, defaultCustomRatings, defaultSeparateRatings, defaultBadgeFont, defaultQualityBadgeStyle, defaultVideoFormats, defaultNetworkLogo, defaultNetworkLogoPosition, defaultRibbonEnabled, posters, mappingsMap, accentColor, autoAccentColor, backdropOffsetX, backdropOffsetY, backdropScale, selectedBackdrop, networkLogo, networkLogoPosition, networkLogoFollowTitle, ribbonEnabled, episodeGroupId, posterShape, posterLayout, posterFreshScope]) // eslint-disable-line react-hooks/exhaustive-deps -- intentionally complete to save all poster state
 
   /**
    * Cover-only save ("Salva solo poster" / "Save poster only"): persists

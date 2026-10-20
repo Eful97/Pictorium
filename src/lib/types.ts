@@ -1,6 +1,35 @@
 import type { BadgeStyle, RankingBadgeStyle, QualityBadgeStyle, BadgeFont, SeparateRatingsStyle, ExtraBadgeStyle, ExtraBadgeFollowRank, AgeBadgeStyle } from "./badge-styles"
-import type { BadgeFamilyBindings, BadgeFamilyFollows } from "./badge-preset"
 import type { VideoFormat } from "./av-specs"
+
+/**
+ * Retired Badge Lab persistence leftovers (custom badge library removed).
+ * The nine family ids survive ONLY as inert stored keys so legacy mappings,
+ * config tokens and server defaults keep validating and round-tripping
+ * byte-identically (never deleted from storage). The renderer, poster URLs
+ * and cache keys ignore them unconditionally: old bindings cannot change a
+ * single pixel or bust a cache entry.
+ */
+export const RETIRED_BADGE_FAMILY_IDS = [
+  "rank",
+  "extra",
+  "genre",
+  "quality",
+  "age",
+  "network",
+  "separateRatings",
+  "customRatings",
+  "comingSoon",
+] as const
+export type RetiredBadgeFamilyId = (typeof RETIRED_BADGE_FAMILY_IDS)[number]
+
+export interface RetiredBadgeFamilyBinding {
+  id: string
+  rev?: string | null
+}
+
+export type RetiredBadgeFamilyBindings = Partial<Record<RetiredBadgeFamilyId, RetiredBadgeFamilyBinding | null>>
+
+export type RetiredBadgeFamilyFollows = Partial<Record<RetiredBadgeFamilyId, true>>
 /** Formato canvas del poster: verticale standard o orizzontale 16:9 (Nuvio). */
 export type PosterShape = "poster" | "landscape"
 
@@ -194,22 +223,19 @@ export interface Mapping {
   badgePresetId?: string | null
   badgePresetRev?: string | null
   /**
-   * Per-family Badge Lab bindings (foundation data model; no renderer
-   * consumption yet). Sparse map family -> {id, rev} | null: absent key =
-   * inherit/no override, present null = explicit clear for that family
-   * (never clears siblings). Flat = portrait fallback for the landscape
-   * profile (merged per family, see effectiveMappingForShape).
+   * Retired Badge Lab bindings (custom badge library removed): inert stored
+   * keys, never rendered. Sparse map family -> {id, rev} | null, kept
+   * validating and round-tripping so legacy mappings survive untouched.
+   * Flat = portrait fallback for the landscape profile (merged per family,
+   * see effectiveMappingForShape).
    */
-  badgePresets?: BadgeFamilyBindings | null
+  badgePresets?: RetiredBadgeFamilyBindings | null
   /**
-   * Persisted per-family follow flags for the FLAT (portrait) shape (G2
-   * correction c1). Sparse opt-in: present `true` = portrait explicitly
-   * follows the space settings for the family, bypassing any stored flat pin
-   * AND the legacy singleton for that family. Absent key/null/undefined =
-   * legacy semantics (inherit, old mappings byte-identical). Only `true`
-   * persists; client `__follow__` markers never serialize here.
+   * Retired Badge Lab follow flags (custom badge library removed): inert
+   * stored keys, never rendered. Sparse opt-in `true` per family, kept
+   * validating and round-tripping so legacy mappings survive untouched.
    */
-  badgePresetFollows?: BadgeFamilyFollows | null
+  badgePresetFollows?: RetiredBadgeFamilyFollows | null
   releaseDate?: string | null
   firstAirDate?: string | null
   rankingBadges?: boolean | null
@@ -472,11 +498,11 @@ export interface LandscapeSettings {
    */
   accentColor?: string | null
   /**
-   * Binding Badge Lab, COPPIA atomica (vedi effectiveMappingForShape): se UNA
+   * Retired Badge Lab binding, COPPIA atomica (vedi effectiveMappingForShape): se UNA
    * delle due chiavi è presente nel profilo (inclusa null), la coppia
    * effettiva landscape viene interamente dal profilo (lato mancante = null,
    * mai il flat); entrambe assenti = eredita la coppia flat. Null/null =
-   * nessun preset per la forma (mai resurrect del flat).
+   * nessun binding per la forma (mai resurrect del flat). Inerte: mai reso.
    */
   badgePresetId?: string | null
   /** Vedi sopra (revisione FNV-1a 8 hex del preset). */
@@ -486,15 +512,13 @@ export interface LandscapeSettings {
    * merge per family col flat, chiave presente — inclusa null — vince,
    * assente = eredita il flat; mappa null/assente = eredita il flat).
    */
-  badgePresets?: BadgeFamilyBindings | null
+  badgePresets?: RetiredBadgeFamilyBindings | null
   /**
-   * Persisted landscape follow flags (G2 correction c1): present `true` =
-   * the landscape shape explicitly follows the space settings for the
-   * family, bypassing profile pin, flat pin AND the legacy singleton for
-   * that shape. Absent = inherit (profile pin wins, else flat follows flag).
+   * Retired Badge Lab follow flags (custom badge library removed): inert
+   * stored keys, never rendered. Present `true` = stored verbatim.
    * Only `true` persists; never `__follow__` markers or id values.
    */
-  badgePresetFollows?: BadgeFamilyFollows | null
+  badgePresetFollows?: RetiredBadgeFamilyFollows | null
 }
 
 /**
@@ -512,7 +536,7 @@ export interface LandscapeSettings {
  * `badgePresetRev` è presente nel profilo, ENTRAMBE le effettive vengono dal
  * profilo (lato mancante = null, mai il flat) così id/rev non si mescolano
  * mai tra le forme; entrambe assenti = coppia flat. La mappa per-family
- * `badgePresets` fonde invece chiave-per-chiave (vedi mergeBadgePresetsField).
+ * `badgePresets` fonde invece chiave-per-chiave (vedi mergeRetiredBadgePresetsField).
  */
 export function effectiveMappingForShape(mapping: Mapping | null, shape: PosterShape): Mapping | null {
   if (!mapping || shape !== "landscape" || !mapping.landscape) return mapping
@@ -526,7 +550,7 @@ export function effectiveMappingForShape(mapping: Mapping | null, shape: PosterS
     accentColor: l.accentColor !== undefined ? l.accentColor : mapping.accentColor,
     badgePresetId: landOwnsPresetPair ? (l.badgePresetId ?? null) : mapping.badgePresetId,
     badgePresetRev: landOwnsPresetPair ? (l.badgePresetRev ?? null) : mapping.badgePresetRev,
-    badgePresets: mergeBadgePresetsField(mapping.badgePresets, l.badgePresets),
+    badgePresets: mergeRetiredBadgePresetsField(mapping.badgePresets, l.badgePresets),
     logoScale: l.logoScale ?? mapping.logoScale,
     logoOffsetX: l.logoOffsetX ?? mapping.logoOffsetX,
     logoOffsetY: l.logoOffsetY ?? mapping.logoOffsetY,
@@ -592,7 +616,7 @@ export function effectiveMappingForShape(mapping: Mapping | null, shape: PosterS
  * definisce own-properties (mai prototype pollution); chiavi ignote al
  * runtime vengono ignorate dal resolver e rifiutate in validazione.
  */
-export function mergeBadgePresetsField(
+export function mergeRetiredBadgePresetsField(
   flat: Mapping["badgePresets"],
   land: LandscapeSettings["badgePresets"],
 ): Mapping["badgePresets"] {
@@ -611,8 +635,8 @@ export function mergeBadgePresetsField(
 export function effectiveFamilyFollows(
   mapping: Mapping | null | undefined,
   shape: PosterShape,
-): Partial<Record<import("./badge-preset").BadgeFamilyId, true>> {
-  const out: Partial<Record<import("./badge-preset").BadgeFamilyId, true>> = {}
+): RetiredBadgeFamilyFollows {
+  const out: RetiredBadgeFamilyFollows = {}
   if (!mapping || typeof mapping !== "object") return out
   const flat = mapping.badgePresetFollows
   const flatSet = new Set<string>()

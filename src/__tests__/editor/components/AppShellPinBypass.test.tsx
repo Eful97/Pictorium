@@ -104,8 +104,8 @@ describe("AppShell PinLockModal bypass sui path /u/", () => {
     }
     const activeSpace = spaceBtns.filter((b) => b.getAttribute("aria-pressed") === "true")
     expect(activeSpace.length).toBeGreaterThan(0)
-    // Six equal primary tabs only — Space is not among them.
-    expect(screen.getAllByRole("tab")).toHaveLength(6)
+    // Five equal primary tabs only — Space is not among them.
+    expect(screen.getAllByRole("tab")).toHaveLength(5)
     expect(screen.queryByRole("tab", { name: "ui.settingsTabSpace" })).toBeNull()
     // The Space tabpanel is the visible panel.
     const spacePanel = screen.getByRole("tabpanel", { name: "ui.settingsTabSpace" })

@@ -1,12 +1,8 @@
 import { FONT_FILES } from "./fonts"
-import { recolorBadgeBodyText, buildQualityBadgeSvg, buildQualityTierBadgeSvg, buildQualityKnockoutSvg, buildAgeKnockoutSvg, buildComingSoonRibbonSvg, buildCustomBadgeSvg, buildHouseExtraSvg, buildHouseGenreSvg, buildHouseRankingSvg, buildHousePresetSvg } from "./badge-svg-shared"
+import { buildQualityBadgeSvg, buildQualityTierBadgeSvg, buildQualityKnockoutSvg, buildAgeKnockoutSvg, buildComingSoonRibbonSvg, buildHouseExtraSvg, buildHouseGenreSvg, buildHouseRankingSvg } from "./badge-svg-shared"
 export { buildNetflixRankBadgeSVG } from "./badge-svg-shared"
-import type { GenreParts, HousePresetScene } from "./badge-svg-shared"
+import type { GenreParts } from "./badge-svg-shared"
 import { normalizeBadgeFont } from "./badge-svg-shared"
-import { applyHouseAppearance, type SvgBadge } from "./badge-house-appearance"
-import type { TechnicalTypography } from "./badge-preset-technical"
-import { resolveBadgeText, type BadgeVariableContext } from "./badge-variables"
-import { scaleBadgeDesign, type BadgePreset, type HouseBadge } from "./badge-preset"
 import type { BadgeStyle, RankingBadgeStyle, BadgeFont } from "./badge-styles"
 import { isRibbonRankingStyle } from "./badge-styles"
 
@@ -43,32 +39,6 @@ export async function renderSVG(svgStr: string, w: number): Promise<Buffer> {
   return Buffer.from(resvg.render().asPng())
 }
 
-/**
- * Technical-family appearance finish (single shared helper, not a copied
- * renderer): applies validated text ink + declarative material to a native
- * SVG badge, then rasterizes. Undefined appearance/typography = the input
- * badge untouched (byte-identical). Returns the C-contract bleed when the
- * appearance pads the canvas (shadow/border/offset/scale), so placement and
- * fit helpers keep anchoring the visible body.
- */
-export async function renderSvgBadgeWithAppearance(
-  badge: SvgBadge,
-  appearance: HouseBadge["appearance"],
-  pixelScale: number,
-): Promise<{ png: Buffer; w: number; h: number; bleed?: { x: number; y: number; w: number; h: number } }> {
-  const styled = appearance ? applyHouseAppearance(badge, appearance, pixelScale) : badge
-  const png = await renderSVG(styled.svg, styled.w)
-  return styled.layout
-    ? { png, w: styled.w, h: styled.h, bleed: { x: styled.layout.x, y: styled.layout.y, w: styled.layout.w, h: styled.layout.h } }
-    : { png, w: styled.w, h: styled.h }
-}
-
-/** Optional technical-family finish for native text badges (all undefined = historic recipe). */
-export interface TechnicalBadgeFinish {
-  appearance?: HouseBadge["appearance"]
-  typography?: TechnicalTypography | null
-}
-
 // --- Extra badge (custom text) ---
 
 export async function buildExtraBadgeSVG(
@@ -82,7 +52,7 @@ export async function buildExtraBadgeSVG(
   /** Font dei testi (default "inter" = resa storica). */
   font: BadgeFont = "inter",
 ): Promise<{ png: Buffer; w: number; h: number } | null> {
-  // Ricetta unica in badge-svg-shared (stessa del Badge Lab): qui solo resvg.
+  // Ricetta unica in badge-svg-shared: qui solo resvg.
   const result = buildHouseExtraSvg({ label, pw, topLight, style: badgeStyle, accentColor, detached, font })
   const png = await renderSVG(result.svg, result.w)
   return { png, w: result.w, h: result.h }
@@ -98,7 +68,7 @@ export async function buildGenreBadgeSVG(
   /** Font dei testi (default "inter" = resa storica). */
   font: BadgeFont = "inter",
 ): Promise<{ png: Buffer; w: number; h: number } | null> {
-  // Ricetta unica in badge-svg-shared (stessa del Badge Lab): qui solo resvg.
+  // Ricetta unica in badge-svg-shared: qui solo resvg.
   const voteStr = voteAverage ? voteAverage.toFixed(1) : ""
   const yearStr = year || ""
   const result = buildHouseGenreSvg({ genreName, voteStr, yearStr, pw, style, accentColor, bottomLight, parts, scale, font })
@@ -137,7 +107,7 @@ export async function buildRankingBadgeSVG(
   /** Font dei testi (default "inter" = resa storica). */
   font: BadgeFont = "inter",
 ): Promise<{ png: Buffer; w: number; h: number } | null> {
-  // Ricetta unica in badge-svg-shared (stessa del Badge Lab): qui solo resvg.
+  // Ricetta unica in badge-svg-shared: qui solo resvg.
   // I nastri mostrano il sottotitolo periodo (`ribbonLabel`, es. "Oggi") o la
   // label passata per gli anime ("Anime"); senza = nastro senza sottotitolo.
   const result = buildHouseRankingSvg({ rank, label: isRibbonRankingStyle(badgeStyle) ? (ribbonLabel ?? "") : label, pw, topLight, style: badgeStyle, accentColor, side, isAnime, detached, accentFill, font })
@@ -204,18 +174,11 @@ export async function renderComingSoonRibbon(
   side: "left" | "right" = "left",
   /** Font del testo (default "inter" = resa storica). */
   font: BadgeFont = "inter",
-  /** Technical finish: typography (size/color/opacity/case) + material. */
-  finish?: TechnicalBadgeFinish,
-): Promise<{ png: Buffer; w: number; h: number; bleed?: { x: number; y: number; w: number; h: number } }> {
-  // Unica ricetta in badge-svg-shared (stessa del Badge Lab): qui solo resvg.
-  const t = finish?.typography ?? null
-  const result = buildComingSoonRibbonSvg(label, pw, side, normalizeBadgeFont(font), {
-    fontSize: t?.fontSize,
-    textColor: t?.textColor ?? undefined,
-    textOpacity: t?.textOpacity ?? undefined,
-    uppercase: t?.uppercase,
-  })
-  return renderSvgBadgeWithAppearance(result, finish?.appearance, pw / 380)
+): Promise<{ png: Buffer; w: number; h: number }> {
+  // Unica ricetta in badge-svg-shared: qui solo resvg.
+  const result = buildComingSoonRibbonSvg(label, pw, side, normalizeBadgeFont(font))
+  const png = await renderSVG(result.svg, result.w)
+  return { png, w: result.w, h: result.h }
 }
 
 export async function renderQualityBadge(
@@ -224,22 +187,14 @@ export async function renderQualityBadge(
   topLight?: boolean,
   /** Font del testo (default "inter" = resa storica). */
   font: BadgeFont = "inter",
-  /** Technical finish: typography (size/color/opacity/case) + material. */
-  finish?: TechnicalBadgeFinish,
-): Promise<{ png: Buffer; w: number; h: number; bleed?: { x: number; y: number; w: number; h: number } }> {
+): Promise<{ png: Buffer; w: number; h: number }> {
   // Base 17px (calibrato sul 65% di 26): watermark bilanciato e sobrio in alto a destra, lo slider `qscale` parte da 100.
-  const t = finish?.typography ?? null
-  const label = t?.uppercase ? quality.toUpperCase() : quality
-  const fs = t?.fontSize !== undefined
-    ? Math.max(Math.round(t.fontSize * pw / 380), 8)
-    : Math.round(Math.max(17 * pw / 380, 10))
+  const fs = Math.round(Math.max(17 * pw / 380, 10))
   const bg = topLight ? "rgba(0,0,0,0.80)" : "rgba(255,255,255,0.80)"
   const fg = topLight ? "rgba(255,255,255,0.80)" : "rgba(0,0,0,0.80)"
-  const built = buildQualityBadgeSvg(label, fs, fg, bg, !!topLight, normalizeBadgeFont(font))
-  const inked = t?.textColor || t?.textOpacity !== undefined
-    ? { ...built, svg: recolorBadgeBodyText(built.svg, t?.textColor ?? null, t?.textOpacity ?? null) }
-    : built
-  return renderSvgBadgeWithAppearance(inked, finish?.appearance, pw / 380)
+  const built = buildQualityBadgeSvg(quality, fs, fg, bg, !!topLight, normalizeBadgeFont(font))
+  const png = await renderSVG(built.svg, built.w)
+  return { png, w: built.w, h: built.h }
 }
 
 /**
@@ -255,20 +210,12 @@ export async function renderQualityTierBadge(
   topLight?: boolean,
   /** Font del testo (default "inter" = resa storica). */
   font: BadgeFont = "inter",
-  /** Technical finish: typography (size/color/opacity/case) + material. */
-  finish?: TechnicalBadgeFinish,
-): Promise<{ png: Buffer; w: number; h: number; bleed?: { x: number; y: number; w: number; h: number } }> {
+): Promise<{ png: Buffer; w: number; h: number }> {
   // Stessa base della pill neutra (17px su griglia 380, `qscale` da 100).
-  const t = finish?.typography ?? null
-  const label = t?.uppercase ? quality.toUpperCase() : quality
-  const fs = t?.fontSize !== undefined
-    ? Math.max(Math.round(t.fontSize * pw / 380), 8)
-    : Math.round(Math.max(17 * pw / 380, 10))
-  const built = buildQualityTierBadgeSvg(label, fs, !!topLight, normalizeBadgeFont(font))
-  const inked = t?.textColor || t?.textOpacity !== undefined
-    ? { ...built, svg: recolorBadgeBodyText(built.svg, t?.textColor ?? null, t?.textOpacity ?? null) }
-    : built
-  return renderSvgBadgeWithAppearance(inked, finish?.appearance, pw / 380)
+  const fs = Math.round(Math.max(17 * pw / 380, 10))
+  const built = buildQualityTierBadgeSvg(quality, fs, !!topLight, normalizeBadgeFont(font))
+  const png = await renderSVG(built.svg, built.w)
+  return { png, w: built.w, h: built.h }
 }
 
 /**
@@ -282,17 +229,11 @@ export async function renderQualityKnockoutBadge(
   pw: number,
   /** Font del testo (default "inter" = resa storica). */
   font: BadgeFont = "inter",
-  /** Technical finish: size/case honored; text color is inert here (the
-   *  letters are mask cut-outs with no ink — see technicalTypographyForStyle). */
-  finish?: TechnicalBadgeFinish,
-): Promise<{ png: Buffer; w: number; h: number; bleed?: { x: number; y: number; w: number; h: number } }> {
-  const t = finish?.typography ?? null
-  const label = t?.uppercase ? quality.toUpperCase() : quality
-  const fs = t?.fontSize !== undefined
-    ? Math.max(Math.round(t.fontSize * pw / 380), 8)
-    : Math.round(Math.max(17 * pw / 380, 10))
-  const result = buildQualityKnockoutSvg(label, fs, normalizeBadgeFont(font))
-  return renderSvgBadgeWithAppearance(result, finish?.appearance, pw / 380)
+): Promise<{ png: Buffer; w: number; h: number }> {
+  const fs = Math.round(Math.max(17 * pw / 380, 10))
+  const result = buildQualityKnockoutSvg(quality, fs, normalizeBadgeFont(font))
+  const png = await renderSVG(result.svg, result.w)
+  return { png, w: result.w, h: result.h }
 }
 
 /**
@@ -309,71 +250,10 @@ export async function renderAgeKnockoutBadge(
   pw: number,
   /** Text font (default "inter" = historic look). */
   font: BadgeFont = "inter",
-  /** Technical finish: size/case honored; text color is inert here (the
-   *  letters are mask cut-outs with no ink — see technicalTypographyForStyle). */
-  finish?: TechnicalBadgeFinish,
-): Promise<{ png: Buffer; w: number; h: number; bleed?: { x: number; y: number; w: number; h: number } }> {
-  const t = finish?.typography ?? null
-  const text = t?.uppercase ? label.toUpperCase() : label
-  const fs = t?.fontSize !== undefined
-    ? Math.max(Math.round(t.fontSize * pw / 380), 8)
-    : Math.round(Math.max(17 * pw / 380, 10))
-  const result = buildAgeKnockoutSvg(text, fs, normalizeBadgeFont(font))
-  return renderSvgBadgeWithAppearance(result, finish?.appearance, pw / 380)
-}
-
-// --- Custom preset badge (Badge Lab → poster Stremio: stesso SVG) ---
-
-/**
- * Rende un preset dichiarativo alla larghezza poster `pw` (fattore pw/380
- * come gli altri badge: a 380px è identità col preview Lab). Variabili
- * risolte dal contesto, testo vuoto → null (il chiamante degrada sullo
- * stile standard, mai 500).
- */
-export async function buildCustomPresetBadgeSVG(
-  preset: BadgePreset,
-  context: BadgeVariableContext,
-  pw: number,
-): Promise<{ png: Buffer; w: number; h: number; bleed?: { x: number; y: number; w: number; h: number } } | null> {
-  if (preset.variant !== "custom" || !preset.design) return null
-  const design = scaleBadgeDesign(preset.design, pw / 380)
-  const text = resolveBadgeText(design.text.template, context)
-  if (!text) return null
-  const result = buildCustomBadgeSvg(design, text)
+): Promise<{ png: Buffer; w: number; h: number }> {
+  const fs = Math.round(Math.max(17 * pw / 380, 10))
+  const result = buildAgeKnockoutSvg(label, fs, normalizeBadgeFont(font))
   const png = await renderSVG(result.svg, result.w)
-  // No appearance layer on custom designs: body == canvas, no bleed.
   return { png, w: result.w, h: result.h }
 }
-
-/**
- * Rende un preset house con gli stessi builder dei badge poster (stessa
- * ricetta, non un'approssimazione). Testo vuoto o rank assente → null (il
- * chiamante degrada sullo stile standard, mai 500).
- */
-export async function buildHousePresetBadgeSVG(
-  preset: BadgePreset,
-  context: BadgeVariableContext,
-  pw: number,
-  scene: HousePresetScene,
-  /**
-   * Actual top slot the preset fills (poster service: the resolved topBadge
-   * kind — an extra badge renders the label alone, never `#rank`). Absent
-   * keeps the historic behavior (`top` → rank).
-   */
-  slot?: "rank" | "extra" | null,
-  /** Live extra label for the extra slot (poster: resolved topBadge label). */
-  slotLabel?: string | null,
-  /** Detached plate geometry (combined Y offset ≠ 0, centered styles only). */
-  detached?: boolean,
-): Promise<{ png: Buffer; w: number; h: number; bleed?: { x: number; y: number; w: number; h: number } } | null> {
-  // Ricetta unica in badge-svg-shared (stessa del Badge Lab): qui solo resvg.
-  const result = buildHousePresetSvg(preset, context, pw, scene, slot, slotLabel, detached ?? false)
-  if (!result) return null
-  const png = await renderSVG(result.svg, result.w)
-  // Contract: w/h = actual raster canvas pixels (what resizes/placements
-  // must use); bleed = visible-body rect inside that canvas (shadow/bleed
-  // excluded, anchored like the Lab preview body). No layout = body == canvas.
-  return { png, w: result.w, h: result.h, ...(result.layout ? { bleed: { x: result.layout.x, y: result.layout.y, w: result.layout.w, h: result.layout.h } } : {}) }
-}
-
 

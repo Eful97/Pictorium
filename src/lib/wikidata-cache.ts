@@ -145,8 +145,7 @@ export function wikidataPersistFilename(mediaType: string, tmdbId: number): stri
   return `wikidata-v1-${mediaType}-${tmdbId}.json`
 }
 
-/** DATA_DIR resolved live (tests stub PICTORIUM_DATA_DIR + resetModules):
- *  same pattern as badge-preset-store.ts. */
+/** DATA_DIR resolved live (tests stub PICTORIUM_DATA_DIR + resetModules). */
 function wikidataPersistDir(): string {
   const dir = envWithFallback("DATA_DIR") || DATA_DIR
   return path.join(dir, WIKIDATA_PERSIST_DIRNAME)

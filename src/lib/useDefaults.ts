@@ -20,8 +20,7 @@ import { DEFAULT_SEPARATE_RATINGS_STYLE, isSeparateRatingsStyle, getSeparateBadg
 import { SHAPE_FLAT_TO_LANDSCAPE, snapshotMissingLandscape, independentLandscapeDefaults } from "./visual-presets"
 import { isExtraBadgeStyle, isExtraFollowRank } from "./badge-styles"
 import { DEFAULT_QUALITY_BADGE_OFFSET_X, DEFAULT_QUALITY_BADGE_OFFSET_Y } from "./badge-styles"
-import type { BadgeFamilyBindings } from "./badge-preset"
-import { isEmptyFamilyMap, sanitizeFamilyMap } from "./family-preset-save"
+import type { RetiredBadgeFamilyBindings } from "./types"
 import { KNOWN_VIDEO_FORMATS, isVideoFormat, type VideoFormat } from "./av-specs"
 
 export type RibbonSide = "left" | "right"
@@ -51,7 +50,7 @@ export interface DefaultsState {
    * esplicito. Il profilo `landscape` fonde chiave-per-chiave sopra (stesso
    * contratto del per-titolo). Solo scelte salvate: mai sentinel di drop.
    */
-  defaultBadgePresets: BadgeFamilyBindings | null
+  defaultBadgePresets: RetiredBadgeFamilyBindings | null
   /** Stile icone del badge qualità di default (default "standard"). */
   defaultQualityBadgeStyle: QualityBadgeStyle
   /** Formati A/V abilitati di default (dv, atmos, imax, hdr, hdr10plus). */
@@ -664,28 +663,30 @@ function seedLandscapeAgeTrio(
 }
 
 /**
- * BadgeLab family map idratata dai RAW (flat + profilo landscape): valida
- * fail-closed (malformata = nessuna voce, mai throw, mai sentinel). Flat
- * null/assente = nessun override globale (nativo); profilo null/assente =
- * eredita il flat; profilo con voci = merge chiave-per-chiave sopra il flat
- * (chiave presente — incluso null — vince, assente eredita).
+ * Retired Badge Lab family map hydration (custom badge library removed):
+ * verbatim pass-through, never sanitized into shape (the editor no longer
+ * stages these values and the renderer ignores them). Empty/non-object raws
+ * collapse to the same null/undefined sentinels as before so downstream
+ * merges stay byte-identical.
  */
 function hydrateBadgePresets(
   rawFlat: unknown,
   rawLandscape: unknown,
-): { flat: BadgeFamilyBindings | null; landscape: BadgeFamilyBindings | null | undefined } {
-  const flatMap = sanitizeFamilyMap(rawFlat)
-  const flatOut = isEmptyFamilyMap(flatMap) ? null : flatMap
+): { flat: RetiredBadgeFamilyBindings | null; landscape: RetiredBadgeFamilyBindings | null | undefined } {
+  const asMap = (raw: unknown): RetiredBadgeFamilyBindings | null =>
+    raw && typeof raw === "object" && !Array.isArray(raw) && Object.keys(raw).length > 0
+      ? (raw as RetiredBadgeFamilyBindings)
+      : null
+  const flatOut = asMap(rawFlat)
   if (rawLandscape === undefined || rawLandscape === null) return { flat: flatOut, landscape: undefined }
-  return { flat: flatOut, landscape: sanitizeFamilyMap(rawLandscape) }
+  if (typeof rawLandscape !== "object" || Array.isArray(rawLandscape)) return { flat: flatOut, landscape: undefined }
+  return { flat: flatOut, landscape: asMap(rawLandscape) ?? undefined }
 }
 
 /**
- * Profilo landscape della family map idratato dai RAW: solo quando il profilo
- * salvato possiede davvero la chiave (presente, anche null = Standard
- * esplicito che ombreggia il flat). Malformata = chiave omessa (segue il
- * flat, mai spazzatura nel live). Ritorna `{}` quando non c'è nulla da
- * fondere così lo spread resta un no-op.
+ * Retired Badge Lab landscape profile hydration: verbatim pass-through, only
+ * when the saved profile really owns the key. Returns `{}` when there is
+ * nothing to merge so the spread stays a no-op.
  */
 function hydrateLandscapeBadgePresets(
   rawLandscape: Record<string, unknown> | null | undefined,
@@ -695,9 +696,8 @@ function hydrateLandscapeBadgePresets(
   const raw = (rawLandscape as Record<string, unknown>).badgePresets
   if (raw === null) return { badgePresets: null }
   if (typeof raw !== "object" || Array.isArray(raw)) return {}
-  const clean = sanitizeFamilyMap(raw)
-  if (isEmptyFamilyMap(clean)) return {}
-  return { badgePresets: clean }
+  if (Object.keys(raw).length === 0) return {}
+  return { badgePresets: raw as RetiredBadgeFamilyBindings }
 }
 
 function buildFromStored(d: StoredDefaults | null): DefaultsState {

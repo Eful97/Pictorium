@@ -783,12 +783,7 @@ export function BadgeControls() {
         </div>
       </div>
 
-      {/* FAMILY 5: Common appearance — accent color, network logo and blur.
-          Shared look, deliberately separated from the badge families above.
-          (Per-title Badge Lab staging was intentionally removed from the
-          per-poster editor — apply library presets via the Lab "Use for
-          title" handoff instead. The Lab page and saved mappings are
-          untouched.) */}
+      {/* FAMILY 5: Common appearance — accent color, network logo and blur. */}
       <div data-testid="badge-family-common" className="bg-surface/50 border border-surface2/60 rounded-xl p-3 space-y-3 shadow-sm">
         <div className="flex items-center justify-between">
           <span className="font-semibold text-zinc-200 flex items-center gap-1.5">

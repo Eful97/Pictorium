@@ -4,7 +4,7 @@ import { renderMultiRatings, MAX_CUSTOM_RATINGS } from "./multi-rating-renderer"
 import { resolveSeparateDisplayState } from "./poster-config"
 import type { SeparateRating } from "./ratings"
 import { MAX_SEPARATE_RATINGS } from "./ratings"
-import { renderSeparateRatingStack, renderSeparateRatingsBottom, type SeparateRatingsFinish } from "./separate-rating-renderer"
+import { renderSeparateRatingStack, renderSeparateRatingsBottom } from "./separate-rating-renderer"
 import { cacheGet, cacheSet } from "./cache"
 import { GENRE_FALLBACK, cinematicVignetteSVG, cinematicCornerGradientSVG, topShadeSVG } from "./badges"
 import { applyBlur } from "./blur"
@@ -30,9 +30,7 @@ import {
 import { LAND_W, LAND_H } from "./image-utils"
 import { normalizeAutomaticAccentHex } from "./accent-color"
 import type { EffectiveAccentMeta } from "./effective-accent"
-import { renderGenreBadge, renderRankingBadge, renderExtraBadge, renderQualityBadge, renderQualityTierBadge, renderQualityKnockoutBadge, renderAgeKnockoutBadge, renderComingSoonRibbon, comingSoonRibbonLayout, renderSVG, buildCustomPresetBadgeSVG, buildHousePresetBadgeSVG, type TechnicalBadgeFinish } from "./svg-badge"
-import { applyHouseAppearance } from "./badge-house-appearance"
-import { sanitizeArtworkAppearance } from "./separate-rating-renderer"
+import { renderGenreBadge, renderRankingBadge, renderExtraBadge, renderQualityBadge, renderQualityTierBadge, renderQualityKnockoutBadge, renderAgeKnockoutBadge, renderComingSoonRibbon, comingSoonRibbonLayout, renderSVG } from "./svg-badge"
 import { buildLogoScrim, logoContrast, logoInkLuminance, logoScrimStrength, posterLogoZoneLuminance } from "./logo-contrast"
 import { renderFirstMatchingNetworkLogoBadge, renderFirstMatchingNetworkRawBadge, renderFirstMatchingNetworkLogoBadgeHybrid, renderFirstMatchingNetworkRawBadgeHybrid, type NetworkCandidate } from "./network-svgs"
 import { computeLogoLayout, logoAlignPadX, PORTRAIT_LOGO_MAX_HEIGHT_PCT, PORTRAIT_LOGO_TOP_OFFSET, LANDSCAPE_LOGO_MAX_WIDTH_PCT, LANDSCAPE_LOGO_MAX_HEIGHT_PCT, LANDSCAPE_LOGO_BOTTOM_MARGIN_PCT, LANDSCAPE_LOGO_TOP_OFFSET, LANDSCAPE_LOGO_SHIFT_X, LANDSCAPE_LOGO_SHIFT_Y } from "./logo-layout"
@@ -53,31 +51,12 @@ import type { WikidataResult } from "./awards"
 import { directorBadgeLabel } from "./awards"
 import type { BadgeT } from "./poster-badge"
 import type { BadgeFont } from "./badge-styles"
-import { isRibbonRankingStyle, isBottomSeparateRatingsStyle, isAgeBadgeStyle, isQualityBadgeStyle, isSeparateRatingsStyle, getSeparateRatingsStyleForShape, resolveNumberBadgeBaseOffsetX, normalizeExtraBadgeStyleForRender, DEFAULT_AGE_BADGE_STYLE, type BadgeStyle, type RankingBadgeStyle, type ExtraBadgeStyle, type ExtraBadgeFollowRank, type SeparateRatingsStyle, type SeparateBottomVariant, type AgeBadgeStyle } from "./badge-styles"
+import { isRibbonRankingStyle, isBottomSeparateRatingsStyle, isAgeBadgeStyle, getSeparateRatingsStyleForShape, resolveNumberBadgeBaseOffsetX, normalizeExtraBadgeStyleForRender, DEFAULT_AGE_BADGE_STYLE, type BadgeStyle, type RankingBadgeStyle, type ExtraBadgeStyle, type ExtraBadgeFollowRank, type SeparateRatingsStyle, type SeparateBottomVariant, type AgeBadgeStyle } from "./badge-styles"
 import { normalizeBadgeFont } from "./badge-svg-shared"
 import type { PosterImageFormat } from "@/lib/poster-runtime-cache"
-import { getPresetForUser } from "./badge-preset-store"
-import type { BadgePreset } from "./badge-preset"
-import { filterCompatibleFamilyPreset } from "./badge-preset-family-transport"
-import {
-  resolveTechnicalHouseStyle,
-  technicalPresetAppearance,
-  technicalPresetAppearanceFrag,
-  technicalPresetPolarity,
-  technicalPresetPosition,
-  technicalPresetScale,
-  technicalPresetSide,
-  technicalPresetTypography,
-  technicalTypographyForStyle,
-  type TechnicalFamilyId,
-} from "./badge-preset-technical"
-import type { BadgeFamilyId, HouseBadge } from "./badge-preset"
-import { resolvePresetPosition } from "./badge-preset"
 import { qualityBadgeIconPath } from "./quality-badge-styles"
 import type { QualityBadgeStyle } from "./badge-styles"
 import { FORMAT_ICON_PATHS, type VideoFormat } from "./av-specs"
-import type { BadgeVariableContext } from "./badge-variables"
-import { resolveBadgeText } from "./badge-variables"
 import { isRankKey } from "./i18n"
 import { composeFreshOverlay, composeFreshOverlaySplit, isEffectiveFreshLayout, isFreshRank, prepareFreshReconstructedBackground, type ComposeFreshInput } from "./fresh-layout"
 import { renderCardPoster, aggregateCardRating, cardMetadataBand } from "./card-layout"
@@ -103,30 +82,6 @@ async function scaleBitmapForLayout<T extends BadgeRender>(r: T, pct: number): P
   const png = await sharp(r.png).resize(w, h).toBuffer()
   const bleed = r.bleed ? scaleBadgeBleed(r.bleed, w / r.w, h / r.h) : undefined
   return { ...r, png, w, h, ...(bleed ? { bleed } : {}) }
-}
-
-/**
- * Editable plate around a retained brand-artwork bitmap (network mark,
- * quality mono/color icons, AV format glyphs): the artwork travels inside an
- * <image> element the appearance pass never recolors — only the surrounding
- * container/background/border/shadow/opacity/geometry is honored
- * (brightness/contrast/saturation are sanitized away so brand colors stay
- * intact). Undefined/empty appearance = the input bitmap untouched
- * (byte-identical). Server-only (sharp + resvg).
- */
-export async function wrapBitmapWithAppearance(
-  bitmap: { png: Buffer; w: number; h: number },
-  appearance: HouseBadge["appearance"] | null | undefined,
-  pixelScale: number,
-): Promise<{ png: Buffer; w: number; h: number }> {
-  if (!appearance || !Object.keys(appearance).length) return bitmap
-  const svg =
-    `<svg xmlns="http://www.w3.org/2000/svg" width="${bitmap.w}" height="${bitmap.h}" viewBox="0 0 ${bitmap.w} ${bitmap.h}">` +
-    `<image href="data:image/png;base64,${bitmap.png.toString("base64")}" x="0" y="0" width="${bitmap.w}" height="${bitmap.h}"/></svg>`
-  const styled = applyHouseAppearance({ svg, w: bitmap.w, h: bitmap.h }, sanitizeArtworkAppearance(appearance), pixelScale)
-  if (styled.svg === svg) return bitmap
-  const png = await renderSVG(styled.svg, styled.w)
-  return { png, w: styled.w, h: styled.h }
 }
 
 // Ancoraggio destro landscape (rightPadX in scala + shift ottico verso il
@@ -224,7 +179,7 @@ export interface GenerationInput {
    *  builder, which stays byte-identical).
    *  Absent/invalid = "standard". */
   ageBadgeStyle?: AgeBadgeStyle | null
-  /** Font dei testi badge ("inter" = resa storica; i preset custom/house e i loghi restano invariati). */
+  /** Font dei testi badge ("inter" = resa storica; i loghi restano invariati). */
   badgeFont?: BadgeFont | null
   /** Stile icone del badge qualità (standard = pill testuale). */
   qualityBadgeStyle?: QualityBadgeStyle | null
@@ -316,40 +271,6 @@ export interface GenerationInput {
   mediaType: "movie" | "tv"
   /** TMDB ID per il lookup premi certi (liste ID in award-ids.ts). */
   tmdbId?: number | null
-  /** IMDb ID per le variabili preset ({{imdb}}). */
-  imdbId?: string | null
-  /**
-   * Badge preset custom (?badgePreset=<id>&prv=<rev>): sostituisce il bitmap
-   * dello slot corrispondente (target top → badge superiore, genre → badge
-   * genere) preservando layout/posizioni/scale esistenti. Assente/invalido →
-   * fallback silenzioso sullo stile standard (mai 500).
-   */
-  badgePresetId?: string | null
-  /** Revisione attesa del preset (cache identity): mismatch → refetch. */
-  badgePresetRev?: string | null
-  /** Namespace utente per i preset privati (solo il proprietario li rende). */
-  badgePresetUser?: string | null
-  /**
-   * Preset già risolto dalla route (verità autorizzata corrente dello store
-   * letta PRIMA del lookup della poster cache). Quando definito — anche null
-   * (binding morto: preset cancellato/revocato) — il render lo riusa senza
-   * rileggere lo store: la chiave poster e i byte restano coerenti nella
-   * stessa richiesta e nessuna copia JSON stantia può filtrare dopo una
-   * revoca. Indefinito = percorso legacy (resolve via getPresetForPoster);
-   * il path senza preset (id null) resta invariato.
-   */
-  badgePresetResolved?: BadgePreset | null
-  /**
-   * Per-family presets già risolti dalla route (verità autorizzata corrente
-   * dello store per OGNI family, letta prima del lookup cache e riusata qui
-   * senza riletture). Record completo (null = nessun preset per la family:
-   * clear esplicito, binding assente, preset morto/incompatibile). Quando
-   * definito — anche tutto-null — ogni slot rende il preset della propria
-   * family (il legacy è già fuso dentro dal resolver: la mappa vince sul
-   * singleton solo per la sua family). Indefinito = percorso legacy
-   * invariato (solo singleton `badgePresetResolved`).
-   */
-  badgeFamilyPresets?: Partial<Record<BadgeFamilyId, BadgePreset | null>> | null
   /** Data uscita digitale già calcolata dal pre-release: Just Added. */
   digitalReleaseDate?: string | null
   finalRank: number | null
@@ -421,8 +342,8 @@ export interface GenerationInput {
    * Collettore una-tantum dei fill accent EFFETTIVAMENTE dipinti sui badge
    * (display sync del picker, ramo `?accentmeta=1`): invocato una sola volta
    * per render riuscito, con gli stessi fill già passati ai builder (Std per
-   * gli slot standard, adaptive condiviso per gli house preset attivi, null
-   * per gli slot che non dipingono alcun accent automatico). Puro osservatore:
+   * gli slot standard, null per gli slot che non dipingono alcun accent
+   * automatico). Puro osservatore:
    * non altera pixel, chiavi o cache. Assente = nessun overhead.
    */
   onAccentMeta?: ((meta: EffectiveAccentMeta) => void) | null
@@ -643,147 +564,6 @@ async function getTopShade(canvasW: number, canvasH: number, strength: number, h
 import { badgeCacheKey, coalesceBadgeRender } from "./poster-cache-infra"
 export { badgeCacheKey } from "./poster-cache-infra"
 
-// ---------------------------------------------------------------------------
-// Badge preset lookup (M5): JSON cachato in-memory 10 min, fail-open.
-// ---------------------------------------------------------------------------
-
-const PRESET_JSON_TTL_MS = 10 * 60 * 1000
-const PRESET_JSON_CACHE_MAX = 200
-const presetJsonCache = new Map<string, { preset: BadgePreset; expires: number }>()
-
-/**
- * Risolve un preset per il render poster. I pubblici rendono per chiunque,
- * i privati solo nel namespace del proprietario. Qualsiasi fallimento
- * (assente, invalido, KV irraggiungibile) → null: il chiamante degrada sullo
- * stile standard, mai 500. La revision attesa (`prv` dall'URL) invalida
- * subito la cache dopo una modifica del preset.
- */
-export async function getPresetForPoster(
-  id: string | null | undefined,
-  expectedRev: string | null | undefined,
-  userUuid: string | null | undefined,
-): Promise<BadgePreset | null> {
-  if (!id) return null
-  // Identità di cache per-namespace: un preset privato cachato per il
-  // proprietario non deve mai servire un altro namespace con lo stesso id
-  // (i pubblici occupano semplicemente una entry per lettore). Il
-  // separatore `:` è fuori da entrambi gli alfabeti (UUID lowercase
-  // hex+trattini via sanitizeUserId, id preset [A-Za-z0-9_-]) e l'UUID ha
-  // lunghezza fissa (36) contro id di max 24: nessuna collisione possibile
-  // tra (`userA`,`idA`) e (`userB`,`idB`) distinti.
-  const presetCacheKey = `${userUuid ?? ""}:${id}`
-  const now = Date.now()
-  const hit = presetJsonCache.get(presetCacheKey)
-  if (hit && hit.expires > now && (!expectedRev || hit.preset.revision === expectedRev)) {
-    return hit.preset
-  }
-  try {
-    const stored = await getPresetForUser(id, userUuid ?? "")
-    if (!stored) {
-      presetJsonCache.delete(presetCacheKey)
-      return null
-    }
-    presetJsonCache.set(presetCacheKey, { preset: stored.preset, expires: now + PRESET_JSON_TTL_MS })
-    if (presetJsonCache.size > PRESET_JSON_CACHE_MAX) {
-      const oldest = presetJsonCache.keys().next().value
-      if (oldest !== undefined) presetJsonCache.delete(oldest)
-    }
-    return stored.preset
-  } catch {
-    // Store in panne (KV irraggiungibile, file corrotto): fail-open, il
-    // chiamante degrada sullo stile standard e il poster resta 200.
-    presetJsonCache.delete(presetCacheKey)
-    return null
-  }
-}
-
-/** Solo test: svuota la cache JSON dei preset. */
-export function __resetPresetJsonCacheForTests(): void {
-  presetJsonCache.clear()
-}
-
-/**
- * Invalidazione mirata dopo una scrittura preset (PUT visibilità/contenuto,
- * DELETE): senza, un preset reso privato/cancellato resterebbe servibile
- * dalla cache fino al TTL. Chiamata dalle route di scrittura (mai dai path
- * di lettura). La chiave è per-namespace (`uuid:id`): invalida tutte le
- * entry di quell'id in ogni namespace che lo ha cachato.
- */
-export function invalidatePresetJsonCache(id: string): void {
-  for (const key of [...presetJsonCache.keys()]) {
-    if (key === id || key.endsWith(`:${id}`)) presetJsonCache.delete(key)
-  }
-}
-
-/** Winning presets per rendered slot (all nine badge families). */
-export interface FamilySlotPresets {
-  genre: BadgePreset | null
-  rank: BadgePreset | null
-  extra: BadgePreset | null
-  quality: BadgePreset | null
-  age: BadgePreset | null
-  network: BadgePreset | null
-  separateRatings: BadgePreset | null
-  customRatings: BadgePreset | null
-  comingSoon: BadgePreset | null
-}
-
-/**
- * Technical-family slot selection (pure, no I/O, no legacy): the legacy
- * singleton only ever targets the top slot (`top` → rank + extra) and genre,
- * so the six technical families resolve exclusively from their OWN family
- * entry — compatibility-filtered (legacy `top` never leaks into them).
- * Absent/incompatible → null (native standard, fail-open).
- */
-export function selectTechnicalFamilyPresets(
-  familyPresets: Partial<Record<BadgeFamilyId, BadgePreset | null>> | null | undefined,
-): Record<TechnicalFamilyId, BadgePreset | null> {
-  const pick = (family: TechnicalFamilyId): BadgePreset | null =>
-    filterCompatibleFamilyPreset(familyPresets?.[family] ?? null, family)
-  return {
-    quality: pick("quality"),
-    age: pick("age"),
-    network: pick("network"),
-    separateRatings: pick("separateRatings"),
-    customRatings: pick("customRatings"),
-    comingSoon: pick("comingSoon"),
-  }
-}
-
-/**
- * Selects the winning preset per rendered slot (pure, no I/O).
- *
- * `familyPresets` defined (the route's typed map, legacy fan-out already
- * folded in per family) → each slot renders its OWN family preset,
- * compatibility-filtered (legacy `top` counts for rank+extra, anything else
- * only for its own family); incompatible/missing render native standard.
- * `familyPresets` undefined (direct callers without the map) → legacy
- * singleton behavior (`genre` target fills genre, `top` fills rank+extra),
- * byte-identical to the pre-family path. Technical families never inherit
- * the legacy singleton (its targets never address them), so both branches
- * agree on them by construction (see `selectTechnicalFamilyPresets`).
- */
-export function selectFamilySlotPresets(
-  familyPresets: Partial<Record<BadgeFamilyId, BadgePreset | null>> | null | undefined,
-  legacy: BadgePreset | null | undefined,
-): FamilySlotPresets {
-  if (familyPresets === undefined) {
-    return {
-      genre: legacy?.target === "genre" ? (legacy ?? null) : null,
-      rank: legacy?.target === "top" ? (legacy ?? null) : null,
-      extra: legacy?.target === "top" ? (legacy ?? null) : null,
-      ...selectTechnicalFamilyPresets(null),
-    }
-  }
-  const pick = (family: BadgeFamilyId): BadgePreset | null =>
-    filterCompatibleFamilyPreset(familyPresets?.[family] ?? null, family)
-  return {
-    genre: pick("genre"),
-    rank: pick("rank"),
-    extra: pick("extra"),
-    ...selectTechnicalFamilyPresets(familyPresets),
-  }
-}
 
 // ---------------------------------------------------------------------------
 // Quality badge da icone built-in (public/quality-badges, server-only).
@@ -898,17 +678,6 @@ export async function renderQualityBadgeGroup(
   ageLabel?: string | null,
   /** Stile della pill età (default "standard" = resa storica). */
   ageStyle?: AgeBadgeStyle | null,
-  /**
-   * Technical finish (house presets): material + typography for the tier/age
-   * text plates, container-only plate for the brand icons (mono/color tier
-   * icons and AV format glyphs keep their original artwork — only the
-   * surrounding plate is editable). Absent = historic recipe, byte-identical.
-   */
-  finish?: {
-    quality?: TechnicalBadgeFinish
-    age?: TechnicalBadgeFinish
-    formats?: { appearance?: HouseBadge["appearance"] }
-  },
 ): Promise<{ png: Buffer; w: number; h: number } | null> {
   const ageText = typeof ageLabel === "string" ? ageLabel.trim() : ""
   const effAgeStyle: AgeBadgeStyle = isAgeBadgeStyle(ageStyle) ? ageStyle : DEFAULT_AGE_BADGE_STYLE
@@ -922,19 +691,14 @@ export async function renderQualityBadgeGroup(
   if (hasQuality) {
     if (qualityIconPath) {
       resBadge = await renderQualityIconBadge(qualityIconPath, pw, topLight)
-      // Brand icons carry no text: only the surrounding plate is editable
-      // (typography dropped — the artwork stays original).
-      if (resBadge && finish?.quality?.appearance) {
-        resBadge = await wrapBitmapWithAppearance(resBadge, finish.quality.appearance, pw / 380)
-      }
     }
     if (!resBadge) {
       resBadge = isKnockout
-        ? await renderQualityKnockoutBadge(qualityText, pw, normalizeBadgeFont(font), finish?.quality)
+        ? await renderQualityKnockoutBadge(qualityText, pw, normalizeBadgeFont(font))
         // Standard tier tag: intentionally wider/less-rounded box than the
         // neutral pill (buildQualityTierBadgeSvg). The age pill below keeps
         // renderQualityBadge (historic geometry, unchanged).
-        : await renderQualityTierBadge(qualityText, pw, topLight, normalizeBadgeFont(font), finish?.quality)
+        : await renderQualityTierBadge(qualityText, pw, topLight, normalizeBadgeFont(font))
     }
   }
   if (!resBadge && ageText === "") return null
@@ -954,12 +718,7 @@ export async function renderQualityBadgeGroup(
 
   const formatBadges: { png: Buffer; w: number; h: number }[] = []
   if (comboIcon) {
-    // Same editable plate as the single format glyphs below (artwork intact).
-    formatBadges.push(
-      finish?.formats?.appearance ?? finish?.quality?.appearance
-        ? await wrapBitmapWithAppearance(comboIcon, finish?.formats?.appearance ?? finish?.quality?.appearance, pw / 380)
-        : comboIcon,
-    )
+    formatBadges.push(comboIcon)
   }
 
   for (const fmt of validFormats) {
@@ -968,11 +727,7 @@ export async function renderQualityBadgeGroup(
     }
     const isDolbySingle = fmt === "dv" || fmt === "atmos"
     const icon = await renderQualityIconBadge(FORMAT_ICON_PATHS[fmt], pw, isKnockout && isDolbySingle ? false : topLight)
-    // AV glyphs stay original artwork: only the surrounding plate is editable
-    // (container-only — the format member reuses the quality finish).
-    if (icon && (finish?.formats?.appearance ?? finish?.quality?.appearance)) {
-      formatBadges.push(await wrapBitmapWithAppearance(icon, finish?.formats?.appearance ?? finish?.quality?.appearance, pw / 380))
-    } else if (icon) formatBadges.push(icon)
+    if (icon) formatBadges.push(icon)
   }
   // Pill età in stile `ageStyle`: standard = stessa pill testuale neutra
   // della qualità (base 17px, polarità topLight, font badge); knockout =
@@ -983,8 +738,8 @@ export async function renderQualityBadgeGroup(
   const renderAgePill = async (): Promise<{ png: Buffer; w: number; h: number } | null> => {
     if (ageText === "") return null
     return effAgeStyle === "knockout"
-      ? renderAgeKnockoutBadge(ageText, pw, normalizeBadgeFont(font), finish?.age)
-      : renderQualityBadge(ageText, pw, topLight, normalizeBadgeFont(font), finish?.age)
+      ? renderAgeKnockoutBadge(ageText, pw, normalizeBadgeFont(font))
+      : renderQualityBadge(ageText, pw, topLight, normalizeBadgeFont(font))
   }
   const agePill = await renderAgePill()
   if (!resBadge && formatBadges.length === 0) {
@@ -1760,10 +1515,6 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
     logoScrimDisabled,
     logoAlign,
     shape,
-    imdbId,
-    badgePresetId,
-    badgePresetRev,
-    badgePresetUser,
   } = input
 
   // Il badge genere in basso segue la luce del fondo, non del top (su poster
@@ -1772,20 +1523,6 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
   const bottomLight = bottomLightOpt ?? topLight
   // Font badge normalizzato (assente/invalido → "inter" = resa storica).
   const badgeFont = normalizeBadgeFont(input.badgeFont)
-  // Per-family technical presets (sync: the legacy singleton never targets
-  // these families, so no async lookup is needed — the map alone decides).
-  // Every derivation below is neutral without a bound preset (native args
-  // byte-identical, native cache keys untouched).
-  const techPresets = selectTechnicalFamilyPresets(input.badgeFamilyPresets)
-  // Task P placement per technical family (additive: native tuning offset +
-  // preset position, applied ONCE at placement; zero = native anchor).
-  // Custom reads design.position, house reads house.position (shared resolver).
-  const qualityPresetPos = techPresets.quality ? technicalPresetPosition(techPresets.quality) : { x: 0, y: 0 }
-  const agePresetPos = techPresets.age ? technicalPresetPosition(techPresets.age) : { x: 0, y: 0 }
-  const networkPresetPos = techPresets.network ? technicalPresetPosition(techPresets.network) : { x: 0, y: 0 }
-  const separatePresetPos = techPresets.separateRatings ? technicalPresetPosition(techPresets.separateRatings) : { x: 0, y: 0 }
-  const customPresetPos = techPresets.customRatings ? technicalPresetPosition(techPresets.customRatings) : { x: 0, y: 0 }
-  const comingSoonPresetPos = techPresets.comingSoon ? technicalPresetPosition(techPresets.comingSoon) : { x: 0, y: 0 }
   // Stile pill età normalizzato (assente/invalido → "standard" = resa
   // storica; entra nella chiave solo con l'età presente).
   const ageBadgeStyle: AgeBadgeStyle = isAgeBadgeStyle(rawAgeBadgeStyle) ? rawAgeBadgeStyle : DEFAULT_AGE_BADGE_STYLE
@@ -1978,54 +1715,18 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
   // Difesa: bottom-bar mai in landscape (normalizzazione DOPO cascata, come
   // in poster-config — copre URL vecchi/mapping/default/token e chiamanti
   // diretti del service; i raw salvati restano intatti).
-  //
-  // Preset separateRatings (same-branch only): a house style on this family
-  // replaces the resolved layout only inside the already-active branch
-  // (bottom variants are interchangeable; column stands alone). A
-  // cross-branch switch is ignored fail-closed: branch selection carries
-  // visibility gating (bottom suppresses the genre segments, column keeps
-  // them) and the route resolved the suppression flags from the native
-  // style — a preset must never unsuppress or duplicate content.
-  const separateSlotPreset = techPresets.separateRatings
-  const sepPresetRawStyle = resolveTechnicalHouseStyle("separateRatings", separateSlotPreset)
-  const sepPresetBranchStyle = sepPresetRawStyle && isSeparateRatingsStyle(sepPresetRawStyle)
-    ? getSeparateRatingsStyleForShape(sepPresetRawStyle, isLandscape ? "landscape" : "poster")
-    : null
   const nativeBottomInput = input.separateRatingsStyle ?? "column"
-  const nativeBottomEff = getSeparateRatingsStyleForShape(nativeBottomInput, isLandscape ? "landscape" : "poster")
-  const bottomStyle = sepPresetBranchStyle &&
-    (isBottomSeparateRatingsStyle(sepPresetBranchStyle) === isBottomSeparateRatingsStyle(nativeBottomEff))
-    ? sepPresetBranchStyle
-    : nativeBottomInput
-  const effBottomStyle = getSeparateRatingsStyleForShape(bottomStyle, isLandscape ? "landscape" : "poster")
-  // Preset scale multiplies the native scale (neutral 100 = byte-identical);
-  // polarity overrides the branch light (column → topLight, bottom → bottomLight).
-  const sepPresetScalePct = technicalPresetScale(separateSlotPreset)
-  const separateBadgeScaleEff = separateSlotPreset
-    ? Math.min(200, Math.max(10, Math.round(separateBadgeScale * sepPresetScalePct / 100)))
-    : separateBadgeScale
-  const sepPresetPolarity = technicalPresetPolarity(separateSlotPreset)
-  const effSepTopLight = sepPresetPolarity === "light" ? true : sepPresetPolarity === "dark" ? false : topLight
-  const effSepBottomLight = sepPresetPolarity === "light" ? true : sepPresetPolarity === "dark" ? false : bottomLight
-  const sepPresetFrag = separateSlotPreset ? `${separateSlotPreset.id}:${separateSlotPreset.revision}` : null
-  // Separate finish: value typography + material around every live item
-  // (order/cap/values untouched — the builders still slice the same live
-  // list). Null = native row, byte-identical.
-  const sepFinish: SeparateRatingsFinish | undefined = separateSlotPreset
-    ? {
-        appearance: technicalPresetAppearance("separateRatings", separateSlotPreset) ?? undefined,
-        typography: technicalPresetTypography(separateSlotPreset),
-      }
-    : undefined
-  const sepAppearanceFrag = separateSlotPreset ? technicalPresetAppearanceFrag("separateRatings", separateSlotPreset) : null
+  const effBottomStyle = getSeparateRatingsStyleForShape(nativeBottomInput, isLandscape ? "landscape" : "poster")
+  const separateBadgeScaleEff = separateBadgeScale
+  const effSepTopLight = topLight
+  const effSepBottomLight = bottomLight
   const isBottomStyle = isBottomSeparateRatingsStyle(effBottomStyle)
   const bottomVariant: SeparateBottomVariant | null = isBottomStyle ? effBottomStyle : null
   const bottomItemCount = bottomVariant ? (input.separateRatings?.length ?? 0) : 0
   // Offset gruppo rating separati (default 0 = percorso storico byte-identico):
   // l'intero gruppo si sposta di (ox, oy); positivo Y = giù come gli altri badge.
-  // Task P: preset position ADDITIVA (tuning + preset, una sola applicazione).
-  const sepOX = (separateBadgeOffsetX ?? 0) + separatePresetPos.x
-  const sepOY = (separateBadgeOffsetY ?? 0) + separatePresetPos.y
+  const sepOX = (separateBadgeOffsetX ?? 0)
+  const sepOY = (separateBadgeOffsetY ?? 0)
 
   // Single same-hue scene tint for badges + blur (consistent from the same
   // root). No per-zone crop: the bottom-40% voted skin/suit #86642d on
@@ -2038,7 +1739,7 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
   // a top badge whose effective style paints the accent (colored/corner/
   // extra-number/accent-filled default, via topBadgeConsumesAccent — the same
   // resolution as the renderer, follow-rank included), the Card main badge
-  // with the `colored` style, or a badge preset carrying the scene accent.
+  // with the `colored` style.
   // Styles that ignore the accent (default/minimal/vetro/bar/pill/shadow/
   // bordo, plain ribbons/numerals) and manual `ac=` bands never trigger a
   // decode here. The gate also covers the extra top badge with ranking off
@@ -2052,17 +1753,11 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
     extraBadgeStyle,
     rankingBadgeAccent,
   })
-  const hasAnyBadgePreset = !!badgePresetId || (
-    input.badgeFamilyPresets !== undefined &&
-    input.badgeFamilyPresets !== null &&
-    Object.values(input.badgeFamilyPresets).some((p) => !!p)
-  )
   const needsSceneTint =
     (blurEnabled && !accentOverride?.genreColor) ||
     (genrePaintsAccent && !accentOverride?.genreColor) ||
     (cardGenrePaints && !accentOverride?.genreColor) ||
-    (!!topBadge && !showComingSoon && topPaintsAccent && !accentOverride?.rankColor) ||
-    (hasAnyBadgePreset && (!accentOverride?.genreColor || !accentOverride?.rankColor))
+    (!!topBadge && !showComingSoon && topPaintsAccent && !accentOverride?.rankColor)
   const sceneTintHex = needsSceneTint
     ? await extractSceneTint(posterBuf, genreName, analysisKey ? `${analysisKey}:${genreName ?? "x"}` : null)
     : null
@@ -2405,93 +2100,14 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
   // `quality` può essere null quando il gruppo rende la sola età: l'icona
   // resta null e la pill standard età compone il gruppo da sola. Quando il
   // legacy toggle è OFF (badgeQuality=false) l'effettiva è null: niente
-  // icona tech, niente chiave che includa il tier nascosto.
-  // Technical family presets (shared native builders, live dynamic values —
-  // no new renderer): each family modulates its native recipe params
-  // (style/scale/polarity/side) PLUS declarative material/typography where
-  // the builders genuinely consume them (tier/age text ink, containers,
-  // borders, shadows, opacity, geometry — brand artwork and knockout
-  // cut-outs never recolored, see the support matrix). Gates stay native:
-  // a preset never invents content (no tier/age/logo/items/label without
-  // the live value) and never turns a gated-off badge on. Custom-variant
-  // presets keep the native content too (scale-only): branded artwork is
-  // never replaced by generic text. Without a bound preset every effective
-  // value below IS the native one (native keys/bitmaps byte-identical).
-  const qualitySlotPreset = techPresets.quality
-  const ageSlotPreset = techPresets.age
-  const customSlotPreset = techPresets.customRatings
-  const comingSoonSlotPreset = techPresets.comingSoon
-  // Variable context shared by the genre/top presets and the comingSoon
-  // label override (the live localized label travels as `comingSoon`).
-  const presetVarCtx: BadgeVariableContext = {
-    rating: voteAverage ? voteAverage.toFixed(1) : null,
-    year: year ?? null,
-    genre: genreName,
-    rank: finalRank ?? animeRankResult ?? null,
-    imdb: imdbId ?? null,
-    tmdb: input.tmdbId != null ? String(input.tmdbId) : null,
-    comingSoon: comingSoonLabel,
-  }
-  const qualityPresetActive = !!qualitySlotPreset && hasQualityGroup
-  const agePresetActive = !!ageSlotPreset && hasAgeBadge
-  const comingSoonPresetActive = !!comingSoonSlotPreset && showComingSoon
-  const presetQualityStyle = qualityPresetActive ? resolveTechnicalHouseStyle("quality", qualitySlotPreset) : null
-  const effQualityBadgeStyle = presetQualityStyle && isQualityBadgeStyle(presetQualityStyle) ? presetQualityStyle : qualityBadgeStyle
-  const presetAgeStyle = agePresetActive ? resolveTechnicalHouseStyle("age", ageSlotPreset) : null
-  const effAgeBadgeStyle: AgeBadgeStyle = presetAgeStyle && isAgeBadgeStyle(presetAgeStyle) ? presetAgeStyle : ageBadgeStyle
-  // Group polarity: the quality preset wins when bound, else the age preset
-  // (same top-right group, one light context).
-  const techQualityPolarity = qualityPresetActive
-    ? technicalPresetPolarity(qualitySlotPreset)
-    : (agePresetActive ? technicalPresetPolarity(ageSlotPreset) : null)
-  const effQualityTopLight = techQualityPolarity === "light" ? true : techQualityPolarity === "dark" ? false : topLight
-  // Group post-scale: native scale × every bound preset scale (neutral 100 =
-  // byte-identical). The tier + age + AV stack is ONE bitmap before
-  // placement, so both family scales multiply on it (documented).
-  const techQualityScalePct = (qualityPresetActive ? technicalPresetScale(qualitySlotPreset) : 100) *
-    (agePresetActive ? technicalPresetScale(ageSlotPreset) : 100) / 100
-  const effQualityGroupScale = qualityBadgeScale * techQualityScalePct / 100
+  // icona, niente chiave che includa il tier nascosto.
+  const effQualityBadgeStyle = qualityBadgeStyle
+  const effAgeBadgeStyle: AgeBadgeStyle = ageBadgeStyle
+  const effQualityTopLight = topLight
+  const effQualityGroupScale = qualityBadgeScale
   const qualityIconPath = effQualityBadgeStyle === "knockout" || !effectiveQuality ? null : qualityBadgeIconPath(effQualityBadgeStyle, effectiveQuality)
-  // ComingSoon side/label: explicit preset side wins, else the ribbon side;
-  // the label override is explicit user text only (variables allowed) —
-  // default is the live localized label (never invented).
-  const effComingSoonSide = (comingSoonPresetActive ? technicalPresetSide(comingSoonSlotPreset) : null) ?? (ribbonSide === "right" ? "right" : "left")
-  const comingSoonPresetLabel = comingSoonPresetActive && comingSoonSlotPreset?.variant === "house" && comingSoonSlotPreset.house?.label?.trim()
-    ? resolveBadgeText(comingSoonSlotPreset.house.label, presetVarCtx)
-    : ""
-  const effComingSoonLabel = comingSoonPresetLabel || comingSoonLabel
-  const qualityPresetFrag = qualityPresetActive && qualitySlotPreset ? `${qualitySlotPreset.id}:${qualitySlotPreset.revision}` : null
-  const agePresetFrag = agePresetActive && ageSlotPreset ? `${ageSlotPreset.id}:${ageSlotPreset.revision}` : null
-  const comingSoonPresetFrag = comingSoonPresetActive && comingSoonSlotPreset ? `${comingSoonSlotPreset.id}:${comingSoonSlotPreset.revision}` : null
-  // Technical material/typography (house presets, live values kept): each
-  // family honors ONLY its sanitized knobs (see technicalPresetAppearance /
-  // technicalTypographyForStyle — knockout drops text color, network drops
-  // text entirely, comingSoon drops width/height scale to keep the corner
-  // contract). Null = native plate, byte-identical.
-  const qualityFinish: TechnicalBadgeFinish | undefined = qualityPresetActive
-    ? {
-        appearance: technicalPresetAppearance("quality", qualitySlotPreset) ?? undefined,
-        typography: technicalTypographyForStyle("quality", effQualityBadgeStyle, technicalPresetTypography(qualitySlotPreset)),
-      }
-    : undefined
-  const ageFinish: TechnicalBadgeFinish | undefined = agePresetActive
-    ? {
-        appearance: technicalPresetAppearance("age", ageSlotPreset) ?? undefined,
-        typography: technicalTypographyForStyle("age", effAgeBadgeStyle, technicalPresetTypography(ageSlotPreset)),
-      }
-    : undefined
-  const comingSoonFinish: TechnicalBadgeFinish | undefined = comingSoonPresetActive
-    ? {
-        appearance: technicalPresetAppearance("comingSoon", comingSoonSlotPreset) ?? undefined,
-        typography: technicalPresetTypography(comingSoonSlotPreset),
-      }
-    : undefined
-  // Explicit appearance frags in the badge keys: preset revisions already
-  // rotate on any house edit (revision hashes the full payload), these frags
-  // pin the honored subset so the identity contract is testable in isolation.
-  const qualityAppearanceFrag = qualityPresetActive ? technicalPresetAppearanceFrag("quality", qualitySlotPreset) : null
-  const ageAppearanceFrag = agePresetActive ? technicalPresetAppearanceFrag("age", ageSlotPreset) : null
-  const comingSoonAppearanceFrag = comingSoonPresetActive ? technicalPresetAppearanceFrag("comingSoon", comingSoonSlotPreset) : null
+  const effComingSoonSide = ribbonSide === "right" ? "right" : "left"
+  const effComingSoonLabel = comingSoonLabel
 
   // Placca staccata: solo gli stili centrati (il nastro resta ancorato)
   // con offset Y esplicito arrotondano tutti e 4 gli angoli. Calcolato qui
@@ -2515,71 +2131,18 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
   // niente). La chiave usa l'EFFETTIVA (gated dal legacy toggle): con bq=0 il
   // tier nascosto non entra nella chiave (stesso bitmap dell'age-only senza tier).
   const qualityBadgeKey = hasQualityGroup
-    ? badgeCacheKey("quality", effectiveQuality ?? "noquality", CW, effQualityTopLight, badgeFont, qualityBadgeScale, effQualityBadgeStyle ?? "standard", qualityIconPath ?? "std", formatsKey, ageText !== "" ? `${ageText}:${effAgeBadgeStyle}` : "noage", ...(qualityPresetFrag ? [qualityPresetFrag] : []), ...(agePresetFrag ? [agePresetFrag] : []), ...(qualityAppearanceFrag ? [`qa:${qualityAppearanceFrag}`] : []), ...(ageAppearanceFrag ? [`aa:${ageAppearanceFrag}`] : []))
+    ? badgeCacheKey("quality", effectiveQuality ?? "noquality", CW, effQualityTopLight, badgeFont, qualityBadgeScale, effQualityBadgeStyle ?? "standard", qualityIconPath ?? "std", formatsKey, ageText !== "" ? `${ageText}:${effAgeBadgeStyle}` : "noage")
     : null
   const comingSoonKey = showComingSoon
-    ? badgeCacheKey("comingsoon", effComingSoonLabel, CW, badgeFont, topLight, effComingSoonSide, ...(comingSoonPresetFrag ? [comingSoonPresetFrag] : []), ...(comingSoonAppearanceFrag ? [`ca:${comingSoonAppearanceFrag}`] : []))
+    ? badgeCacheKey("comingsoon", effComingSoonLabel, CW, badgeFont, topLight, effComingSoonSide)
     : null
 
-  // Badge preset custom (?badgePreset=<id>&prv=<rev>): il design sostituisce
-  // il bitmap dello slot corrispondente, preservando layout/posizioni/scale
-  // esistenti. Il preset segue i master toggle dello slot (badgesEnabled /
-  // rankingEnabled) ma non richiede valori computati; assente, privato
-  // altrui o con testo vuoto → fallback silenzioso sullo stile standard.
-  // La route pre-risolve la verità autorizzata corrente
-  // (`badgePresetResolved`) prima del lookup della poster cache così la
-  // chiave e i byte non divergono dopo un Lab-edit/delete/revoca; il
-  // fallback qui sotto resta per i chiamanti senza pre-risoluzione.
-  const presetForPoster = input.badgePresetResolved !== undefined
-    ? input.badgePresetResolved
-    : await getPresetForPoster(badgePresetId, badgePresetRev, badgePresetUser)
-  // Per-family slot selection (shared builders for every family): the typed
-  // route map already folds legacy fan-out per family (mapped family shadows
-  // the singleton only for its family, explicit null clears it), so each
-  // slot renders its OWN family preset — top selected by the ACTUAL top kind
-  // (extra vs rank), technical families by their resolvers above (the same
-  // `techPresets` snapshot, no second source). Direct callers without the
-  // map (badgeFamilyPresets undefined) keep the legacy singleton behavior
-  // byte-identical.
-  const slotPresets = selectFamilySlotPresets(
-    input.badgeFamilyPresets === undefined ? undefined : (input.badgeFamilyPresets ?? null),
-    presetForPoster,
-  )
-  const genreSlotPreset = slotPresets.genre
-  const topSlotPreset = topBadge?.type === "extra" ? slotPresets.extra : slotPresets.rank
-  const useGenrePreset = !!genreSlotPreset && badgesEnabled
-  const useTopPreset = !!topSlotPreset && rankingEnabled && !showComingSoon
-  // Task P placement: poster-space offsets carried by the presets (additive
-  // baseline: existing tuning + preset position, applied ONCE at placement;
-  // raw tuning values are never rewritten). Zero/absent = native anchor.
-  const genrePresetPos = useGenrePreset ? resolvePresetPosition(genreSlotPreset) : { x: 0, y: 0 }
-  const topPresetPos = useTopPreset ? resolvePresetPosition(topSlotPreset) : { x: 0, y: 0 }
-  const combinedTopOX = effTopBadgeOffsetX + topPresetPos.x
-  const combinedTopOY = effTopBadgeOffsetY + topPresetPos.y
-  const combinedGenreOX = genreBadgeOffsetX + genrePresetPos.x
-  const combinedGenreOY = genreBadgeOffsetY + genrePresetPos.y
-  // Detached geometry for the PRESET bitmap (parity gap #2): resolved from the
-  // combined Y, passed ONCE to the actual builder + cache key (material vs
-  // placement identity). Ribbon/number never detach; offset 0 = attached.
-  const presetTopStyle = useTopPreset && topSlotPreset?.variant === "house" ? (topSlotPreset.house?.style ?? null) : null
-  const presetIsRibbonForDetached =
-    presetTopStyle === "netflix" ||
-    (presetTopStyle === "colored" && (topSlotPreset?.variant === "house" ? (topSlotPreset.house?.ribbon ?? true) : true))
-  const isPresetTopDetached =
-    !!useTopPreset && !!topBadge && !presetIsRibbonForDetached && presetTopStyle !== "number" && combinedTopOY !== 0
-  // Native detached for the legacy extra-style ribbon check below stays on the
-  // tuning-only value (isRankDetached above); the preset bitmap uses
-  // isPresetTopDetached (passed once, never double-added).
-  const genrePresetKey = useGenrePreset && genreSlotPreset
-    ? badgeCacheKey("preset-genre", genreSlotPreset.id, genreSlotPreset.revision, badgePw, voteAverage, year, genreName, finalRank, animeRankResult ?? "noanime-rank", imdbId ?? "noimdb", input.tmdbId ?? "notmdb", topLight ? "tl1" : "tl0", bottomLight ? "bl1" : "bl0", accentColorGenre ?? "noac", ribbonSide, isAnimeRank ? "anime" : "noanime")
-    : null
-  const topPresetKey = useTopPreset && topSlotPreset
-    ? badgeCacheKey("preset-top", topSlotPreset.id, topSlotPreset.revision, topBadgePw, voteAverage, year, genreName, finalRank, animeRankResult ?? "noanime-rank", imdbId ?? "noimdb", input.tmdbId ?? "notmdb", topLight ? "tl1" : "tl0", bottomLight ? "bl1" : "bl0", accentColorRank ?? "noac", ribbonSide, isAnimeRank ? "anime" : "noanime", topBadge ? `${topBadge.type}:${topBadge.type === "extra" ? topBadge.label : `${topBadge.label}|${(topBadge as { ribbonLabel?: string }).ribbonLabel ?? ""}`}` : "notop", isPresetTopDetached ? "detached" : "attached")
-    : null
+  const combinedTopOX = effTopBadgeOffsetX
+  const combinedTopOY = effTopBadgeOffsetY
+  const combinedGenreOX = genreBadgeOffsetX
+  const combinedGenreOY = genreBadgeOffsetY
 
-  // Render standard esternalizzati per il fallback: se il preset risolve un
-  // testo vuoto (es. {{rank}} senza rank), si degrada sullo stile
-  // preesistente invece di lasciare lo slot vuoto.
+  // Render standard dei due slot superiori (genere + classifica).
   const renderStandardGenre = async (): Promise<BadgeRender | null> =>
     genreBadgeKey
       ? (cacheGet<BadgeRender>(genreBadgeKey)
@@ -2603,89 +2166,15 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
                 .then((r) => { const v = { ...r, isRank: true }; cacheSet(rankBadgeKey, v, ["badge"], BADGE_CACHE_TTL); return v })
             }))
       : Promise.resolve(null)
-  const renderPresetGenre = async (): Promise<BadgeRender | null> =>
-    genrePresetKey && genreSlotPreset
-      ? (cacheGet<BadgeRender>(genrePresetKey)
-          || coalesceBadgeRender(genrePresetKey, () =>
-                (genreSlotPreset.variant === "house"
-                  ? buildHousePresetBadgeSVG(genreSlotPreset, presetVarCtx, badgePw, {
-                      topLight,
-                      bottomLight,
-                      accentColor: accentColorGenre,
-                    })
-                  : buildCustomPresetBadgeSVG(genreSlotPreset, presetVarCtx, badgePw)
-                )
-                .then((r) => { if (r) cacheSet(genrePresetKey, r, ["badge"], BADGE_CACHE_TTL); return r })
-            ))
-      : Promise.resolve(null)
-  const renderPresetTop = async (): Promise<BadgeRender | null> =>
-    topPresetKey && topSlotPreset
-      ? (cacheGet<BadgeRender>(topPresetKey)
-          || coalesceBadgeRender(topPresetKey, () =>
-                (topSlotPreset.variant === "house"
-                  ? buildHousePresetBadgeSVG(topSlotPreset, presetVarCtx, topBadgePw, {
-                      topLight,
-                      bottomLight,
-                      accentColor: accentColorRank,
-                      side:
-                        isRibbonRankingStyle(topSlotPreset.house?.style) && topSlotPreset.house?.side
-                          ? topSlotPreset.house.side
-                          : ribbonSide === "right"
-                            ? "right"
-                            : "left",
-                      isAnime: isAnimeRank,
-                    },
-                    // Actual slot kind: an extra badge renders the label alone
-                    // through the shared extra recipe, never `#rank`.
-                    topBadge!.type === "extra" ? "extra" : "rank",
-                    topBadge!.type === "extra" ? topBadge!.label : undefined,
-                    isPresetTopDetached)
-                  : buildCustomPresetBadgeSVG(topSlotPreset, presetVarCtx, topBadgePw)
-                )
-                .then((r) => { const v = r ? { ...r, isRank: false } : null; if (v) cacheSet(topPresetKey, v, ["badge"], BADGE_CACHE_TTL); return v })
-            ))
-      : Promise.resolve(null)
-
-  // Tracking del vincitore dello slot preset per i metadata accent (vedi
-  // onAccentMeta in sezione 7): house/custom/fallback decidono quale fill è
-  // stato effettivamente dipinto. Booleani mutabili locali, mai cross-request.
-  let genrePresetHouseApplied = false
-  let genrePresetCustomApplied = false
-  let topPresetHouseApplied = false
-  let topPresetCustomApplied = false
   const [genreBadgeResult, rankBadgeResult, qualityBadgeResult, comingSoonResult] = await Promise.all([
-    useGenrePreset && genreSlotPreset
-      ? renderPresetGenre().then((r) => {
-          // Quale bitmap ha vinto lo slot genere: house = fill adaptive
-          // condiviso (riportato nei metadata), custom = colore proprio del
-          // design (nessun accent automatico da riportare), null = fallback
-          // standard (fill Std). Puro tracking, resa invariata.
-          if (r) {
-            if (genreSlotPreset?.variant === "house") genrePresetHouseApplied = true
-            else genrePresetCustomApplied = true
-            return r
-          }
-          return renderStandardGenre()
-        })
-      : renderStandardGenre(),
-    useTopPreset && topSlotPreset
-      ? renderPresetTop().then((r) => {
-          // Stesso tracking per lo slot superiore (house/custom/fallback).
-          if (r) {
-            if (topSlotPreset?.variant === "house") topPresetHouseApplied = true
-            else topPresetCustomApplied = true
-            return r
-          }
-          return renderStandardRank()
-        })
-      : renderStandardRank(),
+    renderStandardGenre(),
+    renderStandardRank(),
     qualityBadgeKey
       ? (cacheGet<{ png: Buffer; w: number; h: number }>(qualityBadgeKey)
           || coalesceBadgeRender(qualityBadgeKey, async () => {
-              // Gruppo con qualità/formati/stile-età EFFETTIVI (legacy-gated + preset
-              // tecnici): con bq=0 l'age-only non resuscita il tech stack
-              // disabilitato; senza preset gli effettivi sono i nativi.
-              const res = await renderQualityBadgeGroup(effectiveQuality ?? null, effQualityBadgeStyle, effectiveFormats, badgePw, effQualityTopLight, badgeFont, hasAgeBadge ? ageText : null, effAgeBadgeStyle, { quality: qualityFinish, age: ageFinish })
+              // Gruppo con qualità/formati/stile-età EFFETTIVI (legacy-gated):
+              // con bq=0 l'age-only non resuscita il tech stack disabilitato.
+              const res = await renderQualityBadgeGroup(effectiveQuality ?? null, effQualityBadgeStyle, effectiveFormats, badgePw, effQualityTopLight, badgeFont, hasAgeBadge ? ageText : null, effAgeBadgeStyle)
               if (res) cacheSet(qualityBadgeKey, res, ["badge"], BADGE_CACHE_TTL)
               return res
             }))
@@ -2693,49 +2182,11 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
     comingSoonKey
       ? (cacheGet<{ png: Buffer; w: number; h: number }>(comingSoonKey)
           || coalesceBadgeRender(comingSoonKey, () =>
-              renderComingSoonRibbon(effComingSoonLabel, badgePw, effComingSoonSide, badgeFont, comingSoonFinish)
+              renderComingSoonRibbon(effComingSoonLabel, badgePw, effComingSoonSide, badgeFont)
                 .then((r) => { if (r) cacheSet(comingSoonKey, r, ["badge"], BADGE_CACHE_TTL); return r })
             ))
       : Promise.resolve(null),
   ])
-
-  // Task P age-split: age-only offset must NOT move quality/formats siblings.
-  // When the age preset carries a non-zero position AND the group has siblings
-  // (tier or formats), the group renders as two bitmaps: siblings (tier +
-  // formats, age gap reserved so they stay byte-identical) + age pill alone
-  // with its own offset. Age-only groups (no tier/formats) keep the single
-  // bitmap path (no siblings to protect). Quality preset position moves the
-  // whole group (anchor); age preset position moves only the age pill.
-  const ageSplitActive =
-    !!agePresetActive &&
-    hasAgeBadge &&
-    ageText !== "" &&
-    (agePresetPos.x !== 0 || agePresetPos.y !== 0) &&
-    (!!effectiveQuality || (effectiveFormats && effectiveFormats.length > 0)) &&
-    !!qualityBadgeResult
-  let qualitySiblingsResult: { png: Buffer; w: number; h: number } | null = null
-  let ageAloneResult: { png: Buffer; w: number; h: number } | null = null
-  if (ageSplitActive) {
-    const siblingsKey = badgeCacheKey("quality-siblings", effectiveQuality ?? "noquality", CW, effQualityTopLight, badgeFont, qualityBadgeScale, effQualityBadgeStyle ?? "standard", qualityIconPath ?? "std", formatsKey, ...(qualityPresetFrag ? [qualityPresetFrag] : []), ...(qualityAppearanceFrag ? [`qa:${qualityAppearanceFrag}`] : []))
-    const ageAloneKey = badgeCacheKey("age-alone", ageText, CW, effQualityTopLight, badgeFont, qualityBadgeScale, effAgeBadgeStyle, ...(agePresetFrag ? [agePresetFrag] : []), ...(ageAppearanceFrag ? [`aa:${ageAppearanceFrag}`] : []))
-    qualitySiblingsResult =
-      cacheGet<{ png: Buffer; w: number; h: number }>(siblingsKey) ??
-      (await coalesceBadgeRender(siblingsKey, async () => {
-        const res = await renderQualityBadgeGroup(effectiveQuality ?? null, effQualityBadgeStyle, effectiveFormats, badgePw, effQualityTopLight, badgeFont, null, effAgeBadgeStyle, { quality: qualityFinish })
-        if (res) cacheSet(siblingsKey, res, ["badge"], BADGE_CACHE_TTL)
-        return res
-      }))
-    ageAloneResult =
-      cacheGet<{ png: Buffer; w: number; h: number }>(ageAloneKey) ??
-      (await coalesceBadgeRender(ageAloneKey, async () => {
-        const res =
-          effAgeBadgeStyle === "knockout"
-            ? await renderAgeKnockoutBadge(ageText, badgePw, badgeFont, ageFinish)
-            : await renderQualityBadge(ageText, badgePw, effQualityTopLight, badgeFont, ageFinish)
-        if (res) cacheSet(ageAloneKey, res, ["badge"], BADGE_CACHE_TTL)
-        return res
-      }))
-  }
 
   // -----------------------------------------------------------------------
   // 6. Position badges + network logo
@@ -2747,13 +2198,6 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
   // La cache resta valida (chiave senza scala): la scala si applica a valle.
   // Tutta la matematica di posizione/overlap sotto usa già le dimensioni
   // scalate. La posizione del badge genere usa safeGenreBadgeResult.h.
-  // Preset network: post-scale plus an OPTIONAL editable container around the
-  // retained raw mark (typography N/A on a logo-only mark — only container
-  // knobs are sanitized through; the brand artwork itself is never repainted).
-  // Polarity stays reserved (topLight does not repaint raw marks).
-  const networkSlotPreset = techPresets.network
-  const networkPresetActive = !!networkSlotPreset && netLogoEnabled
-  const networkAppearance = networkPresetActive ? technicalPresetAppearance("network", networkSlotPreset) : null
   const [rankBadgeForLayout, genreBadgeForLayout, qualityBadgeForLayout, networkLogoForLayout] = await Promise.all([
     rankBadgeResult
       ? (async () => {
@@ -2779,7 +2223,7 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
             : rankBadgeResult
         })()
       : Promise.resolve(null),
-    genreBadgeResult && genreBadgeScale !== 100 && (badgeStyle !== "bar" || useGenrePreset)
+    genreBadgeResult && genreBadgeScale !== 100 && badgeStyle !== "bar"
       ? scaleBitmapForLayout(genreBadgeResult, genreBadgeScale)
       : Promise.resolve(genreBadgeResult),
     qualityBadgeResult && effQualityGroupScale !== 100
@@ -2787,16 +2231,9 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
       : Promise.resolve(qualityBadgeResult),
     networkRawResult
       ? (async () => {
-          // Same scale math as before (preset scale multiplies the native
-          // one), then the optional editable plate around the retained mark.
-          const scaled = networkPresetActive && technicalPresetScale(networkSlotPreset) !== 100
-            ? await scaleBitmapForLayout(networkRawResult, Math.min(200, Math.max(10, Math.round(networkLogoScale * technicalPresetScale(networkSlotPreset) / 100))))
-            : networkLogoScale !== 100
-              ? await scaleBitmapForLayout(networkRawResult, networkLogoScale)
-              : networkRawResult
-          return scaled && networkAppearance
-            ? await wrapBitmapWithAppearance(scaled, networkAppearance, badgePw / 380).catch(() => scaled)
-            : scaled
+          return networkLogoScale !== 100
+            ? await scaleBitmapForLayout(networkRawResult, networkLogoScale)
+            : networkRawResult
         })()
       : Promise.resolve(null),
   ])
@@ -2857,7 +2294,7 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
       // ★ (stesso builder, chiave cache dedicata: niente stime che
       // divergono con shrink overflow e metriche dei font).
       let sepCenterShift = 0
-      if (anchorRight && !useGenrePreset && genreBadgeResult && (input.separateRatings?.length ?? 0) > 0) {
+      if (anchorRight && genreBadgeResult && (input.separateRatings?.length ?? 0) > 0) {
         const fullKey = badgeCacheKey("genre", genreName, voteAverage, CW, year, badgeStyle, badgeFont, genreStdAccent, bottomLight, badgeGenre, badgeYear, true, genreBadgeScale)
         const fullHit = cacheGet<{ png: Buffer; w: number; h: number }>(fullKey)
         const fullW = fullHit
@@ -2929,55 +2366,28 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
   // (mai due stack di rating impilati — il provider vince). In modalità
   // bottom la riga non si rende mai (vince il bottom, mai duplicati — anche
   // senza dati: non inventa/fallback provider mentre la route sopprime
-  // genere/anno/voto). Il preset customRatings modula scala/polarità del
-  // bitmap nativo (contenuto e valori restano live); mai nuovo gate.
-  // Il finish materiale/tipografico riusa gli stessi renderer nativi con gli
-  // stessi dati live (mai campioni): riga built with live provider items.
+  // genere/anno/voto).
   let customRowRendered = false
   // Fresh/Card: i valori vivono come righe testo nella colonna meta / banda card (sotto).
-  const customFinish: SeparateRatingsFinish | undefined = customSlotPreset
-    ? {
-        appearance: technicalPresetAppearance("customRatings", customSlotPreset) ?? undefined,
-        typography: technicalPresetTypography(customSlotPreset),
-      }
-    : undefined
   if (input.ratings?.length && !isBottomStyle && !isFresh && !isCard) {
     // Optional enrichment must never prevent the original poster from rendering.
     // La riga sta sopra il badge genere, in basso: stessa polarità del fondo.
-    const customPresetPolarity = customSlotPreset ? technicalPresetPolarity(customSlotPreset) : null
-    const effCustomRowLight = customPresetPolarity === "light" ? true : customPresetPolarity === "dark" ? false : bottomLight
-    const customRowBitmap = await renderMultiRatings(input.ratings, CW - 40, effCustomRowLight, badgeFont, customFinish).catch(() => null)
-    const customPresetScalePct = technicalPresetScale(customSlotPreset)
-    const row = customRowBitmap && customSlotPreset && customPresetScalePct !== 100
-      ? await scaleBitmapForLayout(customRowBitmap, customPresetScalePct).catch(() => customRowBitmap)
-      : customRowBitmap
+    const customRowBitmap = await renderMultiRatings(input.ratings, CW - 40, bottomLight, badgeFont).catch(() => null)
+    const row = customRowBitmap
     if (row) {
       const legacyTop = safeGenreBadgeResult
         ? (badgeStyle === "bar" ? CH - safeGenreBadgeResult.h
           : CH - safeGenreBadgeResult.h - Math.max(0, Math.round(targetCenter - safeGenreBadgeResult.h / 2)) + combinedGenreOY)
         : CH - 20
-      // Task P: preset position ADDITIVA sulla riga custom (sposta il bitmap
-      // reale, clamp dentro la tela, mai throw).
       composites.push({
         input: row.png,
-        left: Math.max(0, Math.min(CW - row.w, Math.round((CW - row.w) / 2) + customPresetPos.x)),
-        top: Math.max(0, Math.min(CH - row.h, legacyTop - row.h - 10 + customPresetPos.y)),
+        left: Math.max(0, Math.min(CW - row.w, Math.round((CW - row.w) / 2))),
+        top: Math.max(0, Math.min(CH - row.h, legacyTop - row.h - 10)),
       })
       customRowRendered = true
     }
   }
   const isRightRibbon = ribbonSide === "right"
-  // Nastro preset: lato effettivo (house side vince sul mapping; custom segue
-  // il mapping). Serve sopra (ancoraggio) e sotto (qualità a sinistra).
-  // Task P: house colored con ribbon=false è placca (non nastro), come il nativo.
-  const presetIsRibbon = !!useTopPreset && !!topSlotPreset && (topSlotPreset.design?.shape === "ribbon" || (topSlotPreset.variant === "house" && isRibbonRankingStyle(topSlotPreset.house?.style) && !(topSlotPreset.house?.style === "colored" && topSlotPreset.house?.ribbon === false)))
-  const presetRibbonRight =
-    presetIsRibbon &&
-    (topSlotPreset?.variant === "house" &&
-    isRibbonRankingStyle(topSlotPreset.house?.style) &&
-    topSlotPreset.house?.side
-      ? topSlotPreset.house.side === "right"
-      : isRightRibbon)
   let finalRankBadge = safeRankBadgeResult as BadgeRender | null
   // finalRankLeft/Top = ancora del CORPO visibile (senza bleed è il percorso
   // storico byte-identico); la tela segue per differenza nel composite.
@@ -2985,12 +2395,11 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
   let finalRankTop = 0
   if (safeRankBadgeResult) {
     // Il nastro Netflix è ancorato a sinistra SOLO quando il badge è davvero un
-    // ranking "netflix" (type rank). Un badge personalizzato/extra va SEMPRE
+    // ranking "netflix" (type rank). Un badge extra va SEMPRE
     // centrato, anche se lo stile selezionato è "netflix": altrimenti esce
-    // decentrato a sinistra. Eccezione: un preset top ribbon/netflix è un
-    // nastro per costruzione e segue l'ancoraggio d'angolo.
+    // decentrato a sinistra.
     const isNetflixRibbon =
-      (isRibbonRankingStyle(rankingBadgeStyle) && topBadge?.type === "rank") || presetIsRibbon
+      isRibbonRankingStyle(rankingBadgeStyle) && topBadge?.type === "rank"
     // Offset X/Y solo sui centrati: il nastro resta ancorato (per scelta
     // utente esplicita gli offset non lo toccano).
     const isCentered = !isNetflixRibbon
@@ -3000,8 +2409,8 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
     const pillTopGap = topBadgeStyle === "pill" || isCornerAnchoredStyle(topBadgeStyle) ? 10 : 0
     const rankBody = badgeBody(safeRankBadgeResult)
     let left: number
-    if (isNetflixRibbon && (presetIsRibbon ? presetRibbonRight : isRightRibbon)) {
-      left = Math.round(CW - rankBody.w) // nastro a destra (Stremio o side del preset)
+    if (isNetflixRibbon && isRightRibbon) {
+      left = Math.round(CW - rankBody.w) // nastro a destra (Stremio)
     } else if (isNetflixRibbon) {
       left = 0 // nastro Netflix a sinistra (Nuvio, default)
     } else if (isCornerAnchoredStyle(topBadgeStyle) && topBadge) {
@@ -3097,14 +2506,12 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
   // to the legacy prepend order.
   let freshBottomShadeLayer: PosterComposite | null = null
   if (safeComingSoonResult && ribbonLayout) {
-    // Native corner anchor (byte-identical when the preset position is
-    // zero/absent): the ribbon layer carries transparent padding and the
-    // negative `-offset` clips it into the corner — clamping the anchor to 0
-    // would shift the ribbon by +offset even with no preset (GroupC
-    // regression). Preset position is ADDITIVE on that anchor (applied ONCE);
-    // sharp clips out-of-bounds composites natively, so the negative anchor
-    // and extreme ±2000 offsets stay throw-free (rounded like
-    // fitCompositeToCanvas). Gated by the native gate above.
+    // Native corner anchor (byte-identical): the ribbon layer carries
+    // transparent padding and the negative `-offset` clips it into the
+    // corner — clamping the anchor to 0 would shift the ribbon by +offset
+    // (GroupC regression). Sharp clips out-of-bounds composites natively,
+    // so the negative anchor and extreme ±2000 offsets stay throw-free
+    // (rounded like fitCompositeToCanvas). Gated by the native gate above.
     const comingSoonBaseTop = -ribbonLayout.offset
     const comingSoonBaseLeft =
       effComingSoonSide === "right"
@@ -3112,8 +2519,8 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
         : -ribbonLayout.offset
     composites.push({
       input: safeComingSoonResult.png,
-      top: Math.round(comingSoonBaseTop + comingSoonPresetPos.y),
-      left: Math.round(comingSoonBaseLeft + comingSoonPresetPos.x),
+      top: Math.round(comingSoonBaseTop),
+      left: Math.round(comingSoonBaseLeft),
     })
   }
   // Network: centrato sopra il logo film quando c'è un badge alto
@@ -3182,8 +2589,8 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
       // già a sinistra in quei casi. Senza occupante destro resta a sinistra
       // (coesistenza pacifica con la qualità top-right).
       const rightRankRibbonOccupied =
-        (((isRibbonRankingStyle(rankingBadgeStyle) && topBadge?.type === "rank") || presetIsRibbon) &&
-          (presetIsRibbon ? presetRibbonRight : ribbonSide === "right") &&
+        (isRibbonRankingStyle(rankingBadgeStyle) && topBadge?.type === "rank" &&
+          ribbonSide === "right" &&
           !!finalRankBadge)
       const comingSoonRightOccupied = showComingSoon && !!ribbonLayout && !!safeComingSoonResult && effComingSoonSide === "right"
       const rightRankRibbonLeft = rightRankRibbonOccupied && finalRankBadge && finalRankLeft !== null ? finalRankLeft : null
@@ -3256,8 +2663,8 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
           left = sideRight ? rightAnchoredLeft : netPadX
           if (!sideRight) {
             const leftRibbon =
-              ((isRibbonRankingStyle(rankingBadgeStyle) && topBadge?.type === "rank") || presetIsRibbon) &&
-              (presetIsRibbon ? !presetRibbonRight : ribbonSide !== "right")
+              isRibbonRankingStyle(rankingBadgeStyle) && topBadge?.type === "rank" &&
+              ribbonSide !== "right"
             if (leftRibbon && finalRankBadge && finalRankLeft !== null && finalRankBody) {
               const ribbonRight = finalRankLeft + finalRankBody.w
               const netRight = left + fittedRaw.w
@@ -3293,8 +2700,8 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
         // Explicit netPos=top lives in the branch above and is unchanged.
         let cornerAboveTitlePlaced = false
         const leftRibbon =
-          ((isRibbonRankingStyle(rankingBadgeStyle) && topBadge?.type === "rank") || presetIsRibbon) &&
-          (presetIsRibbon ? !presetRibbonRight : ribbonSide !== "right")
+          isRibbonRankingStyle(rankingBadgeStyle) && topBadge?.type === "rank" &&
+          ribbonSide !== "right"
         if (leftRibbon && finalRankBadge && finalRankLeft !== null && finalRankBody) {
           top = netPadY
           left = netPadX
@@ -3459,10 +2866,9 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
       }
       // In fissa le coordinate sono già gli actual finali (shift e offset
       // inclusi al freeze): composite esatto. In storica restano gli offset
-      // post-ancoraggio + shift editoriale. Task P: preset position ADDITIVA
-      // (una sola applicazione, mai doppio add).
-      const finalNetTop = isFixedNetwork ? top : top + networkLogoOffsetY + NETWORK_LOGO_SHIFT_Y + networkPresetPos.y
-      const finalNetLeft = isFixedNetwork ? left : left + networkLogoOffsetX + networkPresetPos.x
+      // post-ancoraggio + shift editoriale.
+      const finalNetTop = isFixedNetwork ? top : top + networkLogoOffsetY + NETWORK_LOGO_SHIFT_Y
+      const finalNetLeft = isFixedNetwork ? left : left + networkLogoOffsetX
       if (isFixedNetwork) {
         // Il fondo effettivo alimenta lo stacking qualità (che resta); la
         // qualità non sposta mai il network.
@@ -3508,7 +2914,7 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
     })
     // Network "in alto" finito a destra: la qualità trasloca a sinistra
     // come col nastro a destra (stesso branch, niente overlap sull'angolo).
-    const isRightRibbonCorner = (isNetflixRight && !!finalRankBadge) || isComingSoonRight || (presetRibbonRight && !!finalRankBadge) || (!!networkLogoForLayout && netAnchoredRight) || isNumberRight
+    const isRightRibbonCorner = (isNetflixRight && !!finalRankBadge) || isComingSoonRight || (!!networkLogoForLayout && netAnchoredRight) || isNumberRight
 
     // Ancoraggio base: top = netBaseTop - 10 + 5 (storia editoriale: era -20).
     // Griglia laterale a box: il respiro del box qualità è uguale a quello del
@@ -3566,75 +2972,27 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
       }
     }
 
-    // Task P split: siblings stay at the group anchor (+ quality preset pos),
-    // the age pill renders at its original slot (+ quality pos + age pos).
-    // Body collision bounds below use the UNION of both (age offset can extend
-    // the group box; siblings alone never move for an age-only offset).
-    if (ageSplitActive && qualitySiblingsResult && ageAloneResult) {
-      const sibFitted = await fitBadgeToCanvas(qualitySiblingsResult, CW, CH)
-      const ageFitted = await fitBadgeToCanvas(ageAloneResult, CW, CH)
-      if (sibFitted && ageFitted) {
-        const sibTop = top + qualityPresetPos.y
-        const sibLeft = left + qualityPresetPos.x
-        composites.push({
-          input: sibFitted.png,
-          top: Math.max(0, Math.min(CH - sibFitted.h, sibTop + qualityBadgeOffsetY)),
-          left: Math.max(0, Math.min(CW - sibFitted.w, sibLeft + qualityBadgeOffsetX)),
-        })
-        // Age slot: original second position (tier visH + gap) within the group
-        // box, so siblings keep their layout; only the age pill moves.
-        // Measured from the rendered bitmaps (same builders, no estimates).
-        const gapPx = Math.round(5 * badgePw / 380)
-        const sibVisH = Math.max(1, sibFitted.h - TOP_SHADOW_PAD * 2)
-        void sibVisH
-        // Original age slot top relative to the group anchor: tier vis height
-        // + gap. Tier vis height measured from a lone tier render would cost
-        // another raster; instead anchor the age pill to the group anchor with
-        // its own offset only (siblings bitmap already reserves no age gap, so
-        // the age pill overlaps the siblings gap region by construction — the
-        // union bound below covers collision). Documented limitation: the age
-        // pill overlaps rather than reflows siblings (no layout shift by design).
-        const ageTop = top + qualityPresetPos.y + qualityBadgeOffsetY + agePresetPos.y
-        const ageLeft = left + qualityPresetPos.x + qualityBadgeOffsetX + agePresetPos.x
-        void gapPx
-        composites.push({
-          input: ageFitted.png,
-          top: Math.max(0, Math.min(CH - ageFitted.h, ageTop)),
-          left: Math.max(0, Math.min(CW - ageFitted.w, ageLeft)),
-        })
-        const qBottomPadSplit = Math.round(TOP_SHADOW_PAD * sibFitted.h / Math.max(1, qualitySiblingsResult.h))
-        const sibBottom = sibTop + qualityBadgeOffsetY + sibFitted.h - qBottomPadSplit
-        const ageBottomPad = Math.round(TOP_SHADOW_PAD * ageFitted.h / Math.max(1, ageAloneResult.h))
-        const ageBottom = ageTop + ageFitted.h - ageBottomPad
-        qualityStackAnchor = {
-          top: Math.max(sibBottom, ageBottom),
-          centerX: sibLeft + qualityBadgeOffsetX + sibFitted.w / 2,
-          leftCorner: isRightRibbonCorner,
-        }
-      }
-    } else {
-      composites.push({
-        input: finalQualityBadge.png,
-        // Offset applicato DOPO lo shrink anti-overlap (che ragiona sulla
-        // posizione ancorata): con offset estremi il badge può sovrapporsi ad
-        // altri elementi — scelta utente, WYSIWYG. fitCompositeToCanvas lo
-        // tiene comunque dentro la tela. Task P: preset position ADDITIVA.
-        top: top + qualityBadgeOffsetY + qualityPresetPos.y,
-        left: left + qualityBadgeOffsetX + qualityPresetPos.x,
-      })
-      // Ancoraggio della colonna separati: sotto il box visibile del badge
-      // qualità (asse centrale allineato) con gap ottico 6px. L'ancora sottrae
-      // il padding ombra inferiore (in scala): prima lo stack partiva dal fondo
-      // bitmap + 5, cioè ~19px di vuoto sotto la capsula.
-      // Senza qualità lo stack "sale" al top (vedi sotto).
-      const qBottomPad = qualityBadgeResult?.h
-        ? Math.round(TOP_SHADOW_PAD * finalQualityBadge.h / qualityBadgeResult.h)
-        : TOP_SHADOW_PAD
-      qualityStackAnchor = {
-        top: top + qualityBadgeOffsetY + qualityPresetPos.y + finalQualityBadge.h - qBottomPad,
-        centerX: (left + qualityBadgeOffsetX + qualityPresetPos.x) + finalQualityBadge.w / 2,
-        leftCorner: isRightRibbonCorner,
-      }
+    composites.push({
+      input: finalQualityBadge.png,
+      // Offset applicato DOPO lo shrink anti-overlap (che ragiona sulla
+      // posizione ancorata): con offset estremi il badge puo sovrapporsi ad
+      // altri elementi - scelta utente, WYSIWYG. fitCompositeToCanvas lo
+      // tiene comunque dentro la tela.
+      top: top + qualityBadgeOffsetY,
+      left: left + qualityBadgeOffsetX,
+    })
+    // Ancoraggio della colonna separati: sotto il box visibile del badge
+    // qualita (asse centrale allineato) con gap ottico 6px. L'ancora sottrae
+    // il padding ombra inferiore (in scala): prima lo stack partiva dal fondo
+    // bitmap + 5, cioe ~19px di vuoto sotto la capsula.
+    // Senza qualita lo stack sale al top (vedi sotto).
+    const qBottomPad = qualityBadgeResult?.h
+      ? Math.round(TOP_SHADOW_PAD * finalQualityBadge.h / qualityBadgeResult.h)
+      : TOP_SHADOW_PAD
+    qualityStackAnchor = {
+      top: top + qualityBadgeOffsetY + finalQualityBadge.h - qBottomPad,
+      centerX: (left + qualityBadgeOffsetX) + finalQualityBadge.w / 2,
+      leftCorner: isRightRibbonCorner,
     }
   }
 
@@ -3658,10 +3016,10 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
         || isTopBadgeNumberRightCorner({ topBadgeType: topBadge?.type, rankingBadgeStyle, extraBadgeStyle, ribbonSide, hasTopBadge: !!finalRankBadge }))
     const stackTop = (qualityStackAnchor ? qualityStackAnchor.top + 6 : netBaseTop - 10)
       + (isLandscape ? 0 : PORTRAIT_SEPARATE_SHIFT_Y)
-    const stackKey = badgeCacheKey("separate", items.map((i) => `${i.id}${i.value}`).join(","), CW, badgeFont, effSepTopLight, separateBadgeScaleEff, ...(sepPresetFrag ? [sepPresetFrag] : []), ...(sepAppearanceFrag ? [`sa:${sepAppearanceFrag}`] : []))
+    const stackKey = badgeCacheKey("separate", items.map((i) => `${i.id}${i.value}`).join(","), CW, badgeFont, effSepTopLight, separateBadgeScaleEff)
     const cached = cacheGet<{ png: Buffer; w: number; h: number }>(stackKey)
     const stack = cached ?? await coalesceBadgeRender(stackKey, () =>
-      renderSeparateRatingStack(items, badgePw, effSepTopLight, badgeFont, separateBadgeScaleEff, sepFinish)
+      renderSeparateRatingStack(items, badgePw, effSepTopLight, badgeFont, separateBadgeScaleEff)
         .then((r) => { if (r) cacheSet(stackKey, r, ["badge"], BADGE_CACHE_TTL); return r })
     )
     const fitted = stack ? await fitBadgeToCanvas(stack, CW, CH) : null
@@ -3711,10 +3069,10 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
     const items = input.separateRatings!.slice(0, MAX_SEPARATE_RATINGS)
     const isBar = bottomVariant === "bottom-bar"
     const availW = isBar && !isLandscape ? CW : (isLandscape ? CW - 80 : CW - 36)
-    const bottomKey = badgeCacheKey("separate-bottom", bottomVariant, items.map((i) => `${i.id}${i.value}`).join(","), CW, badgeFont, separateBadgeScaleEff, availW, effSepBottomLight ? "bl1" : "bl0", ...(sepPresetFrag ? [sepPresetFrag] : []), ...(sepAppearanceFrag ? [`sa:${sepAppearanceFrag}`] : []))
+    const bottomKey = badgeCacheKey("separate-bottom", bottomVariant, items.map((i) => `${i.id}${i.value}`).join(","), CW, badgeFont, separateBadgeScaleEff, availW, effSepBottomLight ? "bl1" : "bl0")
     const cached = cacheGet<{ png: Buffer; w: number; h: number }>(bottomKey)
     const bottom = cached ?? await coalesceBadgeRender(bottomKey, () =>
-      renderSeparateRatingsBottom(items, badgePw, bottomVariant, badgeFont, separateBadgeScaleEff, availW, effSepBottomLight, sepFinish)
+      renderSeparateRatingsBottom(items, badgePw, bottomVariant, badgeFont, separateBadgeScaleEff, availW, effSepBottomLight)
         .then((r) => { if (r) cacheSet(bottomKey, r, ["badge"], BADGE_CACHE_TTL); return r })
     )
     const fitted = bottom ? await fitBadgeToCanvas(bottom, CW, CH) : null
@@ -3989,13 +3347,7 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
     //   bottom styles suppress it via suppressCustomRow like Standard.
     let cardCustomRow: { png: Buffer; w: number; h: number } | null = null
     if (cardShowCustom && input.ratings && !isBottomStyle) {
-      const cardCustomPresetPolarity = customSlotPreset ? technicalPresetPolarity(customSlotPreset) : null
-      const effCardCustomLight = cardCustomPresetPolarity === "light" ? true : cardCustomPresetPolarity === "dark" ? false : bottomLight
-      const cardCustomBitmap = await renderMultiRatings(input.ratings, CW - 40, effCardCustomLight, badgeFont, customFinish).catch(() => null)
-      const cardCustomScalePct = technicalPresetScale(customSlotPreset)
-      cardCustomRow = cardCustomBitmap && customSlotPreset && cardCustomScalePct !== 100
-        ? await scaleBitmapForLayout(cardCustomBitmap, cardCustomScalePct).catch(() => cardCustomBitmap)
-        : cardCustomBitmap
+      cardCustomRow = await renderMultiRatings(input.ratings, CW - 40, bottomLight, badgeFont).catch(() => null)
     }
     // - bottom styles: the existing bottom row, stacked below the main badge
     //   (same builder args/geometry inputs as Standard, so the cache entries
@@ -4005,10 +3357,10 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
       const bottomItems = cardSeparates
       const isBar = bottomVariant === "bottom-bar"
       const availW = isBar && !isLandscape ? CW : (isLandscape ? CW - 80 : CW - 36)
-      const cardBottomKey = badgeCacheKey("separate-bottom", bottomVariant, bottomItems.map((i) => `${i.id}${i.value}`).join(","), CW, badgeFont, separateBadgeScaleEff, availW, effSepBottomLight ? "bl1" : "bl0", ...(sepPresetFrag ? [sepPresetFrag] : []), ...(sepAppearanceFrag ? [`sa:${sepAppearanceFrag}`] : []))
+      const cardBottomKey = badgeCacheKey("separate-bottom", bottomVariant, bottomItems.map((i) => `${i.id}${i.value}`).join(","), CW, badgeFont, separateBadgeScaleEff, availW, effSepBottomLight ? "bl1" : "bl0")
       const cachedBottom = cacheGet<{ png: Buffer; w: number; h: number }>(cardBottomKey)
       cardBottomRow = cachedBottom ?? await coalesceBadgeRender(cardBottomKey, () =>
-        renderSeparateRatingsBottom(bottomItems, badgePw, bottomVariant, badgeFont, separateBadgeScaleEff, availW, effSepBottomLight, sepFinish)
+        renderSeparateRatingsBottom(bottomItems, badgePw, bottomVariant, badgeFont, separateBadgeScaleEff, availW, effSepBottomLight)
           .then((r) => { if (r) cacheSet(cardBottomKey, r, ["badge"], BADGE_CACHE_TTL); return r }),
       )
     }
@@ -4045,10 +3397,10 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
           || isTopBadgeNumberRightCorner({ topBadgeType: topBadge?.type, rankingBadgeStyle, extraBadgeStyle, ribbonSide, hasTopBadge: !!finalRankBadge }))
       const stackTop = (qualityStackAnchor ? qualityStackAnchor.top + 6 : netBaseTop - 10)
         + (isLandscape ? 0 : PORTRAIT_SEPARATE_SHIFT_Y)
-      const stackKey = badgeCacheKey("separate", columnItems.map((i) => `${i.id}${i.value}`).join(","), CW, badgeFont, effSepTopLight, separateBadgeScaleEff, ...(sepPresetFrag ? [sepPresetFrag] : []), ...(sepAppearanceFrag ? [`sa:${sepAppearanceFrag}`] : []))
+      const stackKey = badgeCacheKey("separate", columnItems.map((i) => `${i.id}${i.value}`).join(","), CW, badgeFont, effSepTopLight, separateBadgeScaleEff)
       const cachedStack = cacheGet<{ png: Buffer; w: number; h: number }>(stackKey)
       const stack = cachedStack ?? await coalesceBadgeRender(stackKey, () =>
-        renderSeparateRatingStack(columnItems, badgePw, effSepTopLight, badgeFont, separateBadgeScaleEff, sepFinish)
+        renderSeparateRatingStack(columnItems, badgePw, effSepTopLight, badgeFont, separateBadgeScaleEff)
           .then((r) => { if (r) cacheSet(stackKey, r, ["badge"], BADGE_CACHE_TTL); return r })
       )
       let stackFitted = stack ? await fitBadgeToCanvas(stack, CW, CH) : null
@@ -4215,12 +3567,11 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
   // -----------------------------------------------------------------------
   // Pure observer: reports the fills ACTUALLY passed to the builders above
   // (same variables, no second derivation, no extra decode, no pixel/key
-  // changes). Std for the standard slots, shared adaptive for the active
-  // house presets, the SAME `blurTintHex` already mixed into the bottom
-  // gradient overlay for the gradient entry, null for anything painting no
-  // automatic accent (non-consuming styles, custom presets with their own
-  // design, suppressed Fresh/Card chrome, fixed provider-glass/neutral
-  // glass, disabled or zero-strength gradients).
+  // changes). Std for the standard slots, the SAME `blurTintHex` already
+  // mixed into the bottom gradient overlay for the gradient entry, null for
+  // anything painting no automatic accent (non-consuming styles, suppressed
+  // Fresh/Card chrome, fixed provider-glass/neutral glass, disabled or
+  // zero-strength gradients).
   if (onAccentMeta) {
     try {
       const topComposited =
@@ -4229,19 +3580,14 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
         (!!topBadge && !showComingSoon && topPaintsAccent) &&
         ((!isFresh && !isCard) || isExtraTopBadge)
       const genreStdPaints =
-        genrePaintsAccent && !!safeGenreBadgeResult &&
-        (!useGenrePreset || (!genrePresetHouseApplied && !genrePresetCustomApplied))
-      const genrePresetPaints =
-        !isFresh && !isCard && !!safeGenreBadgeResult && useGenrePreset && genrePresetHouseApplied
+        genrePaintsAccent && !!safeGenreBadgeResult
       const genrePaintsEff =
-        genreStdPaints || genrePresetPaints || (cardGenrePaints && cardMainBadgeRendered)
-      const genreEffHex = genrePresetPaints
-        ? accentColorGenre
-        : genreStdPaints || (cardGenrePaints && cardMainBadgeRendered)
+        genreStdPaints || (cardGenrePaints && cardMainBadgeRendered)
+      const genreEffHex = genreStdPaints || (cardGenrePaints && cardMainBadgeRendered)
           ? (isCard ? accentColorGenre : genreStdAccent)
           : null
       const topEffHex = topComposited
-        ? (topPresetHouseApplied ? accentColorRank : topPresetCustomApplied ? null : rankStdAccent)
+        ? rankStdAccent
         : null
       const topPaintsEff = topComposited && topEffHex !== null
       const manualGenre = accentOverride && isValidHex(accentOverride.genreColor)

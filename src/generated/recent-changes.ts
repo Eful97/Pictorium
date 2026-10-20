@@ -11,9 +11,4 @@ export interface RecentChange {
 }
 
 export const RECENT_CHANGES: RecentChange[] = [
-  { type: "fix", text: "Show the correct studio logos on posters", sha: "58ed75e", date: "2026-10-20" },
-  { type: "feature", text: "Add Studio Bones network logo", sha: "e104b86", date: "2026-10-20" },
-  { type: "fix", text: "Recover stalled poster image requests", sha: "8941b0c", date: "2026-10-20" },
-  { type: "perf", text: "Reuse poster cache across Cloudflare regions", sha: "e1fcf3b", date: "2026-10-19" },
-  { type: "fix", text: "Exclude animation from automatic K-Drama badges", sha: "b9c34f0", date: "2026-10-19" },
 ]

@@ -125,8 +125,6 @@ function Probes(props: {
     separateRatings: ed.separateRatings,
     separateRatingsStyle: ed.separateRatingsStyle,
     customBadge: ed.customBadge,
-    badgePresetId: ed.badgePresetId,
-    badgePresetRev: ed.badgePresetRev,
     badgeStyle: ed.badgeStyle,
     rankingBadgeStyle: ed.rankingBadgeStyle,
     extraBadgeStyle: ed.extraBadgeStyle,

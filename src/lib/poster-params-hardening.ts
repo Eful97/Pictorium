@@ -23,16 +23,6 @@ import { parseRatingSources } from "./ratings"
 import { isSeparateRatingsStyle } from "./badge-styles"
 import { isPosterLayout, isPosterFreshScope, DEFAULT_POSTER_FRESH_SCOPE } from "./types"
 import { ANIME_RANK_MAX } from "./badge-priority"
-import { BADGE_PRESET_ID_RE, BADGE_PRESET_REV_RE, BADGE_TARGETS } from "./badge-preset"
-import {
-  FAMILY_BP_FOLLOW_PARAM,
-  FAMILY_BP_PARAM,
-  FAMILY_BP_TARGETS_PARAM,
-  encodeFamilyBpParam,
-  encodeFamilyFollowParam,
-  parseFamilyBpParam,
-  parseFamilyFollowParam,
-} from "./badge-preset-family-transport"
 
 // Env a module level (convenzione del repo: un cambio richiede restart).
 const POSTER_PARAMS_MODE = (envWithFallback("POSTER_PARAMS") || "").toLowerCase().trim()
@@ -121,10 +111,7 @@ export const POSTER_CACHE_ALLOWLIST: ReadonlySet<string> = new Set([
   "age", "agecountry", "agebs",
   "pre", "side", "hideLogo", "tint", "be", "preview", "u", "user",
   "config", "c", "api_key", "mdblist_key", "simkl_key", "tvdb_key",
-  "region", "country", "logoFit", "debug", "netgeo",
-  "badgePreset", "prv", "pt", "df",
-  // Per-family bindings: staged `bp` (client) + server-written `bpt` targets.
-  "bp", "bpf", "bpt",
+  "region", "country", "logoFit", "debug", "netgeo", "df",
   // Segui-spazio: politica di rivalidazione (entra in chiave/ETag via serializzazione).
   "live",
   // Effective-accent display sync (server-only, Stage 1): read-only JSON
@@ -274,53 +261,15 @@ export function hardenPosterSearchParams(
     for (const key of DERIVED_HINT_PARAMS) params.delete(key)
   }
 
-  if (params.has("badgePreset")) {
-    const bp = params.get("badgePreset")
-    if (!bp || !BADGE_PRESET_ID_RE.test(bp)) {
-      params.delete("badgePreset")
-      params.delete("prv")
-    }
-  } else {
-    params.delete("prv")
-  }
-  if (params.has("prv")) {
-    const prv = params.get("prv")
-    if (!prv || !BADGE_PRESET_REV_RE.test(prv)) {
-      params.delete("prv")
-    }
-  }
-  // Per-family `bp` (staged map): canonical order/dedup via the shared
-  // parser so equivalent maps share one key; unknown families dropped,
-  // known-family junk shadows as an explicit clear (fail-closed, same as
-  // the resolver). Empty after canonicalization collapses onto absent
-  // (no override, legacy key intact). `bpt` is server-written ONLY: any
-  // client value is dropped here (the route sets the authorized targets).
-  if (params.has(FAMILY_BP_PARAM)) {
-    const staged = parseFamilyBpParam(params.get(FAMILY_BP_PARAM))
-    const canonical = staged ? encodeFamilyBpParam(staged) : null
-    params.delete(FAMILY_BP_PARAM)
-    if (canonical) params.set(FAMILY_BP_PARAM, canonical)
-  }
-  if (params.has(FAMILY_BP_FOLLOW_PARAM)) {
-    const follows = parseFamilyFollowParam(params.get(FAMILY_BP_FOLLOW_PARAM));
-    const canonicalFollows = follows ? encodeFamilyFollowParam(follows) : null;
-    params.delete(FAMILY_BP_FOLLOW_PARAM);
-    if (canonicalFollows) params.set(FAMILY_BP_FOLLOW_PARAM, canonicalFollows);
-  }
-  params.delete(FAMILY_BP_TARGETS_PARAM)
-  // pt (preset target, solo frammento chiave server-side scritto dalla route
-  // con il target autorizzato corrente): enum finita top/genre — la revision
-  // copre solo il design, quindi un flip di target a design identico deve
-  // comunque far girare la chiave. Orfano (senza badgePreset valido) o
-  // invalido → delete, mai eredita/veleni.
-  if (!params.has("badgePreset")) {
-    params.delete("pt")
-  } else if (params.has("pt")) {
-    const pt = params.get("pt")
-    if (!pt || !(BADGE_TARGETS as readonly string[]).includes(pt)) {
-      params.delete("pt")
-    }
-  }
+  // Removed Badge Lab params (`badgePreset`/`prv`/`pt`/`bp`/`bpf`/`bpt`):
+  // the custom badge library is retired — legacy query values are inert and
+  // collapse onto the native key, never a separate render or cache entry.
+  params.delete("badgePreset")
+  params.delete("prv")
+  params.delete("pt")
+  params.delete("bp")
+  params.delete("bpf")
+  params.delete("bpt")
   // netPos: enum finita ("top"/"auto") — garbage collassato (stesso render di
   // auto, che il server risolve da solo).
   if (params.has("netPos")) {

@@ -66,8 +66,6 @@ function baseDeps(overrides: Record<string, unknown> = {}) {
     separateRatings: false,
     separateRatingsStyle: "column",
     customBadge: null,
-    badgePresetId: null,
-    badgePresetRev: null,
     badgeStyle: "shadow",
     rankingBadgeStyle: "default",
     extraBadgeStyle: null,
@@ -298,16 +296,15 @@ describe("correction 1/3: explicit portrait auto-clear survives a landscape save
   })
 })
 
-describe("correction 1/3: BadgeLab binding per-shape save/clear boundary", () => {
-  it("different presets per shape save to flat vs profile and select per shape", async () => {
+describe("correction 1/3: retired Badge Lab fields persist as inert per-shape data (save/clear boundary)", () => {
+  it("stored pairs round-trip verbatim on every shape save (no editor input exists anymore)", async () => {
     const prev = mapping({
       badgePresetId: "Abc123-_XyZ",
       badgePresetRev: "deadbeef",
+      landscape: { badgePresetId: "Landscap_01", badgePresetRev: "abcdef12" },
     })
     const { result } = renderHook(() => usePosterSave(baseDeps({
       posterShape: "landscape",
-      badgePresetId: "Landscap_01",
-      badgePresetRev: "abcdef12",
       mappingsMap: new Map([["movie:1", prev]]),
     })))
     await act(async () => { await result.current.saveConfig({ silent: true }) })
@@ -326,28 +323,27 @@ describe("correction 1/3: BadgeLab binding per-shape save/clear boundary", () =>
     expect(effectiveMappingForShape(saved, "landscape")?.badgePresetRev).toBe("abcdef12")
   })
 
-  it("clearing the landscape binding (null pair) never resurrects the flat", async () => {
+  it("a portrait save preserves the stored landscape profile verbatim (never resurrects, never clears)", async () => {
     const prev = mapping({
       badgePresetId: "Abc123-_XyZ",
       badgePresetRev: "deadbeef",
       landscape: { badgePresetId: "Landscap_01", badgePresetRev: "abcdef12" },
     })
     const { result } = renderHook(() => usePosterSave(baseDeps({
-      posterShape: "landscape",
-      badgePresetId: null,
-      badgePresetRev: null,
+      posterShape: "poster",
       mappingsMap: new Map([["movie:1", prev]]),
     })))
     await act(async () => { await result.current.saveConfig({ silent: true }) })
     const body = mappingPosts()[0].body
-    // Flat untouched (other-shape save preserves verbatim).
+    // Flat verbatim, profile preserved verbatim (full-replace would drop
+    // omitted keys, so the save carries the stored values through).
     expect(body.badgePresetId).toBe("Abc123-_XyZ")
     const parsed = mappingSchema.safeParse(body)
     expect(parsed.success).toBe(true)
     if (!parsed.success) return
     const saved = parsed.data as unknown as Mapping
     expect(effectiveMappingForShape(saved, "poster")?.badgePresetId).toBe("Abc123-_XyZ")
-    expect(effectiveMappingForShape(saved, "landscape")?.badgePresetId).toBeNull()
-    expect(effectiveMappingForShape(saved, "landscape")?.badgePresetRev).toBeNull()
+    expect(effectiveMappingForShape(saved, "landscape")?.badgePresetId).toBe("Landscap_01")
+    expect(effectiveMappingForShape(saved, "landscape")?.badgePresetRev).toBe("abcdef12")
   })
 })

@@ -2,7 +2,7 @@
 
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef, useMemo, useSyncExternalStore } from "react"
 import type { SearchResult, TMDBImage, Mapping, CustomCatalogConfig, NetworkLogoPosition, PosterLayout, PosterFreshScope, PosterShape } from "./types"
-import { effectiveFamilyFollows, effectiveMappingForShape, DEFAULT_POSTER_FRESH_SCOPE } from "./types"
+import { effectiveMappingForShape, DEFAULT_POSTER_FRESH_SCOPE } from "./types"
 import { effectiveShapeDefaultLayout, resolveOpenPosterLayout, effectiveShapeDefaultFreshScope, resolveOpenPosterFreshScope, effectiveShapeDefaultAge } from "./poster-layout-resolve"
 import { normalizeSeasonalThemeChoice, resolveEffectiveSeasonalTheme } from "./seasonal-theme"
 import type { BadgeStyle, RankingBadgeStyle, ExtraBadgeStyle, ExtraBadgeFollowRank, QualityBadgeStyle, BadgeFont, SeparateRatingsStyle, AgeBadgeStyle } from "./badge-styles"
@@ -19,12 +19,7 @@ import { loadLanguage } from "./i18n-loader"
 import { isSupportedUiLang, getRegionDef, defaultRegionForLang, contentLanguageForUiLang } from "./regions"
 import type { EnrichedAnimeItem } from "./validation"
 import { http, userFetch } from "./http"
-import { isBadgeFamilyId, isBadgePresetId, isBadgePresetRev, type BadgeFamilyId } from "./badge-preset"
-import { isEmptyFamilyMap, mergeFamilyMapForSave } from "./family-preset-save"
-import { isFamilyFollowDrop } from "./family-preset-follow"
-import { isPresetTargetCompatibleWithFamily } from "./badge-preset-family-transport"
-import { getPreset } from "./presets-client"
-import { currentPathUuid, fetchWithUserAuthRetry, userAuthHeaders, waitForUserUnlock, USER_UNLOCK_EVENT } from "./user-token"
+import { currentPathUuid, fetchWithUserAuthRetry, userAuthHeaders, USER_UNLOCK_EVENT } from "./user-token"
 import { copyText } from "./clipboard"
 import { useRootColors } from "./useRootColors"
 import { normalizeGenreName } from "./genre-normalize"
@@ -612,9 +607,6 @@ export function usePictorium(): PictoriumCtx {
     qualityBadgeStyle, setQualityBadgeStyle,
     videoFormats, setVideoFormats,
     customBadge, setCustomBadge,
-    badgePresetId, setBadgePresetId,
-    badgePresetRev, setBadgePresetRev,
-    badgePresets, setBadgePresets,
     networkLogo, setNetworkLogo,
     networkLogoPosition, setNetworkLogoPosition,
     networkLogoFollowTitle, setNetworkLogoFollowTitle,
@@ -1662,63 +1654,8 @@ export function usePictorium(): PictoriumCtx {
     const previewAgeBadge = navigation.selected ? ageBadge : previewAgeDefaults.ageBadge
     const previewAgeCountry = navigation.selected ? ageCountry : previewAgeDefaults.ageCountry
     const previewAgeBadgeStyle = navigation.selected ? ageBadgeStyle : previewAgeDefaults.ageBadgeStyle
-    // Effective preview family map: the staged sparse map alone shadows the
-    // saved look on reopen (and "Saved" can never follow it) because the
-    // server preview deliberately never inherits the mapping (a clear must
-    // never resurrect the saved look). Merge the SHAPE-EFFECTIVE saved map
-    // under the staged overrides (staged keys — including explicit null
-    // clears — win); the save path keeps using the raw staged delta
-    // separately. Empty = omit (legacy preview URLs byte-identical). The
-    // legacy singleton travels via its own query below and fans out per
-    // family server-side on its authorized target, so an explicit family
-    // clear still shadows it while "Saved" follows it.
-    const previewMapKey = navigation.selected ? `${navigation.selected.media_type}:${navigation.selected.id}` : null
-    const previewSavedEff = previewMapKey
-      ? effectiveMappingForShape(mappingsMap.get(previewMapKey) ?? null, isLandscapePreview ? "landscape" : "poster")
-      : null
-    // Follow intent travels explicitly via `bpf` (query priority): the server
-    // preview deliberately never inherits the mapping (isPreview skips saved
-    // map + legacy singleton), so without `bpf` a persisted follow would
-    // still show the saved pin on reopen. The merged map below stages
-    // pins/clears; drops delete the merged key and join the follow set; the
-    // persisted shape-effective follows are merged in (minus families with an
-    // explicit staged binding/clear, which cancel follow) and filtered out of
-    // the `bp` map so an inherited flat pin cannot resurrect a followed
-    // landscape family. The legacy singleton query stays intact for siblings.
-    const previewShape: import("./types").PosterShape = isLandscapePreview ? "landscape" : "poster";
-    const previewPersistedFollows = (() => {
-      const key = previewMapKey;
-      const m = key ? (mappingsMap.get(key) ?? null) : null;
-      return effectiveFamilyFollows(m, previewShape);
-    })();
-    const previewMergedFamiliesRaw = mergeFamilyMapForSave(
-      (previewSavedEff?.badgePresets ?? null) as import("./badge-preset").BadgeFamilyBindings | null,
-      badgePresets,
-    );
-    const previewFollowSet = (() => {
-      const out: Record<string, true> = {};
-      for (const f of Object.keys(previewPersistedFollows)) {
-        if (badgePresets && Object.prototype.hasOwnProperty.call(badgePresets, f)) continue;
-        (out as Record<string, true>)[f] = true;
-      }
-      if (badgePresets && typeof badgePresets === "object") {
-        for (const f of Object.keys(badgePresets)) {
-          if (isFamilyFollowDrop((badgePresets as Record<string, unknown>)[f])) (out as Record<string, true>)[f] = true;
-        }
-      }
-      return out;
-    })();
-    const previewMergedFamilies = (() => {
-      const out: Record<string, unknown> = { ...(previewMergedFamiliesRaw as Record<string, unknown>) };
-      for (const f of Object.keys(previewFollowSet)) {
-        if (Object.prototype.hasOwnProperty.call(out, f)) delete out[f];
-      }
-      return out;
-    })();
-    const previewFamilyStaged = (() => {
-      return isEmptyFamilyMap(previewMergedFamilies) ? null : previewMergedFamilies
-    })();
-    const previewFamilyFollows = Object.keys(previewFollowSet).length > 0 ? (previewFollowSet as never) : null;
+    // Retired Badge Lab (custom badge library removed): no staged family
+    // bindings travel in preview URLs (the renderer ignores them anyway).
     const url = buildPreviewUrl(
       {
         selected: navigation.selected,
@@ -1742,7 +1679,7 @@ export function usePictorium(): PictoriumCtx {
         // Preview WYSIWYG nel namespace (altrimenti mostra il globale).
         userId: currentUserId,
       },
-      { globalBadges, rankingBadges, badgeStyle, rankingBadgeStyle, extraBadgeStyle, badgeFont, qualityBadgeStyle, videoFormats, badgeGenre, badgeYear, badgeRating, badgeQuality, ageBadge: previewAgeBadge, ageCountry: previewAgeCountry, ageBadgeStyle: previewAgeBadgeStyle, customRatings, ratingSources, separateRatings, separateRatingsStyle, posterLayout, posterFreshScope, customBadge, badgePresetId, badgePresetRev, badgePresets: previewFamilyStaged, badgePresetFollows: previewFamilyFollows, gradientHeight: isLandscapePreview ? landscapeBlur.gradientHeight : gradientHeight, blurIntensity: isLandscapePreview ? landscapeBlur.blurIntensity : blurIntensity, blurFade: isLandscapePreview ? landscapeBlur.blurFade : blurFade, blurDarkness: isLandscapePreview ? landscapeBlur.blurDarkness : blurDarkness, blurEnabled: isLandscapePreview ? landscapeBlur.blurEnabled : blurEnabled, tintStrength: isLandscapePreview ? landscapeBlur.tintStrength : tintStrength, topShade: isLandscapePreview ? landscapeBlur.topShade : topShade, topShadeHeight: isLandscapePreview ? landscapeBlur.topShadeHeight : topShadeHeight, networkLogo, networkLogoPosition, networkLogoFollowTitle, preRelease, ribbonSide, ribbonEnabled, posterShape, logoAlign, topBadgeScale, topBadgeOffsetX, topBadgeOffsetY, extraBadgeScale: extraBadgeScale ?? undefined, extraBadgeOffsetX: extraBadgeOffsetX ?? undefined, extraBadgeOffsetY: extraBadgeOffsetY ?? undefined, genreBadgeScale, qualityBadgeScale, networkLogoScale, separateBadgeScale, separateBadgeOffsetX, separateBadgeOffsetY, genreBadgeOffsetX, genreBadgeOffsetY, qualityBadgeOffsetX, qualityBadgeOffsetY, networkLogoOffsetX, networkLogoOffsetY },
+      { globalBadges, rankingBadges, badgeStyle, rankingBadgeStyle, extraBadgeStyle, badgeFont, qualityBadgeStyle, videoFormats, badgeGenre, badgeYear, badgeRating, badgeQuality, ageBadge: previewAgeBadge, ageCountry: previewAgeCountry, ageBadgeStyle: previewAgeBadgeStyle, customRatings, ratingSources, separateRatings, separateRatingsStyle, posterLayout, posterFreshScope, customBadge, gradientHeight: isLandscapePreview ? landscapeBlur.gradientHeight : gradientHeight, blurIntensity: isLandscapePreview ? landscapeBlur.blurIntensity : blurIntensity, blurFade: isLandscapePreview ? landscapeBlur.blurFade : blurFade, blurDarkness: isLandscapePreview ? landscapeBlur.blurDarkness : blurDarkness, blurEnabled: isLandscapePreview ? landscapeBlur.blurEnabled : blurEnabled, tintStrength: isLandscapePreview ? landscapeBlur.tintStrength : tintStrength, topShade: isLandscapePreview ? landscapeBlur.topShade : topShade, topShadeHeight: isLandscapePreview ? landscapeBlur.topShadeHeight : topShadeHeight, networkLogo, networkLogoPosition, networkLogoFollowTitle, preRelease, ribbonSide, ribbonEnabled, posterShape, logoAlign, topBadgeScale, topBadgeOffsetX, topBadgeOffsetY, extraBadgeScale: extraBadgeScale ?? undefined, extraBadgeOffsetX: extraBadgeOffsetX ?? undefined, extraBadgeOffsetY: extraBadgeOffsetY ?? undefined, genreBadgeScale, qualityBadgeScale, networkLogoScale, separateBadgeScale, separateBadgeOffsetX, separateBadgeOffsetY, genreBadgeOffsetX, genreBadgeOffsetY, qualityBadgeOffsetX, qualityBadgeOffsetY, networkLogoOffsetX, networkLogoOffsetY },
       localConfigToken,
     )
     setPreviewUrl(url)
@@ -1750,7 +1687,7 @@ export function usePictorium(): PictoriumCtx {
     logoScale, logoScaleExplicit, logoOffsetX, logoOffsetY, backdropScale, backdropOffsetX, backdropOffsetY,
     metaInfo, trendRank, trending.mdblistAnimeList, topEdgeColor, bottomEdgeColor, accentColor, autoAccentColor, lang, tmdbKey,
     editorCtx.defaultRegion, editorCtx.defaultDateFormat, currentUserId, localConfigToken, localConfigTokenStatus,
-    globalBadges, rankingBadges, badgeStyle, rankingBadgeStyle, extraBadgeStyle, badgeFont, qualityBadgeStyle, videoFormats, badgeGenre, badgeYear, badgeRating, badgeQuality, ageBadge, ageCountry, ageBadgeStyle, defaultAgeBadge, defaultAgeCountry, defaultAgeBadgeStyle, customRatings, ratingSources, separateRatings, separateRatingsStyle, posterLayout, posterFreshScope, customBadge, badgePresetId, badgePresetRev, badgePresets, mappingsMap, gradientHeight, blurIntensity, blurFade, blurDarkness, blurEnabled, landscapeBlur, landscapeDefaults, tintStrength, topShade, topShadeHeight, networkLogo, networkLogoPosition, networkLogoFollowTitle, preRelease, ribbonSide, ribbonEnabled, posterShape, logoAlign, topBadgeScale, topBadgeOffsetX, topBadgeOffsetY, extraBadgeScale, extraBadgeOffsetX, extraBadgeOffsetY, genreBadgeScale, qualityBadgeScale, networkLogoScale, separateBadgeScale, separateBadgeOffsetX, separateBadgeOffsetY, genreBadgeOffsetX, genreBadgeOffsetY, qualityBadgeOffsetX, qualityBadgeOffsetY, networkLogoOffsetX, networkLogoOffsetY])
+    globalBadges, rankingBadges, badgeStyle, rankingBadgeStyle, extraBadgeStyle, badgeFont, qualityBadgeStyle, videoFormats, badgeGenre, badgeYear, badgeRating, badgeQuality, ageBadge, ageCountry, ageBadgeStyle, defaultAgeBadge, defaultAgeCountry, defaultAgeBadgeStyle, customRatings, ratingSources, separateRatings, separateRatingsStyle, posterLayout, posterFreshScope, customBadge, gradientHeight, blurIntensity, blurFade, blurDarkness, blurEnabled, landscapeBlur, landscapeDefaults, tintStrength, topShade, topShadeHeight, networkLogo, networkLogoPosition, networkLogoFollowTitle, preRelease, ribbonSide, ribbonEnabled, posterShape, logoAlign, topBadgeScale, topBadgeOffsetX, topBadgeOffsetY, extraBadgeScale, extraBadgeOffsetX, extraBadgeOffsetY, genreBadgeScale, qualityBadgeScale, networkLogoScale, separateBadgeScale, separateBadgeOffsetX, separateBadgeOffsetY, genreBadgeOffsetX, genreBadgeOffsetY, qualityBadgeOffsetX, qualityBadgeOffsetY, networkLogoOffsetX, networkLogoOffsetY])
 
   // A1: trailing debounce della preview URL (200ms). Ogni tick di slider
   // cambia l'identità di buildPreviewUrlCb → senza debounce ogni pixel di
@@ -2603,17 +2540,6 @@ export function usePictorium(): PictoriumCtx {
       // save successivo dropperebbe il manuale. Null/assente = automatico in
       // attesa del ricalcolo (mai colori campionati congelati qui).
       setAccentColor(eff?.accentColor ?? null)
-      // Binding Badge Lab atomico a coppia per il formato di apertura
-      // (profilo landscape vince sul flat a coppia, mai mescolati): il live
-      // segue l'effettivo così preview/save non mescolano le forme. Legacy
-      // senza profilo = coppia flat invariata.
-      setBadgePresetId(eff?.badgePresetId ?? null)
-      setBadgePresetRev(eff?.badgePresetRev ?? null)
-      // Staged per-family map: always starts empty on title open (follow the
-      // saved mapping). The save merges staged over stored per shape, so
-      // initializing from the mapping here would duplicate inherited bindings
-      // as staged overrides and break map sparsity/independence.
-      setBadgePresets(null)
       setRotationPosters(existing.cleanPosters || [])
       setAutoRotateClean(existing.autoRotateClean ?? defaultAutoRotateClean)
       setExcludedPosters(existing.excludedPosters || [])
@@ -2711,14 +2637,6 @@ export function usePictorium(): PictoriumCtx {
       // portraits stay centered by contract.
       setLogoAlign(openShape === "landscape" ? (landscapeDefaults?.logoAlign ?? defaultLogoAlign ?? "left") : "center")
       setCustomBadge(null)
-      // Titolo senza mapping: nessuno staged da ripristinare — la mappa
-      // staged riparte vuota (isolamento dal titolo precedente).
-      setBadgePresets(null)
-      // Titolo senza mapping: nessun singleton salvato — il live riparte da
-      // assente (isolamento dal titolo precedente: un singleton stantio
-      // trapelerebbe nella preview, che ora lo emette esplicitamente).
-      setBadgePresetId(null)
-      setBadgePresetRev(null)
       // Titolo senza mapping: nessuna scelta salvata — la cornice riparte da
       // Automatico (isolamento dal titolo precedente).
       setSeasonalTheme(null)
@@ -2764,15 +2682,15 @@ export function usePictorium(): PictoriumCtx {
 
   // Lab "Use for title" handoff consume (one-shot, staged-only, never saves):
   // `?title=movie:123&shape=poster&fam=quality&preset=<id>&rev=<rev>` reopens
-  // the exact title and stages the binding for the edited shape; only the
-  // explicit Save persists it (preview/save merge staged over stored). Params
-  // are consumed from the URL immediately (no loops, no resurrect on reload);
-  // malformed or unauthorized handoffs toast honestly and never stage. The
-  // open settles authoritatively per-id (GET /api/mappings/[id], owner-aware:
-  // 200 = mapped, 404 = unmapped; anything else never opens) so a saved
-  // mapping is honored even while the list is still pending. Preset identity comes from the
-  // pre-cache truth (GET /api/presets/[id], owner-aware: private presets stay
-  // invisible without owner auth — uniform 404, never staged blind).
+  // Title deep-link open (`?title=<type>:<id>&shape=...`, e.g. shared links):
+  // opens the exact title and stages nothing (the custom badge library is
+  // retired: legacy Lab handoff params `fam`/`preset`/`rev` are consumed from
+  // the URL for hygiene but ignored — never fetched, never staged).
+  // Params are consumed from the URL immediately (no loops, no resurrect on
+  // reload); malformed handoffs are ignored silently. The open settles
+  // authoritatively per-id (GET /api/mappings/[id], owner-aware: 200 =
+  // mapped, 404 = unmapped; anything else never opens) so a saved mapping is
+  // honored even while the list is still pending.
   const handoffConsumedRef = useRef(false)
   const mappingsGenRef = useRef(0)
   useEffect(() => { mappingsGenRef.current += 1 }, [mappingsMap])
@@ -2787,10 +2705,7 @@ export function usePictorium(): PictoriumCtx {
     }
     const titleParam = sp.get("title")
     const shapeParam = sp.get("shape")
-    const famParam = sp.get("fam")
-    const presetParam = sp.get("preset")
-    const revParam = sp.get("rev")
-    if (!titleParam && !famParam && !presetParam) return
+    if (!titleParam) return
     try {
       const url = new URL(window.location.href)
       for (const k of ["title", "shape", "fam", "preset", "rev"]) url.searchParams.delete(k)
@@ -2803,15 +2718,11 @@ export function usePictorium(): PictoriumCtx {
     }
     const titleMatch = titleParam ? /^(movie|tv):([1-9]\d{0,9})$/.exec(titleParam) : null
     if (!titleMatch) {
-      if (famParam || presetParam) fail(t("ui.familyHandoffError"))
       return
     }
     const mediaType = titleMatch[1] as "movie" | "tv"
     const tmdbId = Number(titleMatch[2])
     const handoffShape: PosterShape = shapeParam === "landscape" ? "landscape" : "poster"
-    const family: BadgeFamilyId | null = isBadgeFamilyId(famParam) ? famParam : null
-    const presetId: string | null = presetParam && isBadgePresetId(presetParam) ? presetParam : null
-    const rev: string | null = revParam && isBadgePresetRev(revParam) ? revParam : null
     void (async () => {
       // Title identity first (details for a real SearchResult; the open flow
       // refetches anyway — this only seeds title/poster for the header).
@@ -2834,36 +2745,8 @@ export function usePictorium(): PictoriumCtx {
           first_air_date: details.first_air_date ?? undefined,
         }
       } catch {
-        fail(t("ui.familyHandoffError"))
+        fail(t("ui.loadError"))
         return
-      }
-      // Full-load handoff landings lose the memory-only session unlock (the
-      // unlock modal opens by design): wait for the user to unlock (bounded)
-      // before the owner-gated preset fetch instead of failing instantly
-      // while the modal is still open. Timeout = honest error, no staging.
-      if (family && presetId) {
-        const unlocked = await waitForUserUnlock(currentPathUuid(), 60_000)
-        if (!unlocked) {
-          fail(t("ui.familyHandoffError"))
-          return
-        }
-      }
-      // Preset authorization + target compatibility (owner-aware via the store
-      // truth; a private preset without owner auth 404s uniformly here).
-      let stageable: { id: string; rev: string | null } | null = null
-      if (family && presetId) {
-        try {
-          const found = await getPreset(presetId)
-          if (isPresetTargetCompatibleWithFamily(found.preset.target, family)) {
-            stageable = { id: found.preset.id, rev: rev ?? found.preset.revision }
-          } else {
-            fail(t("ui.familyHandoffError"))
-          }
-        } catch {
-          fail(t("ui.familyHandoffError"))
-        }
-      } else if (famParam || presetParam) {
-        fail(t("ui.familyHandoffError"))
       }
       // Authoritative per-id settlement: the open must see the saved mapping
       // for THIS exact title even while the list is still pending. A single
@@ -2871,7 +2754,7 @@ export function usePictorium(): PictoriumCtx {
       // into the open so the list race can never force the unmapped branch),
       // 404 = authoritatively unmapped (open with an explicit null, never the
       // stale list). Any other outcome (401/429/5xx/network/timeout) is
-      // transient or denied: honest error, no open, no stage, never treated
+      // transient or denied: honest error, no open, never treated
       // as "no mapping" (a full-replacement save over 0/0 would follow).
       // Exact target only, same namespace via userFetch — no new auth leaks.
       let authoritative: Mapping | null
@@ -2880,31 +2763,24 @@ export function usePictorium(): PictoriumCtx {
         if (res.ok) {
           const body = (await res.json()) as Mapping
           if (body == null || body.tmdbId !== tmdbId || body.mediaType !== mediaType) {
-            fail(t("ui.familyHandoffError"))
+            fail(t("ui.loadError"))
             return
           }
           authoritative = body
         } else if (res.status === 404) {
           authoritative = null
         } else {
-          fail(t("ui.familyHandoffError"))
+          fail(t("ui.loadError"))
           return
         }
       } catch {
-        fail(t("ui.familyHandoffError"))
+        fail(t("ui.loadError"))
         return
       }
-      const openFetchId = await openPosterBrowserRef.current(item, handoffShape, authoritative)
+      await openPosterBrowserRef.current(item, handoffShape, authoritative)
       // No canvas override here: the open above already initialized the
       // shape-effective values for the handoff shape (setting only the canvas
       // after the init would keep the other shape's values — desync).
-      if (stageable && family) {
-        // Stale-handoff guard: only the still-current title stages (another
-        // open bumped fetchIdRef meanwhile, or this load was superseded).
-        if (navigation.fetchIdRef.current !== openFetchId) return
-        editorCtx.setFamilyPreset(family, stageable)
-        import("sonner").then(({ toast }) => toast.success(t("ui.familyHandoffStaged")))
-      }
     })()
     // Mount-only consume (openPosterBrowserRef stays live; setters stable).
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -2926,7 +2802,7 @@ export function usePictorium(): PictoriumCtx {
     mappingsMap, loadMappings, logoScale, logoOffsetX, logoOffsetY,
     selectedBackdrop, setSelectedBackdrop: setSelectedBackdrop, backdropScale, backdropOffsetX, backdropOffsetY,
     setBackdropScale, setBackdropOffsetX, setBackdropOffsetY,
-    globalBadges, rankingBadges, customBadge, badgePresetId, badgePresetRev, badgePresets, legacyPresetTarget: editorCtx.legacyPresetTarget, badgeStyle, rankingBadgeStyle, extraBadgeStyle, badgeFont, qualityBadgeStyle, videoFormats,
+    globalBadges, rankingBadges, customBadge, badgeStyle, rankingBadgeStyle, extraBadgeStyle, badgeFont, qualityBadgeStyle, videoFormats,
     badgeGenre, badgeYear, badgeRating, badgeQuality, ageBadge, ageCountry, ageBadgeStyle, customRatings, ratingSources, separateRatings, separateRatingsStyle,
     seasonalTheme,
     defaultBadgeStyle, defaultRankingBadgeStyle, defaultExtraBadgeStyle, blurEnabled, blurIntensity, blurFade, blurDarkness, landscapeBlur, landscapeBlurDirty, setLandscapeBlur, defaultLogoScale, defaultLogoOffsetX, defaultLogoOffsetY, landscapeDefaults, tintStrength, topShade, topShadeHeight, gradientHeight,

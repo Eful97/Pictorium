@@ -10,7 +10,7 @@ import type { VideoFormat } from "@/lib/av-specs"
 import { isVideoFormat } from "@/lib/av-specs"
 import { isBadgeStyle, isRankingBadgeStyle, isQualityBadgeStyle, isBadgeFont } from "@/lib/badge-styles"
 import type { DateFormat } from "@/lib/release-badge"
-import type { BadgeFamilyBindings } from "@/lib/badge-preset"
+import type { RetiredBadgeFamilyBindings } from "@/lib/types"
 import { normalizeRegion } from "@/lib/regions"
 import { envWithFallback } from "@/lib/env-compat"
 import { atomicWriteFile } from "@/lib/atomic-write"
@@ -137,12 +137,11 @@ export interface LandscapeServerDefaults {
   /** Enabled sash buckets (canonical order; empty = all off). */
   sashOrder?: SashBucket[]
   /**
-   * BadgeLab family map for the landscape profile (same sparse semantics as
-   * the per-title map): present key — including `null` = explicit standard
-   * clear — wins over the flat map, absent inherits it. A null/absent map
-   * inherits the flat map; it is never a wholesale replacement.
+   * Retired Badge Lab family map (custom badge library removed): inert
+   * stored key, never rendered. Same sparse semantics as before so legacy
+   * defaults survive untouched.
    */
-  badgePresets?: BadgeFamilyBindings | null
+  badgePresets?: RetiredBadgeFamilyBindings | null
 }
 
 /**
@@ -162,13 +161,11 @@ export interface ServerDefaults {
   /** Font dei testi badge ("inter" = resa storica). */
   badgeFont?: BadgeFont | null
   /**
-   * BadgeLab family map (flat/portrait defaults). Sparse per family: absent
-   * = no global override (native), present `null` = explicit standard clear.
-   * The `landscape` profile may override it key-by-key (see
-   * `effectiveDefaultsForShape`). Rendering consults it only after the
-   * per-title mapping/config levels; no entry = legacy output unchanged.
+   * Retired Badge Lab family map (custom badge library removed): inert
+   * stored key, never rendered. Same sparse semantics as before so legacy
+   * defaults survive untouched.
    */
-  badgePresets?: BadgeFamilyBindings | null
+  badgePresets?: RetiredBadgeFamilyBindings | null
   /** Stile icone del badge qualità (standard = pill testuale). */
   qualityBadgeStyle?: QualityBadgeStyle | null
   /** Formati A/V abilitati di default (dv, hdr, hdr10plus, atmos, imax). */

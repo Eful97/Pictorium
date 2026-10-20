@@ -27,10 +27,6 @@ import { DEFAULT_SASH_ORDER, type SashBucket } from "./badge-priority"
 import type { VideoFormat } from "./av-specs"
 import type { PosterShape, NetworkLogoPosition, PosterLayout, PosterFreshScope } from "./types"
 import { isPosterLayout } from "./types"
-import { BADGE_PRESET_ID_RE, BADGE_PRESET_REV_RE } from "./badge-preset"
-import { encodeFamilyBpParam, encodeFamilyFollowParam } from "./badge-preset-family-transport"
-import { mergeBadgeFamilyBindings, type BadgeFamilyBindings } from "./badge-preset"
-import type { FamilyStagedBindings } from "./badge-preset-binding"
 import type { DateFormat } from "./release-badge"
 
 interface BadgeParams {
@@ -69,21 +65,6 @@ interface BadgeParams {
    */
   separateRatingsStyle?: SeparateRatingsStyle | null
   customBadge: string | null
-  badgePresetId?: string | null
-  badgePresetRev?: string | null
-  /**
-   * Staged per-family bindings in editing (preview WYSIWYG): emitted as the
-   * single canonical `bp` param (`fam:id[.rev]`, `fam:-` for explicit
-   * clears). Present keys — including null — shadow the saved map and the
-   * legacy singleton; absent stays absent (legacy preview URLs unchanged).
-   */
-  badgePresets?: FamilyStagedBindings | null
-  /**
-   * Explicit follow intent per family (preview WYSIWYG): emitted as `bpf`.
-   * Present `true` shadows saved/legacy pins for that family (siblings
-   * untouched); staged `bp` entries still win over `bpf` per family.
-   */
-  badgePresetFollows?: Partial<Record<import("./badge-preset").BadgeFamilyId, true>> | null
   /** Formato data badge "in uscita" (default `locale` = segue la lingua). */
   dateFormat?: DateFormat | null
   gradientHeight: number
@@ -596,20 +577,6 @@ export function buildPreviewUrl(ps: PosterState, bp: BadgeParams, configToken?: 
     const badgeParams = computeBadgeParams(ps, bp)
     params.push(...badgeParams)
   }
-  if (bp.badgePresetId && BADGE_PRESET_ID_RE.test(bp.badgePresetId)) {
-    params.push(`badgePreset=${encodeURIComponent(bp.badgePresetId)}`)
-    if (bp.badgePresetRev && BADGE_PRESET_REV_RE.test(bp.badgePresetRev)) {
-      params.push(`prv=${encodeURIComponent(bp.badgePresetRev)}`)
-    }
-  }
-  const familyFollows = encodeFamilyFollowParam((bp as { badgePresetFollows?: unknown }).badgePresetFollows as never);
-  if (familyFollows) {
-    params.push(`bpf=${encodeURIComponent(familyFollows)}`);
-  }
-  const familyBp = encodeFamilyBpParam(bp.badgePresets)
-  if (familyBp) {
-    params.push(`bp=${encodeURIComponent(familyBp)}`)
-  }
   params.push("preview=1")
   const qs = "?" + params.join("&")
   return `${getDomain()}/api/poster/${ps.selected.media_type}/${ps.selected.id}${qs}`
@@ -749,13 +716,6 @@ export interface DefaultsPreviewParams {
    *  `land ?? flat` della UI (`LandscapeDefaultsSection`) e del server
    *  (`effectiveDefaultsForShape`). Mai persistito da qui. */
   landscape?: LandscapeServerDefaults | null
-  /**
-   * BadgeLab family map dei default globali (flat). In preview landscape la
-   * mappa del profilo Orizzontale fonde chiave-per-chiave sopra questa (stesso
-   * contratto del server). Emessa come `bp` solo quando qualche voce esiste:
-   * senza, la preview resta byte-identica. Mai persistito da qui.
-   */
-  defaultBadgePresets?: BadgeFamilyBindings | null
   /** Shape preview-only (tab Trasforma): vince sul `defaultPosterShape`
    *  persistito senza modificarlo. Assente/null = segui il default. */
   previewShape?: "portrait" | "landscape" | null
@@ -898,16 +858,6 @@ export function buildDefaultsPreviewUrl(bp: DefaultsPreviewParams): string {
     effPreviewXbs = bp.defaultExtraBadgeStyle
   }
   if (effPreviewXbs) params.push(`xbs=${effPreviewXbs}`)
-  // BadgeLab family defaults: sparse map, profile of the previewed shape
-  // merged key-by-key over the flat (explicit null clears win, absent
-  // inherits). Only emitted when non-empty: preview URLs without a map stay
-  // byte-identical.
-  const previewFamilies = mergeBadgeFamilyBindings(
-    bp.defaultBadgePresets,
-    previewLandscape ? land.badgePresets : undefined,
-  )
-  const familyBp = encodeFamilyBpParam(previewFamilies)
-  if (familyBp) params.push(`bp=${encodeURIComponent(familyBp)}`)
   params.push(`bfont=${pick(land.badgeFont ?? undefined, bp.defaultBadgeFont) ?? "inter"}`)
   const effPreviewQbs = pick(land.qualityBadgeStyle ?? undefined, bp.defaultQualityBadgeStyle)
   params.push(`qbs=${effPreviewQbs === "mono" || effPreviewQbs === "color" || effPreviewQbs === "knockout" ? effPreviewQbs : "standard"}`)

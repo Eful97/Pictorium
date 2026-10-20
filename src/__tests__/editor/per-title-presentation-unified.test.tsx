@@ -338,8 +338,6 @@ describe("save transport (edited shape frozen, other shape preserved)", () => {
       separateRatings: false,
       separateRatingsStyle: "column",
       customBadge: null,
-      badgePresetId: null,
-      badgePresetRev: null,
       badgeStyle: "shadow",
       rankingBadgeStyle: "default",
       extraBadgeStyle: null,

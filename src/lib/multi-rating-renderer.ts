@@ -1,7 +1,5 @@
-import { escSvg, estimateTextWidth, fontFamilyFor, normalizeBadgeFont, recolorBadgeBodyText } from "./badge-svg-shared"
+import { escSvg, estimateTextWidth, fontFamilyFor, normalizeBadgeFont } from "./badge-svg-shared"
 import { renderSVG } from "./svg-badge"
-import { applyHouseAppearance } from "./badge-house-appearance"
-import { sanitizeArtworkAppearance, type SeparateRatingsFinish } from "./separate-rating-renderer"
 import { formatRating } from "./custom-rating/formatter"
 import type { RatingItem } from "./custom-rating/types"
 import type { BadgeFont } from "./badge-styles"
@@ -25,23 +23,19 @@ export async function renderMultiRatings(
   maxWidth: number,
   topLight = true,
   font: BadgeFont = "inter",
-  /** Technical finish: provider-row typography (size/color/opacity/case) + material. */
-  finish?: SeparateRatingsFinish,
 ) {
   const items = ratings.filter(item => Number.isFinite(item.value)).slice(0, MAX_CUSTOM_RATINGS)
   if (!items.length) return null
   const f = normalizeBadgeFont(font)
-  const typo = finish?.typography ?? null
-  const fs = typo?.fontSize !== undefined ? Math.max(Math.round(typo.fontSize), 8) : PILL_FS
-  const pillH = Math.max(1, Math.round(PILL_H * fs / PILL_FS))
+  const fs = PILL_FS
+  const pillH = PILL_H
   const bg = topLight ? "rgba(0,0,0,0.80)" : "rgba(255,255,255,0.80)"
   const fg = topLight ? "rgba(255,255,255,0.80)" : "rgba(0,0,0,0.80)"
   let width = 0
   const pills = items.map(item => {
-    const rawLabel = `${item.name.slice(0, 80)} ${formatRating(item.value, item.format)}`
-    const label = typo?.uppercase ? rawLabel.toUpperCase() : rawLabel
+    const label = `${item.name.slice(0, 80)} ${formatRating(item.value, item.format)}`
     const textW = Math.max(Math.ceil(estimateTextWidth(label, fs, f)), 1)
-    const padX = Math.round(PILL_PAD_X * fs / PILL_FS)
+    const padX = PILL_PAD_X
     const w = textW + padX
     const pill = `<g transform="translate(${width},0)"><rect width="${w}" height="${pillH}" rx="${pillH / 2}" fill="${bg}"/><text x="${w / 2}" y="${pillH / 2}" text-anchor="middle" dominant-baseline="central" font-family="${fontFamilyFor(label, f)}" font-size="${fs}" font-weight="700" fill="${fg}" textLength="${textW}" lengthAdjust="spacingAndGlyphs">${escSvg(label)}</text></g>`
     width += w + PILL_GAP
@@ -51,13 +45,6 @@ export async function renderMultiRatings(
   const w = Math.min(maxWidth, width)
   const h = Math.max(1, Math.round(pillH * w / width))
   const raw = `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${width} ${pillH}">${pills.join("")}</svg>`
-  // Technical finish: text ink first (labels only — no brand artwork here
-  // beyond provider names), then declarative material around the native row.
-  const inked = typo?.textColor || typo?.textOpacity !== undefined
-    ? recolorBadgeBodyText(raw, typo?.textColor ?? null, typo?.textOpacity ?? null)
-    : raw
-  let badge = { svg: inked, w, h }
-  if (finish?.appearance) badge = applyHouseAppearance(badge, sanitizeArtworkAppearance(finish.appearance), 1)
-  const png = await renderSVG(badge.svg, badge.w)
-  return { png, w: badge.w, h: badge.h }
+  const png = await renderSVG(raw, w)
+  return { png, w, h }
 }

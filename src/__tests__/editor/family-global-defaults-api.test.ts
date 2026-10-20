@@ -1,10 +1,12 @@
 /**
- * G2 — BadgeLab family presets as GLOBAL defaults: client payload + server
- * independence boundary.
+ * Retired Badge Lab fields as GLOBAL defaults (custom badge library
+ * removed): client payload + server independence boundary for the inert
+ * persisted map. The fields are never rendered; the tests below pin that
+ * they persist verbatim per shape without affecting native rendering.
  *
- * Pins the G2 additions on top of the G1 foundation (G1 pins the resolver,
- * URL emission and route wiring in badge-preset-global-defaults.test.ts and
- * the PUT write boundary in badge-preset-defaults-api.test.ts — untouched):
+ * Pins the retired-field additions (the family-map resolver, URL emission
+ * and route wiring coverage lived in the retired Badge Lab suites, deleted
+ * with the feature):
  * - `defaultsToPayload` carries the flat map and passes the landscape
  *   profile through (global per-shape apply persists);
  * - the server independence backfill snapshots the flat map into the

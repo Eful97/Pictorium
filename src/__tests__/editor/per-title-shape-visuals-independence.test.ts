@@ -1,7 +1,8 @@
 /**
  * Per-title portrait/landscape independence for the remaining shared visuals:
- * customBadge (extra text), manual accentColor and the Badge Lab binding
- * badgePresetId/badgePresetRev — end to end at the mapping layer.
+ * customBadge (extra text), manual accentColor and the retired Badge Lab
+ * fields (badgePresetId/badgePresetRev — inert persisted data, never
+ * rendered) — end to end at the mapping layer.
  *
  * Contract (user-authorized independence, no migration on read):
  * - legacy mappings without the new `landscape` keys render exactly as before
@@ -9,11 +10,9 @@
  * - a present landscape key (concrete OR explicit null) ALWAYS wins over the
  *   flat for the landscape shape; explicit null = "none/automatic" for the
  *   target shape and never resurrects the flat;
- * - the preset binding travels as a pair: a landscape side never mixes with
- *   the flat side;
  * - manual accent stays manual-only in the mapping (auto is null/absent);
  *   builders emit the shape-effective values through the existing
- *   `extra=`/`ac=`/`badgePreset=`/`prv=` params (no new URL keys).
+ *   `extra=`/`ac=` params (no new URL keys; retired Lab fields never travel).
  */
 import { describe, expect, it } from "vitest"
 import { effectiveMappingForShape, type Mapping } from "@/lib/types"
@@ -261,7 +260,7 @@ describe("save-boundary helpers cover the new visual keys", () => {
   })
 })
 
-describe("stremio builder emits the shape-effective visuals", () => {
+describe("stremio builder emits the shape-effective visuals (never Lab params)", () => {
   it("uses the landscape profile for landscape shapes and the flat for portrait", () => {
     const m = baseMapping({
       customBadge: "Portrait pick",
@@ -275,15 +274,17 @@ describe("stremio builder emits the shape-effective visuals", () => {
     })
     const portraitUrl = buildStremioPosterUrl(stremioInput(m))
     expect(portraitUrl.searchParams.get("extra")).toBe("Portrait pick")
-    expect(portraitUrl.searchParams.get("badgePreset")).toBe("Abc123-_XyZ")
-    expect(portraitUrl.searchParams.get("prv")).toBe("deadbeef")
     const landscapeUrl = buildStremioPosterUrl(stremioInput(m, "landscape"))
     expect(landscapeUrl.searchParams.get("extra")).toBe("Landscape pick")
-    expect(landscapeUrl.searchParams.get("badgePreset")).toBe("Landscap_01")
-    expect(landscapeUrl.searchParams.get("prv")).toBe("abcdef12")
+    // Retired Badge Lab: stored bindings never travel in Stremio URLs.
+    for (const u of [portraitUrl, landscapeUrl]) {
+      for (const k of ["badgePreset", "prv", "pt", "bp", "bpf", "bpt"]) {
+        expect(u.searchParams.has(k)).toBe(false)
+      }
+    }
   })
 
-  it("legacy mappings keep the shared flat fallback on both shapes", () => {
+  it("legacy mappings keep the shared flat fallback on both shapes (no Lab params)", () => {
     const m = baseMapping({
       customBadge: "Shared pick",
       badgePresetId: "Abc123-_XyZ",
@@ -293,11 +294,13 @@ describe("stremio builder emits the shape-effective visuals", () => {
     const landscapeUrl = buildStremioPosterUrl(stremioInput(m, "landscape"))
     expect(portraitUrl.searchParams.get("extra")).toBe("Shared pick")
     expect(landscapeUrl.searchParams.get("extra")).toBe("Shared pick")
-    expect(landscapeUrl.searchParams.get("badgePreset")).toBe("Abc123-_XyZ")
-    expect(landscapeUrl.searchParams.get("prv")).toBe("deadbeef")
+    for (const u of [portraitUrl, landscapeUrl]) {
+      expect(u.searchParams.has("badgePreset")).toBe(false)
+      expect(u.searchParams.has("prv")).toBe(false)
+    }
   })
 
-  it("an explicit landscape clear emits no extra/preset (never resurrects the flat)", () => {
+  it("an explicit landscape clear emits no extra (never resurrects the flat)", () => {
     const m = baseMapping({
       customBadge: "Portrait pick",
       badgePresetId: "Abc123-_XyZ",
@@ -306,11 +309,8 @@ describe("stremio builder emits the shape-effective visuals", () => {
     })
     const landscapeUrl = buildStremioPosterUrl(stremioInput(m, "landscape"))
     expect(landscapeUrl.searchParams.has("extra")).toBe(false)
-    expect(landscapeUrl.searchParams.has("badgePreset")).toBe(false)
-    expect(landscapeUrl.searchParams.has("prv")).toBe(false)
-    // The portrait URL still carries the flat values.
+    // The portrait URL still carries the flat values (customBadge only).
     const portraitUrl = buildStremioPosterUrl(stremioInput(m))
     expect(portraitUrl.searchParams.get("extra")).toBe("Portrait pick")
-    expect(portraitUrl.searchParams.get("badgePreset")).toBe("Abc123-_XyZ")
   })
 })

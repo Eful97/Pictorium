@@ -3,13 +3,13 @@
  * mapping (fresh open) must resolve from the effective space defaults —
  * never from mount-hydration leftovers.
  *
- * Proven E2E root cause (auth full-file, `Buffer.compare(stremioPortrait,
- * stremioPortrait2) === 0` at e2e-auth/badge-preset-auth.spec.ts:468):
+ * Proven E2E root cause (auth full-file pixel comparison, retired with the
+ * Badge Lab suite):
  * the no-mapping open branch never initialized live `qualityBadgeOffsetX/Y`,
  * so the live kept whatever mount hydration left — initial 0/0 on a first
  * load, -10/+15 once localStorage had persisted space defaults (factory
- * portrait defaults). Under full-file server load the Lab-handoff open
- * raced the mappings fetch past the 4s settle timeout, opened the already
+ * portrait defaults). Under full-file server load a title open raced the
+ * mappings fetch past the 4s settle timeout, opened the already
  * saved title as "unmapped", and the explicit Save froze -10/+15 over the
  * mapping's explicit 0/0. Pixel diff was a ~10px/15px quality-badge shift
  * (top-right bbox x380-499 y16-128), ETags differed, everything else

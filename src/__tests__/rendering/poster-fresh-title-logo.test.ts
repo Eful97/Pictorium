@@ -464,8 +464,6 @@ describe("editor Fresh-100 wiring (shared resolver, no baked 75)", () => {
         separateRatings: false,
         separateRatingsStyle: "column",
         customBadge: null,
-        badgePresetId: null,
-        badgePresetRev: null,
         badgeStyle: "shadow",
         rankingBadgeStyle: "default",
         extraBadgeStyle: null,

@@ -9,7 +9,6 @@ import { UserKeysSection } from "@/components/UserKeysSection"
 import { UserSpaceSection } from "@/components/UserSpaceSection"
 import { TraktAccountSection } from "@/components/TraktAccountSection"
 import { BadgeDefaultsSection } from "@/components/settings/BadgeDefaultsSection"
-import { BadgeLabPanel } from "@/components/settings/BadgeLabPanel"
 import { TransformPanel } from "@/components/settings/TransformPanel"
 import { DataPanel } from "@/components/settings/DataPanel"
 import { PrefsPanel } from "@/components/settings/PrefsPanel"
@@ -24,7 +23,6 @@ import {
   Database,
   X,
   KeyRound,
-  FlaskConical,
   Palette,
   Trophy,
   Info,
@@ -39,7 +37,7 @@ import { usePSelector } from "@/lib/context"
 import { usePreviewDemoMedia } from "@/lib/defaults-preview-media"
 import type { BackupExportOptions, BackupImportOptions } from "@/lib/useMappingsStore"
 
-type PrimaryTabId = "preset" | "rankings" | "information" | "badge" | "badgelab" | "transform"
+type PrimaryTabId = "preset" | "rankings" | "information" | "badge" | "transform"
 type SecondaryTabId = "prefs" | "data" | "catalogs" | "spazio"
 type TabId = PrimaryTabId | SecondaryTabId
 
@@ -48,7 +46,6 @@ const PRIMARY_TABS: ReadonlyArray<{ id: PrimaryTabId; labelKey: string; icon: ty
   { id: "rankings", labelKey: "ui.settingsTabRankings", icon: Trophy },
   { id: "information", labelKey: "ui.settingsTabInformation", icon: Info },
   { id: "badge", labelKey: "ui.settingsTabBadge", icon: Palette },
-  { id: "badgelab", labelKey: "ui.labTitle", icon: FlaskConical },
   { id: "transform", labelKey: "ui.settingsTabTransform", icon: Move },
 ]
 
@@ -65,7 +62,6 @@ function normalizeTab(tab: string | null): TabId | null {
     tab === "preset" ||
     tab === "rankings" ||
     tab === "information" ||
-    tab === "badgelab" ||
     tab === "trasforma" ||
     tab === "prefs" ||
     tab === "data" ||
@@ -757,13 +753,6 @@ export function SettingsPanel({ setSettingsOpen, exportData, importData, mobile,
             testDirty={session.dirty}
             onPreviewFamilyChange={setPreviewFamily}
             presetsEnabled={false}
-          />
-          <BadgeLabPanel
-            scope="defaults"
-            active={activeTab === "badgelab"}
-            shape={editTargetShape}
-            hasUnsavedEdits={session.dirty}
-            onPreviewFamilyChange={setPreviewFamily}
           />
           <TransformPanel
             active={activeTab === "transform"}

@@ -30,6 +30,19 @@ export interface ChangelogRelease {
  *  (which bumps on every commit and would leave the dot permanently on). */
 export const CHANGELOG: ChangelogRelease[] = [
   {
+    version: "1.25.8",
+    date: "2026-10-20",
+    title: "Release 1.25.8",
+    items: [
+      { type: "fix", text: "Show the correct studio logos on posters" },
+      { type: "feature", text: "Add Studio Bones network logo" },
+      { type: "fix", text: "Recover stalled poster image requests" },
+      { type: "perf", text: "Reuse poster cache across Cloudflare regions" },
+      { type: "fix", text: "Exclude animation from automatic K-Drama badges" },
+      { type: "perf", text: "Faster catalog and poster loading" },
+    ],
+  },
+  {
     version: "1.25.7",
     date: "2026-10-18",
     title: "Release 1.25.7",

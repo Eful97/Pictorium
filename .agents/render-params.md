@@ -57,7 +57,7 @@ ombra trasparente `TOP_SHADOW_PAD=14`):
 | Misura testo | `estimateTextWidth()` per-glyph in `badge-svg-shared.ts`; ogni segmento è un `<text>` a tspan singola vincolato con il proprio `textLength` + `lengthAdjust="spacingAndGlyphs"` (onorato sia in Blink che in resvg, a differenza del vecchio `textLength` sull'intera riga multi-tspan che resvg ignorava) |
 | Allineamento verticale | Un `<text>` per segmento con `text-anchor="middle"` sulla sua stima (niente `dx` di separazione, niente `adjustedX`), stessa `y` e `dominant-baseline="central"` per tutti; stella come path SVG posizionato (stesso ingombro del glifo ★) |
 | Font badge (`bfont`) | `fontFamilyFor(testo, font)` in `badge-svg-shared.ts`: "inter" → Inter, "barlow-condensed" → Barlow Condensed, "oswald" → Oswald; ebraico/arabo → sempre Rubik (nessuno dei tre ha quei glifi). `estimateTextWidth(testo, fs, font)` scala la stima Inter di 0.73 (Barlow) / 0.80 (Oswald), rapporti misurati con resvg su 10 stringhe × pesi 600/700/900; nessuna scala sul testo Rubik. La ★ del voto è sempre un path SVG 5 punte (`starPath`, stessa tinta oro o `starFill`) in uno slot dedicato posizionato dalle stime (coi font non-Inter evita anche il fallback resvg che duplicava il glifo precedente e allargava ~+40% quando una tspan ★ Noto seguiva contenuto non-Inter nello stesso `<text>`). |
-| Chiavi cache | `badgeFont` entra in tutte le chiavi badge (`genre`/`rank`/`quality`/`comingsoon`/`separate`); `bfont` è in `POSTER_CACHE_ALLOWLIST` e fail-closed in `normalizePosterCacheParams` (invalido = assente = Inter). I preset custom/house ignorano il font: chiavi preset invariate. |
+| Chiavi cache | `badgeFont` entra in tutte le chiavi badge (`genre`/`rank`/`quality`/`comingsoon`/`separate`); `bfont` è in `POSTER_CACHE_ALLOWLIST` e fail-closed in `normalizePosterCacheParams` (invalido = assente = Inter). |
 | Stili badge (`badgeStyle`) | `shadow` — textShadow; `minimal` — separatore pipe `|` + textShadow discreto (1px); `pill` — gradiente satinato `satinPillStops(bottomLight)` + stroke adattivo 1.5px (`bottomLight ? black 0.12 : white 0.22`, come quality/bar) + testo ad alto contrasto (`bottomLight ? 0.95 white : 0.88 black`) + ombra 3D singola + padding simmetrico 14; `bar` — gradiente satinato `satinPillStops(bottomLight)` full-width (polarità del fondo) + bordo profilo 1.5px adattivo + testo ad alto contrasto (`bottomLight ? 0.95 white : 0.88 black`), nessuna ombra esterna; `colored` — bg tinta di scena same-hue (bottom per genere, top per ranking; `ac=` vince) normalizzata ad automatic lightness fissa HSL 5/12 (100/240 dialogo Windows: hue/saturazione intatte, solo L; `ac=` manuale byte-identico, blur/tinta naturali invariati) + testo adattivo (pill piatta, niente satinatura); `bordo` — rect arrotondato con bordo 2px + stroke calibrato + bg protettivo (`bottomLight ? white 0.55 : black 0.32`: milky su fondi chiari, smoky su fondi scuri) + testo adattivo (`bottomLight ? dark : #e5e7eb`, come vetro); `vetro` — vetro liquido iOS (gradiente multi-stop + bordo 1.5px, stesso box model e dimensioni identiche al bordo: padding e rect coincidenti; sheen superiore invariato, centro protettivo `light ? white 0.55 : black 0.22` con base `light ? white 0.38 : black 0.45`) + testo adattivo come bordo |
 | Sfondo pill/bar | bar (`buildGenreBarSvg`) = gradiente satinato `satinPillStops(bottomLight)` full-width + bordo profilo 1.5px adattivo + ombra 3D singola (code tagliate = bordo poster, invisibili); pill genere = gradiente satinato `satinPillStops(bottomLight)` (polarità del fondo, non del top) + ombra 3D singola + padding simmetrico 14 (colored inclusa: tinta piatta + ombra); pill ranking/extra = `satinPillStops(topLight)` |
 | Posizione Y unificata | Box model normalizzato: zero salti di baseline tra stili (`genreStyleShiftY` rimosso); altezza uniforme `badgeBoxHeight(fs)`; la riga multi-rating segue sopra il badge |
@@ -114,7 +114,7 @@ non decodificano nulla e tengono il valore legacy stabile in chiave cache.
 | Parametro | Server (`svg-badge.ts:renderRankingBadge/renderExtraBadge`) |
 |---|---|
 | Font size base | `30 * pw / 380` (rank), `×0.9` per extra; nastro Netflix a base `24 * 1.15 * 1.10` (+10% rispetto al default precedente) |
-| Dicitura nastro | I nastri di classifica mostrano `TOP`, numero e sottotitolo periodo (`ribbonLabel`: "Oggi" localizzato, per film/serie come per anime; override custom esplicito vince sulle rank-key); altezza `w × 1.65`, testi centrati (`TOP` a `0.30h` senza sub, `0.20h` con sub, numero a `0.60h`). Senza `ribbonLabel` il sottotitolo resta nascosto. I preset Badge Lab mantengono la propria etichetta personalizzata. |
+| Dicitura nastro | I nastri di classifica mostrano `TOP`, numero e sottotitolo periodo (`ribbonLabel`: "Oggi" localizzato, per film/serie come per anime; override custom esplicito vince sulle rank-key); altezza `w × 1.65`, testi centrati (`TOP` a `0.30h` senza sub, `0.20h` con sub, numero a `0.60h`). Senza `ribbonLabel` il sottotitolo resta nascosto. |
 | Padding X | `px = round(finalFontSize * 0.75)` (unificato con genre badges) |
 | Altezza scatola | `boxH = badgeBoxHeight(fs) = fs + round(fs * 0.40) * 2` (unificato con genre badges) |
 | Border radius | `r = round(finalFontSize * 0.45)` per default (`RANKING_DEFAULT_RADIUS_FACTOR`: squadrata ma non a spigolo), `boxH / 2` per pill (lo stile `bar` del ranking è rimosso: `?rs=bar` degrada a default) |
@@ -271,13 +271,13 @@ Opt-in (`sep=1`, default OFF): sostituisce la media ★ nel badge con una colonn
 > `customRatings`/`separateRatings` + `badgeStyle`/
 > `rankingBadgeStyle`/`extraBadgeStyle`/`badgeFont`/`qualityBadgeStyle`/
 > `videoFormats` + `networkLogo`/`networkLogoPosition`/`ribbonEnabled` +
-> `customBadge`/`accentColor`/`badgePresetId`/`badgePresetRev`; chiavi
+> `customBadge`/`accentColor` (più i campi ritirati inerti
+> `badgePresetId`/`badgePresetRev`, mai resi); chiavi
 > assenti = eredita il flat, mai migrazione in lettura — con semantica
 > explicit-null-shadows per i quattro visuali un tempo condivisi: chiave
 > PRESENTE nel profilo (inclusa `null`, per customBadge anche `""`) vince sul
 > flat per la forma landscape (`null`/`""` nel profilo = la forma landscape
-> rende automatico, mai resurrect del flat); il binding preset è atomico a coppia (una sola chiave presente =
-> coppia intera di profilo, mai mescolata col flat). Solo i manuali persistono
+> rende automatico, mai resurrect del flat). Solo i manuali persistono
 > per l'accento (auto mai congelato). Risoluzione
 > server identica ai default: query > mapping effettivo per formato
 > (`effectiveMappingForShape` in `types.ts`, riusato da `poster-config`,
@@ -294,11 +294,11 @@ Opt-in (`sep=1`, default OFF): sostituisce la media ★ nel badge con una colonn
 > ON). Editor: stato unico per formato in editing con stash al cambio
 > (`EditView`, come il tuning) e init dal mapping effettivo (`context`); il
 > save scrive il flat in portrait (preservando il profilo + backfill dei
-> pre-edit cambiati via `snapshotMissingMappingLandscape`, con repair
-> atomica della coppia preset) e il profilo in
-> landscape (preservando il flat verbatim; accent solo-manuale); "salva solo poster" azzera le custom come
-> prima. Nessun nuovo parametro URL/chiave cache (`extra`/`ac`/`badgePreset`/
-> `prv` esistenti veicolano i valori effettivi di forma).
+> pre-edit cambiati via `snapshotMissingMappingLandscape`) e il profilo in
+> landscape (preservando il flat verbatim; accent solo-manuale; campi Lab
+> ritirati preservati verbatim, mai resi); "salva solo poster" azzera le custom come
+> prima. Nessun nuovo parametro URL/chiave cache (`extra`/`ac`
+> esistenti veicolano i valori effettivi di forma).
 >
 > **Boundary di salvataggio (l'indipendenza è reale solo se il save preserva
 > l'altro formato — il POST `/api/mappings` è full-replace, la risoluzione
@@ -407,7 +407,7 @@ Opt-in (`sep=1`, default OFF): sostituisce la media ★ nel badge con una colonn
 | `label` | `badge.rankLabel \|\| badge.label` | `qLabel` — override label ranking |
 | `extra` | `badge.label` (se extra) o `customBadge` | `queryExtra` — forza badge extra |
 | `bs` | `badgeStyle` | `qBs` — "shadow"/"pill"/"bar"/"colored"/"bordo"/"vetro"/"minimal" (catena query > mapping effettivo per formato > config > defaults effettivi per forma; il default landscape sceglie lo stile orizzontale) |
-| `bfont` | `badgeFont` | `q.get("bfont")` — "inter"/"barlow-condensed"/"oswald" (default "inter" = resa storica; assente o non valido → Inter). Catena query > mapping effettivo per formato > config > defaults effettivi per forma. I preset custom/house del Badge Lab hanno tipografia propria e lo ignorano. |
+| `bfont` | `badgeFont` | `q.get("bfont")` — "inter"/"barlow-condensed"/"oswald" (default "inter" = resa storica; assente o non valido → Inter). Catena query > mapping effettivo per formato > config > defaults effettivi per forma. |
 | `rs` | `rankingBadgeStyle` | `qRs` — "default"/"colored"/"pill"/"bordo"/"vetro"/"netflix"/"corner"/"number" ("bar" rimosso: degrada a "default"; "corner" = pill piatta tinta accent ancorata alto-sx; "number" = solo cifre Inter Bold con gradiente bianco→argento e ombra morbida, senza piastra/nastro/`#`/label, ancorato alto-sx come `corner` ma specchiato a dx con `side=right`; collisioni network/qualità/Coming Soon condivise col `corner`; i rank `number` rendono su una baseline X di stile `NUMBER_BADGE_BASE_OFFSET_X=-20` canvas px — vedi `tox`) |
 | `xbs` | `extraBadgeStyle` (per-titolo o default; assente = legacy `rs`) | `qXbs` — "default"/"pill"/"colored"/"bordo"/"vetro"/"corner" (solo extra; assente ovunque = legacy `rs`; invalido = assente; rank usa sempre `rs`). Sentinel esplicito `follow-rank` (query/mapping/token/profilo, entrambi i formati) = own-rank del formato effettivo (renderer: `null` via fallback `rs`, nastri/numeri inclusi; query vince su mapping/token/profilo). Legacy `null`/assente/invalido = eredita il livello successivo (mai shadow, URL legacy byte-identici; il per-titolo segue il profilo `landscape` con fallback al flat) |
 | `tscale`/`tox`/`toy` | `topBadgeScale`/`topBadgeOffsetX`/`topBadgeOffsetY` (badge CLASSIFICA superiore) | scala `%` 10..200 (default 100, tutti gli stili) + offset px (default 0, solo centrati). Semantica `tox` = baseline di stile + aggiustamento utente: per un rank `number` (`topBadge.type=rank`, stile effettivo `number`) la X effettiva è `tox + NUMBER_BADGE_BASE_OFFSET_X(-20)` (stesso su sx/dx e portrait/landscape; gli slider UI mostrano l'effettivo e convertono l'edit in aggiustamento, i raw salvati non migrano mai); extra in fallback legacy `rs=number` e tutti gli altri stili restano sulla baseline storica (X effettiva = `tox`). URL preview/Stremio emettono sempre il `tox` raw (mai doppio conteggio: la baseline si applica una sola volta al render) |
@@ -424,131 +424,20 @@ Opt-in (`sep=1`, default OFF): sostituisce la media ★ nel badge con una colonn
 | `shape` | `posterShape` (sempre esplicito in preview: `poster`/`landscape`; default globale `defaultPosterShape`, per-titolo dal mapping) | catena `shape` > mapping (`posterShape`) > config token > server defaults (`PICTORIUM_POSTER_SHAPE`) > `"poster"` — solo `landscape` attiva il canvas 16:9 (`LAND_W=768/LAND_H=432`, base = backdrop TMDB via `posterUrlOriginal`, oppure base custom da `customBackdropUrl` — indipendente dal portrait `customPosterUrl` — via query `backdrop=` allowlisted come `poster=` (bound 2048, stesso flusso validato, fallback TMDB in parallelo, mai 500) o salvato; Stremio usa sempre il mapping, mai `backdrop=`); emesso negli URL Stremio solo quando landscape (il portrait resta omesso per non invalidare la cache) |
 | `align` | `logoAlign` per-shape (sempre esplicito in preview landscape; mai in portrait) | `left`/`center` esplicito > override profilo Orizzontale (concreto vince, `null`/assente = segue il flat) > flat `sd.logoAlign` > default di formato (landscape `left`, poster `center`) — i portrait sono sempre centrati, nessun globale li sposta mai; in portrait l'opzione Sinistra è un no-op dimostrato (disabilitata in UI) |
 | `ac` | `accentColor` SOLO se manuale (`isManualAccent`: diverso da `autoAccentColor` auto-rilevato via `useRootColors`, come il server) — mai l'auto, mai nel mapping salvato | `qAc` — override colore accent (vince su tutto: badge colored, blur tint, scrim) |
-| `badgePreset`/`prv` | `badgePresetId`/`badgePresetRev` per-titolo (preview solo quando impostati; Stremio dal mapping) | binding Badge Lab effettivo (`resolvePresetBinding` in `badge-preset-binding.ts`, unico renderer `getPresetForPoster` + `generatePosterBuffer`): query valida vince; altrimenti fuori-preview la coppia salvata effettiva per formato (profilo `landscape` atomico via `effectiveMappingForShape`, mai mescolata col flat); la preview effettiva non eredita mai il mapping (un clear non resuscita il salvato). Utente = namespace risolto della richiesta (privati solo al proprietario, resto fail-open sullo standard). Prima del lookup cache la route legge dallo store la revisione+target CORRENTI autorizzati per quel namespace (`getPresetForUser`, una sola lettura per richiesta, stesso snapshot in `genInput`): `prv` non è un pin storico, edit/revoca si riflettono subito; binding morto/non autorizzato = standard. Chiave cache: frammento corrente revisione+target (+ hash `u` per namespace); ETag resta l'hash dei byte finali |
+| `badgePreset`/`prv`/`pt`/`bp`/`bpf`/`bpt` | — (rimossi: custom Badge Lab ritirato) | Parametri ritirati, inerti: non entrano in allowlist/cache key (`POSTER_CACHE_ALLOWLIST`), l'hardening li cancella e la route li ignora — vecchi URL e binding salvati (`mapping.badgePresetId`/`badgePresetRev`/`badgePresets`/`badgePresetFollows`, `ServerDefaults.badgePresets`, token `config`) collassano sul render nativo senza cambiare un pixel né bustare la cache. I campi persistiti restano validati e archiviati verbatim (mai cancellati dallo storage), ma non influenzano più chiavi o byte. |
 | `live` | mai dallo stato editor (solo template "Segui il mio spazio": `followSpace` in `buildUrlPattern`, o `live: true` esplicito nel builder) | `live=1` — politica di rivalidazione (non forza il render): header `public, no-cache, max-age=0, must-revalidate` senza SWR su 200 e 304 + mai immutable; i parametri assenti seguono lo spazio (`badges`/`ranking`/`be` compresi, vedi sotto) |
 | `tvdb_key` | mai dal client (solo manuale; Stremio usa il fallback d'istanza) | chiave TVDB per il rescue poster B1: solo ramo non-mappato, solo senza clean TMDB + con logo + solo portrait. Solo il textless (`includesText === false`) salva il logo; con testo il logo si azzera (no doppio logo). La chiave non entra mai nella cache key (segreto); il flag server-side `tvdb=1` separa le entry con rescue attivo |
 | `theme` | contesto effimero lista di origine (`seasonalTheme` in `PosterState`, da `navigateToPoster(item, src, listName, seasonalKeywords)` — le keyword custom utente estendono lo stesso match nomi-lista; Stremio dal nome catalogo effettivo via `resolveCatalogSeasonalTheme` in `catalog-handler.ts`) sotto la scelta per-titolo editor (`seasonalThemeChoice` in `PosterState`, selettore `BadgeControls` → `mapping.seasonalTheme`, vince sul contesto via `resolveEffectiveSeasonalTheme`) | SOLO query `theme=<tema canonico>` (`halloween`/`christmas`, nient'altro è valido; Natale riconosciuto in tutte le lingue UI + keyword custom bounded per spazio — vedi leaf `seasonal-theme.ts`; nomi misti → `halloween`) su entrambi i canvas col proprio asset (`resolveSeasonalTheme` in `poster-config.ts` + override mapping via `resolveEffectiveSeasonalTheme` (non-preview: scelta esplicita vince, `none` sopprime, assente = Automatica segue la lista; preview effettiva autorizzata: vince il `theme=` staged e il mapping salvato è ignorato — mai resurrect); con valori invalidi/assenti = unframed, stessa chiave dell'assenza). Catena mapping SOLO per-titolo (`mapping.seasonalTheme` flat condiviso, mai config/defaults; nessun profilo landscape). In allowlist cache key + `stremio-poster-params.ts` (esplicito anche in compact, mai in `dv`); il catalogo aggiunge `:th<tema>` alla chiave. Nel service la cornice sta SOPRA lo sfondo/trattamento (backdrop, vignetta, velo, ombra, blur) ma SOTTO TUTTO il chrome — logo e badge inclusi (rank/extra, Coming Soon, network, qualità, genere, separati, età) + overlay Fresh/Card — per richiesta utente esplicita, in ogni layout (standard/Fresh/Card) e forma (portrait/landscape; solo il banner pulito shape=landscape + hideLogo resta senza cornice); il `/meta` generico senza `theme=` resta byte-identico (il `theme=` esplicito vale solo come contesto effimero lista/test Stremio, su entrambi i canvas, con `:th<tema>` in chiave cache meta). Asset CANONICI `public/seasonal-frames/halloween.svg` + `public/seasonal-frames/christmas.svg` (portrait 500×750) + `public/seasonal-frames/halloween landscape.svg` + `public/seasonal-frames/christmas landscape.svg` (landscape 768×432, mappa esplicita `seasonalFrameAssetPath`, mai stirati) (in `RENDER_FILES`, byte-identici all'arte utente); il prototipo offline `design/seasonal-frames/` resta storia nel branch di feature e non è spedito (nessuna copia sincronizzata da mantenere) |
 
-> Badge Lab: 9 famiglie indipendenti (`rank`/`extra`/`genre`/`quality`/`age`/
-> `network`/`separateRatings`/`customRatings`/`comingSoon`, vedi
-> `BADGE_FAMILY_IDS` in `badge-preset.ts`): una scelta ciascuna per titolo e
-> forma (flat + profilo `landscape` con merge sparso per family via
-> `effectiveMappingForShape`: ogni chiave presente nel profilo — inclusa
-> `null` = clear esplicito — vince sul flat per quella sola family, assente =
-> eredita il flat; atomici sono solo la coppia `id`+`rev` dentro ogni singola
-> entry e la coppia legacy singleton `badgePresetId`/`badgePresetRev`).
-> Eredità con guardia landscape come gli altri per-titolo. Tutto
-> resta staged fino al Save esplicito (tab dedicata Badge Lab via
-> `BadgeLabPanel` — tab `badgelab` in Impostazioni e in EditView — che raccoglie
-> le 9 righe `FamilyChoiceControl`, una select ciascuna: prima opzione Default
-> poi i preset salvati compatibili del proprietario; la tab nativa Badge tiene
-> SOLO i controlli nativi, mai scelte custom inline):
-> Default per-titolo = segue lo spazio (drop client-only con pin/legacy/
-> Standard-clear salvato, altrimenti unstage; il save cancella la chiave e
-> ombreggia il singleton legacy di quella forma — mai Standard esplicito);
-> Default flat = cancella l'override globale (nativo), Default landscape =
-> cancella la chiave profilo (segue il portrait). Standard esplicito salvato e
-> singleton legacy restano nativi e riletti come Default onesto (nessuna
-> mutazione nascosta); pin ignoti/cancellati = opzione disabilitata, mai
-> Default bugiardo. Community (publish/visibility) nascosta: in pausa.
-> Segui impostazioni = flag opt-in `badgePresetFollows` (`true` per family e forma,
-> mai persistito come `__follow__`, mai in `bp`): il save scrive il flag così la family
-> segue i default dello spazio per quella forma, con ombreggio del singleton
-> senza riscritture globali.
-> Trasporto in `badge-preset-family-transport.ts`: `bp` (client/staged + canonico
-> server, bound 512) + `bpf` (follow intent esplicito di query, client staged +
-> persisted reopen, bound 256) + `bpt` (scritto SOLO dal server, bound 384,
-> frammento chiave cache): ordine canonico famiglie, solo id noti +
-> rev 8-hex, clear `-` dedicato, malformata = clear esplicito fail-closed (mai
-> resurrect), ignote scartate. Il binding legacy singleton
-> `badgePreset`/`prv` resta invariato (riga sopra: revisione+target CORRENTI
-> autorizzati, mai pin storico). Handoff Lab same-origin (`lab-handoff.ts`,
-> `return` validato + namespace viaggiante, `family`+`source=native`): "Use for
-> title" fa staged, mai scritture; deep-link con starter nativo della family.
-> Lab `/lab/badges` (draft locale + undo, import/export `.json` 16 KB, verify
-> sul poster reale via preset SALVATO) e libreria `/presets`. Draft-preview
-> `POST /api/presets/draft-preview`: payload strict (design/house validati,
-> niente credenziali/SVG), 16 KB, same-origin POST, bucket rate-limit presets,
-> risposta no-store, fixture deterministiche zero fetch/store; auth = preview
-> policy (pubbliche/multi-user: anonime negate PRIMA del raster; `u` da solo
-> non autentica né sceglie il bucket — gli altri condividono il bucket IP).
-> Fresh/Card: rank/genre preset solo Standard (numerali fissi, hint UI
-> `ui.familyFixedLayoutNote`); extra riusato in alto col preset; quality/
-> coming-soon retained + technical styling. Geometria corpo/bleed:
-> `badgeBody` = corpo visivo senza ombre per placement/collisioni, la tela è
-> corpo + bleed (`TOP_SHADOW_PAD`, filo in alto per il default).
-> `RENDER_FILES` copre i moduli byte-affecting nuovi:
-> `badge-house-appearance.ts` (ritocco SVG house), `badge-preset-technical.ts`
-> (resolver tecnici applicati dal service), `badge-preset-family-transport.ts`
-> (encoding/parsing `bp`/`bpt` + chiave cache) — gate fail-closed
-> `render-version-files.test.ts`. Starter house = ricette native via builder
-> condivisi (`buildHouseGenreSvg`/`buildHouseRankingSvg`/`buildHouseExtraSvg` in
-> `badge-svg-shared.ts`, stessi del poster — mai SVG copiati): default senza
-> override = bitmap byte-identico al nativo, provato da
-> `badge-native-parity.test.ts` (matrice SVG + PNG + service + contact sheet).
-> La galleria espone SOLO gli stili nativi reali (top: 8 senza il legacy
-> `netflix-color`, che resta accettato ma degrada alla placca default come il
-> renderer; extra: il subset renderer `default`/`pill`/`colored`/`bordo`/
-> `vetro`/`corner`, mai nastri/numerali). Gli starter extra non congelano
-> label (il titolo live rende; override `house.label` esplicito vince); il
-> target legacy `top` sullo slot extra rende contenuto extra (mai `#rank`) via
-> slot effettivo passato dal service, e la chiave `preset-top` include
-> l'identità dello slot (`type:label`) così label live diverse non
-> condividono il bitmap. Verify Lab con `layout=standard` esplicito (la
-> ricetta originale anche con default Fresh/Card). Niente Fresh/Card nel Lab:
-> sono renderer, non ricette; fuori dal Lab restano intatti (mapping salvati
-> inclusi).
+> Retired: custom Badge Lab (libreria preset per family, editor `/lab/badges`,
+> pagina `/presets`, API `/api/presets/*`, binding `badgePreset`/`prv`/`bp`/`bpf`/`bpt`
+> e campi persistiti `badgePresetId`/`badgePresetRev`/`badgePresets`/`badgePresetFollows`).
+> Rimosso su approvazione esplicita: i preset custom/house non rendono piu' e non
+> alterano chiavi/cache; i badge nativi delle 9 famiglie restano invariati e i preset
+> visivi generali (ready/personali, `PresetsPanel`) non sono toccati. I campi persistiti
+> restano validati e archiviati verbatim (mai cancellati dallo storage) ma sono inerti
+> al render. Dettagli e file coinvolti nel report di rimozione; la cronologia resta in git.
 >
-> Posizione BadgeLab (Task P, STYLE primary invariato - solo MOVIMENTO):
-> tab Posizione separata con X/Y numerico+slider+reset (pm2000px, default 0/0)
-> per ogni preset custom (design.position) e house (house.position);
-> appearance.textOffsetX/Y restano tipografia interna (pm50, mai movimento
-> poster). Nested nel payload hash (full revision la cattura; zero/assente =
-> ancora nativa byte-identica; nessun root non versionato). Applicazione
-> SINGOLA additiva: tuning esistente + preset position al placement (raw
-> preservati, mai riscritti; dettaglio in poster-service.ts). Ogni family la
-> supporta dove visibile: rank/extra top centrato, genere basso, network,
-> separati (colonna/riga), custom row, comingSoon (bitmap reale su anchor
-> nativo d'angolo ADDITIVO: base `-offset` + position preset in un'unica
-> applicazione, zero/assente = anchor nativo byte-identico — mai clamp
-> dell'anchor a 0 che sposterebbe il nastro; sharp clippa il fuori-canvas
-> senza throw); quality vs age: age-only sposta SOLO la pill eta (split
-> con bound unione, siblings fermi); nessun preset spegne un badge gated-off.
-> Fresh/Card: numerali a layout fisso, il Lab non li offre; gli overlay retained
-> (quality/comingSoon/extra) onorano le position dove il contratto nativo lo
-> consente, mai numerali custom impliciti. House colored rank: ribbon
-> esplicito (default true = nastro legacy; false = placca piatta via accentFill,
-> stesso contratto nativo ribbon OFF); galleria con entrambe le varianti native
-> (top-colored nastro + top-colored-plate placca, stessa ricetta condivisa,
-> mai SVG copiati). Detached: Y combinata (tuning+preset) decide la placca a 4
-> angoli, passata UNA volta al builder + chiave cache (material vs placement:
-> offset 0 = nativo esatto). Mock Lab riflette le staged non salvate (offset
-> visivo), verify sul poster reale via preset SALVATO con layout=standard;
-> mock variabile/desktop/mobile ingrandibili. Nessuna altra espansione stile
-> in Task P (font family ecc. NEXT).
->
-> BadgeLab come default globali (G2): stessa mappa sparsa per family in
-> `ServerDefaults.badgePresets` (flat) + profilo `landscape` (merge per
-> family, chiave presente — incluso `null` — vince, assente eredita).
-> Risoluzione `resolveFamilyPresetBindings`: staged (vince su `bpf`) > follow di
-> query `bpf` (own `true` = segui lo spazio per family, preview + non-preview) >
-> follow persistiti `badgePresetFollows` (opt-in `true` per family e forma via
-> `effectiveFamilyFollows`, solo non-preview: la preview non eredita mai il
-> mapping) > legacy query > mapping (solo non-preview) > singleton legacy sul
-> target (solo family senza voce mapping esplicita) > config token > default
-> globali > nativo; preview consulta config/default ma mai il mapping salvato.
-> Stremio: SOLO la mappa per-titolo viaggia come `bp` (+ `bpf` per i follow
-> espliciti); i default globali restano server-side e ruotano solo la firma
-> `dv` (mai override query).
-> Settings: tab dedicata Badge Lab (`BadgeLabPanel` scope defaults, tab
-> `badgelab`: una select Default + salvate per family, Community nascosta in
-> pausa; mai gli stili nativi toccati; Save globale via staged UX, mai
-> scritture su slider). Per-titolo: stessa tab dedicata (`BadgeLabPanel` scope
-> title in EditView), mai controlli inline nei gruppi `BadgeControls`. Lab "Usa come default" (formato corrente, namespace
-> corrente, PUT diretto esplicito, auth same-origin via userFetch).
-> Per-forma: flat edit congela il pre-edit nel profilo (mai overwrite
-> silenzioso); portrait save = flat verbatim in landscape save e viceversa.
-
 > Fonte ranking Top 20 (nessun parametro URL dedicato): la selezione
 > (`rankingSourceMovie`/`rankingSourceSeries`, `""` = JustWatch) vive nei
 > server defaults / config token e si risolve server-side da `u=`/`config=`
@@ -569,7 +458,7 @@ Opt-in (`sep=1`, default OFF): sostituisce la media ★ nel badge con una colonn
 
 > Formato Stremio: se il default globale è `landscape`, cataloghi e meta Pictorium emettono `posterShape: landscape` e un URL `shape=landscape` anche per i mapping salvati `poster`. Con default `poster`, il formato per-titolo continua a prevalere. Il mapping salvato non viene modificato.
 >
-> Demo samples (solo preview default Impostazioni, `demo-samples.ts`): `buildDefaultsPreviewUrl` emette sempre `demosamples=1`; la route lo accetta solo con preview effettiva post-downgrade (`preview=1` + flag `1`, fail-closed; declassata → flag rimosso dalla chiave). Dataset sintetico fisso, zero fetch/chiavi: rank 11, tier `4K` (passa sempre `qmin`), network Netflix (SVG già bundlato, fallback nel service DOPO i candidati reali in ordine invariato), voti per le sole fonti `rsrc` richieste con merge gap-only (reali intatti, media regola imdb+tmdb), genere/anno fallback solo se assenti (date passate fisse). I toggle/stili restano l'unico gate di rendering (`ranking=0` → niente rank, `formats=none` invariato, niente premi/upcoming/Top250/Coming Soon campionati); `queryExtra`/preset seguono l'API reale. In chiave cache via allowlist (campione/genuino separati); le preview non si scrivono mai. Mai in `buildPreviewUrl` editor né negli URL Stremio. UI: avviso `ui.defaultsPreviewSamplesNotice`.
+> Demo samples (solo preview default Impostazioni, `demo-samples.ts`): `buildDefaultsPreviewUrl` emette sempre `demosamples=1`; la route lo accetta solo con preview effettiva post-downgrade (`preview=1` + flag `1`, fail-closed; declassata → flag rimosso dalla chiave). Dataset sintetico fisso, zero fetch/chiavi: rank 11, tier `4K` (passa sempre `qmin`), network Netflix (SVG già bundlato, fallback nel service DOPO i candidati reali in ordine invariato), voti per le sole fonti `rsrc` richieste con merge gap-only (reali intatti, media regola imdb+tmdb), genere/anno fallback solo se assenti (date passate fisse). I toggle/stili restano l'unico gate di rendering (`ranking=0` → niente rank, `formats=none` invariato, niente premi/upcoming/Top250/Coming Soon campionati); `queryExtra` segue l'API reale. In chiave cache via allowlist (campione/genuino separati); le preview non si scrivono mai. Mai in `buildPreviewUrl` editor né negli URL Stremio. UI: avviso `ui.defaultsPreviewSamplesNotice`.
 
 ## Bordo poster
 
@@ -597,7 +486,7 @@ Opt-in (`sep=1`, default OFF): sostituisce la media ★ nel badge con una colonn
 
 Opt-in grafico (`standard` = resa storica, default; `fresh` = numerale classifica in vetro + colonna meta a posizioni fisse, stesso renderer unico). Parametro `layout` in query; per-titolo nel mapping (flat + profilo `landscape`); nei default globali (flat + profilo Orizzontale) e nel config token. Nessun nuovo campo oltre `posterLayout`/`landscape.posterLayout`.
 
-> **Preset pronto Fresh (galleria Preset, solo ranked):** settimo tile (`FRESH_VISUAL_DEFAULTS` in `default-visual-presets.ts`, fedele all'export readonly `C:\Users\lucaf\Desktop\fresh.json` + `fresh`/`ranked` espliciti su entrambi i formati, età OFF/IT/standard canonica) — portrait `netflix`+nastro/minimal/knockout/grade 35, landscape `number`/`color`/`follow-rank`/grade 50. La galleria `PresetsPanel` lo applica con `withReadyPresetLayoutFresh` (stesso freeze dell'altro formato dello Standard, mai reset d'ingresso Fresh che distruggerebbe le posizioni 0/null esplicite); i 6 esistenti restano Standard, i personali applicano verbatim. Lista legacy Badge-tab resta a 6 (nessuno store duplicato).
+> **Preset pronto Fresh (galleria Preset, solo ranked):** settimo tile (`FRESH_VISUAL_DEFAULTS` in `default-visual-presets.ts`, fedele all'export readonly `C:\Users\lucaf\Desktop\fresh.json` + `fresh`/`ranked` espliciti su entrambi i formati, età OFF/IT/standard canonica) — portrait `netflix`+nastro/minimal/knockout/grade 35, landscape `number`/`color`/`follow-rank`/grade 50. La galleria `PresetsPanel` lo applica con `withReadyPresetLayoutFresh` (stesso freeze dell'altro formato dello Standard, mai reset d'ingresso Fresh che distruggerebbe le posizioni 0/null esplicite); i 6 esistenti restano Standard, i personali applicano verbatim.
 
 | Aspetto | Regola |
 |---|---|

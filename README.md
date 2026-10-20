@@ -114,7 +114,6 @@ Want to self-host instead? See [Quick Deploy](#-quick-deploy): [Vercel](#-vercel
 | 📺 **Smart Parts & Anime Splitting** | Automatically detects **Original Parts** (*Money Heist*, *Lupin*) and splits giant single-season anime entries on TMDB (*Re:ZERO*, *Jujutsu Kaisen*) into their true release seasons. |
 | 🏷️ **Quality Badges & Ratings** | Real-time video resolution detection (4K/FHD/HD), aggregated ratings from over 16 sources (IMDb, TMDB, Rotten Tomatoes, Letterboxd, MAL), Academy/Cannes awards, and Netflix Top 10 ribbons. |
 | 🌐 **Custom Catalogs & Lists** | Import watchlists and custom lists from **Letterboxd, Trakt, TMDb, TheTVDB (your API key), MDBList**, plus official IMDb CSV exports, along with real-time trending charts via JustWatch GraphQL. |
-| 🧪 **Badge Lab** | Design badge presets per family (rank, extra, genre, quality, age, network, separate/custom ratings, coming soon) with live preview at `/lab/badges`; apply them per title and shape, share them from the community library at `/presets`. Saving and applying require your personal space; anonymous try-out stays local. |
 | 🌍 **Dynamic Multilingual UI** | Interface available in 18 languages with real-time language switching without page refresh. |
 | 🔒 **PIN Protection & User Spaces** | PIN code lock protection for single instances, or full multi-user support with isolated spaces, AES-256-GCM encryption, and full-space backup/restore. Stremio manifests and posters remain permanently functional. |
 | ⚡ **Versioned Cache Updates** | Deterministic versioning with automated `RENDER_VERSION` and `APP_VERSION`. Follow-space links (`live=1`) revalidate on every request, so clients pick up new renders when they re-request; copies already cached elsewhere refresh on that client's schedule. |
@@ -139,7 +138,6 @@ Want to self-host instead? See [Quick Deploy](#-quick-deploy): [Vercel](#-vercel
 * **Always-in-Sync Charts**: Top 10/20 badges track live charts; if a title leaves the ranking, its badge updates automatically.
 * **✨ Pre-Digital Effect (Coming Soon)**: For movies out in theaters but not yet streaming (detected via JustWatch/TMDB): darkened poster with a red "Coming Soon" corner ribbon.
 * **🔌 Custom Rating Provider**: Display external ratings from any HTTP(S) API (via IMDb ID) with dedicated pills. See [docs/custom-rating.md](docs/custom-rating.md).
-* **🧪 Badge Lab presets (per family)**: one independent look per badge family, staged per title and shape until you press Save (Standard resets that badge to the poster style). Rank and Genre presets style the Standard layout only — Fresh and Card keep their fixed numerals, while Extra presets still render at the top. Presets are namespaced: private presets stay with their owner, public ones are fail-open on posters (unknown or revoked bindings render the standard badge).
 
 ### 📺 Seasons, Episodes & Anime
 * **✨ Smart Parts Detection**: Automatically detects split-part series like *Money Heist* (5 parts) or *Lupin* (4 parts).

@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest"
 import {
   BACKUP_SCHEMA_VERSION,
-  coerceBackupPreset,
   parseBackupBody,
   stripBackupSecrets,
 } from "@/lib/backup-schema"
@@ -77,38 +76,11 @@ describe("stripBackupSecrets", () => {
   })
 })
 
-describe("coerceBackupPreset", () => {
-  const full = {
-    id: "Abc12345",
-    ownerUuid: "11111111-1111-4111-8111-111111111111",
-    target: "top",
-    visibility: "private",
-    metadata: { name: "Mio", tags: ["dark"] },
-    variant: "custom",
-    design: {},
-    createdAt: 1,
-    updatedAt: 2,
-    revision: "abcdef12",
-  }
-
-  it("accetta BadgePreset completo e forza visibility private + backupId", () => {
-    const out = coerceBackupPreset(full)
-    expect(out).toMatchObject({
-      target: "top",
-      visibility: "private",
-      forkedFrom: null,
-      backupId: "Abc12345",
+describe("retired Badge Lab backup section", () => {
+  it("parseBackupBody keeps a legacy `presets` section for the import route to ignore", () => {
+    expect(parseBackupBody({ schemaVersion: 2, presets: [{ id: "Abc12345" }] })).toEqual({
+      kind: "v2",
+      sections: { presets: [{ id: "Abc12345" }] },
     })
-    expect(out?.metadata.name).toBe("Mio")
-  })
-
-  it("accetta lo shape { preset } (StoredPreset)", () => {
-    expect(coerceBackupPreset({ preset: full, downloads: 3 })?.backupId).toBe("Abc12345")
-  })
-
-  it("rifiuta preset invalidi", () => {
-    expect(coerceBackupPreset(null)).toBeNull()
-    expect(coerceBackupPreset({ target: "nope", metadata: { name: "x" } })).toBeNull()
-    expect(coerceBackupPreset({ target: "top", metadata: { name: "" } })).toBeNull()
   })
 })

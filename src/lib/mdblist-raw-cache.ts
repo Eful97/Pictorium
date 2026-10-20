@@ -161,8 +161,7 @@ export function mdbRawPersistFilename(rawKey: string): string | null {
   return `mdblist-raw-v1-${crypto.createHash("sha256").update(rawKey).digest("hex")}.json`
 }
 
-/** DATA_DIR resolved live (tests stub PICTORIUM_DATA_DIR + resetModules):
- *  same pattern as badge-preset-store.ts / wikidata-cache.ts. */
+/** DATA_DIR resolved live (tests stub PICTORIUM_DATA_DIR + resetModules). */
 function mdbRawPersistDir(): string {
   const dir = envWithFallback("DATA_DIR") || DATA_DIR
   return path.join(dir, MDB_RAW_PERSIST_DIRNAME)

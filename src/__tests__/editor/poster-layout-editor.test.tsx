@@ -629,8 +629,6 @@ describe("save freezes the layout per shape", () => {
           separateRatings: false,
           separateRatingsStyle: "column",
           customBadge: null,
-          badgePresetId: null,
-          badgePresetRev: null,
           badgeStyle: "shadow",
           rankingBadgeStyle: "default",
           extraBadgeStyle: null,

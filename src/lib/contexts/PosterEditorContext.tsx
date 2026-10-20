@@ -7,10 +7,7 @@ import type { LandscapeServerDefaults } from "@/lib/server-defaults"
 import type { DateFormat } from "@/lib/release-badge"
 import type { BadgeStyle, RankingBadgeStyle, ExtraBadgeStyle, ExtraBadgeFollowRank, QualityBadgeStyle, BadgeFont, SeparateRatingsStyle } from "@/lib/badge-styles"
 import type { AgeBadgeStyle } from "@/lib/badge-styles"
-import type { BadgeFamilyId, BadgeFamilyBindings, BadgeTarget } from "@/lib/badge-preset"
-import { isBadgePresetId } from "@/lib/badge-preset"
-import { FAMILY_FOLLOW_SENTINEL, sanitizeFamilyDraft, type FamilyStagedDraft } from "@/lib/family-preset-follow"
-import { isEmptyFamilyMap, sanitizeFamilyMap } from "../family-preset-save"
+
 import { DEFAULT_AGE_BADGE_STYLE, getSeparateBadgeDefaultScale, isAgeBadgeStyle } from "@/lib/badge-styles"
 import { DEFAULT_AGE_COUNTRY, normalizeCertificationCountry } from "@/lib/certification"
 import type { SashBucket } from "@/lib/badge-priority"
@@ -162,49 +159,7 @@ export interface PosterEditorCtx {
   setVideoFormats: (v: VideoFormat[] | null | ((prev: VideoFormat[] | null) => VideoFormat[] | null)) => void
   customBadge: string | null
   setCustomBadge: (v: string | null | ((prev: string | null) => string | null)) => void
-  badgePresetId: string | null
-  setBadgePresetId: (v: string | null | ((prev: string | null) => string | null)) => void
-  badgePresetRev: string | null
-  setBadgePresetRev: (v: string | null | ((prev: string | null) => string | null)) => void
-  /**
-   * Staged per-family Badge Lab bindings for the title in editing (sparse,
-   * shape-local draft): present key — including explicit null = clear —
-   * shadows the saved map AND the legacy singleton for that family only
-   * (never siblings); present follow-drop (`__follow__`) deletes the saved
-   * key at save so the family follows the space settings; absent = follow
-   * the saved mapping. Initialized empty on title open (never from the
-   * mapping: the preview/save merge staged over saved), stashed per shape on
-   * format switch, cleared by cover-only reset. Identity-scoped by the stash
-   * key (namespace+type+tmdbId) via EditView, same as the other per-title
-   * drafts — never leaks across titles. The drop marker is client-only:
-   * encode omits it from `bp` and the save translates it to a deletion
-   * (never persisted, never validated as an id).
-   */
-  badgePresets: FamilyStagedDraft | null
-  setBadgePresets: (v: FamilyStagedDraft | null | ((prev: FamilyStagedDraft | null) => FamilyStagedDraft | null)) => void
-  /**
-   * Stage one family binding (convenience over setBadgePresets): value null =
-   * explicit Standard clear for that family, binding = preset, undefined =
-   * remove the staged key (follow the saved mapping again).
-   */
-  setFamilyPreset: (family: BadgeFamilyId, value: { id: string; rev?: string | null } | null | undefined) => void
-  /**
-   * Stage a follow-settings drop for one family (client-only marker): at save
-   * the stored key is deleted so the family follows the space settings even
-   * when the mapping pins it; in preview the saved entry is hidden the same
-   * way (prospective-save parity). Never persisted as a value.
-   */
-  dropFamilyPreset: (family: BadgeFamilyId) => void
-  /**
-   * Legacy singleton target resolved for the open title (owner-aware store
-   * truth, cached by id): lets a follow-drop break the singleton for the
-   * covered family while materializing the surviving siblings — same
-   * transformation in preview and save, never guessed. Null = none mapped or
-   * not yet resolved/unresolvable (save falls back to a bounded resolve,
-   * honest abort when it stays unknown).
-   */
-  legacyPresetTarget: BadgeTarget | null
-  setLegacyPresetTarget: (v: BadgeTarget | null) => void
+
   networkLogo: boolean
   setNetworkLogo: (v: boolean | ((prev: boolean) => boolean)) => void
   networkLogoPosition: NetworkLogoPosition
@@ -241,11 +196,7 @@ export interface PosterEditorCtx {
   /** Font dei testi badge di default ("inter" = resa storica). */
   defaultBadgeFont: BadgeFont
   setDefaultBadgeFont: (v: BadgeFont | ((prev: BadgeFont) => BadgeFont)) => void
-  /** BadgeLab family map dei default globali (flat/portrait, vedi sopra). */
-  defaultBadgePresets: BadgeFamilyBindings | null
-  setDefaultBadgePresets: (v: BadgeFamilyBindings | null | ((prev: BadgeFamilyBindings | null) => BadgeFamilyBindings | null)) => void
-  /** Una family dei default globali (flat/portrait, vedi sopra). */
-  setDefaultFamilyPreset: (family: BadgeFamilyId, value: { id: string; rev?: string | null } | null | undefined) => void
+
   /** Stile icone del badge qualità di default. */
   defaultQualityBadgeStyle: QualityBadgeStyle
   setDefaultQualityBadgeStyle: (v: QualityBadgeStyle | ((prev: QualityBadgeStyle) => QualityBadgeStyle)) => void
@@ -656,46 +607,7 @@ export function PosterEditorProvider({
 
   // ---- Custom badge ----
   const [customBadge, setCustomBadge] = useState<string | null>(null)
-  const [badgePresetId, setBadgePresetId] = useState<string | null>(null)
-  const [badgePresetRev, setBadgePresetRev] = useState<string | null>(null)
-  // Staged per-family bindings (shape-local draft, see interface docs): null =
-  // no staged overrides (follow the saved mapping), object = sparse draft
-  // (binding / explicit Standard null / follow-drop marker, all verbatim).
-  const [badgePresets, setBadgePresetsState] = useState<FamilyStagedDraft | null>(null)
-  const setBadgePresets = useCallback(
-    (v: FamilyStagedDraft | null | ((prev: FamilyStagedDraft | null) => FamilyStagedDraft | null)) => {
-      setBadgePresetsState((prev) => {
-        const next = typeof v === "function" ? v(prev) : v
-        // Keep the draft transport-safe: malformed entries never enter state
-        // (the drop marker survives — encode/save handle it, never the store).
-        if (next === null) return null
-        const clean = sanitizeFamilyDraft(next)
-        return clean
-      })
-    }, [])
-  const setFamilyPreset = useCallback(
-    (family: BadgeFamilyId, value: { id: string; rev?: string | null } | null | undefined) => {
-      setBadgePresetsState((prev) => {
-        if (value === undefined) {
-          if (!prev || !Object.prototype.hasOwnProperty.call(prev, family)) return prev
-          const next = { ...prev }
-          delete next[family]
-          return next
-        }
-        // Normalize rev (null = unpinned) so the draft always carries the
-        // stored binding form — never an undefined rev.
-        const binding = value === null ? null : { id: value.id, rev: value.rev ?? null }
-        return { ...(prev ?? {}), [family]: binding }
-      })
-    }, [])
-  const dropFamilyPreset = useCallback(
-    (family: BadgeFamilyId) => {
-      setBadgePresetsState((prev) => ({ ...(prev ?? {}), [family]: FAMILY_FOLLOW_SENTINEL }))
-    }, [])
-  // Legacy singleton target for the open title (see interface docs): resolved
-  // owner-aware on title open (EditView effect), reset on title switch so a
-  // new title never reuses the previous target.
-  const [legacyPresetTarget, setLegacyPresetTarget] = useState<BadgeTarget | null>(null)
+
   // Badge età per-titolo (stesso pattern dei visuali un tempo condivisi
   // sopra: stato live per-titolo, mai nei default persistiti — i default
   // restano i `defaultAge*`, con legacy alias bare `ageBadge*` intatti).
@@ -724,7 +636,6 @@ export function PosterEditorProvider({
     badgeStyle, rankingBadgeStyle, qualityBadgeStyle, videoFormats,
     extraBadgeStyle,
     badgeFont, defaultBadgeFont,
-    defaultBadgePresets,
     defaultBadgeStyle, defaultRankingBadgeStyle, defaultQualityBadgeStyle, defaultVideoFormats,
     defaultExtraBadgeStyle,
     defaultBlurEnabled, defaultBlurIntensity, defaultBlurFade, defaultBlurDarkness, defaultTintStrength, defaultTopShade, defaultTopShadeHeight,
@@ -1133,29 +1044,6 @@ export function PosterEditorProvider({
       const next = typeof v === "function" ? v(defaultBadgeFont) : v
       update({ defaultBadgeFont: next })
     }, [defaultBadgeFont, update])
-  const setDefaultBadgePresets = useCallback(
-    (v: BadgeFamilyBindings | null | ((prev: BadgeFamilyBindings | null) => BadgeFamilyBindings | null)) => {
-      const next = typeof v === "function" ? v(defaultBadgePresets) : v
-      // Store only validated bindings (fail-closed): malformed entries never
-      // enter the draft (the drop marker is per-title only, never a default).
-      // Empty stays null (sparse, legacy byte-identical payloads).
-      const clean = next === null ? null : sanitizeFamilyMap(next)
-      update({ defaultBadgePresets: clean !== null && isEmptyFamilyMap(clean) ? null : clean })
-    }, [defaultBadgePresets, update])
-  const setDefaultFamilyPreset = useCallback(
-    (family: BadgeFamilyId, value: { id: string; rev?: string | null } | null | undefined) => {
-      const base = defaultBadgePresets ?? {}
-      if (value === undefined) {
-        if (!Object.prototype.hasOwnProperty.call(base, family)) return
-        const next = { ...base }
-        delete next[family]
-        const clean = sanitizeFamilyMap(next)
-        update({ defaultBadgePresets: isEmptyFamilyMap(clean) ? null : clean })
-        return
-      }
-      if (value !== null && !isBadgePresetId(value.id)) return
-      update({ defaultBadgePresets: sanitizeFamilyMap({ ...base, [family]: value }) })
-    }, [defaultBadgePresets, update])
   const setDefaultQualityBadgeStyle = useCallback(
     (v: QualityBadgeStyle | ((prev: QualityBadgeStyle) => QualityBadgeStyle)) => {
       const next = typeof v === "function" ? v(defaultQualityBadgeStyle) : v
@@ -1797,12 +1685,6 @@ export function PosterEditorProvider({
     setBackdropOffsetX(0)
     setBackdropOffsetY(0)
     setCustomBadge(null)
-    setBadgePresetId(null)
-    setBadgePresetRev(null)
-    // Staged per-family bindings: cover-only clears styling by design, so the
-    // staged map resets like the other custom visuals (the mapping will carry
-    // no badgePresets after the save).
-    setBadgePresets(null)
     // Badge età per-titolo: default effettivi di forma (mai il live del
     // titolo precedente — stesso isolamento degli altri visuali; i setter
     // validano fail-closed come il server).
@@ -1877,16 +1759,6 @@ export function PosterEditorProvider({
       setVideoFormats,
       customBadge,
       setCustomBadge,
-      badgePresetId,
-      setBadgePresetId,
-      badgePresetRev,
-      setBadgePresetRev,
-      badgePresets,
-      setBadgePresets,
-      setFamilyPreset,
-      dropFamilyPreset,
-      legacyPresetTarget,
-      setLegacyPresetTarget,
       networkLogo,
       setNetworkLogo,
       networkLogoPosition,
@@ -1917,9 +1789,6 @@ export function PosterEditorProvider({
       setDefaultExtraBadgeStyle,
       defaultBadgeFont,
       setDefaultBadgeFont,
-      defaultBadgePresets,
-      setDefaultBadgePresets,
-      setDefaultFamilyPreset,
       defaultQualityBadgeStyle,
       setDefaultQualityBadgeStyle,
       defaultVideoFormats,
@@ -2199,10 +2068,6 @@ export function PosterEditorProvider({
       qualityBadgeStyle, setQualityBadgeStyle,
       videoFormats, setVideoFormats,
       customBadge, setCustomBadge,
-      badgePresetId, setBadgePresetId,
-      badgePresetRev, setBadgePresetRev,
-      badgePresets, setBadgePresets, setFamilyPreset, dropFamilyPreset,
-      legacyPresetTarget, setLegacyPresetTarget,
       networkLogo, setNetworkLogo,
       networkLogoPosition, setNetworkLogoPosition,
       networkLogoFollowTitle, setNetworkLogoFollowTitle,
@@ -2221,7 +2086,6 @@ export function PosterEditorProvider({
       defaultRankingBadgeStyle, setDefaultRankingBadgeStyle,
       defaultExtraBadgeStyle, setDefaultExtraBadgeStyle,
       defaultBadgeFont, setDefaultBadgeFont,
-      defaultBadgePresets, setDefaultBadgePresets, setDefaultFamilyPreset,
       defaultQualityBadgeStyle, setDefaultQualityBadgeStyle,
       defaultVideoFormats, setDefaultVideoFormats,
       defaultEpisodeMetadataSource, setDefaultEpisodeMetadataSource,

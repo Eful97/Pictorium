@@ -26,10 +26,10 @@ function pickDefined<T extends object>(obj: T): Partial<T> {
  * presente nel profilo (inclusa `null` = clear esplicito) vince, assente =
  * eredita il flat. Mappa profilo null/assente/non-oggetto = eredita il flat.
  * Locale di proposito: questa foglia deve restare a zero import runtime
- * (vedi intestazione), quindi non può importare `mergeBadgePresetsField`
+ * (vedi intestazione), quindi non può importare `mergeRetiredBadgePresetsField`
  * da `types.ts`.
  */
-function mergeBadgePresetsField(
+function mergeRetiredBadgePresetsField(
   flat: ServerDefaults["badgePresets"],
   land: ServerDefaults["badgePresets"],
 ): ServerDefaults["badgePresets"] {
@@ -52,8 +52,8 @@ export function effectiveDefaultsForShape(defaults: ServerDefaults, shape: "post
   // blocco: `pickDefined` sopra copierebbe la sola mappa di profilo (o la
   // scarterebbe se null), perdendo l'eredità del flat per le family assenti.
   // Mappa profilo null/assente = eredita il flat (stessa regola di
-  // `mergeBadgePresetsField`), quindi il campo va sempre ricalcolato qui.
-  merged.badgePresets = mergeBadgePresetsField(
+  // `mergeRetiredBadgePresetsField`), quindi il campo va sempre ricalcolato qui.
+  merged.badgePresets = mergeRetiredBadgePresetsField(
     defaults.badgePresets,
     defaults.landscape.badgePresets,
   )

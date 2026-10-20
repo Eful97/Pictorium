@@ -14,17 +14,16 @@
 // rejected with the quota error (→ HTTP 413 per the route contract), and the
 // stored count never exceeds max.
 //
-// Status: all 4 races are FIXED and GREEN — preset savePreset (atomic EVAL,
-// Q2b1) plus mapping upsert / mapping import / alias setImdbAlias (atomic
-// hash EVALs, Q2b2). The barrier below only gates the legacy check-read path;
-// fixed paths decide inside a single EVAL, so a stale armed barrier never
-// gates them — racers still interleave deterministically through the shared
-// fake backend and exactly one writer wins.
+// Status: all 3 races are FIXED and GREEN — mapping upsert / mapping import /
+// alias setImdbAlias (atomic hash EVALs, Q2b2). The barrier below only gates
+// the legacy check-read path; fixed paths decide inside a single EVAL, so a
+// stale armed barrier never gates them — racers still interleave
+// deterministically through the shared fake backend and exactly one writer
+// wins.
 //
 // Env: stubbed per test, originals restored EXACTLY in afterEach. No real
 // Redis/KV/network/credentials anywhere in this file.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
-import { randomUUID } from "node:crypto"
 
 // ---------------------------------------------------------------------------
 // In-memory ioredis fake (shared backend state, like a real shared Redis).
@@ -298,13 +297,7 @@ vi.mock("ioredis", () => {
 // read. The fake above stores raw strings like real ioredis, so the real
 // adapter's encode/decode path is exercised end to end.
 
-function seedSet(key: string, members: string[]): void {
-  fakeState.sets.set(key, new Set(members))
-}
-
 import { closeKvClient } from "@/lib/kv"
-import { MAX_PRESETS_PER_USER } from "@/lib/badge-preset"
-import type { PresetCreateInput } from "@/lib/badge-preset-store"
 import type { Mapping } from "@/lib/types"
 
 const UUID_A = "11111111-1111-4111-8111-111111111111"
@@ -347,30 +340,6 @@ function forceKvMode(): void {
   delete process.env.KV_REST_API_TOKEN
 }
 
-function makePresetInput(name: string): PresetCreateInput {
-  return {
-    target: "top",
-    visibility: "private",
-    metadata: { name, tags: ["quota-race"] },
-    design: {
-      shape: "pill",
-      padding: { x: 12, y: 6 },
-      background: { type: "solid", color: "#ff0000", opacity: 90 },
-      text: {
-        template: "T",
-        color: "#ffffff",
-        opacity: 100,
-        fontSize: 20,
-        fontWeight: 700,
-        uppercase: false,
-        letterSpacing: 0,
-        align: "center",
-      },
-      scale: 100,
-    },
-  }
-}
-
 function makeMapping(id: number, title: string): Mapping {
   return {
     tmdbId: id,
@@ -403,51 +372,7 @@ afterEach(async () => {
   await closeKvClient()
 })
 
-describe("quota races: preset (Q2b1) + mappings/aliases (Q2b2) atomic EVAL, all GREEN", () => {
-  it("preset savePreset: two concurrent inserts at max-1 must not both succeed", async () => {
-    vi.resetModules()
-    const presetStore = await import("@/lib/badge-preset-store")
-    const { savePreset, PresetQuotaError } = presetStore
-    // Warmup (single, read-only): the FIRST use of a fresh kv instance
-    // resolves the mocked dynamic import("ioredis"). Two CONCURRENT first
-    // uses resolve inconsistently (one caller gets the mock, the other the
-    // real module → connection-refused timeouts). Warming pins the singleton
-    // so both racers share the settled fake backend. Q2 note: racing
-    // ensureRedis() can also build two real clients in production (one
-    // leaks); it wants single-flight pinning.
-    expect(await presetStore.getPreset("AAAAAAAAAAAA")).toBeNull()
-    const owner = randomUUID()
-    const indexKey = `pictorium:user:${owner}:presets`
-    // 99 pre-existing presets as raw backend state (like prior user data).
-    seedSet(
-      indexKey,
-      Array.from({ length: MAX_PRESETS_PER_USER - 1 }, (_, i) => `seed-preset-${i}`),
-    )
-
-    // Both racers' quota decision now happens inside ONE atomic eval, so the
-    // barrier on the legacy SMEMBERS read no longer gates anything: the
-    // first eval to run stores (99 -> 100) and the second sees SCARD >= max.
-    armCheckBarrier(indexKey, 2)
-    const [r1, r2] = await Promise.allSettled([
-      savePreset(owner, makePresetInput("racer-A")),
-      savePreset(owner, makePresetInput("racer-B")),
-    ])
-    disarmBarrier()
-
-    const ok = [r1, r2].filter((r) => r.status === "fulfilled")
-    const ko = [r1, r2].filter((r) => r.status === "rejected")
-    const finalCount = fakeState.sets.get(indexKey)?.size ?? 0
-
-    // Fixed Q2b1: the atomic eval admits exactly one racer; the set stays
-    // at 100 and the loser gets PresetQuotaError (HTTP 413 at the route).
-    expect(
-      finalCount,
-      `quota overshoot: ${finalCount} presets stored, max ${MAX_PRESETS_PER_USER} [${rejectionSummary([r1, r2])}]`,
-    ).toBeLessThanOrEqual(MAX_PRESETS_PER_USER)
-    expect(ok).toHaveLength(1)
-    expect((ko[0] as PromiseRejectedResult).reason).toBeInstanceOf(PresetQuotaError)
-  })
-
+describe("quota races: mappings/aliases (Q2b2) atomic EVAL, all GREEN", () => {
   it("mapping upsert: two concurrent inserts at max-1 must not both succeed", async () => {
     process.env.PICTORIUM_MAX_MAPPINGS_PER_USER = "2"
     vi.resetModules()

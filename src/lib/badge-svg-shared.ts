@@ -1,14 +1,6 @@
-import type { BadgeDesign, HouseBadge, PresetLike } from "./badge-preset"
 import type { BadgeStyle, RankingBadgeStyle, BadgeFont } from "./badge-styles"
 import { isBadgeFont } from "./badge-styles"
 import { isWarmGoldAccent, textColorForBg } from "./accent-color"
-import { resolveBadgeText, type BadgeVariableContext } from "./badge-variables"
-import { applyHouseAppearance, type SvgBadge } from "./badge-house-appearance"
-import {
-  technicalPresetAppearance,
-  technicalPresetTypography,
-  technicalTypographyForStyle,
-} from "./badge-preset-technical"
 
 const TEXT_SAFE_PAD = 1.15
 const GENRE_TEXT_MAX_RATIO = 0.84
@@ -851,7 +843,7 @@ export function buildAgeKnockoutSvg(label: string, fs: number, font: BadgeFont =
   return { svg: `<svg xmlns="http://www.w3.org/2000/svg" width="${renderW}" height="${renderH}" viewBox="0 0 ${renderW} ${renderH}">${defs}${bgEl}</svg>`, w: renderW, h: renderH }
 }
 
-// --- Custom preset badges (Badge Lab + poster Stremio: stessa funzione) ---
+// --- Color helpers (shared native recipes) ---
 
 /** `#RGB/#RRGGBB/#RRGGBBAA` + opacity 0-100 → `rgba(...)` deterministico. */
 export function presetHexToRgba(hex: string, opacityPct: number): string {
@@ -866,93 +858,10 @@ export function presetHexToRgba(hex: string, opacityPct: number): string {
   return `rgba(${r},${g},${b},${as})`
 }
 
-function presetGradientAttrs(direction: "horizontal" | "vertical" | "diagonal"): string {
-  if (direction === "horizontal") return `x1="0" y1="0" x2="1" y2="0"`
-  if (direction === "vertical") return `x1="0" y1="0" x2="0" y2="1"`
-  return `x1="0" y1="0" x2="1" y2="1"`
-}
-
-/**
- * Badge custom dichiarativo: funzione pura (zero I/O), deterministica,
- * compatibile con DOM browser e resvg. L'editor la esegue live a 0ms, il
- * server riusa lo stesso SVG prima di `renderSVG` — Golden Rule per costruzione.
- *
- * I preset custom hanno tipografia propria (font/temp del design) e ignorano
- * il selettore "Font dei badge": il contratto del Badge Lab resta pixel-
- * identico tra preview e poster. Stessa regola per i preset house
- * (buildHousePresetSvg sotto): seguono la ricetta house, non `bfont`.
- */
-export function buildCustomBadgeSvg(design: BadgeDesign, resolvedText: string): SvgBadge {
-  const k = design.scale / 100
-  const fs = Math.max(1, Math.round(design.text.fontSize * k))
-  const label = (design.text.uppercase ? resolvedText.toUpperCase() : resolvedText).slice(0, 80)
-  const track = Math.round(design.text.letterSpacing * Math.max(label.length - 1, 0))
-  const textW = label ? Math.max(estimateTextWidth(label, fs) + track, Math.round(fs * 0.35)) : 0
-  const padX = Math.round(design.padding.x * k)
-  const padY = Math.round(design.padding.y * k)
-  const autoW = textW + padX * 2
-  const boxW = Math.max(design.width !== undefined ? Math.round(design.width * k) : autoW, autoW, 20)
-  const autoH = fs + padY * 2
-  const boxH = Math.max(design.height !== undefined ? Math.round(design.height * k) : autoH, fs + 4, 16)
-  const r = design.radius !== undefined
-    ? Math.round(design.radius * k)
-    : design.shape === "pill"
-      ? Math.floor(boxH / 2)
-      : design.shape === "squircle"
-        ? Math.round(Math.min(boxW, boxH) * 0.28)
-        : design.shape === "ribbon"
-          ? Math.round(fs * RANKING_DEFAULT_RADIUS_FACTOR)
-          : design.shape === "bordo"
-            ? Math.round(fs * 0.55)
-            : 0
-
-  const bg = design.background
-  const fill = bg.type === "gradient" && bg.gradient
-    ? "url(#cpbg)"
-    : presetHexToRgba(bg.color ?? "#000000", bg.opacity)
-  const gradDef = bg.type === "gradient" && bg.gradient
-    ? `<linearGradient id="cpbg" ${presetGradientAttrs(bg.gradient.direction)}><stop offset="0%" stop-color="${bg.gradient.from}" stop-opacity="${Math.min(Math.max(bg.opacity / 100, 0), 1)}"/><stop offset="100%" stop-color="${bg.gradient.to}" stop-opacity="${Math.min(Math.max(bg.opacity / 100, 0), 1)}"/></linearGradient>`
-    : ""
-
-  const border = design.border
-  const bw = border && border.enabled ? Math.round(border.width * k) : 0
-  const stroke = bw > 0 && border ? presetHexToRgba(border.color, border.opacity) : "none"
-
-  const shadow = design.shadow
-  const shOn = !!shadow && shadow.enabled && (shadow.blur > 0 || shadow.offsetX !== 0 || shadow.offsetY !== 0)
-  const shBlur = shOn ? Math.round(shadow!.blur * k) : 0
-  const shDx = shOn ? Math.round(shadow!.offsetX * k) : 0
-  const shDy = shOn ? Math.round(shadow!.offsetY * k) : 0
-  const shPad = shOn ? Math.round(shBlur + Math.max(Math.abs(shDx), Math.abs(shDy))) + 4 : 0
-  const shadowDef = shOn
-    ? `<filter id="cpbsh" x="-40%" y="-40%" width="180%" height="180%"><feDropShadow dx="${shDx}" dy="${shDy}" stdDeviation="${shBlur}" flood-color="#000000" flood-opacity="${Math.min(Math.max(shadow!.opacity / 100, 0), 1)}"/></filter>`
-    : ""
-  const filterAttr = shOn ? ` filter="url(#cpbsh)"` : ""
-
-  const renderW = boxW + shPad * 2 + (bw > 0 ? 2 : 0)
-  const renderH = boxH + shPad * 2 + (bw > 0 ? 2 : 0)
-  const ox = shPad + (bw > 0 ? 1 : 0)
-  const oy = shPad + (bw > 0 ? 1 : 0)
-  const inset = bw / 2
-  const textX = design.text.align === "left"
-    ? ox + padX + textW / 2
-    : design.text.align === "right"
-      ? ox + boxW - padX - textW / 2
-      : ox + boxW / 2
-  const fg = presetHexToRgba(design.text.color, design.text.opacity)
-  const lsAttr = design.text.letterSpacing !== 0 ? ` letter-spacing="${design.text.letterSpacing}"` : ""
-  const textEl = label
-    ? `<text x="${textX}" y="${oy + boxH / 2}" text-anchor="middle" dominant-baseline="central" font-family="${fontFamilyFor(label)}" font-weight="${design.text.fontWeight}" font-size="${fs}" fill="${fg}"${lsAttr}${textFitAttrs(textW)}>${escSvg(label)}</text>`
-    : ""
-  const defs = gradDef || shadowDef ? `<defs>${gradDef}${shadowDef}</defs>` : ""
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${renderW}" height="${renderH}" viewBox="0 0 ${renderW} ${renderH}">${defs}<rect x="${ox + inset}" y="${oy + inset}" width="${boxW - bw}" height="${boxH - bw}" rx="${Math.max(r - inset, 0)}" fill="${fill}" stroke="${stroke}" stroke-width="${bw}"${filterAttr}/>${textEl}</svg>`
-  return { svg, w: renderW, h: renderH }
-}
-
 // --- House badge dispatch (single source of truth) ---------------------------
 // Pure SVG builders for the real poster styles. The server selectors in
-// svg-badge.ts delegate here (plus resvg); the Badge Lab calls the same
-// functions in the browser — Lab preview and Stremio poster cannot diverge.
+// svg-badge.ts delegate here (plus resvg): native preview and Stremio poster
+// share the same recipe and cannot diverge.
 
 /**
  * Testo adattivo dei badge traslucidi (vetro/bordo): stesso bianco del badge
@@ -1346,15 +1255,6 @@ export function buildHouseExtraSvg(input: HouseExtraInput): { svg: string; w: nu
   return result
 }
 
-export interface HousePresetScene {
-  readonly topLight: boolean
-  readonly bottomLight: boolean
-  /** Accent esadecimale o null (null = sentinella "nessun accent", come "#555555"). */
-  readonly accentColor: string | null
-  readonly side?: "left" | "right"
-  readonly isAnime?: boolean
-}
-
 /**
  * Corner-ribbon SVG for the pre-digital "coming soon" sticker (pure,
  * sync, single source): the same corner geometry the poster composites
@@ -1367,7 +1267,7 @@ export function buildComingSoonRibbonSvg(
   pw: number,
   side: "left" | "right" = "left",
   font: BadgeFont = "inter",
-  /** Technical typography override (house preset): absolute font size on the
+  /** Optional typography override: absolute font size on the
    *  380 grid, explicit text color/opacity, opt-out of the reference
    *  uppercase. All absent = historic look, byte-identical. */
   typo?: { fontSize?: number; textColor?: string; textOpacity?: number; uppercase?: boolean },
@@ -1414,206 +1314,3 @@ export function buildComingSoonRibbonSvg(
     `</g></svg>`
   return { svg, w: CS, h: CS }
 }
-
-/**
- * Render SVG puro di un preset house con gli stessi builder dei badge poster
- * (stessa ricetta, non un'approssimazione). Server, route preview.svg e
- * Badge Lab usano questa unica funzione — Golden Rule per costruzione. La
- * scala del preset agisce sulla larghezza di lavoro così font e geometria
- * restano proporzionali; testo vuoto o rank assente → null (fail-open).
- */
-/**
- * Deterministic sample label for extra-badge previews (Lab mock, preview.svg,
- * draft-preview): the poster path always passes the LIVE extra label, so this
- * fixture never leaks into a real render — it only stands in where no title
- * context exists, like the rank "3" fixture. Never persisted into defaults.
- */
-export const HOUSE_EXTRA_PREVIEW_LABEL = "Special Award"
-
-export function buildHousePresetSvg(
-  preset: PresetLike,
-  context: BadgeVariableContext,
-  pw: number,
-  scene: HousePresetScene,
-  /**
-   * Actual top slot the preset fills. The legacy `top` alias fans out to the
-   * two badges sharing the slot: `rank` renders `#rank label`, `extra`
-   * renders the label alone (an extra badge carries no digits). Absent/null
-   * keeps the historic behavior (`top` → rank). The Lab passes the edited
-   * target, the poster service passes the resolved topBadge kind.
-   */
-  slot?: "rank" | "extra" | null,
-  /**
-   * Live extra label for the extra slot (poster: the resolved topBadge
-   * label; previews: HOUSE_EXTRA_PREVIEW_LABEL). Ignored by every other
-   * branch. An explicit `house.label` override always wins.
-   */
-  slotLabel?: string | null,
-  /**
-   * Geometry resolved by the caller (parity gap #2): when the combined
-   * poster-space Y offset (tuning + preset position) moves the centered
-   * top badge off the top edge, the plate floats with 4 rounded corners
-   * (native `detached` contract). Absent/false = attached plate (legacy).
-   * The bitmap identity covers it (material), placement offsets do not.
-   */
-  detached?: boolean,
-): SvgBadge | null {
-  const house: HouseBadge | undefined = preset.house
-  if (preset.variant !== "house" || !house) return null
-  const effPw = Math.max(1, (pw * house.scale) / 100)
-  // Override esplicito del preset, altrimenti accent di scena (come il poster).
-  const accent = house.accent ?? scene.accentColor ?? undefined
-  // Override di testo (variabili ammesse): vuoto o irrisolto = dato live.
-  const overrideText = (v: string | undefined): string => {
-    const t = v?.trim()
-    return t ? resolveBadgeText(t, context) : ""
-  }
-  if (preset.target === "genre") {
-    const upper = house.uppercase ? (s: string): string => s.toUpperCase() : (s: string): string => s
-    const genreName = upper(overrideText(house.genreText) || context.genre || "")
-    const ratingLive = context.rating
-    const yearLive = context.year
-    const voteStr = upper(
-      overrideText(house.ratingText) ||
-        (ratingLive === null || ratingLive === undefined || ratingLive === "" ? "" : String(ratingLive)),
-    )
-    const yearStr = upper(
-      overrideText(house.yearText) ||
-        (yearLive === null || yearLive === undefined || yearLive === "" ? "" : String(yearLive)),
-    )
-    const parts = {
-      showGenre: house.showGenre ?? true,
-      showYear: house.showYear ?? true,
-      showRating: house.showRating ?? true,
-    }
-    if (!((parts.showGenre && genreName) || (parts.showRating && voteStr) || (parts.showYear && yearStr))) {
-      return null
-    }
-    const bottomLight = house.polarity === "auto" ? scene.bottomLight : house.polarity === "light"
-    return applyHouseAppearance(buildHouseGenreSvg({
-      genreName,
-      voteStr,
-      yearStr,
-      pw: effPw,
-      style: house.style as BadgeStyle,
-      accentColor: accent,
-      bottomLight,
-      parts,
-      scale: 100,
-      fontSize: house.fontSize,
-      textColor: house.textColor,
-      textOpacity: house.textOpacity,
-    }), house.appearance, effPw / 380)
-  }
-  // --- Technical families (same native builders as the poster) ---
-  // `quality`/`age`/`comingSoon` build synchronously here (pure SVG recipes,
-  // identical inputs → identical SVG). `network`/`separateRatings`/
-  // `customRatings` need raster brand artwork (async file reads) and return
-  // null on this sync path — the async preview route (`preview.svg`) and the
-  // poster service render them through the same native async builders.
-  if (preset.target === "quality") {
-    const rawTier = context.quality?.trim() || ""
-    if (!rawTier) return null
-    const typo = technicalTypographyForStyle("quality", house.style, technicalPresetTypography(preset))
-    const tier = typo?.uppercase ? rawTier.toUpperCase() : rawTier
-    const topLight = house.polarity === "auto" ? scene.topLight : house.polarity === "light"
-    const fs = typo?.fontSize !== undefined
-      ? Math.max(Math.round(typo.fontSize * effPw / 380), 8)
-      : Math.round(Math.max((17 * effPw) / 380, 10))
-    const appearance = technicalPresetAppearance("quality", preset)
-    const px = effPw / 380
-    const ink = (badge: SvgBadge): SvgBadge =>
-      typo?.textColor || typo?.textOpacity !== undefined
-        ? { ...badge, svg: recolorBadgeBodyText(badge.svg, typo?.textColor ?? null, typo?.textOpacity ?? null) }
-        : badge
-    if (house.style === "knockout") return appearance ? applyHouseAppearance(ink(buildQualityKnockoutSvg(tier, fs)), appearance, px) : ink(buildQualityKnockoutSvg(tier, fs))
-    if (house.style === "standard") return appearance ? applyHouseAppearance(ink(buildQualityTierBadgeSvg(tier, fs, topLight)), appearance, px) : ink(buildQualityTierBadgeSvg(tier, fs, topLight))
-    return null
-  }
-  if (preset.target === "age") {
-    const rawLabel = context.age?.trim() || ""
-    if (!rawLabel) return null
-    const typo = technicalTypographyForStyle("age", house.style, technicalPresetTypography(preset))
-    const label = typo?.uppercase ? rawLabel.toUpperCase() : rawLabel
-    const topLight = house.polarity === "auto" ? scene.topLight : house.polarity === "light"
-    const fs = typo?.fontSize !== undefined
-      ? Math.max(Math.round(typo.fontSize * effPw / 380), 8)
-      : Math.round(Math.max((17 * effPw) / 380, 10))
-    const appearance = technicalPresetAppearance("age", preset)
-    const px = effPw / 380
-    const ink = (badge: SvgBadge): SvgBadge =>
-      typo?.textColor || typo?.textOpacity !== undefined
-        ? { ...badge, svg: recolorBadgeBodyText(badge.svg, typo?.textColor ?? null, typo?.textOpacity ?? null) }
-        : badge
-    if (house.style === "knockout") return appearance ? applyHouseAppearance(buildAgeKnockoutSvg(label, fs), appearance, px) : buildAgeKnockoutSvg(label, fs)
-    // Standard = the historic neutral pill (`renderQualityBadge` recipe).
-    // Knockout drops text color (cut-out letters have no ink); size/case apply.
-    const neutral = buildQualityBadgeSvg(label, fs, "", "", topLight)
-    return appearance ? applyHouseAppearance(ink(neutral), appearance, px) : ink(neutral)
-  }
-  if (preset.target === "comingSoon") {
-    const live = context.comingSoon?.trim() || ""
-    const label = overrideText(house.label) || live
-    if (!label) return null
-    const typo = technicalPresetTypography(preset)
-    const appearance = technicalPresetAppearance("comingSoon", preset)
-    const badge = buildComingSoonRibbonSvg(label, effPw, house.side ?? scene.side ?? "left", undefined, {
-      fontSize: typo?.fontSize,
-      textColor: typo?.textColor ?? undefined,
-      textOpacity: typo?.textOpacity ?? undefined,
-      uppercase: typo?.uppercase,
-    })
-    return appearance ? applyHouseAppearance(badge, appearance, effPw / 380) : badge
-  }
-  if (
-    preset.target === "network" ||
-    preset.target === "separateRatings" ||
-    preset.target === "customRatings"
-  ) {
-    return null
-  }
-  // Extra slot (explicit `extra` target or the legacy `top` alias filling an
-  // extra badge): label alone through the SHARED extra recipe — never the
-  // rank numeral. Empty (no override, no live label) → null so the caller
-  // falls back to the native standard extra instead of an empty plate.
-  if (preset.target === "extra" || (preset.target === "top" && slot === "extra")) {
-    const live = slotLabel?.trim() ? slotLabel.trim() : ""
-    const resolved = overrideText(house.label) || live
-    if (!resolved) return null
-    const label = house.uppercase ? resolved.toUpperCase() : resolved
-    const topLight = house.polarity === "auto" ? scene.topLight : house.polarity === "light"
-    return applyHouseAppearance(buildHouseExtraSvg({
-      label,
-      pw: effPw,
-      topLight,
-      style: house.style as RankingBadgeStyle,
-      accentColor: accent,
-      detached: detached ?? false,
-      fontSize: house.fontSize,
-      textColor: house.textColor,
-      textOpacity: house.textOpacity,
-    }), house.appearance, effPw / 380)
-  }
-  const rank = house.rankOverride ?? Number(context.rank)
-  if (!Number.isFinite(rank) || rank <= 0) return null
-  const label = house.uppercase
-    ? (resolveBadgeText(house.label ?? "", context) || "Oggi").toUpperCase()
-    : resolveBadgeText(house.label ?? "", context) || "Oggi"
-  const topLight = house.polarity === "auto" ? scene.topLight : house.polarity === "light"
-  return applyHouseAppearance(buildHouseRankingSvg({
-    rank,
-    label,
-    pw: effPw,
-    topLight,
-    style: house.style as RankingBadgeStyle,
-    accentColor: accent,
-    side: house.side ?? scene.side ?? "left",
-    isAnime: scene.isAnime,
-    detached: detached ?? false,
-    ribbon: house.style === "colored" ? (house.ribbon ?? true) : undefined,
-    fontSize: house.fontSize,
-    textColor: house.textColor,
-    textOpacity: house.textOpacity,
-  }), house.appearance, effPw / 380)
-}
-

@@ -2,6 +2,7 @@ import { execFileSync } from "node:child_process"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
 import { SUBJECT_RE } from "./check-commit-subjects.mjs"
+import { isExcludedReleaseNoteCommit } from "./release-note-exclusions.mjs"
 
 // GitHub Release notes from conventional commits (same grouping as the
 // in-app changelog in write-changelog-release.mjs, plus emojis + links).
@@ -31,9 +32,12 @@ export function toNoteItem(subject) {
 }
 
 // Pure: entries ({ sha, subject }) grouped by section, order preserved.
+// Commits listed in scripts/release-note-exclusions.mjs (withdrawn,
+// unpublished work, matched by exact full SHA) are skipped.
 export function groupNoteItems(entries) {
   const groups = { features: [], fixes: [], perf: [] }
   for (const { sha, subject } of entries) {
+    if (isExcludedReleaseNoteCommit(sha)) continue
     const item = toNoteItem(subject)
     if (item) groups[item.section].push({ text: item.text, sha })
   }

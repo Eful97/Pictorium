@@ -1,7 +1,51 @@
 import { z } from "zod"
 import { BADGE_STYLES, RANKING_BADGE_STYLES, QUALITY_BADGE_STYLES, AGE_BADGE_STYLES, BADGE_FONTS, SEPARATE_RATINGS_STYLES, EXTRA_BADGE_STYLES, EXTRA_BADGE_FOLLOW_RANK } from "./badge-styles"
-import { POSTER_LAYOUTS, POSTER_FRESH_SCOPES } from "./types"
-import { BADGE_PRESET_ID_RE, BADGE_PRESET_REV_RE, badgeFamilyBindingsSchema, badgeFamilyFollowsSchema } from "./badge-preset"
+import { POSTER_LAYOUTS, POSTER_FRESH_SCOPES, RETIRED_BADGE_FAMILY_IDS, type RetiredBadgeFamilyBindings, type RetiredBadgeFamilyFollows } from "./types"
+
+/**
+ * Retired Badge Lab write-boundary schemas (custom badge library removed).
+ * Same fail-closed contract as before so legacy mappings/configs/defaults
+ * keep validating byte-identically: 9-family allowlist, deterministic
+ * id/rev formats, present-null clears, prototype keys and unknown families
+ * reject the whole write. Values are inert (never rendered).
+ */
+const RETIRED_PRESET_ID_RE = /^[A-Za-z0-9_-]{8,24}$/
+const RETIRED_PRESET_REV_RE = /^[0-9a-f]{8}$/
+const RETIRED_FORBIDDEN_KEYS: ReadonlySet<string> = new Set(["__proto__", "constructor", "prototype"])
+
+const retiredBadgeFamilyBindingSchema = z.strictObject({
+  id: z.string().regex(RETIRED_PRESET_ID_RE),
+  rev: z.string().regex(RETIRED_PRESET_REV_RE).nullable().optional(),
+})
+
+export const retiredBadgeFamilyBindingsSchema = z.custom<RetiredBadgeFamilyBindings | null | undefined>((raw) => {
+  if (raw === undefined || raw === null) return true
+  if (typeof raw !== "object" || Array.isArray(raw)) return false
+  const entries = Object.entries(raw)
+  if (entries.length > RETIRED_BADGE_FAMILY_IDS.length) return false
+  for (const [k, v] of entries) {
+    if (RETIRED_FORBIDDEN_KEYS.has(k) || !(RETIRED_BADGE_FAMILY_IDS as readonly string[]).includes(k)) return false
+    if (v === null) continue
+    if (typeof v !== "object" || Array.isArray(v)) return false
+    for (const sk of Object.keys(v)) {
+      if (RETIRED_FORBIDDEN_KEYS.has(sk) || (sk !== "id" && sk !== "rev")) return false
+    }
+    if (retiredBadgeFamilyBindingSchema.safeParse(v).success === false) return false
+  }
+  return true
+}).nullable().optional()
+
+const retiredBadgeFamilyFollowsSchema = z.custom<RetiredBadgeFamilyFollows | null | undefined>((raw) => {
+  if (raw === undefined || raw === null) return true
+  if (typeof raw !== "object" || Array.isArray(raw)) return false
+  const entries = Object.entries(raw)
+  if (entries.length > RETIRED_BADGE_FAMILY_IDS.length) return false
+  for (const [k, v] of entries) {
+    if (RETIRED_FORBIDDEN_KEYS.has(k) || !(RETIRED_BADGE_FAMILY_IDS as readonly string[]).includes(k)) return false
+    if (v !== true) return false
+  }
+  return true
+}).nullable().optional()
 
 export const mappingSchema = z.object({
   tmdbId: z.number().int().positive(),
@@ -88,18 +132,16 @@ export const mappingSchema = z.object({
   // di mostrare il badge Anime anche senza chiave MDBList/profilo lato server.
   animeRank: z.number().int().min(1).nullable().optional(),
   customBadge: z.string().max(40).nullable().optional(),
-  badgePresetId: z.string().regex(BADGE_PRESET_ID_RE).nullable().optional(),
-  badgePresetRev: z.string().regex(BADGE_PRESET_REV_RE).nullable().optional(),
-  // Mappa per-family dei binding Badge Lab (fondazione: nessuna lettura nel
-  // renderer in questo task). Chiavi allowlist = BADGE_FAMILY_IDS, id/rev
-  // negli stessi formati del singleton, null per-family = clear esplicito,
-  // mappa null/assente = nessun override. Prototype key e famiglie ignote
-  // falliscono chiuse (mai strip silenziosi).
-  badgePresets: badgeFamilyBindingsSchema,
-  // Follow flag persistiti per il flat/portrait (G2 c1): sparse opt-in
-  // `true` = segue i default dello spazio (bypass pin flat + legacy per la
-  // forma). Assente = semantica legacy invariata. Solo `true` persiste.
-  badgePresetFollows: badgeFamilyFollowsSchema,
+  badgePresetId: z.string().regex(RETIRED_PRESET_ID_RE).nullable().optional(),
+  badgePresetRev: z.string().regex(RETIRED_PRESET_REV_RE).nullable().optional(),
+  // Retired Badge Lab family map (custom badge library removed): inert stored
+  // keys, never rendered. Same fail-closed write boundary as before (unknown
+  // families, malformed ids/revisions and prototype keys reject the write).
+  badgePresets: retiredBadgeFamilyBindingsSchema,
+  // Retired Badge Lab follow flags (custom badge library removed): inert
+  // stored keys, never rendered. Same fail-closed write boundary as before
+  // (only `true` persists per family).
+  badgePresetFollows: retiredBadgeFamilyFollowsSchema,
   releaseDate: z.string().nullable().optional(),
   firstAirDate: z.string().nullable().optional(),
   backdropPath: z.string().nullable().optional(),
@@ -218,14 +260,13 @@ export const mappingSchema = z.object({
     // Stessi vincoli dei flat (profilo legacy senza chiavi invariato).
     customBadge: z.string().max(40).nullable().optional(),
     accentColor: z.string().regex(/^#[0-9a-fA-F]{3}([0-9a-fA-F]{3})?$/).nullable().optional(),
-    badgePresetId: z.string().regex(BADGE_PRESET_ID_RE).nullable().optional(),
-    badgePresetRev: z.string().regex(BADGE_PRESET_REV_RE).nullable().optional(),
-    // Profilo landscape della mappa per-family: stessi vincoli del flat
-    // (chiavi presenti — inclusa null — vincono sul flat, assenti = eredita).
-    badgePresets: badgeFamilyBindingsSchema,
-    // Follow flag persistiti per il landscape (G2 c1): `true` = la forma
-    // orizzontale segue i default (bypass profilo/flat/legacy per la forma).
-    badgePresetFollows: badgeFamilyFollowsSchema,
+    badgePresetId: z.string().regex(RETIRED_PRESET_ID_RE).nullable().optional(),
+    badgePresetRev: z.string().regex(RETIRED_PRESET_REV_RE).nullable().optional(),
+    // Retired Badge Lab family map (profilo landscape): inert stored keys,
+    // stessi vincoli del flat.
+    badgePresets: retiredBadgeFamilyBindingsSchema,
+    // Retired Badge Lab follow flags (profilo landscape): inert stored keys.
+    badgePresetFollows: retiredBadgeFamilyFollowsSchema,
   }).nullable().optional(),
   networkLogoPath: z.string().nullable().optional(),
   networkLogoName: z.string().nullable().optional(),
@@ -346,14 +387,6 @@ export const posterQuerySchema = z.object({
   xbs: boundedQueryString(16),
   bfont: boundedQueryString(24),
   df: boundedQueryString(8),
-  badgePreset: boundedQueryString(24),
-  prv: boundedQueryString(8),
-  /** Sparse per-family bindings (single canonical `bp` encoding, bounded). */
-  bp: boundedQueryString(512),
-  /** Explicit follow intent per family (`bpf`: known ids comma-separated, bounded, no secrets). */
-  bpf: boundedQueryString(256),
-  /** Server-written authorized family targets (cache fragment, never client). */
-  bpt: boundedQueryString(384),
   netPos: boundedQueryString(8),
   // Segui-spazio: politica di rivalidazione (non forza render). Solo 0/1.
   live: z.enum(["0", "1"]).optional(),

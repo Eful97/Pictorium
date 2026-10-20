@@ -3,7 +3,7 @@ import { NextRequest } from "next/server"
 import { rateLimit, rateLimitKey, rateLimitResponse } from "@/lib/rate-limit"
 import { cacheGet, cacheGetShared, cacheSet, hashUserFragment } from "@/lib/cache"
 import { getTop10 } from "@/lib/flixpatrol"
-import { effectiveDefaultsForShape, getServerDefaults, getServerDefaultsChecked, getServerDefaultsForUser, type ServerDefaults } from "@/lib/server-defaults"
+import { getServerDefaults, getServerDefaultsChecked, getServerDefaultsForUser, type ServerDefaults } from "@/lib/server-defaults"
 import { getScopedUserId, userExists, userRateLimitKey } from "@/lib/user-auth"
 import { touchUserActivity } from "@/lib/user-activity"
 import { POSTER_URL_VERSION } from "@/lib/render-version"
@@ -382,7 +382,6 @@ async function pictoriumPosterAndShape(
     ...base,
     forceShape: posterShape,
     seasonalTheme: effectiveTheme ?? undefined,
-    defaultsBadgePresets: effectiveDefaultsForShape(serverDefaults, posterShape).badgePresets ?? null,
   }).toString()
   // Banner pulito: canvas landscape senza logo baked-in (per i client che
   // sovrappongono già il logo da catalogo) + badge genere in basso a destra.
@@ -390,7 +389,6 @@ async function pictoriumPosterAndShape(
     ...base,
     forceShape: "landscape",
     hideLogo: true,
-    defaultsBadgePresets: effectiveDefaultsForShape(serverDefaults, "landscape").badgePresets ?? null,
   }).toString()
   // NuvioTV: immagine esattamente come Pictorium (logo baked-in, vedi
   // poster-service). I titoli forzati dal default sono inclusi.

@@ -1,36 +1,10 @@
 import fs from "node:fs"
 import path from "node:path"
 import sharp from "sharp"
-import { escSvg, estimateTextWidth, fontFamilyFor, normalizeBadgeFont, recolorBadgeBodyText, satinPillStops } from "./badge-svg-shared"
+import { escSvg, estimateTextWidth, fontFamilyFor, normalizeBadgeFont, satinPillStops } from "./badge-svg-shared"
 import { renderSVG } from "./svg-badge"
-import { applyHouseAppearance } from "./badge-house-appearance"
-import type { HouseBadge } from "./badge-preset"
-import type { TechnicalTypography } from "./badge-preset-technical"
 import { formatSeparateValue, MAX_SEPARATE_RATINGS } from "./ratings"
 import type { BadgeFont, SeparateBottomVariant } from "./badge-styles"
-
-/** Optional technical-family finish for native separate rows (all absent = historic recipe). */
-export interface SeparateRatingsFinish {
-  appearance?: HouseBadge["appearance"]
-  typography?: TechnicalTypography | null
-}
-
-/**
- * Shared finish for artwork-bearing SVGs: brand logos travel as embedded
- * <image> elements (never recolored), so brightness/contrast/saturation are
- * dropped — they would shift brand colors. Container, text, shadow, opacity
- * and geometry knobs stay honored. Pure (validated inside applyHouseAppearance).
- */
-export function sanitizeArtworkAppearance(
-  appearance: HouseBadge["appearance"] | undefined,
-): HouseBadge["appearance"] | undefined {
-  if (!appearance) return undefined
-  const { brightness: _b, contrast: _c, saturation: _s, ...rest } = appearance
-  void _b
-  void _c
-  void _s
-  return Object.keys(rest).length > 0 ? (rest as HouseBadge["appearance"]) : undefined
-}
 
 /** Mappa fonte → asset logo (stesso riuso di RatingSourceIcon: metacriticuser→metacritic, filmwebcritics→filmweb). */
 const SEPARATE_RATING_ICON_FILES: Record<string, string> = {
@@ -154,13 +128,10 @@ export async function renderSeparateRatingStack(
   font: BadgeFont = "inter",
   /** Scala % della colonna (default 130; esplicito 100 = resa storica byte-identica). */
   scalePct: number = 130,
-  /** Technical finish: value typography (size/color/opacity/case) + material. */
-  finish?: SeparateRatingsFinish,
 ): Promise<SeparateRatingStack | null> {
   // Pill compatte in stile moderno: proporzioni solide e bilanciate col badge 4K.
   const f = normalizeBadgeFont(font)
-  const typo = finish?.typography ?? null
-  const baseFs = Math.round(Math.max((typo?.fontSize ?? 14) * pw / 380, 11))
+  const baseFs = Math.round(Math.max(14 * pw / 380, 11))
   const scale = Number.isFinite(scalePct) ? Math.min(Math.max(Math.round(scalePct), 10), 200) : 130
   // A 100 il font resta l'esatto storico (nessun arrotondamento intermedio):
   // padding, gap, loghi e ombre risultano byte-identici al passato.
@@ -180,9 +151,8 @@ export async function renderSeparateRatingStack(
     const logo = await loadSeparateRatingLogo(item.id, logoH)
     if (!logo) continue
     const rawDisplay = formatSeparateValue(item.id, item.value)
-    const display = typo?.uppercase ? rawDisplay.toUpperCase() : rawDisplay
-    const textW = Math.max(estimateTextWidth(display, fs, f), 1)
-    rows.push({ logo, display, textW, pillH: pt + logo.h + gap + fs + pt })
+    const textW = Math.max(estimateTextWidth(rawDisplay, fs, f), 1)
+    rows.push({ logo, display: rawDisplay, textW, pillH: pt + logo.h + gap + fs + pt })
   }
   if (rows.length === 0) return null
 
@@ -208,15 +178,8 @@ export async function renderSeparateRatingStack(
     `<defs><linearGradient id="sepg" x1="0" y1="0" x2="0" y2="1">${satinPillStops(topLight)}</linearGradient>${SEPARATE_SHADOW_FILTER}</defs>` +
     parts.join("") +
     `</svg>`
-  // Technical finish: text ink first (body <text> only — brand <image> logos
-  // untouched), then declarative material around the native row.
-  const inked = typo?.textColor || typo?.textOpacity !== undefined
-    ? recolorBadgeBodyText(svg, typo?.textColor ?? null, typo?.textOpacity ?? null)
-    : svg
-  let badge = { svg: inked, w: colW, h: totalH }
-  if (finish?.appearance) badge = applyHouseAppearance(badge, sanitizeArtworkAppearance(finish.appearance), pw / 380)
-  const png = await renderSVG(badge.svg, badge.w)
-  return { png, w: badge.w, h: badge.h }
+  const png = await renderSVG(svg, colW)
+  return { png, w: colW, h: totalH }
 }
 
 /**
@@ -261,16 +224,13 @@ export async function renderSeparateRatingsBottom(
    * → pill scura). Default `true` = resa dark storica (chiamate esistenti invariate).
    */
   bottomLight: boolean = true,
-  /** Technical finish: value typography (size/color/opacity/case) + material. */
-  finish?: SeparateRatingsFinish,
 ): Promise<SeparateRatingStack | null> {
   const list = items.slice(0, MAX_SEPARATE_RATINGS)
   if (list.length === 0) return null
   const isBar = variant === "bottom-bar"
   const isBare = variant === "bottom-mono" || variant === "bottom-color"
   const f = normalizeBadgeFont(font)
-  const typo = finish?.typography ?? null
-  const baseFs = Math.round(Math.max((typo?.fontSize ?? (isBare ? 23 : 15)) * pw / 380, 11))
+  const baseFs = Math.round(Math.max((isBare ? 23 : 15) * pw / 380, 11))
   const scale = Number.isFinite(scalePct) ? Math.min(Math.max(Math.round(scalePct), 10), 200) : 130
   const reqFs = scale === 100 ? baseFs : Math.max(1, Math.round(baseFs * scale / 100))
   // Materiale adattivo (stessa convenzione del badge genere): fondo chiaro →
@@ -303,8 +263,7 @@ export async function renderSeparateRatingsBottom(
         ? await loadRoundRatingLogo(item.id, logoH, variant === "bottom-mono", bottomLight)
         : await loadSeparateRatingLogo(item.id, logoH)
       if (!logo) continue
-      const rawDisplay = formatSeparateValue(item.id, item.value)
-      const display = typo?.uppercase ? rawDisplay.toUpperCase() : rawDisplay
+      const display = formatSeparateValue(item.id, item.value)
       const textW = Math.max(estimateTextWidth(display, size, f), 1)
       out.push({ logo, display, textW, contentW: logo.w + gap + textW, contentH: Math.max(logo.h, size) })
     }
@@ -397,23 +356,14 @@ export async function renderSeparateRatingsBottom(
       pills.join("") +
       `</svg>`
   }
-  // Technical finish BEFORE the safety shrink (same order as the column):
-  // text ink first (body <text> only — brand <image> logos untouched), then
-  // declarative material around the native row. Widths were measured on the
-  // recipe ink, so the shrink math below still contains the styled row.
-  const inkedSvg = typo?.textColor || typo?.textOpacity !== undefined
-    ? recolorBadgeBodyText(svg, typo?.textColor ?? null, typo?.textOpacity ?? null)
-    : svg
-  let badge = { svg: inkedSvg, w: natW, h: natH }
-  if (finish?.appearance) badge = applyHouseAppearance(badge, sanitizeArtworkAppearance(finish.appearance), pw / 380)
   // Ultima rete di sicurezza: se (per arrotondamenti/aspect estremi) la riga
   // eccede ancora `width`, shrink proporzionale del bitmap — mai clipping,
   // aspect preservato, una sola ricampionatura.
-  const fitScale = badge.w > maxW ? maxW / badge.w : 1
-  const outW = Math.max(1, Math.round(badge.w * fitScale))
-  const outH = Math.max(1, Math.round(badge.h * fitScale))
-  const png = await renderSVG(badge.svg, badge.w)
-  if (fitScale === 1) return { png, w: badge.w, h: badge.h }
+  const fitScale = natW > maxW ? maxW / natW : 1
+  const outW = Math.max(1, Math.round(natW * fitScale))
+  const outH = Math.max(1, Math.round(natH * fitScale))
+  const png = await renderSVG(svg, natW)
+  if (fitScale === 1) return { png, w: natW, h: natH }
   const shrunk = await sharp(png).resize(outW, outH).toBuffer()
   return { png: shrunk, w: outW, h: outH }
 }

@@ -12,7 +12,7 @@ import { clamp } from "@/lib/image-utils"
 import { envWithFallback } from "@/lib/env-compat"
 import { BADGE_STYLES, RANKING_BADGE_STYLES, QUALITY_BADGE_STYLES, AGE_BADGE_STYLES, BADGE_FONTS, SEPARATE_RATINGS_STYLES, EXTRA_BADGE_STYLES, EXTRA_BADGE_FOLLOW_RANK } from "@/lib/badge-styles"
 import { POSTER_LAYOUTS, POSTER_FRESH_SCOPES } from "@/lib/types"
-import { badgeFamilyBindingsSchema } from "@/lib/badge-preset"
+import { retiredBadgeFamilyBindingsSchema } from "@/lib/validation"
 
 // ---- Zod schema (Batch C: sostituisce validazione manuale) ----
 
@@ -74,11 +74,11 @@ export const configTokenSchema = z.object({
   badgeStyle: badgeStyleSchema,
   rankingBadgeStyle: rankingBadgeStyleSchema,
   /**
-   * BadgeLab family map (visual, flat-only like the other token visuals):
-   * sparse per family, absent = native/no override, present `null` = explicit
-   * standard clear. Optional for back-compat tokens minted before the field.
+   * Retired Badge Lab family map (custom badge library removed): inert
+   * stored key, never rendered. Optional for back-compat tokens minted
+   * before the removal.
    */
-  badgePresets: badgeFamilyBindingsSchema,
+  badgePresets: retiredBadgeFamilyBindingsSchema,
   /** Standalone extra-badge style (flat-only): absent = legacy `rs` fallback; "follow-rank" = explicit own-rank. */
   extraBadgeStyle: z.union([z.enum(EXTRA_BADGE_STYLES), z.literal(EXTRA_BADGE_FOLLOW_RANK)]).nullable().optional(),
   /** Font dei testi badge: opzionale (token vecchi senza campo restano validi). */

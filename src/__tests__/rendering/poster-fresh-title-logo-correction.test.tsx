@@ -625,8 +625,6 @@ describe("c1 editor provenance + UI 150/200 + save/reload (actual provider)", ()
       separateRatings: false,
       separateRatingsStyle: "column",
       customBadge: null,
-      badgePresetId: null,
-      badgePresetRev: null,
       badgeStyle: "shadow",
       rankingBadgeStyle: "default",
       extraBadgeStyle: null,

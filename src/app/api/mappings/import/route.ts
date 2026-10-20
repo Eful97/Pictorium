@@ -3,15 +3,11 @@ import { importMappings, setImdbAlias, QuotaExceededError } from "@/lib/store"
 import type { Mapping } from "@/lib/types"
 import { aliasSchema, mappingSchema } from "@/lib/validation"
 import { getServerDefaultsChecked, getStoredUserDefaults, setServerDefaults, setServerDefaultsForUser, type ServerDefaults } from "@/lib/server-defaults"
-import { listUserPresets, savePreset, PresetQuotaError, PresetValidationError } from "@/lib/badge-preset-store"
-import { MAX_PRESETS_PER_USER } from "@/lib/badge-preset"
 import {
   MAX_BACKUP_ALIASES,
   MAX_BACKUP_BODY_BYTES,
   MAX_BACKUP_DEFAULTS_BYTES,
   MAX_BACKUP_MAPPINGS,
-  MAX_BACKUP_PRESETS,
-  coerceBackupPreset,
   parseBackupBody,
   stripBackupSecrets,
 } from "@/lib/backup-schema"
@@ -145,8 +141,9 @@ async function importMappingsSection(scoped: string | null, mappingsValue: unkno
 /**
  * Path v2 (backup completo): ogni sezione presente si importa in modo
  * indipendente (successo parziale possibile, gli errori finiscono in
- * `errors.<sezione>`). I preset si importano PRIMA dei mapping così i
- * `badgePresetId` del backup si rimappano sui nuovi id generati dal server.
+ * `errors.<sezione>`). La sezione `presets` (retired Badge Lab) si ignora:
+ * i mapping che citano vecchi preset id restano invariati (i campi sono
+ * inerti al render).
  */
 async function importBackupV2(
   scoped: string | null,
@@ -158,64 +155,14 @@ async function importBackupV2(
   const imported = { mappings: 0, aliases: 0, defaults: 0, presets: 0 }
   const errors: Record<string, unknown> = {}
 
-  // --- Preset privati (solo con namespace: servono un proprietario). ---
-  const presetIdMap = new Map<string, { id: string; revision: string }>()
-  if (presetsValue !== undefined) {
-    if (!Array.isArray(presetsValue)) {
-      errors.presets = "presets array required"
-    } else if (presetsValue.length > MAX_BACKUP_PRESETS) {
-      return Response.json({ error: `Too many presets (max ${MAX_BACKUP_PRESETS})` }, { status: 413 })
-    } else if (!scoped) {
-      errors.presets = "presets require a user namespace (?u=)"
-    } else {
-      const presetErrors: Record<number, unknown> = {}
-      const candidates: ReturnType<typeof coerceBackupPreset>[] = []
-      presetsValue.forEach((item: unknown, i: number) => {
-        const coerced = coerceBackupPreset(item)
-        if (coerced) candidates.push(coerced)
-        else presetErrors[i] = "invalid preset"
-      })
-      // Dedup sui già presenti (stesso target + nome): il re-import non duplica.
-      const existing = await listUserPresets(scoped)
-      const seen = new Set(existing.map((s) => `${s.preset.target}:${s.preset.metadata.name.toLowerCase()}`))
-      const fresh = candidates.filter((c) => {
-        if (!c) return false
-        const key = `${c.target}:${c.metadata.name.toLowerCase()}`
-        if (seen.has(key)) return false
-        seen.add(key)
-        return true
-      })
-      if (existing.length + fresh.length > MAX_PRESETS_PER_USER) {
-        return Response.json({ error: `Preset quota exceeded (max ${MAX_PRESETS_PER_USER})` }, { status: 413 })
-      }
-      for (const c of fresh) {
-        if (!c) continue
-        try {
-          const stored = await savePreset(scoped, {
-            target: c.target,
-            visibility: "private",
-            forkedFrom: null,
-            metadata: c.metadata,
-            ...(c.variant !== undefined ? { variant: c.variant } : {}),
-            ...(c.design !== undefined ? { design: c.design as never } : {}),
-            ...(c.house !== undefined ? { house: c.house as never } : {}),
-          })
-          if (c.backupId) presetIdMap.set(c.backupId, { id: stored.preset.id, revision: stored.preset.revision })
-          imported.presets += 1
-        } catch (e) {
-          if (e instanceof PresetQuotaError) {
-            return Response.json({ error: e.message }, { status: 413 })
-          }
-          if (e instanceof PresetValidationError) {
-            presetErrors[candidates.indexOf(c)] = e.message
-          } else throw e
-        }
-      }
-      if (Object.keys(presetErrors).length > 0) errors.presets = presetErrors
-    }
+  // --- Retired Badge Lab presets (custom badge library removed): la sezione
+  // `presets` si accetta e si ignora (vecchi backup restano importabili, i
+  // mapping che citano preset id li conservano inerti). Nessuna scrittura.
+  if (presetsValue !== undefined && !Array.isArray(presetsValue)) {
+    errors.presets = "presets section ignored (Badge Lab retired)"
   }
 
-  // --- Poster salvati (con rimappatura dei preset appena importati). ---
+  // --- Poster salvati. ---
   if (mappingsValue !== undefined) {
     const { valid, errors: mappingErrors, raw } = validateMappingsList(mappingsValue)
     if (!Array.isArray(raw)) {
@@ -223,15 +170,6 @@ async function importBackupV2(
     } else if (raw.length > MAX_MAPPINGS) {
       return Response.json({ error: `Too many mappings (max ${MAX_MAPPINGS})` }, { status: 413 })
     } else {
-      if (presetIdMap.size > 0) {
-        for (const m of valid) {
-          const remap = m.badgePresetId ? presetIdMap.get(m.badgePresetId) : undefined
-          if (remap) {
-            m.badgePresetId = remap.id
-            m.badgePresetRev = remap.revision
-          }
-        }
-      }
       if (valid.length > 0) {
         try {
           await importMappings(valid, scoped)

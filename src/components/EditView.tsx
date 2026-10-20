@@ -13,9 +13,6 @@ import type { TMDBImage } from "@/lib/types"
 import { effectiveMappingForShape, isPosterLayout, isPosterFreshScope, DEFAULT_POSTER_FRESH_SCOPE, type LandscapeSettings } from "@/lib/types"
 import { perTitleDraftKey } from "@/lib/shape-draft"
 import { MAPPING_SHAPE_FACTORY, mappingShapeChainEffective, type MappingShapeLandKey } from "@/lib/visual-presets"
-import { isEmptyFamilyDraft, sanitizeFamilyDraft } from "@/lib/family-preset-follow"
-import { isBadgePresetId } from "@/lib/badge-preset"
-import { resolveLegacyPresetTarget } from "@/lib/presets-client"
 import { isSeparateRatingsStyle } from "@/lib/badge-styles"
 import { isManualAccent } from "@/lib/accent-color"
 import { selectBestLogo } from "@/lib/logo-selection"
@@ -40,7 +37,6 @@ import { PosterPreview } from "@/components/PosterPreview"
 import { PerTitlePresetChooser } from "@/components/PerTitlePresetChooser"
 import { PosterDepthEdge, PosterDepthSheen } from "@/components/PosterDepthGlow"
 import { BadgeControls } from "@/components/BadgeControls"
-import { BadgeLabPanel } from "@/components/settings/BadgeLabPanel"
 import { TransformControls } from "@/components/TransformControls"
 import { EpisodeGroupControls } from "@/components/EpisodeGroupControls"
 import { JwRankBadge } from "@/components/JwRankBadge"
@@ -120,7 +116,7 @@ export default function EditView() {
   const saveFlashTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [saveFlash, setSaveFlash] = useState(false)
   const [mobileSection, setMobileSection] = useState<"poster" | "preview" | "customize">("preview")
-  const [activeRightTab, setActiveRightTab] = useState<"logo" | "badge" | "badgelab" | "transform" | "stagioni">("logo")
+  const [activeRightTab, setActiveRightTab] = useState<"logo" | "badge" | "transform" | "stagioni">("logo")
   // Gate profili stile AIO: con multi-user attivo e senza UUID nel path, la
   // home diventa creazione/selezione spazio — ricerca ed editor restano
   // bloccati finché non apri il tuo spazio (/u/<uuid>/configure). Il gate
@@ -166,25 +162,6 @@ export default function EditView() {
 
   const selectedMappingKey = selected ? `${selected.media_type}:${selected.id}` : null
   const selectedMapping = selectedMappingKey ? mappingsMap.get(selectedMappingKey) : undefined
-  // Legacy singleton target for the open title (owner-aware, cached by id):
-  // pre-resolve so the per-title follow-drop preview/save transform shares
-  // one truth without guessing. Reset on title switch (never leaks across
-  // titles); unresolvable stays null (the save aborts a covered drop
-  // honestly instead of clearing the pair blind).
-  const openLegacyId = selectedMapping?.badgePresetId && isBadgePresetId(selectedMapping.badgePresetId)
-    ? selectedMapping.badgePresetId
-    : null
-  useEffect(() => {
-    ed.setLegacyPresetTarget(null)
-    if (!openLegacyId) return
-    let live = true
-    void resolveLegacyPresetTarget(openLegacyId).then((target) => {
-      if (live) ed.setLegacyPresetTarget(target)
-    })
-    return () => {
-      live = false
-    }
-  }, [openLegacyId, ed])
   const hasMapping = !!selectedMapping
 
   // Il modale "Testa URL Stremio" mostra lo stato SALVATO (stesso URL dei
@@ -329,11 +306,7 @@ export default function EditView() {
       },
     ed.defaultPosterShape,
   ), [ed, previewPosterFilePath, previewCustomPosterUrl, selectedBackdropFilePath, selectedCustomBackdropUrl, selectedLogo?.file_path, selectedMapping, isLandscapeTuning])
-  // Staged per-family choices (bindings, clears AND follow-drops) are unsaved
-  // title edits too: the shared dirty detector does not compare the sparse
-  // draft, so any staged key marks dirty here (Save + badge + the Lab-leave
-  // guard in FamilyChoiceControl stay truthful).
-  const mappingDirty = mappingDirtyBase || !isEmptyFamilyDraft(ed.badgePresets)
+  const mappingDirty = mappingDirtyBase
 
   const [saveState, setSaveState] = useState<"idle" | "saving" | "error">("idle")
   const saveStateRef = useRef(saveState)
@@ -709,19 +682,6 @@ export default function EditView() {
       // un null stashato non è mai un inherit intoccato. Preset a coppia.
       customBadge: ed.customBadge,
       accentColor: isManualAccent(accentColor, autoAccentColor) ? accentColor : null,
-      badgePresetId: ed.badgePresetId,
-      badgePresetRev: ed.badgePresetRev,
-      // Staged per-family map (sparse, shape-local draft): stashed verbatim
-      // (null = no staged overrides for the shape being left; follow-drop
-      // markers preserved verbatim — the save translates them to deletions,
-      // never persisted as values). The restore below and the save boundary
-      // merge it per family — siblings never leak.
-      // Normalized to the stored binding form (rev null, malformed dropped
-      // fail-closed) so the draft keeps the LandscapeSettings contract.
-      // Memory-only draft: the follow-drop marker may travel here (cast) but
-      // the save translates it to a key deletion before any store write, and
-      // encode omits it from `bp` — it never reaches validation.
-      badgePresets: (ed.badgePresets ? sanitizeFamilyDraft(ed.badgePresets) : ed.badgePresets) as LandscapeSettings["badgePresets"],
       // Sfumatura ESCLUSA: ha profili dedicati per formato (flat = portrait,
       // landscapeBlur = landscape) e non passa più dallo stash.
     }
@@ -950,27 +910,6 @@ export default function EditView() {
       const restoredAccent = stashedAccent !== undefined ? stashedAccent : savedAccent
       setAccentColor(
         typeof restoredAccent === "string" && restoredAccent.length > 0 ? restoredAccent : autoAccentColor,
-      )
-      const stashedId = stashedTarget?.badgePresetId
-      const stashedRev = stashedTarget?.badgePresetRev
-      if (stashedId !== undefined || stashedRev !== undefined) {
-        ed.setBadgePresetId((stashedId ?? null) as string | null)
-        ed.setBadgePresetRev((stashedRev ?? null) as string | null)
-      } else {
-        ed.setBadgePresetId((savedEff?.badgePresetId ?? null) as string | null)
-        ed.setBadgePresetRev((savedEff?.badgePresetRev ?? null) as string | null)
-      }
-      // Staged per-family map (shape-local, never resurrect across shapes):
-      // stash of the arriving shape wins (verbatim, null = no staged edits);
-      // otherwise the staged map resets to empty (follow the saved mapping,
-      // whose own stored side the preview/save merge already honor). Saved
-      // stored maps are NEVER copied into staged — that would freeze inherited
-      // bindings as explicit overrides and break sparsity/independence.
-      const stashedFamilies = stashedTarget?.badgePresets
-      ed.setBadgePresets(
-        stashedFamilies !== undefined
-          ? (sanitizeFamilyDraft(stashedFamilies) as import("@/lib/family-preset-follow").FamilyStagedDraft | null)
-          : null,
       )
     }
   }, [ed, removeBackdrop, selectedMapping, selected, currentUserId, shapeStashKey, setShapeStashKey, accentColor, autoAccentColor, setAccentColor])
@@ -1233,7 +1172,6 @@ export default function EditView() {
   const rightTabs = useMemo(() => [
     { key: "logo", label: t("ui.logoSection") },
     { key: "badge", label: t("ui.badgeSection") },
-    { key: "badgelab", label: t("ui.labTitle") },
     // Sempre visibile: ospita anche badge superiore e sfocatura, che valgono
     // pure senza logo film (la sezione logo resta condizionata dentro).
     { key: "transform", label: t("ui.transform") },
@@ -1702,7 +1640,6 @@ export default function EditView() {
                   {!cleanPoster && ed.posterShape !== "landscape" && <p className="text-xs text-zinc-400 text-center mt-2 px-1">{t("ui.logoHint")}</p>}
                 </>}
                 {activeRightTab === "badge" && <BadgeControls />}
-                {activeRightTab === "badgelab" && <BadgeLabPanel scope="title" hasUnsavedEdits={mappingDirty} />}
                 {activeRightTab === "transform" && <TransformControls />}
                 {activeRightTab === "stagioni" && <EpisodeGroupControls />}
                 </div>

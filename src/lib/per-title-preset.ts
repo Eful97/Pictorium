@@ -35,8 +35,8 @@ import {
  *   preview-only state no other per-title path can produce.
  * - everything else global (credentials, providers, catalogs, region,
  *   date-format, episode source), artwork (posters/backdrops/logos,
- *   scales, rotation, exclusions, `logoDisabled`) and Badge Lab binding
- *   (`customBadge`, `badgePresetId/Rev`): never in the patch.
+ *   scales, rotation, exclusions, `logoDisabled`) and the retired Badge Lab
+ *   binding (`customBadge`, `badgePresetId/Rev`): never in the patch.
  * - `preRelease` IS included: preview-consumed per-title live flag with an
  *   existing per-title projection precedent (`applyFreshLandscapeDefaults`).
  *

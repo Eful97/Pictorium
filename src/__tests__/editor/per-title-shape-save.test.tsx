@@ -560,21 +560,20 @@ describe("save payload round-trips through validation with parsed keys", () => {
   })
 })
 
-describe("save boundary for customBadge/accent/preset (per-shape visuals)", () => {
-  it("landscape save preserves the portrait flat verbatim, profile carries the live edit", async () => {
+describe("save boundary for customBadge/accent (per-shape visuals) + retired preset fields", () => {
+  it("landscape save preserves the portrait flat verbatim, profile carries the live edit (preset fields verbatim)", async () => {
     const prev = mapping({
       customBadge: "Portrait pick",
       accentColor: "#ff0000",
       badgePresetId: "Abc123-_XyZ",
       badgePresetRev: "deadbeef",
+      landscape: { badgePresetId: "Landscap_01", badgePresetRev: "abcdef12" },
     })
     const { result } = renderHook(() => usePosterSave(baseDeps({
       posterShape: "landscape",
       customBadge: "Landscape pick",
       accentColor: "#00ff00",
       autoAccentColor: "#111111",
-      badgePresetId: "Landscap_01",
-      badgePresetRev: "abcdef12",
       mappingsMap: new Map([["movie:1", prev]]),
     })))
     await act(async () => { await result.current.saveConfig({ silent: true }) })
@@ -588,6 +587,7 @@ describe("save boundary for customBadge/accent/preset (per-shape visuals)", () =
     const land = posts[0].body.landscape as Record<string, unknown>
     expect(land.customBadge).toBe("Landscape pick")
     expect(land.accentColor).toBe("#00ff00")
+    // Retired Lab fields: stored profile round-trips verbatim (no editor input).
     expect(land.badgePresetId).toBe("Landscap_01")
     expect(land.badgePresetRev).toBe("abcdef12")
   })
@@ -609,31 +609,30 @@ describe("save boundary for customBadge/accent/preset (per-shape visuals)", () =
     expect(land.accentColor).toBeNull()
   })
 
-  it("portrait save writes the live pair to the flat and freezes the pre-edit pair in the profile", async () => {
+  it("portrait save writes the live custom visuals and preserves stored preset fields verbatim", async () => {
     const prev = mapping({
       customBadge: "Old portrait",
       badgePresetId: "Abc123-_XyZ",
       badgePresetRev: "deadbeef",
+      landscape: { badgePresetId: "Landscap_01", badgePresetRev: "abcdef12" },
     })
     const { result } = renderHook(() => usePosterSave(baseDeps({
       posterShape: "poster",
       customBadge: "New portrait",
-      badgePresetId: "NewPrese_1",
-      badgePresetRev: "12345678",
       mappingsMap: new Map([["movie:1", prev]]),
     })))
     await act(async () => { await result.current.saveConfig({ silent: true }) })
     const posts = mappingPosts()
     expect(posts).toHaveLength(1)
     expect(posts[0].body.customBadge).toBe("New portrait")
-    expect(posts[0].body.badgePresetId).toBe("NewPrese_1")
-    expect(posts[0].body.badgePresetRev).toBe("12345678")
-    // The unvisited landscape keeps the pre-edit look (both pair sides: the
-    // per-key backfill plus the pair repair never mix flat and profile).
+    // Retired Lab fields: no editor input exists, the stored values persist.
+    expect(posts[0].body.badgePresetId).toBe("Abc123-_XyZ")
+    expect(posts[0].body.badgePresetRev).toBe("deadbeef")
+    // The unvisited landscape keeps the stored look verbatim.
     const land = posts[0].body.landscape as Record<string, unknown>
     expect(land.customBadge).toBe("Old portrait")
-    expect(land.badgePresetId).toBe("Abc123-_XyZ")
-    expect(land.badgePresetRev).toBe("deadbeef")
+    expect(land.badgePresetId).toBe("Landscap_01")
+    expect(land.badgePresetRev).toBe("abcdef12")
   })
 
   it("portrait clear writes null to the flat only; the other shape keeps its look", async () => {
@@ -659,15 +658,19 @@ describe("save boundary for customBadge/accent/preset (per-shape visuals)", () =
     expect(land.accentColor).toBe("#00ff00")
   })
 
-  it("landscape save → parse → effective mapping agrees per shape for the new visuals", async () => {
-    const prev = mapping({ customBadge: "Portrait pick", accentColor: "#ff0000" })
+  it("landscape save → parse → effective mapping agrees per shape for the new visuals (preset fields verbatim)", async () => {
+    const prev = mapping({
+      customBadge: "Portrait pick",
+      accentColor: "#ff0000",
+      badgePresetId: "Abc123-_XyZ",
+      badgePresetRev: "deadbeef",
+      landscape: { badgePresetId: "Landscap_01", badgePresetRev: "abcdef12" },
+    })
     const { result } = renderHook(() => usePosterSave(baseDeps({
       posterShape: "landscape",
       customBadge: "Landscape pick",
       accentColor: "#00ff00",
       autoAccentColor: "#111111",
-      badgePresetId: "Landscap_01",
-      badgePresetRev: "abcdef12",
       mappingsMap: new Map([["movie:1", prev]]),
     })))
     await act(async () => { await result.current.saveConfig({ silent: true }) })
@@ -680,6 +683,7 @@ describe("save boundary for customBadge/accent/preset (per-shape visuals)", () =
     expect(effectiveMappingForShape(saved, "poster")?.accentColor).toBe("#ff0000")
     expect(effectiveMappingForShape(saved, "landscape")?.customBadge).toBe("Landscape pick")
     expect(effectiveMappingForShape(saved, "landscape")?.accentColor).toBe("#00ff00")
+    expect(effectiveMappingForShape(saved, "poster")?.badgePresetId).toBe("Abc123-_XyZ")
     expect(effectiveMappingForShape(saved, "landscape")?.badgePresetId).toBe("Landscap_01")
     expect(effectiveMappingForShape(saved, "landscape")?.badgePresetRev).toBe("abcdef12")
   })

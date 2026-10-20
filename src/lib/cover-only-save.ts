@@ -37,9 +37,9 @@ import { normalizeGenreName } from "./genre-normalize"
  * Explicitly omitted (inherit global defaults after save): all badge /
  * rank snapshots, rating styling/toggles, accent, every style/toggle/transform flat
  * (including logoScale/logoOffsetX/logoOffsetY), the whole `landscape`
- * tuning profile (including the per-family `badgePresets` map AND the legacy
- * `badgePresetId`/`badgePresetRev` pair — cover-only intentionally clears all
- * Badge Lab bindings alongside the existing pair, same as the other styling),
+ * tuning profile (including the retired inert Badge Lab keys
+ * `badgePresets`/`badgePresetId`/`badgePresetRev`, cleared like the other
+ * styling per the cover-only reset contract),
  * and defaultBadgeStyles. Selected-format rotation lists
  * are omitted too (the existing opt-out: without cleanPosters/cleanBackdrops
  * + auto flags the 24h rotation in poster-rotation.ts stays idle, so the

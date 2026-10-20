@@ -55,8 +55,6 @@ function baseDeps(overrides: Record<string, unknown> = {}) {
     separateRatings: true,
     separateRatingsStyle: "bottom-pills",
     customBadge: "Custom!",
-    badgePresetId: "abcdef12",
-    badgePresetRev: "12345678",
     badgeStyle: "pill",
     rankingBadgeStyle: "colored",
     extraBadgeStyle: "corner",
@@ -655,7 +653,6 @@ describe("resetPerTitleVisuals", () => {
       box.ed!.setBadgeStyle("pill")
       box.ed!.setRankingBadgeStyle("colored")
       box.ed!.setCustomBadge("Custom!")
-      box.ed!.setBadgePresetId("abcdef12")
       box.ed!.setTopBadgeScale(150)
       box.ed!.setExtraBadgeScale(140)
       box.ed!.setGradientHeight(80)
@@ -679,8 +676,6 @@ describe("resetPerTitleVisuals", () => {
     expect(ed.badgeStyle).toBe(ed.defaultBadgeStyle)
     expect(ed.rankingBadgeStyle).toBe(ed.defaultRankingBadgeStyle)
     expect(ed.customBadge).toBeNull()
-    expect(ed.badgePresetId).toBeNull()
-    expect(ed.badgePresetRev).toBeNull()
     expect(ed.topBadgeScale).toBe(ed.defaultTopBadgeScale)
     expect(ed.extraBadgeScale).toBe(ed.defaultExtraBadgeScale)
     expect(ed.gradientHeight).toBe(ed.defaultGradientHeight)

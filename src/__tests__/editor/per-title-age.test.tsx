@@ -262,8 +262,6 @@ function saveDeps(overrides: Record<string, unknown> = {}) {
     separateRatings: false,
     separateRatingsStyle: "column",
     customBadge: null,
-    badgePresetId: null,
-    badgePresetRev: null,
     badgeStyle: "shadow",
     rankingBadgeStyle: "default",
     extraBadgeStyle: null,

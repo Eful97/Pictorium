@@ -18,22 +18,6 @@ vi.mock("@/lib/server-defaults", () => ({
   setServerDefaultsForUser: vi.fn(),
 }))
 
-vi.mock("@/lib/badge-preset-store", () => {
-  class PresetQuotaError extends Error {}
-  class PresetValidationError extends Error {}
-  return {
-    listUserPresets: vi.fn(async () => presetMockState.existing),
-    savePreset: vi.fn(async (_uuid: string, input: Record<string, unknown>) => ({
-      preset: { id: "NewPresetId1", revision: "abcdef12", ...(input as object) },
-      downloads: 0,
-    })),
-    PresetQuotaError,
-    PresetValidationError,
-  }
-})
-
-const presetMockState = vi.hoisted(() => ({ existing: [] as unknown[] }))
-
 vi.mock("@/lib/auth", () => ({
   checkAdminToken: vi.fn(() => true),
   isSameOrigin: vi.fn(() => true),
@@ -76,27 +60,8 @@ function validMapping(tmdbId: number, extra: Record<string, unknown> = {}) {
   }
 }
 
-function privatePreset(id: string, name: string) {
-  return {
-    preset: {
-      id,
-      ownerUuid: "11111111-1111-4111-8111-111111111111",
-      target: "top",
-      visibility: "private",
-      metadata: { name, tags: [] },
-      variant: "custom",
-      design: {},
-      createdAt: 1,
-      updatedAt: 2,
-      revision: "00000000",
-    },
-    downloads: 0,
-  }
-}
-
 describe("POST /api/mappings/import — backup v2", () => {
   afterEach(() => {
-    presetMockState.existing = []
     vi.clearAllMocks()
   })
 
@@ -126,90 +91,31 @@ describe("POST /api/mappings/import — backup v2", () => {
     expect(res.status).toBe(400)
   })
 
-  it("rifiuta oltre 100 preset con 413", async () => {
-    const presets = Array.from({ length: 101 }, (_, i) => privatePreset(`id${i}`, `P${i}`))
-    const res = await POST(mockRequest({ schemaVersion: 2, presets }))
-    expect(res.status).toBe(413)
-  })
-
-  it("senza namespace i preset privati si saltano, il resto si importa", async () => {    const { importMappings, setImdbAlias } = await import("@/lib/store")
+  it("retired Badge Lab: la sezione `presets` si ignora, il resto si importa", async () => {
+    const { importMappings, setImdbAlias } = await import("@/lib/store")
     const { setServerDefaults } = await import("@/lib/server-defaults")
     const body = {
       schemaVersion: 2,
-      mappings: [validMapping(1)],
+      mappings: [validMapping(1, { badgePresetId: "OldId1234", badgePresetRev: "00000000" })],
       aliases: [{ imdbId: "tt1234567", mediaType: "movie", tmdbId: 1 }],
-      defaults: { badgeStyle: "shadow", serverKeys: { tmdbKey: "SECRET" }, tmdbKey: "SECRET" },
-      presets: [privatePreset("OldId1234", "Mio")],
+      defaults: { badgeStyle: "colored", serverKeys: { tmdbKey: "SECRET" }, tmdbKey: "SECRET" },
+      presets: [{ id: "OldId1234", target: "top", metadata: { name: "Mio" } }],
       local: { lang: "it" },
     }
     const res = await POST(mockRequest(body))
     expect(res.status).toBe(200)
     const json = await res.json()
     expect(json.imported).toMatchObject({ mappings: 1, aliases: 1, defaults: 1, presets: 0 })
-    expect(json.errors.presets).toMatch(/namespace/)
+    expect(json.errors?.presets).toBeUndefined()
     expect(importMappings).toHaveBeenCalledTimes(1)
+    // I campi Lab legacy dei mapping passano verbatim (mai riscritti, mai cancellati).
+    expect(importMappings).toHaveBeenCalledWith(
+      [expect.objectContaining({ badgePresetId: "OldId1234", badgePresetRev: "00000000" })],
+      null,
+    )
     expect(setImdbAlias).toHaveBeenCalledTimes(1)
     // I segreti non finiscono mai nei defaults persistiti.
     expect(setServerDefaults).toHaveBeenCalledTimes(1)
     expect(JSON.stringify(vi.mocked(setServerDefaults).mock.calls[0][0])).not.toContain("SECRET")
-  })
-
-  it("nel namespace importa i preset privati e rimappa i mapping che li citano", async () => {
-    const uuid = "11111111-1111-4111-8111-111111111111"
-    const { importMappings } = await import("@/lib/store")
-    const { savePreset, listUserPresets } = await import("@/lib/badge-preset-store")
-    const { setServerDefaultsForUser } = await import("@/lib/server-defaults")
-    const body = {
-      schemaVersion: 2,
-      mappings: [validMapping(5, { badgePresetId: "OldId1234", badgePresetRev: "00000000" })],
-      defaults: { badgeStyle: "colored" },
-      presets: [privatePreset("OldId1234", "Mio")],
-    }
-    const req = new NextRequest(`${BASE}?u=${uuid}`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify(body),
-    })
-    const res = await POST(req)
-    expect(res.status).toBe(200)
-    const json = await res.json()
-    expect(json.imported).toMatchObject({ mappings: 1, presets: 1, defaults: 1 })
-    expect(listUserPresets).toHaveBeenCalledWith(uuid)
-    // Forzati privati, senza fork cross-spazio.
-    expect(savePreset).toHaveBeenCalledWith(
-      uuid,
-      expect.objectContaining({ visibility: "private", forkedFrom: null }),
-    )
-    // Il mapping cita il NUOVO id generato dal server, non quello del backup.
-    expect(importMappings).toHaveBeenCalledWith(
-      [expect.objectContaining({ badgePresetId: "NewPresetId1", badgePresetRev: "abcdef12" })],
-      uuid,
-    )
-    expect(setServerDefaultsForUser).toHaveBeenCalledTimes(1)
-  })
-
-  it("il re-import non duplica i preset con stesso nome", async () => {
-    const uuid = "11111111-1111-4111-8111-111111111111"
-    const { savePreset } = await import("@/lib/badge-preset-store")
-    presetMockState.existing = [
-      {
-        preset: {
-          id: "Existing1",
-          target: "top",
-          visibility: "private",
-          metadata: { name: "Mio", tags: [] },
-        },
-        downloads: 0,
-      },
-    ]
-    const req = new NextRequest(`${BASE}?u=${uuid}`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ schemaVersion: 2, presets: [privatePreset("OldId1234", "Mio")] }),
-    })
-    const res = await POST(req)
-    expect(res.status).toBe(200)
-    expect(await res.json()).toMatchObject({ imported: expect.objectContaining({ presets: 0 }) })
-    expect(savePreset).not.toHaveBeenCalled()
   })
 })

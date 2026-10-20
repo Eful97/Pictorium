@@ -1,7 +1,6 @@
 import { NextRequest } from "next/server"
 import { getAll, getAllAliases } from "@/lib/store"
 import { getServerDefaults, getStoredUserDefaults } from "@/lib/server-defaults"
-import { listUserPresets } from "@/lib/badge-preset-store"
 import { APP_VERSION } from "@/generated/app-version"
 import { BACKUP_SCHEMA_VERSION, stripBackupSecrets } from "@/lib/backup-schema"
 import { checkAdminToken, adminAuthResponse } from "@/lib/auth"
@@ -27,13 +26,9 @@ export async function GET(req: NextRequest) {
   // altrimenti l'env dell'istanza si cuocerebbe nel file); sul globale
   // l'effettivo come il PUT, comunque sbiancato dai segreti.
   const defaults = stripBackupSecrets(scoped ? await getStoredUserDefaults(scoped) : getServerDefaults())
-  // Solo i preset PRIVATI dello spazio (i pubblici vivono nel catalogo
-  // condiviso e non si esportano). Senza namespace niente preset (owner ignoto).
-  const presets = scoped
-    ? (await listUserPresets(scoped))
-        .filter((s) => s.preset.visibility === "private")
-        .map((s) => s.preset)
-    : []
+  // Retired Badge Lab (custom badge library removed): no presets to export.
+  // The field stays (empty) so old backup readers keep their shape.
+  const presets: never[] = []
   return Response.json({
     schemaVersion: BACKUP_SCHEMA_VERSION,
     exportedAt: new Date().toISOString(),
