@@ -139,27 +139,28 @@ describe("Badge font contract (bfont)", () => {
   })
 
   it("star as path for condensed fonts (resvg duplicates mid-run ★)", async () => {
-    // resvg duplica il glifo precedente quando una tspan ★ Noto segue
-    // contenuto non-Inter nello stesso <text>: i condensed usano due testi
-    // rigidi senza switch di famiglia + ★ come path SVG (niente ★ testuale,
-    // niente Noto nel flusso). Inter resta sul flusso unico storico.
+    // resvg duplica il glifo precedente quando una ★ Noto segue contenuto
+    // non-Inter nello stesso <text>, e ignora textLength sui flussi
+    // multi-tspan: OGNI font usa segmenti <text> a tspan singola + ★ come
+    // path SVG posizionato (niente ★ testuale, niente Noto nel flusso).
     const genreArgs = {
       genreName: "Fantascienza", voteStr: "8.7", yearStr: "2009",
       pw: 380, style: "pill", bottomLight: false,
       parts: { showGenre: true, showYear: true, showRating: true },
     } as const
-    for (const font of ["barlow-condensed", "oswald"] as const) {
+    for (const font of ["barlow-condensed", "oswald", "inter"] as const) {
       const pill = buildHouseGenreSvg({ ...genreArgs, font })
-      expect(pill.svg.match(/<text /g)?.length).toBe(2)
+      // 5 segmenti: genere, bullet, voto, bullet, anno — ognuno centrato con
+      // textLength pinnato (stabile Blink/resvg).
+      expect(pill.svg.match(/<text /g)?.length).toBe(5)
+      expect(pill.svg.match(/text-anchor="middle"/g)?.length).toBe(5)
       expect(pill.svg).not.toContain('Noto Sans Symbols 2')
       expect(pill.svg).not.toContain('★')
+      expect(pill.svg).toContain('fill="url(#starg)"')
       expect(pill.svg).toContain('<path d="M')
       const png = await renderSVG(pill.svg, pill.w)
       expect(png).toBeInstanceOf(Buffer)
     }
-    const inter = buildHouseGenreSvg({ ...genreArgs, font: "inter" })
-    expect(inter.svg.match(/<text /g)?.length).toBe(1)
-    expect(inter.svg.match(/\u2605/g)?.length).toBe(1)
   })
 
   it("cache key separates fonts (no shared bitmaps/measures)", () => {

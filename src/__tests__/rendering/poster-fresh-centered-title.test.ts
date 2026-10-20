@@ -96,15 +96,23 @@ const PRE_RANKED_LANDSCAPE = "33f2998c55de5a3eb6d331939005a8df1f875baeb4955cb97b
 // poster-fresh-unranked.test.ts); unranked and Standard pins below untouched.
 const TASK8A2_BEFORE_UNRANKED_PORTRAIT = "413bc344ed1930ac4d98ae52dcb88485a76c56b929f93ef1c94e5ea88cdd8146"
 const TASK8A2_BEFORE_UNRANKED_LANDSCAPE = "7c80714616beae0f7d7ea886df768fcdbcd04554cba6154fd7e9533a5b560c07"
-const PRE_STANDARD_PORTRAIT = "61f7a700437eb2915d23ca1a893819ee1b98603c624ad937cdffed4c7e07deee"
-const PRE_STANDARD_LANDSCAPE = "14de4e5e55dc08e13fca59ada9bdee02530be7719540dcb1dd62f35434d3614e"
+const PRE_STANDARD_PORTRAIT = "1b459a3088c324d6e8fca8dac6d19f98caebd1c36a8f61aea2cec8dfd202b2ad"
+const PRE_STANDARD_LANDSCAPE = "5284d87a99d680223a9059fa4c5b8d0b649b604dc2cc23c84c0681eadecbce8e"
+// F2 re-pin (user-authorized genre clipping/centering fix: segmented texts +
+// path star replace the dx/dy ★-glyph flow for Inter latin — the standard
+// portrait/landscape genre badge re-renders, all other fixtures byte-identical.
+// Attribution: old flow restored in isolation reproduces the pins above
+// byte-exactly (OLDGENRE2-summary.txt), current flow the new ones
+// (AFTER-summary.txt); contact sheet F2-contact-genre-band.png shows the pixel
+// delta is the genre row only. BEFORE/AFTER evidence in
+// C:/Users/lucaf/AppData/Local/Temp/opencode/badge-lab-final-F2/.
 // Explicit topShade 50 pins (demonstrated 50-default bytes for the exact
 // fixtures above — the omitted default renders these).
 const LEGACY_TOP_SHADE_50_RANKED_LANDSCAPE = "c504aab7722ba206cd6a23711a71b8beb78358411e9bcc97f5a3754af535d48c"
 const LEGACY_TOP_SHADE_50_UNRANKED_PORTRAIT = "e1e4b228a05e29c6d9a5509c4b7769a1be7808c1456e2d6592b23803e7255359"
 const LEGACY_TOP_SHADE_50_UNRANKED_LANDSCAPE = "959f0b9aa491031004fa68c812f0323bd1024ff270c913633306bfc73a060429"
-const LEGACY_TOP_SHADE_50_STANDARD_PORTRAIT = "2a66d52502b85186cb9c194601700b651b4c6c0b113e3316dba58c936e28a2a3"
-const LEGACY_TOP_SHADE_50_STANDARD_LANDSCAPE = "3bcfe823d2a6bee45c475b0dfe15b5483bd3289c4e235b0392555c9464b857ab"
+const LEGACY_TOP_SHADE_50_STANDARD_PORTRAIT = "871a9e3b708b548b773f4a50ce15b4456dc68a28cae8f5859b7435e9e006a33b"
+const LEGACY_TOP_SHADE_50_STANDARD_LANDSCAPE = "3752542adf9ab56343dcb83df519b022c1083751aff1e7f52dd9ad669dd4f0c9"
 
 function sha(buf: Buffer): string {
   return createHash("sha256").update(buf).digest("hex")

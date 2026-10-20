@@ -25,6 +25,7 @@ import { resetGuestGuardForTests } from "@/lib/guest-guard"
 // `extraBadge*` nulli espliciti: dal split classifica/extra il payload li
 // include sempre (null = fallback legacy, serve anche a propagare il reset
 // al server via merge) — mai spazzatura, mai factory numerici.
+// `badgePresets` nullo esplicito (G2: mappa sparsa per family, default nativo).
 // Trio età + profilo età landscape seedato OFF/IT/standard (task3A per-shape:
 // il load materializza il profilo indipendente dai flat, mai reseed dopo).
 const USER_SAVED = {
@@ -32,6 +33,7 @@ const USER_SAVED = {
   rankingBadgeStyle: "default",
   extraBadgeStyle: null,
   badgeFont: "inter",
+  badgePresets: null,
   qualityBadgeStyle: "standard",
   videoFormats: ["dv", "hdr", "hdr10plus", "atmos", "imax"],
   blurEnabled: true,

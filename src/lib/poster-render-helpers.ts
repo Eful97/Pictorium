@@ -21,8 +21,37 @@ export { STD_W, STD_H }
 export const OUTPUT_W = 500
 export const OUTPUT_H = 750
 
-export type BadgeRender = { png: Buffer; w: number; h: number; isRank?: boolean }
+export type BadgeRender = { png: Buffer; w: number; h: number; isRank?: boolean; bleed?: BadgeBleed }
 export type PosterComposite = { input: Buffer; top: number; left: number }
+
+/** Visible-body rect inside a badge bitmap canvas (shadow/bleed excluded).
+ *  Absolute pixels in the bitmap; absent = body fills the whole canvas. */
+export interface BadgeBleed {
+  readonly x: number
+  readonly y: number
+  readonly w: number
+  readonly h: number
+}
+
+/** Visible-body rect of a badge bitmap (defaults to the full canvas). */
+export function badgeBody(b: { w: number; h: number; bleed?: BadgeBleed }): BadgeBleed {
+  return b.bleed ?? { x: 0, y: 0, w: b.w, h: b.h }
+}
+
+/** Canvas top-left that lands the visible BODY at (bodyLeft, bodyTop). */
+export function badgeCanvasForBody(
+  bodyLeft: number,
+  bodyTop: number,
+  b: { bleed?: BadgeBleed },
+): { left: number; top: number } {
+  return { left: bodyLeft - (b.bleed?.x ?? 0), top: bodyTop - (b.bleed?.y ?? 0) }
+}
+
+/** Scale a bleed rect by a bitmap resize ratio (one axis each). */
+export function scaleBadgeBleed(bleed: BadgeBleed, rx: number, ry?: number): BadgeBleed {
+  const ky = ry ?? rx
+  return { x: bleed.x * rx, y: bleed.y * ky, w: bleed.w * rx, h: bleed.h * ky }
+}
 
 export function hashKey(key: string): string {
   return crypto.createHash("md5").update(key).digest("hex").slice(0, 16)
@@ -130,7 +159,9 @@ export async function fitBadgeToCanvas<T extends BadgeRender>(badge: T, maxW: nu
     .resize(w, h, { fit: "inside", withoutEnlargement: true })
     .png({ compressionLevel: 1 })
     .toBuffer()
-  return { ...badge, png, w, h }
+  // The bleed rect travels with its bitmap: placement anchors the body.
+  const bleed = badge.bleed ? scaleBadgeBleed(badge.bleed, w / badge.w, h / badge.h) : undefined
+  return { ...badge, png, w, h, ...(bleed ? { bleed } : {}) }
 }
 
 export async function fitCompositeToCanvas(

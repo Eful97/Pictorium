@@ -36,6 +36,12 @@ const eslintConfig = defineConfig([
     // Artefatti di build E2E (distDir .next-e2e di playwright.config.ts):
     // senza questo ignore, `npm run lint` fallisce in locale dopo i test E2E.
     ".next-e2e/**",
+    // DistDir isolato dell'harness E2E autenticato (NEXT_DIST_DIR
+    // ".next-e2e-auth" di playwright.preset-auth.config.ts): stesso pattern
+    // di .next-e2e — senza questo ignore, `npm run lint` fallisce dopo i
+    // test E2E autenticati (migliaia di errori dai chunk generati da Next,
+    // es. require()/no-unused-vars/@ts-ignore).
+    ".next-e2e-auth/**",
     // DistDir di load-smoke.mjs (PICTORIUM_DATA_DIR/NEXT_DIST_DIR dedicati).
     ".next-load/**",
     // DistDir di bench-image-cache.mjs (stesso pattern di .next-load).

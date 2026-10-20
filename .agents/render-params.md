@@ -40,7 +40,7 @@ ombra trasparente `TOP_SHADOW_PAD=14`):
 
 ## Badge Genere/Rating (GenreRatingBadges)
 
-**Componenti configurabili** (`bg`/`by`/`br`): genere, anno e voto si attivano **indipendentemente**. Default tutti ON → output byte-identico al passato (`Dramma • ★ 8.2 • 2024`). Il badge si mostra se almeno un componente abilitato ha un valore disponibile (`hasGenreBadge = badgesEnabled && ((genre && bg) || (rating > 0 && br) || (year && by))`). Lato SVG i segmenti sono condizionali in `badge-svg-shared.ts:buildGenreTextFlow` — il `dx` di separazione si emette solo se il segmento ha un precedente visibile (per non sfuocare dal centro quando anno o voto sono il primo segmento). In landscape i badge si rendono con `pw = 500` (`badgePw` in `poster-service.ts`: stessi pixel assoluti del portrait); il badge superiore centrale (rank/extra, non nastro) è al 120% (`topBadgePw`); posizioni, overflow-protection e chiavi cache restano sul canvas vero (`LAND_W/H`). Le barre genere in landscape non esistono (lo stile `bar` degrada a `shadow` come il ranking); la `bottom-bar` dei separati è disattivata in landscape (normalizzata a `bottom-pills` DOPO cascata via `getSeparateRatingsStyleForShape`, raw salvati intatti) e le pills landscape sono ancorate a DESTRA con la geometria base del badge genere (`landscapeRightAnchorLeft`, extra 0 opticalShift 0: margine pieno senza +40 genere, niente `gox`/`goy`). Il logo in landscape è contenuto a max 40% larghezza e 24% altezza (`LANDSCAPE_LOGO_*` in `logo-layout.ts`, stessi di `context.tsx` e `poster-fit-score.ts`) col fondo a ~10px dal bordo, in linea col badge genere (`LANDSCAPE_LOGO_BOTTOM_MARGIN_PCT`/`TOP_OFFSET`). Il gradiente di default in landscape è 20% invece di 30% (solo quando non esplicitato).
+**Componenti configurabili** (`bg`/`by`/`br`): genere, anno e voto si attivano **indipendentemente**. Default tutti ON → `Dramma • ★ 8.2 • 2024` (la resa centra la riga in entrambi i renderer; non è byte-identica al passato: il vecchio flusso con `dx` decentrava la riga di ~13-18px in Blink tagliando la prima lettera). Il badge si mostra se almeno un componente abilitato ha un valore disponibile (`hasGenreBadge = badgesEnabled && ((genre && bg) || (rating > 0 && br) || (year && by))`). Lato SVG i segmenti sono condizionali in `badge-svg-shared.ts:buildGenreTextFlow` — ogni segmento visibile ha il suo `<text>` ad ancora centrale posizionato dalle stime (niente `dx`/`dy`: Blink li include nella misura dell'ancoraggio mentre resvg li esclude e ignora `textLength` sui flussi multi-tspan, vedi sotto) e la stella è un path posizionato, mai un glifo Noto in un tspan. La riga resta centrata in entrambi i renderer per costruzione. In landscape i badge si rendono con `pw = 500` (`badgePw` in `poster-service.ts`: stessi pixel assoluti del portrait); il badge superiore centrale (rank/extra, non nastro) è al 120% (`topBadgePw`); posizioni, overflow-protection e chiavi cache restano sul canvas vero (`LAND_W/H`). Le barre genere in landscape non esistono (lo stile `bar` degrada a `shadow` come il ranking); la `bottom-bar` dei separati è disattivata in landscape (normalizzata a `bottom-pills` DOPO cascata via `getSeparateRatingsStyleForShape`, raw salvati intatti) e le pills landscape sono ancorate a DESTRA con la geometria base del badge genere (`landscapeRightAnchorLeft`, extra 0 opticalShift 0: margine pieno senza +40 genere, niente `gox`/`goy`). Il logo in landscape è contenuto a max 40% larghezza e 24% altezza (`LANDSCAPE_LOGO_*` in `logo-layout.ts`, stessi di `context.tsx` e `poster-fit-score.ts`) col fondo a ~10px dal bordo, in linea col badge genere (`LANDSCAPE_LOGO_BOTTOM_MARGIN_PCT`/`TOP_OFFSET`). Il gradiente di default in landscape è 20% invece di 30% (solo quando non esplicitato).
 
 | Parametro | Server (`svg-badge.ts:renderGenreBadge`) |
 |---|---|
@@ -54,9 +54,9 @@ ombra trasparente `TOP_SHADOW_PAD=14`):
 | Colori testo | `#e5e7eb` |
 | Text shadow | `"0 4px 6px rgba(0,0,0,0.5)"` |
 | Overflow protection | `totalW + safePad*2 > min(pw - 20, round(pw * 0.84))`, usa `genreBadgeDims()`. Per pill usa `genrePillMaxW(pw)` su `textContentW + padX*2 + safePad*2` (`padX = round(fs * 0.55)`, nessuna ombra esterna; loop max 3 iterazioni con margine 4px) |
-| Misura testo | `estimateTextWidth()` per-glyph in `badge-svg-shared.ts`; SVG vincolato con `textLength` + `lengthAdjust="spacingAndGlyphs"` |
-| Allineamento verticale | Un solo `<text>` con `text-anchor="middle" x="adjustedX"` (compensa dx) e `<tspan dx=...>`; `dominant-baseline="central"` e stella con `Noto Sans Symbols 2` |
-| Font badge (`bfont`) | `fontFamilyFor(testo, font)` in `badge-svg-shared.ts`: "inter" → Inter, "barlow-condensed" → Barlow Condensed, "oswald" → Oswald; ebraico/arabo → sempre Rubik (nessuno dei tre ha quei glifi). `estimateTextWidth(testo, fs, font)` scala la stima Inter di 0.73 (Barlow) / 0.80 (Oswald), rapporti misurati con resvg su 10 stringhe × pesi 600/700/900; nessuna scala sul testo Rubik. La ★ del voto coi font non-Inter è un path SVG 5 punte (`starPath`, stessa tinta oro o `starFill`) in uno slot dedicato, con flusso spezzato in due testi rigidi senza switch di famiglia (genere+separatore con ancora end prima della stella, voto+anno con ancora start dopo la stella; gap fissi indipendenti dalle stime di larghezza): resvg duplica il glifo precedente e allarga ~+40% quando una tspan ★ Noto segue contenuto non-Inter nello stesso `<text>`. Con "inter" il flusso resta byte-identico allo storico (ancora middle + tspan ★). |
+| Misura testo | `estimateTextWidth()` per-glyph in `badge-svg-shared.ts`; ogni segmento è un `<text>` a tspan singola vincolato con il proprio `textLength` + `lengthAdjust="spacingAndGlyphs"` (onorato sia in Blink che in resvg, a differenza del vecchio `textLength` sull'intera riga multi-tspan che resvg ignorava) |
+| Allineamento verticale | Un `<text>` per segmento con `text-anchor="middle"` sulla sua stima (niente `dx` di separazione, niente `adjustedX`), stessa `y` e `dominant-baseline="central"` per tutti; stella come path SVG posizionato (stesso ingombro del glifo ★) |
+| Font badge (`bfont`) | `fontFamilyFor(testo, font)` in `badge-svg-shared.ts`: "inter" → Inter, "barlow-condensed" → Barlow Condensed, "oswald" → Oswald; ebraico/arabo → sempre Rubik (nessuno dei tre ha quei glifi). `estimateTextWidth(testo, fs, font)` scala la stima Inter di 0.73 (Barlow) / 0.80 (Oswald), rapporti misurati con resvg su 10 stringhe × pesi 600/700/900; nessuna scala sul testo Rubik. La ★ del voto è sempre un path SVG 5 punte (`starPath`, stessa tinta oro o `starFill`) in uno slot dedicato posizionato dalle stime (coi font non-Inter evita anche il fallback resvg che duplicava il glifo precedente e allargava ~+40% quando una tspan ★ Noto seguiva contenuto non-Inter nello stesso `<text>`). |
 | Chiavi cache | `badgeFont` entra in tutte le chiavi badge (`genre`/`rank`/`quality`/`comingsoon`/`separate`); `bfont` è in `POSTER_CACHE_ALLOWLIST` e fail-closed in `normalizePosterCacheParams` (invalido = assente = Inter). I preset custom/house ignorano il font: chiavi preset invariate. |
 | Stili badge (`badgeStyle`) | `shadow` — textShadow; `minimal` — separatore pipe `|` + textShadow discreto (1px); `pill` — gradiente satinato `satinPillStops(bottomLight)` + stroke adattivo 1.5px (`bottomLight ? black 0.12 : white 0.22`, come quality/bar) + testo ad alto contrasto (`bottomLight ? 0.95 white : 0.88 black`) + ombra 3D singola + padding simmetrico 14; `bar` — gradiente satinato `satinPillStops(bottomLight)` full-width (polarità del fondo) + bordo profilo 1.5px adattivo + testo ad alto contrasto (`bottomLight ? 0.95 white : 0.88 black`), nessuna ombra esterna; `colored` — bg tinta di scena same-hue (bottom per genere, top per ranking; `ac=` vince) normalizzata ad automatic lightness fissa HSL 5/12 (100/240 dialogo Windows: hue/saturazione intatte, solo L; `ac=` manuale byte-identico, blur/tinta naturali invariati) + testo adattivo (pill piatta, niente satinatura); `bordo` — rect arrotondato con bordo 2px + stroke calibrato + bg protettivo (`bottomLight ? white 0.55 : black 0.32`: milky su fondi chiari, smoky su fondi scuri) + testo adattivo (`bottomLight ? dark : #e5e7eb`, come vetro); `vetro` — vetro liquido iOS (gradiente multi-stop + bordo 1.5px, stesso box model e dimensioni identiche al bordo: padding e rect coincidenti; sheen superiore invariato, centro protettivo `light ? white 0.55 : black 0.22` con base `light ? white 0.38 : black 0.45`) + testo adattivo come bordo |
 | Sfondo pill/bar | bar (`buildGenreBarSvg`) = gradiente satinato `satinPillStops(bottomLight)` full-width + bordo profilo 1.5px adattivo + ombra 3D singola (code tagliate = bordo poster, invisibili); pill genere = gradiente satinato `satinPillStops(bottomLight)` (polarità del fondo, non del top) + ombra 3D singola + padding simmetrico 14 (colored inclusa: tinta piatta + ombra); pill ranking/extra = `satinPillStops(topLight)` |
@@ -428,6 +428,126 @@ Opt-in (`sep=1`, default OFF): sostituisce la media ★ nel badge con una colonn
 | `live` | mai dallo stato editor (solo template "Segui il mio spazio": `followSpace` in `buildUrlPattern`, o `live: true` esplicito nel builder) | `live=1` — politica di rivalidazione (non forza il render): header `public, no-cache, max-age=0, must-revalidate` senza SWR su 200 e 304 + mai immutable; i parametri assenti seguono lo spazio (`badges`/`ranking`/`be` compresi, vedi sotto) |
 | `tvdb_key` | mai dal client (solo manuale; Stremio usa il fallback d'istanza) | chiave TVDB per il rescue poster B1: solo ramo non-mappato, solo senza clean TMDB + con logo + solo portrait. Solo il textless (`includesText === false`) salva il logo; con testo il logo si azzera (no doppio logo). La chiave non entra mai nella cache key (segreto); il flag server-side `tvdb=1` separa le entry con rescue attivo |
 | `theme` | contesto effimero lista di origine (`seasonalTheme` in `PosterState`, da `navigateToPoster(item, src, listName, seasonalKeywords)` — le keyword custom utente estendono lo stesso match nomi-lista; Stremio dal nome catalogo effettivo via `resolveCatalogSeasonalTheme` in `catalog-handler.ts`) sotto la scelta per-titolo editor (`seasonalThemeChoice` in `PosterState`, selettore `BadgeControls` → `mapping.seasonalTheme`, vince sul contesto via `resolveEffectiveSeasonalTheme`) | SOLO query `theme=<tema canonico>` (`halloween`/`christmas`, nient'altro è valido; Natale riconosciuto in tutte le lingue UI + keyword custom bounded per spazio — vedi leaf `seasonal-theme.ts`; nomi misti → `halloween`) su entrambi i canvas col proprio asset (`resolveSeasonalTheme` in `poster-config.ts` + override mapping via `resolveEffectiveSeasonalTheme` (non-preview: scelta esplicita vince, `none` sopprime, assente = Automatica segue la lista; preview effettiva autorizzata: vince il `theme=` staged e il mapping salvato è ignorato — mai resurrect); con valori invalidi/assenti = unframed, stessa chiave dell'assenza). Catena mapping SOLO per-titolo (`mapping.seasonalTheme` flat condiviso, mai config/defaults; nessun profilo landscape). In allowlist cache key + `stremio-poster-params.ts` (esplicito anche in compact, mai in `dv`); il catalogo aggiunge `:th<tema>` alla chiave. Nel service la cornice sta SOPRA lo sfondo/trattamento (backdrop, vignetta, velo, ombra, blur) ma SOTTO TUTTO il chrome — logo e badge inclusi (rank/extra, Coming Soon, network, qualità, genere, separati, età) + overlay Fresh/Card — per richiesta utente esplicita, in ogni layout (standard/Fresh/Card) e forma (portrait/landscape; solo il banner pulito shape=landscape + hideLogo resta senza cornice); il `/meta` generico senza `theme=` resta byte-identico (il `theme=` esplicito vale solo come contesto effimero lista/test Stremio, su entrambi i canvas, con `:th<tema>` in chiave cache meta). Asset CANONICI `public/seasonal-frames/halloween.svg` + `public/seasonal-frames/christmas.svg` (portrait 500×750) + `public/seasonal-frames/halloween landscape.svg` + `public/seasonal-frames/christmas landscape.svg` (landscape 768×432, mappa esplicita `seasonalFrameAssetPath`, mai stirati) (in `RENDER_FILES`, byte-identici all'arte utente); il prototipo offline `design/seasonal-frames/` resta storia nel branch di feature e non è spedito (nessuna copia sincronizzata da mantenere) |
+
+> Badge Lab: 9 famiglie indipendenti (`rank`/`extra`/`genre`/`quality`/`age`/
+> `network`/`separateRatings`/`customRatings`/`comingSoon`, vedi
+> `BADGE_FAMILY_IDS` in `badge-preset.ts`): una scelta ciascuna per titolo e
+> forma (flat + profilo `landscape` con merge sparso per family via
+> `effectiveMappingForShape`: ogni chiave presente nel profilo — inclusa
+> `null` = clear esplicito — vince sul flat per quella sola family, assente =
+> eredita il flat; atomici sono solo la coppia `id`+`rev` dentro ogni singola
+> entry e la coppia legacy singleton `badgePresetId`/`badgePresetRev`).
+> Eredità con guardia landscape come gli altri per-titolo. Tutto
+> resta staged fino al Save esplicito (tab dedicata Badge Lab via
+> `BadgeLabPanel` — tab `badgelab` in Impostazioni e in EditView — che raccoglie
+> le 9 righe `FamilyChoiceControl`, una select ciascuna: prima opzione Default
+> poi i preset salvati compatibili del proprietario; la tab nativa Badge tiene
+> SOLO i controlli nativi, mai scelte custom inline):
+> Default per-titolo = segue lo spazio (drop client-only con pin/legacy/
+> Standard-clear salvato, altrimenti unstage; il save cancella la chiave e
+> ombreggia il singleton legacy di quella forma — mai Standard esplicito);
+> Default flat = cancella l'override globale (nativo), Default landscape =
+> cancella la chiave profilo (segue il portrait). Standard esplicito salvato e
+> singleton legacy restano nativi e riletti come Default onesto (nessuna
+> mutazione nascosta); pin ignoti/cancellati = opzione disabilitata, mai
+> Default bugiardo. Community (publish/visibility) nascosta: in pausa.
+> Segui impostazioni = flag opt-in `badgePresetFollows` (`true` per family e forma,
+> mai persistito come `__follow__`, mai in `bp`): il save scrive il flag così la family
+> segue i default dello spazio per quella forma, con ombreggio del singleton
+> senza riscritture globali.
+> Trasporto in `badge-preset-family-transport.ts`: `bp` (client/staged + canonico
+> server, bound 512) + `bpf` (follow intent esplicito di query, client staged +
+> persisted reopen, bound 256) + `bpt` (scritto SOLO dal server, bound 384,
+> frammento chiave cache): ordine canonico famiglie, solo id noti +
+> rev 8-hex, clear `-` dedicato, malformata = clear esplicito fail-closed (mai
+> resurrect), ignote scartate. Il binding legacy singleton
+> `badgePreset`/`prv` resta invariato (riga sopra: revisione+target CORRENTI
+> autorizzati, mai pin storico). Handoff Lab same-origin (`lab-handoff.ts`,
+> `return` validato + namespace viaggiante, `family`+`source=native`): "Use for
+> title" fa staged, mai scritture; deep-link con starter nativo della family.
+> Lab `/lab/badges` (draft locale + undo, import/export `.json` 16 KB, verify
+> sul poster reale via preset SALVATO) e libreria `/presets`. Draft-preview
+> `POST /api/presets/draft-preview`: payload strict (design/house validati,
+> niente credenziali/SVG), 16 KB, same-origin POST, bucket rate-limit presets,
+> risposta no-store, fixture deterministiche zero fetch/store; auth = preview
+> policy (pubbliche/multi-user: anonime negate PRIMA del raster; `u` da solo
+> non autentica né sceglie il bucket — gli altri condividono il bucket IP).
+> Fresh/Card: rank/genre preset solo Standard (numerali fissi, hint UI
+> `ui.familyFixedLayoutNote`); extra riusato in alto col preset; quality/
+> coming-soon retained + technical styling. Geometria corpo/bleed:
+> `badgeBody` = corpo visivo senza ombre per placement/collisioni, la tela è
+> corpo + bleed (`TOP_SHADOW_PAD`, filo in alto per il default).
+> `RENDER_FILES` copre i moduli byte-affecting nuovi:
+> `badge-house-appearance.ts` (ritocco SVG house), `badge-preset-technical.ts`
+> (resolver tecnici applicati dal service), `badge-preset-family-transport.ts`
+> (encoding/parsing `bp`/`bpt` + chiave cache) — gate fail-closed
+> `render-version-files.test.ts`. Starter house = ricette native via builder
+> condivisi (`buildHouseGenreSvg`/`buildHouseRankingSvg`/`buildHouseExtraSvg` in
+> `badge-svg-shared.ts`, stessi del poster — mai SVG copiati): default senza
+> override = bitmap byte-identico al nativo, provato da
+> `badge-native-parity.test.ts` (matrice SVG + PNG + service + contact sheet).
+> La galleria espone SOLO gli stili nativi reali (top: 8 senza il legacy
+> `netflix-color`, che resta accettato ma degrada alla placca default come il
+> renderer; extra: il subset renderer `default`/`pill`/`colored`/`bordo`/
+> `vetro`/`corner`, mai nastri/numerali). Gli starter extra non congelano
+> label (il titolo live rende; override `house.label` esplicito vince); il
+> target legacy `top` sullo slot extra rende contenuto extra (mai `#rank`) via
+> slot effettivo passato dal service, e la chiave `preset-top` include
+> l'identità dello slot (`type:label`) così label live diverse non
+> condividono il bitmap. Verify Lab con `layout=standard` esplicito (la
+> ricetta originale anche con default Fresh/Card). Niente Fresh/Card nel Lab:
+> sono renderer, non ricette; fuori dal Lab restano intatti (mapping salvati
+> inclusi).
+>
+> Posizione BadgeLab (Task P, STYLE primary invariato - solo MOVIMENTO):
+> tab Posizione separata con X/Y numerico+slider+reset (pm2000px, default 0/0)
+> per ogni preset custom (design.position) e house (house.position);
+> appearance.textOffsetX/Y restano tipografia interna (pm50, mai movimento
+> poster). Nested nel payload hash (full revision la cattura; zero/assente =
+> ancora nativa byte-identica; nessun root non versionato). Applicazione
+> SINGOLA additiva: tuning esistente + preset position al placement (raw
+> preservati, mai riscritti; dettaglio in poster-service.ts). Ogni family la
+> supporta dove visibile: rank/extra top centrato, genere basso, network,
+> separati (colonna/riga), custom row, comingSoon (bitmap reale su anchor
+> nativo d'angolo ADDITIVO: base `-offset` + position preset in un'unica
+> applicazione, zero/assente = anchor nativo byte-identico — mai clamp
+> dell'anchor a 0 che sposterebbe il nastro; sharp clippa il fuori-canvas
+> senza throw); quality vs age: age-only sposta SOLO la pill eta (split
+> con bound unione, siblings fermi); nessun preset spegne un badge gated-off.
+> Fresh/Card: numerali a layout fisso, il Lab non li offre; gli overlay retained
+> (quality/comingSoon/extra) onorano le position dove il contratto nativo lo
+> consente, mai numerali custom impliciti. House colored rank: ribbon
+> esplicito (default true = nastro legacy; false = placca piatta via accentFill,
+> stesso contratto nativo ribbon OFF); galleria con entrambe le varianti native
+> (top-colored nastro + top-colored-plate placca, stessa ricetta condivisa,
+> mai SVG copiati). Detached: Y combinata (tuning+preset) decide la placca a 4
+> angoli, passata UNA volta al builder + chiave cache (material vs placement:
+> offset 0 = nativo esatto). Mock Lab riflette le staged non salvate (offset
+> visivo), verify sul poster reale via preset SALVATO con layout=standard;
+> mock variabile/desktop/mobile ingrandibili. Nessuna altra espansione stile
+> in Task P (font family ecc. NEXT).
+>
+> BadgeLab come default globali (G2): stessa mappa sparsa per family in
+> `ServerDefaults.badgePresets` (flat) + profilo `landscape` (merge per
+> family, chiave presente — incluso `null` — vince, assente eredita).
+> Risoluzione `resolveFamilyPresetBindings`: staged (vince su `bpf`) > follow di
+> query `bpf` (own `true` = segui lo spazio per family, preview + non-preview) >
+> follow persistiti `badgePresetFollows` (opt-in `true` per family e forma via
+> `effectiveFamilyFollows`, solo non-preview: la preview non eredita mai il
+> mapping) > legacy query > mapping (solo non-preview) > singleton legacy sul
+> target (solo family senza voce mapping esplicita) > config token > default
+> globali > nativo; preview consulta config/default ma mai il mapping salvato.
+> Stremio: SOLO la mappa per-titolo viaggia come `bp` (+ `bpf` per i follow
+> espliciti); i default globali restano server-side e ruotano solo la firma
+> `dv` (mai override query).
+> Settings: tab dedicata Badge Lab (`BadgeLabPanel` scope defaults, tab
+> `badgelab`: una select Default + salvate per family, Community nascosta in
+> pausa; mai gli stili nativi toccati; Save globale via staged UX, mai
+> scritture su slider). Per-titolo: stessa tab dedicata (`BadgeLabPanel` scope
+> title in EditView), mai controlli inline nei gruppi `BadgeControls`. Lab "Usa come default" (formato corrente, namespace
+> corrente, PUT diretto esplicito, auth same-origin via userFetch).
+> Per-forma: flat edit congela il pre-edit nel profilo (mai overwrite
+> silenzioso); portrait save = flat verbatim in landscape save e viceversa.
 
 > Fonte ranking Top 20 (nessun parametro URL dedicato): la selezione
 > (`rankingSourceMovie`/`rankingSourceSeries`, `""` = JustWatch) vive nei

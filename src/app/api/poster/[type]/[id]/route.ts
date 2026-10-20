@@ -15,7 +15,15 @@ import { touchUserActivity } from "@/lib/user-activity"
 import { rateLimit, rateLimitKey, rateLimitResponse } from "@/lib/rate-limit"
 import { getServerDefaultsForUser, getServerDefaultsChecked, effectiveDefaultsForShape } from "@/lib/server-defaults"
 import { effectiveMappingForShape } from "@/lib/types"
-import { resolvePresetBinding } from "@/lib/badge-preset-binding"
+import { resolveFamilyPresetBindings, resolvePresetBinding } from "@/lib/badge-preset-binding"
+import {
+  encodeFamilyBpParam,
+  encodeFamilyTargetsParam,
+  filterCompatibleFamilyPreset,
+  parseFamilyBpParam,
+  parseFamilyFollowParam,
+} from "@/lib/badge-preset-family-transport"
+import { BADGE_FAMILY_IDS, type BadgeFamilyId } from "@/lib/badge-preset"
 import { getPresetForUser } from "@/lib/badge-preset-store"
 import type { BadgePreset } from "@/lib/badge-preset"
 import { getRegionDef, normalizeRegion, parseRegion, defaultRegionForLang, GLOBAL_REGION_CODE } from "@/lib/regions"
@@ -568,6 +576,85 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
       cacheParams.delete("prv")
       cacheParams.delete("pt")
     }
+  }
+  // Per-family bindings end-to-end (staged `bp` > legacy query fan-out >
+  // saved map per forma > legacy singleton fan-out; la preview non resuscita
+  // mai il salvato). Stesso snapshot store del singleton sopra (una sola
+  // lettura per id distinto, nessuna rilettura nel render): la chiave porta
+  // revision+target CORRENTI autorizzati per ogni family attiva (+ hash `u`
+  // del namespace, già in chiave), così edit/delete/revoca invalidano subito
+  // anche con `prv` client pinnato. Le family trasportate ma senza renderer
+  // dedicato (quality/age/network/...) viaggiano in chiave per i consumer
+  // futuri senza alterare i byte (il service le ignora, vedi sotto).
+  const stagedFamilies = parseFamilyBpParam(hardenedParams.get("bp"))
+  const queryFollows = parseFamilyFollowParam(hardenedParams.get("bpf"))
+  // Pre-warm: tutti gli id distinti coinvolti (legacy query + singleton
+  // salvato + staged + mappa salvata) in un solo giro sullo stesso snapshot.
+  const warmFamilyIds = new Set<string>()
+  if (presetBindingKey.id) warmFamilyIds.add(presetBindingKey.id)
+  const earlyMapFamilies: unknown = (earlyEffMapping as { badgePresets?: unknown } | null)?.badgePresets
+  const collectFamilyIds = (source: unknown): void => {
+    if (!source || typeof source !== "object") return
+    for (const family of BADGE_FAMILY_IDS) {
+      if (!Object.prototype.hasOwnProperty.call(source, family)) continue
+      const v = (source as Record<string, unknown>)[family] as { id?: unknown } | null | undefined
+      if (v && typeof v === "object" && typeof v.id === "string") warmFamilyIds.add(v.id)
+    }
+  }
+  collectFamilyIds(stagedFamilies)
+  collectFamilyIds(earlyMapFamilies)
+  // Config token e default globali (flat/profilo della forma iniziale): gli
+  // id vincono il render solo se autorizzati, quindi entrano nello stesso
+  // snapshot store pre-cache (una sola lettura per id distinto).
+  collectFamilyIds(configOverride?.badgePresets)
+  collectFamilyIds(earlyEffSd.badgePresets)
+  for (const id of warmFamilyIds) {
+    // Id oltre il formato deterministico: mai allo store (fail-closed).
+    if (/^[A-Za-z0-9_-]{8,24}$/.test(id)) await authorizedPreset(id)
+    else presetTruth.set(id, null)
+  }
+  const keyQueryPreset = presetBindingKey.id ? presetTruth.get(presetBindingKey.id) ?? null : null
+  const mappingSingletonId =
+    earlyEffMapping?.badgePresetId && /^[A-Za-z0-9_-]{8,24}$/.test(earlyEffMapping.badgePresetId)
+      ? earlyEffMapping.badgePresetId
+      : null
+  const keyMappingPreset = mappingSingletonId ? presetTruth.get(mappingSingletonId) ?? null : null
+  const familyBindingsKey = resolveFamilyPresetBindings({
+    staged: stagedFamilies,
+    mapping,
+    shape: earlyLandscape ? "landscape" : "poster",
+    isPreview,
+    legacyQueryId: presetBindingKey.id,
+    legacyQueryRev: presetBindingKey.rev,
+    legacyQueryTarget: keyQueryPreset?.target ?? null,
+    legacyMappingTarget: keyMappingPreset?.target ?? null,
+    queryFollows: queryFollows ?? undefined,
+    configFamilies: configOverride?.badgePresets,
+    defaultsFamilies: earlyEffSd.badgePresets,
+  })
+  // Chiave autorizzata per family: solo preset esistenti, autorizzati e con
+  // target compatibile (legacy `top` vale rank/extra, ogni altro preset vale
+  // solo la sua family). Incompatibili/morti = nessun frammento (standard).
+  const keyFamilyTargets: Partial<Record<BadgeFamilyId, string>> = {}
+  const keyFamilyBindings: Partial<Record<BadgeFamilyId, { id: string; rev: string }>> = {}
+  for (const family of BADGE_FAMILY_IDS) {
+    const binding = familyBindingsKey[family]
+    if (!binding?.id) continue
+    const preset = presetTruth.get(binding.id) ?? null
+    const compatible = filterCompatibleFamilyPreset(preset, family)
+    if (!compatible) continue
+    keyFamilyBindings[family] = { id: compatible.id, rev: compatible.revision }
+    keyFamilyTargets[family] = compatible.target
+  }
+  const keyFamilyBp = encodeFamilyBpParam(keyFamilyBindings)
+  const keyFamilyBpt = encodeFamilyTargetsParam(keyFamilyTargets)
+  cacheParams.delete("bpf");
+  if (keyFamilyBp && keyFamilyBpt) {
+    cacheParams.set("bp", keyFamilyBp)
+    cacheParams.set("bpt", keyFamilyBpt)
+  } else {
+    cacheParams.delete("bp")
+    cacheParams.delete("bpt")
   }
   // api_key non influisce sul rendering: rimuoverla evita frammentazione della
   // cache per utente e segreti in memoria nelle chiavi.
@@ -2736,6 +2823,78 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
       id: renderPreset ? renderPreset.id : null,
       rev: renderPreset ? renderPreset.revision : null,
     }
+    // Per-family presets for the renderer (same shape-effective resolution
+    // as the cache key above, final canvas shape). Snapshot reuse: ids were
+    // pre-warmed before the cache lookup; profiles selecting a different
+    // shape resolve here without a second lookup per id. Winners are the
+    // already fan-out bindings (mapped family shadows legacy per family,
+    // explicit null clears the family); only compatible authorized presets
+    // travel — incompatible/private/deleted render native standard. The
+    // typed map covers ALL families for transport/cache, and the service
+    // consumes all nine (rank/extra/genre + the six technical families via
+    // the shared native builders with live dynamic values).
+    const renderShape = isLandscape ? "landscape" : "poster"
+    // Default globali effettivi per la forma finale (il canvas può differire
+    // dalla forma iniziale usata per la chiave): la mappa family del profilo
+    // landscape va fusa col flat e i suoi id vanno riscaldati nello stesso
+    // snapshot autorizzato.
+    const renderEffSd = effectiveDefaultsForShape(sd, renderShape)
+    // Warm render-shape ids not covered by the pre-cache snapshot (the
+    // singleton pair is atomic per shape: the final canvas may own a
+    // different pair than the early shape used for the key). Same map, no
+    // second lookup per id.
+    const effRenderMapping = effectiveMappingForShape(mapping, renderShape)
+    const renderWarmIds = new Set<string>()
+    const renderSingletonId =
+      effRenderMapping?.badgePresetId && /^[A-Za-z0-9_-]{8,24}$/.test(effRenderMapping.badgePresetId)
+        ? effRenderMapping.badgePresetId
+        : null
+    if (renderSingletonId) renderWarmIds.add(renderSingletonId)
+    collectFamilyIds((effRenderMapping as { badgePresets?: unknown } | null)?.badgePresets)
+    const collectInto = (source: unknown): void => {
+      if (!source || typeof source !== "object") return
+      for (const family of BADGE_FAMILY_IDS) {
+        if (!Object.prototype.hasOwnProperty.call(source, family)) continue
+        const v = (source as Record<string, unknown>)[family] as { id?: unknown } | null | undefined
+        if (v && typeof v === "object" && typeof v.id === "string") renderWarmIds.add(v.id)
+      }
+    }
+    collectInto(stagedFamilies)
+    collectInto((effRenderMapping as { badgePresets?: unknown } | null)?.badgePresets)
+    collectInto(configOverride?.badgePresets)
+    collectInto(renderEffSd.badgePresets)
+    for (const id of renderWarmIds) {
+      if (!presetTruth.has(id)) {
+        if (/^[A-Za-z0-9_-]{8,24}$/.test(id)) await authorizedPreset(id)
+        else presetTruth.set(id, null)
+      }
+    }
+    const renderFamilyBindings = resolveFamilyPresetBindings({
+      staged: stagedFamilies,
+      mapping,
+      shape: renderShape,
+      isPreview,
+      legacyQueryId: presetBinding.id,
+      legacyQueryRev: presetBinding.rev,
+      legacyQueryTarget: (presetBinding.id ? presetTruth.get(presetBinding.id) ?? null : null)?.target ?? null,
+      legacyMappingTarget: (renderSingletonId ? presetTruth.get(renderSingletonId) ?? null : null)?.target ?? null,
+      configFamilies: configOverride?.badgePresets,
+      defaultsFamilies: renderEffSd.badgePresets,
+    })
+    const renderFamilyPresets = {} as Record<BadgeFamilyId, BadgePreset | null>
+    for (const family of BADGE_FAMILY_IDS) {
+      const binding = renderFamilyBindings[family]
+      if (!binding?.id) {
+        renderFamilyPresets[family] = null
+        continue
+      }
+      if (!/^[A-Za-z0-9_-]{8,24}$/.test(binding.id)) {
+        renderFamilyPresets[family] = null
+        continue
+      }
+      const preset = await authorizedPreset(binding.id)
+      renderFamilyPresets[family] = filterCompatibleFamilyPreset(preset, family)
+    }
 
     // 9. Debug mode — JSON instead of the poster (no render, no cache write,
     // no 304). With `netgeo=1` generation runs first and the return below
@@ -2965,6 +3124,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
       badgePresetRev: effectivePresetBinding.rev,
       badgePresetUser: scopedUser,
       badgePresetResolved: renderPreset,
+      badgeFamilyPresets: renderFamilyPresets,
       mapping, tmdbId, digitalReleaseDate: preDigital ?? null, tmdbNetworks, productionCompanies, tmdbStudios,
       tmdbNetworksDetailed, productionCompaniesDetailed,
       tvType, tvStatus, releaseDate, firstAirDate,

@@ -238,7 +238,7 @@ test("desktop: delayed hydration keeps clicked Numero, preview rs=number xbs=cor
   await page.getByText(/Avatar/i).first().click()
   await expect(page.getByRole("heading", { name: "Anteprima" })).toBeVisible({ timeout: 10_000 })
 
-  const badgeTab = page.getByRole("tab", { name: "Badge" })
+  const badgeTab = page.getByRole("tab", { name: "Badge", exact: true })
   await badgeTab.click()
   await expect(badgeTab).toHaveAttribute("aria-selected", "true")
 

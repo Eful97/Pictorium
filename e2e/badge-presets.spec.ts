@@ -1,11 +1,14 @@
 import { test, expect } from "@playwright/test"
 
-// Badge presets E2E (M9): copre ciò che l'ambiente E2E supporta (flag
-// MULTI_USER spento → niente namespace ?u=, quindi i flussi autenticati
-// Lab→save→publish→community sono verificati a livello Vitest in
-// api-presets.test.ts + badge-preset-store.test.ts). Qui: pagine Lab e
-// Community, API pubbliche fail-open, e poster ?badgePreset fail-open
-// byte-identico al render standard.
+// Badge presets E2E (M9 + Badge Lab families): copre ciò che l'ambiente E2E
+// supporta (flag MULTI_USER spento → niente namespace ?u=, quindi i flussi
+// autenticati Lab→save→apply→title→Stremio sono verificati a livello Vitest in
+// api-presets.test.ts + family-preset-save.test.ts + lab-handoff.test.ts +
+// family-preset-poster-save.test.ts). Qui: pagina Lab e Community, API
+// pubbliche fail-open, poster ?badgePreset fail-open byte-identico al render
+// standard, e il percorso deterministico senza auth
+// starter→edit→preview→export→import→preview (il salvataggio resta
+// disabilitato senza spazio personale: ui.labAnonHint).
 
 const MOVIE_TMDB = 19995 // Avatar (mock server)
 const POSTER_PATH = "/mocked/avatar.jpg"
@@ -18,19 +21,54 @@ function posterUrl(params: Record<string, string>): string {
 test("Badge Lab renders with live preview", async ({ page }) => {
   await page.goto("/lab/badges")
   await expect(page.getByRole("heading", { name: /Badge Lab|ui\.labTitle/ })).toBeVisible({ timeout: 30_000 })
-  // Tabs dei controlli.
-  await expect(page.getByRole("button", { name: "shape", exact: true })).toBeVisible()
+  // Tabs dei controlli (etichette localizzate: type→Testo/Text, shape→Forma/Shape).
+  const tabs = page.getByTestId("lab-design-tabs")
+  await expect(tabs.getByRole("button", { name: /^(Forma|Shape)$/ })).toBeVisible()
   // Anteprima live: il template di default risolve {{rating}} dal mock (8.5).
-  await expect(page.getByText("8.5", { exact: false }).first()).toBeVisible({ timeout: 10_000 })
-  // Azioni principali presenti.
+  // Scope al preview desktop (aside): il primo match globale sarebbe la copia
+  // mobile `lg:hidden` (nascosta su desktop) o una thumb starter SVG.
+  const desktopPreview = page.getByTestId("lab-poster-mock-preview")
+  await expect(desktopPreview.getByText("8.5", { exact: false })).toBeVisible({ timeout: 10_000 })
+  // Azioni principali presenti (il salvataggio resta disabilitato senza spazio).
   await expect(page.getByRole("button", { name: /Save preset|Salva preset|ui\.labSave/ })).toBeVisible()
+  // Import/Export stanno nel <details> File: l'utente reale lo espande.
+  await page.getByTestId("lab-files").locator("summary").click()
   await expect(page.getByText(/Import .json|Importa .json|ui\.labImport/)).toBeVisible()
   await expect(page.getByRole("button", { name: /Export .json|Esporta .json|ui\.labExport/ })).toBeVisible()
   // Cambio template → la preview si aggiorna senza roundtrip (stesso tick).
-  await page.getByRole("button", { name: "type", exact: true }).click()
-  const template = page.getByLabel(/Text template|Template testo|ui\.labTemplate/)
+  await tabs.getByRole("button", { name: /^(Testo|Text)$/ }).click()
+  const template = page.getByLabel(/Badge text|Testo del badge|ui\.labTemplate/)
   await template.fill("HELLO")
-  await expect(page.getByText("HELLO", { exact: false }).first()).toBeVisible({ timeout: 10_000 })
+  await expect(page.getByTestId("lab-poster-mock-preview").getByText("HELLO", { exact: false })).toBeVisible({ timeout: 10_000 })
+})
+
+test("Lab starter→edit→export→import roundtrip keeps the draft", async ({ page }) => {
+  await page.goto("/lab/badges")
+  await expect(page.getByRole("heading", { name: /Badge Lab|ui\.labTitle/ })).toBeVisible({ timeout: 30_000 })
+  // Nomina la bozza (l'export fallisce senza nome valido) e modifica il testo.
+  await page.getByLabel(/^(Name|Nome)$/).fill("E2EExport")
+  const template = page.getByLabel(/Badge text|Testo del badge|ui\.labTemplate/)
+  await template.fill("HELLO-ROUNDTRIP")
+  const desktopPreview = page.getByTestId("lab-poster-mock-preview")
+  await expect(desktopPreview.getByText("HELLO-ROUNDTRIP", { exact: false })).toBeVisible({ timeout: 10_000 })
+  // Export nel <details> File: l'utente reale lo espande.
+  await page.getByTestId("lab-files").locator("summary").click()
+  // Export → file .json scaricato con template e nome dentro.
+  const [download] = await Promise.all([
+    page.waitForEvent("download"),
+    page.getByRole("button", { name: /Export .json|Esporta .json|ui\.labExport/ }).click(),
+  ])
+  const filePath = await download.path()
+  expect(filePath).toBeTruthy()
+  // Reset locale e reimport: la bozza esportata ritorna in preview.
+  // Il reset sporca la bozza: l'import chiede conferma (window.confirm) —
+  // l'utente reale accetta.
+  await template.fill("RESET")
+  await expect(desktopPreview.getByText("HELLO-ROUNDTRIP", { exact: false })).toHaveCount(0)
+  page.once("dialog", (dialog) => void dialog.accept())
+  await page.locator('input[type="file"]').setInputFiles(filePath!)
+  await expect(desktopPreview.getByText("HELLO-ROUNDTRIP", { exact: false })).toBeVisible({ timeout: 10_000 })
+  await expect(page.getByLabel(/^(Name|Nome)$/)).toHaveValue("E2EExport")
 })
 
 test("Community page renders with catalog controls", async ({ page }) => {

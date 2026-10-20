@@ -938,6 +938,12 @@ export const SHAPE_FLAT_TO_LANDSCAPE: Record<string, keyof LandscapeServerDefaul
   /** Standalone extra style (profile override, absent = legacy `rs` fallback). */
   defaultExtraBadgeStyle: "extraBadgeStyle",
   /**
+   * BadgeLab family map (profile override, absent/null = follow the flat:
+   * the flat edit snapshots the pre-edit map so the landscape keeps its
+   * look; an empty flat stays sparse, never an invented empty map).
+   */
+  defaultBadgePresets: "badgePresets",
+  /**
    * Logo-block alignment (profile override; absent/null = follow the flat,
    * flat null = per-shape auto: portrait "center", landscape "left").
    */
@@ -1126,6 +1132,27 @@ export function snapshotMissingLandscape(
       continue
     }
     const v = flats[flatKey]
+    // Family map: null/absent flats stay sparse (both render as follow, no
+    // invented empty map); present maps freeze entry-by-entry (deep clone so
+    // the profile never aliases the live flat).
+    if (landKey === "badgePresets") {
+      if (v === undefined || v === null) continue
+      if (typeof v !== "object" || Array.isArray(v)) continue
+      const frozen: Record<string, { id: string; rev: string | null } | null> = {}
+      for (const [fk, fv] of Object.entries(v as Record<string, unknown>)) {
+        if (fv === null) {
+          frozen[fk] = null
+          continue
+        }
+        if (typeof fv !== "object" || Array.isArray(fv)) continue
+        const rec = fv as { id?: unknown; rev?: unknown }
+        if (typeof rec.id !== "string") continue
+        frozen[fk] = { id: rec.id, rev: typeof rec.rev === "string" ? rec.rev : null }
+      }
+      if (Object.keys(frozen).length === 0) continue
+      adds[landKey] = frozen
+      continue
+    }
     // The standalone extra style is not an inherit-null key (its profile
     // `null` is the explicit follow-own-rank marker, never missing), but a
     // legacy flat (null/absent — e.g. a first-ever direct API edit with no

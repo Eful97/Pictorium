@@ -99,6 +99,13 @@ const ENV_KEYS = [
   "PICTORIUM_DATA_DIR",
   "PICTORIUM_MULTI_USER",
   "PICTORIUM_RATELIMIT_KV",
+  // Alias KV keys read by the storage/rate-limit modules but never cleaned
+  // before F7: a leaked REDIS_URL (or POSTERIUM_RATELIMIT_KV) flips
+  // getStorageMode()/isKvStore() for every later test in the worker.
+  "POSTERIUM_RATELIMIT_KV",
+  "PICTORIUM_REDIS_URL",
+  "POSTERIUM_REDIS_URL",
+  "REDIS_URL",
   "PROFILE_ENCRYPTION_KEY",
   "PICTORIUM_TRAKT_CLIENT_ID",
   "POSTERIUM_TRAKT_CLIENT_ID",
@@ -135,6 +142,10 @@ beforeEach(async () => {
   process.env.PICTORIUM_MULTI_USER = "1"
   process.env.PROFILE_ENCRYPTION_KEY = crypto.randomBytes(32).toString("hex")
   delete process.env.PICTORIUM_RATELIMIT_KV
+  delete process.env.POSTERIUM_RATELIMIT_KV
+  delete process.env.PICTORIUM_REDIS_URL
+  delete process.env.POSTERIUM_REDIS_URL
+  delete process.env.REDIS_URL
   delete process.env.PICTORIUM_TRAKT_CLIENT_ID
   delete process.env.POSTERIUM_TRAKT_CLIENT_ID
   delete process.env.TRAKT_CLIENT_ID
@@ -153,6 +164,12 @@ beforeEach(async () => {
   kvCtl.evalFail = false
   kvCtl.getCalls = 0
   kvCtl.delCalls = 0
+  // Defensive: restoreAllMocks/resetModules do NOT undo vi.doMock. A leaked
+  // always-429 "@/lib/rate-limit" mock (pre-F7 line-932 doUnmock sat AFTER the
+  // assert, so any failure skipped it) 429s every later startFlow in the file.
+  // Never doUnmock "@/lib/kv" or "@vercel/kv" here: the hoisted memory mock
+  // must stay registered (unmocking it would route KV tests at real Upstash).
+  vi.doUnmock("@/lib/rate-limit")
   vi.restoreAllMocks()
 })
 
@@ -167,6 +184,10 @@ afterEach(async () => {
   kvCtl.evalFail = false
   kvCtl.getCalls = 0
   kvCtl.delCalls = 0
+  // Contain in-test doMock leaks even on early throw: the rate-limit test's
+  // old doUnmock-after-assert never ran once line-930 failed, 429-poisoning
+  // the next three tests. Belt-and-braces with the in-test try/finally.
+  vi.doUnmock("@/lib/rate-limit")
   vi.resetModules()
   vi.restoreAllMocks()
   vi.unstubAllEnvs()
@@ -613,7 +634,7 @@ describe("GET /api/trakt/callback", () => {
   it("single-use: sequential replay and concurrent callbacks link exactly once", async () => {
     const { auth, authorize, callback, trakt } = await loadAll()
     const a = await auth.createUser()
-    stubExchangeSuccess()
+    const seen = stubExchangeSuccess()
 
     const first = await startFlow(authorize, a.uuid, a.secret)
     const r1 = await callback.GET(getCallback(`http://localhost/api/trakt/callback?code=one&state=${first.state}`, first.cookie))
@@ -630,6 +651,10 @@ describe("GET /api/trakt/callback", () => {
     const locations = [c1.headers.get("location"), c2.headers.get("location")].sort()
     expect(locations).toEqual(["/?trakt=failed", `/u/${a.uuid}/configure?trakt=connected`])
     expect(await trakt.getTraktTokenStatus(a.uuid)).toBe("connected")
+    // Exactly-once upstream cost: the sequential link plus the single
+    // concurrent winner exchanged; the loser never reached the network
+    // (it failed closed at the single-use claim).
+    expect(seen.bodies).toHaveLength(2)
   })
 
   it("deleted profile: callback fails closed without resurrecting the namespace", async () => {
@@ -902,7 +927,6 @@ describe("GET /api/trakt/callback", () => {
     const { auth, authorize, callback, trakt } = await loadAll()
     const a = await auth.createUser()
     const flow = await startFlow(authorize, a.uuid, a.secret)
-    const fetchSpy = vi.spyOn(globalThis, "fetch")
 
     // Deterministic limiter outage: the ONLY mocked piece is rateLimit
     // (mocked module re-export keeps rateLimitKey/rateLimitResponse real).
@@ -912,9 +936,26 @@ describe("GET /api/trakt/callback", () => {
       return { ...actual, rateLimit: async () => ({ ok: false as const, retAfter: 7 }) }
     })
     const limitedMod = await import("@/app/api/trakt/callback/route")
-    const limited = await limitedMod.GET(
-      getCallback(`http://localhost/api/trakt/callback?code=${CODE_MARKER}_rl&state=${flow.state}`, flow.cookie),
-    )
+    // Network observation starts AFTER the import on purpose (F7 root proof):
+    // the full-suite failure showed ONE real Upstash pipeline POST
+    // (EVAL get-and-del of a trakt:oauth:* key) recorded by a spy installed
+    // BEFORE this import — i.e. import-time / in-flight traffic outside the
+    // GET, via the dynamic-import race past vi.mock documented in
+    // trakt-lifecycle.test.ts. Scoping the mock to the GET window keeps the
+    // 429 no-network proof exact; the state-dir + bodies counters below pin
+    // the original intent (no consume, no exchange, no save).
+    const seen = stubExchangeSuccess()
+    let limited: Response
+    try {
+      limited = await limitedMod.GET(
+        getCallback(`http://localhost/api/trakt/callback?code=${CODE_MARKER}_rl&state=${flow.state}`, flow.cookie),
+      )
+    } finally {
+      // Unconditional: the pre-F7 doUnmock sat after the asserts, so the
+      // line-930 failure skipped it and the always-429 mock 429-poisoned the
+      // next three tests' startFlow calls (verify.log: 7621 pass / 4 fail).
+      vi.doUnmock("@/lib/rate-limit")
+    }
     expect(limited.status).toBe(429)
     expect(limited.headers.get("cache-control")).toBe("no-store")
     expect(limited.headers.get("retry-after")).toBe("7")
@@ -922,10 +963,13 @@ describe("GET /api/trakt/callback", () => {
     expect(cleared).toContain("pictorium_trakt_oauth=;")
     expect(cleared).toContain("Max-Age=0")
     expect(cleared).toContain("Path=/api/trakt/callback")
-    // Nothing burned, nothing exchanged, nothing persisted.
-    expect(fetchSpy).not.toHaveBeenCalled()
+    // Nothing burned, nothing exchanged, nothing persisted: no fetch at all
+    // in the GET window, the exchange mock saw zero bodies, the state file
+    // is still on disk, and the profile is still disconnected.
+    expect(seen.urls).toHaveLength(0)
+    expect(seen.bodies).toHaveLength(0)
+    expect(await stateDirEntries()).toHaveLength(1)
     expect(await trakt.getTraktTokenStatus(a.uuid)).toBe("disconnected")
-    vi.doUnmock("@/lib/rate-limit")
 
     // State untouched by the 429: the flow still completes afterwards
     // (fresh real limiter — the mock never saw the state).
@@ -937,6 +981,49 @@ describe("GET /api/trakt/callback", () => {
     expect(ok.headers.get("location")).toBe(`/u/${a.uuid}/configure?trakt=connected`)
     expect(await fresh.trakt.getTraktTokenStatus(a.uuid)).toBe("connected")
     void callback
+  })
+
+  it("mock-hygiene probe A: simulated mid-test throw leaves the always-429 mock registered (hook must contain it)", async () => {
+    // Regression for the F7 cascade: the pre-fix rate-limit test threw at its
+    // fetch assert with the always-429 mock still registered, and the next
+    // three tests' startFlow calls 429'd. This probe replays that shape
+    // (throw on the early-exit path, no in-test cleanup) and proves the leak
+    // is REAL at test end — so probe B deterministically fails unless the
+    // afterEach defensive doUnmock contains it.
+    const { auth } = await loadAll()
+    const u = await auth.createUser()
+    vi.resetModules()
+    vi.doMock("@/lib/rate-limit", async (importOriginal) => {
+      const actual = await importOriginal<typeof import("@/lib/rate-limit")>()
+      return { ...actual, rateLimit: async () => ({ ok: false as const, retAfter: 7 }) }
+    })
+    const mod = await import("@/app/api/users/[uuid]/trakt/authorize/route")
+    const ctx = { params: Promise.resolve({ uuid: u.uuid }) }
+    const url = `http://localhost/api/users/${u.uuid}/trakt/authorize`
+    const denied = await mod.POST(postAuthorize(url, u.secret), ctx)
+    expect(denied.status).toBe(429)
+    try {
+      throw new Error("simulated pre-fix line-930 assert failure (early exit skips in-test cleanup)")
+    } catch {
+      // Swallowed: the suite stays green; the early-exit path is the point.
+    }
+    // Leak is real at test end (proves this probe is not vacuous)...
+    const again = await mod.POST(postAuthorize(url, u.secret), ctx)
+    expect(again.status).toBe(429)
+    // ...and is deliberately NOT cleaned here: the afterEach hook MUST
+    // contain it (probe B fails otherwise). No other test is affected
+    // because the hook runs before the next test's first import.
+  })
+
+  it("mock-hygiene probe B: flows are healthy after probe A (proves afterEach contained the leak)", async () => {
+    const { auth, authorize } = await loadAll()
+    const v = await auth.createUser()
+    const res = await authorize.POST(postAuthorize(`http://localhost/api/users/${v.uuid}/trakt/authorize`, v.secret), {
+      params: Promise.resolve({ uuid: v.uuid }),
+    })
+    // Real limiter on fresh buckets: 200. With the leak uncontained this is
+    // 429 (the always-429 mock survives resetModules/restoreAllMocks).
+    expect(res.status).toBe(200)
   })
 
   it("profile wiped DURING the token exchange: no namespace resurrection", async () => {

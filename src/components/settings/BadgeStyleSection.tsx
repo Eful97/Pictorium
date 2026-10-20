@@ -58,6 +58,7 @@ export function GenreStyleSection({ shape, onPreviewFamilyChange, styleDisabled,
         />
       </div>
       )}
+
     </div>
   )
 }

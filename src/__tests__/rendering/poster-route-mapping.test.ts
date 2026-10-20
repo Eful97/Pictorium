@@ -271,7 +271,7 @@ describe("GET /api/poster/[type]/[id] with saved mappings", () => {
     const first = await requestPoster()
     expect(first.status).toBe(200)
     expect(fetchCustomRatings).toHaveBeenCalledWith("tt1375666", expect.objectContaining({ enabled: true }), expect.any(AbortSignal))
-    expect(renderMultiRatings).toHaveBeenCalledWith([rating], expect.any(Number), expect.any(Boolean), "inter")
+    expect(renderMultiRatings).toHaveBeenCalledWith([rating], expect.any(Number), expect.any(Boolean), "inter", undefined)
     const calls = vi.mocked(fetchCustomRatings).mock.calls.length
     const hit = await requestPoster()
     expect(hit.status).toBe(200)
@@ -581,7 +581,7 @@ describe("GET /api/poster/[type]/[id] with saved mappings", () => {
       ...(imdb ? [{ id: "imdb", name: "IMDb", value: 8.8, format: "decimal" }] : []),
       ...(custom ? [customItem] : []),
     ]
-    if (enabled && expected.length) expect(renderMultiRatings).toHaveBeenCalledWith(expected, expect.any(Number), expect.any(Boolean), "inter")
+    if (enabled && expected.length) expect(renderMultiRatings).toHaveBeenCalledWith(expected, expect.any(Number), expect.any(Boolean), "inter", undefined)
     else expect(renderMultiRatings).not.toHaveBeenCalled()
     if (!enabled) expect(fetchCustomRatings).not.toHaveBeenCalled()
     const imdbCalls = vi.mocked(fetchAggregatedRating).mock.calls.length
@@ -1214,7 +1214,7 @@ describe("GET /api/poster/[type]/[id] error and edge cases", () => {
       const next = await request(previousEtag)
       expect(next.status).toBe(200)
       expect(fetchCustomRatings).toHaveBeenCalledTimes(calls + 1)
-      expect(renderMultiRatings).toHaveBeenLastCalledWith([item], expect.any(Number), expect.any(Boolean), "inter")
+      expect(renderMultiRatings).toHaveBeenLastCalledWith([item], expect.any(Number), expect.any(Boolean), "inter", undefined)
       populatedEtag = next.headers.get("etag")!
       expect(populatedEtag).not.toBe(emptyEtag)
     }

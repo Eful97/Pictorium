@@ -5,7 +5,9 @@ import { ESLint } from "eslint"
 
 // Guardia di regressione per la configurazione ESLint:
 // `npm run lint` deve restare verde in locale anche dopo i test E2E,
-// che generano artefatti di build in `.next-e2e` (distDir di playwright).
+// che generano artefatti di build in `.next-e2e` (distDir di playwright) e
+// in `.next-e2e-auth` (distDir isolato di playwright.preset-auth.config.ts,
+// NEXT_DIST_DIR ".next-e2e-auth" — stesso pattern di .next-e2e).
 // Senza gli ignore qui sotto, eslint lintava quei file generati e falliva
 // con centinaia di errori (require() style import, @ts-ignore, ...).
 //
@@ -34,9 +36,9 @@ describe("eslint config", () => {
     sharedEslint = new ESLint({})
   })
 
-  it("ignores generated build dirs (.next, .next-e2e)", async () => {
+  it("ignores generated build dirs (.next, .next-e2e, .next-e2e-auth)", async () => {
     const eslint = sharedEslint
-    for (const file of [".next/dev/build/probe.js", ".next-e2e/dev/build/probe.js"]) {
+    for (const file of [".next/dev/build/probe.js", ".next-e2e/dev/build/probe.js", ".next-e2e-auth/dev/build/probe.js"]) {
       expect(await eslint.isPathIgnored(file), `${file} should be ignored`).toBe(true)
     }
   }, ESLINT_TEST_TIMEOUT)
@@ -58,6 +60,23 @@ describe("eslint config", () => {
       expect(result.errorCount).toBe(0)
     } finally {
       // Removes ONLY this test's probe file. `.next-e2e/dev/build` already
+      // exists: the mkdir above created it, so the distDir is left in place.
+      await rm(probe, { force: true })
+    }
+  }, ESLINT_TEST_TIMEOUT)
+
+  it("lints clean even when a generated artifact with lint errors sits in .next-e2e-auth", async () => {
+    const probeDir = path.join(".next-e2e-auth", "dev", "build")
+    const probe = path.join(probeDir, "eslint-guard-probe.js")
+    await mkdir(probeDir, { recursive: true })
+    // Same patterns that used to break the lint: require() + @ts-ignore
+    await writeFile(probe, "const x = require('x')\n// @ts-ignore\nmodule.exports = x\n")
+    try {
+      const eslint = sharedEslint
+      const [result] = await eslint.lintFiles(probe)
+      expect(result.errorCount).toBe(0)
+    } finally {
+      // Removes ONLY this test's probe file. `.next-e2e-auth/dev/build` already
       // exists: the mkdir above created it, so the distDir is left in place.
       await rm(probe, { force: true })
     }

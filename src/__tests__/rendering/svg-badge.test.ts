@@ -90,13 +90,33 @@ describe("buildGenreBadgeSVG", () => {
   it("keeps genre separators in natural text flow", () => {
     const { svg } = buildGenreTextSvg("Sci-Fi & Fantasy", "8.0", "2022", 63, "#e5e7eb", "shadow")
 
-    expect(svg).toContain("<tspan>Sci-Fi &amp; Fantasy</tspan>")
-    // Bullet calibrato 0.45 (restyle cinematografico) + stella dorata con gradiente.
-    expect(svg).toContain('<tspan dx="21" fill-opacity="0.45">•</tspan>')
+    // Ogni segmento ha il suo <text> ad ancora centrale con textLength
+    // pinnato (tspan singola: onorato sia in Blink che in resvg) — mai un
+    // flusso multi-tspan con dx (Blink include i dx nella misura
+    // dell'ancoraggio mentre resvg li esclude: la riga decentrerebbe di
+    // ~13-18px tagliando la prima lettera nei badge senza margine).
+    expect(svg).toContain(">Sci-Fi &amp; Fantasy</text>")
+    expect(svg).toContain(">8.0</text>")
+    expect(svg).toContain(">2022</text>")
+    expect(svg.match(/<text /g)?.length).toBe(5)
+    expect(svg.match(/text-anchor="middle"/g)?.length).toBe(5)
+    // Tutti i segmenti condividono la stessa baseline (nessuna
+    // compensazione dy: la vecchia riga multi-tspan la spostava).
+    const ys = [...svg.matchAll(/<text[^>]*\sy="([\d.]+)"/g)].map((m) => m[1])
+    expect(ys.length).toBe(5)
+    expect(new Set(ys).size).toBe(1)
+    // Bullet calibrato 0.45 (restyle cinematografico) come segmenti propri.
+    expect(svg.match(/fill-opacity="0.45">•<\/text>/g)?.length).toBe(2)
+    // Stella dorata con gradiente come path posizionato, mai glifo Noto.
     expect(svg).toContain('fill="url(#starg)"')
-    expect(svg).toContain('text-anchor="middle"')
+    expect(svg).toContain('<path d="M')
+    expect(svg).not.toContain("Noto Sans Symbols 2")
+    expect(svg).not.toContain("★")
+    expect(svg).not.toContain("<tspan")
+    expect(svg).not.toMatch(/<text[^>]*\sdx=/)
+    expect(svg).not.toMatch(/<text[^>]*\sdy=/)
+    expect(svg).toContain('font-family="Inter"')
     expect(svg).toContain('lengthAdjust="spacingAndGlyphs"')
-    expect(svg).not.toContain("Sci-Fi &amp; Fantasy</text><text")
   })
 
   it("uses a lighter text weight for genre/rating badges", () => {
@@ -110,8 +130,21 @@ describe("buildGenreBadgeSVG", () => {
     const starDy = Math.max(2, Math.round(fs * 0.14))
     const { svg } = buildGenreTextSvg("Fantascienza", "8.7", "2026", fs, "#e5e7eb", "shadow")
 
-    expect(svg).toContain(`dy="${starDy}" font-family="Noto Sans Symbols 2"`)
-    expect(svg).toContain(`dy="${-starDy}">8.7</tspan>`)
+    // La stella è un path dorato abbassato di starDy sotto la baseline…
+    expect(svg).toContain('fill="url(#starg)"')
+    expect(svg).toContain('<path d="M')
+    const textY = Number(svg.match(/<text[^>]*\sy="([\d.]+)"[^>]*>Fantascienza/)?.[1])
+    expect(Number.isFinite(textY)).toBe(true)
+    const starG = svg.match(/<g transform="translate\(([\d.]+),([\d.]+)\)" fill="url\(#starg\)"/)
+    expect(starG).not.toBeNull()
+    expect(Number(starG![2]) - textY).toBe(starDy)
+    // …mentre il voto resta un <text> centrato sulla baseline condivisa,
+    // senza compensazioni dy né glifi Noto nel flusso.
+    expect(svg).toContain(">8.7</text>")
+    expect(svg).not.toContain("Noto Sans Symbols 2")
+    expect(svg).not.toContain("★")
+    expect(svg).not.toContain("<tspan")
+    expect(svg).not.toMatch(/<text[^>]*\sdy=/)
   })
 
   it("keeps long genre pill compact and centers its text flow", async () => {
@@ -247,10 +280,17 @@ describe("GenreParts combinations", () => {
 
   it("hides genre and year when only rating is enabled", () => {
     const { svg } = buildGenreTextSvg("Dramma", "8.2", "2024", 60, "#e5e7eb", "shadow", 0, { showGenre: false, showYear: false })
-    expect(svg).toContain("Noto Sans Symbols 2")
-    expect(svg).toContain("8.2")
+    // Solo voto: un <text> centrato + stella-path, niente genere/anno/bullet.
+    expect(svg).toContain(">8.2</text>")
+    expect(svg.match(/<text /g)?.length).toBe(1)
+    expect(svg).toContain('fill="url(#starg)"')
+    expect(svg).toContain('<path d="M')
     expect(svg).not.toContain("Dramma")
     expect(svg).not.toContain("2024")
+    expect(svg).not.toContain("•")
+    expect(svg).not.toContain("Noto Sans Symbols 2")
+    expect(svg).not.toContain("★")
+    expect(svg).not.toContain("<tspan")
   })
 
   it("hides rating but keeps genre and year", () => {
@@ -263,10 +303,16 @@ describe("GenreParts combinations", () => {
 
   it("hides genre but keeps rating and year", () => {
     const { svg } = buildGenreTextSvg("Dramma", "8.2", "2024", 60, "#e5e7eb", "shadow", 0, { showGenre: false })
-    expect(svg).toContain("Noto Sans Symbols 2")
-    expect(svg).toContain("8.2")
-    expect(svg).toContain("2024")
+    // Voto + bullet + anno: tre <text> centrati + stella-path.
+    expect(svg).toContain(">8.2</text>")
+    expect(svg).toContain(">2024</text>")
+    expect(svg.match(/<text /g)?.length).toBe(3)
+    expect(svg).toContain('fill="url(#starg)"')
+    expect(svg).toContain('<path d="M')
     expect(svg).not.toContain("Dramma")
+    expect(svg).not.toContain("Noto Sans Symbols 2")
+    expect(svg).not.toContain("★")
+    expect(svg).not.toContain("<tspan")
   })
 
   it("hides year and rating but keeps genre", () => {

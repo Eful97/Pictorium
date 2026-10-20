@@ -76,6 +76,11 @@ export async function POST(req: NextRequest) {
       gradientHeight: defaults.gradientHeight ?? renderDefaults.blurHeight,
       networkLogo: defaults.networkLogo ?? renderDefaults.networkLogo,
       autoRotateClean: defaults.autoRotateClean ?? false,
+      // Global BadgeLab family defaults are intentionally NOT baked here:
+      // the token is a flat/back-compat config layer, so freezing the flat
+      // map would shadow the server landscape profile at delivery (config >
+      // defaults). The server resolves the global map itself and the `dv`
+      // dependency rotates cache when it changes.
       ...partial.data,
     }
     const recomposed = configTokenSchema.safeParse(composed)

@@ -2,6 +2,7 @@
 
 import { http } from "./http"
 import type { BadgePreset, BadgeTarget } from "./badge-preset"
+import { isBadgePresetId } from "./badge-preset"
 
 // ---------------------------------------------------------------------------
 // Client tipizzato per /api/presets. Namespace (`?u=`) e auth (`x-user-token`)
@@ -61,13 +62,63 @@ export function listPublicPresets(query: PublicPresetQuery = {}): Promise<Public
   )
 }
 
-/** Preset dell'utente (`mine=1`, richiede namespace + auth). */
+/** Preset dell'utente (`mine=1`, richiede namespace + auth). Inflight
+ * coalesced per boundary di autorizzazione corrente (http porta già
+ * namespace/auth): 9 controlli inline montati insieme (StrictMode ×2)
+ * condividono la stessa richiesta invece di mandarne 9 in burst. Solo
+ * inflight, nessuna TTL/cache persistente: i dati restano freschi a ogni
+ * nuova azione (unlock/reload rifà fetch). */
+let myPresetsInflight: Promise<{ presets: PresetListItem[] }> | null = null
 export function listMyPresets(): Promise<{ presets: PresetListItem[] }> {
-  return http<{ presets: PresetListItem[] }>("/api/presets?mine=1")
+  if (!myPresetsInflight) {
+    myPresetsInflight = http<{ presets: PresetListItem[] }>("/api/presets?mine=1")
+      .finally(() => {
+        myPresetsInflight = null
+      })
+  }
+  return myPresetsInflight
 }
 
 export function getPreset(id: string): Promise<PresetListItem> {
   return http<PresetListItem>(`/api/presets/${encodeURIComponent(id)}`)
+}
+
+/**
+ * Owner-aware legacy singleton target (cached by id): resolves which badge
+ * families a stored `badgePresetId` covers so a per-title follow-drop can
+ * break the singleton for the covered family while materializing the
+ * surviving siblings — same transformation in preview and save, never
+ * guessed. Fail-open null (private/other-namespace/unknown id): callers
+ * treat unknown as "do not touch the singleton" and abort the drop
+ * honestly instead of rendering a mismatched design.
+ */
+const legacyTargetCache = new Map<string, BadgeTarget | null>()
+
+export function getCachedLegacyPresetTarget(id: string | null | undefined): BadgeTarget | null | undefined {
+  if (!id || !isBadgePresetId(id)) return null
+  if (!legacyTargetCache.has(id)) return undefined
+  return legacyTargetCache.get(id) ?? null
+}
+
+export async function resolveLegacyPresetTarget(id: string | null | undefined): Promise<BadgeTarget | null> {
+  if (!id || !isBadgePresetId(id)) return null
+  const hit = legacyTargetCache.get(id)
+  if (hit !== undefined) return hit
+  try {
+    const found = await getPreset(id)
+    const target = (found?.preset?.target ?? null) as BadgeTarget | null
+    // Cache successes only: a transient/auth failure retries on the next
+    // explicit action instead of pinning a stale null (unlock race).
+    if (target) legacyTargetCache.set(id, target)
+    return target
+  } catch {
+    return null
+  }
+}
+
+/** Evict one cached legacy target (tests + revocation paths). */
+export function __evictLegacyPresetTarget(id: string): void {
+  legacyTargetCache.delete(id)
 }
 
 export function createPreset(body: PresetCreateBody): Promise<PresetListItem> {

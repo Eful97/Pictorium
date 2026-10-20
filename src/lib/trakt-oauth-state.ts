@@ -38,10 +38,17 @@
  * Persistence: `trakt-oauth/<state>.json` files (0600, atomic write) or the
  * shared KV backend (`trakt:oauth:<state>`, 10 min TTL) — same dual-backend
  * pattern as `user-keys.ts`/`trakt-auth.ts`. File consume claims the record
- * via an atomic rename (loser gets ENOENT → replay); KV consume uses ONLY
- * server-side EVAL get-and-del. EVAL failure is fail-closed (no record, no
- * get+del fallback): a non-atomic fallback would let two concurrent
- * callbacks both consume during an EVAL outage.
+ * via an atomic rename (loser gets ENOENT → replay) PLUS a fixed-name
+ * O_EXCL witness (`<state>.consumed`): rename resolution alone is NOT
+ * mutually exclusive — concurrent renames of the same source to different
+ * destinations can sometimes both resolve with readable duplicates
+ * (observed on Windows, rare ~1/300 races), so exactly one witness creator
+ * wins and every other duplicate reader fails closed as a replay. Stale witnesses (crash between
+ * witness-create and claim-unlink, or a duplicate claim that lost the
+ * witness race) are reaped by the opportunistic sweep past one TTL.
+ * KV consume uses ONLY server-side EVAL get-and-del. EVAL failure is
+ * fail-closed (no record, no get+del fallback): a non-atomic fallback would
+ * let two concurrent callbacks both consume during an EVAL outage.
  *
  * No plaintext secrets at rest here: only the sha256 of the browser nonce,
  * the user id, the configured redirect URI and the AES-256-GCM-encrypted
@@ -187,6 +194,20 @@ function stateKvKey(state: string): string {
   return `trakt:oauth:${state}`
 }
 
+/**
+ * Fixed per-state single-use witness. Created with O_EXCL (`wx`) AFTER the
+ * rename-claim and its verifying read, so exactly one duplicate reader wins
+ * no matter how the renames resolved (rename resolution is not exclusive
+ * across threads/processes on every platform). The winner keeps it — it is
+ * never deleted on the consume path, so a slow duplicate reader can never
+ * win a recreated witness. The opportunistic sweep reaps it past one TTL
+ * (the guarded record expires by then, so no late reader can ever go `ok`).
+ * Payload is a bare timestamp: no user, nonce, verifier or secret.
+ */
+function stateWitnessFile(state: string): string {
+  return path.join(stateDir(), `${state}.consumed`)
+}
+
 function isValidRecord(v: unknown): v is TraktOAuthStateRecord {
   if (!v || typeof v !== "object") return false
   const r = v as Record<string, unknown>
@@ -254,10 +275,17 @@ async function consumeKvRecord(key: string): Promise<unknown> {
 }
 
 /**
- * Claim the file record via atomic rename: concurrent consumers race on the
- * source path and exactly one rename succeeds (the loser gets ENOENT).
- * Stale `.claim` files (crash between rename and unlink) are reaped by the
- * opportunistic sweep on create.
+ * Claim the file record via atomic rename, then prove exclusivity with the
+ * fixed-name O_EXCL witness. The rename moves the record to a unique claim
+ * (loser gets ENOENT) and the verifying read catches renames that resolved
+ * without landing; the witness covers the residual case where concurrent
+ * renames of the same source can sometimes both resolve with readable
+ * duplicate claims (observed on Windows, rare) — exactly one witness creator wins, every other duplicate reader
+ * fails closed as a replay (`unknown`). Read-before-witness preserves
+ * liveness: whenever at least one claim holds the bytes, exactly one
+ * consumer proceeds (a witness-first order could crown an empty claim and
+ * wedge a live flow). Stale `.claim` files (crash between rename and unlink)
+ * are reaped by the opportunistic sweep on create.
  */
 async function consumeFileRecord(state: string): Promise<unknown> {
   const file = stateFile(state)
@@ -272,13 +300,29 @@ async function consumeFileRecord(state: string): Promise<unknown> {
     }
     return null
   }
+  let raw: string
   try {
-    return await fsp.readFile(claim, "utf-8")
+    raw = await fsp.readFile(claim, "utf-8")
   } catch {
     return null
   } finally {
     await fsp.unlink(claim).catch(() => {})
   }
+  try {
+    await fsp.writeFile(stateWitnessFile(state), JSON.stringify({ createdAt: Date.now() }), {
+      flag: "wx",
+      mode: 0o600,
+    })
+  } catch (e) {
+    // EEXIST = a duplicate reader already won this state (replay). Any
+    // other IO trouble is fail-closed the same way: the record is already
+    // consumed (source renamed away), so the flow must restart either way.
+    if (!(e instanceof Error && "code" in e && (e as NodeJS.ErrnoException).code === "EEXIST")) {
+      log.warn("trakt oauth state witness failed")
+    }
+    return null
+  }
+  return raw
 }
 
 /** Opportunistic reaping of expired state files (best-effort, never throws). */
@@ -290,6 +334,21 @@ async function sweepExpiredFileStates(now: number): Promise<void> {
     for (const entry of entries) {
       if (checked++ > 100) break
       const full = path.join(dir, entry)
+      if (/^[A-Za-z0-9_-]{43}\.consumed$/.test(entry)) {
+        // Single-use witness whose state is long consumed (or a duplicate
+        // claim that lost the witness race): reap past one TTL by mtime.
+        // Fresh witnesses MUST survive — a slow duplicate reader may still
+        // be in flight inside the race window, and reaping early would
+        // reopen it. Past-TTL readers can only ever see `expired`, never
+        // `ok`, so late reaping is safe.
+        try {
+          const st = await fsp.stat(full)
+          if (st.mtimeMs < now - TRAKT_OAUTH_STATE_TTL_MS) await fsp.unlink(full).catch(() => {})
+        } catch {
+          /* race: gone already */
+        }
+        continue
+      }
       if (/^[A-Za-z0-9_-]{43}\.json\.[0-9a-f]+\.claim$/.test(entry)) {
         // Orphaned claim (crash mid-consume): reap past one TTL by mtime.
         try {

@@ -326,7 +326,7 @@ test.describe("U4 U1 ribbon Standard/Colorato (defaults)", () => {
     await expect(dialog).toBeVisible()
     // Default tab is Preset: the rank appearance lives on Classifiche.
     await dialog.getByRole("tab", { name: "Classifiche", exact: true }).click()
-    const badgePanel = dialog.getByRole("tabpanel", { name: "Badge" })
+    const badgePanel = dialog.getByRole("tabpanel", { name: "Badge", exact: true })
     await expect(badgePanel).toBeVisible()
 
     const formatTarget = dialog.getByTestId("format-target-selector")
@@ -444,7 +444,7 @@ test.describe("U4 U1 ribbon Standard/Colorato (per-title)", () => {
     await page.getByText(/Avatar/i).first().click()
     await expect(page.getByRole("heading", { name: "Anteprima" })).toBeVisible({ timeout: 10_000 })
 
-    const badgeTab = page.getByRole("tab", { name: "Badge" })
+    const badgeTab = page.getByRole("tab", { name: "Badge", exact: true })
     await badgeTab.click()
     await expect(badgeTab).toHaveAttribute("aria-selected", "true")
 
@@ -500,7 +500,7 @@ test.describe("U4 U2 contextual preview (defaults)", () => {
     await expect(dialog).toBeVisible()
     // Default tab is Preset: the extra style editor lives on Badge.
     await dialog.getByRole("tab", { name: "Badge", exact: true }).click()
-    const badgePanel = dialog.getByRole("tabpanel", { name: "Badge" })
+    const badgePanel = dialog.getByRole("tabpanel", { name: "Badge", exact: true })
     await expect(badgePanel).toBeVisible()
     const chip = dialog.getByTestId("defaults-preview-editing")
     await expect(chip).toBeVisible()
@@ -819,7 +819,7 @@ test.describe("U4 U3 number baseline (transport + slider)", () => {
     await expect(dialog).toBeVisible()
     // Default tab is Preset: the rank appearance lives on Classifiche.
     await dialog.getByRole("tab", { name: "Classifiche", exact: true }).click()
-    const badgePanel = dialog.getByRole("tabpanel", { name: "Badge" })
+    const badgePanel = dialog.getByRole("tabpanel", { name: "Badge", exact: true })
     await expect(badgePanel).toBeVisible()
 
     // Select Numero (saved write): preview carries rs=number, tox stays raw 0
@@ -860,7 +860,7 @@ test.describe("U4 U3 number baseline (transport + slider)", () => {
     // Other styles read the raw value (baseline 0): back to Classifiche,
     // select a centered Badge variant — the stored +10 shows unshifted.
     await dialog.getByRole("tab", { name: "Classifiche", exact: true }).click()
-    const badgeBack = dialog.getByRole("tabpanel", { name: "Badge" })
+    const badgeBack = dialog.getByRole("tabpanel", { name: "Badge", exact: true })
     await expect(badgeBack).toBeVisible()
     await badgeBack
       .getByRole("radiogroup", { name: "Classifica" })

@@ -150,7 +150,7 @@ test.describe("Button interactions and immediate updates", () => {
     await page.getByRole("tab", { name: "Badge", exact: true }).click()
     // Scope to the visible tabpanel: the inactive sections stay mounted +
     // hidden with their own copies of this heading earlier in DOM order.
-    const badgePanel = page.getByRole("tabpanel", { name: "Badge" })
+    const badgePanel = page.getByRole("tabpanel", { name: "Badge", exact: true })
     await expect(badgePanel).toBeVisible()
     await expect(badgePanel.getByText(/Stile badge predefinito/i)).toBeVisible()
 
@@ -242,7 +242,7 @@ test.describe("Button interactions and immediate updates", () => {
     expect(await blurToggle.getAttribute("aria-checked")).toBe(initialBlurChecked)
 
     // Switch back to Badge tab (il tab "Stile" non esiste più: rinominato Badge)
-    await page.getByRole("tab", { name: /Badge/i }).click()
+    await page.getByRole("tab", { name: "Badge", exact: true }).click()
 
     // T4 footer (staged-session era: no Fine button, no autosave). The
     // toggles above only staged the draft: the status names it, the single
@@ -281,7 +281,7 @@ test.describe("Button interactions and immediate updates", () => {
     }
 
     // Test Editor Right Panel Tabs (Loghi, Badge)
-    const badgeTab = page.getByRole("tab", { name: "Badge" })
+    const badgeTab = page.getByRole("tab", { name: "Badge", exact: true })
     const logoTab = page.getByRole("tab", { name: "Loghi" })
 
     await badgeTab.click()

@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest"
 import {
   badgeDesignSchema,
   badgePresetSchema,
+  buildPresetExportDocument,
   computePresetFullRevision,
   computePresetRevision,
   generateBadgePresetId,
@@ -209,5 +210,70 @@ describe("scaleBadgeDesign", () => {
 
   it("is identity at factor 1", () => {
     expect(scaleBadgeDesign(design, 1)).toEqual(design)
+  })
+})
+
+describe("buildPresetExportDocument", () => {
+  const draftBase = {
+    design,
+    house: { style: "pill", showGenre: true, showYear: true, showRating: true, scale: 100, polarity: "auto" as const },
+    target: "top" as const,
+    visibility: "private" as const,
+    name: "Export me",
+    description: "desc",
+    tags: ["gold"],
+    forkedFrom: null as string | null,
+  }
+
+  it("round-trips a custom preset (shape, text, colors, variant)", () => {
+    const doc = buildPresetExportDocument({ ...draftBase, variant: "custom", editingId: null, ownerUuid: null })
+    const parsed = badgePresetSchema.safeParse(doc)
+    expect(parsed.success).toBe(true)
+    if (!parsed.success) return
+    expect(parsed.data.variant).toBe("custom")
+    expect(parsed.data.design?.shape).toBe("pill")
+    expect(parsed.data.design?.text.template).toBe("★ {{rating}}")
+    expect(parsed.data.design?.text.color).toBe("#FFFFFF")
+    expect(parsed.data.design?.background.color).toBe("#FF0000")
+    expect(parsed.data.metadata.name).toBe("Export me")
+  })
+
+  it("round-trips a house preset (variant + house ref)", () => {
+    const doc = buildPresetExportDocument({ ...draftBase, variant: "house", editingId: "Abc123-_XyZ", ownerUuid: "123e4567-e89b-12d3-a456-426614174000" })
+    const parsed = badgePresetSchema.safeParse(doc)
+    expect(parsed.success).toBe(true)
+    if (!parsed.success) return
+    expect(parsed.data.variant).toBe("house")
+    expect(parsed.data.house?.style).toBe("pill")
+    expect(parsed.data.design).toBeUndefined()
+    expect(parsed.data.id).toBe("Abc123-_XyZ")
+  })
+
+  it("generates a valid id for unsaved work (never 'unsaved') and falls back the name", () => {
+    const doc = buildPresetExportDocument({ ...draftBase, variant: "custom", name: "   ", editingId: null, ownerUuid: null }) as {
+      id: string
+      ownerUuid: string
+      metadata: { name: string }
+    }
+    expect(doc.id).toMatch(/^[A-Za-z0-9_-]{12}$/)
+    expect(doc.id).not.toBe("unsaved")
+    expect(doc.ownerUuid).toBe("00000000-0000-0000-0000-000000000000")
+    expect(doc.metadata.name).toBe("preset")
+  })
+
+  it("round-trips a family-target house preset with appearance overrides", () => {
+    const doc = buildPresetExportDocument({
+      ...draftBase,
+      variant: "house",
+      target: "quality",
+      editingId: null,
+      ownerUuid: null,
+      house: { ...draftBase.house, style: "standard", appearance: { opacity: 90 } },
+    })
+    const parsed = badgePresetSchema.safeParse(doc)
+    expect(parsed.success).toBe(true)
+    if (!parsed.success) return
+    expect(parsed.data.target).toBe("quality")
+    expect(parsed.data.house?.appearance?.opacity).toBe(90)
   })
 })

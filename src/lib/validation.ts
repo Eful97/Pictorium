@@ -1,7 +1,7 @@
 import { z } from "zod"
 import { BADGE_STYLES, RANKING_BADGE_STYLES, QUALITY_BADGE_STYLES, AGE_BADGE_STYLES, BADGE_FONTS, SEPARATE_RATINGS_STYLES, EXTRA_BADGE_STYLES, EXTRA_BADGE_FOLLOW_RANK } from "./badge-styles"
 import { POSTER_LAYOUTS, POSTER_FRESH_SCOPES } from "./types"
-import { BADGE_PRESET_ID_RE, BADGE_PRESET_REV_RE } from "./badge-preset"
+import { BADGE_PRESET_ID_RE, BADGE_PRESET_REV_RE, badgeFamilyBindingsSchema, badgeFamilyFollowsSchema } from "./badge-preset"
 
 export const mappingSchema = z.object({
   tmdbId: z.number().int().positive(),
@@ -90,6 +90,16 @@ export const mappingSchema = z.object({
   customBadge: z.string().max(40).nullable().optional(),
   badgePresetId: z.string().regex(BADGE_PRESET_ID_RE).nullable().optional(),
   badgePresetRev: z.string().regex(BADGE_PRESET_REV_RE).nullable().optional(),
+  // Mappa per-family dei binding Badge Lab (fondazione: nessuna lettura nel
+  // renderer in questo task). Chiavi allowlist = BADGE_FAMILY_IDS, id/rev
+  // negli stessi formati del singleton, null per-family = clear esplicito,
+  // mappa null/assente = nessun override. Prototype key e famiglie ignote
+  // falliscono chiuse (mai strip silenziosi).
+  badgePresets: badgeFamilyBindingsSchema,
+  // Follow flag persistiti per il flat/portrait (G2 c1): sparse opt-in
+  // `true` = segue i default dello spazio (bypass pin flat + legacy per la
+  // forma). Assente = semantica legacy invariata. Solo `true` persiste.
+  badgePresetFollows: badgeFamilyFollowsSchema,
   releaseDate: z.string().nullable().optional(),
   firstAirDate: z.string().nullable().optional(),
   backdropPath: z.string().nullable().optional(),
@@ -210,6 +220,12 @@ export const mappingSchema = z.object({
     accentColor: z.string().regex(/^#[0-9a-fA-F]{3}([0-9a-fA-F]{3})?$/).nullable().optional(),
     badgePresetId: z.string().regex(BADGE_PRESET_ID_RE).nullable().optional(),
     badgePresetRev: z.string().regex(BADGE_PRESET_REV_RE).nullable().optional(),
+    // Profilo landscape della mappa per-family: stessi vincoli del flat
+    // (chiavi presenti — inclusa null — vincono sul flat, assenti = eredita).
+    badgePresets: badgeFamilyBindingsSchema,
+    // Follow flag persistiti per il landscape (G2 c1): `true` = la forma
+    // orizzontale segue i default (bypass profilo/flat/legacy per la forma).
+    badgePresetFollows: badgeFamilyFollowsSchema,
   }).nullable().optional(),
   networkLogoPath: z.string().nullable().optional(),
   networkLogoName: z.string().nullable().optional(),
@@ -332,6 +348,12 @@ export const posterQuerySchema = z.object({
   df: boundedQueryString(8),
   badgePreset: boundedQueryString(24),
   prv: boundedQueryString(8),
+  /** Sparse per-family bindings (single canonical `bp` encoding, bounded). */
+  bp: boundedQueryString(512),
+  /** Explicit follow intent per family (`bpf`: known ids comma-separated, bounded, no secrets). */
+  bpf: boundedQueryString(256),
+  /** Server-written authorized family targets (cache fragment, never client). */
+  bpt: boundedQueryString(384),
   netPos: boundedQueryString(8),
   // Segui-spazio: politica di rivalidazione (non forza render). Solo 0/1.
   live: z.enum(["0", "1"]).optional(),

@@ -268,6 +268,29 @@ export function getQualityBadgeOffsetDefault(
 }
 
 /**
+ * Live quality-badge offsets for a title WITHOUT a saved mapping (fresh
+ * open). Installs the effective space defaults (landscape profile in
+ * landscape, else the flat default) — never the mount-hydration leftovers.
+ * Without this the live keeps whatever hydration left (initial 0/0 on a
+ * first load, -10/+15 once localStorage persisted), so an unrelated re-save
+ * freezes factory defaults over the mapping's explicit values and the
+ * portrait render moves despite no portrait edit (F4: auth E2E
+ * `Buffer.compare(stremioPortrait, stremioPortrait2) === 0`). Same chain as
+ * the mapped branch (`eff ?? landDef ?? default`), minus the mapping layer.
+ * Pure (client-safe).
+ */
+export function resolveUnmappedQualityBadgeOffsets(
+  unmappedLand: { qualityBadgeOffsetX?: number | null; qualityBadgeOffsetY?: number | null } | null | undefined,
+  defaultQualityBadgeOffsetX: number,
+  defaultQualityBadgeOffsetY: number,
+): { qualityBadgeOffsetX: number; qualityBadgeOffsetY: number } {
+  return {
+    qualityBadgeOffsetX: unmappedLand?.qualityBadgeOffsetX ?? defaultQualityBadgeOffsetX,
+    qualityBadgeOffsetY: unmappedLand?.qualityBadgeOffsetY ?? defaultQualityBadgeOffsetY,
+  }
+}
+
+/**
  * Style-specific X baseline of rank numerals (`number` style): the bare
  * digits anchor 20 canvas px left of the shared corner (`cornerAnchoredLeft`),
  * on both sides and both shapes (left numerals edge outward, right numerals

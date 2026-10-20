@@ -7,6 +7,8 @@ import { parseMinQuality, type StreamQuality } from "@/lib/quality-tiers"
 import { normalizeSeasonalTheme } from "./seasonal-theme"
 import { parseSashOrder, isDefaultSashOrder, type SashBucket } from "@/lib/badge-priority"
 import { BADGE_PRESET_ID_RE, BADGE_PRESET_REV_RE } from "@/lib/badge-preset"
+import { encodeFamilyBpParam, encodeFamilyFollowParam } from "@/lib/badge-preset-family-transport"
+import type { BadgeFamilyBindings } from "@/lib/badge-preset"
 import type { PosterShape, PosterLayout, PosterFreshScope } from "@/lib/types"
 import { isPosterLayout } from "@/lib/types"
 import type { DateFormat } from "@/lib/release-badge"
@@ -206,6 +208,32 @@ export interface StremioPosterParamsInput {
   readonly badgePresetId?: string | null
   readonly badgePresetRev?: string | null
   /**
+   * Sparse per-family bindings for the EFFECTIVE shape (already merged
+   * flat+landscape by the caller). Emitted as the single canonical `bp`
+   * param (`fam:id[.rev]`, `fam:-` for explicit clears — clears MUST travel
+   * so a family cleared in the map is not resurrected from the legacy
+   * singleton server-side). Absent/empty stays absent: legacy URLs without
+   * a family map keep no `bp` and stay byte-identical. Low cardinality
+   * like bs/rs/xbs: stays explicit in compact mode, never inside `dv`.
+   */
+  readonly badgePresets?: BadgeFamilyBindings | null
+  /**
+   * Explicit follow intent per family (`bpf`): own `true` = follow the space
+   * settings for this shape. Bypasses query/mapped pins for those families
+   * (siblings keep their legacy path). Absent/empty = no query override.
+   */
+  readonly badgePresetFollows?: Partial<Record<import("@/lib/badge-preset").BadgeFamilyId, true>> | null
+  /**
+   * Cache-only GLOBAL family default map (shape-effective, never a per-title
+   * or config override). It is NEVER emitted as `bp`: a query value would
+   * outrank mapping/config server-side. It only enters the `dv` dependency
+   * signature so a change of the global map rotates browser/edge/Stremio even
+   * when the tuning numbers are identical. Absent/null keeps the historic
+   * `dv` bytes; non-null emits `dv` even outside compact mode (config URLs),
+   * where the numbers are explicit but the global map is still server-only.
+   */
+  readonly defaultsBadgePresets?: BadgeFamilyBindings | null
+  /**
    * Formato data badge "in uscita": emesso come `df` solo quando esplicito
    * (non-`locale`) — gli URL esistenti restano identici e la cache non si
    * invalida (il server risolve `locale` da solo).
@@ -287,6 +315,7 @@ const DEFAULT_STREMIO_POSTER_PARAMS = {
  */
 function tuningSignature(input: StremioPosterParamsInput): string {
   const D = DEFAULT_STREMIO_POSTER_PARAMS
+  const globalDefaultsBp = encodeFamilyBpParam(input.defaultsBadgePresets)
   const parts = [
     input.gradientHeight ?? D.gradientHeight,
     input.blurIntensity ?? D.blurIntensity,
@@ -323,6 +352,10 @@ function tuningSignature(input: StremioPosterParamsInput): string {
     input.logoScale ?? D.logoScale,
     input.logoOffsetX ?? D.logoOffsetX,
     input.logoOffsetY ?? D.logoOffsetY,
+    // Global family defaults: cache-only dependency appended ONLY when a map
+    // exists (canonical family/id/rev bytes, no arbitrary JSON). Absent keeps
+    // the historic signature bytes, so legacy compact URLs/cache stay valid.
+    ...(globalDefaultsBp ? [globalDefaultsBp] : []),
   ]
   let h = 0x811c9dc5
   const s = parts.join(",")
@@ -432,6 +465,16 @@ export function buildStremioPosterSearchParams(input: StremioPosterParamsInput):
       params.set("prv", input.badgePresetRev)
     }
   }
+  // Family map: canonical `bp` only when the effective shape carries own
+  // entries (explicit clears included). Absent/empty = no param (legacy).
+  const familyFollows = encodeFamilyFollowParam(input.badgePresetFollows);
+  if (familyFollows) {
+    params.set("bpf", familyFollows);
+  }
+  const familyBp = encodeFamilyBpParam(input.badgePresets)
+  if (familyBp) {
+    params.set("bp", familyBp)
+  }
   if (input.dateFormat && input.dateFormat !== "locale") {
     params.set("df", input.dateFormat)
   }
@@ -496,8 +539,12 @@ export function buildStremioPosterSearchParams(input: StremioPosterParamsInput):
   }
   // dv: firma del tuning quando è omesso (compact) — senza, un cambio default
   // lascerebbe URL identici e cache stantie ovunque (browser/edge/Stremio).
-  // Con tuning esplicito (template, ?config=) i valori invalidano da soli.
-  if (input.compactTuning) params.set("dv", tuningSignature(input))
+  // Con tuning esplicito (template, ?config=) i valori invalidano da soli,
+  // TRANNE la global family map: resta server-only anche lì, quindi la sua
+  // presenza emette `dv` anche fuori da compact (stessi byte senza mappa).
+  if (input.compactTuning || encodeFamilyBpParam(input.defaultsBadgePresets)) {
+    params.set("dv", tuningSignature(input))
+  }
   params.set("bs", input.badgeStyle || DEFAULT_STREMIO_POSTER_PARAMS.badgeStyle)
   params.set("rs", input.rankingBadgeStyle || DEFAULT_STREMIO_POSTER_PARAMS.rankingBadgeStyle)
   // Standalone extra style: opt-in only (absent = legacy `rs` fallback,

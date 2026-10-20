@@ -5,7 +5,8 @@ import { getQualityBadgeOffsetDefault, isExtraBadgeStyle, isExtraFollowRank } fr
 import { isRankKey } from "@/lib/i18n"
 import type { ServerDefaults } from "@/lib/server-defaults"
 import { effectiveDefaultsForShape } from "@/lib/server-defaults"
-import { effectiveMappingForShape, isPosterShape, type Mapping, type PosterShape } from "@/lib/types"
+import { effectiveFamilyFollows, effectiveMappingForShape, isPosterShape, type Mapping, type PosterShape } from "@/lib/types"
+import type { BadgeFamilyBindings } from "@/lib/badge-preset"
 import { NON_CLEAN_GRADIENT_HEIGHT, NON_CLEAN_BLUR_FADE } from "@/lib/gradient-defaults"
 import {
   resolveEffectiveNetworkFollow,
@@ -52,6 +53,18 @@ export interface BuildStremioPosterUrlInput {
    * normalize to absent (unframed).
    */
   readonly seasonalTheme?: SeasonalTheme | string | null
+  /**
+   * Shape-effective GLOBAL family default map (never a config/per-title
+   * override). It is CACHE-ONLY: it feeds the `dv` dependency signature so
+   * browser/edge/Stremio rotate when the global map changes, but it is never
+   * emitted as `bp` — a query `bp` would outrank mapping/config server-side
+   * and invert the resolver precedence. Callers whose `defaults` object is
+   * already merged with a config token (catalog/meta) MUST pass the pure
+   * shape-effective server defaults here so a token map cannot masquerade as
+   * a global default. Omitted = falls back to `sd.badgePresets` (plain
+   * defaults input).
+   */
+  readonly defaultsBadgePresets?: BadgeFamilyBindings | null
 }
 
 export function mappingVersionParam(mapping: Mapping | null | undefined): string | null {
@@ -227,6 +240,34 @@ export function buildStremioPosterUrl(input: BuildStremioPosterUrlInput): URL {
     // vedi effectiveMappingForShape). Legacy senza profilo = flat invariato.
     badgePresetId: eff?.badgePresetId,
     badgePresetRev: eff?.badgePresetRev,
+    // Family map: ONLY the effective per-title map travels as `bp`. Global
+    // defaults stay server-resolved (mapping > config > defaults) — emitting
+    // them here would make a query override shadow a mapped legacy singleton
+    // or config token, inverting the server precedence. Their only URL role is
+    // the cache-only `dv` dependency below, so a defaults change still rotates
+    // browser/edge/Stremio without changing a pixel decision.
+    badgePresets: (() => {
+      const follows = effectiveFamilyFollows(mapping, effShape);
+      const raw = eff?.badgePresets as Record<string, unknown> | null | undefined;
+      if (!raw || typeof raw !== "object") return undefined;
+      let stripped = false;
+      const out: Record<string, unknown> = { ...(raw as Record<string, unknown>) };
+      for (const f of Object.keys(follows)) {
+        if (Object.prototype.hasOwnProperty.call(out, f)) { delete out[f]; stripped = true; }
+      }
+      void stripped;
+      return Object.keys(out).length > 0 ? (out as never) : undefined;
+    })(),
+    badgePresetFollows: (() => {
+      const follows = effectiveFamilyFollows(mapping, effShape);
+      return Object.keys(follows).length > 0 ? (follows as never) : undefined;
+    })(),
+    // Cache-only dependency (see StremioPosterParamsInput): never a pixel
+    // override. Catalog/meta pass the pure shape-effective server map; other
+    // callers inherit the shape-effective defaults input.
+    defaultsBadgePresets: input.defaultsBadgePresets !== undefined
+      ? input.defaultsBadgePresets
+      : sd.badgePresets,
     dateFormat: sd.dateFormat ?? undefined,
     title: mapping?.title ?? undefined,
     networkLogo: eff?.networkLogo ?? sd.networkLogo,

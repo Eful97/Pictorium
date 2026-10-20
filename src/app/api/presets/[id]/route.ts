@@ -47,6 +47,14 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
   if (!isBadgePresetId(id)) return Response.json({ error: "Invalid preset id" }, { status: 400 })
   const stored = await getPresetForUser(id, scoped ?? "")
   if (!stored) return Response.json({ error: "not found" }, { status: 404 })
+  // Privati: solo il proprietario autenticato. `?u=` da solo identifica lo
+  // spazio ma non autentica (stesso pattern della route download): senza
+  // questo gate chiunque conosca l'UUID leggerebbe i privati. 404 uniforme
+  // per anonimo/estraneo (nessun oracolo esistenza/contenuto).
+  if (stored.preset.visibility !== "public") {
+    const authed = !!scoped && stored.preset.ownerUuid === scoped && (await checkUserAuth(req, scoped))
+    if (!authed) return Response.json({ error: "not found" }, { status: 404 })
+  }
   // Pubblici immutabili-per-revision: cachabili. Privati: mai in cache.
   const cache =
     stored.preset.visibility === "public"
@@ -75,6 +83,12 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<RouteP
   }
   try {
     const stored = await updatePreset(scoped, id, (body ?? {}) as Parameters<typeof updatePreset>[2])
+    // Chiude la finestra cache sul flip di visibilità/contenuto (la revision
+    // non copre la visibilità: senza, un preset reso privato resterebbe
+    // servibile fino al TTL). Import dinamico: i path di lettura non
+    // trascinano il peso di poster-service.
+    const { invalidatePresetJsonCache } = await import("@/lib/poster-service")
+    invalidatePresetJsonCache(stored.preset.id)
     return Response.json(stored)
   } catch (e) {
     if (e instanceof PresetNotFoundError) return Response.json({ error: "not found" }, { status: 404 })
@@ -99,6 +113,8 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<Rou
   try {
     const deleted = await deletePreset(scoped, id)
     if (!deleted) return Response.json({ error: "not found" }, { status: 404 })
+    const { invalidatePresetJsonCache } = await import("@/lib/poster-service")
+    invalidatePresetJsonCache(id)
     return Response.json({ ok: true })
   } catch (e) {
     if (e instanceof PresetForbiddenError) return Response.json({ error: "forbidden" }, { status: 403 })

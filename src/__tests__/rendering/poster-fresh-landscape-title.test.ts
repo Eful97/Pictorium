@@ -101,14 +101,15 @@ const BEFORE_LAND_UNRANKED_100 = "d7cca9877d1cb5c917c74e1fd23bfeb0b7a20b634bc7c7
 // code, proving no other drift). The 80-era pins are kept as BEFORE_* guards
 // below: explicit stored 80 values must keep rendering those exact bytes.
 const BEFORE_PORTRAIT_RANKED_TASK12 = "4b9eb8bb8dd2ec4383d037cc60ac15601b5f6950af629ac24b5a307e7fd4e218"
-const BEFORE_STANDARD_PORTRAIT = "61f7a700437eb2915d23ca1a893819ee1b98603c624ad937cdffed4c7e07deee"
-const BEFORE_STANDARD_LANDSCAPE = "14de4e5e55dc08e13fca59ada9bdee02530be7719540dcb1dd62f35434d3614e"
+const BEFORE_STANDARD_PORTRAIT = "1b459a3088c324d6e8fca8dac6d19f98caebd1c36a8f61aea2cec8dfd202b2ad"
+const BEFORE_STANDARD_LANDSCAPE = "5284d87a99d680223a9059fa4c5b8d0b649b604dc2cc23c84c0681eadecbce8e"
+// F2 re-pin (user-authorized genre clip fix — see poster-fresh-centered-title.test.ts).
 // Explicit topShade 50 pins (demonstrated 50-default bytes for the exact
 // fixtures above — identical inputs/bytes as
 // poster-fresh-centered-title.test.ts and poster-fresh-unranked.test.ts).
 const LEGACY_TOP_SHADE_50_PORTRAIT_RANKED = "4d63ec4be614332c9dbd8d8af48aff95f463d321039b3728e687f2bcb81224b1"
-const LEGACY_TOP_SHADE_50_STANDARD_PORTRAIT = "2a66d52502b85186cb9c194601700b651b4c6c0b113e3316dba58c936e28a2a3"
-const LEGACY_TOP_SHADE_50_STANDARD_LANDSCAPE = "3bcfe823d2a6bee45c475b0dfe15b5483bd3289c4e235b0392555c9464b857ab"
+const LEGACY_TOP_SHADE_50_STANDARD_PORTRAIT = "871a9e3b708b548b773f4a50ce15b4456dc68a28cae8f5859b7435e9e006a33b"
+const LEGACY_TOP_SHADE_50_STANDARD_LANDSCAPE = "3752542adf9ab56343dcb83df519b022c1083751aff1e7f52dd9ad669dd4f0c9"
 
 function sha(buf: Buffer): string {
   return createHash("sha256").update(buf).digest("hex")

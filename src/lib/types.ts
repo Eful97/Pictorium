@@ -1,4 +1,5 @@
 import type { BadgeStyle, RankingBadgeStyle, QualityBadgeStyle, BadgeFont, SeparateRatingsStyle, ExtraBadgeStyle, ExtraBadgeFollowRank, AgeBadgeStyle } from "./badge-styles"
+import type { BadgeFamilyBindings, BadgeFamilyFollows } from "./badge-preset"
 import type { VideoFormat } from "./av-specs"
 /** Formato canvas del poster: verticale standard o orizzontale 16:9 (Nuvio). */
 export type PosterShape = "poster" | "landscape"
@@ -192,6 +193,23 @@ export interface Mapping {
   customBadge?: string | null
   badgePresetId?: string | null
   badgePresetRev?: string | null
+  /**
+   * Per-family Badge Lab bindings (foundation data model; no renderer
+   * consumption yet). Sparse map family -> {id, rev} | null: absent key =
+   * inherit/no override, present null = explicit clear for that family
+   * (never clears siblings). Flat = portrait fallback for the landscape
+   * profile (merged per family, see effectiveMappingForShape).
+   */
+  badgePresets?: BadgeFamilyBindings | null
+  /**
+   * Persisted per-family follow flags for the FLAT (portrait) shape (G2
+   * correction c1). Sparse opt-in: present `true` = portrait explicitly
+   * follows the space settings for the family, bypassing any stored flat pin
+   * AND the legacy singleton for that family. Absent key/null/undefined =
+   * legacy semantics (inherit, old mappings byte-identical). Only `true`
+   * persists; client `__follow__` markers never serialize here.
+   */
+  badgePresetFollows?: BadgeFamilyFollows | null
   releaseDate?: string | null
   firstAirDate?: string | null
   rankingBadges?: boolean | null
@@ -463,6 +481,20 @@ export interface LandscapeSettings {
   badgePresetId?: string | null
   /** Vedi sopra (revisione FNV-1a 8 hex del preset). */
   badgePresetRev?: string | null
+  /**
+   * Profilo landscape della mappa per-family (stessa semantica del flat:
+   * merge per family col flat, chiave presente — inclusa null — vince,
+   * assente = eredita il flat; mappa null/assente = eredita il flat).
+   */
+  badgePresets?: BadgeFamilyBindings | null
+  /**
+   * Persisted landscape follow flags (G2 correction c1): present `true` =
+   * the landscape shape explicitly follows the space settings for the
+   * family, bypassing profile pin, flat pin AND the legacy singleton for
+   * that shape. Absent = inherit (profile pin wins, else flat follows flag).
+   * Only `true` persists; never `__follow__` markers or id values.
+   */
+  badgePresetFollows?: BadgeFamilyFollows | null
 }
 
 /**
@@ -479,7 +511,8 @@ export interface LandscapeSettings {
  * Il binding preset è atomico a coppia: se UNA tra `badgePresetId`/
  * `badgePresetRev` è presente nel profilo, ENTRAMBE le effettive vengono dal
  * profilo (lato mancante = null, mai il flat) così id/rev non si mescolano
- * mai tra le forme; entrambe assenti = coppia flat.
+ * mai tra le forme; entrambe assenti = coppia flat. La mappa per-family
+ * `badgePresets` fonde invece chiave-per-chiave (vedi mergeBadgePresetsField).
  */
 export function effectiveMappingForShape(mapping: Mapping | null, shape: PosterShape): Mapping | null {
   if (!mapping || shape !== "landscape" || !mapping.landscape) return mapping
@@ -493,6 +526,7 @@ export function effectiveMappingForShape(mapping: Mapping | null, shape: PosterS
     accentColor: l.accentColor !== undefined ? l.accentColor : mapping.accentColor,
     badgePresetId: landOwnsPresetPair ? (l.badgePresetId ?? null) : mapping.badgePresetId,
     badgePresetRev: landOwnsPresetPair ? (l.badgePresetRev ?? null) : mapping.badgePresetRev,
+    badgePresets: mergeBadgePresetsField(mapping.badgePresets, l.badgePresets),
     logoScale: l.logoScale ?? mapping.logoScale,
     logoOffsetX: l.logoOffsetX ?? mapping.logoOffsetX,
     logoOffsetY: l.logoOffsetY ?? mapping.logoOffsetY,
@@ -549,6 +583,71 @@ export function effectiveMappingForShape(mapping: Mapping | null, shape: PosterS
     networkLogoPosition: l.networkLogoPosition ?? mapping.networkLogoPosition,
     ribbonEnabled: l.ribbonEnabled ?? mapping.ribbonEnabled,
   }
+}
+
+/**
+ * Merge per-family del profilo landscape: ogni chiave presente nel profilo
+ * (inclusa null = clear esplicito) vince sul flat, assente = eredita il
+ * flat. Mappa profilo null/assente/non-oggetto = eredita il flat. Lo spread
+ * definisce own-properties (mai prototype pollution); chiavi ignote al
+ * runtime vengono ignorate dal resolver e rifiutate in validazione.
+ */
+export function mergeBadgePresetsField(
+  flat: Mapping["badgePresets"],
+  land: LandscapeSettings["badgePresets"],
+): Mapping["badgePresets"] {
+  if (!land || typeof land !== "object") return flat
+  return { ...(flat ?? {}), ...land }
+}
+
+/**
+ * Effective per-shape follow flags (G2 correction c1, pure, never throws).
+ *
+ * Portrait: the flat flag set. Landscape: profile `true` wins; a profile
+ * own map entry (binding or explicit null clear) pins the shape and shadows
+ * an inherited flat follow; otherwise the flat flag is inherited. Unknown
+ * shapes fail closed to no follows.
+ */
+export function effectiveFamilyFollows(
+  mapping: Mapping | null | undefined,
+  shape: PosterShape,
+): Partial<Record<import("./badge-preset").BadgeFamilyId, true>> {
+  const out: Partial<Record<import("./badge-preset").BadgeFamilyId, true>> = {}
+  if (!mapping || typeof mapping !== "object") return out
+  const flat = mapping.badgePresetFollows
+  const flatSet = new Set<string>()
+  if (flat && typeof flat === "object" && !Array.isArray(flat)) {
+    for (const k of Object.keys(flat)) {
+      if ((flat as Record<string, unknown>)[k] === true) flatSet.add(k)
+    }
+  }
+  if (shape !== "landscape") {
+    for (const f of flatSet) (out as Record<string, true>)[f] = true
+    return out
+  }
+  const land = mapping.landscape
+  const landFollows: Record<string, unknown> =
+    land && typeof land === "object" && !Array.isArray(land) &&
+    (land as Record<string, unknown>).badgePresetFollows &&
+    typeof (land as Record<string, unknown>).badgePresetFollows === "object"
+      ? ((land as Record<string, unknown>).badgePresetFollows as Record<string, unknown>)
+      : {}
+  const landMap: Record<string, unknown> =
+    land && typeof land === "object" && !Array.isArray(land) &&
+    (land as Record<string, unknown>).badgePresets &&
+    typeof (land as Record<string, unknown>).badgePresets === "object"
+      ? ((land as Record<string, unknown>).badgePresets as Record<string, unknown>)
+      : {}
+  const seen = new Set<string>([...flatSet, ...Object.keys(landFollows)])
+  for (const f of seen) {
+    if (landFollows[f] === true) {
+      (out as Record<string, true>)[f] = true
+      continue
+    }
+    if (Object.prototype.hasOwnProperty.call(landMap, f)) continue
+    if (flatSet.has(f)) (out as Record<string, true>)[f] = true
+  }
+  return out
 }
 
 export type CustomCatalogType = "movie" | "series" | "mixed"

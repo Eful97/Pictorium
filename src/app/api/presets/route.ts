@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server"
 import { ZodError } from "zod"
 import { rateLimit, rateLimitKey, rateLimitResponse } from "@/lib/rate-limit"
+import { BADGE_TARGETS, isCommunityTargetMatch } from "@/lib/badge-preset"
 import {
   checkUserAuth,
   getScopedUserId,
@@ -61,8 +62,8 @@ export async function GET(req: NextRequest) {
   }
   const sort = sortParam as PublicPresetSort
   const targetParam = sp.get("target")
-  if (targetParam !== null && targetParam !== "top" && targetParam !== "genre") {
-    return Response.json({ error: "Invalid target (top|genre)" }, { status: 400 })
+  if (targetParam !== null && !(BADGE_TARGETS as readonly string[]).includes(targetParam)) {
+    return Response.json({ error: `Invalid target (${BADGE_TARGETS.join("|")})` }, { status: 400 })
   }
   const tagParam = sp.get("tag")
   const tag = tagParam === null ? null : slugifyPresetTag(tagParam)
@@ -81,7 +82,10 @@ export async function GET(req: NextRequest) {
     const page = await listPublicPresets(sort, Math.min(50, limit - items.length + 10), nextCursor)
     scanned += 50
     for (const item of page.items) {
-      if (targetParam && item.preset.target !== targetParam) continue
+      // Single-Classifica discovery: the visible `rank` filter also matches
+      // stored legacy `top`-slot presets (same top slot); every other filter
+      // stays an exact match and `?target=top` keeps working verbatim.
+      if (targetParam && !isCommunityTargetMatch(targetParam, item.preset.target)) continue
       if (tag && !item.preset.metadata.tags.includes(tag)) continue
       if (q) {
         const hay = `${item.preset.metadata.name} ${item.preset.metadata.description ?? ""}`.toLowerCase()

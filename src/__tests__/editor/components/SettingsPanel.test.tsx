@@ -111,7 +111,7 @@ beforeEach(() => {
 })
 
 describe("SettingsPanel five-tab navigation", () => {
-  it("shows five primary tabs in order with Preset first and selected by default", async () => {
+  it("shows six primary tabs in order with Preset first and selected by default", async () => {
     renderPanel()
     await screen.findByTestId("presets-panel")
     const tabs = primaryTabs()
@@ -120,6 +120,7 @@ describe("SettingsPanel five-tab navigation", () => {
       "ui.settingsTabRankings",
       "ui.settingsTabInformation",
       "ui.settingsTabBadge",
+      "ui.labTitle",
       "ui.settingsTabTransform",
     ])
     expect(tabs[0]).toHaveAttribute("aria-selected", "true")
@@ -129,7 +130,7 @@ describe("SettingsPanel five-tab navigation", () => {
   it("secondary Prefs/Data links live outside the primary tablist; Space only with content", async () => {
     const { container } = renderPanel()
     await screen.findByTestId("presets-panel")
-    expect(primaryTabs()).toHaveLength(5)
+    expect(primaryTabs()).toHaveLength(6)
     // Catalogs leads the secondary row, directly after the Transform primary tab.
     const secondaryIds = Array.from(
       container.querySelectorAll('[data-testid^="settings-secondary-"]'),
@@ -170,7 +171,7 @@ describe("SettingsPanel five-tab navigation", () => {
     renderPanel()
     await screen.findByTestId("presets-panel")
     const space = await screen.findByTestId("settings-secondary-spazio")
-    expect(primaryTabs()).toHaveLength(5)
+    expect(primaryTabs()).toHaveLength(6)
     fireEvent.click(space)
     expect(await screen.findByText("ui.userSpaceOr")).toBeInTheDocument()
     resetGuestGuardForTests()
@@ -186,7 +187,7 @@ describe("SettingsPanel five-tab navigation", () => {
     expect(groups).toEqual(["ui.settingsGroupPrimary", "ui.settingsGroupSecondary"])
     // Full navigation order: Catalogs directly after Transform, before Prefs/Data.
     const values = Array.from(select.querySelectorAll("option")).map((o) => o.getAttribute("value"))
-    expect(values).toEqual(["preset", "rankings", "information", "badge", "transform", "catalogs", "prefs", "data"])
+    expect(values).toEqual(["preset", "rankings", "information", "badge", "badgelab", "transform", "catalogs", "prefs", "data"])
   })
 
   it("does not render API key inputs", async () => {

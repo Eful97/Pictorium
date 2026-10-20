@@ -3,7 +3,7 @@
 // Unknown or missing tokens resolve to "" (never echoed back, never executed).
 // ---------------------------------------------------------------------------
 
-export const BADGE_PRESET_VARIABLES = ["rating", "year", "genre", "rank", "imdb", "tmdb"] as const
+export const BADGE_PRESET_VARIABLES = ["rating", "year", "genre", "rank", "imdb", "tmdb", "quality", "age", "network", "comingSoon"] as const
 export type BadgePresetVariable = (typeof BADGE_PRESET_VARIABLES)[number]
 
 export interface BadgeVariableContext {
@@ -13,6 +13,14 @@ export interface BadgeVariableContext {
   rank?: string | number | null
   imdb?: string | number | null
   tmdb?: string | number | null
+  /** Live streaming tier for technical quality previews (additive: existing templates unaffected). */
+  quality?: string | null
+  /** Live age certification label for technical age previews (additive). */
+  age?: string | null
+  /** Live matched network name for technical network previews (additive). */
+  network?: string | null
+  /** Live localized pre-digital label for technical comingSoon previews (additive). */
+  comingSoon?: string | null
 }
 
 const TOKEN_RE = /\{\{\s*([A-Za-z0-9_]+)\s*\}\}/g
@@ -32,6 +40,14 @@ function tokenValue(token: string, ctx: BadgeVariableContext): string {
       return ctx.imdb === null || ctx.imdb === undefined || ctx.imdb === "" ? "" : String(ctx.imdb)
     case "tmdb":
       return ctx.tmdb === null || ctx.tmdb === undefined || ctx.tmdb === "" ? "" : String(ctx.tmdb)
+    case "quality":
+      return ctx.quality ?? ""
+    case "age":
+      return ctx.age ?? ""
+    case "network":
+      return ctx.network ?? ""
+    case "comingSoon":
+      return ctx.comingSoon ?? ""
     default:
       return ""
   }

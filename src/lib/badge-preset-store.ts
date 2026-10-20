@@ -196,6 +196,17 @@ function presetFilePath(): string {
 const fileCache = new Map<string, PresetFileDoc>()
 let fileMutex: Promise<void> = Promise.resolve()
 
+/**
+ * F5: opt-in transient-rename policy, preset store ONLY (other
+ * atomicWriteFile callers keep the legacy single attempt). Attempts: 1
+ * initial + 4 retries; delay: 25ms fixed. Worst-case added latency <=100ms
+ * and only on the already-failing path; success path is a single rename.
+ */
+const PRESET_STORE_RENAME_RETRY: { attempts: number; delayMs: number } = {
+  attempts: 5,
+  delayMs: 25,
+}
+
 function withFileLock<T>(run: () => Promise<T>): Promise<T> {
   const next = fileMutex.then(run)
   fileMutex = next.then(
@@ -246,7 +257,14 @@ async function writeFileDoc(doc: PresetFileDoc): Promise<void> {
   const file = presetFilePath()
   fileCache.set(file, doc)
   await fsp.mkdir(path.dirname(file), { recursive: true })
-  await atomicWriteFile(file, JSON.stringify(doc))
+  // F5: bounded same-tmp retry for transient Windows share-locks (EPERM/
+  // EBUSY/EACCES when a reader holds the target open mid-rename). Budget:
+  // 1 + 4 retries x 25ms = <=100ms worst case, zero added latency when the
+  // first rename succeeds (common case). Exhaustion stays fail-closed in
+  // atomicWriteFile (tmp cleaned, last-good target intact, error surfaces).
+  await atomicWriteFile(file, JSON.stringify(doc), {
+    renameRetry: PRESET_STORE_RENAME_RETRY,
+  })
 }
 
 // --- Letture interne (raw, senza join download) ----------------------------

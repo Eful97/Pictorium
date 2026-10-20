@@ -159,7 +159,7 @@ describe("five-tab homes", () => {
     const { ctx } = renderSettingsWithProbe()
     const before = snapshotDefaults(ctx())
     const storedBefore = localStorage.getItem("badgeDefaults")
-    for (const name of ["ui.settingsTabRankings", "ui.settingsTabInformation", "ui.settingsTabBadge", "ui.settingsTabTransform", "ui.settingsTabPreset"]) {
+    for (const name of ["ui.settingsTabRankings", "ui.settingsTabInformation", "ui.settingsTabBadge", "ui.labTitle", "ui.settingsTabTransform", "ui.settingsTabPreset"]) {
       openTab(name)
     }
     expect(snapshotDefaults(ctx())).toBe(before)

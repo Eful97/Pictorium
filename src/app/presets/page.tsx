@@ -11,6 +11,7 @@ import {
   presetPreviewUrl,
   type PresetListItem,
 } from "@/lib/presets-client"
+import { LAB_VISIBLE_TARGETS, type BadgeTarget } from "@/lib/badge-preset"
 
 export default function PresetsPage() {
   const [, setLangTick] = useState(0)
@@ -18,7 +19,7 @@ export default function PresetsPage() {
   const [sort, setSort] = useState<"downloads" | "newest">("downloads")
   const [q, setQ] = useState("")
   const [tag, setTag] = useState("")
-  const [target, setTarget] = useState<"" | "top" | "genre">("")
+  const [target, setTarget] = useState<"" | BadgeTarget>("")
   const [items, setItems] = useState<PresetListItem[]>([])
   const [nextCursor, setNextCursor] = useState<number | null>(null)
   const [loading, setLoading] = useState(true)
@@ -125,13 +126,17 @@ export default function PresetsPage() {
           </select>
           <select
             value={target}
-            onChange={(e) => setTarget(e.target.value as "" | "top" | "genre")}
+            onChange={(e) => setTarget(e.target.value as "" | BadgeTarget)}
             className="editor-input px-2 py-1.5 cursor-pointer text-xs"
             aria-label={t("ui.presetsTarget")}
           >
             <option value="">{t("ui.presetsAllTargets")}</option>
-            <option value="top">top</option>
-            <option value="genre">genre</option>
+            {/* Single Classifica: the legacy `top` slot alias is not offered;
+                the `rank` filter also matches stored `top` presets server-side
+                (see `isCommunityTargetMatch`), so nothing is hidden. */}
+            {LAB_VISIBLE_TARGETS.map((tg) => (
+              <option key={tg} value={tg}>{tg}</option>
+            ))}
           </select>
           <input
             value={q}

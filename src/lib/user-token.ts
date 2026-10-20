@@ -160,6 +160,43 @@ export function hasStoredCredential(uuid: string): boolean {
   return !!getStoredUserToken(uuid) || !!getStoredUserPassword(uuid)
 }
 
+/**
+ * Bounded wait for the memory-only session unlock of a namespace (pure
+ * client, no I/O): resolves `true` immediately when already unlocked, else
+ * on the matching `pictorium:user-unlock` event, else `false` on timeout
+ * (never rejects, never hangs the caller past `timeoutMs`).
+ *
+ * Needed by full-load landings like the Lab "Use for title" handoff return:
+ * `location.assign` drops the memory session, the unlock modal opens by
+ * design, and owner-gated follow-ups (preset fetch) must wait for the user
+ * to unlock instead of failing instantly while the modal is still open.
+ */
+export function waitForUserUnlock(
+  uuid: string | null | undefined,
+  timeoutMs = 60_000,
+): Promise<boolean> {
+  if (typeof window === "undefined") return Promise.resolve(false)
+  if (isUserUnlocked(uuid)) return Promise.resolve(true)
+  const want = typeof uuid === "string" ? uuid.trim().toLowerCase() : ""
+  if (!want) return Promise.resolve(false)
+  return new Promise<boolean>((resolve) => {
+    let done = false
+    const finish = (value: boolean): void => {
+      if (done) return
+      done = true
+      window.clearTimeout(timer)
+      window.removeEventListener(USER_UNLOCK_EVENT, onUnlock)
+      resolve(value)
+    }
+    const onUnlock = (e: Event): void => {
+      const id = (e as CustomEvent<{ uuid?: string }>).detail?.uuid
+      if (typeof id === "string" && id.trim().toLowerCase() === want) finish(true)
+    }
+    const timer = window.setTimeout(() => finish(false), Math.max(0, timeoutMs))
+    window.addEventListener(USER_UNLOCK_EVENT, onUnlock)
+  })
+}
+
 /** Header auth per il namespace: secret oppure password di sessione. */
 export function userAuthHeaders(uuid: string): Record<string, string> {
   const token = getStoredUserToken(uuid)

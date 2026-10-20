@@ -5,9 +5,11 @@ import {
   normalizeHouseBadge,
 } from "@/lib/badge-preset"
 import {
+  applyFillOpacity,
   buildHouseGenreSvg,
   buildHousePresetSvg,
   buildNetflixRankBadgeSVG,
+  HOUSE_EXTRA_PREVIEW_LABEL,
 } from "@/lib/badge-svg-shared"
 import {
   BADGE_PRESET_TEMPLATES,
@@ -18,6 +20,121 @@ import {
 const MOCK = { rating: "8.5", year: "2024", genre: "Dramma", rank: "3" } as const
 const DARK = { topLight: false, bottomLight: false, accentColor: "#555555", side: "left" } as const
 
+describe("house text overrides", () => {
+  const genreBase = {
+    variant: "house" as const,
+    target: "genre" as const,
+    house: { style: "pill", showGenre: true, showYear: true, showRating: true, scale: 100, polarity: "auto" as const },
+  }
+  const topBase = {
+    variant: "house" as const,
+    target: "top" as const,
+    house: { style: "pill", scale: 100, polarity: "auto" as const },
+  }
+
+  it("absent overrides render the recipe result (byte-identical)", () => {
+    const plain = buildHousePresetSvg(genreBase, MOCK, 380, DARK)
+    const explicitAuto = buildHousePresetSvg(
+      { ...genreBase, house: { ...genreBase.house, fontSize: undefined, textColor: undefined } },
+      MOCK,
+      380,
+      DARK,
+    )
+    expect(plain?.svg).toBe(explicitAuto?.svg)
+    const topPlain = buildHousePresetSvg(topBase, MOCK, 380, DARK)
+    const topAuto = buildHousePresetSvg(
+      { ...topBase, house: { ...topBase.house, fontSize: undefined, textColor: undefined } },
+      MOCK,
+      380,
+      DARK,
+    )
+    expect(topPlain?.svg).toBe(topAuto?.svg)
+  })
+
+  it("fontSize changes geometry, textColor changes fill (genre + top)", () => {
+    const base = buildHousePresetSvg(genreBase, MOCK, 380, DARK)
+    const small = buildHousePresetSvg(
+      { ...genreBase, house: { ...genreBase.house, fontSize: 16 } },
+      MOCK,
+      380,
+      DARK,
+    )
+    expect(small?.svg).not.toBe(base?.svg)
+    expect(small?.svg).toContain('font-size="16"')
+    expect(small?.h).toBeLessThan(base?.h ?? 0)
+    const tinted = buildHousePresetSvg(
+      { ...genreBase, house: { ...genreBase.house, textColor: "#123456" } },
+      MOCK,
+      380,
+      DARK,
+    )?.svg ?? ""
+    expect(tinted).not.toBe(base?.svg)
+    expect(tinted).toContain("#123456")
+
+    const topBaseSvg = buildHousePresetSvg(topBase, MOCK, 380, DARK)?.svg ?? ""
+    const topBig = buildHousePresetSvg(
+      { ...topBase, house: { ...topBase.house, fontSize: 40 } },
+      MOCK,
+      380,
+      DARK,
+    )?.svg ?? ""
+    expect(topBig).not.toBe(topBaseSvg)
+    const topTinted = buildHousePresetSvg(
+      { ...topBase, house: { ...topBase.house, textColor: "#123456" } },
+      MOCK,
+      380,
+      DARK,
+    )?.svg ?? ""
+    expect(topTinted).not.toBe(topBaseSvg)
+    expect(topTinted).toContain("#123456")
+  })
+
+  it("normalizes and versions the overrides (no silent restyle on save)", () => {
+    const norm = normalizeHouseBadge({
+      style: "pill",
+      scale: 100,
+      polarity: "auto",
+      fontSize: 24.6,
+      textColor: "#ABCDEF",
+      textOpacity: 80.4,
+      uppercase: true,
+    })
+    expect(norm.fontSize).toBe(25)
+    expect(norm.textColor).toBe("#abcdef")
+    expect(norm.textOpacity).toBe(80)
+    expect(norm.uppercase).toBe(true)
+  })
+
+  it("textOpacity fades the final fill, uppercase transforms texts", () => {
+    const base = buildHousePresetSvg(genreBase, MOCK, 380, DARK)?.svg ?? ""
+    const faded = buildHousePresetSvg(
+      { ...genreBase, house: { ...genreBase.house, textOpacity: 50 } },
+      MOCK,
+      380,
+      DARK,
+    )?.svg ?? ""
+    expect(faded).not.toBe(base)
+    expect(faded).toContain("rgba(0,0,0,0.44)")
+    const upper = buildHousePresetSvg(
+      { ...genreBase, house: { ...genreBase.house, uppercase: true } },
+      MOCK,
+      380,
+      DARK,
+    )?.svg ?? ""
+    expect(upper).not.toBe(base)
+    expect(upper).toContain("DRAMMA")
+    expect(upper).not.toContain(">Dramma<")
+  })
+
+  it("applyFillOpacity handles hex, rgba and unknown formats", () => {
+    expect(applyFillOpacity("#ffffff", 50)).toBe("rgba(255,255,255,0.5)")
+    expect(applyFillOpacity("rgba(0,0,0,0.80)", 50)).toBe("rgba(0,0,0,0.4)")
+    expect(applyFillOpacity("rgb(10,20,30)", 50)).toBe("rgba(10,20,30,0.5)")
+    expect(applyFillOpacity("url(#starg)", 50)).toBe("url(#starg)")
+    expect(applyFillOpacity("#ffffff", 100)).toBe("rgba(255,255,255,1)")
+  })
+})
+
 describe("house starter templates", () => {
   it("has unique keys and label keys", () => {
     const keys = BADGE_PRESET_TEMPLATES.map((t) => t.key)
@@ -27,9 +144,9 @@ describe("house starter templates", () => {
     }
   })
 
-  it("covers both slot targets", () => {
-    const targets = new Set(BADGE_PRESET_TEMPLATES.map((t) => t.target))
-    expect(targets).toEqual(new Set(["top", "genre"]))
+  it("covers the native slot targets (top/rank share starters, extra has its own)", () => {
+    const byTarget = new Set(BADGE_PRESET_TEMPLATES.map((t) => t.target))
+    expect(byTarget).toEqual(new Set(["top", "genre", "extra"]))
   })
 
   it("every house payload normalizes and validates as a full preset", () => {
@@ -56,11 +173,14 @@ describe("house starter templates", () => {
 
   it("every starter renders non-empty SVG with mock context", () => {
     for (const t of BADGE_PRESET_TEMPLATES) {
+      const isExtra = t.target === "extra"
       const r = buildHousePresetSvg(
         { variant: "house", target: t.target, house: t.house },
         MOCK,
         380,
         { ...DARK },
+        isExtra ? "extra" : null,
+        HOUSE_EXTRA_PREVIEW_LABEL,
       )
       expect(r, `${t.key} renders null`).not.toBeNull()
       expect(r!.svg.includes("<svg"), t.key).toBe(true)
@@ -109,9 +229,10 @@ describe("house starter templates", () => {
 describe("house badge viewBox + accent", () => {
   it("every starter SVG carries a viewBox so the browser can scale it", () => {
     for (const t of BADGE_PRESET_TEMPLATES) {
+      const isExtra = t.target === "extra"
       const r = buildHousePresetSvg({ variant: "house", target: t.target, house: t.house }, MOCK, 380, {
         ...DARK,
-      })
+      }, isExtra ? "extra" : null, HOUSE_EXTRA_PREVIEW_LABEL)
       expect(r!.svg, t.key).toContain(`viewBox="0 0 ${r!.w} ${r!.h}"`)
     }
   })

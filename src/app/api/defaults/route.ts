@@ -13,6 +13,7 @@ import { POSTER_LAYOUTS, POSTER_FRESH_SCOPES } from "@/lib/types"
 import { readJsonBody, BodyTooLargeError, DEFAULT_MAX_BODY_BYTES } from "@/lib/read-body"
 import { envWithFallback } from "@/lib/env-compat"
 import { SHAPE_FLAT_TO_LANDSCAPE, snapshotMissingLandscape } from "@/lib/visual-presets"
+import { badgeFamilyBindingsSchema } from "@/lib/badge-preset"
 
 const log = createLogger("defaults")
 
@@ -44,6 +45,13 @@ const customCatalogSchema = z.object({
 
 const defaultsSchema = z.object({
   badgeStyle: z.enum(BADGE_STYLES).optional(),
+  /**
+   * BadgeLab family map (flat global defaults): sparse per family, absent =
+   * native, present `null` = explicit standard clear. The profile `landscape`
+   * below merges key-by-key over it. Fail-closed schema: unknown families,
+   * malformed ids/revisions and prototype keys reject the whole PUT.
+   */
+  badgePresets: badgeFamilyBindingsSchema,
   rankingBadgeStyle: z.enum(RANKING_BADGE_STYLES).optional(),
   /** Standalone extra-badge style (flat-only): absent/null = legacy `rs` fallback; "follow-rank" = explicit own-rank. */
   extraBadgeStyle: z.union([z.enum(EXTRA_BADGE_STYLES), z.literal(EXTRA_BADGE_FOLLOW_RANK)]).nullable().optional(),
@@ -174,6 +182,11 @@ const defaultsSchema = z.object({
     networkLogoOffsetX: z.number().optional(),
     networkLogoOffsetY: z.number().optional(),
     badgeStyle: z.enum(BADGE_STYLES).optional(),
+    /**
+     * BadgeLab family map del profilo: stesso contratto sparso del flat
+     * (chiave presente — incluso null — vince, assente eredita il flat).
+     */
+    badgePresets: badgeFamilyBindingsSchema,
     rankingBadgeStyle: z.enum(RANKING_BADGE_STYLES).optional(),
     extraBadgeStyle: z.union([z.enum(EXTRA_BADGE_STYLES), z.literal(EXTRA_BADGE_FOLLOW_RANK)]).nullable().optional(),
     badgeFont: z.enum(BADGE_FONTS).optional(),

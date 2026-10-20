@@ -44,9 +44,14 @@ let calls: FetchCall[] = []
  * signal rejects immediately without responding -- like a real fetch, which
  * performs no I/O on an aborted signal.
  */
-function mockFetch(handler: (url: string) => Response | "hang") {
+function mockFetch(handler: (url: string) => Response | "hang", onRequest?: (url: string) => void) {
   vi.spyOn(globalThis, "fetch").mockImplementation(((input: unknown, init?: RequestInit) => {
     const url = String(input)
+    // F3: deterministic total-expiry barrier. Invoked BEFORE the abort-aware
+    // record so a later-phase fetch can expire the shared total first and
+    // observe the same already-aborted parent signal production derives via
+    // combineAbortSignals. No-op for callers that pass no hook.
+    onRequest?.(url)
     const sig = init?.signal as AbortSignal | undefined
     const rec: FetchCall = {
       url,
@@ -363,12 +368,20 @@ describe("automatic 15s total timeout (no incoming abort)", () => {
 
   it("meta: total timer fires on its own; earlier phases keep their work, later phases reuse the expired budget", async () => {
     const { requestedMs, totalControllers } = controllableTotalTimeout()
+    // F3: expire the shared total exactly at the first later-phase fetch
+    // (abort-before-record). The details helper already resolved to reach a
+    // later fetch, so the abort lands strictly between completed-Details and
+    // later phases: no queueMicrotask race between raw-response headers and
+    // the helper's body parse (tmdbFetch races res.json() against the same
+    // transport signal, so a header-time abort correctly fails details open
+    // instead of keeping half-parsed work).
+    const expireTotalOnLaterPhase = (url: string) => {
+      if (!url.includes("/tv/951001?")) totalControllers[0]?.abort()
+    }
     mockFetch((url) => {
       if (url.includes("/tv/951001?")) {
-        // Details answer fast; the 15s total then expires before the next
-        // phase starts, so images/seasons must derive from that same expired
-        // budget instead of a renewed one.
-        queueMicrotask(() => totalControllers[0]?.abort())
+        // Details answer fast with no timer manipulation here; expiry fires
+        // on the next fetch via expireTotalOnLaterPhase above.
         return Response.json({
           id: 951001,
           name: "Total Budget",
@@ -386,7 +399,7 @@ describe("automatic 15s total timeout (no incoming abort)", () => {
       if (url.includes("/tv/951001/episode_groups")) return Response.json({ results: [] })
       if (url.includes("/tv/951001/season/")) return Response.json({ id: 1, season_number: 1, episodes: [] })
       throw new Error(`unexpected upstream fetch: ${url}`)
-    })
+    }, expireTotalOnLaterPhase)
     const req = new NextRequest("http://localhost:3000/meta/series/tmdb:951001.json?api_key=k")
     const incomingSignal = (req as unknown as { signal?: AbortSignal }).signal
     const started = Date.now()
@@ -419,11 +432,19 @@ describe("automatic 15s total timeout (no incoming abort)", () => {
 
   it("preview: total timer fires on its own; seasons reuse the expired budget and answer empty", async () => {
     const { requestedMs, totalControllers } = controllableTotalTimeout()
+    // F3: same deterministic barrier as the meta test above: expire the
+    // shared total exactly at the first later-phase fetch (here the auto
+    // Parts listing or the standard seasons), after the details helper
+    // resolved. A header-time queueMicrotask abort would race the helper's
+    // body parse and correctly fail details open (empty preview, no seasons
+    // attempted) instead of the intended between-phases expiry.
+    const expireTotalOnLaterPhase = (url: string) => {
+      if (!url.includes("/tv/952001?")) totalControllers[0]?.abort()
+    }
     mockFetch((url) => {
       if (url.includes("/tv/952001?")) {
-        // Details answer fast; the 15s total then expires before the season
-        // phase starts, so seasons must derive from that same expired budget.
-        queueMicrotask(() => totalControllers[0]?.abort())
+        // Details answer fast with no timer manipulation here; expiry fires
+        // on the next fetch via expireTotalOnLaterPhase above.
         return Response.json({
           id: 952001,
           name: "Preview Total",
@@ -435,8 +456,9 @@ describe("automatic 15s total timeout (no incoming abort)", () => {
         })
       }
       if (url.includes("/tv/952001/season/")) return Response.json({ id: 1, season_number: 1, episodes: [] })
+      if (url.includes("/tv/952001/episode_groups")) return Response.json({ results: [] })
       throw new Error(`unexpected upstream fetch: ${url}`)
-    })
+    }, expireTotalOnLaterPhase)
     const req = new NextRequest("http://localhost:3000/api/preview/episodes?tmdbId=952001&api_key=k")
     const incomingSignal = (req as unknown as { signal?: AbortSignal }).signal
     const started = Date.now()

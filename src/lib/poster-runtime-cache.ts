@@ -13,6 +13,17 @@ import {
 import { isBadgeStyle, isRankingBadgeStyle, isExtraBadgeStyle, isExtraFollowRank, isBadgeFont, isSeparateRatingsStyle, isAgeBadgeStyle } from "@/lib/badge-styles"
 import { isPosterLayout, isPosterFreshScope, DEFAULT_POSTER_FRESH_SCOPE } from "@/lib/types"
 import { POSTER_CACHE_ALLOWLIST } from "./poster-params-hardening"
+import {
+  FAMILY_BP_FOLLOW_PARAM,
+  FAMILY_BP_PARAM,
+  FAMILY_BP_TARGETS_PARAM,
+  encodeFamilyBpParam,
+  encodeFamilyFollowParam,
+  encodeFamilyTargetsParam,
+  parseFamilyBpParam,
+  parseFamilyFollowParam,
+  parseFamilyTargetsParam,
+} from "./badge-preset-family-transport"
 
 const log = createLogger("poster-cache")
 
@@ -247,6 +258,36 @@ export function normalizePosterCacheParams(searchParams: URLSearchParams): URLSe
     const v = theme.trim().toLowerCase()
     if (v === "halloween" || v === "christmas") params.set("theme", v)
     else params.delete("theme")
+  }
+
+  // Per-family `bp`: canonical order/dedup via the shared parser (defense
+  // in depth: presets mode already canonicalized in hardening, private mode
+  // passes through). Unknown families dropped, known-family junk shadows as
+  // an explicit clear, empty collapses onto absent (legacy key intact).
+  // Server-written `bpt` without `bp` is an orphan (binding died) → delete;
+  // present `bpt` re-encodes canonical (unknown families/targets dropped).
+  const familyBp = params.get(FAMILY_BP_PARAM)
+  if (familyBp !== null) {
+    const staged = parseFamilyBpParam(familyBp)
+    const canonical = staged ? encodeFamilyBpParam(staged) : null
+    params.delete(FAMILY_BP_PARAM)
+    if (canonical) params.set(FAMILY_BP_PARAM, canonical)
+  }
+  const familyBpf = params.get(FAMILY_BP_FOLLOW_PARAM);
+  if (familyBpf !== null) {
+    const follows = parseFamilyFollowParam(familyBpf);
+    const canonicalFollows = follows ? encodeFamilyFollowParam(follows) : null;
+    params.delete(FAMILY_BP_FOLLOW_PARAM);
+    if (canonicalFollows) params.set(FAMILY_BP_FOLLOW_PARAM, canonicalFollows);
+  }
+  const familyBpt = params.get(FAMILY_BP_TARGETS_PARAM)
+  if (familyBpt !== null) {
+    const validated = parseFamilyTargetsParam(familyBpt)
+    const canonicalTargets = validated ? encodeFamilyTargetsParam(validated) : null
+    params.delete(FAMILY_BP_TARGETS_PARAM)
+    if (canonicalTargets && params.has(FAMILY_BP_PARAM)) {
+      params.set(FAMILY_BP_TARGETS_PARAM, canonicalTargets)
+    }
   }
 
   return params

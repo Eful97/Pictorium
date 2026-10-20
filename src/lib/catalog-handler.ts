@@ -3,7 +3,7 @@ import { NextRequest } from "next/server"
 import { rateLimit, rateLimitKey, rateLimitResponse } from "@/lib/rate-limit"
 import { cacheGet, cacheGetShared, cacheSet, hashUserFragment } from "@/lib/cache"
 import { getTop10 } from "@/lib/flixpatrol"
-import { getServerDefaults, getServerDefaultsChecked, getServerDefaultsForUser, type ServerDefaults } from "@/lib/server-defaults"
+import { effectiveDefaultsForShape, getServerDefaults, getServerDefaultsChecked, getServerDefaultsForUser, type ServerDefaults } from "@/lib/server-defaults"
 import { getScopedUserId, userExists, userRateLimitKey } from "@/lib/user-auth"
 import { touchUserActivity } from "@/lib/user-activity"
 import { POSTER_URL_VERSION } from "@/lib/render-version"
@@ -374,10 +374,24 @@ async function pictoriumPosterAndShape(
   // segue il titolo ovunque, `none` lo sopprime, assente = Automatico segue
   // la lista) — vedi resolveEffectiveSeasonalTheme.
   const effectiveTheme = resolveEffectiveSeasonalTheme(mapping?.seasonalTheme ?? null, seasonalTheme ?? null)
-  const poster = buildStremioPosterUrl({ ...base, forceShape: posterShape, seasonalTheme: effectiveTheme ?? undefined }).toString()
+  // Global family default map: pure shape-effective SERVER defaults (the
+  // `defaults` above may be merged with a config token, which is a config
+  // level, not a global default). Cache-only dependency — never a `bp`
+  // override, so mapping/config precedence stays intact.
+  const poster = buildStremioPosterUrl({
+    ...base,
+    forceShape: posterShape,
+    seasonalTheme: effectiveTheme ?? undefined,
+    defaultsBadgePresets: effectiveDefaultsForShape(serverDefaults, posterShape).badgePresets ?? null,
+  }).toString()
   // Banner pulito: canvas landscape senza logo baked-in (per i client che
   // sovrappongono già il logo da catalogo) + badge genere in basso a destra.
-  const banner = buildStremioPosterUrl({ ...base, forceShape: "landscape", hideLogo: true }).toString()
+  const banner = buildStremioPosterUrl({
+    ...base,
+    forceShape: "landscape",
+    hideLogo: true,
+    defaultsBadgePresets: effectiveDefaultsForShape(serverDefaults, "landscape").badgePresets ?? null,
+  }).toString()
   // NuvioTV: immagine esattamente come Pictorium (logo baked-in, vedi
   // poster-service). I titoli forzati dal default sono inclusi.
   const landscapePoster = posterShape === "landscape" ? poster : undefined

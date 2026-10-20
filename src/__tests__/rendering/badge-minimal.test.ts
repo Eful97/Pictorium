@@ -18,7 +18,12 @@ describe("BadgeStyle minimal (pipe separator)", () => {
     expect(svgText.svg).toContain("Action")
     expect(svgText.svg).toContain("8.5")
     expect(svgText.svg).toContain("2024")
-    expect(svgText.svg).toContain("\u2605") // star preserved for rating
+    // Stella preservata per il voto come path dorato posizionato (mai glifo
+    // ★/Noto nel flusso: resvg duplicherebbe il glifo dopo testo non-Inter).
+    expect(svgText.svg).toContain('fill="url(#starg)"')
+    expect(svgText.svg).toContain('<path d="M')
+    expect(svgText.svg).not.toContain("\u2605")
+    expect(svgText.svg).not.toContain("Noto Sans Symbols 2")
   })
 
   it("respects parts flags: hides rating when showRating is false", () => {
@@ -31,6 +36,7 @@ describe("BadgeStyle minimal (pipe separator)", () => {
     expect(svgText.svg).toContain("2020")
     expect(svgText.svg).not.toContain("7.2")
     expect(svgText.svg).not.toContain("\u2605")
+    expect(svgText.svg).not.toContain('<path d="M') // no star at all without rating
     expect(svgText.svg).toContain("|")
   })
 

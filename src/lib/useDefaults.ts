@@ -20,6 +20,8 @@ import { DEFAULT_SEPARATE_RATINGS_STYLE, isSeparateRatingsStyle, getSeparateBadg
 import { SHAPE_FLAT_TO_LANDSCAPE, snapshotMissingLandscape, independentLandscapeDefaults } from "./visual-presets"
 import { isExtraBadgeStyle, isExtraFollowRank } from "./badge-styles"
 import { DEFAULT_QUALITY_BADGE_OFFSET_X, DEFAULT_QUALITY_BADGE_OFFSET_Y } from "./badge-styles"
+import type { BadgeFamilyBindings } from "./badge-preset"
+import { isEmptyFamilyMap, sanitizeFamilyMap } from "./family-preset-save"
 import { KNOWN_VIDEO_FORMATS, isVideoFormat, type VideoFormat } from "./av-specs"
 
 export type RibbonSide = "left" | "right"
@@ -43,6 +45,13 @@ export interface DefaultsState {
   defaultExtraBadgeStyle: ExtraBadgeStyle | ExtraBadgeFollowRank | null
   /** Font dei testi badge di default ("inter" = resa storica). */
   defaultBadgeFont: BadgeFont
+  /**
+   * BadgeLab family map dei default globali (flat/portrait): sparse per
+   * family, assente = nativo (nessun override), presente `null` = Standard
+   * esplicito. Il profilo `landscape` fonde chiave-per-chiave sopra (stesso
+   * contratto del per-titolo). Solo scelte salvate: mai sentinel di drop.
+   */
+  defaultBadgePresets: BadgeFamilyBindings | null
   /** Stile icone del badge qualità di default (default "standard"). */
   defaultQualityBadgeStyle: QualityBadgeStyle
   /** Formati A/V abilitati di default (dv, atmos, imax, hdr, hdr10plus). */
@@ -241,6 +250,7 @@ const DEFAULT_FLAT_DEFAULTS: Omit<DefaultsState, "landscape"> = {
   defaultRankingBadgeStyle: "default",
   defaultExtraBadgeStyle: null,
   defaultBadgeFont: DEFAULT_BADGE_FONT,
+  defaultBadgePresets: null,
   defaultQualityBadgeStyle: DEFAULT_QUALITY_BADGE_STYLE,
   defaultVideoFormats: [...KNOWN_VIDEO_FORMATS],
   defaultBlurEnabled: true,
@@ -421,6 +431,10 @@ interface StoredDefaults {
   defaultRankingBadgeStyle?: RankingBadgeStyle
   defaultExtraBadgeStyle?: ExtraBadgeStyle | null
   defaultBadgeFont?: BadgeFont
+  /** BadgeLab family map dei default (grezza; validata in buildFromStored). */
+  defaultBadgePresets?: unknown
+  /** Chiave flat server (ServerDefaults.badgePresets): fallback di lettura. */
+  badgePresets?: unknown
   defaultQualityBadgeStyle?: QualityBadgeStyle
   defaultBlurEnabled?: boolean
   defaultBlurIntensity?: number
@@ -571,10 +585,13 @@ function numOrNull(v: unknown): number | null {
   return typeof v === "number" && Number.isFinite(v) ? v : null
 }
 
-/** Structural equality for flat-edit change detection (arrays by value). */
+/** Structural equality for flat-edit change detection (arrays/maps by value). */
 function flatValuesEqual(a: unknown, b: unknown): boolean {
   if (Object.is(a, b)) return true
   if (Array.isArray(a) || Array.isArray(b)) return JSON.stringify(a) === JSON.stringify(b)
+  if (a !== null && b !== null && typeof a === "object" && typeof b === "object") {
+    return JSON.stringify(a) === JSON.stringify(b)
+  }
   return false
 }
 
@@ -646,6 +663,43 @@ function seedLandscapeAgeTrio(
   }
 }
 
+/**
+ * BadgeLab family map idratata dai RAW (flat + profilo landscape): valida
+ * fail-closed (malformata = nessuna voce, mai throw, mai sentinel). Flat
+ * null/assente = nessun override globale (nativo); profilo null/assente =
+ * eredita il flat; profilo con voci = merge chiave-per-chiave sopra il flat
+ * (chiave presente — incluso null — vince, assente eredita).
+ */
+function hydrateBadgePresets(
+  rawFlat: unknown,
+  rawLandscape: unknown,
+): { flat: BadgeFamilyBindings | null; landscape: BadgeFamilyBindings | null | undefined } {
+  const flatMap = sanitizeFamilyMap(rawFlat)
+  const flatOut = isEmptyFamilyMap(flatMap) ? null : flatMap
+  if (rawLandscape === undefined || rawLandscape === null) return { flat: flatOut, landscape: undefined }
+  return { flat: flatOut, landscape: sanitizeFamilyMap(rawLandscape) }
+}
+
+/**
+ * Profilo landscape della family map idratato dai RAW: solo quando il profilo
+ * salvato possiede davvero la chiave (presente, anche null = Standard
+ * esplicito che ombreggia il flat). Malformata = chiave omessa (segue il
+ * flat, mai spazzatura nel live). Ritorna `{}` quando non c'è nulla da
+ * fondere così lo spread resta un no-op.
+ */
+function hydrateLandscapeBadgePresets(
+  rawLandscape: Record<string, unknown> | null | undefined,
+): Partial<LandscapeServerDefaults> {
+  if (rawLandscape === null || typeof rawLandscape !== "object" || Array.isArray(rawLandscape)) return {}
+  if (!Object.prototype.hasOwnProperty.call(rawLandscape, "badgePresets")) return {}
+  const raw = (rawLandscape as Record<string, unknown>).badgePresets
+  if (raw === null) return { badgePresets: null }
+  if (typeof raw !== "object" || Array.isArray(raw)) return {}
+  const clean = sanitizeFamilyMap(raw)
+  if (isEmptyFamilyMap(clean)) return {}
+  return { badgePresets: clean }
+}
+
 function buildFromStored(d: StoredDefaults | null): DefaultsState {
   // Empty object (fresh backend GET, ancient store) behaves like no store:
   // full independent factory profile instead of a sparse follow-shell, so a
@@ -686,6 +740,7 @@ function buildFromStored(d: StoredDefaults | null): DefaultsState {
       ? (d.defaultExtraBadgeStyle as ExtraBadgeStyle | ExtraBadgeFollowRank)
       : (isExtraBadgeStyle(d.extraBadgeStyle) || isExtraFollowRank(d.extraBadgeStyle) ? (d.extraBadgeStyle as ExtraBadgeStyle | ExtraBadgeFollowRank) : null),
     defaultBadgeFont: isBadgeFont(d.defaultBadgeFont) ? d.defaultBadgeFont : (isBadgeFont(d.badgeFont) ? d.badgeFont : DEFAULT_BADGE_FONT),
+    defaultBadgePresets: hydrateBadgePresets(d.defaultBadgePresets ?? d.badgePresets, undefined).flat,
     defaultQualityBadgeStyle: d.defaultQualityBadgeStyle ?? d.qualityBadgeStyle ?? DEFAULT_QUALITY_BADGE_STYLE,
     defaultVideoFormats: Array.isArray(d.defaultVideoFormats)
       ? d.defaultVideoFormats.filter(isVideoFormat)
@@ -854,6 +909,9 @@ function buildFromStored(d: StoredDefaults | null): DefaultsState {
         d.defaultQualityBadgeOffsetY ?? d.qualityBadgeOffsetY,
       ),
       ...seedLandscapeAgeTrio(d.landscape, flatAgeBadge, flatAgeCountry, flatAgeStyle),
+      // Family map del profilo: validata fail-closed (malformata = eredita il
+      // flat, mai spazzatura id/rev nel live). Null/assente = segue il flat.
+      ...hydrateLandscapeBadgePresets(d.landscape),
     },
   }
 }
@@ -870,6 +928,7 @@ export function defaultsToPayload(d: DefaultsState): Record<string, unknown> {
     rankingBadgeStyle: d.defaultRankingBadgeStyle,
     extraBadgeStyle: d.defaultExtraBadgeStyle ?? null,
     badgeFont: d.defaultBadgeFont,
+    badgePresets: d.defaultBadgePresets ?? null,
     qualityBadgeStyle: d.defaultQualityBadgeStyle,
     blurEnabled: d.defaultBlurEnabled,
     blurIntensity: d.defaultBlurIntensity,

@@ -12,6 +12,7 @@ export default defineConfig({
       ".opencode/**",
       ".next/**",
       "e2e/**",
+      "e2e-auth/**",
       "test-results/**",
       "playwright-report/**",
     ],

@@ -24,6 +24,15 @@ import { isSeparateRatingsStyle } from "./badge-styles"
 import { isPosterLayout, isPosterFreshScope, DEFAULT_POSTER_FRESH_SCOPE } from "./types"
 import { ANIME_RANK_MAX } from "./badge-priority"
 import { BADGE_PRESET_ID_RE, BADGE_PRESET_REV_RE, BADGE_TARGETS } from "./badge-preset"
+import {
+  FAMILY_BP_FOLLOW_PARAM,
+  FAMILY_BP_PARAM,
+  FAMILY_BP_TARGETS_PARAM,
+  encodeFamilyBpParam,
+  encodeFamilyFollowParam,
+  parseFamilyBpParam,
+  parseFamilyFollowParam,
+} from "./badge-preset-family-transport"
 
 // Env a module level (convenzione del repo: un cambio richiede restart).
 const POSTER_PARAMS_MODE = (envWithFallback("POSTER_PARAMS") || "").toLowerCase().trim()
@@ -114,6 +123,8 @@ export const POSTER_CACHE_ALLOWLIST: ReadonlySet<string> = new Set([
   "config", "c", "api_key", "mdblist_key", "simkl_key", "tvdb_key",
   "region", "country", "logoFit", "debug", "netgeo",
   "badgePreset", "prv", "pt", "df",
+  // Per-family bindings: staged `bp` (client) + server-written `bpt` targets.
+  "bp", "bpf", "bpt",
   // Segui-spazio: politica di rivalidazione (entra in chiave/ETag via serializzazione).
   "live",
   // Effective-accent display sync (server-only, Stage 1): read-only JSON
@@ -278,6 +289,25 @@ export function hardenPosterSearchParams(
       params.delete("prv")
     }
   }
+  // Per-family `bp` (staged map): canonical order/dedup via the shared
+  // parser so equivalent maps share one key; unknown families dropped,
+  // known-family junk shadows as an explicit clear (fail-closed, same as
+  // the resolver). Empty after canonicalization collapses onto absent
+  // (no override, legacy key intact). `bpt` is server-written ONLY: any
+  // client value is dropped here (the route sets the authorized targets).
+  if (params.has(FAMILY_BP_PARAM)) {
+    const staged = parseFamilyBpParam(params.get(FAMILY_BP_PARAM))
+    const canonical = staged ? encodeFamilyBpParam(staged) : null
+    params.delete(FAMILY_BP_PARAM)
+    if (canonical) params.set(FAMILY_BP_PARAM, canonical)
+  }
+  if (params.has(FAMILY_BP_FOLLOW_PARAM)) {
+    const follows = parseFamilyFollowParam(params.get(FAMILY_BP_FOLLOW_PARAM));
+    const canonicalFollows = follows ? encodeFamilyFollowParam(follows) : null;
+    params.delete(FAMILY_BP_FOLLOW_PARAM);
+    if (canonicalFollows) params.set(FAMILY_BP_FOLLOW_PARAM, canonicalFollows);
+  }
+  params.delete(FAMILY_BP_TARGETS_PARAM)
   // pt (preset target, solo frammento chiave server-side scritto dalla route
   // con il target autorizzato corrente): enum finita top/genre — la revision
   // copre solo il design, quindi un flip di target a design identico deve

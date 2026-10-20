@@ -134,6 +134,12 @@ describe("GET /api/presets catalog", () => {
     expect(json.items.map((i: { preset: { metadata: { name: string } } }) => i.preset.metadata.name)).toEqual(["Gold Top"])
   })
 
+  it("surfaces legacy `top` presets under the single-Classifica `rank` filter", async () => {
+    const res = await catalogGET(req("http://localhost:3000/api/presets?target=rank"))
+    const json = await res.json()
+    expect(json.items.map((i: { preset: { metadata: { name: string } } }) => i.preset.metadata.name)).toEqual(["Gold Top"])
+  })
+
   it("rejects invalid sort and target", async () => {
     expect((await catalogGET(req("http://localhost:3000/api/presets?sort=nope"))).status).toBe(400)
     expect((await catalogGET(req("http://localhost:3000/api/presets?target=nope"))).status).toBe(400)
@@ -234,6 +240,71 @@ describe("/api/presets/[id]", () => {
     vi.mocked(deletePreset).mockRejectedValueOnce(new PresetForbiddenError())
     expect((await del()).status).toBe(403)
   })
+
+  it("GET denies private presets without owner auth (uniform 404)", async () => {
+    const storedPrivate = {
+      preset: { ...storedPublic.preset, visibility: "private", ownerUuid: UUID },
+      downloads: 0,
+    }
+    const get = (u: string | null) =>
+      itemGET(
+        req(u ? `http://localhost:3000/api/presets/Abc123-_XyZ?u=${u}` : "http://localhost:3000/api/presets/Abc123-_XyZ"),
+        ctx("Abc123-_XyZ"),
+      )
+    // Authed owner reads the private preset, never cached shared.
+    vi.mocked(getPresetForUser).mockResolvedValueOnce(storedPrivate as never)
+    const ok = await get(UUID)
+    expect(ok.status).toBe(200)
+    expect(ok.headers.get("cache-control")).toBe("no-store")
+    // Owner UUID without auth token: the UUID identifies, never authenticates.
+    vi.mocked(getPresetForUser).mockResolvedValueOnce(storedPrivate as never)
+    vi.mocked(checkUserAuth).mockResolvedValueOnce(false)
+    expect((await get(UUID)).status).toBe(404)
+    // Stranger (even authed on their own space): uniform 404, no oracle.
+    vi.mocked(getPresetForUser).mockResolvedValueOnce(storedPrivate as never)
+    expect((await get(STRANGER)).status).toBe(404)
+    // Anonymous miss: uniform 404.
+    vi.mocked(getPresetForUser).mockResolvedValueOnce(null)
+    expect((await get(null)).status).toBe(404)
+  })
+
+  it("PUT/DELETE invalidate the poster preset cache immediately", async () => {
+    const { getPresetForPoster, __resetPresetJsonCacheForTests } = await import("@/lib/poster-service")
+    __resetPresetJsonCacheForTests()
+    const storedPrivate = {
+      preset: { ...storedPublic.preset, visibility: "private", ownerUuid: UUID },
+      downloads: 0,
+    }
+    vi.mocked(getPresetForUser).mockResolvedValue(storedPrivate as never)
+    const first = await getPresetForPoster("Abc123-_XyZ", "deadbeef", UUID)
+    expect(first?.revision).toBe("deadbeef")
+    expect(vi.mocked(getPresetForUser).mock.calls.length).toBeGreaterThan(0)
+    vi.mocked(getPresetForUser).mockClear()
+    // Cached hit: no second store read while the revision is unchanged.
+    await getPresetForPoster("Abc123-_XyZ", "deadbeef", UUID)
+    expect(vi.mocked(getPresetForUser)).not.toHaveBeenCalled()
+    // A PUT (visibility/content flip) purges the entry: next render re-reads.
+    vi.mocked(updatePreset).mockResolvedValueOnce(storedPrivate as never)
+    const put = await itemPUT(
+      req(`http://localhost:3000/api/presets/Abc123-_XyZ?u=${UUID}`, {
+        method: "PUT",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ visibility: "public" }),
+      }),
+      ctx("Abc123-_XyZ"),
+    )
+    expect(put.status).toBe(200)
+    await getPresetForPoster("Abc123-_XyZ", "deadbeef", UUID)
+    expect(vi.mocked(getPresetForUser)).toHaveBeenCalled()
+    // A DELETE purges too: the render path degrades instead of serving stale.
+    vi.mocked(getPresetForUser).mockClear()
+    await getPresetForPoster("Abc123-_XyZ", "deadbeef", UUID)
+    expect(vi.mocked(getPresetForUser)).not.toHaveBeenCalled()
+    const del = await itemDELETE(req(`http://localhost:3000/api/presets/Abc123-_XyZ?u=${UUID}`, { method: "DELETE" }), ctx("Abc123-_XyZ"))
+    expect(del.status).toBe(200)
+    vi.mocked(getPresetForUser).mockResolvedValueOnce(null)
+    expect(await getPresetForPoster("Abc123-_XyZ", "deadbeef", UUID)).toBeNull()
+  })
 })
 
 describe("POST /api/presets/[id]/download", () => {
@@ -271,6 +342,30 @@ describe("GET /api/presets/[id]/preview.svg", () => {
     expect(svg).toContain("8.5")
     vi.mocked(getPresetForUser).mockResolvedValueOnce(null)
     expect((await previewGET(req("http://localhost:3000/api/presets/Abc123-_XyZ/preview.svg"), ctx)).status).toBe(404)
+  })
+
+  it("denies private previews without owner auth and never caches privates", async () => {
+    const storedPrivate = {
+      preset: { ...storedPublic.preset, visibility: "private", ownerUuid: UUID },
+      downloads: 0,
+    }
+    const get = (u: string | null) =>
+      previewGET(
+        req(u ? `http://localhost:3000/api/presets/Abc123-_XyZ/preview.svg?u=${u}` : "http://localhost:3000/api/presets/Abc123-_XyZ/preview.svg"),
+        ctx,
+      )
+    // Authed owner: 200 with no-store (no shared caching of personal pixels).
+    vi.mocked(getPresetForUser).mockResolvedValueOnce(storedPrivate as never)
+    const ok = await get(UUID)
+    expect(ok.status).toBe(200)
+    expect(ok.headers.get("cache-control")).toBe("no-store")
+    // Owner UUID without auth token: uniform 404.
+    vi.mocked(getPresetForUser).mockResolvedValueOnce(storedPrivate as never)
+    vi.mocked(checkUserAuth).mockResolvedValueOnce(false)
+    expect((await get(UUID)).status).toBe(404)
+    // Stranger: uniform 404.
+    vi.mocked(getPresetForUser).mockResolvedValueOnce(storedPrivate as never)
+    expect((await get(STRANGER)).status).toBe(404)
   })
 })
 

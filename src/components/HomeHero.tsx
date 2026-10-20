@@ -1,6 +1,7 @@
 "use client"
 
-import { useMemo, useRef, type MouseEvent, type KeyboardEvent, type ReactNode } from "react"
+import { useEffect, useMemo, useRef, useState, type MouseEvent, type KeyboardEvent, type ReactNode } from "react"
+import Link from "next/link"
 import { usePSelector } from "@/lib/context"
 import { currentPathUuid } from "@/lib/user-token"
 import { useT } from "@/lib/contexts/TranslationContext"
@@ -95,6 +96,13 @@ export function HomeHero({ search }: { search?: ReactNode }) {
     const id = currentPathUuid()
     return id ? `&u=${id}` : ""
   }, [])
+  // Badge Lab inherits the home namespace: path /u/<uuid> or ?u= query
+  // travels in the link, anonymous stays bare. Stable SSR href, namespace after mount.
+  const [labHref, setLabHref] = useState("/lab/badges")
+  useEffect(() => {
+    const id = currentPathUuid()
+    if (id) setLabHref(`/lab/badges?u=${encodeURIComponent(id)}`)
+  }, [])
   const slots = useMemo<PodiumSlot[]>(() => {
     const movies = trending.filter((i) => i.media_type === "movie").sort((a, b) => a.rank - b.rank)
     const tv = trending.filter((i) => i.media_type === "tv").sort((a, b) => a.rank - b.rank)
@@ -182,6 +190,9 @@ export function HomeHero({ search }: { search?: ReactNode }) {
           <button type="button" onClick={() => router.push("cataloghi")} className="btn-primary px-5 py-2.5 whitespace-nowrap">
             {t("ui.heroCatalogsCta")}
           </button>
+          <Link href={labHref} className="btn-secondary px-5 py-2.5 whitespace-nowrap">
+            {t("ui.labTitle")}
+          </Link>
         </div>
       </div>
 

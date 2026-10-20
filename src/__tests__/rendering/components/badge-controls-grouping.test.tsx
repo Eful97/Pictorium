@@ -70,11 +70,16 @@ describe("BadgeControls families: six groups, each control exactly once", () => 
       "badge-family-common",
     ]
     for (const id of ids) expect(family(id)).toBeInTheDocument()
-    expect(document.querySelectorAll('[data-testid^="badge-family-"]')).toHaveLength(6)
     for (const id of ids) {
       expect(family(id).className).toMatch(/rounded-xl/)
       expect(family(id).className).toMatch(/bg-surface\/50/)
     }
+    // Intentionally absent: the per-title Badge Lab preset picker was removed
+    // from the per-poster editor (user request) — library presets apply via
+    // the Lab "Use for title" handoff instead. The Lab page, the saved
+    // mappings and the rendering are untouched.
+    expect(screen.queryByTestId("badge-family-presets")).toBeNull()
+    expect(document.querySelectorAll('[data-testid^="badge-family-"]')).toHaveLength(6)
   })
 
   it("genre/year/ratings family owns activation, style/font and rating sources", () => {
@@ -140,8 +145,8 @@ describe("BadgeControls families: six groups, each control exactly once", () => 
   })
 })
 
-describe("BadgeControls families: approved DOM order genre/ranking/seasonal/extra/quality/common", () => {
-  it("renders the six families in the approved visual/DOM order", () => {
+describe("BadgeControls families: approved DOM order genre/ranking/seasonal/extra/quality/presets/common", () => {
+  it("renders the families in the approved visual/DOM order", () => {
     renderEditor()
     const order = Array.from(document.querySelectorAll('[data-testid^="badge-family-"]')).map((el) =>
       el.getAttribute("data-testid"),

@@ -841,7 +841,7 @@ test.describe("Per-title appearance + extra (no side, no ribbon duplicate)", () 
     await page.getByText(/Avatar/i).first().click()
     await expect(page.getByRole("heading", { name: "Anteprima" })).toBeVisible({ timeout: 10_000 })
 
-    const badgeTab = page.getByRole("tab", { name: "Badge" })
+    const badgeTab = page.getByRole("tab", { name: "Badge", exact: true })
     await badgeTab.click()
     await expect(badgeTab).toHaveAttribute("aria-selected", "true")
 
@@ -1079,7 +1079,7 @@ test.describe("Per-title late load preserves user drafts (deferred title data)",
       await page.getByText(/Avatar/i).first().click()
       await awaitGate(page, gate)
 
-      const badgeTab = page.getByRole("tab", { name: "Badge" })
+      const badgeTab = page.getByRole("tab", { name: "Badge", exact: true })
       await badgeTab.click()
       await expect(badgeTab).toHaveAttribute("aria-selected", "true")
       const editor = page.locator("main").first()
@@ -1137,7 +1137,7 @@ test.describe("Per-title late load preserves user drafts (deferred title data)",
       const loaded = await awaitLoadedArtwork(seen, from)
       expect(loaded.get("poster")).toBe(POSTER_PATH)
 
-      const badgeTab = page.getByRole("tab", { name: "Badge" })
+      const badgeTab = page.getByRole("tab", { name: "Badge", exact: true })
       await badgeTab.click()
       await expect(badgeTab).toHaveAttribute("aria-selected", "true")
       const editor = page.locator("main").first()

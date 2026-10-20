@@ -97,6 +97,41 @@ describe("HomeHero", () => {
     expect(push).toHaveBeenCalledWith("cataloghi")
   })
 
+  it("shows an accessible Badge Lab link to /lab/badges when anonymous", () => {
+    stubPosterFetch()
+    renderWithCtx(<HomeHero />)
+    const link = screen.getByRole("link", { name: "ui.labTitle" })
+    expect(link).toHaveAttribute("href", "/lab/badges")
+    // No secrets in href: no token/password/api_key
+    expect(link.getAttribute("href")).not.toMatch(/token|password|api_key/i)
+  })
+
+  it("preserves the path namespace (/u/<uuid>) in the Badge Lab link", () => {
+    stubPosterFetch()
+    const uuid = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+    window.history.replaceState({}, "", `/u/${uuid}/configure`)
+    try {
+      renderWithCtx(<HomeHero />)
+      const link = screen.getByRole("link", { name: "ui.labTitle" })
+      expect(link).toHaveAttribute("href", `/lab/badges?u=${uuid}`)
+      expect(link.getAttribute("href")).not.toMatch(/token|password|api_key/i)
+    } finally {
+      window.history.replaceState({}, "", "/")
+    }
+  })
+
+  it("preserves a query namespace (?u=) in the Badge Lab link", () => {
+    stubPosterFetch()
+    const uuid = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"
+    window.history.replaceState({}, "", `/?u=${uuid}`)
+    try {
+      renderWithCtx(<HomeHero />)
+      expect(screen.getByRole("link", { name: "ui.labTitle" })).toHaveAttribute("href", `/lab/badges?u=${uuid}`)
+    } finally {
+      window.history.replaceState({}, "", "/")
+    }
+  })
+
   it("opens the editor when a podium poster is clicked", async () => {
     stubPosterFetch()
     const u = userEvent.setup()
