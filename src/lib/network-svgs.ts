@@ -110,6 +110,7 @@ const NETWORK_FILES: Record<string, string> = {
   comix_wave: "CoMix Wave Films logo.svg",
   filmauro: "cdnlogo.com_filmauro-logo.svg",
   next_ent: "new.svg",
+  bones: "Bones_logo.svg",
 }
 
 // Falso positivo NBC giapponese (Jujutsu Kaisen tmdb 95479): network list contiene 25+ regionali tra cui "NBC" (Nagasaki Broadcasting).
@@ -201,6 +202,7 @@ const NETWORK_TARGET_W: Record<string, number> = {
   comix_wave: 62,
   filmauro: 62,
   next_ent: 62,
+  bones: 62,
 }
 
 function getNetworkKey(networkName: string): string | null {
@@ -309,6 +311,9 @@ function getNetworkKey(networkName: string): string | null {
   // Next Entertainment World (NEW): full-phrase match only — a bare /new/
   // matcher would collide with New Line Cinema and generic "New …" names.
   if (lower.includes("next entertainment world")) return "next_ent"
+  // Studio Bones (anime studio, yellow-square "bones" wordmark): distinctive
+  // studio token, same includes-pattern as the other studio wordmarks.
+  if (lower.includes("bones")) return "bones"
   return null
 }
 
@@ -342,7 +347,7 @@ async function loadNetworkPng(networkKey: string, pw: number, topLight: boolean 
       const w = meta.width || 100
       const h = meta.height || 50
       const aspect = w / h
-      const isFlatWide = ["lionsgate", "sony", "legendary", "fandango", "pixar", "dreamworks", "taodue", "mappa", "madhouse", "skydance", "studiocanal", "castle_rock", "jagged_edge"].includes(networkKey)
+      const isFlatWide = ["lionsgate", "sony", "legendary", "fandango", "pixar", "dreamworks", "taodue", "mappa", "madhouse", "skydance", "studiocanal", "castle_rock", "jagged_edge", "bones"].includes(networkKey)
       // La "N" Netflix è un'icona verticale: ad area uniforme uscirebbe altissima (~80px) → area -60%
       const areaScale = isFlatWide ? 0.62 : networkKey === "netflix" ? 0.4 : networkKey === "dc" ? 0.75 : 1 // Lionsgate, Pixar e simili troppo larghi → area -38%
       const desiredArea = 3600 * areaScale * (pw / 500) * (pw / 500)
@@ -724,7 +729,7 @@ async function loadNetworkRawPng(networkKey: string, pw: number, topLight: boole
       const w = meta.width || 100
       const h = meta.height || 50
       const aspect = w / h
-      const isFlatWide2 = ["lionsgate", "sony", "legendary", "fandango", "pixar", "dreamworks", "taodue", "mappa", "madhouse", "skydance", "studiocanal", "castle_rock", "jagged_edge"].includes(networkKey)
+      const isFlatWide2 = ["lionsgate", "sony", "legendary", "fandango", "pixar", "dreamworks", "taodue", "mappa", "madhouse", "skydance", "studiocanal", "castle_rock", "jagged_edge", "bones"].includes(networkKey)
       // La "N" Netflix è un'icona verticale: ad area uniforme uscirebbe altissima (~80px) → area -60%
       const areaScale2 = isFlatWide2 ? 0.62 : networkKey === "netflix" ? 0.4 : networkKey === "dc" ? 0.75 : 1
       const desiredArea = 3600 * areaScale2 * (pw / 500) * (pw / 500)
