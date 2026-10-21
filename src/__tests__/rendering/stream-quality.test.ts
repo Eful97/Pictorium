@@ -42,20 +42,29 @@ describe("parseStreamQualityFromStreams", () => {
 })
 
 describe("resolveStreamQuality", () => {
-  // These tests cover the legacy Torrentio chain: source pinned to
-  // "torrentio" (backwards-compatible opt-in), independent of the runtime default.
-  let tio: typeof import("@/lib/stream-quality")
+  // Runtime chain is local-DB-first (poster route) + live JustWatch ONLY.
+  // The legacy "torrentio" config value is normalized to JustWatch and must
+  // NEVER trigger a live Torrentio fetch — Torrentio feeds only the offline
+  // DB import scripts.
+  let jw: typeof import("@/lib/stream-quality")
   beforeAll(async () => {
     vi.resetModules()
     vi.stubEnv("PICTORIUM_QUALITY_SOURCE", "torrentio")
-    tio = await import("@/lib/stream-quality")
+    // Even with a legacy Torrentio base configured, runtime must not call it.
+    vi.stubEnv("PICTORIUM_TORRENTIO_URL", "https://torrentio.strem.fun")
+    vi.stubEnv("TORRENTIO_URL", "https://torrentio.strem.fun")
+    jw = await import("@/lib/stream-quality")
   })
   afterAll(() => {
     vi.unstubAllEnvs()
     vi.resetModules()
   })
-  beforeEach(() => {
-    tio.__resetStreamQualityCache()
+  beforeEach(async () => {
+    jw.__resetStreamQualityCache()
+    // Anche la cache interna JW (keyed per tmdbId) va svuotata: i test
+    // riusano tmdbId vicini con body mock diversi per test.
+    const { __resetJWRankingsCache } = await import("@/lib/justwatch")
+    __resetJWRankingsCache()
     vi.restoreAllMocks()
   })
 
@@ -63,206 +72,165 @@ describe("resolveStreamQuality", () => {
     vi.restoreAllMocks()
   })
 
-  it("fetches streams from Torrentio and resolves 4K", async () => {
-    const mockStreams = {
-      streams: [
-        {
-          name: "Torrentio\n4k HDR",
-          title: "Avatar.2009.2160p.UHD",
-          behaviorHints: { filename: "Avatar.2160p.mkv" },
-        },
-      ],
-    }
+  const jwOffers = (tmdbId: number, presentationType = "HD") => ({
+    data: {
+      popularTitles: {
+        edges: [
+          {
+            node: {
+              content: { externalIds: { tmdbId } },
+              offers: [{ presentationType }],
+            },
+          },
+        ],
+      },
+    },
+  })
+  const jwMiss = {
+    data: { popularTitles: { edges: [] } },
+  }
+  function mockJW(body: unknown) {
+    return vi.spyOn(globalThis, "fetch").mockImplementation(async (url) => {
+      const u = String(url)
+      if (u.includes("justwatch.com")) {
+        return new Response(JSON.stringify(body), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        })
+      }
+      throw new Error(`unexpected fetch ${u}`)
+    })
+  }
 
-    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
-      new Response(JSON.stringify(mockStreams), {
-        status: 200,
-        headers: { "Content-Type": "application/json" },
-      })
-    )
+  it("legacy torrentio config: zero Torrentio calls, JustWatch decides (4K)", async () => {
+    const fetchSpy = mockJW(jwOffers(550, "4K"))
 
-    const result = await tio.resolveStreamQuality("movie", "tt0499549")
+    const result = await jw.resolveStreamQuality("movie", "tt0499549", 550)
     expect(result.quality).toBe("4K")
     expect(result.status).toBe("resolved")
-    expect(result.source).toBe("torrentio")
-    expect(result.rawTokens).toContain("4k")
-    expect(fetchSpy).toHaveBeenCalledTimes(1)
+    expect(result.source).toBe("justwatch")
+    // Legacy value normalized: no /stream/ (Torrentio) request at all…
+    expect(fetchSpy.mock.calls.every(([u]) => !String(u).includes("/stream/"))).toBe(true)
+    expect(fetchSpy.mock.calls.every(([u]) => !String(u).includes("torrentio"))).toBe(true)
+    // …and one JW call only.
+    expect(fetchSpy.mock.calls.filter(([u]) => String(u).includes("justwatch.com"))).toHaveLength(1)
 
-    // Caching check
-    const cached = await tio.resolveStreamQuality("movie", "tt0499549")
+    // Caching check: second call reuses the cache, zero new fetches.
+    const cached = await jw.resolveStreamQuality("movie", "tt0499549", 550)
     expect(cached.quality).toBe("4K")
     expect(cached.status).toBe("resolved")
     expect(fetchSpy).toHaveBeenCalledTimes(1)
   })
 
-  it("returns resolved-null on 200 with empty streams (genuine negative)", async () => {
-    vi.spyOn(globalThis, "fetch").mockImplementation(async (url) => {
-      const u = String(url)
-      if (u.includes("/stream/")) {
-        return new Response(JSON.stringify({ streams: [] }), {
-          status: 200,
-          headers: { "Content-Type": "application/json" },
-        })
-      }
-      throw new Error(`unexpected fetch ${u}`)
-    })
-    // Senza tmdbId: nessun fallback JustWatch, solo Torrentio.
-    const result = await tio.resolveStreamQuality("movie", "tt0111161")
+  it("returns resolved-null on genuine JustWatch miss (empty edges)", async () => {
+    const fetchSpy = mockJW(jwMiss)
+    const result = await jw.resolveStreamQuality("movie", "tt0111161", 550)
     expect(result.quality).toBeNull()
     expect(result.status).toBe("resolved")
+    expect(result.source).toBe("justwatch")
+    expect(fetchSpy.mock.calls.every(([u]) => !String(u).includes("/stream/"))).toBe(true)
   })
 
-  it("returns timeout status when the upstream aborts", async () => {
+  it("no tmdbId: resolved-null without any network (no IMDb lookup)", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch")
+    // Senza tmdbId: nessun fetch live (né JW né IMDb/external_ids), esito
+    // negativo accertato — la catena locale (qQuality > av-specs.json) resta.
+    const result = await jw.resolveStreamQuality("movie", "tt0111161")
+    expect(result.quality).toBeNull()
+    expect(result.status).toBe("resolved")
+    expect(result.source).toBe("justwatch")
+    expect(fetchSpy).not.toHaveBeenCalled()
+  })
+
+  it("returns timeout status when the caller signal aborts (render deadline)", async () => {
+    const ctrl = new AbortController()
+    ctrl.abort(new DOMException("The operation was aborted", "AbortError"))
+    // Real fetch with an aborted signal rejects: the JW layer swallows it to
+    // ok=false and resolveStreamQuality maps caller-abort to "timeout".
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(async (_url, init) => {
+      if ((init as { signal?: AbortSignal })?.signal?.aborted) {
+        throw new DOMException("The operation was aborted", "AbortError")
+      }
+      throw new Error(`unexpected fetch ${String(_url)}`)
+    })
+    const result = await jw.resolveStreamQuality("movie", "tt0133093", 550, null, ctrl.signal)
+    expect(result.quality).toBeNull()
+    expect(result.status).toBe("timeout")
+    expect(result.source).toBe("justwatch")
+    expect(fetchSpy).toHaveBeenCalledTimes(1)
+  })
+
+  it("bare fetch abort without caller abort is transport error (ephemeral)", async () => {
     vi.spyOn(globalThis, "fetch").mockRejectedValueOnce(
       new DOMException("The operation was aborted", "AbortError")
     )
-    const result = await tio.resolveStreamQuality("movie", "tt0133093")
+    const result = await jw.resolveStreamQuality("movie", "tt0133093", 551)
     expect(result.quality).toBeNull()
-    expect(result.status).toBe("timeout")
+    expect(result.status).toBe("error")
+    expect(result.source).toBe("justwatch")
   })
 
   it("returns error status on HTTP 500", async () => {
     vi.spyOn(globalThis, "fetch").mockImplementation(async (url) => {
       const u = String(url)
-      if (u.includes("/stream/")) return new Response("boom", { status: 500 })
-      throw new Error(`unexpected fetch ${u}`)
-    })
-    const result = await tio.resolveStreamQuality("movie", "tt0133093")
-    expect(result.quality).toBeNull()
-    expect(result.status).toBe("error")
-  })
-
-  it("keeps torrentio failure when JustWatch transport also fails (no fake resolved)", async () => {
-    vi.spyOn(globalThis, "fetch").mockImplementation(async (url) => {
-      const u = String(url)
-      if (u.includes("/stream/")) return new Response("boom", { status: 500 })
       if (u.includes("justwatch.com")) return new Response("boom", { status: 500 })
       throw new Error(`unexpected fetch ${u}`)
     })
-    const result = await tio.resolveStreamQuality("movie", "tt0133093", 550)
+    const result = await jw.resolveStreamQuality("movie", "tt0133093", 550)
+    expect(result.quality).toBeNull()
+    expect(result.status).toBe("error")
+    expect(result.source).toBe("justwatch")
+  })
+
+  it("keeps error (not fake resolved) when JustWatch transport fails", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (url) => {
+      const u = String(url)
+      if (u.includes("justwatch.com")) return new Response("boom", { status: 500 })
+      throw new Error(`unexpected fetch ${u}`)
+    })
+    const result = await jw.resolveStreamQuality("movie", "tt0133093", 550)
     expect(result.quality).toBeNull()
     // Non resolved: il composito userà TTL effimero invece di 6h.
     expect(result.status).not.toBe("resolved")
+    expect(result.source).toBe("justwatch")
   })
 
-  it("returns resolved-null on genuine JustWatch miss (empty edges)", async () => {
-    vi.spyOn(globalThis, "fetch").mockImplementation(async (url) => {
-      const u = String(url)
-      if (u.includes("/stream/")) {
-        return new Response(JSON.stringify({ streams: [] }), {
-          status: 200,
-          headers: { "Content-Type": "application/json" },
-        })
-      }
-      if (u.includes("justwatch.com")) {
-        return new Response(JSON.stringify({ data: { popularTitles: { edges: [] } } }), {
-          status: 200,
-          headers: { "Content-Type": "application/json" },
-        })
-      }
-      throw new Error(`unexpected fetch ${u}`)
-    })
-    const result = await tio.resolveStreamQuality("movie", "tt0133093", 550)
-    expect(result.quality).toBeNull()
-    expect(result.status).toBe("resolved")
-    expect(result.source).toBe("torrentio")
-  })
-  it("resolves full TTL on JustWatch FHD even after Torrentio timeout (quality certain, v1.23.0)", async () => {
-    const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(async (url) => {
-      const u = String(url)
-      if (u.includes("/stream/")) {
-        throw new DOMException("The operation was aborted", "AbortError")
-      }
-      if (u.includes("justwatch.com")) {
-        return new Response(
-          JSON.stringify({
-            data: {
-              popularTitles: {
-                edges: [
-                  {
-                    node: {
-                      content: { externalIds: { tmdbId: 552 } },
-                      offers: [{ presentationType: "HD" }],
-                    },
-                  },
-                ],
-              },
-            },
-          }),
-          { status: 200, headers: { "Content-Type": "application/json" } },
-        )
-      }
-      throw new Error(`unexpected fetch ${u}`)
-    })
-    const result = await tio.resolveStreamQuality("movie", "tt0133093", 552)
+  it("resolves full TTL on JustWatch FHD (quality certain, cached)", async () => {
+    const fetchSpy = mockJW(jwOffers(552, "HD"))
+    const result = await jw.resolveStreamQuality("movie", "tt0133093", 552)
     expect(result.quality).toBe("FHD")
     expect(result.source).toBe("justwatch")
     // Qualità accertata → resolved con TTL pieno: seconda chiamata riusa la cache.
     expect(result.status).toBe("resolved")
-    const cached = await tio.resolveStreamQuality("movie", "tt0133093", 552)
+    const cached = await jw.resolveStreamQuality("movie", "tt0133093", 552)
     expect(cached.quality).toBe("FHD")
-    expect(fetchSpy).toHaveBeenCalledTimes(2) // 1 torrentio + 1 justwatch, poi cache
-  })
-
-  it("series: S01 FHD + ultima stagione 4K → 4K con un solo fetch extra", async () => {
-    const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(async (url) => {
-      const u = decodeURIComponent(String(url))
-      if (u.includes("/stream/series/")) {
-        if (u.includes(":3:1")) {
-          return new Response(
-            JSON.stringify({ streams: [{ name: "Torrentio\n4k", title: "Show.S03E01.2160p.WEB-DL" }] }),
-            { status: 200, headers: { "Content-Type": "application/json" } },
-          )
-        }
-        return new Response(
-          JSON.stringify({ streams: [{ name: "Torrentio\n1080p", title: "Show.S01E01.1080p.WEB-DL" }] }),
-          { status: 200, headers: { "Content-Type": "application/json" } },
-        )
-      }
-      throw new Error(`unexpected fetch ${u}`)
-    })
-    const result = await tio.resolveStreamQuality("series", "tt0903747", 1396, null, undefined, 3)
-    expect(result.quality).toBe("4K")
-    expect(result.status).toBe("resolved")
-    expect(result.source).toBe("torrentio")
-    expect(fetchSpy).toHaveBeenCalledTimes(2)
-  })
-
-  it("series: S01 già 4K → nessun fetch extra", async () => {
-    const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(async (url) => {
-      const u = decodeURIComponent(String(url))
-      if (u.includes("/stream/series/")) {
-        return new Response(
-          JSON.stringify({ streams: [{ name: "Torrentio\n4k", title: "Show.S01E01.2160p.WEB-DL" }] }),
-          { status: 200, headers: { "Content-Type": "application/json" } },
-        )
-      }
-      throw new Error(`unexpected fetch ${u}`)
-    })
-    const result = await tio.resolveStreamQuality("series", "tt0903747", 1396, null, undefined, 3)
-    expect(result.quality).toBe("4K")
     expect(fetchSpy).toHaveBeenCalledTimes(1)
   })
 
-  it("series: S01 timeout → nessun fetch extra (niente raddoppio latenza)", async () => {
+  it("series: single JustWatch call, no S01/last-season Torrentio fetches", async () => {
+    const fetchSpy = mockJW(jwOffers(1396, "4K"))
+    const result = await jw.resolveStreamQuality("series", "tt0903747", 1396, null, undefined, 3)
+    expect(result.quality).toBe("4K")
+    expect(result.status).toBe("resolved")
+    expect(result.source).toBe("justwatch")
+    // Una sola chiamata JW, zero fetch stagionali Torrentio.
+    expect(fetchSpy).toHaveBeenCalledTimes(1)
+    expect(fetchSpy.mock.calls.every(([u]) => !String(u).includes("/stream/"))).toBe(true)
+  })
+
+  it("series miss: timeout is ephemeral, zero extra season fetch", async () => {
     const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(async (url) => {
       const u = String(url)
-      if (u.includes("/stream/")) {
-        throw new DOMException("The operation was aborted", "AbortError")
-      }
       if (u.includes("justwatch.com")) {
-        return new Response(JSON.stringify({ data: { popularTitles: { edges: [] } } }), {
-          status: 200,
-          headers: { "Content-Type": "application/json" },
-        })
+        throw new DOMException("The operation was aborted", "AbortError")
       }
       throw new Error(`unexpected fetch ${u}`)
     })
-    const result = await tio.resolveStreamQuality("series", "tt0903747", 1396, null, undefined, 3)
+    const result = await jw.resolveStreamQuality("series", "tt0903747", 1396, null, undefined, 3)
     expect(result.quality).toBeNull()
     expect(result.status).not.toBe("resolved")
-    // 1 torrentio (S01, timeout) + 1 justwatch, zero fetch sull'ultima stagione.
-    expect(fetchSpy).toHaveBeenCalledTimes(2)
+    // 1 sola chiamata JW, nessun fetch extra sull'ultima stagione.
+    expect(fetchSpy).toHaveBeenCalledTimes(1)
   })
 })
 
@@ -389,6 +357,37 @@ describe("QUALITY_SOURCE + regione JW (v1.23.0)", () => {
       expect(jwCall).toBeDefined()
       expect(String((jwCall![1] as { body?: unknown })?.body)).toContain('"country":"US"')
     } finally {
+      vi.unstubAllEnvs()
+      vi.resetModules()
+    }
+  })
+
+  it("unknown value: normalized to justwatch, zero Torrentio, one-time warning", async () => {
+    vi.resetModules()
+    vi.stubEnv("PICTORIUM_QUALITY_SOURCE", "bogus-source")
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {})
+    try {
+      const mod = await import("@/lib/stream-quality")
+      // One-time module-level warning describing the safe fallback.
+      expect(warnSpy).toHaveBeenCalledTimes(1)
+      expect(String(warnSpy.mock.calls[0]?.[0] ?? "")).toContain('normalized to "justwatch"')
+      const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(async (url) => {
+        const u = String(url)
+        if (u.includes("justwatch.com")) {
+          return new Response(JSON.stringify(jwFhd(550)), {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          })
+        }
+        throw new Error(`unexpected fetch ${u}`)
+      })
+      const r = await mod.resolveStreamQuality("movie", "tt0133093", 550, "Test")
+      expect(r).toMatchObject({ quality: "FHD", status: "resolved", source: "justwatch" })
+      // Fallback is JustWatch-only: zero Torrentio calls.
+      expect(fetchSpy.mock.calls.every(([u]) => !String(u).includes("torrentio"))).toBe(true)
+      expect(fetchSpy.mock.calls.every(([u]) => !String(u).includes("/stream/"))).toBe(true)
+    } finally {
+      warnSpy.mockRestore()
       vi.unstubAllEnvs()
       vi.resetModules()
     }

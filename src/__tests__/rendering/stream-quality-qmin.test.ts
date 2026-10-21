@@ -7,10 +7,18 @@ import {
 import { resolvePosterRenderConfig } from "@/lib/poster-config"
 import { buildStremioPosterSearchParams } from "@/lib/stremio-poster-params"
 
-function torrentioFetch(_url: string | URL | Request) {
+function justWatchFhdFetch(_url: string | URL | Request) {
   return {
     ok: true,
-    json: async () => ({ streams: [{ name: "Tracker | 1080p WEB-DL" }] }),
+    json: async () => ({
+      data: {
+        popularTitles: {
+          edges: [
+            { node: { content: { externalIds: { tmdbId: 999 } }, offers: [{ presentationType: "HD" }] } },
+          ],
+        },
+      },
+    }),
   }
 }
 
@@ -53,22 +61,21 @@ describe("qmin — soglia minima qualità streaming", () => {
   })
 
   it("niente cache pollution: la cache tiene il raw, il filtro è solo all'uscita", async () => {
-    // Legacy Torrentio chain pinned (backwards-compatible opt-in),
-    // independent of the runtime default (justwatch).
+    // Live chain: solo JustWatch (il legacy "torrentio" è normalizzato a JW).
     vi.resetModules()
-    vi.stubEnv("PICTORIUM_QUALITY_SOURCE", "torrentio")
-    const tio = await import("@/lib/stream-quality")
+    vi.stubEnv("PICTORIUM_QUALITY_SOURCE", "justwatch")
+    const jw = await import("@/lib/stream-quality")
     try {
-      const fetchMock = vi.fn(torrentioFetch)
+      const fetchMock = vi.fn(justWatchFhdFetch)
       vi.stubGlobal("fetch", fetchMock)
 
       // First request with qmin=4K: badge suppressed…
-      const raw = (await tio.resolveStreamQuality("movie", "tt999")).quality
+      const raw = (await jw.resolveStreamQuality("movie", "tt999", 999)).quality
       expect(raw).toBe("FHD")
       expect(applyMinQuality(raw, "4K")).toBeNull()
 
       // …but the second request (qmin=SD) still sees FHD with ZERO new fetches.
-      const raw2 = (await tio.resolveStreamQuality("movie", "tt999")).quality
+      const raw2 = (await jw.resolveStreamQuality("movie", "tt999", 999)).quality
       expect(raw2).toBe("FHD")
       expect(applyMinQuality(raw2, "SD")).toBe("FHD")
       expect(fetchMock).toHaveBeenCalledTimes(1)

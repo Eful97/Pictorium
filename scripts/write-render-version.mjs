@@ -67,6 +67,7 @@ const RENDER_FILES = [
   "src/lib/separate-rating-renderer.ts",
   "src/lib/server-defaults.ts",
   "src/lib/seasonal-theme.ts",
+  "src/lib/stream-quality.ts",
   "src/lib/stremio-poster-params.ts",
   "src/lib/stremio-poster-url.ts",
   "src/lib/subgenres.ts",

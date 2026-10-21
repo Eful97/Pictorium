@@ -1,10 +1,5 @@
-import { createLogger } from "./logger"
 import { getJWTitleQualityResult } from "./justwatch"
-import { getExternalIds } from "./tmdb"
 import { envWithFallback } from "./env-compat"
-import { timedFetch } from "./outbound-stats"
-
-const log = createLogger("stream-quality")
 
 // Tier/soglia in quality-tiers.ts (zero dipendenze): qui solo re-export per
 // compatibilità degli import esistenti (+ import type per l'uso locale).
@@ -12,16 +7,27 @@ import type { StreamQuality } from "./quality-tiers"
 export type { StreamQuality } from "./quality-tiers"
 export { parseMinQuality, isQualityAtLeast, applyMinQuality } from "./quality-tiers"
 
-const TORRENTIO_BASE_URL = (envWithFallback("TORRENTIO_URL") || process.env.TORRENTIO_URL || "https://torrentio.strem.fun").replace(/\/+$/, "")
 const STREAM_CACHE_TTL = 30 * 60 * 1000 // 30 minutes
 const STREAM_CACHE_TTL_NULL = 2 * 60 * 1000 // 2 minutes for null (evita cache avvelenata su Vercel)
 
-// Quality source: "justwatch" (default: JW only, no Torrentio),
-// "torrentio" (legacy chain with JW fallback, explicit opt-in for
-// backwards compatibility), "none" (no provider: badge never shown, zero
-// upstream). Module level: restart. The local AV database (av-specs.json)
+// Quality source: "justwatch" (default: live JustWatch only, zero Torrentio),
+// "none" (no live provider; local DB still applies). The legacy value
+// "torrentio" (and any unknown value) is deterministically normalized to
+// "justwatch": it NEVER triggers a live Torrentio call. Torrentio data is
+// used ONLY to expand/update the local database (av-specs.json) via the
+// operator-invoked offline scripts in scripts/torrentio-*.mjs — never at
+// runtime. Module level: restart. The local AV database (av-specs.json)
 // stays first upstream (poster route: qQuality > av-specs.json > live).
-const QUALITY_SOURCE = (envWithFallback("QUALITY_SOURCE") || "justwatch").toLowerCase().trim()
+const QUALITY_SOURCE_RAW = (envWithFallback("QUALITY_SOURCE") || "justwatch").toLowerCase().trim()
+const QUALITY_SOURCE_NORMALIZED: "justwatch" | "none" =
+  QUALITY_SOURCE_RAW === "none" ? "none" : "justwatch"
+if (QUALITY_SOURCE_RAW !== "justwatch" && QUALITY_SOURCE_RAW !== "none") {
+  console.warn(
+    `[pictorium] PICTORIUM_QUALITY_SOURCE="${QUALITY_SOURCE_RAW}" is deprecated/unknown: ` +
+      `normalized to "justwatch" (live Torrentio is disabled; Torrentio feeds only the offline DB import)`,
+  )
+}
+const QUALITY_SOURCE = QUALITY_SOURCE_NORMALIZED
 
 // Esito del rilevamento qualità: "resolved" = chiamata completata (anche con
 // quality null = esito negativo accertato, es. film 1950 senza stream);
@@ -30,6 +36,8 @@ const QUALITY_SOURCE = (envWithFallback("QUALITY_SOURCE") || "justwatch").toLowe
 // TTL effimero (vedi route poster), altrimenti un outage di 10s avvelena la
 // cache per 6h.
 export type QualityStatus = "resolved" | "timeout" | "error"
+// "torrentio" kept as a deprecated union member so existing mocks/typings
+// still compile; the runtime NEVER returns it (no live Torrentio source).
 export type QualitySource = "torrentio" | "justwatch" | "none"
 
 export interface StreamQualityResult {
@@ -60,7 +68,10 @@ export function isQualityTimeout(err: unknown): boolean {
   return false
 }
 
-/** Token grezzi (es. ["2160p","4k"]) dal testo degli stream — solo debug=1. */
+/**
+ * Token grezzi (es. ["2160p","4k"]) dai label dichiarati degli stream — pure
+ * helpers tenuti qui per compatibilità/test, nessun fetch runtime.
+ */
 export function extractRawQualityTokens(
   streams: Array<{ name?: string; title?: string; behaviorHints?: { filename?: string; bingeGroup?: string } }>,
 ): string[] {
@@ -84,13 +95,11 @@ export function extractRawQualityTokens(
 const STREAM_TIER_RANK: Record<StreamQuality, number> = { SD: 0, HD: 1, FHD: 2, "4K": 3 }
 
 /**
- * Qualità di un singolo stream. Regola unica: la risoluzione numerica
- * esplicita vince sulla parola di sorgente — un `UHD BluRay 1080p` o un
- * `4K Remaster 1080p` è un file 1080p (FHD), non un 4K. I token 4K attaccati
- * (4KHDR, 2160pHDR…) sono rilevati via substring perché `\b` fallisce tra
- * word-char. I campi strutturati di Torrentio (name `Torrentio\n1080p`,
- * bingeGroup `torrentio|1080p|…`) partecipano già concatenati: nessuna
- * priorità speciale da mantenere, la regola numerica copre i conflitti.
+ * Qualità di un singolo stream da label dichiarati (offline/import + debug).
+ * Regola unica: la risoluzione numerica esplicita vince sulla parola di
+ * sorgente — un `UHD BluRay 1080p` o un `4K Remaster 1080p` è un file 1080p
+ * (FHD), non un 4K. I token 4K attaccati (4KHDR, 2160pHDR…) sono rilevati via
+ * substring perché `\b` fallisce tra word-char.
  */
 export function parseSingleStreamQuality(
   s: { name?: string; title?: string; behaviorHints?: { filename?: string; bingeGroup?: string } }
@@ -119,52 +128,6 @@ export function parseStreamQualityFromStreams(
     }
   }
   return best
-}
-
-export async function fetchTorrentioQuality(
-  type: "movie" | "series",
-  imdbId: string,
-  signal?: AbortSignal,
-  season?: number | null,
-  episode?: number | null
-): Promise<StreamQualityResult> {
-  const streamId = type === "movie" ? imdbId : `${imdbId}:${season ?? 1}:${episode ?? 1}`
-  const url = `${TORRENTIO_BASE_URL}/stream/${type}/${encodeURIComponent(streamId)}.json`
-  try {
-    const timeoutSignal = AbortSignal.timeout(6000)
-      let combinedSignal: AbortSignal = timeoutSignal
-      if (signal) {
-        if (typeof (AbortSignal as unknown as { any?: unknown }).any === "function") {
-          combinedSignal = (AbortSignal as unknown as { any: (signals: AbortSignal[]) => AbortSignal }).any([signal, timeoutSignal])
-        } else {
-          // Fallback Node <19: combina manualmente i signal
-          const ctrl = new AbortController()
-          const onAbort = () => ctrl.abort((signal as unknown as { reason?: unknown })?.reason ?? timeoutSignal.reason)
-          if (signal.aborted || timeoutSignal.aborted) ctrl.abort()
-          else {
-            signal.addEventListener("abort", onAbort, { once: true })
-            timeoutSignal.addEventListener("abort", onAbort, { once: true })
-          }
-          combinedSignal = ctrl.signal
-        }
-      }
-
-      const res = await timedFetch(url, {
-        headers: { "User-Agent": "Pictorium/1.0" },
-        signal: combinedSignal,
-      })
-      if (!res.ok) {
-        log.debug("Torrentio non-OK", { imdbId, status: res.status })
-        return { quality: null, status: "error", source: "torrentio" }
-      }
-      const data = await res.json()
-      const q = parseStreamQualityFromStreams(data?.streams)
-      if (q) log.debug("Torrentio quality", { imdbId, quality: q })
-      return { quality: q, status: "resolved", source: "torrentio", rawTokens: extractRawQualityTokens(data?.streams ?? []) }
-    } catch (err) {
-      log.debug("Torrentio stream quality check failed or timed out", { imdbId, error: err instanceof Error ? err.message : String(err) })
-      return { quality: null, status: isQualityTimeout(err) ? "timeout" : "error", source: "torrentio" }
-    }
 }
 
 export async function resolveStreamQuality(
@@ -197,53 +160,12 @@ export async function resolveStreamQuality(
   if (QUALITY_SOURCE === "none") {
     return store({ quality: null, status: "resolved", source: "none" })
   }
-  const useTorrentio = QUALITY_SOURCE !== "justwatch"
 
-  // 1. Try Torrentio via IMDb ID
-  let targetImdbId = imdbId
-  if (!targetImdbId && tmdbId) {
-    try {
-      // A3: signal + tetto 8s (come POSTER_TMDB_TIMEOUT_MS) — prima senza
-      // entrambi: un TMDB appeso teneva lo slot di render fino a 30s.
-      const ext = await getExternalIds(type === "movie" ? "movie" : "tv", tmdbId, undefined, signal, 8000)
-      if (ext.imdb_id) targetImdbId = ext.imdb_id
-    } catch {}
-  }
-
-  let torrentioFailure: StreamQualityResult | null = null
-  if (useTorrentio && targetImdbId && targetImdbId.startsWith("tt")) {
-    const t = await fetchTorrentioQuality(type, targetImdbId, signal)
-    if (t.status === "resolved") {
-      let best = t.quality
-      let tokens = t.rawTokens ?? []
-      // Serie multi-stagione: S01E01 in FHD non esclude 4K dopo — un solo
-      // fetch extra sull'ultima stagione (solo Torrentio, mai JW: il badge
-      // promette ciò che è riproducibile su Stremio). Solo se S01 è resolved
-      // (su timeout/error il secondo fetch fallirebbe uguale: niente raddoppio
-      // della latenza) e non è già 4K.
-      if (type === "series" && Number.isFinite(lastSeason) && lastSeason > 1 && t.quality !== "4K") {
-        const last = await fetchTorrentioQuality(type, targetImdbId, signal, lastSeason, 1).catch(() => null)
-        if (last && last.status === "resolved" && last.quality) {
-          const merged = [...new Set([...tokens, ...(last.rawTokens ?? [])])]
-          if (last.quality === "4K") {
-            return store({ quality: "4K", status: "resolved", source: "torrentio", rawTokens: merged })
-          }
-          if (best === null || STREAM_TIER_RANK[last.quality] > STREAM_TIER_RANK[best]) {
-            best = last.quality
-            tokens = merged
-          }
-        }
-        // Extra fetch fallito/timeout → ignorato: resta l'esito di S01.
-      }
-      if (best) return store({ quality: best, status: "resolved", source: "torrentio", rawTokens: tokens })
-      // 200 con streams vuoti = resolved-null (esito negativo accertato): il
-      // fallback JW può ancora arricchire, ma se non trova nulla resta resolved.
-    } else {
-      torrentioFailure = t
-    }
-  }
-
-  // 2. Fallback to JustWatch GraphQL if Torrentio returned nothing and tmdbId is present
+  // Live chain: SOLO JustWatch (local DB first resta nel poster route:
+  // qQuality > av-specs.json > live). Il legacy "torrentio" è già
+  // normalizzato a "justwatch" a livello modulo: nessun fetch Torrentio qui.
+  // Niente getExternalIds: la qualità JW si risolve per tmdbId, senza
+  // network extra per l'IMDb ID.
   if (tmdbId) {
     try {
       const jw = await getJWTitleQualityResult(
@@ -254,28 +176,25 @@ export async function resolveStreamQuality(
         signal
       )
       if (jw.quality) {
-        // Qualità accertata da JW → resolved con TTL pieno (v1.23.0): il
-        // vecchio status ereditato dal failure Torrentio dimezzava la cache
-        // a 2min anche a qualità certa.
+        // Qualità accertata → resolved con TTL pieno.
         return store({ quality: jw.quality, status: "resolved", source: "justwatch" })
       }
       // ok=false (breaker aperto o trasporto fallito) = incertezza, NON miss:
-      // resta l'eventuale failure di Torrentio, altrimenti error effimero.
-      // Solo ok=true con quality null è esito negativo accertato.
+      // error effimero. Solo ok=true con quality null è esito negativo accertato.
       if (!jw.ok) {
-        return store(torrentioFailure ?? {
+        return store({
           quality: null,
           status: signal?.aborted ? "timeout" : "error",
           source: "justwatch",
         })
       }
-      return store(torrentioFailure ?? { quality: null, status: "resolved", source: targetImdbId ? "torrentio" : "justwatch" })
+      return store({ quality: null, status: "resolved", source: "justwatch" })
     } catch (err) {
-      return store(torrentioFailure ?? { quality: null, status: isQualityTimeout(err) ? "timeout" : "error", source: "justwatch" })
+      return store({ quality: null, status: isQualityTimeout(err) ? "timeout" : "error", source: "justwatch" })
     }
   }
 
-  return store(torrentioFailure ?? { quality: null, status: "resolved", source: "none" })
+  return store({ quality: null, status: "resolved", source: "justwatch" })
 }
 
 export function __resetStreamQualityCache() {

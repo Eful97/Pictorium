@@ -320,7 +320,7 @@ npm install --ignore-scripts && npm run build && npm start
 | `PICTORIUM_TINT_STRENGTH` | `20` | Intensità della tinta di scena per lo sfondo sfocato (0–100). |
 | `PICTORIUM_TOP_SHADE` | `80` | Ombra lineare superiore sul primo 25% del poster (0–100, 0 = spenta). |
 | `PICTORIUM_BADGE_QUALITY` | `1` | Mostra/nasconde il badge di risoluzione video streaming (4K/FHD). |
-| `PICTORIUM_QUALITY_SOURCE` | `justwatch` | Sorgente qualità streaming: `justwatch` (solo JW, default, zero Torrentio), `torrentio` (opt-in esplicito, con fallback JustWatch), `none` (badge mai mostrato, zero upstream). |
+| `PICTORIUM_QUALITY_SOURCE` | `justwatch` | Sorgente live qualità streaming: `justwatch` (solo JW, default) o `none` (no live provider; local DB still applies). Il valore legacy `torrentio` (e qualsiasi valore ignoto) è normalizzato a `justwatch` e non causa mai chiamate live a Torrentio. I dati Torrentio servono SOLO ad ampliare/aggiornare il DB locale (`av-specs.json`) tramite gli script offline invocati dall'operatore (`scripts/torrentio-av-import.mjs`, `scripts/torrentio-series-sample.mjs`) — mai a runtime. Catena poster: param `quality` esplicito > DB locale > sorgente live. |
 | `PICTORIUM_NETWORK_LOGO` | `1` | Mostra/nasconde il logo del network o studio di produzione. |
 | `PICTORIUM_PRE_RELEASE` | `0` | Velo scuro + nastro "Coming Soon" per film non ancora in streaming. |
 | `PICTORIUM_GRADIENT_HEIGHT` | `65` | Altezza percentuale della sfumatura scura inferiore. |

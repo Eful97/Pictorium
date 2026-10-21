@@ -331,7 +331,7 @@ Trakt OAuth notes (multi-user): one Trakt app registration per instance (client 
 | `PICTORIUM_BADGE_QUALITY` | `1` | Show or hide video streaming resolution badges (4K/FHD). |
 | `PICTORIUM_AGE_BADGE` | `0` | Show or hide the regional age-certification text badge below the quality stack (original country label, no conversion). |
 | `PICTORIUM_AGE_COUNTRY` | `IT` | Certification country for the age badge (ISO-2, e.g. `US`, `FR`; `GLOBAL` is rejected). Independent from UI language and streaming region. |
-| `PICTORIUM_QUALITY_SOURCE` | `justwatch` | Streaming quality source: `justwatch` (JW only, default, zero Torrentio), `torrentio` (explicit opt-in, with JustWatch fallback), `none` (badge never shown, zero upstream). |
+| `PICTORIUM_QUALITY_SOURCE` | `justwatch` | Live streaming quality source: `justwatch` (JW only, default) or `none` (no live provider; local DB still applies). The legacy value `torrentio` (and any unknown value) is normalized to `justwatch` and never triggers a live Torrentio call. Torrentio data is used ONLY to expand/update the local DB (`av-specs.json`) via the operator-invoked offline scripts (`scripts/torrentio-av-import.mjs`, `scripts/torrentio-series-sample.mjs`) — never at runtime. Poster chain: explicit `quality` param > local DB > live source. |
 | `PICTORIUM_NETWORK_LOGO` | `1` | Show or hide production network/studio logos. |
 | `PICTORIUM_PRE_RELEASE` | `0` | Dark veil + "Coming Soon" ribbon for movies not yet streaming. |
 | `PICTORIUM_GRADIENT_HEIGHT` | `65` | Percentage height of the bottom dark gradient. |
