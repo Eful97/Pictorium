@@ -10148,6 +10148,15 @@
       "atmos"
     ]
   },
+  "tt9288030": {
+    "quality": "4K",
+    "formats": [
+      "dv",
+      "hdr",
+      "hdr10plus",
+      "atmos"
+    ]
+  },
   "tt9318280": {
     "quality": "4K",
     "formats": [

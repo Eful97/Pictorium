@@ -1,0 +1,51 @@
+{
+  "tt9288030": {
+    "source": "torrentio",
+    "observedAt": "2026-10-21",
+    "observedKind": "prior-operator-observation-no-refetch",
+    "tmdbId": 108978,
+    "identityMethod": "operator-provided-imdb-tmdb",
+    "declared": {
+      "quality": "4K",
+      "formats": [
+        "dv",
+        "hdr",
+        "hdr10plus",
+        "atmos"
+      ]
+    },
+    "added": [
+      "dv",
+      "hdr",
+      "hdr10plus",
+      "atmos"
+    ],
+    "decision": "inserted",
+    "classification": "series",
+    "verification": "declared",
+    "userAccepted": true,
+    "semantics": "title-edition-union; separate-sample observations, no single-file tuple claim; no same-stream/playback/language guarantee",
+    "scope": "manual-insert:series,operator-selected-s02e4",
+    "samples": [
+      {
+        "quality": "4K",
+        "formats": [
+          "dv",
+          "hdr",
+          "atmos"
+        ]
+      },
+      {
+        "quality": "4K",
+        "formats": [
+          "dv",
+          "hdr10plus"
+        ]
+      }
+    ],
+    "season": 2,
+    "episode": 4,
+    "airDate": "2023-12-22",
+    "algorithm": "operator-selected-episode"
+  }
+}

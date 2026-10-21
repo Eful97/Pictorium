@@ -66,6 +66,47 @@ node scripts/torrentio-av-import.mjs --apply-reviewed-union \
   This is the guard working as designed — do NOT weaken the phase-1 baseline
   pin to an arbitrary DB. The phase-1 provenance entries stay verbatim.
 
+## Manual explicit insert (Reacher series, 1 authorized ID — offline, no network)
+
+```bash
+node scripts/torrentio-manual-insert.mjs --id tt9288030 --tmdb-id 108978 \
+  --type series --quality 4K --formats dv,hdr,hdr10plus,atmos \
+  --season 2 --episode 4 --air-date 2023-12-22 \
+  --observed-at 2026-10-21 --scope manual-insert:series,operator-selected-s02e4 \
+  --samples '[{"quality":"4K","formats":["dv","hdr","atmos"]}, {"quality":"4K","formats":["dv","hdr10plus"]}]'
+# dry-run by default (validates + prints plan, no writes); add --apply to write
+```
+
+- Covers the single title the fixed 105+832 manifests cannot carry: Reacher
+  was absent from the local DB (missing `tt9288030`), so no badge rendered.
+  Declared evidence (user-authorized, prior 2026-10-21 observation, no
+  re-fetch): one S02E04 sample `2160p · DDP5.1 · Atmos · DV · HDR` and a second
+  S02E04 sample `2160p · HDR10Plus · DV` (display also `DV|HDR10+|HDR`) —
+  recorded as a title-edition union (`dv,hdr,hdr10plus,atmos`, no single-file
+  tuple claim, no playback/language guarantee), `verification: "declared"`.
+- `scripts/torrentio-manual-insert.mjs` is the designated reproducible writer
+  (not hand-edited JSON): new IDs only (existing ids refused, no
+  overwrite/downgrade), `--db`/`--provenance` alias-guarded (same-file,
+  relative-alias, symlink, hardlink refused pre-I/O), series inserts require
+  explicit `--season/--episode/--air-date` (aired on or before `--observed-at`,
+  never future-aired) recorded as `operator-selected-episode` (never median),
+  `--observed-at` never in the future, optional `--samples` pure-field
+  per-sample evidence (same episode: only `{quality, formats}` enums, sample
+  qualities match the declared quality, sample union as a set equals the
+  declared formats), formats bound to the shared merge allowlist (imax never
+  insertable), identity recorded as `operator-provided-imdb-tmdb`
+  (format-validated ids only, never an independent TMDB /find verification:
+  no tv/movie result counts), zero network I/O on every path (no credentials,
+  no raw payload).
+- Companion provenance lives in `src/data/av-specs-series-provenance.json`
+  (series-only file); the 937-entry movie provenance file stays verbatim.
+- Superseded stage: after the insert, the phase-1 `--apply-reviewed` and
+  phase-2 `--apply-reviewed-union` commands intentionally fail closed (their
+  DB baseline pins bind the 1430-row bytes) — guard working as designed, do
+  NOT weaken the pins. Narrow inventory tests assert the original 1430-row set
+  still reconstructs the pinned post-union SHA with the single Reacher row
+  exact on top (1431 total).
+
 ## After applying
 
 1. `node scripts/write-render-version.mjs` — `src/data/av-specs.json` is a

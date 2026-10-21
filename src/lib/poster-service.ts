@@ -707,7 +707,13 @@ export async function renderQualityBadgeGroup(
   }
   if (!resBadge && ageText === "") return null
 
-  const validFormats = (videoFormats ?? []).filter((f) => f in FORMAT_ICON_PATHS)
+  const rawValidFormats = (videoFormats ?? []).filter((f) => f in FORMAT_ICON_PATHS)
+  // Priorità HDR10+ sul generico HDR (solo render, dopo la selezione
+  // effettiva: DB/provenance/raw utente e chiavi cache invariati — il gruppo
+  // non disegna HDR quando l'effettivo include anche HDR10+, in ogni ordine).
+  const validFormats = rawValidFormats.includes("hdr10plus")
+    ? rawValidFormats.filter((f) => f !== "hdr")
+    : rawValidFormats
 
   const hasDV = validFormats.includes("dv")
   const hasAtmos = validFormats.includes("atmos")

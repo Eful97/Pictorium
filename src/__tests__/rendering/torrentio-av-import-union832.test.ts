@@ -523,10 +523,26 @@ describe("CLI union gating (subprocess, no network)", () => {
   })
 })
 
-describe("union-832 real database contract (post-apply, 937 declared entries)", () => {
-  it("keeps 1430 rows with no new titles and carries every union delta", () => {
+describe("union-832 real database contract (post-apply, 937 declared entries + 1 manual insert)", () => {
+  it("keeps 1431 rows: original 1430 verbatim plus the authorized Reacher insert, and carries every union delta", () => {
     const db = JSON.parse(fs.readFileSync(path.join(ROOT, "src", "data", "av-specs.json"), "utf8"))
-    expect(Object.keys(db)).toHaveLength(1430)
+    expect(Object.keys(db)).toHaveLength(1431)
+    // The single authorized key outside the reviewed manifests (Reacher
+    // series, operator episode-selected S02E04 via
+    // scripts/torrentio-manual-insert.mjs, declared title-edition union).
+    expect(db["tt9288030"]).toEqual({ quality: "4K", formats: ["dv", "hdr", "hdr10plus", "atmos"] })
+    // The original 1430-row set reconstructs the pinned post-union bytes
+    // exactly: historic baseline untouched, not re-pinned.
+    const minus: Record<string, unknown> = {}
+    for (const key of Object.keys(db)) {
+      if (key !== "tt9288030") minus[key] = db[key]
+    }
+    expect(Object.keys(minus)).toHaveLength(1430)
+    const minusSorted: Record<string, unknown> = {}
+    for (const key of Object.keys(minus).sort()) minusSorted[key] = minus[key]
+    expect(sha256Hex(Buffer.from(`${JSON.stringify(minusSorted, null, 2)}\n`, "utf-8"))).toBe(
+      POST_UNION_DB_SHA256,
+    )
     for (const { id, added } of REVIEWED832_APPROVED) {
       const entry = db[id]
       expect(entry, id).toBeDefined()
@@ -600,9 +616,25 @@ describe("union-832 real database contract (post-apply, 937 declared entries)", 
     }
   })
 
-  it("pins the full post-union database bytes", () => {
+  it("the historic post-union pin binds the original 1430-row subset (full 1431 bytes supersede it by exactly one row)", () => {
+    // The full-file pin is intentionally superseded by the single authorized
+    // manual insert (Reacher): the historic POST_UNION_DB_SHA256 now binds
+    // the original 1430-row subset, not the 1431-row file. Do NOT re-pin the
+    // full bytes to a new expected hash.
     const bytes = fs.readFileSync(path.join(ROOT, "src", "data", "av-specs.json"))
-    expect(sha256Hex(bytes)).toBe(POST_UNION_DB_SHA256)
+    expect(sha256Hex(bytes)).not.toBe(POST_UNION_DB_SHA256)
+    const db = JSON.parse(bytes.toString("utf-8"))
+    expect(Object.keys(db)).toHaveLength(1431)
+    expect(db["tt9288030"]).toEqual({ quality: "4K", formats: ["dv", "hdr", "hdr10plus", "atmos"] })
+    const minus: Record<string, unknown> = {}
+    for (const key of Object.keys(db)) {
+      if (key !== "tt9288030") minus[key] = db[key]
+    }
+    const minusSorted: Record<string, unknown> = {}
+    for (const key of Object.keys(minus).sort()) minusSorted[key] = minus[key]
+    expect(sha256Hex(Buffer.from(`${JSON.stringify(minusSorted, null, 2)}\n`, "utf-8"))).toBe(
+      POST_UNION_DB_SHA256,
+    )
   })
 
   it("a superseded phase manifest fails closed on a newer delta with no writes (baseline mismatch)", () => {

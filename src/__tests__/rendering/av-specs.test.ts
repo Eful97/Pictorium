@@ -271,9 +271,12 @@ describe("av-specs lookup", () => {
     expect(lookupAVSpecs("tt0104694")?.quality).toBe("4K")
     expect(lookupAVSpecs("tt0104694")?.formats).toEqual(["dv", "atmos"])
 
-    // Additive-only batch: no new DB keys (all 32 ids already present).
+    // Additive-only batch: no new DB keys from the reviewed manifests (all 32
+    // ids already present). The single authorized manual insert (Reacher
+    // series tt9288030 via scripts/torrentio-manual-insert.mjs, operator
+    // episode-selected S02E04) is the only key outside the 105+832 manifests.
     const db = JSON.parse(fs.readFileSync(path.join(ROOT, "src", "data", "av-specs.json"), "utf8"))
-    expect(Object.keys(db).length).toBe(1430)
+    expect(Object.keys(db).length).toBe(1431)
   })
 
   it("batch 5+6 torrentio reviewed imports (105 + union-832 = 937 declared); user-accepted source, additive only", () => {
@@ -343,9 +346,13 @@ describe("av-specs lookup", () => {
       expect(provenance[id]?.scope).toBe(REVIEWED832_SCOPE)
     }
 
-    // No new DB keys across both phases.
+    // No new DB keys across both reviewed phases. The single authorized
+    // manual insert (Reacher series tt9288030 via
+    // scripts/torrentio-manual-insert.mjs) is the only key outside the
+    // 105+832 manifests; its exact record is pinned in
+    // torrentio-manual-insert.test.ts.
     const db = JSON.parse(fs.readFileSync(path.join(ROOT, "src", "data", "av-specs.json"), "utf8"))
-    expect(Object.keys(db).length).toBe(1430)
+    expect(Object.keys(db).length).toBe(1431)
   })
 
   it("returns null for unknown IDs or invalid inputs", () => {
