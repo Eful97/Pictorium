@@ -136,7 +136,7 @@ async function plantFile(dir: string, mediaType: "movie" | "tv", tmdbId: number,
   await fsp.mkdir(path.dirname(file), { recursive: true })
   await fsp.writeFile(
     file,
-    JSON.stringify({ v: 1, tmdbId, mediaType, fetchedAt, payload: { ...SAMPLE_PAYLOAD } }),
+    JSON.stringify({ v: 2, tmdbId, mediaType, fetchedAt, payload: { ...SAMPLE_PAYLOAD } }),
   )
 }
 
@@ -316,7 +316,7 @@ describe("wikidata-cache (KV backend)", () => {
     const dir = process.env.PICTORIUM_DATA_DIR as string
     expect(WIKIDATA_PERSIST_KV_EX_SECONDS).toBe(30 * 24 * 60 * 60)
     expect(await setPersistedWikidata(901, "movie", SAMPLE)).toBe(true)
-    expect(fakeKv.lastKey).toBe("pictorium:wikidata:v1:movie:901")
+    expect(fakeKv.lastKey).toBe("pictorium:wikidata:v2:movie:901")
     expect(fakeKv.lastEx).toBe(WIKIDATA_PERSIST_KV_EX_SECONDS)
     const got = await getPersistedWikidata(901, "movie")
     expect(got?.status).toBe("fresh")
@@ -371,24 +371,24 @@ describe("wikidata-cache (KV backend)", () => {
   })
 
   it("treats corrupted KV envelopes as a miss", async () => {
-    fakeKv.strings.set("pictorium:wikidata:v1:movie:905", { value: "not-json{{{", expiresAt: null })
+    fakeKv.strings.set("pictorium:wikidata:v2:movie:905", { value: "not-json{{{", expiresAt: null })
     expect(await getPersistedWikidata(905, "movie")).toBeNull()
   })
 
   it("enforces absolute 7d/30d age on KV records", async () => {
     const now = Date.now()
     fakeKv.strings.set(
-      "pictorium:wikidata:v1:movie:906",
+      "pictorium:wikidata:v2:movie:906",
       {
-        value: JSON.stringify({ v: 1, tmdbId: 906, mediaType: "movie", fetchedAt: now - 10 * DAY_MS, payload: { ...SAMPLE_PAYLOAD } }),
+        value: JSON.stringify({ v: 2, tmdbId: 906, mediaType: "movie", fetchedAt: now - 10 * DAY_MS, payload: { ...SAMPLE_PAYLOAD } }),
         expiresAt: now + DAY_MS,
       },
     )
     expect((await getPersistedWikidata(906, "movie"))?.status).toBe("stale")
     fakeKv.strings.set(
-      "pictorium:wikidata:v1:tv:907",
+      "pictorium:wikidata:v2:tv:907",
       {
-        value: JSON.stringify({ v: 1, tmdbId: 907, mediaType: "tv", fetchedAt: now - 31 * DAY_MS, payload: { ...SAMPLE_PAYLOAD } }),
+        value: JSON.stringify({ v: 2, tmdbId: 907, mediaType: "tv", fetchedAt: now - 31 * DAY_MS, payload: { ...SAMPLE_PAYLOAD } }),
         expiresAt: now + DAY_MS,
       },
     )

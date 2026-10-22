@@ -1,0 +1,72 @@
+[
+  {
+    "source": "https://www.televisionacademy.com/awards/nominees-winners/2008/outstanding-drama-series",
+    "year": 2008,
+    "family": "emmy",
+    "category": "Outstanding Drama Series",
+    "org": "Emmy",
+    "media": "tv",
+    "status": "nominee",
+    "title": "Dexter",
+    "tmdbId": 1405,
+    "imdbId": "tt0773262",
+    "retrievedAt": null,
+    "verificationLevel": "official-nominee-listed"
+  },
+  {
+    "source": "https://www.televisionacademy.com/awards/nominees-winners/2009/outstanding-drama-series",
+    "year": 2009,
+    "family": "emmy",
+    "category": "Outstanding Drama Series",
+    "org": "Emmy",
+    "media": "tv",
+    "status": "nominee",
+    "title": "Dexter",
+    "tmdbId": 1405,
+    "imdbId": "tt0773262",
+    "retrievedAt": null,
+    "verificationLevel": "official-nominee-listed"
+  },
+  {
+    "source": "https://www.televisionacademy.com/awards/nominees-winners/2010/outstanding-drama-series",
+    "year": 2010,
+    "family": "emmy",
+    "category": "Outstanding Drama Series",
+    "org": "Emmy",
+    "media": "tv",
+    "status": "nominee",
+    "title": "Dexter",
+    "tmdbId": 1405,
+    "imdbId": "tt0773262",
+    "retrievedAt": null,
+    "verificationLevel": "official-nominee-listed"
+  },
+  {
+    "source": "https://www.televisionacademy.com/awards/nominees-winners/2011/outstanding-drama-series",
+    "year": 2011,
+    "family": "emmy",
+    "category": "Outstanding Drama Series",
+    "org": "Emmy",
+    "media": "tv",
+    "status": "nominee",
+    "title": "Dexter",
+    "tmdbId": 1405,
+    "imdbId": "tt0773262",
+    "retrievedAt": null,
+    "verificationLevel": "official-nominee-listed"
+  },
+  {
+    "source": "https://www.televisionacademy.com/awards/nominees-winners/2008/outstanding-drama-series",
+    "year": 2008,
+    "family": "emmy",
+    "category": "Outstanding Drama Series",
+    "org": "Emmy",
+    "media": "tv",
+    "status": "winner",
+    "title": "Mad Men",
+    "tmdbId": 1104,
+    "imdbId": "tt0804503",
+    "retrievedAt": null,
+    "verificationLevel": "official-winner-listed"
+  }
+]

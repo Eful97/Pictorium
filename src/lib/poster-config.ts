@@ -14,6 +14,8 @@ import { resolveLabelFor } from "./i18n"
 import { resolveRatingSources } from "./rating-weights"
 import { parseMinQuality, type StreamQuality } from "./quality-tiers"
 import { parseSashOrder, normalizeSashOrder, DEFAULT_SASH_ORDER, NEXT_EPISODE_BADGE_KEY, type SashBucket } from "./badge-priority"
+import { sanitizeDisabledContentTags } from "./content-tags"
+import { sanitizeDisabledNetworks } from "./network-keys"
 import {
   isBadgeStyle,
   isRankingBadgeStyle,
@@ -415,6 +417,19 @@ export interface PosterRenderConfig {
   minQuality: StreamQuality
   /** Ordine/priorità sash — catena: query `sash` > server defaults > default. Globale (nessun per-titolo). */
   sashOrder: SashBucket[]
+  /**
+   * Tag badge automatici disabilitati space-wide (ID canonici, vedi
+   * `content-tags.ts`) — catena: query `dct` > config token > server
+   * defaults > [] (storico). Globale, condiviso tra forme (nessun per-titolo,
+   * nessun profilo landscape). Sanitized a ogni livello.
+   */
+  disabledContentTags: string[]
+  /**
+   * Mark network disabilitati space-wide (ID canonici, vedi
+   * `network-keys.ts`) — stessa catena del campo sopra (`dnet` in query).
+   * Skippati prima dei path locale e fallback TMDB, mai resurrect.
+   */
+  disabledNetworks: string[]
   /** Riga rating custom provider (display). Default ON quando il provider è configurato. */
   customRatings: boolean
   ratingSources: string[]
@@ -848,6 +863,19 @@ export function resolvePosterRenderConfig(input: PosterRenderConfigInput): Poste
   const sashOrder: SashBucket[] = parseSashOrder(q.get("sash"))
     ?? normalizeSashOrder(esd.sashOrder ?? sd.sashOrder) ?? [...DEFAULT_SASH_ORDER]
 
+  // Space-wide automatic exclusions — chain: query `dct`/`dnet`
+  // (comma-separated allowlist IDs, unlisted = enabled) > config token >
+  // server defaults (flat, shared across shapes) > [] (historical).
+  // Sanitized at every level: unknown IDs never reach the render.
+  const rawDct = q.get("dct")
+  const disabledContentTags: string[] = rawDct !== null
+    ? sanitizeDisabledContentTags(rawDct.split(","))
+    : sanitizeDisabledContentTags(configOverride?.disabledContentTags ?? sd.disabledContentTags ?? [])
+  const rawDnet = q.get("dnet")
+  const disabledNetworks: string[] = rawDnet !== null
+    ? sanitizeDisabledNetworks(rawDnet.split(","))
+    : sanitizeDisabledNetworks(configOverride?.disabledNetworks ?? sd.disabledNetworks ?? [])
+
   // Custom rating provider row (display) — precedence: query `cr` > mapping
   // effettivo per formato > config token/profile > effective per-shape defaults > true
   // (ON by default). Rendering still requires a configured provider (env).
@@ -1224,6 +1252,8 @@ export function resolvePosterRenderConfig(input: PosterRenderConfigInput): Poste
     ageBadgeStyle,
     minQuality,
     sashOrder,
+    disabledContentTags,
+    disabledNetworks,
     customRatings,
     ratingSources,
     separateRatings,

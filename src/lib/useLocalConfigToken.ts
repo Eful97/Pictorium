@@ -13,6 +13,14 @@ export interface LocalConfigTokenInput {
   readonly catalogShowEmojis?: boolean
   readonly seasonalHalloweenKeywords?: readonly string[]
   readonly seasonalChristmasKeywords?: readonly string[]
+  /**
+   * Space-wide automatic exclusions staged/saved on the device (canonical IDs,
+   * TMDB-fallback sentinel included). Always carried — even as explicit [] —
+   * so the issued token reflects a cleared device instead of inheriting the
+   * instance defaults. The server sanitizes again at match time.
+   */
+  readonly disabledContentTags?: readonly string[]
+  readonly disabledNetworks?: readonly string[]
 }
 
 /**
@@ -84,6 +92,16 @@ export function useLocalConfigToken(input: LocalConfigTokenInput): LocalConfigTo
         ...(input.seasonalChristmasKeywords && input.seasonalChristmasKeywords.length > 0
           ? { seasonalChristmasKeywords: [...input.seasonalChristmasKeywords] }
           : {}),
+        // Space-wide exclusions: ALWAYS carried (even explicit []) so the
+        // issued token reflects the device — including a cleared device —
+        // instead of inheriting the instance defaults. Explicit [] wins over
+        // instance lists server-side (route composes partial after instance).
+        ...(input.disabledContentTags !== undefined
+          ? { disabledContentTags: [...input.disabledContentTags] }
+          : {}),
+        ...(input.disabledNetworks !== undefined
+          ? { disabledNetworks: [...input.disabledNetworks] }
+          : {}),
       })
       if (cancelled) return
       if (minted) {
@@ -106,7 +124,7 @@ export function useLocalConfigToken(input: LocalConfigTokenInput): LocalConfigTo
     return () => {
       cancelled = true
     }
-  }, [input.customCatalogs, input.rankingSourceMovie, input.rankingSourceSeries, input.catalogShapes, input.catalogShowEmojis, input.seasonalHalloweenKeywords, input.seasonalChristmasKeywords])
+  }, [input.customCatalogs, input.rankingSourceMovie, input.rankingSourceSeries, input.catalogShapes, input.catalogShowEmojis, input.seasonalHalloweenKeywords, input.seasonalChristmasKeywords, input.disabledContentTags, input.disabledNetworks])
 
   return { token, status }
 }

@@ -34,7 +34,7 @@ The priority chain is defined in `src/lib/badge-priority.ts:computeBadge()`.
 - Rank trend (JustWatch)
 - Nuovo film / nuova serie (< 2 settimane)
 - Vincitore premio (Wikidata P166)
-- IMDb Top 250 — *Absolute Cinema*
+- IMDb Top 100 (Top 250 rank 1..100) — *Absolute Cinema* (film only; fallback snapshot 2026-10-22, refresh via `node scripts/write-imdb-top250-snapshot.mjs`)
 - Nomination (Wikidata P1411)
 - Sub-genere
 - Regista (Wikidata P57)

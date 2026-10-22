@@ -5,6 +5,10 @@ import { fileURLToPath } from "node:url"
 // Controllo manuale di anzianità delle liste premi curate
 // (src/lib/award-ids.ts: AWARD_LISTS_LAST_VERIFIED).
 //
+// Flusso semi-automatico completo (raccolta candidati + report per HUMAN
+// REVIEW, mai scrittura automatica): vedi `docs/awards-updater.md` e
+// `node scripts/collect-award-candidates.mjs --help`.
+//
 // Uso:
 //   node scripts/check-award-lists.mjs
 //

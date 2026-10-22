@@ -8,6 +8,7 @@ import { rateLimit, rateLimitKey, rateLimitResponse } from "@/lib/rate-limit"
 import { getWarmupCatalogs } from "@/lib/catalog-definitions"
 import { createLogger } from "@/lib/logger"
 import { z } from "zod"
+import { MAX_DISABLED_NETWORKS } from "@/lib/network-keys"
 import { BADGE_STYLES, RANKING_BADGE_STYLES, QUALITY_BADGE_STYLES, AGE_BADGE_STYLES, BADGE_FONTS, SEPARATE_RATINGS_STYLES, EXTRA_BADGE_STYLES, EXTRA_BADGE_FOLLOW_RANK } from "@/lib/badge-styles"
 import { POSTER_LAYOUTS, POSTER_FRESH_SCOPES } from "@/lib/types"
 import { readJsonBody, BodyTooLargeError, DEFAULT_MAX_BODY_BYTES } from "@/lib/read-body"
@@ -245,6 +246,12 @@ const defaultsSchema = z.object({
   // Bounded like the other catalog records; sanitized again at match time.
   seasonalHalloweenKeywords: z.array(z.string().max(40)).max(20).optional(),
   seasonalChristmasKeywords: z.array(z.string().max(40)).max(20).optional(),
+  // Space-wide automatic exclusions (shared across shapes, no per-title
+  // fields, no preset recipes): bounded allowlist IDs, sanitized again at
+  // match time. Absent/empty = historical behavior. The networks bound is
+  // 73 canonical marks + the Other-group sentinel (same list, never a key).
+  disabledContentTags: z.array(z.string().max(40)).max(64).optional(),
+  disabledNetworks: z.array(z.string().max(40)).max(MAX_DISABLED_NETWORKS).optional(),
 })
 
 function isPlainLandscapeRecord(v: unknown): v is Record<string, unknown> {

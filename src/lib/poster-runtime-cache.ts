@@ -13,6 +13,8 @@ import {
 import { isBadgeStyle, isRankingBadgeStyle, isExtraBadgeStyle, isExtraFollowRank, isBadgeFont, isSeparateRatingsStyle, isAgeBadgeStyle } from "@/lib/badge-styles"
 import { isPosterLayout, isPosterFreshScope, DEFAULT_POSTER_FRESH_SCOPE } from "@/lib/types"
 import { POSTER_CACHE_ALLOWLIST } from "./poster-params-hardening"
+import { sanitizeDisabledContentTags } from "./content-tags"
+import { sanitizeDisabledNetworks } from "./network-keys"
 
 const log = createLogger("poster-cache")
 
@@ -247,6 +249,26 @@ export function normalizePosterCacheParams(searchParams: URLSearchParams): URLSe
     const v = theme.trim().toLowerCase()
     if (v === "halloween" || v === "christmas") params.set("theme", v)
     else params.delete("theme")
+  }
+  // Space-wide automatic exclusions (`dct` content tags, `dnet` network
+  // marks): canonical sorted allowlist IDs (order-insensitive convergence —
+  // `?dct=a,b` and `?dct=b,a` share one key). Fail-closed with explicit-empty
+  // distinction (same pattern as sepstyle/layout/freshScope above): a PRESENT
+  // value that sanitizes to empty (explicit `dct=`, all-garbage `dct=bogus`)
+  // means "no exclusions" and keeps its own `dct=` key, while an ABSENT param
+  // may inherit disabled defaults from config/token — deleting the present
+  // value would collapse both keys and poison the cache (a no-exclusion
+  // render served where inherited defaults should apply, or vice versa).
+  // Sanitized again at render time (same leaf functions).
+  const dct = params.get("dct")
+  if (dct !== null) {
+    const ids = [...new Set(sanitizeDisabledContentTags(dct.split(",")))].sort()
+    params.set("dct", ids.join(","))
+  }
+  const dnet = params.get("dnet")
+  if (dnet !== null) {
+    const ids = [...new Set(sanitizeDisabledNetworks(dnet.split(",")))].sort()
+    params.set("dnet", ids.join(","))
   }
 
   // Removed Badge Lab params (`bp`/`bpf`/`bpt`): the custom badge library is

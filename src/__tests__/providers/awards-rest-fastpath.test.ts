@@ -2,7 +2,7 @@
  * Fast-path REST per Wikidata (Action API via CDN): con wikidata_id noto da
  * TMDB external_ids, fetchAllWikidata usa wbgetentities (claims + labels
  * batch) invece dello SPARQL lento. Fallback SPARQL su QID assente/invalido
- * o REST fallito; stessa cache condivisa v2; breaker REST isolato.
+ * o REST fallito; stessa cache condivisa v3; breaker REST isolato.
  */
 import { describe, it, expect, vi, beforeEach, afterEach, afterAll } from "vitest"
 import fsp from "node:fs/promises"
@@ -112,12 +112,14 @@ function mockUpstream(fixture: RestFixture) {
 }
 
 const AWARD_CLAIMS = {
-  P166: [claim("Q109487")],
+  // Real verified category QIDs (see docs/awards-top-category-provenance.md):
+  // Q102427 = Academy Award for Best Picture (strict main-title win).
+  P166: [claim("Q102427")],
   P1411: [claim("Q109488")],
   P57: [claim("Q25191")],
 }
 const AWARD_LABELS = {
-  Q109487: "Academy Award for Best Picture",
+  Q102427: "Academy Award for Best Picture",
   Q109488: "British Academy Film Award",
   Q25191: "Christopher Nolan",
 }
@@ -207,7 +209,7 @@ describe("fetchAllWikidata fast-path integration", () => {
 
   it("falls back to SPARQL without wikidataId", async () => {
     const calls = mockUpstream({
-      sparqlBindings: [{ awardLabel: { value: "Academy Award", type: "literal" } }],
+      sparqlBindings: [{ award: { value: "http://www.wikidata.org/entity/Q102427", type: "uri" }, awardLabel: { value: "Academy Award for Best Picture", type: "literal" } }],
     })
     const res = await fetchAllWikidata(802, "movie")
     expect(res.awards).toEqual(["Oscar"])
@@ -218,7 +220,7 @@ describe("fetchAllWikidata fast-path integration", () => {
   it("falls back to SPARQL when REST fails", async () => {
     const calls = mockUpstream({
       claimsStatus: 500,
-      sparqlBindings: [{ awardLabel: { value: "Academy Award", type: "literal" } }],
+      sparqlBindings: [{ award: { value: "http://www.wikidata.org/entity/Q102427", type: "uri" }, awardLabel: { value: "Academy Award for Best Picture", type: "literal" } }],
     })
     const res = await fetchAllWikidata(803, "movie", undefined, { wikidataId: "Q12345" })
     expect(res.awards).toEqual(["Oscar"])
@@ -229,7 +231,7 @@ describe("fetchAllWikidata fast-path integration", () => {
   it("falls back to SPARQL when the REST breaker is open", async () => {
     const calls = mockUpstream({
       claimsStatus: 500,
-      sparqlBindings: [{ awardLabel: { value: "Academy Award", type: "literal" } }],
+      sparqlBindings: [{ award: { value: "http://www.wikidata.org/entity/Q102427", type: "uri" }, awardLabel: { value: "Academy Award for Best Picture", type: "literal" } }],
     })
     // 5 fallimenti REST → breaker awards-rest aperto.
     for (let i = 0; i < 5; i++) {

@@ -160,7 +160,7 @@ describe("computeTopBadge (story/book/next-episode/few-episodes)", () => {
     expect(c.trueStory).toBe("Tratto da una storia vera")
     expect(c.badge).toEqual({ type: "extra", label: "Tratto da una storia vera" })
     const awarded = computeTopBadge({ ...baseInput, tvStatus: "Ended", lastAirDate: daysAgo(30), keywords: ["based on a true story"], awards: ["Emmy"] }, t, "it")
-    expect(awarded.badge?.label).toBe("Emmy")
+    expect(awarded.badge?.label).toBe("Vincitore Emmy")
   })
 
   it("offers both story and book labels when both apply, deterministic fallback", () => {

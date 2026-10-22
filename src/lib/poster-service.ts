@@ -41,6 +41,7 @@ import { estimateTextWidth, fontFamilyFor, escSvg, badgeBoxHeight, TOP_SHADOW_PA
 import { computeTopBadge, getNextEpisodeLabel, isNetworkStudio, shouldSuppressExtraTopBadgeForNetwork, type BadgeInput } from "./poster-badge"
 import { isNextEpisodeBadgeKey } from "./badge-priority"
 import { DEMO_SAMPLE_NETWORK } from "./demo-samples"
+import { NETWORK_MARK_FILES as NETWORK_FILES_COMBINED } from "./network-files"
 import type { DateFormat } from "./release-badge"
 import type { SashBucket } from "./badge-priority"
 import { PRE_RELEASE_DIM_ALPHA, PRE_RELEASE_BLUR_SIGMA } from "./pre-release"
@@ -188,6 +189,18 @@ export interface GenerationInput {
   videoFormats?: readonly VideoFormat[] | null
   /** Ordine/priorità sash (sottoinsieme = resto spento). Default = ordine standard. */
   sashOrder?: readonly SashBucket[] | null
+  /**
+   * Tag badge automatici disabilitati space-wide (ID canonici). Filtra PRIMA
+   * della selezione priorità (il candidato disabilitato cede al successivo).
+   * Assente/vuoto = storico. Override manuali mai filtrati.
+   */
+  disabledContentTags?: readonly string[] | null
+  /**
+   * Mark network disabilitati space-wide (ID canonici). Skippati prima dei
+   * path locale e fallback TMDB, su tutti i layout (Standard/Fresh/Card).
+   * Assente/vuoto = storico.
+   */
+  disabledNetworks?: readonly string[] | null
   topLight: boolean
   /** Polarità del badge genere in basso (fondo chiaro → pill scura). Default = topLight (comportamento storico). */
   bottomLight?: boolean
@@ -804,72 +817,11 @@ export async function renderQualityBadgeGroup(
 
 
 const NETWORKS_DIR_COMBINED = path.join(process.cwd(), "public", "networks")
-const NETWORK_FILES_COMBINED: Record<string, string> = {
-  netflix: "Netflix_2016_N_logo.svg",
-  hbo: "HBO_logo.svg",
-  disney: "Disney+_logo.svg",
-  prime: "Prime_Video_logo_(2024).svg",
-  apple: "Apple_TV_logo.svg",
-  paramount: "Paramount_Plus.svg",
-  rai: "Logo_of_RAI_(2016).svg",
-  crunchyroll: "cr_logo_noTagline.svg",
-  sky: "Now_logo.svg",
-  mediaset: "Mediaset_Infinity_logo.svg",
-  tubi: "Tubi logo.svg",
-  pluto: "Pluto_TV_logo_2024.svg",
-  amc: "Amc_logo.svg",
-  abc: "American_Broadcasting_Company_Logo.svg",
-  cbs: "CBS_logo_(2020).svg",
-  fox: "FOX_wordmark.svg",
-  fx: "FX_International_logo.svg",
-  hulu: "Hulu_logo_(2018).svg",
-  natgeo: "National-Geographic-Logo.svg",
-  nbc: "NBC_logo.svg",
-  mbs: "Mainichi_Broadcasting_System_logo.svg",
-  showtime: "Showtime_logo.svg",
-  warner: "Warner_Bros_logo.svg",
-  universal: "Universal_Pictures_logo.svg",
-  century: "20th_Century_Studios_(2020) [Recuperato].svg",
-  columbia: "Columbia_Pictures.svg",
-  sony: "Sony_logo.svg",
-  disney_pictures: "Walt_Disney_Pictures_text_logo.svg",
-  marvel: "Marvel_Studios_2016_logo.svg",
-  pixar: "Pixar_logo.svg",
-  a24: "A24_logo.svg",
-  legendary: "Legendary_Entertainment_logo.svg",
-  lionsgate: "Lionsgate_Logo.svg",
-  fandango: "Fandango_logotipo.svg",
-  medusa: "Medusa_Film_-_logo_(Italy,_2017-).svg",
-  ghibli: "Studio_Ghibli.svg",
-  mgm: "metro-goldwyn-mayer.svg",
-  mgm_plus: "MGM+_logo.svg",
-  lucasfilm: "Lucasfilm_logo.svg",
-  miramax: "Miramax_logo.svg",
-  castle_rock: "castle-rock-entertainment.svg",
-  dreamworks: "dreamworks-animation-logo-vector.svg",
-  indiana: "Indiana_Production.svg",
-  sky_cinema: "Sky_Cinema_-_Logo_2021.svg",
-  taodue: "Taodue_logo.svg",
-  bandai: "Bandai_Visual_corporate_logo.svg",
-  mappa: "MAPPA_Logo.svg",
-  skydance: "Skydance_Media_2020.svg",
-  studiocanal: "Studiocanal_2011_logo.svg",
-  dg_cinema: "direzione-generale-cinema-e-audiovisivo-vector-logo.svg",
-  dc: "DC_Studios_logo.svg",
-  bigtalk: "Big+Talk+Studios+-+Logo+-+Brandmark.webp",
-  batinthesun: "12x16-batinthesun.png",
-  horrorsection: "ths-logo-300_webp.png",
-  new_line: "New_Line_Cinema.svg",
-  jagged_edge: "jagged.svg",
-  gracie: "Gracie_Films_logo_webp.png",
-  deseo: "deseo.svg",
-  bellanova: "bellanova-big.png",
-  anton: "Anton_United_Kingdom_logo.png",
-  comix_wave: "CoMix Wave Films logo.svg",
-  filmauro: "cdnlogo.com_filmauro-logo.svg",
-  next_ent: "new.svg",
-  bones: "Bones_logo.svg",
-}
+// Combined/network-only pill paths resolve through the SAME shared
+// `NETWORK_MARK_FILES` registry as the main logo paths above (imported at
+// top as `NETWORK_FILES_COMBINED`): no second filename copy. (This alias
+// intentionally adds the previously missing `madhouse` entry to the combined
+// path — its pill now renders instead of returning null.)
 
 // B4: memo per (networkKey, targetH, fg). Gli SVG in public/networks/ sono
 // immutabili → memo permanente (cap 200). Prima ogni cold render ripeteva
@@ -1496,6 +1448,8 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
     // Stile pill età (assente = "standard" = resa storica).
     ageBadgeStyle: rawAgeBadgeStyle = null,
     sashOrder,
+    disabledContentTags = null,
+    disabledNetworks = null,
     topLight, targetCenter, ribbonSide,
     // Nastro stile Netflix all'angolo: default true (comportamento storico per
     // i chiamanti diretti/test che non passano il campo).
@@ -1594,6 +1548,7 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
     tvStatus,
     keywords: [...tmdbKeywords],
     imdbTop250: !!imdbTop250,
+    disabledContentTags: disabledContentTags ?? null,
   }
   const computed = computeTopBadge(badgeInput, t, locale, sashOrder ?? null, input.dateFormat ?? "locale")
   const studioBadge = computed.studioBadge
@@ -2035,11 +1990,11 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
   let [pillLogoResult, rawLogoResult] = netLogoEnabled
     ? await Promise.all([
         hasDetailed
-          ? renderFirstMatchingNetworkLogoBadgeHybrid(networkCandidatesHybrid as NetworkCandidate[], badgePw, topLight)
-          : renderFirstMatchingNetworkLogoBadge(stringCandidates, badgePw, topLight),
+          ? renderFirstMatchingNetworkLogoBadgeHybrid(networkCandidatesHybrid as NetworkCandidate[], badgePw, topLight, undefined, disabledNetworks)
+          : renderFirstMatchingNetworkLogoBadge(stringCandidates, badgePw, topLight, disabledNetworks),
         hasDetailed
-          ? renderFirstMatchingNetworkRawBadgeHybrid(networkCandidatesHybrid as NetworkCandidate[], badgePw, topLight)
-          : renderFirstMatchingNetworkRawBadge(stringCandidates, badgePw),
+          ? renderFirstMatchingNetworkRawBadgeHybrid(networkCandidatesHybrid as NetworkCandidate[], badgePw, topLight, undefined, disabledNetworks)
+          : renderFirstMatchingNetworkRawBadge(stringCandidates, badgePw, topLight, disabledNetworks),
       ])
     : [null, null]
   // Demo samples network fallback: the ordered candidates above keep full
@@ -2047,9 +2002,9 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
   // brand renders solely when nothing matched. Same renderer, zero network.
   if (netLogoEnabled && !pillLogoResult && input.demoSamples) {
     const demoCandidates = [{ name: DEMO_SAMPLE_NETWORK.name, logoPath: DEMO_SAMPLE_NETWORK.logoPath }]
-    pillLogoResult = await renderFirstMatchingNetworkLogoBadgeHybrid(demoCandidates, badgePw, topLight)
+    pillLogoResult = await renderFirstMatchingNetworkLogoBadgeHybrid(demoCandidates, badgePw, topLight, undefined, disabledNetworks)
     rawLogoResult = pillLogoResult
-      ? await renderFirstMatchingNetworkRawBadgeHybrid(demoCandidates, badgePw, topLight)
+      ? await renderFirstMatchingNetworkRawBadgeHybrid(demoCandidates, badgePw, topLight, undefined, disabledNetworks)
       : null
   }
   const networkLogoResult = pillLogoResult

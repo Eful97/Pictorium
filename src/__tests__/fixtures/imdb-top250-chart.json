@@ -1,0 +1,1760 @@
+{
+  "sourceUrl": "https://www.imdb.com/it/chart/top/",
+  "sourceFile": "I migliori 250 film di IMDb.htm",
+  "sourceSha256": "7ca8f72955697b705286d60dcffaf485a85d66dbe4ced8f7352275f82ff338c8",
+  "sourceBytes": 3855501,
+  "importedOn": "2026-10-22",
+  "sourceGeneratedAt": "UNKNOWN",
+  "entries": [
+    {
+      "rank": 1,
+      "id": "tt0111161",
+      "originalTitle": "The Shawshank Redemption",
+      "title": "Le ali della libertà",
+      "titleType": "movie"
+    },
+    {
+      "rank": 2,
+      "id": "tt0068646",
+      "originalTitle": "The Godfather",
+      "title": "Il padrino",
+      "titleType": "movie"
+    },
+    {
+      "rank": 3,
+      "id": "tt0468569",
+      "originalTitle": "The Dark Knight",
+      "title": "Il cavaliere oscuro",
+      "titleType": "movie"
+    },
+    {
+      "rank": 4,
+      "id": "tt0071562",
+      "originalTitle": "The Godfather Part II",
+      "title": "Il padrino - Parte II",
+      "titleType": "movie"
+    },
+    {
+      "rank": 5,
+      "id": "tt0167260",
+      "originalTitle": "The Lord of the Rings: The Return of the King",
+      "title": "Il Signore degli Anelli - Il ritorno del re",
+      "titleType": "movie"
+    },
+    {
+      "rank": 6,
+      "id": "tt0050083",
+      "originalTitle": "12 Angry Men",
+      "title": "La parola ai giurati",
+      "titleType": "movie"
+    },
+    {
+      "rank": 7,
+      "id": "tt0108052",
+      "originalTitle": "Schindler's List",
+      "title": "Schindler's List",
+      "titleType": "movie"
+    },
+    {
+      "rank": 8,
+      "id": "tt0120737",
+      "originalTitle": "The Lord of the Rings: The Fellowship of the Ring",
+      "title": "Il Signore degli Anelli - La compagnia dell'Anello",
+      "titleType": "movie"
+    },
+    {
+      "rank": 9,
+      "id": "tt0110912",
+      "originalTitle": "Pulp Fiction",
+      "title": "Pulp Fiction",
+      "titleType": "movie"
+    },
+    {
+      "rank": 10,
+      "id": "tt0167261",
+      "originalTitle": "The Lord of the Rings: The Two Towers",
+      "title": "Il Signore degli Anelli - Le due torri",
+      "titleType": "movie"
+    },
+    {
+      "rank": 11,
+      "id": "tt0060196",
+      "originalTitle": "Il buono, il brutto, il cattivo",
+      "title": "Il buono, il brutto, il cattivo",
+      "titleType": "movie"
+    },
+    {
+      "rank": 12,
+      "id": "tt0109830",
+      "originalTitle": "Forrest Gump",
+      "title": "Forrest Gump",
+      "titleType": "movie"
+    },
+    {
+      "rank": 13,
+      "id": "tt1375666",
+      "originalTitle": "Inception",
+      "title": "Inception",
+      "titleType": "movie"
+    },
+    {
+      "rank": 14,
+      "id": "tt0137523",
+      "originalTitle": "Fight Club",
+      "title": "Fight Club",
+      "titleType": "movie"
+    },
+    {
+      "rank": 15,
+      "id": "tt0080684",
+      "originalTitle": "Star Wars: Episode V - The Empire Strikes Back",
+      "title": "L'Impero colpisce ancora",
+      "titleType": "movie"
+    },
+    {
+      "rank": 16,
+      "id": "tt0133093",
+      "originalTitle": "The Matrix",
+      "title": "Matrix",
+      "titleType": "movie"
+    },
+    {
+      "rank": 17,
+      "id": "tt0816692",
+      "originalTitle": "Interstellar",
+      "title": "Interstellar",
+      "titleType": "movie"
+    },
+    {
+      "rank": 18,
+      "id": "tt0099685",
+      "originalTitle": "GoodFellas",
+      "title": "Quei bravi ragazzi",
+      "titleType": "movie"
+    },
+    {
+      "rank": 19,
+      "id": "tt0073486",
+      "originalTitle": "One Flew Over the Cuckoo's Nest",
+      "title": "Qualcuno volò sul nido del cuculo",
+      "titleType": "movie"
+    },
+    {
+      "rank": 20,
+      "id": "tt0114369",
+      "originalTitle": "Se7en",
+      "title": "Seven",
+      "titleType": "movie"
+    },
+    {
+      "rank": 21,
+      "id": "tt0038650",
+      "originalTitle": "It's a Wonderful Life",
+      "title": "La vita è meravigliosa",
+      "titleType": "movie"
+    },
+    {
+      "rank": 22,
+      "id": "tt0102926",
+      "originalTitle": "The Silence of the Lambs",
+      "title": "Il silenzio degli innocenti",
+      "titleType": "movie"
+    },
+    {
+      "rank": 23,
+      "id": "tt0120815",
+      "originalTitle": "Saving Private Ryan",
+      "title": "Salvate il soldato Ryan",
+      "titleType": "movie"
+    },
+    {
+      "rank": 24,
+      "id": "tt0047478",
+      "originalTitle": "Shichinin no samurai",
+      "title": "I sette samurai",
+      "titleType": "movie"
+    },
+    {
+      "rank": 25,
+      "id": "tt0120689",
+      "originalTitle": "The Green Mile",
+      "title": "Il miglio verde",
+      "titleType": "movie"
+    },
+    {
+      "rank": 26,
+      "id": "tt0317248",
+      "originalTitle": "Cidade de Deus",
+      "title": "City of God",
+      "titleType": "movie"
+    },
+    {
+      "rank": 27,
+      "id": "tt0118799",
+      "originalTitle": "La vita è bella",
+      "title": "La vita è bella",
+      "titleType": "movie"
+    },
+    {
+      "rank": 28,
+      "id": "tt0103064",
+      "originalTitle": "Terminator 2: Judgment Day",
+      "title": "Terminator 2 - Il giorno del giudizio",
+      "titleType": "movie"
+    },
+    {
+      "rank": 29,
+      "id": "tt0088763",
+      "originalTitle": "Back to the Future",
+      "title": "Ritorno al futuro",
+      "titleType": "movie"
+    },
+    {
+      "rank": 30,
+      "id": "tt0076759",
+      "originalTitle": "Star Wars",
+      "title": "Guerre stellari",
+      "titleType": "movie"
+    },
+    {
+      "rank": 31,
+      "id": "tt0245429",
+      "originalTitle": "Sen to Chihiro no kamikakushi",
+      "title": "La città incantata",
+      "titleType": "movie"
+    },
+    {
+      "rank": 32,
+      "id": "tt0172495",
+      "originalTitle": "Gladiator",
+      "title": "Il gladiatore",
+      "titleType": "movie"
+    },
+    {
+      "rank": 33,
+      "id": "tt0253474",
+      "originalTitle": "The Pianist",
+      "title": "Il pianista",
+      "titleType": "movie"
+    },
+    {
+      "rank": 34,
+      "id": "tt6019206",
+      "originalTitle": "Kill Bill: The Whole Bloody Affair",
+      "title": "Kill Bill: The Whole Bloody Affair",
+      "titleType": "movie"
+    },
+    {
+      "rank": 35,
+      "id": "tt6751668",
+      "originalTitle": "Gisaengchung",
+      "title": "Parasite",
+      "titleType": "movie"
+    },
+    {
+      "rank": 36,
+      "id": "tt0095327",
+      "originalTitle": "Hotaru no haka",
+      "title": "Una tomba per le lucciole",
+      "titleType": "movie"
+    },
+    {
+      "rank": 37,
+      "id": "tt0056058",
+      "originalTitle": "Seppuku",
+      "title": "Harakiri",
+      "titleType": "movie"
+    },
+    {
+      "rank": 38,
+      "id": "tt0110357",
+      "originalTitle": "The Lion King",
+      "title": "Il re leone",
+      "titleType": "movie"
+    },
+    {
+      "rank": 39,
+      "id": "tt0054215",
+      "originalTitle": "Psycho",
+      "title": "Psyco",
+      "titleType": "movie"
+    },
+    {
+      "rank": 40,
+      "id": "tt0407887",
+      "originalTitle": "The Departed",
+      "title": "The Departed - Il bene e il male",
+      "titleType": "movie"
+    },
+    {
+      "rank": 41,
+      "id": "tt2582802",
+      "originalTitle": "Whiplash",
+      "title": "Whiplash",
+      "titleType": "movie"
+    },
+    {
+      "rank": 42,
+      "id": "tt0482571",
+      "originalTitle": "The Prestige",
+      "title": "The Prestige",
+      "titleType": "movie"
+    },
+    {
+      "rank": 43,
+      "id": "tt0120586",
+      "originalTitle": "American History X",
+      "title": "American History X",
+      "titleType": "movie"
+    },
+    {
+      "rank": 44,
+      "id": "tt9362722",
+      "originalTitle": "Spider-Man: Across the Spider-Verse",
+      "title": "Spider-Man: Across the Spider-Verse",
+      "titleType": "movie"
+    },
+    {
+      "rank": 45,
+      "id": "tt0095765",
+      "originalTitle": "Nuovo Cinema Paradiso",
+      "title": "Nuovo Cinema Paradiso",
+      "titleType": "movie"
+    },
+    {
+      "rank": 46,
+      "id": "tt0110413",
+      "originalTitle": "Léon",
+      "title": "Léon",
+      "titleType": "movie"
+    },
+    {
+      "rank": 47,
+      "id": "tt0034583",
+      "originalTitle": "Casablanca",
+      "title": "Casablanca",
+      "titleType": "movie"
+    },
+    {
+      "rank": 48,
+      "id": "tt1675434",
+      "originalTitle": "Intouchables",
+      "title": "Quasi amici - Intouchables",
+      "titleType": "movie"
+    },
+    {
+      "rank": 49,
+      "id": "tt0114814",
+      "originalTitle": "The Usual Suspects",
+      "title": "I soliti sospetti",
+      "titleType": "movie"
+    },
+    {
+      "rank": 50,
+      "id": "tt1853728",
+      "originalTitle": "Django Unchained",
+      "title": "Django Unchained",
+      "titleType": "movie"
+    },
+    {
+      "rank": 51,
+      "id": "tt0078748",
+      "originalTitle": "Alien",
+      "title": "Alien",
+      "titleType": "movie"
+    },
+    {
+      "rank": 52,
+      "id": "tt0047396",
+      "originalTitle": "Rear Window",
+      "title": "La finestra sul cortile",
+      "titleType": "movie"
+    },
+    {
+      "rank": 53,
+      "id": "tt0027977",
+      "originalTitle": "Modern Times",
+      "title": "Tempi moderni",
+      "titleType": "movie"
+    },
+    {
+      "rank": 54,
+      "id": "tt0064116",
+      "originalTitle": "C'era una volta il West",
+      "title": "C'era una volta il West",
+      "titleType": "movie"
+    },
+    {
+      "rank": 55,
+      "id": "tt0910970",
+      "originalTitle": "WALL·E",
+      "title": "WALL·E",
+      "titleType": "movie"
+    },
+    {
+      "rank": 56,
+      "id": "tt0021749",
+      "originalTitle": "City Lights",
+      "title": "Luci della città",
+      "titleType": "movie"
+    },
+    {
+      "rank": 57,
+      "id": "tt0078788",
+      "originalTitle": "Apocalypse Now",
+      "title": "Apocalypse Now",
+      "titleType": "movie"
+    },
+    {
+      "rank": 58,
+      "id": "tt0209144",
+      "originalTitle": "Memento",
+      "title": "Memento",
+      "titleType": "movie"
+    },
+    {
+      "rank": 59,
+      "id": "tt4154756",
+      "originalTitle": "Avengers: Infinity War",
+      "title": "Avengers: Infinity War",
+      "titleType": "movie"
+    },
+    {
+      "rank": 60,
+      "id": "tt15239678",
+      "originalTitle": "Dune: Part Two",
+      "title": "Dune - Parte due",
+      "titleType": "movie"
+    },
+    {
+      "rank": 61,
+      "id": "tt0082971",
+      "originalTitle": "Raiders of the Lost Ark",
+      "title": "I predatori dell'arca perduta",
+      "titleType": "movie"
+    },
+    {
+      "rank": 62,
+      "id": "tt4633694",
+      "originalTitle": "Spider-Man: Into the Spider-Verse",
+      "title": "Spider-Man: Un nuovo universo",
+      "titleType": "movie"
+    },
+    {
+      "rank": 63,
+      "id": "tt0405094",
+      "originalTitle": "Das Leben der Anderen",
+      "title": "Le vite degli altri",
+      "titleType": "movie"
+    },
+    {
+      "rank": 64,
+      "id": "tt33764258",
+      "originalTitle": "The Odyssey",
+      "title": "Odissea",
+      "titleType": "movie"
+    },
+    {
+      "rank": 65,
+      "id": "tt0043014",
+      "originalTitle": "Sunset Boulevard",
+      "title": "Viale del tramonto",
+      "titleType": "movie"
+    },
+    {
+      "rank": 66,
+      "id": "tt0051201",
+      "originalTitle": "Witness for the Prosecution",
+      "title": "Testimone d'accusa",
+      "titleType": "movie"
+    },
+    {
+      "rank": 67,
+      "id": "tt0050825",
+      "originalTitle": "Paths of Glory",
+      "title": "Orizzonti di gloria",
+      "titleType": "movie"
+    },
+    {
+      "rank": 68,
+      "id": "tt0361748",
+      "originalTitle": "Inglourious Basterds",
+      "title": "Bastardi senza gloria",
+      "titleType": "movie"
+    },
+    {
+      "rank": 69,
+      "id": "tt0081505",
+      "originalTitle": "The Shining",
+      "title": "Shining",
+      "titleType": "movie"
+    },
+    {
+      "rank": 70,
+      "id": "tt0032553",
+      "originalTitle": "The Great Dictator",
+      "title": "Il grande dittatore",
+      "titleType": "movie"
+    },
+    {
+      "rank": 71,
+      "id": "tt0090605",
+      "originalTitle": "Aliens",
+      "title": "Aliens - Scontro finale",
+      "titleType": "movie"
+    },
+    {
+      "rank": 72,
+      "id": "tt0057565",
+      "originalTitle": "Tengoku to jigoku",
+      "title": "Anatomia di un rapimento",
+      "titleType": "movie"
+    },
+    {
+      "rank": 73,
+      "id": "tt23849204",
+      "originalTitle": "12th Fail",
+      "title": "12th Fail",
+      "titleType": "movie"
+    },
+    {
+      "rank": 74,
+      "id": "tt4154796",
+      "originalTitle": "Avengers: Endgame",
+      "title": "Avengers: Endgame",
+      "titleType": "movie"
+    },
+    {
+      "rank": 75,
+      "id": "tt0119217",
+      "originalTitle": "Good Will Hunting",
+      "title": "Will Hunting - Genio ribelle",
+      "titleType": "movie"
+    },
+    {
+      "rank": 76,
+      "id": "tt2380307",
+      "originalTitle": "Coco",
+      "title": "Coco",
+      "titleType": "movie"
+    },
+    {
+      "rank": 77,
+      "id": "tt0114709",
+      "originalTitle": "Toy Story",
+      "title": "Toy Story - Il mondo dei giocattoli",
+      "titleType": "movie"
+    },
+    {
+      "rank": 78,
+      "id": "tt1345836",
+      "originalTitle": "The Dark Knight Rises",
+      "title": "Il cavaliere oscuro - Il ritorno",
+      "titleType": "movie"
+    },
+    {
+      "rank": 79,
+      "id": "tt0086879",
+      "originalTitle": "Amadeus",
+      "title": "Amadeus",
+      "titleType": "movie"
+    },
+    {
+      "rank": 80,
+      "id": "tt5311514",
+      "originalTitle": "Kimi no na wa.",
+      "title": "Your Name.",
+      "titleType": "movie"
+    },
+    {
+      "rank": 81,
+      "id": "tt1187043",
+      "originalTitle": "3 Idiots",
+      "title": "3 Idiots",
+      "titleType": "movie"
+    },
+    {
+      "rank": 82,
+      "id": "tt0112573",
+      "originalTitle": "Braveheart",
+      "title": "Braveheart - Cuore impavido",
+      "titleType": "movie"
+    },
+    {
+      "rank": 83,
+      "id": "tt0082096",
+      "originalTitle": "Das Boot",
+      "title": "U-Boot 96",
+      "titleType": "movie"
+    },
+    {
+      "rank": 84,
+      "id": "tt0119698",
+      "originalTitle": "Mononoke-hime",
+      "title": "Principessa Mononoke",
+      "titleType": "movie"
+    },
+    {
+      "rank": 85,
+      "id": "tt0364569",
+      "originalTitle": "Oldeuboi",
+      "title": "Oldboy",
+      "titleType": "movie"
+    },
+    {
+      "rank": 86,
+      "id": "tt0057012",
+      "originalTitle": "Dr. Strangelove or: How I Learned to Stop Worrying and Love the Bomb",
+      "title": "Il dottor Stranamore - Ovvero: come ho imparato a non preoccuparmi e ad amare la bomba",
+      "titleType": "movie"
+    },
+    {
+      "rank": 87,
+      "id": "tt0169547",
+      "originalTitle": "American Beauty",
+      "title": "American Beauty",
+      "titleType": "movie"
+    },
+    {
+      "rank": 88,
+      "id": "tt8267604",
+      "originalTitle": "Capharnaüm",
+      "title": "Cafarnao - Caos e miracoli",
+      "titleType": "movie"
+    },
+    {
+      "rank": 89,
+      "id": "tt33175825",
+      "originalTitle": "Shingeki no Kyojin: The Last Attack",
+      "title": "Attack on Titan the Movie: The Last Attack",
+      "titleType": "movie"
+    },
+    {
+      "rank": 90,
+      "id": "tt0045152",
+      "originalTitle": "Singin' in the Rain",
+      "title": "Cantando sotto la pioggia",
+      "titleType": "movie"
+    },
+    {
+      "rank": 91,
+      "id": "tt0087843",
+      "originalTitle": "C'era una volta in America",
+      "title": "C'era una volta in America",
+      "titleType": "movie"
+    },
+    {
+      "rank": 92,
+      "id": "tt7286456",
+      "originalTitle": "Joker",
+      "title": "Joker",
+      "titleType": "movie"
+    },
+    {
+      "rank": 93,
+      "id": "tt0435761",
+      "originalTitle": "Toy Story 3",
+      "title": "Toy Story 3 - La grande fuga",
+      "titleType": "movie"
+    },
+    {
+      "rank": 94,
+      "id": "tt0086190",
+      "originalTitle": "Star Wars: Episode VI - Return of the Jedi",
+      "title": "Il ritorno dello Jedi",
+      "titleType": "movie"
+    },
+    {
+      "rank": 95,
+      "id": "tt0091251",
+      "originalTitle": "Idi i smotri",
+      "title": "Va' e vedi",
+      "titleType": "movie"
+    },
+    {
+      "rank": 96,
+      "id": "tt0180093",
+      "originalTitle": "Requiem for a Dream",
+      "title": "Requiem for a Dream",
+      "titleType": "movie"
+    },
+    {
+      "rank": 97,
+      "id": "tt1255953",
+      "originalTitle": "Incendies",
+      "title": "La donna che canta",
+      "titleType": "movie"
+    },
+    {
+      "rank": 98,
+      "id": "tt0044741",
+      "originalTitle": "Ikiru",
+      "title": "Vivere",
+      "titleType": "movie"
+    },
+    {
+      "rank": 99,
+      "id": "tt2106476",
+      "originalTitle": "Jagten",
+      "title": "Il sospetto",
+      "titleType": "movie"
+    },
+    {
+      "rank": 100,
+      "id": "tt0338013",
+      "originalTitle": "Eternal Sunshine of the Spotless Mind",
+      "title": "Se mi lasci ti cancello",
+      "titleType": "movie"
+    },
+    {
+      "rank": 101,
+      "id": "tt0053604",
+      "originalTitle": "The Apartment",
+      "title": "L'appartamento",
+      "titleType": "movie"
+    },
+    {
+      "rank": 102,
+      "id": "tt0056172",
+      "originalTitle": "Lawrence of Arabia",
+      "title": "Lawrence d'Arabia",
+      "titleType": "movie"
+    },
+    {
+      "rank": 103,
+      "id": "tt0113277",
+      "originalTitle": "Heat",
+      "title": "Heat - La sfida",
+      "titleType": "movie"
+    },
+    {
+      "rank": 104,
+      "id": "tt0086250",
+      "originalTitle": "Scarface",
+      "title": "Scarface",
+      "titleType": "movie"
+    },
+    {
+      "rank": 105,
+      "id": "tt1049413",
+      "originalTitle": "Up",
+      "title": "Up",
+      "titleType": "movie"
+    },
+    {
+      "rank": 106,
+      "id": "tt0105236",
+      "originalTitle": "Reservoir Dogs",
+      "title": "Le lene - Cani da rapina",
+      "titleType": "movie"
+    },
+    {
+      "rank": 107,
+      "id": "tt0062622",
+      "originalTitle": "2001: A Space Odyssey",
+      "title": "2001: Odissea nello spazio",
+      "titleType": "movie"
+    },
+    {
+      "rank": 108,
+      "id": "tt0036775",
+      "originalTitle": "Double Indemnity",
+      "title": "La fiamma del peccato",
+      "titleType": "movie"
+    },
+    {
+      "rank": 109,
+      "id": "tt0986264",
+      "originalTitle": "Taare Zameen Par",
+      "title": "Stelle sulla Terra",
+      "titleType": "movie"
+    },
+    {
+      "rank": 110,
+      "id": "tt0053125",
+      "originalTitle": "North by Northwest",
+      "title": "Intrigo internazionale",
+      "titleType": "movie"
+    },
+    {
+      "rank": 111,
+      "id": "tt0093058",
+      "originalTitle": "Full Metal Jacket",
+      "title": "Full Metal Jacket",
+      "titleType": "movie"
+    },
+    {
+      "rank": 112,
+      "id": "tt1832382",
+      "originalTitle": "Jodaeiye Nader az Simin",
+      "title": "Una separazione",
+      "titleType": "movie"
+    },
+    {
+      "rank": 113,
+      "id": "tt31514146",
+      "originalTitle": "I Swear",
+      "title": "I Swear",
+      "titleType": "movie"
+    },
+    {
+      "rank": 114,
+      "id": "tt0095016",
+      "originalTitle": "Die Hard",
+      "title": "Trappola di cristallo",
+      "titleType": "movie"
+    },
+    {
+      "rank": 115,
+      "id": "tt0022100",
+      "originalTitle": "M - Eine Stadt sucht einen Mörder",
+      "title": "M - Il mostro di Düsseldorf",
+      "titleType": "movie"
+    },
+    {
+      "rank": 116,
+      "id": "tt0211915",
+      "originalTitle": "Le fabuleux destin d'Amélie Poulain",
+      "title": "Il favoloso mondo di Amélie",
+      "titleType": "movie"
+    },
+    {
+      "rank": 117,
+      "id": "tt0097576",
+      "originalTitle": "Indiana Jones and the Last Crusade",
+      "title": "Indiana Jones e l'ultima crociata",
+      "titleType": "movie"
+    },
+    {
+      "rank": 118,
+      "id": "tt0056592",
+      "originalTitle": "To Kill a Mockingbird",
+      "title": "Il buio oltre la siepe",
+      "titleType": "movie"
+    },
+    {
+      "rank": 119,
+      "id": "tt0052357",
+      "originalTitle": "Vertigo",
+      "title": "La donna che visse due volte",
+      "titleType": "movie"
+    },
+    {
+      "rank": 120,
+      "id": "tt0033467",
+      "originalTitle": "Citizen Kane",
+      "title": "Quarto potere",
+      "titleType": "movie"
+    },
+    {
+      "rank": 121,
+      "id": "tt0070735",
+      "originalTitle": "The Sting",
+      "title": "La stangata",
+      "titleType": "movie"
+    },
+    {
+      "rank": 122,
+      "id": "tt0066921",
+      "originalTitle": "A Clockwork Orange",
+      "title": "Arancia meccanica",
+      "titleType": "movie"
+    },
+    {
+      "rank": 123,
+      "id": "tt0120382",
+      "originalTitle": "The Truman Show",
+      "title": "The Truman Show",
+      "titleType": "movie"
+    },
+    {
+      "rank": 124,
+      "id": "tt0993846",
+      "originalTitle": "The Wolf of Wall Street",
+      "title": "The Wolf of Wall Street",
+      "titleType": "movie"
+    },
+    {
+      "rank": 125,
+      "id": "tt0017136",
+      "originalTitle": "Metropolis",
+      "title": "Metropolis",
+      "titleType": "movie"
+    },
+    {
+      "rank": 126,
+      "id": "tt8579674",
+      "originalTitle": "1917",
+      "title": "1917",
+      "titleType": "movie"
+    },
+    {
+      "rank": 127,
+      "id": "tt0208092",
+      "originalTitle": "Snatch",
+      "title": "Snatch - Lo strappo",
+      "titleType": "movie"
+    },
+    {
+      "rank": 128,
+      "id": "tt1130884",
+      "originalTitle": "Shutter Island",
+      "title": "Shutter Island",
+      "titleType": "movie"
+    },
+    {
+      "rank": 129,
+      "id": "tt0363163",
+      "originalTitle": "Der Untergang",
+      "title": "La caduta - Gli ultimi giorni di Hitler",
+      "titleType": "movie"
+    },
+    {
+      "rank": 130,
+      "id": "tt0119488",
+      "originalTitle": "L.A. Confidential",
+      "title": "L.A. Confidential",
+      "titleType": "movie"
+    },
+    {
+      "rank": 131,
+      "id": "tt6966692",
+      "originalTitle": "Green Book",
+      "title": "Green Book",
+      "titleType": "movie"
+    },
+    {
+      "rank": 132,
+      "id": "tt5074352",
+      "originalTitle": "Dangal",
+      "title": "Dangal",
+      "titleType": "movie"
+    },
+    {
+      "rank": 133,
+      "id": "tt0040522",
+      "originalTitle": "Ladri di biciclette",
+      "title": "Ladri di biciclette",
+      "titleType": "movie"
+    },
+    {
+      "rank": 134,
+      "id": "tt0055031",
+      "originalTitle": "Judgment at Nuremberg",
+      "title": "Vincitori e vinti",
+      "titleType": "movie"
+    },
+    {
+      "rank": 135,
+      "id": "tt0058625",
+      "originalTitle": "Suna no onna",
+      "title": "La donna di sabbia",
+      "titleType": "movie"
+    },
+    {
+      "rank": 136,
+      "id": "tt0107290",
+      "originalTitle": "Jurassic Park",
+      "title": "Jurassic Park",
+      "titleType": "movie"
+    },
+    {
+      "rank": 137,
+      "id": "tt0372784",
+      "originalTitle": "Batman Begins",
+      "title": "Batman Begins",
+      "titleType": "movie"
+    },
+    {
+      "rank": 138,
+      "id": "tt15398776",
+      "originalTitle": "Oppenheimer",
+      "title": "Oppenheimer",
+      "titleType": "movie"
+    },
+    {
+      "rank": 139,
+      "id": "tt0059578",
+      "originalTitle": "Per qualche dollaro in più",
+      "title": "Per qualche dollaro in più",
+      "titleType": "movie"
+    },
+    {
+      "rank": 140,
+      "id": "tt8503618",
+      "originalTitle": "Hamilton",
+      "title": "Hamilton",
+      "titleType": "movie"
+    },
+    {
+      "rank": 141,
+      "id": "tt0469494",
+      "originalTitle": "There Will Be Blood",
+      "title": "Il petroliere",
+      "titleType": "movie"
+    },
+    {
+      "rank": 142,
+      "id": "tt0053291",
+      "originalTitle": "Some Like It Hot",
+      "title": "A qualcuno piace caldo",
+      "titleType": "movie"
+    },
+    {
+      "rank": 143,
+      "id": "tt0075314",
+      "originalTitle": "Taxi Driver",
+      "title": "Taxi Driver",
+      "titleType": "movie"
+    },
+    {
+      "rank": 144,
+      "id": "tt10272386",
+      "originalTitle": "The Father",
+      "title": "The Father",
+      "titleType": "movie"
+    },
+    {
+      "rank": 145,
+      "id": "tt0167404",
+      "originalTitle": "The Sixth Sense",
+      "title": "The Sixth Sense - Il sesto senso",
+      "titleType": "movie"
+    },
+    {
+      "rank": 146,
+      "id": "tt0012349",
+      "originalTitle": "The Kid",
+      "title": "Il monello",
+      "titleType": "movie"
+    },
+    {
+      "rank": 147,
+      "id": "tt0042192",
+      "originalTitle": "All About Eve",
+      "title": "Eva contro Eva",
+      "titleType": "movie"
+    },
+    {
+      "rank": 148,
+      "id": "tt0089881",
+      "originalTitle": "Ran",
+      "title": "Ran",
+      "titleType": "movie"
+    },
+    {
+      "rank": 149,
+      "id": "tt0084787",
+      "originalTitle": "The Thing",
+      "title": "La cosa",
+      "titleType": "movie"
+    },
+    {
+      "rank": 150,
+      "id": "tt0112641",
+      "originalTitle": "Casino",
+      "title": "Casinò",
+      "titleType": "movie"
+    },
+    {
+      "rank": 151,
+      "id": "tt0477348",
+      "originalTitle": "No Country for Old Men",
+      "title": "Non è un paese per vecchi",
+      "titleType": "movie"
+    },
+    {
+      "rank": 152,
+      "id": "tt1392214",
+      "originalTitle": "Prisoners",
+      "title": "Prisoners",
+      "titleType": "movie"
+    },
+    {
+      "rank": 153,
+      "id": "tt1745960",
+      "originalTitle": "Top Gun: Maverick",
+      "title": "Top Gun: Maverick",
+      "titleType": "movie"
+    },
+    {
+      "rank": 154,
+      "id": "tt0266697",
+      "originalTitle": "Kill Bill: Vol. 1",
+      "title": "Kill Bill - Volume 1",
+      "titleType": "movie"
+    },
+    {
+      "rank": 155,
+      "id": "tt0457430",
+      "originalTitle": "El laberinto del fauno",
+      "title": "Il labirinto del fauno",
+      "titleType": "movie"
+    },
+    {
+      "rank": 156,
+      "id": "tt0105695",
+      "originalTitle": "Unforgiven",
+      "title": "Gli spietati",
+      "titleType": "movie"
+    },
+    {
+      "rank": 157,
+      "id": "tt0268978",
+      "originalTitle": "A Beautiful Mind",
+      "title": "A Beautiful Mind",
+      "titleType": "movie"
+    },
+    {
+      "rank": 158,
+      "id": "tt0347149",
+      "originalTitle": "Hauru no ugoku shiro",
+      "title": "Il castello errante di Howl",
+      "titleType": "movie"
+    },
+    {
+      "rank": 159,
+      "id": "tt0040897",
+      "originalTitle": "The Treasure of the Sierra Madre",
+      "title": "Il tesoro della Sierra Madre",
+      "titleType": "movie"
+    },
+    {
+      "rank": 160,
+      "id": "tt0266543",
+      "originalTitle": "Finding Nemo",
+      "title": "Alla ricerca di Nemo",
+      "titleType": "movie"
+    },
+    {
+      "rank": 161,
+      "id": "tt4729430",
+      "originalTitle": "Klaus",
+      "title": "Klaus: I segreti del Natale",
+      "titleType": "movie"
+    },
+    {
+      "rank": 162,
+      "id": "tt12042730",
+      "originalTitle": "Project Hail Mary",
+      "title": "L'Ultima Missione: Project Hail Mary",
+      "titleType": "movie"
+    },
+    {
+      "rank": 163,
+      "id": "tt32820897",
+      "originalTitle": "Gekijô-ban Kimetsu no Yaiba Mugen Jô-hen",
+      "title": "Demon Slayer -Kimetsu no Yaiba- Il Castello dell'Infinito",
+      "titleType": "movie"
+    },
+    {
+      "rank": 164,
+      "id": "tt0055630",
+      "originalTitle": "Yôjinbô",
+      "title": "La sfida del samurai",
+      "titleType": "movie"
+    },
+    {
+      "rank": 165,
+      "id": "tt0080678",
+      "originalTitle": "The Elephant Man",
+      "title": "The Elephant Man",
+      "titleType": "movie"
+    },
+    {
+      "rank": 166,
+      "id": "tt0057115",
+      "originalTitle": "The Great Escape",
+      "title": "La grande fuga",
+      "titleType": "movie"
+    },
+    {
+      "rank": 167,
+      "id": "tt0071853",
+      "originalTitle": "Monty Python and the Holy Grail",
+      "title": "Monty Python e il Sacro Graal",
+      "titleType": "movie"
+    },
+    {
+      "rank": 168,
+      "id": "tt0046912",
+      "originalTitle": "Dial M for Murder",
+      "title": "Il delitto perfetto",
+      "titleType": "movie"
+    },
+    {
+      "rank": 169,
+      "id": "tt1305806",
+      "originalTitle": "El secreto de sus ojos",
+      "title": "Il segreto dei suoi occhi",
+      "titleType": "movie"
+    },
+    {
+      "rank": 170,
+      "id": "tt0031381",
+      "originalTitle": "Gone with the Wind",
+      "title": "Via col vento",
+      "titleType": "movie"
+    },
+    {
+      "rank": 171,
+      "id": "tt0120735",
+      "originalTitle": "Lock, Stock and Two Smoking Barrels",
+      "title": "Lock & Stock - Pazzi scatenati",
+      "titleType": "movie"
+    },
+    {
+      "rank": 172,
+      "id": "tt0264464",
+      "originalTitle": "Catch Me If You Can",
+      "title": "Prova a prendermi",
+      "titleType": "movie"
+    },
+    {
+      "rank": 173,
+      "id": "tt0071315",
+      "originalTitle": "Chinatown",
+      "title": "Chinatown",
+      "titleType": "movie"
+    },
+    {
+      "rank": 174,
+      "id": "tt0434409",
+      "originalTitle": "V for Vendetta",
+      "title": "V per Vendetta",
+      "titleType": "movie"
+    },
+    {
+      "rank": 175,
+      "id": "tt0097165",
+      "originalTitle": "Dead Poets Society",
+      "title": "L'attimo fuggente",
+      "titleType": "movie"
+    },
+    {
+      "rank": 176,
+      "id": "tt2096673",
+      "originalTitle": "Inside Out",
+      "title": "Inside Out",
+      "titleType": "movie"
+    },
+    {
+      "rank": 177,
+      "id": "tt0346336",
+      "originalTitle": "La meglio gioventù",
+      "title": "La meglio gioventù",
+      "titleType": "movie"
+    },
+    {
+      "rank": 178,
+      "id": "tt0117951",
+      "originalTitle": "Trainspotting",
+      "title": "Trainspotting",
+      "titleType": "movie"
+    },
+    {
+      "rank": 179,
+      "id": "tt1201607",
+      "originalTitle": "Harry Potter and the Deathly Hallows: Part 2",
+      "title": "Harry Potter e i Doni della Morte - Parte 2",
+      "titleType": "movie"
+    },
+    {
+      "rank": 180,
+      "id": "tt5027774",
+      "originalTitle": "Three Billboards Outside Ebbing, Missouri",
+      "title": "Tre manifesti a Ebbing, Missouri",
+      "titleType": "movie"
+    },
+    {
+      "rank": 181,
+      "id": "tt0050212",
+      "originalTitle": "The Bridge on the River Kwai",
+      "title": "Il ponte sul fiume Kwai",
+      "titleType": "movie"
+    },
+    {
+      "rank": 182,
+      "id": "tt0042876",
+      "originalTitle": "Rashômon",
+      "title": "Rashomon",
+      "titleType": "movie"
+    },
+    {
+      "rank": 183,
+      "id": "tt0072684",
+      "originalTitle": "Barry Lyndon",
+      "title": "Barry Lyndon",
+      "titleType": "movie"
+    },
+    {
+      "rank": 184,
+      "id": "tt0052618",
+      "originalTitle": "Ben-Hur",
+      "title": "Ben-Hur",
+      "titleType": "movie"
+    },
+    {
+      "rank": 185,
+      "id": "tt29623480",
+      "originalTitle": "The Wild Robot",
+      "title": "Il robot selvaggio",
+      "titleType": "movie"
+    },
+    {
+      "rank": 186,
+      "id": "tt2119532",
+      "originalTitle": "Hacksaw Ridge",
+      "title": "La battaglia di Hacksaw Ridge",
+      "titleType": "movie"
+    },
+    {
+      "rank": 187,
+      "id": "tt1291584",
+      "originalTitle": "Warrior",
+      "title": "Warrior",
+      "titleType": "movie"
+    },
+    {
+      "rank": 188,
+      "id": "tt0382932",
+      "originalTitle": "Ratatouille",
+      "title": "Ratatouille",
+      "titleType": "movie"
+    },
+    {
+      "rank": 189,
+      "id": "tt1392190",
+      "originalTitle": "Mad Max: Fury Road",
+      "title": "Mad Max: Fury Road",
+      "titleType": "movie"
+    },
+    {
+      "rank": 190,
+      "id": "tt0405159",
+      "originalTitle": "Million Dollar Baby",
+      "title": "Million Dollar Baby",
+      "titleType": "movie"
+    },
+    {
+      "rank": 191,
+      "id": "tt0116282",
+      "originalTitle": "Fargo",
+      "title": "Fargo",
+      "titleType": "movie"
+    },
+    {
+      "rank": 192,
+      "id": "tt0118849",
+      "originalTitle": "Bacheha-ye aseman",
+      "title": "I bambini del cielo",
+      "titleType": "movie"
+    },
+    {
+      "rank": 193,
+      "id": "tt0096283",
+      "originalTitle": "Tonari no Totoro",
+      "title": "Il mio vicino Totoro",
+      "titleType": "movie"
+    },
+    {
+      "rank": 194,
+      "id": "tt1205489",
+      "originalTitle": "Gran Torino",
+      "title": "Gran Torino",
+      "titleType": "movie"
+    },
+    {
+      "rank": 195,
+      "id": "tt2024544",
+      "originalTitle": "12 Years a Slave",
+      "title": "12 anni schiavo",
+      "titleType": "movie"
+    },
+    {
+      "rank": 196,
+      "id": "tt0081398",
+      "originalTitle": "Raging Bull",
+      "title": "Toro scatenato",
+      "titleType": "movie"
+    },
+    {
+      "rank": 197,
+      "id": "tt0892769",
+      "originalTitle": "How to Train Your Dragon",
+      "title": "Dragon Trainer",
+      "titleType": "movie"
+    },
+    {
+      "rank": 198,
+      "id": "tt0353969",
+      "originalTitle": "Salinui chueok",
+      "title": "Memorie di un assassino",
+      "titleType": "movie"
+    },
+    {
+      "rank": 199,
+      "id": "tt2278388",
+      "originalTitle": "The Grand Budapest Hotel",
+      "title": "Grand Budapest Hotel",
+      "titleType": "movie"
+    },
+    {
+      "rank": 200,
+      "id": "tt0112471",
+      "originalTitle": "Before Sunrise",
+      "title": "Prima dell'alba",
+      "titleType": "movie"
+    },
+    {
+      "rank": 201,
+      "id": "tt0198781",
+      "originalTitle": "Monsters, Inc.",
+      "title": "Monsters & Co.",
+      "titleType": "movie"
+    },
+    {
+      "rank": 202,
+      "id": "tt0083658",
+      "originalTitle": "Blade Runner",
+      "title": "Blade Runner",
+      "titleType": "movie"
+    },
+    {
+      "rank": 203,
+      "id": "tt2267998",
+      "originalTitle": "Gone Girl",
+      "title": "L'amore bugiardo - Gone Girl",
+      "titleType": "movie"
+    },
+    {
+      "rank": 204,
+      "id": "tt1950186",
+      "originalTitle": "Ford v Ferrari",
+      "title": "Le Mans '66 - La grande sfida",
+      "titleType": "movie"
+    },
+    {
+      "rank": 205,
+      "id": "tt0073195",
+      "originalTitle": "Jaws",
+      "title": "Lo squalo",
+      "titleType": "movie"
+    },
+    {
+      "rank": 206,
+      "id": "tt0107207",
+      "originalTitle": "In the Name of the Father",
+      "title": "Nel nome del padre",
+      "titleType": "movie"
+    },
+    {
+      "rank": 207,
+      "id": "tt30472557",
+      "originalTitle": "Gekijô-ban Chensô Man Reze-hen",
+      "title": "Chainsaw Man - Il film: La storia di Reze",
+      "titleType": "movie"
+    },
+    {
+      "rank": 208,
+      "id": "tt10872600",
+      "originalTitle": "Spider-Man: No Way Home",
+      "title": "Spider-Man: No Way Home",
+      "titleType": "movie"
+    },
+    {
+      "rank": 209,
+      "id": "tt3011894",
+      "originalTitle": "Relatos salvajes",
+      "title": "Storie pazzesche",
+      "titleType": "movie"
+    },
+    {
+      "rank": 210,
+      "id": "tt5323662",
+      "originalTitle": "Koe no katachi",
+      "title": "La forma della voce",
+      "titleType": "movie"
+    },
+    {
+      "rank": 211,
+      "id": "tt0015864",
+      "originalTitle": "The Gold Rush",
+      "title": "La febbre dell'oro",
+      "titleType": "movie"
+    },
+    {
+      "rank": 212,
+      "id": "tt0978762",
+      "originalTitle": "Mary and Max.",
+      "title": "Mary and Max",
+      "titleType": "movie"
+    },
+    {
+      "rank": 213,
+      "id": "tt0015324",
+      "originalTitle": "Sherlock Jr.",
+      "title": "La palla n° 13",
+      "titleType": "movie"
+    },
+    {
+      "rank": 214,
+      "id": "tt0325980",
+      "originalTitle": "Pirates of the Caribbean: The Curse of the Black Pearl",
+      "title": "La maledizione della prima luna",
+      "titleType": "movie"
+    },
+    {
+      "rank": 215,
+      "id": "tt0077416",
+      "originalTitle": "The Deer Hunter",
+      "title": "Il cacciatore",
+      "titleType": "movie"
+    },
+    {
+      "rank": 216,
+      "id": "tt3315342",
+      "originalTitle": "Logan",
+      "title": "Logan - The Wolverine",
+      "titleType": "movie"
+    },
+    {
+      "rank": 217,
+      "id": "tt0046268",
+      "originalTitle": "Le salaire de la peur",
+      "title": "Vite vendute",
+      "titleType": "movie"
+    },
+    {
+      "rank": 218,
+      "id": "tt0075148",
+      "originalTitle": "Rocky",
+      "title": "Rocky",
+      "titleType": "movie"
+    },
+    {
+      "rank": 219,
+      "id": "tt0017925",
+      "originalTitle": "The General",
+      "title": "Come vinsi la guerra",
+      "titleType": "movie"
+    },
+    {
+      "rank": 220,
+      "id": "tt0031679",
+      "originalTitle": "Mr. Smith Goes to Washington",
+      "title": "Mr. Smith va a Washington",
+      "titleType": "movie"
+    },
+    {
+      "rank": 221,
+      "id": "tt0046438",
+      "originalTitle": "Tôkyô monogatari",
+      "title": "Viaggio a Tokyo",
+      "titleType": "movie"
+    },
+    {
+      "rank": 222,
+      "id": "tt26548265",
+      "originalTitle": "Maharaja",
+      "title": "Maharaja",
+      "titleType": "movie"
+    },
+    {
+      "rank": 223,
+      "id": "tt0113247",
+      "originalTitle": "La haine",
+      "title": "L'odio",
+      "titleType": "movie"
+    },
+    {
+      "rank": 224,
+      "id": "tt0059742",
+      "originalTitle": "The Sound of Music",
+      "title": "Tutti insieme appassionatamente",
+      "titleType": "movie"
+    },
+    {
+      "rank": 225,
+      "id": "tt1895587",
+      "originalTitle": "Spotlight",
+      "title": "Il caso Spotlight",
+      "titleType": "movie"
+    },
+    {
+      "rank": 226,
+      "id": "tt15097216",
+      "originalTitle": "Jai Bhim",
+      "title": "Jai Bhim",
+      "titleType": "movie"
+    },
+    {
+      "rank": 227,
+      "id": "tt0088247",
+      "originalTitle": "The Terminator",
+      "title": "Terminator",
+      "titleType": "movie"
+    },
+    {
+      "rank": 228,
+      "id": "tt0050986",
+      "originalTitle": "Smultronstället",
+      "title": "Il posto delle fragole",
+      "titleType": "movie"
+    },
+    {
+      "rank": 229,
+      "id": "tt0047296",
+      "originalTitle": "On the Waterfront",
+      "title": "Fronte del porto",
+      "titleType": "movie"
+    },
+    {
+      "rank": 230,
+      "id": "tt0036868",
+      "originalTitle": "The Best Years of Our Lives",
+      "title": "I migliori anni della nostra vita",
+      "titleType": "movie"
+    },
+    {
+      "rank": 231,
+      "id": "tt0041959",
+      "originalTitle": "The Third Man",
+      "title": "Il terzo uomo",
+      "titleType": "movie"
+    },
+    {
+      "rank": 232,
+      "id": "tt0118715",
+      "originalTitle": "The Big Lebowski",
+      "title": "Il grande Lebowski",
+      "titleType": "movie"
+    },
+    {
+      "rank": 233,
+      "id": "tt0317705",
+      "originalTitle": "The Incredibles",
+      "title": "Gli Incredibili - Una 'normale' famiglia di supereroi",
+      "titleType": "movie"
+    },
+    {
+      "rank": 234,
+      "id": "tt1028532",
+      "originalTitle": "Hachi: A Dog's Tale",
+      "title": "Hachiko - Il tuo migliore amico",
+      "titleType": "movie"
+    },
+    {
+      "rank": 235,
+      "id": "tt0381681",
+      "originalTitle": "Before Sunset",
+      "title": "Prima del tramonto",
+      "titleType": "movie"
+    },
+    {
+      "rank": 236,
+      "id": "tt0129167",
+      "originalTitle": "The Iron Giant",
+      "title": "Il gigante di ferro",
+      "titleType": "movie"
+    },
+    {
+      "rank": 237,
+      "id": "tt0070047",
+      "originalTitle": "The Exorcist",
+      "title": "L'esorcista",
+      "titleType": "movie"
+    },
+    {
+      "rank": 238,
+      "id": "tt3170832",
+      "originalTitle": "Room",
+      "title": "Room",
+      "titleType": "movie"
+    },
+    {
+      "rank": 239,
+      "id": "tt0395169",
+      "originalTitle": "Hotel Rwanda",
+      "title": "Hotel Rwanda",
+      "titleType": "movie"
+    },
+    {
+      "rank": 240,
+      "id": "tt0091763",
+      "originalTitle": "Platoon",
+      "title": "Platoon",
+      "titleType": "movie"
+    },
+    {
+      "rank": 241,
+      "id": "tt0050976",
+      "originalTitle": "Det sjunde inseglet",
+      "title": "Il settimo sigillo",
+      "titleType": "movie"
+    },
+    {
+      "rank": 242,
+      "id": "tt1979320",
+      "originalTitle": "Rush",
+      "title": "Rush",
+      "titleType": "movie"
+    },
+    {
+      "rank": 243,
+      "id": "tt0058946",
+      "originalTitle": "La battaglia di Algeri",
+      "title": "La battaglia di Algeri",
+      "titleType": "movie"
+    },
+    {
+      "rank": 244,
+      "id": "tt0092005",
+      "originalTitle": "Stand by Me",
+      "title": "Stand by Me - Ricordo di un'estate",
+      "titleType": "movie"
+    },
+    {
+      "rank": 245,
+      "id": "tt0032138",
+      "originalTitle": "The Wizard of Oz",
+      "title": "Il mago di Oz",
+      "titleType": "movie"
+    },
+    {
+      "rank": 246,
+      "id": "tt0476735",
+      "originalTitle": "Babam ve Oglum",
+      "title": "Mio padre e mio figlio",
+      "titleType": "movie"
+    },
+    {
+      "rank": 247,
+      "id": "tt0019254",
+      "originalTitle": "La passion de Jeanne d'Arc",
+      "title": "La passione di Giovanna d'Arco",
+      "titleType": "movie"
+    },
+    {
+      "rank": 248,
+      "id": "tt4430212",
+      "originalTitle": "Drishyam",
+      "title": "Drishyam",
+      "titleType": "movie"
+    },
+    {
+      "rank": 249,
+      "id": "tt1954470",
+      "originalTitle": "Gangs of Wasseypur",
+      "title": "Gangs of Wasseypur",
+      "titleType": "movie"
+    },
+    {
+      "rank": 250,
+      "id": "tt10431500",
+      "originalTitle": "Yedinci Kogustaki Mucize",
+      "title": "Yedinci Kogustaki Mucize",
+      "titleType": "movie"
+    }
+  ]
+}

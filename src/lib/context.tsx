@@ -562,7 +562,7 @@ export function usePictorium(): PictoriumCtx {
 
   // Signed device config for namespace-less spaces (null otherwise).
   const { token: localConfigToken, status: localConfigTokenStatus } =
-    useLocalConfigToken({ customCatalogs, rankingSourceMovie, rankingSourceSeries, catalogShapes, catalogShowEmojis, seasonalHalloweenKeywords, seasonalChristmasKeywords })
+    useLocalConfigToken({ customCatalogs, rankingSourceMovie, rankingSourceSeries, catalogShapes, catalogShowEmojis, seasonalHalloweenKeywords, seasonalChristmasKeywords, disabledContentTags: editorCtx.defaultDisabledContentTags, disabledNetworks: editorCtx.defaultDisabledNetworks })
 
   const trending = useTrending(tmdbKey, mdblistApiKey, editorCtx.defaultRegion, serverHasTmdbKey, {
     movieSource: rankingSourceMovie,
@@ -814,15 +814,20 @@ export function usePictorium(): PictoriumCtx {
   // corrente. fetchIdRef traccia quale id è quello "attivo"; l'AbortController
   // cancella fisicamente la richiesta precedente.
   const fetchIdRef = useRef<string | null>(null)
+  // Absolute Cinema = rank 1..100 only (limit=100); the flag stays named
+  // imdbTop250 for minimal diff (see imdb-top250.ts: Top100 eligibility).
+  // Fail-closed positive evidence: only an explicit `inTop100: true` from
+  // this limit=100 caller sets the badge — a missing field (unknown/error)
+  // or a bare `inTop250` must never resurrect the Top250 badge here.
   useEffect(() => {
     const imdbId = metaInfo.imdb_id
     if (!imdbId) { fetchIdRef.current = null; setImdbTop250(false); return }
     fetchIdRef.current = imdbId
     const ac = new AbortController()
-    fetch(`/api/imdb-top250?imdbId=${encodeURIComponent(imdbId)}`, { signal: ac.signal })
+    fetch(`/api/imdb-top250?imdbId=${encodeURIComponent(imdbId)}&limit=100`, { signal: ac.signal })
       .then((r) => r.json())
       .then((d) => {
-        if (fetchIdRef.current === imdbId) setImdbTop250(!!d.inTop250)
+        if (fetchIdRef.current === imdbId) setImdbTop250(d.inTop100 === true)
       })
       .catch(() => {
         if (ac.signal.aborted || fetchIdRef.current !== imdbId) return
@@ -1679,7 +1684,7 @@ export function usePictorium(): PictoriumCtx {
         // Preview WYSIWYG nel namespace (altrimenti mostra il globale).
         userId: currentUserId,
       },
-      { globalBadges, rankingBadges, badgeStyle, rankingBadgeStyle, extraBadgeStyle, badgeFont, qualityBadgeStyle, videoFormats, badgeGenre, badgeYear, badgeRating, badgeQuality, ageBadge: previewAgeBadge, ageCountry: previewAgeCountry, ageBadgeStyle: previewAgeBadgeStyle, customRatings, ratingSources, separateRatings, separateRatingsStyle, posterLayout, posterFreshScope, customBadge, gradientHeight: isLandscapePreview ? landscapeBlur.gradientHeight : gradientHeight, blurIntensity: isLandscapePreview ? landscapeBlur.blurIntensity : blurIntensity, blurFade: isLandscapePreview ? landscapeBlur.blurFade : blurFade, blurDarkness: isLandscapePreview ? landscapeBlur.blurDarkness : blurDarkness, blurEnabled: isLandscapePreview ? landscapeBlur.blurEnabled : blurEnabled, tintStrength: isLandscapePreview ? landscapeBlur.tintStrength : tintStrength, topShade: isLandscapePreview ? landscapeBlur.topShade : topShade, topShadeHeight: isLandscapePreview ? landscapeBlur.topShadeHeight : topShadeHeight, networkLogo, networkLogoPosition, networkLogoFollowTitle, preRelease, ribbonSide, ribbonEnabled, posterShape, logoAlign, topBadgeScale, topBadgeOffsetX, topBadgeOffsetY, extraBadgeScale: extraBadgeScale ?? undefined, extraBadgeOffsetX: extraBadgeOffsetX ?? undefined, extraBadgeOffsetY: extraBadgeOffsetY ?? undefined, genreBadgeScale, qualityBadgeScale, networkLogoScale, separateBadgeScale, separateBadgeOffsetX, separateBadgeOffsetY, genreBadgeOffsetX, genreBadgeOffsetY, qualityBadgeOffsetX, qualityBadgeOffsetY, networkLogoOffsetX, networkLogoOffsetY },
+      { globalBadges, rankingBadges, badgeStyle, rankingBadgeStyle, extraBadgeStyle, badgeFont, qualityBadgeStyle, videoFormats, badgeGenre, badgeYear, badgeRating, badgeQuality, ageBadge: previewAgeBadge, ageCountry: previewAgeCountry, ageBadgeStyle: previewAgeBadgeStyle, customRatings, ratingSources, separateRatings, separateRatingsStyle, posterLayout, posterFreshScope, customBadge, disabledContentTags: editorCtx.defaultDisabledContentTags ?? undefined, disabledNetworks: editorCtx.defaultDisabledNetworks ?? undefined, gradientHeight: isLandscapePreview ? landscapeBlur.gradientHeight : gradientHeight, blurIntensity: isLandscapePreview ? landscapeBlur.blurIntensity : blurIntensity, blurFade: isLandscapePreview ? landscapeBlur.blurFade : blurFade, blurDarkness: isLandscapePreview ? landscapeBlur.blurDarkness : blurDarkness, blurEnabled: isLandscapePreview ? landscapeBlur.blurEnabled : blurEnabled, tintStrength: isLandscapePreview ? landscapeBlur.tintStrength : tintStrength, topShade: isLandscapePreview ? landscapeBlur.topShade : topShade, topShadeHeight: isLandscapePreview ? landscapeBlur.topShadeHeight : topShadeHeight, networkLogo, networkLogoPosition, networkLogoFollowTitle, preRelease, ribbonSide, ribbonEnabled, posterShape, logoAlign, topBadgeScale, topBadgeOffsetX, topBadgeOffsetY, extraBadgeScale: extraBadgeScale ?? undefined, extraBadgeOffsetX: extraBadgeOffsetX ?? undefined, extraBadgeOffsetY: extraBadgeOffsetY ?? undefined, genreBadgeScale, qualityBadgeScale, networkLogoScale, separateBadgeScale, separateBadgeOffsetX, separateBadgeOffsetY, genreBadgeOffsetX, genreBadgeOffsetY, qualityBadgeOffsetX, qualityBadgeOffsetY, networkLogoOffsetX, networkLogoOffsetY },
       localConfigToken,
     )
     setPreviewUrl(url)
@@ -1687,7 +1692,7 @@ export function usePictorium(): PictoriumCtx {
     logoScale, logoScaleExplicit, logoOffsetX, logoOffsetY, backdropScale, backdropOffsetX, backdropOffsetY,
     metaInfo, trendRank, trending.mdblistAnimeList, topEdgeColor, bottomEdgeColor, accentColor, autoAccentColor, lang, tmdbKey,
     editorCtx.defaultRegion, editorCtx.defaultDateFormat, currentUserId, localConfigToken, localConfigTokenStatus,
-    globalBadges, rankingBadges, badgeStyle, rankingBadgeStyle, extraBadgeStyle, badgeFont, qualityBadgeStyle, videoFormats, badgeGenre, badgeYear, badgeRating, badgeQuality, ageBadge, ageCountry, ageBadgeStyle, defaultAgeBadge, defaultAgeCountry, defaultAgeBadgeStyle, customRatings, ratingSources, separateRatings, separateRatingsStyle, posterLayout, posterFreshScope, customBadge, gradientHeight, blurIntensity, blurFade, blurDarkness, blurEnabled, landscapeBlur, landscapeDefaults, tintStrength, topShade, topShadeHeight, networkLogo, networkLogoPosition, networkLogoFollowTitle, preRelease, ribbonSide, ribbonEnabled, posterShape, logoAlign, topBadgeScale, topBadgeOffsetX, topBadgeOffsetY, extraBadgeScale, extraBadgeOffsetX, extraBadgeOffsetY, genreBadgeScale, qualityBadgeScale, networkLogoScale, separateBadgeScale, separateBadgeOffsetX, separateBadgeOffsetY, genreBadgeOffsetX, genreBadgeOffsetY, qualityBadgeOffsetX, qualityBadgeOffsetY, networkLogoOffsetX, networkLogoOffsetY])
+    globalBadges, rankingBadges, badgeStyle, rankingBadgeStyle, extraBadgeStyle, badgeFont, qualityBadgeStyle, videoFormats, badgeGenre, badgeYear, badgeRating, badgeQuality, ageBadge, ageCountry, ageBadgeStyle, defaultAgeBadge, defaultAgeCountry, defaultAgeBadgeStyle, customRatings, ratingSources, separateRatings, separateRatingsStyle, posterLayout, posterFreshScope, customBadge, editorCtx.defaultDisabledContentTags, editorCtx.defaultDisabledNetworks, gradientHeight, blurIntensity, blurFade, blurDarkness, blurEnabled, landscapeBlur, landscapeDefaults, tintStrength, topShade, topShadeHeight, networkLogo, networkLogoPosition, networkLogoFollowTitle, preRelease, ribbonSide, ribbonEnabled, posterShape, logoAlign, topBadgeScale, topBadgeOffsetX, topBadgeOffsetY, extraBadgeScale, extraBadgeOffsetX, extraBadgeOffsetY, genreBadgeScale, qualityBadgeScale, networkLogoScale, separateBadgeScale, separateBadgeOffsetX, separateBadgeOffsetY, genreBadgeOffsetX, genreBadgeOffsetY, qualityBadgeOffsetX, qualityBadgeOffsetY, networkLogoOffsetX, networkLogoOffsetY])
 
   // A1: trailing debounce della preview URL (200ms). Ogni tick di slider
   // cambia l'identità di buildPreviewUrlCb → senza debounce ogni pixel di

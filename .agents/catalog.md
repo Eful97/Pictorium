@@ -126,7 +126,12 @@ tipo; `mixed` vale per entrambi).
   invariati. Le chiavi API non entrano mai nei poster URL (solo server-side).
 - Spazi senza namespace (local-only/profileless): la selezione viaggia in un
   token firmato `?config=` coniato da `POST /api/config-token` (payload anche
-  solo cataloghi: il server completa i visual dai defaults). Preview, rank e
+  solo cataloghi: il server completa i visual dai defaults). Le esclusioni
+  automatiche space-wide (`disabledContentTags`/`disabledNetworks`, sentinel
+  TMDB-fallback incluso) viaggiano nello STESSO token catalog-only con le
+  scelte staged/salvate del device (`useLocalConfigToken` le porta sempre,
+  anche come `[]` esplicito che azzera i defaults d'istanza; il server
+  compone il device DOPO l'istanza e risanitizza). Preview, rank e
   template/poster di install lo includono solo lì (altrove URL identici).
   L'install Stremio da link con token serve cataloghi/poster custom omonimi.
 - Cache chiavi catalogo: frammento `:rs<hash>` SOLO sui globali JW così il

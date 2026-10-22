@@ -1,6 +1,8 @@
 import { POSTER_URL_VERSION } from "@/lib/render-version"
 import type { BadgeStyle, RankingBadgeStyle, QualityBadgeStyle, BadgeFont, SeparateRatingsStyle, ExtraBadgeStyle, ExtraBadgeFollowRank } from "@/lib/badge-styles"
 import { getSeparateBadgeDefaultScale, getSeparateRatingsStyleForShape, isAgeBadgeStyle, isBottomSeparateRatingsStyle } from "@/lib/badge-styles"
+import { sanitizeDisabledContentTags } from "@/lib/content-tags"
+import { sanitizeDisabledNetworks } from "@/lib/network-keys"
 import type { AgeBadgeStyle } from "@/lib/badge-styles"
 import type { VideoFormat } from "@/lib/av-specs"
 import { parseMinQuality, type StreamQuality } from "@/lib/quality-tiers"
@@ -60,6 +62,17 @@ export interface StremioPosterParamsInput {
   readonly separateRatingsStyle?: SeparateRatingsStyle | null
   /** Ordine sash (emesso come `sash` solo quando non-default). */
   readonly sashOrder?: readonly SashBucket[] | null
+  /**
+   * Tag badge automatici disabilitati space-wide (ID canonici): emessi come
+   * `dct` solo quando non-vuoti (URL legacy invariati). Bassa cardinalità
+   * come sash/sepstyle: restano espliciti anche in compact, mai in `dv`.
+   */
+  readonly disabledContentTags?: readonly string[] | null
+  /**
+   * Mark network disabilitati space-wide (ID canonici): emessi come `dnet`
+   * solo quando non-vuoti (stesso contratto di `dct` sopra).
+   */
+  readonly disabledNetworks?: readonly string[] | null
   readonly badgeStyle?: BadgeStyle
   readonly rankingBadgeStyle?: RankingBadgeStyle
   /** Standalone extra-badge style: emitted as `xbs` only when defined (incl. "follow-rank" sentinel). */
@@ -421,6 +434,18 @@ export function buildStremioPosterSearchParams(input: StremioPosterParamsInput):
   if (input.sashOrder && !isDefaultSashOrder(input.sashOrder)) {
     const parsed = parseSashOrder(input.sashOrder.join(","))
     if (parsed) params.set("sash", parsed.join(","))
+  }
+  // Esclusioni automatiche space-wide: emesse (canonical sorted, dedup) solo
+  // quando non-vuote — gli URL esistenti restano byte-identici e la cache non
+  // si invalida in massa. Sanitized qui (difesa in profondità: il server
+  // risanitize comunque) così solo ID allowlist viaggiano.
+  if (input.disabledContentTags && input.disabledContentTags.length > 0) {
+    const ids = [...new Set(sanitizeDisabledContentTags(input.disabledContentTags))].sort()
+    if (ids.length > 0) params.set("dct", ids.join(","))
+  }
+  if (input.disabledNetworks && input.disabledNetworks.length > 0) {
+    const ids = [...new Set(sanitizeDisabledNetworks(input.disabledNetworks))].sort()
+    if (ids.length > 0) params.set("dnet", ids.join(","))
   }
   if (input.customBadge) params.set("extra", input.customBadge)
   if (input.dateFormat && input.dateFormat !== "locale") {

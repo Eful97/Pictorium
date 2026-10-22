@@ -327,6 +327,11 @@ export const posterQuerySchema = z.object({
   rsrc: boundedQueryString(200),
   rw: boundedQueryString(12),
   sash: boundedQueryString(64),
+  // Space-wide automatic exclusions (comma-separated canonical IDs):
+  // 64 content-tag IDs + 66 network marks max — wide enough for a full
+  // exclusion, still flood-bounded (the cache key canonicalizes).
+  dct: boundedQueryString(2048),
+  dnet: boundedQueryString(1200),
   imdbId: z.string().regex(/^tt\d{1,20}$/).optional(),
   // QID Wikidata per il fast-path REST awards (validato anche al sito d'uso).
   wikidata_id: z.string().regex(/^Q\d{1,20}$/).optional(),

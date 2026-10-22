@@ -12,7 +12,10 @@ const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..")
 // File esclusi intenzionalmente: poster-runtime-cache.ts, cache.ts,
 // flixpatrol.ts — influenzano ranking/cache ma non il rendering visivo
 // byte-level; non devono invalidare rv. justwatch.ts È incluso da quando le
-// offerte JW guidano l'effetto pre-digitale (velo + badge). ratings.ts È
+// offerte JW guidano l'effetto pre-digitale (velo + badge). imdb-top250.ts
+// (con imdb-top250-data.ts) È incluso da quando il rank Top100 decide i pixel
+// del badge Absolute Cinema (rank 100 in, 101 out): parsing rank + snapshot
+// ordinato guidano il render, non solo ranking/cache. ratings.ts È
 // incluso da quando i layout Card aggregano i valori separati (cap condiviso
 // + normalizzazione /10 guidano i pixel della banda card via card-layout.ts);
 // prima guidava solo ranking/cache ed era fuori elenco (fail-closed
@@ -24,6 +27,8 @@ const RENDER_FILES = [
   "src/lib/awards.ts",
   "src/lib/badge-labels.ts",
   "src/lib/badge-priority.ts",
+  "src/lib/imdb-top250-data.ts",
+  "src/lib/imdb-top250.ts",
   "src/lib/av-specs.ts",
   "src/data/av-specs.json",
   "src/lib/badge-styles.ts",
@@ -48,6 +53,8 @@ const RENDER_FILES = [
   "src/lib/logo-layout.ts",
   "src/lib/logo-selection.ts",
   "src/lib/multi-rating-renderer.ts",
+  "src/lib/network-files.ts",
+  "src/lib/network-keys.ts",
   "src/lib/network-svgs.ts",
   "src/lib/poster-auto-fit.ts",
   "src/lib/poster-badge.ts",

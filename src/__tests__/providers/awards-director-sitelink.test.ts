@@ -169,7 +169,7 @@ describe("fetchAllWikidata director sitelink fallback", () => {
     expect(directorBadgeLabel("Di Christopher Nolan", tEn)).toBe("By Christopher Nolan")
   })
 
-  it("ignores unversioned wikidata cache entries and uses wikidata:v2 key", async () => {
+  it("ignores unversioned wikidata cache entries and uses wikidata:v3 key", async () => {
     cacheSet("wikidata:movie:907", {
       awards: [],
       nominations: [],

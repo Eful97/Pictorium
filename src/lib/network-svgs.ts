@@ -1,6 +1,8 @@
 import fs from "fs"
 import path from "path"
 import { createLogger } from "@/lib/logger"
+import { getNetworkKey, isNetworkDisabled, isOtherNetworkMarkDisabled, isTmdbFallbackDisabled } from "@/lib/network-keys"
+import { NETWORK_MARK_FILES } from "@/lib/network-files"
 
 const log = createLogger("network-svgs")
 
@@ -43,75 +45,10 @@ export function __resetNetworkLogoCache(): void {
   tmdbDownloadCache.clear()
 }
 
-// Map networkKey → filename in public/networks/
-const NETWORK_FILES: Record<string, string> = {
-  netflix: "Netflix_2016_N_logo.svg",
-  hbo: "HBO_logo.svg",
-  disney: "Disney+_logo.svg",
-  prime: "Prime_Video_logo_(2024).svg",
-  apple: "Apple_TV_logo.svg",
-  paramount: "Paramount_Plus.svg",
-  rai: "Logo_of_RAI_(2016).svg",
-  crunchyroll: "cr_logo_noTagline.svg",
-  // Il logo NOW ha sostituito il vecchio Sky Group: entrambi i nomi usano lo stesso file.
-  sky: "Now_logo.svg",
-  mediaset: "Mediaset_Infinity_logo.svg",
-  tubi: "Tubi logo.svg",
-  pluto: "Pluto_TV_logo_2024.svg",
-  amc: "Amc_logo.svg",
-  abc: "American_Broadcasting_Company_Logo.svg",
-  cbs: "CBS_logo_(2020).svg",
-  fox: "FOX_wordmark.svg",
-  fx: "FX_International_logo.svg",
-  hulu: "Hulu_logo_(2018).svg",
-  natgeo: "National-Geographic-Logo.svg",
-  nbc: "NBC_logo.svg", // peacock colors updated 2026-08-28
-  mbs: "Mainichi_Broadcasting_System_logo.svg",
-  showtime: "Showtime_logo.svg",
-  warner: "Warner_Bros_logo.svg",
-  universal: "Universal_Pictures_logo.svg",
-  century: "20th_Century_Studios_(2020) [Recuperato].svg",
-  columbia: "Columbia_Pictures.svg",
-  sony: "Sony_logo.svg",
-  disney_pictures: "Walt_Disney_Pictures_text_logo.svg",
-  marvel: "Marvel_Studios_2016_logo.svg",
-  pixar: "Pixar_logo.svg",
-  a24: "A24_logo.svg",
-  legendary: "Legendary_Entertainment_logo.svg",
-  lionsgate: "Lionsgate_Logo.svg",
-  fandango: "Fandango_logotipo.svg",
-  medusa: "Medusa_Film_-_logo_(Italy,_2017-).svg",
-  ghibli: "Studio_Ghibli.svg",
-  mgm: "metro-goldwyn-mayer.svg",
-  mgm_plus: "MGM+_logo.svg",
-  lucasfilm: "Lucasfilm_logo.svg",
-  miramax: "Miramax_logo.svg",
-  castle_rock: "castle-rock-entertainment.svg",
-  dreamworks: "dreamworks-animation-logo-vector.svg",
-  indiana: "Indiana_Production.svg",
-  sky_cinema: "Sky_Cinema_-_Logo_2021.svg",
-  taodue: "Taodue_logo.svg",
-  bandai: "Bandai_Visual_corporate_logo.svg",
-  mappa: "MAPPA_Logo.svg",
-  madhouse: "Madhouse Studio logo.svg",
-  skydance: "Skydance_Media_2020.svg",
-  studiocanal: "Studiocanal_2011_logo.svg",
-  dg_cinema: "direzione-generale-cinema-e-audiovisivo-vector-logo.svg",
-  dc: "DC_Studios_logo.svg",
-  bigtalk: "Big+Talk+Studios+-+Logo+-+Brandmark.webp",
-  batinthesun: "12x16-batinthesun.png",
-  horrorsection: "ths-logo-300_webp.png",
-  new_line: "New_Line_Cinema.svg",
-  jagged_edge: "jagged.svg",
-  gracie: "Gracie_Films_logo_webp.png",
-  deseo: "deseo.svg",
-  bellanova: "bellanova-big.png",
-  anton: "Anton_United_Kingdom_logo.png",
-  comix_wave: "CoMix Wave Films logo.svg",
-  filmauro: "cdnlogo.com_filmauro-logo.svg",
-  next_ent: "new.svg",
-  bones: "Bones_logo.svg",
-}
+// Bundled mark filenames: single source of truth is the client-safe
+// `NETWORK_MARK_FILES` in `network-files.ts` (shared with the settings UI
+// via `network-assets.ts`). Never redefine the filenames here.
+const NETWORK_FILES: Record<string, string> = NETWORK_MARK_FILES as Record<string, string>
 
 // Falso positivo NBC giapponese (Jujutsu Kaisen tmdb 95479): network list contiene 25+ regionali tra cui "NBC" (Nagasaki Broadcasting).
 // Distinguiamo NBC USA (peacock) da NBC JP controllando se la lista candidati è tipicamente giapponese.
@@ -160,6 +97,7 @@ const NETWORK_TARGET_W: Record<string, number> = {
   fx: 50,
   hulu: 62,
   natgeo: 62,
+  peacock: 48,
   nbc: 40,
   mbs: 52,
   showtime: 62,
@@ -178,6 +116,7 @@ const NETWORK_TARGET_W: Record<string, number> = {
   medusa: 40,
   ghibli: 62,
   mgm: 56,
+  amazon_mgm: 62,
   mgm_plus: 54,
   lucasfilm: 62,
   miramax: 54,
@@ -203,123 +142,17 @@ const NETWORK_TARGET_W: Record<string, number> = {
   filmauro: 62,
   next_ent: 62,
   bones: 62,
+  discovery_plus: 62,
+  bbc: 62,
+  itv: 58,
+  channel4: 44,
+  starz: 54,
+  britbox: 62,
 }
 
-function getNetworkKey(networkName: string): string | null {
-  const lower = networkName.toLowerCase().trim()
-  if (lower.includes("netflix")) return "netflix"
-  if (lower.includes("hbo") || lower === "max") return "hbo"
-  // MGM+ (ex Epix) va prima del generico MGM/Amazon MGM → mgm
-  if (lower.includes("mgm+") || lower.includes("mgm plus") || lower === "mgm+" || lower === "mgm plus") return "mgm_plus"
-  // Verity: Amazon MGM è identità studio (MGM), non disponibilità Prime Video.
-  // "Amazon MGM Studios" contiene "amazon" ma non deve finire sul logo Prime:
-  // usa l'asset MGM esistente (nessun asset Amazon MGM dedicato in public/networks).
-  if (/\bamazon[\s-]+mgm\b/.test(lower)) return "mgm"
-  // Walt Disney Pictures va prima di Disney generico per non clashare con Disney+
-  if (lower.includes("walt disney")) return "disney_pictures"
-  if (lower.includes("disney")) return "disney"
-  // Falso positivo anime/giapponese: WOWOW Prime (canale premium JP, es. Cowboy Bebop
-  // TMDB 30991: TV Tokyo + WOWOW Prime) contiene "prime" ma non è Prime Video.
-  // Nessun SVG WOWOW: null così passa al fallback TMDB (logo vero) invece del logo Prime.
-  if (lower.includes("wowow")) return null
-  if (lower.includes("prime") || lower.includes("amazon")) return "prime"
-  if (lower.includes("apple")) return "apple"
-  if (lower.includes("paramount")) return "paramount"
-  if (lower === "rai" || lower.startsWith("rai ")) return "rai"
-  if (lower.includes("crunchyroll")) return "crunchyroll"
-  if (lower.includes("mediaset")) return "mediaset"
-  if (lower.includes("tubi")) return "tubi"
-  if (lower.includes("pluto")) return "pluto"
-  // Filtro anime: SKY PerfecTV! (sat giapponese) condivide nome con Sky EU ma è servizio diverso.
-  if (lower.includes("sky perfec")) return null
-  if (lower.includes("sky cinema")) return "sky_cinema"
-  // NOW è lo stesso servizio di Sky (streaming Sky) → stesso logo, alias a sky.
-  // Word boundary per evitare falsi positivi tipo "Skydance".
-  // NOW matchato solo quando il nome inizia con "now" (NOW / Now TV), non la parola ovunque
-  // (evita falsi positivi tipo "Don't Look Now").
-  if (/\bsky\b/.test(lower) || lower === "now" || lower.startsWith("now ")) return "sky"
-  // Filtro anime: ABC Animation (Asahi, produttore anime) condivide sigla con ABC USA.
-  // Escludiamo esplicitamente prima del match ABC per evitare logo ABC USA su poster anime.
-  if (lower.includes("abc animation")) return null
-  // Word boundary per evitare falsi positivi: "amc" dentro parole composte,
-  // "abc" in sigle/parole, "fx" in titoli tipo "The X-Files" spin-off ecc.
-  if (/\bamc\+?\b/.test(lower)) return "amc"
-  if (/\babc\b/.test(lower) || lower.includes("american broadcasting")) return "abc"
-  if (/\bcbs\b/.test(lower)) return "cbs"
-  if (lower.includes("20th century") || lower.includes("century studios")) return "century"
-  // Filtro anime: White Fox (studio di Re:Zero) contiene "fox" ma non è FOX network USA.
-  if (lower.includes("white fox")) return null
-  if (/\bfox\b/.test(lower) || lower === "fox network" || lower.startsWith("fox ")) return "fox"
-  if (/\bfxx?\b/.test(lower)) return "fx"
-  if (lower.includes("hulu")) return "hulu"
-  if (lower.includes("national geographic") || /\bnat\s?geo\b/.test(lower)) return "natgeo"
-  if (lower.includes("nbcuniversal")) return "nbc"
-  if (/\bnbc\b/.test(lower)) return "nbc"
-  if (lower === "mbs" || lower.includes("mainichi")) return "mbs"
-  if (/\bshowtime\b/.test(lower)) return "showtime"
-  // Filtro anime: Nippon Columbia (etichetta musicale anime) vs Columbia Pictures.
-  // Solo "columbia pictures" deve mappare a columbia, per evitare logo Columbia su OST anime.
-  if (lower.includes("nippon columbia")) return null
-  if (lower.includes("warner bros")) return "warner"
-  if (lower.includes("universal pictures")) return "universal"
-  if (lower.includes("columbia pictures")) return "columbia"
-  if (lower.includes("marvel")) return "marvel"
-  if (
-    lower.includes("dc studios") ||
-    lower.includes("dc films") ||
-    lower.includes("dc entertainment") ||
-    lower.includes("dc comics") ||
-    lower.includes("dc universe") ||
-    lower === "dc"
-  ) return "dc"
-  if (lower.includes("pixar")) return "pixar"
-  // Filtro Sony Music (anime) vs Sony Pictures (film) — non mostrare Sony per OST anime
-  if (lower.includes("sony music")) return null
-  if (/\bsony\b/.test(lower)) return "sony"
-  if (lower === "a24" || lower.includes("a24")) return "a24"
-  if (lower.includes("legendary")) return "legendary"
-  if (lower.includes("lionsgate")) return "lionsgate"
-  if (lower.includes("fandango")) return "fandango"
-  if (lower.includes("medusa")) return "medusa"
-  if (lower.includes("ghibli") || lower.includes("studio ghibli")) return "ghibli"
-  if (lower.includes("lucasfilm")) return "lucasfilm"
-  if (lower.includes("miramax")) return "miramax"
-  if (lower.includes("metro-goldwyn") || lower.includes("metro goldwyn") || /\bmgm\b/.test(lower)) return "mgm"
-  if (lower.includes("castle rock")) return "castle_rock"
-  if (lower.includes("dreamworks")) return "dreamworks"
-  if (lower.includes("indiana")) return "indiana"
-  if (lower.includes("taodue")) return "taodue"
-  if (lower.includes("bandai")) return "bandai"
-  if (lower.includes("mappa")) return "mappa"
-  if (lower.includes("madhouse")) return "madhouse"
-  if (lower.includes("skydance")) return "skydance"
-  if (lower.includes("studiocanal") || lower.includes("studio canal") || lower.includes("studio-canal")) return "studiocanal"
-  if (lower.includes("big talk")) return "bigtalk"
-  // Frasi intere distintive: "bat" da solo o "horror" da solo non devono matchare.
-  if (lower.includes("bat in the sun")) return "batinthesun"
-  if (lower.includes("horror section")) return "horrorsection"
-  if (lower.includes("direzione generale") || lower.includes("cinema e audiovisivo") || lower.includes("dg cinema")) return "dg_cinema"
-  // Nuovi loghi mappati (file in public/networks/): frasi distintive per
-  // evitare falsi positivi, stesso pattern di batinthesun/horrorsection.
-  if (lower.includes("new line")) return "new_line"
-  if (lower.includes("jagged edge")) return "jagged_edge"
-  if (lower.includes("gracie")) return "gracie"
-  if (lower.includes("deseo")) return "deseo"
-  if (lower.includes("bellanova")) return "bellanova"
-  // Anton: strict word boundary — "Danton"/"Antonia"/"Stanton" must NOT match.
-  if (/\banton\b/.test(lower)) return "anton"
-  // CoMix Wave Films: full "comix wave" phrase (with or without "Films") —
-  // generic "Wave"/"Films" alone must NOT match.
-  if (lower.includes("comix wave")) return "comix_wave"
-  if (lower.includes("filmauro")) return "filmauro"
-  // Next Entertainment World (NEW): full-phrase match only — a bare /new/
-  // matcher would collide with New Line Cinema and generic "New …" names.
-  if (lower.includes("next entertainment world")) return "next_ent"
-  // Studio Bones (anime studio, yellow-square "bones" wordmark): strict word
-  // boundary — "Heartbones Entertainment" and other embedded tokens must NOT match.
-  if (/\bbones\b/.test(lower)) return "bones"
-  return null
-}
+// Single matcher lives in the client-safe `network-keys.ts` (imported
+// above): never fork the match logic here.
+export { getNetworkKey }
 
 async function loadNetworkPng(networkKey: string, pw: number, topLight: boolean = false): Promise<{ png: Buffer; w: number; h: number } | null> {
   const cacheKey = `${networkKey}:${pw}:${topLight ? 1 : 0}`
@@ -351,7 +184,7 @@ async function loadNetworkPng(networkKey: string, pw: number, topLight: boolean 
       const w = meta.width || 100
       const h = meta.height || 50
       const aspect = w / h
-      const isFlatWide = ["lionsgate", "sony", "legendary", "fandango", "pixar", "dreamworks", "taodue", "mappa", "madhouse", "skydance", "studiocanal", "castle_rock", "jagged_edge", "bones"].includes(networkKey)
+      const isFlatWide = ["lionsgate", "sony", "legendary", "fandango", "pixar", "dreamworks", "taodue", "mappa", "madhouse", "skydance", "studiocanal", "castle_rock", "jagged_edge", "bones", "amazon_mgm", "discovery_plus", "bbc", "britbox", "itv", "peacock"].includes(networkKey)
       // La "N" Netflix è un'icona verticale: ad area uniforme uscirebbe altissima (~80px) → area -60%
       const areaScale = isFlatWide ? 0.62 : networkKey === "netflix" ? 0.4 : networkKey === "dc" ? 0.75 : 1 // Lionsgate, Pixar e simili troppo larghi → area -38%
       const desiredArea = 3600 * areaScale * (pw / 500) * (pw / 500)
@@ -449,13 +282,15 @@ async function loadNetworkPng(networkKey: string, pw: number, topLight: boolean 
 export async function renderFirstMatchingNetworkLogoBadge(
   names: (string | null | undefined)[],
   pw: number = 500,
-  topLight: boolean = false
+  topLight: boolean = false,
+  disabledNetworks?: readonly string[] | null,
 ): Promise<{ png: Buffer; w: number; h: number; networkKey: string; matchedName: string } | null> {
   for (const name of names) {
     if (!name) continue
     if (shouldSkipNbcForJapaneseList(names, name)) continue
     const networkKey = getNetworkKey(name)
     if (!networkKey) continue
+    if (isOtherNetworkMarkDisabled(networkKey, disabledNetworks)) continue
     const result = await loadNetworkPng(networkKey, pw, topLight)
     if (result) {
       return { ...result, networkKey, matchedName: name }
@@ -631,12 +466,21 @@ async function loadTmdbNetworkRawPng(logoPath: string, pw: number, topLight: boo
 }
 
 /** Ibrido SVG-first → TMDB-fallback, per candidati con name + logoPath.
- *  Priorità richiesta: tutti gli SVG prima, poi fallback TMDB solo se nessun SVG matcha (es. Project Hail Mary: Lord Miller TMDB non deve anticipare Amazon MGM → MGM SVG). */
+ *  Priorità richiesta: tutti gli SVG prima, poi fallback TMDB solo se nessun SVG matcha (es. Project Hail Mary: Lord Miller TMDB non deve anticipare Amazon MGM → Amazon MGM SVG).
+ *  Un mark disabilitato space-wide (`disabledNetworks`) è skippato prima di
+ *  ENTRAMBI i path (locale e fallback TMDB): non può mai resuscitare. Il
+ *  sentinel dell'Altri-gruppo (`__tmdb_fallback`) disabilita l'INTERO
+ *  secondo passaggio PRIMA di qualsiasi fetch (nessun mark
+ *  altrimenti-non-listato viene scaricato) e — per i mark locali
+ *  non-in-evidenza — anche il primo passaggio (gruppo OFF prima del load);
+ *  i mark featured restano governati solo dal proprio toggle
+ *  (vedi `isOtherNetworkMarkDisabled` in `network-keys.ts`). */
 export async function renderFirstMatchingNetworkLogoBadgeHybrid(
   candidates: (NetworkCandidate | string | null | undefined)[],
   pw: number = 500,
   topLight: boolean = false,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  disabledNetworks?: readonly string[] | null,
 ): Promise<{ png: Buffer; w: number; h: number; networkKey: string; matchedName: string } | null> {
   const names = candidates.map((c) => (typeof c === "string" ? c : c?.name) ?? null).filter(Boolean) as string[]
   // Pass 1: tutti gli SVG
@@ -647,11 +491,14 @@ export async function renderFirstMatchingNetworkLogoBadgeHybrid(
     if (shouldSkipNbcForJapaneseList(names, name)) continue
     const networkKey = getNetworkKey(name)
     if (networkKey) {
+      if (isOtherNetworkMarkDisabled(networkKey, disabledNetworks)) continue
       const svgRes = await loadNetworkPng(networkKey, pw, topLight)
       if (svgRes) return { ...svgRes, networkKey, matchedName: name }
     }
   }
-  // Pass 2: fallback TMDB solo se nessun SVG ha matchato
+  // Pass 2: fallback TMDB solo se nessun SVG ha matchato — e solo a fallback
+  // abilitato: il sentinel salta il passaggio PRIMA di qualsiasi fetch.
+  if (isTmdbFallbackDisabled(disabledNetworks)) return null
   for (const cand of candidates) {
     if (!cand) continue
     const name = typeof cand === "string" ? cand : cand.name
@@ -659,6 +506,7 @@ export async function renderFirstMatchingNetworkLogoBadgeHybrid(
     if (!name || !logoPath) continue
     if (shouldSkipNbcForJapaneseList(names, name)) continue
     const networkKey = getNetworkKey(name)
+    if (isNetworkDisabled(networkKey, disabledNetworks)) continue
     const tmdbRes = await loadTmdbNetworkPng(logoPath, pw, topLight, signal)
     if (tmdbRes) {
       const fallbackKey = networkKey ?? name.toLowerCase().replace(/\s+/g, "_").slice(0, 24)
@@ -672,7 +520,8 @@ export async function renderFirstMatchingNetworkRawBadgeHybrid(
   candidates: (NetworkCandidate | string | null | undefined)[],
   pw: number = 500,
   topLight: boolean = false,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  disabledNetworks?: readonly string[] | null,
 ): Promise<{ png: Buffer; w: number; h: number; networkKey: string; matchedName: string } | null> {
   const names = candidates.map((c) => (typeof c === "string" ? c : c?.name) ?? null).filter(Boolean) as string[]
   // Pass 1: tutti gli SVG (colore originale)
@@ -683,11 +532,14 @@ export async function renderFirstMatchingNetworkRawBadgeHybrid(
     if (shouldSkipNbcForJapaneseList(names, name)) continue
     const networkKey = getNetworkKey(name)
     if (networkKey) {
+      if (isOtherNetworkMarkDisabled(networkKey, disabledNetworks)) continue
       const svgRes = await loadNetworkRawPng(networkKey, pw, topLight)
       if (svgRes) return { ...svgRes, networkKey, matchedName: name }
     }
   }
-  // Pass 2: TMDB sempre bianco
+  // Pass 2: TMDB sempre bianco — e solo a fallback abilitato: il sentinel
+  // salta il passaggio PRIMA di qualsiasi fetch (come sopra).
+  if (isTmdbFallbackDisabled(disabledNetworks)) return null
   for (const cand of candidates) {
     if (!cand) continue
     const name = typeof cand === "string" ? cand : cand.name
@@ -695,6 +547,7 @@ export async function renderFirstMatchingNetworkRawBadgeHybrid(
     if (!name || !logoPath) continue
     if (shouldSkipNbcForJapaneseList(names, name)) continue
     const networkKey = getNetworkKey(name)
+    if (isNetworkDisabled(networkKey, disabledNetworks)) continue
     const tmdbRes = await loadTmdbNetworkRawPng(logoPath, pw, topLight, signal)
     if (tmdbRes) {
       const fallbackKey = networkKey ?? name.toLowerCase().replace(/\s+/g, "_").slice(0, 24)
@@ -733,7 +586,7 @@ async function loadNetworkRawPng(networkKey: string, pw: number, topLight: boole
       const w = meta.width || 100
       const h = meta.height || 50
       const aspect = w / h
-      const isFlatWide2 = ["lionsgate", "sony", "legendary", "fandango", "pixar", "dreamworks", "taodue", "mappa", "madhouse", "skydance", "studiocanal", "castle_rock", "jagged_edge", "bones"].includes(networkKey)
+      const isFlatWide2 = ["lionsgate", "sony", "legendary", "fandango", "pixar", "dreamworks", "taodue", "mappa", "madhouse", "skydance", "studiocanal", "castle_rock", "jagged_edge", "bones", "amazon_mgm", "discovery_plus", "bbc", "britbox", "itv", "peacock"].includes(networkKey)
       // La "N" Netflix è un'icona verticale: ad area uniforme uscirebbe altissima (~80px) → area -60%
       const areaScale2 = isFlatWide2 ? 0.62 : networkKey === "netflix" ? 0.4 : networkKey === "dc" ? 0.75 : 1
       const desiredArea = 3600 * areaScale2 * (pw / 500) * (pw / 500)
@@ -798,13 +651,15 @@ async function loadNetworkRawPng(networkKey: string, pw: number, topLight: boole
 export async function renderFirstMatchingNetworkRawBadge(
   names: (string | null | undefined)[],
   pw: number = 500,
-  topLight: boolean = false
+  topLight: boolean = false,
+  disabledNetworks?: readonly string[] | null,
 ): Promise<{ png: Buffer; w: number; h: number; networkKey: string; matchedName: string } | null> {
   for (const name of names) {
     if (!name) continue
     if (shouldSkipNbcForJapaneseList(names, name)) continue
     const networkKey = getNetworkKey(name)
     if (!networkKey) continue
+    if (isOtherNetworkMarkDisabled(networkKey, disabledNetworks)) continue
     const result = await loadNetworkRawPng(networkKey, pw, topLight)
     if (result) return { ...result, networkKey, matchedName: name }
   }

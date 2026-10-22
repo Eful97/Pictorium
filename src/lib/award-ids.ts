@@ -6,19 +6,22 @@
  * aggiorna a ogni cerimonia. Qui vale lo stesso rituale:
  *
  * PROCEDURA AGGIORNAMENTO ANNUALE (marzo, dopo gli Oscar):
- * 1. `node scripts/check-award-lists.mjs` — segnala se la revisione è dovuta
+ * 1. `node scripts/collect-award-candidates.mjs --family <famiglia> --years <anni> [--input righe.json] [--live] --out <dir>`
+ *    — colleziona candidati (mai scrittura automatica delle liste) + report
+ *    per HUMAN REVIEW; workflow completo in `docs/awards-updater.md`.
+ * 2. `node scripts/check-award-lists.mjs` — segnala se la revisione è dovuta
  *    (anzianità oltre soglia o ultima verifica sconosciuta). Il controllo non
  *    tocca i badge e non blocca il rendering: si limita a chiedere revisione.
- * 2. Apri le pagine premi TMDB (themoviedb.org/award/...) + Wikipedia per
+ * 3. Apri le pagine premi TMDB (themoviedb.org/award/...) + Wikipedia per
  *    controllo incrociato.
- * 3. Verifica OGNI singolo dato prima di aggiungerlo (niente bulk non
+ * 4. Verifica OGNI singolo dato prima di aggiungerlo (niente bulk non
  *    controllati; i vincitori dell'anno — e i candidati Best Picture — con
  *    commento `// <film-year> <Titolo>`): solo dopo la verifica imposta
  *    AWARD_LISTS_LAST_VERIFIED alla data di verifica (YYYY-MM-DD). La data
  *    di verifica: non aggiornarla senza aver ricontrollato le liste.
- * 4. Lancia `npx vitest run src/__tests__/award-ids.test.ts` — i test di
+ * 5. Lancia `npx vitest run src/__tests__/award-ids.test.ts` — i test di
  *    guardia bloccano duplicati, overlap win/nom e ID non numerici.
- * 5. `node scripts/write-render-version.mjs` (i poster con nuovi bollini
+ * 6. `node scripts/write-render-version.mjs` (i poster con nuovi bollini
  *    invalidano la cache da soli via hash).
  *
  * STATO VERIFICA: AWARD_LISTS_LAST_VERIFIED sotto. Vale "unknown" finché
@@ -32,8 +35,16 @@
  *
  * I nomi canonici ("Oscar", "Golden Globe", ...) corrispondono 1:1 alla
  * priority list di `getAwardBadgeLabel` in badge-labels.ts: le label
- * derivate dagli ID riusano le stesse chiavi di traduzione, niente chiavi
- * nuove, il dropdown e le chiavi cache vedono le stesse stringhe.
+ * derivate dagli ID riusano le corte chiavi di traduzione canoniche
+ * (`award.oscar`/`award.emmy`/`award.golden_globe`, vincitore esplicito via
+ * `badge.top_winner`, candidati via `badge.nominee`), il dropdown e le
+ * chiavi cache vedono le stesse stringhe.
+ *
+ * Semantica upstream dal 2026-10: i risultati Wikidata generici (Oscar/Emmy/
+ * Golden Globe da categorie non-top) NON producono più bollini main-title —
+ * solo i QID delle categorie top verificate (vedi
+ * docs/awards-top-category-provenance.md) più queste liste curate. Le liste
+ * qui sotto restano la fonte di verità "forte" sopra le label generiche.
  */
 
 export type AwardCanonicalName = "Oscar" | "Golden Globe" | "Emmy" | "Cannes" | "Venezia";
@@ -228,8 +239,9 @@ const EMMY_WINNER_TV_IDS: ReadonlySet<number> = new Set([
   241259, // Baby Reindeer
 ]);
 
-/** Emmy — CANDIDATI: seed dal prossimo aggiornamento annuale. */
+/** Emmy — CANDIDATI (nominee verificati; il resto resta da collezionare via docs/awards-updater.md). */
 const EMMY_NOMINEE_TV_IDS: ReadonlySet<number> = new Set([
+  1405, // 2008-2011 Outstanding Drama nominee: Dexter (backfill autorizzato: televisionacademy.com/shows/dexter + year pages 2008-2011; MAI winner)
 ]);
 
 /** Palma d'Oro (Cannes) — VINCITORI (film-year 2015-2024; nel 2020 niente festival). */

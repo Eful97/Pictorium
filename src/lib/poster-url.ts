@@ -24,6 +24,8 @@ import { isExtraBadgeStyle, isExtraFollowRank } from "./badge-styles"
 import { getSeparateBadgeDefaultScale, getSeparateRatingsStyleForShape, getQualityBadgeOffsetDefault } from "./badge-styles"
 import type { LandscapeServerDefaults } from "./server-defaults"
 import { DEFAULT_SASH_ORDER, NEXT_EPISODE_BADGE_KEY, type SashBucket } from "./badge-priority"
+import { sanitizeDisabledContentTags } from "./content-tags"
+import { sanitizeDisabledNetworks } from "./network-keys"
 import type { VideoFormat } from "./av-specs"
 import type { PosterShape, NetworkLogoPosition, PosterLayout, PosterFreshScope } from "./types"
 import { isPosterLayout } from "./types"
@@ -144,6 +146,15 @@ interface BadgeParams {
   posterFreshScope?: PosterFreshScope | null
   /** Allineamento blocco logo/metadati in editing (preview WYSIWYG). */
   logoAlign?: "left" | "center"
+  /**
+   * Esclusioni automatiche space-wide (ID canonici, TMDB-fallback sentinel
+   * incluso): SEMPRE esplicite in preview (`dct=`/`dnet=` vuoti quando lo
+   * staged è vuoto), così lo staged vince sui default salvati; assenti
+   * (null/undefined) = legacy senza parametro.
+   */
+  disabledContentTags?: readonly string[] | null
+  /** Mark network disabilitati space-wide (stesso contratto di cui sopra). */
+  disabledNetworks?: readonly string[] | null
 }
 
 interface PosterState {
@@ -522,6 +533,19 @@ export function buildPreviewUrl(ps: PosterState, bp: BadgeParams, configToken?: 
   // mapping salvato con shape diversa scavalcerebbe il toggle editor (desync
   // WYSIWYG) — vedi catena query > mapping > config > defaults.
   params.push(`shape=${bp.posterShape === "landscape" ? "landscape" : "poster"}`)
+  // Esclusioni automatiche space-wide: SEMPRE esplicite in preview
+  // (`dct=`/`dnet=` vuoti quando lo staged è vuoto, come `sash=` sopra):
+  // senza, un default salvato non-vuoto scavalcerebbe lo staged editor e la
+  // preview mostrerebbe esclusioni già cancellate (stale desync). La query
+  // presente-ma-vuota risolve [] e vince su mapping/config/defaults.
+  if (bp.disabledContentTags != null) {
+    const ids = [...new Set(sanitizeDisabledContentTags(bp.disabledContentTags))].sort()
+    params.push(`dct=${encodeURIComponent(ids.join(","))}`)
+  }
+  if (bp.disabledNetworks != null) {
+    const ids = [...new Set(sanitizeDisabledNetworks(bp.disabledNetworks))].sort()
+    params.push(`dnet=${encodeURIComponent(ids.join(","))}`)
+  }
   // Cornice stagionale (scelta per-titolo sopra il contesto lista di
   // origine, su entrambi i canvas col proprio asset — portrait 500×750,
   // landscape 768×432; senza contesto né scelta nessun parametro (URL
@@ -732,6 +756,14 @@ export interface DefaultsPreviewParams {
    *  category switches and priority edits are WYSIWYG in preview. Absent =
    *  the canonical default order. */
   defaultSashOrder?: readonly SashBucket[] | null
+  /**
+   * Tag badge automatici disabilitati space-wide di default (ID canonici):
+   * SEMPRE espliciti in preview (`dct=` vuoto quando lo staged è vuoto),
+   * mai assenti quando definiti; null/undefined = legacy senza parametro.
+   */
+  defaultDisabledContentTags?: readonly string[] | null
+  /** Mark network disabilitati space-wide di default (stesso contratto). */
+  defaultDisabledNetworks?: readonly string[] | null
   /** Preview-only editing family: `rank` targets the rank bucket (`sash=rank`
    *  when enabled, `sash=` empty when disabled so nothing renders); every
    *  other family keeps the effective saved priority. Never persisted. */
@@ -813,6 +845,19 @@ export function buildDefaultsPreviewUrl(bp: DefaultsPreviewParams): string {
   const previewSash: readonly SashBucket[] =
     bp.previewFamily === "rank" ? (rankSampled ? ["rank"] : []) : effPreviewSash
   params.push(`sash=${previewSash.join(",")}`)
+  // Esclusioni automatiche space-wide (flat condivisi, nessun profilo
+  // landscape): SEMPRE esplicite in preview (`dct=`/`dnet=` vuoti quando lo
+  // staged è vuoto, come `sash=` sopra) — senza, un default salvato
+  // non-vuoto scavalcerebbe lo staged. La query presente-ma-vuota risolve
+  // [] e vince su mapping/config/defaults.
+  if (bp.defaultDisabledContentTags != null) {
+    const ids = [...new Set(sanitizeDisabledContentTags(bp.defaultDisabledContentTags))].sort()
+    params.push(`dct=${encodeURIComponent(ids.join(","))}`)
+  }
+  if (bp.defaultDisabledNetworks != null) {
+    const ids = [...new Set(sanitizeDisabledNetworks(bp.defaultDisabledNetworks))].sort()
+    params.push(`dnet=${encodeURIComponent(ids.join(","))}`)
+  }
   // Preview-only info sample (Informazioni family): explicit `extra=` wins
   // over the computed badge exactly like an editor custom badge; ignored when
   // ranking is off, so a disabled master never shows a phantom sample.

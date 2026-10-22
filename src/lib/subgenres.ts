@@ -106,15 +106,55 @@ function matchKeywordPattern(keyword: string, kwPattern: string): boolean {
 }
 
 export function getSubGenreLabel(keywords: string[], locale = "it"): string | null {
-  if (!keywords || !keywords.length) return null
+  return getSubGenreMatch(keywords, locale)?.label ?? null
+}
+
+/**
+ * Localized label for a canonical sub-genre key (settings UI rows). Same
+ * labels as the badges, never a match: unknown keys → null.
+ */
+export function getSubGenreLabelByKey(key: string, locale = "it"): string | null {
+  const sub = SUB_GENRES.find((s) => s.key === key)
+  if (!sub) return null
+  const lang = (locale || "it").slice(0, 2)
+  return sub.labels[lang] || sub.labels.it
+}
+
+/**
+ * Canonical sub-genre match: the stable `SUB_GENRES[].key` alongside the
+ * localized label. Space-wide exclusions (`disabledContentTags`) filter on
+ * the key (`subgenre:<key>` or the `subgenre` family) — never on the
+ * localized label, which moves with the UI language.
+ */
+export function getSubGenreMatch(
+  keywords: string[],
+  locale = "it",
+): { key: string; label: string } | null {
+  return getAllSubGenreMatches(keywords, locale)[0] ?? null
+}
+
+/**
+ * Every canonical sub-genre match in rule-priority order (same labels as
+ * `getSubGenreMatch`). The auto badge picks the first match that is not
+ * disabled space-wide, so a disabled first keyword yields to the next
+ * enabled sub-genre before lower-priority buckets (true story, book, …).
+ * The manual dropdown keeps offering every computed label (authoritative
+ * explicit choices are never filtered here).
+ */
+export function getAllSubGenreMatches(
+  keywords: string[],
+  locale = "it",
+): { key: string; label: string }[] {
+  if (!keywords || !keywords.length) return []
   const normalized = keywords.map((k) => k.toLowerCase().trim())
+  const lang = (locale || "it").slice(0, 2)
+  const out: { key: string; label: string }[] = []
   for (const sub of SUB_GENRES) {
     if (sub.keywords.some((kwPattern) => normalized.some((nk) => matchKeywordPattern(nk, kwPattern)))) {
-      const lang = (locale || "it").slice(0, 2)
       // Tutte le 17 lingue UI canoniche hanno i 14 label; locale non
       // supportati ripiegano sull'italiano.
-      return sub.labels[lang] || sub.labels.it
+      out.push({ key: sub.key, label: sub.labels[lang] || sub.labels.it })
     }
   }
-  return null
+  return out
 }

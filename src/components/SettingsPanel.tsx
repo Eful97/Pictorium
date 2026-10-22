@@ -9,6 +9,7 @@ import { UserKeysSection } from "@/components/UserKeysSection"
 import { UserSpaceSection } from "@/components/UserSpaceSection"
 import { TraktAccountSection } from "@/components/TraktAccountSection"
 import { BadgeDefaultsSection } from "@/components/settings/BadgeDefaultsSection"
+import { TagsNetworksSection } from "@/components/settings/TagsNetworksSection"
 import { TransformPanel } from "@/components/settings/TransformPanel"
 import { DataPanel } from "@/components/settings/DataPanel"
 import { PrefsPanel } from "@/components/settings/PrefsPanel"
@@ -27,6 +28,7 @@ import {
   Trophy,
   Info,
   Sparkles,
+  Tags,
   Download,
 } from "lucide-react"
 import { DefaultsPosterPreview } from "@/components/settings/DefaultsPosterPreview"
@@ -37,7 +39,7 @@ import { usePSelector } from "@/lib/context"
 import { usePreviewDemoMedia } from "@/lib/defaults-preview-media"
 import type { BackupExportOptions, BackupImportOptions } from "@/lib/useMappingsStore"
 
-type PrimaryTabId = "preset" | "rankings" | "information" | "badge" | "transform"
+type PrimaryTabId = "preset" | "rankings" | "information" | "badge" | "tags" | "transform"
 type SecondaryTabId = "prefs" | "data" | "catalogs" | "spazio"
 type TabId = PrimaryTabId | SecondaryTabId
 
@@ -46,6 +48,7 @@ const PRIMARY_TABS: ReadonlyArray<{ id: PrimaryTabId; labelKey: string; icon: ty
   { id: "rankings", labelKey: "ui.settingsTabRankings", icon: Trophy },
   { id: "information", labelKey: "ui.settingsTabInformation", icon: Info },
   { id: "badge", labelKey: "ui.settingsTabBadge", icon: Palette },
+  { id: "tags", labelKey: "ui.settingsTabTagsNetworks", icon: Tags },
   { id: "transform", labelKey: "ui.settingsTabTransform", icon: Move },
 ]
 
@@ -62,6 +65,7 @@ function normalizeTab(tab: string | null): TabId | null {
     tab === "preset" ||
     tab === "rankings" ||
     tab === "information" ||
+    tab === "tags" ||
     tab === "trasforma" ||
     tab === "prefs" ||
     tab === "data" ||
@@ -754,6 +758,7 @@ export function SettingsPanel({ setSettingsOpen, exportData, importData, mobile,
             onPreviewFamilyChange={setPreviewFamily}
             presetsEnabled={false}
           />
+          <TagsNetworksSection active={activeTab === "tags"} />
           <TransformPanel
             active={activeTab === "transform"}
             previewShape={editTargetShape}

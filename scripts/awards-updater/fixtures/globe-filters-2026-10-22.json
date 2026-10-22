@@ -1,0 +1,82 @@
+{
+  "_provenance": {
+    "source": "https://goldenglobes.com/wp-json/awdb/v1/nominations/filters",
+    "captured": "2026-10-22",
+    "note": "Trimmed to the 5 main categories + awards_by_year for 2008/2024 only. Full response 112KB."
+  },
+  "years": [
+    2026,
+    2025,
+    2024,
+    2023,
+    2022,
+    2021,
+    2020,
+    2019
+  ],
+  "awards": [
+    "Best Motion Picture - Drama",
+    "Best Motion Picture - Musical or Comedy",
+    "Best Television Series - Drama",
+    "Best Television Series - Musical or Comedy",
+    "Best Television Limited Series, Anthology Series, or Motion Picture Made for Television"
+  ],
+  "awards_by_year": {
+    "2024": [
+      "Best Television Series - Drama",
+      "Best Screenplay - Motion Picture",
+      "Cinematic and Box Office Achievement",
+      "Best Director - Motion Picture",
+      "Best Performance by a Male Actor in a Supporting Role in any Motion Picture",
+      "Best Motion Picture – Non-English Language",
+      "Best Motion Picture - Animated",
+      "Best Performance by a Female Actor in a Television Series – Drama",
+      "Best Performance by a Male Actor in a Motion Picture – Musical or Comedy",
+      "Best Performance by a Female Actor in a Motion Picture – Musical or Comedy",
+      "Best Performance by a Male Actor in a Television Series – Drama",
+      "Best Motion Picture - Musical or Comedy",
+      "Best Television Series - Musical or Comedy",
+      "Best Performance by a Female Actor in a Television Series – Musical or Comedy",
+      "Best Performance by a Female Actor in a Motion Picture – Drama",
+      "Best Performance by a Male Actor in a Motion Picture – Drama",
+      "Best Performance by a Male Actor in a Television Series – Musical or Comedy",
+      "Best Original Song - Motion Picture",
+      "Best Television Limited Series, Anthology Series, or Motion Picture Made for Television",
+      "Best Performance by a Female Actor in a Limited Series, Anthology Series, or a Motion Picture Made for Television",
+      "Best Original Score - Motion Picture",
+      "Best Performance by a Male Actor in a Limited Series, Anthology Series, or a Motion Picture Made for Television",
+      "Best Motion Picture - Drama",
+      "Best Performance in Stand-Up Comedy on Television",
+      "Best Performance by a Female Actor in a Supporting Role on Television",
+      "Best Performance by a Male Actor in a Supporting Role on Television",
+      "Best Performance by a Female Actor in a Supporting Role in any Motion Picture"
+    ],
+    "2008": [
+      "Best Screenplay - Motion Picture",
+      "Best Television Limited Series, Anthology Series, or Motion Picture Made for Television",
+      "Best Television Series - Musical or Comedy",
+      "Best Television Series - Drama",
+      "Best Motion Picture - Animated",
+      "Best Motion Picture - Musical or Comedy",
+      "Best Motion Picture - Drama",
+      "Best Original Song - Motion Picture",
+      "Best Original Score - Motion Picture",
+      "Best Performance by an Actor in a Supporting Role in a Series, Limited Series or Motion Picture Made for Television",
+      "Best Performance by an Actress in a Supporting Role in a Series, Limited Series or Motion Picture Made for Television",
+      "Best Performance by an Actor in a Limited Series, Anthology Series, or a Motion Picture Made for Television",
+      "Best Performance by an Actress in a Limited Series, Anthology Series, or a Motion Picture Made for Television",
+      "Best Performance by an Actor in a Television Series - Musical or Comedy",
+      "Best Performance by an Actress in a Television Series - Musical or Comedy",
+      "Best Performance by an Actor In A Television Series - Drama",
+      "Best Performance by an Actor in a Motion Picture - Drama",
+      "Best Performance by an Actress In A Television Series - Drama",
+      "Best Director - Motion Picture",
+      "Best Performance by an Actor in a Supporting Role in any Motion Picture",
+      "Best Performance by an Actress in a Supporting Role in any Motion Picture",
+      "Best Motion Picture – Non-English Language",
+      "Best Performance by an Actor in a Motion Picture - Musical or Comedy",
+      "Best Performance by an Actress in a Motion Picture - Musical or Comedy",
+      "Best Performance by an Actress in a Motion Picture - Drama"
+    ]
+  }
+}

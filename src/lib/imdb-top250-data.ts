@@ -1,260 +1,261 @@
-// Official IMDb Top 250 Movies Dataset (as of 2026)
-export const IMDB_TOP_250_IDS = new Set<string>([
-  "tt0111161", // The Shawshank Redemption
-  "tt0068646", // The Godfather
-  "tt0468569", // The Dark Knight
-  "tt0068647", // The Godfather Part II
-  "tt0050083", // 12 Angry Men
-  "tt0108052", // Schindler's List
-  "tt0167260", // The Lord of the Rings: The Return of the King
-  "tt0110912", // Pulp Fiction
-  "tt0120737", // The Lord of the Rings: The Fellowship of the Ring
-  "tt0060196", // The Good, the Bad and the Ugly
-  "tt0109830", // Forrest Gump
-  "tt0137523", // Fight Club
-  "tt0167258", // The Lord of the Rings: The Two Towers
-  "tt0133093", // The Matrix
-  "tt0090605", // Goodfellas
-  "tt0075314", // One Flew Over the Cuckoo's Nest
-  "tt0071562", // Seven Samurai
-  "tt0114709", // Se7en
-  "tt0032553", // It's a Wonderful Life
-  "tt0102926", // The Silence of the Lambs
-  "tt0076759", // Star Wars: Episode IV - A New Hope
-  "tt0088763", // Back to the Future
-  "tt0120815", // Saving Private Ryan
-  "tt0816692", // Interstellar
-  "tt0245429", // Spirited Away
-  "tt0114369", // Life Is Beautiful
-  "tt0054215", // Psycho
-  "tt0317248", // City of God
-  "tt0103064", // Terminator 2: Judgment Day
-  "tt0021749", // City Lights
-  "tt0110357", // The Lion King
-  "tt0087843", // Once Upon a Time in America
-  "tt0063161", // 2001: A Space Odyssey
-  "tt0034583", // Casablanca
-  "tt0027977", // Modern Times
-  "tt0078788", // Apocalypse Now
-  "tt0078748", // Alien
-  "tt0110413", // Léon: The Professional
-  "tt0169547", // American Beauty
-  "tt1375666", // Inception
-  "tt0414387", // The Prestige
-  "tt1877830", // Whiplash
-  "tt0081505", // The Shining
-  "tt0056172", // High and Low
-  "tt0079221", // Alien / Stalker
-  "tt0057012", // Dr. Strangelove
-  "tt0040522", // Bicycle Thieves
-  "tt0118715", // The Big Lebowski
-  "tt0093058", // Full Metal Jacket
-  "tt0096283", // Cinema Paradiso
-  "tt0086250", // Scarface
-  "tt0026336", // Modern Times
-  "tt0091251", // Aliens
-  "tt0086190", // Star Wars: Episode VI - Return of the Jedi
-  "tt0082971", // Raiders of the Lost Ark
-  "tt0120689", // The Green Mile
-  "tt0033145", // The Great Dictator
-  "tt0047478", // Seven Samurai
-  "tt0167260", // The Return of the King
-  "tt0114369", // Life Is Beautiful
-  "tt0111161", // The Shawshank Redemption
-  "tt0110912", // Pulp Fiction
-  "tt0050083", // 12 Angry Men
-  "tt0080684", // Star Wars: Episode V - The Empire Strikes Back
-  "tt0105236", // Reservoir Dogs
-  "tt0468569", // The Dark Knight
-  "tt0114814", // The Usual Suspects
-  "tt0110912", // Pulp Fiction
-  "tt0114709", // Toy Story
-  "tt0114369", // Se7en
-  "tt0118715", // The Big Lebowski
-  "tt0120737", // The Fellowship of the Ring
-  "tt0167258", // The Two Towers
-  "tt0167260", // The Return of the King
-  "tt0169547", // American Beauty
-  "tt0209144", // Memento
-  "tt0245429", // Spirited Away
-  "tt0253474", // The Pianist
-  "tt0266543", // Finding Nemo
-  "tt0266697", // Kill Bill: Vol. 1
-  "tt0317248", // City of God
-  "tt0338013", // Eternal Sunshine of the Spotless Mind
-  "tt0361748", // Inglorious Basterds
-  "tt0363163", // Ip Man
-  "tt0371746", // Iron Man
-  "tt0405094", // The Lives of Others
-  "tt0414387", // The Prestige
-  "tt0452625", // Wall-E
-  "tt0468569", // The Dark Knight
-  "tt0477348", // No Country for Old Men
-  "tt0816692", // Interstellar
-  "tt0848228", // The Avengers
-  "tt0892791", // Shutter Island
-  "tt0993846", // The Wolf of Wall Street
-  "tt10872600", // Spider-Man: No Way Home
-  "tt1160419", // Dune: Part One
-  "tt1160420", // Dune: Part Two
-  "tt12439741", // Oppenheimer
-  "tt1375666", // Inception
-  "tt1502397", // Bad Boys for Life
-  "tt1517451", // Chernobyl / film
-  "tt1535108", // Spider-Man: Into the Spider-Verse
-  "tt1670345", // Now You See Me
-  "tt1853728", // Django Unchained
-  "tt1877830", // Whiplash
-  "tt2096673", // Inside Out
-  "tt2267998", // Gone Girl
-  "tt2380307", // Coco
-  "tt2582802", // Whiplash / The Hunt
-  "tt2562232", // Birdman
-  "tt2737304", // The Grand Budapest Hotel
-  "tt3044887", // Spider-Man: Across the Spider-Verse
-  "tt4154756", // Avengers: Infinity War
-  "tt4154796", // Avengers: Endgame
-  "tt4633694", // Spider-Man: Into the Spider-Verse
-  "tt5311514", // Your Name.
-  "tt6751668", // Parasite
-  "tt7286456", // Joker
-  "tt8503618", // Hamilton
-  "tt9362722", // Spider-Man: Across the Spider-Verse
-  "tt0015324", // The Gold Rush
-  "tt0018455", // Sunrise
-  "tt0019254", // Passion of Joan of Arc
-  "tt0020530", // Un Chien Andalou
-  "tt0021749", // City Lights
-  "tt0022100", // M
-  "tt0027977", // Modern Times
-  "tt0028445", // La Grande Illusion
-  "tt0031381", // Gone with the Wind
-  "tt0031580", // The Rules of the Game
-  "tt0032553", // It's a Wonderful Life
-  "tt0034583", // Casablanca
-  "tt0038650", // It's a Wonderful Life
-  "tt0040522", // Bicycle Thieves
-  "tt0042192", // All About Eve
-  "tt0042876", // Rashomon
-  "tt0043014", // Sunset Boulevard
-  "tt0044741", // Singin' in the Rain
-  "tt0045152", // Ikiru
-  "tt0046438", // Tokyo Story
-  "tt0047478", // Seven Samurai
-  "tt0047296", // On the Waterfront
-  "tt0047396", // Rear Window
-  "tt0048021", // Diabolique
-  "tt0050083", // 12 Angry Men
-  "tt0050825", // Paths of Glory
-  "tt0050976", // The Seventh Seal
-  "tt0050986", // Wild Strawberries
-  "tt0051201", // Vertigo
-  "tt0052357", // Vertigo
-  "tt0053125", // North by Northwest
-  "tt0053198", // 400 Blows
-  "tt0053291", // Some Like It Hot
-  "tt0054215", // Psycho
-  "tt0054555", // The Apartment
-  "tt0055630", // Yojimbo
-  "tt0056058", // Harakiri
-  "tt0056172", // High and Low
-  "tt0056592", // To Kill a Mockingbird
-  "tt0057012", // Dr. Strangelove
-  "tt0058331", // The Good, the Bad and the Ugly
-  "tt0060196", // The Good, the Bad and the Ugly
-  "tt0061512", // Cool Hand Luke
-  "tt0062622", // 2001: A Space Odyssey
-  "tt0063161", // 2001: A Space Odyssey
-  "tt0064116", // Once Upon a Time in the West
-  "tt0068646", // The Godfather
-  "tt0068647", // The Godfather Part II
-  "tt0070735", // The Sting
-  "tt0071562", // Seven Samurai / Chinatown
-  "tt0073195", // Jaws
-  "tt0073486", // One Flew Over the Cuckoo's Nest
-  "tt0074285", // Taxi Driver
-  "tt0076759", // Star Wars: Episode IV
-  "tt0077651", // Deer Hunter
-  "tt0078748", // Alien
-  "tt0078788", // Apocalypse Now
-  "tt0080684", // Star Wars: Episode V
-  "tt0081505", // The Shining
-  "tt0081696", // Raging Bull
-  "tt0082971", // Indiana Jones: Raiders
-  "tt0083907", // E.T.
-  "tt0084707", // The Thing
-  "tt0086190", // Star Wars: Episode VI
-  "tt0086250", // Scarface
-  "tt0087363", // Amadeus
-  "tt0087843", // Once Upon a Time in America
-  "tt0088763", // Back to the Future
-  "tt0090605", // Aliens / Goodfellas
-  "tt0091251", // Aliens
-  "tt0093058", // Full Metal Jacket
-  "tt0093779", // Princess Bride
-  "tt0095016", // Die Hard
-  "tt0095765", // Grave of the Fireflies
-  "tt0096283", // Cinema Paradiso
-  "tt0097165", // Dead Poets Society
-  "tt0099685", // Goodfellas
-  "tt0101507", // Boyz n the Hood
-  "tt0102926", // The Silence of the Lambs
-  "tt0103064", // Terminator 2
-  "tt0105236", // Reservoir Dogs
-  "tt0105417", // Unforgiven
-  "tt0107290", // Jurassic Park
-  "tt0108052", // Schindler's List
-  "tt0109830", // Forrest Gump
-  "tt0110357", // The Lion King
-  "tt0110413", // Leon: The Professional
-  "tt0110912", // Pulp Fiction
-  "tt0111161", // The Shawshank Redemption
-  "tt0112471", // Before Sunrise
-  "tt0112573", // Braveheart
-  "tt0113277", // Heat
-  "tt0114369", // Se7en
-  "tt0114709", // Toy Story
-  "tt0114814", // The Usual Suspects
-  "tt0116282", // Fargo
-  "tt0117060", // Princess Mononoke
-  "tt0118715", // The Big Lebowski
-  "tt0118799", // Life Is Beautiful
-  "tt0119217", // Good Will Hunting
-  "tt0119488", // L.A. Confidential
-  "tt0120382", // The Truman Show
-  "tt0120586", // American History X
-  "tt0120737", // The Fellowship of the Ring
-  "tt0120815", // Saving Private Ryan
-  "tt0120689", // The Green Mile
-  "tt0133093", // The Matrix
-  "tt0137523", // Fight Club
-  "tt0167258", // The Two Towers
-  "tt0167260", // The Return of the King
-  "tt0169547", // American Beauty
-  "tt0209144", // Memento
-  "tt0245429", // Spirited Away
-  "tt0253474", // The Pianist
-  "tt0317248", // City of God
-  "tt0338013", // Eternal Sunshine
-  "tt0361748", // Inglorious Basterds
-  "tt0405094", // The Lives of Others
-  "tt0414387", // The Prestige
-  "tt0452625", // Wall-E
-  "tt0468569", // The Dark Knight
-  "tt0477348", // No Country for Old Men
-  "tt0816692", // Interstellar
-  "tt0848228", // The Avengers
-  "tt0892791", // Shutter Island
-  "tt0993846", // The Wolf of Wall Street
-  "tt1375666", // Inception
-  "tt1535108", // Spider-Man: Into the Spider-Verse
-  "tt1853728", // Django Unchained
-  "tt1877830", // Whiplash
-  "tt2380307", // Coco
-  "tt3044887", // Spider-Man: Across the Spider-Verse
-  "tt4154756", // Avengers: Infinity War
-  "tt4154796", // Avengers: Endgame
-  "tt6751668", // Parasite
-  "tt7286456", // Joker
-  "tt12439741", // Oppenheimer
-])
+// AUTO-GENERATED by scripts/write-imdb-top250-snapshot.mjs — do not edit manually.
+// Source: https://www.imdb.com/it/chart/top/ (Italian chart, minimal fixture of the user-provided canonical HTML "I migliori 250 film di IMDb.htm").
+// Imported on: 2026-10-22; IMDb retrieval timestamp: UNKNOWN (unknown unless the capture carries verifiable evidence).
+// Source SHA-256: 7ca8f72955697b705286d60dcffaf485a85d66dbe4ced8f7352275f82ff338c8 (3855501 bytes).
+// Reproduce: node scripts/write-imdb-top250-snapshot.mjs (fixture: src/__tests__/fixtures/imdb-top250-chart.json) or re-run with the same external HTML (SHA-256 above).
+// Absolute Cinema = movies ranked 1..100 of this ordered snapshot (rank 100 in, rank 101 out).
+export const IMDB_TOP_250_PROVENANCE = {"sourceUrl":"https://www.imdb.com/it/chart/top/","sourceFile":"I migliori 250 film di IMDb.htm","sourceSha256":"7ca8f72955697b705286d60dcffaf485a85d66dbe4ced8f7352275f82ff338c8","sourceBytes":3855501,"importedOn":"2026-10-22","sourceGeneratedAt":"UNKNOWN"} as const;
+export const IMDB_TOP_250_ORDERED_IDS: readonly string[] = [
+  "tt0111161", // #1 The Shawshank Redemption
+  "tt0068646", // #2 The Godfather
+  "tt0468569", // #3 The Dark Knight
+  "tt0071562", // #4 The Godfather Part II
+  "tt0167260", // #5 The Lord of the Rings: The Return of the King
+  "tt0050083", // #6 12 Angry Men
+  "tt0108052", // #7 Schindler's List
+  "tt0120737", // #8 The Lord of the Rings: The Fellowship of the Ring
+  "tt0110912", // #9 Pulp Fiction
+  "tt0167261", // #10 The Lord of the Rings: The Two Towers
+  "tt0060196", // #11 Il buono, il brutto, il cattivo
+  "tt0109830", // #12 Forrest Gump
+  "tt1375666", // #13 Inception
+  "tt0137523", // #14 Fight Club
+  "tt0080684", // #15 Star Wars: Episode V - The Empire Strikes Back
+  "tt0133093", // #16 The Matrix
+  "tt0816692", // #17 Interstellar
+  "tt0099685", // #18 GoodFellas
+  "tt0073486", // #19 One Flew Over the Cuckoo's Nest
+  "tt0114369", // #20 Se7en
+  "tt0038650", // #21 It's a Wonderful Life
+  "tt0102926", // #22 The Silence of the Lambs
+  "tt0120815", // #23 Saving Private Ryan
+  "tt0047478", // #24 Shichinin no samurai
+  "tt0120689", // #25 The Green Mile
+  "tt0317248", // #26 Cidade de Deus
+  "tt0118799", // #27 La vita è bella
+  "tt0103064", // #28 Terminator 2: Judgment Day
+  "tt0088763", // #29 Back to the Future
+  "tt0076759", // #30 Star Wars
+  "tt0245429", // #31 Sen to Chihiro no kamikakushi
+  "tt0172495", // #32 Gladiator
+  "tt0253474", // #33 The Pianist
+  "tt6019206", // #34 Kill Bill: The Whole Bloody Affair
+  "tt6751668", // #35 Gisaengchung
+  "tt0095327", // #36 Hotaru no haka
+  "tt0056058", // #37 Seppuku
+  "tt0110357", // #38 The Lion King
+  "tt0054215", // #39 Psycho
+  "tt0407887", // #40 The Departed
+  "tt2582802", // #41 Whiplash
+  "tt0482571", // #42 The Prestige
+  "tt0120586", // #43 American History X
+  "tt9362722", // #44 Spider-Man: Across the Spider-Verse
+  "tt0095765", // #45 Nuovo Cinema Paradiso
+  "tt0110413", // #46 Léon
+  "tt0034583", // #47 Casablanca
+  "tt1675434", // #48 Intouchables
+  "tt0114814", // #49 The Usual Suspects
+  "tt1853728", // #50 Django Unchained
+  "tt0078748", // #51 Alien
+  "tt0047396", // #52 Rear Window
+  "tt0027977", // #53 Modern Times
+  "tt0064116", // #54 C'era una volta il West
+  "tt0910970", // #55 WALL·E
+  "tt0021749", // #56 City Lights
+  "tt0078788", // #57 Apocalypse Now
+  "tt0209144", // #58 Memento
+  "tt4154756", // #59 Avengers: Infinity War
+  "tt15239678", // #60 Dune: Part Two
+  "tt0082971", // #61 Raiders of the Lost Ark
+  "tt4633694", // #62 Spider-Man: Into the Spider-Verse
+  "tt0405094", // #63 Das Leben der Anderen
+  "tt33764258", // #64 The Odyssey
+  "tt0043014", // #65 Sunset Boulevard
+  "tt0051201", // #66 Witness for the Prosecution
+  "tt0050825", // #67 Paths of Glory
+  "tt0361748", // #68 Inglourious Basterds
+  "tt0081505", // #69 The Shining
+  "tt0032553", // #70 The Great Dictator
+  "tt0090605", // #71 Aliens
+  "tt0057565", // #72 Tengoku to jigoku
+  "tt23849204", // #73 12th Fail
+  "tt4154796", // #74 Avengers: Endgame
+  "tt0119217", // #75 Good Will Hunting
+  "tt2380307", // #76 Coco
+  "tt0114709", // #77 Toy Story
+  "tt1345836", // #78 The Dark Knight Rises
+  "tt0086879", // #79 Amadeus
+  "tt5311514", // #80 Kimi no na wa.
+  "tt1187043", // #81 3 Idiots
+  "tt0112573", // #82 Braveheart
+  "tt0082096", // #83 Das Boot
+  "tt0119698", // #84 Mononoke-hime
+  "tt0364569", // #85 Oldeuboi
+  "tt0057012", // #86 Dr. Strangelove or: How I Learned to Stop Worrying and Love the Bomb
+  "tt0169547", // #87 American Beauty
+  "tt8267604", // #88 Capharnaüm
+  "tt33175825", // #89 Shingeki no Kyojin: The Last Attack
+  "tt0045152", // #90 Singin' in the Rain
+  "tt0087843", // #91 C'era una volta in America
+  "tt7286456", // #92 Joker
+  "tt0435761", // #93 Toy Story 3
+  "tt0086190", // #94 Star Wars: Episode VI - Return of the Jedi
+  "tt0091251", // #95 Idi i smotri
+  "tt0180093", // #96 Requiem for a Dream
+  "tt1255953", // #97 Incendies
+  "tt0044741", // #98 Ikiru
+  "tt2106476", // #99 Jagten
+  "tt0338013", // #100 Eternal Sunshine of the Spotless Mind
+  "tt0053604", // #101 The Apartment
+  "tt0056172", // #102 Lawrence of Arabia
+  "tt0113277", // #103 Heat
+  "tt0086250", // #104 Scarface
+  "tt1049413", // #105 Up
+  "tt0105236", // #106 Reservoir Dogs
+  "tt0062622", // #107 2001: A Space Odyssey
+  "tt0036775", // #108 Double Indemnity
+  "tt0986264", // #109 Taare Zameen Par
+  "tt0053125", // #110 North by Northwest
+  "tt0093058", // #111 Full Metal Jacket
+  "tt1832382", // #112 Jodaeiye Nader az Simin
+  "tt31514146", // #113 I Swear
+  "tt0095016", // #114 Die Hard
+  "tt0022100", // #115 M - Eine Stadt sucht einen Mörder
+  "tt0211915", // #116 Le fabuleux destin d'Amélie Poulain
+  "tt0097576", // #117 Indiana Jones and the Last Crusade
+  "tt0056592", // #118 To Kill a Mockingbird
+  "tt0052357", // #119 Vertigo
+  "tt0033467", // #120 Citizen Kane
+  "tt0070735", // #121 The Sting
+  "tt0066921", // #122 A Clockwork Orange
+  "tt0120382", // #123 The Truman Show
+  "tt0993846", // #124 The Wolf of Wall Street
+  "tt0017136", // #125 Metropolis
+  "tt8579674", // #126 1917
+  "tt0208092", // #127 Snatch
+  "tt1130884", // #128 Shutter Island
+  "tt0363163", // #129 Der Untergang
+  "tt0119488", // #130 L.A. Confidential
+  "tt6966692", // #131 Green Book
+  "tt5074352", // #132 Dangal
+  "tt0040522", // #133 Ladri di biciclette
+  "tt0055031", // #134 Judgment at Nuremberg
+  "tt0058625", // #135 Suna no onna
+  "tt0107290", // #136 Jurassic Park
+  "tt0372784", // #137 Batman Begins
+  "tt15398776", // #138 Oppenheimer
+  "tt0059578", // #139 Per qualche dollaro in più
+  "tt8503618", // #140 Hamilton
+  "tt0469494", // #141 There Will Be Blood
+  "tt0053291", // #142 Some Like It Hot
+  "tt0075314", // #143 Taxi Driver
+  "tt10272386", // #144 The Father
+  "tt0167404", // #145 The Sixth Sense
+  "tt0012349", // #146 The Kid
+  "tt0042192", // #147 All About Eve
+  "tt0089881", // #148 Ran
+  "tt0084787", // #149 The Thing
+  "tt0112641", // #150 Casino
+  "tt0477348", // #151 No Country for Old Men
+  "tt1392214", // #152 Prisoners
+  "tt1745960", // #153 Top Gun: Maverick
+  "tt0266697", // #154 Kill Bill: Vol. 1
+  "tt0457430", // #155 El laberinto del fauno
+  "tt0105695", // #156 Unforgiven
+  "tt0268978", // #157 A Beautiful Mind
+  "tt0347149", // #158 Hauru no ugoku shiro
+  "tt0040897", // #159 The Treasure of the Sierra Madre
+  "tt0266543", // #160 Finding Nemo
+  "tt4729430", // #161 Klaus
+  "tt12042730", // #162 Project Hail Mary
+  "tt32820897", // #163 Gekijô-ban Kimetsu no Yaiba Mugen Jô-hen
+  "tt0055630", // #164 Yôjinbô
+  "tt0080678", // #165 The Elephant Man
+  "tt0057115", // #166 The Great Escape
+  "tt0071853", // #167 Monty Python and the Holy Grail
+  "tt0046912", // #168 Dial M for Murder
+  "tt1305806", // #169 El secreto de sus ojos
+  "tt0031381", // #170 Gone with the Wind
+  "tt0120735", // #171 Lock, Stock and Two Smoking Barrels
+  "tt0264464", // #172 Catch Me If You Can
+  "tt0071315", // #173 Chinatown
+  "tt0434409", // #174 V for Vendetta
+  "tt0097165", // #175 Dead Poets Society
+  "tt2096673", // #176 Inside Out
+  "tt0346336", // #177 La meglio gioventù
+  "tt0117951", // #178 Trainspotting
+  "tt1201607", // #179 Harry Potter and the Deathly Hallows: Part 2
+  "tt5027774", // #180 Three Billboards Outside Ebbing, Missouri
+  "tt0050212", // #181 The Bridge on the River Kwai
+  "tt0042876", // #182 Rashômon
+  "tt0072684", // #183 Barry Lyndon
+  "tt0052618", // #184 Ben-Hur
+  "tt29623480", // #185 The Wild Robot
+  "tt2119532", // #186 Hacksaw Ridge
+  "tt1291584", // #187 Warrior
+  "tt0382932", // #188 Ratatouille
+  "tt1392190", // #189 Mad Max: Fury Road
+  "tt0405159", // #190 Million Dollar Baby
+  "tt0116282", // #191 Fargo
+  "tt0118849", // #192 Bacheha-ye aseman
+  "tt0096283", // #193 Tonari no Totoro
+  "tt1205489", // #194 Gran Torino
+  "tt2024544", // #195 12 Years a Slave
+  "tt0081398", // #196 Raging Bull
+  "tt0892769", // #197 How to Train Your Dragon
+  "tt0353969", // #198 Salinui chueok
+  "tt2278388", // #199 The Grand Budapest Hotel
+  "tt0112471", // #200 Before Sunrise
+  "tt0198781", // #201 Monsters, Inc.
+  "tt0083658", // #202 Blade Runner
+  "tt2267998", // #203 Gone Girl
+  "tt1950186", // #204 Ford v Ferrari
+  "tt0073195", // #205 Jaws
+  "tt0107207", // #206 In the Name of the Father
+  "tt30472557", // #207 Gekijô-ban Chensô Man Reze-hen
+  "tt10872600", // #208 Spider-Man: No Way Home
+  "tt3011894", // #209 Relatos salvajes
+  "tt5323662", // #210 Koe no katachi
+  "tt0015864", // #211 The Gold Rush
+  "tt0978762", // #212 Mary and Max.
+  "tt0015324", // #213 Sherlock Jr.
+  "tt0325980", // #214 Pirates of the Caribbean: The Curse of the Black Pearl
+  "tt0077416", // #215 The Deer Hunter
+  "tt3315342", // #216 Logan
+  "tt0046268", // #217 Le salaire de la peur
+  "tt0075148", // #218 Rocky
+  "tt0017925", // #219 The General
+  "tt0031679", // #220 Mr. Smith Goes to Washington
+  "tt0046438", // #221 Tôkyô monogatari
+  "tt26548265", // #222 Maharaja
+  "tt0113247", // #223 La haine
+  "tt0059742", // #224 The Sound of Music
+  "tt1895587", // #225 Spotlight
+  "tt15097216", // #226 Jai Bhim
+  "tt0088247", // #227 The Terminator
+  "tt0050986", // #228 Smultronstället
+  "tt0047296", // #229 On the Waterfront
+  "tt0036868", // #230 The Best Years of Our Lives
+  "tt0041959", // #231 The Third Man
+  "tt0118715", // #232 The Big Lebowski
+  "tt0317705", // #233 The Incredibles
+  "tt1028532", // #234 Hachi: A Dog's Tale
+  "tt0381681", // #235 Before Sunset
+  "tt0129167", // #236 The Iron Giant
+  "tt0070047", // #237 The Exorcist
+  "tt3170832", // #238 Room
+  "tt0395169", // #239 Hotel Rwanda
+  "tt0091763", // #240 Platoon
+  "tt0050976", // #241 Det sjunde inseglet
+  "tt1979320", // #242 Rush
+  "tt0058946", // #243 La battaglia di Algeri
+  "tt0092005", // #244 Stand by Me
+  "tt0032138", // #245 The Wizard of Oz
+  "tt0476735", // #246 Babam ve Oglum
+  "tt0019254", // #247 La passion de Jeanne d'Arc
+  "tt4430212", // #248 Drishyam
+  "tt1954470", // #249 Gangs of Wasseypur
+  "tt10431500", // #250 Yedinci Kogustaki Mucize
+];
+/** Legacy membership set (250 ids). Prefer rank-based helpers for new code. */
+export const IMDB_TOP_250_IDS = new Set<string>(IMDB_TOP_250_ORDERED_IDS);

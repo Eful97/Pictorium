@@ -40,6 +40,10 @@ export async function saveDefaults(ed: PosterEditorCtx): Promise<boolean> {
     posterLayout: ed.defaultPosterLayout,
     posterFreshScope: ed.defaultPosterFreshScope,
     sashOrder: ed.defaultSashOrder,
+    // Esclusioni automatiche space-wide (flat condivisi, nessun profilo):
+    // persistite come gli altri default (PUT + localStorage via `d` sotto).
+    disabledContentTags: ed.defaultDisabledContentTags,
+    disabledNetworks: ed.defaultDisabledNetworks,
     badgeStyle: ed.defaultBadgeStyle,
     rankingBadgeStyle: ed.defaultRankingBadgeStyle,
     extraBadgeStyle: ed.defaultExtraBadgeStyle ?? null,

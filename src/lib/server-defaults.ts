@@ -324,6 +324,21 @@ export interface ServerDefaults {
    */
   catalogShapes?: Record<string, import("@/lib/types").PosterShape>
   /**
+   * Space-wide disabled automatic content-tag badges (canonical IDs, see
+   * `content-tags.ts`). Shared across shapes: no landscape profile, no
+   * per-title fields, no preset recipes. Absent/empty = historical behavior
+   * (fail-open to the legacy render). Bounded validation at the PUT boundary;
+   * sanitized again at match time.
+   */
+  disabledContentTags?: string[]
+  /**
+   * Space-wide disabled canonical network marks (canonical IDs, see
+   * `network-keys.ts`). Shared across shapes like the tags above. A disabled
+   * mark is skipped before both the local and the TMDB-fallback paths and
+   * can never resurrect. Absent/empty = historical behavior.
+   */
+  disabledNetworks?: string[]
+  /**
    * Custom seasonal keywords per theme (user-scoped setting): extra
    * whole-word/phrase matches for the automatic catalog-name recognition
    * (see `seasonal-theme.ts`). Bounded (max 20 entries, max 40 chars each),

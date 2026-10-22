@@ -93,7 +93,7 @@ export function isPreviewDowngraded(input: PreviewDowngradeInput): boolean {
 export const POSTER_CACHE_ALLOWLIST: ReadonlySet<string> = new Set([
   // Schema query (bound R1).
   "extra", "label", "title", "genreName", "poster", "logo", "backdrop",
-  "quality", "formats", "qmin", "lang", "rsrc", "rw", "sash", "imdbId", "wikidata_id",
+  "quality", "formats", "qmin", "lang", "rsrc", "rw", "sash", "dct", "dnet", "imdbId", "wikidata_id",
   "rank", "animerank", "scale", "ox", "oy", "tscale", "tox", "toy",
   "exscale", "exox", "exoy",
   "gscale", "gox", "goy", "qscale", "qox", "qoy", "sepscale", "sepox", "sepoy", "netscale", "nox", "noy",

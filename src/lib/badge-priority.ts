@@ -142,12 +142,36 @@ export interface BadgeParams {
   seriesEnded?: string | null
   imdbTop250?: boolean
   extra: string | null
+  /**
+   * Space-wide disabled automatic content-tag IDs (canonical, see
+   * `content-tags.ts`). A disabled candidate yields to the next enabled
+   * candidate inside the same bucket, then to subsequent buckets.
+   * Absent/empty = historical behavior. Manual explicit overrides
+   * (`queryExtra`) never pass through here and stay authoritative.
+   */
+  disabledContentTags?: readonly string[] | null
+  /**
+   * Canonical sub-genre key for the current `subGenre` label (see
+   * `getSubGenreMatch`): exclusions filter on the key (`subgenre:<key>` or
+   * the `subgenre` family), never on the localized label.
+   */
+  subGenreKey?: string | null
+}
+
+function isTagOff(tagId: string, subGenreKey: string | null | undefined, disabled: readonly string[] | null | undefined): boolean {
+  if (!disabled || disabled.length === 0) return false
+  if (tagId === "subgenre") {
+    if (disabled.includes("subgenre")) return true
+    return !!subGenreKey && disabled.includes(`subgenre:${subGenreKey}`)
+  }
+  return disabled.includes(tagId)
 }
 
 function resolveBucket(bucket: SashBucket, params: BadgeParams, t: T): BadgeResult | null {
+  const off = (tagId: string): boolean => isTagOff(tagId, params.subGenreKey, params.disabledContentTags ?? null)
   switch (bucket) {
     case "upcoming":
-      if (params.upcomingRelease) return { type: "extra", label: params.upcomingRelease }
+      if (params.upcomingRelease && !off("upcoming")) return { type: "extra", label: params.upcomingRelease }
       return null
     case "rank":
       if (params.animeRank && params.animeRank <= ANIME_RANK_MAX) return { type: "rank", label: t("badge.anime"), rank: params.animeRank, ribbonLabel: t("badge.today") }
@@ -158,32 +182,32 @@ function resolveBucket(bucket: SashBucket, params: BadgeParams, t: T): BadgeResu
       if (params.trendRank) return { type: "rank", label: t("badge.today"), rank: params.trendRank, ribbonLabel: t("badge.today") }
       return null
     case "new":
-      if (params.isNewMovie) return { type: "extra", label: t("badge.newMovie") }
-      if (params.isNewSeries) return { type: "extra", label: t("badge.newSeries") }
-      if (params.justAdded) return { type: "extra", label: params.justAdded }
-      if (params.newSeason) return { type: "extra", label: params.newSeason }
+      if (params.isNewMovie && !off("newMovie")) return { type: "extra", label: t("badge.newMovie") }
+      if (params.isNewSeries && !off("newSeries")) return { type: "extra", label: t("badge.newSeries") }
+      if (params.justAdded && !off("justAdded")) return { type: "extra", label: params.justAdded }
+      if (params.newSeason && !off("newSeason")) return { type: "extra", label: params.newSeason }
       // Time-sensitive like "new season": right after it and above awards,
       // which never expire.
-      if (params.nextEpisode) return { type: "extra", label: params.nextEpisode }
+      if (params.nextEpisode && !off("nextEpisode")) return { type: "extra", label: params.nextEpisode }
       return null
     case "award":
-      if (params.award) return { type: "extra", label: params.award }
-      if (params.imdbTop250) return { type: "extra", label: t("badge.absoluteCinema") }
-      if (params.nomination) return { type: "extra", label: params.nomination }
+      if (params.award && !off("award")) return { type: "extra", label: params.award }
+      if (params.imdbTop250 && !off("absoluteCinema")) return { type: "extra", label: t("badge.absoluteCinema") }
+      if (params.nomination && !off("nomination")) return { type: "extra", label: params.nomination }
       return null
     case "extra":
-      if (params.subGenre) return { type: "extra", label: params.subGenre }
+      if (params.subGenre && !off("subgenre")) return { type: "extra", label: params.subGenre }
       // Permanent content below news/rank/awards: true story before book
       // (deterministic documented order, both below sub-genre).
-      if (params.trueStory) return { type: "extra", label: params.trueStory }
-      if (params.basedOnBook) return { type: "extra", label: params.basedOnBook }
-      if (params.isKDrama) return { type: "extra", label: "K-Drama" }
-      if (params.director) return { type: "extra", label: params.director }
-      if (params.studio) return { type: "extra", label: params.studio }
-      if (params.miniseries) return { type: "extra", label: params.miniseries }
-      if (params.returning) return { type: "extra", label: params.returning }
-      if (params.seriesEnded) return { type: "extra", label: params.seriesEnded }
-      if (params.extra) return { type: "extra", label: params.extra }
+      if (params.trueStory && !off("trueStory")) return { type: "extra", label: params.trueStory }
+      if (params.basedOnBook && !off("basedOnBook")) return { type: "extra", label: params.basedOnBook }
+      if (params.isKDrama && !off("kdrama")) return { type: "extra", label: "K-Drama" }
+      if (params.director && !off("director")) return { type: "extra", label: params.director }
+      if (params.studio && !off("studio")) return { type: "extra", label: params.studio }
+      if (params.miniseries && !off("miniseries")) return { type: "extra", label: params.miniseries }
+      if (params.returning && !off("returning")) return { type: "extra", label: params.returning }
+      if (params.seriesEnded && !off("seriesEnded")) return { type: "extra", label: params.seriesEnded }
+      if (params.extra && !off("absoluteCinema")) return { type: "extra", label: params.extra }
       return null
   }
 }
@@ -198,8 +222,10 @@ export function computeBadge(params: BadgeParams, _t?: T, order?: readonly SashB
 }
 
 /**
- * Compute the Absolute Cinema badge from IMDb Top 250 membership.
- * Previously used voteAverage >= 8.3; now relies on IMDb Top 250.
+ * Compute the Absolute Cinema badge from IMDb chart membership.
+ * Eligibility = movies ranked 1..100 of the ordered Top 250 snapshot
+ * (`isImdbTop100`); the `imdbTop250` flag name is legacy and now carries
+ * that Top-100 eligibility (minimal diff, documented here).
  */
 export function computeAbsoluteCinema(params: {
   mediaType: "movie" | "tv"

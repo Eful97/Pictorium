@@ -1,0 +1,145 @@
+{
+  "@context": "https://schema.org",
+  "@type": "ItemList",
+  "name": "2024 Emmy Awards - Outstanding Limited Or Anthology Series",
+  "description": "Official winners and nominees for the 2024 Emmy Awards in the Outstanding Limited Or Anthology Series category.",
+  "url": "https://www.televisionacademy.com/awards/nominees-winners/2024/outstanding-miniseries",
+  "numberOfItems": 5,
+  "itemListElement": [
+    {
+      "@type": "ListItem",
+      "position": 1,
+      "item": {
+        "@type": "TVSeries",
+        "name": "Baby Reindeer",
+        "url": "/shows/baby-reindeer",
+        "actor": [
+          {
+            "@type": "Person",
+            "name": "Richard Gadd",
+            "url": "https://www.televisionacademy.com/bios/richard-gadd"
+          },
+          {
+            "@type": "Person",
+            "name": "Wim De Greef",
+            "url": "https://www.televisionacademy.com/bios/wim-de-greef"
+          },
+          {
+            "@type": "Person",
+            "name": "Petra Fried",
+            "url": "https://www.televisionacademy.com/bios/petra-fried"
+          }
+        ],
+        "award": "Outstanding Limited Or Anthology Series - 2024 Emmy Awards Winner"
+      }
+    },
+    {
+      "@type": "ListItem",
+      "position": 2,
+      "item": {
+        "@type": "TVSeries",
+        "name": "Fargo",
+        "url": "/shows/fargo",
+        "actor": [
+          {
+            "@type": "Person",
+            "name": "Noah Hawley",
+            "url": "https://www.televisionacademy.com/bios/noah-hawley"
+          },
+          {
+            "@type": "Person",
+            "name": "Warren Littlefield",
+            "url": "https://www.televisionacademy.com/bios/warren-littlefield"
+          },
+          {
+            "@type": "Person",
+            "name": "Joel Coen",
+            "url": "https://www.televisionacademy.com/bios/joel-coen"
+          }
+        ],
+        "award": "Outstanding Limited Or Anthology Series - 2024 Emmy Awards Nominee"
+      }
+    },
+    {
+      "@type": "ListItem",
+      "position": 3,
+      "item": {
+        "@type": "TVSeries",
+        "name": "Lessons in Chemistry",
+        "url": "/shows/lessons-chemistry",
+        "actor": [
+          {
+            "@type": "Person",
+            "name": "Hannah Fidell",
+            "url": "https://www.televisionacademy.com/bios/hannah-fidell"
+          },
+          {
+            "@type": "Person",
+            "name": "Rosa Handelman",
+            "url": "https://www.televisionacademy.com/bios/rosa-handelman"
+          },
+          {
+            "@type": "Person",
+            "name": "Susannah Grant",
+            "url": "https://www.televisionacademy.com/bios/susannah-grant"
+          }
+        ],
+        "award": "Outstanding Limited Or Anthology Series - 2024 Emmy Awards Nominee"
+      }
+    },
+    {
+      "@type": "ListItem",
+      "position": 4,
+      "item": {
+        "@type": "TVSeries",
+        "name": "Ripley",
+        "url": "/shows/ripley",
+        "actor": [
+          {
+            "@type": "Person",
+            "name": "Steven Zaillian",
+            "url": "https://www.televisionacademy.com/bios/steven-zaillian"
+          },
+          {
+            "@type": "Person",
+            "name": "Garrett Basch",
+            "url": "https://www.televisionacademy.com/bios/garrett-basch"
+          },
+          {
+            "@type": "Person",
+            "name": "Clayton Townsend",
+            "url": "https://www.televisionacademy.com/bios/clayton-townsend"
+          }
+        ],
+        "award": "Outstanding Limited Or Anthology Series - 2024 Emmy Awards Nominee"
+      }
+    },
+    {
+      "@type": "ListItem",
+      "position": 5,
+      "item": {
+        "@type": "TVSeries",
+        "name": "True Detective: Night Country",
+        "url": "/shows/true-detective-night-country",
+        "actor": [
+          {
+            "@type": "Person",
+            "name": "Issa López",
+            "url": "https://www.televisionacademy.com/bios/issa-lc3b3pez"
+          },
+          {
+            "@type": "Person",
+            "name": "Mari Jo Winkler-Ioffreda",
+            "url": "https://www.televisionacademy.com/bios/mari-jo-winkler-ioffreda"
+          },
+          {
+            "@type": "Person",
+            "name": "Jodie Foster",
+            "url": "https://www.televisionacademy.com/bios/jodie-foster"
+          }
+        ],
+        "award": "Outstanding Limited Or Anthology Series - 2024 Emmy Awards Nominee"
+      }
+    }
+  ]
+}

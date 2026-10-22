@@ -1,0 +1,166 @@
+
+    {
+    "@context": "https://schema.org",
+    "@type": "ItemList",
+    "name": "2008 Emmy Awards - Outstanding Comedy Series",
+    "description": "Official winners and nominees for the 2008 Emmy Awards in the Outstanding Comedy Series category.",
+    "url": "https://www.televisionacademy.com/awards/nominees-winners/2008/outstanding-comedy-series",
+    "numberOfItems": 5,
+    "itemListElement": [
+        {
+            "@type": "ListItem",
+            "position": 1,
+            "item": {
+                "@type": "TVSeries",
+                "name": "30 Rock",
+                "url": "/shows/30-rock",
+                "actor": [
+                    {
+                        "@type": "Person",
+                        "name": "Lorne Michaels",
+                        "url": "https://www.televisionacademy.com/bios/lorne-michaels"
+                    },
+                    {
+                        "@type": "Person",
+                        "name": "Tina Fey",
+                        "url": "https://www.televisionacademy.com/bios/tina-fey"
+                    },
+                    {
+                        "@type": "Person",
+                        "name": "Marci Klein",
+                        "url": "https://www.televisionacademy.com/bios/marci-klein"
+                    }
+                ],
+                "award": "Outstanding Comedy Series - 2008 Emmy Awards Winner",
+                "productionCompany": {
+                    "@type": "Organization",
+                    "name": "NBC"
+                }
+            }
+        },
+        {
+            "@type": "ListItem",
+            "position": 2,
+            "item": {
+                "@type": "TVSeries",
+                "name": "Curb Your Enthusiasm",
+                "url": "/shows/curb-your-enthusiasm",
+                "actor": [
+                    {
+                        "@type": "Person",
+                        "name": "Larry David",
+                        "url": "https://www.televisionacademy.com/bios/larry-david"
+                    },
+                    {
+                        "@type": "Person",
+                        "name": "Jeff Garlin",
+                        "url": "https://www.televisionacademy.com/bios/jeff-garlin"
+                    },
+                    {
+                        "@type": "Person",
+                        "name": "Gavin Polone",
+                        "url": "https://www.televisionacademy.com/bios/gavin-polone"
+                    }
+                ],
+                "award": "Outstanding Comedy Series - 2008 Emmy Awards Nominee",
+                "productionCompany": {
+                    "@type": "Organization",
+                    "name": "HBO"
+                }
+            }
+        },
+        {
+            "@type": "ListItem",
+            "position": 3,
+            "item": {
+                "@type": "TVSeries",
+                "name": "Entourage",
+                "url": "/shows/entourage",
+                "actor": [
+                    {
+                        "@type": "Person",
+                        "name": "Mark Wahlberg",
+                        "url": "https://www.televisionacademy.com/bios/mark-wahlberg"
+                    },
+                    {
+                        "@type": "Person",
+                        "name": "Stephen Levinson",
+                        "url": "https://www.televisionacademy.com/bios/stephen-levinson"
+                    },
+                    {
+                        "@type": "Person",
+                        "name": "Doug Ellin",
+                        "url": "https://www.televisionacademy.com/bios/doug-ellin"
+                    }
+                ],
+                "award": "Outstanding Comedy Series - 2008 Emmy Awards Nominee",
+                "productionCompany": {
+                    "@type": "Organization",
+                    "name": "HBO"
+                }
+            }
+        },
+        {
+            "@type": "ListItem",
+            "position": 4,
+            "item": {
+                "@type": "TVSeries",
+                "name": "The Office",
+                "url": "/shows/office",
+                "actor": [
+                    {
+                        "@type": "Person",
+                        "name": "Greg Daniels",
+                        "url": "https://www.televisionacademy.com/bios/greg-daniels"
+                    },
+                    {
+                        "@type": "Person",
+                        "name": "Ben Silverman",
+                        "url": "https://www.televisionacademy.com/bios/ben-silverman"
+                    },
+                    {
+                        "@type": "Person",
+                        "name": "Ricky Gervais",
+                        "url": "https://www.televisionacademy.com/bios/ricky-gervais"
+                    }
+                ],
+                "award": "Outstanding Comedy Series - 2008 Emmy Awards Nominee",
+                "productionCompany": {
+                    "@type": "Organization",
+                    "name": "NBC"
+                }
+            }
+        },
+        {
+            "@type": "ListItem",
+            "position": 5,
+            "item": {
+                "@type": "TVSeries",
+                "name": "Two And A Half Men",
+                "url": "/shows/two-and-half-men",
+                "actor": [
+                    {
+                        "@type": "Person",
+                        "name": "Chuck Lorre",
+                        "url": "https://www.televisionacademy.com/bios/chuck-lorre"
+                    },
+                    {
+                        "@type": "Person",
+                        "name": "Lee Aronsohn",
+                        "url": "https://www.televisionacademy.com/bios/lee-aronsohn"
+                    },
+                    {
+                        "@type": "Person",
+                        "name": "Eric Tannenbaum",
+                        "url": "https://www.televisionacademy.com/bios/eric-tannenbaum"
+                    }
+                ],
+                "award": "Outstanding Comedy Series - 2008 Emmy Awards Nominee",
+                "productionCompany": {
+                    "@type": "Organization",
+                    "name": "CBS"
+                }
+            }
+        }
+    ]
+}

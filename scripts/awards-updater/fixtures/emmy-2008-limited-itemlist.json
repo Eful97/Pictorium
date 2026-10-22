@@ -1,0 +1,134 @@
+{
+  "@context": "https://schema.org",
+  "@type": "ItemList",
+  "name": "2008 Emmy Awards - Outstanding Miniseries",
+  "description": "Official winners and nominees for the 2008 Emmy Awards in the Outstanding Miniseries category.",
+  "url": "https://www.televisionacademy.com/awards/nominees-winners/2008/outstanding-miniseries-or-movie",
+  "numberOfItems": 4,
+  "itemListElement": [
+    {
+      "@type": "ListItem",
+      "position": 1,
+      "item": {
+        "@type": "TVSeries",
+        "name": "John Adams",
+        "url": "/shows/john-adams",
+        "actor": [
+          {
+            "@type": "Person",
+            "name": "Tom Hanks",
+            "url": "https://www.televisionacademy.com/bios/tom-hanks"
+          },
+          {
+            "@type": "Person",
+            "name": "Gary Goetzman",
+            "url": "https://www.televisionacademy.com/bios/gary-goetzman"
+          },
+          {
+            "@type": "Person",
+            "name": "Kirk Ellis",
+            "url": "https://www.televisionacademy.com/bios/kirk-ellis"
+          }
+        ],
+        "award": "Outstanding Miniseries - 2008 Emmy Awards Winner",
+        "productionCompany": {
+          "@type": "Organization",
+          "name": "HBO"
+        }
+      }
+    },
+    {
+      "@type": "ListItem",
+      "position": 2,
+      "item": {
+        "@type": "TVSeries",
+        "name": "Cranford (MASTERPIECE)",
+        "url": "/shows/cranford-masterpiece",
+        "actor": [
+          {
+            "@type": "Person",
+            "name": "Kate Harwood",
+            "url": "https://www.televisionacademy.com/bios/kate-harwood"
+          },
+          {
+            "@type": "Person",
+            "name": "Rebecca Eaton",
+            "url": "https://www.televisionacademy.com/bios/rebecca-eaton"
+          },
+          {
+            "@type": "Person",
+            "name": "Sue Birtwistle",
+            "url": "https://www.televisionacademy.com/bios/sue-birtwistle"
+          }
+        ],
+        "award": "Outstanding Miniseries - 2008 Emmy Awards Nominee",
+        "productionCompany": {
+          "@type": "Organization",
+          "name": "PBS"
+        }
+      }
+    },
+    {
+      "@type": "ListItem",
+      "position": 3,
+      "item": {
+        "@type": "TVSeries",
+        "name": "The Andromeda Strain",
+        "url": "/shows/andromeda-strain",
+        "actor": [
+          {
+            "@type": "Person",
+            "name": "Ridley Scott",
+            "url": "https://www.televisionacademy.com/bios/ridley-scott"
+          },
+          {
+            "@type": "Person",
+            "name": "Tony Scott",
+            "url": "https://www.televisionacademy.com/bios/tony-scott"
+          },
+          {
+            "@type": "Person",
+            "name": "David W. Zucker",
+            "url": "https://www.televisionacademy.com/bios/david-w-zucker"
+          }
+        ],
+        "award": "Outstanding Miniseries - 2008 Emmy Awards Nominee",
+        "productionCompany": {
+          "@type": "Organization",
+          "name": "A&amp;E"
+        }
+      }
+    },
+    {
+      "@type": "ListItem",
+      "position": 4,
+      "item": {
+        "@type": "TVSeries",
+        "name": "Tin Man",
+        "url": "/shows/tin-man",
+        "actor": [
+          {
+            "@type": "Person",
+            "name": "Robert Halmi, Sr.",
+            "url": "https://www.televisionacademy.com/bios/robert-halmi-sr"
+          },
+          {
+            "@type": "Person",
+            "name": "Robert Halmi, Jr.",
+            "url": "https://www.televisionacademy.com/bios/robert-halmi-jr"
+          },
+          {
+            "@type": "Person",
+            "name": "Michael O'Connor",
+            "url": "https://www.televisionacademy.com/bios/michael-oconnor"
+          }
+        ],
+        "award": "Outstanding Miniseries - 2008 Emmy Awards Nominee",
+        "productionCompany": {
+          "@type": "Organization",
+          "name": "Sci Fi Channel"
+        }
+      }
+    }
+  ]
+}

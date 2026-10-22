@@ -276,6 +276,8 @@ export function buildDefaultsPreviewUrlFromEditor(
       landscape: ed.landscape,
       previewShape: opts.previewShape ?? null,
       defaultSashOrder: ed.defaultSashOrder,
+      defaultDisabledContentTags: ed.defaultDisabledContentTags ?? undefined,
+      defaultDisabledNetworks: ed.defaultDisabledNetworks ?? undefined,
       previewFamily: opts.previewFamily ?? null,
       previewExtra,
     })

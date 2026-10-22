@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { getNetworkSvgResult, renderFirstMatchingNetworkLogoBadgeHybrid, renderNetworkLogoBadge } from "@/lib/network-svgs"
+import { getNetworkSvgResult, renderFirstMatchingNetworkLogoBadgeHybrid, renderFirstMatchingNetworkRawBadgeHybrid, renderNetworkLogoBadge, renderNetworkRawBadge } from "@/lib/network-svgs"
 import { renderNetworkOnlyLargePill } from "@/lib/poster-service"
 
 describe("network-svgs", () => {
@@ -37,7 +37,6 @@ describe("network-svgs", () => {
     expect(getNetworkSvgResult("Metro-Goldwyn-Mayer", 500)?.networkKey).toBe("mgm")
     expect(getNetworkSvgResult("Metro-Goldwyn-Mayer (MGM)", 500)?.networkKey).toBe("mgm")
     expect(getNetworkSvgResult("MGM", 500)?.networkKey).toBe("mgm")
-    expect(getNetworkSvgResult("Amazon MGM Studios", 500)?.networkKey).toBe("mgm")
     expect(getNetworkSvgResult("MGM+", 500)?.networkKey).toBe("mgm_plus")
   })
 
@@ -52,11 +51,14 @@ describe("network-svgs", () => {
     expect(rai?.networkKey).toBe("rai")
   })
 
-  it("returns null for removed/unknown network", () => {
-    const peacock = getNetworkSvgResult("Peacock", 500)
-    expect(peacock).toBeNull()
+  it("matches Peacock as its own dedicated mark (not NBC)", () => {
+    expect(getNetworkSvgResult("Peacock")?.networkKey).toBe("peacock")
+    expect(getNetworkSvgResult("NBCUniversal Peacock")?.networkKey).toBe("peacock")
+    // Bare NBCUniversal (no Peacock) and NBC stay on the NBC mark.
+    expect(getNetworkSvgResult("NBCUniversal")?.networkKey).toBe("nbc")
+    expect(getNetworkSvgResult("NBC")?.networkKey).toBe("nbc")
 
-    const res = getNetworkSvgResult("Unknown Indie Studio", 500)
+    const res = getNetworkSvgResult("Unknown Indie Studio")
     expect(res).toBeNull()
   })
 
@@ -578,18 +580,89 @@ describe("network-svgs", () => {
     expect(pill!.png).toBeInstanceOf(Buffer)
   })
 
+  it("resolves Amazon MGM Studios to a dedicated amazon_mgm key with its own asset", async () => {
+    // Dedicated identity: distinct from generic MGM, MGM+ and Prime Video.
+    expect(getNetworkSvgResult("Amazon MGM Studios", 500)?.networkKey).toBe("amazon_mgm")
+    expect(getNetworkSvgResult("AMAZON MGM STUDIOS", 500)?.networkKey).toBe("amazon_mgm")
+    expect(getNetworkSvgResult("amazon mgm studios", 500)?.networkKey).toBe("amazon_mgm")
+    expect(getNetworkSvgResult("Amazon MGM", 500)?.networkKey).toBe("amazon_mgm")
+    expect(getNetworkSvgResult("  Amazon MGM Studios  ", 500)?.networkKey).toBe("amazon_mgm")
+    // Generic MGM keeps the historic MGM asset; MGM+ and Prime aliases unchanged.
+    expect(getNetworkSvgResult("Metro-Goldwyn-Mayer", 500)?.networkKey).toBe("mgm")
+    expect(getNetworkSvgResult("MGM", 500)?.networkKey).toBe("mgm")
+    expect(getNetworkSvgResult("MGM+", 500)?.networkKey).toBe("mgm_plus")
+    expect(getNetworkSvgResult("Amazon Prime Video", 500)?.networkKey).toBe("prime")
+    expect(getNetworkSvgResult("Prime Video", 500)?.networkKey).toBe("prime")
+    expect(getNetworkSvgResult("Amazon Studios", 500)?.networkKey).toBe("prime")
+
+    // Pill path resolves through the dedicated registry entry (poster-service).
+    const pill = await renderNetworkOnlyLargePill("amazon_mgm", 500, false)
+    expect(pill).not.toBeNull()
+    expect(pill!.png).toBeInstanceOf(Buffer)
+    expect(pill!.w).toBeGreaterThan(0)
+    expect(pill!.h).toBeGreaterThan(0)
+
+    // Actual render on both polarities: real pixels, no crop/distortion,
+    // adaptive monochrome silhouette (no keepColor gold).
+    const sharp = (await import("sharp")).default
+    async function visibleStats(png: Buffer): Promise<{ frac: number; mean: number }> {
+      const { data, info } = await sharp(png).ensureAlpha().raw().toBuffer({ resolveWithObject: true })
+      const total = info.width * info.height
+      let vis = 0
+      let sum = 0
+      for (let i = 0; i < data.length; i += 4) {
+        if (data[i + 3] >= 128) {
+          vis++
+          sum += (data[i] + data[i + 1] + data[i + 2]) / 3
+        }
+      }
+      return { frac: vis / total, mean: vis ? sum / vis : 0 }
+    }
+    const light = await renderNetworkLogoBadge("Amazon MGM Studios", 500, true)
+    const dark = await renderNetworkLogoBadge("Amazon MGM Studios", 500, false)
+    expect(light).not.toBeNull()
+    expect(dark).not.toBeNull()
+    expect(light!.networkKey).toBe("amazon_mgm")
+    expect(dark!.networkKey).toBe("amazon_mgm")
+    expect(light!.png.equals(dark!.png)).toBe(false)
+    // Flat-wide lockup: wider than tall, sane canvas bounds (no runaway upscale).
+    expect(light!.w).toBeGreaterThan(light!.h)
+    expect(light!.w).toBeLessThanOrEqual(220)
+    expect(light!.h).toBeLessThanOrEqual(120)
+    const ls = await visibleStats(light!.png)
+    const ds = await visibleStats(dark!.png)
+    expect(ls.frac).toBeGreaterThan(0.02)
+    expect(ls.frac).toBeLessThan(0.98)
+    expect(ds.frac).toBeGreaterThan(0.02)
+    expect(ds.frac).toBeLessThan(0.98)
+    expect(ls.mean).toBeLessThan(ds.mean)
+
+    // Raw path renders the dedicated asset too (not the historic MGM mark).
+    const raw = await renderNetworkRawBadge("Amazon MGM Studios", 500, false)
+    expect(raw).not.toBeNull()
+    expect(raw!.networkKey).toBe("amazon_mgm")
+    expect(raw!.png).toBeInstanceOf(Buffer)
+
+    // Hybrid (SVG-first) paths resolve the dedicated key with the matched name.
+    const hybrid = await renderFirstMatchingNetworkLogoBadgeHybrid([{ name: "Amazon MGM Studios", logoPath: null }], 500)
+    expect(hybrid).not.toBeNull()
+    expect(hybrid!.networkKey).toBe("amazon_mgm")
+    expect(hybrid!.matchedName).toBe("Amazon MGM Studios")
+    const hybridRaw = await renderFirstMatchingNetworkRawBadgeHybrid([{ name: "Amazon MGM Studios", logoPath: null }], 500)
+    expect(hybridRaw).not.toBeNull()
+    expect(hybridRaw!.networkKey).toBe("amazon_mgm")
+    expect(hybridRaw!.matchedName).toBe("Amazon MGM Studios")
+  })
+
   it("does NOT brand Amazon MGM Studios as Prime Video (studio identity, not availability)", async () => {
-    // Verity: Amazon MGM Studios is a studio identity (MGM), not Prime Video availability.
-    expect(getNetworkSvgResult("Amazon MGM Studios", 500)?.networkKey).toBe("mgm")
-    expect(getNetworkSvgResult("AMAZON MGM STUDIOS", 500)?.networkKey).toBe("mgm")
-    expect(getNetworkSvgResult("amazon mgm studios", 500)?.networkKey).toBe("mgm")
-    expect(getNetworkSvgResult("Amazon MGM", 500)?.networkKey).toBe("mgm")
-    expect(getNetworkSvgResult("  Amazon MGM Studios  ", 500)?.networkKey).toBe("mgm")
-    // Existing MGM asset renders for the studio name (no invented asset).
-    const mgmRes = await renderNetworkLogoBadge("Amazon MGM Studios", 500)
-    expect(mgmRes).not.toBeNull()
-    expect(mgmRes!.networkKey).toBe("mgm")
-    expect(mgmRes!.png).toBeInstanceOf(Buffer)
+    // Dedicated Amazon MGM mark: neither the Prime logo nor the historic MGM mark.
+    const dedicated = await renderNetworkLogoBadge("Amazon MGM Studios", 500)
+    expect(dedicated).not.toBeNull()
+    expect(dedicated!.networkKey).toBe("amazon_mgm")
+    const historic = await renderNetworkLogoBadge("Metro-Goldwyn-Mayer", 500)
+    expect(historic).not.toBeNull()
+    expect(historic!.networkKey).toBe("mgm")
+    expect(dedicated!.png.equals(historic!.png)).toBe(false)
     // Genuine Prime/Amazon availability aliases still resolve as before.
     expect(getNetworkSvgResult("Amazon Prime Video", 500)?.networkKey).toBe("prime")
     expect(getNetworkSvgResult("Prime Video", 500)?.networkKey).toBe("prime")

@@ -110,7 +110,7 @@ describe("fetchAllWikidata durable timing contract", () => {
     vi.stubEnv("KV_REST_API_URL", "")
     vi.stubEnv("KV_REST_API_TOKEN", "")
     cacheSet(
-      "wikidata:v2:movie:7201",
+      "wikidata:v3:movie:7201",
       { ...GOOD, degraded: false },
       ["wikidata"],
       7 * DAY_MS,
@@ -132,7 +132,7 @@ describe("fetchAllWikidata durable timing contract", () => {
 
   it("shared miss + stalled durable read proceeds within the 250ms budget", async () => {
     persistCtl.getImpl = () => new Promise(() => {})
-    sparqlOk([{ awardLabel: { value: "Academy Award", type: "literal" } }])
+    sparqlOk([{ award: { value: "http://www.wikidata.org/entity/Q102427", type: "uri" }, awardLabel: { value: "Academy Award for Best Picture", type: "literal" } }])
     const t0 = Date.now()
     const res = await fetchAllWikidata(7202, "movie")
     const dt = Date.now() - t0
@@ -187,7 +187,7 @@ describe("fetchAllWikidata durable timing contract", () => {
         fetchedAt: Date.now() - 10 * DAY_MS,
         status: "stale",
       })
-    sparqlOk([{ awardLabel: { value: "Academy Award", type: "literal" } }])
+    sparqlOk([{ award: { value: "http://www.wikidata.org/entity/Q102427", type: "uri" }, awardLabel: { value: "Academy Award for Best Picture", type: "literal" } }])
     const res = await fetchAllWikidata(7204, "movie")
     expect(res.awards).toEqual(["Oscar"])
     expect(res.degraded).toBe(false)

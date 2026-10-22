@@ -25,7 +25,7 @@ import { createT } from "@/lib/i18n-server"
 import type { EnrichedAnimeItem } from "@/lib/validation"
 import { fetchMDBList, mdblistRemainingMs, type MDBListEntry } from "@/lib/mdblist"
 import { fetchAggregatedRating, isMdbTmdbIdentityUsable, pickSeparateRatings, resolveRatingSources, type SeparateRating } from "@/lib/ratings"
-import { isImdbTop250 } from "@/lib/imdb-top250"
+import { isImdbTop100 } from "@/lib/imdb-top250"
 import { getEffectiveRotationState, tryRotatePoster, getEffectiveBackdropRotationState, tryRotateBackdrop, getDynamicRotationBucket, rotationIndexFor, secondsUntilDynamicRotationCut } from "@/lib/poster-rotation"
 import { getTMDBSessionCache, setTMDBSessionCache } from "@/lib/tmdb-session-cache"
 import { mappingVersionParam } from "@/lib/stremio-poster-url"
@@ -2167,7 +2167,9 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
               },
             ).catch(() => null)
           }
-          return rankingEnabledEarly ? isImdbTop250(imdbId, renderAbort.signal) : false
+          // Absolute Cinema badge flag: rank 1..100 only (variable keeps the
+          // legacy `imdbTop250` name for minimal diff; see imdb-top250.ts).
+          return rankingEnabledEarly ? isImdbTop100(imdbId, renderAbort.signal) : false
         })(),
         // Badge età (OPTIONAL, default OFF): film → release_dates (stessa URL
         // del blocco pre-digitale in Block A: il tmdbFetch condiviso coalesce
@@ -2405,6 +2407,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
       blurEnabled, blurHeight, blurIntensity, blurFade, blurDarkness, tintStrength, topShade, topShadeHeight,
       badgesEnabled, rankingEnabled,
       badgeGenre, badgeYear, badgeRating, badgeQuality, ageBadge, ageCountry, ageBadgeStyle, minQuality, sashOrder,
+      disabledContentTags, disabledNetworks,
       separateRatings, separateRatingsStyle,
       logoScale, logoOffsetX, logoOffsetY,
       topBadgeScale, topBadgeOffsetX, topBadgeOffsetY,
@@ -2542,6 +2545,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
         tvStatus: tvStatus ?? null,
         keywords: [...tmdbKeywords],
         imdbTop250: !!imdbTop250,
+        disabledContentTags: disabledContentTags ?? null,
       },
       locale: ephemeralLocale,
       sashOrder,
@@ -2793,6 +2797,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
         tvStatus,
         keywords: [...tmdbKeywords],
         imdbTop250: !!imdbTop250,
+        disabledContentTags: disabledContentTags ?? null,
       }
       const badgeComputed = computeTopBadge(badgeInput, t, locale, sashOrder, dateFormat)
       log.info("Debug mode", { mediaType, tmdbId, imdbId, imdbTop250: !!imdbTop250, badge: badgeComputed.badge?.label ?? "null", vote: voteAverage, genre: genreName, quality: finalQuality })
@@ -2974,6 +2979,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
       freshRawBadgeGenre: badgeGenre,
       freshRawBadgeYear: badgeYear,
       sashOrder,
+      disabledContentTags,
+      disabledNetworks,
       quality: finalQuality,
       ageLabel,
       ageBadgeStyle,

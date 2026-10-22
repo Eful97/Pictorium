@@ -170,6 +170,10 @@ export function buildStremioPosterUrl(input: BuildStremioPosterUrlInput): URL {
     separateBadgeOffsetX: eff?.separateBadgeOffsetX ?? sd.separateBadgeOffsetX,
     separateBadgeOffsetY: eff?.separateBadgeOffsetY ?? sd.separateBadgeOffsetY,
     sashOrder: sd.sashOrder ?? undefined,
+    // Esclusioni automatiche space-wide (flat condivisi, nessun per-titolo):
+    // emesse come `dct`/`dnet` solo quando non-vuote (URL legacy invariati).
+    disabledContentTags: sd.disabledContentTags ?? undefined,
+    disabledNetworks: sd.disabledNetworks ?? undefined,
     badgeStyle: eff?.badgeStyle ?? sd.badgeStyle,
     rankingBadgeStyle: eff?.rankingBadgeStyle ?? sd.rankingBadgeStyle,
     extraBadgeStyle: eff?.extraBadgeStyle ?? shapeExtraStyle ?? undefined,

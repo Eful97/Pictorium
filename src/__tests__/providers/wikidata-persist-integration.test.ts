@@ -66,7 +66,7 @@ function restOk() {
       return new Response(
         JSON.stringify({
           entities: {
-            Q12345: { claims: { P166: [{ mainsnak: { datavalue: { value: { id: "Q109487" } } } }] } },
+            Q12345: { claims: { P166: [{ mainsnak: { datavalue: { value: { id: "Q102427" } } } }] } },
           },
         }),
         { status: 200, headers: { "content-type": "application/json" } },
@@ -74,7 +74,7 @@ function restOk() {
     }
     if (url.includes("w/api.php") && (params.get("props") || "").includes("labels")) {
       return new Response(
-        JSON.stringify({ entities: { Q109487: { labels: { en: { value: "Academy Award for Best Picture" } } } } }),
+        JSON.stringify({ entities: { Q102427: { labels: { en: { value: "Academy Award for Best Picture" } } } } }),
         { status: 200, headers: { "content-type": "application/json" } },
       )
     }
@@ -141,20 +141,20 @@ describe("fetchAllWikidata persistent integration (7d fresh / 30d stale)", () =>
 
   it("aged >7d refetches upstream and refreshes the persisted record", async () => {
     const dir = process.env.PICTORIUM_DATA_DIR as string
-    const file = path.join(dir, "wikidata", "wikidata-v1-movie-7102.json")
+    const file = path.join(dir, "wikidata", "wikidata-v2-movie-7102.json")
     await fsp.mkdir(path.dirname(file), { recursive: true })
     const oldAt = Date.now() - 10 * DAY_MS
     await fsp.writeFile(
       file,
       JSON.stringify({
-        v: 1,
+        v: 2,
         tmdbId: 7102,
         mediaType: "movie",
         fetchedAt: oldAt,
         payload: { awards: [], nominations: [], studios: [], director: null },
       }),
     )
-    const spy = sparqlOk([{ awardLabel: { value: "Academy Award", type: "literal" } }])
+    const spy = sparqlOk([{ award: { value: "http://www.wikidata.org/entity/Q102427", type: "uri" }, awardLabel: { value: "Academy Award for Best Picture", type: "literal" } }])
     const res = await fetchAllWikidata(7102, "movie")
     expect(res.awards).toEqual(["Oscar"])
     expect(res.degraded).toBe(false)
@@ -179,13 +179,13 @@ describe("fetchAllWikidata persistent integration (7d fresh / 30d stale)", () =>
 
   it("upstream error returns stale degraded:true without rewriting it", async () => {
     const dir = process.env.PICTORIUM_DATA_DIR as string
-    const file = path.join(dir, "wikidata", "wikidata-v1-movie-7104.json")
+    const file = path.join(dir, "wikidata", "wikidata-v2-movie-7104.json")
     await fsp.mkdir(path.dirname(file), { recursive: true })
     const staleAt = Date.now() - 10 * DAY_MS
     await fsp.writeFile(
       file,
       JSON.stringify({
-        v: 1,
+        v: 2,
         tmdbId: 7104,
         mediaType: "movie",
         fetchedAt: staleAt,
@@ -203,12 +203,12 @@ describe("fetchAllWikidata persistent integration (7d fresh / 30d stale)", () =>
 
   it("expired >30d is ignored (empty degraded, no stale leak)", async () => {
     const dir = process.env.PICTORIUM_DATA_DIR as string
-    const file = path.join(dir, "wikidata", "wikidata-v1-movie-7105.json")
+    const file = path.join(dir, "wikidata", "wikidata-v2-movie-7105.json")
     await fsp.mkdir(path.dirname(file), { recursive: true })
     await fsp.writeFile(
       file,
       JSON.stringify({
-        v: 1,
+        v: 2,
         tmdbId: 7105,
         mediaType: "movie",
         fetchedAt: Date.now() - 31 * DAY_MS,
@@ -230,7 +230,7 @@ describe("fetchAllWikidata persistent integration (7d fresh / 30d stale)", () =>
     })).toBe(true)
     // Age the record into the stale window via direct file rewrite.
     const dir = process.env.PICTORIUM_DATA_DIR as string
-    const file = path.join(dir, "wikidata", "wikidata-v1-movie-7106.json")
+    const file = path.join(dir, "wikidata", "wikidata-v2-movie-7106.json")
     const raw = JSON.parse(await fsp.readFile(file, "utf-8")) as { fetchedAt: number } & Record<string, unknown>
     raw.fetchedAt = Date.now() - 10 * DAY_MS
     await fsp.writeFile(file, JSON.stringify(raw))
@@ -296,7 +296,7 @@ describe("fetchAllWikidata persistent integration (7d fresh / 30d stale)", () =>
     })).toBe(true)
     // Backdate to 6d old (remaining ~1d).
     const dir = process.env.PICTORIUM_DATA_DIR as string
-    const file = path.join(dir, "wikidata", "wikidata-v1-movie-7109.json")
+    const file = path.join(dir, "wikidata", "wikidata-v2-movie-7109.json")
     const raw = JSON.parse(await fsp.readFile(file, "utf-8")) as { fetchedAt: number } & Record<string, unknown>
     raw.fetchedAt = now - 6 * DAY_MS
     await fsp.writeFile(file, JSON.stringify(raw))
@@ -311,10 +311,11 @@ describe("fetchAllWikidata persistent integration (7d fresh / 30d stale)", () =>
     const nowSpy = vi.spyOn(Date, "now").mockReturnValue(later)
     try {
       noNet.mockRestore()
-      const up = sparqlOk([{ awardLabel: { value: "Academy Award", type: "literal" } }])
+      const up = sparqlOk([{ award: { value: "http://www.wikidata.org/entity/Q102427", type: "uri" }, awardLabel: { value: "Academy Award for Best Picture", type: "literal" } }])
       const res = await fetchAllWikidata(7109, "movie")
       expect(up.mock.calls.some((c) => String(c[0]).includes("sparql"))).toBe(true)
       expect(res.degraded).toBe(false)
+      expect(res.awards).toEqual(["Oscar"])
     } finally {
       nowSpy.mockRestore()
     }
@@ -329,7 +330,7 @@ describe("fetchAllWikidata persistent integration (7d fresh / 30d stale)", () =>
       degraded: false,
     })).toBe(true)
     const dir = process.env.PICTORIUM_DATA_DIR as string
-    const file = path.join(dir, "wikidata", "wikidata-v1-movie-7110.json")
+    const file = path.join(dir, "wikidata", "wikidata-v2-movie-7110.json")
     const raw = JSON.parse(await fsp.readFile(file, "utf-8")) as { fetchedAt: number } & Record<string, unknown>
     raw.fetchedAt = Date.now() - 10 * DAY_MS
     await fsp.writeFile(file, JSON.stringify(raw))

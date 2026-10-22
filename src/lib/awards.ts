@@ -28,6 +28,68 @@ const RULES: AwardRule[] = [
   { keywords: ["Cannes", "Palme d'Or", "Palma d'Oro", "Festival di Cannes"], label: "Cannes" },
 ]
 
+/**
+ * Main-title category allowlists: the ONLY Wikidata QIDs that may produce an
+ * Oscar/Emmy/Golden Globe main-title badge from upstream evidence.
+ *
+ * Verified live 2026-10-22 via the Wikidata Action API (`wbgetentities`
+ * labels) + enwiki `pageprops` identity (article → wikibase_item); full
+ * provenance in `docs/awards-top-category-provenance.md`:
+ *
+ * - Oscar Best Picture: Q102427 ("Academy Award for Best Picture").
+ * - Emmy Outstanding Drama Series: Q989438; Outstanding Comedy Series:
+ *   Q2110156; Outstanding Limited Series: Q20714679 (current enwiki article
+ *   "…Outstanding Limited or Anthology Series", label still the historical
+ *   "…Outstanding Limited Miniseries" variant — same category item).
+ * - Golden Globe film: Q1011509 (Best Motion Picture – Drama), Q670282 (Best
+ *   Motion Picture – Musical or Comedy).
+ * - Golden Globe TV: Q1255198 (Best Television Series – Drama), Q596294
+ *   (Best Television Series – Musical or Comedy), Q265435 (Best Limited or
+ *   Anthology Series or Television Film).
+ *
+ * Broad generic parents (Academy Awards Q19020, Primetime Emmy Awards
+ * Q1044427, Golden Globes Q1011547) and every craft/acting/writing category
+ * (e.g. Best Actor Q103916) are REJECTED: without a demonstrated
+ * main-category claim, no eligible main-award win/nomination is asserted.
+ * No new network per request: filtering reuses the QIDs already fetched for
+ * labels (REST claims) or projected in the same SPARQL query — category
+ * evidence is filtered BEFORE the lossy generic string merge, never after.
+ */
+const OSCAR_BEST_PICTURE_QIDS: ReadonlySet<string> = new Set(["Q102427"])
+const EMMY_TOP_SERIES_QIDS: ReadonlySet<string> = new Set(["Q989438", "Q2110156", "Q20714679"])
+const GLOBE_FILM_QIDS: ReadonlySet<string> = new Set(["Q1011509", "Q670282"])
+const GLOBE_TV_QIDS: ReadonlySet<string> = new Set(["Q1255198", "Q596294", "Q265435"])
+
+/** Organizations whose upstream evidence is strict-QID-gated (never keyword-matched). */
+const STRICT_MAIN_ORGS: ReadonlySet<string> = new Set(["Oscar", "Emmy", "Golden Globe"])
+
+/**
+ * Canonical main-title orgs for one upstream claim list (P166 wins or P1411
+ * nominations — winners vs nominations stay distinct, never mixed).
+ * Media-gated: Oscar Best Picture + Globe film are movie-only, Emmy
+ * top-series + Globe TV are tv-only (movie/tv namespace isolation, same rule
+ * as the curated lists in award-ids.ts).
+ */
+export function strictMainCategoryOrgs(
+  qids: readonly string[],
+  mediaType: "movie" | "tv",
+): string[] {
+  const out: string[] = []
+  if (mediaType === "movie") {
+    if (qids.some((q) => OSCAR_BEST_PICTURE_QIDS.has(q))) out.push("Oscar")
+    if (qids.some((q) => GLOBE_FILM_QIDS.has(q))) out.push("Golden Globe")
+  } else {
+    if (qids.some((q) => EMMY_TOP_SERIES_QIDS.has(q))) out.push("Emmy")
+    if (qids.some((q) => GLOBE_TV_QIDS.has(q))) out.push("Golden Globe")
+  }
+  return out
+}
+
+/** Legacy keyword matching for the NON-strict orgs only (BAFTA/David/Cannes/Venezia). */
+function matchRulesLegacyOthers(labels: string[]): string[] {
+  return matchRules(labels).filter((label) => !STRICT_MAIN_ORGS.has(label))
+}
+
 export interface WikidataResult {
   awards: string[]
   nominations: string[]
@@ -432,8 +494,12 @@ export async function fetchWikidataRest(
 
     wikidataRestBreaker.recordSuccess()
     return {
-      awards: matchRules(labelOf(parsed.awardQids)),
-      nominations: matchRules(labelOf(parsed.nominationQids)),
+      // Strict main-title orgs come ONLY from verified category QIDs
+      // (media-gated); every other org keeps the legacy label matching.
+      // Generic parents and acting/directing/writing categories can no
+      // longer masquerade as a main-title win.
+      awards: [...strictMainCategoryOrgs(parsed.awardQids, mediaType), ...matchRulesLegacyOthers(labelOf(parsed.awardQids))],
+      nominations: [...strictMainCategoryOrgs(parsed.nominationQids, mediaType), ...matchRulesLegacyOthers(labelOf(parsed.nominationQids))],
       studios: matchStudios(labelOf(parsed.networkQids)),
       director: matchDirectorName(director),
     }
@@ -451,7 +517,10 @@ export async function fetchAllWikidata(
   signal?: AbortSignal,
   opts?: { wikidataId?: string | null },
 ): Promise<WikidataResult> {
-  const cacheKey = `wikidata:v2:${mediaType}:${tmdbId}`
+  // v3 (main-title strictness): broad generic upstream results cached under
+  // v2 must never bypass the strict QID gate. Old v2 entries expire
+  // naturally; only this key is read or written.
+  const cacheKey = `wikidata:v3:${mediaType}:${tmdbId}`
   const startTime = Date.now()
   const emptyDegraded = (): WikidataResult => ({ awards: [], nominations: [], studios: [], director: null, degraded: true })
 
@@ -564,7 +633,11 @@ export async function fetchAllWikidata(
 
     const tmdbProp = mediaType === "movie" ? "P4947" : "P4983"
     const networkQuery = mediaType === "tv" ? `OPTIONAL { ?item wdt:P449 ?network . ?network rdfs:label ?networkLabel . FILTER(LANG(?networkLabel) = "en") }` : ""
-    const query = `SELECT ?awardLabel ?nominationLabel ?networkLabel ?directorLabel ?director WHERE {
+    // ?award/?nomination entities are projected (not just their labels) so
+    // the SAME strict QID semantics as the REST fast-path apply here: the
+    // category QIDs are filtered before the lossy label merge, never after.
+    // No extra network: same single query, two more projected variables.
+    const query = `SELECT ?award ?awardLabel ?nomination ?nominationLabel ?networkLabel ?directorLabel ?director WHERE {
     ?item wdt:${tmdbProp} "${tmdbId}" .
     OPTIONAL { ?item wdt:P166 ?award . ?award rdfs:label ?awardLabel . FILTER(LANG(?awardLabel) = "en") }
     OPTIONAL { ?item wdt:P1411 ?nomination . ?nomination rdfs:label ?nominationLabel . FILTER(LANG(?nominationLabel) = "en") }
@@ -586,6 +659,8 @@ export async function fetchAllWikidata(
 
       const awardLabels = new Set<string>()
       const nominationLabels = new Set<string>()
+      const awardQids = new Set<string>()
+      const nominationQids = new Set<string>()
       const networkLabels = new Set<string>()
       const directorLabels = new Set<string>()
       const directorQids = new Set<string>()
@@ -593,6 +668,10 @@ export async function fetchAllWikidata(
       for (const b of bindings) {
         if (b.awardLabel?.value) awardLabels.add(b.awardLabel.value)
         if (b.nominationLabel?.value) nominationLabels.add(b.nominationLabel.value)
+        const awardQid = qidFromEntityUri(b.award?.value)
+        if (awardQid) awardQids.add(awardQid)
+        const nominationQid = qidFromEntityUri(b.nomination?.value)
+        if (nominationQid) nominationQids.add(nominationQid)
         if (b.networkLabel?.value) networkLabels.add(b.networkLabel.value)
         if (b.directorLabel?.value) directorLabels.add(b.directorLabel.value)
         const qid = qidFromEntityUri(b.director?.value)
@@ -616,8 +695,12 @@ export async function fetchAllWikidata(
       const directorName = matchDirectorName(director)
 
       const result: WikidataResult = {
-        awards: matchRules([...awardLabels]),
-        nominations: matchRules([...nominationLabels]),
+        // Identical semantics to the REST fast-path: strict main-title orgs
+        // from category QIDs (media-gated), legacy label matching for the
+        // other orgs only. A label-only row with no entity (or a generic /
+        // craft QID) yields no main-title org.
+        awards: [...strictMainCategoryOrgs([...awardQids], mediaType), ...matchRulesLegacyOthers([...awardLabels])],
+        nominations: [...strictMainCategoryOrgs([...nominationQids], mediaType), ...matchRulesLegacyOthers([...nominationLabels])],
         studios: matchStudios([...networkLabels]),
         director: directorName,
         degraded: false,

@@ -507,6 +507,10 @@ export function useSettingsSession(): SettingsSessionResult {
       setDefaultPosterLayout: makeSimpleSetter(updateSession, "defaultPosterLayout"),
       setDefaultPosterFreshScope: makeSimpleSetter(updateSession, "defaultPosterFreshScope"),
       setDefaultSashOrder: makeSimpleSetter(updateSession, "defaultSashOrder"),
+      // Esclusioni automatiche space-wide (flat condivisi, nessun profilo
+      // landscape, nessuna recipe preset): staged come gli altri default.
+      setDefaultDisabledContentTags: makeSimpleSetter(updateSession, "defaultDisabledContentTags"),
+      setDefaultDisabledNetworks: makeSimpleSetter(updateSession, "defaultDisabledNetworks"),
       setDefaultAutoRotateClean: makeSimpleSetter(updateSession, "defaultAutoRotateClean"),
       setDefaultDisableCleanPosters: makeSimpleSetter(updateSession, "defaultDisableCleanPosters"),
       setDefaultAutoRotateBackdrop: makeSimpleSetter(updateSession, "defaultAutoRotateBackdrop"),

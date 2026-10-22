@@ -7,7 +7,8 @@ import { computeBadge, computeAbsoluteCinema, isMiniseriesType, isReturningStatu
 import { getAwardBadgeLabel, getNominationBadgeLabel } from "./badge-labels"
 import { withIdAwards, withIdNoms } from "./award-ids"
 import { formatReleaseDate, getUpcomingReleaseLabel, type DateFormat } from "./release-badge"
-import { getSubGenreLabel } from "./subgenres"
+import { getSubGenreMatch, getAllSubGenreMatches } from "./subgenres"
+import { isContentTagDisabled } from "./content-tags"
 
 export { NEXT_EPISODE_BADGE_KEY, isNextEpisodeBadgeKey }
 
@@ -47,9 +48,17 @@ export interface BadgeInput {
   /** TMDB `number_of_episodes` (TV) — enriches Miniseries 1..8. */
   numberOfEpisodes?: number | null
   networkLogoMatched?: boolean
+  /** Keywords TMDB (per i sottogeneri) + true story / book. */
   keywords?: string[]
-  /** IMDb Top 250 badge flag — resolved externally (async fetch). */
+  /** IMDb Top 100 eligibility flag for Absolute Cinema (rank 1..100; legacy name kept, see badge-priority). Resolved externally (async fetch). */
   imdbTop250?: boolean
+  /**
+   * Space-wide disabled automatic content-tag IDs (canonical, see
+   * `content-tags.ts`). Filters BEFORE priority selection: a disabled
+   * candidate yields to the next enabled one. Absent/empty = historical
+   * behavior. Manual explicit overrides never pass through here.
+   */
+  disabledContentTags?: readonly string[] | null
 }
 
 export interface ComputedTopBadge {
@@ -424,7 +433,17 @@ export function computeTopBadge(input: BadgeInput, t: BadgeT, locale?: string, o
     t,
   })
 
-  const subGenreBadge = getSubGenreLabel(input.keywords || [], locale)
+  const subGenreMatch = getSubGenreMatch(input.keywords || [], locale)
+  const subGenreBadge = subGenreMatch?.label ?? null
+  // Auto pick: with several canonical keyword matches a disabled first
+  // match yields to the next ENABLED sub-genre before lower-priority
+  // buckets (true story, book, …). The introspected `subGenreBadge` above
+  // stays the first overall match (manual dropdown stays unfiltered and
+  // authoritative: an explicit choice can still select a disabled label).
+  const disabledSet = input.disabledContentTags ?? null
+  const autoSubGenre = getAllSubGenreMatches(input.keywords || [], locale).find(
+    (m) => !isContentTagDisabled("subgenre", m.key, disabledSet),
+  ) ?? null
 
   const justAdded = getJustAddedLabel({
     digitalReleaseDate: input.digitalReleaseDate,
@@ -489,12 +508,14 @@ export function computeTopBadge(input: BadgeInput, t: BadgeT, locale?: string, o
     miniseries,
     returning,
     seriesEnded,
-    subGenre: subGenreBadge,
+    subGenre: autoSubGenre?.label ?? null,
+    subGenreKey: autoSubGenre?.key ?? null,
     trueStory,
     basedOnBook,
     isKDrama,
     imdbTop250: !!input.imdbTop250,
     extra: extraFallback,
+    disabledContentTags: input.disabledContentTags ?? null,
   }, t, order)
 
   return {

@@ -1,0 +1,197 @@
+
+    {
+    "@context": "https://schema.org",
+    "@type": "ItemList",
+    "name": "2008 Emmy Awards - Outstanding Drama Series",
+    "description": "Official winners and nominees for the 2008 Emmy Awards in the Outstanding Drama Series category.",
+    "url": "https://www.televisionacademy.com/awards/nominees-winners/2008/outstanding-drama-series",
+    "numberOfItems": 6,
+    "itemListElement": [
+        {
+            "@type": "ListItem",
+            "position": 1,
+            "item": {
+                "@type": "TVSeries",
+                "name": "Mad Men",
+                "url": "/shows/mad-men",
+                "actor": [
+                    {
+                        "@type": "Person",
+                        "name": "Matthew Weiner",
+                        "url": "https://www.televisionacademy.com/bios/matthew-weiner"
+                    },
+                    {
+                        "@type": "Person",
+                        "name": "Tom Palmer",
+                        "url": "https://www.televisionacademy.com/bios/tom-palmer"
+                    },
+                    {
+                        "@type": "Person",
+                        "name": "Scott Hornbacher",
+                        "url": "https://www.televisionacademy.com/bios/scott-hornbacher"
+                    }
+                ],
+                "award": "Outstanding Drama Series - 2008 Emmy Awards Winner",
+                "productionCompany": {
+                    "@type": "Organization",
+                    "name": "AMC"
+                }
+            }
+        },
+        {
+            "@type": "ListItem",
+            "position": 2,
+            "item": {
+                "@type": "TVSeries",
+                "name": "Boston Legal",
+                "url": "/shows/boston-legal",
+                "actor": [
+                    {
+                        "@type": "Person",
+                        "name": "David E. Kelley",
+                        "url": "https://www.televisionacademy.com/bios/david-e-kelley"
+                    },
+                    {
+                        "@type": "Person",
+                        "name": "Bill D'Elia",
+                        "url": "https://www.televisionacademy.com/bios/bill-delia"
+                    },
+                    {
+                        "@type": "Person",
+                        "name": "Mike Listo",
+                        "url": "https://www.televisionacademy.com/bios/mike-listo"
+                    }
+                ],
+                "award": "Outstanding Drama Series - 2008 Emmy Awards Nominee",
+                "productionCompany": {
+                    "@type": "Organization",
+                    "name": "ABC"
+                }
+            }
+        },
+        {
+            "@type": "ListItem",
+            "position": 3,
+            "item": {
+                "@type": "TVSeries",
+                "name": "Damages",
+                "url": "/shows/damages",
+                "actor": [
+                    {
+                        "@type": "Person",
+                        "name": "Todd A. Kessler",
+                        "url": "https://www.televisionacademy.com/bios/todd-kessler"
+                    },
+                    {
+                        "@type": "Person",
+                        "name": "Glenn Kessler",
+                        "url": "https://www.televisionacademy.com/bios/glenn-kessler"
+                    },
+                    {
+                        "@type": "Person",
+                        "name": "Daniel Zelman",
+                        "url": "https://www.televisionacademy.com/bios/daniel-zelman"
+                    }
+                ],
+                "award": "Outstanding Drama Series - 2008 Emmy Awards Nominee",
+                "productionCompany": {
+                    "@type": "Organization",
+                    "name": "DirecTV"
+                }
+            }
+        },
+        {
+            "@type": "ListItem",
+            "position": 4,
+            "item": {
+                "@type": "TVSeries",
+                "name": "Dexter",
+                "url": "/shows/dexter",
+                "actor": [
+                    {
+                        "@type": "Person",
+                        "name": "John Goldwyn",
+                        "url": "https://www.televisionacademy.com/bios/john-goldwyn"
+                    },
+                    {
+                        "@type": "Person",
+                        "name": "Sara Colleton",
+                        "url": "https://www.televisionacademy.com/bios/sara-colleton"
+                    },
+                    {
+                        "@type": "Person",
+                        "name": "Clyde Phillips",
+                        "url": "https://www.televisionacademy.com/bios/clyde-phillips"
+                    }
+                ],
+                "award": "Outstanding Drama Series - 2008 Emmy Awards Nominee",
+                "productionCompany": {
+                    "@type": "Organization",
+                    "name": "Showtime"
+                }
+            }
+        },
+        {
+            "@type": "ListItem",
+            "position": 5,
+            "item": {
+                "@type": "TVSeries",
+                "name": "House",
+                "url": "/shows/house-1",
+                "actor": [
+                    {
+                        "@type": "Person",
+                        "name": "Paul Attanasio",
+                        "url": "https://www.televisionacademy.com/bios/paul-attanasio"
+                    },
+                    {
+                        "@type": "Person",
+                        "name": "Katie Jacobs",
+                        "url": "https://www.televisionacademy.com/bios/katie-jacobs"
+                    },
+                    {
+                        "@type": "Person",
+                        "name": "David Shore",
+                        "url": "https://www.televisionacademy.com/bios/david-shore"
+                    }
+                ],
+                "award": "Outstanding Drama Series - 2008 Emmy Awards Nominee",
+                "productionCompany": {
+                    "@type": "Organization",
+                    "name": "FOX"
+                }
+            }
+        },
+        {
+            "@type": "ListItem",
+            "position": 6,
+            "item": {
+                "@type": "TVSeries",
+                "name": "Lost",
+                "url": "/shows/lost",
+                "actor": [
+                    {
+                        "@type": "Person",
+                        "name": "J.J. Abrams",
+                        "url": "https://www.televisionacademy.com/bios/jj-abrams"
+                    },
+                    {
+                        "@type": "Person",
+                        "name": "Damon Lindelof",
+                        "url": "https://www.televisionacademy.com/bios/damon-lindelof"
+                    },
+                    {
+                        "@type": "Person",
+                        "name": "Carlton Cuse",
+                        "url": "https://www.televisionacademy.com/bios/carlton-cuse"
+                    }
+                ],
+                "award": "Outstanding Drama Series - 2008 Emmy Awards Nominee",
+                "productionCompany": {
+                    "@type": "Organization",
+                    "name": "ABC"
+                }
+            }
+        }
+    ]
+}

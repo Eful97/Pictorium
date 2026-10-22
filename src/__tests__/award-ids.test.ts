@@ -148,8 +148,8 @@ describe("computeTopBadge con liste ID", () => {
 
   it("Oppenheimer da ID: vince l'Oscar anche senza Wikidata", () => {
     const c = computeTopBadge({ ...base, tmdbId: 872585 }, t, "it")
-    expect(c.awardBadge).toBe("Oscar")
-    expect(c.badge?.label).toBe("Oscar")
+    expect(c.awardBadge).toBe("Vincitore Oscar")
+    expect(c.badge?.label).toBe("Vincitore Oscar")
   })
 
   it("Barbie da ID: nomination senza vittoria", () => {
@@ -159,13 +159,13 @@ describe("computeTopBadge con liste ID", () => {
 
   it("senza tmdbId: comportamento invariato (solo Wikidata)", () => {
     const c = computeTopBadge({ ...base, awards: ["Emmy"] }, t, "it")
-    expect(c.awardBadge).toBe("Emmy")
+    expect(c.awardBadge).toBe("Vincitore Emmy")
   })
 
   it("Breaking Bad: Emmy batte Golden Globe anche con entrambe le label", () => {
     const tvBase = { ...base, mediaType: "tv" as const }
     const c = computeTopBadge({ ...tvBase, tmdbId: 1396, awards: ["Golden Globe", "Emmy"] }, t, "it")
-    expect(c.awardBadge).toBe("Emmy")
-    expect(c.badge?.label).toBe("Emmy")
+    expect(c.awardBadge).toBe("Vincitore Emmy")
+    expect(c.badge?.label).toBe("Vincitore Emmy")
   })
 })

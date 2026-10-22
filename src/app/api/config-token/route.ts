@@ -76,6 +76,15 @@ export async function POST(req: NextRequest) {
       gradientHeight: defaults.gradientHeight ?? renderDefaults.blurHeight,
       networkLogo: defaults.networkLogo ?? renderDefaults.networkLogo,
       autoRotateClean: defaults.autoRotateClean ?? false,
+      // Esclusioni automatiche space-wide (flat condivisi, nessun per-titolo):
+      // viaggiano nel token composto così i link installati restano
+      // self-contained anche senza defaults d'istanza (il server risanitize).
+      ...(defaults.disabledContentTags && defaults.disabledContentTags.length > 0
+        ? { disabledContentTags: defaults.disabledContentTags }
+        : {}),
+      ...(defaults.disabledNetworks && defaults.disabledNetworks.length > 0
+        ? { disabledNetworks: defaults.disabledNetworks }
+        : {}),
       // Global BadgeLab family defaults are intentionally NOT baked here:
       // the token is a flat/back-compat config layer, so freezing the flat
       // map would shadow the server landscape profile at delivery (config >

@@ -61,11 +61,44 @@ export function matchStudios(labels: string[]): string[] {
   return [...found]
 }
 
+/**
+ * Short display names for the three main-title organizations.
+ *
+ * Category (Best Picture / Outstanding Series / Best Motion Picture /
+ * Best Television Series) is SELECTION-ONLY: it gates which upstream QIDs
+ * (see strictMainCategoryOrgs in awards.ts) and curated IDs (award-ids.ts)
+ * may produce a badge, and is NEVER rendered. What renders is the short
+ * canonical org name (award.oscar / award.emmy / award.golden_globe),
+ * with an explicit winner form for the three main-title orgs.
+ *
+ * Every other organization keeps its legacy canonical label byte-identically
+ * (see award-ids.ts).
+ */
+function awardShortName(
+  org: string,
+  t?: (key: string, params?: Record<string, string | number>) => string,
+): string {
+  if (org === "Oscar") return t ? t("award.oscar") : "Oscar"
+  if (org === "Emmy") return t ? t("award.emmy") : "Emmy"
+  if (org === "Golden Globe") return t ? t("award.golden_globe") : "Golden Globe"
+  return t ? t(`award.${org.toLowerCase().replace(/ /g, "_")}`) : org
+}
+
+/** Main-title orgs with an explicit winner form (dedicated key). */
+const TOP_WINNER_ORGS: ReadonlySet<string> = new Set(["Oscar", "Emmy", "Golden Globe"])
+
 export function getAwardBadgeLabel(awards: string[], t?: (key: string, params?: Record<string, string | number>) => string): string | null {
   // Emmy prima di Golden Globe: per le serie l'Emmy è il premio apicale.
   const priority = ["Oscar", "Cannes", "Venezia", "BAFTA", "Emmy", "Golden Globe", "David"]
   for (const a of priority) {
-    if (awards.includes(a)) return t ? t("badge.winner", { name: t(`award.${a.toLowerCase().replace(/ /g, "_")}`) }) : `${a}`
+    if (awards.includes(a)) {
+      const name = awardShortName(a, t)
+      // Explicit winner ONLY for the three main-title orgs via the dedicated
+      // `badge.top_winner` key. Every other organization keeps the shared
+      // `badge.winner` rendering byte-identically (never touched here).
+      if (TOP_WINNER_ORGS.has(a)) return t ? t("badge.top_winner", { name }) : `${name} Winner`
+      return t ? t("badge.winner", { name }) : name
+    }
   }
   return null
 }
@@ -73,7 +106,14 @@ export function getAwardBadgeLabel(awards: string[], t?: (key: string, params?: 
 export function getNominationBadgeLabel(nominations: string[], t?: (key: string, params?: Record<string, string | number>) => string): string | null {
   const priority = ["Oscar", "Cannes", "Venezia", "BAFTA", "Emmy", "Golden Globe", "David"]
   for (const a of priority) {
-    if (nominations.includes(a)) return t ? t("badge.nominee", { name: t(`award.${a.toLowerCase().replace(/ /g, "_")}`) }) : `Candidato ${a}`
+    if (nominations.includes(a)) {
+      // Short nominee form on the canonical org name; category text is
+      // selection-only and never rendered.
+      const name = awardShortName(a, t)
+      // Legacy fallback quirk preserved (Italian "Candidato", as before):
+      // only the name became explicit, never the fallback language.
+      return t ? t("badge.nominee", { name }) : `Candidato ${name}`
+    }
   }
   return null
 }

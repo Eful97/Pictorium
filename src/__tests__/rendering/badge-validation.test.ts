@@ -537,7 +537,7 @@ describe("computeTopBadge (nuovi badge)", () => {
 
   it("award vince su returning auto", () => {
     const c = computeTopBadge({ ...baseInput, awards: ["Emmy"] }, t, "it")
-    expect(c.badge?.label).toBe("Emmy")
+    expect(c.badge?.label).toBe("Vincitore Emmy")
   })
 
   it("Just Added per film con digitale recente (dato pre-release)", () => {

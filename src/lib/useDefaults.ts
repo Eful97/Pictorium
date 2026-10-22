@@ -13,6 +13,8 @@ import { userFetch, parseRetryAfter } from "./http"
 import { USER_UNLOCK_EVENT, currentPathUuid } from "./user-token"
 import { t } from "./i18n"
 import { normalizeSashOrder, DEFAULT_SASH_ORDER, type SashBucket } from "./badge-priority"
+import { sanitizeDisabledContentTags } from "./content-tags"
+import { sanitizeDisabledNetworks } from "./network-keys"
 import { DEFAULT_QUALITY_BADGE_STYLE, type QualityBadgeStyle } from "./badge-styles"
 import { DEFAULT_AGE_BADGE_STYLE, isAgeBadgeStyle, type AgeBadgeStyle } from "./badge-styles"
 import { DEFAULT_BADGE_FONT, isBadgeFont, type BadgeFont } from "./badge-styles"
@@ -121,6 +123,17 @@ export interface DefaultsState {
   defaultPosterFreshScope: PosterFreshScope
   /** Bucket sash abilitati (ordine canonico; vuota = tutto spento). */
   defaultSashOrder: SashBucket[]
+  /**
+   * Tag badge automatici disabilitati space-wide (ID canonici, vedi
+   * `content-tags.ts`). Condivisi tra forme: nessun profilo landscape, nessun
+   * per-titolo, nessuna recipe preset. Assente/vuoto = storico.
+   */
+  defaultDisabledContentTags: string[]
+  /**
+   * Mark network disabilitati space-wide (ID canonici, vedi
+   * `network-keys.ts`). Stesso contratto dei tag sopra.
+   */
+  defaultDisabledNetworks: string[]
   defaultAutoRotateClean: boolean
   /** Rotazione 24h di default per formato (sdoppiata). */
   defaultAutoRotateBackdrop: boolean
@@ -294,6 +307,8 @@ const DEFAULT_FLAT_DEFAULTS: Omit<DefaultsState, "landscape"> = {
   defaultPosterLayout: "standard",
   defaultPosterFreshScope: "ranked",
   defaultSashOrder: [...DEFAULT_SASH_ORDER],
+  defaultDisabledContentTags: [],
+  defaultDisabledNetworks: [],
   defaultAutoRotateClean: false,
   defaultAutoRotateBackdrop: false,
   defaultDisableCleanPosters: false,
@@ -495,6 +510,14 @@ interface StoredDefaults {
   defaultSashOrder?: string[]
   /** Chiave server/local piatta (saveDefaults/defaultsToPayload): fallback di lettura. */
   sashOrder?: string[]
+  /** Tag badge automatici disabilitati space-wide (grezzi; sanitized in buildFromStored). */
+  defaultDisabledContentTags?: string[]
+  /** Chiave server/local piatta (saveDefaults/defaultsToPayload): fallback di lettura. */
+  disabledContentTags?: string[]
+  /** Mark network disabilitati space-wide (grezzi; sanitized in buildFromStored). */
+  defaultDisabledNetworks?: string[]
+  /** Chiave server/local piatta (saveDefaults/defaultsToPayload): fallback di lettura. */
+  disabledNetworks?: string[]
   defaultAutoRotateClean?: boolean
   defaultAutoRotateBackdrop?: boolean
   defaultDisableCleanPosters?: boolean
@@ -801,6 +824,10 @@ function buildFromStored(d: StoredDefaults | null): DefaultsState {
       ? d.defaultPosterFreshScope
       : (isPosterFreshScope(d.posterFreshScope) ? d.posterFreshScope : "ranked"),
     defaultSashOrder: normalizeSashOrder(d.defaultSashOrder ?? d.sashOrder) ?? [...DEFAULT_SASH_ORDER],
+    // Esclusioni automatiche space-wide (flat condivisi, nessun profilo
+    // landscape): allowlist canonica, assente = storico. Mai guess.
+    defaultDisabledContentTags: sanitizeDisabledContentTags(d.defaultDisabledContentTags ?? d.disabledContentTags),
+    defaultDisabledNetworks: sanitizeDisabledNetworks(d.defaultDisabledNetworks ?? d.disabledNetworks),
     defaultAutoRotateClean: d.defaultAutoRotateClean ?? d.autoRotateClean ?? false,
     defaultAutoRotateBackdrop: d.defaultAutoRotateBackdrop ?? false,
     defaultDisableCleanPosters: d.defaultDisableCleanPosters ?? d.disableCleanPosters ?? false,
@@ -976,6 +1003,8 @@ export function defaultsToPayload(d: DefaultsState): Record<string, unknown> {
     posterLayout: d.defaultPosterLayout,
     posterFreshScope: d.defaultPosterFreshScope,
     sashOrder: d.defaultSashOrder,
+    disabledContentTags: d.defaultDisabledContentTags,
+    disabledNetworks: d.defaultDisabledNetworks,
     autoRotateClean: d.defaultAutoRotateClean,
     defaultAutoRotateBackdrop: d.defaultAutoRotateBackdrop,
     disableCleanPosters: d.defaultDisableCleanPosters,
@@ -1274,6 +1303,14 @@ export function useDefaults() {
           }
           if (!currentStored?.defaultSashOrder && !currentStored?.sashOrder && Array.isArray(serverData.sashOrder)) {
             merged.defaultSashOrder = serverData.sashOrder
+          }
+          // Esclusioni space-wide: adotta il server quando nessun locale le
+          // definisce (stessa precedenza locale del sash sopra).
+          if (!currentStored?.defaultDisabledContentTags && !currentStored?.disabledContentTags && Array.isArray(serverData.disabledContentTags)) {
+            merged.defaultDisabledContentTags = serverData.disabledContentTags
+          }
+          if (!currentStored?.defaultDisabledNetworks && !currentStored?.disabledNetworks && Array.isArray(serverData.disabledNetworks)) {
+            merged.defaultDisabledNetworks = serverData.disabledNetworks
           }
           if (!currentStored?.defaultVideoFormats && Array.isArray(serverData.videoFormats)) {
             merged.defaultVideoFormats = serverData.videoFormats

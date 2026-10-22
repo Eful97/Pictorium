@@ -309,6 +309,19 @@ export interface PosterEditorCtx {
   /** Bucket sash abilitati (ordine canonico; vuota = tutto spento). */
   defaultSashOrder: SashBucket[]
   setDefaultSashOrder: (v: SashBucket[] | ((prev: SashBucket[]) => SashBucket[])) => void
+  /**
+   * Tag badge automatici disabilitati space-wide (ID canonici, vedi
+   * `content-tags.ts`). Condivisi tra forme: nessun profilo landscape,
+   * nessun per-titolo, nessuna recipe preset. Assente/vuoto = storico.
+   */
+  defaultDisabledContentTags: string[]
+  setDefaultDisabledContentTags: (v: string[] | ((prev: string[]) => string[])) => void
+  /**
+   * Mark network disabilitati space-wide (ID canonici, vedi
+   * `network-keys.ts`). Stesso contratto dei tag sopra.
+   */
+  defaultDisabledNetworks: string[]
+  setDefaultDisabledNetworks: (v: string[] | ((prev: string[]) => string[])) => void
   defaultAutoRotateClean: boolean
   setDefaultAutoRotateClean: (v: boolean | ((prev: boolean) => boolean)) => void
   /** Disattiva i poster clean TMDB nella selezione automatica (default OFF). */
@@ -648,7 +661,7 @@ export function PosterEditorProvider({
     defaultSeparateBadgeOffsetX, defaultSeparateBadgeOffsetY,
     defaultGenreBadgeOffsetX, defaultGenreBadgeOffsetY, defaultQualityBadgeOffsetX, defaultQualityBadgeOffsetY,
     defaultNetworkLogoOffsetX, defaultNetworkLogoOffsetY,
-    defaultBadgeGenre, defaultBadgeYear, defaultBadgeRating, defaultBadgeQuality, defaultAgeBadge, defaultAgeCountry, defaultAgeBadgeStyle, defaultCustomRatings, defaultCustomRatingEndpoint, defaultCustomRatingApiKeyHeader, defaultRatingSources, defaultSeparateRatings, defaultSeparateRatingsStyle, defaultPosterLayout, defaultPosterFreshScope, defaultSashOrder,
+    defaultBadgeGenre, defaultBadgeYear, defaultBadgeRating, defaultBadgeQuality, defaultAgeBadge, defaultAgeCountry, defaultAgeBadgeStyle, defaultCustomRatings, defaultCustomRatingEndpoint, defaultCustomRatingApiKeyHeader, defaultRatingSources, defaultSeparateRatings, defaultSeparateRatingsStyle, defaultPosterLayout, defaultPosterFreshScope, defaultSashOrder, defaultDisabledContentTags, defaultDisabledNetworks,
     defaultAutoRotateClean, defaultAutoRotateBackdrop, defaultPortraitFitEnabled, defaultLandscapeFitEnabled, defaultNetworkLogo, defaultNetworkLogoPosition, defaultNetworkLogoFollowTitle, defaultPreRelease, defaultRibbonSide, defaultRibbonEnabled, defaultPosterShape, defaultLogoAlign,
     defaultDisableCleanPosters,
     landscape: landscapeDefaults,
@@ -1313,6 +1326,16 @@ export function PosterEditorProvider({
       const next = typeof v === "function" ? v(defaultSashOrder) : v
       update({ defaultSashOrder: next })
     }, [defaultSashOrder, update])
+  const setDefaultDisabledContentTags = useCallback(
+    (v: string[] | ((prev: string[]) => string[])) => {
+      const next = typeof v === "function" ? v(defaultDisabledContentTags) : v
+      update({ defaultDisabledContentTags: next })
+    }, [defaultDisabledContentTags, update])
+  const setDefaultDisabledNetworks = useCallback(
+    (v: string[] | ((prev: string[]) => string[])) => {
+      const next = typeof v === "function" ? v(defaultDisabledNetworks) : v
+      update({ defaultDisabledNetworks: next })
+    }, [defaultDisabledNetworks, update])
   const setDefaultAutoRotateClean = useCallback(
     (v: boolean | ((prev: boolean) => boolean)) => {
       const next = typeof v === "function" ? v(defaultAutoRotateClean) : v
@@ -1885,6 +1908,10 @@ export function PosterEditorProvider({
       setDefaultPosterFreshScope,
       defaultSashOrder,
       setDefaultSashOrder,
+      defaultDisabledContentTags,
+      setDefaultDisabledContentTags,
+      defaultDisabledNetworks,
+      setDefaultDisabledNetworks,
       defaultAutoRotateClean,
       setDefaultAutoRotateClean,
       defaultDisableCleanPosters,
@@ -2146,6 +2173,8 @@ export function PosterEditorProvider({
       defaultPosterLayout, setDefaultPosterLayout,
       defaultPosterFreshScope, setDefaultPosterFreshScope,
       defaultSashOrder, setDefaultSashOrder,
+      defaultDisabledContentTags, setDefaultDisabledContentTags,
+      defaultDisabledNetworks, setDefaultDisabledNetworks,
       defaultAutoRotateClean, setDefaultAutoRotateClean,
       defaultDisableCleanPosters, setDefaultDisableCleanPosters,
       defaultAutoRotateBackdrop, setDefaultAutoRotateBackdrop,

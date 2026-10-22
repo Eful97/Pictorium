@@ -13,6 +13,7 @@ import { envWithFallback } from "@/lib/env-compat"
 import { BADGE_STYLES, RANKING_BADGE_STYLES, QUALITY_BADGE_STYLES, AGE_BADGE_STYLES, BADGE_FONTS, SEPARATE_RATINGS_STYLES, EXTRA_BADGE_STYLES, EXTRA_BADGE_FOLLOW_RANK } from "@/lib/badge-styles"
 import { POSTER_LAYOUTS, POSTER_FRESH_SCOPES } from "@/lib/types"
 import { retiredBadgeFamilyBindingsSchema } from "@/lib/validation"
+import { MAX_DISABLED_NETWORKS } from "@/lib/network-keys"
 
 // ---- Zod schema (Batch C: sostituisce validazione manuale) ----
 
@@ -156,6 +157,13 @@ export const configTokenSchema = z.object({
   // Bounded like the defaults schema; sanitized again at match time.
   seasonalHalloweenKeywords: z.array(z.string().max(40)).max(20).optional(),
   seasonalChristmasKeywords: z.array(z.string().max(40)).max(20).optional(),
+  // Space-wide automatic exclusions (shared across shapes, no per-title
+  // fields): bounded allowlist IDs, sanitized again at match time.
+  // Absent/empty = historical behavior. Optional for back-compat (old tokens
+  // stay valid).
+  disabledContentTags: z.array(z.string().max(40)).max(64).optional(),
+  // 73 canonical marks + the Other-group sentinel (same list, never a key).
+  disabledNetworks: z.array(z.string().max(40)).max(MAX_DISABLED_NETWORKS).optional(),
   disabledCatalogIds: z.array(z.string().max(80)).optional(),
   homeDisabledCatalogIds: z.array(z.string().max(80)).optional(),
   episodeMetadataSource: z.enum(["tmdb", "tvdb"]).optional(),
@@ -184,6 +192,14 @@ export const partialCatalogTokenSchema = z.object({
   // local-only/profileless spaces resolve list themes from the token alone.
   seasonalHalloweenKeywords: z.array(z.string().max(40)).max(20).optional(),
   seasonalChristmasKeywords: z.array(z.string().max(40)).max(20).optional(),
+  // Space-wide automatic exclusions travel in the catalog-only token too:
+  // local-only/profileless devices carry their own staged/saved choices into
+  // the issued install token instead of inheriting the instance defaults.
+  // Explicit [] clears instance defaults (device cleared wins); omission
+  // keeps the instance fill (legacy behavior). Sanitized again at match time.
+  disabledContentTags: z.array(z.string().max(40)).max(64).optional(),
+  // 73 canonical marks + the Other-group sentinel (same list, never a key).
+  disabledNetworks: z.array(z.string().max(40)).max(MAX_DISABLED_NETWORKS).optional(),
   disabledCatalogIds: z.array(z.string().max(80)).optional(),
   homeDisabledCatalogIds: z.array(z.string().max(80)).optional(),
   catalogOrder: z.array(z.string().max(80)).optional(),

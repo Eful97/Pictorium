@@ -11,10 +11,10 @@ const log = createLogger("wikidata-cache")
 // ---------------------------------------------------------------------------
 // Wikidata persistent cache — per-title durable storage for successful
 // Wikidata results (fresh ≤ 7d, usable-stale ≤ 30d).
-// Durable fallback for the awards path: on L1/shared (`wikidata:v2:…`)
+// Durable fallback for the awards path: on L1/shared (`wikidata:v3:…`)
 // miss, fetchAllWikidata serves persisted fresh (≤7d, repopulating shared
 // with the remaining lifetime) and retains stale (≤30d) as fail-open
-// fallback on transient failure. The short shared cache (`wikidata:v2:…`
+// fallback on transient failure. The short shared cache (`wikidata:v3:…`
 // in lib/cache.ts, 7d shared) is a separate namespace and
 // remains the first lookup there. This module never changes global
 // cache.ts/kv.ts behavior.
@@ -56,12 +56,15 @@ const WIKIDATA_PERSIST_PRUNE_INTERVAL_MS = 6 * 60 * 60 * 1000
 const WIKIDATA_PERSIST_PRUNE_SCAN_MAX = 10_000
 
 const WIKIDATA_PERSIST_DIRNAME = "wikidata"
-/** Dedicated persistent namespace (v1). The short shared cache key
- *  `wikidata:v2:…` in lib/cache.ts is a different namespace and is NOT
- *  read or written here. No user ids in keys: per-title, never per-user. */
-const WIKIDATA_PERSIST_KV_PREFIX = "pictorium:wikidata:v1:"
+/** Dedicated persistent namespace (v2). The short shared cache key
+ *  `wikidata:v3:…` in lib/cache.ts is a different namespace and is NOT
+ *  read or written here. No user ids in keys: per-title, never per-user.
+ *  v1 entries (pre main-title strictness) are never read — only pruned. */
+const WIKIDATA_PERSIST_KV_PREFIX = "pictorium:wikidata:v2:"
 
-const FILE_NAME_RE = /^wikidata-v1-(movie|tv)-(\d+)\.json$/
+const FILE_NAME_RE = /^wikidata-v2-(movie|tv)-(\d+)\.json$/
+/** Legacy v1 files: never read, only reaped by prune (bounded retention). */
+const LEGACY_FILE_NAME_RE = /^wikidata-v1-(movie|tv)-(\d+)\.json$/
 
 const MAX_LABELS = 50
 const MAX_LABEL_LEN = 120
@@ -94,7 +97,7 @@ export interface WikidataPersisted {
 }
 
 interface WikidataPersistEnvelope {
-  v: 1
+  v: 2
   tmdbId: number
   mediaType: WikidataMediaType
   fetchedAt: number
@@ -129,7 +132,7 @@ function isValidEnvelope(raw: unknown, tmdbId: number, mediaType: WikidataMediaT
   if (typeof raw !== "object" || raw === null) return false
   const rec = raw as Record<string, unknown>
   return (
-    rec.v === 1 &&
+    rec.v === 2 &&
     rec.tmdbId === tmdbId &&
     rec.mediaType === mediaType &&
     typeof rec.fetchedAt === "number" &&
@@ -142,7 +145,7 @@ function isValidEnvelope(raw: unknown, tmdbId: number, mediaType: WikidataMediaT
  *  path from unvalidated input — no traversal, digits only). */
 export function wikidataPersistFilename(mediaType: string, tmdbId: number): string | null {
   if (!isMediaType(mediaType) || !isValidTmdbId(tmdbId)) return null
-  return `wikidata-v1-${mediaType}-${tmdbId}.json`
+  return `wikidata-v2-${mediaType}-${tmdbId}.json`
 }
 
 /** DATA_DIR resolved live (tests stub PICTORIUM_DATA_DIR + resetModules). */
@@ -358,7 +361,7 @@ export async function setPersistedWikidata(
   if (typeof input !== "object" || input === null || input.degraded !== false) return false
   if (!isValidPayload(input)) return false
   const envelope: WikidataPersistEnvelope = {
-    v: 1,
+    v: 2,
     tmdbId,
     mediaType,
     fetchedAt: Date.now(),
@@ -397,7 +400,8 @@ export function __resetWikidataPersistForTests(): void {
  * Remove per-title files older than 30d (by mtime — writes always create a
  * fresh file and reads never touch it, so mtime tracks fetchedAt) and trim
  * beyond the soft file cap by dropping the oldest. Scoped to the wikidata
- * subdir and to `wikidata-v1-*.json` names only: foreign files are never
+ * subdir and to `wikidata-v2-*.json` names (plus legacy `wikidata-v1-*.json`
+ * orphans: reaped, never read) only: foreign files are never
  * touched. Bounded single pass, disk only (KV mode = no-op). `kept` counts
  * only files actually still present (failed deletes stay counted as kept).
  */
@@ -421,7 +425,9 @@ export async function pruneWikidataPersisted(
   const candidates: Array<{ file: string; mtimeMs: number }> = []
   const bounded = entries.slice(0, WIKIDATA_PERSIST_PRUNE_SCAN_MAX)
   for (const entry of bounded) {
-    if (!FILE_NAME_RE.test(entry)) continue
+    // v2 live files plus legacy v1 orphans (never read, only reaped):
+    // foreign files are never touched.
+    if (!FILE_NAME_RE.test(entry) && !LEGACY_FILE_NAME_RE.test(entry)) continue
     try {
       const st = await fsp.stat(path.join(wikidataPersistDir(), entry))
       if (!st.isFile()) continue
