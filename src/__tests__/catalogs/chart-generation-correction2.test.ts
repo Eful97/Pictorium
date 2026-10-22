@@ -281,7 +281,9 @@ describe("correction2: genuine empty vs failure provenance (real adapters)", () 
   })
 
   it("strict MDBList never trusts a cached legacy error-negative as success", async () => {
-    // Legacy failure caches [] for 60s (fail-open for catalog callers).
+    // Legacy HTTP failure returns [] without caching (immediate retry);
+    // strict records the 60s error-negative instead. Either way strict
+    // success must refetch (not serve a negative) and return rows.
     mdbMode = "fail"
     expect(await mdblist.fetchMDBList("mdblistAnimeMovie")).toEqual([])
     // Strict success must refetch (not serve the negative) and return rows.

@@ -128,4 +128,13 @@ describe("fetchMDBList", () => {
     expect(items).toEqual([])
     expect(fetchSpy).not.toHaveBeenCalled()
   })
+
+  it("strict HTTP failure throws and records a 60s negative; legacy HTTP failure retries", async () => {
+    // Strict: HTTP 500 throws via fail(); the outer catch records [] for 60s.
+    fetchSpy.mockResolvedValueOnce(new Response("err", { status: 500 }))
+    await expect(fetchMDBList("mdblistAnime", undefined, undefined, undefined, true)).rejects.toThrow()
+    // The strict negative is visible to a legacy caller: no refetch.
+    expect(await fetchMDBList("mdblistAnime")).toEqual([])
+    expect(fetchSpy).toHaveBeenCalledTimes(1)
+  })
 })

@@ -252,9 +252,9 @@ export async function ensureFreshChartFamily(
         family,
         error: e instanceof Error ? e.message : String(e),
       })
-      return commitChartFamilySnapshot({ ...groupInput, family, rows: [], status: "error", slot }, owner)
+      return await commitChartFamilySnapshot({ ...groupInput, family, rows: [], status: "error", slot }, owner)
     }
-    return commitChartFamilySnapshot(
+    return await commitChartFamilySnapshot(
       { ...groupInput, family, rows: result.rows, status: result.status, provenance: result.provenance, slot },
       owner,
     )

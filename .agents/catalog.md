@@ -149,8 +149,10 @@ NON su TTL rolling per-entry. Il rinnovo è INDIPENDENTE per famiglia canonica
 `anime:{movie|series}`): nessuna barriera all-source, nessun inventario globale.
 Implementazione in `src/lib/chart-generation.ts` (pin/publish atomico per
 famiglia) + `src/lib/chart-renewal.ts` (`ensureFreshChartFamily`: refresh
-awaited riusabile — anche per un futuro trigger schedulato, task separato —
-con i fetcher canonici).
+awaited riusabile di un trigger schedulato esterno opzionale —
+`scripts/chart-warmup.mjs`, guida operatore in `docs/chart-warmup.md`:
+one-shot/watch che visita le sole prime pagine built-in via manifest/catalog
+GET pubblici, off by default; il lazy renewal resta il fallback invariato).
 
 - **Refresh per-famiglia**: dopo il boundary il pin della famiglia resta
   stantio e UNA richiesta al suo catalogo/rank la rinfresca (awaited, bounded

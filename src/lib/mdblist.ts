@@ -185,7 +185,10 @@ export async function fetchMDBList(
     }
 
     if (!res || !res.ok) {
-      cacheSet(cacheKey, [], ["mdblist"], 60_000)
+      // Legacy non-strict fail-open: HTTP failure returns [] WITHOUT caching,
+      // so the next access retries immediately. Strict mode still throws via
+      // fail() and lands in the outer catch, which records the 60s strict
+      // negative (coordinator failure gate unchanged).
       return fail(`http-${res?.status ?? "noresponse"}`)
     }
     let data: unknown
