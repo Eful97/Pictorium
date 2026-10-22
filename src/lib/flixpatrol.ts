@@ -206,6 +206,27 @@ function tmdbLangForCountry(country: string): string {
   return code ? getRegionDef(code).lang : "it-IT"
 }
 
+/**
+ * Narrow cycle-3 guard: a FlixPatrol country document is valid only when it
+ * is an object carrying a `charts` array. A valid array with no platform
+ * rows is a legitimate missing-platform empty; anything else (null body,
+ * wrong-typed field, error object) is malformed and — on the fixed-cycle
+ * path (`freshOrThrow`) — throws instead of publishing a fake empty.
+ * Legacy callers without the flag keep the old fail-open [] behavior.
+ */
+function isValidFlixCatalogDoc(doc: unknown): doc is CatalogData {
+  return !!doc && typeof doc === "object" && Array.isArray((doc as { charts?: unknown }).charts)
+}
+
+function flixEntriesHaveValidId(entries: unknown): boolean {
+  if (!Array.isArray(entries) || entries.length === 0) return true // empty is genuine, not malformed
+  return entries.some((e) => {
+    const id = (e as { tmdb?: { id?: unknown } } | null)?.tmdb?.id
+    const n = Number(id)
+    return Number.isFinite(n) && n > 0
+  })
+}
+
 async function fetchPosterPath(tmdbId: number, mediaType: string, apiKey: string, tmdbLang = "it-IT"): Promise<string | null> {
   const primary = tmdbLang.slice(0, 2).toLowerCase()
   const url = `${TMDB_BASE}/${mediaType}/${tmdbId}/images?api_key=${apiKey}&include_image_language=${primary},en,null`
@@ -221,7 +242,7 @@ async function fetchPosterPath(tmdbId: number, mediaType: string, apiKey: string
   }
 }
 
-export async function getTop10(platformSlug: string, country = "italy", apiKey?: string, options?: { enrich?: boolean }): Promise<FlixPatrolTop10> {
+export async function getTop10(platformSlug: string, country = "italy", apiKey?: string, options?: { enrich?: boolean; minFetchedAtMs?: number; freshOrThrow?: boolean }): Promise<FlixPatrolTop10> {
   const platformName = SLUG_TO_PLATFORM[platformSlug]
   if (!platformName) throw new Error(`Unknown platform: ${platformSlug}`)
   // Fail-closed: un paese fuori dalla lista non viene mai cercato su disco,
@@ -239,13 +260,16 @@ export async function getTop10(platformSlug: string, country = "italy", apiKey?:
   const pkgs = PLATFORM_JW_PACKAGES[platformSlug]
   // Fast-path JustWatch nella stessa regione del paese richiesto (prima solo
   // Italia): la classifica JW è live, il catalogo disco è il fallback.
+  // Cycle-aware (fixed chart cycles): il floor forza il refresh in-slot delle
+  // sorgenti JW condivise oltre il boundary.
   const jwCode = globalChart ? GLOBAL_REGION.code : flixSlugToRegionCode(country)
   const tmdbLang = globalChart ? GLOBAL_REGION.lang : tmdbLangForCountry(country)
+  const minFetchedAtMs = options?.minFetchedAtMs
   if (jwCode && pkgs) {
     try {
       let [jwMovies, jwShows] = await Promise.all([
-        getJWRankings("MOVIE", jwCode, 10, pkgs, tmdbLang),
-        getJWRankings("SHOW", jwCode, 10, pkgs, tmdbLang),
+        getJWRankings("MOVIE", jwCode, 10, pkgs, tmdbLang, undefined, minFetchedAtMs),
+        getJWRankings("SHOW", jwCode, 10, pkgs, tmdbLang, undefined, minFetchedAtMs),
       ])
       // Se la classifica giornaliera JustWatch è scarsa (<5 titoli, es. RaiPlay),
       // arricchisce/ripiega sui titoli più popolari della piattaforma per garantire 10 voci.
@@ -258,6 +282,7 @@ export async function getTop10(platformSlug: string, country = "italy", apiKey?:
             packages: pkgs,
             sortBy: "POPULAR",
             language: tmdbLang,
+            minFetchedAtMs,
           })
           if (popMovies.length > 0) {
             jwMovies = popMovies.map((t, idx) => ({
@@ -278,6 +303,7 @@ export async function getTop10(platformSlug: string, country = "italy", apiKey?:
             packages: pkgs,
             sortBy: "POPULAR",
             language: tmdbLang,
+            minFetchedAtMs,
           })
           if (popShows.length > 0) {
             jwShows = popShows.map((t, idx) => ({
@@ -336,37 +362,81 @@ export async function getTop10(platformSlug: string, country = "italy", apiKey?:
 
   // fp-crawler source cache validity (memory + disk): 12h. The
   // platform JustWatch fast-path uses the shared 6h JW cache.
+  // Cycle-aware (fixed chart cycles): entries fetched before minFetchedAtMs
+  // (the current slot start) are refreshed, never stamped as in-slot data.
   const now = Date.now()
   const TWELVE_HOURS = 12 * 60 * 60 * 1000
+  const freshSinceOk = (ts: number): boolean =>
+    now - ts <= TWELVE_HOURS && (minFetchedAtMs === undefined || ts >= minFetchedAtMs)
   let cached = memCache.get(country)
   // Memoria stantia → prova il file su disco (fallback persistente) prima di rifare fetch.
-  if (!cached?.catalog || (cached && now - cached.timestamp > TWELVE_HOURS)) {
+  if (!cached?.catalog || (cached && !freshSinceOk(cached.timestamp))) {
     const disk = loadCache(country)
-    if (disk.catalog && now - disk.timestamp <= TWELVE_HOURS) {
+    if (disk.catalog && freshSinceOk(disk.timestamp)) {
       cached = disk
       memCache.set(country, cached)
     }
   }
   let catalog = cached?.catalog
 
-  if (!catalog || (cached && now - cached.timestamp > TWELVE_HOURS)) {
+  // Cycle-3: a cached malformed document must never serve as a successful
+  // empty on the fixed-cycle path — treat it as a miss so the fetch below
+  // runs (and throws when it cannot produce a valid document).
+  const cachedValid = isValidFlixCatalogDoc(catalog)
+  if (options?.freshOrThrow && catalog && !cachedValid) {
+    catalog = null
+    cached = undefined
+  }
+
+  if (!catalog || (cached && !freshSinceOk(cached.timestamp))) {
     try {
-      catalog = await fetchCatalog(country)
+      const fresh = await fetchCatalog(country)
+      if (options?.freshOrThrow && !isValidFlixCatalogDoc(fresh)) {
+        throw new Error(`FlixPatrol malformed catalog document (${country})`)
+      }
+      catalog = fresh
       cached = { catalog, timestamp: now }
       memCache.set(country, cached)
       saveCache(country, cached)
     } catch (e) {
       log.error("Failed to fetch fresh catalog", { error: e instanceof Error ? e.message : String(e), country })
       if (!catalog) throw e
+      // Fixed-cycle renewal (freshOrThrow): a pre-floor stale catalog must
+      // NOT be laundered as a fresh fetch — the caller records an error
+      // contribution (60s gate, old pin kept) instead of publishing stale
+      // rows as a NEW generation. Legacy callers without the flag keep the
+      // stale fail-open fallback (serving cold paths rely on it).
+      if (options?.freshOrThrow) throw e
     }
   }
 
   // Fix L20: guardia sul catalogo corrotto/parziale — un JSON senza "charts"
   // (o con la piattaforma/categoria mancante) prima faceva lanciare
   // TypeError fuori dal try → 500 per l'intera route.
+  // Cycle-3: on the fixed-cycle path a malformed document throws (failure
+  // retention, never a fake empty); a valid array with no platform rows stays
+  // a legitimate missing-platform empty. Legacy keeps fail-open [].
+  if (options?.freshOrThrow && !isValidFlixCatalogDoc(catalog)) {
+    throw new Error(`FlixPatrol malformed catalog document (${country})`)
+  }
   const charts = Array.isArray(catalog?.charts) ? catalog.charts : []
   const movieChart = charts.find((c) => c.platform === platformName && c.category === "movies")
   const tvChart = charts.find((c) => c.platform === platformName && c.category === "tv shows")
+  if (options?.freshOrThrow) {
+    for (const chart of [movieChart, tvChart]) {
+      if (chart && !Array.isArray(chart.entries)) {
+        throw new Error(`FlixPatrol malformed chart entries (${country}/${platformName})`)
+      }
+    }
+    // A nonempty collection with zero valid tmdb ids is malformed (provider
+    // error), not an authoritative empty — unreleased/dedup filtering happens
+    // later, on real ids.
+    for (const chart of [movieChart, tvChart]) {
+      if (chart && Array.isArray(chart.entries) && chart.entries.length > 0 && !flixEntriesHaveValidId(chart.entries)) {
+        throw new Error(`FlixPatrol malformed chart rows, no valid tmdbId (${country}/${platformName})`)
+      }
+    }
+  }
 
   const toItem = async (entry: CatalogEntry, type: "movie" | "tv"): Promise<FlixPatrolEnrichedItem> => {
     const tmdbId = entry.tmdb?.id ?? null

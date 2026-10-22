@@ -1,5 +1,5 @@
 import crypto from "node:crypto"
-import { cacheGet, cacheRemainingMs, cacheSet } from "./cache"
+import { cacheFetchedAt, cacheGet, cacheRemainingMs, cacheSet } from "./cache"
 import { envWithFallback } from "./env-compat"
 import { combineAbortSignals } from "./abort-signal"
 import { timedFetch } from "./outbound-stats"
@@ -55,9 +55,28 @@ export async function fetchMDBList(
   apiKey?: string,
   // R3: signal esterno (es. deadline render) combinato col timeout interno.
   signal?: AbortSignal,
+  /**
+   * Cycle-aware freshness floor (fixed chart cycles): a cached entry fetched
+   * BEFORE this instant is treated as stale and refreshed, so pre-boundary
+   * payloads never masquerade as freshly retrieved in-slot data. Unset =
+   * today's TTL-only behavior (all non-chart consumers unchanged).
+   */
+  minFetchedAtMs?: number,
+  /**
+   * Strict chart-cycle mode: transport failure (HTTP !ok, invalid payload,
+   * network error, abort) THROWS instead of resolving [], and a cached []
+   * is never trusted (legacy failure paths cache [] as a 60s negative, so a
+   * cached empty cannot prove a genuine success). Genuine successful empties
+   * still resolve [] with the same legacy cache side effects. Legacy callers
+   * keep the fail-open [] (unchanged default).
+   */
+  strict?: boolean,
 ): Promise<MDBListEntry[]> {
   const list = MDBLISTS.find(l => l.key === listKey)
-  if (!list) return []
+  if (!list) {
+    if (strict) throw new Error(`fetchMDBList strict: unknown list ${listKey}`)
+    return []
+  }
   // Solo la chiave esplicita della richiesta: non esiste più chiave d'istanza.
   const key = apiKey
   // La key cambia il payload → parte del cache key (hash, mai plaintext),
@@ -65,7 +84,61 @@ export async function fetchMDBList(
   const keyHash = key ? crypto.createHash("sha1").update(key).digest("hex").slice(0, 8) : "none"
   const cacheKey = `mdblist:list:${listKey}:${keyHash}`
   const cached = cacheGet<MDBListEntry[]>(cacheKey)
-  if (cached) return cached
+  if (cached) {
+    // Strict never trusts a cached empty: it may be a legacy error-negative
+    // (failures cache [] for 60s), which must not masquerade as a successful
+    // empty. Non-empty cached rows are provably genuine (failures never
+    // produce rows) and honor the same floor check as legacy.
+    if (cached.length > 0 || !strict) {
+      if (minFetchedAtMs === undefined) return cached
+      // Cycle-aware: only reuse entries actually fetched in-slot; otherwise
+      // fall through to a real refresh below (both strict and legacy).
+      const fetchedAt = cacheFetchedAt(cacheKey)
+      if (fetchedAt !== null && fetchedAt >= minFetchedAtMs) return cached
+    }
+  }
+  const fail = (marker: string): [] => {
+    if (strict) throw new Error(`fetchMDBList strict: ${marker} (${listKey})`)
+    return []
+  }
+  /**
+   * Narrow strict-only shape guard (cycle 3): the supported shapes are an
+   * array payload or an object carrying at least one collection array
+   * (`items`/`movies`/`shows`, empty allowed as genuine empty). Anything
+   * else on HTTP 200 (null body, wrong-typed field, explicit error object)
+   * is a provider failure, never a genuine empty. Legacy keeps the old
+   * fall-through to [] untouched.
+   */
+  const assertStrictMDBShape = (data: unknown, payload: unknown): void => {
+    if (!strict) return
+    const hasCollectionArray =
+      Array.isArray(payload) ||
+      (!!payload && typeof payload === "object" && (
+        Array.isArray((payload as { items?: unknown }).items) ||
+        Array.isArray((payload as { movies?: unknown }).movies) ||
+        Array.isArray((payload as { shows?: unknown }).shows)
+      ))
+    if (!hasCollectionArray) {
+      cacheSet(cacheKey, [], ["mdblist"], 60_000)
+      throw new Error(`fetchMDBList strict: malformed-payload (${listKey})`)
+    }
+  }
+  const assertStrictMDBRows = (rawItems: Array<unknown>): void => {
+    if (!strict || rawItems.length === 0) return
+    const hasId = rawItems.some((it) => {
+      const r = it as { imdb_id?: unknown; imdb?: unknown; tmdb_id?: unknown; tmdb?: unknown; ids?: { tmdb?: unknown }; id?: unknown } | null
+      if (!r || typeof r !== "object") return false
+      const rawTmdb = r.tmdb_id ?? r.tmdb ?? r.ids?.tmdb ?? r.id
+      const n = Number(rawTmdb)
+      if (Number.isFinite(n) && n > 0) return true
+      const imdb = r.imdb_id ?? r.imdb
+      return typeof imdb === "string" && imdb.trim().length > 0
+    })
+    if (!hasId) {
+      cacheSet(cacheKey, [], ["mdblist"], 60_000)
+      throw new Error(`fetchMDBList strict: malformed-rows (${listKey})`)
+    }
+  }
   try {
     const slug = list.url.split('/').pop()
     // MDBLIST_API_URL esplicito (test E2E: punta al mock server locale) vince
@@ -111,26 +184,44 @@ export async function fetchMDBList(
       }).catch(() => null)
     }
 
-    if (!res || !res.ok) return []
-    const data = await res.json()
-    const payload = Array.isArray(data) ? data : (data?.data || data)
-    const isMovie = listKey === "mdblistMovie" || listKey === "mdblistAnimeMovie"
-    let rawItems: Array<{ imdb_id?: string; imdb?: string; title?: string; year?: number | string; release_year?: number | string; tmdb_id?: number | string; tmdb?: number | string; ids?: { tmdb?: number | string }; id?: number | string }> = []
-    if (Array.isArray(payload)) {
-      rawItems = payload
-    } else if (Array.isArray(payload?.items) && payload.items.length > 0) {
-      rawItems = payload.items
-    } else if (isMovie && Array.isArray(payload?.movies) && payload.movies.length > 0) {
-      rawItems = payload.movies
-    } else if (!isMovie && Array.isArray(payload?.shows) && payload.shows.length > 0) {
-      rawItems = payload.shows
-    } else if (Array.isArray(payload?.movies) && payload.movies.length > 0) {
-      rawItems = payload.movies
-    } else if (Array.isArray(payload?.shows) && payload.shows.length > 0) {
-      rawItems = payload.shows
-    } else if (Array.isArray(payload?.items)) {
-      rawItems = payload.items
+    if (!res || !res.ok) {
+      cacheSet(cacheKey, [], ["mdblist"], 60_000)
+      return fail(`http-${res?.status ?? "noresponse"}`)
     }
+    let data: unknown
+    try {
+      data = await res.json()
+    } catch {
+      cacheSet(cacheKey, [], ["mdblist"], 60_000)
+      return fail("invalid-json")
+    }
+    const payload = (
+      Array.isArray(data) ? data : ((data as { data?: unknown } | null)?.data || data)
+    ) as {
+      items?: unknown
+      movies?: unknown
+      shows?: unknown
+    } | unknown[]
+    const isMovie = listKey === "mdblistMovie" || listKey === "mdblistAnimeMovie"
+    type RawItem = { imdb_id?: string; imdb?: string; title?: string; year?: number | string; release_year?: number | string; tmdb_id?: number | string; tmdb?: number | string; ids?: { tmdb?: number | string }; id?: number | string }
+    let rawItems: Array<RawItem> = []
+    if (Array.isArray(payload)) {
+      rawItems = payload as Array<RawItem>
+    } else if (Array.isArray(payload?.items) && payload.items.length > 0) {
+      rawItems = payload.items as Array<RawItem>
+    } else if (isMovie && Array.isArray(payload?.movies) && payload.movies.length > 0) {
+      rawItems = payload.movies as Array<RawItem>
+    } else if (!isMovie && Array.isArray(payload?.shows) && payload.shows.length > 0) {
+      rawItems = payload.shows as Array<RawItem>
+    } else if (Array.isArray(payload?.movies) && payload.movies.length > 0) {
+      rawItems = payload.movies as Array<RawItem>
+    } else if (Array.isArray(payload?.shows) && payload.shows.length > 0) {
+      rawItems = payload.shows as Array<RawItem>
+    } else if (Array.isArray(payload?.items)) {
+      rawItems = payload.items as Array<RawItem>
+    }
+    assertStrictMDBShape(data, payload)
+    assertStrictMDBRows(rawItems)
 
     const seenIds = new Set<string>()
     const items: MDBListEntry[] = []
@@ -154,7 +245,7 @@ export async function fetchMDBList(
     return items
   } catch {
     cacheSet(cacheKey, [], ["mdblist"], 60_000)
-    return []
+    return fail("transport")
   }
 }
 

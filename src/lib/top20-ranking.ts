@@ -31,6 +31,18 @@ export interface FetchTop20RankingInput {
   readonly tvdbKey?: string
   readonly userId?: string | null
   readonly signal?: AbortSignal
+  /**
+   * Cycle-aware freshness floor (fixed chart cycles): forwarded to the
+   * ranking source caches so pre-boundary payloads are refreshed in-slot.
+   * Custom branches ignore it (excluded from chart cycles).
+   */
+  readonly minFetchedAtMs?: number
+  /**
+   * Strict chart-cycle mode: transport failure (including an open JustWatch
+   * circuit) THROWS instead of resolving a conflated []. Genuine successful
+   * empties still resolve `{status:"empty"}`. Legacy callers keep fail-open.
+   */
+  readonly strict?: boolean
 }
 
 /**
@@ -59,6 +71,8 @@ export async function fetchTop20Ranking(input: FetchTop20RankingInput): Promise<
     tvdbKey,
     userId,
     signal,
+    minFetchedAtMs,
+    strict = false,
   } = input
 
   if (source.kind === "custom") {
@@ -108,6 +122,9 @@ export async function fetchTop20Ranking(input: FetchTop20RankingInput): Promise<
     // duplicate or unresolvable upstream ids the two stay identical instead
     // of the overfetch-40 preview drifting from the page. Charts/custom and
     // the getJWTitles default (overfetch true) are untouched.
+    // `strict` is forwarded only when true: the exact-options assertions in
+    // top20-ranking.test.ts pin the legacy shape, and the key scheme is
+    // unchanged either way.
     const rows = await getJWTitles({
       objectType: slot === "movie" ? "MOVIE" : "SHOW",
       country: regionCode,
@@ -118,6 +135,8 @@ export async function fetchTop20Ranking(input: FetchTop20RankingInput): Promise<
       monetizationTypes: JW_DIGITAL_MONETIZATION_TYPES,
       overfetch: false,
       signal,
+      minFetchedAtMs,
+      ...(strict ? { strict: true as const } : {}),
     })
 
     const seenTmdb = new Set<number>()
@@ -143,15 +162,29 @@ export async function fetchTop20Ranking(input: FetchTop20RankingInput): Promise<
     }
   }
 
-  // Default: JustWatch charts
-  const rows: JWRankEntry[] = await getJWRankings(
-    slot === "movie" ? "MOVIE" : "SHOW",
-    regionCode,
-    20,
-    undefined,
-    regionLang,
-    signal,
-  )
+  // Default: JustWatch charts. `strict` keeps the legacy 7-arg call shape
+  // (pinned by top20-ranking.test.ts) unless the chart cycle needs failure
+  // provenance — then the 8th arg opts into throw-on-transport-failure.
+  const rows: JWRankEntry[] = strict
+    ? await getJWRankings(
+      slot === "movie" ? "MOVIE" : "SHOW",
+      regionCode,
+      20,
+      undefined,
+      regionLang,
+      signal,
+      minFetchedAtMs,
+      true,
+    )
+    : await getJWRankings(
+      slot === "movie" ? "MOVIE" : "SHOW",
+      regionCode,
+      20,
+      undefined,
+      regionLang,
+      signal,
+      minFetchedAtMs,
+    )
 
   const seenTmdb = new Set<number>()
   const items: Top20RankItem[] = []

@@ -9,6 +9,7 @@ import { __clearImdbCache } from "@/lib/imdb-cache"
 import { getById } from "@/lib/store"
 import { getServerDefaults } from "@/lib/server-defaults"
 import { __resetJWRankingsCache } from "@/lib/justwatch"
+import { __resetChartGenerationForTest } from "@/lib/chart-generation"
 
 vi.mock("@/lib/store", () => ({
   getById: vi.fn(),
@@ -58,6 +59,10 @@ function freshCaches(): void {
   __resetJWRankingsCache()
   __clearTMDBCache()
   __clearImdbCache()
+  // Fixed chart cycles: snapshot/lease state must not leak across tests (a
+  // publish would serve snapshots instead of the live mocked rows; lifecycle
+  // covered by dedicated chart-generation tests).
+  __resetChartGenerationForTest()
 }
 
 describe("catalog IMDb-first identity (catalogMetaId)", () => {

@@ -9,6 +9,7 @@ import { __clearImdbCache } from "@/lib/imdb-cache"
 import { getById } from "@/lib/store"
 import { getServerDefaults } from "@/lib/server-defaults"
 import { __resetJWRankingsCache } from "@/lib/justwatch"
+import { __resetChartGenerationForTest } from "@/lib/chart-generation"
 
 vi.mock("@/lib/store", () => ({
   getById: vi.fn(),
@@ -64,6 +65,9 @@ function freshCaches(): void {
   __resetJWRankingsCache()
   __clearTMDBCache()
   __clearImdbCache()
+  // Per-family snapshots persist in memory across tests: without a reset, an
+  // earlier publish would serve stale pinned rows instead of the mock.
+  __resetChartGenerationForTest()
 }
 
 describe("movie video-navigation hints (Easy parity)", () => {

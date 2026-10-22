@@ -394,6 +394,65 @@ function usablePayload(data: unknown): boolean {
   )
 }
 
+/**
+ * Minimal loose edge shape for the post-validation row mapping below. The
+ * strict guards above already rejected malformed documents; this only types
+ * the (possibly sparse) rows of a VALIDATED `edges: unknown[]` array.
+ */
+interface JWLooseEdge {
+  readonly node?: {
+    readonly content?: {
+      readonly title?: string | null
+      readonly originalReleaseDate?: string | null
+      readonly externalIds?: { readonly tmdbId?: number | string | null; readonly imdbId?: string | null }
+    }
+  }
+  readonly streamingChartInfo?: { readonly rank?: number | null }
+}
+
+/**
+ * Narrow strict-only shape guard for the charts payload (cycle 3). Real
+ * valid empty arrays stay allowed; anything else on HTTP 200 is a transport
+ * failure (provider error page masquerading as JSON), never a genuine empty.
+ * Legacy callers keep the old `|| []` fail-open path untouched.
+ */
+function assertStrictJWChartsShape(json: unknown, objectType: string): asserts json is { data: { streamingCharts: { edges: unknown[] } } } {
+  const data = (json as { data?: unknown } | null)?.data as { streamingCharts?: unknown } | null | undefined
+  const charts = (data as { streamingCharts?: unknown } | null | undefined)?.streamingCharts as { edges?: unknown } | null | undefined
+  if (!json || typeof json !== "object" || !data || typeof data !== "object" || !charts || typeof charts !== "object" || !Array.isArray(charts.edges)) {
+    throw new Error(`JustWatch ${objectType} malformed charts payload`)
+  }
+  if (charts.edges.length > 0) {
+    const hasId = charts.edges.some((e) => {
+      const raw = (e as { node?: { content?: { externalIds?: { tmdbId?: unknown } } } } | null)?.node?.content?.externalIds?.tmdbId
+      const n = Number(raw)
+      return Number.isFinite(n) && n > 0
+    })
+    if (!hasId) throw new Error(`JustWatch ${objectType} malformed charts rows (no valid tmdbId)`)
+  }
+}
+
+/**
+ * Same strict-only guard for the popular/trending payload (GetPopularTitles).
+ * Valid empty `edges: []` stays a genuine empty; missing/null/wrong-typed
+ * collections or rows without any valid tmdbId throw.
+ */
+function assertStrictJWTitlesShape(json: unknown, objectType: string): asserts json is { data: { popularTitles: { edges: unknown[] } } } {
+  const data = (json as { data?: unknown } | null)?.data as { popularTitles?: unknown } | null | undefined
+  const titles = (data as { popularTitles?: unknown } | null | undefined)?.popularTitles as { edges?: unknown } | null | undefined
+  if (!json || typeof json !== "object" || !data || typeof data !== "object" || !titles || typeof titles !== "object" || !Array.isArray(titles.edges)) {
+    throw new Error(`JustWatch titles ${objectType} malformed payload`)
+  }
+  if (titles.edges.length > 0) {
+    const hasId = titles.edges.some((e) => {
+      const raw = (e as { node?: { content?: { externalIds?: { tmdbId?: unknown } } } } | null)?.node?.content?.externalIds?.tmdbId
+      const n = Number(raw)
+      return Number.isFinite(n) && n > 0
+    })
+    if (!hasId) throw new Error(`JustWatch titles ${objectType} malformed rows (no valid tmdbId)`)
+  }
+}
+
 export async function getJWRankings(
   objectType: "MOVIE" | "SHOW",
   country = "IT",
@@ -403,14 +462,35 @@ export async function getJWRankings(
   // R3: signal esterno (es. deadline render) combinato col timeout interno —
   // senza, il fetch sopravvive al watchdog come zombie.
   signal?: AbortSignal,
+  /**
+   * Cycle-aware freshness floor (fixed chart cycles): cached entries fetched
+   * BEFORE this instant are treated as stale and refreshed. Callers pinning a
+   * chart generation pass the current slot start so pre-boundary payloads
+   * never masquerade as freshly retrieved in-slot data. Quality/availability
+   * caches are independent and untouched.
+   */
+  minFetchedAtMs?: number,
+  /**
+   * Strict chart-cycle mode: transport failure (including an open circuit
+   * breaker) THROWS instead of resolving []. Legacy callers keep the
+   * fail-open [] (unchanged default). Strict callers distinguish a genuine
+   * successful empty (in-slot cached [] is provably genuine: failures never
+   * populate this cache, they throw) from an outage, so a JW outage can never
+   * publish as a genuine empty snapshot.
+   */
+  strict?: boolean,
 ): Promise<JWRankEntry[]> {
   const cacheKey = jwRankingsCacheKey(objectType, country, first, packages, language)
   const cached = rankingsCache.get(cacheKey)
-  if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
-    return cached.data
+  if (cached && Date.now() - cached.timestamp < CACHE_TTL && (minFetchedAtMs === undefined || cached.timestamp >= minFetchedAtMs)) {
+    // Strict never trusts a cached empty: it may be a legacy error-negative
+    // (a malformed HTTP-200 body admitted through the old unvalidated helper
+    // as []), which must not poison a strict snapshot as a successful empty.
+    if (!strict || cached.data.length > 0) return cached.data
   }
 
   if (isCircuitOpen()) {
+    if (strict) throw new Error(`JustWatch circuit open (${objectType})`)
     return []
   }
   // Trial ownership, captured synchronously at admission (no await above or
@@ -472,7 +552,10 @@ export async function getJWRankings(
       throw new Error(`JustWatch ${objectType} failed: ${res.status}`)
     }
 
-    json = await res.json()
+    json = await res.json().catch((e) => {
+      recordCircuitFailure()
+      throw e instanceof Error ? e : new Error(`JustWatch ${objectType} invalid JSON`)
+    })
     if (json.errors && !usablePayload(json.data)) {
       const unsupportedCountry = json.errors.some((error: { message?: string; extensions?: { code?: string } }) =>
         error.extensions?.code === "BAD_REQUEST"
@@ -482,12 +565,20 @@ export async function getJWRankings(
       recordCircuitFailure()
       throw new Error(`JustWatch ${objectType} GraphQL error: ${json.errors[0]?.message || "unknown"}`)
     }
+    if (strict) {
+      try {
+        assertStrictJWChartsShape(json, objectType)
+      } catch (e) {
+        recordCircuitFailure()
+        throw e
+      }
+    }
     break
   }
 
   recordCircuitSuccess()
 
-  const edges = json?.data?.streamingCharts?.edges || []
+  const edges = (json?.data?.streamingCharts?.edges ?? []) as JWLooseEdge[]
   const seenTmdb = new Set<number>()
   const result: JWRankEntry[] = []
   // Gli streamingCharts includono titoli annunciati ma non ancora usciti:
@@ -554,11 +645,21 @@ export interface JWTitleOptions {
   monetizationTypes?: readonly string[] | string[]
   signal?: AbortSignal
   /**
+   * Cycle-aware freshness floor (fixed chart cycles): cached entries fetched
+   * BEFORE this instant are treated as stale and refreshed. See getJWRankings.
+   */
+  minFetchedAtMs?: number
+  /**
    * Se false, richiede a JustWatch esattamente `first` elementi dall'offset specificato,
    * garantendo finestre strettamente disgiunte nella paginazione sequenziale (offset=0, 20, 40).
    * Default: true (conserva l'overfetch storico 2x per i consumer non paginati).
    */
   overfetch?: boolean
+  /**
+   * Strict chart-cycle mode (see getJWRankings): an open circuit breaker
+   * THROWS instead of resolving []. Legacy callers keep fail-open [].
+   */
+  strict?: boolean
 }
 
 function jwTitlesCacheKey(args: {
@@ -629,6 +730,8 @@ export async function getJWTitles(opts: JWTitleOptions): Promise<JWRankEntry[]> 
     monetizationTypes,
     signal,
     overfetch = true,
+    minFetchedAtMs,
+    strict = false,
   } = opts
 
   const cacheKey = jwTitlesCacheKey({
@@ -636,11 +739,14 @@ export async function getJWTitles(opts: JWTitleOptions): Promise<JWRankEntry[]> 
   })
 
   const cached = rankingsCache.get(cacheKey)
-  if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
-    return cached.data
+  if (cached && Date.now() - cached.timestamp < CACHE_TTL && (minFetchedAtMs === undefined || cached.timestamp >= minFetchedAtMs)) {
+    // Strict never trusts a cached empty (legacy unvalidated [] must not
+    // poison a strict snapshot as a successful empty).
+    if (!strict || cached.data.length > 0) return cached.data
   }
 
   if (isCircuitOpen()) {
+    if (strict) throw new Error(`JustWatch titles circuit open (${objectType})`)
     return []
   }
 
@@ -701,15 +807,26 @@ export async function getJWTitles(opts: JWTitleOptions): Promise<JWRankEntry[]> 
     throw new Error(`JustWatch titles ${objectType} failed: ${res.status}`)
   }
 
-  const json = await res.json()
+  const json = await res.json().catch((e) => {
+    recordCircuitFailure()
+    throw e instanceof Error ? e : new Error(`JustWatch titles ${objectType} invalid JSON`)
+  })
   if (json.errors && !usablePayload(json.data)) {
     recordCircuitFailure()
     throw new Error(`JustWatch titles ${objectType} GraphQL error: ${json.errors[0]?.message || "unknown"}`)
   }
+  if (strict) {
+    try {
+      assertStrictJWTitlesShape(json, objectType)
+    } catch (e) {
+      recordCircuitFailure()
+      throw e
+    }
+  }
 
   recordCircuitSuccess()
 
-  const edges = json?.data?.popularTitles?.edges || []
+  const edges = (json?.data?.popularTitles?.edges ?? []) as JWLooseEdge[]
   const seenTmdb = new Set<number>()
   const result: JWRankEntry[] = []
   const today = new Date().toISOString().slice(0, 10)

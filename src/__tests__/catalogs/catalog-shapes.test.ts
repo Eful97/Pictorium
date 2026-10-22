@@ -6,6 +6,7 @@ import { __clearTMDBCache } from "@/lib/tmdb"
 import { getById } from "@/lib/store"
 import { getServerDefaults } from "@/lib/server-defaults"
 import { __resetJWRankingsCache } from "@/lib/justwatch"
+import { __resetChartGenerationForTest } from "@/lib/chart-generation"
 import { decodeConfig, encodeConfig, partialCatalogTokenSchema } from "@/lib/config-token"
 import {
   getExplicitCatalogShape,
@@ -131,6 +132,8 @@ describe("per-catalog format truth matrix (route)", () => {
     __resetJWRankingsCache()
     cacheClear()
     __clearTMDBCache()
+    // Fixed chart cycles: no cross-test snapshot/lease leakage.
+    __resetChartGenerationForTest()
   })
 
   it("absent map keeps the legacy forced-global behavior byte-identical", async () => {

@@ -4,6 +4,7 @@ import { GET } from "@/app/api/trending/rank/route"
 import { cacheClear } from "@/lib/cache"
 import { __clearTMDBCache } from "@/lib/tmdb"
 import { __resetJWRankingsCache } from "@/lib/justwatch"
+import { __resetChartGenerationForTest } from "@/lib/chart-generation"
 import { encodeConfig } from "@/lib/config-token"
 import type { CustomCatalogConfig } from "@/lib/types"
 
@@ -69,6 +70,8 @@ describe("GET /api/trending/rank with custom ranking source", () => {
     __resetJWRankingsCache()
     cacheClear()
     __clearTMDBCache()
+    // Fixed chart cycles: snapshot/lease state must not leak across tests.
+    __resetChartGenerationForTest()
   })
 
   it("keeps the JustWatch contract without any selection", async () => {
@@ -81,6 +84,8 @@ describe("GET /api/trending/rank with custom ranking source", () => {
 
     const miss = await GET(new NextRequest("http://localhost:3000/api/trending/rank?type=movie&id=999&first=20&region=IT"))
     expect(await miss.json()).toMatchObject({ rank: null, top: 20 })
+    // Serving contract: ONE upstream fetch for the canonical window (the
+    // per-family refresh); the miss rides the shared caches.
     expect(jwCalls).toBe(1)
   })
 

@@ -2,7 +2,7 @@ import { NextRequest } from "next/server"
 import sharp from "sharp"
 import { initSharp } from "@/lib/sharp-config"
 import { getImages, getDetails, getDetailsWithExternalIds, getExternalIds, getKeywords, getReleaseDates, getContentRatings, resolveUserApiKeys, type TMDBImage, type TMDBCompany } from "@/lib/tmdb"
-import { getJWRankings, hasJWOffers, jwAvailabilityRemainingMs, jwRankingsRemainingMs, jwTitlesRemainingMs, JW_DIGITAL_MONETIZATION_TYPES } from "@/lib/justwatch"
+import { hasJWOffers, jwAvailabilityRemainingMs, jwRankingsRemainingMs, jwTitlesRemainingMs, JW_DIGITAL_MONETIZATION_TYPES } from "@/lib/justwatch"
 import { resolveRankingSource } from "@/lib/ranking-source"
 import { customRankingRemainingMs, fetchCustomRankingTop20, findRankingCustomCatalog } from "@/lib/custom-ranking"
 import { extractDigitalReleaseDate, isDigitalPreRelease } from "@/lib/pre-release"
@@ -16,14 +16,14 @@ import { rateLimit, rateLimitKey, rateLimitResponse } from "@/lib/rate-limit"
 import { getServerDefaultsForUser, getServerDefaultsChecked, effectiveDefaultsForShape } from "@/lib/server-defaults"
 import { effectiveMappingForShape } from "@/lib/types"
 import { getRegionDef, normalizeRegion, parseRegion, defaultRegionForLang, GLOBAL_REGION_CODE } from "@/lib/regions"
-import { fetchTop20Ranking } from "@/lib/top20-ranking"
+import { pinChartFamily, chartListGroupKey, chartPinCacheFragment, nextRomeSlotStartMs, type ChartFamilyPin } from "@/lib/chart-generation"
+import { ensureFreshChartFamily } from "@/lib/chart-renewal"
 import { BEST_FIT_GLOBAL, resolveLogoFitEnabled } from "@/lib/best-fit-config"
 import { selectAutoFitCandidates, selectBestLogoFitPosterPath } from "@/lib/poster-auto-fit"
 import { fetchAllWikidata, matchTMDBStudios, directorBadgeLabel, isValidWikidataQid, type WikidataResult } from "@/lib/awards"
 import { resolveWikidataId } from "@/lib/imdb-cache"
 import { createT } from "@/lib/i18n-server"
-import type { EnrichedAnimeItem } from "@/lib/validation"
-import { fetchMDBList, mdblistRemainingMs, type MDBListEntry } from "@/lib/mdblist"
+import { mdblistRemainingMs } from "@/lib/mdblist"
 import { fetchAggregatedRating, isMdbTmdbIdentityUsable, pickSeparateRatings, resolveRatingSources, type SeparateRating } from "@/lib/ratings"
 import { isImdbTop100 } from "@/lib/imdb-top250"
 import { getEffectiveRotationState, tryRotatePoster, getEffectiveBackdropRotationState, tryRotateBackdrop, getDynamicRotationBucket, rotationIndexFor, secondsUntilDynamicRotationCut } from "@/lib/poster-rotation"
@@ -601,17 +601,50 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
   const preflightSourceSignal = AbortSignal.timeout(preflightBudgetMs)
   const needTrendFetch = rankingEnabledPre && !hasValidQRankOverride
   const needAnimeFetch = rankingEnabledPre && !(Number.isFinite(qAnimeRankPre) && qAnimeRankPre > 0)
-  const jwSourceKey = `jw:${mediaType === "movie" ? "MOVIE" : "SHOW"}:${posterRegion.code}:20:${posterRegion.lang}${rankingSourcePre.kind === "justwatch" && rankingSourcePre.mode !== "charts" ? `:${rankingSourcePre.mode}` : ""}`
   const animeListKey = mediaType === "movie" ? "mdblistAnimeMovie" : "mdblistAnime"
   const animeKeyUsed = effMdblistKey || envWithFallback("MDBLIST_KEY") || process.env.MDBLIST_KEY || process.env.MDBLIST_API_KEY || undefined
-  const animeSourceKey = `anime:${mediaType}:${hashKey(animeKeyUsed ?? "")}`
+  // Per-family snapshots (render-budget path): canonical rank inputs come from
+  // the SAME published snapshots the catalog and rank routes read — one pin
+  // per family per request (mid-request consistency). One request refreshes
+  // THAT stale family only (awaited, bounded); unrelated families are never
+  // touched. Custom branch excluded (no chart I/O). Coalescing keys isolate
+  // the exact group + pinned snapshot version: concurrent different
+  // groups/generations never share in-flight reads.
+  const jwSlot = mediaType === "movie" ? "movie" : "series"
+  const jwFamily = rankingSourcePre.kind === "justwatch" && (rankingSourcePre.mode === "popular" || rankingSourcePre.mode === "trending")
+    ? `jw:${jwSlot}:${rankingSourcePre.mode}`
+    : `jw:${jwSlot}:charts`
+  // GLOBAL popular/trending: unsupported (fail-closed, zero chart I/O — come
+  // la rank route); nessun fetch, nessun gate, nessun fallback inventato.
+  const jwGlobalUnsupported = rankingSourcePre.kind === "justwatch" &&
+    (rankingSourcePre.mode === "popular" || rankingSourcePre.mode === "trending") &&
+    posterRegion.code === GLOBAL_REGION_CODE
+  // Conditional pins: pinChartFamily revalidates durable storage, so only
+  // pin families this request actually needs. ranking=0 (or an explicit rank
+  // override) skips the JW pin; custom sources skip JW chart I/O entirely;
+  // anime pins only when the anime rank still needs resolving (a custom JW
+  // selection keeps anime behavior: the anime family is independent).
+  // Skipped pins fall back to the live fragment in the coalescing key (the
+  // corresponding preflight resolves immediately, so the key is unused).
+  const needJwPin = needTrendFetch && !jwGlobalUnsupported && rankingSourcePre.kind === "justwatch"
+  const needAnimePin = needAnimeFetch
+  const jwGroupInput = { regionCode: posterRegion.code, regionLang: posterRegion.lang }
+  const jwPrePin = needJwPin ? await pinChartFamily({ ...jwGroupInput, family: jwFamily }) : null
+  const jwSourceKey = `jw:${mediaType === "movie" ? "MOVIE" : "SHOW"}:${posterRegion.code}:20:${posterRegion.lang}${rankingSourcePre.kind === "justwatch" && rankingSourcePre.mode !== "charts" ? `:${rankingSourcePre.mode}` : ""}:g${chartListGroupKey(jwGroupInput)}${jwPrePin ? chartPinCacheFragment(jwPrePin) : ":cglive"}`
+  const chartAnimeFamily = mediaType === "movie" ? "anime:movie" : "anime:series"
+  const animeGroupInput = { regionCode: posterRegion.code, regionLang: posterRegion.lang, mdblistKey: animeKeyUsed }
+  const animePrePin = needAnimePin ? await pinChartFamily({ ...animeGroupInput, family: chartAnimeFamily }) : null
+  const animeSourceKey = `anime:${mediaType}:${posterRegion.code}:${posterRegion.lang}:${hashKey(animeKeyUsed ?? "")}${animePrePin ? chartPinCacheFragment(animePrePin) : ":cglive"}`
   const customSourceKey = `custom:${mediaType}:${scopedUser ?? "anon"}:${hashKey(JSON.stringify(rankingCustomPre ?? null))}:${hashKey([(effTmdbKey ?? ""), (effMdblistKey ?? ""), (effTvdbKey ?? "")].join("|"))}`
-  // Task D: provenance dei fatti baked-in. `true` solo quando il fetch live
-  // vince (il valore cuoce un fatto volatile con scadenza nota); resta `false`
-  // sui fallback al rank salvato (stabile, nessun cap) e sugli abort/budget.
+  // Task D: provenance dei fatti baked-in. `true` quando il rank è servito da
+  // uno snapshot pubblicato (fatto volatile con scadenza nota = fine slot),
+  // non cake fallback al rank salvato (stabile, nessun cap) né abort/budget.
   let trendRankLive = false
   let animeRankLive = false
-  const trendPreflight: Promise<number | null> = !needTrendFetch
+  // Rank effettivamente consumato dallo snapshot (per il freshness cap sotto).
+  let trendSnapshotPin: ChartFamilyPin | null = null
+  let animeSnapshotPin: ChartFamilyPin | null = null
+  const trendPreflight: Promise<number | null> = !needTrendFetch || jwGlobalUnsupported
     ? Promise.resolve(null)
     : (rankingSourcePre.kind === "custom" && rankingCustomPre
       ? awaitWithOwnBudget(sharedSourceFetch(customSourceKey, () => fetchCustomRankingTop20({
@@ -630,35 +663,41 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
           return idx >= 0 ? idx + 1 : null
         }), preflightBudgetMs, req.signal)
         .catch(() => { trendRankLive = false; return null })
-      : awaitWithOwnBudget(sharedSourceFetch(jwSourceKey, () => {
-          if (rankingSourcePre.kind === "justwatch" && (rankingSourcePre.mode === "popular" || rankingSourcePre.mode === "trending")) {
-            if (posterRegion.code === GLOBAL_REGION_CODE) return Promise.resolve(null);
-            return fetchTop20Ranking({
-              slot: mediaType === "movie" ? "movie" : "series",
-              source: rankingSourcePre,
-              regionCode: posterRegion.code,
-              regionLang: posterRegion.lang,
-              signal: preflightSourceSignal,
-            }).then((res) => { trendRankLive = true; return res.items.find((x) => x.tmdbId === tmdbId)?.rank ?? null });
-          }
-          return getJWRankings(mediaType === "movie" ? "MOVIE" : "SHOW", posterRegion.code, 20, undefined, posterRegion.lang, preflightSourceSignal)
-            .then((r) => { trendRankLive = true; return r.find((x) => x.tmdbId === tmdbId)?.rank ?? null });
-        }), preflightBudgetMs, req.signal)
-        .catch(() => { trendRankLive = false; return isNewJwModePre ? null : (mapping?.badgeRank ?? mapping?.trendRank ?? null) }))
+      : awaitWithOwnBudget(sharedSourceFetch(jwSourceKey, () => ensureFreshChartFamily({
+        regionCode: posterRegion.code,
+        regionLang: posterRegion.lang,
+        tmdbLang: posterRegion.lang,
+        signal: preflightSourceSignal,
+        family: jwFamily,
+      }).then((pin) => {
+        trendSnapshotPin = pin
+        trendRankLive = pin.snapshot != null
+        // Cold failure (no snapshot): legacy charts contract degrades to the
+        // saved rank; a genuine miss in a published snapshot stays null
+        // (never resurrect a stale saved rank for an unranked title).
+        if (!pin.snapshot) return isNewJwModePre ? null : (mapping?.badgeRank ?? mapping?.trendRank ?? null)
+        return pin.snapshot.rows.find((x) => x.tmdbId === tmdbId)?.rank ?? null
+      })), preflightBudgetMs, req.signal)
+        .catch(() => { trendRankLive = false; trendSnapshotPin = null; return isNewJwModePre ? null : (mapping?.badgeRank ?? mapping?.trendRank ?? null) }))
   const animePreflight: Promise<number | null> = !needAnimeFetch
     ? Promise.resolve(rankingEnabledPre ? qAnimeRankPre : null)
-    : awaitWithOwnBudget(sharedSourceFetch(animeSourceKey, () => fetchMDBList(animeListKey, animeKeyUsed, preflightSourceSignal))
-      .then((entries) => {
-        animeRankLive = true
-        if (!Array.isArray(entries)) return mapping?.animeRank ?? null
-        const idx = entries.findIndex((e) => {
-          const entry = e as MDBListEntry
-          const animeId = Number(entry.tmdb) || Number((entry as unknown as EnrichedAnimeItem).id)
-          return animeId === tmdbId
-        })
-        return idx >= 0 ? idx + 1 : null
-      }), preflightBudgetMs, req.signal)
-      .catch(() => { animeRankLive = false; return mapping?.animeRank ?? null })
+    : awaitWithOwnBudget(sharedSourceFetch(animeSourceKey, () => ensureFreshChartFamily({
+      regionCode: posterRegion.code,
+      regionLang: posterRegion.lang,
+      tmdbLang: posterRegion.lang,
+      mdblistKey: animeKeyUsed,
+      signal: preflightSourceSignal,
+      family: chartAnimeFamily,
+    }).then((pin) => {
+      animeSnapshotPin = pin
+      animeRankLive = pin.snapshot != null
+      // Cold failure (no snapshot): fall back to the saved anime rank; a
+      // genuine miss in a published snapshot stays null.
+      if (!pin.snapshot) return mapping?.animeRank ?? null
+      const idx = pin.snapshot.rows.findIndex((r) => r.tmdbId === tmdbId)
+      return idx >= 0 ? idx + 1 : null
+    })), preflightBudgetMs, req.signal)
+      .catch(() => { animeRankLive = false; animeSnapshotPin = null; return mapping?.animeRank ?? null })
   const [preTrendRank, preAnimeRank] = await Promise.all([trendPreflight, animePreflight])
   // Preflight time is subtracted from the watchdog below: preflight does not
   // extend the existing render budget.
@@ -2618,6 +2657,16 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
     // Il cap restringe soltanto la policy (effimera/cut/jitter/scheduled):
     // il jitter deterministico non può mai estenderlo.
     const factNowMs = Date.now()
+    // Snapshot-backed rank facts expire at the slot end: the published
+    // snapshot is valid until the next boundary, when a refresh publishes new
+    // rows. Same-slot snapshots are served even after the underlying rolling
+    // source caches expire, so the cap follows the snapshot — not the source
+    // caches (their remaining is only a fallback at the exact boundary).
+    const snapshotSlotRemainingMs = (pin: ChartFamilyPin | null, nowMs: number): number | null => {
+      if (!pin?.snapshot) return null
+      const remaining = nextRomeSlotStartMs(nowMs) - nowMs
+      return remaining > 0 ? remaining : null
+    }
     let trendFactMs: number | null = null
     if (
       isRankFactConsumed({
@@ -2639,33 +2688,33 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
           },
           factNowMs,
         )
-      } else if (
-        rankingSourcePre.kind === "justwatch" &&
-        (rankingSourcePre.mode === "popular" || rankingSourcePre.mode === "trending")
-      ) {
-        trendFactMs = jwTitlesRemainingMs(
-          {
-            objectType: mediaType === "movie" ? "MOVIE" : "SHOW",
-            country: posterRegion.code,
-            first: 20,
-            offset: 0,
-            sortBy: rankingSourcePre.mode === "popular" ? "POPULAR" : "TRENDING",
-            packages: undefined,
-            genres: undefined,
-            monetizationTypes: [...JW_DIGITAL_MONETIZATION_TYPES],
-            language: posterRegion.lang,
-            overfetch: false,
-          },
-          factNowMs,
-        )
       } else {
-        trendFactMs = jwRankingsRemainingMs(
-          mediaType === "movie" ? "MOVIE" : "SHOW",
-          posterRegion.code,
-          20,
-          undefined,
-          posterRegion.lang,
-          factNowMs,
+        trendFactMs = snapshotSlotRemainingMs(trendSnapshotPin, factNowMs) ?? (
+          rankingSourcePre.kind === "justwatch" &&
+          (rankingSourcePre.mode === "popular" || rankingSourcePre.mode === "trending")
+            ? jwTitlesRemainingMs(
+              {
+                objectType: mediaType === "movie" ? "MOVIE" : "SHOW",
+                country: posterRegion.code,
+                first: 20,
+                offset: 0,
+                sortBy: rankingSourcePre.mode === "popular" ? "POPULAR" : "TRENDING",
+                packages: undefined,
+                genres: undefined,
+                monetizationTypes: [...JW_DIGITAL_MONETIZATION_TYPES],
+                language: posterRegion.lang,
+                overfetch: false,
+              },
+              factNowMs,
+            )
+            : jwRankingsRemainingMs(
+              mediaType === "movie" ? "MOVIE" : "SHOW",
+              posterRegion.code,
+              20,
+              undefined,
+              posterRegion.lang,
+              factNowMs,
+            )
         )
       }
     }
@@ -2675,7 +2724,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
       fetchWon: animeRankLive,
       rank: preAnimeRank,
     })
-      ? mdblistRemainingMs(animeListKey, animeKeyUsed, factNowMs)
+      ? (snapshotSlotRemainingMs(animeSnapshotPin, factNowMs) ?? mdblistRemainingMs(animeListKey, animeKeyUsed, factNowMs))
       : null
     const offersFactMs =
       preRelease && mediaType === "movie" && preJw !== null

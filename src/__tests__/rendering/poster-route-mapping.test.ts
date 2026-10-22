@@ -19,6 +19,7 @@ import { fetchAllWikidata } from "@/lib/awards"
 import { renderMultiRatings } from "@/lib/multi-rating-renderer"
 import { fetchAggregatedRating } from "@/lib/ratings"
 import { RENDER_VERSION } from "@/lib/render-version"
+import { __resetChartGenerationForTest } from "@/lib/chart-generation"
 import { posterHeaders } from "@/lib/poster-runtime-cache"
 import * as hardening from "@/lib/poster-params-hardening"
 import * as sessionCache from "@/lib/tmdb-session-cache"
@@ -156,6 +157,10 @@ async function imageBuffer(color: string, width: number, height: number): Promis
 describe("GET /api/poster/[type]/[id] with saved mappings", () => {
   beforeEach(() => {
     vi.restoreAllMocks()
+    // Fixed chart cycles: published snapshots and leases are module state and
+    // must not leak across tests (a genuine-empty publish in one test would
+    // otherwise make the next test's pin current and skip its mocked fetch).
+    __resetChartGenerationForTest()
     // Byte-LRU is module-level and survives cacheClear: reset it so logo
     // fetches hit the network and requestedUrls stays observable.
     __resetImageBytesForTest()
@@ -1029,6 +1034,10 @@ describe("GET /api/poster/[type]/[id] in presets mode (public instance)", () => 
 describe("GET /api/poster/[type]/[id] error and edge cases", () => {
   beforeEach(() => {
     vi.restoreAllMocks()
+    // Fixed chart cycles: published snapshots and leases are module state and
+    // must not leak across tests (a genuine-empty publish in one test would
+    // otherwise make the next test's pin current and skip its mocked fetch).
+    __resetChartGenerationForTest()
   })
 
   afterEach(() => {
@@ -1714,7 +1723,10 @@ describe("GET /api/poster/[type]/[id] error and edge cases", () => {
 
     // R3: la route passa anche il signal del watchdog (6° arg) — allo scatto
     // della deadline il fetch JW abortisce invece di restare zombie.
-    expect(mockedGetJWRankings).toHaveBeenCalledWith("SHOW", "FR", 20, undefined, "fr-FR", expect.any(AbortSignal))
+    // Cycle-floor (fixed chart cycles, 7° arg): in-slot freshness bound.
+    // Strict chart-cycle fetch (8° arg true): transport failure throws, so a
+    // JW outage can never publish as a genuine empty snapshot.
+    expect(mockedGetJWRankings).toHaveBeenCalledWith("SHOW", "FR", 20, undefined, "fr-FR", expect.any(AbortSignal), expect.any(Number), true)
 
     mockedGetJWRankings.mockClear()
     cacheClear()
@@ -1724,7 +1736,7 @@ describe("GET /api/poster/[type]/[id] error and edge cases", () => {
     const reqDe = new NextRequest("http://localhost:3000/api/poster/tv/76479?debug=1&lang=de")
     await GET(reqDe, { params: Promise.resolve({ type: "tv", id: "76479" }) })
 
-    expect(mockedGetJWRankings).toHaveBeenCalledWith("SHOW", "DE", 20, undefined, "de-DE", expect.any(AbortSignal))
+    expect(mockedGetJWRankings).toHaveBeenCalledWith("SHOW", "DE", 20, undefined, "de-DE", expect.any(AbortSignal), expect.any(Number), true)
   })
 
   it("serves ephemeral Cache-Control (120s, no immutable) when quality times out", async () => {

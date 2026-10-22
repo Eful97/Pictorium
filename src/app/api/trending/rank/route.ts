@@ -1,7 +1,6 @@
 import { NextRequest } from "next/server"
 import { getJWRankings } from "@/lib/justwatch"
 import { getRegionDef, normalizeRegion, parseRegion, defaultRegionForLang, GLOBAL_REGION_CODE } from "@/lib/regions"
-import { fetchTop20Ranking } from "@/lib/top20-ranking"
 import { getServerDefaults, getServerDefaultsForUser } from "@/lib/server-defaults"
 import { getScopedUserId, userExists } from "@/lib/user-auth"
 import { decodeConfig } from "@/lib/config-token"
@@ -10,6 +9,8 @@ import { resolveRankingSource, type RankingSlot } from "@/lib/ranking-source"
 import { fetchCustomRankingTop20, findRankingCustomCatalog } from "@/lib/custom-ranking"
 import { rateLimit, rateLimitKey, rateLimitResponse } from "@/lib/rate-limit"
 import { cacheGet, cacheSet } from "@/lib/cache"
+import { CHART_LIVE_PIN_ID, chartListGroupKey, chartPinCacheFragment, currentChartSlotFloor, pinChartFamily, pinnedFamilyRows, type ChartFamilyPin } from "@/lib/chart-generation"
+import { ensureFreshChartFamily } from "@/lib/chart-renewal"
 import { createLogger } from "@/lib/logger"
 import crypto from "node:crypto"
 
@@ -33,10 +34,17 @@ export async function GET(req: NextRequest) {
   if (!Number.isFinite(id) || id <= 0) {
     return Response.json({ error: "Invalid id: must be a positive integer" }, { status: 400 })
   }
-  const rawFirst = Number(req.nextUrl.searchParams.get("first"))
+  const rawFirstParam = req.nextUrl.searchParams.get("first")
   // Finestra di classifica consultata (semantica top-N, default 20 = top-20):
   // un titolo fuori dalla finestra non verrà mai trovato e risulta "senza
   // rank". `first` la rende configurabile (1-100) mantenendo il default.
+  // Omitted/empty/non-numeric `first` means the canonical Top-20 window: the
+  // real editor/preview readers (context.tsx) send no `first` and must read
+  // the SAME published snapshot the catalog serves — never a live `first=1`
+  // window (`Number(null) === 0` used to clamp an absent param to 1 and
+  // bypass the snapshot). Explicit numerics keep today's clamp 1..100,
+  // including an explicit top-1 window (live, never snapshot-sliced).
+  const rawFirst = rawFirstParam === null || rawFirstParam.trim() === "" ? NaN : Number(rawFirstParam)
   const first = Number.isFinite(rawFirst) ? Math.min(Math.max(Math.round(rawFirst), 1), 100) : 20
   // Namespace for source selection (same as catalogs): `?u=` (user space)
   // and `?config=` (token wins over the namespace, as in the manifest).
@@ -129,26 +137,57 @@ export async function GET(req: NextRequest) {
     return Response.json(body, { headers })
   }
 
+  // GLOBAL is unsupported for popular/trending (fetchTop20Ranking status
+  // "unsupported", no region substitution): explicit unavailable, never a
+  // publicly cached genuine miss. JwRankBadge renders `data?.error` as
+  // unavailable, and the empty catalog is the approved UI state. Zero chart
+  // I/O on this path (like the custom branch above): no pin, no drive.
+  if (
+    rankingSource.kind === "justwatch" &&
+    (rankingSource.mode === "popular" || rankingSource.mode === "trending") &&
+    region.code === GLOBAL_REGION_CODE
+  ) {
+    return Response.json({ rank: null, top: 20, period: rankingSource.mode, error: "unsupported" }, { headers: { "Cache-Control": "no-store" } })
+  }
+
+  // Per-family snapshot (custom/unsupported branches excluded above: zero
+  // chart I/O there). Group identity MUST match the catalog/poster group
+  // for the same effective coordinates (region + language; JW families never
+  // depend on unrelated MDBList credentials), or keyed vs public generations
+  // diverge across consumers. One request refreshes THAT stale family only
+  // (awaited, bounded); competitors keep the pinned rows. Custom ranking
+  // stays out (its own fetch owns ordering).
+  const jwMode = rankingSource.kind === "justwatch" ? rankingSource.mode : null
+  const chartFamily: string | null = jwMode
+    ? `jw:${slot === "movie" ? "movie" : "series"}:${jwMode}`
+    : null
+  const chartGroup = chartListGroupKey({ regionCode: region.code, regionLang: region.lang })
+  // Exact canonical window only (first=20, unfiltered): the pin is refreshed
+  // here. The popular/trending branches always answer from the canonical
+  // Top-20 snapshot (their window is fixed), so they always refresh. Other
+  // windows stay live with today's keys+semantics (cycle-aware: in-slot
+  // fresh via the floor) and are never published as canonical.
+  const chartCanonical = first === 20
+  const chartEnsure = chartFamily !== null && (chartCanonical || jwMode === "popular" || jwMode === "trending")
+  const chartPin: ChartFamilyPin = chartFamily
+    ? (chartEnsure
+      ? await ensureFreshChartFamily({ regionCode: region.code, regionLang: region.lang, family: chartFamily })
+      : await pinChartFamily({ regionCode: region.code, regionLang: region.lang, family: chartFamily }))
+    : { id: CHART_LIVE_PIN_ID, snapshot: null }
+  const chartCgFragment = chartFamily ? chartPinCacheFragment(chartPin) : ""
+  // Cycle-aware freshness floor for in-scope source caches.
+  const chartFloor = currentChartSlotFloor()
+
   if (rankingSource.kind === "justwatch" && (rankingSource.mode === "popular" || rankingSource.mode === "trending")) {
-    // GLOBAL is unsupported for popular/trending (fetchTop20Ranking status
-    // "unsupported", no region substitution): explicit unavailable, never a
-    // publicly cached genuine miss. JwRankBadge renders `data?.error` as
-    // unavailable, and the empty catalog is the approved UI state.
-    if (region.code === GLOBAL_REGION_CODE) {
-      return Response.json({ rank: null, top: 20, period: rankingSource.mode, error: "unsupported" }, { headers: { "Cache-Control": "no-store" } })
-    }
-    const cacheKey = `rank:v2:${rawType}:${id}:f20:r${region.code}:${rankingSource.mode}`
+    const cacheKey = `rank:v2:${rawType}:${id}:f20:r${region.code}:${rankingSource.mode}:g${chartGroup}${chartCgFragment}`
     const cached = cacheGet<{ rank: number | null; top: number; period: string }>(cacheKey)
     if (cached) {
       return Response.json(cached, { headers: mutableSourceHeaders })
     }
     try {
-      const res = await fetchTop20Ranking({
-        slot,
-        source: rankingSource,
-        regionCode: region.code,
-        regionLang: region.lang,
-      })
+      // Rows come from the SAME published family snapshot the catalog order
+      // and poster badge read (ensured upfront): one list, one rank.
+      const res = { items: pinnedFamilyRows(chartPin) ?? [] }
       const found = res.items.find((r) => r.tmdbId === id)
       if (found) {
         const body = { rank: found.rank, period: rankingSource.mode, top: 20 }
@@ -164,7 +203,10 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  const cacheKey = `rank:v2:${rawType}:${id}:f${first}:r${region.code}`
+  // Exact canonical window only (first=20, unfiltered): other windows stay
+  // live with today's keys+semantics (cycle-aware: in-slot fresh via the
+  // floor) and are never published as canonical.
+  const cacheKey = `rank:v2:${rawType}:${id}:f${first}:r${region.code}:g${chartGroup}${chartCanonical ? chartCgFragment : ""}`
   const cached = cacheGet<{ rank: number | null; period?: string }>(cacheKey)
   if (cached) {
     // Mutable defaults can retarget this same URL to another source, so even
@@ -173,7 +215,13 @@ export async function GET(req: NextRequest) {
   }
   const headers = mutableSourceHeaders
   try {
-    const rankings = await getJWRankings(rawType === "movie" ? "MOVIE" : "SHOW", region.code, first, undefined, region.lang)
+    const jwType = rawType === "movie" ? "MOVIE" : "SHOW"
+    // Canonical window rows come from the SAME published family snapshot the
+    // catalog order reads (ensured upfront): one list, one rank. Non-canonical
+    // windows stay live with the floor (never published as canonical).
+    const rankings = chartCanonical
+      ? (pinnedFamilyRows(chartPin) ?? [])
+      : await getJWRankings(jwType, region.code, first, undefined, region.lang, undefined, chartFloor)
     const found = rankings.find((r) => r.tmdbId === id)
     if (found) {
       const body = { rank: found.rank, period: "day", top: first }

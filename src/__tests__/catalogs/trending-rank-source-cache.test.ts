@@ -18,6 +18,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { NextRequest } from "next/server"
 import { GET } from "@/app/api/trending/rank/route"
 import { cacheClear } from "@/lib/cache"
+import { __resetChartGenerationForTest } from "@/lib/chart-generation"
 import { getJWRankings } from "@/lib/justwatch"
 import { fetchTop20Ranking } from "@/lib/top20-ranking"
 
@@ -63,14 +64,24 @@ describe("GET /api/trending/rank mutable-source HTTP caching", () => {
     mockedGetJWRankings.mockReset().mockResolvedValue([])
     mockedFetchTop20.mockReset().mockResolvedValue({ status: "empty", items: [], period: "popular" })
     cacheClear()
+    // Fixed chart cycles: no cross-test snapshot/lease leakage.
+    __resetChartGenerationForTest()
   })
 
   afterEach(() => {
     cacheClear()
+    __resetChartGenerationForTest()
   })
 
   it("serves a different body at the same URL after a default-source switch (stale shared-cache demonstration)", async () => {
-    mockedGetJWRankings.mockResolvedValue([{ tmdbId: 91001, imdbId: null, rank: 5, title: "Charts Five" }])
+    // Canonical charts reads come from the published family snapshot (the
+    // renewal fetches it via fetchTop20Ranking): the JW live mock below is
+    // not on this path. Real-caller URL shape (no `first`) is preserved.
+    mockedFetchTop20.mockResolvedValue({
+      status: "ok",
+      items: [{ tmdbId: 91001, imdbId: null, rank: 5, title: "Charts Five" }],
+      period: "day",
+    })
 
     const charts = await GET(new NextRequest(MUTABLE_URL))
     expect(charts.status).toBe(200)
@@ -124,7 +135,13 @@ describe("GET /api/trending/rank mutable-source HTTP caching", () => {
   })
 
   it("keeps charts bodies out of shared caches when the selection resolves through mutable defaults", async () => {
-    mockedGetJWRankings.mockResolvedValue([{ tmdbId: 91003, imdbId: null, rank: 3, title: "Charts Three" }])
+    // Same canonical-seam note as above: charts reads publish via the
+    // renewal fetcher (fetchTop20Ranking mock), not the JW live mock.
+    mockedFetchTop20.mockResolvedValue({
+      status: "ok",
+      items: [{ tmdbId: 91003, imdbId: null, rank: 3, title: "Charts Three" }],
+      period: "day",
+    })
     const url = "http://localhost:3000/api/trending/rank?type=movie&id=91003&region=IT"
 
     const res = await GET(new NextRequest(url))

@@ -362,6 +362,20 @@ export function cacheRemainingMs(key: string, nowMs: number = Date.now()): numbe
 }
 
 /**
+ * Absolute fetch provenance (ms epoch) of a live cache entry, or null when
+ * absent/expired. Read-only: never fetches, never renews. Fixed chart cycles
+ * use it as a cycle-aware refresh floor (entries fetched before the current
+ * slot start are treated as stale): pre-boundary payloads must never
+ * masquerade as freshly retrieved in-slot data.
+ */
+export function cacheFetchedAt(key: string): number | null {
+  const entry = store.get(key) as CacheEntry<unknown> | undefined
+  if (!entry) return null
+  if (isExpired(entry)) return null
+  return entry.timestamp
+}
+
+/**
  * Milliseconds until the next scheduled tag refresh (poster/catalog daily
  * cut). Exported for the poster freshness cap so mapped posters (which
  * otherwise ride the scheduled policy) can take min(scheduled, fact-cap)

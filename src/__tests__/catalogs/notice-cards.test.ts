@@ -3,6 +3,7 @@ import { NextRequest } from "next/server"
 import { GET as GET_CATALOG } from "@/app/catalog/[type]/[id]/route"
 import { GET as GET_META } from "@/app/meta/[type]/[id]/route"
 import { fetchMDBList, MDBLIST_BLOCK_SIZE } from "@/lib/mdblist"
+import { __resetChartGenerationForTest } from "@/lib/chart-generation"
 import { buildNoticeMeta, isNoticeId, NOTICE_ID_PREFIX } from "@/lib/notice-meta"
 import { cacheClear, cacheInvalidate } from "@/lib/cache"
 import { getById } from "@/lib/store"
@@ -28,6 +29,9 @@ describe("notice cards (Fase 2: solo key-missing)", () => {
     mockedGetById.mockReset()
     cacheClear()
     cacheInvalidate("mdblist")
+    // Fixed chart cycles: snapshot/lease state must not leak across tests
+    // (see catalog-imdb-identity.test.ts).
+    __resetChartGenerationForTest()
   })
 
   it("buildNoticeMeta usa id convenzionale e tipo richiesto", () => {

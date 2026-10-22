@@ -4,6 +4,7 @@ import { GET } from "@/app/catalog/[type]/[id]/route"
 import { cacheClear } from "@/lib/cache"
 import { getById } from "@/lib/store"
 import { __resetJWRankingsCache, JW_DIGITAL_MONETIZATION_TYPES } from "@/lib/justwatch"
+import { __resetChartGenerationForTest } from "@/lib/chart-generation"
 import { GLOBAL_REGION_CODE } from "@/lib/regions"
 
 interface JwGraphQLRequestBody {
@@ -82,6 +83,7 @@ describe("Stremio Popular & Trending Pagination (Task B, C, D)", () => {
     mockedGetById.mockResolvedValue(null)
     __resetJWRankingsCache()
     cacheClear()
+    __resetChartGenerationForTest()
   })
 
   afterEach(() => {
@@ -89,6 +91,7 @@ describe("Stremio Popular & Trending Pagination (Task B, C, D)", () => {
     mockedGetById.mockReset()
     __resetJWRankingsCache()
     cacheClear()
+    __resetChartGenerationForTest()
   })
 
   it("pages with skip=0, 20, 40 using exact disjoint offsets and overfetch=false", async () => {

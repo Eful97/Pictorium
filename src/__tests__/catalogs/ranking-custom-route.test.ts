@@ -7,6 +7,7 @@ import { __clearTMDBCache } from "@/lib/tmdb"
 import { getById } from "@/lib/store"
 import { getServerDefaults } from "@/lib/server-defaults"
 import { __resetJWRankingsCache } from "@/lib/justwatch"
+import { __resetChartGenerationForTest } from "@/lib/chart-generation"
 import { encodeConfig } from "@/lib/config-token"
 import type { CustomCatalogConfig } from "@/lib/types"
 
@@ -121,6 +122,8 @@ describe("GET /catalog with custom ranking source", () => {
     __resetJWRankingsCache()
     cacheClear()
     __clearTMDBCache()
+    // Fixed chart cycles: no cross-test snapshot/lease leakage.
+    __resetChartGenerationForTest()
   })
 
   it("serves the custom list order on pictorium-jw-movies without calling JustWatch", async () => {

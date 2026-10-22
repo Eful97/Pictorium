@@ -4,6 +4,7 @@ import { GET } from "@/app/catalog/[type]/[id]/route"
 import { cacheClear } from "@/lib/cache"
 import { getById } from "@/lib/store"
 import { __resetJWRankingsCache } from "@/lib/justwatch"
+import { __resetChartGenerationForTest } from "@/lib/chart-generation"
 import { __clearTMDBCache } from "@/lib/tmdb"
 import { __clearImdbCache } from "@/lib/imdb-cache"
 import { encodeConfig } from "@/lib/config-token"
@@ -215,6 +216,9 @@ describe("Catalog details→enrichment pipelining (no whole-batch barrier)", () 
     __clearTMDBCache()
     __clearImdbCache()
     cacheClear()
+    // Per-family snapshots persist in memory across tests: without a reset,
+    // an earlier publish would serve stale pinned rows instead of the mock.
+    __resetChartGenerationForTest()
   })
 
   afterEach(() => {
@@ -225,6 +229,7 @@ describe("Catalog details→enrichment pipelining (no whole-batch barrier)", () 
     __clearTMDBCache()
     __clearImdbCache()
     cacheClear()
+    __resetChartGenerationForTest()
   })
 
   it("JW: fast item enrichment starts before slow item details settle; order and fallback preserved", async () => {

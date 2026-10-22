@@ -11,7 +11,6 @@ import { getById } from "@/lib/store"
 import { decodeConfig, type PictoriumUserConfig } from "@/lib/config-token"
 import { getDetails, getDetailsWithExternalIds, getGenreList, getImages, personMovieCredits, personTvCredits, posterUrlOriginal, resolveUserApiKeys, searchMovies, searchPerson, searchTV, tmdbFindByImdb, tmdbFindByTvdb, type TMDBDetails } from "@/lib/tmdb"
 import { resolveImdbId } from "@/lib/imdb-cache"
-import { fetchMDBList } from "@/lib/mdblist"
 import { resolveRankingSource, rankingSourceCatalogName } from "@/lib/ranking-source"
 import { findRankingCustomCatalog } from "@/lib/custom-ranking"
 import { fetchTop20Ranking } from "@/lib/top20-ranking"
@@ -32,6 +31,8 @@ import { combineAbortSignals } from "@/lib/abort-signal"
 import { isPersonQuery, pickTopPerson } from "@/lib/person-search"
 import { normalizeCatalogId, normalizeCatalogIdKeys, normalizeCatalogIdList, PICTORIUM_CATALOGS, regionJwName } from "@/lib/catalog-definitions"
 import { detectSeasonalThemeFromCatalogName, resolveEffectiveCatalogDisplayName, resolveEffectiveSeasonalTheme, sanitizeSeasonalCustomKeywords, type SeasonalCustomKeywordsInput, type SeasonalTheme } from "@/lib/seasonal-theme"
+import { CHART_LIVE_PIN_ID, chartPinCacheFragment, currentChartSlotFloor, isBuiltInChartCatalogId, pinChartFamily, pinnedFamilyRows, CHART_READY_TTL_MS, type ChartFamilyPin } from "@/lib/chart-generation"
+import { CHART_PLATFORM_SOURCES, ensureFreshChartFamily } from "@/lib/chart-renewal"
 import { getExplicitCatalogShape, normalizeCatalogShapeKeys } from "@/lib/catalog-shape"
 import type { PosterShape, CustomCatalogConfig } from "@/lib/types"
 
@@ -191,7 +192,9 @@ function isUnfilteredCatalogGenre(genre?: string | null): boolean {
   return g === "tutti" || g === "all"
 }
 
-/** Riutilizza getJWRankings (cache condivisa 30 min + mock server nei test).
+/** Riutilizza getJWRankings (cache condivisa 6h + mock server nei test).
+ *  Cycle-aware: il floor forza il refresh in-slot delle entry pre-boundary
+ *  (fixed chart cycles); assente = comportamento TTL storico.
  *  Ritorna le righe complete: JustWatch fornisce già l'imdbId, così il
  *  catalogo non deve rifare una chiamata extra a TMDB per ogni titolo. */
 async function getJustWatchRankings(
@@ -200,9 +203,10 @@ async function getJustWatchRankings(
   first = 20,
   packages?: readonly string[] | string[],
   language = "it-IT",
+  minFetchedAtMs?: number,
 ): Promise<JWRankEntry[]> {
   try {
-    return await getJWRankings(type, country, first, packages, language)
+    return await getJWRankings(type, country, first, packages, language, undefined, minFetchedAtMs)
   } catch {
     return []
   }
@@ -213,28 +217,15 @@ function hashFragment(value: string): string {
   return crypto.createHash("sha1").update(value).digest("hex").slice(0, 8)
 }
 
-const PLATFORM_JW_PACKAGES: Record<string, string[]> = {
-  netflix: ["nfx"],
-  // Prime: shortName regionale — `prv` (IT/FR/ES/...) vs `amp` (US/GB/DE/JP).
-  // JW ignora i codici inesistenti per regione: l'unione è sicura ovunque.
-  prime: ["prv", "amp"],
-  disney: ["dnp"],
-  // NOW/Sky esiste solo in alcuni paesi; negli USA il catalogo mappa Peacock
-  // (stesso gruppo NBCUniversal/Comcast): `pct`+`pcp`, ignorati dove assenti.
-  now: ["ntv", "skg", "pct", "pcp"],
-  apple: ["atp"],
-  hbo: ["mxx"],
-  // Paramount+ in ES è SkyShowtime (`sst`): unione sicura come sopra.
-  paramount: ["pmp", "sst"],
-  crunchyroll: ["cru"],
-}
+// Coordinate canoniche delle piattaforme (pacchetti JW + slug FlixPatrol):
+// UNICA tabella condivisa tra serving e renewal driver (chart-renewal.ts) —
+const PLATFORM_JW_PACKAGES: Record<string, string[]> = Object.fromEntries(
+  Object.entries(CHART_PLATFORM_SOURCES).map(([k, v]) => [k, v.jwPackages]),
+)
 
-const PLATFORM_SLUGS: Record<string, string> = {
-  netflix: "netflix", prime: "amazon-prime", disney: "disney",
-  now: "now",
-  apple: "apple-tv", hbo: "hbo-max", paramount: "paramount-plus",
-  crunchyroll: "crunchyroll",
-}
+const PLATFORM_SLUGS: Record<string, string> = Object.fromEntries(
+  Object.entries(CHART_PLATFORM_SOURCES).map(([k, v]) => [k, v.flixSlug]),
+)
 
 type StremioCatalogType = "movie" | "series"
 
@@ -525,6 +516,34 @@ function withMovieCatalogHints(metas: StremioMeta[], stType: StremioCatalogType)
 }
 
 /**
+ * Canonical family for a Stremio catalog request (null = zero chart I/O).
+ * Global JustWatch catalogs resolve the effective Top 20 mode (charts /
+ * popular / trending); custom-sourced JW catalogs and GLOBAL
+ * popular/trending stay out (approved no-JW / unsupported contracts).
+ * Platform + anime catalogs map 1:1 to their family. Custom, search, and
+ * addon catalogs never touch chart snapshots.
+ */
+export function chartFamilyForCatalogRequest(
+  catalogId: string,
+  stType: "movie" | "series",
+  rankingSource: { kind: string; mode?: string },
+  regionCode: string,
+): string | null {
+  if (!isBuiltInChartCatalogId(catalogId)) return null
+  if (catalogId === "pictorium-jw-movies" || catalogId === "pictorium-jw-series") {
+    if (rankingSource.kind !== "justwatch") return null
+    const mode = (rankingSource as { mode?: string }).mode ?? "charts"
+    if ((mode === "popular" || mode === "trending") && (regionCode || "").toUpperCase() === GLOBAL_REGION_CODE) return null
+    return `jw:${stType}:${mode}`
+  }
+  if (catalogId === "pictorium-anime-movies") return "anime:movie"
+  if (catalogId === "pictorium-anime") return "anime:series"
+  const m = /^pictorium-(.+)-(movies|series)$/.exec(catalogId)
+  if (m) return `platform:${m[1]}:${stType}`
+  return null
+}
+
+/**
  * Seasonal frame theme for a Stremio catalog response: detected from the
  * EFFECTIVE visible catalog name (same precedence as the manifest in
  * `build-manifest.ts`: rename > ranking-source override > regional
@@ -688,6 +707,8 @@ export async function pictoriumCatalog(
   // global JustWatch catalogs only, so switching the selection never
   // invalidates platform/anime entries. Credential/namespace isolation rides
   // on the existing ak/mk/tv/u/cfg/sd hashes plus the unified fetch key.
+  // Resolved BEFORE the refresh below: a custom-sourced JW catalog never
+  // triggers JW refresh traffic (approved no-JW contract for custom).
   const rankingSource = resolveRankingSource(
     {
       customCatalogs: userConfig?.customCatalogs,
@@ -706,6 +727,57 @@ export async function pictoriumCatalog(
       : rankingSource.kind === "justwatch" && rankingSource.mode !== "charts"
         ? `:rsjw_${rankingSource.mode}`
         : ":rsjw"
+
+  // Fixed chart cycles, simplified: ONE independent snapshot per canonical
+  // family (no all-source barrier). The family for this request resolves from
+  // the catalog id + ranking selection upfront. One request to its catalog
+  // refreshes THAT stale list only — never unrelated platforms, anime, or
+  // modes. The pin is immutable for this request and carries the generation
+  // fence for ready-body keys plus the canonical rows for order + rank
+  // labels. Group identity is region + language (plus the effective
+  // MDBList key hash for anime only): keyed vs public anime never share rows,
+  // while JW/platform rows never depend on unrelated MDB credentials.
+  // Requests that cannot serve rows do zero chart I/O (fail-closed before
+  // any fetch): keyless JW catalogs (notice path), GLOBAL popular/trending
+  // (unsupported), and unmapped-genre popular/trending windows (empty path).
+  // Same approved contracts as before.
+  let chartFamily = chartFamilyForCatalogRequest(catalogId, stType, rankingSource, region.code)
+  if (chartFamily && catalogId.startsWith("pictorium-jw") && !apiKey) {
+    chartFamily = null
+  } else if (
+    chartFamily &&
+    rankingSource.kind === "justwatch" &&
+    (rankingSource.mode === "popular" || rankingSource.mode === "trending") &&
+    !isUnfilteredCatalogGenre(extra.genre) &&
+    !resolveJWGenreCode(extra.genre)
+  ) {
+    chartFamily = null
+  }
+  // Charts pages past the Top 20 serve []: nothing consumes the snapshot, so
+  // the pin is read-only (no refresh fetch for an empty page).
+  const chartEnsure =
+    chartFamily !== null &&
+    !(catalogId.startsWith("pictorium-jw") &&
+      rankingSource.kind === "justwatch" &&
+      (rankingSource.mode === undefined || rankingSource.mode === "charts") &&
+      (typeof extra.skip === "number" && extra.skip >= 20))
+  // Cycle-aware freshness floor for in-scope source caches: entries fetched
+  // before the current slot start are refreshed, never stamped as in-slot.
+  const chartFloor = chartFamily ? currentChartSlotFloor() : undefined
+
+  const chartPin: ChartFamilyPin = chartFamily
+    ? (chartEnsure
+      ? await ensureFreshChartFamily({
+        regionCode: region.code,
+        regionLang: tmdbLang,
+        mdblistKey,
+        tmdbLang,
+        tmdbKey: apiKey,
+        family: chartFamily,
+      })
+      : await pinChartFamily({ regionCode: region.code, regionLang: tmdbLang, mdblistKey, family: chartFamily }))
+    : { id: CHART_LIVE_PIN_ID, snapshot: null }
+  const chartCgFragment = chartFamily ? chartPinCacheFragment(chartPin) : ""
 
   // Seasonal frame (ephemeral originating-list context): detected from the
   // effective visible catalog name (rename > ranking override > regional JW
@@ -1011,7 +1083,7 @@ export async function pictoriumCatalog(
       }
     }
   }
-  const cacheKey = `stremio:catalog:v4:${stType}:${catalogId}:pv${POSTER_URL_VERSION}${scopedUser ? `:u${hashUserFragment(scopedUser)}` : ""}:ak${apiKey ? hashFragment(apiKey) : "none"}${configParam ? `:cfg${hashFragment(configParam)}` : ""}${mdblistKey ? `:mk${hashFragment(mdblistKey)}` : ""}${tvdbKey ? `:tv${hashFragment(tvdbKey)}` : ""}${genreFragment}${skipFragment}${searchFragment}${regionFragment}${rankingFragment}${traktGenFragment}${themeFragment}${freshness}`
+  const cacheKey = `stremio:catalog:v4:${stType}:${catalogId}:pv${POSTER_URL_VERSION}${scopedUser ? `:u${hashUserFragment(scopedUser)}` : ""}:ak${apiKey ? hashFragment(apiKey) : "none"}${configParam ? `:cfg${hashFragment(configParam)}` : ""}${mdblistKey ? `:mk${hashFragment(mdblistKey)}` : ""}${tvdbKey ? `:tv${hashFragment(tvdbKey)}` : ""}${genreFragment}${skipFragment}${searchFragment}${regionFragment}${rankingFragment}${chartCgFragment}${traktGenFragment}${themeFragment}${freshness}`
   // C1: L1 + L2 condivisa (KV su multi-istanza, no-op locale/VPS).
   // Il selettore conserva il TTL originale anche dopo il ripopolamento L1
   // da KV (il payload KV non trasporta la scadenza): pieno → 1h, vuoto → 60s.
@@ -1044,6 +1116,12 @@ export async function pictoriumCatalog(
 
   let isCustomGenreFiltered = false
   let isJwGenrePreFiltered = false
+  // True when this response serves an in-scope canonical window (default
+  // first page / canonical slices) from the pinned family snapshot: the
+  // ready body may be reused up to 12h (fenced by the family generation).
+  // Variant windows (skip/genre beyond the canonical slice), custom, search
+  // and addon responses keep their historical TTLs.
+  let servedCanonical = false
   // Provenienza privata del provider per la coerenza outer-cache (correction
   // cycle 1): true quando il body in costruzione contiene item fetchati con
   // il Bearer del proprietario. Vedi coda della funzione prima del cacheSet.
@@ -1367,6 +1445,8 @@ export async function pictoriumCatalog(
       if (!apiKey) {
         jwKeyMissing++
         log.debug("Catalog key-missing: no TMDB key", { catalogId })
+        // No renewal drive here: the approved contract is zero upstream
+        // calls on this path (renewal converges via keyed requests).
         return catalogResponse({
           metas: [buildNoticeMeta({ type: stType, poster: `${getOriginFromRequest(req)}/pictorium.png` })],
         })
@@ -1376,7 +1456,7 @@ export async function pictoriumCatalog(
       // as an explicit (uncached) notice — never a silent JustWatch fallback.
       // The JW genre drill-down stays JustWatch-only; the tail post-filter
       // still applies to custom rows.
-      let uniqueRows: Array<{ tmdbId: number; imdbId: string | null; title?: string | null | undefined; rank?: number | string | null }>
+      let uniqueRows: Array<{ tmdbId: number; imdbId: string | null; title?: string | null | undefined; rank?: number | string | null }> = []
       const isJwPopularOrTrending =
         rankingSource.kind === "justwatch" &&
         (rankingSource.mode === "popular" || rankingSource.mode === "trending")
@@ -1400,26 +1480,74 @@ export async function pictoriumCatalog(
         }
         const jwSortBy = rankingSource.mode === "popular" ? "POPULAR" : "TRENDING"
         const jwSkip = typeof extra.skip === "number" && extra.skip > 0 ? extra.skip : 0
-        const rows = await getJWTitles({
-          objectType: stType === "movie" ? "MOVIE" : "SHOW",
-          country: region.code,
-          first: 20,
-          offset: jwSkip,
-          sortBy: jwSortBy,
-          language: tmdbLang,
-          monetizationTypes: JW_DIGITAL_MONETIZATION_TYPES,
-          genres: jwGenreCode ? [jwGenreCode] : undefined,
-          overfetch: false,
-        })
-        // Canonical Top-20 snapshot (ONE per request, shared 6h JW cache with
-        // the renderer — never per-title): maps page rows at arbitrary skip
-        // to their exact global rank. Genre-local or platform-local positions
-        // are never used as global rank — lookup is by tmdbId against the
-        // unfiltered snapshot, unranked titles get explicit rk=0.
-        let canonicalRank: Map<number, number> | null = null
-        if (rows.length > 0) {
-          try {
-            const snapshot = await fetchTop20Ranking({
+        const isCanonicalWindow = !hasGenre && jwSkip === 0
+        let servedFromPin = false
+        if (isCanonicalWindow) {
+          // Canonical default first page: content AND rank labels from the
+          // SAME published family snapshot (ensured upfront) — never a live
+          // window mixed with unrelated canonical ranks. Cold failure (no
+          // snapshot) falls through to the live window below with
+          // window-proven claims only.
+          const pinnedPage = pinnedFamilyRows(chartPin)
+          if (pinnedPage && pinnedPage.length > 0) {
+            servedCanonical = true
+            servedFromPin = true
+            uniqueRows = pinnedPage.slice(0, 20).map((it) => ({ tmdbId: it.tmdbId, imdbId: it.imdbId || null, title: it.title || null, rank: it.rank }))
+          }
+        }
+        if (!servedFromPin) {
+          const rows = await getJWTitles({
+            objectType: stType === "movie" ? "MOVIE" : "SHOW",
+            country: region.code,
+            first: 20,
+            offset: jwSkip,
+            sortBy: jwSortBy,
+            language: tmdbLang,
+            monetizationTypes: JW_DIGITAL_MONETIZATION_TYPES,
+            genres: jwGenreCode ? [jwGenreCode] : undefined,
+            overfetch: false,
+            // Cycle-aware: variant windows stay live but in-slot fresh.
+            minFetchedAtMs: chartFloor,
+          })
+          // Canonical Top-20 rows (the SAME published snapshot the default
+          // page and the badge read): maps page rows at arbitrary skip to
+          // their exact global rank. Genre-local positions are never used as
+          // global rank — lookup is by tmdbId against the unfiltered
+          // snapshot, unranked titles get explicit rk=0.
+          let canonicalRank: Map<number, number> | null = null
+          if (rows.length > 0) {
+            const pinned = pinnedFamilyRows(chartPin)
+            if (pinned && pinned.length > 0) {
+              canonicalRank = new Map(pinned.map((it) => [it.tmdbId, it.rank]))
+            }
+          }
+          uniqueRows = rows.map((r, idx) => {
+          if (canonicalRank) {
+            // Same title → same URL on every page (skip 0/5/19/20) and in
+            // genre drill-downs: exact global rank, or explicit unranked.
+            return { tmdbId: r.tmdbId, imdbId: r.imdbId || null, title: r.title || null, rank: canonicalRank.get(r.tmdbId) ?? 0 }
+          }
+          // Snapshot unavailable (fail-closed legacy): only window-proven claims.
+          const isTop20Window = !hasGenre && jwSkip === 0 && idx < 20
+          const rank = isTop20Window ? (idx + 1) : (jwSkip >= 20 ? 0 : undefined)
+          return { tmdbId: r.tmdbId, imdbId: r.imdbId || null, title: r.title || null, rank }
+          })
+        }
+      } else {
+        // Custom e Classifiche storiche: mantengono il comportamento Top 20 (skip >= 20 vuoto)
+        const top20Skip = typeof extra.skip === "number" && extra.skip > 0 ? extra.skip : 0
+        if (top20Skip >= 20) {
+          // Windowed Top-N: pages past the Top 20 are strictly empty.
+          uniqueRows = []
+        } else {
+          // Canonical rows come from the SAME published family snapshot the
+          // rank badge reads (ensured upfront for this request): order and
+          // rank labels never mix live ordering with unrelated canonical
+          // ranks. Custom sources bypass chart snapshots entirely (their own
+          // fetch owns ordering, as before).
+          const ranking = rankingSource.kind === "justwatch"
+            ? { status: "ok" as const, items: pinnedFamilyRows(chartPin) ?? [] }
+            : await fetchTop20Ranking({
               slot: stType,
               source: rankingSource,
               regionCode: region.code,
@@ -1430,42 +1558,6 @@ export async function pictoriumCatalog(
               tvdbKey,
               userId: scopedUser,
             })
-            if (snapshot.items.length > 0) {
-              canonicalRank = new Map(snapshot.items.map((it) => [it.tmdbId, it.rank]))
-            }
-          } catch {
-            canonicalRank = null
-          }
-        }
-        uniqueRows = rows.map((r, idx) => {
-          if (canonicalRank) {
-            // Same title → same URL on every page (skip 0/5/19/20) and in
-            // genre drill-downs: exact global rank, or explicit unranked.
-            return { tmdbId: r.tmdbId, imdbId: r.imdbId || null, title: r.title || null, rank: canonicalRank.get(r.tmdbId) ?? 0 }
-          }
-          // Snapshot unavailable (fail-closed legacy): only window-proven claims.
-          const isTop20Window = !hasGenre && jwSkip === 0 && idx < 20
-          const rank = isTop20Window ? (idx + 1) : (jwSkip >= 20 ? 0 : undefined)
-          return { tmdbId: r.tmdbId, imdbId: r.imdbId || null, title: r.title || null, rank }
-        })
-      } else {
-        // Custom e Classifiche storiche: mantengono il comportamento Top 20 (skip >= 20 vuoto)
-        const top20Skip = typeof extra.skip === "number" && extra.skip > 0 ? extra.skip : 0
-        if (top20Skip >= 20) {
-          // Windowed Top-N: pages past the Top 20 are strictly empty.
-          uniqueRows = []
-        } else {
-          const ranking = await fetchTop20Ranking({
-            slot: stType,
-            source: rankingSource,
-            regionCode: region.code,
-            regionLang: tmdbLang,
-            customCatalogs: userConfig?.customCatalogs,
-            apiKey,
-            mdblistKey,
-            tvdbKey,
-            userId: scopedUser,
-          })
           if (ranking.status === "error") {
             log.debug("Top 20 ranking unavailable", { catalogId, status: ranking.errorStatus })
             return catalogResponse({
@@ -1481,6 +1573,9 @@ export async function pictoriumCatalog(
           uniqueRows = ranking.items
             .slice(top20Skip, top20Skip + 20)
             .map((item) => ({ tmdbId: item.tmdbId, imdbId: item.imdbId, title: item.title, rank: item.rank }))
+          // Canonical slice of the published snapshot: eligible for the
+          // 12h fenced ready body (empty slices stay 60s via responseTtl).
+          servedCanonical = true
         }
       }
 
@@ -1526,9 +1621,22 @@ export async function pictoriumCatalog(
       }, 5)).filter((m): m is StremioMeta => m !== null)
     } else if (catalogId.startsWith("pictorium-anime")) {
       const isMovie = catalogId === "pictorium-anime-movies" || stType === "movie"
-      const listKey = isMovie ? "mdblistAnimeMovie" : "mdblistAnime"
       const mediaType = isMovie ? "movie" : "tv"
-      const items = await fetchMDBList(listKey, mdblistKey)
+      // Full-list canonicals come from the SAME published family snapshot
+      // the badge reads (ensured upfront for this request, keyed vs public
+      // isolated by group). All pages slice the canonical list, so every
+      // anime window is canonical and fenced. Enrichment below
+      // (resolve/details/logo) stays live per request.
+      const pinnedAnime = pinnedFamilyRows(chartPin)
+      const items = (pinnedAnime ?? []).map((r) => ({
+        imdb: r.imdbId ?? "",
+        title: r.title ?? "",
+        year: r.year ?? 0,
+        tmdb: r.tmdbId || undefined,
+      }))
+      // Every anime page slices the published list: eligible for the 12h
+      // fenced ready body (empty lists stay 60s via responseTtl).
+      servedCanonical = true
 
       // Block-paging: la lista intera resta in cache MDBList 30min, Stremio
       // pagina con skip sulla finestra da 20. Lo slice va PRIMA
@@ -1603,8 +1711,17 @@ export async function pictoriumCatalog(
         const skipForPlatform = typeof extra.skip === "number" && extra.skip > 0 ? extra.skip : 0
         const jwGenre = region.code === GLOBAL_REGION_CODE ? null : resolveJWGenreCode(extra.genre)
         const jwFirst = jwGenre ? 10 : Math.min(50, 10 + skipForPlatform)
+        // The canonical unfiltered top10 comes from the SAME published family
+        // snapshot the badge reads (ensured upfront). Skip/genre variants
+        // observe shifted/filtered windows and stay live (cycle-aware:
+        // in-slot fresh via the floor, never published as canonical).
+        const pinnedPlatform = skipForPlatform === 0 && !jwGenre
+          ? pinnedFamilyRows(chartPin)
+          : null
         let jwRows: JWRankEntry[] = []
-        if (pkgs) {
+        if (pinnedPlatform) {
+          jwRows = pinnedPlatform.map((r) => ({ tmdbId: r.tmdbId, imdbId: r.imdbId, rank: r.rank, title: r.title ?? null }))
+        } else if (pkgs) {
           if (jwGenre) {
             jwRows = await getJWTitles({
               objectType: stType === "movie" ? "MOVIE" : "SHOW",
@@ -1615,9 +1732,10 @@ export async function pictoriumCatalog(
               genres: [jwGenre],
               sortBy: "POPULAR",
               language: tmdbLang,
+              minFetchedAtMs: chartFloor,
             })
           } else {
-            jwRows = await getJustWatchRankings(stType === "movie" ? "MOVIE" : "SHOW", region.code, jwFirst, pkgs, tmdbLang)
+            jwRows = await getJustWatchRankings(stType === "movie" ? "MOVIE" : "SHOW", region.code, jwFirst, pkgs, tmdbLang, chartFloor)
           }
         }
 
@@ -1629,6 +1747,13 @@ export async function pictoriumCatalog(
             seenTmdb.add(r.tmdbId)
             return true
           }).slice(sliceOffset, sliceOffset + 10)
+          // The default unfiltered window serves the pinned family snapshot
+          // (or its live fallback on cold failure): eligible for the 12h
+          // fenced ready body ONLY when a snapshot backs it — a live
+          // fallback under `:cglive` keeps the historical 1h so a persistent
+          // outage cannot freeze live content for 12h. Variant windows keep
+          // their historical TTL.
+          if (skipForPlatform === 0 && !jwGenre && pinnedPlatform) servedCanonical = true
 
           // Pipelined per-item (no whole-batch barrier): details then
           // imdb/poster/logo sequentially within each item task, concurrency
@@ -1669,10 +1794,19 @@ export async function pictoriumCatalog(
               description: details?.overview ?? undefined,
             }
           }, 5)).filter((m): m is StremioMeta => m !== null)
-        } else if (slug && apiKey) {
-          // Fallback secondario: FlixPatrol Top 10
-          const data = await getTop10(slug, region.flixSlug, apiKey, { enrich: false }).catch(() => null)
+        } else if (slug && apiKey && !pinnedPlatform) {
+          // Fallback secondario: FlixPatrol Top 10 (cycle-aware floor).
+          // Skipped when the request pinned a canonical snapshot: a pinned
+          // EMPTY top10 is served as empty (strict cutover — a live fallback
+          // would resurrect rows the published generation retired).
+          const data = await getTop10(slug, region.flixSlug, apiKey, { enrich: false, minFetchedAtMs: chartFloor }).catch(() => null)
           if (data) {
+            // The fallback payload is inherently unfiltered: it observes both
+            // sides' canonical top10s at once. This branch only SERVES the
+            // requested side (the family snapshot, ensured upfront, owns
+            // publishing — no cross-family writes here). GLOBAL empties are
+            // legitimate by design (worldwide charts only); elsewhere serving
+            // [] is fail-open and short-lived (60s).
             const items = stType === "movie" ? data.movies : data.tv
             const seenTmdb = new Set<number>()
             const allWithTmdb: Array<(typeof items)[number] & { tmdbId: number }> = []
@@ -1778,10 +1912,14 @@ export async function pictoriumCatalog(
     }
     // Budget-incomplete custom pages (deadline hit mid-scan/details, lost
     // genre data, unproven stable skip) must not poison the long cache:
-    // short TTL like empties so the retry refetches. Healthy 1h/60s and all
+    // short TTL like empties so the retry refetches. Healthy TTLs and all
     // source TTLs (FlixPatrol/MDBList 12h, JW 6h) are untouched.
+    // In-scope built-in canonical windows reuse nonempty ready bodies up to
+    // 12h, fenced by the published family generation (renewal invalidates
+    // immediately); excluded (custom/search/addon/variant) catalogs keep
+    // their historical 1h, empties/errors 60s.
     const responseTtl = metas.length > 0
-      ? (customBudgetIncomplete ? CATALOG_EMPTY_TTL_MS : CATALOG_TTL_MS)
+      ? (customBudgetIncomplete ? CATALOG_EMPTY_TTL_MS : (servedCanonical ? CHART_READY_TTL_MS : CATALOG_TTL_MS))
       : CATALOG_EMPTY_TTL_MS
     cacheSet(cacheKey, body, ["stremio", "catalog"], responseTtl)
     return catalogResponse(body)

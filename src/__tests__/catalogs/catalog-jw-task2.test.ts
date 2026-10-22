@@ -5,6 +5,7 @@ import { fetchTop20Ranking } from "@/lib/top20-ranking"
 import { cacheClear } from "@/lib/cache"
 import { getById } from "@/lib/store"
 import { __resetJWRankingsCache } from "@/lib/justwatch"
+import { __resetChartGenerationForTest } from "@/lib/chart-generation"
 
 vi.mock("@/lib/store", () => ({
   getById: vi.fn(),
@@ -76,6 +77,7 @@ describe("Task2 JustWatch page/preview correctness", () => {
     mockedGetById.mockResolvedValue(null)
     __resetJWRankingsCache()
     cacheClear()
+    __resetChartGenerationForTest()
   })
 
   afterEach(() => {
@@ -83,6 +85,7 @@ describe("Task2 JustWatch page/preview correctness", () => {
     mockedGetById.mockReset()
     __resetJWRankingsCache()
     cacheClear()
+    __resetChartGenerationForTest()
   })
 
   it("RED-check guard: All, Tutti and no genre all query unfiltered with identical bodies", async () => {
@@ -108,11 +111,13 @@ describe("Task2 JustWatch page/preview correctness", () => {
       const res = await GET(catalogReq(p), { params: Promise.resolve({ type: "movie", id: "pictorium-jw-movies.json" }) })
       expect(res.status).toBe(200)
       bodies.push(await res.json())
-      // Same unfiltered cache key by design (no genre fragment): reset both
+      // Same unfiltered cache key by design (no genre fragment): reset all
       // caches so each variant performs its own upstream query and the
-      // filter shape below is observed three times, not served from cache.
+      // filter shape below is observed three times, not served from cache
+      // or from the pinned snapshot.
       cacheClear()
       __resetJWRankingsCache()
+      __resetChartGenerationForTest()
     }
     // All three serve the same unfiltered title.
     for (const b of bodies) {

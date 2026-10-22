@@ -9,6 +9,7 @@ import { getTop10 } from "@/lib/flixpatrol"
 import { getById } from "@/lib/store"
 import { getServerDefaults } from "@/lib/server-defaults"
 import { __resetJWRankingsCache } from "@/lib/justwatch"
+import { __resetChartGenerationForTest } from "@/lib/chart-generation"
 import { encodeConfig } from "@/lib/config-token"
 import { parseCatalogExtra } from "@/lib/catalog-handler"
 vi.mock("@/lib/flixpatrol", () => ({
@@ -72,6 +73,10 @@ describe("GET /catalog/[type]/[id]", () => {
     // mock di fetch — senza clear, i details restano cachati e i mock in
     // coda (es. /images per il logo) slittano sul fetch sbagliato.
     __clearTMDBCache()
+    // Fixed chart cycles: snapshot/lease in-memory sopravvivono tra test
+    // come le altre cache — senza reset, una publish precedente servirebbe
+    // snapshot invece delle righe mockate live.
+    __resetChartGenerationForTest()
   })
 
   it("builds Pictorium series poster URLs for JustWatch series catalogs", async () => {
@@ -463,7 +468,12 @@ describe("GET /catalog/[type]/[id]", () => {
     const body = await res.json()
 
     expect(res.status).toBe(200)
-    expect(mockedGetTop10).toHaveBeenCalledWith("netflix", "italy", "settings-key", { enrich: false })
+    // Cycle-aware source refresh (fixed chart cycles): the in-slot freshness
+    // floor travels with the canonical fallback fetch. The renewal caller
+    // forbids laundering a stale fp-crawler body as a fresh fetch
+    // (freshOrThrow: failure retention, no new generation on outage) while
+    // the serving path keeps the fail-open stale fallback.
+    expect(mockedGetTop10).toHaveBeenCalledWith("netflix", "italy", "settings-key", { enrich: false, minFetchedAtMs: expect.any(Number), freshOrThrow: true })
     expect(body.metas[0]).toMatchObject({
       id: "tmdb:1715492",
       type: "movie",

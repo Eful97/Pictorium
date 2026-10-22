@@ -5,6 +5,7 @@ import * as top20Module from "@/lib/top20-ranking"
 import * as tmdbModule from "@/lib/tmdb"
 import * as jwModule from "@/lib/justwatch"
 import * as sdModule from "@/lib/server-defaults"
+import { __resetChartGenerationForTest } from "@/lib/chart-generation"
 
 vi.mock("@/lib/user-auth", () => ({
   getScopedUserId: vi.fn().mockReturnValue(null),
@@ -31,6 +32,11 @@ vi.mock("@/lib/cache", () => {
 describe("catalog rank cache-busting integration", () => {
   beforeEach(() => {
     vi.restoreAllMocks()
+    // Fixed chart cycles: reset snapshot state between tests so publishes
+    // never accumulate into a mid-file snapshot (which would serve snapshots
+    // instead of the live rows these tests assert; the lifecycle is covered
+    // by dedicated chart-generation tests).
+    __resetChartGenerationForTest()
     vi.spyOn(tmdbModule, "resolveUserApiKeys").mockResolvedValue({
       tmdb: { key: "mock-tmdb-key", source: "env" },
       mdblist: { key: undefined, source: "env" },
@@ -74,6 +80,8 @@ describe("catalog rank cache-busting integration", () => {
 describe("JW popular/trending arbitrary-skip canonical rank mapping", () => {
   beforeEach(() => {
     vi.restoreAllMocks()
+    // Same isolation as above: chart contributions must not leak across tests.
+    __resetChartGenerationForTest()
     vi.spyOn(tmdbModule, "resolveUserApiKeys").mockResolvedValue({
       tmdb: { key: "mock-tmdb-key", source: "env" },
       mdblist: { key: undefined, source: "env" },
@@ -206,7 +214,9 @@ describe("JW popular/trending arbitrary-skip canonical rank mapping", () => {
     // Fresh skip (uncached in this file) so the request really executes.
     await fetchPopularCatalog("?skip=7")
     // Page window (offset 7) + ONE canonical snapshot (offset 0, shared with
-    // the renderer). No per-title rank fetch exists on this path.
+    // the renderer). No per-title rank fetch exists on this path. (The
+    // per-family refresh IS the canonical fetch here, so serving assertions
+    // stay exact.)
     expect(titlesSpy).toHaveBeenCalledTimes(2)
     const offsets = titlesSpy.mock.calls.map((c) => (c[0] as { offset?: number }).offset ?? 0).sort((a, b) => a - b)
     expect(offsets).toEqual([0, 7])

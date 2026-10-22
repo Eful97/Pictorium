@@ -21,7 +21,7 @@ describe("fetchTop20Ranking (shared ranking retrieval)", () => {
       regionLang: "it-IT",
     })
 
-    expect(mockCharts).toHaveBeenCalledWith("MOVIE", "IT", 20, undefined, "it-IT", undefined)
+    expect(mockCharts).toHaveBeenCalledWith("MOVIE", "IT", 20, undefined, "it-IT", undefined, undefined)
     expect(res.status).toBe("ok")
     expect(res.period).toBe("day")
     expect(res.items).toEqual([
@@ -53,6 +53,7 @@ describe("fetchTop20Ranking (shared ranking retrieval)", () => {
       monetizationTypes: ["FLATRATE", "FREE", "BUY", "RENT", "ADS"],
       overfetch: false,
       signal: undefined,
+      minFetchedAtMs: undefined,
     })
     expect(res.status).toBe("ok")
     expect(res.period).toBe("popular")
@@ -85,6 +86,7 @@ describe("fetchTop20Ranking (shared ranking retrieval)", () => {
       monetizationTypes: ["FLATRATE", "FREE", "BUY", "RENT", "ADS"],
       overfetch: false,
       signal: undefined,
+      minFetchedAtMs: undefined,
     })
     expect(res.status).toBe("ok")
     expect(res.period).toBe("trending")

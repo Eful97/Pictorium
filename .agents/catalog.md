@@ -139,6 +139,112 @@ tipo; `mixed` vale per entrambi).
   via `sdHash`/`configHash`. `/api/trending/rank` custom risponde
   `private, no-cache` (l'URL non cambia con la selezione), JW resta `public`.
 
+## Cicli fissi delle classifiche built-in (`chart-generation.ts` + `chart-renewal.ts`)
+
+Le sorgenti built-in (chart JW giornalieri/popolari/trending, chart piattaforme
+JW/FlixPatrol, liste anime MDBList) rinnovano su cadenza fissa portabile
+**Europe/Rome 00:00/12:00** (DST-aware, indipendente dal timezone del server),
+NON su TTL rolling per-entry. Il rinnovo è INDIPENDENTE per famiglia canonica
+(`jw:{movie|series}:{charts|popular|trending}`, `platform:<key>:{movie|series}`,
+`anime:{movie|series}`): nessuna barriera all-source, nessun inventario globale.
+Implementazione in `src/lib/chart-generation.ts` (pin/publish atomico per
+famiglia) + `src/lib/chart-renewal.ts` (`ensureFreshChartFamily`: refresh
+awaited riusabile — anche per un futuro trigger schedulato, task separato —
+con i fetcher canonici).
+
+- **Refresh per-famiglia**: dopo il boundary il pin della famiglia resta
+  stantio e UNA richiesta al suo catalogo/rank la rinfresca (awaited, bounded
+  dai timeout interni delle sorgenti; niente fetch che sopravvivono al
+  lifecycle, niente scheduler, niente fire-and-forget). Una sola famiglia per
+  richiesta: mai platform/anime/modi non correlati. Finestre non-canoniche
+  (skip/genre oltre la prima pagina, `first` diverso da 20 nel rank) NON
+  rinfrescano: pin read-only + contenuto live. Keyless JW (notice) e generi
+  non mappati (vuoto fail-closed) fanno zero I/O chart. Il failure gate (60s
+  dopo un errore) salta il refresh.
+- **Gruppo**: famiglie JW/piattaforme = `(region.code, region.lang)` SOLO —
+  i loro fetch non portano credenziali, quindi chiavi TMDB/MDBList non devono
+  MAI partizionarle (keyed e pubblico condividono le stesse righe). Famiglie
+  anime = `(region.code, region.lang, hash-chiave-MDBList-effettiva)` (keyed vs
+  pubblico mai mescolati). Mai segreti in snapshot/chiavi/log/URL (solo hash).
+  Pin/coalescing/chiavi isolano gruppo esatto + generazione su TUTTI i
+  consumer (cataloghi, rank, mdblist/anime, preflight poster — custom/search/
+  addon esclusi da ogni I/O chart).
+- **Cycle-aware source refresh**: le cache sorgenti in-scope (JW 6h, MDBList,
+  FlixPatrol) accettano un floor `minFetchedAtMs` = inizio slot corrente:
+  entry pre-boundary vengono rifetchate davvero (mai relabel di `Date.now` su
+  payload vecchi), mai timbrate come fresche in-slot. Le entry in-slot e le
+  cache indipendenti di quality/availability JW restano intatte. Quality/
+  availability e custom invariati.
+- **Publish atomica per famiglia**: la famiglia pubblica quando IL SUO fetch
+  riesce (MDBList down blocca solo l'anime; JW/piattaforme procedono). Una
+  lettura zero-row RIUSCITA è un empty genuino del ciclo e pubblica uno
+  snapshot `empty` su OGNI famiglia (il miss resta null, mai resurrect del
+  rank salvato); solo il fallimento di trasporto (HTTP !ok, payload invalido,
+  abort, circuito aperto — gli adapter strict lanciano, mai `[]` conflati)
+  blocca il publish. Commit guardato atomico: su KV script Lua unico
+  (lease-owner + generation-pointer correnti verificati server-side); su file
+  single-process mutex per-famiglia + check dello stale-owner + recheck di
+  generazione (un write ritardato non atterra mai dopo una publish più nuova,
+  anche se la lease è scaduta). Lease single-owner non-bloccante (i
+  concorrenti servono il pin vecchio, mai attesa); rigetto out-of-order (slot
+  vecchio dopo publish nuova). Qualsiasi esito non-`ok` (stale/error/throw)
+  NON marca la memoria: nessuna publication privata, resta l'ultimo snapshot
+  buono (o live a freddo). Provenance piattaforma (`justwatch`/`flixpatrol`)
+  registrata nello snapshot (ordine/righe fanno fede).
+- **Strict cutover cross-instance**: il pin rivalida SEMPRE lo storage durevole
+  (single source of truth; memoria solo fallback su errore): una publish di
+  un'altra istanza invalida subito le vecchie chiavi ready (`:cg` fence).
+  Multi-istanza richiede KV/Redis (il file multi-process resta best-effort e
+  NON è garanzia accettata — vedi header di `chart-generation.ts`).
+- **Failure retention**: errore/outage di trasporto (HTTP !ok, payload invalido,
+  abort, circuito aperto — gli adapter strict lanciano, mai `[]` conflati;
+  un error-negative in cache non vale mai come empty per i caller strict)
+  blocca il publish della famiglia e conserva l'ultimo snapshot buono; retry
+  non prima di 60s. Una lettura zero-row RIUSCITA pubblica invece uno
+  snapshot `empty` (il miss resta null, mai resurrect del rank salvato). A
+  freddo (mai pubblicato) il primo fetch riuscito pubblica subito; in
+  fallimento le richieste servono live/fallback storici (mai snapshot
+  parziali). Le piattaforme con snapshot canonico VUOTO lo servono vuoto
+  (niente fallback live FlixPatrol che resusciterebbe righe ritirate). Il
+  poster su cold failure degrada al rank salvato (contratto charts storico);
+  un miss genuino resta null. Il poster pinna SOLO le famiglie necessarie
+  (niente I/O chart con ranking spento, rank esplicito o sorgente custom per
+  il ramo JW; l'anime resta indipendente anche con custom selezionato).
+- **Coerenza (coherence over speed)**: dopo un publish, i ready body vecchi non
+  sono MAI serviti — le chiavi catalogo/rank portano `:cg<generation>` (+
+  `:g<gruppo>` per l'isolamento credenziali); la publish invalida per chiave,
+  senza prewarm delle varianti (users×regioni×generi×skip non precomputate).
+  Ogni richiesta pinna UNA famiglia e non mescola mai snapshot di due
+  generazioni; catalogo e badge leggono le STESSE righe pubblicate (stesso
+  ordine + stessi rank; oltre la Top 20 nessun rank window-local inventato:
+  la prima pagina canonica viene dalle righe pubblicate). Skip/genre oltre le
+  finestre canoniche restano live in-slot-fresh (stessa forma di oggi: finestra
+  live + snapshot canonico per la mappa rank). Titoli/anni anime preservati
+  negli snapshot (fallback catalogo senza TMDB).
+- **Ready body 12h**: i ready body non-vuoti delle finestre canoniche in-scope
+  si riusano fino a 12h, fenced dalla generazione pubblicata (il rinnovo
+  invalida subito); stesso slot servito fino al boundary anche se le cache
+  rolling sottostanti scadono (zero churn in-slot). Esclusi (custom/search/
+  addon/varianti), vuoti ed errori: TTL storici invariati (1h, 60s).
+- **Persistenza**: KV (`chartfam:pub/pubgen/meta/lease`, EX bounded 7d)
+  quando configurato, file atomici `chartfam-*` in `DATA_DIR` altrimenti
+  (single-process esatti), memoria sotto Vitest (`noop`). Snapshot pubblicati
+  conservati 7 giorni su entrambi i backend (KV TTL + sweep file oltre 7d a
+  parità; meta/gate a 36h): retention finita, e una famiglia in outage non
+  viene mai garbage-collected dal publish di un'altra. Snapshot bounded
+  (rank rows, mai dettagli TMDB né chiavi; cap 512KB, anime ≤500, piattaforme
+  ≤10, chart/popular/trending ≤20). Failure KV/file = fail-open
+  (memoria/live). Restart e cross-istanza ricaricano il published.
+- **Lettori**: cataloghi built-in (`catalog-handler.ts`), `/api/trending/rank`
+  (fence `:cg` + gruppo, custom escluso), preflight poster (rank dallo
+  snapshot + fallback salvato su cold failure; chiavi coalescing con versione
+  snapshot; cap freshness a fine-slot), `/api/mdblist/anime` (chiave con
+  gruppo + generazioni famiglie). Esclusi (invariati): custom/search/addon,
+  quality/availability JW indipendenti, proxy TMDB-trending, diagnostica
+  `/api/mdblist`, warmup (finestre non canoniche: riscalda le cache esistenti,
+  non pubblica), route diagnostica `/api/flixpatrol/top10` (proxy FP live per
+  la UI editor, fuori dal path di consegna Stremio).
+
 ## Chiavi API
 
 `resolveUserApiKeys(req, scopedUser)` in `lib/tmdb.ts` — priorità TMDB:
