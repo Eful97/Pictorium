@@ -478,21 +478,26 @@ test.describe("mobile collapse + groups + footer", () => {
     expect(d.badgeQuality).toBe(true)
   })
 
-  test("mobile floating preview: full poster in safe corners, tall controls (320/360/390/430 x 568/700, dark/light)", async ({ page }) => {
-    // Read-only geometry (no server writes): no defaultsDirty flag.
-    // Track PUTs across the whole matrix: this contract never stages a save.
-    const putUrls: string[] = []
-    page.on("request", (req) => {
-      if (req.method() === "PUT" && req.url().includes("/api/defaults")) putUrls.push(req.url())
-    })
-    const combos: Array<{ width: number; height: number; theme: "dark" | "light" }> = []
-    for (const width of [320, 360, 390, 430]) {
-      combos.push({ width, height: 568, theme: "dark" })
-      combos.push({ width, height: 568, theme: "light" })
-    }
-    combos.push({ width: 390, height: 700, theme: "dark" })
-    combos.push({ width: 390, height: 700, theme: "light" })
-    for (const { width, height, theme } of combos) {
+  // Matrix split: ten independent cases (was one 10-combo loop overrunning
+  // the 60s test budget at the refill sleep with zero assertion failures).
+  // Each case runs the full original scenario for its viewport/theme.
+  const mobileFloatCombos: Array<{ width: number; height: number; theme: "dark" | "light" }> = []
+  for (const width of [320, 360, 390, 430]) {
+    mobileFloatCombos.push({ width, height: 568, theme: "dark" })
+    mobileFloatCombos.push({ width, height: 568, theme: "light" })
+  }
+  mobileFloatCombos.push({ width: 390, height: 700, theme: "dark" })
+  mobileFloatCombos.push({ width: 390, height: 700, theme: "light" })
+  for (const { width, height, theme } of mobileFloatCombos) {
+    test(`mobile floating preview: full poster in safe corners, tall controls (${width}x${height}, ${theme})`, async ({
+      page,
+    }) => {
+      // Read-only geometry (no server writes): no defaultsDirty flag.
+      // Track PUTs for this viewport/theme: this contract never stages a save.
+      const putUrls: string[] = []
+      page.on("request", (req) => {
+        if (req.method() === "PUT" && req.url().includes("/api/defaults")) putUrls.push(req.url())
+      })
       await page.setViewportSize({ width, height })
       await seed(page, "it", theme)
       await page.goto("/")
@@ -631,9 +636,9 @@ test.describe("mobile collapse + groups + footer", () => {
       await expect(panel).toBeHidden()
       // Refill window for the shared defaults bucket before the next boot.
       await page.waitForTimeout(1000)
-    }
-    expect(putUrls).toEqual([])
-  })
+      expect(putUrls).toEqual([])
+    })
+  }
 
   test("footer retry recovers a failed PUT (single-instance namespace)", async ({ page }) => {
     // This test writes non-factory server state (switch + retry PUTs).

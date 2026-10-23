@@ -117,6 +117,7 @@ const OSCAR_NOMINEE_MOVIE_IDS: ReadonlySet<number> = new Set([
   1028196, // Nickel Boys
   933260, // The Substance
   661539, // A Complete Unknown
+  1000837, // I'm Still Here
   // 2023
   346698, // Barbie
   466420, // Killers of the Flower Moon
@@ -135,6 +136,8 @@ const OSCAR_NOMINEE_MOVIE_IDS: ReadonlySet<number> = new Set([
   76600, // Avatar: The Way of Water
   614934, // Elvis
   497828, // Triangle of Sadness
+  49046, // All Quiet on the Western Front
+  777245, // Women Talking
 ]);
 
 /** Golden Globe film (drama + musical/comedy) — VINCITORI (film-year 2015-2024). */

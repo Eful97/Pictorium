@@ -12,6 +12,12 @@ import { __resetTMDBSessionCache } from "@/lib/tmdb-session-cache"
 import { __resetImageBytesForTest } from "@/lib/image-bytes-cache"
 import { renderRankingBadge } from "@/lib/svg-badge"
 import * as runtimeCache from "@/lib/poster-runtime-cache"
+import {
+  __inMemoryChartGenerationPersist,
+  __resetChartGenerationForTest,
+  __setChartGenerationPersistForTest,
+  nextRomeSlotStartMs,
+} from "@/lib/chart-generation"
 import { RENDER_VERSION } from "@/lib/render-version"
 
 vi.mock("@/lib/custom-rating", async (importOriginal) => ({
@@ -130,6 +136,33 @@ async function imageBuffer(color: string, width: number, height: number): Promis
 const UPDATED_AT = "2026-09-12T00:00:00.000Z"
 const MV = Date.parse(UPDATED_AT)
 
+// Controlled Rome clock shared by the chart contract below: T0 is mid-slot
+// (2026-10-15 12:00 UTC = 14:00 Rome, slot 20261015-12), so the first request
+// of each test publishes a current-slot snapshot and crossSlotBoundary()
+// moves just past its end. Same-slot snapshots are served even when the
+// mocked upstream payload changes — rank changes only take effect after a
+// real slot advance (no chart reset mid-test to fake a refresh).
+let fakeNow = Date.UTC(2026, 9, 15, 12, 0, 0)
+
+function installFakeClock(): void {
+  vi.spyOn(Date, "now").mockImplementation(() => fakeNow)
+}
+
+/** Advance the controlled clock just past the current Rome slot end. */
+function crossSlotBoundary(): void {
+  fakeNow = nextRomeSlotStartMs(fakeNow) + 1_000
+}
+
+function resetChartStateForTest(): void {
+  __resetChartGenerationForTest()
+  __setChartGenerationPersistForTest(__inMemoryChartGenerationPersist())
+}
+
+function clearChartStateForTest(): void {
+  __resetChartGenerationForTest()
+  __setChartGenerationPersistForTest(null)
+}
+
 // Fixture: mapping salvato con ranking live. Il badge è rosso per rank 1 e
 // blu per rank 2, così il cambio dei byte è verificabile senza servizi reali.
 async function freshnessFixture(id: number, opts?: { ranking?: boolean; format?: string; live?: boolean; versioned?: boolean; resetCache?: boolean }) {
@@ -167,12 +200,18 @@ async function freshnessFixture(id: number, opts?: { ranking?: boolean; format?:
 describe("poster freshness: ETag represents the actual bytes (audit problem 1)", () => {
   beforeEach(() => {
     vi.restoreAllMocks()
+    fakeNow = Date.UTC(2026, 9, 15, 12, 0, 0)
+    installFakeClock()
+    resetChartStateForTest()
     vi.stubEnv("PICTORIUM_CUSTOM_RATING_ENABLED", "false")
   })
 
   afterEach(() => {
     cacheClear()
     __resetTMDBSessionCache()
+    clearChartStateForTest()
+    vi.restoreAllMocks()
+    vi.unstubAllEnvs()
   })
 
   it("different live rank produces different bytes and a different ETag", async () => {
@@ -181,6 +220,9 @@ describe("poster freshness: ETag represents the actual bytes (audit problem 1)",
     expect(first.status).toBe(200)
     const oldBody = Buffer.from(await first.arrayBuffer())
     const oldEtag = first.headers.get("etag")!
+    // Rank changes take effect after a real slot advance: same-slot upstream
+    // changes never bypass the published snapshot (pinned below).
+    crossSlotBoundary()
     cacheClear()
     mockedGetJWRankings.mockReset().mockResolvedValue([{ tmdbId: 920001, rank: 2 } as never])
     mockedRenderRankingBadge.mockClear()
@@ -191,13 +233,15 @@ describe("poster freshness: ETag represents the actual bytes (audit problem 1)",
     expect(second.headers.get("etag")).not.toBe(oldEtag)
   })
 
-  it("rank change bypasses a still-fresh internal poster without clearing the cache", async () => {
+  it("rank change revalidates past the fact deadline without clearing the cache", async () => {
     const id = 920030
     const { request } = await freshnessFixture(id)
     const first = await request()
     expect(first.status).toBe(200)
     const oldBody = Buffer.from(await first.arrayBuffer())
     const oldEtag = first.headers.get("etag")!
+    // Past the snapshot expiry the entry revalidates instead of stale-serving.
+    crossSlotBoundary()
     mockedGetJWRankings.mockResolvedValue([{ tmdbId: id, rank: 2 } as never])
     mockedRenderRankingBadge.mockClear()
 
@@ -213,6 +257,9 @@ describe("poster freshness: ETag represents the actual bytes (audit problem 1)",
     const first = await request()
     expect(first.status).toBe(200)
     expect(mockedRenderRankingBadge).toHaveBeenCalled()
+    // A genuine empty in the new slot publishes an empty snapshot: the miss
+    // stays null and never resurrects the saved rank.
+    crossSlotBoundary()
     mockedGetJWRankings.mockResolvedValue([])
     mockedRenderRankingBadge.mockClear()
 
@@ -222,35 +269,81 @@ describe("poster freshness: ETag represents the actual bytes (audit problem 1)",
     expect(mockedRenderRankingBadge).not.toHaveBeenCalled()
   })
 
-  it("a failed ranking lookup can restore the older saved rank instead of the last live rank", async () => {
+  it("same-slot upstream rank change does not bypass the published snapshot", async () => {
+    const id = 920034
+    const { request } = await freshnessFixture(id)
+    const first = await request()
+    expect(first.status).toBe(200)
+    // Upstream moves to rank 2 but the slot has NOT advanced: the published
+    // snapshot keeps serving — no extra JW fetch on the hit, no re-render.
+    mockedGetJWRankings.mockResolvedValue([{ tmdbId: id, rank: 2 } as never])
+    mockedGetJWRankings.mockClear()
+    mockedRenderRankingBadge.mockClear()
+    const same = await request(first.headers.get("etag")!)
+    expect(same.status).toBe(304)
+    expect(same.headers.get("etag")).toBe(first.headers.get("etag"))
+    expect(mockedGetJWRankings).not.toHaveBeenCalled()
+    expect(mockedRenderRankingBadge).not.toHaveBeenCalled()
+  })
+
+  it("charts outage retains the last published rank instead of the saved rank", async () => {
     const id = 920032
     const { request } = await freshnessFixture(id)
     mockedGetJWRankings.mockResolvedValue([{ tmdbId: id, rank: 2 } as never])
     const first = await request()
     expect(first.status).toBe(200)
     expect(mockedRenderRankingBadge.mock.calls[0][0]).toBe(2)
+    // Cross the slot with the upstream down: the refresh fails and the
+    // published snapshot is retained — the older saved rank 1 must NOT win.
+    crossSlotBoundary()
     mockedGetJWRankings.mockRejectedValue(new Error("Ranking source unavailable"))
     mockedRenderRankingBadge.mockClear()
 
-    const changed = await request(first.headers.get("etag")!)
-    expect(changed.status).toBe(200)
-    expect(mockedRenderRankingBadge.mock.calls[0][0]).toBe(1)
-    expect(changed.headers.get("etag")).not.toBe(first.headers.get("etag"))
+    const retained = await request(first.headers.get("etag")!)
+    // Same pinned rank under the same rank-carrying key: the mapped entry is
+    // still storage-fresh, so the conditional is a 304 with a zero deadline —
+    // no re-render, no saved-rank fallback. (A fallback to saved rank 1 would
+    // change the key, miss, and render different bytes with a 200.)
+    expect(retained.status).toBe(304)
+    expect(mockedRenderRankingBadge).not.toHaveBeenCalled()
+    expect(retained.headers.get("etag")).toBe(first.headers.get("etag"))
+    // Expired pinned fact: zero deadline, must-revalidate, no SWR anywhere.
+    const retainedCC = retained.headers.get("cache-control")!
+    expect(retainedCC).toContain("max-age=0")
+    expect(retainedCC).toContain("must-revalidate")
+    expect(retainedCC).not.toContain("stale-while-revalidate")
+    expect(retainedCC).not.toContain("stale-if-error")
+    expect(retainedCC).not.toContain("immutable")
   })
 
-  it("cold conditional request resolves live data instead of exiting early", async () => {
+  it("cold charts failure falls back to the saved rank", async () => {
+    const id = 920033
+    const { request } = await freshnessFixture(id)
+    // Hermetic chart state is empty (beforeEach reset) and the upstream is
+    // down from the start: cold outage → degraded with the saved rank.
+    mockedGetJWRankings.mockRejectedValue(new Error("Ranking source unavailable"))
+    mockedRenderRankingBadge.mockClear()
+
+    const degraded = await request()
+    expect(degraded.status).toBe(200)
+    expect(mockedRenderRankingBadge.mock.calls[0][0]).toBe(1)
+    expect(degraded.headers.get("etag")).not.toBeNull()
+  })
+
+  it("cold poster-cache miss reuses the published snapshot without refetching", async () => {
     const { request } = await freshnessFixture(920002)
     const first = await request()
     expect(first.status).toBe(200)
     const etag = first.headers.get("etag")!
-    // Cache interna vuota + validatore legacy (formato pre-fix): nessuna
-    // uscita prematura, il ranking live viene interrogato.
+    // Poster cache empty, legacy validator (pre-fix format): the published
+    // snapshot still pins the rank, so the cold miss re-renders from the pin
+    // with zero upstream refetch — no extra JW fetch within one slot.
     cacheClear()
     mockedGetJWRankings.mockClear().mockResolvedValue([{ tmdbId: 920002, rank: 1 } as never])
     mockedRenderRankingBadge.mockClear()
     const cold = await request('"mdeadbeef:2026-09-12T00:00:00.000Z"')
     expect(cold.status).toBe(200)
-    expect(mockedGetJWRankings).toHaveBeenCalled()
+    expect(mockedGetJWRankings).not.toHaveBeenCalled()
     expect(mockedRenderRankingBadge).toHaveBeenCalled()
     expect(cold.headers.get("etag")).toBe(etag)
   })
@@ -260,9 +353,9 @@ describe("poster freshness: ETag represents the actual bytes (audit problem 1)",
     const first = await request()
     expect(first.status).toBe(200)
     const etag1 = first.headers.get("etag")!
-    // Il ranking live cambia e la copia interna scade.
+    // The live rank changes and the snapshot expires (slot advance).
     mockedGetJWRankings.mockReset().mockResolvedValue([{ tmdbId: 920003, rank: 2 } as never])
-    expect(cacheExpire("poster")).toBeGreaterThan(0)
+    crossSlotBoundary()
     const changed = await request(etag1)
     expect(changed.status).toBe(200)
     const etag2 = changed.headers.get("etag")!
@@ -276,12 +369,18 @@ describe("poster freshness: ETag represents the actual bytes (audit problem 1)",
 describe("poster freshness: stale entries revalidate before 304 (audit problem 2)", () => {
   beforeEach(() => {
     vi.restoreAllMocks()
+    fakeNow = Date.UTC(2026, 9, 15, 12, 0, 0)
+    installFakeClock()
+    resetChartStateForTest()
     vi.stubEnv("PICTORIUM_CUSTOM_RATING_ENABLED", "false")
   })
 
   afterEach(() => {
     cacheClear()
     __resetTMDBSessionCache()
+    clearChartStateForTest()
+    vi.restoreAllMocks()
+    vi.unstubAllEnvs()
   })
 
   it.each(["webp", "jpeg"])("stale conditional %s with changed rank serves 200 with the new poster", async (format) => {
@@ -289,8 +388,9 @@ describe("poster freshness: stale entries revalidate before 304 (audit problem 2
     const { request, refresh } = await freshnessFixture(id, { format })
     const first = await request()
     expect(first.status).toBe(200)
-    expect(cacheExpire("poster")).toBeGreaterThan(0)
+    // Snapshot expired (slot advance) with a changed live rank.
     mockedGetJWRankings.mockReset().mockResolvedValue([{ tmdbId: id, rank: 2 } as never])
+    crossSlotBoundary()
     mockedRenderRankingBadge.mockClear()
     const conditional = await request(first.headers.get("etag")!)
     // Mai 304 sulla copia scaduta: il contenuto è cambiato.
@@ -306,7 +406,9 @@ describe("poster freshness: stale entries revalidate before 304 (audit problem 2
     const { request } = await freshnessFixture(920006)
     const first = await request()
     expect(first.status).toBe(200)
-    expect(cacheExpire("poster")).toBeGreaterThan(0)
+    // Snapshot expired (slot advance): the refresh refetches the same live
+    // rank and publishes the new slot before the 304 decision.
+    crossSlotBoundary()
     mockedGetJWRankings.mockClear()
     mockedRenderRankingBadge.mockClear()
     const conditional = await request(first.headers.get("etag")!)
@@ -327,14 +429,14 @@ describe("poster freshness: stale entries revalidate before 304 (audit problem 2
     mockedFetchMDBList.mockClear()
     const conditional = await request(first.headers.get("etag")!)
     expect(conditional.status).toBe(304)
-    // Preflight rank voluto (contratto ranking-sync): UNA sola lookup per
-    // calcolare chiave/ETag, con gli argomenti del chart condiviso —
-    // nessuna generazione (render) e nessun fetch dati extra.
-    expect(mockedGetJWRankings).toHaveBeenCalledTimes(1)
-    expect(mockedGetJWRankings.mock.calls[0].slice(0, 5)).toEqual(["MOVIE", "IT", 20, undefined, "it-IT"])
-    // Stessa famiglia: preflight anime per la chiave (la${preAnimeRank}).
-    expect(mockedFetchMDBList).toHaveBeenCalledTimes(1)
-    expect(mockedFetchMDBList.mock.calls[0].slice(0, 2)).toEqual(["mdblistAnimeMovie", undefined])
+    // Preflight pins the published snapshot in-request: on a current pin the
+    // rank resolves with zero upstream fetches (deliberately no extra JW
+    // fetch on every poster hit within one slot) — no render and no data
+    // fetch either. The rank still rides the cache key, so a newly published
+    // generation still bypasses the fresh poster (see the tests above).
+    expect(mockedGetJWRankings).not.toHaveBeenCalled()
+    // Same family: the anime preflight also resolves from its current pin.
+    expect(mockedFetchMDBList).not.toHaveBeenCalled()
     expect(mockedRenderRankingBadge).not.toHaveBeenCalled()
     expect(mockedGetDetails).not.toHaveBeenCalled()
     expect(mockedGetImages).not.toHaveBeenCalled()
@@ -350,7 +452,7 @@ describe("poster freshness: stale entries revalidate before 304 (audit problem 2
     expect(other.headers.get("etag")).toBe(first.headers.get("etag"))
   })
 
-  it.each(["webp", "jpeg"])("stale unconditional %s keeps SWR outside live (copy + scheduled refresh)", async (format) => {
+  it.each(["webp", "jpeg"])("stale unconditional %s with a consumed rank fact revalidates synchronously (no SWR)", async (format) => {
     const id = format === "webp" ? 920009 : 920010
     const { request, refresh } = await freshnessFixture(id, { format })
     const first = await request()
@@ -359,19 +461,28 @@ describe("poster freshness: stale entries revalidate before 304 (audit problem 2
     const plain = await request()
     expect(plain.status).toBe(200)
     expect(plain.headers.get("etag")).toBe(first.headers.get("etag"))
-    expect(refresh).toHaveBeenCalled()
+    // Fact-capped entries never serve stale/SWR: the consumed rank fact owns
+    // the lifetime, so a poster-cache expiry revalidates inline (same bytes
+    // here) instead of serving the copy + scheduling a refresh.
+    expect(refresh).not.toHaveBeenCalled()
   })
 })
 
 describe("poster freshness: no annual immutable for mutable posters (audit problems 3-4)", () => {
   beforeEach(() => {
     vi.restoreAllMocks()
+    fakeNow = Date.UTC(2026, 9, 15, 12, 0, 0)
+    installFakeClock()
+    resetChartStateForTest()
     vi.stubEnv("PICTORIUM_CUSTOM_RATING_ENABLED", "false")
   })
 
   afterEach(() => {
     cacheClear()
     __resetTMDBSessionCache()
+    clearChartStateForTest()
+    vi.restoreAllMocks()
+    vi.unstubAllEnvs()
   })
 
   it("saved poster with live ranking uses a finite policy on 200 and 304", async () => {
@@ -438,12 +549,18 @@ describe("poster freshness: no annual immutable for mutable posters (audit probl
 describe("poster freshness: representation-specific validators (webp/jpeg/avif)", () => {
   beforeEach(() => {
     vi.restoreAllMocks()
+    fakeNow = Date.UTC(2026, 9, 15, 12, 0, 0)
+    installFakeClock()
+    resetChartStateForTest()
     vi.stubEnv("PICTORIUM_CUSTOM_RATING_ENABLED", "false")
   })
 
   afterEach(() => {
     cacheClear()
     __resetTMDBSessionCache()
+    clearChartStateForTest()
+    vi.restoreAllMocks()
+    vi.unstubAllEnvs()
   })
 
   it("conditional with the variant ETag gives 304; canonical ETag on a variant URL gives 200", async () => {
@@ -478,20 +595,29 @@ describe("poster freshness: representation-specific validators (webp/jpeg/avif)"
 describe("poster freshness: live=1 revalidates on every path", () => {
   beforeEach(() => {
     vi.restoreAllMocks()
+    fakeNow = Date.UTC(2026, 9, 15, 12, 0, 0)
+    installFakeClock()
+    resetChartStateForTest()
     vi.stubEnv("PICTORIUM_CUSTOM_RATING_ENABLED", "false")
   })
 
   afterEach(() => {
     cacheClear()
     __resetTMDBSessionCache()
+    clearChartStateForTest()
+    vi.restoreAllMocks()
+    vi.unstubAllEnvs()
   })
 
   it("stale live entry is never served: unconditional revalidates synchronously", async () => {
     const { request, refresh } = await freshnessFixture(920016, { live: true })
     const first = await request()
     expect(first.status).toBe(200)
-    expect(cacheExpire("poster")).toBeGreaterThan(0)
+    // Snapshot expired (slot advance) with a changed live rank: the live path
+    // always revalidates against the current facts (no per-hit fetch within
+    // the slot, full refresh across it).
     mockedGetJWRankings.mockReset().mockResolvedValue([{ tmdbId: 920016, rank: 2 } as never])
+    crossSlotBoundary()
     mockedRenderRankingBadge.mockClear()
     const second = await request()
     expect(second.status).toBe(200)
@@ -518,12 +644,18 @@ describe("poster freshness: live=1 revalidates on every path", () => {
 describe("poster freshness: concurrent conditionals share one render", () => {
   beforeEach(() => {
     vi.restoreAllMocks()
+    fakeNow = Date.UTC(2026, 9, 15, 12, 0, 0)
+    installFakeClock()
+    resetChartStateForTest()
     vi.stubEnv("PICTORIUM_CUSTOM_RATING_ENABLED", "false")
   })
 
   afterEach(() => {
     cacheClear()
     __resetTMDBSessionCache()
+    clearChartStateForTest()
+    vi.restoreAllMocks()
+    vi.unstubAllEnvs()
   })
 
   it.each([

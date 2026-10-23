@@ -16,7 +16,7 @@ import { rateLimit, rateLimitKey, rateLimitResponse } from "@/lib/rate-limit"
 import { getServerDefaultsForUser, getServerDefaultsChecked, effectiveDefaultsForShape } from "@/lib/server-defaults"
 import { effectiveMappingForShape } from "@/lib/types"
 import { getRegionDef, normalizeRegion, parseRegion, defaultRegionForLang, GLOBAL_REGION_CODE } from "@/lib/regions"
-import { pinChartFamily, chartListGroupKey, chartPinCacheFragment, nextRomeSlotStartMs, type ChartFamilyPin } from "@/lib/chart-generation"
+import { pinChartFamily, chartListGroupKey, chartPinCacheFragment, chartSlotEndMs, type ChartFamilyPin } from "@/lib/chart-generation"
 import { ensureFreshChartFamily } from "@/lib/chart-renewal"
 import { BEST_FIT_GLOBAL, resolveLogoFitEnabled } from "@/lib/best-fit-config"
 import { selectAutoFitCandidates, selectBestLogoFitPosterPath } from "@/lib/poster-auto-fit"
@@ -663,40 +663,49 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
           return idx >= 0 ? idx + 1 : null
         }), preflightBudgetMs, req.signal)
         .catch(() => { trendRankLive = false; return null })
-      : awaitWithOwnBudget(sharedSourceFetch(jwSourceKey, () => ensureFreshChartFamily({
+      : awaitWithOwnBudget(sharedSourceFetch<ChartFamilyPin>(jwSourceKey, () => ensureFreshChartFamily({
         regionCode: posterRegion.code,
         regionLang: posterRegion.lang,
         tmdbLang: posterRegion.lang,
         signal: preflightSourceSignal,
         family: jwFamily,
-      }).then((pin) => {
-        trendSnapshotPin = pin
-        trendRankLive = pin.snapshot != null
-        // Cold failure (no snapshot): legacy charts contract degrades to the
-        // saved rank; a genuine miss in a published snapshot stays null
-        // (never resurrect a stale saved rank for an unranked title).
-        if (!pin.snapshot) return isNewJwModePre ? null : (mapping?.badgeRank ?? mapping?.trendRank ?? null)
-        return pin.snapshot.rows.find((x) => x.tmdbId === tmdbId)?.rank ?? null
       })), preflightBudgetMs, req.signal)
+        // Per-caller resolution OUTSIDE the coalesced fetch: the shared call
+        // returns the raw pin (one fetch per source, key excludes tmdbId);
+        // each waiter derives its own rank + pin/provenance from it. A
+        // per-title lookup inside the shared callback would serve the first
+        // caller's rank to every concurrent title.
+        .then((pin) => {
+          trendSnapshotPin = pin
+          trendRankLive = pin.snapshot != null
+          // Cold failure (no snapshot): legacy charts contract degrades to the
+          // saved rank; a genuine miss in a published snapshot stays null
+          // (never resurrect a stale saved rank for an unranked title).
+          if (!pin.snapshot) return isNewJwModePre ? null : (mapping?.badgeRank ?? mapping?.trendRank ?? null)
+          return pin.snapshot.rows.find((x) => x.tmdbId === tmdbId)?.rank ?? null
+        })
         .catch(() => { trendRankLive = false; trendSnapshotPin = null; return isNewJwModePre ? null : (mapping?.badgeRank ?? mapping?.trendRank ?? null) }))
   const animePreflight: Promise<number | null> = !needAnimeFetch
     ? Promise.resolve(rankingEnabledPre ? qAnimeRankPre : null)
-    : awaitWithOwnBudget(sharedSourceFetch(animeSourceKey, () => ensureFreshChartFamily({
+    : awaitWithOwnBudget(sharedSourceFetch<ChartFamilyPin>(animeSourceKey, () => ensureFreshChartFamily({
       regionCode: posterRegion.code,
       regionLang: posterRegion.lang,
       tmdbLang: posterRegion.lang,
       mdblistKey: animeKeyUsed,
       signal: preflightSourceSignal,
       family: chartAnimeFamily,
-    }).then((pin) => {
-      animeSnapshotPin = pin
-      animeRankLive = pin.snapshot != null
-      // Cold failure (no snapshot): fall back to the saved anime rank; a
-      // genuine miss in a published snapshot stays null.
-      if (!pin.snapshot) return mapping?.animeRank ?? null
-      const idx = pin.snapshot.rows.findIndex((r) => r.tmdbId === tmdbId)
-      return idx >= 0 ? idx + 1 : null
     })), preflightBudgetMs, req.signal)
+      // Same per-caller contract as the trend branch above: raw pin is
+      // shared, the position lookup + pin/provenance are per request.
+      .then((pin) => {
+        animeSnapshotPin = pin
+        animeRankLive = pin.snapshot != null
+        // Cold failure (no snapshot): fall back to the saved anime rank; a
+        // genuine miss in a published snapshot stays null.
+        if (!pin.snapshot) return mapping?.animeRank ?? null
+        const idx = pin.snapshot.rows.findIndex((r) => r.tmdbId === tmdbId)
+        return idx >= 0 ? idx + 1 : null
+      })
       .catch(() => { animeRankLive = false; animeSnapshotPin = null; return mapping?.animeRank ?? null })
   const [preTrendRank, preAnimeRank] = await Promise.all([trendPreflight, animePreflight])
   // Preflight time is subtracted from the watchdog below: preflight does not
@@ -2664,8 +2673,15 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
     // caches (their remaining is only a fallback at the exact boundary).
     const snapshotSlotRemainingMs = (pin: ChartFamilyPin | null, nowMs: number): number | null => {
       if (!pin?.snapshot) return null
-      const remaining = nextRomeSlotStartMs(nowMs) - nowMs
-      return remaining > 0 ? remaining : null
+      const slotEnd = chartSlotEndMs(pin.snapshot.generation)
+      if (!slotEnd) return null
+      const remaining = slotEnd - nowMs
+      // A pin published in a previous slot (retained on outage, or a render
+      // starting just before the boundary) is already expired: yield ZERO,
+      // never null — null would fall through to the rolling JW TTL and extend
+      // freshness past the published list. The write path turns 0 into
+      // max-age=0 + no store (see factExpiredAtWrite below).
+      return remaining > 0 ? remaining : 0
     }
     let trendFactMs: number | null = null
     if (

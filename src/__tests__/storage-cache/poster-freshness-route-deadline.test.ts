@@ -16,6 +16,11 @@ import { cachedImageBytes, peekImageBytes, __resetImageBytesForTest } from "@/li
 import { renderRankingBadge } from "@/lib/svg-badge"
 import * as runtimeCache from "@/lib/poster-runtime-cache"
 import * as posterService from "@/lib/poster-service"
+import {
+  __inMemoryChartGenerationPersist,
+  __resetChartGenerationForTest,
+  __setChartGenerationPersistForTest,
+} from "@/lib/chart-generation"
 
 vi.mock("@/lib/custom-rating", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/custom-rating")>()),
@@ -98,7 +103,13 @@ const mockedJwRemaining = vi.mocked(jwRankingsRemainingMs)
 const mockedFetchMDBList = vi.mocked(fetchMDBList)
 const mockedRenderRankingBadge = vi.mocked(renderRankingBadge)
 
-const T0 = Date.UTC(2026, 9, 15, 12, 0, 0)
+const T0 = Date.UTC(2026, 9, 15, 21, 59, 0)
+// T0 is 60s before the Rome midnight slot boundary (23:59 Rome = 21:59 UTC,
+// slot 20261015-12 ends at 22:00 UTC): the published snapshot expires at the
+// boundary, so the original 60/5/0 assertions stay meaningful and strict.
+// Same-slot snapshots are served even after the underlying rolling source
+// caches expire — the cap follows the snapshot, not the mocked rolling
+// remaining below (kept only as the boundary fallback).
 const FACT_TTL_MS = 60_000
 const FACT_EXPIRES_AT = T0 + FACT_TTL_MS
 let fakeNow = T0
@@ -139,10 +150,14 @@ describe("route-level fact deadline (fake clock, no sliding, no variant extensio
     fakeNow = T0
     vi.spyOn(Date, "now").mockImplementation(() => fakeNow)
     cacheClear()
+    __resetChartGenerationForTest()
+    __setChartGenerationPersistForTest(__inMemoryChartGenerationPersist())
     __resetTMDBSessionCache()
     __resetImageBytesForTest()
     vi.restoreAllMocks()
     vi.spyOn(Date, "now").mockImplementation(() => fakeNow)
+    __resetChartGenerationForTest()
+    __setChartGenerationPersistForTest(__inMemoryChartGenerationPersist())
     vi.spyOn(runtimeCache, "schedulePosterRefresh").mockImplementation(() => {})
     // Dynamic (unmapped) title with a live rank 3 baked in.
     mockedGetById.mockResolvedValue(null)
@@ -173,6 +188,8 @@ describe("route-level fact deadline (fake clock, no sliding, no variant extensio
 
   afterEach(() => {
     cacheClear()
+    __resetChartGenerationForTest()
+    __setChartGenerationPersistForTest(null)
     vi.unstubAllGlobals()
     vi.restoreAllMocks()
   })
@@ -278,6 +295,73 @@ describe("route-level fact deadline (fake clock, no sliding, no variant extensio
       expect(writeSpy.mock.calls.length).toBe(writesBefore)
     } finally {
       genSpy.mockRestore()
+      writeSpy.mockRestore()
+    }
+  })
+
+  it("retained previous-slot pin on outage serves the pinned rank with a zero deadline (no rolling-TTL fallthrough)", async () => {
+    const writeSpy = vi.spyOn(runtimeCache, "writeCachedPoster")
+    try {
+      const first = await GET(new NextRequest("http://localhost:3000/api/poster/movie/424242"), { params: Promise.resolve({ type: "movie", id: "424242" }) })
+      expect(first.status).toBe(200)
+      const etag1 = first.headers.get("etag")!
+      const writesBefore = writeSpy.mock.calls.length
+      expect(writesBefore).toBeGreaterThan(0)
+      // Cross the Rome slot boundary with the upstream down: the refresh
+      // fails and the previous-slot pin is retained (no saved-rank fallback —
+      // the mapping is null — and no rolling-TTL extension past the list).
+      fakeNow = T0 + 61_000
+      mockedGetJWRankings.mockRejectedValueOnce(new Error("Ranking source unavailable"))
+      const res = await GET(new NextRequest("http://localhost:3000/api/poster/movie/424242"), { params: Promise.resolve({ type: "movie", id: "424242" }) })
+      expect(res.status).toBe(200)
+      // Retained rank 3: the same red-badge bytes as before the boundary.
+      expect(res.headers.get("etag")).toBe(etag1)
+      // The pinned snapshot expired at the boundary: zero deadline,
+      // must-revalidate, no SWR anywhere, and no fresh poster write carrying
+      // a future TTL.
+      expect(maxAgeOf(res)).toBe(0)
+      expectNoSwrCapped(res)
+      expect(res.headers.get("Cache-Control")).toContain("max-age=0")
+      expect(writeSpy.mock.calls.length).toBe(writesBefore)
+    } finally {
+      writeSpy.mockRestore()
+    }
+  })
+
+  it("render starting on a retained previous-slot pin stores nothing and serves max-age=0", async () => {
+    const writeSpy = vi.spyOn(runtimeCache, "writeCachedPoster")
+    try {
+      const first = await GET(new NextRequest("http://localhost:3000/api/poster/movie/424242"), { params: Promise.resolve({ type: "movie", id: "424242" }) })
+      expect(first.status).toBe(200)
+      const etag1 = first.headers.get("etag")!
+      const writesBefore = writeSpy.mock.calls.length
+      expect(writesBefore).toBeGreaterThan(0)
+      // Boundary already crossed with the upstream down: the render starts on
+      // an expired (retained) pin and the delay pushes the write further past
+      // the pinned slot end. The write-time recompute must observe the pinned
+      // expiry — not the future next-slot deadline — and store nothing.
+      // (The delay spy installs only now so the setup render above is instant.)
+      const origGenerate = posterService.generatePosterBuffer
+      const genSpy = vi.spyOn(posterService, "generatePosterBuffer").mockImplementation(async (input) => {
+        fakeNow += 65_000
+        return origGenerate(input)
+      })
+      try {
+        fakeNow = T0 + 61_000
+        mockedGetJWRankings.mockRejectedValueOnce(new Error("Ranking source unavailable"))
+        const res = await GET(new NextRequest("http://localhost:3000/api/poster/movie/424242"), { params: Promise.resolve({ type: "movie", id: "424242" }) })
+        expect(res.status).toBe(200)
+        // Retained rank 3: the same red-badge bytes (no saved-rank fallback —
+        // the mapping is null — and no rolling-TTL extension past the list).
+        expect(res.headers.get("etag")).toBe(etag1)
+        expect(maxAgeOf(res)).toBe(0)
+        expectNoSwrCapped(res)
+        expect(res.headers.get("Cache-Control")).toContain("max-age=0")
+        expect(writeSpy.mock.calls.length).toBe(writesBefore)
+      } finally {
+        genSpy.mockRestore()
+      }
+    } finally {
       writeSpy.mockRestore()
     }
   })

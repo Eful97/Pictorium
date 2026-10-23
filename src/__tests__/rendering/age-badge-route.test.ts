@@ -112,6 +112,7 @@ vi.mock("@/lib/imdb-cache", () => ({
 
 vi.mock("@/lib/imdb-top250", () => ({
   isImdbTop250: vi.fn(async () => false),
+  isImdbTop100: vi.fn(async () => false),
 }))
 
 vi.mock("@/lib/network-svgs", async (importOriginal) => {

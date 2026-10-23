@@ -14,6 +14,11 @@ import { fetchCustomRatings } from "@/lib/custom-rating"
 import { fetchAllWikidata } from "@/lib/awards"
 import { fetchAggregatedRating } from "@/lib/ratings"
 import * as posterService from "@/lib/poster-service"
+import {
+  __inMemoryChartGenerationPersist,
+  __resetChartGenerationForTest,
+  __setChartGenerationPersistForTest,
+} from "@/lib/chart-generation"
 import { renderFirstMatchingNetworkLogoBadgeHybrid, renderFirstMatchingNetworkRawBadgeHybrid } from "@/lib/network-svgs"
 
 vi.mock("@/lib/custom-rating", async (importOriginal) => ({
@@ -106,6 +111,7 @@ vi.mock("@/lib/imdb-cache", () => ({
 
 vi.mock("@/lib/imdb-top250", () => ({
   isImdbTop250: vi.fn(async () => false),
+  isImdbTop100: vi.fn(async () => false),
 }))
 
 vi.mock("@/lib/network-svgs", async (importOriginal) => {
@@ -184,6 +190,10 @@ describe("GET /api/poster demo samples (Settings preview only)", () => {
   beforeEach(async () => {
     vi.restoreAllMocks()
     cacheClear()
+    // Real chart-state isolation (test hook, not a mock): a snapshot published
+    // by an earlier test must not shadow the rank mocks below.
+    __resetChartGenerationForTest()
+    __setChartGenerationPersistForTest(__inMemoryChartGenerationPersist())
     __resetTMDBSessionCache()
     __resetImageBytesForTest()
     // Spy the real renderer: tests below inspect the production input.
@@ -200,6 +210,8 @@ describe("GET /api/poster demo samples (Settings preview only)", () => {
 
   afterEach(() => {
     cacheClear()
+    __resetChartGenerationForTest()
+    __setChartGenerationPersistForTest(null)
     __resetTMDBSessionCache()
   })
 

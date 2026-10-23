@@ -6,7 +6,7 @@
  * modules (not via `networkAssetKeys()` simply returning `NETWORK_IDS`,
  * which would not validate the mapping):
  *
- * - the shared map covers exactly the 73 canonical IDs in canonical order;
+ * - the shared map covers exactly the 74 canonical IDs in canonical order;
  * - every UI thumbnail URL (`networkAssetUrl`) resolves through the shared
  *   map and points at a file that exists in `public/networks/`;
  * - non-SVG bundled marks (PNG/WebP) are preserved verbatim;
@@ -28,10 +28,10 @@ function readSource(rel: string): string {
 }
 
 describe("network filename registry coherence", () => {
-  it("shared map covers exactly the 73 canonical IDs in canonical order", () => {
+  it("shared map covers exactly the 74 canonical IDs in canonical order", () => {
     expect(Object.keys(NETWORK_MARK_FILES)).toEqual([...NETWORK_IDS])
-    expect(NETWORK_IDS).toHaveLength(73)
-    expect(new Set(Object.values(NETWORK_MARK_FILES)).size).toBe(73)
+    expect(NETWORK_IDS).toHaveLength(74)
+    expect(new Set(Object.values(NETWORK_MARK_FILES)).size).toBe(74)
   })
 
   it("every UI thumbnail URL resolves through the shared map to an existing file", () => {

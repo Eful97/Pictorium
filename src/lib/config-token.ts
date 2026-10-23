@@ -162,7 +162,7 @@ export const configTokenSchema = z.object({
   // Absent/empty = historical behavior. Optional for back-compat (old tokens
   // stay valid).
   disabledContentTags: z.array(z.string().max(40)).max(64).optional(),
-  // 73 canonical marks + the Other-group sentinel (same list, never a key).
+  // 74 canonical marks + the Other-group sentinel (same list, never a key).
   disabledNetworks: z.array(z.string().max(40)).max(MAX_DISABLED_NETWORKS).optional(),
   disabledCatalogIds: z.array(z.string().max(80)).optional(),
   homeDisabledCatalogIds: z.array(z.string().max(80)).optional(),
@@ -198,7 +198,7 @@ export const partialCatalogTokenSchema = z.object({
   // Explicit [] clears instance defaults (device cleared wins); omission
   // keeps the instance fill (legacy behavior). Sanitized again at match time.
   disabledContentTags: z.array(z.string().max(40)).max(64).optional(),
-  // 73 canonical marks + the Other-group sentinel (same list, never a key).
+  // 74 canonical marks + the Other-group sentinel (same list, never a key).
   disabledNetworks: z.array(z.string().max(40)).max(MAX_DISABLED_NETWORKS).optional(),
   disabledCatalogIds: z.array(z.string().max(80)).optional(),
   homeDisabledCatalogIds: z.array(z.string().max(80)).optional(),

@@ -1,7 +1,7 @@
 /**
  * Client-safe canonical network-mark registry (ID ↔ display name).
  *
- * The 73 canonical keys match `NETWORK_MARK_FILES` in `network-files.ts`
+ * The 74 canonical keys match `NETWORK_MARK_FILES` in `network-files.ts`
  * entry for entry (the single shared filename registry for the bundled
  * `public/networks/` marks, studios included). Display names are
  * proper nouns — identical in every UI language (like the Card skin names),
@@ -137,6 +137,9 @@ export function getNetworkKey(networkName: string): string | null {
   // Studio Bones (anime studio, yellow-square "bones" wordmark): strict word
   // boundary — "Heartbones Entertainment" and other embedded tokens must NOT match.
   if (/\bbones\b/.test(lower)) return "bones"
+  // Argos: strict word boundary — "Argos"/"ARGOS" match; embedded tokens
+  // like "Argosy" never match (no boundary before a word char).
+  if (/\bargos\b/.test(lower)) return "argos"
   // Curated 2026-10 additions (bundled SVG marks in public/networks/):
   // Discovery+ — match ONLY the plus family ("Discovery+", "DiscoveryPlus",
   // "Discovery Plus"). A bare "Discovery Channel" / "Discovery" (no plus)
@@ -162,7 +165,7 @@ export function getNetworkKey(networkName: string): string | null {
 }
 
 /**
- * Canonical mark IDs (73 bundled marks, studios included).
+ * Canonical mark IDs (74 bundled marks, studios included).
  * Order matches `NETWORK_MARK_FILES` in `network-files.ts` entry for entry
  * (registry coherence is asserted in `tag-network-map-coherence.test.ts`).
  */
@@ -178,11 +181,11 @@ export const NETWORK_IDS: readonly string[] = [
   "dg_cinema", "dc", "bigtalk", "batinthesun", "horrorsection",
   "new_line", "jagged_edge", "gracie", "deseo", "bellanova", "anton",
   "comix_wave", "filmauro", "next_ent", "bones",
-  "discovery_plus", "bbc", "itv", "channel4", "starz", "britbox",
+  "discovery_plus", "bbc", "itv", "channel4", "starz", "britbox", "argos",
 ]
 
 /**
- * Display names for the 73 canonical marks. Proper nouns — identical in
+ * Display names for the 74 canonical marks. Proper nouns — identical in
  * every UI language (like the Card skin names), never translated.
  */
 export const NETWORK_DISPLAY_NAMES: Readonly<Record<string, string>> = {
@@ -259,6 +262,7 @@ export const NETWORK_DISPLAY_NAMES: Readonly<Record<string, string>> = {
   channel4: "Channel 4",
   starz: "Starz",
   britbox: "BritBox",
+  argos: "Argos",
 }
 
 const NETWORK_ID_SET: ReadonlySet<string> = new Set(NETWORK_IDS)
@@ -305,7 +309,7 @@ export function isOtherNetworksDisabled(disabled: ReadonlySet<string> | readonly
  * historical behavior (everything enabled).
  *
  * The sentinel is NOT a canonical SVG key on purpose:
- * - never listed in `NETWORK_IDS` (the registry stays 73 bundled marks) and
+ * - never listed in `NETWORK_IDS` (the registry stays 74 bundled marks) and
  *   never shown in `NETWORK_DISPLAY_NAMES` (no settings row of its own — the
  *   `Altri loghi` toggle owns the group);
  * - `getNetworkKey` never returns it, so it can never match a real mark;
@@ -319,13 +323,13 @@ export function isOtherNetworksDisabled(disabled: ReadonlySet<string> | readonly
  */
 export const TMDB_FALLBACK_SENTINEL = "__tmdb_fallback"
 
-/** Max entries: 73 canonical marks + the Other-group sentinel. Derived. */
+/** Max entries: 74 canonical marks + the Other-group sentinel. Derived. */
 export const MAX_DISABLED_NETWORKS = NETWORK_IDS.length + 1
 
 /**
  * Bounded validation for space-wide disabled network marks: keeps known
  * canonical IDs (lowercased/trimmed) plus the documented Other-group
- * sentinel, dedupes, caps at 74 (73 marks + sentinel).
+ * sentinel, dedupes, caps at 75 (74 marks + sentinel).
  * Unknown IDs are dropped (fail-closed); non-arrays → [] (absent = history).
  *
  * Stored hidden (non-featured) IDs are preserved verbatim: turning the

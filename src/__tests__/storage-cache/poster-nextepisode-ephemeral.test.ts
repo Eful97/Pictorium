@@ -21,6 +21,11 @@ import { __resetTMDBSessionCache } from "@/lib/tmdb-session-cache"
 import { __resetImageBytesForTest } from "@/lib/image-bytes-cache"
 import { NEXT_EPISODE_BADGE_KEY } from "@/lib/badge-priority"
 import type { Mapping } from "@/lib/types"
+import {
+  __inMemoryChartGenerationPersist,
+  __resetChartGenerationForTest,
+  __setChartGenerationPersistForTest,
+} from "@/lib/chart-generation"
 
 vi.mock("@/lib/custom-rating", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/custom-rating")>()),
@@ -108,6 +113,7 @@ vi.mock("@/lib/imdb-cache", () => ({
 
 vi.mock("@/lib/imdb-top250", () => ({
   isImdbTop250: vi.fn(async () => false),
+  isImdbTop100: vi.fn(async () => false),
 }))
 
 vi.mock("@/lib/network-svgs", async (importOriginal) => {
@@ -188,6 +194,10 @@ describe("route next-episode ephemeral TTL (effective badge only)", () => {
   beforeEach(async () => {
     vi.restoreAllMocks()
     cacheClear()
+    // Real chart-state isolation (test hook, not a mock): a snapshot published
+    // by an earlier test must not shadow the rank mocks below.
+    __resetChartGenerationForTest()
+    __setChartGenerationPersistForTest(__inMemoryChartGenerationPersist())
     __resetTMDBSessionCache()
     __resetImageBytesForTest()
     mockedGetById.mockReset()
@@ -201,6 +211,8 @@ describe("route next-episode ephemeral TTL (effective badge only)", () => {
 
   afterEach(() => {
     cacheClear()
+    __resetChartGenerationForTest()
+    __setChartGenerationPersistForTest(null)
     vi.unstubAllGlobals()
     vi.restoreAllMocks()
   })

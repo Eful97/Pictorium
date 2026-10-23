@@ -134,6 +134,7 @@ vi.mock("@/lib/imdb-resolver", () => ({
 
 vi.mock("@/lib/imdb-top250", () => ({
   isImdbTop250: vi.fn(async () => false),
+  isImdbTop100: vi.fn(async () => false),
 }))
 
 // FAULT INJECTION POINT (only injected seam): the renderer ignores abort and

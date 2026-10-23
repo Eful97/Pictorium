@@ -249,7 +249,7 @@ const defaultsSchema = z.object({
   // Space-wide automatic exclusions (shared across shapes, no per-title
   // fields, no preset recipes): bounded allowlist IDs, sanitized again at
   // match time. Absent/empty = historical behavior. The networks bound is
-  // 73 canonical marks + the Other-group sentinel (same list, never a key).
+  // 74 canonical marks + the Other-group sentinel (same list, never a key).
   disabledContentTags: z.array(z.string().max(40)).max(64).optional(),
   disabledNetworks: z.array(z.string().max(40)).max(MAX_DISABLED_NETWORKS).optional(),
 })

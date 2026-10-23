@@ -2,17 +2,17 @@
  * Curated network set (24 featured + Other group): RED-before/GREEN-after
  * for the user-authorized curation.
  *
- * - 7 new bundled marks (peacock, discovery_plus, bbc, itv, channel4,
- *   starz, britbox) with clean filenames: single matcher aliases, guarded
- *   against substring false positives; peacock wins over generic NBC.
- * - registry coherence: 73 IDs ↔ 73 files, display names, asset existence,
+ * - 8 bundled marks (peacock, discovery_plus, bbc, itv, channel4,
+ *   starz, britbox, argos) with clean filenames: single matcher aliases,
+ *   guarded against substring false positives; peacock wins over generic NBC.
+ * - registry coherence: 74 IDs ↔ 74 files, display names, asset existence,
  *   old upload names gone, new provider-glass brands fall back to neutral
  *   (no invented palette).
  * - renderer semantics: Other OFF suppresses every non-featured local mark
  *   before load AND the whole TMDB fallback before fetch; featured marks
  *   stay on their own toggles; old stored hidden IDs are preserved and
  *   honored individually.
- * - transport: bounds/token/URL/cache carry all 74 entries; mixed groups
+ * - transport: bounds/token/URL/cache carry all 75 entries; mixed groups
  *   stay explicit (never silently migrated).
  */
 import { describe, it, expect, vi, beforeEach } from "vitest"
@@ -56,10 +56,10 @@ const mockedFetchImg = vi.mocked(fetchImg)
 
 const ROOT = path.resolve(__dirname, "../..")
 
-describe("curated registry (73 marks, 24 featured)", () => {
-  it("exposes 73 canonical IDs with display names and a 24-strong featured set", () => {
-    expect(NETWORK_IDS).toHaveLength(73)
-    expect(new Set(NETWORK_IDS).size).toBe(73)
+describe("curated registry (74 marks, 24 featured)", () => {
+  it("exposes 74 canonical IDs with display names and a 24-strong featured set", () => {
+    expect(NETWORK_IDS).toHaveLength(74)
+    expect(new Set(NETWORK_IDS).size).toBe(74)
     for (const id of NETWORK_IDS) {
       expect(typeof NETWORK_DISPLAY_NAMES[id]).toBe("string")
       expect(NETWORK_DISPLAY_NAMES[id].length).toBeGreaterThan(0)
@@ -81,7 +81,7 @@ describe("curated registry (73 marks, 24 featured)", () => {
     expect(isFeaturedNetworkKey("britbox")).toBe(false)
   })
 
-  it("maps the 7 new marks to clean filenames with display names", () => {
+  it("maps the curated marks to clean filenames with display names", () => {
     expect(NETWORK_MARK_FILES["peacock"]).toBe("peacock.svg")
     expect(NETWORK_MARK_FILES["discovery_plus"]).toBe("discovery-plus.svg")
     expect(NETWORK_MARK_FILES["bbc"]).toBe("bbc.svg")
@@ -89,6 +89,7 @@ describe("curated registry (73 marks, 24 featured)", () => {
     expect(NETWORK_MARK_FILES["channel4"]).toBe("channel-4.svg")
     expect(NETWORK_MARK_FILES["starz"]).toBe("starz.svg")
     expect(NETWORK_MARK_FILES["britbox"]).toBe("britbox.svg")
+    expect(NETWORK_MARK_FILES["argos"]).toBe("argos.svg")
     expect(NETWORK_DISPLAY_NAMES["peacock"]).toBe("Peacock")
     expect(NETWORK_DISPLAY_NAMES["discovery_plus"]).toBe("Discovery+")
     expect(NETWORK_DISPLAY_NAMES["bbc"]).toBe("BBC")
@@ -96,6 +97,21 @@ describe("curated registry (73 marks, 24 featured)", () => {
     expect(NETWORK_DISPLAY_NAMES["channel4"]).toBe("Channel 4")
     expect(NETWORK_DISPLAY_NAMES["starz"]).toBe("Starz")
     expect(NETWORK_DISPLAY_NAMES["britbox"]).toBe("BritBox")
+    expect(NETWORK_DISPLAY_NAMES["argos"]).toBe("Argos")
+  })
+
+  it("maps the user-authorized Argos mark with word-boundary guards", () => {
+    expect(getNetworkSvgResult("Argos", 500)?.networkKey).toBe("argos")
+    expect(getNetworkSvgResult("ARGOS", 500)?.networkKey).toBe("argos")
+    expect(getNetworkKey("Argos")).toBe("argos")
+    // Embedded tokens must NOT match (no word boundary before a word char).
+    expect(getNetworkSvgResult("Argosy", 500)).toBeNull()
+    expect(getNetworkSvgResult("Argosy Films", 500)).toBeNull()
+    expect(getNetworkKey("Argosy")).toBeNull()
+    // Argos is non-featured: it rides the shared Other group, never its own row.
+    expect(isFeaturedNetworkKey("argos")).toBe(false)
+    expect(isOtherNetworkMarkDisabled("argos", [TMDB_FALLBACK_SENTINEL])).toBe(true)
+    expect(isOtherNetworkMarkDisabled("argos", [])).toBe(false)
   })
 
   it("every registry file exists on disk; old upload names are gone", () => {
@@ -119,11 +135,12 @@ describe("curated registry (73 marks, 24 featured)", () => {
     ]) {
       expect(fs.existsSync(path.join(ROOT, "public", "networks", stale))).toBe(false)
     }
-    // Unrelated user asset stays registered nowhere and unmatched (portable
-    // contract: no filesystem assertion on untracked local WIP).
-    expect(NETWORK_MARK_FILES["argos" as keyof typeof NETWORK_MARK_FILES]).toBeUndefined()
-    expect(getNetworkKey("Argos")).toBeNull()
-    expect(getNetworkSvgResult("Argos", 500)).toBeNull()
+    // Argos is a registered bundled mark (user-authorized mapping): the
+    // asset resolves through the shared registry and the matcher.
+    expect(NETWORK_MARK_FILES["argos"]).toBe("argos.svg")
+    expect(getNetworkKey("Argos")).toBe("argos")
+    expect(getNetworkKey("ARGOS")).toBe("argos")
+    expect(getNetworkSvgResult("Argos", 500)?.networkKey).toBe("argos")
     expect(TMDB_LOGO_ASSET_URL).toBe("/tmdb-logo.svg")
   })
 })
@@ -312,7 +329,7 @@ describe("curated renderer semantics (Other group)", () => {
   it("renders combined/network-only pills for the new marks (shared map, madhouse fixed)", async () => {
     // The combined path previously missed `madhouse` (65 vs 66 entries);
     // unifying it on the shared map fixes that intentionally.
-    for (const key of ["madhouse", "peacock", "discovery_plus", "bbc", "itv", "channel4", "starz", "britbox"] as const) {
+    for (const key of ["madhouse", "peacock", "discovery_plus", "bbc", "itv", "channel4", "starz", "britbox", "argos"] as const) {
       const pill = await renderNetworkOnlyLargePill(key, 500, false)
       expect(pill, `pill for ${key}`).not.toBeNull()
       expect(pill!.png).toBeInstanceOf(Buffer)
@@ -336,15 +353,15 @@ describe("curated renderer semantics (Other group)", () => {
 })
 
 describe("curated transport (bounds, token, URL, cache)", () => {
-  it("bounds derive from the registry: 73 + sentinel = 74", () => {
+  it("bounds derive from the registry: 74 + sentinel = 75", () => {
     expect(MAX_DISABLED_NETWORKS).toBe(NETWORK_IDS.length + 1)
-    expect(MAX_DISABLED_NETWORKS).toBe(74)
+    expect(MAX_DISABLED_NETWORKS).toBe(75)
     const full = [...NETWORK_IDS, TMDB_FALLBACK_SENTINEL]
     expect(sanitizeDisabledNetworks(full)).toEqual(full)
-    expect(sanitizeDisabledNetworks([...full, "extra-overflow"])).toHaveLength(74)
+    expect(sanitizeDisabledNetworks([...full, "extra-overflow"])).toHaveLength(75)
   })
 
-  it("config tokens accept the full 74-entry list and reject overlong ones", () => {
+  it("config tokens accept the full 75-entry list and reject overlong ones", () => {
     const base = {
       globalBadges: true,
       rankingBadges: true,
@@ -404,7 +421,7 @@ describe("curated transport (bounds, token, URL, cache)", () => {
 
 describe("curated provider-glass neutrality", () => {
   it("new brands resolve to neutral (no invented palette), manual accent still wins", () => {
-    for (const key of ["peacock", "discovery_plus", "bbc", "itv", "channel4", "starz", "britbox"]) {
+    for (const key of ["peacock", "discovery_plus", "bbc", "itv", "channel4", "starz", "britbox", "argos"]) {
       expect(resolveProviderGlassBrandHex(key)).toBeNull()
     }
     expect(resolveProviderGlassAccent("peacock", null)).toBeNull()

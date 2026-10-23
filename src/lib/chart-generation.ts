@@ -221,6 +221,20 @@ export function nextRomeSlotStartMs(nowMs: number = Date.now()): number {
   return romeSlotStartMs(next)
 }
 
+/**
+ * Absolute end (exclusive, ms epoch) of the given published slot generation
+ * (`YYYYMMDD-00|12`). Snapshot-backed poster facts expire at the end of the
+ * PINNED slot — not at the end of the slot containing "now" (a pin published
+ * in a previous slot, or a render starting just before a boundary and
+ * completing after it, must not mint the future next-slot deadline). Returns
+ * 0 for an unparseable generation (fail-open: the caller falls back).
+ */
+export function chartSlotEndMs(slotKey: string): number {
+  const next = nextSlotKey(slotKey)
+  if (!next) return 0
+  return romeSlotStartMs(next)
+}
+
 /** Cycle-aware freshness floor: source entries older than this are refreshed. */
 export function currentChartSlotFloor(nowMs: number = Date.now()): number {
   return romeSlotStartMs(romeSlotKey(nowMs))

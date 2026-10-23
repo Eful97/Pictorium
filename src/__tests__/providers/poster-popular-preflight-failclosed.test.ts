@@ -1,14 +1,14 @@
 // Poster popular/trending preflight must fail closed on upstream errors.
 //
-// Regression for the correction-cycle-2 audit: the JW preflight branch in
-// src/app/api/poster/[type]/[id]/route.ts shared one outer
-// `.catch(() => mapping?.badgeRank ?? mapping?.trendRank ?? null)` for both
-// the legacy charts fetch and the new popular/trending fetch. A popular (or
-// trending) upstream failure therefore resurrected a stored mapping rank from
-// a different source, violating the no-fallback contract. The fix scopes the
-// mapping fallback to the legacy charts path only; popular/trending resolve
-// null on error. The charts fallback and the explicit `?rank=` override are
-// pinned here as preserved contracts.
+// The charts/popular/trending preflight resolves ranks from the published
+// per-family chart snapshot (same snapshots the catalog and rank routes read);
+// a popular (or trending) upstream failure therefore resolves null (no
+// stored-rank fallback from another source). The legacy charts path keeps its
+// historical degraded fallback to the saved rank, but ONLY on a cold failure
+// (no published snapshot yet): once a snapshot is published, an outage
+// retains the last published rank and a genuine empty keeps the miss null
+// (never resurrects a stale saved rank). The explicit `?rank=` override is
+// pinned here as a preserved contract.
 import sharp from "sharp"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { NextRequest } from "next/server"
@@ -22,6 +22,11 @@ import { cacheClear } from "@/lib/cache"
 import { __resetImageBytesForTest } from "@/lib/image-bytes-cache"
 import { __resetTMDBSessionCache } from "@/lib/tmdb-session-cache"
 import { fetchAggregatedRating } from "@/lib/ratings"
+import {
+  __inMemoryChartGenerationPersist,
+  __resetChartGenerationForTest,
+  __setChartGenerationPersistForTest,
+} from "@/lib/chart-generation"
 
 vi.mock("@/lib/custom-rating", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/custom-rating")>()),
@@ -161,6 +166,10 @@ describe("GET /api/poster popular/trending preflight fail-closed", () => {
     __resetImageBytesForTest()
     cacheClear()
     __resetTMDBSessionCache()
+    // Hermetic chart state per test (real hook, not a mock): a genuine empty
+    // snapshot published by an earlier test must not mask a cold failure.
+    __resetChartGenerationForTest()
+    __setChartGenerationPersistForTest(__inMemoryChartGenerationPersist())
     mockedGetById.mockReset()
     mockedDefaults.mockReset()
     mockedDefaults.mockReturnValue({})
@@ -186,6 +195,8 @@ describe("GET /api/poster popular/trending preflight fail-closed", () => {
   afterEach(() => {
     cacheClear()
     __resetTMDBSessionCache()
+    __resetChartGenerationForTest()
+    __setChartGenerationPersistForTest(null)
   })
 
   it("resolves null (no stored-rank fallback) when the popular fetch fails", async () => {
@@ -236,11 +247,14 @@ describe("GET /api/poster popular/trending preflight fail-closed", () => {
     expect(body.rankings.finalRank).toBeNull()
   })
 
-  it("keeps the legacy charts fallback to the saved rank on fetch failure", async () => {
+  it("keeps the legacy charts fallback to the saved rank on cold fetch failure", async () => {
     const poster = await imageBuffer()
     mockedGetById.mockResolvedValue(savedMapping(77103))
     mockedDefaults.mockReturnValue({ region: "IT" })
-    mockedGetJWRankings.mockRejectedValueOnce(new Error("JW down"))
+    // New seam: the charts path publishes via fetchTop20Ranking (strict), so
+    // the failure is injected there — throwing at getJWRankings would be dead
+    // (it is never called when the top-20 fetch is mocked at this seam).
+    mockedFetchTop20.mockRejectedValueOnce(new Error("JW down"))
     vi.spyOn(globalThis, "fetch").mockImplementation(
       async () =>
         new Response(new Uint8Array(poster), {
@@ -255,8 +269,9 @@ describe("GET /api/poster popular/trending preflight fail-closed", () => {
 
     expect(res.status).toBe(200)
     const body = await res.json()
-    // Preserved charts contract (see poster-route-mapping.test.ts): outage →
-    // degraded with the saved rank.
+    // Preserved charts contract (see poster-route-mapping.test.ts): cold
+    // outage → degraded with the saved rank. (With a published snapshot the
+    // retained rank would win instead — see poster-freshness.test.ts.)
     expect(body.rankings.finalRank).toBe(7)
   })
 

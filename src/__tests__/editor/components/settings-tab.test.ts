@@ -7,7 +7,8 @@ import {
 
 /**
  * Badge Lab retirement (correction cycle 3): no `badgelab` primary tab.
- * - `PRIMARY_SETTINGS_TABS` exposes exactly the five native tabs.
+ * - `PRIMARY_SETTINGS_TABS` exposes exactly the six native tabs
+ *   (Preset, Rankings, Information, Badge, Tags, Transform).
  * - The legacy `"badge"` -> `"preset"` remap is preserved.
  * - A stale `"badgelab"` pending request (e.g. an older bundle calling at
  *   runtime past the types) fail-closes to `null` via the allowlist check in
@@ -24,6 +25,7 @@ describe("settings-tab Lab retirement", () => {
       "rankings",
       "information",
       "badge",
+      "tags",
       "trasforma",
     ])
     expect(PRIMARY_SETTINGS_TABS as readonly string[]).not.toContain("badgelab")

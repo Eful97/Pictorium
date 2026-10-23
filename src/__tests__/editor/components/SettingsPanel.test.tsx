@@ -110,8 +110,8 @@ beforeEach(() => {
   Object.defineProperty(window, "innerWidth", { configurable: true, writable: true, value: 1280 })
 })
 
-describe("SettingsPanel five-tab navigation", () => {
-  it("shows five primary tabs in order with Preset first and selected by default", async () => {
+describe("SettingsPanel six-tab navigation", () => {
+  it("shows six primary tabs in order with Preset first and selected by default", async () => {
     renderPanel()
     await screen.findByTestId("presets-panel")
     const tabs = primaryTabs()
@@ -120,16 +120,27 @@ describe("SettingsPanel five-tab navigation", () => {
       "ui.settingsTabRankings",
       "ui.settingsTabInformation",
       "ui.settingsTabBadge",
+      "Tag e Network",
       "ui.settingsTabTransform",
     ])
     expect(tabs[0]).toHaveAttribute("aria-selected", "true")
     for (const other of tabs.slice(1)) expect(other).toHaveAttribute("aria-selected", "false")
+    // Tags tab (sixth, label resolved by the i18n test mock): opens its own
+    // tabpanel and takes selection.
+    fireEvent.click(screen.getByRole("tab", { name: "Tag e Network" }))
+    expect(screen.getByRole("tab", { name: "Tag e Network" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    )
+    const tagsPanel = screen.getByTestId("settings-tags-networks")
+    expect(tagsPanel.className).toContain("block")
+    expect(tagsPanel.className).not.toContain("hidden")
   })
 
   it("secondary Prefs/Data links live outside the primary tablist; Space only with content", async () => {
     const { container } = renderPanel()
     await screen.findByTestId("presets-panel")
-    expect(primaryTabs()).toHaveLength(5)
+    expect(primaryTabs()).toHaveLength(6)
     // Catalogs leads the secondary row, directly after the Transform primary tab.
     const secondaryIds = Array.from(
       container.querySelectorAll('[data-testid^="settings-secondary-"]'),
@@ -170,7 +181,7 @@ describe("SettingsPanel five-tab navigation", () => {
     renderPanel()
     await screen.findByTestId("presets-panel")
     const space = await screen.findByTestId("settings-secondary-spazio")
-    expect(primaryTabs()).toHaveLength(5)
+    expect(primaryTabs()).toHaveLength(6)
     fireEvent.click(space)
     expect(await screen.findByText("ui.userSpaceOr")).toBeInTheDocument()
     resetGuestGuardForTests()
@@ -186,7 +197,7 @@ describe("SettingsPanel five-tab navigation", () => {
     expect(groups).toEqual(["ui.settingsGroupPrimary", "ui.settingsGroupSecondary"])
     // Full navigation order: Catalogs directly after Transform, before Prefs/Data.
     const values = Array.from(select.querySelectorAll("option")).map((o) => o.getAttribute("value"))
-    expect(values).toEqual(["preset", "rankings", "information", "badge", "transform", "catalogs", "prefs", "data"])
+    expect(values).toEqual(["preset", "rankings", "information", "badge", "tags", "transform", "catalogs", "prefs", "data"])
   })
 
   it("does not render API key inputs", async () => {

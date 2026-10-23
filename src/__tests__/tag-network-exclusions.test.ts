@@ -79,9 +79,9 @@ describe("content-tags registry", () => {
 })
 
 describe("network-keys registry", () => {
-  it("covers all 73 canonical marks with display names", () => {
-    expect(NETWORK_IDS).toHaveLength(73)
-    expect(new Set(NETWORK_IDS).size).toBe(73)
+  it("covers all 74 canonical marks with display names", () => {
+    expect(NETWORK_IDS).toHaveLength(74)
+    expect(new Set(NETWORK_IDS).size).toBe(74)
     for (const id of NETWORK_IDS) {
       expect(typeof NETWORK_DISPLAY_NAMES[id]).toBe("string")
       expect(NETWORK_DISPLAY_NAMES[id].length).toBeGreaterThan(0)

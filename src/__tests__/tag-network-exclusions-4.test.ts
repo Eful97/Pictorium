@@ -111,18 +111,18 @@ describe("tmdb-fallback sentinel registry", () => {
     expect(TMDB_FALLBACK_SENTINEL).toBe("__tmdb_fallback")
     expect(NETWORK_IDS).not.toContain(TMDB_FALLBACK_SENTINEL)
     expect(NETWORK_DISPLAY_NAMES[TMDB_FALLBACK_SENTINEL]).toBeUndefined()
-    // 73 canonical marks + the sentinel share one bounded list.
-    expect(MAX_DISABLED_NETWORKS).toBe(74)
+    // 74 canonical marks + the sentinel share one bounded list.
+    expect(MAX_DISABLED_NETWORKS).toBe(75)
   })
 
-  it("sanitize keeps the sentinel, drops unknown, dedupes, caps at 67", () => {
+  it("sanitize keeps the sentinel, drops unknown, dedupes, caps at 75", () => {
     expect(sanitizeDisabledNetworks([TMDB_FALLBACK_SENTINEL])).toEqual([TMDB_FALLBACK_SENTINEL])
     expect(
       sanitizeDisabledNetworks(["bogus", TMDB_FALLBACK_SENTINEL, "netflix", TMDB_FALLBACK_SENTINEL]),
     ).toEqual([TMDB_FALLBACK_SENTINEL, "netflix"])
     expect(sanitizeDisabledNetworks("nope" as unknown as string[])).toEqual([])
     const full = [...NETWORK_IDS, TMDB_FALLBACK_SENTINEL, "extra-overflow"]
-    expect(sanitizeDisabledNetworks(full)).toHaveLength(74)
+    expect(sanitizeDisabledNetworks(full)).toHaveLength(75)
     expect(sanitizeDisabledNetworks(full)).toContain(TMDB_FALLBACK_SENTINEL)
   })
 

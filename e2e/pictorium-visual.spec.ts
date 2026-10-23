@@ -1030,7 +1030,9 @@ test.describe("poster API — visual regression", () => {
     // deterministico e un flip di scala/polarità muove il 7-12% dei pixel —
     // con 0.10 passerebbe inosservato (mai allentare). gradHeight/bf espliciti
     // ai code default portrait (30/50): come nel test landscape, i default
-    // salvati non devono poter spostare il render.
+    // salvati non devono poter spostare il render. Formati attesi dai local
+    // specs di tt0133093 (4K/dv/atmos/hdr): la riga HDR spinge lo stack in
+    // basso; tier tag 1.0fs + riga genere a segmenti (geometrie intenzionali).
     const url = posterUrl({ genreName: "Action", voteAverage: "7.8", badges: "1", ranking: "0", imdbId: "tt0133093", sep: "1", rsrc: "imdb,tmdb,tomatoes", quality: "4K", gradHeight: "30", bf: "50" })
     const poster = await renderPoster(page, url)
     await expect(poster).toHaveScreenshot("poster-separate-ratings.png", { maxDiffPixelRatio: 0.02 })
@@ -1048,7 +1050,9 @@ test.describe("poster API — visual regression", () => {
     // nasconde il segmento ★ come in portrait). gradHeight/bf espliciti ai
     // code default landscape (20/70): i default salvati (echo di fabbrica
     // 30/50 via autosave) li adombrerebbero altrimenti in modo
-    // stato-dipendente (stesso motivo dei baseline aggiornati in P4).
+    // stato-dipendente (stesso motivo dei baseline aggiornati in P4). Come il
+    // portrait: formati locali tt0133093 (4K/dv/atmos/hdr) + tier 1.0fs +
+    // riga genere a segmenti.
     const url = posterUrl({ backdrop: "/mocked/backdrop.jpg", shape: "landscape", genreName: "Action", voteAverage: "7.8", badges: "1", ranking: "0", imdbId: "tt0133093", sep: "1", rsrc: "imdb,tmdb,tomatoes", gradHeight: "20", bf: "70" })
     const poster = await renderPoster(page, url)
     await expect(poster).toHaveScreenshot("poster-separate-ratings-landscape.png", { maxDiffPixelRatio: 0.02 })

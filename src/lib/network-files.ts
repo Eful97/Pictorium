@@ -11,7 +11,7 @@
  *   and the disabled-marks sanitizer — but never filenames.
  *
  * Iteration order is canonical: it matches `NETWORK_IDS` entry for entry
- * (73 bundled marks, studios included; PNG/WebP marks included verbatim —
+ * (74 bundled marks, studios included; PNG/WebP marks included verbatim —
  * never silently dropped). Non-SVG bundled marks (`.png`/`.webp`) are part
  * of this map on purpose: the renderer and the UI must agree on every mark.
  *
@@ -94,4 +94,5 @@ export const NETWORK_MARK_FILES: Readonly<Record<string, string>> = {
   channel4: "channel-4.svg",
   starz: "starz.svg",
   britbox: "britbox.svg",
+  argos: "argos.svg",
 }

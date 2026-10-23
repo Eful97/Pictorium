@@ -85,7 +85,7 @@ vi.mock("@/lib/ratings", async (importOriginal) => {
 })
 vi.mock("@/lib/imdb-resolver", () => ({ resolveImdbToTmdb: vi.fn(async () => null) }))
 vi.mock("@/lib/imdb-cache", () => ({ resolveWikidataId: vi.fn(async () => null) }))
-vi.mock("@/lib/imdb-top250", () => ({ isImdbTop250: vi.fn(async () => false) }))
+vi.mock("@/lib/imdb-top250", () => ({ isImdbTop250: vi.fn(async () => false), isImdbTop100: vi.fn(async () => false) }))
 vi.mock("@/lib/tmdb", () => ({
   getDetails: vi.fn(),
   getDetailsWithExternalIds: vi.fn(),

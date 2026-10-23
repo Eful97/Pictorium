@@ -29,6 +29,11 @@ import { __resetMdblistBreaker } from "@/lib/ratings"
 import { __resetJWRankingsCache } from "@/lib/justwatch"
 import { __resetCircuitBreaker, isBreakerOpen } from "@/lib/awards"
 import { clearTvdbCache } from "@/lib/tvdb"
+import {
+  __inMemoryChartGenerationPersist,
+  __resetChartGenerationForTest,
+  __setChartGenerationPersistForTest,
+} from "@/lib/chart-generation"
 
 vi.mock("undici", () => ({ Agent: class {}, request: vi.fn() }))
 
@@ -212,6 +217,10 @@ function resetAll() {
   __resetMdblistBreaker()
   __resetJWRankingsCache()
   __resetCircuitBreaker()
+  // Chart pins are per-request snapshots now: reset per test (real hook, not
+  // a mock) so a snapshot published by an earlier test never masks an outage.
+  // Never between the two requests of S3 — the breaker/gate there stay real.
+  __resetChartGenerationForTest()
   clearTvdbCache()
   faults.mdblist = undefined
   faults.justwatch = undefined
@@ -254,6 +263,10 @@ describe("provider chaos (slot ↔ timeout ↔ race ↔ breaker ↔ render)", ()
 
   beforeEach(async () => {
     resetAll()
+    // Hermetic chart persistence for the whole file (real hook, in-memory
+    // backend): durable ./data snapshots from other suites never shadow the
+    // fault-controlled fetches below. Nulled in afterAll.
+    __setChartGenerationPersistForTest(__inMemoryChartGenerationPersist())
     vi.spyOn(globalThis, "fetch").mockImplementation(router as typeof fetch)
     vi.mocked(undiciRequest).mockReset()
     vi.unstubAllEnvs()
@@ -261,6 +274,7 @@ describe("provider chaos (slot ↔ timeout ↔ race ↔ breaker ↔ render)", ()
   })
 
   afterAll(async () => {
+    __setChartGenerationPersistForTest(null)
     for (const dir of tmpDirs) {
       await fsp.rm(dir, { recursive: true, force: true })
     }

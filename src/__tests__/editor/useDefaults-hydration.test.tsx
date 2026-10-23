@@ -26,6 +26,8 @@ import { resetGuestGuardForTests } from "@/lib/guest-guard"
 // include sempre (null = fallback legacy, serve anche a propagare il reset
 // al server via merge) — mai spazzatura, mai factory numerici.
 // `badgePresets` nullo esplicito (G2: mappa sparsa per family, default nativo).
+// `disabledContentTags`/`disabledNetworks` vuoti espliciti (chiavi canoniche
+// space-wide da saveDefaults: assente = storico, mai guess).
 // Trio età + profilo età landscape seedato OFF/IT/standard (task3A per-shape:
 // il load materializza il profilo indipendente dai flat, mai reseed dopo).
 const USER_SAVED = {
@@ -83,6 +85,8 @@ const USER_SAVED = {
   autoRotateClean: false,
   defaultAutoRotateBackdrop: false,
   disableCleanPosters: false,
+  disabledContentTags: [],
+  disabledNetworks: [],
   defaultPortraitFitEnabled: true,
   defaultLandscapeFitEnabled: true,
   networkLogo: true,

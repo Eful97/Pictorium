@@ -64,7 +64,7 @@ function openAdvanced() {
   if (t.getAttribute("aria-expanded") !== "true") fireEvent.click(t)
 }
 
-describe("preset tab (five-tab staged session)", () => {
+describe("preset tab (six-tab staged session)", () => {
   it("shows the six gallery looks on the default Preset tab with one preview and stages without writes", async () => {
     renderSettings()
     await act(async () => {
@@ -74,7 +74,7 @@ describe("preset tab (five-tab staged session)", () => {
       "aria-selected",
       "true",
     )
-    expect(screen.getAllByRole("tab")).toHaveLength(5)
+    expect(screen.getAllByRole("tab")).toHaveLength(6)
     // Gallery looks visible without opening anything.
     for (const id of ["poster-style-apple", "poster-style-better-poster", "poster-style-rpdb"]) {
       expect(screen.getByTestId(id)).toBeInTheDocument()
@@ -98,6 +98,16 @@ describe("preset tab (five-tab staged session)", () => {
       "true",
     )
     expect(screen.getByRole("switch", { name: "ui.sash_rank" })).toBeInTheDocument()
+    expect(screen.getByTestId("settings-save")).not.toBeDisabled()
+    // Tags tab joins the staged walk (sixth primary tab): same session, no
+    // writes, draft retained.
+    fireEvent.click(screen.getByRole("tab", { name: "Tag e Network" }))
+    expect(screen.queryByTestId("settings-dirty-dialog")).not.toBeInTheDocument()
+    expect(screen.getByRole("tab", { name: "Tag e Network" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    )
+    expect(screen.getByTestId("settings-tags-networks")).toBeInTheDocument()
     expect(screen.getByTestId("settings-save")).not.toBeDisabled()
   })
 
