@@ -3,8 +3,8 @@ import { cacheGet, cacheGetShared, cacheSet } from "./cache"
 import { timedFetch } from "./outbound-stats"
 import { createLogger } from "@/lib/logger"
 import { envWithFallback } from "@/lib/env-compat"
-import { createCircuitBreaker, parseRetryAfterMs } from "@/lib/circuit-breaker"
-import { isMdbKeyParked, noteMdbQuotaExhausted429, noteMdbQuotaSuccess } from "@/lib/mdblist-quota"
+import { createCircuitBreaker, parseRetryAfterMs, type CircuitBreaker } from "@/lib/circuit-breaker"
+import { hashMdbKeyForQuota, isMdbKeyParked, noteMdbQuotaExhausted429, noteMdbQuotaSuccess } from "@/lib/mdblist-quota"
 import { combineAbortSignals, raceWithAbort } from "@/lib/abort-signal"
 import { fetchSimklRating } from "./simkl"
 import { getPersistedMdbRaw, setPersistedMdbRaw } from "./mdblist-raw-cache"
@@ -33,14 +33,43 @@ const MDBLIST_TIMEOUT_MS = (() => {
   return Number.isFinite(n) && n >= 300 && n <= 10000 ? n : 1500
 })()
 
-// Fail-open breaker dedicato: 3 fallimenti consecutivi → 30s di cooldown.
-// Mentre è aperto le chiamate ritornano subito null (fallback al voto TMDB
-// nativo nei caller) senza toccare la rete.
-const mdblistBreaker = createCircuitBreaker({ name: "mdblist", failureThreshold: 3, backoffMs: 30_000 })
+// Fail-open breaker PER CREDENTIAL (not module-global): 3 consecutive
+// failures → 30s cooldown for that key. A throttled or failing key
+// (burst 429s, 5xx, timeouts) must not suppress the healthy keys of other
+// namespaces on public/multi-user instances: each credential has its own
+// counter and window. Outage safety stays per credential (same thresholds
+// as before): a genuine outage still opens EVERY key's breaker after 3
+// failures, so no credential hammers upstream. Absent/mock keys share the
+// "none" bucket (no collision: ids are sha256 hex). Bounded map with
+// oldest-first eviction: evicting a breaker is fail-open (restarts closed).
+// Only sha256 digests in map/logs, never the plaintext key (same digest
+// as quota parking in mdblist-quota.ts).
+const mdblistBreakers = new Map<string, CircuitBreaker>()
+const MDB_BREAKER_MAX_KEYS = 500
+const MDB_BREAKER_KEYLESS_ID = "none"
 
-/** Solo per i test: azzera lo stato del breaker MDBList. */
+function mdbBreakerId(key: string | undefined | null): string {
+  return key ? hashMdbKeyForQuota(key) : MDB_BREAKER_KEYLESS_ID
+}
+
+function mdbBreakerFor(key: string | undefined | null): CircuitBreaker {
+  const id = mdbBreakerId(key)
+  let b = mdblistBreakers.get(id)
+  if (!b) {
+    b = createCircuitBreaker({ name: "mdblist", failureThreshold: 3, backoffMs: 30_000 })
+    mdblistBreakers.set(id, b)
+    while (mdblistBreakers.size > MDB_BREAKER_MAX_KEYS) {
+      const oldest = mdblistBreakers.keys().next().value
+      if (oldest === undefined) break
+      mdblistBreakers.delete(oldest)
+    }
+  }
+  return b
+}
+
+/** Test-only: reset MDBList breaker state (all credentials). */
 export function __resetMdblistBreaker(): void {
-  mdblistBreaker.reset()
+  mdblistBreakers.clear()
 }
 
 const RATINGS_NULL_TTL_MS = 60_000
@@ -59,8 +88,22 @@ export function __resetRatingsNullForTest(): void {
   ratingsNullAt.clear()
 }
 
-export function isMdblistBreakerOpen(): boolean {
-  return mdblistBreaker.isOpen()
+/**
+ * Read-only telemetry for the operator status surface (never admits a
+ * trial): uses peekOpen, never isOpen — isOpen would admit the single
+ * half-open trial to a monitoring poll that never runs it, wedging the
+ * breaker (orphaned trial: every real request would then be rejected
+ * forever). Without a key it reports any-open (same semantics as before);
+ * with a key, that single credential's state (lookup only, never create).
+ */
+export function isMdblistBreakerOpen(key?: string | null): boolean {
+  if (key !== undefined && key !== null) {
+    return mdblistBreakers.get(mdbBreakerId(key))?.peekOpen() ?? false
+  }
+  for (const b of mdblistBreakers.values()) {
+    if (b.peekOpen()) return true
+  }
+  return false
 }
 
 // SUPPORTED_RATING_SOURCES + parseRatingSources/resolveRatingSources vivono
@@ -524,7 +567,7 @@ async function fetchMdbListSourcesUpstream(
   key?: string,
   signal?: AbortSignal,
 ): Promise<MdbListFetchResult> {
-  if (mdblistBreaker.isOpen()) return { sources: null, isGenuineMiss: false, rawTtlMs: MDB_RAW_TTL_MS }
+  if (mdbBreakerFor(key).isOpen()) return { sources: null, isGenuineMiss: false, rawTtlMs: MDB_RAW_TTL_MS }
 
   try {
     const timeoutSignal = AbortSignal.timeout(MDBLIST_TIMEOUT_MS)
@@ -560,11 +603,11 @@ async function fetchMdbListSourcesUpstream(
       if (!quotaIsolated && key && noteMdbQuotaExhausted429(quotaHeaders, key)) {
         return { sources: null, isGenuineMiss: false, rawTtlMs: MDB_RAW_TTL_MS }
       }
-      mdblistBreaker.recordFailure(parseRetryAfterMs((n) => res.headers.get(n)))
+      mdbBreakerFor(key).recordFailure(parseRetryAfterMs((n) => res.headers.get(n)))
       return { sources: null, isGenuineMiss: false, rawTtlMs: MDB_RAW_TTL_MS }
     }
     if (res.status >= 500) {
-      mdblistBreaker.recordFailure(parseRetryAfterMs((n) => res.headers.get(n)))
+      mdbBreakerFor(key).recordFailure(parseRetryAfterMs((n) => res.headers.get(n)))
       return { sources: null, isGenuineMiss: false, rawTtlMs: MDB_RAW_TTL_MS }
     }
     if (res.status === 401 || res.status === 403) {
@@ -578,7 +621,7 @@ async function fetchMdbListSourcesUpstream(
     // Last-token success (remaining 0) still returns its data: parking only
     // affects FUTURE keyed calls, decided after the cache layers below.
     if (!quotaIsolated && key) noteMdbQuotaSuccess(quotaHeaders, key)
-    mdblistBreaker.recordSuccess()
+    mdbBreakerFor(key).recordSuccess()
     const raw = await res.json()
     const data = raw?.data ?? raw
 
@@ -645,7 +688,7 @@ async function fetchMdbListSourcesUpstream(
     const observed = observeMdbCounterparts(data)
     return { sources: hasSources ? sources : null, isGenuineMiss: !hasSources, rawTtlMs: mdbRawTtlForData(data), observedImdb: observed.imdb, observedTmdb: observed.tmdb }
   } catch (e) {
-    if (!signal?.aborted) mdblistBreaker.recordFailure()
+    if (!signal?.aborted) mdbBreakerFor(key).recordFailure()
     log.error("MDBList fetch failed", { error: e instanceof Error ? e.message : String(e) })
     return { sources: null, isGenuineMiss: false, rawTtlMs: MDB_RAW_TTL_MS }
   }
