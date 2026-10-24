@@ -20,13 +20,26 @@ import { rankingSourceBrowsingName, resolveCatalogDisplayName } from "@/lib/rank
 import { posterUrl } from "@/lib/utils"
 import { userFetch } from "@/lib/http"
 import { currentPathUuid } from "@/lib/user-token"
-import { X, Check, ListPlus, Trash2, Film, Tv, Shuffle, Power, SlidersHorizontal, Home, RefreshCw } from "lucide-react"
+import { X, Check, ListPlus, Plus, Trash2, Film, Tv, Shuffle, Power, SlidersHorizontal, Home, RefreshCw } from "lucide-react"
+import { StreamingCatalogDialog } from "@/components/StreamingCatalogDialog"
+import { StreamingCatalogCard } from "@/components/StreamingCatalogCard"
+import { CatalogSourceBadge } from "@/components/CatalogSourceBadge"
+import { PublicationLine } from "@/components/PublicationLine"
+import { sanitizeGenericStreamingSelections, streamingCatalogName, genericStreamingCatalogName, genericVariantLabel } from "@/lib/streaming-catalogs"
+import { isStreamingOptIn as isOptInMode, orderGenericStreamingEntries, derivedIdsForGenericSelection, countryToChartSlug } from "@/lib/streaming-catalog-client"
+import { pairCuratedLists } from "@/lib/streaming-pairing"
+import { resolveDefaultTop20Visibility } from "@/lib/default-lists-reset"
+import { resolveRankingSource } from "@/lib/ranking-source"
 
 interface GridViewItem {
   tmdbId: number | null
   mediaType: "movie" | "tv"
   title: string
   posterPath: string | null
+  /** Ephemeral list rank (0..100, 0 = explicit unranked). Invalid = absent. */
+  rank?: number | null
+  /** Selection chart country for region-scoped preview (streaming grids). */
+  region?: string | null
 }
 
 /** Coppia di contenitori Film | Serie affiancati sulla stessa riga (2 colonne su desktop). */
@@ -43,6 +56,12 @@ function CatalogPair({
   onItemClick,
   savedKeys,
   showEmpty,
+  movieFooter,
+  tvFooter,
+  movieRemove,
+  tvRemove,
+  moviePublication,
+  tvPublication,
 }: {
   movies: SimklCardItem[]
   tv: SimklCardItem[]
@@ -59,6 +78,22 @@ function CatalogPair({
    * sbilanciata: la sezione assente in preview resta cliccabile e carica il
    * full filtrato alla prima apertura). */
   showEmpty?: boolean
+  /** Optional per-section footer adornment (source icon beside the counter).
+   * Each slot carries its OWN effective source: a custom-sourced slot never
+   * wears a JustWatch mark because the sibling slot is still JustWatch. */
+  movieFooter?: ReactNode
+  tvFooter?: ReactNode
+  /** Optional per-section single remove (footer trash, that list only). */
+  movieRemove?: { onRemove: () => void; label: string }
+  tvRemove?: { onRemove: () => void; label: string }
+  /**
+   * Per-slot Pictorium publication stamp (ms epoch) of the served list, or
+   * null when unknown (no genuine pin / legacy live lists). Rendered as a
+   * discreet localized line under each card; null shows the honest
+   * "update time unavailable" line instead of an invented date.
+   */
+  moviePublication?: number | null
+  tvPublication?: number | null
 }) {
   const hasMovies = movies.length > 0
   const hasTv = tv.length > 0
@@ -79,6 +114,10 @@ function CatalogPair({
           onClick={() => openGrid(toGrid(movies), movieGridTitle, "movie")}
           onItemClick={onItemClick}
           savedKeys={savedKeys}
+          footerAdornment={movieFooter}
+          onRemove={movieRemove?.onRemove}
+          removeLabel={movieRemove?.label}
+          publication={<PublicationLine value={moviePublication ?? null} />}
         />
       )}
       {showTv && (
@@ -90,19 +129,55 @@ function CatalogPair({
           onClick={() => openGrid(toGrid(tv), tvGridTitle, "tv")}
           onItemClick={onItemClick}
           savedKeys={savedKeys}
+          footerAdornment={tvFooter}
+          onRemove={tvRemove?.onRemove}
+          removeLabel={tvRemove?.label}
+          publication={<PublicationLine value={tvPublication ?? null} />}
         />
       )}
     </div>
   )
 }
 
+/**
+ * MDBList snoak credit for the built-in anime slots: the mdblist.svg icon
+ * links the exact upstream list (movies vs series), new tab, icon-only.
+ * The card root is a div role=button: click/keyboard propagation is stopped
+ * so the credit link never opens the list grid (same pattern as the card
+ * trash button). The link itself carries the accessible name.
+ */
+const ANIME_MOVIE_LIST_URL = "https://mdblist.com/lists/snoak/trending-anime-movies"
+const ANIME_SERIES_LIST_URL = "https://mdblist.com/lists/snoak/trending-anime-shows"
+
+function AnimeCreditLink({ href, label }: { href: string; label: string }) {
+  return (
+    <a
+      href={href}
+      target="_blank"
+      rel="noopener noreferrer"
+      aria-label={label}
+      title={label}
+      onClick={(e) => e.stopPropagation()}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") e.stopPropagation()
+      }}
+      className="inline-flex items-center shrink-0"
+    >
+      {/* eslint-disable-next-line @next/next/no-img-element -- static local SVG badge (no optimization benefit from next/image); the link carries the accessible name */}
+      <img src="/rating/mdblist.svg" alt="" aria-hidden="true" className="w-5 h-5 shrink-0" loading="lazy" decoding="async" />
+    </a>
+  )
+}
+
 /** Converte item custom/unificati nel formato griglia (condiviso). */
-function toGridItems(list: SimklCardItem[]): GridViewItem[] {
+function toGridItems(list: SimklCardItem[], region?: string | null): GridViewItem[] {
   return list.map((it) => ({
     tmdbId: resolvedTmdbId(it),
     mediaType: (it.media_type || it.mediaType || "movie") as "movie" | "tv",
     title: it.title ?? it.name ?? "",
     posterPath: it.poster_path ?? it.posterPath ?? null,
+    rank: typeof it.rank === "number" && Number.isInteger(it.rank) && it.rank >= 0 && it.rank <= 100 ? it.rank : null,
+    region: typeof region === "string" && region.length > 0 ? region : null,
   }))
 }
 
@@ -414,6 +489,8 @@ function CustomCatalogEntry({
           onItemClick={handleItemClick}
           savedKeys={savedKeys}
           showEmpty
+          moviePublication={null}
+          tvPublication={null}
         />
       ) : isMovie ? (
         <CatalogPair
@@ -423,6 +500,8 @@ function CustomCatalogEntry({
           totalTv={0}
           movieTitle={displayName}
           tvTitle=""
+          moviePublication={null}
+          tvPublication={null}
           movieGridTitle={displayName}
           tvGridTitle=""
           openGrid={(gridItems, title, section) => {
@@ -439,6 +518,8 @@ function CustomCatalogEntry({
           totalTv={tv.length > 0 ? tv.length : items.length}
           movieTitle=""
           tvTitle={displayName}
+          moviePublication={null}
+          tvPublication={null}
           movieGridTitle=""
           tvGridTitle={displayName}
           openGrid={(gridItems, title, section) => {
@@ -477,6 +558,8 @@ function PlatformSection({ slug, selected, loadPlatform, children }: {
 export function CataloghiView() {
   const trending = usePSelector((v) => v.trending)
   const trendingStatus = usePSelector((v) => v.trendingStatus)
+  const trendingUpdatedAt = usePSelector((v) => v.trendingUpdatedAt)
+  const animeUpdatedAt = usePSelector((v) => v.animeUpdatedAt)
   const animeStatus = usePSelector((v) => v.animeStatus)
   const animeSource = usePSelector((v) => v.animeSource)
   const platformErrors = usePSelector((v) => v.platformErrors)
@@ -492,8 +575,17 @@ export function CataloghiView() {
   const removeCustomCatalog = usePSelector((v) => v.removeCustomCatalog)
   const toggleCustomCatalog = usePSelector((v) => v.toggleCustomCatalog)
   const catalogRenames = usePSelector((v) => v.catalogRenames)
+  const catalogOrder = usePSelector((v) => v.catalogOrder)
+  const disabledCatalogIds = usePSelector((v) => v.disabledCatalogIds)
   const rankingSourceMovie = usePSelector((v) => v.rankingSourceMovie)
   const rankingSourceSeries = usePSelector((v) => v.rankingSourceSeries)
+  // Opt-in streaming selections (service + chart country + source + variant).
+  // Absent (undefined) = legacy: historical platform charts keep serving;
+  // explicit = curated mode with ONLY the chosen lists loaded (plus JW + anime).
+  const streamingSelectionsState = usePSelector((v) => v.streamingSelections)
+  const addStreamingSelections = usePSelector((v) => v.addStreamingSelections)
+  const removeStreamingSelection = usePSelector((v) => v.removeStreamingSelection)
+  const currentUserId = usePSelector((v) => v.currentUserId)
   const homeDisabledCatalogIds = usePSelector((v) => v.homeDisabledCatalogIds)
   const toggleCatalogHome = usePSelector((v) => v.toggleCatalogHome)
   const tmdbKey = usePSelector((v) => v.tmdbKey)
@@ -511,20 +603,101 @@ export function CataloghiView() {
     [seasonalHalloweenKeywords, seasonalChristmasKeywords],
   )
   const { t } = useT()
-  const platformFilters = useMemo(() => [
-    { id: "all", label: t("ui.all") },
-    { id: "custom", label: t("ui.customCatalogs") },
-    { id: "justwatch", label: "JustWatch" },
-    { id: "netflix", label: "Netflix" },
-    { id: "amazon-prime", label: "Prime Video" },
-    { id: "disney", label: "Disney+" },
-    { id: "now", label: "NOW / Sky" },
-    { id: "apple-tv", label: "Apple TV+" },
-    { id: "hbo-max", label: "HBO Max" },
-    { id: "paramount-plus", label: "Paramount+" },
-    { id: "crunchyroll", label: "Crunchyroll" },
-    { id: "anime", label: "Anime" },
-  ], [t])
+  const rankingSelection = { customCatalogs, rankingSourceMovie, rankingSourceSeries }
+  // Sanitized explicit selections (invalid stored entries are dropped, never
+  // served); absent stays absent (legacy mode). Generic universe: the same
+  // provider in multiple countries/sources/variants stays distinct.
+  const streamingSelections = useMemo(
+    () => sanitizeGenericStreamingSelections(streamingSelectionsState ?? undefined) ?? [],
+    [streamingSelectionsState],
+  )
+  const isStreamingOptIn = isOptInMode(streamingSelectionsState)
+  const enabledStreamingSelections = useMemo(
+    () => streamingSelections.filter((s) => s.enabled !== false),
+    [streamingSelections],
+  )
+  const orderedStreamingSelections = useMemo(
+    () => orderGenericStreamingEntries(enabledStreamingSelections, catalogOrder),
+    [enabledStreamingSelections, catalogOrder],
+  )
+  /**
+   * One rendered box per actual derived list (never a group render that a
+   * single trash would wipe): legacy entries keep byte-identical ids/names,
+   * new ids carry source/variant. Titles follow renames, like the manifest.
+   * `chartSlug` is the fetch identity (legacy codes normalize to it) and the
+   * ONLY pairing key below: lists pair only on the full matching descriptor
+   * (service + chart slug + source policy + variant) — never across sources,
+   * countries or variants, even when the winning FP/JW source differs per
+   * section (each box keeps its own actual-source footer).
+   */
+  const curatedLists = useMemo(
+    () =>
+      orderedStreamingSelections.flatMap((sel) =>
+        derivedIdsForGenericSelection(sel).map((catalogId, idx) => {
+          const section = sel.sections[idx]
+          const baseName = sel.legacy
+            ? streamingCatalogName(sel.service as import("@/lib/streaming-catalogs").StreamingService, sel.country, section as "movies" | "series")
+            : genericStreamingCatalogName(sel.service, sel.chartSlug, section, sel.variant)
+          return {
+            key: catalogId,
+            catalogId,
+            title: catalogRenames[catalogId]?.trim() || baseName,
+            service: sel.service,
+            country: sel.country,
+            chartSlug: sel.legacy ? countryToChartSlug(sel.country) : sel.chartSlug,
+            source: sel.source,
+            variant: sel.variant,
+            section,
+          }
+        }),
+      ),
+    [orderedStreamingSelections, catalogRenames],
+  )
+  /**
+   * Visual pairing mirroring the general JW Top 20. Pure helper
+   * `pairCuratedLists` (own unit tests) implements the two-phase contract;
+   * Stremio mapping/persistence are untouched.
+   */
+  const curatedGroups = useMemo(() => pairCuratedLists(curatedLists), [curatedLists])
+  // The general JW boxes carry the JustWatch logo ONLY while their own slot
+  // really resolves to JustWatch (any custom ranking override hides it — a
+  // custom-sourced row must never wear the JW mark). Per-slot, never a global
+  // both-slots flag: a custom movies slot must not brand custom as JW while
+  // the actual JW series slot still gets its icon.
+  const jwMovieIsRealJw = resolveRankingSource(rankingSelection, "movie").kind === "justwatch"
+  const jwSeriesIsRealJw = resolveRankingSource(rankingSelection, "series").kind === "justwatch"
+  // Per-default removal: each factory list renders independently — removing
+  // the movies row never hides the series row (and vice versa). A removed
+  // row recovers via the manager factory reset; its data keeps loading.
+  const { showMovies: showJwMovies, showSeries: showJwSeries } =
+    resolveDefaultTop20Visibility(disabledCatalogIds)
+  // Anime rows follow the manifest: a disabled anime catalog id hides its
+  // section (genuine-new spaces disable both via disabledCatalogIds).
+  const showAnimeMovies = !disabledCatalogIds.includes("pictorium-anime-movies")
+  const showAnimeSeries = !disabledCatalogIds.includes("pictorium-anime")
+  const platformFilters = useMemo(() => {
+    const base = [
+      { id: "all", label: t("ui.all") },
+      { id: "custom", label: t("ui.customCatalogs") },
+      { id: "justwatch", label: "JustWatch" },
+    ]
+    // Curated mode replaces the historical platform charts with the chosen
+    // lists: their filters (and sections) are hidden, never loaded.
+    if (!isStreamingOptIn) {
+      base.push(
+        { id: "netflix", label: "Netflix" },
+        { id: "amazon-prime", label: "Prime Video" },
+        { id: "disney", label: "Disney+" },
+        { id: "now", label: "NOW / Sky" },
+        { id: "apple-tv", label: "Apple TV+" },
+        { id: "hbo-max", label: "HBO Max" },
+        { id: "paramount-plus", label: "Paramount+" },
+        { id: "crunchyroll", label: "Crunchyroll" },
+      )
+    }
+    if (showAnimeMovies || showAnimeSeries) base.push({ id: "anime", label: "Anime" })
+    return base
+  }, [t, isStreamingOptIn, showAnimeMovies, showAnimeSeries])
   const ed = usePosterEditor()
   const activeRegion = getRegionDef(ed.defaultRegion)
   const regionFlag = activeRegion.flag
@@ -534,7 +707,6 @@ export function CataloghiView() {
   // bandiera anche con emoji ON: browsing display vs nomi canonici/export con
   // bandiera in manager/manifest); per charts resta il legacy generico così
   // il flusso default è byte-identico. Mai mapping stringhe duplicato qui.
-  const rankingSelection = { customCatalogs, rankingSourceMovie, rankingSourceSeries }
   const jwMovieRename = catalogRenames?.["pictorium-jw-movies"]?.trim() || null
   const jwSeriesRename = catalogRenames?.["pictorium-jw-series"]?.trim() || null
   const jwMovieRankingName = rankingSourceBrowsingName("pictorium-jw-movies", "movie", rankingSelection, activeRegion)
@@ -582,6 +754,7 @@ export function CataloghiView() {
   const [isAddCustomOpen, setIsAddCustomOpen] = useState(false)
   const [isAddAddonOpen, setIsAddAddonOpen] = useState(false)
   const [isManagerOpen, setIsManagerOpen] = useState(false)
+  const [isStreamDialogOpen, setIsStreamDialogOpen] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
 
   const savedKeys = useMemo(
@@ -647,12 +820,19 @@ export function CataloghiView() {
     if (!id) return
     const mediaType = (item.media_type || item.mediaType) as "movie" | "tv" || "movie"
     const title = item.title ?? item.name ?? ""
+    // Rank effimero di lista (decisione A): la preview usa lo stesso snapshot
+    // Stremio della riga (stesso `rk=`). Region: le griglie streaming la
+    // portano per-item, i built-in seguono il default globale (null).
+    const lr = typeof item.rank === "number" && Number.isInteger(item.rank) && item.rank >= 0 && item.rank <= 100 ? item.rank : null
+    const rg = (item as SimklCardItem & { region?: unknown }).region
     navigateToPoster(toSearchResult({
       id,
       media_type: mediaType,
       title,
       name: title,
       poster_path: item.poster_path ?? item.posterPath,
+      listRank: lr,
+      listRegion: typeof rg === "string" && rg.length > 0 ? rg : null,
     }), "cataloghi", listName, seasonalKeywords)
   }
   // Click da sezioni built-in (Film/Serie affiancate): il nome effettivo del
@@ -673,12 +853,22 @@ export function CataloghiView() {
     if (refresh) customRefreshers.current.set(id, refresh)
     else customRefreshers.current.delete(id)
   }, [])
+  // Curated Top 10 cards register here with the same contract (key = entry),
+  // so the header refresh also reloads the chosen lists — and only those.
+  const streamRefreshers = useRef(new Map<string, () => Promise<boolean>>())
+  const registerStreamRefresh = useCallback((id: string, refresh: (() => Promise<boolean>) | null) => {
+    if (refresh) streamRefreshers.current.set(id, refresh)
+    else streamRefreshers.current.delete(id)
+  }, [])
   const refreshCatalogs = async () => {
     setRefreshing(true)
     try {
       await refreshLists(async () => {
         customPageCache.clear()
-        const results = await Promise.allSettled(Array.from(customRefreshers.current.values(), (refresh) => refresh()))
+        const results = await Promise.allSettled([
+          ...Array.from(customRefreshers.current.values(), (refresh) => refresh()),
+          ...Array.from(streamRefreshers.current.values(), (refresh) => refresh()),
+        ])
         return results.filter((result) => result.status === "rejected" || !result.value).length
       })
     } finally { setRefreshing(false) }
@@ -703,15 +893,38 @@ export function CataloghiView() {
     }
   }, [])
 
-  const filteredPlatforms = STREAMING_PLATFORMS.filter((sp) => {
-    if (platformFilter === "all") return true
-    if (platformFilter === "justwatch" || platformFilter === "anime" || platformFilter === "custom") return false
-    return sp.slug === platformFilter
-  })
+  // Entering curated mode (or disabling all anime) invalidates platform/anime
+  // filters: coerce back to "all" instead of showing an empty view.
+  useEffect(() => {
+    const animeOk = platformFilter !== "anime" || showAnimeMovies || showAnimeSeries
+    const legacyOk =
+      !isStreamingOptIn ||
+      platformFilter === "all" ||
+      platformFilter === "custom" ||
+      platformFilter === "justwatch" ||
+      platformFilter === "anime"
+    if (!animeOk || !legacyOk) setPlatformFilter("all")
+  }, [isStreamingOptIn, platformFilter, showAnimeMovies, showAnimeSeries])
 
-  const showJustWatch = (platformFilter === "all" || platformFilter === "justwatch") && trending.length > 0
-  const showAnime = (platformFilter === "all" || platformFilter === "anime") && mdblistAnimeList.length > 0
+  const filteredPlatforms = isStreamingOptIn
+    ? []
+    : STREAMING_PLATFORMS.filter((sp) => {
+        if (platformFilter === "all") return true
+        if (platformFilter === "justwatch" || platformFilter === "anime" || platformFilter === "custom") return false
+        return sp.slug === platformFilter
+      })
+
+  const showJustWatch = (platformFilter === "all" || platformFilter === "justwatch") && trending.length > 0 && (showJwMovies || showJwSeries)
+  // Anime sections follow the manifest (disabled ids hide them): genuine-new
+  // spaces start with both disabled, i.e. no anime rows at all.
+  const animeMoviesVisible = showAnimeMovies ? animeMovies : []
+  const animeTvVisible = showAnimeSeries ? animeTv : []
+  const showAnime =
+    (platformFilter === "all" || platformFilter === "anime") &&
+    (animeMoviesVisible.length > 0 || animeTvVisible.length > 0)
   const showCustom = (platformFilter === "all" || platformFilter === "custom")
+  const showCurated = isStreamingOptIn && orderedStreamingSelections.length > 0
+  const showCuratedEmpty = isStreamingOptIn && orderedStreamingSelections.length === 0 && (platformFilter === "all" || platformFilter === "custom")
 
   return (
     <div className="max-w-6xl mx-auto animate-fade-scale-in">
@@ -769,6 +982,26 @@ export function CataloghiView() {
                 <span>{t("ui.addonMode")}</span>
               </button>
               <AddonCatalogModal isOpen={isAddAddonOpen} onClose={() => setIsAddAddonOpen(false)} />
+            </div>
+            <div className="relative">
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  setIsStreamDialogOpen((prev) => !prev)
+                }}
+                className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-surface2 border border-white/10 hover:border-white/20 text-zinc-200 text-xs font-semibold hover:text-white active:scale-95 transition-all shadow-sm"
+              >
+                <Plus className="w-4 h-4" />
+                <span>{t("ui.streamAddTop10")}</span>
+              </button>
+              <StreamingCatalogDialog
+                isOpen={isStreamDialogOpen}
+                onClose={() => setIsStreamDialogOpen(false)}
+                existing={streamingSelections}
+                isLegacy={!isStreamingOptIn}
+                onAddBatch={addStreamingSelections}
+              />
             </div>
             <div className="relative">
               <button
@@ -850,16 +1083,23 @@ export function CataloghiView() {
       {showCustom && customCatalogs.length > 0 && <div className="section-divider" />}
 
       {/* JustWatch Top 20 — due contenitori separati (Film | Serie) sulla stessa riga.
-          I titoli seguono la fonte ranking selezionata, come nel manifest. */}
+          I titoli seguono la fonte ranking selezionata, come nel manifest.
+          Il logo JustWatch (icona sola, footer a sinistra accanto al conteggio)
+          compare per singolo slot solo mentre QUELLO slot risolve davvero a
+          JustWatch: una fonte custom non indossa mai il marchio. Le due righe
+          factory si disattivano soltanto (Power nel manager, mai trash: le
+          classifiche si possono disabilitare ma non eliminare). */}
       {showJustWatch && (
         <>
           <div className="mb-12">
-            <h2 className="section-heading text-xl font-bold mb-6">{jwSectionHeading}</h2>
+            <h2 className="section-heading text-xl font-bold mb-6 flex items-center gap-2">
+              <span>{jwSectionHeading}</span>
+            </h2>
             <CatalogPair
-              movies={movieTrending}
-              tv={tvTrending}
-              totalMovies={movieTrending.length}
-              totalTv={tvTrending.length}
+              movies={showJwMovies ? movieTrending : []}
+              tv={showJwSeries ? tvTrending : []}
+              totalMovies={showJwMovies ? movieTrending.length : 0}
+              totalTv={showJwSeries ? tvTrending.length : 0}
               movieTitle={jwMovieTitle}
               tvTitle={jwSeriesTitle}
               movieGridTitle={jwMovieGridTitle}
@@ -867,6 +1107,10 @@ export function CataloghiView() {
               openGrid={(items, title, section) => openGrid(items, title, undefined, { kind: "builtin", movieId: "pictorium-jw-movies", seriesId: "pictorium-jw-series", section })}
               onItemClick={navigateToBuiltinItem("pictorium-jw-movies", "pictorium-jw-series")}
               savedKeys={savedKeys}
+              movieFooter={jwMovieIsRealJw ? <CatalogSourceBadge actual="justwatch" iconOnly /> : undefined}
+              tvFooter={jwSeriesIsRealJw ? <CatalogSourceBadge actual="justwatch" iconOnly /> : undefined}
+              moviePublication={trendingUpdatedAt?.movie ?? null}
+              tvPublication={trendingUpdatedAt?.series ?? null}
             />
           </div>
         </>
@@ -902,6 +1146,8 @@ export function CataloghiView() {
                     }}
                     onItemClick={navigateToPlatformItem(sp.slug)}
                     savedKeys={savedKeys}
+                    moviePublication={null}
+                    tvPublication={null}
                   /> : <div className="rounded-xl border border-white/5 p-6 text-xs text-muted">
                     {platformErrors[sp.slug] ? <>
                       <span>{t("ui.catalogsError")}</span>
@@ -916,6 +1162,74 @@ export function CataloghiView() {
         </>
       )}
 
+      {/* Curated opt-in Top 10: ONLY the enabled chosen LISTS are mounted
+          and loaded — one SimklCard box per actual section/variant list
+          (never a group render a single trash could wipe), each with the
+          selection chart country (never the global JW region) and per-list
+          actual source. In legacy mode this section does not exist and the
+          historical platforms above keep serving byte-identical. */}
+      {showCurated && (
+        <>
+          <div className="mb-12 space-y-6">
+            <h2 className="section-heading text-xl font-bold mb-6">{t("ui.streamCuratedTitle")}</h2>
+            {curatedGroups.map((block) => {
+              const renderCard = (list: (typeof curatedLists)[number], fullWidth = false) => (
+                <StreamingCatalogCard
+                  key={list.key}
+                  catalogId={list.catalogId}
+                  title={list.title}
+                  section={list.section}
+                  apiKey={tmdbKey}
+                  userId={currentUserId}
+                  hasKey={hasKey}
+                  savedKeys={savedKeys}
+                  navigateToPoster={navigateToPoster}
+                  seasonalKeywords={seasonalKeywords}
+                  registerRefresh={registerStreamRefresh}
+                  onRemove={() => removeStreamingSelection(list.service, list.country, list.source, list.variant, list.section)}
+                  onOpenList={(items, title, region) => openGrid(toGridItems(items, region ?? null), title)}
+                  variantLabel={list.variant ? genericVariantLabel(list.variant) : null}
+                  fullWidth={fullWidth}
+                />
+              )
+              // Pair block: Film LEFT + Serie RIGHT on desktop, stacked on
+              // mobile. Singles and mixed `all` stay fullwidth on their own —
+              // every list renders exactly once, nothing is ever dropped.
+              if (block.kind === "pair") {
+                return (
+                  <div key={block.key} className="grid gap-3 grid-cols-1 lg:grid-cols-2">
+                    {renderCard(block.lists[0])}
+                    {renderCard(block.lists[1])}
+                  </div>
+                )
+              }
+              return (
+                <div key={block.key} className="grid gap-3 grid-cols-1 min-w-0">
+                  {renderCard(block.lists[0], true)}
+                </div>
+              )
+            })}
+          </div>
+        </>
+      )}
+
+      {showCurated && <div className="section-divider" />}
+
+      {/* Curated mode without selections yet: honest empty state with entry point. */}
+      {showCuratedEmpty && (
+        <div className="mb-12 text-center py-10 animate-fade-scale-in rounded-2xl border border-white/5 bg-surface/60">
+          <p className="text-sm text-muted mb-4">{t("ui.streamDialogSub")}</p>
+          <button
+            type="button"
+            onClick={() => setIsStreamDialogOpen(true)}
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-accent-orange text-white text-xs font-semibold hover:bg-accent-orange/90 active:scale-95 transition-all shadow-md"
+          >
+            <Plus className="w-4 h-4" />
+            <span>{t("ui.streamAddTop10")}</span>
+          </button>
+        </div>
+      )}
+
       {showAnime && <div className="section-divider" />}
 
       {/* Anime trending — Film e Serie in due contenitori separati.
@@ -926,10 +1240,10 @@ export function CataloghiView() {
             <h2 className="section-heading text-xl font-bold mb-6">{t("ui.trendingAnime")}</h2>
             {animeSource === "tmdb" && <p className="text-xs text-muted mb-3">{t("ui.animeFallback")}</p>}
             <CatalogPair
-              movies={animeMovies}
-              tv={animeTv}
-              totalMovies={animeMovies.length}
-              totalTv={animeTv.length}
+              movies={animeMoviesVisible}
+              tv={animeTvVisible}
+              totalMovies={animeMoviesVisible.length}
+              totalTv={animeTvVisible.length}
               movieTitle={`${t("ui.movie")} — Top 20`}
               tvTitle={`${t("ui.tvSeries")} — Top 20`}
               movieGridTitle={`Anime — ${t("ui.movie")}`}
@@ -937,6 +1251,10 @@ export function CataloghiView() {
               openGrid={(items, title, section) => openGrid(items, title, undefined, { kind: "builtin", movieId: "pictorium-anime-movies", seriesId: "pictorium-anime", section })}
               onItemClick={navigateToBuiltinItem("pictorium-anime-movies", "pictorium-anime")}
               savedKeys={savedKeys}
+              movieFooter={<AnimeCreditLink href={ANIME_MOVIE_LIST_URL} label="MDBList list trending-anime-movies by snoak (opens in new tab)" />}
+              tvFooter={<AnimeCreditLink href={ANIME_SERIES_LIST_URL} label="MDBList list trending-anime-shows by snoak (opens in new tab)" />}
+              moviePublication={animeUpdatedAt?.movie ?? null}
+              tvPublication={animeUpdatedAt?.series ?? null}
             />
           </div>
         </>
@@ -1064,6 +1382,8 @@ export function CataloghiView() {
                           title: item.title,
                           name: item.title,
                           poster_path: item.posterPath,
+                          listRank: typeof item.rank === "number" && Number.isInteger(item.rank) && item.rank >= 0 && item.rank <= 100 ? item.rank : null,
+                          listRegion: typeof item.region === "string" && item.region.length > 0 ? item.region : null,
                         }), "cataloghi", gridListName, seasonalKeywords)
                       }
                     }}

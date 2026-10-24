@@ -5,7 +5,7 @@ import { GET as GET_EXTRA } from "@/app/catalog/[type]/[id]/[...extra]/route"
 import { cacheClear } from "@/lib/cache"
 import { __clearTMDBCache } from "@/lib/tmdb"
 import { POSTER_URL_VERSION } from "@/lib/render-version"
-import { getTop10 } from "@/lib/flixpatrol"
+import { getTop10, resolveFlixPlatformSides } from "@/lib/flixpatrol"
 import { getById } from "@/lib/store"
 import { getServerDefaults } from "@/lib/server-defaults"
 import { __resetJWRankingsCache } from "@/lib/justwatch"
@@ -14,6 +14,7 @@ import { encodeConfig } from "@/lib/config-token"
 import { parseCatalogExtra } from "@/lib/catalog-handler"
 vi.mock("@/lib/flixpatrol", () => ({
   getTop10: vi.fn(),
+  resolveFlixPlatformSides: vi.fn(),
 }))
 
 vi.mock("@/lib/store", () => ({
@@ -27,6 +28,7 @@ vi.mock("@/lib/server-defaults", async (importOriginal) => {
 })
 
 const mockedGetTop10 = vi.mocked(getTop10)
+const mockedResolveFlixSides = vi.mocked(resolveFlixPlatformSides)
 const mockedGetById = vi.mocked(getById)
 
 function justWatchResponse(tmdbId: number, imdbId?: string): Response {
@@ -60,12 +62,17 @@ function tmdbShowResponse(tmdbId: number): Response {
 describe("GET /catalog/[type]/[id]", () => {
   beforeEach(() => {
     mockedGetById.mockResolvedValue(null)
+    // Default: no usable FP chart (miss) so the renewal exercises the JW
+    // fallback exactly like the historical JW-first path; tests that need FP
+    // rows override per-test.
+    mockedResolveFlixSides.mockResolvedValue({ movie: { kind: "miss" }, tv: { kind: "miss" }, loadFailed: false })
   })
 
   afterEach(() => {
     vi.mocked(getServerDefaults).mockReturnValue({})
     vi.restoreAllMocks()
     mockedGetTop10.mockReset()
+    mockedResolveFlixSides.mockReset()
     mockedGetById.mockReset()
     __resetJWRankingsCache()
     cacheClear()
@@ -446,6 +453,19 @@ describe("GET /catalog/[type]/[id]", () => {
     vi.spyOn(globalThis, "fetch")
       .mockResolvedValueOnce(Response.json({ id: 1715492, imdb_id: "tt1715492" }))
       .mockResolvedValueOnce(Response.json({ id: 1715492, title: "Costa Concordia: incubo in mare", release_date: "2026-01-01" }))
+    // FP-first renewal: the platform snapshot comes from the fresh FP chart
+    // (strict + cycle-aware floor via resolveFlixPlatformSides); the serving
+    // path enriches it into poster URLs without a second getTop10 call.
+    mockedResolveFlixSides.mockResolvedValueOnce({
+      movie: {
+        kind: "hit",
+        entries: [
+          { rank: 1, title: "Costa Concordia: incubo in mare", tmdb: { id: 1715492, media_type: "movie", release_date: "2026-01-01" } },
+        ],
+      },
+      tv: { kind: "miss" },
+      loadFailed: false,
+    })
     mockedGetTop10.mockResolvedValueOnce({
       platform: "netflix",
       platformName: "Netflix",
@@ -469,11 +489,11 @@ describe("GET /catalog/[type]/[id]", () => {
 
     expect(res.status).toBe(200)
     // Cycle-aware source refresh (fixed chart cycles): the in-slot freshness
-    // floor travels with the canonical fallback fetch. The renewal caller
-    // forbids laundering a stale fp-crawler body as a fresh fetch
-    // (freshOrThrow: failure retention, no new generation on outage) while
-    // the serving path keeps the fail-open stale fallback.
-    expect(mockedGetTop10).toHaveBeenCalledWith("netflix", "italy", "settings-key", { enrich: false, minFetchedAtMs: expect.any(Number), freshOrThrow: true })
+    // floor travels with the canonical FP-first fetch. The renewal forbids
+    // laundering a stale fp-crawler body as a fresh fetch (failure retention,
+    // no new generation on outage) while the serving path keeps the fail-open
+    // stale fallback.
+    expect(mockedResolveFlixSides).toHaveBeenCalledWith("netflix", "italy", { minFetchedAtMs: expect.any(Number), freshOrThrow: true })
     expect(body.metas[0]).toMatchObject({
       id: "tmdb:1715492",
       type: "movie",

@@ -7,7 +7,9 @@ import { getServerDefaults, getServerDefaultsForUser } from "@/lib/server-defaul
 import { getScopedUserId, userExists } from "@/lib/user-auth"
 import { decodeConfig } from "@/lib/config-token"
 import { rateLimit, rateLimitKey, rateLimitResponse } from "@/lib/rate-limit"
-import { getRegionDef, normalizeRegion, parseRegion } from "@/lib/regions"
+import { getRegionDef, normalizeRegion, parseRegion, GLOBAL_REGION_CODE } from "@/lib/regions"
+import { ensureFreshChartFamily } from "@/lib/chart-renewal"
+import { CHART_LIVE_PIN_ID, pinChartFamily, pinnedFamilyRows, type ChartFamilyPin } from "@/lib/chart-generation"
 import { cacheGet, cacheSet } from "@/lib/cache"
 import { createLogger } from "@/lib/logger"
 import { jsonGzip } from "@/lib/json-response"
@@ -136,8 +138,6 @@ export async function GET(req: NextRequest) {
     }
   }
   const acceptEncoding = req.headers.get("accept-encoding")
-  const cached = cacheGet<{ movies: TrendingItem[]; tv: TrendingItem[] }>(cacheKey)
-  if (cached) return jsonGzip(cached, 200, mutablePreviewHeaders, acceptEncoding)
 
   // Deadline di endpoint: timer esplicito (non AbortSignal.timeout) così i
   // test lo controllano col fake clock; combined col signal del client per i
@@ -145,10 +145,12 @@ export async function GET(req: NextRequest) {
   // né worker residui dopo la risposta.
   //
   // Confine onesto del budget: i 20s coprono fase JW + arricchimento. La fase
-  // prima del timer (rate-limit, risoluzione chiave, lookup cache) è fuori
-  // budget ma bounded a parte: rate-limit in-memory sync (KV solo con store
-  // configurato, comandi con hard timeout + fallback fail-open in kv.ts),
-  // chiavi da header/query/env sync e da file locale (solo con `?u=`).
+  // prima del timer (rate-limit, risoluzione chiave) è fuori budget ma bounded
+  // a parte: rate-limit in-memory sync (KV solo con store configurato,
+  // comandi con hard timeout + fallback fail-open in kv.ts), chiavi da
+  // header/query/env sync e da file locale (solo con `?u=`). La lookup cache
+  // sta DOPO il pin delle famiglie (sotto): una body pre-fix sotto la vecchia
+  // generazione non deve servire oltre il publish (Lupin FIRST vs 12th).
   const endpointCtrl = new AbortController()
   const endpointTimer = setTimeout(() => {
     endpointCtrl.abort(new DOMException("Trending endpoint deadline exceeded", "TimeoutError"))
@@ -190,21 +192,88 @@ export async function GET(req: NextRequest) {
     if (endpointCtrl.signal.aborted) onPhaseAbort()
     else endpointCtrl.signal.addEventListener("abort", onPhaseAbort, { once: true })
     const jwSignal = jwCtrl.signal
+    // Aborted upfront: zero chart I/O (same contract as the old live path —
+    // no pin refresh attempt, no fetch launch). The resolve step below falls
+    // back to live fetches that abort immediately with zero transport.
+    const preAborted = endpointCtrl.signal.aborted
+    const livePin: ChartFamilyPin = { id: CHART_LIVE_PIN_ID, snapshot: null }
+    // Canonical-window pins BEFORE the cache lookup (Lupin repro): the UI
+    // must read the SAME published generations the Stremio catalogs serve.
+    // A pre-fix live body cached under this key must not serve past a publish.
+    const jwFamilyFor = (slot: "movie" | "series"): string | null => {
+      const source = slot === "movie" ? movieSource : seriesSource
+      if (source.kind !== "justwatch") return null
+      const mode = source.mode ?? "charts"
+      if ((mode === "popular" || mode === "trending") && country.toUpperCase() === GLOBAL_REGION_CODE) return null
+      return `jw:${slot === "movie" ? "movie" : "series"}:${mode}`
+    }
+    const movieFamily = jwFamilyFor("movie")
+    const seriesFamily = jwFamilyFor("series")
+    const pinSlot = async (family: string | null): Promise<ChartFamilyPin> => {
+      if (!family) return { id: CHART_LIVE_PIN_ID, snapshot: null }
+      try {
+        return await ensureFreshChartFamily({
+          regionCode: country,
+          regionLang: tmdbLang,
+          tmdbLang,
+          family,
+          signal: jwSignal,
+        })
+      } catch {
+        try {
+          return await pinChartFamily({ regionCode: country, regionLang: tmdbLang, family })
+        } catch {
+          return { id: CHART_LIVE_PIN_ID, snapshot: null }
+        }
+      }
+    }
+    const [moviePin, seriesPin] = preAborted
+      ? [livePin, livePin]
+      : await Promise.all([pinSlot(movieFamily), pinSlot(seriesFamily)])
+    // Generation-fenced lookup: the key stays source-scoped (legacy
+    // `trending:v2:<country>` byte-identical), the payload carries the actual
+    // pinned generations — a hit from a previous generation is a miss.
+    // Publication metadata (T1 backend contract): per-slot last successful
+    // publication time (snapshot.publishedAt, ms epoch) — Pictorium's
+    // publication, NOT the source's update time, NOT the request time.
+    // Null when the slot has no genuine pin (custom/unsupported/live).
+    // Cache hits do NOT retimestamp; outage retention keeps the old stamp;
+    // an actual empty publish carries its new timestamp.
+    type TrendingCached = { movies: TrendingItem[]; tv: TrendingItem[]; gen?: { movie: string; series: string }; updatedAt?: { movie: number | null; series: number | null } }
+    const cached = cacheGet<TrendingCached>(cacheKey)
+    if (cached && cached.gen && cached.gen.movie === moviePin.id && cached.gen.series === seriesPin.id) {
+      clearTimeout(jwTimer)
+      endpointCtrl.signal.removeEventListener("abort", onPhaseAbort)
+      clearTimeout(endpointTimer)
+      req.signal.removeEventListener("abort", onReqAbort)
+      return jsonGzip({ movies: cached.movies, tv: cached.tv, updatedAt: cached.updatedAt }, 200, mutablePreviewHeaders, acceptEncoding)
+    }
     let movieRanks: { tmdbId: number; rank: number }[]
     let tvRanks: { tmdbId: number; rank: number }[]
-    // Top 20 ranking resolution: the SAME shared service the Stremio
-    // catalogs and /api/trending/rank use (fetchTop20Ranking), driven by the
-    // scoped selection above — never hardcoded charts. Charts call the exact
-    // same getJWRankings the old code called (contract unchanged); popular /
-    // trending use the digital-monetization titles; custom uses the resolved
-    // custom list (provider errors surface as degraded, never as a silent JW
-    // substitution); GLOBAL popular/trending is an approved empty (no
-    // national substitute, not an outage).
+    // Top 20 ranking resolution: pinned canonical window for JustWatch
+    // (charts/popular/trending) — same generations as the Stremio catalogs.
+    // Custom keeps the live shared service (no chart family). A genuine
+    // published EMPTY serves [] with NO live fallback (else resurrection);
+    // only a cold miss (no snapshot) falls back to live per historic contract.
+    // On refresh failure the pin above already holds the last good snapshot,
+    // which is served here — never a live refetch over it.
     const resolveSlotRanks = async (
       slot: "movie" | "series",
       label: string,
     ): Promise<{ tmdbId: number; rank: number }[]> => {
       const source = slot === "movie" ? movieSource : seriesSource
+      if (source.kind === "justwatch") {
+        const mode = source.mode ?? "charts"
+        if ((mode === "popular" || mode === "trending") && country.toUpperCase() === GLOBAL_REGION_CODE) {
+          return []
+        }
+        const pin = slot === "movie" ? moviePin : seriesPin
+        if (pin.snapshot != null) {
+          const rows = pinnedFamilyRows(pin) ?? []
+          return rows.map((r) => ({ tmdbId: r.tmdbId, rank: r.rank }))
+        }
+        // Cold miss: fall through to the live fetch below.
+      }
       try {
         const res = await fetchTop20Ranking({
           slot,
@@ -350,7 +419,11 @@ export async function GET(req: NextRequest) {
     await Promise.all(workers)
     movieResults.sort((a, b) => a.rank - b.rank)
     tvResults.sort((a, b) => a.rank - b.rank)
-    const body = { movies: movieResults, tv: tvResults }
+    const updatedAt = {
+      movie: moviePin.snapshot?.publishedAt ?? null,
+      series: seriesPin.snapshot?.publishedAt ?? null,
+    }
+    const body = { movies: movieResults, tv: tvResults, gen: { movie: moviePin.id, series: seriesPin.id }, updatedAt }
     // Se c'erano rank ma non è stato arricchito nulla → probabile outage TMDB.
     // Una SEZIONE intera vuota (film ok, serie ferme o viceversa) è outage
     // parziale: parziale valido ma degradato, mai cacheato come sano.
@@ -363,10 +436,10 @@ export async function GET(req: NextRequest) {
       // i client/CDN la trattavano come "niente in evidenza". Con `degraded`
       // il client può mostrare uno stato di outage invece di una home vuota.
       log.warn("Trending degraded — response not cached", { country, movies: movieResults.length, tv: tvResults.length })
-      return jsonGzip({ ...body, degraded: true }, 200, { "Cache-Control": "no-store" }, acceptEncoding)
+      return jsonGzip({ movies: body.movies, tv: body.tv, updatedAt: body.updatedAt, degraded: true }, 200, { "Cache-Control": "no-store" }, acceptEncoding)
     }
     cacheSet(cacheKey, body, ["tmdb", "trending", country])
-    return jsonGzip({ ...body, degraded: false }, 200, mutablePreviewHeaders, acceptEncoding)
+    return jsonGzip({ movies: body.movies, tv: body.tv, updatedAt: body.updatedAt, degraded: false }, 200, mutablePreviewHeaders, acceptEncoding)
   } catch (err) {
     log.error("Trending fetch failed", { error: err instanceof Error ? err.message : String(err) })
     return jsonGzip({ movies: [], tv: [], degraded: true }, 200, { "Cache-Control": "no-store" }, acceptEncoding)

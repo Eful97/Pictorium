@@ -12,7 +12,7 @@ import {
 } from "@/lib/effective-accent"
 import { isBadgeStyle, isRankingBadgeStyle, isExtraBadgeStyle, isExtraFollowRank, isBadgeFont, isSeparateRatingsStyle, isAgeBadgeStyle } from "@/lib/badge-styles"
 import { isPosterLayout, isPosterFreshScope, DEFAULT_POSTER_FRESH_SCOPE } from "@/lib/types"
-import { POSTER_CACHE_ALLOWLIST } from "./poster-params-hardening"
+import { POSTER_CACHE_ALLOWLIST, parseListRankParam } from "./poster-params-hardening"
 import { sanitizeDisabledContentTags } from "./content-tags"
 import { sanitizeDisabledNetworks } from "./network-keys"
 
@@ -132,7 +132,16 @@ export function normalizePosterCacheParams(searchParams: URLSearchParams): URLSe
   }
   params.delete("rv")
   params.delete("v")
-  params.delete("rk")
+  // rk: ephemeral list-rank context (position in the originating selected
+  // list). Valid 0..100 stays explicit in the key (same title rank N vs M =
+  // different keys/bytes); invalid collapses onto absent (legacy inert buster,
+  // no poisoning). Same bounds as `rank` in poster-params-hardening.
+  const rkRaw = params.get("rk")
+  if (rkRaw !== null) {
+    const rkN = parseListRankParam(rkRaw)
+    if (rkN !== null) params.set("rk", String(rkN))
+    else params.delete("rk")
+  }
   params.delete(POSTER_REFRESH_PARAM)
 
   const ac = params.get("ac")

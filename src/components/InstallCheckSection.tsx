@@ -228,9 +228,17 @@ export async function decodeInstallCheckImage(
   }
 }
 
-/** Media types a Pictorium Stremio catalog may declare (see
- * build-manifest: content/search/people stay movie|series). */
-const INSTALL_CHECK_CATALOG_TYPES = new Set(["movie", "series"])
+/** Media types a Pictorium Stremio catalog may declare. `movie`/`series` cover
+ * content/search/people catalogs; `all` is Stremio's public mixed-catalog type,
+ * emitted by build-manifest for generic `all` (overall) streaming selections
+ * (root `types` gains `all` for the `/catalog/all/...` route while `meta`
+ * keeps its explicit movie/series types — the /meta resolver has no `all`
+ * branch). Accepted for any entry on purpose: the checker validates manifest
+ * structure, it does not re-enforce builder id policy (that would couple it to
+ * `stream2-*` naming and risk false-rejecting future legitimate `all`
+ * catalogs). Every other gate (id/name/version/root types/resources/meta)
+ * stays fail-closed, so malformed manifests still fail. */
+const INSTALL_CHECK_CATALOG_TYPES = new Set(["movie", "series", "all"])
 
 /** Minimal catalog entry: present only if the manifest declares it. */
 function isInstallCheckCatalogEntry(c: unknown): boolean {

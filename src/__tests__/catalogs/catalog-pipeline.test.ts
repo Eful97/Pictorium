@@ -1,12 +1,9 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest"
 import { NextRequest } from "next/server"
-import { GET } from "@/app/catalog/[type]/[id]/route"
-import { cacheClear } from "@/lib/cache"
-import { getById } from "@/lib/store"
-import { __resetJWRankingsCache } from "@/lib/justwatch"
-import { __resetChartGenerationForTest } from "@/lib/chart-generation"
-import { __clearTMDBCache } from "@/lib/tmdb"
-import { __clearImdbCache } from "@/lib/imdb-cache"
+import fs from "node:fs"
+import fsp from "node:fs/promises"
+import os from "node:os"
+import path from "node:path"
 import { encodeConfig } from "@/lib/config-token"
 
 vi.mock("@/lib/store", () => ({
@@ -33,7 +30,85 @@ vi.mock("@/lib/server-defaults", async (importOriginal) => {
   }
 })
 
-const mockedGetById = vi.mocked(getById)
+let mockedGetById: ReturnType<typeof vi.fn>
+
+// Hermetic DATA_DIR (test-only isolation, no production semantics changed).
+// The file backends in this chain resolve DATA_DIR once at module evaluation
+// (flixpatrol cacheFile closure, chart-generation file persist), so the
+// exclusive temp dir must be on process.env BEFORE the chain is (re)imported
+// in beforeAll below. Direct assignment — never vi.stubEnv — because the
+// shared setup.ts afterEach calls vi.unstubAllEnvs() after every test.
+// Portable hermetic scratch root: os.tmpdir()-based (on this Windows env it
+// resolves to the approved temp root) instead of a hardcoded per-user path,
+// which would create a stray relative dir on POSIX and pollute the checkout.
+function createHermeticDataDir(prefix: string): string {
+  try {
+    const scratchBase = path.join(os.tmpdir(), "opencode")
+    fs.mkdirSync(scratchBase, { recursive: true })
+    return fs.mkdtempSync(path.join(scratchBase, prefix))
+  } catch {
+    return fs.mkdtempSync(path.join(os.tmpdir(), prefix))
+  }
+}
+const HERMETIC_ENV_KEYS = ["PICTORIUM_DATA_DIR", "POSTERIUM_DATA_DIR"] as const
+let hermeticDataDir = ""
+let savedDataDirEnv: Record<string, string | undefined> = {}
+
+// Chain bindings: populated in beforeAll via dynamic import AFTER the temp
+// DATA_DIR is set and the module registry reset, so every file backend in
+// the chain points at the exclusive temp dir and can never see real ./data
+// files. The hoisted vi.mock factories below keep applying to the fresh
+// instances (Vitest mock registry survives resetModules).
+let GET: typeof import("@/app/catalog/[type]/[id]/route").GET
+let cacheClear: typeof import("@/lib/cache").cacheClear
+let __resetJWRankingsCache: typeof import("@/lib/justwatch").__resetJWRankingsCache
+let __resetChartGenerationForTest: typeof import("@/lib/chart-generation").__resetChartGenerationForTest
+let __clearTMDBCache: typeof import("@/lib/tmdb").__clearTMDBCache
+let __clearImdbCache: typeof import("@/lib/imdb-cache").__clearImdbCache
+let __clearFlixpatrolCache: typeof import("@/lib/flixpatrol").__clearFlixpatrolCache
+
+beforeAll(async () => {
+  hermeticDataDir = createHermeticDataDir("pictorium-pipeline-")
+  for (const k of HERMETIC_ENV_KEYS) savedDataDirEnv[k] = process.env[k]
+  process.env.PICTORIUM_DATA_DIR = hermeticDataDir
+  delete process.env.POSTERIUM_DATA_DIR
+  vi.resetModules()
+  GET = (await import("@/app/catalog/[type]/[id]/route")).GET
+  cacheClear = (await import("@/lib/cache")).cacheClear
+  // Re-acquire the store mock from the fresh registry: the vi.mock factory
+  // below is re-evaluated on re-import, so the static binding would go stale.
+  // (If Vitest reuses the cached mock instead, this is the same fn — no-op.)
+  mockedGetById = vi.mocked((await import("@/lib/store")).getById)
+  __resetJWRankingsCache = (await import("@/lib/justwatch")).__resetJWRankingsCache
+  __resetChartGenerationForTest = (await import("@/lib/chart-generation")).__resetChartGenerationForTest
+  __clearTMDBCache = (await import("@/lib/tmdb")).__clearTMDBCache
+  __clearImdbCache = (await import("@/lib/imdb-cache")).__clearImdbCache
+  __clearFlixpatrolCache = (await import("@/lib/flixpatrol")).__clearFlixpatrolCache
+})
+
+afterAll(async () => {
+  try {
+    // FP saveCache is fire-and-forget: await the durable write by condition
+    // (poll for the file, never a fixed sleep) before removing the fixture dir.
+    const file = path.join(hermeticDataDir, "flixpatrol_cache_italy.json")
+    for (let i = 0; i < 40; i++) {
+      try {
+        await fsp.access(file)
+        break
+      } catch {
+        await new Promise((r) => setTimeout(r, 50))
+      }
+    }
+  } finally {
+    for (const k of HERMETIC_ENV_KEYS) {
+      if (savedDataDirEnv[k] === undefined) delete process.env[k]
+      else process.env[k] = savedDataDirEnv[k]
+    }
+    savedDataDirEnv = {}
+    if (hermeticDataDir) await fsp.rm(hermeticDataDir, { recursive: true, force: true })
+    hermeticDataDir = ""
+  }
+})
 
 const SLOW_ID = 1010101
 const FAST_ID = 2020202
@@ -215,6 +290,7 @@ describe("Catalog details→enrichment pipelining (no whole-batch barrier)", () 
     __resetJWRankingsCache()
     __clearTMDBCache()
     __clearImdbCache()
+    __clearFlixpatrolCache()
     cacheClear()
     // Per-family snapshots persist in memory across tests: without a reset,
     // an earlier publish would serve stale pinned rows instead of the mock.
@@ -228,6 +304,7 @@ describe("Catalog details→enrichment pipelining (no whole-batch barrier)", () 
     __resetJWRankingsCache()
     __clearTMDBCache()
     __clearImdbCache()
+    __clearFlixpatrolCache()
     cacheClear()
     __resetChartGenerationForTest()
   })

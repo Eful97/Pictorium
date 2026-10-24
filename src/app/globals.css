@@ -1552,6 +1552,15 @@ select:focus-visible {
   max-width: 980px;
 }
 
+/* Single (unpaired) curated list: full section width like the pair row above.
+   The section column is max-w-6xl (1152px) while `--fill` caps at 980px, so a
+   lone single sat narrow next to a full pair row. Lifting ONLY the cap keeps
+   everything else identical: same `.posters` rail (fixed 185px height, thumbs
+   scroll inside, no sibling overlap) on desktop and mobile. */
+.simkl-list-card--single-full {
+  max-width: none;
+}
+
 /* Card singola (1 poster) — più stretta */
 .simkl-list-card--single {
   width: 180px;

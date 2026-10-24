@@ -222,19 +222,38 @@ describe("FlixPatrol disk+memory validity 12h", () => {
     throw new Error(`Timed out waiting for FlixPatrol disk cache at ${file}`)
   }
 
+  // Chart dates ride the mocked clock (dynamic Rome-today label): the TTL
+  // under test is fetch age, while chart-date freshness must always pass
+  // here — stale dates are covered by dedicated date tests.
+  function romeChartDateLabel(nowMs: number): string {
+    const parts = new Intl.DateTimeFormat("en-US", {
+      timeZone: "Europe/Rome",
+      month: "long",
+      day: "numeric",
+      year: "numeric",
+    }).formatToParts(nowMs)
+    const get = (t: string): string => parts.find((p) => p.type === t)?.value ?? ""
+    return `${get("month")} ${Number(get("day"))}, ${get("year")}`
+  }
+
   function makeCatalog(prefix: string): unknown {
+    const label = romeChartDateLabel(now)
     return {
+      date: label,
+      scraped_at_utc: new Date(now).toISOString(),
       charts: [
         {
           catalog_id: "netflix",
           platform: "Netflix",
           category: "movies",
+          date: label,
           entries: [{ rank: 1, title: `${prefix} Movie`, tmdb: { id: 1, media_type: "movie", release_date: "2024-01-01" } }],
         },
         {
           catalog_id: "netflix",
           platform: "Netflix",
           category: "tv shows",
+          date: label,
           entries: [{ rank: 1, title: `${prefix} Show`, tmdb: { id: 2, media_type: "tv", release_date: "2024-02-01" } }],
         },
       ],

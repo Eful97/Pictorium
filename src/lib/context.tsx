@@ -180,6 +180,10 @@ export interface PictoriumCtx {
   mdblistAnimeList: EnrichedAnimeItem[]
   animeStatus: import("./useTrending").ListStatus
   animeSource: "mdblist" | "tmdb" | null
+  /** Pictorium publication stamps (ms epoch, per slot) of the served Top 20; null = unknown. */
+  trendingUpdatedAt: import("./useTrending").PublicationStamps | null
+  /** Pictorium publication stamps (ms epoch, per slot) of the served anime lists; null = unknown. */
+  animeUpdatedAt: import("./useTrending").PublicationStamps | null
   streamingCharts: Record<string, import("./types").FlixPatrolChart>
   platformErrors: Record<string, boolean>
   loadPlatform: (slug: string, force?: boolean) => Promise<boolean>
@@ -264,6 +268,16 @@ export interface PictoriumCtx {
   renameCatalog: (id: string, newName: string) => void
   resetCatalogNames: () => void
   resetCatalogOrder: () => void
+  /**
+   * Restores the two factory default lists (general JustWatch Top 20
+   * movies + series): clears their disabled/home/order/rename entries and
+   * returns both Top 20 source slots to factory JustWatch charts (`""`).
+   * Custom/imported lists stay available (a custom source selection never
+   * deletes the list); streaming selections, API keys, region and visual
+   * settings are untouched. Same cross-hook split as `removeCustomCatalog`
+   * (each hook persists its own slice through its serialized PUT chain).
+   */
+  resetDefaultLists: () => Promise<void>
   /** Catalog-name emoji visibility (display only, default shown). */
   catalogShowEmojis: boolean
   setCatalogShowEmojis: (show: boolean) => void
@@ -282,6 +296,72 @@ export interface PictoriumCtx {
   seasonalChristmasKeywords: string[]
   setSeasonalChristmasKeywords: (keywords: string[]) => void
   resetSeasonalKeywords: () => void
+  /**
+   * Opt-in streaming selections (service + chart country + source + variant).
+   * `undefined` = absent = legacy mode; explicit (`[]` or list) = curated
+   * mode (only general JustWatch Top 20 + enabled selections are exposed
+   * to Stremio). Same provider in multiple countries/sources/variants are
+   * distinct identities (never merged).
+   */
+  streamingSelections: import("./streaming-catalogs").StreamingSelection[] | undefined
+  setStreamingSelections: (selections: import("./streaming-catalogs").StreamingSelection[]) => void
+  /** Add/merge one entry (country accepts RegionDef code or chart slug); returns the outcome for user feedback. */
+  addStreamingSelection: (
+    service: string,
+    country: string,
+    sections: Array<import("./streaming-catalogs").GenericStreamingSection>,
+    source?: import("./streaming-catalogs").StreamingSourceMode,
+    variant?: string | null,
+  ) => "added" | "merged" | "duplicate" | "full" | "invalid"
+  /** Batch add/merge for the multiselect dialog; returns counts + outcome. */
+  addStreamingSelections: (entries: import("./streaming-catalog-client").GenericAddEntry[]) => import("./streaming-catalog-client").BatchAddResult
+  /**
+   * Remove streaming lists. With a `section`, ONLY that derived list is
+   * removed (siblings stay); without it the whole entry goes. Shared
+   * records lose ONLY the dropped ids.
+   */
+  removeStreamingSelection: (
+    service: string,
+    country: string,
+    source?: import("./streaming-catalogs").StreamingSourceMode | null,
+    variant?: string | null,
+    section?: import("./streaming-catalogs").GenericStreamingSection,
+  ) => void
+  /**
+   * Atomic bulk remove of derived streaming lists (manager multi-delete):
+   * one mirror read, one persist, one shared-record cleanup. Factory JW
+   * ids never enter (toggle-only, filtered by the caller).
+   */
+  removeStreamingSelections: (
+    items: ReadonlyArray<{
+      service: string
+      country: string
+      source?: import("./streaming-catalogs").StreamingSourceMode | null
+      variant?: string | null
+      section: import("./streaming-catalogs").GenericStreamingSection
+    }>,
+  ) => { removed: number; droppedIds: string[] }
+  /**
+   * Atomic bulk remove of whole custom/addon providers (manager
+   * multi-delete). Only whole providers: the caller includes a base id only
+   * when ALL its emitted rows are selected.
+   */
+  removeCustomCatalogs: (baseIds: readonly string[], derivedIds: readonly string[]) => void
+  /** Independent Hide (keep config, don't expose to Stremio). */
+  toggleStreamingSelection: (
+    service: string,
+    country: string,
+    source?: import("./streaming-catalogs").StreamingSourceMode | null,
+    variant?: string | null,
+  ) => void
+  /** Per-section toggle (narrow entry, or Hide when last section). */
+  toggleStreamingSection: (
+    service: string,
+    country: string,
+    section: import("./streaming-catalogs").GenericStreamingSection,
+    source?: import("./streaming-catalogs").StreamingSourceMode | null,
+    variant?: string | null,
+  ) => void
   /** Raw Top 20 source ids (`""` = explicit JustWatch); resolved via the pure resolver. */
   rankingSourceMovie: string
   rankingSourceSeries: string
@@ -538,6 +618,7 @@ export function usePictorium(): PictoriumCtx {
     renameCatalog,
     resetCatalogNames,
     resetCatalogOrder,
+    resetDefaultCatalogs,
     catalogShowEmojis,
     setCatalogShowEmojis,
     catalogShapes,
@@ -549,6 +630,15 @@ export function usePictorium(): PictoriumCtx {
     seasonalChristmasKeywords,
     setSeasonalChristmasKeywords,
     resetSeasonalKeywords,
+    streamingSelections,
+    setStreamingSelections,
+    addStreamingSelection,
+    addStreamingSelections,
+    removeStreamingSelection,
+    removeStreamingSelections,
+    removeCustomCatalogs,
+    toggleStreamingSelection,
+    toggleStreamingSection,
   } = useCustomCatalogs(safeGetItem, safeSetItem)
 
   // --- Top 20 Ranking Sources (global movie/series charts) ---
@@ -561,8 +651,11 @@ export function usePictorium(): PictoriumCtx {
   } = useRankingSources(safeGetItem, safeSetItem)
 
   // Signed device config for namespace-less spaces (null otherwise).
+  // Opt-in streaming selections travel when defined — even explicit `[]` —
+  // so a cleared device wins over the namespace fill (same absent-vs-explicit
+  // boundary as the space-wide exclusions below).
   const { token: localConfigToken, status: localConfigTokenStatus } =
-    useLocalConfigToken({ customCatalogs, rankingSourceMovie, rankingSourceSeries, catalogShapes, catalogShowEmojis, seasonalHalloweenKeywords, seasonalChristmasKeywords, disabledContentTags: editorCtx.defaultDisabledContentTags, disabledNetworks: editorCtx.defaultDisabledNetworks })
+    useLocalConfigToken({ customCatalogs, rankingSourceMovie, rankingSourceSeries, catalogShapes, catalogShowEmojis, seasonalHalloweenKeywords, seasonalChristmasKeywords, disabledContentTags: editorCtx.defaultDisabledContentTags, disabledNetworks: editorCtx.defaultDisabledNetworks, ...(streamingSelections !== undefined ? { streamingSelections } : {}) })
 
   const trending = useTrending(tmdbKey, mdblistApiKey, editorCtx.defaultRegion, serverHasTmdbKey, {
     movieSource: rankingSourceMovie,
@@ -955,6 +1048,20 @@ export function usePictorium(): PictoriumCtx {
     )
     await Promise.all(jobs)
   }, [removeCustomCatalogBase, rankingSourceMovie, rankingSourceSeries, setRankingSource])
+
+  // "Ripristina liste predefinite": factory restore of the two general
+  // JustWatch Top 20 lists only. Catalog slice (disabled/home/order/
+  // renames) resets synchronously via the hook; both ranking slots return
+  // to factory charts (`""`) through the existing ranking PUT chain while
+  // the imported custom lists stay available. Never auto-fires: the manager
+  // reset button calls this only after an explicit two-step confirmation.
+  const resetDefaultLists = useCallback(async () => {
+    resetDefaultCatalogs()
+    await Promise.all([
+      setRankingSource("movie", ""),
+      setRankingSource("series", ""),
+    ])
+  }, [resetDefaultCatalogs, setRankingSource])
 
   const setTmdbKey = useCallback((val: string) => {
     setTmdbKeyState(val)
@@ -1605,7 +1712,9 @@ export function usePictorium(): PictoriumCtx {
     if (currentUserId) params.set("u", currentUserId)
     if (tmdbKey) params.set("api_key", tmdbKey)
     params.set("lang", lang)
-    params.set("region", editorCtx.defaultRegion)
+    // Region di selezione (paese chart della lista di origine) vince sul
+    // default globale: la modalità Stremio risolve lo stesso snapshot.
+    params.set("region", navigation.listRegion ?? editorCtx.defaultRegion)
     if (localConfigToken) params.set("config", localConfigToken)
     // Contesto stagionale effimero della lista di origine
     // (navigation.seasonalTheme, whole-word dal nome lista): la scelta
@@ -1631,7 +1740,7 @@ export function usePictorium(): PictoriumCtx {
     return () => { live = false }
     // mappingsMap: dopo un save il mapping (e il suo `mv`) cambia — l'URL va
     // ririsolta o il modale mostra l'artefatto pre-save (stale).
-  }, [stremioPreview, navigation.selected, navigation.seasonalTheme, seasonalTheme, currentUserId, tmdbKey, mappingsMap, lang, editorCtx.defaultRegion, localConfigToken, localConfigTokenStatus])
+  }, [stremioPreview, navigation.selected, navigation.seasonalTheme, navigation.listRank, navigation.listRegion, seasonalTheme, currentUserId, tmdbKey, mappingsMap, lang, editorCtx.defaultRegion, localConfigToken, localConfigTokenStatus])
 
   const buildPreviewUrlCb = useCallback(() => {
     // Token suspend: while the device config is minting (or failed), no
@@ -1680,6 +1789,10 @@ export function usePictorium(): PictoriumCtx {
         metaInfo, trendRank, mdblistAnimeList: trending.mdblistAnimeList,
         topEdgeColor, bottomEdgeColor, accentColor, autoAccentColor, lang, tmdbKey,
         region: editorCtx.defaultRegion,
+        // Rank/region effimeri di lista (decisione A): la preview usa lo
+        // stesso snapshot Stremio della riga cliccata (stesso `rk=`/`region=`).
+        listRank: navigation.listRank ?? null,
+        listRegion: navigation.listRegion ?? null,
         dateFormat: editorCtx.defaultDateFormat,
         // Preview WYSIWYG nel namespace (altrimenti mostra il globale).
         userId: currentUserId,
@@ -1688,7 +1801,7 @@ export function usePictorium(): PictoriumCtx {
       localConfigToken,
     )
     setPreviewUrl(url)
-  }, [stremioPreview, stremioPreviewUrl, navigation.selected, navigation.previewPoster, navigation.selectedLogo, navigation.seasonalTheme, seasonalTheme, selectedBackdrop,
+  }, [stremioPreview, stremioPreviewUrl, navigation.selected, navigation.previewPoster, navigation.selectedLogo, navigation.seasonalTheme, navigation.listRank, navigation.listRegion, seasonalTheme, selectedBackdrop,
     logoScale, logoScaleExplicit, logoOffsetX, logoOffsetY, backdropScale, backdropOffsetX, backdropOffsetY,
     metaInfo, trendRank, trending.mdblistAnimeList, topEdgeColor, bottomEdgeColor, accentColor, autoAccentColor, lang, tmdbKey,
     editorCtx.defaultRegion, editorCtx.defaultDateFormat, currentUserId, localConfigToken, localConfigTokenStatus,
@@ -2975,7 +3088,7 @@ export function usePictorium(): PictoriumCtx {
     refreshLists: trending.refreshLists, loadPlatform: trending.loadPlatform,
     tmdbKey, setQuery: search.setQuery, doSearch: search.doSearch, loadMore: search.loadMore, loadMoreFiltered: search.loadMoreFiltered, retryFailed: search.retryFailed, failedPage: search.failedPage, hasSearched: search.hasSearched,
     titleOf, yearOf, posterUrl,
-    trending: trending.trending, trendingError: trending.trendingError, trendingStatus: trending.trendingStatus, streamingCharts: trending.streamingCharts, platformErrors: trending.platformErrors, mdblistAnimeList: trending.mdblistAnimeList, animeStatus: trending.animeStatus, animeSource: trending.animeSource, refreshNonce: trending.refreshNonce,
+    trending: trending.trending, trendingError: trending.trendingError, trendingStatus: trending.trendingStatus, trendingUpdatedAt: trending.trendingUpdatedAt, streamingCharts: trending.streamingCharts, platformErrors: trending.platformErrors, mdblistAnimeList: trending.mdblistAnimeList, animeStatus: trending.animeStatus, animeSource: trending.animeSource, animeUpdatedAt: trending.animeUpdatedAt, refreshNonce: trending.refreshNonce,
     STREAMING_PLATFORMS, loadMappings,
     query: search.query, results: search.results, searching: search.searching, error: search.error, setError: search.setError, totalResults: search.totalResults, totalPages: search.totalPages, searchPage: search.searchPage, recentSearches: search.recentSearches, mappings,
 
@@ -3005,11 +3118,12 @@ export function usePictorium(): PictoriumCtx {
     disabledCatalogIds, setDisabledCatalogIds, toggleBuiltinCatalog,
     homeDisabledCatalogIds, setHomeDisabledCatalogIds, toggleCatalogHome,
     catalogOrder, setCatalogOrder, moveCatalog,
-    catalogRenames, setCatalogRenames, renameCatalog, resetCatalogNames, resetCatalogOrder,
+    catalogRenames, setCatalogRenames, renameCatalog, resetCatalogNames, resetCatalogOrder, resetDefaultLists,
     catalogShowEmojis, setCatalogShowEmojis,
     catalogShapes, setCatalogShapes, setCatalogShape, resetCatalogShapes,
     seasonalHalloweenKeywords, setSeasonalHalloweenKeywords,
     seasonalChristmasKeywords, setSeasonalChristmasKeywords, resetSeasonalKeywords,
+    streamingSelections, setStreamingSelections, addStreamingSelection, addStreamingSelections, removeStreamingSelection, removeStreamingSelections, removeCustomCatalogs, toggleStreamingSelection, toggleStreamingSection,
     rankingSourceMovie, rankingSourceSeries, rankingSourceStatus, setRankingSource, rankSourceNonce, refreshCurrentRank,
     localConfigToken, localConfigTokenStatus,
     t,
@@ -3030,10 +3144,11 @@ export function usePictorium(): PictoriumCtx {
     currentUserId,
     accentColor, autoAccentColor, setAccentColor,
     topEdgeColor, bottomEdgeColor, autoSaveExcludedPosters, autoSaveExcludedBackdrops, prefetchTitle,
-    trending.trending, trending.trendingError, trending.trendingStatus, trending.streamingCharts, trending.platformErrors, trending.mdblistAnimeList, trending.animeStatus, trending.animeSource, trending.refreshNonce,
+    trending.trending, trending.trendingError, trending.trendingStatus, trending.trendingUpdatedAt, trending.streamingCharts, trending.platformErrors, trending.mdblistAnimeList, trending.animeStatus, trending.animeSource, trending.animeUpdatedAt, trending.refreshNonce,
     trending.refreshLists, trending.loadPlatform,
     theme, uiAccent, serviceErrors, hasNetflixRank,
     customCatalogs, disabledCatalogIds, homeDisabledCatalogIds, catalogOrder, catalogRenames, catalogShapes, catalogShowEmojis, seasonalHalloweenKeywords, seasonalChristmasKeywords,
+    streamingSelections,
     rankingSourceMovie, rankingSourceSeries, rankSourceNonce, catalogsSyncNonce, localConfigToken, localConfigTokenStatus,
   ])
 }

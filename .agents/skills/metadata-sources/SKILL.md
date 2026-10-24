@@ -45,17 +45,41 @@ and/or the trend badges. Full architecture: `.agents/catalog.md`.
 - `SLUG_TO_PLATFORM` maps slugs to display names — see the source for the exact
   list (platform slugs plus `now`, `now-tv`, `hayu`, `crunchyroll`); don't
   duplicate the inventory here.
-- Platform branches try the JustWatch fast-path first (same-region `getJWRankings`
-  per packages, plus a `getJWTitles` top-up when the daily chart is thin, GLOBAL
-  excluded); those rows already carry `imdbId`. Only the disk-catalog fallback
-  path resolves `imdbId` per title via `resolveImdbId` (TMDB external_ids, in
-  `catalog-handler.ts`).
+- Platform charts are FP-first with per-media-type JW fallback (never blended
+  within one chart): `resolveFlixPlatformSides(slug, country)` resolves both
+  sides from a SINGLE catalog fetch; a fresh usable chart wins with ZERO JW
+  traffic, any other side (absent split, stale/invalid date, transport error,
+  malformed document/chart, or zero usable tmdbIds) falls back to the
+  same-region `getJWRankings` per packages (plus a `getJWTitles` top-up when
+  the daily chart is thin, GLOBAL excluded); those JW rows already carry
+  `imdbId`. Only the FP path resolves `imdbId` per title via `resolveImdbId`
+  (TMDB external_ids, in `catalog-handler.ts`). Each side resolves
+  independently: an opposite-side failure never blocks the requested side,
+  and only a JW failure on top of an FP miss throws (both sources down:
+  retention + 60s gate, never a fake empty; a successful JW `[]` publishes a
+  genuine empty). Chart-date freshness is bounded and deterministic: the
+  chart-level `date` (document top-level `date` only when the chart carries
+  none) must equal the current or previous Europe/Rome calendar day — older
+  is stale, future/invalid is rejected; `scraped_at_utc` and fetch/cache
+  timestamps never count. Absent platform split (overall-only platforms) is a
+  fallback, never a fake FP empty. Published snapshots carry the actual
+  per-side provenance (`justwatch`/`flixpatrol`) as internal diagnostics.
+  Legacy `platform:` families keep the historic JW unions (NOW via Peacock,
+  Paramount via SkyShowtime) byte-identical; opt-in `stream:` families use
+  strict own-brand packages with isolated pins (see streaming-catalogs).
+  Availability-index discovery (`availability.json`, `schema_version: 1`,
+  empty variant array = base chart exists, 12h fetch / 24h source-age, no
+  sibling aliases) and the per-response `X-Pictorium-Source` diagnostic plus
+  neutral manifest names are the backend disclosure architecture — full
+  user-facing source disclosure waits for the UI (no public-label
+  completeness claimed until then).
 - Cache: disk file `flixpatrol_cache_{country}.json` under `DATA_DIR` (falls back
   to a `pictorium-`-prefixed file in `os.tmpdir()` when DATA_DIR is not writable,
   e.g. serverless) + in-memory Map, 12 h validity for both. Enrichment runs at
   concurrency 6 with its own 5 min / 500-entry TMDB cache keyed without `api_key`
   (secret never in keys).
-- GLOBAL charts return empty — never filled with national data.
+- GLOBAL charts return empty — GLOBAL FP is deliberately excluded by scope
+  (platform globals stay JW-only), never filled with national data.
 - Also drives the network badge (which platform + rank).
 - Fetch timeouts: catalog 15 s, TMDB enrichment 15 s per fetch.
 

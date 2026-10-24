@@ -39,8 +39,32 @@ export async function GET(req: NextRequest) {
   }
   const cacheKey = `mdblist:anime:top20:${typeParam || "all"}:enriched:g${chartGroup}${neededFamilies.map((f) => chartPinCacheFragment(pins[f])).join("")}`
 
+  // Publication metadata (T1 backend contract): per-slot last successful
+  // publication time (ms epoch) of the SAME pinned snapshot(s) the rows
+  // come from — Pictorium's publication, NOT MDBList's update, NOT the
+  // request/page time. The array body stays byte-identical (Stremio shape);
+  // stamps travel as headers, each absent with no genuine pin for that slot.
+  // The combined header is kept for backcompat (oldest served snapshot);
+  // the per-slot headers carry the ACTUAL publication of each list (movie
+  // vs series publish independently). No extra fetch exists for metadata.
+  // Computed from the already-resolved pins BEFORE the cache return so a
+  // cache hit repeats the SAME stamps (never dropped, never retimestamped).
+  const stampMovie = neededFamilies.includes("anime:movie")
+    ? (pins["anime:movie"]?.snapshot?.publishedAt ?? null)
+    : null
+  const stampSeries = neededFamilies.includes("anime:series")
+    ? (pins["anime:series"]?.snapshot?.publishedAt ?? null)
+    : null
+  const headers: Record<string, string> = {}
+  if (typeof stampMovie === "number") headers["X-Pictorium-Updated-At-Movie"] = String(stampMovie)
+  if (typeof stampSeries === "number") headers["X-Pictorium-Updated-At-Series"] = String(stampSeries)
+  const stamps = [stampMovie, stampSeries].filter((v): v is number => typeof v === "number")
+  if (stamps.length === neededFamilies.length && stamps.length > 0) {
+    headers["X-Pictorium-Updated-At"] = String(Math.min(...stamps))
+  }
+
   const cached = cacheGet<EnrichedAnimeItem[]>(cacheKey)
-  if (cached) return Response.json(cached)
+  if (cached) return Response.json(cached, { headers })
 
   try {
     const listsToFetch: Array<{ mediaType: "tv" | "movie"; family: string }> = []
@@ -83,7 +107,7 @@ export async function GET(req: NextRequest) {
 
     const flattened = allResults.flat()
     if (flattened.length > 0) cacheSet(cacheKey, flattened, ["mdblist"])
-    return Response.json(flattened)
+    return Response.json(flattened, { headers })
   } catch (e) {
     log.error("Fetch failed", { error: e instanceof Error ? e.message : String(e) })
     return Response.json([])

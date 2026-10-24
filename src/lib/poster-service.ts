@@ -1569,6 +1569,11 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
     })
     : null
   const effectiveQueryExtra = isManualNextToken ? manualNextLabel : queryExtra
+  // The top slot (rank AND explicit extra) is governed ONLY by the TOP
+  // toggles (rankingEnabled/sash/queryExtra): disabling the lower
+  // genre/rating group (badgesEnabled = false) hides just that row and
+  // must NOT suppress rank/extra here. Genuine ranking OFF still hides the
+  // slot via the rankingEnabled gate below — never force-enabled.
   if (rankingEnabled) {
     if (effectiveQueryExtra) {
       topBadge = { type: "extra" as const, label: effectiveQueryExtra }
@@ -2350,7 +2355,11 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
   // genere/anno/voto).
   let customRowRendered = false
   // Fresh/Card: i valori vivono come righe testo nella colonna meta / banda card (sotto).
-  if (input.ratings?.length && !isBottomStyle && !isFresh && !isCard) {
+  // Custom row belongs to the lower genre/rating group (same `!== false`
+  // master as the genre row and the separate-ratings row below): it hides
+  // with badges OFF, independently of the top slot, which answers only to
+  // `rankingEnabled`.
+  if (badgesEnabled !== false && input.ratings?.length && !isBottomStyle && !isFresh && !isCard) {
     // Optional enrichment must never prevent the original poster from rendering.
     // La riga sta sopra il badge genere, in basso: stessa polarità del fondo.
     const customRowBitmap = await renderMultiRatings(input.ratings, CW - 40, bottomLight, badgeFont).catch(() => null)
@@ -2983,7 +2992,8 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
   // qualità manca). Vale per entrambi i canvas. Mai col custom provider.
   // Solo stile colonna: in modalità bottom gli items vanno alla riga sotto.
   // Fresh/Card: i valori vivono come righe testo nella colonna meta / banda card (sotto).
-  if (!customRowRendered && !isBottomStyle && input.separateRatings?.length && !isFresh && !isCard) {
+  // Master OFF silences the band (same gate as the custom row above).
+  if (badgesEnabled !== false && !customRowRendered && !isBottomStyle && input.separateRatings?.length && !isFresh && !isCard) {
     const items = input.separateRatings.slice(0, MAX_SEPARATE_RATINGS)
     const netPadX = Math.round(18 * CW / 380)
     const netBaseTop = Math.round(18 * CH / 570)

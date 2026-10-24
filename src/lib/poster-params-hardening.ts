@@ -148,7 +148,39 @@ const DERIVED_HINT_PARAMS: ReadonlySet<string> = new Set([
 
 // rank: explicit rank override, kept as a canonical integer in [0, RANK_MAX]
 // (0 = suppress the rank badge); larger values are dropped.
-const RANK_MAX = 100
+export const RANK_MAX = 100
+
+/**
+ * Strict bounded parse for the ephemeral list-rank context `rk` (shared by
+ * cache key, render preflight and tests — single point of truth, no drift).
+ * Valid: integer 0..RANK_MAX (0 = explicit unranked). Anything else (null,
+ * empty, non-int, out of bounds) = absent (legacy inert, no fetch skip).
+ */
+export function parseListRankParam(raw: string | null): number | null {
+  if (raw === null || raw.trim() === "") return null
+  const n = Number(raw)
+  return Number.isInteger(n) && n >= 0 && n <= RANK_MAX ? n : null
+}
+
+/**
+ * Final-rank precedence (shared by the poster route render + tests):
+ * explicit `rank=` (manual override, preserved verbatim incl. >100 legacy)
+ * wins; invalid/absent `rank=` falls through to valid `rk=` (list context,
+ * decisione A); else the live `rankingRank` (null on miss — never resurrect).
+ */
+export function resolveFinalRankWithListContext(
+  qRankRaw: string | null,
+  qRkRaw: string | null,
+  rankingRank: number | null,
+): number | null {
+  if (qRankRaw !== null && qRankRaw.trim() !== "") {
+    const q = parseInt(qRankRaw, 10)
+    if (q >= 0) return q
+  }
+  const lr = parseListRankParam(qRkRaw)
+  if (lr !== null) return lr
+  return rankingRank
+}
 
 function canonicalizeRank(params: URLSearchParams): void {
   const raw = params.get("rank")
@@ -167,6 +199,18 @@ function canonicalizeAnimeRank(params: URLSearchParams): void {
   const n = Number(raw)
   if (!Number.isInteger(n) || n < 0) params.delete("animerank")
   else params.set("animerank", String(Math.min(n, ANIME_RANK_MAX + 1)))
+}
+
+// rk: ephemeral list-rank context (position in the originating selected list).
+// Same bounds as `rank` (0 = explicit unranked suppresses the badge, 1..100 =
+// list rank wins over live trend/anime). Invalid (non-int, <0, >100) collapses
+// onto absent (legacy inert buster behavior, no poisoning, no fetch skip).
+function canonicalizeListRank(params: URLSearchParams): void {
+  const raw = params.get("rk")
+  if (raw === null) return
+  const n = parseListRankParam(raw)
+  if (n !== null) params.set("rk", String(n))
+  else params.delete("rk")
 }
 
 function quantizeInPlace(params: URLSearchParams, key: string, step: number): void {
@@ -239,6 +283,7 @@ export function hardenPosterSearchParams(
 
   canonicalizeRank(params)
   canonicalizeAnimeRank(params)
+  canonicalizeListRank(params)
 
   // Rating sources: supported ids only, deduplicated (order kept).
   if (params.has("rsrc")) {

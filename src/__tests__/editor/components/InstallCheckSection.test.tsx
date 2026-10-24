@@ -433,6 +433,44 @@ describe("InstallCheckSection", () => {
     expect(seen.some((u) => u.includes("/api/poster/"))).toBe(true)
   })
 
+  it("passes the manifest step on a realistic mixed `all` manifest and probes the poster", async () => {
+    const mixed = {
+      ...MANIFEST,
+      resources: [
+        "catalog",
+        {
+          name: "meta",
+          types: ["movie", "series", "anime.movie", "anime.series", "anime"],
+          idPrefixes: ["tmdb:", "tt", "tvdb:", "tvdbc:"],
+        },
+      ],
+      types: ["movie", "series", "anime.movie", "anime.series", "anime", "all"],
+      catalogs: [
+        { id: "pictorium-jw-movies", name: "Top", type: "movie" },
+        {
+          id: "pictorium-stream2-netflix--italy--all--auto",
+          name: "Netflix Italia - Top 10",
+          type: "all",
+        },
+      ],
+    }
+    const seen: string[] = []
+    mockFetch((url) => {
+      seen.push(url)
+      if (url.includes("/api/diagnostics/install-key")) return keyOk()
+      if (url.includes("manifest.json")) return Response.json(mixed)
+      if (url.includes("/api/poster/")) return imageResponse(smallValidPng())
+      throw new Error(`unexpected fetch ${url}`)
+    })
+    renderSection(manifestFor("/manifest.json"))
+    fireEvent.click(screen.getByTestId("install-check-run"))
+    await waitFor(() => {
+      expect(screen.getByTestId("install-check-all-passed")).toBeInTheDocument()
+    })
+    expect(screen.getByTestId("install-check-step-manifest")).toHaveAttribute("data-state", "pass")
+    expect(seen.some((u) => u.includes("/api/poster/"))).toBe(true)
+  })
+
   it("rejects malformed catalog entries without fetching a poster", async () => {
     const seen: string[] = []
     mockFetch((url) => {
@@ -871,5 +909,41 @@ describe("isInstallCheckManifestValid (pure)", () => {
   it("accepts semver versions including prerelease/build metadata", () => {
     expect(isInstallCheckManifestValid({ ...MANIFEST, version: "1.25.8" })).toBe(true)
     expect(isInstallCheckManifestValid({ ...MANIFEST, version: "2.0.0-beta.1" })).toBe(true)
+  })
+
+  it("accepts a realistic mixed `all` catalog emitted by build-manifest (Task F)", () => {
+    // Mirrors the real builder output for a generic `all` (overall) selection:
+    // catalog entry type `all`, root types gaining `all`, meta keeping its
+    // explicit movie/series types (the /meta resolver has no `all` branch).
+    const mixed = {
+      ...MANIFEST,
+      resources: [
+        "catalog",
+        {
+          name: "meta",
+          types: ["movie", "series", "anime.movie", "anime.series", "anime"],
+          idPrefixes: ["tmdb:", "tt", "tvdb:", "tvdbc:"],
+        },
+      ],
+      types: ["movie", "series", "anime.movie", "anime.series", "anime", "all"],
+      catalogs: [
+        { id: "pictorium-jw-movies", name: "Top", type: "movie" },
+        {
+          id: "pictorium-stream2-netflix--italy--all--auto",
+          name: "Netflix Italia - Top 10",
+          type: "all",
+        },
+      ],
+    }
+    expect(isInstallCheckManifestValid(mixed)).toBe(true)
+  })
+
+  it("still rejects an `all`-typed entry missing its id (no structural weakening)", () => {
+    const bad = {
+      ...MANIFEST,
+      types: ["movie", "series", "all"],
+      catalogs: [{ name: "No id", type: "all" }],
+    }
+    expect(isInstallCheckManifestValid(bad)).toBe(false)
   })
 })

@@ -1,0 +1,3346 @@
+{
+  "schema_version": 1,
+  "generated_at": "2026-10-22T19:34:47Z",
+  "variantLabels": {
+    "amazon-channels": "Amazon Channels",
+    "en": "English",
+    "hi": "Hindi",
+    "id": "Indonesian",
+    "it": "Italian",
+    "ja": "Japanese",
+    "ko": "Korean",
+    "mr": "Marathi"
+  },
+  "regions": {
+    "albania": {
+      "disney": {
+        "movies": [],
+        "overall": [],
+        "series": []
+      },
+      "hbo-max": {
+        "movies": [],
+        "series": []
+      },
+      "skyshowtime": {
+        "movies": [],
+        "series": []
+      }
+    },
+    "algeria": {
+      "osn": {
+        "movies": [],
+        "series": []
+      },
+      "shahid": {
+        "movies": [],
+        "series": []
+      },
+      "starz": {
+        "movies": [],
+        "series": []
+      }
+    },
+    "antigua-and-barbuda": {
+      "apple-tv": {
+        "movies": [],
+        "series": []
+      },
+      "disney": {
+        "movies": [],
+        "overall": [],
+        "series": []
+      }
+    },
+    "argentina": {
+      "amazon-prime": {
+        "movies": [],
+        "overall": [],
+        "series": []
+      },
+      "apple-tv": {
+        "movies": [],
+        "series": []
+      },
+      "apple-tv-store": {
+        "movies": []
+      },
+      "claro-video": {
+        "movies": [],
+        "series": []
+      },
+      "disney": {
+        "movies": [],
+        "overall": [],
+        "series": []
+      },
+      "google": {
+        "movies": []
+      },
+      "hbo-max": {
+        "movies": [],
+        "series": []
+      },
+      "netflix": {
+        "movies": [],
+        "series": []
+      },
+      "paramount": {
+        "movies": [],
+        "series": []
+      }
+    },
+    "armenia": {
+      "apple-tv": {
+        "movies": [],
+        "series": []
+      },
+      "apple-tv-store": {
+        "movies": []
+      },
+      "hbo-max": {
+        "overall": []
+      }
+    },
+    "australia": {
+      "amazon": {
+        "movies": []
+      },
+      "amazon-channels": {
+        "overall": []
+      },
+      "amazon-prime": {
+        "movies": [],
+        "overall": [],
+        "series": []
+      },
+      "apple-tv": {
+        "movies": [],
+        "overall": [],
+        "series": []
+      },
+      "apple-tv-store": {
+        "movies": [],
+        "series": []
+      },
+      "binge": {
+        "overall": []
+      },
+      "crunchyroll": {
+        "overall": []
+      },
+      "disney": {
+        "movies": [],
+        "overall": [],
+        "series": []
+      },
+      "google": {
+        "movies": []
+      },
+      "hbo-max": {
+        "movies": [],
+        "series": []
+      },
+      "mubi": {
+        "overall": []
+      },
+      "netflix": {
+        "movies": [],
+        "series": []
+      },
+      "paramount": {
+        "movies": [],
+        "overall": [],
+        "series": []
+      },
+      "sbs": {
+        "overall": []
+      },
+      "stan": {
+        "movies": [],
+        "series": []
+      }
+    },
+    "austria": {
+      "amazon-prime": {
+        "movies": [],
+        "overall": [],
+        "series": []
+      },
+      "apple-tv": {
+        "movies": [],
+        "series": []
+      },
+      "apple-tv-store": {
+        "movies": []
+      },
+      "chili": {
+        "movies": []
+      },
+      "disney": {
+        "movies": [],
+        "overall": [],
+        "series": []
+      },
+      "google": {
+        "movies": []
+      },
+      "netflix": {
+        "movies": [],
+        "series": []
+      },
+      "paramount": {
+        "movies": [],
+        "series": []
+      },
+      "rakuten-tv": {
+        "movies": []
+      }
+    },
+    "azerbaijan": {
+      "apple-tv": {
+        "movies": [],
+        "series": []
+      },
+      "apple-tv-store": {
+        "movies": []
+      },
+      "google": {
+        "movies": []
+      }
+    },
+    "bahamas": {
+      "apple-tv": {
+        "movies": [],
+        "series": []
+      },
+      "disney": {
+        "movies": [],
+        "overall": [],
+        "series": []
+      },
+      "hbo-max": {
+        "movies": [],
+        "series": []
+      },
+      "netflix": {
+        "movies": [],
+        "series": []
+      }
+    },
+    "bahrain": {
+      "apple-tv": {
+        "movies": [],
+        "series": []
+      },
+      "apple-tv-store": {
+        "movies": []
+      },
+      "netflix": {
+        "movies": [],
+        "series": []
+      },
+      "osn": {
+        "movies": [],
+        "series": []
+      },
+      "shahid": {
+        "movies": [],
+        "series": []
+      },
+      "starz": {
+        "movies": [],
+        "series": []
+      }
+    },
+    "bangladesh": {
+      "netflix": {
+        "movies": [],
+        "series": []
+      }
+    },
+    "belarus": {
+      "apple-tv": {
+        "movies": [],
+        "series": []
+      },
+      "apple-tv-store": {
+        "movies": []
+      }
+    },
+    "belgium": {
+      "amazon": {
+        "movies": []
+      },
+      "amazon-prime": {
+        "movies": [],
+        "overall": [],
+        "series": []
+      },
+      "apple-tv": {
+        "movies": [],
+        "series": []
+      },
+      "apple-tv-store": {
+        "movies": []
+      },
+      "disney": {
+        "movies": [],
+        "overall": [],
+        "series": []
+      },
+      "google": {
+        "movies": []
+      },
+      "hbo-max": {
+        "movies": [],
+        "series": []
+      },
+      "netflix": {
+        "movies": [],
+        "series": []
+      },
+      "rakuten-tv": {
+        "movies": []
+      },
+      "streamz": {
+        "movies": [],
+        "series": []
+      }
+    },
+    "belize": {
+      "apple-tv": {
+        "movies": [],
+        "series": []
+      },
+      "apple-tv-store": {
+        "movies": []
+      },
+      "disney": {
+        "movies": [],
+        "overall": [],
+        "series": []
+      },
+      "hbo-max": {
+        "movies": [],
+        "series": []
+      }
+    },
+    "bolivia": {
+      "apple-tv": {
+        "movies": [],
+        "series": []
+      },
+      "apple-tv-store": {
+        "movies": []
+      },
+      "disney": {
+        "movies": [],
+        "overall": [],
+        "series": []
+      },
+      "hbo-max": {
+        "movies": [],
+        "series": []
+      },
+      "netflix": {
+        "movies": [],
+        "series": []
+      },
+      "paramount": {
+        "movies": [],
+        "series": []
+      }
+    },
+    "bosnia-and-herzegovina": {
+      "disney": {
+        "movies": [],
+        "overall": [],
+        "series": []
+      },
+      "google": {
+        "movies": []
+      },
+      "hbo-max": {
+        "movies": [],
+        "series": []
+      },
+      "skyshowtime": {
+        "movies": [],
+        "series": []
+      }
+    },
+    "botswana": {
+      "apple-tv": {
+        "movies": [],
+        "series": []
+      },
+      "apple-tv-store": {
+        "movies": []
+      },
+      "google": {
+        "movies": []
+      }
+    },
+    "brazil": {
+      "amazon": {
+        "movies": []
+      },
+      "amazon-prime": {
+        "movies": [],
+        "overall": [],
+        "series": []
+      },
+      "apple-tv": {
+        "movies": [],
+        "series": []
+      },
+      "apple-tv-store": {
+        "movies": []
+      },
+      "claro-video": {
+        "movies": [],
+        "series": []
+      },
+      "disney": {
+        "movies": [],
+        "overall": [],
+        "series": []
+      },
+      "globoplay": {
+        "movies": [],
+        "series": []
+      },
+      "google": {
+        "movies": []
+      },
+      "hbo-max": {
+        "movies": [],
+        "series": []
+      },
+      "netflix": {
+        "movies": [],
+        "series": []
+      },
+      "paramount": {
+        "movies": [],
+        "series": []
+      }
+    },
+    "bulgaria": {
+      "apple-tv": {
+        "movies": [],
+        "series": []
+      },
+      "apple-tv-store": {
+        "movies": []
+      },
+      "disney": {
+        "movies": [],
+        "overall": [],
+        "series": []
+      },
+      "hbo-max": {
+        "movies": [],
+        "series": []
+      },
+      "netflix": {
+        "movies": [],
+        "series": []
+      },
+      "skyshowtime": {
+        "movies": [],
+        "series": []
+      },
+      "voyo": {
+        "movies": [],
+        "series": []
+      }
+    },
+    "cambodia": {
+      "apple-tv": {
+        "movies": [],
+        "series": []
+      },
+      "apple-tv-store": {
+        "movies": []
+      }
+    },
+    "canada": {
+      "amazon": {
+        "movies": []
+      },
+      "amazon-channels": {
+        "overall": []
+      },
+      "amazon-prime": {
+        "movies": [],
+        "overall": [],
+        "series": []
+      },
+      "apple-tv": {
+        "movies": [],
+        "overall": [],
+        "series": []
+      },
+      "apple-tv-store": {
+        "movies": [],
+        "series": []
+      },
+      "crave": {
+        "overall": [
+          "amazon-channels"
+        ]
+      },
+      "disney": {
+        "movies": [],
+        "overall": [],
+        "series": []
+      },
+      "google": {
+        "movies": []
+      },
+      "lionsgate": {
+        "overall": []
+      },
+      "netflix": {
+        "movies": [],
+        "series": []
+      },
+      "paramount": {
+        "movies": [],
+        "overall": [],
+        "series": []
+      },
+      "shudder": {
+        "overall": []
+      },
+      "sony-pictures-core": {
+        "overall": []
+      },
+      "starz": {
+        "overall": []
+      }
+    },
+    "chile": {
+      "amazon-prime": {
+        "movies": [],
+        "series": []
+      },
+      "apple-tv": {
+        "movies": [],
+        "series": []
+      },
+      "apple-tv-store": {
+        "movies": []
+      },
+      "claro-video": {
+        "movies": [],
+        "series": []
+      },
+      "disney": {
+        "movies": [],
+        "overall": [],
+        "series": []
+      },
+      "hbo-max": {
+        "movies": [],
+        "series": []
+      },
+      "netflix": {
+        "movies": [],
+        "series": []
+      },
+      "paramount": {
+        "movies": [],
+        "series": []
+      }
+    },
+    "colombia": {
+      "amazon-prime": {
+        "movies": [],
+        "overall": [],
+        "series": []
+      },
+      "apple-tv": {
+        "movies": [],
+        "series": []
+      },
+      "apple-tv-store": {
+        "movies": []
+      },
+      "claro-video": {
+        "movies": [],
+        "series": []
+      },
+      "disney": {
+        "movies": [],
+        "overall": [],
+        "series": []
+      },
+      "hbo-max": {
+        "movies": [],
+        "series": []
+      },
+      "netflix": {
+        "movies": [],
+        "series": []
+      },
+      "paramount": {
+        "movies": [],
+        "series": []
+      }
+    },
+    "costa-rica": {
+      "amazon-prime": {
+        "movies": [],
+        "series": []
+      },
+      "apple-tv": {
+        "movies": [],
+        "series": []
+      },
+      "apple-tv-store": {
+        "movies": []
+      },
+      "claro-video": {
+        "movies": [],
+        "series": []
+      },
+      "disney": {
+        "movies": [],
+        "overall": [],
+        "series": []
+      },
+      "hbo-max": {
+        "movies": [],
+        "series": []
+      },
+      "netflix": {
+        "movies": [],
+        "series": []
+      },
+      "paramount": {
+        "movies": [],
+        "series": []
+      }
+    },
+    "croatia": {
+      "apple-tv": {
+        "movies": [],
+        "series": []
+      },
+      "disney": {
+        "movies": [],
+        "overall": [],
+        "series": []
+      },
+      "hbo-max": {
+        "movies": [],
+        "series": []
+      },
+      "netflix": {
+        "movies": [],
+        "series": []
+      },
+      "skyshowtime": {
+        "movies": [],
+        "series": []
+      }
+    },
+    "cyprus": {
+      "apple-tv": {
+        "movies": [],
+        "series": []
+      },
+      "apple-tv-store": {
+        "movies": []
+      },
+      "google": {
+        "movies": []
+      },
+      "netflix": {
+        "movies": [],
+        "series": []
+      }
+    },
+    "czech-republic": {
+      "amazon-prime": {
+        "movies": [],
+        "overall": [],
+        "series": []
+      },
+      "apple-tv": {
+        "movies": [],
+        "series": []
+      },
+      "apple-tv-store": {
+        "movies": []
+      },
+      "canal": {
+        "movies": [],
+        "series": []
+      },
+      "disney": {
+        "movies": [],
+        "overall": [],
+        "series": []
+      },
+      "google": {
+        "movies": []
+      },
+      "hbo-max": {
+        "movies": [],
+        "series": []
+      },
+      "ivysilani": {
+        "overall": []
+      },
+      "netflix": {
+        "movies": [],
+        "series": []
+      },
+      "oneplay": {
+        "movies": [],
+        "series": []
+      },
+      "prima": {
+        "movies": [],
+        "series": []
+      },
+      "rakuten-tv": {
+        "movies": []
+      },
+      "skyshowtime": {
+        "movies": [],
+        "series": []
+      }
+    },
+    "denmark": {
+      "amazon-prime": {
+        "movies": [],
+        "overall": [],
+        "series": []
+      },
+      "apple-tv": {
+        "movies": [],
+        "series": []
+      },
+      "apple-tv-store": {
+        "movies": []
+      },
+      "disney": {
+        "movies": [],
+        "overall": [],
+        "series": []
+      },
+      "google": {
+        "movies": []
+      },
+      "hbo-max": {
+        "movies": [],
+        "series": []
+      },
+      "netflix": {
+        "movies": [],
+        "series": []
+      },
+      "rakuten-tv": {
+        "movies": []
+      },
+      "skyshowtime": {
+        "movies": [],
+        "series": []
+      },
+      "viaplay": {
+        "movies": [],
+        "series": []
+      }
+    },
+    "dominica": {
+      "apple-tv": {
+        "movies": [],
+        "series": []
+      },
+      "disney": {
+        "movies": [],
+        "overall": [],
+        "series": []
+      }
+    },
+    "dominican-republic": {
+      "amazon-prime": {
+        "movies": [],
+        "series": []
+      },
+      "apple-tv": {
+        "movies": [],
+        "series": []
+      },
+      "apple-tv-store": {
+        "movies": []
+      },
+      "claro-video": {
+        "movies": [],
+        "series": []
+      },
+      "disney": {
+        "movies": [],
+        "overall": [],
+        "series": []
+      },
+      "google": {
+        "movies": []
+      },
+      "hbo-max": {
+        "movies": [],
+        "series": []
+      },
+      "netflix": {
+        "movies": [],
+        "series": []
+      },
+      "paramount": {
+        "movies": [],
+        "series": []
+      }
+    },
+    "ecuador": {
+      "amazon-prime": {
+        "movies": [],
+        "series": []
+      },
+      "apple-tv": {
+        "movies": [],
+        "series": []
+      },
+      "apple-tv-store": {
+        "movies": []
+      },
+      "claro-video": {
+        "movies": [],
+        "series": []
+      },
+      "disney": {
+        "movies": [],
+        "overall": [],
+        "series": []
+      },
+      "hbo-max": {
+        "movies": [],
+        "series": []
+      },
+      "netflix": {
+        "movies": [],
+        "series": []
+      },
+      "paramount": {
+        "movies": [],
+        "series": []
+      }
+    },
+    "egypt": {
+      "amazon-prime": {
+        "movies": [],
+        "series": []
+      },
+      "apple-tv": {
+        "movies": [],
+        "series": []
+      },
+      "apple-tv-store": {
+        "movies": []
+      },
+      "netflix": {
+        "movies": [],
+        "series": []
+      },
+      "osn": {
+        "movies": [],
+        "series": []
+      },
+      "shahid": {
+        "movies": [],
+        "series": []
+      },
+      "starz": {
+        "movies": [],
+        "series": []
+      },
+      "watchit": {
+        "movies": [],
+        "series": []
+      }
+    },
+    "estonia": {
+      "apple-tv": {
+        "movies": [],
+        "series": []
+      },
+      "apple-tv-store": {
+        "movies": []
+      },
+      "disney": {
+        "movies": [],
+        "overall": [],
+        "series": []
+      },
+      "go3": {
+        "movies": []
+      },
+      "hbo-max": {
+        "overall": []
+      },
+      "netflix": {
+        "movies": [],
+        "series": []
+      },
+      "telia": {
+        "overall": []
+      }
+    },
+    "finland": {
+      "amazon-prime": {
+        "movies": [],
+        "series": []
+      },
+      "apple-tv": {
+        "movies": [],
+        "series": []
+      },
+      "apple-tv-store": {
+        "movies": []
+      },
+      "disney": {
+        "movies": [],
+        "overall": [],
+        "series": []
+      },
+      "google": {
+        "movies": []
+      },
+      "hbo-max": {
+        "movies": [],
+        "series": []
+      },
+      "netflix": {
+        "movies": [],
+        "series": []
+      },
+      "rakuten-tv": {
+        "movies": []
+      },
+      "skyshowtime": {
+        "movies": [],
+        "series": []
+      },
+      "viaplay": {
+        "movies": [],
+        "series": []
+      }
+    },
+    "france": {
+      "amazon": {
+        "movies": []
+      },
+      "amazon-channels": {
+        "overall": []
+      },
+      "amazon-prime": {
+        "movies": [],
+        "series": []
+      },
+      "apple-tv": {
+        "movies": [],
+        "overall": [],
+        "series": []
+      },
+      "apple-tv-store": {
+        "movies": [],
+        "series": []
+      },
+      "canal": {
+        "overall": [],
+        "series": []
+      },
+      "crunchyroll": {
+        "overall": []
+      },
+      "disney": {
+        "movies": [],
+        "overall": [],
+        "series": []
+      },
+      "france-tv": {
+        "overall": []
+      },
+      "google": {
+        "movies": []
+      },
+      "hbo-max": {
+        "movies": [],
+        "overall": [],
+        "series": []
+      },
+      "lionsgate": {
+        "overall": []
+      },
+      "m6": {
+        "movies": [],
+        "overall": [],
+        "series": []
+      },
+      "mgm": {
+        "overall": []
+      },
+      "mubi": {
+        "overall": []
+      },
+      "netflix": {
+        "movies": [],
+        "series": []
+      },
+      "ocs": {
+        "overall": []
+      },
+      "paramount": {
+        "movies": [],
+        "overall": [],
+        "series": []
+      },
+      "rakuten-tv": {
+        "movies": []
+      },
+      "tf1": {
+        "movies": [],
+        "overall": [],
+        "series": []
+      },
+      "universal": {
+        "overall": []
+      }
+    },
+    "gambia": {
+      "apple-tv": {
+        "movies": [],
+        "series": []
+      }
+    },
+    "germany": {
+      "amazon": {
+        "movies": []
+      },
+      "amazon-channels": {
+        "overall": []
+      },
+      "amazon-prime": {
+        "movies": [],
+        "overall": [],
+        "series": []
+      },
+      "apple-tv": {
+        "movies": [],
+        "series": []
+      },
+      "apple-tv-store": {
+        "movies": [],
+        "series": []
+      },
+      "chili": {
+        "movies": []
+      },
+      "crunchyroll": {
+        "overall": []
+      },
+      "disney": {
+        "movies": [],
+        "overall": [],
+        "series": []
+      },
+      "google": {
+        "movies": []
+      },
+      "hbo-max": {
+        "movies": [],
+        "overall": [],
+        "series": []
+      },
+      "joyn": {
+        "movies": [],
+        "series": []
+      },
+      "lionsgate": {
+        "overall": []
+      },
+      "mgm": {
+        "overall": []
+      },
+      "mubi": {
+        "overall": []
+      },
+      "netflix": {
+        "movies": [],
+        "series": []
+      },
+      "paramount": {
+        "movies": [],
+        "overall": [],
+        "series": []
+      },
+      "rakuten-tv": {
+        "movies": []
+      },
+      "rtl": {
+        "movies": [],
+        "overall": [],
+        "series": []
+      },
+      "viaplay": {
+        "overall": []
+      },
+      "wow": {
+        "movies": [],
+        "series": []
+      }
+    },
+    "ghana": {
+      "apple-tv": {
+        "movies": [],
+        "series": []
+      },
+      "apple-tv-store": {
+        "movies": []
+      }
+    },
+    "global": {
+      "amazon": {
+        "movies": [],
+        "series": []
+      },
+      "amazon-prime": {
+        "movies": [],
+        "series": []
+      },
+      "apple-tv": {
+        "movies": [],
+        "series": []
+      },
+      "apple-tv-store": {
+        "movies": [],
+        "series": []
+      },
+      "chili": {
+        "movies": []
+      },
+      "disney": {
+        "movies": [],
+        "series": []
+      },
+      "google": {
+        "movies": []
+      },
+      "hbo-max": {
+        "movies": [],
+        "series": []
+      },
+      "netflix": {
+        "movies": [],
+        "series": []
+      },
+      "paramount": {
+        "movies": [],
+        "series": []
+      },
+      "rakuten-tv": {
+        "movies": []
+      }
+    },
+    "greece": {
+      "amazon-prime": {
+        "movies": [],
+        "overall": [],
+        "series": []
+      },
+      "apple-tv": {
+        "movies": [],
+        "series": []
+      },
+      "apple-tv-store": {
+        "movies": []
+      },
+      "google": {
+        "movies": []
+      },
+      "netflix": {
+        "movies": [],
+        "series": []
+      }
+    },
+    "guatemala": {
+      "amazon-prime": {
+        "movies": [],
+        "series": []
+      },
+      "apple-tv": {
+        "movies": [],
+        "series": []
+      },
+      "apple-tv-store": {
+        "movies": []
+      },
+      "claro-video": {
+        "movies": [],
+        "series": []
+      },
+      "disney": {
+        "movies": [],
+        "overall": [],
+        "series": []
+      },
+      "google": {
+        "movies": []
+      },
+      "hbo-max": {
+        "movies": [],
+        "series": []
+      },
+      "netflix": {
+        "movies": [],
+        "series": []
+      },
+      "paramount": {
+        "movies": [],
+        "series": []
+      }
+    },
+    "honduras": {
+      "amazon-prime": {
+        "movies": [],
+        "series": []
+      },
+      "apple-tv": {
+        "movies": [],
+        "series": []
+      },
+      "apple-tv-store": {
+        "movies": []
+      },
+      "claro-video": {
+        "movies": [],
+        "series": []
+      },
+      "disney": {
+        "movies": [],
+        "overall": [],
+        "series": []
+      },
+      "hbo-max": {
+        "movies": [],
+        "series": []
+      },
+      "netflix": {
+        "movies": [],
+        "series": []
+      },
+      "paramount": {
+        "movies": [],
+        "series": []
+      }
+    },
+    "hong-kong": {
+      "apple-tv": {
+        "movies": [],
+        "series": []
+      },
+      "apple-tv-store": {
+        "movies": []
+      },
+      "disney": {
+        "overall": []
+      },
+      "hbo-max": {
+        "movies": [],
+        "series": []
+      },
+      "netflix": {
+        "movies": [],
+        "series": []
+      },
+      "viu": {
+        "series": []
+      }
+    },
+    "hungary": {
+      "amazon-prime": {
+        "movies": [],
+        "overall": [],
+        "series": []
+      },
+      "apple-tv": {
+        "movies": [],
+        "series": []
+      },
+      "apple-tv-store": {
+        "movies": []
+      },
+      "disney": {
+        "movies": [],
+        "overall": [],
+        "series": []
+      },
+      "google": {
+        "movies": []
+      },
+      "hbo-max": {
+        "movies": [],
+        "series": []
+      },
+      "netflix": {
+        "movies": [],
+        "series": []
+      },
+      "rakuten-tv": {
+        "movies": []
+      },
+      "skyshowtime": {
+        "movies": [],
+        "series": []
+      }
+    },
+    "iceland": {
+      "apple-tv": {
+        "movies": [],
+        "series": []
+      },
+      "disney": {
+        "movies": [],
+        "overall": [],
+        "series": []
+      },
+      "hbo-max": {
+        "overall": []
+      },
+      "netflix": {
+        "movies": [],
+        "series": []
+      },
+      "viaplay": {
+        "movies": [],
+        "series": []
+      }
+    },
+    "india": {
+      "amazon-prime": {
+        "movies": [],
+        "overall": [],
+        "series": []
+      },
+      "apple-tv": {
+        "movies": [],
+        "series": []
+      },
+      "apple-tv-store": {
+        "movies": []
+      },
+      "google": {
+        "movies": []
+      },
+      "hotstar": {
+        "overall": [
+          "hi",
+          "mr"
+        ]
+      },
+      "netflix": {
+        "movies": [],
+        "series": []
+      },
+      "zee5": {
+        "overall": []
+      }
+    },
+    "indonesia": {
+      "amazon-prime": {
+        "movies": [],
+        "overall": [],
+        "series": []
+      },
+      "apple-tv": {
+        "movies": [],
+        "series": []
+      },
+      "apple-tv-store": {
+        "movies": []
+      },
+      "catchplay": {
+        "movies": [],
+        "overall": [],
+        "series": []
+      },
+      "google": {
+        "movies": []
+      },
+      "hbo-max": {
+        "movies": [],
+        "series": []
+      },
+      "netflix": {
+        "movies": [],
+        "series": []
+      },
+      "vidio": {
+        "movies": [
+          "en",
+          "id"
+        ],
+        "overall": [
+          "ja",
+          "ko"
+        ],
+        "series": [
+          "id"
+        ]
+      },
+      "viu": {
+        "series": []
+      }
+    },
+    "iraq": {
+      "shahid": {
+        "movies": [],
+        "series": []
+      }
+    },
+    "ireland": {
+      "amazon-prime": {
+        "movies": [],
+        "overall": [],
+        "series": []
+      },
+      "apple-tv": {
+        "movies": [],
+        "series": []
+      },
+      "apple-tv-store": {
+        "movies": []
+      },
+      "disney": {
+        "movies": [],
+        "overall": [],
+        "series": []
+      },
+      "google": {
+        "movies": []
+      },
+      "hbo-max": {
+        "movies": [],
+        "series": []
+      },
+      "netflix": {
+        "movies": [],
+        "series": []
+      },
+      "paramount": {
+        "movies": [],
+        "series": []
+      },
+      "rakuten-tv": {
+        "movies": []
+      }
+    },
+    "israel": {
+      "apple-tv": {
+        "movies": [],
+        "series": []
+      },
+      "apple-tv-store": {
+        "movies": []
+      },
+      "netflix": {
+        "movies": [],
+        "series": []
+      },
+      "shahid": {
+        "movies": [],
+        "series": []
+      }
+    },
+    "italy": {
+      "amazon": {
+        "movies": []
+      },
+      "amazon-channels": {
+        "overall": []
+      },
+      "amazon-prime": {
+        "movies": [],
+        "series": []
+      },
+      "apple-tv": {
+        "movies": [],
+        "overall": [],
+        "series": []
+      },
+      "apple-tv-store": {
+        "movies": []
+      },
+      "chili": {
+        "movies": []
+      },
+      "crunchyroll": {
+        "overall": []
+      },
+      "discovery-plus": {
+        "overall": []
+      },
+      "disney": {
+        "movies": [],
+        "overall": [],
+        "series": []
+      },
+      "google": {
+        "movies": []
+      },
+      "hayu": {
+        "overall": []
+      },
+      "hbo-max": {
+        "movies": [],
+        "overall": [],
+        "series": []
+      },
+      "infinity": {
+        "overall": []
+      },
+      "lionsgate": {
+        "overall": []
+      },
+      "mgm": {
+        "overall": []
+      },
+      "mubi": {
+        "overall": []
+      },
+      "netflix": {
+        "movies": [],
+        "series": []
+      },
+      "now": {
+        "movies": [],
+        "series": []
+      },
+      "paramount": {
+        "movies": [],
+        "overall": [],
+        "series": []
+      },
+      "rai": {
+        "movies": [],
+        "overall": [],
+        "series": [
+          "it"
+        ]
+      },
+      "rakuten-tv": {
+        "movies": []
+      }
+    },
+    "jamaica": {
+      "disney": {
+        "movies": [],
+        "overall": [],
+        "series": []
+      },
+      "netflix": {
+        "movies": [],
+        "series": []
+      }
+    },
+    "japan": {
+      "abema": {
+        "overall": []
+      },
+      "amazon": {
+        "movies": []
+      },
+      "amazon-channels": {
+        "overall": []
+      },
+      "amazon-prime": {
+        "movies": [],
+        "overall": [],
+        "series": []
+      },
+      "apple-tv": {
+        "movies": [],
+        "overall": [],
+        "series": []
+      },
+      "apple-tv-store": {
+        "movies": []
+      },
+      "danime": {
+        "overall": []
+      },
+      "disney": {
+        "movies": [],
+        "overall": [],
+        "series": []
+      },
+      "google": {
+        "movies": []
+      },
+      "hulu-nippon": {
+        "movies": [
+          "ja"
+        ],
+        "overall": [],
+        "series": [
+          "ja",
+          "ko"
+        ]
+      },
+      "lemino": {
+        "overall": []
+      },
+      "netflix": {
+        "movies": [],
+        "series": []
+      },
+      "sony-pictures-core": {
+        "overall": []
+      },
+      "telasa": {
+        "movies": [
+          "ja"
+        ],
+        "overall": [],
+        "series": [
+          "ja"
+        ]
+      },
+      "u-next": {
+        "movies": [],
+        "overall": [],
+        "series": []
+      }
+    },
+    "jordan": {
+      "apple-tv": {
+        "movies": [],
+        "series": []
+      },
+      "apple-tv-store": {
+        "movies": []
+      },
+      "netflix": {
+        "movies": [],
+        "series": []
+      },
+      "osn": {
+        "movies": [],
+        "series": []
+      },
+      "shahid": {
+        "movies": [],
+        "series": []
+      },
+      "starz": {
+        "movies": [],
+        "series": []
+      }
+    },
+    "kazakhstan": {
+      "google": {
+        "movies": []
+      },
+      "hbo-max": {
+        "overall": []
+      }
+    },
+    "kenya": {
+      "netflix": {
+        "movies": [],
+        "series": []
+      }
+    },
+    "kuwait": {
+      "google": {
+        "movies": []
+      },
+      "netflix": {
+        "movies": [],
+        "series": []
+      },
+      "osn": {
+        "movies": [],
+        "series": []
+      },
+      "shahid": {
+        "movies": [],
+        "series": []
+      },
+      "starz": {
+        "movies": [],
+        "series": []
+      }
+    },
+    "laos": {
+      "apple-tv": {
+        "movies": [],
+        "series": []
+      },
+      "apple-tv-store": {
+        "movies": []
+      },
+      "google": {
+        "movies": []
+      }
+    },
+    "latvia": {
+      "apple-tv": {
+        "movies": [],
+        "series": []
+      },
+      "apple-tv-store": {
+        "movies": []
+      },
+      "disney": {
+        "movies": [],
+        "overall": [],
+        "series": []
+      },
+      "go3": {
+        "movies": []
+      },
+      "google": {
+        "movies": []
+      },
+      "hbo-max": {
+        "overall": []
+      },
+      "netflix": {
+        "movies": [],
+        "series": []
+      },
+      "telia": {
+        "movies": [],
+        "series": []
+      }
+    },
+    "lebanon": {
+      "apple-tv": {
+        "movies": [],
+        "series": []
+      },
+      "apple-tv-store": {
+        "movies": []
+      },
+      "netflix": {
+        "movies": [],
+        "series": []
+      },
+      "shahid": {
+        "movies": [],
+        "series": []
+      }
+    },
+    "libya": {
+      "shahid": {
+        "movies": [],
+        "series": []
+      },
+      "starz": {
+        "movies": [],
+        "series": []
+      }
+    },
+    "lithuania": {
+      "apple-tv": {
+        "movies": [],
+        "series": []
+      },
+      "apple-tv-store": {
+        "movies": []
+      },
+      "disney": {
+        "movies": [],
+        "overall": [],
+        "series": []
+      },
+      "go3": {
+        "movies": []
+      },
+      "google": {
+        "movies": []
+      },
+      "hbo-max": {
+        "overall": []
+      },
+      "netflix": {
+        "movies": [],
+        "series": []
+      },
+      "telia": {
+        "movies": [],
+        "series": []
+      }
+    },
+    "luxembourg": {
+      "apple-tv": {
+        "movies": [],
+        "series": []
+      },
+      "apple-tv-store": {
+        "movies": []
+      },
+      "disney": {
+        "movies": [],
+        "overall": [],
+        "series": []
+      },
+      "netflix": {
+        "movies": [],
+        "series": []
+      },
+      "rakuten-tv": {
+        "movies": []
+      }
+    },
+    "malaysia": {
+      "amazon-prime": {
+        "movies": [],
+        "overall": [],
+        "series": []
+      },
+      "apple-tv": {
+        "movies": [],
+        "series": []
+      },
+      "apple-tv-store": {
+        "movies": []
+      },
+      "hbo-max": {
+        "movies": [],
+        "series": []
+      },
+      "netflix": {
+        "movies": [],
+        "series": []
+      }
+    },
+    "malta": {
+      "apple-tv": {
+        "movies": [],
+        "series": []
+      },
+      "apple-tv-store": {
+        "movies": []
+      },
+      "netflix": {
+        "movies": [],
+        "series": []
+      }
+    },
+    "mauritania": {
+      "osn": {
+        "movies": [],
+        "series": []
+      },
+      "shahid": {
+        "movies": [],
+        "series": []
+      }
+    },
+    "mauritius": {
+      "apple-tv": {
+        "movies": [],
+        "series": []
+      },
+      "netflix": {
+        "movies": [],
+        "series": []
+      },
+      "shahid": {
+        "movies": [],
+        "series": []
+      }
+    },
+    "mexico": {
+      "amazon": {
+        "movies": []
+      },
+      "amazon-prime": {
+        "movies": [],
+        "overall": [],
+        "series": []
+      },
+      "apple-tv": {
+        "movies": [],
+        "series": []
+      },
+      "apple-tv-store": {
+        "movies": []
+      },
+      "claro-video": {
+        "movies": [],
+        "series": []
+      },
+      "disney": {
+        "movies": [],
+        "overall": [],
+        "series": []
+      },
+      "google": {
+        "movies": []
+      },
+      "hbo-max": {
+        "movies": [],
+        "series": []
+      },
+      "netflix": {
+        "movies": [],
+        "series": []
+      },
+      "paramount": {
+        "movies": [],
+        "series": []
+      },
+      "vix": {
+        "overall": []
+      }
+    },
+    "moldova": {
+      "apple-tv": {
+        "movies": [],
+        "series": []
+      },
+      "apple-tv-store": {
+        "movies": []
+      },
+      "hbo-max": {
+        "movies": [],
+        "series": []
+      }
+    },
+    "mongolia": {
+      "apple-tv": {
+        "movies": [],
+        "series": []
+      },
+      "apple-tv-store": {
+        "movies": []
+      }
+    },
+    "montenegro": {
+      "disney": {
+        "movies": [],
+        "overall": [],
+        "series": []
+      },
+      "hbo-max": {
+        "movies": [],
+        "series": []
+      },
+      "skyshowtime": {
+        "movies": [],
+        "series": []
+      }
+    },
+    "morocco": {
+      "netflix": {
+        "movies": [],
+        "series": []
+      },
+      "osn": {
+        "movies": [],
+        "series": []
+      },
+      "shahid": {
+        "movies": [],
+        "series": []
+      },
+      "starz": {
+        "movies": [],
+        "series": []
+      }
+    },
+    "mozambique": {
+      "apple-tv": {
+        "movies": [],
+        "series": []
+      },
+      "apple-tv-store": {
+        "movies": []
+      }
+    },
+    "namibia": {
+      "apple-tv": {
+        "movies": [],
+        "series": []
+      },
+      "apple-tv-store": {
+        "movies": []
+      },
+      "google": {
+        "movies": []
+      }
+    },
+    "netherlands": {
+      "amazon": {
+        "movies": []
+      },
+      "amazon-prime": {
+        "movies": [],
+        "series": []
+      },
+      "apple-tv": {
+        "movies": [],
+        "series": []
+      },
+      "apple-tv-store": {
+        "movies": []
+      },
+      "disney": {
+        "movies": [],
+        "overall": [],
+        "series": []
+      },
+      "google": {
+        "movies": []
+      },
+      "hbo-max": {
+        "movies": [],
+        "series": []
+      },
+      "netflix": {
+        "movies": [],
+        "series": []
+      },
+      "rakuten-tv": {
+        "movies": []
+      },
+      "skyshowtime": {
+        "movies": [],
+        "series": []
+      },
+      "viaplay": {
+        "movies": [],
+        "series": []
+      },
+      "videoland": {
+        "overall": []
+      }
+    },
+    "new-zealand": {
+      "amazon-channels": {
+        "overall": []
+      },
+      "amazon-prime": {
+        "movies": [],
+        "series": []
+      },
+      "apple-tv": {
+        "movies": [],
+        "overall": [],
+        "series": []
+      },
+      "apple-tv-store": {
+        "movies": []
+      },
+      "crunchyroll": {
+        "overall": []
+      },
+      "disney": {
+        "movies": [],
+        "overall": [],
+        "series": []
+      },
+      "google": {
+        "movies": []
+      },
+      "hayu": {
+        "overall": []
+      },
+      "lionsgate": {
+        "overall": []
+      },
+      "mgm": {
+        "overall": []
+      },
+      "neon-tv": {
+        "overall": []
+      },
+      "netflix": {
+        "movies": [],
+        "series": []
+      }
+    },
+    "nicaragua": {
+      "apple-tv": {
+        "movies": [],
+        "series": []
+      },
+      "apple-tv-store": {
+        "movies": []
+      },
+      "claro-video": {
+        "movies": [],
+        "series": []
+      },
+      "disney": {
+        "movies": [],
+        "overall": [],
+        "series": []
+      },
+      "google": {
+        "movies": []
+      },
+      "hbo-max": {
+        "movies": [],
+        "series": []
+      },
+      "netflix": {
+        "movies": [],
+        "series": []
+      },
+      "paramount": {
+        "movies": [],
+        "series": []
+      }
+    },
+    "niger": {
+      "apple-tv": {
+        "movies": [],
+        "series": []
+      },
+      "apple-tv-store": {
+        "movies": []
+      }
+    },
+    "nigeria": {
+      "amazon-prime": {
+        "movies": [],
+        "series": []
+      },
+      "netflix": {
+        "movies": [],
+        "series": []
+      }
+    },
+    "north-macedonia": {
+      "disney": {
+        "movies": [],
+        "overall": [],
+        "series": []
+      },
+      "google": {
+        "movies": []
+      },
+      "hbo-max": {
+        "movies": [],
+        "series": []
+      },
+      "skyshowtime": {
+        "movies": [],
+        "series": []
+      }
+    },
+    "norway": {
+      "amazon-prime": {
+        "movies": [],
+        "overall": [],
+        "series": []
+      },
+      "apple-tv": {
+        "movies": [],
+        "series": []
+      },
+      "apple-tv-store": {
+        "movies": []
+      },
+      "disney": {
+        "movies": [],
+        "overall": [],
+        "series": []
+      },
+      "google": {
+        "movies": []
+      },
+      "hbo-max": {
+        "movies": [],
+        "series": []
+      },
+      "netflix": {
+        "movies": [],
+        "series": []
+      },
+      "rakuten-tv": {
+        "movies": []
+      },
+      "skyshowtime": {
+        "movies": [],
+        "series": []
+      },
+      "tv-2-norge": {
+        "movies": [],
+        "series": []
+      },
+      "viaplay": {
+        "movies": [],
+        "series": []
+      }
+    },
+    "oman": {
+      "apple-tv": {
+        "movies": [],
+        "series": []
+      },
+      "apple-tv-store": {
+        "movies": []
+      },
+      "netflix": {
+        "movies": [],
+        "series": []
+      },
+      "osn": {
+        "movies": [],
+        "series": []
+      },
+      "shahid": {
+        "movies": [],
+        "series": []
+      },
+      "starz": {
+        "movies": [],
+        "series": []
+      }
+    },
+    "pakistan": {
+      "hbo-max": {
+        "overall": []
+      },
+      "netflix": {
+        "movies": [],
+        "series": []
+      }
+    },
+    "panama": {
+      "amazon-prime": {
+        "series": []
+      },
+      "apple-tv": {
+        "movies": [],
+        "series": []
+      },
+      "apple-tv-store": {
+        "movies": []
+      },
+      "claro-video": {
+        "movies": [],
+        "series": []
+      },
+      "disney": {
+        "movies": [],
+        "overall": [],
+        "series": []
+      },
+      "hbo-max": {
+        "movies": [],
+        "series": []
+      },
+      "netflix": {
+        "movies": [],
+        "series": []
+      },
+      "paramount": {
+        "movies": [],
+        "series": []
+      }
+    },
+    "paraguay": {
+      "amazon-prime": {
+        "movies": [],
+        "series": []
+      },
+      "apple-tv": {
+        "movies": [],
+        "series": []
+      },
+      "apple-tv-store": {
+        "movies": []
+      },
+      "claro-video": {
+        "movies": [],
+        "series": []
+      },
+      "disney": {
+        "movies": [],
+        "overall": [],
+        "series": []
+      },
+      "hbo-max": {
+        "movies": [],
+        "series": []
+      },
+      "netflix": {
+        "movies": [],
+        "series": []
+      },
+      "paramount": {
+        "movies": [],
+        "series": []
+      }
+    },
+    "peru": {
+      "amazon-prime": {
+        "movies": [],
+        "series": []
+      },
+      "apple-tv": {
+        "movies": [],
+        "series": []
+      },
+      "apple-tv-store": {
+        "movies": []
+      },
+      "claro-video": {
+        "movies": [],
+        "series": []
+      },
+      "disney": {
+        "movies": [],
+        "overall": [],
+        "series": []
+      },
+      "hbo-max": {
+        "movies": [],
+        "series": []
+      },
+      "netflix": {
+        "movies": [],
+        "series": []
+      },
+      "paramount": {
+        "movies": [],
+        "series": []
+      }
+    },
+    "philippines": {
+      "amazon-prime": {
+        "movies": [],
+        "overall": [],
+        "series": []
+      },
+      "apple-tv": {
+        "movies": [],
+        "series": []
+      },
+      "apple-tv-store": {
+        "movies": []
+      },
+      "google": {
+        "movies": []
+      },
+      "hbo-max": {
+        "movies": [],
+        "series": []
+      },
+      "netflix": {
+        "movies": [],
+        "series": []
+      },
+      "viu": {
+        "series": []
+      }
+    },
+    "poland": {
+      "amazon": {
+        "movies": []
+      },
+      "amazon-prime": {
+        "movies": [],
+        "overall": [],
+        "series": []
+      },
+      "apple-tv": {
+        "movies": [],
+        "series": []
+      },
+      "apple-tv-store": {
+        "movies": []
+      },
+      "cda": {
+        "movies": [],
+        "series": []
+      },
+      "chili": {
+        "movies": []
+      },
+      "disney": {
+        "movies": [],
+        "overall": [],
+        "series": []
+      },
+      "google": {
+        "movies": []
+      },
+      "hbo-max": {
+        "movies": [],
+        "series": []
+      },
+      "netflix": {
+        "movies": [],
+        "series": []
+      },
+      "player": {
+        "series": []
+      },
+      "rakuten-tv": {
+        "movies": []
+      },
+      "skyshowtime": {
+        "movies": [],
+        "series": []
+      }
+    },
+    "portugal": {
+      "amazon-prime": {
+        "movies": [],
+        "overall": [],
+        "series": []
+      },
+      "apple-tv": {
+        "movies": [],
+        "series": []
+      },
+      "apple-tv-store": {
+        "movies": []
+      },
+      "disney": {
+        "overall": []
+      },
+      "google": {
+        "movies": []
+      },
+      "hbo-max": {
+        "movies": [],
+        "series": []
+      },
+      "netflix": {
+        "movies": [],
+        "series": []
+      },
+      "rakuten-tv": {
+        "movies": []
+      },
+      "skyshowtime": {
+        "movies": [],
+        "series": []
+      }
+    },
+    "qatar": {
+      "apple-tv": {
+        "movies": [],
+        "series": []
+      },
+      "apple-tv-store": {
+        "movies": []
+      },
+      "netflix": {
+        "movies": [],
+        "series": []
+      },
+      "osn": {
+        "movies": [],
+        "series": []
+      },
+      "shahid": {
+        "movies": [],
+        "series": []
+      },
+      "starz": {
+        "movies": [],
+        "series": []
+      }
+    },
+    "romania": {
+      "amazon-prime": {
+        "movies": [],
+        "series": []
+      },
+      "apple-tv": {
+        "movies": [],
+        "series": []
+      },
+      "disney": {
+        "movies": [],
+        "overall": [],
+        "series": []
+      },
+      "hbo-max": {
+        "movies": [],
+        "series": []
+      },
+      "netflix": {
+        "movies": [],
+        "series": []
+      },
+      "rakuten-tv": {
+        "movies": []
+      },
+      "skyshowtime": {
+        "movies": [],
+        "series": []
+      },
+      "voyo": {
+        "movies": [],
+        "series": []
+      }
+    },
+    "salvador": {
+      "amazon-prime": {
+        "movies": [],
+        "series": []
+      },
+      "apple-tv": {
+        "movies": [],
+        "series": []
+      },
+      "apple-tv-store": {
+        "movies": []
+      },
+      "claro-video": {
+        "movies": [],
+        "series": []
+      },
+      "disney": {
+        "movies": [],
+        "overall": [],
+        "series": []
+      },
+      "google": {
+        "movies": []
+      },
+      "hbo-max": {
+        "movies": [],
+        "series": []
+      },
+      "netflix": {
+        "movies": [],
+        "series": []
+      },
+      "paramount": {
+        "movies": [],
+        "series": []
+      }
+    },
+    "saudi-arabia": {
+      "amazon-prime": {
+        "movies": [],
+        "overall": [],
+        "series": []
+      },
+      "apple-tv": {
+        "movies": [],
+        "series": []
+      },
+      "apple-tv-store": {
+        "movies": []
+      },
+      "netflix": {
+        "movies": [],
+        "series": []
+      },
+      "osn": {
+        "movies": [],
+        "series": []
+      },
+      "shahid": {
+        "movies": [],
+        "series": []
+      },
+      "starz": {
+        "movies": [],
+        "series": []
+      }
+    },
+    "serbia": {
+      "disney": {
+        "movies": [],
+        "overall": [],
+        "series": []
+      },
+      "hbo-max": {
+        "movies": [],
+        "series": []
+      },
+      "netflix": {
+        "movies": [],
+        "series": []
+      },
+      "skyshowtime": {
+        "movies": [],
+        "series": []
+      }
+    },
+    "singapore": {
+      "amazon-prime": {
+        "movies": [],
+        "overall": [],
+        "series": []
+      },
+      "apple-tv": {
+        "movies": [],
+        "series": []
+      },
+      "apple-tv-store": {
+        "movies": []
+      },
+      "disney": {
+        "overall": []
+      },
+      "google": {
+        "movies": []
+      },
+      "hbo-max": {
+        "movies": [],
+        "series": []
+      },
+      "mewatch": {
+        "movies": [],
+        "series": []
+      },
+      "netflix": {
+        "movies": [],
+        "series": []
+      },
+      "viu": {
+        "series": []
+      }
+    },
+    "slovakia": {
+      "apple-tv": {
+        "movies": [],
+        "series": []
+      },
+      "apple-tv-store": {
+        "movies": []
+      },
+      "disney": {
+        "movies": [],
+        "overall": [],
+        "series": []
+      },
+      "google": {
+        "movies": []
+      },
+      "hbo-max": {
+        "movies": [],
+        "series": []
+      },
+      "netflix": {
+        "movies": [],
+        "series": []
+      },
+      "skyshowtime": {
+        "movies": [],
+        "series": []
+      },
+      "voyo": {
+        "movies": [],
+        "series": []
+      }
+    },
+    "slovenia": {
+      "apple-tv": {
+        "movies": [],
+        "series": []
+      },
+      "apple-tv-store": {
+        "movies": []
+      },
+      "disney": {
+        "movies": [],
+        "overall": [],
+        "series": []
+      },
+      "google": {
+        "movies": []
+      },
+      "hbo-max": {
+        "movies": [],
+        "series": []
+      },
+      "netflix": {
+        "movies": [],
+        "series": []
+      },
+      "skyshowtime": {
+        "movies": [],
+        "series": []
+      },
+      "voyo": {
+        "movies": [],
+        "series": []
+      }
+    },
+    "south-africa": {
+      "amazon-prime": {
+        "movies": [],
+        "overall": [],
+        "series": []
+      },
+      "apple-tv": {
+        "movies": [],
+        "series": []
+      },
+      "apple-tv-store": {
+        "movies": []
+      },
+      "netflix": {
+        "movies": [],
+        "series": []
+      }
+    },
+    "south-korea": {
+      "apple-tv": {
+        "movies": [],
+        "series": []
+      },
+      "coupang-play": {
+        "movies": [],
+        "overall": [],
+        "series": []
+      },
+      "disney": {
+        "movies": [],
+        "overall": [],
+        "series": []
+      },
+      "google": {
+        "movies": []
+      },
+      "netflix": {
+        "movies": [],
+        "series": []
+      },
+      "wavve": {
+        "movies": [],
+        "overall": [],
+        "series": [
+          "ko"
+        ]
+      }
+    },
+    "spain": {
+      "amazon": {
+        "movies": []
+      },
+      "amazon-channels": {
+        "overall": []
+      },
+      "amazon-prime": {
+        "movies": [],
+        "series": []
+      },
+      "amc": {
+        "overall": []
+      },
+      "apple-tv": {
+        "movies": [],
+        "overall": [],
+        "series": []
+      },
+      "apple-tv-store": {
+        "movies": []
+      },
+      "crunchyroll": {
+        "overall": []
+      },
+      "disney": {
+        "movies": [],
+        "overall": [],
+        "series": []
+      },
+      "google": {
+        "movies": []
+      },
+      "hayu": {
+        "overall": []
+      },
+      "hbo-max": {
+        "movies": [],
+        "overall": [],
+        "series": []
+      },
+      "lionsgate": {
+        "overall": []
+      },
+      "mgm": {
+        "overall": []
+      },
+      "netflix": {
+        "movies": [],
+        "series": []
+      },
+      "rakuten-tv": {
+        "movies": []
+      },
+      "skyshowtime": {
+        "movies": [],
+        "overall": [],
+        "series": []
+      }
+    },
+    "sri-lanka": {
+      "apple-tv": {
+        "movies": [],
+        "series": []
+      },
+      "apple-tv-store": {
+        "movies": []
+      },
+      "google": {
+        "movies": []
+      },
+      "hbo-max": {
+        "overall": []
+      },
+      "netflix": {
+        "movies": [],
+        "series": []
+      }
+    },
+    "sweden": {
+      "amazon": {
+        "movies": []
+      },
+      "amazon-prime": {
+        "movies": [],
+        "overall": [],
+        "series": []
+      },
+      "apple-tv": {
+        "movies": [],
+        "series": []
+      },
+      "apple-tv-store": {
+        "movies": []
+      },
+      "disney": {
+        "movies": [],
+        "overall": [],
+        "series": []
+      },
+      "google": {
+        "movies": []
+      },
+      "hbo-max": {
+        "movies": [],
+        "series": []
+      },
+      "netflix": {
+        "movies": [],
+        "series": []
+      },
+      "rakuten-tv": {
+        "movies": []
+      },
+      "skyshowtime": {
+        "movies": [],
+        "series": []
+      },
+      "viaplay": {
+        "movies": [],
+        "series": []
+      }
+    },
+    "switzerland": {
+      "amazon-prime": {
+        "movies": [],
+        "overall": [],
+        "series": []
+      },
+      "apple-tv": {
+        "movies": [],
+        "series": []
+      },
+      "apple-tv-store": {
+        "movies": []
+      },
+      "disney": {
+        "movies": [],
+        "overall": [],
+        "series": []
+      },
+      "google": {
+        "movies": []
+      },
+      "hbo-max": {
+        "movies": [],
+        "series": []
+      },
+      "netflix": {
+        "movies": [],
+        "series": []
+      },
+      "paramount": {
+        "movies": [],
+        "series": []
+      },
+      "rakuten-tv": {
+        "movies": []
+      }
+    },
+    "taiwan": {
+      "apple-tv": {
+        "movies": [],
+        "series": []
+      },
+      "apple-tv-store": {
+        "movies": []
+      },
+      "catchplay": {
+        "movies": [],
+        "overall": [],
+        "series": []
+      },
+      "disney": {
+        "movies": [],
+        "overall": [],
+        "series": []
+      },
+      "friday": {
+        "movies": [],
+        "overall": []
+      },
+      "google": {
+        "movies": []
+      },
+      "hami-video": {
+        "overall": [],
+        "series": []
+      },
+      "hbo-max": {
+        "movies": [],
+        "series": []
+      },
+      "myvideo": {
+        "movies": [],
+        "series": []
+      },
+      "netflix": {
+        "movies": [],
+        "series": []
+      }
+    },
+    "tajikistan": {
+      "apple-tv": {
+        "movies": [],
+        "series": []
+      },
+      "google": {
+        "movies": []
+      },
+      "hbo-max": {
+        "overall": []
+      }
+    },
+    "thailand": {
+      "amazon-prime": {
+        "movies": [],
+        "overall": [],
+        "series": []
+      },
+      "apple-tv": {
+        "movies": [],
+        "series": []
+      },
+      "apple-tv-store": {
+        "movies": []
+      },
+      "hbo-max": {
+        "movies": [],
+        "series": []
+      },
+      "netflix": {
+        "movies": [],
+        "series": []
+      },
+      "trueid": {
+        "movies": [],
+        "series": []
+      },
+      "viu": {
+        "series": []
+      }
+    },
+    "trinidad-and-tobago": {
+      "apple-tv": {
+        "movies": [],
+        "series": []
+      },
+      "disney": {
+        "movies": [],
+        "overall": [],
+        "series": []
+      },
+      "netflix": {
+        "movies": [],
+        "series": []
+      }
+    },
+    "tunisia": {
+      "osn": {
+        "movies": [],
+        "series": []
+      },
+      "shahid": {
+        "movies": [],
+        "series": []
+      },
+      "starz": {
+        "movies": [],
+        "series": []
+      }
+    },
+    "turkey": {
+      "amazon-prime": {
+        "movies": [],
+        "overall": [],
+        "series": []
+      },
+      "disney": {
+        "movies": [],
+        "overall": [],
+        "series": []
+      },
+      "google": {
+        "movies": []
+      },
+      "hbo-max": {
+        "movies": []
+      },
+      "netflix": {
+        "movies": [],
+        "series": []
+      }
+    },
+    "uganda": {
+      "apple-tv": {
+        "movies": [],
+        "series": []
+      },
+      "apple-tv-store": {
+        "movies": []
+      },
+      "google": {
+        "movies": []
+      }
+    },
+    "ukraine": {
+      "apple-tv": {
+        "movies": [],
+        "series": []
+      },
+      "apple-tv-store": {
+        "movies": []
+      },
+      "google": {
+        "movies": []
+      },
+      "hbo-max": {
+        "overall": []
+      },
+      "netflix": {
+        "movies": [],
+        "series": []
+      },
+      "rakuten-tv": {
+        "movies": []
+      }
+    },
+    "united-arab-emirates": {
+      "amazon-prime": {
+        "movies": [],
+        "series": []
+      },
+      "apple-tv": {
+        "movies": [],
+        "series": []
+      },
+      "apple-tv-store": {
+        "movies": []
+      },
+      "netflix": {
+        "movies": [],
+        "series": []
+      },
+      "osn": {
+        "movies": [],
+        "series": []
+      },
+      "shahid": {
+        "movies": [],
+        "series": []
+      },
+      "starz": {
+        "movies": [],
+        "series": []
+      }
+    },
+    "united-kingdom": {
+      "amazon": {
+        "movies": []
+      },
+      "amazon-channels": {
+        "overall": []
+      },
+      "amazon-prime": {
+        "movies": [],
+        "overall": [],
+        "series": []
+      },
+      "apple-tv": {
+        "movies": [],
+        "overall": [],
+        "series": []
+      },
+      "apple-tv-store": {
+        "movies": [],
+        "series": []
+      },
+      "canal": {
+        "overall": []
+      },
+      "chili": {
+        "movies": []
+      },
+      "crunchyroll": {
+        "overall": []
+      },
+      "disney": {
+        "movies": [],
+        "overall": [],
+        "series": []
+      },
+      "google": {
+        "movies": []
+      },
+      "hayu": {
+        "overall": []
+      },
+      "hbo-max": {
+        "movies": [],
+        "overall": [],
+        "series": []
+      },
+      "lionsgate": {
+        "overall": []
+      },
+      "mgm": {
+        "overall": []
+      },
+      "mubi": {
+        "overall": []
+      },
+      "netflix": {
+        "movies": [],
+        "series": []
+      },
+      "paramount": {
+        "movies": [],
+        "overall": [],
+        "series": []
+      },
+      "rakuten-tv": {
+        "movies": []
+      },
+      "shudder": {
+        "overall": []
+      }
+    },
+    "united-states": {
+      "amazon": {
+        "movies": [],
+        "series": []
+      },
+      "amazon-channels": {
+        "overall": []
+      },
+      "amazon-prime": {
+        "movies": [],
+        "overall": [],
+        "series": []
+      },
+      "amc": {
+        "overall": []
+      },
+      "apple-tv": {
+        "movies": [],
+        "overall": [],
+        "series": []
+      },
+      "apple-tv-store": {
+        "movies": [],
+        "series": []
+      },
+      "crunchyroll": {
+        "overall": []
+      },
+      "discovery-plus": {
+        "overall": []
+      },
+      "disney": {
+        "movies": [],
+        "overall": [],
+        "series": []
+      },
+      "google": {
+        "movies": []
+      },
+      "hbo-max": {
+        "movies": [],
+        "overall": [],
+        "series": []
+      },
+      "hulu": {
+        "movies": [],
+        "overall": [],
+        "series": []
+      },
+      "mgm": {
+        "overall": []
+      },
+      "netflix": {
+        "movies": [],
+        "series": []
+      },
+      "paramount": {
+        "movies": [],
+        "overall": [],
+        "series": []
+      },
+      "peacock": {
+        "movies": [],
+        "series": []
+      },
+      "pluto": {
+        "movies": []
+      },
+      "shudder": {
+        "overall": []
+      },
+      "sony-pictures-core": {
+        "overall": []
+      },
+      "starz": {
+        "movies": [],
+        "overall": [],
+        "series": []
+      },
+      "tubi": {
+        "overall": []
+      },
+      "viki-tv": {
+        "overall": []
+      },
+      "vix": {
+        "overall": []
+      },
+      "vudu": {
+        "movies": [],
+        "series": []
+      }
+    },
+    "uruguay": {
+      "amazon-prime": {
+        "movies": [],
+        "series": []
+      },
+      "claro-video": {
+        "movies": [],
+        "series": []
+      },
+      "disney": {
+        "movies": [],
+        "overall": [],
+        "series": []
+      },
+      "hbo-max": {
+        "movies": [],
+        "series": []
+      },
+      "netflix": {
+        "movies": [],
+        "series": []
+      },
+      "paramount": {
+        "movies": [],
+        "series": []
+      }
+    },
+    "venezuela": {
+      "apple-tv": {
+        "movies": [],
+        "series": []
+      },
+      "apple-tv-store": {
+        "movies": []
+      },
+      "disney": {
+        "movies": [],
+        "overall": [],
+        "series": []
+      },
+      "google": {
+        "movies": []
+      },
+      "hbo-max": {
+        "movies": [],
+        "series": []
+      },
+      "netflix": {
+        "movies": [],
+        "series": []
+      },
+      "paramount": {
+        "movies": [],
+        "series": []
+      }
+    },
+    "vietnam": {
+      "apple-tv": {
+        "movies": [],
+        "series": []
+      },
+      "apple-tv-store": {
+        "movies": []
+      },
+      "netflix": {
+        "movies": [],
+        "series": []
+      }
+    },
+    "yemen": {
+      "osn": {
+        "movies": [],
+        "series": []
+      },
+      "shahid": {
+        "movies": [],
+        "series": []
+      }
+    },
+    "zimbabwe": {
+      "apple-tv": {
+        "movies": [],
+        "series": []
+      },
+      "apple-tv-store": {
+        "movies": []
+      }
+    }
+  }
+}

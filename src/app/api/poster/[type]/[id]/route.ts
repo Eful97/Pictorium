@@ -16,7 +16,7 @@ import { rateLimit, rateLimitKey, rateLimitResponse } from "@/lib/rate-limit"
 import { getServerDefaultsForUser, getServerDefaultsChecked, effectiveDefaultsForShape } from "@/lib/server-defaults"
 import { effectiveMappingForShape } from "@/lib/types"
 import { getRegionDef, normalizeRegion, parseRegion, defaultRegionForLang, GLOBAL_REGION_CODE } from "@/lib/regions"
-import { pinChartFamily, chartListGroupKey, chartPinCacheFragment, chartSlotEndMs, type ChartFamilyPin } from "@/lib/chart-generation"
+import { pinChartFamily, chartListGroupKey, chartPinCacheFragment, chartSlotEndMs, familySlotEndMs, type ChartFamilyPin } from "@/lib/chart-generation"
 import { ensureFreshChartFamily } from "@/lib/chart-renewal"
 import { BEST_FIT_GLOBAL, resolveLogoFitEnabled } from "@/lib/best-fit-config"
 import { selectAutoFitCandidates, selectBestLogoFitPosterPath } from "@/lib/poster-auto-fit"
@@ -77,7 +77,7 @@ import { capPosterTtlMs, isRankFactConsumed, resolvePosterFactCapMs } from "@/li
 import { sanitizeEffectiveAccentMeta, type EffectiveAccentMeta } from "@/lib/effective-accent"
 import { hashUserFragment, msUntilPosterScheduledRefresh, userTagFragment } from "@/lib/cache"
 import { FormatOverloadError, runFormatConversion } from "@/lib/poster-format-gate"
-import { hardenPosterSearchParams, isPresetsPosterMode, isPreviewAuthRequired, isPreviewDowngraded, isPublicPosterInstance } from "@/lib/poster-params-hardening"
+import { hardenPosterSearchParams, isPresetsPosterMode, isPreviewAuthRequired, isPreviewDowngraded, isPublicPosterInstance, parseListRankParam, resolveFinalRankWithListContext } from "@/lib/poster-params-hardening"
 import { DEMOSAMPLES_FLAG, DEMO_SAMPLE_GENRE, DEMO_SAMPLE_MOVIE_DATE, DEMO_SAMPLE_QUALITY, DEMO_SAMPLE_RANK, DEMO_SAMPLE_TV_DATE, isDemoSamplesRequest, mergeDemoSampleRatings } from "@/lib/demo-samples"
 import {
   STD_H,
@@ -569,9 +569,15 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
     : (!!hardenedParams.get("poster") ? true : (earlyEffMapping?.rankingBadges ?? true))
   // Same parsers as the render: qRank overrides trend only (anime stays
   // independent), and only a valid non-negative int skips the trend fetch.
+  // rk is the ephemeral list-rank context (position in the originating
+  // selected list, 0 = explicit unranked): valid 0..100 skips BOTH trend and
+  // anime fetches and wins over live ranks (decision A). Explicit qRank wins
+  // over rk (manual override preserved); invalid rk = absent (legacy inert).
   const qRankPre = hardenedParams.get("rank")
   const qRankParsedPre = qRankPre !== null ? parseInt(qRankPre, 10) : NaN
   const hasValidQRankOverride = qRankPre !== null && qRankParsedPre >= 0
+  const qRkPre = hardenedParams.get("rk")
+  const hasValidListRankPre = !hasValidQRankOverride && parseListRankParam(qRkPre) !== null
   const qAnimeRankParamPre = hardenedParams.get("animerank")
   const qAnimeRankPre = qAnimeRankParamPre ? Number(qAnimeRankParamPre) : NaN
   const rankingSelectionPre = {
@@ -599,8 +605,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
   const preflightStart = Date.now()
   const preflightBudgetMs = Math.max(1, Math.min(POSTER_TMDB_TIMEOUT_MS, RENDER_TIMEOUT_MS - (preflightStart - startTime)))
   const preflightSourceSignal = AbortSignal.timeout(preflightBudgetMs)
-  const needTrendFetch = rankingEnabledPre && !hasValidQRankOverride
-  const needAnimeFetch = rankingEnabledPre && !(Number.isFinite(qAnimeRankPre) && qAnimeRankPre > 0)
+  const needTrendFetch = rankingEnabledPre && !hasValidQRankOverride && !hasValidListRankPre
+  const needAnimeFetch = rankingEnabledPre && !(Number.isFinite(qAnimeRankPre) && qAnimeRankPre > 0) && !hasValidListRankPre
   const animeListKey = mediaType === "movie" ? "mdblistAnimeMovie" : "mdblistAnime"
   const animeKeyUsed = effMdblistKey || envWithFallback("MDBLIST_KEY") || process.env.MDBLIST_KEY || process.env.MDBLIST_API_KEY || undefined
   // Per-family snapshots (render-budget path): canonical rank inputs come from
@@ -686,7 +692,10 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
         })
         .catch(() => { trendRankLive = false; trendSnapshotPin = null; return isNewJwModePre ? null : (mapping?.badgeRank ?? mapping?.trendRank ?? null) }))
   const animePreflight: Promise<number | null> = !needAnimeFetch
-    ? Promise.resolve(rankingEnabledPre ? qAnimeRankPre : null)
+    // List-rank context wins over live anime (decision A): a skipped fetch
+    // resolves to null, never NaN (stable cache key, no phantom anime win).
+    // An explicit valid `animerank` still resolves below via the finite check.
+    ? Promise.resolve(rankingEnabledPre && !hasValidListRankPre && Number.isFinite(qAnimeRankPre) ? qAnimeRankPre : null)
     : awaitWithOwnBudget(sharedSourceFetch<ChartFamilyPin>(animeSourceKey, () => ensureFreshChartFamily({
       regionCode: posterRegion.code,
       regionLang: posterRegion.lang,
@@ -2372,9 +2381,13 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
     const rankingRank = rankingResult ?? (demoSamples && rankingEnabledEarly ? DEMO_SAMPLE_RANK : null)
     // rank/label dalla query hardenata (stessa del cache key): su presets il
     // label free-text è droppato/canonicalizzato, il rank numerico resta.
+    // Precedenza rank: `rank=` esplicito (override manuale, vince) > `rk=`
+    // contesto lista effimero (posizione nella lista di origine, decisione A)
+    // > rank live da fonte selezionata. `rk=0` = unranked esplicito (sopprime
+    // il badge, mai fallback al live). `rk` invalido = assente (legacy).
     const qRank = hardenedParams.get("rank")
     const qLabel = hardenedParams.get("label")
-    const finalRank = qRank !== null ? (parseInt(qRank, 10) >= 0 ? parseInt(qRank, 10) : rankingRank) : rankingRank
+    const finalRank = resolveFinalRankWithListContext(qRank, hardenedParams.get("rk"), rankingRank)
 
     // Fase 6 (observability): fine della fase fetch (mapping/defaults + TMDB +
     // JW + wikidata + immagini + selezione logo). Da qui in poi solo CPU locale.
@@ -2671,9 +2684,11 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
     // rows. Same-slot snapshots are served even after the underlying rolling
     // source caches expire, so the cap follows the snapshot — not the source
     // caches (their remaining is only a fallback at the exact boundary).
-    const snapshotSlotRemainingMs = (pin: ChartFamilyPin | null, nowMs: number): number | null => {
+    const snapshotSlotRemainingMs = (pin: ChartFamilyPin | null, family: string | null, nowMs: number): number | null => {
       if (!pin?.snapshot) return null
-      const slotEnd = chartSlotEndMs(pin.snapshot.generation)
+      // Family cadence: the pinned end follows the family's own slots
+      // (00/06/12/18 for JW, 00/12 otherwise) — never the current window.
+      const slotEnd = family ? familySlotEndMs(family, pin.snapshot.generation) : chartSlotEndMs(pin.snapshot.generation)
       if (!slotEnd) return null
       const remaining = slotEnd - nowMs
       // A pin published in a previous slot (retained on outage, or a render
@@ -2705,7 +2720,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
           factNowMs,
         )
       } else {
-        trendFactMs = snapshotSlotRemainingMs(trendSnapshotPin, factNowMs) ?? (
+        trendFactMs = snapshotSlotRemainingMs(trendSnapshotPin, jwFamily, factNowMs) ?? (
           rankingSourcePre.kind === "justwatch" &&
           (rankingSourcePre.mode === "popular" || rankingSourcePre.mode === "trending")
             ? jwTitlesRemainingMs(
@@ -2740,7 +2755,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
       fetchWon: animeRankLive,
       rank: preAnimeRank,
     })
-      ? (snapshotSlotRemainingMs(animeSnapshotPin, factNowMs) ?? mdblistRemainingMs(animeListKey, animeKeyUsed, factNowMs))
+      ? (snapshotSlotRemainingMs(animeSnapshotPin, chartAnimeFamily, factNowMs) ?? mdblistRemainingMs(animeListKey, animeKeyUsed, factNowMs))
       : null
     const offersFactMs =
       preRelease && mediaType === "movie" && preJw !== null

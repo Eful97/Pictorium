@@ -14,6 +14,7 @@ import { BADGE_STYLES, RANKING_BADGE_STYLES, QUALITY_BADGE_STYLES, AGE_BADGE_STY
 import { POSTER_LAYOUTS, POSTER_FRESH_SCOPES } from "@/lib/types"
 import { retiredBadgeFamilyBindingsSchema } from "@/lib/validation"
 import { MAX_DISABLED_NETWORKS } from "@/lib/network-keys"
+import { parseGenericVariantId } from "@/lib/streaming-catalogs"
 
 // ---- Zod schema (Batch C: sostituisce validazione manuale) ----
 
@@ -45,6 +46,34 @@ const customCatalogSchema = z.object({
   enabled: z.boolean().optional(),
   datasetId: z.string().max(64).optional(),
   addon: addonSourceSchema.optional(),
+})
+
+/**
+ * Opt-in streaming selection (service + country): same bounds as the
+ * defaults route (fail-closed sanitize at every read, unknown countries
+ * never become Italy). Optional for back-compat (old tokens stay valid).
+ * Task F: `source` (chart source policy, absent = `auto`) and `variant`
+ * (feed variant chart, absent = base chart) are additive — unknown values
+ * fail closed to `auto`/base at sanitize time, never to another service.
+ */
+const streamingSelectionSchema = z.object({
+  // Loose like `region` on purpose: the allowlist + fail-closed normalization
+  // happen at every read (`sanitizeStreamingSelections`) — unknown services
+  // never become another service, unknown countries never become Italy.
+  service: z.string().max(64),
+  country: z.string().max(64),
+  sections: z.array(z.enum(["movies", "series", "all"])).max(3).optional(),
+  enabled: z.boolean().optional(),
+  source: z.enum(["auto", "flixpatrol", "justwatch"]).optional(),
+  // Feed variant chart (absent/"" = base chart). Present-but-invalid values
+  // fail closed at the write boundary (token rejected, never a silent coerce
+  // to base): the single canonical `parseGenericVariantId` leaf decides
+  // validity, so the write gate can never drift from the read gate in
+  // `sanitizeGenericStreamingSelections`.
+  variant: z.string().max(64).optional().refine(
+    (v) => v === undefined || v === "" || parseGenericVariantId(v) !== null,
+    { message: "variant must be a valid feed variant id" },
+  ),
 })
 
 export const configTokenSchema = z.object({
@@ -147,6 +176,12 @@ export const configTokenSchema = z.object({
     return !keys.some((k) => k === "__proto__" || k === "constructor" || k === "prototype")
   }),
   customCatalogs: z.array(customCatalogSchema).optional(),
+  // Opt-in streaming selections (service + country): absent = legacy
+  // behavior (old tokens stay valid), explicit [] = opt-in mode with zero
+  // selections (same absent-vs-explicit boundary as the stored defaults).
+  // Bound mirrors MAX_STREAMING_SELECTIONS (batch-adding many providers for
+  // one country stays under the 32KB token cap; every old token still fits).
+  streamingSelections: z.array(streamingSelectionSchema).max(200).optional(),
   // Top 20 global ranking source (custom catalog id) per slot: absent =
   // JustWatch (old tokens stay valid). The bound mirrors the custom id;
   // existence and type compatibility are decided by the resolver.
@@ -186,6 +221,11 @@ export type PictoriumUserConfig = z.infer<typeof configTokenSchema>
  */
 export const partialCatalogTokenSchema = z.object({
   customCatalogs: z.array(customCatalogSchema).optional(),
+  // Opt-in streaming selections travel in the catalog-only token too:
+  // local-only/profileless devices carry their staged/saved choices into
+  // the issued install token. Explicit [] clears (device cleared wins);
+  // omission keeps the namespace fill (legacy behavior).
+  streamingSelections: z.array(streamingSelectionSchema).max(200).optional(),
   rankingSourceMovie: z.string().max(64).optional(),
   rankingSourceSeries: z.string().max(64).optional(),
   // Custom seasonal keywords travel in the catalog-only token too:

@@ -297,6 +297,17 @@ export interface ServerDefaults {
   landscape?: LandscapeServerDefaults | null
   customCatalogs?: import("@/lib/types").CustomCatalogConfig[]
   /**
+   * Opt-in streaming catalogs selected by service + country (one entry per
+   * pair, both media sections unless narrowed). Absent (`undefined`) =
+   * legacy behavior: the historical built-in platform catalogs keep serving
+   * exactly as before (existing spaces untouched). Explicit `[]` (or a
+   * non-empty list) = opt-in mode: only the general JustWatch Top 20 (+
+   * anime Top 20, not service-based) plus the enabled selections are
+   * exposed. Sanitized at every read (see `streaming-catalogs.ts`); unknown
+   * countries never fall back to Italy. Task 3 owns new-space defaults.
+   */
+  streamingSelections?: import("@/lib/streaming-catalogs").StreamingSelection[]
+  /**
    * Top 20 global ranking source (custom catalog id) per slot.
    * Absent/empty = JustWatch (retrocompatible default). The resolver
    * (`ranking-source.ts`) validates existence, `enabled !== false` and type

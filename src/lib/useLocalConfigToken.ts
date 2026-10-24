@@ -6,6 +6,14 @@ import { mintConfigToken } from "./mint-config-token"
 import type { CustomCatalogConfig } from "./types"
 
 export interface LocalConfigTokenInput {
+  /**
+   * Opt-in streaming selections staged/saved on the device (service +
+   * country). Always carried when defined — even as explicit [] — so the
+   * issued token reflects a cleared device instead of inheriting the
+   * namespace fill (same absent-vs-explicit boundary as the space-wide
+   * exclusions below). The server sanitizes again at match time.
+   */
+  readonly streamingSelections?: readonly import("./streaming-catalogs").StreamingSelection[]
   readonly customCatalogs: readonly CustomCatalogConfig[]
   readonly rankingSourceMovie: string
   readonly rankingSourceSeries: string
@@ -76,6 +84,11 @@ export function useLocalConfigToken(input: LocalConfigTokenInput): LocalConfigTo
       }
       const minted = await mintConfigToken({
         customCatalogs: input.customCatalogs,
+        // Opt-in streaming selections: carried when defined, even as
+        // explicit [] (device cleared wins over the namespace fill).
+        ...(input.streamingSelections !== undefined
+          ? { streamingSelections: [...input.streamingSelections] }
+          : {}),
         rankingSourceMovie: input.rankingSourceMovie,
         rankingSourceSeries: input.rankingSourceSeries,
         ...(input.catalogShapes && Object.keys(input.catalogShapes).length > 0
@@ -124,7 +137,7 @@ export function useLocalConfigToken(input: LocalConfigTokenInput): LocalConfigTo
     return () => {
       cancelled = true
     }
-  }, [input.customCatalogs, input.rankingSourceMovie, input.rankingSourceSeries, input.catalogShapes, input.catalogShowEmojis, input.seasonalHalloweenKeywords, input.seasonalChristmasKeywords, input.disabledContentTags, input.disabledNetworks])
+  }, [input.streamingSelections, input.customCatalogs, input.rankingSourceMovie, input.rankingSourceSeries, input.catalogShapes, input.catalogShowEmojis, input.seasonalHalloweenKeywords, input.seasonalChristmasKeywords, input.disabledContentTags, input.disabledNetworks])
 
   return { token, status }
 }

@@ -3,7 +3,7 @@
 import React from "react"
 import { posterUrl } from "@/lib/utils"
 import { useT } from "@/lib/contexts/TranslationContext"
-import { Check } from "lucide-react"
+import { Check, Trash2 } from "lucide-react"
 import { PosterDepthEdge, PosterDepthSheen } from "@/components/PosterDepthGlow"
 
 export interface SimklCardItem {
@@ -16,6 +16,8 @@ export interface SimklCardItem {
   media_type?: string
   mediaType?: string
   rank?: number
+  /** Selection chart country (streaming lists; built-in = null/default). */
+  region?: string | null
 }
 
 interface SimklCardProps {
@@ -27,13 +29,26 @@ interface SimklCardProps {
   onItemClick?: (item: SimklCardItem) => void
   savedKeys?: Set<string>
   className?: string
+  /** Optional source icon (e.g. CatalogSourceBadge icon-only) beside the counter. */
+  footerAdornment?: React.ReactNode
+  /** Optional single-list remove action (trash button, footer right). */
+  onRemove?: () => void
+  /** Accessible label for the remove button. Defaults to t("ui.remove"). */
+  removeLabel?: string
+  /**
+   * Optional discreet publication line rendered under the footer (per-card
+   * Pictorium sync time or the honest unknown text, built by the caller).
+   * Omitted = byte-identical legacy card (no extra DOM).
+   */
+  publication?: React.ReactNode
 }
 
-export function SimklCard({ items, title, totalCount, meta = [], onClick, onItemClick, savedKeys, className }: SimklCardProps) {
+export function SimklCard({ items, title, totalCount, meta = [], onClick, onItemClick, savedKeys, className, footerAdornment, onRemove, removeLabel, publication }: SimklCardProps) {
   const { t } = useT()
   const displayItems = items.slice(0, 10)
   const isSingle = displayItems.length <= 2 && !className?.includes("simkl-list-card--fill")
   const count = totalCount ?? items.length
+  const removeText = removeLabel ?? t("ui.remove")
 
   const imgSrc = (item: SimklCardItem) => {
     const path = item.poster_path || item.posterPath
@@ -122,19 +137,66 @@ export function SimklCard({ items, title, totalCount, meta = [], onClick, onItem
           <span className="grid-hint ml-2 shrink-0" title={t("ui.viewAll")}>⧉</span>
         </h3>
         <div className="meta flex items-center justify-between mt-2.5">
-          {count > 0 && (
-            <span className="counter-badge text-[11px] px-2 py-0.5 rounded-md font-medium bg-white/10 border border-white/10 text-zinc-300 backdrop-blur-sm">
-              {count} {count === 1 ? t("ui.itemOne") : t("ui.itemMany")}
+          {footerAdornment ? (
+            <span className="flex items-center gap-1.5 min-w-0">
+              {count > 0 && (
+                <span className="counter-badge text-[11px] px-2 py-0.5 rounded-md font-medium bg-white/10 border border-white/10 text-zinc-300 backdrop-blur-sm">
+                  {count} {count === 1 ? t("ui.itemOne") : t("ui.itemMany")}
+                </span>
+              )}
+              {footerAdornment}
             </span>
+          ) : (
+            count > 0 && (
+              <span className="counter-badge text-[11px] px-2 py-0.5 rounded-md font-medium bg-white/10 border border-white/10 text-zinc-300 backdrop-blur-sm">
+                {count} {count === 1 ? t("ui.itemOne") : t("ui.itemMany")}
+              </span>
+            )
           )}
-          {meta.length > 0 && (
-            <div className="flex items-center gap-2 text-xs text-muted">
-              {meta.map((m, i) => (
-                <span key={i}>{m}</span>
-              ))}
+          {onRemove ? (
+            <div className="flex items-center gap-2 ml-auto">
+              {meta.length > 0 && (
+                <div className="flex items-center gap-2 text-xs text-muted">
+                  {meta.map((m, i) => (
+                    <span key={i}>{m}</span>
+                  ))}
+                </div>
+              )}
+              <button
+                type="button"
+                aria-label={removeText}
+                title={removeText}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  onRemove()
+                }}
+                // The card root (div role=button) activates on Enter/Space:
+                // stop propagation so keyboard use of the trash never opens
+                // the list/editor. Native button activation is preserved
+                // (no preventDefault here).
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.stopPropagation()
+                  }
+                }}
+                className="inline-flex items-center justify-center min-w-10 min-h-10 p-1.5 rounded-lg border border-white/5 text-muted hover:text-red-400 hover:bg-red-500/10 hover:border-red-500/20 transition-colors"
+              >
+                <Trash2 className="w-3.5 h-3.5" aria-hidden="true" />
+              </button>
             </div>
+          ) : (
+            meta.length > 0 && (
+              <div className="flex items-center gap-2 text-xs text-muted">
+                {meta.map((m, i) => (
+                  <span key={i}>{m}</span>
+                ))}
+              </div>
+            )
           )}
         </div>
+        {publication != null && (
+          <p className="mt-1.5 text-[11px] leading-relaxed text-muted">{publication}</p>
+        )}
       </div>
     </div>
   )

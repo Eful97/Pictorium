@@ -4,12 +4,20 @@ import { APP_VERSION } from "@/generated/app-version"
 import { PICTORIUM_CATALOGS, PICTORIUM_PEOPLE_SEARCH_CATALOGS, regionJwName } from "@/lib/catalog-definitions"
 import { getOriginFromRequest } from "@/lib/poster-public-url"
 import { decodeConfig, type PictoriumUserConfig } from "@/lib/config-token"
-import { normalizeCatalogIdKeys, normalizeCatalogIdList } from "@/lib/catalog-definitions"
+import { normalizeCatalogIdKeys, normalizeCatalogIdList, partitionAnimeCatalogsLast } from "@/lib/catalog-definitions"
 import { rankingSourceCatalogName, resolveCatalogDisplayName } from "@/lib/ranking-source"
 import { pictoriumExtraForAddon } from "@/lib/stremio-addon"
 import { getServerDefaultsChecked, getServerDefaultsForUser } from "@/lib/server-defaults"
 import { getScopedUserId } from "@/lib/user-auth"
 import { getRegionDef, normalizeRegion, parseRegion } from "@/lib/regions"
+import {
+  genericStreamingCatalogId,
+  genericStreamingCatalogName,
+  sanitizeGenericStreamingSelections,
+  streamingCatalogId,
+  streamingCatalogName,
+  type StreamingService,
+} from "@/lib/streaming-catalogs"
 
 const MOVIE_GENRES = [
   "Tutti", "Azione", "Avventura", "Animazione", "Commedia", "Crime",
@@ -30,8 +38,9 @@ const ANIME_GENRES = [
   "Mistero", "Romance", "Thriller",
 ]
 
-function getCatalogGenreOptions(type: "movie" | "series", catalogId: string): string[] {
+function getCatalogGenreOptions(type: "movie" | "series" | "all", catalogId: string): string[] {
   if (catalogId.includes("anime") || catalogId.includes("crunchyroll")) return ANIME_GENRES
+  if (type === "all") return [...new Set([...MOVIE_GENRES, ...SERIES_GENRES])]
   return type === "movie" ? MOVIE_GENRES : SERIES_GENRES
 }
 
@@ -59,6 +68,7 @@ export async function buildManifestResponse(req: NextRequest, user?: string | nu
       disabledCatalogIds: namespaceDefaults.disabledCatalogIds,
       homeDisabledCatalogIds: namespaceDefaults.homeDisabledCatalogIds,
       customCatalogs: namespaceDefaults.customCatalogs,
+      streamingSelections: namespaceDefaults.streamingSelections,
       rankingSourceMovie: namespaceDefaults.rankingSourceMovie,
       rankingSourceSeries: namespaceDefaults.rankingSourceSeries,
       catalogRenames: namespaceDefaults.catalogRenames,
@@ -75,6 +85,7 @@ export async function buildManifestResponse(req: NextRequest, user?: string | nu
       disabledCatalogIds: userConfig.disabledCatalogIds ?? namespaceDefaults.disabledCatalogIds,
       homeDisabledCatalogIds: userConfig.homeDisabledCatalogIds ?? namespaceDefaults.homeDisabledCatalogIds,
       customCatalogs: userConfig.customCatalogs ?? namespaceDefaults.customCatalogs,
+      streamingSelections: userConfig.streamingSelections ?? namespaceDefaults.streamingSelections,
       rankingSourceMovie: userConfig.rankingSourceMovie ?? namespaceDefaults.rankingSourceMovie,
       rankingSourceSeries: userConfig.rankingSourceSeries ?? namespaceDefaults.rankingSourceSeries,
       catalogRenames: userConfig.catalogRenames ?? namespaceDefaults.catalogRenames,
@@ -93,7 +104,48 @@ export async function buildManifestResponse(req: NextRequest, user?: string | nu
     userConfig.catalogOrder = normalizeCatalogIdList(userConfig.catalogOrder)
     userConfig.catalogRenames = normalizeCatalogIdKeys(userConfig.catalogRenames)
   }
-  let catalogs: Array<{ id: string; name: string; type: "movie" | "series"; customBaseId?: string; addonExtra?: ReturnType<typeof pictoriumExtraForAddon> }> = [...PICTORIUM_CATALOGS]
+  let catalogs: Array<{ id: string; name: string; type: "movie" | "series" | "all"; customBaseId?: string; addonExtra?: ReturnType<typeof pictoriumExtraForAddon> }> = [...PICTORIUM_CATALOGS]
+  // Opt-in streaming selections (service + country). Absent (`undefined`) =
+  // legacy: the historical built-in platform catalogs stay exactly as
+  // before, so existing spaces' explicit catalog selections are preserved.
+  // Explicit (`[]` or non-empty) = opt-in mode: the legacy service platform
+  // catalogs are hidden and only the enabled selections are appended next
+  // to the unchanged general JustWatch Top 20. The anime Top 20 are not
+  // service-based and stay in both modes (documented boundary).
+  // Task F generic universe: entries that are NOT legacy-identical
+  // (non-curated service, non-RegionDef chart country, `all` section,
+  // non-`auto` source, or a feed variant) are emitted as `pictorium-stream2-*`
+  // ids (source-neutral names: the manifest performs zero chart I/O); legacy
+  // entries keep byte-identical legacy ids. Mixed `all` (overall) catalogs
+  // use the Stremio mixed `all` type with per-item real media types.
+  const streamingSels = sanitizeGenericStreamingSelections(userConfig?.streamingSelections)
+  if (streamingSels !== undefined) {
+    catalogs = catalogs.filter(
+      (c) => c.id === "pictorium-jw-movies" || c.id === "pictorium-jw-series" || c.id.startsWith("pictorium-anime"),
+    )
+    for (const sel of streamingSels) {
+      if (!sel.enabled) continue
+      for (const section of sel.sections) {
+        if (sel.legacy && (section === "movies" || section === "series")) {
+          // `sel.legacy` guarantees a curated service + RegionDef country.
+          const legacyService = sel.service as StreamingService
+          const stType = section === "movies" ? "movie" : "series"
+          catalogs.push({
+            id: streamingCatalogId(legacyService, sel.country, section),
+            name: streamingCatalogName(legacyService, sel.country, section),
+            type: stType,
+          })
+        } else {
+          const stType = section === "movies" ? "movie" : section === "series" ? "series" : "all"
+          catalogs.push({
+            id: genericStreamingCatalogId(sel.service, sel.chartSlug, section, sel.source, sel.variant),
+            name: genericStreamingCatalogName(sel.service, sel.chartSlug, section, sel.variant),
+            type: stType,
+          })
+        }
+      }
+    }
+  }
   if (userConfig?.disabledCatalogIds && userConfig.disabledCatalogIds.length > 0) {
     const disabledSet = new Set(userConfig.disabledCatalogIds)
     catalogs = catalogs.filter(c => !disabledSet.has(c.id))
@@ -149,11 +201,14 @@ export async function buildManifestResponse(req: NextRequest, user?: string | nu
     if (customName && customName.trim()) {
       return { ...cat, name: customName.trim() }
     }
+    // `all` (Task F mixed) has no ranking/JW slot: resolve names on the
+    // series slot (generic ids never match those branches, cosmetic-only).
+    const slotType = cat.type === "all" ? "series" : cat.type
     // A Top 20 driven by a custom list must not be called JustWatch: the
     // custom list name wins over the regional JW name (renames still first).
     const rankingName = rankingSourceCatalogName(
       cat.id,
-      cat.type,
+      slotType,
       {
         customCatalogs: userConfig?.customCatalogs,
         rankingSourceMovie: userConfig?.rankingSourceMovie,
@@ -162,7 +217,7 @@ export async function buildManifestResponse(req: NextRequest, user?: string | nu
       manifestRegion,
     )
     if (rankingName) return { ...cat, name: rankingName }
-    const jwName = regionJwName(cat.id, cat.type, manifestRegion)
+    const jwName = regionJwName(cat.id, slotType, manifestRegion)
     if (jwName) return { ...cat, name: jwName }
     return cat
   })
@@ -184,6 +239,10 @@ export async function buildManifestResponse(req: NextRequest, user?: string | nu
       return orderA - orderB
     })
   }
+  // Anime sempre alla fine: partizione stabile DOPO filtri e ordinamento
+  // (mai resurrect: i disabilitati sono già usciti sopra). Vale solo per le
+  // classificazioni built-in canoniche (+ alias legacy) — mai per nome.
+  catalogs = partitionAnimeCatalogsLast(catalogs)
 
   const rawMode = req.nextUrl.searchParams.get("mode")
   const hubMode: "all" | "catalogs" | "search" = (rawMode === "search" || rawMode === "catalogs" || rawMode === "all")
@@ -263,7 +322,18 @@ export async function buildManifestResponse(req: NextRequest, user?: string | nu
     "tvdbc:",
   ]
 
-  const TYPES = ["movie", "series", "anime.movie", "anime.series", "anime"]
+  const META_TYPES = ["movie", "series", "anime.movie", "anime.series", "anime"]
+
+  // Root `types` governs the string-form `catalog` resource (SDK manifest
+  // docs: "If you just provide a string, the `types` and `idPrefixes` from
+  // the manifest will be applied for the resource" —
+  // docs/api/responses/manifest.md; requests are `/{resource}/{type}/{id}`).
+  // Mixed `all` catalogs are served under `/catalog/all/...`, so the root
+  // must advertise `all` exactly when such catalogs are emitted — otherwise
+  // Stremio never requests that route. The `meta` object keeps its explicit
+  // types (the `/meta` resolver has no `all` branch: no fake meta ids).
+  // Legacy spaces without mixed catalogs keep byte-identical root types.
+  const TYPES = manifestCatalogs.some((c) => c.type === "all") ? [...META_TYPES, "all"] : META_TYPES
 
   let manifestName = safeConfig ? `Pictorium (${safeConfig})` : "Pictorium"
   if (hubMode === "search") {
@@ -281,7 +351,7 @@ export async function buildManifestResponse(req: NextRequest, user?: string | nu
       "catalog",
       {
         name: "meta",
-        types: TYPES,
+        types: META_TYPES,
         idPrefixes: ID_PREFIXES,
       },
     ],

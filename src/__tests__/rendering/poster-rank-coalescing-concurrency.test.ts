@@ -7,7 +7,8 @@ import { getById } from "@/lib/store"
 import { cacheClear } from "@/lib/cache"
 import { __resetImageBytesForTest } from "@/lib/image-bytes-cache"
 import {
-  chartSlotEndMs,
+  familySlotEndMs,
+  familySlotKey,
   pinChartFamily,
   romeSlotKey,
   type ChartFamilyPin,
@@ -491,8 +492,11 @@ describe("poster rank coalescing concurrency (per-caller resolution)", () => {
     }) as never
     mockedGetById.mockImplementation(async (_t: unknown, id: unknown) => savedMapping(id as number))
     try {
-      const generation = romeSlotKey(T0)
-      const slotEnd = chartSlotEndMs(generation)
+      // Family-cadence minting (T1 6h): JW snapshots publish under
+      // `familySlotKey`, so the mock pins the JW family's own slot id —
+      // a legacy 12h id would be a previous 6h slot (already expired).
+      const generation = familySlotKey("jw:series:charts", T0)
+      const slotEnd = familySlotEndMs("jw:series:charts", generation)
       expect(slotEnd).toBeGreaterThan(T0)
       const pin = jwPin(
         [

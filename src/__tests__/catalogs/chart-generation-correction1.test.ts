@@ -135,7 +135,7 @@ describe("correction1: omitted first defaults to the canonical snapshot", () => 
     jwPhase = "one"
     jwCalls = 0
     installFetchMock()
-    now = utc(2026, 10, 22, 8, 0, 0) // Rome 10:00 -> slot 20261022-00
+    now = utc(2026, 10, 22, 8, 0, 0) // Rome 10:00 -> JW 6h slot 20261022-06
     vi.spyOn(Date, "now").mockImplementation(() => now)
   })
 
@@ -235,8 +235,8 @@ describe("correction1: file backend retention + commit ordering", () => {
   })
 
   it("keeps another family's last-good snapshot while it publishes after 36h, across restart", async () => {
-    await publish(FAM_A, "20261022-00", [101, 102])
-    await publish(FAM_B, "20261022-00", [301, 302])
+    await publish(FAM_A, "20261022-06", [101, 102]) // JW 6h cadence: Rome 10:00 is the 06 slot
+    await publish(FAM_B, "20261022-00", [301, 302]) // platform stays on the 12h cadence
     // Family B goes quiet for 37h (outage): only its files age.
     const aged = backdateFamilyFiles(FAM_B.family, 37 * 3600 * 1000)
     expect(aged.length).toBeGreaterThan(0)
@@ -254,7 +254,7 @@ describe("correction1: file backend retention + commit ordering", () => {
   })
 
   it("still bounds orphaned snapshots (7d file retention, KV parity)", async () => {
-    await publish(FAM_A, "20261022-00", [101, 102])
+    await publish(FAM_A, "20261022-06", [101, 102])
     await publish(FAM_B, "20261022-00", [301, 302])
     backdateFamilyFiles(FAM_B.family, 8 * 24 * 3600 * 1000)
     now = utc(2026, 10, 22, 11, 0, 0)
@@ -295,7 +295,7 @@ describe("correction1: file backend retention + commit ordering", () => {
   })
 
   it("isolates committed families on disk (no cross-family clobber)", async () => {
-    await publish(FAM_A, "20261022-00", [101])
+    await publish(FAM_A, "20261022-06", [101]) // JW 6h cadence: an explicit 00 slot is stale here and refused
     __resetChartGenerationForTest()
     expect((await pinChartFamily(FAM_A)).snapshot?.rows.map((r) => r.tmdbId)).toEqual([101])
     expect((await pinChartFamily(FAM_B)).id).toBe(CHART_LIVE_PIN_ID)

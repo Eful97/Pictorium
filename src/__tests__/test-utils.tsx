@@ -6,6 +6,7 @@ import { PosterEditorProvider } from "@/lib/contexts/PosterEditorContext"
 import { ThemeProvider } from "@/lib/contexts/ThemeContext"
 import { t } from "@/lib/i18n"
 import { STREAMING_PLATFORMS } from "@/lib/utils"
+import type { BatchAddResult } from "@/lib/streaming-catalog-client"
 
 function stubFn() {}
 async function asyncStubFn() {}
@@ -73,9 +74,11 @@ export const MOCK_CTX: PictoriumCtx = {
   trending: [],
   trendingError: false,
   trendingStatus: "idle",
+  trendingUpdatedAt: null,
   mdblistAnimeList: [],
   animeStatus: "idle",
   animeSource: null,
+  animeUpdatedAt: null,
   streamingCharts: {},
   platformErrors: {},
   loadPlatform: async () => true,
@@ -158,6 +161,7 @@ export const MOCK_CTX: PictoriumCtx = {
   renameCatalog: stubFn,
   resetCatalogNames: stubFn,
   resetCatalogOrder: stubFn,
+  resetDefaultLists: asyncStubFn,
   catalogShowEmojis: true,
   setCatalogShowEmojis: stubFn,
   catalogShapes: {},
@@ -169,6 +173,15 @@ export const MOCK_CTX: PictoriumCtx = {
   seasonalChristmasKeywords: [],
   setSeasonalChristmasKeywords: stubFn,
   resetSeasonalKeywords: stubFn,
+  streamingSelections: undefined,
+  setStreamingSelections: stubFn,
+  addStreamingSelection: () => "added" as const,
+  addStreamingSelections: (): BatchAddResult => ({ status: "added", added: 0, merged: 0, duplicates: 0, selections: [] }),
+  removeStreamingSelection: stubFn,
+  removeStreamingSelections: () => ({ removed: 0, droppedIds: [] as string[] }),
+  removeCustomCatalogs: stubFn,
+  toggleStreamingSelection: stubFn,
+  toggleStreamingSection: stubFn,
   rankingSourceMovie: "",
   rankingSourceSeries: "",
   setRankingSource: async () => true,

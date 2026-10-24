@@ -1,13 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import { act, renderHook, waitFor } from "@testing-library/react"
-import { http } from "@/lib/http"
+import { http, userFetch } from "@/lib/http"
 import { useTrending } from "@/lib/useTrending"
 
-vi.mock("@/lib/http", () => ({ http: vi.fn() }))
+vi.mock("@/lib/http", () => ({ http: vi.fn(), userFetch: vi.fn() }))
 const mockToast = Object.assign(vi.fn(), { warning: vi.fn(), info: vi.fn(), error: vi.fn(), success: vi.fn() })
 vi.mock("sonner", () => ({ toast: mockToast }))
 
 const mockedHttp = vi.mocked(http)
+const mockedUserFetch = vi.mocked(userFetch)
 
 function trendPayload(movies = 2, tv = 1) {
   const m = Array.from({ length: movies }, (_, i) => ({ id: 100 + i, media_type: "movie", rank: i + 1 }))
@@ -24,6 +25,15 @@ function chartPayload() {
     movies: [{ id: 1, media_type: "movie" }],
     tv: [{ id: 2, media_type: "tv" }],
   }
+}
+
+function animeResponse(items: unknown, headers: Record<string, string> = {}) {
+  return {
+    ok: true,
+    status: 200,
+    headers: { get: (name: string) => headers[name.toLowerCase()] ?? null },
+    json: async () => items,
+  } as unknown as Response
 }
 
 /** Smista le risposte http in base al path chiamato. */
@@ -55,6 +65,16 @@ function routeHttp(opts: {
       const slug = new URL(u, "https://x.test").searchParams.get("platform") ?? ""
       if (opts.platformErrors?.includes(slug)) throw new Error(`fp ${slug} down`)
       return ((opts.platforms?.[slug]) ?? chartPayload()) as never
+    }
+    throw new Error(`unexpected url ${u}`)
+  })
+  // Production fetches the anime list via userFetch (header access for the
+  // per-slot publication stamps), same timeout/abort semantics as http.
+  mockedUserFetch.mockImplementation(async (url: string) => {
+    const u = String(url)
+    if (u.includes("/api/mdblist/anime")) {
+      if (opts.animeError) throw opts.animeError
+      return animeResponse(opts.anime ?? animePayload(6))
     }
     throw new Error(`unexpected url ${u}`)
   })

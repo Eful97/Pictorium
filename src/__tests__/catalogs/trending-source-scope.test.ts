@@ -6,6 +6,7 @@ import { fetchTop20Ranking } from "@/lib/top20-ranking"
 import { cacheClear } from "@/lib/cache"
 import { __clearTMDBCache, __resetKey401Cache } from "@/lib/tmdb"
 import { __resetJWRankingsCache } from "@/lib/justwatch"
+import { __resetChartGenerationForTest } from "@/lib/chart-generation"
 
 vi.mock("@/lib/server-defaults", async (importOriginal) => {
   const mod = await importOriginal<typeof import("@/lib/server-defaults")>()
@@ -161,6 +162,7 @@ describe("GET /api/tmdb/trending — scoped Top 20 sources", () => {
     __resetJWRankingsCache()
     __clearTMDBCache()
     __resetKey401Cache()
+    __resetChartGenerationForTest()
     cacheClear()
   })
 

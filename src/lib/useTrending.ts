@@ -2,6 +2,8 @@
 
 import { useState, useCallback, useRef, useEffect } from "react"
 import { http } from "./http"
+import { userFetch } from "./http"
+import { parsePublicationStamp } from "./publication-date"
 import { STREAMING_PLATFORMS } from "./utils"
 import { t } from "./i18n"
 import { getRegionDef } from "./regions"
@@ -11,6 +13,16 @@ import type { EnrichedAnimeItem } from "./validation"
 /** Stato minimo di una lista: idle (mai partita, es. senza chiave),
  *  loading, ready (con dati), empty (successo vuoto), error. */
 export type ListStatus = "idle" | "loading" | "ready" | "empty" | "error"
+
+/**
+ * Publication stamps (ms epoch) of the served snapshots, per slot. Null =
+ * unknown (no genuine pin, failed fetch, or never loaded). The UI renders
+ * these verbatim — never the page clock, never a re-timestamped cache hit.
+ */
+export interface PublicationStamps {
+  readonly movie: number | null
+  readonly series: number | null
+}
 
 function statusOf(length: number): ListStatus {
   return length > 0 ? "ready" : "empty"
@@ -52,8 +64,10 @@ export function useTrending(
   const rankNonce = scope.rankNonce ?? 0
   const [trending, setTrending] = useState<Array<SearchResult & { rank: number }>>([])
   const [trendingStatus, setTrendingStatus] = useState<ListStatus>("idle")
+  const [trendingUpdatedAt, setTrendingUpdatedAt] = useState<PublicationStamps | null>(null)
   const [mdblistAnimeList, setMdblistAnimeList] = useState<EnrichedAnimeItem[]>([])
   const [animeStatus, setAnimeStatus] = useState<ListStatus>("idle")
+  const [animeUpdatedAt, setAnimeUpdatedAt] = useState<PublicationStamps | null>(null)
   const [animeSource, setAnimeSource] = useState<"mdblist" | "tmdb" | null>(null)
   const [streamingCharts, setStreamingCharts] = useState<Record<string, FlixPatrolChart>>({})
   const [platformErrors, setPlatformErrors] = useState<Record<string, boolean>>({})
@@ -94,6 +108,7 @@ export function useTrending(
     if (!tmdbKey && !hasServerKey) {
       setTrending([])
       setTrendingStatus("idle")
+      setTrendingUpdatedAt(null)
       return
     }
     // Token suspend/error or server save pending: never resolve through the
@@ -103,19 +118,23 @@ export function useTrending(
       abortRef.current?.abort()
       setTrending([])
       setTrendingStatus("loading")
+      setTrendingUpdatedAt(null)
       return
     }
     if (saveStatus === "error" || tokenStatus === "error") {
       abortRef.current?.abort()
       setTrending([])
       setTrendingStatus("error")
+      setTrendingUpdatedAt(null)
       return
     }
     const gen = ++trendGenRef.current
     // Clear previous results immediately when starting a new fetch so old titles
-    // are never shown under the new name while loading.
+    // are never shown under the new name while loading. Stamps clear too: a
+    // new scope must never display the previous publication time.
     setTrending([])
     setTrendingStatus("loading")
+    setTrendingUpdatedAt(null)
     const ctrl = new AbortController()
     abortRef.current = ctrl
     const signal = ctrl.signal
@@ -126,7 +145,7 @@ export function useTrending(
     // without it the browser/CDN could keep serving the previous source's
     // body after a save even though the server-side app cache key is correct.
     // Server-side data caching is untouched (headers/transport only).
-    http<{ movies: Array<SearchResult & { rank: number }>; tv: Array<SearchResult & { rank: number }> }>(url, { timeout: 30000, signal, cache: "no-store" })
+    http<{ movies: Array<SearchResult & { rank: number }>; tv: Array<SearchResult & { rank: number }>; updatedAt?: { movie?: unknown; series?: unknown } | null }>(url, { timeout: 30000, signal, cache: "no-store" })
       .then((data) => {
         if (signal.aborted || gen !== trendGenRef.current) return
         const movies = (data.movies || []).slice(0, 20)
@@ -134,6 +153,14 @@ export function useTrending(
         const list = [...movies, ...tv]
         setTrending(list)
         setTrendingStatus(statusOf(list.length))
+        // Served publication stamps (T1 contract): per-slot ms epoch, or
+        // null when the slot has no genuine pin. A reload carries the same
+        // stamps — never the page clock.
+        const stamp = data.updatedAt && typeof data.updatedAt === "object" ? data.updatedAt : null
+        setTrendingUpdatedAt({
+          movie: stamp ? parsePublicationStamp(stamp.movie) : null,
+          series: stamp ? parsePublicationStamp(stamp.series) : null,
+        })
       })
       .catch((e) => {
         if (signal.aborted || gen !== trendGenRef.current) return
@@ -149,20 +176,33 @@ export function useTrending(
     if (!tmdbKey && !hasServerKey) {
       setMdblistAnimeList([])
       setAnimeStatus("idle")
+      setAnimeUpdatedAt(null)
       return
     }
     const gen = ++animeGenRef.current
     setAnimeStatus("loading")
+    // A new load never retains the previous publication stamps.
+    setAnimeUpdatedAt(null)
     const ctrl = new AbortController()
     animeAbortRef.current = ctrl
     const signal = ctrl.signal
-    http<EnrichedAnimeItem[]>(`/api/mdblist/anime?mdblist_key=${encodeURIComponent(mdblistApiKey || "")}&api_key=${encodeURIComponent(tmdbKey)}`, { timeout: 30000, signal })
-      .then((data) => {
+    // userFetch (not http): the per-slot publication stamps travel in the
+    // response headers (`X-Pictorium-Updated-At-Movie/Series`), which the
+    // JSON-only helper cannot see. Same timeout/abort semantics; a non-OK
+    // status still falls through to the TMDB fallback below.
+    userFetch(`/api/mdblist/anime?mdblist_key=${encodeURIComponent(mdblistApiKey || "")}&api_key=${encodeURIComponent(tmdbKey)}`, { timeout: 30000, signal })
+      .then(async (res) => {
+        if (signal.aborted || gen !== animeGenRef.current) return
+        const movieStamp = parsePublicationStamp(res.headers.get("X-Pictorium-Updated-At-Movie"))
+        const seriesStamp = parsePublicationStamp(res.headers.get("X-Pictorium-Updated-At-Series"))
+        if (!res.ok) throw new Error(`HTTP ${res.status}`)
+        const data = (await res.json().catch(() => null)) as EnrichedAnimeItem[] | null
         if (signal.aborted || gen !== animeGenRef.current) return
         if (Array.isArray(data) && data.length > 0) {
           setMdblistAnimeList(data)
           setAnimeStatus("ready")
           setAnimeSource("mdblist")
+          setAnimeUpdatedAt({ movie: movieStamp, series: seriesStamp })
         } else {
           // Fallback TMDB trending anime
           http<{ results: SearchResult[] }>(`/api/tmdb/trending/tv/week?api_key=${tmdbKey}&with_original_language=ja&sort_by=popularity`, { timeout: 30000, signal })
@@ -178,6 +218,8 @@ export function useTrending(
               setMdblistAnimeList(fallback)
               setAnimeStatus(statusOf(fallback.length))
               setAnimeSource("tmdb")
+              // TMDB fallback rows carry no publication stamp.
+              setAnimeUpdatedAt(null)
             })
             .catch(() => { if (!signal.aborted && gen === animeGenRef.current) setAnimeStatus("error") })
         }
@@ -197,6 +239,8 @@ export function useTrending(
             setMdblistAnimeList(fallback)
             setAnimeStatus(statusOf(fallback.length))
             setAnimeSource("tmdb")
+            // TMDB fallback rows carry no publication stamp.
+            setAnimeUpdatedAt(null)
           })
           .catch(() => { if (!signal.aborted && gen === animeGenRef.current) setAnimeStatus("error") })
       })
@@ -293,11 +337,20 @@ export function useTrending(
         // `&_t` already busts the URL, but `cache: "no-store"` (same as the
         // automatic effect above) keeps the manual path consistent and
         // explicit failures never cached anywhere.
-        : http<{ movies: Array<SearchResult & { rank: number }>; tv: Array<SearchResult & { rank: number }> }>(trendingUrl(now), { timeout: 30000, signal, cache: "no-store" })
-      const animePromise = http<EnrichedAnimeItem[]>(`/api/mdblist/anime?mdblist_key=${encodeURIComponent(mdblistApiKey || "")}&api_key=${encodeURIComponent(tmdbKey)}&_t=${now}`, { timeout: 30000, signal: animeSignal })
-        .then((data) => {
+        : http<{ movies: Array<SearchResult & { rank: number }>; tv: Array<SearchResult & { rank: number }>; updatedAt?: { movie?: unknown; series?: unknown } | null }>(trendingUrl(now), { timeout: 30000, signal, cache: "no-store" })
+      let refreshAnimeStamps: PublicationStamps | null = null
+      const animePromise = userFetch(`/api/mdblist/anime?mdblist_key=${encodeURIComponent(mdblistApiKey || "")}&api_key=${encodeURIComponent(tmdbKey)}&_t=${now}`, { timeout: 30000, signal: animeSignal })
+        .then(async (res) => {
+          if (animeSignal.aborted) return null
+          const movieStamp = parsePublicationStamp(res.headers.get("X-Pictorium-Updated-At-Movie"))
+          const seriesStamp = parsePublicationStamp(res.headers.get("X-Pictorium-Updated-At-Series"))
+          if (!res.ok) return null
+          const data = (await res.json().catch(() => null)) as EnrichedAnimeItem[] | null
           if (Array.isArray(data) && data.length > 0) {
-            if (!animeSignal.aborted && animeGen === animeGenRef.current) setAnimeSource("mdblist")
+            if (!animeSignal.aborted && animeGen === animeGenRef.current) {
+              setAnimeSource("mdblist")
+              refreshAnimeStamps = { movie: movieStamp, series: seriesStamp }
+            }
             return data
           }
           return null
@@ -308,7 +361,11 @@ export function useTrending(
           if (animeSignal.aborted) return null
           return http<{ results: SearchResult[] }>(`/api/tmdb/trending/tv/week?api_key=${tmdbKey}&with_original_language=ja&sort_by=popularity&_t=${now}`, { timeout: 30000, signal: animeSignal })
             .then((data): EnrichedAnimeItem[] => {
-              if (!animeSignal.aborted && animeGen === animeGenRef.current) setAnimeSource("tmdb")
+              if (!animeSignal.aborted && animeGen === animeGenRef.current) {
+                setAnimeSource("tmdb")
+                // TMDB fallback rows carry no publication stamp.
+                refreshAnimeStamps = null
+              }
               return (data.results || []).map((item: SearchResult, idx: number) => ({
               id: item.id,
               title: item.title || item.name || "",
@@ -335,6 +392,11 @@ export function useTrending(
         const list = [...(trendingRes.value.movies || []), ...(trendingRes.value.tv || [])]
         setTrending(list)
         setTrendingStatus(statusOf(list.length))
+        const stamp = trendingRes.value.updatedAt && typeof trendingRes.value.updatedAt === "object" ? trendingRes.value.updatedAt : null
+        setTrendingUpdatedAt({
+          movie: stamp ? parsePublicationStamp(stamp.movie) : null,
+          series: stamp ? parsePublicationStamp(stamp.series) : null,
+        })
       } else {
         if (trendGen !== trendGenRef.current) return
         console.error("[pictorium] Failed to refresh lists:", trendingRes.status === "rejected" ? trendingRes.reason : "suspended")
@@ -345,6 +407,7 @@ export function useTrending(
         if (animeGen !== animeGenRef.current) return
         setMdblistAnimeList(animeRes.value as EnrichedAnimeItem[])
         setAnimeStatus(statusOf(animeRes.value.length))
+        setAnimeUpdatedAt(refreshAnimeStamps)
       } else if (animeRes.status === "rejected" || !animeRes.value) {
         if (animeGen !== animeGenRef.current) return
         if (animeRes.status === "rejected") console.error("[pictorium] Failed to refresh anime:", animeRes.reason)
@@ -373,5 +436,5 @@ export function useTrending(
     })
   }, [tmdbKey, mdblistApiKey, hasServerKey, loadPlatform, trendingUrl, tokenStatus, saveStatus])
 
-  return { trending, trendingStatus, trendingError: trendingStatus === "error", mdblistAnimeList, animeStatus, animeSource, streamingCharts, platformErrors, loadPlatform, refreshLists, refreshNonce }
+  return { trending, trendingStatus, trendingError: trendingStatus === "error", trendingUpdatedAt, mdblistAnimeList, animeStatus, animeSource, animeUpdatedAt, streamingCharts, platformErrors, loadPlatform, refreshLists, refreshNonce }
 }

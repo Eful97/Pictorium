@@ -133,7 +133,7 @@ describe("chart-generation KV cross-instance semantics", () => {
     kvState.gate = null
     __resetChartGenerationForTest()
     __setChartGenerationPersistForTest(null)
-    now = utc(2026, 10, 22, 8, 0, 0) // Rome 10:00 -> slot 20261022-00
+    now = utc(2026, 10, 22, 8, 0, 0) // Rome 10:00 -> JW 6h slot 20261022-06 (12h families stay 20261022-00)
     vi.spyOn(Date, "now").mockImplementation(() => now)
   })
 
@@ -148,16 +148,16 @@ describe("chart-generation KV cross-instance semantics", () => {
     const fetch = okFetch(1000)
     const pin = await ensureFreshChartFamily(JW_MOVIE, { fetch })
     expect(fetch).toHaveBeenCalledTimes(1)
-    expect(pin.id).toBe("20261022-00")
+    expect(pin.id).toBe("20261022-06")
     // Durable keys exist with bounded TTLs (per group+family, no global keys).
     const group = chartFamilyGroupKey(JW_MOVIE)
     expect(strings.has(`chartfam:pub:${group}:jw:movie:charts`)).toBe(true)
-    expect(strings.get(`chartfam:pubgen:${group}:jw:movie:charts`)?.value).toBe("20261022-00")
+    expect(strings.get(`chartfam:pubgen:${group}:jw:movie:charts`)?.value).toBe("20261022-06")
     expect(strings.has(`chartfam:pub:${group}:jw:series:charts`)).toBe(false)
     // A second instance (fresh memory, same KV) pins the published snapshot.
     __resetChartGenerationForTest()
     const pin2 = await pinChartFamily(JW_MOVIE)
-    expect(pin2.id).toBe("20261022-00")
+    expect(pin2.id).toBe("20261022-06")
     expect(pinnedFamilyRows(pin2)?.map((r) => r.tmdbId)).toEqual([1000, 1001, 1002])
   })
 
@@ -171,9 +171,9 @@ describe("chart-generation KV cross-instance semantics", () => {
     expect(animePin.id).toBe(CHART_LIVE_PIN_ID)
     // JW + platform renewals proceed on the same backend regardless.
     const jwPin = await ensureFreshChartFamily(JW_MOVIE, { fetch: okFetch(1000) })
-    expect(jwPin.id).toBe("20261022-00")
+    expect(jwPin.id).toBe("20261022-06") // JW 6h cadence: Rome 10:00 is the 06 slot
     const fpPin = await ensureFreshChartFamily(PLATFORM_MOVIE, { fetch: okFetch(2000) })
-    expect(fpPin.id).toBe("20261022-00")
+    expect(fpPin.id).toBe("20261022-00") // platform stays on the 12h cadence
     expect(pinnedFamilyRows(fpPin)?.map((r) => r.tmdbId)).toEqual([2000, 2001, 2002])
   })
 
@@ -210,7 +210,7 @@ describe("chart-generation KV cross-instance semantics", () => {
 
   it("rejects out-of-order concurrent generations (older slot never wins)", async () => {
     await ensureFreshChartFamily(JW_MOVIE, { fetch: okFetch(1000) })
-    expect((await pinChartFamily(JW_MOVIE)).id).toBe("20261022-00")
+    expect((await pinChartFamily(JW_MOVIE)).id).toBe("20261022-06")
     now = utc(2026, 10, 22, 11, 0, 0) // slot 20261022-12
     await ensureFreshChartFamily(JW_MOVIE, { fetch: okFetch(2000) })
     expect((await pinChartFamily(JW_MOVIE)).id).toBe("20261022-12")
@@ -252,13 +252,13 @@ describe("chart-generation KV cross-instance semantics", () => {
 
   it("write failure publishes nothing private (last good kept, retry resumes)", async () => {
     await ensureFreshChartFamily(JW_MOVIE, { fetch: okFetch(1000) })
-    expect((await pinChartFamily(JW_MOVIE)).id).toBe("20261022-00")
+    expect((await pinChartFamily(JW_MOVIE)).id).toBe("20261022-06")
     kvState.failAll = true
     now = utc(2026, 10, 22, 11, 0, 0) // slot 20261022-12
     // Refresh runs against the dead backend: nothing durably publishes.
     // Serving fails open to the LAST GOOD snapshot (KV reads fail → memory).
     const pin = await ensureFreshChartFamily(JW_MOVIE, { fetch: okFetch(2000) })
-    expect(pin.id).toBe("20261022-00")
+    expect(pin.id).toBe("20261022-06")
     expect(pinnedFamilyRows(pin)?.map((r) => r.tmdbId)).toEqual([1000, 1001, 1002])
     // A fresh instance with no memory sees live (KV down), never the
     // unpublished S12 rows.

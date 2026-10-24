@@ -88,18 +88,322 @@ mapping e poster URL restano sul tmdbId numerico. L'id `tt` esatto resta
 risolto via `/find` senza full-text (invariato).
 
 ### Piattaforme Streaming (`pictorium-netflix-*`, `pictorium-prime-*`, ecc.)
-1. `getJustWatchRankings(type, region.code, 10, packages, region.lang)` con i pacchetti della piattaforma
-   (`nfx`, `prv`/`amp`, `dnp`, `ntv`/`skg`/`pct`/`pcp`, `atp`, `mxx`, `pmp`/`sst`). Gli shortName sono
-   regionali (Prime: `prv` in IT, `amp` in US/GB/DE/JP; Paramount in ES è SkyShowtime `sst`; NOW negli
-   USA mappa Peacock `pct`/`pcp`): si passa sempre l'unione, JW ignora i codici assenti per regione. Il fast-path JW in
-   `getTop10` vale per tutte le 18 regioni supportate (prima solo Italia).
-2. Se JustWatch non restituisce righe, fallback trasparente su FlixPatrol `getTop10(slug, region.flixSlug, apiKey)` (cache disco+memoria 12 ore).
-3. Deduplicazione rigorosa per `tmdbId` (nessun doppione nei primi 10).
+FP-first con fallback JustWatch per media type (mai blendati nella stessa
+chart: ogni lista film/serie è interamente FP o interamente JW):
+1. `resolveFlixPlatformSides(slug, region.flixSlug)` — UN solo fetch del
+   catalogo fp-crawler del paese; ogni lato (film/serie) con chart fresca e
+   valida vince con ZERO traffico JW. Freschezza bounded e deterministica
+   (vedi sotto): chart-level `date` (fallback al `date` top-level di documento
+   solo se la chart non ne porta uno), formato inglese `October 22, 2026`
+   (più fallback ISO), valida SOLO se pari al giorno corrente o precedente di
+   Europe/Rome (il crawler pubblica una volta al giorno; oltre ieri = stantia,
+   futuro/invalida = rifiutata). `scraped_at_utc` e timestamp di fetch/cache
+   non contano mai (niente laundering del fetched-at: una cache TTL-fresh con
+   date stantie è rifiutata come un payload di rete). L'assenza dello split
+   (piattaforme overall-only come Crunchyroll/hayu, senza chart film/serie) è
+   fallback, mai un vuoto FP genuino (che richiede chart presente + fresca +
+   `entries: []`).
+2. Lato senza chart FP fresca e usabile → fallback JustWatch
+   `getJustWatchRankings(type, region.code, 10, packages, region.lang)` con i
+   pacchetti della piattaforma (`nfx`, `prv`/`amp`, `dnp`, `ntv`/`skg`/`pct`/`pcp`,
+   `atp`, `mxx`, `pmp`/`sst`) — solo per quel lato (una chart FP film fresca
+   non sopprime mai il fallback serie e viceversa; un guasto al lato opposto
+   non blocca mai il lato richiesto). Miss per questo passo = split assente,
+   data stantia/invalida, errore di trasporto, documento/chart malformati o
+   chart senza alcun `tmdbId` usabile. Gli shortName sono
+   regionali (Prime: `prv` in IT, `amp` in US/GB/DE/JP; Paramount in ES è
+   SkyShowtime `sst`; NOW negli USA mappa Peacock `pct`/`pcp`): si passa
+   sempre l'unione, JW ignora i codici assenti per regione. Vale per tutte le
+   18 regioni supportate (GLOBAL escluso: FP globale deliberatamente fuori
+   scope — il path GLOBAL resta JW-only invariato).
+3. Entrambe le sorgenti giù (FP miss + fallimento JW) = retention: ultimo
+   snapshot buono + gate 60s, mai un vuoto fasullo. Un JW `[]` riuscito dopo
+   FP miss pubblica invece un vuoto genuino. Deduplicazione rigorosa per
+   `tmdbId` (nessun doppione nei primi 10).
+La provenance interna dello snapshot pubblicato (`justwatch`/`flixpatrol`)
+riflette sempre la sorgente effettiva del lato — è diagnostica interna, NON
+l'etichetta pubblica del fallback: per i platform built-in storici
+l'etichettatura pubblica resta QUEUED; per le selezioni streaming opt-in la
+disclosure pubblica esiste (nomi manifest neutrali + header `X-Pictorium-Source`
+per risposta + `GET /api/streaming-availability`), vedi sezione sotto.
+
+### Cataloghi streaming opt-in per servizio+paese (`pictorium-stream-<service>-<cc>-<movies|series>`)
+
+Selezioni persistite per spazio (`streamingSelections` in `ServerDefaults` +
+config token, una entry per coppia servizio+paese, entrambe le sezioni salvo
+restrizione; ID catalogo derivati deterministicamente, mai salvati). La stessa
+coppia in paesi diversi coesiste (es. Netflix IT + Hulu USA concettualmente —
+vedi sotto per Hulu/Peacock): paese+servizio+sezione sono tutti nell'identità
+e nelle chiavi cache. Contratti in `src/lib/streaming-catalogs.ts` (foglia
+client-safe, riuso UI nel follow-up) + `src/lib/streaming-availability.ts`
+(server-only).
+
+- **Boundary assente-vs-esplicito (task 3 possiede i default dei nuovi
+  spazi):** `streamingSelections` assente (`undefined`) = legacy byte-identico
+  (i platform built-in storici restano come sono: gli spazi esistenti non
+  cambiano). Esplicito (`[]` o lista) = opt-in: i platform built-in storici
+  sono nascosti e restano solo i Top 20 JW generali + gli Anime Top 20 (non
+  service-based, invariati in entrambe le modalità) + le selezioni abilitate.
+  `[]` esplicito NON è come assente — mai migrato, mai backfillato.
+- **Paesi supportati (legacy):** solo le regioni con `RegionDef`
+  (`parseRegion` + escluso `GLOBAL`): il paese della selezione governa chart
+  country, lingua metadati e regione poster. Paesi sconosciuti NON ripiegano
+  mai sull'Italia — la entry è scartata alla sanitize (fail-closed, niente
+  fetch arbitrari). L'universo generico (Task F, sotto) accetta invece tutti
+  gli chart-country slug dell'indice (119 totali, global incluso); le entry legacy restano
+  invariate.
+- **FP-first + fallback JW onesto per lato** (stesso motore dei platform
+  storici MA su famiglie isolate `stream:<service>:<movie|series>` — mai i pin
+  condivisi `platform:` legacy; coordinate = paese della selezione, mai la
+  regione globale): una chart FP fresca vince con zero traffico JW; il
+  fallback JW vale solo per coppie servizio-paese own-brand con copertura
+  JustWatch osservata (`STREAMING_JW_PACKAGES`, nessun alias sibling: NOW solo
+  `ntv`/`skg`, mai `pct`/`pcp` Peacock; Paramount solo `pmp`, mai `sst`
+  SkyShowtime). La matrice è probe-backed, non esaustiva (JustWatch
+  `streamingCharts first:3` per coppia servizio-paese, 2026-10-23; un `rows=0`
+  con controllo unfiltered non-vuoto per lo stesso paese vale unsupported):
+  NOW solo IT/GB (la DE restituisce righe `ntv`/`skg` ma il brand DE è WOW/Sky,
+  non NOW — servirle come NOW sarebbe mislabeling), Paramount solo
+  US/GB/CA/AU/FR/DE/IT/MX/BR, HBO solo nei 15 paesi con righe `mxx`
+  (JP/KR/IN/CA/SA/IL/PT esclusi), Disney ovunque tranne IL/IN/SA, Apple ovunque
+  tranne IL/RO/TR, Netflix/Prime/Crunchyroll ovunque tranne IL (JustWatch non
+  pubblica chart IL); fuori matrice la coppia è unavailable (vuoto onesto), mai
+  un guess JW. Il follow-up UI/task3 possiede refresh e discovery più ampia. **NOW+USA non risolve mai via Peacock**: JW skippato sia in
+  renewal (snapshot empty senza provenance, famiglia `stream:`) che in serving
+  (probe FP-only via `resolveFlixPlatformSides`; snapshot JW pre-migrazione
+  ignorati via gate) — con FP assente la coppia è unavailable (vuoto), mai
+  Peacock sotto il nome NOW. I cataloghi legacy `pictorium-now-*` restano
+  byte-identici (unioni storiche `pct`/`pcp`/`sst` preservate su famiglie
+  `platform:`). Hulu/Peacock/WOW/Rai e gli altri service id sono mappati come
+  servizi generici FP (Task F, sotto) — mai come alias di altri servizi.
+  L'indice availability (`schema_version: 1`, presenza sezione anche con array
+  varianti vuoto = base chart esistente) indica copertura chart, MAI
+  disponibilità commerciale né ascolti ufficiali, e MAI una garanzia di
+  freschezza chart (vale la chart-date per-lato a serving).
+- **Overall-only mai splittato (legacy):** le chart `overall` dell'indice non generano
+  sezioni film/serie (dividere inventerebbe i rank); la coppia legacy risulta
+  unavailable con capability spiegata. L'universo generico (Task F) espone in
+  più le overall come cataloghi misti `all` (mai split, vedi sotto).
+- **Nomi manifest neutrali:** `Top 10` senza claim di sorgente (il manifest fa
+  zero I/O chart) — `FlixPatrol`/`JustWatch` non compaiono mai nei nomi. La
+  sorgente effettiva viaggia per risposta nell'header `X-Pictorium-Source`
+  (`flixpatrol`/`justwatch`/`unknown`, dal pin già risolto — zero I/O extra;
+  `unknown` = finestra live non pinnata, mai un guess; diagnostica per client
+  che ispezionano le risposte, NON visibile dentro Stremio) e in anticipo via
+  endpoint read-only `GET /api/streaming-availability` (filtri
+  `?service=&country=&section=`, copertura FP dall'indice cachato 12h fetch /
+  24h source-age — UNICO fetch — + eleggibilità JW, label oneste
+  `Top 10 · FlixPatrol` vs `Top 10 · JustWatch` (entrambe daily chart, mai un
+  generico `Popolari`); l'indice indica copertura chart, MAI disponibilità
+  commerciale né ascolti ufficiali né freschezza garantita). Nessuna
+  completezza di label pubblica è pretesa finché la UI non esiste (follow-up);
+  la disclosure architetturale backend (nomi neutrali + header + endpoint) è
+  consentita, la pretesa UI no. Gli Anime Top 20 restano in entrambe le
+  modalità (task3 disabilita esplicitamente gli anime solo per i NUOVI spazi:
+  qui nessun cambio legacy/anime).
+- **Coerenza rank/poster (decisione A):** le righe portano il rank di lista come `rk=`
+  (0..100, 0 = unranked esplicito; invalido = assente legacy) e `region=` = paese
+  della selezione, così il poster mostra il badge della posizione nella lista di
+  origine (stesso renderer condiviso): `rk=` valido salta i fetch live trend/anime
+  e vince sui rank live (`rank=` esplicito manuale vince su `rk=`; ranking OFF =
+  nessun numero automatico). Stesso titolo rank N vs M = chiavi/ETag/byte distinti.
+
+### Cataloghi streaming generici (Task F: `pictorium-stream2-*`, universo completo)
+
+Estensione backend dell'opt-in a TUTTE le coppie Top 10 dell'indice
+fp-crawler (82 service id dinamici x 119 chart-country slug totali, global
+incluso, base + variant chart, `all`/mixed per le overall). Additiva: le entry legacy
+(curated 8 servizi x RegionDef, `auto`, senza variant) emettono gli stessi
+`pictorium-stream-*` id byte-identici; tutto il resto ottiene id
+`pictorium-stream2-<service>--<slug>--<movies|series|all>--<auto|flixpatrol|justwatch>[--<variant>]`
+(token `--`-delimited, mai `--` dentro i token, strict parsing, cap 160).
+
+- **Selezione e sanitize (`streaming-catalogs.ts`, foglia client-safe):**
+  `StreamingSelection` guadagna `source?` (`auto`/`flixpatrol`/`justwatch`,
+  assente = `auto`, mai migrato) e `variant?` (assente/null = base chart).
+  `sanitizeGenericStreamingSelections` normalizza legacy + generici
+  (fail-closed: slug fuori allowlist (119 totali, global incluso) e service malformati vengono
+  scartati, mai Italia; `MAX_STREAMING_SELECTIONS = 200`, bound del token);
+  `legacy: true` = identico al legacy (stessi id/nomi). `parseAnyStreamingCatalogId`
+  accetta entrambi; `genericStreamFamily` isola le famiglie
+  `stream2:<source>:<service>:<slug>:<section>:<variant|->` (gruppo con
+  hash del descrittore: source diverse non condividono mai pin/cache).
+- **Paesi non-RegionDef:** chart-country slug = identità di fetch (mai
+  sostituito); metadati TMDB in en-US (RegionDef invariati); JW mai tentato
+  fuori RegionDef (FP-only di fatto, senza guess). Global esplicito solo per
+  i nuovi opt-in (i GLOBAL legacy restano JW-only invariati).
+- **Policy sorgente stretta (`chart-renewal.ts` + `flixpatrol.ts`
+  `resolveGenericFlixCharts`):** match esatto `catalog_id`
+  (`<service>.<cat>` base / `-<variant>`), piattaforma normalizzata
+  alnum-only, categoria `movies`/`tv shows`/`overall`, stessa freschezza
+  bounded per-lato. `auto` = FP hit vince con zero traffico JW, altrimenti
+  JW solo se coppia own-brand verificata (servizi legacy-8 x matrice
+  RegionDef, mai `all` — il mixed non mescola mai due chart JW);
+  `flixpatrol` = solo chart FP reali (assente/stale = unavailable onesto,
+  outage/integrità = throw → retention + gate 60s, mai fake empty);
+  `justwatch` = solo JW verificato (non supportato = omesso/vuoto onesto,
+  outage = throw → retention). Provenance sul pin come i legacy.
+- **Righe miste:** gli snapshot `stream2:` portano `mediaType` reale per riga
+  (`tmdb.media_type`); il serving (`catalog-handler.ts`, ramo dedicato PRIMA
+  dell'else platform, tipo route `all` ammesso solo per id `all`) preserva
+  ordine/rank/tipo senza duplicare/splittare/rinumerare; gli item film
+  portano gli hint video Easy come i movie, le serie restano byte-identiche.
+  Header `X-Pictorium-Source` con la stessa regola canonical-window dei
+  legacy (skip/genre/live = `unknown`).
+- **Discovery (`GET /api/streaming-availability` + `?source=`):** unione
+  dinamica dall'indice (unico fetch, varianti raccolte per sezione, sparse);
+  i duplicati legacy-identici sono soppressi (coperti dalla entry legacy);
+  `flixpatrol` non emette mai potenziale `justwatch` (e viceversa),
+  `justwatch` omette le coppie non supportate; le overall generano `all`
+  (base + una choice per variant id) e le sezioni film/serie di coppie
+  overall-only restano unavailable con `overallOnly` (mai split). Campi
+  legacy invariati + additivi (`chartSlug`, `source`, `variant`,
+  `variants[]`). Nomi manifest neutrali (mai claim di sorgente, zero I/O).
+- **Browse read-only (`GET /api/streaming-catalog?catalog=<id>`):** proiezione
+  `{ tmdbId, mediaType, title, rank, posterPath, year }` + `source` dalle
+  stesse righe pinnate Stremio, arricchite via `getDetails` cachato
+  (concorrenza 5, 2500ms fail-open per titolo). MAI `/api/poster`,
+  mai `images`/`external_ids`/logo per titolo; chiavi con hash (mai segreti
+  in chiave/risposte/log); header `X-Pictorium-Source` come i cataloghi.
+- **Contratti invariati:** `streamingSelections` assente vs `[]`,
+  manifest legacy, `/meta` id (`tt`/`tmdb:`), chiavi API per namespace (BYOK),
+  TTL/fence di generazione, failure retention. Nessun pixel del renderer
+  toccato.
+
+### UI opt-in Top 10 (CataloghiView + CatalogManagerModal)
+
+- **Bottone «Aggiungi Top 10»** (sezione Cataloghi, dialogo accessibile in
+  3 passi): sorgente (`Automatica` / `Solo FlixPatrol` / `Solo JustWatch`,
+  label visibili; la fetch va a `/api/streaming-availability?source=<...>`
+  così le modalità strette portano solo id della policy richiesta, mai
+  auto-id FP) → paese (solo copertura reale PER sorgente: FP reale in
+  only-FP con zero fallback JW, solo-JW eleggibile con matrix verificata
+  anche a indice guasto; coppie unavailable mai offerte) → multiselect
+  provider per lo stesso paese (tutti i servizi disponibili dal feed
+  dinamico, mai solo i curated 8; ogni riga mostra Film/Serie/Mista +
+  label variant, niente split inventati delle overall, niente
+  pseudo-scelte unavailable) con Seleziona/Deseleziona tutto + conteggio
+  di ciò che l'Add aggiunge davvero (preview anti-duplicati verso il cap
+  200) + filtri sezione opzionali (Film/Serie dove entrambe, Mista
+  eleggibile quando solo overall) → Aggiungi batch (niente
+  one-provider-at-a-time). Il picker paese mostra TUTTI gli slug coperti PER
+  sorgente con bandiera ISO fattuale + nome localizzato nella lingua UI
+  corrente (`streaming-country-display.ts`: `Intl.DisplayNames` live al cambio
+  lingua, `Intl.Collator` alfabetico, GLOBAL 🌐 sempre primo col nome tradotto
+  dal caller; bandiere identiche in ogni lingua, mai fallback Italia; slug
+  futuri ignoti = label onesta senza bandiera). Solo display: identità fetch,
+  valori API e codici persistiti restano gli slug. Scelta sezioni PER
+  PROVIDER: ogni riga servizio è un gruppo accessibile (nome servizio) con
+  toggle on/off del provider + UNA checkbox per ogni scelta effettiva
+  (Film/Serie/Mista con label variant e disclosure sorgente); solo le scelte
+  spuntate vengono inviate (mai l'intero provider, mai split inventati
+  delle overall, mai unavailable). Toggle globale Seleziona/Deseleziona +
+  filtri sezione restano convenienza display (i filtri nascondono senza
+  mai resettare la bozza né gli altri provider; cambio paese/sorgente
+  azzera solo la bozza corrente perché gli id la codificano). Conteggio
+  Add = liste reali aggiungibili (duplicati/cap 200 esclusi). Errori indice
+  = stato onesto + retry; `stale` = nota di best-effort. Niente prefetch:
+  solo le liste scelte vengono caricate. Stessa coppia in
+  paesi/sorgenti/variant diverse = identità distinte, mai merge.
+- **Primo Add da spazio legacy** (selections assente): consenso esplicito —
+  passare a curated nasconde le platform storiche dal manifest; senza consenso
+  nessun cambio. Mai migrazione silenziosa al mount, mai auto-PUT che
+  persiste valori derivati sopra l'assente.
+- **Card curated** (solo selezioni abilitate): UNA SimklCard per lista
+  derivata effettiva (mai group render che un trash spazza via tutto) via
+  `GET /api/streaming-catalog?catalog=<id>` (stesse righe pinnate di
+  Stremio: ordine + rank + media type reali) con miniature TMDB ORIGINALI
+  `w185` già fornite dal componente (mai poster `/api/poster` nelle card,
+  mai `images`/`logo`/`external_ids` per lista; chiave assente = avviso
+  onesto, mai poster finti). Sorgente effettiva per lista dall'header
+  `X-Pictorium-Source` o `response.source` (mai la sorgente attesa):
+  footer SVG-ONLY accanto a `{N} titoli` a SINISTRA, Trash a DESTRA;
+  `unknown` = nessun logo e nessun testo visibile (tooltip + label
+  accessibile solo per sorgenti note). Nessuna pill-sorgente separata
+  duplicata da heading. Le card mostrano fino a 10 miniature come JustWatch
+  (stesso renderer condiviso, cap 10; la base `.simkl-list-card` è 980px
+  fissi: le curated usano `--fill` fluido + `min-w-0` come la coppia JW,
+  altrimenti la rail dipinge sopra la sibling; a larghezza pair la rail
+  contenuta mostra ~6 con scorrimento, a tutto schermo fino a 10). Le coppie con
+  descrittore identico (servizio + slug + policy + variant) rendono affiancate
+  Film LEFT + Serie RIGHT nella stessa griglia del JW (`grid-cols-1
+  lg:grid-cols-2`, in colonna su mobile); singoli complementari non ambigui
+  (un Film + una Serie dello stesso servizio+slug+policy anche con variant
+  diversa, es. Rai base Film + variant-it Serie) si appaiano allo stesso
+  modo senza fondere dati/identità; `all`/miste = card fullwidth
+  separate (mai fake Film/Serie) ANCHE quando il gruppo ha già la coppia
+  split (mai early-return che perde sibling); singole = stessa larghezza
+  dei singoli JW; ordine gruppi = catalogOrder. Click card = griglia con TUTTE le
+  righe pinnate (max 10, media type reali incluse `all`); Trash non apre
+  mai (click + tastiera); Click tile = editor con `tmdbId`/`media_type`
+  della riga e nome effettivo lista (rinomina > neutro) come contesto
+  effimero. Nomi default brevi condivisi UI/manifest (`streamingCatalogName`
+  / `genericStreamingCatalogName`): SOLO emoji provider curato + servizio +
+  paese localizzato + ` - Top 10` (es. `🔴 Netflix Italia - Top 10`; generici
+  ignoti senza emoji mai inventata; niente bandiera paese, sezione o variant
+  nel nome — tipo e variant viaggiano in badge/descrittori/ID invariati;
+  showEmojis OFF spoglia via `stripCatalogEmojis`, rename esplicite verbatim).
+- **Manager**: righe SOLO per cataloghi effettivamente emessi (stessa regola
+  del manifest: in opt-in le platform built-in storiche non si listano —
+  toggle persistono ma non sono servite; i disabilitati restano gestibili
+  e il footer conta solo gli abilitati effettivi) — reorder/rename/home/
+  shape esistenti invariati; Power = Hide (flag `enabled`, config
+  conservata) vs Cestino = Remove di QUELLA sola lista (identità esatta
+  per-section servizio+paese+sorgente+variant+sezione; sibling e altre
+  entry restano; pulizia dei soli id derivati caduti da order/disabled/
+  renames/home/shapes). Le due liste default JW sono toggle-only (Power,
+  mai trash, mai bulk: si disabilitano ma non si eliminano; reset di
+  fabbrica invariato). Bulk delete con conferma a due passi: rimuove
+  atomicamente SOLO i selezionati cancellabili (liste streaming per-sezione
+  in un unico writer + provider custom/addon interi SOLO se tutte le loro
+  righe sono selezionate — mai una sezione di un pair; factory JW e altri
+  built-in sempre esclusi, conteggio/label sui soli deletabili, disabilitato
+  se zero, selezione stale potata, conferma agganciata alla firma esatta
+  dei target — cambio selezione la invalida). Keywords stagionali chiuse di default
+  (disclosure con aria-expanded/controls, campi montati nascosti: niente
+  remount, bozze preservate).
+- **Nuovi spazi**: `[]` esplicito + anime disabilitati via `disabledCatalogIds`
+  (solo su evidenza positiva di spazio nuovo: fetch ok, dominio cataloghi
+  vuoto su server e device blank — failure/lock/profileless-read non sono
+  prova). Risultato: solo Top 20 JW generali Film/Serie.
+- **JW generale**: heading neutro senza marchio; logo SOLO icona nel footer
+  di OGNI box (SVG-only accanto a `{N} titoli`, mai testo/pill) e SOLO se
+  QUELLO slot risolve davvero a JustWatch (per-slot, mai flag globale:
+  uno slot custom non marchia custom come JW mentre lo slot JW reale
+  tiene la sua icona). Niente trash sui box (le classifiche si disabilitano
+  ma non si eliminano: toggle Power nel manager, reset di fabbrica
+  invariato). Stato in
+  `useCustomCatalogs` (singola catena PUT cataloghi, nessun secondo sistema),
+  token via `useLocalConfigToken`, helper puri in
+  `src/lib/streaming-catalog-client.ts`, nomi paese localizzati in
+  `src/lib/streaming-country-display.ts`, i18n completa (18 lingue, niente
+  hardcoded).
+- **Riga pubblicazione (fatti UI, contratto T1 invariato):** OGNI card
+  Cataloghi mostra sotto il footer una riga discreta con l'istante di
+  pubblicazione Pictorium dello snapshot servito
+  (`Aggiornato in Pictorium: <data ora>` + `Europe/Rome` breve, `<time
+  dateTime>` accessibile, data/ora localizzate) oppure — senza pin genuino
+  (custom/imported, legacy live, fallback TMDB, outage senza snapshot) — un
+  onesto `Orario di aggiornamento non disponibile`, mai una data inventata né
+  l'ora della pagina. JW generale: uno stamp per slot (Film vs Serie);
+  curated: stamp della lista dal browse (`updatedAt`, già validato
+  fail-closed); anime: uno stamp per slot dagli header
+  `X-Pictorium-Updated-At-Movie/Series`; mai fetch/loghi/extra per la data
+  (viaggia con le righe pinnate). Cache hit non ritimbra; reload rilegge lo
+  stesso stamp; cambio sorgente/paese/lista azzera quello vecchio (mai
+  resurrect stale). i18n completa (18 lingue, niente hardcoded).
 
 ### Anime (`pictorium-anime-movies`, `pictorium-anime`)
 `fetchMDBList(listKey, key)` — usa `mdblistAnimeMovie` per i film anime e `mdblistAnime`
 per le serie (cache sorgente 12 ore, 60 s sui vuoti). Funziona sia con chiave MDBList sia con endpoint pubblico JSON di fallback.
 Risolve i dettagli TMDB e deduplica per `tmdbId`.
+
+**Anime sempre alla fine** (`partitionAnimeCatalogsLast` in `catalog-definitions.ts`,
+applicata DOPO filtri e ordinamento in manifest e manager; la pagina Cataloghi
+le rende strutturalmente ultime): SOLO i due id built-in canonici (+ alias
+legacy `posterium-*` normalizzati) — mai provider/servizi/nomi custom. I
+disabilitati restano esclusi (nessun resurrect), l'ordine relativo utente è
+preservato dentro e fuori il gruppo anime, nessun duplicato.
 
 ## Fonte ranking Top 20 (`rankingSourceMovie` / `rankingSourceSeries`)
 
@@ -143,8 +447,11 @@ tipo; `mixed` vale per entrambi).
 
 Le sorgenti built-in (chart JW giornalieri/popolari/trending, chart piattaforme
 JW/FlixPatrol, liste anime MDBList) rinnovano su cadenza fissa portabile
-**Europe/Rome 00:00/12:00** (DST-aware, indipendente dal timezone del server),
-NON su TTL rolling per-entry. Il rinnovo è INDIPENDENTE per famiglia canonica
+**Europe/Rome 00/06/12/18 per le famiglie JustWatch, 00/12 per tutte le
+altre** (DST-aware, indipendente dal timezone del server),
+NON su TTL rolling per-entry. La cadenza è per NOME famiglia (selection
+policy): `jw:{movie|series}:{charts,popular,trending}` e `stream2:justwatch:*`
+a 6h; legacy `stream:`, `platform:`, `stream2:auto|flixpatrol` e `anime:` a 12h. I pin vecchi migrano senza flush. Il rinnovo è INDIPENDENTE per famiglia canonica
 (`jw:{movie|series}:{charts|popular|trending}`, `platform:<key>:{movie|series}`,
 `anime:{movie|series}`): nessuna barriera all-source, nessun inventario globale.
 Implementazione in `src/lib/chart-generation.ts` (pin/publish atomico per
@@ -192,7 +499,9 @@ GET pubblici, off by default; il lazy renewal resta il fallback invariato).
   vecchio dopo publish nuova). Qualsiasi esito non-`ok` (stale/error/throw)
   NON marca la memoria: nessuna publication privata, resta l'ultimo snapshot
   buono (o live a freddo). Provenance piattaforma (`justwatch`/`flixpatrol`)
-  registrata nello snapshot (ordine/righe fanno fede).
+  registrata nello snapshot (ordine/righe fanno fede): le piattaforme rinnovano FP-first per lato.
+  Rollout senza flush: i pin JW persistiti restano validi fino al boundary successivo (poi rinfrescano FP-first).
+  La provenance distingue le generazioni: nessuna chiave esistente mente sulla sorgente, nessun bump di versione serve.
 - **Strict cutover cross-instance**: il pin rivalida SEMPRE lo storage durevole
   (single source of truth; memoria solo fallback su errore): una publish di
   un'altra istanza invalida subito le vecchie chiavi ready (`:cg` fence).
@@ -223,8 +532,9 @@ GET pubblici, off by default; il lazy renewal resta il fallback invariato).
   finestre canoniche restano live in-slot-fresh (stessa forma di oggi: finestra
   live + snapshot canonico per la mappa rank). Titoli/anni anime preservati
   negli snapshot (fallback catalogo senza TMDB).
-- **Ready body 12h**: i ready body non-vuoti delle finestre canoniche in-scope
-  si riusano fino a 12h, fenced dalla generazione pubblicata (il rinnovo
+- **Ready body con fine famiglia**: i ready body non-vuoti delle finestre canoniche
+  in-scope si riusano fino alla FINE DEL PINNED SLOT della famiglia (6h JW vs
+  12h legacy, mai un blind 12h), fenced dalla generazione pubblicata (il rinnovo
   invalida subito); stesso slot servito fino al boundary anche se le cache
   rolling sottostanti scadono (zero churn in-slot). Esclusi (custom/search/
   addon/varianti), vuoti ed errori: TTL storici invariati (1h, 60s).
@@ -240,12 +550,25 @@ GET pubblici, off by default; il lazy renewal resta il fallback invariato).
 - **Lettori**: cataloghi built-in (`catalog-handler.ts`), `/api/trending/rank`
   (fence `:cg` + gruppo, custom escluso), preflight poster (rank dallo
   snapshot + fallback salvato su cold failure; chiavi coalescing con versione
-  snapshot; cap freshness a fine-slot), `/api/mdblist/anime` (chiave con
+  snapshot; cap freshness a fine-slot di famiglia), `/api/mdblist/anime` (chiave con
   gruppo + generazioni famiglie). Esclusi (invariati): custom/search/addon,
   quality/availability JW indipendenti, proxy TMDB-trending, diagnostica
   `/api/mdblist`, warmup (finestre non canoniche: riscalda le cache esistenti,
-  non pubblica), route diagnostica `/api/flixpatrol/top10` (proxy FP live per
+  non pubblica; si sveglia ai boundary 00/12, le 06/18 JW rinnovano lazy alla
+  prima richiesta), route diagnostica `/api/flixpatrol/top10` (proxy FP live per
   la UI editor, fuori dal path di consegna Stremio).
+- **Timestamp di pubblicazione (`updatedAt`, contratto T1 per la UI del follow-up)**:
+  `snapshot.publishedAt` (ms epoch) dello snapshot SERVITO — pubblicazione
+  Pictorium, MAI l'update della sorgente (non la chart-date fp-crawler), MAI
+  l'ora della richiesta/pagina. `/api/tmdb/trending` → oggetto `updatedAt:
+  {movie, series}` (null senza pin genuino: custom/unsupported/cold); browse
+  read-only `/api/streaming-catalog` → singolo `updatedAt` (stessa chiave
+  fenced `:cg`); `/api/mdblist/anime` → header `X-Pictorium-Updated-At`
+  (body array invariato; assente senza pin; con entrambe le famiglie vale il
+  minimo). Cache hit NON ritimbra; outage con last-good conserva lo stamp
+  vecchio; un empty genuino pubblicato porta il suo stamp nuovo; legacy/custom
+  senza snapshot non mintano mai (`null`/assente). Zero fetch extra (TMDB/JW):
+  viaggia con le righe pinnate. Nessun segreto/namespace negli stamp.
 
 ## Chiavi API
 
@@ -443,6 +766,10 @@ regionale JW > base; liste custom con split `— Film/Serie TV` per `mixed`):
 ## File coinvolti
 
 - `src/lib/catalog-definitions.ts` — elenco cataloghi + warmup
+- `src/lib/streaming-catalogs.ts` — selezioni streaming opt-in (foglia client-safe: servizi, ID legacy + generici `stream2-*`, sanitize, nomi neutrali, gate JW, policy source)
+- `src/lib/streaming-availability.ts` — indice FP availability (server-only, base + variant) + `GET /api/streaming-availability` (filtri `service`/`country`/`section`/`source`)
+- `src/app/api/streaming-availability/route.ts` — route discovery read-only
+- `src/app/api/streaming-catalog/route.ts` — browse read-only (proiezione TMDB originale, zero renderer)
 - `src/lib/catalog-handler.ts` — `pictoriumCatalog(req, mediaType, rawId, userParam, configParam)` (logica unica). `userParam` (param `u=`/`user`) è il profilo UUID: entra nel cache key come `:u<uuid>` e nei poster URL come `user` (`&u=`). `configParam` è il config token (`config=`).
 - `src/lib/ranking-source.ts` — selezione fonte Top 20 (pura, client-safe)
 - `src/lib/custom-ranking.ts` — Top 20 da lista custom (unica funzione condivisa)

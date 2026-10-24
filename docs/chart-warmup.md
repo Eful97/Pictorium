@@ -2,7 +2,8 @@
 
 An opt-in Node.js script that warms the first page of every built-in chart
 catalog **ahead of traffic**, so the first Stremio browse after a Rome
-00:00/12:00 slot rollover does not pay the upstream refresh.
+slot rollover (00/06/12/18 for JustWatch families, 00/12 for the others)
+does not pay the upstream refresh.
 
 Nothing is enabled by any scheduler until an operator runs it. Without it,
 the existing lazy renewal applies unchanged: the first request to a stale
@@ -37,6 +38,7 @@ Two modes:
   external scheduler.
 - **Watch** (`--watch`) — stay resident, wake at each Europe/Rome 00:00/12:00
   boundary (DST-correct via `Intl`), warm the new slot once, then idle.
+  JustWatch 06/18 slots renew lazily on first request (no scheduler change).
   An already warmed slot is never re-warmed; after an error the same slot
   retries after at least 60s (longer when the server sent `Retry-After`),
   never hot-looping. The process must stay running to do anything.
@@ -102,7 +104,12 @@ validates the syntax.
 
 ## Scheduling
 
-Chart slots start at **00:00 and 12:00 Europe/Rome**, DST-aware. Warming
+Chart slots start at **00/06/12/18 Europe/Rome for JustWatch families**
+(`jw:*`, incl. `stream2:justwatch:*`) and **00/12 for every other family**
+(platforms, legacy streaming, anime), DST-aware. The optional watch/one-shot
+runner below still wakes at the 00/12 boundaries; JW 06/18 slots renew lazily
+on the first request after the boundary (no scheduler change — lazy renewal
+is the retained contract). Warming
 takes real time (dozens of first pages at low concurrency under per-request
 timeouts), so schedule the trigger **at** the boundary and expect completion
 minutes later — the window is the same, the work is not instant.

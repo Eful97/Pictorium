@@ -33,13 +33,18 @@ function fpCatalog(ids: number[]) {
     title: `FP ${id}`,
     tmdb: { id, media_type: "movie", release_date: "2024-01-01" },
   }))
+  // All phases run on Rome Oct 22 (see `now` below), so the chart date is
+  // fresh for every read; staleness is covered by dedicated date tests.
   return {
+    date: "October 22, 2026",
+    scraped_at_utc: "2026-10-22T08:00:00.000Z",
     charts: [
-      { catalog_id: "c1", platform: "Netflix", category: "movies", entries },
+      { catalog_id: "c1", platform: "Netflix", category: "movies", date: "October 22, 2026", entries },
       {
         catalog_id: "c2",
         platform: "Netflix",
         category: "tv shows",
+        date: "October 22, 2026",
         entries: entries.map((e) => ({ ...e, tmdb: { ...e.tmdb, media_type: "tv" } })),
       },
     ],

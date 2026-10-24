@@ -54,6 +54,15 @@ function animePayload() {
   return [{ id: 900, title: "Anime", poster_path: "/a.jpg", rank: 1, media_type: "tv" }]
 }
 
+function animeResponse(items: unknown, headers: Record<string, string> = {}) {
+  return {
+    ok: true,
+    status: 200,
+    headers: { get: (name: string) => headers[name.toLowerCase()] ?? null },
+    json: async () => items,
+  } as unknown as Response
+}
+
 function trendingUrls() {
   return mockedHttp.mock.calls
     .map(([url]) => String(url))
@@ -61,7 +70,7 @@ function trendingUrls() {
 }
 
 function animeUrls() {
-  return mockedHttp.mock.calls
+  return mockedUserFetch.mock.calls
     .map(([url]) => String(url))
     .filter((u) => u.includes("/api/mdblist/anime"))
 }
@@ -105,6 +114,7 @@ describe("ranking save lifecycle integrated with trending refresh", () => {
     })
     const putResolvers: Array<(v: Response) => void> = []
     mockedUserFetch.mockImplementation(async (_url: string, init?: RequestInit) => {
+      const u = String(_url)
       // Snapshot backend: PUTs persist the payload the trend fixture reads.
       if (init?.method === "PUT") {
         try {
@@ -116,21 +126,28 @@ describe("ranking save lifecycle integrated with trending refresh", () => {
         }
         return new Promise<Response>((res) => putResolvers.push(res))
       }
+      if (u.includes("/api/mdblist/anime")) {
+        return animeResponse(animePayload(), {
+          "x-pictorium-updated-at-movie": "1761331200000",
+          "x-pictorium-updated-at-series": "1761334800000",
+        })
+      }
       return getGate
     })
     mockedHttp.mockImplementation(async (url: string) => {
       const u = String(url)
-      if (u.includes("/api/mdblist/anime")) return animePayload() as never
       if (u.includes("/api/tmdb/trending/tv/week")) return { results: [] } as never
       if (u.includes("/api/tmdb/trending")) return trendPayload() as never
       throw new Error(`unexpected url ${u}`)
     })
-
     const { result } = renderHook(() => useCombinedRankingTrending(store))
     await waitFor(() => expect(result.current.trending.trendingStatus).toBe("ready"), { timeout: 2000 })
     expect(trendingUrls()).toHaveLength(1)
     expect(animeUrls()).toHaveLength(1)
     const animeBefore = result.current.trending.mdblistAnimeList.map((a) => a.id)
+    // Anime publication stamps travel on the same response headers.
+    await waitFor(() => expect(result.current.trending.animeStatus).toBe("ready"), { timeout: 2000 })
+    expect(result.current.trending.animeUpdatedAt).toEqual({ movie: 1761331200000, series: 1761334800000 })
 
     // Namespace is silent: the effective server selection is the default.
     await act(async () => {

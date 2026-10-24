@@ -89,7 +89,11 @@ describe("New JustWatch Catalogs & Genre Filtering", () => {
   })
 
   it("serves Crunchyroll catalog using cru package", async () => {
+    // FP-first: the renewal attempts the fp-crawler catalog first. Crunchyroll
+    // ships overall-only charts (no movies/tv split), so the doc carries no
+    // usable series chart and the request falls back to JW per media type.
     vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(Response.json({ charts: [] }))
       .mockResolvedValueOnce(justWatchStreamingChartResponse(201, "tt201"))
       .mockResolvedValueOnce(tmdbDetailsResponse(201, "One Piece"))
 

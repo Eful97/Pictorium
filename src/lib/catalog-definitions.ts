@@ -88,6 +88,39 @@ export function normalizeCatalogId(id: string): string {
   return id
 }
 
+/** Canonical built-in anime Top 10 ids (service-agnostic, both modes). */
+const ANIME_BUILTIN_CATALOG_IDS: ReadonlySet<string> = new Set<string>([
+  "pictorium-anime-movies",
+  "pictorium-anime",
+]);
+
+/**
+ * True for the built-in anime classification catalogs (canonical ids plus
+ * legacy `posterium-*` aliases via the existing normalizer). ONLY these
+ * ids: never infer anime-ness from provider/service/user names (a custom
+ * list called "Anime" or a Crunchyroll streaming row is not one).
+ */
+export function isAnimeBuiltinCatalogId(id: string): boolean {
+  return ANIME_BUILTIN_CATALOG_IDS.has(normalizeCatalogId(id));
+}
+
+/**
+ * Stable anime-last partition ("gli anime mettiamoli sempre alla fine"):
+ * built-in anime catalogs move after every other chart, relative user
+ * order preserved within both groups. Pure reorder — never filters,
+ * duplicates, or resurrects (apply AFTER the disabled/hidden filters).
+ * Explicitly supersedes catalogOrder for the anime group only.
+ */
+export function partitionAnimeCatalogsLast<T extends { readonly id: string }>(list: readonly T[]): T[] {
+  const head: T[] = [];
+  const tail: T[] = [];
+  for (const item of list) {
+    if (isAnimeBuiltinCatalogId(item.id)) tail.push(item);
+    else head.push(item);
+  }
+  return [...head, ...tail];
+}
+
 /** Normalizza una lista di ID catalogo (disabled/order); `undefined` passa invariato. */
 export function normalizeCatalogIdList(ids: readonly string[] | undefined): string[] | undefined {
   if (!ids) return undefined

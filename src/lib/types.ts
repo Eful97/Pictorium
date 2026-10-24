@@ -107,10 +107,18 @@ export interface SearchResult {
   imdb_id?: string | null
   /** Local anime associations; multiple seasons may share a TMDB series. */
   anime_ids?: { kitsu: number[]; mal: number[] }
+  /**
+   * Ephemeral list-rank context (position in the originating selected list +
+   * selection country for region-scoped resolution). Never persisted to
+   * mappings/defaults/tokens: drives only the `rk=`/`region=` preview query
+   * (same shared poster endpoint as Stremio). Absent/null = legacy behavior.
+   */
+  listRank?: number | null
+  listRegion?: string | null
 }
 
-export function toSearchResult(partial: { id?: number | null; media_type?: string; title?: string | null; name?: string | null; poster_path?: string | null; release_date?: string; first_air_date?: string; vote_average?: number; imdb_id?: string | null }): SearchResult {
-  return {
+export function toSearchResult(partial: { id?: number | null; media_type?: string; title?: string | null; name?: string | null; poster_path?: string | null; release_date?: string; first_air_date?: string; vote_average?: number; imdb_id?: string | null; listRank?: number | null; listRegion?: string | null }): SearchResult {
+  const out: SearchResult = {
     id: partial.id ?? 0,
     media_type: partial.media_type === "tv" ? "tv" : "movie",
     title: partial.title ?? undefined,
@@ -121,6 +129,9 @@ export function toSearchResult(partial: { id?: number | null; media_type?: strin
     vote_average: partial.vote_average,
     imdb_id: partial.imdb_id,
   }
+  if (partial.listRank !== undefined) out.listRank = partial.listRank
+  if (partial.listRegion !== undefined) out.listRegion = partial.listRegion
+  return out
 }
 
 export interface TMDBImage {

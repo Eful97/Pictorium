@@ -5,13 +5,31 @@ import path from "node:path"
 
 const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "pictorium-flixpatrol-test-"))
 
+// Chart dates ride the wall clock (dynamic Rome-today label): the behaviors
+// under test here are country routing and source priority, while chart-date
+// freshness must always pass — stale dates are covered by dedicated tests.
+function romeChartDateLabel(nowMs: number = Date.now()): string {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "Europe/Rome",
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+  }).formatToParts(nowMs)
+  const get = (t: string): string => parts.find((p) => p.type === t)?.value ?? ""
+  return `${get("month")} ${Number(get("day"))}, ${get("year")}`
+}
+
 function makeCatalog(prefix: string): unknown {
+  const label = romeChartDateLabel()
   return {
+    date: label,
+    scraped_at_utc: new Date().toISOString(),
     charts: [
       {
         catalog_id: "netflix",
         platform: "Netflix",
         category: "movies",
+        date: label,
         entries: [
           { rank: 1, title: `${prefix} Movie`, tmdb: { id: 1, media_type: "movie", release_date: "2024-01-01" } },
         ],
@@ -20,6 +38,7 @@ function makeCatalog(prefix: string): unknown {
         catalog_id: "netflix",
         platform: "Netflix",
         category: "tv shows",
+        date: label,
         entries: [
           { rank: 1, title: `${prefix} Show`, tmdb: { id: 2, media_type: "tv", release_date: "2024-02-01" } },
         ],
@@ -85,36 +104,43 @@ describe("flixpatrol country support (D7)", () => {
     await expect(getTop10("netflix", "atlantis")).rejects.toThrow("Unsupported country: atlantis")
   })
 
-  it("uses JustWatch as primary source returning full 10 movies and 10 shows", async () => {
+  it("falls back to JustWatch when FlixPatrol is down (FP-first, JW fallback)", async () => {
     vi.resetModules()
-    process.env.POSTERIUM_DATA_DIR = tmpDir
-    vi.stubGlobal("fetch", vi.fn(async (url: string | URL | Request) => {
-      const u = String(url)
-      if (u.includes("justwatch.com/graphql")) {
-        return new Response(JSON.stringify({
-          data: {
-            streamingCharts: {
-              edges: Array.from({ length: 10 }, (_, i) => ({
-                streamingChartInfo: { rank: i + 1 },
-                node: {
-                  content: {
-                    title: `JW Title ${i + 1}`,
-                    externalIds: { tmdbId: 100 + i, imdbId: `tt0000${i + 1}` },
+    // Hermetic disk: earlier tests seed the shared tmpDir with fresh FP docs;
+    // this case needs FP down, so it reads from an isolated empty dir.
+    const isoDir = fs.mkdtempSync(path.join(os.tmpdir(), "pictorium-flixpatrol-fallback-"))
+    process.env.POSTERIUM_DATA_DIR = isoDir
+    try {
+      vi.stubGlobal("fetch", vi.fn(async (url: string | URL | Request) => {
+        const u = String(url)
+        if (u.includes("justwatch.com/graphql")) {
+          return new Response(JSON.stringify({
+            data: {
+              streamingCharts: {
+                edges: Array.from({ length: 10 }, (_, i) => ({
+                  streamingChartInfo: { rank: i + 1 },
+                  node: {
+                    content: {
+                      title: `JW Title ${i + 1}`,
+                      externalIds: { tmdbId: 100 + i, imdbId: `tt0000${i + 1}` },
+                    },
                   },
-                },
-              })),
+                })),
+              },
             },
-          },
-        }))
-      }
-      return new Response("not found", { status: 404 })
-    }))
+          }))
+        }
+        return new Response("not found", { status: 404 })
+      }))
 
-    const { getTop10 } = await import("@/lib/flixpatrol")
-    const data = await getTop10("netflix", "italy", undefined, { enrich: false })
-    expect(data.movies).toHaveLength(10)
-    expect(data.tv).toHaveLength(10)
-    expect(data.movies[0].title).toBe("JW Title 1")
-    expect(data.movies[9].title).toBe("JW Title 10")
+      const { getTop10 } = await import("@/lib/flixpatrol")
+      const data = await getTop10("netflix", "italy", undefined, { enrich: false })
+      expect(data.movies).toHaveLength(10)
+      expect(data.tv).toHaveLength(10)
+      expect(data.movies[0].title).toBe("JW Title 1")
+      expect(data.movies[9].title).toBe("JW Title 10")
+    } finally {
+      fs.rmSync(isoDir, { recursive: true, force: true })
+    }
   })
 })

@@ -225,7 +225,7 @@ describe("chart-generation per-family refresh lifecycle", () => {
   beforeEach(() => {
     __resetChartGenerationForTest()
     __setChartGenerationPersistForTest(__inMemoryChartGenerationPersist())
-    now = utc(2026, 10, 22, 8, 0, 0) // Rome 10:00 -> slot 20261022-00
+    now = utc(2026, 10, 22, 8, 0, 0) // Rome 10:00 -> 6h slot 20261022-06 (12h: -00), 13:00 -> -12
     vi.spyOn(Date, "now").mockImplementation(() => now)
   })
 
@@ -247,9 +247,9 @@ describe("chart-generation per-family refresh lifecycle", () => {
     const fetch = okFetch(1000)
     const pin = await ensureFreshChartFamily(JW_MOVIE, { fetch })
     expect(fetch).toHaveBeenCalledTimes(1)
-    expect(pin.id).toBe("20261022-00")
+    expect(pin.id).toBe("20261022-06")
     expect(pinnedFamilyRows(pin)?.map((r) => r.tmdbId)).toEqual([1000, 1001, 1002])
-    expect(chartPinCacheFragment(pin)).toBe(":cg20261022-00")
+    expect(chartPinCacheFragment(pin)).toBe(":cg20261022-06")
     // Sibling families are untouched: no barrier, no piggyback.
     expect((await pinChartFamily({ ...GROUP, family: "jw:series:charts" })).id).toBe(CHART_LIVE_PIN_ID)
     expect((await pinChartFamily(ANIME_MOVIE)).id).toBe(CHART_LIVE_PIN_ID)
@@ -260,7 +260,7 @@ describe("chart-generation per-family refresh lifecycle", () => {
     const fetch = neverFetch()
     const pin = await ensureFreshChartFamily(JW_MOVIE, { fetch })
     expect(fetch).not.toHaveBeenCalled()
-    expect(pin.id).toBe("20261022-00")
+    expect(pin.id).toBe("20261022-06")
   })
 
   it("one stale request refreshes THAT family only", async () => {
@@ -292,7 +292,7 @@ describe("chart-generation per-family refresh lifecycle", () => {
     const pOwner = ensureFreshChartFamily(JW_MOVIE, { fetch: blockingFetch })
     await new Promise((r) => setTimeout(r, 20)) // owner holds the lease, fetching
     const competitor = await ensureFreshChartFamily(JW_MOVIE, { fetch: neverFetch() })
-    expect(competitor.id).toBe("20261022-00")
+    expect(competitor.id).toBe("20261022-06")
     expect(pinnedFamilyRows(competitor)?.map((r) => r.tmdbId)).toEqual([1000, 1001, 1002])
     release()
     const ownerPin = await pOwner
@@ -305,15 +305,15 @@ describe("chart-generation per-family refresh lifecycle", () => {
 
   it("source failure retains the previous snapshot and gates retry >= 60s", async () => {
     await ensureFreshChartFamily(JW_MOVIE, { fetch: okFetch(1000) })
-    now = utc(2026, 10, 22, 11, 0, 0) // slot 20261022-12
+    now = utc(2026, 10, 22, 11, 0, 0) // Rome 13:00 -> current slot 20261022-12; retained pin is the 06 slot
     const pin = await ensureFreshChartFamily(JW_MOVIE, { fetch: failingFetch() })
-    expect(pin.id).toBe("20261022-00")
+    expect(pin.id).toBe("20261022-06")
     expect(pinnedFamilyRows(pin)?.map((r) => r.tmdbId)).toEqual([1000, 1001, 1002])
     expect(await isChartFamilyGated(JW_MOVIE)).toBe(true)
     // Gated retry 10s later: no fetch, old rows kept.
     now += 10_000
     const gated = await ensureFreshChartFamily(JW_MOVIE, { fetch: neverFetch() })
-    expect(gated.id).toBe("20261022-00")
+    expect(gated.id).toBe("20261022-06")
     // After the gate, the refresh succeeds.
     now += CHART_FAILURE_RETRY_MS
     const recovered = await ensureFreshChartFamily(JW_MOVIE, { fetch: okFetch(2000) })
@@ -354,7 +354,7 @@ describe("chart-generation per-family refresh lifecycle", () => {
     const pub = { ...GROUP, mdblistKey: null, family: "jw:movie:charts" }
     await ensureFreshChartFamily(keyed, { fetch: okFetch(1000) })
     const pin = await pinChartFamily(pub)
-    expect(pin.id).toBe("20261022-00")
+    expect(pin.id).toBe("20261022-06")
     expect(pinnedFamilyRows(pin)).toHaveLength(3)
   })
 
@@ -411,7 +411,7 @@ describe("chart-generation per-family refresh lifecycle", () => {
     try {
       const big = Array.from({ length: 100_000 }, (_, i) => ({ tmdbId: i + 1, imdbId: null, rank: i + 1 }))
       const pin = await commitChartFamilySnapshot({ ...JW_MOVIE, rows: big, status: "ok" }, owner)
-      expect(pin.id).toBe("20261022-00")
+      expect(pin.id).toBe("20261022-06")
       expect(pinnedFamilyRows(pin)).toHaveLength(3)
     } finally {
       await releaseChartFamilyLease(JW_MOVIE, owner)
@@ -439,12 +439,12 @@ describe("chart-generation persistence (restart + cross-instance + file)", () =>
     const shared = __inMemoryChartGenerationPersist()
     __setChartGenerationPersistForTest(shared)
     await ensureFreshChartFamily(JW_MOVIE, { fetch: okFetch(1000) })
-    expect((await pinChartFamily(JW_MOVIE)).id).toBe("20261022-00")
+    expect((await pinChartFamily(JW_MOVIE)).id).toBe("20261022-06")
     // "Restart": drop all in-memory state, keep the backend.
     __resetChartGenerationForTest()
     __setChartGenerationPersistForTest(shared)
     const pin = await pinChartFamily(JW_MOVIE)
-    expect(pin.id).toBe("20261022-00")
+    expect(pin.id).toBe("20261022-06")
     expect(pinnedFamilyRows(pin)).toHaveLength(3)
   })
 
@@ -456,7 +456,7 @@ describe("chart-generation persistence (restart + cross-instance + file)", () =>
     __resetChartGenerationForTest()
     __setChartGenerationPersistForTest(shared)
     const pin = await pinChartFamily(JW_MOVIE)
-    expect(pin.id).toBe("20261022-00")
+    expect(pin.id).toBe("20261022-06")
     expect(pinnedFamilyRows(pin)?.map((r) => r.tmdbId)).toEqual([1000, 1001, 1002])
   })
 
@@ -465,7 +465,7 @@ describe("chart-generation persistence (restart + cross-instance + file)", () =>
     try {
       __setChartGenerationPersistForTest(__fileChartGenerationPersistForTest(dir))
       await ensureFreshChartFamily(JW_MOVIE, { fetch: okFetch(1000) })
-      expect((await pinChartFamily(JW_MOVIE)).id).toBe("20261022-00")
+      expect((await pinChartFamily(JW_MOVIE)).id).toBe("20261022-06")
       const files = await fsp.readdir(dir)
       expect(files.some((f) => f.startsWith("chartfam-pub-"))).toBe(true)
       // No tmp litter from failed atomic replaces.
@@ -474,7 +474,7 @@ describe("chart-generation persistence (restart + cross-instance + file)", () =>
       __resetChartGenerationForTest()
       __setChartGenerationPersistForTest(__fileChartGenerationPersistForTest(dir))
       const pin = await pinChartFamily(JW_MOVIE)
-      expect(pin.id).toBe("20261022-00")
+      expect(pin.id).toBe("20261022-06")
       expect(pinnedFamilyRows(pin)).toHaveLength(3)
       const blob = JSON.stringify(await fsp.readFile(files.filter((f) => f.startsWith("chartfam-pub-")).map((f) => path.join(dir, f))[0], "utf-8"))
       expect(blob).not.toContain("super-secret")
@@ -509,19 +509,19 @@ describe("chart-generation persistence (restart + cross-instance + file)", () =>
     const shared = __inMemoryChartGenerationPersist()
     __setChartGenerationPersistForTest(shared)
     await ensureFreshChartFamily(JW_MOVIE, { fetch: okFetch(1000) })
-    expect((await pinChartFamily(JW_MOVIE)).id).toBe("20261022-00")
+    expect((await pinChartFamily(JW_MOVIE)).id).toBe("20261022-06")
     shared.loadPublished = async () => {
       throw new Error("KV down")
     }
     shared.commitPublished = async () => {
       throw new Error("KV down")
     }
-    now = utc(2026, 10, 22, 11, 0, 0) // slot 20261022-12
+    now = utc(2026, 10, 22, 11, 0, 0) // Rome 13:00 -> current slot 20261022-12; last good is the 06 pin
     // Durable reads fail -> memory fallback serves the last good snapshot.
     // The refresh fetch still runs (bounded) but its commit cannot land, so
     // the pin stays on the old snapshot — never a private publication.
     const pin = await ensureFreshChartFamily(JW_MOVIE, { fetch: okFetch(2000) })
-    expect(pin.id).toBe("20261022-00")
+    expect(pin.id).toBe("20261022-06")
     expect(pinnedFamilyRows(pin)?.map((r) => r.tmdbId)).toEqual([1000, 1001, 1002])
   })
 

@@ -145,13 +145,20 @@ describe("rank cache-busting (rk parameter)", () => {
   })
 
   describe("server cache normalization and validation", () => {
-    it("strips rk from normalized cache params to avoid internal cache fragmentation", () => {
+    it("keeps valid rk in normalized cache params (decision A: same title rank N vs M = different keys/bytes)", () => {
       const incoming = new URLSearchParams("rk=6&shape=poster&lang=it&rv=1.23.0")
       const normalized = normalizePosterCacheParams(incoming)
 
-      expect(normalized.has("rk")).toBe(false)
+      expect(normalized.get("rk")).toBe("6")
       expect(normalized.has("rv")).toBe(false)
       expect(normalized.get("lang")).toBe("it")
+    })
+
+    it("strips invalid rk onto absent (no poisoning, legacy inert)", () => {
+      for (const raw of ["abc", "-1", "101", "1.5", ""]) {
+        const normalized = normalizePosterCacheParams(new URLSearchParams(`rk=${raw}`))
+        expect(normalized.has("rk")).toBe(false)
+      }
     })
 
     it("accepts rk in posterQuery validation", () => {

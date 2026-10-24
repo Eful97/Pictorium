@@ -1,13 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import { act, renderHook, waitFor } from "@testing-library/react"
-import { http } from "@/lib/http"
+import { http, userFetch } from "@/lib/http"
 import { useTrending, type TrendingScope } from "@/lib/useTrending"
 
-vi.mock("@/lib/http", () => ({ http: vi.fn() }))
+vi.mock("@/lib/http", () => ({ http: vi.fn(), userFetch: vi.fn() }))
 const mockToast = Object.assign(vi.fn(), { warning: vi.fn(), info: vi.fn(), error: vi.fn(), success: vi.fn() })
 vi.mock("sonner", () => ({ toast: mockToast }))
 
 const mockedHttp = vi.mocked(http)
+const mockedUserFetch = vi.mocked(userFetch)
 
 function trendPayload(prefix: number) {
   return {
@@ -20,13 +21,27 @@ function animePayload() {
   return [{ id: 900, title: "Anime", poster_path: "/a.jpg", rank: 1, media_type: "tv" }]
 }
 
+function animeResponse(items: unknown, headers: Record<string, string> = {}) {
+  return {
+    ok: true,
+    status: 200,
+    headers: { get: (name: string) => headers[name.toLowerCase()] ?? null },
+    json: async () => items,
+  } as unknown as Response
+}
+
 function routeHttp() {
   mockedHttp.mockImplementation(async (url: string) => {
     const u = String(url)
-    if (u.includes("/api/mdblist/anime")) return animePayload() as never
     if (u.includes("/api/tmdb/trending/tv/week")) return { results: [] } as never
     if (u.includes("/api/tmdb/trending")) return trendPayload(100) as never
     throw new Error(`unexpected url ${u}`)
+  })
+  // Production fetches the anime list via userFetch (header access for the
+  // per-slot publication stamps), same timeout/abort semantics as http.
+  mockedUserFetch.mockImplementation(async (url: string) => {
+    if (String(url).includes("/api/mdblist/anime")) return animeResponse(animePayload())
+    throw new Error(`unexpected url ${url}`)
   })
 }
 
@@ -35,7 +50,7 @@ function trendingUrls() {
 }
 
 function animeUrls() {
-  return mockedHttp.mock.calls.map(([url]) => String(url)).filter((u) => u.includes("/api/mdblist/anime"))
+  return mockedUserFetch.mock.calls.map(([url]) => String(url)).filter((u) => u.includes("/api/mdblist/anime"))
 }
 
 function flush() {

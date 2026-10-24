@@ -163,7 +163,12 @@ describe("CatalogManagerModal preserved behaviors", () => {
     fireEvent.click(screen.getByTitle("ui.saveName"))
     expect(renameCatalog).toHaveBeenCalledWith(PICTORIUM_CATALOGS[0].id, "Top Movies")
     // Custom row rename equal to the default deletes the override ("").
-    fireEvent.click(renameButtons[PICTORIUM_CATALOGS.length])
+    // Located by title: anime rows always sink last, so fixed indexes are
+    // no longer stable across modes.
+    const customTitle = screen.getByText("My List")
+    const customRow = customTitle.closest("div[draggable]")
+    if (!customRow) throw new Error("custom row not found")
+    fireEvent.click(within(customRow as HTMLElement).getByTitle("ui.renameCatalog"))
     fireEvent.click(screen.getByTitle("ui.saveName"))
     expect(renameCatalog).toHaveBeenCalledWith("pictorium-custom-movie-c1", "")
     view.unmount()

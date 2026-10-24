@@ -8,6 +8,7 @@ import {
   ArrowDown,
   ChevronsUp,
   ChevronsDown,
+  ChevronDown,
   Edit2,
   Check,
   RotateCcw,
@@ -23,8 +24,14 @@ import {
 import { usePSelector } from "@/lib/context"
 import { useT } from "@/lib/contexts/TranslationContext"
 import { usePosterEditor } from "@/lib/contexts/PosterEditorContext"
-import { PICTORIUM_CATALOGS, regionJwName } from "@/lib/catalog-definitions"
+import { PICTORIUM_CATALOGS, regionJwName, partitionAnimeCatalogsLast } from "@/lib/catalog-definitions"
+import { sanitizeGenericStreamingSelections, streamingCatalogName, genericStreamingCatalogName, genericVariantLabel } from "@/lib/streaming-catalogs"
+import { customDerivedIds } from "@/lib/useCustomCatalogs"
+import { derivedIdsForGenericSelection } from "@/lib/streaming-catalog-client"
+import type { GenericStreamingSection, StreamingSourceMode } from "@/lib/streaming-catalogs"
+import { isStreamingOptIn as isOptInMode } from "@/lib/streaming-catalog-client"
 import { rankingSourceCatalogName, resolveCatalogDisplayName } from "@/lib/ranking-source"
+import { areDefaultListsDirty, isDefaultTop20CatalogId } from "@/lib/default-lists-reset"
 import { getRegionDef } from "@/lib/regions"
 import { EmojiPicker } from "@/components/ui"
 import { Modal } from "@/components/ui/Modal"
@@ -39,9 +46,16 @@ interface CatalogEntryItem {
   id: string
   name: string
   originalName: string
-  type: "movie" | "series"
+  type: "movie" | "series" | "all"
   isCustom: boolean
   customBaseId?: string
+  /** Opt-in streaming row (per derived list id): reorder/rename/home/shape reuse the existing machinery. */
+  isStreaming?: boolean
+  streamingService?: string
+  streamingCountry?: string
+  streamingSection?: GenericStreamingSection
+  streamingSource?: StreamingSourceMode
+  streamingVariant?: string | null
   enabled: boolean
   showInHome: boolean
 }
@@ -69,11 +83,19 @@ export function CatalogManagerModal({ isOpen, onClose }: CatalogManagerModalProp
   const catalogRenames = usePSelector((v) => v.catalogRenames)
   const catalogShowEmojis = usePSelector((v) => v.catalogShowEmojis)
   const setCatalogShowEmojis = usePSelector((v) => v.setCatalogShowEmojis)
+  // Opt-in streaming selections: rows are per derived section id (same split
+  // as custom mixed lists) so reorder/rename/home/shape reuse the machinery.
+  const streamingSelectionsState = usePSelector((v) => v.streamingSelections)
+  const toggleStreamingSection = usePSelector((v) => v.toggleStreamingSection)
+  const toggleStreamingSelection = usePSelector((v) => v.toggleStreamingSelection)
+  const removeStreamingSelection = usePSelector((v) => v.removeStreamingSelection)
+  const isStreamingOptIn = isOptInMode(streamingSelectionsState)
   const rankingSourceMovie = usePSelector((v) => v.rankingSourceMovie)
   const rankingSourceSeries = usePSelector((v) => v.rankingSourceSeries)
   const renameCatalog = usePSelector((v) => v.renameCatalog)
   const resetCatalogNames = usePSelector((v) => v.resetCatalogNames)
   const resetCatalogOrder = usePSelector((v) => v.resetCatalogOrder)
+  const resetDefaultLists = usePSelector((v) => v.resetDefaultLists)
   const catalogShapes = usePSelector((v) => v.catalogShapes)
   const setCatalogShape = usePSelector((v) => v.setCatalogShape)
 
@@ -82,6 +104,28 @@ export function CatalogManagerModal({ isOpen, onClose }: CatalogManagerModalProp
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null)
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null)
+  // Two-step factory reset confirmation (destructive to the default slots
+  // only): first click arms, second click executes. Disarms on close.
+  const [resetArmed, setResetArmed] = useState(false)
+  const [resetSaving, setResetSaving] = useState(false)
+  // Bulk delete confirmation (destructive batch): the arm freezes against
+  // the EXACT deletable target signature. Switching the selection (or an
+  // inventory change) lapses a stale arm — the next click only re-arms,
+  // never executes against a different target set. Signature comparison
+  // (not render identity) keeps a stable confirm clickable.
+  const [bulkArmedFor, setBulkArmedFor] = useState<string | null>(null)
+  // Seasonal keywords disclosure: closed by default (huge always-open area
+  // otherwise); reset on every open. Fields stay mounted while hidden (no
+  // remount, drafts preserved) and hide accessibly via `hidden`.
+  const [seasonalOpen, setSeasonalOpen] = useState(false)
+  const removeStreamingSelections = usePSelector((v) => v.removeStreamingSelections)
+  const removeCustomCatalogs = usePSelector((v) => v.removeCustomCatalogs)
+  useEffect(() => {
+    if (isOpen) {
+      setSeasonalOpen(false)
+      setBulkArmedFor(null)
+    }
+  }, [isOpen])
 
   // Escape is handled here (the shared Modal has closeOnEscape={false}):
   // while renaming it cancels the rename, with a selection it clears the
@@ -98,6 +142,7 @@ export function CatalogManagerModal({ isOpen, onClose }: CatalogManagerModalProp
         e.stopPropagation()
         setSelectedIds(new Set())
       } else {
+        setResetArmed(false)
         onClose()
       }
     }
@@ -115,7 +160,14 @@ export function CatalogManagerModal({ isOpen, onClose }: CatalogManagerModalProp
     // rinomine utente > nome fonte ranking > nome regionale Top 20).
     // La visibilità emoji è solo display (mai storage): i nomi salvati
     // restano intatti e le sorgenti dinamiche continuano ad aggiornarsi.
-    for (const c of PICTORIUM_CATALOGS) {
+    // Ghost inventory rule (same as the manifest in build-manifest.ts): in
+  // opt-in mode the legacy platform built-ins are NOT served, so they are
+  // not listed either (their stored toggles persist untouched). The two
+  // general JW rows and the anime rows always stay (anime is not
+  // service-based); disabled factory JW rows stay manageable via Power.
+  const hideLegacyPlatforms = isStreamingOptIn
+  for (const c of PICTORIUM_CATALOGS) {
+    if (hideLegacyPlatforms && !isDefaultTop20CatalogId(c.id) && !c.id.startsWith("pictorium-anime")) continue
       const defaultName =
         rankingSourceCatalogName(
           c.id,
@@ -133,6 +185,38 @@ export function CatalogManagerModal({ isOpen, onClose }: CatalogManagerModalProp
         enabled: !disabledCatalogIds.includes(c.id),
         showInHome: !homeDisabledCatalogIds.includes(c.id),
       })
+    }
+
+    // Opt-in streaming selections (per derived list id, like the custom
+    // mixed splits): shown with independent Hide (entry `enabled` flag, the
+    // config stays) vs Remove (JUST that list id, siblings untouched).
+    // Rows persist from state even when hidden or narrowed — they are
+    // managed here, not in the manifest.
+    const sanitizedStreaming = sanitizeGenericStreamingSelections(streamingSelectionsState ?? undefined) ?? []
+    for (const sel of sanitizedStreaming) {
+      for (const section of sel.sections) {
+        const derivedIds = derivedIdsForGenericSelection(sel)
+        const derivedId = derivedIds[sel.sections.indexOf(section)]
+        const defaultName = sel.legacy
+          ? streamingCatalogName(sel.service as import("@/lib/streaming-catalogs").StreamingService, sel.country, section as "movies" | "series")
+          : genericStreamingCatalogName(sel.service, sel.chartSlug, section, sel.variant)
+        const storedName = catalogRenames[derivedId] || defaultName
+        list.push({
+          id: derivedId,
+          name: resolveCatalogDisplayName(storedName, catalogShowEmojis),
+          originalName: defaultName,
+          type: section === "movies" ? "movie" : section === "series" ? "series" : "all",
+          isCustom: false,
+          isStreaming: true,
+          streamingService: sel.service,
+          streamingCountry: sel.chartSlug,
+          streamingSection: section,
+          streamingSource: sel.source,
+          streamingVariant: sel.variant,
+          enabled: sel.enabled !== false && !disabledCatalogIds.includes(derivedId),
+          showInHome: !homeDisabledCatalogIds.includes(derivedId),
+        })
+      }
     }
 
     // Custom catalogs
@@ -190,8 +274,12 @@ export function CatalogManagerModal({ isOpen, onClose }: CatalogManagerModalProp
       })
     }
 
-    return list
-  }, [customCatalogs, rankingSourceMovie, rankingSourceSeries, disabledCatalogIds, homeDisabledCatalogIds, catalogOrder, catalogRenames, catalogShowEmojis, activeRegion, t])
+    // Anime always last ("gli anime mettiamoli sempre alla fine"): stable
+    // partition AFTER the user order, same rule as the Stremio manifest.
+    // Drag/bulk moves cannot make a built-in anime precede non-anime —
+    // the display re-projects (stored order untouched, no moves lost).
+    return partitionAnimeCatalogsLast(list)
+  }, [customCatalogs, rankingSourceMovie, rankingSourceSeries, disabledCatalogIds, homeDisabledCatalogIds, catalogOrder, catalogRenames, catalogShowEmojis, activeRegion, streamingSelectionsState, isStreamingOptIn, t])
 
   const toggleSelect = (id: string) => {
     setSelectedIds((prev) => {
@@ -237,9 +325,175 @@ export function CatalogManagerModal({ isOpen, onClose }: CatalogManagerModalProp
   const handleToggle = (item: CatalogEntryItem) => {
     if (item.isCustom && item.customBaseId) {
       toggleCustomCatalog(item.customBaseId)
+    } else if (item.isStreaming && item.streamingService && item.streamingCountry && item.streamingSection) {
+      // Streaming rows (per list): a disabled entry re-enables first; a
+      // row disabled via the shared disabled list is un-disabled (same as
+      // built-ins); otherwise the entry narrows (Hide when the last section
+      // goes, config kept). Same provider in another country/source/variant
+      // is a distinct identity and never toggled.
+      const sel = sanitizeGenericStreamingSelections(streamingSelectionsState ?? undefined)?.find(
+        (s) => s.service === item.streamingService && s.chartSlug === item.streamingCountry && s.source === (item.streamingSource ?? "auto") && (s.variant ?? null) === (item.streamingVariant ?? null),
+      )
+      if (!sel) return
+      if (sel.enabled === false) {
+        toggleStreamingSelection(item.streamingService, item.streamingCountry, item.streamingSource, item.streamingVariant)
+      } else if (disabledCatalogIds.includes(item.id)) {
+        toggleBuiltinCatalog(item.id)
+      } else {
+        toggleStreamingSection(item.streamingService, item.streamingCountry, item.streamingSection, item.streamingSource, item.streamingVariant)
+      }
     } else {
       toggleBuiltinCatalog(item.id)
     }
+  }
+
+  const handleRemoveStreaming = (item: CatalogEntryItem) => {
+    // Remove deletes JUST this derived list (sibling Film/Serie lists and
+    // every other provider/country/source/variant entry stay); the entry
+    // narrows, or disappears with its last section. Derived ids are cleaned
+    // from the shared records, nothing else is touched.
+    if (item.streamingService && item.streamingCountry && item.streamingSection) {
+      removeStreamingSelection(item.streamingService, item.streamingCountry, item.streamingSource, item.streamingVariant, item.streamingSection)
+    }
+  }
+
+  // Factory Top 20 lists are toggle-only (never deletable: rankings can
+  // be disabled but not removed, by explicit user decision). Power hides
+  // via the shared disabled list (nondestructive, re-enableable here); the
+  // factory reset below restores defaults. No per-list Remove exists.
+
+  // Factory restore entry point: visible whenever any default-list
+  // configuration differs from factory (removed, renamed, home-hidden, or
+  // a Top 20 slot on a non-charts source). Lives in the toolbar, so it
+  // stays reachable even when both default rows are removed.
+  const defaultsDirty = areDefaultListsDirty({
+    disabledCatalogIds,
+    homeDisabledCatalogIds,
+    catalogRenames,
+    rankingSourceMovie,
+    rankingSourceSeries,
+  })
+
+  // Bulk delete target computation (per selected inventory row):
+  // - factory JW ids are NEVER deletable (toggle-only, excluded even when
+  //   selected for a bulk move);
+  // - streaming rows delete by exact per-section identity (service + chart
+  //   country + source + variant + section), siblings untouched;
+  // - custom/addon rows delete whole providers ONLY when ALL their emitted
+  //   rows are selected (a partial mixed selection can never delete one
+  //   section of a pair — the data model owns one config per provider);
+  // - every other built-in (legacy platforms, anime) has no delete API and
+  //   is skipped (Power only).
+  // Stale selected ids (inventory changed underneath) are pruned, never executed.
+  const bulkDeletable = useMemo(() => {
+    const valid = new Set(allCatalogs.map((c) => c.id))
+    const selected = allCatalogs.filter((c) => selectedIds.has(c.id) && valid.has(c.id))
+    const streaming: Array<{
+      service: string
+      country: string
+      source?: StreamingSourceMode | null
+      variant?: string | null
+      section: GenericStreamingSection
+    }> = []
+    const customByBase = new Map<string, string[]>()
+    for (const item of selected) {
+      if (isDefaultTop20CatalogId(item.id)) continue
+      if (
+        item.isStreaming &&
+        item.streamingService &&
+        item.streamingCountry &&
+        item.streamingSection
+      ) {
+        streaming.push({
+          service: item.streamingService,
+          country: item.streamingCountry,
+          source: item.streamingSource,
+          variant: item.streamingVariant,
+          section: item.streamingSection,
+        })
+        continue
+      }
+      if (item.isCustom && item.customBaseId) {
+        const arr = customByBase.get(item.customBaseId) ?? []
+        arr.push(item.id)
+        customByBase.set(item.customBaseId, arr)
+      }
+    }
+    const custom: Array<{ baseId: string; derivedIds: string[] }> = []
+    for (const baseId of customByBase.keys()) {
+      const cfg = customCatalogs.find((c) => c.id === baseId)
+      if (!cfg) continue
+      const allIds = customDerivedIds(cfg)
+      if (allIds.every((id) => selectedIds.has(id))) custom.push({ baseId, derivedIds: allIds })
+    }
+    return { streaming, custom }
+  }, [allCatalogs, selectedIds, customCatalogs])
+  const bulkCount =
+    bulkDeletable.streaming.length +
+    bulkDeletable.custom.reduce((n, c) => n + c.derivedIds.length, 0)
+  // Exact deletable target signature (stable string, never render identity):
+  // the armed confirm only fires against THIS set. Factory JW toggles (or
+  // any other irrelevant change) leave the signature untouched, so a valid
+  // arm is never dropped spuriously — but ANY effective target-set change
+  // (selection switch, inventory narrowing/removal) lapses it.
+  const bulkSignature = useMemo(() => {
+    const stream = bulkDeletable.streaming.map(
+      (i) => `${i.service}|${i.country}|${i.source ?? "auto"}|${i.variant ?? "-"}|${i.section}`,
+    )
+    const custom = bulkDeletable.custom.flatMap((c) => c.derivedIds)
+    return [...stream, ...custom].sort().join("\n")
+  }, [bulkDeletable])
+  const bulkArmed = bulkArmedFor !== null && bulkArmedFor === bulkSignature
+
+  const handleBulkDelete = () => {
+    if (!bulkArmed) {
+      setBulkArmedFor(bulkSignature)
+      return
+    }
+    if (bulkDeletable.streaming.length > 0) removeStreamingSelections(bulkDeletable.streaming)
+    const baseIds = bulkDeletable.custom.map((c) => c.baseId)
+    const derivedIds = bulkDeletable.custom.flatMap((c) => c.derivedIds)
+    if (baseIds.length > 0) removeCustomCatalogs(baseIds, derivedIds)
+    setBulkArmedFor(null)
+    setSelectedIds(new Set())
+  }
+
+  // Prune selected ids that no longer exist in the effective inventory
+  // (a delete narrowed an entry). Never resurrects, never touches the rest.
+  useEffect(() => {
+    const valid = new Set(allCatalogs.map((c) => c.id))
+    setSelectedIds((prev) => {
+      if ([...prev].every((id) => valid.has(id))) return prev
+      return new Set([...prev].filter((id) => valid.has(id)))
+    })
+  }, [allCatalogs])
+  // A stale arm lapses as soon as the effective target set changes
+  // (selection switch, inventory narrowing/removal, empty selection).
+  useEffect(() => {
+    if (bulkArmedFor !== null && bulkArmedFor !== bulkSignature) setBulkArmedFor(null)
+  }, [bulkArmedFor, bulkSignature])
+  useEffect(() => {
+    if (selectedIds.size === 0) setBulkArmedFor(null)
+  }, [selectedIds])
+
+  const handleResetDefaults = async () => {
+    if (!resetArmed) {
+      setResetArmed(true)
+      return
+    }
+    setResetSaving(true)
+    try {
+      await resetDefaultLists()
+    } finally {
+      setResetSaving(false)
+      setResetArmed(false)
+    }
+  }
+
+  const handleClose = () => {
+    setResetArmed(false)
+    setBulkArmedFor(null)
+    onClose()
   }
 
   // Batch move operations
@@ -350,7 +604,7 @@ export function CatalogManagerModal({ isOpen, onClose }: CatalogManagerModalProp
   return (
     <Modal
       isOpen={isOpen}
-      onClose={onClose}
+      onClose={handleClose}
       closeOnEscape={false}
       labelledBy="catalog-manager-title"
       testId="catalog-manager-modal"
@@ -400,6 +654,25 @@ export function CatalogManagerModal({ isOpen, onClose }: CatalogManagerModalProp
               >
                 <ChevronsUp className="w-3.5 h-3.5" />
               </button>
+              {/* Bulk delete (destructive batch, two-step confirm): removes
+                  ONLY the deletable selection — per-section streaming lists
+                  and whole custom providers — atomically. Factory JW and
+                  other built-ins are never deletable (toggle-only). */}
+              <button
+                type="button"
+                onClick={handleBulkDelete}
+                disabled={bulkCount === 0}
+                title={bulkArmed ? t("ui.bulkDeleteConfirm", { count: bulkCount }) : t("ui.bulkDelete", { count: bulkCount })}
+                aria-label={bulkArmed ? t("ui.bulkDeleteConfirm", { count: bulkCount }) : t("ui.bulkDelete", { count: bulkCount })}
+                className={`flex items-center gap-1 px-1.5 py-1 rounded transition-colors disabled:opacity-40 ${
+                  bulkArmed
+                    ? "bg-red-500/25 border border-red-500/50 text-red-200 hover:bg-red-500/35 font-semibold"
+                    : "hover:bg-accent-orange/20"
+                }`}
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>{bulkArmed ? t("ui.bulkDeleteConfirm", { count: bulkCount }) : t("ui.bulkDelete", { count: bulkCount })}</span>
+              </button>
               <button
                 type="button"
                 onClick={moveSelectedUp}
@@ -432,6 +705,11 @@ export function CatalogManagerModal({ isOpen, onClose }: CatalogManagerModalProp
                 {t("ui.deselect")}
               </button>
             </div>
+          )}
+          {selectedIds.size > 0 && bulkCount === 0 && (
+            <p role="status" className="text-[11px] text-muted">
+              {t("ui.bulkDeleteProtected")}
+            </p>
           )}
         </div>
 
@@ -466,11 +744,58 @@ export function CatalogManagerModal({ isOpen, onClose }: CatalogManagerModalProp
               <RotateCcw className="w-3 h-3" /> {t("ui.resetNames")}
             </button>
           )}
+          {/* Factory restore of the two general Top 20 lists only (never
+              the added streaming/custom rows): two-step confirmation,
+              always reachable even when both default rows are removed. */}
+          {defaultsDirty && (
+            <button
+              type="button"
+              onClick={handleResetDefaults}
+              disabled={resetSaving}
+              title={resetArmed ? t("ui.confirmRestoreDefaults") : t("ui.restoreDefaults")}
+              className={`flex items-center gap-1 px-2 py-1 rounded-lg transition-colors text-[11px] disabled:opacity-60 ${
+                resetArmed
+                  ? "bg-accent-orange/20 border border-accent-orange/50 text-accent-orange hover:bg-accent-orange/30 font-semibold"
+                  : "text-muted hover:text-zinc-200 hover:bg-white/5"
+              }`}
+            >
+              <RotateCcw className="w-3 h-3" /> {resetArmed ? t("ui.confirmRestoreDefaults") : t("ui.restoreDefaults")}
+            </button>
+          )}
         </div>
       </div>
 
       {/* Catalog List */}
-      <SeasonalKeywordsSection />
+      {/* Seasonal keywords: collapsed by default (huge always-open area
+          otherwise). Native disclosure button (keyboard Enter/Space),
+          aria-expanded + aria-controls; the fields stay mounted under
+          `hidden` (no remount, drafts preserved) and hide accessibly. */}
+      <div className="px-4 py-2 border-b border-white/10 bg-surface2/20 shrink-0">
+        <button
+          type="button"
+          onClick={() => setSeasonalOpen((o) => !o)}
+          aria-expanded={seasonalOpen}
+          aria-controls="seasonal-keywords-panel"
+          className="flex w-full items-center gap-2 text-left rounded-lg px-1 py-1 text-zinc-200 hover:text-white transition-colors"
+        >
+          <ChevronDown
+            className={`w-3.5 h-3.5 shrink-0 transition-transform ${seasonalOpen ? "rotate-180" : ""}`}
+            aria-hidden="true"
+          />
+          <span className="text-xs font-semibold">{t("ui.seasonalKeywordsTitle")}</span>
+        </button>
+      </div>
+      <div id="seasonal-keywords-panel" hidden={!seasonalOpen}>
+        <SeasonalKeywordsSection />
+      </div>
+      {/* Curated mode: the historical platform rows are not listed while
+          opt-in (they are not served to Stremio; stored toggles persist
+          untouched and reappear if the space ever leaves curated mode). */}
+      {isStreamingOptIn && (
+        <p role="status" className="mx-4 mb-2 text-[11px] text-muted rounded-xl border border-white/5 bg-surface2/40 px-3 py-2">
+          {t("ui.streamOptInNote")}
+        </p>
+      )}
       <div className="p-4 space-y-2 overflow-y-auto flex-1 min-h-0 scrollbar-thin">
         {allCatalogs.map((item, index) => {
           const isEditing = editingId === item.id
@@ -624,15 +949,27 @@ export function CatalogManagerModal({ isOpen, onClose }: CatalogManagerModalProp
                       className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-semibold uppercase tracking-wider ${
                         item.type === "movie"
                           ? "bg-blue-500/15 text-blue-400 border border-blue-500/20"
-                          : "bg-purple-500/15 text-purple-400 border border-purple-500/20"
+                          : item.type === "all"
+                            ? "bg-teal-500/15 text-teal-300 border border-teal-500/20"
+                            : "bg-purple-500/15 text-purple-400 border border-purple-500/20"
                       }`}
                     >
                       {item.type === "movie" ? <Film className="w-3 h-3" /> : <Tv className="w-3 h-3" />}
-                      {item.type === "movie" ? t("ui.movie") : t("ui.tvSeries")}
+                      {item.type === "movie" ? t("ui.movie") : item.type === "all" ? t("ui.streamSectionMixed") : t("ui.tvSeries")}
                     </span>
-                    {item.isCustom && (
+                {item.isCustom && (
                       <span className="px-2 py-0.5 rounded-md text-[10px] font-semibold bg-amber-500/15 text-amber-400 border border-amber-500/20">
                         Custom
+                      </span>
+                    )}
+                    {item.isStreaming && (
+                      <span className="px-2 py-0.5 rounded-md text-[10px] font-semibold bg-sky-500/15 text-sky-400 border border-sky-500/20">
+                        Top 10
+                      </span>
+                    )}
+                    {item.isStreaming && item.streamingVariant && (
+                      <span className="px-2 py-0.5 rounded-md text-[10px] font-semibold bg-white/5 text-zinc-300 border border-white/10">
+                        {genericVariantLabel(item.streamingVariant)}
                       </span>
                     )}
                   </div>
@@ -706,6 +1043,24 @@ export function CatalogManagerModal({ isOpen, onClose }: CatalogManagerModalProp
                     <Trash2 className="w-3.5 h-3.5" />
                   </button>
                 )}
+                {/* Factory JW rows are toggle-only (Power): no per-list trash
+                    (rankings can be disabled but never deleted), and bulk
+                    delete skips them. The factory reset above restores. */}
+                {/* Remove deletes JUST this derived streaming list (sibling
+                    sections stay); the entry narrows, or disappears with its
+                    last section. Derived ids are cleaned from the shared
+                    records, nothing else is touched. Hide (Power) keeps the
+                    config. */}
+                {item.isStreaming && (
+                  <button
+                    type="button"
+                    onClick={() => handleRemoveStreaming(item)}
+                    title={t("ui.deleteCatalog")}
+                    className="p-1.5 rounded-xl border border-white/5 text-muted hover:text-red-400 hover:bg-red-500/10 hover:border-red-500/20 transition-colors"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                )}
               </div>
             </div>
           )
@@ -719,7 +1074,7 @@ export function CatalogManagerModal({ isOpen, onClose }: CatalogManagerModalProp
         </span>
         <button
           type="button"
-          onClick={onClose}
+          onClick={handleClose}
           className="px-4 py-2 rounded-xl bg-accent-orange text-white text-xs font-semibold hover:bg-accent-orange/90 active:scale-95 transition-all shadow-md"
         >
           {t("ui.done")}

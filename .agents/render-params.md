@@ -395,8 +395,8 @@ Opt-in (`sep=1`, default OFF): sostituisce la media ★ nel badge con una colonn
 
 | Parametro | Inviato da client (`context.tsx`) | Letto da server (`route.ts`) |
 |---|---|---|
-| `badges` | `globalBadges ? null : "0"` | `qBadges !== "0"` |
-| `ranking` | `rankingBadges ? null : "0"` | `qRanking !== "0"` |
+| `badges` | `globalBadges ? null : "0"` | `qBadges !== "0"` — master del SOLO gruppo basso genere/rating (`hasGenreBadge`, custom/separate rows, età): `badges=0` NON spegne la placca superiore (rank/extra restano se `ranking=1`, per disegno utente) |
+| `ranking` | `rankingBadges ? null : "0"` | `qRanking !== "0"` — master della SOLA placca superiore (rank/extra, sash inclusa): `ranking=0` la spegne sempre, anche con `badges=1`; `badges=0` non la tocca |
 | `bg` | `badgeGenre === false ? "0" : null` | `qBg !== null ? qBg !== "0"` — nasconde il GENERE nel badge genere/rating |
 | `by` | `badgeYear === false ? "0" : null` | `qBy !== null ? qBy !== "0"` — nasconde l'ANNO nel badge genere/rating |
 | `br` | `badgeRating === false ? "0" : null` | `qBr !== null ? qBr !== "0"` — nasconde il VOTO nel badge genere/rating |
@@ -428,7 +428,8 @@ Opt-in (`sep=1`, default OFF): sostituisce la media ★ nel badge con una colonn
 
 > `gradColor`, `gradOpacity`, `gradFade`, `gradDir` sono **parametri morti**: non vengono più letti dal server (il gradiente usa il colore accent + `gradHeight`). `bottomGradientSVG` in `badges.ts` non è più chiamato dal compositore poster. Non reintrodurli.
 | `rank` | `badge.rank` (se rankingBadges attivi) | `qRank` — override del ranking |
-| `animerank` | rank anime del titolo selezionato (da `mdblistAnimeList`, solo preview WYSIWYG) | `qAnimeRank` — override del rank anime (`media_type=tv`); senza, il server lo calcola da `fetchMDBList` con la chiave della richiesta o il fallback d'istanza (`PICTORIUM_MDBLIST_KEY`) |
+| `animerank` | rank anime del titolo selezionato (da `mdblistAnimeList`, solo preview WYSIWYG) | `qAnimeRank` — override del rank anime (`media_type=tv`); senza, il server lo calcola da `fetchMDBList` con la chiave della richiesta o il fallback d'istanza (`PICTORIUM_MDBLIST_KEY`). Con `rk=` valido omesso in preview (vince `rk=`, come Stremio che non lo emette mai per queste liste) |
+| `rk` | rank di lista effimero (posizione nella lista di origine, decisione A) | intero 0..100 (`0` = unranked esplicito, invalido/assente = legacy). Precedenza finale: `rank=` esplicito > `rk=` > rank live da fonte selezionata. `rk=` valido salta entrambi i fetch trend/anime e sopprime l'anime win; entra nella chiave cache/ETag (stesso titolo rank N vs M = byte distinti); con `ranking=0` mai emesso/mai numero automatico |
 | `label` | `badge.rankLabel \|\| badge.label` | `qLabel` — override label ranking |
 | `extra` | `badge.label` (se extra) o `customBadge` | `queryExtra` — forza badge extra |
 | `bs` | `badgeStyle` | `qBs` — "shadow"/"pill"/"bar"/"colored"/"bordo"/"vetro"/"minimal" (catena query > mapping effettivo per formato > config > defaults effettivi per forma; il default landscape sceglie lo stile orizzontale) |

@@ -17,7 +17,9 @@ const log = createLogger("chart-generation")
 // INDEPENDENT PER canonical family, with no all-source barrier:
 //
 // - each logical ranking list (jw:movie:charts, jw:series:popular,
-//   jw:movie:trending, platform:<key>:<movie|series>, anime:<movie|series>)
+//   jw:movie:trending, platform:<key>:<movie|series> (legacy, historic JW
+//   unions), stream:<service>:<movie|series> (opt-in, strict own-brand JW
+//   packages, no sibling aliases), anime:<movie|series>)
 //   publishes its own snapshot when ITS fetch succeeds;
 // - one request to its catalog/rank refreshes THAT stale list only, without
 //   fetching unrelated platforms, anime lists, or modes;
@@ -137,8 +139,18 @@ return "ok"`
  * "YYYYMMDD-12" for 12:00–23:59 local). DST-aware via Intl: spring-forward
  * skips 02:00 (still slot 00), fall-back repeats 02:xx (still slot 00).
  * Portable: independent of the server timezone (uses explicit timeZone).
+ * 12h legacy cadence — unchanged. Families on the 6h JW cadence use
+ * `familySlotKey` (same 00/12 ids at those boundaries, so old 12h pins
+ * migrate naturally with no flush).
  */
 export function romeSlotKey(nowMs: number = Date.now()): string {
+  const { date, hour } = romeDateHour(nowMs)
+  const slot = Number.isFinite(hour) && hour >= 12 ? "12" : "00"
+  return `${date}-${slot}`
+}
+
+/** Rome wall-clock date (YYYYMMDD) + hour (0–23) at an absolute instant. */
+function romeDateHour(nowMs: number): { date: string; hour: number } {
   const parts = new Intl.DateTimeFormat("en-CA", {
     timeZone: "Europe/Rome",
     year: "numeric",
@@ -148,10 +160,77 @@ export function romeSlotKey(nowMs: number = Date.now()): string {
     hourCycle: "h23",
   }).formatToParts(nowMs)
   const get = (type: string): string => parts.find((p) => p.type === type)?.value ?? ""
-  const date = `${get("year")}${get("month")}${get("day")}`
-  const hour = parseInt(get("hour"), 10)
-  const slot = Number.isFinite(hour) && hour >= 12 ? "12" : "00"
-  return `${date}-${slot}`
+  return { date: `${get("year")}${get("month")}${get("day")}`, hour: parseInt(get("hour"), 10) }
+}
+
+/**
+ * True for families on the 6h Europe/Rome cadence (00/06/12/18): all
+ * `jw:{movie|series}:{charts,popular,trending}` families plus opt-in
+ * `stream2:justwatch:*` selections. Every other family
+ * (`stream:`/`platform:` legacy, `stream2:auto|flixpatrol:*`, `anime:*`)
+ * stays on the 12h cadence. The policy is by FAMILY NAME (selection
+ * policy), never by provenance: a family keeps its cadence even when its
+ * winning source is the fallback.
+ */
+export function isSixHourChartFamily(family: string): boolean {
+  if (/^jw:(movie|series):(charts|popular|trending)$/.test(family)) return true
+  return family.startsWith("stream2:justwatch:")
+}
+
+/**
+ * Current fixed-cycle slot id for a family: `YYYYMMDD-00|06|12|18` on the 6h
+ * JW cadence, `YYYYMMDD-00|12` on the 12h legacy cadence (identical to
+ * `romeSlotKey`). 6h ids coincide with 12h ids at 00/12 boundaries, so pins
+ * published under the old 12h cadence stay comparable with no flush: a JW pin
+ * from 00:xx is current until 06:00, then stale (refresh); FP/anime 00 pins
+ * stay fresh until 12:00. String comparison stays chronological (zero-padded).
+ */
+export function familySlotKey(family: string, nowMs: number = Date.now()): string {
+  if (!isSixHourChartFamily(family)) return romeSlotKey(nowMs)
+  const { date, hour } = romeDateHour(nowMs)
+  const h = Number.isFinite(hour) ? Math.floor(hour / 6) * 6 : 0
+  return `${date}-${String(h).padStart(2, "0")}`
+}
+
+/** Next slot id in a family's own cadence (null for unparseable input). */
+export function nextFamilySlotKey(family: string, slotKey: string): string | null {
+  const m = /^(\d{4})(\d{2})(\d{2})-(00|06|12|18)$/.exec(slotKey)
+  if (!m) return null
+  const [, y, mo, d, hh] = m
+  if (!isSixHourChartFamily(family)) {
+    // 12h chain (historical `nextSlotKey` behavior, preserved byte-identically
+    // for 00/12 inputs; 06/18 ids never occur on 12h families — resolved
+    // deterministically onto the 12h chain anyway).
+    if (hh === "00" || hh === "06") return `${y}${mo}${d}-12`
+    const nextDay = new Date(Date.UTC(Number(y), Number(mo) - 1, Number(d)) + 24 * 3600 * 1000)
+    return `${nextDay.getUTCFullYear()}${String(nextDay.getUTCMonth() + 1).padStart(2, "0")}${String(nextDay.getUTCDate()).padStart(2, "0")}-00`
+  }
+  const order = ["00", "06", "12", "18"]
+  const i = order.indexOf(hh)
+  if (i < 0) return null
+  if (i < order.length - 1) return `${y}${mo}${d}-${order[i + 1]}`
+  const nextDay = new Date(Date.UTC(Number(y), Number(mo) - 1, Number(d)) + 24 * 3600 * 1000)
+  return `${nextDay.getUTCFullYear()}${String(nextDay.getUTCMonth() + 1).padStart(2, "0")}${String(nextDay.getUTCDate()).padStart(2, "0")}-00`
+}
+
+/**
+ * Absolute end (exclusive, ms epoch) of the given published slot generation
+ * in the family's own cadence. Snapshot-backed facts and ready bodies expire
+ * at the end of the PINNED slot — never at the end of the slot containing
+ * "now". A pin published in a previous slot (retained on outage) is already
+ * expired. Old 12h ids under a 6h family resolve onto the 6h chain (actual
+ * family cadence), so no flush is needed on rollout. Returns 0 for
+ * unparseable generations (fail-open: the caller falls back).
+ */
+export function familySlotEndMs(family: string, slotKey: string): number {
+  const next = nextFamilySlotKey(family, slotKey)
+  if (!next) return 0
+  return romeSlotStartMs(next)
+}
+
+/** Cycle-aware freshness floor for a family: start of its current slot. */
+export function familySlotFloorMs(family: string, nowMs: number = Date.now()): number {
+  return romeSlotStartMs(familySlotKey(family, nowMs))
 }
 
 /** Rome UTC offset (minutes, east-positive) at an absolute instant. */
@@ -172,10 +251,13 @@ function romeOffsetMinutesAt(utcMs: number): number {
  * slot start wall time (two fixed-point iterations converge: transitions
  * happen at night Rome time, slots start at 00:00/12:00): using a noon probe
  * would be off by one hour on DST transition days (midnight +01 vs noon +02
- * in spring, midnight +02 vs noon +01 in fall).
+ * in spring, midnight +02 vs noon +01 in fall). Accepts 00/06/12/18 (the 6h
+ * JW cadence shares the same wall-clock solver; DST transition days keep
+ * their short/long absolute durations — never claim a flat 6h wall-clock
+ * timedelta there).
  */
 export function romeSlotStartMs(slotKey: string): number {
-  const m = /^(\d{4})(\d{2})(\d{2})-(00|12)$/.exec(slotKey)
+  const m = /^(\d{4})(\d{2})(\d{2})-(00|06|12|18)$/.exec(slotKey)
   if (!m) return 0
   const [, y, mo, d, hh] = m
   const wallAsUtc = Date.UTC(Number(y), Number(mo) - 1, Number(d), Number(hh), 0, 0)
@@ -265,6 +347,11 @@ export function chartGroupKey(input: ChartGroupInput): string {
   return `v1:${crypto.createHash("sha1").update(`${code}|${lang}|${keyHash}`).digest("hex").slice(0, 16)}`
 }
 
+/** True for generic opt-in families (`stream2:`, Task F): the descriptor is self-isolating. */
+export function isGenericStreamChartFamily(family: string): boolean {
+  return family.startsWith("stream2:")
+}
+
 /**
  * Group identity for credential-free families (JW charts/popular/trending,
  * streaming platforms): region + language ONLY. Their fetches carry no
@@ -284,10 +371,18 @@ export function isKeyedChartFamily(family: string): boolean {
 
 /**
  * Family-aware group identity: anime families isolate on the effective
- * MDBList key hash; every other family shares region+language rows
- * regardless of unrelated credentials.
+ * MDBList key hash; generic `stream2:` families (Task F) isolate on the full
+ * descriptor + region + language (source/country/variant/service never share
+ * pins — different source choices must not collide or fence each other);
+ * every other family shares region+language rows regardless of unrelated
+ * credentials.
  */
 export function chartFamilyGroupKey(input: ChartGroupInput & { family: string }): string {
+  if (isGenericStreamChartFamily(input.family)) {
+    const code = (input.regionCode || "").toUpperCase()
+    const lang = input.regionLang || ""
+    return `v1:${crypto.createHash("sha1").update(`stream2|${input.family}|${code}|${lang}`).digest("hex").slice(0, 16)}`
+  }
   if (isKeyedChartFamily(input.family)) return chartGroupKey(input)
   return chartListGroupKey(input)
 }
@@ -304,6 +399,7 @@ export function isBuiltInChartCatalogId(catalogId: string): boolean {
   if (catalogId.startsWith("pictorium-custom-")) return false
   if (catalogId.startsWith("pictorium-search-")) return false
   if (catalogId.startsWith("pictorium-jw") || catalogId.startsWith("pictorium-anime")) return true
+  if (catalogId.startsWith("pictorium-stream-") || catalogId.startsWith("pictorium-stream2-")) return true
   return /^pictorium-.+-(movies|series)$/.test(catalogId)
 }
 
@@ -315,6 +411,12 @@ export interface ChartRow {
   readonly rank: number
   readonly title?: string | null
   readonly year?: number | null
+  /**
+   * Real media type for mixed (`all`) generic charts (Task F): preserved from
+   * the upstream `tmdb.media_type`. Absent on legacy families (byte-identical
+   * rows there) — generic renewal sets it, serving filters/enriches per item.
+   */
+  readonly mediaType?: "movie" | "tv" | null
 }
 
 export type ChartFamilyStatus = "ok" | "empty" | "error"
@@ -372,7 +474,9 @@ function normalizeRow(raw: unknown, index: number, allowZeroTmdb: boolean): Char
   const title = typeof r.title === "string" ? r.title : null
   const yearRaw = Number(r.year)
   const year = Number.isFinite(yearRaw) && yearRaw > 0 ? Math.floor(yearRaw) : null
-  return { tmdbId: Math.floor(tmdbId), imdbId, rank: Math.floor(rank), title, year }
+  const mediaType = r.mediaType === "movie" || r.mediaType === "tv" ? r.mediaType : null
+  const row: ChartRow = { tmdbId: Math.floor(tmdbId), imdbId, rank: Math.floor(rank), title, year }
+  return mediaType ? { ...row, mediaType } : row
 }
 
 function normalizeRows(raw: unknown, cap: number, allowZeroTmdb = false): ChartRow[] | null {
@@ -391,6 +495,8 @@ function normalizeRows(raw: unknown, cap: number, allowZeroTmdb = false): ChartR
 function familyRowCap(family: string): number {
   if (family.startsWith("anime:")) return 500
   if (family.startsWith("platform:")) return 10
+  if (family.startsWith("stream:")) return 10
+  if (family.startsWith("stream2:")) return 10
   if (family.includes(":popular") || family.includes(":trending")) return 20
   return 20
 }
@@ -425,7 +531,7 @@ interface ChartFamilyPersist {
 function isValidSnapshot(raw: unknown, group: string, family: string): ChartFamilySnapshot | null {
   if (!raw || typeof raw !== "object") return null
   const s = raw as Record<string, unknown>
-  if (typeof s.generation !== "string" || !/^\d{8}-(00|12)$/.test(s.generation)) return null
+  if (typeof s.generation !== "string" || !/^\d{8}-(00|06|12|18)$/.test(s.generation)) return null
   if (s.group !== group || s.family !== family || typeof s.publishedAt !== "number") return null
   if (s.status !== "ok" && s.status !== "empty") return null
   if (typeof s.fetchedAt !== "number") return null
@@ -902,7 +1008,7 @@ export async function commitChartFamilySnapshot(
   const group = chartFamilyGroupKey(input)
   const key = familyKey(group, input.family)
   const now = Date.now()
-  const slot = input.slot ?? romeSlotKey(now)
+  const slot = input.slot ?? familySlotKey(input.family, now)
   if (input.status === "error") {
     await recordFamilyFailure(group, input.family)
     log.debug("chartfam family error; last good snapshot kept", {
@@ -918,7 +1024,8 @@ export async function commitChartFamilySnapshot(
   }
   const status: Exclude<ChartFamilyStatus, "error"> = input.status === "empty" || rows.length === 0 ? "empty" : "ok"
   // Abort on slot rollover during the fetch: a stale slot never publishes.
-  if (romeSlotKey(now) !== slot) return pinChartFamily(input)
+  // The slot is the family's own cadence (6h JW vs 12h legacy).
+  if (familySlotKey(input.family, now) !== slot) return pinChartFamily(input)
   const snap: ChartFamilySnapshot = {
     generation: slot,
     group,

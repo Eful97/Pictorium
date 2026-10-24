@@ -263,7 +263,7 @@ describe("GET /api/poster/[type]/[id] with saved mappings", () => {
     mockedGetDetails.mockResolvedValueOnce({ id: 98765, title: "Custom test", genres: [], vote_average: 0, vote_count: 0 })
     mockedGetById.mockResolvedValue({
       tmdbId: 98765, mediaType: "movie", title: "Custom test", posterPath: "/custom-test.jpg",
-      logoPath: null, originalPosterPath: null, language: "it", showBadges: false,
+      logoPath: null, originalPosterPath: null, language: "it", showBadges: true,
       rankingBadges: false, updatedAt: "2026-09-12T00:00:00.000Z",
     })
     const poster = await imageBuffer("#101010", 500, 750)
@@ -566,7 +566,7 @@ describe("GET /api/poster/[type]/[id] with saved mappings", () => {
     mockedGetById.mockResolvedValue(kind === "saved" ? {
       tmdbId: id, mediaType: "movie", title: "Independent ratings", posterPath: `/ratings-${id}.jpg`,
       logoPath: null, originalPosterPath: null, language: "it", voteAverage: 5,
-      showBadges: false, rankingBadges: false, updatedAt: "2026-09-12T00:00:00.000Z",
+      showBadges: true, rankingBadges: false, updatedAt: "2026-09-12T00:00:00.000Z",
     } : null)
     mockedGetDetails.mockResolvedValue({ id, title: "Independent ratings", genres: [], vote_average: 6, vote_count: 100 })
     mockedGetImages.mockResolvedValue({ id, posters: [
@@ -1190,7 +1190,7 @@ describe("GET /api/poster/[type]/[id] error and edge cases", () => {
     const id = 98999
     mockedGetById.mockResolvedValue({
       tmdbId: id, mediaType: "movie", title: "Revalidation", posterPath: "/revalidate.jpg",
-      logoPath: null, originalPosterPath: null, language: "it", showBadges: false,
+      logoPath: null, originalPosterPath: null, language: "it", showBadges: true,
       rankingBadges: false, updatedAt: "2026-09-12T00:00:00.000Z",
     })
     mockedGetExternalIds.mockResolvedValue({ imdb_id: "tt98999" })

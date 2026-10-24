@@ -80,13 +80,18 @@ function fpCatalogWithNetflix(ids: number[]) {
     title: `FP ${id}`,
     tmdb: { id, media_type: "movie", release_date: "2024-01-01" },
   }))
+  // All FP-serving phases run on Rome Oct 22 (see `now` below), so the chart
+  // date is fresh for every read; staleness is covered by date tests.
   return {
+    date: "October 22, 2026",
+    scraped_at_utc: "2026-10-22T08:00:00.000Z",
     charts: [
-      { catalog_id: "c1", platform: "Netflix", category: "movies", entries },
+      { catalog_id: "c1", platform: "Netflix", category: "movies", date: "October 22, 2026", entries },
       {
         catalog_id: "c2",
         platform: "Netflix",
         category: "tv shows",
+        date: "October 22, 2026",
         entries: entries.map((e) => ({ ...e, tmdb: { ...e.tmdb, media_type: "tv" } })),
       },
     ],
@@ -137,9 +142,10 @@ function installFetchMock() {
       if (fpMode === "malformed-wrongtype") return Response.json({ charts: "nope" })
       if (fpMode === "malformed-noids") {
         return Response.json({
+          date: "October 22, 2026",
           charts: [
-            { catalog_id: "c1", platform: "Netflix", category: "movies", entries: [{ rank: 1, title: "NoId", tmdb: null }] },
-            { catalog_id: "c2", platform: "Netflix", category: "tv shows", entries: [{ rank: 1, title: "NoId", tmdb: null }] },
+            { catalog_id: "c1", platform: "Netflix", category: "movies", date: "October 22, 2026", entries: [{ rank: 1, title: "NoId", tmdb: null }] },
+            { catalog_id: "c2", platform: "Netflix", category: "tv shows", date: "October 22, 2026", entries: [{ rank: 1, title: "NoId", tmdb: null }] },
           ],
         })
       }
@@ -176,7 +182,7 @@ describe("correction2: genuine empty vs failure provenance (real adapters)", () 
     mdbMode = "rows"
     fpMode = "rows"
     installFetchMock()
-    now = utc(2026, 10, 22, 8, 0, 0) // Rome 10:00 -> slot 20261022-00
+    now = utc(2026, 10, 22, 8, 0, 0) // Rome 10:00 -> 6h slot 20261022-06 (12h families: -00)
     vi.spyOn(Date, "now").mockImplementation(() => now)
   })
 
@@ -192,7 +198,7 @@ describe("correction2: genuine empty vs failure provenance (real adapters)", () 
   it("JW charts cold empty publishes an empty snapshot (genuine miss, no outage)", async () => {
     jwMode = "empty"
     const pin = await renewal.ensureFreshChartFamily(JW_MOVIE)
-    expect(pin.id).toBe("20261022-00")
+    expect(pin.id).toBe("20261022-06")
     expect(pin.snapshot).not.toBeNull()
     expect(pin.snapshot?.status).toBe("empty")
     expect(pin.snapshot ? [...pin.snapshot.rows] : null).toEqual([])
@@ -216,11 +222,11 @@ describe("correction2: genuine empty vs failure provenance (real adapters)", () 
     const callsBefore = fetchCalls
     const pin = await renewal.ensureFreshChartFamily(JW_MOVIE)
     expect(fetchCalls).toBeGreaterThan(callsBefore) // a real refresh was attempted
-    expect(pin.id).toBe("20261022-00")
+    expect(pin.id).toBe("20261022-06")
     expect((pin.snapshot?.rows ?? []).map((r) => r.tmdbId)).toEqual([101, 102])
     expect(await cg.isChartFamilyGated(JW_MOVIE)).toBe(true)
     const gated = await renewal.ensureFreshChartFamily(JW_MOVIE)
-    expect(gated.id).toBe("20261022-00")
+    expect(gated.id).toBe("20261022-06")
   })
 
   it("JW invalid JSON is a failure, not a genuine empty", async () => {
@@ -228,7 +234,7 @@ describe("correction2: genuine empty vs failure provenance (real adapters)", () 
     now = utc(2026, 10, 22, 11, 0, 0)
     jwMode = "invalid-json"
     const pin = await renewal.ensureFreshChartFamily(JW_MOVIE)
-    expect(pin.id).toBe("20261022-00")
+    expect(pin.id).toBe("20261022-06")
     expect((pin.snapshot?.rows ?? []).map((r) => r.tmdbId)).toEqual([101, 102])
     expect(await cg.isChartFamilyGated(JW_MOVIE)).toBe(true)
   })
@@ -265,14 +271,14 @@ describe("correction2: genuine empty vs failure provenance (real adapters)", () 
   it("popular strict empty via the real top20 adapter publishes an empty snapshot", async () => {
     jwMode = "empty"
     const pin = await renewal.ensureFreshChartFamily(JW_POPULAR)
-    expect(pin.id).toBe("20261022-00")
+    expect(pin.id).toBe("20261022-06")
     expect(pin.snapshot?.status).toBe("empty")
     expect(pin.snapshot ? [...pin.snapshot.rows] : null).toEqual([])
   })
 
   it("popular strict rows via the real top20 adapter publish sequential ranks", async () => {
     const pin = await renewal.ensureFreshChartFamily(JW_POPULAR)
-    expect(pin.id).toBe("20261022-00")
+    expect(pin.id).toBe("20261022-06")
     expect(pin.snapshot?.status).toBe("ok")
     expect((pin.snapshot?.rows ?? []).map((r) => ({ tmdbId: r.tmdbId, rank: r.rank }))).toEqual([
       { tmdbId: 501, rank: 1 },
@@ -323,14 +329,17 @@ describe("correction2: genuine empty vs failure provenance (real adapters)", () 
     expect(pin.snapshot ? [...pin.snapshot.rows] : null).toEqual([])
   })
 
-  it("platform non-global success-empty publishes an empty snapshot (real fp cache)", async () => {
-    jwMode = "empty" // JW side genuinely empty -> falls through to the fp fallback
-    fpMode = "no-platform" // successful fp read with zero rows for the platform
+  it("platform non-global success-empty publishes an empty snapshot (FP absent → JW fallback)", async () => {
+    jwMode = "empty" // JW side genuinely empty -> no FP chart either
+    fpMode = "no-platform" // successful fp read with zero rows for the platform: absence, not a genuine FP empty
     const pin = await renewal.ensureFreshChartFamily({ ...NETFLIX_MOVIE, tmdbKey: "k" })
     expect(pin.id).toBe("20261022-00")
     expect(pin.snapshot?.status).toBe("empty")
     expect(pin.snapshot ? [...pin.snapshot.rows] : null).toEqual([])
-    expect(pin.snapshot?.provenance).toBe("flixpatrol")
+    // FP-first with per-media JW fallback: the empty answer comes from JW
+    // (the accurate provenance of the fallback), not from a platform split
+    // FP never published.
+    expect(pin.snapshot?.provenance).toBe("justwatch")
   })
 
   it("platform JW+fp failure retains the last good snapshot and gates", async () => {
@@ -355,7 +364,7 @@ describe("correction2: genuine empty vs failure provenance (real adapters)", () 
     for (const bad of ["malformed-empty", "malformed-null-charts", "malformed-wrongtype", "malformed-noids"] as const) {
       jwMode = bad
       const pin = await renewal.ensureFreshChartFamily(JW_MOVIE)
-      expect(pin.id).toBe("20261022-00")
+      expect(pin.id).toBe("20261022-06")
       expect((pin.snapshot?.rows ?? []).map((r) => r.tmdbId)).toEqual([101, 102])
       expect(await cg.isChartFamilyGated(JW_MOVIE)).toBe(true)
       // Advance past the 60s gate for the next malformed variant (same slot:
@@ -390,7 +399,7 @@ describe("correction2: genuine empty vs failure provenance (real adapters)", () 
     now = utc(2026, 10, 22, 11, 0, 0)
     jwMode = "malformed-wrongtype"
     const bad = await renewal.ensureFreshChartFamily(JW_POPULAR)
-    expect(bad.id).toBe("20261022-00")
+    expect(bad.id).toBe("20261022-06")
     expect((bad.snapshot?.rows ?? []).map((r) => r.tmdbId)).toEqual([501, 502])
     expect(await cg.isChartFamilyGated(JW_POPULAR)).toBe(true)
     now += 61_000
@@ -405,8 +414,8 @@ describe("correction2: genuine empty vs failure provenance (real adapters)", () 
     expect(tFirst.snapshot?.status).toBe("ok")
     now += 61_000
     // Move to the next slot so the malformed trending read is a real refresh.
-    now = utc(2026, 10, 22, 20, 0, 0) // Rome 22:00 -> still slot 20261022-12? force next day slot
-    now = utc(2026, 10, 23, 8, 0, 0) // Rome 10:00 -> slot 20261023-00
+    now = utc(2026, 10, 22, 20, 0, 0) // Rome 22:00 -> 6h slot 20261022-18
+    now = utc(2026, 10, 23, 8, 0, 0) // Rome 10:00 -> 6h slot 20261023-06
     jwMode = "malformed-noids"
     const tBad = await renewal.ensureFreshChartFamily(JW_TRENDING)
     expect((tBad.snapshot?.rows ?? []).map((r) => r.tmdbId)).toEqual(
@@ -445,11 +454,14 @@ describe("correction2: genuine empty vs failure provenance (real adapters)", () 
     expect(pin.snapshot?.status).toBe("empty")
   })
 
-  it("c3: FP malformed document retains last good and gates (not genuine empty)", async () => {
+  it("c3: FP malformed document + JW failure retains last good and gates (both fail, never empty)", async () => {
     jwMode = "empty"
     const first = await renewal.ensureFreshChartFamily({ ...NETFLIX_MOVIE, tmdbKey: "k" })
     expect((first.snapshot?.rows ?? []).map((r) => r.tmdbId)).toEqual([301, 302])
     now = utc(2026, 10, 22, 11, 0, 0)
+    // Correction 1: a malformed FP side is a miss eligible for the JW
+    // fallback — retention applies only when the JW fallback fails too.
+    jwMode = "http500"
     for (const bad of ["malformed-doc", "malformed-wrongtype", "malformed-noids"] as const) {
       fpMode = bad
       const pin = await renewal.ensureFreshChartFamily({ ...NETFLIX_MOVIE, tmdbKey: "k" })
@@ -460,13 +472,33 @@ describe("correction2: genuine empty vs failure provenance (real adapters)", () 
     }
   })
 
-  it("c3: FP cold malformed never publishes (stays live, gated)", async () => {
+  it("c3: FP malformed document + successful JW empty publishes a genuine empty (fallback, not retention)", async () => {
     jwMode = "empty"
+    fpMode = "malformed-doc"
+    const pin = await renewal.ensureFreshChartFamily({ ...NETFLIX_MOVIE, tmdbKey: "k" })
+    expect(pin.id).toBe("20261022-00")
+    expect(pin.snapshot?.status).toBe("empty")
+    expect(pin.snapshot ? [...pin.snapshot.rows] : null).toEqual([])
+    expect(pin.snapshot?.provenance).toBe("justwatch")
+  })
+
+  it("c3: FP cold malformed + JW failure never publishes (stays live, gated)", async () => {
+    jwMode = "http500"
     fpMode = "malformed-doc"
     const pin = await renewal.ensureFreshChartFamily({ ...NETFLIX_MOVIE, tmdbKey: "k" })
     expect(pin.id).toBe(cg.CHART_LIVE_PIN_ID)
     expect(pin.snapshot).toBeNull()
     expect(await cg.isChartFamilyGated(NETFLIX_MOVIE)).toBe(true)
+  })
+
+  it("c3: FP cold malformed + successful JW empty publishes a genuine empty (fallback, not live)", async () => {
+    jwMode = "empty"
+    fpMode = "malformed-doc"
+    const pin = await renewal.ensureFreshChartFamily({ ...NETFLIX_MOVIE, tmdbKey: "k" })
+    expect(pin.id).toBe("20261022-00")
+    expect(pin.snapshot?.status).toBe("empty")
+    expect(pin.snapshot ? [...pin.snapshot.rows] : null).toEqual([])
+    expect(pin.snapshot?.provenance).toBe("justwatch")
   })
 })
 

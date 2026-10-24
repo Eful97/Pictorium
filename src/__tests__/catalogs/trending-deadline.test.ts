@@ -13,6 +13,7 @@ import {
 import { cacheClear, cacheGet } from "@/lib/cache"
 import { __clearTMDBCache, __resetKey401Cache, getDetails } from "@/lib/tmdb"
 import { __resetJWRankingsCache, getJWRankings, isJustwatchBreakerOpen } from "@/lib/justwatch"
+import { __resetChartGenerationForTest } from "@/lib/chart-generation"
 
 // Task13: /api/tmdb/trending non aveva alcuna scadenza di endpoint —
 // getDetails/getImages col default 30s, pool film e POI pool serie, niente
@@ -191,6 +192,7 @@ afterEach(() => {
   __resetJWRankingsCache()
   __clearTMDBCache()
   __resetKey401Cache()
+  __resetChartGenerationForTest()
   cacheClear()
 })
 
@@ -331,6 +333,10 @@ describe("GET /api/tmdb/trending — deadline e parziali (fake clock)", () => {
     vi.useRealTimers()
     vi.restoreAllMocks()
     __resetJWRankingsCache()
+    // Fresh pin for the recovery read: the hang test's pin is still the
+    // current slot, which would (correctly per the canonical window) keep
+    // serving its rows instead of the new upstream fixture.
+    __resetChartGenerationForTest()
     const tracker2 = newTracker()
     const spy2 = installFetch({ tracker: tracker2, jwMovie: [111], jwShow: [], tmdb: { kind: "fast" } })
     const ok = await GET(req("/api/tmdb/trending?country=IT&api_key=testkey", { ua: "task13-hang" }))

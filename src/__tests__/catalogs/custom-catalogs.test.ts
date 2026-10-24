@@ -215,16 +215,24 @@ describe("Custom Catalogs & MDBList Parsing", () => {
       const res = await buildManifestResponse(req, null, token)
       const data = await res.json()
 
-      // The first catalog in the list should be pictorium-anime
-      expect(data.catalogs[0].id).toBe("pictorium-anime")
-      expect(data.catalogs[0].name).toBe("⛩️ Anime Popolari")
+      // Anime always last (stable partition superseding catalogOrder for
+      // the anime group only): the renamed Netflix row leads, JW follows,
+      // the renamed anime row sinks to the end (never dropped).
+      expect(data.catalogs[0].id).toBe("pictorium-netflix-movies")
+      expect(data.catalogs[0].name).toBe("🔴 Super Netflix Film")
 
-      // The second catalog should be pictorium-netflix-movies
-      expect(data.catalogs[1].id).toBe("pictorium-netflix-movies")
-      expect(data.catalogs[1].name).toBe("🔴 Super Netflix Film")
+      expect(data.catalogs[1].id).toBe("pictorium-jw-movies")
 
-      // The third catalog should be pictorium-jw-movies
-      expect(data.catalogs[2].id).toBe("pictorium-jw-movies")
+      const contentIds = data.catalogs
+        .map((c: { id: string }) => c.id)
+        .filter((id: string) => !id.startsWith("pictorium-search"))
+      // Anime tail preserves user order (anime before anime-movies here);
+      // every non-anime chart stays ahead of both.
+      expect(contentIds.slice(-2)).toEqual(["pictorium-anime", "pictorium-anime-movies"])
+      expect(
+        data.catalogs.find((c: { id: string }) => c.id === "pictorium-anime")?.name,
+      ).toBe("⛩️ Anime Popolari")
+      // Search hub section still appended after content (unchanged).
     })
 
     it("sets extra isRequired: true on catalogs hidden from home", async () => {

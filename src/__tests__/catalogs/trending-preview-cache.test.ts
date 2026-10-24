@@ -33,6 +33,7 @@ import { GET } from "@/app/api/tmdb/trending/route"
 import { cacheClear } from "@/lib/cache"
 import { __clearTMDBCache, __resetKey401Cache } from "@/lib/tmdb"
 import { __resetJWRankingsCache } from "@/lib/justwatch"
+import { __resetChartGenerationForTest } from "@/lib/chart-generation"
 
 vi.mock("@/lib/server-defaults", async (importOriginal) => {
   const mod = await importOriginal<typeof import("@/lib/server-defaults")>()
@@ -187,6 +188,10 @@ describe("GET /api/tmdb/trending — mutable-selection HTTP caching", () => {
     __resetJWRankingsCache()
     __clearTMDBCache()
     __resetKey401Cache()
+    // Chart-generation snapshots persist in memory across tests: without a
+    // reset, an earlier test's published family would serve later tests with
+    // zero upstream (the canonical-window pin, now also used by this route).
+    __resetChartGenerationForTest()
     cacheClear()
   })
 

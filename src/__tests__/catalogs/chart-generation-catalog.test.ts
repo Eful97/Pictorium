@@ -1,20 +1,9 @@
-import { beforeEach, describe, expect, it, vi, afterEach } from "vitest"
+import { beforeAll, beforeEach, describe, expect, it, vi, afterEach, afterAll } from "vitest"
 import { NextRequest } from "next/server"
-import { pictoriumCatalog, CATALOG_TTL_MS, CATALOG_EMPTY_TTL_MS } from "@/lib/catalog-handler"
-import { GET as rankGET } from "@/app/api/trending/rank/route"
-import * as mdbModule from "@/lib/mdblist"
-import * as tmdbModule from "@/lib/tmdb"
-import { __resetJWRankingsCache } from "@/lib/justwatch"
-import { __clearTMDBCache } from "@/lib/tmdb"
-import {
-  CHART_LIVE_PIN_ID,
-  CHART_READY_TTL_MS,
-  pinChartFamily,
-  pinnedFamilyRows,
-  __resetChartGenerationForTest,
-  __setChartGenerationPersistForTest,
-  __inMemoryChartGenerationPersist,
-} from "@/lib/chart-generation"
+import fs from "node:fs"
+import fsp from "node:fs/promises"
+import os from "node:os"
+import path from "node:path"
 
 vi.mock("@/lib/user-auth", () => ({
   getScopedUserId: vi.fn().mockReturnValue(null),
@@ -62,6 +51,97 @@ vi.mock("@/lib/imdb-cache", () => ({
 function utc(y: number, mo: number, d: number, h: number, mi = 0, s = 0): number {
   return Date.UTC(y, mo - 1, d, h, mi, s)
 }
+
+// Hermetic DATA_DIR (test-only isolation, no production semantics changed).
+// The file backends in this chain resolve DATA_DIR once at module evaluation
+// (flixpatrol cacheFile closure, chart-generation file persist), so the
+// exclusive temp dir must be on process.env BEFORE the chain is (re)imported
+// in beforeAll below. Direct assignment — never vi.stubEnv — because the
+// shared setup.ts afterEach calls vi.unstubAllEnvs() after every test.
+// Portable hermetic scratch root: os.tmpdir()-based (on this Windows env it
+// resolves to the approved temp root) instead of a hardcoded per-user path,
+// which would create a stray relative dir on POSIX and pollute the checkout.
+function createHermeticDataDir(prefix: string): string {
+  try {
+    const scratchBase = path.join(os.tmpdir(), "opencode")
+    fs.mkdirSync(scratchBase, { recursive: true })
+    return fs.mkdtempSync(path.join(scratchBase, prefix))
+  } catch {
+    return fs.mkdtempSync(path.join(os.tmpdir(), prefix))
+  }
+}
+const HERMETIC_ENV_KEYS = ["PICTORIUM_DATA_DIR", "POSTERIUM_DATA_DIR"] as const
+let hermeticDataDir = ""
+let savedDataDirEnv: Record<string, string | undefined> = {}
+
+// Chain bindings: populated in beforeAll via dynamic import AFTER the temp
+// DATA_DIR is set and the module registry reset, so every file backend in
+// the chain (flixpatrol disk cache, chart-generation persist) points at the
+// exclusive temp dir and can never see real ./data files.
+let pictoriumCatalog: typeof import("@/lib/catalog-handler").pictoriumCatalog
+let CATALOG_TTL_MS: typeof import("@/lib/catalog-handler").CATALOG_TTL_MS
+let CATALOG_EMPTY_TTL_MS: typeof import("@/lib/catalog-handler").CATALOG_EMPTY_TTL_MS
+let rankGET: typeof import("@/app/api/trending/rank/route").GET
+let mdbModule: typeof import("@/lib/mdblist")
+let tmdbModule: typeof import("@/lib/tmdb")
+let __resetJWRankingsCache: typeof import("@/lib/justwatch").__resetJWRankingsCache
+let __clearTMDBCache: typeof import("@/lib/tmdb").__clearTMDBCache
+let CHART_LIVE_PIN_ID: typeof import("@/lib/chart-generation").CHART_LIVE_PIN_ID
+let pinChartFamily: typeof import("@/lib/chart-generation").pinChartFamily
+let pinnedFamilyRows: typeof import("@/lib/chart-generation").pinnedFamilyRows
+let __resetChartGenerationForTest: typeof import("@/lib/chart-generation").__resetChartGenerationForTest
+let __setChartGenerationPersistForTest: typeof import("@/lib/chart-generation").__setChartGenerationPersistForTest
+let __inMemoryChartGenerationPersist: typeof import("@/lib/chart-generation").__inMemoryChartGenerationPersist
+let __clearFlixpatrolCache: typeof import("@/lib/flixpatrol").__clearFlixpatrolCache
+
+beforeAll(async () => {
+  hermeticDataDir = createHermeticDataDir("pictorium-chartgen-cat-")
+  for (const k of HERMETIC_ENV_KEYS) savedDataDirEnv[k] = process.env[k]
+  process.env.PICTORIUM_DATA_DIR = hermeticDataDir
+  delete process.env.POSTERIUM_DATA_DIR
+  vi.resetModules()
+  const catalogHandler = await import("@/lib/catalog-handler")
+  pictoriumCatalog = catalogHandler.pictoriumCatalog
+  CATALOG_TTL_MS = catalogHandler.CATALOG_TTL_MS
+  CATALOG_EMPTY_TTL_MS = catalogHandler.CATALOG_EMPTY_TTL_MS
+  rankGET = (await import("@/app/api/trending/rank/route")).GET
+  mdbModule = await import("@/lib/mdblist")
+  tmdbModule = await import("@/lib/tmdb")
+  __resetJWRankingsCache = (await import("@/lib/justwatch")).__resetJWRankingsCache
+  __clearTMDBCache = tmdbModule.__clearTMDBCache
+  const chartGeneration = await import("@/lib/chart-generation")
+  CHART_LIVE_PIN_ID = chartGeneration.CHART_LIVE_PIN_ID
+  pinChartFamily = chartGeneration.pinChartFamily
+  pinnedFamilyRows = chartGeneration.pinnedFamilyRows
+  __resetChartGenerationForTest = chartGeneration.__resetChartGenerationForTest
+  __setChartGenerationPersistForTest = chartGeneration.__setChartGenerationPersistForTest
+  __inMemoryChartGenerationPersist = chartGeneration.__inMemoryChartGenerationPersist
+  __clearFlixpatrolCache = (await import("@/lib/flixpatrol")).__clearFlixpatrolCache
+})
+
+afterAll(async () => {
+  try {
+    // FP saveCache is fire-and-forget: await the durable write by condition
+    // (poll for the file, never a fixed sleep) before removing the fixture dir.
+    const file = path.join(hermeticDataDir, "flixpatrol_cache_italy.json")
+    for (let i = 0; i < 40; i++) {
+      try {
+        await fsp.access(file)
+        break
+      } catch {
+        await new Promise((r) => setTimeout(r, 50))
+      }
+    }
+  } finally {
+    for (const k of HERMETIC_ENV_KEYS) {
+      if (savedDataDirEnv[k] === undefined) delete process.env[k]
+      else process.env[k] = savedDataDirEnv[k]
+    }
+    savedDataDirEnv = {}
+    if (hermeticDataDir) await fsp.rm(hermeticDataDir, { recursive: true, force: true })
+    hermeticDataDir = ""
+  }
+})
 
 // Phase-driven upstream: phases advance explicitly per test.
 let jwPhase: "one" | "two" | "fail" = "one"
@@ -158,6 +238,7 @@ describe("chart-generation serving integration (entry paths only)", () => {
     __setChartGenerationPersistForTest(__inMemoryChartGenerationPersist())
     __resetJWRankingsCache()
     __clearTMDBCache()
+    __clearFlixpatrolCache()
     mockTmdbKeys()
     jwPhase = "one"
     jwCalls = 0
@@ -174,6 +255,7 @@ describe("chart-generation serving integration (entry paths only)", () => {
     vi.restoreAllMocks()
     __resetChartGenerationForTest()
     __setChartGenerationPersistForTest(null)
+    __clearFlixpatrolCache()
   })
 
   it("cold catalog request fetches once and publishes immediately; repeat is upstream-free", async () => {
@@ -184,11 +266,11 @@ describe("chart-generation serving integration (entry paths only)", () => {
     expect(jwCalls).toBe(1)
     // Cold success is immediately published: same-slot pin, fenced ready key.
     const pin = await pinChartFamily(JW_MOVIE)
-    expect(pin.id).toBe("20261022-00")
-    expect(cacheGets.some((k) => k.includes(":cg20261022-00"))).toBe(true)
-    // In-scope nonempty ready body reuses up to 12h.
+    expect(pin.id).toBe("20261022-06")
+    expect(cacheGets.some((k) => k.includes(":cg20261022-06"))).toBe(true)
+    // In-scope nonempty ready body reuses up to the PINNED family end (6h JW).
     const ttl = readyTtl("stremio:catalog:v4:movie:pictorium-jw-movies")
-    expect(ttl).toBe(CHART_READY_TTL_MS)
+    expect(ttl).toBe(2 * 60 * 60 * 1000)
     // Repeat request: ready-body hit, zero upstream calls.
     const res2 = await pictoriumCatalog(catalogReq("pictorium-jw-movies"), "movie", "pictorium-jw-movies", null, null)
     expect((await res2.json()).metas).toHaveLength(2)
@@ -261,7 +343,7 @@ describe("chart-generation serving integration (entry paths only)", () => {
     expect(jwCalls).toBe(2) // the failed refresh attempt
     const body = await res.json()
     expect(body.metas.map((m: { id: string }) => m.id)).toEqual(["tt1000101", "tt1000102"])
-    expect((await pinChartFamily(JW_MOVIE)).id).toBe("20261022-00")
+    expect((await pinChartFamily(JW_MOVIE)).id).toBe("20261022-06")
     // Immediate retry: gated, no upstream call, old rows kept.
     const res2 = await pictoriumCatalog(catalogReq("pictorium-jw-movies"), "movie", "pictorium-jw-movies", null, null)
     expect((await res2.json()).metas.map((m: { id: string }) => m.id)).toEqual(["tt1000101", "tt1000102"])
@@ -276,7 +358,7 @@ describe("chart-generation serving integration (entry paths only)", () => {
     expect((await pinChartFamily(ANIME_MOVIE)).id).toBe(CHART_LIVE_PIN_ID)
     const jwRes = await pictoriumCatalog(catalogReq("pictorium-jw-movies"), "movie", "pictorium-jw-movies", null, null)
     expect((await jwRes.json()).metas).toHaveLength(2)
-    expect((await pinChartFamily(JW_MOVIE)).id).toBe("20261022-00")
+    expect((await pinChartFamily(JW_MOVIE)).id).toBe("20261022-06")
   })
 
   it("isolates keyed vs public anime snapshots", async () => {
@@ -294,9 +376,10 @@ describe("chart-generation serving integration (entry paths only)", () => {
   })
 
   it("uses historical TTLs for excluded windows (variant 1h, empty 60s)", async () => {
-    // Canonical default window: 12h.
+    // Canonical default window: pinned family end (2h remaining in this
+    // 06-12 fixture slot for the 6h JW family).
     await pictoriumCatalog(catalogReq("pictorium-jw-movies"), "movie", "pictorium-jw-movies", null, null)
-    expect(readyTtl("stremio:catalog:v4:movie:pictorium-jw-movies")).toBe(CHART_READY_TTL_MS)
+    expect(readyTtl("stremio:catalog:v4:movie:pictorium-jw-movies")).toBe(2 * 60 * 60 * 1000)
     // Excluded variant window (platform genre drill-down, live content):
     // unchanged 1h.
     await pictoriumCatalog(catalogReq("pictorium-netflix-movies", "api_key=test-key&genre=Azione"), "movie", "pictorium-netflix-movies", null, null)
@@ -319,6 +402,7 @@ describe("chart-generation serving integration (entry paths only)", () => {
     expect(pinnedFamilyRows(await pinChartFamily(PLATFORM_NETFLIX))?.map((r) => r.tmdbId)).toEqual([101, 102])
     // JW charts family untouched by the platform request.
     expect((await pinChartFamily(JW_MOVIE)).id).toBe(CHART_LIVE_PIN_ID)
-    expect(readyTtl("stremio:catalog:v4:movie:pictorium-netflix-movies")).toBe(CHART_READY_TTL_MS)
+    // Platform ready body: pinned 12h family end (2h remaining in this fixture).
+    expect(readyTtl("stremio:catalog:v4:movie:pictorium-netflix-movies")).toBe(2 * 60 * 60 * 1000)
   })
 })

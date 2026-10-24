@@ -9,7 +9,7 @@ import { resolveRankingSource, type RankingSlot } from "@/lib/ranking-source"
 import { fetchCustomRankingTop20, findRankingCustomCatalog } from "@/lib/custom-ranking"
 import { rateLimit, rateLimitKey, rateLimitResponse } from "@/lib/rate-limit"
 import { cacheGet, cacheSet } from "@/lib/cache"
-import { CHART_LIVE_PIN_ID, chartListGroupKey, chartPinCacheFragment, currentChartSlotFloor, pinChartFamily, pinnedFamilyRows, type ChartFamilyPin } from "@/lib/chart-generation"
+import { CHART_LIVE_PIN_ID, chartListGroupKey, chartPinCacheFragment, currentChartSlotFloor, familySlotFloorMs, pinChartFamily, pinnedFamilyRows, type ChartFamilyPin } from "@/lib/chart-generation"
 import { ensureFreshChartFamily } from "@/lib/chart-renewal"
 import { createLogger } from "@/lib/logger"
 import crypto from "node:crypto"
@@ -175,8 +175,9 @@ export async function GET(req: NextRequest) {
       : await pinChartFamily({ regionCode: region.code, regionLang: region.lang, family: chartFamily }))
     : { id: CHART_LIVE_PIN_ID, snapshot: null }
   const chartCgFragment = chartFamily ? chartPinCacheFragment(chartPin) : ""
-  // Cycle-aware freshness floor for in-scope source caches.
-  const chartFloor = currentChartSlotFloor()
+  // Cycle-aware freshness floor for in-scope source caches: the pinned
+  // family's own slot start (00/06/12/18 for JW families).
+  const chartFloor = chartFamily ? familySlotFloorMs(chartFamily) : currentChartSlotFloor()
 
   if (rankingSource.kind === "justwatch" && (rankingSource.mode === "popular" || rankingSource.mode === "trending")) {
     const cacheKey = `rank:v2:${rawType}:${id}:f20:r${region.code}:${rankingSource.mode}:g${chartGroup}${chartCgFragment}`

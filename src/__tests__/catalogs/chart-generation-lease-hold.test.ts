@@ -68,8 +68,8 @@ describe("chart-renewal lease held through commit", () => {
     // published snapshot is served, and the lease is free again.
     releaseCommit()
     const pin = await refresh
-    expect(pin.id).toBe("20261022-00")
-    expect((await pinChartFamily(JW_MOVIE)).id).toBe("20261022-00")
+    expect(pin.id).toBe("20261022-06") // JW 6h cadence: Rome 10:00 is the 06 slot
+    expect((await pinChartFamily(JW_MOVIE)).id).toBe("20261022-06")
     expect(pinnedFamilyRows(await pinChartFamily(JW_MOVIE))?.map((r) => r.tmdbId)).toEqual([1000, 1001, 1002])
     const nextOwner = await tryAcquireChartFamilyLease(JW_MOVIE)
     expect(typeof nextOwner).toBe("string")
