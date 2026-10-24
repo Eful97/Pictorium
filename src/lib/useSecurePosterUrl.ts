@@ -15,12 +15,39 @@ import { useEffect, useState } from "react"
  * - Senza `apiKey`: ritorna l'URL così com'è (non c'è nulla da nascondere).
  * - Su errore: ritorna l'URL diretto come fallback (senza chiave, quindi sicuro).
  */
-/** Rimuove api_key dalla URL (senza dipendere da window: SSR-safe). */
+/** Strips api_key from the URL (no window dependency: SSR-safe). */
 function stripApiKey(url: string): string {
   try {
-    const u = new URL(url, "http://local.invalid")
+    // Absolute URL: drop only the key, host unchanged.
+    const u = new URL(url)
     u.searchParams.delete("api_key")
     return u.toString()
+  } catch {
+    // Not absolute: handled below.
+  }
+  if (url.startsWith("//")) {
+    // Protocol-relative URL: keep the authority in protocol-relative form so
+    // the initial src points at the same CDN the effect fetches (it resolves
+    // `//host/...` against the page origin). The dummy base is parse-only and
+    // is never emitted.
+    try {
+      const u = new URL(url, "http://local.invalid")
+      u.searchParams.delete("api_key")
+      return `//${u.host}${u.pathname}${u.search}${u.hash}`
+    } catch {
+      return url
+    }
+  }
+  try {
+    // Root-relative URL (what all actual consumers pass): the dummy base is
+    // parse-only and is never emitted — a relative URL stays relative (no
+    // `local.invalid` host in the SSR markup / first paint).
+    // Other relative forms (path-relative, query-only) are best-effort: the
+    // key is stripped and no dummy host is emitted; exact resolution happens
+    // in the effect against `window.location.origin`.
+    const u = new URL(url, "http://local.invalid")
+    u.searchParams.delete("api_key")
+    return `${u.pathname}${u.search}${u.hash}`
   } catch {
     return url
   }
