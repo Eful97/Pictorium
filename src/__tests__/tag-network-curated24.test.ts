@@ -2,17 +2,17 @@
  * Curated network set (24 featured + Other group): RED-before/GREEN-after
  * for the user-authorized curation.
  *
- * - 8 bundled marks (peacock, discovery_plus, bbc, itv, channel4,
- *   starz, britbox, argos) with clean filenames: single matcher aliases,
+ * - 9 bundled marks (peacock, discovery_plus, bbc, itv, channel4,
+ *   starz, britbox, argos, real_time) with clean filenames: single matcher aliases,
  *   guarded against substring false positives; peacock wins over generic NBC.
- * - registry coherence: 74 IDs ↔ 74 files, display names, asset existence,
+ * - registry coherence: 75 IDs ↔ 75 files, display names, asset existence,
  *   old upload names gone, new provider-glass brands fall back to neutral
  *   (no invented palette).
  * - renderer semantics: Other OFF suppresses every non-featured local mark
  *   before load AND the whole TMDB fallback before fetch; featured marks
  *   stay on their own toggles; old stored hidden IDs are preserved and
  *   honored individually.
- * - transport: bounds/token/URL/cache carry all 75 entries; mixed groups
+ * - transport: bounds/token/URL/cache carry all 76 entries; mixed groups
  *   stay explicit (never silently migrated).
  */
 import { describe, it, expect, vi, beforeEach } from "vitest"
@@ -56,10 +56,10 @@ const mockedFetchImg = vi.mocked(fetchImg)
 
 const ROOT = path.resolve(__dirname, "../..")
 
-describe("curated registry (74 marks, 24 featured)", () => {
-  it("exposes 74 canonical IDs with display names and a 24-strong featured set", () => {
-    expect(NETWORK_IDS).toHaveLength(74)
-    expect(new Set(NETWORK_IDS).size).toBe(74)
+describe("curated registry (75 marks, 24 featured)", () => {
+  it("exposes 75 canonical IDs with display names and a 24-strong featured set", () => {
+    expect(NETWORK_IDS).toHaveLength(75)
+    expect(new Set(NETWORK_IDS).size).toBe(75)
     for (const id of NETWORK_IDS) {
       expect(typeof NETWORK_DISPLAY_NAMES[id]).toBe("string")
       expect(NETWORK_DISPLAY_NAMES[id].length).toBeGreaterThan(0)
@@ -90,6 +90,7 @@ describe("curated registry (74 marks, 24 featured)", () => {
     expect(NETWORK_MARK_FILES["starz"]).toBe("starz.svg")
     expect(NETWORK_MARK_FILES["britbox"]).toBe("britbox.svg")
     expect(NETWORK_MARK_FILES["argos"]).toBe("argos.svg")
+    expect(NETWORK_MARK_FILES["real_time"]).toBe("Real_Time_logo.svg")
     expect(NETWORK_DISPLAY_NAMES["peacock"]).toBe("Peacock")
     expect(NETWORK_DISPLAY_NAMES["discovery_plus"]).toBe("Discovery+")
     expect(NETWORK_DISPLAY_NAMES["bbc"]).toBe("BBC")
@@ -98,6 +99,22 @@ describe("curated registry (74 marks, 24 featured)", () => {
     expect(NETWORK_DISPLAY_NAMES["starz"]).toBe("Starz")
     expect(NETWORK_DISPLAY_NAMES["britbox"]).toBe("BritBox")
     expect(NETWORK_DISPLAY_NAMES["argos"]).toBe("Argos")
+    expect(NETWORK_DISPLAY_NAMES["real_time"]).toBe("Real Time")
+  })
+
+  it("maps the user-authorized Real Time mark with full-phrase guards", () => {
+    expect(getNetworkSvgResult("Real Time", 500)?.networkKey).toBe("real_time")
+    expect(getNetworkSvgResult("REAL TIME", 500)?.networkKey).toBe("real_time")
+    expect(getNetworkKey("Real Time")).toBe("real_time")
+    // Bare "Real"/"Time" or unrelated "…time" names must NOT match.
+    expect(getNetworkSvgResult("Real", 500)).toBeNull()
+    expect(getNetworkSvgResult("Time", 500)).toBeNull()
+    expect(getNetworkSvgResult("Prime Time", 500)?.networkKey).toBe("prime")
+    expect(getNetworkKey("Real")).toBeNull()
+    // Real Time is non-featured: it rides the shared Other group, never its own row.
+    expect(isFeaturedNetworkKey("real_time")).toBe(false)
+    expect(isOtherNetworkMarkDisabled("real_time", [TMDB_FALLBACK_SENTINEL])).toBe(true)
+    expect(isOtherNetworkMarkDisabled("real_time", [])).toBe(false)
   })
 
   it("maps the user-authorized Argos mark with word-boundary guards", () => {
@@ -329,7 +346,7 @@ describe("curated renderer semantics (Other group)", () => {
   it("renders combined/network-only pills for the new marks (shared map, madhouse fixed)", async () => {
     // The combined path previously missed `madhouse` (65 vs 66 entries);
     // unifying it on the shared map fixes that intentionally.
-    for (const key of ["madhouse", "peacock", "discovery_plus", "bbc", "itv", "channel4", "starz", "britbox", "argos"] as const) {
+    for (const key of ["madhouse", "peacock", "discovery_plus", "bbc", "itv", "channel4", "starz", "britbox", "argos", "real_time"] as const) {
       const pill = await renderNetworkOnlyLargePill(key, 500, false)
       expect(pill, `pill for ${key}`).not.toBeNull()
       expect(pill!.png).toBeInstanceOf(Buffer)
@@ -353,15 +370,15 @@ describe("curated renderer semantics (Other group)", () => {
 })
 
 describe("curated transport (bounds, token, URL, cache)", () => {
-  it("bounds derive from the registry: 74 + sentinel = 75", () => {
+  it("bounds derive from the registry: 75 + sentinel = 76", () => {
     expect(MAX_DISABLED_NETWORKS).toBe(NETWORK_IDS.length + 1)
-    expect(MAX_DISABLED_NETWORKS).toBe(75)
+    expect(MAX_DISABLED_NETWORKS).toBe(76)
     const full = [...NETWORK_IDS, TMDB_FALLBACK_SENTINEL]
     expect(sanitizeDisabledNetworks(full)).toEqual(full)
-    expect(sanitizeDisabledNetworks([...full, "extra-overflow"])).toHaveLength(75)
+    expect(sanitizeDisabledNetworks([...full, "extra-overflow"])).toHaveLength(76)
   })
 
-  it("config tokens accept the full 75-entry list and reject overlong ones", () => {
+  it("config tokens accept the full 76-entry list and reject overlong ones", () => {
     const base = {
       globalBadges: true,
       rankingBadges: true,
@@ -421,7 +438,7 @@ describe("curated transport (bounds, token, URL, cache)", () => {
 
 describe("curated provider-glass neutrality", () => {
   it("new brands resolve to neutral (no invented palette), manual accent still wins", () => {
-    for (const key of ["peacock", "discovery_plus", "bbc", "itv", "channel4", "starz", "britbox", "argos"]) {
+    for (const key of ["peacock", "discovery_plus", "bbc", "itv", "channel4", "starz", "britbox", "argos", "real_time"]) {
       expect(resolveProviderGlassBrandHex(key)).toBeNull()
     }
     expect(resolveProviderGlassAccent("peacock", null)).toBeNull()

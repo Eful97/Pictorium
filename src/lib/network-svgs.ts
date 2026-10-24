@@ -149,6 +149,7 @@ const NETWORK_TARGET_W: Record<string, number> = {
   starz: 54,
   britbox: 62,
   argos: 62,
+  real_time: 62,
 }
 
 // Single matcher lives in the client-safe `network-keys.ts` (imported
