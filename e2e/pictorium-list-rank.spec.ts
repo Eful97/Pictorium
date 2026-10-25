@@ -284,7 +284,7 @@ test("rank resolution contract: precedence, suppression, invalid collapse, regio
   expect(await meanAbsDiff(await renderPng(request, masterOffRk), await renderPng(request, masterOffPlain))).toBeGreaterThan(0)
 })
 
-test("catalog order flows into poster rk/region and resolves the same final rank", async ({ request }) => {
+test("catalog order carries region without automatic rk; live rank resolves the same final rank", async ({ request }) => {
   const res = await request.get("/catalog/movie/pictorium-jw-movies.json", {
     headers: { "x-api-key": "e2e-key" },
   })
@@ -298,14 +298,18 @@ test("catalog order flows into poster rk/region and resolves the same final rank
   const second = new URL(body.metas[1]!.poster)
   expect(first.pathname).toContain("/movie/19995")
   expect(second.pathname).toContain("/movie/157336")
-  // Every served row carries its list position + the catalog region.
-  for (const [u, rank] of [[first, "1"], [second, "2"]] as const) {
-    expect(u.searchParams.get("rk")).toBe(rank)
+  // Top-20-only contract: served rows carry NO automatic `rk=` (badges
+  // resolve live from the authorized Top-20 source); every row still
+  // carries the catalog region.
+  for (const u of [first, second]) {
+    expect(u.searchParams.get("rk")).toBeNull()
     expect(u.searchParams.get("region")).toBe("IT")
   }
-  // The served poster resolves exactly that list rank (never live/general).
+  // The served posters still resolve exactly those list ranks - now via the
+  // live Top-20 source (same titles, same positions as the mock chart).
   expect((await debugJson(request, `${first.pathname}${first.search}`)).rankings.finalRank).toBe(1)
   expect((await debugJson(request, `${second.pathname}${second.search}`)).rankings.finalRank).toBe(2)
+  // Different titles => different bytes/ETags (unchanged).
   expect(await etagOf(request, `${first.pathname}${first.search}`)).not.toBe(
     await etagOf(request, `${second.pathname}${second.search}`),
   )
