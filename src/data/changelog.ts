@@ -30,6 +30,14 @@ export interface ChangelogRelease {
  *  (which bumps on every commit and would leave the dot permanently on). */
 export const CHANGELOG: ChangelogRelease[] = [
   {
+    version: "1.26.1",
+    date: "2026-10-25",
+    title: "Release 1.26.1",
+    items: [
+      { type: "fix", text: "Keep ranking badges in the Top 20 and preserve FlixPatrol lists" },
+    ],
+  },
+  {
     version: "1.26.0",
     date: "2026-10-25",
     title: "Release 1.26.0",
