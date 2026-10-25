@@ -17,6 +17,8 @@ You need a TMDB key (variable `PICTORIUM_TMDB_KEY`, see `README.md` → Environm
 |---|---|
 | `npm run verify` | Typecheck + lint + unit tests + build — **run before every PR** |
 | `npm run test` | Unit tests (Vitest) |
+| `npx vitest run src/__tests__/<area>` | Focused unit tests during development |
+| `npx playwright test e2e/pictorium-visual.spec.ts --grep "<area>"` | Focused visual check during development (the full visual gate is still required before a PR) |
 | `npm run test:coverage` | Unit tests with coverage |
 | `npm run e2e:visual` | Visual regression (Playwright, reuses `.next-e2e`) |
 | `npm run e2e:visual:clean` | Visual regression with a clean E2E build |

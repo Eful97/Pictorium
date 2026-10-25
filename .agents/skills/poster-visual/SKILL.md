@@ -31,10 +31,12 @@ Commands, test inventory and snapshot policy are the canonical reference in
 
 ## Workflow
 
-1. **Baseline check** — include the visual suite in the final batch before
-   push/integration. During work, run it only for requested diagnosis or
-   demonstrated need (`AGENTS.md` → Verification Strategy). Failure requires
-   diagnosis; a pixel change alone does not identify a client/server divergence.
+1. **Baseline check** — include the full visual suite in the final batch before
+   push/integration. During work, run the focused subset (`--grep "<area>"` or
+   `spec.ts:<line>`, see `.agents/visual-testing.md`) when the change touches
+   rendering; the full suite stays in the final batch (`AGENTS.md` → Verification
+   Strategy). Failure requires diagnosis; a pixel change alone does not identify a
+   client/server divergence.
 
 2. **Diagnose the diff.** For pixel-diff failures, locate the failing spec, read the
    diff image paths from the test output, and compare expected vs actual. Determine
@@ -67,5 +69,5 @@ When a poster looks wrong but tests pass (or to eyeball a new feature):
 The rules (failure = blocking, review snapshots before committing, snapshots in git
 as the regression contract) live in `.agents/visual-testing.md` — follow those.
 For scheduling, follow `AGENTS.md Verification Strategy` exclusively. The final
-visual run must use current sources; during-work runs require diagnostic need.
+visual run must use current sources; during-work runs use the focused subset.
 URL/mapping/precedence changes also need the parity spec, not screenshots alone.
