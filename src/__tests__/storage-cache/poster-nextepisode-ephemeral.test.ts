@@ -143,6 +143,18 @@ function maxAgeOf(res: Response): number | null {
   return m ? Number(m[1]) : null
 }
 
+// Wall-clock determinism: a consumed rank fact is TTL-capped at the end of
+// the pinned chart slot, so a real-clock run within ~17 minutes before a
+// 00/06/12/18 Rome boundary flakes the ">1000" assertions below (observed
+// 790/645 near the 12:00 boundary). Freeze Date.now only — real timers stay
+// live for the route's abort/deadline machinery, Sharp and mocked fetch.
+// Fixed instants are plain UTC epochs; Rome wall-clock/slot math stays
+// inside the implementation (no hardcoded offsets), including the
+// 2026-10-25 DST fallback day (both instants are unambiguously post-fallback).
+const MID_SLOT_MS = Date.UTC(2026, 9, 25, 8, 0, 0) // Rome 09:00 CET, slot 06-12
+const NEAR_END_MS = Date.UTC(2026, 9, 25, 10, 55, 0) // Rome 11:55 CET, 300s left
+let fakeNow = MID_SLOT_MS
+
 async function png(color: string): Promise<Buffer> {
   return sharp({ create: { width: 500, height: 750, channels: 4, background: color } }).png().toBuffer()
 }
@@ -193,6 +205,8 @@ function mockMapping(customBadge: string | null) {
 describe("route next-episode ephemeral TTL (effective badge only)", () => {
   beforeEach(async () => {
     vi.restoreAllMocks()
+    fakeNow = MID_SLOT_MS
+    vi.spyOn(Date, "now").mockImplementation(() => fakeNow)
     cacheClear()
     // Real chart-state isolation (test hook, not a mock): a snapshot published
     // by an earlier test must not shadow the rank mocks below.
@@ -236,6 +250,28 @@ describe("route next-episode ephemeral TTL (effective badge only)", () => {
     const maxAge = maxAgeOf(res)
     expect(maxAge).not.toBeNull()
     expect(maxAge as number).toBeGreaterThan(1000)
+  })
+
+  it("competing rank wins near slot end without the ephemeral cap (slot expiry respected)", async () => {
+    // Same setup 300s before the 12:00 Rome boundary: the rank badge still
+    // wins over the eligible next episode (no 120s ephemeral cap), while the
+    // slot-expiry cap is honored instead of the full TTL.
+    fakeNow = NEAR_END_MS
+    mockMapping(null)
+    mockTvDetails(inDays(3))
+    mockedGetJWRankings.mockResolvedValue([{ tmdbId: 777, rank: 2 }] as never)
+    const res = await GET(new NextRequest(tvUrl("")), { params: Promise.resolve({ type: "tv", id: "777" }) })
+    expect(res.status).toBe(200)
+    const maxAge = maxAgeOf(res)
+    expect(maxAge).not.toBeNull()
+    expect(maxAge as number).toBeGreaterThan(120)
+    expect(maxAge as number).toBeLessThanOrEqual(300)
+    // Same frozen instant, debug view: the displayed badge is the rank
+    // (not the eligible next episode), so the 120s ephemeral cap never
+    // applies — the cap above is the slot expiry, honored as designed.
+    const dbg = await GET(new NextRequest(tvUrl("&debug=1")), { params: Promise.resolve({ type: "tv", id: "777" }) })
+    expect(dbg.status).toBe(200)
+    expect(await dbg.json()).toMatchObject({ badge: { computed: { badge: { type: "rank", rank: 2 } } } })
   })
 
   it("manual free text keeps the full TTL (manual wins over eligible auto)", async () => {
