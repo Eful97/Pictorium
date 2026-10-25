@@ -68,7 +68,12 @@ function KeywordField({
         onFocus={() => setFocused(true)}
         onBlur={commit}
         onKeyDown={(e) => {
-          if (e.key === "Enter") (e.target as HTMLInputElement).blur()
+          // Enter blurs to commit (see onBlur). preventDefault is REQUIRED:
+          // the blur unmounts nothing but focus leaves the field, and the
+          // browser's Enter default action would otherwise click whatever
+          // element receives focus next (e.g. the modal X button), closing
+          // the manager right after committing.
+          if (e.key === "Enter") { e.preventDefault(); (e.target as HTMLInputElement).blur() }
           if (e.key === "Escape") {
             cancelRef.current = true
             setDraft(value.join(", "))

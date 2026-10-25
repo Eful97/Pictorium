@@ -1206,6 +1206,9 @@
   "ui.streamSelectedCount": "{count} selectate · {lists} liste",
   "ui.streamSourceFp": "Top 10 · FlixPatrol",
   "ui.streamSourceJw": "Top 10 · JustWatch",
+  "ui.streamSourceAuto": "Automat",
+  "ui.streamSourceOnlyFp": "Doar FlixPatrol",
+  "ui.streamSourceOnlyJw": "Doar JustWatch",
   "ui.streamSourceUnknown": "Sursă în așteptare",
   "ui.streamUnavailable": "Indisponibil"
 }

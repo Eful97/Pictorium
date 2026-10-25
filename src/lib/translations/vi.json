@@ -1206,6 +1206,9 @@
   "ui.streamSelectedCount": "Đã chọn {count} · {lists} danh sách",
   "ui.streamSourceFp": "Top 10 · FlixPatrol",
   "ui.streamSourceJw": "Top 10 · JustWatch",
+  "ui.streamSourceAuto": "Tự động",
+  "ui.streamSourceOnlyFp": "Chỉ FlixPatrol",
+  "ui.streamSourceOnlyJw": "Chỉ JustWatch",
   "ui.streamSourceUnknown": "Đang chờ nguồn",
   "ui.streamUnavailable": "Không khả dụng"
 }

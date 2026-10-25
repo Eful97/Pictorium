@@ -1206,6 +1206,9 @@
   "ui.streamSelectedCount": "Vybráno {count} · seznamů: {lists}",
   "ui.streamSourceFp": "Top 10 · FlixPatrol",
   "ui.streamSourceJw": "Top 10 · JustWatch",
+  "ui.streamSourceAuto": "Automaticky",
+  "ui.streamSourceOnlyFp": "Pouze FlixPatrol",
+  "ui.streamSourceOnlyJw": "Pouze JustWatch",
   "ui.streamSourceUnknown": "Zdroj se zjišťuje",
   "ui.streamUnavailable": "Nedostupné"
 }

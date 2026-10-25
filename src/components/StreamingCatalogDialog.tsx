@@ -197,7 +197,7 @@ export function StreamingCatalogDialog({ isOpen, onClose, existing, isLegacy, on
       labelledBy="stream-dialog-title"
       describedBy="stream-dialog-desc"
       testId="streaming-catalog-dialog"
-      className="!max-w-2xl"
+      className="!max-w-2xl max-h-[90dvh] flex flex-col overflow-hidden"
     >
       <div className="flex items-center justify-between mb-1">
         <h3 id="stream-dialog-title" className="text-sm font-bold text-foreground">
@@ -236,7 +236,10 @@ export function StreamingCatalogDialog({ isOpen, onClose, existing, isLegacy, on
           </button>
         </div>
       ) : (
-        <div className="space-y-4">
+        // Bounded scroll region: with many providers (or the consent box) the
+        // content exceeds short viewports; the footer (Annulla/Aggiungi) must
+        // stay reachable by inner scrolling since body scroll is locked.
+        <div className="space-y-4 min-h-0 flex-1 overflow-y-auto scrollbar-thin pr-0.5">
           {availability.availability.indexStatus === "stale" && (
             <p role="status" className="text-[11px] text-amber-300/90 bg-amber-500/10 border border-amber-500/20 rounded-xl px-3 py-2">
               {t("ui.streamCoverageStale")}

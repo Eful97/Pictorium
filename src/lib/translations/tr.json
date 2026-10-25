@@ -1206,6 +1206,9 @@
   "ui.streamSelectedCount": "{count} seçildi · {lists} liste",
   "ui.streamSourceFp": "Top 10 · FlixPatrol",
   "ui.streamSourceJw": "Top 10 · JustWatch",
+  "ui.streamSourceAuto": "Otomatik",
+  "ui.streamSourceOnlyFp": "Yalnızca FlixPatrol",
+  "ui.streamSourceOnlyJw": "Yalnızca JustWatch",
   "ui.streamSourceUnknown": "Kaynak bekleniyor",
   "ui.streamUnavailable": "Kullanılamıyor"
 }

@@ -1206,6 +1206,9 @@
   "ui.streamSelectedCount": "{count} selected · {lists} lists",
   "ui.streamSourceFp": "Top 10 · FlixPatrol",
   "ui.streamSourceJw": "Top 10 · JustWatch",
+  "ui.streamSourceAuto": "Automatic",
+  "ui.streamSourceOnlyFp": "Only FlixPatrol",
+  "ui.streamSourceOnlyJw": "Only JustWatch",
   "ui.streamSourceUnknown": "Source pending",
   "ui.streamUnavailable": "Unavailable"
 }

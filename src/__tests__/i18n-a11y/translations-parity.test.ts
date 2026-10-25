@@ -102,4 +102,29 @@ describe("translations parity", () => {
     }
     expect(bad).toEqual([])
   })
+
+  it("source-policy buttons are translated in every locale, never raw keys", () => {
+    // The streaming-catalog add dialog renders its source-policy step from
+    // these keys (StreamingCatalogDialog sourceLabelKey). When one was
+    // missing, t() echoed the raw key into the UI ("ui.streamSourceAuto")
+    // and the E2E add-flow could not find the localized button.
+    const SOURCE_POLICY_KEYS = [
+      "ui.streamSourceAuto",
+      "ui.streamSourceOnlyFp",
+      "ui.streamSourceOnlyJw",
+    ]
+    const bad: string[] = []
+    for (const l of LANGS) {
+      for (const k of SOURCE_POLICY_KEYS) {
+        const v = DICTS[l][k]
+        if (!v || !v.trim()) {
+          bad.push(`${l}:${k} empty`)
+          continue
+        }
+        if (v === k) bad.push(`${l}:${k} echoes raw key`)
+        if (l !== "en" && v === DICTS["en"][k]) bad.push(`${l}:${k} copies English verbatim`)
+      }
+    }
+    expect(bad).toEqual([])
+  })
 })

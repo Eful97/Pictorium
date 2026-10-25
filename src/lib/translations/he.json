@@ -1206,6 +1206,9 @@
   "ui.streamSelectedCount": "{count} נבחרו · {lists} רשימות",
   "ui.streamSourceFp": "Top 10 · FlixPatrol",
   "ui.streamSourceJw": "Top 10 · JustWatch",
+  "ui.streamSourceAuto": "אוטומטי",
+  "ui.streamSourceOnlyFp": "FlixPatrol בלבד",
+  "ui.streamSourceOnlyJw": "JustWatch בלבד",
   "ui.streamSourceUnknown": "המקור ממתין",
   "ui.streamUnavailable": "לא זמין"
 }

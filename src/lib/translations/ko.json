@@ -1206,6 +1206,9 @@
   "ui.streamSelectedCount": "{count}개 선택됨 · {lists}개 목록",
   "ui.streamSourceFp": "Top 10 · FlixPatrol",
   "ui.streamSourceJw": "Top 10 · JustWatch",
+  "ui.streamSourceAuto": "자동",
+  "ui.streamSourceOnlyFp": "FlixPatrol만",
+  "ui.streamSourceOnlyJw": "JustWatch만",
   "ui.streamSourceUnknown": "소스 확인 중",
   "ui.streamUnavailable": "사용 불가"
 }

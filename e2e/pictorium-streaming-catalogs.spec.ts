@@ -508,9 +508,14 @@ function curatedCard(page: Page, itemTitle: string, sectionLabel: string) {
 const MANAGER_ROW_CLASS = "div.flex.items-center.justify-between.gap-3.p-3.rounded-2xl"
 
 function managerRow(manager: ReturnType<Page["getByTestId"]>, titleRe: RegExp, sectionLabel?: string) {
-  let row = manager.locator(MANAGER_ROW_CLASS, { hasText: titleRe })
-  if (sectionLabel) row = row.filter({ has: manager.getByText(sectionLabel, { exact: true }) })
-  return row
+  const row = manager.locator(MANAGER_ROW_CLASS, { hasText: titleRe })
+  if (!sectionLabel) return row
+  // NOTE: the inner locator MUST NOT be rooted at `manager` (manager-scoped
+  // getByText bakes the modal testid into the selector, which can never match
+  // when Playwright re-queries it inside each candidate row — every row then
+  // resolves to 0). A page-scoped text locator is re-queried per candidate
+  // row, so only rows actually containing the exact section badge match.
+  return row.filter({ has: manager.page().getByText(sectionLabel, { exact: true }) })
 }
 
 async function readSelections(page: Page): Promise<unknown> {
@@ -736,6 +741,13 @@ test("strict source modes never leak the other policy", async ({ page }) => {
   await expect(netflixGroup).toBeVisible()
   await providerToggle(netflixGroup, "Netflix").check()
   await dialog.getByRole("button", { name: /Aggiungi \(\d+\)/ }).click()
+  // New cards fetch their pinned browse lazily on intersection (never
+  // preload): scroll the fresh lists into view before asserting their
+  // requests — same contract as scrollNewCardIntoView used by the other
+  // add-flow tests. Without it, a longer page (e.g. with leftover custom
+  // sections above) leaves the new cards below the fold and no browse is
+  // ever attempted, so the poll below would time out.
+  await scrollNewCardIntoView(page)
   await expect
     .poll(
       () => record.bodies.map((b) => b["catalogId"]),
@@ -1087,7 +1099,7 @@ test("general JustWatch rows disclose honestly and reset spares streaming", asyn
   await page.getByRole("button", { name: /Priorità & Nomi/ }).click()
   const manager = page.getByTestId("catalog-manager-modal")
   await expect(manager).toBeVisible()
-  const jwMoviesRow = managerRow(manager, /Top 20/, "Film")
+  const jwMoviesRow = managerRow(manager, /Top 20 Italia/, "Film")
   await expect(jwMoviesRow, "jw movies manager row").toHaveCount(1)
   await jwMoviesRow.getByTitle("Disattiva da Stremio").click()
   await expect(page.getByRole("img", { name: "JustWatch" })).toHaveCount(1)
@@ -1097,7 +1109,11 @@ test("general JustWatch rows disclose honestly and reset spares streaming", asyn
   const reset = manager.getByTitle("Ripristina liste predefinite")
   await expect(reset, "factory reset entry point").toBeVisible()
   await reset.click()
-  await reset.click()
+  // Two-step confirm: arming swaps the button title; the second click must
+  // target the ARMED button (stale pre-arm title never resolves again).
+  const confirmReset = manager.getByTitle("Tocca di nuovo per confermare")
+  await expect(confirmReset, "factory reset armed confirm").toBeVisible()
+  await confirmReset.click()
   await expect(page.getByRole("img", { name: "JustWatch" })).toHaveCount(2, { timeout: 20_000 })
   expect(JSON.stringify(await readSelections(page))).toBe(beforeReset)
   await expect(curatedCard(page, "Hulu Series One", "Serie TV")).toBeVisible()
@@ -1208,15 +1224,36 @@ test("legacy untouched without consent; hide is not remove; manifest stable", as
 test("genuine new spaces default to JustWatch-only with anime disabled", async ({ page }) => {
   // Blank device: no keys, no onboarding trace — the ONLY positive
   // new-space evidence the app accepts (failures/locks never qualify).
+  // Pristine server catalog domain for the new-space gate below: earlier
+  // specs in a shared per-invocation DATA_DIR may have persisted catalog
+  // records (e.g. a custom catalog), and the init fires ONLY on a blank
+  // server domain (fail-closed, never on error/absence). Serve the blank
+  // domain the test's contract requires — exactly what a fresh instance
+  // returns — without touching the shared server (PUTs stay blackholed
+  // by the file-level fixture; this shadows only GETs for this test).
+  await page.route("**/api/defaults", async (route) => {
+    if (route.request().method() === "PUT") {
+      await route.fulfill({ status: 200, contentType: "application/json", body: "{}" })
+      return
+    }
+    await route.fulfill({ json: {} })
+  })
   await gotoHome(page, { keyed: false })
-  await openCatalogs(page)
   // The app writes an EXPLICIT empty selection (opt-in `[]`, never absent)
-  // and disables both anime Top 20 rows.
+  // and disables both anime Top 20 rows. Poll FIRST: the new-space default
+  // fires on positive blank-device evidence only, and dismissing the
+  // first-visit tour below would itself count as an onboarding trace.
   await expect
     .poll(async () => page.evaluate(() => localStorage.getItem("pictorium_streaming_selections")), {
       timeout: 20_000,
     })
     .toBe("[]")
+  // Dismiss the first-visit tour so its overlay stops intercepting the
+  // Cataloghi navigation (init evidence above is already recorded, so this
+  // cannot make the test pass vacuously).
+  await page.getByTestId("onboarding-close").click()
+  await expect(page.getByTestId("onboarding-tour")).toBeHidden()
+  await openCatalogs(page)
   const disabledRaw = await page.evaluate(() => localStorage.getItem("pictorium_disabled_catalogs"))
   const disabled = disabledRaw ? (JSON.parse(disabledRaw) as string[]) : []
   expect(disabled).toContain("pictorium-anime-movies")
@@ -1304,22 +1341,33 @@ test("streaming names are short, renames verbatim, emoji toggle display-only", a
   const manager = page.getByTestId("catalog-manager-modal")
   await expect(manager).toBeVisible()
   // Rename the movies row verbatim (no generated emoji is ever persisted).
+  // NOTE: the row is anchored by title+badge BEFORE entering edit mode.
+  // In edit mode the title becomes an input value and the section badges
+  // hide, so the pre-edit row locator no longer matches: the rename input
+  // is looked up manager-wide (single-row edit invariant: exactly one
+  // textbox exists while editing) and rows are re-queried by their new
+  // title after save.
   const huluFilmRow = managerRow(manager, /Hulu USA - Top 10/, "Film")
   await expect(huluFilmRow).toHaveCount(1)
   await huluFilmRow.getByTitle("Rinomina catalogo").click()
-  const nameInput = huluFilmRow.getByRole("textbox")
+  const nameInput = manager.getByRole("textbox")
   await expect(nameInput).toBeVisible()
   await nameInput.fill("Top Hulu USA")
+  // Enter commits the rename and the manager must stay open (regression:
+  // the Enter default action used to click the refocused X button and close
+  // the modal; the input now preventDefaults it).
   await nameInput.press("Enter")
-  await expect(huluFilmRow.getByText("Top Hulu USA", { exact: true })).toBeVisible()
+  const renamedFilmRow = managerRow(manager, /Top Hulu USA/)
+  await expect(renamedFilmRow.getByText("Top Hulu USA", { exact: true })).toBeVisible()
   const renames = await readRenames(page)
   expect(renames["pictorium-stream2-hulu--united-states--movies--auto"]).toBe("Top Hulu USA")
   // Sibling keeps the generated short name; emoji toggle strips display
   // emoji only (storage untouched, rename verbatim intact).
   const huluSeriesRow = managerRow(manager, /Hulu USA - Top 10/, "Serie TV")
   await huluSeriesRow.getByTitle("Rinomina catalogo").click()
-  await huluSeriesRow.getByRole("textbox").fill("Top Hulu Serie")
-  await huluSeriesRow.getByRole("textbox").press("Enter")
+  const seriesNameInput = manager.getByRole("textbox")
+  await seriesNameInput.fill("Top Hulu Serie")
+  await seriesNameInput.press("Enter")
   const emojiToggle = manager.getByRole("button", { name: "Emoji nei nomi" })
   await expect(emojiToggle).toHaveAttribute("aria-pressed", "true")
   await emojiToggle.click()
@@ -1404,8 +1452,18 @@ test("opt-in inventory has no ghosts; bulk move and delete stay per-list", async
   await awaitAddHulu(page)
   await expect(curatedCard(page, "Hulu Series One", "Serie TV")).toBeVisible({ timeout: 20_000 })
   // Ghost-free Cataloghi: no platform sections or filter chips in opt-in.
-  await expect(page.getByText("Piattaforme streaming")).toHaveCount(0)
-  await expect(page.getByRole("button", { name: "JustWatch" })).toHaveCount(0)
+  // Exact match: the page subtitle ("... classifiche piattaforme streaming
+  // e anime trending") always contains those words as a substring, only the
+  // section heading is exactly "Piattaforme streaming".
+  await expect(page.getByText("Piattaforme streaming", { exact: true })).toHaveCount(0)
+  // Ghost-free Cataloghi: no platform sections or platform filter chips in
+  // opt-in (the base Tutti/Personalizzati/JustWatch/Anime filters and the
+  // general JW dropdowns legitimately stay). A bare "JustWatch" button
+  // assertion would also match those, so each historical platform chip is
+  // asserted absent by its exact label instead.
+  for (const ghost of ["Netflix", "Prime Video", "Disney+", "NOW / Sky", "Apple TV+", "HBO Max", "Paramount+", "Crunchyroll"]) {
+    await expect(page.getByRole("button", { name: ghost, exact: true })).toHaveCount(0)
+  }
   await page.getByRole("button", { name: /Priorità & Nomi/ }).click()
   const manager = page.getByTestId("catalog-manager-modal")
   await expect(manager).toBeVisible()
@@ -1430,6 +1488,12 @@ test("opt-in inventory has no ghosts; bulk move and delete stay per-list", async
   await manager.getByTitle("Sposta tutti i selezionati in cima").click()
   await expect(rows.first()).toContainText("Hulu USA - Top 10")
   await expect(rows.first().getByText("Serie TV", { exact: true })).toBeVisible()
+  // The bulk move keeps the row selected (group ops stay available), so the
+  // select-all toggle currently reads as a count, not "Seleziona tutti".
+  // Deselect explicitly first, as a user would, to return to the unselected
+  // toolbar state before the select-all step below.
+  await huluSeriesRow.getByRole("button").first().click()
+  await expect(manager.getByRole("button", { name: "Seleziona tutti" })).toBeVisible()
   // Bulk delete: select-all covers everything, but ONLY the two streaming
   // rows are deletable (factory JW + built-in anime excluded).
   await manager.getByRole("button", { name: "Seleziona tutti" }).click()
@@ -1441,10 +1505,21 @@ test("opt-in inventory has no ghosts; bulk move and delete stay per-list", async
     "armed confirm against the exact target signature",
   ).toBeVisible()
   // Changing the selection invalidates the armed confirm (never executes
-  // a stale target set).
-  await huluSeriesRow.getByRole("button").first().click()
+  // a stale target set). Deselect the MOVIES row so the remaining deletable
+  // target is the series section only: the delete must narrow the entry to
+  // ["movies"] with the sibling Film list surviving (toggling the series row
+  // here would delete movies instead — the opposite of this test's contract).
+  const huluFilmRow = managerRow(manager, /Hulu USA - Top 10/, "Film")
+  await huluFilmRow.getByRole("button").first().click()
   await expect(manager.getByRole("button", { name: "Elimina 1 selezionati" })).toBeVisible()
-  await expect(manager.getByRole("button", { name: "Conferma eliminazione di 1?" })).toBeVisible()
+  // Stale-confirm invalidation contract (never executes a stale target set):
+  // the deselect above killed the 2-target arm, so NEITHER the old 2-target
+  // confirm NOR the new 1-target confirm may be visible before arming anew.
+  await expect(manager.getByRole("button", { name: "Conferma eliminazione di 2?", exact: true })).toHaveCount(0)
+  await expect(manager.getByRole("button", { name: "Conferma eliminazione di 1?", exact: true })).toHaveCount(0)
+  // The new signature needs its own arm: the confirm below appears only
+  // after clicking delete (the deselect above invalidated the 2-target arm,
+  // so no confirm is visible yet).
   await manager.getByRole("button", { name: "Elimina 1 selezionati" }).click()
   await expect(manager.getByRole("button", { name: "Conferma eliminazione di 1?" })).toBeVisible()
   await manager.getByRole("button", { name: "Conferma eliminazione di 1?" }).click()
@@ -1455,8 +1530,11 @@ test("opt-in inventory has no ghosts; bulk move and delete stay per-list", async
   ])
   await expect(manager.getByText("5 cataloghi abilitati su Stremio")).toBeVisible()
   // Factory + anime rows are toggle-only: selecting them alone offers no
-  // deletable target and shows the protected honest note instead.
+  // deletable target and shows the protected honest note instead. Select-all
+  // also covers the surviving Hulu movies row (still deletable), so narrow
+  // back down to factory + anime explicitly.
   await manager.getByRole("button", { name: "Seleziona tutti" }).click()
+  await huluFilmRow.getByRole("button").first().click()
   await expect(manager.getByText("Le liste selezionate non si possono eliminare (le liste factory restano).")).toBeVisible()
   await expect(manager.getByRole("button", { name: /Elimina \d+ selezionati/ })).toBeDisabled()
   // The manifest carries no platform ghosts and no removed ids.

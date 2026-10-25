@@ -1206,6 +1206,9 @@
   "ui.streamSelectedCount": "{count} geselecteerd · {lists} lijsten",
   "ui.streamSourceFp": "Top 10 · FlixPatrol",
   "ui.streamSourceJw": "Top 10 · JustWatch",
+  "ui.streamSourceAuto": "Automatisch",
+  "ui.streamSourceOnlyFp": "Alleen FlixPatrol",
+  "ui.streamSourceOnlyJw": "Alleen JustWatch",
   "ui.streamSourceUnknown": "Bron in afwachting",
   "ui.streamUnavailable": "Niet beschikbaar"
 }

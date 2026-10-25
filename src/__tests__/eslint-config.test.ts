@@ -1,5 +1,6 @@
 import { beforeAll, describe, expect, it } from "vitest"
 import { mkdir, rm, writeFile } from "node:fs/promises"
+import { existsSync } from "node:fs"
 import path from "node:path"
 import { ESLint } from "eslint"
 
@@ -36,9 +37,9 @@ describe("eslint config", () => {
     sharedEslint = new ESLint({})
   })
 
-  it("ignores generated build dirs (.next, .next-e2e, .next-e2e-auth)", async () => {
+  it("ignores generated build dirs (.next, .next-e2e, .next-e2e-auth, .next-verify)", async () => {
     const eslint = sharedEslint
-    for (const file of [".next/dev/build/probe.js", ".next-e2e/dev/build/probe.js", ".next-e2e-auth/dev/build/probe.js"]) {
+    for (const file of [".next/dev/build/probe.js", ".next-e2e/dev/build/probe.js", ".next-e2e-auth/dev/build/probe.js", ".next-verify/dev/build/probe.js"]) {
       expect(await eslint.isPathIgnored(file), `${file} should be ignored`).toBe(true)
     }
   }, ESLINT_TEST_TIMEOUT)
@@ -78,6 +79,29 @@ describe("eslint config", () => {
     } finally {
       // Removes ONLY this test's probe file. `.next-e2e-auth/dev/build` already
       // exists: the mkdir above created it, so the distDir is left in place.
+      await rm(probe, { force: true })
+    }
+  }, ESLINT_TEST_TIMEOUT)
+
+  it("lints clean even when a generated artifact with lint errors sits in .next-verify", async () => {
+    const probeDir = path.join(".next-verify", "dev", "build")
+    // Unique probe name (repo mkdtemp-style uniqueness, see anime-id-map
+    // generator tests): never overwrite or delete a pre-existing user file
+    // that happens to share this directory. Only the exact path created
+    // below is ever removed; a collision aborts loudly instead of clobbering.
+    const probe = path.join(probeDir, `eslint-guard-probe-${process.pid}.js`)
+    if (existsSync(probe)) throw new Error(`refusing to overwrite pre-existing file: ${probe}`)
+    await mkdir(probeDir, { recursive: true })
+    // Same patterns that used to break the lint: require() + @ts-ignore
+    await writeFile(probe, "const x = require('x')\n// @ts-ignore\nmodule.exports = x\n")
+    try {
+      const eslint = sharedEslint
+      const [result] = await eslint.lintFiles(probe)
+      expect(result.errorCount).toBe(0)
+    } finally {
+      // Removes ONLY this test's probe file (created above, unique per
+      // process). The `.next-verify/dev/build` directory itself is left in
+      // place, like the real distDir output.
       await rm(probe, { force: true })
     }
   }, ESLINT_TEST_TIMEOUT)

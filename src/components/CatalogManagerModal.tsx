@@ -895,7 +895,13 @@ export function CatalogManagerModal({ isOpen, onClose }: CatalogManagerModalProp
                         value={editName}
                         onChange={(e) => setEditName(e.target.value)}
                         onKeyDown={(e) => {
-                          if (e.key === "Enter") saveRename(item.id)
+                          // Enter commits the rename. preventDefault is
+                          // REQUIRED: saveRename unmounts this input synchronously
+                          // and focus lands on the modal header; without it the
+                          // browser's Enter default action clicks the focused
+                          // element (the X close button) and the manager closes
+                          // right after saving.
+                          if (e.key === "Enter") { e.preventDefault(); saveRename(item.id) }
                           if (e.key === "Escape") cancelRename()
                         }}
                         className="flex-1 px-3 py-1.5 bg-surface border border-accent-orange/50 rounded-xl text-xs text-foreground focus:outline-none focus:border-accent-orange"

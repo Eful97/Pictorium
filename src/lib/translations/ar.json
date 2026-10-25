@@ -1206,6 +1206,9 @@
   "ui.streamSelectedCount": "{count} محدد · {lists} قوائم",
   "ui.streamSourceFp": "Top 10 · FlixPatrol",
   "ui.streamSourceJw": "Top 10 · JustWatch",
+  "ui.streamSourceAuto": "تلقائي",
+  "ui.streamSourceOnlyFp": "FlixPatrol فقط",
+  "ui.streamSourceOnlyJw": "JustWatch فقط",
   "ui.streamSourceUnknown": "المصدر قيد الانتظار",
   "ui.streamUnavailable": "غير متوفر"
 }

@@ -11,6 +11,23 @@ test.beforeEach(async ({ page }) => {
       { id: "audit", name: "Audit mixed list", type: "mixed", url: "https://mdblist.com/lists/audit/list" },
     ]))
   })
+  // Test-isolation blackhole (same contract as the streaming spec fixture):
+  // the app background-syncs localStorage custom catalogs to the server via
+  // PUT /api/defaults (~400ms debounce in useCustomCatalogs). Without this,
+  // the seeded "audit" list persists into the shared per-invocation DATA_DIR
+  // and leaks as ghost manager rows into later specs in the same run
+  // (proven: +2 "Audit mixed list" rows broke the streaming inventory count
+  // 6 -> 8). Answer PUTs at the browser boundary (success, empty body) so
+  // the server is never mutated; GETs stay real. Test-level routes registered
+  // later (e.g. the retry test's own /api/defaults override) take precedence,
+  // so they are unaffected.
+  await page.route("**/api/defaults", async (route) => {
+    if (route.request().method() === "PUT") {
+      await route.fulfill({ status: 200, contentType: "application/json", body: "{}" })
+      return
+    }
+    await route.fallback()
+  })
 })
 
 for (const filtered of [false, true]) {

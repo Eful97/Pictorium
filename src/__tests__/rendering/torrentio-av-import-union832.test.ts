@@ -169,7 +169,11 @@ describe("union-832 scope pins (user-authorized additive union, no replacement)"
     const provenance = JSON.parse(rawText)
     const sorted: Record<string, unknown> = {}
     for (const key of Object.keys(provenance).sort()) sorted[key] = provenance[key]
-    expect(rawText).toBe(`${JSON.stringify(sorted, null, 2)}\n`)
+    // Line-ending-insensitive comparison: on Windows checkouts (autocrlf)
+    // the on-disk file carries CRLF while the canonical writer emits LF; the
+    // intent here is to prove sorted keys + trailing newline, not the
+    // checkout-decided line-ending style.
+    expect(rawText.replace(/\r\n/g, "\n")).toBe(`${JSON.stringify(sorted, null, 2)}\n`)
     const unionIds = new Set(REVIEWED832_APPROVED.map((e) => e.id))
     const preserved: Record<string, unknown> = {}
     for (const key of Object.keys(provenance)) {

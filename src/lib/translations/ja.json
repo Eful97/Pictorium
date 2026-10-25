@@ -1206,6 +1206,9 @@
   "ui.streamSelectedCount": "{count}件選択中・{lists}リスト",
   "ui.streamSourceFp": "Top 10 · FlixPatrol",
   "ui.streamSourceJw": "Top 10 · JustWatch",
+  "ui.streamSourceAuto": "自動",
+  "ui.streamSourceOnlyFp": "FlixPatrol のみ",
+  "ui.streamSourceOnlyJw": "JustWatch のみ",
   "ui.streamSourceUnknown": "ソース確認中",
   "ui.streamUnavailable": "利用不可"
 }
