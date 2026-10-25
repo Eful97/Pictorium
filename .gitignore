@@ -81,6 +81,15 @@ dev-server*.log
 *.tsbuildinfo
 next-env.d.ts
 
+# eslint cache (npm run lint)
+/.eslintcache
+
+# isolated verify build output (npm run build:verify)
+/.next-verify/
+# legacy auth/e2e harness artifacts (playwright preset-auth, no longer configured)
+/.next-e2e-auth/
+/test-results-auth/
+
 MARKETING.md
 $null
 

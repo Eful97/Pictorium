@@ -66,8 +66,9 @@ const eslintConfig = defineConfig([
     // `npm run lint` fails with thousands of errors from the generated
     // Next/Turbopack chunks (and the standalone copy even pulls in the
     // e2e/* suites, which vitest would collect as repo tests).
-    // NOTE: unlike the other distDirs this one is not .gitignore-listed;
-    // it is still untracked build output, never source.
+    // Git-ignored like the others and written by `npm run build:verify`
+    // (isolated build so the local verify batch can run while `next dev`
+    // holds `.next`).
     ".next-verify/**",
     // Worktree Claude (.claude/worktrees/**): contengono una copia del repo con
     // il proprio .next generato, che altrimenti verrebbe lintato (868 errori
