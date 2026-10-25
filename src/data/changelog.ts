@@ -30,6 +30,23 @@ export interface ChangelogRelease {
  *  (which bumps on every commit and would leave the dot permanently on). */
 export const CHANGELOG: ChangelogRelease[] = [
   {
+    version: "1.26.0",
+    date: "2026-10-25",
+    title: "Release 1.26.0",
+    items: [
+      { type: "fix", text: "Keep catalog controls translated and keyboard-friendly" },
+      { type: "fix", text: "Keep poster previews on the correct server" },
+      { type: "feature", text: "Expand catalogs and keep rankings in sync" },
+      { type: "feature", text: "Add the Real Time network logo" },
+      { type: "fix", text: "Keep MDBList ratings working across spaces" },
+      { type: "fix", text: "Keep catalog poster rankings consistent" },
+      { type: "feature", text: "Add optional scheduled catalog refreshes" },
+      { type: "feature", text: "Add badge controls and refine award badges" },
+      { type: "fix", text: "Show Reacher formats and prefer HDR10+" },
+      { type: "feature", text: "Expand locally stored poster formats" },
+    ],
+  },
+  {
     version: "1.25.9",
     date: "2026-10-20",
     title: "Release 1.25.9",
