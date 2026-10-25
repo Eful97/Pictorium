@@ -3,8 +3,9 @@
 //
 // USER REPRO (Lupin FIRST client vs 12th Stremio, Italy fixture): the UI read
 // a rolling live ranking while Stremio served the published chart-generation
-// pin/canonical window, so order + membership + badge rank diverged across
-// generation boundaries/JW updates. Fix: the trending route pins the SAME
+// pin/canonical window, so order + membership diverged across generation
+// boundaries/JW updates (badges always resolve live from the authorized
+// Top-20 sources on both sides). Fix: the trending route pins the SAME
 // families (jw:movie|series:{charts,popular,trending}) BEFORE the route-cache
 // lookup and keys payloads on the actual pinned generation (gen fence); a
 // genuine published EMPTY serves [] with NO live fallback (no resurrection);
@@ -185,7 +186,10 @@ describe("trending canonical window (Lupin series, IT fixture)", () => {
     installFetch()
     liveOrder = PHASE_A
 
-    // Stremio catalog publishes the canonical window (Lupin 12th).
+    // Stremio catalog publishes the canonical window (Lupin 12th): same
+    // order, same membership — but NO automatic rk= (Top-20-only contract:
+    // the badge resolves live from the authorized sources, identically on
+    // both sides).
     const cat = await catalogGET(req("/catalog/series/pictorium-jw-series.json?api_key=testkey"), catalogParams("pictorium-jw-series.json"))
     expect(cat.status).toBe(200)
     const catBody = await readJson(cat)
@@ -193,7 +197,7 @@ describe("trending canonical window (Lupin series, IT fixture)", () => {
     const catIds = (catBody.metas as CatalogMeta[]).map((m) => posterTmdbId(m.poster))
     expect(catIds).toEqual(PHASE_A)
     const catLupin = (catBody.metas as CatalogMeta[]).find((m) => posterTmdbId(m.poster) === LUPIN)
-    expect(posterRank((catLupin as CatalogMeta).poster)).toBe(12)
+    expect(posterRank((catLupin as CatalogMeta).poster)).toBeNull()
 
     // Live JW drifts (Lupin jumps 1st) AFTER the publish. Drop the rolling
     // JW cache so the drift is observable (in production it arrives via
@@ -232,12 +236,13 @@ describe("trending canonical window (Lupin series, IT fixture)", () => {
       expect(secondBody.tv[0].id).toBe(LUPIN)
       expect(secondBody.tv[0].rank).toBe(1)
 
-      // Stremio converges on the same new rows (no stale JW rank).
+      // Stremio converges on the same new rows (no stale JW rank); poster
+      // URLs carry no automatic rk= (live badge resolution on both sides).
       const cat = await catalogGET(req("/catalog/series/pictorium-jw-series.json?api_key=testkey"), catalogParams("pictorium-jw-series.json"))
       const catBody = await readJson(cat)
       expect((catBody.metas as CatalogMeta[]).map((m) => posterTmdbId(m.poster))).toEqual(PHASE_B)
       const catLupin = (catBody.metas as CatalogMeta[]).find((m) => posterTmdbId(m.poster) === LUPIN)
-      expect(posterRank((catLupin as CatalogMeta).poster)).toBe(1)
+      expect(posterRank((catLupin as CatalogMeta).poster)).toBeNull()
     } finally {
       vi.useRealTimers()
     }

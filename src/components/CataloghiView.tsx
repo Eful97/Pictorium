@@ -820,10 +820,11 @@ export function CataloghiView() {
     if (!id) return
     const mediaType = (item.media_type || item.mediaType) as "movie" | "tv" || "movie"
     const title = item.title ?? item.name ?? ""
-    // Rank effimero di lista (decisione A): la preview usa lo stesso snapshot
-    // Stremio della riga (stesso `rk=`). Region: le griglie streaming la
-    // portano per-item, i built-in seguono il default globale (null).
-    const lr = typeof item.rank === "number" && Number.isInteger(item.rank) && item.rank >= 0 && item.rank <= 100 ? item.rank : null
+    // No automatic list-rank override (Top-20-only contract): catalogs and
+    // cards never emit `rk=` — preview and Stremio both resolve the badge
+    // live (general JW / Anime Top 20, or the selected custom Top 20).
+    // Region: streaming grids carry it per-item, built-ins follow the
+    // global default (null).
     const rg = (item as SimklCardItem & { region?: unknown }).region
     navigateToPoster(toSearchResult({
       id,
@@ -831,7 +832,7 @@ export function CataloghiView() {
       title,
       name: title,
       poster_path: item.poster_path ?? item.posterPath,
-      listRank: lr,
+      listRank: null,
       listRegion: typeof rg === "string" && rg.length > 0 ? rg : null,
     }), "cataloghi", listName, seasonalKeywords)
   }
@@ -1368,6 +1369,8 @@ export function CataloghiView() {
                         // del click compatto: rename > ranking > JW > base,
                         // risolta al click così rinomine/ranking tardivi
                         // seguono). Mai dal titolo griglia né dal titolo film.
+                        // No automatic `rk=` from any grid (Top-20-only
+                        // contract): preview and Stremio resolve live.
                         const gridListName = !gridSource
                           ? gridTitle
                           : isCustomGridSource(gridSource)
@@ -1382,7 +1385,7 @@ export function CataloghiView() {
                           title: item.title,
                           name: item.title,
                           poster_path: item.posterPath,
-                          listRank: typeof item.rank === "number" && Number.isInteger(item.rank) && item.rank >= 0 && item.rank <= 100 ? item.rank : null,
+                          listRank: null,
                           listRegion: typeof item.region === "string" && item.region.length > 0 ? item.region : null,
                         }), "cataloghi", gridListName, seasonalKeywords)
                       }

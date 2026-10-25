@@ -78,6 +78,7 @@ import { sanitizeEffectiveAccentMeta, type EffectiveAccentMeta } from "@/lib/eff
 import { hashUserFragment, msUntilPosterScheduledRefresh, userTagFragment } from "@/lib/cache"
 import { FormatOverloadError, runFormatConversion } from "@/lib/poster-format-gate"
 import { hardenPosterSearchParams, isPresetsPosterMode, isPreviewAuthRequired, isPreviewDowngraded, isPublicPosterInstance, parseListRankParam, resolveFinalRankWithListContext } from "@/lib/poster-params-hardening"
+import { isAutomaticTrendRank } from "@/lib/badge-priority"
 import { DEMOSAMPLES_FLAG, DEMO_SAMPLE_GENRE, DEMO_SAMPLE_MOVIE_DATE, DEMO_SAMPLE_QUALITY, DEMO_SAMPLE_RANK, DEMO_SAMPLE_TV_DATE, isDemoSamplesRequest, mergeDemoSampleRatings } from "@/lib/demo-samples"
 import {
   STD_H,
@@ -650,6 +651,14 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
   // Rank effettivamente consumato dallo snapshot (per il freshness cap sotto).
   let trendSnapshotPin: ChartFamilyPin | null = null
   let animeSnapshotPin: ChartFamilyPin | null = null
+  // Saved-rank fallback for the automatic channel: only a stored Top-20
+  // rank may stand in on cold failure. A saved platform/custom rank past
+  // the window is never resurrected (explicit `rank=` overrides and the
+  // `rk=` list context keep their own precedence below, untouched).
+  const savedAutomaticRank = (m: typeof mapping): number | null => {
+    const r = m?.badgeRank ?? m?.trendRank ?? null
+    return isAutomaticTrendRank(r) ? r : null
+  }
   const trendPreflight: Promise<number | null> = !needTrendFetch || jwGlobalUnsupported
     ? Promise.resolve(null)
     : (rankingSourcePre.kind === "custom" && rankingCustomPre
@@ -684,13 +693,19 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
         .then((pin) => {
           trendSnapshotPin = pin
           trendRankLive = pin.snapshot != null
-          // Cold failure (no snapshot): legacy charts contract degrades to the
-          // saved rank; a genuine miss in a published snapshot stays null
-          // (never resurrect a stale saved rank for an unranked title).
-          if (!pin.snapshot) return isNewJwModePre ? null : (mapping?.badgeRank ?? mapping?.trendRank ?? null)
-          return pin.snapshot.rows.find((x) => x.tmdbId === tmdbId)?.rank ?? null
+          // Cold failure (no snapshot): legacy charts contract degrades to
+          // the saved rank, capped at the automatic Top-20 window (never
+          // resurrect a stale platform/custom rank past it); a genuine miss
+          // in a published snapshot stays null (never resurrect a stale
+          // saved rank for an unranked title).
+          if (!pin.snapshot) return isNewJwModePre ? null : savedAutomaticRank(mapping)
+          const found = pin.snapshot.rows.find((x) => x.tmdbId === tmdbId)?.rank ?? null
+          // Automatic badges read official Top-20 positions only: an
+          // official rank past the window (overfetch shift, package-filter
+          // ranks) yields no badge — never clamped, never remapped.
+          return isAutomaticTrendRank(found) ? found : null
         })
-        .catch(() => { trendRankLive = false; trendSnapshotPin = null; return isNewJwModePre ? null : (mapping?.badgeRank ?? mapping?.trendRank ?? null) }))
+        .catch(() => { trendRankLive = false; trendSnapshotPin = null; return isNewJwModePre ? null : savedAutomaticRank(mapping) }))
   const animePreflight: Promise<number | null> = !needAnimeFetch
     // List-rank context wins over live anime (decision A): a skipped fetch
     // resolves to null, never NaN (stable cache key, no phantom anime win).

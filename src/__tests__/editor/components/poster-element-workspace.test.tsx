@@ -232,15 +232,21 @@ describe("six-tab homes", () => {
     if (customSwitch.getAttribute("aria-checked") !== "true") fireEvent.click(customSwitch)
     fireEvent.click(screen.getByRole("switch", { name: "ui.badgeGenre" }))
     // Dirty session disables testing with a Save-first hint (no bypass).
-    expect(screen.getByRole("button", { name: "ui.customRatingTest" })).toBeDisabled()
+    // Scoped to the visible Information tabpanel (same pattern as the tab
+    // tests above): the whole SettingsPanel mounts every tab hidden, and a
+    // document-wide accessible-name scan here costs ~0.5s locally (pure
+    // query cost, no render storm) — fatal under CI load. Same assertions,
+    // narrower scope.
+    const infoPanel = customSwitch.closest('[role="tabpanel"]') as HTMLElement
+    expect(within(infoPanel).getByRole("button", { name: "ui.customRatingTest" })).toBeDisabled()
     expect(screen.getByText("ui.customRatingSaveFirstHint")).toBeInTheDocument()
     await act(async () => {
       fireEvent.click(screen.getByTestId("settings-save"))
     })
-    const testBtn = await screen.findByRole("button", { name: "ui.customRatingTest" })
+    const testBtn = await within(infoPanel).findByRole("button", { name: "ui.customRatingTest" })
     expect(testBtn).not.toBeDisabled()
     await act(async () => { fireEvent.click(testBtn) })
-    expect(await screen.findByText(/ui\.customRatingTestOk/)).toBeInTheDocument()
+    expect(await within(infoPanel).findByText(/ui\.customRatingTestOk/)).toBeInTheDocument()
     expect(screen.getByText(/200 OK/)).toBeInTheDocument()
     expect(screen.getByText(/12 ms/)).toBeInTheDocument()
     expect(screen.getByText("MySrc")).toBeInTheDocument()
@@ -263,7 +269,10 @@ describe("six-tab homes", () => {
     // available with no Save-first hint.
     const customSwitch = screen.getByRole("switch", { name: "ui.customRatings" })
     if (customSwitch.getAttribute("aria-checked") !== "true") fireEvent.click(customSwitch)
-    const testBtn = await screen.findByRole("button", { name: "ui.customRatingTest" })
+    // Same tabpanel scoping as the success test above: document-wide
+    // accessible-name scans are the measured slow query under load.
+    const infoPanel249 = customSwitch.closest('[role="tabpanel"]') as HTMLElement
+    const testBtn = await within(infoPanel249).findByRole("button", { name: "ui.customRatingTest" })
     expect(testBtn).not.toBeDisabled()
     fireEvent.click(testBtn)
     expect(testBtn).toBeDisabled()

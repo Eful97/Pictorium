@@ -58,7 +58,9 @@
     ".next-prod/types/**/*.ts",
     ".next-prod/dev/types/**/*.ts",
     ".next-e2e-auth/types/**/*.ts",
-    ".next-e2e-auth/dev/types/**/*.ts"
+    ".next-e2e-auth/dev/types/**/*.ts",
+    ".next-verify/types/**/*.ts",
+    ".next-verify/dev/types/**/*.ts"
   ],
   "exclude": [
     "node_modules",

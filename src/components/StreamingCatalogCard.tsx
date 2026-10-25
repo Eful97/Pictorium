@@ -155,9 +155,11 @@ export function StreamingCatalogCard({
     const tmdbId = typeof item.tmdbId === "number" ? item.tmdbId : item.id
     if (typeof tmdbId !== "number" || !Number.isSafeInteger(tmdbId) || tmdbId <= 0) return
     const mediaType = (item.media_type || item.mediaType) === "tv" ? ("tv" as const) : ("movie" as const)
-    // Rank/region effimeri di lista (decisione A): la preview usa lo stesso
-    // snapshot Stremio della riga (stesso `rk=`/`region=`), mai persistiti.
-    const lr = typeof item.rank === "number" && Number.isInteger(item.rank) && item.rank >= 0 && item.rank <= 100 ? item.rank : null
+    // No automatic list rank from curated cards (Top-20-only contract):
+    // only general JW / Anime Top 20 — or an explicitly selected custom
+    // Top 20, resolved live — produce an automatic badge. The preview uses
+    // the same snapshot row as Stremio (same absent `rk=` / `region=`),
+    // never persisted.
     navigateToPoster(
       toSearchResult({
         id: tmdbId,
@@ -165,7 +167,7 @@ export function StreamingCatalogCard({
         title: item.title ?? item.name ?? "",
         name: item.title ?? item.name ?? "",
         poster_path: null,
-        listRank: lr,
+        listRank: null,
         listRegion,
       }),
       "cataloghi",

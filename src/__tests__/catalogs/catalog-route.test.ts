@@ -503,6 +503,86 @@ describe("GET /catalog/[type]/[id]", () => {
     expect(body.metas[0].poster).toContain(`rv=${POSTER_URL_VERSION}`)
   })
 
+  it("emits no automatic rk override on JW Top-20 rows (badges resolve live)", async () => {
+    const jwBoth = Response.json({
+      data: {
+        streamingCharts: {
+          edges: [
+            {
+              streamingChartInfo: { rank: 5 },
+              node: { content: { title: "Five", externalIds: { tmdbId: 5001, imdbId: "tt0005001" } } },
+            },
+            {
+              streamingChartInfo: { rank: 21 },
+              node: { content: { title: "Twenty One", externalIds: { tmdbId: 5021, imdbId: "tt0005021" } } },
+            },
+          ],
+        },
+      },
+    })
+    const tmdbMovie = (id: number, title: string) =>
+      Response.json({ id, title, poster_path: `/${id}.jpg`, release_date: "2024-01-01" })
+    vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(jwBoth)
+      .mockResolvedValueOnce(tmdbMovie(5001, "Five"))
+      .mockResolvedValueOnce(tmdbMovie(5021, "Twenty One"))
+
+    const req = new NextRequest("http://localhost:3000/catalog/movie/pictorium-jw-movies.json?api_key=settings-key")
+    const res = await GET(req, { params: Promise.resolve({ type: "movie", id: "pictorium-jw-movies.json" }) })
+    const body = await res.json()
+
+    expect(res.status).toBe(200)
+    expect(body.metas).toHaveLength(2)
+    // No automatic rk= on any row — not even official Top-20 positions: the
+    // badge resolves live at render from the authorized sources, identically
+    // in preview and Stremio.
+    for (const meta of body.metas as Array<{ poster: string }>) {
+      expect(new URL(meta.poster).searchParams.has("rk")).toBe(false)
+    }
+  })
+
+  it("emits no automatic rk override for platform Top 10 rows (badge resolves live)", async () => {
+    vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(Response.json({ id: 1715493, imdb_id: "tt1715493" }))
+      .mockResolvedValueOnce(Response.json({ id: 1715493, title: "Platform Film", release_date: "2026-01-01" }))
+    mockedResolveFlixSides.mockResolvedValueOnce({
+      movie: {
+        kind: "hit",
+        entries: [
+          { rank: 1, title: "Platform Film", tmdb: { id: 1715493, media_type: "movie", release_date: "2026-01-01" } },
+        ],
+      },
+      tv: { kind: "miss" },
+      loadFailed: false,
+    })
+    mockedGetTop10.mockResolvedValueOnce({
+      platform: "netflix",
+      platformName: "Netflix",
+      country: "italy",
+      movies: [
+        {
+          rank: 1,
+          title: "Platform Film",
+          tmdbId: 1715493,
+          mediaType: "movie",
+          posterPath: null,
+          releaseDate: "2026-01-01",
+        },
+      ],
+      tv: [],
+    })
+
+    const req = new NextRequest("http://localhost:3000/catalog/movie/pictorium-netflix-movies.json?api_key=settings-key")
+    const res = await GET(req, { params: Promise.resolve({ type: "movie", id: "pictorium-netflix-movies.json" }) })
+    const body = await res.json()
+
+    expect(res.status).toBe(200)
+    expect(body.metas).toHaveLength(1)
+    // Same title in the JW Top 20 still badges via live resolution; the
+    // platform row itself carries no automatic rank.
+    expect(body.metas[0].poster).not.toContain("rk=")
+  })
+
   it("falls back to TMDB external_ids when JustWatch lacks an IMDb id", async () => {
     vi.spyOn(globalThis, "fetch")
       .mockResolvedValueOnce(justWatchResponse(687163))

@@ -1664,7 +1664,9 @@ export async function pictoriumCatalog(
           if (pinnedPage && pinnedPage.length > 0) {
             servedCanonical = true
             servedFromPin = true
-            uniqueRows = pinnedPage.slice(0, 20).map((it) => ({ tmdbId: it.tmdbId, imdbId: it.imdbId || null, title: it.title || null, rank: it.rank }))
+            // No automatic rk= emission (Top-20-only contract): the badge
+            // resolves live at render from the three authorized sources.
+            uniqueRows = pinnedPage.slice(0, 20).map((it) => ({ tmdbId: it.tmdbId, imdbId: it.imdbId || null, title: it.title || null, rank: undefined }))
           }
         }
         if (!servedFromPin) {
@@ -1682,27 +1684,10 @@ export async function pictoriumCatalog(
             minFetchedAtMs: chartFloor,
           })
           // Canonical Top-20 rows (the SAME published snapshot the default
-          // page and the badge read): maps page rows at arbitrary skip to
-          // their exact global rank. Genre-local positions are never used as
-          // global rank — lookup is by tmdbId against the unfiltered
-          // snapshot, unranked titles get explicit rk=0.
-          let canonicalRank: Map<number, number> | null = null
-          if (rows.length > 0) {
-            const pinned = pinnedFamilyRows(chartPin)
-            if (pinned && pinned.length > 0) {
-              canonicalRank = new Map(pinned.map((it) => [it.tmdbId, it.rank]))
-            }
-          }
-          uniqueRows = rows.map((r, idx) => {
-          if (canonicalRank) {
-            // Same title → same URL on every page (skip 0/5/19/20) and in
-            // genre drill-downs: exact global rank, or explicit unranked.
-            return { tmdbId: r.tmdbId, imdbId: r.imdbId || null, title: r.title || null, rank: canonicalRank.get(r.tmdbId) ?? 0 }
-          }
-          // Snapshot unavailable (fail-closed legacy): only window-proven claims.
-          const isTop20Window = !hasGenre && jwSkip === 0 && idx < 20
-          const rank = isTop20Window ? (idx + 1) : (jwSkip >= 20 ? 0 : undefined)
-          return { tmdbId: r.tmdbId, imdbId: r.imdbId || null, title: r.title || null, rank }
+          // page reads for order). No automatic rk= emission anywhere
+          // (Top-20-only contract): badges resolve live at render.
+          uniqueRows = rows.map((r) => {
+            return { tmdbId: r.tmdbId, imdbId: r.imdbId || null, title: r.title || null, rank: undefined }
           })
         }
       } else {
@@ -1744,7 +1729,10 @@ export async function pictoriumCatalog(
           }
           uniqueRows = ranking.items
             .slice(top20Skip, top20Skip + 20)
-            .map((item) => ({ tmdbId: item.tmdbId, imdbId: item.imdbId, title: item.title, rank: item.rank }))
+            // No automatic rank override on any catalog row (Top-20-only
+            // contract): the badge resolves live from the effective
+            // ranking source at render.
+            .map((item) => ({ tmdbId: item.tmdbId, imdbId: item.imdbId, title: item.title, rank: undefined }))
           // Canonical slice of the published snapshot: eligible for the
           // 12h fenced ready body (empty slices stay 60s via responseTtl).
           servedCanonical = true
@@ -1770,7 +1758,7 @@ export async function pictoriumCatalog(
         if (!d && !(row.title && row.title.length > 0)) return null
         const [imdbId, posterAndShape, logo] = await Promise.all([
           row.imdbId || d?.external_ids?.imdb_id || null,
-          pictoriumPosterAndShape(req, stType, row.tmdbId, configParam, userParam, undefined, posterLang, region.code, catalogId, row.rank, catalogTheme),
+          pictoriumPosterAndShape(req, stType, row.tmdbId, configParam, userParam, undefined, posterLang, region.code, catalogId, undefined, catalogTheme),
           apiKey ? catalogLogo(stType === "movie" ? "movie" : "tv", row.tmdbId, apiKey, tmdbLang) : Promise.resolve(undefined),
         ])
         const { poster, banner, landscapePoster, posterShape } = posterAndShape
@@ -1922,7 +1910,7 @@ export async function pictoriumCatalog(
             logo = undefined
           }
         }
-        const posterAndShape = await pictoriumPosterAndShape(req, stremioType, row.tmdbId, configParam, userParam, undefined, posterLang, region.code, catalogId, row.rank, catalogTheme)
+        const posterAndShape = await pictoriumPosterAndShape(req, stremioType, row.tmdbId, configParam, userParam, undefined, posterLang, region.code, catalogId, undefined, catalogTheme)
         const { poster, banner, landscapePoster, posterShape } = posterAndShape
         const metaId = catalogMetaId(imdbId, row.tmdbId)
         const title = details?.title || details?.name || row.title || ""
@@ -1985,12 +1973,12 @@ export async function pictoriumCatalog(
         // streaming uses jwFallbackSupported (probe-backed allowlist), legacy always
         // allows (historic).
         const jwAllowed = !streamingSel || jwFallbackSupported(streamingSel.service, streamingSel.country)
-        // Rank/poster coherence for selections: rows carry their list rank
-        // as the poster `rank=` override (same mechanism as the JW branch),
-        // resolved against the SELECTION country — legacy platform rows keep
-        // the historical undefined (rank resolves live at render).
-        const streamRankBuster = (rank: number | null | undefined): number | undefined =>
-          streamingSel && typeof rank === "number" ? rank : undefined
+        // Automatic badges read ONLY general JW Top 20 / Anime Top 20 (or
+        // the explicitly selected custom Top 20, resolved live): platform
+        // and stream rows never carry an automatic rank override, so the
+        // poster resolves the badge live at render — same title in a
+        // platform list and in the JW Top 20 shows the JW rank.
+        // (Legacy platform rows already passed undefined here.)
         // Strict packages for selections (no sibling aliases); historic unions
         // for legacy (Peacock/SkyShowtime preserved byte-identical).
         const pkgs = !jwAllowed
@@ -2069,7 +2057,7 @@ export async function pictoriumCatalog(
             if (title.length === 0) return null
             const [imdbId, posterAndShape, logo] = await Promise.all([
               row.imdbId || details?.external_ids?.imdb_id || null,
-              pictoriumPosterAndShape(req, stType, row.tmdbId, configParam, userParam, undefined, posterLang, region.code, catalogId, streamRankBuster(row.rank), catalogTheme),
+              pictoriumPosterAndShape(req, stType, row.tmdbId, configParam, userParam, undefined, posterLang, region.code, catalogId, undefined, catalogTheme),
               apiKey ? catalogLogo(stType === "movie" ? "movie" : "tv", row.tmdbId, apiKey, tmdbLang) : Promise.resolve(undefined),
             ])
             const { poster, banner, landscapePoster, posterShape } = posterAndShape
@@ -2144,7 +2132,7 @@ export async function pictoriumCatalog(
               const [imdbId, details, posterAndShape, logo] = await Promise.all([
                 resolveImdbId(stType === "movie" ? "movie" : "tv", item.tmdbId, apiKey, CATALOG_TMDB_TIMEOUT_MS),
                 getDetails(stType === "movie" ? "movie" : "tv", item.tmdbId, tmdbLang, apiKey, catalogTimeoutSignal(), CATALOG_TMDB_TIMEOUT_MS).catch(() => null),
-                pictoriumPosterAndShape(req, stType, item.tmdbId, configParam, userParam, undefined, posterLang, region.code, catalogId, streamRankBuster(item.rank), catalogTheme),
+                pictoriumPosterAndShape(req, stType, item.tmdbId, configParam, userParam, undefined, posterLang, region.code, catalogId, undefined, catalogTheme),
                 catalogLogo(stType === "movie" ? "movie" : "tv", item.tmdbId, apiKey, tmdbLang),
               ])
               const { poster, banner, landscapePoster, posterShape } = posterAndShape

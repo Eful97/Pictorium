@@ -430,6 +430,33 @@ describe("StreamingCatalogCard", () => {
     expect(document.querySelector('img[src*="image.tmdb.org"]')).toBeNull()
   })
 
+  it("empty genuine snapshot renders the honest empty text with its stamp (never a blank rail)", async () => {
+    mockedUserFetch.mockImplementation(async (url: unknown) => {
+      if (String(url).includes("/api/streaming-catalog?")) {
+        return browseResponse(
+          "pictorium-stream2-paramount--italy--all--auto",
+          "paramount",
+          "italy",
+          "all",
+          "unknown",
+          [],
+          1761331200000,
+        )
+      }
+      return new Response(JSON.stringify({}))
+    })
+    renderWithCtx(<StreamingCatalogCard {...cardProps} section="all" />)
+    // Honest empty state instead of a blank rail; the served stamp stays.
+    expect(await screen.findByText("ui.customNoTitles")).toBeTruthy()
+    const iso = new Date(1761331200000).toISOString()
+    expect(document.querySelector(`time[datetime="${iso}"]`)).not.toBeNull()
+    // No counter, no guessed logo, no thumbnails.
+    expect(document.querySelector(".counter-badge")).toBeNull()
+    expect(document.querySelector('img[src="/catalogs/idB7ODvhZ1_logos.svg"]')).toBeNull()
+    expect(document.querySelector('img[src="/catalogs/JW_Logo_color.svg"]')).toBeNull()
+    expect(document.querySelector('img[src*="image.tmdb.org"]')).toBeNull()
+  })
+
   it("renders the Pictorium publication line from the browse stamp (no extra fetch)", async () => {
     mockedUserFetch.mockImplementation(async (url: unknown) => {
       if (String(url).includes("/api/streaming-catalog?")) {

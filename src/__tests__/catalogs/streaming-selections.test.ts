@@ -632,7 +632,7 @@ describe("streaming availability index", () => {
 })
 
 describe("catalog serving per selection", () => {
-  it("serves a selection with its own country region, list rank and FP source header", async () => {
+  it("serves a selection with its own country region and FP source header, without automatic rank override", async () => {
     mockTmdbFetch()
     mockedEnsureFresh.mockResolvedValue(pinWith([{ tmdbId: 11, imdbId: "tt1000001", rank: 1, title: "Test Show" }], "flixpatrol") as never)
     const req = new NextRequest(
@@ -645,7 +645,9 @@ describe("catalog serving per selection", () => {
     expect(body.metas).toHaveLength(1)
     expect(body.metas[0].id).toBe("tt1000001")
     expect(body.metas[0].poster).toContain("region=IT")
-    expect(body.metas[0].poster).toContain("rk=1")
+    // Platform/stream lists never supply their own rank: the badge resolves
+    // live (general JW/Anime Top 20), so no rk= is emitted.
+    expect(body.metas[0].poster).not.toContain("rk=")
     expect(mockedGetTop10).not.toHaveBeenCalled()
   })
 

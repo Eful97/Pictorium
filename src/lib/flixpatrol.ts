@@ -70,6 +70,36 @@ function tmdbCacheKey(url: string): string {
 // ogni richiesta. Il file su disco resta come fallback persistente tra i processi.
 const memCache = new Map<string, CacheData>()
 
+/**
+ * Negative-retry bookkeeping for quarantined country-empty documents
+ * (`charts: []`), reusing the established failure patterns (MDBList 60s
+ * error-negatives; `CHART_FAILURE_RETRY_MS` 60s family gate):
+ * - `quarantineUntilMs`: per-country cooldown. A quarantined observation is
+ *   never trusted as data and never stored as a valid payload; after the
+ *   cooldown a refetch is allowed so a healed feed recovers WITHOUT waiting
+ *   the normal 12h success TTL. Module-memory only (no distributed
+ *   guarantee): a restart drops the markers, but a poisoned disk document is
+ *   still never trusted — the first read after boot refetches (coalesced)
+ *   and either heals or re-arms the cooldown. Concurrent processes may each
+ *   spend one fetch per cooldown window: bounded, never a storm.
+ * - `fetchInflight`: single-flight coalescing for same-country fetches, so
+ *   concurrent consumers (sibling families, live windows) share one
+ *   upstream read (same pattern as streaming-availability).
+ */
+const QUARANTINE_NEGATIVE_TTL_MS = 60_000
+const quarantineUntilMs = new Map<string, number>()
+const fetchInflight = new Map<string, Promise<CatalogData>>()
+
+function fetchCountryCoalesced(country: string): Promise<CatalogData> {
+  const pending = fetchInflight.get(country)
+  if (pending) return pending
+  const run = fetchCatalog(country).finally(() => {
+    if (fetchInflight.get(country) === run) fetchInflight.delete(country)
+  })
+  fetchInflight.set(country, run)
+  return run
+}
+
 const SLUG_TO_PLATFORM: Record<string, string> = {
   netflix: "Netflix",
   disney: "Disney+",
@@ -233,6 +263,38 @@ function flixEntriesHaveValidId(entries: unknown): boolean {
   })
 }
 
+/**
+ * Country-wide empty-document guard (suspicious-empty quarantine).
+ *
+ * A whole country document with zero `charts` is quarantined as an
+ * integrity failure, never trusted as data. Policy rationale (no claim is
+ * made about what the upstream served at any given moment — only the
+ * received document shape is judged): the per-chart contract already covers
+ * genuine "nothing to show" cases at finer granularity (absent split, stale
+ * date, malformed entries), while acting on an entirely chartless document
+ * would retire every list at once; so the chartless shape is quarantined
+ * regardless of cause. Quarantine semantics:
+ * - strict callers (`freshOrThrow`) observe `docInvalid` (or `loadFailed`
+ *   when a last-good payload exists, mirroring a transport failure) and
+ *   retain the last-good snapshot behind the 60s failure gate (cold: no
+ *   publish);
+ * - legacy callers observe a plain miss (or the last-good payload
+ *   fail-open, mirroring a transport failure) and fall back to JW per media
+ *   type;
+ * - a last-good country payload (memory + disk, timestamps untouched) is
+ *   never overwritten by the empty one; retry after a bounded 60s negative
+ *   cooldown reuses the established failure patterns (MDBList 60s
+ *   error-negatives, `CHART_FAILURE_RETRY_MS`), never the normal 12h
+ *   success TTL — a healed feed recovers without waiting 12h.
+ *
+ * A chart that is PRESENT + fresh with `entries: []` remains a genuine
+ * supported empty (unchanged). Malformed documents and entry collections
+ * with zero usable tmdbIds keep their existing documented rules.
+ */
+export function isEmptyCountryDocument(doc: unknown): doc is CatalogData {
+  return isValidFlixCatalogDoc(doc) && doc.charts.length === 0
+}
+
 // ---------------------------------------------------------------------------
 // Chart-date freshness (daily fp-crawler charts).
 //
@@ -390,6 +452,12 @@ interface FlixDocLoad {
  * A malformed document is NOT an error here — it resolves to a miss (no
  * document), so the caller falls back to JW per media type; only a JW failure
  * on top of that throws downstream (both sources down).
+ * A country-wide EMPTY document (`charts: []`) is quarantined (see
+ * `isEmptyCountryDocument`): never trusted as data, never stored, never
+ * overwriting a last-good cache — handling mirrors a transport failure with
+ * the same previous state (last-good fail-open / retention when previous
+ * data exists, miss + `docInvalid` for strict when cold), with retry after
+ * a bounded 60s negative cooldown instead of the normal 12h success TTL.
  */
 async function loadFlixCatalogDoc(country: string, minFetchedAtMs: number | undefined, freshOrThrow: boolean): Promise<FlixDocLoad> {
   const now = Date.now()
@@ -416,9 +484,66 @@ async function loadFlixCatalogDoc(country: string, minFetchedAtMs: number | unde
     cached = undefined
   }
 
+  // Country-empty quarantine (memory + disk reads): a cached `charts: []`
+  // document is never trusted as data. While the bounded negative cooldown
+  // is active it reports unusable WITHOUT a refetch (no storm); once the
+  // cooldown lapses the fetch below runs and a healthy payload heals the
+  // cache — never a 12h wait for a suspicious observation. Last-good
+  // timestamps are never touched here.
+  if (catalog && isEmptyCountryDocument(catalog)) {
+    if (now < (quarantineUntilMs.get(country) ?? 0)) {
+      return { doc: null, loadFailed: false, docInvalid: true }
+    }
+    catalog = null
+    cached = undefined
+  }
+
   if (!catalog || (cached && !freshSinceOk(cached.timestamp))) {
+    // Active-quarantine short-circuit: a refresh that the TTL/floor would
+    // otherwise demand is suppressed while the negative cooldown runs, so
+    // sequential same-country requests share one verdict (no storm) even
+    // with a stale last-good. Strict mirrors retention (loadFailed with a
+    // meaningful error); legacy mirrors fail-open (serves the retained
+    // payload). Timestamps are never relabeled; TTL-fresh + floor-passing
+    // good payloads serve normally below without reaching this branch.
+    if (now < (quarantineUntilMs.get(country) ?? 0)) {
+      const retained = cached?.catalog && !isEmptyCountryDocument(cached.catalog) ? cached : undefined
+      if (retained) {
+        if (freshOrThrow) {
+          return {
+            doc: null,
+            loadFailed: true,
+            loadError: new Error(`flixpatrol country document empty (quarantined): ${country}`),
+          }
+        }
+        return { doc: retained.catalog, loadFailed: false }
+      }
+      return { doc: null, loadFailed: false, docInvalid: true }
+    }
     try {
-      const fresh = await fetchCatalog(country)
+      const prevUsable = cached?.catalog && !isEmptyCountryDocument(cached.catalog) ? cached : undefined
+      const fresh = await fetchCountryCoalesced(country)
+      // Country-empty quarantine (network): a `charts: []` payload is never
+      // stored and never overwrites a last-good country cache (memory + disk
+      // payloads and timestamps untouched); only the bounded negative
+      // cooldown is armed. Caller handling mirrors a transport failure with
+      // the same previous state, reusing existing semantics instead of
+      // inventing new ones: last-good fail-open / retention when previous
+      // data exists, miss (+`docInvalid` for strict) when cold.
+      if (isEmptyCountryDocument(fresh)) {
+        quarantineUntilMs.set(country, now + QUARANTINE_NEGATIVE_TTL_MS)
+        if (prevUsable) {
+          if (freshOrThrow) {
+            return {
+              doc: null,
+              loadFailed: true,
+              loadError: new Error(`flixpatrol country document empty (quarantined): ${country}`),
+            }
+          }
+          return { doc: prevUsable.catalog, loadFailed: false }
+        }
+        return { doc: null, loadFailed: false, docInvalid: true }
+      }
       catalog = fresh
       cached = { catalog, timestamp: now }
       memCache.set(country, cached)
@@ -435,7 +560,8 @@ async function loadFlixCatalogDoc(country: string, minFetchedAtMs: number | unde
       if (freshOrThrow) return { doc: null, loadFailed: true, loadError: e }
       return { doc: catalog, loadFailed: false }
     }
-    // Integrity boundary: a malformed payload is a miss (no usable
+    // Integrity boundary: a malformed payload — or a quarantined
+    // country-wide empty (`charts: []`, handled above) — is a miss (no usable
     // document), not an error — the caller falls back to JW per media type
     // and only a JW failure on top throws downstream (both sources down,
     // never a fake empty). Legacy and strict share this outcome. The miss
@@ -898,4 +1024,6 @@ export function getSupportedCountries(): string[] {
 export function __clearFlixpatrolCache(): void {
   memCache.clear()
   tmdbCache.clear()
+  quarantineUntilMs.clear()
+  fetchInflight.clear()
 }

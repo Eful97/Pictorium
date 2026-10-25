@@ -74,7 +74,17 @@ export function SimklCard({ items, title, totalCount, meta = [], onClick, onItem
       }}
     >
       <div className="posters">
-        {displayItems.map((item, idx) => {
+        {displayItems.length === 0 ? (
+          // Honest empty state (genuine empty snapshot, never a fetch
+          // failure — those keep their own error/notice branches): a blank
+          // 185px rail hides the outcome and looks broken. The rail keeps its
+          // geometry (no layout shift when rows arrive); only the void gets a
+          // message, reusing the platform-sections empty copy (no new i18n).
+          <div className="flex items-center justify-center w-full h-full px-4 text-center text-xs text-muted" role="status">
+            {t("ui.customNoTitles")}
+          </div>
+        ) : (
+        displayItems.map((item, idx) => {
           const src = imgSrc(item)
           const mediaType = item.media_type || item.mediaType || "movie"
           const tmdbId = item.tmdbId ?? item.id
@@ -129,7 +139,8 @@ export function SimklCard({ items, title, totalCount, meta = [], onClick, onItem
               <PosterDepthSheen sheenStrength={20} />
             </div>
           )
-        })}
+        })
+        )}
       </div>
       <div className="info">
         <h3>

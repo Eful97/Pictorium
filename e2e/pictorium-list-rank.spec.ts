@@ -2,14 +2,15 @@ import { test, expect, type APIRequestContext } from "@playwright/test"
 import sharp from "sharp"
 import type { Mapping } from "../src/lib/types"
 
-// List-rank coherence (decisione A, shared renderer contract): catalog rows
-// carry their list position as `rk=` (+ `region=` = selection country); the
-// poster resolves final rank as explicit `rank=` > valid `rk=` (0..100,
-// 0 = explicit unranked, invalid = absent legacy) > live rank. rk=1 vs rk=12
-// on the SAME title must yield distinct rank debug values, ETags and bytes;
-// preview-explicit and Stremio-context URLs with the same rk must agree on
-// the list rank (never the general live rank) with identical bytes/pixels
-// when all other params are identical.
+// List-rank coherence (Top-20-only contract, shared renderer): NO catalog
+// emits an automatic `rk=` anymore — badges resolve live from the
+// authorized Top-20 sources on both preview and Stremio. Explicit `rk=`
+// (manual/diagnostic) still resolves as explicit `rank=` > valid `rk=`
+// (0..100, 0 = explicit unranked, invalid = absent legacy) > live rank.
+// rk=1 vs rk=12 on the SAME title must yield distinct rank debug values,
+// ETags and bytes; preview-explicit and Stremio-context URLs with the same
+// rk must agree on the list rank (never the general live rank) with
+// identical bytes/pixels when all other params are identical.
 //
 // API-level only (request fixture, deterministic mock, fixture title ids
 // 603 + mock JW chart 19995/157336; dummy `e2e-key` header, no real secrets

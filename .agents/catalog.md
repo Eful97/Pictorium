@@ -99,7 +99,10 @@ chart: ogni lista film/serie è interamente FP o interamente JW):
    Europe/Rome (il crawler pubblica una volta al giorno; oltre ieri = stantia,
    futuro/invalida = rifiutata). `scraped_at_utc` e timestamp di fetch/cache
    non contano mai (niente laundering del fetched-at: una cache TTL-fresh con
-   date stantie è rifiutata come un payload di rete). L'assenza dello split
+   date stantie è rifiutata come un payload di rete). Un documento paese interamente vuoto (`charts: []`)
+    non è mai un dato valido: viene messo in quarantena come integrity
+    failure (mai servito, mai sovrascritto sopra un cache buono; retry dopo
+    cooldown 60s con retention del last-good). L'assenza dello split
    (piattaforme overall-only come Crunchyroll/hayu, senza chart film/serie) è
    fallback, mai un vuoto FP genuino (che richiede chart presente + fresca +
    `entries: []`).
@@ -201,12 +204,20 @@ client-safe, riuso UI nel follow-up) + `src/lib/streaming-availability.ts`
   consentita, la pretesa UI no. Gli Anime Top 20 restano in entrambe le
   modalità (task3 disabilita esplicitamente gli anime solo per i NUOVI spazi:
   qui nessun cambio legacy/anime).
-- **Coerenza rank/poster (decisione A):** le righe portano il rank di lista come `rk=`
-  (0..100, 0 = unranked esplicito; invalido = assente legacy) e `region=` = paese
-  della selezione, così il poster mostra il badge della posizione nella lista di
-  origine (stesso renderer condiviso): `rk=` valido salta i fetch live trend/anime
-  e vince sui rank live (`rank=` esplicito manuale vince su `rk=`; ranking OFF =
-  nessun numero automatico). Stesso titolo rank N vs M = chiavi/ETag/byte distinti.
+- **Coerenza rank/poster (Top-20-only):** NESSUN catalogo emette un `rk=`
+  automatico e nessuna card/tile passa un rank di lista alla preview: i badge
+  numerici automatici provengono SOLO dalla Top 20 generale JW (posizioni
+  ufficiali 1..20; oltre la finestra nessun badge, mai clamp/remap), dalla
+  Top 20 Anime (posizioni 1..20) o dalla Top 20 custom ESPLICITAMENTE
+  selezionata come fonte ranking (posizioni 1..20). Le righe portano solo
+  `region=` = paese della selezione; liste platform/FP/stream e custom
+  ordinarie (non selezionate) non forniscono alcun rank: lo stesso titolo in
+  una lista platform e nella Top 20 JW mostra il rank JW. `rk=` resta un
+  parametro diagnostico/manuale valido (0..100, 0 = unranked esplicito;
+  `rank=` esplicito manuale vince sempre su tutto; ranking OFF = nessun
+  numero automatico). `rk=` valido, quando presente, salta i fetch live
+  trend/anime; entra nella chiave cache/ETag (stesso titolo rank N vs M =
+  byte distinti).
 
 ### Cataloghi streaming generici (Task F: `pictorium-stream2-*`, universo completo)
 

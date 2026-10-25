@@ -89,6 +89,121 @@ describe("GET /api/trending/rank with custom ranking source", () => {
     expect(jwCalls).toBe(1)
   })
 
+  it("gates a stale cached past-window rank instead of serving it (no global purge)", async () => {
+    const { cacheSet } = await import("@/lib/cache")
+    const { pinChartFamily, chartPinCacheFragment, chartListGroupKey } = await import("@/lib/chart-generation")
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (url: unknown) => {
+      const u = String((url as { url?: unknown }).url ?? url)
+      if (u.includes("apis.justwatch.com")) {
+        return Response.json({
+          data: {
+            streamingCharts: {
+              edges: Array.from({ length: 19 }, (_, i) => ({
+                streamingChartInfo: { rank: i + 1 },
+                node: { content: { title: `JW ${i}`, externalIds: { tmdbId: 700 + i, imdbId: null } } },
+              })),
+            },
+          },
+        })
+      }
+      throw new Error(`unexpected fetch ${u}`)
+    })
+
+    // Publish the canonical pin, then poison its cache entry with a
+    // pre-contract rank 21 under the exact live key.
+    const warm = await GET(new NextRequest("http://localhost:3000/api/trending/rank?type=movie&id=700&first=20&region=IT"))
+    expect(await warm.json()).toMatchObject({ rank: 1 })
+    const pin = await pinChartFamily({ regionCode: "IT", regionLang: "it-IT", family: "jw:movie:charts" })
+    const group = chartListGroupKey({ regionCode: "IT", regionLang: "it-IT" })
+    const poisonedKey = `rank:v2:movie:721:f20:rIT:g${group}${chartPinCacheFragment(pin)}`
+    cacheSet(poisonedKey, { rank: 21, period: "day", top: 20 }, ["rank", "justwatch"])
+
+    // The gate rejects the stale body and recomputes: 721 is off-window.
+    const res = await GET(new NextRequest("http://localhost:3000/api/trending/rank?type=movie&id=721&first=20&region=IT"))
+    expect(res.status).toBe(200)
+    expect(await res.json()).toMatchObject({ rank: null, top: 20 })
+  })
+
+  it("never badges an official charts rank past the Top-20 window (21 -> none, never clamped)", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (url: unknown) => {
+      const u = String((url as { url?: unknown }).url ?? url)
+      if (u.includes("apis.justwatch.com")) {
+        return Response.json({
+          data: {
+            streamingCharts: {
+              edges: [
+                ...Array.from({ length: 19 }, (_, i) => ({
+                  streamingChartInfo: { rank: i + 1 },
+                  node: { content: { title: `JW ${i}`, externalIds: { tmdbId: 700 + i, imdbId: null } } },
+                })),
+                {
+                  streamingChartInfo: { rank: 21 },
+                  node: { content: { title: "Shifted", externalIds: { tmdbId: 721, imdbId: null } } },
+                },
+              ],
+            },
+          },
+        })
+      }
+      throw new Error(`unexpected fetch ${u}`)
+    })
+
+    const shifted = await GET(new NextRequest("http://localhost:3000/api/trending/rank?type=movie&id=721&first=20&region=IT"))
+    expect(shifted.status).toBe(200)
+    expect(await shifted.json()).toMatchObject({ rank: null, top: 20 })
+
+    const inside = await GET(new NextRequest("http://localhost:3000/api/trending/rank?type=movie&id=700&first=20&region=IT"))
+    expect(await inside.json()).toMatchObject({ rank: 1, period: "day", top: 20 })
+  })
+
+  it("selected custom source wins over JW for the same title (custom precedence preserved)", async () => {
+    mockedUserDefaults.mockResolvedValue({
+      customCatalogs: [MOVIE_CUSTOM],
+      rankingSourceMovie: "trakt-movies",
+    })
+    let jwCalls = 0
+    installFetch({
+      mdblist: [
+        { tmdb_id: 801, title: "One", year: 2024, imdb_id: "tt0000801" },
+        { tmdb_id: 802, title: "Two", year: 2024, imdb_id: "tt0000802" },
+        { tmdb_id: 803, title: "Three", year: 2024, imdb_id: "tt0000803" },
+        { tmdb_id: 804, title: "Four", year: 2024, imdb_id: "tt0000804" },
+        { tmdb_id: 805, title: "Five", year: 2024, imdb_id: "tt0000805" },
+      ],
+      jwIds: [805, 806, 807],
+      onJw: () => { jwCalls++ },
+    })
+
+    // Title 805 is custom #5 and JW #1: the selected custom source owns the badge.
+    const res = await GET(
+      new NextRequest("http://localhost:3000/api/trending/rank?type=movie&id=805&u=user-1"),
+    )
+    expect(res.status).toBe(200)
+    expect(await res.json()).toMatchObject({ rank: 5, top: 20 })
+    expect(jwCalls).toBe(0)
+  })
+
+  it("ordinary custom lists without selection never badge (JW miss stays null)", async () => {
+    mockedUserDefaults.mockResolvedValue({
+      customCatalogs: [MOVIE_CUSTOM],
+    })
+    let jwCalls = 0
+    const fetchSpy = installFetch({
+      mdblist: [{ tmdb_id: 901, title: "OnlyCustom", year: 2024, imdb_id: "tt0000901" }],
+      jwIds: [],
+      onJw: () => { jwCalls++ },
+    })
+
+    // Default JW selection: the mdblist-only title is unranked, and the
+    // custom list is never even fetched for the badge (JW is consulted once).
+    const res = await GET(new NextRequest("http://localhost:3000/api/trending/rank?type=movie&id=901&u=user-1"))
+    expect(res.status).toBe(200)
+    expect(await res.json()).toMatchObject({ rank: null, top: 20 })
+    const fetchedUrls = fetchSpy.mock.calls.map((c) => String(c[0])).join(" ")
+    expect(fetchedUrls).not.toContain("mdblist")
+    expect(jwCalls).toBe(1)
+  })
+
   it("resolves the custom position for the namespace selection without JW", async () => {
     mockedUserDefaults.mockResolvedValue({
       customCatalogs: [MOVIE_CUSTOM],

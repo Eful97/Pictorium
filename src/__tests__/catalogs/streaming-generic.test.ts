@@ -541,7 +541,7 @@ describe("catalog serving per generic descriptor", () => {
   const HULU_SERIES = "pictorium-stream2-hulu--united-states--series--flixpatrol"
   const CRAVE_ALL = "pictorium-stream2-crave--canada--all--auto--amazon-channels"
 
-  it("serves a generic selection with its chart country, list rank and FP source header", async () => {
+  it("serves a generic selection with its chart country and FP source header, without automatic rank override", async () => {
     mockTmdbFetch()
     mockedEnsureFresh.mockResolvedValue(
       pinWith([{ tmdbId: 11, imdbId: "tt1000001", rank: 1, title: "Test Show" }], "flixpatrol") as never,
@@ -555,7 +555,9 @@ describe("catalog serving per generic descriptor", () => {
     expect(body.metas[0].id).toBe("tt1000001")
     expect(body.metas[0].type).toBe("series")
     expect(body.metas[0].poster).toContain("region=US")
-    expect(body.metas[0].poster).toContain("rk=1")
+    // Stream lists never supply their own rank: the badge resolves live
+    // (general JW/Anime Top 20), so no rk= is emitted.
+    expect(body.metas[0].poster).not.toContain("rk=")
   })
 
   it("preserves order/rank/real media type in mixed all lists (per-item types + movie hints)", async () => {
@@ -575,13 +577,15 @@ describe("catalog serving per generic descriptor", () => {
     expect(res.headers.get(STREAMING_SOURCE_HEADER)).toBe("flixpatrol")
     const body = await res.json()
     expect(body.metas).toHaveLength(2)
-    // Same order, same ranks, real per-item types (never renumbered/split):
+    // Same order, real per-item types (never renumbered/split); rank badges
+    // resolve live (general JW/Anime Top 20), so no automatic rk= is
+    // emitted on mixed rows either.
     expect(body.metas[0].type).toBe("movie")
     expect(body.metas[0].id).toBe("tt2000001")
-    expect(body.metas[0].poster).toContain("rk=1")
+    expect(body.metas[0].poster).not.toContain("rk=")
     expect(body.metas[1].type).toBe("series")
     expect(body.metas[1].id).toBe("tmdb:22")
-    expect(body.metas[1].poster).toContain("rk=2")
+    expect(body.metas[1].poster).not.toContain("rk=")
     // Movie items carry Easy-parity video navigation; series items do not.
     expect(body.metas[0].behaviorHints).toMatchObject({ defaultVideoId: "tt2000001", hasScheduledVideos: false })
     // Easy parity: no scheduled videos on movie items.
@@ -768,9 +772,23 @@ describe("generic renewal policy (strict sources, failure retention)", () => {
     await expect(
       fetchChartFamilyRows("stream2:flixpatrol:hulu:united-states:series:-", ctxFor("x:united-states:")),
     ).rejects.toThrow()
-    // Absent split: genuine unavailable empty, no throw.
+    // Absent split: genuine unavailable empty, no throw. NOTE: the country
+    // document must be NON-empty (it carries other charts) — a whole
+    // `charts: []` document is quarantined as an integrity failure and
+    // throws instead (covered in flixpatrol-empty-country.test.ts).
     mockFpFiles({
-      "united-states": { date: "October 22, 2026", charts: [] },
+      "united-states": {
+        date: "October 22, 2026",
+        charts: [
+          {
+            catalog_id: "netflix.movies",
+            platform: "Netflix",
+            category: "movies",
+            date: "October 22, 2026",
+            entries: [{ rank: 1, title: "Other", tmdb: { id: 11, media_type: "movie", release_date: "2024-01-01" } }],
+          },
+        ],
+      },
     })
     const absent = await fetchChartFamilyRows("stream2:flixpatrol:hulu:united-states:series:-", ctxFor("x:united-states:"))
     expect(absent).toMatchObject({ status: "empty", rows: [] })
@@ -835,16 +853,46 @@ describe("generic renewal policy (strict sources, failure retention)", () => {
     expect(hit.provenance).toBe("flixpatrol")
     expect((hit.rows as Array<{ tmdbId: number }>).map((r) => r.tmdbId)).toEqual([701, 702])
     expect(mockedGetJWRankings).not.toHaveBeenCalled()
-    // FP absent + verified JW pair -> JW fallback with its provenance.
+    // FP absent (non-empty country doc without the pair — a whole
+    // `charts: []` would quarantine as integrity failure instead) +
+    // verified JW pair -> JW fallback with its provenance.
     mockedGetJWRankings.mockClear()
-    mockFpFiles({ italy: { date: "October 22, 2026", charts: [] } })
+    mockFpFiles({
+      italy: {
+        date: "October 22, 2026",
+        charts: [
+          {
+            catalog_id: "netflix.movies",
+            platform: "Netflix",
+            category: "movies",
+            date: "October 22, 2026",
+            entries: [{ rank: 1, title: "Other", tmdb: { id: 11, media_type: "movie", release_date: "2024-01-01" } }],
+          },
+        ],
+      },
+    })
     mockedGetJWRankings.mockResolvedValue([{ tmdbId: 901, imdbId: null, rank: 1, title: "Prime Show" }])
     const fb = await fetchChartFamilyRows("stream2:auto:prime:italy:series:-", ctxFor("x:italy:"))
     expect(fb.provenance).toBe("justwatch")
     expect((fb.rows as Array<{ tmdbId: number }>).map((r) => r.tmdbId)).toEqual([901])
     // FP absent + NO verified JW pair -> genuine empty, no JW attempt.
+    // (Non-empty country doc without the pair: a whole `charts: []`
+    // quarantines as integrity failure and throws instead.)
     mockedGetJWRankings.mockClear()
-    mockFpFiles({ germany: { date: "October 22, 2026", charts: [] } })
+    mockFpFiles({
+      germany: {
+        date: "October 22, 2026",
+        charts: [
+          {
+            catalog_id: "netflix.movies",
+            platform: "Netflix",
+            category: "movies",
+            date: "October 22, 2026",
+            entries: [{ rank: 1, title: "Other", tmdb: { id: 12, media_type: "movie", release_date: "2024-01-01" } }],
+          },
+        ],
+      },
+    })
     const unavailable = await fetchChartFamilyRows("stream2:auto:wow:germany:movies:-", {
       ...ctxFor("x:germany:"),
       regionCode: "DE",

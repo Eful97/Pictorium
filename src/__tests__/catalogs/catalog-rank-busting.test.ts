@@ -52,7 +52,7 @@ describe("catalog rank cache-busting integration", () => {
     } as unknown as tmdbModule.TMDBDetails))
   })
 
-  it("injects rk parameter in poster URLs for pictorium-jw Top 20 catalogs", async () => {
+  it("emits no automatic rk override in poster URLs for pictorium-jw Top 20 catalogs", async () => {
     vi.spyOn(top20Module, "fetchTop20Ranking").mockResolvedValue({
       status: "ok",
       period: "day",
@@ -69,15 +69,18 @@ describe("catalog rank cache-busting integration", () => {
     const json = await res.json()
     expect(json.metas).toHaveLength(2)
 
+    // Top-20-only contract: badges resolve live at render, so catalog
+    // poster URLs carry no automatic rk= (manual rank=/diagnostic rk=
+    // transports are unchanged, see list-rank-override).
     const poster0 = new URL(json.metas[0].poster)
-    expect(poster0.searchParams.get("rk")).toBe("1")
+    expect(poster0.searchParams.has("rk")).toBe(false)
 
     const poster1 = new URL(json.metas[1].poster)
-    expect(poster1.searchParams.get("rk")).toBe("2")
+    expect(poster1.searchParams.has("rk")).toBe(false)
   })
 })
 
-describe("JW popular/trending arbitrary-skip canonical rank mapping", () => {
+describe("JW popular/trending arbitrary-skip canonical windows carry no automatic rk", () => {
   beforeEach(() => {
     vi.restoreAllMocks()
     // Same isolation as above: chart contributions must not leak across tests.
@@ -152,61 +155,65 @@ describe("JW popular/trending arbitrary-skip canonical rank mapping", () => {
     return json.metas as Array<{ poster: string }>
   }
 
-  it("skip=0 emits canonical ranks 1..20", async () => {
+  it("skip=0 emits no automatic rk on canonical Top-20 rows (badges resolve live)", async () => {
     mockPopularUniverse()
     const metas = await fetchPopularCatalog("")
     expect(metas).toHaveLength(20)
-    expect(rkOf(metas, 101)).toBe("1")
-    expect(rkOf(metas, 110)).toBe("10")
-    expect(rkOf(metas, 120)).toBe("20")
+    expect(rkOf(metas, 101)).toBeNull()
+    expect(rkOf(metas, 110)).toBeNull()
+    expect(rkOf(metas, 120)).toBeNull()
   })
 
-  it("skip=5 maps overlapping titles to canonical ranks and the tail to rk=0", async () => {
+  it("skip=5 emits no automatic rk on overlapping or tail rows", async () => {
     mockPopularUniverse()
     const metas = await fetchPopularCatalog("?skip=5")
     expect(metas).toHaveLength(20)
-    // Overlapping window: global ranks, not offset+idx.
-    expect(rkOf(metas, 106)).toBe("6")
-    expect(rkOf(metas, 120)).toBe("20")
-    // Past the canonical Top 20: explicit unranked.
-    expect(rkOf(metas, 121)).toBe("0")
-    expect(rkOf(metas, 125)).toBe("0")
+    // No rk= anywhere: same title, same poster URL on every page; the
+    // badge resolves live at render from the authorized Top-20 sources.
+    expect(rkOf(metas, 106)).toBeNull()
+    expect(rkOf(metas, 120)).toBeNull()
+    expect(rkOf(metas, 121)).toBeNull()
+    expect(rkOf(metas, 125)).toBeNull()
   })
 
-  it("skip=19 gives rk=20 to the last ranked title and rk=0 past it", async () => {
+  it("skip=19 emits no automatic rk on the last ranked title or past it", async () => {
     mockPopularUniverse()
     const metas = await fetchPopularCatalog("?skip=19")
     expect(metas).toHaveLength(11)
-    expect(rkOf(metas, 120)).toBe("20")
-    expect(rkOf(metas, 121)).toBe("0")
-    expect(rkOf(metas, 130)).toBe("0")
+    expect(rkOf(metas, 120)).toBeNull()
+    expect(rkOf(metas, 121)).toBeNull()
+    expect(rkOf(metas, 130)).toBeNull()
   })
 
-  it("skip=20 marks every title explicitly unranked (rk=0)", async () => {
+  it("skip=20 emits no automatic rk on any row", async () => {
     mockPopularUniverse()
     const metas = await fetchPopularCatalog("?skip=20")
     expect(metas).toHaveLength(10)
     for (const m of metas) {
-      expect(new URL(m.poster).searchParams.get("rk")).toBe("0")
+      expect(new URL(m.poster).searchParams.has("rk")).toBe(false)
     }
   })
 
-  it("same ranked title gets the same rk on every page (skip 0 vs skip 5)", async () => {
+  it("same title gets the same poster URL on every page (skip 0 vs skip 5)", async () => {
     mockPopularUniverse()
     const page0 = await fetchPopularCatalog("")
     const page5 = await fetchPopularCatalog("?skip=5")
-    expect(rkOf(page0, 106)).toBe("6")
-    expect(rkOf(page5, 106)).toBe("6")
+    const url0 = page0.find((m) => m.poster.includes("/106?") || m.poster.includes("/106&"))?.poster
+    const url5 = page5.find((m) => m.poster.includes("/106?") || m.poster.includes("/106&"))?.poster
+    // Without automatic rk=, pagination cannot fork poster identity: the
+    // same title gets the same URL on every page.
+    expect(url0).toBeDefined()
+    expect(url5).toBeDefined()
+    expect(url0).toBe(url5)
   })
 
-  it("genre drill-down uses the global snapshot, never the genre-local position", async () => {
+  it("genre drill-down emits no automatic rk (live resolution owns the badge)", async () => {
     mockPopularUniverse()
     const metas = await fetchPopularCatalog("?genre=Azione")
     expect(metas).toHaveLength(2)
-    // Globally #3 keeps its global rank even though it leads the genre window.
-    expect(rkOf(metas, 103)).toBe("3")
-    // Off-chart title is explicit unranked, not genre-local #2.
-    expect(rkOf(metas, OFF_UNIVERSE_ID)).toBe("0")
+    // No rk= on either the globally ranked title or the off-chart title.
+    expect(rkOf(metas, 103)).toBeNull()
+    expect(rkOf(metas, OFF_UNIVERSE_ID)).toBeNull()
   })
 
   it("uses one shared snapshot per request, never per-title upstream", async () => {

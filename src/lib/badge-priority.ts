@@ -50,6 +50,20 @@ export type SashBucket = (typeof SASH_BUCKETS)[number]
  *  costruzione (fetch top-20 JustWatch). */
 export const ANIME_RANK_MAX = 20
 
+/**
+ * Automatic Top-20 badge window (shared contract).
+ *
+ * Only official integer positions 1..20 produce an automatic numeric badge
+ * (general JW Top 20, selected custom Top 20, Anime Top 20). Past-window
+ * officials, non-integers and absents yield none — never clamped, never
+ * remapped, never filled from outside the window. Manual `rank=`
+ * overrides, diagnostic `rk=` and Fresh 1..100 keep their own contracts:
+ * this gate applies ONLY to automatic resolution.
+ */
+export function isAutomaticTrendRank(rank: unknown): rank is number {
+  return Number.isInteger(rank) && (rank as number) >= 1 && (rank as number) <= 20
+}
+
 export const DEFAULT_SASH_ORDER: readonly SashBucket[] = ["upcoming", "rank", "new", "award", "extra"]
 
 function isSashBucket(v: string): v is SashBucket {

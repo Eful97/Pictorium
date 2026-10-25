@@ -64,6 +64,16 @@ describe("SimklCard legacy footer (no opt-in props)", () => {
     renderWithCtx(<SimklCard items={[]} title="Empty List" totalCount={0} />)
     expect(document.querySelector(".counter-badge")).toBeNull()
   })
+
+  it("empty rail states the honest empty text instead of a blank rail", () => {
+    renderWithCtx(<SimklCard items={[]} title="Empty List" totalCount={0} />)
+    expect(screen.getByText("ui.customNoTitles")).toBeTruthy()
+  })
+
+  it("non-empty rails never show the empty text", () => {
+    renderWithCtx(<SimklCard items={items} title="Legacy List" totalCount={20} />)
+    expect(screen.queryByText("ui.customNoTitles")).toBeNull()
+  })
 })
 
 describe("SimklCard footerAdornment (source icon slot)", () => {

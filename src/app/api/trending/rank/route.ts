@@ -11,6 +11,7 @@ import { rateLimit, rateLimitKey, rateLimitResponse } from "@/lib/rate-limit"
 import { cacheGet, cacheSet } from "@/lib/cache"
 import { CHART_LIVE_PIN_ID, chartListGroupKey, chartPinCacheFragment, currentChartSlotFloor, familySlotFloorMs, pinChartFamily, pinnedFamilyRows, type ChartFamilyPin } from "@/lib/chart-generation"
 import { ensureFreshChartFamily } from "@/lib/chart-renewal"
+import { isAutomaticTrendRank } from "@/lib/badge-priority"
 import { createLogger } from "@/lib/logger"
 import crypto from "node:crypto"
 
@@ -209,11 +210,14 @@ export async function GET(req: NextRequest) {
   // floor) and are never published as canonical.
   const cacheKey = `rank:v2:${rawType}:${id}:f${first}:r${region.code}:g${chartGroup}${chartCanonical ? chartCgFragment : ""}`
   const cached = cacheGet<{ rank: number | null; period?: string }>(cacheKey)
-  if (cached) {
+  if (cached && (cached.rank === null || cached.rank === undefined || isAutomaticTrendRank(cached.rank))) {
     // Mutable defaults can retarget this same URL to another source, so even
     // the legacy charts branch stays out of shared caches (see above).
     return Response.json(cached, { headers: mutableSourceHeaders })
   }
+  // A cached past-window rank (written before the Top-20-only gate) is
+  // recomputed below instead of served: same key, corrected body, no
+  // invalidation storm and no global cache purge.
   const headers = mutableSourceHeaders
   try {
     const jwType = rawType === "movie" ? "MOVIE" : "SHOW"
@@ -224,8 +228,13 @@ export async function GET(req: NextRequest) {
       ? (pinnedFamilyRows(chartPin) ?? [])
       : await getJWRankings(jwType, region.code, first, undefined, region.lang, undefined, chartFloor)
     const found = rankings.find((r) => r.tmdbId === id)
-    if (found) {
-      const body = { rank: found.rank, period: "day", top: first }
+    // Automatic Top-20 window: an official rank past the window (overfetch
+    // shift on unfiltered charts) yields no badge — same rule as the poster
+    // preflight, never clamped, never remapped. Positions from
+    // popular/trending windows pass through unchanged.
+    const autoRank = found && isAutomaticTrendRank(found.rank) ? found.rank : null
+    if (autoRank !== null) {
+      const body = { rank: autoRank, period: "day", top: first }
       cacheSet(cacheKey, body, ["rank", "justwatch"])
       return Response.json(body, { headers })
     }

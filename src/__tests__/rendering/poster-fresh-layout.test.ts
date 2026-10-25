@@ -772,7 +772,7 @@ describe("fresh render", () => {
     const geo = freshGeometry(STD_W, STD_H, 6)
     const box = geo.numeral!
     const withRank = await generatePosterBuffer(
-      baseInput({ posterBuf: gray, posterLayout: "fresh", rankingEnabled: true, finalRank: 6, badgesEnabled: false, topShade: 50 }),
+      baseInput({ posterBuf: gray, posterLayout: "fresh", rankingEnabled: true, finalRank: 6, badgesEnabled: true, topShade: 50 }),
     )
     const noRank = await generatePosterBuffer(
       baseInput({ posterBuf: gray, posterLayout: "fresh", rankingEnabled: false, finalRank: null, badgesEnabled: false, topShade: 50 }),
@@ -808,7 +808,7 @@ describe("fresh render", () => {
     const top = Math.max(0, box.top - 12)
     const w = Math.min(STD_W - left, Math.ceil(box.estW) + 24)
     const h = Math.min(STD_H - top, box.capH + 24)
-    const rankedBase = { posterBuf: gray, posterLayout: "fresh" as const, rankingEnabled: true, finalRank: 6, badgesEnabled: false }
+    const rankedBase = { posterBuf: gray, posterLayout: "fresh" as const, rankingEnabled: true, finalRank: 6, badgesEnabled: true }
     const unrankedBase = { posterBuf: gray, posterLayout: "fresh" as const, rankingEnabled: false, finalRank: null, badgesEnabled: false }
     const withRank = await generatePosterBuffer(baseInput(rankedBase))
     const withRank50 = await generatePosterBuffer(baseInput({ ...rankedBase, topShade: 50 }))
