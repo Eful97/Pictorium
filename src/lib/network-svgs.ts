@@ -301,7 +301,7 @@ export async function renderFirstMatchingNetworkLogoBadge(
   return null
 }
 
-/** TMDB fallback: tenta di caricare il logo direttamente da TMDB image CDN. Mantiene stile invariato (ombra + ricolorazione) come SVG. */
+/** Reject opaque/block TMDB logos before rendering with original colors and shadow. */
 async function isTmdbBlockLogo(buf: Buffer, _logoPath: string): Promise<boolean> {
   try {
     const sharp = (await import("sharp")).default
@@ -394,10 +394,8 @@ async function loadTmdbNetworkPng(logoPath: string, pw: number, topLight: boolea
     const maxLogoH = desiredH
     const { data, info } = await sharp(buf).resize(desiredW, maxLogoH, { fit: "inside", withoutEnlargement: false }).png().toBuffer({ resolveWithObject: true })
 
-    // Sempre bianco con ombra — richiesta "sempre bianchi"
-    const fgBg = { r: 255, g: 255, b: 255, alpha: 0.88 } as const
-    const fgSolid = await sharp({ create: { width: info.width, height: info.height, channels: 4, background: fgBg } }).png().toBuffer()
-    const recolored = await sharp(fgSolid).composite([{ input: data, blend: "dest-in" }]).png().toBuffer()
+    // Preserve the original TMDB colors; keep the existing drop shadow.
+    const originalLogo = data
 
     const shadowBlur = Math.max(2, Math.round(3 * pw / 380))
     const shadowDy = Math.max(1, Math.round(2 * pw / 380))
@@ -409,7 +407,7 @@ async function loadTmdbNetworkPng(logoPath: string, pw: number, topLight: boolea
     const canvasW = info.width + shadowBlur * 2 + 2
     const canvasH = info.height + shadowBlur * 2 + shadowDy + 2
     const finalPng = await sharp({ create: { width: canvasW, height: canvasH, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } } })
-      .composite([{ input: shadowBuf, left: shadowBlur + 1, top: shadowBlur + shadowDy + 1 }, { input: recolored, left: shadowBlur + 1, top: shadowBlur + 1 }])
+      .composite([{ input: shadowBuf, left: shadowBlur + 1, top: shadowBlur + shadowDy + 1 }, { input: originalLogo, left: shadowBlur + 1, top: shadowBlur + 1 }])
       .png().toBuffer()
 
     const result = { png: finalPng, w: canvasW, h: canvasH }
@@ -440,10 +438,8 @@ async function loadTmdbNetworkRawPng(logoPath: string, pw: number, topLight: boo
     const maxLogoH = desiredH
     const { data, info } = await sharp(buf).resize(desiredW, maxLogoH, { fit: "inside", withoutEnlargement: false }).png().toBuffer({ resolveWithObject: true })
 
-    // Sempre bianco con ombra
-    const fgBg = { r: 255, g: 255, b: 255, alpha: 0.88 } as const
-    const fgSolid = await sharp({ create: { width: info.width, height: info.height, channels: 4, background: fgBg } }).png().toBuffer()
-    const recolored = await sharp(fgSolid).composite([{ input: data, blend: "dest-in" }]).png().toBuffer()
+    // Preserve the original TMDB colors; keep the existing drop shadow.
+    const originalLogo = data
 
     const shadowBlur = Math.max(2, Math.round(3 * pw / 380))
     const shadowDy = Math.max(1, Math.round(2 * pw / 380))
@@ -455,7 +451,7 @@ async function loadTmdbNetworkRawPng(logoPath: string, pw: number, topLight: boo
     const canvasW = info.width + shadowBlur * 2 + 2
     const canvasH = info.height + shadowBlur * 2 + shadowDy + 2
     const finalPng = await sharp({ create: { width: canvasW, height: canvasH, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } } })
-      .composite([{ input: shadowBuf, left: shadowBlur + 1, top: shadowBlur + shadowDy + 1 }, { input: recolored, left: shadowBlur + 1, top: shadowBlur + 1 }])
+      .composite([{ input: shadowBuf, left: shadowBlur + 1, top: shadowBlur + shadowDy + 1 }, { input: originalLogo, left: shadowBlur + 1, top: shadowBlur + 1 }])
       .png().toBuffer()
 
     const result = { png: finalPng, w: canvasW, h: canvasH }
@@ -539,7 +535,7 @@ export async function renderFirstMatchingNetworkRawBadgeHybrid(
       if (svgRes) return { ...svgRes, networkKey, matchedName: name }
     }
   }
-  // Pass 2: TMDB sempre bianco — e solo a fallback abilitato: il sentinel
+  // Pass 2: TMDB original colors — only when fallback is enabled: the sentinel
   // salta il passaggio PRIMA di qualsiasi fetch (come sopra).
   if (isTmdbFallbackDisabled(disabledNetworks)) return null
   for (const cand of candidates) {

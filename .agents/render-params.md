@@ -155,6 +155,11 @@ originale.
 
 ## Pill Network Logo
 
+Il fallback TMDB (percorsi normale e raw) mantiene colori e trasparenza
+originali, con ombra nera invariata (alpha 0.55). Non applica la
+ricolorazione bianca; geometria e selezione SVG-first restano invariate.
+La tabella seguente descrive i loghi locali, non il fallback TMDB.
+
 | Parametro | Server (`network-svgs.ts:loadNetworkPng` & `poster-service.ts`) |
 |---|---|
 | Sfondo | `topLight ? "rgba(0,0,0,0.80)" : "rgba(255,255,255,0.80)"` |
