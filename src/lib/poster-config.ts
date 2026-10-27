@@ -16,6 +16,7 @@ import { parseMinQuality, type StreamQuality } from "./quality-tiers"
 import { parseSashOrder, normalizeSashOrder, DEFAULT_SASH_ORDER, NEXT_EPISODE_BADGE_KEY, type SashBucket } from "./badge-priority"
 import { sanitizeDisabledContentTags } from "./content-tags"
 import { sanitizeDisabledNetworks } from "./network-keys"
+import { parseBadgeItemTransforms, type BadgeItemTransformMap } from "./badge-item-transforms"
 import {
   isBadgeStyle,
   isRankingBadgeStyle,
@@ -441,6 +442,8 @@ export interface PosterRenderConfig {
   separateBadgeScale: number
   /** Offset px del gruppo rating separati, colonna/pills (bar portrait: solo Y). Default 0. */
   separateBadgeOffsetX: number
+  /** Per-item corrections by stable identity (empty = automatic layout). */
+  badgeItemTransforms: BadgeItemTransformMap
   /** Offset px del gruppo rating separati (negativo = su, positivo = giù). Default 0. */
   separateBadgeOffsetY: number
   logoScale: number | null
@@ -1099,6 +1102,25 @@ export function resolvePosterRenderConfig(input: PosterRenderConfigInput): Poste
     ? (Number.isFinite(qSepoyNum) ? clamp(Math.round(qSepoyNum), -2000, 2000) : 0)
     : (m?.separateBadgeOffsetY ?? configOverride?.separateBadgeOffsetY ?? esd.separateBadgeOffsetY ?? 0)
 
+  // Per-ITEM corrections (single rating pill / single quality-AV mark) — same
+  // chain as the group geometry: query `bit` > mapping effettivo per formato >
+  // config token > effective per-shape defaults > none. The stored form is the
+  // canonical string (`badge-item-transforms`): every level is parsed with the
+  // same lenient schema, so garbage/unknown identities collapse onto "no
+  // correction" instead of reaching the render. Absent everywhere = automatic
+  // layout (existing URLs and posters stay byte-identical).
+  // `esd` is ALREADY shape-effective (the flat values, overlaid by the owned
+  // landscape profile keys — including an explicit `null`), exactly like the
+  // other geometry keys above: an owned `null` is the preset-owned "automatic"
+  // marker and MUST win. A `?? sd.badgeItemTransforms` tail would resurrect the
+  // portrait flat corrections over it, so the rendered poster would keep nudges
+  // the WYSIWYG preview (and every preset-apply consumer) already cleared.
+  const qBit = q.get("bit")
+  const badgeItemTransformsRaw = qBit !== null
+    ? qBit
+    : (m?.badgeItemTransforms ?? configOverride?.badgeItemTransforms ?? esd.badgeItemTransforms ?? null)
+  const badgeItemTransforms = parseBadgeItemTransforms(badgeItemTransformsRaw)
+
   // Logo network — stessa catena, stessi bound (%, 10..200).
   const qNScaleNum = q.get("netscale") ? Number(q.get("netscale")) : NaN
   const networkLogoScale = q.get("netscale") !== null
@@ -1261,6 +1283,7 @@ export function resolvePosterRenderConfig(input: PosterRenderConfigInput): Poste
     separateBadgeScale,
     separateBadgeOffsetX,
     separateBadgeOffsetY,
+    badgeItemTransforms,
     logoScale,
     logoOffsetX,
     logoOffsetY,

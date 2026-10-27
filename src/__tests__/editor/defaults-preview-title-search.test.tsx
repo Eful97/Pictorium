@@ -337,7 +337,7 @@ describe("DefaultsPosterPreview title search + zoom (transport mocks, real build
     expect(screen.getByText("ui.defaultsPreviewSubtitle")).toBeInTheDocument()
   })
 
-  it("opens the zoom dialog on preview click and restores on second click", async () => {
+  it("opens the enlarged editor and closes through its explicit control", async () => {
     const user = userEvent.setup()
     renderWithCtx(<Host />)
 
@@ -349,7 +349,11 @@ describe("DefaultsPosterPreview title search + zoom (transport mocks, real build
     const zoomedImg = within(dialog).getByAltText("Avatar")
     expect(zoomedImg).toBeInTheDocument()
 
+    // The enlarged surface edits the poster: a click on it never closes the
+    // dialog (no gesture is lost), the explicit Close control does.
     await user.click(zoomedImg)
+    expect(screen.getByRole("dialog")).toBeInTheDocument()
+    await user.click(within(dialog).getByTestId("defaults-preview-badge-edit-close"))
     await waitFor(() => {
       expect(screen.queryByRole("dialog")).toBeNull()
     })

@@ -15,14 +15,13 @@ import { isBottomSeparateRatingsStyle, getSeparateBadgeDefaultScale, getSeparate
 import { NATURAL_GRADIENT_DEFAULTS, type GradientPresetValues } from "@/lib/gradient-presets"
 import { GradientPresetRow } from "@/components/GradientPresetRow"
 import { LandscapeDefaultsSection } from "@/components/LandscapeDefaultsSection"
-import { useShapeBadgeDefaults } from "@/components/settings/useShapeDefaults"
+import { useShapeBadgeDefaults, useShapeBadgeGeometryDefaults } from "@/components/settings/useShapeDefaults"
 import type { DefaultsPreviewFamily } from "@/lib/poster-url"
 import type { PosterElementId } from "@/components/settings/PosterElementNavigation"
 import { ArrowLeftRight, ArrowUpDown, Circle, Cloud, Image as ImageIcon, Minus, Ruler, Search, Sparkles, Star, Trophy, Tv } from "lucide-react"
 import { getBadgeOffsetRange } from "@/lib/badge-offset-ranges"
-import { isCardSkin } from "@/lib/card-layout-skins"
-import { isPosterFreshScope } from "@/lib/types"
 import { AvailabilityGate, isExtraStyleActive, isGenreStyleActive, isQualityStyleActive, isRankStyleActive, orderActiveFirst, type EffectiveBadgeFlags } from "@/components/settings/SettingsElementAvailability"
+import { BadgeItemTransformControls } from "@/components/settings/BadgeItemTransformControls"
 
 /** Compact inactive placeholder for geometry mode: the group stays
  *  discoverable with a short hint naming the tab that owns its switch.
@@ -56,7 +55,7 @@ function TransformInactive({ name, tab }: { name: string; tab: string }) {
  * locks mirror the legacy standalone cards below (single callbacks, no
  * duplicated implementations on screen — this branch mounts exclusively).
  */
-function PortraitEffectiveGeometry({ editVal, editTxt, setEditVal, setEditTxt, element, onPreviewFamilyChange, followOn, followOffDisabled, freezing, onFollowChange, defOffRangeX, defOffRangeY, defTopXBase, defBarXOff, isCardAll, isCardRanked, cardNote, fallbackNote }: {
+function PortraitEffectiveGeometry({ editVal, editTxt, setEditVal, setEditTxt, element, onPreviewFamilyChange, followOn, followOffDisabled, freezing, onFollowChange, defOffRangeX, defOffRangeY, defTopXBase, defBarXOff, isCardAll, isCardRanked, cardNote, fallbackNote, itemPreviewUrl }: {
   editVal: string | null
   editTxt: string
   setEditVal: (v: string | null) => void
@@ -75,9 +74,12 @@ function PortraitEffectiveGeometry({ editVal, editTxt, setEditVal, setEditTxt, e
   isCardRanked: boolean
   cardNote?: string
   fallbackNote?: string
+  /** Exact defaults-preview URL of this shape (per-item controls need it). */
+  itemPreviewUrl?: string
 }) {
   const { t } = useT()
   const ed = usePosterEditor()
+  const resets = useShapeBadgeGeometryDefaults("poster")
   const famAttrs = (family: DefaultsPreviewFamily) => ({
     "data-preview-family": family,
     onFocusCapture: () => onPreviewFamilyChange?.(family),
@@ -136,7 +138,7 @@ function PortraitEffectiveGeometry({ editVal, editTxt, setEditVal, setEditTxt, e
           )}
         </span>
         <button type="button" aria-label={t("ui.reset")}
-                onClick={() => { ed.setDefaultLogoScale(null); ed.setDefaultLogoOffsetX(null); ed.setDefaultLogoOffsetY(null) }}
+                onClick={() => resets.resetFamily("logo")}
                 className="text-xs text-muted hover:text-accent transition-colors px-2 py-0.5 rounded-md border border-border/50 hover:border-accent/30">
           {t("ui.reset")}
         </button>
@@ -177,7 +179,7 @@ function PortraitEffectiveGeometry({ editVal, editTxt, setEditVal, setEditTxt, e
           <Trophy className="w-3.5 h-3.5 text-amber-500" />
           {t("ui.rankFamily")}
         </span>
-        <button type="button" aria-label={t("ui.reset")} onClick={() => { ed.setDefaultTopBadgeScale(100); ed.setDefaultTopBadgeOffsetX(0); ed.setDefaultTopBadgeOffsetY(0) }} className="text-xs text-muted hover:text-accent transition-colors px-2 py-0.5 rounded-md border border-border/50 hover:border-accent/30">
+        <button type="button" aria-label={t("ui.reset")} onClick={() => resets.resetFamily("rank")} className="text-xs text-muted hover:text-accent transition-colors px-2 py-0.5 rounded-md border border-border/50 hover:border-accent/30">
           {t("ui.reset")}
         </button>
       </div>
@@ -198,7 +200,7 @@ function PortraitEffectiveGeometry({ editVal, editTxt, setEditVal, setEditTxt, e
           <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
           {t("ui.sash_extra")}
         </span>
-        <button type="button" aria-label={t("ui.reset")} onClick={() => { ed.setDefaultExtraBadgeScale(null); ed.setDefaultExtraBadgeOffsetX(null); ed.setDefaultExtraBadgeOffsetY(null) }} className="text-xs text-muted hover:text-accent transition-colors px-2 py-0.5 rounded-md border border-border/50 hover:border-accent/30">
+        <button type="button" aria-label={t("ui.reset")} onClick={() => resets.resetFamily("extra")} className="text-xs text-muted hover:text-accent transition-colors px-2 py-0.5 rounded-md border border-border/50 hover:border-accent/30">
           {t("ui.reset")}
         </button>
       </div>
@@ -216,7 +218,7 @@ function PortraitEffectiveGeometry({ editVal, editTxt, setEditVal, setEditTxt, e
           <Star className="w-3.5 h-3.5 text-amber-400" />
           {t("ui.genreRatingBadge")}
         </span>
-        <button type="button" aria-label={t("ui.reset")} onClick={() => { ed.setDefaultGenreBadgeScale(100); ed.setDefaultGenreBadgeOffsetX(0); ed.setDefaultGenreBadgeOffsetY(0) }} className="text-xs text-muted hover:text-accent transition-colors px-2 py-0.5 rounded-md border border-border/50 hover:border-accent/30">
+        <button type="button" aria-label={t("ui.reset")} onClick={() => resets.resetFamily("genre")} className="text-xs text-muted hover:text-accent transition-colors px-2 py-0.5 rounded-md border border-border/50 hover:border-accent/30">
           {t("ui.reset")}
         </button>
       </div>
@@ -239,14 +241,30 @@ function PortraitEffectiveGeometry({ editVal, editTxt, setEditVal, setEditTxt, e
           <Sparkles className="w-3.5 h-3.5 text-purple-400" />
           {t("ui.badgeQuality")}
         </span>
-        <button type="button" aria-label={t("ui.reset")} onClick={() => { ed.setDefaultQualityBadgeScale(100); ed.setDefaultQualityBadgeOffsetX(DEFAULT_QUALITY_BADGE_OFFSET_X); ed.setDefaultQualityBadgeOffsetY(DEFAULT_QUALITY_BADGE_OFFSET_Y) }} className="text-xs text-muted hover:text-accent transition-colors px-2 py-0.5 rounded-md border border-border/50 hover:border-accent/30">
-          {t("ui.reset")}
-        </button>
+        <div className="flex items-center gap-1">
+          {/* Recovery, not reset: deletes every quality badge correction from
+              the draft (hidden marks included) and leaves the group's own
+              position/scale, the ratings and the applied preset untouched. */}
+          <button
+            type="button"
+            aria-label={t("ui.badgeGroupRejoin")}
+            title={t("ui.badgeRejoinHint")}
+            data-testid="badge-group-rejoin-quality"
+            onClick={() => resets.rejoin({ families: ["quality"] })}
+            className="text-xs text-sky-200 hover:text-white transition-colors px-2 py-0.5 rounded-md border border-sky-300/40 hover:border-sky-300"
+          >
+            {t("ui.badgeGroupRejoin")}
+          </button>
+          <button type="button" aria-label={t("ui.reset")} onClick={() => resets.resetFamily("quality")} className="text-xs text-muted hover:text-accent transition-colors px-2 py-0.5 rounded-md border border-border/50 hover:border-accent/30">
+            {t("ui.reset")}
+          </button>
+        </div>
       </div>
       <div className="space-y-1.5 pt-1">
         {slider(<Search className="w-3.5 h-3.5" />, t("ui.scale"), ed.defaultQualityBadgeScale, 50, 150, 10, 200, (v) => { ed.setDefaultQualityBadgeScale(v) }, () => { ed.setDefaultQualityBadgeScale(100) }, "qbs", "%")}
         {slider(<ArrowLeftRight className="w-3.5 h-3.5" />, "X", ed.defaultQualityBadgeOffsetX, defOffRangeX.min, defOffRangeX.max, defOffRangeX.boundsMin, defOffRangeX.boundsMax, (v) => { ed.setDefaultQualityBadgeOffsetX(v) }, () => { ed.setDefaultQualityBadgeOffsetX(DEFAULT_QUALITY_BADGE_OFFSET_X) }, "qbx", "px", 1)}
         {slider(<ArrowUpDown className="w-3.5 h-3.5" />, "Y", ed.defaultQualityBadgeOffsetY, defOffRangeY.min, defOffRangeY.max, defOffRangeY.boundsMin, defOffRangeY.boundsMax, (v) => { ed.setDefaultQualityBadgeOffsetY(v) }, () => { ed.setDefaultQualityBadgeOffsetY(DEFAULT_QUALITY_BADGE_OFFSET_Y) }, "qby", "px", 1)}
+        <BadgeItemTransformControls previewUrl={itemPreviewUrl ?? ""} family="quality" shape="poster" className="pt-1.5 border-t border-white/5" />
       </div>
     </div>
   )
@@ -257,7 +275,7 @@ function PortraitEffectiveGeometry({ editVal, editTxt, setEditVal, setEditTxt, e
           <Star className="w-3.5 h-3.5 text-amber-400" />
           {t("ui.separateRatings")}
         </span>
-        <button type="button" aria-label={t("ui.reset")} onClick={() => { ed.setDefaultSeparateBadgeScale(getSeparateBadgeDefaultScale(ed.defaultSeparateRatingsStyle)); ed.setDefaultSeparateBadgeOffsetX(0); ed.setDefaultSeparateBadgeOffsetY(0) }} className="text-xs text-muted hover:text-accent transition-colors px-2 py-0.5 rounded-md border border-border/50 hover:border-accent/30">
+        <button type="button" aria-label={t("ui.reset")} onClick={() => resets.resetFamily("separate")} className="text-xs text-muted hover:text-accent transition-colors px-2 py-0.5 rounded-md border border-border/50 hover:border-accent/30">
           {t("ui.reset")}
         </button>
       </div>
@@ -269,6 +287,7 @@ function PortraitEffectiveGeometry({ editVal, editTxt, setEditVal, setEditTxt, e
           </fieldset>
         </div>
         {slider(<ArrowUpDown className="w-3.5 h-3.5" />, "Y", ed.defaultSeparateBadgeOffsetY, defOffRangeY.min, defOffRangeY.max, defOffRangeY.boundsMin, defOffRangeY.boundsMax, (v) => { ed.setDefaultSeparateBadgeOffsetY(v) }, () => { ed.setDefaultSeparateBadgeOffsetY(0) }, "sepsoy", "px", 1)}
+        <BadgeItemTransformControls previewUrl={itemPreviewUrl ?? ""} family="separate" shape="poster" className="pt-1.5 border-t border-white/5" />
       </div>
     </div>
   )
@@ -279,7 +298,7 @@ function PortraitEffectiveGeometry({ editVal, editTxt, setEditVal, setEditTxt, e
           <Tv className="w-3.5 h-3.5 text-sky-400" />
           {t("ui.networkLogo")}
         </span>
-        <button type="button" aria-label={t("ui.reset")} onClick={() => { ed.setDefaultNetworkLogoFollowTitle(true); ed.setDefaultNetworkLogoScale(100); ed.setDefaultNetworkLogoOffsetX(0); ed.setDefaultNetworkLogoOffsetY(0) }} className="text-xs text-muted hover:text-accent transition-colors px-2 py-0.5 rounded-md border border-border/50 hover:border-accent/30">
+        <button type="button" aria-label={t("ui.reset")} onClick={() => resets.resetNetworkGroup()} className="text-xs text-muted hover:text-accent transition-colors px-2 py-0.5 rounded-md border border-border/50 hover:border-accent/30">
           {t("ui.reset")}
         </button>
       </div>
@@ -308,7 +327,7 @@ function PortraitEffectiveGeometry({ editVal, editTxt, setEditVal, setEditTxt, e
         </span>
         <div className="flex items-center gap-2">
           {ed.defaultBlurEnabled && (
-            <button type="button" aria-label={t("ui.reset")} onClick={() => { ed.setDefaultGradientHeight(NATURAL_GRADIENT_DEFAULTS.gradientHeight); ed.setDefaultBlurIntensity(NATURAL_GRADIENT_DEFAULTS.blurIntensity); ed.setDefaultBlurFade(NATURAL_GRADIENT_DEFAULTS.blurFade); ed.setDefaultBlurDarkness(NATURAL_GRADIENT_DEFAULTS.blurDarkness); ed.setDefaultTintStrength(NATURAL_GRADIENT_DEFAULTS.tintStrength) }} className="text-xs text-muted hover:text-accent transition-colors px-2 py-0.5 rounded-md border border-border/50 hover:border-accent/30 cursor-pointer">
+            <button type="button" aria-label={t("ui.reset")} onClick={() => resets.resetGradient()} className="text-xs text-muted hover:text-accent transition-colors px-2 py-0.5 rounded-md border border-border/50 hover:border-accent/30 cursor-pointer">
               {t("ui.reset")}
             </button>
           )}
@@ -359,7 +378,7 @@ function PortraitEffectiveGeometry({ editVal, editTxt, setEditVal, setEditTxt, e
         </div>
       ))}
       <div hidden={hideFor("background")} data-testid="transform-geo-gradient">{gradientCard}</div>
-      <button type="button" onClick={() => { ed.setDefaultTopBadgeScale(100); ed.setDefaultTopBadgeOffsetX(0); ed.setDefaultTopBadgeOffsetY(0); ed.setDefaultExtraBadgeScale(null); ed.setDefaultExtraBadgeOffsetX(null); ed.setDefaultExtraBadgeOffsetY(null); ed.setDefaultGenreBadgeScale(100); ed.setDefaultGenreBadgeOffsetX(0); ed.setDefaultGenreBadgeOffsetY(0); ed.setDefaultQualityBadgeScale(100); ed.setDefaultQualityBadgeOffsetX(DEFAULT_QUALITY_BADGE_OFFSET_X); ed.setDefaultQualityBadgeOffsetY(DEFAULT_QUALITY_BADGE_OFFSET_Y); ed.setDefaultNetworkLogoFollowTitle(true); ed.setDefaultNetworkLogoScale(100); ed.setDefaultNetworkLogoOffsetX(0); ed.setDefaultNetworkLogoOffsetY(0); ed.setDefaultBlurEnabled(true); ed.setDefaultGradientHeight(NATURAL_GRADIENT_DEFAULTS.gradientHeight); ed.setDefaultBlurIntensity(NATURAL_GRADIENT_DEFAULTS.blurIntensity); ed.setDefaultBlurFade(NATURAL_GRADIENT_DEFAULTS.blurFade); ed.setDefaultBlurDarkness(NATURAL_GRADIENT_DEFAULTS.blurDarkness); ed.setDefaultTintStrength(NATURAL_GRADIENT_DEFAULTS.tintStrength); ed.setDefaultTopShade(50); ed.setDefaultTopShadeHeight(25) }} className="w-full py-1.5 rounded-lg text-[11px] font-semibold text-muted hover:text-zinc-200 bg-white/5 hover:bg-white/10 border border-white/10 transition-colors cursor-pointer">
+      <button type="button" onClick={() => resets.resetAllPortrait()} className="w-full py-1.5 rounded-lg text-[11px] font-semibold text-muted hover:text-zinc-200 bg-white/5 hover:bg-white/10 border border-white/10 transition-colors cursor-pointer">
         {t("ui.reset")} · {t("ui.posterShapePortrait")}
       </button>
     </>
@@ -403,6 +422,7 @@ export function TransformPanel({ active, previewShape, onPreviewShapeChange, onP
 }) {
   const { t, lang } = useT()
   const ed = usePosterEditor()
+  const resets = useShapeBadgeGeometryDefaults("poster")
   // Portrait/landscape sub-tab (UI only): parent-controlled when `previewShape`
   // is provided (SettingsPanel single selector), local state otherwise.
   const [innerShape, setInnerShape] = useState<"portrait" | "landscape">("portrait")
@@ -437,19 +457,14 @@ export function TransformPanel({ active, previewShape, onPreviewShapeChange, onP
   // dynamic logoBounds in TransformControls/context — never this helper.)
   const defOffRangeX = getBadgeOffsetRange("poster", "x")
   const defOffRangeY = getBadgeOffsetRange("poster", "y")
-  // Card truth (service card compositor + per-title guards are authority):
-  // portrait defaults use the flat layout AND the flat scope. Geometry
-  // locks apply ONLY when a Card skin is selected with effective scope
-  // "all"; ranked/absent/invalid scope leaves the Standard fallback
-  // positioning live (ranked titles render Card fixed, unranked fall back
-  // to Standard). No rendered-title inference, no default mutation.
-  const flatScope = isPosterFreshScope(ed.defaultPosterFreshScope)
-    ? ed.defaultPosterFreshScope
-    : "ranked"
-  const isCardAllDefaults = isCardSkin(ed.defaultPosterLayout) && flatScope === "all"
-  const isCardRankedDefaults = isCardSkin(ed.defaultPosterLayout) && !isCardAllDefaults
-  const cardControlsNote = isCardAllDefaults ? t("ui.posterLayoutCardControlsNote") : undefined
-  const cardFallbackNote = isCardRankedDefaults ? t("ui.posterLayoutCardFallbackNote") : undefined
+  // Card skins keep their composed slots, but user transforms are live on
+  // every layout (explicit user contract): the shared compositor applies the
+  // same offsets/scales, neutral values stay byte-identical. No geometry
+  // locks, no fixed-layout hints.
+  const isCardAllDefaults = false
+  const isCardRankedDefaults = false
+  const cardControlsNote = undefined
+  const cardFallbackNote = undefined
   // Preview-family scope (U2): same helper as the Badge tab — explicit press
   // or keyboard focus reports only (never hover: no flicker/fetch storms),
   // no focus moves, no unmounts.
@@ -587,7 +602,7 @@ export function TransformPanel({ active, previewShape, onPreviewShapeChange, onP
           geometryOnly={geometryOnly}
         />
       ) : geometryOnly ? (
-        <PortraitEffectiveGeometry editVal={editVal} editTxt={editTxt} setEditVal={setEditVal} setEditTxt={setEditTxt} element={element} onPreviewFamilyChange={onPreviewFamilyChange} followOn={portraitFollowOn} followOffDisabled={followOffDisabled} freezing={netFreezing} onFollowChange={handleGlobalFollowChange} defOffRangeX={defOffRangeX} defOffRangeY={defOffRangeY} defTopXBase={defTopXBase} defBarXOff={defBarXOff} isCardAll={isCardAllDefaults} isCardRanked={isCardRankedDefaults} cardNote={cardControlsNote} fallbackNote={cardFallbackNote} />
+        <PortraitEffectiveGeometry editVal={editVal} editTxt={editTxt} setEditVal={setEditVal} setEditTxt={setEditTxt} element={element} onPreviewFamilyChange={onPreviewFamilyChange} followOn={portraitFollowOn} followOffDisabled={followOffDisabled} freezing={netFreezing} onFollowChange={handleGlobalFollowChange} defOffRangeX={defOffRangeX} defOffRangeY={defOffRangeY} defTopXBase={defTopXBase} defBarXOff={defBarXOff} isCardAll={isCardAllDefaults} isCardRanked={isCardRankedDefaults} cardNote={cardControlsNote} fallbackNote={cardFallbackNote} itemPreviewUrl={active && trasformaShape === "portrait" ? buildFreezePreview().url : ""} />
       ) : (
       <>
       {/* Logo Predefinito (null = auto-fit per aspect, storico; esplicito fino a
@@ -605,7 +620,7 @@ export function TransformPanel({ active, previewShape, onPreviewShapeChange, onP
             )}
           </span>
           <button type="button" aria-label={t("ui.reset")}
-                  onClick={() => { ed.setDefaultLogoScale(null); ed.setDefaultLogoOffsetX(null); ed.setDefaultLogoOffsetY(null) }}
+                  onClick={() => resets.resetFamily("logo")}
                   className="text-xs text-muted hover:text-accent transition-colors px-2 py-0.5 rounded-md border border-border/50 hover:border-accent/30">
             {t("ui.reset")}
           </button>
@@ -727,11 +742,7 @@ export function TransformPanel({ active, previewShape, onPreviewShapeChange, onP
             {t("ui.rankFamily")}
           </span>
           <button type="button" aria-label={t("ui.reset")}
-                  onClick={() => {
-                    ed.setDefaultTopBadgeScale(100)
-                    ed.setDefaultTopBadgeOffsetX(0)
-                    ed.setDefaultTopBadgeOffsetY(0)
-                  }}
+                  onClick={() => resets.resetFamily("rank")}
                   className="text-xs text-muted hover:text-accent transition-colors px-2 py-0.5 rounded-md border border-border/50 hover:border-accent/30">
             {t("ui.reset")}
           </button>
@@ -827,11 +838,7 @@ export function TransformPanel({ active, previewShape, onPreviewShapeChange, onP
             {t("ui.sash_extra")}
           </span>
           <button type="button" aria-label={t("ui.reset")}
-                  onClick={() => {
-                    ed.setDefaultExtraBadgeScale(null)
-                    ed.setDefaultExtraBadgeOffsetX(null)
-                    ed.setDefaultExtraBadgeOffsetY(null)
-                  }}
+                  onClick={() => resets.resetFamily("extra")}
                   className="text-xs text-muted hover:text-accent transition-colors px-2 py-0.5 rounded-md border border-border/50 hover:border-accent/30">
             {t("ui.reset")}
           </button>
@@ -919,11 +926,7 @@ export function TransformPanel({ active, previewShape, onPreviewShapeChange, onP
             {t("ui.genreRatingBadge")}
           </span>
           <button type="button" aria-label={t("ui.reset")}
-                  onClick={() => {
-                    ed.setDefaultGenreBadgeScale(100)
-                    ed.setDefaultGenreBadgeOffsetX(0)
-                    ed.setDefaultGenreBadgeOffsetY(0)
-                  }}
+                  onClick={() => resets.resetFamily("genre")}
                   className="text-xs text-muted hover:text-accent transition-colors px-2 py-0.5 rounded-md border border-border/50 hover:border-accent/30">
             {t("ui.reset")}
           </button>
@@ -1020,15 +1023,20 @@ export function TransformPanel({ active, previewShape, onPreviewShapeChange, onP
             <Sparkles className="w-3.5 h-3.5 text-purple-400" />
             {t("ui.badgeQuality")}
           </span>
-          <button type="button" aria-label={t("ui.reset")}
-                  onClick={() => {
-                    ed.setDefaultQualityBadgeScale(100)
-                    ed.setDefaultQualityBadgeOffsetX(DEFAULT_QUALITY_BADGE_OFFSET_X)
-                    ed.setDefaultQualityBadgeOffsetY(DEFAULT_QUALITY_BADGE_OFFSET_Y)
-                  }}
-                  className="text-xs text-muted hover:text-accent transition-colors px-2 py-0.5 rounded-md border border-border/50 hover:border-accent/30">
-            {t("ui.reset")}
-          </button>
+          <div className="flex items-center gap-1">
+            <button type="button" aria-label={t("ui.badgeGroupRejoin")}
+                    title={t("ui.badgeRejoinHint")}
+                    data-testid="badge-group-rejoin-quality"
+                    onClick={() => resets.rejoin({ families: ["quality"] })}
+                    className="text-xs text-sky-200 hover:text-white transition-colors px-2 py-0.5 rounded-md border border-sky-300/40 hover:border-sky-300">
+              {t("ui.badgeGroupRejoin")}
+            </button>
+            <button type="button" aria-label={t("ui.reset")}
+                    onClick={() => resets.resetFamily("quality")}
+                    className="text-xs text-muted hover:text-accent transition-colors px-2 py-0.5 rounded-md border border-border/50 hover:border-accent/30">
+              {t("ui.reset")}
+            </button>
+          </div>
         </div>
 
         <div className="space-y-1.5 pt-1">
@@ -1113,11 +1121,7 @@ export function TransformPanel({ active, previewShape, onPreviewShapeChange, onP
             {t("ui.separateRatings")}
           </span>
           <button type="button" aria-label={t("ui.reset")}
-                  onClick={() => {
-                    ed.setDefaultSeparateBadgeScale(getSeparateBadgeDefaultScale(ed.defaultSeparateRatingsStyle))
-                    ed.setDefaultSeparateBadgeOffsetX(0)
-                    ed.setDefaultSeparateBadgeOffsetY(0)
-                  }}
+                  onClick={() => resets.resetFamily("separate")}
                   className="text-xs text-muted hover:text-accent transition-colors px-2 py-0.5 rounded-md border border-border/50 hover:border-accent/30">
             {t("ui.reset")}
           </button>
@@ -1255,12 +1259,7 @@ export function TransformPanel({ active, previewShape, onPreviewShapeChange, onP
             {t("ui.networkLogo")}
           </span>
           <button type="button" aria-label={t("ui.reset")}
-                  onClick={() => {
-                    ed.setDefaultNetworkLogoFollowTitle(true)
-                    ed.setDefaultNetworkLogoScale(100)
-                    ed.setDefaultNetworkLogoOffsetX(0)
-                    ed.setDefaultNetworkLogoOffsetY(0)
-                  }}
+                  onClick={() => resets.resetNetworkGroup()}
                   className="text-xs text-muted hover:text-accent transition-colors px-2 py-0.5 rounded-md border border-border/50 hover:border-accent/30">
             {t("ui.reset")}
           </button>
@@ -1365,13 +1364,7 @@ export function TransformPanel({ active, previewShape, onPreviewShapeChange, onP
           <div className="flex items-center gap-2">
             {ed.defaultBlurEnabled && (
               <button type="button" aria-label={t("ui.reset")}
-                      onClick={() => {
-                        ed.setDefaultGradientHeight(NATURAL_GRADIENT_DEFAULTS.gradientHeight)
-                        ed.setDefaultBlurIntensity(NATURAL_GRADIENT_DEFAULTS.blurIntensity)
-                        ed.setDefaultBlurFade(NATURAL_GRADIENT_DEFAULTS.blurFade)
-                        ed.setDefaultBlurDarkness(NATURAL_GRADIENT_DEFAULTS.blurDarkness)
-                        ed.setDefaultTintStrength(NATURAL_GRADIENT_DEFAULTS.tintStrength)
-                      }}
+                      onClick={() => resets.resetGradient()}
                       className="text-xs text-muted hover:text-accent transition-colors px-2 py-0.5 rounded-md border border-border/50 hover:border-accent/30 cursor-pointer">
                 {t("ui.reset")}
               </button>
@@ -1563,32 +1556,7 @@ export function TransformPanel({ active, previewShape, onPreviewShapeChange, onP
       </div>
       <button
         type="button"
-        onClick={() => {
-          ed.setDefaultTopBadgeScale(100)
-          ed.setDefaultTopBadgeOffsetX(0)
-          ed.setDefaultTopBadgeOffsetY(0)
-          ed.setDefaultExtraBadgeScale(null)
-          ed.setDefaultExtraBadgeOffsetX(null)
-          ed.setDefaultExtraBadgeOffsetY(null)
-          ed.setDefaultGenreBadgeScale(100)
-          ed.setDefaultGenreBadgeOffsetX(0)
-          ed.setDefaultGenreBadgeOffsetY(0)
-          ed.setDefaultQualityBadgeScale(100)
-          ed.setDefaultQualityBadgeOffsetX(DEFAULT_QUALITY_BADGE_OFFSET_X)
-          ed.setDefaultQualityBadgeOffsetY(DEFAULT_QUALITY_BADGE_OFFSET_Y)
-          ed.setDefaultNetworkLogoFollowTitle(true)
-          ed.setDefaultNetworkLogoScale(100)
-          ed.setDefaultNetworkLogoOffsetX(0)
-          ed.setDefaultNetworkLogoOffsetY(0)
-          ed.setDefaultBlurEnabled(true)
-          ed.setDefaultGradientHeight(NATURAL_GRADIENT_DEFAULTS.gradientHeight)
-          ed.setDefaultBlurIntensity(NATURAL_GRADIENT_DEFAULTS.blurIntensity)
-          ed.setDefaultBlurFade(NATURAL_GRADIENT_DEFAULTS.blurFade)
-          ed.setDefaultBlurDarkness(NATURAL_GRADIENT_DEFAULTS.blurDarkness)
-          ed.setDefaultTintStrength(NATURAL_GRADIENT_DEFAULTS.tintStrength)
-          ed.setDefaultTopShade(50)
-          ed.setDefaultTopShadeHeight(25)
-        }}
+        onClick={() => resets.resetAllPortrait()}
         className="w-full py-1.5 rounded-lg text-[11px] font-semibold text-muted hover:text-zinc-200 bg-white/5 hover:bg-white/10 border border-white/10 transition-colors cursor-pointer"
       >
         {t("ui.reset")} · {t("ui.posterShapePortrait")}

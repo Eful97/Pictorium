@@ -69,6 +69,9 @@ export async function saveDefaults(ed: PosterEditorCtx): Promise<boolean> {
     separateBadgeScale: ed.defaultSeparateBadgeScale,
     separateBadgeOffsetX: ed.defaultSeparateBadgeOffsetX,
     separateBadgeOffsetY: ed.defaultSeparateBadgeOffsetY,
+    // Per-item corrections (canonical wire form, null = automatic layout):
+    // without it a manual save would drop them from the stored defaults.
+    badgeItemTransforms: ed.defaultBadgeItemTransforms ?? null,
     networkLogoScale: ed.defaultNetworkLogoScale,
     genreBadgeOffsetX: ed.defaultGenreBadgeOffsetX,
     genreBadgeOffsetY: ed.defaultGenreBadgeOffsetY,

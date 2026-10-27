@@ -20,6 +20,7 @@ import { DEFAULT_AGE_BADGE_STYLE, isAgeBadgeStyle, type AgeBadgeStyle } from "./
 import { DEFAULT_BADGE_FONT, isBadgeFont, type BadgeFont } from "./badge-styles"
 import { DEFAULT_SEPARATE_RATINGS_STYLE, isSeparateRatingsStyle, getSeparateBadgeDefaultScale, type SeparateRatingsStyle } from "./badge-styles"
 import { SHAPE_FLAT_TO_LANDSCAPE, snapshotMissingLandscape, independentLandscapeDefaults } from "./visual-presets"
+import { canonicalizeBadgeItemTransforms } from "./badge-item-transforms"
 import { isExtraBadgeStyle, isExtraFollowRank } from "./badge-styles"
 import { DEFAULT_QUALITY_BADGE_OFFSET_X, DEFAULT_QUALITY_BADGE_OFFSET_Y } from "./badge-styles"
 import type { RetiredBadgeFamilyBindings } from "./types"
@@ -86,6 +87,11 @@ export interface DefaultsState {
   defaultSeparateBadgeOffsetX: number
   /** Offset px gruppo rating separati di default (default 0). */
   defaultSeparateBadgeOffsetY: number
+  /**
+   * Per-ITEM corrections di default (single rating pill / single quality-AV
+   * mark), canonical wire form. Null = layout automatico.
+   */
+  defaultBadgeItemTransforms: string | null
   defaultNetworkLogoScale: number
   defaultGenreBadgeOffsetX: number
   defaultGenreBadgeOffsetY: number
@@ -209,6 +215,12 @@ export interface DefaultsState {
   separateBadgeOffsetX: number
   /** Offset px gruppo rating separati del poster in editing (default 0). */
   separateBadgeOffsetY: number
+  /**
+   * Per-ITEM corrections del poster in editing (canonical wire form). Null =
+   * layout automatico; viaggia nel mapping per-titolo come gli altri
+   * visuali (mai per indice di array).
+   */
+  badgeItemTransforms: string | null
   networkLogoScale: number
   genreBadgeOffsetX: number
   genreBadgeOffsetY: number
@@ -255,6 +267,13 @@ export interface DefaultsState {
    * patch parziali semplici.
    */
   landscape: LandscapeServerDefaults
+  /**
+   * Transport-only clear list for the landscape profile (pending reset from
+   * the settings draft). Never hydrated from storage and never installed in
+   * live state; the PUT carries it so the server can delete the keys after
+   * its merge/backfill.
+   */
+  landscapeReset?: string[]
 }
 
 const DEFAULT_FLAT_DEFAULTS: Omit<DefaultsState, "landscape"> = {
@@ -359,6 +378,8 @@ const DEFAULT_FLAT_DEFAULTS: Omit<DefaultsState, "landscape"> = {
   separateBadgeScale: 130,
   separateBadgeOffsetX: 0,
   separateBadgeOffsetY: 0,
+  badgeItemTransforms: null,
+  defaultBadgeItemTransforms: null,
   networkLogoScale: 100,
   genreBadgeOffsetX: 0,
   genreBadgeOffsetY: 0,
@@ -422,6 +443,9 @@ interface StoredDefaults {
   separateBadgeScale?: number
   separateBadgeOffsetX?: number
   separateBadgeOffsetY?: number
+  /** Per-item corrections (canonical wire form); legacy bare alias accepted. */
+  defaultBadgeItemTransforms?: string | null
+  badgeItemTransforms?: string | null
   networkLogoScale?: number
   genreBadgeOffsetX?: number
   genreBadgeOffsetY?: number
@@ -639,13 +663,17 @@ function seedLandscapeQualityOffsets(
   const landY = numOrUndef(base.qualityBadgeOffsetY)
   const flatX = numOrUndef(rawFlatOffsetX)
   const flatY = numOrUndef(rawFlatOffsetY)
-  return {
-    ...(base as Partial<LandscapeServerDefaults>),
-    // Solo il ramo tutto-implicito materializza 0/0; il ramo flat-esplicito
-    // resta undefined (= follow dinamico dei flat, anche futuri).
-    qualityBadgeOffsetX: landX ?? (flatX === undefined ? 0 : undefined),
-    qualityBadgeOffsetY: landY ?? (flatY === undefined ? 0 : undefined),
-  }
+  const out: Record<string, unknown> = { ...base }
+  // Solo il ramo tutto-implicito materializza 0/0; il ramo flat-esplicito
+  // lascia la chiave ASSENTE (= follow dinamico dei flat, anche futuri).
+  // Mai chiavi own-undefined: per lo storage/JSON sono indistinguibili
+  // dall'assenza, ma il patch di sessione legge un `undefined` esplicito
+  // come clear voluto e lo trasporterebbe come `landscapeReset` fantasma.
+  if (landX !== undefined) out.qualityBadgeOffsetX = landX
+  else if (flatX === undefined) out.qualityBadgeOffsetX = 0
+  if (landY !== undefined) out.qualityBadgeOffsetY = landY
+  else if (flatY === undefined) out.qualityBadgeOffsetY = 0
+  return out as unknown as LandscapeServerDefaults
 }
 
 /**
@@ -788,6 +816,9 @@ function buildFromStored(d: StoredDefaults | null): DefaultsState {
     defaultSeparateBadgeScale: d.defaultSeparateBadgeScale ?? d.separateBadgeScale ?? getSeparateBadgeDefaultScale(storedDefaultStyle),
     defaultSeparateBadgeOffsetX: d.defaultSeparateBadgeOffsetX ?? d.separateBadgeOffsetX ?? 0,
     defaultSeparateBadgeOffsetY: d.defaultSeparateBadgeOffsetY ?? d.separateBadgeOffsetY ?? 0,
+    // Per-item transforms: canonicalized at the boundary so garbage/unknown
+    // identities never enter the state (fail-closed, null = automatic).
+    defaultBadgeItemTransforms: canonicalizeBadgeItemTransforms(d.defaultBadgeItemTransforms ?? d.badgeItemTransforms ?? null),
     defaultNetworkLogoScale: d.defaultNetworkLogoScale ?? d.networkLogoScale ?? 100,
     defaultGenreBadgeOffsetX: d.defaultGenreBadgeOffsetX ?? d.genreBadgeOffsetX ?? 0,
     defaultGenreBadgeOffsetY: d.defaultGenreBadgeOffsetY ?? d.genreBadgeOffsetY ?? 0,
@@ -891,6 +922,7 @@ function buildFromStored(d: StoredDefaults | null): DefaultsState {
     separateBadgeScale: d.separateBadgeScale ?? d.defaultSeparateBadgeScale ?? getSeparateBadgeDefaultScale(storedStyle),
     separateBadgeOffsetX: d.separateBadgeOffsetX ?? d.defaultSeparateBadgeOffsetX ?? 0,
     separateBadgeOffsetY: d.separateBadgeOffsetY ?? d.defaultSeparateBadgeOffsetY ?? 0,
+    badgeItemTransforms: canonicalizeBadgeItemTransforms(d.badgeItemTransforms ?? d.defaultBadgeItemTransforms ?? null),
     networkLogoScale: d.networkLogoScale ?? d.defaultNetworkLogoScale ?? 100,
     genreBadgeOffsetX: d.genreBadgeOffsetX ?? d.defaultGenreBadgeOffsetX ?? 0,
     genreBadgeOffsetY: d.genreBadgeOffsetY ?? d.defaultGenreBadgeOffsetY ?? 0,
@@ -924,8 +956,9 @@ function buildFromStored(d: StoredDefaults | null): DefaultsState {
     // esplicito vince (incluso 0); senza, si segue il flat esplicito
     // (inclusi alias legacy e -10/+10 deliberati); solo quando anche il flat
     // è implicito (nuovi settings) si fissa 0/0 storico, mentre il portrait
-    // adotta il nuovo default. Chiave presente-ma-undefined si comporta come
-    // assente (??) e non persiste in JSON — nessuna migrazione degli stored.
+    // adotta il nuovo default. La chiave "follow" resta ASSENTE (mai un
+    // own-undefined, che il patch di sessione leggerebbe come clear voluto);
+    // nessuna migrazione degli stored.
     // Trio età seedato dai RAW (scelta "preserve current appearance"): un
     // legacy ON resta ON in landscape, un legacy OFF resta OFF; i nuovi
     // settings partono OFF/IT/standard indipendenti. Mai reseed dopo update.
@@ -976,6 +1009,12 @@ export function defaultsToPayload(d: DefaultsState): Record<string, unknown> {
     separateBadgeScale: d.defaultSeparateBadgeScale,
     separateBadgeOffsetX: d.defaultSeparateBadgeOffsetX,
     separateBadgeOffsetY: d.defaultSeparateBadgeOffsetY,
+    // Per-item corrections: emitted ONLY when configured, so a payload without
+    // them stays byte-identical to the historic one (and clearing the last
+    // correction removes the key from the full-replace PUT).
+    ...(canonicalizeBadgeItemTransforms(d.defaultBadgeItemTransforms)
+      ? { badgeItemTransforms: canonicalizeBadgeItemTransforms(d.defaultBadgeItemTransforms) }
+      : {}),
     networkLogoScale: d.defaultNetworkLogoScale,
     genreBadgeOffsetX: d.defaultGenreBadgeOffsetX,
     genreBadgeOffsetY: d.defaultGenreBadgeOffsetY,
@@ -1026,6 +1065,7 @@ export function defaultsToPayload(d: DefaultsState): Record<string, unknown> {
     logoOffsetX: d.defaultLogoOffsetX ?? null,
     logoOffsetY: d.defaultLogoOffsetY ?? null,
     landscape: d.landscape,
+    ...(d.landscapeReset && d.landscapeReset.length > 0 ? { landscapeReset: d.landscapeReset } : null),
   }
 }
 

@@ -157,11 +157,12 @@ describe("desktop global preview compact layout", () => {
     renderWithCtx(<Host shape="portrait" />)
     await screen.findByAltText("Avatar")
 
-    // Zoom opens from the poster and closes on second click.
+    // The enlarged surface is the editor: it closes through its explicit
+    // control (clicking the poster never closes it, so no gesture is lost).
     await user.click(screen.getByLabelText("ui.defaultsPreviewZoomOpen"))
     const dialog = await screen.findByRole("dialog")
     expect(within(dialog).getByAltText("Avatar")).toBeInTheDocument()
-    await user.click(within(dialog).getByAltText("Avatar"))
+    await user.click(within(dialog).getByTestId("defaults-preview-badge-edit-close"))
     await waitFor(() => {
       expect(screen.queryByRole("dialog")).toBeNull()
     })

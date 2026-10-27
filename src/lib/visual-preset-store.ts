@@ -58,10 +58,45 @@ export async function mutateVisualPreset(userId: string | null, operation: "save
       const input = visualPresetInputSchema.parse(stripRemovedFreshFontKeys(body))
       const shape = input.shape ?? "portrait"
       const scope = all.filter((preset) => preset.shape === shape)
+      const preset = { name: input.name, values: input.values }
+      if (input.mode === "update") {
+        if (!input.id) throw new Error("Preset id required")
+        if (!scope.some((entry) => entry.id === input.id)) throw new Error("Preset not found")
+        if (scope.some((entry) => entry.name === input.name && entry.id !== input.id)) {
+          throw new Error("Preset name already exists")
+        }
+        const updated: VisualPreset = { id: input.id, ...preset, shape }
+        const nextScope = [...scope.filter((entry) => entry.id !== input.id), updated]
+        const next = [...all.filter((entry) => entry.shape !== shape), ...nextScope]
+        if (getStorageMode() === "kv") {
+          await getKv().hset(key, { [updated.id]: updated })
+        } else {
+          await fsp.mkdir(path.dirname(file), { recursive: true })
+          await atomicWriteFile(file, JSON.stringify(next))
+        }
+        return nextScope.sort((a, b) => a.name.localeCompare(b.name))
+      }
+      if (input.mode === "create") {
+        // Explicit create never overwrites: a duplicate name (per shape) is
+        // rejected, and the quota is checked only for a genuinely new entry.
+        if (scope.some((entry) => entry.name === input.name)) throw new Error("Preset name already exists")
+        if (scope.length >= MAX_VISUAL_PRESETS) throw new Error("Preset limit reached")
+        const created: VisualPreset = { id: randomUUID(), ...preset, shape }
+        const nextScope = [...scope, created]
+        const next = [...all.filter((entry) => entry.shape !== shape), ...nextScope]
+        if (getStorageMode() === "kv") {
+          await getKv().hset(key, { [created.id]: created })
+        } else {
+          await fsp.mkdir(path.dirname(file), { recursive: true })
+          await atomicWriteFile(file, JSON.stringify(next))
+        }
+        return nextScope.sort((a, b) => a.name.localeCompare(b.name))
+      }
+      // Legacy API (no mode/id): historical upsert-by-name behavior unchanged.
       const id = scope.find((preset) => preset.name === input.name)?.id ?? randomUUID()
       let nextScope = scope.filter((preset) => preset.id !== id && preset.name !== input.name)
       if (nextScope.length >= MAX_VISUAL_PRESETS) throw new Error("Preset limit reached")
-      nextScope = [...nextScope, { id, ...input, shape }]
+      nextScope = [...nextScope, { id, ...preset, shape }]
       const next = [...all.filter((preset) => preset.shape !== shape), ...nextScope]
       if (getStorageMode() === "kv") {
         await getKv().hset(key, { [id]: next.find((preset) => preset.id === id)! })

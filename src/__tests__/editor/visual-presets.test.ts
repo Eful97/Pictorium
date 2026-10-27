@@ -127,6 +127,26 @@ describe("personal visual presets", () => {
   })
 
   for (const mode of ["file", "kv"]) {
+    it(`explicit create/update never overwrites by prefilled name using ${mode}`, async () => {
+      mocks.mode = mode
+      const saved = await mutateVisualPreset(USER, "save", { name: "Cinema", values: values() })
+      // Create with an existing name is rejected (never a silent overwrite).
+      await expect(
+        mutateVisualPreset(USER, "save", { mode: "create", name: "Cinema", values: { ...values(), defaultLogoScale: 99 } }),
+      ).rejects.toThrow("Preset name already exists")
+      expect((await listVisualPresets(USER))[0].values.defaultLogoScale).not.toBe(99)
+      // Explicit update keeps the stable id and only the requested snapshot.
+      const changed = { ...values(), defaultLogoScale: 42 }
+      const updated = await mutateVisualPreset(USER, "save", {
+        mode: "update", id: saved[0].id, name: "Cinema", values: changed,
+      })
+      expect(updated).toEqual([{ id: saved[0].id, name: "Cinema", shape: "portrait", values: changed }])
+      // Update of a missing id fails closed instead of resurrecting it.
+      await expect(
+        mutateVisualPreset(USER, "save", { mode: "update", id: "99999999-9999-4999-8999-999999999999", name: "Gone", values: values() }),
+      ).rejects.toThrow("Preset not found")
+    })
+
     it(`overwrites the same trimmed name and preserves its id using ${mode}`, async () => {
       mocks.mode = mode
       const saved = await mutateVisualPreset(USER, "save", { name: "Cinema", values: values() })

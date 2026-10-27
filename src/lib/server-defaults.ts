@@ -68,6 +68,8 @@ export interface LandscapeServerDefaults {
   /** Offset px del gruppo rating separati (negativo = su, positivo = giù). Default 0. */
   separateBadgeOffsetY?: number
   /** Layout dei rating separati (default "column" = colonna destra storica). */
+  /** Per-ITEM corrections (single rating pill / single quality-AV mark), canonical wire form. Null/absent = automatic layout. */
+  badgeItemTransforms?: string | null
   separateRatingsStyle?: SeparateRatingsStyle
   networkLogoScale?: number
   networkLogoOffsetX?: number
@@ -221,6 +223,8 @@ export interface ServerDefaults {
   /** Offset px del gruppo rating separati (negativo = su, positivo = giù). Default 0. */
   separateBadgeOffsetY?: number
   /** Layout dei rating separati (default "column" = colonna destra storica). */
+  /** Per-ITEM corrections (single rating pill / single quality-AV mark), canonical wire form. Null/absent = automatic layout. */
+  badgeItemTransforms?: string | null
   separateRatingsStyle?: SeparateRatingsStyle
   /** Ordine/priorità sash (sottoinsieme ammesso: non listati = spenti). Default = ordine standard. */
   sashOrder?: SashBucket[]

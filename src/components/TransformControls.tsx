@@ -11,7 +11,6 @@ import { useNetworkFreeze } from "@/lib/useNetworkFreeze"
 import { useNetworkGeometry } from "@/lib/useNetworkGeometry"
 import { resolveNetworkShapeView } from "@/lib/network-follow"
 import { logoEffectiveAutoScale, resolveLogoDisplayedRank, FRESH_TITLE_LOGO_MAX_SCALE, STANDARD_TITLE_LOGO_MAX_SCALE } from "@/lib/logo-selection"
-import { isCardSkin } from "@/lib/card-layout-skins"
 import { defaultGradientHeightForPoster } from "@/lib/gradient-defaults"
 import { naturalGradientForPoster } from "@/lib/gradient-presets"
 import { GradientPresetRow } from "@/components/GradientPresetRow"
@@ -66,20 +65,12 @@ export function TransformControls() {
   // auto e il save null lo garantiscono).
   const isFreshSelected = ed.posterLayout === "fresh"
   const titleScaleMax = isFreshSelected ? FRESH_TITLE_LOGO_MAX_SCALE : STANDARD_TITLE_LOGO_MAX_SCALE
-  // Card skins (provider-glass/nuvio/stremio) compose fixed geometry in the
-  // service (card-layout.ts): the rank numeral, metadata grid, provider mark
-  // and title slot never move, so their rank/title-offset/provider-offset
-  // Transform sliders are shown disabled with a hint — values are never
-  // rewritten and re-apply when switching back to Standard/Fresh. Title and
-  // network SCALES still resize their base bitmaps (shrink-only into the
-  // fixed slots), quality/extra/blur/shade stay live, so those stay enabled.
-  // P15: the genre badge SCALE is live on Card too (it sizes the standard
-  // main badge fed to the below-card band via the shared overlay slot);
-  // only the genre X/Y offsets stay fixed (band-centered) and disabled.
-  // Fresh auto-100 math is deliberately NOT extended here: Card keeps the
-  // historic aspect auto and the Standard 100 cap.
-  const isCardLayout = isCardSkin(ed.posterLayout)
-  const cardFixedTitle = isCardLayout ? t("ui.posterLayoutCardHint") : undefined
+  // Card skins keep their composed SLOTS, but the user transforms are live on
+  // every layout (explicit user contract): the shared Card compositor applies
+  // the same offsets/scales the sliders write, so no Transform group is
+  // fixed-layout disabled. Neutral values reproduce the historic look.
+  const isCardLayout = false
+  const cardFixedTitle = undefined
 
   // Preset sfumatura: scorciatoie che scrivono gli slider esistenti (nessun
   // nuovo parametro server — la preview/Stremio ricevono gli stessi valori).

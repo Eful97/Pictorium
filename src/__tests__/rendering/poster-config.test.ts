@@ -350,6 +350,32 @@ describe("resolvePosterRenderConfig", () => {
     expect(r2.logoOffsetY).toBe(2)
   })
 
+  it("logo scale/offsets: a per-title correction wins over the global defaults", () => {
+    // The global defaults (never title-specific) drive the same anchor/offset
+    // rule when the title has no correction of its own.
+    const sd = { logoScale: 60, logoOffsetX: 4, logoOffsetY: -2 }
+    const fromDefaults = resolvePosterRenderConfig(baseInput({ sd }))
+    expect(fromDefaults.logoScale).toBe(60)
+    expect(fromDefaults.logoOffsetX).toBe(4)
+    expect(fromDefaults.logoOffsetY).toBe(-2)
+    // A per-title correction stays per-title: it wins without mutating or
+    // merging the global values (no absolute geometry, same margin rule).
+    const perTitle = resolvePosterRenderConfig(baseInput({
+      sd,
+      mapping: mapping({ logoScale: 80, logoOffsetX: 1, logoOffsetY: 2 }),
+    }))
+    expect(perTitle.logoScale).toBe(80)
+    expect(perTitle.logoOffsetX).toBe(1)
+    expect(perTitle.logoOffsetY).toBe(2)
+    // Explicit zero is a real per-title correction (0 is not "absent").
+    const zeroed = resolvePosterRenderConfig(baseInput({
+      sd,
+      mapping: mapping({ logoOffsetX: 0, logoOffsetY: 0 }),
+    }))
+    expect(zeroed.logoOffsetX).toBe(0)
+    expect(zeroed.logoOffsetY).toBe(0)
+  })
+
   it("logo scale/offsets are clamped (R1 anti-DoS)", () => {
     // Scale assurda → clamp 10..200 (prima arrivava a sharp → OOM/500).
     expect(resolvePosterRenderConfig(baseInput({ searchParams: new URLSearchParams({ scale: "999999" }) })).logoScale).toBe(200)

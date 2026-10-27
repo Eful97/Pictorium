@@ -18,8 +18,10 @@ import { independentLandscapeDefaults } from "@/lib/visual-presets"
 import { materializeExtraTuning, clearedExtraForPresetApply } from "@/lib/extra-materialize"
 import { projectPerTitleVisualPreset } from "@/lib/per-title-preset"
 import { logoEffectiveAutoScale } from "@/lib/logo-selection"
+import { canonicalizeBadgeItemTransforms } from "@/lib/badge-item-transforms"
 import { resolveNetworkEffectiveView } from "@/lib/network-follow"
 import { cloneShapeDraft, type ShapeDraftShape } from "@/lib/shape-draft"
+import type { ActivePresetBaseline, ActivePresetMeta } from "@/lib/active-preset-baseline"
 
 /**
  * PosterEditorCtx — possiede il proprio stato di editing (badge defaults,
@@ -60,7 +62,22 @@ export const LANDSCAPE_BLUR_DEFAULTS: LandscapeBlurState = {
 }
 
 export interface PosterEditorCtx {
-  applyVisualPreset: (values: VisualPresetValues, target?: "portrait" | "landscape") => void
+  applyVisualPreset: (values: VisualPresetValues, target?: "portrait" | "landscape", meta?: ActivePresetMeta) => void
+  /**
+   * Persisted applied-preset reset references (one per shape), when the
+   * settings session owns them. Absent outside the settings draft.
+   */
+  activePresetBaselines?: Partial<Record<"portrait" | "landscape", ActivePresetBaseline>>
+  /**
+   * Explicitly refresh the applied-preset reference after an approved preset
+   * update. Never called by the global Save or by a plain apply.
+   */
+  refreshActivePresetBaseline?: (shape: "portrait" | "landscape", meta?: ActivePresetMeta) => void
+  /**
+   * Landscape profile reset: baseline-aware when an applied preset exists,
+   * otherwise the documented clear-to-inherit contract.
+   */
+  resetLandscapeKeys?: (keys: readonly (keyof LandscapeServerDefaults)[]) => void
   /**
    * Applica uno snapshot visuale (built-in/salvato) al SOLO titolo corrente,
    * nel formato in editing: proiezione allowlisted via
@@ -251,6 +268,12 @@ export interface PosterEditorCtx {
   /** Offset px gruppo rating separati di default (default 0). */
   defaultSeparateBadgeOffsetY: number
   setDefaultSeparateBadgeOffsetY: (v: number | ((prev: number) => number)) => void
+  /**
+   * Per-ITEM corrections of the badge groups (single rating pill / single
+   * quality-AV mark) in canonical wire form. Null = automatic layout.
+   */
+  defaultBadgeItemTransforms: string | null
+  setDefaultBadgeItemTransforms: (v: string | null | ((prev: string | null) => string | null)) => void
   defaultNetworkLogoScale: number
   setDefaultNetworkLogoScale: (v: number | ((prev: number) => number)) => void
   defaultNetworkLogoOffsetX: number
@@ -459,6 +482,9 @@ export interface PosterEditorCtx {
   setSeparateBadgeOffsetX: (v: number | ((prev: number) => number)) => void
   separateBadgeOffsetY: number
   setSeparateBadgeOffsetY: (v: number | ((prev: number) => number)) => void
+  /** Per-ITEM corrections of the badge groups (canonical wire form, null = auto). */
+  badgeItemTransforms: string | null
+  setBadgeItemTransforms: (v: string | null | ((prev: string | null) => string | null)) => void
 
   // ---- Logo network ----
   networkLogoScale: number
@@ -644,6 +670,7 @@ export function PosterEditorProvider({
     genreBadgeScale, qualityBadgeScale, networkLogoScale,
     separateBadgeScale,
     separateBadgeOffsetX, separateBadgeOffsetY,
+    badgeItemTransforms,
     genreBadgeOffsetX, genreBadgeOffsetY, qualityBadgeOffsetX, qualityBadgeOffsetY,
     networkLogoOffsetX, networkLogoOffsetY,
     badgeStyle, rankingBadgeStyle, qualityBadgeStyle, videoFormats,
@@ -659,6 +686,7 @@ export function PosterEditorProvider({
     defaultGenreBadgeScale, defaultQualityBadgeScale, defaultNetworkLogoScale,
     defaultSeparateBadgeScale,
     defaultSeparateBadgeOffsetX, defaultSeparateBadgeOffsetY,
+    defaultBadgeItemTransforms,
     defaultGenreBadgeOffsetX, defaultGenreBadgeOffsetY, defaultQualityBadgeOffsetX, defaultQualityBadgeOffsetY,
     defaultNetworkLogoOffsetX, defaultNetworkLogoOffsetY,
     defaultBadgeGenre, defaultBadgeYear, defaultBadgeRating, defaultBadgeQuality, defaultAgeBadge, defaultAgeCountry, defaultAgeBadgeStyle, defaultCustomRatings, defaultCustomRatingEndpoint, defaultCustomRatingApiKeyHeader, defaultRatingSources, defaultSeparateRatings, defaultSeparateRatingsStyle, defaultPosterLayout, defaultPosterFreshScope, defaultSashOrder, defaultDisabledContentTags, defaultDisabledNetworks,
@@ -932,6 +960,12 @@ export function PosterEditorProvider({
       const next = typeof v === "function" ? v(separateBadgeOffsetY) : v
       update({ separateBadgeOffsetY: next })
     }, [separateBadgeOffsetY, update])
+  const setBadgeItemTransforms = useCallback(
+    (v: string | null | ((prev: string | null) => string | null)) => {
+      const next = typeof v === "function" ? v(badgeItemTransforms) : v
+      // Canonical at the write boundary: one stored form per configuration.
+      update({ badgeItemTransforms: canonicalizeBadgeItemTransforms(next) })
+    }, [badgeItemTransforms, update])
   const setNetworkLogoScale = useCallback(
     (v: number | ((prev: number) => number)) => {
       const next = typeof v === "function" ? v(networkLogoScale) : v
@@ -1208,6 +1242,12 @@ export function PosterEditorProvider({
       const next = typeof v === "function" ? v(defaultSeparateBadgeOffsetY) : v
       update({ defaultSeparateBadgeOffsetY: next })
     }, [defaultSeparateBadgeOffsetY, update])
+  const setDefaultBadgeItemTransforms = useCallback(
+    (v: string | null | ((prev: string | null) => string | null)) => {
+      const next = typeof v === "function" ? v(defaultBadgeItemTransforms) : v
+      // Canonical at the write boundary: one stored form per configuration.
+      update({ defaultBadgeItemTransforms: canonicalizeBadgeItemTransforms(next) })
+    }, [defaultBadgeItemTransforms, update])
   const setDefaultNetworkLogoScale = useCallback(
     (v: number | ((prev: number) => number)) => {
       const next = typeof v === "function" ? v(defaultNetworkLogoScale) : v
@@ -1681,6 +1721,9 @@ export function PosterEditorProvider({
       separateBadgeScale: land?.separateBadgeScale ?? defaultSeparateBadgeScale,
       separateBadgeOffsetX: land?.separateBadgeOffsetX ?? defaultSeparateBadgeOffsetX,
       separateBadgeOffsetY: land?.separateBadgeOffsetY ?? defaultSeparateBadgeOffsetY,
+      // Per-item corrections: profile wins when the shape owns the key, else
+      // the flat (same inherit contract as every other geometry field).
+      badgeItemTransforms: land?.badgeItemTransforms ?? defaultBadgeItemTransforms,
       networkLogoScale: land?.networkLogoScale ?? defaultNetworkLogoScale,
       networkLogoOffsetX: netResetView.follow ? netResetView.relativeX : (netResetView.fixedX ?? defaultNetworkLogoOffsetX),
       networkLogoOffsetY: netResetView.follow ? netResetView.relativeY : (netResetView.fixedY ?? defaultNetworkLogoOffsetY),
@@ -1862,6 +1905,8 @@ export function PosterEditorProvider({
       setDefaultSeparateBadgeOffsetX,
       defaultSeparateBadgeOffsetY,
       setDefaultSeparateBadgeOffsetY,
+      defaultBadgeItemTransforms,
+      setDefaultBadgeItemTransforms,
       defaultQualityBadgeOffsetX,
       setDefaultQualityBadgeOffsetX,
       defaultQualityBadgeOffsetY,
@@ -2015,6 +2060,8 @@ export function PosterEditorProvider({
       setSeparateBadgeOffsetX,
       separateBadgeOffsetY,
       setSeparateBadgeOffsetY,
+      badgeItemTransforms,
+      setBadgeItemTransforms,
 
       // Logo network
       networkLogoScale,
@@ -2145,6 +2192,8 @@ export function PosterEditorProvider({
       setDefaultSeparateBadgeOffsetX,
       defaultSeparateBadgeOffsetY,
       setDefaultSeparateBadgeOffsetY,
+      defaultBadgeItemTransforms,
+      setDefaultBadgeItemTransforms,
       defaultQualityBadgeOffsetX,
       setDefaultQualityBadgeOffsetX,
       defaultQualityBadgeOffsetY,
@@ -2228,7 +2277,7 @@ export function PosterEditorProvider({
       // Colonna rating separati
       separateBadgeScale, setSeparateBadgeScale,
       separateBadgeOffsetX, setSeparateBadgeOffsetX,
-      separateBadgeOffsetY, setSeparateBadgeOffsetY,
+      separateBadgeOffsetY, setSeparateBadgeOffsetY, badgeItemTransforms, setBadgeItemTransforms,
 
       // Logo network
       networkLogoScale, setNetworkLogoScale,

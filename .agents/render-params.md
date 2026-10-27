@@ -443,6 +443,7 @@ Opt-in (`sep=1`, default OFF): sostituisce la media ★ nel badge con una colonn
 | `qscale` | `qualityBadgeScale` (badge qualità streaming) | scala `%` 10..200 (default 100 su base 17px nativa) |
 | `qox`/`qoy` | `qualityBadgeOffsetX`/`qualityBadgeOffsetY` | offset px (default portrait -10/+15, landscape 0/0; espliciti incl. 0 vincono) |
 | `sepox`/`sepoy` | `separateBadgeOffsetX`/`separateBadgeOffsetY` (gruppo separati) | offset px (default 0; colonna/pills entrambi gli assi, `bottom-bar` portrait solo Y — X ignorata, mai nuovo renderer) |
+| `bit` | `badgeItemTransforms` (correzioni dei SINGOLI badge: un rating, un marchio qualità/AV) | opt-in (`bit` assente = layout automatico, URL legacy byte-identici). Forma wire canonica `id=scala,offsetX,offsetY` ordinata per id, separatore `;` — vedi `badge-item-transforms.ts`. Identità STABILI, mai indici d'array: `rating:<source>` (stessa fonte del valore/logo, es. `rating:imdb`), `quality:tier` (slot del badge qualità), `quality:age` (pill età), `quality:format:<dv|hdr|hdr10plus|atmos|imax>`, `quality:combo:dv-atmos` (marchio fuso DV+Atmos). Scala `%` 10..200, offset px `±2000`; neutrali (100/0/0) e id sconosciuti scartati (fail-closed). Catena `query > mapping effettivo per formato > config token > defaults effettivi > nessuna`; entra in cache chiave canonicalizzata (garbage = assenza, nessun poisoning) e in `RENDER_FILES`. UI: maniglie dedicate sulla preview ingrandita + input numerici per item nel pannello Trasforma; recupero esplicito `Riunisci`/`Riunisci al gruppo` (rimuove solo le correzioni del target, mai lo snapshot del preset applicato: vedi il paragrafo dedicato su Reset vs Riunisci) |
 | `netscale` | `networkLogoScale` (logo network) | scala `%` 10..200 (default 100) |
 | `netPos` | `networkLogoPosition` (sempre esplicito in preview: `auto`/`top`; Stremio solo in modo `top`) | `auto` = specchio dinamico; `top` = sempre all'angolo superiore, lato del nastro effettivo (destra solo con nastro rank/preset o Coming Soon a destra, sinistra con tutti gli altri badge o senza — anche in vista Stremio; stacking Coming Soon del lato + shift nastro stesso lato + shrink vs centrale; qualità trasloca a sinistra quando il network finisce a destra). Catena: query > mapping (`networkLogoPosition`) > config token > server defaults > `auto` |
 | `nox`/`noy` | `networkLogoOffsetX`/`networkLogoOffsetY` | offset px (default 0) |
@@ -485,6 +486,183 @@ Opt-in (`sep=1`, default OFF): sostituisce la media ★ nel badge con una colonn
 > Formato Stremio: se il default globale è `landscape`, cataloghi e meta Pictorium emettono `posterShape: landscape` e un URL `shape=landscape` anche per i mapping salvati `poster`. Con default `poster`, il formato per-titolo continua a prevalere. Il mapping salvato non viene modificato.
 >
 > Demo samples (solo preview default Impostazioni, `demo-samples.ts`): `buildDefaultsPreviewUrl` emette sempre `demosamples=1`; la route lo accetta solo con preview effettiva post-downgrade (`preview=1` + flag `1`, fail-closed; declassata → flag rimosso dalla chiave). Dataset sintetico fisso, zero fetch/chiavi: rank 11, tier `4K` (passa sempre `qmin`), network Netflix (SVG già bundlato, fallback nel service DOPO i candidati reali in ordine invariato), voti per le sole fonti `rsrc` richieste con merge gap-only (reali intatti, media regola imdb+tmdb), genere/anno fallback solo se assenti (date passate fisse). I toggle/stili restano l'unico gate di rendering (`ranking=0` → niente rank, `formats=none` invariato, niente premi/upcoming/Top250/Coming Soon campionati); `queryExtra` segue l'API reale. In chiave cache via allowlist (campione/genuino separati); le preview non si scrivono mai. Mai in `buildPreviewUrl` editor né negli URL Stremio. UI: avviso `ui.defaultsPreviewSamplesNotice`.
+
+## Trascinamento diretto dei badge (solo editor)
+
+Nessun parametro nuovo, nessun secondo renderer. Nelle Impostazioni globali la
+preview piccola NON è una superficie di editing: espone solo un ingresso
+etichettato ("Modifica poster", icona ingrandisci; la miniatura mobile ha la
+stessa destinazione) che apre DIRETTAMENTE l'editor ingrandito. Le maniglie sono
+i box FINALI riportati dal renderer via `debug=1&netgeo=1` (blocco `badges`, gli
+stessi numeri del poster mostrato). Il blocco riporta il layout del POSTER INTERO
+(`layout`: `ranked` = classifica effettivamente dipinta, `fallback` = senza
+classifica) e i box di OGNI elemento realmente composto in Standard, Fresh e
+Card (badge top rank/extra, numerale Fresh/Card, blocco meta/genere, qualità,
+separati, logo network, logo titolo). Dentro l'editor ingrandito il click sul poster non chiude mai il dialogo (nessun
+gesto perso): chiudono il controllo esplicito, Escape e il backdrop del Modal
+condiviso (focus trap e ripristino invariati). Il toggle `previewBadgeDrag` vive
+SOLO qui e governa esclusivamente il trascinamento col puntatore: è **opt-out**
+(assente = spostamento ATTIVO, `"0"` = spento), perché un puntatore inerte al
+primo avvio è indistinguibile da una funzione rotta; spento, la selezione e il
+resize agli angoli restano disponibili, mentre il corpo non si muove.
+
+**Livello del target (GROUP vs ITEM).** La toolbar dell'editor espone due
+pulsanti etichettati (Gruppi / Badge singoli) e UNA sola delle due famiglie di
+maniglie è disegnata e hit-testabile per volta: le maniglie di gruppo e quelle
+per-item non si sovrappongono mai, quindi un gruppo il cui box è quasi tutto
+coperto dai singoli badge resta sempre raggiungibile. Il cambio livello svuota
+la selezione (spazi di target diversi).
+
+**Selezione multipla (stile Windows).** Click semplice = seleziona un target;
+Ctrl/Cmd-click = aggiunge o toglie; trascinamento sul fondo vuoto del poster =
+marquee che seleziona tutti i target del livello attivo toccati (Ctrl/Cmd
+estende la selezione corrente); click sul fondo vuoto senza trascinamento =
+svuota. Trascinare uno qualsiasi dei target selezionati muove TUTTA la
+selezione con un unico delta condiviso, clampato a TUTTI i box selezionati
+(intersezione dei limiti di ciascuno: nessun membro esce dalla cornice) e
+snappato dal box UNIONE; il doppio click ripristina la selezione corrente. La
+selezione è normalizzata: un item il cui gruppo è selezionato viene scartato,
+quindi padre+figli non possono mai traslare due volte (e i due livelli sono
+comunque esclusivi). Le scritture multiple sono ATOMICHE: una sola scrittura di
+stato per gesto (`applyFamilyMoves` / `applyItemMoves`), così il batching di
+React non può tenere solo l'ultimo membro.
+
+Il trascinamento scrive gli offset X/Y esistenti
+(`tox`/`toy`, `exox`/`exoy`, `gox`/`goy`, `qox`/`qoy`, `sepox`/`sepoy`,
+`nox`/`noy`, logo titolo `ox`/`oy`): resta sincronizzato in entrambe le
+direzioni con gli slider Trasforma. Il compositor Card applica gli stessi
+offset e scale (geometria fissa solo a valori neutri), quindi badge e logo
+sono spostabili anche su Fresh e Card senza cambiare la resa di default.
+**Resize** (solo editor): selezionato un elemento, i quattro angoli sono
+maniglie di ridimensionamento che preservano l'aspetto (rapporto della distanza
+del puntatore dal centro del box, in px canvas: stessa richiesta a ogni zoom).
+Scrivono la STESSA scala dei rispettivi slider Trasforma (`tbs`/`exs`/`gbs`/
+`qbs`/`sepscale`/`nls`/logo `scale`), nello stesso layer della forma (flat
+portrait, profilo landscape), quindi slider e maniglie restano allineati. La
+scala proposta è clampata al contratto server 10..200 (logo: cap UI del layout
+attivo, Standard 100 / Fresh 200). In CRESCITA è limitata anche dal riquadro che
+i box riportati mostrano: un elemento che già sborda può solo rimpicciolire, uno
+a larghezza piena (barra genere) non ha spazio di crescita, un elemento che ci
+sta si ferma quando il box previsto tocca il bordo. Il contenimento di
+POSIZIONE non è promesso dal resize (il renderer scala attorno al proprio
+anchor, gli offset restano margini). `pointercancel` non scrive nulla; le
+frecce sulla maniglia d'angolo cambiano la scala di 1 (Shift: 10) con lo stesso
+clamp. Per il logo in auto (scala `null`) la baseline del primo resize è
+derivata dal box riportato (larghezza resa), mai un 100 inventato; i cap del
+renderer restano validi.
+Lo slot superiore segue il layout effettivamente dipinto: il profilo fallback
+(`extra`) è completo (scala + X + Y) e il primo drag lo materializza; con
+`exscale`/`exox`/`exoy` assenti resta il fallback legacy per-asse sul tuning
+classifica. Doppio click su una maniglia = reset del SOLO elemento (posizione
+E scala) ai default canonici del profilo attivo: in portrait i costanti
+esistenti (rank/genere 100/0/0, qualità 100 + offset di forma, separati
+scala di stile + 0/0, network 100/0/0, logo auto + 0/0, extra null = follow),
+in landscape la cancellazione delle chiavi di profilo (eredita i flat, stesso
+contratto dei Reset esistenti). Il top slot si resetta solo nel layout che lo
+mostra; le altre famiglie non vengono toccate. Il doppio click non committa il
+drag concorrente. Le guide di allineamento (centro poster, bordi/centri degli
+altri badge, snap a ~6px schermo) e la preview ingrandita sono solo overlay
+dell'editor: mai renderizzate nel poster.
+
+**Riunisci al gruppo (recupero esplicito, NON un reset).** Accanto ai Reset
+(preset-aware: con un preset applicato ripristinano lo snapshot immutabile,
+anche le correzioni per-item che conteneva al momento dell'apply) esistono due
+affordance distinte: `Riunisci` sulla riga numerica di un singolo badge e
+`Riunisci al gruppo` sulla card Qualità del tab Trasforma, più il pulsante
+della toolbar di selezione dell'editor ingrandito. Rimuovono SOLO le correzioni
+`quality:*`/`rating:*` possedute dal target, sempre: mai lo snapshot applicato,
+mai la posizione/scala del gruppo (`qscale`/`qox`/`qoy`) né le altre famiglie.
+Il rejoin di gruppo lavora sulla mappa STORATA, quindi elimina anche le identità
+non dipinte (formato soppresso da hdr10plus, combo fuso, pill età assente) e non
+dipende da una geometria fresca o dalle righe elencate. Scrive solo la bozza
+(singolo Save per persistere: flat `null` / profilo landscape `null` ESPLICITO,
+non una chiave cancellata, altrimenti erediterebbe le correzioni portrait); una
+mappa già pulita non scrive nulla (nessun dirty/conflict fittizio) e lo stato
+`pending` dell'overlay viene azzerato, così la maniglia non continua a disegnare
+il delta rimosso.
+
+**Contenimento nel riquadro (solo drag).** Il delta proposto viene limitato
+contro il box riportato dal renderer e il canvas, su entrambi gli assi e in ogni
+layout/zoom (Standard, Fresh, Card, portrait e landscape; badge e logo titolo),
+PRIMA di disegnare la maniglia e PRIMA di scrivere gli offset: overlay e valori
+salvati sono lo stesso movimento (`resolveBadgeDragDelta` →
+`containBadgeDragDelta`). Lo snap gira prima del contenimento: un aggancio che
+spingerebbe oltre il bordo non viene onorato e la guida dell'asse accorciato non
+viene mostrata. Gli assi bloccati (`fixedX`: X ignorata dal renderer) restano
+non toccati. Delta interi, arrotondati verso l'interno quando accorciati, così
+l'offset intero salvato non può cadere mezzo pixel fuori.
+
+Garanzia effettiva e limiti dichiarati:
+
+- bounds = i box riportati in `badges`: corpo visibile per le famiglie ancorate
+  per corpo (`genre`, `rank`, `extra`), intera bitmap composta per i layer
+  bitmap (`quality`, `separate`, `network`) e per il logo titolo. Per le
+  famiglie "corpo" il bleed d'ombra trasparente può quindi restare tagliato dal
+  bordo mentre il corpo visibile è dentro; per le altre il box include già il
+  padding della bitmap (contenimento conservativo).
+- box fuori riquadro all'inizio (offset salvati o badge più grande del
+  canvas): il drag non peggiora la situazione e non fa salti — nessun
+  riallineamento coatto al bordo. Il contenimento pieno si raggiunge muovendo
+  verso l'interno; non viene inventato un contenimento impossibile.
+- elemento più largo/alto del canvas: contenimento pieno impossibile; il clamp
+  lo tiene comunque a copertura del riquadro (nessun vuoto sull'asse).
+- gli slider Trasforma NON condividono questo limite: restano sul contratto
+  esistente (escursione piena per asse, nessun contenimento promesso, vedi
+  `badge-offset-ranges.ts`), condivisi con l'editor per-titolo e gli edit
+  numerici. Il limite è del solo trascinamento diretto.
+- geometria non ancora disponibile (`badges` assente): nessun bound applicato e
+  nessuna maniglia, come prima.
+- asse bloccato (`fixedX`, es. barra genere full-width): il delta finale è **0**
+  su quell'asse (`resolveBadgeDragDelta`), overlay e commit compresi. Prima il
+  drag orizzontale scriveva comunque `gox` (offset mai applicato dal renderer,
+  invisibile ora ma riapplicato se lo stile smettesse di essere ancorato):
+  niente stato fantasma, nessun nuovo parametro.
+
+### Regola di ancoraggio: gli offset sono margini, non geometria assoluta
+
+Nessun nuovo modello di posizionamento: ogni famiglia è composta dal renderer
+unico a partire dal PROPRIO anchor automatico (margine/griglia di formato), e
+gli offset esistenti (`tox`/`toy`, `exox`/`exoy`, `gox`/`goy`, `qox`/`qoy`,
+`sepox`/`sepoy`, `nox`/`noy`, logo `ox`/`oy`) sono **delta di margine**
+applicati DOPO quell'anchor. Il drag globale scrive gli stessi valori dei
+controlli Trasforma, quindi il margine resta relativo: a parità di offset il
+badge mantiene la stessa distanza dall'anchor anche quando la sua dimensione
+cambia (es. qualità ancorata a destra: `left = CW − pad − w + qox`, il bordo
+destro non si muove scalando). Precedenza invariata (query > mapping per-titolo
+> token > default): una correzione per-titolo resta per-titolo, il drag della
+preview default non scrive mai geometria per-titolo (`poster-config.ts`).
+Anchors di riferimento: rank/extra centrati in alto (o angolo per
+`corner`/`number`, nastro ancorato e NON trascinabile — nessun box riportato),
+qualità in alto a destra, network secondo `networkLogoPosition` (e
+`networkLogoFollowTitle` resta invariato: il network segue il titolo, mai il
+contrario), genere/metadati al centro o a destra in landscape, separati
+ancorati al fondo del box qualità, logo titolo in basso-centro (o
+`logoAlign=left`).
+
+### Logo titolo: area massima, aspetto e anchor
+
+`computeLogoBox` (`logo-layout.ts`) fa un contain-fit dentro l'area massima del
+formato (portrait: altezza 25% + larghezza canvas; landscape: 40% × 24%) con
+rapporto d'aspetto della sorgente preservato (+/−1px di arrotondamento) e mai
+un box più piccolo del fit massimo; `computeLogoLayout` lo ancora in
+basso-centro, quindi **il bordo inferiore e il centro sono identici per ogni
+logo** (wordmark largo, quadrato, verticale) a parità di scala: la scala cambia
+solo la dimensione, `ox`/`oy` sono margini dall'anchor e non spostano il fit.
+Coperto da test dedicati in `src/__tests__/rendering/logo-layout.test.ts`
+(wide/square/tall/extreme, 25/50/100%, entrambi i formati). Fresh e Card hanno
+gli slot propri già documentati (stessa regola, costanti diverse).
+
+Padding trasparente: il layout Standard/Fresh misura la **bitmap** (nessun trim
+inchiostro), il compositor Card fa trim dell'inchiostro (P14). La differenza è
+nota e volutamente invariata: un trim anche in Standard/Fresh cambierebbe la
+resa di ogni logo con padding ed è una modifica visiva esplicita (snapshot +
+`RENDER_VERSION`), non un effetto collaterale di questa regola.
+
+> **Debito aperto (non risolto qui):** la persistenza whole-poster
+> `ranked`/`fallback` (profilo top slot completo su entrambi i layout, senza
+> split del solo slot superiore) resta incompleta: il drag materializza il
+> profilo dipinto e il reset è gated per layout, ma non è una persistenza
+> completa dei due layout. Non va dichiarata completa finché non è implementata.
 
 ## Bordo poster
 
@@ -554,6 +732,110 @@ Stessa catena di persistenza del Fresh (query `layout` > mapping effettivo per f
 
 Ogni preset personale possiede l'intera ricetta visiva del formato in editing (mai il look precedente): badge/classifica/gradienti/trasformazioni + presentazione ranking (`posterLayout`/`posterFreshScope`) + stile extra standalone (`extraBadgeStyle`) + classificazione (`ageBadge`/`ageCountry`/`ageBadgeStyle`). Chiavi opzionali con nomi/enum del backend (validazione only): gli snapshot legacy senza chiavi restano validi e risolvono i canonici di fabbrica (standard/ranked/extra-null-segui-own-rank/off/IT/standard — stessa fonte di `useDefaults`), mai il live precedente né euristiche sul nome; i valori espliciti (inclusi i `null` canonici) sono onorati verbatim. Snapshot mai riscritti su render/apertura: normalizzazione pura ai bordi capture/apply/thumb/import (`normalizePersonalPreset` + `PERSONAL_FLAT_TO_LANDSCAPE` in `visual-presets.ts`; il contratto ready/per-titolo con la mappa `PRESET_FLAT_TO_LANDSCAPE` congelata resta byte-identico). Fuori dal perimetro (preservati verbatim come i ready): `ratingSources` (senza chiave profilo), `logoAlign` + fit flag (toggle globali), `posterShape` (delivery), credenziali/config provider/cataloghi/regione/userid (mai contenuto preset). Contratto sessione invariato: lo staged normalizza `freshScope "all"` → `"ranked"` per ogni seed (ranked-only), quindi i personali salvati portano `ranked` come qualsiasi altro edit.
 
+### Baseline di reset del preset applicato
+
+Applicare un preset (ready o personale) registra, per il formato in editing, uno snapshot IMMUTABILE della sessione più l'identità (`id`/nome/kind) in `activePresetBaseline:<namespace>:<shape>` (`active-preset-baseline.ts`, localStorage namespaced come i defaults, una voce per formato). I Reset di gruppo, il doppio click fullscreen (gruppo e singolo item) e i reset del pannello Trasforma ripristinano QUELLO snapshot, non i default globali eventualmente salvati dopo: posizione/scala di gruppo, correzioni per-item possedute (`quality:*`/`rating:*`) e gradienti tornano al preset; le altre famiglie restano intatte. Senza preset applicato vale il reset canonico storico (portrait costanti di fabbrica, landscape clear-to-inherit). Un global Save non tocca lo snapshot; l'update esplicito del preset (con conferma) lo rinfresca intenzionalmente. Il riferimento sopravvive al reload; un preset cancellato lascia lo snapshot di reset ma non offre più l'update.
+
+Provenienza e recupero dei riferimenti built-in (`rev` in `active-preset-baseline.ts`): gli snapshot scritti prima che le ricette possedessero le correzioni per-item (campo aggiunto DOPO le ricette) potevano catturare le correzioni LIVE, e ogni reset successivo le resuscitava. Alla lettura un riferimento `kind: "ready"` senza `rev` corrente viene recuperato dalla RICETTA FIDATA (`READY_PRESET_ENTRIES`: valore posseduto della sola chiave item del formato in editing, tutto il resto dello snapshot resta byte-identico) e marcato `rev` — una volta sola. I riferimenti già marcati non vengono mai riscritti (l'immutabilità vince su un cambio di ricetta successivo), un `id` ready sconosciuto resta invariato, e i riferimenti PERSONALI non vengono mai ricostruiti: non esiste una ricetta esterna e senza un backup/export lo snapshot personale è l'unica verità disponibile.
+
+La cancellazione di chiavi di profilo (`undefined` nei reset esistenti) viaggia nel PUT come lista additiva `landscapeReset: string[]` (allowlist `landscape-reset.ts`, fail-closed sul server): il server la applica DOPO merge/backfill, così un edit dei flat non ricongela la chiave cancellata, e non la persiste. `null` non viene mai sovraccaricato come "cancella" (resta un valore esplicito sulle chiavi nullable).
+
+## Controllo dei SINGOLI badge (per-item) — oltre ai gruppi
+
+I trasform dei gruppi restano il default automatico e non cambiano semantica.
+In aggiunta, ogni badge composto SEPARATAMENTE dal renderer ha una correzione
+propria (scala + X + Y), persistita per **identità stabile** e mai per indice.
+
+- **Identità** (`badge-item-transforms.ts`, unica fonte): `rating:<source>` per
+  un provider della colonna/riga separati (la stessa fonte che produce valore e
+  logo: `rating:imdb`, `rating:tomatoes`, `rating:metacriticuser`, …),
+  `quality:tier` per lo slot qualità, `quality:age` per la pill età,
+  `quality:format:<fmt>` per un singolo marchio A/V e `quality:combo:dv-atmos`
+  per il marchio FUSO Dolby Vision+Atmos. Un rating assente o riordinato non
+  eredita mai il tuning di un altro: l'id non esiste → nessuna correzione. Un
+  marchio soppresso/fuso (`hdr` soppresso da `hdr10plus`, `dv`/`atmos` fusi nel
+  combo) lascia la propria correzione INERTE, non la trasferisce.
+- **Box reali per item**: il blocco `badges` del render diagnostico
+  (`debug=1&netgeo=1`) riporta `items[]` con `id`, `family`
+  (`quality`|`separate`), box finale e `custom` (correzione attiva). Le maniglie
+  leggono SOLO quei box: nessuna geometria indovinata dal client, un solo
+  renderer. I controlli numerici prendono dal report solo le IDENTITÀ
+  (`id`+`family`); i numeri sono sempre i valori canonici della sessione/forma
+  (vedi bullet successivo).
+- **Righe numeriche stabili, hitbox fail-closed**: le righe dei controlli
+  numerici conservano le identità riportate legandole all'identità SEMANTICA
+  dell'URL di preview (`badgeGeometrySourceKey` in `useBadgeDragGeometry.ts`:
+  titolo/forma/famiglia/layout/provider/stili; i soli parametri di
+  trasformazione — `tscale`/`tox`/…/`bit` — e diagnostica sono esclusi, un
+  parametro nuovo conta come semantico). Un edit di sola trasformazione cambia
+  l'URL e invalida i BOX (le maniglie restano fail-closed, nessun box stantio)
+  ma non ricrea le righe: il testo digitato resta in bozza locale fino a
+  blur/Enter (frecce ±1, Shift ±10; Escape annulla; vuoto o non valido non viene
+  mai persistito) e focus/caret sopravvivono al refresh. Un cambio semantico
+  azzera le righe finché il renderer non riporta il nuovo set, così un badge non
+  più composto non resta fantasma. `data-custom` viene dalla mappa canonica, non
+  dal flag `custom` dello snapshot; 100/0/0 è la correzione RELATIVA sopra il
+  gruppo (mai la scala del gruppo).
+- **Ordine di composizione** (documentato, uguale su client e server): il layout
+  automatico posiziona l'item nel gruppo; si applica il transform di GRUPPO
+  (anchor, offset, scala, fit/shrink di layout); poi la scala dell'ITEM attorno
+  al proprio centro; infine l'offset dell'ITEM in px canvas. Quindi spostare il
+  gruppo muove tutti gli item, mentre una correzione dell'item è un delta
+  relativo sopra il gruppo.
+- **Dettach senza reflow**: quando un item ha una correzione, il renderer NON
+  ridisegna il gruppo in modo diverso: lo slot automatico resta (nessun altro
+  badge si muove), l'item viene tolto dal bitmap composto e ricomposto
+  separatamente alla posizione trasformata. Senza correzioni il bitmap è
+  **byte-identico** al percorso storico (verificato dai test).
+- **Reset (gerarchia naturale)**: la correzione di un item è un delta SOPRA il
+  layout della sua famiglia. Doppio click su una maniglia di GRUPPO = reset
+  canonico della famiglia (posizione + scala, solo nel layout ranked/fallback
+  attivo) E rimozione delle correzioni per-item POSSEDUTE da quella famiglia
+  (`quality:*` per qualità/età/formati, `rating:*` per la colonna separati):
+  senza questo passaggio gli item resterebbero fuori dal layout ripristinato.
+  Doppio click su una maniglia di ITEM (o il bottone Reset della riga numerica)
+  = si rimuove SOLO la correzione di quell'item, che torna allo slot
+  automatico. Nessun altro gruppo/item/layout viene toccato: le correzioni
+  degli altri item sopravvivono.
+- **Cache e persistenza**: `bit` è in allowlist e viene canonicalizzato (ordine
+  per id, clamp, neutrali rimossi, garbage → assente): una configurazione = una
+  chiave. Persistenza: mapping per-titolo (`badgeItemTransforms`, flat + profilo
+  `landscape`), default globali (flat + `landscape`), config token, preset
+  personali (i preset ready/built-in NON portano correzioni: `default(null)` =
+  layout automatico) e localStorage (`defaultBadgeItemTransforms` +
+  `badgeItemTransforms`). Con niente configurato il payload/PUT resta
+  byte-identico allo storico. Regola di proprietà per forma: chiave ASSENTE =
+  eredita il flat (profili legacy invariati), valore concreto o `null`
+  ESPLICITO del profilo `landscape` = vince (il `null` è il marcatore
+  "automatico" scritto dal preset, stessa semantica di `logoScale: null`);
+  tutti i consumer (builder URL di preview/Stremio, `resolvePosterRenderConfig`
+  del render e la lettura di geometria dei controlli Trasforma) leggono la
+  stessa regola, così il poster reso non resuscita le correzioni del flat
+  portrait sopra un `null` posseduto.
+- **Reset canonico dei ready look**: il reset trasformazioni dei quick look
+  (`quickTransformPatch`, unica fonte per Essential/Ratings/Full in entrambe le
+  entry point) include `defaultBadgeItemTransforms: null`, quindi applicare un
+  ready look riporta ANCHE le correzioni per-item al layout automatico del
+  preset (portrait flat + profilo landscape derivato via
+  `PRESET_FLAT_TO_LANDSCAPE`). I ready Apple/BetterPoster/RPDB/Fresh lo portano
+  già dallo schema (`default(null)`); la mappa legacy flat→profilo del tab Badge
+  (`PRESET_TO_LAND`) proietta la stessa chiave. Senza questo il campo —
+  aggiunto dopo le ricette — era semplicemente assente dai quick look, e i
+  consumer di apply (che copiano solo le chiavi definite) tenevano le
+  correzioni live: l'URL di preview continuava a portare `bit=…` e il poster
+  restava spostato, e la baseline di reset (istantanea post-apply) catturava
+  quelle correzioni stantie.
+- **Limiti dichiarati**: i rating separati sono composti come singole pill solo
+  dove il renderer lo fa davvero (colonna Standard portrait/landscape e riga
+  bottom: `bottom-bar`/`bottom-pills`/`bottom-mono`/`bottom-color`). In Fresh e
+  Card gli stessi valori vivono come RIGHE di testo dentro il blocco meta o la
+  banda metadata (un solo SVG/layer): lì `items[]` non li riporta e non esistono
+  maniglie per-item — onestà esplicita, i trasform del gruppo (`sepox`/`sepoy`/
+  `sepscale`) restano gli unici disponibili. Lo stack qualità/età/formati è
+  composto separatamente in TUTTI i layout (Standard, Fresh, Card), quindi le
+  maniglie per-item di qualità e marchi A/V funzionano ovunque il marchio sia
+  effettivamente disegnato.
+
 ## Files coinvolti
 
 - `src/components/EditView.tsx` — preview WYSIWYG (singolo `<img src={previewUrl}>`)
@@ -563,6 +845,9 @@ Ogni preset personale possiede l'intera ricetta visiva del formato in editing (m
 - `src/lib/svg-badge.ts` — server-side SVG raw badges (renderGenreBadge, renderRankingBadge, renderExtraBadge) + Resvg rendering (font risolti via `FONT_FILES`, nessun embedding negli SVG; vale anche per la riga multi-rating)
 - `src/lib/multi-rating-renderer.ts` — riga pill custom rating (`renderMultiRatings`, `MAX_CUSTOM_RATINGS`)
 - `src/lib/separate-rating-renderer.ts` — stack colonna separati (`renderSeparateRatingStack`, bitmap unico a larghezza uniforme, logo sopra/punteggio sotto)
+- `src/lib/badge-item-transforms.ts` — schema condiviso delle correzioni per SINGOLO badge (identità stabili `rating:<source>`/`quality:*`, forma wire canonica, matematica scala-attorno-al-centro + offset; in RENDER_FILES)
+- `src/components/settings/BadgeItemTransformControls.tsx` — controlli numerici per item (stessi valori delle maniglie)
+- `src/lib/badge-drag-geometry.ts` — geometria/box riportati, snap e contenimento del drag (incluso il parsing di `badges.items`)
 - `src/lib/custom-rating/` — provider server-side (`fetchCustomRatings`, `resolveCustomRatingConfig`, `formatRating`)
 - `src/lib/ratings.ts` — aggregatore voti (`fetchAggregatedRating`: routing per selezione — Cinemeta primario + join diretto senza fonti MDBList-exclusive, MDBList solo per gli irrisolti; cache solo base provider mai voto diretto; negativa con fallback nativo; budget 60/40 senza floor, `resolveRatingSources`, `pickSeparateRatings`/`formatSeparateValue`)
 - `src/lib/cinemeta.ts` — voto IMDb gratis senza chiave (meta movie/series + fallback tipo, miss su meta vuoto; primario imdb-family quando richiesto; waiter coalesced abort-safe via `raceWithAbort`)

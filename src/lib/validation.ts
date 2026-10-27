@@ -110,6 +110,8 @@ export const mappingSchema = z.object({
   separateBadgeScale: z.number().int().min(10).max(200).nullable().optional(),
   separateBadgeOffsetX: z.number().int().nullable().optional(),
   separateBadgeOffsetY: z.number().int().nullable().optional(),
+  /** Per-item corrections (canonical wire form, null = automatic layout). */
+  badgeItemTransforms: z.string().max(4096).nullable().optional(),
   separateRatingsStyle: z.enum(SEPARATE_RATINGS_STYLES).nullable().optional(),
   imdbId: z.string().regex(/^tt\d{1,20}$/).nullable().optional(),
   // QID Wikidata per il fast-path REST awards (stesso pattern imdbId).
@@ -212,6 +214,8 @@ export const mappingSchema = z.object({
     separateBadgeScale: z.number().int().min(10).max(200).nullable().optional(),
     separateBadgeOffsetX: z.number().int().nullable().optional(),
     separateBadgeOffsetY: z.number().int().nullable().optional(),
+    /** Per-item corrections (canonical wire form, null = automatic layout). */
+    badgeItemTransforms: z.string().max(4096).nullable().optional(),
     separateRatingsStyle: z.enum(SEPARATE_RATINGS_STYLES).nullable().optional(),
     posterLayout: z.enum(POSTER_LAYOUTS).nullable().optional(),
     posterFreshScope: z.enum(POSTER_FRESH_SCOPES).nullable().optional(),

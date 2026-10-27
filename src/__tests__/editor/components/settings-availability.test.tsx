@@ -468,7 +468,7 @@ describe("Transform geometry gates both shapes (active-first, hidden inactive)",
     expect(screen.getByTestId("transform-geo-network")).toBeInTheDocument()
   })
 
-  it("portrait: Card all locks offsets without hiding values", async () => {
+  it("portrait: Card all keeps offsets live without rewriting values", async () => {
     localStorage.setItem("badgeDefaults", JSON.stringify({
       defaultPosterLayout: "stremio",
       defaultPosterFreshScope: "all",
@@ -478,11 +478,13 @@ describe("Transform geometry gates both shapes (active-first, hidden inactive)",
     const rank = screen.getByTestId("transform-geo-rank")
     const sliders = Array.from(rank.querySelectorAll('input[type="range"]'))
     expect(sliders.length).toBeGreaterThan(0)
-    for (const s of sliders) expect(s).toBeDisabled()
-    // Raw values unchanged (lock is effective-only).
+    // User transforms are live on every layout (authorized contract): the
+    // shared compositor applies the same offsets/scales, so no slider locks.
+    for (const s of sliders) expect(s).not.toBeDisabled()
+    // Raw values unchanged (no hidden rewrite behind the live controls).
     expect(ctx().defaultTopBadgeScale).toBe(100)
     expect(ctx().defaultGenreBadgeOffsetX).toBe(0)
-    // No dimmed-container opacity anywhere on the locks.
+    // No dimmed-container opacity anywhere on the geometry groups.
     for (const el of Array.from(rank.querySelectorAll("div"))) {
       expect(el.className).not.toMatch(/opacity-60/)
     }

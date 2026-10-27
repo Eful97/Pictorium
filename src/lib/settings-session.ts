@@ -2,6 +2,7 @@ import type { DefaultsState } from "./useDefaults"
 import type { PosterEditorCtx } from "./contexts/PosterEditorContext"
 import type { LandscapeServerDefaults } from "./server-defaults"
 import { SHAPE_FLAT_TO_LANDSCAPE, snapshotMissingLandscape } from "./visual-presets"
+import { isLandscapeResetKey, sanitizeLandscapeReset, type LandscapeResetKey } from "./landscape-reset"
 
 /**
  * Settings draft foundation (Phase 1, no UI): the session value is every
@@ -13,6 +14,8 @@ import { SHAPE_FLAT_TO_LANDSCAPE, snapshotMissingLandscape } from "./visual-pres
  */
 export type SettingsSessionValue = {
   landscape: LandscapeServerDefaults
+  /** Transport-only clear list for the profile keys reset in this draft. */
+  landscapeReset?: LandscapeResetKey[]
 } & {
   [K in keyof DefaultsState as K extends `default${string}` ? K : never]: DefaultsState[K]
 }
@@ -172,34 +175,63 @@ export function applySessionPatch(
   prev: SettingsSessionValue,
   patch: Partial<SettingsSessionValue>,
 ): SettingsSessionValue {
-  const keys = Object.keys(patch)
-  if (keys.length === 0) return prev
   const prevRec = prev as unknown as Record<string, unknown>
-  const patchRec = patch as unknown as Record<string, unknown>
+  let patchRec = patch as unknown as Record<string, unknown>
+  const patchLandRaw = patchRec.landscape
+  const patchLandIsObject =
+    patchLandRaw !== null && typeof patchLandRaw === "object" && !Array.isArray(patchLandRaw)
+  // A profile clear is expressed by an own `undefined` in the landscape patch
+  // (the existing reset controls). JSON cannot carry it as a deletion, so it
+  // becomes an explicit allowlisted `landscapeReset` entry while the key is
+  // removed from the merged draft. Writing a key again removes it from the
+  // pending clear list. Never overloads `null` (a real value on nullable
+  // keys).
+  let patchLand: Record<string, unknown> | null = null
+  let clearedLandKeys: LandscapeResetKey[] = []
+  if (patchLandIsObject) {
+    const cleanLand: Record<string, unknown> = { ...(patchLandRaw as Record<string, unknown>) }
+    const cleared: LandscapeResetKey[] = []
+    for (const key of Object.keys(cleanLand)) {
+      if (cleanLand[key] === undefined) {
+        delete cleanLand[key]
+        if (isLandscapeResetKey(key)) cleared.push(key)
+      }
+    }
+    clearedLandKeys = cleared
+    const reset = new Set<string>(sanitizeLandscapeReset(prevRec.landscapeReset as unknown[] | undefined))
+    for (const key of cleared) reset.add(key)
+    for (const key of Object.keys(cleanLand)) reset.delete(key)
+    const landscapeReset = sanitizeLandscapeReset([...reset])
+    patchLand = cleanLand
+    patchRec = {
+      ...patchRec,
+      landscape: cleanLand,
+      ...(landscapeReset.length > 0 ? { landscapeReset } : null),
+    }
+  }
+  const keys = Object.keys(patchRec)
+  if (keys.length === 0) return prev
   const changedFlatKeys = Object.keys(SHAPE_FLAT_TO_LANDSCAPE).filter(
     (flatKey) => flatKey in patchRec && !sessionValuesEqual(patchRec[flatKey], prevRec[flatKey]),
   )
-  if (changedFlatKeys.length === 0) return { ...prev, ...patch }
+  if (changedFlatKeys.length === 0) return { ...prev, ...patchRec }
   const prevLand = (
     prevRec.landscape !== null && typeof prevRec.landscape === "object" && !Array.isArray(prevRec.landscape)
       ? (prevRec.landscape as Record<string, unknown>)
       : {}
   )
-  const patchLandRaw = patchRec.landscape
-  const patchLand =
-    patchLandRaw !== null && typeof patchLandRaw === "object" && !Array.isArray(patchLandRaw)
-      ? (patchLandRaw as Record<string, unknown>)
-      : null
   const adds = snapshotMissingLandscape(
     prevRec,
     patchLand ? { ...prevLand, ...patchLand } : prevLand,
     changedFlatKeys,
   )
-  if (Object.keys(adds).length === 0 && !patchLand) return { ...prev, ...patch }
+  if (Object.keys(adds).length === 0 && !patchLand) return { ...prev, ...patchRec }
+  const nextLand = { ...prevLand, ...adds, ...(patchLand ?? {}) }
+  for (const key of clearedLandKeys) delete nextLand[key]
   return {
     ...prev,
-    ...patch,
-    landscape: { ...prevLand, ...adds, ...(patchLand ?? {}) },
+    ...patchRec,
+    landscape: nextLand,
   }
 }
 

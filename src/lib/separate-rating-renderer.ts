@@ -5,6 +5,12 @@ import { escSvg, estimateTextWidth, fontFamilyFor, normalizeBadgeFont, satinPill
 import { renderSVG } from "./svg-badge"
 import { formatSeparateValue, MAX_SEPARATE_RATINGS } from "./ratings"
 import type { BadgeFont, SeparateBottomVariant } from "./badge-styles"
+import {
+  badgeItemTransform,
+  isNeutralBadgeItemTransform,
+  ratingItemId,
+  type BadgeItemTransformMap,
+} from "./badge-item-transforms"
 
 /** Mappa fonte → asset logo (stesso riuso di RatingSourceIcon: metacriticuser→metacritic, filmwebcritics→filmweb). */
 const SEPARATE_RATING_ICON_FILES: Record<string, string> = {
@@ -111,6 +117,23 @@ export interface SeparateRatingStack {
   readonly png: Buffer
   readonly w: number
   readonly h: number
+  /**
+   * Authoritative slot of every painted pill (px, in THIS bitmap's space), by
+   * stable provider identity. `png` is present only when the pill is DETACHED
+   * (it owns a per-item correction): the caller composites it independently at
+   * the transformed position while the other pills keep their automatic slot.
+   */
+  readonly items?: readonly SeparateRatingItem[]
+}
+
+/** One painted rating pill: stable identity + final slot (+ png when detached). */
+export interface SeparateRatingItem {
+  readonly id: string
+  readonly top: number
+  readonly left: number
+  readonly w: number
+  readonly h: number
+  readonly png?: Buffer
 }
 
 /**
@@ -128,6 +151,8 @@ export async function renderSeparateRatingStack(
   font: BadgeFont = "inter",
   /** Scala % della colonna (default 130; esplicito 100 = resa storica byte-identica). */
   scalePct: number = 130,
+  /** Per-item corrections by stable provider identity (empty = automatic). */
+  itemTransforms?: BadgeItemTransformMap | null,
 ): Promise<SeparateRatingStack | null> {
   // Pill compatte in stile moderno: proporzioni solide e bilanciate col badge 4K.
   const f = normalizeBadgeFont(font)
@@ -146,13 +171,13 @@ export async function renderSeparateRatingStack(
   const fg = topLight ? "rgba(255,255,255,0.95)" : "rgba(0,0,0,0.88)"
   const stroke = topLight ? "rgba(0,0,0,0.12)" : "rgba(255,255,255,0.22)"
 
-  const rows: { logo: { png: Buffer; w: number; h: number }; display: string; textW: number; pillH: number }[] = []
+  const rows: { id: string | null; logo: { png: Buffer; w: number; h: number }; display: string; textW: number; pillH: number }[] = []
   for (const item of capped) {
     const logo = await loadSeparateRatingLogo(item.id, logoH)
     if (!logo) continue
     const rawDisplay = formatSeparateValue(item.id, item.value)
     const textW = Math.max(estimateTextWidth(rawDisplay, fs, f), 1)
-    rows.push({ logo, display: rawDisplay, textW, pillH: pt + logo.h + gap + fs + pt })
+    rows.push({ id: ratingItemId(item.id), logo, display: rawDisplay, textW, pillH: pt + logo.h + gap + fs + pt })
   }
   if (rows.length === 0) return null
 
@@ -161,25 +186,49 @@ export async function renderSeparateRatingStack(
   const r = Math.round(Math.max(...rows.map((row) => row.pillH)) * 0.32)
   const totalH = rows.reduce((acc, row) => acc + row.pillH, 0) + SEPARATE_STACK_GAP * (rows.length - 1)
 
-  let y = 0
-  const parts: string[] = []
-  for (const row of rows) {
+  const defs = `<defs><linearGradient id="sepg" x1="0" y1="0" x2="0" y2="1">${satinPillStops(topLight)}</linearGradient>${SEPARATE_SHADOW_FILTER}</defs>`
+  const pillSvg = (row: (typeof rows)[number], y: number): string => {
     const logoX = Math.round((colW - row.logo.w) / 2)
     const textY = y + pt + row.logo.h + gap + Math.round(fs / 2)
-    parts.push(
+    return (
       `<rect y="${y}" width="${colW}" height="${row.pillH}" rx="${r}" fill="url(#sepg)" stroke="${stroke}" stroke-width="1.5" filter="url(#seps)"/>` +
       `<image href="data:image/png;base64,${row.logo.png.toString("base64")}" x="${logoX}" y="${y + pt}" width="${row.logo.w}" height="${row.logo.h}"/>` +
-      `<text x="${colW / 2}" y="${textY}" text-anchor="middle" dominant-baseline="central" font-family="${fontFamilyFor(row.display, f)}" font-weight="700" font-size="${fs}" fill="${fg}" textLength="${row.textW}" lengthAdjust="spacingAndGlyphs">${escSvg(row.display)}</text>`,
+      `<text x="${colW / 2}" y="${textY}" text-anchor="middle" dominant-baseline="central" font-family="${fontFamilyFor(row.display, f)}" font-weight="700" font-size="${fs}" fill="${fg}" textLength="${row.textW}" lengthAdjust="spacingAndGlyphs">${escSvg(row.display)}</text>`
     )
+  }
+  const detached = (id: string | null): boolean => {
+    if (!id) return false
+    const t = badgeItemTransform(itemTransforms ?? null, id)
+    return !!t && !isNeutralBadgeItemTransform(t)
+  }
+
+  let y = 0
+  const parts: string[] = []
+  const stackItems: SeparateRatingItem[] = []
+  for (const row of rows) {
+    const isDetached = detached(row.id)
+    if (!isDetached) parts.push(pillSvg(row, y))
+    if (row.id) {
+      stackItems.push({
+        id: row.id,
+        top: y,
+        left: 0,
+        w: colW,
+        h: row.pillH,
+        ...(isDetached
+          ? { png: await renderSVG(`<svg xmlns="http://www.w3.org/2000/svg" width="${colW}" height="${row.pillH}">${defs}${pillSvg(row, 0)}</svg>`, colW) }
+          : {}),
+      })
+    }
     y += row.pillH + SEPARATE_STACK_GAP
   }
   const svg =
     `<svg xmlns="http://www.w3.org/2000/svg" width="${colW}" height="${totalH}">` +
-    `<defs><linearGradient id="sepg" x1="0" y1="0" x2="0" y2="1">${satinPillStops(topLight)}</linearGradient>${SEPARATE_SHADOW_FILTER}</defs>` +
+    defs +
     parts.join("") +
     `</svg>`
   const png = await renderSVG(svg, colW)
-  return { png, w: colW, h: totalH }
+  return { png, w: colW, h: totalH, items: stackItems }
 }
 
 /**
@@ -224,6 +273,8 @@ export async function renderSeparateRatingsBottom(
    * → pill scura). Default `true` = resa dark storica (chiamate esistenti invariate).
    */
   bottomLight: boolean = true,
+  /** Per-item corrections by stable provider identity (empty = automatic). */
+  itemTransforms?: BadgeItemTransformMap | null,
 ): Promise<SeparateRatingStack | null> {
   const list = items.slice(0, MAX_SEPARATE_RATINGS)
   if (list.length === 0) return null
@@ -246,7 +297,7 @@ export async function renderSeparateRatingsBottom(
   // celle, mai numeri minuscoli a scala 100 (il loop non scatta mai al default
   // su larghezze normali). Ultima rete: shrink proporzionale del bitmap.
   const floorFs = Math.max(8, Math.round(baseFs * 0.55))
-  interface BottomRow { logo: { png: Buffer; w: number; h: number }; display: string; textW: number; contentW: number; contentH: number }
+  interface BottomRow { id: string | null; logo: { png: Buffer; w: number; h: number }; display: string; textW: number; contentW: number; contentH: number }
   const rowW = (rows: BottomRow[], fs: number): number => {
     const px = isBare ? 0 : Math.round(fs * 0.7)
     const pillGap = Math.max(6, Math.round(fs * (isBare ? 0.75 : 0.45)))
@@ -265,7 +316,7 @@ export async function renderSeparateRatingsBottom(
       if (!logo) continue
       const display = formatSeparateValue(item.id, item.value)
       const textW = Math.max(estimateTextWidth(display, size, f), 1)
-      out.push({ logo, display, textW, contentW: logo.w + gap + textW, contentH: Math.max(logo.h, size) })
+      out.push({ id: ratingItemId(item.id), logo, display, textW, contentW: logo.w + gap + textW, contentH: Math.max(logo.h, size) })
     }
     return out
   }
@@ -289,30 +340,53 @@ export async function renderSeparateRatingsBottom(
     if (rows.length === 0) return null
   }
   const inlineGap = Math.max(3, Math.round(fs * 0.35))
+  // Per-item corrections: the painted cell of a corrected provider is detached
+  // from the row bitmap (its slot in the automatic layout is untouched) and
+  // returned as its own bitmap, so only that provider moves/resizes.
+  const detachedId = (id: string | null): boolean => {
+    if (!id) return false
+    const t = badgeItemTransform(itemTransforms ?? null, id)
+    return !!t && !isNeutralBadgeItemTransform(t)
+  }
+  // `markup(x)` paints the cell at horizontal offset `x`: the group calls it
+  // with the automatic slot, the DETACHED bitmap calls it with 0 so the cell
+  // is fully inside its own small canvas.
+  interface CellInfo { id: string; left: number; top: number; w: number; h: number; markup: (x: number) => string; boxW: number; boxH: number }
+  const cellsInfo: CellInfo[] = []
+  const defs = `<defs><linearGradient id="sepg" x1="0" y1="0" x2="0" y2="1">${satinPillStops(bottomLight)}</linearGradient>${SEPARATE_SHADOW_FILTER}</defs>`
 
   let svg: string
   let natW: number
   let natH: number
+  let background = ""
   if (isBar) {
     const py = Math.max(4, Math.round(fs * 0.6))
     const contentH = Math.max(...rows.map((r) => r.contentH))
     natW = bandW
     natH = contentH + py * 2
     const cellW = bandW / rows.length
-    const cells = rows.map((row, i) => {
+    background = `<rect width="${natW}" height="${natH}" fill="url(#sepg)" stroke="${stroke}" stroke-width="1.5"/>`
+    rows.forEach((row, i) => {
       const startX = Math.round(i * cellW + (cellW - row.contentW) / 2)
       const logoY = Math.round((natH - row.logo.h) / 2)
       const textY = Math.round(natH / 2)
-      return (
-        `<image href="data:image/png;base64,${row.logo.png.toString("base64")}" x="${startX}" y="${logoY}" width="${row.logo.w}" height="${row.logo.h}"/>` +
-        `<text x="${startX + row.logo.w + inlineGap + row.textW / 2}" y="${textY}" text-anchor="middle" dominant-baseline="central" font-family="${fontFamilyFor(row.display, f)}" font-weight="700" font-size="${fs}" fill="${fg}" textLength="${row.textW}" lengthAdjust="spacingAndGlyphs">${escSvg(row.display)}</text>`
-      )
+      const markup = (x: number) =>
+        `<image href="data:image/png;base64,${row.logo.png.toString("base64")}" x="${x}" y="${logoY}" width="${row.logo.w}" height="${row.logo.h}"/>` +
+        `<text x="${x + row.logo.w + inlineGap + row.textW / 2}" y="${textY}" text-anchor="middle" dominant-baseline="central" font-family="${fontFamilyFor(row.display, f)}" font-weight="700" font-size="${fs}" fill="${fg}" textLength="${row.textW}" lengthAdjust="spacingAndGlyphs">${escSvg(row.display)}</text>`
+      if (row.id) cellsInfo.push({ id: row.id, left: startX, top: 0, w: row.contentW, h: natH, markup, boxW: row.contentW, boxH: natH })
     })
     svg =
       `<svg xmlns="http://www.w3.org/2000/svg" width="${natW}" height="${natH}">` +
-      `<defs><linearGradient id="sepg" x1="0" y1="0" x2="0" y2="1">${satinPillStops(bottomLight)}</linearGradient>${SEPARATE_SHADOW_FILTER}</defs>` +
-      `<rect width="${natW}" height="${natH}" fill="url(#sepg)" stroke="${stroke}" stroke-width="1.5"/>` +
-      cells.join("") +
+      defs +
+      background +
+      rows.map((row, i) => {
+        const startX = Math.round(i * cellW + (cellW - row.contentW) / 2)
+        const logoY = Math.round((natH - row.logo.h) / 2)
+        const textY = Math.round(natH / 2)
+        return detachedId(row.id) ? "" :
+          `<image href="data:image/png;base64,${row.logo.png.toString("base64")}" x="${startX}" y="${logoY}" width="${row.logo.w}" height="${row.logo.h}"/>` +
+          `<text x="${startX + row.logo.w + inlineGap + row.textW / 2}" y="${textY}" text-anchor="middle" dominant-baseline="central" font-family="${fontFamilyFor(row.display, f)}" font-weight="700" font-size="${fs}" fill="${fg}" textLength="${row.textW}" lengthAdjust="spacingAndGlyphs">${escSvg(row.display)}</text>`
+      }).join("") +
       `</svg>`
   } else if (isBare) {
     // No band, pill, border or background behind the values. Only round
@@ -322,14 +396,16 @@ export async function renderSeparateRatingsBottom(
     natH = Math.max(...rows.map((row) => row.contentH)) + py * 2
     natW = rowW(rows, fs)
     let x = 0
-    const cells = rows.map((row) => {
-      const part =
-        `<image href="data:image/png;base64,${row.logo.png.toString("base64")}" x="${x}" y="${Math.round((natH - row.logo.h) / 2)}" width="${row.logo.w}" height="${row.logo.h}"/>` +
-        `<text x="${x + row.logo.w + inlineGap + row.textW / 2}" y="${Math.round(natH / 2)}" text-anchor="middle" dominant-baseline="central" font-family="${fontFamilyFor(row.display, f)}" font-weight="700" font-size="${fs}" fill="${fg}" textLength="${row.textW}" lengthAdjust="spacingAndGlyphs">${escSvg(row.display)}</text>`
+    const parts: string[] = []
+    for (const row of rows) {
+      const markup = (cx: number) =>
+        `<image href="data:image/png;base64,${row.logo.png.toString("base64")}" x="${cx}" y="${Math.round((natH - row.logo.h) / 2)}" width="${row.logo.w}" height="${row.logo.h}"/>` +
+        `<text x="${cx + row.logo.w + inlineGap + row.textW / 2}" y="${Math.round(natH / 2)}" text-anchor="middle" dominant-baseline="central" font-family="${fontFamilyFor(row.display, f)}" font-weight="700" font-size="${fs}" fill="${fg}" textLength="${row.textW}" lengthAdjust="spacingAndGlyphs">${escSvg(row.display)}</text>`
+      if (row.id) cellsInfo.push({ id: row.id, left: x, top: 0, w: row.contentW, h: natH, markup, boxW: row.contentW, boxH: natH })
+      if (!detachedId(row.id)) parts.push(markup(x))
       x += row.contentW + rowGap
-      return part
-    })
-    svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${natW}" height="${natH}">${cells.join("")}</svg>`
+    }
+    svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${natW}" height="${natH}">${parts.join("")}</svg>`
   } else {
     const px = Math.round(fs * 0.7)
     const py = Math.max(3, Math.round(fs * 0.35))
@@ -339,20 +415,22 @@ export async function renderSeparateRatingsBottom(
     natH = pillH
     natW = rows.reduce((acc, row) => acc + row.contentW + px * 2, 0) + pillGap * (rows.length - 1)
     let x = 0
-    const pills = rows.map((row) => {
+    const pills: string[] = []
+    for (const row of rows) {
       const pillW = row.contentW + px * 2
       const logoY = Math.round((pillH - row.logo.h) / 2)
       const textY = Math.round(pillH / 2)
-      const part =
-        `<rect x="${x}" width="${pillW}" height="${pillH}" rx="${r}" fill="url(#sepg)" stroke="${stroke}" stroke-width="1.5" filter="url(#seps)"/>` +
-        `<image href="data:image/png;base64,${row.logo.png.toString("base64")}" x="${x + px}" y="${logoY}" width="${row.logo.w}" height="${row.logo.h}"/>` +
-        `<text x="${x + px + row.logo.w + inlineGap + row.textW / 2}" y="${textY}" text-anchor="middle" dominant-baseline="central" font-family="${fontFamilyFor(row.display, f)}" font-weight="700" font-size="${fs}" fill="${fg}" textLength="${row.textW}" lengthAdjust="spacingAndGlyphs">${escSvg(row.display)}</text>`
+      const markup = (cx: number) =>
+        `<rect x="${cx}" width="${pillW}" height="${pillH}" rx="${r}" fill="url(#sepg)" stroke="${stroke}" stroke-width="1.5" filter="url(#seps)"/>` +
+        `<image href="data:image/png;base64,${row.logo.png.toString("base64")}" x="${cx + px}" y="${logoY}" width="${row.logo.w}" height="${row.logo.h}"/>` +
+        `<text x="${cx + px + row.logo.w + inlineGap + row.textW / 2}" y="${textY}" text-anchor="middle" dominant-baseline="central" font-family="${fontFamilyFor(row.display, f)}" font-weight="700" font-size="${fs}" fill="${fg}" textLength="${row.textW}" lengthAdjust="spacingAndGlyphs">${escSvg(row.display)}</text>`
+      if (row.id) cellsInfo.push({ id: row.id, left: x, top: 0, w: pillW, h: pillH, markup, boxW: pillW, boxH: pillH })
+      if (!detachedId(row.id)) pills.push(markup(x))
       x += pillW + pillGap
-      return part
-    })
+    }
     svg =
       `<svg xmlns="http://www.w3.org/2000/svg" width="${natW}" height="${natH}">` +
-      `<defs><linearGradient id="sepg" x1="0" y1="0" x2="0" y2="1">${satinPillStops(bottomLight)}</linearGradient>${SEPARATE_SHADOW_FILTER}</defs>` +
+      defs +
       pills.join("") +
       `</svg>`
   }
@@ -363,7 +441,28 @@ export async function renderSeparateRatingsBottom(
   const outW = Math.max(1, Math.round(natW * fitScale))
   const outH = Math.max(1, Math.round(natH * fitScale))
   const png = await renderSVG(svg, natW)
-  if (fitScale === 1) return { png, w: natW, h: natH }
+  // Item slots are reported in the RETURNED bitmap's space (the proportional
+  // fit is applied here once), so the caller only has to map the final
+  // placement/scale it already knows.
+  const cellItems: SeparateRatingItem[] = []
+  for (const cell of cellsInfo) {
+    const detached = detachedId(cell.id)
+    const itemPng = detached
+      ? await renderSVG(
+          `<svg xmlns="http://www.w3.org/2000/svg" width="${cell.boxW}" height="${cell.boxH}">${defs}${cell.markup(0)}</svg>`,
+          cell.boxW,
+        )
+      : undefined
+    cellItems.push({
+      id: cell.id,
+      left: Math.round(cell.left * fitScale),
+      top: Math.round(cell.top * fitScale),
+      w: Math.max(1, Math.round(cell.w * fitScale)),
+      h: Math.max(1, Math.round(cell.h * fitScale)),
+      ...(itemPng ? { png: itemPng } : {}),
+    })
+  }
+  if (fitScale === 1) return { png, w: natW, h: natH, items: cellItems }
   const shrunk = await sharp(png).resize(outW, outH).toBuffer()
-  return { png: shrunk, w: outW, h: outH }
+  return { png: shrunk, w: outW, h: outH, items: cellItems }
 }

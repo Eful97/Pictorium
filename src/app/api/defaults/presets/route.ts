@@ -35,6 +35,9 @@ async function handle(req: NextRequest, operation?: "save" | "delete") {
     if (error instanceof ZodError || error instanceof InvalidJsonBodyError) return Response.json({ error: "Invalid preset" }, { status: 400 })
     if (error instanceof BodyTooLargeError) return Response.json({ error: "Request body too large" }, { status: 413 })
     if (error instanceof Error && error.message === "Preset limit reached") return Response.json({ error: error.message }, { status: 409 })
+    if (error instanceof Error && error.message === "Preset name already exists") return Response.json({ error: error.message }, { status: 409 })
+    if (error instanceof Error && error.message === "Preset not found") return Response.json({ error: error.message }, { status: 404 })
+    if (error instanceof Error && error.message === "Preset id required") return Response.json({ error: error.message }, { status: 400 })
     log.error("Preset storage failed", { error: error instanceof Error ? error.message : String(error) })
     return Response.json({ error: "Preset storage unavailable" }, { status: 500 })
   }

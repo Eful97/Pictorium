@@ -16,6 +16,7 @@ import { envWithFallback } from "@/lib/env-compat"
 import { SHAPE_FLAT_TO_LANDSCAPE, snapshotMissingLandscape } from "@/lib/visual-presets"
 import { retiredBadgeFamilyBindingsSchema } from "@/lib/validation"
 import { parseGenericVariantId } from "@/lib/streaming-catalogs"
+import { isLandscapeResetKey, sanitizeLandscapeReset } from "@/lib/landscape-reset"
 
 const log = createLogger("defaults")
 
@@ -104,6 +105,8 @@ const defaultsSchema = z.object({
   extraBadgeOffsetY: z.number().nullable().optional(),
   genreBadgeScale: z.number().optional(),
   qualityBadgeScale: z.number().optional(),
+  /** Per-item corrections (stable identity, canonical wire form). Max 4k, bounded. */
+  badgeItemTransforms: z.string().max(4096).nullable().optional(),
   separateBadgeScale: z.number().optional(),
   separateBadgeOffsetX: z.number().optional(),
   separateBadgeOffsetY: z.number().optional(),
@@ -172,6 +175,16 @@ const defaultsSchema = z.object({
   episodeMetadataSource: z.enum(["tmdb", "tvdb"]).optional(),
   region: z.string().max(32).optional(),
   dateFormat: z.enum(["locale", "dmy", "mdy", "iso"]).optional(),
+  /**
+   * Additive clear contract (transport only, never stored): profile keys to
+   * delete after the normal merge/backfill, because omitting them cannot
+   * express a deletion over a deep merge. Allowlisted + fail-closed; the
+   * client only emits canonical, sorted keys.
+   */
+  landscapeReset: z.array(z.string().max(64)).max(64).optional().refine(
+    (keys) => keys === undefined || keys.every(isLandscapeResetKey),
+    { message: "landscapeReset must contain supported landscape profile keys" },
+  ),
   // Landscape defaults profile (shared visuals that may diverge per shape +
   // blur/gradient + badge scales/offsets, mirroring LandscapeServerDefaults):
   // absent keys follow flats. Mirrors flat validation; explicit
@@ -200,6 +213,8 @@ const defaultsSchema = z.object({
     qualityBadgeScale: z.number().optional(),
     qualityBadgeOffsetX: z.number().optional(),
     qualityBadgeOffsetY: z.number().optional(),
+    /** Per-item corrections (stable identity, canonical wire form). */
+    badgeItemTransforms: z.string().max(4096).nullable().optional(),
     separateBadgeScale: z.number().optional(),
     separateBadgeOffsetX: z.number().optional(),
     separateBadgeOffsetY: z.number().optional(),
@@ -324,6 +339,19 @@ function backfillLandscapeOnFlatEdit(
   data.landscape = { ...storedBase, ...adds, ...(landPatch ?? {}) }
 }
 
+/**
+ * Apply the additive clear AFTER the merge/backfill (a flat edit backfill can
+ * legitimately reintroduce a key): the explicit reset wins over both the
+ * stored profile and the body patch, so a cleared key really inherits again.
+ * The transport field itself never reaches storage.
+ */
+function applyLandscapeReset(data: Record<string, unknown>, reset: readonly string[]): void {
+  if (reset.length === 0) return
+  const land = isPlainLandscapeRecord(data.landscape) ? { ...data.landscape } : {}
+  for (const key of reset) delete land[key]
+  data.landscape = land
+}
+
 export async function GET(req: NextRequest) {
   const rawUser = extractUserParam(req)
   const rawInvalid = !!rawUser && isMultiUserEnabled() && !getScopedUserId(rawUser)
@@ -392,6 +420,8 @@ export async function PUT(req: NextRequest) {
   if (parsed.data.videoFormats === undefined && parsed.data.defaultVideoFormats !== undefined) {
     parsed.data.videoFormats = parsed.data.defaultVideoFormats
   }
+  const landscapeReset = sanitizeLandscapeReset(parsed.data.landscapeReset)
+  delete (parsed.data as { landscapeReset?: unknown }).landscapeReset
   try {
     if (scoped) {
       // Merge sullo STORATO (mai sull'effettivo ENV+storato): l'env resta
@@ -407,6 +437,7 @@ export async function PUT(req: NextRequest) {
         { ...getInstanceEnvDefaults(), ...stored } as unknown as Record<string, unknown>,
         parsed.data as unknown as Record<string, unknown>,
       )
+      applyLandscapeReset(parsed.data as unknown as Record<string, unknown>, landscapeReset)
       const next: Record<string, unknown> = { ...stored, ...parsed.data }
       await setServerDefaultsForUser(scoped, next as ServerDefaults)
       // Il cambio defaults ruota le chiavi catalogo/meta del namespace via
@@ -428,6 +459,7 @@ export async function PUT(req: NextRequest) {
       current as unknown as Record<string, unknown>,
       parsed.data as unknown as Record<string, unknown>,
     )
+    applyLandscapeReset(parsed.data as unknown as Record<string, unknown>, landscapeReset)
     const next: Record<string, unknown> = { ...current, ...parsed.data }
     // Await: la 200 arriva solo a persistenza completata (altrimenti una GET
     // successiva può leggere ancora i vecchi default).

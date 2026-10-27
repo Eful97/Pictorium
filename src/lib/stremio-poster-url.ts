@@ -169,6 +169,9 @@ export function buildStremioPosterUrl(input: BuildStremioPosterUrlInput): URL {
     separateBadgeScale: eff?.separateBadgeScale ?? sd.separateBadgeScale,
     separateBadgeOffsetX: eff?.separateBadgeOffsetX ?? sd.separateBadgeOffsetX,
     separateBadgeOffsetY: eff?.separateBadgeOffsetY ?? sd.separateBadgeOffsetY,
+    // Per-item corrections: explicit layers only (mapping/profile/flat,
+    // null/absent = automatic layout — legacy URLs stay byte-identical).
+    badgeItemTransforms: eff?.badgeItemTransforms ?? sd.badgeItemTransforms ?? undefined,
     sashOrder: sd.sashOrder ?? undefined,
     // Esclusioni automatiche space-wide (flat condivisi, nessun per-titolo):
     // emesse come `dct`/`dnet` solo quando non-vuote (URL legacy invariati).

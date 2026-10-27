@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useRef, useState, useId } from "react"
-import { ChevronDown, ImageOff, RefreshCw, Search, Sparkles } from "lucide-react"
+import { ChevronDown, ImageOff, Maximize2, Move, RefreshCw, Search, Sparkles } from "lucide-react"
 import { usePosterEditor, type PosterEditorCtx } from "@/lib/contexts/PosterEditorContext"
 import { useT } from "@/lib/contexts/TranslationContext"
 import { buildDefaultsPreviewUrl, type DefaultsPreviewDemoMedia, type DefaultsPreviewFamily } from "@/lib/poster-url"
@@ -9,6 +9,8 @@ import { DEFAULT_SASH_ORDER, type SashBucket } from "@/lib/badge-priority"
 import { usePSelector } from "@/lib/context"
 import { getRegionDef } from "@/lib/regions"
 import { Modal } from "@/components/ui/Modal"
+import { PosterBadgeDragLayer } from "@/components/settings/PosterBadgeDragLayer"
+import { readBadgeDragEnabled, writeBadgeDragEnabled } from "@/lib/badge-drag-pref"
 import { DefaultsPreviewTitleSearch } from "@/components/settings/DefaultsPreviewTitleSearch"
 
 interface DefaultsPosterPreviewProps {
@@ -92,6 +94,7 @@ interface DefaultsPosterPreviewProps {
     defaultSeparateBadgeScale: number | null
     defaultSeparateBadgeOffsetX: number | null
     defaultSeparateBadgeOffsetY: number | null
+    defaultBadgeItemTransforms: string | null
     defaultNetworkLogoScale: number
     defaultNetworkLogoOffsetX: number
     defaultNetworkLogoOffsetY: number
@@ -254,6 +257,7 @@ export function buildDefaultsPreviewUrlFromEditor(
       defaultSeparateBadgeScale: ed.defaultSeparateBadgeScale,
       defaultSeparateBadgeOffsetX: ed.defaultSeparateBadgeOffsetX,
       defaultSeparateBadgeOffsetY: ed.defaultSeparateBadgeOffsetY,
+      defaultBadgeItemTransforms: ed.defaultBadgeItemTransforms,
       defaultSeparateRatingsStyle: ed.defaultSeparateRatingsStyle,
       defaultNetworkLogoScale: ed.defaultNetworkLogoScale,
       defaultNetworkLogoOffsetX: ed.defaultNetworkLogoOffsetX,
@@ -300,6 +304,24 @@ export function DefaultsPosterPreview({ compact, floating, suspended, previewSha
   const [imageError, setImageError] = useState(false)
   const [retryNonce, setRetryNonce] = useState(0)
   const [zoomed, setZoomed] = useState(false)
+  // Drag-mode preference (browser-only, never a render param). It only decides
+  // whether a pointer drag MOVES an element inside the enlarged editor:
+  // selecting and corner resizing are always available there, and the small
+  // preview never shows a toggle or an active manipulation layer. ON unless the
+  // user turned it off (an inert first-run pointer looks like a broken
+  // feature), so the initial state matches `readBadgeDragEnabled`.
+  const [dragBadges, setDragBadges] = useState(true)
+  // Which kind of target the editor hit-tests: whole groups (families) or
+  // single badges. Only one is hittable at a time, so overlapping boxes can
+  // never make a group unreachable.
+  const [targetLevel, setTargetLevel] = useState<"group" | "item">("group")
+  useEffect(() => {
+    setDragBadges(readBadgeDragEnabled(userId))
+  }, [userId])
+  const setDragBadgesPersisted = (next: boolean) => {
+    setDragBadges(next)
+    writeBadgeDragEnabled(userId, next)
+  }
   // Floating-only title search (mobile): a 44x44 icon trigger overlaid
   // inside the existing thumbnail (top-right, above the zoom target) opens
   // ONE bounded dialog reusing the existing isolated
@@ -389,6 +411,7 @@ export function DefaultsPosterPreview({ compact, floating, suspended, previewSha
     ed.defaultSeparateBadgeScale,
     ed.defaultSeparateBadgeOffsetX,
     ed.defaultSeparateBadgeOffsetY,
+    ed.defaultBadgeItemTransforms,
     ed.defaultSeparateRatingsStyle,
     ed.defaultNetworkLogoScale,
     ed.defaultNetworkLogoOffsetX,
@@ -552,12 +575,19 @@ export function DefaultsPosterPreview({ compact, floating, suspended, previewSha
   // in buffer finché la nuova non è pronta).
   const isLandscape = previewShape === "landscape" || (previewShape == null && ed.defaultPosterShape === "landscape")
 
-  // Accessible zoom (shared Modal: focus trap, Escape, backdrop, focus/scroll
-  // restore): overlay above the settings dialog (z-[80]). A second click on
-  // the enlarged image closes (restore) with no layout shift underneath
-  // (Modal locks scroll in a portal). `min-w-0`: the panel is a flex item of
-  // the overlay — without it `min-width: auto` lets the poster's intrinsic
-  // width force the panel past narrow viewports (cropped zoom on 320px).
+  // Enlarged editor (shared Modal: focus trap, Escape, backdrop, focus/scroll
+  // restore): overlay above the settings dialog (z-[100]).
+  // The regular global preview opens STRAIGHT into the editing surface: the
+  // same server-rendered image plus the editor-only layer (handles from the
+  // renderer, alignment guides, selection and aspect-preserving corner resize).
+  // Nothing is baked into the render. Clicking the poster NEVER closes it (no
+  // accidental loss of an in-progress gesture): the explicit Close control,
+  // Escape and the backdrop keep the normal Modal behavior. The drag-MODE
+  // toggle lives here only — the small preview exposes no manipulation at all.
+  // Draft/simple-chrome previews keep the read-only enlarge view. `min-w-0`:
+  // the panel is a flex item of the overlay — without it `min-width: auto` lets
+  // the poster's intrinsic width force the panel past narrow viewports.
+  const editorActive = !draftDefaults && !simpleChrome
   const zoomModal = (
     <Modal
       isOpen={zoomed}
@@ -568,19 +598,108 @@ export function DefaultsPosterPreview({ compact, floating, suspended, previewSha
     >
       <h3 id="defaults-preview-zoom-title" className="sr-only">{demoTitle}</h3>
       {imgSrc ? (
-        <button
-          type="button"
-          onClick={() => setZoomed(false)}
-          aria-label={t("ui.defaultsPreviewZoomClose")}
-          className="block w-full cursor-zoom-out"
-        >
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={imgSrc}
-            alt={demoTitle}
-            className="mx-auto max-h-[78dvh] w-auto max-w-full object-contain rounded-xl"
-          />
-        </button>
+        <div className="flex flex-col items-center gap-2 min-w-0">
+          {editorActive && (
+            <div className="flex items-center justify-center gap-2 flex-wrap">
+              {/* GROUP vs ITEM level: the explicit target switch of the
+                  editor (two labelled buttons, one active mode at a time). */}
+              <div
+                role="group"
+                aria-label={t("ui.badgeTargetLevel")}
+                data-testid="defaults-preview-target-level"
+                className="flex items-center rounded-lg border border-white/20 overflow-hidden"
+              >
+                {(["group", "item"] as const).map((level) => (
+                  <button
+                    key={level}
+                    type="button"
+                    data-testid={`defaults-preview-target-level-${level}`}
+                    aria-pressed={targetLevel === level}
+                    aria-label={t(level === "group" ? "ui.badgeTargetGroups" : "ui.badgeTargetItems")}
+                    title={t(level === "group" ? "ui.badgeTargetGroupsHint" : "ui.badgeTargetItemsHint")}
+                    onClick={() => setTargetLevel(level)}
+                    className={`min-h-[36px] px-3 text-xs font-semibold transition-all cursor-pointer active:scale-95 ${
+                      targetLevel === level
+                        ? "bg-accent-orange/20 text-accent-orange"
+                        : "bg-white/5 text-zinc-100 hover:bg-white/15"
+                    }`}
+                  >
+                    {t(level === "group" ? "ui.badgeTargetGroups" : "ui.badgeTargetItems")}
+                  </button>
+                ))}
+              </div>
+              <button
+                type="button"
+                data-testid="defaults-preview-badge-drag-toggle-zoom"
+                aria-pressed={dragBadges}
+                aria-label={t("ui.badgeDragToggle")}
+                title={t("ui.badgeDragHint")}
+                onClick={() => setDragBadgesPersisted(!dragBadges)}
+                className={`flex items-center gap-1 min-h-[36px] px-3 rounded-lg border text-xs font-semibold transition-all cursor-pointer active:scale-95 ${
+                  dragBadges
+                    ? "bg-accent-orange/20 text-accent-orange border-accent-orange/50"
+                    : "bg-white/10 text-zinc-100 border-white/20 hover:bg-white/20"
+                }`}
+              >
+                <Move className="w-3.5 h-3.5" />
+                <span>{t(dragBadges ? "ui.badgeDragModeOn" : "ui.badgeDragModeOff")}</span>
+              </button>
+              <button
+                type="button"
+                data-testid="defaults-preview-badge-edit-close"
+                onClick={() => setZoomed(false)}
+                aria-label={t("ui.defaultsPreviewZoomClose")}
+                className="min-h-[36px] px-3 rounded-lg border border-white/20 bg-white/10 hover:bg-white/20 text-xs font-semibold text-zinc-100 cursor-pointer transition-all active:scale-95"
+              >
+                {t("ui.close")}
+              </button>
+            </div>
+          )}
+          {editorActive ? (
+            <>
+              <div
+                className="relative inline-block max-w-full min-w-0"
+                data-testid="defaults-preview-zoom-drag-area"
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={imgSrc}
+                  alt={demoTitle}
+                  draggable={false}
+                  className="block mx-auto max-h-[78dvh] w-auto max-w-full object-contain rounded-xl"
+                />
+                <PosterBadgeDragLayer
+                  previewUrl={debouncedUrl}
+                  shape={isLandscape ? "landscape" : "poster"}
+                  enabled
+                  dragMode={dragBadges}
+                  targetLevel={targetLevel}
+                />
+              </div>
+              <p className="text-[11px] text-zinc-400 max-w-md">
+                {t("ui.badgeDragHint")}
+                {" "}
+                {t("ui.badgeMultiSelectHint")}
+                {" "}
+                {t("ui.badgeResizeHint")}
+              </p>
+            </>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setZoomed(false)}
+              aria-label={t("ui.defaultsPreviewZoomClose")}
+              className="block w-full cursor-zoom-out"
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={imgSrc}
+                alt={demoTitle}
+                className="mx-auto max-h-[78dvh] w-auto max-w-full object-contain rounded-xl"
+              />
+            </button>
+          )}
+        </div>
       ) : null}
     </Modal>
   )
@@ -660,6 +779,19 @@ export function DefaultsPosterPreview({ compact, floating, suspended, previewSha
             <span className="text-[10px] text-zinc-400 font-mono truncate">
               {demoMedia?.title ? demoTitle : t("ui.defaultsPreviewSubtitle")}
             </span>
+            {!draftDefaults && !simpleChrome && (
+              <button
+                type="button"
+                data-testid="defaults-preview-badge-edit"
+                onClick={() => setZoomed(true)}
+                aria-label={t("ui.badgeEditOpen")}
+                aria-expanded={zoomed}
+                title={t("ui.badgeEditOpen")}
+                className="shrink-0 min-w-[44px] min-h-[44px] -my-2 -mr-2 px-2 flex items-center justify-center rounded-lg text-zinc-300 hover:text-accent-orange hover:bg-white/10 transition-all active:scale-90 cursor-pointer touch-manipulation"
+              >
+                <Maximize2 className="w-4 h-4" />
+              </button>
+            )}
             <button
               type="button"
               data-testid="defaults-preview-collapse"
@@ -893,14 +1025,30 @@ export function DefaultsPosterPreview({ compact, floating, suspended, previewSha
   // the column into scroll at ordinary heights.
   return (
     <div className="w-full flex flex-col items-center bg-surface/40 border border-surface2/60 rounded-2xl p-2 shadow-md min-h-0">
-      <div className="w-full flex items-center justify-between mb-0.5 px-1 shrink-0">
-        <div className="flex items-center gap-1.5 text-xs font-semibold text-zinc-200">
-          <Sparkles className="w-3.5 h-3.5 text-accent-orange" />
-          <span>{t("ui.defaultsPreviewTitle")}</span>
+      <div className="w-full flex items-center justify-between gap-1 mb-0.5 px-1 shrink-0">
+        <div className="flex items-center gap-1.5 text-xs font-semibold text-zinc-200 min-w-0">
+          <Sparkles className="w-3.5 h-3.5 text-accent-orange shrink-0" />
+          <span className="truncate">{t("ui.defaultsPreviewTitle")}</span>
         </div>
-        <span className="text-[10px] text-zinc-400 font-mono">
-          {demoMedia?.title ? demoTitle : t("ui.defaultsPreviewSubtitle")}
-        </span>
+        <div className="flex items-center gap-1.5 min-w-0 shrink-0">
+          {!draftDefaults && !simpleChrome && (
+            <button
+              type="button"
+              data-testid="defaults-preview-badge-edit"
+              onClick={() => setZoomed(true)}
+              aria-label={t("ui.badgeEditOpen")}
+              aria-expanded={zoomed}
+              title={t("ui.badgeEditOpen")}
+              className="flex items-center gap-1 px-1.5 py-0.5 rounded-md border text-[10px] font-semibold transition-all cursor-pointer bg-white/5 text-muted border-border/50 hover:text-accent-orange hover:border-accent-orange/40"
+            >
+              <Maximize2 className="w-3 h-3" />
+              <span className="hidden xl:inline">{t("ui.badgeEditOpen")}</span>
+            </button>
+          )}
+          <span className="text-[10px] text-zinc-400 font-mono truncate">
+            {demoMedia?.title ? demoTitle : t("ui.defaultsPreviewSubtitle")}
+          </span>
+        </div>
       </div>
       {editingChipRendered}
 

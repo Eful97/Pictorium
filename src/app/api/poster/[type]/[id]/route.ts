@@ -95,7 +95,7 @@ import { computeBottomLight } from "@/lib/accent-color"
 import { normalizeGenreName } from "@/lib/genre-normalize"
 import { NON_CLEAN_BLUR_FADE, NON_CLEAN_GRADIENT_HEIGHT } from "@/lib/gradient-defaults"
 import { LAND_W, LAND_H, landscapeBackdropUrl, pillarboxLandscapeBase, cropBackdropToPortrait } from "@/lib/image-utils"
-import { generatePosterBuffer, type GenerationInput, type NetworkGeometry } from "@/lib/poster-service"
+import { generatePosterBuffer, type GenerationInput, type NetworkGeometry, type BadgeGeometryReport } from "@/lib/poster-service"
 import { computeTopBadge, isNextEpisodeDisplayed } from "@/lib/poster-badge"
 import { getUpcomingReleaseLabel, parseDateFormat } from "@/lib/release-badge"
 import { fetchPosterBaseWithCustom, customBaseAnalysisKey, resolveEffectiveCustomUrl, safeTmdbImgSrc, isAllowedQueryImagePath, fetchValidatedCustomImage } from "@/lib/custom-poster-base"
@@ -2491,6 +2491,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
       genreBadgeScale, qualityBadgeScale, networkLogoScale,
       separateBadgeScale,
       separateBadgeOffsetX, separateBadgeOffsetY,
+      badgeItemTransforms,
       genreBadgeOffsetX, genreBadgeOffsetY, qualityBadgeOffsetX, qualityBadgeOffsetY,
       networkLogoOffsetX, networkLogoOffsetY,
       queryExtra, qNetLogo, networkLogo, networkLogoPosition, ribbonSide, ribbonEnabled, rankingBadgeAccent,
@@ -3047,6 +3048,9 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
     // Collettore geometria network per il debug (solo numeri): in fissa è la
     // fonte del freeze senza salto; nel path normale resta inutilizzato.
     let netGeo: NetworkGeometry | null = null
+    // Collettore geometria badge (stessi numeri della preview, unico renderer):
+    // box finali per le maniglie di drag in Impostazioni globali.
+    let badgeGeo: BadgeGeometryReport | null = null
     // Effective-accent collector (display sync): per-request local, filled by
     // the service's pure observer with the fills actually painted. Collected
     // on EVERY render (preview included) — the PNG no-store gate below is
@@ -3086,6 +3090,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
       genreBadgeScale, qualityBadgeScale, networkLogoScale,
       separateBadgeScale,
       separateBadgeOffsetX, separateBadgeOffsetY,
+      badgeItemTransforms,
       genreBadgeOffsetX, genreBadgeOffsetY, qualityBadgeOffsetX, qualityBadgeOffsetY,
       networkLogoOffsetX, networkLogoOffsetY,
       mediaType: mediaType as "movie" | "tv",
@@ -3099,6 +3104,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
       qLabel, queryExtra, qNetLogo, networkLogo, networkLogoPosition, sd,
       networkLogoFollowTitle, networkFixedX, networkFixedY,
       onNetworkGeometry: isDebug && wantNetGeo ? (geo) => { netGeo = geo } : undefined,
+      onBadgeGeometry: isDebug && wantNetGeo ? (geo) => { badgeGeo = geo } : undefined,
       onAccentMeta: (m) => { collectedAccentMeta = m },
       demoSamples,
       accentOverride, imdbTop250, preRelease: applyPreRelease,
@@ -3139,7 +3145,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
     // below are unchanged.
     if (isDebug && wantNetGeo) {
       completePosterRender(null)
-      return Response.json({ ...(debugJson ?? {}), network: netGeo ?? null })
+      return Response.json({ ...(debugJson ?? {}), network: netGeo ?? null, badges: badgeGeo ?? null })
     }
     // 10. Il validatore rappresenta i byte effettivi: hash del buffer finale
     // (audit, problema 1). Rank live, rating, qualità, premi e ogni altra

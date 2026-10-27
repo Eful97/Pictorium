@@ -202,9 +202,13 @@ describe("Preset tab staging (no PUT before Save)", () => {
     const { ctx } = renderPanel()
     await screen.findByTestId("poster-style-apple")
     const keysBefore = JSON.stringify(Object.keys(localStorage))
+    const defaultsBefore = localStorage.getItem("badgeDefaults")
     fireEvent.click(screen.getByTestId("poster-style-apple"))
     expect(puts).toHaveLength(0)
-    expect(JSON.stringify(Object.keys(localStorage))).toBe(keysBefore)
+    // The applied-preset reset reference is persisted (approved lifecycle
+    // fix); the defaults themselves are still untouched until Save.
+    expect(JSON.stringify(Object.keys(localStorage).filter((key) => !key.startsWith("activePresetBaseline:")))).toBe(keysBefore)
+    expect(localStorage.getItem("badgeDefaults")).toBe(defaultsBefore)
     // Outer truth untouched until the global Save.
     expect(ctx().defaultBadgeStyle).not.toBe("pill")
     fireEvent.click(screen.getByTestId("settings-save"))

@@ -110,7 +110,11 @@ export function VisualPresetsSection({ shape = "portrait", enabled = true, galle
     return () => controller.abort()
   }, [load, userId, enabled])
 
-  const mutate = async (method: "POST" | "DELETE", body: unknown) => {
+  const mutate = async (
+    method: "POST" | "DELETE",
+    body: unknown,
+    opts?: { resetName?: boolean },
+  ): Promise<boolean> => {
     const target = shape
     setBusy(true)
     try {
@@ -119,15 +123,17 @@ export function VisualPresetsSection({ shape = "portrait", enabled = true, galle
       })
       // A Resolve-after-switch must not overwrite the new list (nor clear
       // the new view's input); toasts still fire for the user's own action.
-      if (shapeRef.current !== target) return
+      if (shapeRef.current !== target) return false
       setPresets(result.presets)
       setListedShape(target)
       if (method === "POST") {
-        setName("")
+        if (opts?.resetName !== false) setName("")
         toast.success(t("ui.saved"))
       }
+      return true
     } catch {
       toast.error(t("ui.visualPresetsError"))
+      return false
     } finally { setBusy(false) }
   }
 
@@ -148,7 +154,29 @@ export function VisualPresetsSection({ shape = "portrait", enabled = true, galle
       : personalPortraitPatch(values) as unknown as VisualPresetValues))
   const current = personalKey(clean)
   const presetSnapshot = (preset: VisualPreset) => personalKey(preset.values)
-  const canSave = fresh && Boolean(name.trim()) && (presets.length < MAX_VISUAL_PRESETS || presets.some((preset) => preset.name === name.trim()))
+  // Create always adds a new preset: the quota is the only gate. A duplicate
+  // name is reported explicitly (never silently overwrites the existing one).
+  const canSave = fresh && Boolean(name.trim()) && presets.length < MAX_VISUAL_PRESETS
+  const appliedPersonal = ed.activePresetBaselines?.[shape]?.kind === "personal"
+    ? ed.activePresetBaselines[shape] ?? null
+    : null
+  // Update is offered only for a still-stored preset; a deleted reference
+  // keeps its immutable reset snapshot but cannot be updated/resurrected.
+  const activePersonal = appliedPersonal && presets.some((preset) => preset.id === appliedPersonal.id)
+    ? appliedPersonal
+    : null
+  const nameIsTaken = (candidate: string, excludeId?: string) =>
+    presets.some((preset) => preset.name === candidate && preset.id !== excludeId)
+
+  const createPreset = async () => {
+    const candidate = name.trim()
+    if (!candidate) return
+    if (nameIsTaken(candidate)) {
+      toast.error(t("ui.visualPresetNameExists"))
+      return
+    }
+    await mutate("POST", { mode: "create", name: candidate, shape, values: captureForShape() }, { resetName: true })
+  }
 
   // Target-only personal apply, single atomic update: portrait owns its full
   // visual recipe (owned layout/scope/extra-style/age included) while the
@@ -156,8 +184,13 @@ export function VisualPresetsSection({ shape = "portrait", enabled = true, galle
   // applyPersonalPortraitIsolated); landscape writes the profile only.
   // Raw extras ride along untouched.
   const applyPreset = (preset: VisualPreset) => {
-    ed.applyVisualPreset(shape === "landscape" ? applyPersonalLandscapeIsolated(live, preset.values) : applyPersonalPortraitIsolated(live, preset.values), shape)
+    ed.applyVisualPreset(
+      shape === "landscape" ? applyPersonalLandscapeIsolated(live, preset.values) : applyPersonalPortraitIsolated(live, preset.values),
+      shape,
+      { id: preset.id, name: preset.name, kind: "personal" },
+    )
     setName(preset.name)
+    setUpdateArmed(false)
   }
 
   // Landscape presets store the current effective resolution (self-contained);
@@ -167,14 +200,41 @@ export function VisualPresetsSection({ shape = "portrait", enabled = true, galle
   }
 
   const [manageOpen, setManageOpen] = useState(false)
+  const [updateArmed, setUpdateArmed] = useState(false)
   const manageBodyId = useId()
   const applyPresetOrCustom = (preset: VisualPreset) => {
+    setUpdateArmed(false)
     if (onApplyPreset) {
       onApplyPreset(preset)
       setName(preset.name)
       return
     }
     applyPreset(preset)
+  }
+
+  const updatePreset = async () => {
+    const target = activePersonal
+    if (!target) return
+    if (!updateArmed) {
+      setUpdateArmed(true)
+      return
+    }
+    const candidate = name.trim()
+    if (!candidate) return
+    if (nameIsTaken(candidate, target.id)) {
+      toast.error(t("ui.visualPresetNameExists"))
+      setUpdateArmed(false)
+      return
+    }
+    const ok = await mutate(
+      "POST",
+      { mode: "update", id: target.id, name: candidate, shape, values: captureForShape() },
+      { resetName: false },
+    )
+    if (ok) {
+      ed.refreshActivePresetBaseline?.(shape, { id: target.id, name: candidate, kind: "personal" })
+    }
+    setUpdateArmed(false)
   }
   // Viewport/tab guard (owner-controlled): the hidden twin instance in
   // AppShell stays unmounted so only the visible form factor fetches.
@@ -255,15 +315,24 @@ export function VisualPresetsSection({ shape = "portrait", enabled = true, galle
             <div id={manageBodyId} className="space-y-3">
               <form className="flex gap-2" onSubmit={(event) => {
                 event.preventDefault()
-                if (!busy && !transferBusy && canSave) void mutate("POST", { name: name.trim(), shape, values: captureForShape() })
+                if (!busy && !transferBusy && canSave) void createPreset()
               }}>
-                <input value={name} onChange={(event) => setName(event.target.value)} maxLength={40}
+                <input value={name} onChange={(event) => { setName(event.target.value); setUpdateArmed(false) }} maxLength={40}
                   aria-label={t("ui.visualPresetName")} placeholder={t("ui.visualPresetName")} disabled={busy || transferBusy}
                   className="min-w-0 flex-1 bg-surface2/60 border border-white/10 rounded-lg px-3 h-11 text-zinc-200 outline-none focus:border-accent-orange/50 disabled:opacity-50" />
                 <button type="submit" disabled={busy || transferBusy || !canSave}
+                  data-testid="visual-preset-create"
                   className="px-3 h-11 rounded-lg bg-accent-orange/15 text-accent-orange hover:bg-accent-orange/25 cursor-pointer disabled:opacity-50">
                   {t("ui.visualPresetSave")}
                 </button>
+                {activePersonal && (
+                  <button type="button" disabled={busy || transferBusy || !name.trim()}
+                    data-testid="visual-preset-update"
+                    onClick={() => void updatePreset()}
+                    className="px-3 h-11 rounded-lg bg-white/[0.06] text-zinc-200 hover:bg-white/[0.10] border border-white/10 cursor-pointer disabled:opacity-50">
+                    {updateArmed ? t("ui.visualPresetUpdateConfirm") : t("ui.visualPresetUpdate")}
+                  </button>
+                )}
               </form>
               <div className="flex gap-2 pt-1">
                 <button type="button" disabled={busy || transferBusy}
@@ -331,15 +400,24 @@ export function VisualPresetsSection({ shape = "portrait", enabled = true, galle
           </div>
           <form className="flex gap-2" onSubmit={(event) => {
             event.preventDefault()
-            if (!busy && !transferBusy && canSave) void mutate("POST", { name: name.trim(), shape, values: captureForShape() })
+            if (!busy && !transferBusy && canSave) void createPreset()
           }}>
-            <input value={name} onChange={(event) => setName(event.target.value)} maxLength={40}
+            <input value={name} onChange={(event) => { setName(event.target.value); setUpdateArmed(false) }} maxLength={40}
               aria-label={t("ui.visualPresetName")} placeholder={t("ui.visualPresetName")} disabled={busy || transferBusy}
               className="min-w-0 flex-1 bg-surface2/60 border border-white/10 rounded-lg px-3 h-11 text-zinc-200 outline-none focus:border-accent-orange/50 disabled:opacity-50" />
             <button type="submit" disabled={busy || transferBusy || !canSave}
+              data-testid="visual-preset-create"
               className="px-3 h-11 rounded-lg bg-accent-orange/15 text-accent-orange hover:bg-accent-orange/25 cursor-pointer disabled:opacity-50">
               {t("ui.visualPresetSave")}
             </button>
+            {activePersonal && (
+              <button type="button" disabled={busy || transferBusy || !name.trim()}
+                data-testid="visual-preset-update"
+                onClick={() => void updatePreset()}
+                className="px-3 h-11 rounded-lg bg-white/[0.06] text-zinc-200 hover:bg-white/[0.10] border border-white/10 cursor-pointer disabled:opacity-50">
+                {updateArmed ? t("ui.visualPresetUpdateConfirm") : t("ui.visualPresetUpdate")}
+              </button>
+            )}
           </form>
           <div className="flex gap-2 pt-1">
             <button type="button" disabled={busy || transferBusy}

@@ -288,7 +288,7 @@ test.describe("Settings demo samples: search, zoom, badges", () => {
     await page.screenshot({ path: "artifacts/settings-demo-tv.png" })
   })
 
-  test("zoom opens real, closes via second click, Escape and backdrop; settings survive", async ({ page }) => {
+  test("zoom opens the editor, closes via explicit Close, Escape and backdrop; settings survive", async ({ page }) => {
     await seed(page)
     await page.setViewportSize({ width: 1280, height: 900 })
     await resetBadgeToggles(page)
@@ -312,8 +312,15 @@ test.describe("Settings demo samples: search, zoom, badges", () => {
     expect(zb.x + zb.width).toBeLessThanOrEqual(1280)
     await page.screenshot({ path: "artifacts/settings-demo-zoom.png" })
 
-    // Second click restores: settings stay open, focus returns to the opener.
-    await zoomed.click()
+    // The enlarged view is the badge EDITOR: pointer interaction on the poster
+    // never closes it (no accidental loss of an in-progress gesture). Only the
+    // explicit Close control, Escape and the backdrop do.
+    await page.mouse.click(zb.x + zb.width / 2, zb.y + zb.height / 2)
+    await expect(dialogs).toHaveCount(2)
+    await expect(zoom.getByTestId("defaults-preview-zoom-drag-area")).toBeVisible()
+
+    // Explicit Close restores: settings stay open, focus returns to the opener.
+    await zoom.getByTestId("defaults-preview-badge-edit-close").click()
     await expect(dialogs).toHaveCount(1)
     await expect(dialog).toBeVisible()
     await expect.poll(() => page.evaluate(() => document.activeElement?.getAttribute("aria-label"))).toContain("Ingrandisci")
@@ -449,7 +456,12 @@ test.describe("Settings demo samples: search, zoom, badges", () => {
     expect(zb.x).toBeGreaterThanOrEqual(0)
     expect(zb.x + zb.width).toBeLessThanOrEqual(391)
     await page.screenshot({ path: "artifacts/settings-demo-mobile-zoom.png" })
-    await zoomed.click()
+    // Editor contract: a poster click never closes the enlarged view (it only
+    // clears the badge selection); the explicit Close control does. Escape and
+    // backdrop are covered by the desktop zoom test above.
+    await page.mouse.click(zb.x + zb.width / 2, zb.y + zb.height / 2)
+    await expect(dialogs).toHaveCount(2)
+    await dialogs.nth(1).getByTestId("defaults-preview-badge-edit-close").click()
     await expect(dialogs).toHaveCount(1)
     expect(await overflowX()).toBeLessThanOrEqual(1)
   })

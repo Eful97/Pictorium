@@ -28,6 +28,14 @@ import type { VisualPresetValues } from "./visual-presets"
  * getSeparateBadgeDefaultScale) + offset 0 except quality portrait -10/+15
  * and landscape 0/0. Reuses canonical constants, never UI 75 / relative
  * 100 / render-only rank -20 baseline.
+ *
+ * The PER-ITEM corrections (`badgeItemTransforms`) are part of the same
+ * geometry reset: the ready looks are immutable snapshots of the whole look,
+ * so they own the AUTOMATIC item layout (`null`). Without this the field —
+ * added after the recipes — was simply absent from every quick look, and the
+ * apply consumers (which copy only defined keys) silently kept the live
+ * nudges: the emitted preview URL still carried `bit=…` and the poster kept
+ * the marks the user had moved before applying the preset.
  */
 export function quickTransformPatch(portrait: boolean): Partial<VisualPresetValues> {
   return {
@@ -58,6 +66,10 @@ export function quickTransformPatch(portrait: boolean): Partial<VisualPresetValu
     defaultSeparateBadgeScale: getSeparateBadgeDefaultScale(undefined),
     defaultSeparateBadgeOffsetX: 0,
     defaultSeparateBadgeOffsetY: 0,
+    // Per-item corrections: automatic layout (the preset's own look, never the
+    // previous look's nudges). Same single value both shapes: the landscape
+    // apply derives the profile key through `PRESET_FLAT_TO_LANDSCAPE`.
+    defaultBadgeItemTransforms: null,
     defaultNetworkLogoScale: 100,
     defaultNetworkLogoOffsetX: 0,
     defaultNetworkLogoOffsetY: 0,

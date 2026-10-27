@@ -15,6 +15,7 @@ import { POSTER_LAYOUTS, POSTER_FRESH_SCOPES } from "@/lib/types"
 import { retiredBadgeFamilyBindingsSchema } from "@/lib/validation"
 import { MAX_DISABLED_NETWORKS } from "@/lib/network-keys"
 import { parseGenericVariantId } from "@/lib/streaming-catalogs"
+import { canonicalizeBadgeItemTransforms } from "@/lib/badge-item-transforms"
 
 // ---- Zod schema (Batch C: sostituisce validazione manuale) ----
 
@@ -139,6 +140,8 @@ export const configTokenSchema = z.object({
   qualityBadgeScale: z.number().finite().optional(),
   qualityBadgeOffsetX: z.number().finite().optional(),
   qualityBadgeOffsetY: z.number().finite().optional(),
+  /** Per-item corrections (stable identity, canonical wire form), bounded. */
+  badgeItemTransforms: z.string().max(4096).nullable().optional(),
   networkLogoScale: z.number().finite().optional(),
   networkLogoOffsetX: z.number().finite().optional(),
   networkLogoOffsetY: z.number().finite().optional(),
@@ -385,6 +388,13 @@ export function decodeConfig(token: string): PictoriumUserConfig | null {
       qualityBadgeScale: result.data.qualityBadgeScale !== undefined ? clamp(Math.round(result.data.qualityBadgeScale), 10, 200) : undefined,
       qualityBadgeOffsetX: result.data.qualityBadgeOffsetX !== undefined ? clamp(Math.round(result.data.qualityBadgeOffsetX), -2000, 2000) : undefined,
       qualityBadgeOffsetY: result.data.qualityBadgeOffsetY !== undefined ? clamp(Math.round(result.data.qualityBadgeOffsetY), -2000, 2000) : undefined,
+      // Canonical wire form of the per-item corrections (invalid entries
+      // dropped). Absent when nothing is configured: legacy tokens keep their
+      // exact shape.
+      ...(() => {
+        const bit = canonicalizeBadgeItemTransforms(result.data.badgeItemTransforms)
+        return bit ? { badgeItemTransforms: bit } : {}
+      })(),
       separateBadgeScale: result.data.separateBadgeScale !== undefined ? clamp(Math.round(result.data.separateBadgeScale), 10, 200) : undefined,
       separateBadgeOffsetX: result.data.separateBadgeOffsetX !== undefined ? clamp(Math.round(result.data.separateBadgeOffsetX), -2000, 2000) : undefined,
       separateBadgeOffsetY: result.data.separateBadgeOffsetY !== undefined ? clamp(Math.round(result.data.separateBadgeOffsetY), -2000, 2000) : undefined,

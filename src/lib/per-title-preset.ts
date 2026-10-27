@@ -1,5 +1,6 @@
 import type { DefaultsState } from "./useDefaults"
 import { clearedExtraForPresetApply } from "./extra-materialize"
+import { canonicalizeBadgeItemTransforms } from "./badge-item-transforms"
 import {
   normalizePersonalPreset,
   PRESET_FLAT_TO_LANDSCAPE,
@@ -128,6 +129,7 @@ export type PerTitleVisualBareKey =
   | "separateBadgeScale"
   | "separateBadgeOffsetX"
   | "separateBadgeOffsetY"
+  | "badgeItemTransforms"
   | "networkLogoScale"
   | "networkLogoOffsetX"
   | "networkLogoOffsetY"
@@ -182,6 +184,8 @@ const EXCLUDED_FLAT_KEYS: ReadonlySet<string> = new Set([
   "defaultPortraitFitEnabled",
   "defaultLandscapeFitEnabled",
   "defaultPosterShape",
+  // Own rule below (canonicalization) instead of the generic copy.
+  "defaultBadgeItemTransforms",
 ])
 
 /**
@@ -298,6 +302,12 @@ export function projectPerTitleVisualPreset(
     // flat only). Age is excluded by design (dedicated per-title control —
     // never projected from a preset).
     setBare("extraBadgeStyle", flat.defaultExtraBadgeStyle)
+    // Per-item corrections: canonical wire form (null = automatic). Absent in
+    // the preset = inherit the title's own corrections (built-in/curated
+    // presets never carry user item nudges) — never reset them silently.
+    if (flat.defaultBadgeItemTransforms !== undefined) {
+      setBare("badgeItemTransforms", canonicalizeBadgeItemTransforms(flat.defaultBadgeItemTransforms as string | null))
+    }
     setBare("posterLayout", flat.defaultPosterLayout)
     setBare("posterFreshScope", flat.defaultPosterFreshScope)
     const logo = resolveLogoPatch(
@@ -329,6 +339,7 @@ export function projectPerTitleVisualPreset(
     "genreBadgeScale", "genreBadgeOffsetX", "genreBadgeOffsetY",
     "qualityBadgeScale", "qualityBadgeOffsetX", "qualityBadgeOffsetY",
     "separateBadgeScale", "separateBadgeOffsetX", "separateBadgeOffsetY",
+    "badgeItemTransforms",
     "networkLogoScale",
   ]
   for (const key of effBare) {

@@ -50,6 +50,9 @@ const ALLOWLIST: ReadonlySet<string> = new Set<string>([
   "genreBadgeScale", "genreBadgeOffsetX", "genreBadgeOffsetY",
   "qualityBadgeScale", "qualityBadgeOffsetX", "qualityBadgeOffsetY",
   "separateBadgeScale", "separateBadgeOffsetX", "separateBadgeOffsetY",
+  // Per-item corrections: mapping-persisted (types.ts Mapping +
+  // validation.ts), keyed by stable identity — part of the per-title recipe.
+  "badgeItemTransforms",
   "networkLogoScale", "networkLogoOffsetX", "networkLogoOffsetY",
 ] satisfies readonly PerTitleVisualBareKey[])
 

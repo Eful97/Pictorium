@@ -5,14 +5,17 @@ async function ensureManageOpen(dialog: ReturnType<Page["getByRole"]>) {
   // save form in a nested manage disclosure (also closed by default; both
   // bodies unmount while closed and reset on tab switches/remounts). Expand
   // whatever is collapsed. All save/apply/delete assertions unchanged.
-  if ((await dialog.getByRole("button", { name: "Salva stile attuale" }).count()) === 0) {
+  // The save control is addressed by test id: its label is "Save as new
+  // preset" here (creating never overwrites the applied preset; the explicit
+  // update action is a two-step confirm on its own control).
+  if ((await dialog.getByTestId("visual-preset-create").count()) === 0) {
     const gallery = dialog.getByRole("button", { name: /I miei preset/ }).first()
     if ((await gallery.getAttribute("aria-expanded")) !== "true") await gallery.click()
   }
-  if ((await dialog.getByRole("button", { name: "Salva stile attuale" }).count()) === 0) {
+  if ((await dialog.getByTestId("visual-preset-create").count()) === 0) {
     await dialog.getByTestId("visual-presets-manage-toggle").click()
   }
-  await expect(dialog.getByRole("button", { name: "Salva stile attuale" })).toBeVisible()
+  await expect(dialog.getByTestId("visual-preset-create")).toBeVisible()
 }
 
 async function openSettings(page: Page) {
@@ -55,16 +58,23 @@ test("personal styles are saved on the server and can be applied from another de
   const name = `Cinema ${Date.now()}`
   await dialog.getByRole("textbox", { name: "Nome del preset" }).fill(name)
   const saveResponse = page.waitForResponse((res) => res.url().includes("/api/defaults/presets") && res.request().method() === "POST")
-  await dialog.getByRole("button", { name: "Salva stile attuale" }).click()
+  await dialog.getByTestId("visual-preset-create").click()
   expect((await saveResponse).ok()).toBeTruthy()
   await expect(dialog.getByRole("button", { name, exact: true })).toBeVisible()
+  // The explicit update flow is offered for the APPLIED personal preset: apply
+  // the saved tile, tune, then arm + confirm the overwrite. "Save as new
+  // preset" never silently replaces an existing one.
+  await dialog.getByRole("button", { name, exact: true }).click()
   await dialog.getByRole("tab", { name: "Trasforma", exact: true }).click()
   await scale.fill("65")
   await dialog.getByRole("tab", { name: "Preset", exact: true }).click()
   await ensureManageOpen(dialog)
   await dialog.getByRole("textbox", { name: "Nome del preset" }).fill(name)
+  const update = dialog.getByTestId("visual-preset-update")
+  await expect(update).toBeVisible()
+  await update.click()
   const overwriteResponse = page.waitForResponse((res) => res.url().includes("/api/defaults/presets") && res.request().method() === "POST")
-  await dialog.getByRole("button", { name: "Salva stile attuale" }).click()
+  await update.click()
   const overwritten = await (await overwriteResponse).json()
   expect(overwritten.presets.filter((preset: { name: string }) => preset.name === name)).toHaveLength(1)
 

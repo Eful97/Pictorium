@@ -171,6 +171,22 @@ export interface CardRatingValue {
   readonly format?: string | null
 }
 
+/** Visible body box (canvas px) actually composed by the Card compositor. */
+export interface CardOverlayBox {
+  readonly top: number
+  readonly left: number
+  readonly w: number
+  readonly h: number
+}
+
+/** Final composed boxes of the Card layers (pure numbers). */
+export interface CardOverlayGeometry {
+  numeral: CardOverlayBox | null
+  title: CardOverlayBox | null
+  provider: CardOverlayBox | null
+  metadata: CardOverlayBox | null
+}
+
 /**
  * Compositor input. Every buffer is already resolved by the caller; this
  * module performs no I/O besides rasterizing its own small SVG layers.
@@ -212,6 +228,22 @@ export interface CardLayoutInput {
    * then sizes the mark linearly. No new query param.
    */
   readonly providerScale?: number | null
+  /**
+   * Existing per-shape Transform offsets, applied ONCE to the corresponding
+   * composed layer (neutral 0 = historic fixed geometry, byte-identical).
+   * Card slots stay the same; the user moves the finished layer.
+   */
+  readonly numeralScale?: number | null
+  readonly numeralOffsetX?: number | null
+  readonly numeralOffsetY?: number | null
+  readonly titleOffsetX?: number | null
+  readonly titleOffsetY?: number | null
+  readonly providerOffsetX?: number | null
+  readonly providerOffsetY?: number | null
+  readonly metadataOffsetX?: number | null
+  readonly metadataOffsetY?: number | null
+  /** Optional one-shot collector of the final composed boxes (pure numbers). */
+  readonly onGeometry?: ((geometry: CardOverlayGeometry) => void) | null
   /** Already-resolved brand accent (P3 sanitizes; invalid -> neutral). */
   readonly brandAccent?: unknown
   readonly genreName?: string | null
@@ -1248,7 +1280,7 @@ async function placeInCanvas(
   top: number,
   CW: number,
   CH: number,
-): Promise<{ png: Buffer; left: number; top: number } | null> {
+): Promise<{ png: Buffer; left: number; top: number; w: number; h: number } | null> {
   const l = Math.round(left)
   const t = Math.round(top)
   const x0 = Math.max(0, -l)
@@ -1262,7 +1294,7 @@ async function placeInCanvas(
       : await sharp(png)
           .extract({ left: x0, top: y0, width: x1 - x0, height: y1 - y0 })
           .toBuffer()
-  return { png: cropped, left: l + x0, top: t + y0 }
+  return { png: cropped, left: l + x0, top: t + y0, w: x1 - x0, h: y1 - y0 }
 }
 
 async function roundedArtworkCard(
@@ -1530,7 +1562,7 @@ export async function placeSingleNumeral(
   cardX: number,
   CW: number,
   CH: number,
-): Promise<{ png: Buffer; left: number; top: number } | null> {
+): Promise<{ png: Buffer; left: number; top: number; w: number; h: number } | null> {
   const fs = Math.round(baseFs)
   if (fs < CARD_NUMERAL_MIN_FONT) return null
   const spec = await renderCardNumeralLayer(rank, fs, baseTrack, baseStroke, skin, accent, 1)
@@ -1559,7 +1591,7 @@ export async function placeSingleNumeral(
   if (top + strong.minY < 0 || top + strong.maxY >= CH) return null
   const clipped = await placeInCanvas(png, spec.svgW, spec.svgH, left, top, CW, CH)
   if (!clipped) return null
-  return { png: clipped.png, left: clipped.left, top: clipped.top }
+  return { png: clipped.png, left: clipped.left, top: clipped.top, w: clipped.w, h: clipped.h }
 }
 
 /**
@@ -1581,6 +1613,9 @@ export interface PlacedDoubleNumeral {
   readonly png: Buffer
   readonly left: number
   readonly top: number
+  /** Visible (post-crop) box dimensions. */
+  readonly w: number
+  readonly h: number
   /** Condensation factor of the winning step (base or fallback). */
   readonly condenseX: number
 }
@@ -1709,7 +1744,7 @@ async function placeDoubleNumeralStep(
   if (digit2Width <= 0 || digit2Visible < digit2Width * 0.5) return null
   const clipped = await placeInCanvas(png, spec.svgW, spec.svgH, originLeft, top, CW, CH)
   if (!clipped) return null
-  return { png: clipped.png, left: clipped.left, top: clipped.top, condenseX: cx }
+  return { png: clipped.png, left: clipped.left, top: clipped.top, w: clipped.w, h: clipped.h, condenseX: cx }
 }
 
 /**
@@ -1742,7 +1777,34 @@ export async function renderCardPoster(input: CardLayoutInput): Promise<Buffer> 
   const rank =
     isCardRankDisplayable(input.displayedRank) ? input.displayedRank : null
   const geo = cardLayoutGeometry(shape, CW, CH, rank)
+  const numeralScale =
+    typeof input.numeralScale === "number" && Number.isFinite(input.numeralScale)
+      ? Math.max(10, Math.min(200, Math.round(input.numeralScale)))
+      : 100
   if (!geo) throw new Error(`Card geometry collapsed for ${CW}x${CH}`)
+  const normOff = (v: number | null | undefined): number =>
+    typeof v === "number" && Number.isFinite(v) ? Math.round(v) : 0
+  const nox = normOff(input.numeralOffsetX)
+  const noy = normOff(input.numeralOffsetY)
+  const tox = normOff(input.titleOffsetX)
+  const toy = normOff(input.titleOffsetY)
+  const pox = normOff(input.providerOffsetX)
+  const poy = normOff(input.providerOffsetY)
+  const mox = normOff(input.metadataOffsetX)
+  const moy = normOff(input.metadataOffsetY)
+  const overlayGeo: CardOverlayGeometry = { numeral: null, title: null, provider: null, metadata: null }
+  const emitGeometry = () => input.onGeometry?.({ ...overlayGeo })
+  const shiftPlaced = async <T extends { png: Buffer; left: number; top: number; w: number; h: number }>(
+    placed: T,
+    dx: number,
+    dy: number,
+  ): Promise<T | null> => {
+    if (dx === 0 && dy === 0) return placed
+    const left = clampInt(placed.left + dx, 0, Math.max(0, CW - placed.w))
+    const top = clampInt(placed.top + dy, 0, Math.max(0, CH - placed.h))
+    const moved = await placeInCanvas(placed.png, placed.w, placed.h, left, top, CW, CH)
+    return moved ? { ...placed, png: moved.png, left: moved.left, top: moved.top, w: moved.w, h: moved.h } : null
+  }
 
   // 1. Skin background (fully opaque, exact canvas dims).
   const bgSvg = cardSkinBackgroundSvg(skin, CW, CH, input.brandAccent)
@@ -1765,28 +1827,40 @@ export async function renderCardPoster(input: CardLayoutInput): Promise<Buffer> 
       // anchor is never shifted to force an overlap. The card is
       // composited AFTER the numeral, so crossed ink hides behind the
       // artwork (layer order, never a cropped viewport).
+      const numeralFs = Math.max(1, Math.round((geo.numeral.fontSize * numeralScale) / 100))
+      const numeralStroke = Math.max(1, Math.round((geo.numeral.strokeWidth * numeralScale) / 100))
+      const numeralTrack = Math.round((geo.numeral.letterSpacing * numeralScale) / 100)
       const placed = await placeSingleNumeral(
         rank,
         geo.numeral.anchorX,
         geo.numeral.baselineY,
-        geo.numeral.fontSize,
-        geo.numeral.letterSpacing,
-        geo.numeral.strokeWidth,
+        numeralFs,
+        numeralTrack,
+        numeralStroke,
         skin,
         input.brandAccent,
         geo.card.x,
         CW,
         CH,
       )
-      if (placed) composites.push({ input: placed.png, left: placed.left, top: placed.top })
+      if (placed) {
+        const moved = await shiftPlaced(placed, nox, noy)
+        if (moved) {
+          composites.push({ input: moved.png, left: moved.left, top: moved.top })
+          overlayGeo.numeral = { top: moved.top, left: moved.left, w: moved.w, h: moved.h }
+        }
+      }
     } else {
+      const numeralFs = Math.max(1, Math.round((geo.numeral.fontSize * numeralScale) / 100))
+      const numeralStroke = Math.max(1, Math.round((geo.numeral.strokeWidth * numeralScale) / 100))
+      const numeralTrack = Math.round((geo.numeral.letterSpacing * numeralScale) / 100)
       const placed = await placeDoubleNumeral(
         rank,
         geo.numeral.anchorX,
         geo.numeral.baselineY,
-        geo.numeral.fontSize,
-        geo.numeral.letterSpacing,
-        geo.numeral.strokeWidth,
+        numeralFs,
+        numeralTrack,
+        numeralStroke,
         geo.numeral.condenseX,
         skin,
         input.brandAccent,
@@ -1794,7 +1868,13 @@ export async function renderCardPoster(input: CardLayoutInput): Promise<Buffer> 
         CW,
         CH,
       )
-      if (placed) composites.push({ input: placed.png, left: placed.left, top: placed.top })
+      if (placed) {
+        const moved = await shiftPlaced(placed, nox, noy)
+        if (moved) {
+          composites.push({ input: moved.png, left: moved.left, top: moved.top })
+          overlayGeo.numeral = { top: moved.top, left: moved.left, w: moved.w, h: moved.h }
+        }
+      }
     }
   }
 
@@ -1859,13 +1939,25 @@ export async function renderCardPoster(input: CardLayoutInput): Promise<Buffer> 
     }
     const cardCx = geo.card.x + geo.card.width / 2
     const cardBottom = geo.card.y + geo.card.height
-    const lx = clampInt(Math.round(cardCx - trimW / 2), geo.card.x, geo.card.x + geo.card.width - trimW)
-    const ly = clampInt(cardBottom - geo.titleLogo.insetBottom - trimH, geo.card.y, geo.card.y + geo.card.height - trimH)
+    // Neutral offsets keep the historic inside-card clamp byte-identical; a
+    // user offset moves the finished mark and may leave the card (clamped to
+    // the canvas), which is the explicit "movable on Card" contract.
+    const baseLx = Math.round(cardCx - trimW / 2)
+    const baseLy = cardBottom - geo.titleLogo.insetBottom - trimH
+    const lx = tox === 0 && toy === 0
+      ? clampInt(baseLx, geo.card.x, geo.card.x + geo.card.width - trimW)
+      : clampInt(baseLx + tox, 0, Math.max(0, CW - trimW))
+    const ly = tox === 0 && toy === 0
+      ? clampInt(baseLy, geo.card.y, geo.card.y + geo.card.height - trimH)
+      : clampInt(baseLy + toy, 0, Math.max(0, CH - trimH))
     return { fitted: { png: trimmed, w: trimW, h: trimH }, lx, ly }
   })()
   if (titleFit) {
     const logoPlaced = await placeInCanvas(titleFit.fitted.png, titleFit.fitted.w, titleFit.fitted.h, titleFit.lx, titleFit.ly, CW, CH)
-    if (logoPlaced) composites.push({ input: logoPlaced.png, left: logoPlaced.left, top: logoPlaced.top })
+    if (logoPlaced) {
+      composites.push({ input: logoPlaced.png, left: logoPlaced.left, top: logoPlaced.top })
+      overlayGeo.title = { top: logoPlaced.top, left: logoPlaced.left, w: logoPlaced.w, h: logoPlaced.h }
+    }
   }
 
   // 5. Provider mark (P14): the already-resolved brand bitmap fits ONCE
@@ -1889,14 +1981,18 @@ export async function renderCardPoster(input: CardLayoutInput): Promise<Buffer> 
     const effMaxH = Math.max(1, Math.round((geo.provider.maxHeight * scaleEff) / 100))
     const fitted = await fitCardProviderContain(src, effMaxW, effMaxH)
     if (!fitted) return null
-    const py = clampInt(geo.provider.centerY - fitted.h / 2, 0, Math.max(0, CH - fitted.h))
+    const py = clampInt(geo.provider.centerY - fitted.h / 2 + poy, 0, Math.max(0, CH - fitted.h))
     const cardBottom = geo.card.y + geo.card.height
-    const px = placeCardProviderMark(geo.provider.centerX, fitted.w, CW, CH, skin, geo.card.x, py, cardBottom)
+    const basePx = placeCardProviderMark(geo.provider.centerX, fitted.w, CW, CH, skin, geo.card.x, py, cardBottom)
+    const px = pox === 0 ? basePx : clampInt(basePx + pox, 0, Math.max(0, CW - fitted.w))
     return { fitted, px, py }
   })()
   if (providerFit) {
     const provPlaced = await placeInCanvas(providerFit.fitted.png, providerFit.fitted.w, providerFit.fitted.h, providerFit.px, providerFit.py, CW, CH)
-    if (provPlaced) composites.push({ input: provPlaced.png, left: provPlaced.left, top: provPlaced.top })
+    if (provPlaced) {
+      composites.push({ input: provPlaced.png, left: provPlaced.left, top: provPlaced.top })
+      overlayGeo.provider = { top: provPlaced.top, left: provPlaced.left, w: provPlaced.w, h: provPlaced.h }
+    }
   }
 
   // 6. Metadata below the card inside the bounded band (never onto the
@@ -1946,11 +2042,14 @@ export async function renderCardPoster(input: CardLayoutInput): Promise<Buffer> 
               dw === ow && dh === oh
                 ? ov.png
                 : await sharp(ov.png).resize(dw, dh, { fit: "inside" }).png().toBuffer()
-            const ox = band.x0 + Math.floor((band.w - dw) / 2)
-            const oy = band.y0 + Math.floor((band.h - dh) / 2)
+            const baseOx = band.x0 + Math.floor((band.w - dw) / 2)
+            const baseOy = band.y0 + Math.floor((band.h - dh) / 2)
+            const ox = mox === 0 ? baseOx : clampInt(baseOx + mox, 0, Math.max(0, CW - dw))
+            const oy = moy === 0 ? baseOy : clampInt(baseOy + moy, 0, Math.max(0, CH - dh))
             const metaPlaced = await placeInCanvas(png, dw, dh, ox, oy, CW, CH)
             if (metaPlaced) {
               composites.push({ input: metaPlaced.png, left: metaPlaced.left, top: metaPlaced.top })
+              overlayGeo.metadata = { top: metaPlaced.top, left: metaPlaced.left, w: metaPlaced.w, h: metaPlaced.h }
               overlayDone = true
             }
           } catch {
@@ -1973,15 +2072,21 @@ export async function renderCardPoster(input: CardLayoutInput): Promise<Buffer> 
         const meta = cardMetadataSvg(lines, band.w, band.h, cardMetadataFontSize(CW))
         if (meta) {
           const metaPng = await renderSVG(meta.svg, meta.w)
-          const ox = band.x0 + Math.floor((band.w - meta.w) / 2)
-          const oy = band.y0 + Math.floor((band.h - meta.h) / 2)
+          const baseOx = band.x0 + Math.floor((band.w - meta.w) / 2)
+          const baseOy = band.y0 + Math.floor((band.h - meta.h) / 2)
+          const ox = mox === 0 ? baseOx : clampInt(baseOx + mox, 0, Math.max(0, CW - meta.w))
+          const oy = moy === 0 ? baseOy : clampInt(baseOy + moy, 0, Math.max(0, CH - meta.h))
           const metaPlaced = await placeInCanvas(metaPng, meta.w, meta.h, ox, oy, CW, CH)
-          if (metaPlaced) composites.push({ input: metaPlaced.png, left: metaPlaced.left, top: metaPlaced.top })
+          if (metaPlaced) {
+            composites.push({ input: metaPlaced.png, left: metaPlaced.left, top: metaPlaced.top })
+            overlayGeo.metadata = { top: metaPlaced.top, left: metaPlaced.left, w: metaPlaced.w, h: metaPlaced.h }
+          }
         }
       }
     }
   }
 
+  emitGeometry()
   return sharp(basePng)
     .resize(CW, CH, { fit: "fill" })
     .ensureAlpha()

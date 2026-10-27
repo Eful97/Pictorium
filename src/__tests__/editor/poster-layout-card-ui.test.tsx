@@ -9,11 +9,10 @@
  * - Per-title and per-shape default round-trips: portrait Provider Glass +
  *   landscape Stremio stay independent; reopen hydrates saved Card values;
  *   Standard/Fresh behavior is unchanged.
- * - On Card, the fixed-geometry Transform sliders (rank, genre offsets,
- *   title offsets, provider follow/offsets) render disabled with an active
- *   hint while the stored values persist for switchback; title/network/genre
- *   scales, quality, extra and blur stay enabled (P15: genre scale sizes the
- *   Card main standard badge).
+ * - On Card, every user transform stays live (explicit user contract): the
+ *   shared Card compositor applies the same offsets/scales, so no Transform
+ *   group is fixed-layout disabled and no "fixed positions" hint is shown.
+ *   Neutral values keep the historic Card look.
  * No rendering/service math is touched here (UI + persistence only).
  */
 import { beforeEach, describe, expect, it, vi } from "vitest"
@@ -371,7 +370,7 @@ describe("reopen persists saved Card values", () => {
   })
 })
 
-describe("Card transform applicability (fixed geometry disabled, values kept)", () => {
+describe("Card transform applicability (all user transforms live)", () => {
   function renderEditor() {
     const { Probe, ctx } = probe()
     renderWithCtx(
@@ -391,7 +390,7 @@ describe("Card transform applicability (fixed geometry disabled, values kept)", 
     return { ctx }
   }
 
-  it("disables rank/genre/title-offset/provider-offset controls on Card, keeps values", async () => {
+  it("keeps rank/genre/title-offset/provider-offset controls enabled on Card", async () => {
     const { ctx } = renderEditor()
     await act(async () => {
       ctx().setNetworkLogo(true)
@@ -399,7 +398,7 @@ describe("Card transform applicability (fixed geometry disabled, values kept)", 
       ctx().setGlobalBadges(true)
       ctx().setBadgeQuality(true)
     })
-    // Standard: no Card-disabled fieldset.
+    // Standard: no disabled fieldset.
     expect(document.querySelectorAll("fieldset[disabled]").length).toBe(0)
     const before = {
       top: ctx().topBadgeScale,
@@ -419,14 +418,13 @@ describe("Card transform applicability (fixed geometry disabled, values kept)", 
       within(screen.getByTestId("poster-layout-skins")).getByRole("radio", { name: "ui.posterLayoutSkinBlack" }),
     )
     expect(ctx().posterLayout).toBe("nuvio")
-    // Four fixed-geometry groups disabled: title offsets, rank, genre, network offsets.
-    expect(document.querySelectorAll("fieldset[disabled]").length).toBe(4)
-    // Provider follow switch is disabled too (fixed slot), values untouched.
-    expect(
-      screen.getByRole("switch", { name: "ui.followTitleLogo" }),
-    ).toBeDisabled()
-    // Active hint explains the fixed positions + ranked fallback.
-    expect(screen.getAllByText("ui.posterLayoutCardHint").length).toBeGreaterThanOrEqual(4)
+    // The shared compositor applies the user transforms on Card too: no
+    // fixed-layout fieldset, no fixed-positions hint, follow toggle live.
+    expect(document.querySelectorAll("fieldset[disabled]").length).toBe(0)
+    // The follow switch may still wait for shared geometry, but never because
+    // of a Card fixed-layout gate (no Card hint on it).
+    expect(screen.getByRole("switch", { name: "ui.followTitleLogo" }).getAttribute("title")).toBeNull()
+    expect(screen.queryByText("ui.posterLayoutCardHint")).toBeNull()
     // No value was rewritten by the layout switch.
     expect(ctx().topBadgeScale).toBe(before.top)
     expect(ctx().topBadgeOffsetX).toBe(before.tox)
@@ -434,23 +432,28 @@ describe("Card transform applicability (fixed geometry disabled, values kept)", 
     expect(ctx().logoOffsetX).toBe(before.lox)
     expect(ctx().networkLogoOffsetX).toBe(before.nox)
     expect(ctx().networkLogoFollowTitle).toBe(before.follow)
-    // Title/network scales, quality, extra and blur stay enabled (no
-    // blanket disable): at least one enabled range input remains.
+    // Every range input stays enabled, and an edit actually writes.
     const enabledRanges = Array.from(
       document.querySelectorAll('input[type="range"]'),
     ).filter((el) => !(el as HTMLInputElement).disabled)
     expect(enabledRanges.length).toBeGreaterThan(0)
-    // Switchback to a classic re-enables everything with values intact.
-    fireEvent.click(
-      within(group).getByRole("radio", { name: "ui.ribbon" }),
-    )
-    expect(ctx().posterLayout).toBe("standard")
-    expect(document.querySelectorAll("fieldset[disabled]").length).toBe(0)
-    expect(ctx().topBadgeScale).toBe(before.top)
-    expect(ctx().genreBadgeScale).toBe(before.genre)
+    let rankSection: HTMLElement | null = null
+    for (const h of screen.getAllByText("ui.rankFamily", { exact: false })) {
+      let el: HTMLElement | null = h.parentElement
+      while (el && el.querySelectorAll('input[type="range"]').length === 0) {
+        el = el.parentElement
+      }
+      if (el && el.querySelectorAll('input[type="range"]').length === 3) {
+        rankSection = el
+        break
+      }
+    }
+    expect(rankSection).not.toBeNull()
+    fireEvent.change(within(rankSection!).getByRole("slider", { name: "X" }), { target: { value: "33" } })
+    expect(ctx().topBadgeOffsetX).toBe(33)
   })
 
-  it("P15: genre scale stays live on Card (main standard badge), only X/Y offsets disabled", async () => {
+  it("genre offsets are live on Card (the band follows the same gox/goy)", async () => {
     const { ctx } = renderEditor()
     await act(async () => {
       ctx().setNetworkLogo(true)
@@ -467,11 +470,6 @@ describe("Card transform applicability (fixed geometry disabled, values kept)", 
       within(screen.getByTestId("poster-layout-skins")).getByRole("radio", { name: "ui.posterLayoutSkinBlack" }),
     )
     expect(ctx().posterLayout).toBe("nuvio")
-    // The genre section keeps exactly one disabled fieldset (the fixed X/Y
-    // offsets); the scale slider resizes the Card main standard badge.
-    // Two blocks share the key (BadgeControls toggles + the TransformControls
-    // slider section): pick the ancestor section holding exactly the 3 genre
-    // sliders (scale, X, Y).
     const headings = screen.getAllByText("ui.genreRatingBadge", { exact: false })
     expect(headings.length).toBeGreaterThanOrEqual(1)
     let section: HTMLElement | null = null
@@ -488,14 +486,15 @@ describe("Card transform applicability (fixed geometry disabled, values kept)", 
     expect(section).not.toBeNull()
     const ranges = Array.from(section!.querySelectorAll('input[type="range"]'))
     expect(ranges.length).toBe(3)
-    // DOM order: scale, X, Y. Disabled state rides the ancestor fieldset
-    // (jsdom `.disabled` IDL ignores fieldset ancestry — assert containment).
-    expect((ranges[0] as HTMLInputElement).closest("fieldset[disabled]")).toBeNull()
-    expect((ranges[1] as HTMLInputElement).closest("fieldset[disabled]")).not.toBeNull()
-    expect((ranges[2] as HTMLInputElement).closest("fieldset[disabled]")).not.toBeNull()
-    // Total disabled Card fieldsets unchanged (title offsets, rank, genre
-    // offsets, network offsets): the scale row moved out, nothing re-enabled.
-    expect(document.querySelectorAll("fieldset[disabled]").length).toBe(4)
+    // Scale, X, Y: all enabled (no ancestor fieldset[disabled]).
+    for (const range of ranges) {
+      expect((range as HTMLInputElement).closest("fieldset[disabled]")).toBeNull()
+    }
+    fireEvent.change(ranges[1], { target: { value: "12" } })
+    fireEvent.change(ranges[2], { target: { value: "-9" } })
+    expect(ctx().genreBadgeOffsetX).toBe(12)
+    expect(ctx().genreBadgeOffsetY).toBe(-9)
+    expect(document.querySelectorAll("fieldset[disabled]").length).toBe(0)
   })
 
   it("Fresh keeps every Transform slider enabled (no Card gating leak)", async () => {

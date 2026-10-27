@@ -258,6 +258,7 @@ export default function EditView() {
       separateBadgeScale: ed.separateBadgeScale,
       separateBadgeOffsetX: ed.separateBadgeOffsetX,
       separateBadgeOffsetY: ed.separateBadgeOffsetY,
+      badgeItemTransforms: ed.badgeItemTransforms,
       networkLogoScale: ed.networkLogoScale,
       networkLogoOffsetX: ed.networkLogoOffsetX,
       networkLogoOffsetY: ed.networkLogoOffsetY,
@@ -659,6 +660,7 @@ export default function EditView() {
       separateBadgeScale: ed.separateBadgeScale,
       separateBadgeOffsetX: ed.separateBadgeOffsetX,
       separateBadgeOffsetY: ed.separateBadgeOffsetY,
+      badgeItemTransforms: ed.badgeItemTransforms,
       separateRatingsStyle: ed.separateRatingsStyle,
       posterLayout: ed.posterLayout,
       posterFreshScope: ed.posterFreshScope,
@@ -756,6 +758,9 @@ export default function EditView() {
       ed.setSeparateBadgeScale(src.separateBadgeScale ?? landFallback?.separateBadgeScale ?? ed.separateBadgeScale)
       ed.setSeparateBadgeOffsetX(src.separateBadgeOffsetX ?? landFallback?.separateBadgeOffsetX ?? ed.separateBadgeOffsetX)
       ed.setSeparateBadgeOffsetY(src.separateBadgeOffsetY ?? landFallback?.separateBadgeOffsetY ?? ed.separateBadgeOffsetY)
+      // Per-item corrections: shape draft wins, then the shape's saved
+      // profile, then the flat default (never the other shape's live values).
+      ed.setBadgeItemTransforms(src.badgeItemTransforms ?? landFallback?.badgeItemTransforms ?? ed.defaultBadgeItemTransforms ?? null)
       // Stile separati dal profilo del formato (stash > salvato > default di
       // forma, mai il live dell'altro formato): portrait = default flat,
       // landscape = profilo Orizzontale ?? flat.

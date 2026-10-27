@@ -1,6 +1,7 @@
 import { POSTER_URL_VERSION } from "@/lib/render-version"
 import type { BadgeStyle, RankingBadgeStyle, QualityBadgeStyle, BadgeFont, SeparateRatingsStyle, ExtraBadgeStyle, ExtraBadgeFollowRank } from "@/lib/badge-styles"
 import { getSeparateBadgeDefaultScale, getSeparateRatingsStyleForShape, isAgeBadgeStyle, isBottomSeparateRatingsStyle } from "@/lib/badge-styles"
+import { canonicalizeBadgeItemTransforms } from "@/lib/badge-item-transforms"
 import { sanitizeDisabledContentTags } from "@/lib/content-tags"
 import { sanitizeDisabledNetworks } from "@/lib/network-keys"
 import type { AgeBadgeStyle } from "@/lib/badge-styles"
@@ -135,6 +136,12 @@ export interface StremioPosterParamsInput {
   readonly separateBadgeScale?: number
   /** Offset px del gruppo rating separati, colonna/pills (bar portrait: solo Y). Default 0. */
   readonly separateBadgeOffsetX?: number
+  /**
+   * Per-ITEM badge corrections (single rating pill / single quality-AV mark),
+   * canonical wire form. Opt-in: absent = automatic layout (legacy URLs and
+   * their signature stay byte-identical).
+   */
+  readonly badgeItemTransforms?: string | null
   /** Offset px del gruppo rating separati (negativo = su, positivo = giù). Default 0. */
   readonly separateBadgeOffsetY?: number
   /** Offset px del badge qualità (default 0). */
@@ -333,6 +340,12 @@ function tuningSignature(input: StremioPosterParamsInput): string {
     input.logoScale ?? D.logoScale,
     input.logoOffsetX ?? D.logoOffsetX,
     input.logoOffsetY ?? D.logoOffsetY,
+    // Per-item corrections change real pixels: when configured they must move
+    // the signature, otherwise compact URLs would serve stale bytes. Appended
+    // ONLY when present, so the legacy signature stays byte-identical.
+    ...(canonicalizeBadgeItemTransforms(input.badgeItemTransforms)
+      ? [canonicalizeBadgeItemTransforms(input.badgeItemTransforms) as string]
+      : []),
   ]
   let h = 0x811c9dc5
   const s = parts.join(",")
@@ -555,6 +568,10 @@ export function buildStremioPosterSearchParams(input: StremioPosterParamsInput):
     params.set("netscale", String(input.networkLogoScale ?? DEFAULT_STREMIO_POSTER_PARAMS.networkLogoScale))
     params.set("nox", String(input.networkLogoOffsetX ?? DEFAULT_STREMIO_POSTER_PARAMS.networkLogoOffsetX))
     params.set("noy", String(input.networkLogoOffsetY ?? DEFAULT_STREMIO_POSTER_PARAMS.networkLogoOffsetY))
+    // Per-item corrections: same explicit/absent contract as the group offsets
+    // (absent = automatic layout, legacy URLs byte-identical).
+    const bit = canonicalizeBadgeItemTransforms(input.badgeItemTransforms)
+    if (bit) params.set("bit", bit)
   }
   params.set("rv", String(POSTER_URL_VERSION))
   if (live) params.set("live", "1")

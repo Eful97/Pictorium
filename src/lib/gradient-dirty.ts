@@ -174,6 +174,8 @@ export interface FullMappingCheckState {
   separateBadgeOffsetX?: number | null
   /** Offset px gruppo rating separati (default 0). */
   separateBadgeOffsetY?: number | null
+  /** Per-item corrections (canonical wire form, null = automatic layout). */
+  badgeItemTransforms?: string | null
   /** Layout dei rating separati ("column" = colonna destra storica). */
   separateRatingsStyle?: string
   /** Graphical poster layout ("standard" = resa storica, "fresh" = opt-in). */
@@ -256,6 +258,9 @@ export function isMappingDirty(
   if ((current.separateBadgeScale ?? 130) !== (eff.separateBadgeScale ?? 130)) return true
   if ((current.separateBadgeOffsetX ?? 0) !== (eff.separateBadgeOffsetX ?? 0)) return true
   if ((current.separateBadgeOffsetY ?? 0) !== (eff.separateBadgeOffsetY ?? 0)) return true
+  // Per-item corrections: canonical form on both sides (null/absent = the same
+  // automatic layout, so a missing mapping key never looks dirty).
+  if ((current.badgeItemTransforms ?? null) !== (eff.badgeItemTransforms ?? null)) return true
   if ((current.networkLogo ?? true) !== (eff.networkLogo ?? true)) return true
   if ((current.ribbonEnabled ?? true) !== (eff.ribbonEnabled ?? true)) return true
   if ((current.networkLogoPosition ?? "auto") !== (eff.networkLogoPosition ?? "auto")) return true

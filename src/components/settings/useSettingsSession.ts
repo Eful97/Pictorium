@@ -6,6 +6,7 @@ import { currentPathUuid } from "@/lib/user-token"
 import { materializeExtraTuning, clearedExtraForPresetApply } from "@/lib/extra-materialize"
 import { independentLandscapeDefaults } from "@/lib/visual-presets"
 import { getSeparateBadgeDefaultScale } from "@/lib/badge-styles"
+import { canonicalizeBadgeItemTransforms } from "@/lib/badge-item-transforms"
 import type { DefaultsState, StagedSaveResult } from "@/lib/useDefaults"
 import {
   applySessionPatch,
@@ -18,6 +19,15 @@ import {
 } from "@/lib/settings-session"
 import type { LandscapeServerDefaults } from "@/lib/server-defaults"
 import type { VisualPresetValues } from "@/lib/visual-presets"
+import {
+  clearActivePresetBaseline,
+  clonePresetSnapshot,
+  readActivePresetBaselines,
+  writeActivePresetBaseline,
+  type ActivePresetBaseline,
+  type ActivePresetMeta,
+  type ActivePresetShape,
+} from "@/lib/active-preset-baseline"
 
 export interface SettingsSessionResult {
   value: PosterEditorCtx
@@ -121,6 +131,9 @@ export function useSettingsSession(): SettingsSessionResult {
   const [conflict, setConflict] = useState(false)
   const [saving, setSaving] = useState(false)
   const [result, setResult] = useState<StagedSaveResult | null>(null)
+  const [activePresetBaselines, setActivePresetBaselines] = useState<
+    Partial<Record<ActivePresetShape, ActivePresetBaseline>>
+  >({})
 
   const mountedRef = useRef(true)
   const savingRef = useRef(false)
@@ -129,15 +142,21 @@ export function useSettingsSession(): SettingsSessionResult {
   const baselineRef = useRef(baseline)
   const outerRef = useRef(outer)
   const identityRef = useRef<string | null>(null)
+  const activePresetBaselinesRef = useRef(activePresetBaselines)
+  const pendingBaselineRef = useRef<{ shape: ActivePresetShape; meta?: ActivePresetMeta } | null>(null)
   sessionRef.current = session
   baselineRef.current = baseline
   outerRef.current = outer
+  activePresetBaselinesRef.current = activePresetBaselines
 
   useEffect(() => {
     mountedRef.current = true
     // Identity is read lazily (per render, never stored globally): a uuid
     // change means a different profile namespace owns the outer truth.
     identityRef.current = currentPathUuid()
+    // Client-only reference load (no SSR/hydration mismatch); the reset
+    // controls are not reachable before this effect runs.
+    setActivePresetBaselines(readActivePresetBaselines())
     return () => {
       mountedRef.current = false
     }
@@ -174,6 +193,7 @@ export function useSettingsSession(): SettingsSessionResult {
       setBaseline(baselineRef.current)
       setConflict(false)
       setResult(null)
+      setActivePresetBaselines(readActivePresetBaselines())
       return
     }
     if (outerIdentity === baselineRef.current) return
@@ -197,6 +217,55 @@ export function useSettingsSession(): SettingsSessionResult {
       setConflict(true)
     }
   }, [outerIdentity, pathIdentity])
+
+  // Applied-preset reference: written only by an explicit preset apply (with
+  // identity) or an explicit approved preset update. Global Save, discard and
+  // hydration never touch it. The full immutable snapshot is what the reset
+  // controls restore later (never the saved defaults or the live preset).
+  useEffect(() => {
+    const pending = pendingBaselineRef.current
+    if (!pending) return
+    pendingBaselineRef.current = null
+    const raw = session as unknown as Record<string, unknown>
+    const snapshot = clonePresetSnapshot(Object.fromEntries(
+      Object.entries(raw).filter(([key]) => key !== "landscapeReset"),
+    ))
+    if (!pending.meta) {
+      clearActivePresetBaseline(pending.shape)
+      setActivePresetBaselines((prev) => {
+        if (!(pending.shape in prev)) return prev
+        const next = { ...prev }
+        delete next[pending.shape]
+        return next
+      })
+      return
+    }
+    const baseline: ActivePresetBaseline = {
+      id: pending.meta.id,
+      name: pending.meta.name,
+      kind: pending.meta.kind,
+      shape: pending.shape,
+      snapshot,
+    }
+    writeActivePresetBaseline(baseline)
+    setActivePresetBaselines((prev) => ({ ...prev, [pending.shape]: baseline }))
+  }, [session])
+
+  const refreshActivePresetBaseline = useCallback((
+    shape: ActivePresetShape,
+    meta?: ActivePresetMeta,
+  ) => {
+    const current = activePresetBaselinesRef.current[shape]
+    const identity: ActivePresetMeta | null = meta ?? (current ? { id: current.id, name: current.name, kind: current.kind } : null)
+    if (!identity) return
+    const raw = sessionRef.current as unknown as Record<string, unknown>
+    const snapshot = clonePresetSnapshot(Object.fromEntries(
+      Object.entries(raw).filter(([key]) => key !== "landscapeReset"),
+    ))
+    const baseline: ActivePresetBaseline = { ...identity, shape, snapshot }
+    writeActivePresetBaseline(baseline)
+    setActivePresetBaselines((prev) => ({ ...prev, [shape]: baseline }))
+  }, [])
 
   const discard = useCallback(() => {
     if (savingRef.current) return
@@ -331,6 +400,18 @@ export function useSettingsSession(): SettingsSessionResult {
           : { defaultAgeBadgeStyle: next }
       })
     }
+    // Per-ITEM badge corrections (single pill / quality mark): same canonical
+    // wire form as the provider setter, so the staged draft, the preview URL
+    // and the single Save all carry one stored form.
+    const setDefaultBadgeItemTransforms = (
+      v: FieldUpdater<SettingsSessionValue["defaultBadgeItemTransforms"]>,
+    ) => {
+      updateSession((prev) => ({
+        defaultBadgeItemTransforms: canonicalizeBadgeItemTransforms(
+          resolveField(v, prev.defaultBadgeItemTransforms),
+        ),
+      }))
+    }
     // Separate-style follow (provider parity): a style switch carries the
     // scale along only while it still sits on the old style default.
     const setDefaultSeparateRatingsStyle = (
@@ -394,17 +475,51 @@ export function useSettingsSession(): SettingsSessionResult {
       })
     }
     // Landscape reset: independent shape-appropriate profile (never
-    // clear-to-follow), same factory helper as the provider.
+    // clear-to-follow) without an applied preset. With an applied preset the
+    // whole profile returns to that immutable snapshot (present keys restored,
+    // missing keys cleared through the additive destroy list).
     const resetLandscape = () => {
-      updateSession((prev) => ({
-        landscape: independentLandscapeDefaults(prev as unknown as Record<string, unknown>),
-      }))
+      updateSession((prev) => {
+        const baseline = activePresetBaselinesRef.current.landscape
+        if (!baseline) {
+          return {
+            landscape: independentLandscapeDefaults(prev as unknown as Record<string, unknown>),
+          }
+        }
+        const baseLand = (baseline.snapshot.landscape ?? {}) as Record<string, unknown>
+        const currentLand = (prev.landscape ?? {}) as Record<string, unknown>
+        const patch: Record<string, unknown> = {}
+        for (const key of new Set([...Object.keys(currentLand), ...Object.keys(baseLand)])) {
+          patch[key] = Object.prototype.hasOwnProperty.call(baseLand, key) ? baseLand[key] : undefined
+        }
+        return { landscape: patch as Partial<LandscapeServerDefaults> }
+      })
+    }
+    // Landscape key/group reset: with an applied preset restore the snapshot
+    // value when the preset owned the key, otherwise clear (documented
+    // clear-to-inherit contract, now persisted via `landscapeReset`).
+    const resetLandscapeKeys = (keys: readonly (keyof LandscapeServerDefaults)[]) => {
+      if (keys.length === 0) return
+      updateSession((prev) => {
+        const baseline = activePresetBaselinesRef.current.landscape
+        const baseLand = baseline && typeof baseline.snapshot.landscape === "object"
+          ? (baseline.snapshot.landscape as Record<string, unknown>)
+          : null
+        const patch: Record<string, unknown> = {}
+        for (const key of keys) {
+          const present = !!baseLand && Object.prototype.hasOwnProperty.call(baseLand, key)
+          patch[key] = present ? baseLand[key] : undefined
+        }
+        return { landscape: { ...prev.landscape, ...patch } as Partial<LandscapeServerDefaults> }
+      })
     }
     // Visual preset apply with per-target extra cleanup (provider parity:
     // legacy preset without extra clears the TARGET's missing/null extra
     // axes to null; explicit extra always wins; the other shape untouched).
-    const applyVisualPreset = (values: VisualPresetValues, target: "portrait" | "landscape" = "portrait") => {
-      updateSession(() => {
+    const applyVisualPreset = (values: VisualPresetValues, target: "portrait" | "landscape" = "portrait", meta?: ActivePresetMeta) => {
+      if (savingRef.current) return
+      pendingBaselineRef.current = { shape: target, meta }
+      updateSession((prev) => {
         const { defaultNetworkLogoFollowTitle, ...rest } = values
         const patch = {
           ...(defaultNetworkLogoFollowTitle == null ? rest : { ...rest, defaultNetworkLogoFollowTitle }),
@@ -449,6 +564,15 @@ export function useSettingsSession(): SettingsSessionResult {
             patch.defaultExtraBadgeScale = cleared.scale
             patch.defaultExtraBadgeOffsetX = cleared.offsetX
             patch.defaultExtraBadgeOffsetY = cleared.offsetY
+          }
+        }
+        if (target === "landscape") {
+          const profile = patch.landscape
+          if (profile != null && typeof profile === "object") {
+            return {
+              ...patch,
+              landscape: { ...prev.landscape, ...(profile as Record<string, unknown>) },
+            } as unknown as Partial<SettingsSessionValue>
           }
         }
         return patch as unknown as Partial<SettingsSessionValue>
@@ -498,6 +622,11 @@ export function useSettingsSession(): SettingsSessionResult {
       setDefaultAgeBadge,
       setDefaultAgeCountry,
       setDefaultAgeBadgeStyle,
+      // Every defaults setter of the editor context is session-local: a setter
+      // missing here falls through to the OUTER provider (live write + conflict
+      // banner on a purely local edit).
+      setDefaultBadgeItemTransforms,
+      setDefaultTopShadeHeight: makeSimpleSetter(updateSession, "defaultTopShadeHeight"),
       setDefaultCustomRatings: makeSimpleSetter(updateSession, "defaultCustomRatings"),
       setDefaultCustomRatingEndpoint: makeSimpleSetter(updateSession, "defaultCustomRatingEndpoint"),
       setDefaultCustomRatingApiKeyHeader: makeSimpleSetter(updateSession, "defaultCustomRatingApiKeyHeader"),
@@ -529,6 +658,7 @@ export function useSettingsSession(): SettingsSessionResult {
       setDefaultTopShade: makeSimpleSetter(updateSession, "defaultTopShade"),
       setLandscape,
       resetLandscape,
+      resetLandscapeKeys,
       applyVisualPreset,
       // Session-local reset: reload the current outer truth into the draft
       // (never the legacy global loadDefaultsToState write path).
@@ -537,8 +667,14 @@ export function useSettingsSession(): SettingsSessionResult {
   }, [updateSession, discard])
 
   const value = useMemo<PosterEditorCtx>(
-    () => ({ ...outer, ...session, ...localSetters }),
-    [outer, session, localSetters],
+    () => ({
+      ...outer,
+      ...session,
+      ...localSetters,
+      activePresetBaselines,
+      refreshActivePresetBaseline,
+    }),
+    [outer, session, localSetters, activePresetBaselines, refreshActivePresetBaseline],
   )
 
   const dirty = useMemo(() => serializeSession(session) !== baseline, [session, baseline])

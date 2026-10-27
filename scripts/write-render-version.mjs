@@ -25,6 +25,7 @@ const RENDER_FILES = [
   "src/lib/accent-color.ts",
   "src/lib/award-ids.ts",
   "src/lib/awards.ts",
+  "src/lib/badge-item-transforms.ts",
   "src/lib/badge-labels.ts",
   "src/lib/badge-priority.ts",
   "src/lib/imdb-top250-data.ts",

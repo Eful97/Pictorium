@@ -1823,6 +1823,24 @@ export async function fitFreshTitleLogo(
   return { png, w, h }
 }
 
+/** Visible body box (canvas px) actually composed by the Fresh overlay. */
+export interface FreshOverlayBox {
+  readonly top: number
+  readonly left: number
+  readonly w: number
+  readonly h: number
+}
+
+/** Final composed boxes of the Fresh overlay layers (pure numbers). */
+export interface FreshOverlayGeometry {
+  /** True when the ranked left column (numeral + derived metaTop) is painted. */
+  readonly ranked: boolean
+  readonly numeral: FreshOverlayBox | null
+  readonly meta: FreshOverlayBox | null
+  readonly provider: FreshOverlayBox | null
+  readonly logo: FreshOverlayBox | null
+}
+
 export interface ComposeFreshInput {
   readonly posterBuf: Buffer
   readonly CW: number
@@ -1840,6 +1858,12 @@ export interface ComposeFreshInput {
    * neutral = historic baseline. Never mutated.
    */
   readonly transforms?: FreshLayoutTransforms | null
+  /**
+   * Optional one-shot collector of the FINAL composed boxes (same numbers as
+   * the layers below, no client layout). Pure observer: absent = no overhead,
+   * no pixel/key change.
+   */
+  readonly onGeometry?: ((geometry: FreshOverlayGeometry) => void) | null
 }
 
 /** Side gap between the bottom meta block and the title logo beside it. */
@@ -2018,6 +2042,14 @@ async function composeFreshInner(
   const layers: PosterComposite[] = []
   const t = input.transforms ?? null
   const geo = freshGeometry(input.CW, input.CH, input.rank, t)
+  const overlayGeo: {
+    ranked: boolean
+    numeral: FreshOverlayBox | null
+    meta: FreshOverlayBox | null
+    provider: FreshOverlayBox | null
+    logo: FreshOverlayBox | null
+  } = { ranked: geo.numeral !== null, numeral: null, meta: null, provider: null, logo: null }
+  const emitGeometry = () => input.onGeometry?.({ ...overlayGeo })
   if (geo.numeral) {
     // Task8b left artwork-softening band (ranked ONLY — unranked/Standard
     // never reach this branch): UNDER the shade so the shade darkens the
@@ -2047,7 +2079,10 @@ async function composeFreshInner(
     const num = await renderFreshGlassNumeral(input.posterBuf, input.CW, input.CH, geo.numeral)
     // Fully-offscreen numeral (extreme user offsets): no visible pixels, so
     // no layer — same skip contract as the left-blur strip above.
-    if (num) layers.push({ input: num.png, top: num.top, left: num.left })
+    if (num) {
+      layers.push({ input: num.png, top: num.top, left: num.left })
+      overlayGeo.numeral = { top: num.top, left: num.left, w: num.w, h: num.h }
+    }
   }
   // Ranked composition keeps the historic left column at neutral transforms;
   // anything without a valid numeral moves the meta block to the bottom
@@ -2123,9 +2158,19 @@ async function composeFreshInner(
       { hasLogo: logoBox !== null, hasMeta: meta !== null, hasProvider: providerBox !== null },
       t,
     )
-    if (meta) layers.push({ input: meta.png, top: place.metaTop, left: place.metaLeft })
-    if (providerBox) layers.push({ input: providerBox.png, top: place.providerTop, left: place.providerLeft })
-    if (logoBox) layers.push({ input: logoBox.png, top: place.logoTop, left: place.logoLeft })
+    if (meta) {
+      layers.push({ input: meta.png, top: place.metaTop, left: place.metaLeft })
+      overlayGeo.meta = { top: place.metaTop, left: place.metaLeft, w: meta.w, h: meta.h }
+    }
+    if (providerBox) {
+      layers.push({ input: providerBox.png, top: place.providerTop, left: place.providerLeft })
+      overlayGeo.provider = { top: place.providerTop, left: place.providerLeft, w: providerBox.w, h: providerBox.h }
+    }
+    if (logoBox) {
+      layers.push({ input: logoBox.png, top: place.logoTop, left: place.logoLeft })
+      overlayGeo.logo = { top: place.logoTop, left: place.logoLeft, w: logoBox.w, h: logoBox.h }
+    }
+    emitGeometry()
     return { layers, bottomIndex }
   }
   // Reserved height below the meta block: provider slot (when a provider
@@ -2147,6 +2192,7 @@ async function composeFreshInner(
     // default anchor below the numeral is unchanged.
     const top = clampLayerY(meta.h, Math.round(geo.metaTop) + moy)
     layers.push({ input: meta.png, top, left })
+    overlayGeo.meta = { top, left, w: meta.w, h: meta.h }
     columnBottom = top + meta.h
   }
   if (input.provider) {
@@ -2154,11 +2200,10 @@ async function composeFreshInner(
     if (isFreshFixedProvider(t)) {
       // Absolute-positioning contract: verbatim coords, clamped in canvas —
       // no auto anchor, no offsets, no gap (same as the standard layout).
-      layers.push({
-        input: fitted.png,
-        top: clampLayerY(fitted.h, t?.providerFixedY as number),
-        left: clampLayerX(fitted.w, t?.providerFixedX as number),
-      })
+      const fixedTop = clampLayerY(fitted.h, t?.providerFixedY as number)
+      const fixedLeft = clampLayerX(fitted.w, t?.providerFixedX as number)
+      layers.push({ input: fitted.png, top: fixedTop, left: fixedLeft })
+      overlayGeo.provider = { top: fixedTop, left: fixedLeft, w: fitted.w, h: fitted.h }
     } else {
       const centerX = Math.round(geo.zoneW / 2)
       const left = clampLayerX(fitted.w, Math.round(centerX - fitted.w / 2) + pox)
@@ -2167,6 +2212,7 @@ async function composeFreshInner(
         Math.min(columnBottom + providerGap, Math.max(0, input.CH - fitted.h - bottomMargin)) + poy,
       )
       layers.push({ input: fitted.png, top, left })
+      overlayGeo.provider = { top, left, w: fitted.w, h: fitted.h }
     }
   }
   if (input.logo) {
@@ -2187,11 +2233,11 @@ async function composeFreshInner(
       // single renderer) and the caps above already carry it too: this fit
       // is the single sizing step (no double scaling, no double offset).
       // Only the offsets apply here, once.
-      layers.push({
-        input: fitted.png,
-        top: clampLayerY(fitted.h, input.CH - fitted.h - geo.titleBottom + loy),
-        left: clampLayerX(fitted.w, Math.round((input.CW - fitted.w) / 2) + lox),
-      })
+      const rankedTop = clampLayerY(fitted.h, input.CH - fitted.h - geo.titleBottom + loy)
+      const rankedLeft = clampLayerX(fitted.w, Math.round((input.CW - fitted.w) / 2) + lox)
+      layers.push({ input: fitted.png, top: rankedTop, left: rankedLeft })
+      overlayGeo.logo = { top: rankedTop, left: rankedLeft, w: fitted.w, h: fitted.h }
+      emitGeometry()
       return { layers, bottomIndex }
     }
     const fitted = await fitFreshTitleLogo(input.logo, effLandscapeTitleMaxW, effLandscapeTitleMaxH)
@@ -2201,11 +2247,11 @@ async function composeFreshInner(
     // Only the offsets apply here, once, relative to the
     // fresh bottom-right anchor (the standard anchor is discarded with its
     // baked offsets — no double offset).
-    layers.push({
-      input: fitted.png,
-      top: clampLayerY(fitted.h, input.CH - fitted.h - geo.titleBottom + loy),
-      left: clampLayerX(fitted.w, input.CW - fitted.w - geo.titleRight + lox),
-    })
+    const landscapeTop = clampLayerY(fitted.h, input.CH - fitted.h - geo.titleBottom + loy)
+    const landscapeLeft = clampLayerX(fitted.w, input.CW - fitted.w - geo.titleRight + lox)
+    layers.push({ input: fitted.png, top: landscapeTop, left: landscapeLeft })
+    overlayGeo.logo = { top: landscapeTop, left: landscapeLeft, w: fitted.w, h: fitted.h }
   }
+  emitGeometry()
   return { layers, bottomIndex }
 }

@@ -86,10 +86,15 @@ function snapshot(ctx: PosterEditorCtx): string {
   })
 }
 
-/** Durable-storage snapshot: proves no edit leaked before the global Save. */
+/**
+ * Durable storage snapshot: proves no DEFAULTS edit leaked before the global
+ * Save. The applied-preset reset reference is a deliberate, approved
+ * persistence (immune to later global saves), so it is not a defaults edit.
+ */
 function storageSnapshot(): string {
   return JSON.stringify(
     Object.keys(localStorage)
+      .filter((k) => !k.startsWith("activePresetBaseline:"))
       .sort()
       .map((k) => [k, localStorage.getItem(k)]),
   )

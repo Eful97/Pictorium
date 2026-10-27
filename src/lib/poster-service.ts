@@ -4,7 +4,7 @@ import { renderMultiRatings, MAX_CUSTOM_RATINGS } from "./multi-rating-renderer"
 import { resolveSeparateDisplayState } from "./poster-config"
 import type { SeparateRating } from "./ratings"
 import { MAX_SEPARATE_RATINGS } from "./ratings"
-import { renderSeparateRatingStack, renderSeparateRatingsBottom } from "./separate-rating-renderer"
+import { renderSeparateRatingStack, renderSeparateRatingsBottom, type SeparateRatingStack } from "./separate-rating-renderer"
 import { cacheGet, cacheSet } from "./cache"
 import { GENRE_FALLBACK, cinematicVignetteSVG, cinematicCornerGradientSVG, topShadeSVG } from "./badges"
 import { applyBlur } from "./blur"
@@ -60,11 +60,25 @@ import { qualityBadgeIconPath } from "./quality-badge-styles"
 import type { QualityBadgeStyle } from "./badge-styles"
 import { FORMAT_ICON_PATHS, type VideoFormat } from "./av-specs"
 import { isRankKey } from "./i18n"
-import { composeFreshOverlay, composeFreshOverlaySplit, isEffectiveFreshLayout, isFreshRank, prepareFreshReconstructedBackground, type ComposeFreshInput } from "./fresh-layout"
-import { renderCardPoster, aggregateCardRating, cardMetadataBand } from "./card-layout"
-import { cardLayoutGeometry } from "./card-layout-geometry"
+import { composeFreshOverlay, composeFreshOverlaySplit, isEffectiveFreshLayout, isFreshRank, prepareFreshReconstructedBackground, type ComposeFreshInput, type FreshOverlayGeometry } from "./fresh-layout"
+import { renderCardPoster, aggregateCardRating, cardMetadataBand, type CardOverlayGeometry } from "./card-layout"
+import { cardLayoutGeometry, isCardRankDisplayable } from "./card-layout-geometry"
 import { isEffectiveCardLayout, type CardSkin } from "./card-layout-skins"
 import { resolveProviderGlassAccent } from "./provider-brand-palette"
+import {
+  BADGE_ITEM_QUALITY_AGE,
+  BADGE_ITEM_QUALITY_COMBO,
+  BADGE_ITEM_QUALITY_TIER,
+  applyBadgeItemTransform,
+  badgeItemTransform,
+  effectiveBadgeItemTransforms,
+  isNeutralBadgeItemTransform,
+  isQualityItemId,
+  isRatingItemId,
+  qualityFormatItemId,
+  serializeBadgeItemTransforms,
+  type BadgeItemTransformMap,
+} from "./badge-item-transforms"
 
 // ---------------------------------------------------------------------------
 // Types
@@ -355,6 +369,20 @@ export interface GenerationInput {
    * Solo numeri, nessun dato sensibile. Assente = nessun overhead.
    */
   onNetworkGeometry?: ((geo: NetworkGeometry | null) => void) | null
+  /**
+   * Collettore una-tantum della geometria FINALE dei badge (box effettivamente
+   * composti, in px del canvas reso): unica fonte per le maniglie di drag
+   * della preview. Solo numeri, nessun dato sensibile. Assente = nessun
+   * overhead.
+   */
+  onBadgeGeometry?: ((report: BadgeGeometryReport) => void) | null
+  /**
+   * Per-ITEM corrections of the badge groups (single rating pill / single
+   * quality or A/V mark), by stable identity. Empty/absent = automatic
+   * layout, byte-identical to the historic render. Applied by the shared
+   * renderer only; the client never guesses item geometry.
+   */
+  badgeItemTransforms?: BadgeItemTransformMap | null
   /**
    * Collettore una-tantum dei fill accent EFFETTIVAMENTE dipinti sui badge
    * (display sync del picker, ramo `?accentmeta=1`): invocato una sola volta
@@ -669,6 +697,27 @@ export async function renderQualityIconBadge(
   }
 }
 
+/** One painted element of the quality/AV stack (stable identity + final box). */
+export interface QualityBadgeItem {
+  /** Stable identity (`badge-item-transforms`), never an array index. */
+  readonly id: string
+  /** Box inside the composed group bitmap (px), the slot the layout chose. */
+  readonly top: number
+  readonly left: number
+  readonly w: number
+  readonly h: number
+  /** Present only when the item is DETACHED (it owns a per-item correction). */
+  readonly png?: Buffer
+}
+
+/** Composed quality group + the authoritative box of every painted element. */
+export interface QualityBadgeGroupResult {
+  readonly png: Buffer
+  readonly w: number
+  readonly h: number
+  readonly items: readonly QualityBadgeItem[]
+}
+
 /**
  * Renderizza la colonna verticale qualità + età + formati A/V (es. [4K] sopra
  * [VM14] sopra [DV] sopra [ATMOS]). Ordine fisso: tier qualità, pill età,
@@ -682,6 +731,14 @@ export async function renderQualityIconBadge(
  * offset/scale/cap del gruppo a valle. Senza qualità né formati ma con
  * età, il gruppo rende la sola pill età (il badge non richiede il 4K).
  * Senza nessuno dei tre → null (nessun composite, percorso storico intatto).
+ *
+ * Per-ITEM transforms: every painted element carries its stable identity
+ * (`badge-item-transforms`: tier / age / one A/V mark / the merged DV+Atmos
+ * combo) and the FINAL box it occupies inside this bitmap. An element with a
+ * non-neutral per-item correction is DETACHED: its slot stays where the
+ * automatic layout put it (nothing else moves) and its own bitmap is returned
+ * so the caller can composite it independently at the transformed position.
+ * Without corrections the composite is exactly the historic one.
  */
 export async function renderQualityBadgeGroup(
   quality: string | null | undefined,
@@ -695,7 +752,9 @@ export async function renderQualityBadgeGroup(
   ageLabel?: string | null,
   /** Stile della pill età (default "standard" = resa storica). */
   ageStyle?: AgeBadgeStyle | null,
-): Promise<{ png: Buffer; w: number; h: number } | null> {
+  /** Per-item corrections by stable identity (empty/absent = automatic). */
+  itemTransforms?: BadgeItemTransformMap | null,
+): Promise<QualityBadgeGroupResult | null> {
   const ageText = typeof ageLabel === "string" ? ageLabel.trim() : ""
   const effAgeStyle: AgeBadgeStyle = isAgeBadgeStyle(ageStyle) ? ageStyle : DEFAULT_AGE_BADGE_STYLE
   const qualityText = typeof quality === "string" ? quality : ""
@@ -739,9 +798,12 @@ export async function renderQualityBadgeGroup(
     if (!comboIcon) useCombo = false
   }
 
-  const formatBadges: { png: Buffer; w: number; h: number }[] = []
+  // One entry per PAINTED mark, with its stable identity. The merged Dolby
+  // combo owns its own identity: the two singles it replaces are never drawn,
+  // so their stored corrections stay inert (never transferred).
+  const formatItems: { id: string; badge: { png: Buffer; w: number; h: number } }[] = []
   if (comboIcon) {
-    formatBadges.push(comboIcon)
+    formatItems.push({ id: BADGE_ITEM_QUALITY_COMBO, badge: comboIcon })
   }
 
   for (const fmt of validFormats) {
@@ -750,7 +812,8 @@ export async function renderQualityBadgeGroup(
     }
     const isDolbySingle = fmt === "dv" || fmt === "atmos"
     const icon = await renderQualityIconBadge(FORMAT_ICON_PATHS[fmt], pw, isKnockout && isDolbySingle ? false : topLight)
-    if (icon) formatBadges.push(icon)
+    const itemId = qualityFormatItemId(fmt)
+    if (icon && itemId) formatItems.push({ id: itemId, badge: icon })
   }
   // Pill età in stile `ageStyle`: standard = stessa pill testuale neutra
   // della qualità (base 17px, polarità topLight, font badge); knockout =
@@ -765,11 +828,46 @@ export async function renderQualityBadgeGroup(
       : renderQualityBadge(ageText, pw, topLight, normalizeBadgeFont(font))
   }
   const agePill = await renderAgePill()
-  if (!resBadge && formatBadges.length === 0) {
+  // Every painted element with its identity, in fixed paint order.
+  const identified: { id: string; badge: { png: Buffer; w: number; h: number } }[] = []
+  if (resBadge) identified.push({ id: BADGE_ITEM_QUALITY_TIER, badge: resBadge })
+  if (agePill) identified.push({ id: BADGE_ITEM_QUALITY_AGE, badge: agePill })
+  identified.push(...formatItems)
+  const detachItem = (id: string): boolean => {
+    const t = badgeItemTransform(itemTransforms ?? null, id)
+    return !!t && !isNeutralBadgeItemTransform(t)
+  }
+  /**
+   * Single painted element = the group itself (no recomposition): its own
+   * bitmap IS the group canvas. A DETACHED element must not be painted there
+   * too, otherwise the automatic slot keeps the glyph (the caller composites
+   * the detached copy on top, and that copy is clipped at the canvas edge while
+   * the group one never moves). The blank canvas keeps the same w/h, so the
+   * group anchor, the quality→separate anchor and the item scale ratio are
+   * unchanged; a neutral/absent correction still returns the historic bytes.
+   */
+  const singleItem = async (badge: { png: Buffer; w: number; h: number }): Promise<QualityBadgeGroupResult> => {
+    const items = identified.map((entry) => ({
+      id: entry.id,
+      top: 0,
+      left: 0,
+      w: entry.badge.w,
+      h: entry.badge.h,
+      ...(detachItem(entry.id) ? { png: entry.badge.png } : {}),
+    }))
+    const detached = items.some((item) => item.png != null)
+    const png = detached
+      ? await sharp({
+          create: { width: badge.w, height: badge.h, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } },
+        }).png().toBuffer()
+      : badge.png
+    return { png, w: badge.w, h: badge.h, items }
+  }
+  if (!resBadge && formatItems.length === 0) {
     // Solo età (niente qualità né formati che abbiano reso): la pill età è
     // già il gruppo (ageText non-vuoto garantito dal return sopra, niente
     // ricomposizione).
-    return agePill
+    return agePill ? await singleItem(agePill) : null
   }
 
   const gap = Math.round(5 * pw / 380)
@@ -778,9 +876,9 @@ export async function renderQualityBadgeGroup(
   // below — Dolby like any other format. Un singolo elemento resta il bitmap
   // originale (percorso storico byte-identico: niente ricomposizione per
   // qualità sola o età sola).
-  const allBadges = [...(resBadge ? [resBadge] : []), ...(agePill ? [agePill] : []), ...formatBadges]
+  const allBadges = identified.map((entry) => entry.badge)
   if (allBadges.length === 0) return null
-  if (allBadges.length === 1) return allBadges[0]
+  if (allBadges.length === 1) return await singleItem(allBadges[0])
   const visWidths = allBadges.map((b) => Math.max(1, b.w - TOP_SHADOW_PAD * 2))
   const visHeights = allBadges.map((b) => Math.max(1, b.h - TOP_SHADOW_PAD * 2))
   const maxVisW = Math.max(...visWidths)
@@ -789,13 +887,23 @@ export async function renderQualityBadgeGroup(
   const totalH = totalVisH + TOP_SHADOW_PAD * 2
 
   const composites: { input: Buffer; left: number; top: number }[] = []
+  const items: QualityBadgeItem[] = []
   let curVisTop = TOP_SHADOW_PAD
   for (let i = 0; i < allBadges.length; i++) {
-    composites.push({
-      input: allBadges[i].png,
-      left: Math.round((totalW - allBadges[i].w) / 2),
-      top: curVisTop - TOP_SHADOW_PAD,
+    const badge = allBadges[i]
+    const left = Math.round((totalW - badge.w) / 2)
+    const top = curVisTop - TOP_SHADOW_PAD
+    // The slot is always reported (the editor must offer a handle for every
+    // painted element); only a corrected element is detached from the bitmap.
+    items.push({
+      id: identified[i].id,
+      top,
+      left,
+      w: badge.w,
+      h: badge.h,
+      ...(detachItem(identified[i].id) ? { png: badge.png } : {}),
     })
+    if (!detachItem(identified[i].id)) composites.push({ input: badge.png, left, top })
     curVisTop += visHeights[i] + gap
   }
 
@@ -811,7 +919,7 @@ export async function renderQualityBadgeGroup(
     .png()
     .toBuffer()
 
-  return { png: groupPng, w: totalW, h: totalH }
+  return { png: groupPng, w: totalW, h: totalH, items }
 }
 
 
@@ -1357,6 +1465,70 @@ export interface NetworkGeometry {
 }
 
 /**
+ * Badge families whose FINAL composed box this renderer can report.
+ *
+ * `rank`/`extra` are the two independent top-slot profiles (with ranking vs
+ * fallback): the report names the one actually painted (`kind`), never the
+ * mere availability of ranking data. Every other family is reported from the
+ * box the ACTIVE whole-poster layout actually composed (Standard, Fresh and
+ * Card), so the editor never guesses an anchor. `genre` is the combined
+ * genre/rating/year family in Standard and the equivalent meta block or Card
+ * band; `logo` is the title logo in every layout.
+ */
+export type BadgeGeometryFamily = "rank" | "extra" | "genre" | "quality" | "separate" | "network" | "logo"
+
+/** Whole-poster geometry layout actually displayed. */
+export type BadgeGeometryLayout = "ranked" | "fallback"
+
+/** Visible body box (px) in the canvas actually rendered. */
+export interface BadgeGeometryBox {
+  readonly top: number
+  readonly left: number
+  readonly w: number
+  readonly h: number
+}
+
+export interface BadgeGeometryReport {
+  readonly canvasW: number
+  readonly canvasH: number
+  /**
+   * Whole-poster layout actually displayed: `ranked` when a ranking
+   * badge/numeral is painted, `fallback` for the without-ranking composition.
+   * Drives profile-aware reset (never inferred from ranking data).
+   */
+  readonly layout: BadgeGeometryLayout
+  /** Top slot actually painted (null = no top badge / Coming Soon ribbon). */
+  readonly kind: "rank" | "extra" | null
+  readonly families: Partial<Record<BadgeGeometryFamily, BadgeGeometryBox>>
+  /**
+   * Families whose X offset is IGNORED by this render (anchored/full-width
+   * styles, e.g. the full-width genre bar): a drag handle on X would move
+   * nothing, so the UI must lock it instead of promising movement.
+   */
+  readonly fixedX: Partial<Record<BadgeGeometryFamily, boolean>>
+  /**
+   * Authoritative box of every SEPARATELY composited badge item (one rating
+   * pill, one quality/AV mark), by stable identity. Empty when the active
+   * layout bakes them into a single ositive block (Fresh/Card meta rows).
+   */
+  readonly items: readonly BadgeGeometryItem[]
+}
+
+/** One independently movable badge item with its final composed box. */
+export interface BadgeGeometryItem {
+  /** Stable identity (`badge-item-transforms`), never an array index. */
+  readonly id: string
+  /** Family that owns the item (see the module contract). */
+  readonly family: "quality" | "separate"
+  readonly top: number
+  readonly left: number
+  readonly w: number
+  readonly h: number
+  /** True when a per-item correction is applied (detached layer). */
+  readonly custom: boolean
+}
+
+/**
  * Editorial nudge applied to every network pill at composite time
  * (`top + NETWORK_LOGO_SHIFT_Y`): global tuning, not a user offset.
  * Anchor math must subtract it so the on-poster gap stays exact.
@@ -1471,7 +1643,7 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
     tvType, tvStatus, releaseDate, firstAirDate,
     lastAirDate, seasonCount, nextEpisodeAirDate, numberOfEpisodes, originCountries, genreIds,
     wikidataResult, tmdbKeywords, locale, t,
-    qLabel, queryExtra, qNetLogo, networkLogo, networkLogoPosition = "auto", networkLogoFollowTitle, networkFixedX, networkFixedY, onNetworkGeometry, onAccentMeta, sd, accentOverride, imdbTop250,
+    qLabel, queryExtra, qNetLogo, networkLogo, networkLogoPosition = "auto", networkLogoFollowTitle, networkFixedX, networkFixedY, onNetworkGeometry, onBadgeGeometry, badgeItemTransforms, onAccentMeta, sd, accentOverride, imdbTop250,
     logoSrc, backdropSrc, analysisKey,
     preRelease = false,
     hideLogo = false,
@@ -1618,6 +1790,8 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
   // numerale (isFreshRank via isEffectiveFreshLayout, nessuna seconda
   // derivazione del rank): il rank è quello mostrato (topBadge numerale, già
   // rankingEnabled-gated sopra), mai l'appartenenza al catalogo.
+  let freshOverlayGeo: FreshOverlayGeometry | null = null
+  let cardOverlayGeo: CardOverlayGeometry | null = null
   const isFresh = isEffectiveFreshLayout(
     input.posterLayout,
     rawFreshScope,
@@ -2110,6 +2284,24 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
     ? badgeCacheKey("rank", topBadge.type === "extra" ? topBadge.label : `${(topBadge as { rank: number }).rank}:${topBadge!.label}:${(topBadge as { ribbonLabel?: string }).ribbonLabel ?? ""}`, CW, topLight, topBadgeStyle, badgeFont, rankStdAccent, ribbonSide, isAnimeRank, effTopBadgeScale, isRankDetached ? "detached" : undefined, rankingBadgeAccent ? "accent" : undefined)
     : null
   const formatsKey = (effectiveFormats && effectiveFormats.length > 0) ? effectiveFormats.join(",") : "none"
+  // Per-item corrections, split by family so each group's cache key carries
+  // only the corrections that can change its own bitmap. Empty = automatic
+  // layout (the key segment stays the historic sentinel).
+  const effectiveItemTransforms = effectiveBadgeItemTransforms(badgeItemTransforms)
+  const qualityItemKey = serializeBadgeItemTransforms(
+    Object.fromEntries(Object.entries(effectiveItemTransforms).filter(([id]) => isQualityItemId(id))),
+  ) ?? "items0"
+  const separateItemKey = serializeBadgeItemTransforms(
+    Object.fromEntries(Object.entries(effectiveItemTransforms).filter(([id]) => isRatingItemId(id))),
+  ) ?? "items0"
+  // Only the corrections of a family are handed to its renderer: an A/V mark
+  // correction can never detach a rating pill and vice versa.
+  const itemTransformsForQuality = Object.freeze(
+    Object.fromEntries(Object.entries(effectiveItemTransforms).filter(([id]) => isQualityItemId(id))),
+  )
+  const itemTransformsForSeparate = Object.freeze(
+    Object.fromEntries(Object.entries(effectiveItemTransforms).filter(([id]) => isRatingItemId(id))),
+  )
   // L'età entra nella chiave (etichetta distinta = bitmap distinto) insieme
   // allo stile (stessa etichetta in standard/knockout = bitmap diversi);
   // assente = sentinel stabile così le chiavi senza età restano byte-identiche
@@ -2117,7 +2309,7 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
   // niente). La chiave usa l'EFFETTIVA (gated dal legacy toggle): con bq=0 il
   // tier nascosto non entra nella chiave (stesso bitmap dell'age-only senza tier).
   const qualityBadgeKey = hasQualityGroup
-    ? badgeCacheKey("quality", effectiveQuality ?? "noquality", CW, effQualityTopLight, badgeFont, qualityBadgeScale, effQualityBadgeStyle ?? "standard", qualityIconPath ?? "std", formatsKey, ageText !== "" ? `${ageText}:${effAgeBadgeStyle}` : "noage")
+    ? badgeCacheKey("quality", effectiveQuality ?? "noquality", CW, effQualityTopLight, badgeFont, qualityBadgeScale, effQualityBadgeStyle ?? "standard", qualityIconPath ?? "std", formatsKey, ageText !== "" ? `${ageText}:${effAgeBadgeStyle}` : "noage", qualityItemKey)
     : null
   const comingSoonKey = showComingSoon
     ? badgeCacheKey("comingsoon", effComingSoonLabel, CW, badgeFont, topLight, effComingSoonSide)
@@ -2156,11 +2348,11 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
     renderStandardGenre(),
     renderStandardRank(),
     qualityBadgeKey
-      ? (cacheGet<{ png: Buffer; w: number; h: number }>(qualityBadgeKey)
+      ? (cacheGet<QualityBadgeGroupResult>(qualityBadgeKey)
           || coalesceBadgeRender(qualityBadgeKey, async () => {
               // Gruppo con qualità/formati/stile-età EFFETTIVI (legacy-gated):
               // con bq=0 l'age-only non resuscita il tech stack disabilitato.
-              const res = await renderQualityBadgeGroup(effectiveQuality ?? null, effQualityBadgeStyle, effectiveFormats, badgePw, effQualityTopLight, badgeFont, hasAgeBadge ? ageText : null, effAgeBadgeStyle)
+              const res = await renderQualityBadgeGroup(effectiveQuality ?? null, effQualityBadgeStyle, effectiveFormats, badgePw, effQualityTopLight, badgeFont, hasAgeBadge ? ageText : null, effAgeBadgeStyle, itemTransformsForQuality)
               if (res) cacheSet(qualityBadgeKey, res, ["badge"], BADGE_CACHE_TTL)
               return res
             }))
@@ -2229,6 +2421,14 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
     qualityBadgeForLayout ? fitBadgeToCanvas(qualityBadgeForLayout, CW, CH) : Promise.resolve(null),
     comingSoonResult ? fitBadgeToCanvas(comingSoonResult, CW, CH) : Promise.resolve(null),
   ])
+
+  // Geometria badge per il drag della preview (debug `netgeo=1`): box FINALI
+  // effettivamente composti, raccolti agli stessi punti di composite. Puro
+  // osservatore: nessun pixel, chiave o cache cambia. Vuoto = nessun overhead.
+  const badgeGeo: Partial<Record<BadgeGeometryFamily, BadgeGeometryBox>> = {}
+  const badgeGeoFixedX: Partial<Record<BadgeGeometryFamily, boolean>> = {}
+  // Per-item boxes (see `BadgeGeometryReport.items`).
+  const badgeGeoItems: BadgeGeometryItem[] = []
 
   // Rettangolo finale del badge genere (per il contenimento colonna separati
   // sotto: solo shrink quando lo stack sfora, mai enlarge — a scala 100 lo
@@ -2347,6 +2547,12 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
       const genreCanvas = badgeCanvasForBody(genreLeft, genreTop, genreBox)
       composites.push({ input: genreBox.png, top: genreCanvas.top, left: genreCanvas.left })
     }
+  }
+  if (genreBadgeRect) {
+    badgeGeo.genre = { ...genreBadgeRect }
+    // Full-width bar (portrait and landscape right-anchored): the X tuning is
+    // never applied by the renderer, so a handle on X would be a lie.
+    if (badgeStyle === "bar") badgeGeoFixedX.genre = true
   }
   // Riga custom provider: se renderizzata, la colonna separati si nasconde
   // (mai due stack di rating impilati — il provider vince). In modalità
@@ -2877,6 +3083,9 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
     }
   }
   onNetworkGeometry?.(netGeo)
+  if (netGeo) {
+    badgeGeo.network = { top: netGeo.top, left: netGeo.left, w: netGeo.w, h: netGeo.h }
+  }
 
   // Qualità: in alto a destra di default; con nastro Netflix o Coming Soon a destra (Stremio)
   // va a sinistra per non restargli accanto — sopra il logo network se libero,
@@ -2971,6 +3180,45 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
       top: top + qualityBadgeOffsetY,
       left: left + qualityBadgeOffsetX,
     })
+    const qualityGroupTop = top + qualityBadgeOffsetY
+    const qualityGroupLeft = left + qualityBadgeOffsetX
+    // Per-item corrections: the group keeps its automatic anchor/offset/scale
+    // (nothing else ever moves); a corrected element is composited on its own
+    // at the transformed slot. The ratio maps the group bitmap's own space
+    // (where the item boxes live) onto the placed bitmap.
+    const qualityItemScale = qualityBadgeResult && qualityBadgeResult.w > 0 ? finalQualityBadge.w / qualityBadgeResult.w : 1
+    for (const item of safeQualityBadgeResult.items) {
+      const slot = {
+        top: qualityGroupTop + item.top * qualityItemScale,
+        left: qualityGroupLeft + item.left * qualityItemScale,
+        w: item.w * qualityItemScale,
+        h: item.h * qualityItemScale,
+      }
+      const itemTransform = badgeItemTransform(effectiveItemTransforms, item.id)
+      const placed = applyBadgeItemTransform(slot, itemTransform)
+      if (item.png) {
+        const png =
+          placed.w === item.w && placed.h === item.h
+            ? item.png
+            : await sharp(item.png).resize(placed.w, placed.h).toBuffer()
+        composites.push({ input: png, top: placed.top, left: placed.left })
+      }
+      badgeGeoItems.push({
+        id: item.id,
+        family: "quality",
+        top: placed.top,
+        left: placed.left,
+        w: placed.w,
+        h: placed.h,
+        custom: !isNeutralBadgeItemTransform(itemTransform),
+      })
+    }
+    badgeGeo.quality = {
+      top: top + qualityBadgeOffsetY,
+      left: left + qualityBadgeOffsetX,
+      w: finalQualityBadge.w,
+      h: finalQualityBadge.h,
+    }
     // Ancoraggio della colonna separati: sotto il box visibile del badge
     // qualita (asse centrale allineato) con gap ottico 6px. L'ancora sottrae
     // il padding ombra inferiore (in scala): prima lo stack partiva dal fondo
@@ -3007,10 +3255,10 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
         || isTopBadgeNumberRightCorner({ topBadgeType: topBadge?.type, rankingBadgeStyle, extraBadgeStyle, ribbonSide, hasTopBadge: !!finalRankBadge }))
     const stackTop = (qualityStackAnchor ? qualityStackAnchor.top + 6 : netBaseTop - 10)
       + (isLandscape ? 0 : PORTRAIT_SEPARATE_SHIFT_Y)
-    const stackKey = badgeCacheKey("separate", items.map((i) => `${i.id}${i.value}`).join(","), CW, badgeFont, effSepTopLight, separateBadgeScaleEff)
-    const cached = cacheGet<{ png: Buffer; w: number; h: number }>(stackKey)
+    const stackKey = badgeCacheKey("separate", items.map((i) => `${i.id}${i.value}`).join(","), CW, badgeFont, effSepTopLight, separateBadgeScaleEff, separateItemKey)
+    const cached = cacheGet<SeparateRatingStack>(stackKey)
     const stack = cached ?? await coalesceBadgeRender(stackKey, () =>
-      renderSeparateRatingStack(items, badgePw, effSepTopLight, badgeFont, separateBadgeScaleEff)
+      renderSeparateRatingStack(items, badgePw, effSepTopLight, badgeFont, separateBadgeScaleEff, itemTransformsForSeparate)
         .then((r) => { if (r) cacheSet(stackKey, r, ["badge"], BADGE_CACHE_TTL); return r })
     )
     const fitted = stack ? await fitBadgeToCanvas(stack, CW, CH) : null
@@ -3042,6 +3290,38 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
       const sepLeft = Math.max(0, Math.min(CW - stackFitted.w, leftPos + sepOX))
       const sepTop = Math.max(0, Math.min(CH - stackFitted.h, stackTop + sepOY))
       composites.push({ input: stackFitted.png, top: sepTop, left: sepLeft })
+      badgeGeo.separate = { top: sepTop, left: sepLeft, w: stackFitted.w, h: stackFitted.h }
+      // Per-item corrections of the single pills: the column keeps its
+      // automatic anchor/offset/fit (nothing else moves); a corrected pill is
+      // composited on its own at the transformed slot, mapped through the
+      // final placement + shrink ratio of the stack bitmap.
+      const stackItemScale = stack && stack.w > 0 ? stackFitted.w / stack.w : 1
+      for (const item of stack?.items ?? []) {
+        const slot = {
+          top: sepTop + item.top * stackItemScale,
+          left: sepLeft + item.left * stackItemScale,
+          w: item.w * stackItemScale,
+          h: item.h * stackItemScale,
+        }
+        const itemTransform = badgeItemTransform(effectiveItemTransforms, item.id)
+        const placed = applyBadgeItemTransform(slot, itemTransform)
+        if (item.png) {
+          const png =
+            placed.w === item.w && placed.h === item.h
+              ? item.png
+              : await sharp(item.png).resize(placed.w, placed.h).toBuffer()
+          composites.push({ input: png, top: placed.top, left: placed.left })
+        }
+        badgeGeoItems.push({
+          id: item.id,
+          family: "separate",
+          top: placed.top,
+          left: placed.left,
+          w: placed.w,
+          h: placed.h,
+          custom: !isNeutralBadgeItemTransform(itemTransform),
+        })
+      }
     }
   }
 
@@ -3060,10 +3340,10 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
     const items = input.separateRatings!.slice(0, MAX_SEPARATE_RATINGS)
     const isBar = bottomVariant === "bottom-bar"
     const availW = isBar && !isLandscape ? CW : (isLandscape ? CW - 80 : CW - 36)
-    const bottomKey = badgeCacheKey("separate-bottom", bottomVariant, items.map((i) => `${i.id}${i.value}`).join(","), CW, badgeFont, separateBadgeScaleEff, availW, effSepBottomLight ? "bl1" : "bl0")
-    const cached = cacheGet<{ png: Buffer; w: number; h: number }>(bottomKey)
+    const bottomKey = badgeCacheKey("separate-bottom", bottomVariant, items.map((i) => `${i.id}${i.value}`).join(","), CW, badgeFont, separateBadgeScaleEff, availW, effSepBottomLight ? "bl1" : "bl0", separateItemKey)
+    const cached = cacheGet<SeparateRatingStack>(bottomKey)
     const bottom = cached ?? await coalesceBadgeRender(bottomKey, () =>
-      renderSeparateRatingsBottom(items, badgePw, bottomVariant, badgeFont, separateBadgeScaleEff, availW, effSepBottomLight)
+      renderSeparateRatingsBottom(items, badgePw, bottomVariant, badgeFont, separateBadgeScaleEff, availW, effSepBottomLight, itemTransformsForSeparate)
         .then((r) => { if (r) cacheSet(bottomKey, r, ["badge"], BADGE_CACHE_TTL); return r })
     )
     const fitted = bottom ? await fitBadgeToCanvas(bottom, CW, CH) : null
@@ -3119,6 +3399,35 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
       const top = topForOff(rowBox.h)
       const left = leftForOff(rowBox.w)
       composites.push({ input: rowBox.png, top, left })
+      // Per-item corrections of the single cells: the row keeps its automatic
+      // anchor/offset/fit; a corrected cell is composited on its own.
+      const rowItemScale = bottom && bottom.w > 0 ? rowBox.w / bottom.w : 1
+      for (const item of bottom?.items ?? []) {
+        const slot = {
+          top: top + item.top * rowItemScale,
+          left: left + item.left * rowItemScale,
+          w: item.w * rowItemScale,
+          h: item.h * rowItemScale,
+        }
+        const itemTransform = badgeItemTransform(effectiveItemTransforms, item.id)
+        const placed = applyBadgeItemTransform(slot, itemTransform)
+        if (item.png) {
+          const png =
+            placed.w === item.w && placed.h === item.h
+              ? item.png
+              : await sharp(item.png).resize(placed.w, placed.h).toBuffer()
+          composites.push({ input: png, top: placed.top, left: placed.left })
+        }
+        badgeGeoItems.push({
+          id: item.id,
+          family: "separate",
+          top: placed.top,
+          left: placed.left,
+          w: placed.w,
+          h: placed.h,
+          custom: !isNeutralBadgeItemTransform(itemTransform),
+        })
+      }
     }
   }
 
@@ -3181,6 +3490,7 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
       // fresh-layout: the same % only enlarges the slot caps there, so one
       // fit grows the mark linearly until the canvas edge (neutral 100 =
       // historic caps, byte-identical; null logoScale counts as 100).
+      onGeometry: (geo) => { freshOverlayGeo = geo },
       transforms: {
         numeralScale: topBadgeScale,
         numeralOffsetX: topBadgeOffsetX,
@@ -3451,6 +3761,7 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
         const sepLeft = Math.max(0, Math.min(CW - stackFitted.w, leftPos + sepOX))
         const sepTop = Math.max(0, Math.min(CH - stackFitted.h, stackTop + sepOY))
         composites.push({ input: stackFitted.png, top: sepTop, left: sepLeft })
+        badgeGeo.separate = { top: sepTop, left: sepLeft, w: stackFitted.w, h: stackFitted.h }
       }
     }
     // Automatic provider-glass brand tint from the already-resolved brand
@@ -3532,6 +3843,18 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
       // assenti e non listati (mai cataloghi di match copiati, mai testo
       // raw nel SVG, mai tinta di scena come brand, mai campionamento
       // pixel per `provider-glass`).
+      // Existing per-shape Transform offsets: Card slots stay the same, the
+      // composed layer moves (neutral 0 = historic fixed geometry).
+      numeralScale: topBadgeScale,
+      numeralOffsetX: topBadgeOffsetX,
+      numeralOffsetY: topBadgeOffsetY,
+      titleOffsetX: logoOffsetX,
+      titleOffsetY: logoOffsetY,
+      providerOffsetX: networkLogoOffsetX,
+      providerOffsetY: networkLogoOffsetY,
+      metadataOffsetX: genreBadgeOffsetX,
+      metadataOffsetY: genreBadgeOffsetY,
+      onGeometry: (geo) => { cardOverlayGeo = geo },
       brandAccent: cardBrandAccent,
       // Metadati già risolti con le scelte di resa effettive condivise con
       // Fresh (vedi sopra: custom > separati > media ★, mai valori inventati).
@@ -3552,6 +3875,76 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
     }
   }
 
+
+  // -----------------------------------------------------------------------
+  // 6c-bis. Geometria badge per il drag della preview (debug `netgeo=1`).
+  // Un solo punto di verità: ogni box è quello DAVVERO composto dal layout
+  // attivo (Standard, Fresh o Card), raccolto nel punto di composite o dal
+  // collector del compositor. La famiglia top segue il badge dipinto
+  // (`extra` = layout fallback senza classifica); `rank` è il badge/il
+  // numerale di classifica. `layout` descrive il poster INTERO (con o senza
+  // classifica) ed è la chiave del reset per profilo.
+  // -----------------------------------------------------------------------
+  const topRankDisplayed =
+    isExtraTopBadge
+      ? false
+      : isCard
+        ? (topBadge?.type === "rank" && isCardRankDisplayable(topBadge.rank))
+        : isFresh
+          ? (topBadge?.type === "rank" && isFreshRank(topBadge.rank))
+          : !!(finalRankBadge && !isExtraTopBadge)
+  const reportLayout: BadgeGeometryLayout = topRankDisplayed ? "ranked" : "fallback"
+  if (finalRankBadge && finalRankLeft !== null) {
+    const topBody = badgeBody(finalRankBadge)
+    if (isExtraTopBadge) {
+      // Extra: stesso anchor in Standard, Fresh e Card (push sopra in ogni ramo).
+      badgeGeo.extra = { top: finalRankTop, left: finalRankLeft, w: topBody.w, h: topBody.h }
+    } else if (!isFresh && !isCard && !isRankNetflixRibbonStyle) {
+      // Rank Standard centrato/angolo: gli offset sono applicati qui. Il
+      // nastro Netflix ignora X e Y per contratto: nessuna maniglia.
+      badgeGeo.rank = { top: finalRankTop, left: finalRankLeft, w: topBody.w, h: topBody.h }
+    }
+  }
+  // Logo titolo (Standard): il bitmap composto com'e', offset applicati una
+  // sola volta a monte. Fresh/Card riportano il proprio layer composto sotto.
+  if (logoResult && !isFresh && !isCard) {
+    badgeGeo.logo = { top: logoResult.top, left: logoResult.left, w: logoResult.w, h: logoResult.h }
+  }
+  // Fresh: il compositor riporta numerale (famiglia rank), blocco meta
+  // (genere), provider (network) e titolo (logo) realmente dipinti. I
+  // composite standard genere/logo sono gia' spenti sopra: nessun duplicato.
+  // Le righe separate vivono dentro il blocco meta (contratto Fresh), quindi
+  // si muovono con esso: nessuna maniglia fantasma.
+  if (isFresh && freshOverlayGeo) {
+    const geo = freshOverlayGeo as FreshOverlayGeometry
+    if (geo.numeral) badgeGeo.rank = geo.numeral
+    if (geo.meta) badgeGeo.genre = geo.meta
+    if (geo.provider) badgeGeo.network = geo.provider
+    if (geo.logo) badgeGeo.logo = geo.logo
+  }
+  // Card: stesse famiglie dal compositor condiviso; la banda metadata (badge
+  // principale + eventuali righe unite) è la famiglia genere, la colonna
+  // separati laterale è già riportata dal chrome condiviso sopra.
+  if (isCard && cardOverlayGeo) {
+    const geo = cardOverlayGeo as CardOverlayGeometry
+    if (geo.numeral) badgeGeo.rank = geo.numeral
+    if (geo.metadata) badgeGeo.genre = geo.metadata
+    if (geo.provider) badgeGeo.network = geo.provider
+    if (geo.title) badgeGeo.logo = geo.title
+  }
+  onBadgeGeometry?.({
+    canvasW: CW,
+    canvasH: CH,
+    layout: reportLayout,
+    kind: isExtraTopBadge
+      ? (finalRankBadge ? "extra" : null)
+      : topRankDisplayed
+        ? "rank"
+        : null,
+    families: badgeGeo,
+    fixedX: badgeGeoFixedX,
+    items: badgeGeoItems,
+  })
 
   // -----------------------------------------------------------------------
   // 6d. Effective-accent metadata (display sync, `?accentmeta=1`).

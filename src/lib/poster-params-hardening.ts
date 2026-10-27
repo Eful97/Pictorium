@@ -97,6 +97,10 @@ export const POSTER_CACHE_ALLOWLIST: ReadonlySet<string> = new Set([
   "rank", "animerank", "scale", "ox", "oy", "tscale", "tox", "toy",
   "exscale", "exox", "exoy",
   "gscale", "gox", "goy", "qscale", "qox", "qoy", "sepscale", "sepox", "sepoy", "netscale", "nox", "noy",
+  // Per-ITEM badge transforms (single rating pill / single quality-AV mark,
+  // canonical wire form). Canonicalized below: an invalid value collapses onto
+  // absent, so garbage can never fragment the cache with identical pixels.
+  "bit",
   "bscale", "box", "boy", "gradHeight", "blur", "bf", "bd", "voteAverage",
   "year", "rd", "fad", "mv", "fmt", "format", "shape", "layout", "freshScope", "align", "ac",
   "tl", "bl", "bs", "rs", "xbs", "bfont", "sepstyle", "ts", "tsh", "dv",

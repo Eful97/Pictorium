@@ -193,6 +193,12 @@ export interface Mapping {
   /** Offset px del badge qualità. */
   qualityBadgeOffsetX?: number | null
   qualityBadgeOffsetY?: number | null
+  /**
+   * Per-ITEM corrections (single rating pill / single quality-AV mark) by
+   * stable identity, in canonical wire form (`badge-item-transforms`).
+   * Absent/null = automatic layout (byte-identical historic render).
+   */
+  badgeItemTransforms?: string | null
   /** Scala % del logo network. Default 100. */
   networkLogoScale?: number | null
   /** Offset px del logo network. */
@@ -415,6 +421,8 @@ export interface LandscapeSettings {
   qualityBadgeScale?: number | null
   qualityBadgeOffsetX?: number | null
   qualityBadgeOffsetY?: number | null
+  /** Per-item corrections (stable identity, canonical wire form). */
+  badgeItemTransforms?: string | null
   /** Scala % della colonna rating separati (default 100 = resa storica). */
   separateBadgeScale?: number | null
   /** Offset px del gruppo rating separati (colonna/pills; bar portrait: solo Y). Default 0. */
@@ -577,6 +585,7 @@ export function effectiveMappingForShape(mapping: Mapping | null, shape: PosterS
     qualityBadgeScale: l.qualityBadgeScale ?? mapping.qualityBadgeScale,
     qualityBadgeOffsetX: l.qualityBadgeOffsetX ?? mapping.qualityBadgeOffsetX,
     qualityBadgeOffsetY: l.qualityBadgeOffsetY ?? mapping.qualityBadgeOffsetY,
+    badgeItemTransforms: l.badgeItemTransforms ?? mapping.badgeItemTransforms,
     separateBadgeScale: l.separateBadgeScale ?? mapping.separateBadgeScale,
     separateBadgeOffsetX: l.separateBadgeOffsetX ?? mapping.separateBadgeOffsetX,
     separateBadgeOffsetY: l.separateBadgeOffsetY ?? mapping.separateBadgeOffsetY,

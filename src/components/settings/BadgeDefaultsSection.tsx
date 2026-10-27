@@ -710,6 +710,10 @@ export function BadgeDefaultsSection({ active, shape, onPreviewFamilyChange, pre
       effTarget("genreBadgeScale", ed.defaultGenreBadgeScale) === 100 &&
       effTarget("genreBadgeOffsetX", ed.defaultGenreBadgeOffsetX) === 0 &&
       effTarget("genreBadgeOffsetY", ed.defaultGenreBadgeOffsetY) === 0 &&
+      // Per-item corrections are part of the ready recipe too: the look owns
+      // the automatic item layout, so a live nudge means the tile no longer
+      // matches its own thumbnail (same rule the gallery highlight uses).
+      effTarget("badgeItemTransforms", ed.defaultBadgeItemTransforms) == null &&
       effTarget("qualityBadgeScale", ed.defaultQualityBadgeScale) === 100 &&
       effTarget("qualityBadgeOffsetX", ed.defaultQualityBadgeOffsetX) === qx &&
       effTarget("qualityBadgeOffsetY", ed.defaultQualityBadgeOffsetY) === qy &&
@@ -819,7 +823,7 @@ export function BadgeDefaultsSection({ active, shape, onPreviewFamilyChange, pre
   // shape returns to follow-own-rank instead of inheriting a tuned extra
   // style. Essential/Ratings share the same readyPin with their own canonical
   // recipes below; personal presets never pass it.
-  const applyQuickForTarget = (badgePatch: Partial<VisualPresetValues>, readyPin = false) => {
+  const applyQuickForTarget = (badgePatch: Partial<VisualPresetValues>, readyPin = false, meta?: { id: string; name: string }) => {
     const live = { ...captureVisualPreset(ed), landscape: ed.landscape }
     const desired = {
       ...badgePatch,
@@ -843,25 +847,29 @@ export function BadgeDefaultsSection({ active, shape, onPreviewFamilyChange, pre
     const staged = (readyPin
       ? withReadyPresetExtraStyleReset(laid, isLandscape ? "landscape" : "portrait", ed as unknown as { defaultExtraBadgeStyle?: unknown; landscape?: unknown })
       : laid) as unknown as VisualPresetValues
-    ed.applyVisualPreset(staged, isLandscape ? "landscape" : "portrait")
+    ed.applyVisualPreset(
+      staged,
+      isLandscape ? "landscape" : "portrait",
+      meta ? { ...meta, kind: "ready" } : undefined,
+    )
   }
 
   // Essential/Ratings/Full share the single canonical recipes with the
   // Preset-tab gallery (QUICK_BADGE_PATCHES + transform reset): never
   // duplicated subsets — every entry point stages the identical snapshot.
   const applyEssential = () => {
-    applyQuickForTarget(QUICK_BADGE_PATCHES.essential, true)
+    applyQuickForTarget(QUICK_BADGE_PATCHES.essential, true, { id: "essential", name: t("ui.configPresetEssential") })
   }
 
   const applyRatings = () => {
-    applyQuickForTarget(QUICK_BADGE_PATCHES.ratings, true)
+    applyQuickForTarget(QUICK_BADGE_PATCHES.ratings, true, { id: "ratings", name: t("ui.configPresetRatings") })
   }
 
   // Full shares the single canonical recipe with the Preset-tab gallery
   // (QUICK_BADGE_PATCHES.full + transform reset via quickLookDesired): never
   // a duplicated subset — both entry points stage the identical snapshot.
   const applyFull = () => {
-    applyQuickForTarget(QUICK_BADGE_PATCHES.full, true)
+    applyQuickForTarget(QUICK_BADGE_PATCHES.full, true, { id: "full", name: t("ui.configPresetFull") })
   }
 
   // Snapshot preset keys that live in the landscape profile: `defaultX` maps
@@ -915,6 +923,11 @@ export function BadgeDefaultsSection({ active, shape, onPreviewFamilyChange, pre
     defaultSeparateBadgeScale: "separateBadgeScale",
     defaultSeparateBadgeOffsetX: "separateBadgeOffsetX",
     defaultSeparateBadgeOffsetY: "separateBadgeOffsetY",
+    // Per-ITEM corrections: part of the preset's own visual recipe, so the
+    // landscape apply writes the snapshot value (built-ins carry `null` =
+    // automatic). Without the mapping the profile kept the previous look's
+    // corrections and the landscape poster stayed moved.
+    defaultBadgeItemTransforms: "badgeItemTransforms",
     defaultNetworkLogoScale: "networkLogoScale",
     defaultNetworkLogoOffsetX: "networkLogoOffsetX",
     defaultNetworkLogoOffsetY: "networkLogoOffsetY",
@@ -1009,14 +1022,14 @@ export function BadgeDefaultsSection({ active, shape, onPreviewFamilyChange, pre
       isLandscape ? "landscape" : "portrait",
       ed as unknown as { defaultExtraBadgeStyle?: unknown; landscape?: unknown },
     ) as unknown as VisualPresetValues
-    ed.applyVisualPreset(staged, isLandscape ? "landscape" : "portrait")
+    ed.applyVisualPreset(staged, isLandscape ? "landscape" : "portrait", { id: "apple", name: t("ui.configPresetApple"), kind: "ready" })
   }
 
   // Snapshot presets apply to the edit target only: landscape-capable keys
   // go to the profile, truly shared globals go to root, delivery shape and
   // the preset's own nested landscape never touch anything else. Single
   // setLandscape call plus distinct root keys: no stale-merge loss.
-  const applySnapshotForTarget = (values: VisualPresetValues) => {
+  const applySnapshotForTarget = (values: VisualPresetValues, meta: { id: string; name: string }) => {
     if (!isLandscape) {
       // Portrait target: flats only; the existing landscape profile and the
       // delivery shape stay byte-identical. Ready look: age OFF in portrait,
@@ -1043,7 +1056,7 @@ export function BadgeDefaultsSection({ active, shape, onPreviewFamilyChange, pre
         "portrait",
         ed as unknown as { defaultExtraBadgeStyle?: unknown; landscape?: unknown },
       ) as unknown as VisualPresetValues
-      ed.applyVisualPreset(staged, "portrait")
+      ed.applyVisualPreset(staged, "portrait", { ...meta, kind: "ready" })
       return
     }
     const landPatch: Partial<LandscapeServerDefaults> = {}
@@ -1074,21 +1087,23 @@ export function BadgeDefaultsSection({ active, shape, onPreviewFamilyChange, pre
       landPatch.extraBadgeOffsetX = clearedLandExtra.offsetX
       landPatch.extraBadgeOffsetY = clearedLandExtra.offsetY
     }
-    ed.setLandscape(landPatch, { materialize: false })
-    ed.setDefaultRatingSources(values.defaultRatingSources)
-    // Logo alignment stays Auto (never staged from a preset, even a legacy
-    // one carrying an explicit value); the staged session normalizes anyway.
-    ed.setDefaultLogoAlign(null)
-    ed.setDefaultPortraitFitEnabled(values.defaultPortraitFitEnabled)
-    ed.setDefaultLandscapeFitEnabled(values.defaultLandscapeFitEnabled)
+    ed.applyVisualPreset({
+      landscape: landPatch,
+      defaultRatingSources: values.defaultRatingSources,
+      // Logo alignment stays Auto (never staged from a preset, even a legacy
+      // one carrying an explicit value); the staged session normalizes anyway.
+      defaultLogoAlign: null,
+      defaultPortraitFitEnabled: values.defaultPortraitFitEnabled,
+      defaultLandscapeFitEnabled: values.defaultLandscapeFitEnabled,
+    } as unknown as VisualPresetValues, "landscape", { ...meta, kind: "ready" })
   }
 
   const applyBetterPoster = () => {
-    applySnapshotForTarget(BETTER_POSTER_VISUAL_DEFAULTS)
+    applySnapshotForTarget(BETTER_POSTER_VISUAL_DEFAULTS, { id: "better-poster", name: t("ui.configPresetBetterPoster") })
   }
 
   const applyRpdb = () => {
-    applySnapshotForTarget(RPDB_VISUAL_DEFAULTS)
+    applySnapshotForTarget(RPDB_VISUAL_DEFAULTS, { id: "rpdb", name: t("ui.configPresetRpdb") })
   }
 
   return (

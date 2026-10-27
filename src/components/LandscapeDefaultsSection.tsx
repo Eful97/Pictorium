@@ -24,14 +24,13 @@ import { resolveNetworkShapeView } from "@/lib/network-follow"
 import { useNetworkFreeze } from "@/lib/useNetworkFreeze"
 import { useNetworkGeometry } from "@/lib/useNetworkGeometry"
 import { buildDefaultsPreviewUrlFromEditor } from "@/components/settings/DefaultsPosterPreview"
+import { BadgeItemTransformControls } from "@/components/settings/BadgeItemTransformControls"
 import type { DefaultsPreviewDemoMedia, DefaultsPreviewFamily } from "@/lib/poster-url"
 import type { PosterElementId } from "@/components/settings/PosterElementNavigation"
 import { SliderRow } from "@/components/SliderRow"
 import { Toggle } from "@/components/Toggle"
 import { separateBadgeScaleToUI, uiToSeparateBadgeScale, SEPARATE_BADGE_SCALE_UI_MIN, SEPARATE_BADGE_SCALE_UI_MAX, NUMBER_BADGE_BASE_OFFSET_X } from "@/lib/badge-styles"
 import { getBadgeOffsetRange } from "@/lib/badge-offset-ranges"
-import { isCardSkin } from "@/lib/card-layout-skins"
-import { effectiveShapeDefaultLayout, effectiveShapeDefaultFreshScope } from "@/lib/poster-layout-resolve"
 import { GradientPresetRow } from "@/components/GradientPresetRow"
 import type { GradientPresetValues } from "@/lib/gradient-presets"
 import type { LandscapeServerDefaults } from "@/lib/server-defaults"
@@ -87,7 +86,13 @@ export function LandscapeDefaultsSection({ editVal, editTxt, setEditVal, setEdit
   const ed = usePosterEditor()
   const land = ed.landscape
   const set = (patch: Partial<LandscapeServerDefaults>) => ed.setLandscape(patch)
-  const clear = (key: LandKey) => ed.setLandscape({ [key]: undefined } as Partial<LandscapeServerDefaults>)
+  // Key/group reset: applied-preset snapshot when present, otherwise the
+  // documented clear-to-inherit contract (persisted through `landscapeReset`).
+  const resetKeys = (keys: readonly LandKey[]) => {
+    if (ed.resetLandscapeKeys) ed.resetLandscapeKeys(keys)
+    else set(Object.fromEntries(keys.map((key) => [key, undefined])) as Partial<LandscapeServerDefaults>)
+  }
+  const clear = (key: LandKey) => resetKeys([key])
   const isOver = (key: LandKey) => land[key] !== undefined
   const resetLabel = t("ui.reset")
   const enabled = land.blurEnabled ?? ed.defaultBlurEnabled
@@ -224,16 +229,15 @@ export function LandscapeDefaultsSection({ editVal, editTxt, setEditVal, setEdit
   // landscape Card skin is selected with effective scope "all". Ranked
   // (explicit, absent or invalid) leaves Standard fallback positioning
   // live. Explicit landscape scope wins, else the flat scope is inherited.
-  const effLandLayout = effectiveShapeDefaultLayout(ed.defaultPosterLayout, land, "landscape")
-  const effLandScope = effectiveShapeDefaultFreshScope(ed.defaultPosterFreshScope, land, "landscape")
-  const isCardAllLand = isCardSkin(effLandLayout) && effLandScope === "all"
-  const isCardRankedLand = isCardSkin(effLandLayout) && !isCardAllLand
-  const landCardNote = isCardAllLand ? t("ui.posterLayoutCardControlsNote") : undefined
-  const landFallbackNote = isCardRankedLand ? t("ui.posterLayoutCardFallbackNote") : undefined
+  // User transforms are live on every layout (explicit user contract):
+  // neutral values keep the historic Card/Fresh look byte-identical.
+  const isCardAllLand = false
+  const isCardRankedLand = false
+  const landCardNote = undefined
+  const landFallbackNote = undefined
 
   const applyPreset = (v: GradientPresetValues) => {
     set({
-      blurEnabled: true,
       gradientHeight: v.gradientHeight,
       blurIntensity: v.blurIntensity,
       blurFade: v.blurFade,
@@ -296,7 +300,7 @@ export function LandscapeDefaultsSection({ editVal, editTxt, setEditVal, setEdit
             type="button"
             title={resetLabel}
             aria-label={resetLabel}
-            onClick={() => set({ [sKey]: undefined, [xKey]: undefined, [yKey]: undefined, ...(followKey ? { [followKey]: undefined } : null) } as Partial<LandscapeServerDefaults>)}
+            onClick={() => resetKeys([sKey, xKey, yKey, ...(followKey ? [followKey] : [])])}
             className="text-xs text-muted hover:text-accent transition-colors px-2 py-0.5 rounded-md border border-border/50 hover:border-accent/30 cursor-pointer"
           >
             {resetLabel}
@@ -519,7 +523,12 @@ export function LandscapeDefaultsSection({ editVal, editTxt, setEditVal, setEdit
       {
         key: "quality", active: isQualityStyleActive(effLandFlags), hidden: hideFor("quality"),
         name: t("ui.badgeQuality"), testId: "landscape-geo-quality",
-        node: scaleGroup(t("ui.badgeQuality"), <Sparkles className="w-3.5 h-3.5 text-purple-400" />, "qualityBadgeScale", "qualityBadgeOffsetX", "qualityBadgeOffsetY", ed.defaultQualityBadgeScale, ed.defaultQualityBadgeOffsetX, ed.defaultQualityBadgeOffsetY, "lsq", "quality"),
+        node: (
+          <>
+            {scaleGroup(t("ui.badgeQuality"), <Sparkles className="w-3.5 h-3.5 text-purple-400" />, "qualityBadgeScale", "qualityBadgeOffsetX", "qualityBadgeOffsetY", ed.defaultQualityBadgeScale, ed.defaultQualityBadgeOffsetX, ed.defaultQualityBadgeOffsetY, "lsq", "quality")}
+            <BadgeItemTransformControls previewUrl={freezePreviewUrl} family="quality" shape="landscape" className="pt-1.5 border-t border-white/5" />
+          </>
+        ),
       },
       {
         key: "separate", active: effSepGate, hidden: hideFor("ratings", "sources"),
@@ -536,7 +545,7 @@ export function LandscapeDefaultsSection({ editVal, editTxt, setEditVal, setEdit
                   type="button"
                   title={resetLabel}
                   aria-label={resetLabel}
-                  onClick={() => set({ separateBadgeScale: undefined, separateBadgeOffsetX: undefined, separateBadgeOffsetY: undefined })}
+                  onClick={() => resetKeys(["separateBadgeScale", "separateBadgeOffsetX", "separateBadgeOffsetY"])}
                   className="text-xs text-muted hover:text-accent transition-colors px-2 py-0.5 rounded-md border border-border/50 hover:border-accent/30 cursor-pointer"
                 >
                   {resetLabel}
@@ -596,6 +605,7 @@ export function LandscapeDefaultsSection({ editVal, editTxt, setEditVal, setEdit
               editingKey="lssepsOY"
               suffix="px"
             />
+            <BadgeItemTransformControls previewUrl={freezePreviewUrl} family="separate" shape="landscape" className="pt-1.5 border-t border-white/5" />
           </div>
         ),
       },
@@ -653,7 +663,7 @@ export function LandscapeDefaultsSection({ editVal, editTxt, setEditVal, setEdit
               type="button"
               title={resetLabel}
               aria-label={resetLabel}
-              onClick={() => set({ logoScale: undefined, logoOffsetX: undefined, logoOffsetY: undefined })}
+              onClick={() => resetKeys(["logoScale", "logoOffsetX", "logoOffsetY"])}
               className="text-xs text-muted hover:text-accent transition-colors px-2 py-0.5 rounded-md border border-border/50 hover:border-accent/30 cursor-pointer"
             >
               {resetLabel}
@@ -748,7 +758,7 @@ export function LandscapeDefaultsSection({ editVal, editTxt, setEditVal, setEdit
               type="button"
               title={resetLabel}
               aria-label={resetLabel}
-              onClick={() => set({ networkLogoPosition: undefined })}
+              onClick={() => resetKeys(["networkLogoPosition"])}
               className="text-xs text-muted hover:text-accent transition-colors px-2 py-0.5 rounded-md border border-border/50 hover:border-accent/30 cursor-pointer"
             >
               {resetLabel}
@@ -789,6 +799,7 @@ export function LandscapeDefaultsSection({ editVal, editTxt, setEditVal, setEdit
         {scaleGroup(t("ui.genreRatingBadge"), <Star className="w-3.5 h-3.5 text-amber-400" />, "genreBadgeScale", "genreBadgeOffsetX", "genreBadgeOffsetY", ed.defaultGenreBadgeScale, ed.defaultGenreBadgeOffsetX, ed.defaultGenreBadgeOffsetY, "lsg", "genre", undefined, isCardAllLand ? "offsets" : undefined)}
         <hr hidden={hideFor("genre") && hideFor("quality")} className="border-surface2/50" />
         {scaleGroup(t("ui.badgeQuality"), <Sparkles className="w-3.5 h-3.5 text-purple-400" />, "qualityBadgeScale", "qualityBadgeOffsetX", "qualityBadgeOffsetY", ed.defaultQualityBadgeScale, ed.defaultQualityBadgeOffsetX, ed.defaultQualityBadgeOffsetY, "lsq", "quality")}
+        <BadgeItemTransformControls previewUrl={freezePreviewUrl} family="quality" shape="landscape" className="pt-1.5 border-t border-white/5" />
         {!effSepGate && geometryOnly && (
           <p data-testid="landscape-separate-inactive" className="text-[11px] text-zinc-400 italic px-1">{t("ui.activateInTabHint", { name: t("ui.separateRatings"), tab: t("ui.settingsTabInformation") })}</p>
         )}
@@ -810,7 +821,7 @@ export function LandscapeDefaultsSection({ editVal, editTxt, setEditVal, setEdit
                     type="button"
                     title={resetLabel}
                     aria-label={resetLabel}
-                    onClick={() => set({ separateBadgeScale: undefined, separateBadgeOffsetX: undefined, separateBadgeOffsetY: undefined })}
+                    onClick={() => resetKeys(["separateBadgeScale", "separateBadgeOffsetX", "separateBadgeOffsetY"])}
                     className="text-xs text-muted hover:text-accent transition-colors px-2 py-0.5 rounded-md border border-border/50 hover:border-accent/30 cursor-pointer"
                   >
                     {resetLabel}
@@ -870,6 +881,7 @@ export function LandscapeDefaultsSection({ editVal, editTxt, setEditVal, setEdit
                 editingKey="lssepsOY"
                 suffix="px"
               />
+              <BadgeItemTransformControls previewUrl={freezePreviewUrl} family="separate" shape="landscape" className="pt-1.5 border-t border-white/5" />
             </div>
           </>
         )}

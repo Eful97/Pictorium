@@ -13,8 +13,9 @@
  *   Transformation geometry edit clears it).
  * - A ready look owns its canonical layout, overriding a Card draft, while
  *   raw extras and the delivery shape stay frozen.
- * - Card advanced geometry (portrait + landscape effective) disables only the
- *   specified groups, keeps scales/live helpers/reset, values survive toggles.
+ * - Card advanced geometry: user transforms are live in portrait and
+ *   landscape on every layout (the shared compositor applies the same
+ *   offsets/scales), values survive toggles and no fixed-layout hint is shown.
  */
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import { act, cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react"
@@ -87,10 +88,15 @@ function snapshot(ctx: PosterEditorCtx): string {
   })
 }
 
-/** Durable-storage snapshot: proves no edit leaked before the global Save. */
+/**
+ * Durable storage snapshot: proves no DEFAULTS edit leaked before the global
+ * Save. The applied-preset reset reference is a deliberate, approved
+ * persistence (immune to later global saves), so it is not a defaults edit.
+ */
 function storageSnapshot(): string {
   return JSON.stringify(
     Object.keys(localStorage)
+      .filter((k) => !k.startsWith("activePresetBaseline:"))
       .sort()
       .map((k) => [k, localStorage.getItem(k)]),
   )
@@ -369,7 +375,7 @@ describe("legacy selector unchanged", () => {
   })
 })
 
-describe("card advanced geometry gating", () => {
+describe("card advanced geometry stays live", () => {
   function renderTransform(shape?: "portrait" | "landscape") {
     let ctx: PosterEditorCtx | null = null
     function Probe() {
@@ -393,7 +399,7 @@ describe("card advanced geometry gating", () => {
     return Array.from(container.querySelectorAll('fieldset[disabled] input[type="range"]')) as HTMLInputElement[]
   }
 
-  it("portrait Card all: title X/Y + rank all + genre X/Y + network follow/X/Y fixed; scales + quality/extra/separate/background live", async () => {
+  it("portrait Card all: every Transform slider stays live and stored values are preserved", async () => {
     const { ctx, container } = renderTransform()
     await act(async () => {
       ctx().setDefaultTopBadgeOffsetX(12)
@@ -407,20 +413,19 @@ describe("card advanced geometry gating", () => {
     expect(ctx().defaultTopBadgeOffsetX).toBe(12)
     expect(ctx().defaultGenreBadgeOffsetX).toBe(9)
     expect(ctx().defaultNetworkLogoOffsetX).toBe(7)
-    const locked = disabledRanges(container as unknown as HTMLElement)
-    // Title X/Y (2) + rank (3) + genre X/Y (2) + network X/Y (2) = 9 locked sliders.
-    expect(locked.length).toBe(9)
-    const note = (container as unknown as HTMLElement).textContent ?? ""
-    expect(note).toContain("ui.posterLayoutCardControlsNote")
-    // Scales stay live: title/genre/network scale + extra/quality/separate all enabled.
+    // User transforms are live on every layout (authorized contract): the
+    // shared Card compositor applies the same offsets/scales, so no group is
+    // disabled and no fixed-layout hint is rendered.
+    expect(disabledRanges(container as unknown as HTMLElement).length).toBe(0)
     const allRanges = Array.from(
       (container as unknown as HTMLElement).querySelectorAll('input[type="range"]'),
     ) as HTMLInputElement[]
-    expect(allRanges.length).toBeGreaterThan(locked.length)
-    for (const r of allRanges) {
-      if (!locked.includes(r)) expect(r).not.toBeDisabled()
-    }
-    // Fresh restores live controls with values intact.
+    expect(allRanges.length).toBeGreaterThan(0)
+    for (const r of allRanges) expect(r).not.toBeDisabled()
+    const note = (container as unknown as HTMLElement).textContent ?? ""
+    expect(note).not.toContain("ui.posterLayoutCardControlsNote")
+    expect(note).not.toContain("ui.posterLayoutCardFallbackNote")
+    // Switching to Fresh keeps every control live with the same values.
     await act(async () => {
       ctx().setDefaultPosterLayout("fresh")
     })
@@ -431,9 +436,9 @@ describe("card advanced geometry gating", () => {
     expect(ctx().defaultNetworkLogoOffsetX).toBe(7)
   })
 
-  it("landscape effective Card (inherited flat + explicit override) gates the same groups", async () => {
+  it("landscape effective Card (inherited flat + explicit override) keeps the same groups live", async () => {
     // Inherited flat Card all (seeded pre-mount so no freeze writes an
-    // explicit landscape value) gates the landscape target too.
+    // explicit landscape value) applies to the landscape target too.
     localStorage.clear()
     document.body.innerHTML = ""
     localStorage.setItem(
@@ -443,28 +448,29 @@ describe("card advanced geometry gating", () => {
     const { ctx, container } = renderTransform("landscape")
     await act(async () => {})
     expect(ctx().defaultPosterLayout).toBe("nuvio")
-    expect(disabledRanges(container as unknown as HTMLElement).length).toBeGreaterThan(0)
+    expect(disabledRanges(container as unknown as HTMLElement).length).toBe(0)
     await act(async () => {
       ctx().setDefaultTopBadgeOffsetX(5)
     })
     await act(async () => {})
-    // Explicit landscape override back to standard re-lives the controls.
+    // An explicit landscape override back to Standard never rewrites stored
+    // numbers and stays live.
     await act(async () => {
       ctx().setLandscape({ posterLayout: "standard" } as never)
     })
     await act(async () => {})
     expect(disabledRanges(container as unknown as HTMLElement).length).toBe(0)
     expect(ctx().defaultTopBadgeOffsetX).toBe(5)
-    // Explicit landscape Card locks again without touching stored numbers.
+    // Explicit landscape Card stays live too, without touching stored numbers.
     await act(async () => {
       ctx().setLandscape({ posterLayout: "stremio" } as never)
     })
     await act(async () => {})
-    expect(disabledRanges(container as unknown as HTMLElement).length).toBeGreaterThan(0)
+    expect(disabledRanges(container as unknown as HTMLElement).length).toBe(0)
     expect(ctx().defaultTopBadgeOffsetX).toBe(5)
   })
 
-  it("portrait Card ranked fallback: Standard positioning stays live with fallback note", async () => {
+  it("portrait Card ranked: positioning stays live with no fixed-layout hint", async () => {
     const { ctx, container } = renderTransform()
     await act(async () => {
       ctx().setDefaultTopBadgeOffsetX(12)
@@ -474,17 +480,18 @@ describe("card advanced geometry gating", () => {
     await act(async () => {})
     expect(disabledRanges(container as unknown as HTMLElement).length).toBe(0)
     const note = (container as unknown as HTMLElement).textContent ?? ""
-    expect(note).toContain("ui.posterLayoutCardFallbackNote")
+    expect(note).not.toContain("ui.posterLayoutCardFallbackNote")
     expect(note).not.toContain("ui.posterLayoutCardControlsNote")
-    // Absent/invalid scope also fails closed to ranked (live fallback).
+    // Absent/invalid scope is equally live: no layout locks the controls.
     await act(async () => {
       ctx().setDefaultPosterFreshScope("all")
     })
     await act(async () => {})
-    expect(disabledRanges(container as unknown as HTMLElement).length).toBeGreaterThan(0)
+    expect(disabledRanges(container as unknown as HTMLElement).length).toBe(0)
+    expect(ctx().defaultTopBadgeOffsetX).toBe(12)
   })
 
-  it("landscape Card ranked fallback + explicit scope precedence", async () => {
+  it("landscape Card ranked scope precedence: no layout locks the controls", async () => {
     localStorage.clear()
     document.body.innerHTML = ""
     localStorage.setItem(
@@ -493,18 +500,18 @@ describe("card advanced geometry gating", () => {
     )
     const { ctx, container } = renderTransform("landscape")
     await act(async () => {})
-    // Inherited flat ranked: live fallback, no fixed locks.
+    // Inherited flat ranked: live, no fixed locks, no fixed-layout hint.
     expect(disabledRanges(container as unknown as HTMLElement).length).toBe(0)
-    expect((container as unknown as HTMLElement).textContent ?? "").toContain(
+    expect((container as unknown as HTMLElement).textContent ?? "").not.toContain(
       "ui.posterLayoutCardFallbackNote",
     )
-    // Explicit landscape scope all overrides the ranked flat: fixed locks.
+    // Explicit landscape scope all overrides the ranked flat: still live.
     await act(async () => {
       ctx().setLandscape({ posterFreshScope: "all" } as never)
     })
     await act(async () => {})
-    expect(disabledRanges(container as unknown as HTMLElement).length).toBeGreaterThan(0)
-    // Explicit landscape scope ranked wins over flat all: back to fallback.
+    expect(disabledRanges(container as unknown as HTMLElement).length).toBe(0)
+    // Explicit landscape scope ranked wins over flat all: still live.
     await act(async () => {
       ctx().setDefaultPosterFreshScope("all")
       ctx().setLandscape({ posterFreshScope: "ranked" } as never)
@@ -513,7 +520,7 @@ describe("card advanced geometry gating", () => {
     expect(disabledRanges(container as unknown as HTMLElement).length).toBe(0)
   })
 
-  it("Card all: rank locked, extra stays live, layout switch preserves values (no materialize)", async () => {
+  it("Card all: rank and extra stay live, layout switch preserves values (no materialize)", async () => {
     const { ctx, container } = renderTransform()
     await act(async () => {
       ctx().setDefaultPosterLayout("nuvio")
@@ -522,14 +529,12 @@ describe("card advanced geometry gating", () => {
       ctx().setDefaultExtraBadgeOffsetX(null)
     })
     await act(async () => {})
-    // Rank X is inside a disabled fieldset; extra X stays enabled (client
-    // setter semantics: editing rank would freeze inherited extra, so the
-    // fixed rank must not offer axis-unlocked editing).
+    // Rank X stays editable on Card too: the shared compositor applies it.
     const el = container as unknown as HTMLElement
     const rankX = el.querySelector('input[type="range"]') as HTMLInputElement | null
     expect(rankX).toBeTruthy()
-    const locked = disabledRanges(el)
-    expect(locked.length).toBeGreaterThan(0)
+    expect(rankX).not.toBeDisabled()
+    expect(disabledRanges(el).length).toBe(0)
     // Live extra edit never touches the classifica.
     await act(async () => {
       ctx().setDefaultExtraBadgeOffsetX(9)

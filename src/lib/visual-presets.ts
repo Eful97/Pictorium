@@ -23,6 +23,8 @@ const landscapeSchema = z.object({
   separateBadgeScale: scale.optional(),
   separateBadgeOffsetX: offset.optional(),
   separateBadgeOffsetY: offset.optional(),
+  /** Per-item corrections (stable identity, canonical wire form). */
+  badgeItemTransforms: z.string().max(4096).nullable().optional(),
   // Stile separati per formato: opzionale (assente = segui il flat condiviso).
   separateRatingsStyle: z.enum(SEPARATE_RATINGS_STYLES).optional(),
   networkLogoScale: scale.optional(), networkLogoOffsetX: offset.optional(), networkLogoOffsetY: offset.optional(),
@@ -101,6 +103,13 @@ export const visualPresetValuesSchema = z.object({
   // (byte-identici ai legacy).
   defaultSeparateBadgeOffsetX: offset.default(0),
   defaultSeparateBadgeOffsetY: offset.default(0),
+  // Per-item corrections (single rating pill / single quality-AV mark).
+  // `default(null)` (not optional): every parsed preset — including legacy
+  // ones stored before this field existed — carries an explicit null, so the
+  // gallery highlight compares deterministically and applying a preset that
+  // never carried item nudges clears them (automatic layout, the preset's
+  // look) instead of leaving an invisible live correction behind.
+  defaultBadgeItemTransforms: z.string().max(4096).nullable().default(null),
   // Stile separati aggiunto dopo: default("column") per non invalidare i preset salvati.
   defaultSeparateRatingsStyle: z.enum(SEPARATE_RATINGS_STYLES).default("column"),
   defaultNetworkLogoScale: scale, defaultNetworkLogoOffsetX: offset, defaultNetworkLogoOffsetY: offset,
@@ -125,6 +134,13 @@ export type VisualPresetValues = z.infer<typeof visualPresetValuesSchema>
 export const visualPresetShapeSchema = z.enum(["portrait", "landscape"])
 export type VisualPresetShape = z.infer<typeof visualPresetShapeSchema>
 export const visualPresetInputSchema = z.object({
+  /**
+   * Additive explicit identity for edit flows. Legacy callers omit it and keep
+   * the historical upsert-by-name behavior; `mode` disambiguates create vs
+   * update so a create can never silently overwrite an existing preset.
+   */
+  id: z.string().uuid().optional(),
+  mode: z.enum(["create", "update"]).optional(),
   name: z.string().trim().min(1).max(40),
   shape: visualPresetShapeSchema.default("portrait"),
   values: visualPresetValuesSchema,
@@ -350,6 +366,7 @@ export const PRESET_FLAT_TO_LANDSCAPE: Record<string, keyof LandscapeServerDefau
   defaultSeparateBadgeScale: "separateBadgeScale",
   defaultSeparateBadgeOffsetX: "separateBadgeOffsetX",
   defaultSeparateBadgeOffsetY: "separateBadgeOffsetY",
+  defaultBadgeItemTransforms: "badgeItemTransforms",
   defaultNetworkLogoScale: "networkLogoScale",
   defaultNetworkLogoOffsetX: "networkLogoOffsetX",
   defaultNetworkLogoOffsetY: "networkLogoOffsetY",

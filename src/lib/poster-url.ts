@@ -22,6 +22,7 @@ import type { AgeBadgeStyle } from "./badge-styles"
 import { isAgeBadgeStyle } from "./badge-styles"
 import { isExtraBadgeStyle, isExtraFollowRank } from "./badge-styles"
 import { getSeparateBadgeDefaultScale, getSeparateRatingsStyleForShape, getQualityBadgeOffsetDefault } from "./badge-styles"
+import { canonicalizeBadgeItemTransforms } from "./badge-item-transforms"
 import type { LandscapeServerDefaults } from "./server-defaults"
 import { DEFAULT_SASH_ORDER, NEXT_EPISODE_BADGE_KEY, type SashBucket } from "./badge-priority"
 import { sanitizeDisabledContentTags } from "./content-tags"
@@ -107,6 +108,12 @@ interface BadgeParams {
   separateBadgeOffsetX?: number | null
   /** Offset px del gruppo rating separati (negativo = su, positivo = giù). Default 0. */
   separateBadgeOffsetY?: number | null
+  /**
+   * Per-ITEM corrections of the badge groups (single rating pill / single
+   * quality-AV mark) in canonical wire form. Opt-in: absent = automatic
+   * layout, so existing preview URLs stay byte-identical.
+   */
+  badgeItemTransforms?: string | null
   /** Offset px del badge qualità. */
   qualityBadgeOffsetX: number
   qualityBadgeOffsetY: number
@@ -516,6 +523,11 @@ export function buildPreviewUrl(ps: PosterState, bp: BadgeParams, configToken?: 
   params.push(`sepscale=${bp.separateBadgeScale ?? getSeparateBadgeDefaultScale(bp.separateRatingsStyle)}`)
   params.push(`sepox=${bp.separateBadgeOffsetX ?? 0}`)
   params.push(`sepoy=${bp.separateBadgeOffsetY ?? 0}`)
+  // Per-item corrections: opt-in only (absent = automatic layout, existing
+  // preview URLs byte-identical). Canonical form, so a re-serialized map is
+  // stable across reloads.
+  const bit = canonicalizeBadgeItemTransforms(bp.badgeItemTransforms)
+  if (bit) params.push(`bit=${encodeURIComponent(bit)}`)
   params.push(`qox=${bp.qualityBadgeOffsetX}`)
   params.push(`qoy=${bp.qualityBadgeOffsetY}`)
   params.push(`netscale=${bp.networkLogoScale}`)
@@ -741,6 +753,8 @@ export interface DefaultsPreviewParams {
   defaultSeparateBadgeOffsetX?: number | null
   /** Offset px del gruppo rating separati (default 0). */
   defaultSeparateBadgeOffsetY?: number | null
+  /** Per-item corrections (canonical wire form; null/absent = automatic). */
+  defaultBadgeItemTransforms?: string | null
   defaultQualityBadgeOffsetX?: number
   defaultQualityBadgeOffsetY?: number
   defaultNetworkLogoScale?: number
@@ -974,6 +988,10 @@ export function buildDefaultsPreviewUrl(bp: DefaultsPreviewParams): string {
   params.push(`sepscale=${pick(land.separateBadgeScale, bp.defaultSeparateBadgeScale) ?? getSeparateBadgeDefaultScale(effSepStyle)}`)
   params.push(`sepox=${pick(land.separateBadgeOffsetX, bp.defaultSeparateBadgeOffsetX) ?? 0}`)
   params.push(`sepoy=${pick(land.separateBadgeOffsetY, bp.defaultSeparateBadgeOffsetY) ?? 0}`)
+  // Per-item corrections: opt-in (absent = automatic layout, legacy preview
+  // URLs byte-identical). Same `land ?? flat` rule as the group geometry.
+  const previewBit = canonicalizeBadgeItemTransforms(pick(land.badgeItemTransforms, bp.defaultBadgeItemTransforms) ?? null)
+  if (previewBit) params.push(`bit=${encodeURIComponent(previewBit)}`)
   params.push(`qox=${pick(land.qualityBadgeOffsetX, bp.defaultQualityBadgeOffsetX) ?? getQualityBadgeOffsetDefault(previewLandscape ? "landscape" : "poster", "x")}`)
   params.push(`qoy=${pick(land.qualityBadgeOffsetY, bp.defaultQualityBadgeOffsetY) ?? getQualityBadgeOffsetDefault(previewLandscape ? "landscape" : "poster", "y")}`)
   params.push(`netscale=${pick(land.networkLogoScale, bp.defaultNetworkLogoScale) ?? 100}`)

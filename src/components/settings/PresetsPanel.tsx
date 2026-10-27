@@ -30,6 +30,7 @@ import {
 } from "@/lib/visual-presets"
 import { withReadyPresetExtraStyleReset } from "@/lib/quick-visual-presets"
 import { clearedExtraForPresetApply } from "@/lib/extra-materialize"
+import type { ActivePresetMeta } from "@/lib/active-preset-baseline"
 
 type PresetShape = "portrait" | "landscape"
 
@@ -201,14 +202,14 @@ export function PresetsPanel({
     return isolated as unknown as VisualPresetValues
   }, [project, shape])
 
-  const applyDesired = (desired: VisualPresetValues, ageOff = false, readyPin = false, freshPin = false) => {
+  const applyDesired = (desired: VisualPresetValues, ageOff = false, readyPin = false, freshPin = false, meta?: ActivePresetMeta) => {
     const isolated = project(desired, ageOff, readyPin, freshPin)
     if (shape === "landscape") {
       // Profile-only commit: flats stay byte-identical (portrait untouched).
       const profile = (isolated.landscape ?? (!ageOff && !readyPin ? personalLandscapeProfilePatch(desired) : landscapeProfilePatch(desired))) as VisualPresetValues["landscape"]
-      ed.applyVisualPreset({ landscape: profile } as unknown as VisualPresetValues, "landscape")
+      ed.applyVisualPreset({ landscape: profile } as unknown as VisualPresetValues, "landscape", meta)
     } else {
-      ed.applyVisualPreset(isolated, "portrait")
+      ed.applyVisualPreset(isolated, "portrait", meta)
     }
   }
 
@@ -263,7 +264,7 @@ export function PresetsPanel({
               title: t(entry.labelKey),
               desc: t(entry.descKey),
               active: expectedKey(desired, true, freshTile) === currentKey && targetReadyExtraCanonical && targetAgeOff && (freshTile ? targetLayoutFresh : targetLayoutStandard),
-              onApply: () => applyDesired(desired, true, true, freshTile),
+              onApply: () => applyDesired(desired, true, true, freshTile, { id: entry.id, name: t(entry.labelKey), kind: "ready" }),
               thumbnailUrl: thumbnails[entry.id] ?? null,
             }
           })}
@@ -274,7 +275,7 @@ export function PresetsPanel({
         enabled={active}
         gallery
         thumbnailFor={(preset: VisualPreset) => thumbUrl(preset.values)}
-        onApplyPreset={(preset: VisualPreset) => applyDesired(preset.values)}
+        onApplyPreset={(preset: VisualPreset) => applyDesired(preset.values, false, false, false, { id: preset.id, name: preset.name, kind: "personal" })}
       />
     </div>
   )
