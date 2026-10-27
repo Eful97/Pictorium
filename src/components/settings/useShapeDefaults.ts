@@ -5,6 +5,11 @@ import { getQualityBadgeOffsetDefault, getSeparateBadgeDefaultScale, isExtraBadg
 import { NATURAL_GRADIENT_DEFAULTS } from "@/lib/gradient-presets"
 import { usePosterEditor } from "@/lib/contexts/PosterEditorContext"
 import { baselineFlat, baselineLandscape, type ActivePresetBaseline } from "@/lib/active-preset-baseline"
+import type {
+  BadgeFamilyMove,
+  BadgeGeometryFamily,
+  BadgeItemMove,
+} from "@/lib/badge-drag-adapter"
 import {
   isQualityItemId,
   isRatingItemId,
@@ -20,28 +25,18 @@ import {
 
 export type BadgeShapeTarget = "portrait" | "landscape"
 
-/** One geometry family of the badge editor (same set as the renderer report). */
-export type BadgeGeometryFamily = "rank" | "extra" | "genre" | "quality" | "separate" | "network" | "logo"
-
 /**
- * One pending geometry write of a family: the offsets (and, only for the
- * complete fallback top slot, the scale). A batch of these is applied with a
- * SINGLE state write, so moving several selected groups together cannot lose
- * all but the last one to React batching.
+ * Direct-manipulation contract shared by the two editors that mount the
+ * overlay: the global defaults (this hook) and the OPEN title
+ * (`usePerTitleBadgeGeometry`). Types live in the lib so the per-title adapter
+ * never has to import a settings module.
  */
-export interface BadgeFamilyMove {
-  readonly family: BadgeGeometryFamily
-  readonly offsetX: number
-  readonly offsetY: number
-  /** Non-null only when the write must materialize the family scale. */
-  readonly scale?: number | null
-}
-
-/** One pending per-ITEM correction of a batch (neutral = removed). */
-export interface BadgeItemMove {
-  readonly id: string
-  readonly transform: BadgeItemTransform
-}
+export type {
+  BadgeGeometryFamily,
+  BadgeFamilyMove,
+  BadgeItemMove,
+  BadgeDragGeometryAdapter,
+} from "@/lib/badge-drag-adapter"
 
 /**
  * Scoped badge-default bindings for the Badge tab edit target.
@@ -375,6 +370,15 @@ export function useShapeBadgeGeometryDefaults(shape: "poster" | "landscape") {
   const logoScale = (isLandscape ? pick(land.logoScale, ed.defaultLogoScale) : ed.defaultLogoScale)
   const logoOffsetX = (isLandscape ? pick(land.logoOffsetX, ed.defaultLogoOffsetX) : ed.defaultLogoOffsetX) ?? 0
   const logoOffsetY = (isLandscape ? pick(land.logoOffsetY, ed.defaultLogoOffsetY) : ed.defaultLogoOffsetY) ?? 0
+
+  // Whole-poster layout of the edited shape: the same value the Transform
+  // title-scale slider caps with (Fresh opens 200, Standard 100). It travels
+  // in the adapter so the overlay caps on the TARGET's layout instead of a
+  // global constant. Null-inherit stays `??` (a profile `null` means "follow
+  // the flat", exactly like the preview URL builder).
+  const posterLayout = isLandscape
+    ? (land.posterLayout ?? ed.defaultPosterLayout)
+    : ed.defaultPosterLayout
 
   /**
    * Per-ITEM corrections of the ACTIVE shape (stable identity, never an array
@@ -727,6 +731,13 @@ export function useShapeBadgeGeometryDefaults(shape: "poster" | "landscape") {
     logoScale,
     logoOffsetX,
     logoOffsetY,
+    /**
+     * Whole-poster layout of the edited shape, the same value the Transform
+     * title-scale slider caps with (Fresh opens 200, Standard 100). The
+     * overlay reads it from the adapter so the per-title editor caps on the
+     * TITLE's layout, never on the global default.
+     */
+    posterLayout,
     resetFamily,
     resetFamilies,
     resetNetworkGroup,

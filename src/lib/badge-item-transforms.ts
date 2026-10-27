@@ -274,6 +274,25 @@ export function canonicalizeBadgeItemTransforms(raw: string | null | undefined):
   return serializeBadgeItemTransforms(parseBadgeItemTransforms(raw))
 }
 
+/**
+ * Effective per-item corrections of ONE shape's default profile: the profile
+ * key wins when the shape OWNS it — including an explicit `null`, which is the
+ * "automatic layout" marker of a preset/reset — and only an ABSENT key
+ * inherits the flat (portrait) value.
+ *
+ * The ownership test is `!== undefined`, never `??`: reading through `??`
+ * would resurrect the portrait flats over a profile-owned clear, so an editor
+ * preview would keep nudges the server (and every preset consumer) already
+ * cleared. Same rule `effectiveDefaultsForShape` applies server-side.
+ */
+export function resolveShapeBadgeItemTransforms(
+  profile: { readonly badgeItemTransforms?: string | null } | null | undefined,
+  flat: string | null | undefined,
+): string | null {
+  const owned = profile?.badgeItemTransforms
+  return canonicalizeBadgeItemTransforms(owned !== undefined ? owned : flat)
+}
+
 /** Canvas box of one composed element (px). */
 export interface BadgeItemBox {
   readonly top: number

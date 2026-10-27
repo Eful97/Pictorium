@@ -18,7 +18,7 @@ import { independentLandscapeDefaults } from "@/lib/visual-presets"
 import { materializeExtraTuning, clearedExtraForPresetApply } from "@/lib/extra-materialize"
 import { projectPerTitleVisualPreset } from "@/lib/per-title-preset"
 import { logoEffectiveAutoScale } from "@/lib/logo-selection"
-import { canonicalizeBadgeItemTransforms } from "@/lib/badge-item-transforms"
+import { canonicalizeBadgeItemTransforms, resolveShapeBadgeItemTransforms } from "@/lib/badge-item-transforms"
 import { resolveNetworkEffectiveView } from "@/lib/network-follow"
 import { cloneShapeDraft, type ShapeDraftShape } from "@/lib/shape-draft"
 import type { ActivePresetBaseline, ActivePresetMeta } from "@/lib/active-preset-baseline"
@@ -1721,9 +1721,10 @@ export function PosterEditorProvider({
       separateBadgeScale: land?.separateBadgeScale ?? defaultSeparateBadgeScale,
       separateBadgeOffsetX: land?.separateBadgeOffsetX ?? defaultSeparateBadgeOffsetX,
       separateBadgeOffsetY: land?.separateBadgeOffsetY ?? defaultSeparateBadgeOffsetY,
-      // Per-item corrections: profile wins when the shape owns the key, else
-      // the flat (same inherit contract as every other geometry field).
-      badgeItemTransforms: land?.badgeItemTransforms ?? defaultBadgeItemTransforms,
+      // Per-item corrections: profile wins when the shape owns the key
+      // (including an explicit `null` = automatic layout), else the flat
+      // (same inherit contract as every other geometry field).
+      badgeItemTransforms: resolveShapeBadgeItemTransforms(land, defaultBadgeItemTransforms),
       networkLogoScale: land?.networkLogoScale ?? defaultNetworkLogoScale,
       networkLogoOffsetX: netResetView.follow ? netResetView.relativeX : (netResetView.fixedX ?? defaultNetworkLogoOffsetX),
       networkLogoOffsetY: netResetView.follow ? netResetView.relativeY : (netResetView.fixedY ?? defaultNetworkLogoOffsetY),

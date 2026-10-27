@@ -7,6 +7,7 @@ import { effectiveShapeDefaultLayout, resolveOpenPosterLayout, effectiveShapeDef
 import { normalizeSeasonalThemeChoice, resolveEffectiveSeasonalTheme } from "./seasonal-theme"
 import type { BadgeStyle, RankingBadgeStyle, ExtraBadgeStyle, ExtraBadgeFollowRank, QualityBadgeStyle, BadgeFont, SeparateRatingsStyle, AgeBadgeStyle } from "./badge-styles"
 import { isSeparateRatingsStyle, resolveSeparateBadgeScaleFallback, isExtraBadgeStyle, isExtraFollowRank, resolveUnmappedQualityBadgeOffsets } from "./badge-styles"
+import { resolveShapeBadgeItemTransforms } from "./badge-item-transforms"
 import { resolveNetworkShapeView, resolveNetworkEffectiveView } from "./network-follow"
 import type { RibbonSide } from "./useDefaults"
 type LogoAlign = "left" | "center"
@@ -787,6 +788,9 @@ export function usePictorium(): PictoriumCtx {
     extraBadgeScale,
     extraBadgeOffsetX,
     extraBadgeOffsetY,
+    setExtraBadgeScale,
+    setExtraBadgeOffsetX,
+    setExtraBadgeOffsetY,
     // Badge genere
     genreBadgeScale, setGenreBadgeScale,
     // Badge qualità
@@ -1574,7 +1578,17 @@ export function usePictorium(): PictoriumCtx {
     if (changed("separateBadgeScale")) setSeparateBadgeScale(cur.separateBadgeScale as number)
     if (changed("separateBadgeOffsetX")) setSeparateBadgeOffsetX(cur.separateBadgeOffsetX as number)
     if (changed("separateBadgeOffsetY")) setSeparateBadgeOffsetY(cur.separateBadgeOffsetY as number)
-    if (changed("badgeItemTransforms")) setBadgeItemTransforms((cur.badgeItemTransforms as string | null | undefined) ?? null)
+    if (changed("badgeItemTransforms")) {
+      // Shape-aware ownership (unmapped title only, like every other default):
+      // in landscape a profile-owned key — including an explicit `null`
+      // (automatic layout) — shadows the flat, so a portrait edit can never
+      // resurrect nudges the landscape profile cleared.
+      const curLandRec = (cur.landscape ?? {}) as Record<string, unknown>
+      setBadgeItemTransforms(resolveShapeBadgeItemTransforms(
+        posterShape === "landscape" ? { badgeItemTransforms: curLandRec.badgeItemTransforms as string | null | undefined } : null,
+        cur.badgeItemTransforms as string | null | undefined,
+      ))
+    }
     if (changed("networkLogoScale")) setNetworkLogoScale(cur.networkLogoScale as number)
     if (changed("genreBadgeOffsetX")) setGenreBadgeOffsetX(cur.genreBadgeOffsetX as number)
     if (changed("genreBadgeOffsetY")) setGenreBadgeOffsetY(cur.genreBadgeOffsetY as number)
@@ -2114,6 +2128,10 @@ export function usePictorium(): PictoriumCtx {
     setQualityBadgeStyle(land?.qualityBadgeStyle ?? defaultQualityBadgeStyle)
     setCustomRatings(land?.customRatings ?? defaultCustomRatings)
     setSeparateRatings(land?.separateRatings ?? defaultSeparateRatings)
+    // Style BEFORE the resolved scale: a style change re-derives a scale still
+    // sitting on a style default, so the explicit/profile scale written next
+    // must be the last write (otherwise the open freezes 130 over it).
+    setSeparateRatingsStyle(isSeparateRatingsStyle(land?.separateRatingsStyle) ? land.separateRatingsStyle : defaultSeparateRatingsStyle)
     // A/V formats stay explicit per-title (same freeze contract as the other
     // visuals): the auto-persisted flat `videoFormats` key would otherwise
     // leak the portrait flat into this state and the preview would emit it,
@@ -2128,6 +2146,11 @@ export function usePictorium(): PictoriumCtx {
     setTopBadgeScale(land?.topBadgeScale ?? defaultTopBadgeScale, { materialize: false })
     setTopBadgeOffsetX(land?.topBadgeOffsetX ?? defaultTopBadgeOffsetX, { materialize: false })
     setTopBadgeOffsetY(land?.topBadgeOffsetY ?? defaultTopBadgeOffsetY, { materialize: false })
+    // Standalone EXTRA tuning follows the same effective profile (null =
+    // absent = legacy follow-the-rank fallback, never a fabricated 0).
+    setExtraBadgeScale(land?.extraBadgeScale ?? defaultExtraBadgeScale)
+    setExtraBadgeOffsetX(land?.extraBadgeOffsetX ?? defaultExtraBadgeOffsetX)
+    setExtraBadgeOffsetY(land?.extraBadgeOffsetY ?? defaultExtraBadgeOffsetY)
     setGenreBadgeScale(land?.genreBadgeScale ?? defaultGenreBadgeScale)
     setGenreBadgeOffsetX(land?.genreBadgeOffsetX ?? defaultGenreBadgeOffsetX)
     setGenreBadgeOffsetY(land?.genreBadgeOffsetY ?? defaultGenreBadgeOffsetY)
@@ -2138,10 +2161,7 @@ export function usePictorium(): PictoriumCtx {
     setSeparateBadgeScale(resolveSeparateBadgeScaleFallback({ explicit: land?.separateBadgeScale, defaultScale: defaultSeparateBadgeScale, defaultStyle: defaultSeparateRatingsStyle, style: isSeparateRatingsStyle(land?.separateRatingsStyle) ? land.separateRatingsStyle : defaultSeparateRatingsStyle }))
     setSeparateBadgeOffsetX(land?.separateBadgeOffsetX ?? defaultSeparateBadgeOffsetX)
     setSeparateBadgeOffsetY(land?.separateBadgeOffsetY ?? defaultSeparateBadgeOffsetY)
-    setBadgeItemTransforms(land?.badgeItemTransforms ?? defaultBadgeItemTransforms)
-    // Style from the landscape profile when present (override respected),
-    // otherwise the shared flat default.
-    setSeparateRatingsStyle(isSeparateRatingsStyle(land?.separateRatingsStyle) ? land.separateRatingsStyle : defaultSeparateRatingsStyle)
+    setBadgeItemTransforms(resolveShapeBadgeItemTransforms(land, defaultBadgeItemTransforms))
     // Graphical poster layout from the landscape profile when present
     // (override respected), otherwise the shared flat default.
     setPosterLayout(land?.posterLayout ?? defaultPosterLayout)
@@ -2580,22 +2600,27 @@ export function usePictorium(): PictoriumCtx {
       // il suo store dedicato landscapeBlur, inizializzato qui sotto).
       // (`eff` sopra: mapping effettivo per il formato salvato, riusato qui.)
       setGradientHeight(eff?.gradientHeight ?? defaultGradientHeight)
-      setTopBadgeScale(eff?.topBadgeScale ?? defaultTopBadgeScale, { materialize: false })
-      setTopBadgeOffsetX(eff?.topBadgeOffsetX ?? defaultTopBadgeOffsetX, { materialize: false })
-      setTopBadgeOffsetY(eff?.topBadgeOffsetY ?? defaultTopBadgeOffsetY, { materialize: false })
-      setGenreBadgeScale(eff?.genreBadgeScale ?? defaultGenreBadgeScale)
-      setQualityBadgeScale(eff?.qualityBadgeScale ?? defaultQualityBadgeScale)
+      setTopBadgeScale(eff?.topBadgeScale ?? landDef?.topBadgeScale ?? defaultTopBadgeScale, { materialize: false })
+      setTopBadgeOffsetX(eff?.topBadgeOffsetX ?? landDef?.topBadgeOffsetX ?? defaultTopBadgeOffsetX, { materialize: false })
+      setTopBadgeOffsetY(eff?.topBadgeOffsetY ?? landDef?.topBadgeOffsetY ?? defaultTopBadgeOffsetY, { materialize: false })
+      setExtraBadgeScale(eff?.extraBadgeScale ?? landDef?.extraBadgeScale ?? defaultExtraBadgeScale)
+      setExtraBadgeOffsetX(eff?.extraBadgeOffsetX ?? landDef?.extraBadgeOffsetX ?? defaultExtraBadgeOffsetX)
+      setExtraBadgeOffsetY(eff?.extraBadgeOffsetY ?? landDef?.extraBadgeOffsetY ?? defaultExtraBadgeOffsetY)
+      setGenreBadgeScale(eff?.genreBadgeScale ?? landDef?.genreBadgeScale ?? defaultGenreBadgeScale)
+      setQualityBadgeScale(eff?.qualityBadgeScale ?? landDef?.qualityBadgeScale ?? defaultQualityBadgeScale)
+      // Style BEFORE the resolved scale (see applyFreshLandscapeDefaults): a
+      // style change re-derives a scale still sitting on a style default, so
+      // an explicit saved scale would otherwise be overwritten on open. Layout
+      // from the shape-effective mapping (a saved landscape override is
+      // respected, never a desync); the style stays single-choice in the UI.
+      setSeparateRatingsStyle(isSeparateRatingsStyle(eff?.separateRatingsStyle) ? eff.separateRatingsStyle : defaultSeparateRatingsStyle)
       // Scala esplicita del mapping vince (incluso 100); default custom
       // salvato (≠ default del suo stile) si preserva; altrimenti segue il
       // default dello stile del titolo (bar senza override → 130).
-      setSeparateBadgeScale(resolveSeparateBadgeScaleFallback({ explicit: eff?.separateBadgeScale, defaultScale: defaultSeparateBadgeScale, defaultStyle: defaultSeparateRatingsStyle, style: isSeparateRatingsStyle(eff?.separateRatingsStyle) ? eff.separateRatingsStyle : defaultSeparateRatingsStyle }))
-      setSeparateBadgeOffsetX(eff?.separateBadgeOffsetX ?? defaultSeparateBadgeOffsetX)
-      setSeparateBadgeOffsetY(eff?.separateBadgeOffsetY ?? defaultSeparateBadgeOffsetY)
-      setBadgeItemTransforms(eff?.badgeItemTransforms ?? defaultBadgeItemTransforms)
-      // Layout rating separati dal mapping EFFETTIVO per formato: un eventuale
-      // override landscape salvato si rispetta (mai desync); il mapping storico
-      // senza campo segue i default. Lo stile resta a scelta singola in UI.
-      setSeparateRatingsStyle(isSeparateRatingsStyle(eff?.separateRatingsStyle) ? eff.separateRatingsStyle : defaultSeparateRatingsStyle)
+      setSeparateBadgeScale(resolveSeparateBadgeScaleFallback({ explicit: eff?.separateBadgeScale, defaultScale: landDef?.separateBadgeScale ?? defaultSeparateBadgeScale, defaultStyle: defaultSeparateRatingsStyle, style: isSeparateRatingsStyle(eff?.separateRatingsStyle) ? eff.separateRatingsStyle : defaultSeparateRatingsStyle }))
+      setSeparateBadgeOffsetX(eff?.separateBadgeOffsetX ?? landDef?.separateBadgeOffsetX ?? defaultSeparateBadgeOffsetX)
+      setSeparateBadgeOffsetY(eff?.separateBadgeOffsetY ?? landDef?.separateBadgeOffsetY ?? defaultSeparateBadgeOffsetY)
+      setBadgeItemTransforms(eff?.badgeItemTransforms ?? resolveShapeBadgeItemTransforms(openShape === "landscape" ? landscapeDefaults : null, defaultBadgeItemTransforms))
       // Graphical poster layout dal mapping EFFETTIVO per formato (profilo
       // landscape vince sul flat, stessa regola del server): il mapping
       // storico senza campo segue il default EFFETTIVO di formato
@@ -2611,7 +2636,7 @@ export function usePictorium(): PictoriumCtx {
       // formati): esplicita segue il titolo, `none` sopprime la lista,
       // assente/invalida = Automatico (segue la lista di origine).
       setSeasonalTheme(normalizeSeasonalThemeChoice(existing?.seasonalTheme ?? null))
-      setNetworkLogoScale(eff?.networkLogoScale ?? defaultNetworkLogoScale)
+      setNetworkLogoScale(eff?.networkLogoScale ?? landDef?.networkLogoScale ?? defaultNetworkLogoScale)
       // Effective network view composing the saved mapping with the global
       // defaults (server semantics): without mapping network fields a
       // portrait-fixed flat never leaks its absolutes into the landscape
@@ -2630,8 +2655,8 @@ export function usePictorium(): PictoriumCtx {
       setNetworkLogoFollowTitle(netLoadView.follow)
       setNetworkLogoOffsetX(netLoadView.follow ? netLoadView.relativeX : (netLoadView.fixedX ?? defaultNetworkLogoOffsetX))
       setNetworkLogoOffsetY(netLoadView.follow ? netLoadView.relativeY : (netLoadView.fixedY ?? defaultNetworkLogoOffsetY))
-      setGenreBadgeOffsetX(eff?.genreBadgeOffsetX ?? defaultGenreBadgeOffsetX)
-      setGenreBadgeOffsetY(eff?.genreBadgeOffsetY ?? defaultGenreBadgeOffsetY)
+      setGenreBadgeOffsetX(eff?.genreBadgeOffsetX ?? landDef?.genreBadgeOffsetX ?? defaultGenreBadgeOffsetX)
+      setGenreBadgeOffsetY(eff?.genreBadgeOffsetY ?? landDef?.genreBadgeOffsetY ?? defaultGenreBadgeOffsetY)
       setQualityBadgeOffsetX(eff?.qualityBadgeOffsetX ?? (openShape === "landscape" ? (landscapeDefaults?.qualityBadgeOffsetX ?? defaultQualityBadgeOffsetX) : defaultQualityBadgeOffsetX))
       setQualityBadgeOffsetY(eff?.qualityBadgeOffsetY ?? (openShape === "landscape" ? (landscapeDefaults?.qualityBadgeOffsetY ?? defaultQualityBadgeOffsetY) : defaultQualityBadgeOffsetY))
       setBlurIntensity(eff?.blurIntensity ?? defaultBlurIntensity)
@@ -2714,6 +2739,12 @@ export function usePictorium(): PictoriumCtx {
         setQualityBadgeOffsetX(unmappedQualityOffsets.qualityBadgeOffsetX)
         setQualityBadgeOffsetY(unmappedQualityOffsets.qualityBadgeOffsetY)
       }
+      // Per-item corrections for a title with no mapping: the effective
+      // per-shape default (`land ?? flat`, profile-owned `null` = automatic).
+      // Without this the live value would keep the PREVIOUS title's nudges (or
+      // the factory `null`), so the preview URL would emit no `bit=` while the
+      // server/Stremio chain resolves the saved default → WYSIWYG desync.
+      setBadgeItemTransforms(resolveShapeBadgeItemTransforms(unmappedLand, defaultBadgeItemTransforms))
       // Fresh per-title formats stay explicit (same freeze contract as the
       // other visuals): portrait installs the flat default, landscape the
       // land profile (re-asserted by applyFreshLandscapeDefaults below).
@@ -2724,6 +2755,44 @@ export function usePictorium(): PictoriumCtx {
       setRatingSources(nextSources)
       setSeparateRatings(unmappedLand?.separateRatings ?? defaultSeparateRatings)
       setSeparateRatingsStyle(isSeparateRatingsStyle(unmappedLand?.separateRatingsStyle) ? unmappedLand.separateRatingsStyle : defaultSeparateRatingsStyle)
+      // Group transforms for a title with no mapping: the effective per-shape
+      // default (`land ?? flat`), exactly the `sd` layer of the Stremio chain.
+      // Without this the live state keeps the PREVIOUS title's geometry — or
+      // its unsaved drag — while Stremio resolves the defaults (reported leak:
+      // sepox/sepoy/gscale surviving a mapped → fresh transition). The scale is
+      // written AFTER the style setter above so an explicit value wins.
+      setTopBadgeScale(unmappedLand?.topBadgeScale ?? defaultTopBadgeScale, { materialize: false })
+      setTopBadgeOffsetX(unmappedLand?.topBadgeOffsetX ?? defaultTopBadgeOffsetX, { materialize: false })
+      setTopBadgeOffsetY(unmappedLand?.topBadgeOffsetY ?? defaultTopBadgeOffsetY, { materialize: false })
+      setExtraBadgeScale(unmappedLand?.extraBadgeScale ?? defaultExtraBadgeScale)
+      setExtraBadgeOffsetX(unmappedLand?.extraBadgeOffsetX ?? defaultExtraBadgeOffsetX)
+      setExtraBadgeOffsetY(unmappedLand?.extraBadgeOffsetY ?? defaultExtraBadgeOffsetY)
+      setGenreBadgeScale(unmappedLand?.genreBadgeScale ?? defaultGenreBadgeScale)
+      setGenreBadgeOffsetX(unmappedLand?.genreBadgeOffsetX ?? defaultGenreBadgeOffsetX)
+      setGenreBadgeOffsetY(unmappedLand?.genreBadgeOffsetY ?? defaultGenreBadgeOffsetY)
+      setQualityBadgeScale(unmappedLand?.qualityBadgeScale ?? defaultQualityBadgeScale)
+      setSeparateBadgeScale(resolveSeparateBadgeScaleFallback({ explicit: unmappedLand?.separateBadgeScale, defaultScale: defaultSeparateBadgeScale, defaultStyle: defaultSeparateRatingsStyle, style: isSeparateRatingsStyle(unmappedLand?.separateRatingsStyle) ? unmappedLand.separateRatingsStyle : defaultSeparateRatingsStyle }))
+      setSeparateBadgeOffsetX(unmappedLand?.separateBadgeOffsetX ?? defaultSeparateBadgeOffsetX)
+      setSeparateBadgeOffsetY(unmappedLand?.separateBadgeOffsetY ?? defaultSeparateBadgeOffsetY)
+      setNetworkLogoScale(unmappedLand?.networkLogoScale ?? defaultNetworkLogoScale)
+      // Network follow/coords: the same effective view the mapped branch
+      // resolves, with no mapping — a fixed layer (follow OFF + coords) saved
+      // on the previous title must never survive into this one.
+      {
+        const unmappedNetView = resolveNetworkEffectiveView(
+          null,
+          {
+            networkLogoFollowTitle: defaultNetworkLogoFollowTitle,
+            networkLogoOffsetX: defaultNetworkLogoOffsetX,
+            networkLogoOffsetY: defaultNetworkLogoOffsetY,
+          },
+          unmappedLand,
+          openShape === "landscape" ? "landscape" : "poster",
+        )
+        setNetworkLogoFollowTitle(unmappedNetView.follow)
+        setNetworkLogoOffsetX(unmappedNetView.follow ? unmappedNetView.relativeX : (unmappedNetView.fixedX ?? defaultNetworkLogoOffsetX))
+        setNetworkLogoOffsetY(unmappedNetView.follow ? unmappedNetView.relativeY : (unmappedNetView.fixedY ?? defaultNetworkLogoOffsetY))
+      }
       setGradientHeight(defaultGradientHeight)
       setBlurIntensity(defaultBlurIntensity)
       setTintStrength(defaultTintStrength)

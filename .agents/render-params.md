@@ -511,6 +511,39 @@ SOLO qui e governa esclusivamente il trascinamento col puntatore: è **opt-out**
 primo avvio è indistinguibile da una funzione rotta; spento, la selezione e il
 resize agli angoli restano disponibili, mentre il corpo non si muove.
 
+**Editor per-titolo (stesso overlay, adattatore diverso).** Anche il titolo
+APERTO nell'editor ha l'ingresso "Modifica poster" (header del pannello
+Anteprima, `PerTitleBadgeEditor`): apre lo STESSO `PosterBadgeDragLayer` sullo
+stesso `previewUrl` che la preview mostra, con l'adattatore per-titolo
+(`usePerTitleBadgeGeometry`) iniettato al posto di
+`useShapeBadgeGeometryDefaults`. Nessuna seconda implementazione del drag,
+nessun secondo renderer: cambia solo CHI riceve le scritture. Semantica
+stretta:
+
+- ogni gesto (move/resize/multi-select/guide/snap/contenimento/reset/rejoin)
+  scrive SOLO lo stato live del titolo e della forma in editing, cioè gli
+  stessi valori degli slider Trasforma e del payload di salvataggio: i
+  controlli numerici non possono desincronizzarsi e la preview WYSIWYG emette
+  `qox`/`bit`/… aggiornati;
+- nessun default globale, nessun profilo dell'altra forma, nessuna baseline di
+  preset e nessuna scrittura su mapping vengono toccati: la persistenza resta
+  il SOLO pulsante Salva esistente (con i suoi guard e il suo payload,
+  flat o profilo `landscape`, `bit` incluso). Chiudere la superficie non
+  salva e non scarta: la bozza è lo stato live dell'editor, e uscire dal
+  titolo segue le regole di uscita esistenti;
+- "Testa URL Stremio" continua a risolvere `/meta` dal mapping SALVATO: finché
+  non si salva mostra il poster salvato, non la bozza;
+- riferimento di reset = gli stessi valori dei Reset per-titolo del tab
+  Trasforma (default globale effettivo della forma corrente, `land ?? flat`
+  — inclusi fallback stile separati e proiezione follow del network). Mai lo
+  snapshot del preset applicato, che è un concetto della sessione Impostazioni;
+  stessa gerarchia del resto: il reset di gruppo scarta anche le correzioni
+  per-item possedute dalla famiglia, il rejoin elimina solo quelle;
+- nessun travaso tra titoli: la superficie è chiave `titolo:forma`, si chiude
+  al cambio titolo, l'adattatore rifiuta ogni scrittura dopo
+  l'unmount/cambio identità, e riaprire un titolo senza aver salvato riparte
+  dai valori salvati (le bozze non sono persistite).
+
 **Livello del target (GROUP vs ITEM).** La toolbar dell'editor espone due
 pulsanti etichettati (Gruppi / Badge singoli) e UNA sola delle due famiglie di
 maniglie è disegnata e hit-testabile per volta: le maniglie di gruppo e quelle
@@ -816,7 +849,12 @@ propria (scala + X + Y), persistita per **identità stabile** e mai per indice.
   tutti i consumer (builder URL di preview/Stremio, `resolvePosterRenderConfig`
   del render e la lettura di geometria dei controlli Trasforma) leggono la
   stessa regola, così il poster reso non resuscita le correzioni del flat
-  portrait sopra un `null` posseduto.
+  portrait sopra un `null` posseduto. Anche lo stato LIVE del titolo in editing
+  parte dallo stesso effettivo per forma (apertura, cambio formato, reset
+  post-cover): `resolveShapeBadgeItemTransforms` in `badge-item-transforms.ts`
+  è l'unica lettura, così la preview WYSIWYG emette lo stesso `bit=` che il
+  server risolve dai default salvati (nessun desync con «Testa URL Stremio») e
+  un titolo nuovo non eredita le correzioni del titolo aperto prima.
 - **Reset canonico dei ready look**: il reset trasformazioni dei quick look
   (`quickTransformPatch`, unica fonte per Essential/Ratings/Full in entrambe le
   entry point) include `defaultBadgeItemTransforms: null`, quindi applicare un
@@ -843,7 +881,11 @@ propria (scala + X + Y), persistita per **identità stabile** e mai per indice.
 
 ## Files coinvolti
 
-- `src/components/EditView.tsx` — preview WYSIWYG (singolo `<img src={previewUrl}>`)
+- `src/components/settings/PosterBadgeDragLayer.tsx` — overlay unico del trascinamento diretto (adattatore iniettabile)
+- `src/lib/badge-drag-adapter.ts` — contratto dell'adattatore (letture + scritture del gesto)
+- `src/lib/usePerTitleBadgeGeometry.ts` — adattatore per-titolo (bozza del titolo aperto, reset per-titolo)
+- `src/components/PerTitleBadgeEditor.tsx` — ingresso fullscreen della preview per-titolo
+- `src/components/EditView.tsx` — preview WYSIWYG (singolo `<img src={previewUrl}>`), ingresso "Modifica poster"
 - `src/lib/context.tsx` — stato, URL builder, localStorage
 - `src/lib/poster-url.ts` — `buildPreviewUrl()`, `buildUrlPattern()` (parametri client → URL server)
 - `src/lib/badges.ts` — server-side SVG (bottomGradientSVG morto; `cinematicVignetteSVG` + `topShadeSVG` per l'ombra superiore `ts`/`tsh`)

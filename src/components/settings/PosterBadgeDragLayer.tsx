@@ -2,8 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useT } from "@/lib/contexts/TranslationContext"
-import { usePosterEditor } from "@/lib/contexts/PosterEditorContext"
 import { useShapeBadgeGeometryDefaults } from "@/components/settings/useShapeDefaults"
+import type { BadgeDragGeometryAdapter } from "@/lib/badge-drag-adapter"
 import type { BadgeFamilyMove, BadgeGeometryFamily, BadgeItemMove } from "@/components/settings/useShapeDefaults"
 import { useBadgeDragGeometry } from "@/lib/useBadgeDragGeometry"
 import { FRESH_TITLE_LOGO_MAX_SCALE, STANDARD_TITLE_LOGO_MAX_SCALE } from "@/lib/logo-selection"
@@ -254,6 +254,7 @@ export function PosterBadgeDragLayer({
   enabled,
   dragMode = true,
   targetLevel = "group",
+  adapter,
   "data-testid": testId,
 }: {
   /** Exact URL of the poster currently displayed (already debounced). */
@@ -270,11 +271,21 @@ export function PosterBadgeDragLayer({
    * boxes can never make a family unreachable.
    */
   targetLevel?: BadgeDragTargetLevel
+  /**
+   * WHO the gestures write to. Absent = the global settings editor
+   * (`useShapeBadgeGeometryDefaults`, the historical behaviour); the per-title
+   * editor injects `usePerTitleBadgeGeometry` so the same interaction writes
+   * only the open poster's draft and never a global default.
+   */
+  adapter?: BadgeDragGeometryAdapter
   "data-testid"?: string
 }) {
   const { t } = useT()
-  const ed = usePosterEditor()
-  const defaults = useShapeBadgeGeometryDefaults(shape)
+  // Always called (rules of hooks): the injected adapter wins, so a per-title
+  // surface still pays only one cheap context read and never a second drag
+  // implementation.
+  const settingsDefaults = useShapeBadgeGeometryDefaults(shape)
+  const defaults = adapter ?? settingsDefaults
   const { geometry, geometryUrl } = useBadgeDragGeometry(previewUrl, enabled)
   const rootRef = useRef<HTMLDivElement | null>(null)
   const lastGeometryRef = useRef<BadgeDragGeometry | null>(null)
@@ -294,12 +305,12 @@ export function PosterBadgeDragLayer({
   // While the next render lands, the previous boxes are still the last
   // authority we have: they only draw handles, they never drive values.
   const shown = geometry ?? lastGeometryRef.current
-  const isLandscape = shape === "landscape"
 
   // Title-logo UI cap of the ACTIVE layout: Standard keeps the historic 100,
-  // Fresh opens 200 (same constants as the Transform slider).
+  // Fresh opens 200 (same constants as the Transform slider). The layout comes
+  // from the adapter, so a per-title editor caps on the TITLE's layout.
   const titleMax =
-    ((isLandscape ? ed.landscape.posterLayout : undefined) ?? ed.defaultPosterLayout) === "fresh"
+    defaults.posterLayout === "fresh"
       ? FRESH_TITLE_LOGO_MAX_SCALE
       : STANDARD_TITLE_LOGO_MAX_SCALE
 
@@ -396,8 +407,9 @@ export function PosterBadgeDragLayer({
                   : family === "logo"
                     ? {
                         // Position only: the title-logo scale stays on its own
-                        // control (null = auto-fit), never written by a drag.
-                        scale: ed.defaultLogoScale,
+                        // control (null = auto-fit, the reported box is the
+                        // authority), never written by a drag.
+                        scale: defaults.logoScale ?? 0,
                         offsetX: defaults.logoOffsetX,
                         offsetY: defaults.logoOffsetY,
                       }
@@ -416,7 +428,7 @@ export function PosterBadgeDragLayer({
           : NEUTRAL_EXPLICIT
       return { effective, explicit }
     },
-    [defaults, ed.defaultLogoScale],
+    [defaults],
   )
 
   /**

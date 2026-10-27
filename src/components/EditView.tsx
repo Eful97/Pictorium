@@ -15,6 +15,7 @@ import { perTitleDraftKey } from "@/lib/shape-draft"
 import { MAPPING_SHAPE_FACTORY, mappingShapeChainEffective, type MappingShapeLandKey } from "@/lib/visual-presets"
 import { isSeparateRatingsStyle } from "@/lib/badge-styles"
 import { isManualAccent } from "@/lib/accent-color"
+import { resolveShapeBadgeItemTransforms } from "@/lib/badge-item-transforms"
 import { selectBestLogo } from "@/lib/logo-selection"
 import { resolveNetworkEffectiveView } from "@/lib/network-follow"
 import { isGradientDirtyForShape, isArtworkDirty, isMappingDirty } from "@/lib/gradient-dirty"
@@ -34,6 +35,7 @@ import { PosterCarousel } from "@/components/PosterCarousel"
 import { ScrollReveal } from "@/components/ScrollReveal"
 import { HomeHero } from "@/components/HomeHero"
 import { PosterPreview } from "@/components/PosterPreview"
+import { PerTitleBadgeEditor } from "@/components/PerTitleBadgeEditor"
 import { PerTitlePresetChooser } from "@/components/PerTitlePresetChooser"
 import { PosterDepthEdge, PosterDepthSheen } from "@/components/PosterDepthGlow"
 import { BadgeControls } from "@/components/BadgeControls"
@@ -41,7 +43,7 @@ import { TransformControls } from "@/components/TransformControls"
 import { EpisodeGroupControls } from "@/components/EpisodeGroupControls"
 import { JwRankBadge } from "@/components/JwRankBadge"
 import { usePosterPreview } from "@/lib/usePosterPreview"
-import { Check, Clock, Save, Image as ImageIcon, Trash2, X, ChevronLeft, ChevronDown, RectangleVertical, RectangleHorizontal, MonitorPlay, AlertTriangle, Loader2, AlertCircle } from "lucide-react"
+import { Check, Clock, Save, Image as ImageIcon, Trash2, X, ChevronLeft, ChevronDown, RectangleVertical, RectangleHorizontal, MonitorPlay, AlertTriangle, Loader2, AlertCircle, Move } from "lucide-react"
 
 export default function EditView() {
   const accentColor = usePSelector((v) => v.accentColor)
@@ -159,6 +161,15 @@ export default function EditView() {
   }, [selected?.id])
 
   const { imageError, setImageError, previewLoading, loadProgress, imgSrc, retry } = usePosterPreview()
+  // Exact URL the preview displays: the fullscreen badge editor hit-tests the
+  // boxes the shared renderer reported for THIS URL (no client layout).
+  const previewUrl = usePSelector((v) => v.previewUrl)
+  // Fullscreen direct editing of the OPEN title (draft-only: the Save button
+  // remains the only persistence boundary). The surface remembers the title it
+  // was opened on, so it is derived-closed the moment another title is opened —
+  // without an effect and without a frame where the next title would already be
+  // editable.
+  const [badgeEditorFor, setBadgeEditorFor] = useState<string | null>(null)
 
   const selectedMappingKey = selected ? `${selected.media_type}:${selected.id}` : null
   const selectedMapping = selectedMappingKey ? mappingsMap.get(selectedMappingKey) : undefined
@@ -760,7 +771,17 @@ export default function EditView() {
       ed.setSeparateBadgeOffsetY(src.separateBadgeOffsetY ?? landFallback?.separateBadgeOffsetY ?? ed.separateBadgeOffsetY)
       // Per-item corrections: shape draft wins, then the shape's saved
       // profile, then the flat default (never the other shape's live values).
-      ed.setBadgeItemTransforms(src.badgeItemTransforms ?? landFallback?.badgeItemTransforms ?? ed.defaultBadgeItemTransforms ?? null)
+      // The stash is read verbatim (an explicit `null` draft = automatic
+      // layout); otherwise the profile OWNS its key even when `null`, so the
+      // flat corrections are never resurrected over it.
+      {
+        const stashedBit = stashForRead?.get(next)?.badgeItemTransforms
+        ed.setBadgeItemTransforms(
+          stashedBit !== undefined
+            ? stashedBit
+            : (src.badgeItemTransforms ?? resolveShapeBadgeItemTransforms(landFallback, ed.defaultBadgeItemTransforms)),
+        )
+      }
       // Stile separati dal profilo del formato (stash > salvato > default di
       // forma, mai il live dell'altro formato): portrait = default flat,
       // landscape = profilo Orizzontale ?? flat.
@@ -1376,7 +1397,22 @@ export default function EditView() {
             {/* CENTER: Preview */}
             <div className={mobileSection === "preview" ? "block w-full" : "hidden lg:block h-full min-w-0"}>
               <EditorPanel className="animate-fade-scale-in h-full" title={<><span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-400 mr-1.5 align-middle shadow-[0_0_6px_rgba(52,211,153,0.7)]" aria-hidden="true" />{stremioPreview ? "Stremio" : t("ui.previewLive")}</>} headerRight={
-                <div className="flex gap-1" role="group" aria-label={t("ui.posterShape")}>
+                <div className="flex items-center gap-1">
+                  {/* Fullscreen direct editing of THIS title: the same overlay
+                      as the settings editor, on the per-title adapter, so
+                      every gesture is a draft until the Save button below. */}
+                  <button
+                    type="button"
+                    title={t("ui.badgeEditOpen")}
+                    aria-label={t("ui.badgeEditOpen")}
+                    aria-expanded={badgeEditorFor === selectedStashKey}
+                    data-testid="per-title-badge-editor-open"
+                    onClick={() => setBadgeEditorFor(selectedStashKey)}
+                    className="w-7 h-7 flex items-center justify-center rounded-lg bg-white/5 text-muted transition-all duration-150 cursor-pointer hover:bg-white/10 hover:text-zinc-200"
+                  >
+                    <Move className="w-4 h-4" />
+                  </button>
+                  <div className="flex gap-1" role="group" aria-label={t("ui.posterShape")}>
                   <button
                     type="button"
                     title={t("ui.posterShapePortrait")}
@@ -1405,6 +1441,7 @@ export default function EditView() {
                   >
                     <RectangleHorizontal className="w-4 h-4" />
                   </button>
+                  </div>
                 </div>
               } footer={
                 previewPoster && selected ? (
@@ -1725,6 +1762,21 @@ export default function EditView() {
         </>
       )}
 
+      {selected && badgeEditorFor === selectedStashKey && (
+        <PerTitleBadgeEditor
+          // Title + shape identity: a change remounts the surface, so the
+          // reported boxes, the selection and any optimistic overlay of the
+          // previous target can never be drawn over (or written to) the next.
+          key={`${selectedStashKey}:${ed.posterShape}`}
+          isOpen
+          onClose={() => setBadgeEditorFor(null)}
+          previewUrl={previewUrl}
+          imgSrc={imgSrc}
+          shape={ed.posterShape === "landscape" ? "landscape" : "poster"}
+          identity={selectedStashKey}
+          userId={currentUserId}
+        />
+      )}
       {stremioModalOpen && stremioPreview && stremioPreviewUrl && createPortal(
         <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-sm overflow-y-auto animate-fade-scale-in" onClick={closeStremioModal} role="dialog" aria-modal="true" aria-label="Stremio">
           <div className="max-w-md mx-auto px-4 py-8 min-h-full flex flex-col justify-center" onClick={(e) => e.stopPropagation()}>
