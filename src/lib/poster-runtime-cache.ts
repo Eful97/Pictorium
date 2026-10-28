@@ -116,6 +116,16 @@ const MAX_REFRESH_TRACKED = 500
 // Timeout difensivo: dopo N secondi risolve con null e libera la map.
 const INFLIGHT_TIMEOUT_MS = 60_000
 
+// Functional toggles resi come booleani dalla configurazione di render: ogni
+// valore presente diverso da "0" vale ON. La chiave deve convergere sullo
+// stesso valore, altrimenti badges=a/badges=b (stessi pixel) frammentano
+// cache L1/L2 e inflight. Non include enum/numerici (side, netPos, qbs, tint),
+// che mantengono il proprio valore semantico.
+const POSTER_BOOLEAN_CACHE_PARAMS: ReadonlySet<string> = new Set([
+  "badges", "ranking", "bg", "by", "br", "bq", "ribbon", "cr", "sep",
+  "netLogo", "netFollow", "pre", "hideLogo", "be",
+])
+
 export function normalizePosterCacheParams(searchParams: URLSearchParams): URLSearchParams {
   // Allowlist rigida anti cache-busting (v1.23.0): solo i parametri noti
   // entrano nella chiave — ?x=$RANDOM collassa invece di missare. I repeat
@@ -130,6 +140,10 @@ export function normalizePosterCacheParams(searchParams: URLSearchParams): URLSe
     if (seen.has(key)) continue
     seen.add(key)
     params.append(key, value)
+  }
+  for (const key of POSTER_BOOLEAN_CACHE_PARAMS) {
+    const value = params.get(key)
+    if (value !== null && value !== "0") params.set(key, "1")
   }
   params.delete("rv")
   params.delete("v")

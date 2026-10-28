@@ -504,4 +504,30 @@ describe("normalizePosterCacheParams", () => {
     expect(normalized.get("bs")).toBe("pill")
     expect(normalized.get("rs")).toBe("netflix")
   })
+
+  it("converges every equivalent enabled boolean toggle on one cache key", () => {
+    const booleanParams = [
+      "badges", "ranking", "bg", "by", "br", "bq", "ribbon", "cr", "sep",
+      "netLogo", "netFollow", "pre", "hideLogo", "be",
+    ]
+    for (const key of booleanParams) {
+      // The renderer treats every present value except the exact string "0"
+      // as enabled, so all of them must share one cache identity.
+      for (const value of ["1", "true", "yes", "a", "00", ""]) {
+        const normalized = normalizePosterCacheParams(new URLSearchParams(`${key}=${value}`))
+        expect(normalized.get(key), `${key}=${value}`).toBe("1")
+      }
+      expect(normalizePosterCacheParams(new URLSearchParams(`${key}=0`)).get(key)).toBe("0")
+    }
+  })
+
+  it("does not flatten enum or numeric render controls", () => {
+    const normalized = normalizePosterCacheParams(
+      new URLSearchParams("side=right&netPos=top&qbs=standard&tint=50"),
+    )
+    expect(normalized.get("side")).toBe("right")
+    expect(normalized.get("netPos")).toBe("top")
+    expect(normalized.get("qbs")).toBe("standard")
+    expect(normalized.get("tint")).toBe("50")
+  })
 })
