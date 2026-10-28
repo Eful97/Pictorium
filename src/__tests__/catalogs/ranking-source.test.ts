@@ -3,12 +3,29 @@ import { configTokenSchema, decodeConfig, encodeConfig } from "@/lib/config-toke
 import {
   filterRankingItemsBySlot,
   compatibleRankingCustoms,
+  compatibleRankingStreaming,
   slotsReferencingCustom,
   shouldApplyRankRefresh,
   rankingSourceCatalogName,
+  rankingSectionFitsSlot,
   resolveRankingSource,
+  streamingRankingCatalogName,
 } from "@/lib/ranking-source"
+import {
+  genericStreamingCatalogId,
+  genericStreamingCatalogName,
+  streamingCatalogId,
+} from "@/lib/streaming-catalogs"
 import type { CustomCatalogConfig } from "@/lib/types"
+
+// Legacy curated selection (RegionDef country, both sections) and a generic
+// mixed one (index service, `all` chart) — the two id shapes the resolver
+// must accept as ranking sources.
+const NETFLIX_IT = { service: "netflix", country: "IT" }
+const HULU_US_ALL = { service: "hulu", country: "united-states", sections: ["all"] }
+const NETFLIX_MOVIES_ID = streamingCatalogId("netflix", "IT", "movies")
+const NETFLIX_SERIES_ID = streamingCatalogId("netflix", "IT", "series")
+const HULU_ALL_ID = genericStreamingCatalogId("hulu", "united-states", "all", "auto", null)
 
 const MOVIE_CUSTOM: CustomCatalogConfig = {
   id: "cat_movies",
@@ -247,7 +264,7 @@ describe("ranking source persistence contract", () => {
     ).toEqual({ kind: "justwatch", mode: "trending" })
   })
 
-  it("rejects overlong selection ids in the token schema", () => {
+  it("rejects selection ids past the streaming id cap in the token schema", () => {
     const parsed = configTokenSchema.safeParse({
       globalBadges: true,
       rankingBadges: true,
@@ -260,9 +277,118 @@ describe("ranking source persistence contract", () => {
       gradientHeight: 30,
       networkLogo: true,
       autoRotateClean: false,
-      rankingSourceMovie: "x".repeat(65),
+      rankingSourceMovie: "x".repeat(161),
     })
     expect(parsed.success).toBe(false)
+  })
+})
+
+describe("resolveRankingSource with imported Top 10 streaming lists", () => {
+  const streamingSelections = [NETFLIX_IT, HULU_US_ALL]
+
+  it("resolves an enabled legacy selection id on its own section", () => {
+    expect(
+      resolveRankingSource({ streamingSelections, rankingSourceMovie: NETFLIX_MOVIES_ID }, "movie"),
+    ).toEqual({ kind: "streaming", catalogId: NETFLIX_MOVIES_ID })
+    expect(
+      resolveRankingSource({ streamingSelections, rankingSourceSeries: NETFLIX_SERIES_ID }, "series"),
+    ).toEqual({ kind: "streaming", catalogId: NETFLIX_SERIES_ID })
+  })
+
+  it("falls back to JustWatch on a section mismatch, removal or disabled entry", () => {
+    // Movie list on the series slot (and vice versa) never crosses over.
+    expect(
+      resolveRankingSource({ streamingSelections, rankingSourceSeries: NETFLIX_MOVIES_ID }, "series"),
+    ).toEqual({ kind: "justwatch", mode: "charts" })
+    // Removed selection (id no longer belongs to this space).
+    expect(
+      resolveRankingSource({ streamingSelections: [], rankingSourceMovie: NETFLIX_MOVIES_ID }, "movie"),
+    ).toEqual({ kind: "justwatch", mode: "charts" })
+    // Explicitly switched off (manager Power = Hide, config kept).
+    expect(
+      resolveRankingSource(
+        {
+          streamingSelections: [{ ...NETFLIX_IT, enabled: false }],
+          rankingSourceMovie: NETFLIX_MOVIES_ID,
+        },
+        "movie",
+      ),
+    ).toEqual({ kind: "justwatch", mode: "charts" })
+    // Unknown/malformed streaming ids never resolve.
+    expect(
+      resolveRankingSource(
+        { streamingSelections, rankingSourceMovie: "pictorium-stream-netflix-it-all" },
+        "movie",
+      ),
+    ).toEqual({ kind: "justwatch", mode: "charts" })
+  })
+
+  it("lets a mixed `all` list drive both slots", () => {
+    for (const slot of ["movie", "series"] as const) {
+      expect(
+        resolveRankingSource(
+          { streamingSelections, rankingSourceMovie: HULU_ALL_ID, rankingSourceSeries: HULU_ALL_ID },
+          slot,
+        ),
+      ).toEqual({ kind: "streaming", catalogId: HULU_ALL_ID })
+    }
+  })
+
+  it("keeps source/variant identity: only the exact derived id resolves", () => {
+    const strict = [{
+      service: "hulu",
+      country: "united-states",
+      sections: ["movies"],
+      source: "flixpatrol",
+      variant: "hi",
+    }]
+    const strictId = genericStreamingCatalogId("hulu", "united-states", "movies", "flixpatrol", "hi")
+    expect(
+      resolveRankingSource({ streamingSelections: strict, rankingSourceMovie: strictId }, "movie"),
+    ).toEqual({ kind: "streaming", catalogId: strictId })
+    // Same service/country with another policy/variant is a different list.
+    const autoId = genericStreamingCatalogId("hulu", "united-states", "movies", "auto", null)
+    expect(
+      resolveRankingSource({ streamingSelections: strict, rankingSourceMovie: autoId }, "movie"),
+    ).toEqual({ kind: "justwatch", mode: "charts" })
+  })
+
+  it("never resolves a streaming id as a custom catalog", () => {
+    const customs: CustomCatalogConfig[] = [
+      { id: NETFLIX_MOVIES_ID, name: "Fake", type: "movie", url: "https://mdblist.com/lists/u/x" },
+    ]
+    expect(
+      resolveRankingSource({ customCatalogs: customs, rankingSourceMovie: NETFLIX_MOVIES_ID }, "movie"),
+    ).toEqual({ kind: "justwatch", mode: "charts" })
+  })
+})
+
+describe("compatibleRankingStreaming", () => {
+  it("lists enabled section-compatible lists for the slot", () => {
+    const selections = [
+      NETFLIX_IT,
+      HULU_US_ALL,
+      { service: "prime", country: "IT", enabled: false },
+    ]
+    expect(compatibleRankingStreaming(selections, "movie").map((o) => o.id).sort()).toEqual(
+      [NETFLIX_MOVIES_ID, HULU_ALL_ID].sort(),
+    )
+    expect(compatibleRankingStreaming(selections, "series").map((o) => o.id).sort()).toEqual(
+      [NETFLIX_SERIES_ID, HULU_ALL_ID].sort(),
+    )
+  })
+
+  it("returns empty without selections (legacy spaces expose no streaming source)", () => {
+    expect(compatibleRankingStreaming(undefined, "movie")).toEqual([])
+    expect(compatibleRankingStreaming(null, "series")).toEqual([])
+  })
+
+  it("mirrors the section/slot rule", () => {
+    expect(rankingSectionFitsSlot("movies", "movie")).toBe(true)
+    expect(rankingSectionFitsSlot("movies", "series")).toBe(false)
+    expect(rankingSectionFitsSlot("series", "series")).toBe(true)
+    expect(rankingSectionFitsSlot("all", "movie")).toBe(true)
+    expect(rankingSectionFitsSlot("all", "series")).toBe(true)
   })
 })
 
@@ -304,6 +430,112 @@ describe("compatibleRankingCustoms", () => {
   })
 })
 
+describe("imported addon catalogs as ranking sources", () => {
+  const manifest = "https://example.com/addon/manifest.json"
+  const addons: CustomCatalogConfig[] = [
+    {
+      id: "addon_movie",
+      name: "Addon Film",
+      type: "movie",
+      url: manifest,
+      addon: { manifestUrl: manifest, catalogId: "top", catalogType: "movie" },
+    },
+    {
+      id: "addon_series",
+      name: "Addon Serie",
+      type: "series",
+      url: manifest,
+      addon: { manifestUrl: manifest, catalogId: "top", catalogType: "series" },
+    },
+    {
+      // Local config type cannot widen the actual remote catalog type.
+      id: "addon_mixed",
+      name: "Addon mixed",
+      type: "mixed",
+      url: manifest,
+      addon: { manifestUrl: manifest, catalogId: "last", catalogType: "movie" },
+    },
+    {
+      id: "addon_off",
+      name: "Addon off",
+      type: "movie",
+      url: manifest,
+      enabled: false,
+      addon: { manifestUrl: manifest, catalogId: "off", catalogType: "movie" },
+    },
+  ]
+
+  it("offers only enabled entries matching the real remote type", () => {
+    expect(compatibleRankingCustoms(addons, "movie").map((c) => c.id)).toEqual(["addon_movie", "addon_mixed"])
+    expect(compatibleRankingCustoms(addons, "series").map((c) => c.id)).toEqual(["addon_series"])
+  })
+
+  it("resolves an addon kind and never crosses slots", () => {
+    expect(
+      resolveRankingSource({ customCatalogs: addons, rankingSourceMovie: "addon_movie" }, "movie"),
+    ).toEqual({ kind: "addon", customId: "addon_movie" })
+    expect(
+      resolveRankingSource({ customCatalogs: addons, rankingSourceSeries: "addon_series" }, "series"),
+    ).toEqual({ kind: "addon", customId: "addon_series" })
+    // A mixed local type does not let a movie-only remote catalog drive series.
+    expect(
+      resolveRankingSource({ customCatalogs: addons, rankingSourceSeries: "addon_mixed" }, "series"),
+    ).toEqual({ kind: "justwatch", mode: "charts" })
+    // Disabled / deleted imports fall back to JustWatch.
+    expect(
+      resolveRankingSource({ customCatalogs: addons, rankingSourceMovie: "addon_off" }, "movie"),
+    ).toEqual({ kind: "justwatch", mode: "charts" })
+    expect(
+      resolveRankingSource({ customCatalogs: addons, rankingSourceMovie: "gone" }, "movie"),
+    ).toEqual({ kind: "justwatch", mode: "charts" })
+  })
+
+  it("rejects addon lists whose required extra the passthrough cannot provide", () => {
+    const withRequired: CustomCatalogConfig = {
+      id: "addon_required",
+      name: "Richiede anno",
+      type: "movie",
+      url: manifest,
+      addon: {
+        manifestUrl: manifest,
+        catalogId: "by-year",
+        catalogType: "movie",
+        extra: [{ name: "year", isRequired: true }],
+      },
+    }
+    const alsoUnavailable: CustomCatalogConfig = {
+      id: "addon_search",
+      name: "Ricerca obbligatoria",
+      type: "movie",
+      url: manifest,
+      addon: {
+        manifestUrl: manifest,
+        catalogId: "search",
+        catalogType: "movie",
+        extra: [{ name: "search", isRequired: true }],
+      },
+    }
+    // The ranking request is fixed (no search/genre): a required search is
+    // just as unreadable as an unsupported extra, so neither is offered.
+    expect(compatibleRankingCustoms([withRequired, alsoUnavailable], "movie")).toEqual([])
+    expect(
+      resolveRankingSource(
+        { customCatalogs: [withRequired], rankingSourceMovie: "addon_required" },
+        "movie",
+      ),
+    ).toEqual({ kind: "justwatch", mode: "charts" })
+  })
+
+  it("uses the local addon entry name for the driven Top 20 label", () => {
+    expect(
+      rankingSourceCatalogName("pictorium-jw-movies", "movie", {
+        customCatalogs: addons,
+        rankingSourceMovie: "addon_movie",
+      }),
+    ).toBe("Addon Film")
+  })
+})
+
 describe("slotsReferencingCustom", () => {
   it("lists slots pointing at the deleted id", () => {
     expect(slotsReferencingCustom("a", "a", "a")).toEqual(["movie", "series"])
@@ -342,6 +574,20 @@ describe("rankingSourceCatalogName", () => {
         rankingSourceMovie: "cat_movies",
       }),
     ).toBe("Trakt Top 20")
+  })
+
+  it("returns the neutral streaming list name for a driven Top 20 slot", () => {
+    const name = genericStreamingCatalogName("hulu", "united-states", "all", null)
+    expect(streamingRankingCatalogName(HULU_ALL_ID)).toBe(name)
+    expect(
+      rankingSourceCatalogName("pictorium-jw-movies", "movie", {
+        streamingSelections: [HULU_US_ALL],
+        rankingSourceMovie: HULU_ALL_ID,
+      }),
+    ).toBe(name)
+    // A stale/removed streaming reference must not leak a source name.
+    expect(streamingRankingCatalogName("pictorium-stream-nope")).toBeNull()
+    expect(rankingSourceCatalogName("pictorium-jw-movies", "movie", { rankingSourceMovie: HULU_ALL_ID })).toBeNull()
   })
 
   it("returns null for the JustWatch default and unrelated catalogs", () => {

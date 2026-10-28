@@ -172,7 +172,7 @@ export function CatalogManagerModal({ isOpen, onClose }: CatalogManagerModalProp
         rankingSourceCatalogName(
           c.id,
           c.type,
-          { customCatalogs, rankingSourceMovie, rankingSourceSeries },
+          { customCatalogs, streamingSelections: streamingSelectionsState, rankingSourceMovie, rankingSourceSeries },
           activeRegion,
         ) ?? regionJwName(c.id, c.type, activeRegion) ?? c.name
       const storedName = catalogRenames[c.id] || defaultName

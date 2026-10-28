@@ -211,6 +211,7 @@ export async function buildManifestResponse(req: NextRequest, user?: string | nu
       slotType,
       {
         customCatalogs: userConfig?.customCatalogs,
+        streamingSelections: userConfig?.streamingSelections,
         rankingSourceMovie: userConfig?.rankingSourceMovie,
         rankingSourceSeries: userConfig?.rankingSourceSeries,
       },

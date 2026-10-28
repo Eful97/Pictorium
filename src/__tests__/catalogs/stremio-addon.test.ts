@@ -204,14 +204,22 @@ describe("stremio-addon import (MVP)", () => {
     expect(isSelfManifest("https://example.com/manifest.json", "https://pictorium.test")).toBe(false)
   })
 
-  it("never offers addon imports as Top 20 ranking sources", async () => {
+  it("offers imported addon catalogs as Top 20 sources by real remote type", async () => {
     const ranking = await import("@/lib/ranking-source")
     const customs = [
-      { id: "a1", name: "Addon", type: "movie" as const, url: "https://example.com/manifest.json", addon: { manifestUrl: "https://example.com/manifest.json", catalogId: "top", catalogType: "movie" as const } },
+      { id: "a1", name: "Addon movie", type: "movie" as const, url: "https://example.com/manifest.json", addon: { manifestUrl: "https://example.com/manifest.json", catalogId: "top", catalogType: "movie" as const } },
+      { id: "a2", name: "Addon series", type: "series" as const, url: "https://example.com/manifest.json", addon: { manifestUrl: "https://example.com/manifest.json", catalogId: "top", catalogType: "series" as const } },
+      { id: "a3", name: "Addon off", type: "movie" as const, url: "https://example.com/manifest.json", enabled: false, addon: { manifestUrl: "https://example.com/manifest.json", catalogId: "other", catalogType: "movie" as const } },
       { id: "l1", name: "List", type: "movie" as const, url: "https://mdblist.com/lists/u/s" },
     ]
-    expect(ranking.compatibleRankingCustoms(customs, "movie").map((c) => c.id)).toEqual(["l1"])
-    expect(ranking.resolveRankingSource({ customCatalogs: customs, rankingSourceMovie: "a1" }, "movie")).toEqual({ kind: "justwatch", mode: "charts" })
+    // Two catalogs from the SAME manifest stay two distinct sources, selected
+    // by their real catalog type (never by the local config type alone).
+    expect(ranking.compatibleRankingCustoms(customs, "movie").map((c) => c.id)).toEqual(["a1", "l1"])
+    expect(ranking.compatibleRankingCustoms(customs, "series").map((c) => c.id)).toEqual(["a2"])
+    expect(ranking.resolveRankingSource({ customCatalogs: customs, rankingSourceMovie: "a1" }, "movie")).toEqual({ kind: "addon", customId: "a1" })
+    expect(ranking.resolveRankingSource({ customCatalogs: customs, rankingSourceSeries: "a2" }, "series")).toEqual({ kind: "addon", customId: "a2" })
+    expect(ranking.resolveRankingSource({ customCatalogs: customs, rankingSourceMovie: "a2" }, "movie")).toEqual({ kind: "justwatch", mode: "charts" })
+    expect(ranking.resolveRankingSource({ customCatalogs: customs, rankingSourceMovie: "a3" }, "movie")).toEqual({ kind: "justwatch", mode: "charts" })
     expect(ranking.resolveRankingSource({ customCatalogs: customs, rankingSourceMovie: "l1" }, "movie")).toEqual({ kind: "custom", customId: "l1" })
   })
 })

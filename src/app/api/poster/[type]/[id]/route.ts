@@ -18,6 +18,9 @@ import { effectiveMappingForShape } from "@/lib/types"
 import { getRegionDef, normalizeRegion, parseRegion, defaultRegionForLang, GLOBAL_REGION_CODE } from "@/lib/regions"
 import { pinChartFamily, chartListGroupKey, chartPinCacheFragment, chartSlotEndMs, familySlotEndMs, type ChartFamilyPin } from "@/lib/chart-generation"
 import { ensureFreshChartFamily } from "@/lib/chart-renewal"
+import { streamingRankingCoordinates, streamingRankingItemsFromPin } from "@/lib/streaming-ranking"
+import { addonRankingRemainingMs, addonRankingSourceKey, fetchAddonRanking } from "@/lib/addon-ranking"
+import { getOriginFromRequest } from "@/lib/poster-public-url"
 import { BEST_FIT_GLOBAL, resolveLogoFitEnabled } from "@/lib/best-fit-config"
 import { selectAutoFitCandidates, selectBestLogoFitPosterPath } from "@/lib/poster-auto-fit"
 import { fetchAllWikidata, matchTMDBStudios, directorBadgeLabel, isValidWikidataQid, type WikidataResult } from "@/lib/awards"
@@ -583,6 +586,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
   const qAnimeRankPre = qAnimeRankParamPre ? Number(qAnimeRankParamPre) : NaN
   const rankingSelectionPre = {
     customCatalogs: configOverride?.customCatalogs ?? sd.customCatalogs,
+    streamingSelections: configOverride?.streamingSelections ?? sd.streamingSelections,
     rankingSourceMovie: configOverride?.rankingSourceMovie ?? sd.rankingSourceMovie,
     rankingSourceSeries: configOverride?.rankingSourceSeries ?? sd.rankingSourceSeries,
   }
@@ -590,9 +594,15 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
     rankingSelectionPre,
     mediaType === "movie" ? "movie" : "series",
   )
-  const rankingCustomPre = rankingSourcePre.kind === "custom"
+  const rankingCustomPre = rankingSourcePre.kind === "custom" || rankingSourcePre.kind === "addon"
     ? findRankingCustomCatalog(rankingSelectionPre.customCatalogs, rankingSourcePre.customId)
     : undefined
+  // Imported Top 10 ranking source: same pinned family the list's own catalog
+  // serves (official 1..10 ranks). Coordinates are derivable from the id, so
+  // the pin happens before the preflight exactly like the JW families.
+  const streamingRankPre = rankingSourcePre.kind === "streaming"
+    ? streamingRankingCoordinates(rankingSourcePre.catalogId)
+    : null
   // Fail-closed per new JW mode: an upstream popular/trending error resolves
   // null (no stored-rank fallback from another source). The legacy charts
   // path keeps its historical degraded fallback to the saved rank (pinned by
@@ -638,11 +648,38 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
   const jwGroupInput = { regionCode: posterRegion.code, regionLang: posterRegion.lang }
   const jwPrePin = needJwPin ? await pinChartFamily({ ...jwGroupInput, family: jwFamily }) : null
   const jwSourceKey = `jw:${mediaType === "movie" ? "MOVIE" : "SHOW"}:${posterRegion.code}:20:${posterRegion.lang}${rankingSourcePre.kind === "justwatch" && rankingSourcePre.mode !== "charts" ? `:${rankingSourcePre.mode}` : ""}:g${chartListGroupKey(jwGroupInput)}${jwPrePin ? chartPinCacheFragment(jwPrePin) : ":cglive"}`
+  const needStreamingPin = needTrendFetch && streamingRankPre !== null
+  const streamingPrePin = needStreamingPin && streamingRankPre
+    ? await pinChartFamily({
+      regionCode: streamingRankPre.regionCode,
+      regionLang: streamingRankPre.regionLang,
+      family: streamingRankPre.family,
+    })
+    : null
+  const streamingSourceKey = streamingRankPre
+    ? `streaming:${mediaType}:${streamingRankPre.family}:g${chartListGroupKey({ regionCode: streamingRankPre.regionCode, regionLang: streamingRankPre.regionLang })}${streamingPrePin ? chartPinCacheFragment(streamingPrePin) : ":cglive"}`
+    : ""
   const chartAnimeFamily = mediaType === "movie" ? "anime:movie" : "anime:series"
   const animeGroupInput = { regionCode: posterRegion.code, regionLang: posterRegion.lang, mdblistKey: animeKeyUsed }
   const animePrePin = needAnimePin ? await pinChartFamily({ ...animeGroupInput, family: chartAnimeFamily }) : null
   const animeSourceKey = `anime:${mediaType}:${posterRegion.code}:${posterRegion.lang}:${hashKey(animeKeyUsed ?? "")}${animePrePin ? chartPinCacheFragment(animePrePin) : ":cglive"}`
   const customSourceKey = `custom:${mediaType}:${scopedUser ?? "anon"}:${hashKey(JSON.stringify(rankingCustomPre ?? null))}:${hashKey([(effTmdbKey ?? ""), (effMdblistKey ?? ""), (effTvdbKey ?? "")].join("|"))}`
+  // Imported addon ranking source: identity of the ACTUAL remote catalog (a
+  // manifest can host several lists), shared across concurrent titles.
+  const addonSourceKey = rankingSourcePre.kind === "addon" && rankingCustomPre?.addon
+    ? `addon:${mediaType}:${scopedUser ?? "anon"}:${addonRankingSourceKey(rankingCustomPre.addon)}:${hashKey([(effTmdbKey ?? ""), (effTvdbKey ?? ""), configToken ?? ""].join("|"))}`
+    : ""
+  const addonRankingInput = rankingSourcePre.kind === "addon" && rankingCustomPre?.addon
+    ? {
+      custom: rankingCustomPre,
+      slot: mediaType === "movie" ? ("movie" as const) : ("series" as const),
+      apiKey: effTmdbKey,
+      tvdbKey: effTvdbKey,
+      userId: scopedUser,
+      configParam: configToken,
+      requestOrigin: getOriginFromRequest(req),
+    }
+    : null
   // Task D: provenance dei fatti baked-in. `true` quando il rank è servito da
   // uno snapshot pubblicato (fatto volatile con scadenza nota = fine slot),
   // non cake fallback al rank salvato (stabile, nessun cap) né abort/budget.
@@ -651,6 +688,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
   // Rank effettivamente consumato dallo snapshot (per il freshness cap sotto).
   let trendSnapshotPin: ChartFamilyPin | null = null
   let animeSnapshotPin: ChartFamilyPin | null = null
+  // Imported Top 10 ranking source: pinned snapshot consumed by this render.
+  let streamingSnapshotPin: ChartFamilyPin | null = null
   // Saved-rank fallback for the automatic channel: only a stored Top-20
   // rank may stand in on cold failure. A saved platform/custom rank past
   // the window is never resurrected (explicit `rank=` overrides and the
@@ -661,7 +700,49 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
   }
   const trendPreflight: Promise<number | null> = !needTrendFetch || jwGlobalUnsupported
     ? Promise.resolve(null)
-    : (rankingSourcePre.kind === "custom" && rankingCustomPre
+    : (rankingSourcePre.kind === "streaming" && streamingRankPre
+      ? awaitWithOwnBudget(sharedSourceFetch<ChartFamilyPin>(streamingSourceKey, () => ensureFreshChartFamily({
+        regionCode: streamingRankPre.regionCode,
+        regionLang: streamingRankPre.regionLang,
+        tmdbLang: streamingRankPre.regionLang,
+        signal: preflightSourceSignal,
+        family: streamingRankPre.family,
+      })), preflightBudgetMs, req.signal)
+        // Per-caller lookup OUTSIDE the coalesced fetch (same contract as the
+        // JW branch): the shared pin is read once, each request derives its
+        // own official chart position.
+        .then((pin) => {
+          streamingSnapshotPin = pin
+          trendRankLive = pin.snapshot != null
+          // Cold failure: fail-closed (never another source's rank, never a
+          // saved rank from a previous source).
+          if (!pin.snapshot) return null
+          // Same slot projection as the catalog/preview: mixed charts keep
+          // their real per-row media type and official positions.
+          const projected = streamingRankingItemsFromPin(
+            pin,
+            mediaType === "movie" ? "movie" : "series",
+            streamingRankPre,
+          )
+          const found = projected.items.find((x) => x.tmdbId === tmdbId)?.rank ?? null
+          return isAutomaticTrendRank(found) ? found : null
+        })
+        .catch(() => { trendRankLive = false; streamingSnapshotPin = null; return null })
+      : rankingSourcePre.kind === "addon"
+      ? (addonRankingInput
+        ? awaitWithOwnBudget(sharedSourceFetch(addonSourceKey, () => fetchAddonRanking({
+          ...addonRankingInput,
+          signal: preflightSourceSignal,
+        })), preflightBudgetMs, req.signal)
+          .then((res) => {
+            trendRankLive = res.status === "ok"
+            if (res.status !== "ok") return null
+            const found = res.items.find((x) => x.tmdbId === tmdbId)?.rank ?? null
+            return isAutomaticTrendRank(found) ? found : null
+          })
+          .catch(() => { trendRankLive = false; return null })
+        : Promise.resolve(null))
+      : rankingSourcePre.kind === "custom" && rankingCustomPre
       ? awaitWithOwnBudget(sharedSourceFetch(customSourceKey, () => fetchCustomRankingTop20({
         custom: rankingCustomPre,
         slot: mediaType === "movie" ? "movie" : "series",
@@ -2735,6 +2816,20 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
           },
           factNowMs,
         )
+      } else if (rankingSourcePre.kind === "streaming") {
+        // Imported Top 10 ranking source: the fact expires with its pinned
+        // family slot (6h/12h cadence), never a fixed TTL.
+        trendFactMs = snapshotSlotRemainingMs(
+          streamingSnapshotPin,
+          streamingRankPre?.family ?? null,
+          factNowMs,
+        )
+      } else if (rankingSourcePre.kind === "addon") {
+        // Imported addon ranking source: the fact expires with the effective
+        // remote page freshness (10 min / 60s empty), never a blind policy.
+        trendFactMs = addonRankingInput
+          ? addonRankingRemainingMs(addonRankingInput, factNowMs)
+          : null
       } else {
         trendFactMs = snapshotSlotRemainingMs(trendSnapshotPin, jwFamily, factNowMs) ?? (
           rankingSourcePre.kind === "justwatch" &&

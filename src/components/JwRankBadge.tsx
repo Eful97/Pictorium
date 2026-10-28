@@ -5,7 +5,7 @@ import { TrendingUp, Trophy } from "lucide-react"
 import { useT } from "@/lib/contexts/TranslationContext"
 import { usePSelector } from "@/lib/context"
 import { getRegionDef } from "@/lib/regions"
-import { resolveRankingSource } from "@/lib/ranking-source"
+import { resolveRankingSource, streamingRankingCatalogName } from "@/lib/ranking-source"
 
 interface Props {
   tmdbId: number
@@ -31,6 +31,7 @@ export function JwRankBadge({ tmdbId, type, regionCode = "IT", userId }: Props) 
   const rankingSourceMovie = usePSelector((v) => v.rankingSourceMovie)
   const rankingSourceSeries = usePSelector((v) => v.rankingSourceSeries)
   const customCatalogs = usePSelector((v) => v.customCatalogs)
+  const streamingSelections = usePSelector((v) => v.streamingSelections)
   const rankSourceNonce = usePSelector((v) => v.rankSourceNonce)
   // Same trigger for custom-list edits under an unchanged selection.
   const catalogsSyncNonce = usePSelector((v) => v.catalogsSyncNonce)
@@ -42,12 +43,16 @@ export function JwRankBadge({ tmdbId, type, regionCode = "IT", userId }: Props) 
   const tvdbApiKey = usePSelector((v) => v.tvdbApiKey)
   const slot = type === "movie" ? "movie" : "series"
   const source = resolveRankingSource(
-    { customCatalogs, rankingSourceMovie, rankingSourceSeries },
+    { customCatalogs, streamingSelections, rankingSourceMovie, rankingSourceSeries },
     slot,
   )
-  const customName = source.kind === "custom"
+  // Source label shared by custom lists and imported Top 10 lists (same
+  // neutral wording keys: "#N · <name>", "outside Top N · <name>").
+  const customName = source.kind === "custom" || source.kind === "addon"
     ? (customCatalogs.find((c) => c.id === source.customId)?.name?.trim() || null)
-    : null
+    : source.kind === "streaming"
+      ? streamingRankingCatalogName(source.catalogId)
+      : null
 
   useEffect(() => {
     let active = true

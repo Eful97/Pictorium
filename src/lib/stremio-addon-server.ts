@@ -1,6 +1,7 @@
 import crypto from "node:crypto"
-import { cacheGet, cacheSet } from "@/lib/cache"
+import { cacheGet, cacheRemainingMs, cacheSet } from "@/lib/cache"
 import { createLogger } from "@/lib/logger"
+import { combineAbortSignals } from "./abort-signal"
 import {
   hopSignal,
   readJsonCapped,
@@ -96,6 +97,21 @@ export async function fetchAddonManifest(
   }
 }
 
+/**
+ * Shared by catalog delivery and its ranking projection: one remote page per
+ * credential/namespace context. The remote manifest + catalog identity is
+ * already in the page cache key, so the local catalog id must not split it
+ * (otherwise the ranking would refetch the same page the catalog serves).
+ */
+export function addonCatalogCacheNamespace(
+  userId: string | null | undefined,
+  configParam: string | null | undefined,
+  apiKey: string | undefined,
+): string {
+  const keyHash = apiKey ? crypto.createHash("sha1").update(apiKey).digest("hex").slice(0, 8) : "nokey"
+  return `${userId ?? "global"}:${configParam ?? "nocfg"}:${keyHash}`
+}
+
 export interface AddonCatalogQuery {
   search?: string
   skip?: number
@@ -114,7 +130,8 @@ export async function fetchAddonCatalogPage(
   query: AddonCatalogQuery,
   requestOrigin: string | null,
   cacheNamespace: string,
-): Promise<{ items: Array<Record<string, unknown>>; error?: undefined } | { items: []; error: AddonFetchError }> {
+  callerSignal?: AbortSignal,
+): Promise<{ items: Array<Record<string, unknown>>; expiresAt?: number; error?: undefined } | { items: []; error: AddonFetchError }> {
   const normalized = normalizeManifestUrl(manifestUrl)
   if (!normalized) return { items: [], error: "invalid_url" }
   if (manifestBaseUrl(normalized) === null) return { items: [], error: "invalid_url" }
@@ -126,13 +143,14 @@ export async function fetchAddonCatalogPage(
   // Cache isolata per sorgente + configurazione (namespace) + catalogo + tipo + parametri.
   const cacheKey = `addon:catalog:${hashFragment(normalized)}:${remoteType}:${hashFragment(remoteId)}${searchFrag}${genreFrag}${skipFrag}:ns${hashFragment(cacheNamespace)}`
   const cached = cacheGet<Array<Record<string, unknown>>>(cacheKey)
-  if (cached) return { items: cached }
+  if (cached) return { items: cached, expiresAt: Date.now() + (cacheRemainingMs(cacheKey) ?? 0) }
 
   const url = buildRemoteCatalogUrl(normalized, remoteType, remoteId, query)
   if (!url) return { items: [], error: "invalid_url" }
   if (await resolveAndCheckBlocked(url)) return { items: [], error: "private_url" }
 
-  const { signal } = hopSignal(ADDON_CATALOG_TIMEOUT_MS, ADDON_CATALOG_TIMEOUT_MS + 3000)
+  const hop = hopSignal(ADDON_CATALOG_TIMEOUT_MS, ADDON_CATALOG_TIMEOUT_MS + 3000)
+  const signal = combineAbortSignals(callerSignal, hop.signal)
   try {
     const res = await safeFetchRemote(url, { signal })
     if (!res.ok) return { items: [], error: "unavailable" }
@@ -141,8 +159,10 @@ export async function fetchAddonCatalogPage(
     if (!items) return { items: [], error: "invalid_manifest" }
     // Solo risposte ok con item vanno in cache lunga; le pagine vuote breve
     // (stesso pattern delle liste custom: errori transienti mai avvelenano).
-    cacheSet(cacheKey, items, ["stremio", "addon"], items.length > 0 ? ADDON_MANIFEST_CACHE_TTL_MS : ADDON_EMPTY_TTL_MS)
-    return { items }
+    const ttl = items.length > 0 ? ADDON_MANIFEST_CACHE_TTL_MS : ADDON_EMPTY_TTL_MS
+    const expiresAt = Date.now() + ttl
+    cacheSet(cacheKey, items, ["stremio", "addon"], ttl)
+    return { items, expiresAt }
   } catch (e) {
     if (e instanceof BodyTooLargeError) return { items: [], error: "too_large" }
     if (e instanceof SafeFetchDeniedError) return { items: [], error: "private_url" }

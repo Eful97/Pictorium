@@ -9,11 +9,14 @@ import { getRegionDef, GLOBAL_REGION_CODE } from "@/lib/regions"
 import {
   resolveRankingSource,
   compatibleRankingCustoms,
+  compatibleRankingStreaming,
   resolveCatalogDisplayName,
   RANKING_SOURCE_JW_POPULAR,
   RANKING_SOURCE_JW_TRENDING,
+  type RankingStreamingOption,
 } from "@/lib/ranking-source"
 import { useOutsideDismiss } from "@/lib/useOutsideDismiss"
+import { parseAnyStreamingCatalogId } from "@/lib/streaming-catalogs"
 import type { RankingSlotKey } from "@/lib/useRankingSources"
 import type { CustomCatalogConfig } from "@/lib/types"
 
@@ -23,6 +26,7 @@ function SlotSelect({
   slot,
   mediaType,
   options,
+  streamingOptions,
   value,
   disabled,
   isGlobal,
@@ -34,6 +38,7 @@ function SlotSelect({
   slot: RankingSlotKey
   mediaType: "movie" | "series"
   options: CustomCatalogConfig[]
+  streamingOptions: RankingStreamingOption[]
   value: string
   disabled: boolean
   isGlobal: boolean
@@ -52,12 +57,34 @@ function SlotSelect({
     onDismiss: () => setIsOpen(false),
   })
 
+  // Imported Top 10 lists share the neutral manifest name between the movie
+  // and series sections: the section suffix (existing i18n labels) is the
+  // only disambiguator in the picker.
+  const streamingLabel = (opt: RankingStreamingOption) => {
+    const section =
+      opt.section === "movies"
+        ? t("ui.movie")
+        : opt.section === "series"
+          ? t("ui.tvSeries")
+          : t("ui.streamSectionMixed")
+    const desc = parseAnyStreamingCatalogId(opt.id)
+    const policy = desc?.source === "flixpatrol"
+      ? t("ui.streamSourceOnlyFp")
+      : desc?.source === "justwatch"
+        ? t("ui.streamSourceOnlyJw")
+        : t("ui.streamSourceAuto")
+    return [opt.name, section, policy, desc?.variant].filter(Boolean).join(" · ")
+  }
+
   const activeCustom = options.find((c) => c.id === value)
-  const isCustom = Boolean(activeCustom)
+  const activeStreaming = streamingOptions.find((o) => o.id === value)
+  const isCustom = Boolean(activeCustom) || Boolean(activeStreaming)
 
   let displayLabel: string
   if (activeCustom) {
     displayLabel = resolveCatalogDisplayName(activeCustom.name, showEmojis)
+  } else if (activeStreaming) {
+    displayLabel = resolveCatalogDisplayName(streamingLabel(activeStreaming), showEmojis)
   } else if (value === RANKING_SOURCE_JW_POPULAR) {
     displayLabel = t("ui.rankingSourceJWPopular")
   } else if (value === RANKING_SOURCE_JW_TRENDING) {
@@ -227,6 +254,31 @@ function SlotSelect({
               </button>
             )
           })}
+
+          {/* Imported Top 10 lists (enabled + section-compatible only) */}
+          {streamingOptions.length > 0 && (
+            <div className="my-1 border-t border-white/[0.06]" />
+          )}
+          {streamingOptions.map((o) => {
+            const isSelected = value === o.id
+            return (
+              <button
+                key={o.id}
+                type="button"
+                role="option"
+                aria-selected={isSelected}
+                onClick={() => handleSelect(o.id)}
+                className={`w-full flex items-center justify-between gap-2 px-3 py-2 rounded-lg text-xs font-medium transition-colors cursor-pointer text-left ${
+                  isSelected
+                    ? "bg-accent-orange/15 text-accent-orange font-semibold"
+                    : "text-zinc-300 hover:text-white hover:bg-white/[0.08]"
+                }`}
+              >
+                <span className="truncate">{resolveCatalogDisplayName(streamingLabel(o), showEmojis)}</span>
+                {isSelected && <Check className="w-3.5 h-3.5 text-accent-orange shrink-0" />}
+              </button>
+            )
+          })}
         </div>
       )}
 
@@ -261,6 +313,11 @@ function SlotSelect({
         {options.map((c) => (
           <option key={c.id} value={c.id}>
             {resolveCatalogDisplayName(c.name, showEmojis)}
+          </option>
+        ))}
+        {streamingOptions.map((o) => (
+          <option key={o.id} value={o.id}>
+            {resolveCatalogDisplayName(streamingLabel(o), showEmojis)}
           </option>
         ))}
       </select>
@@ -342,35 +399,44 @@ export function RankingSourceSection({ regionCode }: { regionCode?: string } = {
   const isGlobal = activeRegionCode.toUpperCase() === GLOBAL_REGION_CODE
   const regionFlag = getRegionDef(activeRegionCode).flag
   const customCatalogs = usePSelector((v) => v.customCatalogs)
+  const streamingSelections = usePSelector((v) => v.streamingSelections)
   const rankingSourceMovie = usePSelector((v) => v.rankingSourceMovie)
   const rankingSourceSeries = usePSelector((v) => v.rankingSourceSeries)
   const setRankingSource = usePSelector((v) => v.setRankingSource)
   const [saving, setSaving] = useState<null | RankingSlotKey>(null)
 
-  const selection = { customCatalogs, rankingSourceMovie, rankingSourceSeries }
+  const selection = { customCatalogs, streamingSelections, rankingSourceMovie, rankingSourceSeries }
   const movieSource = resolveRankingSource(selection, "movie")
   const seriesSource = resolveRankingSource(selection, "series")
 
   const movieValue =
-    movieSource.kind === "custom"
+    movieSource.kind === "custom" || movieSource.kind === "addon"
       ? movieSource.customId
-      : movieSource.mode === "popular"
-        ? RANKING_SOURCE_JW_POPULAR
-        : movieSource.mode === "trending"
-          ? RANKING_SOURCE_JW_TRENDING
-          : ""
+      : movieSource.kind === "streaming"
+        ? movieSource.catalogId
+        : movieSource.mode === "popular"
+          ? RANKING_SOURCE_JW_POPULAR
+          : movieSource.mode === "trending"
+            ? RANKING_SOURCE_JW_TRENDING
+            : ""
 
   const seriesValue =
-    seriesSource.kind === "custom"
+    seriesSource.kind === "custom" || seriesSource.kind === "addon"
       ? seriesSource.customId
-      : seriesSource.mode === "popular"
-        ? RANKING_SOURCE_JW_POPULAR
-        : seriesSource.mode === "trending"
-          ? RANKING_SOURCE_JW_TRENDING
-          : ""
+      : seriesSource.kind === "streaming"
+        ? seriesSource.catalogId
+        : seriesSource.mode === "popular"
+          ? RANKING_SOURCE_JW_POPULAR
+          : seriesSource.mode === "trending"
+            ? RANKING_SOURCE_JW_TRENDING
+            : ""
 
   const movieOptions = compatibleRankingCustoms(customCatalogs, "movie")
   const seriesOptions = compatibleRankingCustoms(customCatalogs, "series")
+  // Imported Top 10 lists: enabled + section-compatible selections only
+  // (`mixed`/`all` fits both slots, official chart ranks 1..10).
+  const movieStreamingOptions = compatibleRankingStreaming(streamingSelections, "movie")
+  const seriesStreamingOptions = compatibleRankingStreaming(streamingSelections, "series")
 
   const isMovieIncompatible = isGlobal && (movieValue === RANKING_SOURCE_JW_POPULAR || movieValue === RANKING_SOURCE_JW_TRENDING)
   const isSeriesIncompatible = isGlobal && (seriesValue === RANKING_SOURCE_JW_POPULAR || seriesValue === RANKING_SOURCE_JW_TRENDING)
@@ -406,6 +472,7 @@ export function RankingSourceSection({ regionCode }: { regionCode?: string } = {
             slot="movie"
             mediaType="movie"
             options={movieOptions}
+            streamingOptions={movieStreamingOptions}
             value={movieValue}
             disabled={saving !== null}
             isGlobal={isGlobal}
@@ -418,6 +485,7 @@ export function RankingSourceSection({ regionCode }: { regionCode?: string } = {
             slot="series"
             mediaType="series"
             options={seriesOptions}
+            streamingOptions={seriesStreamingOptions}
             value={seriesValue}
             disabled={saving !== null}
             isGlobal={isGlobal}
@@ -429,8 +497,8 @@ export function RankingSourceSection({ regionCode }: { regionCode?: string } = {
         {/* Info popover */}
         <RankingInfoPopover
           regionFlag={regionFlag}
-          movieOptionsCount={movieOptions.length}
-          seriesOptionsCount={seriesOptions.length}
+          movieOptionsCount={movieOptions.length + movieStreamingOptions.length}
+          seriesOptionsCount={seriesOptions.length + seriesStreamingOptions.length}
         />
       </div>
     </section>

@@ -312,11 +312,12 @@ export interface ServerDefaults {
    */
   streamingSelections?: import("@/lib/streaming-catalogs").StreamingSelection[]
   /**
-   * Top 20 global ranking source (custom catalog id) per slot.
+   * Top 20 global ranking source per slot: a custom catalog id, an imported
+   * Top 10 streaming catalog id, or an imported Stremio-addon catalog id.
    * Absent/empty = JustWatch (retrocompatible default). The resolver
-   * (`ranking-source.ts`) validates existence, `enabled !== false` and type
-   * compatibility (movie/series/mixed); deleted or incompatible ids return
-   * JustWatch without errors.
+   * (`ranking-source.ts`) validates existence, `enabled !== false`, source
+   * compatibility (real remote type / streaming section / movie-series-mixed);
+   * deleted or incompatible ids return JustWatch without errors.
    */
   rankingSourceMovie?: string
   rankingSourceSeries?: string

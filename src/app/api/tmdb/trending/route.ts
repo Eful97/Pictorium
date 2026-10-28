@@ -9,12 +9,15 @@ import { decodeConfig } from "@/lib/config-token"
 import { rateLimit, rateLimitKey, rateLimitResponse } from "@/lib/rate-limit"
 import { getRegionDef, normalizeRegion, parseRegion, GLOBAL_REGION_CODE } from "@/lib/regions"
 import { ensureFreshChartFamily } from "@/lib/chart-renewal"
+import { fetchStreamingRanking, streamingRankingCoordinates, streamingRankingItemsFromPin } from "@/lib/streaming-ranking"
+import { addonRankingRemainingMs, addonRankingSourceKey, fetchAddonRanking } from "@/lib/addon-ranking"
 import { CHART_LIVE_PIN_ID, pinChartFamily, pinnedFamilyRows, type ChartFamilyPin } from "@/lib/chart-generation"
 import { cacheGet, cacheSet } from "@/lib/cache"
 import { createLogger } from "@/lib/logger"
 import { jsonGzip } from "@/lib/json-response"
 import { combineAbortSignals } from "@/lib/abort-signal"
 import crypto from "node:crypto"
+import { getOriginFromRequest } from "@/lib/poster-public-url"
 import {
   TRENDING_ENDPOINT_TIMEOUT_MS,
   TRENDING_ENRICH_CONCURRENCY,
@@ -91,15 +94,16 @@ export async function GET(req: NextRequest) {
   const namespaceDefaults = scopedUser ? await getServerDefaultsForUser(scopedUser) : getServerDefaults()
   const selection = {
     customCatalogs: tokenConfig?.customCatalogs ?? namespaceDefaults.customCatalogs,
+    streamingSelections: tokenConfig?.streamingSelections ?? namespaceDefaults.streamingSelections,
     rankingSourceMovie: tokenConfig?.rankingSourceMovie ?? namespaceDefaults.rankingSourceMovie,
     rankingSourceSeries: tokenConfig?.rankingSourceSeries ?? namespaceDefaults.rankingSourceSeries,
   }
   const movieSource = resolveRankingSource(selection, "movie")
   const seriesSource = resolveRankingSource(selection, "series")
-  const movieCustom = movieSource.kind === "custom"
+  const movieCustom = movieSource.kind === "custom" || movieSource.kind === "addon"
     ? findRankingCustomCatalog(selection.customCatalogs, movieSource.customId)
     : undefined
-  const seriesCustom = seriesSource.kind === "custom"
+  const seriesCustom = seriesSource.kind === "custom" || seriesSource.kind === "addon"
     ? findRankingCustomCatalog(selection.customCatalogs, seriesSource.customId)
     : undefined
   const resolvedKeys = await resolveUserApiKeys(req, scopedUser)
@@ -119,14 +123,22 @@ export async function GET(req: NextRequest) {
   // isolated per payload-changing credentials).
   const movieFrag = movieSource.kind === "custom" && movieCustom
     ? `rsm${hashFragment(`${movieSource.customId}:${movieCustom.url}:${movieCustom.datasetId ?? ""}`)}`
-    : movieSource.kind === "justwatch" && movieSource.mode !== "charts"
-      ? `rsm_jw_${movieSource.mode}`
-      : "rsm_jw"
+    : movieSource.kind === "addon" && movieCustom?.addon
+      ? `rsm_a${addonRankingSourceKey(movieCustom.addon)}`
+      : movieSource.kind === "streaming"
+        ? `rsm_s${hashFragment(movieSource.catalogId)}`
+        : movieSource.kind === "justwatch" && movieSource.mode !== "charts"
+          ? `rsm_jw_${movieSource.mode}`
+          : "rsm_jw"
   const seriesFrag = seriesSource.kind === "custom" && seriesCustom
     ? `rss${hashFragment(`${seriesSource.customId}:${seriesCustom.url}:${seriesCustom.datasetId ?? ""}`)}`
-    : seriesSource.kind === "justwatch" && seriesSource.mode !== "charts"
-      ? `rss_jw_${seriesSource.mode}`
-      : "rss_jw"
+    : seriesSource.kind === "addon" && seriesCustom?.addon
+      ? `rss_a${addonRankingSourceKey(seriesCustom.addon)}`
+      : seriesSource.kind === "streaming"
+        ? `rss_s${hashFragment(seriesSource.catalogId)}`
+        : seriesSource.kind === "justwatch" && seriesSource.mode !== "charts"
+          ? `rss_jw_${seriesSource.mode}`
+          : "rss_jw"
   const isDefaultScope = movieFrag === "rsm_jw" && seriesFrag === "rss_jw" && !scopedUser && !configParam
   let cacheKey = `trending:v2:${country}`
   if (!isDefaultScope) {
@@ -164,6 +176,9 @@ export async function GET(req: NextRequest) {
     // D6: traccia gli errori upstream — una risposta degradata NON va cachata,
     // altrimenti un outage (JW/TMDB) si congela nel cache fino al refresh.
     let degraded = false
+    // Effective addon ranking freshness: the trending body may never outlive
+    // the imported source page it was built from.
+    let addonRankingExpiresAt: number | null = null
     // Timeout/budget scattati durante l'arricchimento: il parziale resta valido
     // ma va marcato incompleto (mai cacheato come sano).
     let enrichmentTimedOut = false
@@ -207,21 +222,38 @@ export async function GET(req: NextRequest) {
       if ((mode === "popular" || mode === "trending") && country.toUpperCase() === GLOBAL_REGION_CODE) return null
       return `jw:${slot === "movie" ? "movie" : "series"}:${mode}`
     }
+    // Imported Top 10 ranking source: the preview reads the SAME pinned family
+    // its own catalog serves (official 1..10 ranks), never a JW window.
+    const streamingCoordsFor = (slot: "movie" | "series") => {
+      const source = slot === "movie" ? movieSource : seriesSource
+      return source.kind === "streaming" ? streamingRankingCoordinates(source.catalogId) : null
+    }
+    const movieStreamingCoords = streamingCoordsFor("movie")
+    const seriesStreamingCoords = streamingCoordsFor("series")
     const movieFamily = jwFamilyFor("movie")
     const seriesFamily = jwFamilyFor("series")
-    const pinSlot = async (family: string | null): Promise<ChartFamilyPin> => {
-      if (!family) return { id: CHART_LIVE_PIN_ID, snapshot: null }
+    const pinSlot = async (
+      family: string | null,
+      coords: ReturnType<typeof streamingCoordsFor>,
+    ): Promise<ChartFamilyPin> => {
+      if (!family && !coords) return { id: CHART_LIVE_PIN_ID, snapshot: null }
+      const regionCode = coords ? coords.regionCode : country
+      const regionLang = coords ? coords.regionLang : tmdbLang
       try {
         return await ensureFreshChartFamily({
-          regionCode: country,
-          regionLang: tmdbLang,
-          tmdbLang,
-          family,
+          regionCode,
+          regionLang,
+          tmdbLang: regionLang,
+          family: family ?? (coords as NonNullable<typeof coords>).family,
           signal: jwSignal,
         })
       } catch {
         try {
-          return await pinChartFamily({ regionCode: country, regionLang: tmdbLang, family })
+          return await pinChartFamily({
+            regionCode,
+            regionLang,
+            family: family ?? (coords as NonNullable<typeof coords>).family,
+          })
         } catch {
           return { id: CHART_LIVE_PIN_ID, snapshot: null }
         }
@@ -229,7 +261,10 @@ export async function GET(req: NextRequest) {
     }
     const [moviePin, seriesPin] = preAborted
       ? [livePin, livePin]
-      : await Promise.all([pinSlot(movieFamily), pinSlot(seriesFamily)])
+      : await Promise.all([
+          pinSlot(movieFamily, movieStreamingCoords),
+          pinSlot(seriesFamily, seriesStreamingCoords),
+        ])
     // Generation-fenced lookup: the key stays source-scoped (legacy
     // `trending:v2:<country>` byte-identical), the payload carries the actual
     // pinned generations — a hit from a previous generation is a miss.
@@ -262,6 +297,65 @@ export async function GET(req: NextRequest) {
       label: string,
     ): Promise<{ tmdbId: number; rank: number }[]> => {
       const source = slot === "movie" ? movieSource : seriesSource
+      if (source.kind === "addon") {
+        // Imported addon catalog: same SSRF-safe page (and real positions) the
+        // catalog passthrough serves. No chart pin, no JW traffic, no
+        // renumbering after unresolvable IDs.
+        const custom = slot === "movie" ? movieCustom : seriesCustom
+        if (!custom?.addon) return []
+        const addonInput = {
+          custom,
+          slot,
+          apiKey,
+          tvdbKey: resolvedKeys.tvdb.key,
+          userId: scopedUser,
+          configParam,
+          requestOrigin: getOriginFromRequest(req),
+        }
+        try {
+          const res = await fetchAddonRanking({ ...addonInput, signal: jwSignal })
+          if (res.status === "error") {
+            degraded = true
+            log.warn("Addon Top 20 ranking unavailable", { country, slot, error: res.errorStatus })
+            return []
+          }
+          const remaining = addonRankingRemainingMs(addonInput)
+          const expiresAt = Date.now() + (remaining ?? 0)
+          addonRankingExpiresAt = addonRankingExpiresAt === null
+            ? expiresAt
+            : Math.min(addonRankingExpiresAt, expiresAt)
+          return res.items.map((r) => ({ tmdbId: r.tmdbId, rank: r.rank }))
+        } catch (e) {
+          degraded = true
+          if (isAbortLike(e)) enrichmentTimedOut = true
+          log.warn(`Addon ${label} rankings failed`, { error: e instanceof Error ? e.message : String(e), country })
+          return []
+        }
+      }
+      if (source.kind === "streaming") {
+        // Imported Top 10 list: same published rows (and official ranks) the
+        // catalog serves. A published snapshot always wins (a genuine empty
+        // stays empty); only a cold miss retries through the shared service.
+        const coords = slot === "movie" ? movieStreamingCoords : seriesStreamingCoords
+        const pin = slot === "movie" ? moviePin : seriesPin
+        if (coords && pin.snapshot) {
+          return streamingRankingItemsFromPin(pin, slot, coords).items.map((r) => ({ tmdbId: r.tmdbId, rank: r.rank }))
+        }
+        try {
+          const res = await fetchStreamingRanking({ catalogId: source.catalogId, slot, signal: jwSignal })
+          if (res.status === "error") {
+            degraded = true
+            log.warn("Top 10 streaming ranking unavailable", { country, slot })
+            return []
+          }
+          return res.items.map((r) => ({ tmdbId: r.tmdbId, rank: r.rank }))
+        } catch (e) {
+          degraded = true
+          if (isAbortLike(e)) enrichmentTimedOut = true
+          log.warn(`Streaming ${label} rankings failed`, { error: e instanceof Error ? e.message : String(e), country })
+          return []
+        }
+      }
       if (source.kind === "justwatch") {
         const mode = source.mode ?? "charts"
         if ((mode === "popular" || mode === "trending") && country.toUpperCase() === GLOBAL_REGION_CODE) {
@@ -438,7 +532,10 @@ export async function GET(req: NextRequest) {
       log.warn("Trending degraded — response not cached", { country, movies: movieResults.length, tv: tvResults.length })
       return jsonGzip({ movies: body.movies, tv: body.tv, updatedAt: body.updatedAt, degraded: true }, 200, { "Cache-Control": "no-store" }, acceptEncoding)
     }
-    cacheSet(cacheKey, body, ["tmdb", "trending", country])
+    const addonTtl = addonRankingExpiresAt === null ? undefined : addonRankingExpiresAt - Date.now()
+    if (addonTtl === undefined || addonTtl > 0) {
+      cacheSet(cacheKey, body, ["tmdb", "trending", country], addonTtl)
+    }
     return jsonGzip({ movies: body.movies, tv: body.tv, updatedAt: body.updatedAt, degraded: false }, 200, mutablePreviewHeaders, acceptEncoding)
   } catch (err) {
     log.error("Trending fetch failed", { error: err instanceof Error ? err.message : String(err) })

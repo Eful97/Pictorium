@@ -420,25 +420,78 @@ preservato dentro e fuori il gruppo anime, nessun duplicato.
 
 I cataloghi globali `pictorium-jw-movies` / `pictorium-jw-series` e i badge
 classifica (poster, preview, `/api/trending/rank`) possono usare JustWatch
-(default retrocompatibile) oppure un catalogo custom già importato come fonte
-ranking. La selezione vive in `ServerDefaults` + config token (stringa vuota =
-override JW esplicito); il manifest mostra il nome della lista custom al posto
-di "JustWatch" e la UI la configura in CataloghiView accanto ai cataloghi
-importati (due dropdown Film/Serie, solo custom abilitati e compatibili per
-tipo; `mixed` vale per entrambi).
+(default retrocompatibile) oppure una lista importata come fonte ranking. La
+selezione vive in `ServerDefaults` + config token (stringa vuota = override JW
+esplicito, max 160 caratteri = cap dell'id streaming derivato); il manifest
+mostra il nome effettivo della lista al posto di "JustWatch" e la UI la
+configura in CataloghiView (due dropdown Film/Serie).
+
+Fonti ammesse:
+
+- catalogo custom importato: solo custom abilitati e compatibili per tipo
+  (`mixed` vale per entrambi);
+- Top 10 streaming caricata in Pictorium (`streamingSelections`): id derivato
+  (`pictorium-stream-*` legacy o `pictorium-stream2-*`) di una selezione
+  ABILITATA e compatibile per sezione (`movies`→Film, `series`→Serie, `all`
+  mista→entrambi). La lista video e le platform built-in storiche (modalità
+  legacy senza `streamingSelections`) NON sono fonti ranking: nessuna
+  selezione da abilitare/disabilitare lì;
+- catalogo importato da addon Stremio (`customCatalogs[].addon`): abilitato e
+  compatibile per lo slot con il tipo REALE del catalogo remoto
+  (`addon.catalogType`), mai con il solo tipo locale; lo stesso manifest può
+  esporre più cataloghi e resta una fonte distinta per ciascuno. La richiesta
+  ranking è fissa (nessuna search/genre), quindi un extra OBBLIGATORIO diverso
+  da `skip` rende la lista non selezionabile (fail-closed, mai una lista che
+  non può essere letta).
 
 - Puro: `resolveRankingSource()` in `lib/ranking-source.ts` (foglia
   client-safe, riusata da UI e server) — id eliminato, spento
-  (`enabled === false`) o incompatibile → JustWatch, mai errori.
+  (`enabled === false`), sezione/tipo remoto incompatibile o non appartenente
+  alle selezioni streaming dello spazio → JustWatch, mai errori.
 - Recupero: `fetchCustomRankingTop20()` in `lib/custom-ranking.ts`, unica
   funzione per cataloghi/badge/poster — filtro per tipo, risoluzione
   IMDb/TVDB→TMDB, dedup, STOP alle prime 20 posizioni valide (niente filler
   JW, pagine oltre la Top 20 vuote). Errori provider → stato esplicito, mai
   fallback silenzioso; solo `ok` con item va in cache (30 min, tag
   `custom_catalogs`, chiave con hash di selezione/credenziali/namespace).
-- Badge: il rank custom viaggia sul canale `trendRank` (label Film/Serie);
-  fuori Top 20 o in errore nessun badge, mai rank JW. Piattaforme e anime
-  invariati. Le chiavi API non entrano mai nei poster URL (solo server-side).
+- Recupero streaming: `fetchStreamingRanking()` in `lib/streaming-ranking.ts`
+  risolve la STESSA famiglia pinnata che serve la lista (`stream:<service>:
+  <movie|series>` per i legacy, `stream2:*` per i generici, gruppo = paese
+  della selezione) via `ensureFreshChartFamily` — un solo snapshot per
+  catalogo/preview/badge/poster, senza una seconda classifica indipendente;
+  il rinnovo usa la policy FP/JW della lista selezionata, mai il JW generale.
+  Le posizioni sono quelle ufficiali della chart Top 10 (1..10): mai
+  rinumerate, mai clampate, mai posizioni 11..20 inventate; nelle chart miste
+  il filtro per slot preserva i rank reali (possono saltare). Snapshot
+  assente (cold failure) = stato `error` esplicito (notice nel catalogo,
+  502 nel rank route), mai una sostituzione JW; snapshot `empty` = vuoto
+  genuino.
+- Recupero addon: `fetchAddonRanking()` in `lib/addon-ranking.ts` rilegge la
+  STESSA pagina remota del passthrough addon via `fetchAddonCatalogPage`
+  (SSRF-safe, namespace e guard self esistenti), con identità del catalogo
+  remoto effettivo (`manifestUrl` + `catalogId` + `catalogType`) nei cache
+  key. Conserva ordine e posizioni reali: gli ID non risolvibili si
+  scartano senza rinumerare (nessun backfill). Window: 10 righe = Top 10,
+  altrimenti prime 20 posizioni (mai dedotto dal nome); nelle fonti miste
+  vale il `type` reale della riga. Solo ID già sicuri/risolvibili
+  (`tmdb:`/numerico, `tt`/`tvdb` via `/find` condiviso) e nessun details
+  fetch. Chiave mancante o fetch fallito = stato `error` esplicito, mai
+  cacheato; il TTL `ok`/`empty` (massimo 10 min / 60 s) è limitato dalla
+  scadenza assoluta della pagina remota, senza rinnovare un cache hit vecchio.
+  Questa scadenza limita anche catalogo globale, rank, poster e preview; il
+  catalogo addon selezionato condivide namespace e validità della pagina.
+  L'abort del chiamante raggiunge il fetch remoto; gli ID TVDB usano `/find`
+  di TMDB con la chiave TMDB, senza richiedere una chiave TVDB.
+- Badge: il rank della lista viaggia sul canale `trendRank` con lo stesso
+  contratto del custom (label Film/Serie e nome lista); fuori Top 20 o in
+  errore nessun badge, mai rank JW. Piattaforme e anime invariati. Le chiavi
+  API non entrano mai nei poster URL (solo server-side). Il badge legge il
+  rank dal pin streaming e il freshness cap segue la fine slot della famiglia
+  (6h `stream2:justwatch:*` / 12h altre), non un TTL fisso.
+- Coerenza cache: il catalogo JW con fonte streaming pinna la famiglia PRIMA
+  della cache key (fence `:cg`) e include `:rss<hash id>` + TTL di fine slot,
+  così un publish invalida subito i ready body e due liste diverse non
+  condividono mai il body.
 - Spazi senza namespace (local-only/profileless): la selezione viaggia in un
   token firmato `?config=` coniato da `POST /api/config-token` (payload anche
   solo cataloghi: il server completa i visual dai defaults). Le esclusioni
@@ -784,6 +837,8 @@ regionale JW > base; liste custom con split `— Film/Serie TV` per `mixed`):
 - `src/lib/catalog-handler.ts` — `pictoriumCatalog(req, mediaType, rawId, userParam, configParam)` (logica unica). `userParam` (param `u=`/`user`) è il profilo UUID: entra nel cache key come `:u<uuid>` e nei poster URL come `user` (`&u=`). `configParam` è il config token (`config=`).
 - `src/lib/ranking-source.ts` — selezione fonte Top 20 (pura, client-safe)
 - `src/lib/custom-ranking.ts` — Top 20 da lista custom (unica funzione condivisa)
+- `src/lib/streaming-ranking.ts` — Top 10 di una lista streaming come fonte ranking (pin condiviso, rank ufficiali 1..10)
+- `src/lib/addon-ranking.ts` — Top 10/20 di un catalogo addon importato come fonte ranking (pagina remota condivisa, posizioni reali)
 - `src/lib/useRankingSources.ts` — stato client, persistenza e nonce di refresh
 - `src/components/RankingSourceSection.tsx` — dropdown Film/Serie in CataloghiView
 - `src/lib/justwatch.ts` — `getJWRankings` (GraphQL + cache)

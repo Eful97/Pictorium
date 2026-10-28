@@ -11,13 +11,15 @@ import { getById } from "@/lib/store"
 import { decodeConfig, type PictoriumUserConfig } from "@/lib/config-token"
 import { getDetails, getDetailsWithExternalIds, getGenreList, getImages, personMovieCredits, personTvCredits, posterUrlOriginal, resolveUserApiKeys, searchMovies, searchPerson, searchTV, tmdbFindByImdb, tmdbFindByTvdb, type TMDBDetails } from "@/lib/tmdb"
 import { resolveImdbId } from "@/lib/imdb-cache"
-import { resolveRankingSource, rankingSourceCatalogName } from "@/lib/ranking-source"
+import { resolveRankingSource, rankingSourceCatalogName, streamingRankingCatalogName } from "@/lib/ranking-source"
+import { streamingRankingCoordinates, streamingRankingItemsFromPin } from "@/lib/streaming-ranking"
+import { addonRankingRemainingMs, addonRankingSourceKey, fetchAddonRanking } from "@/lib/addon-ranking"
 import { findRankingCustomCatalog } from "@/lib/custom-ranking"
 import { fetchTop20Ranking } from "@/lib/top20-ranking"
 import { buildNoticeMeta, noticeCatalogId, NOTICE_CUSTOM_RANKING_UNAVAILABLE, NOTICE_CUSTOM_RANKING_UNAVAILABLE_DESCRIPTION, NOTICE_CUSTOM_RANKING_UNAVAILABLE_TITLE, NOTICE_MISSING_TVDB_KEY, NOTICE_MISSING_TVDB_KEY_TITLE, NOTICE_MISSING_TVDB_KEY_DESCRIPTION } from "@/lib/notice-meta"
 import { fetchUnifiedCatalogResult } from "@/lib/custom-catalog-providers"
 import { detectCatalogProvider, isTraktUserContentUrl } from "@/lib/catalog-provider-detect"
-import { fetchAddonCatalogPage } from "@/lib/stremio-addon-server"
+import { addonCatalogCacheNamespace, fetchAddonCatalogPage } from "@/lib/stremio-addon-server"
 import { parseSupportedTmdbRef } from "@/lib/stremio-addon"
 import { buildStremioPosterUrl, stremioPosterShape } from "@/lib/stremio-poster-url"
 import { getOriginFromRequest } from "@/lib/poster-public-url"
@@ -41,6 +43,7 @@ import {
   jwFallbackSupported,
   parseGenericStreamingCatalogId,
   parseStreamingCatalogId,
+  type GenericStreamingSelectionInput,
   type StreamingActualSource,
 } from "@/lib/streaming-catalogs"
 import { detectSeasonalThemeFromCatalogName, resolveEffectiveCatalogDisplayName, resolveEffectiveSeasonalTheme, sanitizeSeasonalCustomKeywords, type SeasonalCustomKeywordsInput, type SeasonalTheme } from "@/lib/seasonal-theme"
@@ -599,6 +602,7 @@ export function resolveCatalogSeasonalTheme(
   stType: "movie" | "series" | "all",
   opts: {
     customCatalogs?: readonly CustomCatalogConfig[] | null
+    streamingSelections?: readonly GenericStreamingSelectionInput[] | null
     catalogRenames?: Record<string, string> | null | undefined
     rankingSourceMovie?: string | null
     rankingSourceSeries?: string | null
@@ -615,6 +619,7 @@ export function resolveCatalogSeasonalTheme(
     themeSlot,
     {
       customCatalogs: opts.customCatalogs,
+      streamingSelections: opts.streamingSelections,
       rankingSourceMovie: opts.rankingSourceMovie,
       rankingSourceSeries: opts.rankingSourceSeries,
     },
@@ -802,21 +807,26 @@ export async function pictoriumCatalog(
   const rankingSource = resolveRankingSource(
     {
       customCatalogs: userConfig?.customCatalogs,
+      streamingSelections: userConfig?.streamingSelections,
       rankingSourceMovie: userConfig?.rankingSourceMovie,
       rankingSourceSeries: userConfig?.rankingSourceSeries,
     },
     stType === "all" ? "series" : stType,
   )
-  const rankingCustom = rankingSource.kind === "custom"
+  const rankingCustom = rankingSource.kind === "custom" || rankingSource.kind === "addon"
     ? findRankingCustomCatalog(userConfig?.customCatalogs, rankingSource.customId)
     : undefined
   const rankingFragment = !catalogId.startsWith("pictorium-jw")
     ? ""
     : rankingSource.kind === "custom" && rankingCustom
       ? `:rs${hashFragment(`${rankingSource.customId}:${rankingCustom.url}:${rankingCustom.datasetId ?? ""}`)}`
-      : rankingSource.kind === "justwatch" && rankingSource.mode !== "charts"
-        ? `:rsjw_${rankingSource.mode}`
-        : ":rsjw"
+      : rankingSource.kind === "addon" && rankingCustom?.addon
+        ? `:rsa${addonRankingSourceKey(rankingCustom.addon)}`
+        : rankingSource.kind === "streaming"
+          ? `:rss${hashFragment(rankingSource.catalogId)}`
+          : rankingSource.kind === "justwatch" && rankingSource.mode !== "charts"
+            ? `:rsjw_${rankingSource.mode}`
+          : ":rsjw"
 
   // Fixed chart cycles, simplified: ONE independent snapshot per canonical
   // family (no all-source barrier). The family for this request resolves from
@@ -869,6 +879,33 @@ export async function pictoriumCatalog(
       : await pinChartFamily({ regionCode: region.code, regionLang: tmdbLang, mdblistKey, family: chartFamily }))
     : { id: CHART_LIVE_PIN_ID, snapshot: null }
   const chartCgFragment = chartFamily ? chartPinCacheFragment(chartPin) : ""
+
+  // Imported Top 10 ranking source: the global Top 20 catalog reads the SAME
+  // pinned family its own list serves (official ranks 1..10, no invented
+  // 11..20). Pinned BEFORE the response cache key so a publish invalidates
+  // ready bodies immediately, and only when this request actually consumes
+  // the rows (JW catalog, TMDB key present, window inside the Top 20). Other
+  // catalogs keep zero ranking chart I/O (their badges resolve at render).
+  const streamingRankingNeeded =
+    rankingSource.kind === "streaming" &&
+    stType !== "all" &&
+    catalogId.startsWith("pictorium-jw") &&
+    !!apiKey &&
+    !(typeof extra.skip === "number" && extra.skip >= 20)
+  const streamingRankingCoords = streamingRankingNeeded
+    ? streamingRankingCoordinates(rankingSource.catalogId)
+    : null
+  const streamingRankingPin: ChartFamilyPin | null = streamingRankingCoords
+    ? await ensureFreshChartFamily({
+      regionCode: streamingRankingCoords.regionCode,
+      regionLang: streamingRankingCoords.regionLang,
+      tmdbLang: streamingRankingCoords.regionLang,
+      family: streamingRankingCoords.family,
+    })
+    : null
+  const streamingRankingCgFragment = streamingRankingPin
+    ? chartPinCacheFragment(streamingRankingPin)
+    : ""
 
   // Actual source disclosure for opt-in streaming selections (honest public
   // labels): the family pin was resolved upfront with zero extra I/O, so its
@@ -934,6 +971,7 @@ export async function pictoriumCatalog(
   }
   const catalogTheme = resolveCatalogSeasonalTheme(catalogId, stType, {
     customCatalogs: userConfig?.customCatalogs,
+    streamingSelections: userConfig?.streamingSelections,
     catalogRenames: userConfig?.catalogRenames,
     rankingSourceMovie: userConfig?.rankingSourceMovie,
     rankingSourceSeries: userConfig?.rankingSourceSeries,
@@ -1229,7 +1267,7 @@ export async function pictoriumCatalog(
       }
     }
   }
-  const cacheKey = `stremio:catalog:v4:${stType}:${catalogId}:pv${POSTER_URL_VERSION}${scopedUser ? `:u${hashUserFragment(scopedUser)}` : ""}:ak${apiKey ? hashFragment(apiKey) : "none"}${configParam ? `:cfg${hashFragment(configParam)}` : ""}${mdblistKey ? `:mk${hashFragment(mdblistKey)}` : ""}${tvdbKey ? `:tv${hashFragment(tvdbKey)}` : ""}${genreFragment}${skipFragment}${searchFragment}${regionFragment}${rankingFragment}${chartCgFragment}${traktGenFragment}${themeFragment}${freshness}`
+  const cacheKey = `stremio:catalog:v4:${stType}:${catalogId}:pv${POSTER_URL_VERSION}${scopedUser ? `:u${hashUserFragment(scopedUser)}` : ""}:ak${apiKey ? hashFragment(apiKey) : "none"}${configParam ? `:cfg${hashFragment(configParam)}` : ""}${mdblistKey ? `:mk${hashFragment(mdblistKey)}` : ""}${tvdbKey ? `:tv${hashFragment(tvdbKey)}` : ""}${genreFragment}${skipFragment}${searchFragment}${regionFragment}${rankingFragment}${chartCgFragment}${streamingRankingCgFragment}${traktGenFragment}${themeFragment}${freshness}`
   // C1: L1 + L2 condivisa (KV su multi-istanza, no-op locale/VPS).
   // Il selettore conserva il TTL originale anche dopo il ripopolamento L1
   // da KV (il payload KV non trasporta la scadenza): pieno → 1h, vuoto → 60s.
@@ -1268,6 +1306,10 @@ export async function pictoriumCatalog(
   // Variant windows (skip/genre beyond the canonical slice), custom, search
   // and addon responses keep their historical TTLs.
   let servedCanonical = false
+  // Imported addon ranking sources have no chart cycle: their ready body is
+  // capped by the effective addon ranking freshness (10 min), never a blind
+  // 1h/12h window. Null = no addon source consumed by this request.
+  let addonRankingExpiresAt: number | null = null
   // Provenienza privata del provider per la coerenza outer-cache (correction
   // cycle 1): true quando il body in costruzione contiene item fetchati con
   // il Bearer del proprietario. Vedi coda della funzione prima del cacheSet.
@@ -1316,15 +1358,18 @@ export async function pictoriumCatalog(
           ...(typeof extra.skip === "number" ? { skip: extra.skip } : {}),
           ...(extra.genre ? { genre: extra.genre } : {}),
         }
-        const nsKey = `${scopedUser ?? "global"}:${configParam ?? "nocfg"}:${apiKey ? hashFragment(apiKey) : "nokey"}`
+        const nsKey = addonCatalogCacheNamespace(scopedUser, configParam, apiKey)
         const page = await fetchAddonCatalogPage(
           addon.manifestUrl,
           remoteType,
           addon.catalogId,
           addonQuery,
           getOriginFromRequest(req),
-          `${nsKey}:${catalogId}`,
+          nsKey,
         ).catch(() => ({ items: [] as Array<Record<string, unknown>>, error: "unavailable" as const }))
+        if (rankingSource.kind === "addon" && rankingSource.customId === customCat.id && "expiresAt" in page) {
+          addonRankingExpiresAt = page.expiresAt ?? Date.now()
+        }
         const remoteItems = ("items" in page && Array.isArray(page.items) ? page.items : []) as Array<Record<string, unknown>>
         // Conserva ordine/duplicati/ID: nessuna dedup, nessun ordinamento,
         // nessuna ricerca per titolo. Un errore di arricchimento non elimina il titolo.
@@ -1704,7 +1749,44 @@ export async function pictoriumCatalog(
           // fetch owns ordering, as before).
           const ranking = rankingSource.kind === "justwatch"
             ? { status: "ok" as const, items: pinnedFamilyRows(chartPin) ?? [] }
-            : await fetchTop20Ranking({
+            : rankingSource.kind === "streaming"
+              ? streamingRankingItemsFromPin(
+                  streamingRankingPin ?? { id: CHART_LIVE_PIN_ID, snapshot: null },
+                  stType,
+                  streamingRankingCoords ?? {
+                    family: "",
+                    regionCode: region.code,
+                    regionLang: tmdbLang,
+                    section: stType === "movie" ? "movies" : "series",
+                  },
+                )
+              : rankingSource.kind === "addon"
+                ? rankingCustom?.addon
+                  ? await fetchAddonRanking({
+                    custom: rankingCustom,
+                    slot: stType,
+                    apiKey,
+                    tvdbKey,
+                    userId: scopedUser,
+                    configParam,
+                    requestOrigin: getOriginFromRequest(req),
+                  }).then((res) => {
+                    if (res.status === "ok" || res.status === "empty") {
+                      const remainingMs = addonRankingRemainingMs({
+                        custom: rankingCustom,
+                        slot: stType,
+                        apiKey,
+                        tvdbKey,
+                        userId: scopedUser,
+                        configParam,
+                        requestOrigin: null,
+                      })
+                      addonRankingExpiresAt = Date.now() + (remainingMs ?? 0)
+                    }
+                    return res
+                  })
+                  : { status: "empty" as const, items: [], window: 20 as const, errorStatus: undefined }
+                : await fetchTop20Ranking({
               slot: stType,
               source: rankingSource,
               regionCode: region.code,
@@ -1723,12 +1805,20 @@ export async function pictoriumCatalog(
                 poster: `${getOriginFromRequest(req)}/pictorium.png`,
                 id: noticeCatalogId(NOTICE_CUSTOM_RANKING_UNAVAILABLE),
                 name: NOTICE_CUSTOM_RANKING_UNAVAILABLE_TITLE,
-                description: `${NOTICE_CUSTOM_RANKING_UNAVAILABLE_DESCRIPTION} (lista: ${rankingCustom?.name ?? "custom"}, stato: ${ranking.errorStatus})`,
+                description: `${NOTICE_CUSTOM_RANKING_UNAVAILABLE_DESCRIPTION} (lista: ${
+                  rankingCustom?.name ??
+                  (rankingSource.kind === "streaming" ? streamingRankingCatalogName(rankingSource.catalogId) : null) ??
+                  "custom"
+                }, stato: ${ranking.errorStatus})`,
               })],
             })
           }
-          uniqueRows = ranking.items
-            .slice(top20Skip, top20Skip + 20)
+          // Imported sources keep real positions (including gaps after a
+          // drop or a mixed-chart slot filter): page by rank, not array index.
+          const rankedRows = rankingSource.kind === "addon" || rankingSource.kind === "streaming"
+            ? ranking.items.filter((item) => item.rank > top20Skip && item.rank <= top20Skip + 20)
+            : ranking.items.slice(top20Skip, top20Skip + 20)
+          uniqueRows = rankedRows
             // No automatic rank override on any catalog row (Top-20-only
             // contract): the badge resolves live from the effective
             // ranking source at render.
@@ -2238,14 +2328,26 @@ export async function pictoriumCatalog(
     // excluded (custom/search/addon/variant) catalogs keep their historical
     // 1h, empties/errors 60s.
     const canonicalTtl = (() => {
-      if (!servedCanonical || !chartFamily || !chartPin.snapshot) return CHART_READY_TTL_MS
-      const remaining = familySlotEndMs(chartFamily, chartPin.snapshot.generation) - Date.now()
+      // Imported addon ranking: cap the ready body at the effective source
+      // freshness (10 min / 60s empty), never the chart-cycle window.
+      if (addonRankingExpiresAt !== null) {
+        return Math.max(0, Math.min(CHART_READY_TTL_MS, addonRankingExpiresAt - Date.now()))
+      }
+      // The pinned family that produced this body: JW channels or the imported
+      // Top 10 ranking source (its own 6h/12h cadence, never a blind 12h).
+      const servedFamily = chartFamily ?? (streamingRankingCoords ? streamingRankingCoords.family : null)
+      const servedPin = chartFamily ? chartPin : streamingRankingPin
+      if (!servedCanonical || !servedFamily || !servedPin?.snapshot) return CHART_READY_TTL_MS
+      const remaining = familySlotEndMs(servedFamily, servedPin.snapshot.generation) - Date.now()
       return remaining > 0 ? Math.min(CHART_READY_TTL_MS, remaining) : CATALOG_EMPTY_TTL_MS
     })()
     const responseTtl = metas.length > 0
       ? (customBudgetIncomplete ? CATALOG_EMPTY_TTL_MS : (servedCanonical ? canonicalTtl : CATALOG_TTL_MS))
       : CATALOG_EMPTY_TTL_MS
-    cacheSet(cacheKey, body, ["stremio", "catalog"], responseTtl)
+    const sourceTtl = addonRankingExpiresAt === null
+      ? responseTtl
+      : Math.min(responseTtl, addonRankingExpiresAt - Date.now())
+    if (sourceTtl > 0) cacheSet(cacheKey, body, ["stremio", "catalog"], sourceTtl)
     return catalogResponse(body, 200, streamingSourceHeaders())
   } catch (e) {
     log.error("Catalog error", { error: e instanceof Error ? e.message : String(e) })

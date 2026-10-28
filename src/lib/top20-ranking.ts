@@ -22,7 +22,13 @@ export interface Top20RankingResult {
 
 export interface FetchTop20RankingInput {
   readonly slot: RankingSlot
-  readonly source: RankingSource
+  /**
+   * JustWatch modes or a custom list. Imported Top 10 streaming lists and
+   * imported Stremio-addon catalogs have their own shared services
+   * (`streaming-ranking.ts`, `addon-ranking.ts`) and are deliberately
+   * excluded from this resolver.
+   */
+  readonly source: Exclude<RankingSource, { kind: "streaming" } | { kind: "addon" }>
   readonly regionCode: string
   readonly regionLang?: string
   readonly customCatalogs?: readonly CustomCatalogConfig[]

@@ -7,6 +7,8 @@ import { decodeConfig } from "@/lib/config-token"
 import { resolveUserApiKeys } from "@/lib/tmdb"
 import { resolveRankingSource, type RankingSlot } from "@/lib/ranking-source"
 import { fetchCustomRankingTop20, findRankingCustomCatalog } from "@/lib/custom-ranking"
+import { streamingRankingCoordinates, streamingRankingItemsFromPin } from "@/lib/streaming-ranking"
+import { addonRankingRemainingMs, addonRankingSourceKey, fetchAddonRanking } from "@/lib/addon-ranking"
 import { rateLimit, rateLimitKey, rateLimitResponse } from "@/lib/rate-limit"
 import { cacheGet, cacheSet } from "@/lib/cache"
 import { CHART_LIVE_PIN_ID, chartListGroupKey, chartPinCacheFragment, currentChartSlotFloor, familySlotFloorMs, pinChartFamily, pinnedFamilyRows, type ChartFamilyPin } from "@/lib/chart-generation"
@@ -14,6 +16,7 @@ import { ensureFreshChartFamily } from "@/lib/chart-renewal"
 import { isAutomaticTrendRank } from "@/lib/badge-priority"
 import { createLogger } from "@/lib/logger"
 import crypto from "node:crypto"
+import { getOriginFromRequest } from "@/lib/poster-public-url"
 
 const log = createLogger("trending-rank")
 
@@ -60,12 +63,13 @@ export async function GET(req: NextRequest) {
   const rankingSource = resolveRankingSource(
     {
       customCatalogs: tokenConfig?.customCatalogs ?? namespaceDefaults.customCatalogs,
+      streamingSelections: tokenConfig?.streamingSelections ?? namespaceDefaults.streamingSelections,
       rankingSourceMovie: tokenConfig?.rankingSourceMovie ?? namespaceDefaults.rankingSourceMovie,
       rankingSourceSeries: tokenConfig?.rankingSourceSeries ?? namespaceDefaults.rankingSourceSeries,
     },
     slot,
   )
-  const rankingCustom = rankingSource.kind === "custom"
+  const rankingCustom = rankingSource.kind === "custom" || rankingSource.kind === "addon"
     ? findRankingCustomCatalog(
         tokenConfig?.customCatalogs ?? namespaceDefaults.customCatalogs,
         rankingSource.customId,
@@ -136,6 +140,98 @@ export async function GET(req: NextRequest) {
     const body = { rank: null, top: 20 }
     cacheSet(cacheKey, body, ["rank", "custom_catalogs"], 60_000)
     return Response.json(body, { headers })
+  }
+
+  // Imported Top 10 ranking source: the badge reads the SAME pinned family
+  // the list's own catalog serves (official 1..10 ranks, never invented
+  // 11..20). Generation-fenced key like the JW branches (a publish cuts over
+  // immediately) and `private, no-cache` because the URL does not version
+  // the mutable selection. Cold failure is explicit, never a JW substitute.
+  if (rankingSource.kind === "streaming") {
+    const coords = streamingRankingCoordinates(rankingSource.catalogId)
+    if (!coords) {
+      return Response.json({ rank: null, top: 10 }, { headers: customNoCacheHeaders })
+    }
+    // Same refresh-then-pin order as the JW branches: the canonical family is
+    // ensured BEFORE the cache key, so a publish fences the body immediately.
+    let pin: ChartFamilyPin
+    try {
+      pin = await ensureFreshChartFamily({
+        regionCode: coords.regionCode,
+        regionLang: coords.regionLang,
+        tmdbLang: coords.regionLang,
+        family: coords.family,
+      })
+    } catch (e) {
+      log.error("Streaming ranking refresh failed", { error: e instanceof Error ? e.message : String(e) })
+      return Response.json({ rank: null, error: "unavailable" }, { status: 502, headers: { "Cache-Control": "no-store" } })
+    }
+    const streamingGroup = chartListGroupKey({ regionCode: coords.regionCode, regionLang: coords.regionLang })
+    const cacheKey =
+      `rank:v2:${rawType}:${id}:f10:r${coords.regionCode}` +
+      `:rss${hashFragment(rankingSource.catalogId)}:g${streamingGroup}` +
+      `${scopedUser ? `:u${hashFragment(scopedUser)}` : ""}` +
+      chartPinCacheFragment(pin)
+    const cached = cacheGet<{ rank: number | null; top: number }>(cacheKey)
+    if (cached) return Response.json(cached, { headers: customNoCacheHeaders })
+    const ranking = streamingRankingItemsFromPin(pin, slot, coords)
+    if (ranking.status === "error") {
+      return Response.json({ rank: null, error: "unavailable" }, { status: 502, headers: { "Cache-Control": "no-store" } })
+    }
+    const found = ranking.items.find((r) => r.tmdbId === id)
+    if (found) {
+      const body = { rank: found.rank, period: "streaming", top: 10 }
+      cacheSet(cacheKey, body, ["rank"])
+      return Response.json(body, { headers: customNoCacheHeaders })
+    }
+    const body = { rank: null, top: 10, period: "streaming" }
+    cacheSet(cacheKey, body, ["rank"], 60_000)
+    return Response.json(body, { headers: customNoCacheHeaders })
+  }
+
+  // Imported Stremio-addon ranking source: same SSRF-safe page the addon
+  // catalog passthrough serves, real list positions (no renumbering), no JW
+  // traffic and no chart pin. Generation-fenced keys do not apply: freshness
+  // is the effective addon ranking TTL. Mutable selection = private no-cache.
+  if (rankingSource.kind === "addon") {
+    if (!rankingCustom?.addon) {
+      return Response.json({ rank: null, top: 20 }, { headers: customNoCacheHeaders })
+    }
+    const resolvedKeys = await resolveUserApiKeys(req, scopedUser)
+    const addonInput = {
+      custom: rankingCustom,
+      slot,
+      apiKey: resolvedKeys.tmdb.key,
+      tvdbKey: resolvedKeys.tvdb.key,
+      userId: scopedUser,
+      configParam,
+      requestOrigin: getOriginFromRequest(req),
+    }
+    const cacheKey =
+      `rank:v2:${rawType}:${id}:ra${addonRankingSourceKey(rankingCustom.addon)}:${slot}` +
+      `${scopedUser ? `:u${hashFragment(scopedUser)}` : ""}` +
+      `${configParam ? `:cfg${hashFragment(configParam)}` : ""}` +
+      `:ak${hashFragment(resolvedKeys.tmdb.key)}:vk${hashFragment(resolvedKeys.tvdb.key)}`
+    const cached = cacheGet<{ rank: number | null; top: number; period?: string }>(cacheKey)
+    if (cached) return Response.json(cached, { headers: customNoCacheHeaders })
+    let ranking: Awaited<ReturnType<typeof fetchAddonRanking>>
+    try {
+      ranking = await fetchAddonRanking(addonInput)
+    } catch (e) {
+      log.error("Addon ranking fetch failed", { error: e instanceof Error ? e.message : String(e) })
+      return Response.json({ rank: null, error: "unavailable" }, { status: 502, headers: { "Cache-Control": "no-store" } })
+    }
+    if (ranking.status === "error") {
+      return Response.json({ rank: null, error: ranking.errorStatus ?? "unavailable" }, { status: 502, headers: { "Cache-Control": "no-store" } })
+    }
+    const found = ranking.items.find((r) => r.tmdbId === id)
+    const body = found
+      ? { rank: found.rank, period: "addon", top: ranking.window }
+      : { rank: null, top: ranking.window, period: "addon" }
+    const remainingMs = addonRankingRemainingMs(addonInput) ?? 0
+    const ttl = found ? remainingMs : Math.min(remainingMs, 60_000)
+    if (ttl > 0) cacheSet(cacheKey, body, ["rank", "custom_catalogs", "stremio", "addon"], ttl)
+    return Response.json(body, { headers: customNoCacheHeaders })
   }
 
   // GLOBAL is unsupported for popular/trending (fetchTop20Ranking status

@@ -603,7 +603,12 @@ export function CataloghiView() {
     [seasonalHalloweenKeywords, seasonalChristmasKeywords],
   )
   const { t } = useT()
-  const rankingSelection = { customCatalogs, rankingSourceMovie, rankingSourceSeries }
+  const rankingSelection = {
+    customCatalogs,
+    streamingSelections: streamingSelectionsState,
+    rankingSourceMovie,
+    rankingSourceSeries,
+  }
   // Sanitized explicit selections (invalid stored entries are dropped, never
   // served); absent stays absent (legacy mode). Generic universe: the same
   // provider in multiple countries/sources/variants stays distinct.
@@ -732,10 +737,10 @@ export function CataloghiView() {
     return resolveEffectiveCatalogDisplayName({
       baseName: base,
       customName: catalogRenames[normalizeCatalogId(catalogId)],
-      rankingName: rankingSourceCatalogName(catalogId, slot, { customCatalogs, rankingSourceMovie, rankingSourceSeries }),
+      rankingName: rankingSourceCatalogName(catalogId, slot, { customCatalogs, streamingSelections: streamingSelectionsState, rankingSourceMovie, rankingSourceSeries }),
       jwName: regionJwName(catalogId, slot, region),
     })
-  }, [catalogRenames, customCatalogs, rankingSourceMovie, rankingSourceSeries, ed.defaultRegion])
+  }, [catalogRenames, customCatalogs, streamingSelectionsState, rankingSourceMovie, rankingSourceSeries, ed.defaultRegion])
   const movieTrending = trending.filter((r) => r.media_type === "movie").slice(0, 20)
   const tvTrending = trending.filter((r) => r.media_type === "tv").slice(0, 20)
   const animeMovies = mdblistAnimeList.filter((r) => r.media_type === "movie")

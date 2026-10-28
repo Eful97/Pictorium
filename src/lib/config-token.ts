@@ -185,11 +185,12 @@ export const configTokenSchema = z.object({
   // Bound mirrors MAX_STREAMING_SELECTIONS (batch-adding many providers for
   // one country stays under the 32KB token cap; every old token still fits).
   streamingSelections: z.array(streamingSelectionSchema).max(200).optional(),
-  // Top 20 global ranking source (custom catalog id) per slot: absent =
-  // JustWatch (old tokens stay valid). The bound mirrors the custom id;
-  // existence and type compatibility are decided by the resolver.
-  rankingSourceMovie: z.string().max(64).optional(),
-  rankingSourceSeries: z.string().max(64).optional(),
+  // Top 20 global ranking source (custom catalog id or imported Top 10
+  // streaming catalog id) per slot: absent = JustWatch (old tokens stay
+  // valid). The bound mirrors the widest derived streaming id; existence,
+  // enabled state and section compatibility are decided by the resolver.
+  rankingSourceMovie: z.string().max(160).optional(),
+  rankingSourceSeries: z.string().max(160).optional(),
   // Custom seasonal keywords per theme (user-scoped): extra whole-word/phrase
   // matches for the automatic catalog-name recognition (seasonal-theme.ts).
   // Bounded like the defaults schema; sanitized again at match time.
@@ -229,8 +230,8 @@ export const partialCatalogTokenSchema = z.object({
   // the issued install token. Explicit [] clears (device cleared wins);
   // omission keeps the namespace fill (legacy behavior).
   streamingSelections: z.array(streamingSelectionSchema).max(200).optional(),
-  rankingSourceMovie: z.string().max(64).optional(),
-  rankingSourceSeries: z.string().max(64).optional(),
+  rankingSourceMovie: z.string().max(160).optional(),
+  rankingSourceSeries: z.string().max(160).optional(),
   // Custom seasonal keywords travel in the catalog-only token too:
   // local-only/profileless spaces resolve list themes from the token alone.
   seasonalHalloweenKeywords: z.array(z.string().max(40)).max(20).optional(),

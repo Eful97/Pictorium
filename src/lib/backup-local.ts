@@ -60,8 +60,8 @@ const RAW_CAPS: Record<string, number> = {
   pictorium_catalog_order: 16_384,
   pictorium_catalog_renames: 16_384,
   pictorium_catalog_shapes: 16_384,
-  pictorium_ranking_source_movie: 128,
-  pictorium_ranking_source_series: 128,
+  pictorium_ranking_source_movie: 256,
+  pictorium_ranking_source_series: 256,
   pictorium_collections: 65_536,
   recent_searches: 8_192,
 }
@@ -159,7 +159,8 @@ export function collectLocalBackup(storage: MinimalStorage, uuid: string | null)
       try {
         raw = storage.getItem(key)
       } catch { /* voce saltata */ }
-      if (raw !== null && raw.trim().length <= 64) sources[field] = raw.trim()
+      // Same bound as the stored field (custom id 64, derived streaming id 160).
+      if (raw !== null && raw.trim().length <= 160) sources[field] = raw.trim()
     }
     if (sources.movie !== undefined || sources.series !== undefined) out.rankingSources = sources
   } catch { /* voce saltata */ }
@@ -281,7 +282,7 @@ export function applyLocalBackup(
     for (const [name, key, v] of pairs) {
       if (v === undefined) continue
       // Stringa vuota = override JW esplicito: si applica come le altre.
-      if (typeof v === "string" && v.trim().length <= 64) write(name, key, v.trim(), RAW_CAPS[key])
+      if (typeof v === "string" && v.trim().length <= 160) write(name, key, v.trim(), RAW_CAPS[key])
       else skipped.push(name)
     }
   } else if (src.rankingSources !== undefined) skipped.push("rankingSources")

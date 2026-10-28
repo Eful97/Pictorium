@@ -269,8 +269,10 @@ const defaultsSchema = z.object({
   }).optional(),
   customCatalogs: z.array(customCatalogSchema).optional(),
   streamingSelections: z.array(streamingSelectionSchema).max(200).optional(),
-  rankingSourceMovie: z.string().max(64).optional(),
-  rankingSourceSeries: z.string().max(64).optional(),
+  // Widened to the derived streaming catalog id cap (160): the field may
+  // reference an imported Top 10 list, not only a custom id (64).
+  rankingSourceMovie: z.string().max(160).optional(),
+  rankingSourceSeries: z.string().max(160).optional(),
   disabledCatalogIds: z.array(z.string().max(80)).optional(),
   homeDisabledCatalogIds: z.array(z.string().max(80)).optional(),
   catalogOrder: z.array(z.string().max(80)).optional(),

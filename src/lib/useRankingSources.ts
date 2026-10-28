@@ -16,7 +16,9 @@ export type RankingSourceStatus = "idle" | "saving" | "ready" | "error"
 function sanitizeSelection(value: unknown): string | null {
   if (typeof value !== "string") return null
   const trimmed = value.trim()
-  if (trimmed.length > 64) return null
+  // Widest accepted id: the derived streaming catalog id cap (160). The
+  // resolver validates membership/shape; this only bounds the stored field.
+  if (trimmed.length > 160) return null
   return trimmed
 }
 

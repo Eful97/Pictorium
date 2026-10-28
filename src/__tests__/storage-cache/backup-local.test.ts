@@ -90,7 +90,7 @@ describe("collectLocalBackup", () => {
     expect(target.dump()["pictorium_ranking_source_series"]).toBe("")
 
     const bad = applyLocalBackup(memStorage(), UUID, {
-      rankingSources: { movie: "x".repeat(65), series: 42 },
+      rankingSources: { movie: "x".repeat(161), series: 42 },
     })
     expect(bad.applied).not.toContain("rankingSources.movie")
     expect(bad.skipped).toContain("rankingSources.movie")

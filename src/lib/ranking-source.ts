@@ -1,28 +1,51 @@
 /**
  * Ranking source selection for the global Top 20 catalogs (movie/series).
  *
- * CLIENT-SAFE LEAF: zero imports, pure types + functions only. The future UI
- * (Settings/Catalogs selector) and tests import it in the browser without
- * pulling server modules (cache/KV/fs/network): a single node-only import in
- * here breaks the Turbopack build, same as `catalog-provider-detect.ts`.
+ * CLIENT-SAFE LEAF: pure types + functions only, importing only other
+ * client-safe leaves (`streaming-catalogs.ts` → `regions.ts`, no node modules).
+ * The UI (Settings/Catalogs selector) and tests import it in the browser
+ * without pulling server modules (cache/KV/fs/network): a single node-only
+ * import in here breaks the Turbopack build, same as
+ * `catalog-provider-detect.ts`.
  *
  * Minimal representation: `rankingSourceMovie` / `rankingSourceSeries` hold
- * the chosen custom catalog id, or are absent/empty (= JustWatch, the
- * retrocompatible default). The length bound (64) mirrors the custom catalog
- * id cap (`customCatalogSchema` in `config-token.ts` and `defaults/route.ts`).
+ * the chosen custom catalog id, an imported Top 10 streaming catalog id, or
+ * are absent/empty (= JustWatch, the retrocompatible default). The length
+ * bound (160) mirrors the widest derived streaming catalog id
+ * (`parseGenericStreamingCatalogId`) — custom ids keep their own 64 cap.
  *
  * `enabled` semantics (documented choice): a custom with `enabled === false`
  * is explicitly switched off by the user and can NOT drive the Top 20, so the
- * resolver returns JustWatch. `disabledCatalogIds` / `homeDisabledCatalogIds` /
- * `catalogOrder` describe manifest visibility of other IDs and are ignored
- * here. A deleted id or an incompatible type also returns JustWatch.
+ * resolver returns JustWatch. The same rule applies to streaming selections
+ * (`streamingSelections`: removed, switched off or section-incompatible ids
+ * fall back to JustWatch) and to imported Stremio-addon catalogs (their REAL
+ * remote `catalogType`, never the local config type, decides the slot).
+ * `disabledCatalogIds` / `homeDisabledCatalogIds` / `catalogOrder` describe
+ * manifest visibility of other IDs and are ignored here. A deleted id or an
+ * incompatible type also returns JustWatch.
  *
  * The resolver is selection only: it never fetches. A configured source that
  * is temporarily unavailable does NOT degrade to JustWatch here — the
- * catalog layer surfaces an explicit error instead (see `custom-ranking.ts`).
+ * catalog layer surfaces an explicit error instead (see `custom-ranking.ts`
+ * and `streaming-ranking.ts`).
  */
 
 import type { CustomCatalogConfig, CustomCatalogType } from "./types"
+// The ranking projection performs ONE fixed catalog request (no search/genre),
+// so only extras that are harmless when omitted may be required by the source.
+const RANKING_ADDON_REQUIRED_EXTRAS = new Set(["skip"])
+import {
+  GENERIC_STREAMING_CATALOG_ID_PREFIX,
+  STREAMING_CATALOG_ID_PREFIX,
+  genericStreamingCatalogId,
+  genericStreamingCatalogName,
+  parseAnyStreamingCatalogId,
+  sanitizeGenericStreamingSelections,
+  streamingCatalogId,
+  type GenericStreamingSection,
+  type GenericStreamingSelectionInput,
+  type StreamingService,
+} from "./streaming-catalogs"
 
 export type RankingSlot = "movie" | "series"
 
@@ -31,6 +54,10 @@ export type JustWatchRankingMode = "charts" | "popular" | "trending"
 export type RankingSource =
   | { readonly kind: "justwatch"; readonly mode: JustWatchRankingMode }
   | { readonly kind: "custom"; readonly customId: string }
+  /** Imported Top 10 streaming list (enabled selection of this space). */
+  | { readonly kind: "streaming"; readonly catalogId: string }
+  /** Imported Stremio-addon catalog (enabled local entry of this space). */
+  | { readonly kind: "addon"; readonly customId: string }
 
 export const RANKING_SOURCE_JW_CHARTS = "jw:charts"
 export const RANKING_SOURCE_JW_POPULAR = "jw:popular"
@@ -64,11 +91,16 @@ export function parseJustWatchRankingMode(raw: string | null | undefined): JustW
   return null
 }
 
-/** Custom id cap, same bound as the persistence schemas. */
-export const RANKING_SOURCE_MAX_ID_LENGTH = 64
+/**
+ * Widest accepted selection id: the generic streaming catalog id cap
+ * (`pictorium-stream2-*`, 160). Custom ids stay bounded at 64 by their own
+ * schema; this only widens the shared stored/URL field, never custom ids.
+ */
+export const RANKING_SOURCE_MAX_ID_LENGTH = 160
 
 export interface RankingSelection {
   readonly customCatalogs?: readonly CustomCatalogConfig[] | null
+  readonly streamingSelections?: readonly GenericStreamingSelectionInput[] | null
   readonly rankingSourceMovie?: string | null
   readonly rankingSourceSeries?: string | null
 }
@@ -83,15 +115,34 @@ function isCompatibleCustomType(customType: CustomCatalogType | undefined, slot:
 }
 
 /**
+ * Slot of the ACTUAL remote catalog of an imported addon. The local config
+ * type cannot lie: a manifest can expose a movie and a series catalog under
+ * the same name, and the persisted source carries the original `catalogType`.
+ * Null when the source has no usable remote type (hand-built legacy shape).
+ */
+export function addonRankingSlot(
+  addon: { readonly catalogType?: string | null } | null | undefined,
+): RankingSlot | null {
+  if (!addon) return null
+  if (addon.catalogType === "movie") return "movie"
+  if (addon.catalogType === "series") return "series"
+  return null
+}
+
+/**
  * Resolves the effective ranking source for one slot. Always returns a
  * value: JustWatch charts when nothing is selected, the selection is blank/invalid,
  * the id was deleted, the catalog is switched off (`enabled === false`), or
  * the custom type is incompatible (e.g. a `movie` custom on the series slot).
  * Built-in JustWatch modes ("jw:popular", "jw:trending", "jw:charts") resolve
  * directly to their respective JustWatch mode without consulting custom catalogs.
- * Stremio-addon imports (`addon` set) can never drive the Top 20: the ranking
- * service only understands normalized custom lists, so they fall back to
- * JustWatch like a deleted id.
+ * Imported Top 10 streaming lists resolve only while their selection is
+ * enabled and section-compatible; otherwise (removed, switched off, wrong
+ * section) they fall back to JustWatch like a deleted custom id.
+ * Imported Stremio-addon catalogs (`addon` set) resolve to their own `addon`
+ * source only while enabled and compatible with the REAL remote catalog type
+ * (`addon.catalogType`); the local custom `type` is never trusted to cross
+ * slots. Removed/switched-off/incompatible entries fall back to JustWatch.
  */
 export function resolveRankingSource(selection: RankingSelection, slot: RankingSlot): RankingSource {
   const raw = selectionForSlot(selection, slot)
@@ -103,6 +154,19 @@ export function resolveRankingSource(selection: RankingSelection, slot: RankingS
     return { kind: "justwatch", mode: "charts" }
   }
 
+  // Imported Top 10 streaming lists: id shape is allowlisted (same strict
+  // parser the catalog route uses) and the id must belong to an ENABLED,
+  // section-compatible selection of this space. Anything else is JustWatch.
+  if (
+    customId.startsWith(STREAMING_CATALOG_ID_PREFIX) ||
+    customId.startsWith(GENERIC_STREAMING_CATALOG_ID_PREFIX)
+  ) {
+    const eligible = compatibleRankingStreaming(selection.streamingSelections, slot)
+    return eligible.some((o) => o.id === customId)
+      ? { kind: "streaming", catalogId: customId }
+      : { kind: "justwatch", mode: "charts" }
+  }
+
   // Builtin identifiers must never be resolved as custom catalogs even if present in the list
   if (isBuiltinRankingSource(customId)) {
     return { kind: "justwatch", mode: "charts" }
@@ -111,7 +175,14 @@ export function resolveRankingSource(selection: RankingSelection, slot: RankingS
   const customCatalogs = selection.customCatalogs
   if (!customCatalogs) return { kind: "justwatch", mode: "charts" }
   const found = customCatalogs.find((c) => c.id === customId)
-  if (!found || found.enabled === false || found.addon) return { kind: "justwatch", mode: "charts" }
+  if (!found || found.enabled === false) return { kind: "justwatch", mode: "charts" }
+  if (found.addon) {
+    // Imported addon: the actual remote catalog type AND its required extras
+    // decide whether it can be read; never the local config type alone.
+    return addonRankingCompatible(found.addon, slot, found.type)
+      ? { kind: "addon", customId }
+      : { kind: "justwatch", mode: "charts" }
+  }
   if (!isCompatibleCustomType(found.type, slot)) return { kind: "justwatch", mode: "charts" }
   return { kind: "custom", customId }
 }
@@ -137,32 +208,116 @@ export function filterRankingItemsBySlot<T extends RankingFilterItem>(
   })
 }
 
+/** Slot compatibility of a streaming list section (`all` fits both). */
+export function rankingSectionFitsSlot(section: GenericStreamingSection, slot: RankingSlot): boolean {
+  if (section === "movies") return slot === "movie"
+  if (section === "series") return slot === "series"
+  return true
+}
+
+export interface RankingStreamingOption {
+  readonly id: string
+  readonly name: string
+  readonly section: GenericStreamingSection
+}
+
+/**
+ * Canonical neutral display name of a derived streaming catalog id (legacy
+ * and generic; the manifest name travels here via the single builder). Null
+ * for anything that is not a well-formed streaming catalog id.
+ */
+export function streamingRankingCatalogName(catalogId: string): string | null {
+  const desc = parseAnyStreamingCatalogId(catalogId)
+  if (!desc) return null
+  return genericStreamingCatalogName(desc.service, desc.chartSlug, desc.section, desc.variant)
+}
+
+/**
+ * Enabled streaming selections eligible as a Top 20 source for one slot:
+ * section-compatible (`movies`→movie, `series`→series, `all`→both) and
+ * served by the catalog route (the derived id must parse back). Single
+ * source of truth for the picker and the resolver — never duplicate the
+ * rule in components or routes.
+ */
+export function compatibleRankingStreaming(
+  streamingSelections: readonly GenericStreamingSelectionInput[] | null | undefined,
+  slot: RankingSlot,
+): RankingStreamingOption[] {
+  const sanitized = sanitizeGenericStreamingSelections(streamingSelections)
+  if (!sanitized) return []
+  const out: RankingStreamingOption[] = []
+  for (const sel of sanitized) {
+    if (!sel.enabled) continue
+    for (const section of sel.sections) {
+      if (!rankingSectionFitsSlot(section, slot)) continue
+      const id = sel.legacy
+        ? streamingCatalogId(sel.service as StreamingService, sel.country, section as "movies" | "series")
+        : genericStreamingCatalogId(sel.service, sel.chartSlug, section, sel.source, sel.variant)
+      // Fail-closed like the catalog route: an unparseable id is never offered.
+      if (!parseAnyStreamingCatalogId(id)) continue
+      out.push({
+        id,
+        // Same neutral manifest name for legacy and generic selections
+        // (single builder, no drifting label).
+        name: genericStreamingCatalogName(sel.service, sel.chartSlug, section, sel.variant),
+        section,
+      })
+    }
+  }
+  return out
+}
+
 /** Minimal shape for source pickers: id, display name, kind and flag. */
 export interface RankingCustomOption {
   readonly id: string
   readonly name: string
   readonly type: "movie" | "series" | "mixed"
   readonly enabled?: boolean
+  /** Imported addon source (actual remote type wins over the config type). */
+  readonly addon?: {
+    readonly catalogType?: string | null
+    readonly extra?: readonly { readonly name: string; readonly isRequired?: boolean }[]
+  } | null
+}
+
+/**
+ * An imported addon catalog can drive a ranking only when the passthrough can
+ * request it without unsupported REQUIRED extras: a required search/year list
+ * would answer an unusable base page for every render.
+ */
+function addonRankingCompatible(
+  addon: RankingCustomOption["addon"],
+  slot: RankingSlot,
+  fallbackType: CustomCatalogType,
+): boolean {
+  if (!addon) return false
+  const requiredUnsupported = addon.extra?.some(
+    (e) => e?.isRequired && typeof e.name === "string" && !RANKING_ADDON_REQUIRED_EXTRAS.has(e.name),
+  )
+  if (requiredUnsupported) return false
+  const remoteSlot = addonRankingSlot(addon)
+  // Only a hand-built source without a persisted remote type falls back to
+  // the local config type (legacy compatibility).
+  return remoteSlot ? remoteSlot === slot : isCompatibleCustomType(fallbackType, slot)
 }
 
 /**
  * Custom catalogs eligible as a Top 20 source for one slot: enabled and
- * type-compatible (`mixed` fits both). Stremio-addon imports are excluded
- * (the ranking service cannot read them). Single source of truth for every
- * picker — never duplicate the rule in components.
+ * compatible with the slot. Normal lists use their config type (`mixed` fits
+ * both); imported addons use the REAL remote catalog type, so a manifest
+ * exposing both movie and series catalogs never offers the wrong one. Single
+ * source of truth for every picker — never duplicate the rule in components.
  */
 export function compatibleRankingCustoms<T extends RankingCustomOption>(
   customCatalogs: readonly T[] | undefined | null,
   slot: RankingSlot,
 ): T[] {
   if (!customCatalogs) return []
-  return customCatalogs.filter(
-    (c) =>
-      c.enabled !== false &&
-      (c.type === slot || c.type === "mixed") &&
-      !(c as { addon?: unknown }).addon &&
-      !isBuiltinRankingSource(c.id),
-  )
+  return customCatalogs.filter((c) => {
+    if (c.enabled === false || isBuiltinRankingSource(c.id)) return false
+    if (c.addon) return addonRankingCompatible(c.addon, slot, c.type)
+    return c.type === slot || c.type === "mixed"
+  })
 }
 
 const JW_MOVIE_CATALOG_ID = "pictorium-jw-movies"
@@ -228,10 +383,13 @@ export function rankingSourceCatalogName(
   const expected = slot === "movie" ? JW_MOVIE_CATALOG_ID : JW_SERIES_CATALOG_ID
   if (catalogId !== expected) return null
   const source = resolveRankingSource(selection, slot)
-  if (source.kind === "custom") {
+  if (source.kind === "custom" || source.kind === "addon") {
     const found = selection.customCatalogs?.find((c) => c.id === source.customId)
     const name = found?.name?.trim()
     return name ? name : null
+  }
+  if (source.kind === "streaming") {
+    return streamingRankingCatalogName(source.catalogId)
   }
   if (source.mode === "popular" && region) {
     const mediaLabel = slot === "movie" ? "Film" : "Serie TV"
