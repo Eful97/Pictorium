@@ -37,7 +37,7 @@ import { computeLogoLayout, logoAlignPadX, PORTRAIT_LOGO_MAX_HEIGHT_PCT, PORTRAI
 import { logoDefaultScaleFromAspect, FRESH_TITLE_LOGO_DEFAULT_SCALE } from "./logo-selection"
 import fs from "fs"
 import path from "path"
-import { estimateTextWidth, fontFamilyFor, escSvg, badgeBoxHeight, TOP_SHADOW_PAD } from "./badge-svg-shared"
+import { buildQualityTierBadgeSvg, buildQualityKnockoutSvg, estimateTextWidth, fontFamilyFor, escSvg, badgeBoxHeight, TOP_SHADOW_PAD, TOP_SHADOW_FILTER } from "./badge-svg-shared"
 import { computeTopBadge, getNextEpisodeLabel, isNetworkStudio, shouldSuppressExtraTopBadgeForNetwork, type BadgeInput } from "./poster-badge"
 import { isNextEpisodeBadgeKey } from "./badge-priority"
 import { DEMO_SAMPLE_NETWORK } from "./demo-samples"
@@ -56,7 +56,7 @@ import type { BadgeFont } from "./badge-styles"
 import { isRibbonRankingStyle, isBottomSeparateRatingsStyle, isAgeBadgeStyle, getSeparateRatingsStyleForShape, resolveNumberBadgeBaseOffsetX, normalizeExtraBadgeStyleForRender, DEFAULT_AGE_BADGE_STYLE, type BadgeStyle, type RankingBadgeStyle, type ExtraBadgeStyle, type ExtraBadgeFollowRank, type SeparateRatingsStyle, type SeparateBottomVariant, type AgeBadgeStyle } from "./badge-styles"
 import { normalizeBadgeFont } from "./badge-svg-shared"
 import type { PosterImageFormat } from "@/lib/poster-runtime-cache"
-import { qualityBadgeIconPath } from "./quality-badge-styles"
+import { AV_KNOCKOUT_RADIUS_FACTOR, AV_KNOCKOUT_TAG_INSET_FACTOR, AV_PLATE_GLYPH_HEIGHT_FACTOR, AV_PLATE_GLYPH_INSET_FACTOR, AV_PLATE_RADIUS_FACTOR, AV_PLATE_STROKE_WIDTH, COLOR_MARK_GLYPH, COLOR_MARK_PLATE_BG, COLOR_MARK_PLATE_STROKE, avMarkInkBox, qualityBadgeIconPath, qualityIconReferenceWidth, type AvMarkInkBox, PREMIUM_COMBO_ACCENT, PREMIUM_PLATE_BG, PREMIUM_PLATE_STROKE, premiumAccentHex, premiumFormatAccent } from "./quality-badge-styles"
 import type { QualityBadgeStyle } from "./badge-styles"
 import { FORMAT_ICON_PATHS, type VideoFormat } from "./av-specs"
 import { isRankKey } from "./i18n"
@@ -653,21 +653,28 @@ function qualityIconViewBox(svg: string): { w: number; h: number } | null {
 }
 
 /**
- * Rende un'icona qualità built-in all'ingombro verticale della pill
- * standard (stesso anchor di layout). Lo stile mono è nero su fondo chiaro
- * e va ricolorato di bianco su fondo scuro (fill ereditato alla radice: i
- * path non dichiarano fill propri); il color resta originale. Ritorna null
- * se il file manca o non rasterizza: il chiamante degrada sulla pill
+ * Rende un'icona qualità built-in. Tier `mono`/`color`: stesso ingombro
+ * verticale della pill standard (stesso anchor di layout), mono ricolorato
+ * bianco/nero per polarità (fill ereditato alla radice: i path non dichiarano
+ * fill propri), color originale. Marchi A/V: larghezza d'inchiostro
+ * normalizzata (vedi `renderBareAvIcon`) — il tier resta invariato. Ritorna
+ * null se il file manca o non rasterizza: il chiamante degrada sulla pill
  * standard, mai 500.
  */
 export async function renderQualityIconBadge(
   iconPath: string,
   pw: number,
   topLight?: boolean,
+  /** Larghezza d'inchiostro imposta ai marchi A/V (default: larghezza 4K). */
+  inkWidth?: number,
 ): Promise<{ png: Buffer; w: number; h: number } | null> {
   try {
     const src = await loadQualityIconSvg(iconPath)
     if (!src) return null
+    // Marchio A/V: viewBox ritagliato sull'inchiostro e larghezza normalizzata.
+    // Il tier (mono/color) non entra qui: percorso storico byte-identico.
+    const ink = avMarkInkBox(iconPath)
+    if (ink) return await renderBareAvIcon(src, ink, pw, topLight, inkWidth)
     const vb = qualityIconViewBox(src)
     if (!vb) return null
     const isMono = !/(^|\/)color\//.test(iconPath)
@@ -680,7 +687,7 @@ export async function renderQualityIconBadge(
     const fill = isMono ? (topLight ? "#000000" : "#ffffff") : null
     const totalW = w + TOP_SHADOW_PAD * 2
     const totalH = h + TOP_SHADOW_PAD * 2
-    const innerContent = src.replace(/<\?xml[^>]*\?>/g, "").replace(/<svg[^>]*>/, "").replace(/<\/svg>\s*$/, "")
+    const innerContent = svgInnerContent(src)
     const fillAttr = fill ? ` fill="${fill}" color="${fill}"` : ""
     // Ombra reale simmetrica con feDropShadow (dx=2, dy=2, stdDev=2.5):
     // stacca l'icona mono/color da sfondi chiari o complessi, mentre
@@ -690,6 +697,200 @@ export async function renderQualityIconBadge(
       `<g filter="url(#tds)">` +
       `<svg x="${TOP_SHADOW_PAD}" y="${TOP_SHADOW_PAD}" width="${w}" height="${h}" viewBox="0 0 ${vb.w} ${vb.h}"${fillAttr}>${innerContent}</svg>` +
       `</g></svg>`
+    const png = await renderSVG(compositeSvg, totalW)
+    return { png, w: totalW, h: totalH }
+  } catch {
+    return null
+  }
+}
+
+/** Contenuto interno di un asset SVG (senza prologo XML e tag radice). */
+function svgInnerContent(src: string): string {
+  return src.replace(/<\?xml[^>]*\?>/g, "").replace(/<svg[^>]*>/, "").replace(/<\/svg>\s*$/, "")
+}
+
+/**
+ * Marchio A/V nudo (standard/mono): stessa ombra delle altre icone, ma la
+ * larghezza è quella dell'INCHIOSTRO visibile (`inkWidth`, default = badge
+ * 4K) e il viewBox è ritagliato sul box dell'ink. Senza il ritaglio i margini
+ * trasparenti di HDR (~12% per lato), HDR10+ (~7%) e combo (~5%) renderebbero
+ * la larghezza visibile diversa da quella nominale. L'altezza segue l'aspect
+ * naturale dell'ink: nessuna distorsione, nessuno stretch a altezza uguale.
+ */
+async function renderBareAvIcon(
+  src: string,
+  ink: AvMarkInkBox,
+  pw: number,
+  topLight: boolean | undefined,
+  inkWidth: number | undefined,
+): Promise<{ png: Buffer; w: number; h: number }> {
+  const fs = Math.round(Math.max(17 * pw / 380, 10))
+  const w = Math.max(1, Math.round(inkWidth ?? qualityIconReferenceWidth(badgeBoxHeight(fs))))
+  const h = Math.max(1, Math.round(w * (ink.h / ink.w)))
+  const fill = topLight ? "#000000" : "#ffffff"
+  const totalW = w + TOP_SHADOW_PAD * 2
+  const totalH = h + TOP_SHADOW_PAD * 2
+  const compositeSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="${totalW}" height="${totalH}" viewBox="0 0 ${totalW} ${totalH}">` +
+    `<defs><filter id="tds" x="-20%" y="-20%" width="180%" height="180%"><feDropShadow dx="2" dy="2" stdDeviation="2.5" flood-color="#000000" flood-opacity="0.65"/></filter></defs>` +
+    `<g filter="url(#tds)">` +
+    `<svg x="${TOP_SHADOW_PAD}" y="${TOP_SHADOW_PAD}" width="${w}" height="${h}" viewBox="${ink.x} ${ink.y} ${ink.w} ${ink.h}" fill="${fill}" color="${fill}">${svgInnerContent(src)}</svg>` +
+    `</g></svg>`
+  const png = await renderSVG(compositeSvg, totalW)
+  return { png, w: totalW, h: totalH }
+}
+
+/**
+ * Marchio A/V su placca (stili `color` e `premium`): la placca ha ESATTAMENTE
+ * la larghezza del badge 4K dello stile attivo (`plateWidth`, = icona tier),
+ * quindi ogni placca della colonna è larga quanto il tier 4K e i marchi non
+ * sporgono. Il glifo si adatta DENTRO la placca con un margine uniforme
+ * piccolo (`AV_PLATE_GLYPH_INSET_FACTOR`) e l'aspect dell'asset: viewBox
+ * ritagliato sull'ink visibile, altezza naturale, mai stirata. La placca
+ * ignora la polarità del fondo (i colori restano leggibili su top chiari e
+ * scuri).
+ */
+async function renderPlatedAvBadge(
+  iconPath: string,
+  pw: number,
+  plateWidth: number,
+  glyphHex: string,
+  plateBg: string,
+  plateStroke: string,
+): Promise<{ png: Buffer; w: number; h: number } | null> {
+  try {
+    const src = await loadQualityIconSvg(iconPath)
+    if (!src) return null
+    const ink = avMarkInkBox(iconPath)
+    if (!ink) return null
+    const fs = Math.round(Math.max(17 * pw / 380, 10))
+    const boxH = badgeBoxHeight(fs)
+    // Larghezza placca = larghezza del tier 4K (unica per tutti i marchi).
+    const plateW = Math.max(1, Math.round(plateWidth))
+    // Il glifo sta dentro la placca con un inset uniforme per lato.
+    const inset = Math.max(1, Math.round(fs * AV_PLATE_GLYPH_INSET_FACTOR))
+    const targetW = Math.max(1, plateW - inset * 2)
+    const naturalH = Math.max(1, Math.round(targetW * (ink.h / ink.w)))
+    // Tetto d'altezza (proporzioni preservate): con i marchi shipped non
+    // morde (il vincolo è la larghezza della placca), ma evita che un futuro
+    // marchio stretto tocchi il bordo della placca.
+    const glyphH = Math.min(naturalH, Math.round(boxH * AV_PLATE_GLYPH_HEIGHT_FACTOR))
+    const glyphW = glyphH === naturalH ? targetW : Math.max(1, Math.round(glyphH * (ink.w / ink.h)))
+    const r = Math.round(boxH * AV_PLATE_RADIUS_FACTOR)
+    const totalW = plateW + TOP_SHADOW_PAD * 2
+    const totalH = boxH + TOP_SHADOW_PAD * 2
+    const ox = TOP_SHADOW_PAD
+    const oy = TOP_SHADOW_PAD
+    // Lo stroke (centrato sulla path in SVG) è tenuto DENTRO il box: il bordo
+    // ESTERNO visibile finisce esattamente su [ox, ox + plateW) × [oy, oy +
+    // boxH), cioè sulla larghezza/altezza del tier 4K dello stile attivo.
+    const strokeW = AV_PLATE_STROKE_WIDTH
+    const rectW = Math.max(1, plateW - strokeW)
+    const rectH = Math.max(1, boxH - strokeW)
+    const rectX = ox + strokeW / 2
+    const rectY = oy + strokeW / 2
+    const gx = ox + Math.round((plateW - glyphW) / 2)
+    const gy = oy + Math.round((boxH - glyphH) / 2)
+    // Placca + glifo tinto nello stesso gruppo con l'ombra 3D condivisa
+    // (famiglia quality/rank/extra): nessuna placca annidata, nessun asset.
+    const compositeSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="${totalW}" height="${totalH}" viewBox="0 0 ${totalW} ${totalH}">` +
+      `<defs>${TOP_SHADOW_FILTER}</defs>` +
+      `<g filter="url(#tds)">` +
+      `<rect x="${rectX}" y="${rectY}" width="${rectW}" height="${rectH}" rx="${r}" fill="${plateBg}" stroke="${plateStroke}" stroke-width="${strokeW}"/>` +
+      `<svg x="${gx}" y="${gy}" width="${glyphW}" height="${glyphH}" viewBox="${ink.x} ${ink.y} ${ink.w} ${ink.h}" fill="${glyphHex}" color="${glyphHex}">${svgInnerContent(src)}</svg>` +
+      `</g></svg>`
+    const png = await renderSVG(compositeSvg, totalW)
+    return { png, w: totalW, h: totalH }
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Marchio A/V `color`: glifo oro su placca scura con cornice oro — la stessa
+ * famiglia cromatica del tier 4K `color` (palette campionata dall'asset).
+ * `plateWidth` (default: larghezza del tier 4K) è la larghezza ESTERNA della
+ * placca, non quella del glifo.
+ */
+export async function renderColorIconBadge(
+  iconPath: string,
+  pw: number,
+  plateWidth?: number,
+): Promise<{ png: Buffer; w: number; h: number } | null> {
+  const fs = Math.round(Math.max(17 * pw / 380, 10))
+  return renderPlatedAvBadge(
+    iconPath,
+    pw,
+    plateWidth ?? qualityIconReferenceWidth(badgeBoxHeight(fs)),
+    COLOR_MARK_GLYPH,
+    COLOR_MARK_PLATE_BG,
+    COLOR_MARK_PLATE_STROKE,
+  )
+}
+
+/**
+ * Marchio A/V `premium`: glifo colorato (accento premium) su placca scura
+ * neutra. Placca e glifo condividono la geometria normalizzata di
+ * `renderPlatedAvBadge`; cambia solo la palette (design Pictorium, non brand).
+ * `plateWidth` default = larghezza del tier 4K, così ogni placca della colonna
+ * è larga ESATTAMENTE quanto il badge 4K.
+ */
+export async function renderPremiumIconBadge(
+  iconPath: string,
+  pw: number,
+  accentHex: string,
+  plateWidth?: number,
+): Promise<{ png: Buffer; w: number; h: number } | null> {
+  const fs = Math.round(Math.max(17 * pw / 380, 10))
+  return renderPlatedAvBadge(
+    iconPath,
+    pw,
+    plateWidth ?? qualityIconReferenceWidth(badgeBoxHeight(fs)),
+    accentHex,
+    PREMIUM_PLATE_BG,
+    PREMIUM_PLATE_STROKE,
+  )
+}
+
+/**
+ * Marchio A/V `knockout`: tag BIANCO opaco con il glifo davvero ritagliato
+ * (SVG mask → trasparente), come il tag knockout del tier 4K. Il tag è largo
+ * quanto il tag knockout 4K (`tagWidth`), il glifo interno conserva
+ * l'inchiostro del badge 4K (`inkWidth`) e l'aspect naturale. Nessuno stroke,
+ * nessuna fill dentro i glifi: solo l'ombra 3D condivisa.
+ */
+export async function renderAvKnockoutBadge(
+  iconPath: string,
+  pw: number,
+  tagWidth: number,
+  inkWidth: number,
+): Promise<{ png: Buffer; w: number; h: number } | null> {
+  try {
+    const src = await loadQualityIconSvg(iconPath)
+    if (!src) return null
+    const ink = avMarkInkBox(iconPath)
+    if (!ink) return null
+    const fs = Math.round(Math.max(17 * pw / 380, 10))
+    const boxH = badgeBoxHeight(fs)
+    const tagW = Math.max(1, Math.round(tagWidth))
+    const glyphW = Math.min(tagW, Math.max(1, Math.round(inkWidth)))
+    const glyphH = Math.max(1, Math.round(glyphW * (ink.h / ink.w)))
+    const r = Math.round(boxH * AV_KNOCKOUT_RADIUS_FACTOR)
+    const totalW = tagW + TOP_SHADOW_PAD * 2
+    const totalH = boxH + TOP_SHADOW_PAD * 2
+    const ox = TOP_SHADOW_PAD
+    const oy = TOP_SHADOW_PAD
+    const gx = ox + Math.round((tagW - glyphW) / 2)
+    const gy = oy + Math.round((boxH - glyphH) / 2)
+    const mask = `<mask id="avkm"><rect x="${ox}" y="${oy}" width="${tagW}" height="${boxH}" rx="${r}" fill="#ffffff"/>` +
+      `<svg x="${gx}" y="${gy}" width="${glyphW}" height="${glyphH}" viewBox="${ink.x} ${ink.y} ${ink.w} ${ink.h}" fill="#000000" color="#000000">${svgInnerContent(src)}</svg>` +
+      `</mask>`
+    // Shadow ON the masked rect (same construction as
+    // `buildQualityKnockoutSvg`): filtering a wrapping <g> makes resvg keep
+    // the mask partial instead of cutting through, so the glyph would read
+    // as grey on white instead of a true transparent cut-out.
+    const compositeSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="${totalW}" height="${totalH}" viewBox="0 0 ${totalW} ${totalH}">` +
+      `<defs>${mask}${TOP_SHADOW_FILTER}</defs>` +
+      `<rect x="${ox}" y="${oy}" width="${tagW}" height="${boxH}" rx="${r}" fill="#ffffff" mask="url(#avkm)" filter="url(#tds)"/></svg>`
     const png = await renderSVG(compositeSvg, totalW)
     return { png, w: totalW, h: totalH }
   } catch {
@@ -760,6 +961,58 @@ export async function renderQualityBadgeGroup(
   const qualityText = typeof quality === "string" ? quality : ""
   const hasQuality = qualityText !== ""
   const isKnockout = qualityBadgeStyle === "knockout"
+  // Premium: marchi A/V colorati su placca scura compatta; il tier riusa
+  // l'asset `color` (qualityBadgeIconPath → stessa arte, nessun set nuovo).
+  const isPremium = qualityBadgeStyle === "premium"
+  const isColor = qualityBadgeStyle === "color"
+  const isMono = qualityBadgeStyle === "mono"
+  // Larghezza UNICA dei marchi A/V, derivata dal badge 4K dello stile attivo
+  // (mai dall'aspect del singolo logo). Include il font perché i tag testuali
+  // (standard/knockout) cambiano larghezza con la font. Per `color`/`premium`
+  // è la larghezza ESTERNA della placca ( = icona tier 4K): il glifo ci sta
+  // dentro con un inset piccolo, mai un padding additivo che allarghi la
+  // colonna oltre il tier.
+  const markFs = Math.round(Math.max(17 * pw / 380, 10))
+  const markFont = normalizeBadgeFont(font)
+  const markRefWidth = (() => {
+    if (isKnockout) {
+      return Math.max(1, buildQualityKnockoutSvg("4K", markFs, markFont).w - TOP_SHADOW_PAD * 2)
+    }
+    // Ogni stile testuale (standard, e null/garbage che degradano sul tier tag
+    // standard qui sotto) ancora i marchi alla larghezza del tag 4K.
+    if (!isPremium && !isColor && !isMono) {
+      return Math.max(1, buildQualityTierBadgeSvg("4K", markFs, !!topLight, markFont).w - TOP_SHADOW_PAD * 2)
+    }
+    return qualityIconReferenceWidth(badgeBoxHeight(markFs))
+  })()
+  // Tag knockout: il tag resta largo come il tag knockout 4K, il glifo
+  // ritagliato conserva l'inchiostro del badge 4K icona (margine per lato).
+  // Sui marchi nudi `markInkWidth` è la larghezza d'inchiostro del glifo.
+  const markInkWidth = isKnockout
+    ? Math.max(1, markRefWidth - Math.round(markFs * AV_KNOCKOUT_TAG_INSET_FACTOR) * 2)
+    : markRefWidth
+  /**
+   * Un marchio A/V, con la stessa larghezza visibile in ogni stile:
+   * standard/mono = glifo nudo normalizzato; color/premium = glifo dentro una
+   * placca larga quanto il badge 4K; knockout = tag bianco con glifo
+   * ritagliato (trasparente).
+   */
+  const renderFormatMark = async (
+    iconPath: string,
+    topLightForMark: boolean | undefined,
+    accentHex: string,
+  ): Promise<{ png: Buffer; w: number; h: number } | null> => {
+    if (isPremium) {
+      return renderPlatedAvBadge(iconPath, pw, markRefWidth, accentHex, PREMIUM_PLATE_BG, PREMIUM_PLATE_STROKE)
+    }
+    if (isColor) {
+      return renderPlatedAvBadge(iconPath, pw, markRefWidth, COLOR_MARK_GLYPH, COLOR_MARK_PLATE_BG, COLOR_MARK_PLATE_STROKE)
+    }
+    if (isKnockout) {
+      return renderAvKnockoutBadge(iconPath, pw, markRefWidth, markInkWidth)
+    }
+    return renderQualityIconBadge(iconPath, pw, topLightForMark, markInkWidth)
+  }
   // Knockout has no icon asset (qualityBadgeIconPath stays null by design):
   // it renders its own tag below and never falls back to the standard pill.
   const qualityIconPath = !hasQuality || isKnockout ? null : qualityBadgeIconPath(qualityBadgeStyle, qualityText)
@@ -792,9 +1045,14 @@ export async function renderQualityBadgeGroup(
   let useCombo = hasDV && hasAtmos
   let comboIcon: { png: Buffer; w: number; h: number } | null = null
   if (useCombo) {
-    // Knockout keeps the Dolby mark white even on light tops (reference
-    // look); every other style and format keeps the polarity behavior.
-    comboIcon = await renderQualityIconBadge("quality-badges/video/dolby-vision-atmos.svg", pw, isKnockout ? false : topLight)
+    // Premium/color: single Dolby accent/glyph on the uniform plate (one
+    // merged lockup). Knockout renders its own white tag (polarity moot).
+    const comboAccent = premiumAccentHex(PREMIUM_COMBO_ACCENT)
+    comboIcon = await renderFormatMark(
+      "quality-badges/video/dolby-vision-atmos.svg",
+      topLight,
+      comboAccent,
+    )
     if (!comboIcon) useCombo = false
   }
 
@@ -810,8 +1068,11 @@ export async function renderQualityBadgeGroup(
     if (useCombo && (fmt === "dv" || fmt === "atmos")) {
       continue
     }
-    const isDolbySingle = fmt === "dv" || fmt === "atmos"
-    const icon = await renderQualityIconBadge(FORMAT_ICON_PATHS[fmt], pw, isKnockout && isDolbySingle ? false : topLight)
+    const icon = await renderFormatMark(
+      FORMAT_ICON_PATHS[fmt],
+      topLight,
+      premiumAccentHex(premiumFormatAccent(fmt)),
+    )
     const itemId = qualityFormatItemId(fmt)
     if (icon && itemId) formatItems.push({ id: itemId, badge: icon })
   }

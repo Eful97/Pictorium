@@ -459,6 +459,7 @@
   "ui.corner": "Ecke",
   "ui.number": "Nummer",
   "ui.qbsKnockout": "Knockout",
+  "ui.qbsPremium": "Premium",
   "ui.blurDisabled": "Weichzeichner aus",
   "ui.selectedCount": "{count} ausgewählt",
   "ui.bsDefault": "Standard",

@@ -1,8 +1,26 @@
 import { describe, expect, it } from "vitest"
-import { QUALITY_BADGE_STYLES, isQualityBadgeStyle, DEFAULT_QUALITY_BADGE_STYLE } from "@/lib/badge-styles"
-import { qualityBadgeIconPath, QUALITY_TIERS, normalizeQualityTier } from "@/lib/quality-badge-styles"
-import { buildQualityKnockoutSvg, buildQualityBadgeSvg } from "@/lib/badge-svg-shared"
-import type { VideoFormat } from "@/lib/av-specs"
+import { QUALITY_BADGE_STYLES, isQualityBadgeStyle, DEFAULT_QUALITY_BADGE_STYLE, normalizeQualityBadgeStyleForTransport } from "@/lib/badge-styles"
+import {
+  qualityBadgeIconPath,
+  qualityBadgeIconStyle,
+  QUALITY_TIERS,
+  normalizeQualityTier,
+  PREMIUM_ACCENT_COLORS,
+  PREMIUM_FORMAT_ACCENT,
+  PREMIUM_COMBO_ACCENT,
+  premiumAccentHex,
+  premiumFormatAccent,
+  avMarkInkBox,
+  qualityIconReferenceWidth,
+  AV_COMBO_ICON_PATH,
+  AV_PLATE_GLYPH_INSET_FACTOR,
+  COLOR_MARK_GLYPH,
+  COLOR_MARK_PLATE_BG,
+  COLOR_MARK_PLATE_STROKE,
+} from "@/lib/quality-badge-styles"
+import { buildQualityKnockoutSvg, buildQualityBadgeSvg, buildQualityTierBadgeSvg, badgeBoxHeight, TOP_SHADOW_PAD } from "@/lib/badge-svg-shared"
+import { KNOWN_VIDEO_FORMATS, FORMAT_ICON_PATHS, type VideoFormat } from "@/lib/av-specs"
+import { BADGE_ITEM_QUALITY_COMBO, BADGE_ITEM_QUALITY_TIER, qualityFormatItemId } from "@/lib/badge-item-transforms"
 import { mappingSchema, mappingUpdateSchema } from "@/lib/validation"
 import sharp from "sharp"
 import fs from "node:fs"
@@ -15,16 +33,27 @@ import type { ServerDefaults } from "@/lib/server-defaults"
 const ROOT = path.resolve(__dirname, "../../..")
 
 describe("quality badge styles", () => {
-  it("exposes the standard/mono/color/knockout union with standard default", () => {
-    expect([...QUALITY_BADGE_STYLES]).toEqual(["standard", "mono", "color", "knockout"])
+  it("exposes the standard/mono/color/knockout/premium union with standard default", () => {
+    expect([...QUALITY_BADGE_STYLES]).toEqual(["standard", "mono", "color", "knockout", "premium"])
     expect(DEFAULT_QUALITY_BADGE_STYLE).toBe("standard")
     expect(isQualityBadgeStyle("mono")).toBe(true)
     expect(isQualityBadgeStyle("color")).toBe(true)
     expect(isQualityBadgeStyle("standard")).toBe(true)
     expect(isQualityBadgeStyle("knockout")).toBe(true)
+    expect(isQualityBadgeStyle("premium")).toBe(true)
     expect(isQualityBadgeStyle("bar")).toBe(false)
     expect(isQualityBadgeStyle(null)).toBe(false)
     expect(isQualityBadgeStyle(undefined)).toBe(false)
+  })
+
+  it("normalizes the transport value from the single enum (premium travels, junk → standard)", () => {
+    for (const style of QUALITY_BADGE_STYLES) {
+      expect(normalizeQualityBadgeStyleForTransport(style)).toBe(style)
+    }
+    expect(normalizeQualityBadgeStyleForTransport("premium")).toBe("premium")
+    expect(normalizeQualityBadgeStyleForTransport("nope")).toBe("standard")
+    expect(normalizeQualityBadgeStyleForTransport(null)).toBe("standard")
+    expect(normalizeQualityBadgeStyleForTransport(undefined)).toBe("standard")
   })
 
   it("maps every style/tier to an existing SVG asset (standard and knockout have none)", () => {
@@ -39,6 +68,36 @@ describe("quality badge styles", () => {
         expect(fs.existsSync(path.join(ROOT, "public", rel!)), `missing asset: ${rel}`).toBe(true)
       }
     }
+  })
+
+  it("premium reuses the color tier asset for every tier (no new asset set)", () => {
+    expect(qualityBadgeIconStyle("premium")).toBe("color")
+    expect(qualityBadgeIconStyle("color")).toBe("color")
+    expect(qualityBadgeIconStyle("mono")).toBe("mono")
+    expect(qualityBadgeIconStyle("standard")).toBeNull()
+    expect(qualityBadgeIconStyle("knockout")).toBeNull()
+    for (const tier of QUALITY_TIERS) {
+      const rel = qualityBadgeIconPath("premium", tier)
+      expect(rel, `premium/${tier}`).toBe(qualityBadgeIconPath("color", tier))
+      expect(fs.existsSync(path.join(ROOT, "public", rel!)), `missing asset: ${rel}`).toBe(true)
+    }
+  })
+
+  it("assigns a premium accent to every known A/V format (gold HDR, cyan IMAX, Dolby)", () => {
+    // Coverage derived from the format enum: a new format cannot stay untinted.
+    for (const fmt of KNOWN_VIDEO_FORMATS) {
+      expect(PREMIUM_FORMAT_ACCENT[fmt], fmt).toBeTruthy()
+      expect(premiumAccentHex(premiumFormatAccent(fmt))).toMatch(/^#[0-9A-F]{6}$/i)
+    }
+    expect(premiumFormatAccent("hdr")).toBe("gold")
+    expect(premiumFormatAccent("hdr10plus")).toBe("gold")
+    expect(premiumFormatAccent("imax")).toBe("cyan")
+    expect(premiumFormatAccent("dv")).toBe("dolby")
+    expect(premiumFormatAccent("atmos")).toBe("dolby")
+    expect(PREMIUM_COMBO_ACCENT).toBe("dolby")
+    // Distinct inks: the three accents are visually separable.
+    const inks = new Set(Object.values(PREMIUM_ACCENT_COLORS))
+    expect(inks.size).toBe(3)
   })
 
   it("returns null for invalid style/tier", () => {
@@ -63,11 +122,13 @@ describe("quality badge styles", () => {
     const base = { tmdbId: 1, mediaType: "movie", title: "T", posterPath: "/p.jpg" }
     expect(mappingSchema.safeParse({ ...base, qualityBadgeStyle: "mono" }).success).toBe(true)
     expect(mappingSchema.safeParse({ ...base, qualityBadgeStyle: "knockout" }).success).toBe(true)
+    expect(mappingSchema.safeParse({ ...base, qualityBadgeStyle: "premium" }).success).toBe(true)
     expect(mappingSchema.safeParse({ ...base, qualityBadgeStyle: null }).success).toBe(true)
     expect(mappingSchema.safeParse({ ...base, qualityBadgeStyle: "bar" }).success).toBe(false)
     expect(mappingSchema.safeParse(base).success).toBe(true)
     expect(mappingUpdateSchema.safeParse({ qualityBadgeStyle: "color" }).success).toBe(true)
     expect(mappingUpdateSchema.safeParse({ qualityBadgeStyle: "knockout" }).success).toBe(true)
+    expect(mappingUpdateSchema.safeParse({ qualityBadgeStyle: "premium" }).success).toBe(true)
     expect(mappingUpdateSchema.safeParse({ qualityBadgeStyle: "nope" }).success).toBe(false)
   })
 })
@@ -92,6 +153,438 @@ describe("renderQualityIconBadge", () => {
     expect(await renderQualityIconBadge("quality-badges/mono/nope.svg", 500, false)).toBeNull()
     expect(await renderQualityIconBadge("../secret.svg", 500, false)).toBeNull()
   })
+})
+
+/** Conteggio pixel per classe di tinta (tolleranza ±32) e pixel scuri della placca. */
+async function inkStats(png: Buffer, hex: string) {
+  const target = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16))
+  const { data } = await sharp(png).ensureAlpha().raw().toBuffer({ resolveWithObject: true })
+  let accent = 0
+  let dark = 0
+  for (let i = 0; i < data.length; i += 4) {
+    const [r, g, b, a] = [data[i], data[i + 1], data[i + 2], data[i + 3]]
+    if (a > 200 && r < 60 && g < 60 && b < 60) dark++
+    if (
+      a > 200 &&
+      Math.abs(r - target[0]) <= 32 &&
+      Math.abs(g - target[1]) <= 32 &&
+      Math.abs(b - target[2]) <= 32
+    ) accent++
+  }
+  return { accent, dark }
+}
+
+/** Pixel di una tinta (hex anche shorthand #RGB), alpha opaco, tolleranza per canale. */
+function countTint(png: Buffer, hex: string, tol = 32): Promise<number> {
+  const h = hex.replace("#", "")
+  const full = h.length === 3 ? h.split("").map((c) => c + c).join("") : h
+  const target = [0, 2, 4].map((i) => parseInt(full.slice(i, i + 2), 16))
+  return sharp(png)
+    .ensureAlpha()
+    .raw()
+    .toBuffer({ resolveWithObject: true })
+    .then(({ data }) => {
+      let n = 0
+      for (let i = 0; i < data.length; i += 4) {
+        if (
+          data[i + 3] > 200 &&
+          Math.abs(data[i] - target[0]) <= tol &&
+          Math.abs(data[i + 1] - target[1]) <= tol &&
+          Math.abs(data[i + 2] - target[2]) <= tol
+        ) n++
+      }
+      return n
+    })
+}
+
+/**
+ * Cella di un elemento del gruppo, SENZA il bordo di shadow pad: gli item
+ * impilati si sovrappongono nel pad e i pixel del vicino finirebbero nel crop.
+ */
+async function groupCell(
+  group: { png: Buffer; items: readonly { left: number; top: number; w: number; h: number }[] },
+  index: number,
+): Promise<Buffer> {
+  const item = group.items[index]
+  return sharp(group.png)
+    .extract({ left: item.left, top: item.top, width: item.w, height: item.h })
+    .extract({
+      left: TOP_SHADOW_PAD,
+      top: TOP_SHADOW_PAD,
+      width: item.w - TOP_SHADOW_PAD * 2,
+      height: item.h - TOP_SHADOW_PAD * 2,
+    })
+    .png()
+    .toBuffer()
+}
+
+/**
+ * Bounding box dei pixel che CAMBIANO fra due render della stessa cella,
+ * con la posizione nel bitmap (per verificare che il glifo resti DENTRO la
+ * placca, mai sopra la cornice). Usato per isolare l'inchiostro del glifo: la
+ * polarità (mono/standard) o l'accento (premium) cambiano solo il glifo, non
+ * placca/ombra/geometria, e il bbox è esatto anche sui tratti sottili
+ * (l'alpha-taglio perde i bordi).
+ */
+async function diffBbox(a: Buffer, b: Buffer): Promise<{ w: number; h: number; x0: number; y0: number } | null> {
+  const ra = await sharp(a).ensureAlpha().raw().toBuffer({ resolveWithObject: true })
+  const rb = await sharp(b).ensureAlpha().raw().toBuffer({ resolveWithObject: true })
+  const { width, height } = ra.info
+  let x0 = width, y0 = height, x1 = -1, y1 = -1
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      const i = (y * width + x) * 4
+      const d =
+        Math.abs(ra.data[i] - rb.data[i]) +
+        Math.abs(ra.data[i + 1] - rb.data[i + 1]) +
+        Math.abs(ra.data[i + 2] - rb.data[i + 2]) +
+        Math.abs(ra.data[i + 3] - rb.data[i + 3])
+      if (d > 40) {
+        if (x < x0) x0 = x; if (x > x1) x1 = x
+        if (y < y0) y0 = y; if (y > y1) y1 = y
+      }
+    }
+  }
+  return x1 < 0 ? null : { w: x1 - x0 + 1, h: y1 - y0 + 1, x0, y0 }
+}
+
+/**
+ * Statistiche del tag knockout `boxH × tagW` su una cella GIÀ ritagliata al
+ * solo tag (senza shadow pad): pixel davvero trasparenti, semi-trasparenti e
+ * corpo bianco opaco, misurati SOLO dentro il rettangolo arrotondato (angoli
+ * esclusi: lì il trasparente è il box, non il ritaglio).
+ */
+async function tagCutoutStats(png: Buffer, tagW: number, boxH: number) {
+  const { data, info } = await sharp(png).ensureAlpha().raw().toBuffer({ resolveWithObject: true })
+  const ox = 2
+  const oy = 2
+  const W = tagW - 4
+  const H = boxH - 4
+  const r = Math.round(boxH * 0.30)
+  const inside = (x: number, y: number): boolean => {
+    const cx = Math.min(Math.max(x, ox + r), ox + W - r)
+    const cy = Math.min(Math.max(y, oy + r), oy + H - r)
+    return (x - cx) ** 2 + (y - cy) ** 2 <= r * r
+  }
+  let clear = 0
+  let partial = 0
+  let white = 0
+  for (let y = oy; y < oy + H; y++) {
+    for (let x = ox; x < ox + W; x++) {
+      if (!inside(x, y)) continue
+      const i = (y * info.width + x) * 4
+      const a = data[i + 3]
+      if (a === 0) clear++
+      if (a < 200) partial++
+      if (a > 200 && data[i] > 200 && data[i + 1] > 200 && data[i + 2] > 200) white++
+    }
+  }
+  return { clear, partial, white }
+}
+
+/** Asset A/V shipped nell'ordine di formato + la lockup unita DV · Atmos. */
+async function assetInkBox(rel: string): Promise<{ x: number; y: number; w: number; h: number }> {
+  const src = fs.readFileSync(path.join(ROOT, "public", rel), "utf8")
+  const vb = src.match(/viewBox="([\d.\-\s]+)"/)![1].trim().split(/\s+/).map(Number)
+  const png = await sharp(Buffer.from(src.replace(/currentColor/g, "#ffffff")))
+    .resize({ width: 900 })
+    .png()
+    .toBuffer()
+  const { data, info } = await sharp(png).ensureAlpha().raw().toBuffer({ resolveWithObject: true })
+  let minX = info.width, minY = info.height, maxX = -1, maxY = -1
+  for (let y = 0; y < info.height; y++) {
+    for (let x = 0; x < info.width; x++) {
+      if (data[(y * info.width + x) * 4 + 3] > 8) {
+        if (x < minX) minX = x; if (x > maxX) maxX = x
+        if (y < minY) minY = y; if (y > maxY) maxY = y
+      }
+    }
+  }
+  const sx = vb[2] / info.width
+  const sy = vb[3] / info.height
+  return { x: vb[0] + minX * sx, y: vb[1] + minY * sy, w: (maxX - minX + 1) * sx, h: (maxY - minY + 1) * sy }
+}
+
+/** Gli A/V verificabili come coppia (formato, icona) + la combo unita. */
+const AV_MARKS: ReadonlyArray<{ key: string; formats: VideoFormat[]; icon: string }> = [
+  { key: "hdr", formats: ["hdr"], icon: FORMAT_ICON_PATHS.hdr },
+  { key: "hdr10plus", formats: ["hdr10plus"], icon: FORMAT_ICON_PATHS.hdr10plus },
+  { key: "imax", formats: ["imax"], icon: FORMAT_ICON_PATHS.imax },
+  { key: "dv", formats: ["dv"], icon: FORMAT_ICON_PATHS.dv },
+  { key: "atmos", formats: ["atmos"], icon: FORMAT_ICON_PATHS.atmos },
+  { key: "combo", formats: ["dv", "atmos"], icon: AV_COMBO_ICON_PATH },
+]
+
+/**
+ * Stile premium (additivo): glifo A/V colorato su placca scura compatta.
+ * Copre geometria (placca di altezza `boxH`, larghezza uniforme), tinte per
+ * formato, indipendenza dalla polarità e degradazione onesta su file mancante.
+ */
+describe("quality premium style (colored glyph on a compact dark plate)", () => {
+  const PW = 380
+
+  it("keeps the plated footprint: plate as wide as the 4K tier icon, natural glyph height", async () => {
+    const svc = await import("@/lib/poster-service")
+    // Ritratto (380) e landscape (500): stessa base font degli altri stili icona.
+    for (const pw of [380, 500]) {
+      const fs = Math.round(Math.max(17 * pw / 380, 10))
+      const boxH = badgeBoxHeight(fs)
+      const ref = qualityIconReferenceWidth(boxH)
+      // Requisito utente: la placca ha la STESSA larghezza del tier 4K dello
+      // stile attivo (icona `color`, riusata da `premium`) — 38 a 380, 49 a
+      // 500 — quindi la colonna è allineata, non più larga del tier.
+      const tierIcon = await svc.renderQualityIconBadge(qualityBadgeIconPath("color", "4K")!, pw, false)
+      expect(tierIcon, `tier ${pw}`).not.toBeNull()
+      expect(tierIcon!.w - TOP_SHADOW_PAD * 2, `tier ${pw}`).toBe(ref)
+      for (const mark of AV_MARKS) {
+        const accent = premiumFormatAccent(mark.formats[0])
+        const plated = await svc.renderPremiumIconBadge(mark.icon, pw, premiumAccentHex(accent))
+        expect(plated, `${mark.key} ${pw}`).not.toBeNull()
+        // Stessa altezza delle altre icone (anchor/stack invariati) e
+        // larghezza esterna = larghezza del tier 4K, identica per ogni marchio.
+        expect(plated!.h, `${mark.key} ${pw}`).toBe(boxH + TOP_SHADOW_PAD * 2)
+        expect(plated!.w, `${mark.key} ${pw}`).toBe(ref + TOP_SHADOW_PAD * 2)
+        expect(plated!.w, `${mark.key} ${pw} = tier width`).toBe(tierIcon!.w)
+        expect(plated!.h, `${mark.key} ${pw} = tier height`).toBe(tierIcon!.h)
+      }
+      // Glifo nudo (default `renderQualityIconBadge`): stessa larghezza
+      // d'inchiostro del 4K, altezza naturale dall'aspect (nessuno stretch).
+      const bare = await svc.renderQualityIconBadge(FORMAT_ICON_PATHS.hdr, pw, false)
+      const ink = avMarkInkBox(FORMAT_ICON_PATHS.hdr)!
+      expect(bare, `bare ${pw}`).not.toBeNull()
+      expect(bare!.w, `bare ${pw}`).toBe(ref + TOP_SHADOW_PAD * 2)
+      expect(bare!.h, `bare ${pw}`).toBe(Math.round(ref * (ink.h / ink.w)) + TOP_SHADOW_PAD * 2)
+    }
+  }, 30000)
+
+  it("tints HDR/HDR10+ gold, IMAX cyan, Dolby violet on a dark plate", async () => {
+    const svc = await import("@/lib/poster-service")
+    const cases: Array<[string, string]> = [
+      [FORMAT_ICON_PATHS.hdr, PREMIUM_ACCENT_COLORS.gold],
+      [FORMAT_ICON_PATHS.hdr10plus, PREMIUM_ACCENT_COLORS.gold],
+      [FORMAT_ICON_PATHS.imax, PREMIUM_ACCENT_COLORS.cyan],
+      [FORMAT_ICON_PATHS.dv, PREMIUM_ACCENT_COLORS.dolby],
+      [FORMAT_ICON_PATHS.atmos, PREMIUM_ACCENT_COLORS.dolby],
+    ]
+    for (const [path, accent] of cases) {
+      const mark = await svc.renderPremiumIconBadge(path, PW, accent)
+      expect(mark, path).not.toBeNull()
+      const stats = await inkStats(mark!.png, accent)
+      // Il glifo del formato è visibile nella tinta dell'accento…
+      expect(stats.accent, `${path} accent ink`).toBeGreaterThan(20)
+      // …su una placca scura neutra leggibile su ogni fondo.
+      expect(stats.dark, `${path} plate`).toBeGreaterThan(200)
+    }
+    // Le tre tinte sono distinte: l'inchiostro IMAX non passa per l'oro.
+    const imax = await svc.renderPremiumIconBadge(FORMAT_ICON_PATHS.imax, PW, PREMIUM_ACCENT_COLORS.cyan)
+    expect((await inkStats(imax!.png, PREMIUM_ACCENT_COLORS.gold)).accent).toBe(0)
+  }, 30000)
+
+  it("is polarity-independent (same dark plate on light and dark tops) and null on a missing file", async () => {
+    const svc = await import("@/lib/poster-service")
+    const gold = premiumAccentHex("gold")
+    const light = await svc.renderQualityBadgeGroup("4K", "premium", ["hdr"], PW, true)
+    const dark = await svc.renderQualityBadgeGroup("4K", "premium", ["hdr"], PW, false)
+    expect(light).not.toBeNull()
+    expect(dark).not.toBeNull()
+    // La placca premium non dipende dalla polarità: stesse dimensioni, e i
+    // due gruppi differiscono solo per il tier (asset colore, invariato).
+    expect([light!.w, light!.h]).toEqual([dark!.w, dark!.h])
+    const mark = await svc.renderPremiumIconBadge(FORMAT_ICON_PATHS.hdr, PW, gold)
+    expect(await svc.renderPremiumIconBadge("quality-badges/video/nope.svg", PW, gold)).toBeNull()
+    expect(await svc.renderPremiumIconBadge("../secret.svg", PW, gold)).toBeNull()
+    expect(mark).not.toBeNull()
+    // Placca sempre scura: i pixel della placca non dipendono da topLight.
+    expect((await inkStats(mark!.png, PREMIUM_ACCENT_COLORS.gold)).dark).toBeGreaterThan(200)
+    expect((await inkStats(light!.png, PREMIUM_ACCENT_COLORS.gold)).dark).toBeGreaterThan(200)
+  }, 30000)
+
+  it("keeps the tier on the color asset and stacks formats below it", async () => {
+    const svc = await import("@/lib/poster-service")
+    const premium = await svc.renderQualityBadgeGroup("4K", "premium", ["dv", "atmos", "imax"], PW, false)
+    const color = await svc.renderQualityBadgeGroup("4K", "color", ["dv", "atmos", "imax"], PW, false)
+    expect(premium).not.toBeNull()
+    expect(color).not.toBeNull()
+    // Tier identico (stesso asset colore) e stessa colonna verticale: cambia
+    // solo il materiale dei marchi A/V.
+    const tierPremium = await svc.renderQualityIconBadge(qualityBadgeIconPath("premium", "4K")!, PW, false)
+    const tierColor = await svc.renderQualityIconBadge(qualityBadgeIconPath("color", "4K")!, PW, false)
+    expect(tierPremium!.png.equals(tierColor!.png)).toBe(true)
+    expect(premium!.h).toBe(color!.h)
+    expect(premium!.png.equals(color!.png)).toBe(false)
+    // Una sola cella per formato verificato: tier + combo DV·ATMOS + IMAX.
+    expect(premium!.items.map((i) => i.id)).toEqual([
+      BADGE_ITEM_QUALITY_TIER,
+      BADGE_ITEM_QUALITY_COMBO,
+      qualityFormatItemId("imax"),
+    ])
+  }, 30000)
+})
+
+/**
+ * Requisito utente: OGNI marchio A/V (HDR, HDR10+, IMAX, Dolby Vision, Atmos,
+ * lockup DV·Atmos) ha la stessa larghezza d'inchiostro VISIBILE del badge 4K
+ * dello stile attivo — prima IMAX/HDR erano 2–4× più larghi — e conserva
+ * l'aspect dell'asset (l'altezza segue, nessuno stretch). Misura su pixel veri
+ * del renderer reale, per ritratto/landscape e per entrambe le polarità.
+ */
+describe("quality A/V mark width normalization", () => {
+  it("keeps the ink boxes in sync with the shipped assets (guard for the crop table)", async () => {
+    // Le costanti sono misurate a mano dal canale alpha: se un asset cambia,
+    // il crop (e quindi la larghezza visibile) mentirebbe in silenzio.
+    for (const mark of AV_MARKS) {
+      const declared = avMarkInkBox(mark.icon)
+      expect(declared, mark.key).not.toBeNull()
+      const measured = await assetInkBox(mark.icon)
+      for (const axis of ["x", "y", "w", "h"] as const) {
+        expect(Math.abs(declared![axis] - measured[axis]), `${mark.key}.${axis}`).toBeLessThanOrEqual(2)
+      }
+    }
+    // Gli asset tier non sono marchi A/V: nessun crop (renderer storico).
+    expect(avMarkInkBox(qualityBadgeIconPath("color", "4K")!)).toBeNull()
+    expect(avMarkInkBox("quality-badges/video/nope.svg")).toBeNull()
+  }, 30000)
+
+  it("gives standard/mono marks one visible ink width equal to the style 4K tier, aspect preserved", async () => {
+    const svc = await import("@/lib/poster-service")
+    for (const pw of [380, 500]) {
+      const fs = Math.round(Math.max(17 * pw / 380, 10))
+      const boxH = badgeBoxHeight(fs)
+      // Ancora per stile: il test standard è largo quanto il tag testuale 4K,
+      // il mono quanto l'icona 4K (larghezza visibile identica al tier).
+      const targets: Record<"standard" | "mono", number> = {
+        standard: buildQualityTierBadgeSvg("4K", fs, false, "inter").w - TOP_SHADOW_PAD * 2,
+        mono: qualityIconReferenceWidth(boxH),
+      }
+      for (const style of ["standard", "mono"] as const) {
+        const widths: number[] = []
+        for (const mark of AV_MARKS) {
+          // Il glifo cambia con la polarità: il diff isola l'inchiostro
+          // (ombra e posizione identiche), anche sui tratti sottili.
+          const dark = await svc.renderQualityBadgeGroup("4K", style, mark.formats, pw, false)
+          const light = await svc.renderQualityBadgeGroup("4K", style, mark.formats, pw, true)
+          expect(dark, `${style}/${mark.key}/${pw}`).not.toBeNull()
+          expect(light, `${style}/${mark.key}/${pw}`).not.toBeNull()
+          const ink = await diffBbox(
+            await groupCell(dark!, dark!.items.length - 1),
+            await groupCell(light!, light!.items.length - 1),
+          )
+          expect(ink, `${style}/${mark.key}/${pw}`).not.toBeNull()
+          expect(Math.abs(ink!.w - targets[style]), `${style}/${mark.key}/${pw} width`).toBeLessThanOrEqual(2)
+          // Aspect dell'asset: l'altezza segue la larghezza, mai stirata.
+          const box = avMarkInkBox(mark.icon)!
+          expect(Math.abs(ink!.h - Math.round(ink!.w * (box.h / box.w))), `${style}/${mark.key}/${pw} aspect`).toBeLessThanOrEqual(1)
+          widths.push(ink!.w)
+        }
+        // Uniformità reale fra i marchi (non solo per costruzione).
+        expect(Math.max(...widths) - Math.min(...widths), `${style}/${pw} uniform`).toBeLessThanOrEqual(2)
+      }
+    }
+  }, 60000)
+
+  it("anchors marks to the standard text tier when the style is absent or garbage", async () => {
+    const svc = await import("@/lib/poster-service")
+    const PW = 380
+    const fs = Math.round(Math.max(17 * PW / 380, 10))
+    // Senza stile valido il tier degrada sul tag testuale standard: i marchi
+    // A/V devono seguire quella larghezza, non quella dell'icona (38).
+    const target = buildQualityTierBadgeSvg("4K", fs, false, "inter").w - TOP_SHADOW_PAD * 2
+    for (const style of [null, undefined, "nope" as never]) {
+      const group = await svc.renderQualityBadgeGroup("4K", style as never, ["hdr"], PW, false)
+      expect(group, String(style)).not.toBeNull()
+      const mark = group!.items[group!.items.length - 1]
+      expect(mark.w - TOP_SHADOW_PAD * 2, String(style)).toBe(target)
+    }
+  }, 30000)
+
+  it("gives color/premium marks one uniform plate equal to the 4K tier width, glyph inset and uncropped", async () => {
+    const svc = await import("@/lib/poster-service")
+    const PW = 380
+    const fs = Math.round(Math.max(17 * PW / 380, 10))
+    const boxH = badgeBoxHeight(fs)
+    const ref = qualityIconReferenceWidth(boxH)
+    // Il glifo vive DENTRO la placca: inset uniforme piccolo per lato.
+    const inset = Math.max(1, Math.round(fs * AV_PLATE_GLYPH_INSET_FACTOR))
+    const glyphTarget = ref - inset * 2
+    const widths: number[] = []
+    for (const mark of AV_MARKS) {
+      // Il glifo premium è l'unica cosa che cambia con l'accento: il diff
+      // misura l'inchiostro del glifo (larghezza + altezza naturali).
+      const gold = await svc.renderPremiumIconBadge(mark.icon, PW, premiumAccentHex("gold"))
+      const dolby = await svc.renderPremiumIconBadge(mark.icon, PW, premiumAccentHex("dolby"))
+      expect(gold, mark.key).not.toBeNull()
+      expect(dolby, mark.key).not.toBeNull()
+      const glyph = await diffBbox(gold!.png, dolby!.png)
+      expect(glyph, mark.key).not.toBeNull()
+      expect(Math.abs(glyph!.w - glyphTarget), `${mark.key} glyph width`).toBeLessThanOrEqual(2)
+      const box = avMarkInkBox(mark.icon)!
+      expect(Math.abs(glyph!.h - Math.round(glyph!.w * (box.h / box.w))), `${mark.key} aspect`).toBeLessThanOrEqual(1)
+      // NIENTE clipping/spill: il glifo sta dentro la placca, non sopra la
+      // cornice (la placca occupa [TOP_SHADOW_PAD, +ref) nel bitmap).
+      expect(glyph!.x0, `${mark.key} left inset`).toBeGreaterThanOrEqual(TOP_SHADOW_PAD + 1)
+      expect(glyph!.x0 + glyph!.w, `${mark.key} right inset`).toBeLessThanOrEqual(TOP_SHADOW_PAD + ref - 1)
+      widths.push(glyph!.w)
+      // Placca identica per ogni marchio e LARGA QUANTO IL TIER 4K.
+      expect(gold!.w, `${mark.key} plate w`).toBe(ref + TOP_SHADOW_PAD * 2)
+      expect(gold!.h, `${mark.key} plate h`).toBe(boxH + TOP_SHADOW_PAD * 2)
+      // `color` condivide la geometria della placca (stessa funzione).
+      const color = await svc.renderColorIconBadge(mark.icon, PW)
+      expect(color, `color/${mark.key}`).not.toBeNull()
+      expect([color!.w, color!.h], `color/${mark.key}`).toEqual([gold!.w, gold!.h])
+    }
+    expect(Math.max(...widths) - Math.min(...widths), "uniform").toBeLessThanOrEqual(2)
+  }, 60000)
+
+  it("matches the 4K color-tier palette in `color` and stays visibly distinct in `premium`", async () => {
+    const svc = await import("@/lib/poster-service")
+    const PW = 380
+    // `color`: cornice oro, placca interna scura, lettering giallo — la stessa
+    // palette campionata dall'asset 4K color (nessun colore nuovo).
+    const color = await svc.renderColorIconBadge(FORMAT_ICON_PATHS.hdr, PW)
+    expect(color).not.toBeNull()
+    expect(await countTint(color!.png, COLOR_MARK_PLATE_STROKE), "frame").toBeGreaterThan(50)
+    expect(await countTint(color!.png, COLOR_MARK_PLATE_BG), "plate").toBeGreaterThan(300)
+    expect(await countTint(color!.png, COLOR_MARK_GLYPH), "glyph").toBeGreaterThan(50)
+    // `premium`: placca neutra con SOLO l'accento del formato, nessuna cornice
+    // oro del tier color (stile additivo, mai un alias del `color`).
+    const premium = await svc.renderPremiumIconBadge(FORMAT_ICON_PATHS.hdr, PW, premiumAccentHex("gold"))
+    expect(premium).not.toBeNull()
+    expect(await countTint(premium!.png, premiumAccentHex("gold")), "accent").toBeGreaterThan(50)
+    expect(await countTint(premium!.png, COLOR_MARK_PLATE_STROKE), "no gold frame").toBe(0)
+    const colorGroup = await svc.renderQualityBadgeGroup("4K", "color", ["hdr"], PW, false)
+    const premiumGroup = await svc.renderQualityBadgeGroup("4K", "premium", ["hdr"], PW, false)
+    expect(premiumGroup!.png.equals(colorGroup!.png)).toBe(false)
+  }, 60000)
+
+  it("knockout: white 4K-width tag with a true transparent cut-out for every mark, polarity-independent", async () => {
+    const svc = await import("@/lib/poster-service")
+    for (const pw of [380, 500]) {
+      const fs = Math.round(Math.max(17 * pw / 380, 10))
+      const boxH = badgeBoxHeight(fs)
+      // Il tag resta quello del tier knockout (larghezza visibile 4K).
+      const tagW = buildQualityKnockoutSvg("4K", fs, "inter").w - TOP_SHADOW_PAD * 2
+      for (const mark of AV_MARKS) {
+        const dark = await svc.renderQualityBadgeGroup("4K", "knockout", mark.formats, pw, false)
+        const light = await svc.renderQualityBadgeGroup("4K", "knockout", mark.formats, pw, true)
+        expect(dark, `${mark.key}/${pw}`).not.toBeNull()
+        expect(light, `${mark.key}/${pw}`).not.toBeNull()
+        const cellDark = await groupCell(dark!, dark!.items.length - 1)
+        const cellLight = await groupCell(light!, light!.items.length - 1)
+        const item = dark!.items[dark!.items.length - 1]
+        expect(item.w - TOP_SHADOW_PAD * 2, `${mark.key}/${pw} tag width`).toBe(tagW)
+        expect(item.h - TOP_SHADOW_PAD * 2, `${mark.key}/${pw} tag height`).toBe(boxH)
+        // Ritaglio VERO: il glifo è trasparente (alpha 0) dentro il tag, il
+        // corpo resta bianco opaco. Un filtro sul <g> lascerebbe il glifo
+        // grigio/semi-opaco invece del cut-out.
+        const cut = await tagCutoutStats(cellDark, tagW, boxH)
+        expect(cut.clear, `${mark.key}/${pw} transparent glyph`).toBeGreaterThan(20)
+        expect(cut.partial, `${mark.key}/${pw} cut-out area`).toBeGreaterThan(100)
+        expect(cut.white, `${mark.key}/${pw} white tag body`).toBeGreaterThan(500)
+        // Il tag bianco non dipende dalla polarità del fondo.
+        expect(cellDark.equals(cellLight), `${mark.key}/${pw} polarity`).toBe(true)
+      }
+    }
+  }, 60000)
 })
 
 /** Pixel chiari (tutti i canali >200) nella zona top-right. */
@@ -438,21 +931,23 @@ describe("quality knockout vertical stack", () => {
     const PAD = 14
     const gap = Math.round(5 * pw / 380)
     const ko = await renderQualityKnockoutBadge("4K", pw)
-    const combo = await svc.renderQualityIconBadge("quality-badges/video/dolby-vision-atmos.svg", pw, false)
-    expect(combo).not.toBeNull()
     const group = await svc.renderQualityBadgeGroup("4K", "knockout", ["dv", "atmos"], pw, false)
     expect(group).not.toBeNull()
+    // Order and identity: knockout tier, then the MERGED Dolby lockup.
+    expect(group!.items.map((i) => i.id)).toEqual([BADGE_ITEM_QUALITY_TIER, BADGE_ITEM_QUALITY_COMBO])
+    const combo = group!.items[1]
+    // The A/V cell is a white tag with the SAME outer box as the 4K knockout
+    // tag (invariant of the width normalization: every mark = tier width).
+    expect([combo.w - PAD * 2, combo.h - PAD * 2]).toEqual([ko.w - PAD * 2, ko.h - PAD * 2])
     // Vertical column geometry (tier on top, Dolby below), like other styles.
-    expect(group!.w).toBe(Math.max(ko.w, combo!.w))
-    expect(group!.h).toBe(ko.h - PAD * 2 + gap + (combo!.h - PAD * 2) + PAD * 2)
-    // Order: top segment is the knockout tag, bottom segment the Dolby icon.
+    expect(group!.w).toBe(Math.max(ko.w, combo.w))
+    expect(group!.h).toBe(ko.h - PAD * 2 + gap + (combo.h - PAD * 2) + PAD * 2)
+    // Order proof: top segment is pixel-identical to the knockout tier.
     // Cropped with guards on the neighbor-facing sides: adjacent bitmaps
     // overlap in their shadow pads (TOP_SHADOW_PAD*2 - gap), so
     // byte-identity only holds past the overlap. The top guard skips the
-    // bottom shadow tail; the bottom guard skips the whole overlap zone
-    // (the knockout bitmap ends PAD*2 - gap rows into the Dolby bitmap).
+    // bottom shadow tail.
     const GUARD = 8
-    const OVERLAP = PAD * 2 - gap
     const topLeft = Math.round((group!.w - ko.w) / 2)
     const topSeg = await sharp(group!.png)
       .extract({ left: topLeft, top: 0, width: ko.w, height: ko.h - PAD - GUARD })
@@ -463,52 +958,32 @@ describe("quality knockout vertical stack", () => {
       .raw()
       .toBuffer()
     expectSamePixels(topSeg, topRef)
-    const comboTop = ko.h - PAD * 2 + gap
-    const comboLeft = Math.round((group!.w - combo!.w) / 2)
-    const bottomSeg = await sharp(group!.png)
-      .extract({ left: comboLeft, top: comboTop + OVERLAP, width: combo!.w, height: combo!.h - PAD - OVERLAP })
-      .raw()
-      .toBuffer()
-    const bottomRef = await sharp(combo!.png)
-      .extract({ left: 0, top: OVERLAP, width: combo!.w, height: combo!.h - PAD - OVERLAP })
-      .raw()
-      .toBuffer()
-    expectSamePixels(bottomSeg, bottomRef)
+    // Bottom cell: white tag body + genuinely transparent Dolby cut-out
+    // (never a grey glyph, never the bare colour icon).
+    const cut = await tagCutoutStats(await groupCell(group!, 1), combo.w - PAD * 2, combo.h - PAD * 2)
+    expect(cut.clear).toBeGreaterThan(20)
+    expect(cut.white).toBeGreaterThan(500)
   }, 30000)
 
-  it("keeps the Dolby mark white in knockout even on light tops", async () => {
+  it("keeps the A/V tag white in knockout even on light tops", async () => {
     const svc = await import("@/lib/poster-service")
     const pw = 380
     const PAD = 14
     // Single Atmos (no combo without dv): same column geometry either way,
-    // and the Dolby cell is pixel-identical (white) under both polarities.
+    // and the A/V cell is pixel-identical (white tag) under both polarities.
     const gLight = await svc.renderQualityBadgeGroup("4K", "knockout", ["atmos"], pw, true)
     const gDark = await svc.renderQualityBadgeGroup("4K", "knockout", ["atmos"], pw, false)
     expect(gLight).not.toBeNull()
     expect(gDark).not.toBeNull()
     expect([gLight!.w, gLight!.h]).toEqual([gDark!.w, gDark!.h])
-    const atmos = await svc.renderQualityIconBadge("quality-badges/video/dolby-atmos.svg", pw, false)
-    expect(atmos).not.toBeNull()
-    // The Dolby cell sits below the tier, centered in the column.
-    const { renderQualityKnockoutBadge } = await import("@/lib/svg-badge")
-    const ko = await renderQualityKnockoutBadge("4K", pw)
-    const gap = Math.round(5 * pw / 380)
-    const cellTop = ko.h - PAD * 2 + gap
-    const cellLeft = Math.round((gLight!.w - atmos!.w) / 2)
-    async function brightIn(group: NonNullable<typeof gLight>): Promise<number> {
-      const { data, info } = await sharp(group.png).ensureAlpha().raw().toBuffer({ resolveWithObject: true })
-      let n = 0
-      for (let y = cellTop; y < cellTop + atmos!.h; y++) {
-        for (let x = cellLeft; x < cellLeft + atmos!.w; x++) {
-          const i = (y * info.width + x) * 4
-          if (data[i] > 200 && data[i + 1] > 200 && data[i + 2] > 200 && data[i + 3] > 200) n++
-        }
-      }
-      return n
-    }
-    // White Dolby glyphs on the light-top group too.
-    expect(await brightIn(gLight!)).toBeGreaterThan(30)
-    expect(await brightIn(gDark!)).toBeGreaterThan(30)
+    const cellLight = await groupCell(gLight!, gLight!.items.length - 1)
+    const cellDark = await groupCell(gDark!, gDark!.items.length - 1)
+    // The white tag never follows the background polarity.
+    expect(cellDark.equals(cellLight)).toBe(true)
+    const item = gDark!.items[gDark!.items.length - 1]
+    const cut = await tagCutoutStats(cellDark, item.w - PAD * 2, item.h - PAD * 2)
+    expect(cut.white).toBeGreaterThan(500)
+    expect(cut.clear).toBeGreaterThan(20)
     // Control: outside knockout the same icon follows polarity (black).
     const black = await svc.renderQualityIconBadge("quality-badges/video/dolby-atmos.svg", pw, true)
     expect(black).not.toBeNull()
@@ -528,13 +1003,15 @@ describe("quality knockout vertical stack", () => {
     const GUARD = 8
     const gap = Math.round(5 * pw / 380)
     const ko = await renderQualityKnockoutBadge("4K", pw)
-    const imax = await svc.renderQualityIconBadge("quality-badges/video/imax.svg", pw, false)
-    expect(imax).not.toBeNull()
     // Knockout + IMAX (no Dolby): vertical stack, knockout tag on top.
+    // Geometry from the ACTUAL painted slot (the A/V tag height no longer
+    // equals the bare icon's: aspect-preserved glyph inside the 4K tag).
     const stacked = await svc.renderQualityBadgeGroup("4K", "knockout", ["imax"], pw, false)
     expect(stacked).not.toBeNull()
-    expect(stacked!.w).toBe(Math.max(ko.w, imax!.w))
-    expect(stacked!.h).toBe(ko.h - PAD * 2 + gap + (imax!.h - PAD * 2) + PAD * 2)
+    expect(stacked!.items.map((i) => i.id)).toEqual([BADGE_ITEM_QUALITY_TIER, qualityFormatItemId("imax")])
+    const imax = stacked!.items[1]
+    expect(stacked!.w).toBe(Math.max(ko.w, imax.w))
+    expect(stacked!.h).toBe(ko.h - PAD * 2 + gap + (imax.h - PAD * 2) + PAD * 2)
     const koTop = 0
     const topSeg = await sharp(stacked!.png)
       .extract({ left: Math.round((stacked!.w - ko.w) / 2), top: koTop, width: ko.w, height: ko.h - PAD - GUARD })

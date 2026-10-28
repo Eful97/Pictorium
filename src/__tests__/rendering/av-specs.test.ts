@@ -425,20 +425,25 @@ describe("renderQualityBadgeGroup", () => {
   })
 
   it("renders vertical composite column with resolution and combined AV format badge", async () => {
+    const PAD = 14
+    const gap = Math.round(5 * 500 / 380)
     const group = await renderQualityBadgeGroup("4K", "mono", ["dv", "atmos"], 500, false)
     expect(group).not.toBeNull()
-    // In vertical layout with combined Dolby Vision · Atmos, 2 badges are stacked (4K + DVA)
-    expect(group!.w).toBeLessThan(120)
-    expect(group!.w).toBeGreaterThan(60)
-    // Height stacks 2 badges vertically (saving vertical space): ~115px instead of ~160px
-    expect(group!.h).toBeGreaterThan(95)
-    expect(group!.h).toBeLessThan(130)
+    // In vertical layout with combined Dolby Vision · Atmos, 2 badges are stacked (4K + DVA).
+    // A/V marks are width-normalized (uniform visible width, natural aspect
+    // height), so the column is exactly: pads + tier band + gap + mark band.
+    const [tier, combo] = group!.items
+    expect(group!.items.length).toBe(2)
+    expect(group!.w).toBe(Math.max(tier.w, combo.w))
+    expect(group!.h).toBe(PAD * 2 + (tier.h - PAD * 2) + gap + (combo.h - PAD * 2))
     expect(group!.png.length).toBeGreaterThan(100)
 
-    // With IMAX added, it stacks 3 badges: 4K + DVA + IMAX
+    // With IMAX added, it stacks 3 badges: 4K + DVA + IMAX (one more band).
     const groupWithImax = await renderQualityBadgeGroup("4K", "mono", ["dv", "atmos", "imax"], 500, false)
     expect(groupWithImax).not.toBeNull()
-    expect(groupWithImax!.h).toBeGreaterThan(140)
+    const bands = groupWithImax!.items.map((i) => i.h - PAD * 2)
+    expect(groupWithImax!.h).toBe(PAD * 2 + bands.reduce((a, b) => a + b, 0) + gap * (bands.length - 1))
+    expect(groupWithImax!.h).toBeGreaterThan(group!.h)
   })
 
   it("supports all resolution tiers (4K, FHD, HD, SD) stacked above AV formats", async () => {

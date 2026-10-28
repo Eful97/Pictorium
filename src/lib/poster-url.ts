@@ -21,7 +21,7 @@ import type { BadgeStyle, RankingBadgeStyle, QualityBadgeStyle, BadgeFont, Separ
 import type { AgeBadgeStyle } from "./badge-styles"
 import { isAgeBadgeStyle } from "./badge-styles"
 import { isExtraBadgeStyle, isExtraFollowRank } from "./badge-styles"
-import { getSeparateBadgeDefaultScale, getSeparateRatingsStyleForShape, getQualityBadgeOffsetDefault } from "./badge-styles"
+import { getSeparateBadgeDefaultScale, getSeparateRatingsStyleForShape, getQualityBadgeOffsetDefault, normalizeQualityBadgeStyleForTransport } from "./badge-styles"
 import { canonicalizeBadgeItemTransforms } from "./badge-item-transforms"
 import type { LandscapeServerDefaults } from "./server-defaults"
 import { DEFAULT_SASH_ORDER, NEXT_EPISODE_BADGE_KEY, type SashBucket } from "./badge-priority"
@@ -504,7 +504,7 @@ export function buildPreviewUrl(ps: PosterState, bp: BadgeParams, configToken?: 
   params.push(`bfont=${bp.badgeFont ?? "inter"}`)
   // Quality style ALWAYS explicit in preview (like bs/rs): without it, a
   // saved mapping with a different style would override the editor choice (desync).
-  params.push(`qbs=${bp.qualityBadgeStyle === "mono" || bp.qualityBadgeStyle === "color" || bp.qualityBadgeStyle === "knockout" ? bp.qualityBadgeStyle : "standard"}`)
+  params.push(`qbs=${normalizeQualityBadgeStyleForTransport(bp.qualityBadgeStyle)}`)
   if (bp.videoFormats !== undefined && bp.videoFormats !== null) {
     params.push(`formats=${bp.videoFormats.length === 0 ? "none" : bp.videoFormats.join(",")}`)
   }
@@ -957,7 +957,7 @@ export function buildDefaultsPreviewUrl(bp: DefaultsPreviewParams): string {
   if (effPreviewXbs) params.push(`xbs=${effPreviewXbs}`)
   params.push(`bfont=${pick(land.badgeFont ?? undefined, bp.defaultBadgeFont) ?? "inter"}`)
   const effPreviewQbs = pick(land.qualityBadgeStyle ?? undefined, bp.defaultQualityBadgeStyle)
-  params.push(`qbs=${effPreviewQbs === "mono" || effPreviewQbs === "color" || effPreviewQbs === "knockout" ? effPreviewQbs : "standard"}`)
+  params.push(`qbs=${normalizeQualityBadgeStyleForTransport(effPreviewQbs)}`)
   const effPreviewFormats = pick(land.videoFormats ?? undefined, bp.defaultVideoFormats)
   if (effPreviewFormats !== undefined && effPreviewFormats !== null) {
     params.push(`formats=${effPreviewFormats.length === 0 ? "none" : effPreviewFormats.join(",")}`)

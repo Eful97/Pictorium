@@ -2,6 +2,7 @@
 
 import { useId } from "react"
 import { textColorForBg } from "@/lib/accent-color"
+import { PREMIUM_PLATE_BG, PREMIUM_PLATE_STROKE, premiumAccentHex } from "@/lib/quality-badge-styles"
 
 function BadgePreview({ style, accentColor }: { style: string; accentColor?: string | null }) {
   const maskId = useId().replace(/:/g, "")
@@ -45,6 +46,22 @@ function BadgePreview({ style, accentColor }: { style: string; accentColor?: str
           {/* eslint-disable-next-line @next/next/no-img-element -- stesso SVG servito al server */}
           <img src="/quality-badges/color/4k-label-color-icon.svg" alt="color" className="w-7 h-4 object-contain drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]" />
         </span>
+      )
+    case "premium":
+      // Static swatch of the premium mark (NOT the poster renderer): dark
+      // neutral plate with a premium-colored glyph. The real badge tints each
+      // A/V mark (HDR/HDR10+ gold, IMAX cyan, Dolby violet) on the same plate.
+      return (
+        <span
+          className={`${base} font-black`}
+          style={{
+            background: PREMIUM_PLATE_BG,
+            border: `1px solid ${PREMIUM_PLATE_STROKE}`,
+            color: premiumAccentHex("gold"),
+            fontSize: 7,
+            letterSpacing: "0.04em",
+          }}
+        >HDR</span>
       )
     case "knockout":
       // Static cutout swatch (NOT the poster renderer): white tag with the
@@ -108,7 +125,7 @@ export function BadgeStyleSelector<S extends string>({
               <BadgePreview style={s} accentColor={accentColor} />
             </span>
             <span className="text-[10px] font-semibold leading-tight truncate max-w-full">
-              {s === "shadow" ? t("ui.shadow") : s === "pill" ? t("ui.pill") : s === "bar" ? t("ui.bar") : s === "default" ? t("ui.bsDefault") : s === "colored" ? t("ui.colored") : s === "bordo" ? t("ui.bordo") : s === "vetro" ? t("ui.vetro") : s === "minimal" ? t("ui.minimal") : s === "netflix" ? t("ui.netflix") : s === "corner" ? t("ui.corner") : s === "number" ? t("ui.number") : s === "standard" ? t("ui.qbsStandard") : s === "mono" ? t("ui.qbsMono") : s === "color" ? t("ui.qbsColor") : s === "knockout" ? t("ui.qbsKnockout") : s}
+              {s === "shadow" ? t("ui.shadow") : s === "pill" ? t("ui.pill") : s === "bar" ? t("ui.bar") : s === "default" ? t("ui.bsDefault") : s === "colored" ? t("ui.colored") : s === "bordo" ? t("ui.bordo") : s === "vetro" ? t("ui.vetro") : s === "minimal" ? t("ui.minimal") : s === "netflix" ? t("ui.netflix") : s === "corner" ? t("ui.corner") : s === "number" ? t("ui.number") : s === "standard" ? t("ui.qbsStandard") : s === "mono" ? t("ui.qbsMono") : s === "color" ? t("ui.qbsColor") : s === "knockout" ? t("ui.qbsKnockout") : s === "premium" ? t("ui.qbsPremium") : s}
             </span>
           </button>
         )

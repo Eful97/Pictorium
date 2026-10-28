@@ -190,6 +190,15 @@ describe("buildPreviewUrl", () => {
     expect(url).not.toContain("u=")
   })
 
+  it("travels qbs=premium and keeps standard as the explicit default", () => {
+    // Lo stile quality viaggia dall'enum (normalizeQualityBadgeStyleForTransport):
+    // premium non deve collassare su standard nella preview WYSIWYG.
+    const premium = buildPreviewUrl(basePosterState, { ...baseBadgeParams, qualityBadgeStyle: "premium" })
+    expect(new URL(premium, "http://x").searchParams.get("qbs")).toBe("premium")
+    const standard = buildPreviewUrl(basePosterState, { ...baseBadgeParams, qualityBadgeStyle: "standard" })
+    expect(new URL(standard, "http://x").searchParams.get("qbs")).toBe("standard")
+  })
+
   it("includes wikidata_id for the REST fast-path with a valid QID", () => {
     const url = buildPreviewUrl({ ...basePosterState, metaInfo: { ...basePosterState.metaInfo, wikidata_id: "Q23577" } }, baseBadgeParams)
     expect(url).toContain("wikidata_id=Q23577")

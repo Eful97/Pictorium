@@ -13,6 +13,7 @@
 import { describe, expect, it, vi } from "vitest"
 import { screen, within } from "@testing-library/react"
 import { BadgeStyleSelector } from "@/components/ui/BadgeStyleSelector"
+import { PREMIUM_PLATE_BG, premiumAccentHex } from "@/lib/quality-badge-styles"
 import { textColorForBg } from "@/lib/accent-color"
 import { renderWithCtx } from "@/__tests__/test-utils"
 
@@ -95,6 +96,30 @@ describe("BadgeStyleSelector preview contract", () => {
     expect(icon.style.color).not.toBe("")
     expect(icon.classList.contains("text-black")).toBe(false)
     expect(icon.classList.contains("text-white")).toBe(false)
+  })
+
+  it("quality premium option: dark plate swatch with a premium-accent glyph", () => {
+    renderWithCtx(
+      <BadgeStyleSelector
+        value="premium"
+        options={["standard", "mono", "color", "knockout", "premium"]}
+        onChange={vi.fn()}
+        t={t}
+      />,
+    )
+    const btn = screen.getByRole("button", { name: /ui\.qbsPremium/i })
+    const icon = btn.querySelector(".badge-style-preview span") as HTMLElement | null
+    expect(icon).not.toBeNull()
+    // Placca scura neutra + inchiostro d'accento dalla palette condivisa
+    // (stessa fonte del renderer: nessun colore duplicato in UI).
+    const plate = document.createElement("span")
+    plate.style.background = PREMIUM_PLATE_BG
+    const ink = document.createElement("span")
+    ink.style.color = premiumAccentHex("gold")
+    expect(icon!.style.background).toBe(plate.style.background)
+    expect(icon!.style.color).toBe(ink.style.color)
+    expect(icon!.textContent).toBe("HDR")
+    expect(btn.querySelector("button, a, input, select")).toBeNull()
   })
 
   it("quality knockout option: inline cutout swatch with masked 4K glyphs", () => {

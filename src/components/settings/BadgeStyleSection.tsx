@@ -5,6 +5,7 @@ import { useT } from "@/lib/contexts/TranslationContext"
 import { usePosterEditor } from "@/lib/contexts/PosterEditorContext"
 import { BadgeStyleSelector, VideoFormatSelector, BadgeFontSelector } from "@/components/ui"
 import { KNOWN_VIDEO_FORMATS } from "@/lib/av-specs"
+import { QUALITY_BADGE_STYLES } from "@/lib/badge-styles"
 import { useShapeBadgeDefaults, type BadgeShapeTarget } from "@/components/settings/useShapeDefaults"
 import type { DefaultsPreviewFamily } from "@/lib/poster-url"
 
@@ -89,7 +90,7 @@ export function QualityStyleSection({ shape, qualityEnabled, onPreviewFamilyChan
         </label>
         <BadgeStyleSelector
           value={qualityBadgeStyle}
-          options={["standard", "mono", "color", "knockout"]}
+          options={QUALITY_BADGE_STYLES}
           onChange={(v) => {
             setQualityBadgeStyle(v)
           }}

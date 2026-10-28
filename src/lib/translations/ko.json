@@ -467,6 +467,7 @@
   "ui.corner": "코너",
   "ui.number": "숫자",
   "ui.qbsKnockout": "Knockout",
+  "ui.qbsPremium": "프리미엄",
   "ui.blurDisabled": "블러 끄기",
   "ui.selectedCount": "{count}개 선택",
   "ui.bsDefault": "기본값",

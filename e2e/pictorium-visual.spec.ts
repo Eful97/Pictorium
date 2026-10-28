@@ -431,6 +431,30 @@ test.describe("poster API — functional", () => {
     expect(Buffer.compare(bufKo, bufStd)).not.toBe(0)
   })
 
+  test("quality style: premium — colored A/V marks on the dark plate, distinct from every style", async ({ request }) => {
+    // tt0068646 (The Godfather) is verified 4K + dv/atmos in the local AV
+    // specs DB: tier + formats are real data (no override).
+    const base = { genreName: "Action", voteAverage: "7.8", badges: "1", ranking: "0", imdbId: "tt0068646" }
+    const premiumRes = await request.get(posterUrl({ ...base, qbs: "premium" }))
+    expect(premiumRes.ok()).toBeTruthy()
+    const premium = await premiumRes.body()
+    expect(premium.length).toBeGreaterThan(1000)
+    // Additive style: never a byte-alias of an existing quality style.
+    for (const qbs of ["standard", "mono", "color", "knockout"] as const) {
+      const res = await request.get(posterUrl({ ...base, qbs }))
+      expect(res.ok(), qbs).toBeTruthy()
+      expect(Buffer.compare(premium, await res.body()), qbs).not.toBe(0)
+    }
+  })
+
+  test("quality style: premium without Dolby — lone premium tier stays valid", async ({ request }) => {
+    // Avatar has no AV specs entry: tier only (color asset on the premium style).
+    const url = posterUrl({ genreName: "Action", voteAverage: "7.8", badges: "1", ranking: "0", quality: "4K", qbs: "premium" })
+    const res = await request.get(url)
+    expect(res.ok()).toBeTruthy()
+    expect((await res.body()).length).toBeGreaterThan(1000)
+  })
+
   test("ranking corner + quality knockout together — valid image", async ({ request }) => {
     // Opposite corners, no overlap: top-left rank pill, top-right quality.
     const url = posterUrl({ genreName: "Action", voteAverage: "7.8", badges: "1", ranking: "1", rank: "4", label: "Top 4", rs: "corner", quality: "4K", qbs: "knockout" })

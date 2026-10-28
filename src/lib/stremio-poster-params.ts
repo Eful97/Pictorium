@@ -1,6 +1,6 @@
 import { POSTER_URL_VERSION } from "@/lib/render-version"
 import type { BadgeStyle, RankingBadgeStyle, QualityBadgeStyle, BadgeFont, SeparateRatingsStyle, ExtraBadgeStyle, ExtraBadgeFollowRank } from "@/lib/badge-styles"
-import { getSeparateBadgeDefaultScale, getSeparateRatingsStyleForShape, isAgeBadgeStyle, isBottomSeparateRatingsStyle } from "@/lib/badge-styles"
+import { getSeparateBadgeDefaultScale, getSeparateRatingsStyleForShape, isAgeBadgeStyle, isBottomSeparateRatingsStyle, isQualityBadgeStyle, DEFAULT_QUALITY_BADGE_STYLE } from "@/lib/badge-styles"
 import { canonicalizeBadgeItemTransforms } from "@/lib/badge-item-transforms"
 import { sanitizeDisabledContentTags } from "@/lib/content-tags"
 import { sanitizeDisabledNetworks } from "@/lib/network-keys"
@@ -541,7 +541,7 @@ export function buildStremioPosterSearchParams(input: StremioPosterParamsInput):
   params.set("bfont", input.badgeFont || "inter")
   // Quality style only when non-standard: existing URLs stay identical
   // and the cache is not invalidated (the server resolves standard alone).
-  if (input.qualityBadgeStyle === "mono" || input.qualityBadgeStyle === "color" || input.qualityBadgeStyle === "knockout") {
+  if (isQualityBadgeStyle(input.qualityBadgeStyle) && input.qualityBadgeStyle !== DEFAULT_QUALITY_BADGE_STYLE) {
     params.set("qbs", input.qualityBadgeStyle)
   }
   if (input.videoFormats !== undefined && input.videoFormats !== null) {

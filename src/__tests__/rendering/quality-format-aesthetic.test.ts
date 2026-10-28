@@ -16,6 +16,8 @@ import {
   renderQualityIconBadge,
 } from "@/lib/poster-service"
 import { FORMAT_ICON_PATHS, VIDEO_FORMAT_OPTIONS } from "@/lib/av-specs"
+import { avMarkInkBox, qualityIconReferenceWidth } from "@/lib/quality-badge-styles"
+import { BADGE_ITEM_QUALITY_AGE, BADGE_ITEM_QUALITY_TIER, qualityFormatItemId } from "@/lib/badge-item-transforms"
 import type { BadgeFont } from "@/lib/badge-styles"
 import fs from "node:fs"
 import path from "node:path"
@@ -120,27 +122,40 @@ describe("quality -> age -> formats order with the new tier tag", () => {
   it("stacks tier, age, then bare format marks top-to-bottom", async () => {
     const tier = await renderQualityTierBadge("4K", PW, false)
     const age = await renderQualityBadge("VM14", PW, false)
-    const hdr = await renderQualityIconBadge(FORMAT_ICON_PATHS["hdr"], PW, false)
-    expect(hdr).not.toBeNull()
     const group = await renderQualityBadgeGroup("4K", "standard", ["hdr"], PW, false, "inter", "VM14")
     expect(group).not.toBeNull()
+    expect(group!.items.map((i) => i.id)).toEqual([
+      BADGE_ITEM_QUALITY_TIER,
+      BADGE_ITEM_QUALITY_AGE,
+      qualityFormatItemId("hdr"),
+    ])
+    // The format band is the PAINTED slot: A/V marks are width-normalized
+    // (natural aspect height), so the bare icon default no longer applies.
+    const hdr = group!.items[2]
     const vt = tier.h - PAD * 2
     const va = age.h - PAD * 2
-    const vf = hdr!.h - PAD * 2
-    expect(group!.w).toBe(Math.max(tier.w, age.w, hdr!.w))
+    const vf = hdr.h - PAD * 2
+    expect(group!.w).toBe(Math.max(tier.w, age.w, hdr.w))
     expect(group!.h).toBe(PAD * 2 + vt + GAP + va + GAP + vf)
   })
 
   it("keeps a uniform gap across a four-row column (tier/age/hdr/imax)", async () => {
     const tier = await renderQualityTierBadge("4K", PW, false)
     const age = await renderQualityBadge("VM14", PW, false)
-    const hdr = await renderQualityIconBadge(FORMAT_ICON_PATHS["hdr"], PW, false)
-    const imax = await renderQualityIconBadge(FORMAT_ICON_PATHS["imax"], PW, false)
-    expect(hdr).not.toBeNull()
-    expect(imax).not.toBeNull()
     const group = await renderQualityBadgeGroup("4K", "standard", ["hdr", "imax"], PW, false, "inter", "VM14")
     expect(group).not.toBeNull()
-    const rows = [tier.h, age.h, hdr!.h, imax!.h].map((h) => h - PAD * 2)
+    // Painted slots, top-to-bottom in the documented order.
+    expect(group!.items.map((i) => i.id)).toEqual([
+      BADGE_ITEM_QUALITY_TIER,
+      BADGE_ITEM_QUALITY_AGE,
+      qualityFormatItemId("hdr"),
+      qualityFormatItemId("imax"),
+    ])
+    const [, , hdr, imax] = group!.items
+    // Same visible width for the two A/V marks (width normalization), so the
+    // column keeps ONE gap and both bands stay centred.
+    expect(hdr.w).toBe(imax.w)
+    const rows = [tier.h, age.h, hdr.h, imax.h].map((h) => h - PAD * 2)
     expect(group!.h).toBe(PAD * 2 + rows.reduce((a, b) => a + b, 0) + GAP * 3)
   })
 })
@@ -198,36 +213,28 @@ describe("format marks without containers, no relabeling", () => {
     }
   })
 
-  it("matches the optical visible height of the Dolby singles (bounded)", async () => {
-    // Dolby singles measure ~0.74 ink-height fraction of the icon box;
-    // the reframed HDR marks must sit in the same band. IMAX (pinned raw
-    // coords) and the two-line Dolby combo keep their historic boxes.
-    // Render large (pw 760 -> 62px box) so thin HDR10+ strokes resolve
-    // solid alpha cores; at poster scale antialiasing thins them below any
-    // halo-excluding threshold. Geometry scales linearly with pw.
-    const fracs: Record<string, number> = {}
-    for (const fmt of ["dv", "atmos", "hdr", "hdr10plus"] as const) {
-      const icon = await renderQualityIconBadge(FORMAT_ICON_PATHS[fmt], 760, false)
-      expect(icon).not.toBeNull()
-      // Drop-shadow halo excluded by construction: measure the bright core
-      // (alpha > 200) so the blur tail cannot inflate the height.
-      const { data } = await sharp(icon!.png).ensureAlpha().raw().toBuffer({ resolveWithObject: true })
-      let y0 = icon!.h, y1 = -1
-      for (let y = 0; y < icon!.h; y++) {
-        for (let x = 0; x < icon!.w; x++) {
-          if (data[(y * icon!.w + x) * 4 + 3] > 200) {
-            if (y < y0) y0 = y
-            if (y > y1) y1 = y
-          }
-        }
-      }
-      expect(y1, `${fmt} mark visible`).toBeGreaterThan(y0)
-      const frac = (y1 - y0 + 1) / (icon!.h - PAD * 2)
-      expect(frac, `${fmt} optical height`).toBeGreaterThan(0.6)
-      expect(frac, `${fmt} optical height`).toBeLessThan(0.86)
-      fracs[fmt] = frac
+  it("shares one visible ink width across every mark, aspect preserved", async () => {
+    // Requisito utente: larghezza d'inchiostro UNIFORME. Prima ogni marchio
+    // era scalato in altezza (box identico), quindi IMAX/HDR risultavano 2-4x
+    // più larghi: qui si ancora la larghezza al badge 4K, l'altezza segue
+    // l'aspect naturale dell'asset (mai stretch).
+    // pw 760 -> box 62px: i tratti sottili restano risolti.
+    const PW_BIG = 760
+    const fs = Math.round(Math.max(17 * PW_BIG / 380, 10))
+    const ref = qualityIconReferenceWidth(badgeBoxHeight(fs))
+    const widths: number[] = []
+    for (const fmt of ["dv", "atmos", "hdr", "hdr10plus", "imax"] as const) {
+      const icon = await renderQualityIconBadge(FORMAT_ICON_PATHS[fmt], PW_BIG, false)
+      expect(icon, fmt).not.toBeNull()
+      const ink = avMarkInkBox(FORMAT_ICON_PATHS[fmt])!
+      // Bitmap box: larghezza d'inchiostro normalizzata + shadow pad.
+      expect(icon!.w, `${fmt} box width`).toBe(ref + PAD * 2)
+      expect(icon!.h, `${fmt} box height`).toBe(Math.round(ref * (ink.h / ink.w)) + PAD * 2)
+      // Pixel: il bbox visibile (alpha > 10, alone incluso) è identico in
+      // larghezza per ogni marchio (l'alone è costante, quindi si elide).
+      const box = await inkBox(icon!.png, icon!.w, icon!.h)
+      widths.push(box.x1 - box.x0 + 1)
     }
-    const vals = Object.values(fracs)
-    expect(Math.max(...vals) / Math.min(...vals)).toBeLessThanOrEqual(1.15)
+    expect(Math.max(...widths) - Math.min(...widths)).toBeLessThanOrEqual(2)
   })
 })

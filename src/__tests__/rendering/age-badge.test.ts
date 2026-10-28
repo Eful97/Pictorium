@@ -10,13 +10,14 @@ import {
 import { buildStremioPosterSearchParams } from "@/lib/stremio-poster-params"
 import { normalizePosterCacheParams } from "@/lib/poster-runtime-cache"
 import { buildDefaultsPreviewUrl, buildPreviewUrl } from "@/lib/poster-url"
-import { generatePosterBuffer, renderQualityBadgeGroup, renderQualityIconBadge, type GenerationInput } from "@/lib/poster-service"
+import { generatePosterBuffer, renderQualityBadgeGroup, type GenerationInput } from "@/lib/poster-service"
 import { renderQualityBadge, renderAgeKnockoutBadge } from "@/lib/svg-badge"
 import { STD_W, STD_H } from "@/lib/poster-render-helpers"
 import { TOP_SHADOW_PAD } from "@/lib/badge-svg-shared"
 import type { WikidataResult } from "@/lib/awards"
 import type { ServerDefaults } from "@/lib/server-defaults"
-import { FORMAT_ICON_PATHS, type VideoFormat } from "@/lib/av-specs"
+import type { VideoFormat } from "@/lib/av-specs"
+import { BADGE_ITEM_QUALITY_AGE, BADGE_ITEM_QUALITY_TIER, qualityFormatItemId } from "@/lib/badge-item-transforms"
 
 function baseInput(overrides: Partial<PosterRenderConfigInput> = {}): PosterRenderConfigInput {
   return {
@@ -593,13 +594,15 @@ describe("renderQualityBadgeGroup age style + order (quality, age, formats)", ()
   it("stacks quality, knockout age, then formats top-to-bottom", async () => {
     const q = await renderQualityBadge("4K", PW, true, "inter")
     const ko = await renderAgeKnockoutBadge("VM14", PW, "inter")
-    const icon = await renderQualityIconBadge(FORMAT_ICON_PATHS["imax"], PW, true)
-    expect(icon).not.toBeNull()
     const group = await renderQualityBadgeGroup("4K", "standard", ["imax"], PW, true, "inter", "VM14", "knockout")
     expect(group).not.toBeNull()
     const vq = q.h - TOP_SHADOW_PAD * 2
     const va = ko.h - TOP_SHADOW_PAD * 2
-    const vf = icon!.h - TOP_SHADOW_PAD * 2
+    // Format band from the PAINTED slot: the A/V mark is width-normalized
+    // (natural aspect height), so it is not the bare icon's old height.
+    const formatItem = group!.items[group!.items.length - 1]
+    expect(group!.items.map((i) => i.id)).toEqual([BADGE_ITEM_QUALITY_TIER, BADGE_ITEM_QUALITY_AGE, qualityFormatItemId("imax")])
+    const vf = formatItem.h - TOP_SHADOW_PAD * 2
     // Structural: all three bands plus gaps (order-independent sum).
     expect(group!.h).toBe(TOP_SHADOW_PAD * 2 + vq + GAP + va + GAP + vf)
     const rows = await rowBrightness(group!.png)
@@ -613,20 +616,18 @@ describe("renderQualityBadgeGroup age style + order (quality, age, formats)", ()
   it("keeps quality-then-formats stacking without age (style alone invents nothing)", async () => {
     const group = await renderQualityBadgeGroup("4K", "standard", ["imax"], PW, true, "inter", null, "knockout")
     const q = await renderQualityBadge("4K", PW, true, "inter")
-    const icon = await renderQualityIconBadge(FORMAT_ICON_PATHS["imax"], PW, true)
     expect(group).not.toBeNull()
-    expect(icon).not.toBeNull()
-    expect(group!.h).toBe(TOP_SHADOW_PAD * 2 + (q.h - TOP_SHADOW_PAD * 2) + GAP + (icon!.h - TOP_SHADOW_PAD * 2))
+    const formatItem = group!.items[group!.items.length - 1]
+    expect(group!.h).toBe(TOP_SHADOW_PAD * 2 + (q.h - TOP_SHADOW_PAD * 2) + GAP + (formatItem.h - TOP_SHADOW_PAD * 2))
   })
 
   it("renders age between quality and formats without a tier (missing quality)", async () => {
     const group = await renderQualityBadgeGroup(null, "standard", ["imax"], PW, true, "inter", "VM14", "knockout")
     const ko = await renderAgeKnockoutBadge("VM14", PW, "inter")
-    const icon = await renderQualityIconBadge(FORMAT_ICON_PATHS["imax"], PW, true)
     expect(group).not.toBeNull()
-    expect(icon).not.toBeNull()
     const va = ko.h - TOP_SHADOW_PAD * 2
-    expect(group!.h).toBe(TOP_SHADOW_PAD * 2 + va + GAP + (icon!.h - TOP_SHADOW_PAD * 2))
+    const formatItem = group!.items[group!.items.length - 1]
+    expect(group!.h).toBe(TOP_SHADOW_PAD * 2 + va + GAP + (formatItem.h - TOP_SHADOW_PAD * 2))
     const rows = await rowBrightness(group!.png)
     // Age on top (white tag), formats below.
     expect(bandMean(rows, TOP_SHADOW_PAD, TOP_SHADOW_PAD + va)).toBeGreaterThan(180)

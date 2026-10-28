@@ -34,7 +34,7 @@ import { isPrefixedKey, badgeKey } from "@/lib/i18n"
 import { getAllBadgeOptions, isMiniseriesType, isReturningStatus, NEXT_EPISODE_BADGE_KEY } from "@/lib/badge-priority"
 import { isManualAccent } from "@/lib/accent-color"
 import { resolveAccentPickerDisplay, useEffectiveAccent } from "@/lib/useEffectiveAccent"
-import { isBottomSeparateRatingsStyle, getSeparateRatingsStyleForShape } from "@/lib/badge-styles"
+import { isBottomSeparateRatingsStyle, getSeparateRatingsStyleForShape, QUALITY_BADGE_STYLES } from "@/lib/badge-styles"
 import { REGIONS } from "@/lib/regions"
 import { UI_RATING_SOURCES } from "@/lib/rating-weights"
 import { RatingSourceIcon } from "@/components/RatingSourceIcon"
@@ -720,7 +720,7 @@ export function BadgeControls() {
                 <label className="text-[11px] text-muted font-medium block mb-1">{t("ui.qualityBadgeStyle")}</label>
                 <BadgeStyleSelector
                   value={ed.qualityBadgeStyle}
-                  options={["standard", "mono", "color", "knockout"]}
+                  options={QUALITY_BADGE_STYLES}
                   onChange={ed.setQualityBadgeStyle}
                   t={t}
                 />

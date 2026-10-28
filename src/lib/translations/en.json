@@ -473,6 +473,7 @@
   "ui.corner": "Corner",
   "ui.number": "Number",
   "ui.qbsKnockout": "Knockout",
+  "ui.qbsPremium": "Premium",
   "ui.blurDisabled": "Blur off",
   "ui.selectedCount": "{count} selected",
   "ui.bsDefault": "Default",

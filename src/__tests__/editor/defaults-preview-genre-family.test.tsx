@@ -20,6 +20,7 @@ import { DefaultsPosterPreview } from "@/components/settings/DefaultsPosterPrevi
 import { buildDefaultsPreviewUrl } from "@/lib/poster-url"
 import { DEFAULT_SASH_ORDER } from "@/lib/badge-priority"
 import { usePosterEditor, type PosterEditorCtx } from "@/lib/contexts/PosterEditorContext"
+import { QUALITY_BADGE_STYLES } from "@/lib/badge-styles"
 import { renderWithCtx } from "@/__tests__/test-utils"
 
 vi.mock("next/navigation", () => ({
@@ -114,6 +115,24 @@ describe("genre family wiring (press reports, no writes)", () => {
     fireEvent.pointerDown(screen.getByText("ui.qualityBadgeStyle"))
     expect(seen).toEqual(["genre", "genre", "quality"])
     expect(localStorage.getItem("badgeDefaults")).toBe(storedBefore)
+  })
+
+  it("settings quality style selector offers premium (derived enum) and writes it", async () => {
+    const { Probe, ctx } = probe()
+    renderWithCtx(
+      createElement("div", null,
+        createElement(Probe),
+        createElement(QualityStyleSection, { shape: "portrait", qualityEnabled: true }),
+      ),
+    )
+    await act(async () => {})
+    const premium = screen.getByRole("button", { name: /ui\.qbsPremium/ })
+    // Griglia derivata dall'enum: una voce per stile, nessuna lista duplicata.
+    expect(premium.closest("div.grid")!.querySelectorAll(":scope > button").length).toBe(
+      QUALITY_BADGE_STYLES.length,
+    )
+    fireEvent.click(premium)
+    expect(ctx().defaultQualityBadgeStyle).toBe("premium")
   })
 
   it("TransformPanel portrait genre card reports genre", async () => {

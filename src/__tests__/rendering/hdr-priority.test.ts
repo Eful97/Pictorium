@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 import { renderQualityBadgeGroup } from "@/lib/poster-service"
-import type { QualityBadgeStyle } from "@/lib/badge-styles"
+import { QUALITY_BADGE_STYLES, type QualityBadgeStyle } from "@/lib/badge-styles"
 
 /**
  * Priorità render-only HDR10+ sul generico HDR: con l'effettivo che include
@@ -9,7 +9,9 @@ import type { QualityBadgeStyle } from "@/lib/badge-styles"
  * ritornerebbero il percorso early-return storico).
  */
 describe("hdr10plus render priority over generic hdr", () => {
-  const STYLES: QualityBadgeStyle[] = ["standard", "mono", "color", "knockout"]
+  // Ogni stile dell'enum (premium compreso) deve rispettare la precedenza:
+  // derivato dall'enum, un nuovo stile non resta scoperto.
+  const STYLES: readonly QualityBadgeStyle[] = QUALITY_BADGE_STYLES
 
   it("suppresses hdr only when effective formats include hdr10plus (both orders)", async () => {
     for (const style of STYLES) {

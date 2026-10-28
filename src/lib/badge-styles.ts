@@ -42,12 +42,15 @@ export const DEFAULT_RANKING_BADGE_STYLE: RankingBadgeStyle = "default"
 /**
  * Streaming quality badge style: "standard" (satin text pill),
  * "mono" (monochrome icons from public/quality-badges/mono),
- * "color" (color icons from public/quality-badges/color) or "knockout"
- * (white tag with cut-out transparent tier glyphs).
+ * "color" (color icons from public/quality-badges/color),
+ * "knockout" (white tag with cut-out transparent tier glyphs) or
+ * "premium" (colored premium A/V glyphs on a compact dark neutral plate;
+ * the tier reuses the `color` asset). Additive: never replaces an existing
+ * style, no format/asset of its own.
  * Chain like the other styles: `qbs` query > per-title mapping >
  * config token > server defaults.
  */
-export const QUALITY_BADGE_STYLES = ["standard", "mono", "color", "knockout"] as const
+export const QUALITY_BADGE_STYLES = ["standard", "mono", "color", "knockout", "premium"] as const
 export type QualityBadgeStyle = (typeof QUALITY_BADGE_STYLES)[number]
 
 export const DEFAULT_QUALITY_BADGE_STYLE: QualityBadgeStyle = "standard"
@@ -107,6 +110,16 @@ export function normalizeExtraBadgeStyleForRender(v: unknown): ExtraBadgeStyle |
 
 export function isQualityBadgeStyle(v: string | null | undefined): v is QualityBadgeStyle {
   return !!v && (QUALITY_BADGE_STYLES as readonly string[]).includes(v)
+}
+
+/**
+ * Trasporto URL del quality style: ogni stile valido passa così com'è,
+ * assente/legacy/garbage collassa sul default storico (`standard`). Derivato
+ * dall'enum: un nuovo stile non richiede enumerazioni a mano nei singoli
+ * emitter (preview portrait/landscape, Stremio) e non può divergere.
+ */
+export function normalizeQualityBadgeStyleForTransport(v: string | null | undefined): QualityBadgeStyle {
+  return isQualityBadgeStyle(v) ? v : DEFAULT_QUALITY_BADGE_STYLE
 }
 
 /**

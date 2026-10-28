@@ -52,6 +52,14 @@ describe("buildStremioPosterSearchParams", () => {
     expect(params.get("rs")).toBe("default")
   })
 
+  it("emits qbs for every non-standard quality style, premium included", () => {
+    // Solo non-standard (URL esistenti byte-identici), premium trasportato.
+    expect(buildStremioPosterSearchParams({ qualityBadgeStyle: "premium" }).get("qbs")).toBe("premium")
+    expect(buildStremioPosterSearchParams({ qualityBadgeStyle: "knockout" }).get("qbs")).toBe("knockout")
+    expect(buildStremioPosterSearchParams({ qualityBadgeStyle: "standard" }).has("qbs")).toBe(false)
+    expect(buildStremioPosterSearchParams({}).has("qbs")).toBe(false)
+  })
+
   it("emits cr=0 only when custom ratings display is off", () => {
     expect(buildStremioPosterSearchParams({}).has("cr")).toBe(false)
     expect(buildStremioPosterSearchParams({ customRatings: true }).has("cr")).toBe(false)
