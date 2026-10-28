@@ -11,10 +11,11 @@ import { snapshotMissingLandscape, SHAPE_FLAT_TO_LANDSCAPE } from "../src/lib/vi
 //   with ribbon=1; server PNGs differ under the same accent; portrait/land
 //   targets stay isolated and delivery (posterShape) never moves.
 // - U2 contextual preview: Info focus yields a server-resolved EXTRA sample
-//   (debug label, never the raw __badge key) with the saved xbs; rank family
-//   narrows with no simultaneous extra; hover changes nothing; Auto restores
-//   the effective saved sash and drops the forced extra; chip names the
-//   selected format + family; disabled categories emit no sample.
+//   (debug label, never the raw __badge key) with the saved xbs and the
+//   without-ranking sash (rank dropped); rank family narrows with no
+//   simultaneous extra; hover changes nothing; Auto restores the effective
+//   saved sash and drops the forced extra; chip names the selected format +
+//   family; disabled categories emit no sample.
 // - U3 Number baseline: API mirror/tox semantics + the -20 default slider
 //   mapping (edit stores the adjustment, other styles read raw).
 // Transport-level only (preview query params + backend defaults JSON +
@@ -562,7 +563,8 @@ test.describe("U4 U2 contextual preview (defaults)", () => {
     ).toBeNull()
 
     // Focus the Info card: the preview forces a pertinent EXTRA sample with
-    // the card's own xbs, sash untouched.
+    // the card's own xbs and the without-ranking sash (rank dropped, every
+    // other enabled bucket kept).
     const extraSwitch = badgePanel.getByRole("switch", { name: "Extra" })
     await expect(extraSwitch).toBeVisible()
     p = await nextPreview(
@@ -576,7 +578,7 @@ test.describe("U4 U2 contextual preview (defaults)", () => {
     expect(sampleKey).toBeTruthy()
     expect(sampleKey).toMatch(/^__badge\./)
     expect(p.get("xbs")).toBe("vetro")
-    expect(p.get("sash")).toBe("upcoming,rank,new,award,extra")
+    expect(p.get("sash")).toBe("upcoming,new,award,extra")
     await expect(chip).toContainText("Informazioni sul titolo")
 
     // The forced sample is a REAL resolved label server-side (debug JSON),
@@ -594,11 +596,11 @@ test.describe("U4 U2 contextual preview (defaults)", () => {
     expect(typeof resolved).toBe("string")
     expect(resolved as string).toBeTruthy()
     expect(resolved as string).not.toMatch(/^__badge\./)
-    // Transport-level no-simultaneity: this same preview carries the full
-    // sash AND the forced extra (the forced sample wins at render by
-    // construction in poster-service), while the rank family below carries
-    // sash=rank with no extra at all.
-    expect(p.get("sash")).toBe("upcoming,rank,new,award,extra")
+    // Transport-level no-simultaneity: this same preview carries the
+    // WITHOUT-ranking sash AND the forced extra (rank cannot coexist with the
+    // info family), while the rank family below carries sash=rank with no
+    // extra at all.
+    expect(p.get("sash")).toBe("upcoming,new,award,extra")
 
     // Rank family narrows with no simultaneous extra (Classifiche tab).
     await dialog.getByRole("tab", { name: "Classifiche", exact: true }).click()

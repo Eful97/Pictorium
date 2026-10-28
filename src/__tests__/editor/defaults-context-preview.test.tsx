@@ -4,9 +4,15 @@
  *   it on focus/hover (text-only lift, no focus moves, no unmounts).
  * - The defaults preview always carries the effective sash order by shape
  *   (WYSIWYG for category/priority edits); `rank` family narrows to `rank`
- *   only when rank is enabled; `info` family forces a pertinent `extra=`
- *   sample from the first enabled informational bucket (existing badge keys,
- *   server-resolved) and emits nothing when no info bucket is enabled.
+ *   when the configured preview can paint one and otherwise falls back to the
+ *   ACTUAL without-ranking composition (effective sash minus rank + the
+ *   extra-family sample), so the two Settings preview states are exactly
+ *   with-rank / real fallback; `info`/`extra` are the without-ranking states
+ *   and drop `rank` from the effective sash (other enabled buckets kept, no
+ *   fabricated sample), so they can never paint a rank numeral; `info` family
+ *   forces a pertinent `extra=` sample from the first enabled informational
+ *   bucket (existing badge keys, server-resolved) and emits nothing when no
+ *   info bucket is enabled.
  * - Landscape separate-ratings numerics gate on the effective (`land ?? flat`)
  *   flags, matching the Badge tab and the preview.
  * - Same render endpoint everywhere (buildDefaultsPreviewUrl); no persisted,
@@ -127,9 +133,10 @@ describe("buildDefaultsPreviewUrl sash + family (same endpoint)", () => {
     expect(narrowed.get("sash")).toBe("rank")
   })
 
-  it("rank family renders nothing when rank is disabled (no phantom, no fallback)", () => {
-    // Rank bucket switched off: targeted preview is explicitly empty, so an
-    // unranked target shows no top decoration at all (never an info fallback).
+  it("rank family falls back to the actual without-ranking composition when rank cannot be painted", () => {
+    // Rank bucket switched off: the targeted preview is the ACTUAL fallback
+    // (effective sash minus rank + the same info sample as the extra family) —
+    // never an empty third state, and never a phantom rank.
     const bucketOff = paramsOf(
       buildDefaultsPreviewUrl({
         defaultSashOrder: ["extra", "new", "award"],
@@ -137,8 +144,9 @@ describe("buildDefaultsPreviewUrl sash + family (same endpoint)", () => {
         previewFamily: "rank",
       }),
     )
-    expect(bucketOff.get("sash")).toBe("")
-    // Master off: same — targeted rank preview stays empty.
+    expect(bucketOff.get("sash")).toBe("extra,new,award")
+    // Master off: same fallback sash; the ranking master still gates the top
+    // slot (nothing painted), so no extra sample is emitted either.
     const masterOff = paramsOf(
       buildDefaultsPreviewUrl({
         defaultSashOrder: [...DEFAULT_SASH_ORDER],
@@ -146,13 +154,13 @@ describe("buildDefaultsPreviewUrl sash + family (same endpoint)", () => {
         previewFamily: "rank",
       }),
     )
-    expect(masterOff.get("sash")).toBe("")
+    expect(masterOff.get("sash")).toBe([...DEFAULT_SASH_ORDER].filter((b) => b !== "rank").join(","))
     expect(masterOff.get("ranking")).toBe("0")
     expect(masterOff.get("extra")).toBeNull()
   })
 
-  it("auto and the other families keep the saved priority untouched", () => {
-    for (const family of ["auto", "info", "ratings", "quality", "logo", "gradient"] as const) {
+  it("auto and the remaining families keep the saved priority untouched", () => {
+    for (const family of ["auto", "ratings", "quality", "logo", "gradient"] as const) {
       const p = paramsOf(
         buildDefaultsPreviewUrl({
           defaultSashOrder: ["extra", "rank"],
@@ -161,6 +169,18 @@ describe("buildDefaultsPreviewUrl sash + family (same endpoint)", () => {
         }),
       )
       expect(p.get("sash"), family).toBe("extra,rank")
+    }
+    // The without-ranking families are the exception: rank is dropped, every
+    // other enabled bucket stays (the actual fallback composition).
+    for (const family of ["info", "extra"] as const) {
+      const p = paramsOf(
+        buildDefaultsPreviewUrl({
+          defaultSashOrder: ["extra", "rank"],
+          defaultRankingBadges: true,
+          previewFamily: family,
+        }),
+      )
+      expect(p.get("sash"), family).toBe("extra")
     }
   })
 
@@ -290,7 +310,8 @@ describe("defaults preview context (real context, same endpoint)", () => {
     // First enabled informational bucket in saved order is `upcoming`.
     expect(params.get("extra")).toBe("__badge.comingSoon")
     expect(params.get("xbs")).toBe("vetro")
-    expect(params.get("sash")).toBe([...DEFAULT_SASH_ORDER].join(","))
+    // Without-ranking family: rank is dropped so no sample numeral can paint.
+    expect(params.get("sash")).toBe([...DEFAULT_SASH_ORDER].filter((b) => b !== "rank").join(","))
     const chip = screen.getByTestId("defaults-preview-editing")
     expect(chip.textContent).toContain("ui.previewEditingNow")
     expect(chip.textContent).toContain("ui.posterShapePortrait")
@@ -317,17 +338,18 @@ describe("defaults preview context (real context, same endpoint)", () => {
     expect(lastPreviewUrl().get("sash")).toBe("rank")
   })
 
-  it("rank family with rank disabled renders an empty sash (no fallback)", async () => {
+  it("rank family with rank disabled shows the actual fallback composition (no empty third state)", async () => {
     // Info buckets enabled in the saved priority, but the targeted rank
-    // family is disabled: preview carries sash= (empty) with no extra sample.
+    // family cannot paint (rank bucket removed): the preview falls back to the
+    // effective sash minus rank with the existing extra-family sample.
     localStorage.setItem("badgeDefaults", JSON.stringify({ defaultSashOrder: ["extra", "new", "award"] }))
     renderPreview({ previewFamily: "rank", previewShape: "portrait" })
     await act(async () => {
       await vi.advanceTimersByTimeAsync(500)
     })
     const params = lastPreviewUrl()
-    expect(params.get("sash")).toBe("")
-    expect(params.get("extra")).toBeNull()
+    expect(params.get("sash")).toBe("extra,new,award")
+    expect(params.get("extra")).toBe("__badge.trending")
     // Auto restores the effective saved priority (info visible again).
     renderPreview({ previewShape: "portrait" })
     await act(async () => {
@@ -395,7 +417,8 @@ describe("defaults preview context (real context, same endpoint)", () => {
     })
     const portraitParams = lastPreviewUrl()
     expect(portraitParams.get("extra")).toBe("__badge.comingSoon")
-    expect(portraitParams.get("sash")).toBe([...DEFAULT_SASH_ORDER].join(","))
+    // Without-ranking family: rank is dropped, the other buckets stay.
+    expect(portraitParams.get("sash")).toBe([...DEFAULT_SASH_ORDER].filter((b) => b !== "rank").join(","))
     expect(screen.getByTestId("defaults-preview-editing").textContent).toContain("ui.titleInfoFamily")
     ui.rerender(createElement(DefaultsPosterPreview, { previewShape: "landscape", previewFamily: "info" }))
     await act(async () => {
@@ -549,7 +572,8 @@ describe("transform Extra family (portrait + landscape)", () => {
     })
     const params = lastPreviewUrl()
     expect(params.get("extra")).toBe("__badge.comingSoon")
-    expect(params.get("sash")).toBe([...DEFAULT_SASH_ORDER].join(","))
+    // Without-ranking family: no rank bucket, so no sample numeral.
+    expect(params.get("sash")).toBe([...DEFAULT_SASH_ORDER].filter((b) => b !== "rank").join(","))
     // Preview-only interaction: persisted defaults untouched since mount.
     expect(localStorage.getItem("badgeDefaults")).toBe(storedAfterMount)
   })
@@ -625,8 +649,9 @@ describe("transform Extra family (portrait + landscape)", () => {
       await vi.advanceTimersByTimeAsync(500)
     })
     const params = lastPreviewUrl()
-    // Effective landscape order wins: first info bucket is now `award`.
-    expect(params.get("sash")).toBe("award,rank,extra")
+    // Effective landscape order wins: first info bucket is now `award`; the
+    // without-ranking family drops `rank` and keeps the rest.
+    expect(params.get("sash")).toBe("award,extra")
     expect(params.get("extra")).toBe("__badge.absoluteCinema")
     // Rank controls keep selecting rank.
     const rank = slidersIn("ui.rankFamily")

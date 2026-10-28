@@ -811,8 +811,11 @@ export interface DefaultsPreviewParams {
   /** Mark network disabilitati space-wide di default (stesso contratto). */
   defaultDisabledNetworks?: readonly string[] | null
   /** Preview-only editing family: `rank` targets the rank bucket (`sash=rank`
-   *  when enabled, `sash=` empty when disabled so nothing renders); every
-   *  other family keeps the effective saved priority. Never persisted. */
+   *  when the configured preview can paint a rank; otherwise the actual
+   *  without-ranking composition, never an empty third state); `info`/`extra`
+   *  are the without-ranking states and drop `rank` from the effective sash;
+   *  every other family keeps the effective saved priority untouched. Never
+   *  persisted. */
   previewFamily?: DefaultsPreviewFamily | null
   /** Preview-only info sample label (e.g. a `__badge.*` key resolved
    *  server-side in the request language): emitted as `extra=` so the
@@ -835,12 +838,18 @@ export const DEFAULTS_PREVIEW_DEMO_MEDIA = {
  * even with a fixed-appearance Fresh/Card layout configured (Fresh/Card
  * hide the genre badge by renderer contract and must never be restyled —
  * the staged/saved layout is untouched, only the preview query differs).
- * `extra` behaves like
- * `info` but originates from the standalone extra-badge style control: the
- * preview builder prioritizes the existing `extra`-bucket sample when that
- * bucket is allowed, so an `xbs` change is visible even when `upcoming` would
- * otherwise win. Never persisted, never sent to Stremio/editor — the same
- * render endpoint, only different query values.
+ * `rank` targets the ranking bucket: when the CONFIGURED preview can paint a
+ * rank it narrows to `sash=rank` (configured layout — Fresh/Card included —
+ * untouched); when it cannot (master OFF or rank bucket removed) it falls back
+ * to the actual without-ranking composition, so the Settings with/without
+ * preview switch always shows exactly two real states. `info` and `extra` are
+ * the without-ranking states: both drop `rank` from the effective sash, so a
+ * rank sample can never paint there (whatever the source data availability).
+ * `extra` behaves like `info` but originates from the standalone extra-badge
+ * style control: the preview builder prioritizes the existing `extra`-bucket
+ * sample when that bucket is allowed, so an `xbs` change is visible even when
+ * `upcoming` would otherwise win. Never persisted, never sent to
+ * Stremio/editor — the same render endpoint, only different query values.
  */
 export type DefaultsPreviewFamily =
   | "auto"
@@ -852,6 +861,33 @@ export type DefaultsPreviewFamily =
   | "quality"
   | "logo"
   | "gradient"
+
+/**
+ * CONFIGURED eligibility, not live data: can the DEFAULTS PREVIEW of the
+ * previewed shape paint a ranking badge at all? True only with the ranking
+ * master ON and `rank` in the effective sash for that shape (`land ?? flat`,
+ * same rule as the builder). Pure config read — it says nothing about whether
+ * the previewed title actually has a rank: that is decided server-side (real
+ * chart rank, or the existing Settings-only demo sample filling a missing
+ * one). The `rank` family fallback and the two-state preview switch read this
+ * helper so they never offer a ranking state the configured preview cannot
+ * produce; the switch pressed state additionally requires the request itself
+ * to narrow to `sash=rank` (see `DefaultsPosterPreview`).
+ */
+export function isDefaultsPreviewRankConfigured(bp: {
+  defaultRankingBadges?: boolean | null
+  defaultSashOrder?: readonly SashBucket[] | null
+  landscape?: LandscapeServerDefaults | null
+  previewShape?: "portrait" | "landscape" | null
+  defaultPosterShape?: PosterShape | null
+}): boolean {
+  const previewLandscape =
+    bp.previewShape === "landscape" || (bp.previewShape == null && bp.defaultPosterShape === "landscape")
+  const land = previewLandscape ? (bp.landscape ?? {}) : {}
+  const rankingEnabled = (land.rankingBadges ?? bp.defaultRankingBadges) !== false
+  const sash: readonly SashBucket[] = land.sashOrder ?? bp.defaultSashOrder ?? [...DEFAULT_SASH_ORDER]
+  return rankingEnabled && sash.includes("rank")
+}
 
 export function buildDefaultsPreviewUrl(bp: DefaultsPreviewParams): string {
   // Demo samples (Settings preview only): la route applica campioni dimostrativi
@@ -881,15 +917,23 @@ export function buildDefaultsPreviewUrl(bp: DefaultsPreviewParams): string {
   // (even when it matches the default): without it a saved non-default order
   // or an emptied sash (master OFF) would render the server fallback instead
   // of the edited categories (desync WYSIWYG). `rank` family targets the rank
-  // bucket only: when rank is actually enabled it narrows to `sash=rank` (the
-  // existing demosamples rank fills the badge); when rank is disabled it
-  // renders `sash=[]` preview-only — no rank sample and no info fallback, so
-  // an unranked/disabled target shows no top decoration at all. `auto`
-  // restores the effective saved priority untouched.
+  // bucket: when the CONFIGURED preview can paint a rank it narrows to
+  // `sash=rank` (the badge value itself comes from the real source rank or,
+  // when the previewed title has none, from the existing disclosed Settings
+  // demo sample); when it cannot (master OFF or rank bucket removed) it
+  // renders the ACTUAL without-ranking composition. `info`/`extra` are the
+  // without-ranking states and always drop `rank` from the effective sash —
+  // regardless of whether a sample exists — so no rank numeral can leak into
+  // them. Other enabled buckets are kept, nothing is invented; `auto` and the
+  // remaining families restore the effective saved priority untouched.
   const effPreviewSash: readonly SashBucket[] = land.sashOrder ?? bp.defaultSashOrder ?? [...DEFAULT_SASH_ORDER]
-  const rankSampled = effPreviewRanking && effPreviewSash.includes("rank")
+  const withoutRankSash = effPreviewSash.filter((bucket) => bucket !== "rank")
   const previewSash: readonly SashBucket[] =
-    bp.previewFamily === "rank" ? (rankSampled ? ["rank"] : []) : effPreviewSash
+    bp.previewFamily === "rank"
+      ? (isDefaultsPreviewRankConfigured(bp) ? ["rank"] : withoutRankSash)
+      : bp.previewFamily === "info" || bp.previewFamily === "extra"
+        ? withoutRankSash
+        : effPreviewSash
   params.push(`sash=${previewSash.join(",")}`)
   // Esclusioni automatiche space-wide (flat condivisi, nessun profilo
   // landscape): SEMPRE esplicite in preview (`dct=`/`dnet=` vuoti quando lo

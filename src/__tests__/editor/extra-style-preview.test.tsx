@@ -148,7 +148,9 @@ describe("extra preview family prioritizes the extra-bucket sample", () => {
     const params = lastPreviewUrl()
     expect(params.get("extra")).toBe("__badge.trending")
     expect(params.get("xbs")).toBe("vetro")
-    expect(params.get("sash")).toBe([...DEFAULT_SASH_ORDER].join(","))
+    // Without-ranking family: rank is dropped (other buckets kept), so the
+    // extra sample can never coexist with a rank numeral.
+    expect(params.get("sash")).toBe([...DEFAULT_SASH_ORDER].filter((b) => b !== "rank").join(","))
   })
 
   it("info family still forces the first enabled sample (other demos unchanged)", async () => {
@@ -403,11 +405,12 @@ describe("SettingsPanel: Fresh stays staged while the extra sample previews xbs"
     })
     const params = lastPreviewUrl()
     // Extra-originated family: the extra-bucket sample (not Coming Soon), the
-    // staged xbs, and the still-Fresh staged layout travel together.
+    // staged xbs, and the still-Fresh staged layout travel together. The
+    // without-ranking request drops `rank` (kept: every other enabled bucket).
     expect(params.get("extra")).toBe("__badge.trending")
     expect(params.get("xbs")).toBe("vetro")
     expect(params.get("layout")).toBe("fresh")
-    expect(params.get("sash")).toBe([...DEFAULT_SASH_ORDER].join(","))
+    expect(params.get("sash")).toBe([...DEFAULT_SASH_ORDER].filter((b) => b !== "rank").join(","))
     const chip = screen.getByTestId("defaults-preview-editing")
     expect(chip.textContent).toContain("ui.titleInfoFamily")
     // Staged session: no PUT and no storage write before the single Save.

@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, useId } from "react"
 import { ChevronDown, ImageOff, Maximize2, Move, RefreshCw, Search, Sparkles } from "lucide-react"
 import { usePosterEditor, type PosterEditorCtx } from "@/lib/contexts/PosterEditorContext"
 import { useT } from "@/lib/contexts/TranslationContext"
-import { buildDefaultsPreviewUrl, type DefaultsPreviewDemoMedia, type DefaultsPreviewFamily } from "@/lib/poster-url"
+import { buildDefaultsPreviewUrl, isDefaultsPreviewRankConfigured, type DefaultsPreviewDemoMedia, type DefaultsPreviewFamily } from "@/lib/poster-url"
 import { DEFAULT_SASH_ORDER, type SashBucket } from "@/lib/badge-priority"
 import { usePSelector } from "@/lib/context"
 import { getRegionDef } from "@/lib/regions"
@@ -119,7 +119,9 @@ interface DefaultsPosterPreviewProps {
  * keys, resolved server-side in the request language via the `extra=` path —
  * no new translations, no new fetch, real data still wins everywhere else
  * (only the top badge is forced, exactly like an editor custom badge, and
- * only while this family is edited).
+ * only while this family is edited). `rank` has no sample and is also dropped
+ * from the sash by these families (see `buildDefaultsPreviewUrl`): the
+ * without-ranking preview states can never paint a rank numeral.
  */
 const INFO_FAMILY_SAMPLE_KEY: Record<SashBucket, string | null> = {
   upcoming: "__badge.comingSoon",
@@ -196,13 +198,19 @@ export function buildDefaultsPreviewUrlFromEditor(
   // badge, so `xbs` stays visible and nothing unsupported is enabled. With no
   // enabled info bucket (or master off) there is no sample at all: the preview
   // falls back to the genuine data path rather than forcing a badge whose
-  // category the user switched off.
+  // category the user switched off. The `rank` family needs the SAME fallback
+  // sample when the CONFIGURED preview cannot paint a rank (master OFF or rank
+  // bucket removed): the without-ranking state must show the actual fallback
+  // composition (buckets the user enabled, never a fabricated one), never an
+  // empty third state.
   const enabledInfoBuckets =
     effPreviewRankingForFamily
       ? effPreviewSashForFamily.filter((b) => b === "upcoming" || b === "new" || b === "award" || b === "extra")
       : []
+  const rankFamilyFallback =
+    opts.previewFamily === "rank" && !(effPreviewRankingForFamily && effPreviewSashForFamily.includes("rank"))
   const infoSampleBucket =
-    opts.previewFamily === "extra"
+    opts.previewFamily === "extra" || rankFamilyFallback
       ? (enabledInfoBuckets.includes("extra") ? ("extra" as const) : enabledInfoBuckets[0])
       : opts.previewFamily === "info"
         ? enabledInfoBuckets[0]
@@ -292,6 +300,8 @@ export function DefaultsPosterPreview({ compact, floating, suspended, previewSha
   const ed = usePosterEditor()
   const { t, lang } = useT()
   const bodyId = useId()
+  const rankHintId = useId()
+  const rankHintIdZoom = useId()
   const tmdbKey = usePSelector((v) => v.tmdbKey)
   const userId = usePSelector((v) => v.currentUserId)
   const serverHasTmdbKey = usePSelector((v) => v.serverHasTmdbKey)
@@ -575,19 +585,114 @@ export function DefaultsPosterPreview({ compact, floating, suspended, previewSha
   // in buffer finché la nuova non è pronta).
   const isLandscape = previewShape === "landscape" || (previewShape == null && ed.defaultPosterShape === "landscape")
 
-  // Enlarged editor (shared Modal: focus trap, Escape, backdrop, focus/scroll
-  // restore): overlay above the settings dialog (z-[100]).
-  // The regular global preview opens STRAIGHT into the editing surface: the
-  // same server-rendered image plus the editor-only layer (handles from the
-  // renderer, alignment guides, selection and aspect-preserving corner resize).
-  // Nothing is baked into the render. Clicking the poster NEVER closes it (no
-  // accidental loss of an in-progress gesture): the explicit Close control,
-  // Escape and the backdrop keep the normal Modal behavior. The drag-MODE
-  // toggle lives here only — the small preview exposes no manipulation at all.
-  // Draft/simple-chrome previews keep the read-only enlarge view. `min-w-0`:
-  // the panel is a flex item of the overlay — without it `min-width: auto` lets
-  // the poster's intrinsic width force the panel past narrow viewports.
+  // Regular preview (draft/simple-chrome callers keep the read-only enlarge
+  // view): the enlarged editor and the two-state switch are editor surfaces.
   const editorActive = !draftDefaults && !simpleChrome
+
+  // Two-state preview switch (Settings only): the poster either paints the
+  // configured ranking badge (configured layout untouched, Fresh/Card
+  // included) or the ACTUAL without-ranking composition (next enabled
+  // informational bucket / genre+rating). It reuses `previewFamily`: `rank`
+  // targets the ranking state, `info`/`extra` target the fallback. The pressed
+  // state describes the REQUEST that produced the displayed image, never the
+  // mere configuration: a rank is only claimed when the query narrows to
+  // `sash=rank` (the badge value is the real source rank, or the existing
+  // disclosed Settings demo sample when the previewed title has none — this
+  // switch never promises a live chart rank). Everything else is numeral-free.
+  const rankConfigured = isDefaultsPreviewRankConfigured({
+    defaultRankingBadges: ed.defaultRankingBadges,
+    defaultSashOrder: ed.defaultSashOrder,
+    landscape: ed.landscape,
+    previewShape: previewShape ?? null,
+    defaultPosterShape: ed.defaultPosterShape,
+  })
+  // - `rank` family: `sash=rank` → numeral (configured layout kept; the
+  //   renderer's own displayability gates — Fresh 1..100, Card 1..20 — stay
+  //   as authoritative as they are for the delivered poster).
+  // - `info`/`extra`: `rank` dropped from the sash → never a numeral, even
+  //   when the title has a rank.
+  // - `auto`/`logo`/`gradient`/`genre`/`ratings`/`quality`: the full
+  //   configured priority, so whether a numeral is painted depends on live
+  //   source data (an `upcoming`/`award` bucket can win over `rank`). Unknown
+  //   transitional request → no state pressed: the control never claims a
+  //   rank it cannot show.
+  // - No configured rank at all (master OFF / bucket removed): every request
+  //   is numeral-free → `without`.
+  const rankState: "with" | "without" | "unset" = !rankConfigured
+    ? "without"
+    : previewFamily === "rank"
+      ? "with"
+      : previewFamily === "info" || previewFamily === "extra"
+        ? "without"
+        : "unset"
+  const rankSwitchEnabled = editorActive && !!onPreviewFamilyChange
+  // One control, two placements (never mounted twice at once): inline under
+  // the editing chip on the static/compact preview, inside the enlarged
+  // editor toolbar on the floating mobile card (which has no chrome).
+  const renderRankSwitch = (placement: "inline" | "zoom") => {
+    if (!rankSwitchEnabled) return null
+    const inZoom = placement === "zoom"
+    const testId = inZoom ? "defaults-preview-rank-state-zoom" : "defaults-preview-rank-state"
+    // Distinct hint ids: both placements can be mounted at once (desktop small
+    // preview + enlarged editor), never duplicate DOM ids.
+    const hintId = inZoom ? rankHintIdZoom : rankHintId
+    return (
+      <div
+        role="group"
+        aria-label={t("ui.posterLayout")}
+        data-testid={testId}
+        data-rank-state={rankState}
+        className={`inline-flex max-w-full flex-wrap items-center justify-center rounded-lg border border-white/20 overflow-hidden bg-black/30 ${inZoom ? "shrink-0" : ""}`}
+      >
+        {(["with", "without"] as const).map((state) => {
+          const active = rankState === state
+          // `with` is only offered when the configured preview can actually
+          // produce a rank (master ON + rank bucket): never a dead/lying state.
+          const unavailable = state === "with" && !rankConfigured
+          return (
+            <button
+              key={state}
+              type="button"
+              data-testid={`${testId}-${state}`}
+              aria-pressed={active}
+              aria-disabled={unavailable || undefined}
+              aria-describedby={unavailable ? hintId : undefined}
+              title={unavailable ? t("ui.trendDefaultHint") : t(state === "with" ? "ui.badgeDragRanked" : "ui.badgeDragFallback")}
+              onClick={() => {
+                if (unavailable) return
+                onPreviewFamilyChange?.(state === "with" ? "rank" : "extra")
+              }}
+              className={`${inZoom ? "min-h-[44px]" : "min-h-[36px]"} px-2.5 text-[10.5px] font-semibold transition-colors touch-manipulation ${inZoom ? "min-w-[44px]" : ""} ${
+                active
+                  ? "bg-accent-orange/20 text-accent-orange"
+                  : unavailable
+                    ? "text-zinc-500 opacity-50 cursor-not-allowed"
+                    : "text-zinc-200 hover:bg-white/15 cursor-pointer"
+              }`}
+            >
+              {t(state === "with" ? "ui.badgeDragRanked" : "ui.badgeDragFallback")}
+            </button>
+          )
+        })}
+        {!rankConfigured && (
+          <span id={hintId} className="sr-only">{t("ui.trendDefaultHint")}</span>
+        )}
+      </div>
+    )
+  }
+
+  // Enlarged editor (shared Modal: focus trap, Escape, backdrop, focus/scroll
+  // restore): overlay above the settings dialog (z-[100]). The regular global
+  // preview opens STRAIGHT into the editing surface: the same server-rendered
+  // image plus the editor-only layer (handles from the renderer, alignment
+  // guides, selection and aspect-preserving corner resize). Nothing is baked
+  // into the render. Clicking the poster NEVER closes it (no accidental loss
+  // of an in-progress gesture): the explicit Close control, Escape and the
+  // backdrop keep the normal Modal behavior. The drag-MODE toggle lives here
+  // only — the small preview exposes no manipulation at all. Draft/simple-chrome
+  // previews keep the read-only enlarge view. `min-w-0`: the panel is a flex
+  // item of the overlay — without it `min-width: auto` lets the poster's
+  // intrinsic width force the panel past narrow viewports.
   const zoomModal = (
     <Modal
       isOpen={zoomed}
@@ -618,7 +723,7 @@ export function DefaultsPosterPreview({ compact, floating, suspended, previewSha
                     aria-label={t(level === "group" ? "ui.badgeTargetGroups" : "ui.badgeTargetItems")}
                     title={t(level === "group" ? "ui.badgeTargetGroupsHint" : "ui.badgeTargetItemsHint")}
                     onClick={() => setTargetLevel(level)}
-                    className={`min-h-[36px] px-3 text-xs font-semibold transition-all cursor-pointer active:scale-95 ${
+                    className={`min-h-[44px] px-3 text-xs font-semibold transition-all cursor-pointer active:scale-95 ${
                       targetLevel === level
                         ? "bg-accent-orange/20 text-accent-orange"
                         : "bg-white/5 text-zinc-100 hover:bg-white/15"
@@ -632,10 +737,10 @@ export function DefaultsPosterPreview({ compact, floating, suspended, previewSha
                 type="button"
                 data-testid="defaults-preview-badge-drag-toggle-zoom"
                 aria-pressed={dragBadges}
-                aria-label={t("ui.badgeDragToggle")}
+                aria-label={`${t("ui.badgeDragToggle")} · ${t(dragBadges ? "ui.badgeDragModeOn" : "ui.badgeDragModeOff")}`}
                 title={t("ui.badgeDragHint")}
                 onClick={() => setDragBadgesPersisted(!dragBadges)}
-                className={`flex items-center gap-1 min-h-[36px] px-3 rounded-lg border text-xs font-semibold transition-all cursor-pointer active:scale-95 ${
+                className={`flex items-center gap-1 min-h-[44px] px-3 rounded-lg border text-xs font-semibold transition-all cursor-pointer active:scale-95 ${
                   dragBadges
                     ? "bg-accent-orange/20 text-accent-orange border-accent-orange/50"
                     : "bg-white/10 text-zinc-100 border-white/20 hover:bg-white/20"
@@ -644,12 +749,13 @@ export function DefaultsPosterPreview({ compact, floating, suspended, previewSha
                 <Move className="w-3.5 h-3.5" />
                 <span>{t(dragBadges ? "ui.badgeDragModeOn" : "ui.badgeDragModeOff")}</span>
               </button>
+              {renderRankSwitch("zoom")}
               <button
                 type="button"
                 data-testid="defaults-preview-badge-edit-close"
                 onClick={() => setZoomed(false)}
                 aria-label={t("ui.defaultsPreviewZoomClose")}
-                className="min-h-[36px] px-3 rounded-lg border border-white/20 bg-white/10 hover:bg-white/20 text-xs font-semibold text-zinc-100 cursor-pointer transition-all active:scale-95"
+                className="min-h-[44px] px-3 rounded-lg border border-white/20 bg-white/10 hover:bg-white/20 text-xs font-semibold text-zinc-100 cursor-pointer transition-all active:scale-95"
               >
                 {t("ui.close")}
               </button>
@@ -727,7 +833,7 @@ export function DefaultsPosterPreview({ compact, floating, suspended, previewSha
             type="button"
             data-testid="defaults-preview-reset-family"
             onClick={() => onPreviewFamilyChange("auto")}
-            aria-label={t("ui.reset")}
+            aria-label={t("ui.previewEditingAuto")}
             title={t("ui.previewEditingHint")}
             className="shrink-0 ml-1 underline decoration-dotted underline-offset-2 hover:text-white transition-colors cursor-pointer"
           >
@@ -766,6 +872,9 @@ export function DefaultsPosterPreview({ compact, floating, suspended, previewSha
     )
   )
   const editingChipRendered = simpleChrome ? null : editingChip
+  // Inline placement for the static/compact preview; the floating mobile card
+  // gets the same control inside the enlarged editor toolbar instead.
+  const inlineRankSwitch = floating ? null : renderRankSwitch("inline")
 
   if (compact) {
     return (
@@ -808,6 +917,7 @@ export function DefaultsPosterPreview({ compact, floating, suspended, previewSha
         </div>
         <div id={bodyId} className={collapsed ? "hidden" : undefined}>
         {editingChipRendered}
+        {inlineRankSwitch && <div className="w-full flex justify-center mt-1 mb-0.5">{inlineRankSwitch}</div>}
 
         <div className="flex justify-center">
           <div data-testid="defaults-preview-media" className={`relative select-none bg-zinc-950/80 rounded-xl overflow-hidden shadow-inner border border-white/10 ${
@@ -1051,6 +1161,7 @@ export function DefaultsPosterPreview({ compact, floating, suspended, previewSha
         </div>
       </div>
       {editingChipRendered}
+      {inlineRankSwitch && <div className="w-full flex justify-center mt-1 mb-0.5">{inlineRankSwitch}</div>}
 
       <div data-testid="defaults-preview-media" className={`relative select-none bg-zinc-950/90 rounded-2xl overflow-hidden shadow-2xl border border-white/10 mx-auto mt-1 w-full shrink-0 ${
         isLandscape ? "aspect-video max-w-[min(100%,calc((88dvh_-_493px)*1.778))] max-h-[calc(88dvh_-_493px)] min-h-[90px]" : "aspect-[2/3] max-w-[min(100%,calc((88dvh_-_493px)*0.667))] max-h-[calc(88dvh_-_493px)] min-h-[120px]"

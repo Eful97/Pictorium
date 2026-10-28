@@ -383,7 +383,31 @@ Opt-in (`sep=1`, default OFF): sostituisce la media ★ nel badge con una colonn
 > nella preview default (`buildDefaultsPreviewUrl`, stesso endpoint poster,
 > nessun renderer duplicato) e non si salvano mai. `auto` rende la priorità
 > effettiva salvata per forma (`sash`, `rank` incluso quando abilitato);
-> `rank` restringe a `rank` (vuoto se rank spento, mai fallback info);
+> `rank` restringe a `rank` quando la preview configurata può davvero
+> dipingere un rank (master ON + bucket `rank` nella sash effettiva) e il
+> layout configurato resta intatto (Fresh/Card inclusi); quando non può
+> (master OFF o bucket rimosso) rende la composizione reale SENZA classifica
+> (sash effettiva meno `rank` + campione info come `extra`), mai uno stato
+> vuoto intermedio. Il selettore preview-only delle Impostazioni espone
+> esattamente QUESTI due stati (con classifica / fallback reale) riusando le
+> family esistenti (`rank` / `extra`, card e toolbar dell'editor ingrandito;
+> la miniatura mobile senza chrome lo mostra nell'editor ingrandito) e
+> disabilita "con classifica" quando la preview non può dipingere un rank;
+> nessuna impostazione salvata toccata. L'idoneità è solo di CONFIGURAZIONE
+> (master + bucket nella sash effettiva): che un numerale venga davvero
+> dipinto lo decide il renderer, con il rank reale della fonte o con il
+> campione demo già dichiarato quando il titolo in preview non ne ha uno — il
+> selettore non promette mai una classifica live verificata.
+> `info` e `extra` sono gli stati SENZA classifica: entrambi tolgono `rank`
+> dalla sash effettiva (gli altri bucket abilitati restano, nulla viene
+> inventato) qualunque sia la disponibilità del campione, quindi un numerale
+> non può mai comparire mentre il selettore dice "senza". Lo stato premuto
+> descrive la RICHIESTA che ha prodotto l'immagine: "con" solo quando la query
+> si restringe a `sash=rank`, "senza" per `info`/`extra` e per ogni forma in
+> cui la classifica non è configurata; `auto`/`logo`/`gradient`/`genre`/
+> `ratings`/`quality` tengono la priorità effettiva completa (un `upcoming` o
+> un premio può vincere sul rank), quindi sono richieste transitorie ignote e
+> nessuno dei due stati resta premuto finché non si sceglie esplicitamente.
 > `info` forza il primo campione info abilitato con `xbs` proprio (niente
 > campione a categorie spente); `extra` (solo dalla card stile extra) forza il
 > campione `extra` quando il bucket è consentito, altrimenti il primo info
