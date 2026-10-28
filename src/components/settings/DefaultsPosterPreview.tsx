@@ -873,7 +873,10 @@ export function DefaultsPosterPreview({ compact, floating, suspended, previewSha
   )
   const editingChipRendered = simpleChrome ? null : editingChip
   // Inline placement for the static/compact preview; the floating mobile card
-  // gets the same control inside the enlarged editor toolbar instead.
+  // gets the same control inside the enlarged editor toolbar instead. Short
+  // desktop bodies hide this extra row (it would force the preview column to
+  // scroll and push the search results below the fold); the enlarged editor
+  // keeps the same switch reachable on every height.
   const inlineRankSwitch = floating ? null : renderRankSwitch("inline")
 
   if (compact) {
@@ -917,7 +920,7 @@ export function DefaultsPosterPreview({ compact, floating, suspended, previewSha
         </div>
         <div id={bodyId} className={collapsed ? "hidden" : undefined}>
         {editingChipRendered}
-        {inlineRankSwitch && <div className="w-full flex justify-center mt-1 mb-0.5">{inlineRankSwitch}</div>}
+        {inlineRankSwitch && <div className="hidden w-full justify-center mt-1 mb-0.5 [@media(min-height:820px)]:flex">{inlineRankSwitch}</div>}
 
         <div className="flex justify-center">
           <div data-testid="defaults-preview-media" className={`relative select-none bg-zinc-950/80 rounded-xl overflow-hidden shadow-inner border border-white/10 ${
@@ -1161,10 +1164,12 @@ export function DefaultsPosterPreview({ compact, floating, suspended, previewSha
         </div>
       </div>
       {editingChipRendered}
-      {inlineRankSwitch && <div className="w-full flex justify-center mt-1 mb-0.5">{inlineRankSwitch}</div>}
+      {inlineRankSwitch && <div className="hidden w-full justify-center mt-1 mb-0.5 [@media(min-height:820px)]:flex">{inlineRankSwitch}</div>}
 
       <div data-testid="defaults-preview-media" className={`relative select-none bg-zinc-950/90 rounded-2xl overflow-hidden shadow-2xl border border-white/10 mx-auto mt-1 w-full shrink-0 ${
-        isLandscape ? "aspect-video max-w-[min(100%,calc((88dvh_-_493px)*1.778))] max-h-[calc(88dvh_-_493px)] min-h-[90px]" : "aspect-[2/3] max-w-[min(100%,calc((88dvh_-_493px)*0.667))] max-h-[calc(88dvh_-_493px)] min-h-[120px]"
+        isLandscape
+          ? "aspect-video max-w-[min(100%,calc((88dvh_-_493px)*1.778))] max-h-[calc(88dvh_-_493px)] min-h-[90px] [@media(min-height:820px)]:max-w-[min(100%,calc((88dvh_-_519px)*1.778))] [@media(min-height:820px)]:max-h-[calc(88dvh_-_519px)]"
+          : "aspect-[2/3] max-w-[min(100%,calc((88dvh_-_493px)*0.667))] max-h-[calc(88dvh_-_493px)] min-h-[120px] [@media(min-height:820px)]:max-w-[min(100%,calc((88dvh_-_519px)*0.667))] [@media(min-height:820px)]:max-h-[calc(88dvh_-_519px)]"
       }`}>
         {previewLoading && (
           <div className="absolute top-0 inset-x-0 h-1 bg-accent-orange/20 z-30 overflow-hidden">
