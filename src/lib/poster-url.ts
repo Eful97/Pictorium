@@ -110,8 +110,9 @@ interface BadgeParams {
   separateBadgeOffsetY?: number | null
   /**
    * Per-ITEM corrections of the badge groups (single rating pill / single
-   * quality-AV mark) in canonical wire form. Opt-in: absent = automatic
-   * layout, so existing preview URLs stay byte-identical.
+   * quality-AV mark) in canonical wire form. `undefined` (unspecified) leaves
+   * the query absent for legacy callers; `null`/empty emits an EXPLICIT empty
+   * `bit=`, which overrides the saved corrections with the automatic layout.
    */
   badgeItemTransforms?: string | null
   /** Offset px del badge qualità. */
@@ -523,11 +524,10 @@ export function buildPreviewUrl(ps: PosterState, bp: BadgeParams, configToken?: 
   params.push(`sepscale=${bp.separateBadgeScale ?? getSeparateBadgeDefaultScale(bp.separateRatingsStyle)}`)
   params.push(`sepox=${bp.separateBadgeOffsetX ?? 0}`)
   params.push(`sepoy=${bp.separateBadgeOffsetY ?? 0}`)
-  // Per-item corrections: opt-in only (absent = automatic layout, existing
-  // preview URLs byte-identical). Canonical form, so a re-serialized map is
-  // stable across reloads.
+  // Explicit empty = automatic layout, not inheritance from saved corrections.
+  // Legacy callers without this field still leave the query absent.
   const bit = canonicalizeBadgeItemTransforms(bp.badgeItemTransforms)
-  if (bit) params.push(`bit=${encodeURIComponent(bit)}`)
+  if (bp.badgeItemTransforms !== undefined) params.push(`bit=${encodeURIComponent(bit ?? "")}`)
   params.push(`qox=${bp.qualityBadgeOffsetX}`)
   params.push(`qoy=${bp.qualityBadgeOffsetY}`)
   params.push(`netscale=${bp.networkLogoScale}`)
@@ -988,10 +988,10 @@ export function buildDefaultsPreviewUrl(bp: DefaultsPreviewParams): string {
   params.push(`sepscale=${pick(land.separateBadgeScale, bp.defaultSeparateBadgeScale) ?? getSeparateBadgeDefaultScale(effSepStyle)}`)
   params.push(`sepox=${pick(land.separateBadgeOffsetX, bp.defaultSeparateBadgeOffsetX) ?? 0}`)
   params.push(`sepoy=${pick(land.separateBadgeOffsetY, bp.defaultSeparateBadgeOffsetY) ?? 0}`)
-  // Per-item corrections: opt-in (absent = automatic layout, legacy preview
-  // URLs byte-identical). Same `land ?? flat` rule as the group geometry.
+  // Always explicit: clearing the last draft correction must not fall back
+  // to saved defaults. An owned landscape null also means automatic layout.
   const previewBit = canonicalizeBadgeItemTransforms(pick(land.badgeItemTransforms, bp.defaultBadgeItemTransforms) ?? null)
-  if (previewBit) params.push(`bit=${encodeURIComponent(previewBit)}`)
+  params.push(`bit=${encodeURIComponent(previewBit ?? "")}`)
   params.push(`qox=${pick(land.qualityBadgeOffsetX, bp.defaultQualityBadgeOffsetX) ?? getQualityBadgeOffsetDefault(previewLandscape ? "landscape" : "poster", "x")}`)
   params.push(`qoy=${pick(land.qualityBadgeOffsetY, bp.defaultQualityBadgeOffsetY) ?? getQualityBadgeOffsetDefault(previewLandscape ? "landscape" : "poster", "y")}`)
   params.push(`netscale=${pick(land.networkLogoScale, bp.defaultNetworkLogoScale) ?? 100}`)

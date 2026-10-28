@@ -150,7 +150,9 @@ describe("preset apply clears the edited shape's item corrections (server parity
     // Nothing is persisted before the single global Save.
     expect(puts).toEqual([])
 
-    // 3. The Settings preview of the edited shape carries no `bit` (automatic).
+    // 3. The Settings preview of the edited shape spells the automatic layout
+    //    as an EXPLICIT empty `bit=` (an absent param would inherit the saved
+    //    portrait corrections server-side).
     const preview = new URL(
       buildDefaultsPreviewUrlFromEditor(
         staged as unknown as Parameters<typeof buildDefaultsPreviewUrlFromEditor>[0],
@@ -158,7 +160,7 @@ describe("preset apply clears the edited shape's item corrections (server parity
       ).url,
       "http://localhost",
     )
-    expect(preview.searchParams.get("bit")).toBeNull()
+    expect(preview.searchParams.get("bit")).toBe("")
 
     // 4. The server render (same chain as /api/poster) resolves the SAME
     //    automatic layout from what the single Save would store. This is the

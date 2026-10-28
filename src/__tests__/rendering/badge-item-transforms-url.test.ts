@@ -3,15 +3,16 @@
  * canonicalization and the render-config resolution.
  *
  * Contract:
- * - opt-in param `bit`: absent = automatic layout, existing URLs byte-identical;
+ * - param `bit`: absent inherits; explicit empty clears saved corrections;
  * - the param is canonicalized before it enters the cache key (one key per
- *   configuration, garbage collapses onto absent: no cache poisoning/busting);
+ *   configuration, garbage collapses onto explicit empty, never inheritance);
  * - precedence mirrors the group geometry: query > effective per-shape mapping
  *   > config token > effective per-shape defaults > none;
  * - only valid identities/sane numbers reach the renderer.
  */
 import { describe, expect, it } from "vitest"
-import { buildPreviewUrl } from "@/lib/poster-url"
+import { buildDefaultsPreviewUrl, buildPreviewUrl } from "@/lib/poster-url"
+import { parseBadgeItemTransforms, rejoinBadgeItems, serializeBadgeItemTransforms } from "@/lib/badge-item-transforms"
 import { normalizePosterCacheParams } from "@/lib/poster-runtime-cache"
 import { mappingSchema } from "@/lib/validation"
 import { POSTER_CACHE_ALLOWLIST } from "@/lib/poster-params-hardening"
@@ -109,16 +110,46 @@ const bp = {
   networkLogoOffsetY: 0,
 }
 
+describe("last badge rejoin with saved corrections", () => {
+  const saved = "quality:tier=100,0,100;quality:combo:dv-atmos=100,0,100;quality:format:hdr=100,0,100"
+
+  for (const surface of ["title", "defaults"] as const) {
+    it(`${surface}: clearing HDR last never resurrects the saved stack`, () => {
+      let draft = parseBadgeItemTransforms(saved)
+      for (const id of ["quality:tier", "quality:combo:dv-atmos", "quality:format:hdr"]) {
+        draft = rejoinBadgeItems(draft, [id])
+        const wire = serializeBadgeItemTransforms(draft)
+        const url = surface === "title"
+          ? buildPreviewUrl(ps as never, { ...bp, badgeItemTransforms: wire } as never)
+          : buildDefaultsPreviewUrl({ defaultBadgeItemTransforms: wire })
+        const query = new URL(url, "http://localhost").searchParams
+        const config = resolvePosterRenderConfig(cfgInput({
+          searchParams: query,
+          mapping: surface === "title" ? mapping({ badgeItemTransforms: saved }) : null,
+          sd: { badgeItemTransforms: saved },
+        }))
+        expect(config.badgeItemTransforms).toEqual(draft)
+        // Cache identity must preserve the same explicit-clear semantics.
+        const cached = resolvePosterRenderConfig(cfgInput({
+          searchParams: normalizePosterCacheParams(query),
+          sd: { badgeItemTransforms: saved },
+        }))
+        expect(cached.badgeItemTransforms).toEqual(draft)
+      }
+    })
+  }
+})
+
 describe("preview URL", () => {
-  it("omits the param when nothing is configured (existing URLs unchanged)", () => {
+  it("omits only an unspecified field; an explicit empty map overrides saved values", () => {
     expect(buildPreviewUrl(ps as never, bp as never)).not.toContain("bit=")
-    expect(buildPreviewUrl(ps as never, { ...bp, badgeItemTransforms: null } as never)).not.toContain("bit=")
+    expect(new URL(buildPreviewUrl(ps as never, { ...bp, badgeItemTransforms: null } as never)).searchParams.get("bit")).toBe("")
     expect(
       buildPreviewUrl(ps as never, {
         ...bp,
         badgeItemTransforms: "rating:imdb=100,0,0",
       } as never),
-    ).not.toContain("bit=")
+    ).toContain("bit=")
   })
 
   it("emits the canonical wire form, URL-encoded", () => {
@@ -144,11 +175,13 @@ describe("cache key canonicalization", () => {
     )
     expect(key(" rating:imdb=120,4,0 ")).toBe("rating:imdb=120,4,0")
     // Neutral entries are dropped: identical to "nothing configured".
-    expect(key("rating:imdb=100,0,0")).toBeNull()
-    // Garbage collapses onto absent (same render, one key: no poisoning).
-    expect(key("junk")).toBeNull()
-    expect(key("bogus:x=100,0,0")).toBeNull()
-    expect(key("rating:imdb=abc")).toBeNull()
+    expect(key("rating:imdb=100,0,0")).toBe("")
+    // Garbage is an explicit clear at render time too, never inheritance.
+    expect(key("junk")).toBe("")
+    expect(key("bogus:x=100,0,0")).toBe("")
+    expect(key("rating:imdb=abc")).toBe("")
+    expect(key("")).toBe("")
+    expect(normalizePosterCacheParams(new URLSearchParams()).has("bit")).toBe(false)
     // Out-of-range numbers are clamped, so they converge on the render value.
     expect(key("rating:imdb=999,99999,0")).toBe("rating:imdb=200,2000,0")
   })

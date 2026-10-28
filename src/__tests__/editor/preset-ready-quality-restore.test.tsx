@@ -183,9 +183,9 @@ describe("ready preset apply restores the built-in quality look", () => {
         expect(moved.flat).toEqual(neutral.flat)
         if (shape === "landscape") expect(moved.profile).toEqual(neutral.profile)
         // Built-in looks carry no item corrections (automatic layout), so the
-        // preview URL must not send any to the renderer.
+        // preview URL sends the EXPLICIT empty `bit=` (never the inherited map).
         expect(moved.wire).toEqual(neutral.wire)
-        expect(moved.wire.bit).toBeNull()
+        expect(moved.wire.bit).toBe("")
         if (shape === "portrait") {
           // Documented isolation guard: a portrait apply never rewrites the
           // other orientation's owned profile geometry.

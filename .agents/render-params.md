@@ -836,8 +836,11 @@ propria (scala + X + Y), persistita per **identità stabile** e mai per indice.
   automatico. Nessun altro gruppo/item/layout viene toccato: le correzioni
   degli altri item sopravvivono.
 - **Cache e persistenza**: `bit` è in allowlist e viene canonicalizzato (ordine
-  per id, clamp, neutrali rimossi, garbage → assente): una configurazione = una
-  chiave. Persistenza: mapping per-titolo (`badgeItemTransforms`, flat + profilo
+  per id, clamp, neutrali rimossi, garbage → vuoto esplicito): `bit` assente
+  eredita mapping/config/default; `bit=` forza il layout automatico. Le preview
+  inviano il vuoto esplicito quando si riunisce l'ultimo badge, senza riesumare
+  le correzioni salvate; la cache distingue vuoto e assente. Persistenza:
+  mapping per-titolo (`badgeItemTransforms`, flat + profilo
   `landscape`), default globali (flat + `landscape`), config token, preset
   personali (i preset ready/built-in NON portano correzioni: `default(null)` =
   layout automatico) e localStorage (`defaultBadgeItemTransforms` +

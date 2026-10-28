@@ -280,17 +280,13 @@ export function normalizePosterCacheParams(searchParams: URLSearchParams): URLSe
     const ids = [...new Set(sanitizeDisabledNetworks(dnet.split(",")))].sort()
     params.set("dnet", ids.join(","))
   }
-  // Per-ITEM badge transforms (`bit`): canonical sorted wire form. Invalid
-  // entries are dropped (fail-closed), neutral entries removed and a value
-  // that sanitizes to empty becomes ABSENT — unlike a present enum, an empty
-  // per-item map and an absent one resolve identically to "no correction"
-  // (there is no inheritance to protect), so they must share one key instead
-  // of poisoning it with a second identical render.
+  // Per-ITEM badge transforms (`bit`): preserve an explicit empty map.
+  // Absent inherits saved corrections; empty overrides them with automatic
+  // layout. Neutral/invalid entries canonicalize to that same explicit clear,
+  // matching render-config resolution, never to the inherited cache key.
   const bit = params.get("bit")
   if (bit !== null) {
-    const canonical = canonicalizeBadgeItemTransforms(bit)
-    if (canonical) params.set("bit", canonical)
-    else params.delete("bit")
+    params.set("bit", canonicalizeBadgeItemTransforms(bit) ?? "")
   }
 
   // Removed Badge Lab params (`bp`/`bpf`/`bpt`): the custom badge library is

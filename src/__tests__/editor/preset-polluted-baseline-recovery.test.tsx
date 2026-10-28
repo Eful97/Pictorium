@@ -230,7 +230,9 @@ describe("built-in reset reference recovery", () => {
 
         const recovered = qualityView(mounted.current(), shape)
         expect(ownedView(recovered, shape)).toEqual(ownedView(reference, shape))
-        expect(recovered.bit).toBeNull()
+        // Automatic layout on the wire: explicit empty `bit=`, never the
+        // polluted reference and never an omission that would inherit it.
+        expect(recovered.bit).toBe("")
         mounted.view.unmount()
         cleanup()
       })

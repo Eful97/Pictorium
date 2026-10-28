@@ -271,7 +271,8 @@ describe("landscape ownership of the rejoin", () => {
     // Explicit `null` (NOT a deleted key): an absent key would inherit the
     // portrait map again and resurrect the old nudges.
     expect(landItems()).toBeNull()
-    expect(previewBit("landscape")).toBeNull()
+    // Explicit clear must override the still-saved portrait corrections.
+    expect(previewBit("landscape")).toBe("")
     expect((current().value as unknown as Record<string, unknown>).landscapeReset).toBeUndefined()
   })
 

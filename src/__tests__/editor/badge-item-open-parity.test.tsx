@@ -25,6 +25,10 @@
  * production chain the Stremio URL builder consumes
  * (`effectiveMappingForShape` → `effectiveDefaultsForShape`, see
  * `stremio-poster-url.ts`), so a drift on either side fails the test.
+ *
+ * Transport nuance: the preview spells "automatic" as an explicit empty
+ * `bit=` (an absent param would inherit the saved map); the Stremio URL omits
+ * it. `expectPreviewParity` maps the automatic case onto that explicit clear.
  */
 import { useEffect } from "react"
 import { render, act, waitFor, screen } from "@testing-library/react"
@@ -305,7 +309,9 @@ function previewBit(): string | null {
 }
 
 async function expectPreviewParity(mapping: Mapping | null, shape: "poster" | "landscape") {
-  const expected = stremioBit(mapping, shape)
+  // `null` (automatic layout) is spelled as an explicit empty `bit=` in the
+  // preview: absent would inherit the saved map instead of clearing it.
+  const expected = stremioBit(mapping, shape) ?? ""
   await waitFor(() => expect(previewBit()).toBe(expected), { timeout: 3000 })
   expect(previewBit()).toBe(expected)
 }
@@ -507,7 +513,8 @@ describe("per-item corrections: opening a title follows the committed defaults",
     // Owned null wins: automatic layout in landscape, never the portrait flat.
     expect(ed!.badgeItemTransforms).toBeNull()
     await expectPreviewParity(mappingsPayload[0] as unknown as Mapping, "landscape")
-    expect(previewBit()).toBeNull()
+    // The preview carries the EXPLICIT clear that overrides the portrait map.
+    expect(previewBit()).toBe("")
 
     // Back to portrait: the flat corrections are the portrait truth again.
     await user.click(screen.getByRole("button", { name: "ui.posterShapePortrait" }))
@@ -536,7 +543,8 @@ describe("per-item corrections: opening a title follows the committed defaults",
       ed!.setDefaultBadgeItemTransforms(BIT_LAND)
     })
     await expectPreviewParity(null, "landscape")
-    expect(previewBit()).toBeNull()
+    // Still the explicit clear, not an omission that would inherit the flat.
+    expect(previewBit()).toBe("")
   })
 })
 

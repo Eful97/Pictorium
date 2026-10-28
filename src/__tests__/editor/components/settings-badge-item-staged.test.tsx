@@ -308,8 +308,10 @@ describe("per-item corrections inside the staged settings session", () => {
 
     fireEvent.doubleClick(screen.getByTestId("badge-item-handle-rating:imdb"))
 
-    // Only the draft clears the correction: automatic layout in the preview…
-    await waitFor(() => expect(previewParams()?.get("bit")).toBeNull(), { timeout: 3000 })
+    // Only the draft clears the correction: automatic layout in the preview,
+    // spelled as an EXPLICIT empty `bit=` so the server cannot inherit the
+    // stored map…
+    await waitFor(() => expect(previewParams()?.get("bit")).toBe(""), { timeout: 3000 })
     // …while the stored/live truth keeps it and no conflict is raised.
     expect(ctx().defaultBadgeItemTransforms).toBe("rating:imdb=130,5,0")
     expect(screen.queryByTestId("settings-conflict")).toBeNull()
