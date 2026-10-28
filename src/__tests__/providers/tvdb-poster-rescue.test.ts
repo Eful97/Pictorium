@@ -1,7 +1,8 @@
-// B1 TVDB rescue: titolo senza clean TMDB ma con logo + chiave TVDB →
-// poster textless TVDB con logo composto (invece del fallback in lingua
-// senza logo). Gating fail-fast: senza chiave, zero chiamate TVDB.
-// Pipeline REALE con fetch stubbato (pattern backdrop-crop-fallback).
+// TVDB artwork is MANUAL-only: the automatic poster never calls TVDB, even
+// for a title without a TMDB clean poster + logo + configured key. The saved
+// language poster is used and the logo is dropped in portrait (no text over
+// text); TVDB remains selectable from the gallery and renders when explicit
+// in `poster=`/mapping. Pipeline REALE con fetch stubbato.
 
 import sharp from "sharp"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
@@ -133,16 +134,7 @@ async function router(input: unknown): Promise<Response> {
   throw new Error(`tvdb-rescue router: URL non gestito ${url.slice(0, 120)}`)
 }
 
-async function getPoster(type: string, id: number, extra = "") {
-  const res = await posterGET(
-    new NextRequest(`http://localhost:3000/api/poster/${type}/${id}?api_key=test${extra}`),
-    { params: Promise.resolve({ type, id: String(id) }) },
-  )
-  const buf = Buffer.from(await res.arrayBuffer())
-  return { res, buf }
-}
-
-describe("B1 TVDB poster rescue (no TMDB clean + logo + key)", () => {
+describe("TVDB artwork is manual-only (no automatic rescue)", () => {
   beforeEach(async () => {
     cacheClear()
     __resetTMDBSessionCache()
@@ -171,56 +163,42 @@ describe("B1 TVDB poster rescue (no TMDB clean + logo + key)", () => {
     cacheClear()
   })
 
-  it("renders 200 with the TVDB textless poster and keeps the logo", async () => {
-    const { res, buf } = await getPoster("tv", 630101, "&tvdb_key=K")
+  it("no clean + logo + key: language poster, no TVDB calls, logo dropped", async () => {
+    const res = await posterGET(
+      new NextRequest("http://localhost:3000/api/poster/tv/630101?api_key=test&tvdb_key=K&debug=1"),
+      { params: Promise.resolve({ type: "tv", id: "630101" }) },
+    )
     expect(res.status).toBe(200)
-    expect(res.headers.get("content-type")).toContain("image/webp")
-    const meta = await sharp(buf).metadata()
-    expect(meta.width).toBe(500)
-    expect(meta.height).toBe(750)
-    // Il poster TVDB è stato scaricato e il logo TMDB composto (non droppato).
-    expect(requestedUrls.some((u) => u.includes("artworks.thetvdb.com/banners/v4/poster/1.jpg"))).toBe(true)
-    expect(requestedUrls.some((u) => u.includes("/logo630101.png"))).toBe(true)
-  })
-
-  it("gating fail-fast: without key, zero TVDB calls and language fallback", async () => {
-    const { res, buf } = await getPoster("tv", 630102)
-    expect(res.status).toBe(200)
+    expect(res.headers.get("content-type")).toContain("application/json")
+    const body = await res.json()
+    expect(body.images.poster).toBe("/lang630101.jpg")
+    expect(body.images.logo).toBeNull()
     expect(requestedUrls.some((u) => u.includes("api4.thetvdb.com"))).toBe(false)
     expect(requestedUrls.some((u) => u.includes("artworks.thetvdb.com"))).toBe(false)
-    const meta = await sharp(buf).metadata()
-    expect(meta.width).toBe(500)
-    expect(meta.height).toBe(750)
   })
 
-  it("rescue con testo: niente logo sopra (no doppio logo), blur forzato a 20/80", async () => {
-    tvdbWithText = true
-    // Stile Stremio unmapped: default globali iniettati nell'URL.
+  it("without key: same language fallback and zero TVDB calls", async () => {
     const res = await posterGET(
-      new NextRequest("http://localhost:3000/api/poster/tv/630103?api_key=test&tvdb_key=K&gradHeight=30&bf=50&debug=1"),
-      { params: Promise.resolve({ type: "tv", id: "630103" }) },
+      new NextRequest("http://localhost:3000/api/poster/tv/630102?api_key=test&debug=1"),
+      { params: Promise.resolve({ type: "tv", id: "630102" }) },
     )
     expect(res.status).toBe(200)
     const body = await res.json()
-    // Base TVDB con testo, logo azzerato.
-    expect(String(body.images.poster)).toContain("artworks.thetvdb.com")
+    expect(body.images.poster).toBe("/lang630102.jpg")
     expect(body.images.logo).toBeNull()
-    // Poster finale non-clean: i default 30/50 non vincono sul profilo 20/80.
-    expect(body.appearance.blurHeight).toBe(20)
-    expect(body.appearance.blurFade).toBe(80)
+    expect(requestedUrls.some((u) => u.includes("api4.thetvdb.com"))).toBe(false)
+    expect(requestedUrls.some((u) => u.includes("artworks.thetvdb.com"))).toBe(false)
   })
 
-  it("rescue textless: logo tenuto e blur ai default (base clean)", async () => {
+  it("manual TVDB poster remains selectable and renders from the explicit query", async () => {
+    const tvdbPoster = encodeURIComponent("https://artworks.thetvdb.com/banners/v4/poster/1.jpg")
     const res = await posterGET(
-      new NextRequest("http://localhost:3000/api/poster/tv/630104?api_key=test&tvdb_key=K&gradHeight=30&bf=50&debug=1"),
-      { params: Promise.resolve({ type: "tv", id: "630104" }) },
+      new NextRequest(`http://localhost:3000/api/poster/tv/630105?api_key=test&preview=1&poster=${tvdbPoster}&debug=1`),
+      { params: Promise.resolve({ type: "tv", id: "630105" }) },
     )
     expect(res.status).toBe(200)
     const body = await res.json()
-    expect(String(body.images.poster)).toContain("artworks.thetvdb.com")
-    expect(body.images.logo).toContain("/logo630104.png")
-    // Base clean-equivalente: nessuna forzatura.
-    expect(body.appearance.blurHeight).toBe(30)
-    expect(body.appearance.blurFade).toBe(50)
+    expect(body.images.poster).toContain("artworks.thetvdb.com/banners/v4/poster/1.jpg")
+    expect(requestedUrls.some((u) => u.includes("artworks.thetvdb.com/banners/v4/poster/1.jpg"))).toBe(true)
   })
 })

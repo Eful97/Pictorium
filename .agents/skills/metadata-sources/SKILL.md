@@ -110,7 +110,7 @@ and/or the trend badges. Full architecture: `.agents/catalog.md`.
 
 ## TVDB (`src/lib/tvdb.ts`)
 
-- Episodes/seasonTypes (meta route) + artwork posters rescue (B1, poster route).
+- Episodes/seasonTypes (meta route), editor galleries, and MANUAL artwork selection. The automatic poster route does not call TVDB (no automatic rescue): TVDB posters render only when explicitly selected (`poster=`/mapping).
 - `getTvdbArtworks(mediaType, tvdbId, apiKey)` → `TvdbArtwork[]` (`ArtworkBaseRecord`
   spec v4.7.10: series via `/series/{id}/artworks`, movies via `/movies/{id}/extended`
   which embeds `artworks`; no dedicated movie artworks endpoint).

@@ -66,7 +66,6 @@ import {
   recordPosterStaleHit,
   recordPosterCoalescedHit,
   recordPosterLatency,
-  recordTvdbRescue,
   recordBackdropCropRescue,
   serverTimingValue,
   resolveImageFormat,
@@ -105,7 +104,6 @@ import { fetchPosterBaseWithCustom, customBaseAnalysisKey, resolveEffectiveCusto
 import { isCustomPosterUrl } from "@/lib/utils"
 
 import { resolveImdbToTmdb } from "@/lib/imdb-resolver"
-import { getTvdbArtworks, getTvdbMovieId, getTvdbSeriesId, pickTvdbPoster } from "@/lib/tvdb"
 import { validatePosterQuery } from "@/lib/validation"
 import { decodeConfig } from "@/lib/config-token"
 import { createLogger } from "@/lib/logger"
@@ -549,18 +547,11 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
   if (effMdblistKey) cacheParams.set("mdb", "1")
   cacheParams.delete("simkl_key")
   if (effSimklKey) cacheParams.set("simkl", "1")
-  // B1: la chiave TVDB non entra mai in chiaro nella cache key (segreto in
-  // memoria); il flag `tvdb=1` separa le entry con rescue attivo da quelle
-  // senza (output diverso a parità di altri parametri).
+  // La chiave TVDB non entra mai in chiaro nella cache key (segreto in
+  // memoria). Il poster automatico non usa più TVDB (rescue rimosso: la
+  // selezione TVDB è solo manuale), quindi nessun flag server-side.
   cacheParams.delete("tvdb_key")
-  // Il flag è server-side: un `tvdb=` in query viene ignorato (solo la
-  // presenza della chiave abilita il rescue).
   cacheParams.delete("tvdb")
-  // Chiave TVDB per il rescue poster (B1): query `tvdb_key` > namespace >
-  // fallback d'istanza (stessa precedenza della route meta). Senza chiave il
-  // rescue è spento e il comportamento resta quello storico.
-  const tvdbApiKey = effTvdbKey
-  if (tvdbApiKey) cacheParams.set("tvdb", "1")
   if (typeof cacheParams.sort === "function") cacheParams.sort()
   // Pre-cache rank snapshot so the cache key carries the live trend/anime rank.
   // The same snapshot is reused by the render below: no second fetch.
@@ -1310,12 +1301,10 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
   let logoPathBuffer: Buffer | null = null
   let logoPath: string | null = null
   // Il poster finale del ramo automatico è clean (senza testo incorporato)?
-  // Solo TMDB iso_639_1===null o rescue TVDB textless. Serve a: (1) non
-  // sovrapporre mai il logo a un poster con testo, (2) forzare il profilo
-  // blur non-clean sui default iniettati da Stremio (Golden Rule col client).
+  // Solo TMDB iso_639_1===null. Serve a: (1) non sovrapporre mai il logo a un
+  // poster con testo, (2) forzare il profilo blur non-clean sui default
+  // iniettati da Stremio (Golden Rule col client).
   let autoPosterClean = false
-  // Il rescue TVDB ha restituito artwork textless (base clean, logo tenuto)?
-  let tvdbRescueClean = false
   // Lingua richiesta per artwork/logo (ramo non-mappato; default da posterRegion):
   // serve al blocco debug=1 fuori dallo scope del ramo.
   let posterRequestedLang = posterRegion.lang2
@@ -1753,62 +1742,24 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
           autoPosterClean = fallbackPoster.iso_639_1 === null
         }
       } else {
-        // B1: TVDB rescue — solo senza clean TMDB (o con clean disattivati il
-        // rescue è spento: ricadrebbe su una base textless vanificando l'opzione),
-        // con logo e chiave TVDB
-        // (gating fail-fast: niente chiave → costo zero). Il poster textless
-        // TVDB salva il logo che altrimenti verrebbe droppato col fallback
-        // in lingua. Solo portrait (il landscape ha già la base backdrop).
-        // Fail-open: qualsiasi errore → fallback in lingua sotto.
-        let tvdbRescue: string | null = null
-        if (!isLandscape && logoPath && tvdbApiKey && cleanEnabled) {
-          try {
-            const remoteTvdbId = extIds.tvdb_id
-              ?? (imdbId
-                ? (mediaType === "movie"
-                  ? await getTvdbMovieId(imdbId, tvdbApiKey, renderAbort.signal)
-                  : await getTvdbSeriesId(imdbId, tvdbApiKey, renderAbort.signal))
-                : null)
-            if (remoteTvdbId) {
-              const arts = await getTvdbArtworks(mediaType, remoteTvdbId, tvdbApiKey, renderAbort.signal)
-              const rescuedArt = pickTvdbPoster(arts, preferredLanguage)
-              tvdbRescue = rescuedArt?.image ?? null
-              // Solo il textless salva davvero il logo: con testo incorporato
-              // la base non è clean → niente logo sopra (doppio logo).
-              tvdbRescueClean = !!tvdbRescue && rescuedArt?.includesText === false
-            }
-          } catch {
-            // Fallthrough al fallback in lingua.
-          }
-        }
-        if (tvdbRescue) {
-          log.info("TVDB poster rescue", { mediaType, tmdbId, poster: tvdbRescue })
-          recordTvdbRescue()
-          posterPath = tvdbRescue
-          autoPosterClean = tvdbRescueClean
-          if (!tvdbRescueClean) {
-            // Base con testo incorporato: mai il logo sopra (stesso invariante
-            // del fallback in lingua sotto e del client).
-            logoPath = null
-            logoPathBuffer = null
-          }
+        // Nessun clean TMDB disponibile: il poster in lingua ha già il titolo
+        // stampato → mai sovrapporre il logo in portrait (stesso invariante
+        // del client: buildPreviewUrl emette `logo=` solo con poster clean, e
+        // il mapping forza logoPath=null sui non-clean). In landscape la base
+        // è il backdrop (senza testo): il logo resta sempre e la base conta
+        // come clean per il profilo sfumatura.
+        // La selezione TVDB è SOLO manuale (gallery + mapping/query): nessun
+        // rescue automatico, così il poster consegnato a Stremio coincide con
+        // la scelta visibile nel client.
+        const langPoster = images.posters.find((p: TMDBImage) => p.iso_639_1 === preferredLanguage)
+        const origPoster = details.original_language ? images.posters.find((p: TMDBImage) => p.iso_639_1 === details.original_language) : undefined
+        const chosen = langPoster || origPoster || images.posters[0]
+        if (chosen) posterPath = chosen.file_path
+        if (isLandscape && logoPath) {
+          autoPosterClean = true
         } else {
-          // Nessun clean disponibile: il poster in lingua ha già il titolo
-          // stampato → mai sovrapporre il logo in portrait (stesso invariante
-          // del client: buildPreviewUrl emette `logo=` solo con poster clean,
-          // e il mapping forza logoPath=null sui non-clean). In landscape la
-          // base è il backdrop (senza testo): il logo resta sempre e la base
-          // conta come clean per il profilo sfumatura.
-          const langPoster = images.posters.find((p: TMDBImage) => p.iso_639_1 === preferredLanguage)
-          const origPoster = details.original_language ? images.posters.find((p: TMDBImage) => p.iso_639_1 === details.original_language) : undefined
-          const chosen = langPoster || origPoster || images.posters[0]
-          if (chosen) posterPath = chosen.file_path
-          if (isLandscape && logoPath) {
-            autoPosterClean = true
-          } else {
-            logoPath = null
-            logoPathBuffer = null
-          }
+          logoPath = null
+          logoPathBuffer = null
         }
       }
       // Rotazione giornaliera dinamici landscape (solo backdrop clean, cut
