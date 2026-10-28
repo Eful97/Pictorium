@@ -9,7 +9,7 @@
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest"
 import { renderHook, act } from "@testing-library/react"
-import { useDefaults } from "@/lib/useDefaults"
+import { useDefaults, readStoredDefaultBadgeItemTransforms } from "@/lib/useDefaults"
 import { usePosterEditor } from "@/lib/contexts/PosterEditorContext"
 import { resetGuestGuardForTests } from "@/lib/guest-guard"
 import { renderWithCtx } from "@/__tests__/test-utils"
@@ -86,6 +86,16 @@ describe("per-item corrections persistence", () => {
     // Absent (never an explicit null): a cleared configuration is byte-identical
     // to a historic payload without the feature.
     expect("badgeItemTransforms" in cleared).toBe(false)
+  })
+
+  it("reads the committed default bit for the title-open hydration fallback", () => {
+    storage.setItem(
+      "badgeDefaults",
+      JSON.stringify({ badgeItemTransforms: " quality:tier=100,20,196 ; junk " }),
+    )
+    expect(readStoredDefaultBadgeItemTransforms()).toBe("quality:tier=100,20,196")
+    storage.setItem("badgeDefaults", JSON.stringify({ badgeItemTransforms: null }))
+    expect(readStoredDefaultBadgeItemTransforms()).toBeNull()
   })
 
   it("canonicalizes the live per-title scope on write", async () => {

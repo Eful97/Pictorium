@@ -612,6 +612,19 @@ export function defaultsStorageKey(): string {
   return uuid ? `badgeDefaults:${uuid}` : "badgeDefaults"
 }
 
+/**
+ * Committed per-item corrections from the last local defaults save. Used by
+ * the title-open path as a hydration-race fallback: the in-memory defaults
+ * state can still be the factory `null` at that instant, while the Stremio
+ * chain already resolves the persisted value (preview would otherwise send an
+ * explicit empty `bit=`, clearing the committed layout). Null when nothing is
+ * committed, so an intentional automatic layout stays automatic.
+ */
+export function readStoredDefaultBadgeItemTransforms(): string | null {
+  const d = readStoredDefaults()
+  return canonicalizeBadgeItemTransforms(d?.defaultBadgeItemTransforms ?? d?.badgeItemTransforms ?? null)
+}
+
 function safeSetItem(key: string, val: string): boolean {
   try {
     localStorage.setItem(key, val)

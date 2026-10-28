@@ -9,7 +9,7 @@ import type { BadgeStyle, RankingBadgeStyle, ExtraBadgeStyle, ExtraBadgeFollowRa
 import { isSeparateRatingsStyle, resolveSeparateBadgeScaleFallback, isExtraBadgeStyle, isExtraFollowRank, resolveUnmappedQualityBadgeOffsets } from "./badge-styles"
 import { resolveShapeBadgeItemTransforms } from "./badge-item-transforms"
 import { resolveNetworkShapeView, resolveNetworkEffectiveView } from "./network-follow"
-import type { RibbonSide } from "./useDefaults"
+import { type RibbonSide, readStoredDefaultBadgeItemTransforms } from "./useDefaults"
 type LogoAlign = "left" | "center"
 import { posterUrl, titleOf, yearOf, STREAMING_PLATFORMS, mergeImageLists, isCustomPosterUrl, type ImageLists } from "./utils"
 import { isTvdbArtworkUrl } from "./tvdb-gallery-types"
@@ -2620,7 +2620,13 @@ export function usePictorium(): PictoriumCtx {
       setSeparateBadgeScale(resolveSeparateBadgeScaleFallback({ explicit: eff?.separateBadgeScale, defaultScale: landDef?.separateBadgeScale ?? defaultSeparateBadgeScale, defaultStyle: defaultSeparateRatingsStyle, style: isSeparateRatingsStyle(eff?.separateRatingsStyle) ? eff.separateRatingsStyle : defaultSeparateRatingsStyle }))
       setSeparateBadgeOffsetX(eff?.separateBadgeOffsetX ?? landDef?.separateBadgeOffsetX ?? defaultSeparateBadgeOffsetX)
       setSeparateBadgeOffsetY(eff?.separateBadgeOffsetY ?? landDef?.separateBadgeOffsetY ?? defaultSeparateBadgeOffsetY)
-      setBadgeItemTransforms(eff?.badgeItemTransforms ?? resolveShapeBadgeItemTransforms(openShape === "landscape" ? landscapeDefaults : null, defaultBadgeItemTransforms))
+      // Hydration-race guard: the defaults provider may still expose the
+      // factory null when the title opens (persisted defaults not yet
+      // installed). The Stremio chain resolves the committed value, so the
+      // preview must seed from the same stored truth instead of emitting an
+      // explicit empty `bit=` that clears it.
+      const seededBitDefault = defaultBadgeItemTransforms ?? readStoredDefaultBadgeItemTransforms()
+      setBadgeItemTransforms(eff?.badgeItemTransforms ?? resolveShapeBadgeItemTransforms(openShape === "landscape" ? landscapeDefaults : null, seededBitDefault))
       // Graphical poster layout dal mapping EFFETTIVO per formato (profilo
       // landscape vince sul flat, stessa regola del server): il mapping
       // storico senza campo segue il default EFFETTIVO di formato
