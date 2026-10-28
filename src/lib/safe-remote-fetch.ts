@@ -53,20 +53,57 @@ export function isPrivateHost(hostname: string): boolean {
   return false
 }
 
+/**
+ * Espande un IPv6 nei suoi otto gruppi da 16 bit. Ritorna null se non è un
+ * IPv6 valido. Serve a classificare l'indirizzo per valore (loopback, ULA,
+ * link-local, IPv4-mapped) invece che per prefisso testuale: forme esadecimali
+ * come ::ffff:7f00:1 non sono riconducibili con split(":").
+ */
+function parseIpv6Groups(address: string): number[] | null {
+  let bare = address.toLowerCase().replace(/^\[|\]$/g, "")
+  if (!bare.includes(":")) return null
+
+  // Coda IPv4 dotted (::ffff:127.0.0.1): convertila nei due gruppi esadecimali.
+  const dotted = bare.match(/^(.*:)(\d{1,3}(?:\.\d{1,3}){3})$/)
+  if (dotted) {
+    const octets = dotted[2].split(".").map(Number)
+    if (octets.some((o) => !Number.isInteger(o) || o < 0 || o > 255)) return null
+    const hi = (octets[0] << 8) | octets[1]
+    const lo = (octets[2] << 8) | octets[3]
+    bare = `${dotted[1]}${hi.toString(16)}:${lo.toString(16)}`
+  }
+
+  const halves = bare.split("::")
+  if (halves.length > 2) return null
+  const left = halves[0] ? halves[0].split(":") : []
+  const right = halves.length === 2 && halves[1] ? halves[1].split(":") : []
+  const hasGap = halves.length === 2
+  const missing = 8 - left.length - right.length
+  if (missing < 0 || (hasGap && missing < 1)) return null
+  if (!hasGap && missing !== 0) return null
+
+  const groups = [...left, ...Array<string>(missing).fill("0"), ...right]
+  const parsed = groups.map((g) => (/^[0-9a-f]{1,4}$/.test(g) ? Number.parseInt(g, 16) : NaN))
+  return parsed.some((n) => !Number.isInteger(n)) ? null : parsed
+}
+
 /** Verifica se un indirizzo IP risolto (IPv4 o IPv6) è privato/non routabile. */
 export function isPrivateIp(address: string): boolean {
   const lower = address.toLowerCase()
-  if (lower === "::1" || lower === "::" || lower === "[::1]" || lower === "[::]") return true
-  if (lower.startsWith("::ffff:") || lower.startsWith("0:0:0:0:0:ffff:")) {
-    // IPv4-mapped IPv6: estrai il quad e valutalo come IPv4
-    const v4 = lower.split(":").pop() || ""
-    if (isPrivateHost(v4)) return true
-    return /^127\./.test(v4) || v4 === "0.0.0.0"
+  const groups = parseIpv6Groups(lower)
+  if (groups) {
+    if (groups.every((g) => g === 0)) return true // ::
+    if (groups.slice(0, 7).every((g) => g === 0) && groups[7] === 1) return true // ::1
+    if ((groups[0] & 0xfe00) === 0xfc00) return true // ULA fc00::/7
+    if ((groups[0] & 0xffc0) === 0xfe80) return true // link-local fe80::/10
+    // IPv4-mapped: primi cinque gruppi a zero, sesto ffff, coda IPv4.
+    if (groups.slice(0, 5).every((g) => g === 0) && groups[5] === 0xffff) {
+      const v4 = `${groups[6] >> 8}.${groups[6] & 0xff}.${groups[7] >> 8}.${groups[7] & 0xff}`
+      return isPrivateHost(v4)
+    }
+    return false
   }
-  if (lower.startsWith("fc") || lower.startsWith("fd")) return true // ULA fc00::/7
-  if (lower.startsWith("fe8") || lower.startsWith("fe9") || lower.startsWith("fea") || lower.startsWith("feb")) return true // link-local
-  if (isPrivateHost(lower)) return true
-  return false
+  return isPrivateHost(lower)
 }
 
 
@@ -128,38 +165,48 @@ function safeLookup(hostname: string, options: LookupOptions, callback: (err: No
  * fetch usata: passare un Agent del pacchetto npm `undici` alla fetch globale
  * di Node (undici interno di versione diversa) fallisce ogni richiesta con
  * `invalid onRequestStart method` → 500 su tutto il proxy. Per questo la
- * coppia fetch/dispatcher viene presa dallo stesso modulo dinamico; se il
- * modulo non è caricabile si degrada alla fetch globale senza dispatcher
- * (resta comunque il pre-check DNS di resolveAndCheckBlocked).
+ * coppia fetch/dispatcher viene presa dallo stesso modulo dinamico. Se la
+ * coppia non è disponibile si fallisce chiuso: la fetch globale senza
+ * dispatcher non applica il DNS pin alla connessione.
  */
 type SafeFetchPair = {
   fetchFn: typeof fetch
   dispatcher: InstanceType<typeof import("undici").Agent>
 }
-let safePair: SafeFetchPair | undefined
-let safePairTried = false
-async function getSafeFetch(): Promise<SafeFetchPair | undefined> {
-  if (safePairTried) return safePair
-  safePairTried = true
+
+/** Fetch sicura non disponibile: meglio fallire che usare un trasporto non
+ * pinned. Un pre-check DNS una tantum non chiude il rebinding tra check e
+ * connessione. */
+export class SafeFetchUnavailableError extends Error {}
+
+let safePairPromise: Promise<SafeFetchPair> | undefined
+
+async function loadSafeFetch(): Promise<SafeFetchPair> {
   try {
     const { Agent, fetch: undiciFetch } = await import("undici") as typeof import("undici")
-    safePair = {
+    return {
       fetchFn: undiciFetch as unknown as typeof fetch,
       dispatcher: new Agent({ connect: { lookup: safeLookup } }),
     }
   } catch (e) {
-    log.warn("undici unavailable — DNS pin disabilitato, fallback a fetch senza dispatcher", {
+    log.error("undici unavailable — safe fetch disabled", {
       error: e instanceof Error ? e.message : String(e),
     })
-    safePair = undefined
+    throw new SafeFetchUnavailableError("undici unavailable: DNS-pinned fetch is required")
   }
-  return safePair
+}
+
+/** Una sola promise di inizializzazione condivisa: due richieste concorrenti
+ * non possono osservare uno stato "tentato ma non pronto" e finire su un
+ * trasporto senza dispatcher. */
+function getSafeFetch(): Promise<SafeFetchPair> {
+  if (!safePairPromise) safePairPromise = loadSafeFetch()
+  return safePairPromise
 }
 
 /** Solo per test: resetta il lazy-load della coppia fetch/dispatcher. */
 export function resetSafeFetchForTests(): void {
-  safePair = undefined
-  safePairTried = false
+  safePairPromise = undefined
 }
 
 export function redactUrlForLog(urlStr: string): string {
@@ -287,18 +334,17 @@ export async function safeFetchRemote(
     }
     // fetchFn e dispatcher provengono dallo stesso modulo undici (vedi
     // getSafeFetch): mescolare l'Agent npm con la fetch globale di Node
-    // rompe ogni richiesta (`invalid onRequestStart method`). Se undici non è
-    // caricabile si usa la fetch globale senza dispatcher +
-    // resolveAndCheckBlocked già fatto sopra.
+    // rompe ogni richiesta (`invalid onRequestStart method`). Se la coppia
+    // sicura non è disponibile si fallisce chiuso: la fetch globale senza
+    // dispatcher non applica il DNS pin alla connessione.
     const safe = await getSafeFetch()
-    const fetchFn = safe?.fetchFn ?? fetch
     const fetchOpts = {
       signal: options.signal,
       redirect: "manual",
       headers: { "User-Agent": DEFAULT_UA, Accept: "*/*", ...options.headers },
-      ...(safe ? { dispatcher: safe.dispatcher } : {}),
+      dispatcher: safe.dispatcher,
     } as unknown as RequestInit
-    const res = await fetchFn(currentUrl, fetchOpts)
+    const res = await safe.fetchFn(currentUrl, fetchOpts)
     if (res.status < 300 || res.status >= 400) return res
     // Redirect — validiamo la destinazione
     const location = res.headers.get("location")
