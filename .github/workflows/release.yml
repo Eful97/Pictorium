@@ -1,11 +1,15 @@
 name: Release
 
-# Tag pushed (or manually dispatched) -> pretty GitHub Release with grouped,
-# emoji changelog. The body renders the ONE approved source — the curated
-# entry for the tag in src/data/changelog.ts (written at release time from
-# reviewed editorial notes via write-changelog-release.mjs --notes) — never
+# Tag pushed (or manually dispatched) -> CI gates -> pretty GitHub Release with
+# grouped, emoji changelog. The body renders the ONE approved source — the
+# curated entry for the tag in src/data/changelog.ts (written at release time
+# from reviewed editorial notes via write-changelog-release.mjs --notes) — never
 # raw commit subjects. Raw subjects are only collected as review material
 # (`write-changelog-release.mjs --collect`) and never published.
+#
+# Gates (verify/commits/visual) mirror .github/workflows/ci.yml and run on the
+# TAG ref, not on master: a manual backfill of an old tag validates the code of
+# that tag. Publishing never runs unless all three gates are green.
 on:
   push:
     tags: ["v*"]
@@ -16,7 +20,63 @@ on:
         required: true
 
 jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # Validate the tagged code (dispatch: the requested tag), not master.
+          ref: ${{ github.event.inputs.tag || github.ref }}
+          fetch-depth: 0
+      - uses: actions/setup-node@v7
+        with:
+          # Node 22: jsdom 30 (devDep) requires ^22.22.2 || ^24.15.0 || >=26.
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx tsc --noEmit
+      - run: npx eslint .
+      - run: npm run test
+      - run: npm run build
+
+  commits:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # Subject check needs history (default depth 1 has no ranges).
+          ref: ${{ github.event.inputs.tag || github.ref }}
+          fetch-depth: 0
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+      - run: node scripts/check-commit-subjects.mjs
+
+  visual:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.inputs.tag || github.ref }}
+          fetch-depth: 0
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npx playwright test e2e/pictorium-visual.spec.ts
+      # On failure upload the actual renders: they are needed to create the CI
+      # platform snapshot variant (snapshots are per-OS) after review.
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: visual-test-results
+          path: test-results/
+          retention-days: 7
+
   publish:
+    needs: [verify, commits, visual]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -25,6 +85,7 @@ jobs:
         with:
           # Notes need the range since the previous tag (default depth 1
           # has no history, like the commits job in ci.yml).
+          ref: ${{ github.event.inputs.tag || github.ref }}
           fetch-depth: 0
       - name: Build release notes
         id: notes
