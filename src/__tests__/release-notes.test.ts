@@ -165,7 +165,7 @@ describe("renderReleaseNotesFromEntry (publication from the curated entry)", () 
 
 describe("readChangelogAtRef (canonical source is the target tag, never the worktree)", () => {
   it("runs git show with an argv array and returns the tagged content", () => {
-    const seen = []
+    const seen: [string[], string][] = []
     const content = readChangelogAtRef("v1.2.3", "/repo", (args, cwd) => {
       seen.push([args, cwd])
       return "tagged-content"
@@ -184,7 +184,7 @@ describe("readChangelogAtRef (canonical source is the target tag, never the work
   it("reads the tagged file even when the worktree has unreleased content", () => {
     const dir = fs.mkdtempSync(path.join(process.env.TEMP ?? os.tmpdir(), "pictorium-notes-"))
     try {
-      const git = (args) =>
+      const git = (args: string[]) =>
         execFileSync("git", args, {
           cwd: dir,
           encoding: "utf-8",

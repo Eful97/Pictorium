@@ -81,6 +81,14 @@ export default defineConfig({
         // l'origin degli URL poster assoluti (mai path/pixel: le asserzioni
         // esistenti usano sottostringhe e pathname).
         POSTER_CDN_URL: `${mockUrl}`,
+        // Headroom del rate limiter per gli E2E: una singola pagina di preview
+        // impostazioni emette ~215 richieste poster in ~0.55s, tutte sullo
+        // stesso token bucket UA (burst 200 / refill 20 al secondo). In seriale
+        // il bucket condiviso finisce in 429 e l'app non ritenta → flake. Il
+        // default di produzione (200) resta invariato: qui alziamo solo il
+        // burst al tetto del clamp ammesso. Letto a module level in
+        // src/lib/rate-limit.ts, quindi deve stare nelle env del processo.
+        PICTORIUM_RATELIMIT_POSTER_MAX: "10000",
         // Chiavi server VUOTE: un .env.local locale (TMDB_API_KEY ecc.) farebbe
         // restituire serverKeys da /api/defaults e il client adotterebbe la
         // chiave (context.tsx), cambiando il layout home (welcome panel vs
