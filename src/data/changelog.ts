@@ -30,6 +30,26 @@ export interface ChangelogRelease {
  *  (which bumps on every commit and would leave the dot permanently on). */
 export const CHANGELOG: ChangelogRelease[] = [
   {
+    version: "1.26.2",
+    date: "2026-10-29",
+    title: "Release 1.26.2",
+    items: [
+      { type: "feature", text: "Add Nova badge style for quality, age and format marks" },
+      { type: "feature", text: "Match age and quality badge styles" },
+      { type: "feature", text: "Add matching premium quality badges" },
+      { type: "feature", text: "Choose ranking lists from streaming and Stremio add-on catalogs" },
+      { type: "feature", text: "Preview ranked and fallback layouts" },
+      { type: "feature", text: "Edit badges on individual posters directly in the preview" },
+      { type: "fix", text: "Make knockout quality badges easier to read" },
+      { type: "fix", text: "Keep badges grouped and in place when saving, opening and rejoining titles" },
+      { type: "fix", text: "Use TVDB artwork only when selected manually" },
+      { type: "fix", text: "Keep desktop preview controls inside the column" },
+      { type: "fix", text: "Keep equivalent poster toggles on one cache entry" },
+      { type: "fix", text: "Harden remote image fetching against SSRF" },
+      { type: "fix", text: "Keep original colors for TMDB network logos" },
+    ],
+  },
+  {
     version: "1.26.1",
     date: "2026-10-25",
     title: "Release 1.26.1",
