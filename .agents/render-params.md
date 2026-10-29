@@ -748,6 +748,63 @@ resa di ogni logo con padding ed è una modifica visiva esplicita (snapshot +
 | Calibrazione invisibile landscape | slider sempre a 0 (nessun default visibile) | `LANDSCAPE_LOGO_SHIFT_X/Y (+10/-10)` sommati in `poster-service.ts` agli offset risolti (`ox`/`oy` > mapping > default globali), come `PORTRAIT_LOGO_TOP_OFFSET` in portrait |
 | Logo manuale su portrait non-clean | ammesso: tiles sempre abilitate, preview emette `logo` anche non-clean, mapping/route lo persistono e rendono | default nessun auto (auto solo da clean o landscape); `logoDisabled` sempre onorato; `?logo=` esplicita vince |
 
+## Base portrait senza poster clean
+
+Solo portrait, ramo automatico (nessun `poster=` di query e nessun mapping): se
+TMDB non espone poster clean (`iso_639_1 === null`) ma ha almeno un backdrop e un
+logo, la base del canvas 2:3 è il cover-crop del **primo backdrop clean** (in
+mancanza, il primo backdrop in qualsiasi lingua) via `cropBackdropToPortrait`
+(`cropBackdropToPortrait(..., "center")` → crop cover geometricamente
+centrato, `sharp` `position: "centre"`: deterministico, nessuna euristica di
+salienza/densità che sposti o tagli il soggetto — `entropy` tagliava il bacio
+su un backdrop reale, `attention` tagliava i volti su un altro. `attention`
+resta il default dell'helper per la rescue B2 — nessun secondo renderer; il
+focus è solo un parametro). La base
+non ha titolo cotto, quindi vale come clean: il logo resta
+composto sopra (`autoPosterClean = true`) e la sfumatura segue il profilo clean.
+Senza backdrops la catena in lingua resta intatta (preferita → originale → primo
+poster) con logo tolto. Con `disableCleanPosters` ON (scelta esplicita per la
+catena in lingua) il ramo nuovo resta spento. Landscape invariato (base =
+backdrop 16:9). La chiave dell'analisi pixel è `portrait:backdropcrop:<path>`: i
+byte sono un crop, non il poster nominale.
+
+Preview WYSIWYG: quando il client riconosce lo scenario (`previewBaseAuto` in
+`context.tsx`: portrait, pool/eligibilità del ramo automatico, base non custom)
+non emette `poster=` né gli hint derivati — la base la sceglie il server con lo
+stesso ramo automatico che serve Stremio, quindi la preview rende gli stessi
+byte del poster finale. Provenienza della scelta: un tile cliccato in griglia
+(`posterPickedKey`, l'unico percorso `selectPoster`) vince sempre sulla base
+auto, anche ri-selezionando il poster in lingua che l'auto aveva scelto.
+
+Persistenza: al save in base auto il mapping congela `portraitBackdropPath`
+(il backdrop usato per il crop: quello già salvato o, per un titolo nuovo, la
+stessa scelta del server) e, se l'editor non ha un logo scelto e non l'ha
+disattivato, il logo che il renderer compone (stessa selezione condivisa
+`selectBestLogo`) — senza, il crop salvato sarebbe un'immagine senza titolo.
+Il ramo mapping della route usa quel backdrop con lo stesso
+`cropBackdropToPortrait` (fallback al `posterPath` del mapping su ogni errore
+di fetch/crop), lo mette in `analysisKey` (`portrait:backdropcrop:`) e nella
+cache key; un tile scelto in griglia azzera il campo (base = poster salvato),
+landscape e basi custom restano invariati. Riaprendo un mapping con base
+congelata la preview torna in base auto (senza `poster=`), quindi preview e
+Stremio restano allineati; i mapping salvati prima di questo campo restano sul
+poster in lingua (nessuna migrazione in lettura).
+
+Scelta del backdrop (picker in griglia): quando la base viene da un backdrop e
+il titolo ne ha almeno uno clean, il pannello Poster mostra i tile 16:9 dei
+soli backdrop clean non esclusi (`PortraitBaseBackdropPicker`, stesso
+`PosterBtn` di `BackdropOptions`). La scelta è live in preview come `pbase`
+(path TMDB, validato: `/abc123.jpg`) e vince sulla base salvata
+(`portraitBackdropPath`), così il renderer unico croppa subito il backdrop
+scelto; al save è quel path a essere congelato. Ricliccare il tile attivo torna
+alla base automatica/salvata. Guardie: nessun picker senza backdrop clean, i
+backdrop in lingua e le basi custom non sono offribili né accettati dal setter,
+quindi la catena storica (poster in lingua, provenance `posterPickedKey`) resta
+intatta; `pbase` è nell'allowlist della chiave, canonicalizzato in
+`sanitizePortraitBaseBackdropPath` (valore non-TMDB = assente) e, come gli
+altri override immagine, ignorato per gli anonimi sulle pubbliche in presets
+mode (la preview WYSIWYG resta esente).
+
 ## Layout copertina Fresh (`layout`)
 
 Opt-in grafico (`standard` = resa storica, default; `fresh` = numerale classifica in vetro + colonna meta a posizioni fisse, stesso renderer unico). Parametro `layout` in query; per-titolo nel mapping (flat + profilo `landscape`); nei default globali (flat + profilo Orizzontale) e nel config token. Nessun nuovo campo oltre `posterLayout`/`landscape.posterLayout`.
@@ -906,6 +963,69 @@ propria (scala + X + Y), persistita per **identità stabile** e mai per indice.
   maniglie per-item di qualità e marchi A/V funzionano ovunque il marchio sia
   effettivamente disegnato.
 
+## Logo testuale (titoli senza logo TMDB)
+
+Un titolo senza logo TMDB non ha titolo composto. Con `ltext` (testo libero, cap
+stretto di 60 caratteri, spazi collassati) + `lfont` (enum dei font badge:
+`inter`/`barlow-condensed`/`oswald`) il server rende il testo con i font GIÀ nel
+bundle e lo usa come **sorgente logo alternativa** — nessun upload di font,
+nessuna dipendenza nuova, nessun font arbitrario. Il buffer PNG trasparente
+entra nel path logo esistente: stessa posizione/scala auto per aspect, stessa
+velatura adattiva di contrasto, stesso compositing. Preview e Stremio restano
+lo stesso renderer.
+
+- **Precedenze**: `ltext` query > `logoText` del mapping > logo TMDB. Il testo
+vince sul logo immagine (una sola sorgente logo), `logoDisabled` azzera
+entrambi. Testo vuoto/blank = nessun logo (comportamento storico invariato).
+- **Resa**: una riga, canvas trasparente, inchiostro bianco con alone scuro e
+  l'ombra condivisa `tds`; font via `fontFamilyFor` (fallback Rubik per
+  ebraico/arabo) e testo sempre passato da `escSvg` (input utente, nessuna
+  iniezione SVG).
+- **Cache**: `ltext`/`lfont` sono nell'allowlist della chiave e canonicalizzati
+  (spazi collassati, blank = assente, `lfont` ignoto → `inter`). In presets mode
+  il testo libero è canonicalizzato sul valore del mapping (assente = nessun
+  logo, come `extra`): un `?ltext=$RANDOM` non frammenta la cache. Un mapping
+  con `logoDisabled` non viene resuscitato dalla canonicalizzazione.
+- **Persistenza**: `logoText`/`logoFont` sul mapping (save completo e cover-only,
+  dove il wordmark è identità logo e il logo immagine resta vuoto).
+
+### Wordmark automatico (titolo senza alcun logo TMDB)
+
+Se il titolo non ha nessun logo TMDB la sorgente logo viene generata dal
+TITOLO stesso: niente da digitare. Stesso trasporto/pipeline del logo testuale
+(un solo renderer), ma testo derivato e resa dedicata.
+
+- **Gate (base senza titolo cotto)**: poster clean (ramo clean), landscape
+  (base = backdrop textless) e base portrait dal crop 2:3 di un backdrop,
+  incluso il mapping con base congelata (`portraitBackdropPath`/`pbase`).
+  MAI su un poster in lingua (titolo già stampato): lì resta il fallback
+  storico senza logo. Con clean disabilitati la catena in lingua resta
+  intatta. Una base custom URL non è certificabile textless → nessun
+  automatico.
+- **Precedenze**: logo TMDB/`logo` > `ltext`/`logoText` digitato >
+  `logoDisabled` > automatico. Basta una sorgente precedente attiva per
+  spegnere l'automatico (una sola sorgente logo).
+- **Testo**: titolo nella lingua della richiesta (mapping/selezionato/TMDB),
+  MAIUSCOLO, troncato a confine di parola a 30 caratteri di contenuto +
+  ellissi `…` (30 = oltre il quale il run di Barlow Condensed uppercase
+  sfonderebbe la larghezza del canvas portrait: il logo non ha cap di
+  larghezza, solo 25% di altezza; 30 resta leggibile anche nel layout
+  landscape 40%). Nessun rimpicciolimento illimitato: una singola parola oltre
+  il bound viene tagliata dura (unico caso senza confine).
+- **Resa**: Barlow Condensed Black 900 uppercase (font del bundle), tracking
+  0.05em, inchiostro bianco con alone scuro e ombra `tds` condivisa, canvas
+  trasparente: la ricetta del logo manuale cambia solo per tracking/font.
+  Buffer nel path logo esistente (posizione/scala/velatura invariati).
+- **Trasporto preview**: solo `lauto=1`, mai il testo. La preview lo emette
+  quando la base mostrata è textless e non c'è logo/testo; in base auto
+  (senza `poster=`) il server decide già lui. `lauto` è in allowlist e in cache
+  key, canonicalizzato a `1` e solo con `title`; in presets mode (non-preview)
+  viene rimosso, così un URL Stremio non può mintare un wordmark via query.
+- **Persistenza**: NESSUNA. Il wordmark automatico non viene mai scritto come
+  `logoText` (né dal save completo né dal cover-only): si rigenera
+  deterministicamente a ogni render. Firma della cache image-level:
+  `text-logo-auto:<font>:<testo>`.
+
 ## Files coinvolti
 
 - `src/components/settings/PosterBadgeDragLayer.tsx` — overlay unico del trascinamento diretto (adattatore iniettabile)
@@ -913,8 +1033,9 @@ propria (scala + X + Y), persistita per **identità stabile** e mai per indice.
 - `src/lib/usePerTitleBadgeGeometry.ts` — adattatore per-titolo (bozza del titolo aperto, reset per-titolo)
 - `src/components/PerTitleBadgeEditor.tsx` — ingresso fullscreen della preview per-titolo
 - `src/components/EditView.tsx` — preview WYSIWYG (singolo `<img src={previewUrl}>`), ingresso "Modifica poster"
+- `src/components/PortraitBaseBackdropPicker.tsx` — scelta del backdrop che alimenta la base portrait 2:3 (tile `PosterBtn` landscape, solo clean)
 - `src/lib/context.tsx` — stato, URL builder, localStorage
-- `src/lib/poster-url.ts` — `buildPreviewUrl()`, `buildUrlPattern()` (parametri client → URL server)
+- `src/lib/poster-url.ts` — `buildPreviewUrl()`, `buildUrlPattern()` (parametri client → URL server, incluso il flag preview `lauto`)
 - `src/lib/badges.ts` — server-side SVG (bottomGradientSVG morto; `cinematicVignetteSVG` + `topShadeSVG` per l'ombra superiore `ts`/`tsh`)
 - `src/lib/svg-badge.ts` — server-side SVG raw badges (renderGenreBadge, renderRankingBadge, renderExtraBadge) + Resvg rendering (font risolti via `FONT_FILES`, nessun embedding negli SVG; vale anche per la riga multi-rating)
 - `src/lib/multi-rating-renderer.ts` — riga pill custom rating (`renderMultiRatings`, `MAX_CUSTOM_RATINGS`)
@@ -931,6 +1052,9 @@ propria (scala + X + Y), persistita per **identità stabile** e mai per indice.
 - `src/lib/badge-labels.ts` — label pure client-safe (match studio/network, label premi/nomination, QID regex; foglia senza import server, in RENDER_FILES)
 - `src/lib/award-ids.ts` — liste ID premi curate (Oscar/Globe/Emmy/Cannes/Venezia, namespace film/serie separati, update annuale; in RENDER_FILES)
 - `src/lib/logo-layout.ts` — geometria condivisa logo preview/server
+- `src/lib/text-logo.ts` — contratto del logo testuale (sanitize, cap 60, enum font) e del wordmark automatico (troncamento a confine di parola, gate/precedenze, font Barlow Condensed; client-safe, in RENDER_FILES)
+- `src/lib/badge-svg-shared.ts` — ricetta SVG del wordmark (`buildTextLogoSvg`, font/escaping condivisi)
+- `src/lib/svg-badge.ts` — rasterizzazione del wordmark (`buildTextLogoBuffer`, font del bundle)
 - `src/lib/gradient-presets.ts` — preset sfumatura Naturale/Colore/Nero (solo client) + regola pristine al cambio artwork
 - `src/app/api/poster/[type]/[id]/route.ts` — composizione poster finale (preview + Stremio usano la stessa route)
 - `src/lib/poster-params-hardening.ts` — allowlist cache key, quantizzazione presets, palette `ac`, canonicalizzazione `extra`, strip override keyless (in RENDER_FILES)

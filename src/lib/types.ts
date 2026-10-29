@@ -171,7 +171,27 @@ export interface Mapping {
    * bases are independent: each shape freezes only its own.
    */
   customBackdropUrl?: string | null
+  /**
+   * Portrait base frozen by a save made in server-auto base mode (title
+   * without a clean poster): the rendered 2:3 base is the attention cover-crop
+   * of THIS TMDB backdrop (no baked-in title, logo composed on top), not the
+   * language poster in `posterPath`. Portrait-only (flat): the landscape base
+   * stays `backdropPath`, and a saved custom base (`customPosterUrl`) wins.
+   * Null/absent = historical language-poster base (mappings saved before this
+   * mode existed are untouched).
+   */
+  portraitBackdropPath?: string | null
   logoPath: string | null
+  /**
+   * Logo testuale (titoli senza logo TMDB): testo digitato + font del bundle
+   * (enum `BADGE_FONTS`). Il renderer lo rasterizza e lo compone come un logo
+   * normale — nessun upload, nessuna dipendenza. Vince sul logo immagine
+   * (`logoPath` non viene salvato quando c'è un testo) e `logoDisabled` resta
+   * sovrano. Null/assente o vuoto = nessun logo (comportamento storico).
+   */
+  logoText?: string | null
+  /** Font del logo testuale (enum badge; null = "inter"). */
+  logoFont?: BadgeFont | null
   originalPosterPath: string | null
   language: string | null
   updatedAt: string

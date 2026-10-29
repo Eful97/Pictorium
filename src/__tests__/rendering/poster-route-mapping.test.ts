@@ -58,6 +58,11 @@ vi.mock("@/lib/svg-badge", () => ({
   renderRankingBadge: vi.fn(async () => null),
   renderExtraBadge: vi.fn(async () => null),
   renderQualityBadge: vi.fn(async () => null),
+  // Automatic title wordmark (title without any TMDB logo): the route
+  // rasterizes the derived title here. A valid 1x1 PNG keeps the real
+  // composite path satisfied — these tests assert base/headers/TTL, never
+  // the wordmark pixels (the badge renderers above are stubbed too).
+  buildTextLogoBuffer: vi.fn(async () => Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAgAAAAECAYAAACzzX7wAAAACXBIWXMAAAPoAAAD6AG1e1JrAAAAD0lEQVQI12P4TwAw0F4BAOFkf4EHRdBsAAAAAElFTkSuQmCC", "base64")),
 }))
 
 vi.mock("@/lib/justwatch", () => ({
@@ -438,7 +443,7 @@ describe("GET /api/poster/[type]/[id] with saved mappings", () => {
     expect(requestedUrls.some((url) => url.includes("/logo.png"))).toBe(true)
   })
 
-  it("falls back to the language poster when no logo is available (clean without logo is useless)", async () => {
+  it("uses the clean poster with the automatic title wordmark when no logo is available", async () => {
     const langPosterBuf = await imageBuffer("#204080", 500, 750)
     const cleanBuf = await imageBuffer("#101010", 500, 750)
     const requestedUrls: string[] = []
@@ -480,9 +485,11 @@ describe("GET /api/poster/[type]/[id] with saved mappings", () => {
     const res = await GET(req, { params: Promise.resolve({ type: "movie", id: "42" }) })
 
     expect(res.status).toBe(200)
-    // Deve usare il poster in lingua, NON il clean senza logo
-    expect(requestedUrls.some((url) => url.includes("/it-poster.jpg"))).toBe(true)
-    expect(requestedUrls.some((url) => url.includes("/clean.jpg"))).toBe(false)
+    // New contract: a title without any TMDB logo becomes an automatic
+    // wordmark, so the clean poster is no longer useless — the base stays
+    // clean (the language poster with the baked title is never used).
+    expect(requestedUrls.some((url) => url.includes("/clean.jpg"))).toBe(true)
+    expect(requestedUrls.some((url) => url.includes("/it-poster.jpg"))).toBe(false)
   })
 
   it("skips clean posters when disableCleanPosters is set, even with a logo available", async () => {

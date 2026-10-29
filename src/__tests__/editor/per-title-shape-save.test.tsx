@@ -785,3 +785,59 @@ describe("landscape custom base save boundary (customBackdropUrl)", () => {
     expect(posts[0].body.customBackdropUrl).toBeNull()
   })
 })
+
+/**
+ * Portrait base provenance (`portraitBackdropPath`): il save congela la base
+ * decisa dal server SOLO quando l'editor è in base auto (dep dal provider,
+ * provenienza `posterPickedKey`/pool clean). Un tile scelto la azzera; in
+ * landscape il portrait è l'altro formato e resta verbatim; `logoDisabled`
+ * non risuscita mai un logo automatico.
+ */
+describe("portrait base congelata (portraitBackdropPath)", () => {
+  it("base auto: congela il backdrop e il logo che il server compone", async () => {
+    const { result } = renderHook(() => usePosterSave(baseDeps({
+      portraitBaseBackdropPath: "/bdclean.jpg",
+      portraitBaseLogoPath: "/logo-it.png",
+    })))
+    await act(async () => { await result.current.saveConfig({ silent: true }) })
+    const posts = mappingPosts()
+    expect(posts).toHaveLength(1)
+    expect(posts[0].body.portraitBackdropPath).toBe("/bdclean.jpg")
+    expect(posts[0].body.logoPath).toBe("/logo-it.png")
+  })
+
+  it("tile scelto in griglia (nessuna base auto) → base azzerata", async () => {
+    const prev = mapping({ portraitBackdropPath: "/bdclean.jpg" })
+    const { result } = renderHook(() => usePosterSave(baseDeps({
+      mappingsMap: new Map([["movie:1", prev]]),
+      portraitBaseBackdropPath: null,
+      portraitBaseLogoPath: null,
+    })))
+    await act(async () => { await result.current.saveConfig({ silent: true }) })
+    expect(mappingPosts()[0].body.portraitBackdropPath).toBeNull()
+  })
+
+  it("landscape: la base portrait salvata resta verbatim (altro formato)", async () => {
+    const prev = mapping({ posterShape: "landscape", portraitBackdropPath: "/bdclean.jpg" })
+    const { result } = renderHook(() => usePosterSave(baseDeps({
+      posterShape: "landscape",
+      mappingsMap: new Map([["movie:1", prev]]),
+      portraitBaseBackdropPath: null,
+      portraitBaseLogoPath: null,
+    })))
+    await act(async () => { await result.current.saveConfig({ silent: true }) })
+    expect(mappingPosts()[0].body.portraitBackdropPath).toBe("/bdclean.jpg")
+  })
+
+  it("logoDisabled: nessun logo automatico congelato sulla base", async () => {
+    const { result } = renderHook(() => usePosterSave(baseDeps({
+      logoDisabled: true,
+      portraitBaseBackdropPath: "/bdclean.jpg",
+      portraitBaseLogoPath: "/logo-it.png",
+    })))
+    await act(async () => { await result.current.saveConfig({ silent: true }) })
+    const body = mappingPosts()[0].body
+    expect(body.portraitBackdropPath).toBe("/bdclean.jpg")
+    expect(body.logoPath).toBeNull()
+  })
+})

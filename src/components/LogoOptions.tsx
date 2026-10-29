@@ -8,6 +8,8 @@ import { usePSelector } from "@/lib/context"
 import { usePosterEditor } from "@/lib/contexts/PosterEditorContext"
 import { useTvdbArtworks } from "@/lib/useTvdbArtworks"
 import { RatingSourceIcon } from "@/components/RatingSourceIcon"
+import { BadgeFontSelector } from "@/components/ui/BadgeFontSelector"
+import { TEXT_LOGO_MAX_LENGTH } from "@/lib/text-logo"
 import { Check, Trash2, ChevronDown, Loader2, X } from "lucide-react"
 
 interface Props {
@@ -29,7 +31,7 @@ interface Props {
 
 export const LogoOptions = React.memo(function LogoOptions({ logos, selectedLogo, lang, selectLogo, removeLogo, disabled, customLogos = [], savedCustomLogo = null, onRemoveCustomLogo, topSlot }: Props) {
   const { t } = useT()
-  const { logoDisabled, setLogoDisabled } = usePosterEditor()
+  const { logoDisabled, setLogoDisabled, logoText, setLogoText, logoFont, setLogoFont } = usePosterEditor()
   const selected = usePSelector((v) => v.selected)
   const [activeLogoGroup, setActiveLogoGroup] = useState("all")
   const [visibleLogoCount, setVisibleLogoCount] = useState(10)
@@ -41,6 +43,33 @@ export const LogoOptions = React.memo(function LogoOptions({ logos, selectedLogo
   useEffect(() => {
     setVisibleLogoCount(10)
   }, [logos, activeLogoGroup, lang, source])
+
+  // Text-as-logo: wordmark digitato per i titoli SENZA logo TMDB. Il server lo
+  // rende con uno dei font del bundle (stesso enum dei badge) e lo compone
+  // come un logo qualsiasi, quindi preview e Stremio restano identici. Campo
+  // vuoto = nessun logo (comportamento storico): nessun parametro emesso.
+  // Una sola sorgente logo: con testo scritto vince sul logo immagine scelto.
+  const textLogoControls = (
+    <div data-testid="text-logo-controls" className="rounded-xl border border-white/10 bg-white/[0.03] px-3 py-3 space-y-2">
+      <label htmlFor="text-logo-input" className="block text-[11px] text-muted font-medium">{t("ui.textLogo")}</label>
+      <input
+        id="text-logo-input"
+        type="text"
+        dir="auto"
+        value={logoText}
+        maxLength={TEXT_LOGO_MAX_LENGTH}
+        disabled={disabled || logoDisabled}
+        onChange={(e) => setLogoText(e.target.value)}
+        placeholder={t("ui.textLogoPlaceholder")}
+        aria-label={t("ui.textLogo")}
+        className={`w-full h-9 px-2.5 rounded-lg bg-black/25 border border-surface2 text-xs text-zinc-200 placeholder:text-zinc-500 focus:outline-none focus:border-accent-orange/50 ${disabled || logoDisabled ? "opacity-40 cursor-not-allowed" : ""}`}
+      />
+      <div className="space-y-1.5 pt-1">
+        <span className="block text-[11px] text-muted font-medium">{t("ui.textLogoFont")}</span>
+        <BadgeFontSelector value={logoFont} onChange={setLogoFont} />
+      </div>
+    </div>
+  )
 
   if (logos.length === 0 && !selected) return (
     <div className="rounded-xl border border-white/10 bg-white/[0.03] px-3 py-4 text-center">
@@ -181,9 +210,12 @@ export const LogoOptions = React.memo(function LogoOptions({ logos, selectedLogo
           )}
         </div>
       ) : logos.length === 0 ? (
-        <div className="rounded-xl border border-white/10 bg-white/[0.03] px-3 py-4 text-center">
-          <p className="text-xs text-zinc-300 font-medium leading-relaxed">{t("ui.noLogosAvailable")}</p>
-        </div>
+        <>
+          <div className="rounded-xl border border-white/10 bg-white/[0.03] px-3 py-4 text-center">
+            <p className="text-xs text-zinc-300 font-medium leading-relaxed">{t("ui.noLogosAvailable")}</p>
+          </div>
+          <div className="mt-3">{textLogoControls}</div>
+        </>
       ) : (
         <>
       <div className="flex gap-1 mb-3 overflow-x-auto scrollbar-none">

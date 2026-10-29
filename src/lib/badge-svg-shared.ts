@@ -438,6 +438,86 @@ export const TOP_SHADOW_FILTER = `<filter id="tds" x="-20%" y="-20%" width="180%
  */
 export const TOP_SHADOW_PAD = 14
 
+// ---------------------------------------------------------------------------
+// Text-as-logo: wordmark trasparente ricavato dal testo digitato, con i soli
+// font del bundle (stesso enum dei badge). Sostituisce il logo TMDB quando il
+// titolo non ne ha uno: il buffer PNG entra nel path di compositing logo
+// esistente (posizione/scala/velatura invariati), quindi preview e poster
+// Stremio restano lo stesso renderer.
+// ---------------------------------------------------------------------------
+
+/** Corpo base del logo testuale (griglia interna; resvg scala il run). */
+export const TEXT_LOGO_FS = 100
+
+/** Peso del wordmark (Black dei font inclusi, come i marchi tecnici). */
+export const TEXT_LOGO_FONT_WEIGHT = 900
+
+/** Inchiostro: bianco polarità-indipendente. La leggibilità sul fondo la
+ *  decide la velatura adattiva esistente (logoInkLuminance +
+ *  posterLogoZoneLuminance in poster-service), che lavora sull'inchiostro
+ *  effettivo del buffer — nessun secondo canale di adattamento. */
+export const TEXT_LOGO_INK = "#ffffff"
+
+/** Alone scuro dietro ai glifi (spessore = frazione di `fs`): stacca il
+ *  wordmark dal chiaro senza cambiare il colore dell'inchiostro. */
+export const TEXT_LOGO_HALO = "rgba(0,0,0,0.55)"
+export const TEXT_LOGO_HALO_FACTOR = 0.07
+
+/** Tracking del wordmark manuale (0.02em). */
+export const TEXT_LOGO_TRACK_FACTOR = 0.02
+
+/** Opzioni di resa del wordmark. Il default riproduce il logo manuale
+ *  (nessun cambio byte); l'automatico passa un tracking più arioso, vedi
+ *  `AUTO_WORDMARK_TRACK_FACTOR` in text-logo.ts. */
+export interface TextLogoStyle {
+  /** Tracking in em applicato ai glifi (default `TEXT_LOGO_TRACK_FACTOR`). */
+  readonly trackingEm?: number
+}
+
+/**
+ * SVG del logo testuale: canvas TRASPARENTE (nessuna placca, nessun bordo),
+ * una sola riga di testo con l'alone scuro e l'ombra condivisa `tds`
+ * (leggibilità su artwork chiaro/scuro), font risolto da `fontFamilyFor`
+ * (Barlow Condensed / Oswald / Inter + fallback Rubik) e testo passato da
+ * `escSvg` (nessuna iniezione SVG possibile: il testo è input utente).
+ *
+ * Il viewport include il padding dell'ombra: il bitmap risultante è più
+ * largo del solo run, come i badge che usano `TOP_SHADOW_PAD`.
+ */
+export function buildTextLogoSvg(
+  text: string,
+  font: BadgeFont = "inter",
+  style?: TextLogoStyle,
+): { svg: string; w: number; h: number } {
+  const f = normalizeBadgeFont(font)
+  const fs = TEXT_LOGO_FS
+  const family = fontFamilyFor(text, f)
+  const trackFactor = style?.trackingEm ?? TEXT_LOGO_TRACK_FACTOR
+  const track = text.length > 1 ? trackFactor * fs * (text.length - 1) : 0
+  const textW = Math.round(estimateTextWidth(text, fs, f) + track)
+  const halo = Math.max(2, Math.round(fs * TEXT_LOGO_HALO_FACTOR))
+  // Altezza ottica del run (ascendenti + discendenti) senza il leading del
+  // font: il wordmark resta compatto e la scala auto per aspect del logo
+  // (logoDefaultScaleFromAspect) lo porta alla larghezza del titolo.
+  const glyphH = Math.round(fs * 1.24)
+  const pad = TOP_SHADOW_PAD
+  const w = Math.ceil(textW + halo * 2 + pad * 2)
+  const h = Math.ceil(glyphH + halo * 2 + pad * 2)
+  const cx = w / 2
+  const cy = h / 2
+  // toFixed solo quando lo stile esplicito lo richiede: 0.05 * 100 non è
+  // esatto in binario e un raw concatenato spaccerebbe il render in due
+  // stringhe SVG leggermente diverse. Il default manuale resta byte-identico.
+  const letterSpacing = style?.trackingEm != null ? Number((trackFactor * fs).toFixed(3)) : trackFactor * fs
+  const textAttrs = `x="${cx}" y="${cy}" text-anchor="middle" dominant-baseline="central" font-family="${family}" font-weight="${TEXT_LOGO_FONT_WEIGHT}" font-size="${fs}" letter-spacing="${letterSpacing}"`
+  // Due passate: alone scuro (solo stroke) sotto, inchiostro sopra. Il
+  // `paint-order` non serve e il testo resta una sola stringa escapata.
+  const haloEl = `<text ${textAttrs} fill="none" stroke="${TEXT_LOGO_HALO}" stroke-width="${halo * 2}" stroke-linejoin="round">${escSvg(text)}</text>`
+  const inkEl = `<text ${textAttrs} fill="${TEXT_LOGO_INK}">${escSvg(text)}</text>`
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}"><defs>${TOP_SHADOW_FILTER}</defs><g filter="url(#tds)">${haloEl}${inkEl}</g></svg>`
+  return { svg, w, h }
+}
+
 /**
  * Leggera ombra esterna dei tag `knockout` (tier qualità e marchi A/V):
  * alone morbido, senza offset 3D e con alpha bassa, quanto basta a staccare

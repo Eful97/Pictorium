@@ -79,7 +79,7 @@ import { capPosterTtlMs, isRankFactConsumed, resolvePosterFactCapMs } from "@/li
 import { sanitizeEffectiveAccentMeta, type EffectiveAccentMeta } from "@/lib/effective-accent"
 import { hashUserFragment, msUntilPosterScheduledRefresh, userTagFragment } from "@/lib/cache"
 import { FormatOverloadError, runFormatConversion } from "@/lib/poster-format-gate"
-import { hardenPosterSearchParams, isPresetsPosterMode, isPreviewAuthRequired, isPreviewDowngraded, isPublicPosterInstance, parseListRankParam, resolveFinalRankWithListContext } from "@/lib/poster-params-hardening"
+import { hardenPosterSearchParams, isPresetsPosterMode, isPreviewAuthRequired, isPreviewDowngraded, isPublicPosterInstance, parseListRankParam, resolveFinalRankWithListContext, sanitizePortraitBaseBackdropPath } from "@/lib/poster-params-hardening"
 import { isAutomaticTrendRank } from "@/lib/badge-priority"
 import { DEMOSAMPLES_FLAG, DEMO_SAMPLE_AGE_LABEL, DEMO_SAMPLE_GENRE, DEMO_SAMPLE_MOVIE_DATE, DEMO_SAMPLE_QUALITY, DEMO_SAMPLE_RANK, DEMO_SAMPLE_TV_DATE, isDemoSamplesRequest, mergeDemoSampleRatings, sampleDemoVideoFormats } from "@/lib/demo-samples"
 import {
@@ -109,6 +109,8 @@ import { decodeConfig } from "@/lib/config-token"
 import { createLogger } from "@/lib/logger"
 import { resolvePosterRenderConfig, resolvePosterShape, resolveSeparateRatingsEnabled, resolveSeparateDisplayState, resolveAgeBadgeRequest } from "@/lib/poster-config"
 import { selectBestLogo, logoBestLogoFallbackReason } from "@/lib/logo-selection"
+import { buildTextLogoBuffer } from "@/lib/svg-badge"
+import { resolveAutoWordmark, resolveTextLogo, type TextLogo, AUTO_WORDMARK_TRACK_FACTOR } from "@/lib/text-logo"
 import { resolveStreamQuality, type StreamQualityResult } from "@/lib/stream-quality"
 import { applyMinQuality, type StreamQuality } from "@/lib/quality-tiers"
 import { lookupAVSpecs, isVideoFormat, type VideoFormat } from "@/lib/av-specs"
@@ -493,6 +495,11 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
     publicInstance: isPublicPosterInstance(),
     hasMapping: !!mapping,
     mappingCustomBadge: earlyEffMapping?.customBadge ?? null,
+    // Un mapping con logo disattivato non deve resuscitare il proprio
+    // wordmark via hardening (la canonicalizzazione presets è trasparente:
+    // deve portare allo STESSO render del mapping salvato).
+    mappingLogoText: earlyEffMapping?.logoDisabled ? null : (earlyEffMapping?.logoText ?? null),
+    mappingLogoFont: earlyEffMapping?.logoFont ?? null,
   })
   // Preview declassata (blindatura opt-in): senza il flag la chiave resterebbe
   // separata dalle anonime — rimuovendolo condivide la entry canonica.
@@ -842,7 +849,15 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
   const legacyAvif = outputFormat === "avif"
   const canonicalFormat = legacyAvif ? "avif" : DEFAULT_IMAGE_FORMAT
   const formatKey = legacyAvif ? ":fmtavif" : canonicalFormat === "webp" ? ":fmtwebp" : ""
-  const cacheKey = `poster:v${RENDER_VERSION}:${mediaType}:${tmdbId}:reg${posterRegion.code}:r${cachedRank ?? "x"}:lr${preTrendRank ?? "x"}:la${preAnimeRank ?? "x"}:sd${sdHash}:${cacheParams.toString()}${rotateKey}${mapVersion}${dynamicBucketKey}${configHash ? `:cfg${configHash}` : ""}${formatKey}`
+  // Base portrait congelata (`portraitBackdropPath`): il path del backdrop è un
+  // input di render, quindi entra esplicitamente nella chiave. `mapVersion`
+  // copre i write, ma un mapping con `updatedAt` invariato (import/edit
+  // manuale) non deve servire l'altra base. Solo quando quel ramo è davvero in
+  // uso: portrait e nessun `poster=` di query (che vince sul mapping).
+  const portraitBaseKey = !earlyLandscape && mapping?.portraitBackdropPath && !hardenedParams.get("poster")
+    ? `:pbp${mapping.portraitBackdropPath}`
+    : ""
+  const cacheKey = `poster:v${RENDER_VERSION}:${mediaType}:${tmdbId}:reg${posterRegion.code}:r${cachedRank ?? "x"}:lr${preTrendRank ?? "x"}:la${preAnimeRank ?? "x"}:sd${sdHash}:${cacheParams.toString()}${rotateKey}${mapVersion}${dynamicBucketKey}${portraitBaseKey}${configHash ? `:cfg${configHash}` : ""}${formatKey}`
   const needsVariant = !legacyAvif && outputFormat !== canonicalFormat
   const variantKey = needsVariant ? `${cacheKey}:fmt${outputFormat}` : cacheKey
   const etagBase = hashKey(`v${RENDER_VERSION}:${mediaType}:${tmdbId}:reg${posterRegion.code}:r${cachedRank ?? "x"}:lr${preTrendRank ?? "x"}:la${preAnimeRank ?? "x"}:sd${sdHash}:${cacheParams.toString()}${configHash ? `:${configHash}` : ""}`)
@@ -1295,6 +1310,14 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
   // 4. Resolve poster/logo/backdrop paths
   let posterPath: string | null = null
   let posterPathBuffer: Buffer | null = null
+  // Ramo portrait senza clean: path del backdrop da cui è stato ricavato il
+  // cover-crop 2:3 della base. Serve solo alla chiave di analisi pixel
+  // (`analysisKey`): i byte sono un crop, non il poster nominale.
+  let portraitBackdropCropPath: string | null = null
+  // Ramo mapping: backdrop congelato al save (`portraitBackdropPath`, solo
+  // portrait) da cui ricavare la base come cover-crop 2:3. Null = base
+  // storica (`mapping.posterPath`), landscape e basi custom invariati.
+  let mappingPortraitBackdropPath: string | null = null
   // Buffer del logo già scaricato dal best-fit (w500): riusato nel Block A per
   // evitare il re-fetch. Assente su cache hit del best-fit o timeout del logo →
   // Block A fa il fetch normale.
@@ -1388,6 +1411,20 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
   const queryPoster = hardenedParams.get("poster")
   const queryLogo = hardenedParams.get("logo")
   const queryBackdrop = hardenedParams.get("backdrop")
+  // Base portrait scelta live dall'editor (`pbase`): path TMDB di un backdrop
+  // clean selezionato nel picker. Vince sulla base salvata/con automatica solo
+  // in forma canonica (path TMDB raster): un valore malformato è assente.
+  const queryPortraitBase = sanitizePortraitBaseBackdropPath(hardenedParams.get("pbase"))
+  // Text-as-logo (titoli senza logo TMDB): il testo digitato (+ font del
+  // bundle, enum badge) è una SORGENTE LOGO alternativa e vince su quella
+  // immagine (query > mapping, stessa catena del resto). Testo vuoto = nessun
+  // logo (comportamento storico invariato): `resolveTextLogo` ritorna null e
+  // tutto il ramo logo resta identico a prima.
+  let textLogo: TextLogo | null = resolveTextLogo(hardenedParams.get("ltext"), hardenedParams.get("lfont"))
+  // Provenienza del wordmark: manuale (query/mapping) o automatico (derivato
+  // dal titolo). Cambia solo la resa (tracking) e la firma della cache
+  // image-level: il testo automatico NON viene mai persistito come logoText.
+  let textLogoAuto = false
   // Formato canvas: query `shape` > mapping > config > defaults (stessa
   // catena degli altri parametri — vedi resolvePosterShape). Solo
   // "landscape" attiva il ramo 16:9 con base = sfondo TMDB.
@@ -1451,11 +1488,49 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
     etag = `"p${etagBase}"`
   } else if (mapping) {
     posterPath = mapping.posterPath
+    // Base portrait congelata dal save in modalità auto: la base resa è il
+    // cover-crop 2:3 di quel backdrop, non il poster in lingua. La base custom
+    // salvata vince sempre (stessa precedenza del ramo custom, invariato) e il
+    // landscape resta su `backdropPath`: qui solo portrait senza custom.
+    // La scelta live dell'editor (`pbase`) vince sulla base salvata: stessa
+    // catena query > mapping degli altri parametri.
+    mappingPortraitBackdropPath = !isLandscape && !(mapping.customPosterUrl && isCustomPosterUrl(mapping.customPosterUrl))
+      ? (queryPortraitBase ?? mapping.portraitBackdropPath ?? null)
+      : null
     // Logo manuale anche su portrait non-clean: il default resta nessun auto
     // a monte, ma il logoPath esplicito (mapping o ?logo=) è ammesso in ogni
     // formato. logoDisabled sempre onorato; query esplicita vince.
     const effectiveMappingLogo = !mapping.logoDisabled ? mapping.logoPath : null
     logoPath = queryLogo || effectiveMappingLogo
+    // Wordmark salvato (stessa catena: query > mapping, logoDisabled onorato).
+    // Vince sul logoPath del mapping (una sola sorgente logo): un titolo
+    // salvato con testo non ha più un logo immagine da comporre.
+    if (!textLogo && !mapping.logoDisabled) {
+      textLogo = resolveTextLogo(mapping.logoText ?? null, mapping.logoFont ?? null)
+    }
+    // Wordmark automatico (mapping): nessun logo salvato o selezionato, titolo
+    // noto e base senza titolo cotto — poster clean (`language === null`,
+    // stessa semantica del reopen) o base portrait congelata dal save
+    // (`portraitBackdropPath` / `pbase`, backdrop textless) o backdrop del
+    // landscape. Una base custom URL non è certificabile come textless: mai
+    // wordmark sopra. Il testo NON viene salvato: si rigenera a ogni render.
+    if (!textLogo && !logoPath) {
+      const mappingCustomPoster = !!(mapping.customPosterUrl && isCustomPosterUrl(mapping.customPosterUrl))
+      const mappingCustomBackdrop = !!(mapping.customBackdropUrl && isCustomPosterUrl(mapping.customBackdropUrl))
+      const auto = resolveAutoWordmark({
+        title: mapping.title,
+        hasImageLogo: false,
+        hasTypedText: false,
+        logoDisabled: mapping.logoDisabled === true,
+        baseIsTextless: isLandscape
+          ? !mappingCustomBackdrop
+          : !mappingCustomPoster && (mappingPortraitBackdropPath !== null || mapping.language === null),
+      })
+      if (auto) {
+        textLogo = auto
+        textLogoAuto = true
+      }
+    }
     backdropPath = queryBackdrop || mapping?.backdropPath || null
     backdropScale = mapping?.backdropScale ?? 100
     // Fix M5: clamp difensivo anche sui mapping già salvati (pre-bounds zod):
@@ -1627,7 +1702,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
           if (exact) logoPath = exact.file_path
         }
       }
-      if (!logoPath) {
+      if (!logoPath && !textLogo) {
         // Default = primo logo del gruppo lingua, lo stesso che mostra il
         // client (`selectBestLogo` in context.tsx): nessun re-ranking per
         // leggibilità, così Stremio rende lo stesso logo della preview.
@@ -1639,13 +1714,47 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
         logoFallbackReason = reason
         if (chosenLogo) { logoPath = chosenLogo.file_path; logoChosenIso = chosenLogo.iso_639_1 ?? null }
       }
+      // Text-as-logo: il testo digitato è la sorgente logo esplicita e vince
+      // sulla selezione TMDB appena fatta (una sola sorgente logo, la stessa
+      // della preview). Senza testo tutto il ramo sotto resta identico.
+      if (textLogo) {
+        logoPath = null
+        logoPathBuffer = null
+      }
+      // Un titolo ha un logo (immagine o wordmark)? I gate sotto (clean,
+      // rotazione, base portrait da backdrop) valgono per ENTRAMBE le
+      // sorgenti: un wordmark composto su un poster in lingua sarebbe un
+      // doppio titolo, quindi la catena base resta quella del logo.
+      const cleanEnabled = sd.disableCleanPosters !== true
+      const clean = cleanEnabled ? images.posters.find((p: TMDBImage) => p.iso_639_1 === null) : undefined
+      // Wordmark automatico (titolo senza alcun logo TMDB): eleggibile solo con
+      // una base che NON ha un titolo cotto — poster clean, landscape (base =
+      // backdrop textless con almeno un backdrop disponibile) o il crop 2:3 del
+      // primo backdrop nel ramo senza clean. Nessun logo immagine e nessun testo
+      // digitato: quelli vincono sempre. Con clean disabilitati la catena "in
+      // lingua" resta storica (poster col titolo stampato, nessun wordmark).
+      if (!logoPath && !textLogo && cleanEnabled) {
+        const auto = resolveAutoWordmark({
+          title: autoTitle,
+          hasImageLogo: false,
+          hasTypedText: false,
+          logoDisabled: false,
+          baseIsTextless: !!clean || (isLandscape
+            ? !!details.backdrop_path || (images.backdrops?.length ?? 0) > 0
+            : (images.backdrops?.length ?? 0) > 0),
+        })
+        if (auto) {
+          textLogo = auto
+          textLogoAuto = true
+          log.info("Text logo — auto wordmark from title", { mediaType, tmdbId, auto: true })
+        }
+      }
+      const hasTitleLogo = !!logoPath || !!textLogo
 
       // Opzione "disattiva clean" (default OFF = priorità ai clean): con flag ON
       // il ramo clean è saltato del tutto e si usa la catena in lingua sotto
       // (badge invariati, niente logo sopra in portrait). Mapping salvati e
       // scelta manuale (query poster=) non passano di qui.
-      const cleanEnabled = sd.disableCleanPosters !== true
-      const clean = cleanEnabled ? images.posters.find((p: TMDBImage) => p.iso_639_1 === null) : undefined
       if (clean) {
         // Ramo clean: best-fit pesca solo dalla pool clean, quindi il poster
         // finale resta clean (logo tenuto) salvo il fallback in lingua sotto.
@@ -1664,7 +1773,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
         // precede il best-fit così il cambio giorno cambia davvero la base.
         // Solo con logo (un clean senza logo non ha titolo da comporre) e con
         // almeno 2 clean, altrimenti fallback storico invariato.
-        const dynamicCleanPool = (dynamicDayBucket !== null && !isLandscape && logoPath)
+        const dynamicCleanPool = (dynamicDayBucket !== null && !isLandscape && hasTitleLogo)
           ? images.posters.filter((p: TMDBImage) => p.iso_639_1 === null)
           : []
         if (dynamicDayBucket !== null && dynamicCleanPool.length >= 2) {
@@ -1729,6 +1838,11 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
           // comunque (il logo verrà composto sopra).
           log.info("Best-fit: disabled by config", { mediaType, tmdbId })
           posterPath = clean.file_path
+        } else if (textLogo) {
+          // Wordmark digitato (nessun logo TMDB da far combaciare): la base
+          // clean resta quella storica, il testo viene composto sopra.
+          log.info("Text logo — clean poster base", { mediaType, tmdbId })
+          posterPath = clean.file_path
         } else {
           // Nessun logo disponibile: il poster clean senza logo è inutile
           // (lo spazio è pensato per il logo). Fallback al poster in lingua:
@@ -1755,11 +1869,53 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
         const origPoster = details.original_language ? images.posters.find((p: TMDBImage) => p.iso_639_1 === details.original_language) : undefined
         const chosen = langPoster || origPoster || images.posters[0]
         if (chosen) posterPath = chosen.file_path
-        if (isLandscape && logoPath) {
+        // Portrait senza clean ma con un backdrop: il backdrop è un'immagine
+        // SENZA titolo cotto, quindi vale come base clean (stesso invariante
+        // del ramo landscape) e il logo resta composto sopra. La base è il
+        // cover-crop 2:3 del PRIMO backdrop clean (iso_639_1 === null), poi
+        // del primo backdrop in qualsiasi lingua; senza backdrops la catena
+        // in lingua resta intatta (logo tolto, comportamento storico).
+        // Solo con clean ABILITATI (`disableCleanPosters` OFF): il flag è una
+        // scelta esplicita dell'utente per la catena in lingua, mai scavalcata.
+        // Il crop usa lo stesso helper della rescue B2 (unico renderer):
+        // nessun secondo percorso di rendering.
+        if (cleanEnabled && !isLandscape && hasTitleLogo && (images.backdrops?.length ?? 0) > 0) {
+          // Scelta esplicita dell'editor (`pbase`): vale SOLO se è un backdrop
+          // clean della galleria del titolo — un path sconosciuto o non-clean
+          // non scavalca mai la catena storica (primo clean, poi primo in
+          // lingua).
+          const cleanBackdropPaths = new Set(
+            (images.backdrops as TMDBImage[]).filter((b) => b.iso_639_1 === null).map((b) => b.file_path),
+          )
+          const pickedBase = queryPortraitBase && cleanBackdropPaths.has(queryPortraitBase) ? queryPortraitBase : null
+          const cropBackdropPath = pickedBase
+            ?? (images.backdrops.find((b: TMDBImage) => b.iso_639_1 === null) ?? images.backdrops[0])?.file_path
+            ?? null
+          try {
+            const cropBase = cropBackdropPath
+              ? await fetchImg(landscapeBackdropUrl(cropBackdropPath), renderAbort.signal).catch(() => null)
+              : null
+            if (cropBase && cropBackdropPath) {
+              posterPathBuffer = await cropBackdropToPortrait(cropBase, "center")
+              posterPath = cropBackdropPath
+              portraitBackdropCropPath = cropBackdropPath
+              autoPosterClean = true
+              log.info("No clean poster — portrait base from backdrop crop", { mediaType, tmdbId, backdrop: cropBackdropPath })
+            }
+          } catch (e) {
+            // Fetch/crop falliti: catena in lingua invariata, logo tolto.
+            posterPathBuffer = null
+            log.error("Backdrop crop for portrait base failed", { mediaType, tmdbId, error: e instanceof Error ? e.message : String(e) })
+          }
+        }
+        if (isLandscape && hasTitleLogo) {
           autoPosterClean = true
-        } else {
+        } else if (!autoPosterClean) {
+          // Base con il titolo già cotto: niente logo immagine NE' wordmark
+          // sopra (doppio titolo).
           logoPath = null
           logoPathBuffer = null
+          textLogo = null
         }
       }
       // Rotazione giornaliera dinamici landscape (solo backdrop clean, cut
@@ -1767,7 +1923,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
       // la base. Solo con logo e almeno 2 backdrop clean, altrimenti fallback
       // storico invariato.
       let dynamicLandscapeRotated = false
-      if (isLandscape && !queryBackdrop && logoPath && dynamicDayBucket !== null) {
+      if (isLandscape && !queryBackdrop && hasTitleLogo && dynamicDayBucket !== null) {
         const dynamicBackdropPool = (images.backdrops ?? []).filter((b) => b.iso_639_1 === null)
         if (dynamicBackdropPool.length >= 2) {
           autoBackdropPath = dynamicBackdropPool[rotationIndexFor(dynamicDayBucket, dynamicBackdropPool.length)].file_path
@@ -1932,6 +2088,31 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
       backdropPath = queryBackdrop || mapping?.backdropPath || autoBackdropPath || backdropPath
     }
 
+    // Wordmark automatico in preview (`lauto=1`): risolto QUI perché la base
+    // di una preview query-only è nota solo dopo il fallback backdrop
+    // landscape (senza `backdrop=` la base la decide il renderer unico, che
+    // deve comporre lo stesso wordmark di Stremio). La preview manda solo il
+    // flag, MAI il testo: il server lo deriva dal `title` con la stessa
+    // funzione del render Stremio, così il save non eredita un wordmark
+    // automatico. Logo immagine, testo digitato e base in lingua/custom
+    // spengono il flag (una sola sorgente logo, stessa precedenza del render).
+    if (queryPoster && !textLogo && hardenedParams.get("lauto") === "1") {
+      const queryBaseTextless = isLandscape
+        ? !!backdropPath && !isCustomPosterUrl(backdropPath)
+        : !!posterPath && !isCustomPosterUrl(posterPath)
+      const auto = resolveAutoWordmark({
+        title: hardenedParams.get("title"),
+        hasImageLogo: !!logoPath,
+        hasTypedText: false,
+        logoDisabled: false,
+        baseIsTextless: queryBaseTextless,
+      })
+      if (auto) {
+        textLogo = auto
+        textLogoAuto = true
+      }
+    }
+
     // Semaforo anti-OOM: limita i render costosi concorrenti (sharp composite,
     // blur, badge SVG→PNG). Se tutti i posti sono occupati per più del timeout,
     // risponde 503 invece di accodarsi e far crescere l'heap senza bound.
@@ -2065,6 +2246,30 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
     // in backdropPath (the portrait custom travels on the poster slot, never
     // here). Without a custom the TMDB branch below stays verbatim.
     const backdropCustomForFetch = (isLandscape ? effectiveCustomUrl : null) ?? explicitBackdropCustomUrl
+    // Base portrait congelata dal save (`mappingPortraitBackdropPath`): cover-crop
+    // 2:3 con lo stesso helper e lo stesso focus (`center`) del ramo automatico
+    // (unico renderer), risolto in parallelo al resto di Block A. Ogni errore
+    // (fetch o crop) risolve a null e la catena sotto torna al poster nominale
+    // del mapping: mai 500, mai un crop parziale usato come base.
+    const savedPortraitBasePath = mappingPortraitBackdropPath
+    const portraitBasePromise = savedPortraitBasePath !== null
+      ? (async () => {
+        try {
+          const source = await fetchImg(landscapeBackdropUrl(savedPortraitBasePath), renderAbort.signal)
+          const buf = await cropBackdropToPortrait(source, "center")
+          posterPath = savedPortraitBasePath
+          portraitBackdropCropPath = savedPortraitBasePath
+          return { buf, custom: false }
+        } catch {
+          // Fetch/crop falliti: base storica dal poster nominale del mapping
+          // (mai 500, mai crop parziale).
+          const fallbackPath: string | null = posterPath
+          if (!fallbackPath) return null
+          const buf = await fetchImg(imgSrc(fallbackPath), renderAbort.signal).catch(() => null)
+          return buf ? { buf, custom: false } : null
+        }
+      })()
+      : null
     const [
       [originalBase, logoFetch, backdropFetch, rankingResult, animeRankResult, rawLiveQuality, preReleaseDetected],
       [wikidataResult, tmdbKeywords, imdbTop250, ageCert],
@@ -2073,20 +2278,33 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
       Promise.all([
         posterPathBuffer
           ? Promise.resolve({ buf: posterPathBuffer, custom: false })
-          : posterCustomForFetch
-            ? fetchPosterBaseWithCustom(posterCustomForFetch, tmdbFallbackSrc ?? safeTmdbImgSrc(posterPath), renderAbort.signal)
-            : fetchImg(imgSrc(posterPath), renderAbort.signal).catch(() => null).then((buf) => (buf ? { buf, custom: false } : null)),
+          : portraitBasePromise
+            ? portraitBasePromise
+            : posterCustomForFetch
+              ? fetchPosterBaseWithCustom(posterCustomForFetch, tmdbFallbackSrc ?? safeTmdbImgSrc(posterPath), renderAbort.signal)
+              : fetchImg(imgSrc(posterPath), renderAbort.signal).catch(() => null).then((buf) => (buf ? { buf, custom: false } : null)),
         logoPathBuffer
           ? Promise.resolve(logoPathBuffer)
-          // Custom logo from an external URL: same safe pipeline as the custom
-          // base (allowlist + SSRF + raster-only, no SVG); a definitive
-          // failure resolves to null + logo-less composition, never 500. A
-          // render abort propagates (never a zombie fallback).
-          : logoPath
-            ? (isCustomPosterUrl(logoPath)
-              ? fetchValidatedCustomImage(logoPath, renderAbort.signal).catch(() => null)
-              : fetchLogoImg(logoPath, renderAbort.signal).catch(() => null))
-            : Promise.resolve(null),
+          // Text-as-logo: il wordmark digitato è la sorgente logo (vince su
+          // quella immagine sopra): SVG con i font del bundle rasterizzato
+          // qui e composto dal renderer esistente, stessi passi di layout,
+          // velatura e scala di un logo TMDB. Un errore = composizione senza
+          // logo (mai 500), come per il logo custom.
+          : textLogo
+            ? buildTextLogoBuffer(
+              textLogo.text,
+              textLogo.font,
+              textLogoAuto ? { trackingEm: AUTO_WORDMARK_TRACK_FACTOR } : undefined,
+            ).catch(() => null)
+            // Custom logo from an external URL: same safe pipeline as the custom
+            // base (allowlist + SSRF + raster-only, no SVG); a definitive
+            // failure resolves to null + logo-less composition, never 500. A
+            // render abort propagates (never a zombie fallback).
+            : logoPath
+              ? (isCustomPosterUrl(logoPath)
+                ? fetchValidatedCustomImage(logoPath, renderAbort.signal).catch(() => null)
+                : fetchLogoImg(logoPath, renderAbort.signal).catch(() => null))
+              : Promise.resolve(null),
         // Landscape custom base (explicit preview query or saved
         // customBackdropUrl): same validated pipeline as the portrait base
         // (allowlist + SSRF + raster-only, parallel TMDB fallback, never 500).
@@ -2460,7 +2678,9 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
     const analysisKey = !isLandscape
       ? (effectiveCustomUrl
         ? customBaseAnalysisKey(effectiveCustomUrl)
-        : (posterPath && !isCustomPosterUrl(posterPath) ? `portrait:poster:${posterPath}` : null))
+        : portraitBackdropCropPath
+          ? `portrait:backdropcrop:${portraitBackdropCropPath}`
+          : (posterPath && !isCustomPosterUrl(posterPath) ? `portrait:poster:${posterPath}` : null))
       : backdropFetch
         ? (backdropCustomForFetch
           ? customBaseAnalysisKey(backdropCustomForFetch, "landscape")
@@ -3184,7 +3404,13 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
       hideLogo,
       posterSrc: isLandscape ? backdropPath : posterPath,
       analysisKey,
-      logoSrc: logoPath,
+      // Chiave della cache image-level del resize: il wordmark non ha un
+      // path, quindi firma testo+font (stessi byte → stessa entry).
+      logoSrc: textLogo
+        ? (textLogoAuto
+          ? `text-logo-auto:${textLogo.font}:${textLogo.text}`
+          : `text-logo:${textLogo.font}:${textLogo.text}`)
+        : logoPath,
       backdropSrc: isLandscape ? null : backdropPath,
       // C3: render sempre canonico (jpeg storico, webp con
       // PICTORIUM_IMAGE_FORMAT=webp; avif solo ?fmt=avif legacy esplicito).

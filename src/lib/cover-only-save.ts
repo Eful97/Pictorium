@@ -1,6 +1,7 @@
 import type { Mapping, PosterShape, SearchResult, TMDBImage } from "./types"
 import { isCustomPosterUrl, splitCustomPosterSave, titleOf } from "./utils"
 import { normalizeGenreName } from "./genre-normalize"
+import { normalizeLogoFont, sanitizeLogoText } from "./text-logo"
 
 /**
  * Cover-only save ("Salva solo poster" / "Save poster only").
@@ -40,6 +41,9 @@ import { normalizeGenreName } from "./genre-normalize"
  * tuning profile (including the retired inert Badge Lab keys
  * `badgePresets`/`badgePresetId`/`badgePresetRev`, cleared like the other
  * styling per the cover-only reset contract),
+ * `portraitBackdropPath` in portrait (the saved cover IS the base: the
+ * server-auto backdrop-crop provenance is cleared like the other styling; in
+ * landscape it is preserved as the portrait identity),
  * and defaultBadgeStyles. Selected-format rotation lists
  * are omitted too (the existing opt-out: without cleanPosters/cleanBackdrops
  * + auto flags the 24h rotation in poster-rotation.ts stays idle, so the
@@ -54,6 +58,9 @@ export interface CoverOnlySaveInput {
   selectedBackdrop: TMDBImage | null
   /** Logo tile selected in the editor (null = none/auto). */
   selectedLogo: TMDBImage | null
+  /** Text-as-logo dell'editor (titoli senza logo TMDB): testo + font bundle. */
+  logoText?: string
+  logoFont?: string | null
   /** True when the user intentionally disabled the logo (no-logo choice). */
   logoDisabled: boolean
   /** Existing saved mapping, if any (other-format preservation). */
@@ -76,7 +83,7 @@ export interface CoverOnlySaveInput {
 }
 
 export function buildCoverOnlyPayload(input: CoverOnlySaveInput): Record<string, unknown> | null {
-  const { selected, previewPoster, selectedBackdrop, selectedLogo, logoDisabled, prevMapping, metaInfo, lang, episodeGroupId, posterShape } = input
+  const { selected, previewPoster, selectedBackdrop, selectedLogo, logoDisabled, prevMapping, metaInfo, lang, episodeGroupId, posterShape, logoText, logoFont } = input
   const isLandscape = posterShape === "landscape"
 
   // Portrait cover file. In portrait it is the chosen tile (required).
@@ -97,6 +104,8 @@ export function buildCoverOnlyPayload(input: CoverOnlySaveInput): Record<string,
       null)
   if (!isLandscape && !previewPoster) return null
   if (!portraitFile) return null
+  // Text-as-logo (logo identity): normalizzato come nel save completo.
+  const savedLogoText = logoDisabled ? null : sanitizeLogoText(logoText)
 
   const tmdbRef = selected.poster_path ?? prevMapping?.posterPath ?? null
   const split = splitCustomPosterSave(portraitFile, tmdbRef)
@@ -117,8 +126,11 @@ export function buildCoverOnlyPayload(input: CoverOnlySaveInput): Record<string,
       : (previewPoster ? previewPoster.iso_639_1 : (prevMapping?.language ?? null)),
     // Logo identity follows the cover: chosen logo persists, an intentional
     // no-logo choice persists as logoDisabled=true (remove-logo semantics).
-    // Transforms stay omitted (global defaults / server auto-fit).
-    logoPath: logoDisabled ? null : (selectedLogo?.file_path ?? null),
+    // Text-as-logo is logo identity too: an active wordmark persists
+    // (text+font) and the image logo stays empty (one logo source); clearing
+    // the field hands the logo back to the selected tile. Transforms stay
+    // omitted (global defaults / server auto-fit).
+    logoPath: logoDisabled || savedLogoText ? null : (selectedLogo?.file_path ?? null),
     imdbId: metaInfo.imdb_id || null,
     wikidataId: metaInfo.wikidata_id || null,
     // Title metadata identity (NOT styling): the mapped render branch reads
@@ -134,6 +146,13 @@ export function buildCoverOnlyPayload(input: CoverOnlySaveInput): Record<string,
   }
   if (episodeGroupId) body.episodeGroupId = episodeGroupId
   if (logoDisabled) body.logoDisabled = true
+  // Wordmark: emesso SOLO quando è la sorgente logo attiva. Così il payload
+  // resta identico a prima per i titoli senza testo (contratto cover-only:
+  // tutto ciò che manca viene azzerato dal replace completo).
+  if (savedLogoText) {
+    body.logoText = savedLogoText
+    body.logoFont = normalizeLogoFont(logoFont)
+  }
 
   if (isLandscape) {
     // The landscape cover IS the backdrop: chosen, or null for the automatic
@@ -153,6 +172,10 @@ export function buildCoverOnlyPayload(input: CoverOnlySaveInput): Record<string,
       body.backdropPath = bdFile
       body.customBackdropUrl = null
     }
+    // Portrait base provenance (server-auto backdrop crop): other-format
+    // cover identity, preserved verbatim like the portrait cover above (the
+    // portrait save below omits it on purpose: the saved cover IS the base).
+    if (prevMapping?.portraitBackdropPath !== undefined) body.portraitBackdropPath = prevMapping.portraitBackdropPath
     if (prevMapping?.cleanPosters !== undefined) body.cleanPosters = prevMapping.cleanPosters
     if (prevMapping?.cleanPosterIndex !== undefined) body.cleanPosterIndex = prevMapping.cleanPosterIndex
     if (prevMapping?.cleanPosterUpdatedAt !== undefined) body.cleanPosterUpdatedAt = prevMapping.cleanPosterUpdatedAt

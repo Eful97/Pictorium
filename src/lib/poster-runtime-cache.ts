@@ -12,10 +12,11 @@ import {
 } from "@/lib/effective-accent"
 import { isBadgeStyle, isRankingBadgeStyle, isExtraBadgeStyle, isExtraFollowRank, isBadgeFont, isSeparateRatingsStyle, isAgeBadgeStyle } from "@/lib/badge-styles"
 import { isPosterLayout, isPosterFreshScope, DEFAULT_POSTER_FRESH_SCOPE } from "@/lib/types"
-import { POSTER_CACHE_ALLOWLIST, parseListRankParam } from "./poster-params-hardening"
+import { POSTER_CACHE_ALLOWLIST, parseListRankParam, sanitizePortraitBaseBackdropPath } from "./poster-params-hardening"
 import { sanitizeDisabledContentTags } from "./content-tags"
 import { sanitizeDisabledNetworks } from "./network-keys"
 import { canonicalizeBadgeItemTransforms } from "./badge-item-transforms"
+import { normalizeLogoFont, sanitizeLogoText } from "./text-logo"
 
 const log = createLogger("poster-cache")
 
@@ -162,6 +163,39 @@ export function normalizePosterCacheParams(searchParams: URLSearchParams): URLSe
   const ac = params.get("ac")
   if (ac !== null && !/^#([0-9A-Fa-f]{3}){1,2}$/.test(ac)) {
     params.delete("ac")
+  }
+  // Text-as-logo: il testo entra nella chiave (due wordmark diversi sono due
+  // render diversi) ma canonicalizzato — spazi collassati, blank = assente —
+  // così ?ltext=+++ collassa sulla resa storica senza logo. Il font è
+  // l'enum dei badge: un valore ignoto collassa su "inter" (stessa resa, una
+  // sola entry); senza testo il font è inerte e non entra in chiave.
+  const ltextRaw = params.get("ltext")
+  if (ltextRaw !== null) {
+    const ltext = sanitizeLogoText(ltextRaw)
+    if (ltext) params.set("ltext", ltext)
+    else params.delete("ltext")
+  }
+  const lfont = params.get("lfont")
+  if (lfont !== null) {
+    if (params.has("ltext")) params.set("lfont", normalizeLogoFont(lfont))
+    else params.delete("lfont")
+  }
+  // Wordmark automatico: solo il flag canonico `1` resta in chiave, e solo se
+  // c'è il titolo da cui derivare il testo (senza `title` il render è quello
+  // storico senza logo, quindi il flag è inerte e non deve creare una entry).
+  const lauto = params.get("lauto")
+  if (lauto !== null) {
+    if (lauto !== "1" || !params.has("title")) params.delete("lauto")
+    else params.set("lauto", "1")
+  }
+  // Base portrait scelta live (`pbase`): path TMDB del backdrop. Canonical:
+  // un valore non-TMDB collassa su assente (base automatica del renderer),
+  // quindi il garbage non crea una entry distinta a pixel identici.
+  const pbaseRaw = params.get("pbase")
+  if (pbaseRaw !== null) {
+    const pbase = sanitizePortraitBaseBackdropPath(pbaseRaw)
+    if (pbase) params.set("pbase", pbase)
+    else params.delete("pbase")
   }
   const tl = params.get("tl")
   if (tl !== null && tl !== "1" && tl !== "0" && tl !== "true" && tl !== "false") {

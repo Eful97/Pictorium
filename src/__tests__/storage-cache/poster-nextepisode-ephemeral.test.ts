@@ -60,6 +60,7 @@ vi.mock("@/lib/svg-badge", async () => {
     renderExtraBadge: vi.fn(async () => png()),
     renderQualityBadge: vi.fn(async () => png()),
     renderQualityKnockoutBadge: vi.fn(async () => png()),
+    buildTextLogoBuffer: vi.fn(async () => tiny),
   }
 })
 vi.mock("@/lib/justwatch", () => ({

@@ -52,6 +52,11 @@ vi.mock("@/lib/svg-badge", () => ({
   renderRankingBadge: vi.fn(async () => null),
   renderExtraBadge: vi.fn(async () => null),
   renderQualityBadge: vi.fn(async () => null),
+  // Automatic title wordmark (title without any TMDB logo): the route
+  // rasterizes the derived title here. A valid 1x1 PNG keeps the real
+  // composite path satisfied — these tests assert base/headers/TTL, never the
+  // wordmark pixels (the badge renderers above are stubbed too).
+  buildTextLogoBuffer: vi.fn(async () => Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAgAAAAECAYAAACzzX7wAAAACXBIWXMAAAPoAAAD6AG1e1JrAAAAD0lEQVQI12P4TwAw0F4BAOFkf4EHRdBsAAAAAElFTkSuQmCC", "base64")),
 }))
 vi.mock("@/lib/justwatch", () => ({
   getJWRankings: vi.fn(async () => []),

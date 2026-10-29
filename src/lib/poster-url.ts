@@ -27,6 +27,7 @@ import type { LandscapeServerDefaults } from "./server-defaults"
 import { DEFAULT_SASH_ORDER, NEXT_EPISODE_BADGE_KEY, type SashBucket } from "./badge-priority"
 import { sanitizeDisabledContentTags } from "./content-tags"
 import { sanitizeDisabledNetworks } from "./network-keys"
+import { normalizeLogoFont, sanitizeLogoText } from "./text-logo"
 import type { VideoFormat } from "./av-specs"
 import type { PosterShape, NetworkLogoPosition, PosterLayout, PosterFreshScope } from "./types"
 import { isPosterLayout } from "./types"
@@ -169,6 +170,23 @@ interface PosterState {
   selected: SearchResult | null
   previewPoster: TMDBImage | null
   selectedLogo: TMDBImage | null
+  /**
+   * Logo testuale digitato (titoli senza logo TMDB): reso dal server con un
+   * font del bundle. `ltext` vince sul logo immagine scelto (una sola
+   * sorgente logo): svuotare il campo riporta il logo selezionato. Testo
+   * vuoto/assente = nessun parametro (URL storici invariati).
+   */
+  logoText?: string | null
+  /** Font del logo testuale: enum dei badge (allowlist server). */
+  logoFont?: BadgeFont | null
+  /**
+   * Wordmark AUTOMATICO (titolo senza logo TMDB, base senza titolo cotto):
+   * la preview viaggia con `lauto=1` e NON manda il testo — il server lo
+   * deriva dal `title` con la stessa funzione del render Stremio, così il save
+   * non eredita mai un wordmark automatico. Il testo digitato (`logoText`) e
+   * il logo immagine hanno precedenza e spengono il flag.
+   */
+  autoWordmark?: boolean
   selectedBackdrop: TMDBImage | null
   logoScale: number
   /**
@@ -243,6 +261,21 @@ interface PosterState {
    */
   listRank?: number | null
   listRegion?: string | null
+  /**
+   * Base del poster scelta dal SERVER (solo portrait, titolo senza poster
+   * clean): senza `poster=` la preview lascia decidere al renderer unico,
+   * che compone la base dal primo backdrop (crop 2:3) — gli stessi byte che
+   * riceve Stremio. Gli hint derivati (`genreName`/`voteAverage`/`year`/…)
+   * sono omessi con la base: senza override immagine li ricava il server.
+   */
+  previewBaseAuto?: boolean
+  /**
+   * Backdrop scelto live dall'editor per la base portrait 2:3 (`pbase`):
+   * path TMDB clean. Il renderer unico croppa QUEL backdrop, come farà il
+   * mapping salvato (`portraitBackdropPath`) dopo il save. Assente = base
+   * automatica del server (primo clean) o base salvata.
+   */
+  portraitBasePath?: string | null
 }
 
 export function buildUrlPattern(bp: BadgeParams & {
@@ -416,7 +449,7 @@ export function buildPreviewUrl(ps: PosterState, bp: BadgeParams, configToken?: 
   // come il server — raw salvati intatti, mai mutati qui).
   params.push(`sepstyle=${getSeparateRatingsStyleForShape(bp.separateRatingsStyle ?? "column", bp.posterShape === "landscape" ? "landscape" : "poster")}`)
   if (bp.ratingSources && bp.ratingSources.length > 0) params.push(`rsrc=${encodeURIComponent(bp.ratingSources.join(","))}`)
-  if (ps.previewPoster) {
+  if (ps.previewPoster && !ps.previewBaseAuto) {
     params.push(`poster=${encodeURIComponent(ps.previewPoster.file_path)}`)
     const genre = normalizeGenreName(ps.metaInfo.genres[0]?.name, ps.lang)
     if (genre) params.push(`genreName=${encodeURIComponent(genre)}`)
@@ -454,7 +487,17 @@ export function buildPreviewUrl(ps: PosterState, bp: BadgeParams, configToken?: 
   // Logo manuale anche su portrait non-clean: se selezionato si emette
   // sempre (default nessun auto resta a monte). In landscape la base è il
   // backdrop (senza testo), quindi il logo resta anche senza poster clean.
-  if (ps.selectedLogo) {
+  // Logo testuale (titoli senza logo TMDB): `ltext` vince sul logo immagine —
+  // una sola sorgente logo, la stessa che il server usa per comporla. Testo
+  // vuoto/blank = nessun parametro (URL storici invariati).
+  const logoText = sanitizeLogoText(ps.logoText)
+  if (logoText) {
+    params.push(`ltext=${encodeURIComponent(logoText)}`)
+    params.push(`lfont=${normalizeLogoFont(ps.logoFont)}`)
+    params.push(`scale=${ps.logoScaleIsAuto ? 0 : ps.logoScale}`)
+    params.push(`ox=${ps.logoOffsetX}`)
+    params.push(`oy=${ps.logoOffsetY}`)
+  } else if (ps.selectedLogo) {
     params.push(`logo=${encodeURIComponent(ps.selectedLogo.file_path)}`)
     // Auto (correzione c1): sentinel `scale=0` = auto-fit server-side (Fresh
     // effettivo = 100, fallback Standard = curva aspect). Mai un 100 baked:
@@ -464,12 +507,22 @@ export function buildPreviewUrl(ps: PosterState, bp: BadgeParams, configToken?: 
     params.push(`ox=${ps.logoOffsetX}`)
     params.push(`oy=${ps.logoOffsetY}`)
   }
+  // Wordmark automatico: flag unico, nessun testo. In base auto (`previewBaseAuto`)
+  // la decisione è già del server (stesso ramo Stremio) e il flag sarebbe
+  // inerte; con un logo immagine o un testo digitato non viaggia mai (stessa
+  // precedenza del render: una sola sorgente logo).
+  if (ps.autoWordmark && !ps.previewBaseAuto && !logoText && !ps.selectedLogo) params.push("lauto=1")
   if (ps.selectedBackdrop) {
     params.push(`backdrop=${encodeURIComponent(ps.selectedBackdrop.file_path)}`)
     params.push(`bscale=${ps.backdropScale}`)
     params.push(`box=${ps.backdropOffsetX}`)
     params.push(`boy=${ps.backdropOffsetY}`)
   }
+  // Base portrait scelta live (picker backdrop): il server croppa QUEL
+  // backdrop con lo stesso helper del ramo automatico, quindi la preview
+  // mostra gli stessi byte che il mapping salvato renderà su Stremio.
+  // Assente = base automatica/salvata (URL storici invariati).
+  if (ps.portraitBasePath) params.push(`pbase=${encodeURIComponent(ps.portraitBasePath)}`)
   if (ps.lang) params.push(`lang=${ps.lang}`)
   // Region di selezione (paese chart della lista di origine) vince sul
   // default globale editor: la preview risolve lo stesso snapshot Stremio.

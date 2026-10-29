@@ -2,6 +2,8 @@
 // 200 con base 2:3 dal crop (attention) invece di 404. Trigger SOLO in
 // sostituzione del 404: senza backdrop resta 404. Pipeline REALE con fetch
 // stubbato (stesso pattern di provider-chaos.test.ts, harness minimo).
+// Lo stesso harness copre il ramo portrait SENZA poster clean (base dal
+// primo backdrop clean, logo composto sopra): casi 620104-620106.
 
 import sharp from "sharp"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
@@ -14,6 +16,7 @@ import { __resetMdblistBreaker } from "@/lib/ratings"
 import { __resetJWRankingsCache } from "@/lib/justwatch"
 import { __resetCircuitBreaker } from "@/lib/awards"
 import { clearTvdbCache } from "@/lib/tvdb"
+import { getById } from "@/lib/store"
 
 vi.mock("@/lib/rate-limit", () => ({
   rateLimit: vi.fn(async () => ({ ok: true, retAfter: 0 })),
@@ -44,6 +47,12 @@ vi.mock("@/lib/server-defaults", async (importOriginal) => {
 })
 
 let backdropPng: Buffer
+// Colori distinti per path così i test possono PROVARE quale sorgente ha
+// alimentato la base: backdrop clean = rosso, backdrop in lingua = blu scuro
+// (backdropPng storico), poster = blu, logo = grigio chiaro.
+let cleanBackdropPng: Buffer
+let posterPng: Buffer
+let logoPng: Buffer
 
 function tmdbDetails(id: number, withBackdrop: boolean) {
   return {
@@ -74,18 +83,50 @@ async function router(input: unknown): Promise<Response> {
     return Response.json({ results: { bindings: [] } })
   }
   if (url.includes("image.tmdb.org")) {
-    // w780 (backdrop crop source) o qualsiasi immagine: 16:9 di test.
-    return new Response(new Uint8Array(backdropPng), {
+    // Backdrop crop source (w780) o qualsiasi immagine della pipeline.
+    // `/bd404.jpg` simula un backdrop sparito da TMDB (fallback al poster).
+    if (/\/bd404\.jpg$/.test(url)) return new Response(null, { status: 404 })
+    const png = /\/bdclean\.jpg$/.test(url)
+      ? cleanBackdropPng
+      : url.includes("/logo") ? logoPng
+        : /\/bd[^/]*\.jpg$/.test(url) ? backdropPng
+          : posterPng
+    return new Response(new Uint8Array(png), {
       status: 200,
       headers: { "content-type": "image/png" },
     })
   }
   const m = /\/3\/(?:movie|tv)\/(\d+)/.exec(url)
   const id = Number(m?.[1] ?? 0)
-  // Solo 620101 ha backdrop; 620102 è orfano totale (controllo 404).
+  // Solo 620101/620103 hanno backdrop; 620102 è orfano totale (controllo 404).
+  // 620104-620106: portrait senza clean (620105 senza backdrops, 620106 per
+  // il controllo landscape invariato).
   const withBackdrop = id === 620101 || id === 620103
   if (url.includes("/external_ids")) return Response.json({ id, imdb_id: `tt${id}` })
   if (url.includes("/images")) {
+    if (id === 620104 || id === 620106) {
+      return Response.json({
+        id,
+        posters: [
+          { aspect_ratio: 0.667, file_path: "/lang-it.jpg", height: 1500, iso_639_1: "it", vote_average: 7, width: 1000 },
+          { aspect_ratio: 0.667, file_path: "/lang-en.jpg", height: 1500, iso_639_1: "en", vote_average: 7, width: 1000 },
+        ],
+        logos: [{ aspect_ratio: 3, file_path: "/logo-it.png", height: 100, iso_639_1: "it", vote_average: 0, width: 300 }],
+        // Il PRIMO backdrop è in lingua (fr): la base deve venire dal clean.
+        backdrops: [
+          { aspect_ratio: 1.78, file_path: "/bdfr.jpg", height: 720, iso_639_1: "fr", vote_average: 0, width: 1280 },
+          { aspect_ratio: 1.78, file_path: "/bdclean.jpg", height: 720, iso_639_1: null, vote_average: 0, width: 1280 },
+        ],
+      })
+    }
+    if (id === 620105) {
+      return Response.json({
+        id,
+        posters: [{ aspect_ratio: 0.667, file_path: "/lang-it.jpg", height: 1500, iso_639_1: "it", vote_average: 7, width: 1000 }],
+        logos: [{ aspect_ratio: 3, file_path: "/logo-it.png", height: 100, iso_639_1: "it", vote_average: 0, width: 300 }],
+        backdrops: [],
+      })
+    }
     return Response.json({ id, posters: [], logos: [], backdrops: [] })
   }
   if (url.includes("/keywords")) return Response.json({ id, keywords: [] })
@@ -102,6 +143,26 @@ async function getPoster(id: number, extra = "") {
   return { res, buf }
 }
 
+/** Medie canale del render: la tinta della base sopravvive a gradiente/blur,
+ *  così il test prova QUALE sorgente ha alimentato il canvas. */
+async function avgChannels(buf: Buffer): Promise<{ r: number; g: number; b: number }> {
+  const { data, info } = await sharp(buf).removeAlpha().raw().toBuffer({ resolveWithObject: true })
+  let r = 0, g = 0, b = 0
+  const n = info.width * info.height
+  for (let i = 0; i < data.length; i += info.channels) {
+    r += data[i]; g += data[i + 1]; b += data[i + 2]
+  }
+  return { r: r / n, g: g / n, b: b / n }
+}
+
+async function getDebug(id: number, extra = ""): Promise<Record<string, unknown>> {
+  const res = await posterGET(
+    new NextRequest(`http://localhost:3000/api/poster/movie/${id}?api_key=test&debug=1${extra}`),
+    { params: Promise.resolve({ type: "movie", id: String(id) }) },
+  )
+  return await res.json()
+}
+
 describe("B2 backdrop-crop fallback (404 → 200 con base 2:3)", () => {
   beforeEach(async () => {
     cacheClear()
@@ -113,6 +174,21 @@ describe("B2 backdrop-crop fallback (404 → 200 con base 2:3)", () => {
     clearTvdbCache()
     backdropPng = await sharp({
       create: { width: 1280, height: 720, channels: 3, background: "#28304a" },
+    })
+      .png()
+      .toBuffer()
+    cleanBackdropPng = await sharp({
+      create: { width: 1280, height: 720, channels: 3, background: "#c81e1e" },
+    })
+      .png()
+      .toBuffer()
+    posterPng = await sharp({
+      create: { width: 1000, height: 1500, channels: 3, background: "#1e1ec8" },
+    })
+      .png()
+      .toBuffer()
+    logoPng = await sharp({
+      create: { width: 300, height: 100, channels: 3, background: "#e5e7eb" },
     })
       .png()
       .toBuffer()
@@ -144,5 +220,184 @@ describe("B2 backdrop-crop fallback (404 → 200 con base 2:3)", () => {
     const meta = await sharp(buf).metadata()
     expect(meta.width).toBe(768)
     expect(meta.height).toBe(432)
+  })
+})
+
+// Portrait senza poster clean (ma con poster in lingua): la base diventa il
+// cover-crop 2:3 del PRIMO backdrop clean e il logo resta composto sopra
+// (base senza titolo cotto = clean, stesso invariante del ramo landscape).
+describe("Portrait senza clean — base dal primo backdrop clean", () => {
+  beforeEach(async () => {
+    cacheClear()
+    __resetTMDBSessionCache()
+    __resetPosterRenderLimiter()
+    __resetMdblistBreaker()
+    __resetJWRankingsCache()
+    __resetCircuitBreaker()
+    clearTvdbCache()
+    backdropPng = await sharp({
+      create: { width: 1280, height: 720, channels: 3, background: "#28304a" },
+    })
+      .png()
+      .toBuffer()
+    cleanBackdropPng = await sharp({
+      create: { width: 1280, height: 720, channels: 3, background: "#c81e1e" },
+    })
+      .png()
+      .toBuffer()
+    posterPng = await sharp({
+      create: { width: 1000, height: 1500, channels: 3, background: "#1e1ec8" },
+    })
+      .png()
+      .toBuffer()
+    logoPng = await sharp({
+      create: { width: 300, height: 100, channels: 3, background: "#e5e7eb" },
+    })
+      .png()
+      .toBuffer()
+    vi.spyOn(globalThis, "fetch").mockImplementation(router as typeof fetch)
+  })
+
+  afterEach(() => {
+    vi.restoreAllMocks()
+    cacheClear()
+  })
+
+  it("usa il primo backdrop clean (non il primo in lingua) e tiene il logo", async () => {
+    const { res, buf } = await getPoster(620104)
+    expect(res.status).toBe(200)
+    const meta = await sharp(buf).metadata()
+    expect(meta.width).toBe(500)
+    expect(meta.height).toBe(750)
+    // Base = backdrop clean (rosso), non il backdrop fr né il poster (blu).
+    const avg = await avgChannels(buf)
+    expect(avg.r).toBeGreaterThan(avg.b * 1.2)
+
+    const debug = await getDebug(620104)
+    const images = debug.images as { poster: string | null; logo: string | null }
+    expect(images.poster).toBe("/bdclean.jpg")
+    expect(images.logo).toBe("/logo-it.png")
+  })
+
+  it("senza backdrops la catena in lingua resta intatta e il logo è tolto", async () => {
+    const { res, buf } = await getPoster(620105)
+    expect(res.status).toBe(200)
+    const meta = await sharp(buf).metadata()
+    expect(meta.width).toBe(500)
+    expect(meta.height).toBe(750)
+    // Base = poster in lingua (blu).
+    const avg = await avgChannels(buf)
+    expect(avg.b).toBeGreaterThan(avg.r * 1.2)
+
+    const debug = await getDebug(620105)
+    const images = debug.images as { poster: string | null; logo: string | null }
+    expect(images.poster).toBe("/lang-it.jpg")
+    expect(images.logo).toBeNull()
+  })
+
+  it("landscape resta invariato (base 16:9 dal backdrop)", async () => {
+    const { res, buf } = await getPoster(620106, "&shape=landscape")
+    expect(res.status).toBe(200)
+    const meta = await sharp(buf).metadata()
+    expect(meta.width).toBe(768)
+    expect(meta.height).toBe(432)
+  })
+})
+
+// Base portrait CONGELATA dal save (`portraitBackdropPath`): riaprendo il
+// titolo il mapping governa la base, quindi il ramo mapping deve comporre lo
+// stesso crop 2:3 del ramo automatico (non il poster in lingua), con il logo
+// salvato sopra. Fallback: ogni errore torna al poster nominale del mapping.
+describe("mapping con base portrait congelata (portraitBackdropPath)", () => {
+  const savedMapping = (overrides: Record<string, unknown> = {}) => ({
+    tmdbId: 620110,
+    mediaType: "movie" as const,
+    title: "Film 620110",
+    posterPath: "/lang-it.jpg",
+    logoPath: "/logo-it.png",
+    originalPosterPath: "/lang-it.jpg",
+    language: "it",
+    updatedAt: "2026-01-01T00:00:00.000Z",
+    ...overrides,
+  })
+
+  beforeEach(async () => {
+    cacheClear()
+    __resetTMDBSessionCache()
+    __resetPosterRenderLimiter()
+    __resetMdblistBreaker()
+    __resetJWRankingsCache()
+    __resetCircuitBreaker()
+    clearTvdbCache()
+    cleanBackdropPng = await sharp({
+      create: { width: 1280, height: 720, channels: 3, background: "#c81e1e" },
+    })
+      .png()
+      .toBuffer()
+    posterPng = await sharp({
+      create: { width: 1000, height: 1500, channels: 3, background: "#1e1ec8" },
+    })
+      .png()
+      .toBuffer()
+    logoPng = await sharp({
+      create: { width: 300, height: 100, channels: 3, background: "#e5e7eb" },
+    })
+      .png()
+      .toBuffer()
+    vi.spyOn(globalThis, "fetch").mockImplementation(router as typeof fetch)
+  })
+
+  afterEach(() => {
+    vi.mocked(getById).mockReset()
+    vi.restoreAllMocks()
+    cacheClear()
+  })
+
+  it("usa il backdrop salvato (crop 2:3) invece del poster in lingua", async () => {
+    vi.mocked(getById).mockResolvedValue(savedMapping({ portraitBackdropPath: "/bdclean.jpg" }) as never)
+    const { res, buf } = await getPoster(620110)
+    expect(res.status).toBe(200)
+    const meta = await sharp(buf).metadata()
+    expect(meta.width).toBe(500)
+    expect(meta.height).toBe(750)
+    const avg = await avgChannels(buf)
+    expect(avg.r).toBeGreaterThan(avg.b * 1.2)
+
+    const debug = await getDebug(620110)
+    const images = debug.images as { poster: string | null; logo: string | null }
+    expect(images.poster).toBe("/bdclean.jpg")
+    expect(images.logo).toBe("/logo-it.png")
+  })
+
+  it("backdrop sparito → fallback al poster nominale del mapping", async () => {
+    vi.mocked(getById).mockResolvedValue(savedMapping({ portraitBackdropPath: "/bd404.jpg" }) as never)
+    const { res, buf } = await getPoster(620110)
+    expect(res.status).toBe(200)
+    const meta = await sharp(buf).metadata()
+    expect(meta.width).toBe(500)
+    expect(meta.height).toBe(750)
+    const avg = await avgChannels(buf)
+    expect(avg.b).toBeGreaterThan(avg.r * 1.2)
+
+    const debug = await getDebug(620110)
+    const images = debug.images as { poster: string | null }
+    expect(images.poster).toBe("/lang-it.jpg")
+  })
+
+  it("landscape resta sul backdrop 16:9 (base congelata ignorata)", async () => {
+    vi.mocked(getById).mockResolvedValue(savedMapping({ portraitBackdropPath: "/bdclean.jpg", backdropPath: "/bdfr.jpg" }) as never)
+    const { res, buf } = await getPoster(620110, "&shape=landscape")
+    expect(res.status).toBe(200)
+    const meta = await sharp(buf).metadata()
+    expect(meta.width).toBe(768)
+    expect(meta.height).toBe(432)
+  })
+
+  it("nessun portraitBackdropPath salvato → base storica (poster in lingua)", async () => {
+    vi.mocked(getById).mockResolvedValue(savedMapping() as never)
+    const { res, buf } = await getPoster(620110)
+    expect(res.status).toBe(200)
+    const avg = await avgChannels(buf)
+    expect(avg.b).toBeGreaterThan(avg.r * 1.2)
   })
 })

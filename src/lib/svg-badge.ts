@@ -1,6 +1,6 @@
 import { FONT_FILES } from "./fonts"
-import { buildQualityBadgeSvg, buildQualityKnockoutSvg, buildAgeKnockoutSvg, buildAgeEmphasisSvg, buildComingSoonRibbonSvg, buildHouseExtraSvg, buildHouseGenreSvg, buildHouseRankingSvg } from "./badge-svg-shared"
-import type { AgeEmphasisStyle } from "./badge-svg-shared"
+import { buildQualityBadgeSvg, buildQualityKnockoutSvg, buildAgeKnockoutSvg, buildAgeEmphasisSvg, buildComingSoonRibbonSvg, buildHouseExtraSvg, buildHouseGenreSvg, buildHouseRankingSvg, buildTextLogoSvg } from "./badge-svg-shared"
+import type { AgeEmphasisStyle, TextLogoStyle } from "./badge-svg-shared"
 export { buildNetflixRankBadgeSVG } from "./badge-svg-shared"
 import type { GenreParts } from "./badge-svg-shared"
 import { normalizeBadgeFont } from "./badge-svg-shared"
@@ -38,6 +38,66 @@ export async function renderSVG(svgStr: string, w: number): Promise<Buffer> {
     },
   })
   return Buffer.from(resvg.render().asPng())
+}
+
+// --- Text-as-logo (font del bundle, nessun upload) ---
+
+/**
+ * Larghezza di render del wordmark: il buffer viene poi ridimensionato al
+ * layout del logo (max 25% altezza in portrait, 40% larghezza in landscape),
+ * quindi si rasterizza grande per non perdere nitidezza in scala.
+ */
+export const TEXT_LOGO_RENDER_WIDTH = 1200
+
+/**
+ * Cap duro della memo del wordmark: la chiave è il testo già sanitizzato
+ * (max 60 caratteri manuale, 30 auto) + font + tracking, quindi le voci
+ * possibili restano legate all'input e non a un attaccante con testi unici;
+ * il tetto è comunque esplicito. 200 wordmark da 1200px stanno in poche
+ * decine di MB, e l'eviction FIFO (delete-first, come `autoFitCache`) tiene
+ * la Map limitata per tutta la vita del processo.
+ */
+const TEXT_LOGO_CACHE_MAX_ENTRIES = 200
+
+/**
+ * Memo dell'output resvg del wordmark: la rasterizzazione è pura rispetto a
+ * (testo, font normalizzato, tracking effettivo) — nessun font dinamico, i
+ * `FONT_FILES` sono quelli del bundle. Sotto il limiter a 4 slot, le tile
+ * concorrenti dello stesso titolo pagavano la stessa rasterizzazione a ogni
+ * render; ora la pagano una volta sola. Il buffer è condiviso e i consumer
+ * (sharp) lo leggono soltanto: stessi byte, nessun cambio di resa.
+ */
+const textLogoBufferCache = new Map<string, Buffer>()
+
+function textLogoCacheKey(text: string, font: BadgeFont, style?: TextLogoStyle): string {
+  // `trackingEm` esplicito e default producono stringhe SVG diverse (toFixed
+  // solo quando esplicito): restano chiavi distinte per non mischiare buffer.
+  return `${text}\u0000${normalizeBadgeFont(font)}\u0000${style?.trackingEm != null ? `t${style.trackingEm}` : "d"}`
+}
+
+/**
+ * Buffer PNG trasparente del logo testuale (input del path logo esistente).
+ * Ricetta SVG in badge-svg-shared (`buildTextLogoSvg`): qui solo resvg, con
+ * gli stessi `FONT_FILES` dei badge — nessun font esterno, nessuna dipendenza
+ * nuova. `style` distingue la resa del wordmark automatico (tracking) dal
+ * logo manuale, sullo stesso builder e sullo stesso path di compositing.
+ */
+export async function buildTextLogoBuffer(
+  text: string,
+  font: BadgeFont = "inter",
+  style?: TextLogoStyle,
+): Promise<Buffer> {
+  const key = textLogoCacheKey(text, font, style)
+  const cached = textLogoBufferCache.get(key)
+  if (cached) return cached
+  const { svg } = buildTextLogoSvg(text, font, style)
+  const buf = await renderSVG(svg, TEXT_LOGO_RENDER_WIDTH)
+  if (textLogoBufferCache.size >= TEXT_LOGO_CACHE_MAX_ENTRIES) {
+    const first = textLogoBufferCache.keys().next().value
+    if (first) textLogoBufferCache.delete(first)
+  }
+  textLogoBufferCache.set(key, buf)
+  return buf
 }
 
 // --- Extra badge (custom text) ---

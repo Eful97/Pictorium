@@ -49,6 +49,7 @@ import { useCustomCatalogs } from "./useCustomCatalogs"
 import type { CatalogShapes } from "./catalog-shape"
 import { useRankingSources } from "./useRankingSources"
 import { isManualAccent } from "./accent-color"
+import { TEXT_LOGO_DEFAULT_FONT, resolveAutoWordmark, sanitizeLogoText } from "./text-logo"
 import { useLocalConfigToken } from "./useLocalConfigToken"
 import { slotsReferencingCustom, shouldApplyRankRefresh } from "./ranking-source"
 import { migrateLegacyStorage } from "./storage-migration"
@@ -100,6 +101,22 @@ export interface PictoriumCtx {
    *  anche fuori dal flusso di apertura (es. passaggio a landscape). */
   titleOrigLang: string | null
   posterActivePath: string | null
+  /** Backdrop congelato della base portrait automatica del server (null =
+   *  base = poster). Non-null solo quando la base è composta dal renderer
+   *  (ramo `previewBaseAuto`): è l'unica base portrait senza titolo cotto
+   *  oltre al poster clean, quindi l'unica su cui l'editor può auto-scegliere
+   *  un logo senza doppio titolo. */
+  portraitBaseBackdropPath: string | null
+  /** La base portrait può essere scelta tra i backdrop clean (picker in
+   *  griglia): true quando il titolo in editing è nel ramo base-auto (o ha
+   *  già una base congelata). Indipendente dalla provenienza `posterPicked`,
+   *  così si può sempre tornare alla base da backdrop. */
+  portraitBasePickable: boolean
+  /** Scelta esplicita del backdrop che alimenta la base portrait 2:3 (tile in
+   *  griglia): live in preview (`pbase`) e congelata al save. Ricliccare il
+   *  path scelto torna alla base automatica/salvata. Accetta solo backdrop
+   *  clean TMDB: ogni altra immagine è ignorata (catena storica intatta). */
+  selectPortraitBaseBackdrop: (img: TMDBImage) => void
   previewUrl: string
   /** Anteprima Stremio: invece dell'URL editor mostra l'URL esatto servito
    *  a Stremio (stesso builder dei cataloghi, via /meta). Solo lettura. */
@@ -815,6 +832,8 @@ export function usePictorium(): PictoriumCtx {
     logoOffsetX, setLogoOffsetX,
     logoOffsetY, setLogoOffsetY,
     logoDisabled, setLogoDisabled,
+    logoText, setLogoText,
+    logoFont, setLogoFont,
     // Backdrop
     backdrops, setBackdrops,
     selectedBackdrop, setSelectedBackdrop,
@@ -869,6 +888,16 @@ export function usePictorium(): PictoriumCtx {
   const [titleOrigLang, setTitleOrigLang] = useState<string | null>(null)
   const [showLangPicker, setShowLangPicker] = useState(false)
   const [previewUrl, setPreviewUrl] = useState("")
+  // Provenance della base poster: chiave del titolo in cui l'utente ha scelto
+  // un tile in griglia (click esplicito). La base auto decisa dal server
+  // (portrait senza poster clean) non deve restare appiccicata alla preview
+  // dopo quella scelta: vedi previewBaseAuto sotto.
+  const [posterPickedKey, setPosterPickedKey] = useState<string | null>(null)
+  // Backdrop scelto per la base portrait (picker in griglia). Stato per-titolo
+  // come `posterPickedKey`: la chiave evita di resettare al cambio titolo e un
+  // titolo mai toccato resta sulla base automatica. Null = base automatica
+  // (primo clean) o base congelata nel mapping.
+  const [portraitBasePick, setPortraitBasePick] = useState<{ key: string; path: string } | null>(null)
   // URL poster esattamente come lo serve Stremio (via /meta, stesso builder
   // dei cataloghi): risolto on-demand quando il toggle è attivo.
   const [stremioPreview, setStremioPreview] = useState(false)
@@ -1765,6 +1794,87 @@ export function usePictorium(): PictoriumCtx {
     // ririsolta o il modale mostra l'artefatto pre-save (stale).
   }, [stremioPreview, navigation.selected, navigation.seasonalTheme, navigation.listRank, navigation.listRegion, seasonalTheme, currentUserId, tmdbKey, mappingsMap, lang, editorCtx.defaultRegion, localConfigToken, localConfigTokenStatus])
 
+  // --- Base portrait scelta dal SERVER (ramo automatico senza poster clean) ---
+  // Il renderer unico compone la base dal primo backdrop (crop 2:3 attention)
+  // con il logo sopra. La preview non deve fissare `poster=`: lasciando
+  // decidere lo stesso ramo, la parità è garantita per costruzione. Elegibilità
+  // identica al ramo automatico (portrait, clean abilitati, nessun poster
+  // clean, backdrops e loghi disponibili, base non custom) PIÙ la provenance:
+  // un tile cliccato in griglia è una scelta esplicita e vince sempre, anche
+  // ri-selezionando il poster in lingua.
+  const selectedPosterKey = navigation.selected ? `${navigation.selected.media_type}:${navigation.selected.id}` : null
+  const selectedPosterMapping = selectedPosterKey ? (mappingsMap.get(selectedPosterKey) ?? null) : null
+  const savedPortraitBase = selectedPosterMapping?.portraitBackdropPath ?? null
+  const posterPicked = selectedPosterKey !== null && posterPickedKey === selectedPosterKey
+  // Scelta esplicita della base dal picker (solo per il titolo in editing).
+  const portraitBaseChoice = selectedPosterKey !== null && portraitBasePick?.key === selectedPosterKey
+    ? portraitBasePick.path
+    : null
+  // Eleggibilità della base da backdrop: stessa del ramo automatico del
+  // renderer (portrait, base non custom, titolo senza poster clean con clean
+  // abilitati, backdrops e una sorgente titolo) più i mapping che hanno già la
+  // base congelata (`portraitBackdropPath`: stesso backdrop, stesso crop).
+  // Sorgente titolo = logo TMDB oppure wordmark automatico (stessa scelta del
+  // server: senza logo il titolo composto è il wordmark automatico).
+  // I mapping salvati prima di quel campo restano sul poster (nessuna
+  // migrazione).
+  const autoWordmarkSource = navigation.selected
+    ? resolveAutoWordmark({
+      title: navigation.selected.title || navigation.selected.name || null,
+      hasImageLogo: false,
+      hasTypedText: false,
+      logoDisabled: false,
+      baseIsTextless: true,
+    })
+    : null
+  const portraitBaseEligible = posterShape !== "landscape"
+    && !!navigation.selected
+    && !!navigation.previewPoster
+    && !isCustomPosterUrl(navigation.previewPoster.file_path)
+    && (savedPortraitBase !== null
+      || (!selectedPosterMapping
+        && !defaultDisableCleanPosters
+        && !navigation.posters.some((p) => p.iso_639_1 === null)
+        && backdrops.length > 0
+        && (navigation.logos.length > 0 || autoWordmarkSource !== null)))
+  // Provenienza: un tile di poster cliccato in griglia è una scelta esplicita
+  // e vince sulla base decisa dal server; una scelta di backdrop fatta dopo
+  // (picker) è altrettanto esplicita e riporta la base sul backdrop.
+  const previewBaseAuto = portraitBaseEligible && (!posterPicked || portraitBaseChoice !== null)
+  // Picker visibile anche con un poster scelto: tornare alla base da backdrop
+  // deve restare possibile (guardia: serve almeno un backdrop clean).
+  const portraitBasePickable = portraitBaseEligible && backdrops.some((b) => b.iso_639_1 === null)
+  // Backdrop da congelare al save (null = base = poster). Titolo già salvato:
+  // si conserva il suo path; titolo nuovo: la scelta del picker o la stessa
+  // scelta del server (primo backdrop clean, poi il primo in qualsiasi lingua).
+  const portraitBaseBackdropPath = previewBaseAuto
+    ? (portraitBaseChoice ?? savedPortraitBase ?? backdrops.find((b) => b.iso_639_1 === null)?.file_path ?? backdrops[0]?.file_path ?? null)
+    : null
+  // Logo che il renderer compone sulla base auto: senza, il crop salvato
+  // sarebbe un'immagine senza titolo su Stremio. Congelato al save solo se
+  // l'editor non ha un logo scelto e non l'ha disattivato (stessa selezione
+  // condivisa del ramo automatico; silenziosa qui: è in render scope, il log
+  // lo emette il server).
+  const portraitBaseLogoPath = previewBaseAuto && !navigation.selectedLogo && !logoDisabled
+    ? (selectBestLogo(navigation.logos, lang, titleOrigLang)?.file_path ?? null)
+    : null
+  // Wordmark automatico della preview: nessun logo immagine, nessun testo
+  // digitato, nessun logo disattivato e base senza titolo cotto (poster clean,
+  // base auto, o backdrop del landscape). Il testo NON viene emesso: viaggia
+  // solo `lauto=1` e il server lo deriva dal titolo (il save non eredita mai
+  // un wordmark automatico). `true`/`false` stabile per le deps del callback.
+  const autoWordmark = resolveAutoWordmark({
+    title: navigation.selected ? (navigation.selected.title || navigation.selected.name || null) : null,
+    hasImageLogo: !!navigation.selectedLogo,
+    hasTypedText: !!sanitizeLogoText(logoText),
+    logoDisabled,
+    baseIsTextless: posterShape === "landscape"
+      ? !selectedBackdrop || !isCustomPosterUrl(selectedBackdrop.file_path)
+      : previewBaseAuto || (!!navigation.previewPoster
+        && navigation.previewPoster.iso_639_1 === null
+        && !isCustomPosterUrl(navigation.previewPoster.file_path)),
+  }) !== null
+
   const buildPreviewUrlCb = useCallback(() => {
     // Token suspend: while the device config is minting (or failed), no
     // preview is (re)built — the server would resolve the empty namespace
@@ -1793,11 +1903,34 @@ export function usePictorium(): PictoriumCtx {
     const previewAgeBadgeStyle = navigation.selected ? ageBadgeStyle : previewAgeDefaults.ageBadgeStyle
     // Retired Badge Lab (custom badge library removed): no staged family
     // bindings travel in preview URLs (the renderer ignores them anyway).
+    // Base portrait dal server: vedi previewBaseAuto (provenance
+    // `posterPickedKey` inclusa). La preview non emette `poster=` quando la
+    // base la decide il renderer unico (stessi byte di Stremio).
     const url = buildPreviewUrl(
       {
         selected: navigation.selected,
         previewPoster: navigation.previewPoster,
+        previewBaseAuto,
+        // Scelta live del backdrop che alimenta la base verticale: viaggia
+        // come `pbase` (il server croppa quel backdrop) e diventa
+        // `portraitBackdropPath` al save. Solo in base auto (clean abilitati e
+        // base composta dal renderer) e mai per il path già salvato, che il
+        // server risolve dal mapping.
+        portraitBasePath: previewBaseAuto && portraitBaseChoice !== null && portraitBaseChoice !== savedPortraitBase
+          ? portraitBaseChoice
+          : null,
         selectedLogo: navigation.selectedLogo,
+        // Text-as-logo: il wordmark digitato viaggia come `ltext`/`lfont`
+        // (il server lo renderizza con i font del bundle, stesso renderer
+        // della preview e di Stremio). Vince sul logo immagine selezionato;
+        // con i loghi disattivati non viaggia (il testo resta in editor e
+        // torna riattivandoli, come per il logo immagine).
+        logoText: logoDisabled ? null : logoText,
+        logoFont,
+        // Wordmark automatico (nessun logo TMDB, base textless): solo il flag,
+        // mai il testo. Logo immagine/testo digitato/disattivato hanno
+        // precedenza e lo spengono (`autoWordmark` è già il risultato).
+        autoWordmark,
         selectedBackdrop,
         // Contesto effimero lista di origine (vedi useNavigation) sotto la
         // scelta per-titolo in editing (`seasonalThemeChoice`): guida il
@@ -1825,6 +1958,7 @@ export function usePictorium(): PictoriumCtx {
     )
     setPreviewUrl(url)
   }, [stremioPreview, stremioPreviewUrl, navigation.selected, navigation.previewPoster, navigation.selectedLogo, navigation.seasonalTheme, navigation.listRank, navigation.listRegion, seasonalTheme, selectedBackdrop,
+    previewBaseAuto, portraitBaseChoice, savedPortraitBase, logoText, logoFont, logoDisabled, autoWordmark,
     logoScale, logoScaleExplicit, logoOffsetX, logoOffsetY, backdropScale, backdropOffsetX, backdropOffsetY,
     metaInfo, trendRank, trending.mdblistAnimeList, topEdgeColor, bottomEdgeColor, accentColor, autoAccentColor, lang, tmdbKey,
     editorCtx.defaultRegion, editorCtx.defaultDateFormat, currentUserId, localConfigToken, localConfigTokenStatus,
@@ -2207,7 +2341,7 @@ export function usePictorium(): PictoriumCtx {
   // skipDefaultsSync: rebuilding the whole editor state from storage would
   // wipe in-memory tweaks (open already synced styles beforehand, the refresh
   // must also not revert a just-changed region).
-  const applyLoadedSelection = (data: ImageLists, details: { original_language: string }, item: SearchResult, skipDefaultsSync = false, openShapeOverride?: PosterShape, mappingOverride?: Mapping | null) => {
+  const applyLoadedSelection = (data: ImageLists, details: { original_language: string; title?: string | null; name?: string | null }, item: SearchResult, skipDefaultsSync = false, openShapeOverride?: PosterShape, mappingOverride?: Mapping | null) => {
     const itemType = item.media_type
     const itemId = item.id
     setTitleOrigLang(details.original_language ?? null)
@@ -2248,6 +2382,10 @@ export function usePictorium(): PictoriumCtx {
         : existing.language
       const foundPoster = !customFile ? (data.posters || []).find((p: TMDBImage) => p.file_path === existing.posterPath) : undefined
       navigation.setPreviewPoster(foundPoster ? { file_path: foundPoster.file_path, iso_639_1: foundPoster.iso_639_1, vote_average: 0, width: foundPoster.width, height: foundPoster.height } : { file_path: previewFilePath, iso_639_1: previewLang, vote_average: 0, width: 0, height: 0 })
+      // Text-as-logo salvato: riapre nel campo editor (stesso wordmark della
+      // preview/Stremio). Vuoto/assente = nessun logo, come i mapping vecchi.
+      setLogoText(existing.logoText ?? "")
+      setLogoFont(existing.logoFont ?? TEXT_LOGO_DEFAULT_FONT)
       let foundLogo: TMDBImage | undefined
       if (existing.logoPath) {
         foundLogo = (data.logos || []).find((l: TMDBImage) => l.file_path === existing.logoPath)
@@ -2304,6 +2442,8 @@ export function usePictorium(): PictoriumCtx {
       setEpisodeGroupId(existing.episodeGroupId ?? null)
     } else {
       setLogoDisabled(false)
+      setLogoText("")
+      setLogoFont(TEXT_LOGO_DEFAULT_FONT)
       // Fresh-title network init was already installed pre-fetch (flats, plus
       // the landscape profile via applyFreshLandscapeDefaults): re-asserting
       // the flats here would clobber the land profile, so the post-load path
@@ -2336,6 +2476,19 @@ export function usePictorium(): PictoriumCtx {
               { auto: true },
             )
           }
+        } else if (resolveAutoWordmark({
+          title: details.title || details.name || item.title || item.name || null,
+          hasImageLogo: false,
+          hasTypedText: false,
+          logoDisabled: false,
+          baseIsTextless: true,
+        })) {
+          // Titolo senza alcun logo TMDB: il wordmark automatico è il titolo
+          // composto (renderer unico). La preview deve partire dal poster
+          // clean, la stessa base che il server compone per Stremio — senza,
+          // mostrerebbe il poster in lingua (doppio titolo sul finale).
+          chosenPoster = clean
+          navigation.setPreviewPoster({ file_path: clean.file_path, iso_639_1: null, vote_average: 0, width: 0, height: 0 })
         } else {
           const enPoster = data.posters?.find((p: TMDBImage) => p.iso_639_1 === "en")
           const origPoster = details.original_language ? data.posters?.find((p: TMDBImage) => p.iso_639_1 === details.original_language) : undefined
@@ -2472,6 +2625,17 @@ export function usePictorium(): PictoriumCtx {
             if (autoLogo) {
               navigation.setPreviewPoster({ file_path: clean.file_path, iso_639_1: null, vote_average: 0, width: 0, height: 0 })
               applyFor(clean)
+            } else if (resolveAutoWordmark({
+              title: details.title || details.name || item.title || item.name || null,
+              hasImageLogo: false,
+              hasTypedText: false,
+              logoDisabled: false,
+              baseIsTextless: true,
+            })) {
+              // Stessa regola del primo load: senza logo TMDB il clean è la
+              // base del wordmark automatico (parità con Stremio).
+              navigation.setPreviewPoster({ file_path: clean.file_path, iso_639_1: null, vote_average: 0, width: 0, height: 0 })
+              applyFor(clean)
             } else {
               const enPoster = data.posters?.find((p: TMDBImage) => p.iso_639_1 === "en")
               const nextPoster = langPoster || enPoster || firstPoster || currentPoster
@@ -2532,6 +2696,10 @@ export function usePictorium(): PictoriumCtx {
     navigation.setSelectedLogo(null)
     setSelectedBackdrop(null)
     navigation.setPreviewPoster(null)
+    // Provenienza della base auto: la sessione di editing riparte dal mapping
+    // (nessun tile scelto in QUESTA apertura), così riaprire un titolo con la
+    // base congelata torna alla preview base auto (= Stremio).
+    setPosterPickedKey(null)
     // N8: drop the previous title's image lists in the same batch — the
     // landscape init would otherwise auto-pick a stale tile and mark the
     // new title done (empty lists reuse the grid loading state).
@@ -2867,6 +3035,8 @@ export function usePictorium(): PictoriumCtx {
       setAutoRotateBackdrop(defaultAutoRotateBackdrop)
       setExcludedBackdrops([])
       setLogoDisabled(false)
+      setLogoText("")
+      setLogoFont(TEXT_LOGO_DEFAULT_FONT)
       setLogoOffsetX(logoOffsetDefault(openShape, "x") ?? 0)
       setLogoOffsetY(logoOffsetDefault(openShape, "y") ?? 0)
       setSelectedBackdrop(null)
@@ -3031,10 +3201,34 @@ export function usePictorium(): PictoriumCtx {
     networkLogoOffsetX, networkLogoOffsetY,
     setGradientHeight, setBlurFade,
     rotationPosters, autoRotateClean, defaultAutoRotateClean, excludedPosters, accentColor, autoAccentColor, logoDisabled, setLogoDisabled,
+    logoText, logoFont, setLogoText, setLogoFont,
     rotationBackdrops, autoRotateBackdrop, defaultAutoRotateBackdrop, excludedBackdrops, backdrops,
     setLogoScale, setLogoOffsetX, setLogoOffsetY, networkLogo, networkLogoPosition, networkLogoFollowTitle, ribbonEnabled, lang, episodeGroupId, posterShape, posterLayout, posterFreshScope,
     defaultSashOrder, logoScaleExplicit,
+    portraitBaseBackdropPath, portraitBaseLogoPath,
   })
+
+  // Provenance della base auto: un tile scelto in griglia (l'unico percorso
+  // `selectPoster`) è una scelta esplicita dell'utente e vince sulla base
+  // decisa dal server — anche ri-selezionando il poster in lingua, che prima
+  // restava invisibile in preview.
+  const selectPosterTracked = useCallback((img: TMDBImage) => {
+    if (navigation.selected) setPosterPickedKey(`${navigation.selected.media_type}:${navigation.selected.id}`)
+    return selectPoster(img)
+  }, [selectPoster, navigation.selected])
+
+  // Scelta del backdrop che alimenta la base portrait 2:3 (picker in griglia).
+  // Solo backdrop TMDB clean: un poster in lingua (titolo già cotto) o una base
+  // custom non entrano mai in questa provenienza, quindi la catena storica
+  // resta intatta. Ricliccare il path attivo torna alla base automatica.
+  const selectPortraitBaseBackdrop = useCallback((img: TMDBImage) => {
+    if (!navigation.selected) return
+    if (img.iso_639_1 !== null || isCustomPosterUrl(img.file_path)) return
+    const key = `${navigation.selected.media_type}:${navigation.selected.id}`
+    setPortraitBasePick((prev) => (
+      prev && prev.key === key && prev.path === img.file_path ? null : { key, path: img.file_path }
+    ))
+  }, [navigation.selected])
 
   // Shared per-title other-shape draft boundary (see src/lib/shape-draft.ts):
   // the normal Save passes its local stash explicitly (that wins inside the
@@ -3171,10 +3365,13 @@ export function usePictorium(): PictoriumCtx {
     selectedLogo: navigation.selectedLogo, setSelectedLogo: navigation.setSelectedLogo,
     logos: navigation.logos, titleOrigLang,
     posterActivePath: posterActivePath ?? null,
+    portraitBaseBackdropPath,
+    portraitBasePickable,
+    selectPortraitBaseBackdrop,
     previewUrl, stremioPreview, setStremioPreview, stremioPreviewUrl, urlPattern, urlPatternImdb, urlPatternAuto, urlPatternNuvio, urlPatternNuvioImdb, urlPatternNuvioAuto, linkMode, setLinkMode: setLinkModeTracked, lang,
     openSections, toggleSection: (key: string) => setOpenSections((prev) => ({ ...prev, [key]: !(prev[key] ?? true) })),
     posterScrollRef, posterScrollInfo, setPosterScrollInfo,
-    selectPoster, selectLogo, removeLogo,
+    selectPoster: selectPosterTracked, selectLogo, removeLogo,
     logoBounds,
     selectBackdrop, removeBackdrop,
     trendRank,
@@ -3232,7 +3429,8 @@ export function usePictorium(): PictoriumCtx {
     navigation.logos, titleOrigLang, posterActivePath, previewUrl, stremioPreview, stremioPreviewUrl, urlPattern, lang,
     openSections, posterScrollInfo, logoBounds,
     trendRank, mdblistMatch, imdbTop250, metaInfo, navigation.previewId,
-    selectPoster, selectLogo, saveConfig, saveCoverOnly, removeLogo, goHomeAbort,
+    selectPosterTracked, selectLogo, saveConfig, saveCoverOnly, removeLogo, goHomeAbort,
+    portraitBaseBackdropPath, portraitBasePickable, selectPortraitBaseBackdrop,
     mappingsMap, tmdbKey, search.query, search.results, search.searching, search.totalResults, search.totalPages, search.searchPage, search.recentSearches, search.clearRecentSearches,
     search.doSearch, search.loadMore, search.loadMoreFiltered, search.retryFailed, search.failedPage, search.hasSearched, search.error,
     mappings,

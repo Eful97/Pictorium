@@ -19,6 +19,7 @@ import { materializeExtraTuning, clearedExtraForPresetApply } from "@/lib/extra-
 import { projectPerTitleVisualPreset } from "@/lib/per-title-preset"
 import { logoEffectiveAutoScale } from "@/lib/logo-selection"
 import { canonicalizeBadgeItemTransforms, resolveShapeBadgeItemTransforms } from "@/lib/badge-item-transforms"
+import { TEXT_LOGO_DEFAULT_FONT } from "@/lib/text-logo"
 import { resolveNetworkEffectiveView } from "@/lib/network-follow"
 import { cloneShapeDraft, type ShapeDraftShape } from "@/lib/shape-draft"
 import type { ActivePresetBaseline, ActivePresetMeta } from "@/lib/active-preset-baseline"
@@ -514,6 +515,17 @@ export interface PosterEditorCtx {
   setLogoOffsetY: (v: number | ((prev: number) => number)) => void
   logoDisabled: boolean
   setLogoDisabled: (v: boolean | ((prev: boolean) => boolean)) => void
+  /**
+   * Logo testuale (titoli senza logo TMDB): testo digitato dall'utente,
+   * reso dal server con uno dei font del bundle (`logoFont`, enum badge).
+   * Vince sul logo immagine selezionato (una sola sorgente logo) e si
+   * azzera svuotando il campo; stringa vuota = nessun logo (comportamento
+   * storico). Mai un font caricato: solo l'enum.
+   */
+  logoText: string
+  setLogoText: (v: string | ((prev: string) => string)) => void
+  logoFont: BadgeFont
+  setLogoFont: (v: BadgeFont | ((prev: BadgeFont) => BadgeFont)) => void
   // ---- Backdrop ----
   backdrops: TMDBImage[]
   setBackdrops: (v: TMDBImage[] | ((prev: TMDBImage[]) => TMDBImage[])) => void
@@ -599,6 +611,10 @@ export function PosterEditorProvider({
   const [logoOffsetX, setLogoOffsetX] = useState(0)
   const [logoOffsetY, setLogoOffsetY] = useState(0)
   const [logoDisabled, setLogoDisabled] = useState(false)
+  // Text-as-logo: testo digitato + font del bundle (enum badge). Vuoto =
+  // nessun logo, cioè la resa storica dei titoli senza logo TMDB.
+  const [logoText, setLogoText] = useState("")
+  const [logoFont, setLogoFont] = useState<BadgeFont>(TEXT_LOGO_DEFAULT_FONT)
 
   // ---- Backdrop state ----
   const [backdrops, setBackdrops] = useState<TMDBImage[]>([])
@@ -2082,6 +2098,10 @@ export function PosterEditorProvider({
       setLogoOffsetY,
       logoDisabled,
       setLogoDisabled,
+      logoText,
+      setLogoText,
+      logoFont,
+      setLogoFont,
 
       // Backdrop
       backdrops,
@@ -2290,6 +2310,7 @@ export function PosterEditorProvider({
       logoOffsetX, setLogoOffsetX,
       logoOffsetY, setLogoOffsetY,
       logoDisabled, setLogoDisabled,
+      logoText, setLogoText, logoFont, setLogoFont,
 
       // Backdrop
       backdrops, setBackdrops,

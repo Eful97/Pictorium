@@ -1062,6 +1062,16 @@ test.describe("poster API — visual regression", () => {
     await expect(poster).toHaveScreenshot("poster-separate-ratings.png", { maxDiffPixelRatio: 0.02 })
   })
 
+  test("auto wordmark from title without TMDB logo — screenshot", async ({ page }) => {
+    // Senza poster= esplicito e senza loghi TMDB (il mock non ne serve), il
+    // renderer deriva il wordmark dal titolo (Avatar) sulla base clean.
+    // Soglia 0.02 come gli altri poster deterministici (mai allentare).
+    const qs = new URLSearchParams({ genreName: "Action", preview: "1" })
+    const url = `/api/poster/movie/19995?${qs.toString()}`
+    const poster = await renderPoster(page, url)
+    await expect(poster).toHaveScreenshot("poster-auto-wordmark.png", { maxDiffPixelRatio: 0.02 })
+  })
+
   test("separate ratings without quality badge (stack rises) — screenshot", async ({ page }) => {
     // Senza badge qualità lo stack parte dall'alto invece che sotto il 4K.
     const url = posterUrl({ genreName: "Action", voteAverage: "7.8", badges: "1", ranking: "0", bq: "0", imdbId: "tt0133093", sep: "1", rsrc: "imdb,tmdb" })

@@ -21,6 +21,7 @@ import { resolveNetworkEffectiveView } from "@/lib/network-follow"
 import { isGradientDirtyForShape, isArtworkDirty, isMappingDirty } from "@/lib/gradient-dirty"
 import { PosterOptions } from "@/components/PosterOptions"
 import { BackdropOptions } from "@/components/BackdropOptions"
+import { PortraitBaseBackdropPicker } from "@/components/PortraitBaseBackdropPicker"
 import { CustomPosterUrl } from "@/components/CustomPosterUrl"
 import { CustomLogoUrl } from "@/components/CustomLogoUrl"
 import { LogoOptions } from "@/components/LogoOptions"
@@ -57,6 +58,9 @@ export default function EditView() {
   const titleOrigLang = usePSelector((v) => v.titleOrigLang)
   const mappingsMap = usePSelector((v) => v.mappingsMap)
   const posterActivePath = usePSelector((v) => v.posterActivePath)
+  // Base portrait composta dal server (backdrop + logo): unica base verticale
+  // senza titolo cotto oltre al clean. Guida l'auto-logo in portrait.
+  const portraitBaseBackdropPath = usePSelector((v) => v.portraitBaseBackdropPath)
   const posters = usePSelector((v) => v.posters)
   const previewPoster = usePSelector((v) => v.previewPoster)
   const query = usePSelector((v) => v.query)
@@ -607,6 +611,8 @@ export default function EditView() {
     backdropInitKeyRef.current = selectedMappingKey
   }, [ed.posterShape, ed.selectedBackdrop, hasMapping, selectedMapping, selectedMappingKey, ed.backdrops, ed.excludedBackdrops, selectBackdrop]) // eslint-disable-line react-hooks/exhaustive-deps -- dipendenze granulari intenzionali: `ed` intero rifarebbe scattare l'effetto a ogni tick editor
 
+  const cleanPoster = previewPoster?.iso_639_1 === null
+
   // Landscape: senza logo seleziona in automatico il best logo (la base è
   // il backdrop, senza testo) — parità con l'apertura diretta in Orizzontale
   // (applyLoadedSelection, ramo defaultPosterShape landscape: stesso
@@ -614,17 +620,28 @@ export default function EditView() {
   // (handleShapeChange) non toccava mai il logo: da portrait senza clean
   // si restava senza logo fino a selezione manuale. Mai quando l'utente ha
   // rimosso il logo a mano (logoDisabled, con o senza mapping salvato) o
-  // ne ha già uno: in portrait senza clean non c'è mai stata
-  // auto-selezione (nessun flag da propagare), la scelta manuale resta.
+  // ne ha già uno.
+  // Portrait: auto-selezione SOLO su una base pulita, cioè senza titolo già
+  // cotto nell'immagine. Due basi lo sono: un poster clean (iso_639_1 null,
+  // con clean abilitati) e la base automatica del server composta da backdrop
+  // 2:3 + logo (ramo `previewBaseAuto`, esposto da `portraitBaseBackdropPath`).
+  // Su un poster in lingua il titolo è nell'immagine: un logo sopra sarebbe un
+  // doppio titolo, ed è il motivo per cui in verticale non c'è mai stata
+  // auto-selezione. La scelta manuale resta sovrana: un logo già selezionato
+  // (o una rimozione a mano) non viene mai scavalcato, e la rimozione manuale
+  // non viene reintrodotta dopo (logoDisabled). Passando a un poster in lingua
+  // `selectPoster` azzera già il logo in stato: qui non c'è nulla da togliere.
   useEffect(() => {
-    if (ed.posterShape !== "landscape") return
     if (selectedLogo) return
     if (ed.logoDisabled) return
     if (logos.length === 0) return
+    const cleanBase = cleanPoster && !ed.defaultDisableCleanPosters
+    const backdropBaseAuto = portraitBaseBackdropPath !== null
+    if (ed.posterShape !== "landscape" && !cleanBase && !backdropBaseAuto) return
     const autoLogo = selectBestLogo(logos, lang, titleOrigLang ?? undefined)
     if (!autoLogo) return
     void selectLogo(autoLogo)
-  }, [ed.posterShape, selectedLogo, ed.logoDisabled, logos, lang, titleOrigLang, selectLogo])
+  }, [ed.posterShape, ed.logoDisabled, ed.defaultDisableCleanPosters, cleanPoster, portraitBaseBackdropPath, selectedLogo, logos, lang, titleOrigLang, selectLogo])
 
   // Dual-format: stash degli slider non salvati per formato. Senza, passare
   // da A a B e ritorno perderebbe in silenzio le modifiche non salvate di A
@@ -1190,7 +1207,6 @@ export default function EditView() {
     return () => { active = false }
   }, [selectedId, selectedImdbId, selectedMediaType, hasTvdbKey, tvdbApiKey, tmdbKey])
 
-  const cleanPoster = previewPoster?.iso_639_1 === null
   const isLandscape = ed.posterShape === "landscape"
 
   // Memoizzato: l'array entra nel deps array dell'effect sotto e non deve
@@ -1383,13 +1399,19 @@ export default function EditView() {
                     onRemoveCustomBackdrop={handleDeleteCustomBackdropTile}
                     topSlot={<CustomPosterUrl onAdd={handleAddCustomBackdrop} onRemove={handleRemoveCustomBackdrop} collapsible />} />
                 ) : (
-                    <PosterOptions posters={posters} posterActivePath={posterActivePath}
-                      lang={lang} selectPoster={handleSelectPoster} activeGroup={activePosterTab} onActiveGroupChange={setActivePosterTab}
-                      showTabs
-                      customPosters={customTiles}
-                      savedCustomPoster={savedCustomTile}
-                      onRemoveCustomPoster={handleDeleteCustomTile}
-                      topSlot={<CustomPosterUrl onAdd={handleAddCustomPoster} onRemove={handleRemoveCustomPoster} collapsible />} />
+                    <>
+                      <PosterOptions posters={posters} posterActivePath={posterActivePath}
+                        lang={lang} selectPoster={handleSelectPoster} activeGroup={activePosterTab} onActiveGroupChange={setActivePosterTab}
+                        showTabs
+                        customPosters={customTiles}
+                        savedCustomPoster={savedCustomTile}
+                        onRemoveCustomPoster={handleDeleteCustomTile}
+                        topSlot={<CustomPosterUrl onAdd={handleAddCustomPoster} onRemove={handleRemoveCustomPoster} collapsible />} />
+                      {/* Base verticale quando viene da un backdrop (titolo senza
+                          poster clean): scelta del backdrop che la alimenta,
+                          stessi tile della griglia sfondi. */}
+                      <PortraitBaseBackdropPicker />
+                    </>
                 )}
               </EditorPanel>
             </div>

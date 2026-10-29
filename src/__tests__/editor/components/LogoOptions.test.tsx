@@ -2,7 +2,9 @@ import { describe, it, expect, vi } from "vitest"
 import { screen } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { LogoOptions } from "@/components/LogoOptions"
+import { usePosterEditor } from "@/lib/contexts/PosterEditorContext"
 import { renderWithCtx } from "@/__tests__/test-utils"
+import { TEXT_LOGO_MAX_LENGTH } from "@/lib/text-logo"
 import type { TMDBImage } from "@/lib/types"
 
 const mockLogos: TMDBImage[] = [
@@ -97,6 +99,45 @@ describe("LogoOptions", () => {
       <LogoOptions logos={mockLogos} selectedLogo={custom} lang="it" selectLogo={() => {}} removeLogo={() => {}} customLogos={[custom]} />,
     )
     expect(screen.getByText("ui.logoSelected")).toBeInTheDocument()
+  })
+
+  // Text-as-logo: a title without TMDB logos gets a typed wordmark rendered
+  // with the bundled badge fonts (no upload). The control must live exactly
+  // where the empty-logo state is, and an empty value keeps "no logo".
+  it("offers the text-logo input + bundled font selector when no TMDB logos exist", async () => {
+    const u = userEvent.setup()
+    function Probe() {
+      const ed = usePosterEditor()
+      return <span data-testid="probe">{`${ed.logoText}|${ed.logoFont}`}</span>
+    }
+    const { container } = renderWithCtx(
+      <>
+        <LogoOptions logos={[]} selectedLogo={null} lang="it" selectLogo={() => {}} removeLogo={() => {}} />
+        <Probe />
+      </>,
+      { selected: { id: 7, media_type: "movie", title: "T" } as never },
+    )
+    expect(container.querySelector('[data-testid="text-logo-controls"]')).toBeTruthy()
+    const input = screen.getByLabelText("ui.textLogo") as HTMLInputElement
+    // Strict bound on the free text: the server rejects anything longer.
+    expect(input.maxLength).toBe(TEXT_LOGO_MAX_LENGTH)
+    await u.type(input, "Nightmare Alley")
+    expect(input.value).toBe("Nightmare Alley")
+    expect(screen.getByTestId("probe").textContent).toBe("Nightmare Alley|inter")
+    // Font selector: only the bundled badge-font enum, no upload.
+    expect(screen.getByText("ui.textLogoFont")).toBeInTheDocument()
+    const group = screen.getByRole("radiogroup", { name: "Badge font" })
+    expect(group.querySelectorAll("button").length).toBe(3)
+    await u.click(screen.getByText("Oswald"))
+    expect(screen.getByTestId("probe").textContent).toBe("Nightmare Alley|oswald")
+  })
+
+  it("hides the text-logo controls when TMDB logos are available", () => {
+    const { container } = renderWithCtx(
+      <LogoOptions logos={mockLogos} selectedLogo={null} lang="it" selectLogo={() => {}} removeLogo={() => {}} />,
+      { selected: { id: 7, media_type: "movie", title: "T" } as never },
+    )
+    expect(container.querySelector('[data-testid="text-logo-controls"]')).toBeNull()
   })
 
   it("renders the import topSlot above the grid", () => {

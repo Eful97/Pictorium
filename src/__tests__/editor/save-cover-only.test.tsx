@@ -14,7 +14,8 @@ import { createWrapper } from "@/__tests__/test-utils"
 import type { Mapping } from "@/lib/types"
 import { toast } from "sonner"
 
-vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn(), info: vi.fn(), warning: vi.fn() } }))
+// `toast` è anche chiamabile: removeLogo/altri percorsi usano toast(msg) diretto.
+vi.mock("sonner", () => ({ toast: Object.assign(vi.fn(), { success: vi.fn(), error: vi.fn(), info: vi.fn(), warning: vi.fn() }) }))
 
 const noop = () => {}
 
@@ -864,5 +865,48 @@ describe("resetPerTitleVisuals", () => {
     expect(ed.autoRotateBackdrop).toBe(true)
     expect(ed.excludedBackdrops).toEqual(["/y.jpg"])
     expect(ed.selectedBackdrop?.file_path).toBe("/bd-saved.jpg")
+  })
+})
+
+// Text-as-logo (titoli senza logo TMDB): il wordmark è identità logo, quindi
+// segue il contratto cover-only (persistito quando attivo, logo immagine vuoto)
+// e "rimuovi logo" lo azzera davvero, senza lasciare un testo nascosto.
+describe("text logo (wordmark) through the logo identity contract", () => {
+  it("cover-only salva testo+font e non manda il logo immagine", async () => {
+    const { result } = renderHook(() => usePosterSave(baseDeps({
+      logoDisabled: false,
+      logoText: "  Nightmare\tAlley  ",
+      logoFont: "barlow-condensed",
+      selectedLogo: { file_path: "/chosen-logo.png", iso_639_1: "en", vote_average: 0, width: 800, height: 200 },
+    })))
+    await act(async () => {
+      await result.current.saveCoverOnly()
+    })
+    const body = coverPosts()[0].body
+    expect(body.logoText).toBe("Nightmare Alley")
+    expect(body.logoFont).toBe("barlow-condensed")
+    // Una sola sorgente logo: il testo vince sul tile selezionato.
+    expect(body.logoPath).toBeNull()
+  })
+
+  it("rimuovi logo: il PUT azzera anche il wordmark salvato", async () => {
+    const prev = mapping({ posterPath: "/p.jpg", logoText: "Nightmare Alley", logoFont: "oswald" })
+    const deps = baseDeps({
+      mappingsMap: new Map([["movie:7", prev]]),
+      logoDisabled: false,
+      logoText: "Nightmare Alley",
+      logoFont: "oswald",
+    })
+    const { result } = renderHook(() => usePosterSave(deps))
+    await act(async () => {
+      await result.current.removeLogo()
+    })
+    const put = posted.find((p) => p.url.includes("/api/mappings/movie:7"))
+    expect(put).toBeTruthy()
+    expect(put!.body.logoDisabled).toBe(true)
+    expect(put!.body.logoPath).toBeNull()
+    // Presente-null = clear esplicito nel merge del PUT.
+    expect(put!.body.logoText).toBeNull()
+    expect(put!.body.logoFont).toBeNull()
   })
 })

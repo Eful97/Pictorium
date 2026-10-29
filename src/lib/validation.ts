@@ -1,5 +1,6 @@
 import { z } from "zod"
 import { BADGE_STYLES, RANKING_BADGE_STYLES, QUALITY_BADGE_STYLES, AGE_BADGE_STYLES, BADGE_FONTS, SEPARATE_RATINGS_STYLES, EXTRA_BADGE_STYLES, EXTRA_BADGE_FOLLOW_RANK } from "./badge-styles"
+import { TEXT_LOGO_MAX_LENGTH } from "./text-logo"
 import { POSTER_LAYOUTS, POSTER_FRESH_SCOPES, RETIRED_BADGE_FAMILY_IDS, type RetiredBadgeFamilyBindings, type RetiredBadgeFamilyFollows } from "./types"
 
 /**
@@ -134,6 +135,12 @@ export const mappingSchema = z.object({
   // di mostrare il badge Anime anche senza chiave MDBList/profilo lato server.
   animeRank: z.number().int().min(1).nullable().optional(),
   customBadge: z.string().max(40).nullable().optional(),
+  // Text-as-logo (titoli senza logo TMDB): testo digitato + font del bundle.
+  // Stesso bound stretto della query `ltext`; vuoto/blank = nessun logo
+  // (comportamento storico). Il font è l'enum dei badge: nessun font
+  // arbitrario può essere salvato e poi risolto lato resvg.
+  logoText: z.string().max(TEXT_LOGO_MAX_LENGTH).nullable().optional(),
+  logoFont: z.enum(BADGE_FONTS).nullable().optional(),
   badgePresetId: z.string().regex(RETIRED_PRESET_ID_RE).nullable().optional(),
   badgePresetRev: z.string().regex(RETIRED_PRESET_REV_RE).nullable().optional(),
   // Retired Badge Lab family map (custom badge library removed): inert stored
@@ -147,6 +154,10 @@ export const mappingSchema = z.object({
   releaseDate: z.string().nullable().optional(),
   firstAirDate: z.string().nullable().optional(),
   backdropPath: z.string().nullable().optional(),
+  // Base portrait congelata dal save in modalità auto (vedi Mapping in
+  // types.ts): path TMDB del backdrop da cui si ricava il crop 2:3. Solo
+  // portrait; assente/null = base storica dal poster in lingua.
+  portraitBackdropPath: z.string().nullable().optional(),
   // Stessi bound del ramo query della poster route (bscale): un valore 0 o
   // negativo arrivava a resizeBackdropCached (fit 'fill') → sharp lancia →
   // 500 + negative cache per un titolo permanentemente rotto (fix M5).
@@ -324,6 +335,10 @@ export const posterQuerySchema = z.object({
   // the 160 chars of TMDB paths). Anti-flood unchanged: each distinct value
   // is a separate entry.
   backdrop: boundedQueryString(2048),
+  // Base portrait scelta live dall'editor (`pbase`): SOLO path TMDB di un
+  // backdrop (`/abc123.jpg`, bound dei path TMDB) — nessun URL esterno, quindi
+  // nessun bound largo: un valore oltre i 160 char è già invalido.
+  pbase: boundedQueryString(160),
   quality: boundedQueryString(16),
   formats: boundedQueryString(64),
   qmin: boundedQueryString(8),
@@ -395,6 +410,15 @@ export const posterQuerySchema = z.object({
   /** Standalone extra-badge style (absent = legacy `rs` fallback). */
   xbs: boundedQueryString(16),
   bfont: boundedQueryString(24),
+  // Text-as-logo: testo libero con bound stretto (oltre = 400, come
+  // extra/label) e font allowlisted all'enum dei badge (enum finita:
+  // un valore ignoto ricade su "inter" al render, stessa resa).
+  ltext: boundedQueryString(TEXT_LOGO_MAX_LENGTH),
+  lfont: boundedQueryString(24),
+  // Wordmark automatico (solo preview): flag corto, il testo NON viaggia (si
+  // deriva dal `title`). Bound anti-flood al confine di validazione; i valori
+  // diversi da `1` collassano su assente nella cache key.
+  lauto: boundedQueryString(4),
   df: boundedQueryString(8),
   netPos: boundedQueryString(8),
   // Segui-spazio: politica di rivalidazione (non forza render). Solo 0/1.

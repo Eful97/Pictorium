@@ -74,15 +74,35 @@ export async function pillarboxLandscapeBase(portraitBuf: Buffer): Promise<Buffe
 }
 
 /**
+ * Strategia di focus del cover-crop backdrop → 2:3.
+ * - `attention` (default storico): salienza visiva/volti, migliore per la
+ *   rescue B2 (poster orfano). Non ha nozione di volto completo: un fondo
+ *   luminoso può battere i soggetti.
+ * - `entropy`: dettaglio/densità, segue la zona più densa e può tagliare il
+ *   soggetto (bacio/volti fuori dal dettaglio massimo).
+ * - `center`: crop geometricamente centrato, nessuna euristica. È il focus
+ *   delle basi portrait (auto e mapping): deterministico, non sposta il
+ *   soggetto fuori asse come `attention`/`entropy`.
+ */
+export type BackdropCropFocus = "attention" | "entropy" | "center"
+
+/**
  * Base 2:3 di fallback quando il titolo non ha alcun poster TMDB utilizzabile
  * ma ha un backdrop: cover-crop del backdrop sul canvas portrait con focus
- * sul soggetto (`sharp.strategy.attention` — salienza visiva/volti, non mero
- * dettaglio come `entropy`). Nessun titolo orfano resta mai con un 404.
- * Trigger SOLO in sostituzione del 404, mai su poster esistenti.
+ * configurabile (`attention` di default — nessun cambio di resa per i call
+ * site storici; `center` per le basi portrait). Nessun titolo orfano resta
+ * mai con un 404. Trigger SOLO in sostituzione del 404 o come base portrait,
+ * mai su poster esistenti.
  */
-export async function cropBackdropToPortrait(backdropBuf: Buffer): Promise<Buffer> {
+export async function cropBackdropToPortrait(
+  backdropBuf: Buffer,
+  focus: BackdropCropFocus = "attention",
+): Promise<Buffer> {
+  const strategy = focus === "entropy"
+    ? sharp.strategy.entropy
+    : focus === "center" ? "centre" : sharp.strategy.attention
   return sharp(backdropBuf)
-    .resize(STD_W, STD_H, { fit: "cover", position: sharp.strategy.attention })
+    .resize(STD_W, STD_H, { fit: "cover", position: strategy })
     .jpeg({ quality: 90 })
     .toBuffer()
 }

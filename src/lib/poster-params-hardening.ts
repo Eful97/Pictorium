@@ -23,6 +23,7 @@ import { parseRatingSources } from "./ratings"
 import { isSeparateRatingsStyle } from "./badge-styles"
 import { isPosterLayout, isPosterFreshScope, DEFAULT_POSTER_FRESH_SCOPE } from "./types"
 import { ANIME_RANK_MAX } from "./badge-priority"
+import { normalizeLogoFont, sanitizeLogoText } from "./text-logo"
 
 // Env a module level (convenzione del repo: un cambio richiede restart).
 const POSTER_PARAMS_MODE = (envWithFallback("POSTER_PARAMS") || "").toLowerCase().trim()
@@ -104,6 +105,21 @@ export const POSTER_CACHE_ALLOWLIST: ReadonlySet<string> = new Set([
   "bscale", "box", "boy", "gradHeight", "blur", "bf", "bd", "voteAverage",
   "year", "rd", "fad", "mv", "fmt", "format", "shape", "layout", "freshScope", "align", "ac",
   "tl", "bl", "bs", "rs", "xbs", "bfont", "sepstyle", "ts", "tsh", "dv",
+  // Text-as-logo (titoli senza logo TMDB): `ltext` è testo libero ma con
+  // bound stretto (60) e canonicalizzato sul valore del mapping in presets
+  // mode (come `extra`), così un ?ltext=$RANDOM non frammenta la cache;
+  // `lfont` è l'enum finita dei font badge (ignoto → "inter").
+  "ltext", "lfont",
+  // Wordmark automatico (`lauto=1`, solo preview): il testo NON viaggia, si
+  // deriva dal `title` sul server (stessa funzione del render Stremio), così
+  // il save non eredita mai un testo automatico. Flag a bassa cardinalità:
+  // presente solo quando la preview mostra una base senza titolo cotto.
+  "lauto",
+  // Base portrait scelta live dall'editor (`pbase`): path TMDB di un backdrop
+  // della galleria. Canonicalizzato (solo path TMDB raster, vedi
+  // sanitizePortraitBaseBackdropPath) e, come gli altri override immagine,
+  // ignorato per gli anonimi sulle pubbliche in presets mode.
+  "pbase",
   // Seasonal frame (ephemeral catalog context, both canvases with their own
   // asset): low cardinality enum like sepstyle/xbs — stays explicit in
   // compact mode, never inside `dv`. Valid value = own key; anything else
@@ -153,6 +169,24 @@ const DERIVED_HINT_PARAMS: ReadonlySet<string> = new Set([
 // rank: explicit rank override, kept as a canonical integer in [0, RANK_MAX]
 // (0 = suppress the rank badge); larger values are dropped.
 export const RANK_MAX = 100
+
+/**
+ * Path TMDB di un backdrop (`/abc123.jpg`), unica forma accettata da `pbase`:
+ * la base portrait viene da un backdrop della galleria del titolo, non da una
+ * base custom (quelle hanno già `poster=`/`backdrop=` e la loro allowlist
+ * SSRF). Niente schemi, niente host, niente traversal: solo il nome file TMDB.
+ */
+const TMDB_BACKDROP_PATH_RE = /^\/[A-Za-z0-9._-]+\.(?:jpe?g|png|webp)$/i
+
+/**
+ * Canonicalizza `pbase`: path TMDB raster oppure null (assente = base
+ * automatica). Un valore malformato non arriva mai al fetch/render.
+ */
+export function sanitizePortraitBaseBackdropPath(value: string | null | undefined): string | null {
+  if (typeof value !== "string") return null
+  const trimmed = value.trim()
+  return TMDB_BACKDROP_PATH_RE.test(trimmed) ? trimmed : null
+}
 
 /**
  * Strict bounded parse for the ephemeral list-rank context `rk` (shared by
@@ -254,6 +288,15 @@ export interface HardenPosterQueryInput {
   readonly hasMapping: boolean
   /** customBadge grezzo del mapping (solo se hasMapping). */
   readonly mappingCustomBadge?: string | null
+  /**
+   * Text-as-logo salvato nel mapping (solo se hasMapping): in presets mode il
+   * testo libero della query viene canonicalizzato su questo valore (stessa
+   * chiave degli URL Stremio), come già avviene per `extra`. Assente = la
+   * query non può introdurre un wordmark nuovo.
+   */
+  readonly mappingLogoText?: string | null
+  /** Font del wordmark salvato (enum badge; normalizzato al sito d'uso). */
+  readonly mappingLogoFont?: string | null
 }
 
 /**
@@ -285,6 +328,25 @@ export function hardenPosterSearchParams(
   const cb = input.mappingCustomBadge
   if (input.hasMapping && cb && !isRankKey(cb)) params.set("extra", cb)
 
+  // Text-as-logo: stesso contratto del free-text `extra`. Il wordmark della
+  // query non può mintare un render nuovo in presets mode: si canonicalizza
+  // sul valore salvato nel mapping (assente = nessun logo, cioè la resa
+  // storica). Il font è un enum finita, normalizzato sempre.
+  params.delete("ltext")
+  params.delete("lfont")
+  // Wordmark automatico: il render Stremio (non-preview) non può mintare un
+  // wordmark via query su istanze pubbliche in presets mode (il testo deriva
+  // dal titolo, ma il flag abiliterebbe la composizione su qualunque URL).
+  // La preview bypassa l'hardening (preview=1) e resta WYSIWYG.
+  params.delete("lauto")
+  if (input.hasMapping) {
+    const savedText = sanitizeLogoText(input.mappingLogoText)
+    if (savedText) {
+      params.set("ltext", savedText)
+      params.set("lfont", normalizeLogoFont(input.mappingLogoFont))
+    }
+  }
+
   canonicalizeRank(params)
   canonicalizeAnimeRank(params)
   canonicalizeListRank(params)
@@ -297,11 +359,14 @@ export function hardenPosterSearchParams(
     else params.delete("rsrc")
   }
 
-  // Override sorgente immagine senza user space su pubblica: ignorati.
+  // Override sorgente immagine senza user space su pubblica: ignorati (`pbase`
+  // è un override immagine come gli altri: il path scelto mintava una entry
+  // per richiesta anonima).
   if (input.publicInstance && input.anonymous) {
     params.delete("poster")
     params.delete("logo")
     params.delete("backdrop")
+    params.delete("pbase")
   }
   // Without an image override the route reads these from TMDB / the mapping:
   // drop them so they neither split the cache nor steer the JustWatch match.
