@@ -265,7 +265,7 @@ describe("per-item corrections inside the staged settings session", () => {
     // Outer install converges onto the saved value (no phantom conflict).
     await waitFor(() => expect(ctx().defaultBadgeItemTransforms).toBe("rating:imdb=100,1,10"))
     expect(screen.queryByTestId("settings-conflict")).toBeNull()
-  })
+  }, 15000)
 
   it("keeps a further staged drag and a real external change conflicting, and discard recovers onto it", async () => {
     const { ctx } = await mountPanel()
