@@ -56,7 +56,7 @@ import type { BadgeFont } from "./badge-styles"
 import { isRibbonRankingStyle, isBottomSeparateRatingsStyle, isAgeBadgeStyle, getSeparateRatingsStyleForShape, resolveNumberBadgeBaseOffsetX, normalizeExtraBadgeStyleForRender, DEFAULT_AGE_BADGE_STYLE, type BadgeStyle, type RankingBadgeStyle, type ExtraBadgeStyle, type ExtraBadgeFollowRank, type SeparateRatingsStyle, type SeparateBottomVariant, type AgeBadgeStyle } from "./badge-styles"
 import { normalizeBadgeFont } from "./badge-svg-shared"
 import type { PosterImageFormat } from "@/lib/poster-runtime-cache"
-import { AV_KNOCKOUT_RADIUS_FACTOR, AV_KNOCKOUT_TAG_INSET_FACTOR, AV_PLATE_RADIUS_FACTOR, AV_PLATE_STROKE_WIDTH, COLOR_MARK_GLYPH, COLOR_MARK_PLATE_BG, COLOR_MARK_PLATE_STROKE, avMarkInkBox, avPlateGlyphBox, qualityBadgeIconPath, qualityIconReferenceWidth, type AvMarkInkBox, PREMIUM_COMBO_ACCENT, PREMIUM_PLATE_BG, PREMIUM_PLATE_STROKE, premiumAccentHex, premiumFormatAccent } from "./quality-badge-styles"
+import { AV_KNOCKOUT_RADIUS_FACTOR, AV_KNOCKOUT_TAG_INSET_FACTOR, AV_PLATE_RADIUS_FACTOR, AV_PLATE_STROKE_WIDTH, AV_COMBO_SHORT_LABEL, COLOR_MARK_GLYPH, COLOR_MARK_PLATE_BG, COLOR_MARK_PLATE_STROKE, avMarkInkBox, avPlateGlyphBox, qualityBadgeIconPath, qualityIconReferenceWidth, videoFormatShortLabel, type AvMarkInkBox, PREMIUM_COMBO_ACCENT, PREMIUM_PLATE_BG, PREMIUM_PLATE_STROKE, premiumAccentHex, premiumFormatAccent } from "./quality-badge-styles"
 import type { QualityBadgeStyle } from "./badge-styles"
 import { FORMAT_ICON_PATHS, type VideoFormat } from "./av-specs"
 import { isRankKey } from "./i18n"
@@ -1012,7 +1012,9 @@ export interface QualityBadgeGroupResult {
  * "knockout" = white tag with mask-cut glyphs (transparent cut-out,
  * dedicated age-only builder — never the shared quality-knockout builder,
  * which stays byte-identical); "mono"/"color"/"premium" = shared age
- * emphasis recipe `buildAgeEmphasisSvg` on the same age family box) between
+ * emphasis recipe `buildAgeEmphasisSvg` on the same age family box; "nova" =
+ * the SAME shared recipe with the Nova material (`AgeEmphasisStyle` "nova"),
+ * also used by the quality tier and every A/V mark) between
  * tier and formats, with the same offset/scale/cap del gruppo a valle. Senza
  * qualità né formati ma con età, il gruppo rende la sola pill età (il badge
  * non richiede il 4K).
@@ -1065,12 +1067,15 @@ export async function renderQualityBadgeGroup(
   const isPremium = qualityBadgeStyle === "premium"
   const isColor = qualityBadgeStyle === "color"
   const isMono = qualityBadgeStyle === "mono"
+  // Nova: materiale SVG 100% dinamico (nessun asset) condiviso da tier 4K/
+  // FHD/HD/SD, età e marchi A/V — una sola ricetta, mai un secondo renderer.
+  const isNova = qualityBadgeStyle === "nova"
   // Larghezza UNICA dei marchi A/V, derivata dal badge 4K dello stile attivo
   // (mai dall'aspect del singolo logo). Include il font perché i tag testuali
   // (standard/knockout/mono) cambiano larghezza con la font. Per `color`/
   // `premium` è la larghezza ESTERNA della placca ( = icona tier 4K): il glifo
   // ci sta dentro con un inset piccolo, mai un padding additivo che allarghi
-  // la colonna oltre il tier.
+  // la colonna oltre il tier. Per `nova` è la larghezza visibile del 4K Nova.
   const markFs = Math.round(Math.max(17 * pw / 380, 10))
   const markFont = normalizeBadgeFont(font)
   const markRefWidth = (() => {
@@ -1082,6 +1087,11 @@ export async function renderQualityBadgeGroup(
     // statico, che non è più usato dal renderer).
     if (isMono) {
       return Math.max(1, buildAgeEmphasisSvg("4K", markFs, "mono", !!topLight, markFont).w - TOP_SHADOW_PAD * 2)
+    }
+    // Nova: il materiale è dinamico come il mono — la colonna è la larghezza
+    // visibile della lastra 4K Nova (stessa ricetta di tier/età/marchi A/V).
+    if (isNova) {
+      return Math.max(1, buildAgeEmphasisSvg("4K", markFs, "nova", false, markFont).w - TOP_SHADOW_PAD * 2)
     }
     // Stile standard: la colonna è larga quanto la PILL neutra 4K (stessa
     // ricetta dell'età: satinatura, padding 0.75×fs, raggio a mezza altezza).
@@ -1102,13 +1112,22 @@ export async function renderQualityBadgeGroup(
    * standard = glifo dentro la pill satinata del tier/età; mono = glifo dentro
    * la cornice mono dell'età (fill none); color/premium = glifo dentro una
    * placca larga quanto il badge 4K; knockout = tag bianco con glifo
-   * ritagliato (trasparente).
+   * ritagliato (trasparente); nova = stessa lastra dinamica del tier/età con
+   * l'etichetta breve del formato (nessun artwork per formato).
    */
   const renderFormatMark = async (
     iconPath: string,
     topLightForMark: boolean | undefined,
     accentHex: string,
+    /** Etichetta breve della lastra Nova (usata solo dallo stile `nova`). */
+    novaLabel: string,
   ): Promise<{ png: Buffer; w: number; h: number } | null> => {
+    if (isNova) {
+      // Lastra dinamica condivisa: stessa ricetta di tier ed età, larghezza
+      // pinnata alla colonna (`markRefWidth`) e font ridotto per stare dentro
+      // (`fitBadgeGlyphFs` nel builder). Nessun asset per formato.
+      return renderAgeEmphasisBadge(novaLabel, pw, "nova", topLightForMark, normalizeBadgeFont(font), markRefWidth)
+    }
     if (isPremium) {
       return renderPlatedAvBadge(iconPath, pw, markRefWidth, accentHex, PREMIUM_PLATE_BG, PREMIUM_PLATE_STROKE)
     }
@@ -1125,7 +1144,7 @@ export async function renderQualityBadgeGroup(
   // mono asset — the renderer must never mix the two materials.
   // Knockout has no icon asset (qualityBadgeIconPath stays null by design):
   // it renders its own tag below and never falls back to the standard pill.
-  const qualityIconPath = !hasQuality || isKnockout || isMono ? null : qualityBadgeIconPath(qualityBadgeStyle, qualityText)
+  const qualityIconPath = !hasQuality || isKnockout || isMono || isNova ? null : qualityBadgeIconPath(qualityBadgeStyle, qualityText)
   // Nothing painted at all (no quality, no age): legacy path, no format work.
   // (With a quality, the tier ALWAYS renders: icon or text pill.)
   if (!hasQuality && ageText === "") return null
@@ -1150,6 +1169,7 @@ export async function renderQualityBadgeGroup(
       "quality-badges/video/dolby-vision-atmos.svg",
       topLight,
       comboAccent,
+      AV_COMBO_SHORT_LABEL,
     )
     if (!comboIcon) useCombo = false
   }
@@ -1170,6 +1190,7 @@ export async function renderQualityBadgeGroup(
       FORMAT_ICON_PATHS[fmt],
       topLight,
       premiumAccentHex(premiumFormatAccent(fmt)),
+      videoFormatShortLabel(fmt),
     )
     const itemId = qualityFormatItemId(fmt)
     if (icon && itemId) formatItems.push({ id: itemId, badge: icon })
@@ -1178,10 +1199,11 @@ export async function renderQualityBadgeGroup(
   // della qualità (base 17px, polarità topLight, font badge); knockout =
   // white tag with mask-cut glyphs (transparent cut-out, builder
   // dedicated age-only `renderAgeKnockoutBadge` builder: never the shared
-  // quality-knockout builder, which stays byte-identical); mono/color/premium
-  // = shared emphasis recipe (`buildAgeEmphasisSvg`: mono = high-contrast
+  // quality-knockout builder, which stays byte-identical); mono/color/premium/
+  // nova = shared emphasis recipe (`buildAgeEmphasisSvg`: mono = high-contrast
   // outline, the SAME material as the quality mono tier; color = tier palette
-  // plate, premium = gold plate — those two stay age-only).
+  // plate, premium = gold plate — those two stay age-only; nova = the dynamic
+  // Nova plate shared with the quality tier and the A/V marks).
   // Sanitized text maiuscolo-minuscolo preservato (escSvg nel builder, mai
   // HTML grezzo).
   const renderAgePill = async (columnW?: number): Promise<{ png: Buffer; w: number; h: number } | null> => {
@@ -1192,7 +1214,7 @@ export async function renderQualityBadgeGroup(
     // the age family box/height; `columnW` pins the VISIBLE box to the common
     // group width (glyph font reduced to fit, never a stretched label).
     if (effAgeStyle === "knockout") return renderAgeKnockoutBadge(ageText, pw, normalizeBadgeFont(font), columnW)
-    if (effAgeStyle === "mono" || effAgeStyle === "color" || effAgeStyle === "premium") {
+    if (effAgeStyle === "mono" || effAgeStyle === "color" || effAgeStyle === "premium" || effAgeStyle === "nova") {
       return renderAgeEmphasisBadge(ageText, pw, effAgeStyle, !!topLight, normalizeBadgeFont(font), columnW)
     }
     return renderQualityBadge(ageText, pw, topLight, normalizeBadgeFont(font), columnW)
@@ -1207,7 +1229,11 @@ export async function renderQualityBadgeGroup(
 
   let resBadge: { png: Buffer; w: number; h: number } | null = null
   if (hasQuality) {
-    if (qualityIconPath) {
+    if (isNova) {
+      // Lastra dinamica condivisa (stessa ricetta di età e marchi A/V). SD è
+      // incluso: nessun asset esterno, l'etichetta è sempre un parametro.
+      resBadge = await renderAgeEmphasisBadge(qualityText, pw, "nova", topLight, normalizeBadgeFont(font), groupTargetW)
+    } else if (qualityIconPath) {
       resBadge = await renderQualityIconBadge(qualityIconPath, pw, topLight)
     }
     if (!resBadge) {

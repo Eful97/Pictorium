@@ -28,6 +28,7 @@ import { usePosterEditor, type PosterEditorCtx } from "@/lib/contexts/PosterEdit
 import { BadgeDefaultsSection } from "@/components/settings/BadgeDefaultsSection"
 import { buildDefaultsPreviewUrl, buildPreviewUrl } from "@/lib/poster-url"
 import { buildStremioPosterSearchParams } from "@/lib/stremio-poster-params"
+import { AGE_BADGE_STYLES } from "@/lib/badge-styles"
 import { buildStremioPosterUrl } from "@/lib/stremio-poster-url"
 import { resolveAgeBadgeRequest } from "@/lib/poster-config"
 import { createWrapper, renderWithCtx } from "@/__tests__/test-utils"
@@ -269,8 +270,9 @@ describe("BadgeDefaultsSection age style selector", () => {
     expect(ctx().defaultAgeBadgeStyle).toBe("standard")
 
     const block = ageStyleBlock()
-    // Same quality vocabulary as the quality selector (independent control).
-    expect(within(block).getAllByRole("button")).toHaveLength(5)
+    // Same quality vocabulary as the quality selector (independent control):
+    // one button per style (derived enum, no hardcoded count).
+    expect(within(block).getAllByRole("button")).toHaveLength(AGE_BADGE_STYLES.length)
     fireEvent.click(within(block).getByRole("button", { name: "ui.qbsKnockout" }))
     expect(ctx().defaultAgeBadgeStyle).toBe("knockout")
     expect(JSON.parse(localStorage.getItem("badgeDefaults") ?? "{}").ageBadgeStyle).toBe("knockout")

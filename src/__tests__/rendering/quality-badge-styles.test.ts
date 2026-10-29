@@ -14,12 +14,14 @@ import {
   avPlateGlyphBox,
   qualityIconReferenceWidth,
   AV_COMBO_ICON_PATH,
+  AV_COMBO_SHORT_LABEL,
+  videoFormatShortLabel,
   AV_PLATE_GLYPH_INSET_FACTOR,
   COLOR_MARK_GLYPH,
   COLOR_MARK_PLATE_BG,
   COLOR_MARK_PLATE_STROKE,
 } from "@/lib/quality-badge-styles"
-import { buildQualityKnockoutSvg, buildQualityBadgeSvg, buildAgeEmphasisSvg, badgeBoxHeight, TOP_SHADOW_PAD } from "@/lib/badge-svg-shared"
+import { buildQualityKnockoutSvg, buildQualityBadgeSvg, buildAgeEmphasisSvg, badgeBoxHeight, TOP_SHADOW_PAD, AGE_NOVA_BODY_BOTTOM, AGE_NOVA_BODY_TOP, AGE_NOVA_BORDER_BOTTOM, AGE_NOVA_BORDER_TOP, AGE_NOVA_INK, AGE_NOVA_SKEW_X } from "@/lib/badge-svg-shared"
 import { KNOWN_VIDEO_FORMATS, FORMAT_ICON_PATHS, type VideoFormat } from "@/lib/av-specs"
 import { BADGE_ITEM_QUALITY_COMBO, BADGE_ITEM_QUALITY_TIER, qualityFormatItemId } from "@/lib/badge-item-transforms"
 import { mappingSchema, mappingUpdateSchema } from "@/lib/validation"
@@ -34,14 +36,15 @@ import type { ServerDefaults } from "@/lib/server-defaults"
 const ROOT = path.resolve(__dirname, "../../..")
 
 describe("quality badge styles", () => {
-  it("exposes the standard/mono/color/knockout/premium union with standard default", () => {
-    expect([...QUALITY_BADGE_STYLES]).toEqual(["standard", "mono", "color", "knockout", "premium"])
+  it("exposes the standard/mono/color/knockout/premium/nova union with standard default", () => {
+    expect([...QUALITY_BADGE_STYLES]).toEqual(["standard", "mono", "color", "knockout", "premium", "nova"])
     expect(DEFAULT_QUALITY_BADGE_STYLE).toBe("standard")
     expect(isQualityBadgeStyle("mono")).toBe(true)
     expect(isQualityBadgeStyle("color")).toBe(true)
     expect(isQualityBadgeStyle("standard")).toBe(true)
     expect(isQualityBadgeStyle("knockout")).toBe(true)
     expect(isQualityBadgeStyle("premium")).toBe(true)
+    expect(isQualityBadgeStyle("nova")).toBe(true)
     expect(isQualityBadgeStyle("bar")).toBe(false)
     expect(isQualityBadgeStyle(null)).toBe(false)
     expect(isQualityBadgeStyle(undefined)).toBe(false)
@@ -52,6 +55,7 @@ describe("quality badge styles", () => {
       expect(normalizeQualityBadgeStyleForTransport(style)).toBe(style)
     }
     expect(normalizeQualityBadgeStyleForTransport("premium")).toBe("premium")
+    expect(normalizeQualityBadgeStyleForTransport("nova")).toBe("nova")
     expect(normalizeQualityBadgeStyleForTransport("nope")).toBe("standard")
     expect(normalizeQualityBadgeStyleForTransport(null)).toBe("standard")
     expect(normalizeQualityBadgeStyleForTransport(undefined)).toBe("standard")
@@ -124,12 +128,14 @@ describe("quality badge styles", () => {
     expect(mappingSchema.safeParse({ ...base, qualityBadgeStyle: "mono" }).success).toBe(true)
     expect(mappingSchema.safeParse({ ...base, qualityBadgeStyle: "knockout" }).success).toBe(true)
     expect(mappingSchema.safeParse({ ...base, qualityBadgeStyle: "premium" }).success).toBe(true)
+    expect(mappingSchema.safeParse({ ...base, qualityBadgeStyle: "nova" }).success).toBe(true)
     expect(mappingSchema.safeParse({ ...base, qualityBadgeStyle: null }).success).toBe(true)
     expect(mappingSchema.safeParse({ ...base, qualityBadgeStyle: "bar" }).success).toBe(false)
     expect(mappingSchema.safeParse(base).success).toBe(true)
     expect(mappingUpdateSchema.safeParse({ qualityBadgeStyle: "color" }).success).toBe(true)
     expect(mappingUpdateSchema.safeParse({ qualityBadgeStyle: "knockout" }).success).toBe(true)
     expect(mappingUpdateSchema.safeParse({ qualityBadgeStyle: "premium" }).success).toBe(true)
+    expect(mappingUpdateSchema.safeParse({ qualityBadgeStyle: "nova" }).success).toBe(true)
     expect(mappingUpdateSchema.safeParse({ qualityBadgeStyle: "nope" }).success).toBe(false)
   })
 })
@@ -1040,4 +1046,138 @@ describe("quality knockout vertical stack", () => {
       expect(lone!.h).toBe(ko.h)
     }
   }, 30000)
+})
+
+/**
+ * Stile `nova` (additivo, 100% SVG dinamico): tier 4K/FHD/HD/SD, et� e marchi
+ * A/V condividono UNA sola ricetta (`buildAgeEmphasisSvg` con `"nova"`), quindi
+ * non esistono asset raster per lo stile e non pu� esistere un secondo
+ * renderer. Copre geometria (box family, colonna Nova 4K), fasce A/V,
+ * precedenza HDR10+ e combo Dolby.
+ */
+describe("quality nova style (100% dynamic SVG material)", () => {
+  const PW = 380
+  const FS17 = 17
+  const BOX_H = badgeBoxHeight(FS17)
+  /** Larghezza visibile del 4K Nova: riferimento della colonna. */
+  const NOVA_REF_W = buildAgeEmphasisSvg("4K", FS17, "nova").w - TOP_SHADOW_PAD * 2
+
+  it("draws SVG only (no raster, no remote URL) with one material per label", () => {
+    const labels = [
+      ...QUALITY_TIERS,
+      ...KNOWN_VIDEO_FORMATS.map((fmt) => videoFormatShortLabel(fmt)),
+      AV_COMBO_SHORT_LABEL,
+    ]
+    for (const label of labels) {
+      const built = buildAgeEmphasisSvg(label, FS17, "nova")
+      expect(built.svg, label).toContain(AGE_NOVA_BODY_TOP)
+      expect(built.svg, label).toContain(AGE_NOVA_BODY_BOTTOM)
+      expect(built.svg, label).toContain(AGE_NOVA_BORDER_TOP)
+      expect(built.svg, label).toContain(AGE_NOVA_BORDER_BOTTOM)
+      expect(built.svg, label).toContain(`skewX(${AGE_NOVA_SKEW_X})`)
+      expect(built.svg, label).toContain(`fill="${AGE_NOVA_INK}"`)
+      expect(built.svg, label).toContain("textLength=")
+      expect(built.svg, label).not.toContain("<image")
+      expect(built.svg, label).not.toMatch(/href="(?:data:|https?:)/)
+      // Shared box family: height = column band, radius = age family.
+      expect(built.h, label).toBe(BOX_H + TOP_SHADOW_PAD * 2)
+    }
+    // Nessuna icona registrata per lo stile: il tier non pu� degradare su un
+    // asset statico diverso dal materiale dinamico.
+    for (const tier of QUALITY_TIERS) expect(qualityBadgeIconPath("nova", tier)).toBeNull()
+    expect(qualityBadgeIconStyle("nova")).toBeNull()
+  })
+
+  it("renders every tier (SD included) and every A/V label through the same plate", async () => {
+    const svc = await import("@/lib/poster-service")
+    const { renderAgeEmphasisBadge } = await import("@/lib/svg-badge")
+    for (const tier of QUALITY_TIERS) {
+      const built = buildAgeEmphasisSvg(tier, FS17, "nova")
+      const single = await svc.renderQualityBadgeGroup(tier, "nova", null, PW, false, "inter")
+      expect(single, tier).not.toBeNull()
+      expect([single!.w, single!.h], tier).toEqual([built.w, built.h])
+      const direct = await renderAgeEmphasisBadge(tier, PW, "nova", false, "inter")
+      expect(single!.png.equals(direct.png), tier).toBe(true)
+    }
+    // Marchi A/V in gruppo: un'etichetta breve per formato, nessuna icona.
+    const av = await svc.renderQualityBadgeGroup("4K", "nova", ["hdr"], PW, false, "inter")
+    expect(av!.items.map((i) => i.id)).toEqual([BADGE_ITEM_QUALITY_TIER, qualityFormatItemId("hdr")])
+    const mark = await renderAgeEmphasisBadge("HDR", PW, "nova", false, "inter", NOVA_REF_W)
+    expect(av!.items[1].w).toBe(mark.w)
+    expect(av!.items[1].h).toBe(mark.h)
+  }, 60000)
+
+  it("pins tier and A/V plates to the Nova 4K column, merges DV+ATMOS and keeps HDR10+ priority", async () => {
+    const svc = await import("@/lib/poster-service")
+    const group = await svc.renderQualityBadgeGroup("4K", "nova", ["dv", "atmos", "imax"], PW, false, "inter")
+    expect(group).not.toBeNull()
+    // Combo unita (un solo marchio) e nessun doppione dv/atmos.
+    expect(group!.items.map((i) => i.id)).toEqual([
+      BADGE_ITEM_QUALITY_TIER,
+      BADGE_ITEM_QUALITY_COMBO,
+      qualityFormatItemId("imax"),
+    ])
+    for (const item of group!.items) {
+      expect(item.w - TOP_SHADOW_PAD * 2, item.id).toBe(NOVA_REF_W)
+      expect(item.h - TOP_SHADOW_PAD * 2, item.id).toBe(BOX_H)
+    }
+    // Tier pi� larghi (FHD/HD/SD) restano nella stessa colonna: il font si
+    // riduce (fitBadgeGlyphFs), il box visibile no.
+    for (const tier of ["FHD", "HD", "SD"] as const) {
+      const stacked = await svc.renderQualityBadgeGroup(tier, "nova", ["imax"], PW, false, "inter")
+      expect(stacked!.items[0].w - TOP_SHADOW_PAD * 2, tier).toBe(NOVA_REF_W)
+      expect(stacked!.items[0].h - TOP_SHADOW_PAD * 2, tier).toBe(BOX_H)
+    }
+    // Precedenza render-only HDR10+: HDR non disegnato quando � presente il +.
+    const both = await svc.renderQualityBadgeGroup("4K", "nova", ["hdr", "hdr10plus"], PW, false, "inter")
+    const plusOnly = await svc.renderQualityBadgeGroup("4K", "nova", ["hdr10plus"], PW, false, "inter")
+    expect(both!.items.map((i) => i.id)).toEqual([BADGE_ITEM_QUALITY_TIER, qualityFormatItemId("hdr10plus")])
+    expect(both!.png.equals(plusOnly!.png)).toBe(true)
+  }, 60000)
+
+  it("is polarity-independent and byte-distinct from every existing style", async () => {
+    const svc = await import("@/lib/poster-service")
+    const light = await svc.renderQualityBadgeGroup("4K", "nova", ["dv", "imax"], PW, true, "inter")
+    const dark = await svc.renderQualityBadgeGroup("4K", "nova", ["dv", "imax"], PW, false, "inter")
+    expect(light).not.toBeNull()
+    expect(dark).not.toBeNull()
+    // La lastra � sempre scura: la polarit� del fondo non cambia i byte.
+    expect(light!.png.equals(dark!.png)).toBe(true)
+    expect([light!.w, light!.h]).toEqual([dark!.w, dark!.h])
+    for (const style of ["standard", "mono", "color", "knockout", "premium"] as const) {
+      const other = await svc.renderQualityBadgeGroup("4K", style, ["dv", "imax"], PW, false, "inter")
+      expect(other, style).not.toBeNull()
+      expect(dark!.png.equals(other!.png), style).toBe(false)
+    }
+  }, 60000)
+
+  it("keeps the skewed glyphs inside the plate at any label/column (no clipping)", async () => {
+    const { renderAgeEmphasisBadge } = await import("@/lib/svg-badge")
+    const labels = [...QUALITY_TIERS, "DV", "HDR", "HDR10+", "ATMOS", "IMAX", AV_COMBO_SHORT_LABEL]
+    for (const label of labels) {
+      for (const targetW of [undefined, NOVA_REF_W]) {
+        const badge = await renderAgeEmphasisBadge(label, PW, "nova", false, "inter", targetW)
+        const { data, info } = await sharp(badge.png).ensureAlpha().raw().toBuffer({ resolveWithObject: true })
+        let minX = info.width, maxX = -1, minY = info.height, maxY = -1, white = 0
+        for (let y = 0; y < info.height; y++) {
+          for (let x = 0; x < info.width; x++) {
+            const i = (y * info.width + x) * 4
+            if (data[i + 3] > 200 && data[i] > 240 && data[i + 1] > 240 && data[i + 2] > 240) {
+              white++
+              if (x < minX) minX = x
+              if (x > maxX) maxX = x
+              if (y < minY) minY = y
+              if (y > maxY) maxY = y
+            }
+          }
+        }
+        const tag = `${label}/${String(targetW)}`
+        expect(white, `${tag} glyph ink`).toBeGreaterThan(10)
+        expect(minX, `${tag} left`).toBeGreaterThanOrEqual(TOP_SHADOW_PAD + 2)
+        expect(maxX, `${tag} right`).toBeLessThanOrEqual(TOP_SHADOW_PAD + (badge.w - TOP_SHADOW_PAD * 2) - 3)
+        expect(minY, `${tag} top`).toBeGreaterThanOrEqual(TOP_SHADOW_PAD + 1)
+        expect(maxY, `${tag} bottom`).toBeLessThanOrEqual(TOP_SHADOW_PAD + (badge.h - TOP_SHADOW_PAD * 2) - 2)
+      }
+    }
+  }, 60000)
 })

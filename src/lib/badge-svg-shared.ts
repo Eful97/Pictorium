@@ -986,12 +986,14 @@ export function buildAgeKnockoutSvg(
 }
 
 // ---------------------------------------------------------------------------
-// Emphasis `mono` / `color` / `premium`: the same visual vocabulary as the
-// quality tier, applied to the DYNAMIC certification label
+// Emphasis `mono` / `color` / `premium` / `nova`: the same visual vocabulary as
+// the quality tier, applied to the DYNAMIC certification label
 // (12/PG-13/TV-MA — no bundled numeric asset, the label is always a parameter).
 // `mono` is shared with the quality tier: the quality `mono` tier renders its
 // real label (4K/FHD/HD/SD) through this SAME builder, so tier and age can
-// never diverge into two mono materials. `color`/`premium` are age-only.
+// never diverge into two mono materials. `nova` is shared the same way with the
+// quality tier AND the A/V marks (one dynamic material, zero raster assets).
+// `color`/`premium` are age-only.
 //
 // Geometry is IDENTICAL to the age `knockout` tag for every label (same
 // `AGE_KNOCKOUT_PAD_X_FACTOR` padding, `AGE_KNOCKOUT_RADIUS_FACTOR` radius,
@@ -1002,8 +1004,10 @@ export function buildAgeKnockoutSvg(
 // invented official age color. `standard`/`knockout` never pass through here.
 // ---------------------------------------------------------------------------
 
-/** Age style family rendered by the shared emphasis recipe. */
-export type AgeEmphasisStyle = "mono" | "color" | "premium"
+/** Shared emphasis style family. `mono` is shared by the quality tier/AV
+ *  marks, `nova` by the quality tier/AV marks/every age badge (one material,
+ *  see below); `color`/`premium` stay age-only. */
+export type AgeEmphasisStyle = "mono" | "color" | "premium" | "nova"
 
 /** High-contrast mono ink on a dark top (white, like the mono tier marks). */
 export const AGE_MONO_INK_DARK = "#ffffff"
@@ -1018,10 +1022,42 @@ export const AGE_MONO_STROKE_FACTOR = 0.12
 /** Minimum mono frame stroke (px): never a sub-pixel hairline at badge sizes. */
 export const AGE_MONO_STROKE_MIN = 2
 
+// ---------------------------------------------------------------------------
+// `nova`: ONE dynamic material for every tech text badge — quality tier
+// (4K/FHD/HD/SD), age certification (12/PG-13/TV-MA) and the A/V marks
+// (DV/ATMOS/IMAX/HDR/HDR10+/merged DV+ATMOS). Near-black bluish plate with a
+// metallic grey border gradient, an inner top highlight and bold white italic
+// glyphs. No raster asset, no CDN, no per-format artwork: the label is always
+// a render parameter.
+// ---------------------------------------------------------------------------
+
+/** Nova body gradient (top → bottom): near-black with a bluish cast. */
+export const AGE_NOVA_BODY_TOP = "#0D1526"
+export const AGE_NOVA_BODY_BOTTOM = "#0B1220"
+
+/** Nova metallic border gradient (top-left → bottom-right). */
+export const AGE_NOVA_BORDER_TOP = "#D6DCE5"
+export const AGE_NOVA_BORDER_BOTTOM = "#6B7280"
+
+/** Border thickness inside the box (px): kept inside so the visible footprint
+ *  stays the age-family box. */
+export const AGE_NOVA_BORDER_WIDTH = 1.5
+
+/** Glyph fill (bold white, polarity-independent). */
+export const AGE_NOVA_INK = "#ffffff"
+
+/** Italic look: skewX in degrees, around the text centre (no new font file). */
+export const AGE_NOVA_SKEW_X = -8
+
+/** Inner top highlight (sheen) of the plate: white fade over the upper band. */
+export const AGE_NOVA_HIGHLIGHT_TOP = 0.16
+export const AGE_NOVA_HIGHLIGHT_END = 55
+
 /**
- * Age emphasis tag (`mono`/`color`/`premium`, age ONLY). One shared recipe:
+ * Emphasis tag (`mono`/`color`/`premium`/`nova`). One shared recipe:
  * the box is the age family box (byte-identical footprint to the age
- * knockout), only the ink/plate changes:
+ * knockout), only the ink/plate changes (`mono`/`nova` are ALSO the quality
+ * tier material — see below):
  *
  * - `mono`: bare monochrome frame + glyphs in high-contrast white/black by
  *   top polarity, NO satin fill/plate. This is the SINGLE mono material: the
@@ -1032,6 +1068,12 @@ export const AGE_MONO_STROKE_MIN = 2
  *   shipped `quality-badges/color` tier asset).
  * - `premium`: gold design accent (`premiumAccentHex("gold")`) on the compact
  *   neutral dark premium plate (`PREMIUM_PLATE_*`).
+ * - `nova`: near-black bluish body, metallic grey border gradient, inner top
+ *   highlight and bold white glyphs with a `skewX` italic feel. Polarity
+ *   independent (the plate is always dark). This is the SINGLE Nova material:
+ *   the quality tier (4K/FHD/HD/SD) and every A/V mark (DV/ATMOS/IMAX/HDR/
+ *   HDR10+/merged DV+ATMOS) render their real label through this same branch,
+ *   so tier, age and formats can never diverge into two Nova looks.
  *
  * Plate borders stay INSIDE the box (shared AV plate rule) so the visible
  * footprint is the same as the age knockout for the same label. With
@@ -1060,6 +1102,29 @@ export function buildAgeEmphasisSvg(
   const cx = ox + totalW / 2
   const cy = oy + boxH / 2
   const family = fontFamilyFor(label, font)
+  if (style === "nova") {
+    // Metal ring (border gradient) under a near-black body, a soft top sheen
+    // for depth, then the white italic glyph run: one shadow over the lockup.
+    // No stroke on the body (the ring IS the border) and no raster artwork.
+    const bw = AGE_NOVA_BORDER_WIDTH
+    const innerW = Math.max(1, totalW - bw * 2)
+    const innerH = Math.max(1, boxH - bw * 2)
+    const innerR = Math.max(0, r - bw)
+    const defs = `<defs><linearGradient id="anvg" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="${AGE_NOVA_BODY_TOP}"/><stop offset="100%" stop-color="${AGE_NOVA_BODY_BOTTOM}"/></linearGradient><linearGradient id="anbg" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="${AGE_NOVA_BORDER_TOP}"/><stop offset="100%" stop-color="${AGE_NOVA_BORDER_BOTTOM}"/></linearGradient><linearGradient id="anvh" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#ffffff" stop-opacity="${AGE_NOVA_HIGHLIGHT_TOP}"/><stop offset="${AGE_NOVA_HIGHLIGHT_END}%" stop-color="#ffffff" stop-opacity="0"/></linearGradient>${TOP_SHADOW_FILTER}</defs>`
+    const borderEl = `<rect x="${ox}" y="${oy}" width="${totalW}" height="${boxH}" rx="${r}" fill="url(#anbg)"/>`
+    const bodyEl = `<rect x="${ox + bw}" y="${oy + bw}" width="${innerW}" height="${innerH}" rx="${innerR}" fill="url(#anvg)"/>`
+    const sheenEl = `<rect x="${ox + bw}" y="${oy + bw}" width="${innerW}" height="${innerH}" rx="${innerR}" fill="url(#anvh)"/>`
+    // Italic feel without a new font: the run is skewed around its own centre,
+    // so the label stays optically centred. The age-family padding (~1.0 × fs
+    // per side) is far larger than the skew displacement at any size → the
+    // glyphs never clip the plate.
+    const textEl = `<g transform="translate(${cx} ${cy}) skewX(${AGE_NOVA_SKEW_X}) translate(${-cx} ${-cy})"><text x="${cx}" y="${cy}" text-anchor="middle" dominant-baseline="central" font-family="${family}" font-weight="700" font-size="${glyphFs}" letter-spacing="0.06em" fill="${AGE_NOVA_INK}"${textFitAttrs(textW)}>${escSvg(label)}</text></g>`
+    return {
+      svg: `<svg xmlns="http://www.w3.org/2000/svg" width="${renderW}" height="${renderH}" viewBox="0 0 ${renderW} ${renderH}">${defs}<g filter="url(#tds)">${borderEl}${bodyEl}${sheenEl}${textEl}</g></svg>`,
+      w: renderW,
+      h: renderH,
+    }
+  }
   const monoInk = topLight ? AGE_MONO_INK_LIGHT : AGE_MONO_INK_DARK
   const plateBg = style === "color" ? COLOR_MARK_PLATE_BG : PREMIUM_PLATE_BG
   const plateStroke = style === "color" ? COLOR_MARK_PLATE_STROKE : PREMIUM_PLATE_STROKE

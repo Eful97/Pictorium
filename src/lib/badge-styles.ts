@@ -43,14 +43,16 @@ export const DEFAULT_RANKING_BADGE_STYLE: RankingBadgeStyle = "default"
  * Streaming quality badge style: "standard" (satin text pill),
  * "mono" (monochrome icons from public/quality-badges/mono),
  * "color" (color icons from public/quality-badges/color),
- * "knockout" (white tag with cut-out transparent tier glyphs) or
+ * "knockout" (white tag with cut-out transparent tier glyphs),
  * "premium" (colored premium A/V glyphs on a compact dark neutral plate;
- * the tier reuses the `color` asset). Additive: never replaces an existing
- * style, no format/asset of its own.
+ * the tier reuses the `color` asset) or "nova" (100% dynamic SVG material:
+ * near-black bluish plate with a metallic border gradient and bold white
+ * italic glyphs, shared by tier, age and A/V marks — no raster asset).
+ * Additive: never replaces an existing style, no format/asset of its own.
  * Chain like the other styles: `qbs` query > per-title mapping >
  * config token > server defaults.
  */
-export const QUALITY_BADGE_STYLES = ["standard", "mono", "color", "knockout", "premium"] as const
+export const QUALITY_BADGE_STYLES = ["standard", "mono", "color", "knockout", "premium", "nova"] as const
 export type QualityBadgeStyle = (typeof QUALITY_BADGE_STYLES)[number]
 
 export const DEFAULT_QUALITY_BADGE_STYLE: QualityBadgeStyle = "standard"
@@ -63,13 +65,15 @@ export const DEFAULT_QUALITY_BADGE_STYLE: QualityBadgeStyle = "standard"
  * satin fill), "color" (yellow glyph on the dark tier plate with the yellow
  * tier border), "knockout" (white tag with cut-out transparent glyphs —
  * age-only builder `buildAgeKnockoutSvg`, never the shared quality knockout)
- * or "premium" (gold glyph on the compact dark premium plate).
+ * or "premium" (gold glyph on the compact dark premium plate), "nova"
+ * (near-black bluish plate with a metallic border gradient and bold white
+ * italic glyphs — dynamic label, same age-family box as every other style).
  * `standard`/`knockout` keep their byte-identical renderers and the legacy
  * `knockout` identifier is preserved (enum/URL/persistence unchanged).
  * Per-shape chain like the age toggle itself: `agebs` query > config
  * token > effective per-shape server defaults > flat > "standard".
  */
-export const AGE_BADGE_STYLES = ["standard", "mono", "color", "knockout", "premium"] as const
+export const AGE_BADGE_STYLES = ["standard", "mono", "color", "knockout", "premium", "nova"] as const
 export type AgeBadgeStyle = (typeof AGE_BADGE_STYLES)[number]
 
 export const DEFAULT_AGE_BADGE_STYLE: AgeBadgeStyle = "standard"

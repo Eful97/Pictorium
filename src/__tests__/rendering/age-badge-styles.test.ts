@@ -30,6 +30,12 @@ import {
   AGE_MONO_INK_DARK,
   AGE_MONO_INK_LIGHT,
   AGE_MONO_STROKE_FACTOR,
+  AGE_NOVA_BODY_BOTTOM,
+  AGE_NOVA_BODY_TOP,
+  AGE_NOVA_BORDER_BOTTOM,
+  AGE_NOVA_BORDER_TOP,
+  AGE_NOVA_INK,
+  AGE_NOVA_SKEW_X,
   BADGE_BOX_PAD_X_FACTOR,
   TOP_SHADOW_PAD,
   badgeBoxHeight,
@@ -103,7 +109,7 @@ async function tintStats(png: Buffer, hex: string, tol = 24) {
 
 describe("age badge style enum (single source for schemas, URL and cache)", () => {
   it("exposes the quality vocabulary with the historic standard default", () => {
-    expect([...AGE_BADGE_STYLES]).toEqual(["standard", "mono", "color", "knockout", "premium"])
+    expect([...AGE_BADGE_STYLES]).toEqual(["standard", "mono", "color", "knockout", "premium", "nova"])
     expect(DEFAULT_AGE_BADGE_STYLE).toBe("standard")
     for (const style of AGE_BADGE_STYLES) expect(isAgeBadgeStyle(style), style).toBe(true)
     // Unknown/uppercase values are still rejected (fail-closed, no inference).
@@ -553,11 +559,110 @@ describe("common visible column geometry (tier / age / A/V)", () => {
   }, 30000)
 })
 
+describe("age nova style (dynamic plate shared with the quality tier)", () => {
+  /** White glyph pixels (the plate/border/sheen never reach pure white). */
+  async function whiteInkBox(png: Buffer, w: number, h: number) {
+    const { data } = await sharp(png).ensureAlpha().raw().toBuffer({ resolveWithObject: true })
+    let minX = w, maxX = -1, minY = h, maxY = -1, n = 0
+    for (let y = 0; y < h; y++) {
+      for (let x = 0; x < w; x++) {
+        const i = (y * w + x) * 4
+        if (data[i + 3] > 200 && data[i] > 240 && data[i + 1] > 240 && data[i + 2] > 240) {
+          n++
+          if (x < minX) minX = x
+          if (x > maxX) maxX = x
+          if (y < minY) minY = y
+          if (y > maxY) maxY = y
+        }
+      }
+    }
+    return { minX, maxX, minY, maxY, n }
+  }
+
+  it("keeps the exact age-family box of the knockout for every label (standalone)", () => {
+    for (const label of LABELS) {
+      const ko = buildAgeKnockoutSvg(label, 17)
+      const nova = buildAgeEmphasisSvg(label, 17, "nova")
+      expect([nova.w, nova.h], label).toEqual([ko.w, ko.h])
+      // Dynamic SVG only: one material, no raster, no remote URL.
+      expect(nova.svg, label).toContain(AGE_NOVA_BODY_TOP)
+      expect(nova.svg, label).toContain(AGE_NOVA_BODY_BOTTOM)
+      expect(nova.svg, label).toContain(AGE_NOVA_BORDER_TOP)
+      expect(nova.svg, label).toContain(AGE_NOVA_BORDER_BOTTOM)
+      expect(nova.svg, label).toContain(`skewX(${AGE_NOVA_SKEW_X})`)
+      expect(nova.svg, label).toContain(`fill="${AGE_NOVA_INK}"`)
+      expect(nova.svg, label).toContain("textLength=")
+      expect(nova.svg, label).not.toContain("<image")
+      expect(nova.svg, label).not.toMatch(/href="(?:data:|https?:)/)
+      // Shared family box: radius/padding/height of the age styles.
+      expect(nova.svg, label).toContain(`rx="${Math.round(badgeBoxHeight(17) * AGE_KNOCKOUT_RADIUS_FACTOR)}"`)
+    }
+  })
+
+  it("dispatches agebs=nova to the shared nova plate (never the quality tier)", async () => {
+    const group = await renderQualityBadgeGroup(null, "standard", null, PW, false, "inter", "VM14", "nova")
+    const expected = await renderAgeEmphasisBadge("VM14", PW, "nova", false, "inter")
+    expect(group).not.toBeNull()
+    expect(group!.png.equals(expected.png)).toBe(true)
+    expect([group!.w, group!.h]).toEqual([expected.w, expected.h])
+    // Distinct from every other age style (byte-level, same label).
+    for (const other of ["standard", "knockout", "mono", "color", "premium"] as const) {
+      const otherGroup = await renderQualityBadgeGroup(null, "standard", null, PW, false, "inter", "VM14", other)
+      expect(otherGroup, other).not.toBeNull()
+      expect(group!.png.equals(otherGroup!.png), other).toBe(false)
+    }
+  }, 30000)
+
+  it("is polarity-independent and keeps the skewed glyphs inside the plate (no clipping)", async () => {
+    const light = await renderQualityBadgeGroup(null, "standard", null, PW, true, "inter", "TV-MA", "nova")
+    const dark = await renderQualityBadgeGroup(null, "standard", null, PW, false, "inter", "TV-MA", "nova")
+    expect(light).not.toBeNull()
+    expect(dark).not.toBeNull()
+    // The plate is always dark: the top polarity changes NOTHING.
+    expect(light!.png.equals(dark!.png)).toBe(true)
+    expect([light!.w, light!.h]).toEqual([dark!.w, dark!.h])
+    for (const label of LABELS) {
+      for (const targetW of [undefined, 60]) {
+        const badge = await renderAgeEmphasisBadge(label, PW, "nova", false, "inter", targetW)
+        const ink = await whiteInkBox(badge.png, badge.w, badge.h)
+        const boxW = badge.w - TOP_SHADOW_PAD * 2
+        expect(ink.n, `${label}/${String(targetW)} glyph visible`).toBeGreaterThan(10)
+        // The full box (pinned or natural) contains the skewed run: the white
+        // ink never touches/overflows the plate edge.
+        expect(ink.minX, `${label}/${String(targetW)} left`).toBeGreaterThanOrEqual(TOP_SHADOW_PAD + 2)
+        expect(ink.maxX, `${label}/${String(targetW)} right`).toBeLessThanOrEqual(TOP_SHADOW_PAD + boxW - 3)
+        expect(ink.minY, `${label}/${String(targetW)} top`).toBeGreaterThanOrEqual(TOP_SHADOW_PAD + 1)
+        expect(ink.maxY, `${label}/${String(targetW)} bottom`).toBeLessThanOrEqual(TOP_SHADOW_PAD + (badge.h - TOP_SHADOW_PAD * 2) - 2)
+      }
+    }
+  }, 60000)
+
+  it("pins the nova age plate to the Nova 4K column in a real stack (same identities)", async () => {
+    const stack = await renderQualityBadgeGroup("4K", "nova", ["imax"], PW, false, "inter", "TV-MA", "nova")
+    expect(stack).not.toBeNull()
+    expect(stack!.items.map((i) => i.id)).toEqual([
+      BADGE_ITEM_QUALITY_TIER,
+      BADGE_ITEM_QUALITY_AGE,
+      qualityFormatItemId("imax"),
+    ])
+    const ref = buildAgeEmphasisSvg("4K", 17, "nova").w - TOP_SHADOW_PAD * 2
+    const boxH = badgeBoxHeight(17)
+    for (const item of stack!.items) {
+      expect(item.w - TOP_SHADOW_PAD * 2, item.id).toBe(ref)
+      expect(item.h - TOP_SHADOW_PAD * 2, item.id).toBe(boxH)
+    }
+  }, 30000)
+})
+
 describe("age styles keep the quality defaults independent", () => {
   it("never shares a mutable enum array with the quality style list", () => {
     // Same vocabulary, separate constants: adding/removing a quality style can
     // never silently change the age transport (and vice versa).
     expect(AGE_BADGE_STYLES).not.toBe(EMPHASIS_STYLES)
-    expect([...AGE_BADGE_STYLES]).toEqual(["standard", "mono", "color", "knockout", "premium"])
+    expect([...AGE_BADGE_STYLES]).toEqual(["standard", "mono", "color", "knockout", "premium", "nova"])
+    // Nova is a family style of its own (dynamic SVG plate), never part of the
+    // emphasis subset that reuses the existing plate palettes.
+    expect(isAgeBadgeStyle("nova")).toBe(true)
+    expect((EMPHASIS_STYLES as readonly string[]).includes("nova")).toBe(false)
   })
 })

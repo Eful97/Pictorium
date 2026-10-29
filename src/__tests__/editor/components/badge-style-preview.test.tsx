@@ -14,6 +14,7 @@ import { describe, expect, it, vi } from "vitest"
 import { screen, within } from "@testing-library/react"
 import { BadgeStyleSelector } from "@/components/ui/BadgeStyleSelector"
 import { COLOR_MARK_GLYPH, COLOR_MARK_PLATE_BG, COLOR_MARK_PLATE_STROKE, PREMIUM_PLATE_BG, premiumAccentHex } from "@/lib/quality-badge-styles"
+import { AGE_NOVA_BODY_TOP, AGE_NOVA_BORDER_TOP, AGE_NOVA_SKEW_X } from "@/lib/badge-svg-shared"
 import { textColorForBg } from "@/lib/accent-color"
 import { renderWithCtx } from "@/__tests__/test-utils"
 
@@ -158,6 +159,55 @@ describe("BadgeStyleSelector preview contract", () => {
     expect(knockout).toContain("<mask")
     expect(knockout).toContain("Aa")
     expect(knockout).not.toContain("4K")
+  })
+
+  it("nova quality swatch is the dynamic Nova plate (SVG, real 4K label, never a raster)", () => {
+    renderWithCtx(
+      <BadgeStyleSelector
+        value="nova"
+        options={["standard", "mono", "color", "knockout", "premium", "nova"]}
+        onChange={vi.fn()}
+        t={t}
+      />,
+    )
+    const btn = screen.getByRole("button", { name: /ui\.qbsNova/i })
+    const img = btn.querySelector(".badge-style-preview img")
+    expect(img).not.toBeNull()
+    const src = img!.getAttribute("src") ?? ""
+    // Shared builder output: one source with the poster renderer, no asset.
+    expect(src).toMatch(/^data:image\/svg\+xml,/)
+    expect(src).not.toMatch(/\.(webp|png)(\?|$)/)
+    expect(src).not.toContain("/quality-badges/nova")
+    const svg = decodeURIComponent(src)
+    expect(svg).toContain(AGE_NOVA_BODY_TOP)
+    expect(svg).toContain(AGE_NOVA_BORDER_TOP)
+    expect(svg).toContain(`skewX(${AGE_NOVA_SKEW_X})`)
+    // Quality family keeps the real tier label on the plate.
+    expect(svg).toContain("4K")
+    expect(btn.querySelector("button, a, input, select")).toBeNull()
+  })
+
+  it("nova age swatch uses the same dynamic builder with neutral letters (never the 4K asset)", () => {
+    renderWithCtx(
+      <BadgeStyleSelector
+        value="nova"
+        options={["standard", "mono", "color", "knockout", "premium", "nova"]}
+        onChange={vi.fn()}
+        t={t}
+        family="age"
+      />,
+    )
+    const btn = screen.getByRole("button", { name: /ui\.qbsNova/i })
+    const img = btn.querySelector(".badge-style-preview img")
+    expect(img).not.toBeNull()
+    const src = img!.getAttribute("src") ?? ""
+    expect(src).toMatch(/^data:image\/svg\+xml,/)
+    expect(src).not.toContain("/quality-badges/nova")
+    const svg = decodeURIComponent(src)
+    expect(svg).toContain(AGE_NOVA_BODY_TOP)
+    expect(svg).toContain(`skewX(${AGE_NOVA_SKEW_X})`)
+    expect(svg).toContain("Aa")
+    expect(btn.textContent).not.toContain("4K")
   })
 
   it("quality family mono swatch uses the shared framed recipe (same as age mono, real 4K label)", () => {

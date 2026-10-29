@@ -1,5 +1,5 @@
 import type { QualityBadgeStyle } from "./badge-styles"
-import { FORMAT_ICON_PATHS, KNOWN_VIDEO_FORMATS, type VideoFormat } from "./av-specs"
+import { FORMAT_ICON_PATHS, KNOWN_VIDEO_FORMATS, VIDEO_FORMAT_OPTIONS, type VideoFormat } from "./av-specs"
 
 // ---------------------------------------------------------------------------
 // Registro icone del badge qualità streaming (stili built-in da SVG locali).
@@ -18,7 +18,9 @@ export const QUALITY_TIERS: readonly QualityTier[] = ["4K", "FHD", "HD", "SD"]
  *  Il set `mono` resta nel registro per i chiamanti esterni, ma il renderer
  *  del poster NON lo usa più: il tier `mono` disegna la cornice dinamica
  *  condivisa con l'età (`buildAgeEmphasisSvg`), un solo materiale per
- *  qualità ed età. */
+ *  qualità ed età. Lo stile `nova` non ha alcun asset: è una ricetta SVG
+ *  100% dinamica (`buildAgeEmphasisSvg` con `AgeEmphasisStyle "nova"`), quindi
+ *  `qualityBadgeIconStyle("nova")` resta null (nessun path inventato). */
 type QualityIconStyle = "mono" | "color"
 
 const QUALITY_BADGE_FILES: Record<QualityIconStyle, Record<QualityTier, string>> = {
@@ -220,6 +222,16 @@ const AV_MARK_INK_BOX: Readonly<Record<VideoFormat, AvMarkInkBox>> = {
 /** Lockup unito Dolby Vision · Atmos (un solo marchio, non un VideoFormat). */
 export const AV_COMBO_ICON_PATH = "quality-badges/video/dolby-vision-atmos.svg"
 const AV_COMBO_INK_BOX: AvMarkInkBox = { x: 23.2, y: 104.8, w: 913.6, h: 270.4 }
+
+/** Etichetta breve di un marchio A/V (single source: le stesse label che
+ *  elenca l'editor, `av-specs.ts`; nessuna seconda denominazione). Usata dagli
+ *  stili dinamici testuali (Nova) al posto delle icone. */
+export function videoFormatShortLabel(format: VideoFormat): string {
+  return VIDEO_FORMAT_OPTIONS.find((option) => option.id === format)?.label ?? format.toUpperCase()
+}
+
+/** Etichetta della lockup unita Dolby Vision · Atmos (un solo marchio). */
+export const AV_COMBO_SHORT_LABEL = "DV+ATMOS"
 
 /** Ink box di un asset A/V registrato, o null (tier/asset non A/V). */
 export function avMarkInkBox(iconPath: string): AvMarkInkBox | null {

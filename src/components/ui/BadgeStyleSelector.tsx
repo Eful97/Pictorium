@@ -116,6 +116,16 @@ function BadgePreview({ style, accentColor, family = "quality" }: { style: strin
           }}
         >HDR</span>
       )
+    case "nova":
+      // Dynamic Nova material on BOTH families: the age label is a render
+      // parameter (never a raster), and the quality swatch draws the real 4K
+      // label through the SAME shared builder the poster renders with.
+      return (
+        <BuilderStylePreview
+          base={base}
+          svg={buildAgeEmphasisSvg(family === "age" ? AGE_SWATCH_LABEL : QUALITY_SWATCH_LABEL, AGE_SWATCH_FS, "nova").svg}
+        />
+      )
     case "knockout":
       if (family === "age") return <AgeStylePreview style="knockout" base={base} />
       // Static cutout swatch (NOT the poster renderer): white tag with the
@@ -181,7 +191,7 @@ export function BadgeStyleSelector<S extends string>({
               <BadgePreview style={s} accentColor={accentColor} family={family} />
             </span>
             <span className="text-[10px] font-semibold leading-tight truncate max-w-full">
-              {s === "shadow" ? t("ui.shadow") : s === "pill" ? t("ui.pill") : s === "bar" ? t("ui.bar") : s === "default" ? t("ui.bsDefault") : s === "colored" ? t("ui.colored") : s === "bordo" ? t("ui.bordo") : s === "vetro" ? t("ui.vetro") : s === "minimal" ? t("ui.minimal") : s === "netflix" ? t("ui.netflix") : s === "corner" ? t("ui.corner") : s === "number" ? t("ui.number") : s === "standard" ? t("ui.qbsStandard") : s === "mono" ? t("ui.qbsMono") : s === "color" ? t("ui.qbsColor") : s === "knockout" ? t("ui.qbsKnockout") : s === "premium" ? t("ui.qbsPremium") : s}
+              {s === "shadow" ? t("ui.shadow") : s === "pill" ? t("ui.pill") : s === "bar" ? t("ui.bar") : s === "default" ? t("ui.bsDefault") : s === "colored" ? t("ui.colored") : s === "bordo" ? t("ui.bordo") : s === "vetro" ? t("ui.vetro") : s === "minimal" ? t("ui.minimal") : s === "netflix" ? t("ui.netflix") : s === "corner" ? t("ui.corner") : s === "number" ? t("ui.number") : s === "standard" ? t("ui.qbsStandard") : s === "mono" ? t("ui.qbsMono") : s === "color" ? t("ui.qbsColor") : s === "knockout" ? t("ui.qbsKnockout") : s === "premium" ? t("ui.qbsPremium") : s === "nova" ? t("ui.qbsNova") : s}
             </span>
           </button>
         )

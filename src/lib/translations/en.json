@@ -474,6 +474,7 @@
   "ui.number": "Number",
   "ui.qbsKnockout": "Knockout",
   "ui.qbsPremium": "Premium",
+  "ui.qbsNova": "Nova",
   "ui.blurDisabled": "Blur off",
   "ui.selectedCount": "{count} selected",
   "ui.bsDefault": "Default",
