@@ -56,16 +56,20 @@ export type QualityBadgeStyle = (typeof QUALITY_BADGE_STYLES)[number]
 export const DEFAULT_QUALITY_BADGE_STYLE: QualityBadgeStyle = "standard"
 
 /**
- * Age certification badge style: "standard" (neutral satin text pill, the
- * historic age look) or "knockout" (white tag with cut-out transparent
- * glyphs — age-only builder `buildAgeKnockoutSvg`, never the shared quality
- * knockout: same knockout look, but normal base `fs` glyphs in a roomier
- * box for long labels). The legacy `knockout`
- * identifier is preserved (enum/URL/persistence unchanged).
+ * Age certification badge style: the same style vocabulary as the quality
+ * badge, applied to the DYNAMIC certification label (12/PG-13/TV-MA, never a
+ * bundled numeric asset): "standard" (neutral satin text pill, the historic
+ * age look), "mono" (monochrome frame + glyph, high-contrast white/black, no
+ * satin fill), "color" (yellow glyph on the dark tier plate with the yellow
+ * tier border), "knockout" (white tag with cut-out transparent glyphs —
+ * age-only builder `buildAgeKnockoutSvg`, never the shared quality knockout)
+ * or "premium" (gold glyph on the compact dark premium plate).
+ * `standard`/`knockout` keep their byte-identical renderers and the legacy
+ * `knockout` identifier is preserved (enum/URL/persistence unchanged).
  * Per-shape chain like the age toggle itself: `agebs` query > config
  * token > effective per-shape server defaults > flat > "standard".
  */
-export const AGE_BADGE_STYLES = ["standard", "knockout"] as const
+export const AGE_BADGE_STYLES = ["standard", "mono", "color", "knockout", "premium"] as const
 export type AgeBadgeStyle = (typeof AGE_BADGE_STYLES)[number]
 
 export const DEFAULT_AGE_BADGE_STYLE: AgeBadgeStyle = "standard"

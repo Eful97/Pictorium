@@ -34,7 +34,7 @@ import { isPrefixedKey, badgeKey } from "@/lib/i18n"
 import { getAllBadgeOptions, isMiniseriesType, isReturningStatus, NEXT_EPISODE_BADGE_KEY } from "@/lib/badge-priority"
 import { isManualAccent } from "@/lib/accent-color"
 import { resolveAccentPickerDisplay, useEffectiveAccent } from "@/lib/useEffectiveAccent"
-import { isBottomSeparateRatingsStyle, getSeparateRatingsStyleForShape, QUALITY_BADGE_STYLES } from "@/lib/badge-styles"
+import { isBottomSeparateRatingsStyle, getSeparateRatingsStyleForShape, QUALITY_BADGE_STYLES, AGE_BADGE_STYLES } from "@/lib/badge-styles"
 import { REGIONS } from "@/lib/regions"
 import { UI_RATING_SOURCES } from "@/lib/rating-weights"
 import { RatingSourceIcon } from "@/components/RatingSourceIcon"
@@ -792,7 +792,8 @@ export function BadgeControls() {
                   </label>
                   <BadgeStyleSelector
                     value={ed.ageBadgeStyle}
-                    options={["standard", "knockout"] as const}
+                    options={AGE_BADGE_STYLES}
+                    family="age"
                     onChange={ed.setAgeBadgeStyle}
                     t={t}
                   />

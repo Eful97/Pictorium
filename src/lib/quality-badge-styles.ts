@@ -14,7 +14,11 @@ export type QualityTier = "4K" | "FHD" | "HD" | "SD"
 
 export const QUALITY_TIERS: readonly QualityTier[] = ["4K", "FHD", "HD", "SD"]
 
-/** Stili icona con un set SVG locale (il tier `premium` riusa l'arte `color`). */
+/** Stili icona con un set SVG locale (il tier `premium` riusa l'arte `color`).
+ *  Il set `mono` resta nel registro per i chiamanti esterni, ma il renderer
+ *  del poster NON lo usa più: il tier `mono` disegna la cornice dinamica
+ *  condivisa con l'età (`buildAgeEmphasisSvg`), un solo materiale per
+ *  qualità ed età. */
 type QualityIconStyle = "mono" | "color"
 
 const QUALITY_BADGE_FILES: Record<QualityIconStyle, Record<QualityTier, string>> = {
@@ -51,6 +55,9 @@ export function normalizeQualityTier(raw: string | null | undefined): QualityTie
  * `premium` riusa l'arte tier `color` (stessa palette: il tier non richiede
  * un nuovo set locale), standard/knockout non hanno file (pill/tag testuali).
  * Single source: un nuovo stile icona non duplica la tabella dei file.
+ * Nota: il tier `mono` del poster usa la cornice dinamica condivisa con l'età,
+ * quindi `qualityBadgeIconPath("mono", …)` è solo un'utilità per i chiamanti
+ * (il servizio non lo chiama più: nessun asset statico alternativo al frame).
  */
 export function qualityBadgeIconStyle(style: QualityBadgeStyle | null | undefined): QualityIconStyle | null {
   if (style === "mono") return "mono"
@@ -126,15 +133,46 @@ export const AV_PLATE_RADIUS_FACTOR = 0.30
  *  box, così il bordo esterno visibile coincide con la larghezza del tier 4K. */
 export const AV_PLATE_STROKE_WIDTH = 1.5
 /** Margine interno per lato del glifo dentro la placca (frazione di `fs`),
- *  condiviso premium/color. La placca NON si allarga oltre il tier 4K: è il
- *  glifo a stare dentro la placca, quindi il margine è un piccolo inset, mai
- *  un padding additivo che allarghi la colonna. */
+ *  condiviso da ogni cornice A/V (placca premium/color, pill satinata
+ *  `standard`, cornice `mono`). La cornice NON si allarga oltre il tier 4K: è
+ *  il glifo a stare dentro, quindi il margine è un piccolo inset, mai un
+ *  padding additivo che allarghi la colonna. */
 export const AV_PLATE_GLYPH_INSET_FACTOR = 0.10
 /** Tetto d'inchiostro del glifo dentro il box (frazione dell'altezza box).
  *  Con la larghezza normalizzata non morde sui marchi A/V shipped (tutti
  *  larghi: il vincolo è la larghezza della placca), ma evita che un futuro
  *  marchio stretto tocchi il bordo della placca. */
 export const AV_PLATE_GLYPH_HEIGHT_FACTOR = 0.56
+
+/** Box del glifo (coordinate relative alla cornice, 0,0 = angolo interno). */
+export interface AvPlateGlyphBox {
+  readonly x: number
+  readonly y: number
+  readonly w: number
+  readonly h: number
+}
+
+/**
+ * Single source del glifo dentro una cornice A/V: inset uniforme per lato
+ * (`AV_PLATE_GLYPH_INSET_FACTOR`), aspect NATIVO dell'asset (l'altezza segue
+ * la larghezza, mai stretch) e tetto d'altezza che preserva il rapporto.
+ * Usato da placca `color`/`premium`, pill satinata `standard` e cornice
+ * `mono`: la cornice ha sempre la larghezza della colonna, il glifo ci sta
+ * dentro — nessun padding additivo che allarghi la colonna.
+ */
+export function avPlateGlyphBox(
+  ink: { readonly w: number; readonly h: number },
+  frameW: number,
+  boxH: number,
+  fs: number,
+): AvPlateGlyphBox {
+  const inset = Math.max(1, Math.round(fs * AV_PLATE_GLYPH_INSET_FACTOR))
+  const targetW = Math.max(1, frameW - inset * 2)
+  const naturalH = Math.max(1, Math.round(targetW * (ink.h / ink.w)))
+  const h = Math.min(naturalH, Math.round(boxH * AV_PLATE_GLYPH_HEIGHT_FACTOR))
+  const w = h === naturalH ? targetW : Math.max(1, Math.round(h * (ink.w / ink.h)))
+  return { x: Math.round((frameW - w) / 2), y: Math.round((boxH - h) / 2), w, h }
+}
 
 // ---------------------------------------------------------------------------
 // Geometria NORMALIZZATA dei marchi A/V (larghezza unica).

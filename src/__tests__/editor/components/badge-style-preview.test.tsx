@@ -13,7 +13,7 @@
 import { describe, expect, it, vi } from "vitest"
 import { screen, within } from "@testing-library/react"
 import { BadgeStyleSelector } from "@/components/ui/BadgeStyleSelector"
-import { PREMIUM_PLATE_BG, premiumAccentHex } from "@/lib/quality-badge-styles"
+import { COLOR_MARK_GLYPH, COLOR_MARK_PLATE_BG, COLOR_MARK_PLATE_STROKE, PREMIUM_PLATE_BG, premiumAccentHex } from "@/lib/quality-badge-styles"
 import { textColorForBg } from "@/lib/accent-color"
 import { renderWithCtx } from "@/__tests__/test-utils"
 
@@ -120,6 +120,91 @@ describe("BadgeStyleSelector preview contract", () => {
     expect(icon!.style.color).toBe(ink.style.color)
     expect(icon!.textContent).toBe("HDR")
     expect(btn.querySelector("button, a, input, select")).toBeNull()
+  })
+
+  it("age family: swatches come from the shared age builders, never the 4K asset", () => {
+    renderWithCtx(
+      <BadgeStyleSelector
+        value="standard"
+        options={["standard", "mono", "color", "knockout", "premium"]}
+        onChange={vi.fn()}
+        t={t}
+        family="age"
+      />,
+    )
+    const svgOf = (name: RegExp) => {
+      const btn = screen.getByRole("button", { name })
+      const img = btn.querySelector(".badge-style-preview img")
+      expect(img, String(name)).not.toBeNull()
+      const src = img!.getAttribute("src") ?? ""
+      expect(src).toMatch(/^data:image\/svg\+xml,/)
+      expect(btn.textContent).not.toContain("4K")
+      return decodeURIComponent(src)
+    }
+    // mono: bare high-contrast frame + glyph (no plate, no satin fill).
+    const mono = svgOf(/ui\.qbsMono/i)
+    expect(mono).toContain('fill="none"')
+    // color: existing tier palette (dark plate + yellow border + yellow ink).
+    const color = svgOf(/ui\.qbsColor/i)
+    expect(color).toContain(COLOR_MARK_PLATE_BG)
+    expect(color).toContain(COLOR_MARK_PLATE_STROKE)
+    expect(color).toContain(COLOR_MARK_GLYPH)
+    // premium: compact dark premium plate + design gold accent.
+    const premium = svgOf(/ui\.qbsPremium/i)
+    expect(premium).toContain(PREMIUM_PLATE_BG)
+    expect(premium).toContain(premiumAccentHex("gold"))
+    // knockout: genuine cut-out tag (mask) with neutral age letters.
+    const knockout = svgOf(/ui\.qbsKnockout/i)
+    expect(knockout).toContain("<mask")
+    expect(knockout).toContain("Aa")
+    expect(knockout).not.toContain("4K")
+  })
+
+  it("quality family mono swatch uses the shared framed recipe (same as age mono, real 4K label)", () => {
+    renderWithCtx(
+      <BadgeStyleSelector
+        value="mono"
+        options={["standard", "mono", "color", "knockout", "premium"]}
+        onChange={vi.fn()}
+        t={t}
+      />,
+    )
+    const btn = screen.getByRole("button", { name: /ui\.qbsMono/i })
+    const img = btn.querySelector(".badge-style-preview img")
+    expect(img).not.toBeNull()
+    const src = img!.getAttribute("src") ?? ""
+    // Shared builder output (one source with the renderer): the quality mono
+    // tier is the same frame as the age mono, labelled with the real tier.
+    expect(src).toMatch(/^data:image\/svg\+xml,/)
+    const svg = decodeURIComponent(src)
+    expect(svg).toContain('fill="none"')
+    expect(svg).toContain("4K")
+    // The retired static asset is no longer used by the selector.
+    expect(src).not.toContain("/quality-badges/mono/4k-label-icon.svg")
+  })
+
+  it("standard swatch is the shared neutral satin pill (both families, no generic glyph)", () => {
+    for (const family of ["quality", "age"] as const) {
+      const { unmount } = renderWithCtx(
+        <BadgeStyleSelector
+          value="standard"
+          options={["standard", "mono", "color", "knockout", "premium"]}
+          onChange={vi.fn()}
+          t={t}
+          family={family}
+        />,
+      )
+      const btn = screen.getByRole("button", { name: /ui\.qbsStandard/i })
+      const img = btn.querySelector(".badge-style-preview img") as HTMLImageElement | null
+      expect(img, family).not.toBeNull()
+      const svg = decodeURIComponent(img!.getAttribute("src") ?? "")
+      // The SAME builder the renderer uses (neutral satin pill, full rx).
+      expect(svg, family).toMatch(/^data:image\/svg\+xml,<svg/)
+      expect(svg, family).toContain('fill="url(#qg)"')
+      expect(svg, family).toMatch(/rx="\d+"/)
+      expect(btn.textContent, family).not.toBe("~")
+      unmount()
+    }
   })
 
   it("quality knockout option: inline cutout swatch with masked 4K glyphs", () => {

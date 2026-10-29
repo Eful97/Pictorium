@@ -3,8 +3,57 @@
 import { useId } from "react"
 import { textColorForBg } from "@/lib/accent-color"
 import { PREMIUM_PLATE_BG, PREMIUM_PLATE_STROKE, premiumAccentHex } from "@/lib/quality-badge-styles"
+import { buildAgeEmphasisSvg, buildAgeKnockoutSvg, buildQualityBadgeSvg } from "@/lib/badge-svg-shared"
+import type { AgeEmphasisStyle } from "@/lib/badge-svg-shared"
 
-function BadgePreview({ style, accentColor }: { style: string; accentColor?: string | null }) {
+/**
+ * Swatch family of the selector: `quality` keeps the historic quality
+ * previews (`mono` now draws the SAME framed recipe as the age mono, since the
+ * tier itself uses it); `age` draws the age styles from the SAME shared
+ * builders the poster renderer uses, with neutral letters — the age label is a
+ * dynamic render parameter (12/PG-13/TV-MA), so the age swatch never shows the
+ * quality `4K` numeric asset.
+ */
+export type BadgeSwatchFamily = "quality" | "age"
+
+const AGE_SWATCH_LABEL = "Aa"
+const AGE_SWATCH_FS = 12
+/** Quality swatch letters: the `mono` tier keeps the real tier label. */
+const QUALITY_SWATCH_LABEL = "4K"
+
+function svgDataUri(svg: string): string {
+  return `data:image/svg+xml,${encodeURIComponent(svg)}`
+}
+
+/** Shared-builder swatch (one source with the poster renderer). */
+function BuilderStylePreview({ svg, base }: { svg: string; base: string }) {
+  return (
+    <span className={`${base} bg-transparent`}>
+      {/* eslint-disable-next-line @next/next/no-img-element -- SVG del builder condiviso (singola fonte col renderer) */}
+      <img src={svgDataUri(svg)} alt="" className="w-7 h-4 object-contain" />
+    </span>
+  )
+}
+
+/**
+ * Standard swatch: the shared neutral satin pill (the quality `standard` tier
+ * and the age `standard` pill are the SAME recipe), so the selector previews
+ * the pill instead of a generic glyph. Neutral letters: the age label is a
+ * render parameter.
+ */
+function StandardStylePreview({ base }: { base: string }) {
+  return <BuilderStylePreview base={base} svg={buildQualityBadgeSvg(AGE_SWATCH_LABEL, AGE_SWATCH_FS, "", "", false).svg} />
+}
+
+/** Age swatch: shared builder output (one source with the poster renderer). */
+function AgeStylePreview({ style, base }: { style: AgeEmphasisStyle | "knockout"; base: string }) {
+  const built = style === "knockout"
+    ? buildAgeKnockoutSvg(AGE_SWATCH_LABEL, AGE_SWATCH_FS)
+    : buildAgeEmphasisSvg(AGE_SWATCH_LABEL, AGE_SWATCH_FS, style)
+  return <BuilderStylePreview base={base} svg={built.svg} />
+}
+
+function BadgePreview({ style, accentColor, family = "quality" }: { style: string; accentColor?: string | null; family?: BadgeSwatchFamily }) {
   const maskId = useId().replace(/:/g, "")
   const base = "inline-flex items-center justify-center text-[10px] font-black leading-none w-7 h-4 rounded select-none"
   const ac = accentColor || "#fb923c"
@@ -33,14 +82,17 @@ function BadgePreview({ style, accentColor }: { style: string; accentColor?: str
       return <span className={`${base} font-black`} style={{ background: "linear-gradient(180deg, #ffffff 0%, #A8ACB4 100%)", WebkitBackgroundClip: "text", backgroundClip: "text", color: "transparent", filter: "drop-shadow(0 1px 1px rgba(0,0,0,0.6))", fontSize: 13 }}>1</span>
     case "default":
       return <span className={`${base} text-white/70`}>Aa</span>
+    case "standard":
+      // Same neutral satin pill for both families: the standard quality tier
+      // and the standard age pill share one recipe (full rx = boxH/2).
+      return <StandardStylePreview base={base} />
     case "mono":
-      return (
-        <span className={`${base} bg-transparent`}>
-          {/* eslint-disable-next-line @next/next/no-img-element -- stesso SVG servito al server */}
-          <img src="/quality-badges/mono/4k-label-icon.svg" alt="mono" className="w-7 h-4 object-contain brightness-0 invert drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]" />
-        </span>
-      )
+      if (family === "age") return <AgeStylePreview style="mono" base={base} />
+      // Quality mono tier = the SAME framed recipe as the age mono (shared
+      // builder), with the real tier label: never the retired static asset.
+      return <BuilderStylePreview base={base} svg={buildAgeEmphasisSvg(QUALITY_SWATCH_LABEL, AGE_SWATCH_FS, "mono").svg} />
     case "color":
+      if (family === "age") return <AgeStylePreview style="color" base={base} />
       return (
         <span className={`${base} bg-transparent`}>
           {/* eslint-disable-next-line @next/next/no-img-element -- stesso SVG servito al server */}
@@ -48,6 +100,7 @@ function BadgePreview({ style, accentColor }: { style: string; accentColor?: str
         </span>
       )
     case "premium":
+      if (family === "age") return <AgeStylePreview style="premium" base={base} />
       // Static swatch of the premium mark (NOT the poster renderer): dark
       // neutral plate with a premium-colored glyph. The real badge tints each
       // A/V mark (HDR/HDR10+ gold, IMAX cyan, Dolby violet) on the same plate.
@@ -64,6 +117,7 @@ function BadgePreview({ style, accentColor }: { style: string; accentColor?: str
         >HDR</span>
       )
     case "knockout":
+      if (family === "age") return <AgeStylePreview style="knockout" base={base} />
       // Static cutout swatch (NOT the poster renderer): white tag with the
       // 4K glyphs knocked out via mask, like the real badge.
       return (
@@ -91,6 +145,7 @@ export function BadgeStyleSelector<S extends string>({
   t,
   accentColor,
   disabled,
+  family = "quality",
 }: {
   value: S
   options: readonly S[]
@@ -98,6 +153,7 @@ export function BadgeStyleSelector<S extends string>({
   t: (k: string) => string
   accentColor?: string | null
   disabled?: readonly S[]
+  family?: BadgeSwatchFamily
 }) {
   // Colonne esatte per conteggio (classi letterali: Tailwind le genera solo se scritte per esteso):
   // 5 opzioni in 6 colonne lascerebbero un buco a destra e pulsanti di larghezza
@@ -122,7 +178,7 @@ export function BadgeStyleSelector<S extends string>({
             }`}
           >
             <span className="badge-style-preview inline-flex items-center justify-center rounded-md">
-              <BadgePreview style={s} accentColor={accentColor} />
+              <BadgePreview style={s} accentColor={accentColor} family={family} />
             </span>
             <span className="text-[10px] font-semibold leading-tight truncate max-w-full">
               {s === "shadow" ? t("ui.shadow") : s === "pill" ? t("ui.pill") : s === "bar" ? t("ui.bar") : s === "default" ? t("ui.bsDefault") : s === "colored" ? t("ui.colored") : s === "bordo" ? t("ui.bordo") : s === "vetro" ? t("ui.vetro") : s === "minimal" ? t("ui.minimal") : s === "netflix" ? t("ui.netflix") : s === "corner" ? t("ui.corner") : s === "number" ? t("ui.number") : s === "standard" ? t("ui.qbsStandard") : s === "mono" ? t("ui.qbsMono") : s === "color" ? t("ui.qbsColor") : s === "knockout" ? t("ui.qbsKnockout") : s === "premium" ? t("ui.qbsPremium") : s}

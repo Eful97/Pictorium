@@ -269,14 +269,49 @@ describe("BadgeDefaultsSection age style selector", () => {
     expect(ctx().defaultAgeBadgeStyle).toBe("standard")
 
     const block = ageStyleBlock()
-    expect(within(block).getAllByRole("button")).toHaveLength(2)
+    // Same quality vocabulary as the quality selector (independent control).
+    expect(within(block).getAllByRole("button")).toHaveLength(5)
     fireEvent.click(within(block).getByRole("button", { name: "ui.qbsKnockout" }))
     expect(ctx().defaultAgeBadgeStyle).toBe("knockout")
     expect(JSON.parse(localStorage.getItem("badgeDefaults") ?? "{}").ageBadgeStyle).toBe("knockout")
-    // The "standard" swatch renders the generic "~" glyph, so the accessible
-    // name concatenates it (same as every BadgeStyleSelector standard option).
-    fireEvent.click(within(block).getByRole("button", { name: "~ui.qbsStandard" }))
+    // The "standard" swatch is the shared neutral pill (image, empty alt), so
+    // the accessible name is just the label.
+    fireEvent.click(within(block).getByRole("button", { name: "ui.qbsStandard" }))
     expect(ctx().defaultAgeBadgeStyle).toBe("standard")
+  })
+
+  it("age selector swatches come from the shared age builders (no static 4K asset)", async () => {
+    renderBadge("portrait")
+    await act(async () => {})
+    fireEvent.click(screen.getByRole("switch", { name: "ui.ageBadge" }))
+    const block = ageStyleBlock()
+    const labelOf = (style: string) => style === "mono" ? "Mono" : style === "color" ? "Color" : style === "knockout" ? "Knockout" : style === "standard" ? "Standard" : "Premium"
+    for (const style of ["standard", "mono", "color", "premium", "knockout"] as const) {
+      const btn = within(block).getByRole("button", { name: new RegExp(`ui\.qbs${labelOf(style)}`) })
+      // The age swatch is the shared builder output as a data URI: the dynamic
+      // label is a render parameter, so no quality `4K` numeric asset leaks in.
+      const img = btn.querySelector("img")
+      expect(img, style).not.toBeNull()
+      const src = decodeURIComponent(img!.getAttribute("src")!)
+      expect(src, style).toMatch(/^data:image\/svg\+xml,/)
+      expect(src, style).not.toContain("4K")
+      expect(btn.textContent, style).not.toContain("4K")
+      // Standard = the neutral satin pill (same recipe as the tier).
+      if (style === "standard") {
+        expect(src).toContain('fill="url(#qg)"')
+        expect(src).toMatch(/rx="\d+"/)
+      }
+    }
+  })
+
+  it("choosing a new age style persists per shape (mono landscape, flat untouched)", async () => {
+    const { ctx } = renderBadge("landscape")
+    await act(async () => {})
+    fireEvent.click(screen.getByRole("switch", { name: "ui.ageBadge" }))
+    fireEvent.click(within(ageStyleBlock()).getByRole("button", { name: "ui.qbsMono" }))
+    expect((ctx().landscape as Record<string, unknown>).ageBadgeStyle).toBe("mono")
+    expect(ctx().defaultAgeBadgeStyle).toBe("standard")
+    expect(JSON.parse(localStorage.getItem("badgeDefaults") ?? "{}").landscape.ageBadgeStyle).toBe("mono")
   })
 
   it("age style is per-shape: landscape writes the profile, portrait stays flat", async () => {
@@ -378,10 +413,20 @@ describe("PUT /api/defaults age style schema", () => {
     expect(nullRes.status).toBe(200)
   })
 
+  it("accepts the additive age styles and roundtrips them through GET", async () => {
+    delete process.env.ADMIN_TOKEN
+    const { PUT, GET } = await import("@/app/api/defaults/route")
+    for (const ageBadgeStyle of ["mono", "color", "premium"] as const) {
+      expect((await PUT(mockPutRequest({ ageBadgeStyle }) as unknown as NextRequest)).status).toBe(200)
+      const getRes = await GET(new Request("http://localhost:3000/api/defaults") as unknown as NextRequest)
+      expect((await getRes.json()).ageBadgeStyle).toBe(ageBadgeStyle)
+    }
+  })
+
   it("rejects garbage values", async () => {
     delete process.env.ADMIN_TOKEN
     const { PUT } = await import("@/app/api/defaults/route")
-    const res = await PUT(mockPutRequest({ ageBadgeStyle: "mono" }) as unknown as NextRequest)
+    const res = await PUT(mockPutRequest({ ageBadgeStyle: "garbage" }) as unknown as NextRequest)
     expect(res.status).toBe(400)
   })
 })

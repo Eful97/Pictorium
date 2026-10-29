@@ -307,9 +307,21 @@ describe("PUT /api/defaults per-shape age", () => {
     delete process.env.ADMIN_TOKEN
     const { PUT } = await import("@/app/api/defaults/route")
     const res = await PUT(mockPutRequest({
-      landscape: { ageBadgeStyle: "mono" },
+      landscape: { ageBadgeStyle: "garbage" },
     }) as unknown as NextRequest)
     expect(res.status).toBe(400)
+  })
+
+  it("accepts the additive age styles in the landscape profile", async () => {
+    delete process.env.ADMIN_TOKEN
+    const { PUT, GET } = await import("@/app/api/defaults/route")
+    for (const ageBadgeStyle of ["mono", "color", "premium"] as const) {
+      expect((await PUT(mockPutRequest({
+        landscape: { ageBadge: true, ageCountry: "US", ageBadgeStyle },
+      }) as unknown as NextRequest)).status).toBe(200)
+      const stored = await (await GET(new Request("http://localhost:3000/api/defaults") as unknown as NextRequest)).json() as Record<string, unknown>
+      expect((stored.landscape as Record<string, unknown>).ageBadgeStyle, ageBadgeStyle).toBe(ageBadgeStyle)
+    }
   })
 
   it("flat-only portrait edits never move an explicit profile (no leak, no reseed, no wipe)", async () => {

@@ -412,18 +412,36 @@ describe("GET /api/poster age badge (mocked production route)", () => {
     })
     expect(plain.status).toBe(200)
     expect((await plain.json()).age.style).toBe("standard")
-    const garbage = await GET(new NextRequest(movieUrl("&age=1&agecountry=IT&agebs=mono&debug=1")), {
+    const garbage = await GET(new NextRequest(movieUrl("&age=1&agecountry=IT&agebs=garbage&debug=1")), {
       params: Promise.resolve({ type: "movie", id: "44" }),
     })
     expect(garbage.status).toBe(200)
     expect((await garbage.json()).age.style).toBe("standard")
-    const render = await GET(new NextRequest(movieUrl("&age=1&agecountry=IT&agebs=mono")), {
+    const render = await GET(new NextRequest(movieUrl("&age=1&agecountry=IT&agebs=garbage")), {
       params: Promise.resolve({ type: "movie", id: "44" }),
     })
     expect(render.status).toBe(200)
     const spy = vi.mocked(posterService.generatePosterBuffer)
     const last = spy.mock.calls[spy.mock.calls.length - 1][0] as { ageBadgeStyle: string | null }
     expect(last.ageBadgeStyle).toBe("standard")
+  })
+
+  it("passes the additive age styles to the single renderer", async () => {
+    mockedGetReleaseDates.mockResolvedValue(movieReleaseDatesIT() as never)
+    for (const style of ["mono", "color", "premium"] as const) {
+      const debug = await GET(new NextRequest(movieUrl(`&age=1&agecountry=IT&agebs=${style}&debug=1`)), {
+        params: Promise.resolve({ type: "movie", id: "44" }),
+      })
+      expect(debug.status, style).toBe(200)
+      expect((await debug.json()).age.style, style).toBe(style)
+      const render = await GET(new NextRequest(movieUrl(`&age=1&agecountry=IT&agebs=${style}`)), {
+        params: Promise.resolve({ type: "movie", id: "44" }),
+      })
+      expect(render.status, style).toBe(200)
+      const spy = vi.mocked(posterService.generatePosterBuffer)
+      const last = spy.mock.calls[spy.mock.calls.length - 1][0] as { ageBadgeStyle: string | null }
+      expect(last.ageBadgeStyle, style).toBe(style)
+    }
   })
 
   it("network failure degrades to the ephemeral 120s TTL (fail-open, retried soon)", async () => {

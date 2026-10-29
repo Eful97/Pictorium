@@ -111,6 +111,14 @@ describe("encodeConfig / decodeConfig round-trip", () => {
     expect(decodeConfig(encodeConfig(config))).toEqual(config)
   })
 
+  it("round-trips the additive mono/color/premium ageBadgeStyle values", async () => {
+    const { encodeConfig, decodeConfig } = await importConfigToken()
+    for (const ageBadgeStyle of ["mono", "color", "premium"] as const) {
+      const config: PictoriumUserConfig = { ...SAMPLE_CONFIG, ageBadgeStyle }
+      expect(decodeConfig(encodeConfig(config)), ageBadgeStyle).toEqual(config)
+    }
+  })
+
   it("round-trips an explicit null ageBadgeStyle (absent contract)", async () => {
     const { encodeConfig, decodeConfig } = await importConfigToken()
     const config: PictoriumUserConfig = { ...SAMPLE_CONFIG, ageBadgeStyle: null }
@@ -150,7 +158,7 @@ describe("decodeConfig invalid tokens", () => {
 
   it("returns null for an invalid ageBadgeStyle (fail-closed token)", async () => {
     const { decodeConfig } = await importConfigToken()
-    const raw = Buffer.from(JSON.stringify({ ...SAMPLE_CONFIG, ageBadgeStyle: "mono" }), "utf-8").toString("base64url")
+    const raw = Buffer.from(JSON.stringify({ ...SAMPLE_CONFIG, ageBadgeStyle: "garbage" }), "utf-8").toString("base64url")
     expect(decodeConfig(raw)).toBeNull()
   })
 

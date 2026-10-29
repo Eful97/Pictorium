@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest"
 import { lookupAVSpecs, isVideoFormat, KNOWN_VIDEO_FORMATS, FORMAT_ICON_PATHS } from "@/lib/av-specs"
 import { REVIEWED832_APPROVED, REVIEWED832_SCOPE, REVIEWED_APPROVED, REVIEWED_EXCLUDED, REVIEWED_SCOPE, REVIEWED_SNAPSHOT_SHA256 } from "../../../scripts/torrentio-av-import.mjs"
 import { renderQualityBadgeGroup, renderQualityIconBadge } from "@/lib/poster-service"
+import { buildAgeEmphasisSvg } from "@/lib/badge-svg-shared"
 import fs from "node:fs"
 import path from "node:path"
 import sharp from "sharp"
@@ -420,8 +421,11 @@ describe("renderQualityBadgeGroup", () => {
   it("renders single resolution badge when formats list is empty", async () => {
     const single = await renderQualityBadgeGroup("4K", "mono", [], 500, false)
     expect(single).not.toBeNull()
-    expect(single?.w).toBe(77) // 49 + 28
-    expect(single?.h).toBe(68) // 40 + 28
+    // The mono tier is the shared FRAMED label (age mono recipe), not the
+    // retired static icon: same box as the builder at the same base font.
+    const built = buildAgeEmphasisSvg("4K", Math.round(17 * 500 / 380), "mono", false, "inter")
+    expect(single?.w).toBe(built.w)
+    expect(single?.h).toBe(built.h)
   })
 
   it("renders vertical composite column with resolution and combined AV format badge", async () => {

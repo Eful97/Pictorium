@@ -32,7 +32,7 @@ import { isCardSkin, type CardSkin } from "@/lib/card-layout-skins"
 import { BadgeStyleSelector, BadgeFontSelector } from "@/components/ui"
 import type { DefaultsPreviewFamily } from "@/lib/poster-url"
 import type { PosterElementId } from "@/components/settings/PosterElementNavigation"
-import { isBottomSeparateRatingsStyle, getSeparateRatingsStyleForShape, DEFAULT_AGE_BADGE_STYLE, DEFAULT_BADGE_FONT, DEFAULT_QUALITY_BADGE_STYLE, DEFAULT_SEPARATE_RATINGS_STYLE, EXTRA_BADGE_FOLLOW_RANK, DEFAULT_QUALITY_BADGE_OFFSET_X, DEFAULT_QUALITY_BADGE_OFFSET_Y, DEFAULT_QUALITY_BADGE_OFFSET_X_LANDSCAPE, DEFAULT_QUALITY_BADGE_OFFSET_Y_LANDSCAPE, getSeparateBadgeDefaultScale } from "@/lib/badge-styles"
+import { isBottomSeparateRatingsStyle, getSeparateRatingsStyleForShape, AGE_BADGE_STYLES, DEFAULT_AGE_BADGE_STYLE, DEFAULT_BADGE_FONT, DEFAULT_QUALITY_BADGE_STYLE, DEFAULT_SEPARATE_RATINGS_STYLE, EXTRA_BADGE_FOLLOW_RANK, DEFAULT_QUALITY_BADGE_OFFSET_X, DEFAULT_QUALITY_BADGE_OFFSET_Y, DEFAULT_QUALITY_BADGE_OFFSET_X_LANDSCAPE, DEFAULT_QUALITY_BADGE_OFFSET_Y_LANDSCAPE, getSeparateBadgeDefaultScale } from "@/lib/badge-styles"
 import { DEFAULT_AGE_COUNTRY } from "@/lib/certification"
 import { KNOWN_VIDEO_FORMATS } from "@/lib/av-specs"
 import { NATURAL_GRADIENT_DEFAULTS } from "@/lib/gradient-presets"
@@ -1929,7 +1929,8 @@ export function BadgeDefaultsSection({ active, shape, onPreviewFamilyChange, pre
                 </label>
                 <BadgeStyleSelector
                   value={ageBadgeStyle}
-                  options={["standard", "knockout"] as const}
+                  options={AGE_BADGE_STYLES}
+                  family="age"
                   onChange={(v) => {
                     setAgeBadgeStyle(v)
                   }}
@@ -1945,7 +1946,8 @@ export function BadgeDefaultsSection({ active, shape, onPreviewFamilyChange, pre
               </label>
               <BadgeStyleSelector
                 value={ageBadgeStyle}
-                options={["standard", "knockout"] as const}
+                options={AGE_BADGE_STYLES}
+                family="age"
                 onChange={(v) => {
                   setAgeBadgeStyle(v)
                 }}

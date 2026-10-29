@@ -1,5 +1,6 @@
 import { FONT_FILES } from "./fonts"
-import { buildQualityBadgeSvg, buildQualityTierBadgeSvg, buildQualityKnockoutSvg, buildAgeKnockoutSvg, buildComingSoonRibbonSvg, buildHouseExtraSvg, buildHouseGenreSvg, buildHouseRankingSvg } from "./badge-svg-shared"
+import { buildQualityBadgeSvg, buildQualityKnockoutSvg, buildAgeKnockoutSvg, buildAgeEmphasisSvg, buildComingSoonRibbonSvg, buildHouseExtraSvg, buildHouseGenreSvg, buildHouseRankingSvg } from "./badge-svg-shared"
+import type { AgeEmphasisStyle } from "./badge-svg-shared"
 export { buildNetflixRankBadgeSVG } from "./badge-svg-shared"
 import type { GenreParts } from "./badge-svg-shared"
 import { normalizeBadgeFont } from "./badge-svg-shared"
@@ -187,33 +188,14 @@ export async function renderQualityBadge(
   topLight?: boolean,
   /** Font del testo (default "inter" = resa storica). */
   font: BadgeFont = "inter",
+  /** Larghezza visibile fissa (colonna del gruppo); assente = naturale. */
+  targetW?: number,
 ): Promise<{ png: Buffer; w: number; h: number }> {
   // Base 17px (calibrato sul 65% di 26): watermark bilanciato e sobrio in alto a destra, lo slider `qscale` parte da 100.
   const fs = Math.round(Math.max(17 * pw / 380, 10))
   const bg = topLight ? "rgba(0,0,0,0.80)" : "rgba(255,255,255,0.80)"
   const fg = topLight ? "rgba(255,255,255,0.80)" : "rgba(0,0,0,0.80)"
-  const built = buildQualityBadgeSvg(quality, fs, fg, bg, !!topLight, normalizeBadgeFont(font))
-  const png = await renderSVG(built.svg, built.w)
-  return { png, w: built.w, h: built.h }
-}
-
-/**
- * Renders the streaming-quality tier tag (4K/FHD/...) for the `standard`
- * style: wider, less-rounded box than the neutral pill (see
- * `buildQualityTierBadgeSvg`). Same 17px base and box height as
- * `renderQualityBadge`, so scale/offset/anchor math downstream is unchanged.
- * The age pill keeps `renderQualityBadge` (historic neutral geometry).
- */
-export async function renderQualityTierBadge(
-  quality: string,
-  pw: number,
-  topLight?: boolean,
-  /** Font del testo (default "inter" = resa storica). */
-  font: BadgeFont = "inter",
-): Promise<{ png: Buffer; w: number; h: number }> {
-  // Stessa base della pill neutra (17px su griglia 380, `qscale` da 100).
-  const fs = Math.round(Math.max(17 * pw / 380, 10))
-  const built = buildQualityTierBadgeSvg(quality, fs, !!topLight, normalizeBadgeFont(font))
+  const built = buildQualityBadgeSvg(quality, fs, fg, bg, !!topLight, normalizeBadgeFont(font), targetW)
   const png = await renderSVG(built.svg, built.w)
   return { png, w: built.w, h: built.h }
 }
@@ -223,15 +205,19 @@ export async function renderQualityTierBadge(
  * tier glyphs cut out (transparent). Same 17px base and box model as the
  * standard pill, so scale/offset/anchor math downstream is unchanged;
  * the mask glyphs render oversized (~1.35x) inside the unchanged box.
+ * `targetW` pins the visible box to the group column (glyph font reduced to
+ * fit long labels), never stretching the tag.
  */
 export async function renderQualityKnockoutBadge(
   quality: string,
   pw: number,
   /** Font del testo (default "inter" = resa storica). */
   font: BadgeFont = "inter",
+  /** Larghezza visibile fissa (colonna del gruppo); assente = naturale. */
+  targetW?: number,
 ): Promise<{ png: Buffer; w: number; h: number }> {
   const fs = Math.round(Math.max(17 * pw / 380, 10))
-  const result = buildQualityKnockoutSvg(quality, fs, normalizeBadgeFont(font))
+  const result = buildQualityKnockoutSvg(quality, fs, normalizeBadgeFont(font), targetW)
   const png = await renderSVG(result.svg, result.w)
   return { png, w: result.w, h: result.h }
 }
@@ -242,17 +228,49 @@ export async function renderQualityKnockoutBadge(
  * `buildAgeKnockoutSvg`). Same 17px base and box model as the quality
  * knockout, so scale/offset/anchor math downstream is unchanged; unlike
  * the shared quality knockout the mask glyphs render at the normal base
- * `fs` (no oversize) inside a roomier box. The shared quality knockout
- * (`renderQualityKnockoutBadge`) is untouched.
+ * `fs` (no oversize) inside a roomier box. `targetW` pins the visible box to
+ * the group column, reducing the glyph font for long labels. The shared
+ * quality knockout (`renderQualityKnockoutBadge`) is untouched.
  */
 export async function renderAgeKnockoutBadge(
   label: string,
   pw: number,
   /** Text font (default "inter" = historic look). */
   font: BadgeFont = "inter",
+  /** Larghezza visibile fissa (colonna del gruppo); assente = naturale. */
+  targetW?: number,
 ): Promise<{ png: Buffer; w: number; h: number }> {
   const fs = Math.round(Math.max(17 * pw / 380, 10))
-  const result = buildAgeKnockoutSvg(label, fs, normalizeBadgeFont(font))
+  const result = buildAgeKnockoutSvg(label, fs, normalizeBadgeFont(font), targetW)
+  const png = await renderSVG(result.svg, result.w)
+  return { png, w: result.w, h: result.h }
+}
+
+/**
+ * Renders the emphasis styles `mono`/`color`/`premium` (shared emphasis
+ * recipe). `mono` is ALSO the quality tier material (the `mono` tier calls
+ * this wrapper with its real label, so tier and age can never diverge);
+ * `color`/`premium` are age-only. `standard`/`knockout` keep their own
+ * renderers. One shared recipe (`buildAgeEmphasisSvg` in
+ * `badge-svg-shared.ts`) draws the dynamic label on the age family box, so the
+ * footprint/anchor math matches the age knockout and the client selector
+ * swatches come from the same source. `topLight` only affects `mono`
+ * (white/black high-contrast ink); the plates are polarity independent like
+ * the quality `color`/`premium` plates. `targetW` pins the visible box to the
+ * group column (glyph font reduced to fit the label).
+ */
+export async function renderAgeEmphasisBadge(
+  label: string,
+  pw: number,
+  style: AgeEmphasisStyle,
+  topLight?: boolean,
+  /** Text font (default "inter" = historic look). */
+  font: BadgeFont = "inter",
+  /** Larghezza visibile fissa (colonna del gruppo); assente = naturale. */
+  targetW?: number,
+): Promise<{ png: Buffer; w: number; h: number }> {
+  const fs = Math.round(Math.max(17 * pw / 380, 10))
+  const result = buildAgeEmphasisSvg(label, fs, style, !!topLight, normalizeBadgeFont(font), targetW)
   const png = await renderSVG(result.svg, result.w)
   return { png, w: result.w, h: result.h }
 }

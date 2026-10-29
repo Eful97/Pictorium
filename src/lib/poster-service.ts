@@ -30,14 +30,14 @@ import {
 import { LAND_W, LAND_H } from "./image-utils"
 import { normalizeAutomaticAccentHex } from "./accent-color"
 import type { EffectiveAccentMeta } from "./effective-accent"
-import { renderGenreBadge, renderRankingBadge, renderExtraBadge, renderQualityBadge, renderQualityTierBadge, renderQualityKnockoutBadge, renderAgeKnockoutBadge, renderComingSoonRibbon, comingSoonRibbonLayout, renderSVG } from "./svg-badge"
+import { renderGenreBadge, renderRankingBadge, renderExtraBadge, renderQualityBadge, renderQualityKnockoutBadge, renderAgeKnockoutBadge, renderAgeEmphasisBadge, renderComingSoonRibbon, comingSoonRibbonLayout, renderSVG } from "./svg-badge"
 import { buildLogoScrim, logoContrast, logoInkLuminance, logoScrimStrength, posterLogoZoneLuminance } from "./logo-contrast"
 import { renderFirstMatchingNetworkLogoBadge, renderFirstMatchingNetworkRawBadge, renderFirstMatchingNetworkLogoBadgeHybrid, renderFirstMatchingNetworkRawBadgeHybrid, type NetworkCandidate } from "./network-svgs"
 import { computeLogoLayout, logoAlignPadX, PORTRAIT_LOGO_MAX_HEIGHT_PCT, PORTRAIT_LOGO_TOP_OFFSET, LANDSCAPE_LOGO_MAX_WIDTH_PCT, LANDSCAPE_LOGO_MAX_HEIGHT_PCT, LANDSCAPE_LOGO_BOTTOM_MARGIN_PCT, LANDSCAPE_LOGO_TOP_OFFSET, LANDSCAPE_LOGO_SHIFT_X, LANDSCAPE_LOGO_SHIFT_Y } from "./logo-layout"
 import { logoDefaultScaleFromAspect, FRESH_TITLE_LOGO_DEFAULT_SCALE } from "./logo-selection"
 import fs from "fs"
 import path from "path"
-import { buildQualityTierBadgeSvg, buildQualityKnockoutSvg, estimateTextWidth, fontFamilyFor, escSvg, badgeBoxHeight, TOP_SHADOW_PAD, TOP_SHADOW_FILTER } from "./badge-svg-shared"
+import { buildQualityBadgeSvg, buildQualityKnockoutSvg, buildAgeEmphasisSvg, estimateTextWidth, fontFamilyFor, escSvg, badgeBoxHeight, TOP_SHADOW_PAD, TOP_SHADOW_FILTER, AGE_KNOCKOUT_RADIUS_FACTOR, AGE_MONO_STROKE_FACTOR, AGE_MONO_STROKE_MIN, AGE_MONO_INK_DARK, AGE_MONO_INK_LIGHT, SATIN_PILL_INK_DARK, SATIN_PILL_INK_LIGHT, SATIN_PILL_STROKE_DARK, SATIN_PILL_STROKE_LIGHT, SATIN_PILL_STROKE_WIDTH, satinPillStops } from "./badge-svg-shared"
 import { computeTopBadge, getNextEpisodeLabel, isNetworkStudio, shouldSuppressExtraTopBadgeForNetwork, type BadgeInput } from "./poster-badge"
 import { isNextEpisodeBadgeKey } from "./badge-priority"
 import { DEMO_SAMPLE_NETWORK } from "./demo-samples"
@@ -56,7 +56,7 @@ import type { BadgeFont } from "./badge-styles"
 import { isRibbonRankingStyle, isBottomSeparateRatingsStyle, isAgeBadgeStyle, getSeparateRatingsStyleForShape, resolveNumberBadgeBaseOffsetX, normalizeExtraBadgeStyleForRender, DEFAULT_AGE_BADGE_STYLE, type BadgeStyle, type RankingBadgeStyle, type ExtraBadgeStyle, type ExtraBadgeFollowRank, type SeparateRatingsStyle, type SeparateBottomVariant, type AgeBadgeStyle } from "./badge-styles"
 import { normalizeBadgeFont } from "./badge-svg-shared"
 import type { PosterImageFormat } from "@/lib/poster-runtime-cache"
-import { AV_KNOCKOUT_RADIUS_FACTOR, AV_KNOCKOUT_TAG_INSET_FACTOR, AV_PLATE_GLYPH_HEIGHT_FACTOR, AV_PLATE_GLYPH_INSET_FACTOR, AV_PLATE_RADIUS_FACTOR, AV_PLATE_STROKE_WIDTH, COLOR_MARK_GLYPH, COLOR_MARK_PLATE_BG, COLOR_MARK_PLATE_STROKE, avMarkInkBox, qualityBadgeIconPath, qualityIconReferenceWidth, type AvMarkInkBox, PREMIUM_COMBO_ACCENT, PREMIUM_PLATE_BG, PREMIUM_PLATE_STROKE, premiumAccentHex, premiumFormatAccent } from "./quality-badge-styles"
+import { AV_KNOCKOUT_RADIUS_FACTOR, AV_KNOCKOUT_TAG_INSET_FACTOR, AV_PLATE_RADIUS_FACTOR, AV_PLATE_STROKE_WIDTH, COLOR_MARK_GLYPH, COLOR_MARK_PLATE_BG, COLOR_MARK_PLATE_STROKE, avMarkInkBox, avPlateGlyphBox, qualityBadgeIconPath, qualityIconReferenceWidth, type AvMarkInkBox, PREMIUM_COMBO_ACCENT, PREMIUM_PLATE_BG, PREMIUM_PLATE_STROKE, premiumAccentHex, premiumFormatAccent } from "./quality-badge-styles"
 import type { QualityBadgeStyle } from "./badge-styles"
 import { FORMAT_ICON_PATHS, type VideoFormat } from "./av-specs"
 import { isRankKey } from "./i18n"
@@ -653,13 +653,16 @@ function qualityIconViewBox(svg: string): { w: number; h: number } | null {
 }
 
 /**
- * Rende un'icona qualità built-in. Tier `mono`/`color`: stesso ingombro
- * verticale della pill standard (stesso anchor di layout), mono ricolorato
- * bianco/nero per polarità (fill ereditato alla radice: i path non dichiarano
- * fill propri), color originale. Marchi A/V: larghezza d'inchiostro
- * normalizzata (vedi `renderBareAvIcon`) — il tier resta invariato. Ritorna
- * null se il file manca o non rasterizza: il chiamante degrada sulla pill
- * standard, mai 500.
+ * Rende un'icona qualità built-in. Tier `color` (e `premium`, che riusa
+ * l'arte color): stesso ingombro verticale della pill standard (stesso anchor
+ * di layout), color originale. Il tier `mono` NON passa più da qui: usa il
+ * frame dinamico condiviso con l'età (`renderAgeEmphasisBadge`), così qualità
+ * ed età non possono divergere in due materiali mono. Marchi A/V: il glifo
+ * nudo (`renderBareAvIcon`, larghezza d'inchiostro normalizzata) resta come
+ * utilità per i chiamanti — il gruppo qualità/età li disegna dentro la
+ * cornice dello stile (`renderFramedAvBadge`, pill satinata / contorno mono).
+ * Ritorna null se il file manca o non rasterizza: il chiamante degrada sulla
+ * pill standard, mai 500.
  */
 export async function renderQualityIconBadge(
   iconPath: string,
@@ -766,15 +769,9 @@ async function renderPlatedAvBadge(
     const boxH = badgeBoxHeight(fs)
     // Larghezza placca = larghezza del tier 4K (unica per tutti i marchi).
     const plateW = Math.max(1, Math.round(plateWidth))
-    // Il glifo sta dentro la placca con un inset uniforme per lato.
-    const inset = Math.max(1, Math.round(fs * AV_PLATE_GLYPH_INSET_FACTOR))
-    const targetW = Math.max(1, plateW - inset * 2)
-    const naturalH = Math.max(1, Math.round(targetW * (ink.h / ink.w)))
-    // Tetto d'altezza (proporzioni preservate): con i marchi shipped non
-    // morde (il vincolo è la larghezza della placca), ma evita che un futuro
-    // marchio stretto tocchi il bordo della placca.
-    const glyphH = Math.min(naturalH, Math.round(boxH * AV_PLATE_GLYPH_HEIGHT_FACTOR))
-    const glyphW = glyphH === naturalH ? targetW : Math.max(1, Math.round(glyphH * (ink.w / ink.h)))
+    // Il glifo sta dentro la placca: inset e aspect nativo dalla regola
+    // condivisa `avPlateGlyphBox` (stessa per pill satinata e cornice mono).
+    const glyph = avPlateGlyphBox(ink, plateW, boxH, fs)
     const r = Math.round(boxH * AV_PLATE_RADIUS_FACTOR)
     const totalW = plateW + TOP_SHADOW_PAD * 2
     const totalH = boxH + TOP_SHADOW_PAD * 2
@@ -788,16 +785,89 @@ async function renderPlatedAvBadge(
     const rectH = Math.max(1, boxH - strokeW)
     const rectX = ox + strokeW / 2
     const rectY = oy + strokeW / 2
-    const gx = ox + Math.round((plateW - glyphW) / 2)
-    const gy = oy + Math.round((boxH - glyphH) / 2)
+    const gx = ox + glyph.x
+    const gy = oy + glyph.y
     // Placca + glifo tinto nello stesso gruppo con l'ombra 3D condivisa
     // (famiglia quality/rank/extra): nessuna placca annidata, nessun asset.
     const compositeSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="${totalW}" height="${totalH}" viewBox="0 0 ${totalW} ${totalH}">` +
       `<defs>${TOP_SHADOW_FILTER}</defs>` +
       `<g filter="url(#tds)">` +
       `<rect x="${rectX}" y="${rectY}" width="${rectW}" height="${rectH}" rx="${r}" fill="${plateBg}" stroke="${plateStroke}" stroke-width="${strokeW}"/>` +
-      `<svg x="${gx}" y="${gy}" width="${glyphW}" height="${glyphH}" viewBox="${ink.x} ${ink.y} ${ink.w} ${ink.h}" fill="${glyphHex}" color="${glyphHex}">${svgInnerContent(src)}</svg>` +
+      `<svg x="${gx}" y="${gy}" width="${glyph.w}" height="${glyph.h}" viewBox="${ink.x} ${ink.y} ${ink.w} ${ink.h}" fill="${glyphHex}" color="${glyphHex}">${svgInnerContent(src)}</svg>` +
       `</g></svg>`
+    const png = await renderSVG(compositeSvg, totalW)
+    return { png, w: totalW, h: totalH }
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Marchio A/V incorniciato come il resto della colonna (stili `standard` e
+ * `mono`): il glifo resta quello dell'asset, con aspect nativo DENTRO la
+ * cornice (`avPlateGlyphBox`: inset condiviso, mai stretch né padding
+ * additivo che allarghi la colonna). La cornice è la ricetta della famiglia:
+ *
+ * - `satin` (stile `standard`): la STESSA pill satinata del tier/età —
+ *   gradiente `satinPillStops`, raggio pieno `boxH/2`, bordo 1.5 a polarità
+ *   (`SATIN_PILL_*`), ombra sul solo rect come nella pill testuale; il glifo
+ *   porta l'inchiostro adattivo della pill (scuro su pill chiara, chiaro su
+ *   pill scura).
+ * - `mono` (stile `mono`): la STESSA cornice dell'età mono — `fill="none"`,
+ *   raggio `AGE_KNOCKOUT_RADIUS_FACTOR`, stroke alto contrasto
+ *   (`AGE_MONO_INK_*`/`AGE_MONO_STROKE_*`), glifo nello stesso inchiostro,
+ *   ombra 3D sul gruppo come `buildAgeEmphasisSvg`.
+ *
+ * Larghezza visibile = colonna (`frameWidth`), altezza = `badgeBoxHeight(fs)`:
+ * ogni tacca della colonna ha lo stesso box. `color`/`premium` restano sulle
+ * placche esistenti, `knockout` sul tag bianco.
+ */
+async function renderFramedAvBadge(
+  iconPath: string,
+  pw: number,
+  frameWidth: number,
+  frame: "satin" | "mono",
+  topLight: boolean | undefined,
+): Promise<{ png: Buffer; w: number; h: number } | null> {
+  try {
+    const src = await loadQualityIconSvg(iconPath)
+    if (!src) return null
+    const ink = avMarkInkBox(iconPath)
+    if (!ink) return null
+    const fs = Math.round(Math.max(17 * pw / 380, 10))
+    const boxH = badgeBoxHeight(fs)
+    const frameW = Math.max(1, Math.round(frameWidth))
+    const glyph = avPlateGlyphBox(ink, frameW, boxH, fs)
+    const totalW = frameW + TOP_SHADOW_PAD * 2
+    const totalH = boxH + TOP_SHADOW_PAD * 2
+    const ox = TOP_SHADOW_PAD
+    const oy = TOP_SHADOW_PAD
+    const gx = ox + glyph.x
+    const gy = oy + glyph.y
+    // Inchiostro del glifo: stessa polarità della cornice che lo contiene.
+    const inkHex = frame === "mono"
+      ? (topLight ? AGE_MONO_INK_LIGHT : AGE_MONO_INK_DARK)
+      : (topLight ? SATIN_PILL_INK_LIGHT : SATIN_PILL_INK_DARK)
+    const glyphSvg = `<svg x="${gx}" y="${gy}" width="${glyph.w}" height="${glyph.h}" viewBox="${ink.x} ${ink.y} ${ink.w} ${ink.h}" fill="${inkHex}" color="${inkHex}">${svgInnerContent(src)}</svg>`
+    const body = frame === "satin"
+      // Pill satinata: stessi attributi del rect di `buildQualityBadgeSvg`
+      // (bordo centrato sul box, ombra applicata al rect, testo/glifo senza
+      // ombra propria).
+      ? `<rect x="${ox}" y="${oy}" width="${frameW}" height="${boxH}" rx="${Math.round(boxH / 2)}" fill="url(#qg)" stroke="${topLight ? SATIN_PILL_STROKE_LIGHT : SATIN_PILL_STROKE_DARK}" stroke-width="${SATIN_PILL_STROKE_WIDTH}" filter="url(#tds)"/>${glyphSvg}`
+      // Cornice mono: bordo tenuto DENTRO il box (stessa regola dell'età
+      // mono) e ombra 3D sul lockup intero.
+      : (() => {
+          const strokeW = Math.max(AGE_MONO_STROKE_MIN, Math.round(fs * AGE_MONO_STROKE_FACTOR))
+          const r = Math.round(boxH * AGE_KNOCKOUT_RADIUS_FACTOR)
+          const rectW = Math.max(1, frameW - strokeW)
+          const rectH = Math.max(1, boxH - strokeW)
+          const monoInk = topLight ? AGE_MONO_INK_LIGHT : AGE_MONO_INK_DARK
+          return `<g filter="url(#tds)"><rect x="${ox + strokeW / 2}" y="${oy + strokeW / 2}" width="${rectW}" height="${rectH}" rx="${r}" fill="none" stroke="${monoInk}" stroke-width="${strokeW}"/>${glyphSvg}</g>`
+        })()
+    const defs = frame === "satin"
+      ? `<defs><linearGradient id="qg" x1="0" y1="0" x2="0" y2="1">${satinPillStops(!!topLight)}</linearGradient>${TOP_SHADOW_FILTER}</defs>`
+      : `<defs>${TOP_SHADOW_FILTER}</defs>`
+    const compositeSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="${totalW}" height="${totalH}" viewBox="0 0 ${totalW} ${totalH}">${defs}${body}</svg>`
     const png = await renderSVG(compositeSvg, totalW)
     return { png, w: totalW, h: totalH }
   } catch {
@@ -928,10 +998,26 @@ export interface QualityBadgeGroupResult {
  * stile `ageStyle` ("standard" = stessa pill neutra della qualità, base 17px;
  * "knockout" = white tag with mask-cut glyphs (transparent cut-out,
  * dedicated age-only builder — never the shared quality-knockout builder,
- * which stays byte-identical)) between tier and formats, with the same
- * offset/scale/cap del gruppo a valle. Senza qualità né formati ma con
- * età, il gruppo rende la sola pill età (il badge non richiede il 4K).
+ * which stays byte-identical); "mono"/"color"/"premium" = shared age
+ * emphasis recipe `buildAgeEmphasisSvg` on the same age family box) between
+ * tier and formats, with the same offset/scale/cap del gruppo a valle. Senza
+ * qualità né formati ma con età, il gruppo rende la sola pill età (il badge
+ * non richiede il 4K).
  * Senza nessuno dei tre → null (nessun composite, percorso storico intatto).
+ *
+ * COLONNA COMUNE: quando il gruppo ha davvero più di un elemento, ogni box
+ * TESTUALE (tier e età) è reso nella stessa larghezza VISIBILE del marchio 4K
+ * dello stile attivo (`markRefWidth`), la stessa già usata dai marchi A/V.
+ * Non è solo una tela trasparente uguale: il box visibile (pill/tag/placca)
+ * coincide, e le etichette più larghe (FHD, PG-13, TV-MA) riducono il font
+ * (`fitBadgeGlyphFs`, metriche condivise) invece di allargare la colonna o
+ * stirare i glifi. Altezza/raggio/padding restano quelli della ricetta di
+ * base, quindi la banda della colonna e il centro sono comuni. I marchi A/V
+ * portano la cornice dello stile (pill satinata per `standard`, contorno mono
+ * per `mono`, placca per `color`/`premium`, tag bianco per `knockout`) e il
+ * glifo conserva l'aspect nativo DENTRO la cornice (mai stretch). Un solo
+ * elemento resta il bitmap storico naturale (nessuna normalizzazione
+ * inventata).
  *
  * Per-ITEM transforms: every painted element carries its stable identity
  * (`badge-item-transforms`: tier / age / one A/V mark / the merged DV+Atmos
@@ -968,20 +1054,27 @@ export async function renderQualityBadgeGroup(
   const isMono = qualityBadgeStyle === "mono"
   // Larghezza UNICA dei marchi A/V, derivata dal badge 4K dello stile attivo
   // (mai dall'aspect del singolo logo). Include il font perché i tag testuali
-  // (standard/knockout) cambiano larghezza con la font. Per `color`/`premium`
-  // è la larghezza ESTERNA della placca ( = icona tier 4K): il glifo ci sta
-  // dentro con un inset piccolo, mai un padding additivo che allarghi la
-  // colonna oltre il tier.
+  // (standard/knockout/mono) cambiano larghezza con la font. Per `color`/
+  // `premium` è la larghezza ESTERNA della placca ( = icona tier 4K): il glifo
+  // ci sta dentro con un inset piccolo, mai un padding additivo che allarghi
+  // la colonna oltre il tier.
   const markFs = Math.round(Math.max(17 * pw / 380, 10))
   const markFont = normalizeBadgeFont(font)
   const markRefWidth = (() => {
     if (isKnockout) {
       return Math.max(1, buildQualityKnockoutSvg("4K", markFs, markFont).w - TOP_SHADOW_PAD * 2)
     }
-    // Ogni stile testuale (standard, e null/garbage che degradano sul tier tag
-    // standard qui sotto) ancora i marchi alla larghezza del tag 4K.
-    if (!isPremium && !isColor && !isMono) {
-      return Math.max(1, buildQualityTierBadgeSvg("4K", markFs, !!topLight, markFont).w - TOP_SHADOW_PAD * 2)
+    // Stile mono: il tier è la STESSA cornice dinamica dell'età mono, quindi
+    // la colonna è la larghezza visibile del frame 4K (non più l'asset icona
+    // statico, che non è più usato dal renderer).
+    if (isMono) {
+      return Math.max(1, buildAgeEmphasisSvg("4K", markFs, "mono", !!topLight, markFont).w - TOP_SHADOW_PAD * 2)
+    }
+    // Stile standard: la colonna è larga quanto la PILL neutra 4K (stessa
+    // ricetta dell'età: satinatura, padding 0.75×fs, raggio a mezza altezza).
+    // Ogni tier testuale usa questa ricetta, non un tag più largo/quadrato.
+    if (!isPremium && !isColor) {
+      return Math.max(1, buildQualityBadgeSvg("4K", markFs, "", "", !!topLight, markFont).w - TOP_SHADOW_PAD * 2)
     }
     return qualityIconReferenceWidth(badgeBoxHeight(markFs))
   })()
@@ -993,7 +1086,8 @@ export async function renderQualityBadgeGroup(
     : markRefWidth
   /**
    * Un marchio A/V, con la stessa larghezza visibile in ogni stile:
-   * standard/mono = glifo nudo normalizzato; color/premium = glifo dentro una
+   * standard = glifo dentro la pill satinata del tier/età; mono = glifo dentro
+   * la cornice mono dell'età (fill none); color/premium = glifo dentro una
    * placca larga quanto il badge 4K; knockout = tag bianco con glifo
    * ritagliato (trasparente).
    */
@@ -1011,26 +1105,17 @@ export async function renderQualityBadgeGroup(
     if (isKnockout) {
       return renderAvKnockoutBadge(iconPath, pw, markRefWidth, markInkWidth)
     }
-    return renderQualityIconBadge(iconPath, pw, topLightForMark, markInkWidth)
+    // standard / mono: stessa cornice del tier e dell'età (mai un marchio nudo).
+    return renderFramedAvBadge(iconPath, pw, markRefWidth, isMono ? "mono" : "satin", topLightForMark)
   }
+  // The MONO tier is the shared dynamic frame (age mono recipe): no static
+  // mono asset — the renderer must never mix the two materials.
   // Knockout has no icon asset (qualityBadgeIconPath stays null by design):
   // it renders its own tag below and never falls back to the standard pill.
-  const qualityIconPath = !hasQuality || isKnockout ? null : qualityBadgeIconPath(qualityBadgeStyle, qualityText)
-  let resBadge: { png: Buffer; w: number; h: number } | null = null
-  if (hasQuality) {
-    if (qualityIconPath) {
-      resBadge = await renderQualityIconBadge(qualityIconPath, pw, topLight)
-    }
-    if (!resBadge) {
-      resBadge = isKnockout
-        ? await renderQualityKnockoutBadge(qualityText, pw, normalizeBadgeFont(font))
-        // Standard tier tag: intentionally wider/less-rounded box than the
-        // neutral pill (buildQualityTierBadgeSvg). The age pill below keeps
-        // renderQualityBadge (historic geometry, unchanged).
-        : await renderQualityTierBadge(qualityText, pw, topLight, normalizeBadgeFont(font))
-    }
-  }
-  if (!resBadge && ageText === "") return null
+  const qualityIconPath = !hasQuality || isKnockout || isMono ? null : qualityBadgeIconPath(qualityBadgeStyle, qualityText)
+  // Nothing painted at all (no quality, no age): legacy path, no format work.
+  // (With a quality, the tier ALWAYS renders: icon or text pill.)
+  if (!hasQuality && ageText === "") return null
 
   const rawValidFormats = (videoFormats ?? []).filter((f) => f in FORMAT_ICON_PATHS)
   // Priorità HDR10+ sul generico HDR (solo render, dopo la selezione
@@ -1080,15 +1165,54 @@ export async function renderQualityBadgeGroup(
   // della qualità (base 17px, polarità topLight, font badge); knockout =
   // white tag with mask-cut glyphs (transparent cut-out, builder
   // dedicated age-only `renderAgeKnockoutBadge` builder: never the shared
-  // quality-knockout builder, which stays byte-identical). Sanitized text
-  // maiuscolo-minuscolo preservato (escSvg nel builder, mai HTML grezzo).
-  const renderAgePill = async (): Promise<{ png: Buffer; w: number; h: number } | null> => {
+  // quality-knockout builder, which stays byte-identical); mono/color/premium
+  // = shared emphasis recipe (`buildAgeEmphasisSvg`: mono = high-contrast
+  // outline, the SAME material as the quality mono tier; color = tier palette
+  // plate, premium = gold plate — those two stay age-only).
+  // Sanitized text maiuscolo-minuscolo preservato (escSvg nel builder, mai
+  // HTML grezzo).
+  const renderAgePill = async (columnW?: number): Promise<{ png: Buffer; w: number; h: number } | null> => {
     if (ageText === "") return null
-    return effAgeStyle === "knockout"
-      ? renderAgeKnockoutBadge(ageText, pw, normalizeBadgeFont(font))
-      : renderQualityBadge(ageText, pw, topLight, normalizeBadgeFont(font))
+    // standard = neutral satin pill; knockout = age-only white tag;
+    // mono/color/premium = shared emphasis recipe in `badge-svg-shared.ts`
+    // (mono is the same material as the quality mono tier). Every branch keeps
+    // the age family box/height; `columnW` pins the VISIBLE box to the common
+    // group width (glyph font reduced to fit, never a stretched label).
+    if (effAgeStyle === "knockout") return renderAgeKnockoutBadge(ageText, pw, normalizeBadgeFont(font), columnW)
+    if (effAgeStyle === "mono" || effAgeStyle === "color" || effAgeStyle === "premium") {
+      return renderAgeEmphasisBadge(ageText, pw, effAgeStyle, !!topLight, normalizeBadgeFont(font), columnW)
+    }
+    return renderQualityBadge(ageText, pw, topLight, normalizeBadgeFont(font), columnW)
   }
-  const agePill = await renderAgePill()
+
+  // One VISIBLE column width for every painted element: the canonical 4K mark
+  // of the active style (the reference the A/V marks already normalise to).
+  // Only a real stack (2+ elements) pins it; a single element keeps its
+  // historic natural box/bitmap.
+  const paintedCount = (hasQuality ? 1 : 0) + (ageText === "" ? 0 : 1) + formatItems.length
+  const groupTargetW = paintedCount > 1 ? markRefWidth : undefined
+
+  let resBadge: { png: Buffer; w: number; h: number } | null = null
+  if (hasQuality) {
+    if (qualityIconPath) {
+      resBadge = await renderQualityIconBadge(qualityIconPath, pw, topLight)
+    }
+    if (!resBadge) {
+      // Standard tier = the SAME neutral satin pill as the age standard
+      // (buildQualityBadgeSvg: full rx = boxH/2, padding 0.75×fs). Mono tier =
+      // the SAME dynamic frame as the age mono (buildAgeEmphasisSvg): the
+      // actual label (4K/FHD/HD/SD) on the shared material, never the retired
+      // static icon. In a real stack the group column pins every tier label to
+      // the 4K box (font reduced to fit, never a stretched box).
+      resBadge = isKnockout
+        ? await renderQualityKnockoutBadge(qualityText, pw, normalizeBadgeFont(font), groupTargetW)
+        : isMono
+          ? await renderAgeEmphasisBadge(qualityText, pw, "mono", !!topLight, normalizeBadgeFont(font), groupTargetW)
+          : await renderQualityBadge(qualityText, pw, topLight, normalizeBadgeFont(font), groupTargetW)
+    }
+  }
+  if (!resBadge && ageText === "") return null
+  const agePill = await renderAgePill(groupTargetW)
   // Every painted element with its identity, in fixed paint order.
   const identified: { id: string; badge: { png: Buffer; w: number; h: number } }[] = []
   if (resBadge) identified.push({ id: BADGE_ITEM_QUALITY_TIER, badge: resBadge })
@@ -2515,9 +2639,9 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
   const ageText = typeof ageLabel === "string" ? ageLabel.trim() : ""
   const hasAgeBadge = badgesEnabled !== false && ageText !== ""
   const hasQualityGroup = hasQualityBadge || hasAgeBadge
-  // Built-in icon per style+tier (null = standard pill or knockout tag).
-  // The style enters the cache key in both cases: style change = new
-  // bitmaps, never a collision (knockout and standard share "std").
+  // Built-in icon per style+tier (null = standard pill / mono frame / knockout
+  // tag). The style enters the cache key in any case: style change = new
+  // bitmaps, never a collision (knockout, standard and mono share "std").
   // `quality` può essere null quando il gruppo rende la sola età: l'icona
   // resta null e la pill standard età compone il gruppo da sola. Quando il
   // legacy toggle è OFF (badgeQuality=false) l'effettiva è null: niente
@@ -2526,7 +2650,9 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
   const effAgeBadgeStyle: AgeBadgeStyle = ageBadgeStyle
   const effQualityTopLight = topLight
   const effQualityGroupScale = qualityBadgeScale
-  const qualityIconPath = effQualityBadgeStyle === "knockout" || !effectiveQuality ? null : qualityBadgeIconPath(effQualityBadgeStyle, effectiveQuality)
+  // `mono` renders the shared dynamic frame (same as the age mono): no asset
+  // path, so the cache key must not claim one.
+  const qualityIconPath = effQualityBadgeStyle === "knockout" || effQualityBadgeStyle === "mono" || !effectiveQuality ? null : qualityBadgeIconPath(effQualityBadgeStyle, effectiveQuality)
   const effComingSoonSide = ribbonSide === "right" ? "right" : "left"
   const effComingSoonLabel = comingSoonLabel
 

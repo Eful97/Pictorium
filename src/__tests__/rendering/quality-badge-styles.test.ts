@@ -11,6 +11,7 @@ import {
   premiumAccentHex,
   premiumFormatAccent,
   avMarkInkBox,
+  avPlateGlyphBox,
   qualityIconReferenceWidth,
   AV_COMBO_ICON_PATH,
   AV_PLATE_GLYPH_INSET_FACTOR,
@@ -18,7 +19,7 @@ import {
   COLOR_MARK_PLATE_BG,
   COLOR_MARK_PLATE_STROKE,
 } from "@/lib/quality-badge-styles"
-import { buildQualityKnockoutSvg, buildQualityBadgeSvg, buildQualityTierBadgeSvg, badgeBoxHeight, TOP_SHADOW_PAD } from "@/lib/badge-svg-shared"
+import { buildQualityKnockoutSvg, buildQualityBadgeSvg, buildAgeEmphasisSvg, badgeBoxHeight, TOP_SHADOW_PAD } from "@/lib/badge-svg-shared"
 import { KNOWN_VIDEO_FORMATS, FORMAT_ICON_PATHS, type VideoFormat } from "@/lib/av-specs"
 import { BADGE_ITEM_QUALITY_COMBO, BADGE_ITEM_QUALITY_TIER, qualityFormatItemId } from "@/lib/badge-item-transforms"
 import { mappingSchema, mappingUpdateSchema } from "@/lib/validation"
@@ -445,39 +446,39 @@ describe("quality A/V mark width normalization", () => {
     expect(avMarkInkBox("quality-badges/video/nope.svg")).toBeNull()
   }, 30000)
 
-  it("gives standard/mono marks one visible ink width equal to the style 4K tier, aspect preserved", async () => {
+  it("frames standard/mono A/V marks in one visible column (satin pill / mono outline, glyph inset, aspect preserved)", async () => {
     const svc = await import("@/lib/poster-service")
     for (const pw of [380, 500]) {
       const fs = Math.round(Math.max(17 * pw / 380, 10))
       const boxH = badgeBoxHeight(fs)
-      // Ancora per stile: il test standard è largo quanto il tag testuale 4K,
-      // il mono quanto l'icona 4K (larghezza visibile identica al tier).
+      // Ancora per stile: lo standard è largo quanto la pill satinata 4K, il
+      // mono quanto la CORNICE 4K condivisa con l'età (non più l'icona statica).
       const targets: Record<"standard" | "mono", number> = {
-        standard: buildQualityTierBadgeSvg("4K", fs, false, "inter").w - TOP_SHADOW_PAD * 2,
-        mono: qualityIconReferenceWidth(boxH),
+        standard: buildQualityBadgeSvg("4K", fs, "", "", false, "inter").w - TOP_SHADOW_PAD * 2,
+        mono: buildAgeEmphasisSvg("4K", fs, "mono", false, "inter").w - TOP_SHADOW_PAD * 2,
       }
       for (const style of ["standard", "mono"] as const) {
         const widths: number[] = []
         for (const mark of AV_MARKS) {
-          // Il glifo cambia con la polarità: il diff isola l'inchiostro
-          // (ombra e posizione identiche), anche sui tratti sottili.
-          const dark = await svc.renderQualityBadgeGroup("4K", style, mark.formats, pw, false)
-          const light = await svc.renderQualityBadgeGroup("4K", style, mark.formats, pw, true)
-          expect(dark, `${style}/${mark.key}/${pw}`).not.toBeNull()
-          expect(light, `${style}/${mark.key}/${pw}`).not.toBeNull()
-          const ink = await diffBbox(
-            await groupCell(dark!, dark!.items.length - 1),
-            await groupCell(light!, light!.items.length - 1),
-          )
-          expect(ink, `${style}/${mark.key}/${pw}`).not.toBeNull()
-          expect(Math.abs(ink!.w - targets[style]), `${style}/${mark.key}/${pw} width`).toBeLessThanOrEqual(2)
-          // Aspect dell'asset: l'altezza segue la larghezza, mai stirata.
-          const box = avMarkInkBox(mark.icon)!
-          expect(Math.abs(ink!.h - Math.round(ink!.w * (box.h / box.w))), `${style}/${mark.key}/${pw} aspect`).toBeLessThanOrEqual(1)
-          widths.push(ink!.w)
+          const group = await svc.renderQualityBadgeGroup("4K", style, mark.formats, pw, false)
+          expect(group, `${style}/${mark.key}/${pw}`).not.toBeNull()
+          const cell = group!.items[group!.items.length - 1]
+          // Cornice della famiglia: larghezza di colonna + banda comune (il
+          // marchio non è più nudo: pill satinata o contorno mono).
+          expect(cell.w - TOP_SHADOW_PAD * 2, `${style}/${mark.key}/${pw} width`).toBe(targets[style])
+          expect(cell.h, `${style}/${mark.key}/${pw} band`).toBe(boxH + TOP_SHADOW_PAD * 2)
+          // Glifo DENTRO la cornice: inset condiviso e aspect nativo dell'asset.
+          const ink = avMarkInkBox(mark.icon)!
+          const glyph = avPlateGlyphBox(ink, targets[style], boxH, fs)
+          expect(glyph.w, `${style}/${mark.key}/${pw} inset`).toBeLessThan(targets[style])
+          expect(
+            Math.abs(glyph.w / glyph.h - ink.w / ink.h) / (ink.w / ink.h),
+            `${style}/${mark.key}/${pw} aspect`,
+          ).toBeLessThan(0.08)
+          widths.push(cell.w - TOP_SHADOW_PAD * 2)
         }
         // Uniformità reale fra i marchi (non solo per costruzione).
-        expect(Math.max(...widths) - Math.min(...widths), `${style}/${pw} uniform`).toBeLessThanOrEqual(2)
+        expect(Math.max(...widths) - Math.min(...widths), `${style}/${pw} uniform`).toBe(0)
       }
     }
   }, 60000)
@@ -486,9 +487,9 @@ describe("quality A/V mark width normalization", () => {
     const svc = await import("@/lib/poster-service")
     const PW = 380
     const fs = Math.round(Math.max(17 * PW / 380, 10))
-    // Senza stile valido il tier degrada sul tag testuale standard: i marchi
+    // Senza stile valido il tier degrada sulla pill testuale standard: i marchi
     // A/V devono seguire quella larghezza, non quella dell'icona (38).
-    const target = buildQualityTierBadgeSvg("4K", fs, false, "inter").w - TOP_SHADOW_PAD * 2
+    const target = buildQualityBadgeSvg("4K", fs, "", "", false, "inter").w - TOP_SHADOW_PAD * 2
     for (const style of [null, undefined, "nope" as never]) {
       const group = await svc.renderQualityBadgeGroup("4K", style as never, ["hdr"], PW, false)
       expect(group, String(style)).not.toBeNull()

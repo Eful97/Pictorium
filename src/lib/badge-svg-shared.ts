@@ -1,6 +1,7 @@
 import type { BadgeStyle, RankingBadgeStyle, BadgeFont } from "./badge-styles"
 import { isBadgeFont } from "./badge-styles"
 import { isWarmGoldAccent, textColorForBg } from "./accent-color"
+import { AV_PLATE_STROKE_WIDTH, COLOR_MARK_GLYPH, COLOR_MARK_PLATE_BG, COLOR_MARK_PLATE_STROKE, PREMIUM_PLATE_BG, PREMIUM_PLATE_STROKE, premiumAccentHex } from "./quality-badge-styles"
 
 const TEXT_SAFE_PAD = 1.15
 const GENRE_TEXT_MAX_RATIO = 0.84
@@ -688,61 +689,122 @@ export function buildNetflixRankSvg(rank: number, pw: number, font: BadgeFont = 
   return { svg, w, h }
 }
 
-export function buildQualityBadgeSvg(quality: string, fs: number, _textColor: string, _bg: string, topLight: boolean = false, font: BadgeFont = "inter") {
-  const px = Math.round(fs * BADGE_BOX_PAD_X_FACTOR)
-  // Crenatura da marchio tecnico: 0.06em per intervallo. Il textLength è
-  // pinnato sulla larghezza reale (stima + tracking) così il layout segue e
-  // non comprime i glifi.
-  const track = quality.length > 1 ? Math.round(0.06 * fs * (quality.length - 1)) : 0
-  const textW = Math.max(estimateTextWidth(quality, fs, font) + track, fs)
-  const totalW = textW + px * 2
-  const boxH = badgeBoxHeight(fs)
-  const r = Math.round(boxH / 2)
-  const stroke = topLight ? "rgba(0,0,0,0.12)" : "rgba(255,255,255,0.22)"
-  const fg = topLight ? "rgba(255,255,255,0.95)" : "rgba(0,0,0,0.88)"
-  const renderW = totalW + TOP_SHADOW_PAD * 2
-  const renderH = boxH + TOP_SHADOW_PAD * 2
-  const ox = TOP_SHADOW_PAD
-  const oy = TOP_SHADOW_PAD
-  const textEl = `<text x="${ox + totalW / 2}" y="${oy + boxH / 2}" text-anchor="middle" dominant-baseline="central" font-family="${fontFamilyFor(quality, font)}" font-weight="700" font-size="${fs}" letter-spacing="0.06em" fill="${fg}"${textFitAttrs(textW)}>${escSvg(quality)}</text>`
-  const defs = `<defs><linearGradient id="qg" x1="0" y1="0" x2="0" y2="1">${satinPillStops(topLight)}</linearGradient>${TOP_SHADOW_FILTER}</defs>`
-  const bgEl = `<rect x="${ox}" y="${oy}" width="${totalW}" height="${boxH}" rx="${r}" fill="url(#qg)" stroke="${stroke}" stroke-width="1.5" filter="url(#tds)"/>`
-  return { svg: `<svg xmlns="http://www.w3.org/2000/svg" width="${renderW}" height="${renderH}" viewBox="0 0 ${renderW} ${renderH}">${defs}${bgEl}${textEl}</svg>`, w: renderW, h: renderH }
+// ---------------------------------------------------------------------------
+// Common VISIBLE box of the quality/age/formats column.
+//
+// Every TEXT element of the column can be rendered inside a FIXED visible
+// width (`targetW`): the group uses the visible width of the canonical 4K
+// mark of the active style, so tier, age and A/V marks really share one box
+// (not just the same transparent canvas). Glyphs are NEVER stretched: if the
+// label (FHD, PG-13, TV-MA…) is wider than the column the FONT shrinks
+// (`fitBadgeGlyphFs`, same shared metrics/kerning), while height, radius and
+// recipe padding stay those of the base `fs` — the column band never changes.
+// Without `targetW` every builder keeps its historic natural geometry (the
+// standalone path is untouched).
+// ---------------------------------------------------------------------------
+
+/** Technical-mark tracking: 0.06em per gap (shared text metrics). */
+const BADGE_TEXT_TRACK_FACTOR = 0.06
+
+/** Pinned glyph-run width (shared estimate + tracking) used by `textLength`. */
+export function pinnedBadgeTextWidth(text: string, fs: number, font: BadgeFont = "inter"): number {
+  const track = text.length > 1 ? Math.round(BADGE_TEXT_TRACK_FACTOR * fs * (text.length - 1)) : 0
+  return Math.max(estimateTextWidth(text, fs, font) + track, fs)
 }
 
 /**
- * Scatola del tag di tier streaming (4K/FHD/HD/SD, stile `standard`):
- * volutamente PIU LARGA e MENO TONDA della pill neutra storica
- * (`buildQualityBadgeSvg`, che la pill età conserva byte-identica):
- * padding orizzontale `1.0 × fs` (era `0.75 × fs`) e raggio contenuto
- * `0.32 × boxH` (era mezza altezza = pill piena). Altezza, satinatura,
- * bordo, ombra, testo e crenatura restano quelli della pill neutra, quindi
- * ancoraggi/scale/offset a valle non si muovono e il testo non clippa mai
- * (`textLength` pinnato sulla stima, scatola solo allargata). Tutti i tier
- * condividono questa scatola (unica famiglia del tag di tier); gli asset
- * icona mono/color e il tag knockout mantengono la propria geometria.
+ * Largest glyph size `fs <= baseFs` whose pinned run plus the recipe's
+ * horizontal padding (`padXFactor × fs`) fits a fixed `targetW`. The low floor
+ * guarantees a pathological label still fits the shared box.
  */
-export const QUALITY_TIER_PAD_X_FACTOR = 1.0
-export const QUALITY_TIER_RADIUS_FACTOR = 0.32
+export function fitBadgeGlyphFs(
+  text: string,
+  baseFs: number,
+  targetW: number,
+  padXFactor: number,
+  font: BadgeFont = "inter",
+  minFs: number = 4,
+): number {
+  const floor = Math.max(1, Math.round(minFs))
+  for (let fs = Math.max(floor, Math.round(baseFs)); fs > floor; fs--) {
+    if (pinnedBadgeTextWidth(text, fs, font) + Math.round(fs * padXFactor) * 2 <= targetW) return fs
+  }
+  return floor
+}
 
-export function buildQualityTierBadgeSvg(quality: string, fs: number, topLight: boolean = false, font: BadgeFont = "inter") {
-  const px = Math.round(fs * QUALITY_TIER_PAD_X_FACTOR)
-  // Stessa crenatura da marchio tecnico della pill neutra (0.06em per
-  // intervallo, `textLength` pinnato su stima + tracking).
-  const track = quality.length > 1 ? Math.round(0.06 * fs * (quality.length - 1)) : 0
-  const textW = Math.max(estimateTextWidth(quality, fs, font) + track, fs)
-  const totalW = textW + px * 2
-  const boxH = badgeBoxHeight(fs)
-  const r = Math.round(boxH * QUALITY_TIER_RADIUS_FACTOR)
-  const stroke = topLight ? "rgba(0,0,0,0.12)" : "rgba(255,255,255,0.22)"
-  const fg = topLight ? "rgba(255,255,255,0.95)" : "rgba(0,0,0,0.88)"
+interface BadgeTextBox {
+  /** Glyph size (base `fs`, reduced only when a fixed target is pinned). */
+  readonly glyphFs: number
+  /** Pinned glyph-run width (`textLength`), never wider than the box interior. */
+  readonly textW: number
+  /** Visible box width (the shared target when pinned, natural otherwise). */
+  readonly totalW: number
+  /** Visible box height from the BASE `fs`: the common column band. */
+  readonly boxH: number
+}
+
+// ---------------------------------------------------------------------------
+// Satin pill frame of the `standard` family (tier pill, age pill and framed
+// A/V marks): one polarity rule for every box in the column.
+// ---------------------------------------------------------------------------
+
+/** Pill border 1.5px (shared by every satin frame in the column). */
+export const SATIN_PILL_STROKE_WIDTH = 1.5
+/** Satin border on a DARK top: light pill, so a light hairline. */
+export const SATIN_PILL_STROKE_DARK = "rgba(255,255,255,0.22)"
+/** Satin border on a LIGHT top: dark pill, so a dark hairline. */
+export const SATIN_PILL_STROKE_LIGHT = "rgba(0,0,0,0.12)"
+/** Pill/glyph ink on a LIGHT top (dark pill → white ink). */
+export const SATIN_PILL_INK_LIGHT = "rgba(255,255,255,0.95)"
+/** Pill/glyph ink on a DARK top (light pill → dark ink). */
+export const SATIN_PILL_INK_DARK = "rgba(0,0,0,0.88)"
+
+/** Shared text box of the quality/age recipes (natural or pinned width). */
+export function badgeTextBox(
+  text: string,
+  baseFs: number,
+  padXFactor: number,
+  font: BadgeFont,
+  targetW?: number,
+): BadgeTextBox {
+  const boxH = badgeBoxHeight(baseFs)
+  if (targetW == null) {
+    const textW = pinnedBadgeTextWidth(text, baseFs, font)
+    return { glyphFs: baseFs, textW, totalW: textW + Math.round(baseFs * padXFactor) * 2, boxH }
+  }
+  const boxW = Math.max(1, Math.round(targetW))
+  const glyphFs = fitBadgeGlyphFs(text, baseFs, boxW, padXFactor, font)
+  const px = Math.round(glyphFs * padXFactor)
+  // Safety clamp (pathological labels only): the run never spills out of the
+  // shared box; `textLength` pins it without changing the box width.
+  const textW = Math.min(pinnedBadgeTextWidth(text, glyphFs, font), Math.max(1, boxW - px * 2))
+  return { glyphFs, textW, totalW: boxW, boxH }
+}
+
+export function buildQualityBadgeSvg(
+  quality: string,
+  fs: number,
+  _textColor: string,
+  _bg: string,
+  topLight: boolean = false,
+  font: BadgeFont = "inter",
+  /** Fixed visible box width (group column); absent = natural width. */
+  targetW?: number,
+) {
+  // Crenatura da marchio tecnico: 0.06em per intervallo. Il textLength è
+  // pinnato sulla larghezza reale (stima + tracking) così il layout segue e
+  // non comprime i glifi.
+  const { glyphFs, textW, totalW, boxH } = badgeTextBox(quality, fs, BADGE_BOX_PAD_X_FACTOR, font, targetW)
+  const r = Math.round(boxH / 2)
+  const stroke = topLight ? SATIN_PILL_STROKE_LIGHT : SATIN_PILL_STROKE_DARK
+  const fg = topLight ? SATIN_PILL_INK_LIGHT : SATIN_PILL_INK_DARK
   const renderW = totalW + TOP_SHADOW_PAD * 2
   const renderH = boxH + TOP_SHADOW_PAD * 2
   const ox = TOP_SHADOW_PAD
   const oy = TOP_SHADOW_PAD
-  const textEl = `<text x="${ox + totalW / 2}" y="${oy + boxH / 2}" text-anchor="middle" dominant-baseline="central" font-family="${fontFamilyFor(quality, font)}" font-weight="700" font-size="${fs}" letter-spacing="0.06em" fill="${fg}"${textFitAttrs(textW)}>${escSvg(quality)}</text>`
+  const textEl = `<text x="${ox + totalW / 2}" y="${oy + boxH / 2}" text-anchor="middle" dominant-baseline="central" font-family="${fontFamilyFor(quality, font)}" font-weight="700" font-size="${glyphFs}" letter-spacing="0.06em" fill="${fg}"${textFitAttrs(textW)}>${escSvg(quality)}</text>`
   const defs = `<defs><linearGradient id="qg" x1="0" y1="0" x2="0" y2="1">${satinPillStops(topLight)}</linearGradient>${TOP_SHADOW_FILTER}</defs>`
-  const bgEl = `<rect x="${ox}" y="${oy}" width="${totalW}" height="${boxH}" rx="${r}" fill="url(#qg)" stroke="${stroke}" stroke-width="1.5" filter="url(#tds)"/>`
+  const bgEl = `<rect x="${ox}" y="${oy}" width="${totalW}" height="${boxH}" rx="${r}" fill="url(#qg)" stroke="${stroke}" stroke-width="${SATIN_PILL_STROKE_WIDTH}" filter="url(#tds)"/>`
   return { svg: `<svg xmlns="http://www.w3.org/2000/svg" width="${renderW}" height="${renderH}" viewBox="0 0 ${renderW} ${renderH}">${defs}${bgEl}${textEl}</svg>`, w: renderW, h: renderH }
 }
 
@@ -752,16 +814,20 @@ export function buildQualityTierBadgeSvg(quality: string, fs: number, topLight: 
  * out via SVG mask, so the poster shows through the letters. The tag box
  * keeps the standard pill metrics (same totalW/boxH from the base `fs`),
  * while the mask glyphs render at ~1.35x `fs` to fill the interior with
- * small anti-clipping margins. Only the shared translucent 3D shadow is
+ * small anti-clipping margins. With `targetW` (group column) the visible box
+ * is pinned to the canonical 4K width and the box font is reduced to fit the
+ * label (`fitBadgeGlyphFs`), so the same tag recipe serves every tier without
+ * changing the column band. Only the shared translucent 3D shadow is
  * applied — no stroke, no fill inside the glyphs.
  */
-export function buildQualityKnockoutSvg(quality: string, fs: number, font: BadgeFont = "inter") {
-  const px = Math.round(fs * BADGE_BOX_PAD_X_FACTOR)
-  // Same tracking as the standard technical-mark pill: 0.06em per gap.
-  const track = quality.length > 1 ? Math.round(0.06 * fs * (quality.length - 1)) : 0
-  const textW = Math.max(estimateTextWidth(quality, fs, font) + track, fs)
-  const totalW = textW + px * 2
-  const boxH = badgeBoxHeight(fs)
+export function buildQualityKnockoutSvg(
+  quality: string,
+  fs: number,
+  font: BadgeFont = "inter",
+  /** Fixed visible box width (group column); absent = natural width. */
+  targetW?: number,
+) {
+  const { glyphFs, totalW, boxH } = badgeTextBox(quality, fs, BADGE_BOX_PAD_X_FACTOR, font, targetW)
   // Contained rounded-rectangle radius (reference look), not a full pill.
   const r = Math.round(boxH * 0.30)
   const renderW = totalW + TOP_SHADOW_PAD * 2
@@ -772,12 +838,12 @@ export function buildQualityKnockoutSvg(quality: string, fs: number, font: Badge
   const cy = oy + boxH / 2
   const family = fontFamilyFor(quality, font)
   // Oversized mask glyphs inside the unchanged box: more ink width/height
-  // than the base `fs`, clamped to the interior with a small margin so
+  // than the box font, clamped to the interior with a small margin so
   // resvg never clips (all tiers/fonts).
-  const maskFs = Math.round(fs * 1.35)
-  const maskTrack = quality.length > 1 ? Math.round(0.06 * maskFs * (quality.length - 1)) : 0
+  const maskFs = Math.round(glyphFs * 1.35)
+  const maskTrack = quality.length > 1 ? Math.round(BADGE_TEXT_TRACK_FACTOR * maskFs * (quality.length - 1)) : 0
   const maskNatural = Math.max(estimateTextWidth(quality, maskFs, font) + maskTrack, maskFs)
-  const maskMargin = Math.max(2, Math.round(fs * 0.15))
+  const maskMargin = Math.max(2, Math.round(glyphFs * 0.15))
   const maskTextW = Math.min(maskNatural, Math.max(totalW - maskMargin * 2, maskFs))
   const fit = textFitAttrs(maskTextW)
   const defs = `<defs><mask id="qkm"><rect x="${ox}" y="${oy}" width="${totalW}" height="${boxH}" rx="${r}" fill="#ffffff"/><text x="${cx}" y="${cy}" text-anchor="middle" dominant-baseline="central" font-family="${family}" font-weight="700" font-size="${maskFs}" letter-spacing="0.06em" fill="#000000"${fit}>${escSvg(quality)}</text></mask>${TOP_SHADOW_FILTER}</defs>`
@@ -804,9 +870,13 @@ export const AGE_KNOCKOUT_BG = "#ffffff"
  * quality path): opaque white rounded rectangle with the label glyphs cut
  * out via SVG mask, so the poster shows through the letters — same genuine
  * knockout look as the shared quality tag. Unlike the shared quality
- * builder, the mask glyphs render at the normal base `fs` (no 1.35x
+ * builder, the mask glyphs render at the normal box `fs` (no 1.35x
  * oversize) and the box is roomier (`1.0 × fs` padding, contained `0.30 ×
  * boxH` radius), so long labels (VM14/PG-13/TV-MA) keep breathing room.
+ * With `targetW` (group column) the visible box is pinned to the canonical
+ * 4K width: the glyph font is reduced to fit (`fitBadgeGlyphFs`) instead of
+ * squeezing or stretching the letters, while height/radius stay those of
+ * the base `fs`. Without `targetW` the natural box/history is unchanged.
  * Same 17px base, box height, tracking (`0.06em` technical-mark kerning,
  * `textLength` pinned on estimate + tracking), font metrics
  * (`fontFamilyFor` / `estimateTextWidth`), escaping (`escSvg`) and
@@ -817,13 +887,14 @@ export const AGE_KNOCKOUT_BG = "#ffffff"
  * The transparent lettering is intentional (accepted tradeoff on bright
  * artwork): never add opaque text or contrast-adaptation fallbacks here.
  */
-export function buildAgeKnockoutSvg(label: string, fs: number, font: BadgeFont = "inter") {
-  const px = Math.round(fs * AGE_KNOCKOUT_PAD_X_FACTOR)
-  // Same tracking as the quality technical-mark pills: 0.06em per gap.
-  const track = label.length > 1 ? Math.round(0.06 * fs * (label.length - 1)) : 0
-  const textW = Math.max(estimateTextWidth(label, fs, font) + track, fs)
-  const totalW = textW + px * 2
-  const boxH = badgeBoxHeight(fs)
+export function buildAgeKnockoutSvg(
+  label: string,
+  fs: number,
+  font: BadgeFont = "inter",
+  /** Fixed visible box width (group column); absent = natural width. */
+  targetW?: number,
+) {
+  const { glyphFs, textW, totalW, boxH } = badgeTextBox(label, fs, AGE_KNOCKOUT_PAD_X_FACTOR, font, targetW)
   const r = Math.round(boxH * AGE_KNOCKOUT_RADIUS_FACTOR)
   const renderW = totalW + TOP_SHADOW_PAD * 2
   const renderH = boxH + TOP_SHADOW_PAD * 2
@@ -832,15 +903,114 @@ export function buildAgeKnockoutSvg(label: string, fs: number, font: BadgeFont =
   const cx = ox + totalW / 2
   const cy = oy + boxH / 2
   const family = fontFamilyFor(label, font)
-  // Mask glyphs at the normal base `fs` (not oversized): the wider age box
-  // already gives long labels room, so the cut-out stays comfortable with
+  // Mask glyphs at the (possibly fitted) box font, never oversized: the age
+  // box already gives long labels room, so the cut-out stays comfortable with
   // small anti-clipping margins (same margin rule as the quality builder).
-  const maskMargin = Math.max(2, Math.round(fs * 0.15))
-  const maskTextW = Math.min(textW, Math.max(totalW - maskMargin * 2, fs))
+  const maskMargin = Math.max(2, Math.round(glyphFs * 0.15))
+  const maskTextW = Math.min(textW, Math.max(totalW - maskMargin * 2, glyphFs))
   const fit = textFitAttrs(maskTextW)
-  const defs = `<defs><mask id="akm"><rect x="${ox}" y="${oy}" width="${totalW}" height="${boxH}" rx="${r}" fill="#ffffff"/><text x="${cx}" y="${cy}" text-anchor="middle" dominant-baseline="central" font-family="${family}" font-weight="700" font-size="${fs}" letter-spacing="0.06em" fill="#000000"${fit}>${escSvg(label)}</text></mask>${TOP_SHADOW_FILTER}</defs>`
+  const defs = `<defs><mask id="akm"><rect x="${ox}" y="${oy}" width="${totalW}" height="${boxH}" rx="${r}" fill="#ffffff"/><text x="${cx}" y="${cy}" text-anchor="middle" dominant-baseline="central" font-family="${family}" font-weight="700" font-size="${glyphFs}" letter-spacing="0.06em" fill="#000000"${fit}>${escSvg(label)}</text></mask>${TOP_SHADOW_FILTER}</defs>`
   const bgEl = `<rect x="${ox}" y="${oy}" width="${totalW}" height="${boxH}" rx="${r}" fill="${AGE_KNOCKOUT_BG}" mask="url(#akm)" filter="url(#tds)"/>`
   return { svg: `<svg xmlns="http://www.w3.org/2000/svg" width="${renderW}" height="${renderH}" viewBox="0 0 ${renderW} ${renderH}">${defs}${bgEl}</svg>`, w: renderW, h: renderH }
+}
+
+// ---------------------------------------------------------------------------
+// Emphasis `mono` / `color` / `premium`: the same visual vocabulary as the
+// quality tier, applied to the DYNAMIC certification label
+// (12/PG-13/TV-MA — no bundled numeric asset, the label is always a parameter).
+// `mono` is shared with the quality tier: the quality `mono` tier renders its
+// real label (4K/FHD/HD/SD) through this SAME builder, so tier and age can
+// never diverge into two mono materials. `color`/`premium` are age-only.
+//
+// Geometry is IDENTICAL to the age `knockout` tag for every label (same
+// `AGE_KNOCKOUT_PAD_X_FACTOR` padding, `AGE_KNOCKOUT_RADIUS_FACTOR` radius,
+// `badgeBoxHeight(fs)` height, base-`fs` glyphs with the shared technical
+// tracking), so the top-right stack/offset/scale math and the per-item
+// corrections are unchanged across age styles. Colors/frames reuse the
+// EXISTING quality palettes (`quality-badge-styles.ts`): no new asset, no
+// invented official age color. `standard`/`knockout` never pass through here.
+// ---------------------------------------------------------------------------
+
+/** Age style family rendered by the shared emphasis recipe. */
+export type AgeEmphasisStyle = "mono" | "color" | "premium"
+
+/** High-contrast mono ink on a dark top (white, like the mono tier marks). */
+export const AGE_MONO_INK_DARK = "#ffffff"
+
+/** High-contrast mono ink on a light top (black, like the mono tier marks). */
+export const AGE_MONO_INK_LIGHT = "#000000"
+
+/** Mono frame stroke as a fraction of `fs`: ~7% of the box height, in the
+ *  same optical range as the shipped mono tier asset frame (~8%). */
+export const AGE_MONO_STROKE_FACTOR = 0.12
+
+/** Minimum mono frame stroke (px): never a sub-pixel hairline at badge sizes. */
+export const AGE_MONO_STROKE_MIN = 2
+
+/**
+ * Age emphasis tag (`mono`/`color`/`premium`, age ONLY). One shared recipe:
+ * the box is the age family box (byte-identical footprint to the age
+ * knockout), only the ink/plate changes:
+ *
+ * - `mono`: bare monochrome frame + glyphs in high-contrast white/black by
+ *   top polarity, NO satin fill/plate. This is the SINGLE mono material: the
+ *   quality `mono` tier renders its real label (4K/FHD/HD/SD) through the
+ *   same builder, so tier and age can never diverge.
+ * - `color`: yellow glyph (`COLOR_MARK_GLYPH`) on the dark tier plate with
+ *   the yellow tier border (`COLOR_MARK_PLATE_*`, palette sampled from the
+ *   shipped `quality-badges/color` tier asset).
+ * - `premium`: gold design accent (`premiumAccentHex("gold")`) on the compact
+ *   neutral dark premium plate (`PREMIUM_PLATE_*`).
+ *
+ * Plate borders stay INSIDE the box (shared AV plate rule) so the visible
+ * footprint is the same as the age knockout for the same label. With
+ * `targetW` (group column) the box is pinned to the canonical 4K width and
+ * long labels reduce the glyph font (`fitBadgeGlyphFs`) instead of growing
+ * the column; height/radius remain those of the base `fs`. Without `targetW`
+ * the box still grows with the pinned text estimate (standalone history).
+ * Only the shared 3D shadow is applied (`TOP_SHADOW_FILTER`).
+ */
+export function buildAgeEmphasisSvg(
+  label: string,
+  fs: number,
+  style: AgeEmphasisStyle,
+  topLight: boolean = false,
+  font: BadgeFont = "inter",
+  /** Fixed visible box width (group column); absent = natural width. */
+  targetW?: number,
+) {
+  const { glyphFs, textW, totalW, boxH } = badgeTextBox(label, fs, AGE_KNOCKOUT_PAD_X_FACTOR, font, targetW)
+  // Age family radius: same contained rectangle as the age knockout tag.
+  const r = Math.round(boxH * AGE_KNOCKOUT_RADIUS_FACTOR)
+  const renderW = totalW + TOP_SHADOW_PAD * 2
+  const renderH = boxH + TOP_SHADOW_PAD * 2
+  const ox = TOP_SHADOW_PAD
+  const oy = TOP_SHADOW_PAD
+  const cx = ox + totalW / 2
+  const cy = oy + boxH / 2
+  const family = fontFamilyFor(label, font)
+  const monoInk = topLight ? AGE_MONO_INK_LIGHT : AGE_MONO_INK_DARK
+  const plateBg = style === "color" ? COLOR_MARK_PLATE_BG : PREMIUM_PLATE_BG
+  const plateStroke = style === "color" ? COLOR_MARK_PLATE_STROKE : PREMIUM_PLATE_STROKE
+  const glyphFill = style === "color"
+    ? COLOR_MARK_GLYPH
+    : style === "premium"
+      ? premiumAccentHex("gold")
+      : monoInk
+  const textEl = `<text x="${cx}" y="${cy}" text-anchor="middle" dominant-baseline="central" font-family="${family}" font-weight="700" font-size="${glyphFs}" letter-spacing="0.06em" fill="${glyphFill}"${textFitAttrs(textW)}>${escSvg(label)}</text>`
+  // Border stroke centered on the path is kept INSIDE the box (same rule as
+  // the AV plates): the visible outer edge lands on the age family box.
+  const strokeW = style === "mono" ? Math.max(AGE_MONO_STROKE_MIN, Math.round(fs * AGE_MONO_STROKE_FACTOR)) : AV_PLATE_STROKE_WIDTH
+  const rectW = Math.max(1, totalW - strokeW)
+  const rectH = Math.max(1, boxH - strokeW)
+  const rectX = ox + strokeW / 2
+  const rectY = oy + strokeW / 2
+  const shapeEl = style === "mono"
+    ? `<rect x="${rectX}" y="${rectY}" width="${rectW}" height="${rectH}" rx="${r}" fill="none" stroke="${monoInk}" stroke-width="${strokeW}"/>`
+    : `<rect x="${rectX}" y="${rectY}" width="${rectW}" height="${rectH}" rx="${r}" fill="${plateBg}" stroke="${plateStroke}" stroke-width="${strokeW}"/>`
+  // One shadow over the whole lockup (frame/plate + glyphs), like the plates.
+  const bodyEl = `<g filter="url(#tds)">${shapeEl}${textEl}</g>`
+  return { svg: `<svg xmlns="http://www.w3.org/2000/svg" width="${renderW}" height="${renderH}" viewBox="0 0 ${renderW} ${renderH}"><defs>${TOP_SHADOW_FILTER}</defs>${bodyEl}</svg>`, w: renderW, h: renderH }
 }
 
 // --- Color helpers (shared native recipes) ---
