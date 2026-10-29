@@ -37,7 +37,7 @@ import { computeLogoLayout, logoAlignPadX, PORTRAIT_LOGO_MAX_HEIGHT_PCT, PORTRAI
 import { logoDefaultScaleFromAspect, FRESH_TITLE_LOGO_DEFAULT_SCALE } from "./logo-selection"
 import fs from "fs"
 import path from "path"
-import { buildQualityBadgeSvg, buildQualityKnockoutSvg, buildAgeEmphasisSvg, estimateTextWidth, fontFamilyFor, escSvg, badgeBoxHeight, TOP_SHADOW_PAD, TOP_SHADOW_FILTER, AGE_KNOCKOUT_RADIUS_FACTOR, AGE_MONO_STROKE_FACTOR, AGE_MONO_STROKE_MIN, AGE_MONO_INK_DARK, AGE_MONO_INK_LIGHT, SATIN_PILL_INK_DARK, SATIN_PILL_INK_LIGHT, SATIN_PILL_STROKE_DARK, SATIN_PILL_STROKE_LIGHT, SATIN_PILL_STROKE_WIDTH, satinPillStops } from "./badge-svg-shared"
+import { buildQualityBadgeSvg, buildQualityKnockoutSvg, buildAgeEmphasisSvg, estimateTextWidth, fontFamilyFor, escSvg, badgeBoxHeight, TOP_SHADOW_PAD, TOP_SHADOW_FILTER, KNOCKOUT_SHADOW_FILTER, KNOCKOUT_INK_OPACITY, knockoutOuterShadow, AGE_KNOCKOUT_RADIUS_FACTOR, AGE_MONO_STROKE_FACTOR, AGE_MONO_STROKE_MIN, AGE_MONO_INK_DARK, AGE_MONO_INK_LIGHT, SATIN_PILL_INK_DARK, SATIN_PILL_INK_LIGHT, SATIN_PILL_STROKE_DARK, SATIN_PILL_STROKE_LIGHT, SATIN_PILL_STROKE_WIDTH, satinPillStops } from "./badge-svg-shared"
 import { computeTopBadge, getNextEpisodeLabel, isNetworkStudio, shouldSuppressExtraTopBadgeForNetwork, type BadgeInput } from "./poster-badge"
 import { isNextEpisodeBadgeKey } from "./badge-priority"
 import { DEMO_SAMPLE_NETWORK } from "./demo-samples"
@@ -922,11 +922,12 @@ export async function renderPremiumIconBadge(
 }
 
 /**
- * Marchio A/V `knockout`: tag BIANCO opaco con il glifo davvero ritagliato
- * (SVG mask → trasparente), come il tag knockout del tier 4K. Il tag è largo
+ * Marchio A/V `knockout`: tag BIANCO opaco con il glifo ritagliato via mask
+ * e riempito dall'inchiostro nero al `KNOCKOUT_INK_OPACITY` (70%) disegnato
+ * SOPRA l'artwork visibile nel ritaglio, come il tag knockout del tier 4K:
+ * il glifo resta scuro stabile conservando il 30% di artwork. Il tag è largo
  * quanto il tag knockout 4K (`tagWidth`), il glifo interno conserva
- * l'inchiostro del badge 4K (`inkWidth`) e l'aspect naturale. Nessuno stroke,
- * nessuna fill dentro i glifi: solo l'ombra 3D condivisa.
+ * l'inchiostro del badge 4K (`inkWidth`) e l'aspect naturale. Nessuno stroke.
  */
 export async function renderAvKnockoutBadge(
   iconPath: string,
@@ -951,16 +952,28 @@ export async function renderAvKnockoutBadge(
     const oy = TOP_SHADOW_PAD
     const gx = ox + Math.round((tagW - glyphW) / 2)
     const gy = oy + Math.round((boxH - glyphH) / 2)
+    const glyph = `<svg x="${gx}" y="${gy}" width="${glyphW}" height="${glyphH}" viewBox="${ink.x} ${ink.y} ${ink.w} ${ink.h}" fill="#000000" color="#000000">${svgInnerContent(src)}</svg>`
     const mask = `<mask id="avkm"><rect x="${ox}" y="${oy}" width="${tagW}" height="${boxH}" rx="${r}" fill="#ffffff"/>` +
-      `<svg x="${gx}" y="${gy}" width="${glyphW}" height="${glyphH}" viewBox="${ink.x} ${ink.y} ${ink.w} ${ink.h}" fill="#000000" color="#000000">${svgInnerContent(src)}</svg>` +
+      glyph +
       `</mask>`
     // Shadow ON the masked rect (same construction as
     // `buildQualityKnockoutSvg`): filtering a wrapping <g> makes resvg keep
     // the mask partial instead of cutting through, so the glyph would read
-    // as grey on white instead of a true transparent cut-out.
+    // as grey on white instead of a clean cut-out showing the artwork.
+    // The LIGHT outer ring comes from the shared `knockoutOuterShadow`
+    // (same layer as the tier tag): the masked 3D shadow above leaves no
+    // halo outside the tag, so the white mark needs its own soft ring.
+    const shadow = knockoutOuterShadow("avko", totalW, totalH, { x: ox, y: oy, w: tagW, h: boxH, r })
+    // The ink reuses the exact glyph geometry of the mask, drawn ABOVE the
+    // masked tag: group opacity composites it over the artwork inside the
+    // cut-out (never over the opaque white body, which would hide the poster).
+    const inkEl = `<g opacity="${KNOCKOUT_INK_OPACITY}">${glyph}</g>`
     const compositeSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="${totalW}" height="${totalH}" viewBox="0 0 ${totalW} ${totalH}">` +
-      `<defs>${mask}${TOP_SHADOW_FILTER}</defs>` +
-      `<rect x="${ox}" y="${oy}" width="${tagW}" height="${boxH}" rx="${r}" fill="#ffffff" mask="url(#avkm)" filter="url(#tds)"/></svg>`
+      `<defs>${mask}${shadow.defs}${TOP_SHADOW_FILTER}${KNOCKOUT_SHADOW_FILTER}</defs>` +
+      `${shadow.layer}` +
+      `<rect x="${ox}" y="${oy}" width="${tagW}" height="${boxH}" rx="${r}" fill="#ffffff" mask="url(#avkm)" filter="url(#tds)"/>` +
+      inkEl +
+      `</svg>`
     const png = await renderSVG(compositeSvg, totalW)
     return { png, w: totalW, h: totalH }
   } catch {

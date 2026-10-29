@@ -269,6 +269,7 @@ async function tagCutoutStats(png: Buffer, tagW: number, boxH: number) {
   }
   let clear = 0
   let partial = 0
+  let ink = 0
   let white = 0
   for (let y = oy; y < oy + H; y++) {
     for (let x = ox; x < ox + W; x++) {
@@ -277,10 +278,13 @@ async function tagCutoutStats(png: Buffer, tagW: number, boxH: number) {
       const a = data[i + 3]
       if (a === 0) clear++
       if (a < 200) partial++
+      // Quality-knockout glyphs: 70% black ink over the artwork (alpha ~178,
+      // RGB ~0), never an opaque white body pixel.
+      if (Math.abs(a - 0.70 * 255) <= 4 && Math.max(data[i], data[i + 1], data[i + 2]) < 30) ink++
       if (a > 200 && data[i] > 200 && data[i + 1] > 200 && data[i + 2] > 200) white++
     }
   }
-  return { clear, partial, white }
+  return { clear, partial, ink, white }
 }
 
 /** Asset A/V shipped nell'ordine di formato + la lockup unita DV · Atmos. */
@@ -557,7 +561,7 @@ describe("quality A/V mark width normalization", () => {
     expect(premiumGroup!.png.equals(colorGroup!.png)).toBe(false)
   }, 60000)
 
-  it("knockout: white 4K-width tag with a true transparent cut-out for every mark, polarity-independent", async () => {
+  it("knockout: white 4K-width tag with a 70% black ink glyph for every mark, polarity-independent", async () => {
     const svc = await import("@/lib/poster-service")
     for (const pw of [380, 500]) {
       const fs = Math.round(Math.max(17 * pw / 380, 10))
@@ -574,12 +578,11 @@ describe("quality A/V mark width normalization", () => {
         const item = dark!.items[dark!.items.length - 1]
         expect(item.w - TOP_SHADOW_PAD * 2, `${mark.key}/${pw} tag width`).toBe(tagW)
         expect(item.h - TOP_SHADOW_PAD * 2, `${mark.key}/${pw} tag height`).toBe(boxH)
-        // Ritaglio VERO: il glifo è trasparente (alpha 0) dentro il tag, il
-        // corpo resta bianco opaco. Un filtro sul <g> lascerebbe il glifo
-        // grigio/semi-opaco invece del cut-out.
+        // Cut-out filled with the 70% black quality ink (alpha ~178, RGB ~0):
+        // the glyph stays dark while the artwork below keeps its 30% share,
+        // and the tag body remains opaque white.
         const cut = await tagCutoutStats(cellDark, tagW, boxH)
-        expect(cut.clear, `${mark.key}/${pw} transparent glyph`).toBeGreaterThan(20)
-        expect(cut.partial, `${mark.key}/${pw} cut-out area`).toBeGreaterThan(100)
+        expect(cut.ink, `${mark.key}/${pw} ink glyph`).toBeGreaterThan(20)
         expect(cut.white, `${mark.key}/${pw} white tag body`).toBeGreaterThan(500)
         // Il tag bianco non dipende dalla polarità del fondo.
         expect(cellDark.equals(cellLight), `${mark.key}/${pw} polarity`).toBe(true)
@@ -796,7 +799,7 @@ describe("quality knockout tag", () => {
     }
   })
 
-  it("rasterizes transparent glyphs over an opaque white tag (mask support)", async () => {
+  it("rasterizes the 70% black ink glyphs over an opaque white tag (mask support)", async () => {
     const { renderQualityKnockoutBadge, renderQualityBadge } = await import("@/lib/svg-badge")
     const pw = 380
     const PAD = 14
@@ -806,7 +809,7 @@ describe("quality knockout tag", () => {
       const { data } = await sharp(png).ensureAlpha().raw().toBuffer({ resolveWithObject: true })
       // Sample strictly inside the rounded tag (2px inset, corners cut by
       // the corner radius): edge antialiasing and square box corners must
-      // not count as glyph cutouts.
+      // not count as glyph pixels.
       const ox = PAD + 2
       const oy = PAD + 2
       const W = w - PAD * 2 - 4
@@ -816,36 +819,39 @@ describe("quality knockout tag", () => {
         const cy = Math.min(Math.max(y, oy + rx), oy + H - rx)
         return (x - cx) * (x - cx) + (y - cy) * (y - cy) <= rx * rx
       }
-      let eq0 = 0
-      let bandEq0 = 0
+      let ink = 0
+      let bandInk = 0
       let whiteOpaque = 0
-      const eq0Spots: Array<[number, number]> = []
+      const inkSpots: Array<[number, number]> = []
       for (let y = oy; y < oy + H; y++) {
         for (let x = ox; x < ox + W; x++) {
           if (!inside(x, y)) continue
           const i = (y * w + x) * 4
-          if (data[i + 3] === 0) {
-            eq0++
-            eq0Spots.push([x, y])
-            // Text band around the vertical center: holes must be glyphs.
-            if (y >= oy + H / 2 - 8 && y <= oy + H / 2 + 8) bandEq0++
+          // 70% black ink over the artwork (alpha ~178, RGB ~0): the quality
+          // knockout contract, never an empty hole nor an opaque glyph.
+          if (Math.abs(data[i + 3] - 0.70 * 255) <= 4 && Math.max(data[i], data[i + 1], data[i + 2]) < 30) {
+            ink++
+            inkSpots.push([x, y])
+            // Text band around the vertical center: ink must be the glyphs.
+            if (y >= oy + H / 2 - 8 && y <= oy + H / 2 + 8) bandInk++
           }
           if (data[i + 3] > 200 && data[i] > 200 && data[i + 1] > 200 && data[i + 2] > 200) whiteOpaque++
         }
       }
-      return { eq0, bandEq0, whiteOpaque, eq0Spots }
+      return { ink, bandInk, whiteOpaque, inkSpots }
     }
-    // Glyph holes are fully transparent (alpha 0) clustered in the text
-    // band; the shared shadow only bleeds at hole edges, never fills them.
-    // Oversized cutout glyphs (~1.35x): hundreds of hole pixels, far above
-    // the old small-glyph floor.
+    // Glyph cut-outs are filled by the ink layer, clustered in the text band;
+    // the tag body stays opaque white. Oversized glyphs (~1.35x): hundreds of
+    // ink pixels, far above the old small-glyph floor.
     const koStats = await glyphStats(ko.png, ko.w, ko.h, Math.round((ko.h - PAD * 2) * 0.3))
-    expect(koStats.eq0).toBeGreaterThan(100)
-    expect(koStats.bandEq0).toBeGreaterThan(100)
+    expect(koStats.ink).toBeGreaterThan(100)
+    expect(koStats.bandInk).toBeGreaterThan(100)
     expect(koStats.whiteOpaque).toBeGreaterThan(500)
-    // Compositing proof: holes show the background, the tag body covers it.
-    const holeSpots = koStats.eq0Spots.slice(0, 200)
-    expect(holeSpots.length).toBeGreaterThan(20)
+    // Compositing proof: the ink blends with the background behind the
+    // cut-outs (30% backdrop contribution), so it stays artwork-aware instead
+    // of becoming a flat grey painted on the white tag.
+    const inkSpots = koStats.inkSpots.slice(0, 200)
+    expect(inkSpots.length).toBeGreaterThan(20)
     for (const bg of [{ r: 212, g: 0, b: 0 }, { r: 26, g: 43, b: 74 }]) {
       const comp = await sharp({
         create: { width: ko.w, height: ko.h, channels: 4, background: { ...bg, alpha: 1 } },
@@ -854,11 +860,11 @@ describe("quality knockout tag", () => {
         .png()
         .toBuffer()
       const { data } = await sharp(comp).ensureAlpha().raw().toBuffer({ resolveWithObject: true })
-      for (const [x, y] of holeSpots) {
+      for (const [x, y] of inkSpots) {
         const i = (y * ko.w + x) * 4
-        expect(Math.abs(data[i] - bg.r)).toBeLessThanOrEqual(2)
-        expect(Math.abs(data[i + 1] - bg.g)).toBeLessThanOrEqual(2)
-        expect(Math.abs(data[i + 2] - bg.b)).toBeLessThanOrEqual(2)
+        expect(Math.abs(data[i] - bg.r * 0.3)).toBeLessThanOrEqual(3)
+        expect(Math.abs(data[i + 1] - bg.g * 0.3)).toBeLessThanOrEqual(3)
+        expect(Math.abs(data[i + 2] - bg.b * 0.3)).toBeLessThanOrEqual(3)
       }
       // Tag body above the text stays opaque white on any background.
       const bi = ((PAD + 5) * ko.w + (PAD + Math.round((ko.h - PAD * 2) / 2))) * 4
@@ -869,7 +875,7 @@ describe("quality knockout tag", () => {
     }
     // The standard pill never drops below the satin floor (control case).
     const stdStats = await glyphStats(std.png, std.w, std.h, Math.round((std.h - PAD * 2) / 2))
-    expect(stdStats.eq0).toBe(0)
+    expect(stdStats.ink).toBe(0)
   }, 30000)
 
   it("cuts larger glyphs without clipping for every tier and font", async () => {
@@ -890,18 +896,18 @@ describe("quality knockout tag", () => {
           const cy = Math.min(Math.max(y, oy + rx), oy + H - rx)
           return (x - cx) * (x - cx) + (y - cy) * (y - cy) <= rx * rx
         }
-        let eq0 = 0
+        let ink = 0
         let whiteOpaque = 0
         for (let y = oy; y < oy + H; y++) {
           for (let x = ox; x < ox + W; x++) {
             if (!inside(x, y)) continue
             const i = (y * ko.w + x) * 4
-            if (data[i + 3] === 0) eq0++
+            if (Math.abs(data[i + 3] - 0.70 * 255) <= 4 && Math.max(data[i], data[i + 1], data[i + 2]) < 30) ink++
             if (data[i + 3] > 200 && data[i] > 200 && data[i + 1] > 200 && data[i + 2] > 200) whiteOpaque++
           }
         }
-        // Oversized holes on every tier/font, tag body stays opaque white.
-        expect(eq0).toBeGreaterThan(100)
+        // Oversized 70% ink glyphs on every tier/font, tag body stays opaque white.
+        expect(ink).toBeGreaterThan(100)
         expect(whiteOpaque).toBeGreaterThan(500)
       }
     }
@@ -959,10 +965,10 @@ describe("quality knockout vertical stack", () => {
       .raw()
       .toBuffer()
     expectSamePixels(topSeg, topRef)
-    // Bottom cell: white tag body + genuinely transparent Dolby cut-out
-    // (never a grey glyph, never the bare colour icon).
+    // Bottom cell: white tag body + the 70% black quality ink glyph (never a
+    // bare colour icon, never an empty transparent hole).
     const cut = await tagCutoutStats(await groupCell(group!, 1), combo.w - PAD * 2, combo.h - PAD * 2)
-    expect(cut.clear).toBeGreaterThan(20)
+    expect(cut.ink).toBeGreaterThan(20)
     expect(cut.white).toBeGreaterThan(500)
   }, 30000)
 
@@ -984,7 +990,7 @@ describe("quality knockout vertical stack", () => {
     const item = gDark!.items[gDark!.items.length - 1]
     const cut = await tagCutoutStats(cellDark, item.w - PAD * 2, item.h - PAD * 2)
     expect(cut.white).toBeGreaterThan(500)
-    expect(cut.clear).toBeGreaterThan(20)
+    expect(cut.ink).toBeGreaterThan(20)
     // Control: outside knockout the same icon follows polarity (black).
     const black = await svc.renderQualityIconBadge("quality-badges/video/dolby-atmos.svg", pw, true)
     expect(black).not.toBeNull()

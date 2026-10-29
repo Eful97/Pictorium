@@ -439,6 +439,61 @@ export const TOP_SHADOW_FILTER = `<filter id="tds" x="-20%" y="-20%" width="180%
 export const TOP_SHADOW_PAD = 14
 
 /**
+ * Leggera ombra esterna dei tag `knockout` (tier qualità e marchi A/V):
+ * alone morbido, senza offset 3D e con alpha bassa, quanto basta a staccare
+ * il tag bianco da un artwork chiaro. Non sostituisce `TOP_SHADOW_FILTER`
+ * (che resta sul rect mascherato del tag): vedi `knockoutOuterShadow` per il
+ * perché serve un layer separato.
+ */
+export const KNOCKOUT_SHADOW_FILTER = `<filter id="kos" x="-20%" y="-20%" width="140%" height="140%"><feDropShadow dx="0" dy="1" stdDeviation="2" flood-color="#000000" flood-opacity="0.35"/></filter>`
+
+/**
+ * Ink opacity of the `knockout` glyphs (quality tier and A/V marks): 70%
+ * black painted OVER the artwork that stays visible through the tag cut-out.
+ * Painting it on the opaque white body instead would only blend with white,
+ * losing every artwork contribution; this way the letters read as stable dark
+ * ink while the poster still contributes 30% of the final color.
+ */
+export const KNOCKOUT_INK_OPACITY = 0.70
+
+/** Box del tag `knockout` su cui disegnare l'alone esterno. */
+export interface KnockoutShadowBox {
+  readonly x: number
+  readonly y: number
+  readonly w: number
+  readonly h: number
+  readonly r: number
+}
+
+/**
+ * Layer di ombra LEGGERA esterna per i tag `knockout` (tier qualità e marchi
+ * A/V) — la mask tiene l'alone rigorosamente FUORI dal box del tag.
+ *
+ * Perché un layer separato: la mask del tag viene applicata DOPO il filtro,
+ * quindi `TOP_SHADOW_FILTER` sul rect mascherato non lascia nessun alone
+ * fuori dal tag (misurato a raster: zero pixel non trasparenti nel pad). Il
+ * tag bianco resta perciò senza stacco su artwork chiaro. L'alone è
+ * disegnato SOTTO il tag e la mask copre l'INTERO box (rettangolo pieno,
+ * angoli compresi): nessuna ombra entra nelle tacche degli angoli né nei
+ * ritagli delle lettere (lì passa solo l'artwork, sotto l'inchiostro del
+ * builder) e la geometria del tag non cambia. Il caster mantiene il raggio reale del tag,
+ * così l'alone fuori dal box segue la sagoma arrotondata.
+ */
+export function knockoutOuterShadow(
+  maskId: string,
+  renderW: number,
+  renderH: number,
+  box: KnockoutShadowBox,
+): { defs: string; layer: string } {
+  // Blocker SENZA raggio: deve coprire anche le tacche degli angoli dentro il
+  // box (lì il tag è trasparente, ma un'ombra lì sembrerebbe un angolo
+  // quadrato — la vecchia regressione che i test pinnano).
+  const defs = `<mask id="${maskId}" maskUnits="userSpaceOnUse" x="0" y="0" width="${renderW}" height="${renderH}"><rect x="0" y="0" width="${renderW}" height="${renderH}" fill="#ffffff"/><rect x="${box.x}" y="${box.y}" width="${box.w}" height="${box.h}" fill="#000000"/></mask>`
+  const layer = `<rect x="${box.x}" y="${box.y}" width="${box.w}" height="${box.h}" rx="${box.r}" fill="#ffffff" mask="url(#${maskId})" filter="url(#kos)"/>`
+  return { defs, layer }
+}
+
+/**
  * Raggio angoli placca ranking/extra default: squadrata ma non a spigolo
  * vivo (0.45 × fs ≈ 11px a fs 24). Vale solo per lo stile default; la pill
  * resta full-round per identità di stile.
@@ -817,8 +872,12 @@ export function buildQualityBadgeSvg(
  * small anti-clipping margins. With `targetW` (group column) the visible box
  * is pinned to the canonical 4K width and the box font is reduced to fit the
  * label (`fitBadgeGlyphFs`), so the same tag recipe serves every tier without
- * changing the column band. Only the shared translucent 3D shadow is
- * applied — no stroke, no fill inside the glyphs.
+ * changing the column band. The shared translucent 3D shadow stays on the
+ * masked rect (hole edges only) plus a LIGHT outer ring from
+ * `knockoutOuterShadow`, strictly outside the tag box. The cut-out letters
+ * carry the `KNOCKOUT_INK_OPACITY` black ink drawn OVER the artwork that
+ * shows through them: the glyph reads as stable dark ink while keeping a 30%
+ * artwork contribution (no stroke, no opaque fill that would hide the poster).
  */
 export function buildQualityKnockoutSvg(
   quality: string,
@@ -846,9 +905,18 @@ export function buildQualityKnockoutSvg(
   const maskMargin = Math.max(2, Math.round(glyphFs * 0.15))
   const maskTextW = Math.min(maskNatural, Math.max(totalW - maskMargin * 2, maskFs))
   const fit = textFitAttrs(maskTextW)
-  const defs = `<defs><mask id="qkm"><rect x="${ox}" y="${oy}" width="${totalW}" height="${boxH}" rx="${r}" fill="#ffffff"/><text x="${cx}" y="${cy}" text-anchor="middle" dominant-baseline="central" font-family="${family}" font-weight="700" font-size="${maskFs}" letter-spacing="0.06em" fill="#000000"${fit}>${escSvg(quality)}</text></mask>${TOP_SHADOW_FILTER}</defs>`
+  const shadow = knockoutOuterShadow("qko", renderW, renderH, { x: ox, y: oy, w: totalW, h: boxH, r })
+  // One glyph geometry feeds BOTH the mask (black = hole) and the ink layer:
+  // any drift between the two would leave an ink fringe on the white body or
+  // an un-inked hole.
+  const glyphAttrs = `x="${cx}" y="${cy}" text-anchor="middle" dominant-baseline="central" font-family="${family}" font-weight="700" font-size="${maskFs}" letter-spacing="0.06em"${fit}`
+  const defs = `<defs><mask id="qkm"><rect x="${ox}" y="${oy}" width="${totalW}" height="${boxH}" rx="${r}" fill="#ffffff"/><text ${glyphAttrs} fill="#000000">${escSvg(quality)}</text></mask>${shadow.defs}${TOP_SHADOW_FILTER}${KNOCKOUT_SHADOW_FILTER}</defs>`
   const bgEl = `<rect x="${ox}" y="${oy}" width="${totalW}" height="${boxH}" rx="${r}" fill="#ffffff" mask="url(#qkm)" filter="url(#tds)"/>`
-  return { svg: `<svg xmlns="http://www.w3.org/2000/svg" width="${renderW}" height="${renderH}" viewBox="0 0 ${renderW} ${renderH}">${defs}${bgEl}</svg>`, w: renderW, h: renderH }
+  // Ink above the masked tag: inside the cut-outs the white body is
+  // transparent, so a group-opacity layer composites 70% black over the
+  // artwork instead of over the white tag.
+  const inkEl = `<g opacity="${KNOCKOUT_INK_OPACITY}"><text ${glyphAttrs} fill="#000000">${escSvg(quality)}</text></g>`
+  return { svg: `<svg xmlns="http://www.w3.org/2000/svg" width="${renderW}" height="${renderH}" viewBox="0 0 ${renderW} ${renderH}">${defs}${shadow.layer}${bgEl}${inkEl}</svg>`, w: renderW, h: renderH }
 }
 
 /**
@@ -868,8 +936,9 @@ export const AGE_KNOCKOUT_BG = "#ffffff"
 /**
  * White knockout tag for the age `knockout` style (age ONLY — never the
  * quality path): opaque white rounded rectangle with the label glyphs cut
- * out via SVG mask, so the poster shows through the letters — same genuine
- * knockout look as the shared quality tag. Unlike the shared quality
+ * out via SVG mask, so the poster shows through the letters — same white
+ * mask/cut-out construction as the shared quality tag, but WITHOUT its
+ * `KNOCKOUT_INK_OPACITY` ink layer. Unlike the shared quality
  * builder, the mask glyphs render at the normal box `fs` (no 1.35x
  * oversize) and the box is roomier (`1.0 × fs` padding, contained `0.30 ×
  * boxH` radius), so long labels (VM14/PG-13/TV-MA) keep breathing room.
@@ -883,7 +952,9 @@ export const AGE_KNOCKOUT_BG = "#ffffff"
  * shadow/padding geometry as the shared quality knockout, so
  * scale/offset/anchor math downstream is unchanged. No stroke, no gradient
  * — only the shared 3D shadow, like the quality knockout. The shared
- * `buildQualityKnockoutSvg` stays byte-identical (quality/4K untouched).
+ * `buildQualityKnockoutSvg` is a separate builder (quality tier and A/V
+ * marks now add their own 70% ink layer), so the age cut-outs stay
+ * genuinely transparent here.
  * The transparent lettering is intentional (accepted tradeoff on bright
  * artwork): never add opaque text or contrast-adaptation fallbacks here.
  */
