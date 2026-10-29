@@ -1788,7 +1788,8 @@ export default function EditView() {
               {/* eslint-disable-next-line @next/next/no-img-element -- poster reale renderizzato dal server */}
               <img src={stremioPreviewUrl} alt="Stremio" className="w-full" />
             </div>
-            {(gradientDirty || artworkDirty) && (
+            {/* The modal shows saved state; warn for badge edits as well as artwork. */}
+            {(gradientDirty || artworkDirty || mappingDirty) && (
               <div className="mt-3 flex items-center gap-2 rounded-xl border border-amber-400/30 bg-amber-400/10 px-3 py-2 text-xs text-amber-200">
                 <AlertTriangle className="h-4 w-4 shrink-0" />
                 <span className="flex-1">{t("ui.unsavedChanges")}</span>

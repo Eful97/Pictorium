@@ -159,6 +159,44 @@ describe("saveStagedDefaults", () => {
     expect(putBodies).toHaveLength(2)
   })
 
+  it("rejoining the LAST correction is sent as an explicit null clear with the moved group geometry", async () => {
+    const { result } = renderHook(() => useDefaults())
+    await settle()
+    // Real Settings state after the user moved the quality group and nudged one
+    // badge, then rejoined that last badge (the map becomes empty).
+    // PUT /api/defaults merges over the stored defaults, so the wire MUST carry
+    // `badgeItemTransforms: null`: omitting the key left the old server offsets
+    // alive and the Test URL kept the nudge. Group geometry still travels.
+    const staged = stagedFrom(result.current, {
+      defaultBadgeItemTransforms: null,
+      defaultQualityBadgeScale: 80,
+      defaultQualityBadgeOffsetX: 21,
+      defaultQualityBadgeOffsetY: -13,
+      landscape: { ...result.current.landscape, qualityBadgeScale: 120, qualityBadgeOffsetX: -4 },
+    })
+    let res: unknown
+    await act(async () => {
+      res = await result.current.saveStagedDefaults(staged)
+    })
+    expect(res).toMatchObject({ ok: true })
+    expect(putBodies).toHaveLength(1)
+    const body = putBodies[0] as Record<string, unknown>
+    expect(body).toHaveProperty("badgeItemTransforms", null)
+    expect(body.qualityBadgeScale).toBe(80)
+    expect(body.qualityBadgeOffsetX).toBe(21)
+    expect(body.qualityBadgeOffsetY).toBe(-13)
+    // The landscape profile keeps its own group geometry (no clobber by the
+    // portrait rejoin).
+    expect(body.landscape).toMatchObject({ qualityBadgeScale: 120, qualityBadgeOffsetX: -4 })
+    // Install converges on the persisted truth: no follow-up PUT resurrects it.
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1500)
+    })
+    expect(putBodies).toHaveLength(1)
+    expect(result.current.defaultBadgeItemTransforms).toBeNull()
+    expect(result.current.defaultQualityBadgeScale).toBe(80)
+  })
+
   it("server failure leaves outer defaults and durable storage exactly as found", async () => {
     const { result } = renderHook(() => useDefaults())
     await settle()

@@ -551,6 +551,9 @@ export interface LandscapeSettings {
  * (inclusa null, per customBadge anche "") vince sul flat — null/"" nel
  * profilo rendono automatica la forma landscape senza resuscitare il flat;
  * assente (`undefined`) = eredita il flat (legacy invariato).
+ * Per-item corrections follow the same ownership rule: an explicit profile
+ * `badgeItemTransforms: null` shadows the portrait corrections; only an
+ * absent key inherits them. Subsequent config/default fallbacks still apply.
  * Il binding preset è atomico a coppia: se UNA tra `badgePresetId`/
  * `badgePresetRev` è presente nel profilo, ENTRAMBE le effettive vengono dal
  * profilo (lato mancante = null, mai il flat) così id/rev non si mescolano
@@ -585,7 +588,7 @@ export function effectiveMappingForShape(mapping: Mapping | null, shape: PosterS
     qualityBadgeScale: l.qualityBadgeScale ?? mapping.qualityBadgeScale,
     qualityBadgeOffsetX: l.qualityBadgeOffsetX ?? mapping.qualityBadgeOffsetX,
     qualityBadgeOffsetY: l.qualityBadgeOffsetY ?? mapping.qualityBadgeOffsetY,
-    badgeItemTransforms: l.badgeItemTransforms ?? mapping.badgeItemTransforms,
+    badgeItemTransforms: l.badgeItemTransforms !== undefined ? l.badgeItemTransforms : mapping.badgeItemTransforms,
     separateBadgeScale: l.separateBadgeScale ?? mapping.separateBadgeScale,
     separateBadgeOffsetX: l.separateBadgeOffsetX ?? mapping.separateBadgeOffsetX,
     separateBadgeOffsetY: l.separateBadgeOffsetY ?? mapping.separateBadgeOffsetY,

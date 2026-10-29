@@ -211,7 +211,7 @@ describe("mapping persistence contract", () => {
     expect(legacy.badgeItemTransforms).toBeUndefined()
   })
 
-  it("the landscape profile owns the key when present, null inherits the flat", () => {
+  it("the landscape profile owns the key when present: null clears, absent inherits the flat", () => {
     const owned = mapping({
       badgeItemTransforms: "rating:imdb=120,4,0",
       landscape: { badgeItemTransforms: "rating:imdb=80,0,0" },
@@ -219,11 +219,25 @@ describe("mapping persistence contract", () => {
     expect(effectiveMappingForShape(owned, "poster")?.badgeItemTransforms).toBe("rating:imdb=120,4,0")
     expect(effectiveMappingForShape(owned, "landscape")?.badgeItemTransforms).toBe("rating:imdb=80,0,0")
 
-    // Explicit profile null = inherit the flat (same `??` contract as every
-    // other geometry key: the landscape profile never invents values).
-    const inheriting = mapping({
+    // Explicit profile null = the "automatic layout" marker the per-shape
+    // reset/preset writes: it OWNS the clear (same rule as the defaults
+    // profile, `resolveShapeBadgeItemTransforms`) so the rendered poster never
+    // resurrects the portrait per-item nudges (see .agents/render-params.md,
+    // "Regola di proprietà per forma"). Reading through `??` here was the
+    // preview/Stremio desync: the URL/preview said automatic, the render used
+    // the flat map.
+    const cleared = mapping({
       badgeItemTransforms: "rating:imdb=120,4,0",
       landscape: { badgeItemTransforms: null },
+    })
+    expect(effectiveMappingForShape(cleared, "landscape")?.badgeItemTransforms).toBeNull()
+    // Portrait keeps its own map (independence per shape).
+    expect(effectiveMappingForShape(cleared, "poster")?.badgeItemTransforms).toBe("rating:imdb=120,4,0")
+
+    // Absent key still inherits the flat (legacy profiles unchanged).
+    const inheriting = mapping({
+      badgeItemTransforms: "rating:imdb=120,4,0",
+      landscape: { badgeStyle: "vetro" },
     })
     expect(effectiveMappingForShape(inheriting, "landscape")?.badgeItemTransforms).toBe("rating:imdb=120,4,0")
   })

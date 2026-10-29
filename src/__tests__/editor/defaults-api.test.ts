@@ -7,6 +7,8 @@ import { cacheClear, cacheGet, cacheSet } from "@/lib/cache"
 import { bumpCatalogEpoch } from "@/lib/catalog-epoch"
 import { DATA_DIR } from "@/lib/data-dir"
 import { setServerDefaults } from "@/lib/server-defaults"
+import { defaultsToPayload, type DefaultsState } from "@/lib/useDefaults"
+import { resolvePosterRenderConfig } from "@/lib/poster-config"
 
 // I PUT di questo file scrivono i defaults via file; isoliamo lo store in una
 // dir temporanea (test-results/, gitignored) così i config di test non toccano
@@ -21,10 +23,10 @@ afterEach(() => {
   delete process.env.ADMIN_TOKEN
 })
 
-function mockPutRequest(body: unknown): Request {
+function mockPutRequest(body: unknown, headers?: Record<string, string>): Request {
   return new Request("http://localhost:3000/api/defaults", {
     method: "PUT",
-    headers: { "content-type": "application/json" },
+    headers: { "content-type": "application/json", ...headers },
     body: JSON.stringify(body),
   })
 }
@@ -107,6 +109,35 @@ describe("PUT /api/defaults", () => {
     const body = (await resGet.json()) as Record<string, unknown>
     expect(body.badgeStyle).toBe("bar")
     expect(body.gradientHeight).toBe(55)
+  })
+
+  it("a serialized rejoin clears persisted item offsets while preserving the moved group", async () => {
+    delete process.env.ADMIN_TOKEN
+    // This test needs 3 extra requests: the file already sits on the 30-token
+    // `defaults` burst, so it runs on its OWN rate-limit bucket (the route keys
+    // an untrusted client by its user-agent) instead of exhausting the budget
+    // of the tests that follow. Production keying is untouched.
+    const ua = { "user-agent": "rejoin-serializer-test/1.0" }
+    const old = "quality:tier=80,0,120;quality:format:hdr=100,0,200"
+    expect((await PUT(mockPutRequest({ badgeItemTransforms: old }, ua) as unknown as NextRequest)).status).toBe(200)
+    const payload = defaultsToPayload({
+      defaultBadgeItemTransforms: null,
+      defaultQualityBadgeScale: 80,
+      defaultQualityBadgeOffsetX: 21,
+      defaultQualityBadgeOffsetY: -13,
+    } as DefaultsState)
+    expect((await PUT(mockPutRequest(payload, ua) as unknown as NextRequest)).status).toBe(200)
+    const body = await (await GET(new Request("http://localhost:3000/api/defaults", { headers: ua }) as unknown as NextRequest)).json()
+    expect(body.badgeItemTransforms).toBeNull()
+    const config = resolvePosterRenderConfig({
+      searchParams: new URLSearchParams(), mapping: null, configOverride: null,
+      sd: body, hasQuery: false, showBadges: true, rankingBadges: true,
+      animeRank: null, rankingResult: null, finalRank: null,
+    })
+    expect(config.badgeItemTransforms).toEqual({})
+    expect(config.qualityBadgeScale).toBe(80)
+    expect(config.qualityBadgeOffsetX).toBe(21)
+    expect(config.qualityBadgeOffsetY).toBe(-13)
   })
 
   it("GET reloads global defaults saved by another instance", async () => {

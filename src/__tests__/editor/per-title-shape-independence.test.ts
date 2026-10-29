@@ -145,6 +145,26 @@ describe("effectiveMappingForShape per-title styles", () => {
     expect(eff?.extraBadgeStyle).toBe("pill")
   })
 
+  it("landscape badgeItemTransforms: an OWNED null clears the profile, absent inherits the flat", () => {
+    // Explicit null = the "automatic layout" marker a per-shape reset/preset
+    // owns (same rule as the defaults profile, see
+    // `resolveShapeBadgeItemTransforms`): reading it through `??` would
+    // resurrect the portrait per-item nudges on the shape the user cleared.
+    const cleared = baseMapping({
+      badgeItemTransforms: "rating:imdb=100,1,10",
+      landscape: { badgeItemTransforms: null },
+    })
+    expect(effectiveMappingForShape(cleared, "landscape")?.badgeItemTransforms).toBeNull()
+    expect(effectiveMappingForShape(cleared, "poster")?.badgeItemTransforms).toBe("rating:imdb=100,1,10")
+
+    // Absent key keeps the documented legacy inherit (byte-identical URLs).
+    const inherited = baseMapping({
+      badgeItemTransforms: "rating:imdb=100,1,10",
+      landscape: { badgeStyle: "vetro" },
+    })
+    expect(effectiveMappingForShape(inherited, "landscape")?.badgeItemTransforms).toBe("rating:imdb=100,1,10")
+  })
+
   it("landscape follow-rank shadows the flat with the shape's own rank", () => {
     const m = baseMapping({
       extraBadgeStyle: "pill",
@@ -290,6 +310,62 @@ describe("mapping validation per-shape", () => {
 })
 
 describe("poster-config resolves per-title styles per shape", () => {
+  it("per-item corrections: an owned landscape null is never the portrait map", () => {
+    const mapping = baseMapping({
+      posterShape: "landscape",
+      badgeItemTransforms: "rating:imdb=100,1,10",
+      landscape: { badgeItemTransforms: null },
+    })
+    // Renderer chain: the shape-effective mapping owns the clear, so the
+    // resolved value falls to the shape-effective defaults (automatic here),
+    // never to the portrait flat corrections.
+    const landscape = resolvePosterRenderConfig(shapeInput("landscape", { mapping }))
+    expect(landscape.badgeItemTransforms).toEqual({})
+    // Clearing the title profile shadows portrait, not the config/default
+    // layers below the mapping. Match the editor's nullish fallback chain.
+    const defaults = { badgeItemTransforms: "quality:tier=90,2,3" }
+    const inheritedDefaults = resolvePosterRenderConfig(shapeInput("landscape", { mapping, sd: defaults }))
+    expect(inheritedDefaults.badgeItemTransforms).toEqual({
+      "quality:tier": { scale: 90, offsetX: 2, offsetY: 3 },
+    })
+    const url = buildStremioPosterUrl({
+      origin: "https://x.test", type: "movie", id: 1, defaults, mapping, forceShape: "landscape",
+    })
+    const fromStremio = resolvePosterRenderConfig(shapeInput("landscape", {
+      mapping, sd: defaults, searchParams: url.searchParams,
+    }))
+    expect(fromStremio.badgeItemTransforms).toEqual(inheritedDefaults.badgeItemTransforms)
+    // A title that does NOT own the key still inherits the portrait flat.
+    const inheritedMapping = baseMapping({
+      posterShape: "landscape",
+      badgeItemTransforms: "rating:imdb=100,1,10",
+      landscape: { badgeStyle: "vetro" },
+    })
+    const inherited = resolvePosterRenderConfig(shapeInput("landscape", { mapping: inheritedMapping }))
+    expect(inherited.badgeItemTransforms).toEqual({ "rating:imdb": { scale: 100, offsetX: 1, offsetY: 10 } })
+  })
+
+  it("per-item corrections: the Stremio URL omits the portrait nudges after an owned landscape clear", () => {
+    const mapping = baseMapping({
+      posterShape: "landscape",
+      badgeItemTransforms: "rating:imdb=100,1,10",
+      landscape: { badgeItemTransforms: null },
+    })
+    // `config` = explicit tuning: the per-item corrections travel as `bit`
+    // (in compact mode they are folded into the `dv` signature instead, so
+    // the comparison below must use the explicit layer).
+    const url = buildStremioPosterUrl({
+      origin: "https://x.test", type: "movie", id: 1, defaults: {}, mapping, forceShape: "landscape", config: "tok",
+    })
+    // No `bit=` = automatic layout server-side, the same clear the WYSIWYG
+    // preview sends as an explicit empty `bit=`.
+    expect(url.searchParams.get("bit")).toBeNull()
+    const portrait = buildStremioPosterUrl({
+      origin: "https://x.test", type: "movie", id: 1, defaults: {}, mapping, forceShape: "poster", config: "tok",
+    })
+    expect(portrait.searchParams.get("bit")).toBe("rating:imdb=100,1,10")
+  })
+
   it("badgeStyle/rank style/font/quality style follow the effective mapping", () => {
     const mapping = baseMapping({
       badgeStyle: "pill",

@@ -3,6 +3,7 @@ import { act, renderHook } from "@testing-library/react"
 import { useMappingsStore } from "@/lib/useMappingsStore"
 import { http, userFetch } from "@/lib/http"
 import { readPersonalDeviceKey, writePersonalDeviceKey } from "@/lib/device-keys"
+import type { Mapping } from "@/lib/types"
 
 vi.mock("@/lib/http", () => ({
   http: vi.fn(),
@@ -112,6 +113,47 @@ async function readExportedJson(): Promise<Record<string, unknown>> {
   expect(capturedBlob).not.toBeNull()
   return JSON.parse(await capturedBlob!.text()) as Record<string, unknown>
 }
+
+describe("useMappingsStore initial hydration", () => {
+  const saved = { tmdbId: 101, mediaType: "movie" } as Mapping
+
+  it("releases all waiters with the loaded list and tracks later mutations", async () => {
+    let resolve!: (response: Response) => void
+    mockUserFetch.mockReturnValueOnce(new Promise<Response>((done) => { resolve = done }))
+    const { result } = renderHook(() => useMappingsStore())
+    expect(result.current.isMappingsHydrated()).toBe(false)
+    const first = result.current.waitForMappingsHydrated()
+    const second = result.current.waitForMappingsHydrated()
+    await act(async () => {
+      resolve(jsonResponse({ mappings: [saved] }))
+      expect(await first).toEqual([saved])
+      expect(await second).toEqual([saved])
+    })
+    expect(result.current.isMappingsHydrated()).toBe(true)
+    expect(result.current.getMappingsList()).toEqual([saved])
+    expect(await result.current.waitForMappingsHydrated()).toEqual([saved])
+    await act(async () => { result.current.setMappings([]) })
+    expect(result.current.getMappingsList()).toEqual([])
+    expect(await result.current.waitForMappingsHydrated()).toEqual([])
+  })
+
+  it("releases waiters on failure and accepts a later successful reload", async () => {
+    let reject!: (reason: Error) => void
+    mockUserFetch.mockReturnValueOnce(new Promise<Response>((_done, fail) => { reject = fail }))
+    vi.spyOn(console, "error").mockImplementation(() => {})
+    const { result } = renderHook(() => useMappingsStore())
+    const waiting = result.current.waitForMappingsHydrated()
+    await act(async () => {
+      reject(new Error("offline"))
+      expect(await waiting).toEqual([])
+    })
+    expect(result.current.isMappingsHydrated()).toBe(true)
+    mockUserFetch.mockResolvedValueOnce(jsonResponse({ mappings: [saved] }))
+    await act(async () => { await result.current.loadMappings() })
+    expect(result.current.getMappingsList()).toEqual([saved])
+    expect(await result.current.waitForMappingsHydrated()).toEqual([saved])
+  })
+})
 
 describe("useMappingsStore personal keys flags", () => {
   it("export default never reads device keys", async () => {

@@ -134,9 +134,11 @@ type Geo = {
   items: { id: string; family: string; top: number; left: number; w: number; h: number; custom: boolean }[]
 }
 
-/** Demo preview WITHOUT the separate column: ONE painted quality mark. */
+/** Demo preview WITHOUT the separate column: ONE painted quality mark.
+ *  `formats=none` keeps it single: demo samples now fill the enabled A/V marks
+ *  too, and this test measures the tier mark of the quality group. */
 const singleMarkUrl = (extra: string) =>
-  `http://localhost:3000/api/poster/movie/44?poster=%2Fq.jpg&imdbId=tt0000044&sep=0&badges=1&ranking=1&bq=1&preview=1&demosamples=1&api_key=test${extra}`
+  `http://localhost:3000/api/poster/movie/44?poster=%2Fq.jpg&imdbId=tt0000044&sep=0&badges=1&ranking=1&bq=1&formats=none&preview=1&demosamples=1&api_key=test${extra}`
 
 async function fetchImageFrom(url: string): Promise<Buffer> {
   const res = await GET(new NextRequest(url), { params: Promise.resolve({ type: "movie", id: "44" }) })

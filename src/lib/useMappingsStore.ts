@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useCallback, useEffect, useMemo } from "react"
+import { useState, useCallback, useEffect, useMemo, useRef } from "react"
 import type { Mapping } from "./types"
 import { http, userFetch } from "./http"
 import { USER_UNLOCK_EVENT, currentPathUuid } from "./user-token"
@@ -35,6 +35,31 @@ function notifySkippedPersonalKeys(skipped: number): void {
 
 export function useMappingsStore() {
   const [mappings, setMappings] = useState<Mapping[]>([])
+  // Opening a title waits for the first list load instead of treating a
+  // pending saved mapping as absent. Failure releases the wait as before.
+  const hydratedRef = useRef(false)
+  const hydrationWaitersRef = useRef<((list: Mapping[]) => void)[]>([])
+  // Publish loaded results before React renders, and track later mutations.
+  const latestListRef = useRef<Mapping[]>(mappings)
+  latestListRef.current = mappings
+
+  const isMappingsHydrated = useCallback(() => hydratedRef.current, [])
+
+  const getMappingsList = useCallback((): Mapping[] => latestListRef.current, [])
+
+  /** Resolve with the first loaded list, or an empty list on failure. */
+  const waitForMappingsHydrated = useCallback((): Promise<Mapping[]> => {
+    if (hydratedRef.current) return Promise.resolve(latestListRef.current)
+    return new Promise<Mapping[]>((resolve) => { hydrationWaitersRef.current.push(resolve) })
+  }, [])
+
+  const markHydrated = useCallback((list: Mapping[]) => {
+    if (hydratedRef.current) return
+    hydratedRef.current = true
+    const waiters = hydrationWaitersRef.current
+    hydrationWaitersRef.current = []
+    for (const resolve of waiters) resolve(list)
+  }, [])
 
   const mappingsMap = useMemo(() => {
     const map = new Map<string, Mapping>()
@@ -45,20 +70,27 @@ export function useMappingsStore() {
   }, [mappings])
 
   const loadMappings = useCallback(async () => {
+    let loaded: Mapping[] | null = null
     try {
       // userFetch: su path /u/<uuid> legge/scrive il namespace (token da storage).
       const res = await userFetch("/api/mappings")
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
       const data = await res.json()
-      setMappings(Array.isArray(data.mappings) ? data.mappings : [])
+      const list = Array.isArray(data.mappings) ? (data.mappings as Mapping[]) : []
+      loaded = list
+      latestListRef.current = list
+      setMappings(list)
     } catch (e) {
       // 401 scoped (ospite su /u/ o token non ancora salvato dal #key=):
       // atteso e transitorio — debug, non error (il reload post-unlock segue sotto).
       const msg = e instanceof Error ? e.message : String(e)
       if (msg.includes("401")) console.debug("[pictorium] loadMappings unauthorized (guest or pre-unlock)")
       else console.error("[pictorium] Failed to load mappings:", e)
+    } finally {
+      // Deliver the list with the signal; callers need not wait for a render.
+      markHydrated(loaded ?? [])
     }
-  }, [])
+  }, [markHydrated])
 
   useEffect(() => { loadMappings() }, [loadMappings])
 
@@ -213,5 +245,5 @@ export function useMappingsStore() {
     } catch { /* niente toast */ }
   }, [])
 
-  return { mappings, setMappings, mappingsMap, loadMappings, removeMapping, exportData, importData }
+  return { mappings, setMappings, mappingsMap, loadMappings, removeMapping, exportData, importData, isMappingsHydrated, getMappingsList, waitForMappingsHydrated }
 }

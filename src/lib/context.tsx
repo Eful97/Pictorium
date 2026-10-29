@@ -675,7 +675,7 @@ export function usePictorium(): PictoriumCtx {
       ? contentLanguageForUiLang(lang, editorCtx.defaultRegion)
       : getRegionDef(editorCtx.defaultRegion).lang
   const search = useSearch(tmdbKey, tmdbLang, serverHasTmdbKey)
-  const { mappings, mappingsMap, loadMappings, removeMapping, exportData, importData } = useMappingsStore()
+  const { mappings, mappingsMap, loadMappings, removeMapping, exportData, importData, isMappingsHydrated, getMappingsList, waitForMappingsHydrated } = useMappingsStore()
   const {
     // Badges
     globalBadges, setGlobalBadges,
@@ -943,6 +943,7 @@ export function usePictorium(): PictoriumCtx {
   // left. Aborting only stops the network — navigation.fetchIdRef stays the
   // guard that drops late state updates.
   const loadAbortRef = useRef<AbortController | null>(null)
+  const invalidatePendingTitleOpen = navigation.incrementFetchId
   useEffect(() => {
     const abortOnExit = () => {
       loadAbortRef.current?.abort()
@@ -954,8 +955,10 @@ export function usePictorium(): PictoriumCtx {
     return () => {
       window.removeEventListener("popstate", abortOnExit)
       loadAbortRef.current?.abort()
+      // Also invalidate opens still waiting for mappings, before a load exists.
+      invalidatePendingTitleOpen()
     }
-  }, [])
+  }, [invalidatePendingTitleOpen])
 
   // Fresh mirrors for async continuations: closures capture render-time values,
   // but a manual selection made mid-load must not be overwritten by stale reads.
@@ -2204,11 +2207,13 @@ export function usePictorium(): PictoriumCtx {
   // skipDefaultsSync: rebuilding the whole editor state from storage would
   // wipe in-memory tweaks (open already synced styles beforehand, the refresh
   // must also not revert a just-changed region).
-  const applyLoadedSelection = (data: ImageLists, details: { original_language: string }, item: SearchResult, skipDefaultsSync = false, openShapeOverride?: PosterShape) => {
+  const applyLoadedSelection = (data: ImageLists, details: { original_language: string }, item: SearchResult, skipDefaultsSync = false, openShapeOverride?: PosterShape, mappingOverride?: Mapping | null) => {
     const itemType = item.media_type
     const itemId = item.id
     setTitleOrigLang(details.original_language ?? null)
-    const existing = mappingsMap.get(`${itemType}:${itemId}`)
+    // Opening passes its resolved mapping so the post-fetch continuation
+    // cannot read a stale list closure after hydration.
+    const existing = mappingOverride !== undefined ? mappingOverride : mappingsMap.get(`${itemType}:${itemId}`)
     // Layout/scope aperti (mapping effettivo > default effettivo di formato):
     // guidano l'auto EFFETTIVO col rank. Rank-aware deliberato (correzione
     // c1): il rank mostrato è ignoto all'apertura (arriva dopo il fetch) e gli
@@ -2504,10 +2509,25 @@ export function usePictorium(): PictoriumCtx {
   // eslint-disable-next-line react-hooks/exhaustive-deps -- refresh on locale change or return to editor; other state is set inside
   }, [lang, editorCtx.defaultRegion, navigation.view])
 
-  const openPosterBrowser = async (item: SearchResult, shapeOverride?: PosterShape, existingOverride?: Mapping | null) => {
+  const openPosterBrowser = async (item: SearchResult, shapeOverride?: PosterShape, existingOverride?: Mapping | null): Promise<number> => {
     const itemId = item.id
     const itemType = item.media_type
     const fetchId = navigation.incrementFetchId()
+    // Resolve saved state before exposing the new draft: edits made during
+    // hydration must not be overwritten by a delayed initialization.
+    // Authoritative handoff mappings bypass the list wait entirely.
+    let existing: Mapping | null | undefined
+    if (existingOverride !== undefined) {
+      existing = existingOverride
+    } else if (!isMappingsHydrated()) {
+      const list = await waitForMappingsHydrated()
+      if (navigation.fetchIdRef.current !== fetchId) return fetchId
+      const resolved = list.find((m) => m.mediaType === itemType && m.tmdbId === itemId) ?? null
+      // Resume through the current render: defaults may have hydrated too.
+      return openPosterBrowserRef.current(item, shapeOverride, resolved)
+    } else {
+      existing = getMappingsList().find((m) => m.mediaType === itemType && m.tmdbId === itemId) ?? null
+    }
     navigation.setSelected(item)
     navigation.setSelectedLogo(null)
     setSelectedBackdrop(null)
@@ -2529,11 +2549,6 @@ export function usePictorium(): PictoriumCtx {
     // Imposta stili subito (sync) prima delle chiamate async
     // per evitare race condition: se l'utente cambia opzioni mentre
     // i dati sono in caricamento, la vecchia fetch non deve sovrascrivere
-    // Handoff override (authoritative per-id GET): wins over the list map so a
-    // still-pending list can never force the unmapped branch for a saved
-    // title. `undefined` = normal manual path (list map); `null` =
-    // authoritative absent; Mapping = authoritative present.
-    const existing = existingOverride !== undefined ? existingOverride : mappingsMap.get(`${itemType}:${itemId}`)
     // Fonti che saranno attive per questo titolo (per-titolo salvato o default):
     // stesse per setRatingSources e per il fetch details qui sotto — così il
     // voto in metaInfo nasce già corretto e l'effetto [ratingSources] lo
@@ -2870,7 +2885,7 @@ export function usePictorium(): PictoriumCtx {
       // editor state from storage — that would wipe tweaks made mid-load.
       // The handoff shape override travels too: logo/auto init follows the
       // same shape the sync init above used.
-      applyLoadedSelection(data, details, item, true, openShape)
+      applyLoadedSelection(data, details, item, true, openShape, existing ?? null)
     } finally {
       // A superseded load must not switch off the new title's spinner, and an
       // unmounted load (aborted without a fetchId bump) must not setState.

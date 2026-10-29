@@ -1022,12 +1022,13 @@ export function defaultsToPayload(d: DefaultsState): Record<string, unknown> {
     separateBadgeScale: d.defaultSeparateBadgeScale,
     separateBadgeOffsetX: d.defaultSeparateBadgeOffsetX,
     separateBadgeOffsetY: d.defaultSeparateBadgeOffsetY,
-    // Per-item corrections: emitted ONLY when configured, so a payload without
-    // them stays byte-identical to the historic one (and clearing the last
-    // correction removes the key from the full-replace PUT).
-    ...(canonicalizeBadgeItemTransforms(d.defaultBadgeItemTransforms)
-      ? { badgeItemTransforms: canonicalizeBadgeItemTransforms(d.defaultBadgeItemTransforms) }
-      : {}),
+    // Per-item corrections: ALWAYS emitted, `null` included. PUT /api/defaults
+    // MERGES over the stored defaults (a partial payload never clears a key),
+    // so omitting the key when the map becomes empty would resurrect the old
+    // server-side offsets — exactly the "rejoin the last badge (or the whole
+    // group) and the preview keeps the old nudge" bug. `null` is the explicit
+    // "automatic layout" clear and the schema accepts it.
+    badgeItemTransforms: canonicalizeBadgeItemTransforms(d.defaultBadgeItemTransforms),
     networkLogoScale: d.defaultNetworkLogoScale,
     genreBadgeOffsetX: d.defaultGenreBadgeOffsetX,
     genreBadgeOffsetY: d.defaultGenreBadgeOffsetY,

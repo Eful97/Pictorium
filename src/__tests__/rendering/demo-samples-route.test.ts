@@ -13,6 +13,8 @@ import { __resetTMDBSessionCache } from "@/lib/tmdb-session-cache"
 import { fetchCustomRatings } from "@/lib/custom-rating"
 import { fetchAllWikidata } from "@/lib/awards"
 import { fetchAggregatedRating } from "@/lib/ratings"
+import { DEMO_SAMPLE_AGE_LABEL } from "@/lib/demo-samples"
+import { getReleaseDates } from "@/lib/tmdb"
 import * as posterService from "@/lib/poster-service"
 import {
   __inMemoryChartGenerationPersist,
@@ -128,6 +130,11 @@ vi.mock("@/lib/tmdb", () => ({
   getDetailsWithExternalIds: vi.fn(),
   getImages: vi.fn(),
   getExternalIds: vi.fn(async () => ({ imdb_id: null })),
+  // Age badge sources: genuine miss (data ok, no country match) unless a test
+  // supplies a certification. Declared here because the route's optional age
+  // fetch has to stay resolvable in this harness.
+  getReleaseDates: vi.fn(async () => null),
+  getContentRatings: vi.fn(async () => null),
   getKeywords: vi.fn(async () => []),
   resolveRequestApiKey: vi.fn((req: { nextUrl?: { searchParams: URLSearchParams } }) => req.nextUrl?.searchParams.get("api_key") || undefined),
   resolveUserApiKeys: vi.fn(async (req: { headers: { get: (n: string) => string | null }; nextUrl?: { searchParams: URLSearchParams } }) => {
@@ -442,6 +449,127 @@ describe("GET /api/poster demo samples (Settings preview only)", () => {
     expect(body.badge.settings.badgesEnabled).toBe(false)
     expect(body.badge.settings.rankingEnabled).toBe(false)
     expect(body.rankings.finalRank).toBeNull()
+  })
+
+  it("samples the enabled A/V marks and the age label on an accepted preview", async () => {
+    // Enabled-but-missing formats: the restricted selection is the only gate.
+    const spy = vi.mocked(posterService.generatePosterBuffer)
+    spy.mockClear()
+    const formatsRes = await GET(new NextRequest(
+      "http://localhost:3000/api/poster/movie/44?poster=%2Fq.jpg&imdbId=tt0000044&badges=1&ranking=1&formats=dv,atmos&preview=1&demosamples=1&api_key=test",
+    ), { params: Promise.resolve({ type: "movie", id: "44" }) })
+    expect(formatsRes.status).toBe(200)
+    expect(spy).toHaveBeenCalled()
+    const genInput = spy.mock.calls[spy.mock.calls.length - 1][0] as { videoFormats?: string[] | null }
+    // Exactly the enabled formats: no format the user turned off is sampled.
+    expect(genInput.videoFormats).toEqual(["dv", "atmos"])
+
+    // Age: no certification resolves for this title/country → style sample.
+    const ageRes = await GET(new NextRequest(
+      debugUrl("&age=1&agecountry=IT&preview=1&demosamples=1&debug=1"),
+    ), { params: Promise.resolve({ type: "movie", id: "44" }) })
+    expect(ageRes.status).toBe(200)
+    const body = await ageRes.json()
+    expect(body.age.label).toBe(DEMO_SAMPLE_AGE_LABEL)
+  })
+
+  it("samples every known format when no format is disabled and formats=none samples none", async () => {
+    const spy = vi.mocked(posterService.generatePosterBuffer)
+    spy.mockClear()
+    const unrestricted = await GET(new NextRequest(
+      "http://localhost:3000/api/poster/movie/44?poster=%2Fq.jpg&imdbId=tt0000044&badges=1&ranking=1&preview=1&demosamples=1&api_key=test",
+    ), { params: Promise.resolve({ type: "movie", id: "44" }) })
+    expect(unrestricted.status).toBe(200)
+    const unrestrictedInput = spy.mock.calls[spy.mock.calls.length - 1][0] as { videoFormats?: string[] | null }
+    expect(unrestrictedInput.videoFormats).toEqual(["dv", "hdr", "hdr10plus", "atmos", "imax"])
+
+    spy.mockClear()
+    const none = await GET(new NextRequest(
+      "http://localhost:3000/api/poster/movie/44?poster=%2Fq.jpg&imdbId=tt0000044&badges=1&ranking=1&formats=none&preview=1&demosamples=1&api_key=test",
+    ), { params: Promise.resolve({ type: "movie", id: "44" }) })
+    expect(none.status).toBe(200)
+    const noneInput = spy.mock.calls[spy.mock.calls.length - 1][0] as { videoFormats?: string[] | null }
+    // Disabled toggles are never forced: nothing enabled, nothing sampled.
+    expect(noneInput.videoFormats).toBeNull()
+  })
+
+  it("never invents formats or an age label without the flag or with the age toggle off", async () => {
+    const spy = vi.mocked(posterService.generatePosterBuffer)
+    spy.mockClear()
+    const genuine = await GET(new NextRequest(
+      debugUrl("&formats=dv,atmos&age=1&agecountry=IT&preview=1&debug=1"),
+    ), { params: Promise.resolve({ type: "movie", id: "44" }) })
+    expect(genuine.status).toBe(200)
+    expect((await genuine.json()).age.label).toBeNull()
+
+    spy.mockClear()
+    const genuineRender = await GET(new NextRequest(
+      "http://localhost:3000/api/poster/movie/44?poster=%2Fq.jpg&imdbId=tt0000044&badges=1&ranking=1&formats=dv,atmos&preview=1&api_key=test",
+    ), { params: Promise.resolve({ type: "movie", id: "44" }) })
+    expect(genuineRender.status).toBe(200)
+    const genuineInput = spy.mock.calls[spy.mock.calls.length - 1][0] as { videoFormats?: string[] | null }
+    expect(genuineInput.videoFormats).toBeNull()
+
+    const ageOff = await GET(new NextRequest(
+      debugUrl("&age=0&preview=1&demosamples=1&debug=1"),
+    ), { params: Promise.resolve({ type: "movie", id: "44" }) })
+    expect(ageOff.status).toBe(200)
+    expect((await ageOff.json()).age.label).toBeNull()
+  })
+
+  it("gates real AV specs by the enabled selection: formats=none and a restricted list", async () => {
+    // tt0021749 carries a real local spec (4K, DV only). The Settings demo
+    // preview still honors the user's format selection: a disabled mark is
+    // never resurrected just because the title really has it.
+    const spy = vi.mocked(posterService.generatePosterBuffer)
+    spy.mockClear()
+    const none = await GET(new NextRequest(
+      "http://localhost:3000/api/poster/movie/44?poster=%2Fq.jpg&imdbId=tt0021749&badges=1&ranking=1&formats=none&preview=1&demosamples=1&api_key=test",
+    ), { params: Promise.resolve({ type: "movie", id: "44" }) })
+    expect(none.status).toBe(200)
+    const noneInput = spy.mock.calls[spy.mock.calls.length - 1][0] as { videoFormats?: string[] | null }
+    expect(noneInput.videoFormats).toBeNull()
+
+    spy.mockClear()
+    const restricted = await GET(new NextRequest(
+      "http://localhost:3000/api/poster/movie/44?poster=%2Fq.jpg&imdbId=tt0021749&badges=1&ranking=1&formats=imax&preview=1&demosamples=1&api_key=test",
+    ), { params: Promise.resolve({ type: "movie", id: "44" }) })
+    expect(restricted.status).toBe(200)
+    const restrictedInput = spy.mock.calls[spy.mock.calls.length - 1][0] as { videoFormats?: string[] | null }
+    // Exactly the enabled selection: real DV was turned off by the user.
+    expect(restrictedInput.videoFormats).toEqual(["imax"])
+
+    spy.mockClear()
+    const kept = await GET(new NextRequest(
+      "http://localhost:3000/api/poster/movie/44?poster=%2Fq.jpg&imdbId=tt0021749&badges=1&ranking=1&formats=dv,imax&preview=1&demosamples=1&api_key=test",
+    ), { params: Promise.resolve({ type: "movie", id: "44" }) })
+    expect(kept.status).toBe(200)
+    const keptInput = spy.mock.calls[spy.mock.calls.length - 1][0] as { videoFormats?: string[] | null }
+    expect(keptInput.videoFormats).toEqual(["dv", "imax"])
+  })
+
+  it("keeps real AV specs and real certifications ahead of the samples", async () => {
+    // tt0021749 carries a real local spec (4K, DV only).
+    const spy = vi.mocked(posterService.generatePosterBuffer)
+    spy.mockClear()
+    const specRes = await GET(new NextRequest(
+      "http://localhost:3000/api/poster/movie/44?poster=%2Fq.jpg&imdbId=tt0021749&badges=1&ranking=1&preview=1&demosamples=1&api_key=test",
+    ), { params: Promise.resolve({ type: "movie", id: "44" }) })
+    expect(specRes.status).toBe(200)
+    const specInput = spy.mock.calls[spy.mock.calls.length - 1][0] as { videoFormats?: string[] | null }
+    // Every ENABLED mark is demoed even when the real spec is partial: the
+    // real DV stays first and no enabled mark is silently absent.
+    expect(specInput.videoFormats).toEqual(["dv", "hdr", "hdr10plus", "atmos", "imax"])
+
+    vi.mocked(getReleaseDates).mockResolvedValue({
+      id: 44,
+      results: [{ iso_3166_1: "IT", release_dates: [{ certification: "VM14", release_date: "2024-01-10T00:00:00.000Z", type: 3 }] }],
+    } as never)
+    const ageRes = await GET(new NextRequest(
+      debugUrl("&age=1&agecountry=IT&preview=1&demosamples=1&debug=1"),
+    ), { params: Promise.resolve({ type: "movie", id: "44" }) })
+    expect(ageRes.status).toBe(200)
+    expect((await ageRes.json()).age.label).toBe("VM14")
   })
 
   it("downgraded previews drop the flag and serve genuine canonical renders", async () => {

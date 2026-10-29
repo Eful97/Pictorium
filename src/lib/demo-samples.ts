@@ -1,17 +1,20 @@
 /**
  * Demonstration badge data for the Settings defaults preview.
  *
- * Preview-only samples: shown when the chosen demo title has no real chart,
- * quality, network or ratings data, so every ENABLED badge still renders and
- * the user sees its actual style. Real data always wins — samples only fill
- * gaps, never override. Toggles and styles keep gating the render downstream.
+ * Preview-only samples: they fill badge slots the chosen demo title leaves
+ * empty, and demo every ENABLED A/V mark, so the user sees each style. Real
+ * data always wins where it exists — samples only fill gaps or add the enabled
+ * marks on top (formats union), never override a real value. Toggles and
+ * styles keep gating the render downstream.
  *
  * Server-side only in effect: the route applies these after the existing
  * preview auth/downgrade check, and only with `preview=1` plus the explicit
  * `demosamples=1` flag (emitted solely by `buildDefaultsPreviewUrl`). No new
  * upstream fetch, no key usage, no mapping writes, no cache writes for
- * previews. Pure module: no runtime imports.
+ * previews. Pure module: no side effects (its only import is the pure AV
+ * format list, reused instead of a second copy).
  */
+import { isVideoFormat, KNOWN_VIDEO_FORMATS, type VideoFormat } from "./av-specs"
 
 /** Query flag enabling demo samples (Settings preview builder only). */
 export const DEMOSAMPLES_FLAG = "demosamples"
@@ -30,6 +33,13 @@ export const DEMO_SAMPLE_NETWORK = { name: "Netflix", logoPath: null } as const
 
 /** Sample genre shown only when TMDB details provide none. */
 export const DEMO_SAMPLE_GENRE = "Avventura"
+
+/**
+ * Sample age label shown only when the title resolves no certification for the
+ * selected country. Style demo only (never a claim about the title), and kept
+ * inside the real label charset so it renders exactly like a genuine one.
+ */
+export const DEMO_SAMPLE_AGE_LABEL = "12"
 
 /** Sample release dates used only when details provide none (fixed past
  *  dates: no upcoming/new side effects, deterministic output). */
@@ -111,6 +121,33 @@ export function isDemoSamplesRequest(input: {
   flag: string | null | undefined
 }): boolean {
   return input.isPreview === true && input.flag === "1"
+}
+
+/**
+ * Sample A/V marks for the Settings demo preview: every ENABLED mark is
+ * demoed so its style stays visible even when the title's real spec is only
+ * partial. The ENABLED selection is the only gate (`formats=none` = nothing
+ * enabled → no marks; a restricted list = exactly that list; no restriction =
+ * every known format) and it applies to the real specs too: a mark the user
+ * turned off is never resurrected.
+ *
+ * Real specs are kept, never replaced — the result is the real marks first,
+ * then the remaining enabled ones. Mutual exclusions (HDR10+ over plain HDR)
+ * and the merged Dolby Vision + Atmos lockup stay where they belong, in the
+ * single renderer, which normalizes the list it is given.
+ */
+export function sampleDemoVideoFormats(
+  realFormats: readonly VideoFormat[],
+  enabled: readonly VideoFormat[] | null | undefined,
+): VideoFormat[] {
+  const selection = (enabled == null ? KNOWN_VIDEO_FORMATS : enabled).filter(isVideoFormat)
+  const allowed = new Set(selection)
+  const sampled: VideoFormat[] = []
+  for (const format of [...realFormats, ...selection]) {
+    if (!allowed.has(format) || sampled.includes(format)) continue
+    sampled.push(format)
+  }
+  return sampled
 }
 
 /**

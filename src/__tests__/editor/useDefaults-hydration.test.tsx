@@ -36,6 +36,9 @@ const USER_SAVED = {
   extraBadgeStyle: null,
   badgeFont: "inter",
   badgePresets: null,
+  // Explicit authoring clear: the serializer always emits the key (`null` =
+  // automatic layout) because PUT /api/defaults merges over the stored value.
+  badgeItemTransforms: null,
   qualityBadgeStyle: "standard",
   videoFormats: ["dv", "hdr", "hdr10plus", "atmos", "imax"],
   blurEnabled: true,

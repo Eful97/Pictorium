@@ -83,9 +83,12 @@ describe("per-item corrections persistence", () => {
       await vi.advanceTimersByTimeAsync(1200)
     })
     const cleared = JSON.parse(storage.getItem("badgeDefaults") ?? "{}") as Record<string, unknown>
-    // Absent (never an explicit null): a cleared configuration is byte-identical
-    // to a historic payload without the feature.
-    expect("badgeItemTransforms" in cleared).toBe(false)
+    // Explicit null, never an omitted key: PUT /api/defaults merges over the
+    // stored defaults, so a missing key would keep the old server-side offsets
+    // (the rejoined badge would still appear nudged in the Test URL).
+    expect(cleared.badgeItemTransforms).toBeNull()
+    // Same wire form, so the merge really clears the stored map.
+    expect(putBodies.some((b) => b.badgeItemTransforms === null)).toBe(true)
   })
 
   it("reads the committed default bit for the title-open hydration fallback", () => {
