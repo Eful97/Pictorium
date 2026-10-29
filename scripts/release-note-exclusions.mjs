@@ -5,7 +5,10 @@
 // tree no longer contains it, the curated in-app changelog (src/data/changelog.ts,
 // v1.25.8 entry) deliberately omits it, and it must stay out of the public
 // GitHub Release notes and the Discord announcement built from the same body
-// (scripts/build-release-notes.mjs, consumed by .github/workflows/release.yml).
+// (scripts/build-release-notes.mjs renders the curated entry, consumed by
+// .github/workflows/release.yml). Collection
+// (scripts/write-changelog-release.mjs --collect) also skips these SHAs so
+// withdrawn work is not even suggested as source material.
 //
 // The exclusion is bound to the exact full commit SHA — never to subject text —
 // so unrelated present or future work with similar wording is unaffected.

@@ -1,8 +1,11 @@
 name: Release
 
 # Tag pushed (or manually dispatched) -> pretty GitHub Release with grouped,
-# emoji changelog built from conventional commits. The in-app changelog
-# (src/data/changelog.ts via write-changelog-release.mjs) stays separate.
+# emoji changelog. The body renders the ONE approved source — the curated
+# entry for the tag in src/data/changelog.ts (written at release time from
+# reviewed editorial notes via write-changelog-release.mjs --notes) — never
+# raw commit subjects. Raw subjects are only collected as review material
+# (`write-changelog-release.mjs --collect`) and never published.
 on:
   push:
     tags: ["v*"]
