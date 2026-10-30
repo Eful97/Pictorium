@@ -76,6 +76,7 @@ const USER_SAVED = {
   ageBadge: false,
   ageCountry: "IT",
   ageBadgeStyle: "standard",
+  awardBadgeStyle: "badge",
   customRatings: true,
   customRatingEndpoint: "",
   customRatingApiKeyHeader: "",
@@ -110,6 +111,7 @@ const USER_SAVED = {
     ageBadge: false,
     ageCountry: "IT",
     ageBadgeStyle: "standard",
+    awardBadgeStyle: "badge",
   },
 }
 
