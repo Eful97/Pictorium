@@ -528,9 +528,10 @@ Opt-in (`sep=1`, default OFF): sostituisce la media ★ nel badge con una colonn
 ## Trascinamento diretto dei badge (solo editor)
 
 Nessun parametro nuovo, nessun secondo renderer. Nelle Impostazioni globali la
-preview piccola NON è una superficie di editing: espone solo un ingresso
-etichettato ("Modifica poster", icona ingrandisci; la miniatura mobile ha la
-stessa destinazione) che apre DIRETTAMENTE l'editor ingrandito. Le maniglie sono
+preview piccola NON è una superficie di editing: il poster stesso è l'ingresso
+etichettato (aria-label "Ingrandisci anteprima") che apre DIRETTAMENTE l'editor
+ingrandito, senza un pulsante "Modifica poster" dedicato in NESSUNA variante
+(né desktop né compact mobile: anche lì la miniatura è l'ingresso). Le maniglie sono
 i box FINALI riportati dal renderer via `debug=1&netgeo=1` (blocco `badges`, gli
 stessi numeri del poster mostrato). Il blocco riporta il layout del POSTER INTERO
 (`layout`: `ranked` = classifica effettivamente dipinta, `fallback` = senza

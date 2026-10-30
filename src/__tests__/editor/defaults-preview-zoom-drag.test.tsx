@@ -1,11 +1,12 @@
 /**
  * Small preview → enlarged EDITOR (global defaults preview).
  *
- * The small preview exposes no manipulation at all: only a clearly labelled
- * edit/enlarge entry that opens the enlarged editor DIRECTLY. Inside that
- * dialog the editor-only layer lives (handles from the rendered poster, never
- * baked into the poster), clicking the poster never closes it, and the
- * drag-MODE toggle is the only pointer-move switch, reachable nowhere else.
+ * The small preview exposes no manipulation at all: the poster itself is the
+ * clearly labelled edit/enlarge entry and opens the enlarged editor DIRECTLY.
+ * Inside that dialog the editor-only layer lives (handles from the rendered
+ * poster, never baked into the poster), clicking the poster never closes it,
+ * and the drag-MODE toggle is the only pointer-move switch, reachable nowhere
+ * else.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { act, fireEvent, screen, waitFor } from "@testing-library/react"
@@ -92,14 +93,16 @@ async function renderPreviewWithImage() {
 
 async function openEditor() {
   await renderPreviewWithImage()
-  fireEvent.click(screen.getByLabelText("ui.badgeEditOpen"))
+  fireEvent.click(screen.getByLabelText("ui.defaultsPreviewZoomOpen"))
   return await screen.findByTestId("defaults-preview-zoom-drag-area")
 }
 
 describe("small preview entry", () => {
-  it("exposes a labelled edit entry and no manipulation layer or drag toggle", async () => {
+  it("exposes the labelled poster entry and no manipulation layer or drag toggle", async () => {
     await renderPreviewWithImage()
-    expect(screen.getByLabelText("ui.badgeEditOpen")).toBeTruthy()
+    expect(screen.getByLabelText("ui.defaultsPreviewZoomOpen")).toBeTruthy()
+    // The separate "edit poster" header entry is gone: the poster is the entry.
+    expect(screen.queryByLabelText("ui.badgeEditOpen")).toBeNull()
     // No active manipulation in the small preview: no drag layer, no toggle.
     expect(screen.queryByTestId("badge-drag-layer")).toBeNull()
     expect(screen.queryByTestId("defaults-preview-badge-drag-toggle")).toBeNull()
@@ -125,7 +128,7 @@ describe("small preview entry", () => {
   it("keeps the drag-mode toggle inside the fullscreen editor only", async () => {
     await renderPreviewWithImage()
     expect(screen.queryByTestId("defaults-preview-badge-drag-toggle-zoom")).toBeNull()
-    fireEvent.click(screen.getByLabelText("ui.badgeEditOpen"))
+    fireEvent.click(screen.getByLabelText("ui.defaultsPreviewZoomOpen"))
     await screen.findByTestId("defaults-preview-zoom-drag-area")
     const toggle = await screen.findByTestId("defaults-preview-badge-drag-toggle-zoom")
     // ON by default (opt-out switch), and the explicit OFF choice persists.

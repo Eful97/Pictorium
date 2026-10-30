@@ -197,9 +197,9 @@ async function deliverPreviewImage() {
       for (const xhr of pending) xhr.finish()
     })
     await settle()
-    if (screen.queryByLabelText("ui.badgeEditOpen")) return
+    if (screen.queryByLabelText("ui.defaultsPreviewZoomOpen")) return
   }
-  await screen.findByLabelText("ui.badgeEditOpen")
+  await screen.findByLabelText("ui.defaultsPreviewZoomOpen")
 }
 
 async function mountPanel() {
@@ -222,7 +222,7 @@ async function stageDirtyDraft() {
 
 /** Open the enlarged preview editor and switch it to the ITEM target level. */
 async function openItemEditor(itemId: string) {
-  fireEvent.click(await screen.findByLabelText("ui.badgeEditOpen"))
+  fireEvent.click(await screen.findByLabelText("ui.defaultsPreviewZoomOpen"))
   await screen.findByTestId("defaults-preview-zoom-drag-area")
   fireEvent.click(screen.getByTestId("defaults-preview-target-level-item"))
   return await screen.findByTestId(`badge-item-handle-${itemId}`)

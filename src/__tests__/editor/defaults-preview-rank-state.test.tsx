@@ -387,7 +387,7 @@ describe("two-state switch UI", () => {
   it("names the drag-mode toggle with its visible state (label in name)", async () => {
     renderPreview({ previewFamily: "rank", onPreviewFamilyChange: vi.fn() })
     await loadPreviewImage()
-    fireEvent.click(screen.getByLabelText("ui.badgeEditOpen"))
+    fireEvent.click(screen.getByLabelText("ui.defaultsPreviewZoomOpen"))
     await screen.findByTestId("defaults-preview-zoom-drag-area")
     const toggle = screen.getByTestId("defaults-preview-badge-drag-toggle-zoom")
     // The enlarged editor offers the same two-state preview switch (desktop

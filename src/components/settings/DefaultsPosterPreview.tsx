@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useRef, useState, useId } from "react"
-import { ChevronDown, ImageOff, Maximize2, Move, RefreshCw, Search, Sparkles } from "lucide-react"
+import { ChevronDown, ImageOff, Move, RefreshCw, Search, Sparkles } from "lucide-react"
 import { usePosterEditor, type PosterEditorCtx } from "@/lib/contexts/PosterEditorContext"
 import { useT } from "@/lib/contexts/TranslationContext"
 import { buildDefaultsPreviewUrl, isDefaultsPreviewRankConfigured, type DefaultsPreviewDemoMedia, type DefaultsPreviewFamily } from "@/lib/poster-url"
@@ -892,19 +892,8 @@ export function DefaultsPosterPreview({ compact, floating, suspended, previewSha
             <span className="text-[10px] text-zinc-400 font-mono truncate">
               {demoMedia?.title ? demoTitle : t("ui.defaultsPreviewSubtitle")}
             </span>
-            {!draftDefaults && !simpleChrome && (
-              <button
-                type="button"
-                data-testid="defaults-preview-badge-edit"
-                onClick={() => setZoomed(true)}
-                aria-label={t("ui.badgeEditOpen")}
-                aria-expanded={zoomed}
-                title={t("ui.badgeEditOpen")}
-                className="shrink-0 min-w-[44px] min-h-[44px] -my-2 -mr-2 px-2 flex items-center justify-center rounded-lg text-zinc-300 hover:text-accent-orange hover:bg-white/10 transition-all active:scale-90 cursor-pointer touch-manipulation"
-              >
-                <Maximize2 className="w-4 h-4" />
-              </button>
-            )}
+            {/* No separate "edit poster" entry here either: the thumbnail
+                below is the entry (`ui.defaultsPreviewZoomOpen`). */}
             <button
               type="button"
               data-testid="defaults-preview-collapse"
@@ -1145,20 +1134,9 @@ export function DefaultsPosterPreview({ compact, floating, suspended, previewSha
           <span className="truncate">{t("ui.defaultsPreviewTitle")}</span>
         </div>
         <div className="flex items-center gap-1.5 min-w-0 shrink-0">
-          {!draftDefaults && !simpleChrome && (
-            <button
-              type="button"
-              data-testid="defaults-preview-badge-edit"
-              onClick={() => setZoomed(true)}
-              aria-label={t("ui.badgeEditOpen")}
-              aria-expanded={zoomed}
-              title={t("ui.badgeEditOpen")}
-              className="flex items-center gap-1 px-1.5 py-0.5 rounded-md border text-[10px] font-semibold transition-all cursor-pointer bg-white/5 text-muted border-border/50 hover:text-accent-orange hover:border-accent-orange/40"
-            >
-              <Maximize2 className="w-3 h-3" />
-              <span className="hidden xl:inline">{t("ui.badgeEditOpen")}</span>
-            </button>
-          )}
+          {/* No separate "edit poster" entry: the poster itself is the entry
+              (aria-label `ui.defaultsPreviewZoomOpen`) and opens this same
+              enlarged editor. */}
           <span className="text-[10px] text-zinc-400 font-mono truncate">
             {demoMedia?.title ? demoTitle : t("ui.defaultsPreviewSubtitle")}
           </span>

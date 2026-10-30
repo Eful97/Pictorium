@@ -227,7 +227,7 @@ async function mountPreview(badgesPayload: unknown) {
     xhr.finish()
   })
   vi.useRealTimers()
-  fireEvent.click(screen.getByLabelText("ui.badgeEditOpen"))
+  fireEvent.click(screen.getByLabelText("ui.defaultsPreviewZoomOpen"))
   await screen.findByTestId("defaults-preview-zoom-drag-area")
   return { view, ctx: () => ctx as PosterEditorCtx }
 }
