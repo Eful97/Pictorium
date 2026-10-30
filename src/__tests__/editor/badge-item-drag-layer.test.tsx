@@ -119,8 +119,11 @@ describe("PosterBadgeDragLayer per-item handles", () => {
     const imdb = await screen.findByTestId("badge-item-handle-rating:imdb")
     fireEvent.keyDown(imdb, { key: "ArrowRight" })
     fireEvent.keyDown(imdb, { key: "ArrowDown", shiftKey: true })
+    // The DEFAULTS surface writes the POSITIONAL slot of the painted index
+    // (`rating:slot:1`: this family has no closed provider catalog), never the
+    // per-title provider identity.
     await waitFor(() => expect(parseBadgeItemTransforms(ctx().defaultBadgeItemTransforms)).toEqual({
-      "rating:imdb": { scale: 100, offsetX: 1, offsetY: 10 },
+      "rating:slot:1": { scale: 100, offsetX: 1, offsetY: 10 },
     }))
     // Group transforms untouched (individual corrections are additive).
     expect(ctx().defaultSeparateBadgeOffsetX).toBe(3)
@@ -129,49 +132,84 @@ describe("PosterBadgeDragLayer per-item handles", () => {
     expect(ctx().defaultQualityBadgeOffsetY).toBe(15)
   })
 
-  it("double-click resets ONLY the selected item", async () => {
+  it("double-click resets ONLY the selected slot", async () => {
     seedDefaults({
-      defaultBadgeItemTransforms: "rating:imdb=130,5,0;rating:tmdb=90,0,-4",
+      defaultBadgeItemTransforms: "rating:slot:1=130,5,0;rating:slot:2=90,0,-4",
     })
     stubFetch(payload(ITEMS))
     const { ctx } = renderLayer(
       createElement(PosterBadgeDragLayer, { previewUrl: PREVIEW_URL, shape: "poster", enabled: true, targetLevel: "item" }),
     )
+    // IMDb is the FIRST painted pill → it owns `rating:slot:1`.
     const imdb = await screen.findByTestId("badge-item-handle-rating:imdb")
     fireEvent.doubleClick(imdb)
     await waitFor(() =>
       expect(parseBadgeItemTransforms(ctx().defaultBadgeItemTransforms)).toEqual({
-        "rating:tmdb": { scale: 90, offsetX: 0, offsetY: -4 },
+        "rating:slot:2": { scale: 90, offsetX: 0, offsetY: -4 },
       }),
     )
-    // The other item keeps its own correction.
-    expect(parseBadgeItemTransforms(ctx().defaultBadgeItemTransforms)["rating:tmdb"]).toEqual({
+    // The other POSITION keeps its own correction (a slot is bound to its
+    // painted position, never inherited by a neighbour).
+    expect(parseBadgeItemTransforms(ctx().defaultBadgeItemTransforms)["rating:slot:2"]).toEqual({
       scale: 90,
       offsetX: 0,
       offsetY: -4,
     })
   })
 
-  it("keeps a correction attached to its provider when the report is reordered", async () => {
-    seedDefaults({ defaultBadgeItemTransforms: "rating:tmdb=90,0,-4" })
+  it("bound the slot to the PAINTED POSITION when the report is reordered", async () => {
+    // Positional, by design: the separate family has no closed provider
+    // catalog, so slot 2 belongs to whoever is painted second.
+    seedDefaults({ defaultBadgeItemTransforms: "rating:slot:2=90,0,-4" })
     const reordered = [ITEMS[2], ITEMS[3], ITEMS[0], ITEMS[1]]
     stubFetch(payload(reordered))
     const { ctx } = renderLayer(
       createElement(PosterBadgeDragLayer, { previewUrl: PREVIEW_URL, shape: "poster", enabled: true, targetLevel: "item" }),
     )
-    // Position 0 is now IMDb: nudging it must not touch TMDB's correction.
-    const imdb = await screen.findByTestId("badge-item-handle-rating:imdb")
-    fireEvent.keyDown(imdb, { key: "ArrowRight" })
+    // The report starts with IMDb and TMDB: nudging the SECOND pill (TMDB)
+    // writes slot 2, which is exactly the stored slot, so the correction stays
+    // on the second painted position.
+    const tmdb = await screen.findByTestId("badge-item-handle-rating:tmdb")
+    fireEvent.keyDown(tmdb, { key: "ArrowRight" })
     await waitFor(() =>
       expect(parseBadgeItemTransforms(ctx().defaultBadgeItemTransforms)).toEqual({
-        "rating:tmdb": { scale: 90, offsetX: 0, offsetY: -4 },
-        "rating:imdb": { scale: 100, offsetX: 1, offsetY: 0 },
+        "rating:slot:2": { scale: 90, offsetX: 1, offsetY: -4 },
+      }),
+    )
+    // And the FIRST painted pill writes slot 1, never slot 2.
+    const imdb = screen.getByTestId("badge-item-handle-rating:imdb")
+    fireEvent.keyDown(imdb, { key: "ArrowLeft" })
+    await waitFor(() =>
+      expect(parseBadgeItemTransforms(ctx().defaultBadgeItemTransforms)).toEqual({
+        "rating:slot:1": { scale: 100, offsetX: -1, offsetY: 0 },
+        "rating:slot:2": { scale: 90, offsetX: 1, offsetY: -4 },
+      }),
+    )
+  })
+
+  it("writes the ghost slot itself when an empty position is dragged", async () => {
+    seedDefaults({})
+    stubFetch(
+      payload([
+        { id: "rating:imdb", family: "separate", top: 120, left: 400, w: 80, h: 40, custom: false },
+        { id: "rating:slot:2", family: "separate", top: 165, left: 400, w: 80, h: 40, custom: false, ghost: true },
+      ]),
+    )
+    const { ctx } = renderLayer(
+      createElement(PosterBadgeDragLayer, { previewUrl: PREVIEW_URL, shape: "poster", enabled: true, targetLevel: "item" }),
+    )
+    const ghost = await screen.findByTestId("badge-item-handle-rating:slot:2")
+    expect(ghost.getAttribute("data-ghost")).toBe("true")
+    fireEvent.keyDown(ghost, { key: "ArrowDown", shiftKey: true })
+    await waitFor(() =>
+      expect(parseBadgeItemTransforms(ctx().defaultBadgeItemTransforms)).toEqual({
+        "rating:slot:2": { scale: 100, offsetX: 0, offsetY: 10 },
       }),
     )
   })
 
   it("marks a corrected item and draws it at its own reported box", async () => {
-    seedDefaults({ defaultBadgeItemTransforms: "rating:tmdb=150,0,0" })
+    seedDefaults({ defaultBadgeItemTransforms: "rating:slot:2=150,0,0" })
     stubFetch(
       payload([
         { id: "rating:imdb", family: "separate", top: 120, left: 400, w: 80, h: 40, custom: false },

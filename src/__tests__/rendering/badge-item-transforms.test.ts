@@ -16,6 +16,12 @@ import {
   BADGE_ITEM_NEUTRAL,
   BADGE_ITEM_QUALITY_AGE,
   BADGE_ITEM_QUALITY_COMBO,
+  BADGE_ITEM_QUALITY_HOMES,
+  BADGE_ITEM_QUALITY_HOME_AGE,
+  BADGE_ITEM_QUALITY_HOME_DOLBY,
+  BADGE_ITEM_QUALITY_HOME_HDR,
+  BADGE_ITEM_QUALITY_HOME_IMAX,
+  BADGE_ITEM_QUALITY_HOME_TIER,
   BADGE_ITEM_QUALITY_TIER,
   BADGE_ITEM_SCALE_MAX,
   BADGE_ITEM_SCALE_MIN,
@@ -26,6 +32,11 @@ import {
   clampBadgeItemOffset,
   clampBadgeItemScale,
   effectiveBadgeItemTransforms,
+  homeIdForPainted,
+  isQualityHomeItemId,
+  qualityHomeBaseLabel,
+  qualityHomeItemId,
+  qualityHomeKind,
   withoutBadgeItemFamily,
   hasBadgeItemTransforms,
   isBadgeItemId,
@@ -291,5 +302,150 @@ describe("withoutBadgeItemFamily (group reset hierarchy)", () => {
   it("is a no-op for a family that owns no items", () => {
     expect(withoutBadgeItemFamily(map, null)).toEqual(map)
     expect(withoutBadgeItemFamily({}, "quality")).toEqual({})
+  })
+})
+
+/**
+ * HOME corrections (`quality:home:<kind>`): NAMED, content-bound places of the
+ * quality stack. A home is not a badge identity: whatever badge of its content
+ * group PAINTS on a title goes to that home, so one stored correction yields the
+ * SAME box on every title and every format set. The home composes with the
+ * per-item identity correction of the same element (identity on top), and with
+ * no home stored the output stays byte-identical to the historic layout.
+ */
+describe("quality stack homes", () => {
+  /** Exactly the quality-family segment the render cache key serializes. */
+  function qualityKeySegment(map: BadgeItemTransformMap | null | undefined): string {
+    return (
+      serializeBadgeItemTransforms(
+        Object.fromEntries(Object.entries(effectiveBadgeItemTransforms(map)).filter(([id]) => isQualityItemId(id))),
+      ) ?? "items0"
+    )
+  }
+
+  it("is the closed set of five content groups", () => {
+    expect(BADGE_ITEM_QUALITY_HOMES).toEqual([
+      "quality:home:tier",
+      "quality:home:age",
+      "quality:home:dolby",
+      "quality:home:hdr",
+      "quality:home:imax",
+    ])
+    expect(qualityHomeItemId("tier")).toBe(BADGE_ITEM_QUALITY_HOME_TIER)
+    expect(qualityHomeItemId("age")).toBe(BADGE_ITEM_QUALITY_HOME_AGE)
+    expect(qualityHomeItemId("dolby")).toBe(BADGE_ITEM_QUALITY_HOME_DOLBY)
+    expect(qualityHomeItemId("hdr")).toBe(BADGE_ITEM_QUALITY_HOME_HDR)
+    expect(qualityHomeItemId("imax")).toBe(BADGE_ITEM_QUALITY_HOME_IMAX)
+    for (const id of BADGE_ITEM_QUALITY_HOMES) {
+      expect(isQualityHomeItemId(id)).toBe(true)
+      const kind = qualityHomeKind(id)
+      expect(kind).not.toBeNull()
+      expect(qualityHomeItemId(kind!)).toBe(id)
+    }
+    // Not a home: an unknown group, a plain mark, a rating.
+    expect(isQualityHomeItemId("quality:home:atmos")).toBe(false)
+    expect(qualityHomeKind("quality:tier")).toBeNull()
+    expect(qualityHomeKind("rating:imdb")).toBeNull()
+    expect(isQualityHomeItemId("quality:format:hdr")).toBe(false)
+  })
+
+  it("binds every painted badge of a group to its own home", () => {
+    // Tier and age are one badge each.
+    expect(homeIdForPainted(BADGE_ITEM_QUALITY_TIER)).toBe(BADGE_ITEM_QUALITY_HOME_TIER)
+    expect(homeIdForPainted(BADGE_ITEM_QUALITY_AGE)).toBe(BADGE_ITEM_QUALITY_HOME_AGE)
+    // Dolby: the merged combo AND both singles belong to the same home (the
+    // existing merge logic decides what paints, never the binding).
+    expect(homeIdForPainted(BADGE_ITEM_QUALITY_COMBO)).toBe(BADGE_ITEM_QUALITY_HOME_DOLBY)
+    expect(homeIdForPainted(qualityFormatItemId("dv")!)).toBe(BADGE_ITEM_QUALITY_HOME_DOLBY)
+    expect(homeIdForPainted(qualityFormatItemId("atmos")!)).toBe(BADGE_ITEM_QUALITY_HOME_DOLBY)
+    // HDR: HDR10+ wins the render, but both live in the same home.
+    expect(homeIdForPainted(qualityFormatItemId("hdr")!)).toBe(BADGE_ITEM_QUALITY_HOME_HDR)
+    expect(homeIdForPainted(qualityFormatItemId("hdr10plus")!)).toBe(BADGE_ITEM_QUALITY_HOME_HDR)
+    expect(homeIdForPainted(qualityFormatItemId("imax")!)).toBe(BADGE_ITEM_QUALITY_HOME_IMAX)
+    // A home target IS its own home (ghost handles drag the home).
+    for (const id of BADGE_ITEM_QUALITY_HOMES) expect(homeIdForPainted(id)).toBe(id)
+    // Nothing else has a home: separate ratings and unknown formats.
+    expect(homeIdForPainted("rating:imdb")).toBeNull()
+    expect(homeIdForPainted("quality:format:hlg")).toBeNull()
+    expect(homeIdForPainted("quality:combo:other")).toBeNull()
+  })
+
+  it("belongs to the quality family (family filter, reset and cache key)", () => {
+    const map = {
+      [BADGE_ITEM_QUALITY_HOME_DOLBY]: { scale: 120, offsetX: 0, offsetY: 8 },
+      "rating:imdb": { scale: 90, offsetX: 0, offsetY: 0 },
+    }
+    // `isQualityItemId` covers `quality:home:*` through the shared prefix, so
+    // the group cache key and every family filter see a home.
+    for (const id of BADGE_ITEM_QUALITY_HOMES) expect(isQualityItemId(id)).toBe(true)
+    expect(isRatingItemId(BADGE_ITEM_QUALITY_HOME_TIER)).toBe(false)
+    // A quality group reset clears the homes too (they are the family layout).
+    expect(withoutBadgeItemFamily(map, "quality")).toEqual({ "rating:imdb": { scale: 90, offsetX: 0, offsetY: 0 } })
+    // A separate-rating reset NEVER touches a home (other family's layout).
+    expect(withoutBadgeItemFamily(map, "separate")).toEqual({
+      [BADGE_ITEM_QUALITY_HOME_DOLBY]: { scale: 120, offsetX: 0, offsetY: 8 },
+    })
+    // Wire form: a home id passes the shared id validator and round-trips.
+    expect(isBadgeItemId(BADGE_ITEM_QUALITY_HOME_IMAX)).toBe(true)
+    expect(parseBadgeItemTransforms("quality:home:imax=120,0,8")).toEqual({
+      "quality:home:imax": { scale: 120, offsetX: 0, offsetY: 8 },
+    })
+    expect(serializeBadgeItemTransforms({ "quality:home:imax": { scale: 120, offsetX: 0, offsetY: 8 } }))
+      .toBe("quality:home:imax=120,0,8")
+    expect(BADGE_ITEM_NEUTRAL).toEqual({ scale: 100, offsetX: 0, offsetY: 0 })
+    expect(canonicalizeBadgeItemTransforms("quality:home:hdr=100,0,0")).toBeNull()
+  })
+
+  it("enters the quality cache key: same badges + different homes = different key", () => {
+    // Same painted stack (labels/formats identical): only the IMAX home differs.
+    const a = qualityKeySegment({ "quality:home:imax": { scale: 100, offsetX: 0, offsetY: 0 } })
+    const b = qualityKeySegment({ "quality:home:imax": { scale: 100, offsetX: 0, offsetY: 6 } })
+    const c = qualityKeySegment({ "quality:home:imax": { scale: 100, offsetX: 0, offsetY: 12 } })
+    // Neutral home = automatic layout (the historic sentinel, no key churn).
+    expect(a).toBe("items0")
+    expect(b).toBe("quality:home:imax=100,0,6")
+    expect(new Set([a, b, c]).size).toBe(3)
+    // Two DIFFERENT homes never collapse onto the same key segment.
+    const tier = qualityKeySegment({ "quality:home:tier": { scale: 100, offsetX: 0, offsetY: 6 } })
+    const hdr = qualityKeySegment({ "quality:home:hdr": { scale: 100, offsetX: 0, offsetY: 6 } })
+    expect(new Set([b, tier, hdr]).size).toBe(3)
+    // Identity corrections keep their own semantics and never collide with a home.
+    const identity = qualityKeySegment({ [BADGE_ITEM_QUALITY_TIER]: { scale: 100, offsetX: 0, offsetY: 6 } })
+    expect(identity).not.toBe(tier)
+    // A separate-family id (rating) never enters the quality segment.
+    expect(qualityKeySegment({ "rating:imdb": { scale: 100, offsetX: 0, offsetY: 6 } })).toBe("items0")
+  })
+
+  it("labels a home with the existing sources behind a code literal (no new i18n key)", () => {
+    expect(badgeItemLabelKind(BADGE_ITEM_QUALITY_HOME_TIER)).toEqual({ kind: "home", home: "tier" })
+    expect(badgeItemLabelKind(BADGE_ITEM_QUALITY_HOME_IMAX)).toEqual({ kind: "home", home: "imax" })
+    expect(badgeItemLabelKind("quality:home:atmos")).toBeNull()
+    expect(badgeItemLabelKind(BADGE_ITEM_QUALITY_TIER)).toEqual({ kind: "tier" })
+    // The base label reuses the existing translation keys / A/V full names.
+    const translate = (key: string) => `T:${key}`
+    expect(qualityHomeBaseLabel("tier", translate)).toBe("T:ui.badgeQuality")
+    expect(qualityHomeBaseLabel("age", translate)).toBe("T:ui.ageBadge")
+    expect(qualityHomeBaseLabel("dolby", translate)).toBe("Dolby Vision + Atmos")
+    expect(qualityHomeBaseLabel("hdr", translate)).toBe("HDR")
+    expect(qualityHomeBaseLabel("imax", translate)).toBe("IMAX Enhanced")
+  })
+
+  it("applies the home BEFORE the identity correction of the same element", () => {
+    const isolated = { top: 0, left: 0, w: 40, h: 20 }
+    const home = { scale: 150, offsetX: 2, offsetY: 6 }
+    const identity = { scale: 120, offsetX: 3, offsetY: -2 }
+    const homeOnly = applyBadgeItemTransform(isolated, home)
+    const both = applyBadgeItemTransform(homeOnly, identity)
+    // The identity correction is a delta on top of the HOME-transformed box
+    // (same helper, so its scale resizes the home box, never the automatic one).
+    expect(both.w).toBe(Math.round((homeOnly.w * 120) / 100))
+    expect(both.h).toBe(Math.round((homeOnly.h * 120) / 100))
+    expect(both.top).toBe(Math.round(homeOnly.top + (homeOnly.h - both.h) / 2) - 2)
+    expect(both.left).toBe(Math.round(homeOnly.left + (homeOnly.w - both.w) / 2) + 3)
+    // Neither correction alone can reproduce the composition.
+    expect(both).not.toEqual(homeOnly)
+    expect(both).not.toEqual(applyBadgeItemTransform(isolated, identity))
+    // Neutral home = the automatic box, byte-for-byte.
+    expect(applyBadgeItemTransform(isolated, null)).toEqual(isolated)
   })
 })

@@ -472,6 +472,7 @@
   "ui.qbsKnockout": "Knockout",
   "ui.qbsPremium": "Premium",
   "ui.qbsNova": "Nova",
+  "ui.qbsGradient": "Gradient",
   "ui.blurDisabled": "Oskärpa av",
   "ui.selectedCount": "{count} valda",
   "ui.bsDefault": "Standard",

@@ -34,7 +34,12 @@ import {
   BADGE_ITEM_QUALITY_COMBO,
   badgeItemLabelKind,
   badgeItemTransform,
+  homeIdForPainted,
+  isRatingSlotItemId,
   moveBadgeItemTransform,
+  qualityHomeBaseLabel,
+  ratingSlotItemId,
+  ratingSlotLabel,
   resizeBadgeItemTransform,
   type BadgeItemTransformMap,
 } from "@/lib/badge-item-transforms"
@@ -81,6 +86,27 @@ import {
  * Moving writes the same Transform X/Y values the sliders write (group) or the
  * item correction (item) and resizing writes the same scale, so the preview and
  * the numeric controls stay in sync in both directions.
+ *
+ * ITEM WRITES ARE SURFACE-SPECIFIC (same overlay, one implementation):
+ *  - DEFAULTS surface (no injected adapter — the global Settings editor): a
+ *    painted single badge writes the GLOBAL, content-bound/positional place of
+ *    its family, never the per-title identity:
+ *      • quality → the HOME correction of its content group
+ *        (`homeIdForPainted`), so the nudge follows that group on every title
+ *        and format set instead of only on the title being previewed;
+ *      • separate → the SLOT correction of its PAINTED POSITION
+ *        (`rating:slot:<n>`, 1-based, paint order): the provider set of this
+ *        family depends on the resolved config (no closed catalog, order can
+ *        change between titles), so the positional slot is its tunable place.
+ *    An ADDITIVE `&ghosts=1` on the geometry request also publishes the empty
+ *    places as box-only items (`ghost: true`): the empty quality HOMES and the
+ *    unpainted rating SLOTS. They are hit-testable and dashed, and dragging one
+ *    writes its home/slot correction too (a ghost separate id already IS its
+ *    slot id).
+ *  - PER-TITLE surface (injected adapter): UNCHANGED — a drag writes the
+ *    per-title IDENTITY correction (`quality:format:<fmt>`, `rating:<source>`,
+ *    …), the per-title nudge that composes on top of the home/slot, and ghosts
+ *    are not offered.
  *
  * Drag mode is a pointer-only switch that lives in the enlarged editor toolbar
  * and is ON unless the user turned it off (an inert first-run pointer is
@@ -315,13 +341,60 @@ export function PosterBadgeDragLayer({
       : STANDARD_TITLE_LOGO_MAX_SCALE
 
   // Per-item corrections of the ACTIVE shape (same value the preview URL and
-  // the mapping carry). Empty = every item on its automatic slot.
+  // the mapping carry). Empty = every item on its automatic box.
   const itemTransforms: BadgeItemTransformMap = defaults.itemTransforms
+  /**
+   * PAINTED ORDER of the separate family → slot identity. The renderer reports
+   * the pills in paint order, so the n-th reported pill IS `rating:slot:<n>`
+   * (the same 1-based ordering the renderer applies). Built from the report, so
+   * it can never disagree with the render the handles are drawn on.
+   */
+  const separateSlotByItemId = useMemo(() => {
+    const out = new Map<string, string>()
+    const painted = (shown?.items ?? []).filter((item) => item.family === "separate" && item.ghost !== true)
+    painted.forEach((item, index) => {
+      const slotId = ratingSlotItemId(index + 1)
+      if (slotId) out.set(item.id, slotId)
+    })
+    return out
+  }, [shown])
+  /**
+   * WHO owns an item gesture on THIS surface, per family. The global Settings
+   * editor (no injected adapter) writes the place of the family:
+   *  - quality → the content-bound HOME correction (`quality:home:<kind>`), so
+   *    the nudge follows its group across titles;
+   *  - separate → the POSITIONAL slot (`rating:slot:<n>` by painted index),
+   *    because that family has no closed catalog of providers.
+   * The per-title editor (injected adapter) keeps writing the per-title
+   * IDENTITY correction, which composes on top of the home/slot. A ghost target
+   * already IS its home/slot id (`homeIdForPainted` accepts it unchanged,
+   * `rating:slot:<n>` is its own id).
+   */
+  const isDefaultsSurface = !adapter
+  const itemWriteId = useCallback(
+    (target: { readonly id: string; readonly family: "quality" | "separate" }): string => {
+      if (!isDefaultsSurface) return target.id
+      if (target.family === "quality") return homeIdForPainted(target.id) ?? target.id
+      if (isRatingSlotItemId(target.id)) return target.id
+      return separateSlotByItemId.get(target.id) ?? target.id
+    },
+    [isDefaultsSurface, separateSlotByItemId],
+  )
+
+  /**
+   * Items this surface can hit-test: a per-title editor never offers the empty
+   * ghosts (they are a defaults-surface arrangement aid, and a per-title
+   * gesture writes identity corrections).
+   */
+  const itemHandles = useMemo(
+    () => shown?.items.filter((item) => isDefaultsSurface || !item.ghost) ?? [],
+    [shown, isDefaultsSurface],
+  )
 
   const itemOf = useCallback(
     (target: DragTarget): BadgeDragItem | null =>
-      target.kind === "item" ? (shown?.items.find((i) => i.id === target.id) ?? null) : null,
-    [shown],
+      target.kind === "item" ? (itemHandles.find((i) => i.id === target.id) ?? null) : null,
+    [itemHandles],
   )
 
   /** Reported box of a target (null = not composed in this render). */
@@ -335,7 +408,7 @@ export function PosterBadgeDragLayer({
   const effectiveScale = useCallback(
     (target: DragTarget, geometryForScale: BadgeDragGeometry | null): number => {
       if (target.kind === "item") {
-        const stored = badgeItemTransform(itemTransforms, target.id)
+        const stored = badgeItemTransform(itemTransforms, itemWriteId(target))
         return stored ? stored.scale : 100
       }
       const family = target.family
@@ -363,7 +436,7 @@ export function PosterBadgeDragLayer({
         }
       }
     },
-    [defaults, itemTransforms, titleMax],
+    [defaults, itemTransforms, itemWriteId, titleMax],
   )
 
   /**
@@ -443,10 +516,11 @@ export function PosterBadgeDragLayer({
       const itemMoves: BadgeItemMove[] = []
       for (const target of targets) {
         if (target.kind === "item") {
-          const current = badgeItemTransform(itemTransforms, target.id)
-          // A move back onto the automatic slot REMOVES the correction (the
+          const id = itemWriteId(target)
+          const current = badgeItemTransform(itemTransforms, id)
+          // A move back onto the automatic box REMOVES the correction (the
           // stored map is the single source: no stale offset survives).
-          itemMoves.push({ id: target.id, transform: moveBadgeItemTransform(current, delta) })
+          itemMoves.push({ id, transform: moveBadgeItemTransform(current, delta) })
           continue
         }
         const { effective, explicit } = familyProfiles(target.family)
@@ -461,22 +535,23 @@ export function PosterBadgeDragLayer({
       if (familyMoves.length > 0) defaults.applyFamilyMoves(familyMoves)
       if (itemMoves.length > 0) defaults.applyItemMoves(itemMoves)
     },
-    [defaults, familyProfiles, itemTransforms, shown],
+    [defaults, familyProfiles, itemTransforms, itemWriteId, shown],
   )
 
   /** Resize write: the same scale the target's own control writes. */
   const writeScale = useCallback(
     (target: DragTarget, scale: number) => {
       if (target.kind === "item") {
-        const current = badgeItemTransform(itemTransforms, target.id)
+        const id = itemWriteId(target)
+        const current = badgeItemTransform(itemTransforms, id)
         // Neutral = removed, so shrinking a corrected item back to its
         // automatic size restores the automatic layout.
-        defaults.applyItemMoves([{ id: target.id, transform: resizeBadgeItemTransform(current, scale) }])
+        defaults.applyItemMoves([{ id, transform: resizeBadgeItemTransform(current, scale) }])
         return
       }
       defaults.setFamilyScale(target.family, scale)
     },
-    [defaults, itemTransforms],
+    [defaults, itemTransforms, itemWriteId],
   )
 
   /**
@@ -625,12 +700,12 @@ export function PosterBadgeDragLayer({
             : [],
         ),
       )]
-      const items = list.flatMap((target) => (target.kind === "item" ? [target.id] : []))
+      const items = list.flatMap((target) => (target.kind === "item" ? [itemWriteId(target)] : []))
       if (families.length > 0) defaults.resetFamilies(families)
       if (items.length > 0) defaults.resetItems(items)
       if (families.length > 0 || items.length > 0) setPending(null)
     },
-    [defaults, shown],
+    [defaults, itemWriteId, shown],
   )
 
   const isSelectedTarget = useCallback(
@@ -654,12 +729,12 @@ export function PosterBadgeDragLayer({
       const families = list.flatMap((target) =>
         target.kind === "family" && target.family === "quality" ? [target.family] : [],
       )
-      const items = list.flatMap((target) => (target.kind === "item" ? [target.id] : []))
+      const items = list.flatMap((target) => (target.kind === "item" ? [itemWriteId(target)] : []))
       if (families.length === 0 && items.length === 0) return
       defaults.rejoin({ families, items })
       setPending(null)
     },
-    [defaults, shown],
+    [defaults, itemWriteId, shown],
   )
 
   /** Targets of the current selection this recovery control can act on. */
@@ -894,6 +969,9 @@ export function PosterBadgeDragLayer({
       if (target.kind === "family") return t(FAMILY_LABEL_KEY[target.family])
       const kind = badgeItemLabelKind(target.id)
       if (!kind) return target.id
+      // A SLOT (painted or ghost) is a position, not a provider: the code
+      // literal `Slot Rating <n>` is deliberate (no i18n key exists for it).
+      if (kind.kind === "slot") return ratingSlotLabel(kind.slot)
       if (kind.kind === "rating") {
         const key = `ui.source_${kind.id}`
         const translated = t(key)
@@ -904,6 +982,11 @@ export function PosterBadgeDragLayer({
       if (kind.kind === "combo") {
         return target.id === BADGE_ITEM_QUALITY_COMBO ? "Dolby Vision + Atmos" : t("ui.badgeQuality")
       }
+      // A HOME is a content group of the quality stack, never a badge: its
+      // label reuses the EXISTING sources of the group (quality/age label, the
+      // Dolby lockup literal, the A/V full names) behind the historical
+      // "Slot N" code literal — no new i18n key, no per-locale label.
+      if (kind.kind === "home") return `Slot ${qualityHomeBaseLabel(kind.home, t)}`
       const format = kind.kind === "format" ? kind.format : undefined
       const option = format ? VIDEO_FORMAT_OPTIONS.find((o) => o.id === format) : undefined
       return option?.fullName ?? (format ? format.toUpperCase() : t("ui.badgeQuality"))
@@ -919,7 +1002,7 @@ export function PosterBadgeDragLayer({
         shown.boxes[family] ? [{ kind: "family", family } as DragTarget] : [],
       )
     }
-    return shown.items.map((item) => ({ kind: "item", id: item.id, family: item.family }) as DragTarget)
+    return itemHandles.map((item) => ({ kind: "item", id: item.id, family: item.family }) as DragTarget)
   }
 
   /**
@@ -1140,7 +1223,7 @@ export function PosterBadgeDragLayer({
       data-drag-mode={dragMode ? "on" : "off"}
       data-kind={shown.kind ?? "none"}
       data-layout={shown.layout ?? "unknown"}
-      data-item-count={shown.items.length}
+      data-item-count={itemHandles.length}
       className="absolute inset-0 z-10 pointer-events-none"
     >
       {/* Empty poster areas clear the selection (never closes the dialog). */}
@@ -1281,8 +1364,12 @@ export function PosterBadgeDragLayer({
       })}
       {/* ITEM handles: one per separately composited badge, on the box the
           renderer reported for it. An item with a stored correction is marked
-          (accent border) so tuned items are visible at a glance. */}
-      {targetLevel === "item" && shown.items.map((item) => {
+          (accent border) so tuned items are visible at a glance. An EMPTY place
+          ghost (a quality HOME with nothing painted, or a rating SLOT past the
+          last painted pill) is drawn DASHED (same handle, no badge under it):
+          with a stored correction the dashed frame is exactly where that place
+          will paint, and dragging it writes that home/slot. */}
+      {targetLevel === "item" && itemHandles.map((item) => {
         const target: DragTarget = { kind: "item", id: item.id, family: item.family }
         const dragging = isDragMember(target)
         const resizing = sameTarget(resize?.target ?? null, target)
@@ -1300,6 +1387,7 @@ export function PosterBadgeDragLayer({
             data-testid={`badge-item-handle-${item.id}`}
             data-item-family={item.family}
             data-custom={item.custom ? "true" : undefined}
+            data-ghost={item.ghost ? "true" : undefined}
             data-selected={isSelected ? "true" : undefined}
             onPointerDown={onPointerDown(target)}
             onPointerMove={onPointerMove}
@@ -1312,8 +1400,8 @@ export function PosterBadgeDragLayer({
               dragging || resizing
                 ? "border-sky-300 bg-sky-300/25 cursor-grabbing"
                 : isSelected
-                  ? "border-sky-300 bg-sky-300/15"
-                  : `border-dotted ${item.custom ? "border-sky-300/90" : "border-white/30"} bg-transparent hover:border-sky-300/80 hover:bg-sky-300/10 ${dragMode ? "cursor-grab active:cursor-grabbing" : "cursor-pointer"}`
+                  ? `border-sky-300 bg-sky-300/15 ${item.ghost ? "border-dashed" : ""}`
+                  : `${item.ghost ? "border-dashed" : "border-dotted"} ${item.custom ? "border-sky-300/90" : "border-white/30"} bg-transparent hover:border-sky-300/80 hover:bg-sky-300/10 ${dragMode ? "cursor-grab active:cursor-grabbing" : "cursor-pointer"}`
             }`}
             style={{
               left: draw.left,

@@ -1,7 +1,7 @@
 import type { BadgeStyle, RankingBadgeStyle, BadgeFont } from "./badge-styles"
 import { isBadgeFont } from "./badge-styles"
 import { isWarmGoldAccent, textColorForBg } from "./accent-color"
-import { AV_PLATE_STROKE_WIDTH, COLOR_MARK_GLYPH, COLOR_MARK_PLATE_BG, COLOR_MARK_PLATE_STROKE, PREMIUM_PLATE_BG, PREMIUM_PLATE_STROKE, premiumAccentHex } from "./quality-badge-styles"
+import { AV_PLATE_RADIUS_FACTOR, AV_PLATE_STROKE_WIDTH, COLOR_MARK_GLYPH, COLOR_MARK_PLATE_BG, COLOR_MARK_PLATE_STROKE, GRADIENT_PLATE_BG, PREMIUM_PLATE_BG, PREMIUM_PLATE_STROKE, premiumAccentHex } from "./quality-badge-styles"
 
 const TEXT_SAFE_PAD = 1.15
 const GENRE_TEXT_MAX_RATIO = 0.84
@@ -1063,6 +1063,79 @@ export function buildAgeKnockoutSvg(
   const defs = `<defs><mask id="akm"><rect x="${ox}" y="${oy}" width="${totalW}" height="${boxH}" rx="${r}" fill="#ffffff"/><text x="${cx}" y="${cy}" text-anchor="middle" dominant-baseline="central" font-family="${family}" font-weight="700" font-size="${glyphFs}" letter-spacing="0.06em" fill="#000000"${fit}>${escSvg(label)}</text></mask>${TOP_SHADOW_FILTER}</defs>`
   const bgEl = `<rect x="${ox}" y="${oy}" width="${totalW}" height="${boxH}" rx="${r}" fill="${AGE_KNOCKOUT_BG}" mask="url(#akm)" filter="url(#tds)"/>`
   return { svg: `<svg xmlns="http://www.w3.org/2000/svg" width="${renderW}" height="${renderH}" viewBox="0 0 ${renderW} ${renderH}">${defs}${bgEl}</svg>`, w: renderW, h: renderH }
+}
+
+// ---------------------------------------------------------------------------
+// Stile `gradient`: glifi extra-bold su una PLACCA scura traslucida. Un solo
+// builder per tier (4K/FHD/HD/SD), età (12/PG-13/TV-MA) e marchi A/V
+// (DV/ATMOS/IMAX/HDR/HDR10+/combo DV+ATMOS): cambia solo il fill dei glifi —
+// bianco pieno per tier ed età, gradiente orizzontale per formato
+// (`GRADIENT_MARK_STOPS` in `quality-badge-styles.ts`). Zero asset raster:
+// l'etichetta è sempre un parametro di render.
+// ---------------------------------------------------------------------------
+
+/** Peso dei glifi `gradient` (extra-bold: è l'unico inchiostro della resa). */
+export const GRADIENT_MARK_FONT_WEIGHT = 900
+
+/** Id del gradiente orizzontale dentro l'SVG del singolo marchio (ogni badge
+ *  è un documento SVG a sé, rasterizzato separatamente: nessun conflitto). */
+export const GRADIENT_MARK_GRADIENT_ID = "gmg"
+
+/**
+ * Marchio `gradient`: testo extra-bold su una placca scura traslucida.
+ *
+ * Geometria CONDIVISA con la colonna qualità/età (`badgeTextBox` +
+ * `badgeBoxHeight(fs)` come banda verticale, padding simmetrico
+ * `TOP_SHADOW_PAD`, tracking tecnico `0.06em` con `textLength` pinnato sulla
+ * stima `textFitAttrs`), così stack/offset/scale/cap e correzioni per-item a
+ * valle restano quelli di ogni altro stile. La placca di fondo è un unico
+ * `<rect>` senza stroke, largo quanto il box visibile e con il raggio
+ * condiviso delle placche A/V (`AV_PLATE_RADIUS_FACTOR`), sempre scuro
+ * (`GRADIENT_PLATE_BG`: indipendente da `topLight`, come
+ * premium/knockout/nova). L'ombra 3D condivisa (`TOP_SHADOW_FILTER`) avvolge
+ * l'intero lockup (placca + testo), come le altre placche. `fill` è un hex
+ * solido (tier/età) oppure la lista di stop di un gradiente ORIZZONTALE
+ * (`x1="0" y1="0" x2="1" y2="0"`, primo stop a sinistra, ultimo a destra) per
+ * i marchi A/V. `targetW` (colonna del gruppo) pinna la banda alla larghezza
+ * visibile del 4K riducendo il font (`fitBadgeGlyphFs`), mai stirando i
+ * glifi; senza `targetW` resta la larghezza naturale.
+ */
+export function buildGradientMarkSvg(
+  label: string,
+  fs: number,
+  /** Hex solido oppure stop del gradiente orizzontale. */
+  fill: string | readonly string[],
+  font: BadgeFont = "inter",
+  /** Fixed visible box width (group column); absent = natural width. */
+  targetW?: number,
+) {
+  const { glyphFs, textW, totalW, boxH } = badgeTextBox(label, fs, BADGE_BOX_PAD_X_FACTOR, font, targetW)
+  const renderW = totalW + TOP_SHADOW_PAD * 2
+  const renderH = boxH + TOP_SHADOW_PAD * 2
+  const ox = TOP_SHADOW_PAD
+  const oy = TOP_SHADOW_PAD
+  const stops = typeof fill === "string" || fill.length === 0 ? null : fill
+  // Un array vuoto non è un gradiente valido: si ricade sull'hex passato.
+  const ink = stops
+    ? `url(#${GRADIENT_MARK_GRADIENT_ID})`
+    : typeof fill === "string"
+      ? fill
+      : "#ffffff"
+  const gradDef = stops
+    ? `<linearGradient id="${GRADIENT_MARK_GRADIENT_ID}" x1="0" y1="0" x2="1" y2="0">${stops
+        .map((stop, i) => `<stop offset="${stops.length > 1 ? Math.round((i * 100) / (stops.length - 1)) : 0}%" stop-color="${stop}"/>`)
+        .join("")}</linearGradient>`
+    : ""
+  const defs = `<defs>${gradDef}${TOP_SHADOW_FILTER}</defs>`
+  // Placca scura dietro i glifi (rettangolo arrotondato, NESSUNO stroke): il
+  // raggio è quello condiviso delle placche A/V, così bordo esterno sulla
+  // colonna e glifo dentro valgono anche qui.
+  const plateR = Math.round(boxH * AV_PLATE_RADIUS_FACTOR)
+  const plateEl = `<rect x="${ox}" y="${oy}" width="${totalW}" height="${boxH}" rx="${plateR}" fill="${GRADIENT_PLATE_BG}"/>`
+  const textEl = `<text x="${ox + totalW / 2}" y="${oy + boxH / 2}" text-anchor="middle" dominant-baseline="central" font-family="${fontFamilyFor(label, font)}" font-weight="${GRADIENT_MARK_FONT_WEIGHT}" font-size="${glyphFs}" letter-spacing="0.06em" fill="${ink}"${textFitAttrs(textW)}>${escSvg(label)}</text>`
+  // Un'ombra sola sull'intero lockup (placca + glifi), come le altre placche.
+  const bodyEl = `<g filter="url(#tds)">${plateEl}${textEl}</g>`
+  return { svg: `<svg xmlns="http://www.w3.org/2000/svg" width="${renderW}" height="${renderH}" viewBox="0 0 ${renderW} ${renderH}">${defs}${bodyEl}</svg>`, w: renderW, h: renderH }
 }
 
 // ---------------------------------------------------------------------------

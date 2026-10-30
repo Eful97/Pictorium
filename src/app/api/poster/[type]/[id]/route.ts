@@ -878,6 +878,11 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
   // renderizzare fresco — mai poster bytes/304/stale dalla cache al posto
   // del JSON diagnostico. Non scrive comunque in cache (return prima).
   const wantNetGeo = req.nextUrl.searchParams.get("netgeo") === "1"
+  // Ghost delle HOME qualità vuote (`ghosts=1`, solo con debug+netgeo):
+  // diagnostica della preview (maniglie tratteggiate dei gruppi non dipinti).
+  // Il percorso Stremio non lo chiede mai → nessun ghost riportato, nessun
+  // pixel diverso. Il param non è in allowlist: non entra nella cache key.
+  const wantBadgeGhosts = req.nextUrl.searchParams.get("ghosts") === "1"
   // isPreview effettivo calcolato a inizio richiesta (può essere declassato
   // dalla blindatura opt-in PICTORIUM_PREVIEW_AUTH) — non rileggere la query.
   // Poster non-mappato (composto al volo con dati dinamici): TTL ridotto (6h)
@@ -3391,6 +3396,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
       networkLogoFollowTitle, networkFixedX, networkFixedY,
       onNetworkGeometry: isDebug && wantNetGeo ? (geo) => { netGeo = geo } : undefined,
       onBadgeGeometry: isDebug && wantNetGeo ? (geo) => { badgeGeo = geo } : undefined,
+      badgeHomeGhosts: isDebug && wantNetGeo && wantBadgeGhosts,
       onAccentMeta: (m) => { collectedAccentMeta = m },
       demoSamples,
       accentOverride, imdbTop250, preRelease: applyPreRelease,

@@ -472,6 +472,7 @@
   "ui.qbsKnockout": "Knockout",
   "ui.qbsPremium": "Premium",
   "ui.qbsNova": "Nova",
+  "ui.qbsGradient": "Gradient",
   "ui.blurDisabled": "Rozmycie wył.",
   "ui.selectedCount": "wybrano: {count}",
   "ui.bsDefault": "Domyślny",

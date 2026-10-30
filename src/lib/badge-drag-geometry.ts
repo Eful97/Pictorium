@@ -89,6 +89,13 @@ export interface BadgeDragItem {
   readonly box: BadgeDragBox
   /** True when a per-item correction is currently applied. */
   readonly custom: boolean
+  /**
+   * True for an EMPTY place (box only, nothing painted there): an empty quality
+   * HOME or a rating SLOT past the last painted pill. The defaults preview
+   * draws it as a draggable dashed ghost whose gesture writes the HOME/SLOT
+   * correction; a per-title surface ignores ghosts entirely.
+   */
+  readonly ghost?: boolean
 }
 
 export type BadgeDragAxis = "x" | "y"
@@ -178,7 +185,7 @@ export function parseBadgeDragGeometry(json: unknown): BadgeDragGeometry | null 
       if (family !== "quality" && family !== "separate") continue
       const parsed = box(itemRec)
       if (!parsed) continue
-      items.push({ id, family, box: parsed, custom: itemRec.custom === true })
+      items.push({ id, family, box: parsed, custom: itemRec.custom === true, ghost: itemRec.ghost === true })
     }
   }
   return { canvasW, canvasH, kind, layout, boxes, fixedX, items }

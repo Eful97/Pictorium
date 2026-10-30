@@ -29,6 +29,7 @@ import { PosterBadgeDragLayer } from "@/components/settings/PosterBadgeDragLayer
 import { renderWithCtx } from "@/__tests__/test-utils"
 import { usePosterEditor, type PosterEditorCtx } from "@/lib/contexts/PosterEditorContext"
 import { parseBadgeItemTransforms } from "@/lib/badge-item-transforms"
+import type { BadgeDragGeometryAdapter } from "@/lib/badge-drag-adapter"
 import { generatePosterBuffer, type BadgeGeometryReport, type GenerationInput } from "@/lib/poster-service"
 import { STD_H, STD_W } from "@/lib/poster-render-helpers"
 import type { ServerDefaults } from "@/lib/server-defaults"
@@ -345,21 +346,26 @@ describe("multi-selection writes are atomic and move the real render", () => {
     dragHandle(imdb, 0, 10, 13)
     await waitFor(() => expect(ed!.defaultBadgeItemTransforms).not.toBeNull())
     const stored = parseBadgeItemTransforms(ed!.defaultBadgeItemTransforms)
-    // Both items carry the SAME delta: the second write did not clobber the
-    // first inside the same React batch.
-    expect(stored["rating:imdb"]).toMatchObject({ offsetX: 0 })
-    expect(stored["rating:tmdb"]).toMatchObject({ offsetX: 0 })
-    expect(stored["rating:imdb"]?.offsetY ?? 0).toBeGreaterThan(0)
-    expect(stored["rating:tmdb"]?.offsetY).toBe(stored["rating:imdb"]?.offsetY)
-    // Nothing else was touched.
+    // Both SELECTED positions carry the SAME delta: the second write did not
+    // clobber the first inside the same React batch. The defaults surface
+    // writes POSITIONAL slots (paint order: imdb = 1, tmdb = 2), never the
+    // provider identities (those stay per-title).
+    expect(stored["rating:slot:1"]).toMatchObject({ offsetX: 0 })
+    expect(stored["rating:slot:2"]).toMatchObject({ offsetX: 0 })
+    expect(stored["rating:slot:1"]?.offsetY ?? 0).toBeGreaterThan(0)
+    expect(stored["rating:slot:2"]?.offsetY).toBe(stored["rating:slot:1"]?.offsetY)
+    // Nothing else was touched: no provider identity, no third slot.
+    expect(stored["rating:imdb"]).toBeUndefined()
+    expect(stored["rating:tmdb"]).toBeUndefined()
     expect(stored["rating:tomatoes"]).toBeUndefined()
+    expect(stored["rating:slot:3"]).toBeUndefined()
 
     // The stored correction reaches the REAL renderer through the preview URL.
     const url = previewUrlOf(ed!)
     const bit = new URL(url).searchParams.get("bit")
     expect(bit).toBeTruthy()
     const transforms = parseBadgeItemTransforms(bit)
-    const deltaY = transforms["rating:imdb"]?.offsetY ?? 0
+    const deltaY = transforms["rating:slot:1"]?.offsetY ?? 0
     expect(deltaY).toBeGreaterThan(0)
 
     const posterBuf = await sharp({
@@ -527,5 +533,182 @@ describe("double-click reset of a group clears that family's item overrides", ()
     // the other groups, are untouched.
     expect(remaining["quality:tier"]).toEqual({ scale: 100, offsetX: 4, offsetY: 0 })
     expect(ed!.defaultQualityBadgeOffsetX).toBe(12)
+  })
+})
+
+/**
+ * SURFACE SPLIT of an item drag (same overlay, one implementation):
+ *  - the DEFAULTS surface (no injected adapter) writes the content-bound HOME
+ *    correction (`quality:home:<kind>`), so the nudge follows its group on
+ *    every title instead of only on the previewed one, and the empty homes the
+ *    renderer reports as ghosts (`ghost: true`) are draggable dashed handles
+ *    that write their home too;
+ *  - the PER-TITLE editor (injected adapter) keeps writing the per-title
+ *    IDENTITY correction and never offers a ghost.
+ */
+const GEOMETRY_URL = "http://localhost:3000/api/poster/movie/1?rv=9&scale=60"
+
+/** Minimal adapter: neutral values, item writes recorded. */
+function perTitleAdapter(writes: { id: string; offsetY: number }[]): BadgeDragGeometryAdapter {
+  const neutral = {
+    topBadgeScale: 100,
+    topBadgeOffsetX: 0,
+    topBadgeOffsetY: 0,
+    extraBadgeScale: 100,
+    extraBadgeOffsetX: 0,
+    extraBadgeOffsetY: 0,
+    extraBadgeScaleExplicit: null,
+    extraBadgeOffsetXExplicit: null,
+    extraBadgeOffsetYExplicit: null,
+    genreBadgeScale: 100,
+    genreBadgeOffsetX: 0,
+    genreBadgeOffsetY: 0,
+    qualityBadgeScale: 100,
+    qualityBadgeOffsetX: 0,
+    qualityBadgeOffsetY: 0,
+    separateBadgeScale: 100,
+    separateBadgeOffsetX: 0,
+    separateBadgeOffsetY: 0,
+    networkLogoScale: 100,
+    networkLogoOffsetX: 0,
+    networkLogoOffsetY: 0,
+    logoScale: null,
+    logoOffsetX: 0,
+    logoOffsetY: 0,
+  }
+  return {
+    isLandscape: false,
+    itemTransforms: {},
+    posterLayout: "standard",
+    ...neutral,
+    applyFamilyMoves: () => {},
+    applyItemMoves: (moves) => {
+      for (const move of moves) writes.push({ id: move.id, offsetY: move.transform.offsetY })
+    },
+    setFamilyScale: () => {},
+    resetFamilies: () => {},
+    resetItems: () => {},
+    rejoin: () => {},
+  }
+}
+
+/** Geometry block with the quality items of the defaults preview sample. */
+function qualityItemsGeometry(items: readonly Record<string, unknown>[]) {
+  return {
+    network: null,
+    badges: {
+      canvasW: 500,
+      canvasH: 750,
+      kind: "rank",
+      layout: "ranked",
+      families: { quality: { top: 300, left: 400, w: 60, h: 90 } },
+      fixedX: {},
+      items,
+    },
+  }
+}
+
+describe("item drag: HOME on the defaults surface, IDENTITY per title", () => {
+  it("stores quality:home:hdr for a painted HDR10+ mark (never the identity)", async () => {
+    localStorage.setItem("badgeDefaults", JSON.stringify({}))
+    const { ctx } = await mountPreview(
+      qualityItemsGeometry([
+        { id: "quality:tier", family: "quality", top: 300, left: 400, w: 60, h: 40, custom: false },
+        { id: "quality:format:hdr10plus", family: "quality", top: 340, left: 400, w: 60, h: 40, custom: false },
+      ]).badges,
+    )
+    fireEvent.click(screen.getByTestId("defaults-preview-target-level-item"))
+    const tier = await screen.findByTestId("badge-item-handle-quality:tier")
+    const hdrPlus = await screen.findByTestId("badge-item-handle-quality:format:hdr10plus")
+    stubDisplayRect(screen.getByTestId("badge-drag-layer"))
+
+    dragHandle(hdrPlus, 0, 10)
+    await waitFor(() => expect(ctx().defaultBadgeItemTransforms).not.toBeNull())
+    const stored = parseBadgeItemTransforms(ctx().defaultBadgeItemTransforms)
+    // The painted HDR10+ mark binds to the HDR home: the correction is stored
+    // under the CONTENT GROUP, so it survives the title that paints HDR alone.
+    expect(Object.keys(stored)).toEqual(["quality:home:hdr"])
+    expect(stored["quality:home:hdr"].offsetY).toBeGreaterThan(0)
+    expect(stored["quality:home:hdr"].offsetX).toBe(0)
+    // The identity of the painted badge is NOT written by a defaults gesture.
+    expect(stored["quality:format:hdr10plus"]).toBeUndefined()
+    // The untouched tier keeps its automatic box.
+    expect(stored["quality:home:tier"]).toBeUndefined()
+    expect(tier.getAttribute("data-ghost")).toBeNull()
+
+    // …and the stored value travels in the preview URL as a home identity.
+    expect(previewUrlOf(ctx())).toContain("quality%3Ahome%3Ahdr")
+  })
+
+  it("drags a dashed GHOST of an empty home and writes that home", async () => {
+    localStorage.setItem("badgeDefaults", JSON.stringify({}))
+    const { ctx } = await mountPreview(
+      qualityItemsGeometry([
+        { id: "quality:tier", family: "quality", top: 300, left: 400, w: 60, h: 40, custom: false },
+        // Box-only entry: nothing is painted there (IMAX absent from the sample).
+        { id: "quality:home:imax", family: "quality", top: 0, left: 0, w: 60, h: 40, custom: false, ghost: true },
+      ]).badges,
+    )
+    fireEvent.click(screen.getByTestId("defaults-preview-target-level-item"))
+    const ghost = await screen.findByTestId("badge-item-handle-quality:home:imax")
+    // The ghost is a handle, not a badge: dashed frame + explicit marker.
+    expect(ghost.getAttribute("data-ghost")).toBe("true")
+    expect(ghost.className).toContain("border-dashed")
+    expect(screen.getByTestId("badge-item-handle-quality:tier").getAttribute("data-ghost")).toBeNull()
+    stubDisplayRect(screen.getByTestId("badge-drag-layer"))
+
+    dragHandle(ghost, 0, 10)
+    await waitFor(() => expect(ctx().defaultBadgeItemTransforms).not.toBeNull())
+    const stored = parseBadgeItemTransforms(ctx().defaultBadgeItemTransforms)
+    expect(Object.keys(stored)).toEqual(["quality:home:imax"])
+    expect(stored["quality:home:imax"].offsetY).toBeGreaterThan(0)
+  })
+
+  it("writes the per-title IDENTITY when the overlay is driven by an adapter", async () => {
+    const writes: { id: string; offsetY: number }[] = []
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => ({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          network: null,
+          badges: {
+            canvasW: 500,
+            canvasH: 750,
+            kind: "rank",
+            layout: "ranked",
+            families: { quality: { top: 300, left: 400, w: 60, h: 90 } },
+            fixedX: {},
+            items: [
+              { id: "quality:format:hdr10plus", family: "quality", top: 340, left: 400, w: 60, h: 40, custom: false },
+              // Ghosts are ignored by a per-title surface, even if reported.
+              { id: "quality:home:imax", family: "quality", top: 0, left: 0, w: 60, h: 40, ghost: true },
+            ],
+          },
+        }),
+      })),
+    )
+    renderWithCtx(
+      createElement(
+        "div",
+        { style: { position: "relative", width: DISPLAY.width, height: DISPLAY.height } },
+        createElement(PosterBadgeDragLayer, {
+          previewUrl: GEOMETRY_URL,
+          shape: "poster",
+          enabled: true,
+          targetLevel: "item",
+          adapter: perTitleAdapter(writes),
+        }),
+      ),
+    )
+    const hdrPlus = await screen.findByTestId("badge-item-handle-quality:format:hdr10plus")
+    await waitFor(() => expect(screen.queryByTestId("badge-item-handle-quality:home:imax")).toBeNull())
+    stubDisplayRect(screen.getByTestId("badge-drag-layer"))
+    dragHandle(hdrPlus, 0, 10)
+    await waitFor(() => expect(writes.length).toBeGreaterThan(0))
+    // Per-title UNCHANGED: the identity of the painted badge, never its home.
+    expect(writes.map((w) => w.id)).toEqual(["quality:format:hdr10plus"])
+    expect(writes[0].offsetY).toBeGreaterThan(0)
   })
 })

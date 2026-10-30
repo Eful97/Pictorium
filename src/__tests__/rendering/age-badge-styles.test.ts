@@ -42,6 +42,7 @@ import {
   badgeTextBox,
   buildAgeEmphasisSvg,
   buildAgeKnockoutSvg,
+  buildGradientMarkSvg,
   buildQualityBadgeSvg,
   buildQualityKnockoutSvg,
   fitBadgeGlyphFs,
@@ -52,6 +53,8 @@ import {
   COLOR_MARK_GLYPH,
   COLOR_MARK_PLATE_BG,
   COLOR_MARK_PLATE_STROKE,
+  GRADIENT_PLATE_BG,
+  GRADIENT_TIER_INK,
   PREMIUM_PLATE_BG,
   PREMIUM_PLATE_STROKE,
   avMarkInkBox,
@@ -62,7 +65,7 @@ import {
 import { FORMAT_ICON_PATHS } from "@/lib/av-specs"
 import { BADGE_ITEM_QUALITY_AGE, BADGE_ITEM_QUALITY_TIER, qualityFormatItemId } from "@/lib/badge-item-transforms"
 import { renderQualityBadgeGroup, renderQualityIconBadge } from "@/lib/poster-service"
-import { renderAgeEmphasisBadge, renderAgeKnockoutBadge, renderQualityBadge } from "@/lib/svg-badge"
+import { renderAgeEmphasisBadge, renderAgeKnockoutBadge, renderGradientMarkBadge, renderQualityBadge } from "@/lib/svg-badge"
 import { resolveAgeBadgeRequest } from "@/lib/poster-config"
 import { buildStremioPosterSearchParams } from "@/lib/stremio-poster-params"
 import { normalizePosterCacheParams } from "@/lib/poster-runtime-cache"
@@ -109,7 +112,7 @@ async function tintStats(png: Buffer, hex: string, tol = 24) {
 
 describe("age badge style enum (single source for schemas, URL and cache)", () => {
   it("exposes the quality vocabulary with the historic standard default", () => {
-    expect([...AGE_BADGE_STYLES]).toEqual(["standard", "mono", "color", "knockout", "premium", "nova"])
+    expect([...AGE_BADGE_STYLES]).toEqual(["standard", "mono", "color", "knockout", "premium", "nova", "gradient"])
     expect(DEFAULT_AGE_BADGE_STYLE).toBe("standard")
     for (const style of AGE_BADGE_STYLES) expect(isAgeBadgeStyle(style), style).toBe(true)
     // Unknown/uppercase values are still rejected (fail-closed, no inference).
@@ -654,12 +657,69 @@ describe("age nova style (dynamic plate shared with the quality tier)", () => {
   }, 30000)
 })
 
+describe("age gradient style (white glyphs on the shared dark plate)", () => {
+  it("draws the age label as extra-bold white text on exactly one dark plate", () => {
+    for (const label of LABELS) {
+      const built = buildGradientMarkSvg(label, 17, GRADIENT_TIER_INK)
+      // Same material as the quality gradient tier: one dark plate, no tag, no raster.
+      expect(built.svg, label).toContain(`fill="${GRADIENT_TIER_INK}"`)
+      expect(built.svg, label).toContain("textLength=")
+      const rects = built.svg.match(/<rect [^>]*\/>/g) ?? []
+      expect(rects.length, label).toBe(1)
+      expect(rects[0], label).toContain(`fill="${GRADIENT_PLATE_BG}"`)
+      expect(rects[0], label).not.toContain("stroke")
+      expect(built.svg, label).not.toContain("<mask")
+      expect(built.svg, label).not.toContain("<linearGradient")
+      expect(built.svg, label).not.toContain("<image")
+      expect(built.svg, label).not.toMatch(/href="(?:data:|https?:)/)
+      // Shared band: the age column height of every other style.
+      expect(built.h, label).toBe(badgeBoxHeight(17) + PAD * 2)
+      // No registered asset for the style (never degrades to a static icon).
+      expect(qualityBadgeIconPath("gradient", "4K")).toBeNull()
+    }
+  })
+
+  it("dispatches agebs=gradient to the shared plate builder (never another style)", async () => {
+    const group = await renderQualityBadgeGroup(null, "standard", null, PW, false, "inter", "VM14", "gradient")
+    const expected = await renderGradientMarkBadge("VM14", PW, GRADIENT_TIER_INK, "inter")
+    expect(group).not.toBeNull()
+    expect(group!.png.equals(expected.png)).toBe(true)
+    expect([group!.w, group!.h]).toEqual([expected.w, expected.h])
+    // The plate is always dark: the top polarity never changes the bytes.
+    const light = await renderQualityBadgeGroup(null, "standard", null, PW, true, "inter", "VM14", "gradient")
+    expect(light).not.toBeNull()
+    expect(group!.png.equals(light!.png)).toBe(true)
+    // Distinct from every other age style (byte-level, same label).
+    for (const other of ["standard", "knockout", "mono", "color", "premium", "nova"] as const) {
+      const otherGroup = await renderQualityBadgeGroup(null, "standard", null, PW, false, "inter", "VM14", other)
+      expect(otherGroup, other).not.toBeNull()
+      expect(group!.png.equals(otherGroup!.png), other).toBe(false)
+    }
+  }, 30000)
+
+  it("pins the gradient age label to the gradient 4K column in a real stack", async () => {
+    const stack = await renderQualityBadgeGroup("4K", "gradient", ["imax"], PW, false, "inter", "TV-MA", "gradient")
+    expect(stack).not.toBeNull()
+    expect(stack!.items.map((i) => i.id)).toEqual([
+      BADGE_ITEM_QUALITY_TIER,
+      BADGE_ITEM_QUALITY_AGE,
+      qualityFormatItemId("imax"),
+    ])
+    const ref = buildGradientMarkSvg("4K", 17, GRADIENT_TIER_INK).w - PAD * 2
+    const boxH = badgeBoxHeight(17)
+    for (const item of stack!.items) {
+      expect(item.w - PAD * 2, item.id).toBe(ref)
+      expect(item.h - PAD * 2, item.id).toBe(boxH)
+    }
+  }, 30000)
+})
+
 describe("age styles keep the quality defaults independent", () => {
   it("never shares a mutable enum array with the quality style list", () => {
     // Same vocabulary, separate constants: adding/removing a quality style can
     // never silently change the age transport (and vice versa).
     expect(AGE_BADGE_STYLES).not.toBe(EMPHASIS_STYLES)
-    expect([...AGE_BADGE_STYLES]).toEqual(["standard", "mono", "color", "knockout", "premium", "nova"])
+    expect([...AGE_BADGE_STYLES]).toEqual(["standard", "mono", "color", "knockout", "premium", "nova", "gradient"])
     // Nova is a family style of its own (dynamic SVG plate), never part of the
     // emphasis subset that reuses the existing plate palettes.
     expect(isAgeBadgeStyle("nova")).toBe(true)

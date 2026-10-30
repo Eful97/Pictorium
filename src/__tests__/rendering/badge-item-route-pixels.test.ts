@@ -131,7 +131,7 @@ const baseUrl = (extra: string) =>
 
 /** Geometry of the per-item boxes, as the editor overlay reads it. */
 type Geo = {
-  items: { id: string; family: string; top: number; left: number; w: number; h: number; custom: boolean }[]
+  items: { id: string; family: string; top: number; left: number; w: number; h: number; custom: boolean; ghost?: boolean }[]
 }
 
 /** Demo preview WITHOUT the separate column: ONE painted quality mark.
@@ -285,4 +285,54 @@ describe("GET /api/poster per-ITEM corrections (`bit=`) move the served pixels",
     expect(neutral.equals(base)).toBe(true)
     expect(garbage.equals(base)).toBe(true)
   })
+})
+
+/**
+ * Quality HOME corrections on the real wire: `bit=quality:home:<kind>=…` is
+ * accepted like every other identity, reaches the renderer and moves the
+ * reported box, while the additive `?ghosts=1` preview flag publishes the
+ * EMPTY homes as box-only entries without touching a pixel or the cache key.
+ */
+describe("quality homes on the route (wire + ghosts flag)", () => {
+  it("moves the painted group through a home correction (same wire form)", async () => {
+    const base = singleMarkUrl("")
+    const tuned = `${base}&bit=${encodeURIComponent("quality:home:tier=100,0,25")}`
+    const baseGeo = await fetchGeoFrom(base)
+    const tunedGeo = await fetchGeoFrom(tuned)
+    const baseTier = baseGeo.items.find((item) => item.id === "quality:tier")!
+    const tunedTier = tunedGeo.items.find((item) => item.id === "quality:tier")!
+    expect(tunedTier.top).toBe(baseTier.top + 25)
+    expect(tunedTier.left).toBe(baseTier.left)
+    expect(tunedTier.custom).toBe(true)
+    // The served image really changed (the correction is not overlay-only).
+    const basePng = await fetchImageFrom(base)
+    const tunedPng = await fetchImageFrom(tuned)
+    expect(tunedPng.equals(basePng)).toBe(false)
+  }, 60000)
+
+  it("publishes the empty homes only with ghosts=1, never a pixel", async () => {
+    const url = singleMarkUrl("")
+    const off = await fetchGeoFrom(url)
+    expect(off.items.some((item) => item.ghost === true)).toBe(false)
+    const on = await fetchGeoFrom(`${url}&ghosts=1`)
+    const ghosts = on.items.filter((item) => item.ghost === true)
+    // Only the tier is painted on this sample: the other four homes are ghosts.
+    expect(ghosts.map((ghost) => ghost.id)).toEqual([
+      "quality:home:age",
+      "quality:home:dolby",
+      "quality:home:hdr",
+      "quality:home:imax",
+    ])
+    for (const ghost of ghosts) {
+      expect(ghost.family).toBe("quality")
+      expect(ghost.w).toBeGreaterThan(0)
+      expect(ghost.h).toBeGreaterThan(0)
+    }
+    // The painted items are the same boxes with and without the flag.
+    expect(on.items.filter((item) => item.ghost !== true)).toEqual(off.items)
+    // The flag is a diagnostic: identical bytes, no cache-key fragment.
+    const plain = await fetchImageFrom(url)
+    const withGhosts = await fetchImageFrom(`${url}&ghosts=1`)
+    expect(withGhosts.equals(plain)).toBe(true)
+  }, 60000)
 })

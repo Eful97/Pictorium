@@ -1,5 +1,5 @@
 import { FONT_FILES } from "./fonts"
-import { buildQualityBadgeSvg, buildQualityKnockoutSvg, buildAgeKnockoutSvg, buildAgeEmphasisSvg, buildComingSoonRibbonSvg, buildHouseExtraSvg, buildHouseGenreSvg, buildHouseRankingSvg, buildTextLogoSvg } from "./badge-svg-shared"
+import { buildQualityBadgeSvg, buildQualityKnockoutSvg, buildAgeKnockoutSvg, buildAgeEmphasisSvg, buildGradientMarkSvg, buildComingSoonRibbonSvg, buildHouseExtraSvg, buildHouseGenreSvg, buildHouseRankingSvg, buildTextLogoSvg } from "./badge-svg-shared"
 import type { AgeEmphasisStyle, TextLogoStyle } from "./badge-svg-shared"
 export { buildNetflixRankBadgeSVG } from "./badge-svg-shared"
 import type { GenreParts } from "./badge-svg-shared"
@@ -331,6 +331,35 @@ export async function renderAgeEmphasisBadge(
 ): Promise<{ png: Buffer; w: number; h: number }> {
   const fs = Math.round(Math.max(17 * pw / 380, 10))
   const result = buildAgeEmphasisSvg(label, fs, style, !!topLight, normalizeBadgeFont(font), targetW)
+  const png = await renderSVG(result.svg, result.w)
+  return { png, w: result.w, h: result.h }
+}
+
+/**
+ * Renders the `gradient` mark: extra-bold glyphs on the shared dark plate
+ * (`buildGradientMarkSvg` in `badge-svg-shared.ts`). ONE wrapper for tier
+ * (4K/FHD/HD/SD), age (12/PG-13/TV-MA) and the A/V marks: only the ink
+ * changes — solid white for tier/age, the per-format horizontal gradient
+ * stops (`GRADIENT_MARK_STOPS`) for A/V. The plate is always dark
+ * (`GRADIENT_PLATE_BG`, polarity independent). Same 17px base and shared band
+ * as the other text recipes, so scale/offset/anchor math downstream is
+ * unchanged;
+ * `targetW` pins the band to the group column (glyph font reduced to fit,
+ * never a stretched label). No raster asset: the label is always a render
+ * parameter.
+ */
+export async function renderGradientMarkBadge(
+  label: string,
+  pw: number,
+  /** Solid hex (tier/age) or horizontal gradient stops (A/V marks). */
+  fill: string | readonly string[],
+  /** Text font (default "inter" = historic look). */
+  font: BadgeFont = "inter",
+  /** Larghezza visibile fissa (colonna del gruppo); assente = naturale. */
+  targetW?: number,
+): Promise<{ png: Buffer; w: number; h: number }> {
+  const fs = Math.round(Math.max(17 * pw / 380, 10))
+  const result = buildGradientMarkSvg(label, fs, fill, normalizeBadgeFont(font), targetW)
   const png = await renderSVG(result.svg, result.w)
   return { png, w: result.w, h: result.h }
 }

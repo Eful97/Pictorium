@@ -20,10 +20,15 @@ import {
   COLOR_MARK_GLYPH,
   COLOR_MARK_PLATE_BG,
   COLOR_MARK_PLATE_STROKE,
+  GRADIENT_MARK_STOPS,
+  GRADIENT_PLATE_BG,
+  GRADIENT_TIER_INK,
+  AV_PLATE_RADIUS_FACTOR,
+  gradientMarkStops,
 } from "@/lib/quality-badge-styles"
-import { buildQualityKnockoutSvg, buildQualityBadgeSvg, buildAgeEmphasisSvg, badgeBoxHeight, TOP_SHADOW_PAD, AGE_NOVA_BODY_BOTTOM, AGE_NOVA_BODY_TOP, AGE_NOVA_BORDER_BOTTOM, AGE_NOVA_BORDER_TOP, AGE_NOVA_INK, AGE_NOVA_SKEW_X } from "@/lib/badge-svg-shared"
+import { buildQualityKnockoutSvg, buildQualityBadgeSvg, buildAgeEmphasisSvg, buildGradientMarkSvg, badgeBoxHeight, TOP_SHADOW_PAD, AGE_NOVA_BODY_BOTTOM, AGE_NOVA_BODY_TOP, AGE_NOVA_BORDER_BOTTOM, AGE_NOVA_BORDER_TOP, AGE_NOVA_INK, AGE_NOVA_SKEW_X, GRADIENT_MARK_FONT_WEIGHT } from "@/lib/badge-svg-shared"
 import { KNOWN_VIDEO_FORMATS, FORMAT_ICON_PATHS, type VideoFormat } from "@/lib/av-specs"
-import { BADGE_ITEM_QUALITY_COMBO, BADGE_ITEM_QUALITY_TIER, qualityFormatItemId } from "@/lib/badge-item-transforms"
+import { BADGE_ITEM_QUALITY_AGE, BADGE_ITEM_QUALITY_COMBO, BADGE_ITEM_QUALITY_TIER, homeIdForPainted, qualityFormatItemId } from "@/lib/badge-item-transforms"
 import { mappingSchema, mappingUpdateSchema } from "@/lib/validation"
 import sharp from "sharp"
 import fs from "node:fs"
@@ -36,8 +41,8 @@ import type { ServerDefaults } from "@/lib/server-defaults"
 const ROOT = path.resolve(__dirname, "../../..")
 
 describe("quality badge styles", () => {
-  it("exposes the standard/mono/color/knockout/premium/nova union with standard default", () => {
-    expect([...QUALITY_BADGE_STYLES]).toEqual(["standard", "mono", "color", "knockout", "premium", "nova"])
+  it("exposes the standard/mono/color/knockout/premium/nova/gradient union with standard default", () => {
+    expect([...QUALITY_BADGE_STYLES]).toEqual(["standard", "mono", "color", "knockout", "premium", "nova", "gradient"])
     expect(DEFAULT_QUALITY_BADGE_STYLE).toBe("standard")
     expect(isQualityBadgeStyle("mono")).toBe(true)
     expect(isQualityBadgeStyle("color")).toBe(true)
@@ -45,6 +50,7 @@ describe("quality badge styles", () => {
     expect(isQualityBadgeStyle("knockout")).toBe(true)
     expect(isQualityBadgeStyle("premium")).toBe(true)
     expect(isQualityBadgeStyle("nova")).toBe(true)
+    expect(isQualityBadgeStyle("gradient")).toBe(true)
     expect(isQualityBadgeStyle("bar")).toBe(false)
     expect(isQualityBadgeStyle(null)).toBe(false)
     expect(isQualityBadgeStyle(undefined)).toBe(false)
@@ -61,10 +67,12 @@ describe("quality badge styles", () => {
     expect(normalizeQualityBadgeStyleForTransport(undefined)).toBe("standard")
   })
 
-  it("maps every style/tier to an existing SVG asset (standard and knockout have none)", () => {
+  it("maps every style/tier to an existing SVG asset (standard, knockout and gradient have none)", () => {
     for (const tier of QUALITY_TIERS) {
       expect(qualityBadgeIconPath("standard", tier)).toBeNull()
       expect(qualityBadgeIconPath("knockout", tier)).toBeNull()
+      // Gradient: 100% dynamic SVG glyphs, no raster asset of its own.
+      expect(qualityBadgeIconPath("gradient", tier)).toBeNull()
     }
     for (const style of ["mono", "color"] as const) {
       for (const tier of QUALITY_TIERS) {
@@ -1181,3 +1189,416 @@ describe("quality nova style (100% dynamic SVG material)", () => {
     }
   }, 60000)
 })
+/**
+ * Stile `gradient` (additivo, 100% SVG dinamico): glifi extra-bold su una
+ * placca scura traslucida (`GRADIENT_PLATE_BG`, sempre scura). Tier ed età
+ * usano un inchiostro bianco pieno, i marchi A/V un gradiente ORIZZONTALE per
+ * formato (`GRADIENT_MARK_STOPS`, risolto dal path icona). Un solo builder
+ * condiviso (`buildGradientMarkSvg`) → nessun asset raster e nessun secondo
+ * renderer.
+ */
+describe("quality gradient style (dark plate lockup, dynamic SVG)", () => {
+  const PW = 380
+  const FS17 = 17
+  const BOX_H = badgeBoxHeight(FS17)
+  const PLATE_R = Math.round(BOX_H * AV_PLATE_RADIUS_FACTOR)
+  /** Larghezza visibile del 4K bianco: riferimento della colonna. */
+  const GRADIENT_REF_W = buildGradientMarkSvg("4K", FS17, GRADIENT_TIER_INK).w - TOP_SHADOW_PAD * 2
+
+  it("draws exactly one dark plate rect behind the glyphs, no mask, one geometry for every label", () => {
+    for (const label of [...QUALITY_TIERS, ...KNOWN_VIDEO_FORMATS.map((f) => videoFormatShortLabel(f)), AV_COMBO_SHORT_LABEL]) {
+      const white = buildGradientMarkSvg(label, FS17, GRADIENT_TIER_INK)
+      expect(white.svg, label).toContain(`fill="${GRADIENT_TIER_INK}"`)
+      expect(white.svg, label).toContain(`font-weight="${GRADIENT_MARK_FONT_WEIGHT}"`)
+      expect(white.svg, label).toContain('letter-spacing="0.06em"')
+      expect(white.svg, label).toContain("textLength=")
+      // Esattamente UN rect di fondo: la placca scura, senza stroke, dietro il testo.
+      const rects = white.svg.match(/<rect [^>]*\/>/g) ?? []
+      expect(rects.length, label).toBe(1)
+      expect(rects[0], label).toContain(`fill="${GRADIENT_PLATE_BG}"`)
+      expect(rects[0], label).toContain(`rx="${PLATE_R}"`)
+      expect(rects[0], label).not.toContain("stroke")
+      expect(white.svg.indexOf("<rect"), label).toBeLessThan(white.svg.indexOf("<text"))
+      // Nessun tag mascherato, nessun asset: solo placca + glifi.
+      expect(white.svg, label).not.toContain("<mask")
+      // Tier/età: inchiostro solido, nessun gradiente.
+      expect(white.svg, label).not.toContain("<linearGradient")
+      expect(white.svg, label).not.toContain("<image")
+      expect(white.svg, label).not.toMatch(/href="(?:data:|https?:)/)
+      // Banda condivisa: stessa altezza di colonna di ogni altro stile.
+      expect(white.h, label).toBe(BOX_H + TOP_SHADOW_PAD * 2)
+    }
+    // Nessuna icona registrata per lo stile (come standard/knockout).
+    for (const tier of QUALITY_TIERS) expect(qualityBadgeIconPath("gradient", tier)).toBeNull()
+    expect(qualityBadgeIconStyle("gradient")).toBeNull()
+  })
+
+  it("A/V marks use one horizontal gradient each, resolved from the icon path", () => {
+    for (const format of KNOWN_VIDEO_FORMATS) {
+      const stops = gradientMarkStops(FORMAT_ICON_PATHS[format])
+      expect(stops, format).toBe(GRADIENT_MARK_STOPS[format])
+      const built = buildGradientMarkSvg(videoFormatShortLabel(format), FS17, stops!)
+      // Gradiente ORIZZONTALE (x1 0 → x2 1), uno stop per colore della fonte.
+      expect(built.svg, format).toContain('<linearGradient id="gmg" x1="0" y1="0" x2="1" y2="0">')
+      for (const stop of stops!) expect(built.svg, format).toContain(`stop-color="${stop}"`)
+      expect(built.svg.split("<stop ").length - 1, format).toBe(stops!.length)
+      expect(built.svg, format).toContain('fill="url(#gmg)"')
+      // Stessa placca scura dietro i glifi gradiente, nessun secondo rect.
+      const rects = built.svg.match(/<rect [^>]*\/>/g) ?? []
+      expect(rects.length, format).toBe(1)
+      expect(rects[0], format).toContain(`fill="${GRADIENT_PLATE_BG}"`)
+      expect(built.svg, format).not.toContain("<mask")
+    }
+    expect(gradientMarkStops(AV_COMBO_ICON_PATH)).toBe(GRADIENT_MARK_STOPS.combo)
+    // Asset non A/V (tier) → nessun gradiente: mai un colore inventato.
+    expect(gradientMarkStops("quality-badges/color/4k-label-color-icon.svg")).toBeNull()
+  })
+
+  it("renders every tier through the shared white builder and pins the column in a stack", async () => {
+    const svc = await import("@/lib/poster-service")
+    const { renderGradientMarkBadge } = await import("@/lib/svg-badge")
+    for (const tier of QUALITY_TIERS) {
+      const direct = await renderGradientMarkBadge(tier, PW, GRADIENT_TIER_INK, "inter")
+      const built = buildGradientMarkSvg(tier, FS17, GRADIENT_TIER_INK)
+      expect([direct.w, direct.h], tier).toEqual([built.w, built.h])
+      // Il tier singolo resta il bitmap naturale (nessuna normalizzazione).
+      const single = await svc.renderQualityBadgeGroup(tier, "gradient", null, PW, false, "inter")
+      expect(single, tier).not.toBeNull()
+      expect(single!.png.equals(direct.png), tier).toBe(true)
+    }
+    // Stack reale: tier, età e marchi A/V nella STESSA banda/colonna.
+    const stack = await svc.renderQualityBadgeGroup("4K", "gradient", ["dv", "atmos", "imax"], PW, false, "inter", "TV-MA", "gradient")
+    expect(stack).not.toBeNull()
+    expect(stack!.items.map((i) => i.id)).toEqual([
+      BADGE_ITEM_QUALITY_TIER,
+      BADGE_ITEM_QUALITY_AGE,
+      BADGE_ITEM_QUALITY_COMBO,
+      qualityFormatItemId("imax"),
+    ])
+    for (const item of stack!.items) {
+      expect(item.w - TOP_SHADOW_PAD * 2, item.id).toBe(GRADIENT_REF_W)
+      expect(item.h - TOP_SHADOW_PAD * 2, item.id).toBe(BOX_H)
+    }
+  }, 60000)
+
+  it("rasterises the per-format horizontal gradient (left stop ≠ right stop)", async () => {
+    const svc = await import("@/lib/poster-service")
+    const group = await svc.renderQualityBadgeGroup("4K", "gradient", ["hdr"], 500, false, "inter")
+    expect(group).not.toBeNull()
+    const mark = group!.items.find((i) => i.id === qualityFormatItemId("hdr"))
+    expect(mark).not.toBeNull()
+    const markPng = await sharp(group!.png)
+      .extract({ left: mark!.left, top: mark!.top, width: mark!.w, height: mark!.h })
+      .ensureAlpha()
+      .raw()
+      .toBuffer({ resolveWithObject: true })
+    const { data, info } = markPng
+    let leftInk = 0
+    let rightInk = 0
+    let redish = 0
+    let warm = 0
+    for (let y = 0; y < info.height; y++) {
+      for (let x = 0; x < info.width; x++) {
+        const i = (y * info.width + x) * 4
+        if (data[i + 3] < 200) continue
+        // Solo l'inchiostro dei GLIFI: la placca di fondo è nera traslucida,
+        // quindi va esclusa misurando la luminanza (altrimenti conterebbe
+        // anche la placca e l'asserzione non proverebbe più i glifi).
+        if (data[i] + data[i + 1] + data[i + 2] < 150) continue
+        if (x < info.width / 2) leftInk++
+        else rightInk++
+        // Primo stop #FF2D2D (rosso) a sinistra, ultimo #FFB800 (ambra) a destra.
+        if (data[i] > 180 && data[i + 1] < 110 && data[i + 2] < 110) redish++
+        if (data[i] > 220 && data[i + 1] > 120) warm++
+      }
+    }
+    expect(leftInk).toBeGreaterThan(20)
+    expect(rightInk).toBeGreaterThan(20)
+    // Il gradiente è reale: entrambi gli estremi della rampa compaiono nel run.
+    expect(redish).toBeGreaterThan(10)
+    expect(warm).toBeGreaterThan(10)
+  }, 60000)
+
+  it("renders through the real poster pipeline (white tier glyphs on the dark plate)", async () => {
+    const poster = await sharp({
+      create: { width: STD_W, height: STD_H, channels: 3, background: "#101010" },
+    }).jpeg().toBuffer()
+    const gradient = await generatePosterBuffer(posterInput({ posterBuf: poster, qualityBadgeStyle: "gradient" }))
+    const std = await generatePosterBuffer(posterInput({ posterBuf: poster, qualityBadgeStyle: "standard" }))
+    // Glifi chiari sopra la placca scura: inchiostro chiaro in top-right…
+    expect(await brightTopRight(gradient)).toBeGreaterThan(20)
+    // …ma il poster composto è diverso (placca scura vs pill satinata: byte distinti).
+    expect(gradient.equals(std)).toBe(false)
+  }, 30000)
+
+  it("is polarity-independent (always-dark plate) and byte-distinct from every other style", async () => {
+    const svc = await import("@/lib/poster-service")
+    const light = await svc.renderQualityBadgeGroup("4K", "gradient", ["dv", "imax"], PW, true, "inter")
+    const dark = await svc.renderQualityBadgeGroup("4K", "gradient", ["dv", "imax"], PW, false, "inter")
+    expect(light).not.toBeNull()
+    expect(dark).not.toBeNull()
+    // Placca sempre scura (`GRADIENT_PLATE_BG`, nessun ramo `topLight`): il
+    // fondo non cambia i byte del badge.
+    expect(light!.png.equals(dark!.png)).toBe(true)
+    expect([light!.w, light!.h]).toEqual([dark!.w, dark!.h])
+    // Stesso SVG per entrambe le polarità: la placca non dipende dal top.
+    for (const label of ["4K", "TV-MA", "IMAX"]) {
+      expect(buildGradientMarkSvg(label, FS17, GRADIENT_TIER_INK).svg, label).toContain(`fill="${GRADIENT_PLATE_BG}"`)
+    }
+    for (const style of ["standard", "mono", "color", "knockout", "premium", "nova"] as const) {
+      const other = await svc.renderQualityBadgeGroup("4K", style, ["dv", "imax"], PW, false, "inter")
+      expect(other, style).not.toBeNull()
+      expect(dark!.png.equals(other!.png), style).toBe(false)
+    }
+  }, 60000)
+})
+
+/**
+ * HOME corrections of the quality stack (`quality:home:<kind>`): NAMED,
+ * content-bound places, one per content group (tier / age / Dolby / HDR /
+ * IMAX). A home is not a position: whatever badge of its group actually paints
+ * goes to that home, and the correction is applied to the badge's ISOLATED
+ * reference box (the pinned group column at the group anchor), so the result is
+ * the SAME box on every title and every format set. The element STAYS in the
+ * group (the stack canvas is recomputed from the final boxes) and only a
+ * non-neutral identity correction still detaches it. With no home stored the
+ * output is byte-identical to the historic path, and every empty home is
+ * reported as a box-only ghost (no png) for the settings preview handles.
+ */
+describe("quality stack homes (content-bound, in-group composition)", () => {
+  const PW = 380
+  const gap = Math.round(5 * PW / 380)
+
+  it("is inert without stored homes: the historic canvas, byte-for-byte", async () => {
+    const svc = await import("@/lib/poster-service")
+    const base = await svc.renderQualityBadgeGroup("4K", "standard", ["hdr10plus", "imax"], PW, false, "inter", "VM14")
+    // An empty map is the automatic layout: the historic bitmap.
+    const withEmpty = await svc.renderQualityBadgeGroup("4K", "standard", ["hdr10plus", "imax"], PW, false, "inter", "VM14", "standard", {})
+    expect(withEmpty!.png.equals(base!.png)).toBe(true)
+    expect([withEmpty!.w, withEmpty!.h]).toEqual([base!.w, base!.h])
+    expect(withEmpty!.items).toEqual(base!.items)
+    expect(withEmpty!.homeGhosts).toEqual(base!.homeGhosts)
+    // A neutral home is not a stored home (the map entry is dropped upstream,
+    // and a raw neutral entry is inert here too).
+    const neutral = await svc.renderQualityBadgeGroup("4K", "standard", ["hdr10plus", "imax"], PW, false, "inter", "VM14", "standard", {
+      "quality:home:hdr": { scale: 100, offsetX: 0, offsetY: 0 },
+    })
+    expect(neutral!.png.equals(base!.png)).toBe(true)
+    expect(neutral!.items).toEqual(base!.items)
+    // A single painted element keeps its historic natural bitmap.
+    const alone = await svc.renderQualityBadgeGroup(null, "standard", null, PW, false, "inter", "VM14")
+    const aloneEmpty = await svc.renderQualityBadgeGroup(null, "standard", null, PW, false, "inter", "VM14", "standard", {})
+    expect(aloneEmpty!.png.equals(alone!.png)).toBe(true)
+    expect(aloneEmpty!.items).toEqual(alone!.items)
+  }, 60000)
+
+  it("binds the painted badge of a group to its home (never to a position)", async () => {
+    const svc = await import("@/lib/poster-service")
+    const baseA = await svc.renderQualityBadgeGroup("4K", "standard", ["imax"], PW, false, "inter", "VM14")
+    expect(baseA!.items.map((i) => i.id)).toEqual([BADGE_ITEM_QUALITY_TIER, BADGE_ITEM_QUALITY_AGE, qualityFormatItemId("imax")])
+    // The IMAX home moves the IMAX mark, and nothing else.
+    const imaxHome = { "quality:home:imax": { scale: 100, offsetX: 0, offsetY: 14 } }
+    const movedA = await svc.renderQualityBadgeGroup("4K", "standard", ["imax"], PW, false, "inter", "VM14", "standard", imaxHome)
+    expect([movedA!.items[0].top, movedA!.items[0].left]).toEqual([baseA!.items[0].top, baseA!.items[0].left])
+    expect([movedA!.items[1].top, movedA!.items[1].left]).toEqual([baseA!.items[1].top, baseA!.items[1].left])
+    // A home REPLACES the automatic stack box: the mark sits at the ISOLATED
+    // reference (group anchor, top 0) plus its stored offset — not at its
+    // automatic position plus the offset.
+    expect(movedA!.items[2].top).toBe(14)
+    expect(movedA!.items[2].top).not.toBe(baseA!.items[2].top + 14)
+    expect(movedA!.items[2].png).toBeUndefined()
+    // The TIER home moves the tier only (its isolated reference is the group
+    // anchor, so a +6 offset lands at 6 and the frame does not grow).
+    const tierHome = { "quality:home:tier": { scale: 100, offsetX: 0, offsetY: 6 } }
+    const movedTier = await svc.renderQualityBadgeGroup("4K", "standard", ["imax"], PW, false, "inter", "VM14", "standard", tierHome)
+    expect(movedTier!.items[0].top).toBe(6)
+    expect([movedTier!.w, movedTier!.h]).toEqual([baseA!.w, baseA!.h])
+    expect([movedTier!.items[1].top, movedTier!.items[2].top]).toEqual([baseA!.items[1].top, baseA!.items[2].top])
+    // The AGE home moves the certification pill only.
+    const ageHome = { "quality:home:age": { scale: 100, offsetX: 5, offsetY: 0 } }
+    const movedAge = await svc.renderQualityBadgeGroup("4K", "standard", ["imax"], PW, false, "inter", "VM14", "standard", ageHome)
+    expect(movedAge!.items[1].left).toBe(baseA!.items[1].left + 5)
+    expect([movedAge!.items[0].left, movedAge!.items[2].left]).toEqual([baseA!.items[0].left, baseA!.items[2].left])
+  }, 90000)
+
+  it("puts the SAME home box on two different sets (absolute determinism)", async () => {
+    const svc = await import("@/lib/poster-service")
+    const dolbyHome = { "quality:home:dolby": { scale: 100, offsetX: 0, offsetY: 18 } }
+    // Set A paints the Dolby SINGLE (`dv`), set B the merged combo (`dv+atmos`):
+    // the painted bitmap differs, the home box must not.
+    const a = await svc.renderQualityBadgeGroup("4K", "standard", ["dv", "imax"], PW, false, "inter", "VM14", "standard", dolbyHome)
+    const b = await svc.renderQualityBadgeGroup("4K", "standard", ["dv", "atmos", "imax"], PW, false, "inter", null, "standard", dolbyHome)
+    const dolbyA = a!.items[homeIndex(a!, "quality:home:dolby")]
+    const dolbyB = b!.items[homeIndex(b!, "quality:home:dolby")]
+    expect(dolbyA.id).toBe(qualityFormatItemId("dv"))
+    expect(dolbyB.id).toBe(BADGE_ITEM_QUALITY_COMBO)
+    expect([dolbyA.left, dolbyA.top, dolbyA.w, dolbyA.h]).toEqual([dolbyB.left, dolbyB.top, dolbyB.w, dolbyB.h])
+    // And the box is the ISOLATED reference (group anchor + stored offset), not
+    // the automatic stack box: the neighbours of each set sit at different tops.
+    expect(dolbyA.top).toBe(18)
+    expect(dolbyA.left).toBe(0)
+    // The HDR home is the same story for HDR vs HDR10+ (the priority decides
+    // what paints, the home decides where).
+    const hdrHome = { "quality:home:hdr": { scale: 100, offsetX: 0, offsetY: 12 } }
+    const hdr = await svc.renderQualityBadgeGroup("4K", "standard", ["hdr", "imax"], PW, false, "inter", null, "standard", hdrHome)
+    const hdrPlus = await svc.renderQualityBadgeGroup("4K", "standard", ["hdr10plus", "hdr", "imax"], PW, false, "inter", null, "standard", hdrHome)
+    const hdrItem = hdr!.items[homeIndex(hdr!, "quality:home:hdr")]
+    const hdrPlusItem = hdrPlus!.items[homeIndex(hdrPlus!, "quality:home:hdr")]
+    expect(hdrItem.id).toBe(qualityFormatItemId("hdr"))
+    expect(hdrPlusItem.id).toBe(qualityFormatItemId("hdr10plus"))
+    expect(hdrPlus!.items.map((i) => i.id)).not.toContain(qualityFormatItemId("hdr"))
+    expect([hdrItem.left, hdrItem.top, hdrItem.w, hdrItem.h]).toEqual([hdrPlusItem.left, hdrPlusItem.top, hdrPlusItem.w, hdrPlusItem.h])
+  }, 120000)
+
+  it("grows the canvas instead of clipping when a home leaves the frame", async () => {
+    const svc = await import("@/lib/poster-service")
+    const base = await svc.renderQualityBadgeGroup("4K", "standard", ["imax"], PW, false, "inter", "VM14")
+    const far = await svc.renderQualityBadgeGroup("4K", "standard", ["imax"], PW, false, "inter", "VM14", "standard", {
+      "quality:home:age": { scale: 100, offsetX: 0, offsetY: 200 },
+    })
+    const age = far!.items[1]
+    expect(far!.h).toBeGreaterThan(base!.h)
+    expect(age.top).toBe(200)
+    expect(age.top + age.h).toBeLessThanOrEqual(far!.h)
+    // The neighbours below keep their AUTOMATIC box (only the canvas grows).
+    expect(base!.items[2].top).toBe(base!.items[1].top + base!.items[1].h - TOP_SHADOW_PAD * 2 + gap)
+    expect(far!.items[2].top).toBe(base!.items[2].top)
+    // A negative offset grows the canvas on the other side, never a clip.
+    const up = await svc.renderQualityBadgeGroup("4K", "standard", ["imax"], PW, false, "inter", "VM14", "standard", {
+      "quality:home:tier": { scale: 100, offsetX: 0, offsetY: -25 },
+    })
+    expect(up!.items[0].top).toBe(0)
+    expect(up!.h).toBe(base!.h + 25)
+    expect(up!.items[1].top).toBe(base!.items[1].top + 25)
+  }, 90000)
+
+  it("scales a home exactly like an identity scale (same helper, in-group)", async () => {
+    const svc = await import("@/lib/poster-service")
+    const base = await svc.renderQualityBadgeGroup("4K", "standard", ["imax"], PW, false, "inter", "VM14")
+    const grown = await svc.renderQualityBadgeGroup("4K", "standard", ["imax"], PW, false, "inter", "VM14", "standard", {
+      "quality:home:imax": { scale: 150, offsetX: 0, offsetY: 0 },
+    })
+    const mark = grown!.items[2]
+    expect([mark.w, mark.h]).toEqual([Math.round(base!.items[2].w * 1.5), Math.round(base!.items[2].h * 1.5)])
+    expect(mark.png).toBeUndefined()
+    // A shrink never shrinks the group frame below the automatic column.
+    const shrunk = await svc.renderQualityBadgeGroup("4K", "standard", ["imax"], PW, false, "inter", "VM14", "standard", {
+      "quality:home:imax": { scale: 60, offsetX: 0, offsetY: 0 },
+    })
+    expect([shrunk!.w, shrunk!.h]).toEqual([base!.w, base!.h])
+    expect([shrunk!.items[2].w, shrunk!.items[2].h]).toEqual([
+      Math.round(base!.items[2].w * 0.6),
+      Math.round(base!.items[2].h * 0.6),
+    ])
+  }, 60000)
+
+  it("composes home then identity: only the identity correction detaches", async () => {
+    const svc = await import("@/lib/poster-service")
+    const home = { "quality:home:age": { scale: 100, offsetX: 0, offsetY: 10 } }
+    const identity = { [BADGE_ITEM_QUALITY_AGE]: { scale: 120, offsetX: 6, offsetY: 0 } }
+    const identityOnly = await svc.renderQualityBadgeGroup("4K", "standard", ["imax"], PW, false, "inter", "VM14", "standard", {
+      [BADGE_ITEM_QUALITY_AGE]: identity[BADGE_ITEM_QUALITY_AGE],
+    })
+    const homeOnly = await svc.renderQualityBadgeGroup("4K", "standard", ["imax"], PW, false, "inter", "VM14", "standard", home)
+    const both = await svc.renderQualityBadgeGroup("4K", "standard", ["imax"], PW, false, "inter", "VM14", "standard", {
+      ...home,
+      ...identity,
+    })
+    // Same reported box: the caller applies the identity correction ON TOP
+    // (automatic → home → identity), so the home box is the identity's base.
+    expect([both!.items[1].top, both!.items[1].left, both!.items[1].w, both!.items[1].h])
+      .toEqual([homeOnly!.items[1].top, homeOnly!.items[1].left, homeOnly!.items[1].w, homeOnly!.items[1].h])
+    expect([both!.w, both!.h]).toEqual([homeOnly!.w, homeOnly!.h])
+    // Home alone stays in-group; the identity correction detaches it.
+    expect(homeOnly!.items[1].png).toBeUndefined()
+    expect(both!.items[1].png).toBeDefined()
+    expect(both!.items[0].png).toBeUndefined()
+    expect(both!.items[2].png).toBeUndefined()
+    // The detached bitmap is the AUTOMATIC one (the home never rewrites it):
+    // the caller owns the final resize through `applyBadgeItemTransform`.
+    expect(both!.items[1].png!.equals(identityOnly!.items[1].png!)).toBe(true)
+    expect([both!.items[1].w, both!.items[1].h]).toEqual([identityOnly!.items[1].w, identityOnly!.items[1].h])
+  }, 90000)
+
+  it("applies a home to a single painted element (historic bitmap only when absent)", async () => {
+    const svc = await import("@/lib/poster-service")
+    const { renderQualityBadge } = await import("@/lib/svg-badge")
+    // Age alone = one painted element, no home: the natural pill, untouched.
+    const alone = await svc.renderQualityBadgeGroup(null, "standard", null, PW, false, "inter", "VM14")
+    const direct = await renderQualityBadge("VM14", PW, false, "inter")
+    expect(alone!.png.equals(direct.png)).toBe(true)
+    expect([alone!.w, alone!.h]).toEqual([direct.w, direct.h])
+    expect(alone!.items[0]).toMatchObject({ id: BADGE_ITEM_QUALITY_AGE, top: 0, left: 0, w: direct.w, h: direct.h })
+    // With the AGE home stored the same single element is moved through its
+    // isolated reference (the pinned group column, never the natural box).
+    const moved = await svc.renderQualityBadgeGroup(null, "standard", null, PW, false, "inter", "VM14", "standard", {
+      "quality:home:age": { scale: 100, offsetX: 8, offsetY: 0 },
+    })
+    expect(moved!.items[0].left).toBe(8)
+    expect(moved!.items[0].top).toBe(0)
+    expect(moved!.w).toBe(moved!.items[0].w + 8)
+    expect(moved!.items[0].png).toBeUndefined()
+    // A negative offset grows the canvas on the other side instead of clipping.
+    const left = await svc.renderQualityBadgeGroup(null, "standard", null, PW, false, "inter", "VM14", "standard", {
+      "quality:home:age": { scale: 100, offsetX: -8, offsetY: 0 },
+    })
+    expect(left!.w).toBe(moved!.w)
+    expect(left!.items[0].left).toBe(0)
+    // Scale 200 grows the bitmap itself (same resize path as an item scale).
+    const big = await svc.renderQualityBadgeGroup(null, "standard", null, PW, false, "inter", "VM14", "standard", {
+      "quality:home:age": { scale: 200, offsetX: 0, offsetY: 0 },
+    })
+    expect([big!.items[0].w, big!.items[0].h]).toEqual([moved!.items[0].w * 2, moved!.items[0].h * 2])
+    expect([big!.w, big!.h]).toEqual([moved!.items[0].w * 2, moved!.items[0].h * 2])
+  }, 90000)
+
+  it("reports a box-only ghost for every EMPTY home (and only for those)", async () => {
+    const svc = await import("@/lib/poster-service")
+    const group = await svc.renderQualityBadgeGroup("4K", "standard", ["imax"], PW, false, "inter", "VM14")
+    expect(group!.homeGhosts.map((g) => g.id)).toEqual(["quality:home:dolby", "quality:home:hdr"])
+    for (const ghost of group!.homeGhosts) {
+      // No png on a ghost: it is a handle, never a painted badge.
+      expect("png" in ghost).toBe(false)
+      expect(ghost.w).toBeGreaterThan(0)
+      expect(ghost.h).toBeGreaterThan(0)
+    }
+    // A neutral correction leaves the ghost on the isolated frame (anchor 0/0).
+    expect(group!.homeGhosts.map((g) => [g.top, g.left])).toEqual([[0, 0], [0, 0]])
+    // A stored home correction moves its own ghost and nothing else.
+    const tuned = await svc.renderQualityBadgeGroup("4K", "standard", ["imax"], PW, false, "inter", "VM14", "standard", {
+      "quality:home:hdr": { scale: 100, offsetX: 0, offsetY: 30 },
+    })
+    expect(tuned!.homeGhosts.find((g) => g.id === "quality:home:hdr")!.top).toBe(30)
+    expect(tuned!.homeGhosts.find((g) => g.id === "quality:home:dolby")!.top).toBe(0)
+    // The ghost size is the pinned column frame (same for every style/set):
+    // it matches the box the badge occupies once the title paints it (proved
+    // with the same stored correction: the ghost and the painted badge land in
+    // the same place, the ghost just carries no pixels).
+    const ghostHdr = group!.homeGhosts.find((g) => g.id === "quality:home:hdr")!
+    const painted = await svc.renderQualityBadgeGroup("4K", "standard", ["imax", "hdr"], PW, false, "inter", "VM14", "standard", {
+      "quality:home:hdr": { scale: 100, offsetX: 0, offsetY: 1 },
+    })
+    const hdrItem = painted!.items[homeIndex(painted!, "quality:home:hdr")]
+    expect(hdrItem.id).toBe(qualityFormatItemId("hdr"))
+    expect([hdrItem.left, hdrItem.top - 1, hdrItem.w, hdrItem.h]).toEqual([ghostHdr.left, ghostHdr.top, ghostHdr.w, ghostHdr.h])
+    // Combo vs singles: the merged lockup paints the Dolby home exactly like
+    // the singles do, so no Dolby ghost appears in either case.
+    const combo = await svc.renderQualityBadgeGroup("4K", "standard", ["dv", "atmos"], PW, false, "inter", null)
+    expect(combo!.homeGhosts.map((g) => g.id)).not.toContain("quality:home:dolby")
+    const single = await svc.renderQualityBadgeGroup("4K", "standard", ["atmos"], PW, false, "inter", null)
+    expect(single!.homeGhosts.map((g) => g.id)).not.toContain("quality:home:dolby")
+    // HDR10+ paints the HDR home (the priority decides WHICH mark), so the HDR
+    // ghost disappears and only the untouched groups stay reported.
+    const hdrPlus = await svc.renderQualityBadgeGroup("4K", "standard", ["hdr10plus", "imax"], PW, false, "inter", null)
+    expect(hdrPlus!.homeGhosts.map((g) => g.id)).toEqual(["quality:home:age", "quality:home:dolby"])
+    const plainHdr = await svc.renderQualityBadgeGroup("4K", "standard", ["hdr", "imax"], PW, false, "inter", null)
+    expect(plainHdr!.homeGhosts.map((g) => g.id)).toEqual(["quality:home:age", "quality:home:dolby"])
+  }, 120000)
+})
+
+/** Index of the item whose content group is `homeId` (its own binding). */
+function homeIndex(group: { items: readonly { id: string }[] }, homeId: string): number {
+  const index = group.items.findIndex((item) => homeIdForPainted(item.id) === homeId)
+  if (index < 0) throw new Error(`no painted item for ${homeId}`)
+  return index
+}

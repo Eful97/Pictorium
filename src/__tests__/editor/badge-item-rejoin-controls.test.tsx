@@ -33,7 +33,10 @@ vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn(), info: vi.f
 
 const PREVIEW_URL = "http://localhost:3000/api/poster/movie/550?preview=1&shape=poster&layout=standard"
 
-const DRAFT = "quality:tier=70,9,9;quality:age=90,4,4;quality:format:hdr=130,1,1;rating:imdb=80,8,3"
+// The draft mixes both kinds on purpose: an IDENTITY correction (numeric rows)
+// and a HOME correction (the gesture the defaults surface writes).
+const DRAFT =
+  "quality:tier=70,9,9;quality:home:tier=70,6,2;quality:age=90,4,4;quality:format:hdr=130,1,1;rating:imdb=80,8,3"
 
 const ITEMS = [
   { id: "quality:tier", family: "quality" },
@@ -91,38 +94,56 @@ afterEach(() => {
 })
 
 describe("Transform tab rows", () => {
-  it("offers Rejoin only on a corrected badge and removes exactly that badge", async () => {
+  it("offers Rejoin only on a corrected home and removes exactly that home", async () => {
     mount(<BadgeItemTransformControls previewUrl={PREVIEW_URL} family="quality" shape="poster" />)
-    await waitFor(() => expect(screen.getByTestId("badge-item-control-quality:tier")).toBeInTheDocument())
+    await waitFor(() => expect(screen.getByTestId("badge-item-control-quality:home:tier")).toBeInTheDocument())
 
-    // Both quality rows are corrected in the draft → both offer the recovery.
-    const tierRejoin = screen.getByTestId("badge-item-rejoin-quality:tier")
-    const ageRejoin = screen.getByTestId("badge-item-rejoin-quality:age")
+    // The identity rows are gone from this surface (user-directed cleanup)…
+    expect(screen.queryByTestId("badge-item-control-quality:tier")).toBeNull()
+    expect(screen.queryByTestId("badge-item-control-quality:age")).toBeNull()
+
+    // …and the HOME corrections still own the recovery control. Only the tier
+    // home is corrected in the draft, so only it offers Rejoin.
+    const tierRejoin = screen.getByTestId("badge-item-rejoin-quality:home:tier")
     expect(tierRejoin.getAttribute("aria-label")).toContain("ui.badgeItemRejoin")
     // Distinct from the preset-aware Reset, which stays available next to it.
-    expect(screen.getByTestId("badge-item-reset-quality:tier")).toBeInTheDocument()
+    expect(screen.getByTestId("badge-item-reset-quality:home:tier")).toBeInTheDocument()
+    expect(screen.queryByTestId("badge-item-rejoin-quality:home:age")).toBeNull()
+
+    // Give the age home a correction too (an EMPTY place is arrangeable).
+    const ageOffset = screen.getByTestId("badge-item-control-quality:home:age")
+      .querySelector('input[data-field="offsetX"]')
+    if (!(ageOffset instanceof HTMLInputElement)) throw new Error("missing age home offset field")
+    fireEvent.change(ageOffset, { target: { value: "4" } })
+    fireEvent.blur(ageOffset)
+    await waitFor(() => expect(
+      parseBadgeItemTransforms(current().value.defaultBadgeItemTransforms)["quality:home:age"],
+    ).toEqual({ scale: 100, offsetX: 4, offsetY: 0 }))
 
     fireEvent.click(tierRejoin)
     await waitFor(() => expect(
-      parseBadgeItemTransforms(current().value.defaultBadgeItemTransforms)["quality:tier"],
+      parseBadgeItemTransforms(current().value.defaultBadgeItemTransforms)["quality:home:tier"],
     ).toBeUndefined())
     const after = parseBadgeItemTransforms(current().value.defaultBadgeItemTransforms)
+    expect(after["quality:home:age"]).toEqual({ scale: 100, offsetX: 4, offsetY: 0 })
+    // The identity ENGINE is untouched: a single-home rejoin never sweeps the
+    // identity corrections of the same family (they keep composing), and the
+    // group geometry is untouched.
+    expect(after["quality:tier"]).toEqual({ scale: 70, offsetX: 9, offsetY: 9 })
     expect(after["quality:age"]).toEqual({ scale: 90, offsetX: 4, offsetY: 4 })
-    // A hidden identity (no row, suppressed mark) is NOT swept by a single-item
-    // rejoin, and the group geometry is untouched.
     expect(after["quality:format:hdr"]).toEqual({ scale: 130, offsetX: 1, offsetY: 1 })
     expect(after["rating:imdb"]).toEqual({ scale: 80, offsetX: 8, offsetY: 3 })
     expect(current().value.defaultQualityBadgeScale).toBe(120)
     expect(current().value.defaultQualityBadgeOffsetX).toBe(9)
     expect(current().value.defaultQualityBadgeOffsetY).toBe(-7)
-    // The control disappears once the badge is back on the automatic layout.
-    await waitFor(() => expect(screen.queryByTestId("badge-item-rejoin-quality:tier")).toBeNull())
-    expect(ageRejoin).toBeInTheDocument()
+    // The control disappears once the home is back on the automatic layout.
+    await waitFor(() => expect(screen.queryByTestId("badge-item-rejoin-quality:home:tier")).toBeNull())
+    expect(screen.getByTestId("badge-item-rejoin-quality:home:age")).toBeInTheDocument()
   })
 })
 
 describe("fullscreen editor selection toolbar", () => {
-  it("rejoins the selected badge, then the whole quality group from the toolbar", async () => {
+  it("rejoins the selected badge's HOME, then the whole quality group from the toolbar", async () => {
     function Harness() {
       const [level, setLevel] = useState<"item" | "group">("item")
       return (
@@ -142,11 +163,18 @@ describe("fullscreen editor selection toolbar", () => {
     const itemButton = await screen.findByTestId("badge-drag-rejoin")
     expect(itemButton.textContent).toBe("ui.badgeItemRejoin")
 
+    // A DEFAULTS-surface item gesture owns the HOME correction, so the recovery
+    // removes exactly that home: the badge returns to its group, while the
+    // per-identity nudges stored by the numeric rows are left to their own
+    // controls (never swept behind the user's back).
     fireEvent.click(itemButton)
     await waitFor(() => expect(
-      parseBadgeItemTransforms(current().value.defaultBadgeItemTransforms)["quality:tier"],
+      parseBadgeItemTransforms(current().value.defaultBadgeItemTransforms)["quality:home:tier"],
     ).toBeUndefined())
-    expect(parseBadgeItemTransforms(current().value.defaultBadgeItemTransforms)["quality:age"]).toBeDefined()
+    const afterItemRejoin = parseBadgeItemTransforms(current().value.defaultBadgeItemTransforms)
+    expect(afterItemRejoin["quality:tier"]).toEqual({ scale: 70, offsetX: 9, offsetY: 9 })
+    expect(afterItemRejoin["quality:home:age"]).toBeUndefined()
+    expect(afterItemRejoin["quality:age"]).toEqual({ scale: 90, offsetX: 4, offsetY: 4 })
 
     // GROUP level: selecting the quality group offers the group-wide recovery.
     fireEvent.click(screen.getByTestId("diag-level-group"))
@@ -170,7 +198,7 @@ describe("fullscreen editor selection toolbar", () => {
 })
 
 describe("rejoin drops the optimistic overlay of a just-committed drag", () => {
-  it("the drawn box returns to the reported slot immediately (never the removed delta)", async () => {
+  it("the drawn box returns to the reported box immediately (never the removed delta)", async () => {
     // A real display width: without it the drag commit is refused (fail-closed).
     vi.spyOn(Element.prototype, "getBoundingClientRect").mockReturnValue({
       width: 500, height: 750, top: 0, left: 0, right: 500, bottom: 750, x: 0, y: 0,
@@ -183,11 +211,12 @@ describe("rejoin drops the optimistic overlay of a just-committed drag", () => {
     fireEvent.pointerDown(handle, { button: 0, pointerId: 5, clientX: 100, clientY: 100 })
     fireEvent.pointerMove(handle, { pointerId: 5, clientX: 130, clientY: 100 })
     fireEvent.pointerUp(handle, { pointerId: 5, clientX: 130, clientY: 100 })
-    const moved = parseBadgeItemTransforms(current().value.defaultBadgeItemTransforms)["quality:tier"]
+    // A defaults-surface item drag writes the content-bound HOME of the badge.
+    const moved = parseBadgeItemTransforms(current().value.defaultBadgeItemTransforms)["quality:home:tier"]
     // The drag really committed a correction (containment/snapping decide how
     // many px: the assertion is that the stored offset moved).
     expect(moved?.scale).toBe(70)
-    expect(moved?.offsetX).toBeGreaterThan(9)
+    expect(moved?.offsetX).toBeGreaterThan(6)
     // Optimistic overlay: the committed delta is drawn on top of the reported
     // box while the next render lands.
     await waitFor(() => expect(
@@ -196,7 +225,7 @@ describe("rejoin drops the optimistic overlay of a just-committed drag", () => {
 
     fireEvent.click(screen.getByTestId("badge-drag-rejoin"))
     await waitFor(() => expect(
-      parseBadgeItemTransforms(current().value.defaultBadgeItemTransforms)["quality:tier"],
+      parseBadgeItemTransforms(current().value.defaultBadgeItemTransforms)["quality:home:tier"],
     ).toBeUndefined())
     // Pending state cleared with the correction: the handle is back on the
     // reported slot, not floating on a delta that no longer exists.

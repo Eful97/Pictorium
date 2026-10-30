@@ -15,6 +15,7 @@ import { screen, within } from "@testing-library/react"
 import { BadgeStyleSelector } from "@/components/ui/BadgeStyleSelector"
 import { COLOR_MARK_GLYPH, COLOR_MARK_PLATE_BG, COLOR_MARK_PLATE_STROKE, PREMIUM_PLATE_BG, premiumAccentHex } from "@/lib/quality-badge-styles"
 import { AGE_NOVA_BODY_TOP, AGE_NOVA_BORDER_TOP, AGE_NOVA_SKEW_X } from "@/lib/badge-svg-shared"
+import { GRADIENT_MARK_STOPS, GRADIENT_PLATE_BG, GRADIENT_TIER_INK } from "@/lib/quality-badge-styles"
 import { textColorForBg } from "@/lib/accent-color"
 import { renderWithCtx } from "@/__tests__/test-utils"
 
@@ -207,6 +208,65 @@ describe("BadgeStyleSelector preview contract", () => {
     expect(svg).toContain(AGE_NOVA_BODY_TOP)
     expect(svg).toContain(`skewX(${AGE_NOVA_SKEW_X})`)
     expect(svg).toContain("Aa")
+    expect(btn.textContent).not.toContain("4K")
+  })
+
+  it("gradient quality swatch is the gradient glyph on the shared dark plate (one rect, no mask)", () => {
+    renderWithCtx(
+      <BadgeStyleSelector
+        value="gradient"
+        options={["standard", "mono", "color", "knockout", "premium", "nova", "gradient"]}
+        onChange={vi.fn()}
+        t={t}
+      />,
+    )
+    const btn = screen.getByRole("button", { name: /ui\.qbsGradient/i })
+    const img = btn.querySelector(".badge-style-preview img")
+    expect(img).not.toBeNull()
+    const src = img!.getAttribute("src") ?? ""
+    // Shared builder output: one source with the poster renderer, no asset.
+    expect(src).toMatch(/^data:image\/svg\+xml,/)
+    expect(src).not.toContain("/quality-badges/gradient")
+    const svg = decodeURIComponent(src)
+    // Real tier label painted with the per-format HORIZONTAL gradient…
+    expect(svg).toContain("4K")
+    expect(svg).toContain('<linearGradient id="gmg" x1="0" y1="0" x2="1" y2="0">')
+    expect(svg).toContain(GRADIENT_MARK_STOPS.hdr[0])
+    expect(svg).toContain(GRADIENT_MARK_STOPS.hdr[GRADIENT_MARK_STOPS.hdr.length - 1])
+    // …on the shared dark plate: exactly ONE background rect, no mask.
+    const rects = svg.match(/<rect [^>]*\/>/g) ?? []
+    expect(rects.length).toBe(1)
+    expect(rects[0]).toContain(`fill="${GRADIENT_PLATE_BG}"`)
+    expect(rects[0]).not.toContain("stroke")
+    expect(svg).not.toContain("<mask")
+    expect(btn.querySelector("button, a, input, select")).toBeNull()
+  })
+
+  it("gradient age swatch is the same builder with the solid white label on the dark plate (no 4K asset)", () => {
+    renderWithCtx(
+      <BadgeStyleSelector
+        value="gradient"
+        options={["standard", "mono", "color", "knockout", "premium", "nova", "gradient"]}
+        onChange={vi.fn()}
+        t={t}
+        family="age"
+      />,
+    )
+    const btn = screen.getByRole("button", { name: /ui\.qbsGradient/i })
+    const img = btn.querySelector(".badge-style-preview img")
+    expect(img).not.toBeNull()
+    const src = img!.getAttribute("src") ?? ""
+    expect(src).toMatch(/^data:image\/svg\+xml,/)
+    const svg = decodeURIComponent(src)
+    expect(svg).toContain(`fill="${GRADIENT_TIER_INK}"`)
+    expect(svg).toContain("Aa")
+    // Age gradient: solid white label on the SAME dark plate as the quality one.
+    const rects = svg.match(/<rect [^>]*\/>/g) ?? []
+    expect(rects.length).toBe(1)
+    expect(rects[0]).toContain(`fill="${GRADIENT_PLATE_BG}"`)
+    expect(svg).not.toContain("<mask")
+    // Age gradient carries no horizontal gradient (solid ink only).
+    expect(svg).not.toContain("<linearGradient")
     expect(btn.textContent).not.toContain("4K")
   })
 

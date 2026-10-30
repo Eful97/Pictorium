@@ -472,6 +472,7 @@
   "ui.qbsKnockout": "Knockout",
   "ui.qbsPremium": "프리미엄",
   "ui.qbsNova": "노바",
+  "ui.qbsGradient": "Gradient",
   "ui.blurDisabled": "블러 끄기",
   "ui.selectedCount": "{count}개 선택",
   "ui.bsDefault": "기본값",

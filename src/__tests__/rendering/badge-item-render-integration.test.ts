@@ -424,3 +424,70 @@ describe("rejoin returns the recomposed quality stack to the group-only baseline
     expect(back.geo.items).toEqual(base.geo.items)
   })
 })
+
+/**
+ * HOME corrections through the REAL render: the geometry report carries the
+ * box the badge is actually placed at, so the same stored home must yield the
+ * SAME box on different format sets (that is the whole point of a named,
+ * content-bound home), and the empty homes are reported as box-only ghost
+ * entries ONLY when the preview asks for them.
+ */
+describe("quality homes through the real poster render", () => {
+  it("puts one stored home box on two different format sets", async () => {
+    const poster = await makePoster()
+    const home = { "quality:home:imax": { scale: 100, offsetX: 0, offsetY: 25 } }
+    const render = async (videoFormats: GenerationInput["videoFormats"]) => {
+      let geometry: import("@/lib/poster-service").BadgeGeometryReport | null = null
+      await generatePosterBuffer(
+        posterInput({ posterBuf: poster, videoFormats, badgeItemTransforms: home, onBadgeGeometry: (geo) => { geometry = geo } }),
+      )
+      return geometry as unknown as import("@/lib/poster-service").BadgeGeometryReport
+    }
+    // Set A paints IMAX second, set B paints it third: the automatic boxes
+    // differ, the home box must not.
+    const a = await render(["imax"])
+    const b = await render(["hdr", "imax"])
+    const imaxA = a.items.find((item) => item.id === "quality:format:imax")!
+    const imaxB = b.items.find((item) => item.id === "quality:format:imax")!
+    expect(imaxA).toBeDefined()
+    expect(imaxB).toBeDefined()
+    expect([imaxA.top, imaxA.left, imaxA.w, imaxA.h]).toEqual([imaxB.top, imaxB.left, imaxB.w, imaxB.h])
+    expect(imaxA.custom).toBe(true)
+  }, 120000)
+
+  it("reports ghosts only when the preview flag asks for them", async () => {
+    const poster = await makePoster()
+    const render = async (badgeHomeGhosts?: boolean) => {
+      const { png, geometry } = await renderWith(
+        posterInput({ posterBuf: poster, badgeHomeGhosts }),
+      )
+      return { png, geometry }
+    }
+    // Default render path (no flag): no ghost entry at all, and the flag never
+    // changes a byte.
+    const off = await render()
+    expect(off.geometry.items.some((item) => item.ghost)).toBe(false)
+    const on = await render(true)
+    expect(on.png.equals(off.png)).toBe(true)
+    const ghosts = on.geometry.items.filter((item) => item.ghost)
+    // The sample paints the tier and the Dolby single (quality) plus three
+    // separate pills: age, HDR and IMAX are the empty homes, rating slots 4
+    // and 5 the empty separate positions — each reported once, box only.
+    expect(ghosts.map((ghost) => ghost.id)).toEqual([
+      "quality:home:age",
+      "quality:home:hdr",
+      "quality:home:imax",
+      "rating:slot:4",
+      "rating:slot:5",
+    ])
+    for (const ghost of ghosts) {
+      expect(ghost.family).toBe(ghost.id.startsWith("quality:") ? "quality" : "separate")
+      expect(ghost.w).toBeGreaterThan(0)
+      expect(ghost.h).toBeGreaterThan(0)
+      expect(ghost.left).toBeGreaterThanOrEqual(0)
+      expect(ghost.top).toBeGreaterThanOrEqual(0)
+    }
+    // The painted items are unaffected by the flag (same ids, same boxes).
+    expect(on.geometry.items.filter((item) => !item.ghost)).toEqual(off.geometry.items)
+  }, 120000)
+})

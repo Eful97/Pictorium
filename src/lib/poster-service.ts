@@ -30,14 +30,14 @@ import {
 import { LAND_W, LAND_H } from "./image-utils"
 import { normalizeAutomaticAccentHex } from "./accent-color"
 import type { EffectiveAccentMeta } from "./effective-accent"
-import { renderGenreBadge, renderRankingBadge, renderExtraBadge, renderQualityBadge, renderQualityKnockoutBadge, renderAgeKnockoutBadge, renderAgeEmphasisBadge, renderComingSoonRibbon, comingSoonRibbonLayout, renderSVG } from "./svg-badge"
+import { renderGenreBadge, renderRankingBadge, renderExtraBadge, renderQualityBadge, renderQualityKnockoutBadge, renderAgeKnockoutBadge, renderAgeEmphasisBadge, renderGradientMarkBadge, renderComingSoonRibbon, comingSoonRibbonLayout, renderSVG } from "./svg-badge"
 import { buildLogoScrim, logoContrast, logoInkLuminance, logoScrimStrength, posterLogoZoneLuminance } from "./logo-contrast"
 import { renderFirstMatchingNetworkLogoBadge, renderFirstMatchingNetworkRawBadge, renderFirstMatchingNetworkLogoBadgeHybrid, renderFirstMatchingNetworkRawBadgeHybrid, type NetworkCandidate } from "./network-svgs"
 import { computeLogoLayout, logoAlignPadX, PORTRAIT_LOGO_MAX_HEIGHT_PCT, PORTRAIT_LOGO_TOP_OFFSET, LANDSCAPE_LOGO_MAX_WIDTH_PCT, LANDSCAPE_LOGO_MAX_HEIGHT_PCT, LANDSCAPE_LOGO_BOTTOM_MARGIN_PCT, LANDSCAPE_LOGO_TOP_OFFSET, LANDSCAPE_LOGO_SHIFT_X, LANDSCAPE_LOGO_SHIFT_Y } from "./logo-layout"
 import { logoDefaultScaleFromAspect, FRESH_TITLE_LOGO_DEFAULT_SCALE } from "./logo-selection"
 import fs from "fs"
 import path from "path"
-import { buildQualityBadgeSvg, buildQualityKnockoutSvg, buildAgeEmphasisSvg, estimateTextWidth, fontFamilyFor, escSvg, badgeBoxHeight, TOP_SHADOW_PAD, TOP_SHADOW_FILTER, KNOCKOUT_SHADOW_FILTER, KNOCKOUT_INK_OPACITY, knockoutOuterShadow, AGE_KNOCKOUT_RADIUS_FACTOR, AGE_MONO_STROKE_FACTOR, AGE_MONO_STROKE_MIN, AGE_MONO_INK_DARK, AGE_MONO_INK_LIGHT, SATIN_PILL_INK_DARK, SATIN_PILL_INK_LIGHT, SATIN_PILL_STROKE_DARK, SATIN_PILL_STROKE_LIGHT, SATIN_PILL_STROKE_WIDTH, satinPillStops } from "./badge-svg-shared"
+import { buildQualityBadgeSvg, buildQualityKnockoutSvg, buildAgeEmphasisSvg, buildGradientMarkSvg, estimateTextWidth, fontFamilyFor, escSvg, badgeBoxHeight, TOP_SHADOW_PAD, TOP_SHADOW_FILTER, KNOCKOUT_SHADOW_FILTER, KNOCKOUT_INK_OPACITY, knockoutOuterShadow, AGE_KNOCKOUT_RADIUS_FACTOR, AGE_MONO_STROKE_FACTOR, AGE_MONO_STROKE_MIN, AGE_MONO_INK_DARK, AGE_MONO_INK_LIGHT, SATIN_PILL_INK_DARK, SATIN_PILL_INK_LIGHT, SATIN_PILL_STROKE_DARK, SATIN_PILL_STROKE_LIGHT, SATIN_PILL_STROKE_WIDTH, satinPillStops } from "./badge-svg-shared"
 import { computeTopBadge, getNextEpisodeLabel, isNetworkStudio, shouldSuppressExtraTopBadgeForNetwork, type BadgeInput } from "./poster-badge"
 import { isNextEpisodeBadgeKey } from "./badge-priority"
 import { DEMO_SAMPLE_NETWORK } from "./demo-samples"
@@ -53,10 +53,9 @@ import type { WikidataResult } from "./awards"
 import { directorBadgeLabel } from "./awards"
 import type { BadgeT } from "./poster-badge"
 import type { BadgeFont } from "./badge-styles"
-import { isRibbonRankingStyle, isBottomSeparateRatingsStyle, isAgeBadgeStyle, getSeparateRatingsStyleForShape, resolveNumberBadgeBaseOffsetX, normalizeExtraBadgeStyleForRender, DEFAULT_AGE_BADGE_STYLE, type BadgeStyle, type RankingBadgeStyle, type ExtraBadgeStyle, type ExtraBadgeFollowRank, type SeparateRatingsStyle, type SeparateBottomVariant, type AgeBadgeStyle } from "./badge-styles"
 import { normalizeBadgeFont } from "./badge-svg-shared"
 import type { PosterImageFormat } from "@/lib/poster-runtime-cache"
-import { AV_KNOCKOUT_RADIUS_FACTOR, AV_KNOCKOUT_TAG_INSET_FACTOR, AV_PLATE_RADIUS_FACTOR, AV_PLATE_STROKE_WIDTH, AV_COMBO_SHORT_LABEL, COLOR_MARK_GLYPH, COLOR_MARK_PLATE_BG, COLOR_MARK_PLATE_STROKE, avMarkInkBox, avPlateGlyphBox, qualityBadgeIconPath, qualityIconReferenceWidth, videoFormatShortLabel, type AvMarkInkBox, PREMIUM_COMBO_ACCENT, PREMIUM_PLATE_BG, PREMIUM_PLATE_STROKE, premiumAccentHex, premiumFormatAccent } from "./quality-badge-styles"
+import { AV_KNOCKOUT_RADIUS_FACTOR, AV_KNOCKOUT_TAG_INSET_FACTOR, AV_PLATE_RADIUS_FACTOR, AV_PLATE_STROKE_WIDTH, AV_COMBO_SHORT_LABEL, COLOR_MARK_GLYPH, COLOR_MARK_PLATE_BG, COLOR_MARK_PLATE_STROKE, GRADIENT_TIER_INK, avMarkInkBox, avPlateGlyphBox, gradientMarkStops, qualityBadgeIconPath, qualityIconReferenceWidth, videoFormatShortLabel, type AvMarkInkBox, PREMIUM_COMBO_ACCENT, PREMIUM_PLATE_BG, PREMIUM_PLATE_STROKE, premiumAccentHex, premiumFormatAccent } from "./quality-badge-styles"
 import type { QualityBadgeStyle } from "./badge-styles"
 import { FORMAT_ICON_PATHS, type VideoFormat } from "./av-specs"
 import { isRankKey } from "./i18n"
@@ -68,15 +67,19 @@ import { resolveProviderGlassAccent } from "./provider-brand-palette"
 import {
   BADGE_ITEM_QUALITY_AGE,
   BADGE_ITEM_QUALITY_COMBO,
+  BADGE_ITEM_QUALITY_HOMES,
   BADGE_ITEM_QUALITY_TIER,
   applyBadgeItemTransform,
   badgeItemTransform,
   effectiveBadgeItemTransforms,
+  homeIdForPainted,
   isNeutralBadgeItemTransform,
   isQualityItemId,
   isRatingItemId,
   qualityFormatItemId,
+  ratingSlotItemId,
   serializeBadgeItemTransforms,
+  type BadgeItemTransform,
   type BadgeItemTransformMap,
 } from "./badge-item-transforms"
 
@@ -383,6 +386,13 @@ export interface GenerationInput {
    * renderer only; the client never guesses item geometry.
    */
   badgeItemTransforms?: BadgeItemTransformMap | null
+  /**
+   * Publish the badge GHOSTS in the badge geometry report (box only): the
+   * empty quality HOMES and the empty separate-rating SLOTS. Preview
+   * diagnostic only (`debug=1&netgeo=1&ghosts=1`): the Stremio render path
+   * never sets it, so no ghost is ever reported there.
+   */
+  badgeHomeGhosts?: boolean
   /**
    * Collettore una-tantum dei fill accent EFFETTIVAMENTE dipinti sui badge
    * (display sync del picker, ramo `?accentmeta=1`): invocato una sola volta
@@ -985,7 +995,7 @@ export async function renderAvKnockoutBadge(
 export interface QualityBadgeItem {
   /** Stable identity (`badge-item-transforms`), never an array index. */
   readonly id: string
-  /** Box inside the composed group bitmap (px), the slot the layout chose. */
+  /** Box inside the composed group bitmap (px), the box the layout chose. */
   readonly top: number
   readonly left: number
   readonly w: number
@@ -1000,6 +1010,25 @@ export interface QualityBadgeGroupResult {
   readonly w: number
   readonly h: number
   readonly items: readonly QualityBadgeItem[]
+  /**
+   * Boxes of the quality HOMES this render does NOT paint (box only, no png):
+   * the renderer reports them so the settings preview can draw a draggable
+   * dashed ghost for every empty home. In the group bitmap's own coordinates,
+   * exactly like `items`, and computed here (never at request time) so a
+   * cached group is as complete as a fresh one. The geometry REPORT decides
+   * whether to publish them (`?ghosts=1`): the Stremio render path never does.
+   */
+  readonly homeGhosts: readonly QualityHomeGhost[]
+}
+
+/** One empty quality home: stable home identity + its (box-only) placement. */
+export interface QualityHomeGhost {
+  /** `quality:home:<kind>` (`badge-item-transforms`), never a position. */
+  readonly id: string
+  readonly top: number
+  readonly left: number
+  readonly w: number
+  readonly h: number
 }
 
 /**
@@ -1037,10 +1066,26 @@ export interface QualityBadgeGroupResult {
  * Per-ITEM transforms: every painted element carries its stable identity
  * (`badge-item-transforms`: tier / age / one A/V mark / the merged DV+Atmos
  * combo) and the FINAL box it occupies inside this bitmap. An element with a
- * non-neutral per-item correction is DETACHED: its slot stays where the
+ * non-neutral per-item correction is DETACHED: its box stays where the
  * automatic layout put it (nothing else moves) and its own bitmap is returned
  * so the caller can composite it independently at the transformed position.
  * Without corrections the composite is exactly the historic one.
+ *
+ * Per-HOME transforms (`quality:home:<kind>`, see `badge-item-transforms`): a
+ * home is a NAMED content group of the stack (tier / age / dolby / hdr /
+ * imax), not a position. When a home correction is stored, the automatic stack
+ * box of the painted element of that group is REPLACED by its ISOLATED
+ * reference box — the group's pinned column (`markRefWidth`) at the group
+ * anchor, with the style's text-family height — so the correction is the same
+ * box on every title and every format set (neighbours are ignored). The
+ * element STAYS in the group: nothing else moves, the stack canvas is
+ * recomputed from the final boxes (never smaller than the automatic frame, so
+ * a move past the frame grows the canvas instead of clipping), and only a
+ * non-neutral IDENTITY correction still detaches an element. No stored home =
+ * byte-identical output, including the single-element historic bitmap.
+ * The empty homes of this render are reported as box-only `homeGhosts` (no
+ * png): they exist for the settings preview ghost handles and never change a
+ * pixel.
  */
 export async function renderQualityBadgeGroup(
   quality: string | null | undefined,
@@ -1070,6 +1115,10 @@ export async function renderQualityBadgeGroup(
   // Nova: materiale SVG 100% dinamico (nessun asset) condiviso da tier 4K/
   // FHD/HD/SD, età e marchi A/V — una sola ricetta, mai un secondo renderer.
   const isNova = qualityBadgeStyle === "nova"
+  // Gradient: glifi nudi extra-bold, nessun contenitore — 100% SVG dinamico
+  // (nessun asset) condiviso da tier, età e marchi A/V: bianco pieno per
+  // tier/età, gradiente orizzontale per formato (`GRADIENT_MARK_STOPS`).
+  const isGradient = qualityBadgeStyle === "gradient"
   // Larghezza UNICA dei marchi A/V, derivata dal badge 4K dello stile attivo
   // (mai dall'aspect del singolo logo). Include il font perché i tag testuali
   // (standard/knockout/mono) cambiano larghezza con la font. Per `color`/
@@ -1093,6 +1142,11 @@ export async function renderQualityBadgeGroup(
     if (isNova) {
       return Math.max(1, buildAgeEmphasisSvg("4K", markFs, "nova", false, markFont).w - TOP_SHADOW_PAD * 2)
     }
+    // Gradient: la placca scura condivisa è larga quanto la banda visibile
+    // del 4K "bianco" nella stessa ricetta (placca + glifi + padding del box).
+    if (isGradient) {
+      return Math.max(1, buildGradientMarkSvg("4K", markFs, GRADIENT_TIER_INK, markFont).w - TOP_SHADOW_PAD * 2)
+    }
     // Stile standard: la colonna è larga quanto la PILL neutra 4K (stessa
     // ricetta dell'età: satinatura, padding 0.75×fs, raggio a mezza altezza).
     // Ogni tier testuale usa questa ricetta, non un tag più largo/quadrato.
@@ -1101,6 +1155,57 @@ export async function renderQualityBadgeGroup(
     }
     return qualityIconReferenceWidth(badgeBoxHeight(markFs))
   })()
+  // -------------------------------------------------------------------
+  // ISOLATED home frame (single source of the home geometry).
+  //
+  // A home correction must be identical on every title, so its base cannot be
+  // the automatic stack box (that one depends on the painted neighbours).
+  // The base is the group's OWN pinned column — `markRefWidth`, the width
+  // every element of a real stack is normalized to — at the group ANCHOR (the
+  // top-left of the group frame, i.e. the position the automatic layout gives
+  // the first painted element) with the style's text-family box height.
+  // `homeGhosts` uses this frame directly; a painted element uses its own
+  // bitmap centred in it (same box for every style: every element of a stack
+  // is `badgeBoxHeight(markFs) + 2 * TOP_SHADOW_PAD` tall).
+  // -------------------------------------------------------------------
+  const homeFrameW = markRefWidth + TOP_SHADOW_PAD * 2
+  const homeFrameH = badgeBoxHeight(markFs) + TOP_SHADOW_PAD * 2
+  /** Stored HOME correction of a painted identity (null = automatic stack). */
+  const homeTransform = (id: string): BadgeItemTransform | null => {
+    const homeId = homeIdForPainted(id)
+    if (!homeId) return null
+    const t = badgeItemTransform(itemTransforms ?? null, homeId)
+    return t && !isNeutralBadgeItemTransform(t) ? t : null
+  }
+  /** Isolated reference box of a painted element (pinned column, group anchor). */
+  const homeReference = (badge: { readonly w: number; readonly h: number }): { top: number; left: number; w: number; h: number } => ({
+    top: Math.round((homeFrameH - badge.h) / 2),
+    left: Math.round((homeFrameW - badge.w) / 2),
+    w: badge.w,
+    h: badge.h,
+  })
+  /**
+   * Box-only placement of every home this render does NOT paint: the isolated
+   * frame plus its stored correction (neutral when none), i.e. exactly the box
+   * the badge of that group would occupy once the title paints it.
+   */
+  const collectHomeGhosts = (paintedIds: readonly string[]): QualityHomeGhost[] => {
+    const painted = new Set(
+      paintedIds.flatMap((id) => {
+        const homeId = homeIdForPainted(id)
+        return homeId ? [homeId] : []
+      }),
+    )
+    const out: QualityHomeGhost[] = []
+    for (const homeId of BADGE_ITEM_QUALITY_HOMES) {
+      if (painted.has(homeId)) continue
+      const stored = badgeItemTransform(itemTransforms ?? null, homeId)
+      const correction = stored && !isNeutralBadgeItemTransform(stored) ? stored : null
+      const box = applyBadgeItemTransform({ top: 0, left: 0, w: homeFrameW, h: homeFrameH }, correction)
+      out.push({ id: homeId, ...box })
+    }
+    return out
+  }
   // Tag knockout: il tag resta largo come il tag knockout 4K, il glifo
   // ritagliato conserva l'inchiostro del badge 4K icona (margine per lato).
   // Sui marchi nudi `markInkWidth` è la larghezza d'inchiostro del glifo.
@@ -1113,13 +1218,16 @@ export async function renderQualityBadgeGroup(
    * la cornice mono dell'età (fill none); color/premium = glifo dentro una
    * placca larga quanto il badge 4K; knockout = tag bianco con glifo
    * ritagliato (trasparente); nova = stessa lastra dinamica del tier/età con
-   * l'etichetta breve del formato (nessun artwork per formato).
+   * l'etichetta breve del formato (nessun artwork per formato); gradient =
+   * glifo nudo con il gradiente orizzontale del formato (stessa etichetta
+   * breve, nessun artwork).
    */
   const renderFormatMark = async (
     iconPath: string,
     topLightForMark: boolean | undefined,
     accentHex: string,
-    /** Etichetta breve della lastra Nova (usata solo dallo stile `nova`). */
+    /** Etichetta breve della lastra Nova / del marchio nudo `gradient`
+     *  (usata solo dagli stili dinamici `nova` e `gradient`). */
     novaLabel: string,
   ): Promise<{ png: Buffer; w: number; h: number } | null> => {
     if (isNova) {
@@ -1127,6 +1235,14 @@ export async function renderQualityBadgeGroup(
       // pinnata alla colonna (`markRefWidth`) e font ridotto per stare dentro
       // (`fitBadgeGlyphFs` nel builder). Nessun asset per formato.
       return renderAgeEmphasisBadge(novaLabel, pw, "nova", topLightForMark, normalizeBadgeFont(font), markRefWidth)
+    }
+    if (isGradient) {
+      // Glifo nudo con gradiente orizzontale del formato, risolto dal path
+      // icona (firma invariata: nessun parametro nuovo). Larghezza pinnata alla
+      // colonna e font ridotto per stare dentro, mai glifi stirati. Path non
+      // registrato → inchiostro bianco (fail-safe: mai un gradiente di un
+      // formato inventato).
+      return renderGradientMarkBadge(novaLabel, pw, gradientMarkStops(iconPath) ?? GRADIENT_TIER_INK, normalizeBadgeFont(font), markRefWidth)
     }
     if (isPremium) {
       return renderPlatedAvBadge(iconPath, pw, markRefWidth, accentHex, PREMIUM_PLATE_BG, PREMIUM_PLATE_STROKE)
@@ -1209,11 +1325,14 @@ export async function renderQualityBadgeGroup(
   const renderAgePill = async (columnW?: number): Promise<{ png: Buffer; w: number; h: number } | null> => {
     if (ageText === "") return null
     // standard = neutral satin pill; knockout = age-only white tag;
-    // mono/color/premium = shared emphasis recipe in `badge-svg-shared.ts`
-    // (mono is the same material as the quality mono tier). Every branch keeps
-    // the age family box/height; `columnW` pins the VISIBLE box to the common
-    // group width (glyph font reduced to fit, never a stretched label).
+    // mono/color/premium/nova = shared emphasis recipe in `badge-svg-shared.ts`
+    // (mono is the same material as the quality mono tier); gradient = bare
+    // extra-bold white glyphs (same material as the quality gradient tier).
+    // Every branch keeps the age family box/height; `columnW` pins the VISIBLE
+    // box to the common group width (glyph font reduced to fit, never a
+    // stretched label).
     if (effAgeStyle === "knockout") return renderAgeKnockoutBadge(ageText, pw, normalizeBadgeFont(font), columnW)
+    if (effAgeStyle === "gradient") return renderGradientMarkBadge(ageText, pw, GRADIENT_TIER_INK, normalizeBadgeFont(font), columnW)
     if (effAgeStyle === "mono" || effAgeStyle === "color" || effAgeStyle === "premium" || effAgeStyle === "nova") {
       return renderAgeEmphasisBadge(ageText, pw, effAgeStyle, !!topLight, normalizeBadgeFont(font), columnW)
     }
@@ -1223,16 +1342,25 @@ export async function renderQualityBadgeGroup(
   // One VISIBLE column width for every painted element: the canonical 4K mark
   // of the active style (the reference the A/V marks already normalise to).
   // Only a real stack (2+ elements) pins it; a single element keeps its
-  // historic natural box/bitmap.
+  // historic natural box/bitmap. EXCEPTION: an element whose HOME is stored is
+  // pinned to the same column even when it is the only painted one, otherwise
+  // its home box would differ between a lone-badge title and a full stack
+  // (the home must be the SAME box everywhere).
   const paintedCount = (hasQuality ? 1 : 0) + (ageText === "" ? 0 : 1) + formatItems.length
   const groupTargetW = paintedCount > 1 ? markRefWidth : undefined
+  const tierTargetW = groupTargetW ?? (homeTransform(BADGE_ITEM_QUALITY_TIER) ? markRefWidth : undefined)
+  const ageTargetW = groupTargetW ?? (homeTransform(BADGE_ITEM_QUALITY_AGE) ? markRefWidth : undefined)
 
   let resBadge: { png: Buffer; w: number; h: number } | null = null
   if (hasQuality) {
     if (isNova) {
       // Lastra dinamica condivisa (stessa ricetta di età e marchi A/V). SD è
       // incluso: nessun asset esterno, l'etichetta è sempre un parametro.
-      resBadge = await renderAgeEmphasisBadge(qualityText, pw, "nova", topLight, normalizeBadgeFont(font), groupTargetW)
+      resBadge = await renderAgeEmphasisBadge(qualityText, pw, "nova", topLight, normalizeBadgeFont(font), tierTargetW)
+    } else if (isGradient) {
+      // Glifi nudi bianchi: stessa ricetta condivisa di età e marchi A/V, nessun
+      // asset (anche SD: l'etichetta è un parametro).
+      resBadge = await renderGradientMarkBadge(qualityText, pw, GRADIENT_TIER_INK, normalizeBadgeFont(font), tierTargetW)
     } else if (qualityIconPath) {
       resBadge = await renderQualityIconBadge(qualityIconPath, pw, topLight)
     }
@@ -1244,14 +1372,14 @@ export async function renderQualityBadgeGroup(
       // static icon. In a real stack the group column pins every tier label to
       // the 4K box (font reduced to fit, never a stretched box).
       resBadge = isKnockout
-        ? await renderQualityKnockoutBadge(qualityText, pw, normalizeBadgeFont(font), groupTargetW)
+        ? await renderQualityKnockoutBadge(qualityText, pw, normalizeBadgeFont(font), tierTargetW)
         : isMono
-          ? await renderAgeEmphasisBadge(qualityText, pw, "mono", !!topLight, normalizeBadgeFont(font), groupTargetW)
-          : await renderQualityBadge(qualityText, pw, topLight, normalizeBadgeFont(font), groupTargetW)
+          ? await renderAgeEmphasisBadge(qualityText, pw, "mono", !!topLight, normalizeBadgeFont(font), tierTargetW)
+          : await renderQualityBadge(qualityText, pw, topLight, normalizeBadgeFont(font), tierTargetW)
     }
   }
   if (!resBadge && ageText === "") return null
-  const agePill = await renderAgePill(groupTargetW)
+  const agePill = await renderAgePill(ageTargetW)
   // Every painted element with its identity, in fixed paint order.
   const identified: { id: string; badge: { png: Buffer; w: number; h: number } }[] = []
   if (resBadge) identified.push({ id: BADGE_ITEM_QUALITY_TIER, badge: resBadge })
@@ -1264,28 +1392,76 @@ export async function renderQualityBadgeGroup(
   /**
    * Single painted element = the group itself (no recomposition): its own
    * bitmap IS the group canvas. A DETACHED element must not be painted there
-   * too, otherwise the automatic slot keeps the glyph (the caller composites
+   * too, otherwise the automatic box keeps the glyph (the caller composites
    * the detached copy on top, and that copy is clipped at the canvas edge while
    * the group one never moves). The blank canvas keeps the same w/h, so the
    * group anchor, the quality→separate anchor and the item scale ratio are
    * unchanged; a neutral/absent correction still returns the historic bytes.
+   *
+   * A single painted element owns its home: with no stored HOME correction
+   * this is the historic path (the natural bitmap at 0/0, byte-identical);
+   * with one stored the base becomes the ISOLATED reference box (the pinned
+   * column at the group anchor) and the canvas grows only to keep the
+   * transformed box inside, never to invent geometry.
    */
   const singleItem = async (badge: { png: Buffer; w: number; h: number }): Promise<QualityBadgeGroupResult> => {
-    const items = identified.map((entry) => ({
+    const homeT = homeTransform(identified[0].id)
+    const box = homeT
+      ? applyBadgeItemTransform(homeReference(badge), homeT)
+      : { top: 0, left: 0, w: badge.w, h: badge.h }
+    // Union with the historic canvas: a shrink/negative offset never hides the
+    // element, and the untouched case keeps the original 0/0 origin and size.
+    const originLeft = Math.min(0, box.left)
+    const originTop = Math.min(0, box.top)
+    const canvasW = Math.max(badge.w, box.left + box.w) - originLeft
+    const canvasH = Math.max(badge.h, box.top + box.h) - originTop
+    const placed = {
+      top: box.top - originTop,
+      left: box.left - originLeft,
+      w: box.w,
+      h: box.h,
+    }
+    const items = identified.map((entry, index) => ({
       id: entry.id,
-      top: 0,
-      left: 0,
-      w: entry.badge.w,
-      h: entry.badge.h,
+      top: index === 0 ? placed.top : 0,
+      left: index === 0 ? placed.left : 0,
+      w: index === 0 ? placed.w : entry.badge.w,
+      h: index === 0 ? placed.h : entry.badge.h,
       ...(detachItem(entry.id) ? { png: entry.badge.png } : {}),
     }))
     const detached = items.some((item) => item.png != null)
-    const png = detached
-      ? await sharp({
-          create: { width: badge.w, height: badge.h, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } },
-        }).png().toBuffer()
-      : badge.png
-    return { png, w: badge.w, h: badge.h, items }
+    const blankCanvas = () =>
+      sharp({
+        create: { width: canvasW, height: canvasH, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } },
+      }).png().toBuffer()
+    let png: Buffer
+    if (detached) {
+      png = await blankCanvas()
+    } else if (placed.top === 0 && placed.left === 0 && placed.w === badge.w && placed.h === badge.h) {
+      png = badge.png
+    } else {
+      // Same resize path as an attached scaled element (no second resize rule).
+      const scaled = placed.w === badge.w && placed.h === badge.h
+        ? badge.png
+        : await sharp(badge.png).resize(placed.w, placed.h).toBuffer()
+      png = await sharp({
+        create: { width: canvasW, height: canvasH, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } },
+      })
+        .composite([{ input: scaled, left: placed.left, top: placed.top }])
+        .png()
+        .toBuffer()
+    }
+    return {
+      png,
+      w: canvasW,
+      h: canvasH,
+      items,
+      homeGhosts: collectHomeGhosts(identified.map((entry) => entry.id)).map((ghost) => ({
+        ...ghost,
+        top: ghost.top - originTop,
+        left: ghost.left - originLeft,
+      })),
+    }
   }
   if (!resBadge && formatItems.length === 0) {
     // Solo età (niente qualità né formati che abbiano reso): la pill età è
@@ -1309,32 +1485,69 @@ export async function renderQualityBadgeGroup(
   const totalW = maxVisW + TOP_SHADOW_PAD * 2
   const totalVisH = visHeights.reduce((sum, h) => sum + h, 0) + gap * (allBadges.length - 1)
   const totalH = totalVisH + TOP_SHADOW_PAD * 2
+  // Automatic stack position of every painted element, then its HOME: with a
+  // stored home the automatic position is REPLACED by the element's ISOLATED
+  // reference box (pinned column at the group anchor), so the same stored
+  // correction yields the same box on every title and format set. Without one
+  // the automatic box is used (today's code path). The identity correction is
+  // applied by the CALLER on top, never here. Home-transformed elements STAY
+  // in the group: the stack canvas is recomputed from the FINAL boxes (never
+  // smaller than the automatic frame, so an untouched stack keeps today's
+  // canvas byte-for-byte), and only a non-neutral IDENTITY correction still
+  // detaches an element.
+  const boxes: { top: number; left: number; w: number; h: number }[] = []
+  let curVisTop = TOP_SHADOW_PAD
+  for (let i = 0; i < allBadges.length; i++) {
+    const auto = {
+      top: curVisTop - TOP_SHADOW_PAD,
+      left: Math.round((totalW - allBadges[i].w) / 2),
+      w: allBadges[i].w,
+      h: allBadges[i].h,
+    }
+    const homeT = homeTransform(identified[i].id)
+    boxes.push(homeT ? applyBadgeItemTransform(homeReference(allBadges[i]), homeT) : auto)
+    curVisTop += visHeights[i] + gap
+  }
+  const originLeft = Math.min(0, ...boxes.map((b) => b.left))
+  const originTop = Math.min(0, ...boxes.map((b) => b.top))
+  const canvasW = Math.max(totalW, ...boxes.map((b) => b.left + b.w)) - originLeft
+  const canvasH = Math.max(totalH, ...boxes.map((b) => b.top + b.h)) - originTop
 
   const composites: { input: Buffer; left: number; top: number }[] = []
   const items: QualityBadgeItem[] = []
-  let curVisTop = TOP_SHADOW_PAD
   for (let i = 0; i < allBadges.length; i++) {
     const badge = allBadges[i]
-    const left = Math.round((totalW - badge.w) / 2)
-    const top = curVisTop - TOP_SHADOW_PAD
-    // The slot is always reported (the editor must offer a handle for every
-    // painted element); only a corrected element is detached from the bitmap.
+    const placed = {
+      top: boxes[i].top - originTop,
+      left: boxes[i].left - originLeft,
+      w: boxes[i].w,
+      h: boxes[i].h,
+    }
+    // The box is always reported (the editor must offer a handle for every
+    // painted element); only an IDENTITY-corrected element is detached from
+    // the bitmap and composited by the caller at its transformed box.
+    const detached = detachItem(identified[i].id)
     items.push({
       id: identified[i].id,
-      top,
-      left,
-      w: badge.w,
-      h: badge.h,
-      ...(detachItem(identified[i].id) ? { png: badge.png } : {}),
+      top: placed.top,
+      left: placed.left,
+      w: placed.w,
+      h: placed.h,
+      ...(detached ? { png: badge.png } : {}),
     })
-    if (!detachItem(identified[i].id)) composites.push({ input: badge.png, left, top })
-    curVisTop += visHeights[i] + gap
+    if (detached) continue
+    // A home-scaled element is resized exactly like an attached identity-scaled
+    // one (same sharp resize, no second rule) and stays in the group bitmap.
+    const input = placed.w === badge.w && placed.h === badge.h
+      ? badge.png
+      : await sharp(badge.png).resize(placed.w, placed.h).toBuffer()
+    composites.push({ input, left: placed.left, top: placed.top })
   }
 
   const groupPng = await sharp({
     create: {
-      width: totalW,
-      height: totalH,
+      width: canvasW,
+      height: canvasH,
       channels: 4,
       background: { r: 0, g: 0, b: 0, alpha: 0 },
     },
@@ -1343,7 +1556,17 @@ export async function renderQualityBadgeGroup(
     .png()
     .toBuffer()
 
-  return { png: groupPng, w: totalW, h: totalH, items }
+  return {
+    png: groupPng,
+    w: canvasW,
+    h: canvasH,
+    items,
+    homeGhosts: collectHomeGhosts(identified.map((entry) => entry.id)).map((ghost) => ({
+      ...ghost,
+      top: ghost.top - originTop,
+      left: ghost.left - originLeft,
+    })),
+  }
 }
 
 
@@ -1950,6 +2173,14 @@ export interface BadgeGeometryItem {
   readonly h: number
   /** True when a per-item correction is applied (detached layer). */
   readonly custom: boolean
+  /**
+   * True for an EMPTY target: box only, nothing is painted there. It is an
+   * empty quality HOME (`quality:home:<kind>`) or an empty separate-rating
+   * SLOT (`rating:slot:<n>`). The settings preview draws it as a draggable
+   * dashed ghost; it is reported only when the diagnostic preview asks for it
+   * (`?ghosts=1`), never on the Stremio render path.
+   */
+  readonly ghost?: boolean
 }
 
 /**
@@ -2067,7 +2298,7 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
     tvType, tvStatus, releaseDate, firstAirDate,
     lastAirDate, seasonCount, nextEpisodeAirDate, numberOfEpisodes, originCountries, genreIds,
     wikidataResult, tmdbKeywords, locale, t,
-    qLabel, queryExtra, qNetLogo, networkLogo, networkLogoPosition = "auto", networkLogoFollowTitle, networkFixedX, networkFixedY, onNetworkGeometry, onBadgeGeometry, badgeItemTransforms, onAccentMeta, sd, accentOverride, imdbTop250,
+    qLabel, queryExtra, qNetLogo, networkLogo, networkLogoPosition = "auto", networkLogoFollowTitle, networkFixedX, networkFixedY, onNetworkGeometry, onBadgeGeometry, badgeItemTransforms, badgeHomeGhosts, onAccentMeta, sd, accentOverride, imdbTop250,
     logoSrc, backdropSrc, analysisKey,
     preRelease = false,
     hideLogo = false,
@@ -3610,18 +3841,18 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
     const qualityGroupLeft = left + qualityBadgeOffsetX
     // Per-item corrections: the group keeps its automatic anchor/offset/scale
     // (nothing else ever moves); a corrected element is composited on its own
-    // at the transformed slot. The ratio maps the group bitmap's own space
+    // at the transformed box. The ratio maps the group bitmap's own space
     // (where the item boxes live) onto the placed bitmap.
     const qualityItemScale = qualityBadgeResult && qualityBadgeResult.w > 0 ? finalQualityBadge.w / qualityBadgeResult.w : 1
     for (const item of safeQualityBadgeResult.items) {
-      const slot = {
+      const reported = {
         top: qualityGroupTop + item.top * qualityItemScale,
         left: qualityGroupLeft + item.left * qualityItemScale,
         w: item.w * qualityItemScale,
         h: item.h * qualityItemScale,
       }
       const itemTransform = badgeItemTransform(effectiveItemTransforms, item.id)
-      const placed = applyBadgeItemTransform(slot, itemTransform)
+      const placed = applyBadgeItemTransform(reported, itemTransform)
       if (item.png) {
         const png =
           placed.w === item.w && placed.h === item.h
@@ -3636,8 +3867,38 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
         left: placed.left,
         w: placed.w,
         h: placed.h,
-        custom: !isNeutralBadgeItemTransform(itemTransform),
+        // A home correction moves the badge on BOTH surfaces, so a tuned home
+        // must read as tuned here too (the editor marks custom handles).
+        custom:
+          !isNeutralBadgeItemTransform(itemTransform) ||
+          !isNeutralBadgeItemTransform(badgeItemTransform(effectiveItemTransforms, homeIdForPainted(item.id) ?? "")),
       })
+    }
+    // Empty HOMES (preview geometry only): box-only handles for the content
+    // groups this render does not paint. Same mapping as a painted element
+    // (group space → placed bitmap), no png, never a pixel change. The Stremio
+    // render path never asks for them (`?ghosts=1` is a preview diagnostic).
+    if (badgeHomeGhosts) {
+      for (const ghost of safeQualityBadgeResult.homeGhosts ?? []) {
+        const homeTransform = badgeItemTransform(effectiveItemTransforms, ghost.id)
+        const box = {
+          top: qualityGroupTop + ghost.top * qualityItemScale,
+          left: qualityGroupLeft + ghost.left * qualityItemScale,
+          w: ghost.w * qualityItemScale,
+          h: ghost.h * qualityItemScale,
+        }
+        const placed = applyBadgeItemTransform(box, homeTransform)
+        badgeGeoItems.push({
+          id: ghost.id,
+          family: "quality",
+          top: placed.top,
+          left: placed.left,
+          w: placed.w,
+          h: placed.h,
+          custom: !isNeutralBadgeItemTransform(homeTransform),
+          ghost: true,
+        })
+      }
     }
     badgeGeo.quality = {
       top: top + qualityBadgeOffsetY,
@@ -3730,6 +3991,10 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
           h: item.h * stackItemScale,
         }
         const itemTransform = badgeItemTransform(effectiveItemTransforms, item.id)
+        // A pill also carries the correction of its PAINTED POSITION (the SLOT
+        // this renderer already applied), so a slot-tuned pill reads as tuned
+        // and an untouched one reads as automatic.
+        const slotTransform = badgeItemTransform(effectiveItemTransforms, ratingSlotItemId(item.slot ?? 0) ?? "")
         const placed = applyBadgeItemTransform(slot, itemTransform)
         if (item.png) {
           const png =
@@ -3745,13 +4010,42 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
           left: placed.left,
           w: placed.w,
           h: placed.h,
-          custom: !isNeutralBadgeItemTransform(itemTransform),
+          custom:
+            !isNeutralBadgeItemTransform(itemTransform) || !isNeutralBadgeItemTransform(slotTransform),
         })
+      }
+      // Empty SLOT positions (preview geometry only): box-only handles for the
+      // painted-position slots this column does not fill. Same mapping as a
+      // painted pill (group space → placed bitmap), no png, never a pixel
+      // change; the Stremio render path never asks for them (`?ghosts=1` is a
+      // preview diagnostic). The ghost's own stored slot correction is applied
+      // here exactly once (the renderer reports the automatic box).
+      if (badgeHomeGhosts) {
+        for (const ghost of stack?.slotGhosts ?? []) {
+          const slotTransform = badgeItemTransform(effectiveItemTransforms, ghost.id)
+          const placed = applyBadgeItemTransform(
+            {
+              top: sepTop + ghost.top * stackItemScale,
+              left: sepLeft + ghost.left * stackItemScale,
+              w: ghost.w * stackItemScale,
+              h: ghost.h * stackItemScale,
+            },
+            slotTransform,
+          )
+          badgeGeoItems.push({
+            id: ghost.id,
+            family: "separate",
+            top: placed.top,
+            left: placed.left,
+            w: placed.w,
+            h: placed.h,
+            custom: !isNeutralBadgeItemTransform(slotTransform),
+            ghost: true,
+          })
+        }
       }
     }
   }
-
-  // Riga bottom (bottom-bar/bottom-pills/bottom-mono/bottom-color):
   // rimpiazza colonna e badge genere
   // (già soppresso a monte via flag effettivi) sul bordo inferiore. La barra
   // in portrait è full-width a filo; in landscape la barra non esiste più
@@ -3836,6 +4130,10 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
           h: item.h * rowItemScale,
         }
         const itemTransform = badgeItemTransform(effectiveItemTransforms, item.id)
+        // A pill also carries the correction of its PAINTED POSITION (the SLOT
+        // this renderer already applied), so a slot-tuned pill reads as tuned
+        // and an untouched one reads as automatic.
+        const slotTransform = badgeItemTransform(effectiveItemTransforms, ratingSlotItemId(item.slot ?? 0) ?? "")
         const placed = applyBadgeItemTransform(slot, itemTransform)
         if (item.png) {
           const png =
@@ -3851,8 +4149,35 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
           left: placed.left,
           w: placed.w,
           h: placed.h,
-          custom: !isNeutralBadgeItemTransform(itemTransform),
+          custom:
+            !isNeutralBadgeItemTransform(itemTransform) || !isNeutralBadgeItemTransform(slotTransform),
         })
+      }
+      // Empty SLOT positions of the bottom row (same contract as the column:
+      // preview-only, box only, never a pixel change).
+      if (badgeHomeGhosts) {
+        for (const ghost of bottom?.slotGhosts ?? []) {
+          const slotTransform = badgeItemTransform(effectiveItemTransforms, ghost.id)
+          const placed = applyBadgeItemTransform(
+            {
+              top: top + ghost.top * rowItemScale,
+              left: left + ghost.left * rowItemScale,
+              w: ghost.w * rowItemScale,
+              h: ghost.h * rowItemScale,
+            },
+            slotTransform,
+          )
+          badgeGeoItems.push({
+            id: ghost.id,
+            family: "separate",
+            top: placed.top,
+            left: placed.left,
+            w: placed.w,
+            h: placed.h,
+            custom: !isNeutralBadgeItemTransform(slotTransform),
+            ghost: true,
+          })
+        }
       }
     }
   }

@@ -478,6 +478,7 @@
   "ui.qbsKnockout": "Knockout",
   "ui.qbsPremium": "Premium",
   "ui.qbsNova": "Nova",
+  "ui.qbsGradient": "Gradiente",
   "ui.blurDisabled": "Sfocatura disattivata",
   "ui.selectedCount": "{count} selezionati",
   "ui.bsDefault": "Default",

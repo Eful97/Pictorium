@@ -252,6 +252,58 @@ export const COLOR_MARK_PLATE_BG = "#262626"
 export const COLOR_MARK_PLATE_STROKE = "#FFCB00"
 export const COLOR_MARK_GLYPH = "#FD5"
 
+// ---------------------------------------------------------------------------
+// Stile `gradient` (additivo, 100% SVG dinamico, nessun asset raster): glifi
+// extra-bold su una placca scura traslucida condivisa. Tier ed età usano un
+// inchiostro bianco pieno; i marchi A/V un gradiente ORIZZONTALE per formato.
+// Gli stop sono
+// scelte di design Pictorium (mai una dichiarazione di colori ufficiali dei
+// marchi, nessun asset tracciato): unica fonte per il renderer
+// (`poster-service.ts`) e per l'anteprima del selettore UI.
+// ---------------------------------------------------------------------------
+
+/** Inchiostro PIENO di tier ed età `gradient` (glifi bianchi, indipendente
+ *  dalla polarità: la placca sotto è sempre scura). */
+export const GRADIENT_TIER_INK = "#ffffff"
+
+/** Placca scura dietro i glifi `gradient` (riquadro arrotondato nero
+ *  traslucido, come il badge `4K DV` di riferimento). Sempre scura,
+ *  indipendente da `topLight` come le placche `premium`/`knockout`/`nova`: i
+ *  glifi bianchi/gradiente restano leggibili su top chiaro e scuro. Il raggio
+ *  è quello condiviso delle placche A/V (`AV_PLATE_RADIUS_FACTOR`). */
+export const GRADIENT_PLATE_BG = "rgba(0,0,0,0.50)"
+
+/** Chiavi dei gradienti A/V: i formati noti più il lockup unito DV+Atmos
+ *  (`combo`, non un `VideoFormat`) e `hlg` (riservato: `av-specs.ts` non
+ *  espone ancora un HLG come `VideoFormat`/asset, quindi oggi non ha consumer
+ *  — gli stop vivono qui per non inventare colori quando il formato arriverà). */
+export type GradientMarkKey = VideoFormat | "combo" | "hlg"
+
+/**
+ * Stop del gradiente orizzontale per marchio A/V, nella stessa forma delle
+ * altre tabelle per-formato (`FORMAT_ICON_PATHS`, `AV_MARK_INK_BOX`): la
+ * risoluzione avviene per path icona, così `renderFormatMark`
+ * (`poster-service.ts`) non cambia firma.
+ */
+export const GRADIENT_MARK_STOPS: Readonly<Record<GradientMarkKey, readonly string[]>> = {
+  hdr: ["#FF2D2D", "#FF5A1F", "#FFB800"],
+  hdr10plus: ["#22D3EE", "#A3E635", "#FACC15", "#FB923C"],
+  hlg: ["#FF5C8A", "#FF2D55"],
+  dv: ["#3B82F6", "#22D3EE"],
+  atmos: ["#A78BFA", "#5B8DEF"],
+  imax: ["#4FD1E3", "#2BA8C4"],
+  combo: ["#B9A6FF", "#22D3EE"],
+}
+
+/** Stop del gradiente di un asset A/V registrato, o null (tier/asset non A/V). */
+export function gradientMarkStops(iconPath: string): readonly string[] | null {
+  if (iconPath === AV_COMBO_ICON_PATH) return GRADIENT_MARK_STOPS.combo
+  for (const format of KNOWN_VIDEO_FORMATS) {
+    if (FORMAT_ICON_PATHS[format] === iconPath) return GRADIENT_MARK_STOPS[format]
+  }
+  return null
+}
+
 /** Raggio del tag bianco knockout A/V (come il tag knockout del tier). */
 export const AV_KNOCKOUT_RADIUS_FACTOR = 0.30
 /** Margine interno per lato del glifo ritagliato nel tag knockout (× `fs`). */

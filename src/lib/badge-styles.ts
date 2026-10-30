@@ -45,14 +45,16 @@ export const DEFAULT_RANKING_BADGE_STYLE: RankingBadgeStyle = "default"
  * "color" (color icons from public/quality-badges/color),
  * "knockout" (white tag with cut-out transparent tier glyphs),
  * "premium" (colored premium A/V glyphs on a compact dark neutral plate;
- * the tier reuses the `color` asset) or "nova" (100% dynamic SVG material:
+ * the tier reuses the `color` asset), "nova" (100% dynamic SVG material:
  * near-black bluish plate with a metallic border gradient and bold white
- * italic glyphs, shared by tier, age and A/V marks — no raster asset).
+ * italic glyphs, shared by tier, age and A/V marks — no raster asset) or
+ * "gradient" (bare extra-bold glyphs with no container: solid white tier
+ * label, per-format gradient A/V marks — 100% dynamic SVG, no raster asset).
  * Additive: never replaces an existing style, no format/asset of its own.
  * Chain like the other styles: `qbs` query > per-title mapping >
  * config token > server defaults.
  */
-export const QUALITY_BADGE_STYLES = ["standard", "mono", "color", "knockout", "premium", "nova"] as const
+export const QUALITY_BADGE_STYLES = ["standard", "mono", "color", "knockout", "premium", "nova", "gradient"] as const
 export type QualityBadgeStyle = (typeof QUALITY_BADGE_STYLES)[number]
 
 export const DEFAULT_QUALITY_BADGE_STYLE: QualityBadgeStyle = "standard"

@@ -368,8 +368,14 @@ describe("LandscapeDefaultsSection offset ranges", () => {
   }
 
   function landGroup(title: string): HTMLElement {
-    const el = screen.getByText(title, { exact: true })
-    const headRow = el.closest("div.flex")
+    // The quality group now also lists per-item catalog rows, and "ui.badgeQuality"
+    // is the label of the tier row too: select the group HEADER (its own
+    // font-semibold title span), never a row label.
+    const el = screen
+      .getAllByText(title, { exact: true })
+      .find((candidate) => candidate.classList.contains("font-semibold"))
+    expect(el).toBeDefined()
+    const headRow = el!.closest("div.flex")
     expect(headRow?.parentElement).not.toBeNull()
     return headRow!.parentElement as HTMLElement
   }

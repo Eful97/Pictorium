@@ -472,6 +472,7 @@
   "ui.qbsKnockout": "Knockout",
   "ui.qbsPremium": "Premium",
   "ui.qbsNova": "Nova",
+  "ui.qbsGradient": "Gradient",
   "ui.blurDisabled": "Estompare dezactivată",
   "ui.selectedCount": "{count} selectate",
   "ui.bsDefault": "Implicit",

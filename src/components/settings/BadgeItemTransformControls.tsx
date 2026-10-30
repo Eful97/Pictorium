@@ -8,11 +8,18 @@ import { badgeGeometrySourceKey, useBadgeDragGeometry } from "@/lib/useBadgeDrag
 import {
   BADGE_ITEM_NEUTRAL,
   BADGE_ITEM_QUALITY_COMBO,
+  BADGE_ITEM_QUALITY_HOMES,
+  BADGE_ITEM_RATING_SLOTS,
   badgeItemLabelKind,
   badgeItemTransform,
   clampBadgeItemOffset,
   clampBadgeItemScale,
+  homeIdForPainted,
   isNeutralBadgeItemTransform,
+  isQualityHomeItemId,
+  qualityHomeBaseLabel,
+  ratingSlotIndex,
+  ratingSlotLabel,
   type BadgeItemTransform,
 } from "@/lib/badge-item-transforms"
 
@@ -21,6 +28,32 @@ interface BadgeItemRow {
   readonly id: string
   readonly family: "quality" | "separate"
 }
+
+/**
+ * Row catalogs of the defaults Transform panel.
+ *
+ * These surfaces no longer list the per-ITEM identity rows (one per rating
+ * provider, one per quality/AV mark): identity corrections remain a real,
+ * engine-level feature (they are parsed, validated, stored, composed by the
+ * renderer and written by the per-title drag), they are simply not offered as
+ * numeric rows on the global defaults anymore. What IS listed is the tunable
+ * place of each family:
+ * - the five quality HOMES (tier, age, Dolby, HDR, IMAX): one named, content
+ *   bound place per content group of the quality stack;
+ * - the five SEPARATE-rating SLOTS (`rating:slot:<n>`, 1-based painted
+ *   position): the rating providers are not a closed catalog, so their
+ *   tunable place is the paint order, exactly like the retired quality slots.
+ * Both lists are CLOSED (always five rows each), so a slot/home can be arranged
+ * before the preview title paints that content.
+ */
+const QUALITY_HOME_ROWS: readonly BadgeItemRow[] = BADGE_ITEM_QUALITY_HOMES.map((id) => ({
+  id,
+  family: "quality" as const,
+}))
+const RATING_SLOT_ROWS: readonly BadgeItemRow[] = BADGE_ITEM_RATING_SLOTS.map((id) => ({
+  id,
+  family: "separate" as const,
+}))
 
 type NumberField = "scale" | "offsetX" | "offsetY"
 
@@ -106,16 +139,31 @@ function BadgeItemNumberField({
 }
 
 /**
- * Numeric per-ITEM Transform controls (the same values the item handles on the
- * poster drag/resize write).
+ * Numeric Transform controls of the tunable PLACES of one badge family (the
+ * same values the item handles on the poster drag/resize write).
  *
- * Items come from the renderer (`debug=1&netgeo=1` on the exact defaults
- * preview URL): only badges that are ACTUALLY composed get a row, keyed by the
- * stable identity the renderer reported (`rating:<source>`, `quality:tier`,
- * `quality:age`, `quality:format:<fmt>`, `quality:combo:dv-atmos`). No array
- * index, no client-side guess of which rating/format is painted: a missing or
- * reordered rating simply has no row instead of inheriting a neighbour's
- * tuning.
+ * This control is mounted only on the GLOBAL DEFAULTS surfaces (portrait
+ * `TransformPanel`, landscape `LandscapeDefaultsSection`), and it lists the
+ * content-bound / positional places of the family, never the per-item identity
+ * rows: one row per quality HOME (`quality:home:<kind>`) and one row per
+ * SEPARATE-rating SLOT (`rating:slot:<n>`, 1-based painted position). Identity
+ * corrections (`rating:<source>`, `quality:tier`, …) are untouched by this
+ * change: the engine still parses, validates, stores, composes and cache-keys
+ * them, and the per-title drag still writes them.
+ *
+ * Two sources, because two families have different natures:
+ * - `family="quality"` lists the five HOMES. A home owns whatever badge of its
+ *   content group THIS title paints (`homeIdForPainted`), so one stored home
+ *   correction follows the group on every title and format set.
+ * - `family="separate"` lists the five SLOTS, because the rating providers
+ *   depend on the resolved provider config (no closed catalog): the tunable
+ *   place is the paint order, and slot n is the n-th painted pill.
+ *
+ * Both lists are closed and always listed, so an empty home/slot can be
+ * arranged before the preview title paints that content. A row the current
+ * report does not paint is marked `data-absent="true"` and dimmed, so "not on
+ * this title" stays visible. The drag HANDLES stay renderer-driven: with no
+ * reported box there is nothing to drag, and the numeric rows cover that gap.
  *
  * The reported list is retained by SEMANTIC preview identity
  * (`badgeGeometrySourceKey`): a transform edit changes the preview URL and
@@ -123,22 +171,22 @@ function BadgeItemNumberField({
  * `useBadgeDragGeometry`), but it does not change which badges exist, so the
  * rows and their DOM nodes survive the debounce/refetch instead of unmounting
  * on every keystroke. Any semantic change (title, shape, family scope, layout,
- * providers, styles) drops the rows until the renderer reports the new set, so
- * an unavailable badge never lingers.
+ * providers, styles) drops the REPORTED list until the renderer answers, so an
+ * unconfirmed configuration never claims a painted home/slot.
  *
  * The displayed numbers are the ACTIVE shape's canonical corrections
  * (`useShapeBadgeGeometryDefaults`, the same map the drag handles write), never
  * the renderer's `custom` flag: 100 / 0 / 0 is the automatic layout, i.e. a
  * RELATIVE correction on top of the group (the group scale/offset is untouched
  * and still applies). Neutral values are never stored, so unconfigured output
- * stays identical; reset removes the single item's correction.
+ * stays identical; reset removes the single home/slot correction.
  *
  * Two DIFFERENT affordances per row (never the same action twice):
  * - Reset = the historical preset-aware reset (restores the applied preset's
  *   own correction, or automatic when it had none);
- * - Rejoin = recovery: unconditionally removes this badge's own correction so
- *   it returns into its group, even when the applied-preset snapshot captured
- *   an old nudge. It never touches the group geometry or another badge.
+ * - Rejoin = recovery: unconditionally removes this home/slot's own correction
+ *   so it returns into its group, even when the applied-preset snapshot
+ *   captured an old nudge. It never touches the group geometry or another row.
  */
 export function BadgeItemTransformControls({
   previewUrl,
@@ -161,10 +209,18 @@ export function BadgeItemTransformControls({
 
   // A fresh renderer report (re)binds the row set to the semantic identity it
   // was composed for. Only the identities are kept: the boxes are what a
-  // transform edit invalidates, and this control never offers them.
+  // transform edit invalidates, and this control never offers them. EMPTY HOME
+  // ghosts are excluded on purpose: they are handles for the defaults drag
+  // overlay, not painted badges, so they must neither add a row nor make their
+  // home read as painted.
   useEffect(() => {
     if (!geometry || !sourceKey) return
-    setRows({ key: sourceKey, items: geometry.items.map((item) => ({ id: item.id, family: item.family })) })
+    setRows({
+      key: sourceKey,
+      items: geometry.items
+        .filter((item) => item.ghost !== true)
+        .map((item) => ({ id: item.id, family: item.family })),
+    })
   }, [geometry, sourceKey])
 
   // Fail-closed on a semantic change: the previous list is never presented as
@@ -173,11 +229,34 @@ export function BadgeItemTransformControls({
     setRows((prev) => (prev.key === sourceKey ? prev : { key: sourceKey, items: [] }))
   }, [sourceKey])
 
-  const items = rows.key === sourceKey ? rows.items.filter((item) => item.family === family) : []
+  const reported = rows.key === sourceKey ? rows.items.filter((item) => item.family === family) : []
+  // CLOSED row list per family: the five homes or the five slots. Nothing here
+  // depends on which provider this title paints, so a row never disappears when
+  // a provider does (and can never inherit a neighbour's tuning).
+  const items =
+    sourceKey && family === "quality"
+      ? QUALITY_HOME_ROWS
+      : sourceKey && family === "separate"
+        ? RATING_SLOT_ROWS
+        : []
   if (items.length === 0) return null
+  // A HOME row is painted when any painted identity of this render binds to it
+  // (`homeIdForPainted`): that is exactly the badge its correction drives. A
+  // SLOT row is painted while the report carries at least that many painted
+  // pills (slot n = n-th painted pill, paint order).
+  const paintedHomes = new Set(
+    reported.flatMap((item) => {
+      const homeId = homeIdForPainted(item.id)
+      return homeId ? [homeId] : []
+    }),
+  )
+  const paintedSeparate = reported.length
   const label = (id: string): string => {
     const kind = badgeItemLabelKind(id)
     if (!kind) return id
+    // A SLOT is a position, not a provider: its label is the deliberate code
+    // literal `Slot Rating <n>` (no i18n key exists or is added for it).
+    if (kind.kind === "slot") return ratingSlotLabel(kind.slot)
     if (kind.kind === "rating") {
       const key = `ui.source_${kind.id}`
       const translated = t(key)
@@ -186,6 +265,10 @@ export function BadgeItemTransformControls({
     if (kind.kind === "tier") return t("ui.badgeQuality")
     if (kind.kind === "age") return t("ui.ageBadge")
     if (kind.kind === "combo") return id === BADGE_ITEM_QUALITY_COMBO ? "Dolby Vision + Atmos" : t("ui.badgeQuality")
+    // A home is a content GROUP, so its label is the existing label of that
+    // group behind the historical "Slot " code literal: no new i18n key (see
+    // `qualityHomeBaseLabel`).
+    if (kind.kind === "home") return `Slot ${qualityHomeBaseLabel(kind.home, t)}`
     const format = kind.kind === "format" ? kind.format : undefined
     const option = format ? VIDEO_FORMAT_OPTIONS.find((o) => o.id === format) : undefined
     return option?.fullName ?? (format ? format.toUpperCase() : t("ui.badgeQuality"))
@@ -202,12 +285,16 @@ export function BadgeItemTransformControls({
         {items.map((item) => {
           const stored = badgeItemTransform(defaults.itemTransforms, item.id)
           const current = stored ?? BADGE_ITEM_NEUTRAL
+          const absent = isQualityHomeItemId(item.id)
+            ? !paintedHomes.has(item.id)
+            : (ratingSlotIndex(item.id) ?? 0) > paintedSeparate
           return (
             <div
               key={item.id}
               data-testid={`badge-item-control-${item.id}`}
               data-custom={isNeutralBadgeItemTransform(stored) ? undefined : "true"}
-              className="flex items-center gap-1 px-1"
+              data-absent={absent ? "true" : undefined}
+              className={`flex items-center gap-1 px-1${absent ? " opacity-60" : ""}`}
             >
               <span className="flex-1 truncate text-[10px] text-zinc-300" title={label(item.id)}>
                 {label(item.id)}

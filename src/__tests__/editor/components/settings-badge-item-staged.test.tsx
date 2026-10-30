@@ -37,7 +37,7 @@ import {
 } from "@/lib/contexts/PosterEditorContext"
 import { renderWithCtx } from "@/__tests__/test-utils"
 import { resetGuestGuardForTests } from "@/lib/guest-guard"
-import { parseBadgeItemTransforms } from "@/lib/badge-item-transforms"
+import { homeIdForPainted, parseBadgeItemTransforms, ratingSlotItemId } from "@/lib/badge-item-transforms"
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn(), replace: vi.fn(), back: vi.fn() }),
@@ -78,11 +78,25 @@ const GEOMETRY_ITEMS = [
 /**
  * Renderer report for the requested preview URL: an item is flagged `custom`
  * when the URL carries its per-item correction (`bit=`), exactly like the
- * shared renderer marks the boxes it actually shifted.
+ * shared renderer marks the boxes it actually shifted — identity OR the
+ * positional place (quality home / separate slot of the painted position).
  */
 function geometryPayload(url: string) {
   const query = url.slice(url.indexOf("?") + 1)
   const corrections = parseBadgeItemTransforms(new URLSearchParams(query).get("bit"))
+  let separatePosition = 0
+  const items = GEOMETRY_ITEMS.map((item) => {
+    // The tunable place of this painted item: quality home bound to the
+    // content group, separate slot bound to the 1-based painted position.
+    let place: string | null = null
+    if (item.family === "separate") {
+      separatePosition += 1
+      place = ratingSlotItemId(separatePosition)
+    } else if (item.family === "quality") {
+      place = homeIdForPainted(item.id)
+    }
+    return { ...item, custom: item.id in corrections || (place !== null && place in corrections) }
+  })
   return {
     network: null,
     badges: {
@@ -96,7 +110,7 @@ function geometryPayload(url: string) {
         separate: { top: 120, left: 400, w: 80, h: 90 },
       },
       fixedX: {},
-      items: GEOMETRY_ITEMS.map((item) => ({ ...item, custom: item.id in corrections })),
+      items,
     },
   }
 }
@@ -247,7 +261,7 @@ describe("per-item corrections inside the staged settings session", () => {
     expect(screen.queryByTestId("settings-conflict")).toBeNull()
     // The draft owns the correction: the preview URL the server renders carries
     // it (this is the exact input the single renderer consumes).
-    await waitFor(() => expect(previewParams()?.get("bit")).toBe("rating:imdb=100,1,10"), { timeout: 3000 })
+    await waitFor(() => expect(previewParams()?.get("bit")).toBe("rating:slot:1=100,1,10"), { timeout: 3000 })
     // …and nothing leaked into durable storage or the network.
     expect(puts).toHaveLength(0)
     await act(async () => {
@@ -261,9 +275,9 @@ describe("per-item corrections inside the staged settings session", () => {
     // The single global Save commits the staged correction exactly once.
     fireEvent.click(screen.getByTestId("settings-save"))
     await waitFor(() => expect(puts).toHaveLength(1), { timeout: 3000 })
-    expect(puts[0].body.badgeItemTransforms).toBe("rating:imdb=100,1,10")
+    expect(puts[0].body.badgeItemTransforms).toBe("rating:slot:1=100,1,10")
     // Outer install converges onto the saved value (no phantom conflict).
-    await waitFor(() => expect(ctx().defaultBadgeItemTransforms).toBe("rating:imdb=100,1,10"))
+    await waitFor(() => expect(ctx().defaultBadgeItemTransforms).toBe("rating:slot:1=100,1,10"))
     expect(screen.queryByTestId("settings-conflict")).toBeNull()
   }, 15000)
 
@@ -272,7 +286,7 @@ describe("per-item corrections inside the staged settings session", () => {
     await stageDirtyDraft()
     const tmdb = await openItemEditor("rating:tmdb")
     fireEvent.keyDown(tmdb, { key: "ArrowRight" })
-    await waitFor(() => expect(previewParams()?.get("bit")).toBe("rating:tmdb=100,1,0"), { timeout: 3000 })
+    await waitFor(() => expect(previewParams()?.get("bit")).toBe("rating:slot:2=100,1,0"), { timeout: 3000 })
 
     // A REAL external update (legacy live path) under the dirty draft.
     await act(async () => {
@@ -282,8 +296,8 @@ describe("per-item corrections inside the staged settings session", () => {
     expect(screen.getByTestId("settings-conflict")).toBeInTheDocument()
     expect(screen.getByTestId("settings-save")).toBeDisabled()
     // The draft is preserved and no staged write went out.
-    expect(previewParams()?.get("bit")).toBe("rating:tmdb=100,1,0")
-    expect(puts.filter((p) => p.body.badgeItemTransforms === "rating:tmdb=100,1,0")).toHaveLength(0)
+    expect(previewParams()?.get("bit")).toBe("rating:slot:2=100,1,0")
+    expect(puts.filter((p) => p.body.badgeItemTransforms === "rating:slot:2=100,1,0")).toHaveLength(0)
 
     // Discard: the draft is replaced by the outer truth (conflict cleared).
     fireEvent.click(screen.getByTestId("settings-conflict-discard"))
@@ -294,7 +308,7 @@ describe("per-item corrections inside the staged settings session", () => {
   })
 
   it("stages a per-item RESET of an existing correction (double-click)", async () => {
-    localStorage.setItem("badgeDefaults", JSON.stringify({ badgeItemTransforms: "rating:imdb=130,5,0" }))
+    localStorage.setItem("badgeDefaults", JSON.stringify({ badgeItemTransforms: "rating:slot:1=130,5,0" }))
     const { ctx } = await mountPanel()
     await openItemEditor("rating:imdb")
     // The reported box reflects the stored correction once the preview URL
@@ -313,7 +327,7 @@ describe("per-item corrections inside the staged settings session", () => {
     // stored map…
     await waitFor(() => expect(previewParams()?.get("bit")).toBe(""), { timeout: 3000 })
     // …while the stored/live truth keeps it and no conflict is raised.
-    expect(ctx().defaultBadgeItemTransforms).toBe("rating:imdb=130,5,0")
+    expect(ctx().defaultBadgeItemTransforms).toBe("rating:slot:1=130,5,0")
     expect(screen.queryByTestId("settings-conflict")).toBeNull()
     expect(puts).toHaveLength(0)
   })

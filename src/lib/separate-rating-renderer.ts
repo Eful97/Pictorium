@@ -6,9 +6,13 @@ import { renderSVG } from "./svg-badge"
 import { formatSeparateValue, MAX_SEPARATE_RATINGS } from "./ratings"
 import type { BadgeFont, SeparateBottomVariant } from "./badge-styles"
 import {
+  applyBadgeItemTransform,
   badgeItemTransform,
   isNeutralBadgeItemTransform,
+  RATING_SLOT_MAX,
   ratingItemId,
+  ratingSlotItemId,
+  type BadgeItemTransform,
   type BadgeItemTransformMap,
 } from "./badge-item-transforms"
 
@@ -124,6 +128,88 @@ export interface SeparateRatingStack {
    * the transformed position while the other pills keep their automatic slot.
    */
   readonly items?: readonly SeparateRatingItem[]
+  /**
+   * Box-only placement of every EMPTY rating SLOT of this bitmap (position
+   * `painted + 1` … `RATING_SLOT_MAX`), in THIS bitmap's space. No png, never a
+   * pixel: they exist so the settings preview can draw a draggable dashed ghost
+   * for a slot the preview title does not paint. Computed here (from the
+   * painted boxes, never at request time) so a cached group is as complete as a
+   * fresh one; the REPORT decides whether to publish them (`?ghosts=1`).
+   */
+  readonly slotGhosts?: readonly SeparateRatingSlotGhost[]
+}
+
+/** One EMPTY separate-rating slot: stable slot identity + box-only placement. */
+export interface SeparateRatingSlotGhost {
+  /** `rating:slot:<n>` (`badge-item-transforms`), a position, not a provider. */
+  readonly id: string
+  readonly top: number
+  readonly left: number
+  readonly w: number
+  readonly h: number
+}
+
+/**
+ * Boxes of the EMPTY slot positions, in the bitmap's own space.
+ *
+ * The first empty position starts one variant gap past the LAST painted box and
+ * every further empty position continues down the same advance, reusing the
+ * last painted pill's width/height (nothing is invented: an empty stack paints
+ * nothing and reports no ghost). Positions are 1-based, exactly like the slot
+ * identities, and stop at the family cap — the same cap the renderer already
+ * applies to the painted pills.
+ */
+function slotGhostBoxes(
+  boxes: readonly { readonly top: number; readonly left: number; readonly w: number; readonly h: number }[],
+  gap: number,
+): SeparateRatingSlotGhost[] {
+  const painted = boxes.length
+  if (painted === 0 || painted >= RATING_SLOT_MAX) return []
+  const last = boxes[painted - 1]
+  const advance = Math.max(1, last.h) + Math.max(0, Math.round(gap))
+  const out: SeparateRatingSlotGhost[] = []
+  for (let n = painted + 1; n <= RATING_SLOT_MAX; n++) {
+    const id = ratingSlotItemId(n)
+    if (!id) break
+    out.push({ id, top: last.top + advance * (n - painted), left: last.left, w: last.w, h: last.h })
+  }
+  return out
+}
+
+/**
+ * Stored NON-NEUTRAL correction of one identity (`null` = automatic). Shared by
+ * the painted pills and their slots: a neutral entry is indistinguishable from
+ * no entry, so an untouched configuration takes the historic path byte for
+ * byte.
+ */
+function storedTransform(
+  itemTransforms: BadgeItemTransformMap | null | undefined,
+  id: string | null,
+): BadgeItemTransform | null {
+  if (!id) return null
+  const t = badgeItemTransform(itemTransforms ?? null, id)
+  return t && !isNeutralBadgeItemTransform(t) ? t : null
+}
+
+/**
+ * Per-ROW corrections, in paint order: SLOT first (order-based: the n-th
+ * painted pill owns `rating:slot:<n>`), then the provider IDENTITY, which the
+ * CALLER applies on top of the reported box (`poster-service`). Two separate
+ * lists because they are two different features: the slot is the positional
+ * tuning of this family, the identity is the per-title nudge.
+ */
+function rowTransforms(
+  rows: readonly { readonly id: string | null }[],
+  itemTransforms: BadgeItemTransformMap | null | undefined,
+): {
+  readonly slots: readonly (BadgeItemTransform | null)[]
+  readonly detached: readonly boolean[]
+} {
+  const slots = rows.map((_, index) => storedTransform(itemTransforms, ratingSlotItemId(index + 1)))
+  return {
+    slots,
+    detached: rows.map((row, index) => !!slots[index] || !!storedTransform(itemTransforms, row.id)),
+  }
 }
 
 /** One painted rating pill: stable identity + final slot (+ png when detached). */
@@ -134,6 +220,12 @@ export interface SeparateRatingItem {
   readonly w: number
   readonly h: number
   readonly png?: Buffer
+  /**
+   * 1-based PAINTED POSITION of this pill: the slot this renderer applied
+   * (`rating:slot:<slot>`) and the one a defaults-preview drag writes. Reported
+   * explicitly so the caller never has to re-derive it from the list order.
+   */
+  readonly slot?: number
 }
 
 /**
@@ -196,28 +288,39 @@ export async function renderSeparateRatingStack(
       `<text x="${colW / 2}" y="${textY}" text-anchor="middle" dominant-baseline="central" font-family="${fontFamilyFor(row.display, f)}" font-weight="700" font-size="${fs}" fill="${fg}" textLength="${row.textW}" lengthAdjust="spacingAndGlyphs">${escSvg(row.display)}</text>`
     )
   }
-  const detached = (id: string | null): boolean => {
-    if (!id) return false
-    const t = badgeItemTransform(itemTransforms ?? null, id)
-    return !!t && !isNeutralBadgeItemTransform(t)
-  }
+  // SLOT (order-based, 1-based painted position) → IDENTITY (applied by the
+  // caller on the reported box). Both are `applyBadgeItemTransform` calls, so a
+  // slot resizes exactly like an identity correction; with neither stored the
+  // automatic box is reported untouched (historic bytes).
+  const corrections = rowTransforms(rows, itemTransforms)
 
   let y = 0
   const parts: string[] = []
   const stackItems: SeparateRatingItem[] = []
-  for (const row of rows) {
-    const isDetached = detached(row.id)
+  for (let index = 0; index < rows.length; index++) {
+    const row = rows[index]
+    const slotBox = applyBadgeItemTransform({ top: y, left: 0, w: colW, h: row.pillH }, corrections.slots[index])
+    const isDetached = !!corrections.detached[index]
     if (!isDetached) parts.push(pillSvg(row, y))
     if (row.id) {
+      const pillPng = isDetached
+        ? await renderSVG(`<svg xmlns="http://www.w3.org/2000/svg" width="${colW}" height="${row.pillH}">${defs}${pillSvg(row, 0)}</svg>`, colW)
+        : null
+      // The detached bitmap is returned at the box it will be composited in
+      // (the SLOT box): the caller only adds the identity scale on top.
+      const png = pillPng
+        ? (slotBox.w === colW && slotBox.h === row.pillH
+            ? pillPng
+            : await sharp(pillPng).resize(slotBox.w, slotBox.h).toBuffer())
+        : undefined
       stackItems.push({
         id: row.id,
-        top: y,
-        left: 0,
-        w: colW,
-        h: row.pillH,
-        ...(isDetached
-          ? { png: await renderSVG(`<svg xmlns="http://www.w3.org/2000/svg" width="${colW}" height="${row.pillH}">${defs}${pillSvg(row, 0)}</svg>`, colW) }
-          : {}),
+        slot: index + 1,
+        top: slotBox.top,
+        left: slotBox.left,
+        w: slotBox.w,
+        h: slotBox.h,
+        ...(png ? { png } : {}),
       })
     }
     y += row.pillH + SEPARATE_STACK_GAP
@@ -228,7 +331,13 @@ export async function renderSeparateRatingStack(
     parts.join("") +
     `</svg>`
   const png = await renderSVG(svg, colW)
-  return { png, w: colW, h: totalH, items: stackItems }
+  return {
+    png,
+    w: colW,
+    h: totalH,
+    items: stackItems,
+    slotGhosts: slotGhostBoxes(stackItems, SEPARATE_STACK_GAP),
+  }
 }
 
 /**
@@ -340,18 +449,32 @@ export async function renderSeparateRatingsBottom(
     if (rows.length === 0) return null
   }
   const inlineGap = Math.max(3, Math.round(fs * 0.35))
-  // Per-item corrections: the painted cell of a corrected provider is detached
-  // from the row bitmap (its slot in the automatic layout is untouched) and
+  // Per-item corrections, in paint order: SLOT (order-based: the n-th painted
+  // cell owns `rating:slot:<n>`) then the provider IDENTITY, which the caller
+  // applies on top of the reported box. A corrected cell is detached from the
+  // row bitmap (its automatic slot stays empty, nothing else moves) and
   // returned as its own bitmap, so only that provider moves/resizes.
-  const detachedId = (id: string | null): boolean => {
-    if (!id) return false
-    const t = badgeItemTransform(itemTransforms ?? null, id)
-    return !!t && !isNeutralBadgeItemTransform(t)
-  }
+  const corrections = rowTransforms(rows, itemTransforms)
+  // Vertical advance used by the EMPTY slot ghosts of this variant (each
+  // variant's own gap, same value its cells already use).
+  let slotGap = Math.max(6, Math.round(fs * 0.45))
   // `markup(x)` paints the cell at horizontal offset `x`: the group calls it
   // with the automatic slot, the DETACHED bitmap calls it with 0 so the cell
   // is fully inside its own small canvas.
-  interface CellInfo { id: string; left: number; top: number; w: number; h: number; markup: (x: number) => string; boxW: number; boxH: number }
+  interface CellInfo {
+    id: string
+    left: number
+    top: number
+    w: number
+    h: number
+    markup: (x: number) => string
+    boxW: number
+    boxH: number
+    /** 1-based PAINTED POSITION (the applied `rating:slot:<n>`). */
+    slot: number
+    /** True when the SLOT and/or the identity correction detaches the cell. */
+    detached: boolean
+  }
   const cellsInfo: CellInfo[] = []
   const defs = `<defs><linearGradient id="sepg" x1="0" y1="0" x2="0" y2="1">${satinPillStops(bottomLight)}</linearGradient>${SEPARATE_SHADOW_FILTER}</defs>`
 
@@ -373,7 +496,10 @@ export async function renderSeparateRatingsBottom(
       const markup = (x: number) =>
         `<image href="data:image/png;base64,${row.logo.png.toString("base64")}" x="${x}" y="${logoY}" width="${row.logo.w}" height="${row.logo.h}"/>` +
         `<text x="${x + row.logo.w + inlineGap + row.textW / 2}" y="${textY}" text-anchor="middle" dominant-baseline="central" font-family="${fontFamilyFor(row.display, f)}" font-weight="700" font-size="${fs}" fill="${fg}" textLength="${row.textW}" lengthAdjust="spacingAndGlyphs">${escSvg(row.display)}</text>`
-      if (row.id) cellsInfo.push({ id: row.id, left: startX, top: 0, w: row.contentW, h: natH, markup, boxW: row.contentW, boxH: natH })
+      if (row.id) {
+        const box = applyBadgeItemTransform({ top: 0, left: startX, w: row.contentW, h: natH }, corrections.slots[i])
+        cellsInfo.push({ id: row.id, left: box.left, top: box.top, w: box.w, h: box.h, markup, boxW: row.contentW, boxH: natH, slot: i + 1, detached: corrections.detached[i] })
+      }
     })
     svg =
       `<svg xmlns="http://www.w3.org/2000/svg" width="${natW}" height="${natH}">` +
@@ -383,7 +509,7 @@ export async function renderSeparateRatingsBottom(
         const startX = Math.round(i * cellW + (cellW - row.contentW) / 2)
         const logoY = Math.round((natH - row.logo.h) / 2)
         const textY = Math.round(natH / 2)
-        return detachedId(row.id) ? "" :
+        return corrections.detached[i] ? "" :
           `<image href="data:image/png;base64,${row.logo.png.toString("base64")}" x="${startX}" y="${logoY}" width="${row.logo.w}" height="${row.logo.h}"/>` +
           `<text x="${startX + row.logo.w + inlineGap + row.textW / 2}" y="${textY}" text-anchor="middle" dominant-baseline="central" font-family="${fontFamilyFor(row.display, f)}" font-weight="700" font-size="${fs}" fill="${fg}" textLength="${row.textW}" lengthAdjust="spacingAndGlyphs">${escSvg(row.display)}</text>`
       }).join("") +
@@ -392,17 +518,22 @@ export async function renderSeparateRatingsBottom(
     // No band, pill, border or background behind the values. Only round
     // provider marks + scores, using the existing fit/scale/font pipeline.
     const rowGap = Math.max(6, Math.round(fs * 0.75))
+    slotGap = rowGap
     const py = Math.max(2, Math.round(fs * 0.2))
     natH = Math.max(...rows.map((row) => row.contentH)) + py * 2
     natW = rowW(rows, fs)
     let x = 0
     const parts: string[] = []
-    for (const row of rows) {
+    for (let i = 0; i < rows.length; i++) {
+      const row = rows[i]
       const markup = (cx: number) =>
         `<image href="data:image/png;base64,${row.logo.png.toString("base64")}" x="${cx}" y="${Math.round((natH - row.logo.h) / 2)}" width="${row.logo.w}" height="${row.logo.h}"/>` +
         `<text x="${cx + row.logo.w + inlineGap + row.textW / 2}" y="${Math.round(natH / 2)}" text-anchor="middle" dominant-baseline="central" font-family="${fontFamilyFor(row.display, f)}" font-weight="700" font-size="${fs}" fill="${fg}" textLength="${row.textW}" lengthAdjust="spacingAndGlyphs">${escSvg(row.display)}</text>`
-      if (row.id) cellsInfo.push({ id: row.id, left: x, top: 0, w: row.contentW, h: natH, markup, boxW: row.contentW, boxH: natH })
-      if (!detachedId(row.id)) parts.push(markup(x))
+      if (row.id) {
+        const box = applyBadgeItemTransform({ top: 0, left: x, w: row.contentW, h: natH }, corrections.slots[i])
+        cellsInfo.push({ id: row.id, left: box.left, top: box.top, w: box.w, h: box.h, markup, boxW: row.contentW, boxH: natH, slot: i + 1, detached: corrections.detached[i] })
+      }
+      if (!corrections.detached[i]) parts.push(markup(x))
       x += row.contentW + rowGap
     }
     svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${natW}" height="${natH}">${parts.join("")}</svg>`
@@ -410,13 +541,15 @@ export async function renderSeparateRatingsBottom(
     const px = Math.round(fs * 0.7)
     const py = Math.max(3, Math.round(fs * 0.35))
     const pillGap = Math.max(6, Math.round(fs * 0.45))
+    slotGap = pillGap
     const pillH = Math.max(...rows.map((r) => r.contentH)) + py * 2
     const r = Math.round(pillH / 2)
     natH = pillH
     natW = rows.reduce((acc, row) => acc + row.contentW + px * 2, 0) + pillGap * (rows.length - 1)
     let x = 0
     const pills: string[] = []
-    for (const row of rows) {
+    for (let i = 0; i < rows.length; i++) {
+      const row = rows[i]
       const pillW = row.contentW + px * 2
       const logoY = Math.round((pillH - row.logo.h) / 2)
       const textY = Math.round(pillH / 2)
@@ -424,8 +557,11 @@ export async function renderSeparateRatingsBottom(
         `<rect x="${cx}" width="${pillW}" height="${pillH}" rx="${r}" fill="url(#sepg)" stroke="${stroke}" stroke-width="1.5" filter="url(#seps)"/>` +
         `<image href="data:image/png;base64,${row.logo.png.toString("base64")}" x="${cx + px}" y="${logoY}" width="${row.logo.w}" height="${row.logo.h}"/>` +
         `<text x="${cx + px + row.logo.w + inlineGap + row.textW / 2}" y="${textY}" text-anchor="middle" dominant-baseline="central" font-family="${fontFamilyFor(row.display, f)}" font-weight="700" font-size="${fs}" fill="${fg}" textLength="${row.textW}" lengthAdjust="spacingAndGlyphs">${escSvg(row.display)}</text>`
-      if (row.id) cellsInfo.push({ id: row.id, left: x, top: 0, w: pillW, h: pillH, markup, boxW: pillW, boxH: pillH })
-      if (!detachedId(row.id)) pills.push(markup(x))
+      if (row.id) {
+        const box = applyBadgeItemTransform({ top: 0, left: x, w: pillW, h: pillH }, corrections.slots[i])
+        cellsInfo.push({ id: row.id, left: box.left, top: box.top, w: box.w, h: box.h, markup, boxW: pillW, boxH: pillH, slot: i + 1, detached: corrections.detached[i] })
+      }
+      if (!corrections.detached[i]) pills.push(markup(x))
       x += pillW + pillGap
     }
     svg =
@@ -446,15 +582,19 @@ export async function renderSeparateRatingsBottom(
   // placement/scale it already knows.
   const cellItems: SeparateRatingItem[] = []
   for (const cell of cellsInfo) {
-    const detached = detachedId(cell.id)
-    const itemPng = detached
-      ? await renderSVG(
-          `<svg xmlns="http://www.w3.org/2000/svg" width="${cell.boxW}" height="${cell.boxH}">${defs}${cell.markup(0)}</svg>`,
-          cell.boxW,
-        )
-      : undefined
+    let itemPng: Buffer | undefined
+    if (cell.detached) {
+      const raw = await renderSVG(
+        `<svg xmlns="http://www.w3.org/2000/svg" width="${cell.boxW}" height="${cell.boxH}">${defs}${cell.markup(0)}</svg>`,
+        cell.boxW,
+      )
+      // The detached bitmap is returned at the box it will be composited in
+      // (the SLOT box): the caller only adds the identity scale on top.
+      itemPng = cell.boxW === cell.w && cell.boxH === cell.h ? raw : await sharp(raw).resize(cell.w, cell.h).toBuffer()
+    }
     cellItems.push({
       id: cell.id,
+      slot: cell.slot,
       left: Math.round(cell.left * fitScale),
       top: Math.round(cell.top * fitScale),
       w: Math.max(1, Math.round(cell.w * fitScale)),
@@ -462,7 +602,19 @@ export async function renderSeparateRatingsBottom(
       ...(itemPng ? { png: itemPng } : {}),
     })
   }
-  if (fitScale === 1) return { png, w: natW, h: natH, items: cellItems }
+  // EMPTY positions (painted + 1 … cap) as box-only ghosts, in the SAME
+  // returned space as the items (the proportional fit is applied once).
+  const slotGhosts = slotGhostBoxes(
+    cellsInfo.map((cell) => ({ top: cell.top, left: cell.left, w: cell.w, h: cell.h })),
+    slotGap,
+  ).map((ghost) => ({
+    ...ghost,
+    top: Math.round(ghost.top * fitScale),
+    left: Math.round(ghost.left * fitScale),
+    w: Math.max(1, Math.round(ghost.w * fitScale)),
+    h: Math.max(1, Math.round(ghost.h * fitScale)),
+  }))
+  if (fitScale === 1) return { png, w: natW, h: natH, items: cellItems, slotGhosts }
   const shrunk = await sharp(png).resize(outW, outH).toBuffer()
-  return { png: shrunk, w: outW, h: outH, items: cellItems }
+  return { png: shrunk, w: outW, h: outH, items: cellItems, slotGhosts }
 }

@@ -12,6 +12,21 @@ import { parseBadgeDragGeometry, type BadgeDragGeometry } from "@/lib/badge-drag
  */
 const inflight = new Map<string, Promise<unknown>>()
 
+/**
+ * Geometry URL: the exact preview URL being displayed plus `debug=1&netgeo=1`
+ * and the ADDITIVE `ghosts=1` diagnostic flag. The flag only makes the report
+ * publish the EMPTY tunable places (box-only entries): the quality HOMES and
+ * the rating SLOTS this render does not paint. The editor draws them as
+ * draggable dashed ghosts so a home/slot can be arranged before the preview
+ * title paints that content. It never changes which badges exist nor a pixel.
+ */
+function badgeGeometryUrl(previewUrl: string): string {
+  const base = buildNetGeoUrl(previewUrl)
+  if (!base) return ""
+  if (/[?&]ghosts=1(?:&|$)/.test(base)) return base
+  return `${base}${base.includes("?") ? "&" : "?"}ghosts=1`
+}
+
 function fetchGeometryJson(url: string): Promise<unknown> {
   const existing = inflight.get(url)
   if (existing) return existing
@@ -127,7 +142,7 @@ export function useBadgeDragGeometry(
     const fetchedUrl = debouncedUrl
     const ctrl = new AbortController()
     setLoading(true)
-    fetchGeometryJson(buildNetGeoUrl(fetchedUrl))
+    fetchGeometryJson(badgeGeometryUrl(fetchedUrl))
       .then((json: unknown) => {
         if (seq !== seqRef.current || ctrl.signal.aborted) return
         setGeometry(parseBadgeDragGeometry(json))

@@ -464,6 +464,7 @@
   "ui.qbsKnockout": "Knockout",
   "ui.qbsPremium": "Premium",
   "ui.qbsNova": "Nova",
+  "ui.qbsGradient": "Gradient",
   "ui.blurDisabled": "Weichzeichner aus",
   "ui.selectedCount": "{count} ausgewählt",
   "ui.bsDefault": "Standard",

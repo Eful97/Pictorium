@@ -13,23 +13,59 @@
  *   - `rating:<source>`         one separate-rating provider (the same source
  *                               id used to resolve the value/logo, e.g.
  *                               `rating:imdb`, `rating:tomatoes`)
+ *   - `rating:slot:<n>`         a POSITIONAL slot of the separate-rating family
+ *                               (1..5, see below)
  *   - `quality:tier`            the quality tier badge slot (4K/FHD/HD/SD)
  *   - `quality:age`             the age/certification pill
  *   - `quality:format:<fmt>`    one A/V mark (`dv`, `hdr`, `hdr10plus`,
  *                               `atmos`, `imax`)
  *   - `quality:combo:dv-atmos`  the merged Dolby Vision + Atmos mark
+ *   - `quality:home:<kind>`     a NAMED HOME of the quality stack (see below)
  * An array index is NEVER part of an identity: a rating that disappears (no
  * data) or a reordered list can never inherit another provider's tuning. The
  * same holds for quality marks: `hdr` suppressed by `hdr10plus` (or `dv`/
  * `atmos` merged into the combo) simply stops being painted, so a stored
  * correction for it is inert — never transferred to the mark that replaced it.
  *
+ * HOMES are the deliberate exception, and they are a DIFFERENT feature: a home
+ * is not a badge identity but a NAMED, CONTENT-BOUND place of the quality
+ * stack. There are exactly five, one per content group:
+ *   `quality:home:tier`   the quality tier (4K/FHD/HD/SD)
+ *   `quality:home:age`    the age/certification pill
+ *   `quality:home:dolby`  Dolby: the merged `dv+atmos` combo, or whichever
+ *                         Dolby single/marks the existing merge logic paints
+ *   `quality:home:hdr`    HDR: `hdr10plus` (the existing priority suppresses
+ *                         `hdr`) or `hdr` alone
+ *   `quality:home:imax`   IMAX
+ * `homeIdForPainted` is the ONLY binding: whatever badge of a group paints on
+ * THIS title goes to its home, so a stored home correction follows the
+ * content group across titles and format sets (and an empty home is simply
+ * inert — a home is never "transferred" to another group).
+ *
+ * SLOTS are the positional exception, and they exist ONLY in the separate
+ * ratings. Those providers depend on the resolved config, so their set is not
+ * a closed catalog and their identity is data (a provider can disappear or
+ * reorder between titles): there is no content-bound name to bind a tuning to.
+ * `rating:slot:<n>` therefore means "the n-th painted pill" (1-based, in paint
+ * order), the retired quality-slot pattern restricted to this family. Slots
+ * live in the SAME map and the SAME family as `rating:<source>`, so the
+ * separate-family reset, the group cache key and the renderer's family filter
+ * cover them with the existing predicates (`isRatingItemId`). Out-of-range slot
+ * ids (0 or above `RATING_SLOT_MAX`) are rejected by `isBadgeItemId`, so they
+ * can never be stored, cached or rendered.
+ *
  * Composition order (single renderer, documented for client and server):
  *   1. the automatic layout places the item inside its group (unchanged
  *      default: the whole group keeps its automatic anchor, its group offset
  *      and its group scale);
- *   2. the item's own `scale` is applied about the item's own centre;
- *   3. the item's `offsetX/offsetY` are added on top (canvas px).
+ *   2. a stored HOME correction replaces the automatic stack position with the
+ *      element's ISOLATED reference box (the pinned group column at the group
+ *      anchor, see `poster-service.ts`), so the result is identical on every
+ *      title regardless of which neighbours are painted;
+ *   3. the item's own IDENTITY correction comes last: its `scale` about its
+ *      own (home-transformed) centre, then its `offsetX/offsetY`;
+ *      (2) and (3) are both `applyBadgeItemTransform` calls, so a home scale
+ *      resizes exactly like an identity scale — same helper, no second rule.
  * So a group move still moves every item, while an item correction is a
  * relative delta on top of it. A neutral entry (100/0/0) is never stored and
  * is indistinguishable from "no entry": unconfigured output stays identical.
@@ -42,6 +78,7 @@
  */
 
 import { BADGE_OFFSET_NUMERIC_LIMIT } from "./badge-offset-ranges"
+import { VIDEO_FORMAT_OPTIONS } from "./av-specs"
 
 /** One item correction: percentage scale + canvas px offsets. */
 export interface BadgeItemTransform {
@@ -65,6 +102,132 @@ export const BADGE_ITEM_SCALE_MAX = 200
 export const BADGE_ITEM_QUALITY_TIER = "quality:tier"
 export const BADGE_ITEM_QUALITY_AGE = "quality:age"
 export const BADGE_ITEM_QUALITY_COMBO = "quality:combo:dv-atmos"
+
+/**
+ * Content GROUPS of the quality stack: exactly one fixed home each (see the
+ * module contract). The group names are the user-visible content, never a
+ * stack position: `dolby` covers the merged combo and both Dolby singles,
+ * `hdr` covers HDR10+ (which suppresses HDR) and plain HDR.
+ */
+export type QualityHomeKind = "tier" | "age" | "dolby" | "hdr" | "imax"
+
+export const BADGE_ITEM_QUALITY_HOME_TIER = "quality:home:tier"
+export const BADGE_ITEM_QUALITY_HOME_AGE = "quality:home:age"
+export const BADGE_ITEM_QUALITY_HOME_DOLBY = "quality:home:dolby"
+export const BADGE_ITEM_QUALITY_HOME_HDR = "quality:home:hdr"
+export const BADGE_ITEM_QUALITY_HOME_IMAX = "quality:home:imax"
+
+const QUALITY_HOME_PREFIX = "quality:home:"
+
+/** Every home identity, in paint order (the UI row order). */
+export const BADGE_ITEM_QUALITY_HOMES: readonly string[] = [
+  BADGE_ITEM_QUALITY_HOME_TIER,
+  BADGE_ITEM_QUALITY_HOME_AGE,
+  BADGE_ITEM_QUALITY_HOME_DOLBY,
+  BADGE_ITEM_QUALITY_HOME_HDR,
+  BADGE_ITEM_QUALITY_HOME_IMAX,
+]
+
+const QUALITY_HOME_IDS: Readonly<Record<QualityHomeKind, string>> = {
+  tier: BADGE_ITEM_QUALITY_HOME_TIER,
+  age: BADGE_ITEM_QUALITY_HOME_AGE,
+  dolby: BADGE_ITEM_QUALITY_HOME_DOLBY,
+  hdr: BADGE_ITEM_QUALITY_HOME_HDR,
+  imax: BADGE_ITEM_QUALITY_HOME_IMAX,
+}
+
+/** True when the id is one of the five quality homes. */
+export function isQualityHomeItemId(id: string): boolean {
+  return qualityHomeKind(id) !== null
+}
+
+/** The content group of a home identity (null for any other id). */
+export function qualityHomeKind(id: string): QualityHomeKind | null {
+  if (!id.startsWith(QUALITY_HOME_PREFIX)) return null
+  const kind = id.slice(QUALITY_HOME_PREFIX.length)
+  return kind in QUALITY_HOME_IDS ? (kind as QualityHomeKind) : null
+}
+
+/** Identity of the home that owns content group `kind`. */
+export function qualityHomeItemId(kind: QualityHomeKind): string {
+  return QUALITY_HOME_IDS[kind]
+}
+
+/**
+ * Content group of a PAINTED badge identity — the single binding rule.
+ * Accepts a home identity as-is (a ghost target already IS its home), and
+ * returns null for anything that is not a quality/AV mark (`rating:*`).
+ */
+const FORMAT_HOME_KIND: Readonly<Record<string, QualityHomeKind>> = {
+  dv: "dolby",
+  atmos: "dolby",
+  hdr: "hdr",
+  hdr10plus: "hdr",
+  imax: "imax",
+}
+
+export function homeIdForPainted(id: string): string | null {
+  const home = qualityHomeKind(id)
+  if (home) return QUALITY_HOME_IDS[home]
+  if (id === BADGE_ITEM_QUALITY_TIER) return BADGE_ITEM_QUALITY_HOME_TIER
+  if (id === BADGE_ITEM_QUALITY_AGE) return BADGE_ITEM_QUALITY_HOME_AGE
+  if (id === BADGE_ITEM_QUALITY_COMBO) return BADGE_ITEM_QUALITY_HOME_DOLBY
+  if (id.startsWith("quality:format:")) {
+    const kind = FORMAT_HOME_KIND[id.slice("quality:format:".length)]
+    return kind ? QUALITY_HOME_IDS[kind] : null
+  }
+  return null
+}
+
+/**
+ * SLOTS of the separate-rating family (`rating:slot:<n>`, see the module
+ * contract). The count IS the existing separate-rating cap
+ * (`MAX_SEPARATE_RATINGS` in `ratings.ts`): it is mirrored here because this
+ * module is browser-safe and must not import the server ratings pipeline — a
+ * unit test asserts the two values stay equal, so the mirror can never drift.
+ */
+export const RATING_SLOT_MAX = 5
+
+const RATING_SLOT_PREFIX = "rating:slot:"
+
+/**
+ * Identity of the n-th painted pill (1-based). `null` outside 1..RATING_SLOT_MAX:
+ * an id that cannot be painted is never offered, stored or parsed.
+ */
+export function ratingSlotItemId(slot: number): string | null {
+  if (!finite(slot)) return null
+  const n = Math.round(slot)
+  return n >= 1 && n <= RATING_SLOT_MAX ? `${RATING_SLOT_PREFIX}${n}` : null
+}
+
+/** 1-based slot number of a slot identity (`null` for any other id). */
+export function ratingSlotIndex(id: string): number | null {
+  if (typeof id !== "string" || !id.startsWith(RATING_SLOT_PREFIX)) return null
+  const raw = id.slice(RATING_SLOT_PREFIX.length)
+  if (!/^[1-9][0-9]{0,2}$/.test(raw)) return null
+  const n = Number(raw)
+  return n >= 1 && n <= RATING_SLOT_MAX ? n : null
+}
+
+/** True when the id is one of the rating SLOTS (never a provider identity). */
+export function isRatingSlotItemId(id: string): boolean {
+  return ratingSlotIndex(id) !== null
+}
+
+/** Every slot identity, in paint order (the UI row order). */
+export const BADGE_ITEM_RATING_SLOTS: readonly string[] = Array.from(
+  { length: RATING_SLOT_MAX },
+  (_, index) => `${RATING_SLOT_PREFIX}${index + 1}`,
+)
+
+/**
+ * Code-literal label of a rating slot. A slot has no content to translate —
+ * there is no provider name behind "the 3rd painted pill" — so this label is a
+ * deliberate code literal: NO i18n key exists (or is added) for it.
+ */
+export function ratingSlotLabel(slot: number): string {
+  return `Slot Rating ${slot}`
+}
 
 export function ratingItemId(source: string | null | undefined): string | null {
   const id = normalizeIdentityPart(source)
@@ -91,7 +254,12 @@ function normalizeIdentityPart(raw: unknown): string | null {
 const ITEM_ID_RE = /^(rating|quality):[a-z0-9][a-z0-9:_.-]{0,47}$/
 
 export function isBadgeItemId(raw: unknown): raw is string {
-  return typeof raw === "string" && ITEM_ID_RE.test(raw)
+  if (typeof raw !== "string" || !ITEM_ID_RE.test(raw)) return false
+  // A slot identity is valid only inside 1..RATING_SLOT_MAX: `rating:slot:0`,
+  // `rating:slot:` and `rating:slot:6` are dropped here, so an out-of-range
+  // slot can never reach a cache key, a map or a render.
+  if (raw.startsWith(RATING_SLOT_PREFIX)) return ratingSlotIndex(raw) !== null
+  return true
 }
 
 /** True when the item kind is a separate-rating provider. */
@@ -99,7 +267,12 @@ export function isRatingItemId(id: string): boolean {
   return id.startsWith("rating:")
 }
 
-/** True when the item kind is a quality/AV mark. */
+/**
+ * True when the item kind is a quality/AV mark OR a quality stack home: the
+ * homes are part of the quality family (the prefix covers `quality:home:*`),
+ * so the family reset, the group cache key and the renderer's family filter
+ * must all see them.
+ */
 export function isQualityItemId(id: string): boolean {
   return id.startsWith("quality:")
 }
@@ -349,9 +522,34 @@ export function resizeBadgeItemTransform(
   return { scale: clampBadgeItemScale(scale), offsetX: base.offsetX, offsetY: base.offsetY }
 }
 
-/** Human label key for an item identity (translation keys in the component). */
-export function badgeItemLabelKind(id: string): { kind: "rating"; id: string } | { kind: "tier" | "age" | "combo" | "format"; format?: string } | null {
+/**
+ * Base label of a quality HOME, from EXISTING sources only: the quality and
+ * age translation keys, the Dolby lockup literal already used for the merged
+ * mark, and the A/V full names of `VIDEO_FORMAT_OPTIONS` (HDR / IMAX). No new
+ * translation key, no per-locale label to keep in sync (the UI prefixes the
+ * historical "Slot " code literal).
+ */
+export function qualityHomeBaseLabel(kind: QualityHomeKind, translate: (key: string) => string): string {
+  if (kind === "tier") return translate("ui.badgeQuality")
+  if (kind === "age") return translate("ui.ageBadge")
+  if (kind === "dolby") return "Dolby Vision + Atmos"
+  const format = kind === "hdr" ? "hdr" : "imax"
+  return VIDEO_FORMAT_OPTIONS.find((option) => option.id === format)?.fullName ?? kind.toUpperCase()
+}
+
+/**
+ * Human label key for an item identity (translation keys in the component).
+ * A HOME is a content group, so its label reuses the EXISTING sources of the
+ * group (no new translation key, no per-locale label): `kind` is the group.
+ */
+export function badgeItemLabelKind(id: string): { kind: "rating"; id: string } | { kind: "slot"; slot: number } | { kind: "tier" | "age" | "combo" | "format"; format?: string } | { kind: "home"; home: QualityHomeKind } | null {
+  // A slot is checked BEFORE the provider identity: its id also starts with
+  // `rating:`, but it is a position, not a provider.
+  const slot = ratingSlotIndex(id)
+  if (slot !== null) return { kind: "slot", slot }
   if (isRatingItemId(id)) return { kind: "rating", id: id.slice("rating:".length) }
+  const home = qualityHomeKind(id)
+  if (home) return { kind: "home", home }
   if (id === BADGE_ITEM_QUALITY_TIER) return { kind: "tier" }
   if (id === BADGE_ITEM_QUALITY_AGE) return { kind: "age" }
   if (id === BADGE_ITEM_QUALITY_COMBO) return { kind: "combo" }
