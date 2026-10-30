@@ -11,5 +11,6 @@ export interface RecentChange {
 }
 
 export const RECENT_CHANGES: RecentChange[] = [
+  { type: "feature", text: "Gradient style plus fixed slots for quality and rating badges", sha: "3d2cf54", date: "2026-10-30" },
   { type: "feature", text: "Add Paramount+ with Showtime combined network mark", sha: "5d8a44d", date: "2026-10-30" },
 ]
