@@ -19,8 +19,9 @@ const MAX_HTML_BYTES = 2 * 1024 * 1024
 const MAX_IMAGE_BYTES = 10 * 1024 * 1024
 
 /**
- * Allowlist v1 (chiusa e verificabile): solo Pinterest, Imgur e Reddit con i
- * rispettivi CDN, più Fanart.tv, artwork TVDB, asset diretti TPDb
+ * Allowlist v1 (chiusa e verificabile): solo Pinterest, Imgur, Reddit e
+ * Postimages con i rispettivi CDN, più Fanart.tv, artwork TVDB, asset
+ * diretti TPDb
  * (direct-only: /api/assets/<id> con /view opzionale, mai pagine — vedi
  * TPDB_HOST) e immagini dirette dal CDN TMDB (direct-only: host esatto
  * image.tmdb.org + /t/p/<size>/<file> raster — vedi TMDB_IMAGE_HOST).
@@ -38,6 +39,14 @@ const PINTEREST_HOST_RE = /(^|\.)pinterest\.[a-z]{2,}(\.[a-z]{2,})?$/
 const PINIMG_HOST_RE = /(^|\.)pinimg\.com$/
 const IMGUR_HOST_RE = /(^|\.)imgur\.com$/
 const REDDIT_HOST_RE = /(^|\.)(reddit\.com|redd\.it)$/
+// Postimages: pagine di condivisione su postimages.org e short-link su
+// postimg.cc (sottodomini inclusi con lo stesso boundary-check di
+// Pinterest/Imgur: evilpostimages.org e postimages.org.evil.com restano
+// fuori); byte diretti SOLO dall'host esatto i.postimg.cc (come
+// i.imgur.com: niente sottodomini generici).
+const POSTIMAGES_HOST_RE = /(^|\.)postimages\.org$/
+const POSTIMG_HOST_RE = /(^|\.)postimg\.cc$/
+const POSTIMG_CC_CDN_HOST = "i.postimg.cc"
 const FANART_HOST_RE = /(^|\.)fanart\.tv$/
 // TVDB artworks: host ESATTO (niente sottodomini generici, niente lookalike
 // via suffisso — il boundary check sotto rifiuta `evilartworks.thetvdb.com`
@@ -151,11 +160,14 @@ export function isAllowedResolveHost(hostname: string): boolean {
   if (h === TVDB_ARTWORKS_HOST) return true
   if (h === TPDB_HOST) return true
   if (h === TMDB_IMAGE_HOST) return true
+  if (h === POSTIMG_CC_CDN_HOST) return true
   return (
     PINTEREST_HOST_RE.test(h) ||
     PINIMG_HOST_RE.test(h) ||
     IMGUR_HOST_RE.test(h) ||
     REDDIT_HOST_RE.test(h) ||
+    POSTIMAGES_HOST_RE.test(h) ||
+    POSTIMG_HOST_RE.test(h) ||
     FANART_HOST_RE.test(h)
   )
 }
@@ -170,6 +182,7 @@ function isImageCdnHost(hostname: string): boolean {
     h === "preview.redd.it" ||
     h === "share.redd.it" ||
     h === "assets.fanart.tv" ||
+    h === POSTIMG_CC_CDN_HOST ||
     h === TVDB_ARTWORKS_HOST ||
     isTmdbImageHostname(hostname)
   )

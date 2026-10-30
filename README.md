@@ -124,7 +124,7 @@ Want to self-host instead? See [Quick Deploy](#-quick-deploy): [Vercel](#-vercel
 
 ### 🖼️ Posters, Logos & Graphics
 * **Clean Poster Selection**: Select textless posters with one click from official TMDB candidates (`iso_639_1 === null`).
-* **Custom Poster URL Import**: Import any artwork via direct URL, Pinterest, Imgur, or Reddit with live preview, tile management, and persistent custom artwork.
+* **Custom Poster URL Import**: Import any artwork via direct URL, Pinterest, Imgur, Reddit, or Postimages with live preview, tile management, and persistent custom artwork.
 * **Smart Best-Fit Algorithm**: Analyzes brightness and empty space to automatically scale and position logos without obscuring faces.
 * **Cinematic Background Blur (Sharp C++)**: Progressive intensity toward the base with same-hue scene tint, quadratic darkening and anti-seam, in a few ms with minimal RAM usage.
 * **24h Auto-Rotation**: Automatically rotates through multiple saved clean posters daily for the same title.

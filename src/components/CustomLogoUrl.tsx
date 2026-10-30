@@ -30,7 +30,7 @@ interface Props {
 
 /**
  * Logo from an external URL (same allowlist policy as the custom base:
- * Pinterest/Imgur/Reddit + direct TPDb asset links /api/assets/<id>/view —
+ * Pinterest/Imgur/Reddit/Postimages + direct TPDb asset links /api/assets/<id>/view —
  * resolved via /api/resolve-image, raster-only, no SVG).
  *
  * Add-only semantics like CustomPosterUrl: "Add" resolves the URL and

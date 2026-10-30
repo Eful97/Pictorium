@@ -31,7 +31,7 @@ describe("buildCspHeader", () => {
     "default-src 'self'; " +
     "script-src 'self' 'unsafe-inline'; " +
     "style-src 'self' 'unsafe-inline'; " +
-    "img-src 'self' data: blob: https://image.tmdb.org https://theposterdb.com https://artworks.thetvdb.com https://assets.fanart.tv https://i.pinimg.com https://i.imgur.com https://i.redd.it https://preview.redd.it https://share.redd.it; " +
+    "img-src 'self' data: blob: https://image.tmdb.org https://theposterdb.com https://artworks.thetvdb.com https://assets.fanart.tv https://i.pinimg.com https://i.imgur.com https://i.redd.it https://preview.redd.it https://share.redd.it https://postimages.org https://i.postimg.cc; " +
     "font-src 'self'; " +
     "connect-src 'self'; " +
     "object-src 'none'; " +
@@ -64,6 +64,8 @@ describe("buildCspHeader", () => {
       "https://i.redd.it",
       "https://preview.redd.it",
       "https://share.redd.it",
+      "https://postimages.org",
+      "https://i.postimg.cc",
     ]) {
       expect(header).toContain(host)
     }

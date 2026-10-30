@@ -27,7 +27,7 @@ interface Props {
 }
 
 /**
- * External-URL base (Pinterest/Imgur/Reddit plus direct TPDb asset links
+ * External-URL base (Pinterest/Imgur/Reddit/Postimages plus direct TPDb asset links
  * "Copy Poster Link" /api/assets/<id>/view — never poster/set pages) for the
  * selected title, in the editing shape: portrait freezes `customPosterUrl`,
  * landscape freezes `customBackdropUrl` (per-format independent bases). Live

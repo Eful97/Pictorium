@@ -97,6 +97,13 @@ describe("resolve-image allowlist", () => {
       "redd.it",
       "assets.fanart.tv",
       "fanart.tv",
+      // Postimages: pagine su postimages.org/postimg.cc (+ sottodomini),
+      // byte diretti solo da i.postimg.cc esatto
+      "postimages.org",
+      "www.postimages.org",
+      "postimg.cc",
+      "www.postimg.cc",
+      "i.postimg.cc",
       // TPDb direct-only: host esatto (il path /api/assets/<id>/view è
       // gated da isTpdbDirectAssetUrl, non dall'host)
       "theposterdb.com",
@@ -122,6 +129,14 @@ describe("resolve-image allowlist", () => {
       "theposterdb.com.evil.com",
       "eviltheposterdb.com",
       "nottheposterdb.com",
+      // Postimages: lookalike fuori lista (postimg.cc nudo e sottodomini
+      // sono dentro: vedi allow-list sopra)
+      "evilpostimages.org",
+      "postimages.org.evil.com",
+      "notpostimages.org",
+      "evilpostimg.cc",
+      "postimg.cc.evil.com",
+      "i.postimg.cc.evil.com",
     ]) {
       expect(isAllowedResolveHost(h)).toBe(false)
     }
@@ -226,6 +241,19 @@ describe("TPDb direct asset (direct-only, mai pagine)", () => {
     expect(isAllowedCustomImageUrl("https://i.imgur.com/x.jpg")).toBe(true)
     expect(isAllowedCustomImageUrl("https://evil.com/x.jpg")).toBe(false)
     expect(isAllowedCustomImageUrl("not a url")).toBe(false)
+  })
+
+  it("Postimages: pagine postimages.org/postimg.cc e byte da i.postimg.cc", () => {
+    expect(isAllowedCustomImageUrl("https://postimages.org/it/gallery/abc123")).toBe(true)
+    expect(isAllowedCustomImageUrl("https://www.postimages.org/abc123")).toBe(true)
+    expect(isAllowedCustomImageUrl("https://postimg.cc/VrQT6nWj")).toBe(true)
+    expect(isAllowedCustomImageUrl("https://www.postimg.cc/VrQT6nWj")).toBe(true)
+    expect(isAllowedCustomImageUrl("https://i.postimg.cc/abc123/poster.jpg")).toBe(true)
+    expect(looksLikeDirectImage("https://i.postimg.cc/abc123/poster.jpg")).toBe(true)
+    expect(isAllowedCustomImageUrl("https://evilpostimages.org/x")).toBe(false)
+    expect(isAllowedCustomImageUrl("https://postimages.org.evil.com/x.jpg")).toBe(false)
+    expect(isAllowedCustomImageUrl("https://evilpostimg.cc/a.jpg")).toBe(false)
+    expect(isAllowedCustomImageUrl("https://ftp://i.postimg.cc/a.jpg")).toBe(false)
   })
 
   it("risolve un asset diretto con byte verificati", async () => {
