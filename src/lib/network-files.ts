@@ -11,7 +11,7 @@
  *   and the disabled-marks sanitizer — but never filenames.
  *
  * Iteration order is canonical: it matches `NETWORK_IDS` entry for entry
- * (75 bundled marks, studios included; PNG/WebP marks included verbatim —
+ * (76 bundled marks, studios included; PNG/WebP marks included verbatim —
  * never silently dropped). Non-SVG bundled marks (`.png`/`.webp`) are part
  * of this map on purpose: the renderer and the UI must agree on every mark.
  *
@@ -44,6 +44,8 @@ export const NETWORK_MARK_FILES: Readonly<Record<string, string>> = {
   nbc: "NBC_logo.svg", // peacock colors updated 2026-08-28
   mbs: "Mainichi_Broadcasting_System_logo.svg",
   showtime: "Showtime_logo.svg",
+  // Lockup unico per titoli con ENTRAMBE le reti (vedi `getCombinedNetworkKey`).
+  paramount_showtime: "Paramount+_with_Showtime_logo.svg",
   warner: "Warner_Bros_logo.svg",
   universal: "Universal_Pictures_logo.svg",
   century: "20th_Century_Studios_(2020) [Recuperato].svg",

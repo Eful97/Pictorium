@@ -6,7 +6,7 @@
  * modules (not via `networkAssetKeys()` simply returning `NETWORK_IDS`,
  * which would not validate the mapping):
  *
- * - the shared map covers exactly the 75 canonical IDs in canonical order;
+ * - the shared map covers exactly the 76 canonical IDs in canonical order;
  * - every UI thumbnail URL (`networkAssetUrl`) resolves through the shared
  *   map and points at a file that exists in `public/networks/`;
  * - non-SVG bundled marks (PNG/WebP) are preserved verbatim;
@@ -28,10 +28,19 @@ function readSource(rel: string): string {
 }
 
 describe("network filename registry coherence", () => {
-  it("shared map covers exactly the 75 canonical IDs in canonical order", () => {
+  it("shared map covers exactly the 76 canonical IDs in canonical order", () => {
     expect(Object.keys(NETWORK_MARK_FILES)).toEqual([...NETWORK_IDS])
-    expect(NETWORK_IDS).toHaveLength(75)
-    expect(new Set(Object.values(NETWORK_MARK_FILES)).size).toBe(75)
+    expect(NETWORK_IDS).toHaveLength(76)
+    expect(new Set(Object.values(NETWORK_MARK_FILES)).size).toBe(76)
+  })
+
+  it("bundles the Paramount+ with Showtime combined lockup under its own key", () => {
+    // Combined brand lockup: one bundled vector, canonical order kept next to
+    // its two constituent marks (showtime, then the combined key).
+    expect(NETWORK_IDS).toContain("paramount_showtime")
+    expect(NETWORK_IDS.indexOf("paramount_showtime")).toBe(NETWORK_IDS.indexOf("showtime") + 1)
+    expect(NETWORK_MARK_FILES["paramount_showtime"]).toBe("Paramount+_with_Showtime_logo.svg")
+    expect(networkAssetUrl("paramount_showtime")).toBe("/networks/Paramount+_with_Showtime_logo.svg")
   })
 
   it("every UI thumbnail URL resolves through the shared map to an existing file", () => {
@@ -76,5 +85,6 @@ describe("network filename registry coherence", () => {
     // identity, never the Prime Video mark).
     expect(NETWORK_MARK_FILES["amazon_mgm"]).toBe("Amazon_MGM_Studios_Logo_2.svg")
     expect(NETWORK_MARK_FILES["mgm_plus"]).toBe("MGM+_logo.svg")
+    expect(NETWORK_MARK_FILES["paramount_showtime"]).toBe("Paramount+_with_Showtime_logo.svg")
   })
 })

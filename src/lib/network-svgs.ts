@@ -1,7 +1,14 @@
 import fs from "fs"
 import path from "path"
 import { createLogger } from "@/lib/logger"
-import { getNetworkKey, isNetworkDisabled, isOtherNetworkMarkDisabled, isTmdbFallbackDisabled } from "@/lib/network-keys"
+import {
+  getCombinedNetworkKey,
+  getNetworkKey,
+  isNetworkDisabled,
+  isOtherNetworkMarkDisabled,
+  isTmdbFallbackDisabled,
+  NETWORK_DISPLAY_NAMES,
+} from "@/lib/network-keys"
 import { NETWORK_MARK_FILES } from "@/lib/network-files"
 
 const log = createLogger("network-svgs")
@@ -281,12 +288,41 @@ async function loadNetworkPng(networkKey: string, pw: number, topLight: boolean 
   }
 }
 
+/**
+ * Combined-lockup pre-pass shared by EVERY first-match entry point (pill/raw,
+ * legacy/hybrid): when the candidate list carries both constituent brands,
+ * the single bundled combined mark wins before normal first-match. The rule
+ * itself (both present + both enabled) lives once in
+ * `network-keys.ts:getCombinedNetworkKey`; this only loads and reports it.
+ */
+async function renderCombinedNetworkLockup(
+  names: readonly (string | null | undefined)[],
+  pw: number,
+  topLight: boolean,
+  disabledNetworks: readonly string[] | null | undefined,
+  raw: boolean,
+): Promise<{ png: Buffer; w: number; h: number; networkKey: string; matchedName: string } | null> {
+  const combinedKey = getCombinedNetworkKey(names, disabledNetworks)
+  if (!combinedKey) return null
+  const result = raw
+    ? await loadNetworkRawPng(combinedKey, pw, topLight)
+    : await loadNetworkPng(combinedKey, pw, topLight)
+  if (!result) return null
+  return {
+    ...result,
+    networkKey: combinedKey,
+    matchedName: NETWORK_DISPLAY_NAMES[combinedKey] ?? combinedKey,
+  }
+}
+
 export async function renderFirstMatchingNetworkLogoBadge(
   names: (string | null | undefined)[],
   pw: number = 500,
   topLight: boolean = false,
   disabledNetworks?: readonly string[] | null,
 ): Promise<{ png: Buffer; w: number; h: number; networkKey: string; matchedName: string } | null> {
+  const combined = await renderCombinedNetworkLockup(names, pw, topLight, disabledNetworks, false)
+  if (combined) return combined
   for (const name of names) {
     if (!name) continue
     if (shouldSkipNbcForJapaneseList(names, name)) continue
@@ -481,6 +517,9 @@ export async function renderFirstMatchingNetworkLogoBadgeHybrid(
   disabledNetworks?: readonly string[] | null,
 ): Promise<{ png: Buffer; w: number; h: number; networkKey: string; matchedName: string } | null> {
   const names = candidates.map((c) => (typeof c === "string" ? c : c?.name) ?? null).filter(Boolean) as string[]
+  // Combined-lockup pre-pass: both brands present and enabled → one mark.
+  const combined = await renderCombinedNetworkLockup(names, pw, topLight, disabledNetworks, false)
+  if (combined) return combined
   // Pass 1: tutti gli SVG
   for (const cand of candidates) {
     if (!cand) continue
@@ -522,6 +561,9 @@ export async function renderFirstMatchingNetworkRawBadgeHybrid(
   disabledNetworks?: readonly string[] | null,
 ): Promise<{ png: Buffer; w: number; h: number; networkKey: string; matchedName: string } | null> {
   const names = candidates.map((c) => (typeof c === "string" ? c : c?.name) ?? null).filter(Boolean) as string[]
+  // Combined-lockup pre-pass: both brands present and enabled → one mark.
+  const combined = await renderCombinedNetworkLockup(names, pw, topLight, disabledNetworks, true)
+  if (combined) return combined
   // Pass 1: tutti gli SVG (colore originale)
   for (const cand of candidates) {
     if (!cand) continue
@@ -652,6 +694,8 @@ export async function renderFirstMatchingNetworkRawBadge(
   topLight: boolean = false,
   disabledNetworks?: readonly string[] | null,
 ): Promise<{ png: Buffer; w: number; h: number; networkKey: string; matchedName: string } | null> {
+  const combined = await renderCombinedNetworkLockup(names, pw, topLight, disabledNetworks, true)
+  if (combined) return combined
   for (const name of names) {
     if (!name) continue
     if (shouldSkipNbcForJapaneseList(names, name)) continue

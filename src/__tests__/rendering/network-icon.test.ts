@@ -1,5 +1,14 @@
 import { describe, expect, it } from "vitest"
-import { getNetworkSvgResult, renderFirstMatchingNetworkLogoBadgeHybrid, renderFirstMatchingNetworkRawBadgeHybrid, renderNetworkLogoBadge, renderNetworkRawBadge } from "@/lib/network-svgs"
+import {
+  getNetworkSvgResult,
+  renderFirstMatchingNetworkLogoBadge,
+  renderFirstMatchingNetworkLogoBadgeHybrid,
+  renderFirstMatchingNetworkRawBadge,
+  renderFirstMatchingNetworkRawBadgeHybrid,
+  renderNetworkLogoBadge,
+  renderNetworkRawBadge,
+} from "@/lib/network-svgs"
+import { TMDB_FALLBACK_SENTINEL } from "@/lib/network-keys"
 import { renderNetworkOnlyLargePill } from "@/lib/poster-service"
 
 describe("network-svgs", () => {
@@ -681,6 +690,91 @@ describe("network-svgs", () => {
     expect(getNetworkSvgResult("BONES", 500)?.networkKey).toBe("bones")
     expect(getNetworkSvgResult("Studio Bones", 500)?.networkKey).toBe("bones")
     expect(getNetworkSvgResult("BONES Studio", 500)?.networkKey).toBe("bones")
+  })
+})
+
+describe("Paramount+ with Showtime combined lockup", () => {
+  it("maps the literal combined TMDB name to the combined mark, ahead of generic Paramount+", () => {
+    expect(getNetworkSvgResult("Paramount+ with Showtime", 500)?.networkKey).toBe("paramount_showtime")
+    expect(getNetworkSvgResult("PARAMOUNT+ WITH SHOWTIME", 500)?.networkKey).toBe("paramount_showtime")
+    expect(getNetworkSvgResult("Paramount Plus with Showtime", 500)?.networkKey).toBe("paramount_showtime")
+    // The single brands keep their own marks (no collapse into one another).
+    expect(getNetworkSvgResult("Paramount+", 500)?.networkKey).toBe("paramount")
+    expect(getNetworkSvgResult("Showtime", 500)?.networkKey).toBe("showtime")
+  })
+
+  it("renders ONE combined mark when both brands are present (all four render paths)", async () => {
+    const both = ["Paramount+", "Showtime"]
+    expect((await renderFirstMatchingNetworkLogoBadge(both, 500))?.networkKey).toBe("paramount_showtime")
+    expect((await renderFirstMatchingNetworkRawBadge(both, 500))?.networkKey).toBe("paramount_showtime")
+    const detailed = [
+      { name: "Paramount+", logoPath: "/p.png" },
+      { name: "Showtime", logoPath: "/s.png" },
+    ]
+    const hybrid = await renderFirstMatchingNetworkLogoBadgeHybrid(detailed, 500)
+    expect(hybrid?.networkKey).toBe("paramount_showtime")
+    const hybridRaw = await renderFirstMatchingNetworkRawBadgeHybrid(detailed, 500)
+    expect(hybridRaw?.networkKey).toBe("paramount_showtime")
+    // The rendered bitmap is the bundled lockup, not one of the two single marks.
+    const single = await renderNetworkLogoBadge("Paramount+", 500)
+    expect(hybrid!.png.equals(single!.png)).toBe(false)
+  })
+
+  it("is order-agnostic: Showtime listed first still yields the combined mark", async () => {
+    const res = await renderFirstMatchingNetworkLogoBadge(["Showtime", "Paramount+"], 500)
+    expect(res?.networkKey).toBe("paramount_showtime")
+  })
+
+  it("only replaces a match it is made of: another network's first-match is never hijacked", async () => {
+    // The lockup replaces paramount/showtime, not whatever leads the list.
+    expect((await renderFirstMatchingNetworkLogoBadge(["Netflix", "Showtime", "Paramount+"], 500))?.networkKey).toBe("netflix")
+    expect((await renderFirstMatchingNetworkRawBadge(["HBO Max", "Paramount+", "Showtime"], 500))?.networkKey).toBe("hbo")
+    const hybrid = await renderFirstMatchingNetworkLogoBadgeHybrid(
+      [
+        { name: "Apple TV+", logoPath: null },
+        { name: "Paramount+", logoPath: null },
+        { name: "Showtime", logoPath: null },
+      ],
+      500,
+    )
+    expect(hybrid?.networkKey).toBe("apple")
+    // A disabled constituent also never resurrects the lockup over a leading mark.
+    expect(
+      (await renderFirstMatchingNetworkLogoBadge(["Netflix", "Paramount+", "Showtime"], 500, false, ["showtime"]))
+        ?.networkKey,
+    ).toBe("netflix")
+  })
+
+  it("leaves single-network titles untouched (no combined mark without both)", async () => {
+    expect((await renderFirstMatchingNetworkLogoBadge(["Paramount+"], 500))?.networkKey).toBe("paramount")
+    expect((await renderFirstMatchingNetworkLogoBadge(["Showtime"], 500))?.networkKey).toBe("showtime")
+  })
+
+  it("falls back to normal first-match when either brand (or the lockup) is disabled", async () => {
+    // showtime is non-featured (shared Other group), paramount is featured.
+    expect(
+      (await renderFirstMatchingNetworkLogoBadge(["Paramount+", "Showtime"], 500, false, ["showtime"]))?.networkKey,
+    ).toBe("paramount")
+    expect(
+      (await renderFirstMatchingNetworkLogoBadge(["Paramount+", "Showtime"], 500, false, ["paramount"]))?.networkKey,
+    ).toBe("showtime")
+    // Other group OFF drops the non-featured half → no lockup, featured half stays.
+    expect(
+      (await renderFirstMatchingNetworkLogoBadge(["Paramount+", "Showtime"], 500, false, [TMDB_FALLBACK_SENTINEL]))?.networkKey,
+    ).toBe("paramount")
+    // The combined mark itself disabled → same fall-through.
+    expect(
+      (await renderFirstMatchingNetworkLogoBadge(["Paramount+", "Showtime"], 500, false, ["paramount_showtime"]))?.networkKey,
+    ).toBe("paramount")
+    // Hybrid path honors the same gates.
+    const hybrid = await renderFirstMatchingNetworkLogoBadgeHybrid(
+      [{ name: "Paramount+", logoPath: null }, { name: "Showtime", logoPath: null }],
+      500,
+      false,
+      undefined,
+      ["showtime"],
+    )
+    expect(hybrid?.networkKey).toBe("paramount")
   })
 })
 

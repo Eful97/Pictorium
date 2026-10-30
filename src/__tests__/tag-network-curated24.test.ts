@@ -5,14 +5,14 @@
  * - 9 bundled marks (peacock, discovery_plus, bbc, itv, channel4,
  *   starz, britbox, argos, real_time) with clean filenames: single matcher aliases,
  *   guarded against substring false positives; peacock wins over generic NBC.
- * - registry coherence: 75 IDs ↔ 75 files, display names, asset existence,
+ * - registry coherence: 76 IDs ↔ 76 files, display names, asset existence,
  *   old upload names gone, new provider-glass brands fall back to neutral
  *   (no invented palette).
  * - renderer semantics: Other OFF suppresses every non-featured local mark
  *   before load AND the whole TMDB fallback before fetch; featured marks
  *   stay on their own toggles; old stored hidden IDs are preserved and
  *   honored individually.
- * - transport: bounds/token/URL/cache carry all 76 entries; mixed groups
+ * - transport: bounds/token/URL/cache carry all 77 entries; mixed groups
  *   stay explicit (never silently migrated).
  */
 import { describe, it, expect, vi, beforeEach } from "vitest"
@@ -56,10 +56,10 @@ const mockedFetchImg = vi.mocked(fetchImg)
 
 const ROOT = path.resolve(__dirname, "../..")
 
-describe("curated registry (75 marks, 24 featured)", () => {
-  it("exposes 75 canonical IDs with display names and a 24-strong featured set", () => {
-    expect(NETWORK_IDS).toHaveLength(75)
-    expect(new Set(NETWORK_IDS).size).toBe(75)
+describe("curated registry (76 marks, 24 featured)", () => {
+  it("exposes 76 canonical IDs with display names and a 24-strong featured set", () => {
+    expect(NETWORK_IDS).toHaveLength(76)
+    expect(new Set(NETWORK_IDS).size).toBe(76)
     for (const id of NETWORK_IDS) {
       expect(typeof NETWORK_DISPLAY_NAMES[id]).toBe("string")
       expect(NETWORK_DISPLAY_NAMES[id].length).toBeGreaterThan(0)
@@ -100,6 +100,24 @@ describe("curated registry (75 marks, 24 featured)", () => {
     expect(NETWORK_DISPLAY_NAMES["britbox"]).toBe("BritBox")
     expect(NETWORK_DISPLAY_NAMES["argos"]).toBe("Argos")
     expect(NETWORK_DISPLAY_NAMES["real_time"]).toBe("Real Time")
+    expect(NETWORK_MARK_FILES["paramount_showtime"]).toBe("Paramount+_with_Showtime_logo.svg")
+    expect(NETWORK_DISPLAY_NAMES["paramount_showtime"]).toBe("Paramount+ with Showtime")
+  })
+
+  it("gates the combined Paramount+/Showtime lockup through the shared Other group", () => {
+    // Never its own settings row: the combined mark rides `Altri loghi`.
+    expect(isFeaturedNetworkKey("paramount_showtime")).toBe(false)
+    expect(isOtherNetworkMarkDisabled("paramount_showtime", [])).toBe(false)
+    expect(isOtherNetworkMarkDisabled("paramount_showtime", [TMDB_FALLBACK_SENTINEL])).toBe(true)
+    expect(isOtherNetworkMarkDisabled("paramount_showtime", ["paramount_showtime"])).toBe(true)
+    // The key is a registered mark: it survives the disabled-list sanitizer.
+    expect(sanitizeDisabledNetworks(["paramount_showtime"])).toEqual(["paramount_showtime"])
+    // Constituents keep their own gates (paramount featured, showtime grouped):
+    // if either is OFF the combined lockup is skipped (renderer-level test in
+    // rendering/network-icon.test.ts).
+    expect(isFeaturedNetworkKey("paramount")).toBe(true)
+    expect(isOtherNetworkMarkDisabled("paramount", [TMDB_FALLBACK_SENTINEL])).toBe(false)
+    expect(isOtherNetworkMarkDisabled("showtime", [TMDB_FALLBACK_SENTINEL])).toBe(true)
   })
 
   it("maps the user-authorized Real Time mark with full-phrase guards", () => {
@@ -370,15 +388,15 @@ describe("curated renderer semantics (Other group)", () => {
 })
 
 describe("curated transport (bounds, token, URL, cache)", () => {
-  it("bounds derive from the registry: 75 + sentinel = 76", () => {
+  it("bounds derive from the registry: 76 + sentinel = 77", () => {
     expect(MAX_DISABLED_NETWORKS).toBe(NETWORK_IDS.length + 1)
-    expect(MAX_DISABLED_NETWORKS).toBe(76)
+    expect(MAX_DISABLED_NETWORKS).toBe(77)
     const full = [...NETWORK_IDS, TMDB_FALLBACK_SENTINEL]
     expect(sanitizeDisabledNetworks(full)).toEqual(full)
-    expect(sanitizeDisabledNetworks([...full, "extra-overflow"])).toHaveLength(76)
+    expect(sanitizeDisabledNetworks([...full, "extra-overflow"])).toHaveLength(77)
   })
 
-  it("config tokens accept the full 76-entry list and reject overlong ones", () => {
+  it("config tokens accept the full 77-entry list and reject overlong ones", () => {
     const base = {
       globalBadges: true,
       rankingBadges: true,
@@ -400,7 +418,7 @@ describe("curated transport (bounds, token, URL, cache)", () => {
       partialCatalogTokenSchema.safeParse({ disabledNetworks: full }).success,
     ).toBe(true)
     expect(
-      configTokenSchema.safeParse({ ...base, disabledNetworks: [...full, "extra-overflow"] }).success,
+      configTokenSchema.safeParse({ ...base, disabledNetworks: [...full, "extra-overflow", "also-overflow"] }).success,
     ).toBe(false)
     // Stored hidden IDs (old or new) survive the schema: no silent migration.
     expect(
