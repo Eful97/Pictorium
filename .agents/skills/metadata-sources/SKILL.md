@@ -59,9 +59,10 @@ and/or the trend badges. Full architecture: `.agents/catalog.md`.
   retention + 60s gate, never a fake empty; a successful JW `[]` publishes a
   genuine empty). Chart-date freshness is bounded and deterministic: the
   chart-level `date` (document top-level `date` only when the chart carries
-  none) must equal the current or previous Europe/Rome calendar day — older
-  is stale, future/invalid is rejected; `scraped_at_utc` and fetch/cache
-  timestamps never count. Absent platform split (overall-only platforms) is a
+  none) must fall within the current + two previous Europe/Rome calendar days
+  (age 0..2, tolerating one skipped publish) — older is stale, future/invalid
+  is rejected; `scraped_at_utc` and fetch/cache timestamps never count.
+  Absent platform split (overall-only platforms) is a
   fallback, never a fake FP empty. Published snapshots carry the actual
   per-side provenance (`justwatch`/`flixpatrol`) as internal diagnostics.
   Legacy `platform:` families keep the historic JW unions (NOW via Peacock,

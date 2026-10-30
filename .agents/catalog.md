@@ -95,10 +95,12 @@ chart: ogni lista film/serie è interamente FP o interamente JW):
    valida vince con ZERO traffico JW. Freschezza bounded e deterministica
    (vedi sotto): chart-level `date` (fallback al `date` top-level di documento
    solo se la chart non ne porta uno), formato inglese `October 22, 2026`
-   (più fallback ISO), valida SOLO se pari al giorno corrente o precedente di
-   Europe/Rome (il crawler pubblica una volta al giorno; oltre ieri = stantia,
-   futuro/invalida = rifiutata). `scraped_at_utc` e timestamp di fetch/cache
-   non contano mai (niente laundering del fetched-at: una cache TTL-fresh con
+   (più fallback ISO), valida SOLO entro la finestra di 3 giorni (giorno
+   corrente e due precedenti) di Europe/Rome (il crawler pubblica una volta al
+   giorno e può saltarne una: la finestra 0..2 tollera un publish saltato;
+   oltre due giorni = stantia, futuro/invalida = rifiutata).
+   `scraped_at_utc` e timestamp di fetch/cache non contano mai (niente
+   laundering del fetched-at: una cache TTL-fresh con
    date stantie è rifiutata come un payload di rete). Un documento paese interamente vuoto (`charts: []`)
     non è mai un dato valido: viene messo in quarantena come integrity
     failure (mai servito, mai sovrascritto sopra un cache buono; retry dopo

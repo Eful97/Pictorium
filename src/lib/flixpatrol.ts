@@ -300,14 +300,16 @@ export function isEmptyCountryDocument(doc: unknown): doc is CatalogData {
 //
 // A platform+country+media chart is usable only when its chart-level `date`
 // (falling back to the document top-level `date` when the chart carries
-// none) parses as a valid calendar day AND equals the current or previous
-// Europe/Rome calendar day. Rationale: fp-crawler publishes once per day;
-// just after midnight Rome the newest chart can still be yesterday's.
-// Anything older than yesterday is stale; any future date is rejected
-// (crawler clock error). `scraped_at_utc` and fetch/cache timestamps are
-// NEVER used (no fetched-at laundering): a freshly fetched old chart — or
-// a TTL-fresh cache hit of one — is still stale. Bounded: a chart is trusted
-// at most ~48h past its date.
+// none) parses as a valid calendar day AND equals the current, previous or
+// one-before-previous Europe/Rome calendar day. Rationale: fp-crawler
+// publishes once per day; just after midnight Rome the newest chart can still
+// be yesterday's, and the crawler can skip a publish day entirely (observed
+// 2026-10-29), so a one-day publish gap must not retire every chart at once.
+// Anything older than 2 days is stale; any future date is rejected (crawler
+// clock error). `scraped_at_utc` and fetch/cache timestamps are NEVER used
+// (no fetched-at laundering): a freshly fetched old chart — or a TTL-fresh
+// cache hit of one — is still stale. Bounded: a chart is trusted at most
+// ~72h past its date.
 // ---------------------------------------------------------------------------
 
 const FLIX_MONTH_INDEX: Record<string, number> = {
@@ -371,6 +373,7 @@ export function romeDayNumber(nowMs: number = Date.now()): number {
  * date wins; the document top-level date fills in only when the chart carries
  * none (absent/blank) — a present-but-unparseable chart date is stale, never
  * rescued by the document date. Anything unparseable (or a future day) fails.
+ * Bounded window: today and the two previous Europe/Rome days (age 0..2).
  */
 export function isFreshFlixChartDate(chartDateRaw: unknown, docDateRaw: unknown, nowMs: number = Date.now()): boolean {
   const blankChartDate = typeof chartDateRaw === "string" && chartDateRaw.trim() === ""
@@ -379,7 +382,7 @@ export function isFreshFlixChartDate(chartDateRaw: unknown, docDateRaw: unknown,
   if (!parsed) return false
   const chartDay = Math.floor(Date.UTC(parsed.year, parsed.month, parsed.day) / 86_400_000)
   const age = romeDayNumber(nowMs) - chartDay
-  return age === 0 || age === 1
+  return age >= 0 && age <= 2
 }
 
 export type FlixMediaType = "movie" | "tv"
@@ -458,8 +461,23 @@ interface FlixDocLoad {
  * the same previous state (last-good fail-open / retention when previous
  * data exists, miss + `docInvalid` for strict when cold), with retry after
  * a bounded 60s negative cooldown instead of the normal 12h success TTL.
+ *
+ * Stale-side recovery (`requireFreshChart`, cycle-aware serving only): a
+ * document that passes the fetch-time TTL/floor can still carry chart dates
+ * the requested side rejects as stale (the crawler skipped a publish day).
+ * Such a cache hit is bypassed ONCE per call — the refetch reuses the same
+ * single-flight coalescing and the same 60s negative cooldown, so recovery
+ * no longer waits for the next slot boundary while staying one upstream read
+ * per window. A refetch that still yields no fresh requested-side chart arms
+ * that cooldown; the cached payload is served as-is in the meantime (a stale
+ * side stays a genuine miss, never a fake hit and never a retention throw).
  */
-async function loadFlixCatalogDoc(country: string, minFetchedAtMs: number | undefined, freshOrThrow: boolean): Promise<FlixDocLoad> {
+async function loadFlixCatalogDoc(
+  country: string,
+  minFetchedAtMs: number | undefined,
+  freshOrThrow: boolean,
+  requireFreshChart?: (doc: CatalogData) => boolean,
+): Promise<FlixDocLoad> {
   const now = Date.now()
   const TWELVE_HOURS = 12 * 60 * 60 * 1000
   const freshSinceOk = (ts: number): boolean =>
@@ -498,7 +516,24 @@ async function loadFlixCatalogDoc(country: string, minFetchedAtMs: number | unde
     cached = undefined
   }
 
-  if (!catalog || (cached && !freshSinceOk(cached.timestamp))) {
+  // Stale-side recovery (cycle-aware serving only): the TTL/floor-accepted
+  // document may still carry chart dates the requested side rejects as stale
+  // (upstream skipped a publish day). Bypass that cache entry once and
+  // refetch below — bounded by the same 60s negative cooldown.
+  const cachedDoc = cached !== undefined && freshSinceOk(cached.timestamp) ? (catalog ?? undefined) : undefined
+  const staleSideRefetch =
+    cachedDoc !== undefined &&
+    minFetchedAtMs !== undefined &&
+    requireFreshChart !== undefined &&
+    !requireFreshChart(cachedDoc)
+  if (staleSideRefetch && now < (quarantineUntilMs.get(country) ?? 0)) {
+    // Cooldown armed by a previous still-stale refetch: serve the cached
+    // document without another upstream read (the stale side resolves as a
+    // genuine miss for the caller).
+    return { doc: cachedDoc ?? null, loadFailed: false }
+  }
+
+  if (!catalog || (cached && !freshSinceOk(cached.timestamp)) || staleSideRefetch) {
     // Active-quarantine short-circuit: a refresh that the TTL/floor would
     // otherwise demand is suppressed while the negative cooldown runs, so
     // sequential same-country requests share one verdict (no storm) even
@@ -548,6 +583,13 @@ async function loadFlixCatalogDoc(country: string, minFetchedAtMs: number | unde
       cached = { catalog, timestamp: now }
       memCache.set(country, cached)
       saveCache(country, cached)
+      // A bounded refetch that STILL carries no fresh chart for the requested
+      // side arms the shared 60s cooldown: the retry stays one upstream read
+      // per window (never a per-request storm) while the stale payload keeps
+      // serving as-is for callers (genuine miss per side, no fake hit).
+      if (staleSideRefetch && requireFreshChart !== undefined && !requireFreshChart(fresh)) {
+        quarantineUntilMs.set(country, now + QUARANTINE_NEGATIVE_TTL_MS)
+      }
     } catch (e) {
       // Transport failure only (a malformed payload is handled as a miss
       // below, never thrown, so it can never be confused with this path).
@@ -658,7 +700,20 @@ export async function resolveFlixPlatformSides(
   }
   const freshOrThrow = opts?.freshOrThrow ?? false
   const nowMs = opts?.nowMs ?? Date.now()
-  const loaded = await loadFlixCatalogDoc(country, opts?.minFetchedAtMs, freshOrThrow)
+  // Cycle-aware stale-side recovery: report "no fresh chart" only when a
+  // REQUESTED side chart is present but its date is stale. An absent split
+  // (overall-only platforms) is a genuine fallback, never a refetch trigger.
+  const hasFreshRequestedChart = (doc: CatalogData): boolean => {
+    let present = false
+    for (const mediaType of ["movie", "tv"] as const) {
+      const chart = doc.charts.find((c) => c.platform === platformName && c.category === flixCategoryFor(mediaType))
+      if (!chart) continue
+      present = true
+      if (isFreshFlixChartDate(chart.date, doc.date, nowMs)) return true
+    }
+    return !present
+  }
+  const loaded = await loadFlixCatalogDoc(country, opts?.minFetchedAtMs, freshOrThrow, hasFreshRequestedChart)
   if (!loaded.doc) {
     return { movie: { kind: "miss" }, tv: { kind: "miss" }, loadFailed: loaded.loadFailed, loadError: loaded.loadError, docInvalid: loaded.docInvalid }
   }
@@ -750,24 +805,32 @@ export async function resolveGenericFlixCharts(
   if (!globalChart && !SUPPORTED_COUNTRIES.has(countrySlug)) {
     throw new Error(`Unsupported country: ${countrySlug}`)
   }
-  const loaded = await loadFlixCatalogDoc(countrySlug, opts?.minFetchedAtMs, false)
+  const nowMs = opts?.nowMs ?? Date.now()
+  const { category, catKey } = flixCategoryForGenericSection(section)
+  const wantCid = variant ? `${svc}.${catKey}-${variant}` : `${svc}.${catKey}`
+  const normSvc = svc.replace(/[^a-z0-9]/g, "")
+  const findChart = (doc: CatalogData) =>
+    doc.charts.find(
+      (c) =>
+        typeof c.catalog_id === "string" &&
+        c.catalog_id.toLowerCase() === wantCid &&
+        c.category === category &&
+        normalizeFlixDisplayName(c.platform) === normSvc,
+    )
+  // Cycle-aware stale-side recovery: one bounded refetch when the cached
+  // document carries the requested chart but its date is stale. An absent
+  // chart stays a genuine unavailable (never a refetch trigger).
+  const loaded = await loadFlixCatalogDoc(countrySlug, opts?.minFetchedAtMs, false, (doc) => {
+    const chart = findChart(doc)
+    return !chart || isFreshFlixChartDate(chart.date, doc.date, nowMs)
+  })
   if (!loaded.doc) {
     return { kind: "miss", loadFailed: loaded.loadFailed, loadError: loaded.loadError, docInvalid: loaded.docInvalid }
   }
   if (!isValidFlixCatalogDoc(loaded.doc)) {
     return { kind: "miss", loadFailed: false, docInvalid: true }
   }
-  const nowMs = opts?.nowMs ?? Date.now()
-  const { category, catKey } = flixCategoryForGenericSection(section)
-  const wantCid = variant ? `${svc}.${catKey}-${variant}` : `${svc}.${catKey}`
-  const normSvc = svc.replace(/[^a-z0-9]/g, "")
-  const chart = loaded.doc.charts.find(
-    (c) =>
-      typeof c.catalog_id === "string" &&
-      c.catalog_id.toLowerCase() === wantCid &&
-      c.category === category &&
-      normalizeFlixDisplayName(c.platform) === normSvc,
-  )
+  const chart = findChart(loaded.doc)
   if (!chart) return { kind: "miss", reason: "absent", loadFailed: false }
   if (!isFreshFlixChartDate(chart.date, loaded.doc.date, nowMs)) return { kind: "miss", reason: "stale", loadFailed: false }
   if (!Array.isArray(chart.entries)) return { kind: "miss", reason: "invalid", loadFailed: false }

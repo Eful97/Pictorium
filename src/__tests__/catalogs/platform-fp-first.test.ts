@@ -9,7 +9,7 @@ import path from "node:path"
 //
 // Drives the REAL flixpatrol adapter (+ renewal) with mocked HTTP, dated
 // fixtures and a frozen clock — never injected rows. Covers:
-// - chart-date validation boundaries (today/yesterday fresh; older stale;
+// - chart-date validation boundaries (age 0..2 fresh; older stale;
 //   future/invalid rejected; doc-level fallback only when the chart carries
 //   no date);
 // - FP fresh on the requested chart → ZERO JW traffic;
@@ -18,6 +18,8 @@ import path from "node:path"
 // - both sources down → throw (failure retention signal);
 // - genuine supported empty (fresh chart, zero entries) → empty, no JW;
 // - TTL-fresh cache hits with stale chart dates rejected like network docs;
+// - cycle-aware stale-side recovery: ONE bounded refetch when the cached
+//   document's chart date is stale (upstream skipped a publish day);
 // - renewal coherence (provenance per actual source) + GLOBAL JW unchanged.
 // ---------------------------------------------------------------------------
 
@@ -44,9 +46,10 @@ let jwMode: "rows" | "empty" | "fail" = "rows"
 let jwMovieIds = [701, 702]
 let jwShowIds = [801, 802]
 
-const D_FRESH = "October 22, 2026"
-const D_YESTERDAY = "October 21, 2026"
-const D_STALE = "October 20, 2026"
+const D_FRESH = "October 22, 2026" // age 0
+const D_YESTERDAY = "October 21, 2026" // age 1
+const D_TWO_DAYS = "October 20, 2026" // age 2 (publish-gap tolerance) — still fresh
+const D_STALE = "October 19, 2026" // age 3 — stale
 const D_FUTURE = "October 23, 2026"
 
 function fpEntries(ids: number[], mediaType: "movie" | "tv") {
@@ -167,10 +170,20 @@ describe("platform FP-first (flixpatrol adapter)", () => {
     expect(fp.parseFlixChartDate(null)).toBeNull()
     expect(fp.parseFlixChartDate(123)).toBeNull()
 
-    // Rome day is Oct 22 at `now`: today + yesterday fresh, older stale.
+    // Rome day is Oct 22 at `now`: age 0..2 fresh (one skipped publish day is
+    // tolerated), older stale.
     expect(fp.isFreshFlixChartDate(D_FRESH, undefined, now)).toBe(true)
     expect(fp.isFreshFlixChartDate(D_YESTERDAY, undefined, now)).toBe(true)
+    expect(fp.isFreshFlixChartDate(D_TWO_DAYS, undefined, now)).toBe(true)
     expect(fp.isFreshFlixChartDate(D_STALE, undefined, now)).toBe(false)
+    // Diagnosed live on 2026-10-30: the upstream skipped the Oct 29 publish,
+    // so a document still dated Oct 28 (age 2) must stay usable — Oct 27
+    // (age 3) is the first stale day.
+    const diagNow = utc(2026, 10, 30, 8, 0, 0)
+    expect(fp.isFreshFlixChartDate("October 30, 2026", undefined, diagNow)).toBe(true)
+    expect(fp.isFreshFlixChartDate("October 29, 2026", undefined, diagNow)).toBe(true)
+    expect(fp.isFreshFlixChartDate("October 28, 2026", undefined, diagNow)).toBe(true)
+    expect(fp.isFreshFlixChartDate("October 27, 2026", undefined, diagNow)).toBe(false)
     // Future dates are rejected, never trusted.
     expect(fp.isFreshFlixChartDate(D_FUTURE, undefined, now)).toBe(false)
     // Garbage is stale, even with a fresh document date (no rescue).
@@ -179,6 +192,7 @@ describe("platform FP-first (flixpatrol adapter)", () => {
     // The document date fills in only when the chart carries none.
     expect(fp.isFreshFlixChartDate(undefined, D_FRESH, now)).toBe(true)
     expect(fp.isFreshFlixChartDate("", D_FRESH, now)).toBe(true)
+    expect(fp.isFreshFlixChartDate(undefined, D_TWO_DAYS, now)).toBe(true)
     expect(fp.isFreshFlixChartDate(undefined, D_STALE, now)).toBe(false)
   })
 
@@ -288,6 +302,74 @@ describe("platform FP-first (flixpatrol adapter)", () => {
     const data = await fp.getTop10("netflix", "italy", "k", { enrich: false })
     expect(data.movies.map((m) => m.tmdbId)).toEqual([701, 702])
     expect(data.movies.every((m) => !String(m.title).startsWith("FP"))).toBe(true)
+  })
+
+  it("cycle-aware stale-side recovery: one bounded refetch serves the fresh side (diagnosed 2026-10-30 case)", async () => {
+    // Rome 2026-10-30: the upstream skipped the Oct 29 publish; the cached
+    // document is still dated Oct 28 (age 2, trusted by the widened window).
+    now = utc(2026, 10, 30, 8, 0, 0)
+    fpDoc = fpDocFor(
+      [fpChart("Netflix", "movies", "October 28, 2026", [301]), fpChart("Netflix", "tv shows", "October 28, 2026", [401])],
+      "October 28, 2026",
+    )
+    const seeded = await fp.getTop10("netflix", "italy", "k", { enrich: false })
+    expect(seeded.movies.map((m) => m.tmdbId)).toEqual([301])
+    expect(fpFetches).toBe(1)
+
+    // One day later the same cache is age 3 → stale on every side, while the
+    // live feed now carries a newer publish. Cycle-aware serving must refetch
+    // ONCE instead of waiting for the next slot boundary.
+    now = utc(2026, 10, 31, 8, 0, 0)
+    jwCalls = []
+    fpDoc = fpDocFor(
+      [fpChart("Netflix", "movies", "October 30, 2026", [311, 312]), fpChart("Netflix", "tv shows", "October 30, 2026", [411, 412])],
+      "October 30, 2026",
+    )
+    const recovered = await fp.getTop10("netflix", "italy", "k", { enrich: false, minFetchedAtMs: 0 })
+    expect(recovered.movies.map((m) => m.tmdbId)).toEqual([311, 312])
+    expect(recovered.tv.map((m) => m.tmdbId)).toEqual([411, 412])
+    expect(recovered.movies[0].title).toBe("FP 311")
+    // Exactly one extra upstream read, zero JW traffic (the fresh side won).
+    expect(fpFetches).toBe(2)
+    expect(jwCalls).toEqual([])
+
+    // Fresh-hit path keeps its cost: the healed cache serves without fetching.
+    const reused = await fp.getTop10("netflix", "italy", "k", { enrich: false, minFetchedAtMs: 0 })
+    expect(reused.movies.map((m) => m.tmdbId)).toEqual([311, 312])
+    expect(fpFetches).toBe(2)
+  })
+
+  it("cycle-aware stale-side refetch stays bounded: still-stale live doc is refetched once per 60s cooldown", async () => {
+    now = utc(2026, 10, 30, 8, 0, 0)
+    fpDoc = fpDocFor(
+      [fpChart("Netflix", "movies", D_STALE, [301]), fpChart("Netflix", "tv shows", D_STALE, [401])],
+      D_STALE,
+    )
+    // Seed the cache with the stale document (legacy: fail-open miss → JW).
+    const seeded = await fp.getTop10("netflix", "italy", "k", { enrich: false })
+    expect(seeded.movies.map((m) => m.tmdbId)).toEqual([701, 702])
+    expect(fpFetches).toBe(1)
+
+    // Cycle-aware: cache is TTL-fresh but its charts are stale → ONE refetch.
+    const first = await fp.getTop10("netflix", "italy", "k", { enrich: false, minFetchedAtMs: 0 })
+    expect(first.movies.map((m) => m.tmdbId)).toEqual([701, 702])
+    expect(fpFetches).toBe(2)
+    // The refetch was still stale: the shared 60s cooldown is armed, so a
+    // second cycle-aware request serves the cached doc with NO extra read.
+    const second = await fp.getTop10("netflix", "italy", "k", { enrich: false, minFetchedAtMs: 0 })
+    expect(second.movies.map((m) => m.tmdbId)).toEqual([701, 702])
+    expect(fpFetches).toBe(2)
+
+    // Past the cooldown the feed heals: recovery costs exactly one more read.
+    now += 61_000
+    fpDoc = fpDocFor(
+      [fpChart("Netflix", "movies", "October 30, 2026", [311]), fpChart("Netflix", "tv shows", "October 30, 2026", [411])],
+      "October 30, 2026",
+    )
+    const healed = await fp.getTop10("netflix", "italy", "k", { enrich: false, minFetchedAtMs: 0 })
+    expect(healed.movies.map((m) => m.tmdbId)).toEqual([311])
+    expect(healed.tv.map((m) => m.tmdbId)).toEqual([411])
+    expect(fpFetches).toBe(3)
   })
 })
 
