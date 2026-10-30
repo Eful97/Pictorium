@@ -233,6 +233,7 @@ export function buildDefaultsPreviewUrlFromEditor(
       defaultAgeBadge: ed.defaultAgeBadge,
       defaultAgeCountry: ed.defaultAgeCountry,
       defaultAgeBadgeStyle: ed.defaultAgeBadgeStyle,
+      defaultAwardBadgeStyle: ed.defaultAwardBadgeStyle,
       defaultCustomRatings: ed.defaultCustomRatings,
       defaultSeparateRatings: ed.defaultSeparateRatings,
       defaultRatingSources: ed.defaultRatingSources,

@@ -10,7 +10,7 @@ import {
   sanitizeEffectiveAccentMeta,
   type EffectiveAccentMeta,
 } from "@/lib/effective-accent"
-import { isBadgeStyle, isRankingBadgeStyle, isExtraBadgeStyle, isExtraFollowRank, isBadgeFont, isSeparateRatingsStyle, isAgeBadgeStyle } from "@/lib/badge-styles"
+import { isBadgeStyle, isRankingBadgeStyle, isExtraBadgeStyle, isExtraFollowRank, isBadgeFont, isSeparateRatingsStyle, isAgeBadgeStyle, isAwardBadgeMode } from "@/lib/badge-styles"
 import { isPosterLayout, isPosterFreshScope, DEFAULT_POSTER_FRESH_SCOPE } from "@/lib/types"
 import { POSTER_CACHE_ALLOWLIST, parseListRankParam, sanitizePortraitBaseBackdropPath } from "./poster-params-hardening"
 import { sanitizeDisabledContentTags } from "./content-tags"
@@ -294,6 +294,15 @@ export function normalizePosterCacheParams(searchParams: URLSearchParams): URLSe
   const agebs = params.get("agebs")
   if (agebs !== null) {
     params.set("agebs", isAgeBadgeStyle(agebs) ? agebs : "standard")
+  }
+  // awardstyle: modalità del top-badge premi ("badge" = resa testuale
+  // storica, "logo" = icona del premio su pill antracite). Presente-ma-invalido
+  // → "badge" esplicito (fail-closed, come agebs): l'assenza può ereditare
+  // `logo` da token/defaults, il garbage rende il badge storico — cancellarlo
+  // collasserebbe le chiavi avvelenando i render.
+  const awardstyle = params.get("awardstyle")
+  if (awardstyle !== null) {
+    params.set("awardstyle", isAwardBadgeMode(awardstyle) ? awardstyle : "badge")
   }
   // theme: cornice stagionale effimera (temi canonici `halloween` /
   // `christmas`, su entrambi i canvas col proprio asset). Presente-ma-invalido → delete: il

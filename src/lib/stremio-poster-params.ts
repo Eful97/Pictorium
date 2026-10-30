@@ -1,6 +1,6 @@
 import { POSTER_URL_VERSION } from "@/lib/render-version"
-import type { BadgeStyle, RankingBadgeStyle, QualityBadgeStyle, BadgeFont, SeparateRatingsStyle, ExtraBadgeStyle, ExtraBadgeFollowRank } from "@/lib/badge-styles"
-import { getSeparateBadgeDefaultScale, getSeparateRatingsStyleForShape, isAgeBadgeStyle, isBottomSeparateRatingsStyle, isQualityBadgeStyle, DEFAULT_QUALITY_BADGE_STYLE } from "@/lib/badge-styles"
+import type { BadgeStyle, RankingBadgeStyle, QualityBadgeStyle, BadgeFont, SeparateRatingsStyle, ExtraBadgeStyle, ExtraBadgeFollowRank, AwardBadgeMode } from "@/lib/badge-styles"
+import { getSeparateBadgeDefaultScale, getSeparateRatingsStyleForShape, isAgeBadgeStyle, isAwardBadgeMode, isBottomSeparateRatingsStyle, isQualityBadgeStyle, DEFAULT_QUALITY_BADGE_STYLE, DEFAULT_AWARD_BADGE_MODE } from "@/lib/badge-styles"
 import { canonicalizeBadgeItemTransforms } from "@/lib/badge-item-transforms"
 import { sanitizeDisabledContentTags } from "@/lib/content-tags"
 import { sanitizeDisabledNetworks } from "@/lib/network-keys"
@@ -47,6 +47,9 @@ export interface StremioPosterParamsInput {
    *  anche con `config` (come `age` sopra): altrimenti il token vincerebbe in
    *  silenzio sull'impostazione corrente (divergenza d'eredità). */
   readonly ageBadgeStyle?: AgeBadgeStyle | null
+  /** Modalità del top-badge premi: emessa come `awardstyle` solo quando non è
+   *  `badge` (default storico = URL esistenti byte-identici, cache stabile). */
+  readonly awardBadgeStyle?: AwardBadgeMode | null
   /** Soglia minima tier qualità (emessa come `qmin` solo quando non-SD per non invalidare la cache). */
   readonly minQuality?: StreamQuality | null
   /** Riga rating custom provider (display). `false` emette `cr=0`. */
@@ -543,6 +546,11 @@ export function buildStremioPosterSearchParams(input: StremioPosterParamsInput):
   // and the cache is not invalidated (the server resolves standard alone).
   if (isQualityBadgeStyle(input.qualityBadgeStyle) && input.qualityBadgeStyle !== DEFAULT_QUALITY_BADGE_STYLE) {
     params.set("qbs", input.qualityBadgeStyle)
+  }
+  // Award top-badge mode only when non-historic: existing URLs stay
+  // byte-identical and the server resolves `badge` alone.
+  if (isAwardBadgeMode(input.awardBadgeStyle) && input.awardBadgeStyle !== DEFAULT_AWARD_BADGE_MODE) {
+    params.set("awardstyle", input.awardBadgeStyle)
   }
   if (input.videoFormats !== undefined && input.videoFormats !== null) {
     params.set("formats", input.videoFormats.length === 0 ? "none" : input.videoFormats.join(","))

@@ -9,7 +9,7 @@ import { getWarmupCatalogs } from "@/lib/catalog-definitions"
 import { createLogger } from "@/lib/logger"
 import { z } from "zod"
 import { MAX_DISABLED_NETWORKS } from "@/lib/network-keys"
-import { BADGE_STYLES, RANKING_BADGE_STYLES, QUALITY_BADGE_STYLES, AGE_BADGE_STYLES, BADGE_FONTS, SEPARATE_RATINGS_STYLES, EXTRA_BADGE_STYLES, EXTRA_BADGE_FOLLOW_RANK } from "@/lib/badge-styles"
+import { BADGE_STYLES, RANKING_BADGE_STYLES, QUALITY_BADGE_STYLES, AGE_BADGE_STYLES, AWARD_BADGE_MODES, BADGE_FONTS, SEPARATE_RATINGS_STYLES, EXTRA_BADGE_STYLES, EXTRA_BADGE_FOLLOW_RANK } from "@/lib/badge-styles"
 import { POSTER_LAYOUTS, POSTER_FRESH_SCOPES } from "@/lib/types"
 import { readJsonBody, BodyTooLargeError, DEFAULT_MAX_BODY_BYTES } from "@/lib/read-body"
 import { envWithFallback } from "@/lib/env-compat"
@@ -86,6 +86,8 @@ const defaultsSchema = z.object({
   extraBadgeStyle: z.union([z.enum(EXTRA_BADGE_STYLES), z.literal(EXTRA_BADGE_FOLLOW_RANK)]).nullable().optional(),
   badgeFont: z.enum(BADGE_FONTS).optional(),
   qualityBadgeStyle: z.enum(QUALITY_BADGE_STYLES).nullable().optional(),
+  /** Modalità del top-badge premi (default "badge" = resa testuale storica). */
+  awardBadgeStyle: z.enum(AWARD_BADGE_MODES).nullable().optional(),
   videoFormats: z.array(z.enum(["dv", "hdr", "hdr10plus", "atmos", "imax"])).nullable().optional(),
   defaultVideoFormats: z.array(z.enum(["dv", "hdr", "hdr10plus", "atmos", "imax"])).nullable().optional(),
   blurEnabled: z.boolean().optional(),
@@ -251,6 +253,8 @@ const defaultsSchema = z.object({
     ageCountry: z.string().max(8).optional(),
     /** Stile pill età per-shape (assente/null/invalido = flat). */
     ageBadgeStyle: z.enum(AGE_BADGE_STYLES).nullable().optional(),
+    /** Modalità premi per-forma (assente/null/invalido = flat). */
+    awardBadgeStyle: z.enum(AWARD_BADGE_MODES).nullable().optional(),
     minQuality: z.enum(["SD", "HD", "FHD", "4K"]).optional(),
     customRatings: z.boolean().optional(),
     separateRatings: z.boolean().optional(),

@@ -16,7 +16,7 @@ import { normalizeSashOrder, DEFAULT_SASH_ORDER, type SashBucket } from "./badge
 import { sanitizeDisabledContentTags } from "./content-tags"
 import { sanitizeDisabledNetworks } from "./network-keys"
 import { DEFAULT_QUALITY_BADGE_STYLE, type QualityBadgeStyle } from "./badge-styles"
-import { DEFAULT_AGE_BADGE_STYLE, isAgeBadgeStyle, type AgeBadgeStyle } from "./badge-styles"
+import { DEFAULT_AGE_BADGE_STYLE, DEFAULT_AWARD_BADGE_MODE, isAgeBadgeStyle, isAwardBadgeMode, type AgeBadgeStyle, type AwardBadgeMode } from "./badge-styles"
 import { DEFAULT_BADGE_FONT, isBadgeFont, type BadgeFont } from "./badge-styles"
 import { DEFAULT_SEPARATE_RATINGS_STYLE, isSeparateRatingsStyle, getSeparateBadgeDefaultScale, type SeparateRatingsStyle } from "./badge-styles"
 import { SHAPE_FLAT_TO_LANDSCAPE, snapshotMissingLandscape, independentLandscapeDefaults } from "./visual-presets"
@@ -112,6 +112,8 @@ export interface DefaultsState {
   defaultAgeCountry: string
   /** Stile pill età di default portrait ("standard" = resa storica). */
   defaultAgeBadgeStyle: AgeBadgeStyle
+  /** Modalità top-badge premi di default portrait ("badge" = resa storica). */
+  defaultAwardBadgeStyle: AwardBadgeMode
   /** Riga rating custom provider di default (default ON). */
   defaultCustomRatings: boolean
   /** Endpoint provider custom rating salvato via UI (non-segreto). */
@@ -319,6 +321,7 @@ const DEFAULT_FLAT_DEFAULTS: Omit<DefaultsState, "landscape"> = {
   defaultAgeBadge: false,
   defaultAgeCountry: DEFAULT_AGE_COUNTRY,
   defaultAgeBadgeStyle: DEFAULT_AGE_BADGE_STYLE,
+  defaultAwardBadgeStyle: DEFAULT_AWARD_BADGE_MODE,
   defaultCustomRatings: true,
   defaultRatingSources: ["imdb", "tmdb"],
   defaultSeparateRatings: false,
@@ -512,6 +515,10 @@ interface StoredDefaults {
   defaultAgeBadgeStyle?: AgeBadgeStyle
   /** Chiave flat (scritta da saveDefaults/auto-persist): fallback di lettura. */
   ageBadgeStyle?: AgeBadgeStyle
+  /** Modalità premi (grezzo dallo storage; validata in buildFromStored). */
+  defaultAwardBadgeStyle?: AwardBadgeMode
+  /** Chiave flat alias (fallback di lettura, come l'età sopra). */
+  awardBadgeStyle?: AwardBadgeMode
   defaultCustomRatings?: boolean
   defaultCustomRatingEndpoint?: string
   defaultCustomRatingApiKeyHeader?: string
@@ -797,6 +804,7 @@ function buildFromStored(d: StoredDefaults | null): DefaultsState {
   const flatAgeBadge = d.defaultAgeBadge ?? d.ageBadge
   const flatAgeCountry = d.defaultAgeCountry ?? d.ageCountry
   const flatAgeStyle = d.defaultAgeBadgeStyle ?? d.ageBadgeStyle
+  const flatAwardStyle = d.defaultAwardBadgeStyle ?? d.awardBadgeStyle
   return {
     defaultBadgeStyle: d.defaultBadgeStyle ?? d.badgeStyle ?? "shadow",
     defaultRankingBadgeStyle: d.defaultRankingBadgeStyle ?? d.rankingBadgeStyle ?? "default",
@@ -853,6 +861,9 @@ function buildFromStored(d: StoredDefaults | null): DefaultsState {
     // Stile pill età portrait: validato fail-closed su "standard" (mai
     // spazzatura dallo storage — come il font badge).
     defaultAgeBadgeStyle: isAgeBadgeStyle(flatAgeStyle) ? flatAgeStyle : DEFAULT_AGE_BADGE_STYLE,
+    // Modalità premi portrait: fail-closed su "badge" (assente/garbage =
+    // resa testuale storica, mai un `logo` inventato dallo storage).
+    defaultAwardBadgeStyle: isAwardBadgeMode(flatAwardStyle) ? flatAwardStyle : DEFAULT_AWARD_BADGE_MODE,
     defaultCustomRatings: d.defaultCustomRatings ?? d.customRatings ?? true,
     defaultCustomRatingEndpoint: d.defaultCustomRatingEndpoint ?? d.customRatingEndpoint,
     defaultCustomRatingApiKeyHeader: d.defaultCustomRatingApiKeyHeader ?? d.customRatingApiKeyHeader,
@@ -982,6 +993,15 @@ function buildFromStored(d: StoredDefaults | null): DefaultsState {
         d.defaultQualityBadgeOffsetY ?? d.qualityBadgeOffsetY,
       ),
       ...seedLandscapeAgeTrio(d.landscape, flatAgeBadge, flatAgeCountry, flatAgeStyle),
+      // Award mode di profilo: valore valido vince (incl. "badge" esplicito),
+      // altrimenti segue il flat validato, altrimenti il default storico.
+      awardBadgeStyle: isAwardBadgeMode(
+          typeof (d.landscape as Record<string, unknown> | null | undefined)?.awardBadgeStyle === "string"
+            ? ((d.landscape as Record<string, unknown>).awardBadgeStyle as string)
+            : null,
+        )
+        ? ((d.landscape as Record<string, unknown>).awardBadgeStyle as AwardBadgeMode)
+        : (isAwardBadgeMode(flatAwardStyle) ? flatAwardStyle : DEFAULT_AWARD_BADGE_MODE),
       // Family map del profilo: validata fail-closed (malformata = eredita il
       // flat, mai spazzatura id/rev nel live). Null/assente = segue il flat.
       ...hydrateLandscapeBadgePresets(d.landscape),
@@ -1045,6 +1065,7 @@ export function defaultsToPayload(d: DefaultsState): Record<string, unknown> {
     ageBadge: d.defaultAgeBadge,
     ageCountry: d.defaultAgeCountry,
     ageBadgeStyle: d.defaultAgeBadgeStyle,
+    awardBadgeStyle: d.defaultAwardBadgeStyle,
     customRatings: d.defaultCustomRatings,
     // Provider OFF = campo nascosto: un endpoint stale/invalido non deve far
     // fallire l'intero PUT 400 (stessa protezione del Salva manuale).

@@ -1,4 +1,4 @@
-import type { BadgeStyle, RankingBadgeStyle, QualityBadgeStyle, BadgeFont, SeparateRatingsStyle, ExtraBadgeStyle, ExtraBadgeFollowRank, AgeBadgeStyle } from "./badge-styles"
+import type { BadgeStyle, RankingBadgeStyle, QualityBadgeStyle, BadgeFont, SeparateRatingsStyle, ExtraBadgeStyle, ExtraBadgeFollowRank, AgeBadgeStyle, AwardBadgeMode } from "./badge-styles"
 import type { VideoFormat } from "./av-specs"
 
 /**
@@ -298,6 +298,12 @@ export interface Mapping {
    * Null/assente/invalido = eredita i default effettivi di forma.
    */
   ageBadgeStyle?: AgeBadgeStyle | null
+  /**
+   * Modalità del top-badge premi per-titolo (`badge` = resa testuale
+   * storica, `logo` = icona del premio). Null/assente/invalido = eredita i
+   * default effettivi di forma; assente ovunque = `badge` (byte-identico).
+   */
+  awardBadgeStyle?: AwardBadgeMode | null
   /** Riga rating custom provider (display). Default ON quando il provider è configurato. */
   customRatings?: boolean | null
   /** Fonti del voto medio ★ per-titolo (catena: query `rsrc` > mapping >
@@ -496,6 +502,8 @@ export interface LandscapeSettings {
   ageCountry?: string | null
   /** Stile della pill età per-titolo (null/assente = eredita il flat). */
   ageBadgeStyle?: AgeBadgeStyle | null
+  /** Modalità del top-badge premi (null/assente = eredita il flat). */
+  awardBadgeStyle?: AwardBadgeMode | null
   /** Riga rating custom provider (display, default ON quando configurato). */
   customRatings?: boolean | null
   /** Colonna rating separati (default OFF). */
@@ -640,6 +648,7 @@ export function effectiveMappingForShape(mapping: Mapping | null, shape: PosterS
     ageBadge: l.ageBadge ?? mapping.ageBadge,
     ageCountry: l.ageCountry ?? mapping.ageCountry,
     ageBadgeStyle: l.ageBadgeStyle ?? mapping.ageBadgeStyle,
+    awardBadgeStyle: l.awardBadgeStyle ?? mapping.awardBadgeStyle,
     badgeStyle: l.badgeStyle ?? mapping.badgeStyle,
     rankingBadgeStyle: l.rankingBadgeStyle ?? mapping.rankingBadgeStyle,
     extraBadgeStyle: l.extraBadgeStyle ?? mapping.extraBadgeStyle,

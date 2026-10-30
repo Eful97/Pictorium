@@ -300,6 +300,7 @@ export default function EditView() {
       rankingBadgeStyle: ed.rankingBadgeStyle,
       extraBadgeStyle: ed.extraBadgeStyle,
       badgeFont: ed.badgeFont,
+      awardBadgeStyle: ed.awardBadgeStyle,
       customBadge: ed.customBadge,
     },
     selectedMapping ?? null,
@@ -701,6 +702,7 @@ export default function EditView() {
       // Badge età per-titolo per formato: ogni formato ricorda la propria
       // scelta non salvata senza toccare l'altro (come gli stili sopra).
       ageBadge: ed.ageBadge, ageCountry: ed.ageCountry, ageBadgeStyle: ed.ageBadgeStyle,
+      awardBadgeStyle: ed.awardBadgeStyle,
       customRatings: ed.customRatings, separateRatings: ed.separateRatings,
       badgeStyle: ed.badgeStyle, rankingBadgeStyle: ed.rankingBadgeStyle, extraBadgeStyle: ed.extraBadgeStyle,
       badgeFont: ed.badgeFont, qualityBadgeStyle: ed.qualityBadgeStyle, videoFormats: ed.videoFormats,
@@ -887,6 +889,7 @@ export default function EditView() {
         ageBadge: ed.defaultAgeBadge,
         ageCountry: ed.defaultAgeCountry,
         ageBadgeStyle: ed.defaultAgeBadgeStyle,
+        awardBadgeStyle: ed.defaultAwardBadgeStyle,
         customRatings: ed.defaultCustomRatings,
         separateRatings: ed.defaultSeparateRatings,
         badgeStyle: ed.defaultBadgeStyle,
@@ -918,6 +921,7 @@ export default function EditView() {
       ed.setAgeBadge(resolveBadge("ageBadge") as boolean)
       ed.setAgeCountry(resolveBadge("ageCountry") as string)
       ed.setAgeBadgeStyle(resolveBadge("ageBadgeStyle") as typeof ed.ageBadgeStyle)
+      ed.setAwardBadgeStyle(resolveBadge("awardBadgeStyle") as typeof ed.awardBadgeStyle)
       ed.setCustomRatings(resolveBadge("customRatings") as boolean)
       ed.setSeparateRatings(resolveBadge("separateRatings") as boolean)
       ed.setBadgeStyle(resolveBadge("badgeStyle") as typeof ed.badgeStyle)

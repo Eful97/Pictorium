@@ -32,6 +32,7 @@ export async function saveDefaults(ed: PosterEditorCtx): Promise<boolean> {
     ageBadge: ed.defaultAgeBadge,
     ageCountry: ed.defaultAgeCountry,
     ageBadgeStyle: ed.defaultAgeBadgeStyle,
+    awardBadgeStyle: ed.defaultAwardBadgeStyle,
     customRatings: ed.defaultCustomRatings,    customRatingEndpoint: endpointForSave,
     customRatingApiKeyHeader: ed.defaultCustomRatingApiKeyHeader ?? "",
     ratingSources: ed.defaultRatingSources,

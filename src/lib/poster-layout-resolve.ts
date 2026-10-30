@@ -1,6 +1,7 @@
 import { effectiveMappingForShape, isPosterLayout, isPosterFreshScope, DEFAULT_POSTER_FRESH_SCOPE, type Mapping, type PosterLayout, type PosterFreshScope, type PosterShape } from "./types"
 import type { LandscapeServerDefaults } from "./server-defaults"
-import type { AgeBadgeStyle } from "./badge-styles"
+import type { AgeBadgeStyle, AwardBadgeMode } from "./badge-styles"
+import { DEFAULT_AWARD_BADGE_MODE, isAwardBadgeMode } from "./badge-styles"
 
 /**
  * Effective shape default for the graphical poster layout (`land ?? flat`).
@@ -98,4 +99,18 @@ export function effectiveShapeDefaultAge(
     ageCountry: landscape?.ageCountry ?? defaultAgeCountry,
     ageBadgeStyle: landscape?.ageBadgeStyle ?? defaultAgeBadgeStyle,
   }
+}
+
+/**
+ * Effective shape default for the award top-badge mode (`land ?? flat`,
+ * fail-closed on the historic textual `badge`). Same rule as the server
+ * `resolveAwardBadgeStyle` effective-defaults level.
+ */
+export function effectiveShapeDefaultAwardMode(
+  defaultAwardBadgeStyle: AwardBadgeMode,
+  landscape: LandscapeServerDefaults | null | undefined,
+  shape: PosterShape,
+): AwardBadgeMode {
+  const land = shape === "landscape" ? landscape?.awardBadgeStyle : undefined
+  return isAwardBadgeMode(land) ? land : (isAwardBadgeMode(defaultAwardBadgeStyle) ? defaultAwardBadgeStyle : DEFAULT_AWARD_BADGE_MODE)
 }

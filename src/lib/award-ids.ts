@@ -47,7 +47,7 @@
  * qui sotto restano la fonte di verità "forte" sopra le label generiche.
  */
 
-export type AwardCanonicalName = "Oscar" | "Golden Globe" | "Emmy" | "Cannes" | "Venezia";
+export type AwardCanonicalName = "Oscar" | "Golden Globe" | "Emmy" | "Cannes" | "Venezia" | "BAFTA";
 
 /**
  * Data (YYYY-MM-DD) dell'ultima verifica puntuale dei singoli dati delle
@@ -274,6 +274,20 @@ const VENICE_TOP_IDS: ReadonlySet<number> = new Set([
   1088514, // 2024  The Room Next Door
 ]);
 
+/** BAFTA miglior film — VINCITORI (film-year 2015-2024). */
+const BAFTA_WINNER_MOVIE_IDS: ReadonlySet<number> = new Set([
+  281957, // 2015  The Revenant
+  313369, // 2016  La La Land
+  359940, // 2017  Three Billboards Outside Ebbing, Missouri
+  426426, // 2018  Roma
+  530915, // 2019  1917
+  581734, // 2020  Nomadland
+  600583, // 2021  The Power of the Dog
+  49046, // 2022  All Quiet on the Western Front
+  872585, // 2023  Oppenheimer
+  974576, // 2024  Conclave
+]);
+
 export interface AwardIdLookup {
   wins: AwardCanonicalName[];
   noms: AwardCanonicalName[];
@@ -282,7 +296,7 @@ export interface AwardIdLookup {
 /**
  * Premi di un TMDB ID, nel namespace giusto (film vs serie).
  * Ordine dei nomi = priority di `getAwardBadgeLabel` (Oscar, Cannes,
- * Venezia, Emmy, Golden Globe): il primo nome vince sui generici Wikidata.
+ * Venezia, BAFTA, Emmy, Golden Globe): il primo nome vince sui generici Wikidata.
  * Sconosciuto → liste vuote (mai un bollino inventato).
  */
 export function lookupAwardIds(
@@ -304,10 +318,11 @@ export function lookupAwardIds(
     else if (OSCAR_NOMINEE_MOVIE_IDS.has(tmdbId)) noms.push("Oscar")
     if (CANNES_TOP_IDS.has(tmdbId)) wins.push("Cannes")
     if (VENICE_TOP_IDS.has(tmdbId)) wins.push("Venezia")
+    if (BAFTA_WINNER_MOVIE_IDS.has(tmdbId)) wins.push("BAFTA")
     if (GLOBE_WINNER_MOVIE_IDS.has(tmdbId)) wins.push("Golden Globe")
     else if (GLOBE_NOMINEE_MOVIE_IDS.has(tmdbId)) noms.push("Golden Globe")
   }
-  // Cannes/Venezia prima di Golden Globe: stesso ordine di getAwardBadgeLabel.
+  // Cannes/Venezia/BAFTA prima di Golden Globe: stesso ordine di getAwardBadgeLabel.
   wins.sort((a, b) => awardPriority(a) - awardPriority(b))
   noms.sort((a, b) => awardPriority(a) - awardPriority(b))
   return { wins, noms }
@@ -318,8 +333,9 @@ function awardPriority(name: AwardCanonicalName): number {
     case "Oscar": return 0
     case "Cannes": return 1
     case "Venezia": return 2
-    case "Emmy": return 3
-    case "Golden Globe": return 4
+    case "BAFTA": return 3
+    case "Emmy": return 4
+    case "Golden Globe": return 5
   }
 }
 

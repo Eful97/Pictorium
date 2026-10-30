@@ -193,6 +193,8 @@ export interface FullMappingCheckState {
   extraBadgeStyle?: string | null
   /** Font dei testi badge ("inter" = resa storica). */
   badgeFont?: string
+  /** Modalità top-badge premi ("badge" = resa testuale storica). */
+  awardBadgeStyle?: string
   customBadge?: string | null
 }
 
@@ -272,6 +274,7 @@ export function isMappingDirty(
   if ((current.rankingBadgeStyle ?? "default") !== (eff.rankingBadgeStyle ?? "default")) return true
   if ((current.extraBadgeStyle ?? null) !== (eff.extraBadgeStyle ?? null)) return true
   if ((current.badgeFont ?? "inter") !== (eff.badgeFont ?? "inter")) return true
+  if ((current.awardBadgeStyle ?? "badge") !== (eff.awardBadgeStyle ?? "badge")) return true
   if ((current.customBadge ?? null) !== (eff.customBadge ?? null)) return true
 
   return false

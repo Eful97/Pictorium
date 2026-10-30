@@ -1,5 +1,5 @@
 import { z } from "zod"
-import { BADGE_STYLES, RANKING_BADGE_STYLES, EXTRA_BADGE_STYLES, EXTRA_BADGE_FOLLOW_RANK, QUALITY_BADGE_STYLES, AGE_BADGE_STYLES, BADGE_FONTS, SEPARATE_RATINGS_STYLES, DEFAULT_AGE_BADGE_STYLE, DEFAULT_BADGE_FONT, DEFAULT_BADGE_STYLE, DEFAULT_QUALITY_BADGE_STYLE, DEFAULT_RANKING_BADGE_STYLE, isAgeBadgeStyle, isBadgeFont, isBadgeStyle, isExtraBadgeStyle, isExtraFollowRank, isQualityBadgeStyle, isRankingBadgeStyle, DEFAULT_QUALITY_BADGE_OFFSET_X_LANDSCAPE, DEFAULT_QUALITY_BADGE_OFFSET_Y_LANDSCAPE } from "./badge-styles"
+import { BADGE_STYLES, RANKING_BADGE_STYLES, EXTRA_BADGE_STYLES, EXTRA_BADGE_FOLLOW_RANK, QUALITY_BADGE_STYLES, AGE_BADGE_STYLES, BADGE_FONTS, SEPARATE_RATINGS_STYLES, DEFAULT_AGE_BADGE_STYLE, DEFAULT_AWARD_BADGE_MODE, DEFAULT_BADGE_FONT, DEFAULT_BADGE_STYLE, DEFAULT_QUALITY_BADGE_STYLE, DEFAULT_RANKING_BADGE_STYLE, isAgeBadgeStyle, isAwardBadgeMode, isBadgeFont, isBadgeStyle, isExtraBadgeStyle, isExtraFollowRank, isQualityBadgeStyle, isRankingBadgeStyle, DEFAULT_QUALITY_BADGE_OFFSET_X_LANDSCAPE, DEFAULT_QUALITY_BADGE_OFFSET_Y_LANDSCAPE } from "./badge-styles"
 import { KNOWN_VIDEO_FORMATS, isVideoFormat, type VideoFormat } from "./av-specs"
 import { SASH_BUCKETS } from "./badge-priority"
 import { DEFAULT_AGE_COUNTRY, normalizeCertificationCountry } from "./certification"
@@ -950,6 +950,8 @@ export const SHAPE_FLAT_TO_LANDSCAPE: Record<string, keyof LandscapeServerDefaul
   defaultAgeBadge: "ageBadge",
   defaultAgeCountry: "ageCountry",
   defaultAgeBadgeStyle: "ageBadgeStyle",
+  /** Award top-badge mode (profile override, absent/null = follow the flat). */
+  defaultAwardBadgeStyle: "awardBadgeStyle",
   defaultPosterLayout: "posterLayout",
   defaultPosterFreshScope: "posterFreshScope",
   /** Standalone extra style (profile override, absent = legacy `rs` fallback). */
@@ -999,6 +1001,7 @@ export const SHAPE_NULL_INHERIT_KEYS: ReadonlySet<string> = new Set([
   ...NULL_INHERIT_LANDSCAPE_KEYS,
   "networkLogoFollowTitle",
   "ageBadgeStyle",
+  "awardBadgeStyle",
   "logoAlign",
 ])
 
@@ -1067,6 +1070,13 @@ export function canonicalInheritFreeze(
           ? flatValue
           : DEFAULT_AGE_BADGE_STYLE,
       }
+    case "awardBadgeStyle":
+      return {
+        freeze: true,
+        value: isAwardBadgeMode(typeof flatValue === "string" ? flatValue : null)
+          ? flatValue
+          : DEFAULT_AWARD_BADGE_MODE,
+      }
     case "extraBadgeStyle":
       if (isExtraBadgeStyle(typeof flatValue === "string" ? flatValue : null)) {
         return { freeze: true, value: flatValue }
@@ -1113,6 +1123,7 @@ export function isLandscapeKeyPresent(
   if (landKey === "ageCountry") return normalizeCertificationCountry(v) != null
   if (landKey === "ageBadge") return typeof v === "boolean"
   if (landKey === "ageBadgeStyle") return isAgeBadgeStyle(typeof v === "string" ? v : null)
+  if (landKey === "awardBadgeStyle") return isAwardBadgeMode(typeof v === "string" ? v : null)
   return true
 }
 
@@ -1247,6 +1258,7 @@ export const MAPPING_SHAPE_LAND_KEYS = [
   "ageBadge",
   "ageCountry",
   "ageBadgeStyle",
+  "awardBadgeStyle",
   "customRatings",
   "separateRatings",
   "badgeStyle",
@@ -1322,6 +1334,7 @@ const MAPPING_SHAPE_PROFILE_KEY: Record<MappingShapeLandKey, string> = {
   ageBadge: "ageBadge",
   ageCountry: "ageCountry",
   ageBadgeStyle: "ageBadgeStyle",
+  awardBadgeStyle: "awardBadgeStyle",
   customRatings: "customRatings",
   separateRatings: "separateRatings",
   badgeStyle: "badgeStyle",
@@ -1368,6 +1381,7 @@ export const MAPPING_SHAPE_FACTORY: Record<MappingShapeLandKey, unknown> = {
   ageBadge: false,
   ageCountry: DEFAULT_AGE_COUNTRY,
   ageBadgeStyle: DEFAULT_AGE_BADGE_STYLE,
+  awardBadgeStyle: DEFAULT_AWARD_BADGE_MODE,
   customRatings: true,
   separateRatings: false,
   badgeStyle: DEFAULT_BADGE_STYLE,
@@ -1435,6 +1449,13 @@ export function mappingShapeChainEffective(
         value: isAgeBadgeStyle(typeof raw === "string" ? raw : null)
           ? raw
           : DEFAULT_AGE_BADGE_STYLE,
+      }
+    case "awardBadgeStyle":
+      return {
+        known: true,
+        value: isAwardBadgeMode(typeof raw === "string" ? raw : null)
+          ? raw
+          : DEFAULT_AWARD_BADGE_MODE,
       }
     case "networkLogoPosition":
       return { known: true, value: raw === "top" ? "top" : "auto" }

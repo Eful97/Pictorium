@@ -10,12 +10,12 @@ import { createT } from "@/lib/i18n"
 const t = createT("it")
 
 describe("lookupAwardIds", () => {
-  it("Oscar winner beats everything (Oppenheimer: anche Globe, Oscar primo)", () => {
-    expect(lookupAwardIds(872585, "movie")).toEqual({ wins: ["Oscar", "Golden Globe"], noms: [] })
+  it("Oscar winner beats everything (Oppenheimer: anche BAFTA e Globe, Oscar primo)", () => {
+    expect(lookupAwardIds(872585, "movie")).toEqual({ wins: ["Oscar", "BAFTA", "Golden Globe"], noms: [] })
   })
 
-  it("Globe winner movie without Oscar (The Revenant)", () => {
-    expect(lookupAwardIds(281957, "movie")).toEqual({ wins: ["Golden Globe"], noms: [] })
+  it("Globe winner movie without Oscar (The Revenant: anche BAFTA, BAFTA prima)", () => {
+    expect(lookupAwardIds(281957, "movie")).toEqual({ wins: ["BAFTA", "Golden Globe"], noms: [] })
   })
 
   it("Oscar nominee without win (Barbie)", () => {
@@ -28,6 +28,24 @@ describe("lookupAwardIds", () => {
 
   it("Leone d'Oro winner (Joker)", () => {
     expect(lookupAwardIds(475557, "movie")).toEqual({ wins: ["Venezia"], noms: [] })
+  })
+
+  it("BAFTA Best Film winner (Conclave 2024: BAFTA win + Oscar nom)", () => {
+    // Cross-org overlap legittimo (come Oscar vs Globe): Conclave è anche
+    // tra i candidati Oscar 2024 (OSCAR_NOMINEE_MOVIE_IDS). La win vince.
+    expect(lookupAwardIds(974576, "movie")).toEqual({ wins: ["BAFTA"], noms: ["Oscar"] })
+  })
+
+  it("BAFTA multi-win ordering follows badge-labels priority (Roma: Venezia + BAFTA; 1917: BAFTA + Globe)", () => {
+    // Roma (426426): Venezia 2018 + BAFTA 2018 → Venezia prima (priority 2 < 3).
+    expect(lookupAwardIds(426426, "movie")).toEqual({ wins: ["Venezia", "BAFTA"], noms: [] })
+    // 1917 (530915): BAFTA 2019 + Globe 2019 → BAFTA prima (priority 3 < 5).
+    expect(lookupAwardIds(530915, "movie")).toEqual({ wins: ["BAFTA", "Golden Globe"], noms: [] })
+  })
+
+  it("namespace isolation: BAFTA movie win never leaks into tv", () => {
+    expect(lookupAwardIds(872585, "tv")).toEqual({ wins: [], noms: [] })
+    expect(lookupAwardIds(974576, "tv")).toEqual({ wins: [], noms: [] })
   })
 
   it("TV: Emmy winner (Breaking Bad)", () => {
@@ -196,7 +214,9 @@ describe("Oscar Best Picture nominee backfill (2022/2024)", () => {
     // 2022 All Quiet on the Western Front (NOT the 1930 film),
     // 2022 Women Talking, 2024 I'm Still Here / Ainda Estou Aqui
     // (NOT the 2010 mockumentary): Best Picture non-winners.
-    expect(lookupAwardIds(49046, "movie")).toEqual({ wins: [], noms: ["Oscar"] })
+    // 49046 è anche BAFTA winner 2022 (cross-org legittimo): la win BAFTA
+    // viaggia con la nom Oscar.
+    expect(lookupAwardIds(49046, "movie")).toEqual({ wins: ["BAFTA"], noms: ["Oscar"] })
     expect(lookupAwardIds(777245, "movie")).toEqual({ wins: [], noms: ["Oscar"] })
     expect(lookupAwardIds(1000837, "movie")).toEqual({ wins: [], noms: ["Oscar"] })
     expect(lookupAwardIds(49046, "tv")).toEqual({ wins: [], noms: [] })
@@ -205,11 +225,17 @@ describe("Oscar Best Picture nominee backfill (2022/2024)", () => {
   })
 
   it("backfilled nominees yield the candidate fallback without generic awards", () => {
-    for (const tmdbId of [49046, 777245, 1000837]) {
+    for (const tmdbId of [777245, 1000837]) {
       const c = computeTopBadge({ ...base, tmdbId }, t, "it")
       expect(c.awardBadge).toBeNull()
       expect(c.badge?.label).toBe("Candidato Oscar")
     }
+  })
+
+  it("backfilled Oscar nom with a curated BAFTA win renders the BAFTA winner badge", () => {
+    // 49046 (All Quiet 2022): la win curata BAFTA batte il fallback candidato.
+    const c = computeTopBadge({ ...base, tmdbId: 49046 }, t, "it")
+    expect(c.badge?.label).toBe("BAFTA")
   })
 
   it("a generic Oscar win is never downgraded by a curated Best Picture nom", () => {
@@ -239,6 +265,7 @@ describe("award-ids curated literal guards (raw source, AST)", () => {
     "EMMY_NOMINEE_TV_IDS",
     "CANNES_TOP_IDS",
     "VENICE_TOP_IDS",
+    "BAFTA_WINNER_MOVIE_IDS",
   ] as const
   type CuratedSetName = (typeof CURATED_SET_NAMES)[number]
 
@@ -358,7 +385,7 @@ describe("award-ids curated literal guards (raw source, AST)", () => {
     return out
   }
 
-  /** In-memory module fixture: all 10 sets declared; overrides replace bodies. */
+  /** In-memory module fixture: all 11 sets declared; overrides replace bodies. */
   function fixtureSource(overrides: Partial<Record<CuratedSetName, string>> = {}): string {
     return (
       CURATED_SET_NAMES.map(

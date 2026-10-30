@@ -15,8 +15,8 @@ import { sanitizeLogoText, TEXT_LOGO_DEFAULT_FONT } from "./text-logo"
 import { normalizeGenreName } from "./genre-normalize"
 import type { EnrichedAnimeItem } from "./validation"
 import type { VideoFormat } from "./av-specs"
-import type { SeparateRatingsStyle, ExtraBadgeStyle, ExtraBadgeFollowRank, AgeBadgeStyle, BadgeFont } from "./badge-styles"
-import { isExtraBadgeStyleTransport, isExtraFollowRank, isAgeBadgeStyle, DEFAULT_AGE_BADGE_STYLE } from "./badge-styles"
+import type { SeparateRatingsStyle, ExtraBadgeStyle, ExtraBadgeFollowRank, AgeBadgeStyle, AwardBadgeMode, BadgeFont } from "./badge-styles"
+import { isExtraBadgeStyleTransport, isExtraFollowRank, isAgeBadgeStyle, isAwardBadgeMode, DEFAULT_AGE_BADGE_STYLE, DEFAULT_AWARD_BADGE_MODE } from "./badge-styles"
 import { DEFAULT_AGE_COUNTRY } from "./certification"
 import type { PosterLayout, PosterFreshScope } from "./types"
 import type { LandscapeBlurState } from "./contexts/PosterEditorContext"
@@ -62,6 +62,8 @@ interface PosterSaveDeps {
   ageCountry?: string
   /** Stile pill età per-titolo in editing ("standard" = resa storica). */
   ageBadgeStyle?: AgeBadgeStyle
+  /** Modalità top-badge premi per-titolo in editing ("badge" = resa storica). */
+  awardBadgeStyle?: AwardBadgeMode
   customRatings: boolean
   /** Fonti del voto medio ★ per-titolo (congelate al save come gli altri badge). */
   ratingSources: string[]
@@ -103,6 +105,7 @@ interface PosterSaveDeps {
   defaultAgeBadge?: boolean
   defaultAgeCountry?: string
   defaultAgeBadgeStyle?: AgeBadgeStyle
+  defaultAwardBadgeStyle?: AwardBadgeMode
   defaultCustomRatings?: boolean
   defaultSeparateRatings?: boolean
   defaultBadgeFont?: string
@@ -269,11 +272,11 @@ export function usePosterSave(deps: PosterSaveDeps) {
     setBackdropScale, setBackdropOffsetX, setBackdropOffsetY,
     globalBadges, rankingBadges, customBadge, badgeStyle, rankingBadgeStyle, extraBadgeStyle, badgeFont, qualityBadgeStyle,
     videoFormats,
-    badgeGenre, badgeYear, badgeRating, badgeQuality, ageBadge, ageCountry, ageBadgeStyle, customRatings, ratingSources, separateRatings, separateRatingsStyle,
+    badgeGenre, badgeYear, badgeRating, badgeQuality, ageBadge, ageCountry, ageBadgeStyle, awardBadgeStyle, customRatings, ratingSources, separateRatings, separateRatingsStyle,
     seasonalTheme,
     defaultBadgeStyle, defaultRankingBadgeStyle, defaultExtraBadgeStyle,
     defaultGlobalBadges, defaultRankingBadges, defaultBadgeGenre, defaultBadgeYear,
-    defaultBadgeRating, defaultBadgeQuality, defaultAgeBadge, defaultAgeCountry, defaultAgeBadgeStyle, defaultCustomRatings, defaultSeparateRatings,
+    defaultBadgeRating, defaultBadgeQuality, defaultAgeBadge, defaultAgeCountry, defaultAgeBadgeStyle, defaultAwardBadgeStyle, defaultCustomRatings, defaultSeparateRatings,
     defaultBadgeFont, defaultQualityBadgeStyle, defaultVideoFormats,
     defaultNetworkLogo, defaultNetworkLogoPosition, defaultRibbonEnabled,
     blurEnabled, blurIntensity, blurFade, blurDarkness, landscapeBlur, landscapeBlurDirty, setLandscapeBlur, defaultLogoScale, defaultLogoOffsetX, defaultLogoOffsetY, landscapeDefaults, tintStrength, topShade, topShadeHeight, gradientHeight, setGradientHeight, setBlurFade,
@@ -547,6 +550,7 @@ export function usePosterSave(deps: PosterSaveDeps) {
       ageBadge: defaultAgeBadge,
       ageCountry: defaultAgeCountry,
       ageBadgeStyle: defaultAgeBadgeStyle,
+      awardBadgeStyle: defaultAwardBadgeStyle,
       customRatings: defaultCustomRatings,
       separateRatings: defaultSeparateRatings,
       badgeStyle: defaultBadgeStyle,
@@ -611,6 +615,9 @@ export function usePosterSave(deps: PosterSaveDeps) {
       ageBadgeStyle: isAgeBadgeStyle(ageBadgeStyle)
         ? ageBadgeStyle
         : (isAgeBadgeStyle(defaultAgeBadgeStyle) ? defaultAgeBadgeStyle : DEFAULT_AGE_BADGE_STYLE),
+      awardBadgeStyle: isAwardBadgeMode(awardBadgeStyle)
+        ? awardBadgeStyle
+        : (isAwardBadgeMode(defaultAwardBadgeStyle) ? defaultAwardBadgeStyle : DEFAULT_AWARD_BADGE_MODE),
       customRatings,
       separateRatings,
       badgeStyle,
@@ -902,6 +909,7 @@ export function usePosterSave(deps: PosterSaveDeps) {
           ageBadge: keepFlatKey("ageBadge", ageBadge),
           ageCountry: keepFlatKey("ageCountry", ageCountry),
           ageBadgeStyle: keepFlatKey("ageBadgeStyle", ageBadgeStyle),
+          awardBadgeStyle: keepFlatKey("awardBadgeStyle", awardBadgeStyle),
           customRatings: keepFlatKey("customRatings", customRatings),
           ratingSources: ratingSources ?? undefined,
           separateRatings: keepFlatKey("separateRatings", separateRatings),
@@ -1039,7 +1047,7 @@ export function usePosterSave(deps: PosterSaveDeps) {
       if (overrides.silent) throw error
       return false
     }
-  }, [selected, previewPoster, selectedLogo, metaInfo, logoScale, logoOffsetX, logoOffsetY, trendRank, globalBadges, rankingBadges, badgeGenre, badgeYear, badgeRating, badgeQuality, ageBadge, ageCountry, ageBadgeStyle, customRatings, ratingSources, separateRatings, separateRatingsStyle, seasonalTheme, mdblistAnimeList, loadMappings, customBadge, badgeStyle, rankingBadgeStyle, extraBadgeStyle, badgeFont, qualityBadgeStyle, videoFormats, blurEnabled, blurIntensity, blurFade, blurDarkness, landscapeBlur, landscapeBlurDirty, tintStrength, topShade, topShadeHeight, gradientHeight, topBadgeScale, topBadgeOffsetX, topBadgeOffsetY, extraBadgeScale, extraBadgeOffsetX, extraBadgeOffsetY, genreBadgeScale, qualityBadgeScale, separateBadgeScale, separateBadgeOffsetX, separateBadgeOffsetY, badgeItemTransforms, networkLogoScale, genreBadgeOffsetX, genreBadgeOffsetY, qualityBadgeOffsetX, qualityBadgeOffsetY, networkLogoOffsetX, networkLogoOffsetY, rotationPosters, autoRotateClean, defaultAutoRotateClean, excludedPosters, rotationBackdrops, autoRotateBackdrop, defaultAutoRotateBackdrop, excludedBackdrops, backdrops, defaultBadgeStyle, defaultRankingBadgeStyle, defaultExtraBadgeStyle, defaultGlobalBadges, defaultRankingBadges, defaultBadgeGenre, defaultBadgeYear, defaultBadgeRating, defaultBadgeQuality, defaultAgeBadge, defaultAgeCountry, defaultAgeBadgeStyle, defaultCustomRatings, defaultSeparateRatings, defaultBadgeFont, defaultQualityBadgeStyle, defaultVideoFormats, defaultNetworkLogo, defaultNetworkLogoPosition, defaultRibbonEnabled, posters, mappingsMap, accentColor, autoAccentColor, backdropOffsetX, backdropOffsetY, backdropScale, selectedBackdrop, networkLogo, networkLogoPosition, networkLogoFollowTitle, ribbonEnabled, episodeGroupId, posterShape, posterLayout, posterFreshScope, portraitBaseBackdropPath, portraitBaseLogoPath, logoText, logoFont]) // eslint-disable-line react-hooks/exhaustive-deps -- intentionally complete to save all poster state
+  }, [selected, previewPoster, selectedLogo, metaInfo, logoScale, logoOffsetX, logoOffsetY, trendRank, globalBadges, rankingBadges, badgeGenre, badgeYear, badgeRating, badgeQuality, ageBadge, ageCountry, ageBadgeStyle, awardBadgeStyle, customRatings, ratingSources, separateRatings, separateRatingsStyle, seasonalTheme, mdblistAnimeList, loadMappings, customBadge, badgeStyle, rankingBadgeStyle, extraBadgeStyle, badgeFont, qualityBadgeStyle, videoFormats, blurEnabled, blurIntensity, blurFade, blurDarkness, landscapeBlur, landscapeBlurDirty, tintStrength, topShade, topShadeHeight, gradientHeight, topBadgeScale, topBadgeOffsetX, topBadgeOffsetY, extraBadgeScale, extraBadgeOffsetX, extraBadgeOffsetY, genreBadgeScale, qualityBadgeScale, separateBadgeScale, separateBadgeOffsetX, separateBadgeOffsetY, badgeItemTransforms, networkLogoScale, genreBadgeOffsetX, genreBadgeOffsetY, qualityBadgeOffsetX, qualityBadgeOffsetY, networkLogoOffsetX, networkLogoOffsetY, rotationPosters, autoRotateClean, defaultAutoRotateClean, excludedPosters, rotationBackdrops, autoRotateBackdrop, defaultAutoRotateBackdrop, excludedBackdrops, backdrops, defaultBadgeStyle, defaultRankingBadgeStyle, defaultExtraBadgeStyle, defaultGlobalBadges, defaultRankingBadges, defaultBadgeGenre, defaultBadgeYear, defaultBadgeRating, defaultBadgeQuality, defaultAgeBadge, defaultAgeCountry, defaultAgeBadgeStyle, defaultAwardBadgeStyle, defaultCustomRatings, defaultSeparateRatings, defaultBadgeFont, defaultQualityBadgeStyle, defaultVideoFormats, defaultNetworkLogo, defaultNetworkLogoPosition, defaultRibbonEnabled, posters, mappingsMap, accentColor, autoAccentColor, backdropOffsetX, backdropOffsetY, backdropScale, selectedBackdrop, networkLogo, networkLogoPosition, networkLogoFollowTitle, ribbonEnabled, episodeGroupId, posterShape, posterLayout, posterFreshScope, portraitBaseBackdropPath, portraitBaseLogoPath, logoText, logoFont]) // eslint-disable-line react-hooks/exhaustive-deps -- intentionally complete to save all poster state
 
   /**
    * Cover-only save ("Salva solo poster" / "Save poster only"): persists

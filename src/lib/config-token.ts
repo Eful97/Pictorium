@@ -10,7 +10,7 @@ import { z } from "zod"
 // Batch B: clamp condiviso da image-utils.ts (semantica standard, senza round)
 import { clamp } from "@/lib/image-utils"
 import { envWithFallback } from "@/lib/env-compat"
-import { BADGE_STYLES, RANKING_BADGE_STYLES, QUALITY_BADGE_STYLES, AGE_BADGE_STYLES, BADGE_FONTS, SEPARATE_RATINGS_STYLES, EXTRA_BADGE_STYLES, EXTRA_BADGE_FOLLOW_RANK } from "@/lib/badge-styles"
+import { BADGE_STYLES, RANKING_BADGE_STYLES, QUALITY_BADGE_STYLES, AGE_BADGE_STYLES, AWARD_BADGE_MODES, BADGE_FONTS, SEPARATE_RATINGS_STYLES, EXTRA_BADGE_STYLES, EXTRA_BADGE_FOLLOW_RANK } from "@/lib/badge-styles"
 import { POSTER_LAYOUTS, POSTER_FRESH_SCOPES } from "@/lib/types"
 import { retiredBadgeFamilyBindingsSchema } from "@/lib/validation"
 import { MAX_DISABLED_NETWORKS } from "@/lib/network-keys"
@@ -95,6 +95,8 @@ export const configTokenSchema = z.object({
   /** Stile pill età: opzionale per back-compat token vecchi (come
    *  qualityBadgeStyle: assente = cascata verso i defaults). */
   ageBadgeStyle: z.enum(AGE_BADGE_STYLES).nullable().optional(),
+  /** Modalità del top-badge premi (assente = cascata verso i defaults). */
+  awardBadgeStyle: z.enum(AWARD_BADGE_MODES).nullable().optional(),
   customRatings: z.boolean().optional(),
   ratingSources: z.array(z.string().max(20)).optional(),
   separateRatings: z.boolean().optional(),

@@ -1,5 +1,5 @@
 import { z } from "zod"
-import { BADGE_STYLES, RANKING_BADGE_STYLES, QUALITY_BADGE_STYLES, AGE_BADGE_STYLES, BADGE_FONTS, SEPARATE_RATINGS_STYLES, EXTRA_BADGE_STYLES, EXTRA_BADGE_FOLLOW_RANK } from "./badge-styles"
+import { BADGE_STYLES, RANKING_BADGE_STYLES, QUALITY_BADGE_STYLES, AGE_BADGE_STYLES, AWARD_BADGE_MODES, BADGE_FONTS, SEPARATE_RATINGS_STYLES, EXTRA_BADGE_STYLES, EXTRA_BADGE_FOLLOW_RANK } from "./badge-styles"
 import { TEXT_LOGO_MAX_LENGTH } from "./text-logo"
 import { POSTER_LAYOUTS, POSTER_FRESH_SCOPES, RETIRED_BADGE_FAMILY_IDS, type RetiredBadgeFamilyBindings, type RetiredBadgeFamilyFollows } from "./types"
 
@@ -103,6 +103,8 @@ export const mappingSchema = z.object({
   ageCountry: z.string().max(8).nullable().optional(),
   /** Stile pill età per-titolo ("standard" = resa storica). */
   ageBadgeStyle: z.enum(AGE_BADGE_STYLES).nullable().optional(),
+  /** Modalità del top-badge premi per-titolo ("badge" = resa storica). */
+  awardBadgeStyle: z.enum(AWARD_BADGE_MODES).nullable().optional(),
   customRatings: z.boolean().nullable().optional(),
   // Fonti voto medio per-titolo: lasco al save (max 20 char come il token),
   // strict al render via parseRatingSources (whitelist SUPPORTED_RATING_SOURCES).
@@ -258,6 +260,8 @@ export const mappingSchema = z.object({
     ageBadge: z.boolean().nullable().optional(),
     ageCountry: z.string().max(8).nullable().optional(),
     ageBadgeStyle: z.enum(AGE_BADGE_STYLES).nullable().optional(),
+    // Modalità premi per-forma (assente/null = eredita il flat).
+    awardBadgeStyle: z.enum(AWARD_BADGE_MODES).nullable().optional(),
     badgeStyle: z.enum(BADGE_STYLES).nullable().optional(),
     rankingBadgeStyle: z.enum(RANKING_BADGE_STYLES).nullable().optional(),
     extraBadgeStyle: z.union([z.enum(EXTRA_BADGE_STYLES), z.literal(EXTRA_BADGE_FOLLOW_RANK)]).nullable().optional(),

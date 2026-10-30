@@ -4,7 +4,7 @@
  * logic applies in preview (WYSIWYG) and final poster.
  */
 import { computeBadge, computeAbsoluteCinema, isMiniseriesType, isReturningStatus, stripArabicDiacritics, NEXT_EPISODE_BADGE_KEY, isNextEpisodeBadgeKey, type BadgeResult, type SashBucket } from "./badge-priority"
-import { getAwardBadgeLabel, getNominationBadgeLabel } from "./badge-labels"
+import { getAwardBadgeKey, getAwardBadgeLabel, getNominationBadgeLabel, type AwardBadgeKey } from "./badge-labels"
 import { withIdAwards, withIdNoms } from "./award-ids"
 import { formatReleaseDate, getUpcomingReleaseLabel, type DateFormat } from "./release-badge"
 import { getSubGenreMatch, getAllSubGenreMatches } from "./subgenres"
@@ -72,6 +72,15 @@ export interface ComputedTopBadge {
   readonly seriesEnded: string | null
   readonly extraFallback: string | null
   readonly awardBadge: string | null
+  /**
+   * Canonical key of the award/nomination actually shown as the top extra
+   * badge (null when the top badge is not an award, or no award won).
+   * `awardstyle=logo` maps this key to the bundled asset — the localized
+   * `awardBadge` label is NEVER a key. Derived inside `computeTopBadge`: the
+   * only comparison is the structural identity of the computed winning label
+   * against the award label produced by the same canonical lookup.
+   */
+  readonly awardBadgeKey: AwardBadgeKey | null
   readonly studioBadge: string | null
   readonly subGenreBadge: string | null
   readonly trueStory: string | null
@@ -412,8 +421,10 @@ export function computeTopBadge(input: BadgeInput, t: BadgeT, locale?: string, o
   // (same canonical strings keep dropdown/cache in sync, see award-ids.ts).
   const mergedAwards = withIdAwards(input.tmdbId, input.mediaType, input.awards)
   const mergedNoms = withIdNoms(input.tmdbId, input.mediaType, input.nominations)
-  const awardBadge = mergedAwards.length ? getAwardBadgeLabel(mergedAwards, t) : null
-  const nomination = !awardBadge && mergedNoms.length
+  const awardKey = getAwardBadgeKey(mergedAwards)
+  const nominationKey = getAwardBadgeKey(mergedNoms)
+  const awardBadge = awardKey ? getAwardBadgeLabel(mergedAwards, t) : null
+  const nomination = !awardBadge && nominationKey
     ? getNominationBadgeLabel(mergedNoms, t)
     : null
   const studioBadge = input.studios.length ? input.studios[0] : null
@@ -529,6 +540,11 @@ export function computeTopBadge(input: BadgeInput, t: BadgeT, locale?: string, o
     seriesEnded,
     extraFallback,
     awardBadge,
+    awardBadgeKey: badge?.type === "extra"
+      ? (awardBadge !== null && awardKey && badge.label === awardBadge
+          ? awardKey
+          : (nomination !== null && nominationKey && badge.label === nomination ? nominationKey : null))
+      : null,
     studioBadge,
     subGenreBadge,
     trueStory,

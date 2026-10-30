@@ -5,6 +5,7 @@ import {
   resolveAgeCertification,
   resolveMovieCertification,
   resolveTvCertification,
+  sanitizeAgeLabel,
 } from "@/lib/certification"
 import { __clearTMDBCache, __resetKey401Cache, getContentRatings } from "@/lib/tmdb"
 
@@ -146,6 +147,74 @@ describe("resolveTvCertification", () => {
     expect(resolveTvCertification(tvResp([{ iso_3166_1: "IT", rating: null }]), "IT")).toBeNull()
     expect(resolveTvCertification(tvResp([{ iso_3166_1: "IT", rating: "VM14" }]), "")).toBeNull()
     expect(resolveTvCertification(tvResp([{ iso_3166_1: "IT", rating: "VM14" }]), "GLOBAL")).toBeNull()
+  })
+})
+
+describe("real-world label matrix (Kometa-7 + IT)", () => {
+  const movieCases: { country: string; label: string }[] = [
+    { country: "IT", label: "VM14" },
+    { country: "US", label: "PG-13" },
+    { country: "US", label: "TV-MA" },
+    { country: "DE", label: "FSK 16" },
+    { country: "GB", label: "U" },
+    { country: "GB", label: "12" },
+    { country: "AU", label: "R18+" },
+  ]
+
+  it.each(movieCases)("movie $country label '$label' resolves verbatim and sanitizes unchanged", ({ country, label }) => {
+    const resp = movieResp([
+      {
+        iso_3166_1: country,
+        release_dates: [{ certification: label, release_date: "2024-01-01T00:00:00.000Z", type: 3 }],
+      },
+    ])
+    expect(resolveMovieCertification(resp, country)).toBe(label)
+    expect(sanitizeAgeLabel(label)).toBe(label)
+  })
+
+  const tvCases: { country: string; label: string }[] = [
+    { country: "IT", label: "VM14" },
+    { country: "US", label: "PG-13" },
+    { country: "US", label: "TV-MA" },
+    { country: "DE", label: "FSK 16" },
+    { country: "GB", label: "U" },
+    { country: "GB", label: "12" },
+    { country: "AU", label: "R18+" },
+  ]
+
+  it.each(tvCases)("tv $country label '$label' resolves verbatim and sanitizes unchanged", ({ country, label }) => {
+    const resp = tvResp([{ iso_3166_1: country, rating: label }])
+    expect(resolveTvCertification(resp, country)).toBe(label)
+    expect(sanitizeAgeLabel(label)).toBe(label)
+  })
+
+  it("trims surrounding whitespace but performs no conversion", () => {
+    const resp = movieResp([
+      {
+        iso_3166_1: "DE",
+        release_dates: [{ certification: " FSK 16 ", release_date: "2024-01-01T00:00:00.000Z", type: 3 }],
+      },
+    ])
+    expect(resolveMovieCertification(resp, "DE")).toBe("FSK 16")
+    expect(sanitizeAgeLabel("  PG-13  ")).toBe("PG-13")
+  })
+
+  it("has no cross-country fallback for matrix labels", () => {
+    const resp = movieResp([
+      {
+        iso_3166_1: "US",
+        release_dates: [{ certification: "PG-13", release_date: "2024-01-01T00:00:00.000Z", type: 3 }],
+      },
+    ])
+    expect(resolveMovieCertification(resp, "IT")).toBeNull()
+    expect(resolveTvCertification(tvResp([{ iso_3166_1: "US", rating: "TV-MA" }]), "DE")).toBeNull()
+  })
+
+  it("known-limit: labels over 12 chars or with exotic charset hide (null)", () => {
+    // Documented known-limit, not a failure: the dynamic pill hides rather
+    // than truncating/converting an unrenderable label.
+    expect(sanitizeAgeLabel("Freigegeben ab 18")).toBeNull()
+    expect(sanitizeAgeLabel("PG-13!")).toBeNull()
   })
 })
 

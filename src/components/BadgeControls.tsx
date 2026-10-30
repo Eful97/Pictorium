@@ -7,7 +7,7 @@ import { useT } from "@/lib/contexts/TranslationContext"
 import { usePosterEditor } from "@/lib/contexts/PosterEditorContext"
 import { Toggle } from "@/components/Toggle"
 import { isCardSkin, type CardSkin } from "@/lib/card-layout-skins"
-import { BadgeStyleSelector, BadgeFontSelector } from "@/components/ui"
+import { BadgeStyleSelector, BadgeFontSelector, AwardBadgeModeSelector } from "@/components/ui"
 import {
   RankingAppearanceSelector,
   resolveRankingAppearance,
@@ -800,6 +800,17 @@ export function BadgeControls() {
                 </div>
               </>
             )}
+          </div>
+
+          {/* Per-title award top-badge mode (independent per shape): the
+              historic text badge or the bundled award logo. Same URL-driven
+              renderer, so the WYSIWYG preview is the final poster. */}
+          <div className="bg-surface/50 border border-surface2/60 rounded-xl p-3 space-y-2 shadow-sm" data-testid="badge-award-style">
+            <div className="space-y-1.5">
+              <span className="text-zinc-300 font-medium block">{t("ui.awardBadgeStyle")}</span>
+              <AwardBadgeModeSelector value={ed.awardBadgeStyle} onChange={(v) => ed.setAwardBadgeStyle(v)} t={t} />
+            </div>
+            <p className="text-[11px] text-zinc-500 leading-relaxed">{t("ui.awardBadgeHint")}</p>
           </div>
 
         </div>

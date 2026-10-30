@@ -18,8 +18,8 @@ import { normalizeGenreName } from "./genre-normalize"
 import type { SearchResult, TMDBImage } from "./types"
 import type { EnrichedAnimeItem } from "./validation"
 import type { BadgeStyle, RankingBadgeStyle, QualityBadgeStyle, BadgeFont, SeparateRatingsStyle, ExtraBadgeStyle, ExtraBadgeFollowRank } from "./badge-styles"
-import type { AgeBadgeStyle } from "./badge-styles"
-import { isAgeBadgeStyle } from "./badge-styles"
+import type { AgeBadgeStyle, AwardBadgeMode } from "./badge-styles"
+import { isAgeBadgeStyle, normalizeAwardBadgeModeForTransport } from "./badge-styles"
 import { isExtraBadgeStyle, isExtraFollowRank } from "./badge-styles"
 import { getSeparateBadgeDefaultScale, getSeparateRatingsStyleForShape, getQualityBadgeOffsetDefault, normalizeQualityBadgeStyleForTransport } from "./badge-styles"
 import { canonicalizeBadgeItemTransforms } from "./badge-item-transforms"
@@ -57,6 +57,8 @@ interface BadgeParams {
   ageCountry?: string | null
   /** Stile pill età: sempre esplicito in preview (`agebs=…`, default "standard"). */
   ageBadgeStyle?: AgeBadgeStyle | null
+  /** Modalità top-badge premi: sempre esplicita in preview (`awardstyle=badge|logo`). */
+  awardBadgeStyle?: AwardBadgeMode | null
   /** Riga rating custom provider (display). `false` emette `cr=0`. */
   customRatings?: boolean
   ratingSources?: string[]
@@ -347,6 +349,7 @@ export function buildUrlPattern(bp: BadgeParams & {
     // titolo in editing o il default di forma senza titolo; il server
     // risolverebbe comunque lo stesso valore).
     ageBadgeStyle: bp.ageBadgeStyle ?? undefined,
+    awardBadgeStyle: bp.awardBadgeStyle ?? undefined,
     customRatings: bp.customRatings,
     ratingSources: bp.ratingSources,
     separateRatings: bp.separateRatings,
@@ -441,6 +444,9 @@ export function buildPreviewUrl(ps: PosterState, bp: BadgeParams, configToken?: 
   // default salvato knockout scavalcerebbe la scelta editor (desync WYSIWYG) —
   // e uno standard esplicito non prevarrebbe su un knockout ereditato.
   params.push(`agebs=${isAgeBadgeStyle(bp.ageBadgeStyle) ? bp.ageBadgeStyle : "standard"}`)
+  // Modalità premi SEMPRE esplicita in preview (come agebs/qbs): senza, un
+  // default salvato `logo` scavalcherebbe la scelta editor (desync WYSIWYG).
+  params.push(`awardstyle=${normalizeAwardBadgeModeForTransport(bp.awardBadgeStyle)}`)
   // cr SEMPRE esplicito in preview (ON e OFF): senza, un mapping salvato con
   // customRatings=false scavalcerebbe il toggle editor (desync WYSIWYG).
   params.push(`cr=${bp.customRatings === false ? "0" : "1"}`)
@@ -771,6 +777,8 @@ export interface DefaultsPreviewParams {
   defaultAgeCountry?: string | null
   /** Stile pill età di default portrait (default "standard"): sempre esplicito. In preview landscape vince il profilo. */
   defaultAgeBadgeStyle?: AgeBadgeStyle | null
+  /** Modalità premi di default portrait (default "badge"): sempre esplicita. In preview landscape vince il profilo. */
+  defaultAwardBadgeStyle?: AwardBadgeMode | null
   defaultCustomRatings?: boolean
   defaultSeparateRatings?: boolean
   defaultSeparateRatingsStyle?: SeparateRatingsStyle | null
@@ -1022,6 +1030,10 @@ export function buildDefaultsPreviewUrl(bp: DefaultsPreviewParams): string {
   // Stile pill età sempre esplicito in preview (come sopra): il default
   // salvato deve mostrarsi subito senza ereditare token o default altrui.
   params.push(`agebs=${isAgeBadgeStyle(effAgeStyle) ? effAgeStyle : "standard"}`)
+  // Modalità premi sempre esplicita in preview (per-shape: in landscape vince
+  // il profilo `land`, stessa regola `land ?? flat` del server).
+  const effAwardStyle = previewLandscape ? (land.awardBadgeStyle ?? bp.defaultAwardBadgeStyle) : bp.defaultAwardBadgeStyle
+  params.push(`awardstyle=${normalizeAwardBadgeModeForTransport(effAwardStyle)}`)
   params.push(`cr=${pick(land.customRatings, bp.defaultCustomRatings) === false ? "0" : "1"}`)
   params.push(`sep=${pick(land.separateRatings, bp.defaultSeparateRatings) ? "1" : "0"}`)
   // Stile normalizzato per formato effettivo (bar Orizzontale → pills).

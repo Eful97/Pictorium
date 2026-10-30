@@ -6,6 +6,7 @@
 // ---------------------------------------------------------------------------
 
 import type { PictoriumUserConfig } from "./config-token"
+import type { AwardBadgeMode } from "./badge-styles"
 import { normalizeSeasonalTheme, resolveEffectiveSeasonalTheme, type SeasonalTheme } from "./seasonal-theme"
 import { effectiveMappingForShape, isPosterLayout, isPosterFreshScope, DEFAULT_POSTER_LAYOUT, DEFAULT_POSTER_FRESH_SCOPE, type Mapping, type NetworkLogoPosition, type PosterLayout, type PosterFreshScope, type PosterShape } from "./types"
 import { effectiveDefaultsForShape } from "./server-defaults-shape"
@@ -25,6 +26,7 @@ import {
   normalizeExtraBadgeStyleForRender,
   isQualityBadgeStyle,
   isAgeBadgeStyle,
+  isAwardBadgeMode,
   isBadgeFont,
   isSeparateRatingsStyle,
   isBottomSeparateRatingsStyle,
@@ -36,6 +38,7 @@ import {
   DEFAULT_RANKING_BADGE_STYLE,
   DEFAULT_QUALITY_BADGE_STYLE,
   DEFAULT_AGE_BADGE_STYLE,
+  DEFAULT_AWARD_BADGE_MODE,
   DEFAULT_BADGE_FONT,
   DEFAULT_SEPARATE_RATINGS_STYLE,
   type BadgeStyle,
@@ -414,6 +417,11 @@ export interface PosterRenderConfig {
    *  forma > flat > "standard" (query presente-ma-invalida = "standard"
    *  esplicito, fail-closed). */
   ageBadgeStyle: AgeBadgeStyle
+  /** Modalità del top-badge premi (default "badge" = resa testuale storica).
+   *  Per-shape con per-titolo: query `awardstyle` > mapping effettivo per
+   *  formato > config token > defaults effettivi per forma > flat >
+   *  "badge" (assente/garbage = badge, zero pixel cambiati). */
+  awardBadgeStyle: AwardBadgeMode
   /** Soglia minima tier qualità streaming — catena: query `qmin` > server defaults > "SD". Globale (nessun per-titolo). */
   minQuality: StreamQuality
   /** Ordine/priorità sash — catena: query `sash` > server defaults > default. Globale (nessun per-titolo). */
@@ -570,6 +578,33 @@ export interface AgeBadgeRequest {
   ageBadge: boolean
   ageCountry: string
   ageBadgeStyle: AgeBadgeStyle
+}
+
+/**
+ * Award top-badge mode — same per-shape + per-title chain as the age style
+ * (`agebs`): query `awardstyle` > effective per-shape mapping > config token
+ * > effective per-shape defaults > flat > "badge". A present-but-invalid
+ * query value is an explicit "badge" (fail-closed, never inherit `logo`),
+ * and absent everywhere is the historic textual badge (byte-identical).
+ */
+export function resolveAwardBadgeStyle(
+  searchParams: URLSearchParams,
+  configOverride: PictoriumUserConfig | null,
+  sd: ServerDefaults,
+  flatSd?: ServerDefaults | null,
+  mapping?: Pick<Mapping, "awardBadgeStyle"> | null,
+): AwardBadgeMode {
+  const qAward = searchParams.get("awardstyle")
+  const mappingAward = typeof mapping?.awardBadgeStyle === "string" && isAwardBadgeMode(mapping.awardBadgeStyle)
+    ? mapping.awardBadgeStyle
+    : undefined
+  const sdAward = sd.awardBadgeStyle ?? flatSd?.awardBadgeStyle
+  return qAward !== null
+    ? (isAwardBadgeMode(qAward) ? qAward : DEFAULT_AWARD_BADGE_MODE)
+    : (mappingAward
+      ?? (isAwardBadgeMode(configOverride?.awardBadgeStyle)
+        ? configOverride.awardBadgeStyle
+        : (isAwardBadgeMode(sdAward) ? sdAward : DEFAULT_AWARD_BADGE_MODE)))
 }
 
 export function resolveAgeBadgeRequest(
@@ -854,6 +889,11 @@ export function resolvePosterRenderConfig(input: PosterRenderConfigInput): Poste
   // route, che lo riusa per il gating del fetch): default OFF = nessun
   // fetch TMDB extra e nessun cambio di resa finché non abilitato.
   const { ageBadge, ageCountry, ageBadgeStyle } = resolveAgeBadgeRequest(q, configOverride, esd, sd, m)
+
+  // Modalità del top-badge premi (`awardstyle`) — stessa catena per-shape con
+  // per-titolo dello stile età: query > mapping effettivo per formato > config
+  // token > defaults effettivi per forma > flat > "badge".
+  const awardBadgeStyle = resolveAwardBadgeStyle(q, configOverride, esd, sd, m)
 
   // Minimum streaming quality tier — chain: query `qmin` > effective
   // per-shape defaults > "SD" (show all). Invalid values → default. No
@@ -1272,6 +1312,7 @@ export function resolvePosterRenderConfig(input: PosterRenderConfigInput): Poste
     ageBadge,
     ageCountry,
     ageBadgeStyle,
+    awardBadgeStyle,
     minQuality,
     sashOrder,
     disabledContentTags,

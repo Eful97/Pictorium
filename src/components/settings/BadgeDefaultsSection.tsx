@@ -29,10 +29,10 @@ import { VisualPresetsSection } from "@/components/settings/VisualPresetsSection
 import { REGIONS } from "@/lib/regions"
 import { PosterLayoutSelector } from "@/components/PosterLayoutSelector"
 import { isCardSkin, type CardSkin } from "@/lib/card-layout-skins"
-import { BadgeStyleSelector, BadgeFontSelector } from "@/components/ui"
+import { BadgeStyleSelector, BadgeFontSelector, AwardBadgeModeSelector } from "@/components/ui"
 import type { DefaultsPreviewFamily } from "@/lib/poster-url"
 import type { PosterElementId } from "@/components/settings/PosterElementNavigation"
-import { isBottomSeparateRatingsStyle, getSeparateRatingsStyleForShape, AGE_BADGE_STYLES, DEFAULT_AGE_BADGE_STYLE, DEFAULT_BADGE_FONT, DEFAULT_QUALITY_BADGE_STYLE, DEFAULT_SEPARATE_RATINGS_STYLE, EXTRA_BADGE_FOLLOW_RANK, DEFAULT_QUALITY_BADGE_OFFSET_X, DEFAULT_QUALITY_BADGE_OFFSET_Y, DEFAULT_QUALITY_BADGE_OFFSET_X_LANDSCAPE, DEFAULT_QUALITY_BADGE_OFFSET_Y_LANDSCAPE, getSeparateBadgeDefaultScale } from "@/lib/badge-styles"
+import { isBottomSeparateRatingsStyle, getSeparateRatingsStyleForShape, AGE_BADGE_STYLES, DEFAULT_AGE_BADGE_STYLE, DEFAULT_AWARD_BADGE_MODE, DEFAULT_BADGE_FONT, DEFAULT_QUALITY_BADGE_STYLE, DEFAULT_SEPARATE_RATINGS_STYLE, EXTRA_BADGE_FOLLOW_RANK, DEFAULT_QUALITY_BADGE_OFFSET_X, DEFAULT_QUALITY_BADGE_OFFSET_Y, DEFAULT_QUALITY_BADGE_OFFSET_X_LANDSCAPE, DEFAULT_QUALITY_BADGE_OFFSET_Y_LANDSCAPE, getSeparateBadgeDefaultScale } from "@/lib/badge-styles"
 import { DEFAULT_AGE_COUNTRY } from "@/lib/certification"
 import { KNOWN_VIDEO_FORMATS } from "@/lib/av-specs"
 import { NATURAL_GRADIENT_DEFAULTS } from "@/lib/gradient-presets"
@@ -313,6 +313,9 @@ export function BadgeDefaultsSection({ active, shape, onPreviewFamilyChange, pre
   const [ageBadge, setAgeBadge] = scoped("ageBadge", ed.defaultAgeBadge, ed.setDefaultAgeBadge)
   const [ageCountry, setAgeCountry] = scoped("ageCountry", ed.defaultAgeCountry, ed.setDefaultAgeCountry)
   const [ageBadgeStyle, setAgeBadgeStyle] = scoped("ageBadgeStyle", ed.defaultAgeBadgeStyle, ed.setDefaultAgeBadgeStyle)
+  // Modalità premi per-shape: portrait = flat condiviso, landscape = override
+  // del profilo (assente = segue il flat), stesso pattern dei visual scoped.
+  const [awardBadgeStyle, setAwardBadgeStyle] = scoped("awardBadgeStyle", ed.defaultAwardBadgeStyle, ed.setDefaultAwardBadgeStyle)
   // Effective availability (shared helper, no duplicated gate logic): the
   // scoped bindings above already resolve `land ?? flat` per edit target.
   const effFlags: EffectiveBadgeFlags = {
@@ -466,7 +469,8 @@ export function BadgeDefaultsSection({ active, shape, onPreviewFamilyChange, pre
   const hasVisualOverrides = isLandscape && (BADGE_VISUAL_LAND_KEYS.some(badgeDiverges)
     || ed.landscape.ageBadge !== false
     || ed.landscape.ageCountry !== DEFAULT_AGE_COUNTRY
-    || ed.landscape.ageBadgeStyle !== DEFAULT_AGE_BADGE_STYLE)
+    || ed.landscape.ageBadgeStyle !== DEFAULT_AGE_BADGE_STYLE
+    || ed.landscape.awardBadgeStyle !== DEFAULT_AWARD_BADGE_MODE)
   const resetVisualOverrides = () => {
     const full = independentLandscapeDefaults(edRec) as unknown as Record<string, unknown>
     const patch = Object.fromEntries(
@@ -477,6 +481,7 @@ export function BadgeDefaultsSection({ active, shape, onPreviewFamilyChange, pre
       ageBadge: false,
       ageCountry: DEFAULT_AGE_COUNTRY,
       ageBadgeStyle: DEFAULT_AGE_BADGE_STYLE,
+      awardBadgeStyle: DEFAULT_AWARD_BADGE_MODE,
     })
   }
 
@@ -1956,6 +1961,16 @@ export function BadgeDefaultsSection({ active, shape, onPreviewFamilyChange, pre
             </div>
           ) : null)}
         </div>
+      </div>
+      )}
+
+      {(mode === undefined || mode === "appearance") && (
+      <div hidden={hideFor("info") || modeHide("appearance")} data-testid="badge-award-style" className="bg-surface/50 border border-surface2/60 rounded-xl p-3.5 space-y-1.5 shadow-sm">
+        <div className="space-y-1.5">
+          <span className="text-[11px] text-muted font-medium block">{t("ui.awardBadgeStyle")}</span>
+          <AwardBadgeModeSelector value={awardBadgeStyle} onChange={(v) => { setAwardBadgeStyle(v) }} t={t} />
+        </div>
+        <p className="text-[11px] text-zinc-500 leading-relaxed mt-1.5">{t("ui.awardBadgeHint")}</p>
       </div>
       )}
 

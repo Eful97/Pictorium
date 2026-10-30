@@ -400,6 +400,19 @@ export function useSettingsSession(): SettingsSessionResult {
           : { defaultAgeBadgeStyle: next }
       })
     }
+    const setDefaultAwardBadgeStyle = (
+      v: FieldUpdater<SettingsSessionValue["defaultAwardBadgeStyle"]>,
+    ) => {
+      updateSession((prev) => {
+        const next = resolveField(v, prev.defaultAwardBadgeStyle)
+        return prev.landscape.awardBadgeStyle === undefined
+          ? {
+              defaultAwardBadgeStyle: next,
+              landscape: { ...prev.landscape, awardBadgeStyle: prev.defaultAwardBadgeStyle },
+            }
+          : { defaultAwardBadgeStyle: next }
+      })
+    }
     // Per-ITEM badge corrections (single pill / quality mark): same canonical
     // wire form as the provider setter, so the staged draft, the preview URL
     // and the single Save all carry one stored form.
@@ -622,6 +635,7 @@ export function useSettingsSession(): SettingsSessionResult {
       setDefaultAgeBadge,
       setDefaultAgeCountry,
       setDefaultAgeBadgeStyle,
+      setDefaultAwardBadgeStyle,
       // Every defaults setter of the editor context is session-local: a setter
       // missing here falls through to the OUTER provider (live write + conflict
       // banner on a purely local edit).

@@ -24,6 +24,8 @@ const RENDER_FILES = [
   "src/app/api/poster/[type]/[id]/route.ts",
   "src/lib/accent-color.ts",
   "src/lib/award-ids.ts",
+  "src/lib/award-logo-files.ts",
+  "src/lib/award-logos.ts",
   "src/lib/awards.ts",
   "src/lib/badge-item-transforms.ts",
   "src/lib/badge-labels.ts",

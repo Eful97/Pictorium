@@ -30,6 +30,8 @@ import {
 import { LAND_W, LAND_H } from "./image-utils"
 import { normalizeAutomaticAccentHex } from "./accent-color"
 import type { EffectiveAccentMeta } from "./effective-accent"
+import { renderAwardLogoBadge } from "./award-logos"
+import { awardShortName, type AwardBadgeKey } from "./badge-labels"
 import { renderGenreBadge, renderRankingBadge, renderExtraBadge, renderQualityBadge, renderQualityKnockoutBadge, renderAgeKnockoutBadge, renderAgeEmphasisBadge, renderGradientMarkBadge, renderComingSoonRibbon, comingSoonRibbonLayout, renderSVG } from "./svg-badge"
 import { buildLogoScrim, logoContrast, logoInkLuminance, logoScrimStrength, posterLogoZoneLuminance } from "./logo-contrast"
 import { renderFirstMatchingNetworkLogoBadge, renderFirstMatchingNetworkRawBadge, renderFirstMatchingNetworkLogoBadgeHybrid, renderFirstMatchingNetworkRawBadgeHybrid, type NetworkCandidate } from "./network-svgs"
@@ -53,6 +55,7 @@ import type { WikidataResult } from "./awards"
 import { directorBadgeLabel } from "./awards"
 import type { BadgeT } from "./poster-badge"
 import type { BadgeFont } from "./badge-styles"
+import { isRibbonRankingStyle, isBottomSeparateRatingsStyle, isAgeBadgeStyle, isAwardBadgeMode, getSeparateRatingsStyleForShape, resolveNumberBadgeBaseOffsetX, normalizeExtraBadgeStyleForRender, DEFAULT_AGE_BADGE_STYLE, DEFAULT_AWARD_BADGE_MODE, type BadgeStyle, type RankingBadgeStyle, type ExtraBadgeStyle, type ExtraBadgeFollowRank, type SeparateRatingsStyle, type SeparateBottomVariant, type AgeBadgeStyle, type AwardBadgeMode } from "./badge-styles"
 import { normalizeBadgeFont } from "./badge-svg-shared"
 import type { PosterImageFormat } from "@/lib/poster-runtime-cache"
 import { AV_KNOCKOUT_RADIUS_FACTOR, AV_KNOCKOUT_TAG_INSET_FACTOR, AV_PLATE_RADIUS_FACTOR, AV_PLATE_STROKE_WIDTH, AV_COMBO_SHORT_LABEL, COLOR_MARK_GLYPH, COLOR_MARK_PLATE_BG, COLOR_MARK_PLATE_STROKE, GRADIENT_TIER_INK, avMarkInkBox, avPlateGlyphBox, gradientMarkStops, qualityBadgeIconPath, qualityIconReferenceWidth, videoFormatShortLabel, type AvMarkInkBox, PREMIUM_COMBO_ACCENT, PREMIUM_PLATE_BG, PREMIUM_PLATE_STROKE, premiumAccentHex, premiumFormatAccent } from "./quality-badge-styles"
@@ -198,6 +201,10 @@ export interface GenerationInput {
    *  builder, which stays byte-identical).
    *  Absent/invalid = "standard". */
   ageBadgeStyle?: AgeBadgeStyle | null
+  /** Modalità del top-badge premi (`badge` = resa testuale storica,
+   *  `logo` = icona del premio canonico su pill antracite). Assente/invalido
+   *  = `badge` (nessun pixel cambia). */
+  awardBadgeStyle?: AwardBadgeMode | null
   /** Font dei testi badge ("inter" = resa storica; i loghi restano invariati). */
   badgeFont?: BadgeFont | null
   /** Stile icone del badge qualità (standard = pill testuale). */
@@ -2274,6 +2281,7 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
     ageLabel = null,
     // Stile pill età (assente = "standard" = resa storica).
     ageBadgeStyle: rawAgeBadgeStyle = null,
+    awardBadgeStyle: rawAwardBadgeStyle = null,
     sashOrder,
     disabledContentTags = null,
     disabledNetworks = null,
@@ -2317,6 +2325,8 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
   // Stile pill età normalizzato (assente/invalido → "standard" = resa
   // storica; entra nella chiave solo con l'età presente).
   const ageBadgeStyle: AgeBadgeStyle = isAgeBadgeStyle(rawAgeBadgeStyle) ? rawAgeBadgeStyle : DEFAULT_AGE_BADGE_STYLE
+  // Modalità premi normalizzata (assente/invalido → "badge" = resa storica).
+  const awardBadgeStyle: AwardBadgeMode = isAwardBadgeMode(rawAwardBadgeStyle) ? rawAwardBadgeStyle : DEFAULT_AWARD_BADGE_MODE
   // Fresh apply scope (assente/invalido → default condiviso "ranked",
   // fail-closed: senza rank valido rende Standard). Il layout
   // EFFETTIVO si decide sotto, DOPO la selezione del topBadge (il rank
@@ -2874,6 +2884,26 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
     }
   }
 
+  // Award logo mode: the top badge is an award/nomination ONLY when the
+  // displayed extra badge is exactly the one produced by the canonical award
+  // lookup (no manual `extra`, no Coming Soon override, no network
+  // suppression). The key comes from `computeTopBadge` (canonical award
+  // identity), never from the localized label; non-award extras stay textual.
+  const awardLogoTopKey: AwardBadgeKey | null =
+    awardBadgeStyle === "logo"
+    && !effectiveQueryExtra
+    && topBadge?.type === "extra"
+    && computed.badge?.type === "extra"
+    && topBadge.label === computed.badge.label
+      ? computed.awardBadgeKey
+      : null
+  // Caption of the award logo pill: the SAME short localized name the textual
+  // badge uses (never an English literal in the renderer). It is a render
+  // input of the bitmap, so it enters the cache key below.
+  const awardLogoTopCaption: string | null = awardLogoTopKey
+    ? awardShortName(awardLogoTopKey, t)
+    : null
+
   // -----------------------------------------------------------------------
   // 5. Render genre + ranking badges (parallel with coalescing)
   // -----------------------------------------------------------------------
@@ -2937,8 +2967,11 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
   const genreBadgeKey = hasGenreBadge
     ? badgeCacheKey("genre", genreName, voteAverage, CW, year, badgeStyle, badgeFont, genreStdAccent, bottomLight, badgeGenre, badgeYear, badgeRating, genreBadgeScale)
     : null
+  // The award logo mode is part of the cache identity: the logo bitmap can
+  // never be served for a textual request (or vice versa). Non-award extras
+  // keep the historic key (identical text render in both modes).
   const rankBadgeKey = !showComingSoon && topBadge
-    ? badgeCacheKey("rank", topBadge.type === "extra" ? topBadge.label : `${(topBadge as { rank: number }).rank}:${topBadge!.label}:${(topBadge as { ribbonLabel?: string }).ribbonLabel ?? ""}`, CW, topLight, topBadgeStyle, badgeFont, rankStdAccent, ribbonSide, isAnimeRank, effTopBadgeScale, isRankDetached ? "detached" : undefined, rankingBadgeAccent ? "accent" : undefined)
+    ? badgeCacheKey("rank", topBadge.type === "extra" ? topBadge.label : `${(topBadge as { rank: number }).rank}:${topBadge!.label}:${(topBadge as { ribbonLabel?: string }).ribbonLabel ?? ""}`, CW, topLight, topBadgeStyle, badgeFont, rankStdAccent, ribbonSide, isAnimeRank, effTopBadgeScale, isRankDetached ? "detached" : undefined, rankingBadgeAccent ? "accent" : undefined, awardLogoTopKey ? `awardlogo:${awardLogoTopKey}:${awardLogoTopCaption ?? ""}` : undefined)
     : null
   const formatsKey = (effectiveFormats && effectiveFormats.length > 0) ? effectiveFormats.join(",") : "none"
   // Per-item corrections, split by family so each group's cache key carries
@@ -2994,7 +3027,14 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
                 // Extra badges render with the standalone style when set, else
                 // the legacy `rs` fallback (plus the no-ribbon accent rule).
                 // The follow-rank sentinel normalizes to null (own-rank).
-                return renderExtraBadge(topBadge!.label, topBadgePw, topLight, normalizeExtraBadgeStyleForRender(extraBadgeStyle) ?? (rankingBadgeAccent ? "colored" : rankingBadgeStyle), rankStdAccent, isRankDetached, badgeFont)
+                const renderText = () => renderExtraBadge(topBadge!.label, topBadgePw, topLight, normalizeExtraBadgeStyleForRender(extraBadgeStyle) ?? (rankingBadgeAccent ? "colored" : rankingBadgeStyle), rankStdAccent, isRankDetached, badgeFont)
+                // Award logo mode: canonical award icon on the shared
+                // anthracite pill. A missing/unreadable asset falls back to
+                // the historic textual badge (never a failed render).
+                const rendered = awardLogoTopKey
+                  ? renderAwardLogoBadge(awardLogoTopKey, topBadgePw, { caption: awardLogoTopCaption ?? undefined, font: badgeFont }).then((r) => r ?? renderText())
+                  : renderText()
+                return rendered
                   .then((r) => { const v = { ...r, isRank: false }; cacheSet(rankBadgeKey, v, ["badge"], BADGE_CACHE_TTL); return v })
               }
               return renderRankingBadge((topBadge as { rank: number }).rank, isRibbonRankingStyle(rankingBadgeStyle) ? badgePw : topBadgePw, topBadge!.label, topLight, rankingBadgeStyle, rankStdAccent, ribbonSide, isAnimeRank, isRankDetached, rankingBadgeAccent, (topBadge as { ribbonLabel?: string }).ribbonLabel, badgeFont)

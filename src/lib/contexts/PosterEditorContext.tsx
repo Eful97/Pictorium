@@ -6,9 +6,9 @@ import { useDefaults, type DefaultSyncStatus, type DefaultsState, type StagedSav
 import type { LandscapeServerDefaults } from "@/lib/server-defaults"
 import type { DateFormat } from "@/lib/release-badge"
 import type { BadgeStyle, RankingBadgeStyle, ExtraBadgeStyle, ExtraBadgeFollowRank, QualityBadgeStyle, BadgeFont, SeparateRatingsStyle } from "@/lib/badge-styles"
-import type { AgeBadgeStyle } from "@/lib/badge-styles"
+import type { AgeBadgeStyle, AwardBadgeMode } from "@/lib/badge-styles"
 
-import { DEFAULT_AGE_BADGE_STYLE, getSeparateBadgeDefaultScale, isAgeBadgeStyle } from "@/lib/badge-styles"
+import { DEFAULT_AGE_BADGE_STYLE, DEFAULT_AWARD_BADGE_MODE, getSeparateBadgeDefaultScale, isAgeBadgeStyle, isAwardBadgeMode } from "@/lib/badge-styles"
 import { DEFAULT_AGE_COUNTRY, normalizeCertificationCountry } from "@/lib/certification"
 import type { SashBucket } from "@/lib/badge-priority"
 import { normalizeSeasonalThemeChoice, type SeasonalThemeChoice } from "@/lib/seasonal-theme"
@@ -134,6 +134,9 @@ export interface PosterEditorCtx {
   /** Stile della pill età per-titolo ("standard" = resa storica). */
   ageBadgeStyle: AgeBadgeStyle
   setAgeBadgeStyle: (v: AgeBadgeStyle | ((prev: AgeBadgeStyle) => AgeBadgeStyle)) => void
+  /** Modalità del top-badge premi per-titolo ("badge" = resa testuale storica). */
+  awardBadgeStyle: AwardBadgeMode
+  setAwardBadgeStyle: (v: AwardBadgeMode | ((prev: AwardBadgeMode) => AwardBadgeMode)) => void
   /** Riga rating custom provider (default ON quando il provider è configurato). */
   customRatings: boolean
   setCustomRatings: (v: boolean | ((prev: boolean) => boolean)) => void
@@ -310,6 +313,9 @@ export interface PosterEditorCtx {
   /** Stile pill età di default ("standard" = resa storica). Globale, mai auto-cambiato. */
   defaultAgeBadgeStyle: AgeBadgeStyle
   setDefaultAgeBadgeStyle: (v: AgeBadgeStyle | ((prev: AgeBadgeStyle) => AgeBadgeStyle)) => void
+  /** Modalità del top-badge premi di default ("badge" = resa testuale storica). */
+  defaultAwardBadgeStyle: AwardBadgeMode
+  setDefaultAwardBadgeStyle: (v: AwardBadgeMode | ((prev: AwardBadgeMode) => AwardBadgeMode)) => void
   defaultCustomRatings: boolean
   setDefaultCustomRatings: (v: boolean | ((prev: boolean) => boolean)) => void
   /** Endpoint provider custom rating (non-segreto; chiave solo env). */
@@ -671,6 +677,9 @@ export function PosterEditorProvider({
   const [ageBadge, setAgeBadgeState] = useState<boolean>(false)
   const [ageCountry, setAgeCountryState] = useState<string>(DEFAULT_AGE_COUNTRY)
   const [ageBadgeStyle, setAgeBadgeStyleState] = useState<AgeBadgeStyle>(DEFAULT_AGE_BADGE_STYLE)
+  // Modalità premi per-titolo (default "badge" = resa storica): stato live
+  // dedicato, riallineato all'apertura titolo come l'età sopra.
+  const [awardBadgeStyle, setAwardBadgeStyleState] = useState<AwardBadgeMode>(DEFAULT_AWARD_BADGE_MODE)
   // Cornice stagionale per-titolo: stato live dedicato (come l'età sopra),
   // null = Automatico (segue la lista di origine). Iniziale = Automatico
   // (l'apertura titolo lo riallinea sempre al mapping salvato, mai valori
@@ -705,7 +714,7 @@ export function PosterEditorProvider({
     defaultBadgeItemTransforms,
     defaultGenreBadgeOffsetX, defaultGenreBadgeOffsetY, defaultQualityBadgeOffsetX, defaultQualityBadgeOffsetY,
     defaultNetworkLogoOffsetX, defaultNetworkLogoOffsetY,
-    defaultBadgeGenre, defaultBadgeYear, defaultBadgeRating, defaultBadgeQuality, defaultAgeBadge, defaultAgeCountry, defaultAgeBadgeStyle, defaultCustomRatings, defaultCustomRatingEndpoint, defaultCustomRatingApiKeyHeader, defaultRatingSources, defaultSeparateRatings, defaultSeparateRatingsStyle, defaultPosterLayout, defaultPosterFreshScope, defaultSashOrder, defaultDisabledContentTags, defaultDisabledNetworks,
+    defaultBadgeGenre, defaultBadgeYear, defaultBadgeRating, defaultBadgeQuality, defaultAgeBadge, defaultAgeCountry, defaultAgeBadgeStyle, defaultAwardBadgeStyle, defaultCustomRatings, defaultCustomRatingEndpoint, defaultCustomRatingApiKeyHeader, defaultRatingSources, defaultSeparateRatings, defaultSeparateRatingsStyle, defaultPosterLayout, defaultPosterFreshScope, defaultSashOrder, defaultDisabledContentTags, defaultDisabledNetworks,
     defaultAutoRotateClean, defaultAutoRotateBackdrop, defaultPortraitFitEnabled, defaultLandscapeFitEnabled, defaultNetworkLogo, defaultNetworkLogoPosition, defaultNetworkLogoFollowTitle, defaultPreRelease, defaultRibbonSide, defaultRibbonEnabled, defaultPosterShape, defaultLogoAlign,
     defaultDisableCleanPosters,
     landscape: landscapeDefaults,
@@ -764,6 +773,13 @@ export function PosterEditorProvider({
       setAgeBadgeStyleState((prev) => {
         const next = typeof v === "function" ? v(prev) : v
         return isAgeBadgeStyle(next) ? next : DEFAULT_AGE_BADGE_STYLE
+      })
+    }, [])
+  const setAwardBadgeStyle = useCallback(
+    (v: AwardBadgeMode | ((prev: AwardBadgeMode) => AwardBadgeMode)) => {
+      setAwardBadgeStyleState((prev) => {
+        const next = typeof v === "function" ? v(prev) : v
+        return isAwardBadgeMode(next) ? next : DEFAULT_AWARD_BADGE_MODE
       })
     }, [])
   const setCustomRatings = useCallback(
@@ -1334,6 +1350,16 @@ export function PosterEditorProvider({
         ? { defaultAgeBadgeStyle: next, landscape: { ...prev.landscape, ageBadgeStyle: prev.defaultAgeBadgeStyle } }
         : { defaultAgeBadgeStyle: next })
     }, [defaultAgeBadgeStyle, update])
+  const setDefaultAwardBadgeStyle = useCallback(
+    (v: AwardBadgeMode | ((prev: AwardBadgeMode) => AwardBadgeMode)) => {
+      const next = typeof v === "function" ? v(defaultAwardBadgeStyle) : v
+      // Portrait edit snapshots the pre-edit value into a still-inheriting
+      // landscape profile (same boundary as the age style): pixels unchanged,
+      // later portrait edits can never leak across shapes.
+      update((prev) => prev.landscape.awardBadgeStyle === undefined
+        ? { defaultAwardBadgeStyle: next, landscape: { ...prev.landscape, awardBadgeStyle: prev.defaultAwardBadgeStyle } }
+        : { defaultAwardBadgeStyle: next })
+    }, [defaultAwardBadgeStyle, update])
   const setDefaultCustomRatings = useCallback(
     (v: boolean | ((prev: boolean) => boolean)) => {
       const next = typeof v === "function" ? v(defaultCustomRatings) : v
@@ -1774,6 +1800,7 @@ export function PosterEditorProvider({
     setAgeBadge(isLandReset ? (land?.ageBadge ?? defaultAgeBadge) : defaultAgeBadge)
     setAgeCountry(isLandReset ? (land?.ageCountry ?? defaultAgeCountry) : defaultAgeCountry)
     setAgeBadgeStyle(isLandReset ? (land?.ageBadgeStyle ?? defaultAgeBadgeStyle) : defaultAgeBadgeStyle)
+    setAwardBadgeStyle(isLandReset ? (land?.awardBadgeStyle ?? defaultAwardBadgeStyle) : defaultAwardBadgeStyle)
     // Cornice stagionale per-titolo: il save "solo copertina" azzera la
     // scelta (Automatico = segue la lista) come gli altri visuali custom —
     // il mapping congelato contiene solo cover/logo/metadati.
@@ -1788,7 +1815,7 @@ export function PosterEditorProvider({
       topShade: landscapeDefaults?.topShade ?? defaultTopShade,
       topShadeHeight: landscapeDefaults?.topShadeHeight ?? defaultTopShadeHeight,
     })
-  }, [update, posterShape, landscapeDefaults, defaultGlobalBadges, defaultRankingBadges, defaultBadgeGenre, defaultBadgeYear, defaultBadgeRating, defaultBadgeQuality, defaultAgeBadge, defaultAgeCountry, defaultAgeBadgeStyle, defaultCustomRatings, defaultRatingSources, defaultSeparateRatings, defaultSeparateRatingsStyle, defaultPosterLayout, defaultPosterFreshScope, defaultBadgeStyle, defaultRankingBadgeStyle, defaultExtraBadgeStyle, defaultBadgeFont, defaultQualityBadgeStyle, defaultVideoFormats, defaultNetworkLogo, defaultNetworkLogoPosition, defaultNetworkLogoFollowTitle, defaultRibbonEnabled, defaultGradientHeight, defaultBlurEnabled, defaultBlurIntensity, defaultBlurFade, defaultBlurDarkness, defaultTintStrength, defaultTopShade, defaultTopShadeHeight, defaultTopBadgeScale, defaultTopBadgeOffsetX, defaultTopBadgeOffsetY, defaultExtraBadgeScale, defaultExtraBadgeOffsetX, defaultExtraBadgeOffsetY, defaultGenreBadgeScale, defaultGenreBadgeOffsetX, defaultGenreBadgeOffsetY, defaultQualityBadgeScale, defaultQualityBadgeOffsetX, defaultQualityBadgeOffsetY, defaultSeparateBadgeScale, defaultSeparateBadgeOffsetX, defaultSeparateBadgeOffsetY, defaultNetworkLogoScale, defaultNetworkLogoOffsetX, defaultNetworkLogoOffsetY, defaultLogoScale, defaultLogoOffsetX, defaultLogoOffsetY, setAgeBadge, setAgeCountry, setAgeBadgeStyle, setSeasonalTheme]) // eslint-disable-line react-hooks/exhaustive-deps -- setter refs are stable
+  }, [update, posterShape, landscapeDefaults, defaultGlobalBadges, defaultRankingBadges, defaultBadgeGenre, defaultBadgeYear, defaultBadgeRating, defaultBadgeQuality, defaultAgeBadge, defaultAgeCountry, defaultAgeBadgeStyle, defaultAwardBadgeStyle, defaultCustomRatings, defaultRatingSources, defaultSeparateRatings, defaultSeparateRatingsStyle, defaultPosterLayout, defaultPosterFreshScope, defaultBadgeStyle, defaultRankingBadgeStyle, defaultExtraBadgeStyle, defaultBadgeFont, defaultQualityBadgeStyle, defaultVideoFormats, defaultNetworkLogo, defaultNetworkLogoPosition, defaultNetworkLogoFollowTitle, defaultRibbonEnabled, defaultGradientHeight, defaultBlurEnabled, defaultBlurIntensity, defaultBlurFade, defaultBlurDarkness, defaultTintStrength, defaultTopShade, defaultTopShadeHeight, defaultTopBadgeScale, defaultTopBadgeOffsetX, defaultTopBadgeOffsetY, defaultExtraBadgeScale, defaultExtraBadgeOffsetX, defaultExtraBadgeOffsetY, defaultGenreBadgeScale, defaultGenreBadgeOffsetX, defaultGenreBadgeOffsetY, defaultQualityBadgeScale, defaultQualityBadgeOffsetX, defaultQualityBadgeOffsetY, defaultSeparateBadgeScale, defaultSeparateBadgeOffsetX, defaultSeparateBadgeOffsetY, defaultNetworkLogoScale, defaultNetworkLogoOffsetX, defaultNetworkLogoOffsetY, defaultLogoScale, defaultLogoOffsetX, defaultLogoOffsetY, setAgeBadge, setAgeCountry, setAgeBadgeStyle, setAwardBadgeStyle, setSeasonalTheme]) // eslint-disable-line react-hooks/exhaustive-deps -- setter refs are stable
 
   const editorCtx = useMemo<PosterEditorCtx>(
     () => ({
@@ -1814,6 +1841,8 @@ export function PosterEditorProvider({
       setAgeCountry,
       ageBadgeStyle,
       setAgeBadgeStyle,
+      awardBadgeStyle,
+      setAwardBadgeStyle,
       customRatings,
       setCustomRatings,
       ratingSources,
@@ -1952,6 +1981,8 @@ export function PosterEditorProvider({
       setDefaultAgeCountry,
       defaultAgeBadgeStyle,
       setDefaultAgeBadgeStyle,
+      defaultAwardBadgeStyle,
+      setDefaultAwardBadgeStyle,
       defaultCustomRatings,
       setDefaultCustomRatings,
       defaultCustomRatingEndpoint,
@@ -2149,6 +2180,7 @@ export function PosterEditorProvider({
       ageBadge, setAgeBadge,
       ageCountry, setAgeCountry,
       ageBadgeStyle, setAgeBadgeStyle,
+      awardBadgeStyle, setAwardBadgeStyle,
       customRatings, setCustomRatings,
       ratingSources, setRatingSources,
       separateRatings, setSeparateRatings,
@@ -2234,6 +2266,7 @@ export function PosterEditorProvider({
       defaultAgeBadge, setDefaultAgeBadge,
       defaultAgeCountry, setDefaultAgeCountry,
       defaultAgeBadgeStyle, setDefaultAgeBadgeStyle,
+      defaultAwardBadgeStyle, setDefaultAwardBadgeStyle,
       defaultCustomRatings, setDefaultCustomRatings,
       defaultCustomRatingEndpoint, setDefaultCustomRatingEndpoint,
       defaultCustomRatingApiKeyHeader, setDefaultCustomRatingApiKeyHeader,

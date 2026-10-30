@@ -69,16 +69,44 @@ export const DEFAULT_QUALITY_BADGE_STYLE: QualityBadgeStyle = "standard"
  * age-only builder `buildAgeKnockoutSvg`, never the shared quality knockout)
  * or "premium" (gold glyph on the compact dark premium plate), "nova"
  * (near-black bluish plate with a metallic border gradient and bold white
- * italic glyphs — dynamic label, same age-family box as every other style).
+ * italic glyphs — dynamic label, same age-family box as every other style)
+ * or "gradient" (bare extra-bold white glyphs with no container — the same
+ * material as the quality `gradient` tier, polarity independent).
  * `standard`/`knockout` keep their byte-identical renderers and the legacy
  * `knockout` identifier is preserved (enum/URL/persistence unchanged).
  * Per-shape chain like the age toggle itself: `agebs` query > config
  * token > effective per-shape server defaults > flat > "standard".
  */
-export const AGE_BADGE_STYLES = ["standard", "mono", "color", "knockout", "premium", "nova"] as const
+export const AGE_BADGE_STYLES = ["standard", "mono", "color", "knockout", "premium", "nova", "gradient"] as const
 export type AgeBadgeStyle = (typeof AGE_BADGE_STYLES)[number]
 
 export const DEFAULT_AGE_BADGE_STYLE: AgeBadgeStyle = "standard"
+
+/**
+ * Award top-badge mode: `badge` renders the historic textual award/nomination
+ * extra badge (byte-identical when absent), `logo` renders the bundled gold
+ * award mark on the shared anthracite pill — ONLY when the effective top
+ * badge is a canonical award/nomination. Non-award extras (true story, book,
+ * miniseries, …) stay textual in both modes; a missing asset falls back to
+ * text. Chain like the other visuals: query `awardstyle` > per-title mapping
+ * > config token > effective per-shape defaults > `badge`.
+ */
+export const AWARD_BADGE_MODES = ["badge", "logo"] as const
+export type AwardBadgeMode = (typeof AWARD_BADGE_MODES)[number]
+
+export const DEFAULT_AWARD_BADGE_MODE: AwardBadgeMode = "badge"
+
+export function isAwardBadgeMode(v: string | null | undefined): v is AwardBadgeMode {
+  return !!v && (AWARD_BADGE_MODES as readonly string[]).includes(v)
+}
+
+/**
+ * URL transport normalization: any valid mode passes through, absent/legacy/
+ * garbage collapses onto the historic `badge` mode (never a localized value).
+ */
+export function normalizeAwardBadgeModeForTransport(v: string | null | undefined): AwardBadgeMode {
+  return isAwardBadgeMode(v) ? v : DEFAULT_AWARD_BADGE_MODE
+}
 
 export function isAgeBadgeStyle(v: string | null | undefined): v is AgeBadgeStyle {
   return !!v && (AGE_BADGE_STYLES as readonly string[]).includes(v)

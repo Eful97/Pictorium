@@ -61,6 +61,7 @@ export const LANDSCAPE_RESET_KEYS = [
   "ageBadge",
   "ageCountry",
   "ageBadgeStyle",
+  "awardBadgeStyle",
   "minQuality",
   "customRatings",
   "separateRatings",
