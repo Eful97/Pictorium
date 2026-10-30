@@ -1,11 +1,19 @@
 name: Build and Publish Docker Image
 
 on:
+  # Branch pushes only VERIFY the build (push: false below): publishing is
+  # green-gated via workflow_run (CI success) and release (published), so red
+  # CI can never push images. PRs always stay build-only.
   push:
     branches: [master, main]
-    tags: ['v*.*.*']
   pull_request:
     branches: [master, main]
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [master, main]
+  release:
+    types: [published]
   workflow_dispatch:
 
 permissions:
@@ -15,10 +23,18 @@ permissions:
 jobs:
   docker:
     name: Build & Push Multi-Arch Image
+    # workflow_run fires for every CI conclusion: skip unless the triggering
+    # run was a branch push that passed ALL gates (event == 'push' also keeps
+    # PR-originated CI runs from ever publishing).
+    if: github.event_name != 'workflow_run' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push')
     runs-on: ubuntu-24.04
     steps:
       - name: Checkout repository
         uses: actions/checkout@v5
+        with:
+          # workflow_run/release run on default-branch context (GITHUB_SHA =
+          # default tip, NOT the tested commit): pin the gated ref explicitly.
+          ref: ${{ github.event.workflow_run.head_sha || github.event.release.tag_name || github.ref }}
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v4
@@ -27,14 +43,14 @@ jobs:
         uses: docker/setup-buildx-action@v4
 
       - name: Log in to Docker Hub
-        if: github.event_name != 'pull_request'
+        if: github.event_name == 'release' || (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push')
         uses: docker/login-action@v4
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Log in to GitHub Container Registry (GHCR)
-        if: github.event_name != 'pull_request'
+        if: github.event_name == 'release' || (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push')
         uses: docker/login-action@v4
         with:
           registry: ghcr.io
@@ -66,7 +82,7 @@ jobs:
         with:
           context: .
           platforms: linux/amd64,linux/arm64
-          push: ${{ github.event_name != 'pull_request' }}
+          push: ${{ github.event_name == 'release' || (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push') }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           # Versione vera dentro l'immagine: il generator la legge da APP_VERSION
