@@ -10,6 +10,7 @@ import { fetchSimklRating } from "./simkl"
 import { getPersistedMdbRaw, setPersistedMdbRaw } from "./mdblist-raw-cache"
 import { TWO_WEEKS_MS } from "./constants"
 import { fetchAnimeRatings, normalizeAnimeSide } from "./anime-ratings"
+import { fetchTvmazeRating } from "./tvmaze"
 import { fetchCinemetaRating } from "./cinemeta"
 
 const log = createLogger("ratings")
@@ -244,6 +245,8 @@ export interface FetchAggregatedOptions {
   wantSimkl?: boolean
   wantAnilist?: boolean
   wantKitsu?: boolean
+  /** Voto TVmaze (serie/anime): opt-in, senza chiave. Solo senza `requestedSources`. */
+  wantTvmaze?: boolean
   /** Voto IMDb via Cinemeta quando MDBList non lo fornisce (fallback sequenziale). */
   wantImdb?: boolean
   /**
@@ -303,9 +306,9 @@ interface MdbListFetchResult {
 }
 
 // Fonti servite SOLO dai direct provider condizionali (Simkl diretto,
-// AniList/Kitsu diretti): da sole non sono mai un motivo per chiamare
+// AniList/Kitsu/TVmaze diretti): da sole non sono mai un motivo per chiamare
 // MDBList. MAL resta coperta dall'aggregatore MDBList (vedi sotto).
-const DIRECT_ONLY_SOURCES: ReadonlySet<string> = new Set(["simkl", "anilist", "kitsu"])
+const DIRECT_ONLY_SOURCES: ReadonlySet<string> = new Set(["simkl", "anilist", "kitsu", "tvmaze"])
 
 // Fonti che MDBList può fornire (imdb anche via Cinemeta, tmdb anche diretto).
 // Partizionano la whitelist con DIRECT_ONLY_SOURCES: tutto ciò che non è
@@ -1216,10 +1219,11 @@ export async function fetchAggregatedRating(
   const effWantSimkl = selSet ? selSet.has("simkl") && !!opts?.simklKey?.trim() : !!(opts?.wantSimkl && opts?.simklKey?.trim())
   const effWantAnilist = selSet ? selSet.has("anilist") : !!opts?.wantAnilist
   const effWantKitsu = selSet ? selSet.has("kitsu") : !!opts?.wantKitsu
+  const effWantTvmaze = selSet ? selSet.has("tvmaze") : !!opts?.wantTvmaze
   const effWantAnime = effWantAnilist || effWantKitsu
   const effWantImdb = selSet ? selSet.has("imdb") : !!opts?.wantImdb
 
-  // Routing: simkl/anilist/kitsu da soli non chiamano mai MDBList (direct
+  // Routing: simkl/anilist/kitsu/tvmaze da soli non chiamano mai MDBList (direct
   // provider condizionali); MAL resta MDBList-exclusive. Selezioni senza
   // fonti MDBList-exclusive (solo imdb/tmdb + direct-only) usano Cinemeta
   // primario + join diretto, MDBList solo per gli irrisolti; il resto resta
@@ -1277,7 +1281,10 @@ export async function fetchAggregatedRating(
   const animeSide = effWantAnime ? normalizeAnimeSide(opts?.mediaType ?? null) : null
   const animeFlag = `${effWantAnilist ? "al" : "x"}${effWantKitsu ? "ki" : "x"}`
   const selKey = selSet ? [...selSet].sort().join(",") : "all"
-  const cacheKey = `mdb:ratings:${RATINGS_CACHE_VERSION}:${mdbIdentity}:${keyHash}${effWantSimkl ? `:${simklHash}` : ""}${effWantAnime ? `:${animeFlag}:${animeSide ?? "x"}` : ""}${effWantImdb ? ":ci" : ""}:sel:${selKey}:mdb:${mdbSeg}:mv${minVotesPolicy}`
+  // TVmaze via flag (nessuna selezione esplicita) non deve condividere l'entry
+  // all-source: la selezione invece lo copre già dentro `selKey`.
+  const tvmazeFlagKey = effWantTvmaze && !selSet ? ":tv" : ""
+  const cacheKey = `mdb:ratings:${RATINGS_CACHE_VERSION}:${mdbIdentity}:${keyHash}${effWantSimkl ? `:${simklHash}` : ""}${effWantAnime ? `:${animeFlag}:${animeSide ?? "x"}` : ""}${effWantImdb ? ":ci" : ""}${tvmazeFlagKey}:sel:${selKey}:mdb:${mdbSeg}:mv${minVotesPolicy}`
 
   // Cache hit: overlay diretto su COPIA (mai mutare l'oggetto condiviso).
   const cached = cacheGet<AggregatedRatings>(cacheKey)
@@ -1344,7 +1351,7 @@ export async function fetchAggregatedRating(
   }
 
   try {
-    // Ramo famiglia+diretti (solo imdb/tmdb + simkl/anilist/kitsu, nessuna
+    // Ramo famiglia+diretti (solo imdb/tmdb + simkl/anilist/kitsu/tvmaze, nessuna
     // fonte MDBList-exclusive): Cinemeta primario con share limitata per
     // imdb, join dei direct provider sul residuo, MDBList solo per gli
     // irrisolti imdb/tmdb. Mai chiamate TMDB extra: il tmdb o è diretto
@@ -1357,6 +1364,9 @@ export async function fetchAggregatedRating(
         : null
       const animeP = effWantAnime
         ? fetchAnimeRatings(cleanImdb, { tmdbId: tmdbNum, mediaType: opts?.mediaType ?? null, wantAnilist: effWantAnilist, wantKitsu: effWantKitsu, signal: upstream }).catch(() => null)
+        : null
+      const tvmazeP = effWantTvmaze
+        ? fetchTvmazeRating(cleanImdb, { mediaType: opts?.mediaType ?? null, signal: upstream }).catch(() => null)
         : null
       if (selSet!.has("imdb") && effWantImdb) {
         const ph = phaseSignal(upstream, primaryShareMs())
@@ -1395,15 +1405,19 @@ export async function fetchAggregatedRating(
       }
       {
         const rem = remainingMs()
-        const [simklRating, animeRatings] = await Promise.all([
+        const [simklRating, animeRatings, tvmazeRating] = await Promise.all([
           joinSide(simklP, rem, null),
           joinSide(animeP, rem, null),
+          joinSide(tvmazeP, rem, null),
         ])
         if (typeof simklRating === "number" && Number.isFinite(simklRating) && simklRating > 0) {
           base.simkl = simklRating
         }
         if (typeof animeRatings?.anilist === "number") base.anilist = animeRatings.anilist
         if (typeof animeRatings?.kitsu === "number") base.kitsu = animeRatings.kitsu
+        if (typeof tvmazeRating === "number" && Number.isFinite(tvmazeRating) && tvmazeRating > 0) {
+          base.tvmaze = tvmazeRating
+        }
       }
       if (Object.keys(base).length > 0) {
         // Con voto diretto il fallback MDBList per tmdb è saltato: la base
@@ -1427,7 +1441,7 @@ export async function fetchAggregatedRating(
       return null
     }
 
-    // Ramo direct-only (solo simkl/anilist/kitsu): zero MDBList, zero
+    // Ramo direct-only (solo simkl/anilist/kitsu/tvmaze): zero MDBList, zero
     // Cinemeta. MAL resta MDBList e non entra mai qui (è covered).
     if (!needsMdblist) {
       const simklP = effWantSimkl
@@ -1436,10 +1450,14 @@ export async function fetchAggregatedRating(
       const animeP = effWantAnime
         ? fetchAnimeRatings(cleanImdb, { tmdbId: tmdbNum, mediaType: opts?.mediaType ?? null, wantAnilist: effWantAnilist, wantKitsu: effWantKitsu, signal: upstream }).catch(() => null)
         : null
+      const tvmazeP = effWantTvmaze
+        ? fetchTvmazeRating(cleanImdb, { mediaType: opts?.mediaType ?? null, signal: upstream }).catch(() => null)
+        : null
       const rem = remainingMs()
-      const [simklRating, animeRatings] = await Promise.all([
+      const [simklRating, animeRatings, tvmazeRating] = await Promise.all([
         joinSide(simklP, rem, null),
         joinSide(animeP, rem, null),
+        joinSide(tvmazeP, rem, null),
       ])
       const sources: Record<string, number> = {}
       if (typeof simklRating === "number" && Number.isFinite(simklRating) && simklRating > 0) {
@@ -1447,6 +1465,9 @@ export async function fetchAggregatedRating(
       }
       if (typeof animeRatings?.anilist === "number") sources.anilist = animeRatings.anilist
       if (typeof animeRatings?.kitsu === "number") sources.kitsu = animeRatings.kitsu
+      if (typeof tvmazeRating === "number" && Number.isFinite(tvmazeRating) && tvmazeRating > 0) {
+        sources.tvmaze = tvmazeRating
+      }
       if (Object.keys(sources).length === 0) return null
       const result: AggregatedRatings = { sources, average: averageFor(sources), count: Object.keys(sources).length }
       cacheSet(cacheKey, result, ["mdb", "simkl", "anime"], RATINGS_SUCCESS_TTL_MS)
@@ -1462,6 +1483,9 @@ export async function fetchAggregatedRating(
       : null
     const animeP = effWantAnime
       ? fetchAnimeRatings(cleanImdb, { tmdbId: tmdbNum, mediaType: opts?.mediaType ?? null, wantAnilist: effWantAnilist, wantKitsu: effWantKitsu, signal: upstream }).catch(() => null)
+      : null
+    const tvmazeP = effWantTvmaze
+      ? fetchTvmazeRating(cleanImdb, { mediaType: opts?.mediaType ?? null, signal: upstream }).catch(() => null)
       : null
 
     let mdbResult: MdbListFetchResult
@@ -1497,9 +1521,10 @@ export async function fetchAggregatedRating(
     }
     {
       const rem = remainingMs()
-      const [simklRating, animeRatings] = await Promise.all([
+      const [simklRating, animeRatings, tvmazeRating] = await Promise.all([
         joinSide(simklP, rem, null),
         joinSide(animeP, rem, null),
+        joinSide(tvmazeP, rem, null),
       ])
       if (typeof simklRating === "number" && Number.isFinite(simklRating) && simklRating > 0) {
         sources.simkl = simklRating
@@ -1509,6 +1534,9 @@ export async function fetchAggregatedRating(
       }
       if (typeof animeRatings?.kitsu === "number") {
         sources.kitsu = animeRatings.kitsu
+      }
+      if (typeof tvmazeRating === "number" && Number.isFinite(tvmazeRating) && tvmazeRating > 0) {
+        sources.tvmaze = tvmazeRating
       }
     }
 

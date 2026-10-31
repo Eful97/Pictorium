@@ -1423,7 +1423,7 @@ export function BadgeDefaultsSection({ active, shape, onPreviewFamilyChange, pre
                       <Star className="w-3 h-3 text-amber-400 fill-amber-400/30" />
                       <span>{t("ui.ratingSources")}</span>
                       <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-accent-orange/15 text-accent-orange font-semibold border border-accent-orange/30">
-                        {(ed.defaultRatingSources ?? ["imdb", "tmdb"]).length}/16
+                        {(ed.defaultRatingSources ?? ["imdb", "tmdb"]).length}/{UI_RATING_SOURCES.length}
                       </span>
                     </span>
                     <span className="flex items-center gap-1 text-[10px] text-muted group-hover:text-zinc-200 font-medium">

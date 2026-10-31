@@ -184,6 +184,7 @@
   "ui.source_mal": "MyAnimeList",
   "ui.source_anilist": "AniList",
   "ui.source_kitsu": "Kitsu",
+  "ui.source_tvmaze": "TVmaze",
   "ui.customBadge": "Insignă",
   "ui.customBadgePlaceholder": "Scrie text insignă...",
   "ui.auto": "Automat",

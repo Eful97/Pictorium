@@ -184,6 +184,7 @@
   "ui.source_mal": "MyAnimeList",
   "ui.source_anilist": "AniList",
   "ui.source_kitsu": "Kitsu",
+  "ui.source_tvmaze": "TVmaze",
   "ui.customBadge": "バッジ",
   "ui.customBadgePlaceholder": "バッジを入力...",
   "ui.auto": "自動",

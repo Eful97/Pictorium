@@ -34,6 +34,7 @@ const SEPARATE_RATING_ICON_FILES: Record<string, string> = {
   filmweb: "filmweb.svg",
   filmwebcritics: "filmweb.svg",
   rogerebert: "rogerebert.svg",
+  tvmaze: "tvmaze.svg",
 }
 
 const RATINGS_DIR = path.join(process.cwd(), "public", "rating")

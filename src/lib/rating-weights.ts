@@ -49,6 +49,7 @@ export const SUPPORTED_RATING_SOURCES = [
   "mal",
   "anilist",
   "kitsu",
+  "tvmaze",
 ] as const
 
 export type RatingSource = (typeof SUPPORTED_RATING_SOURCES)[number]
@@ -105,6 +106,7 @@ export const UI_RATING_SOURCES: { id: RatingSource; labelKey: string; emoji: str
   { id: "mal", labelKey: "ui.source_mal", emoji: "🌸" },
   { id: "anilist", labelKey: "ui.source_anilist", emoji: "💫" },
   { id: "kitsu", labelKey: "ui.source_kitsu", emoji: "🦊" },
+  { id: "tvmaze", labelKey: "ui.source_tvmaze", emoji: "🦉" },
 ]
 
 /** Media pari sulle fonti richieste (default imdb/tmdb). */

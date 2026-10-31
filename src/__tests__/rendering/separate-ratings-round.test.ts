@@ -53,7 +53,7 @@ describe.each(STYLES)("%s round ratings", (style) => {
   })
 
   it("round icons support every existing rating asset", async () => {
-    for (const id of ["imdb", "tmdb", "mdblist", "tomatoes", "popcorntime", "letterboxd", "metacritic", "metacriticuser", "trakt", "simkl", "mal", "anilist", "kitsu", "filmweb", "filmwebcritics", "rogerebert"]) {
+    for (const id of ["imdb", "tmdb", "mdblist", "tomatoes", "popcorntime", "letterboxd", "metacritic", "metacriticuser", "trakt", "simkl", "mal", "anilist", "kitsu", "filmweb", "filmwebcritics", "rogerebert", "tvmaze"]) {
       expect(await renderSeparateRatingsBottom([{ id, value: 8 }], 500, style), id).not.toBeNull()
     }
   })

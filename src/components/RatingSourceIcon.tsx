@@ -19,6 +19,7 @@ const RATING_ICON_FILES: Record<string, string> = {
   filmweb: "/rating/filmweb.svg",
   filmwebcritics: "/rating/filmweb.svg",
   rogerebert: "/rating/rogerebert.svg",
+  tvmaze: "/rating/tvmaze.svg",
 }
 
 export function RatingSourceIcon({ id, className = "w-3 h-3" }: { id: string; className?: string }) {

@@ -311,7 +311,7 @@ describe("badge target scope", () => {
     await act(async () => {})
     fireEvent.click(screen.getByText("ui.configure"))
     fireEvent.click(screen.getByText("ui.enableAll"))
-    expect(ctx().defaultRatingSources.length).toBe(16)
+    expect(ctx().defaultRatingSources.length).toBe(17)
     expect(ctx().landscape).not.toHaveProperty("ratingSources")
     const endpoint = screen.getByPlaceholderText("https://example.com/ratings/{imdbId}") as HTMLInputElement
     fireEvent.change(endpoint, { target: { value: "https://x.test/r/{imdbId}" } })
