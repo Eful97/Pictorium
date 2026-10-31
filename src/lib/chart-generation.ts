@@ -101,6 +101,10 @@ const META_FILE_RETENTION_MS = 36 * 3600 * 1000
 const MAX_GROUPS_MEMORY = 200
 const MAX_FAMILY_FILES_SWEEP = 400
 
+/** Minimum interval between family-dir sweeps (retentions are 36h/7d). */
+const FAMILY_SWEEP_THROTTLE_MS = 10 * 60 * 1000
+let lastFamilySweepAt = 0
+
 // Marker comments let the unit-test KV mock emulate atomic semantics (real
 // Redis/Upstash just ignore Lua comments) — same pattern as trakt-profile-lock.
 const LEASE_ACQUIRE_SCRIPT = `-- chartfam-lease-acquire
@@ -135,6 +139,28 @@ return "ok"`
 // --- Pure: Rome slot -------------------------------------------------------
 
 /**
+ * Module-level Intl formatters (M4): constructing an Intl.DateTimeFormat per
+ * call dominated the per-request cost of every slot computation (pin, fence,
+ * TTL). Formatters are stateless for formatToParts with an explicit timeZone
+ * and safe to share.
+ */
+const ROME_DATE_HOUR_FORMAT = new Intl.DateTimeFormat("en-CA", {
+  timeZone: "Europe/Rome",
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+  hour: "2-digit",
+  hourCycle: "h23",
+})
+
+const ROME_WALL_FORMAT = new Intl.DateTimeFormat("en-CA", {
+  timeZone: "Europe/Rome",
+  hour: "2-digit",
+  minute: "2-digit",
+  hourCycle: "h23",
+})
+
+/**
  * Current fixed-cycle slot id in Europe/Rome ("YYYYMMDD-00" for 00:00–11:59,
  * "YYYYMMDD-12" for 12:00–23:59 local). DST-aware via Intl: spring-forward
  * skips 02:00 (still slot 00), fall-back repeats 02:xx (still slot 00).
@@ -151,14 +177,7 @@ export function romeSlotKey(nowMs: number = Date.now()): string {
 
 /** Rome wall-clock date (YYYYMMDD) + hour (0–23) at an absolute instant. */
 function romeDateHour(nowMs: number): { date: string; hour: number } {
-  const parts = new Intl.DateTimeFormat("en-CA", {
-    timeZone: "Europe/Rome",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    hourCycle: "h23",
-  }).formatToParts(nowMs)
+  const parts = ROME_DATE_HOUR_FORMAT.formatToParts(nowMs)
   const get = (type: string): string => parts.find((p) => p.type === type)?.value ?? ""
   return { date: `${get("year")}${get("month")}${get("day")}`, hour: parseInt(get("hour"), 10) }
 }
@@ -269,12 +288,7 @@ export function romeSlotStartMs(slotKey: string): number {
 }
 
 function romeWallParts(nowMs: number): Record<string, string> {
-  const parts = new Intl.DateTimeFormat("en-CA", {
-    timeZone: "Europe/Rome",
-    hour: "2-digit",
-    minute: "2-digit",
-    hourCycle: "h23",
-  }).formatToParts(nowMs)
+  const parts = ROME_WALL_FORMAT.formatToParts(nowMs)
   const out: Record<string, string> = {}
   for (const p of parts) out[p.type] = p.value
   return out
@@ -743,6 +757,13 @@ function filePersist(dir: string): ChartFamilyPersist {
 }
 
 async function sweepFamilyFiles(dir: string): Promise<void> {
+  // Throttled (M4): every publish used to readdir+stat the family dir (~400
+  // entries worst case). One sweep per 10 minutes is plenty for 7d/36h
+  // retentions; the owning publish still awaits it when due (no untracked
+  // background work).
+  const nowThrottle = Date.now()
+  if (nowThrottle - lastFamilySweepAt < FAMILY_SWEEP_THROTTLE_MS) return
+  lastFamilySweepAt = nowThrottle
   let entries: string[]
   try {
     entries = await fsp.readdir(dir)
@@ -1055,6 +1076,11 @@ export async function commitChartFamilySnapshot(
     evictOldest(publishedByFamily, MAX_GROUPS_MEMORY)
     metaByFamily.delete(key)
     log.debug("chartfam published new snapshot", { group, family: input.family, generation: slot })
+    // Reuse the committed snapshot as the pin (M4): the durable write above
+    // just succeeded, so re-reading storage here only costs 1-2 extra durable
+    // ops per renewal. The concurrent-winner ("stale") path still re-reads —
+    // it must adopt the other owner's rows.
+    return { id: snap.generation, snapshot: snap }
   } else if (outcome === "stale") {
     // A concurrent owner won: adopt the winner so this process converges
     // without waiting for its own memory refresh.
@@ -1094,6 +1120,7 @@ export function __resetChartGenerationForTest(): void {
   metaByFamily.clear()
   leaseByFamily.clear()
   commitLocks.clear()
+  lastFamilySweepAt = 0
   kvPersistInstance = undefined
 }
 

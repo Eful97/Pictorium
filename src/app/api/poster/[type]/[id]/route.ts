@@ -37,6 +37,7 @@ import { envWithFallback } from "@/lib/env-compat"
 import { TOP_LIGHT_LUMINANCE } from "@/lib/constants"
 import {
   RENDER_SLOT_WAIT_MS,
+  acquirePosterFetchSlot,
   acquirePosterRenderSlot,
   beginPosterRender,
   canServePosterStaleHit,
@@ -149,6 +150,13 @@ const RENDER_TIMEOUT_MS = (() => {
 // teneva 1 slot di render fino a 30s; a 8s il render degrada (fallback) o
 // fallisce in fretta liberando lo slot. Cataloghi/meta/search restano a 30s.
 const POSTER_TMDB_TIMEOUT_MS = 8000
+
+// H3: tetto del preflight chart nel path poster (pin read-only + refresh
+// condiviso). Un refresh chart lento non deve tenere il poster oltre ~1.5s:
+// oltre il tetto il render degrada (pin last-good / rank salvato / nessun
+// rank) e il refresh resta di proprietà delle route catalog/rank, che non
+// usano questo tetto.
+const POSTER_PREFLIGHT_MS = 1500
 
 // Tetto massimo per l'attesa del voto medio TMDB+IMDb (MDBList) prima del
 // render: se il fetch è lento, il poster usa il voto TMDB senza bloccarsi.
@@ -608,12 +616,14 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
   // fail-closed (.catch(() => null)).
   const isNewJwModePre = rankingSourcePre.kind === "justwatch"
     && (rankingSourcePre.mode === "popular" || rankingSourcePre.mode === "trending")
-  // Bounded preflight using existing caps only. Shared source calls run on a
-  // common timeout signal (never req.signal: a disconnecting first client must
-  // not abort the fetch others are coalesced on).
+  // Bounded preflight: the whole poster-path pins+refresh phase stays within
+  // POSTER_PREFLIGHT_MS (~1.5s). Shared source calls run on a common timeout
+  // signal (never req.signal: a disconnecting first client must not abort the
+  // fetch others are coalesced on).
   const preflightStart = Date.now()
-  const preflightBudgetMs = Math.max(1, Math.min(POSTER_TMDB_TIMEOUT_MS, RENDER_TIMEOUT_MS - (preflightStart - startTime)))
-  const preflightSourceSignal = AbortSignal.timeout(preflightBudgetMs)
+  // H3: read-only pin budget — a hanging durable read degrades to null (live
+  // fragment in the coalescing key, no rank) instead of stalling the poster.
+  const pinBudgetMs = Math.max(1, Math.min(POSTER_PREFLIGHT_MS, POSTER_TMDB_TIMEOUT_MS, RENDER_TIMEOUT_MS - (Date.now() - startTime)))
   const needTrendFetch = rankingEnabledPre && !hasValidQRankOverride && !hasValidListRankPre
   const needAnimeFetch = rankingEnabledPre && !(Number.isFinite(qAnimeRankPre) && qAnimeRankPre > 0) && !hasValidListRankPre
   const animeListKey = mediaType === "movie" ? "mdblistAnimeMovie" : "mdblistAnime"
@@ -641,25 +651,35 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
   // selection keeps anime behavior: the anime family is independent).
   // Skipped pins fall back to the live fragment in the coalescing key (the
   // corresponding preflight resolves immediately, so the key is unused).
+  // H3+H4: one durable pin read per family per request (parallel, never
+  // serial), each bounded by pinBudgetMs and fail-open to null. The pins are
+  // reused as prePin by the refresh calls below — no duplicate durable read
+  // per family (H4).
   const needJwPin = needTrendFetch && !jwGlobalUnsupported && rankingSourcePre.kind === "justwatch"
   const needAnimePin = needAnimeFetch
   const jwGroupInput = { regionCode: posterRegion.code, regionLang: posterRegion.lang }
-  const jwPrePin = needJwPin ? await pinChartFamily({ ...jwGroupInput, family: jwFamily }) : null
-  const jwSourceKey = `jw:${mediaType === "movie" ? "MOVIE" : "SHOW"}:${posterRegion.code}:20:${posterRegion.lang}${rankingSourcePre.kind === "justwatch" && rankingSourcePre.mode !== "charts" ? `:${rankingSourcePre.mode}` : ""}:g${chartListGroupKey(jwGroupInput)}${jwPrePin ? chartPinCacheFragment(jwPrePin) : ":cglive"}`
   const needStreamingPin = needTrendFetch && streamingRankPre !== null
-  const streamingPrePin = needStreamingPin && streamingRankPre
-    ? await pinChartFamily({
-      regionCode: streamingRankPre.regionCode,
-      regionLang: streamingRankPre.regionLang,
-      family: streamingRankPre.family,
-    })
-    : null
+  const chartAnimeFamily = mediaType === "movie" ? "anime:movie" : "anime:series"
+  const animeGroupInput = { regionCode: posterRegion.code, regionLang: posterRegion.lang, mdblistKey: animeKeyUsed }
+  const [jwPrePin, streamingPrePin, animePrePin] = await Promise.all([
+    needJwPin
+      ? awaitWithOwnBudget(pinChartFamily({ ...jwGroupInput, family: jwFamily }), pinBudgetMs, req.signal).catch(() => null)
+      : Promise.resolve(null),
+    needStreamingPin && streamingRankPre
+      ? awaitWithOwnBudget(pinChartFamily({
+        regionCode: streamingRankPre.regionCode,
+        regionLang: streamingRankPre.regionLang,
+        family: streamingRankPre.family,
+      }), pinBudgetMs, req.signal).catch(() => null)
+      : Promise.resolve(null),
+    needAnimePin
+      ? awaitWithOwnBudget(pinChartFamily({ ...animeGroupInput, family: chartAnimeFamily }), pinBudgetMs, req.signal).catch(() => null)
+      : Promise.resolve(null),
+  ])
+  const jwSourceKey = `jw:${mediaType === "movie" ? "MOVIE" : "SHOW"}:${posterRegion.code}:20:${posterRegion.lang}${rankingSourcePre.kind === "justwatch" && rankingSourcePre.mode !== "charts" ? `:${rankingSourcePre.mode}` : ""}:g${chartListGroupKey(jwGroupInput)}${jwPrePin ? chartPinCacheFragment(jwPrePin) : ":cglive"}`
   const streamingSourceKey = streamingRankPre
     ? `streaming:${mediaType}:${streamingRankPre.family}:g${chartListGroupKey({ regionCode: streamingRankPre.regionCode, regionLang: streamingRankPre.regionLang })}${streamingPrePin ? chartPinCacheFragment(streamingPrePin) : ":cglive"}`
     : ""
-  const chartAnimeFamily = mediaType === "movie" ? "anime:movie" : "anime:series"
-  const animeGroupInput = { regionCode: posterRegion.code, regionLang: posterRegion.lang, mdblistKey: animeKeyUsed }
-  const animePrePin = needAnimePin ? await pinChartFamily({ ...animeGroupInput, family: chartAnimeFamily }) : null
   const animeSourceKey = `anime:${mediaType}:${posterRegion.code}:${posterRegion.lang}:${hashKey(animeKeyUsed ?? "")}${animePrePin ? chartPinCacheFragment(animePrePin) : ":cglive"}`
   const customSourceKey = `custom:${mediaType}:${scopedUser ?? "anon"}:${hashKey(JSON.stringify(rankingCustomPre ?? null))}:${hashKey([(effTmdbKey ?? ""), (effMdblistKey ?? ""), (effTvdbKey ?? "")].join("|"))}`
   // Imported addon ranking source: identity of the ACTUAL remote catalog (a
@@ -696,6 +716,13 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
     const r = m?.badgeRank ?? m?.trendRank ?? null
     return isAutomaticTrendRank(r) ? r : null
   }
+  // H3: the refresh half of the preflight gets only what's left of the total
+  // poster preflight budget — pins+refresh together stay ~1.2-1.5s. When the
+  // pins already consumed it, the budget collapses to 1ms and the refresh
+  // degrades immediately (last-good / saved rank / no rank via the catches
+  // below); catalog/rank routes own the refresh outside this path.
+  const preflightBudgetMs = Math.max(1, Math.min(POSTER_PREFLIGHT_MS - (Date.now() - preflightStart), POSTER_TMDB_TIMEOUT_MS, RENDER_TIMEOUT_MS - (Date.now() - startTime)))
+  const preflightSourceSignal = AbortSignal.timeout(preflightBudgetMs)
   const trendPreflight: Promise<number | null> = !needTrendFetch || jwGlobalUnsupported
     ? Promise.resolve(null)
     : (rankingSourcePre.kind === "streaming" && streamingRankPre
@@ -705,6 +732,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
         tmdbLang: streamingRankPre.regionLang,
         signal: preflightSourceSignal,
         family: streamingRankPre.family,
+        prePin: streamingPrePin,
       })), preflightBudgetMs, req.signal)
         // Per-caller lookup OUTSIDE the coalesced fetch (same contract as the
         // JW branch): the shared pin is read once, each request derives its
@@ -763,6 +791,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
         tmdbLang: posterRegion.lang,
         signal: preflightSourceSignal,
         family: jwFamily,
+        prePin: jwPrePin,
       })), preflightBudgetMs, req.signal)
         // Per-caller resolution OUTSIDE the coalesced fetch: the shared call
         // returns the raw pin (one fetch per source, key excludes tmdbId);
@@ -797,6 +826,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
       mdblistKey: animeKeyUsed,
       signal: preflightSourceSignal,
       family: chartAnimeFamily,
+      prePin: animePrePin,
     })), preflightBudgetMs, req.signal)
       // Same per-caller contract as the trend branch above: raw pin is
       // shared, the position lookup + pin/provenance are per request.
@@ -1270,6 +1300,18 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
       releaseRender()
     }
   }
+  // H1 fetch guard: same ownership as the composite slot above — acquired at
+  // the top of the render job, freed by the watchdog on deadline (every fetch
+  // below is abort-bounded, so the abandon settles fast) and by the guarded
+  // finally on every other path. Never double-counted with the composite.
+  let releaseFetch: (() => void) | null = null
+  let fetchReleased = false
+  const releaseFetchOnce = (): void => {
+    if (releaseFetch && !fetchReleased) {
+      fetchReleased = true
+      releaseFetch()
+    }
+  }
   // H2: the deadline also settles the ORIGINAL caller. The timer below resolves
   // a dedicated deadline response (bounded 503 with Retry-After) while the
   // actual render job keeps running in the background with full cleanup
@@ -1292,6 +1334,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
     completePosterRender(null, true)
     endZombieRender = recordZombieRenderStart(`${mediaType}:${tmdbId}`)
     releaseSlotOnce()
+    releaseFetchOnce()
     // H2: single 503 accounting for the abandoned render — the late job must
     // NOT count or write again on settle (see the deadlineFired guards in the
     // job catch and the post-compositing guard below).
@@ -1305,13 +1348,28 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
   // the dedicated deadline response above, so a non-cooperative backend (one
   // that ignores renderAbort, e.g. a stuck native worker) can no longer hang
   // the ORIGINAL caller past the deadline. Cleanup ownership stays with the
-  // job: its catch/finally keeps releaseSlotOnce/endZombie/
+  // job: its catch/finally keeps releaseSlotOnce/releaseFetchOnce/endZombie/
   // completePosterRender until the work ACTUALLY settles — the early GET
   // return path must never free zombie budget or inflight while work runs.
   // Inner lines keep their existing indentation on purpose: boundary-only
   // diff, no 1500-line reindent.
   const renderJob: Promise<Response> = (async (): Promise<Response> => {
   try {
+  // H1 fetch guard: bound the whole fetch/decode phase (Block A/B image
+  // downloads, logo-fit candidates, sharp decodes) that runs outside the
+  // composite slot. Same 503 + Retry-After backpressure when permits stay
+  // busy past the wait; the watchdog frees the permit on deadline and the
+  // finally below frees it on every other path.
+  if (!releaseFetch) {
+    releaseFetch = await acquirePosterFetchSlot()
+    if (!releaseFetch) {
+      completePosterRender(null)
+      // H2 single-503: past the deadline the watchdog already wrote the
+      // 503 entry — the late job only answers 503, never rewrites.
+      if (!deadlineFired) writePosterError(cacheKey, 503)
+      return posterErrorResponse(503)
+    }
+  }
   // 4. Resolve poster/logo/backdrop paths
   let posterPath: string | null = null
   let posterPathBuffer: Buffer | null = null
@@ -1674,22 +1732,9 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
       tmdbStudios = matchTMDBStudios([...tmdbNetworks, ...productionCompanies])
       tvType = details.type || null
       tvStatus = details.status || null
-      // C1: acquisisci lo slot PRIMA del lavoro CPU pesante del ramo non-mappato
-      // (logo-fit: fetch + decode dei poster candidati). Prima questi avvenivano
-      // fuori dal semaforo → un burst di logo-fit su cache fredda (griglie
-      // catalogo) spingeva la memoria senza bound. Lo stesso slot viene riusato
-      // dal render sharp sotto; il finally lo rilascia comunque.
-      if (!releaseRender) {
-        releaseRender = await acquirePosterRenderSlot()
-        if (!releaseRender) {
-          clearTimeout(renderDeadline)
-          completePosterRender(null)
-          // H2 single-503: past the deadline the watchdog already wrote the
-          // 503 entry — the late job only answers 503, never rewrites.
-          if (!deadlineFired) writePosterError(cacheKey, 503)
-          return posterErrorResponse(503)
-        }
-      }
+      // H1: no slot held across the network waits below (logo-fit fetches,
+      // Block A/B, Wikidata). The single render slot is acquired just before
+      // the composite; the finally still releases it.
       const allLogos: TMDBImage[] = images.logos
 
       // Il logo si risolve PRIMA del poster. Serve a due cose: i livelli con
@@ -2118,22 +2163,9 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
       }
     }
 
-    // Semaforo anti-OOM: limita i render costosi concorrenti (sharp composite,
-    // blur, badge SVG→PNG). Se tutti i posti sono occupati per più del timeout,
-    // risponde 503 invece di accodarsi e far crescere l'heap senza bound.
-    // C1: se il ramo non-mappato ha già acquisito lo slot (logo-fit), lo si
-    // riusa — mai doppia acquisizione (releaseRender già valorizzato).
-    if (!releaseRender) {
-      releaseRender = await acquirePosterRenderSlot()
-      if (!releaseRender) {
-        completePosterRender(null)
-        // H2 single-503: past the deadline the watchdog already wrote the
-        // 503 entry — the late job only answers 503, never rewrites.
-        if (!deadlineFired) writePosterError(cacheKey, 503)
-        return posterErrorResponse(503)
-      }
-    }
-
+    // H1: the render slot is acquired just before the composite below —
+    // never held across the Block A/B network waits above. Unchanged 503 +
+    // Retry-After backpressure when all slots stay busy past the timeout.
     const qRankingEarly = req.nextUrl.searchParams.get("ranking")
     const qBqEarly = req.nextUrl.searchParams.get("bq")
     const qQualityParam = req.nextUrl.searchParams.get("quality")
@@ -3426,6 +3458,20 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
     if (renderAbort.signal.aborted) {
       throw new Error("Render deadline exceeded before poster compositing")
     }
+    // H1: single slot acquire, immediately before the composite it guards
+    // (sharp buffers, blur, badge SVG→PNG). Fetch/prep above run slot-free so
+    // cold renders scale with CPUs; RENDER_QUEUE/RENDER_SLOT_WAIT_MS semantics
+    // (503 + Retry-After) unchanged. Released by the finally below.
+    if (!releaseRender) {
+      releaseRender = await acquirePosterRenderSlot()
+      if (!releaseRender) {
+        completePosterRender(null)
+        // H2 single-503: past the deadline the watchdog already wrote the
+        // 503 entry — the late job only answers 503, never rewrites.
+        if (!deadlineFired) writePosterError(cacheKey, 503)
+        return posterErrorResponse(503)
+      }
+    }
     // Fine della fase prep (resize, config, accent): da qui solo composite CPU.
     const tCompositeStart = Date.now()
     const composited = await generatePosterBuffer(genInput)
@@ -3563,7 +3609,10 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
         { name: "total", durMs: Date.now() - startTime },
       ]),
     }
-    return new Response(new Uint8Array(composited), { headers: renderHeaders })
+    // M5: zero-copy view — `new Uint8Array(buffer)` would MEMCPY the whole
+    // image per response; the view shares the same bytes.
+    const compositedView = new Uint8Array(composited.buffer, composited.byteOffset, composited.byteLength) as Uint8Array<ArrayBuffer>
+    return new Response(compositedView, { headers: renderHeaders })
   } catch (e) {
     completePosterRender(null)
     // Deadline sforato: il render è stato abbandonato dal watchdog perché
@@ -3582,6 +3631,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
   } finally {
     clearTimeout(renderDeadline)
     releaseSlotOnce()
+    releaseFetchOnce()
     const cleanupZombie = endZombieRender as (() => void) | null
     if (cleanupZombie) {
       cleanupZombie()
@@ -3595,6 +3645,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
     // deadline the watchdog already accounted once: no recount here.
     clearTimeout(renderDeadline)
     releaseSlotOnce()
+    releaseFetchOnce()
     completePosterRender(null)
     throw outerError
   }

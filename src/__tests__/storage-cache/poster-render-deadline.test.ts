@@ -2,8 +2,12 @@
 // Env a module level impostate PRIMA del dynamic import: RENDER_TIMEOUT_MS
 // corto (2s), un solo slot, slot-wait di 500ms — così i test sono veloci e
 // deterministici senza mockare i timer.
+// H1: anche il guard fetch/decode è pinnato a 1 permesso — il render appeso
+// resta bloccato nella fase fetch (fuori dal composite slot), quindi la
+// saturazione si prova sul fetch guard che quella fase copre davvero.
 process.env.POSTERIUM_RENDER_TIMEOUT_MS = "2000"
 process.env.POSTERIUM_MAX_CONCURRENT_RENDERS = "1"
+process.env.POSTERIUM_MAX_CONCURRENT_FETCHES = "1"
 process.env.POSTERIUM_RENDER_SLOT_WAIT_MS = "500"
 
 import { afterEach, describe, expect, it, vi } from "vitest"
@@ -103,7 +107,7 @@ vi.mock("@/lib/imdb-resolver", () => ({
 // leggono le env all'evaluazione, e gli import statici sarebbero hoisted sopra
 // le assignment.
 const { GET } = await import("@/app/api/poster/[type]/[id]/route")
-const { acquirePosterRenderSlot, __resetPosterRenderLimiter } = await import("@/lib/poster-runtime-cache")
+const { acquirePosterRenderSlot, acquirePosterFetchSlot, __resetPosterRenderLimiter } = await import("@/lib/poster-runtime-cache")
 const { getById } = await import("@/lib/store")
 const mockedGetById = vi.mocked(getById)
 
@@ -128,8 +132,9 @@ function hangingFetch(): Promise<void> {
   })
   let observed = false
   vi.spyOn(globalThis, "fetch").mockImplementation((_input: RequestInfo | URL, init?: RequestInit) => {
-    // First live fetch runs downstream of slot acquisition, so this barrier
-    // proves p1 holds the single slot with explicit ordering.
+    // First live fetch runs downstream of the fetch-permit acquisition, so
+    // this barrier proves p1 holds the single fetch permit with explicit
+    // ordering.
     if (!observed) {
       observed = true
       resolveStarted()
@@ -191,18 +196,27 @@ describe("render deadline watchdog (F2)", () => {
     const release = await acquirePosterRenderSlot()
     expect(release).toBeTruthy()
     release!()
+
+    // H1: anche il permesso fetch/decode detenuto dal render appeso è stato
+    // liberato dal watchdog — il guard anti-OOM non leaka oltre il deadline.
+    const fetchRelease = await acquirePosterFetchSlot()
+    expect(fetchRelease).toBeTruthy()
+    fetchRelease!()
   })
 
   it("answers 503 with Retry-After while the only slot is busy, and negative-caches it", async () => {
     mockedGetById.mockResolvedValue(MAPPED as never)
     const fetchStarted = hangingFetch()
 
-    // La prima richiesta occupa l'unico slot (render appeso fino al deadline).
-    // Explicit ordering: the barrier proves p1 holds the slot before the
-    // saturation check below runs.
+    // La prima richiesta occupa l'unico permesso fetch (render appeso fino al
+    // deadline). H1: la fase fetch/decode corre fuori dal composite slot, che
+    // viene acquisito solo prima del composite — la saturazione si prova sul
+    // fetch guard che la fase appesa copre davvero. Explicit ordering: the
+    // barrier proves p1 holds the fetch permit before the saturation check
+    // below runs.
     const p1 = GET(req(42), { params: Promise.resolve({ type: "movie", id: "42" }) })
     await awaitFetchStarted(fetchStarted, p1)
-    expect(await acquirePosterRenderSlot()).toBeNull()
+    expect(await acquirePosterFetchSlot()).toBeNull()
 
     // La seconda richiesta su un titolo diverso: attende RENDER_SLOT_WAIT_MS
     // poi 503 con Retry-After esplicito (F5).

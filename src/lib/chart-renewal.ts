@@ -477,19 +477,29 @@ export async function fetchChartFamilyRows(
  * fetches surviving it.
  */
 export async function ensureFreshChartFamily(
-  input: ChartRenewalContext & { family: string },
+  input: ChartRenewalContext & {
+    family: string
+    /**
+     * H4: pin already read by the caller for this exact group+family (e.g.
+     * the poster preflight, which needs it for its coalescing key anyway).
+     * Reused as the start pin — skips the duplicate durable read, so one
+     * request performs one pin per family. Absent/null = pin here as before
+     * (catalog/rank paths unchanged).
+     */
+    prePin?: ChartFamilyPin | null
+  },
   opts?: {
     /** Override the canonical fetch (tests + callers with extra credentials). */
     fetch?: (ctx: ChartRenewalContext & { floor: number }) => Promise<FamilyFetchResult>
   },
 ): Promise<ChartFamilyPin> {
-  const { family } = input
+  const { family, prePin } = input
   const groupInput = {
     regionCode: input.regionCode,
     regionLang: input.regionLang,
     mdblistKey: input.mdblistKey,
   }
-  const startPin = await pinChartFamily({ ...groupInput, family })
+  const startPin = prePin ?? await pinChartFamily({ ...groupInput, family })
   // Family cadence: JW families (charts/popular/trending, incl.
   // `stream2:justwatch:*`) refresh on 00/06/12/18 Europe/Rome; every other
   // family stays on 00/12. Old pins migrate naturally (same ids at 00/12).

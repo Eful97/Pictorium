@@ -1,4 +1,5 @@
 import type { NextRequest } from "next/server"
+import os from "node:os"
 import { cacheGet, cacheGetStale, cacheRemainingMs, cacheSet } from "@/lib/cache"
 import { createLogger } from "@/lib/logger"
 import { envWithFallback } from "@/lib/env-compat"
@@ -636,7 +637,12 @@ export function posterResponse(payload: PosterCachePayload, immutable: boolean, 
   // the 1y immutable policy (payload flag wins when the explicit arg is omitted).
   const capped = factCapped ?? payload.factCapped ?? false
   const headers = posterHeaders(payload.etag, immutable, isPreview, dynamic, format, dynamicTtlSec, live, payload.accentMeta, capped)
-  return new Response(new Uint8Array(payload.buffer), {
+  // M5: zero-copy view — `new Uint8Array(buffer)` would MEMCPY the whole image
+  // per response; the view shares the same bytes (offset/length honored, so
+  // pooled Buffers stay exact).
+  const bytes = payload.buffer
+  const view = new Uint8Array(bytes.buffer, bytes.byteOffset, bytes.byteLength) as Uint8Array<ArrayBuffer>
+  return new Response(view, {
     headers: serverTiming ? { ...headers, "Server-Timing": serverTiming } : headers,
   })
 }
@@ -993,8 +999,26 @@ export function schedulePosterRefresh(req: NextRequest, isPreview: boolean = fal
 
 const MAX_CONCURRENT_RENDERS = (() => {
   const raw = envWithFallback("MAX_CONCURRENT_RENDERS")
-  const n = raw ? parseInt(raw, 10) : 4
-  return Number.isFinite(n) && n > 0 && n <= 32 ? n : 4
+  // Explicit env still wins (fail-closed to the historical 4 on garbage).
+  if (raw !== undefined) {
+    const n = parseInt(raw, 10)
+    return Number.isFinite(n) && n > 0 && n <= 32 ? n : 4
+  }
+  // H1: default scales with the host CPU instead of an absolute 4 — a cold
+  // catalog grid renders N titles in parallel and the fixed ceiling serialized
+  // them behind network waits (the slot now guards only the composite below,
+  // so cold renders scale with CPUs). Clamped 2..8: below 2 one slow render
+  // blocks everything, above 8 the heap cost of concurrent sharp composites
+  // outweighs the gain on small instances.
+  try {
+    const parallel = typeof os.availableParallelism === "function"
+      ? os.availableParallelism()
+      : os.cpus().length
+    if (!Number.isFinite(parallel) || parallel <= 0) return 4
+    return Math.min(8, Math.max(2, Math.floor(parallel)))
+  } catch {
+    return 4
+  }
 })()
 // Attesa massima di un posto di render prima del 503 (F5). Lettura a module
 // level: un cambio env richiede restart, non hot-reload.
@@ -1127,6 +1151,78 @@ export function __resetPosterRenderLimiter(): void {
   renderWaiters.length = 0
   for (const t of pendingGraceTimers) clearTimeout(t)
   pendingGraceTimers.clear()
+  activeFetches = 0
+  fetchWaiters.length = 0
+}
+
+// ---------------------------------------------------------------------------
+// Fetch/decode concurrency guard (H1, anti-OOM for the slot-free fetch phase)
+// ---------------------------------------------------------------------------
+// The composite slot above is acquired just before generatePosterBuffer, so
+// the whole fetch/decode phase (logo-fit candidates, Block A/B poster + logo
+// + backdrop downloads, sharp decodes) runs outside it. On a cold catalog
+// grid N titles would download/decode unbounded images with no guard — the
+// C1 OOM window serializing everything would close but throughput would die.
+// This semaphore caps that phase separately from the composite slot: fetch
+// permits (default 12) exceed composite slots (default 2..8), so cold renders
+// still overlap their network waits instead of serializing behind one
+// ceiling, while total image-buffer pressure stays bounded. Held for the
+// whole render job (fetch through composite — every fetch below is
+// abort-bounded by renderAbort, so a deadline abandon settles fast) and freed
+// by the watchdog on deadline alongside the composite slot; the guarded
+// finally frees it on every other path. Same 503 + Retry-After backpressure
+// as the composite slot when permits stay busy past RENDER_SLOT_WAIT_MS. No
+// queue limit: waiters are bounded by the wait, like the composite slot with
+// RENDER_QUEUE=0.
+const MAX_CONCURRENT_FETCHES = (() => {
+  const raw = envWithFallback("MAX_CONCURRENT_FETCHES")
+  const n = raw ? parseInt(raw, 10) : 12
+  return Number.isFinite(n) && n > 0 && n <= 32 ? n : 12
+})()
+
+let activeFetches = 0
+const fetchWaiters: Array<() => void> = []
+
+function pumpFetchWaiters(): void {
+  while (fetchWaiters.length > 0 && activeFetches < MAX_CONCURRENT_FETCHES) {
+    const next = fetchWaiters.shift()
+    if (next) next()
+  }
+}
+
+function releaseFetchSlot(): void {
+  activeFetches = Math.max(0, activeFetches - 1)
+  pumpFetchWaiters()
+}
+
+/**
+ * Acquires a fetch/decode permit. Resolves with the release function, or
+ * null when permits stay busy past RENDER_SLOT_WAIT_MS (caller answers 503
+ * with Retry-After, same backpressure as the composite slot).
+ */
+export async function acquirePosterFetchSlot(): Promise<(() => void) | null> {
+  if (activeFetches < MAX_CONCURRENT_FETCHES) {
+    activeFetches++
+    return releaseFetchSlot
+  }
+  return new Promise<(() => void) | null>((resolve) => {
+    let settled = false
+    const timer = setTimeout(() => {
+      if (settled) return
+      settled = true
+      const i = fetchWaiters.indexOf(handoff)
+      if (i >= 0) fetchWaiters.splice(i, 1)
+      resolve(null)
+    }, RENDER_SLOT_WAIT_MS)
+    const handoff = () => {
+      if (settled) return
+      settled = true
+      clearTimeout(timer)
+      activeFetches++
+      resolve(releaseFetchSlot)
+    }
+    fetchWaiters.push(handoff)
+  })
 }
 
 // ---------------------------------------------------------------------------
@@ -1377,5 +1473,7 @@ export function getPosterStats() {
     peakActiveRenders,
     peakQueuedRenders,
     maxConcurrent: MAX_CONCURRENT_RENDERS,
+    activeFetches,
+    maxConcurrentFetches: MAX_CONCURRENT_FETCHES,
   }
 }

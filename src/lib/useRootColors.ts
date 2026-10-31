@@ -8,7 +8,7 @@
 import { useEffect } from "react"
 import type { TMDBImage } from "./types"
 import { isCustomPosterUrl } from "./utils"
-import { findSceneTint, normalizeAutomaticAccent, topEdgeAverage, bottomEdgeAverage } from "./accent-color"
+import { analyzeRootColors, normalizeAutomaticAccent } from "./accent-color"
 
 function parseHexColor(value: unknown): { r: number; g: number; b: number } | null {
   if (typeof value !== "string" || !/^#[0-9a-f]{6}$/i.test(value)) return null
@@ -31,9 +31,17 @@ export function useRootColors(
   posterUrl: (path: string, size?: string) => string,
   { setAccentColor, setAutoAccentColor, setTopEdgeColor, setBottomEdgeColor }: RootColorsSetters,
   size = "w342",
+  /**
+   * H2: notified with the resolved poster key (`file_path`, null when there
+   * is no poster) on EVERY terminal path — success, gray fallback, custom
+   * fetch miss or abort. Lets the preview gate wait for the current poster's
+   * colors instead of painting one stale-color frame per title open.
+   */
+  onResolved?: (posterKey: string | null) => void,
 ): void {
   useEffect(() => {
     const root = document.documentElement
+    const posterKey = previewPoster?.file_path ?? null
     if (!previewPoster) {
       root.style.setProperty("--color-accent", "#555555")
       root.style.setProperty("--color-accent-r", "85")
@@ -42,7 +50,9 @@ export function useRootColors(
       root.style.setProperty("--color-edge-r", "85")
       root.style.setProperty("--color-edge-g", "85")
       root.style.setProperty("--color-edge-b", "85")
-      setAccentColor(null); setAutoAccentColor?.(null); setTopEdgeColor(null); setBottomEdgeColor?.(null); return
+      setAccentColor(null); setAutoAccentColor?.(null); setTopEdgeColor(null); setBottomEdgeColor?.(null);
+      onResolved?.(null)
+      return
     }
     let cancelled = false
     // Basi custom (URL esterni: Fanart.tv…): i byte cross-origin non sono
@@ -54,14 +64,20 @@ export function useRootColors(
       fetch(`/api/custom-colors?url=${encodeURIComponent(previewPoster.file_path)}&genre=${encodeURIComponent(genre)}`, { signal: ctrl.signal })
         .then((res) => (res.ok ? res.json().catch(() => null) : null))
         .then((data) => {
-          if (cancelled || !data) return
+          if (cancelled) return
           const a = parseHexColor((data as Record<string, unknown>).accent)
           const t = parseHexColor((data as Record<string, unknown>).topEdge)
           const b = parseHexColor((data as Record<string, unknown>).bottomEdge)
-          if (!a || !t || !b) return
+          if (!a || !t || !b) {
+            onResolved?.(posterKey)
+            return
+          }
           setRootColors(a.r, a.g, a.b, t.r, t.g, t.b, b.r, b.g, b.b)
+          onResolved?.(posterKey)
         })
-        .catch(() => {})
+        .catch(() => {
+          if (!cancelled) onResolved?.(posterKey)
+        })
       return () => { cancelled = true; ctrl.abort() }
     }
     // C4: niente cache-busting (?cb=Date.now): i path TMDB sono immutabili,
@@ -97,7 +113,10 @@ export function useRootColors(
       try {
         const w = Math.min(img.naturalWidth, 342)
         const h = Math.round(w * img.naturalHeight / img.naturalWidth)
-        if (!w || !h) return
+        if (!w || !h) {
+          onResolved?.(posterKey)
+          return
+        }
         const canvas = document.createElement("canvas")
         canvas.width = w; canvas.height = h
         const ctx = canvas.getContext("2d")!
@@ -108,14 +127,15 @@ export function useRootColors(
         // l'auto accent deve coincidere con la tinta usata dal render,
         // altrimenti l'override `ac=` esplicito in preview contraddice
         // il server (es. Silo verde -> rosa complementare). Niente logo.
-        const result = findSceneTint(pixels, w, h, genreName || '')
-        const edge = topEdgeAverage(pixels, w, h)
-        const bottom = bottomEdgeAverage(pixels, w, h)
+        // M3: tinta + bordi in un solo passaggio (analyzeRootColors, output
+        // bit-identico al trio precedente, una sola scansione del buffer).
+        const sample = analyzeRootColors(pixels, w, h, genreName || '')
 
-        setRootColors(result.r, result.g, result.b, edge.r, edge.g, edge.b, bottom.r, bottom.g, bottom.b)
-      } catch { /* color detection is non-critical */ }
+        setRootColors(sample.tint.r, sample.tint.g, sample.tint.b, sample.top.r, sample.top.g, sample.top.b, sample.bottom.r, sample.bottom.g, sample.bottom.b)
+        onResolved?.(posterKey)
+      } catch { /* color detection is non-critical */ onResolved?.(posterKey) }
     }
-    img.onerror = () => { if (!cancelled) { setRootColors(85, 85, 85, 85, 85, 85, 85, 85, 85) } }
+    img.onerror = () => { if (!cancelled) { setRootColors(85, 85, 85, 85, 85, 85, 85, 85, 85); onResolved?.(posterKey) } }
     img.src = url
     return () => { cancelled = true }
     // La semantica dell'effetto originale: gira solo quando cambia il poster

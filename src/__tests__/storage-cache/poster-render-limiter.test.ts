@@ -1,9 +1,25 @@
-import { afterEach, describe, expect, it } from "vitest"
-import { acquirePosterRenderSlot, __resetPosterRenderLimiter } from "@/lib/poster-runtime-cache"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+
+// Deterministic slot count on any host CPU: the H1 default is
+// availableParallelism()-derived (2..8), so pin the knob to the historical 4
+// before the module-level read and reimport per test (same
+// stubEnv+resetModules+dynamic-import pattern as the backpressure suite).
+// All assertions below are unchanged.
+let acquirePosterRenderSlot: typeof import("@/lib/poster-runtime-cache").acquirePosterRenderSlot
+let __resetPosterRenderLimiter: typeof import("@/lib/poster-runtime-cache").__resetPosterRenderLimiter
+
+beforeEach(async () => {
+  vi.stubEnv("PICTORIUM_MAX_CONCURRENT_RENDERS", "4")
+  vi.resetModules()
+  const m = await import("@/lib/poster-runtime-cache")
+  acquirePosterRenderSlot = m.acquirePosterRenderSlot
+  __resetPosterRenderLimiter = m.__resetPosterRenderLimiter
+})
 
 describe("poster render concurrency limiter", () => {
   afterEach(() => {
     __resetPosterRenderLimiter()
+    vi.unstubAllEnvs()
   })
 
   it("acquires up to the max concurrent slots immediately", async () => {

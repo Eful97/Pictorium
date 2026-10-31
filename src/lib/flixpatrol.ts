@@ -158,14 +158,13 @@ export interface FlixPatrolTop10 {
   tv: FlixPatrolEnrichedItem[]
 }
 
-function loadCache(country: string): CacheData {
+async function loadCache(country: string): Promise<CacheData> {
   try {
     const file = cacheFile(country)
-    if (fs.existsSync(file)) {
-      const raw = JSON.parse(fs.readFileSync(file, "utf-8"))
-      if (raw && typeof raw === "object" && "catalog" in raw) {
-        return raw as CacheData
-      }
+    const rawText = await fsp.readFile(file, "utf-8")
+    const raw = JSON.parse(rawText)
+    if (raw && typeof raw === "object" && "catalog" in raw) {
+      return raw as CacheData
     }
   } catch (e) { log.error("Failed to load cache", { error: e instanceof Error ? e.message : String(e) }) }
   return { timestamp: 0, catalog: null }
@@ -356,14 +355,18 @@ export function parseFlixChartDate(raw: unknown): FlixChartDay | null {
   return null
 }
 
+// Module-level formatter (same M4 rationale as chart-generation.ts): this
+// runs per chart-date freshness check on every platform catalog request.
+const ROME_DAY_FORMAT = new Intl.DateTimeFormat("en-CA", {
+  timeZone: "Europe/Rome",
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+})
+
 /** Rome calendar day as a UTC day-number (deterministic, DST-safe). */
 export function romeDayNumber(nowMs: number = Date.now()): number {
-  const parts = new Intl.DateTimeFormat("en-CA", {
-    timeZone: "Europe/Rome",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).formatToParts(nowMs)
+  const parts = ROME_DAY_FORMAT.formatToParts(nowMs)
   const get = (type: string): string => parts.find((p) => p.type === type)?.value ?? ""
   return Math.floor(Date.UTC(Number(get("year")), Number(get("month")) - 1, Number(get("day"))) / 86_400_000)
 }
@@ -485,7 +488,7 @@ async function loadFlixCatalogDoc(
   let cached = memCache.get(country)
   // Memoria stantia → prova il file su disco (fallback persistente) prima di rifare fetch.
   if (!cached?.catalog || (cached && !freshSinceOk(cached.timestamp))) {
-    const disk = loadCache(country)
+    const disk = await loadCache(country)
     if (disk.catalog && freshSinceOk(disk.timestamp)) {
       cached = disk
       memCache.set(country, cached)
@@ -1070,9 +1073,9 @@ export async function getTop10(platformSlug: string, country = "italy", apiKey?:
   return { platform: platformSlug, platformName, country, movies, tv }
 }
 
-export function getRawCatalog(country = "italy"): CatalogData | null {
+export async function getRawCatalog(country = "italy"): Promise<CatalogData | null> {
   if (!SUPPORTED_COUNTRIES.has(country)) return null
-  return loadCache(country).catalog
+  return (await loadCache(country)).catalog
 }
 
 export function getSupportedPlatforms(): { slug: string; name: string }[] {

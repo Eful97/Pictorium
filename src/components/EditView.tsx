@@ -211,7 +211,7 @@ export default function EditView() {
         topShadeHeight: ed.defaultTopShadeHeight,
       },
     ed.posterShape,
-  ), [ed, selectedMapping, isLandscapeTuning])
+  ), [ed.landscapeBlur, ed.gradientHeight, ed.blurEnabled, ed.blurIntensity, ed.blurFade, ed.blurDarkness, ed.tintStrength, ed.topShade, ed.topShadeHeight, ed.landscape, ed.defaultGradientHeight, ed.defaultBlurEnabled, ed.defaultBlurIntensity, ed.defaultBlurFade, ed.defaultBlurDarkness, ed.defaultTintStrength, ed.defaultTopShade, ed.defaultTopShadeHeight, ed.posterShape, selectedMapping, isLandscapeTuning])
 
   // Il modale mostra lo stato SALVATO: anche poster/sfondo/formato/logo non
   // ancora salvati divergono dalla preview (Best Fit orizzontale scelto ma
@@ -322,7 +322,7 @@ export default function EditView() {
         topShadeHeight: ed.defaultTopShadeHeight,
       },
     ed.defaultPosterShape,
-  ), [ed, previewPosterFilePath, previewCustomPosterUrl, selectedBackdropFilePath, selectedCustomBackdropUrl, selectedLogo?.file_path, selectedMapping, isLandscapeTuning])
+  ), [previewPosterFilePath, previewCustomPosterUrl, selectedBackdropFilePath, selectedCustomBackdropUrl, selectedLogo?.file_path, selectedMapping, isLandscapeTuning, ed.posterShape, ed.logoDisabled, ed.landscapeBlur, ed.gradientHeight, ed.blurEnabled, ed.blurIntensity, ed.blurFade, ed.blurDarkness, ed.tintStrength, ed.topShade, ed.topShadeHeight, ed.logoScale, ed.logoOffsetX, ed.logoOffsetY, ed.topBadgeScale, ed.topBadgeOffsetX, ed.topBadgeOffsetY, ed.extraBadgeScale, ed.extraBadgeOffsetX, ed.extraBadgeOffsetY, ed.genreBadgeScale, ed.genreBadgeOffsetX, ed.genreBadgeOffsetY, ed.qualityBadgeScale, ed.qualityBadgeOffsetX, ed.qualityBadgeOffsetY, ed.separateBadgeScale, ed.separateBadgeOffsetX, ed.separateBadgeOffsetY, ed.badgeItemTransforms, ed.networkLogoScale, ed.networkLogoOffsetX, ed.networkLogoOffsetY, ed.backdropScale, ed.backdropOffsetX, ed.backdropOffsetY, ed.globalBadges, ed.rankingBadges, ed.badgeGenre, ed.badgeYear, ed.badgeRating, ed.badgeQuality, ed.customRatings, ed.separateRatings, ed.separateRatingsStyle, ed.posterLayout, ed.posterFreshScope, ed.networkLogo, ed.ribbonEnabled, ed.networkLogoPosition, ed.networkLogoFollowTitle, ed.qualityBadgeStyle, ed.badgeStyle, ed.rankingBadgeStyle, ed.extraBadgeStyle, ed.badgeFont, ed.awardBadgeStyle, ed.customBadge, ed.landscape, ed.defaultGradientHeight, ed.defaultBlurEnabled, ed.defaultBlurIntensity, ed.defaultBlurFade, ed.defaultBlurDarkness, ed.defaultTintStrength, ed.defaultTopShade, ed.defaultTopShadeHeight, ed.defaultPosterShape])
   const mappingDirty = mappingDirtyBase
 
   const [saveState, setSaveState] = useState<"idle" | "saving" | "error">("idle")

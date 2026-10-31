@@ -3,6 +3,10 @@
 // Env impostata PRIMA del dynamic import (letture a module level).
 process.env.POSTERIUM_RENDER_QUEUE = "1"
 process.env.POSTERIUM_RENDER_SLOT_WAIT_MS = "500"
+// Deterministic slot count on any host CPU (H1 default is
+// availableParallelism()-derived, 2..8): pin to the historical 4, same
+// file-top pattern as the knobs above.
+process.env.PICTORIUM_MAX_CONCURRENT_RENDERS = "4"
 
 import { afterEach, describe, expect, it } from "vitest"
 

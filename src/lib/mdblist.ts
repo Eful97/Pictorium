@@ -1,7 +1,7 @@
 import crypto from "node:crypto"
 import { cacheFetchedAt, cacheGet, cacheRemainingMs, cacheSet } from "./cache"
 import { envWithFallback } from "./env-compat"
-import { combineAbortSignals } from "./abort-signal"
+import { combineAbortSignals, raceWithAbort } from "./abort-signal"
 import { timedFetch } from "./outbound-stats"
 import { isMdbKeyParked, noteMdbQuotaExhausted429, noteMdbQuotaSuccess } from "./mdblist-quota"
 
@@ -28,6 +28,16 @@ export const MDBLISTS = [
 // a network error (catch → []) must not freeze the list, it retries on
 // the next access (empties at 60s, unchanged).
 const CACHE_TTL_MS = 12 * 60 * 60 * 1000
+
+/**
+ * Inflight coalescing for identical concurrent list reads (same cache-key
+ * identity as the list cache): concurrent chart refreshes/requests share one
+ * transport. Same pattern as tmdb.ts — a waiter races the shared work with
+ * its own cap (own signal + fetch timeout) so a slow owner never appends a
+ * short-deadline caller; the owner/transport/entry are untouched.
+ */
+const MDB_FETCH_TIMEOUT_MS = 8000
+const mdbListInflight = new Map<string, Promise<MDBListEntry[]>>()
 
 // Single cached block per list: Stremio paginates with skip=0,20,40...
 // over 20-item windows, but upstream is called only once every 12h.
@@ -97,6 +107,12 @@ export async function fetchMDBList(
       if (fetchedAt !== null && fetchedAt >= minFetchedAtMs) return cached
     }
   }
+  // Inflight coalescing (chart fan-out): a concurrent identical read shares
+  // the owner's transport; this waiter keeps its own cap.
+  const mdbPending = mdbListInflight.get(cacheKey)
+  if (mdbPending) return raceWithAbort(mdbPending, combineAbortSignals(signal, MDB_FETCH_TIMEOUT_MS))
+  const mdbCurrent: { promise?: Promise<MDBListEntry[]> } = {}
+  const mdbWork: Promise<MDBListEntry[]> = (async (): Promise<MDBListEntry[]> => {
   const fail = (marker: string): [] => {
     if (strict) throw new Error(`fetchMDBList strict: ${marker} (${listKey})`)
     return []
@@ -250,6 +266,12 @@ export async function fetchMDBList(
     cacheSet(cacheKey, [], ["mdblist"], 60_000)
     return fail("transport")
   }
+  })()
+  mdbCurrent.promise = mdbWork
+  mdbListInflight.set(cacheKey, mdbWork)
+  return mdbWork.finally(() => {
+    if (mdbListInflight.get(cacheKey) === mdbCurrent.promise) mdbListInflight.delete(cacheKey)
+  })
 }
 
 export function parseMDBListTarget(input: string): { user?: string; slug?: string; id?: string } | null {

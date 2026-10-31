@@ -417,19 +417,31 @@ const SelectorStoreCtx = createContext<SelectorStore | null>(null)
  * ogni aggiornamento di qualsiasi slice. Il selettore DEVE restituire un
  * riferimento stabile (primitiva o campo di stato esistente), mai un oggetto
  * nuovo creato inline, altrimenti il confronto fallisce.
+ *
+ * M2: subscribe/getSnapshot stabili per store (useCallback + selettore via
+ * ref). Prima entrambe le closure erano ricreate a ogni render e
+ * useSyncExternalStore ri-sottoscriveva (e ri-leggeva lo snapshot) a ogni
+ * render del chiamante — anche quando lo store non era cambiato.
  */
 export function usePSelector<T>(selector: (v: PictoriumCtx) => T): T {
   const store = useContext(SelectorStoreCtx)
   if (!store) throw new Error("usePSelector must be inside PictoriumProvider")
-  const get = (): T | undefined => (store.value ? selector(store.value) : undefined)
-  return useSyncExternalStore(
-    (cb) => {
+  // Latest selector via ref: callers pass inline arrows (new identity every
+  // render), but the snapshot/subscribe pair below stays stable per store.
+  const selectorRef = useRef(selector)
+  selectorRef.current = selector
+  const getSnapshot = useCallback(
+    (): T | undefined => (store.value ? selectorRef.current(store.value) : undefined),
+    [store],
+  )
+  const subscribe = useCallback(
+    (cb: () => void) => {
       store.listeners.add(cb)
       return () => { store.listeners.delete(cb) }
     },
-    get,
-    get,
-  ) as T
+    [store],
+  )
+  return useSyncExternalStore(subscribe, getSnapshot, getSnapshot) as T
 }
 
 export function useP() {
@@ -1985,6 +1997,23 @@ export function usePictorium(): PictoriumCtx {
     editorCtx.defaultRegion, editorCtx.defaultDateFormat, currentUserId, localConfigToken, localConfigTokenStatus,
     globalBadges, rankingBadges, badgeStyle, rankingBadgeStyle, extraBadgeStyle, badgeFont, qualityBadgeStyle, videoFormats, badgeGenre, badgeYear, badgeRating, badgeQuality, ageBadge, ageCountry, ageBadgeStyle, awardBadgeStyle, defaultAgeBadge, defaultAgeCountry, defaultAgeBadgeStyle, defaultAwardBadgeStyle, customRatings, ratingSources, separateRatings, separateRatingsStyle, posterLayout, posterFreshScope, customBadge, editorCtx.defaultDisabledContentTags, editorCtx.defaultDisabledNetworks, gradientHeight, blurIntensity, blurFade, blurDarkness, blurEnabled, landscapeBlur, landscapeDefaults, tintStrength, topShade, topShadeHeight, networkLogo, networkLogoPosition, networkLogoFollowTitle, preRelease, ribbonSide, ribbonEnabled, posterShape, logoAlign, topBadgeScale, topBadgeOffsetX, topBadgeOffsetY, extraBadgeScale, extraBadgeOffsetX, extraBadgeOffsetY, genreBadgeScale, qualityBadgeScale, networkLogoScale, separateBadgeScale, separateBadgeOffsetX, separateBadgeOffsetY, badgeItemTransforms, genreBadgeOffsetX, genreBadgeOffsetY, qualityBadgeOffsetX, qualityBadgeOffsetY, networkLogoOffsetX, networkLogoOffsetY])
 
+  // H2: gate anti stale-color. All'apertura di un titolo la preview non si
+  // costruisce finché useRootColors non ha risolto i colori del poster
+  // CORRENTE (ref sotto): senza, il primo frame usa topEdge/bottomEdge del
+  // titolo precedente e ogni apertura costa due render server. Il reset
+  // azzera i bordi al cambio titolo così il primo build usa i colori
+  // calcolati dal server sui byte correnti (nessun frame stale).
+  const colorsResolvedForRef = useRef<string | null>(null)
+  const handleColorsResolved = useCallback((posterKey: string | null) => {
+    colorsResolvedForRef.current = posterKey
+  }, [])
+  const selectedTitleKey = navigation.selected ? `${navigation.selected.media_type}:${navigation.selected.id}` : null
+  useEffect(() => {
+    colorsResolvedForRef.current = null
+    setTopEdgeColor(null)
+    setBottomEdgeColor(null)
+  }, [selectedTitleKey])
+
   // A1: trailing debounce della preview URL (200ms). Ogni tick di slider
   // cambia l'identità di buildPreviewUrlCb → senza debounce ogni pixel di
   // drag genera una URL e un render server (storm). Il timer si resetta a
@@ -1993,6 +2022,23 @@ export function usePictorium(): PictoriumCtx {
   const lastPreviewSelectedId = useRef<number | null>(null)
   useEffect(() => {
     if (!navigation.selected) { lastPreviewSelectedId.current = null; setPreviewUrl(""); return }
+    // H2 gate: aspetta i colori del poster corrente prima di costruire.
+    // Senza poster (titolo senza immagini) nessun wait: gateKey null passa.
+    const gatePoster = posterShape === "landscape" ? (selectedBackdrop ?? navigation.previewPoster) : navigation.previewPoster
+    const gateKey = gatePoster?.file_path ?? null
+    if (gateKey && colorsResolvedForRef.current !== gateKey) {
+      // Liveness fallback: se il thumb non si carica mai (CDN bloccato,
+      // jsdom nei test) i colori non si risolvono e senza questo ramo la
+      // preview resterebbe vuota per sempre. Dopo il wait si costruisce
+      // comunque coi colori calcolati dal server sui byte correnti — il
+      // reset sopra garantisce che non siano mai quelli del titolo
+      // precedente (mai uno stale frame, solo un build in più nel caso
+      // patologico).
+      const timer = setTimeout(() => {
+        if (colorsResolvedForRef.current !== gateKey) buildPreviewUrlCb()
+      }, 1000)
+      return () => clearTimeout(timer)
+    }
     const selectedId = navigation.selected.id
     if (lastPreviewSelectedId.current !== selectedId) {
       lastPreviewSelectedId.current = selectedId
@@ -2001,7 +2047,7 @@ export function usePictorium(): PictoriumCtx {
     }
     const timer = setTimeout(buildPreviewUrlCb, 200)
     return () => clearTimeout(timer)
-  }, [navigation.selected, buildPreviewUrlCb])
+  }, [navigation.selected, navigation.previewPoster, buildPreviewUrlCb, posterShape, selectedBackdrop])
 
   // --- Color detection ---
   // In landscape la base è il backdrop: accent/topLight auto si campionano
@@ -2030,6 +2076,7 @@ export function usePictorium(): PictoriumCtx {
     posterUrl,
     { setAccentColor: setAccentColorFromAuto, setAutoAccentColor, setTopEdgeColor, setBottomEdgeColor },
     landscapePreview ? "w780" : "w342",
+    handleColorsResolved,
   )
 
   // --- Caricamento dati item corrente (M16) ---

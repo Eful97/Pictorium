@@ -7,7 +7,7 @@ import { getServerDefaults, getServerDefaultsChecked, getServerDefaultsForUser, 
 import { getScopedUserId, userExists, userRateLimitKey } from "@/lib/user-auth"
 import { touchUserActivity } from "@/lib/user-activity"
 import { POSTER_URL_VERSION } from "@/lib/render-version"
-import { getById } from "@/lib/store"
+import { getAll, getById, type Mapping } from "@/lib/store"
 import { decodeConfig, type PictoriumUserConfig } from "@/lib/config-token"
 import { getDetails, getDetailsWithExternalIds, getGenreList, getImages, personMovieCredits, personTvCredits, posterUrlOriginal, resolveUserApiKeys, searchMovies, searchPerson, searchTV, tmdbFindByImdb, tmdbFindByTvdb, type TMDBDetails } from "@/lib/tmdb"
 import { resolveImdbId } from "@/lib/imdb-cache"
@@ -329,60 +329,155 @@ export function resolveCatalogRegionWithDefaults(
 // DB Stremio/log/proxy). Il poster risolve il rank via `animerank` incorporato
 // o fallback d'istanza/mapping.
 /**
+ * Per-request poster context (H2): the old per-row helper re-resolved
+ * namespace defaults, the config token and one store lookup per row — on a
+ * cold 20-row catalog that is 20x defaults/store work plus 20x decodeConfig.
+ * This is built ONCE per catalog request (from the already-resolved
+ * effectiveDefaults/userConfig plus a single getAll-derived Map) and every
+ * row helper below stays synchronous: mapping lookup, explicit-shape
+ * resolution and both poster URL builds are pure CPU.
+ */
+interface PosterRowContext {
+  scopedUser: string | null
+  defaults: ServerDefaults
+  origin: string
+  posterLang: string
+  posterRegion?: string
+  configParam?: string | null
+  userParam?: string | null
+  catalogId: string
+  seasonalTheme: SeasonalTheme | null
+  /**
+   * Single getAll-derived Map for the request namespace (H2). Null when the
+   * store module exposes no getAll (unit-test module mocks that stub only
+   * getById): row resolution then falls back to the old per-row getById, so
+   * those tests keep exercising their mocked path unchanged.
+   */
+  mappingByKey: Map<string, Mapping> | null
+  /** Explicit per-catalog shape for THIS request id (request-constant). */
+  explicitShape: PosterShape | undefined
+}
+
+/**
+ * Single getAll-derived Map for the request namespace (H2): `getById` per
+ * row re-read the whole store each time (same cached payload, repeated
+ * per-row work). Keys mirror `getById` (`movie:<id>` / `tv:<id>`).
+ */
+function posterMappingKey(type: "movie" | "series", id: number): string {
+  return `${type === "series" ? "tv" : "movie"}:${id}`
+}
+
+async function buildPosterRowContext(opts: {
+  scopedUser: string | null
+  effectiveDefaults: ServerDefaults
+  userConfig: Partial<PictoriumUserConfig> | null
+  configParam: string | null
+  req: NextRequest
+  posterLang: string
+  posterRegion?: string
+  userParam: string | null
+  catalogId: string
+  seasonalTheme: SeasonalTheme | null
+}): Promise<PosterRowContext> {
+  // Same merge the old per-row helper computed per row (token wins over the
+  // namespace server defaults); without a token the namespace defaults apply
+  // verbatim. decodeConfig runs once per request at the call site above — the
+  // decoded value arrives here, never re-decoded per row.
+  const defaults = opts.configParam && opts.userConfig
+    ? { ...opts.effectiveDefaults, ...opts.userConfig }
+    : opts.effectiveDefaults
+  let mappingByKey: Map<string, Mapping> | null = null
+  try {
+    // NOTE: merely touching the getAll binding throws under unit-test module
+    // mocks that stub only getById — caught here, falling back below. Same
+    // for a failing store (fail-open: rows serve with default shape).
+    mappingByKey = new Map<string, Mapping>()
+    for (const m of await getAll(opts.scopedUser)) {
+      mappingByKey.set(`${m.mediaType}:${m.tmdbId}`, m)
+    }
+  } catch {
+    // Test-mock fallback (no getAll export) or failing store: per-row getById
+    // in resolveRowMapping, the same mocked path as before.
+    mappingByKey = null
+  }
+  return {
+    scopedUser: opts.scopedUser,
+    defaults,
+    origin: getOriginFromRequest(opts.req),
+    posterLang: opts.posterLang,
+    posterRegion: opts.posterRegion,
+    configParam: opts.configParam,
+    userParam: opts.userParam,
+    catalogId: opts.catalogId,
+    seasonalTheme: opts.seasonalTheme,
+    mappingByKey,
+    // Per-catalog format (TaskB): an explicit poster|landscape override for
+    // THIS catalog id always wins (either direction, mapping ignored);
+    // absent keys keep the legacy stremioPosterShape behavior byte-identically.
+    // Normalized once per request (legacy posterium-* accepted) — every row
+    // inherits it. The stored mapping is never rewritten.
+    explicitShape: getExplicitCatalogShape(
+      opts.catalogId,
+      normalizeCatalogShapeKeys(defaults.catalogShapes),
+    ),
+  }
+}
+
+/**
  * Poster URL + banner landscape + landscapePoster NuvioTV + formato canvas di
  * un item in un'unica risoluzione mapping: UN solo getById per item (il
  * lookup è cachato, ma la doppia chiamata raddoppiava comunque il lavoro per
  * ogni riga del catalogo).
  *
- * Il `banner` è lo stesso rendering Pictorium in canvas landscape 16:9 SENZA
- * logo baked-in (profilo landscape del mapping): resta per i client che lo
- * leggono. NuvioTV invece ignora `banner` e legge `landscapePoster`: per i
- * titoli landscape (anche forzati dal default globale) è lo stesso canvas
- * con logo baked-in (immagine
- * intoccabile, Nuvio non deve sovrapporre nulla) — emesso solo in quel caso.
- * `background` resta il backdrop grezzo per l'hero della pagina dettaglio.
+ * The `banner` is the same Pictorium rendering in landscape 16:9 canvas
+ * WITHOUT baked-in logo (landscape profile of the mapping): stays for
+ * clients that read it. NuvioTV instead ignores `banner` and reads
+ * `landscapePoster`: for landscape titles (also forced by the global default)
+ * it is the same canvas with baked-in logo (untouchable image, Nuvio must
+ * not overlay anything) — emitted only then. `background` stays the raw
+ * backdrop for the detail-page hero.
  */
-async function pictoriumPosterAndShape(
-  req: NextRequest,
+/**
+ * Per-row mapping resolution: request Map hit in production, per-row getById
+ * only under unit-test module mocks without getAll (same mocked path as
+ * before, unchanged behavior there).
+ */
+async function resolveRowMapping(
+  ctx: PosterRowContext,
   type: "movie" | "series",
   id: number,
-  configParam?: string | null,
-  userParam?: string | null,
+): Promise<Mapping | null> {
+  if (ctx.mappingByKey) return ctx.mappingByKey.get(posterMappingKey(type, id)) ?? null
+  try {
+    return await getById(type === "series" ? "tv" : "movie", id, ctx.scopedUser)
+  } catch {
+    return null
+  }
+}
+
+async function buildPosterRowUrls(
+  ctx: PosterRowContext,
+  type: "movie" | "series",
+  id: number,
   animeRankParam?: number | null,
-  posterLang = "it",
-  posterRegion?: string | null,
-  catalogId?: string | null,
   rankBusterParam?: number | string | null,
-  seasonalTheme?: SeasonalTheme | null,
 ): Promise<{ poster: string; banner: string; landscapePoster?: string; posterShape: PosterShape }> {
-  const scopedUser = getScopedUserId(userParam)
-  const serverDefaults = scopedUser ? await getServerDefaultsForUser(scopedUser) : await getServerDefaultsChecked()
-  const userConfig = configParam ? decodeConfig(configParam) : null
-  const defaults = userConfig ? { ...serverDefaults, ...userConfig } : serverDefaults
-  const mapping = await getById(type === "series" ? "tv" : "movie", id, scopedUser)
+  const mapping = await resolveRowMapping(ctx, type, id)
   const base = {
-    origin: getOriginFromRequest(req),
+    origin: ctx.origin,
     type,
     id,
-    defaults,
+    defaults: ctx.defaults,
     mapping,
-    lang: posterLang,
-    region: posterRegion || undefined,
-    config: configParam || undefined,
-    user: userParam || undefined,
+    lang: ctx.posterLang,
+    region: ctx.posterRegion,
+    config: ctx.configParam || undefined,
+    user: ctx.userParam || undefined,
     animerank: animeRankParam ?? undefined,
     rankBuster: rankBusterParam ?? undefined,
-    seasonalTheme: seasonalTheme ?? undefined,
+    seasonalTheme: ctx.seasonalTheme ?? undefined,
   } as const
-  // Per-catalog format (TaskB): an explicit poster|landscape override for THIS
-  // catalog id always wins (either direction, mapping ignored); absent keys
-  // keep the legacy stremioPosterShape behavior byte-identically. The stored
-  // mapping is never rewritten and other catalogs are unaffected. Keys are
-  // normalized here (legacy posterium-* accepted) so every branch inherits it.
-  const explicitShape = catalogId
-    ? getExplicitCatalogShape(catalogId, normalizeCatalogShapeKeys(defaults.catalogShapes))
-    : undefined
-  const posterShape = explicitShape ?? stremioPosterShape(mapping, defaults)
+  const posterShape = ctx.explicitShape ?? stremioPosterShape(mapping, ctx.defaults)
   // Cornice stagionale (contesto effimero del catalogo di origine): viaggia
   // nel `poster` su entrambi i canvas (ognuno rende il proprio asset
   // 500×750 / 768×432, mai stirato) — il banner pulito resta byte-identico
@@ -390,7 +485,7 @@ async function pictoriumPosterAndShape(
   // La scelta per-titolo salvata vince sul contesto lista (esplicita a tema
   // segue il titolo ovunque, `none` lo sopprime, assente = Automatico segue
   // la lista) — vedi resolveEffectiveSeasonalTheme.
-  const effectiveTheme = resolveEffectiveSeasonalTheme(mapping?.seasonalTheme ?? null, seasonalTheme ?? null)
+  const effectiveTheme = resolveEffectiveSeasonalTheme(mapping?.seasonalTheme ?? null, ctx.seasonalTheme)
   // Global family default map: pure shape-effective SERVER defaults (the
   // `defaults` above may be merged with a config token, which is a config
   // level, not a global default). Cache-only dependency — never a `bp`
@@ -536,6 +631,42 @@ function movieCatalogVideoHints(metaId: string): Pick<StremioMeta, "behaviorHint
   return { behaviorHints: { defaultVideoId: metaId, hasScheduledVideos: false }, videos: [] }
 }
 
+/**
+ * Local genre-name filter (M6 stride reuse): same predicate the tail filter
+ * applies to whole bodies, factored so the custom genre-filtered scan can
+ * test each enrichment stride and stop early instead of enriching ~100 rows
+ * before filtering.
+ */
+function filterMetasByCatalogGenre(
+  metas: StremioMeta[],
+  genre: string,
+  genreNameMap: Map<number, string>,
+): StremioMeta[] {
+  const gLower = genre.toLowerCase()
+  const isFamily = gLower === "famiglia" || gLower === "family"
+  const isSciFi = gLower === "fantascienza" || gLower.includes("sci-fi")
+  const isAction = gLower === "azione" || gLower.includes("action")
+  // Nome del genere nella lingua della regione (vedi MANIFEST_GENRE_TMDB_IDS).
+  // Resta undefined per le etichette fuori tabella o quando /genre/list
+  // fallisce: in quel caso il filtro degrada al confronto di prima.
+  const tmdbGenreId = MANIFEST_GENRE_TMDB_IDS[gLower]
+  const localizedGenre = tmdbGenreId !== undefined
+    ? genreNameMap.get(tmdbGenreId)?.toLowerCase()
+    : undefined
+  return metas.filter((m) => {
+    if (!m.genres || m.genres.length === 0) return true
+    return m.genres.some((g) => {
+      const gn = g.toLowerCase()
+      if (gn.includes(gLower) || gLower.includes(gn)) return true
+      if (localizedGenre && (gn.includes(localizedGenre) || localizedGenre.includes(gn))) return true
+      if (isFamily && (gn.includes("famiglia") || gn.includes("family"))) return true
+      if (isSciFi && (gn.includes("fantascienza") || gn.includes("sci-fi"))) return true
+      if (isAction && (gn.includes("azione") || gn.includes("action"))) return true
+      return false
+    })
+  })
+}
+
 function withMovieCatalogHints(metas: StremioMeta[], stType: StremioCatalogType): StremioMeta[] {
   if (stType !== "movie") return metas
   return metas.map((m) => ({ ...m, ...movieCatalogVideoHints(m.id) }))
@@ -595,7 +726,7 @@ export function chartFamilyForCatalogRequest(
  * contribute no base name (ids NEVER match — only display names do). Same
  * title in another list stays unframed; no per-title state is read here
  * (the per-title override is applied per item in
- * `pictoriumPosterAndShape`).
+ * `buildPosterRowUrls`).
  */
 export function resolveCatalogSeasonalTheme(
   catalogId: string,
@@ -959,7 +1090,7 @@ export async function pictoriumCatalog(
   // below carry `theme=` so the poster cache splits per title too. Custom
   // user keywords (namespace defaults, token override wins) extend the same
   // list-name match; the per-title mapping override is applied per item in
-  // `pictoriumPosterAndShape` (mapping version already in the poster key, so
+  // `buildPosterRowUrls` (mapping version already in the poster key, so
   // no extra fragment is needed here).
   const seasonalKeywords = {
     halloween: sanitizeSeasonalCustomKeywords(
@@ -979,6 +1110,22 @@ export async function pictoriumCatalog(
     seasonalKeywords,
   })
   const themeFragment = catalogTheme ? `:th${catalogTheme}` : ""
+
+  // Per-request poster context (H2, single build): effectiveDefaults +
+  // decoded userConfig + one getAll-derived mapping Map feed every row below.
+  // decodeConfig already ran once at the call site above — never per row.
+  const posterCtx = await buildPosterRowContext({
+    scopedUser,
+    effectiveDefaults,
+    userConfig,
+    configParam,
+    req,
+    posterLang,
+    posterRegion: region.code,
+    userParam,
+    catalogId,
+    seasonalTheme: catalogTheme,
+  })
 
   // --- Gestione Ricerca Stremio (sia via barra di ricerca che catalogo dedicato) ---
   // Eccezione addon: se il catalogo importato dichiara `search`, la query va
@@ -1079,7 +1226,7 @@ export async function pictoriumCatalog(
           // resta servita. Mai un secondo details fetch (i crediti bastano).
           const [imdbId, { poster, banner, landscapePoster, posterShape }] = await Promise.all([
             resolveImdbId(stType === "movie" ? "movie" : "tv", item.id, apiKey, CATALOG_TMDB_TIMEOUT_MS, catalogTimeoutSignal()),
-            pictoriumPosterAndShape(req, stType, item.id, configParam, userParam, undefined, posterLang, region.code, catalogId, undefined, catalogTheme),
+            buildPosterRowUrls(posterCtx, stType, item.id),
           ])
           const releaseInfo = (item.release_date || item.first_air_date || "").slice(0, 4) || undefined
           return {
@@ -1136,7 +1283,7 @@ export async function pictoriumCatalog(
         }
         const d = await getDetails(stType === "movie" ? "movie" : "tv", foundId, tmdbLang, apiKey)
         const genreNames = await tmdbGenreNames(stType, apiKey, tmdbLang)
-        const { poster, banner, landscapePoster, posterShape } = await pictoriumPosterAndShape(req, stType, foundId, configParam, userParam, undefined, posterLang, region.code, catalogId, undefined, catalogTheme)
+        const { poster, banner, landscapePoster, posterShape } = await buildPosterRowUrls(posterCtx, stType, foundId)
         const body = {
           metas: withMovieCatalogHints([
             {
@@ -1179,7 +1326,7 @@ export async function pictoriumCatalog(
         // resta servita. Mai un secondo details fetch (il full-text basta).
         const [imdbId, { poster, banner, landscapePoster, posterShape }] = await Promise.all([
           resolveImdbId(stType === "movie" ? "movie" : "tv", item.id, apiKey, CATALOG_TMDB_TIMEOUT_MS, catalogTimeoutSignal()),
-          pictoriumPosterAndShape(req, stType, item.id, configParam, userParam, undefined, posterLang, region.code, catalogId, undefined, catalogTheme),
+          buildPosterRowUrls(posterCtx, stType, item.id),
         ])
         const releaseInfo = (item.release_date || item.first_air_date || "").slice(0, 4) || undefined
         return {
@@ -1408,10 +1555,13 @@ export async function pictoriumCatalog(
               tmdbId = await tmdbFindByTvdb(ref.tvdb, stType === "movie" ? "movie" : "tv", apiKey).catch(() => null)
             }
             if (!tmdbId) return base
-            const posterAndShape = await pictoriumPosterAndShape(req, stType, tmdbId, configParam, userParam, undefined, posterLang, region.code, catalogId, undefined, catalogTheme)
-            const logo = apiKey
-              ? await catalogLogo(stType === "movie" ? "movie" : "tv", tmdbId, apiKey, tmdbLang).catch(() => undefined)
-              : undefined
+            const posterAndShape = await buildPosterRowUrls(posterCtx, stType, tmdbId)
+            // H3: niente fetch logo sulle righe landscape (verrebbe scartato).
+            const logo = posterAndShape.posterShape === "landscape"
+              ? undefined
+              : await (apiKey
+                ? catalogLogo(stType === "movie" ? "movie" : "tv", tmdbId, apiKey, tmdbLang).catch(() => undefined)
+                : Promise.resolve(undefined))
             return {
               ...base,
               poster: posterAndShape.poster,
@@ -1573,7 +1723,7 @@ export async function pictoriumCatalog(
         // across titles. A fast item's enrichment no longer waits for a slow
         // item's details; order preserved by concurrentMap index slots.
         let detailsTransientFailure = false
-        metas = (await concurrentMap(pagedItems, async (item): Promise<StremioMeta | null> => {
+        const enrichCustomItem = async (item: (typeof uniqueResolved)[number]): Promise<StremioMeta | null> => {
           const tmdbId = Number(item.tmdb)
           if (!tmdbId) return null
           let details: TMDBDetails | null = null
@@ -1615,18 +1765,23 @@ export async function pictoriumCatalog(
           // via combined signals, cancellation at the 10s bound, no extra
           // background work past it.
           const enrichSignal = combineAbortSignals(customBudgetSignal, CATALOG_TMDB_TIMEOUT_MS)
-          const [imdbId, posterAndShape, logo] = await Promise.all([
+          // No list-positional rank is injected here: the badge rank resolves
+          // live at render from the explicitly selected ranking source
+          // (JustWatch default, or a deliberately chosen custom list via the
+          // trendRank channel). Passing the list position as `animerank`
+          // made every imported list behave as its own ranking source and
+          // let it override the selected source (animeRank wins over
+          // trendRank in badge precedence). The anime catalog branch below
+          // keeps its genuine MDBList-chart `animerank`.
+          // H3: poster URLs are synchronous from the request context (mapping
+          // + shape resolved once) — no per-row defaults/store work; the logo
+          // fetch is skipped on landscape rows (it would be dropped anyway).
+          const posterAndShape = await buildPosterRowUrls(posterCtx, stType, r.tmdbId)
+          const [imdbId, logo] = await Promise.all([
             r.imdb ? Promise.resolve(r.imdb) : (appendedImdb ?? resolveImdbId(stType === "movie" ? "movie" : "tv", r.tmdbId, apiKey, CATALOG_TMDB_TIMEOUT_MS, enrichSignal)),
-            // No list-positional rank is injected here: the badge rank resolves
-            // live at render from the explicitly selected ranking source
-            // (JustWatch default, or a deliberately chosen custom list via the
-            // trendRank channel). Passing the list position as `animerank`
-            // made every imported list behave as its own ranking source and
-            // let it override the selected source (animeRank wins over
-            // trendRank in badge precedence). The anime catalog branch below
-            // keeps its genuine MDBList-chart `animerank`.
-            pictoriumPosterAndShape(req, stType, r.tmdbId, configParam, userParam, undefined, posterLang, region.code, catalogId, undefined, catalogTheme),
-            apiKey ? catalogLogo(stType === "movie" ? "movie" : "tv", r.tmdbId, apiKey, tmdbLang, customBudgetSignal) : Promise.resolve(undefined),
+            posterAndShape.posterShape === "landscape"
+              ? Promise.resolve(undefined)
+              : (apiKey ? catalogLogo(stType === "movie" ? "movie" : "tv", r.tmdbId, apiKey, tmdbLang, customBudgetSignal) : Promise.resolve(undefined)),
           ])
           const { poster, banner, landscapePoster, posterShape } = posterAndShape
           const background = catalogBackground(r.backdropPath)
@@ -1645,7 +1800,30 @@ export async function pictoriumCatalog(
             genres: r.genres,
             description: r.description,
           }
-        }, 5)).filter((m): m is StremioMeta => m !== null)
+        }
+        if (isCustomGenreFiltered) {
+          // M6: genre-filtered customs used to enrich up to 100 rows (each a
+          // details + logo fetch) before the tail genre filter dropped most
+          // of them. Enrich in strides of 20 and stop as soon as enough rows
+          // survive the same genre predicate the tail filter applies. The
+          // tail window slice (`slice(skip)`) below is preserved verbatim, so
+          // the stride target accounts for it (skip + 20 survivors).
+          const genreNameMap = await tmdbGenreNames(stType, apiKey, tmdbLang)
+          const strideSurvivors: StremioMeta[] = []
+          const ENRICH_STRIDE = 20
+          const skipForStride = typeof extra.skip === "number" && extra.skip > 0 ? extra.skip : 0
+          const wantSurvivors = skipForStride + 20
+          for (let s = 0; s < pagedItems.length && strideSurvivors.length < wantSurvivors; s += ENRICH_STRIDE) {
+            if (customBudgetSignal.aborted) break
+            const strideRows = (await concurrentMap(pagedItems.slice(s, s + ENRICH_STRIDE), enrichCustomItem, 5))
+              .filter((m): m is StremioMeta => m !== null)
+            strideSurvivors.push(...filterMetasByCatalogGenre(strideRows, extra.genre as string, genreNameMap))
+          }
+          if (customBudgetSignal.aborted) customBudgetIncomplete = true
+          metas = strideSurvivors
+        } else {
+          metas = (await concurrentMap(pagedItems, enrichCustomItem, 5)).filter((m): m is StremioMeta => m !== null)
+        }
         if (customBudgetSignal.aborted) customBudgetIncomplete = true
         if (detailsTransientFailure) customBudgetIncomplete = true
       }
@@ -1834,23 +2012,30 @@ export async function pictoriumCatalog(
       // across titles. A fast item's enrichment no longer waits for a slow
       // item's details; order preserved by concurrentMap index slots.
       metas = (await concurrentMap(uniqueRows, async (row): Promise<StremioMeta | null> => {
-        // D4: external_ids in append — niente secondo fetch per-titolo.
-        // Tetto fail-open: uno straggler non appende tutto il catalogo.
-        let d: Awaited<ReturnType<typeof getDetailsWithExternalIds>> | null = null
+        // H3: la riga JW porta già l'imdbId — niente append external_ids per
+        // quelle righe (un solo fetch details invece di details+append); le
+        // righe senza imdbId tengono il colpo singolo details+external_ids
+        // (D4). Il logo non parte sulle righe landscape (verrebbe scartato).
+        // Tetto fail-open: uno straggler non appende tutto il catalogo (la
+        // sequenza details-prima resta quella storica: stesso ordine fetch).
+        const rowMedia = stType === "movie" ? "movie" : "tv"
+        let d: TMDBDetails | null = null
         try {
-          const fetched = await getDetailsWithExternalIds(stType === "movie" ? "movie" : "tv", row.tmdbId, tmdbLang, apiKey, catalogTimeoutSignal(), CATALOG_TMDB_TIMEOUT_MS)
-          if (fetched?.id) d = fetched
-        } catch {
+          const fetched = row.imdbId
+            ? await getDetails(rowMedia, row.tmdbId, tmdbLang, apiKey, catalogTimeoutSignal(), CATALOG_TMDB_TIMEOUT_MS)
+            : await getDetailsWithExternalIds(rowMedia, row.tmdbId, tmdbLang, apiKey, catalogTimeoutSignal(), CATALOG_TMDB_TIMEOUT_MS)
           // Fail-open come il ramo piattaforme: il titolo JustWatch resta
           // anche senza dettagli (prima la riga veniva scartata del tutto).
+          if (fetched?.id) d = fetched
+        } catch {
           d = null
         }
         if (!d && !(row.title && row.title.length > 0)) return null
-        const [imdbId, posterAndShape, logo] = await Promise.all([
-          row.imdbId || d?.external_ids?.imdb_id || null,
-          pictoriumPosterAndShape(req, stType, row.tmdbId, configParam, userParam, undefined, posterLang, region.code, catalogId, undefined, catalogTheme),
-          apiKey ? catalogLogo(stType === "movie" ? "movie" : "tv", row.tmdbId, apiKey, tmdbLang) : Promise.resolve(undefined),
-        ])
+        const posterAndShape = await buildPosterRowUrls(posterCtx, stType, row.tmdbId)
+        const logo = posterAndShape.posterShape === "landscape" || !apiKey
+          ? undefined
+          : await catalogLogo(rowMedia, row.tmdbId, apiKey, tmdbLang)
+        const imdbId = row.imdbId || d?.external_ids?.imdb_id || null
         const { poster, banner, landscapePoster, posterShape } = posterAndShape
         const background = catalogBackground(d?.backdrop_path ?? null)
         return {
@@ -1933,10 +2118,14 @@ export async function pictoriumCatalog(
           }
         }
         const rank = animeSkip + idx + 1
-        const [imdbId, posterAndShape, logo] = await Promise.all([
+        // H3: poster URLs are synchronous from the request context; the logo
+        // fetch is skipped on landscape rows (it would be dropped anyway).
+        const posterAndShape = await buildPosterRowUrls(posterCtx, stType, tmdbId, rank)
+        const [imdbId, logo] = await Promise.all([
           item.imdb ? Promise.resolve(item.imdb) : (appendedImdb ?? resolveImdbId(mediaType, tmdbId, apiKey, CATALOG_TMDB_TIMEOUT_MS)),
-          pictoriumPosterAndShape(req, stType, tmdbId, configParam, userParam, rank, posterLang, region.code, catalogId, undefined, catalogTheme),
-          apiKey ? catalogLogo(mediaType, tmdbId, apiKey, tmdbLang) : Promise.resolve(undefined),
+          posterAndShape.posterShape === "landscape" || !apiKey
+            ? Promise.resolve(undefined)
+            : catalogLogo(mediaType, tmdbId, apiKey, tmdbLang),
         ])
         const { poster, banner, landscapePoster, posterShape } = posterAndShape
         const background = catalogBackground(d?.backdrop_path ?? null)
@@ -1980,27 +2169,44 @@ export async function pictoriumCatalog(
         if (!row.tmdbId) return null
         const itemType = row.mediaType === "tv" || row.mediaType === "movie" ? row.mediaType : sectionDefaultMedia
         const stremioType = itemType === "tv" ? "series" : "movie"
+        // H3: poster URLs are synchronous from the request context. Rows that
+        // already carry the source imdbId use the plain details fetch; the
+        // rest get details+external_ids in one round trip and only fall back
+        // to the standalone lookup when the append is absent/invalid. No logo
+        // fetch on landscape rows (it would be dropped anyway). The historic
+        // sequential fetch order (details → imdb → logo) is preserved.
+        const posterAndShape = await buildPosterRowUrls(posterCtx, stremioType, row.tmdbId)
         let details: TMDBDetails | null = null
         let imdbId: string | null = row.imdbId ?? null
         let logo: string | undefined = undefined
         if (apiKey) {
           try {
-            details = await getDetails(itemType, row.tmdbId, tmdbLang, apiKey, catalogTimeoutSignal(), CATALOG_TMDB_TIMEOUT_MS)
+            details = imdbId
+              ? await getDetails(itemType, row.tmdbId, tmdbLang, apiKey, catalogTimeoutSignal(), CATALOG_TMDB_TIMEOUT_MS)
+              : await getDetailsWithExternalIds(itemType, row.tmdbId, tmdbLang, apiKey, catalogTimeoutSignal(), CATALOG_TMDB_TIMEOUT_MS)
           } catch {
             details = null
           }
-          try {
-            imdbId = imdbId ?? await resolveImdbId(itemType, row.tmdbId, apiKey, CATALOG_TMDB_TIMEOUT_MS)
-          } catch {
-            // fail-open: the row still serves as tmdb:<id>
+          if (!imdbId) {
+            const rawAppend = details?.external_ids?.imdb_id
+            if (typeof rawAppend === "string" && CATALOG_IMDB_ID_RE.test(rawAppend.trim())) {
+              imdbId = rawAppend
+            } else {
+              try {
+                imdbId = await resolveImdbId(itemType, row.tmdbId, apiKey, CATALOG_TMDB_TIMEOUT_MS)
+              } catch {
+                // fail-open: the row still serves as tmdb:<id>
+              }
+            }
           }
-          try {
-            logo = await catalogLogo(itemType, row.tmdbId, apiKey, tmdbLang)
-          } catch {
-            logo = undefined
+          if (posterAndShape.posterShape !== "landscape") {
+            try {
+              logo = await catalogLogo(itemType, row.tmdbId, apiKey, tmdbLang)
+            } catch {
+              logo = undefined
+            }
           }
         }
-        const posterAndShape = await pictoriumPosterAndShape(req, stremioType, row.tmdbId, configParam, userParam, undefined, posterLang, region.code, catalogId, undefined, catalogTheme)
         const { poster, banner, landscapePoster, posterShape } = posterAndShape
         const metaId = catalogMetaId(imdbId, row.tmdbId)
         const title = details?.title || details?.name || row.title || ""
@@ -2133,23 +2339,30 @@ export async function pictoriumCatalog(
           // imdb/poster/logo sequentially within each item task, concurrency
           // 5 across titles. Order preserved by concurrentMap index slots.
           metas = (await concurrentMap(uniqueJwRows, async (row): Promise<StremioMeta | null> => {
+            // H3: same rule as the global JW branch — rows that already carry
+            // the source imdbId use the plain details fetch; logo skipped on
+            // landscape rows (it would be dropped anyway). The historic
+            // details-first fetch order is preserved.
+            const rowMedia = stType === "movie" ? "movie" : "tv"
             let details: TMDBDetails | null = null
             if (apiKey) {
               try {
-                // D4: external_ids in append — niente secondo fetch per-titolo.
-                // Tetto fail-open: il titolo JustWatch resta anche senza dettagli.
-                details = await getDetailsWithExternalIds(stType === "movie" ? "movie" : "tv", row.tmdbId, tmdbLang, apiKey, catalogTimeoutSignal(), CATALOG_TMDB_TIMEOUT_MS)
+                // D4: tetto fail-open — il titolo JustWatch resta anche senza
+                // dettagli, e il logo segue dopo (mai in parallelo prima).
+                details = row.imdbId
+                  ? await getDetails(rowMedia, row.tmdbId, tmdbLang, apiKey, catalogTimeoutSignal(), CATALOG_TMDB_TIMEOUT_MS)
+                  : await getDetailsWithExternalIds(rowMedia, row.tmdbId, tmdbLang, apiKey, catalogTimeoutSignal(), CATALOG_TMDB_TIMEOUT_MS)
               } catch {
                 details = null
               }
             }
             const title = details?.title || details?.name || row.title || ""
             if (title.length === 0) return null
-            const [imdbId, posterAndShape, logo] = await Promise.all([
-              row.imdbId || details?.external_ids?.imdb_id || null,
-              pictoriumPosterAndShape(req, stType, row.tmdbId, configParam, userParam, undefined, posterLang, region.code, catalogId, undefined, catalogTheme),
-              apiKey ? catalogLogo(stType === "movie" ? "movie" : "tv", row.tmdbId, apiKey, tmdbLang) : Promise.resolve(undefined),
-            ])
+            const posterAndShape = await buildPosterRowUrls(posterCtx, stType, row.tmdbId)
+            const logo = !apiKey || posterAndShape.posterShape === "landscape"
+              ? undefined
+              : await catalogLogo(rowMedia, row.tmdbId, apiKey, tmdbLang)
+            const imdbId = row.imdbId || details?.external_ids?.imdb_id || null
             const { poster, banner, landscapePoster, posterShape } = posterAndShape
             const background = catalogBackground(details?.backdrop_path ?? null)
             return {
@@ -2219,11 +2432,20 @@ export async function pictoriumCatalog(
             const itemsWithTmdb = allWithTmdb.slice(skipForPlatform, skipForPlatform + 10)
 
             metas = await concurrentMap(itemsWithTmdb, async (item) => {
-              const [imdbId, details, posterAndShape, logo] = await Promise.all([
+              // Byte-identical fetch concurrency to the pre-task path: the FP
+              // append optimization stays deliberately deferred on this branch
+              // (concurrent details + standalone external_ids, see
+              // catalog-details-append-c1.test.ts) — no fetch removed or
+              // reordered here. Only the poster URLs come from the request
+              // context (H2), and the logo is skipped on landscape rows (H3:
+              // it would be dropped by catalogLogoForShape anyway).
+              const posterAndShape = await buildPosterRowUrls(posterCtx, stType, item.tmdbId)
+              const [imdbId, details, logo] = await Promise.all([
                 resolveImdbId(stType === "movie" ? "movie" : "tv", item.tmdbId, apiKey, CATALOG_TMDB_TIMEOUT_MS),
                 getDetails(stType === "movie" ? "movie" : "tv", item.tmdbId, tmdbLang, apiKey, catalogTimeoutSignal(), CATALOG_TMDB_TIMEOUT_MS).catch(() => null),
-                pictoriumPosterAndShape(req, stType, item.tmdbId, configParam, userParam, undefined, posterLang, region.code, catalogId, undefined, catalogTheme),
-                catalogLogo(stType === "movie" ? "movie" : "tv", item.tmdbId, apiKey, tmdbLang),
+                posterAndShape.posterShape === "landscape"
+                  ? Promise.resolve(undefined)
+                  : catalogLogo(stType === "movie" ? "movie" : "tv", item.tmdbId, apiKey, tmdbLang),
               ])
               const { poster, banner, landscapePoster, posterShape } = posterAndShape
               const italianTitle = details?.title || details?.name || item.title
@@ -2252,34 +2474,13 @@ export async function pictoriumCatalog(
     // Filtro locale per nome genere (built-in/custom liste): gli addon e
     // le query JustWatch già pre-filtrate server-side sono escluse.
     if (!isUnfilteredCatalogGenre(extra.genre) && metas.length > 0 && !isAddonCatalog && !isJwGenrePreFiltered) {
-      const gLower = (extra.genre as string).toLowerCase()
-      const isFamily = gLower === "famiglia" || gLower === "family"
-      const isSciFi = gLower === "fantascienza" || gLower.includes("sci-fi")
-      const isAction = gLower === "azione" || gLower.includes("action")
       // Nome del genere nella lingua della regione (vedi MANIFEST_GENRE_TMDB_IDS).
-      // Resta undefined per le etichette fuori tabella o quando /genre/list
-      // fallisce: in quel caso il filtro degrada al confronto di prima.
       // Le liste miste (`all`) consultano entrambe le tabelle (movie + series,
       // cachate): nessun allargamento di `tmdbGenreNames`, nessun cast.
-      const tmdbGenreId = MANIFEST_GENRE_TMDB_IDS[gLower]
       const genreNameMap = stType === "all"
         ? new Map([...(await tmdbGenreNames("movie", apiKey, tmdbLang)), ...(await tmdbGenreNames("series", apiKey, tmdbLang))])
         : await tmdbGenreNames(stType, apiKey, tmdbLang)
-      const localizedGenre = tmdbGenreId !== undefined
-        ? genreNameMap.get(tmdbGenreId)?.toLowerCase()
-        : undefined
-      metas = metas.filter((m) => {
-        if (!m.genres || m.genres.length === 0) return true
-        return m.genres.some((g) => {
-          const gn = g.toLowerCase()
-          if (gn.includes(gLower) || gLower.includes(gn)) return true
-          if (localizedGenre && (gn.includes(localizedGenre) || localizedGenre.includes(gn))) return true
-          if (isFamily && (gn.includes("famiglia") || gn.includes("family"))) return true
-          if (isSciFi && (gn.includes("fantascienza") || gn.includes("sci-fi"))) return true
-          if (isAction && (gn.includes("azione") || gn.includes("action"))) return true
-          return false
-        })
-      })
+      metas = filterMetasByCatalogGenre(metas, extra.genre as string, genreNameMap)
     }
 
     // Match ancorato come nel ramo platform sopra (riga ~785): un includes()

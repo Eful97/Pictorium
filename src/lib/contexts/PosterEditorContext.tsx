@@ -589,6 +589,23 @@ export function usePosterEditor() {
 }
 
 /**
+ * H3: narrow region-actions context. AppShell only needs to set the region
+ * from the onboarding LangPicker — subscribing to the whole PosterEditorCtx
+ * re-rendered the entire shell on EVERY editor field change (every slider
+ * tick). This context carries a single stable callback, so the shell never
+ * re-renders for editor ticks. Minimal safe step: the monolithic editor
+ * context itself is untouched; a full selector/split of the editor store
+ * remains follow-up work (documented in the task report).
+ */
+const EditorRegionActionsCtx = createContext<{ applyRegion: (regionCode: string) => void } | null>(null)
+
+export function useEditorRegionActions() {
+  const v = useContext(EditorRegionActionsCtx)
+  if (!v) throw new Error("useEditorRegionActions must be inside PosterEditorProvider")
+  return v
+}
+
+/**
  * PosterEditorProvider — ORA possiede il proprio stato.
  * Non dipende più da PictoriumCtx.
  * Crea useDefaults() internamente per badge/blur/gradient defaults persistenti,
@@ -1579,6 +1596,18 @@ export function PosterEditorProvider({
       update({ defaultDateFormat: next })
     }, [defaultDateFormat, update])
 
+  // H3: stable region applier for AppShell (LangPicker). Reads the latest
+  // setters via ref so its identity never changes — the shell subscribes to
+  // this narrow context only and skips every editor-tick re-render. Same
+  // order as the previous inline handler (default first, then live).
+  const regionActionsRef = useRef({ setRegion, setDefaultRegion })
+  regionActionsRef.current = { setRegion, setDefaultRegion }
+  const applyRegion = useCallback((regionCode: string) => {
+    regionActionsRef.current.setDefaultRegion(regionCode)
+    regionActionsRef.current.setRegion(regionCode)
+  }, [])
+  const regionActionsValue = useMemo(() => ({ applyRegion }), [applyRegion])
+
   const applyVisualPreset = useCallback((values: VisualPresetValues, target: "portrait" | "landscape" = "portrait") => {
     // Preset senza follow (legacy) o null = eredita: mai null nello stato
     // (i default restano booleani come gli altri toggle).
@@ -2368,7 +2397,11 @@ export function PosterEditorProvider({
     ],
   )
 
-  return <Ctx.Provider value={editorCtx}>{children}</Ctx.Provider>
+  return (
+    <EditorRegionActionsCtx.Provider value={regionActionsValue}>
+      <Ctx.Provider value={editorCtx}>{children}</Ctx.Provider>
+    </EditorRegionActionsCtx.Provider>
+  )
 }
 
 /**

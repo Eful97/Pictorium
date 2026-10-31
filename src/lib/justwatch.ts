@@ -1,5 +1,5 @@
 import { hasDigitalOffer } from "./pre-release"
-import { combineAbortSignals } from "./abort-signal"
+import { combineAbortSignals, raceWithAbort } from "./abort-signal"
 import { timedFetch } from "./outbound-stats"
 import { envWithFallback } from "@/lib/env-compat"
 import { createCircuitBreaker } from "@/lib/circuit-breaker"
@@ -259,6 +259,36 @@ const UA =
 
 let ddCookie: string | null = null
 
+/**
+ * Inflight coalescing for identical concurrent GraphQL reads (same cache-key
+ * identity as the source cache below): a cold 20-row catalog fans out over
+ * several concurrentMap workers that would otherwise fire the same query N
+ * times. Same pattern as tmdb.ts — the waiter races the shared transport with
+ * its own cap (own signal + JW_TIMEOUT_MS) so a slow owner never appends a
+ * short-deadline caller; the owner/transport/entry are untouched.
+ */
+const jwRankingsInflight = new Map<string, Promise<JWRankEntry[]>>()
+const jwTitlesInflight = new Map<string, Promise<JWRankEntry[]>>()
+
+async function joinJwInflight(
+  map: Map<string, Promise<JWRankEntry[]>>,
+  cacheKey: string,
+  signal: AbortSignal | undefined,
+  start: () => Promise<JWRankEntry[]>,
+): Promise<JWRankEntry[]> {
+  const existing = map.get(cacheKey)
+  if (existing) {
+    return raceWithAbort(existing, combineAbortSignals(signal, JW_TIMEOUT_MS))
+  }
+  const current: { promise?: Promise<JWRankEntry[]> } = {}
+  const work = start().finally(() => {
+    if (map.get(cacheKey) === current.promise) map.delete(cacheKey)
+  })
+  current.promise = work
+  map.set(cacheKey, work)
+  return work
+}
+
 function captureCookie(headers?: Headers): void {
   if (!headers) return
   try {
@@ -493,6 +523,9 @@ export async function getJWRankings(
     if (strict) throw new Error(`JustWatch circuit open (${objectType})`)
     return []
   }
+  // Inflight coalescing (cold catalog fan-out): concurrent identical queries
+  // share one transport; each waiter keeps its own cap (see joinJwInflight).
+  return joinJwInflight(jwRankingsInflight, cacheKey, signal, async () => {
   // Trial ownership, captured synchronously at admission (no await above or
   // below until the fetch): null when admitted while CLOSED (never the
   // trial), the live id when admitted as the half-open trial.
@@ -601,6 +634,7 @@ export async function getJWRankings(
 
   cacheRankingsResult(cacheKey, result)
   return result
+  })
 }
 
 const GET_POPULAR_TITLES_QUERY = `query GetPopularTitles(
@@ -750,6 +784,8 @@ export async function getJWTitles(opts: JWTitleOptions): Promise<JWRankEntry[]> 
     return []
   }
 
+  // Inflight coalescing: same shared-transport rule as getJWRankings above.
+  return joinJwInflight(jwTitlesInflight, cacheKey, signal, async () => {
   // Come sopra: ownership del trial catturata in modo sincrono all'ammissione.
   const trial = justwatchBreaker.currentTrial()
 
@@ -851,6 +887,7 @@ export async function getJWTitles(opts: JWTitleOptions): Promise<JWRankEntry[]> 
 
   cacheRankingsResult(cacheKey, result)
   return result
+  })
 }
 
 const TITLE_OFFERS_QUERY = `query GetTitleOffers($country: Country!, $language: Language!, $filter: TitleFilter) {
@@ -1137,6 +1174,8 @@ export function __resetJWRankingsCache(): void {
   qualityCache.clear()
   availabilityCache.clear()
   titleOffersInflight.clear()
+  jwRankingsInflight.clear()
+  jwTitlesInflight.clear()
   ddCookie = null
   justwatchBreaker.reset()
 }

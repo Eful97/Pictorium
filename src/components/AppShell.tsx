@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, type CSSProperties } from "react"
 import dynamic from "next/dynamic"
 import { usePSelector } from "@/lib/context"
 import { useT } from "@/lib/contexts/TranslationContext"
-import { usePosterEditor } from "@/lib/contexts/PosterEditorContext"
+import { useEditorRegionActions } from "@/lib/contexts/PosterEditorContext"
 import { LangPicker } from "@/components/LangPicker"
 import { HomeStatusStrip } from "@/components/HomeStatusStrip"
 import { currentPathUuid, isUserUnlocked, requestUserUnlock, USER_UNLOCK_EVENT } from "@/lib/user-token"
@@ -53,7 +53,9 @@ export function AppShell() {
   const importData = usePSelector((v) => v.importData)
   const goHome = usePSelector((v) => v.goHome)
   const { t, pickLang } = useT()
-  const ed = usePosterEditor()
+  // H3: region actions only — the shell no longer subscribes to the
+  // monolithic editor context, so slider/editor ticks don't re-render it.
+  const regionActions = useEditorRegionActions()
   const setShowLangPicker = usePSelector((v) => v.setShowLangPicker)
   const [proxyOpen, setProxyOpen] = useState(false)
 
@@ -231,7 +233,7 @@ export function AppShell() {
       {showLangPicker && (
         <LangPicker
           onPickLang={pickLang}
-          onPickRegion={(regionCode) => { ed.setDefaultRegion(regionCode); ed.setRegion(regionCode) }}
+          onPickRegion={(regionCode) => { regionActions.applyRegion(regionCode) }}
           onDone={handleWizardDone}
           skipPin={isUserPath || uuidShortcutVisible}
         />

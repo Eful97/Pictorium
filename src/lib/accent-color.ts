@@ -673,6 +673,140 @@ function medianSorted(values: number[]): number {
 }
 
 /**
+ * Single-pass client root-color sampling (M3 frontend perf).
+ *
+ * Fuses `findSceneTint` (scene branch) + `topEdgeAverage` + `bottomEdgeAverage`
+ * into ONE loop over the pixel buffer. Output is bit-identical to calling the
+ * three functions on the same buffer: tint samples are processed on the same
+ * step-2 lattice in the same y-outer/x-inner relative order (so every float
+ * accumulation matches exactly), edge strips see every pixel in the same
+ * order (integer sums, order-independent), and the winner-bucket median runs
+ * over the same multiset in the same insertion order through the same
+ * `medianSorted`. The per-bucket RGB aggregates that the old dedicated second
+ * pass in `findSceneTint` re-collected are carried through this single pass
+ * instead — no second loop over the buffer.
+ *
+ * The per-sample transcendentals (`Math.pow`, `Math.sin`/`Math.cos`) are kept
+ * verbatim for bit-exactness: the win is computing them once per sampled
+ * pixel instead of twice (the old path ran the full HSL/weight/hue scoring in
+ * both `analyzeBuckets` and the `findSceneTint` second pass).
+ *
+ * The three fused functions are left untouched: the server render path
+ * (`poster-render-helpers.ts`, `custom-colors.ts`) and their pinned unit
+ * tests keep reading them.
+ */
+export interface RootColorSample {
+  readonly tint: AccentResult
+  readonly top: AccentResult
+  readonly bottom: AccentResult
+}
+
+export function analyzeRootColors(
+  pixels: Uint8ClampedArray | Buffer,
+  width: number,
+  height: number,
+  genre: string,
+): RootColorSample {
+  const step = 2
+  // Edge strips: identical geometry to topEdgeAverage/bottomEdgeAverage.
+  const rowCount = Math.max(Math.round(height * 0.08), 3)
+  let topR = 0, topG = 0, topB = 0, topN = 0
+  let botR = 0, botG = 0, botB = 0, botN = 0
+  // Tint buckets: same shape as analyzeBuckets, plus the carried per-bucket
+  // RGB aggregates that replace the old second pass (winner median below).
+  const buckets = Array.from({ length: 12 }, () => ({
+    count: 0,
+    totalSat: 0,
+    hueSin: 0,
+    hueCos: 0,
+    rs: [] as number[],
+    gs: [] as number[],
+    bs: [] as number[],
+  }))
+  // (The scene branch never uses the global luma sums — like findSceneTint,
+  // only hue/vibrant stats and the winner bucket feed the tint.)
+  let totalVibrantWeight = 0
+  // Scene branch samples the frame only (same exclusion as analyzeBuckets).
+  const bx = Math.max(8, Math.floor(width * 0.15))
+  const by = Math.max(8, Math.floor(height * 0.15))
+  for (let y = 0; y < height; y++) {
+    const inTop = y < rowCount
+    const inBottom = y >= height - rowCount
+    const tintRow = y % step === 0
+    for (let x = 0; x < width; x++) {
+      const i = (y * width + x) * 4
+      // Edge strips see every pixel (step 1), in the same order as the
+      // dedicated functions.
+      if (inTop) {
+        topR += pixels[i]; topG += pixels[i + 1]; topB += pixels[i + 2]
+        topN++
+      }
+      if (inBottom) {
+        botR += pixels[i]; botG += pixels[i + 1]; botB += pixels[i + 2]
+        botN++
+      }
+      // Tint samples see the step-2 lattice only, in the same relative
+      // order as the analyzeBuckets scene branch.
+      if (!tintRow || x % step !== 0) continue
+      if (x >= bx && x < width - bx && y >= by && y < height - by) continue
+      const pr = pixels[i], pg = pixels[i + 1], pb = pixels[i + 2]
+      const alpha = pixels[i + 3]
+      if (alpha < 128) continue
+
+      const r = pr / 255, g = pg / 255, b = pb / 255
+      const max = Math.max(r, g, b), min = Math.min(r, g, b)
+      const l = (max + min) / 2, d = max - min
+      const s = l > 0.5 ? d / (2 - max - min) : d / (max + min)
+      if (s < 0.12 || l < 0.08 || l > 0.94) continue
+
+      const hue = fastHue(r, g, b, d, max)
+      const bucketIdx = Math.floor(hue / 30) % 12
+      const bkt = buckets[bucketIdx]
+      const weight = Math.pow(s, 1.5) * (1 - l)
+      bkt.count += weight
+      bkt.totalSat += s * weight
+      bkt.hueSin += Math.sin(hue * Math.PI / 180) * weight
+      bkt.hueCos += Math.cos(hue * Math.PI / 180) * weight
+      totalVibrantWeight += weight
+      bkt.rs.push(pr)
+      bkt.gs.push(pg)
+      bkt.bs.push(pb)
+    }
+  }
+
+  const top = { r: Math.round(topR / topN), g: Math.round(topG / topN), b: Math.round(topB / topN) }
+  const bottom = { r: Math.round(botR / botN), g: Math.round(botG / botN), b: Math.round(botB / botN) }
+
+  if (totalVibrantWeight < 1) {
+    const fb = GENRE_FALLBACK[genre] || "#555555"
+    const [r, g, b] = parseColor(fb)
+    return { tint: { r, g, b }, top, bottom }
+  }
+
+  let bestBucket = buckets[0]
+  for (const bkt of buckets) {
+    if (bkt.count > bestBucket.count) bestBucket = bkt
+  }
+  const posterHue = ((Math.atan2(bestBucket.hueSin, bestBucket.hueCos) * 180 / Math.PI) % 360 + 360) % 360
+  // Winner index derived from the winner's mean hue (same decision as
+  // findSceneTint: the circular mean of an arc < 180° stays inside the arc,
+  // so floor(hue / 30) identifies the winning bucket exactly — the median
+  // runs over that bucket, like the old second pass did.
+  const winnerBucket = buckets[Math.floor(posterHue / 30) % 12]
+  if (winnerBucket.rs.length === 0) {
+    const fb = GENRE_FALLBACK[genre] || "#555555"
+    const [r, g, b] = parseColor(fb)
+    return { tint: { r, g, b }, top, bottom }
+  }
+  const tint = {
+    r: Math.max(0, Math.min(255, Math.round(medianSorted(winnerBucket.rs)))),
+    g: Math.max(0, Math.min(255, Math.round(medianSorted(winnerBucket.gs)))),
+    b: Math.max(0, Math.min(255, Math.round(medianSorted(winnerBucket.bs)))),
+  }
+  return { tint, top, bottom }
+}
+
+/**
  * Binary-search for the HSL lightness value that achieves the target WCAG
  * contrast ratio against bgRelLum, while staying in a visually pleasant range.
  * - Dark background (bgRelLum < 0.18) → we search for a lighter badge color

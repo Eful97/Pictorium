@@ -1,6 +1,6 @@
 import { currentPathUuid, getStoredUserPassword, getStoredUserToken, isUserUnlocked, retryWithPasswordAuth } from "./user-token"
 import { applyAdminAuthHeaders } from "./admin-token"
-import { combineAbortSignals } from "./abort-signal"
+import { combineAbortSignals, raceWithAbort } from "./abort-signal"
 
 export class ApiError extends Error {
   constructor(public status: number, message: string) {
@@ -86,10 +86,32 @@ export async function userFetch(input: string, init: RequestInit & { timeout?: n
   // by both the first fetch and the password-auth retry below.
   const signal = combineAbortSignals(externalSignal ?? undefined, timeout)
   throwIfAborted(signal)
-  const res = await fetch(scoped.path, { ...scopedInit, signal })
-  // Secret stantio + password fresca: un solo retry con password (butta il
-  // secret se il retry passa). Senza entrambe le credenziali è passthrough.
-  return (await retryWithPasswordAuth(scoped.path, { ...scopedInit, signal }, res)) ?? res
+  // M1: concurrent identical scoped GETs share one round-trip. Responses fan
+  // out via clone() (a Response body is single-use): the shared original is
+  // never consumed, so late joiners can still clone it. Unit fetch-mocks
+  // return Response-likes without clone(): those fall through shared (same
+  // as sequential calls would observe) — production fetch always returns
+  // real Responses and takes the clone path.
+  const fanOut = (r: Response): Response =>
+    typeof r.clone === "function" ? r.clone() : r
+  const method = ((fetchInit.method ?? "GET") as string).toUpperCase()
+  const hasBody = fetchInit.body !== undefined && fetchInit.body !== null
+  const key = inflightGetKey(method, scoped.path, hasBody)
+  if (!key) {
+    const res = await fetch(scoped.path, { ...scopedInit, signal })
+    // Secret stantio + password fresca: un solo retry con password (butta il
+    // secret se il retry passa). Senza entrambe le credenziali è passthrough.
+    return (await retryWithPasswordAuth(scoped.path, { ...scopedInit, signal }, res)) ?? res
+  }
+  const existing = lookupShared(key)
+  // The fan-out copy happens AFTER the abort race on the returned chain, so
+  // no derived promise is ever left without a handler on the early-abort path.
+  if (existing) return raceWithAbort(existing as Promise<Response>, externalSignal ?? undefined).then(fanOut)
+  const shared = trackShared(key, externalSignal ?? undefined, async () => {
+    const res = await fetch(scoped.path, { ...scopedInit, signal })
+    return (await retryWithPasswordAuth(scoped.path, { ...scopedInit, signal }, res)) ?? res
+  })
+  return raceWithAbort(shared as Promise<Response>, externalSignal ?? undefined).then(fanOut)
 }
 
 interface ApiOptions extends Omit<RequestInit, "signal"> {
@@ -106,6 +128,14 @@ export async function http<T = unknown>(path: string, opts: ApiOptions = {}): Pr
   path = scoped.path
   const scopedOpts = { ...fetchOpts, headers: applyAdminAuthHeaders(path, scoped.headers) }
 
+  // M1: concurrent identical scoped GETs share one attempt loop. Joiners get
+  // an isolated copy (JSON round-trip) so no caller can mutate the shared
+  // value; an already-aborted caller never joins (existing abort tests stay
+  // exact). First caller's timeout/retry budget governs the shared fetch.
+  const method = ((fetchOpts.method ?? "GET") as string).toUpperCase()
+  const hasBody = fetchOpts.body !== undefined && fetchOpts.body !== null
+  const key = inflightGetKey(method, path, hasBody)
+  const run = async (): Promise<T> => {
   for (let attempt = 0; attempt <= retries; attempt++) {
     // Fresh per-attempt budget: the timeout restarts on every attempt while
     // the caller cancellation stays effective. The auth retry below belongs
@@ -155,6 +185,18 @@ export async function http<T = unknown>(path: string, opts: ApiOptions = {}): Pr
     }
   }
   throw new Error("Unreachable")
+  }
+  if (!key) return run()
+  const existing = lookupShared(key) as Promise<T> | undefined
+  // The isolation copy happens AFTER the abort race on the returned chain,
+  // so no derived promise is ever left without a handler on early abort.
+  const isolate = (v: T): T =>
+    v !== null && typeof v === "object" ? (JSON.parse(JSON.stringify(v)) as T) : v
+  if (existing) {
+    return raceWithAbort(existing, externalSignal ?? undefined).then(isolate)
+  }
+  const shared = trackShared(key, externalSignal ?? undefined, run)
+  return raceWithAbort(shared, externalSignal ?? undefined).then(isolate)
 }
 
 function throwIfAborted(signal: AbortSignal): void {
@@ -188,6 +230,61 @@ function delay(ms: number, signal?: AbortSignal): Promise<void> {
 
 function abortion(signal: AbortSignal): unknown {
   return signal.reason instanceof Error ? signal.reason : new DOMException("Aborted", "AbortError")
+}
+
+/**
+ * M1: inflight GET dedupe. Boot fans out several identical GETs
+ * (e.g. 4x `GET /api/defaults` from context, defaults hydration, custom
+ * catalogs, ranking sources): concurrent identical scoped GETs share one
+ * network round-trip instead of racing the server 4x. Keyed by the full
+ * scoped path (namespace `?u=` included), so different users/spaces never
+ * share. Entries live only while the request is inflight (deleted on
+ * settle) — sequential calls always re-fetch. Non-GET and bodied requests
+ * never dedupe. A joiner with its own abort signal stops waiting without
+ * cancelling the shared fetch (first caller's timeout budget governs it);
+ * an already-aborted caller never joins. A fetch whose owner already aborted
+ * never serves joiners either (editor load-supersede aborts the previous
+ * controller before starting the next load, so joining it would join a dying
+ * fetch instead of issuing the load's own request).
+ */
+const inflightGets = new Map<string, InflightEntry>()
+
+interface InflightEntry {
+  promise: Promise<unknown>
+  /** Owning caller's external signal (undefined when the caller passed none). */
+  signal?: AbortSignal
+}
+
+function inflightGetKey(method: string, path: string, hasBody: boolean): string | null {
+  if (method !== "GET" || hasBody) return null
+  return `GET ${path}`
+}
+
+/**
+ * A superseded (aborted) owner never serves joiners: editor loads abort
+ * their controller before starting the next load, and the next load must
+ * issue its own fetch on its own controller (per-load abort/count
+ * semantics) instead of joining a fetch that is already dying. The dead
+ * entry is dropped so the caller stores a fresh one.
+ */
+function lookupShared(key: string): Promise<unknown> | undefined {
+  const entry = inflightGets.get(key)
+  if (!entry) return undefined
+  if (entry.signal?.aborted) {
+    if (inflightGets.get(key) === entry) inflightGets.delete(key)
+    return undefined
+  }
+  return entry.promise
+}
+
+function trackShared<T>(key: string, signal: AbortSignal | undefined, run: () => Promise<T>): Promise<T> {
+  const entry: InflightEntry = { promise: undefined as unknown as Promise<unknown>, signal }
+  const p = run()
+  entry.promise = p
+  inflightGets.set(key, entry)
+  const cleanup = () => { if (inflightGets.get(key) === entry) inflightGets.delete(key) }
+  p.then(cleanup, cleanup)
+  return p
 }
 
 /**

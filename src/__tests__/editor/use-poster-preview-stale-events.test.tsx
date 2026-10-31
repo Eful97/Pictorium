@@ -25,7 +25,7 @@ import {
 } from "@/lib/effective-accent"
 import { PictoriumProvider } from "@/lib/context"
 import { MOCK_CTX } from "@/__tests__/test-utils"
-import { usePosterPreview } from "@/lib/usePosterPreview"
+import { usePosterPreview, __clearPreviewMemoryCacheForTests } from "@/lib/usePosterPreview"
 import { toast } from "sonner"
 
 vi.mock("sonner", () => ({ toast: { error: vi.fn() } }))
@@ -154,12 +154,16 @@ function advance(ms: number): void {
 
 beforeEach(() => {
   __resetEffectiveAccentDisplayForTests()
+  // H1 module-level preview cache: suites reuse URL_A/URL_B, so a previous
+  // test's cached bytes would suppress the XHR this test observes.
+  __clearPreviewMemoryCacheForTests()
   vi.useFakeTimers()
 })
 
 afterEach(() => {
   vi.useRealTimers()
   __resetEffectiveAccentDisplayForTests()
+  __clearPreviewMemoryCacheForTests()
   vi.unstubAllGlobals()
   vi.clearAllMocks()
 })

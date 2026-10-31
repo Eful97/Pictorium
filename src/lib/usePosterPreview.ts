@@ -2,8 +2,55 @@ import { useState, useRef, useEffect, useCallback } from "react"
 import { usePSelector } from "@/lib/context"
 import { t } from "@/lib/i18n"
 import { toast } from "sonner"
-import { ACCENT_META_HEADER, parseEffectiveAccentHeader } from "@/lib/effective-accent"
+import { ACCENT_META_HEADER, parseEffectiveAccentHeader, type EffectiveAccentMeta } from "@/lib/effective-accent"
 import { publishEffectiveAccentDisplay } from "@/lib/effective-accent-display"
+
+/**
+ * H1: bounded in-memory preview cache. Every debounced slider tick rebuilds
+ * an identical preview URL, and without a cache each one is a full cold
+ * server render (no-store previews never touch the browser HTTP cache).
+ * Identical URL (+identical rank/catalog/retry nonces) within TTL serves the
+ * cached bytes with no request; an expired entry revalidates with
+ * If-None-Match so an unchanged render answers 304 instead of re-rendering.
+ *
+ * Client memory only (never shared, never persisted): server Cache-Control
+ * semantics — including the downgraded-anonymous no-store path and the
+ * Stremio path — are untouched (no server file changed). Nonce-bumped
+ * refetches (rank-source save, catalog sync, manual retry) get fresh cache
+ * keys, so new server-side content is never masked by stale bytes.
+ */
+interface CachedPreview {
+  blob: Blob
+  etag: string | null
+  meta: EffectiveAccentMeta | null
+  /** ready (vs unknown) when the cached response carried valid accent metadata */
+  metaReady: boolean
+  expiresAt: number
+}
+
+const PREVIEW_CACHE_MAX = 32
+const PREVIEW_CACHE_TTL_MS = 45_000
+const previewMemoryCache = new Map<string, CachedPreview>()
+
+function previewCacheKey(url: string, rankNonce: unknown, catalogNonce: unknown, retryNonce: number): string {
+  return `${url}\n${String(rankNonce)}.${String(catalogNonce)}.${retryNonce}`
+}
+
+function prunePreviewCache(now: number): void {
+  for (const [k, v] of previewMemoryCache) {
+    if (v.expiresAt <= now) previewMemoryCache.delete(k)
+  }
+  while (previewMemoryCache.size > PREVIEW_CACHE_MAX) {
+    const oldest = previewMemoryCache.keys().next()
+    if (oldest.done) break
+    previewMemoryCache.delete(oldest.value)
+  }
+}
+
+/** Test-only isolation for the module-level H1 cache (unit suites reuse URLs). */
+export function __clearPreviewMemoryCacheForTests(): void {
+  previewMemoryCache.clear()
+}
 
 export function usePosterPreview() {
   // B2: selettore slice — prima useP() ri-renderizzava il hook (e chi lo usa)
@@ -59,6 +106,35 @@ export function usePosterPreview() {
 
     // Keep old img visible while new one loads — no flicker
     const url = previewUrl
+    // H1: identical URL within TTL serves cached bytes with no request at
+    // all (same generation plumbing as a fresh load, so the accent picker
+    // can never claim a stale hex).
+    const cacheKey = previewCacheKey(url, rankSourceNonce, catalogsSyncNonce, retryNonce)
+    const now = Date.now()
+    const cached = previewMemoryCache.get(cacheKey)
+    if (cached && cached.expiresAt > now) {
+      // LRU refresh without unbounded growth.
+      previewMemoryCache.delete(cacheKey)
+      previewMemoryCache.set(cacheKey, cached)
+      const generation = accentGenerationRef.current + 1
+      accentGenerationRef.current = generation
+      publishEffectiveAccentDisplay({ status: "loading", meta: null, previewUrl: url, generation })
+      const objUrl = URL.createObjectURL(cached.blob)
+      if (prevObjUrlRef.current) URL.revokeObjectURL(prevObjUrlRef.current)
+      prevObjUrlRef.current = objUrl
+      setImgSrc(objUrl)
+      setLoadProgress(100)
+      setPreviewLoading(false)
+      publishEffectiveAccentDisplay({
+        status: cached.metaReady ? "ready" : "unknown",
+        meta: cached.meta,
+        previewUrl: url,
+        generation,
+      })
+      return
+    }
+    const staleEntry = cached ?? null
+    if (staleEntry) previewMemoryCache.delete(cacheKey)
     // New load (URL/shape change or rank-source/catalog/retry nonce refetch
     // at the SAME url): publish loading FIRST so the accent picker can never
     // claim a stale hex as the new preview. The old object URL stays valid
@@ -70,6 +146,14 @@ export function usePosterPreview() {
     xhrRef.current = xhr
     xhr.open("GET", url, true)
     xhr.responseType = "blob"
+    // H1: expired entry with a known ETag revalidates instead of cold-loading.
+    if (staleEntry?.etag) {
+      try {
+        xhr.setRequestHeader("If-None-Match", staleEntry.etag)
+      } catch {
+        /* non-critical: falls back to a full load */
+      }
+    }
     // Senza timeout la barra percentuale resta ferma per sempre su render
     // appeso (Bugonia): peggio dei casi server = slot-wait 15s + watchdog 30s,
     // quindi 45s lascia arrivare il 503 del server prima di dichiarare errore.
@@ -97,7 +181,7 @@ export function usePosterPreview() {
         loadDelayRef.current = null
       }
       if (xhr.status === 200) {
-        const blob = xhr.response
+        const blob = xhr.response as Blob
         const objUrl = URL.createObjectURL(blob)
         if (prevObjUrlRef.current) URL.revokeObjectURL(prevObjUrlRef.current)
         prevObjUrlRef.current = objUrl
@@ -114,9 +198,43 @@ export function usePosterPreview() {
         } catch {
           meta = null
         }
+        let etag: string | null = null
+        try {
+          etag = xhr.getResponseHeader("ETag")
+        } catch {
+          etag = null
+        }
+        if (blob) {
+          prunePreviewCache(Date.now())
+          previewMemoryCache.set(cacheKey, {
+            blob,
+            etag,
+            meta,
+            metaReady: meta !== null,
+            expiresAt: Date.now() + PREVIEW_CACHE_TTL_MS,
+          })
+        }
         publishEffectiveAccentDisplay({
           status: meta ? "ready" : "unknown",
           meta,
+          previewUrl: url,
+          generation,
+        })
+      } else if (xhr.status === 304 && staleEntry) {
+        // H1: unchanged render — reuse the expired entry's bytes and refresh
+        // its TTL. Same display path as a fresh load.
+        prunePreviewCache(Date.now())
+        const refreshed: CachedPreview = { ...staleEntry, expiresAt: Date.now() + PREVIEW_CACHE_TTL_MS }
+        previewMemoryCache.set(cacheKey, refreshed)
+        const objUrl = URL.createObjectURL(refreshed.blob)
+        if (prevObjUrlRef.current) URL.revokeObjectURL(prevObjUrlRef.current)
+        prevObjUrlRef.current = objUrl
+        setImgSrc(objUrl)
+        setLoadProgress(100)
+        setPreviewLoading(false)
+        publishEffectiveAccentDisplay({
+          status: refreshed.metaReady ? "ready" : "unknown",
+          meta: refreshed.meta,
           previewUrl: url,
           generation,
         })

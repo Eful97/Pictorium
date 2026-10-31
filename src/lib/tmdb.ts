@@ -231,7 +231,16 @@ const IMG_BASE = process.env.TMDB_IMG_URL || "https://image.tmdb.org/t/p"
 
 const fetchCache = new Map<string, { data: unknown; timestamp: number }>()
 const CACHE_TTL = 5 * 60 * 1000
-const CACHE_MAX = 500
+/**
+ * Cold-catalog enlargement (H4, capacity only): 500 entries thrash when cold
+ * catalogs fan out across regions/languages/users on the shared layer (each
+ * cold 20-row catalog is ~60 details/images/external_ids entries before the
+ * 5min TTL even matters). 2500 small entries stay a few MB. The 5min TTL is
+ * intentionally unchanged — catalog/chart tests pin short-TTL refetch
+ * semantics on this layer, and body freshness stays owned by the catalog
+ * (1h) and chart-cycle TTLs above it.
+ */
+const CACHE_MAX = 2500
 
 /**
  * Risolve la chiave API TMDB dalla richiesta.
