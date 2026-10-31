@@ -743,13 +743,3 @@ export async function renderNetworkLogoBadge(networkName?: string | null, pw: nu
   if (!result) return null
   return { ...result, networkKey }
 }
-
-export function findMatchingNetworkSvg(names: (string | null | undefined)[], pw: number = 500): { res: NetworkSvgResult_Legacy; matchedName: string } | null {
-  for (const name of names) {
-    if (!name) continue
-    if (shouldSkipNbcForJapaneseList(names, name)) continue
-    const res = getNetworkSvgResult(name, pw)
-    if (res) return { res, matchedName: name }
-  }
-  return null
-}

@@ -268,6 +268,9 @@ export function buildStremioPosterUrl(input: BuildStremioPosterUrlInput): URL {
     // an explicit `all` travels as `freshScope=all` so it overrides an
     // inherited ranked for unsaved/template consumers.
     posterFreshScope: eff?.posterFreshScope ?? sd.posterFreshScope,
+    // Quality group layout: same raw/absent contract (absent = stacked, no
+    // param on legacy URLs; an explicit `row` travels as `qgl=row`).
+    qualityGroupLayout: eff?.qualityGroupLayout ?? sd.qualityGroupLayout,
     // Allineamento: per-shape nei default (`sd` è già landscape-aware:
     // override del profilo, poi flat, poi auto di formato) e solo landscape
     // — i portrait non portano mai `align` (sempre centrati). Il mapping non

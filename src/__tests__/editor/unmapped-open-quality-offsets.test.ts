@@ -36,7 +36,7 @@ describe("resolveUnmappedQualityBadgeOffsets (F4)", () => {
         DEFAULT_QUALITY_BADGE_OFFSET_X,
         DEFAULT_QUALITY_BADGE_OFFSET_Y,
       ),
-    ).toEqual({ qualityBadgeOffsetX: -10, qualityBadgeOffsetY: 15 })
+    ).toEqual({ qualityBadgeOffsetX: -4, qualityBadgeOffsetY: 6 })
   })
 
   it("follows custom space defaults instead of the factory pair", () => {
@@ -63,7 +63,7 @@ describe("resolveUnmappedQualityBadgeOffsets (F4)", () => {
         DEFAULT_QUALITY_BADGE_OFFSET_X,
         DEFAULT_QUALITY_BADGE_OFFSET_Y,
       ),
-    ).toEqual({ qualityBadgeOffsetX: -10, qualityBadgeOffsetY: 15 })
+    ).toEqual({ qualityBadgeOffsetX: -4, qualityBadgeOffsetY: 6 })
   })
 
   it("explicit null profile offsets fall back per-axis (never resurrect leftovers)", () => {
@@ -73,6 +73,6 @@ describe("resolveUnmappedQualityBadgeOffsets (F4)", () => {
         DEFAULT_QUALITY_BADGE_OFFSET_X,
         DEFAULT_QUALITY_BADGE_OFFSET_Y,
       ),
-    ).toEqual({ qualityBadgeOffsetX: -10, qualityBadgeOffsetY: 7 })
+    ).toEqual({ qualityBadgeOffsetX: -4, qualityBadgeOffsetY: 7 })
   })
 })

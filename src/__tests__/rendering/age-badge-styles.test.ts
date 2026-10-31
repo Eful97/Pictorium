@@ -54,6 +54,7 @@ import {
   COLOR_MARK_PLATE_BG,
   COLOR_MARK_PLATE_STROKE,
   GRADIENT_PLATE_BG,
+  GRADIENT_PLATE_STROKE,
   GRADIENT_TIER_INK,
   PREMIUM_PLATE_BG,
   PREMIUM_PLATE_STROKE,
@@ -112,7 +113,7 @@ async function tintStats(png: Buffer, hex: string, tol = 24) {
 
 describe("age badge style enum (single source for schemas, URL and cache)", () => {
   it("exposes the quality vocabulary with the historic standard default", () => {
-    expect([...AGE_BADGE_STYLES]).toEqual(["standard", "mono", "color", "knockout", "premium", "nova", "gradient"])
+    expect([...AGE_BADGE_STYLES]).toEqual(["standard", "mono", "color", "knockout", "premium", "nova", "gradient", "outline"])
     expect(DEFAULT_AGE_BADGE_STYLE).toBe("standard")
     for (const style of AGE_BADGE_STYLES) expect(isAgeBadgeStyle(style), style).toBe(true)
     // Unknown/uppercase values are still rejected (fail-closed, no inference).
@@ -667,7 +668,8 @@ describe("age gradient style (white glyphs on the shared dark plate)", () => {
       const rects = built.svg.match(/<rect [^>]*\/>/g) ?? []
       expect(rects.length, label).toBe(1)
       expect(rects[0], label).toContain(`fill="${GRADIENT_PLATE_BG}"`)
-      expect(rects[0], label).not.toContain("stroke")
+      // Stesso materiale delle placche A/V: bordo hairline della famiglia.
+      expect(rects[0], label).toContain(`stroke="${GRADIENT_PLATE_STROKE}"`)
       expect(built.svg, label).not.toContain("<mask")
       expect(built.svg, label).not.toContain("<linearGradient")
       expect(built.svg, label).not.toContain("<image")
@@ -719,7 +721,7 @@ describe("age styles keep the quality defaults independent", () => {
     // Same vocabulary, separate constants: adding/removing a quality style can
     // never silently change the age transport (and vice versa).
     expect(AGE_BADGE_STYLES).not.toBe(EMPHASIS_STYLES)
-    expect([...AGE_BADGE_STYLES]).toEqual(["standard", "mono", "color", "knockout", "premium", "nova", "gradient"])
+    expect([...AGE_BADGE_STYLES]).toEqual(["standard", "mono", "color", "knockout", "premium", "nova", "gradient", "outline"])
     // Nova is a family style of its own (dynamic SVG plate), never part of the
     // emphasis subset that reuses the existing plate palettes.
     expect(isAgeBadgeStyle("nova")).toBe(true)

@@ -62,11 +62,23 @@ function clickRadio(name: string) {
   fireEvent.click(within(presentationGroup()).getByRole("radio", { name }))
 }
 
+/**
+ * Accessible label of an option: thumbnails are decorative (aria-hidden nodes
+ * and empty-alt images), so the name is the visible label only — raw
+ * `textContent` would also pick up their illustrative text nodes.
+ */
+function optionLabel(el: HTMLElement): string {
+  const clone = el.cloneNode(true) as HTMLElement
+  clone.querySelectorAll('[aria-hidden="true"]').forEach((n) => n.remove())
+  clone.querySelectorAll('img[alt=""]').forEach((n) => n.remove())
+  return (clone.textContent ?? "").trim()
+}
+
 function checkedNames(): string[] {
   return within(presentationGroup())
     .getAllByRole("radio")
     .filter((o) => o.getAttribute("aria-checked") === "true")
-    .map((o) => o.textContent ?? "")
+    .map((o) => optionLabel(o))
 }
 
 beforeEach(() => {

@@ -20,10 +20,11 @@ import { envWithFallback } from "./env-compat"
 import { GENRE_FALLBACK } from "./badges"
 import { isRankKey } from "./i18n"
 import { parseRatingSources } from "./ratings"
-import { isSeparateRatingsStyle } from "./badge-styles"
+import { isSeparateRatingsStyle, isQualityGroupLayout, DEFAULT_QUALITY_GROUP_LAYOUT } from "./badge-styles"
 import { isPosterLayout, isPosterFreshScope, DEFAULT_POSTER_FRESH_SCOPE } from "./types"
 import { ANIME_RANK_MAX } from "./badge-priority"
 import { normalizeLogoFont, sanitizeLogoText } from "./text-logo"
+import { canonicalizeBadgeItemTransforms } from "./badge-item-transforms"
 
 // Env a module level (convenzione del repo: un cambio richiede restart).
 const POSTER_PARAMS_MODE = (envWithFallback("POSTER_PARAMS") || "").toLowerCase().trim()
@@ -103,7 +104,7 @@ export const POSTER_CACHE_ALLOWLIST: ReadonlySet<string> = new Set([
   // absent, so garbage can never fragment the cache with identical pixels.
   "bit",
   "bscale", "box", "boy", "gradHeight", "blur", "bf", "bd", "voteAverage",
-  "year", "rd", "fad", "mv", "fmt", "format", "shape", "layout", "freshScope", "align", "ac",
+  "year", "rd", "fad", "mv", "fmt", "format", "shape", "layout", "freshScope", "qgl", "align", "ac",
   "tl", "bl", "bs", "rs", "xbs", "bfont", "sepstyle", "ts", "tsh", "dv",
   // Text-as-logo (titoli senza logo TMDB): `ltext` è testo libero ma con
   // bound stretto (60) e canonicalizzato sul valore del mapping in presets
@@ -314,6 +315,19 @@ export function hardenPosterSearchParams(
   for (const key of STEP_5_PARAMS) quantizeInPlace(params, key, 5)
   for (const key of STEP_10_PARAMS) quantizeInPlace(params, key, 10)
 
+  // Per-ITEM badge corrections (`bit`): the canonical wire form carries free
+  // numerics (scale 10..200, offsets ±2000), so unquantized it lets any
+  // request mint a near-infinite set of cache entries over pixel-identical
+  // renders (P6). Re-serialize it with the same coarse steps as the group
+  // transforms (scale step 10, offsets step 5). PRESENCE is preserved: a
+  // payload that quantizes to neutral stays an explicit `bit=` clear (absent
+  // would inherit the saved mapping instead — a different render), and
+  // garbage fails closed onto that same explicit clear, exactly like
+  // normalizePosterCacheParams.
+  if (params.has("bit")) {
+    params.set("bit", canonicalizeBadgeItemTransforms(params.get("bit"), { quantize: true }) ?? "")
+  }
+
   if (params.has("ac")) {
     const ac = canonicalizeAccent(params.get("ac"))
     if (ac) params.set("ac", ac)
@@ -367,6 +381,12 @@ export function hardenPosterSearchParams(
     params.delete("logo")
     params.delete("backdrop")
     params.delete("pbase")
+    // Per-item badge corrections are CURATED data (mapping del titolo, config
+    // token, defaults dello spazio): una URL anonima keyless non può inventarle
+    // (P6). Il drop è equivalente al render curato quando il valore era quello
+    // salvato, perché `bit` assente eredita la catena mapping > token >
+    // defaults; diversamente era solo un mint di chiavi.
+    params.delete("bit")
   }
   // Without an image override the route reads these from TMDB / the mapping:
   // drop them so they neither split the cache nor steer the JustWatch match.
@@ -430,6 +450,13 @@ export function hardenPosterSearchParams(
   if (params.has("freshScope")) {
     const v = (params.get("freshScope") || "").toLowerCase()
     params.set("freshScope", isPosterFreshScope(v) ? v : DEFAULT_POSTER_FRESH_SCOPE)
+  }
+  // qgl: enum finita ("stacked"/"row") del layout del gruppo qualità, stessa
+  // policy di freshScope: presente ma non valido → "stacked" esplicito
+  // (fail-closed, mai delete: l'assenza eredita mapping/default).
+  if (params.has("qgl")) {
+    const v = (params.get("qgl") || "").toLowerCase()
+    params.set("qgl", isQualityGroupLayout(v) ? v : DEFAULT_QUALITY_GROUP_LAYOUT)
   }
 
   return params

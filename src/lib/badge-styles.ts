@@ -6,16 +6,42 @@
 // impossibile un drift tra lista client, lista server e validazione.
 // ---------------------------------------------------------------------------
 
-export const BADGE_STYLES = ["shadow", "pill", "bar", "colored", "bordo", "vetro", "minimal"] as const
+/**
+ * Genre/rating badge styles. `ink` is additive: bare typography with the same
+ * geometry/text flow as `shadow` (no plate, no border, no satin fill), but the
+ * glyph fill is the resolved scene accent as a horizontal gradient (accent →
+ * the same hue/saturation at HSL lightness + 0.12) with the wordmark's 1px
+ * dark halo stroke underneath. It consumes the accent through the existing
+ * per-band automatic pipeline (`adaptiveAccentHexForBand` in
+ * poster-render-helpers.ts, same `accentColor` input as `colored`) and the
+ * shared 3D shadow filter (`TOP_SHADOW_FILTER`). Appended last so no existing
+ * style order/identifier changes (client selects hardcode their own lists).
+ */
+export const BADGE_STYLES = ["shadow", "pill", "bar", "colored", "bordo", "vetro", "minimal", "ink"] as const
 export type BadgeStyle = (typeof BADGE_STYLES)[number]
 
-export const RANKING_BADGE_STYLES = ["default", "colored", "pill", "bordo", "vetro", "netflix", "netflix-color", "corner", "number"] as const
+/**
+ * Ranking (top) badge styles. `split` is additive and RANKING-ONLY (appended
+ * last, no existing identifier/order changes): a flat two-tone chip — flat
+ * accent-filled left cell with the rank numeral (0.9em, weight 900), 1px inner
+ * divider, satin right cell with the period label (0.62em, weight 600), box
+ * `textW + 2·0.75fs` and `badgeBoxHeight(fs)` height with a `0.30 × boxH`
+ * radius. It fills the gap between `number` (loses the period label) and the
+ * ribbon (squeezes it). Single builder (`buildSplitChipSvg` in
+ * badge-svg-shared.ts) behind the existing dispatcher, no second renderer.
+ */
+export const RANKING_BADGE_STYLES = ["default", "colored", "pill", "bordo", "vetro", "netflix", "netflix-color", "corner", "number", "split"] as const
 export type RankingBadgeStyle = (typeof RANKING_BADGE_STYLES)[number]
 /**
  * Standalone extra-badge style (`xbs` query): subset of the existing names —
  * ribbon/numeral styles (`netflix`, `netflix-color`, `number`) stay
  * ranking-only and keep reaching extra badges solely through the legacy
  * `rs` fallback. Absent everywhere = legacy (`rs` drives the extra badge).
+ *
+ * `split` is RANKING-ONLY (`rs=split`): an extra badge never renders the
+ * two-tone chip (`xbs=split` is not a valid value and falls through the chain
+ * like any invalid input; a legacy `rs=split` fallback degrades the extra to
+ * the historic default plate in `buildHouseExtraSvg`, never a migration).
  */
 export const EXTRA_BADGE_STYLES = ["default", "pill", "colored", "bordo", "vetro", "corner"] as const
 export type ExtraBadgeStyle = (typeof EXTRA_BADGE_STYLES)[number]
@@ -49,15 +75,70 @@ export const DEFAULT_RANKING_BADGE_STYLE: RankingBadgeStyle = "default"
  * near-black bluish plate with a metallic border gradient and bold white
  * italic glyphs, shared by tier, age and A/V marks — no raster asset) or
  * "gradient" (bare extra-bold glyphs with no container: solid white tier
- * label, per-format gradient A/V marks — 100% dynamic SVG, no raster asset).
+ * label, per-format gradient A/V marks — 100% dynamic SVG, no raster asset) or
+ * "outline" (wireframe: stroked rounded rect with no fill over an inner
+ * contrast scrim and satin-pill ink glyphs — 100% dynamic SVG, no raster
+ * asset; same material for tier, age and A/V marks) or
+ * "strip" (ONE merged dark plate holding the tier, the age label and every
+ * A/V mark as separate glyph runs joined by 0.45-opacity dot separators —
+ * the whole quality group renders as a single bitmap/SVG instead of a
+ * vertical stack; same identities and anchor/scale/offset chain, so per-item
+ * report boxes keep working).
  * Additive: never replaces an existing style, no format/asset of its own.
  * Chain like the other styles: `qbs` query > per-title mapping >
  * config token > server defaults.
  */
-export const QUALITY_BADGE_STYLES = ["standard", "mono", "color", "knockout", "premium", "nova", "gradient"] as const
+export const QUALITY_BADGE_STYLES = ["standard", "mono", "color", "knockout", "premium", "nova", "gradient", "outline", "strip"] as const
 export type QualityBadgeStyle = (typeof QUALITY_BADGE_STYLES)[number]
 
 export const DEFAULT_QUALITY_BADGE_STYLE: QualityBadgeStyle = "standard"
+
+/**
+ * Group layout of the quality stack (tier + age + A/V marks), explicit and
+ * independent from the quality STYLE (every style honours it):
+ *
+ * - `stacked` (default, historic): one bitmap per painted element in a single
+ *   vertical column, no wrap — the exact legacy render.
+ * - `row`: the same per-mark bitmaps laid out horizontally, filled row-major
+ *   at most `QUALITY_GROUP_ROW_MAX_ITEMS` per line (2+1, 2+2, 2+2+1) with the
+ *   shorter last row centred. Every mark keeps its own plate/frame: no new
+ *   material is introduced by the layout.
+ *
+ * The one EXCEPTION is the `strip` style: it is a merged single-plate lockup,
+ * so it is merged in `row` (the plate wraps 2 per line by itself) and renders
+ * per-mark strip plates in `stacked` (one dark plate per mark, striped
+ * vertically). `isMergedQualityStrip` is the single predicate for that.
+ *
+ * Chain like the other low-cardinality enums: `qgl` query > per-title mapping
+ * > config token > server defaults > `stacked`. Fail-closed: absent/garbage
+ * resolves to `stacked`, so every legacy URL/mapping/preset keeps its exact
+ * bytes.
+ */
+export const QUALITY_GROUP_LAYOUTS = ["stacked", "row"] as const
+export type QualityGroupLayout = (typeof QUALITY_GROUP_LAYOUTS)[number]
+
+export const DEFAULT_QUALITY_GROUP_LAYOUT: QualityGroupLayout = "stacked"
+
+export function isQualityGroupLayout(value: unknown): value is QualityGroupLayout {
+  return value === "stacked" || value === "row"
+}
+
+export function resolveQualityGroupLayout(value: unknown): QualityGroupLayout {
+  return isQualityGroupLayout(value) ? value : DEFAULT_QUALITY_GROUP_LAYOUT
+}
+
+/**
+ * `strip` is the ONLY style whose bitmap is merged into one plate, and only in
+ * the `row` layout. In `stacked` it renders per-mark strip plates (one bitmap
+ * per element), so per-item handles/homes keep working exactly like every
+ * other style.
+ */
+export function isMergedQualityStrip(
+  style: QualityBadgeStyle | string | null | undefined,
+  layout: QualityGroupLayout | string | null | undefined,
+): boolean {
+  return style === "strip" && resolveQualityGroupLayout(layout) === "row"
+}
 
 /**
  * Age certification badge style: the same style vocabulary as the quality
@@ -71,13 +152,16 @@ export const DEFAULT_QUALITY_BADGE_STYLE: QualityBadgeStyle = "standard"
  * (near-black bluish plate with a metallic border gradient and bold white
  * italic glyphs — dynamic label, same age-family box as every other style)
  * or "gradient" (bare extra-bold white glyphs with no container — the same
- * material as the quality `gradient` tier, polarity independent).
+ * material as the quality `gradient` tier, polarity independent) or
+ * "outline" (wireframe stroked rect with an inner contrast scrim and
+ * satin-pill ink glyphs — the same dynamic material as the quality `outline`
+ * tier and its A/V marks).
  * `standard`/`knockout` keep their byte-identical renderers and the legacy
  * `knockout` identifier is preserved (enum/URL/persistence unchanged).
  * Per-shape chain like the age toggle itself: `agebs` query > config
  * token > effective per-shape server defaults > flat > "standard".
  */
-export const AGE_BADGE_STYLES = ["standard", "mono", "color", "knockout", "premium", "nova", "gradient"] as const
+export const AGE_BADGE_STYLES = ["standard", "mono", "color", "knockout", "premium", "nova", "gradient", "outline"] as const
 export type AgeBadgeStyle = (typeof AGE_BADGE_STYLES)[number]
 
 export const DEFAULT_AGE_BADGE_STYLE: AgeBadgeStyle = "standard"
@@ -258,13 +342,14 @@ export function isBottomSeparateRatingsStyle(v: string | null | undefined): v is
 }
 
 /**
- * Normalizzazione landscape della barra: `bottom-bar` non si rende mai sul
- * canvas 16:9 (full-width incoerente con l'ancoraggio basso-destra) —
- * normalizza a `bottom-pills` DOPO la cascata stile risolto (query >
- * mapping(.landscape) > token > defaults). I raw salvati non mutano mai
- * (portrait resta `bottom-bar`); garbage/vuoto → `column` resta fail-closed
- * a monte. Single source riusata da poster-config (server), poster-service
- * (difesa per chiamanti diretti), preview/Stremio URL e selettori UI.
+ * Normalizzazione landscape della fascia: `bottom-bar`
+ * non si rende mai sul canvas 16:9 (full-width incoerente con l'ancoraggio
+ * basso-destra) — normalizza a `bottom-pills` DOPO la cascata stile risolto
+ * (query > mapping(.landscape) > token > defaults). I raw salvati non mutano
+ * mai (portrait resta `bottom-bar`); garbage/vuoto →
+ * `column` resta fail-closed a monte. Single source riusata da poster-config
+ * (server), poster-service (difesa per chiamanti diretti), preview/Stremio
+ * URL e selettori UI.
  */
 export function getSeparateRatingsStyleForShape(
   style: SeparateRatingsStyle,
@@ -295,13 +380,16 @@ export function nonRibbonRankingStyle(v: RankingBadgeStyle): RankingBadgeStyle {
 /**
  * Default px offset of the streaming quality badge (default only, never
  * baked geometry: the renderer adds these deltas AFTER anchoring in
- * `poster-service.ts`). Portrait (Vertical): X -10 / Y +15. Landscape
- * (Horizontal): 0 / 0 — the horizontal profile does not inherit the
- * vertical default. Chain unchanged (query > mapping > config > defaults):
- * any explicit value (including 0) always wins over these fallbacks.
+ * `poster-service.ts`). Portrait (Vertical): X -4 / Y +6 — the visible box
+ * lands on the network's ink line (top 39px, right margin 28 ≈ network ink
+ * left 29 at 500×750): one shared top line, no staggered corners. Landscape
+ * (Horizontal): 0 / 0 — the horizontal profile does not inherit the vertical
+ * default (its shared line is resolved by the landscape anchor itself).
+ * Chain unchanged (query > mapping > config > defaults): any explicit value
+ * (including 0) always wins over these fallbacks.
  */
-export const DEFAULT_QUALITY_BADGE_OFFSET_X = -10
-export const DEFAULT_QUALITY_BADGE_OFFSET_Y = 15
+export const DEFAULT_QUALITY_BADGE_OFFSET_X = -4
+export const DEFAULT_QUALITY_BADGE_OFFSET_Y = 6
 export const DEFAULT_QUALITY_BADGE_OFFSET_X_LANDSCAPE = 0
 export const DEFAULT_QUALITY_BADGE_OFFSET_Y_LANDSCAPE = 0
 
@@ -365,4 +453,60 @@ export function resolveNumberBadgeBaseOffsetX(
   effectiveStyle: RankingBadgeStyle | string | null | undefined,
 ): number {
   return topBadgeType === "rank" && effectiveStyle === "number" ? NUMBER_BADGE_BASE_OFFSET_X : 0
+}
+
+export type RankingBadgeTuning = { scale: number; offsetX: number; offsetY: number }
+
+/**
+ * Neutral (untouched) tuning of the ranking top badge: the historical
+ * 100% / 0px / 0px every style falls back to.
+ */
+export const RANKING_BADGE_NEUTRAL_TUNING: RankingBadgeTuning = { scale: 100, offsetX: 0, offsetY: 0 }
+
+/**
+ * Factory tuning of `split` (ranking-only two-tone chip, see
+ * `RANKING_BADGE_STYLES`): 100% scale with the chip placed -137px on X and
+ * +32px on Y from the centered/flush-top anchor. User-approved placement for
+ * the new style; every other style keeps the neutral triple (existing saved
+ * values are never migrated, no RENDER_VERSION change).
+ */
+export const RANKING_SPLIT_TUNING: RankingBadgeTuning = { scale: 100, offsetX: -137, offsetY: 32 }
+
+/** Factory tuning of the ranking top badge for a given ranking style. */
+export function rankingBadgeFactoryTuning(
+  style: RankingBadgeStyle | string | null | undefined,
+): RankingBadgeTuning {
+  return style === "split" ? RANKING_SPLIT_TUNING : RANKING_BADGE_NEUTRAL_TUNING
+}
+
+/**
+ * Applies the style factory tuning to a tuning already resolved through the
+ * query > mapping > config > defaults chain, AXIS BY AXIS.
+ *
+ * Why the neutral value is the "untouched" marker: the editor preview always
+ * emits an explicit `tscale`/`tox`/`toy` (WYSIWYG) and every save persists the
+ * live triple (the defaults PUT always writes 100/0/0, the mapping save always
+ * writes the three keys), so "no explicit tuning saved" is not observable as an
+ * absent key — it is observable as the factory-NEUTRAL value. Every
+ * non-neutral authored value therefore wins untouched (`100` scale / `0` px
+ * stays the neutral marker, not the style default).
+ *
+ * Documented limit: an explicitly authored neutral value on `split` (the user
+ * re-centers the chip and saves 0) is indistinguishable from "untouched" and
+ * resolves to the factory placement; telling them apart needs a provenance
+ * sentinel in the editor (out of this leaf). For every other style the factory
+ * tuning IS the neutral triple, so this function is the identity — existing
+ * styles render byte-identically.
+ */
+export function applyRankingBadgeFactoryTuning(
+  style: RankingBadgeStyle | string | null | undefined,
+  tuning: RankingBadgeTuning,
+): RankingBadgeTuning {
+  if (style !== "split") return tuning
+  const factory = rankingBadgeFactoryTuning(style)
+  return {
+    scale: tuning.scale === RANKING_BADGE_NEUTRAL_TUNING.scale ? factory.scale : tuning.scale,
+    offsetX: tuning.offsetX === RANKING_BADGE_NEUTRAL_TUNING.offsetX ? factory.offsetX : tuning.offsetX,
+    offsetY: tuning.offsetY === RANKING_BADGE_NEUTRAL_TUNING.offsetY ? factory.offsetY : tuning.offsetY,
+  }
 }

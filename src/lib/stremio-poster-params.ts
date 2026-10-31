@@ -10,6 +10,7 @@ import { parseMinQuality, type StreamQuality } from "@/lib/quality-tiers"
 import { normalizeSeasonalTheme } from "./seasonal-theme"
 import { parseSashOrder, isDefaultSashOrder, type SashBucket } from "@/lib/badge-priority"
 import type { PosterShape, PosterLayout, PosterFreshScope } from "@/lib/types"
+import type { QualityGroupLayout } from "@/lib/badge-styles"
 import { isPosterLayout } from "@/lib/types"
 import type { DateFormat } from "@/lib/release-badge"
 
@@ -208,6 +209,8 @@ export interface StremioPosterParamsInput {
    * explicit in compact mode, never inside `dv`.
    */
   readonly posterFreshScope?: PosterFreshScope | null
+  /** Quality group layout ("stacked" = historic column, "row" = horizontal). */
+  readonly qualityGroupLayout?: QualityGroupLayout | null
   /**
    * Formato ignoto a build-time (template Nuvio `shape={shape}`): lo stile
    * si emette raw e la normalizzazione bar→pills resta dinamica server-side
@@ -508,6 +511,9 @@ export function buildStremioPosterSearchParams(input: StremioPosterParamsInput):
   } else if (input.posterFreshScope === "all") {
     params.set("freshScope", "all")
   }
+  // Quality group layout: low-cardinality enum, emitted only when explicit
+  // ("row"); absent = stacked keeps legacy URLs byte-identical.
+  if (input.qualityGroupLayout === "row") params.set("qgl", "row")
   params.set("lang", input.lang || "it")
   if (!blurEnabled) params.set("be", "0")
   // compactTuning: solo stile ad alta cardinalità omesso (vedi sopra) — il

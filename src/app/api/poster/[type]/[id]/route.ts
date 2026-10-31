@@ -13,7 +13,7 @@ import { checkAdminToken } from "@/lib/auth"
 import { userRateLimitKey } from "@/lib/user-auth"
 import { touchUserActivity } from "@/lib/user-activity"
 import { rateLimit, rateLimitKey, rateLimitResponse } from "@/lib/rate-limit"
-import { getServerDefaultsForUser, getServerDefaultsChecked, effectiveDefaultsForShape } from "@/lib/server-defaults"
+import { getServerDefaultsForUser, getServerDefaultsChecked, effectiveDefaultsForShape, pickVisualDefaults } from "@/lib/server-defaults"
 import { effectiveMappingForShape } from "@/lib/types"
 import { getRegionDef, normalizeRegion, parseRegion, defaultRegionForLang, GLOBAL_REGION_CODE } from "@/lib/regions"
 import { pinChartFamily, chartListGroupKey, chartPinCacheFragment, chartSlotEndMs, familySlotEndMs, type ChartFamilyPin } from "@/lib/chart-generation"
@@ -489,7 +489,15 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
   )
   const customRatingHash = customRatingConfig.enabled
     ? createHash("sha256").update(JSON.stringify(customRatingConfig)).digest("hex") : ""
-  const sdHash = hashKey(JSON.stringify(sd) + customRatingHash)
+  // Defaults hash: SOLO i campi di resa (badge/ranking/stili/tuning/gradienti/
+  // logo/forma/formati/età/network/ribbon/sash/dct-dnet/dateFormat/landscape…).
+  // I campi catalog-only (customCatalogs, streamingSelections, rankingSource*,
+  // ordine/rename/visibilità cataloghi, catalogShapes, episodeMetadataSource,
+  // keyword stagionali) sono esclusi: cambiarli non tocca i pixel, quindi non
+  // deve invalidare ogni poster. La classifica risolta resta comunque in chiave
+  // (r/lr/la); la lista completa e la prova dei consumer sono in
+  // `pickVisualDefaults` (server-defaults.ts).
+  const sdHash = hashKey(JSON.stringify(pickVisualDefaults(sd)) + customRatingHash)
   // Hardening anti cache-busting (v1.23.0): con presets attivi le richieste
   // non-preview collassano su un set finito di render (quantize numerici +
   // palette ac + extra canonico dal mapping + strip override keyless su
@@ -2767,7 +2775,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
       lang: req.nextUrl.searchParams.get("lang") || mapping?.language || posterRegion.lang2,
     })
     const {
-      badgeStyle, rankingBadgeStyle, qualityBadgeStyle, badgeFont,
+      badgeStyle, rankingBadgeStyle, qualityBadgeStyle, qualityGroupLayout, badgeFont,
     extraBadgeStyle,
       blurEnabled, blurHeight, blurIntensity, blurFade, blurDarkness, tintStrength, topShade, topShadeHeight,
       badgesEnabled, rankingEnabled,
@@ -3389,6 +3397,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
       badgesEnabled, rankingEnabled, genreName, voteAverage, badgeStyle,
       rankingBadgeStyle, extraBadgeStyle, badgeFont, badgeGenre: effectiveBadgeGenre, badgeYear: effectiveBadgeYear, badgeRating: effectiveBadgeRating, badgeQuality,
       qualityBadgeStyle,
+      qualityGroupLayout,
       videoFormats: finalVideoFormats,
       separateRatings: (useSeparate || (bottomActive && sepItems.length > 0)) ? sepItems : undefined,
       separateRatingsStyle,

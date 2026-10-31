@@ -4,6 +4,7 @@ import { Palette } from "lucide-react"
 import { useT } from "@/lib/contexts/TranslationContext"
 import { usePosterEditor } from "@/lib/contexts/PosterEditorContext"
 import { BadgeStyleSelector, VideoFormatSelector, BadgeFontSelector } from "@/components/ui"
+import { QualityGroupLayoutSelector } from "@/components/PosterLayoutSelector"
 import { KNOWN_VIDEO_FORMATS } from "@/lib/av-specs"
 import { QUALITY_BADGE_STYLES } from "@/lib/badge-styles"
 import { useShapeBadgeDefaults, type BadgeShapeTarget } from "@/components/settings/useShapeDefaults"
@@ -37,7 +38,7 @@ export function GenreStyleSection({ shape, onPreviewFamilyChange, styleDisabled,
         <fieldset disabled={styleDisabled} className="contents">
         <BadgeStyleSelector
           value={badgeStyle}
-          options={["shadow", "pill", "bar", "colored", "bordo", "vetro", "minimal"]}
+          options={["shadow", "pill", "bar", "colored", "bordo", "vetro", "minimal", "ink"]}
           onChange={(v) => {
             setBadgeStyle(v)
           }}
@@ -72,6 +73,7 @@ export function QualityStyleSection({ shape, qualityEnabled, onPreviewFamilyChan
   const ed = usePosterEditor()
   const { scoped } = useShapeBadgeDefaults(shape)
   const [qualityBadgeStyle, setQualityBadgeStyle] = scoped("qualityBadgeStyle", ed.defaultQualityBadgeStyle, ed.setDefaultQualityBadgeStyle)
+  const [qualityGroupLayout, setQualityGroupLayout] = scoped("qualityGroupLayout", ed.defaultQualityGroupLayout, ed.setDefaultQualityGroupLayout)
   const [videoFormats, setVideoFormats] = scoped("videoFormats", ed.defaultVideoFormats, ed.setDefaultVideoFormats)
   const showQuality = qualityEnabled ?? ed.defaultBadgeQuality
   const famAttrs = (family: DefaultsPreviewFamily) => ({
@@ -96,6 +98,8 @@ export function QualityStyleSection({ shape, qualityEnabled, onPreviewFamilyChan
           }}
           t={t}
         />
+
+        <QualityGroupLayoutSelector value={qualityGroupLayout} onChange={setQualityGroupLayout} />
 
         <div className="pt-2 border-t border-surface2/50 space-y-1.5">
           <label className="text-[11px] text-muted font-medium block">

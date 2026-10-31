@@ -64,7 +64,7 @@ function openAdvanced() {
   if (t.getAttribute("aria-expanded") !== "true") fireEvent.click(t)
 }
 
-describe("preset tab (six-tab staged session)", () => {
+describe("preset tab (five-tab staged session)", () => {
   it("shows the six gallery looks on the default Preset tab with one preview and stages without writes", async () => {
     renderSettings()
     await act(async () => {
@@ -74,7 +74,7 @@ describe("preset tab (six-tab staged session)", () => {
       "aria-selected",
       "true",
     )
-    expect(screen.getAllByRole("tab")).toHaveLength(6)
+    expect(screen.getAllByRole("tab")).toHaveLength(5)
     // Gallery looks visible without opening anything.
     for (const id of ["poster-style-apple", "poster-style-better-poster", "poster-style-rpdb"]) {
       expect(screen.getByTestId(id)).toBeInTheDocument()
@@ -85,21 +85,21 @@ describe("preset tab (six-tab staged session)", () => {
     }
     expect(screen.getByTestId("defaults-preview-media")).toBeInTheDocument()
     // Detailed switches stay unexposed on the preset page.
-    expect(screen.queryByRole("switch", { name: "ui.topBadge" })).toBeNull()
+    expect(screen.queryByRole("switch", { name: "ui.badgeExtraToggle" })).toBeNull()
     // Gallery click stages into the session (dirty, save enabled), no writes.
     fireEvent.click(screen.getByTestId("poster-style-apple"))
     expect(screen.getByTestId("poster-style-apple")).toHaveAttribute("aria-pressed", "true")
     expect(screen.getByTestId("settings-save")).not.toBeDisabled()
     // Free navigation across tabs: no guard dialog, draft retained.
-    fireEvent.click(screen.getByRole("tab", { name: "ui.settingsTabRankings" }))
+    fireEvent.click(screen.getByRole("tab", { name: "ui.settingsTabBadge" }))
     expect(screen.queryByTestId("settings-dirty-dialog")).not.toBeInTheDocument()
-    expect(screen.getByRole("tab", { name: "ui.settingsTabRankings" })).toHaveAttribute(
+    expect(screen.getByRole("tab", { name: "ui.settingsTabBadge" })).toHaveAttribute(
       "aria-selected",
       "true",
     )
-    expect(screen.getByRole("switch", { name: "ui.sash_rank" })).toBeInTheDocument()
+    expect(screen.getByTestId("ranking-presentation")).toBeInTheDocument()
     expect(screen.getByTestId("settings-save")).not.toBeDisabled()
-    // Tags tab joins the staged walk (sixth primary tab): same session, no
+    // Tags tab joins the staged walk (fifth primary tab): same session, no
     // writes, draft retained.
     fireEvent.click(screen.getByRole("tab", { name: "Tag e Network" }))
     expect(screen.queryByTestId("settings-dirty-dialog")).not.toBeInTheDocument()
@@ -121,17 +121,20 @@ describe("preset tab (six-tab staged session)", () => {
     expect(toggle).toHaveAttribute("aria-expanded", "true")
     // Flip a detailed control while open.
     fireEvent.click(screen.getByTestId("badge-group-overlay-toggle"))
-    fireEvent.click(screen.getByRole("switch", { name: "ui.topBadge" }))
-    expect(ctx().defaultRankingBadges).toBe(false)
+    fireEvent.click(screen.getByRole("switch", { name: "ui.badgeExtraToggle" }))
+    // Master OFF hides every non-rank bucket; the classification bucket and
+    // the shared plate gate stay exactly as configured.
+    expect(ctx().defaultRankingBadges).toBe(true)
+    expect(ctx().defaultSashOrder).toEqual(["rank"])
     // Close: values kept, switches unexposed but still mounted.
     fireEvent.click(toggle)
     expect(toggle).toHaveAttribute("aria-expanded", "false")
-    expect(ctx().defaultRankingBadges).toBe(false)
-    expect(screen.queryByRole("switch", { name: "ui.topBadge" })).toBeNull()
+    expect(ctx().defaultSashOrder).toContain("rank")
+    expect(screen.queryByRole("switch", { name: "ui.badgeExtraToggle" })).toBeNull()
     expect(screen.getByTestId("badge-group-overlay-toggle")).toBeInTheDocument()
     // Reopen: the flipped state survived (mounted-hidden, never unmounted).
     openAdvanced()
-    expect(screen.getByRole("switch", { name: "ui.topBadge" })).toHaveAttribute(
+    expect(screen.getByRole("switch", { name: "ui.badgeExtraToggle" })).toHaveAttribute(
       "aria-checked",
       "false",
     )

@@ -15,7 +15,7 @@ import { sanitizeLogoText, TEXT_LOGO_DEFAULT_FONT } from "./text-logo"
 import { normalizeGenreName } from "./genre-normalize"
 import type { EnrichedAnimeItem } from "./validation"
 import type { VideoFormat } from "./av-specs"
-import type { SeparateRatingsStyle, ExtraBadgeStyle, ExtraBadgeFollowRank, AgeBadgeStyle, AwardBadgeMode, BadgeFont } from "./badge-styles"
+import type { SeparateRatingsStyle, ExtraBadgeStyle, ExtraBadgeFollowRank, AgeBadgeStyle, AwardBadgeMode, BadgeFont, QualityGroupLayout } from "./badge-styles"
 import { isExtraBadgeStyleTransport, isExtraFollowRank, isAgeBadgeStyle, isAwardBadgeMode, DEFAULT_AGE_BADGE_STYLE, DEFAULT_AWARD_BADGE_MODE } from "./badge-styles"
 import { DEFAULT_AGE_COUNTRY } from "./certification"
 import type { PosterLayout, PosterFreshScope } from "./types"
@@ -87,6 +87,8 @@ interface PosterSaveDeps {
   badgeFont: string
   /** Stile icone del badge qualità per-titolo (congelato al save). */
   qualityBadgeStyle: string
+  /** Layout del gruppo qualità per-titolo ("stacked" = colonna storica). */
+  qualityGroupLayout?: QualityGroupLayout
   /** Formati A/V abilitati per-titolo (congelati al save). */
   videoFormats?: VideoFormat[] | null
   defaultBadgeStyle: string
@@ -110,6 +112,8 @@ interface PosterSaveDeps {
   defaultSeparateRatings?: boolean
   defaultBadgeFont?: string
   defaultQualityBadgeStyle?: string
+  /** Layout gruppo qualità di default (provenance per il boundary di indipendenza). */
+  defaultQualityGroupLayout?: QualityGroupLayout
   defaultVideoFormats?: VideoFormat[] | null
   defaultNetworkLogo?: boolean
   defaultNetworkLogoPosition?: NetworkLogoPosition
@@ -270,14 +274,14 @@ export function usePosterSave(deps: PosterSaveDeps) {
     logoScale, logoOffsetX, logoOffsetY,
     selectedBackdrop, setSelectedBackdrop, backdropScale, backdropOffsetX, backdropOffsetY,
     setBackdropScale, setBackdropOffsetX, setBackdropOffsetY,
-    globalBadges, rankingBadges, customBadge, badgeStyle, rankingBadgeStyle, extraBadgeStyle, badgeFont, qualityBadgeStyle,
+    globalBadges, rankingBadges, customBadge, badgeStyle, rankingBadgeStyle, extraBadgeStyle, badgeFont, qualityBadgeStyle, qualityGroupLayout,
     videoFormats,
     badgeGenre, badgeYear, badgeRating, badgeQuality, ageBadge, ageCountry, ageBadgeStyle, awardBadgeStyle, customRatings, ratingSources, separateRatings, separateRatingsStyle,
     seasonalTheme,
     defaultBadgeStyle, defaultRankingBadgeStyle, defaultExtraBadgeStyle,
     defaultGlobalBadges, defaultRankingBadges, defaultBadgeGenre, defaultBadgeYear,
     defaultBadgeRating, defaultBadgeQuality, defaultAgeBadge, defaultAgeCountry, defaultAgeBadgeStyle, defaultAwardBadgeStyle, defaultCustomRatings, defaultSeparateRatings,
-    defaultBadgeFont, defaultQualityBadgeStyle, defaultVideoFormats,
+    defaultBadgeFont, defaultQualityBadgeStyle, defaultQualityGroupLayout, defaultVideoFormats,
     defaultNetworkLogo, defaultNetworkLogoPosition, defaultRibbonEnabled,
     blurEnabled, blurIntensity, blurFade, blurDarkness, landscapeBlur, landscapeBlurDirty, setLandscapeBlur, defaultLogoScale, defaultLogoOffsetX, defaultLogoOffsetY, landscapeDefaults, tintStrength, topShade, topShadeHeight, gradientHeight, setGradientHeight, setBlurFade,
     topBadgeScale, topBadgeOffsetX, topBadgeOffsetY, extraBadgeScale, extraBadgeOffsetX, extraBadgeOffsetY, genreBadgeScale, qualityBadgeScale, networkLogoScale, separateBadgeScale,
@@ -558,6 +562,7 @@ export function usePosterSave(deps: PosterSaveDeps) {
       extraBadgeStyle: defaultExtraBadgeStyle,
       badgeFont: defaultBadgeFont,
       qualityBadgeStyle: defaultQualityBadgeStyle,
+      qualityGroupLayout: defaultQualityGroupLayout,
       videoFormats: defaultVideoFormats,
       networkLogo: defaultNetworkLogo,
       networkLogoPosition: defaultNetworkLogoPosition,
@@ -625,6 +630,7 @@ export function usePosterSave(deps: PosterSaveDeps) {
       extraBadgeStyle: isExtraBadgeStyleTransport(extraBadgeStyle) ? extraBadgeStyle : null,
       badgeFont,
       qualityBadgeStyle,
+      qualityGroupLayout,
       videoFormats: videoFormats ?? null,
       networkLogo,
       networkLogoPosition,
@@ -943,6 +949,7 @@ export function usePosterSave(deps: PosterSaveDeps) {
           extraBadgeStyle: keepFlatKey("extraBadgeStyle", isExtraBadgeStyleTransport(extraBadgeStyle) ? extraBadgeStyle : null),
           badgeFont: keepFlatKey("badgeFont", badgeFont),
           qualityBadgeStyle: keepFlatKey("qualityBadgeStyle", qualityBadgeStyle),
+          qualityGroupLayout: keepFlatKey("qualityGroupLayout", qualityGroupLayout),
           videoFormats: keepFlatKey("videoFormats", videoFormats !== undefined ? videoFormats : undefined),
           defaultBadgeStyle,
           defaultRankingBadgeStyle,

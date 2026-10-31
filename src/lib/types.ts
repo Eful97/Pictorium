@@ -1,4 +1,4 @@
-import type { BadgeStyle, RankingBadgeStyle, QualityBadgeStyle, BadgeFont, SeparateRatingsStyle, ExtraBadgeStyle, ExtraBadgeFollowRank, AgeBadgeStyle, AwardBadgeMode } from "./badge-styles"
+import type { BadgeStyle, RankingBadgeStyle, QualityBadgeStyle, QualityGroupLayout, BadgeFont, SeparateRatingsStyle, ExtraBadgeStyle, ExtraBadgeFollowRank, AgeBadgeStyle, AwardBadgeMode } from "./badge-styles"
 import type { VideoFormat } from "./av-specs"
 
 /**
@@ -389,6 +389,12 @@ export interface Mapping {
    */
   posterFreshScope?: PosterFreshScope | null
   /**
+   * Layout del gruppo qualità per-titolo ("stacked" = colonna storica,
+   * "row" = orizzontale max 2 per riga). Stessa regola per-formato del layout
+   * (flat + profilo `landscape`).
+   */
+  qualityGroupLayout?: QualityGroupLayout | null
+  /**
    * Seasonal frame choice per-titolo ("halloween"/"christmas" = cornice
    * esplicita che segue il titolo ovunque; "none" = sopprime un tema
    * ereditato dalla lista; null/assente = Automatico, segue la lista di
@@ -461,6 +467,8 @@ export interface LandscapeSettings {
   posterLayout?: PosterLayout | null
   /** Fresh apply scope ("ranked" = default: solo con rank; "all" = override esplicito). */
   posterFreshScope?: PosterFreshScope | null
+  /** Layout del gruppo qualità ("stacked" = colonna storica, "row" = orizzontale). */
+  qualityGroupLayout?: QualityGroupLayout | null
   networkLogoScale?: number | null
   networkLogoOffsetX?: number | null
   networkLogoOffsetY?: number | null
@@ -623,6 +631,7 @@ export function effectiveMappingForShape(mapping: Mapping | null, shape: PosterS
     separateRatingsStyle: l.separateRatingsStyle ?? mapping.separateRatingsStyle,
     posterLayout: l.posterLayout ?? mapping.posterLayout,
     posterFreshScope: l.posterFreshScope ?? mapping.posterFreshScope,
+    qualityGroupLayout: l.qualityGroupLayout ?? mapping.qualityGroupLayout,
     networkLogoScale: l.networkLogoScale ?? mapping.networkLogoScale,
     networkLogoOffsetX: l.networkLogoOffsetX ?? mapping.networkLogoOffsetX,
     networkLogoOffsetY: l.networkLogoOffsetY ?? mapping.networkLogoOffsetY,

@@ -91,6 +91,25 @@ export function logoScrimStrength(contrast: number): number {
 }
 
 /**
+ * Memo limitata (FIFO) della velatura rasterizzata.
+ *
+ * `buildLogoScrim` è pura rispetto alla geometria clampata (w×h), alla
+ * polarità dell'inchiostro e alle due alpha già quantizzate con `toFixed(3)`
+ * dentro l'SVG. La chiave usa ESATTAMENTE le due stringhe quantizzate del
+ * gradiente (centro + stop al 60%): due strength che producono lo stesso SVG
+ * condividono il buffer, e un hit restituisce byte identici a una rasterizzazione
+ * fresca. La velatura si ripete a ogni render dello stesso titolo (stesse
+ * dimensioni logo, stesso contrasto), quindi il raster viene pagato una volta
+ * sola. Il buffer è condiviso e i consumer (sharp) lo leggono soltanto.
+ *
+ * Tetto esplicito con eviction FIFO delete-first (stessa policy di
+ * `textLogoBufferCache`/`autoFitCache`): la Map resta limitata per tutta la
+ * vita del processo.
+ */
+const LOGO_SCRIM_CACHE_MAX_ENTRIES = 200
+const logoScrimCache = new Map<string, Buffer>()
+
+/**
  * Velatura ellittica sfumata da comporre SOTTO al logo. Il centro è scuro o
  * chiaro a seconda di dove sta l'inchiostro: un logo scuro su poster scuro va
  * schiarito, non ulteriormente scurito.
@@ -112,12 +131,23 @@ export async function buildLogoScrim(
   const h = Math.min(Math.round(height * 1.5), Math.round(maxH))
   if (w <= 0 || h <= 0) return null
   const rgb = lightLogo ? "0,0,0" : "255,255,255"
+  const qStrength = strength.toFixed(3)
+  const qFade = (strength * 0.45).toFixed(3)
+  const key = `${w}x${h}\u0000${rgb}\u0000${qStrength}\u0000${qFade}`
+  const cached = logoScrimCache.get(key)
+  if (cached) return cached
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}">`
     + `<defs><radialGradient id="s" cx="50%" cy="50%" r="50%">`
-    + `<stop offset="0%" stop-color="rgba(${rgb},${strength.toFixed(3)})"/>`
-    + `<stop offset="60%" stop-color="rgba(${rgb},${(strength * 0.45).toFixed(3)})"/>`
+    + `<stop offset="0%" stop-color="rgba(${rgb},${qStrength})"/>`
+    + `<stop offset="60%" stop-color="rgba(${rgb},${qFade})"/>`
     + `<stop offset="100%" stop-color="rgba(${rgb},0)"/>`
     + `</radialGradient></defs>`
     + `<rect width="${w}" height="${h}" fill="url(#s)"/></svg>`
-  return sharp(Buffer.from(svg)).png().toBuffer()
+  const png = await sharp(Buffer.from(svg)).png().toBuffer()
+  if (logoScrimCache.size >= LOGO_SCRIM_CACHE_MAX_ENTRIES) {
+    const first = logoScrimCache.keys().next().value
+    if (first) logoScrimCache.delete(first)
+  }
+  logoScrimCache.set(key, png)
+  return png
 }

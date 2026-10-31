@@ -108,7 +108,7 @@ function settle() {
 
 async function openRankings(): Promise<HTMLElement> {
   await screen.findByTestId("poster-style-apple")
-  fireEvent.click(screen.getByRole("tab", { name: "ui.settingsTabRankings" }))
+  fireEvent.click(screen.getByRole("tab", { name: "ui.settingsTabBadge" }))
   return layoutGroup()
 }
 

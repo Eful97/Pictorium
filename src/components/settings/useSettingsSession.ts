@@ -597,6 +597,7 @@ export function useSettingsSession(): SettingsSessionResult {
       setDefaultExtraBadgeStyle: makeSimpleSetter(updateSession, "defaultExtraBadgeStyle"),
       setDefaultBadgeFont: makeSimpleSetter(updateSession, "defaultBadgeFont"),
       setDefaultQualityBadgeStyle: makeSimpleSetter(updateSession, "defaultQualityBadgeStyle"),
+      setDefaultQualityGroupLayout: makeSimpleSetter(updateSession, "defaultQualityGroupLayout"),
       setDefaultVideoFormats: makeSimpleSetter(updateSession, "defaultVideoFormats"),
       setDefaultEpisodeMetadataSource: makeSimpleSetter(updateSession, "defaultEpisodeMetadataSource"),
       setDefaultBlurEnabled: makeSimpleSetter(updateSession, "defaultBlurEnabled"),

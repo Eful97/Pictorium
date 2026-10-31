@@ -25,6 +25,7 @@ import {
   isExtraFollowRank,
   normalizeExtraBadgeStyleForRender,
   isQualityBadgeStyle,
+  isQualityGroupLayout,
   isAgeBadgeStyle,
   isAwardBadgeMode,
   isBadgeFont,
@@ -34,9 +35,11 @@ import {
   getSeparateRatingsStyleForShape,
   nonRibbonRankingStyle,
   getQualityBadgeOffsetDefault,
+  applyRankingBadgeFactoryTuning,
   DEFAULT_BADGE_STYLE,
   DEFAULT_RANKING_BADGE_STYLE,
   DEFAULT_QUALITY_BADGE_STYLE,
+  DEFAULT_QUALITY_GROUP_LAYOUT,
   DEFAULT_AGE_BADGE_STYLE,
   DEFAULT_AWARD_BADGE_MODE,
   DEFAULT_BADGE_FONT,
@@ -45,6 +48,7 @@ import {
   type RankingBadgeStyle,
   type ExtraBadgeStyle,
   type QualityBadgeStyle,
+  type QualityGroupLayout,
   type AgeBadgeStyle,
   type BadgeFont,
   type SeparateRatingsStyle,
@@ -250,6 +254,31 @@ export function resolvePosterFreshScope(
     || configOverride?.posterFreshScope
     || esd.posterFreshScope
   return isPosterFreshScope(raw) ? raw : DEFAULT_POSTER_FRESH_SCOPE
+}
+
+/**
+ * Quality group layout — catena: query `qgl` > mapping effettivo per formato
+ * (profilo landscape sopra il flat) > config token > defaults effettivi per
+ * formato > "stacked". Fail-closed con distinzione dall'assenza (stesso
+ * pattern `freshScope`): un valore PRESENTE ma invalido (garbage o stringa
+ * vuota) rende `stacked` esplicito e NON eredita mapping/default. Assenza =
+ * `stacked` comunque, quindi le URL/mapping storici restano byte-identici.
+ */
+export function resolveQualityGroupLayoutConfig(
+  searchParams: URLSearchParams,
+  mapping: Mapping | null,
+  configOverride: PictoriumUserConfig | null,
+  sd: ServerDefaults,
+  shape: PosterShape,
+): QualityGroupLayout {
+  if (searchParams.has("qgl")) {
+    const v = (searchParams.get("qgl") || "").toLowerCase()
+    return isQualityGroupLayout(v) ? v : DEFAULT_QUALITY_GROUP_LAYOUT
+  }
+  const m = effectiveMappingForShape(mapping, shape)
+  const esd = effectiveDefaultsForShape(sd, shape)
+  const raw = m?.qualityGroupLayout ?? configOverride?.qualityGroupLayout ?? esd.qualityGroupLayout
+  return isQualityGroupLayout(raw) ? raw : DEFAULT_QUALITY_GROUP_LAYOUT
 }
 
 export interface BottomSeparateActiveInput {
@@ -538,6 +567,12 @@ export interface PosterRenderConfig {
    * rende Standard byte-identico.
    */
   posterFreshScope: PosterFreshScope
+  /**
+   * Layout del gruppo qualità (query `qgl` > mapping effettivo per formato >
+   * config token > defaults effettivi per formato > "stacked"). `row` dispone
+   * i marchi in orizzontale (max 2 per riga); `stacked` = colonna storica.
+   */
+  qualityGroupLayout: QualityGroupLayout
   /**
    * Seasonal frame theme. Effective preview (`isPreview`): staged `theme=`
    * query wins, saved mapping ignored (WYSIWYG, no resurrect before save).
@@ -950,6 +985,10 @@ export function resolvePosterRenderConfig(input: PosterRenderConfigInput): Poste
   // Fresh apply scope — stessa catena (vedi resolvePosterFreshScope).
   const posterFreshScope = resolvePosterFreshScope(q, mapping, configOverride, sd, posterShape)
 
+  // Layout del gruppo qualità — stessa catena di freshScope (vedi
+  // resolveQualityGroupLayoutConfig). Default "stacked" = colonna storica.
+  const qualityGroupLayout = resolveQualityGroupLayoutConfig(q, mapping, configOverride, sd, posterShape)
+
   // Badge style — confinamento della query string al union type: valori non validi
   // cadono sul default (il renderer in passato li trattava come "shadow" nel ramo else).
   // Catena: query `bs` > mapping effettivo per formato > config token >
@@ -1027,7 +1066,7 @@ export function resolvePosterRenderConfig(input: PosterRenderConfigInput): Poste
   // Badge superiore — stessa catena di blur/gradient (query > mapping > config
   // > server defaults > default), stessi bound del logo (scala %, offset px).
   const qTScaleNum = q.get("tscale") ? Number(q.get("tscale")) : NaN
-  const topBadgeScale = q.get("tscale") !== null
+  const resolvedTopBadgeScale = q.get("tscale") !== null
     ? (Number.isFinite(qTScaleNum) && qTScaleNum !== 0 ? clamp(Math.round(qTScaleNum), 10, 200) : 100)
     : (m?.topBadgeScale != null && Number.isFinite(m.topBadgeScale)
         ? clamp(Math.round(m.topBadgeScale), 10, 200)
@@ -1037,13 +1076,31 @@ export function resolvePosterRenderConfig(input: PosterRenderConfigInput): Poste
                 ? clamp(Math.round(esd.topBadgeScale), 10, 200)
                 : 100)))
   const qToxNum = q.get("tox") ? Number(q.get("tox")) : NaN
-  const topBadgeOffsetX = q.get("tox") !== null
+  const resolvedTopBadgeOffsetX = q.get("tox") !== null
     ? (Number.isFinite(qToxNum) ? clamp(Math.round(qToxNum), -2000, 2000) : 0)
     : (m?.topBadgeOffsetX ?? configOverride?.topBadgeOffsetX ?? esd.topBadgeOffsetX ?? 0)
   const qToyNum = q.get("toy") ? Number(q.get("toy")) : NaN
-  const topBadgeOffsetY = q.get("toy") !== null
+  const resolvedTopBadgeOffsetY = q.get("toy") !== null
     ? (Number.isFinite(qToyNum) ? clamp(Math.round(qToyNum), -2000, 2000) : 0)
     : (m?.topBadgeOffsetY ?? configOverride?.topBadgeOffsetY ?? esd.topBadgeOffsetY ?? 0)
+  // Factory tuning per stile di CLASSIFICA (additivo, solo `split` ne ha una
+  // diversa): applicato DOPO la catena, asse per asse, sui soli valori ancora
+  // NEUTRALI (100/0/0) — che sono l'unico marcatore osservabile di "tuning mai
+  // scritto" (l'editor emette sempre i tre param e ogni save persiste il trio
+  // live, vedi `applyRankingBadgeFactoryTuning`). Ogni valore non-neutro
+  // scritto in query/mapping/token/defaults vince intatto; gli altri stili
+  // restano 100/0/0 byte-identici. Il fallback legacy dell'extra superiore
+  // (tuning EXTRA assente) usa gli stessi valori: con `split` l'intero slot
+  // superiore segue la posizione factory, senza un secondo default.
+  const {
+    scale: topBadgeScale,
+    offsetX: topBadgeOffsetX,
+    offsetY: topBadgeOffsetY,
+  } = applyRankingBadgeFactoryTuning(rankingBadgeStyle, {
+    scale: resolvedTopBadgeScale,
+    offsetX: resolvedTopBadgeOffsetX,
+    offsetY: resolvedTopBadgeOffsetY,
+  })
 
   // Badge extra superiore — stessa catena (query > mapping per-shape > config
   // token > defaults per-shape), ma NULLABLE con fallback legacy: assente
@@ -1357,6 +1414,7 @@ export function resolvePosterRenderConfig(input: PosterRenderConfigInput): Poste
     posterShape,
     posterLayout,
     posterFreshScope,
+    qualityGroupLayout,
     logoAlign,
     seasonalTheme,
     hideLogo,

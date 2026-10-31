@@ -106,8 +106,8 @@ describe("useShapeBadgeGeometryDefaults", () => {
     })
     expect((ed as unknown as PosterEditorCtx).defaultQualityBadgeScale).toBe(100)
     // The canonical quality offsets are the existing shape defaults.
-    expect((ed as unknown as PosterEditorCtx).defaultQualityBadgeOffsetX).toBe(-10)
-    expect((ed as unknown as PosterEditorCtx).defaultQualityBadgeOffsetY).toBe(15)
+    expect((ed as unknown as PosterEditorCtx).defaultQualityBadgeOffsetX).toBe(-4)
+    expect((ed as unknown as PosterEditorCtx).defaultQualityBadgeOffsetY).toBe(6)
   })
 
   it("clears the landscape profile of ONE family (existing reset contract) without touching others", async () => {

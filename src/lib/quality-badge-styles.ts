@@ -125,9 +125,13 @@ export function premiumFormatAccent(format: VideoFormat): PremiumAccent {
   return PREMIUM_FORMAT_ACCENT[format]
 }
 
-/** Placca scura neutra: fondo/stroke fissi (indipendenti da `topLight`). */
+/** Placca scura neutra: fondo fisso (indipendente da `topLight`) e bordo
+ *  hairline caldo della famiglia: stesso hue del frame `color`
+ *  (`COLOR_MARK_PLATE_STROKE`, #FFCB00) al 38%, così premium e color
+ *  condividono UN materiale di cornice e la placca dark resta leggibile
+ *  anche su fondi chiari (nessun colore nuovo, solo la stessa tinta). */
 export const PREMIUM_PLATE_BG = "rgba(16,17,21,0.88)"
-export const PREMIUM_PLATE_STROKE = "rgba(255,255,255,0.20)"
+export const PREMIUM_PLATE_STROKE = "rgba(255,203,0,0.38)"
 /** Raggio contenuto della placca (frazione dell'altezza box, come il tier tag).
  *  Geometria condivisa da ogni stile placcato (premium e color). */
 export const AV_PLATE_RADIUS_FACTOR = 0.30
@@ -272,6 +276,11 @@ export const GRADIENT_TIER_INK = "#ffffff"
  *  glifi bianchi/gradiente restano leggibili su top chiaro e scuro. Il raggio
  *  è quello condiviso delle placche A/V (`AV_PLATE_RADIUS_FACTOR`). */
 export const GRADIENT_PLATE_BG = "rgba(0,0,0,0.50)"
+/** Bordo hairline della placca `gradient` (stesso materiale delle placche
+ *  A/V): traccia chiara discreta tenuta DENTRO il box, quindi footprint della
+ *  placca invariato. Spessore = `AV_PLATE_STROKE_WIDTH` (1.5, come le altre
+ *  cornici). */
+export const GRADIENT_PLATE_STROKE = "rgba(255,255,255,0.14)"
 
 /** Chiavi dei gradienti A/V: i formati noti più il lockup unito DV+Atmos
  *  (`combo`, non un `VideoFormat`) e `hlg` (riservato: `av-specs.ts` non

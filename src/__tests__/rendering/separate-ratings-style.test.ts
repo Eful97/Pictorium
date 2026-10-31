@@ -373,7 +373,7 @@ describe("config token separateRatingsStyle", () => {
 describe("validation separateRatingsStyle", () => {
   it("query nei bound, mapping + landscape, garbage rifiutato", () => {
     expect(posterQuerySchema.safeParse({ sepstyle: "bottom-bar" }).success).toBe(true)
-    expect(posterQuerySchema.safeParse({ sepstyle: "x".repeat(17) }).success).toBe(false)
+    expect(posterQuerySchema.safeParse({ sepstyle: "x".repeat(25) }).success).toBe(false)
     const base = { tmdbId: 1, mediaType: "movie", title: "T", posterPath: "/p.jpg" }
     expect(mappingSchema.safeParse({ ...base, separateRatingsStyle: "bottom-pills" }).success).toBe(true)
     expect(mappingSchema.safeParse({

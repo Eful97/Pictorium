@@ -476,11 +476,11 @@ describe("ranked-only scope (SettingsPanel Rankings UI)", () => {
     expect(screen.queryByText("ui.posterFreshScopeAll")).toBeNull()
   }
 
-  it("Rankings owns the unified presentation with no all-posters choice, both shapes; Save persists ranked", async () => {
+  it("Badge owns the unified presentation with no all-posters choice, both shapes; Save persists ranked", async () => {
     const storedBefore = localStorage.getItem("badgeDefaults")
     renderPanel()
     await screen.findByTestId("presets-panel")
-    clickTab("ui.settingsTabRankings")
+    clickTab("ui.settingsTabBadge")
     // Seeded Fresh stays selected (stored design preserved) in the single
     // exclusive presentation group — no separate layout card anywhere.
     const rankings = activeBadgePanel()
@@ -540,9 +540,11 @@ describe("ranked-only scope (SettingsPanel Rankings UI)", () => {
   it("rankings OFF keeps the stored design with no scope bypass", async () => {
     renderPanel()
     await screen.findByTestId("presets-panel")
-    clickTab("ui.settingsTabRankings")
-    // Master "Show rankings" OFF: the stored Fresh design stays selected…
-    fireEvent.click(within(activeBadgePanel()).getByRole("switch", { name: "ui.topBadge" }))
+    // The on/off masters live in Information now; the presentation look stays
+    // in Badge.
+    clickTab("ui.settingsTabInformation")
+    fireEvent.click(screen.getByRole("switch", { name: "ui.rankingsToggle" }))
+    clickTab("ui.settingsTabBadge")
     const group = within(activeBadgePanel()).getByTestId("ranking-presentation")
     expect(
       within(group).getByRole("radio", { name: "ui.posterLayoutGroupedFresh" }),

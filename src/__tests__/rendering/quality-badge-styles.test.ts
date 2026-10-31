@@ -22,8 +22,10 @@ import {
   COLOR_MARK_PLATE_STROKE,
   GRADIENT_MARK_STOPS,
   GRADIENT_PLATE_BG,
+  GRADIENT_PLATE_STROKE,
   GRADIENT_TIER_INK,
   AV_PLATE_RADIUS_FACTOR,
+  AV_PLATE_STROKE_WIDTH,
   gradientMarkStops,
 } from "@/lib/quality-badge-styles"
 import { buildQualityKnockoutSvg, buildQualityBadgeSvg, buildAgeEmphasisSvg, buildGradientMarkSvg, badgeBoxHeight, TOP_SHADOW_PAD, AGE_NOVA_BODY_BOTTOM, AGE_NOVA_BODY_TOP, AGE_NOVA_BORDER_BOTTOM, AGE_NOVA_BORDER_TOP, AGE_NOVA_INK, AGE_NOVA_SKEW_X, GRADIENT_MARK_FONT_WEIGHT } from "@/lib/badge-svg-shared"
@@ -41,8 +43,8 @@ import type { ServerDefaults } from "@/lib/server-defaults"
 const ROOT = path.resolve(__dirname, "../../..")
 
 describe("quality badge styles", () => {
-  it("exposes the standard/mono/color/knockout/premium/nova/gradient union with standard default", () => {
-    expect([...QUALITY_BADGE_STYLES]).toEqual(["standard", "mono", "color", "knockout", "premium", "nova", "gradient"])
+  it("exposes the standard/mono/color/knockout/premium/nova/gradient/outline/strip union with standard default", () => {
+    expect([...QUALITY_BADGE_STYLES]).toEqual(["standard", "mono", "color", "knockout", "premium", "nova", "gradient", "outline", "strip"])
     expect(DEFAULT_QUALITY_BADGE_STYLE).toBe("standard")
     expect(isQualityBadgeStyle("mono")).toBe(true)
     expect(isQualityBadgeStyle("color")).toBe(true)
@@ -51,6 +53,7 @@ describe("quality badge styles", () => {
     expect(isQualityBadgeStyle("premium")).toBe(true)
     expect(isQualityBadgeStyle("nova")).toBe(true)
     expect(isQualityBadgeStyle("gradient")).toBe(true)
+    expect(isQualityBadgeStyle("strip")).toBe(true)
     expect(isQualityBadgeStyle("bar")).toBe(false)
     expect(isQualityBadgeStyle(null)).toBe(false)
     expect(isQualityBadgeStyle(undefined)).toBe(false)
@@ -564,8 +567,9 @@ describe("quality A/V mark width normalization", () => {
     expect(await countTint(color!.png, COLOR_MARK_PLATE_STROKE), "frame").toBeGreaterThan(50)
     expect(await countTint(color!.png, COLOR_MARK_PLATE_BG), "plate").toBeGreaterThan(300)
     expect(await countTint(color!.png, COLOR_MARK_GLYPH), "glyph").toBeGreaterThan(50)
-    // `premium`: placca neutra con SOLO l'accento del formato, nessuna cornice
-    // oro del tier color (stile additivo, mai un alias del `color`).
+    // `premium`: placca neutra con SOLO l'accento del formato e un hairline
+    // caldo discreto (38%, mai la cornice piena del tier `color`: stile
+    // additivo, non un alias del `color`).
     const premium = await svc.renderPremiumIconBadge(FORMAT_ICON_PATHS.hdr, PW, premiumAccentHex("gold"))
     expect(premium).not.toBeNull()
     expect(await countTint(premium!.png, premiumAccentHex("gold")), "accent").toBeGreaterThan(50)
@@ -1212,12 +1216,18 @@ describe("quality gradient style (dark plate lockup, dynamic SVG)", () => {
       expect(white.svg, label).toContain(`font-weight="${GRADIENT_MARK_FONT_WEIGHT}"`)
       expect(white.svg, label).toContain('letter-spacing="0.06em"')
       expect(white.svg, label).toContain("textLength=")
-      // Esattamente UN rect di fondo: la placca scura, senza stroke, dietro il testo.
+      // Esattamente UN rect di fondo: la placca scura col bordo hairline della
+      // famiglia, dietro il testo.
       const rects = white.svg.match(/<rect [^>]*\/>/g) ?? []
       expect(rects.length, label).toBe(1)
       expect(rects[0], label).toContain(`fill="${GRADIENT_PLATE_BG}"`)
       expect(rects[0], label).toContain(`rx="${PLATE_R}"`)
-      expect(rects[0], label).not.toContain("stroke")
+      // Bordo family (1.5px) tenuto DENTRO il box: il rect è inset di metà
+      // stroke, così il footprint visibile resta la colonna storica.
+      expect(rects[0], label).toContain(`stroke="${GRADIENT_PLATE_STROKE}"`)
+      expect(rects[0], label).toContain(`stroke-width="${AV_PLATE_STROKE_WIDTH}"`)
+      expect(rects[0], label).toContain(`x="${TOP_SHADOW_PAD + AV_PLATE_STROKE_WIDTH / 2}"`)
+      expect(rects[0], label).toContain(`width="${white.w - TOP_SHADOW_PAD * 2 - AV_PLATE_STROKE_WIDTH}"`)
       expect(white.svg.indexOf("<rect"), label).toBeLessThan(white.svg.indexOf("<text"))
       // Nessun tag mascherato, nessun asset: solo placca + glifi.
       expect(white.svg, label).not.toContain("<mask")

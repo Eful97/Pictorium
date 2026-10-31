@@ -11,6 +11,7 @@ import { z } from "zod"
 import { MAX_DISABLED_NETWORKS } from "@/lib/network-keys"
 import { BADGE_STYLES, RANKING_BADGE_STYLES, QUALITY_BADGE_STYLES, AGE_BADGE_STYLES, AWARD_BADGE_MODES, BADGE_FONTS, SEPARATE_RATINGS_STYLES, EXTRA_BADGE_STYLES, EXTRA_BADGE_FOLLOW_RANK } from "@/lib/badge-styles"
 import { POSTER_LAYOUTS, POSTER_FRESH_SCOPES } from "@/lib/types"
+import { QUALITY_GROUP_LAYOUTS } from "@/lib/badge-styles"
 import { readJsonBody, BodyTooLargeError, DEFAULT_MAX_BODY_BYTES } from "@/lib/read-body"
 import { envWithFallback } from "@/lib/env-compat"
 import { SHAPE_FLAT_TO_LANDSCAPE, snapshotMissingLandscape } from "@/lib/visual-presets"
@@ -173,6 +174,8 @@ const defaultsSchema = z.object({
   posterLayout: z.enum(POSTER_LAYOUTS).optional(),
   /** Fresh apply scope (flat): absent = all historic render. */
   posterFreshScope: z.enum(POSTER_FRESH_SCOPES).optional(),
+  /** Quality group layout (flat): absent = stacked historic column. */
+  qualityGroupLayout: z.enum(QUALITY_GROUP_LAYOUTS).optional(),
   logoAlign: z.enum(["left", "center"]).nullable().optional(),
   episodeMetadataSource: z.enum(["tmdb", "tvdb"]).optional(),
   region: z.string().max(32).optional(),
@@ -223,6 +226,7 @@ const defaultsSchema = z.object({
     separateRatingsStyle: z.enum(SEPARATE_RATINGS_STYLES).optional(),
     posterLayout: z.enum(POSTER_LAYOUTS).optional(),
     posterFreshScope: z.enum(POSTER_FRESH_SCOPES).optional(),
+    qualityGroupLayout: z.enum(QUALITY_GROUP_LAYOUTS).optional(),
     networkLogoScale: z.number().optional(),
     networkLogoOffsetX: z.number().optional(),
     networkLogoOffsetY: z.number().optional(),

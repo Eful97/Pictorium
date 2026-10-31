@@ -100,6 +100,7 @@ export type PerTitleVisualBareKey =
   | "posterFreshScope"
   | "badgeFont"
   | "qualityBadgeStyle"
+  | "qualityGroupLayout"
   | "videoFormats"
   | "networkLogo"
   | "networkLogoPosition"
@@ -332,7 +333,7 @@ export function projectPerTitleVisualPreset(
     "customRatings", "separateRatings", "separateRatingsStyle",
     "badgeStyle", "rankingBadgeStyle",
     "posterLayout", "posterFreshScope",
-    "badgeFont", "qualityBadgeStyle", "videoFormats",
+    "badgeFont", "qualityBadgeStyle", "qualityGroupLayout", "videoFormats",
     "networkLogo", "networkLogoPosition",
     "preRelease", "ribbonEnabled",
     "topBadgeScale", "topBadgeOffsetX", "topBadgeOffsetY",

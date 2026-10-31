@@ -100,7 +100,6 @@ describe("settings Auto alignment (UI)", () => {
     await screen.findByTestId("presets-panel")
     for (const tab of [
       "ui.settingsTabPreset",
-      "ui.settingsTabRankings",
       "ui.settingsTabInformation",
       "ui.settingsTabBadge",
       "ui.settingsTabTransform",

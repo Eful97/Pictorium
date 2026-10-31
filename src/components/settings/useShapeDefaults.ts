@@ -104,6 +104,7 @@ export const BADGE_VISUAL_LAND_KEYS = [
   "extraBadgeStyle",
   "badgeFont",
   "qualityBadgeStyle",
+  "qualityGroupLayout",
   "videoFormats",
   "sashOrder",
   "networkLogo",

@@ -11,7 +11,7 @@ import {
   sanitizeEffectiveAccentMeta,
   type EffectiveAccentMeta,
 } from "@/lib/effective-accent"
-import { isBadgeStyle, isRankingBadgeStyle, isExtraBadgeStyle, isExtraFollowRank, isBadgeFont, isSeparateRatingsStyle, isAgeBadgeStyle, isAwardBadgeMode } from "@/lib/badge-styles"
+import { isBadgeStyle, isRankingBadgeStyle, isExtraBadgeStyle, isExtraFollowRank, isBadgeFont, isSeparateRatingsStyle, isAgeBadgeStyle, isAwardBadgeMode, isQualityGroupLayout, DEFAULT_QUALITY_GROUP_LAYOUT } from "@/lib/badge-styles"
 import { isPosterLayout, isPosterFreshScope, DEFAULT_POSTER_FRESH_SCOPE } from "@/lib/types"
 import { POSTER_CACHE_ALLOWLIST, parseListRankParam, sanitizePortraitBaseBackdropPath } from "./poster-params-hardening"
 import { sanitizeDisabledContentTags } from "./content-tags"
@@ -198,13 +198,17 @@ export function normalizePosterCacheParams(searchParams: URLSearchParams): URLSe
     if (pbase) params.set("pbase", pbase)
     else params.delete("pbase")
   }
-  const tl = params.get("tl")
-  if (tl !== null && tl !== "1" && tl !== "0" && tl !== "true" && tl !== "false") {
-    params.delete("tl")
-  }
-  const bl = params.get("bl")
-  if (bl !== null && bl !== "1" && bl !== "0" && bl !== "true" && bl !== "false") {
-    params.delete("bl")
+  // tl/bl: la resa accetta "1"/"true" come ON e "0"/"false" come OFF (stesso
+  // valore effettivo in route.ts), quindi le due grafie devono convergere su
+  // un'unica chiave (1/0) invece di frammentare cache L1/L2 e inflight a
+  // pixel identici. Un valore presente ma non riconosciuto rende come
+  // l'assenza (luminanza calcolata), quindi viene scartato come prima.
+  for (const lightKey of ["tl", "bl"]) {
+    const value = params.get(lightKey)
+    if (value === null) continue
+    if (value === "1" || value === "true") params.set(lightKey, "1")
+    else if (value === "0" || value === "false") params.set(lightKey, "0")
+    else params.delete(lightKey)
   }
   // demosamples: flag booleano fail-closed. Solo "1" abilita i campioni (e
   // solo in preview accettata); garbage collassa sull'assenza, che rende
@@ -266,6 +270,13 @@ export function normalizePosterCacheParams(searchParams: URLSearchParams): URLSe
   if (freshScope !== null) {
     const v = freshScope.toLowerCase()
     params.set("freshScope", isPosterFreshScope(v) ? v : DEFAULT_POSTER_FRESH_SCOPE)
+  }
+  // qgl: stessa distinzione presente/assente (presente-ma-invalido = stacked
+  // esplicito, l'assenza può ereditare row da mapping/default).
+  const qgl = params.get("qgl")
+  if (qgl !== null) {
+    const v = qgl.toLowerCase()
+    params.set("qgl", isQualityGroupLayout(v) ? v : DEFAULT_QUALITY_GROUP_LAYOUT)
   }
   const bfont = params.get("bfont")
   if (bfont !== null && !isBadgeFont(bfont)) {

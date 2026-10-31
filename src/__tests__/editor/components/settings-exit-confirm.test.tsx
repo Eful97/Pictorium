@@ -119,7 +119,7 @@ describe("settings exit-confirm centered modal", () => {
   it("tab and format-target changes never open the dialog and keep the draft", async () => {
     renderPanel()
     await makeDirty()
-    fireEvent.click(screen.getByRole("tab", { name: "ui.settingsTabRankings" }))
+    fireEvent.click(screen.getByRole("tab", { name: "ui.settingsTabBadge" }))
     expect(screen.queryByTestId("settings-dirty-dialog")).not.toBeInTheDocument()
     // Draft retained across the switch: still dirty, staged preset kept.
     expect(screen.getByTestId("settings-save")).not.toBeDisabled()

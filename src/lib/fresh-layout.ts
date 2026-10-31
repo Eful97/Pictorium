@@ -949,6 +949,40 @@ async function placeOverlayInRoi(
   return { png: cropped, left: dx + x0, top: dy + y0 }
 }
 
+/** Tight real glyph ink bounds of a rasterized numeral mask. */
+export interface FreshNumeralInk {
+  readonly minX: number
+  readonly maxX: number
+  readonly minY: number
+  readonly maxY: number
+  readonly w: number
+  readonly h: number
+}
+
+/**
+ * Pre-computed numeral mask + ink bounds. A ranked Fresh render needs both the
+ * glass numeral (fill/model/rim clipping) AND the left blur band (ink-bound
+ * width), which historically each re-rasterized the same mask and re-scanned
+ * its alpha. This pair is computed ONCE by `prepareFreshNumeralMask` and
+ * passed to both consumers, so a ranked render performs exactly one mask
+ * render and one ink scan with byte-identical input to both.
+ */
+export interface FreshNumeralMaskPrep {
+  readonly mask: { png: Buffer; w: number; h: number }
+  readonly ink: FreshNumeralInk | null
+}
+
+/**
+ * Single shared computation of the numeral mask and its real ink bounds.
+ * `renderFreshGlassNumeral` and `renderFreshLeftBlurStrip` accept the result
+ * as an optional pre-computed input; called on its own it is exactly what the
+ * two consumers used to do inline (same bytes, same threshold).
+ */
+export async function prepareFreshNumeralMask(box: FreshNumeralBox): Promise<FreshNumeralMaskPrep> {
+  const mask = await renderFreshNumeralMask(box)
+  return { mask, ink: await measureNumeralInk(mask.png) }
+}
+
 /**
  * Tight real glyph ink bounds of a rasterized numeral mask (alpha channel
  * scan at canvas resolution — the authoritative ink reality, not the width
@@ -957,7 +991,7 @@ async function placeOverlayInRoi(
 export async function measureNumeralInk(
   maskPng: Buffer,
   threshold = 10,
-): Promise<{ minX: number; maxX: number; minY: number; maxY: number; w: number; h: number } | null> {
+): Promise<FreshNumeralInk | null> {
   const { data, info } = await sharp(maskPng).ensureAlpha().raw().toBuffer({ resolveWithObject: true })
   let minX = info.width
   let maxX = -1
@@ -994,10 +1028,14 @@ export async function renderFreshGlassNumeral(
   CW: number,
   CH: number,
   box: FreshNumeralBox,
+  prep?: FreshNumeralMaskPrep,
 ): Promise<{ png: Buffer; w: number; h: number; left: number; top: number } | null> {
   const svg = numeralSvgBox(box)
   const { svgW, svgH, rim } = svg
-  const maskFull = (await renderFreshNumeralMask(box)).png
+  // Shared with the left-blur band when the caller composes both layers
+  // (`prepareFreshNumeralMask`): one mask render + one ink scan per render.
+  const prepared = prep ?? (await prepareFreshNumeralMask(box))
+  const maskFull = prepared.mask.png
   // Measured fitting (not buffer expansion): every shipped numeral layer is
   // cropped to the REAL rasterized ink plus the uniform rim pad (the pad
   // covers the morphology ring; the ROI bleed below covers the shadow
@@ -1005,7 +1043,7 @@ export async function renderFreshGlassNumeral(
   // per-digit tuning. Cropping only trims transparent margin: the glyph
   // pixels keep their scratch coordinates, so the default anchor lands
   // exactly where the geometry box puts it.
-  const ink = await measureNumeralInk(maskFull)
+  const ink = prepared.ink
   const cropLeft = ink ? Math.max(0, ink.minX - rim) : 0
   const cropTop = ink ? Math.max(0, ink.minY - rim) : 0
   const cropRight = ink ? Math.min(svgW, ink.maxX + rim + 1) : svgW
@@ -1209,9 +1247,12 @@ export async function renderFreshLeftBlurStrip(
   CW: number,
   CH: number,
   box: FreshNumeralBox,
+  prep?: FreshNumeralMaskPrep,
 ): Promise<{ png: Buffer; w: number; h: number; left: 0; top: 0 } | null> {
-  const mask = await renderFreshNumeralMask(box)
-  const ink = await measureNumeralInk(mask.png)
+  // Shared with the glass numeral when the caller composes both layers
+  // (`prepareFreshNumeralMask`): no second resvg render, no second alpha scan.
+  const prepared = prep ?? (await prepareFreshNumeralMask(box))
+  const ink = prepared.ink
   if (!ink) return null
   // Same scratch→canvas origin as the glass fill (`box.left - rim`): the
   // shipped numeral pixels keep their scratch coordinates, so the band bound
@@ -2050,13 +2091,22 @@ async function composeFreshInner(
     logo: FreshOverlayBox | null
   } = { ranked: geo.numeral !== null, numeral: null, meta: null, provider: null, logo: null }
   const emitGeometry = () => input.onGeometry?.({ ...overlayGeo })
+  // P2: ONE mask render + ONE ink scan per ranked Fresh render, shared by the
+  // left-blur band and the glass numeral (identical mask bytes for both).
+  const numeralPrep = geo.numeral ? await prepareFreshNumeralMask(geo.numeral) : null
   if (geo.numeral) {
     // Task8b left artwork-softening band (ranked ONLY — unranked/Standard
     // never reach this branch): UNDER the shade so the shade darkens the
     // blurred band exactly as it darkened the sharp artwork (luminance
     // preserved, only detail softens), and strictly below the numeral/meta/
     // title layers and the retained caller chrome (quality/ribbon/extra).
-    const strip = await renderFreshLeftBlurStrip(input.posterBuf, input.CW, input.CH, geo.numeral)
+    const strip = await renderFreshLeftBlurStrip(
+      input.posterBuf,
+      input.CW,
+      input.CH,
+      geo.numeral,
+      numeralPrep ?? undefined,
+    )
     if (strip) layers.push({ input: strip.png, top: strip.top, left: strip.left })
   }
   // Split mode (Fresh + bottom blur): the lateral shade stays BELOW the
@@ -2075,8 +2125,14 @@ async function composeFreshInner(
   if (geo.numeral) {
     // The numeral geometry above already carries the user scale/offsets, so
     // the glass fill ROI below samples the transformed location — never a
-    // post-resize of a neutrally sampled fill.
-    const num = await renderFreshGlassNumeral(input.posterBuf, input.CW, input.CH, geo.numeral)
+    // post-resize of a neutrally sampled fill. Reuses the shared mask/ink prep.
+    const num = await renderFreshGlassNumeral(
+      input.posterBuf,
+      input.CW,
+      input.CH,
+      geo.numeral,
+      numeralPrep ?? undefined,
+    )
     // Fully-offscreen numeral (extreme user offsets): no visible pixels, so
     // no layer — same skip contract as the left-blur strip above.
     if (num) {

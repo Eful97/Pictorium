@@ -2,8 +2,9 @@
 
 import { useT } from "@/lib/contexts/TranslationContext"
 import type { ExtraBadgeStyle, RankingBadgeStyle } from "@/lib/badge-styles"
+import { buildHouseRankingSvg } from "@/lib/badge-svg-shared"
 import { LayoutThumb } from "@/components/PosterLayoutSelector"
-import type { CardSkin } from "@/lib/card-layout-skins"
+import { isCardSkin, type CardSkin } from "@/lib/card-layout-skins"
 
 export type RankingAppearance = "nastro" | "numero" | "badge"
 
@@ -11,7 +12,7 @@ export type RankingAppearance = "nastro" | "numero" | "badge"
 export type RankingPresentation = RankingAppearance | "fresh" | "card"
 
 /** Badge variants for the Badge appearance (`standard` = centered default plate). */
-export const RANK_BADGE_VARIANTS = ["pill", "colored", "bordo", "vetro", "corner", "standard"] as const
+export const RANK_BADGE_VARIANTS = ["pill", "colored", "bordo", "vetro", "corner", "standard", "split"] as const
 export type RankBadgeVariant = (typeof RANK_BADGE_VARIANTS)[number]
 
 /**
@@ -40,7 +41,7 @@ export function resolveRankingAppearance(args: {
  * selected pill. Pure read — never writes.
  */
 export function resolveRankVariant(rs: string | null | undefined): RankBadgeVariant {
-  if (rs === "pill" || rs === "colored" || rs === "bordo" || rs === "vetro" || rs === "corner") return rs
+  if (rs === "pill" || rs === "colored" || rs === "bordo" || rs === "vetro" || rs === "corner" || rs === "split") return rs
   return "standard"
 }
 
@@ -141,6 +142,67 @@ const VARIANT_LABELS: Record<RankBadgeVariant, string> = {
   vetro: "ui.vetro",
   corner: "ui.corner",
   standard: "ui.qbsStandard",
+  split: "ui.split",
+}
+
+/** Demo accent for the mini previews (same fallback as the badge style selector). */
+const RANK_SWATCH_ACCENT = "#fb923c"
+/** Poster reference grid the ranking recipes are authored on (380 portrait). */
+const RANK_SWATCH_PW = 380
+
+/** Variant rows → the exact renderer input pair (`style` + ribbon flag). */
+const BADGE_VARIANT_SWATCH: Record<RankBadgeVariant, { style: RankingBadgeStyle; ribbon: boolean }> = {
+  // `colored` as a Badge turns the ribbon OFF (with it on the renderer paints
+  // the NASTRO) — same canonical pair `rankVariantValue` writes.
+  colored: { style: "colored", ribbon: false },
+  pill: { style: "pill", ribbon: true },
+  bordo: { style: "bordo", ribbon: true },
+  vetro: { style: "vetro", ribbon: true },
+  corner: { style: "corner", ribbon: true },
+  standard: { style: "default", ribbon: false },
+  split: { style: "split", ribbon: true },
+}
+/** Ribbon rows → the same canonical pairs `ribbonVariantValue` writes. */
+const RIBBON_VARIANT_SWATCH: Record<RankRibbonVariant, { style: RankingBadgeStyle; ribbon: boolean }> = {
+  standard: { style: "netflix", ribbon: true },
+  colored: { style: "colored", ribbon: true },
+}
+
+function svgDataUri(svg: string): string {
+  return `data:image/svg+xml,${encodeURIComponent(svg)}`
+}
+
+/**
+ * Mini preview of one rank look. Uses the SAME shared builder the poster
+ * renderer dispatches through (`buildHouseRankingSvg`, called by
+ * `buildRankingBadgeSVG` in svg-badge.ts): identical recipes (default plate,
+ * pill, colored, bordo, vetro, corner, split, ribbon), never a second
+ * renderer. Rendered at the 380 poster-reference width with the base rank
+ * font, so the thumbnail is the real geometry scaled down.
+ */
+function RankSwatch({
+  style,
+  ribbon,
+  label,
+}: {
+  style: RankingBadgeStyle
+  ribbon: boolean
+  label: string
+}) {
+  const { svg } = buildHouseRankingSvg({
+    rank: 1,
+    label,
+    pw: RANK_SWATCH_PW,
+    style,
+    ribbon,
+    accentColor: RANK_SWATCH_ACCENT,
+  })
+  return (
+    <span className="badge-style-preview inline-flex items-center justify-center rounded-md bg-transparent">
+      {/* eslint-disable-next-line @next/next/no-img-element -- SVG del builder condiviso (singola fonte col renderer) */}
+      <img src={svgDataUri(svg)} alt="" className="w-8 h-4 object-contain" />
+    </span>
+  )
 }
 
 /**
@@ -188,11 +250,18 @@ export function RankingAppearanceSelector({
     if (unified) onPresentation(a as RankingPresentation)
     else onAppearance(a as RankingAppearance)
   }
+  // Card primary thumbnail mirrors the remembered/effective skin (transient
+  // UI cue only, never a write): same `LayoutThumb` the skin row uses.
+  const cardThumbSkin: CardSkin = isCardSkin(cardSkin) ? cardSkin : "provider-glass"
   return (
     <div className="space-y-1.5" {...(unified ? { "data-testid": "ranking-presentation" } : {})}>
       <div className="flex gap-1" role="radiogroup" aria-label={t("ui.rankFamily")}>
         {(Object.keys(primary) as (keyof typeof primary)[]).map((a) => {
           const checked = unified ? presentation === a : appearance === a
+          // Classic families preview the canonical look the click stages
+          // (`rankingAppearanceValue`), Fresh/Card reuse the shared layout
+          // miniature. Decorative only: the accessible name stays the label.
+          const canonical = a === "fresh" || a === "card" ? null : rankingAppearanceValue(a as RankingAppearance)
           return (
           <button
             key={a}
@@ -200,13 +269,24 @@ export function RankingAppearanceSelector({
             role="radio"
             aria-checked={checked}
             onClick={() => onPrimary(a)}
-            className={`flex-1 py-1 px-1 rounded-lg text-[11px] font-semibold transition-all duration-150 cursor-pointer ${
+            className={`flex flex-1 min-w-0 flex-col items-center justify-center gap-0.5 py-1 px-1 rounded-lg text-[11px] font-semibold transition-all duration-150 cursor-pointer ${
               checked
                 ? "bg-white/20 text-white shadow-sm"
                 : "bg-white/5 text-muted hover:bg-white/10 hover:text-zinc-200"
             }`}
           >
-            {t(primary[a])}
+            <span className="flex h-9 w-full items-center justify-center">
+              {canonical ? (
+                <RankSwatch
+                  style={canonical.rankingBadgeStyle}
+                  ribbon={canonical.ribbonEnabled}
+                  label={t("badge.today")}
+                />
+              ) : (
+                <LayoutThumb layout={a === "card" ? cardThumbSkin : "fresh"} />
+              )}
+            </span>
+            <span className="leading-tight truncate max-w-full">{t(primary[a])}</span>
           </button>
           )
         })}
@@ -240,7 +320,7 @@ export function RankingAppearanceSelector({
         </div>
       )}
       {look === "nastro" && (
-        <div className="flex gap-1" role="radiogroup" aria-label={t("ui.ribbon")}>
+        <div className="flex flex-wrap gap-1" role="radiogroup" aria-label={t("ui.ribbon")}>
           {RANK_RIBBON_VARIANTS.map((v) => (
             <button
               key={v}
@@ -248,19 +328,20 @@ export function RankingAppearanceSelector({
               role="radio"
               aria-checked={ribbonVariant === v}
               onClick={() => onRibbonVariant(v)}
-              className={`flex-1 py-1 px-1 rounded-lg text-[10px] font-semibold transition-all duration-150 cursor-pointer ${
+              className={`flex flex-1 min-w-[56px] flex-col items-center justify-center gap-0.5 py-1 px-1 rounded-lg text-[10px] font-semibold transition-all duration-150 cursor-pointer ${
                 ribbonVariant === v
                   ? "bg-white/20 text-white shadow-sm"
                   : "bg-white/5 text-muted hover:bg-white/10 hover:text-zinc-200"
               }`}
             >
-              {t(RIBBON_VARIANT_LABELS[v])}
+              <RankSwatch {...RIBBON_VARIANT_SWATCH[v]} label={t("badge.today")} />
+              <span className="leading-tight truncate max-w-full">{t(RIBBON_VARIANT_LABELS[v])}</span>
             </button>
           ))}
         </div>
       )}
       {look === "badge" && (
-        <div className="flex gap-1" role="radiogroup" aria-label={t("ui.styleRankingDefault")}>
+        <div className="flex flex-wrap gap-1" role="radiogroup" aria-label={t("ui.styleRankingDefault")}>
           {RANK_BADGE_VARIANTS.map((v) => (
             <button
               key={v}
@@ -268,13 +349,14 @@ export function RankingAppearanceSelector({
               role="radio"
               aria-checked={variant === v}
               onClick={() => onVariant(v)}
-              className={`flex-1 py-1 px-1 rounded-lg text-[10px] font-semibold transition-all duration-150 cursor-pointer ${
+              className={`flex flex-1 min-w-[56px] flex-col items-center justify-center gap-0.5 py-1 px-1 rounded-lg text-[10px] font-semibold transition-all duration-150 cursor-pointer ${
                 variant === v
                   ? "bg-white/20 text-white shadow-sm"
                   : "bg-white/5 text-muted hover:bg-white/10 hover:text-zinc-200"
               }`}
             >
-              {t(VARIANT_LABELS[v])}
+              <RankSwatch {...BADGE_VARIANT_SWATCH[v]} label={t("badge.today")} />
+              <span className="leading-tight truncate max-w-full">{t(VARIANT_LABELS[v])}</span>
             </button>
           ))}
         </div>

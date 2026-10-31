@@ -107,7 +107,9 @@ function PortraitEffectiveGeometry({ editVal, editTxt, setEditVal, setEditTxt, e
   const sepActive = !!(ed.defaultGlobalBadges && ed.defaultBadgeRating && ed.defaultSeparateRatings)
   const netActive = !!ed.defaultNetworkLogo
   const tabHint = t("ui.settingsTabInformation")
-  const rankTabHint = t("ui.settingsTabRankings")
+  // Ranking/extra geometry is enabled from the Information tab now that the
+  // ranking on/off masters and the sash categories live there.
+  const rankTabHint = t("ui.settingsTabInformation")
   const slider = (icon: React.ReactNode, label: string, value: number, min: number, max: number, boundsMin: number, boundsMax: number, onChange: (v: number) => void, onDoubleClick: () => void, editingKey: string, suffix: string, step?: number) => (
     <SliderRow icon={icon} label={label} value={value} min={min} max={max} boundsMin={boundsMin} boundsMax={boundsMax} step={step} onChange={onChange} onDoubleClick={onDoubleClick} editingValue={editVal} editText={editTxt} setEditingValue={setEditVal} setEditText={setEditTxt} editingKey={editingKey} suffix={suffix} />
   )
@@ -731,7 +733,7 @@ export function TransformPanel({ active, previewShape, onPreviewShapeChange, onP
       </div>
       )}
       {!ed.defaultRankingBadges && geometryOnly && (
-        <TransformInactive name={t("ui.rankFamily")} tab={t("ui.settingsTabRankings")} />
+        <TransformInactive name={t("ui.rankFamily")} tab={t("ui.settingsTabInformation")} />
       )}
       {/* Badge Classifica Predefinito */}
       {ed.defaultRankingBadges && (
@@ -827,7 +829,7 @@ export function TransformPanel({ active, previewShape, onPreviewShapeChange, onP
       )}
 
       {!ed.defaultRankingBadges && geometryOnly && (
-        <TransformInactive name={t("ui.sash_extra")} tab={t("ui.settingsTabRankings")} />
+        <TransformInactive name={t("ui.sash_extra")} tab={t("ui.settingsTabInformation")} />
       )}
       {/* Badge Extra Predefinito (indipendente dalla classifica; reset = segui) */}
       {ed.defaultRankingBadges && (

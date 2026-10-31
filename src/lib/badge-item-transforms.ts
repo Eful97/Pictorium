@@ -439,12 +439,48 @@ export function parseBadgeItemTransforms(raw: string | null | undefined): BadgeI
   return out
 }
 
+/** Coarse quantization steps of the presets-mode form (same as the group
+ *  transforms: scales step 10, offsets step 5). */
+const BADGE_ITEM_SCALE_STEP = 10
+const BADGE_ITEM_OFFSET_STEP = 5
+
+/**
+ * Presets-mode quantization of a parsed map: scale rounded to step 10 and
+ * offsets to step 5 (the coarse steps the group transforms already use), then
+ * clamped again. Two payloads inside the same step therefore share ONE
+ * transport/cache-key form instead of minting near-identical renders (P6).
+ * Entries that quantize back to neutral are dropped here; keeping that an
+ * explicit clear (vs absent) stays the caller's contract.
+ */
+export function quantizeBadgeItemTransforms(map: BadgeItemTransformMap | null | undefined): BadgeItemTransformMap {
+  const out: Record<string, BadgeItemTransform> = {}
+  for (const [id, t] of Object.entries(effectiveBadgeItemTransforms(map))) {
+    const quantized: BadgeItemTransform = {
+      scale: clampBadgeItemScale(Math.round(t.scale / BADGE_ITEM_SCALE_STEP) * BADGE_ITEM_SCALE_STEP),
+      offsetX: clampBadgeItemOffset(Math.round(t.offsetX / BADGE_ITEM_OFFSET_STEP) * BADGE_ITEM_OFFSET_STEP),
+      offsetY: clampBadgeItemOffset(Math.round(t.offsetY / BADGE_ITEM_OFFSET_STEP) * BADGE_ITEM_OFFSET_STEP),
+    }
+    if (!isNeutralBadgeItemTransform(quantized)) out[id] = quantized
+  }
+  return out
+}
+
+export interface CanonicalizeBadgeItemTransformsOptions {
+  /** Presets mode: quantize the numerics to the coarse render steps. */
+  readonly quantize?: boolean
+}
+
 /**
  * Canonical string of a possibly dirty payload (cache key + transport): parse
  * then serialize. `null` = nothing configured (indistinguishable from absent).
+ * With `quantize` the numerics collapse onto the presets-mode steps first.
  */
-export function canonicalizeBadgeItemTransforms(raw: string | null | undefined): string | null {
-  return serializeBadgeItemTransforms(parseBadgeItemTransforms(raw))
+export function canonicalizeBadgeItemTransforms(
+  raw: string | null | undefined,
+  options?: CanonicalizeBadgeItemTransformsOptions,
+): string | null {
+  const parsed = parseBadgeItemTransforms(raw)
+  return serializeBadgeItemTransforms(options?.quantize ? quantizeBadgeItemTransforms(parsed) : parsed)
 }
 
 /**

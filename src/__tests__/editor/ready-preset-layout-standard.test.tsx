@@ -178,7 +178,7 @@ function openPresetTab() {
 }
 
 function openRankingsTab() {
-  fireEvent.click(screen.getByRole("tab", { name: "ui.settingsTabRankings" }))
+  fireEvent.click(screen.getByRole("tab", { name: "ui.settingsTabBadge" }))
 }
 
 function switchEditTargetToLandscape() {

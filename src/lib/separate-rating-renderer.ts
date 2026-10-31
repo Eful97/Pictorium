@@ -40,12 +40,66 @@ const SEPARATE_RATING_ICON_FILES: Record<string, string> = {
 const RATINGS_DIR = path.join(process.cwd(), "public", "rating")
 
 /**
+ * Memo limitata (FIFO) dei raster deterministi dei marchi provider.
+ *
+ * `loadSeparateRatingLogo`/`loadRoundRatingLogo` sono pure rispetto a
+ * (sorgente, altezza/diametro, polarità): gli asset sono file bundlati e la
+ * ricetta è fissa, quindi lo stesso raster veniva ripagato per OGNI pill di una
+ * colonna, per ogni riga bottom e a ogni iterazione del loop di shrink delle
+ * icone Fresh. Il buffer è condiviso e i consumer lo leggono soltanto (embed
+ * base64 / resize sharp): stessi byte, nessuna seconda rasterizzazione.
+ *
+ * Le chiavi sono limitate dalla lista asset fissa × le altezze prodotte dal
+ * layout, più un tetto esplicito (eviction FIFO delete-first, stessa policy di
+ * `textLogoBufferCache`/`autoFitCache`): la Map resta limitata per tutta la
+ * vita del processo.
+ */
+const SEPARATE_LOGO_CACHE_MAX_ENTRIES = 200
+const separateLogoCache = new Map<string, { png: Buffer; w: number; h: number }>()
+
+/** Inserisce un raster riuscito rispettando il tetto FIFO; i miss non sono cachati. */
+function cacheSeparateLogo(
+  key: string,
+  value: { png: Buffer; w: number; h: number } | null,
+): { png: Buffer; w: number; h: number } | null {
+  if (!value) return null
+  if (separateLogoCache.size >= SEPARATE_LOGO_CACHE_MAX_ENTRIES) {
+    const first = separateLogoCache.keys().next().value
+    if (first) separateLogoCache.delete(first)
+  }
+  separateLogoCache.set(key, value)
+  return value
+}
+
+/**
  * Ombra dedicata ai pill separati: più stretta della 3D standard dei badge
  * (dx=3, dy=3, blur 3.5) — su pill da ~40px con gap verticale di 5px
  * l'ombra standard sborda sul pill successivo e agli angoli sembra un
  * blocco squadrato. Con dy=2 + blur 2 l'estensione (~4px) resta nel gap.
  */
 const SEPARATE_SHADOW_FILTER = `<filter id="seps" x="-30%" y="-30%" width="160%" height="160%"><feDropShadow dx="2" dy="2" stdDeviation="2" flood-color="#000000" flood-opacity="0.55"/></filter>`
+
+/**
+ * Riserva perimetrale ORIZZONTALE per l'ombra `seps` della colonna rating
+ * separati: il canvas non coincide più con l'inchiostro, le celle sono traslate
+ * di `SEPARATE_SHADOW_PAD` e la bitmap cresce dello stesso valore per lato, così
+ * il filtro (`x=-30% width=160%`) non viene tagliato dal bordo. Stessa idea di
+ * `TOP_SHADOW_PAD` dei badge / della riga multi-rating (canvas = contenuto +
+ * 2 × pad, corpo in un `<g translate>`): i box di item e slotGhosts sono
+ * riportati in questo spazio (bitmap-relative), quindi il mapping dei consumer
+ * (`sepLeft + item.left`, `sepTop + item.top`) resta corretto senza modifiche e
+ * un'ancora simmetrica (centro colonna) non sposta un pixel.
+ *
+ * Solo orizzontale: verticalmente il canvas resta `totalH` perché i consumer
+ * ancorano l'INTERA bitmap (colonna sotto il badge qualità) e i contratti pixel
+ * esistenti misurano l'altezza della bitmap come span dell'inchiostro
+ * (`separate-ratings-cap5` refSpan === stack.h, `separate-badge-scale` pillH
+ * derivato da stack.h): un pad verticale richiede ancore caller + contratti
+ * aggiornati, fuori da questo file. La stessa riserva per `bottom-pills` è
+ * bloccata dai suoi contratti pixel (ancoraggio destro landscape ±8, margine
+ * basso portrait ≤27, barra full-bleed w === width): follow-up.
+ */
+export const SEPARATE_SHADOW_PAD = 8
 
 /** Gap verticale tra le pill dello stack. */
 export const SEPARATE_STACK_GAP = 5
@@ -56,6 +110,14 @@ export const SEPARATE_STACK_GAP = 5
  * viene skippata invece di rompere il render.
  */
 export async function loadSeparateRatingLogo(source: string, targetH: number): Promise<{ png: Buffer; w: number; h: number } | null> {
+  const key = `column\u0000${source.toLowerCase()}\u0000${targetH}`
+  const cached = separateLogoCache.get(key)
+  if (cached) return cached
+  return cacheSeparateLogo(key, await buildSeparateRatingLogo(source, targetH))
+}
+
+/** Ricetta reale del raster (nessuna cache): pura rispetto agli input. */
+async function buildSeparateRatingLogo(source: string, targetH: number): Promise<{ png: Buffer; w: number; h: number } | null> {
   const filename = SEPARATE_RATING_ICON_FILES[source.toLowerCase()]
   if (!filename) return null
   const filePath = path.join(RATINGS_DIR, filename)
@@ -83,6 +145,21 @@ async function loadRoundRatingLogo(
   bottomLight: boolean,
 ): Promise<{ png: Buffer; w: number; h: number } | null> {
   const id = source.toLowerCase()
+  // Chiave = tutti gli input che cambiano i byte del raster (sorgente,
+  // diametro clampsato, mono/color, polarità della piastra).
+  const key = `round\u0000${id}\u0000${Math.max(2, diameter)}\u0000${monochrome ? 1 : 0}\u0000${bottomLight ? 1 : 0}`
+  const cached = separateLogoCache.get(key)
+  if (cached) return cached
+  return cacheSeparateLogo(key, await buildRoundRatingLogo(id, diameter, monochrome, bottomLight))
+}
+
+/** Ricetta reale del raster round (nessuna cache): pura rispetto agli input. */
+async function buildRoundRatingLogo(
+  id: string,
+  diameter: number,
+  monochrome: boolean,
+  bottomLight: boolean,
+): Promise<{ png: Buffer; w: number; h: number } | null> {
   const filename = SEPARATE_RATING_ICON_FILES[id]
   if (!filename) return null
   try {
@@ -278,6 +355,10 @@ export async function renderSeparateRatingStack(
   const colW = Math.max(...rows.map((r) => Math.max(r.logo.w, r.textW))) + px * 2
   const r = Math.round(Math.max(...rows.map((row) => row.pillH)) * 0.32)
   const totalH = rows.reduce((acc, row) => acc + row.pillH, 0) + SEPARATE_STACK_GAP * (rows.length - 1)
+  // Canvas = inchiostro + riserva ombra ORIZZONTALE (vedi SEPARATE_SHADOW_PAD):
+  // il corpo resta nelle coordinate del contenuto (0..colW × 0..totalH) e viene
+  // traslato nel `<g translate>` del render, così pillSvg/markup non cambiano.
+  const canvasW = colW + SEPARATE_SHADOW_PAD * 2
 
   const defs = `<defs><linearGradient id="sepg" x1="0" y1="0" x2="0" y2="1">${satinPillStops(topLight)}</linearGradient>${SEPARATE_SHADOW_FILTER}</defs>`
   const pillSvg = (row: (typeof rows)[number], y: number): string => {
@@ -300,17 +381,30 @@ export async function renderSeparateRatingStack(
   const stackItems: SeparateRatingItem[] = []
   for (let index = 0; index < rows.length; index++) {
     const row = rows[index]
-    const slotBox = applyBadgeItemTransform({ top: y, left: 0, w: colW, h: row.pillH }, corrections.slots[index])
+    // Box della CELLA nello spazio della bitmap restituita: larghezza del
+    // canvas (l'inchiostro è centrato, il pad è trasparente ai lati) e altezza
+    // dell'inchiostro. Il centro coincide col centro dell'inchiostro, quindi
+    // una correzione di slot scala come prima.
+    const slotBox = applyBadgeItemTransform(
+      { top: y, left: 0, w: canvasW, h: row.pillH },
+      corrections.slots[index],
+    )
     const isDetached = !!corrections.detached[index]
     if (!isDetached) parts.push(pillSvg(row, y))
     if (row.id) {
+      // Bitmap della pill staccata: stesso canvas della cella (pad orizzontale
+      // incluso), contenuto traslato, così l'ombra laterale non viene tagliata
+      // e il png coincide col box riportato al caller.
       const pillPng = isDetached
-        ? await renderSVG(`<svg xmlns="http://www.w3.org/2000/svg" width="${colW}" height="${row.pillH}">${defs}${pillSvg(row, 0)}</svg>`, colW)
+        ? await renderSVG(
+            `<svg xmlns="http://www.w3.org/2000/svg" width="${canvasW}" height="${row.pillH}">${defs}<g transform="translate(${SEPARATE_SHADOW_PAD},0)">${pillSvg(row, 0)}</g></svg>`,
+            canvasW,
+          )
         : null
       // The detached bitmap is returned at the box it will be composited in
       // (the SLOT box): the caller only adds the identity scale on top.
       const png = pillPng
-        ? (slotBox.w === colW && slotBox.h === row.pillH
+        ? (slotBox.w === canvasW && slotBox.h === row.pillH
             ? pillPng
             : await sharp(pillPng).resize(slotBox.w, slotBox.h).toBuffer())
         : undefined
@@ -327,14 +421,16 @@ export async function renderSeparateRatingStack(
     y += row.pillH + SEPARATE_STACK_GAP
   }
   const svg =
-    `<svg xmlns="http://www.w3.org/2000/svg" width="${colW}" height="${totalH}">` +
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${canvasW}" height="${totalH}">` +
     defs +
+    `<g transform="translate(${SEPARATE_SHADOW_PAD},0)">` +
     parts.join("") +
+    `</g>` +
     `</svg>`
-  const png = await renderSVG(svg, colW)
+  const png = await renderSVG(svg, canvasW)
   return {
     png,
-    w: colW,
+    w: canvasW,
     h: totalH,
     items: stackItems,
     slotGhosts: slotGhostBoxes(stackItems, SEPARATE_STACK_GAP),
@@ -490,16 +586,31 @@ export async function renderSeparateRatingsBottom(
     natH = contentH + py * 2
     const cellW = bandW / rows.length
     background = `<rect width="${natW}" height="${natH}" fill="url(#sepg)" stroke="${stroke}" stroke-width="1.5"/>`
+    /** Origine del logo: contenuto della cella centrata. */
+    const logoX = (i: number, row: BottomRow) =>
+      Math.round(i * cellW + (cellW - row.contentW) / 2)
+    /** X del valore: centro del valore. */
+    const valueX = (i: number, row: BottomRow, startX: number) =>
+      startX + row.logo.w + inlineGap + row.textW / 2
+    const valueAnchor = "middle"
+    /** Box riportato: il contenuto della cella. */
+    const cellBox = (startX: number, row: BottomRow) =>
+      ({ top: 0, left: startX, w: row.contentW, h: natH })
     rows.forEach((row, i) => {
-      const startX = Math.round(i * cellW + (cellW - row.contentW) / 2)
+      const startX = logoX(i, row)
       const logoY = Math.round((natH - row.logo.h) / 2)
       const textY = Math.round(natH / 2)
-      const markup = (x: number) =>
-        `<image href="data:image/png;base64,${row.logo.png.toString("base64")}" x="${x}" y="${logoY}" width="${row.logo.w}" height="${row.logo.h}"/>` +
-        `<text x="${x + row.logo.w + inlineGap + row.textW / 2}" y="${textY}" text-anchor="middle" dominant-baseline="central" font-family="${fontFamilyFor(row.display, f)}" font-weight="700" font-size="${fs}" fill="${fg}" textLength="${row.textW}" lengthAdjust="spacingAndGlyphs">${escSvg(row.display)}</text>`
+      // `x` = origine del box riportato: il bitmap staccato usa x=0 e
+      // riproduce lo stesso layout.
+      const markup = (x: number) => {
+        const dx = x - startX
+        return `<image href="data:image/png;base64,${row.logo.png.toString("base64")}" x="${startX + dx}" y="${logoY}" width="${row.logo.w}" height="${row.logo.h}"/>` +
+          `<text x="${valueX(i, row, startX) + dx}" y="${textY}" text-anchor="${valueAnchor}" dominant-baseline="central" font-family="${fontFamilyFor(row.display, f)}" font-weight="700" font-size="${fs}" fill="${fg}" textLength="${row.textW}" lengthAdjust="spacingAndGlyphs">${escSvg(row.display)}</text>`
+      }
       if (row.id) {
-        const box = applyBadgeItemTransform({ top: 0, left: startX, w: row.contentW, h: natH }, corrections.slots[i])
-        cellsInfo.push({ id: row.id, left: box.left, top: box.top, w: box.w, h: box.h, markup, boxW: row.contentW, boxH: natH, slot: i + 1, detached: corrections.detached[i] })
+        const boxSpec = cellBox(startX, row)
+        const box = applyBadgeItemTransform(boxSpec, corrections.slots[i])
+        cellsInfo.push({ id: row.id, left: box.left, top: box.top, w: box.w, h: box.h, markup, boxW: boxSpec.w, boxH: natH, slot: i + 1, detached: corrections.detached[i] })
       }
     })
     svg =
@@ -507,12 +618,12 @@ export async function renderSeparateRatingsBottom(
       defs +
       background +
       rows.map((row, i) => {
-        const startX = Math.round(i * cellW + (cellW - row.contentW) / 2)
+        if (corrections.detached[i]) return ""
+        const startX = logoX(i, row)
         const logoY = Math.round((natH - row.logo.h) / 2)
         const textY = Math.round(natH / 2)
-        return corrections.detached[i] ? "" :
-          `<image href="data:image/png;base64,${row.logo.png.toString("base64")}" x="${startX}" y="${logoY}" width="${row.logo.w}" height="${row.logo.h}"/>` +
-          `<text x="${startX + row.logo.w + inlineGap + row.textW / 2}" y="${textY}" text-anchor="middle" dominant-baseline="central" font-family="${fontFamilyFor(row.display, f)}" font-weight="700" font-size="${fs}" fill="${fg}" textLength="${row.textW}" lengthAdjust="spacingAndGlyphs">${escSvg(row.display)}</text>`
+        return `<image href="data:image/png;base64,${row.logo.png.toString("base64")}" x="${startX}" y="${logoY}" width="${row.logo.w}" height="${row.logo.h}"/>` +
+          `<text x="${valueX(i, row, startX)}" y="${textY}" text-anchor="${valueAnchor}" dominant-baseline="central" font-family="${fontFamilyFor(row.display, f)}" font-weight="700" font-size="${fs}" fill="${fg}" textLength="${row.textW}" lengthAdjust="spacingAndGlyphs">${escSvg(row.display)}</text>`
       }).join("") +
       `</svg>`
   } else if (isBare) {

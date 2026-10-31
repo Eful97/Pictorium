@@ -1,0 +1,2229 @@
+{
+  "tt0027977": {
+    "source": "torrentio",
+    "observedAt": "2026-10-31T15:38:21.010Z",
+    "declared": {
+      "quality": "FHD",
+      "formats": [
+        "hdr"
+      ]
+    },
+    "added": [
+      "hdr"
+    ],
+    "decision": "mutated",
+    "classification": "movie",
+    "movieResults": 1,
+    "tvResults": 0,
+    "verification": "declared",
+    "userAccepted": true,
+    "semantics": "title-edition-union; no same-stream/playback/language guarantee",
+    "scope": "reviewed-fase2b-97:movie-only,62generic-hdr+22hdr10plus+14atmos+2dv",
+    "snapshotSha256": "957276a180fe06f41a0ebd183f78e20a3ea21c70271a03659050835225f074fd"
+  },
+  "tt0047478": {
+    "source": "torrentio",
+    "observedAt": "2026-10-31T15:38:29.920Z",
+    "declared": {
+      "quality": "4K",
+      "formats": [
+        "hdr",
+        "dv"
+      ]
+    },
+    "added": [
+      "hdr"
+    ],
+    "decision": "mutated",
+    "classification": "movie",
+    "movieResults": 1,
+    "tvResults": 0,
+    "verification": "declared",
+    "userAccepted": true,
+    "semantics": "title-edition-union; no same-stream/playback/language guarantee",
+    "scope": "reviewed-fase2b-97:movie-only,62generic-hdr+22hdr10plus+14atmos+2dv",
+    "snapshotSha256": "957276a180fe06f41a0ebd183f78e20a3ea21c70271a03659050835225f074fd"
+  },
+  "tt0078748": {
+    "source": "torrentio",
+    "observedAt": "2026-10-31T15:39:08.058Z",
+    "declared": {
+      "quality": "4K",
+      "formats": [
+        "dv"
+      ]
+    },
+    "added": [
+      "dv"
+    ],
+    "decision": "mutated",
+    "classification": "movie",
+    "movieResults": 1,
+    "tvResults": 0,
+    "verification": "declared",
+    "userAccepted": true,
+    "semantics": "title-edition-union; no same-stream/playback/language guarantee",
+    "scope": "reviewed-fase2b-97:movie-only,62generic-hdr+22hdr10plus+14atmos+2dv",
+    "snapshotSha256": "957276a180fe06f41a0ebd183f78e20a3ea21c70271a03659050835225f074fd"
+  },
+  "tt0080339": {
+    "source": "torrentio",
+    "observedAt": "2026-10-31T15:39:12.537Z",
+    "declared": {
+      "quality": "4K",
+      "formats": [
+        "hdr",
+        "dv"
+      ]
+    },
+    "added": [
+      "hdr"
+    ],
+    "decision": "mutated",
+    "classification": "movie",
+    "movieResults": 1,
+    "tvResults": 0,
+    "verification": "declared",
+    "userAccepted": true,
+    "semantics": "title-edition-union; no same-stream/playback/language guarantee",
+    "scope": "reviewed-fase2b-97:movie-only,62generic-hdr+22hdr10plus+14atmos+2dv",
+    "snapshotSha256": "957276a180fe06f41a0ebd183f78e20a3ea21c70271a03659050835225f074fd"
+  },
+  "tt0082979": {
+    "source": "torrentio",
+    "observedAt": "2026-10-31T15:40:03.612Z",
+    "declared": {
+      "quality": "4K",
+      "formats": [
+        "hdr10plus",
+        "dv"
+      ]
+    },
+    "added": [
+      "hdr10plus"
+    ],
+    "decision": "mutated",
+    "classification": "movie",
+    "movieResults": 1,
+    "tvResults": 0,
+    "verification": "declared",
+    "userAccepted": true,
+    "semantics": "title-edition-union; no same-stream/playback/language guarantee",
+    "scope": "reviewed-fase2b-97:movie-only,62generic-hdr+22hdr10plus+14atmos+2dv",
+    "snapshotSha256": "957276a180fe06f41a0ebd183f78e20a3ea21c70271a03659050835225f074fd"
+  },
+  "tt0084434": {
+    "source": "torrentio",
+    "observedAt": "2026-10-31T15:40:28.006Z",
+    "declared": {
+      "quality": "4K",
+      "formats": [
+        "hdr",
+        "dv"
+      ]
+    },
+    "added": [
+      "hdr"
+    ],
+    "decision": "mutated",
+    "classification": "movie",
+    "movieResults": 1,
+    "tvResults": 0,
+    "verification": "declared",
+    "userAccepted": true,
+    "semantics": "title-edition-union; no same-stream/playback/language guarantee",
+    "scope": "reviewed-fase2b-97:movie-only,62generic-hdr+22hdr10plus+14atmos+2dv",
+    "snapshotSha256": "957276a180fe06f41a0ebd183f78e20a3ea21c70271a03659050835225f074fd"
+  },
+  "tt0084516": {
+    "source": "torrentio",
+    "observedAt": "2026-10-31T15:40:30.209Z",
+    "declared": {
+      "quality": "4K",
+      "formats": [
+        "hdr",
+        "dv"
+      ]
+    },
+    "added": [
+      "hdr"
+    ],
+    "decision": "mutated",
+    "classification": "movie",
+    "movieResults": 1,
+    "tvResults": 0,
+    "verification": "declared",
+    "userAccepted": true,
+    "semantics": "title-edition-union; no same-stream/playback/language guarantee",
+    "scope": "reviewed-fase2b-97:movie-only,62generic-hdr+22hdr10plus+14atmos+2dv",
+    "snapshotSha256": "957276a180fe06f41a0ebd183f78e20a3ea21c70271a03659050835225f074fd"
+  },
+  "tt0084649": {
+    "source": "torrentio",
+    "observedAt": "2026-10-31T15:40:32.453Z",
+    "declared": {
+      "quality": "4K",
+      "formats": [
+        "hdr"
+      ]
+    },
+    "added": [
+      "hdr"
+    ],
+    "decision": "mutated",
+    "classification": "movie",
+    "movieResults": 1,
+    "tvResults": 0,
+    "verification": "declared",
+    "userAccepted": true,
+    "semantics": "title-edition-union; no same-stream/playback/language guarantee",
+    "scope": "reviewed-fase2b-97:movie-only,62generic-hdr+22hdr10plus+14atmos+2dv",
+    "snapshotSha256": "957276a180fe06f41a0ebd183f78e20a3ea21c70271a03659050835225f074fd"
+  },
+  "tt0086465": {
+    "source": "torrentio",
+    "observedAt": "2026-10-31T15:41:25.679Z",
+    "declared": {
+      "quality": "4K",
+      "formats": [
+        "hdr10plus",
+        "dv"
+      ]
+    },
+    "added": [
+      "hdr10plus"
+    ],
+    "decision": "mutated",
+    "classification": "movie",
+    "movieResults": 1,
+    "tvResults": 0,
+    "verification": "declared",
+    "userAccepted": true,
+    "semantics": "title-edition-union; no same-stream/playback/language guarantee",
+    "scope": "reviewed-fase2b-97:movie-only,62generic-hdr+22hdr10plus+14atmos+2dv",
+    "snapshotSha256": "957276a180fe06f41a0ebd183f78e20a3ea21c70271a03659050835225f074fd"
+  },
+  "tt0086993": {
+    "source": "torrentio",
+    "observedAt": "2026-10-31T15:41:41.231Z",
+    "declared": {
+      "quality": "4K",
+      "formats": [
+        "hdr"
+      ]
+    },
+    "added": [
+      "hdr"
+    ],
+    "decision": "mutated",
+    "classification": "movie",
+    "movieResults": 1,
+    "tvResults": 0,
+    "verification": "declared",
+    "userAccepted": true,
+    "semantics": "title-edition-union; no same-stream/playback/language guarantee",
+    "scope": "reviewed-fase2b-97:movie-only,62generic-hdr+22hdr10plus+14atmos+2dv",
+    "snapshotSha256": "957276a180fe06f41a0ebd183f78e20a3ea21c70271a03659050835225f074fd"
+  },
+  "tt0087332": {
+    "source": "torrentio",
+    "observedAt": "2026-10-31T15:41:47.847Z",
+    "declared": {
+      "quality": "4K",
+      "formats": [
+        "hdr",
+        "dv",
+        "atmos"
+      ]
+    },
+    "added": [
+      "hdr"
+    ],
+    "decision": "mutated",
+    "classification": "movie",
+    "movieResults": 1,
+    "tvResults": 0,
+    "verification": "declared",
+    "userAccepted": true,
+    "semantics": "title-edition-union; no same-stream/playback/language guarantee",
+    "scope": "reviewed-fase2b-97:movie-only,62generic-hdr+22hdr10plus+14atmos+2dv",
+    "snapshotSha256": "957276a180fe06f41a0ebd183f78e20a3ea21c70271a03659050835225f074fd"
+  },
+  "tt0089006": {
+    "source": "torrentio",
+    "observedAt": "2026-10-31T15:42:29.987Z",
+    "declared": {
+      "quality": "4K",
+      "formats": [
+        "hdr10plus"
+      ]
+    },
+    "added": [
+      "hdr10plus"
+    ],
+    "decision": "mutated",
+    "classification": "movie",
+    "movieResults": 1,
+    "tvResults": 0,
+    "verification": "declared",
+    "userAccepted": true,
+    "semantics": "title-edition-union; no same-stream/playback/language guarantee",
+    "scope": "reviewed-fase2b-97:movie-only,62generic-hdr+22hdr10plus+14atmos+2dv",
+    "snapshotSha256": "957276a180fe06f41a0ebd183f78e20a3ea21c70271a03659050835225f074fd"
+  },
+  "tt0091064": {
+    "source": "torrentio",
+    "observedAt": "2026-10-31T15:43:20.901Z",
+    "declared": {
+      "quality": "4K",
+      "formats": [
+        "hdr"
+      ]
+    },
+    "added": [
+      "hdr"
+    ],
+    "decision": "mutated",
+    "classification": "movie",
+    "movieResults": 1,
+    "tvResults": 0,
+    "verification": "declared",
+    "userAccepted": true,
+    "semantics": "title-edition-union; no same-stream/playback/language guarantee",
+    "scope": "reviewed-fase2b-97:movie-only,62generic-hdr+22hdr10plus+14atmos+2dv",
+    "snapshotSha256": "957276a180fe06f41a0ebd183f78e20a3ea21c70271a03659050835225f074fd"
+  },
+  "tt0091209": {
+    "source": "torrentio",
+    "observedAt": "2026-10-31T15:43:27.568Z",
+    "declared": {
+      "quality": "4K",
+      "formats": [
+        "hdr",
+        "dv"
+      ]
+    },
+    "added": [
+      "hdr"
+    ],
+    "decision": "mutated",
+    "classification": "movie",
+    "movieResults": 1,
+    "tvResults": 0,
+    "verification": "declared",
+    "userAccepted": true,
+    "semantics": "title-edition-union; no same-stream/playback/language guarantee",
+    "scope": "reviewed-fase2b-97:movie-only,62generic-hdr+22hdr10plus+14atmos+2dv",
+    "snapshotSha256": "957276a180fe06f41a0ebd183f78e20a3ea21c70271a03659050835225f074fd"
+  },
+  "tt0091763": {
+    "source": "torrentio",
+    "observedAt": "2026-10-31T15:43:43.103Z",
+    "declared": {
+      "quality": "4K",
+      "formats": [
+        "hdr10plus",
+        "dv",
+        "hdr"
+      ]
+    },
+    "added": [
+      "hdr",
+      "hdr10plus"
+    ],
+    "decision": "mutated",
+    "classification": "movie",
+    "movieResults": 1,
+    "tvResults": 0,
+    "verification": "declared",
+    "userAccepted": true,
+    "semantics": "title-edition-union; no same-stream/playback/language guarantee",
+    "scope": "reviewed-fase2b-97:movie-only,62generic-hdr+22hdr10plus+14atmos+2dv",
+    "snapshotSha256": "957276a180fe06f41a0ebd183f78e20a3ea21c70271a03659050835225f074fd"
+  },
+  "tt0091886": {
+    "source": "torrentio",
+    "observedAt": "2026-10-31T15:43:45.347Z",
+    "declared": {
+      "quality": "4K",
+      "formats": [
+        "hdr",
+        "dv"
+      ]
+    },
+    "added": [
+      "hdr"
+    ],
+    "decision": "mutated",
+    "classification": "movie",
+    "movieResults": 1,
+    "tvResults": 0,
+    "verification": "declared",
+    "userAccepted": true,
+    "semantics": "title-edition-union; no same-stream/playback/language guarantee",
+    "scope": "reviewed-fase2b-97:movie-only,62generic-hdr+22hdr10plus+14atmos+2dv",
+    "snapshotSha256": "957276a180fe06f41a0ebd183f78e20a3ea21c70271a03659050835225f074fd"
+  },
+  "tt0092007": {
+    "source": "torrentio",
+    "observedAt": "2026-10-31T15:43:49.736Z",
+    "declared": {
+      "quality": "4K",
+      "formats": [
+        "hdr"
+      ]
+    },
+    "added": [
+      "hdr"
+    ],
+    "decision": "mutated",
+    "classification": "movie",
+    "movieResults": 1,
+    "tvResults": 0,
+    "verification": "declared",
+    "userAccepted": true,
+    "semantics": "title-edition-union; no same-stream/playback/language guarantee",
+    "scope": "reviewed-fase2b-97:movie-only,62generic-hdr+22hdr10plus+14atmos+2dv",
+    "snapshotSha256": "957276a180fe06f41a0ebd183f78e20a3ea21c70271a03659050835225f074fd"
+  },
+  "tt0093779": {
+    "source": "torrentio",
+    "observedAt": "2026-10-31T15:44:34.035Z",
+    "declared": {
+      "quality": "4K",
+      "formats": [
+        "hdr10plus",
+        "dv"
+      ]
+    },
+    "added": [
+      "hdr10plus"
+    ],
+    "decision": "mutated",
+    "classification": "movie",
+    "movieResults": 1,
+    "tvResults": 0,
+    "verification": "declared",
+    "userAccepted": true,
+    "semantics": "title-edition-union; no same-stream/playback/language guarantee",
+    "scope": "reviewed-fase2b-97:movie-only,62generic-hdr+22hdr10plus+14atmos+2dv",
+    "snapshotSha256": "957276a180fe06f41a0ebd183f78e20a3ea21c70271a03659050835225f074fd"
+  },
+  "tt0093822": {
+    "source": "torrentio",
+    "observedAt": "2026-10-31T15:44:38.467Z",
+    "declared": {
+      "quality": "FHD",
+      "formats": [
+        "hdr"
+      ]
+    },
+    "added": [
+      "hdr"
+    ],
+    "decision": "mutated",
+    "classification": "movie",
+    "movieResults": 1,
+    "tvResults": 0,
+    "verification": "declared",
+    "userAccepted": true,
+    "semantics": "title-edition-union; no same-stream/playback/language guarantee",
+    "scope": "reviewed-fase2b-97:movie-only,62generic-hdr+22hdr10plus+14atmos+2dv",
+    "snapshotSha256": "957276a180fe06f41a0ebd183f78e20a3ea21c70271a03659050835225f074fd"
+  },
+  "tt0097027": {
+    "source": "torrentio",
+    "observedAt": "2026-10-31T15:45:56.155Z",
+    "declared": {
+      "quality": "FHD",
+      "formats": [
+        "hdr"
+      ]
+    },
+    "added": [
+      "hdr"
+    ],
+    "decision": "mutated",
+    "classification": "movie",
+    "movieResults": 1,
+    "tvResults": 0,
+    "verification": "declared",
+    "userAccepted": true,
+    "semantics": "title-edition-union; no same-stream/playback/language guarantee",
+    "scope": "reviewed-fase2b-97:movie-only,62generic-hdr+22hdr10plus+14atmos+2dv",
+    "snapshotSha256": "957276a180fe06f41a0ebd183f78e20a3ea21c70271a03659050835225f074fd"
+  },
+  "tt0097165": {
+    "source": "torrentio",
+    "observedAt": "2026-10-31T15:46:00.601Z",
+    "declared": {
+      "quality": "4K",
+      "formats": [
+        "hdr10plus",
+        "dv"
+      ]
+    },
+    "added": [
+      "hdr10plus"
+    ],
+    "decision": "mutated",
+    "classification": "movie",
+    "movieResults": 1,
+    "tvResults": 0,
+    "verification": "declared",
+    "userAccepted": true,
+    "semantics": "title-edition-union; no same-stream/playback/language guarantee",
+    "scope": "reviewed-fase2b-97:movie-only,62generic-hdr+22hdr10plus+14atmos+2dv",
+    "snapshotSha256": "957276a180fe06f41a0ebd183f78e20a3ea21c70271a03659050835225f074fd"
+  },
+  "tt0101410": {
+    "source": "torrentio",
+    "observedAt": "2026-10-31T15:47:11.588Z",
+    "declared": {
+      "quality": "FHD",
+      "formats": [
+        "hdr"
+      ]
+    },
+    "added": [
+      "hdr"
+    ],
+    "decision": "mutated",
+    "classification": "movie",
+    "movieResults": 1,
+    "tvResults": 0,
+    "verification": "declared",
+    "userAccepted": true,
+    "semantics": "title-edition-union; no same-stream/playback/language guarantee",
+    "scope": "reviewed-fase2b-97:movie-only,62generic-hdr+22hdr10plus+14atmos+2dv",
+    "snapshotSha256": "957276a180fe06f41a0ebd183f78e20a3ea21c70271a03659050835225f074fd"
+  },
+  "tt0101507": {
+    "source": "torrentio",
+    "observedAt": "2026-10-31T15:47:16.023Z",
+    "declared": {
+      "quality": "4K",
+      "formats": [
+        "hdr",
+        "dv",
+        "atmos"
+      ]
+    },
+    "added": [
+      "atmos"
+    ],
+    "decision": "mutated",
+    "classification": "movie",
+    "movieResults": 1,
+    "tvResults": 0,
+    "verification": "declared",
+    "userAccepted": true,
+    "semantics": "title-edition-union; no same-stream/playback/language guarantee",
+    "scope": "reviewed-fase2b-97:movie-only,62generic-hdr+22hdr10plus+14atmos+2dv",
+    "snapshotSha256": "957276a180fe06f41a0ebd183f78e20a3ea21c70271a03659050835225f074fd"
+  },
+  "tt0102975": {
+    "source": "torrentio",
+    "observedAt": "2026-10-31T15:47:36.006Z",
+    "declared": {
+      "quality": "4K",
+      "formats": [
+        "dv",
+        "atmos"
+      ]
+    },
+    "added": [
+      "atmos"
+    ],
+    "decision": "mutated",
+    "classification": "movie",
+    "movieResults": 1,
+    "tvResults": 0,
+    "verification": "declared",
+    "userAccepted": true,
+    "semantics": "title-edition-union; no same-stream/playback/language guarantee",
+    "scope": "reviewed-fase2b-97:movie-only,62generic-hdr+22hdr10plus+14atmos+2dv",
+    "snapshotSha256": "957276a180fe06f41a0ebd183f78e20a3ea21c70271a03659050835225f074fd"
+  },
+  "tt0104694": {
+    "source": "torrentio",
+    "observedAt": "2026-10-31T15:48:00.364Z",
+    "declared": {
+      "quality": "4K",
+      "formats": [
+        "hdr"
+      ]
+    },
+    "added": [
+      "hdr"
+    ],
+    "decision": "mutated",
+    "classification": "movie",
+    "movieResults": 1,
+    "tvResults": 0,
+    "verification": "declared",
+    "userAccepted": true,
+    "semantics": "title-edition-union; no same-stream/playback/language guarantee",
+    "scope": "reviewed-fase2b-97:movie-only,62generic-hdr+22hdr10plus+14atmos+2dv",
+    "snapshotSha256": "957276a180fe06f41a0ebd183f78e20a3ea21c70271a03659050835225f074fd"
+  },
+  "tt0106469": {
+    "source": "torrentio",
+    "observedAt": "2026-10-31T15:48:26.957Z",
+    "declared": {
+      "quality": "4K",
+      "formats": [
+        "hdr",
+        "dv"
+      ]
+    },
+    "added": [
+      "hdr"
+    ],
+    "decision": "mutated",
+    "classification": "movie",
+    "movieResults": 1,
+    "tvResults": 0,
+    "verification": "declared",
+    "userAccepted": true,
+    "semantics": "title-edition-union; no same-stream/playback/language guarantee",
+    "scope": "reviewed-fase2b-97:movie-only,62generic-hdr+22hdr10plus+14atmos+2dv",
+    "snapshotSha256": "957276a180fe06f41a0ebd183f78e20a3ea21c70271a03659050835225f074fd"
+  },
+  "tt0106519": {
+    "source": "torrentio",
+    "observedAt": "2026-10-31T15:48:31.400Z",
+    "declared": {
+      "quality": "4K",
+      "formats": [
+        "hdr10plus",
+        "hdr"
+      ]
+    },
+    "added": [
+      "hdr"
+    ],
+    "decision": "mutated",
+    "classification": "movie",
+    "movieResults": 1,
+    "tvResults": 0,
+    "verification": "declared",
+    "userAccepted": true,
+    "semantics": "title-edition-union; no same-stream/playback/language guarantee",
+    "scope": "reviewed-fase2b-97:movie-only,62generic-hdr+22hdr10plus+14atmos+2dv",
+    "snapshotSha256": "957276a180fe06f41a0ebd183f78e20a3ea21c70271a03659050835225f074fd"
+  },
+  "tt0108052": {
+    "source": "torrentio",
+    "observedAt": "2026-10-31T15:49:06.940Z",
+    "declared": {
+      "quality": "4K",
+      "formats": [
+        "hdr10plus",
+        "dv",
+        "atmos",
+        "hdr"
+      ]
+    },
+    "added": [
+      "hdr10plus"
+    ],
+    "decision": "mutated",
+    "classification": "movie",
+    "movieResults": 1,
+    "tvResults": 0,
+    "verification": "declared",
+    "userAccepted": true,
+    "semantics": "title-edition-union; no same-stream/playback/language guarantee",
+    "scope": "reviewed-fase2b-97:movie-only,62generic-hdr+22hdr10plus+14atmos+2dv",
+    "snapshotSha256": "957276a180fe06f41a0ebd183f78e20a3ea21c70271a03659050835225f074fd"
+  },
+  "tt0110148": {
+    "source": "torrentio",
+    "observedAt": "2026-10-31T15:49:44.644Z",
+    "declared": {
+      "quality": "4K",
+      "formats": [
+        "hdr10plus",
+        "dv"
+      ]
+    },
+    "added": [
+      "hdr10plus"
+    ],
+    "decision": "mutated",
+    "classification": "movie",
+    "movieResults": 1,
+    "tvResults": 0,
+    "verification": "declared",
+    "userAccepted": true,
+    "semantics": "title-edition-union; no same-stream/playback/language guarantee",
+    "scope": "reviewed-fase2b-97:movie-only,62generic-hdr+22hdr10plus+14atmos+2dv",
+    "snapshotSha256": "957276a180fe06f41a0ebd183f78e20a3ea21c70271a03659050835225f074fd"
+  },
+  "tt0110322": {
+    "source": "torrentio",
+    "observedAt": "2026-10-31T15:49:46.888Z",
+    "declared": {
+      "quality": "4K",
+      "formats": [
+        "hdr",
+        "atmos"
+      ]
+    },
+    "added": [
+      "hdr"
+    ],
+    "decision": "mutated",
+    "classification": "movie",
+    "movieResults": 1,
+    "tvResults": 0,
+    "verification": "declared",
+    "userAccepted": true,
+    "semantics": "title-edition-union; no same-stream/playback/language guarantee",
+    "scope": "reviewed-fase2b-97:movie-only,62generic-hdr+22hdr10plus+14atmos+2dv",
+    "snapshotSha256": "957276a180fe06f41a0ebd183f78e20a3ea21c70271a03659050835225f074fd"
+  },
+  "tt0110684": {
+    "source": "torrentio",
+    "observedAt": "2026-10-31T15:49:55.767Z",
+    "declared": {
+      "quality": "4K",
+      "formats": [
+        "dv",
+        "hdr"
+      ]
+    },
+    "added": [
+      "hdr"
+    ],
+    "decision": "mutated",
+    "classification": "movie",
+    "movieResults": 1,
+    "tvResults": 0,
+    "verification": "declared",
+    "userAccepted": true,
+    "semantics": "title-edition-union; no same-stream/playback/language guarantee",
+    "scope": "reviewed-fase2b-97:movie-only,62generic-hdr+22hdr10plus+14atmos+2dv",
+    "snapshotSha256": "957276a180fe06f41a0ebd183f78e20a3ea21c70271a03659050835225f074fd"
+  },
+  "tt0120815": {
+    "source": "torrentio",
+    "observedAt": "2026-10-31T15:53:11.126Z",
+    "declared": {
+      "quality": "4K",
+      "formats": [
+        "hdr"
+      ]
+    },
+    "added": [
+      "hdr"
+    ],
+    "decision": "mutated",
+    "classification": "movie",
+    "movieResults": 1,
+    "tvResults": 0,
+    "verification": "declared",
+    "userAccepted": true,
+    "semantics": "title-edition-union; no same-stream/playback/language guarantee",
+    "scope": "reviewed-fase2b-97:movie-only,62generic-hdr+22hdr10plus+14atmos+2dv",
+    "snapshotSha256": "957276a180fe06f41a0ebd183f78e20a3ea21c70271a03659050835225f074fd"
+  },
+  "tt0129167": {
+    "source": "torrentio",
+    "observedAt": "2026-10-31T15:53:39.917Z",
+    "declared": {
+      "quality": "4K",
+      "formats": [
+        "hdr"
+      ]
+    },
+    "added": [
+      "hdr"
+    ],
+    "decision": "mutated",
+    "classification": "movie",
+    "movieResults": 1,
+    "tvResults": 0,
+    "verification": "declared",
+    "userAccepted": true,
+    "semantics": "title-edition-union; no same-stream/playback/language guarantee",
+    "scope": "reviewed-fase2b-97:movie-only,62generic-hdr+22hdr10plus+14atmos+2dv",
+    "snapshotSha256": "957276a180fe06f41a0ebd183f78e20a3ea21c70271a03659050835225f074fd"
+  },
+  "tt0134119": {
+    "source": "torrentio",
+    "observedAt": "2026-10-31T15:53:51.006Z",
+    "declared": {
+      "quality": "FHD",
+      "formats": [
+        "hdr"
+      ]
+    },
+    "added": [
+      "hdr"
+    ],
+    "decision": "mutated",
+    "classification": "movie",
+    "movieResults": 1,
+    "tvResults": 0,
+    "verification": "declared",
+    "userAccepted": true,
+    "semantics": "title-edition-union; no same-stream/playback/language guarantee",
+    "scope": "reviewed-fase2b-97:movie-only,62generic-hdr+22hdr10plus+14atmos+2dv",
+    "snapshotSha256": "957276a180fe06f41a0ebd183f78e20a3ea21c70271a03659050835225f074fd"
+  },
+  "tt0144117": {
+    "source": "torrentio",
+    "observedAt": "2026-10-31T15:54:03.218Z",
+    "declared": {
+      "quality": "4K",
+      "formats": [
+        "hdr"
+      ]
+    },
+    "added": [
+      "hdr"
+    ],
+    "decision": "mutated",
+    "classification": "movie",
+    "movieResults": 1,
+    "tvResults": 0,
+    "verification": "declared",
+    "userAccepted": true,
+    "semantics": "title-edition-union; no same-stream/playback/language guarantee",
+    "scope": "reviewed-fase2b-97:movie-only,62generic-hdr+22hdr10plus+14atmos+2dv",
+    "snapshotSha256": "957276a180fe06f41a0ebd183f78e20a3ea21c70271a03659050835225f074fd"
+  },
+  "tt0264616": {
+    "source": "torrentio",
+    "observedAt": "2026-10-31T15:56:17.505Z",
+    "declared": {
+      "quality": "4K",
+      "formats": [
+        "dv",
+        "atmos"
+      ]
+    },
+    "added": [
+      "atmos"
+    ],
+    "decision": "mutated",
+    "classification": "movie",
+    "movieResults": 1,
+    "tvResults": 0,
+    "verification": "declared",
+    "userAccepted": true,
+    "semantics": "title-edition-union; no same-stream/playback/language guarantee",
+    "scope": "reviewed-fase2b-97:movie-only,62generic-hdr+22hdr10plus+14atmos+2dv",
+    "snapshotSha256": "957276a180fe06f41a0ebd183f78e20a3ea21c70271a03659050835225f074fd"
+  },
+  "tt0268978": {
+    "source": "torrentio",
+    "observedAt": "2026-10-31T15:56:37.401Z",
+    "declared": {
+      "quality": "4K",
+      "formats": [
+        "hdr10plus",
+        "dv"
+      ]
+    },
+    "added": [
+      "hdr10plus"
+    ],
+    "decision": "mutated",
+    "classification": "movie",
+    "movieResults": 1,
+    "tvResults": 0,
+    "verification": "declared",
+    "userAccepted": true,
+    "semantics": "title-edition-union; no same-stream/playback/language guarantee",
+    "scope": "reviewed-fase2b-97:movie-only,62generic-hdr+22hdr10plus+14atmos+2dv",
+    "snapshotSha256": "957276a180fe06f41a0ebd183f78e20a3ea21c70271a03659050835225f074fd"
+  },
+  "tt0275847": {
+    "source": "torrentio",
+    "observedAt": "2026-10-31T15:56:44.093Z",
+    "declared": {
+      "quality": "4K",
+      "formats": [
+        "hdr",
+        "dv",
+        "atmos"
+      ]
+    },
+    "added": [
+      "atmos"
+    ],
+    "decision": "mutated",
+    "classification": "movie",
+    "movieResults": 1,
+    "tvResults": 0,
+    "verification": "declared",
+    "userAccepted": true,
+    "semantics": "title-edition-union; no same-stream/playback/language guarantee",
+    "scope": "reviewed-fase2b-97:movie-only,62generic-hdr+22hdr10plus+14atmos+2dv",
+    "snapshotSha256": "957276a180fe06f41a0ebd183f78e20a3ea21c70271a03659050835225f074fd"
+  },
+  "tt0318627": {
+    "source": "torrentio",
+    "observedAt": "2026-10-31T15:57:50.697Z",
+    "declared": {
+      "quality": "4K",
+      "formats": [
+        "hdr10plus",
+        "dv"
+      ]
+    },
+    "added": [
+      "hdr10plus"
+    ],
+    "decision": "mutated",
+    "classification": "movie",
+    "movieResults": 1,
+    "tvResults": 0,
+    "verification": "declared",
+    "userAccepted": true,
+    "semantics": "title-edition-union; no same-stream/playback/language guarantee",
+    "scope": "reviewed-fase2b-97:movie-only,62generic-hdr+22hdr10plus+14atmos+2dv",
+    "snapshotSha256": "957276a180fe06f41a0ebd183f78e20a3ea21c70271a03659050835225f074fd"
+  },
+  "tt0325980": {
+    "source": "torrentio",
+    "observedAt": "2026-10-31T15:57:59.560Z",
+    "declared": {
+      "quality": "4K",
+      "formats": [
+        "hdr",
+        "dv"
+      ]
+    },
+    "added": [
+      "hdr"
+    ],
+    "decision": "mutated",
+    "classification": "movie",
+    "movieResults": 1,
+    "tvResults": 0,
+    "verification": "declared",
+    "userAccepted": true,
+    "semantics": "title-edition-union; no same-stream/playback/language guarantee",
+    "scope": "reviewed-fase2b-97:movie-only,62generic-hdr+22hdr10plus+14atmos+2dv",
+    "snapshotSha256": "957276a180fe06f41a0ebd183f78e20a3ea21c70271a03659050835225f074fd"
+  },
+  "tt0328107": {
+    "source": "torrentio",
+    "observedAt": "2026-10-31T15:58:08.432Z",
+    "declared": {
+      "quality": "4K",
+      "formats": [
+        "hdr"
+      ]
+    },
+    "added": [
+      "hdr"
+    ],
+    "decision": "mutated",
+    "classification": "movie",
+    "movieResults": 1,
+    "tvResults": 0,
+    "verification": "declared",
+    "userAccepted": true,
+    "semantics": "title-edition-union; no same-stream/playback/language guarantee",
+    "scope": "reviewed-fase2b-97:movie-only,62generic-hdr+22hdr10plus+14atmos+2dv",
+    "snapshotSha256": "957276a180fe06f41a0ebd183f78e20a3ea21c70271a03659050835225f074fd"
+  },
+  "tt0338013": {
+    "source": "torrentio",
+    "observedAt": "2026-10-31T15:58:21.787Z",
+    "declared": {
+      "quality": "4K",
+      "formats": [
+        "hdr",
+        "dv"
+      ]
+    },
+    "added": [
+      "hdr"
+    ],
+    "decision": "mutated",
+    "classification": "movie",
+    "movieResults": 1,
+    "tvResults": 0,
+    "verification": "declared",
+    "userAccepted": true,
+    "semantics": "title-edition-union; no same-stream/playback/language guarantee",
+    "scope": "reviewed-fase2b-97:movie-only,62generic-hdr+22hdr10plus+14atmos+2dv",
+    "snapshotSha256": "957276a180fe06f41a0ebd183f78e20a3ea21c70271a03659050835225f074fd"
+  },
+  "tt0369610": {
+    "source": "torrentio",
+    "observedAt": "2026-10-31T15:58:57.284Z",
+    "declared": {
+      "quality": "4K",
+      "formats": [
+        "hdr",
+        "dv",
+        "atmos"
+      ]
+    },
+    "added": [
+      "hdr"
+    ],
+    "decision": "mutated",
+    "classification": "movie",
+    "movieResults": 1,
+    "tvResults": 0,
+    "verification": "declared",
+    "userAccepted": true,
+    "semantics": "title-edition-union; no same-stream/playback/language guarantee",
+    "scope": "reviewed-fase2b-97:movie-only,62generic-hdr+22hdr10plus+14atmos+2dv",
+    "snapshotSha256": "957276a180fe06f41a0ebd183f78e20a3ea21c70271a03659050835225f074fd"
+  },
+  "tt0401792": {
+    "source": "torrentio",
+    "observedAt": "2026-10-31T16:00:01.561Z",
+    "declared": {
+      "quality": "4K",
+      "formats": [
+        "hdr",
+        "dv"
+      ]
+    },
+    "added": [
+      "hdr"
+    ],
+    "decision": "mutated",
+    "classification": "movie",
+    "movieResults": 1,
+    "tvResults": 0,
+    "verification": "declared",
+    "userAccepted": true,
+    "semantics": "title-edition-union; no same-stream/playback/language guarantee",
+    "scope": "reviewed-fase2b-97:movie-only,62generic-hdr+22hdr10plus+14atmos+2dv",
+    "snapshotSha256": "957276a180fe06f41a0ebd183f78e20a3ea21c70271a03659050835225f074fd"
+  },
+  "tt0405159": {
+    "source": "torrentio",
+    "observedAt": "2026-10-31T16:00:08.205Z",
+    "declared": {
+      "quality": "4K",
+      "formats": [
+        "hdr"
+      ]
+    },
+    "added": [
+      "hdr"
+    ],
+    "decision": "mutated",
+    "classification": "movie",
+    "movieResults": 1,
+    "tvResults": 0,
+    "verification": "declared",
+    "userAccepted": true,
+    "semantics": "title-edition-union; no same-stream/playback/language guarantee",
+    "scope": "reviewed-fase2b-97:movie-only,62generic-hdr+22hdr10plus+14atmos+2dv",
+    "snapshotSha256": "957276a180fe06f41a0ebd183f78e20a3ea21c70271a03659050835225f074fd"
+  },
+  "tt0449088": {
+    "source": "torrentio",
+    "observedAt": "2026-10-31T16:01:25.894Z",
+    "declared": {
+      "quality": "4K",
+      "formats": [
+        "hdr"
+      ]
+    },
+    "added": [
+      "hdr"
+    ],
+    "decision": "mutated",
+    "classification": "movie",
+    "movieResults": 1,
+    "tvResults": 0,
+    "verification": "declared",
+    "userAccepted": true,
+    "semantics": "title-edition-union; no same-stream/playback/language guarantee",
+    "scope": "reviewed-fase2b-97:movie-only,62generic-hdr+22hdr10plus+14atmos+2dv",
+    "snapshotSha256": "957276a180fe06f41a0ebd183f78e20a3ea21c70271a03659050835225f074fd"
+  },
+  "tt0468569": {
+    "source": "torrentio",
+    "observedAt": "2026-10-31T16:02:05.801Z",
+    "declared": {
+      "quality": "4K",
+      "formats": [
+        "dv"
+      ]
+    },
+    "added": [
+      "dv"
+    ],
+    "decision": "mutated",
+    "classification": "movie",
+    "movieResults": 1,
+    "tvResults": 0,
+    "verification": "declared",
+    "userAccepted": true,
+    "semantics": "title-edition-union; no same-stream/playback/language guarantee",
+    "scope": "reviewed-fase2b-97:movie-only,62generic-hdr+22hdr10plus+14atmos+2dv",
+    "snapshotSha256": "957276a180fe06f41a0ebd183f78e20a3ea21c70271a03659050835225f074fd"
+  },
+  "tt0473705": {
+    "source": "torrentio",
+    "observedAt": "2026-10-31T16:02:16.963Z",
+    "declared": {
+      "quality": "FHD",
+      "formats": [
+        "hdr"
+      ]
+    },
+    "added": [
+      "hdr"
+    ],
+    "decision": "mutated",
+    "classification": "movie",
+    "movieResults": 1,
+    "tvResults": 0,
+    "verification": "declared",
+    "userAccepted": true,
+    "semantics": "title-edition-union; no same-stream/playback/language guarantee",
+    "scope": "reviewed-fase2b-97:movie-only,62generic-hdr+22hdr10plus+14atmos+2dv",
+    "snapshotSha256": "957276a180fe06f41a0ebd183f78e20a3ea21c70271a03659050835225f074fd"
+  },
+  "tt0756683": {
+    "source": "torrentio",
+    "observedAt": "2026-10-31T16:02:41.326Z",
+    "declared": {
+      "quality": "FHD",
+      "formats": [
+        "hdr"
+      ]
+    },
+    "added": [
+      "hdr"
+    ],
+    "decision": "mutated",
+    "classification": "movie",
+    "movieResults": 1,
+    "tvResults": 0,
+    "verification": "declared",
+    "userAccepted": true,
+    "semantics": "title-edition-union; no same-stream/playback/language guarantee",
+    "scope": "reviewed-fase2b-97:movie-only,62generic-hdr+22hdr10plus+14atmos+2dv",
+    "snapshotSha256": "957276a180fe06f41a0ebd183f78e20a3ea21c70271a03659050835225f074fd"
+  },
+  "tt0780504": {
+    "source": "torrentio",
+    "observedAt": "2026-10-31T16:02:52.467Z",
+    "declared": {
+      "quality": "4K",
+      "formats": [
+        "hdr",
+        "dv",
+        "atmos"
+      ]
+    },
+    "added": [
+      "atmos"
+    ],
+    "decision": "mutated",
+    "classification": "movie",
+    "movieResults": 1,
+    "tvResults": 0,
+    "verification": "declared",
+    "userAccepted": true,
+    "semantics": "title-edition-union; no same-stream/playback/language guarantee",
+    "scope": "reviewed-fase2b-97:movie-only,62generic-hdr+22hdr10plus+14atmos+2dv",
+    "snapshotSha256": "957276a180fe06f41a0ebd183f78e20a3ea21c70271a03659050835225f074fd"
+  },
+  "tt0887912": {
+    "source": "torrentio",
+    "observedAt": "2026-10-31T16:03:36.836Z",
+    "declared": {
+      "quality": "4K",
+      "formats": [
+        "hdr",
+        "dv",
+        "atmos"
+      ]
+    },
+    "added": [
+      "atmos"
+    ],
+    "decision": "mutated",
+    "classification": "movie",
+    "movieResults": 1,
+    "tvResults": 0,
+    "verification": "declared",
+    "userAccepted": true,
+    "semantics": "title-edition-union; no same-stream/playback/language guarantee",
+    "scope": "reviewed-fase2b-97:movie-only,62generic-hdr+22hdr10plus+14atmos+2dv",
+    "snapshotSha256": "957276a180fe06f41a0ebd183f78e20a3ea21c70271a03659050835225f074fd"
+  },
+  "tt10374610": {
+    "source": "torrentio",
+    "observedAt": "2026-10-31T16:04:43.373Z",
+    "declared": {
+      "quality": "4K",
+      "formats": [
+        "hdr",
+        "dv",
+        "atmos"
+      ]
+    },
+    "added": [
+      "hdr"
+    ],
+    "decision": "mutated",
+    "classification": "movie",
+    "movieResults": 1,
+    "tvResults": 0,
+    "verification": "declared",
+    "userAccepted": true,
+    "semantics": "title-edition-union; no same-stream/playback/language guarantee",
+    "scope": "reviewed-fase2b-97:movie-only,62generic-hdr+22hdr10plus+14atmos+2dv",
+    "snapshotSha256": "957276a180fe06f41a0ebd183f78e20a3ea21c70271a03659050835225f074fd"
+  },
+  "tt1070874": {
+    "source": "torrentio",
+    "observedAt": "2026-10-31T16:05:18.752Z",
+    "declared": {
+      "quality": "4K",
+      "formats": [
+        "hdr",
+        "dv"
+      ]
+    },
+    "added": [
+      "hdr"
+    ],
+    "decision": "mutated",
+    "classification": "movie",
+    "movieResults": 1,
+    "tvResults": 0,
+    "verification": "declared",
+    "userAccepted": true,
+    "semantics": "title-edition-union; no same-stream/playback/language guarantee",
+    "scope": "reviewed-fase2b-97:movie-only,62generic-hdr+22hdr10plus+14atmos+2dv",
+    "snapshotSha256": "957276a180fe06f41a0ebd183f78e20a3ea21c70271a03659050835225f074fd"
+  },
+  "tt10794054": {
+    "source": "torrentio",
+    "observedAt": "2026-10-31T16:05:29.837Z",
+    "declared": {
+      "quality": "4K",
+      "formats": [
+        "hdr10plus",
+        "dv"
+      ]
+    },
+    "added": [
+      "hdr10plus"
+    ],
+    "decision": "mutated",
+    "classification": "movie",
+    "movieResults": 1,
+    "tvResults": 0,
+    "verification": "declared",
+    "userAccepted": true,
+    "semantics": "title-edition-union; no same-stream/playback/language guarantee",
+    "scope": "reviewed-fase2b-97:movie-only,62generic-hdr+22hdr10plus+14atmos+2dv",
+    "snapshotSha256": "957276a180fe06f41a0ebd183f78e20a3ea21c70271a03659050835225f074fd"
+  },
+  "tt11161474": {
+    "source": "torrentio",
+    "observedAt": "2026-10-31T16:06:05.360Z",
+    "declared": {
+      "quality": "4K",
+      "formats": [
+        "hdr"
+      ]
+    },
+    "added": [
+      "hdr"
+    ],
+    "decision": "mutated",
+    "classification": "movie",
+    "movieResults": 1,
+    "tvResults": 0,
+    "verification": "declared",
+    "userAccepted": true,
+    "semantics": "title-edition-union; no same-stream/playback/language guarantee",
+    "scope": "reviewed-fase2b-97:movie-only,62generic-hdr+22hdr10plus+14atmos+2dv",
+    "snapshotSha256": "957276a180fe06f41a0ebd183f78e20a3ea21c70271a03659050835225f074fd"
+  },
+  "tt11198810": {
+    "source": "torrentio",
+    "observedAt": "2026-10-31T16:06:10.881Z",
+    "declared": {
+      "quality": "4K",
+      "formats": [
+        "hdr",
+        "dv",
+        "atmos"
+      ]
+    },
+    "added": [
+      "hdr"
+    ],
+    "decision": "mutated",
+    "classification": "movie",
+    "movieResults": 1,
+    "tvResults": 0,
+    "verification": "declared",
+    "userAccepted": true,
+    "semantics": "title-edition-union; no same-stream/playback/language guarantee",
+    "scope": "reviewed-fase2b-97:movie-only,62generic-hdr+22hdr10plus+14atmos+2dv",
+    "snapshotSha256": "957276a180fe06f41a0ebd183f78e20a3ea21c70271a03659050835225f074fd"
+  },
+  "tt11655566": {
+    "source": "torrentio",
+    "observedAt": "2026-10-31T16:07:10.773Z",
+    "declared": {
+      "quality": "4K",
+      "formats": [
+        "dv",
+        "hdr"
+      ]
+    },
+    "added": [
+      "hdr"
+    ],
+    "decision": "mutated",
+    "classification": "movie",
+    "movieResults": 1,
+    "tvResults": 0,
+    "verification": "declared",
+    "userAccepted": true,
+    "semantics": "title-edition-union; no same-stream/playback/language guarantee",
+    "scope": "reviewed-fase2b-97:movie-only,62generic-hdr+22hdr10plus+14atmos+2dv",
+    "snapshotSha256": "957276a180fe06f41a0ebd183f78e20a3ea21c70271a03659050835225f074fd"
+  },
+  "tt11657662": {
+    "source": "torrentio",
+    "observedAt": "2026-10-31T16:07:12.992Z",
+    "declared": {
+      "quality": "FHD",
+      "formats": [
+        "hdr",
+        "atmos"
+      ]
+    },
+    "added": [
+      "hdr"
+    ],
+    "decision": "mutated",
+    "classification": "movie",
+    "movieResults": 1,
+    "tvResults": 0,
+    "verification": "declared",
+    "userAccepted": true,
+    "semantics": "title-edition-union; no same-stream/playback/language guarantee",
+    "scope": "reviewed-fase2b-97:movie-only,62generic-hdr+22hdr10plus+14atmos+2dv",
+    "snapshotSha256": "957276a180fe06f41a0ebd183f78e20a3ea21c70271a03659050835225f074fd"
+  },
+  "tt12300742": {
+    "source": "torrentio",
+    "observedAt": "2026-10-31T16:08:10.640Z",
+    "declared": {
+      "quality": "4K",
+      "formats": [
+        "hdr",
+        "dv",
+        "atmos"
+      ]
+    },
+    "added": [
+      "hdr"
+    ],
+    "decision": "mutated",
+    "classification": "movie",
+    "movieResults": 1,
+    "tvResults": 0,
+    "verification": "declared",
+    "userAccepted": true,
+    "semantics": "title-edition-union; no same-stream/playback/language guarantee",
+    "scope": "reviewed-fase2b-97:movie-only,62generic-hdr+22hdr10plus+14atmos+2dv",
+    "snapshotSha256": "957276a180fe06f41a0ebd183f78e20a3ea21c70271a03659050835225f074fd"
+  },
+  "tt12789558": {
+    "source": "torrentio",
+    "observedAt": "2026-10-31T16:08:49.442Z",
+    "declared": {
+      "quality": "4K",
+      "formats": [
+        "hdr",
+        "hdr10plus"
+      ]
+    },
+    "added": [
+      "hdr",
+      "hdr10plus"
+    ],
+    "decision": "mutated",
+    "classification": "movie",
+    "movieResults": 1,
+    "tvResults": 0,
+    "verification": "declared",
+    "userAccepted": true,
+    "semantics": "title-edition-union; no same-stream/playback/language guarantee",
+    "scope": "reviewed-fase2b-97:movie-only,62generic-hdr+22hdr10plus+14atmos+2dv",
+    "snapshotSha256": "957276a180fe06f41a0ebd183f78e20a3ea21c70271a03659050835225f074fd"
+  },
+  "tt1343727": {
+    "source": "torrentio",
+    "observedAt": "2026-10-31T16:09:46.973Z",
+    "declared": {
+      "quality": "4K",
+      "formats": [
+        "dv",
+        "atmos"
+      ]
+    },
+    "added": [
+      "atmos"
+    ],
+    "decision": "mutated",
+    "classification": "movie",
+    "movieResults": 1,
+    "tvResults": 0,
+    "verification": "declared",
+    "userAccepted": true,
+    "semantics": "title-edition-union; no same-stream/playback/language guarantee",
+    "scope": "reviewed-fase2b-97:movie-only,62generic-hdr+22hdr10plus+14atmos+2dv",
+    "snapshotSha256": "957276a180fe06f41a0ebd183f78e20a3ea21c70271a03659050835225f074fd"
+  },
+  "tt1392170": {
+    "source": "torrentio",
+    "observedAt": "2026-10-31T16:10:11.377Z",
+    "declared": {
+      "quality": "4K",
+      "formats": [
+        "hdr",
+        "atmos"
+      ]
+    },
+    "added": [
+      "atmos"
+    ],
+    "decision": "mutated",
+    "classification": "movie",
+    "movieResults": 1,
+    "tvResults": 0,
+    "verification": "declared",
+    "userAccepted": true,
+    "semantics": "title-edition-union; no same-stream/playback/language guarantee",
+    "scope": "reviewed-fase2b-97:movie-only,62generic-hdr+22hdr10plus+14atmos+2dv",
+    "snapshotSha256": "957276a180fe06f41a0ebd183f78e20a3ea21c70271a03659050835225f074fd"
+  },
+  "tt14168118": {
+    "source": "torrentio",
+    "observedAt": "2026-10-31T16:10:42.508Z",
+    "declared": {
+      "quality": "4K",
+      "formats": [
+        "hdr",
+        "dv",
+        "atmos"
+      ]
+    },
+    "added": [
+      "hdr"
+    ],
+    "decision": "mutated",
+    "classification": "movie",
+    "movieResults": 1,
+    "tvResults": 0,
+    "verification": "declared",
+    "userAccepted": true,
+    "semantics": "title-edition-union; no same-stream/playback/language guarantee",
+    "scope": "reviewed-fase2b-97:movie-only,62generic-hdr+22hdr10plus+14atmos+2dv",
+    "snapshotSha256": "957276a180fe06f41a0ebd183f78e20a3ea21c70271a03659050835225f074fd"
+  },
+  "tt14208870": {
+    "source": "torrentio",
+    "observedAt": "2026-10-31T16:10:49.154Z",
+    "declared": {
+      "quality": "4K",
+      "formats": [
+        "dv",
+        "hdr"
+      ]
+    },
+    "added": [
+      "hdr"
+    ],
+    "decision": "mutated",
+    "classification": "movie",
+    "movieResults": 1,
+    "tvResults": 0,
+    "verification": "declared",
+    "userAccepted": true,
+    "semantics": "title-edition-union; no same-stream/playback/language guarantee",
+    "scope": "reviewed-fase2b-97:movie-only,62generic-hdr+22hdr10plus+14atmos+2dv",
+    "snapshotSha256": "957276a180fe06f41a0ebd183f78e20a3ea21c70271a03659050835225f074fd"
+  },
+  "tt1535109": {
+    "source": "torrentio",
+    "observedAt": "2026-10-31T16:12:11.246Z",
+    "declared": {
+      "quality": "4K",
+      "formats": [
+        "hdr",
+        "dv"
+      ]
+    },
+    "added": [
+      "hdr"
+    ],
+    "decision": "mutated",
+    "classification": "movie",
+    "movieResults": 1,
+    "tvResults": 0,
+    "verification": "declared",
+    "userAccepted": true,
+    "semantics": "title-edition-union; no same-stream/playback/language guarantee",
+    "scope": "reviewed-fase2b-97:movie-only,62generic-hdr+22hdr10plus+14atmos+2dv",
+    "snapshotSha256": "957276a180fe06f41a0ebd183f78e20a3ea21c70271a03659050835225f074fd"
+  },
+  "tt1663202": {
+    "source": "torrentio",
+    "observedAt": "2026-10-31T16:13:04.505Z",
+    "declared": {
+      "quality": "4K",
+      "formats": [
+        "hdr10plus"
+      ]
+    },
+    "added": [
+      "hdr10plus"
+    ],
+    "decision": "mutated",
+    "classification": "movie",
+    "movieResults": 1,
+    "tvResults": 0,
+    "verification": "declared",
+    "userAccepted": true,
+    "semantics": "title-edition-union; no same-stream/playback/language guarantee",
+    "scope": "reviewed-fase2b-97:movie-only,62generic-hdr+22hdr10plus+14atmos+2dv",
+    "snapshotSha256": "957276a180fe06f41a0ebd183f78e20a3ea21c70271a03659050835225f074fd"
+  },
+  "tt1756855": {
+    "source": "torrentio",
+    "observedAt": "2026-10-31T16:13:46.622Z",
+    "declared": {
+      "quality": "4K",
+      "formats": [
+        "hdr10plus",
+        "dv",
+        "atmos"
+      ]
+    },
+    "added": [
+      "hdr10plus"
+    ],
+    "decision": "mutated",
+    "classification": "movie",
+    "movieResults": 1,
+    "tvResults": 0,
+    "verification": "declared",
+    "userAccepted": true,
+    "semantics": "title-edition-union; no same-stream/playback/language guarantee",
+    "scope": "reviewed-fase2b-97:movie-only,62generic-hdr+22hdr10plus+14atmos+2dv",
+    "snapshotSha256": "957276a180fe06f41a0ebd183f78e20a3ea21c70271a03659050835225f074fd"
+  },
+  "tt1951264": {
+    "source": "torrentio",
+    "observedAt": "2026-10-31T16:14:47.590Z",
+    "declared": {
+      "quality": "4K",
+      "formats": [
+        "dv",
+        "atmos",
+        "hdr"
+      ]
+    },
+    "added": [
+      "atmos"
+    ],
+    "decision": "mutated",
+    "classification": "movie",
+    "movieResults": 1,
+    "tvResults": 0,
+    "verification": "declared",
+    "userAccepted": true,
+    "semantics": "title-edition-union; no same-stream/playback/language guarantee",
+    "scope": "reviewed-fase2b-97:movie-only,62generic-hdr+22hdr10plus+14atmos+2dv",
+    "snapshotSha256": "957276a180fe06f41a0ebd183f78e20a3ea21c70271a03659050835225f074fd"
+  },
+  "tt1951265": {
+    "source": "torrentio",
+    "observedAt": "2026-10-31T16:14:49.816Z",
+    "declared": {
+      "quality": "4K",
+      "formats": [
+        "hdr",
+        "atmos"
+      ]
+    },
+    "added": [
+      "atmos"
+    ],
+    "decision": "mutated",
+    "classification": "movie",
+    "movieResults": 1,
+    "tvResults": 0,
+    "verification": "declared",
+    "userAccepted": true,
+    "semantics": "title-edition-union; no same-stream/playback/language guarantee",
+    "scope": "reviewed-fase2b-97:movie-only,62generic-hdr+22hdr10plus+14atmos+2dv",
+    "snapshotSha256": "957276a180fe06f41a0ebd183f78e20a3ea21c70271a03659050835225f074fd"
+  },
+  "tt1951266": {
+    "source": "torrentio",
+    "observedAt": "2026-10-31T16:14:52.041Z",
+    "declared": {
+      "quality": "4K",
+      "formats": [
+        "dv",
+        "atmos",
+        "hdr"
+      ]
+    },
+    "added": [
+      "atmos"
+    ],
+    "decision": "mutated",
+    "classification": "movie",
+    "movieResults": 1,
+    "tvResults": 0,
+    "verification": "declared",
+    "userAccepted": true,
+    "semantics": "title-edition-union; no same-stream/playback/language guarantee",
+    "scope": "reviewed-fase2b-97:movie-only,62generic-hdr+22hdr10plus+14atmos+2dv",
+    "snapshotSha256": "957276a180fe06f41a0ebd183f78e20a3ea21c70271a03659050835225f074fd"
+  },
+  "tt2053463": {
+    "source": "torrentio",
+    "observedAt": "2026-10-31T16:15:20.831Z",
+    "declared": {
+      "quality": "4K",
+      "formats": [
+        "hdr"
+      ]
+    },
+    "added": [
+      "hdr"
+    ],
+    "decision": "mutated",
+    "classification": "movie",
+    "movieResults": 1,
+    "tvResults": 0,
+    "verification": "declared",
+    "userAccepted": true,
+    "semantics": "title-edition-union; no same-stream/playback/language guarantee",
+    "scope": "reviewed-fase2b-97:movie-only,62generic-hdr+22hdr10plus+14atmos+2dv",
+    "snapshotSha256": "957276a180fe06f41a0ebd183f78e20a3ea21c70271a03659050835225f074fd"
+  },
+  "tt21285562": {
+    "source": "torrentio",
+    "observedAt": "2026-10-31T16:15:54.099Z",
+    "declared": {
+      "quality": "4K",
+      "formats": [
+        "hdr10plus",
+        "dv"
+      ]
+    },
+    "added": [
+      "hdr10plus"
+    ],
+    "decision": "mutated",
+    "classification": "movie",
+    "movieResults": 1,
+    "tvResults": 0,
+    "verification": "declared",
+    "userAccepted": true,
+    "semantics": "title-edition-union; no same-stream/playback/language guarantee",
+    "scope": "reviewed-fase2b-97:movie-only,62generic-hdr+22hdr10plus+14atmos+2dv",
+    "snapshotSha256": "957276a180fe06f41a0ebd183f78e20a3ea21c70271a03659050835225f074fd"
+  },
+  "tt22084616": {
+    "source": "torrentio",
+    "observedAt": "2026-10-31T16:16:09.592Z",
+    "declared": {
+      "quality": "4K",
+      "formats": [
+        "hdr"
+      ]
+    },
+    "added": [
+      "hdr"
+    ],
+    "decision": "mutated",
+    "classification": "movie",
+    "movieResults": 1,
+    "tvResults": 0,
+    "verification": "declared",
+    "userAccepted": true,
+    "semantics": "title-edition-union; no same-stream/playback/language guarantee",
+    "scope": "reviewed-fase2b-97:movie-only,62generic-hdr+22hdr10plus+14atmos+2dv",
+    "snapshotSha256": "957276a180fe06f41a0ebd183f78e20a3ea21c70271a03659050835225f074fd"
+  },
+  "tt2245084": {
+    "source": "torrentio",
+    "observedAt": "2026-10-31T16:16:18.431Z",
+    "declared": {
+      "quality": "4K",
+      "formats": [
+        "hdr"
+      ]
+    },
+    "added": [
+      "hdr"
+    ],
+    "decision": "mutated",
+    "classification": "movie",
+    "movieResults": 1,
+    "tvResults": 0,
+    "verification": "declared",
+    "userAccepted": true,
+    "semantics": "title-edition-union; no same-stream/playback/language guarantee",
+    "scope": "reviewed-fase2b-97:movie-only,62generic-hdr+22hdr10plus+14atmos+2dv",
+    "snapshotSha256": "957276a180fe06f41a0ebd183f78e20a3ea21c70271a03659050835225f074fd"
+  },
+  "tt2294629": {
+    "source": "torrentio",
+    "observedAt": "2026-10-31T16:16:36.124Z",
+    "declared": {
+      "quality": "4K",
+      "formats": [
+        "dv",
+        "atmos"
+      ]
+    },
+    "added": [
+      "atmos"
+    ],
+    "decision": "mutated",
+    "classification": "movie",
+    "movieResults": 1,
+    "tvResults": 0,
+    "verification": "declared",
+    "userAccepted": true,
+    "semantics": "title-edition-union; no same-stream/playback/language guarantee",
+    "scope": "reviewed-fase2b-97:movie-only,62generic-hdr+22hdr10plus+14atmos+2dv",
+    "snapshotSha256": "957276a180fe06f41a0ebd183f78e20a3ea21c70271a03659050835225f074fd"
+  },
+  "tt2359024": {
+    "source": "torrentio",
+    "observedAt": "2026-10-31T16:16:51.598Z",
+    "declared": {
+      "quality": "FHD",
+      "formats": [
+        "hdr"
+      ]
+    },
+    "added": [
+      "hdr"
+    ],
+    "decision": "mutated",
+    "classification": "movie",
+    "movieResults": 1,
+    "tvResults": 0,
+    "verification": "declared",
+    "userAccepted": true,
+    "semantics": "title-edition-union; no same-stream/playback/language guarantee",
+    "scope": "reviewed-fase2b-97:movie-only,62generic-hdr+22hdr10plus+14atmos+2dv",
+    "snapshotSha256": "957276a180fe06f41a0ebd183f78e20a3ea21c70271a03659050835225f074fd"
+  },
+  "tt2567712": {
+    "source": "torrentio",
+    "observedAt": "2026-10-31T16:17:27.096Z",
+    "declared": {
+      "quality": "FHD",
+      "formats": [
+        "hdr"
+      ]
+    },
+    "added": [
+      "hdr"
+    ],
+    "decision": "mutated",
+    "classification": "movie",
+    "movieResults": 1,
+    "tvResults": 0,
+    "verification": "declared",
+    "userAccepted": true,
+    "semantics": "title-edition-union; no same-stream/playback/language guarantee",
+    "scope": "reviewed-fase2b-97:movie-only,62generic-hdr+22hdr10plus+14atmos+2dv",
+    "snapshotSha256": "957276a180fe06f41a0ebd183f78e20a3ea21c70271a03659050835225f074fd"
+  },
+  "tt26581740": {
+    "source": "torrentio",
+    "observedAt": "2026-10-31T16:17:51.320Z",
+    "declared": {
+      "quality": "4K",
+      "formats": [
+        "hdr",
+        "dv",
+        "atmos"
+      ]
+    },
+    "added": [
+      "hdr"
+    ],
+    "decision": "mutated",
+    "classification": "movie",
+    "movieResults": 1,
+    "tvResults": 0,
+    "verification": "declared",
+    "userAccepted": true,
+    "semantics": "title-edition-union; no same-stream/playback/language guarantee",
+    "scope": "reviewed-fase2b-97:movie-only,62generic-hdr+22hdr10plus+14atmos+2dv",
+    "snapshotSha256": "957276a180fe06f41a0ebd183f78e20a3ea21c70271a03659050835225f074fd"
+  },
+  "tt2713180": {
+    "source": "torrentio",
+    "observedAt": "2026-10-31T16:18:06.873Z",
+    "declared": {
+      "quality": "4K",
+      "formats": [
+        "hdr",
+        "dv",
+        "atmos"
+      ]
+    },
+    "added": [
+      "atmos"
+    ],
+    "decision": "mutated",
+    "classification": "movie",
+    "movieResults": 1,
+    "tvResults": 0,
+    "verification": "declared",
+    "userAccepted": true,
+    "semantics": "title-edition-union; no same-stream/playback/language guarantee",
+    "scope": "reviewed-fase2b-97:movie-only,62generic-hdr+22hdr10plus+14atmos+2dv",
+    "snapshotSha256": "957276a180fe06f41a0ebd183f78e20a3ea21c70271a03659050835225f074fd"
+  },
+  "tt28491891": {
+    "source": "torrentio",
+    "observedAt": "2026-10-31T16:18:51.256Z",
+    "declared": {
+      "quality": "4K",
+      "formats": [
+        "hdr",
+        "dv"
+      ]
+    },
+    "added": [
+      "hdr"
+    ],
+    "decision": "mutated",
+    "classification": "movie",
+    "movieResults": 1,
+    "tvResults": 0,
+    "verification": "declared",
+    "userAccepted": true,
+    "semantics": "title-edition-union; no same-stream/playback/language guarantee",
+    "scope": "reviewed-fase2b-97:movie-only,62generic-hdr+22hdr10plus+14atmos+2dv",
+    "snapshotSha256": "957276a180fe06f41a0ebd183f78e20a3ea21c70271a03659050835225f074fd"
+  },
+  "tt31189814": {
+    "source": "torrentio",
+    "observedAt": "2026-10-31T16:20:01.166Z",
+    "declared": {
+      "quality": "4K",
+      "formats": [
+        "hdr",
+        "dv",
+        "hdr10plus"
+      ]
+    },
+    "added": [
+      "hdr",
+      "hdr10plus"
+    ],
+    "decision": "mutated",
+    "classification": "movie",
+    "movieResults": 1,
+    "tvResults": 0,
+    "verification": "declared",
+    "userAccepted": true,
+    "semantics": "title-edition-union; no same-stream/playback/language guarantee",
+    "scope": "reviewed-fase2b-97:movie-only,62generic-hdr+22hdr10plus+14atmos+2dv",
+    "snapshotSha256": "957276a180fe06f41a0ebd183f78e20a3ea21c70271a03659050835225f074fd"
+  },
+  "tt32093575": {
+    "source": "torrentio",
+    "observedAt": "2026-10-31T16:20:27.774Z",
+    "declared": {
+      "quality": "4K",
+      "formats": [
+        "hdr",
+        "dv"
+      ]
+    },
+    "added": [
+      "hdr"
+    ],
+    "decision": "mutated",
+    "classification": "movie",
+    "movieResults": 1,
+    "tvResults": 0,
+    "verification": "declared",
+    "userAccepted": true,
+    "semantics": "title-edition-union; no same-stream/playback/language guarantee",
+    "scope": "reviewed-fase2b-97:movie-only,62generic-hdr+22hdr10plus+14atmos+2dv",
+    "snapshotSha256": "957276a180fe06f41a0ebd183f78e20a3ea21c70271a03659050835225f074fd"
+  },
+  "tt34564059": {
+    "source": "torrentio",
+    "observedAt": "2026-10-31T16:21:58.762Z",
+    "declared": {
+      "quality": "4K",
+      "formats": [
+        "hdr",
+        "dv",
+        "hdr10plus"
+      ]
+    },
+    "added": [
+      "hdr"
+    ],
+    "decision": "mutated",
+    "classification": "movie",
+    "movieResults": 1,
+    "tvResults": 0,
+    "verification": "declared",
+    "userAccepted": true,
+    "semantics": "title-edition-union; no same-stream/playback/language guarantee",
+    "scope": "reviewed-fase2b-97:movie-only,62generic-hdr+22hdr10plus+14atmos+2dv",
+    "snapshotSha256": "957276a180fe06f41a0ebd183f78e20a3ea21c70271a03659050835225f074fd"
+  },
+  "tt35298123": {
+    "source": "torrentio",
+    "observedAt": "2026-10-31T16:22:20.911Z",
+    "declared": {
+      "quality": "4K",
+      "formats": [
+        "hdr10plus",
+        "dv"
+      ]
+    },
+    "added": [
+      "hdr10plus"
+    ],
+    "decision": "mutated",
+    "classification": "movie",
+    "movieResults": 1,
+    "tvResults": 0,
+    "verification": "declared",
+    "userAccepted": true,
+    "semantics": "title-edition-union; no same-stream/playback/language guarantee",
+    "scope": "reviewed-fase2b-97:movie-only,62generic-hdr+22hdr10plus+14atmos+2dv",
+    "snapshotSha256": "957276a180fe06f41a0ebd183f78e20a3ea21c70271a03659050835225f074fd"
+  },
+  "tt36583977": {
+    "source": "torrentio",
+    "observedAt": "2026-10-31T16:22:49.751Z",
+    "declared": {
+      "quality": "4K",
+      "formats": [
+        "hdr10plus",
+        "dv",
+        "atmos"
+      ]
+    },
+    "added": [
+      "hdr10plus"
+    ],
+    "decision": "mutated",
+    "classification": "movie",
+    "movieResults": 1,
+    "tvResults": 0,
+    "verification": "declared",
+    "userAccepted": true,
+    "semantics": "title-edition-union; no same-stream/playback/language guarantee",
+    "scope": "reviewed-fase2b-97:movie-only,62generic-hdr+22hdr10plus+14atmos+2dv",
+    "snapshotSha256": "957276a180fe06f41a0ebd183f78e20a3ea21c70271a03659050835225f074fd"
+  },
+  "tt3659388": {
+    "source": "torrentio",
+    "observedAt": "2026-10-31T16:22:52.001Z",
+    "declared": {
+      "quality": "4K",
+      "formats": [
+        "dv",
+        "atmos"
+      ]
+    },
+    "added": [
+      "atmos"
+    ],
+    "decision": "mutated",
+    "classification": "movie",
+    "movieResults": 1,
+    "tvResults": 0,
+    "verification": "declared",
+    "userAccepted": true,
+    "semantics": "title-edition-union; no same-stream/playback/language guarantee",
+    "scope": "reviewed-fase2b-97:movie-only,62generic-hdr+22hdr10plus+14atmos+2dv",
+    "snapshotSha256": "957276a180fe06f41a0ebd183f78e20a3ea21c70271a03659050835225f074fd"
+  },
+  "tt4425200": {
+    "source": "torrentio",
+    "observedAt": "2026-10-31T16:24:40.742Z",
+    "declared": {
+      "quality": "4K",
+      "formats": [
+        "hdr10plus",
+        "dv"
+      ]
+    },
+    "added": [
+      "hdr10plus"
+    ],
+    "decision": "mutated",
+    "classification": "movie",
+    "movieResults": 1,
+    "tvResults": 0,
+    "verification": "declared",
+    "userAccepted": true,
+    "semantics": "title-edition-union; no same-stream/playback/language guarantee",
+    "scope": "reviewed-fase2b-97:movie-only,62generic-hdr+22hdr10plus+14atmos+2dv",
+    "snapshotSha256": "957276a180fe06f41a0ebd183f78e20a3ea21c70271a03659050835225f074fd"
+  },
+  "tt4633694": {
+    "source": "torrentio",
+    "observedAt": "2026-10-31T16:25:05.145Z",
+    "declared": {
+      "quality": "4K",
+      "formats": [
+        "dv",
+        "atmos",
+        "hdr"
+      ]
+    },
+    "added": [
+      "hdr"
+    ],
+    "decision": "mutated",
+    "classification": "movie",
+    "movieResults": 1,
+    "tvResults": 0,
+    "verification": "declared",
+    "userAccepted": true,
+    "semantics": "title-edition-union; no same-stream/playback/language guarantee",
+    "scope": "reviewed-fase2b-97:movie-only,62generic-hdr+22hdr10plus+14atmos+2dv",
+    "snapshotSha256": "957276a180fe06f41a0ebd183f78e20a3ea21c70271a03659050835225f074fd"
+  },
+  "tt4916630": {
+    "source": "torrentio",
+    "observedAt": "2026-10-31T16:25:29.582Z",
+    "declared": {
+      "quality": "4K",
+      "formats": [
+        "hdr",
+        "dv",
+        "atmos"
+      ]
+    },
+    "added": [
+      "hdr"
+    ],
+    "decision": "mutated",
+    "classification": "movie",
+    "movieResults": 1,
+    "tvResults": 0,
+    "verification": "declared",
+    "userAccepted": true,
+    "semantics": "title-edition-union; no same-stream/playback/language guarantee",
+    "scope": "reviewed-fase2b-97:movie-only,62generic-hdr+22hdr10plus+14atmos+2dv",
+    "snapshotSha256": "957276a180fe06f41a0ebd183f78e20a3ea21c70271a03659050835225f074fd"
+  },
+  "tt5363618": {
+    "source": "torrentio",
+    "observedAt": "2026-10-31T16:26:29.495Z",
+    "declared": {
+      "quality": "4K",
+      "formats": [
+        "hdr",
+        "hdr10plus"
+      ]
+    },
+    "added": [
+      "hdr10plus"
+    ],
+    "decision": "mutated",
+    "classification": "movie",
+    "movieResults": 1,
+    "tvResults": 0,
+    "verification": "declared",
+    "userAccepted": true,
+    "semantics": "title-edition-union; no same-stream/playback/language guarantee",
+    "scope": "reviewed-fase2b-97:movie-only,62generic-hdr+22hdr10plus+14atmos+2dv",
+    "snapshotSha256": "957276a180fe06f41a0ebd183f78e20a3ea21c70271a03659050835225f074fd"
+  },
+  "tt5648882": {
+    "source": "torrentio",
+    "observedAt": "2026-10-31T16:26:47.261Z",
+    "declared": {
+      "quality": "4K",
+      "formats": [
+        "hdr",
+        "atmos"
+      ]
+    },
+    "added": [
+      "hdr"
+    ],
+    "decision": "mutated",
+    "classification": "movie",
+    "movieResults": 1,
+    "tvResults": 0,
+    "verification": "declared",
+    "userAccepted": true,
+    "semantics": "title-edition-union; no same-stream/playback/language guarantee",
+    "scope": "reviewed-fase2b-97:movie-only,62generic-hdr+22hdr10plus+14atmos+2dv",
+    "snapshotSha256": "957276a180fe06f41a0ebd183f78e20a3ea21c70271a03659050835225f074fd"
+  },
+  "tt6019206": {
+    "source": "torrentio",
+    "observedAt": "2026-10-31T16:27:07.219Z",
+    "declared": {
+      "quality": "4K",
+      "formats": [
+        "hdr",
+        "dv",
+        "hdr10plus"
+      ]
+    },
+    "added": [
+      "hdr10plus"
+    ],
+    "decision": "mutated",
+    "classification": "movie",
+    "movieResults": 1,
+    "tvResults": 0,
+    "verification": "declared",
+    "userAccepted": true,
+    "semantics": "title-edition-union; no same-stream/playback/language guarantee",
+    "scope": "reviewed-fase2b-97:movie-only,62generic-hdr+22hdr10plus+14atmos+2dv",
+    "snapshotSha256": "957276a180fe06f41a0ebd183f78e20a3ea21c70271a03659050835225f074fd"
+  },
+  "tt6473066": {
+    "source": "torrentio",
+    "observedAt": "2026-10-31T16:27:38.300Z",
+    "declared": {
+      "quality": "4K",
+      "formats": [
+        "hdr"
+      ]
+    },
+    "added": [
+      "hdr"
+    ],
+    "decision": "mutated",
+    "classification": "movie",
+    "movieResults": 1,
+    "tvResults": 0,
+    "verification": "declared",
+    "userAccepted": true,
+    "semantics": "title-edition-union; no same-stream/playback/language guarantee",
+    "scope": "reviewed-fase2b-97:movie-only,62generic-hdr+22hdr10plus+14atmos+2dv",
+    "snapshotSha256": "957276a180fe06f41a0ebd183f78e20a3ea21c70271a03659050835225f074fd"
+  },
+  "tt8385474": {
+    "source": "torrentio",
+    "observedAt": "2026-10-31T16:29:29.267Z",
+    "declared": {
+      "quality": "4K",
+      "formats": [
+        "hdr"
+      ]
+    },
+    "added": [
+      "hdr"
+    ],
+    "decision": "mutated",
+    "classification": "movie",
+    "movieResults": 1,
+    "tvResults": 0,
+    "verification": "declared",
+    "userAccepted": true,
+    "semantics": "title-edition-union; no same-stream/playback/language guarantee",
+    "scope": "reviewed-fase2b-97:movie-only,62generic-hdr+22hdr10plus+14atmos+2dv",
+    "snapshotSha256": "957276a180fe06f41a0ebd183f78e20a3ea21c70271a03659050835225f074fd"
+  },
+  "tt8946378": {
+    "source": "torrentio",
+    "observedAt": "2026-10-31T16:30:04.747Z",
+    "declared": {
+      "quality": "4K",
+      "formats": [
+        "hdr",
+        "atmos"
+      ]
+    },
+    "added": [
+      "hdr"
+    ],
+    "decision": "mutated",
+    "classification": "movie",
+    "movieResults": 1,
+    "tvResults": 0,
+    "verification": "declared",
+    "userAccepted": true,
+    "semantics": "title-edition-union; no same-stream/playback/language guarantee",
+    "scope": "reviewed-fase2b-97:movie-only,62generic-hdr+22hdr10plus+14atmos+2dv",
+    "snapshotSha256": "957276a180fe06f41a0ebd183f78e20a3ea21c70271a03659050835225f074fd"
+  },
+  "tt9231040": {
+    "source": "torrentio",
+    "observedAt": "2026-10-31T16:30:22.543Z",
+    "declared": {
+      "quality": "4K",
+      "formats": [
+        "hdr"
+      ]
+    },
+    "added": [
+      "hdr"
+    ],
+    "decision": "mutated",
+    "classification": "movie",
+    "movieResults": 1,
+    "tvResults": 0,
+    "verification": "declared",
+    "userAccepted": true,
+    "semantics": "title-edition-union; no same-stream/playback/language guarantee",
+    "scope": "reviewed-fase2b-97:movie-only,62generic-hdr+22hdr10plus+14atmos+2dv",
+    "snapshotSha256": "957276a180fe06f41a0ebd183f78e20a3ea21c70271a03659050835225f074fd"
+  },
+  "tt9770150": {
+    "source": "torrentio",
+    "observedAt": "2026-10-31T16:31:05.808Z",
+    "declared": {
+      "quality": "4K",
+      "formats": [
+        "hdr",
+        "hdr10plus"
+      ]
+    },
+    "added": [
+      "hdr10plus"
+    ],
+    "decision": "mutated",
+    "classification": "movie",
+    "movieResults": 1,
+    "tvResults": 0,
+    "verification": "declared",
+    "userAccepted": true,
+    "semantics": "title-edition-union; no same-stream/playback/language guarantee",
+    "scope": "reviewed-fase2b-97:movie-only,62generic-hdr+22hdr10plus+14atmos+2dv",
+    "snapshotSha256": "957276a180fe06f41a0ebd183f78e20a3ea21c70271a03659050835225f074fd"
+  }
+}

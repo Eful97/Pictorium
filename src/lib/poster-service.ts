@@ -39,11 +39,10 @@ import { computeLogoLayout, logoAlignPadX, PORTRAIT_LOGO_MAX_HEIGHT_PCT, PORTRAI
 import { logoDefaultScaleFromAspect, FRESH_TITLE_LOGO_DEFAULT_SCALE } from "./logo-selection"
 import fs from "fs"
 import path from "path"
-import { buildQualityBadgeSvg, buildQualityKnockoutSvg, buildAgeEmphasisSvg, buildGradientMarkSvg, estimateTextWidth, fontFamilyFor, escSvg, badgeBoxHeight, TOP_SHADOW_PAD, TOP_SHADOW_FILTER, KNOCKOUT_SHADOW_FILTER, KNOCKOUT_INK_OPACITY, knockoutOuterShadow, AGE_KNOCKOUT_RADIUS_FACTOR, AGE_MONO_STROKE_FACTOR, AGE_MONO_STROKE_MIN, AGE_MONO_INK_DARK, AGE_MONO_INK_LIGHT, SATIN_PILL_INK_DARK, SATIN_PILL_INK_LIGHT, SATIN_PILL_STROKE_DARK, SATIN_PILL_STROKE_LIGHT, SATIN_PILL_STROKE_WIDTH, satinPillStops } from "./badge-svg-shared"
+import { buildQualityBadgeSvg, buildQualityKnockoutSvg, buildAgeEmphasisSvg, buildGradientMarkSvg, buildStripBadgeSvg, QUALITY_GROUP_ROW_MAX_ITEMS, badgeBoxHeight, TOP_SHADOW_PAD, TOP_SHADOW_FILTER, KNOCKOUT_SHADOW_FILTER, KNOCKOUT_INK_OPACITY, knockoutOuterShadow, AGE_KNOCKOUT_RADIUS_FACTOR, AGE_MONO_STROKE_FACTOR, AGE_MONO_STROKE_MIN, AGE_MONO_INK_DARK, AGE_MONO_INK_LIGHT, SATIN_PILL_INK_DARK, SATIN_PILL_INK_LIGHT, SATIN_PILL_STROKE_DARK, SATIN_PILL_STROKE_LIGHT, SATIN_PILL_STROKE_WIDTH, satinPillStops } from "./badge-svg-shared"
 import { computeTopBadge, getNextEpisodeLabel, isNetworkStudio, shouldSuppressExtraTopBadgeForNetwork, type BadgeInput } from "./poster-badge"
-import { isNextEpisodeBadgeKey } from "./badge-priority"
+import { isNextEpisodeBadgeKey, DEFAULT_SASH_ORDER } from "./badge-priority"
 import { DEMO_SAMPLE_NETWORK } from "./demo-samples"
-import { NETWORK_MARK_FILES as NETWORK_FILES_COMBINED } from "./network-files"
 import type { DateFormat } from "./release-badge"
 import type { SashBucket } from "./badge-priority"
 import { PRE_RELEASE_DIM_ALPHA, PRE_RELEASE_BLUR_SIGMA } from "./pre-release"
@@ -55,7 +54,7 @@ import type { WikidataResult } from "./awards"
 import { directorBadgeLabel } from "./awards"
 import type { BadgeT } from "./poster-badge"
 import type { BadgeFont } from "./badge-styles"
-import { isRibbonRankingStyle, isBottomSeparateRatingsStyle, isAgeBadgeStyle, isAwardBadgeMode, getSeparateRatingsStyleForShape, resolveNumberBadgeBaseOffsetX, normalizeExtraBadgeStyleForRender, DEFAULT_AGE_BADGE_STYLE, DEFAULT_AWARD_BADGE_MODE, type BadgeStyle, type RankingBadgeStyle, type ExtraBadgeStyle, type ExtraBadgeFollowRank, type SeparateRatingsStyle, type SeparateBottomVariant, type AgeBadgeStyle, type AwardBadgeMode } from "./badge-styles"
+import { isRibbonRankingStyle, isBottomSeparateRatingsStyle, isAgeBadgeStyle, isAwardBadgeMode, getSeparateRatingsStyleForShape, resolveNumberBadgeBaseOffsetX, normalizeExtraBadgeStyleForRender, resolveQualityGroupLayout, isMergedQualityStrip, DEFAULT_AGE_BADGE_STYLE, DEFAULT_AWARD_BADGE_MODE, type BadgeStyle, type RankingBadgeStyle, type ExtraBadgeStyle, type ExtraBadgeFollowRank, type SeparateRatingsStyle, type SeparateBottomVariant, type AgeBadgeStyle, type AwardBadgeMode, type QualityGroupLayout } from "./badge-styles"
 import { normalizeBadgeFont } from "./badge-svg-shared"
 import type { PosterImageFormat } from "@/lib/poster-runtime-cache"
 import { AV_KNOCKOUT_RADIUS_FACTOR, AV_KNOCKOUT_TAG_INSET_FACTOR, AV_PLATE_RADIUS_FACTOR, AV_PLATE_STROKE_WIDTH, AV_COMBO_SHORT_LABEL, COLOR_MARK_GLYPH, COLOR_MARK_PLATE_BG, COLOR_MARK_PLATE_STROKE, GRADIENT_TIER_INK, avMarkInkBox, avPlateGlyphBox, gradientMarkStops, qualityBadgeIconPath, qualityIconReferenceWidth, videoFormatShortLabel, type AvMarkInkBox, PREMIUM_COMBO_ACCENT, PREMIUM_PLATE_BG, PREMIUM_PLATE_STROKE, premiumAccentHex, premiumFormatAccent } from "./quality-badge-styles"
@@ -209,6 +208,12 @@ export interface GenerationInput {
   badgeFont?: BadgeFont | null
   /** Stile icone del badge qualità (standard = pill testuale). */
   qualityBadgeStyle?: QualityBadgeStyle | null
+  /**
+   * Layout del gruppo qualità: `stacked` (default, colonna storica) o `row`
+   * (orizzontale, max 2 per riga). Assente/invalido = `stacked` (nessun pixel
+   * cambia rispetto allo storico).
+   */
+  qualityGroupLayout?: QualityGroupLayout | null
   /** Formati A/V da affiancare alla qualità (dv, atmos, imax, hdr, hdr10plus). */
   videoFormats?: readonly VideoFormat[] | null
   /** Ordine/priorità sash (sottoinsieme = resto spento). Default = ordine standard. */
@@ -510,6 +515,26 @@ export interface GenerationInput {
   seasonalTheme?: SeasonalTheme | null
 }
 
+/**
+ * Memo boundato FIFO per overlay full-canvas rasterizzati: eviction
+ * dell'entry più vecchia in ordine di inserimento (stesso pattern di
+ * QUALITY_ICON_MEMO_MAX / PILL_LOGO_MEMO_MAX). Solo memoria: i byte per una
+ * chiave già cachata restano identici, e dopo un'eviction la chiave viene
+ * semplicemente rasterizzata di nuovo al render successivo.
+ */
+function setBoundedOverlay<K, V>(map: Map<K, V>, key: K, value: V, max: number): void {
+  if (map.size >= max && !map.has(key)) map.delete(map.keys().next().value!)
+  map.set(key, value)
+}
+
+// Budget di memoria: ogni entry è un PNG full-canvas (500×750 o 768×432).
+// Vignette/dim dipendono solo dalle dimensioni del canvas (2 forme ⇒ 2 chiavi
+// reali); il top shade aggiunge intensità e altezza (100×101 combinazioni),
+// quindi il cap resta stretto ma ampio abbastanza per i profili in uso.
+const VIGNETTE_CACHE_MAX = 8
+const PRE_RELEASE_DIM_CACHE_MAX = 8
+const TOP_SHADE_CACHE_MAX = 64
+
 // ---- Vignette SVG cache (una entry per dimensioni canvas) ----
 const _vignetteCache = new Map<string, Promise<Buffer>>()
 async function getVignette(canvasW: number = STD_W, canvasH: number = STD_H): Promise<Buffer> {
@@ -520,7 +545,7 @@ async function getVignette(canvasW: number = STD_W, canvasH: number = STD_H): Pr
     // Reset su reject: una Promise respinta resterebbe cachata e avvelenerebbe
     // tutti i render futuri (stesso pattern di loadResvg in svg-badge.ts).
     fresh.catch(() => { if (_vignetteCache.get(key) === fresh) _vignetteCache.delete(key) })
-    _vignetteCache.set(key, fresh)
+    setBoundedOverlay(_vignetteCache, key, fresh, VIGNETTE_CACHE_MAX)
     p = fresh
   }
   return p
@@ -553,7 +578,7 @@ async function getPreReleaseDim(canvasW: number = STD_W, canvasH: number = STD_H
     }).png().toBuffer()
     // Reset su reject: vedi getVignette sopra.
     fresh.catch(() => { if (_preReleaseDimCache.get(key) === fresh) _preReleaseDimCache.delete(key) })
-    _preReleaseDimCache.set(key, fresh)
+    setBoundedOverlay(_preReleaseDimCache, key, fresh, PRE_RELEASE_DIM_CACHE_MAX)
     p = fresh
   }
   return p
@@ -613,7 +638,7 @@ async function getTopShade(canvasW: number, canvasH: number, strength: number, h
     const fresh = sharp(Buffer.from(topShadeSVG(canvasW, canvasH, s, h))).png().toBuffer()
     // Reset su reject: vedi getVignette sopra.
     fresh.catch(() => { if (_topShadeCache.get(key) === fresh) _topShadeCache.delete(key) })
-    _topShadeCache.set(key, fresh)
+    setBoundedOverlay(_topShadeCache, key, fresh, TOP_SHADE_CACHE_MAX)
     p = fresh
   }
   return p
@@ -1108,6 +1133,12 @@ export async function renderQualityBadgeGroup(
   ageStyle?: AgeBadgeStyle | null,
   /** Per-item corrections by stable identity (empty/absent = automatic). */
   itemTransforms?: BadgeItemTransformMap | null,
+  /**
+   * Group layout: `stacked` (default, historic single column) or `row`
+   * (horizontal, max `QUALITY_GROUP_ROW_MAX_ITEMS` per line). Absent/invalid
+   * = `stacked`, so every legacy call site keeps its exact bytes.
+   */
+  qualityGroupLayout?: QualityGroupLayout | string | null,
 ): Promise<QualityBadgeGroupResult | null> {
   const ageText = typeof ageLabel === "string" ? ageLabel.trim() : ""
   const effAgeStyle: AgeBadgeStyle = isAgeBadgeStyle(ageStyle) ? ageStyle : DEFAULT_AGE_BADGE_STYLE
@@ -1126,6 +1157,20 @@ export async function renderQualityBadgeGroup(
   // (nessun asset) condiviso da tier, età e marchi A/V: bianco pieno per
   // tier/età, gradiente orizzontale per formato (`GRADIENT_MARK_STOPS`).
   const isGradient = qualityBadgeStyle === "gradient"
+  // Outline: materiale wireframe 100% dinamico (rect stroked senza fill +
+  // scrim interno + inchiostro satin), condiviso da tier, età e marchi A/V —
+  // nessun asset, nessun secondo renderer.
+  const isOutline = qualityBadgeStyle === "outline"
+  // Strip: materiale a placca scura condiviso (una sola ricetta con
+  // tier/età/marchi A/V). Il LAYOUT del gruppo è un parametro esplicito
+  // (`qgl` > mapping > token > defaults > `stacked`), indipendente dallo
+  // stile: in `row` lo strip resta la placca UNICA merged (wrappa 2 per riga
+  // da solo), in `stacked` rende una placca per marchio impilata in colonna
+  // (stesse identità/box per-item di ogni altro stile).
+  const groupLayout = resolveQualityGroupLayout(qualityGroupLayout)
+  const isStripStyle = qualityBadgeStyle === "strip"
+  const isStrip = isMergedQualityStrip(qualityBadgeStyle, groupLayout)
+  const isRowLayout = groupLayout === "row"
   // Larghezza UNICA dei marchi A/V, derivata dal badge 4K dello stile attivo
   // (mai dall'aspect del singolo logo). Include il font perché i tag testuali
   // (standard/knockout/mono) cambiano larghezza con la font. Per `color`/
@@ -1153,6 +1198,18 @@ export async function renderQualityBadgeGroup(
     // del 4K "bianco" nella stessa ricetta (placca + glifi + padding del box).
     if (isGradient) {
       return Math.max(1, buildGradientMarkSvg("4K", markFs, GRADIENT_TIER_INK, markFont).w - TOP_SHADOW_PAD * 2)
+    }
+    // Outline: la colonna è la larghezza visibile del wireframe 4K (stessa
+    // ricetta condivisa di tier/età/marchi A/V).
+    if (isOutline) {
+      return Math.max(1, buildAgeEmphasisSvg("4K", markFs, "outline", !!topLight, markFont).w - TOP_SHADOW_PAD * 2)
+    }
+    // Strip: la colonna è la SINGOLA placca scura del 4K (stessa ricetta della
+    // strip merged — padX airier, inchiostro bianco, placca `gradient`
+    // family), così ogni marchio dello stack condivide la stessa larghezza
+    // visibile.
+    if (isStripStyle) {
+      return Math.max(1, buildStripBadgeSvg(["4K"], markFs, markFont).w - TOP_SHADOW_PAD * 2)
     }
     // Stile standard: la colonna è larga quanto la PILL neutra 4K (stessa
     // ricetta dell'età: satinatura, padding 0.75×fs, raggio a mezza altezza).
@@ -1220,6 +1277,27 @@ export async function renderQualityBadgeGroup(
     ? Math.max(1, markRefWidth - Math.round(markFs * AV_KNOCKOUT_TAG_INSET_FACTOR) * 2)
     : markRefWidth
   /**
+   * Un marchio nel layout `stacked` dello stile `strip`: UNA placca scura per
+   * elemento (stessa ricetta/materiale/airier padding della strip merged, un
+   * solo glifo), così lo stack resta per-marchio e maniglie per-item + homes
+   * continuano a funzionare come ogni altro stile. `columnW` pinna la
+   * larghezza VISIBILE alla colonna comune (font ridotto per stare dentro,
+   * mai glifi stirati).
+   */
+  const renderStripMark = async (
+    label: string,
+    columnW?: number,
+  ): Promise<{ png: Buffer; w: number; h: number }> => {
+    const built = buildStripBadgeSvg(
+      [label],
+      markFs,
+      markFont,
+      columnW != null ? Math.max(1, Math.round(columnW)) : undefined,
+    )
+    const png = await renderSVG(built.svg, built.w)
+    return { png, w: built.w, h: built.h }
+  }
+  /**
    * Un marchio A/V, con la stessa larghezza visibile in ogni stile:
    * standard = glifo dentro la pill satinata del tier/età; mono = glifo dentro
    * la cornice mono dell'età (fill none); color/premium = glifo dentro una
@@ -1237,6 +1315,11 @@ export async function renderQualityBadgeGroup(
      *  (usata solo dagli stili dinamici `nova` e `gradient`). */
     novaLabel: string,
   ): Promise<{ png: Buffer; w: number; h: number } | null> => {
+    if (isStripStyle) {
+      // Placca scura singola condivisa: un marchio A/V per placca (nessun
+      // artwork per formato, l'etichetta breve è il glifo).
+      return renderStripMark(novaLabel, markRefWidth)
+    }
     if (isNova) {
       // Lastra dinamica condivisa: stessa ricetta di tier ed età, larghezza
       // pinnata alla colonna (`markRefWidth`) e font ridotto per stare dentro
@@ -1250,6 +1333,11 @@ export async function renderQualityBadgeGroup(
       // registrato → inchiostro bianco (fail-safe: mai un gradiente di un
       // formato inventato).
       return renderGradientMarkBadge(novaLabel, pw, gradientMarkStops(iconPath) ?? GRADIENT_TIER_INK, normalizeBadgeFont(font), markRefWidth)
+    }
+    if (isOutline) {
+      // Wireframe dinamico condiviso: l'etichetta breve del formato dentro la
+      // stessa cornice di tier/età, larghezza pinnata alla colonna.
+      return renderAgeEmphasisBadge(novaLabel, pw, "outline", topLightForMark, normalizeBadgeFont(font), markRefWidth)
     }
     if (isPremium) {
       return renderPlatedAvBadge(iconPath, pw, markRefWidth, accentHex, PREMIUM_PLATE_BG, PREMIUM_PLATE_STROKE)
@@ -1267,7 +1355,7 @@ export async function renderQualityBadgeGroup(
   // mono asset — the renderer must never mix the two materials.
   // Knockout has no icon asset (qualityBadgeIconPath stays null by design):
   // it renders its own tag below and never falls back to the standard pill.
-  const qualityIconPath = !hasQuality || isKnockout || isMono || isNova ? null : qualityBadgeIconPath(qualityBadgeStyle, qualityText)
+  const qualityIconPath = !hasQuality || isKnockout || isMono || isNova || isOutline || isStripStyle ? null : qualityBadgeIconPath(qualityBadgeStyle, qualityText)
   // Nothing painted at all (no quality, no age): legacy path, no format work.
   // (With a quality, the tier ALWAYS renders: icon or text pill.)
   if (!hasQuality && ageText === "") return null
@@ -1279,6 +1367,52 @@ export async function renderQualityBadgeGroup(
   const validFormats = rawValidFormats.includes("hdr10plus")
     ? rawValidFormats.filter((f) => f !== "hdr")
     : rawValidFormats
+
+  // -------------------------------------------------------------------
+  // `strip` layout (merged single plate) — additive, only when the style
+  // resolves to `strip` (legacy styles keep the exact stacked path below).
+  //
+  // Same painted identities, same fixed order (tier, age, formats — merged
+  // DV·Atmos lockup included), same group anchor/scale/offset chain: the
+  // result is ONE bitmap with ONE shadow filter instead of one bitmap/filter
+  // per mark, so the full stack costs 1 resvg + 1 filter. Per-item boxes are
+  // still reported with the stable identities; a merged plate cannot detach a
+  // single slice, so no per-item png/home ghosts are emitted for this layout.
+  // -------------------------------------------------------------------
+  if (isStrip) {
+    const segments: { id: string; label: string }[] = []
+    if (hasQuality) segments.push({ id: BADGE_ITEM_QUALITY_TIER, label: qualityText })
+    if (ageText !== "") segments.push({ id: BADGE_ITEM_QUALITY_AGE, label: ageText })
+    const stripCombo = validFormats.includes("dv") && validFormats.includes("atmos")
+    if (stripCombo) segments.push({ id: BADGE_ITEM_QUALITY_COMBO, label: AV_COMBO_SHORT_LABEL })
+    for (const fmt of validFormats) {
+      if (stripCombo && (fmt === "dv" || fmt === "atmos")) continue
+      const itemId = qualityFormatItemId(fmt)
+      if (itemId) segments.push({ id: itemId, label: videoFormatShortLabel(fmt) })
+    }
+    const painted = segments.filter((segment) => segment.label.trim() !== "")
+    if (painted.length === 0) return null
+    const strip = buildStripBadgeSvg(
+      painted.map((segment) => segment.label),
+      markFs,
+      markFont,
+      Math.min(pw - 20, Math.round(pw * 0.84)),
+    )
+    const png = await renderSVG(strip.svg, strip.w)
+    return {
+      png,
+      w: strip.w,
+      h: strip.h,
+      items: painted.map((segment, index) => ({
+        id: segment.id,
+        top: strip.segments[index].top,
+        left: strip.segments[index].left,
+        w: strip.segments[index].w,
+        h: strip.segments[index].h,
+      })),
+      homeGhosts: [],
+    }
+  }
 
   const hasDV = validFormats.includes("dv")
   const hasAtmos = validFormats.includes("atmos")
@@ -1331,6 +1465,10 @@ export async function renderQualityBadgeGroup(
   // HTML grezzo).
   const renderAgePill = async (columnW?: number): Promise<{ png: Buffer; w: number; h: number } | null> => {
     if (ageText === "") return null
+    // Strip: lo stile possiede il materiale dei suoi marchi (placca scura
+    // singola), come nella strip merged dove l'età è un semplice run di glifi:
+    // gli stili età restano attivi per gli altri stili qualità.
+    if (isStripStyle) return renderStripMark(ageText, columnW)
     // standard = neutral satin pill; knockout = age-only white tag;
     // mono/color/premium/nova = shared emphasis recipe in `badge-svg-shared.ts`
     // (mono is the same material as the quality mono tier); gradient = bare
@@ -1340,7 +1478,7 @@ export async function renderQualityBadgeGroup(
     // stretched label).
     if (effAgeStyle === "knockout") return renderAgeKnockoutBadge(ageText, pw, normalizeBadgeFont(font), columnW)
     if (effAgeStyle === "gradient") return renderGradientMarkBadge(ageText, pw, GRADIENT_TIER_INK, normalizeBadgeFont(font), columnW)
-    if (effAgeStyle === "mono" || effAgeStyle === "color" || effAgeStyle === "premium" || effAgeStyle === "nova") {
+    if (effAgeStyle === "mono" || effAgeStyle === "color" || effAgeStyle === "premium" || effAgeStyle === "nova" || effAgeStyle === "outline") {
       return renderAgeEmphasisBadge(ageText, pw, effAgeStyle, !!topLight, normalizeBadgeFont(font), columnW)
     }
     return renderQualityBadge(ageText, pw, topLight, normalizeBadgeFont(font), columnW)
@@ -1360,7 +1498,11 @@ export async function renderQualityBadgeGroup(
 
   let resBadge: { png: Buffer; w: number; h: number } | null = null
   if (hasQuality) {
-    if (isNova) {
+    if (isStripStyle) {
+      // Placca scura singola (stesso materiale della strip merged): l'etichetta
+      // reale del tier, un marchio per placca.
+      resBadge = await renderStripMark(qualityText, tierTargetW)
+    } else if (isNova) {
       // Lastra dinamica condivisa (stessa ricetta di età e marchi A/V). SD è
       // incluso: nessun asset esterno, l'etichetta è sempre un parametro.
       resBadge = await renderAgeEmphasisBadge(qualityText, pw, "nova", topLight, normalizeBadgeFont(font), tierTargetW)
@@ -1368,6 +1510,10 @@ export async function renderQualityBadgeGroup(
       // Glifi nudi bianchi: stessa ricetta condivisa di età e marchi A/V, nessun
       // asset (anche SD: l'etichetta è un parametro).
       resBadge = await renderGradientMarkBadge(qualityText, pw, GRADIENT_TIER_INK, normalizeBadgeFont(font), tierTargetW)
+    } else if (isOutline) {
+      // Wireframe condiviso (stessa ricetta di età e marchi A/V): l'etichetta
+      // reale del tier dentro cornice+scrim, nessun asset.
+      resBadge = await renderAgeEmphasisBadge(qualityText, pw, "outline", topLight, normalizeBadgeFont(font), tierTargetW)
     } else if (qualityIconPath) {
       resBadge = await renderQualityIconBadge(qualityIconPath, pw, topLight)
     }
@@ -1478,21 +1624,36 @@ export async function renderQualityBadgeGroup(
   }
 
   const gap = Math.round(5 * pw / 380)
-  // Vertical stack for every style (knockout included), in fixed order:
-  // quality tier on top, age certification second, every verified format
-  // below — Dolby like any other format. Un singolo elemento resta il bitmap
-  // originale (percorso storico byte-identico: niente ricomposizione per
-  // qualità sola o età sola).
+  // Group layout, fixed paint order (quality tier, age certification, every
+  // verified format — Dolby like any other format):
+  // - `stacked` (default, historic): single vertical column, one badge per
+  //   line. Byte-identical to the legacy render (same gap, same rounding).
+  // - `row`: the SAME per-mark bitmaps laid out horizontally, filled row-major
+  //   at most `QUALITY_GROUP_ROW_MAX_ITEMS` per line (2+1, 2+2, 2+2+1) with each
+  //   line centred. Every mark keeps its own plate/frame — the layout never
+  //   invents a material.
+  // A single painted element stays the original bitmap (historic path).
   const allBadges = identified.map((entry) => entry.badge)
   if (allBadges.length === 0) return null
   if (allBadges.length === 1) return await singleItem(allBadges[0])
   const visWidths = allBadges.map((b) => Math.max(1, b.w - TOP_SHADOW_PAD * 2))
   const visHeights = allBadges.map((b) => Math.max(1, b.h - TOP_SHADOW_PAD * 2))
-  const maxVisW = Math.max(...visWidths)
+  const perRow = isRowLayout ? QUALITY_GROUP_ROW_MAX_ITEMS : 1
+  const rowIndexes: number[][] = []
+  for (let i = 0; i < allBadges.length; i += perRow) {
+    const row: number[] = []
+    for (let j = i; j < Math.min(i + perRow, allBadges.length); j++) row.push(j)
+    rowIndexes.push(row)
+  }
+  const rowWidths = rowIndexes.map((row) =>
+    row.reduce((sum, idx) => sum + visWidths[idx], 0) + gap * (row.length - 1),
+  )
+  const rowHeights = rowIndexes.map((row) => Math.max(...row.map((idx) => visHeights[idx])))
+  const maxVisW = Math.max(...rowWidths)
   const totalW = maxVisW + TOP_SHADOW_PAD * 2
-  const totalVisH = visHeights.reduce((sum, h) => sum + h, 0) + gap * (allBadges.length - 1)
+  const totalVisH = rowHeights.reduce((sum, h) => sum + h, 0) + gap * (rowIndexes.length - 1)
   const totalH = totalVisH + TOP_SHADOW_PAD * 2
-  // Automatic stack position of every painted element, then its HOME: with a
+  // Automatic layout position of every painted element, then its HOME: with a
   // stored home the automatic position is REPLACED by the element's ISOLATED
   // reference box (pinned column at the group anchor), so the same stored
   // correction yields the same box on every title and format set. Without one
@@ -1502,18 +1663,26 @@ export async function renderQualityBadgeGroup(
   // smaller than the automatic frame, so an untouched stack keeps today's
   // canvas byte-for-byte), and only a non-neutral IDENTITY correction still
   // detaches an element.
-  const boxes: { top: number; left: number; w: number; h: number }[] = []
+  const boxes: { top: number; left: number; w: number; h: number }[] = new Array(allBadges.length)
   let curVisTop = TOP_SHADOW_PAD
-  for (let i = 0; i < allBadges.length; i++) {
-    const auto = {
-      top: curVisTop - TOP_SHADOW_PAD,
-      left: Math.round((totalW - allBadges[i].w) / 2),
-      w: allBadges[i].w,
-      h: allBadges[i].h,
+  for (let r = 0; r < rowIndexes.length; r++) {
+    const row = rowIndexes[r]
+    const rowH = rowHeights[r]
+    // Each line is centred inside the shared canvas: a shorter last line never
+    // hangs off one edge.
+    let curVisLeft = TOP_SHADOW_PAD + Math.round((maxVisW - rowWidths[r]) / 2)
+    for (const i of row) {
+      const auto = {
+        top: curVisTop + Math.round((rowH - visHeights[i]) / 2) - TOP_SHADOW_PAD,
+        left: curVisLeft - TOP_SHADOW_PAD,
+        w: allBadges[i].w,
+        h: allBadges[i].h,
+      }
+      const homeT = homeTransform(identified[i].id)
+      boxes[i] = homeT ? applyBadgeItemTransform(homeReference(allBadges[i]), homeT) : auto
+      curVisLeft += visWidths[i] + gap
     }
-    const homeT = homeTransform(identified[i].id)
-    boxes.push(homeT ? applyBadgeItemTransform(homeReference(allBadges[i]), homeT) : auto)
-    curVisTop += visHeights[i] + gap
+    curVisTop += rowH + gap
   }
   const originLeft = Math.min(0, ...boxes.map((b) => b.left))
   const originTop = Math.min(0, ...boxes.map((b) => b.top))
@@ -1574,131 +1743,6 @@ export async function renderQualityBadgeGroup(
       left: ghost.left - originLeft,
     })),
   }
-}
-
-
-
-const NETWORKS_DIR_COMBINED = path.join(process.cwd(), "public", "networks")
-// Combined/network-only pill paths resolve through the SAME shared
-// `NETWORK_MARK_FILES` registry as the main logo paths above (imported at
-// top as `NETWORK_FILES_COMBINED`): no second filename copy. (This alias
-// intentionally adds the previously missing `madhouse` entry to the combined
-// path — its pill now renders instead of returning null.)
-
-// B4: memo per (networkKey, targetH, fg). Gli SVG in public/networks/ sono
-// immutabili → memo permanente (cap 200). Prima ogni cold render ripeteva
-// existsSync + readFile + metadata + resize + composite per lo stesso logo.
-const pillLogoMemo = new Map<string, Promise<{ png: Buffer; w: number; h: number } | null>>()
-const PILL_LOGO_MEMO_MAX = 200
-async function loadNetworkLogoForPill(networkKey: string, targetH: number, fg: string): Promise<{ png: Buffer; w: number; h: number } | null> {
-  const memoKey = `${networkKey}:${targetH}:${fg}`
-  const memo = pillLogoMemo.get(memoKey)
-  if (memo) return memo
-  const p = loadNetworkLogoForPillUncached(networkKey, targetH, fg)
-  p.catch(() => { if (pillLogoMemo.get(memoKey) === p) pillLogoMemo.delete(memoKey) })
-  if (pillLogoMemo.size >= PILL_LOGO_MEMO_MAX) pillLogoMemo.delete(pillLogoMemo.keys().next().value!)
-  pillLogoMemo.set(memoKey, p)
-  return p
-}
-
-async function loadNetworkLogoForPillUncached(networkKey: string, targetH: number, fg: string): Promise<{ png: Buffer; w: number; h: number } | null> {
-  const filename = NETWORK_FILES_COMBINED[networkKey]
-  if (!filename) return null
-  const filePath = path.join(NETWORKS_DIR_COMBINED, filename)
-  if (!fs.existsSync(filePath)) return null
-  try {
-    const sharp = (await import("sharp")).default
-    const svgBuffer = await fs.promises.readFile(filePath)
-    // Recupera dimensione originale per scala corretta
-    let density = 72
-    try {
-      const meta = await sharp(svgBuffer).metadata()
-      if (meta.width && meta.height && meta.height < targetH * 3) {
-        // Stima density per rendere nitido a targetH
-        density = Math.min(Math.ceil((72 * targetH * 2) / meta.height), 2400)
-      }
-    } catch {}
-    const { data, info } = await sharp(svgBuffer, { density })
-      .resize(Math.round(targetH * 3), targetH, { fit: "inside", withoutEnlargement: false })
-      .png()
-      .toBuffer({ resolveWithObject: true })
-    if (networkKey === "marvel" || networkKey === "dc") {
-      return { png: data, w: info.width, h: info.height }
-    }
-    // Ricolora a fg (bianco/nero) per interno pill
-    const isWhite = fg.includes("255")
-    const fgBg = isWhite ? { r: 255, g: 255, b: 255, alpha: 0.95 } : { r: 18, g: 18, b: 22, alpha: 0.95 }
-    const fgSolid = await sharp({ create: { width: info.width, height: info.height, channels: 4, background: fgBg } }).png().toBuffer()
-    const recolored = await sharp(fgSolid).composite([{ input: data, blend: "dest-in" }]).png().toBuffer()
-    return { png: recolored, w: info.width, h: info.height }
-  } catch { return null }
-}
-
-export async function renderCombinedRankNetworkPill(rank: number, label: string, networkKey: string, pw: number, topLight: boolean, _accentColor: string | undefined, _isAnime: boolean | undefined, font: BadgeFont = "inter"): Promise<{ png: Buffer; w: number; h: number } | null> {
-  const fs = Math.round(Math.max(20 * pw / 380, 13))
-  const px = Math.round(fs * 0.75)
-  const pt = Math.round(fs * 0.35)
-  const gap = Math.round(fs * 0.25)
-  const bg = topLight ? "rgba(0,0,0,0.80)" : "rgba(255,255,255,0.80)"
-  const fg = topLight ? "rgba(255,255,255,0.95)" : "rgba(0,0,0,0.88)"
-  const text = `#${rank} ${label}`
-  const f = normalizeBadgeFont(font)
-  const textW = estimateTextWidth(text, fs, f)
-  const netTargetH = Math.round(fs * 0.55)
-  const netLogo = await loadNetworkLogoForPill(networkKey, netTargetH, fg)
-  if (!netLogo) return null
-  // Layout verticale: scritta sopra, logo sotto, centrati orizzontalmente
-  const pillW = Math.max(textW, netLogo.w) + px * 2
-  const pillH = pt + fs + gap + netLogo.h + pt
-  const r = Math.round(pillH / 2)
-  const textY = pt + fs / 2
-  const logoY = pt + fs + gap + netLogo.h / 2
-  const logoX = Math.round((pillW - netLogo.w) / 2)
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${pillW}" height="${pillH}"><rect width="${pillW}" height="${pillH}" rx="${r}" fill="${bg}" stroke="${topLight ? "rgba(0,0,0,0.15)" : "rgba(255,255,255,0.20)"}" stroke-width="1"/><text x="${pillW / 2}" y="${textY}" text-anchor="middle" dominant-baseline="central" font-family="${fontFamilyFor(text, f)}" font-weight="700" font-size="${fs}" fill="${fg}">${escSvg(text)}</text><image href="data:image/png;base64,${netLogo.png.toString("base64")}" x="${logoX}" y="${Math.round(logoY - netLogo.h / 2)}" width="${netLogo.w}" height="${netLogo.h}"/></svg>`
-  // Render via resvg (stesso path degli altri badge — renderSVG hoisted)
-  const png = await renderSVG(svg, pillW)
-  return { png, w: pillW, h: pillH }
-}
-
-export async function renderNetworkOnlyLargePill(networkKey: string, pw: number, topLight: boolean): Promise<{ png: Buffer; w: number; h: number } | null> {
-  const fs = Math.round(Math.max(20 * pw / 380, 13))
-  const px = Math.round(fs * 0.75)
-  const pt = Math.round(fs * 0.35)
-  const pillH = fs + pt * 2
-  const r = Math.round(pillH / 2)
-  const bg = topLight ? "rgba(0,0,0,0.80)" : "rgba(255,255,255,0.80)"
-  const fg = topLight ? "rgba(255,255,255,0.95)" : "rgba(0,0,0,0.88)"
-  const netTargetH = Math.round(fs * 0.85)
-  const netLogo = await loadNetworkLogoForPill(networkKey, netTargetH, fg)
-  if (!netLogo) return null
-  const pillW = netLogo.w + px * 2
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${pillW}" height="${pillH}"><rect width="${pillW}" height="${pillH}" rx="${r}" fill="${bg}" stroke="${topLight ? "rgba(0,0,0,0.15)" : "rgba(255,255,255,0.20)"}" stroke-width="1"/><image href="data:image/png;base64,${netLogo.png.toString("base64")}" x="${px}" y="${Math.round((pillH - netLogo.h) / 2)}" width="${netLogo.w}" height="${netLogo.h}"/></svg>`
-  const png = await renderSVG(svg, pillW)
-  return { png, w: pillW, h: pillH }
-}
-
-export async function renderCombinedExtraNetworkPill(label: string, networkKey: string, pw: number, topLight: boolean, font: BadgeFont = "inter"): Promise<{ png: Buffer; w: number; h: number } | null> {
-  const fs = Math.round(Math.max(20 * pw / 380, 13))
-  const px = Math.round(fs * 0.75)
-  const pt = Math.round(fs * 0.35)
-  const gap = Math.round(fs * 0.25)
-  const bg = topLight ? "rgba(0,0,0,0.80)" : "rgba(255,255,255,0.80)"
-  const fg = topLight ? "rgba(255,255,255,0.95)" : "rgba(0,0,0,0.88)"
-  const f = normalizeBadgeFont(font)
-  const textW = estimateTextWidth(label, fs, f)
-  const netTargetH = Math.round(fs * 0.55)
-  const netLogo = await loadNetworkLogoForPill(networkKey, netTargetH, fg)
-  if (!netLogo) return null
-  // Layout verticale: scritta sopra, logo sotto, centrati orizzontalmente
-  const pillW = Math.max(textW, netLogo.w) + px * 2
-  const pillH = pt + fs + gap + netLogo.h + pt
-  const r = Math.round(pillH / 2)
-  const textY = pt + fs / 2
-  const logoX = Math.round((pillW - netLogo.w) / 2)
-  const logoY = pt + fs + gap + netLogo.h / 2
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${pillW}" height="${pillH}"><rect width="${pillW}" height="${pillH}" rx="${r}" fill="${bg}" stroke="${topLight ? "rgba(0,0,0,0.15)" : "rgba(255,255,255,0.20)"}" stroke-width="1"/><text x="${pillW / 2}" y="${textY}" text-anchor="middle" dominant-baseline="central" font-family="${fontFamilyFor(label, f)}" font-weight="700" font-size="${fs}" fill="${fg}">${escSvg(label)}</text><image href="data:image/png;base64,${netLogo.png.toString("base64")}" x="${logoX}" y="${Math.round(logoY - netLogo.h / 2)}" width="${netLogo.w}" height="${netLogo.h}"/></svg>`
-  const png = await renderSVG(svg, pillW)
-  return { png, w: pillW, h: pillH }
 }
 
 // ---------------------------------------------------------------------------
@@ -1953,14 +1997,15 @@ export function resolveTopBadgeStyle(params: {
 }
 
 /**
- * Whether a genre badge style actually paints the accent color. Only
- * `colored` fills with the accent (`buildHouseGenreSvg`); every other style
+ * Whether a genre badge style actually paints the accent color. `colored`
+ * fills with the accent and `ink` paints its glyphs with the accent gradient
+ * (`buildHouseGenreSvg` / `buildGenreInkSvg`); every other style
  * (shadow/pill/bar/minimal/vetro/bordo) ignores it, so those styles must
  * neither trigger scene-tint extraction / band sampling nor carry the
  * adaptive tint in their badge cache key.
  */
 export function genreBadgeConsumesAccent(style: BadgeStyle | string | null | undefined): boolean {
-  return style === "colored"
+  return style === "colored" || style === "ink"
 }
 
 /**
@@ -1968,6 +2013,9 @@ export function genreBadgeConsumesAccent(style: BadgeStyle | string | null | und
  * render call sites below (`renderExtraBadge` / `renderRankingBadge`):
  * - `colored` always paints (ribbon, or the degraded default via accentFill);
  * - `corner` always paints the flat accent pill (rank and extra);
+ * - `split` paints only for rank badges (accent numeral cell); extras never
+ *   reach it (ranking-only: the legacy `rs` fallback degrades to the default
+ *   plate), so they never sample the tint for nothing;
  * - `number` paints only for extra badges (degraded to the corner pill);
  *   rank numerals are bare digits and ignore the accent;
  * - `default` paints only with `accentFill` (colored degraded by ribbon off);
@@ -1986,6 +2034,7 @@ export function topBadgeConsumesAccent(params: {
     ? (normalizeExtraBadgeStyleForRender(params.extraBadgeStyle) ?? (rankingBadgeAccent ? "colored" : rankingBadgeStyle))
     : rankingBadgeStyle
   if (eff === "colored" || eff === "corner") return true
+  if (eff === "split") return topBadgeType === "rank"
   if (eff === "number") return topBadgeType === "extra"
   if (eff === "default") return topBadgeType === "rank" && rankingBadgeAccent === true
   return false
@@ -2277,6 +2326,8 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
     badgesEnabled, rankingEnabled, genreName, voteAverage, badgeStyle,
     rankingBadgeStyle, extraBadgeStyle, badgeGenre, badgeYear, badgeRating, badgeQuality, quality,
     qualityBadgeStyle, videoFormats,
+    // Layout del gruppo qualità (assente = "stacked" = colonna storica).
+    qualityGroupLayout: rawQualityGroupLayout = null,
     // Etichetta età (null = badge nascosto: default nei test diretti).
     ageLabel = null,
     // Stile pill età (assente = "standard" = resa storica).
@@ -2406,14 +2457,21 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
     })
     : null
   const effectiveQueryExtra = isManualNextToken ? manualNextLabel : queryExtra
+  // "Badge extra" master (Informazioni): every NON-rank top badge is off when
+  // the caller cleared all non-rank sash buckets, while the rank bucket stays
+  // (classification follows its own switch). A manual custom extra (`extra=`)
+  // must follow the same gate so it cannot resurrect a hidden extra; Coming
+  // Soon/preRelease is NOT gated here — it has its own dedicated selector.
+  const extrasEnabled = (sashOrder ?? DEFAULT_SASH_ORDER).some((b) => b !== "rank")
+  const gatedQueryExtra = extrasEnabled ? effectiveQueryExtra : null
   // The top slot (rank AND explicit extra) is governed ONLY by the TOP
   // toggles (rankingEnabled/sash/queryExtra): disabling the lower
   // genre/rating group (badgesEnabled = false) hides just that row and
   // must NOT suppress rank/extra here. Genuine ranking OFF still hides the
   // slot via the rankingEnabled gate below — never force-enabled.
   if (rankingEnabled) {
-    if (effectiveQueryExtra) {
-      topBadge = { type: "extra" as const, label: effectiveQueryExtra }
+    if (gatedQueryExtra) {
+      topBadge = { type: "extra" as const, label: gatedQueryExtra }
     } else if (computed.badge) {
       const b = computed.badge
       if (b.type === "extra") {
@@ -2428,10 +2486,13 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
   }
   // Badge Coming Soon: vince sul badge calcolato ma non sul custom esplicito
   // (`queryExtra`) né sull'upcomingRelease teatrale (che ha già la data).
-  // Indipendente da rankingEnabled: è stato del contenuto, non decorazione.
+  // Indipendente da rankingEnabled e dal master "Badge extra": è stato del
+  // contenuto con il proprio selettore (`preRelease`), quindi resta visibile
+  // anche con le classifiche o gli extra spenti. Il custom (`extra=`) è invece
+  // soggetto al master: quando gli extra sono spenti non può risuscitarlo.
   // Reso come nastro angolare rosso in alto a sinistra (non pill centrale).
   const comingSoonLabel = t("badge.comingSoon")
-  if (preRelease && !effectiveQueryExtra) {
+  if (preRelease && !gatedQueryExtra) {
     const isUpcoming = computed.upcomingRelease
       && topBadge?.type === "extra"
       && topBadge.label === computed.upcomingRelease
@@ -2439,7 +2500,7 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
       topBadge = { type: "extra" as const, label: comingSoonLabel }
     }
   }
-  const showComingSoon = !!preRelease && !effectiveQueryExtra
+  const showComingSoon = !!preRelease && !gatedQueryExtra
     && topBadge?.type === "extra" && topBadge.label === comingSoonLabel
     // Nastro disattivato: il Coming Soon resta come badge extra centrale
     // (ramo rank standard) invece del nastro angolare rosso.
@@ -2734,7 +2795,9 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
     composites.push({ input: await getLandscapeScrim(), top: 0, left: 0 })
   }
   // Velo pre-digitale: sopra poster/vignetta ma sotto logo e badge (restano
-  // luminosi e leggibili). Costante cachata, nessun cambio di output a flag spento.
+  // luminosi e leggibili). Stato del contenuto con il proprio selettore
+  // (`preRelease`), indipendente dal master "Badge extra" e dalle classifiche.
+  // Costante cachata, nessun cambio di output a flag spento.
   if (preRelease) {
     composites.push({ input: await getPreReleaseDim(CW, CH), top: 0, left: 0 })
   }
@@ -2873,7 +2936,7 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
       shouldSuppressExtraTopBadgeForNetwork({
         label: topBadge.label,
         type: topBadge.type,
-        manualOverride: !!effectiveQueryExtra,
+        manualOverride: !!gatedQueryExtra,
         networkLogo: {
           networkKey: networkLogoResult.networkKey,
           matchedName: networkLogoResult.matchedName,
@@ -2891,7 +2954,7 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
   // identity), never from the localized label; non-award extras stay textual.
   const awardLogoTopKey: AwardBadgeKey | null =
     awardBadgeStyle === "logo"
-    && !effectiveQueryExtra
+    && !gatedQueryExtra
     && topBadge?.type === "extra"
     && computed.badge?.type === "extra"
     && topBadge.label === computed.badge.label
@@ -2947,6 +3010,11 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
   // legacy toggle è OFF (badgeQuality=false) l'effettiva è null: niente
   // icona, niente chiave che includa il tier nascosto.
   const effQualityBadgeStyle = qualityBadgeStyle
+  // Layout del gruppo qualità, risolto dalla route (query `qgl` > mapping >
+  // config token > defaults > `stacked`). Fail-closed: assente/invalido =
+  // colonna storica. Entra nella chiave solo quando è `row`, così le chiavi
+  // storiche (stacked) restano byte-identiche.
+  const effQualityGroupLayout = resolveQualityGroupLayout(rawQualityGroupLayout)
   const effAgeBadgeStyle: AgeBadgeStyle = ageBadgeStyle
   const effQualityTopLight = topLight
   const effQualityGroupScale = qualityBadgeScale
@@ -2999,7 +3067,7 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
   // niente). La chiave usa l'EFFETTIVA (gated dal legacy toggle): con bq=0 il
   // tier nascosto non entra nella chiave (stesso bitmap dell'age-only senza tier).
   const qualityBadgeKey = hasQualityGroup
-    ? badgeCacheKey("quality", effectiveQuality ?? "noquality", CW, effQualityTopLight, badgeFont, qualityBadgeScale, effQualityBadgeStyle ?? "standard", qualityIconPath ?? "std", formatsKey, ageText !== "" ? `${ageText}:${effAgeBadgeStyle}` : "noage", qualityItemKey)
+    ? badgeCacheKey("quality", effectiveQuality ?? "noquality", CW, effQualityTopLight, badgeFont, qualityBadgeScale, effQualityBadgeStyle ?? "standard", qualityIconPath ?? "std", formatsKey, ageText !== "" ? `${ageText}:${effAgeBadgeStyle}` : "noage", qualityItemKey, effQualityGroupLayout === "row" ? "row" : undefined)
     : null
   const comingSoonKey = showComingSoon
     ? badgeCacheKey("comingsoon", effComingSoonLabel, CW, badgeFont, topLight, effComingSoonSide)
@@ -3049,7 +3117,7 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
           || coalesceBadgeRender(qualityBadgeKey, async () => {
               // Gruppo con qualità/formati/stile-età EFFETTIVI (legacy-gated):
               // con bq=0 l'age-only non resuscita il tech stack disabilitato.
-              const res = await renderQualityBadgeGroup(effectiveQuality ?? null, effQualityBadgeStyle, effectiveFormats, badgePw, effQualityTopLight, badgeFont, hasAgeBadge ? ageText : null, effAgeBadgeStyle, itemTransformsForQuality)
+              const res = await renderQualityBadgeGroup(effectiveQuality ?? null, effQualityBadgeStyle, effectiveFormats, badgePw, effQualityTopLight, badgeFont, hasAgeBadge ? ageText : null, effAgeBadgeStyle, itemTransformsForQuality, effQualityGroupLayout)
               if (res) cacheSet(qualityBadgeKey, res, ["badge"], BADGE_CACHE_TTL)
               return res
             }))
@@ -3439,6 +3507,17 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
   // Actual finale per il freeze senza salto (solo numeri): valorizzato al
   // composite, null se il network non viene reso.
   let netGeo: NetworkGeometry | null = null
+  // A2 top-line unica (landscape): il bitmap network porta un padding ombra
+  // trasparente (shadowBlur+1) SOPRA l'inchiostro. Quando in landscape sono
+  // disegnati ENTRAMBI (network + qualità) l'anchor network scende di quel
+  // pad, così il suo inchiostro arriva sulla linea `netPadY +
+  // NETWORK_LOGO_SHIFT_Y` (24px @768×432) e la qualità (sotto) mette il box
+  // visibile sulla stessa linea. Con un solo elemento, nessuno spostamento:
+  // solo-landscape-entrambi. Il network con posizione congelata (checkbox
+  // OFF) resta assoluto per contratto: mai spostato.
+  const netShadowPad = Math.max(2, Math.round(3 * badgePw / 380)) + 1
+  const landscapeSharedTopLine =
+    isLandscape && !!networkLogoForLayout && !isFixedNetwork && !!safeQualityBadgeResult && !isFresh && !isCard
   // Fresh/Card: il mark provider riusa il bitmap raw nella colonna meta / sotto il rank (sotto).
   if (networkLogoForLayout && !isFresh && !isCard) {
     const gap = Math.round(6 * CH / 570)
@@ -3449,7 +3528,10 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
       const isNetflixRibbon = isRibbonRankingStyle(rankingBadgeStyle) && topBadge?.type === "rank"
       const hasComingSoonCorner = showComingSoon && !!ribbonLayout && !!safeComingSoonResult
       const netPadX = Math.round(18 * CW / 380)
-      const netPadY = Math.round(18 * CH / 570)
+      // A2: in landscape con entrambi disegnati l'anchor scende del pad ombra
+      // network (vedi `landscapeSharedTopLine`): l'inchiostro finisce sulla
+      // linea condivisa, allineato al box visibile della qualità.
+      const netPadY = Math.round(18 * CH / 570) - (landscapeSharedTopLine ? netShadowPad : 0)
       // Corner rank rect for the below-pill network stacking (null unless a
       // corner rank badge was rendered). Corner-style only. Visible body:
       // the bleed never participates in collisions.
@@ -3812,7 +3894,13 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
     // come col nastro a destra (stesso branch, niente overlap sull'angolo).
     const isRightRibbonCorner = (isNetflixRight && !!finalRankBadge) || isComingSoonRight || (!!networkLogoForLayout && netAnchoredRight) || isNumberRight
 
-    // Ancoraggio base: top = netBaseTop - 10 + 5 (storia editoriale: era -20).
+    // Ancoraggio base portrait: top = netBaseTop - 10 + 5 (storia editoriale:
+    // era -20); con i default di fabbrica (qoy +6) il box visibile cade a 39px
+    // = inchiostro network (griglia superiore unica).
+    // A2 landscape (network + qualità entrambi disegnati): il box visibile va
+    // SULLA linea condivisa `netBaseTop + NETWORK_LOGO_SHIFT_Y` (24px @768×432)
+    // — il network sottrae il proprio pad ombra dall'anchor, la qualità assorbe
+    // qui il proprio TOP_SHADOW_PAD. Stessa riga del network, mai più invertita.
     // Griglia laterale a box: il respiro del box qualità è uguale a quello del
     // network (netPadX) su entrambi i lati. Il bitmap include il padding ombra
     // simmetrico: il pad scala col rapporto w finale/w render.
@@ -3821,7 +3909,8 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
     const qPad = qualityBadgeResult?.w
       ? Math.round(TOP_SHADOW_PAD * safeQualityBadgeResult.w / qualityBadgeResult.w)
       : TOP_SHADOW_PAD
-    let top = netBaseTop - 10 + 5
+    const sharedTopLineTop = netBaseTop + NETWORK_LOGO_SHIFT_Y - TOP_SHADOW_PAD
+    let top = landscapeSharedTopLine ? sharedTopLineTop : netBaseTop - 10 + 5
     let left = isRightRibbonCorner
       ? netPadX - qPad
       : CW - netPadX - (safeQualityBadgeResult.w - qPad)
@@ -3884,7 +3973,14 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
     // at the transformed box. The ratio maps the group bitmap's own space
     // (where the item boxes live) onto the placed bitmap.
     const qualityItemScale = qualityBadgeResult && qualityBadgeResult.w > 0 ? finalQualityBadge.w / qualityBadgeResult.w : 1
-    for (const item of safeQualityBadgeResult.items) {
+    // `strip` + `row` is ONE merged plate: a single slice can never detach, so
+    // this report publishes only the GROUP box — no `quality:*` per-item handle
+    // and no home ghost (a merged plate has no empty homes). Every other
+    // combination (any style stacked, strip stacked included) is a per-mark
+    // stack: items and empty-home ghosts are published normally.
+    const qualityGroupIsStrip = isMergedQualityStrip(effQualityBadgeStyle, effQualityGroupLayout)
+    const qualityReportedItems = qualityGroupIsStrip ? [] : safeQualityBadgeResult.items
+    for (const item of qualityReportedItems) {
       const reported = {
         top: qualityGroupTop + item.top * qualityItemScale,
         left: qualityGroupLeft + item.left * qualityItemScale,

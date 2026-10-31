@@ -230,7 +230,7 @@ describe("card press/focus reports the family without mutating anything", () => 
     const spy = vi.fn()
     renderHarness(spy)
     await act(async () => {})
-    fireEvent.mouseEnter(screen.getByRole("switch", { name: "ui.sash_extra" }))
+    fireEvent.mouseEnter(screen.getByRole("switch", { name: "ui.badgeExtraToggle" }))
     fireEvent.mouseOver(screen.getByText("ui.titleInfoFamily"))
     expect(spy).not.toHaveBeenCalled()
     expect(screen.getByTestId("family").textContent).toBe("auto")
@@ -239,7 +239,7 @@ describe("card press/focus reports the family without mutating anything", () => 
   it("press on the info card reports info and keeps keyboard focus", async () => {
     renderHarness()
     await act(async () => {})
-    const infoSwitch = screen.getByRole("switch", { name: "ui.sash_extra" })
+    const infoSwitch = screen.getByRole("switch", { name: "ui.badgeExtraToggle" })
     const storedBefore = localStorage.getItem("badgeDefaults")
     await act(async () => {
       fireEvent.pointerDown(infoSwitch)
@@ -260,7 +260,7 @@ describe("card press/focus reports the family without mutating anything", () => 
     const mountCommits = screen.getByTestId("changes").textContent
     // Nested control inside the info card: the whole press/focus sequence
     // funnels to a single committed owner change (same-value reports bail).
-    const infoSwitch = screen.getByRole("switch", { name: "ui.sash_extra" })
+    const infoSwitch = screen.getByRole("switch", { name: "ui.badgeExtraToggle" })
     await act(async () => {
       fireEvent.pointerDown(infoSwitch)
     })
@@ -290,7 +290,7 @@ describe("card press/focus reports the family without mutating anything", () => 
     openBadgeGroup("overlay")
     await act(async () => {})
     expect(p.ctx().defaultPosterShape).toBe("poster")
-    fireEvent.focus(screen.getByRole("switch", { name: "ui.sash_rank" }))
+    fireEvent.focus(screen.getByRole("radio", { name: "ui.ribbon" }))
     expect(p.ctx().defaultPosterShape).toBe("poster")
     expect(p.ctx().defaultSashOrder).toContain("rank")
   })

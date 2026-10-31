@@ -16,6 +16,7 @@ import { normalizeSashOrder, DEFAULT_SASH_ORDER, type SashBucket } from "./badge
 import { sanitizeDisabledContentTags } from "./content-tags"
 import { sanitizeDisabledNetworks } from "./network-keys"
 import { DEFAULT_QUALITY_BADGE_STYLE, type QualityBadgeStyle } from "./badge-styles"
+import { DEFAULT_QUALITY_GROUP_LAYOUT, isQualityGroupLayout, type QualityGroupLayout } from "./badge-styles"
 import { DEFAULT_AGE_BADGE_STYLE, DEFAULT_AWARD_BADGE_MODE, isAgeBadgeStyle, isAwardBadgeMode, type AgeBadgeStyle, type AwardBadgeMode } from "./badge-styles"
 import { DEFAULT_BADGE_FONT, isBadgeFont, type BadgeFont } from "./badge-styles"
 import { DEFAULT_SEPARATE_RATINGS_STYLE, isSeparateRatingsStyle, getSeparateBadgeDefaultScale, type SeparateRatingsStyle } from "./badge-styles"
@@ -56,6 +57,8 @@ export interface DefaultsState {
   defaultBadgePresets: RetiredBadgeFamilyBindings | null
   /** Stile icone del badge qualità di default (default "standard"). */
   defaultQualityBadgeStyle: QualityBadgeStyle
+  /** Layout del gruppo qualità di default ("stacked" = colonna storica, "row" = orizzontale). */
+  defaultQualityGroupLayout: QualityGroupLayout
   /** Formati A/V abilitati di default (dv, atmos, imax, hdr, hdr10plus). */
   defaultVideoFormats: VideoFormat[]
   defaultBlurEnabled: boolean
@@ -256,6 +259,8 @@ export interface DefaultsState {
   badgeFont: BadgeFont
   /** Stile icone del badge qualità del poster in editing. */
   qualityBadgeStyle: QualityBadgeStyle
+  /** Layout del gruppo qualità del poster in editing ("stacked"/"row"). */
+  qualityGroupLayout: QualityGroupLayout
   /** Formati A/V del poster in editing (null = segui default / spec locale). */
   videoFormats: VideoFormat[] | null
   /** Scala % logo di default (null = auto-fit per aspect, storico). */
@@ -285,6 +290,7 @@ const DEFAULT_FLAT_DEFAULTS: Omit<DefaultsState, "landscape"> = {
   defaultBadgeFont: DEFAULT_BADGE_FONT,
   defaultBadgePresets: null,
   defaultQualityBadgeStyle: DEFAULT_QUALITY_BADGE_STYLE,
+  defaultQualityGroupLayout: DEFAULT_QUALITY_GROUP_LAYOUT,
   defaultVideoFormats: [...KNOWN_VIDEO_FORMATS],
   defaultBlurEnabled: true,
   defaultBlurIntensity: 20,
@@ -402,6 +408,7 @@ const DEFAULT_FLAT_DEFAULTS: Omit<DefaultsState, "landscape"> = {
   extraBadgeStyle: null,
   badgeFont: DEFAULT_BADGE_FONT,
   qualityBadgeStyle: DEFAULT_QUALITY_BADGE_STYLE,
+  qualityGroupLayout: DEFAULT_QUALITY_GROUP_LAYOUT,
   videoFormats: null,
   defaultLogoScale: null,
   defaultLogoOffsetX: null,
@@ -467,6 +474,8 @@ interface StoredDefaults {
   rankingBadgeStyle?: RankingBadgeStyle
   extraBadgeStyle?: ExtraBadgeStyle | ExtraBadgeFollowRank | null
   qualityBadgeStyle?: QualityBadgeStyle
+  /** Layout gruppo qualità (grezzo dallo storage; validato in buildFromStored). */
+  qualityGroupLayout?: QualityGroupLayout
   badgeFont?: BadgeFont
   defaultBadgeStyle?: BadgeStyle
   defaultRankingBadgeStyle?: RankingBadgeStyle
@@ -477,6 +486,7 @@ interface StoredDefaults {
   /** Chiave flat server (ServerDefaults.badgePresets): fallback di lettura. */
   badgePresets?: unknown
   defaultQualityBadgeStyle?: QualityBadgeStyle
+  defaultQualityGroupLayout?: QualityGroupLayout
   defaultBlurEnabled?: boolean
   defaultBlurIntensity?: number
   defaultBlurFade?: number
@@ -814,6 +824,9 @@ function buildFromStored(d: StoredDefaults | null): DefaultsState {
     defaultBadgeFont: isBadgeFont(d.defaultBadgeFont) ? d.defaultBadgeFont : (isBadgeFont(d.badgeFont) ? d.badgeFont : DEFAULT_BADGE_FONT),
     defaultBadgePresets: hydrateBadgePresets(d.defaultBadgePresets ?? d.badgePresets, undefined).flat,
     defaultQualityBadgeStyle: d.defaultQualityBadgeStyle ?? d.qualityBadgeStyle ?? DEFAULT_QUALITY_BADGE_STYLE,
+    defaultQualityGroupLayout: isQualityGroupLayout(d.defaultQualityGroupLayout ?? d.qualityGroupLayout)
+      ? (d.defaultQualityGroupLayout ?? d.qualityGroupLayout) as QualityGroupLayout
+      : DEFAULT_QUALITY_GROUP_LAYOUT,
     defaultVideoFormats: Array.isArray(d.defaultVideoFormats)
       ? d.defaultVideoFormats.filter(isVideoFormat)
       : (Array.isArray(d.videoFormats) ? d.videoFormats.filter(isVideoFormat) : [...KNOWN_VIDEO_FORMATS]),
@@ -970,6 +983,9 @@ function buildFromStored(d: StoredDefaults | null): DefaultsState {
       : (isExtraBadgeStyle(d.defaultExtraBadgeStyle) || isExtraFollowRank(d.defaultExtraBadgeStyle) ? (d.defaultExtraBadgeStyle as ExtraBadgeStyle | ExtraBadgeFollowRank) : null),
     badgeFont: isBadgeFont(d.badgeFont) ? d.badgeFont : (isBadgeFont(d.defaultBadgeFont) ? d.defaultBadgeFont : DEFAULT_BADGE_FONT),
     qualityBadgeStyle: d.qualityBadgeStyle ?? d.defaultQualityBadgeStyle ?? DEFAULT_QUALITY_BADGE_STYLE,
+    qualityGroupLayout: isQualityGroupLayout(d.qualityGroupLayout ?? d.defaultQualityGroupLayout)
+      ? (d.qualityGroupLayout ?? d.defaultQualityGroupLayout) as QualityGroupLayout
+      : DEFAULT_QUALITY_GROUP_LAYOUT,
     videoFormats: Array.isArray(d.videoFormats) ? d.videoFormats.filter(isVideoFormat) : null,
     defaultLogoScale: typeof d.defaultLogoScale === "number" ? d.defaultLogoScale : (typeof d.logoScale === "number" ? d.logoScale : null),
     defaultLogoOffsetX: typeof d.defaultLogoOffsetX === "number" ? d.defaultLogoOffsetX : (typeof d.logoOffsetX === "number" ? d.logoOffsetX : null),
@@ -1023,6 +1039,7 @@ export function defaultsToPayload(d: DefaultsState): Record<string, unknown> {
     badgeFont: d.defaultBadgeFont,
     badgePresets: d.defaultBadgePresets ?? null,
     qualityBadgeStyle: d.defaultQualityBadgeStyle,
+    qualityGroupLayout: d.defaultQualityGroupLayout,
     blurEnabled: d.defaultBlurEnabled,
     blurIntensity: d.defaultBlurIntensity,
     blurFade: d.defaultBlurFade,

@@ -1,6 +1,6 @@
 import sharp from "sharp"
 import { describe, expect, it } from "vitest"
-import { buildGenrePillSvg, buildGenreTextSvg, buildGenreBarSvg, buildRankingDefaultSvg, buildExtraDefaultSvg, buildQualityBadgeSvg, glassStops, satinPillStops, buildGenreGlassSvg, buildGenreBorderedSvg, buildRankingGlassSvg, buildRankingBorderedSvg, buildExtraBorderedSvg, buildHouseRankingSvg, buildRankingCornerSvg } from "@/lib/badge-svg-shared"
+import { buildGenrePillSvg, buildGenreTextSvg, buildGenreBarSvg, buildGenreInkSvg, buildHouseGenreSvg, GENRE_INK_STAR_INK, buildRankingDefaultSvg, buildExtraDefaultSvg, buildQualityBadgeSvg, glassStops, satinPillStops, buildGenreGlassSvg, buildGenreBorderedSvg, buildRankingGlassSvg, buildRankingBorderedSvg, buildExtraBorderedSvg, buildHouseRankingSvg, buildRankingCornerSvg } from "@/lib/badge-svg-shared"
 import { buildGenreBadgeSVG, buildRankingBadgeSVG, buildExtraBadgeSVG, buildNetflixRankBadgeSVG, renderComingSoonRibbon, comingSoonRibbonLayout } from "@/lib/svg-badge"
 
 async function alphaBounds(png: Buffer) {
@@ -19,6 +19,22 @@ async function alphaBounds(png: Buffer) {
   }
 
   return { minX, maxX, width: info.width }
+}
+
+/**
+ * Centri inchiostro verticali delle stelle (path 5 punte) nel sistema SVG:
+ * il path ha il centro geometrico in (0,0) ma l'inchiostro è asimmetrico
+ * (punta a -R, base a 0.809R), quindi il centro visivo è la media del bbox
+ * del path, sommata alla traslazione. Serve a verificare l'allineamento con la
+ * Y condivisa dei `<text>` senza dipendere dalle costanti interne.
+ */
+function starInkCenters(svg: string): number[] {
+  const centers: number[] = []
+  for (const g of svg.matchAll(/<g transform="translate\((-?[\d.]+),(-?[\d.]+)\)" fill="[^"]*"><path d="([^"]+)"\/>/g)) {
+    const ys = [...g[3].matchAll(/(-?[\d.]+),(-?[\d.]+)/g)].map((p) => Number(p[2]))
+    centers.push(Number(g[2]) + (Math.min(...ys) + Math.max(...ys)) / 2)
+  }
+  return centers
 }
 
 /**
@@ -84,6 +100,21 @@ describe("ranking ribbon labels", () => {
     expect(svg).toContain(">Oggi<")
     expect(svg).not.toContain(">Anime<")
   })
+
+  it("renders legacy netflix-color as the satin Standard ribbon (render/anchor parity)", () => {
+    // `netflix-color` is ribbon-shaped for the anchor (`isRibbonRankingStyle`)
+    // and reads Standard (satin, no accent) in the UI (`resolveRibbonVariant`):
+    // the bitmap must be the same satin ribbon as `netflix`, never the centered
+    // default plate glued to the poster edge. Stored values are never migrated.
+    for (const side of ["left", "right"] as const) {
+      const legacy = buildHouseRankingSvg({ rank: 3, label: "Oggi", pw: 380, style: "netflix-color", side })
+      const standard = buildHouseRankingSvg({ rank: 3, label: "Oggi", pw: 380, style: "netflix", side })
+      expect(legacy.svg).toBe(standard.svg)
+      expect(legacy.w).toBe(standard.w)
+      expect(legacy.h).toBe(standard.h)
+      expect(legacy.svg).toContain(">TOP<")
+    }
+  })
 })
 
 describe("buildGenreBadgeSVG", () => {
@@ -125,26 +156,75 @@ describe("buildGenreBadgeSVG", () => {
     expect(svg).toContain('font-weight="600"')
   })
 
-  it("lowers the star symbol without shifting the rating baseline", () => {
+  it("centers the star ink on the rating baseline (no lower drift)", () => {
     const fs = 63
-    const starDy = Math.max(2, Math.round(fs * 0.14))
     const { svg } = buildGenreTextSvg("Fantascienza", "8.7", "2026", fs, "#e5e7eb", "shadow")
 
-    // La stella è un path dorato abbassato di starDy sotto la baseline…
+    // La stella è un path dorato la cui Y è compensata: il path ha il centro
+    // geometrico in (0,0) ma l'inchiostro è asimmetrico (punta a -R, base a
+    // 0.809R), quindi il centro inchiostro deve cadere sulla stessa Y del
+    // testo (dominant-baseline central). Prima stava 0.14*fs più in basso e la
+    // stella appariva sotto la riga (screenshot utente).
     expect(svg).toContain('fill="url(#starg)"')
     expect(svg).toContain('<path d="M')
     const textY = Number(svg.match(/<text[^>]*\sy="([\d.]+)"[^>]*>Fantascienza/)?.[1])
     expect(Number.isFinite(textY)).toBe(true)
-    const starG = svg.match(/<g transform="translate\(([\d.]+),([\d.]+)\)" fill="url\(#starg\)"/)
-    expect(starG).not.toBeNull()
-    expect(Number(starG![2]) - textY).toBe(starDy)
+    expect(starInkCenters(svg).length).toBe(1)
+    const [starCenter] = starInkCenters(svg)
+    expect(starCenter - textY).toBeGreaterThan(-0.75)
+    expect(starCenter - textY).toBeLessThan(0.75)
     // …mentre il voto resta un <text> centrato sulla baseline condivisa,
     // senza compensazioni dy né glifi Noto nel flusso.
     expect(svg).toContain(">8.7</text>")
+    const voteY = Number(svg.match(/<text[^>]*\sy="([\d.]+)"[^>]*>8.7/)?.[1])
+    expect(voteY).toBe(textY)
     expect(svg).not.toContain("Noto Sans Symbols 2")
     expect(svg).not.toContain("★")
     expect(svg).not.toContain("<tspan")
     expect(svg).not.toMatch(/<text[^>]*\sdy=/)
+  })
+
+  it("keeps the star ink vertically centered in every genre style", () => {
+    const cases: Array<[string, string]> = [
+      ["shadow", buildGenreTextSvg("Animazione", "8.2", "2024", 28, "#e5e7eb", "shadow").svg],
+      ["minimal", buildGenreTextSvg("Animazione", "8.2", "2024", 28, "#e5e7eb", "minimal").svg],
+      ["bar", buildGenreBarSvg("Animazione", "8.2", "2024", 380, 28, "rgba(0,0,0,0.88)", false).svg],
+      ["pill", buildGenrePillSvg("Animazione", "8.2", "2024", 28, "rgba(255,255,255,0.80)", "rgba(0,0,0,0.80)").svg],
+      ["colored", buildGenrePillSvg("Animazione", "8.2", "2024", 28, "#ff6430", "#ffffff", 0, undefined, false, false).svg],
+      ["bordo", buildGenreBorderedSvg("Animazione", "8.2", "2024", 28, "#e5e7eb", false).svg],
+      ["vetro", buildGenreGlassSvg("Animazione", "8.2", "2024", 28, "#e5e7eb", false).svg],
+      ["ink", buildGenreInkSvg("Animazione", "8.2", "2024", 28, "#1f7a8c", "#e5e7eb").svg],
+    ]
+    for (const [style, svg] of cases) {
+      const ys = [...svg.matchAll(/<text[^>]*\sy="([\d.]+)"/g)].map((m) => Number(m[1]))
+      expect(ys.length).toBeGreaterThan(0)
+      // Tutti i segmenti (genere, voti, anno) condividono la stessa Y.
+      expect(new Set(ys).size).toBe(1)
+      const textY = ys[0]
+      const centers = starInkCenters(svg)
+      expect(centers.length, style).toBeGreaterThanOrEqual(1)
+      for (const center of centers) {
+        expect(Math.abs(center - textY), style).toBeLessThanOrEqual(0.75)
+      }
+    }
+  })
+
+  it("renders the ink star off-white minimal, never the gold gradient", () => {
+    const dark = buildHouseGenreSvg({
+      genreName: "Animazione", voteStr: "8.2", yearStr: "2024", pw: 380,
+      style: "ink", accentColor: "#1f7a8c", bottomLight: false,
+    }).svg
+    expect(dark).not.toContain("url(#starg)")
+    expect(dark).toContain(GENRE_INK_STAR_INK)
+    expect(dark).not.toContain("#FCD34D")
+    // Banda chiara: la stella prende l'inchiostro del testo all'85% (adattiva),
+    // mai il gradiente oro.
+    const light = buildHouseGenreSvg({
+      genreName: "Animazione", voteStr: "8.2", yearStr: "2024", pw: 380,
+      style: "ink", accentColor: "#1f7a8c", bottomLight: true,
+    }).svg
+    expect(light).not.toContain("url(#starg)")
+    expect(light).toContain("rgba(229,231,235,0.85)")
   })
 
   it("keeps long genre pill compact and centers its text flow", async () => {

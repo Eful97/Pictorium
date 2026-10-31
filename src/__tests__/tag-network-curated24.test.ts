@@ -34,7 +34,7 @@ import {
 import { NETWORK_MARK_FILES } from "@/lib/network-files"
 import { networkAssetUrl, networkAssetKeys, TMDB_LOGO_ASSET_URL } from "@/lib/network-assets"
 import { getNetworkSvgResult } from "@/lib/network-svgs"
-import { renderNetworkOnlyLargePill } from "@/lib/poster-service"
+import { renderNetworkOnlyLargePill } from "@/__tests__/helpers/network-pill"
 import { resolveProviderGlassBrandHex, resolveProviderGlassAccent } from "@/lib/provider-brand-palette"
 import { DEMO_SAMPLE_NETWORK } from "@/lib/demo-samples"
 import { configTokenSchema, partialCatalogTokenSchema } from "@/lib/config-token"

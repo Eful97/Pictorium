@@ -274,7 +274,7 @@ test.describe("Trasforma Verticale/Orizzontale preview-only", () => {
     expect(p.get("shape")).toBe("poster")
     expect(p.get("gradHeight")).toBe("30")
     expect(p.get("tscale")).toBe("100")
-    expect(p.get("qox")).toBe("-10")
+    expect(p.get("qox")).toBe("-4")
     await expect(previewBox.locator(".aspect-video")).toHaveCount(0)
 
     // Tab Badge: default esistente (portrait), nessun refetch spurio.

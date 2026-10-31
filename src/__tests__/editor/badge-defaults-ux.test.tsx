@@ -78,15 +78,45 @@ describe("rank bucket toggle", () => {
     const { ctx } = renderBadge("portrait")
     await act(async () => {})
     expect(ctx().defaultSashOrder).toContain("rank")
-    fireEvent.click(badgeSwitch("ui.sash_rank"))
+    fireEvent.click(badgeSwitch("ui.rankingsToggle"))
     expect(ctx().defaultSashOrder).not.toContain("rank")
     expect(ctx().defaultSashOrder).toContain("new")
     expect(ctx().defaultSashOrder).toContain("extra")
-    // Master untouched: still renders every other top badge.
-    expect(badgeSwitch("ui.topBadge").getAttribute("aria-checked")).toBe("true")
+    // The extras master is untouched: still renders every other top badge.
+    expect(badgeSwitch("ui.badgeExtraToggle").getAttribute("aria-checked")).toBe("true")
     expect(ctx().defaultRankingBadges).toBe(true)
     // Back ON reinserts rank at its canonical slot.
-    fireEvent.click(badgeSwitch("ui.sash_rank"))
+    fireEvent.click(badgeSwitch("ui.rankingsToggle"))
+    expect(ctx().defaultSashOrder).toEqual([...DEFAULT_SASH_ORDER])
+  })
+})
+
+describe("two independent masters (Informazioni)", () => {
+  it("classifiche OFF removes only the rank bucket; awards and extras stay", async () => {
+    const { ctx } = renderBadge("portrait")
+    await act(async () => {})
+    fireEvent.click(badgeSwitch("ui.rankingsToggle"))
+    expect(ctx().defaultSashOrder).not.toContain("rank")
+    expect(ctx().defaultSashOrder).toContain("award")
+    expect(ctx().defaultSashOrder).toContain("extra")
+    expect(ctx().defaultSashOrder).toContain("upcoming")
+  })
+
+  it("badge extra OFF hides every non-rank badge while the rank bucket stays", async () => {
+    const { ctx } = renderBadge("portrait")
+    await act(async () => {})
+    fireEvent.click(badgeSwitch("ui.badgeExtraToggle"))
+    // The master removes awards, extras, upcoming/new/next-episode (and its
+    // Coming Soon server gate) but never the classification.
+    expect(ctx().defaultRankingBadges).toBe(true)
+    expect(ctx().defaultSashOrder).toContain("rank")
+    expect(ctx().defaultSashOrder).not.toContain("new")
+    expect(ctx().defaultSashOrder).not.toContain("upcoming")
+    expect(ctx().defaultSashOrder).not.toContain("award")
+    expect(ctx().defaultSashOrder).not.toContain("extra")
+    // Back ON restores the prior rank state untouched.
+    fireEvent.click(badgeSwitch("ui.badgeExtraToggle"))
+    expect(ctx().defaultRankingBadges).toBe(true)
     expect(ctx().defaultSashOrder).toEqual([...DEFAULT_SASH_ORDER])
   })
 })
@@ -233,7 +263,7 @@ describe("landscape scope + priorities", () => {
   it("landscape rank toggle touches only the profile; delivery + portrait intact", async () => {
     const { ctx } = renderBadge("landscape")
     await act(async () => {})
-    fireEvent.click(badgeSwitch("ui.sash_rank"))
+    fireEvent.click(badgeSwitch("ui.rankingsToggle"))
     expect(ctx().landscape.sashOrder ?? []).not.toContain("rank")
     expect(ctx().defaultSashOrder).toContain("rank")
     expect(ctx().defaultPosterShape).toBe("poster")
@@ -241,13 +271,30 @@ describe("landscape scope + priorities", () => {
     expect(ctx().landscape.rankingBadgeStyle).toBe("default")
   })
 
-  it("master OFF/ON preserves the global priority order", async () => {
+  it("the masters re-open the shared top-plate gate a preset had turned off", async () => {
+    localStorage.setItem("badgeDefaults", JSON.stringify({ defaultRankingBadges: false, defaultSashOrder: [] }))
     const { ctx } = renderBadge("portrait")
     await act(async () => {})
-    fireEvent.click(badgeSwitch("ui.topBadge"))
-    expect(ctx().defaultSashOrder).toEqual([])
-    fireEvent.click(badgeSwitch("ui.topBadge"))
+    // Both switches read OFF while the plate gate is closed.
+    expect(badgeSwitch("ui.badgeExtraToggle").getAttribute("aria-checked")).toBe("false")
+    expect(badgeSwitch("ui.rankingsToggle").getAttribute("aria-checked")).toBe("false")
+    fireEvent.click(badgeSwitch("ui.rankingsToggle"))
+    expect(ctx().defaultRankingBadges).toBe(true)
+    expect(ctx().defaultSashOrder).toEqual(["rank"])
+    // The extras master re-adds the non-rank buckets and never removes rank.
+    fireEvent.click(badgeSwitch("ui.badgeExtraToggle"))
+    expect(ctx().defaultRankingBadges).toBe(true)
     expect(ctx().defaultSashOrder).toEqual([...DEFAULT_SASH_ORDER])
+  })
+
+  it("the extras master never adds the rank bucket when classifiche is off", async () => {
+    localStorage.setItem("badgeDefaults", JSON.stringify({ defaultRankingBadges: true, defaultSashOrder: [] }))
+    const { ctx } = renderBadge("portrait")
+    await act(async () => {})
+    fireEvent.click(badgeSwitch("ui.badgeExtraToggle"))
+    expect(ctx().defaultRankingBadges).toBe(true)
+    expect(ctx().defaultSashOrder).not.toContain("rank")
+    expect(ctx().defaultSashOrder).toEqual(["upcoming", "new", "award", "extra"])
   })
 })
 
@@ -307,8 +354,8 @@ describe("extra/category gating (independent from the genre master)", () => {
     expect(base().queryByText("ui.badgeYear")).toBeNull()
     // Extra family stays reachable with the top badge master on.
     expect(screen.getByText("ui.extraBadgeStyle")).toBeInTheDocument()
-    expect(screen.getByRole("switch", { name: "ui.sash_rank" })).toBeInTheDocument()
-    expect(screen.getByRole("switch", { name: "ui.sash_extra" })).toBeInTheDocument()
+    expect(screen.getByRole("switch", { name: "ui.rankingsToggle" })).toBeInTheDocument()
+    expect(screen.getByRole("switch", { name: "ui.badgeExtraToggle" })).toBeInTheDocument()
     expect(screen.getByRole("switch", { name: "ui.preRelease" })).toBeInTheDocument()
     expect(screen.getByText("ui.advancedBadgePriority")).toBeInTheDocument()
   })
@@ -321,7 +368,7 @@ describe("extra/category gating (independent from the genre master)", () => {
     // (no root leak); the quick toggle keeps its own label.
     expect(within(screen.getByTestId("badge-group-base")).queryByText("ui.badgeGenre")).toBeNull()
     expect(screen.getByText("ui.extraBadgeStyle")).toBeInTheDocument()
-    expect(screen.getByRole("switch", { name: "ui.sash_extra" })).toBeInTheDocument()
+    expect(screen.getByRole("switch", { name: "ui.badgeExtraToggle" })).toBeInTheDocument()
     expect(ctx().defaultGlobalBadges).toBe(true)
     expect(ctx().landscape.globalBadges).toBe(false)
   })
@@ -394,46 +441,69 @@ describe("rank restore keeps the custom position (per target, master-independent
     const { ctx } = renderBadge("portrait")
     await act(async () => {})
     expect(ctx().defaultSashOrder).toEqual(custom)
-    // OFF via the advanced list, ON via the Classifica switch.
+    // OFF via the advanced list, ON via the Informazioni "classifiche" master.
     fireEvent.click(screen.getByText("ui.advancedBadgePriority"))
-    const switches = screen.getAllByRole("switch", { name: "ui.sash_rank" })
-    expect(switches).toHaveLength(2)
-    fireEvent.click(switches[1])
+    fireEvent.click(screen.getByRole("switch", { name: "ui.sash_rank" }))
     expect(ctx().defaultSashOrder).toEqual(["extra", "new", "award"])
     expect(JSON.parse(localStorage.getItem("pictorium_rank_sash_stash") ?? "null")).toEqual(custom)
-    fireEvent.click(switches[0])
+    fireEvent.click(badgeSwitch("ui.rankingsToggle"))
     expect(ctx().defaultSashOrder).toEqual(custom)
   })
 
-  it("rank stash is per target and independent from the master stash", async () => {
+  it("rank stash is per target and independent from the extras master", async () => {
     localStorage.setItem("badgeDefaults", JSON.stringify({ defaultSashOrder: custom }))
     const { ctx } = renderBadge("portrait")
     await act(async () => {})
-    fireEvent.click(badgeSwitch("ui.sash_rank")) // rank OFF
-    expect(ctx().defaultSashOrder).toEqual(["extra", "new", "award"])
-    expect(localStorage.getItem("pictorium_rank_sash_stash")).not.toBeNull()
-    expect(localStorage.getItem("pictorium_trend_sash_stash")).toBeNull()
-    fireEvent.click(badgeSwitch("ui.topBadge")) // master OFF (own stash)
+    // The extras master hides the non-rank buckets WITHOUT touching the rank
+    // stash or the classification gate.
+    fireEvent.click(badgeSwitch("ui.badgeExtraToggle"))
+    expect(ctx().defaultRankingBadges).toBe(true)
+    expect(ctx().defaultSashOrder).toEqual(["rank"])
+    expect(localStorage.getItem("pictorium_rank_sash_stash")).toBeNull()
+    // Extra back ON restores only the categories that were enabled and keeps
+    // the rank at its position (no resurrect of the custom list, no clobber).
+    fireEvent.click(badgeSwitch("ui.badgeExtraToggle"))
+    expect(ctx().defaultRankingBadges).toBe(true)
+    expect(ctx().defaultSashOrder).toContain("rank")
+    expect(ctx().defaultSashOrder).toContain("extra")
+    expect(ctx().defaultSashOrder).toContain("new")
+    expect(ctx().defaultSashOrder).toContain("award")
+    // "upcoming" was not in the custom list: never resurrected.
+    expect(ctx().defaultSashOrder).not.toContain("upcoming")
+    expect(localStorage.getItem("pictorium_rank_sash_stash")).toBeNull()
+  })
+
+  it("extra master stash is per target and never feeds the rank toggle", async () => {
+    localStorage.setItem("badgeDefaults", JSON.stringify({ defaultSashOrder: custom }))
+    const { ctx } = renderBadge("portrait")
+    await act(async () => {})
+    fireEvent.click(badgeSwitch("ui.badgeExtraToggle")) // extras OFF
+    expect(ctx().defaultSashOrder).toEqual(["rank"])
+    // Rank OFF/ON cycles only the rank bucket; the extras stash stays put and
+    // the hidden categories are not resurrected by the rank switch.
+    fireEvent.click(badgeSwitch("ui.rankingsToggle"))
     expect(ctx().defaultSashOrder).toEqual([])
-    expect(localStorage.getItem("pictorium_trend_sash_stash")).not.toBeNull()
-    // Rank stash survived the master cycle untouched.
-    expect(JSON.parse(localStorage.getItem("pictorium_rank_sash_stash") ?? "null")).toEqual(custom)
-    fireEvent.click(badgeSwitch("ui.topBadge")) // master ON restores rank-less stash
-    expect(ctx().defaultSashOrder).toEqual(["extra", "new", "award"])
-    fireEvent.click(badgeSwitch("ui.sash_rank")) // rank ON restores exact custom order
-    expect(ctx().defaultSashOrder).toEqual(custom)
+    fireEvent.click(badgeSwitch("ui.rankingsToggle"))
+    expect(ctx().defaultSashOrder).toEqual(["rank"])
+    // Extra ON restores the stashed non-rank categories (still no upcoming).
+    fireEvent.click(badgeSwitch("ui.badgeExtraToggle"))
+    expect(ctx().defaultSashOrder).toContain("rank")
+    expect(ctx().defaultSashOrder).toContain("extra")
+    expect(ctx().defaultSashOrder).toContain("new")
+    expect(ctx().defaultSashOrder).toContain("award")
+    expect(ctx().defaultSashOrder).not.toContain("upcoming")
   })
 
   it("landscape rank cycle touches only the profile", async () => {
     localStorage.setItem("badgeDefaults", JSON.stringify({ defaultSashOrder: custom }))
     const { ctx } = renderBadge("landscape")
     await act(async () => {})
-    fireEvent.click(badgeSwitch("ui.sash_rank"))
+    fireEvent.click(badgeSwitch("ui.rankingsToggle"))
     expect(ctx().landscape.sashOrder).toEqual(["extra", "new", "award"])
     expect(ctx().defaultSashOrder).toEqual(custom)
     expect(localStorage.getItem("pictorium_rank_sash_stash:landscape")).not.toBeNull()
     expect(localStorage.getItem("pictorium_rank_sash_stash")).toBeNull()
-    fireEvent.click(badgeSwitch("ui.sash_rank"))
+    fireEvent.click(badgeSwitch("ui.rankingsToggle"))
     expect(ctx().landscape.sashOrder).toEqual(custom)
     expect(ctx().defaultSashOrder).toEqual(custom)
   })

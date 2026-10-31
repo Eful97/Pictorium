@@ -9,7 +9,7 @@ import {
   renderNetworkRawBadge,
 } from "@/lib/network-svgs"
 import { TMDB_FALLBACK_SENTINEL } from "@/lib/network-keys"
-import { renderNetworkOnlyLargePill } from "@/lib/poster-service"
+import { renderNetworkOnlyLargePill } from "@/__tests__/helpers/network-pill"
 
 describe("network-svgs", () => {
   it("matches Netflix network and returns networkKey=netflix", () => {

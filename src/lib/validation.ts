@@ -2,6 +2,7 @@ import { z } from "zod"
 import { BADGE_STYLES, RANKING_BADGE_STYLES, QUALITY_BADGE_STYLES, AGE_BADGE_STYLES, AWARD_BADGE_MODES, BADGE_FONTS, SEPARATE_RATINGS_STYLES, EXTRA_BADGE_STYLES, EXTRA_BADGE_FOLLOW_RANK } from "./badge-styles"
 import { TEXT_LOGO_MAX_LENGTH } from "./text-logo"
 import { POSTER_LAYOUTS, POSTER_FRESH_SCOPES, RETIRED_BADGE_FAMILY_IDS, type RetiredBadgeFamilyBindings, type RetiredBadgeFamilyFollows } from "./types"
+import { QUALITY_GROUP_LAYOUTS } from "./badge-styles"
 
 /**
  * Retired Badge Lab write-boundary schemas (custom badge library removed).
@@ -201,6 +202,8 @@ export const mappingSchema = z.object({
   posterLayout: z.enum(POSTER_LAYOUTS).nullable().optional(),
   /** Fresh apply scope per-titolo ("ranked" = default: solo con rank; "all" = override esplicito). */
   posterFreshScope: z.enum(POSTER_FRESH_SCOPES).nullable().optional(),
+  /** Layout del gruppo qualità per-titolo ("stacked" = colonna storica, "row" = orizzontale). */
+  qualityGroupLayout: z.enum(QUALITY_GROUP_LAYOUTS).nullable().optional(),
   // Seasonal frame per-titolo (flat unico condiviso tra i formati, nessun
   // profilo landscape): "halloween"/"christmas" = scelta esplicita che segue
   // il titolo; "none" = sopprime un tema ereditato dalla lista;
@@ -232,6 +235,7 @@ export const mappingSchema = z.object({
     separateRatingsStyle: z.enum(SEPARATE_RATINGS_STYLES).nullable().optional(),
     posterLayout: z.enum(POSTER_LAYOUTS).nullable().optional(),
     posterFreshScope: z.enum(POSTER_FRESH_SCOPES).nullable().optional(),
+    qualityGroupLayout: z.enum(QUALITY_GROUP_LAYOUTS).nullable().optional(),
     networkLogoScale: z.number().int().min(10).max(200).nullable().optional(),
     networkLogoOffsetX: z.number().int().nullable().optional(),
     networkLogoOffsetY: z.number().int().nullable().optional(),

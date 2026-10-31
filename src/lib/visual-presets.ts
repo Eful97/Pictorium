@@ -1,5 +1,5 @@
 import { z } from "zod"
-import { BADGE_STYLES, RANKING_BADGE_STYLES, EXTRA_BADGE_STYLES, EXTRA_BADGE_FOLLOW_RANK, QUALITY_BADGE_STYLES, AGE_BADGE_STYLES, BADGE_FONTS, SEPARATE_RATINGS_STYLES, DEFAULT_AGE_BADGE_STYLE, DEFAULT_AWARD_BADGE_MODE, DEFAULT_BADGE_FONT, DEFAULT_BADGE_STYLE, DEFAULT_QUALITY_BADGE_STYLE, DEFAULT_RANKING_BADGE_STYLE, isAgeBadgeStyle, isAwardBadgeMode, isBadgeFont, isBadgeStyle, isExtraBadgeStyle, isExtraFollowRank, isQualityBadgeStyle, isRankingBadgeStyle, DEFAULT_QUALITY_BADGE_OFFSET_X_LANDSCAPE, DEFAULT_QUALITY_BADGE_OFFSET_Y_LANDSCAPE } from "./badge-styles"
+import { BADGE_STYLES, RANKING_BADGE_STYLES, EXTRA_BADGE_STYLES, EXTRA_BADGE_FOLLOW_RANK, QUALITY_BADGE_STYLES, AGE_BADGE_STYLES, BADGE_FONTS, SEPARATE_RATINGS_STYLES, DEFAULT_AGE_BADGE_STYLE, DEFAULT_AWARD_BADGE_MODE, DEFAULT_BADGE_FONT, DEFAULT_BADGE_STYLE, DEFAULT_QUALITY_BADGE_STYLE, DEFAULT_RANKING_BADGE_STYLE, isAgeBadgeStyle, isAwardBadgeMode, isBadgeFont, isBadgeStyle, isExtraBadgeStyle, isExtraFollowRank, isQualityBadgeStyle, isRankingBadgeStyle, DEFAULT_QUALITY_BADGE_OFFSET_X_LANDSCAPE, DEFAULT_QUALITY_BADGE_OFFSET_Y_LANDSCAPE, QUALITY_GROUP_LAYOUTS, DEFAULT_QUALITY_GROUP_LAYOUT, isQualityGroupLayout } from "./badge-styles"
 import { KNOWN_VIDEO_FORMATS, isVideoFormat, type VideoFormat } from "./av-specs"
 import { SASH_BUCKETS } from "./badge-priority"
 import { DEFAULT_AGE_COUNTRY, normalizeCertificationCountry } from "./certification"
@@ -42,6 +42,7 @@ const landscapeSchema = z.object({
   extraBadgeStyle: z.union([z.enum(EXTRA_BADGE_STYLES), z.literal(EXTRA_BADGE_FOLLOW_RANK)]).nullable().optional(),
   badgeFont: z.enum(BADGE_FONTS).nullable().optional(),
   qualityBadgeStyle: z.enum(QUALITY_BADGE_STYLES).nullable().optional(),
+  qualityGroupLayout: z.enum(QUALITY_GROUP_LAYOUTS).nullable().optional(),
   videoFormats: z.array(z.enum(["dv", "hdr", "hdr10plus", "atmos", "imax"])).max(5).nullable().optional(),
   sashOrder: z.array(z.enum(SASH_BUCKETS)).max(SASH_BUCKETS.length).optional(),
   networkLogo: z.boolean().optional(), networkLogoPosition: z.enum(["auto", "top"]).optional(),
@@ -78,6 +79,9 @@ export const visualPresetValuesSchema = z.object({
   // Preset salvati prima del selettore font: assente = "inter" (resa storica).
   defaultBadgeFont: z.enum(BADGE_FONTS).default("inter"),
   defaultQualityBadgeStyle: z.enum(QUALITY_BADGE_STYLES),
+  // Optional (no default): legacy presets keep parsing byte-identically and
+  // simply leave the live quality group layout untouched when applied.
+  defaultQualityGroupLayout: z.enum(QUALITY_GROUP_LAYOUTS).optional(),
   defaultVideoFormats: z.array(z.enum(["dv", "hdr", "hdr10plus", "atmos", "imax"])).max(5),
   defaultLogoScale: logoScale, defaultLogoOffsetX: offset.nullable(), defaultLogoOffsetY: offset.nullable(),
   defaultBlurEnabled: z.boolean(), defaultBlurIntensity: percent, defaultBlurFade: percent, defaultBlurDarkness: percent,
@@ -332,6 +336,7 @@ export const PRESET_FLAT_TO_LANDSCAPE: Record<string, keyof LandscapeServerDefau
   defaultRankingBadgeStyle: "rankingBadgeStyle",
   defaultBadgeFont: "badgeFont",
   defaultQualityBadgeStyle: "qualityBadgeStyle",
+  defaultQualityGroupLayout: "qualityGroupLayout",
   defaultVideoFormats: "videoFormats",
   defaultSashOrder: "sashOrder",
   defaultNetworkLogo: "networkLogo",
@@ -445,6 +450,7 @@ export function normalizePersonalPreset<T extends VisualPresetValues>(values: T)
   const inheritFlatToLand: Array<[string, string]> = [
     ["defaultBadgeFont", "badgeFont"],
     ["defaultQualityBadgeStyle", "qualityBadgeStyle"],
+    ["defaultQualityGroupLayout", "qualityGroupLayout"],
     ["defaultVideoFormats", "videoFormats"],
     ["defaultPosterLayout", "posterLayout"],
     ["defaultPosterFreshScope", "posterFreshScope"],
@@ -589,6 +595,9 @@ const NULL_INHERIT_LANDSCAPE_KEYS = new Set([
   // personal apply path handles their null fallback separately.)
   "posterLayout",
   "posterFreshScope",
+  // Quality group layout: explicit `null` means inherit the flat on every
+  // consumer (`land ?? flat`), exactly like the style above.
+  "qualityGroupLayout",
 ])
 
 /**
@@ -1051,6 +1060,11 @@ export function canonicalInheritFreeze(
           ? flatValue
           : DEFAULT_QUALITY_BADGE_STYLE,
       }
+    case "qualityGroupLayout":
+      return {
+        freeze: true,
+        value: isQualityGroupLayout(flatValue) ? flatValue : DEFAULT_QUALITY_GROUP_LAYOUT,
+      }
     case "videoFormats":
       return {
         freeze: true,
@@ -1266,6 +1280,7 @@ export const MAPPING_SHAPE_LAND_KEYS = [
   "extraBadgeStyle",
   "badgeFont",
   "qualityBadgeStyle",
+  "qualityGroupLayout",
   "videoFormats",
   "networkLogo",
   "networkLogoPosition",
@@ -1342,6 +1357,7 @@ const MAPPING_SHAPE_PROFILE_KEY: Record<MappingShapeLandKey, string> = {
   extraBadgeStyle: "extraBadgeStyle",
   badgeFont: "badgeFont",
   qualityBadgeStyle: "qualityBadgeStyle",
+  qualityGroupLayout: "qualityGroupLayout",
   videoFormats: "videoFormats",
   networkLogo: "networkLogo",
   networkLogoPosition: "networkLogoPosition",
@@ -1389,6 +1405,7 @@ export const MAPPING_SHAPE_FACTORY: Record<MappingShapeLandKey, unknown> = {
   extraBadgeStyle: EXTRA_BADGE_FOLLOW_RANK,
   badgeFont: DEFAULT_BADGE_FONT,
   qualityBadgeStyle: DEFAULT_QUALITY_BADGE_STYLE,
+  qualityGroupLayout: DEFAULT_QUALITY_GROUP_LAYOUT,
   videoFormats: [...KNOWN_VIDEO_FORMATS],
   networkLogo: true,
   networkLogoPosition: "auto",
@@ -1473,6 +1490,7 @@ export function mappingShapeChainEffective(
       }
     case "badgeFont":
     case "qualityBadgeStyle":
+    case "qualityGroupLayout":
     case "videoFormats":
     case "extraBadgeStyle": {
       // Shared single truth with the global boundary: validated value wins,

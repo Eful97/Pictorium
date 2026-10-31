@@ -118,7 +118,7 @@ describe("resolveAgeBadgeRequest style (agebs)", () => {
   it("accepts the quality vocabulary and rejects invalid values", () => {
     // Additive age styles (authorized): same vocabulary as the quality badge,
     // while standard/knockout keep their historic renderers.
-    expect(AGE_BADGE_STYLES).toEqual(["standard", "mono", "color", "knockout", "premium", "nova", "gradient"])
+    expect(AGE_BADGE_STYLES).toEqual(["standard", "mono", "color", "knockout", "premium", "nova", "gradient", "outline"])
     expect(DEFAULT_AGE_BADGE_STYLE).toBe("standard")
     expect(isAgeBadgeStyle("standard")).toBe(true)
     expect(isAgeBadgeStyle("mono")).toBe(true)

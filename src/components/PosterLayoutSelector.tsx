@@ -4,6 +4,7 @@ import { useEffect, useState } from "react"
 import { useT } from "@/lib/contexts/TranslationContext"
 import { isPosterLayout, isPosterFreshScope, DEFAULT_POSTER_FRESH_SCOPE, type PosterLayout, type PosterFreshScope } from "@/lib/types"
 import { isCardSkin, type CardSkin } from "@/lib/card-layout-skins"
+import { isQualityGroupLayout, DEFAULT_QUALITY_GROUP_LAYOUT, QUALITY_GROUP_LAYOUTS, type QualityGroupLayout } from "@/lib/badge-styles"
 
 // All five cover layouts are selectable in the UI: the historic Standard,
 // full-bleed Fresh, and the three integrated Card skins (Provider Glass,
@@ -279,6 +280,55 @@ export function PosterFreshScopeSelector({
       </select>
       <p className="text-[10px] text-zinc-500 leading-relaxed select-none">
         {isCard ? t("ui.posterLayoutScopeHint") : t("ui.posterFreshScopeHint")}
+      </p>
+    </div>
+  )
+}
+
+const QUALITY_GROUP_LAYOUT_LABELS: Record<QualityGroupLayout, string> = {
+  stacked: "ui.qualityGroupLayoutStacked",
+  row: "ui.qualityGroupLayoutRow",
+}
+
+/**
+ * Quality group layout selector (tier + age + A/V marks): the historic
+ * vertical column (`stacked`, default) or the horizontal row (`row`).
+ * Controlled and shape-scoped by the caller (per-title live value or the
+ * scoped global default), so the WYSIWYG preview and the saved mapping both
+ * receive the same `qgl` value.
+ */
+export function QualityGroupLayoutSelector({
+  value,
+  onChange,
+}: {
+  value: QualityGroupLayout | string | null | undefined
+  onChange: (v: QualityGroupLayout) => void
+}) {
+  const { t } = useT()
+  const effective: QualityGroupLayout = isQualityGroupLayout(value) ? value : DEFAULT_QUALITY_GROUP_LAYOUT
+  return (
+    <div className="space-y-1.5" data-testid="quality-group-layout-selector">
+      <label className="text-[11px] text-muted font-medium block">
+        {t("ui.qualityGroupLayout")}
+      </label>
+      <select
+        value={effective}
+        onChange={(e) => {
+          const v = e.target.value
+          if (isQualityGroupLayout(v)) onChange(v)
+        }}
+        className="editor-input w-full px-2 py-1 cursor-pointer font-medium"
+        data-testid="quality-group-layout-select"
+        aria-label={t("ui.qualityGroupLayout")}
+      >
+        {QUALITY_GROUP_LAYOUTS.map((layout) => (
+          <option key={layout} value={layout}>
+            {t(QUALITY_GROUP_LAYOUT_LABELS[layout])}
+          </option>
+        ))}
+      </select>
+      <p className="text-[10px] text-zinc-500 leading-relaxed select-none">
+        {t("ui.qualityGroupLayoutHint")}
       </p>
     </div>
   )

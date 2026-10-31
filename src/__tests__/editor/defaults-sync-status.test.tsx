@@ -622,7 +622,7 @@ describe("footer explicit save (staged session)", () => {
     act(() => { fireEvent.click(within(panel).getByRole("switch", { name: "ui.badgeRating" })) })
     expect(putBodies).toEqual([])
     // Free navigation across tabs and shapes: no PUT, draft retained.
-    for (const name of ["ui.settingsTabRankings", "ui.settingsTabBadge", "ui.settingsTabTransform", "ui.settingsTabPreset"]) {
+    for (const name of ["ui.settingsTabInformation", "ui.settingsTabBadge", "ui.settingsTabTransform", "ui.settingsTabPreset"]) {
       const tab = screen.getByRole("tab", { name })
       act(() => { fireEvent.click(tab) })
     }

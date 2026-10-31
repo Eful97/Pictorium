@@ -760,17 +760,18 @@ describe("SettingsPanel real-switch availability (both shapes, staged)", () => {
     expect(within(badgePanel()).queryByTestId("badge-separate-style")).toBeNull()
     clickTab("ui.settingsTabTransform")
     expect(within(transformPanel()).queryByTestId("transform-geo-separate")).toBeNull()
-    // Rankings rank bucket off: rank geometry hides, extra stays live.
-    clickTab("ui.settingsTabRankings")
-    ensureOff("ui.sash_rank")
+    // "Classifiche" master (Informazioni) off: rank geometry hides, extra
+    // stays live (the award/extra master is a different, independent state).
+    clickTab("ui.settingsTabInformation")
+    ensureOff("ui.rankingsToggle")
     expect(puts).toHaveLength(0)
     clickTab("ui.settingsTabTransform")
     expect(within(transformPanel()).queryByTestId("transform-geo-rank")).toBeNull()
     expect(within(transformPanel()).getByTestId("transform-geo-extra")).toBeInTheDocument()
     // Bucket back on: geometry returns with tuning intact; separate stays
     // staged off so the single Save has a deterministic payload.
-    clickTab("ui.settingsTabRankings")
-    ensureOn("ui.sash_rank")
+    clickTab("ui.settingsTabInformation")
+    ensureOn("ui.rankingsToggle")
     clickTab("ui.settingsTabTransform")
     expect(within(transformPanel()).getByTestId("transform-geo-rank")).toBeInTheDocument()
     expect(puts).toHaveLength(0)

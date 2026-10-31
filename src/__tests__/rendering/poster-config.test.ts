@@ -440,6 +440,66 @@ describe("resolvePosterRenderConfig", () => {
     expect(resolvePosterRenderConfig(baseInput({ searchParams: new URLSearchParams({ tox: "xyz" }) })).topBadgeOffsetX).toBe(0)
   })
 
+  // Factory tuning per stile di classifica (additivo): solo `split` ne ha una
+  // diversa dal neutro 100/0/0. Il neutro è il marcatore osservabile di
+  // "tuning mai scritto" (editor e save persistono sempre il trio), quindi la
+  // mappatura avviene asse per asse; ogni valore non-neutro vince intatto.
+  it("split resolves the factory tuning 100 / -137 / 32 when nothing was authored", () => {
+    const r = resolvePosterRenderConfig(baseInput({
+      searchParams: new URLSearchParams({ rs: "split" }),
+    }))
+    expect(r.rankingBadgeStyle).toBe("split")
+    expect(r.topBadgeScale).toBe(100)
+    expect(r.topBadgeOffsetX).toBe(-137)
+    expect(r.topBadgeOffsetY).toBe(32)
+  })
+
+  it("split keeps the factory tuning when the saved tuning is the neutral triple", () => {
+    // The defaults PUT and the mapping save always persist the live 100/0/0:
+    // a persisted neutral triple is still "untouched" (never a migration).
+    const r = resolvePosterRenderConfig(baseInput({
+      searchParams: new URLSearchParams({ rs: "split" }),
+      mapping: mapping({ rankingBadgeStyle: "split", topBadgeScale: 100, topBadgeOffsetX: 0, topBadgeOffsetY: 0 }),
+      sd: { topBadgeScale: 100, topBadgeOffsetX: 0, topBadgeOffsetY: 0 },
+    }))
+    expect(r.topBadgeScale).toBe(100)
+    expect(r.topBadgeOffsetX).toBe(-137)
+    expect(r.topBadgeOffsetY).toBe(32)
+  })
+
+  it("split lets every authored (non-neutral) value win, axis by axis", () => {
+    const saved = resolvePosterRenderConfig(baseInput({
+      searchParams: new URLSearchParams({ rs: "split" }),
+      mapping: mapping({ rankingBadgeStyle: "split", topBadgeScale: 120, topBadgeOffsetX: 10, topBadgeOffsetY: -20 }),
+    }))
+    expect(saved.topBadgeScale).toBe(120)
+    expect(saved.topBadgeOffsetX).toBe(10)
+    expect(saved.topBadgeOffsetY).toBe(-20)
+    const partial = resolvePosterRenderConfig(baseInput({
+      searchParams: new URLSearchParams({ rs: "split" }),
+      mapping: mapping({ rankingBadgeStyle: "split", topBadgeScale: 150 }),
+    }))
+    expect(partial.topBadgeScale).toBe(150)
+    expect(partial.topBadgeOffsetX).toBe(-137)
+    expect(partial.topBadgeOffsetY).toBe(32)
+    const query = resolvePosterRenderConfig(baseInput({
+      searchParams: new URLSearchParams({ rs: "split", tox: "8" }),
+    }))
+    expect(query.topBadgeOffsetX).toBe(8)
+    expect(query.topBadgeOffsetY).toBe(32)
+  })
+
+  it("every other ranking style keeps the neutral 100/0/0 factory tuning", () => {
+    for (const rs of ["default", "colored", "pill", "bordo", "vetro", "netflix", "corner", "number"]) {
+      const r = resolvePosterRenderConfig(baseInput({
+        searchParams: new URLSearchParams({ rs }),
+      }))
+      expect(r.topBadgeScale).toBe(100)
+      expect(r.topBadgeOffsetX).toBe(0)
+      expect(r.topBadgeOffsetY).toBe(0)
+    }
+  })
+
   it("genre badge scale defaults to 100; query > mapping > config > server defaults", () => {
     expect(resolvePosterRenderConfig(baseInput()).genreBadgeScale).toBe(100)
     const r = resolvePosterRenderConfig(baseInput({
@@ -504,8 +564,8 @@ describe("resolvePosterRenderConfig", () => {
     const r = resolvePosterRenderConfig(baseInput())
     expect(r.genreBadgeOffsetX).toBe(0)
     expect(r.genreBadgeOffsetY).toBe(0)
-    expect(r.qualityBadgeOffsetX).toBe(-10)
-    expect(r.qualityBadgeOffsetY).toBe(15)
+    expect(r.qualityBadgeOffsetX).toBe(-4)
+    expect(r.qualityBadgeOffsetY).toBe(6)
     const q = resolvePosterRenderConfig(baseInput({
       searchParams: new URLSearchParams({ gox: "5", goy: "-3", qox: "7", qoy: "-9" }),
       mapping: mapping({ genreBadgeOffsetX: 1, genreBadgeOffsetY: 2, qualityBadgeOffsetX: 3, qualityBadgeOffsetY: 4 }),

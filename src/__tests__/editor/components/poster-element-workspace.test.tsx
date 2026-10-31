@@ -1,6 +1,8 @@
 /**
  * Six-tab settings homes (Phase 2 minimalist consolidation + Tags/Networks):
- * - six primary tabs (Preset, Rankings, Information, Badge, Tags, Transform);
+ * - five primary tabs (Preset, Information, Badge, Tags, Transform): the old
+ *   Classifiche tab is folded into Information (two on/off selectors) and
+ *   Badge (rank badge style);
  *   secondary Prefs/Data/Space via the secondary nav, never equal tabs;
  * - every primary switch lives in exactly one tab: rank bucket + master +
  *   appearance + layout/scope + priority order in Rankings; visibility
@@ -66,32 +68,40 @@ afterEach(() => {
   vi.unstubAllGlobals()
 })
 
-describe("six-tab homes", () => {
+describe("five-tab homes", () => {
   it("preset tab: gallery only, no detailed switches, no element navigation", () => {
     renderSettingsWithProbe()
     expect(screen.getByTestId("presets-panel")).toBeInTheDocument()
     for (const id of ["apple", "better-poster", "rpdb", "essential", "ratings", "full"]) {
       expect(screen.getByTestId(`poster-style-${id}`)).toBeInTheDocument()
     }
-    expect(screen.queryByRole("switch", { name: "ui.topBadge" })).toBeNull()
+    expect(screen.queryByRole("switch", { name: "ui.rankingsToggle" })).toBeNull()
     expect(screen.queryByTestId("poster-element-nav")).toBeNull()
   })
 
-  it("rankings tab: rank switch, master gate, unified presentation and order-only priority", () => {
+  it("badge tab: Classifica section with the rank badge selector only", () => {
     renderSettingsWithProbe()
-    openTab("ui.settingsTabRankings")
-    expect(screen.getByRole("switch", { name: "ui.sash_rank" })).toBeInTheDocument()
-    expect(screen.getByRole("switch", { name: "ui.topBadge" })).toBeInTheDocument()
-    expect(screen.getByRole("radiogroup", { name: "ui.rankFamily" })).toBeInTheDocument()
+    openTab("ui.settingsTabBadge")
     // Unified presentation (Nastro/Numero/Badge/Fresh/Card): single exclusive
-    // group, no separate Layout-poster card in Classifiche (scoped to the
-    // visible panel: hidden sibling tabpanels still mount theirs).
-    const panel = screen.getByRole("switch", { name: "ui.sash_rank" }).closest('[role="tabpanel"]') as HTMLElement
+    // group, no separate Layout-poster card (scoped to the visible panel:
+    // hidden sibling tabpanels still mount theirs).
+    const panel = screen.getByTestId("ranking-presentation").closest('[role="tabpanel"]') as HTMLElement
+    expect(within(panel).getByText("ui.rankFamily")).toBeInTheDocument()
     const primary = within(within(panel).getByTestId("ranking-presentation")).getByRole("radiogroup", { name: "ui.rankFamily" })
     expect(within(primary).getAllByRole("radio")).toHaveLength(5)
     expect(within(panel).queryByTestId("poster-layout-card")).toBeNull()
+    // Classifiche on top: the Classifica card is the FIRST card of the Badge
+    // tab, before the macro-groups (including Stile & Preset).
+    const classificaCard = within(panel).getByTestId("badge-classifica-card")
+    const styleGroup = within(panel).getByTestId("badge-group-style")
+    expect(
+      classificaCard.compareDocumentPosition(styleGroup) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy()
+    // The two on/off selectors live in Information, never duplicated here.
+    expect(screen.queryByRole("switch", { name: "ui.rankingsToggle" })).toBeNull()
+    expect(screen.queryByRole("switch", { name: "ui.badgeExtraToggle" })).toBeNull()
     // Priority editing shows order only — no duplicate category toggles in
-    // the VISIBLE rankings panel (scoped: the mounted-but-hidden Tags panel
+    // the VISIBLE badge panel (scoped: the mounted-but-hidden Tags panel
     // reuses the same sash names for its exclusion groups, and JSDOM loads
     // no Tailwind CSS so a global query would false-positive on it).
     expect(screen.getByText("ui.badgePriorityOrderHint")).toBeInTheDocument()
@@ -104,9 +114,19 @@ describe("six-tab homes", () => {
     expect(within(tagsPanel).getByRole("switch", { name: "ui.sash_upcoming" })).toBeInTheDocument()
   })
 
-  it("information tab: visibility only, category toggles live here alone", () => {
+  it("information tab: the two on/off masters + visibility only", () => {
     renderSettingsWithProbe()
     openTab("ui.settingsTabInformation")
+    // Two DISTINCT masters: award-type extras vs classification (never merged).
+    expect(screen.getByRole("switch", { name: "ui.badgeExtraToggle" })).toBeInTheDocument()
+    expect(screen.getByRole("switch", { name: "ui.rankingsToggle" })).toBeInTheDocument()
+    // Classifiche on top in Informazioni too: the Rankings row comes before the
+    // extras master inside the same first card.
+    const rankSwitch = screen.getByRole("switch", { name: "ui.rankingsToggle" })
+    const extraSwitch = screen.getByRole("switch", { name: "ui.badgeExtraToggle" })
+    expect(
+      rankSwitch.compareDocumentPosition(extraSwitch) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy()
     for (const name of ["ui.badgeGenre", "ui.badgeYear", "ui.badgeRating", "ui.badgeQuality", "ui.ageBadge", "ui.networkLogo"]) {
       expect(screen.getByRole("switch", { name })).toBeInTheDocument()
     }
@@ -115,7 +135,7 @@ describe("six-tab homes", () => {
     // loads no Tailwind CSS (the `hidden` class applies no display:none),
     // so a global query would false-positive on the hidden twin.
     const infoPanel = screen.getByRole("switch", { name: "ui.badgeGenre" }).closest('[role="tabpanel"]') as HTMLElement
-    for (const name of ["ui.sash_upcoming", "ui.sash_new", "ui.sash_award", "ui.sash_extra"]) {
+    for (const name of ["ui.sash_upcoming", "ui.sash_new"]) {
       expect(within(infoPanel).getByRole("switch", { name })).toBeInTheDocument()
     }
     expect(screen.getByRole("switch", { name: "ui.preRelease" })).toBeInTheDocument()
@@ -140,7 +160,8 @@ describe("six-tab homes", () => {
       expect(el.closest("[hidden]")).not.toBeNull()
     }
     expect(within(infoPanel).queryByText("ui.badgePriorityOrderHint")).toBeNull()
-    expect(screen.queryByRole("switch", { name: "ui.sash_rank" })).toBeNull()
+    // The Classifica selector and the rank look stay in Badge, never here.
+    expect(within(infoPanel).queryByTestId("ranking-presentation")).toBeNull()
   })
 
   it("badge tab: styles only, inactive features collapse with a short hint", () => {
@@ -178,7 +199,7 @@ describe("six-tab homes", () => {
     const { ctx } = renderSettingsWithProbe()
     const before = snapshotDefaults(ctx())
     const storedBefore = localStorage.getItem("badgeDefaults")
-    for (const name of ["ui.settingsTabRankings", "ui.settingsTabInformation", "ui.settingsTabBadge", "Tag e Network", "ui.settingsTabTransform", "ui.settingsTabPreset"]) {
+    for (const name of ["ui.settingsTabInformation", "ui.settingsTabBadge", "Tag e Network", "ui.settingsTabTransform", "ui.settingsTabPreset"]) {
       openTab(name)
     }
     expect(snapshotDefaults(ctx())).toBe(before)
@@ -303,9 +324,9 @@ describe("translations parity (all 18 dictionaries)", () => {
       expect(Object.keys(dicts[l]).filter((k) => !allKeys.has(k))).toEqual([])
       expect([...allKeys].filter((k) => !(k in dicts[l])), `${l} missing keys`).toEqual([])
     }
-    // Six-tab keys exist everywhere.
+    // Primary-tab keys (plus the two new on/off master labels) exist everywhere.
     for (const l of langs) {
-      for (const k of ["ui.settingsTabPreset", "ui.settingsTabRankings", "ui.settingsTabInformation", "ui.settingsTabBadge", "ui.settingsTabTagsNetworks", "ui.settingsTabTransform", "ui.settingsSaveChanges", "ui.settingsUnsavedTitle", "ui.settingsContinueEditing", "ui.settingsDiscardAndClose", "ui.presetGalleryHint", "ui.activateInInformationHint", "ui.activateInTabHint"]) {
+      for (const k of ["ui.settingsTabPreset", "ui.settingsTabInformation", "ui.settingsTabBadge", "ui.settingsTabTagsNetworks", "ui.settingsTabTransform", "ui.badgeExtraToggle", "ui.badgeExtraToggleHint", "ui.rankingsToggle", "ui.rankingsToggleHint", "ui.settingsSaveChanges", "ui.settingsUnsavedTitle", "ui.settingsContinueEditing", "ui.settingsDiscardAndClose", "ui.presetGalleryHint", "ui.activateInInformationHint", "ui.activateInTabHint"]) {
         expect(dicts[l][k], `${l}:${k}`).toBeTruthy()
       }
     }

@@ -296,6 +296,7 @@ export default function EditView() {
       networkLogoPosition: ed.networkLogoPosition,
       networkLogoFollowTitle: ed.networkLogoFollowTitle,
       qualityBadgeStyle: ed.qualityBadgeStyle,
+      qualityGroupLayout: ed.qualityGroupLayout,
       badgeStyle: ed.badgeStyle,
       rankingBadgeStyle: ed.rankingBadgeStyle,
       extraBadgeStyle: ed.extraBadgeStyle,
@@ -322,7 +323,7 @@ export default function EditView() {
         topShadeHeight: ed.defaultTopShadeHeight,
       },
     ed.defaultPosterShape,
-  ), [previewPosterFilePath, previewCustomPosterUrl, selectedBackdropFilePath, selectedCustomBackdropUrl, selectedLogo?.file_path, selectedMapping, isLandscapeTuning, ed.posterShape, ed.logoDisabled, ed.landscapeBlur, ed.gradientHeight, ed.blurEnabled, ed.blurIntensity, ed.blurFade, ed.blurDarkness, ed.tintStrength, ed.topShade, ed.topShadeHeight, ed.logoScale, ed.logoOffsetX, ed.logoOffsetY, ed.topBadgeScale, ed.topBadgeOffsetX, ed.topBadgeOffsetY, ed.extraBadgeScale, ed.extraBadgeOffsetX, ed.extraBadgeOffsetY, ed.genreBadgeScale, ed.genreBadgeOffsetX, ed.genreBadgeOffsetY, ed.qualityBadgeScale, ed.qualityBadgeOffsetX, ed.qualityBadgeOffsetY, ed.separateBadgeScale, ed.separateBadgeOffsetX, ed.separateBadgeOffsetY, ed.badgeItemTransforms, ed.networkLogoScale, ed.networkLogoOffsetX, ed.networkLogoOffsetY, ed.backdropScale, ed.backdropOffsetX, ed.backdropOffsetY, ed.globalBadges, ed.rankingBadges, ed.badgeGenre, ed.badgeYear, ed.badgeRating, ed.badgeQuality, ed.customRatings, ed.separateRatings, ed.separateRatingsStyle, ed.posterLayout, ed.posterFreshScope, ed.networkLogo, ed.ribbonEnabled, ed.networkLogoPosition, ed.networkLogoFollowTitle, ed.qualityBadgeStyle, ed.badgeStyle, ed.rankingBadgeStyle, ed.extraBadgeStyle, ed.badgeFont, ed.awardBadgeStyle, ed.customBadge, ed.landscape, ed.defaultGradientHeight, ed.defaultBlurEnabled, ed.defaultBlurIntensity, ed.defaultBlurFade, ed.defaultBlurDarkness, ed.defaultTintStrength, ed.defaultTopShade, ed.defaultTopShadeHeight, ed.defaultPosterShape])
+  ), [previewPosterFilePath, previewCustomPosterUrl, selectedBackdropFilePath, selectedCustomBackdropUrl, selectedLogo?.file_path, selectedMapping, isLandscapeTuning, ed.posterShape, ed.logoDisabled, ed.landscapeBlur, ed.gradientHeight, ed.blurEnabled, ed.blurIntensity, ed.blurFade, ed.blurDarkness, ed.tintStrength, ed.topShade, ed.topShadeHeight, ed.logoScale, ed.logoOffsetX, ed.logoOffsetY, ed.topBadgeScale, ed.topBadgeOffsetX, ed.topBadgeOffsetY, ed.extraBadgeScale, ed.extraBadgeOffsetX, ed.extraBadgeOffsetY, ed.genreBadgeScale, ed.genreBadgeOffsetX, ed.genreBadgeOffsetY, ed.qualityBadgeScale, ed.qualityBadgeOffsetX, ed.qualityBadgeOffsetY, ed.separateBadgeScale, ed.separateBadgeOffsetX, ed.separateBadgeOffsetY, ed.badgeItemTransforms, ed.networkLogoScale, ed.networkLogoOffsetX, ed.networkLogoOffsetY, ed.backdropScale, ed.backdropOffsetX, ed.backdropOffsetY, ed.globalBadges, ed.rankingBadges, ed.badgeGenre, ed.badgeYear, ed.badgeRating, ed.badgeQuality, ed.customRatings, ed.separateRatings, ed.separateRatingsStyle, ed.posterLayout, ed.posterFreshScope, ed.networkLogo, ed.ribbonEnabled, ed.networkLogoPosition, ed.networkLogoFollowTitle, ed.qualityBadgeStyle, ed.qualityGroupLayout, ed.badgeStyle, ed.rankingBadgeStyle, ed.extraBadgeStyle, ed.badgeFont, ed.awardBadgeStyle, ed.customBadge, ed.landscape, ed.defaultGradientHeight, ed.defaultBlurEnabled, ed.defaultBlurIntensity, ed.defaultBlurFade, ed.defaultBlurDarkness, ed.defaultTintStrength, ed.defaultTopShade, ed.defaultTopShadeHeight, ed.defaultPosterShape])
   const mappingDirty = mappingDirtyBase
 
   const [saveState, setSaveState] = useState<"idle" | "saving" | "error">("idle")
@@ -693,6 +694,7 @@ export default function EditView() {
       separateRatingsStyle: ed.separateRatingsStyle,
       posterLayout: ed.posterLayout,
       posterFreshScope: ed.posterFreshScope,
+      qualityGroupLayout: ed.qualityGroupLayout,
       networkLogoScale: ed.networkLogoScale, networkLogoOffsetX: ed.networkLogoOffsetX, networkLogoOffsetY: ed.networkLogoOffsetY,
       networkLogoFollowTitle: ed.networkLogoFollowTitle,
       // Stili/toggle per formato: stessa regola del tuning (ogni formato
@@ -897,6 +899,7 @@ export default function EditView() {
         extraBadgeStyle: ed.defaultExtraBadgeStyle,
         badgeFont: ed.defaultBadgeFont,
         qualityBadgeStyle: ed.defaultQualityBadgeStyle,
+        qualityGroupLayout: ed.defaultQualityGroupLayout,
         videoFormats: ed.defaultVideoFormats,
         networkLogo: ed.defaultNetworkLogo,
         networkLogoPosition: ed.defaultNetworkLogoPosition,
@@ -929,6 +932,7 @@ export default function EditView() {
       ed.setExtraBadgeStyle(resolveBadge("extraBadgeStyle") as typeof ed.extraBadgeStyle)
       ed.setBadgeFont(resolveBadge("badgeFont") as typeof ed.badgeFont)
       ed.setQualityBadgeStyle(resolveBadge("qualityBadgeStyle") as typeof ed.qualityBadgeStyle)
+      ed.setQualityGroupLayout(resolveBadge("qualityGroupLayout") as typeof ed.qualityGroupLayout)
       ed.setVideoFormats(resolveBadge("videoFormats") as typeof ed.videoFormats)
       ed.setNetworkLogo(resolveBadge("networkLogo") as boolean)
       ed.setNetworkLogoPosition(resolveBadge("networkLogoPosition") as typeof ed.networkLogoPosition)

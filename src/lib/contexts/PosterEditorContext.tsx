@@ -5,7 +5,7 @@ import type { TMDBImage, NetworkLogoPosition, PosterLayout, PosterFreshScope, Po
 import { useDefaults, type DefaultSyncStatus, type DefaultsState, type StagedSaveResult } from "@/lib/useDefaults"
 import type { LandscapeServerDefaults } from "@/lib/server-defaults"
 import type { DateFormat } from "@/lib/release-badge"
-import type { BadgeStyle, RankingBadgeStyle, ExtraBadgeStyle, ExtraBadgeFollowRank, QualityBadgeStyle, BadgeFont, SeparateRatingsStyle } from "@/lib/badge-styles"
+import type { BadgeStyle, RankingBadgeStyle, ExtraBadgeStyle, ExtraBadgeFollowRank, QualityBadgeStyle, QualityGroupLayout, BadgeFont, SeparateRatingsStyle } from "@/lib/badge-styles"
 import type { AgeBadgeStyle, AwardBadgeMode } from "@/lib/badge-styles"
 
 import { DEFAULT_AGE_BADGE_STYLE, DEFAULT_AWARD_BADGE_MODE, getSeparateBadgeDefaultScale, isAgeBadgeStyle, isAwardBadgeMode } from "@/lib/badge-styles"
@@ -175,6 +175,9 @@ export interface PosterEditorCtx {
   /** Stile icone del badge qualità del poster in editing. */
   qualityBadgeStyle: QualityBadgeStyle
   setQualityBadgeStyle: (v: QualityBadgeStyle | ((prev: QualityBadgeStyle) => QualityBadgeStyle)) => void
+  /** Layout del gruppo qualità del poster in editing ("stacked" = colonna storica). */
+  qualityGroupLayout: QualityGroupLayout
+  setQualityGroupLayout: (v: QualityGroupLayout | ((prev: QualityGroupLayout) => QualityGroupLayout)) => void
   /** Formati A/V del poster in editing. */
   videoFormats: VideoFormat[] | null
   setVideoFormats: (v: VideoFormat[] | null | ((prev: VideoFormat[] | null) => VideoFormat[] | null)) => void
@@ -221,6 +224,9 @@ export interface PosterEditorCtx {
   /** Stile icone del badge qualità di default. */
   defaultQualityBadgeStyle: QualityBadgeStyle
   setDefaultQualityBadgeStyle: (v: QualityBadgeStyle | ((prev: QualityBadgeStyle) => QualityBadgeStyle)) => void
+  /** Layout del gruppo qualità di default ("stacked" = colonna storica). */
+  defaultQualityGroupLayout: QualityGroupLayout
+  setDefaultQualityGroupLayout: (v: QualityGroupLayout | ((prev: QualityGroupLayout) => QualityGroupLayout)) => void
   /** Formati A/V di default. */
   defaultVideoFormats: VideoFormat[]
   setDefaultVideoFormats: (v: VideoFormat[] | ((prev: VideoFormat[]) => VideoFormat[])) => void
@@ -715,10 +721,10 @@ export function PosterEditorProvider({
     badgeItemTransforms,
     genreBadgeOffsetX, genreBadgeOffsetY, qualityBadgeOffsetX, qualityBadgeOffsetY,
     networkLogoOffsetX, networkLogoOffsetY,
-    badgeStyle, rankingBadgeStyle, qualityBadgeStyle, videoFormats,
+    badgeStyle, rankingBadgeStyle, qualityBadgeStyle, qualityGroupLayout, videoFormats,
     extraBadgeStyle,
     badgeFont, defaultBadgeFont,
-    defaultBadgeStyle, defaultRankingBadgeStyle, defaultQualityBadgeStyle, defaultVideoFormats,
+    defaultBadgeStyle, defaultRankingBadgeStyle, defaultQualityBadgeStyle, defaultQualityGroupLayout, defaultVideoFormats,
     defaultExtraBadgeStyle,
     defaultBlurEnabled, defaultBlurIntensity, defaultBlurFade, defaultBlurDarkness, defaultTintStrength, defaultTopShade, defaultTopShadeHeight,
     defaultGradientHeight, defaultGlobalBadges, defaultRankingBadges,
@@ -1115,6 +1121,11 @@ export function PosterEditorProvider({
       const next = typeof v === "function" ? v(qualityBadgeStyle) : v
       update({ qualityBadgeStyle: next })
     }, [qualityBadgeStyle, update])
+  const setQualityGroupLayout = useCallback(
+    (v: QualityGroupLayout | ((prev: QualityGroupLayout) => QualityGroupLayout)) => {
+      const next = typeof v === "function" ? v(qualityGroupLayout) : v
+      update({ qualityGroupLayout: next })
+    }, [qualityGroupLayout, update])
   const setVideoFormats = useCallback(
     (v: VideoFormat[] | null | ((prev: VideoFormat[] | null) => VideoFormat[] | null)) => {
       const next = typeof v === "function" ? v(videoFormats) : v
@@ -1145,6 +1156,11 @@ export function PosterEditorProvider({
       const next = typeof v === "function" ? v(defaultQualityBadgeStyle) : v
       update({ defaultQualityBadgeStyle: next })
     }, [defaultQualityBadgeStyle, update])
+  const setDefaultQualityGroupLayout = useCallback(
+    (v: QualityGroupLayout | ((prev: QualityGroupLayout) => QualityGroupLayout)) => {
+      const next = typeof v === "function" ? v(defaultQualityGroupLayout) : v
+      update({ defaultQualityGroupLayout: next })
+    }, [defaultQualityGroupLayout, update])
   const setDefaultVideoFormats = useCallback(
     (v: VideoFormat[] | ((prev: VideoFormat[]) => VideoFormat[])) => {
       const next = typeof v === "function" ? v(defaultVideoFormats) : v
@@ -1761,6 +1777,7 @@ export function PosterEditorProvider({
       extraBadgeStyle: land?.extraBadgeStyle ?? defaultExtraBadgeStyle,
       badgeFont: land?.badgeFont ?? defaultBadgeFont,
       qualityBadgeStyle: land?.qualityBadgeStyle ?? defaultQualityBadgeStyle,
+      qualityGroupLayout: land?.qualityGroupLayout ?? defaultQualityGroupLayout,
       videoFormats: land?.videoFormats ?? defaultVideoFormats,
       networkLogo: land?.networkLogo ?? defaultNetworkLogo,
       networkLogoPosition: land?.networkLogoPosition ?? defaultNetworkLogoPosition,
@@ -1844,7 +1861,7 @@ export function PosterEditorProvider({
       topShade: landscapeDefaults?.topShade ?? defaultTopShade,
       topShadeHeight: landscapeDefaults?.topShadeHeight ?? defaultTopShadeHeight,
     })
-  }, [update, posterShape, landscapeDefaults, defaultGlobalBadges, defaultRankingBadges, defaultBadgeGenre, defaultBadgeYear, defaultBadgeRating, defaultBadgeQuality, defaultAgeBadge, defaultAgeCountry, defaultAgeBadgeStyle, defaultAwardBadgeStyle, defaultCustomRatings, defaultRatingSources, defaultSeparateRatings, defaultSeparateRatingsStyle, defaultPosterLayout, defaultPosterFreshScope, defaultBadgeStyle, defaultRankingBadgeStyle, defaultExtraBadgeStyle, defaultBadgeFont, defaultQualityBadgeStyle, defaultVideoFormats, defaultNetworkLogo, defaultNetworkLogoPosition, defaultNetworkLogoFollowTitle, defaultRibbonEnabled, defaultGradientHeight, defaultBlurEnabled, defaultBlurIntensity, defaultBlurFade, defaultBlurDarkness, defaultTintStrength, defaultTopShade, defaultTopShadeHeight, defaultTopBadgeScale, defaultTopBadgeOffsetX, defaultTopBadgeOffsetY, defaultExtraBadgeScale, defaultExtraBadgeOffsetX, defaultExtraBadgeOffsetY, defaultGenreBadgeScale, defaultGenreBadgeOffsetX, defaultGenreBadgeOffsetY, defaultQualityBadgeScale, defaultQualityBadgeOffsetX, defaultQualityBadgeOffsetY, defaultSeparateBadgeScale, defaultSeparateBadgeOffsetX, defaultSeparateBadgeOffsetY, defaultNetworkLogoScale, defaultNetworkLogoOffsetX, defaultNetworkLogoOffsetY, defaultLogoScale, defaultLogoOffsetX, defaultLogoOffsetY, setAgeBadge, setAgeCountry, setAgeBadgeStyle, setAwardBadgeStyle, setSeasonalTheme]) // eslint-disable-line react-hooks/exhaustive-deps -- setter refs are stable
+  }, [update, posterShape, landscapeDefaults, defaultGlobalBadges, defaultRankingBadges, defaultBadgeGenre, defaultBadgeYear, defaultBadgeRating, defaultBadgeQuality, defaultAgeBadge, defaultAgeCountry, defaultAgeBadgeStyle, defaultAwardBadgeStyle, defaultCustomRatings, defaultRatingSources, defaultSeparateRatings, defaultSeparateRatingsStyle, defaultPosterLayout, defaultPosterFreshScope, defaultBadgeStyle, defaultRankingBadgeStyle, defaultExtraBadgeStyle, defaultBadgeFont, defaultQualityBadgeStyle, defaultQualityGroupLayout, defaultVideoFormats, defaultNetworkLogo, defaultNetworkLogoPosition, defaultNetworkLogoFollowTitle, defaultRibbonEnabled, defaultGradientHeight, defaultBlurEnabled, defaultBlurIntensity, defaultBlurFade, defaultBlurDarkness, defaultTintStrength, defaultTopShade, defaultTopShadeHeight, defaultTopBadgeScale, defaultTopBadgeOffsetX, defaultTopBadgeOffsetY, defaultExtraBadgeScale, defaultExtraBadgeOffsetX, defaultExtraBadgeOffsetY, defaultGenreBadgeScale, defaultGenreBadgeOffsetX, defaultGenreBadgeOffsetY, defaultQualityBadgeScale, defaultQualityBadgeOffsetX, defaultQualityBadgeOffsetY, defaultSeparateBadgeScale, defaultSeparateBadgeOffsetX, defaultSeparateBadgeOffsetY, defaultNetworkLogoScale, defaultNetworkLogoOffsetX, defaultNetworkLogoOffsetY, defaultLogoScale, defaultLogoOffsetX, defaultLogoOffsetY, setAgeBadge, setAgeCountry, setAgeBadgeStyle, setAwardBadgeStyle, setSeasonalTheme]) // eslint-disable-line react-hooks/exhaustive-deps -- setter refs are stable
 
   const editorCtx = useMemo<PosterEditorCtx>(
     () => ({
@@ -1896,6 +1913,8 @@ export function PosterEditorProvider({
       setBadgeFont,
       qualityBadgeStyle,
       setQualityBadgeStyle,
+      qualityGroupLayout,
+      setQualityGroupLayout,
       videoFormats,
       setVideoFormats,
       customBadge,
@@ -1932,6 +1951,8 @@ export function PosterEditorProvider({
       setDefaultBadgeFont,
       defaultQualityBadgeStyle,
       setDefaultQualityBadgeStyle,
+      defaultQualityGroupLayout,
+      setDefaultQualityGroupLayout,
       defaultVideoFormats,
       setDefaultVideoFormats,
       defaultEpisodeMetadataSource,
@@ -2222,6 +2243,7 @@ export function PosterEditorProvider({
       extraBadgeStyle, setExtraBadgeStyle,
       badgeFont, setBadgeFont,
       qualityBadgeStyle, setQualityBadgeStyle,
+      qualityGroupLayout, setQualityGroupLayout,
       videoFormats, setVideoFormats,
       customBadge, setCustomBadge,
       networkLogo, setNetworkLogo,
@@ -2243,6 +2265,7 @@ export function PosterEditorProvider({
       defaultExtraBadgeStyle, setDefaultExtraBadgeStyle,
       defaultBadgeFont, setDefaultBadgeFont,
       defaultQualityBadgeStyle, setDefaultQualityBadgeStyle,
+      defaultQualityGroupLayout, setDefaultQualityGroupLayout,
       defaultVideoFormats, setDefaultVideoFormats,
       defaultEpisodeMetadataSource, setDefaultEpisodeMetadataSource,
       defaultBlurEnabled, setDefaultBlurEnabled,

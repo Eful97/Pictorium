@@ -8,6 +8,7 @@ import { usePosterEditor } from "@/lib/contexts/PosterEditorContext"
 import { Toggle } from "@/components/Toggle"
 import { isCardSkin, type CardSkin } from "@/lib/card-layout-skins"
 import { BadgeStyleSelector, BadgeFontSelector, AwardBadgeModeSelector } from "@/components/ui"
+import { QualityGroupLayoutSelector } from "@/components/PosterLayoutSelector"
 import {
   RankingAppearanceSelector,
   resolveRankingAppearance,
@@ -302,11 +303,11 @@ export function BadgeControls() {
                       { id: "bottom-mono", labelKey: "ui.separateRatingsBottomMono" },
                       { id: "bottom-color", labelKey: "ui.separateRatingsBottomColor" },
                     ] as const).map((opt) => {
-                      // Barra disattivata in landscape (il server normalizza a
-                      // pills): bottone visibile ma disabilitato e mai
+                      // Barra disattivata in landscape (il server normalizza
+                      // a pills): bottone visibile ma disabilitato e mai
                       // selezionato — il raw salvato resta intatto e in
-                      // portrait torna selezionabile. Selezione mostrata sullo
-                      // stile normalizzato (bar salvata = pills attiva).
+                      // portrait torna selezionabile. Selezione mostrata
+                      // sullo stile normalizzato (bar salvata = pills attiva).
                       const barOff = opt.id === "bottom-bar" && ed.posterShape === "landscape"
                       const pressed = getSeparateRatingsStyleForShape(
                         ed.separateRatingsStyle, ed.posterShape === "landscape" ? "landscape" : "poster",
@@ -443,7 +444,7 @@ export function BadgeControls() {
           <span className="text-[11px] text-muted font-medium block">{t("ui.styleGenreBadge")}</span>
           <BadgeStyleSelector
             value={ed.badgeStyle}
-            options={["shadow", "pill", "bar", "colored", "bordo", "vetro", "minimal"]}
+            options={["shadow", "pill", "bar", "colored", "bordo", "vetro", "minimal", "ink"]}
             // Stile "bar" non disponibile in landscape: il server lo degrada
             // a shadow (stesso endpoint, preview WYSIWYG garantita).
             disabled={ed.posterShape === "landscape" ? ["bar"] : []}
@@ -725,6 +726,11 @@ export function BadgeControls() {
                   t={t}
                 />
               </div>
+
+              <QualityGroupLayoutSelector
+                value={ed.qualityGroupLayout}
+                onChange={ed.setQualityGroupLayout}
+              />
 
               {activeVideoFormats.length > 0 && (() => {
                 const hasDV = activeVideoFormats.includes("dv")

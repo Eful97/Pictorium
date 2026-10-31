@@ -1,13 +1,18 @@
 import { describe, expect, it } from "vitest"
 import { lookupAVSpecs, isVideoFormat, KNOWN_VIDEO_FORMATS, FORMAT_ICON_PATHS } from "@/lib/av-specs"
-import { REVIEWED832_APPROVED, REVIEWED832_SCOPE, REVIEWED_APPROVED, REVIEWED_EXCLUDED, REVIEWED_SCOPE, REVIEWED_SNAPSHOT_SHA256 } from "../../../scripts/torrentio-av-import.mjs"
+import { REVIEWED832_APPROVED, REVIEWED832_SCOPE, REVIEWED_APPROVED, REVIEWED_EXCLUDED, REVIEWED_PHASE3_APPROVED, REVIEWED_PHASE3_DB_BASELINE_SHA256, REVIEWED_PHASE3_OBSERVED_BATCH_PREFIX, REVIEWED_PHASE3_PINS, REVIEWED_PHASE3_SCOPE, REVIEWED_PHASE3_SNAPSHOT_SHA256, REVIEWED_SCOPE, REVIEWED_SNAPSHOT_SHA256 } from "../../../scripts/torrentio-av-import.mjs"
 import { renderQualityBadgeGroup, renderQualityIconBadge } from "@/lib/poster-service"
 import { buildAgeEmphasisSvg } from "@/lib/badge-svg-shared"
 import fs from "node:fs"
+import crypto from "node:crypto"
 import path from "node:path"
 import sharp from "sharp"
 
 const ROOT = path.resolve(__dirname, "../../..")
+
+function sha256Hex(buf: Buffer) {
+  return crypto.createHash("sha256").update(buf).digest("hex")
+}
 
 describe("av-specs lookup", () => {
   it("resolves specs for known blockbusters with 4K and formats", () => {
@@ -71,13 +76,16 @@ describe("av-specs lookup", () => {
     // 2020-06-06), Jurassic Park (2026 Universal remaster specs + studio
     // announcement 2026-01-23: new DV grades and Atmos tracks), Dead Poets
     // Society (Disney 2026-09-29 4K specs list English Atmos, Kauffman review
-    // 2026-09-26). Union-832 adds declared generic HDR to all three.
-    for (const id of ["tt6751668", "tt0107290", "tt0097165"]) {
+    // 2026-09-26). Union-832 adds declared generic HDR to all three, and the
+    // phase-3 batch (2026-10-31) adds declared HDR10+ to Dead Poets Society.
+    for (const id of ["tt6751668", "tt0107290"]) {
       const specs = lookupAVSpecs(id)
       expect(specs).not.toBeNull()
       expect(specs?.quality).toBe("4K")
       expect(specs?.formats).toEqual(["dv", "atmos", "hdr"])
     }
+    expect(lookupAVSpecs("tt0097165")?.quality).toBe("4K")
+    expect(lookupAVSpecs("tt0097165")?.formats).toEqual(["dv", "atmos", "hdr", "hdr10plus"])
 
     // Candidates not corroborated for the checked edition stay byte-identical,
     // except where union-832 declares generic HDR (additive edition union, no
@@ -146,11 +154,12 @@ describe("av-specs lookup", () => {
     // Beetlejuice (https://www.blu-ray.com/movies/Beetlejuice-4K-Blu-ray/270987/).
     // Union-832 (user-accepted title-edition union) adds declared generic HDR
     // to sixteen of the seventeen rows; Ghostbusters (tt0087332) carries the
-    // union-declared HDR10+ instead (one of the 10 authorized prev-conflicts).
+    // union-declared HDR10+ instead (one of the 10 authorized prev-conflicts)
+    // plus the phase-3 declared generic HDR.
     for (const id of ["tt0083791", "tt0084805", "tt0087538", "tt0087781", "tt0087800", "tt0088247", "tt0089175", "tt0089755", "tt0089767", "tt0090022", "tt0091042", "tt0092005", "tt0092890", "tt0093409", "tt0093870", "tt0094721"]) {
       expect(lookupAVSpecs(id)?.formats).toEqual(["dv", "atmos", "hdr"])
     }
-    expect(lookupAVSpecs("tt0087332")?.formats).toEqual(["dv", "atmos", "hdr10plus"])
+    expect(lookupAVSpecs("tt0087332")?.formats).toEqual(["dv", "atmos", "hdr10plus", "hdr"])
 
     // Candidates not corroborated for the checked edition stay byte-identical
     // (no broader claim about other editions/platforms): hdr10plus negatives
@@ -207,7 +216,8 @@ describe("av-specs lookup", () => {
     // union-832 declared deltas below (user-accepted edition union).
     expect(lookupAVSpecs("tt0095953")?.formats).toEqual(["dv"])
     expect(lookupAVSpecs("tt0096446")?.formats).toEqual(["dv", "hdr", "atmos"])
-    expect(lookupAVSpecs("tt0101507")?.formats).toEqual(["dv", "hdr"])
+    // Groundhog Day: union-832 declared hdr + phase-3 declared atmos.
+    expect(lookupAVSpecs("tt0101507")?.formats).toEqual(["dv", "hdr", "atmos"])
     expect(lookupAVSpecs("tt0107048")?.formats).toEqual(["dv", "hdr"])
   })
 
@@ -223,29 +233,42 @@ describe("av-specs lookup", () => {
     // to 21 of the 29 rows; four rows carry union-declared HDR10+ instead
     // (authorized prev-conflicts: tt0138704, tt0325980, tt0369610, tt0383574),
     // and four rows had no Torrentio delta and stay curated.
-    const ATMOS_21_HDR = ["tt0104257", "tt0116695", "tt0119654", "tt0119822", "tt0120655", "tt0120762", "tt0121164", "tt0139654", "tt0144084", "tt0145487", "tt0177789", "tt0180093", "tt0268126", "tt0311113", "tt0316654", "tt0317219", "tt0318627", "tt0327597", "tt0416449", "tt0434409", "tt0446029"]
+    const ATMOS_21_HDR = ["tt0104257", "tt0116695", "tt0119654", "tt0119822", "tt0120655", "tt0120762", "tt0121164", "tt0139654", "tt0144084", "tt0145487", "tt0177789", "tt0180093", "tt0268126", "tt0311113", "tt0316654", "tt0317219", "tt0327597", "tt0416449", "tt0434409", "tt0446029"]
     for (const id of ATMOS_21_HDR) {
       const specs = lookupAVSpecs(id)
       expect(specs).not.toBeNull()
       expect(specs?.quality).toBe("4K")
       expect(specs?.formats).toEqual(["dv", "atmos", "hdr"])
     }
-    for (const id of ["tt0138704", "tt0325980", "tt0369610", "tt0383574"]) {
+    // Saving Private Ryan: union hdr + phase-3 declared hdr10plus.
+    expect(lookupAVSpecs("tt0318627")?.quality).toBe("4K")
+    expect(lookupAVSpecs("tt0318627")?.formats).toEqual(["dv", "atmos", "hdr", "hdr10plus"])
+    for (const id of ["tt0138704", "tt0383574"]) {
       const specs = lookupAVSpecs(id)
       expect(specs).not.toBeNull()
       expect(specs?.quality).toBe("4K")
       expect(specs?.formats).toEqual(["dv", "atmos", "hdr10plus"])
     }
-    for (const id of ["tt0110322", "tt0352248", "tt0387564", "tt0399295"]) {
+    // Pirates of the Caribbean: Dead Man's Chest / Jurassic World keep the
+    // union HDR10+ and carry the phase-3 declared generic HDR.
+    for (const id of ["tt0325980", "tt0369610"]) {
+      const specs = lookupAVSpecs(id)
+      expect(specs).not.toBeNull()
+      expect(specs?.quality).toBe("4K")
+      expect(specs?.formats).toEqual(["dv", "atmos", "hdr10plus", "hdr"])
+    }
+    for (const id of ["tt0352248", "tt0387564", "tt0399295"]) {
       const specs = lookupAVSpecs(id)
       expect(specs).not.toBeNull()
       expect(specs?.quality).toBe("4K")
       expect(specs?.formats).toEqual(["dv", "atmos"])
     }
+    // Braveheart carries the phase-3 declared generic HDR.
+    expect(lookupAVSpecs("tt0110322")?.formats).toEqual(["dv", "atmos", "hdr"])
 
     // QC observed atmos-only releases here: pre-existing dv preserved via union.
     // Union-832 adds declared generic HDR to both (user-accepted edition union).
-    expect(lookupAVSpecs("tt0110148")?.formats).toEqual(["dv", "atmos", "hdr"])
+    expect(lookupAVSpecs("tt0110148")?.formats).toEqual(["dv", "atmos", "hdr", "hdr10plus"])
     expect(lookupAVSpecs("tt0110148")?.quality).toBe("4K")
     expect(lookupAVSpecs("tt0230600")?.formats).toEqual(["dv", "atmos", "hdr"])
     expect(lookupAVSpecs("tt0230600")?.quality).toBe("4K")
@@ -258,19 +281,23 @@ describe("av-specs lookup", () => {
 
     // Former no-change controls: union-832 declares additive deltas for eight
     // of the nine rows (user-accepted edition union); tt0104694's declared
-    // Atmos is one of the 10 authorized prev-conflicts.
-    for (const id of ["tt0268978", "tt0413300", "tt0120791", "tt0289043", "tt0398286"]) {
+    // Atmos is one of the 10 authorized prev-conflicts. The phase-3 batch
+    // (2026-10-31) additionally declares hdr10plus for tt0268978, atmos for
+    // tt0275847 and generic hdr for tt0104694.
+    for (const id of ["tt0413300", "tt0120791", "tt0289043", "tt0398286"]) {
       const specs = lookupAVSpecs(id)
       expect(specs?.quality).toBe("4K")
       expect(specs?.formats).toEqual(["dv", "hdr", "atmos"])
     }
-    for (const id of ["tt0275847", "tt0298148", "tt0120201"]) {
+    expect(lookupAVSpecs("tt0268978")?.formats).toEqual(["dv", "hdr", "atmos", "hdr10plus"])
+    expect(lookupAVSpecs("tt0275847")?.formats).toEqual(["dv", "hdr", "atmos"])
+    for (const id of ["tt0298148", "tt0120201"]) {
       const specs = lookupAVSpecs(id)
       expect(specs?.quality).toBe("4K")
       expect(specs?.formats).toEqual(["dv", "hdr"])
     }
     expect(lookupAVSpecs("tt0104694")?.quality).toBe("4K")
-    expect(lookupAVSpecs("tt0104694")?.formats).toEqual(["dv", "atmos"])
+    expect(lookupAVSpecs("tt0104694")?.formats).toEqual(["dv", "atmos", "hdr"])
 
     // Additive-only batch: no new DB keys from the reviewed manifests (all 32
     // ids already present). The single authorized manual insert (Reacher
@@ -330,12 +357,12 @@ describe("av-specs lookup", () => {
     // title-edition unions (exact arrays; curated evidence retained at each
     // batch site above).
     const CONFLICT_UNIONS: Record<string, string[]> = {
-      tt0087332: ["dv", "atmos", "hdr10plus"],
+      tt0087332: ["dv", "atmos", "hdr10plus", "hdr"],
       tt0090605: ["dv", "atmos"],
-      tt0104694: ["dv", "atmos"],
+      tt0104694: ["dv", "atmos", "hdr"],
       tt0138704: ["dv", "atmos", "hdr10plus"],
-      tt0325980: ["dv", "atmos", "hdr10plus"],
-      tt0369610: ["dv", "atmos", "hdr10plus"],
+      tt0325980: ["dv", "atmos", "hdr10plus", "hdr"],
+      tt0369610: ["dv", "atmos", "hdr10plus", "hdr"],
       tt0383574: ["dv", "atmos", "hdr10plus"],
       tt0425379: ["dv", "atmos"],
       tt0816692: ["imax", "hdr", "dv", "hdr10plus", "atmos"],
@@ -354,6 +381,83 @@ describe("av-specs lookup", () => {
     // torrentio-manual-insert.test.ts.
     const db = JSON.parse(fs.readFileSync(path.join(ROOT, "src", "data", "av-specs.json"), "utf8"))
     expect(Object.keys(db).length).toBe(1431)
+  })
+
+  it("batch 7 torrentio reviewed phase-3 (97 declared, 2026-10-31); companion provenance only", () => {
+    // User-accepted Torrentio declared labels observed on the 2026-10-31
+    // batch (source torrentio, verification "declared" — NOT curated or
+    // MediaInfo-verified). Same add-only title-edition union: pre-existing
+    // formats preserved, stored quality never replaced (10 FHD candidates sit
+    // on 4K rows and only add generic hdr), no imax from declared streams.
+    // Provenance is written to a dedicated companion file: the 937-entry
+    // phase-1+2 file stays byte-identical.
+    expect(REVIEWED_PHASE3_APPROVED).toHaveLength(97)
+    const byToken = (token: string) =>
+      REVIEWED_PHASE3_APPROVED.filter((e) => e.added.includes(token))
+    expect(byToken("hdr")).toHaveLength(62)
+    expect(byToken("hdr10plus")).toHaveLength(22)
+    expect(byToken("atmos")).toHaveLength(14)
+    expect(byToken("dv")).toHaveLength(2)
+    expect(REVIEWED_PHASE3_SCOPE).toBe("reviewed-fase2b-97:movie-only,62generic-hdr+22hdr10plus+14atmos+2dv")
+    expect(REVIEWED_PHASE3_PINS.excluded).toEqual([])
+    expect(REVIEWED_PHASE3_PINS.observedBatchPrefix).toBe(REVIEWED_PHASE3_OBSERVED_BATCH_PREFIX)
+    expect(REVIEWED_PHASE3_OBSERVED_BATCH_PREFIX).toBe("2026-10-31")
+
+    const db = JSON.parse(fs.readFileSync(path.join(ROOT, "src", "data", "av-specs.json"), "utf8"))
+    expect(Object.keys(db)).toHaveLength(1431)
+    for (const { id, added } of REVIEWED_PHASE3_APPROVED) {
+      const specs = lookupAVSpecs(id)
+      expect(specs).not.toBeNull()
+      expect(specs?.quality).toBe("4K")
+      expect(added.length).toBeGreaterThan(0)
+      expect(added).not.toContain("imax")
+      for (const token of added) expect(specs?.formats).toContain(token)
+    }
+    // The applied DB strips back to the pinned pre-phase-3 bytes: every other
+    // row/field (including all phase-1/2 formats and stored qualities) is
+    // untouched, and the batch is exactly the approved manifest.
+    const phase3Added = new Map(REVIEWED_PHASE3_APPROVED.map(({ id, added }) => [id, added]))
+    const preImage: Record<string, unknown> = {}
+    for (const key of Object.keys(db)) {
+      const entry = db[key] as { quality: string; formats: string[] }
+      const added = phase3Added.get(key)
+      preImage[key] = added
+        ? { ...entry, formats: entry.formats.filter((f) => !added.includes(f)) }
+        : entry
+    }
+    const preImageSorted: Record<string, unknown> = {}
+    for (const key of Object.keys(preImage).sort()) preImageSorted[key] = preImage[key]
+    expect(sha256Hex(Buffer.from(`${JSON.stringify(preImageSorted, null, 2)}\n`, "utf-8"))).toBe(
+      REVIEWED_PHASE3_DB_BASELINE_SHA256,
+    )
+
+    const companion = JSON.parse(
+      fs.readFileSync(path.join(ROOT, "src", "data", "av-specs-torrentio-provenance-phase3.json"), "utf8"),
+    )
+    expect(Object.keys(companion).sort()).toEqual(REVIEWED_PHASE3_APPROVED.map((e) => e.id).sort())
+    for (const { id, added } of REVIEWED_PHASE3_APPROVED) {
+      const entry = companion[id]
+      expect(entry).toBeDefined()
+      expect(entry.source).toBe("torrentio")
+      expect(entry.verification).toBe("declared")
+      expect(entry.userAccepted).toBe(true)
+      expect(entry.decision).toBe("mutated")
+      expect(entry.classification).toBe("movie")
+      expect(entry.added).toEqual(added)
+      expect(entry.scope).toBe(REVIEWED_PHASE3_SCOPE)
+      expect(entry.snapshotSha256).toBe(REVIEWED_PHASE3_SNAPSHOT_SHA256)
+      expect(entry.semantics).toContain("title-edition-union")
+      expect(entry.observedAt.startsWith(REVIEWED_PHASE3_OBSERVED_BATCH_PREFIX)).toBe(true)
+      for (const token of added) expect(entry.declared.formats).toContain(token)
+    }
+    // The phase-1+2 provenance file is untouched (937 entries, no phase-3 id).
+    const provenance = JSON.parse(
+      fs.readFileSync(path.join(ROOT, "src", "data", "av-specs-torrentio-provenance.json"), "utf8"),
+    )
+    expect(Object.keys(provenance)).toHaveLength(937)
+    for (const { id } of REVIEWED_PHASE3_APPROVED) {
+      if (provenance[id]) expect(provenance[id].scope).not.toBe(REVIEWED_PHASE3_SCOPE)
+    }
   })
 
   it("returns null for unknown IDs or invalid inputs", () => {

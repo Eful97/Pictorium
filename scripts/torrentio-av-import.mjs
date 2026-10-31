@@ -25,6 +25,14 @@
 //   to the same immutable snapshot and to the post-105 DB baseline SHA. Same
 //   offline/fail-closed/rollback/idempotence contract as --apply-reviewed.
 //   Mutually exclusive with --apply-reviewed; rejects --live/--only/--limit.
+// - --apply-reviewed-phase3 is the third offline writer: fixed 97-id
+//   manifest (62 generic-hdr + 22 hdr10plus + 14 atmos + 2 dv) observed on
+//   the 2026-10-31 batch, pinned to its own immutable snapshot SHA + byte
+//   size and to the post-phase-2 DB baseline SHA + key count. Provenance is
+//   written to a dedicated COMPANION file while the 937-entry phase-1+2
+//   provenance file is pinned (canonical bytes) and must stay untouched.
+//   Same offline/fail-closed/rollback/idempotence contract. Mutually
+//   exclusive with the other reviewed writers; rejects --live/--only/--limit.
 // - --apply-reviewed is the phase-1 offline writer: fixed 105-id reviewed
 //   manifest (104 hdr10plus + 1 atmos, excl 10 curated conflicts), pinned
 //   snapshot SHA + byte size and pinned DB baseline SHA + key count. It runs
@@ -124,6 +132,7 @@ const FLAG_DEFS = {
   "--apply": { kind: "bool" },
   "--apply-reviewed": { kind: "bool" },
   "--apply-reviewed-union": { kind: "bool" },
+  "--apply-reviewed-phase3": { kind: "bool" },
   "--help": { kind: "bool" },
   "-h": { kind: "bool" },
   "--limit": { kind: "value" },
@@ -141,6 +150,7 @@ const FLAG_DEFS = {
  * @property {boolean} apply
  * @property {boolean} applyReviewed
  * @property {boolean} applyReviewedUnion
+ * @property {boolean} applyReviewedPhase3
  * @property {boolean} help
  * @property {number | null} limit
  * @property {string[] | null} only
@@ -161,6 +171,7 @@ export function parseArgs(argv) {
     apply: false,
     applyReviewed: false,
     applyReviewedUnion: false,
+    applyReviewedPhase3: false,
     help: false,
     limit: null,
     only: null,
@@ -184,6 +195,7 @@ export function parseArgs(argv) {
       else if (flag === "--apply") args.apply = true
       else if (flag === "--apply-reviewed") args.applyReviewed = true
       else if (flag === "--apply-reviewed-union") args.applyReviewedUnion = true
+      else if (flag === "--apply-reviewed-phase3") args.applyReviewedPhase3 = true
       else args.help = true
       i += 1
       continue
@@ -228,10 +240,22 @@ export function parseArgs(argv) {
   if (args.applyReviewed && args.applyReviewedUnion) {
     return fail("--apply-reviewed and --apply-reviewed-union are separate fixed phases; pass only one")
   }
+  if (args.applyReviewedUnion && args.applyReviewedPhase3) {
+    return fail("--apply-reviewed-union and --apply-reviewed-phase3 are separate fixed phases; pass only one")
+  }
+  if (args.applyReviewed && args.applyReviewedPhase3) {
+    return fail("--apply-reviewed and --apply-reviewed-phase3 are separate fixed phases; pass only one")
+  }
   if (args.applyReviewedUnion) {
     if (args.live) return fail("--apply-reviewed-union is offline: must not be combined with --live (no network in the reviewed path)")
     if (args.only !== null || args.limit !== null) {
       return fail("--apply-reviewed-union applies the fixed 832-id reviewed manifest; --only/--limit are rejected")
+    }
+  }
+  if (args.applyReviewedPhase3) {
+    if (args.live) return fail("--apply-reviewed-phase3 is offline: must not be combined with --live (no network in the reviewed path)")
+    if (args.only !== null || args.limit !== null) {
+      return fail("--apply-reviewed-phase3 applies the fixed 97-id reviewed manifest; --only/--limit are rejected")
     }
   }
   return { ok: true, args }
@@ -1473,6 +1497,126 @@ export const REVIEWED832_APPROVED = [
     { id: "tt9784798", added: ["hdr"] },
 ];
 
+// ---------------------------------------------------------------------------
+// Phase 3 (2026-10-31 batch, 97 approved): the fresh deltas observed after
+// the union-832 apply (45 ids never seen before + 52 ids re-observed on an
+// existing phase-1/2 provenance entry). Same add-only contract: only absent
+// allowlisted formats, declared quality never overwrites the stored one (10
+// FHD candidates sit on 4K rows and only add generic hdr). The 4 ids that
+// phase 1/2 listed as curated conflicts are user-authorized here, so the
+// excluded list is explicitly empty (explicit allowlist, not a dropped pin).
+// Provenance goes to a COMPANION file so the 937-entry phase-1+2 provenance
+// file stays byte-identical (pinned via preservedProvenanceBaseline*).
+// ---------------------------------------------------------------------------
+
+export const REVIEWED_PHASE3_SCOPE = "reviewed-fase2b-97:movie-only,62generic-hdr+22hdr10plus+14atmos+2dv"
+export const REVIEWED_PHASE3_SNAPSHOT_SHA256 = "957276a180fe06f41a0ebd183f78e20a3ea21c70271a03659050835225f074fd"
+export const REVIEWED_PHASE3_SNAPSHOT_BYTES = 473158
+export const REVIEWED_PHASE3_DB_BASELINE_SHA256 = "c83c041bf9a9d68db55fd3284d393ba36717b6703bd7dddccc27baf0cde83537"
+export const REVIEWED_PHASE3_DB_KEYS = 1431
+export const REVIEWED_PHASE3_OBSERVED_BATCH_PREFIX = "2026-10-31"
+export const REVIEWED_PHASE3_PROVENANCE_FILE = "av-specs-torrentio-provenance-phase3.json"
+export const REVIEWED_PHASE3_PRESERVED_PROVENANCE_FILE = "av-specs-torrentio-provenance.json"
+export const REVIEWED_PHASE3_APPROVED = [
+    { id: "tt0027977", added: ["hdr"] },
+    { id: "tt0047478", added: ["hdr"] },
+    { id: "tt0078748", added: ["dv"] },
+    { id: "tt0080339", added: ["hdr"] },
+    { id: "tt0082979", added: ["hdr10plus"] },
+    { id: "tt0084434", added: ["hdr"] },
+    { id: "tt0084516", added: ["hdr"] },
+    { id: "tt0084649", added: ["hdr"] },
+    { id: "tt0086465", added: ["hdr10plus"] },
+    { id: "tt0086993", added: ["hdr"] },
+    { id: "tt0087332", added: ["hdr"] },
+    { id: "tt0089006", added: ["hdr10plus"] },
+    { id: "tt0091064", added: ["hdr"] },
+    { id: "tt0091209", added: ["hdr"] },
+    { id: "tt0091763", added: ["hdr", "hdr10plus"] },
+    { id: "tt0091886", added: ["hdr"] },
+    { id: "tt0092007", added: ["hdr"] },
+    { id: "tt0093779", added: ["hdr10plus"] },
+    { id: "tt0093822", added: ["hdr"] },
+    { id: "tt0097027", added: ["hdr"] },
+    { id: "tt0097165", added: ["hdr10plus"] },
+    { id: "tt0101410", added: ["hdr"] },
+    { id: "tt0101507", added: ["atmos"] },
+    { id: "tt0102975", added: ["atmos"] },
+    { id: "tt0104694", added: ["hdr"] },
+    { id: "tt0106469", added: ["hdr"] },
+    { id: "tt0106519", added: ["hdr"] },
+    { id: "tt0108052", added: ["hdr10plus"] },
+    { id: "tt0110148", added: ["hdr10plus"] },
+    { id: "tt0110322", added: ["hdr"] },
+    { id: "tt0110684", added: ["hdr"] },
+    { id: "tt0120815", added: ["hdr"] },
+    { id: "tt0129167", added: ["hdr"] },
+    { id: "tt0134119", added: ["hdr"] },
+    { id: "tt0144117", added: ["hdr"] },
+    { id: "tt0264616", added: ["atmos"] },
+    { id: "tt0268978", added: ["hdr10plus"] },
+    { id: "tt0275847", added: ["atmos"] },
+    { id: "tt0318627", added: ["hdr10plus"] },
+    { id: "tt0325980", added: ["hdr"] },
+    { id: "tt0328107", added: ["hdr"] },
+    { id: "tt0338013", added: ["hdr"] },
+    { id: "tt0369610", added: ["hdr"] },
+    { id: "tt0401792", added: ["hdr"] },
+    { id: "tt0405159", added: ["hdr"] },
+    { id: "tt0449088", added: ["hdr"] },
+    { id: "tt0468569", added: ["dv"] },
+    { id: "tt0473705", added: ["hdr"] },
+    { id: "tt0756683", added: ["hdr"] },
+    { id: "tt0780504", added: ["atmos"] },
+    { id: "tt0887912", added: ["atmos"] },
+    { id: "tt10374610", added: ["hdr"] },
+    { id: "tt1070874", added: ["hdr"] },
+    { id: "tt10794054", added: ["hdr10plus"] },
+    { id: "tt11161474", added: ["hdr"] },
+    { id: "tt11198810", added: ["hdr"] },
+    { id: "tt11655566", added: ["hdr"] },
+    { id: "tt11657662", added: ["hdr"] },
+    { id: "tt12300742", added: ["hdr"] },
+    { id: "tt12789558", added: ["hdr", "hdr10plus"] },
+    { id: "tt1343727", added: ["atmos"] },
+    { id: "tt1392170", added: ["atmos"] },
+    { id: "tt14168118", added: ["hdr"] },
+    { id: "tt14208870", added: ["hdr"] },
+    { id: "tt1535109", added: ["hdr"] },
+    { id: "tt1663202", added: ["hdr10plus"] },
+    { id: "tt1756855", added: ["hdr10plus"] },
+    { id: "tt1951264", added: ["atmos"] },
+    { id: "tt1951265", added: ["atmos"] },
+    { id: "tt1951266", added: ["atmos"] },
+    { id: "tt2053463", added: ["hdr"] },
+    { id: "tt21285562", added: ["hdr10plus"] },
+    { id: "tt22084616", added: ["hdr"] },
+    { id: "tt2245084", added: ["hdr"] },
+    { id: "tt2294629", added: ["atmos"] },
+    { id: "tt2359024", added: ["hdr"] },
+    { id: "tt2567712", added: ["hdr"] },
+    { id: "tt26581740", added: ["hdr"] },
+    { id: "tt2713180", added: ["atmos"] },
+    { id: "tt28491891", added: ["hdr"] },
+    { id: "tt31189814", added: ["hdr", "hdr10plus"] },
+    { id: "tt32093575", added: ["hdr"] },
+    { id: "tt34564059", added: ["hdr"] },
+    { id: "tt35298123", added: ["hdr10plus"] },
+    { id: "tt36583977", added: ["hdr10plus"] },
+    { id: "tt3659388", added: ["atmos"] },
+    { id: "tt4425200", added: ["hdr10plus"] },
+    { id: "tt4633694", added: ["hdr"] },
+    { id: "tt4916630", added: ["hdr"] },
+    { id: "tt5363618", added: ["hdr10plus"] },
+    { id: "tt5648882", added: ["hdr"] },
+    { id: "tt6019206", added: ["hdr10plus"] },
+    { id: "tt6473066", added: ["hdr"] },
+    { id: "tt8385474", added: ["hdr"] },
+    { id: "tt8946378", added: ["hdr"] },
+    { id: "tt9231040", added: ["hdr"] },
+    { id: "tt9770150", added: ["hdr10plus"] },
+]
+
 export const REVIEWED832_PINS = {
   snapshotSha256: REVIEWED_SNAPSHOT_SHA256,
   snapshotBytes: REVIEWED_SNAPSHOT_BYTES,
@@ -1502,6 +1646,26 @@ export const REVIEWED_PINS = {
   approved: REVIEWED_APPROVED,
 }
 
+export const REVIEWED_PHASE3_PINS = {
+  snapshotSha256: REVIEWED_PHASE3_SNAPSHOT_SHA256,
+  snapshotBytes: REVIEWED_PHASE3_SNAPSHOT_BYTES,
+  dbBaselineSha256: REVIEWED_PHASE3_DB_BASELINE_SHA256,
+  dbKeys: REVIEWED_PHASE3_DB_KEYS,
+  approved: REVIEWED_PHASE3_APPROVED,
+  // Explicit empty allowlist: the 4 curated-conflict ids of phases 1/2 are
+  // user-authorized in this phase, so the default REVIEWED_EXCLUDED does NOT
+  // apply here (never a dropped pin: fail-closed stays on every other check).
+  excluded: [],
+  allowedCandidateQualities: [...KNOWN_QUALITIES],
+  scope: REVIEWED_PHASE3_SCOPE,
+  observedBatchPrefix: REVIEWED_PHASE3_OBSERVED_BATCH_PREFIX,
+  // The phase-1+2 provenance file (937 entries, writer-canonical bytes) is
+  // pinned and must survive this phase untouched; this phase writes its own
+  // companion file instead of merging into it.
+  preservedProvenanceBaselineSha256: "7385e569340fd629d19584b26af3952b04c46205c722e019980bdb4d6de623dd",
+  preservedProvenanceBaselineBytes: 600490,
+}
+
 const REVIEWED_IMDB_RE = /^tt\d{7,10}$/
 
 function reviewedExcluded(pins) {
@@ -1518,6 +1682,12 @@ function reviewedScope(pins) {
   return typeof pins?.scope === "string" && pins.scope ? pins.scope : REVIEWED_SCOPE
 }
 
+function reviewedObservedBatchPrefix(pins) {
+  return typeof pins?.observedBatchPrefix === "string" && pins.observedBatchPrefix
+    ? pins.observedBatchPrefix
+    : "2026-10-21"
+}
+
 function reviewedProvenanceBaselineSha(pins) {
   return typeof pins?.provenanceBaselineSha256 === "string" &&
     /^[0-9a-f]{64}$/.test(pins.provenanceBaselineSha256)
@@ -1528,6 +1698,21 @@ function reviewedProvenanceBaselineSha(pins) {
 function reviewedProvenanceBaselineBytes(pins) {
   return Number.isInteger(pins?.provenanceBaselineBytes) && pins.provenanceBaselineBytes > 0
     ? pins.provenanceBaselineBytes
+    : null
+}
+
+// Companion-provenance mode pin (phase 3): the preserved phase-1+2 provenance
+// file that this phase must leave byte-intact while it writes its own file.
+function reviewedPreservedProvenanceSha(pins) {
+  return typeof pins?.preservedProvenanceBaselineSha256 === "string" &&
+    /^[0-9a-f]{64}$/.test(pins.preservedProvenanceBaselineSha256)
+    ? pins.preservedProvenanceBaselineSha256
+    : null
+}
+
+function reviewedPreservedProvenanceBytes(pins) {
+  return Number.isInteger(pins?.preservedProvenanceBaselineBytes) && pins.preservedProvenanceBaselineBytes > 0
+    ? pins.preservedProvenanceBaselineBytes
     : null
 }
 
@@ -1560,7 +1745,9 @@ function reviewedRecordError(id, expectedAdded, record, dbEntry, opts = {}) {
   if (typeof record.observedAt !== "string" || Number.isNaN(Date.parse(record.observedAt))) {
     return `invalid observedAt for ${id}`
   }
-  if (!record.observedAt.startsWith("2026-10-21")) return `observedAt outside the Oct 21 2026 batch for ${id}`
+  if (!record.observedAt.startsWith(reviewedObservedBatchPrefix(opts))) {
+    return `observedAt outside the pinned observed batch for ${id}`
+  }
   const candidate = record.candidate
   if (!isRecord(candidate)) return `missing candidate for ${id}`
   const allowedQualities =
@@ -1636,14 +1823,19 @@ function writeFileAtomicResult(target, text) {
  * source/db/input change), then writes DB + companion provenance with rollback
  * on partial failure. A repeat run over the applied state is a verified
  * no-op (no writes). Never calls process.exit; the CLI maps the result.
- * @param {{ dbPath: string, provenancePath: string, checkpointPath: string }} paths
- * @param {{ snapshotSha256: string, snapshotBytes: number, dbBaselineSha256: string, dbKeys: number, approved: Array<{ id: string, added: string[] }>, excluded?: string[], allowedCandidateQualities?: string[], scope?: string, provenanceBaselineSha256?: string, provenanceBaselineBytes?: number }} [pins]
+ * @param {{ dbPath: string, provenancePath: string, checkpointPath: string, preservedProvenancePath?: string }} paths
+ * @param {{ snapshotSha256: string, snapshotBytes: number, dbBaselineSha256: string, dbKeys: number, approved: Array<{ id: string, added: string[] }>, excluded?: string[], allowedCandidateQualities?: string[], scope?: string, observedBatchPrefix?: string, provenanceBaselineSha256?: string, provenanceBaselineBytes?: number, preservedProvenanceBaselineSha256?: string, preservedProvenanceBaselineBytes?: number }} [pins]
  * An optional provenanceBaselineSha256 (+ provenanceBaselineBytes) pins the
  * exact pre-apply provenance file (writer-canonical bytes). When present, a
  * fresh write requires that pinned provenance byte-intact (never silently
  * reset), re-checks it immediately before writing, and an idempotent re-run
  * verifies the preserved entries via reconstruction. Pins without it
  * (phase 1) keep the legacy behavior.
+ * An optional preservedProvenanceBaselineSha256 (+ ...Bytes) switches to
+ * companion-provenance mode (phase 3): the file named by
+ * paths.preservedProvenancePath must exist byte-intact, the written
+ * provenance file may hold only this batch's ids, and the preserved file is
+ * re-checked before writing and on every idempotent re-run.
  * @returns {{ ok: true, applied: number, idempotent: boolean, dbSha256: string } | { ok: false, error: string }}
  */
 export function runReviewedApply(paths, pins = REVIEWED_PINS) {
@@ -1654,6 +1846,10 @@ export function runReviewedApply(paths, pins = REVIEWED_PINS) {
     const checkpointPath = path.resolve(paths.checkpointPath)
     if (dbPath === provenancePath || dbPath === checkpointPath || provenancePath === checkpointPath) {
       return fail("refusing reviewed apply: db/provenance/checkpoint paths overlap")
+    }
+    const preservedPath = paths.preservedProvenancePath ? path.resolve(paths.preservedProvenancePath) : null
+    if (preservedPath && (preservedPath === dbPath || preservedPath === provenancePath || preservedPath === checkpointPath)) {
+      return fail("refusing reviewed apply: preserved provenance path overlaps another input")
     }
     let checkpointBytes
     try {
@@ -1708,6 +1904,7 @@ export function runReviewedApply(paths, pins = REVIEWED_PINS) {
       for (const { id, added } of approved) {
         const problem = reviewedRecordError(id, added, checkpoint.ids[id], localDb[id], {
           allowedCandidateQualities: reviewedAllowedQualities(pins),
+          observedBatchPrefix: reviewedObservedBatchPrefix(pins),
         })
         if (problem) return fail(`refusing reviewed apply: ${problem}`)
       }
@@ -1761,6 +1958,43 @@ export function runReviewedApply(paths, pins = REVIEWED_PINS) {
           return fail("refusing reviewed apply: pinned prior provenance is not byte-canonical")
         }
       }
+      // Companion-provenance mode (phase 3): the preserved phase-1+2 file must
+      // exist byte-intact and the write target may hold only this batch's ids
+      // (never a silent merge of foreign entries into the companion file).
+      const preservedSha = reviewedPreservedProvenanceSha(pins)
+      const preservedPinBytes = reviewedPreservedProvenanceBytes(pins)
+      let preservedText = null
+      if (preservedSha) {
+        if (!preservedPath) {
+          return fail("refusing reviewed apply: preserved provenance pin without a path")
+        }
+        try {
+          preservedText = fs.readFileSync(preservedPath, "utf-8")
+        } catch {
+          return fail("refusing reviewed apply: pinned preserved provenance is missing")
+        }
+        let preservedParsed
+        try {
+          preservedParsed = JSON.parse(preservedText)
+        } catch {
+          return fail("refusing reviewed apply: pinned preserved provenance is not valid JSON")
+        }
+        if (!isRecord(preservedParsed)) {
+          return fail("refusing reviewed apply: pinned preserved provenance must be a JSON object")
+        }
+        const preservedCanonical = canonicalProvenanceText(preservedParsed)
+        if (sha256Hex(Buffer.from(preservedCanonical, "utf-8")) !== preservedSha) {
+          return fail("refusing reviewed apply: pinned preserved provenance SHA mismatch")
+        }
+        if (preservedPinBytes !== null && Buffer.byteLength(preservedCanonical, "utf-8") !== preservedPinBytes) {
+          return fail("refusing reviewed apply: pinned preserved provenance byte size mismatch")
+        }
+        const batchIds = new Set(approved.map(({ id }) => id))
+        const foreign = Object.keys(existingProvenance).filter((id) => !batchIds.has(id))
+        if (foreign.length > 0) {
+          return fail("refusing reviewed apply: companion provenance holds ids outside this batch")
+        }
+      }
       const nextProvenance = { ...existingProvenance, ...updates }
       const sortedProvenance = {}
       for (const key of Object.keys(nextProvenance).sort()) sortedProvenance[key] = nextProvenance[key]
@@ -1775,10 +2009,12 @@ export function runReviewedApply(paths, pins = REVIEWED_PINS) {
       let dbBytesNow
       let checkpointBytesNow
       let provenanceBytesNow = null
+      let preservedBytesNow = null
       try {
         dbBytesNow = fs.readFileSync(dbPath)
         checkpointBytesNow = fs.readFileSync(checkpointPath)
         if (provBaselineSha) provenanceBytesNow = fs.readFileSync(provenancePath, "utf-8")
+        if (preservedText !== null) preservedBytesNow = fs.readFileSync(preservedPath, "utf-8")
       } catch {
         return fail("refusing reviewed apply: inputs unreadable at write time")
       }
@@ -1787,6 +2023,9 @@ export function runReviewedApply(paths, pins = REVIEWED_PINS) {
       }
       if (provBaselineSha && provenanceBytesNow !== existingProvenanceText) {
         return fail("refusing reviewed apply: provenance changed during validation")
+      }
+      if (preservedText !== null && preservedBytesNow !== preservedText) {
+        return fail("refusing reviewed apply: preserved provenance changed during validation")
       }
       const dbError = writeFileAtomicResult(dbPath, nextDbText)
       if (dbError) return fail(`reviewed apply db write failed: ${dbError}`)
@@ -1821,8 +2060,8 @@ export function runReviewedApply(paths, pins = REVIEWED_PINS) {
       const problem = isRecord(record) ? null : `missing snapshot record for ${id}`
       if (problem) return fail(`refusing reviewed apply: ${problem}`)
       if (!isRecord(entry)) return fail(`refusing reviewed apply: ${id} missing from database`)
-      if (typeof record.observedAt !== "string" || !record.observedAt.startsWith("2026-10-21")) {
-        return fail(`refusing reviewed apply: observedAt outside the Oct 21 2026 batch for ${id}`)
+      if (typeof record.observedAt !== "string" || !record.observedAt.startsWith(reviewedObservedBatchPrefix(pins))) {
+        return fail(`refusing reviewed apply: observedAt outside the pinned observed batch for ${id}`)
       }
       if (record.classification !== "movie" || record.decision !== "mutated") {
         return fail(`refusing reviewed apply: snapshot record changed for ${id}`)
@@ -1911,6 +2150,32 @@ export function runReviewedApply(paths, pins = REVIEWED_PINS) {
           return fail("database changed outside the reviewed batch (preserved provenance baseline mismatch)")
         }
         if (preservedBytes !== null && Buffer.byteLength(preservedText, "utf-8") !== preservedBytes) {
+          return fail("database changed outside the reviewed batch (preserved provenance byte size mismatch)")
+        }
+      }
+      // Companion-provenance mode (phase 3): the written file holds only this
+      // batch's ids, and the pinned phase-1+2 file reconstructs its baseline
+      // bytes exactly (any omission/change/reformat fails closed).
+      const companionSha = reviewedPreservedProvenanceSha(pins)
+      const companionBytes = reviewedPreservedProvenanceBytes(pins)
+      if (companionSha) {
+        if (Object.keys(preserved).length !== 0) {
+          return fail("database changed outside the reviewed batch (companion provenance holds ids outside this batch)")
+        }
+        let companionPreserved
+        try {
+          companionPreserved = JSON.parse(fs.readFileSync(preservedPath, "utf-8"))
+        } catch {
+          return fail("database changed outside the reviewed batch (preserved provenance unreadable)")
+        }
+        if (!isRecord(companionPreserved)) {
+          return fail("database changed outside the reviewed batch (preserved provenance shape)")
+        }
+        const companionCanonical = canonicalProvenanceText(companionPreserved)
+        if (sha256Hex(Buffer.from(companionCanonical, "utf-8")) !== companionSha) {
+          return fail("database changed outside the reviewed batch (preserved provenance baseline mismatch)")
+        }
+        if (companionBytes !== null && Buffer.byteLength(companionCanonical, "utf-8") !== companionBytes) {
           return fail("database changed outside the reviewed batch (preserved provenance byte size mismatch)")
         }
       }
@@ -2015,6 +2280,9 @@ function usage() {
     "    [--torrentio-base <https-origin>]",
     "",
     "--apply disabled pending curated-data reconciliation (no merge path).",
+    "Reviewed offline apply (no network, fixed 97-id phase-3 manifest, companion provenance):",
+    "  node scripts/torrentio-av-import.mjs --apply-reviewed-phase3 [--db <path>]",
+    "    [--provenance <path>] [--checkpoint <path>]",
     "Reviewed union offline apply (no network, fixed 832-id manifest):",
     "  node scripts/torrentio-av-import.mjs --apply-reviewed-union [--db <path>]",
     "    [--provenance <path>] [--checkpoint <path>]",
@@ -2086,20 +2354,34 @@ async function main() {
   const dbPath = opts.db ? path.resolve(opts.db) : path.join(rootDir, "src", "data", "av-specs.json")
   const provenancePath = opts.provenance
     ? path.resolve(opts.provenance)
-    : path.join(rootDir, "src", "data", "av-specs-torrentio-provenance.json")
+    : path.join(
+        rootDir,
+        "src",
+        "data",
+        opts.applyReviewedPhase3 ? REVIEWED_PHASE3_PROVENANCE_FILE : "av-specs-torrentio-provenance.json",
+      )
   const checkpointPath = checkpointPathFor(rootDir, opts.checkpoint)
   if (isInsideRepo(rootDir, checkpointPath)) {
     console.error(`[${TOOL}] refusing checkpoint inside the repository (keep scratch outside): ${checkpointPath}`)
     process.exit(2)
   }
 
-  // Reviewed offline apply: pinned snapshot + fixed manifest (105-id phase 1
-  // or 832-id union phase 2), no network and no config read. Runs BEFORE any
-  // live-stage code.
-  if (opts.applyReviewed || opts.applyReviewedUnion) {
-    const pins = opts.applyReviewedUnion ? REVIEWED832_PINS : REVIEWED_PINS
+  // Reviewed offline apply: pinned snapshot + fixed manifest (105-id phase 1,
+  // 832-id union phase 2 or 97-id phase 3), no network and no config read.
+  // Runs BEFORE any live-stage code.
+  if (opts.applyReviewed || opts.applyReviewedUnion || opts.applyReviewedPhase3) {
+    const pins = opts.applyReviewedUnion
+      ? REVIEWED832_PINS
+      : opts.applyReviewedPhase3
+        ? REVIEWED_PHASE3_PINS
+        : REVIEWED_PINS
+    // Phase 3 writes a companion provenance file: the phase-1+2 file stays a
+    // pinned, untouched third input.
+    const preservedProvenancePath = opts.applyReviewedPhase3
+      ? path.join(rootDir, "src", "data", REVIEWED_PHASE3_PRESERVED_PROVENANCE_FILE)
+      : undefined
     const result = runReviewedApply(
-      { dbPath, provenancePath, checkpointPath },
+      { dbPath, provenancePath, checkpointPath, preservedProvenancePath },
       pins,
     )
     if (!result.ok) {

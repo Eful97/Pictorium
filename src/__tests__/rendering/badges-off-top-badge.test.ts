@@ -139,6 +139,41 @@ function badgeInput(trendRank: number | null): BadgeInput {
   }
 }
 
+describe("extras master vs rank / Coming Soon", () => {
+  it("rank-only sash (extra OFF) still paints the classification", async () => {
+    const poster = await flatPoster()
+    const withRank = await generatePosterBuffer(
+      baseInput({ posterBuf: poster, rankingEnabled: true, sashOrder: ["rank"], finalRank: 5 }),
+    )
+    const plain = await generatePosterBuffer(
+      baseInput({ posterBuf: poster, rankingEnabled: true, sashOrder: ["rank"], finalRank: null }),
+    )
+    expect(await diffRatio(withRank, plain)).toBeGreaterThan(0.001)
+  }, 60000)
+
+  it("rank-only sash (extra OFF) suppresses manual custom extras", async () => {
+    const poster = await flatPoster()
+    const withCustom = await generatePosterBuffer(
+      baseInput({ posterBuf: poster, rankingEnabled: true, sashOrder: ["rank"], queryExtra: "Da non perdere" }),
+    )
+    const plain = await generatePosterBuffer(
+      baseInput({ posterBuf: poster, rankingEnabled: true, sashOrder: ["rank"], queryExtra: null }),
+    )
+    expect(await diffRatio(withCustom, plain)).toBeLessThan(0.0001)
+  }, 60000)
+
+  it("Coming Soon keeps its own selector (extra OFF does not disable it)", async () => {
+    const poster = await flatPoster()
+    const on = await generatePosterBuffer(
+      baseInput({ posterBuf: poster, rankingEnabled: true, sashOrder: ["rank"], preRelease: true }),
+    )
+    const off = await generatePosterBuffer(
+      baseInput({ posterBuf: poster, rankingEnabled: true, sashOrder: ["rank"], preRelease: false }),
+    )
+    expect(await diffRatio(on, off)).toBeGreaterThan(0.001)
+  }, 60000)
+})
+
 describe("lower genre/rating OFF leaves the top slot to the TOP toggles", () => {
   it("badges=0 + ranking=1 + rank paints the numeral (portrait)", async () => {
     const poster = await flatPoster()

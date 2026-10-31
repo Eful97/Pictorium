@@ -245,8 +245,8 @@ describe("ready preset apply restores the built-in quality look", () => {
     await settle()
     expect(current.value.defaultBadgeItemTransforms).toBeNull()
     expect(current.value.defaultQualityBadgeScale).toBe(100)
-    expect(current.value.defaultQualityBadgeOffsetX).toBe(-10)
-    expect(current.value.defaultQualityBadgeOffsetY).toBe(15)
+    expect(current.value.defaultQualityBadgeOffsetX).toBe(-4)
+    expect(current.value.defaultQualityBadgeOffsetY).toBe(6)
   })
 
   it("legacy Badge-tab landscape snapshot apply clears the previous item corrections", async () => {
@@ -309,8 +309,8 @@ describe("ready preset apply restores the built-in quality look", () => {
     // per-item corrections at all.
     expect(resolved.badgeItemTransforms).toEqual({})
     expect(resolved.qualityBadgeScale).toBe(100)
-    expect(resolved.qualityBadgeOffsetX).toBe(-10)
-    expect(resolved.qualityBadgeOffsetY).toBe(15)
+    expect(resolved.qualityBadgeOffsetX).toBe(-4)
+    expect(resolved.qualityBadgeOffsetY).toBe(6)
 
     const render = async (badgeItemTransforms: Record<string, unknown> | null) => {
       const posterBuf = await sharp({

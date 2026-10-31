@@ -283,9 +283,10 @@ beforeEach(() => {
 })
 
 describe("style gating: only accent-painting styles consume the tint", () => {
-  it("genre: only `colored` consumes; every other style never does", () => {
+  it("genre: `colored` and `ink` consume; every other style never does", () => {
     expect(genreBadgeConsumesAccent("colored")).toBe(true)
-    for (const s of ["shadow", "pill", "bar", "minimal", "vetro", "bordo", "default", "", null, undefined, "COLORed"]) {
+    expect(genreBadgeConsumesAccent("ink")).toBe(true)
+    for (const s of ["shadow", "pill", "bar", "minimal", "vetro", "bordo", "default", "", null, undefined, "COLORed", "INK"]) {
       expect(genreBadgeConsumesAccent(s)).toBe(false)
     }
   })

@@ -3,7 +3,7 @@
 import { useId } from "react"
 import { textColorForBg } from "@/lib/accent-color"
 import { PREMIUM_PLATE_BG, PREMIUM_PLATE_STROKE, GRADIENT_MARK_STOPS, GRADIENT_TIER_INK, premiumAccentHex } from "@/lib/quality-badge-styles"
-import { buildAgeEmphasisSvg, buildAgeKnockoutSvg, buildGradientMarkSvg, buildQualityBadgeSvg } from "@/lib/badge-svg-shared"
+import { buildAgeEmphasisSvg, buildAgeKnockoutSvg, buildGenreInkSvg, buildGradientMarkSvg, buildQualityBadgeSvg, buildStripBadgeSvg } from "@/lib/badge-svg-shared"
 import type { AgeEmphasisStyle } from "@/lib/badge-svg-shared"
 
 /**
@@ -72,6 +72,11 @@ function BadgePreview({ style, accentColor, family = "quality" }: { style: strin
       return <span className={`${base} text-white`} style={{ background: "rgba(255,255,255,0.08)", backdropFilter: "blur(4px)", border: "1px solid rgba(255,255,255,0.15)", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.4), 0 2px 3px rgba(0,0,0,0.6), 0 4px 8px rgba(0,0,0,0.35)" }}>Aa</span>
     case "minimal":
       return <span className={`${base} bg-transparent text-white font-medium`} style={{ textShadow: "0 1px 2px rgba(0,0,0,0.8)" }}>A|a</span>
+    case "ink":
+      // Bare accent typography: the SAME shared builder the poster renders
+      // with (accent gradient + 1px dark halo), neutral letters as the age
+      // swatch. No plate/border, matches the `shadow` geometry.
+      return <BuilderStylePreview base={base} svg={buildGenreInkSvg(AGE_SWATCH_LABEL, "", "", AGE_SWATCH_FS, ac, "#e5e7eb").svg} />
     case "netflix":
       return <span className={`${base} text-white font-black`} style={{ background: "rgba(255,255,255,0.25)", borderRadius: "2px 2px 0 0" }}>TOP</span>
     case "corner":
@@ -141,6 +146,26 @@ function BadgePreview({ style, accentColor, family = "quality" }: { style: strin
           ).svg}
         />
       )
+    case "outline":
+      // Wireframe material (both families): stroked rect + inner scrim with
+      // satin ink glyphs, drawn by the SAME shared builder the poster renders
+      // with. Age swatch shows neutral letters, quality swatch the real tier.
+      return (
+        <BuilderStylePreview
+          base={base}
+          svg={buildAgeEmphasisSvg(family === "age" ? AGE_SWATCH_LABEL : QUALITY_SWATCH_LABEL, AGE_SWATCH_FS, "outline").svg}
+        />
+      )
+    case "strip":
+      // Merged single-plate lockup (quality group only): the SAME shared
+      // builder the poster renders with, three neutral segments joined by the
+      // 0.45-opacity dot separator.
+      return (
+        <BuilderStylePreview
+          base={base}
+          svg={buildStripBadgeSvg([QUALITY_SWATCH_LABEL, "12", "DV"], AGE_SWATCH_FS).svg}
+        />
+      )
     case "knockout":
       if (family === "age") return <AgeStylePreview style="knockout" base={base} />
       // Static cutout swatch (NOT the poster renderer): white tag with the
@@ -183,7 +208,7 @@ export function BadgeStyleSelector<S extends string>({
   // Colonne esatte per conteggio (classi letterali: Tailwind le genera solo se scritte per esteso):
   // 5 opzioni in 6 colonne lascerebbero un buco a destra e pulsanti di larghezza
   // diversa dalla riga da 7 — ogni riga riempie la larghezza con i suoi pulsanti.
-  const gridCols = options.length <= 3 ? "grid-cols-3" : options.length <= 5 ? "grid-cols-3 sm:grid-cols-5" : options.length <= 6 ? "grid-cols-3 sm:grid-cols-6" : "grid-cols-3 sm:grid-cols-4 md:grid-cols-7"
+  const gridCols = options.length <= 3 ? "grid-cols-3" : options.length <= 5 ? "grid-cols-3 sm:grid-cols-5" : options.length <= 6 ? "grid-cols-3 sm:grid-cols-6" : options.length <= 7 ? "grid-cols-3 sm:grid-cols-4 md:grid-cols-7" : "grid-cols-4 sm:grid-cols-4 md:grid-cols-8"
   return (
     <div className={`grid ${gridCols} gap-1.5 w-full`}>
       {options.map((s) => {
@@ -206,7 +231,7 @@ export function BadgeStyleSelector<S extends string>({
               <BadgePreview style={s} accentColor={accentColor} family={family} />
             </span>
             <span className="text-[10px] font-semibold leading-tight truncate max-w-full">
-              {s === "shadow" ? t("ui.shadow") : s === "pill" ? t("ui.pill") : s === "bar" ? t("ui.bar") : s === "default" ? t("ui.bsDefault") : s === "colored" ? t("ui.colored") : s === "bordo" ? t("ui.bordo") : s === "vetro" ? t("ui.vetro") : s === "minimal" ? t("ui.minimal") : s === "netflix" ? t("ui.netflix") : s === "corner" ? t("ui.corner") : s === "number" ? t("ui.number") : s === "standard" ? t("ui.qbsStandard") : s === "mono" ? t("ui.qbsMono") : s === "color" ? t("ui.qbsColor") : s === "knockout" ? t("ui.qbsKnockout") : s === "premium" ? t("ui.qbsPremium") : s === "nova" ? t("ui.qbsNova") : s === "gradient" ? t("ui.qbsGradient") : s}
+              {s === "shadow" ? t("ui.shadow") : s === "pill" ? t("ui.pill") : s === "bar" ? t("ui.bar") : s === "default" ? t("ui.bsDefault") : s === "colored" ? t("ui.colored") : s === "bordo" ? t("ui.bordo") : s === "vetro" ? t("ui.vetro") : s === "minimal" ? t("ui.minimal") : s === "ink" ? t("ui.ink") : s === "netflix" ? t("ui.netflix") : s === "corner" ? t("ui.corner") : s === "number" ? t("ui.number") : s === "standard" ? t("ui.qbsStandard") : s === "mono" ? t("ui.qbsMono") : s === "color" ? t("ui.qbsColor") : s === "knockout" ? t("ui.qbsKnockout") : s === "premium" ? t("ui.qbsPremium") : s === "nova" ? t("ui.qbsNova") : s === "gradient" ? t("ui.qbsGradient") : s === "outline" ? t("ui.qbsOutline") : s === "strip" ? t("ui.qbsStrip") : s}
             </span>
           </button>
         )

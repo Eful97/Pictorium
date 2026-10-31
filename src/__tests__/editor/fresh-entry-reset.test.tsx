@@ -86,7 +86,7 @@ function renderStagedRankings(seed: Record<string, unknown>, shape: "portrait" |
     createElement(
       SessionBridge,
       null,
-      createElement(BadgeDefaultsSection, { active: true, shape, mode: "rankings" }),
+      createElement(BadgeDefaultsSection, { active: true, shape, mode: "appearance" }),
     ),
   )
   return { session: () => holder.session as unknown as SettingsSessionResult }

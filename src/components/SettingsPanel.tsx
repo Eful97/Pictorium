@@ -25,7 +25,6 @@ import {
   X,
   KeyRound,
   Palette,
-  Trophy,
   Info,
   Sparkles,
   Tags,
@@ -39,13 +38,15 @@ import { usePSelector } from "@/lib/context"
 import { usePreviewDemoMedia } from "@/lib/defaults-preview-media"
 import type { BackupExportOptions, BackupImportOptions } from "@/lib/useMappingsStore"
 
-type PrimaryTabId = "preset" | "rankings" | "information" | "badge" | "tags" | "transform"
+type PrimaryTabId = "preset" | "information" | "badge" | "tags" | "transform"
 type SecondaryTabId = "prefs" | "data" | "catalogs" | "spazio"
 type TabId = PrimaryTabId | SecondaryTabId
 
 const PRIMARY_TABS: ReadonlyArray<{ id: PrimaryTabId; labelKey: string; icon: typeof Sparkles }> = [
   { id: "preset", labelKey: "ui.settingsTabPreset", icon: Sparkles },
-  { id: "rankings", labelKey: "ui.settingsTabRankings", icon: Trophy },
+  // The former Classifiche tab was folded into the two tabs that own its
+  // controls: the on/off masters live in Informazioni and the ranking style /
+  // priority order live in Badge. Deep links alias it (normalizeTab below).
   { id: "information", labelKey: "ui.settingsTabInformation", icon: Info },
   { id: "badge", labelKey: "ui.settingsTabBadge", icon: Palette },
   { id: "tags", labelKey: "ui.settingsTabTagsNetworks", icon: Tags },
@@ -61,9 +62,12 @@ const SECONDARY_TABS: ReadonlyArray<{ id: SecondaryTabId; labelKey: string; icon
 
 function normalizeTab(tab: string | null): TabId | null {
   if (tab === "badge") return "preset"
+  // Legacy Classifiche tab (removed): its two on/off masters now live in
+  // Informazioni and its style selector + priority order in Badge. Old deep
+  // links keep landing on the tab that owns the ranking look.
+  if (tab === "rankings") return "badge"
   if (
     tab === "preset" ||
-    tab === "rankings" ||
     tab === "information" ||
     tab === "tags" ||
     tab === "trasforma" ||
@@ -731,15 +735,6 @@ export function SettingsPanel({ setSettingsOpen, exportData, importData, mobile,
         )}
         <div className="min-w-0 min-h-0 flex-1 overflow-y-auto p-3 sm:p-6 space-y-3 sm:space-y-4 md:col-start-1 md:row-start-1" data-testid="settings-controls" data-scroll="settings-controls">
           <PresetsPanel shape={editTargetShape} demoMedia={previewDemoMedia} active={activeTab === "preset"} />
-          <BadgeDefaultsSection
-            active={activeTab === "rankings"}
-            shape={editTargetShape}
-            mode="rankings"
-            testStaged
-            testDirty={session.dirty}
-            onPreviewFamilyChange={setPreviewFamily}
-            presetsEnabled={false}
-          />
           <BadgeDefaultsSection
             active={activeTab === "information"}
             shape={editTargetShape}

@@ -110,14 +110,13 @@ beforeEach(() => {
   Object.defineProperty(window, "innerWidth", { configurable: true, writable: true, value: 1280 })
 })
 
-describe("SettingsPanel six-tab navigation", () => {
-  it("shows six primary tabs in order with Preset first and selected by default", async () => {
+describe("SettingsPanel five-tab navigation", () => {
+  it("shows five primary tabs in order with Preset first and selected by default", async () => {
     renderPanel()
     await screen.findByTestId("presets-panel")
     const tabs = primaryTabs()
     expect(tabs.map((b) => b.textContent)).toEqual([
       "ui.settingsTabPreset",
-      "ui.settingsTabRankings",
       "ui.settingsTabInformation",
       "ui.settingsTabBadge",
       "Tag e Network",
@@ -140,7 +139,7 @@ describe("SettingsPanel six-tab navigation", () => {
   it("secondary Prefs/Data links live outside the primary tablist; Space only with content", async () => {
     const { container } = renderPanel()
     await screen.findByTestId("presets-panel")
-    expect(primaryTabs()).toHaveLength(6)
+    expect(primaryTabs()).toHaveLength(5)
     // Catalogs leads the secondary row, directly after the Transform primary tab.
     const secondaryIds = Array.from(
       container.querySelectorAll('[data-testid^="settings-secondary-"]'),
@@ -181,7 +180,7 @@ describe("SettingsPanel six-tab navigation", () => {
     renderPanel()
     await screen.findByTestId("presets-panel")
     const space = await screen.findByTestId("settings-secondary-spazio")
-    expect(primaryTabs()).toHaveLength(6)
+    expect(primaryTabs()).toHaveLength(5)
     fireEvent.click(space)
     expect(await screen.findByText("ui.userSpaceOr")).toBeInTheDocument()
     resetGuestGuardForTests()
@@ -197,7 +196,7 @@ describe("SettingsPanel six-tab navigation", () => {
     expect(groups).toEqual(["ui.settingsGroupPrimary", "ui.settingsGroupSecondary"])
     // Full navigation order: Catalogs directly after Transform, before Prefs/Data.
     const values = Array.from(select.querySelectorAll("option")).map((o) => o.getAttribute("value"))
-    expect(values).toEqual(["preset", "rankings", "information", "badge", "tags", "transform", "catalogs", "prefs", "data"])
+    expect(values).toEqual(["preset", "information", "badge", "tags", "transform", "catalogs", "prefs", "data"])
   })
 
   it("does not render API key inputs", async () => {
@@ -311,10 +310,10 @@ describe("SettingsPanel dirty-guard close paths", () => {
     renderPanel()
     await screen.findByTestId("poster-style-apple")
     fireEvent.click(screen.getByTestId("poster-style-apple"))
-    clickTab("ui.settingsTabRankings")
+    clickTab("ui.settingsTabBadge")
     // Free navigation: the tab applied immediately, no guard dialog.
     expect(screen.queryByTestId("settings-dirty-dialog")).not.toBeInTheDocument()
-    expect(screen.getByRole("tab", { name: "ui.settingsTabRankings" })).toHaveAttribute(
+    expect(screen.getByRole("tab", { name: "ui.settingsTabBadge" })).toHaveAttribute(
       "aria-selected",
       "true",
     )
@@ -397,7 +396,7 @@ describe("SettingsPanel shape, resize and tab homes", () => {
     fireEvent.click(screen.getByTestId("poster-style-apple"))
     expect(puts).toHaveLength(0)
     expect(ctx().defaultPosterShape).toBe(deliveryBefore)
-    clickTab("ui.settingsTabRankings")
+    clickTab("ui.settingsTabBadge")
     const landscapeBtn = within(screen.getByTestId("format-target-selector")).getByText(
       "ui.posterShapeLandscape",
     ).closest("button")
@@ -426,20 +425,27 @@ describe("SettingsPanel shape, resize and tab homes", () => {
     expect(screen.getByTestId("settings-save")).not.toBeDisabled()
   })
 
-  it("rank switch lives only in Rankings; Information holds visibility without duplicates", async () => {
+  it("rank look lives only in Badge; Information owns the two on/off masters", async () => {
     renderPanel()
     await screen.findByTestId("presets-panel")
-    clickTab("ui.settingsTabRankings")
-    expect(screen.getByRole("switch", { name: "ui.sash_rank" })).toBeInTheDocument()
-    // Scoped to the active Rankings tabpanel (never a global getAll count).
-    // Several Badge tabpanels mount simultaneously (siblings hidden); scope
-    // through the Rankings-only switch to the visible panel.
-    const rankSwitch = screen.getByRole("switch", { name: "ui.sash_rank" })
-    const rankingsPanel = rankSwitch.closest('[role="tabpanel"]') as HTMLElement
-    expect(within(rankingsPanel).getAllByText("ui.rankFamily").length).toBeGreaterThanOrEqual(1)
+    clickTab("ui.settingsTabBadge")
+    // The Classifica section carries ONLY the rank badge selector.
+    const presentation = screen.getByTestId("ranking-presentation")
+    expect(
+      within(presentation).getByRole("radiogroup", { name: "ui.rankFamily" }),
+    ).toBeInTheDocument()
+    const badgePanel = presentation.closest('[role="tabpanel"]') as HTMLElement
+    // Both selectors live in Information and never duplicate on the style tab.
+    expect(within(badgePanel).queryByRole("switch", { name: "ui.badgeExtraToggle" })).toBeNull()
+    expect(within(badgePanel).queryByRole("switch", { name: "ui.rankingsToggle" })).toBeNull()
     clickTab("ui.settingsTabInformation")
-    // No rank appearance or priority controls on the visibility tab.
-    expect(screen.queryByRole("switch", { name: "ui.sash_rank" })).not.toBeInTheDocument()
+    // Classifica on/off + badge extra on/off (two distinct, independent).
+    expect(screen.getByRole("switch", { name: "ui.rankingsToggle" })).toBeInTheDocument()
+    expect(screen.getByRole("switch", { name: "ui.badgeExtraToggle" })).toBeInTheDocument()
+    const infoPanel = screen.getByRole("switch", { name: "ui.rankingsToggle" }).closest('[role="tabpanel"]') as HTMLElement
+    // No rank badge selector on the visibility tab (scoped to its panel: the
+    // hidden Badge tabpanel still mounts its selector).
+    expect(within(infoPanel).queryByTestId("ranking-presentation")).toBeNull()
     expect(screen.getByRole("switch", { name: "ui.badgeGenre" })).toBeInTheDocument()
     expect(screen.getByRole("switch", { name: "ui.badgeYear" })).toBeInTheDocument()
     expect(screen.getByRole("switch", { name: "ui.badgeRating" })).toBeInTheDocument()

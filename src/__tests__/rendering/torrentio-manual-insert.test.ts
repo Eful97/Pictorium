@@ -16,6 +16,7 @@ import {
   sameStorePath,
   validateManualInsert,
 } from "../../../scripts/torrentio-manual-insert.mjs"
+import { REVIEWED_PHASE3_APPROVED } from "../../../scripts/torrentio-av-import.mjs"
 
 // Historic post-union baseline for the original 1430-row set (same constant
 // as torrentio-av-import-union832.test.ts; kept as history, never re-pinned).
@@ -366,10 +367,16 @@ describe("Reacher local entry regression (tt9288030 / TMDB tv 108978)", () => {
     const db = JSON.parse(rawText)
     expect(Object.keys(db)).toHaveLength(1431)
     // The original 1430-row set reconstructs the pinned post-union bytes
-    // exactly (historic baseline untouched, not re-pinned).
+    // exactly (historic baseline untouched, not re-pinned); the later
+    // phase-3 declared deltas are stripped additively first.
+    const phase3Added = new Map(REVIEWED_PHASE3_APPROVED.map((e) => [e.id, e.added]))
     const minus: Record<string, unknown> = {}
     for (const key of Object.keys(db)) {
-      if (key !== "tt9288030") minus[key] = db[key]
+      if (key === "tt9288030") continue
+      const added = phase3Added.get(key)
+      minus[key] = added
+        ? { ...db[key], formats: db[key].formats.filter((f: string) => !added.includes(f)) }
+        : db[key]
     }
     expect(Object.keys(minus)).toHaveLength(1430)
     const minusSorted: Record<string, unknown> = {}

@@ -13,7 +13,7 @@
 import { describe, expect, it, vi } from "vitest"
 import { screen, within } from "@testing-library/react"
 import { BadgeStyleSelector } from "@/components/ui/BadgeStyleSelector"
-import { COLOR_MARK_GLYPH, COLOR_MARK_PLATE_BG, COLOR_MARK_PLATE_STROKE, PREMIUM_PLATE_BG, premiumAccentHex } from "@/lib/quality-badge-styles"
+import { COLOR_MARK_GLYPH, COLOR_MARK_PLATE_BG, COLOR_MARK_PLATE_STROKE, GRADIENT_PLATE_STROKE, PREMIUM_PLATE_BG, premiumAccentHex } from "@/lib/quality-badge-styles"
 import { AGE_NOVA_BODY_TOP, AGE_NOVA_BORDER_TOP, AGE_NOVA_SKEW_X } from "@/lib/badge-svg-shared"
 import { GRADIENT_MARK_STOPS, GRADIENT_PLATE_BG, GRADIENT_TIER_INK } from "@/lib/quality-badge-styles"
 import { textColorForBg } from "@/lib/accent-color"
@@ -237,7 +237,8 @@ describe("BadgeStyleSelector preview contract", () => {
     const rects = svg.match(/<rect [^>]*\/>/g) ?? []
     expect(rects.length).toBe(1)
     expect(rects[0]).toContain(`fill="${GRADIENT_PLATE_BG}"`)
-    expect(rects[0]).not.toContain("stroke")
+    // Same A/V plate material: family hairline, kept inside the box.
+    expect(rects[0]).toContain(`stroke="${GRADIENT_PLATE_STROKE}"`)
     expect(svg).not.toContain("<mask")
     expect(btn.querySelector("button, a, input, select")).toBeNull()
   })

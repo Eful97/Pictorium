@@ -49,6 +49,7 @@ export async function saveDefaults(ed: PosterEditorCtx): Promise<boolean> {
     rankingBadgeStyle: ed.defaultRankingBadgeStyle,
     extraBadgeStyle: ed.defaultExtraBadgeStyle ?? null,
     qualityBadgeStyle: ed.defaultQualityBadgeStyle,
+    qualityGroupLayout: ed.defaultQualityGroupLayout,
     videoFormats: ed.defaultVideoFormats,
     blurEnabled: ed.defaultBlurEnabled,
     blurIntensity: ed.defaultBlurIntensity,

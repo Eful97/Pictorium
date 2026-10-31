@@ -1,7 +1,7 @@
 import type { BadgeStyle, RankingBadgeStyle, BadgeFont } from "./badge-styles"
 import { isBadgeFont } from "./badge-styles"
 import { isWarmGoldAccent, textColorForBg } from "./accent-color"
-import { AV_PLATE_RADIUS_FACTOR, AV_PLATE_STROKE_WIDTH, COLOR_MARK_GLYPH, COLOR_MARK_PLATE_BG, COLOR_MARK_PLATE_STROKE, GRADIENT_PLATE_BG, PREMIUM_PLATE_BG, PREMIUM_PLATE_STROKE, premiumAccentHex } from "./quality-badge-styles"
+import { AV_PLATE_RADIUS_FACTOR, AV_PLATE_STROKE_WIDTH, COLOR_MARK_GLYPH, COLOR_MARK_PLATE_BG, COLOR_MARK_PLATE_STROKE, GRADIENT_PLATE_BG, GRADIENT_PLATE_STROKE, PREMIUM_PLATE_BG, PREMIUM_PLATE_STROKE, premiumAccentHex } from "./quality-badge-styles"
 
 const TEXT_SAFE_PAD = 1.15
 const GENRE_TEXT_MAX_RATIO = 0.84
@@ -29,6 +29,51 @@ export function badgeShadowBox(h: number): { blur: number; off: number } {
 }
 
 export const STAR_GRADIENT_DEF = `<linearGradient id="starg" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#FCD34D"/><stop offset="100%" stop-color="#F59E0B"/></linearGradient>`
+
+/**
+ * Fill della stella del badge genere/rating sui contenitori CHIARI.
+ *
+ * La stella vive sul contenitore del badge, non sulla banda del poster: per
+ * `bordo`/`vetro` il corpo e chiaro quando la banda e chiara (`bottomLight`,
+ * velo milky), per la `bar` e l'opposto (`satinPillStops` inverte la polarita:
+ * banda scura → barra bianca satinata, banda chiara → barra grafite). Sul
+ * contenitore chiaro il gradiente oro storico (#FCD34D → #F59E0B) misura
+ * ~1.4:1 sul bianco e annega mentre il testo resta near-black: la stella
+ * prende allora lo STESSO inchiostro del testo (parita per costruzione,
+ * nessuna misura contro artwork traslucido arbitrario sotto al velo) — la
+ * stessa scelta gia fatta dall'accent caldo della pill `colored`. Sul
+ * contenitore scuro l'oro storico resta leggibile: `undefined` = `url(#starg)`,
+ * byte-identico al passato. Nessuna geometria toccata (solo il fill).
+ */
+export function starInkFor(
+  bandLight: boolean | undefined,
+  style: string | undefined,
+  textInk: string,
+): string | undefined {
+  const lightContainer = style === "bar" ? !bandLight : !!bandLight
+  return lightContainer ? textInk : undefined
+}
+
+/**
+ * Stella dello stile `ink`: off-white MINIMALE (mai bianco puro, mai il
+ * gradiente oro) sulla banda scura. L'`ink` e tipografia nuda sopra l'artwork:
+ * il gradiente oro storico non appartiene alla modalita (nessun accent, nessun
+ * materiale) e il bianco puro risulterebbe troppo duro accanto ai glifi.
+ */
+export const GENRE_INK_STAR_INK = "rgba(243,244,246,0.92)"
+
+/**
+ * Fill della stella nello stile `ink`.
+ *
+ * Su banda scura la stella e l'off-white minimale `GENRE_INK_STAR_INK`; su
+ * banda chiara prende l'inchiostro del testo al 85% (stessa parita per
+ * costruzione di `starInkFor`, l'alone scuro dell'ink resta la garanzia di
+ * contrasto sul fondo chiaro), cosi resta leggibile su entrambe le polarita.
+ * Il gradiente oro non compare MAI in modalita ink.
+ */
+export function inkStarInkFor(bandLight: boolean | undefined, textInk: string): string {
+  return bandLight ? applyFillOpacity(textInk, 85) : GENRE_INK_STAR_INK
+}
 
 export function genreBadgeSafePad(fs: number): number {
   return Math.round(fs * TEXT_SAFE_PAD)
@@ -151,10 +196,23 @@ function charWidthFactor(char: string): number {
   return 0.62
 }
 
-export function estimateTextWidth(text: string, fs: number, font: BadgeFont | string | null | undefined = "inter"): number {
+/** Misura messa in cache (testo+font → unità grezze e fattore condensed). */
+const WIDTH_UNITS_CACHE = new Map<string, { units: number; condensed: number }>()
+const WIDTH_UNITS_CACHE_MAX = 500
+
+/**
+ * Unità di larghezza per testo+font, memorizzate in una Map FIFO bounded
+ * (cap ~500, l'eviction più vecchia). La somma per glifo è il costo dominante
+ * quando lo shrink loop e i builder ricostruiscono lo stesso testo decine di
+ * volte: la cache conserva gli stessi float, quindi il risultato arrotondato
+ * resta identico al calcolo diretto (nessun cambio di resa o di cache key).
+ */
+function widthUnitsFor(text: string, font: BadgeFont | string | null | undefined): { units: number; condensed: number } {
+  const key = `${font}\u0000${text}`
+  const cached = WIDTH_UNITS_CACHE.get(key)
+  if (cached) return cached
   let units = 0
   for (const char of text) units += charWidthFactor(char)
-  const w = Math.max(units * fs, fs * 0.35)
   // Larghezza ottica misurata con resvg su 10 stringhe badge × pesi
   // 600/700/900 (ink bbox, fs=100): Barlow Condensed ≈ 0.73× Inter,
   // Oswald ≈ 0.80×. Senza, `textLength` pinnerebbe sulla larghezza Inter e
@@ -162,6 +220,18 @@ export function estimateTextWidth(text: string, fs: number, font: BadgeFont | st
   // Nessuna scala per ebraico/arabo: quei glifi escono sempre in Rubik
   // (fontFamilyFor) con avanzamenti propri, non Inter.
   const condensed = needsRubik(text) ? 1 : font === "barlow-condensed" ? 0.73 : font === "oswald" ? 0.80 : 1
+  if (WIDTH_UNITS_CACHE.size >= WIDTH_UNITS_CACHE_MAX) {
+    const oldest = WIDTH_UNITS_CACHE.keys().next().value
+    if (oldest !== undefined) WIDTH_UNITS_CACHE.delete(oldest)
+  }
+  const entry = { units, condensed }
+  WIDTH_UNITS_CACHE.set(key, entry)
+  return entry
+}
+
+export function estimateTextWidth(text: string, fs: number, font: BadgeFont | string | null | undefined = "inter"): number {
+  const { units, condensed } = widthUnitsFor(text, font)
+  const w = Math.max(units * fs, fs * 0.35)
   return Math.round(w * condensed)
 }
 
@@ -235,7 +305,18 @@ function buildGenreTextFlow({ genreName, voteStr, yearStr, fs, centerX, y, parts
   const isMinimal = style === "minimal"
   const opts = normalizeParts(parts)
   const dims = genreBadgeSvgDims(fs, genreName, voteStr, yearStr, opts, style, font)
-  const starDy = Math.max(2, Math.round(fs * 0.14))
+  // Allineamento verticale della stella (tutti gli stili): il path 5 punte ha
+  // il centro geometrico in (0,0) ma l'inchiostro e asimmetrico — punta in
+  // alto a -R, base delle due punte inferiori a 0.809R — quindi il centro
+  // dell'inchiostro cade 0.0955R SOPRA l'origine. Il testo usa
+  // `dominant-baseline="central"`, cioe il centro dell'inchiostro sta sulla
+  // `y` condivisa (misurato con resvg: <0.5px). Senza compensazione la stella
+  // risultava ~4-5px piu bassa della riga (screenshot utente "Animazione •
+  // 8.2"); questo spostamento porta il CENTRO INCHIOSTRO della stella sulla
+  // stessa Y del testo (~1-2px sul canvas poster), senza toccare baseline,
+  // larghezze o altezze di badge.
+  const starR = dims.starW / 2
+  const starDy = round2(starR * 0.0955)
   const hasGenre = opts.showGenre && !!genreName
   const hasRating = opts.showRating && !!voteStr
   const hasYear = opts.showYear && !!yearStr
@@ -290,7 +371,7 @@ function buildGenreTextFlow({ genreName, voteStr, yearStr, fs, centerX, y, parts
   }
   let t = texts.join("")
   if (starCx !== null) {
-    t += `<g transform="translate(${round2(starCx)},${round2(y + starDy)})" fill="${starFill ?? "url(#starg)"}"><path d="${starPath(dims.starW / 2)}"/></g>`
+    t += `<g transform="translate(${round2(starCx)},${round2(y + starDy)})" fill="${starFill ?? "url(#starg)"}"><path d="${starPath(starR)}"/></g>`
   }
   return t
 }
@@ -311,10 +392,10 @@ function round2(n: number): number {
   return Math.round(n * 100) / 100
 }
 
-export function buildGenreBarSvg(genreName: string, voteStr: string, yearStr: string, pw: number, fs: number, textColor: string, bottomLight: boolean, textOffsetX = 0, parts?: GenreParts, font: BadgeFont = "inter") {
+export function buildGenreBarSvg(genreName: string, voteStr: string, yearStr: string, pw: number, fs: number, textColor: string, bottomLight: boolean, textOffsetX = 0, parts?: GenreParts, starFill?: string, font: BadgeFont = "inter") {
   const barH = badgeBoxHeight(fs)
   const barR = Math.round(fs * 0.7)
-  const textParts = buildGenreTextFlow({ genreName, voteStr, yearStr, fs, centerX: pw / 2 + textOffsetX, y: barH / 2, parts, font })
+  const textParts = buildGenreTextFlow({ genreName, voteStr, yearStr, fs, centerX: pw / 2 + textOffsetX, y: barH / 2, parts, starFill, font })
   const pathD = `M 0,${barH} L 0,${barR} A ${barR},${barR} 0 0,1 ${barR},0 L ${pw - barR},0 A ${barR},${barR} 0 0,1 ${pw},${barR} L ${pw},${barH} Z`
   // Finitura quality-badge: gradiente satinato polarizzato sul fondo (stessa
   // polarità della pill genere), niente alone d'ombra, bordo adattivo 1.5px
@@ -388,7 +469,139 @@ export function buildGenreTextSvg(genreName: string, voteStr: string, yearStr: s
   return { svg, w: renderW, h: renderH }
 }
 
-export function buildGenreBorderedSvg(genreName: string, voteStr: string, yearStr: string, fs: number, textColor: string, topLight: boolean, textOffsetX = 0, parts?: GenreParts, font: BadgeFont = "inter") {
+// --- Genre `ink` (bare accent typography) -----------------------------------
+// Stessa geometria/test flow di `shadow` (nessuna placca, nessun bordo): il
+// fill dei glifi è l'accento di scena in gradiente orizzontale (accento →
+// stessa tinta a L+0.12) sopra un alone scuro 1px, con la sola ombra 3D
+// condivisa `tds`. Additivo: nessuno stile esistente cambia.
+
+/** Spessore VISIBILE dell'alone ink (px sul box): lo stroke è centrato
+ *  sull'edge del glifo, quindi `stroke-width` = 2 × questo valore (stessa
+ *  ricetta del wordmark, `buildTextLogoSvg`). */
+export const GENRE_INK_HALO_WIDTH = 1
+
+/** Delta di lightness HSL del secondo stop del gradiente ink. */
+export const GENRE_INK_LIGHTNESS_STEP = 0.12
+
+function hexChannels(hex: string): [number, number, number] | null {
+  if (!/^#[0-9a-fA-F]{6}$/.test(hex)) return null
+  return [parseInt(hex.slice(1, 3), 16), parseInt(hex.slice(3, 5), 16), parseInt(hex.slice(5, 7), 16)]
+}
+
+/** RGB [0,255] → HSL (H 0-360, S/L 0-1). Copia locale delle equazioni di
+ *  `accent-color.ts` (foglia che le tiene private): nessuna seconda pipeline
+ *  di accento, solo la conversione necessaria a derivare lo stop chiaro. */
+function hslFromRgb(r: number, g: number, b: number): { h: number; s: number; l: number } {
+  const rn = r / 255, gn = g / 255, bn = b / 255
+  const max = Math.max(rn, gn, bn), min = Math.min(rn, gn, bn)
+  const l = (max + min) / 2, d = max - min
+  if (d === 0) return { h: 0, s: 0, l }
+  const s = l > 0.5 ? d / (2 - max - min) : d / (max + min)
+  let h: number
+  if (max === rn) h = ((gn - bn) / d) % 6
+  else if (max === gn) h = (bn - rn) / d + 2
+  else h = (rn - gn) / d + 4
+  h *= 60
+  if (h < 0) h += 360
+  return { h, s, l }
+}
+
+function rgbFromHsl(h: number, s: number, l: number): [number, number, number] {
+  const c = (1 - Math.abs(2 * l - 1)) * s
+  const x = c * (1 - Math.abs(((h / 60) % 2) - 1))
+  const m = l - c / 2
+  let r1 = 0, g1 = 0, b1 = 0
+  if (h < 60) { r1 = c; g1 = x }
+  else if (h < 120) { r1 = x; g1 = c }
+  else if (h < 180) { g1 = c; b1 = x }
+  else if (h < 240) { g1 = x; b1 = c }
+  else if (h < 300) { r1 = x; b1 = c }
+  else { r1 = c; b1 = x }
+  return [
+    Math.max(0, Math.min(255, Math.round((r1 + m) * 255))),
+    Math.max(0, Math.min(255, Math.round((g1 + m) * 255))),
+    Math.max(0, Math.min(255, Math.round((b1 + m) * 255))),
+  ]
+}
+
+function toHex2(n: number): string {
+  return n.toString(16).padStart(2, "0")
+}
+
+/**
+ * Secondo stop del gradiente ink: stesso hue/saturazione dell'accento a
+ * L + `GENRE_INK_LIGHTNESS_STEP` (clamp 0..1). Non-hex/malformato → null
+ * (nessun colore inventato: il builder ricade sull'inchiostro di ricetta).
+ */
+export function accentInkLightHex(hex: string | null | undefined, step = GENRE_INK_LIGHTNESS_STEP): string | null {
+  if (!hex) return null
+  const ch = hexChannels(hex)
+  if (!ch) return null
+  const { h, s, l } = hslFromRgb(ch[0], ch[1], ch[2])
+  const [r, g, b] = rgbFromHsl(h, s, Math.max(0, Math.min(1, l + step)))
+  return `#${toHex2(r)}${toHex2(g)}${toHex2(b)}`
+}
+
+/**
+ * Stile `ink` (badge genere/rating): tipografia NUDA come `shadow` (stessa
+ * geometria, stesso text flow a segmenti, safe pad e shadow pad), fill dei
+ * glifi = accento risolto in gradiente orizzontale (accento → L+0.12) e alone
+ * scuro 1px sotto (stessa ricetta del wordmark, `TEXT_LOGO_HALO`) con la sola
+ * ombra 3D condivisa `tds`. Nessuna placca/bordo/satinatura. Accento
+ * assente/invalido → inchiostro di ricetta (`fallbackInk`), mai un colore
+ * inventato. La stella NON segue i glifi: resta off-white minimale
+ * (`GENRE_INK_STAR_INK`, adattato sul fondo chiaro da `inkStarInkFor`), mai il
+ * gradiente oro degli altri stili, anche sopra l'alone.
+ */
+export function buildGenreInkSvg(
+  genreName: string,
+  voteStr: string,
+  yearStr: string,
+  fs: number,
+  accentColor: string | null | undefined,
+  fallbackInk: string,
+  textOffsetX = 0,
+  parts?: GenreParts,
+  font: BadgeFont = "inter",
+  /** Override fill stella (default: off-white minimale, mai oro). */
+  starFill?: string,
+) {
+  // Geometria identica a `shadow` (bare typography, nessun contenitore).
+  const dims = genreBadgeSvgDims(fs, genreName, voteStr, yearStr, parts, undefined, font)
+  const shadowPad = 8
+  const shadowDrop = 5
+  const safePad = genreBadgeSafePad(fs)
+  const renderW = dims.totalW + shadowPad * 2 + safePad * 2
+  const renderH = dims.svgH + shadowDrop
+  const textParts = buildGenreTextFlow({
+    genreName,
+    voteStr,
+    yearStr,
+    fs,
+    centerX: renderW / 2 + textOffsetX,
+    y: shadowDrop + (dims.svgH - shadowDrop) / 2,
+    parts,
+    starFill: starFill ?? GENRE_INK_STAR_INK,
+    font,
+  })
+  const lightHex = accentInkLightHex(accentColor)
+  const inkFill = accentColor && lightHex ? "url(#gik)" : fallbackInk
+  const gradDef = inkFill === "url(#gik)"
+    ? `<linearGradient id="gik" x1="0" y1="0" x2="1" y2="0"><stop offset="0%" stop-color="${accentColor}"/><stop offset="100%" stop-color="${lightHex}"/></linearGradient>`
+    : ""
+  const defs = `<defs>${gradDef}${TOP_SHADOW_FILTER}</defs>`
+  // Due passate: alone scuro (solo stroke, `fill="none"`) sotto, inchiostro
+  // sopra. Gli attributi inline dei segmenti (fill-opacity del bullet, fill
+  // della stella) restano quelli del text flow: la stella si porta il proprio
+  // fill (off-white minimale) anche nel layer d'alone. Nessun gradiente oro
+  // (`starg`) nel ink: la stella non e mai dorata in questa modalita.
+  const haloEl = `<g fill="none" stroke="${TEXT_LOGO_HALO}" stroke-width="${GENRE_INK_HALO_WIDTH * 2}" stroke-linejoin="round">${textParts}</g>`
+  const inkEl = `<g fill="${inkFill}">${textParts}</g>`
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${renderW}" height="${renderH}" viewBox="0 0 ${renderW} ${renderH}">${defs}<g filter="url(#tds)">${haloEl}${inkEl}</g></svg>`
+  return { svg, w: renderW, h: renderH }
+}
+
+export function buildGenreBorderedSvg(genreName: string, voteStr: string, yearStr: string, fs: number, textColor: string, topLight: boolean, textOffsetX = 0, parts?: GenreParts, starFill?: string, font: BadgeFont = "inter") {
   const dims = genreBadgeSvgDims(fs, genreName, voteStr, yearStr, parts, undefined, font)
   const padX = Math.round(fs * BADGE_BOX_PAD_X_FACTOR)
   const borderW = 2
@@ -397,13 +610,13 @@ export function buildGenreBorderedSvg(genreName: string, voteStr: string, yearSt
   const r = Math.round(fs * 0.55)
   const borderColor = topLight ? "rgba(0,0,0,0.50)" : "rgba(255,255,255,0.60)"
   const bgFill = topLight ? "rgba(255,255,255,0.55)" : "rgba(0,0,0,0.32)"
-  const textParts = buildGenreTextFlow({ genreName, voteStr, yearStr, fs, centerX: renderW / 2 + textOffsetX, y: boxH / 2, parts, font })
+  const textParts = buildGenreTextFlow({ genreName, voteStr, yearStr, fs, centerX: renderW / 2 + textOffsetX, y: boxH / 2, parts, starFill, font })
   const defs = `<defs>${STAR_GRADIENT_DEF}</defs>`
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${renderW}" height="${boxH}" viewBox="0 0 ${renderW} ${boxH}">${defs}<rect x="${borderW / 2}" y="${borderW / 2}" width="${renderW - borderW}" height="${boxH - borderW}" rx="${r}" fill="${bgFill}" stroke="${borderColor}" stroke-width="${borderW}"/><g fill="${textColor}">${textParts}</g></svg>`
   return { svg, w: renderW, h: boxH }
 }
 
-export function buildGenreGlassSvg(genreName: string, voteStr: string, yearStr: string, fs: number, textColor: string, topLight: boolean, textOffsetX = 0, parts?: GenreParts, font: BadgeFont = "inter") {
+export function buildGenreGlassSvg(genreName: string, voteStr: string, yearStr: string, fs: number, textColor: string, topLight: boolean, textOffsetX = 0, parts?: GenreParts, starFill?: string, font: BadgeFont = "inter") {
   const dims = genreBadgeSvgDims(fs, genreName, voteStr, yearStr, parts, undefined, font)
   const padX = Math.round(fs * BADGE_BOX_PAD_X_FACTOR)
   const renderW = dims.textContentW + padX * 2
@@ -411,7 +624,7 @@ export function buildGenreGlassSvg(genreName: string, voteStr: string, yearStr: 
   const r = Math.round(fs * 0.6)
   const stops = glassStops(topLight)
   const borderColor = topLight ? "rgba(0,0,0,0.12)" : "rgba(255,255,255,0.22)"
-  const textParts = buildGenreTextFlow({ genreName, voteStr, yearStr, fs, centerX: renderW / 2 + textOffsetX, y: boxH / 2, parts, font })
+  const textParts = buildGenreTextFlow({ genreName, voteStr, yearStr, fs, centerX: renderW / 2 + textOffsetX, y: boxH / 2, parts, starFill, font })
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${renderW}" height="${boxH}" viewBox="0 0 ${renderW} ${boxH}"><defs>${STAR_GRADIENT_DEF}<linearGradient id="gg" x1="0" y1="0" x2="0" y2="1">${stops}</linearGradient></defs><rect width="${renderW}" height="${boxH}" rx="${r}" fill="url(#gg)" stroke="${borderColor}" stroke-width="1.5"/><g fill="${textColor}">${textParts}</g></svg>`
   return { svg, w: renderW, h: boxH }
 }
@@ -615,6 +828,170 @@ export function buildRankingDefaultSvg(fullText: string, fs: number, textColor: 
   const textEl = `<text x="${centerX}" y="${centerY}" text-anchor="middle" dominant-baseline="central" font-family="${fontFamilyFor(fullText, font)}" font-weight="${RANKING_FONT_WEIGHT}" font-size="${fs}" fill="${textColor}"${textFitAttrs(textW)}>${escSvg(fullText)}</text>`
   // colored: tinta accent piatta (contratto storico); default: gradiente satinato.
   return { svg: `<svg xmlns="http://www.w3.org/2000/svg" width="${renderW}" height="${renderH}" viewBox="0 0 ${renderW} ${renderH}">${defs}<path d="${pathD}" fill="${flatBg ?? "url(#rdg)"}" stroke="${stroke}" stroke-width="1.5" filter="url(#tds)"/>${textEl}</svg>`, w: renderW, h: renderH }
+}
+
+/** `split` chip: left accent cell numeral size (em of the badge `fs`). */
+export const SPLIT_NUMERAL_FS_FACTOR = 0.9
+/** `split` chip: right satin cell label size (em of the badge `fs`). */
+export const SPLIT_LABEL_FS_FACTOR = 0.72
+/** `split` chip: auto-fit floor for the label (em of `fs`, never clipped). */
+export const SPLIT_LABEL_MIN_FS_FACTOR = 0.55
+/** `split` chip: contained rounded-rectangle radius (`0.30 × boxH`). */
+export const SPLIT_RADIUS_FACTOR = 0.30
+/** `split` chip: 1px inner divider between the two cells. */
+export const SPLIT_DIVIDER_WIDTH = 1
+/** `split` chip: optical gap on each side of the divider (em of `fs`). */
+export const SPLIT_DIVIDER_GAP_FACTOR = 0.30
+/**
+ * `split` chip: FIXED mockup yellow for the numeral cell (`ac=`/scene accent
+ * never tints it — the chip must always be the same recognizable mark).
+ */
+export const SPLIT_ACCENT_YELLOW = "#FCD34D"
+/** `split` chip: numeral ink on the fixed yellow cell (measured 12.07:1). */
+export const SPLIT_NUMERAL_INK = "#1a1a1a"
+/** `split` chip: extra padding on the numeral cell for DOUBLE digits (+10%). */
+export const SPLIT_DOUBLE_CELL_PAD_FACTOR = 1.1
+/**
+ * `split` chip: ink-bearing compensation of the numeral anchor (em of the
+ * numeral font size, to the right, FRACTIONAL — never rounded to a whole
+ * pixel). The advance-box center of Inter digits sits slightly right of the
+ * rasterized ink center (~0.5px at 27px, ~1px on double digits): this keeps
+ * the actual ink optically centered in the yellow cell. Calibrated on the
+ * rendered PNG (ink margins symmetric within ±1px on "1"/"3"/"9"/"11"/"12"/
+ * "20" at the badge base size).
+ */
+export const SPLIT_NUMERAL_INK_SHIFT_FACTOR = 0.018
+/** Legacy neutral accent (kept for compatibility; the split chip is fixed yellow). */
+export const SPLIT_NEUTRAL_ACCENT = "#555555"
+
+export interface SplitChipInput {
+  /** Rank numeral (left accent cell). */
+  readonly numeral: string
+  /** Period label (right satin cell). */
+  readonly label: string
+  readonly fs: number
+  /**
+   * Legacy scene accent (or `ac=` override). IGNORED by the chip: the numeral
+   * cell is always the fixed mockup yellow `SPLIT_ACCENT_YELLOW`.
+   */
+  readonly accentColor?: string
+  readonly topLight?: boolean
+  /** Four rounded corners (badge detached from the top edge by `toy`). */
+  readonly detached?: boolean
+  readonly font?: BadgeFont
+  /** Resolved satin-cell ink (already opacity-applied); absent = recipe. */
+  readonly textColor?: string
+  /**
+   * Rendering width cap (poster px, same `pw - 20` aesthetic cap as the
+   * ranking badge): the period label auto-fits down to
+   * `SPLIT_LABEL_MIN_FS_FACTOR` instead of growing the chip past this width.
+   */
+  readonly maxWidth?: number
+}
+
+/**
+ * `split` top badge (RANKING-ONLY, `rs=split`): ONE flat two-tone chip behind
+ * the existing dispatcher (`buildHouseRankingSvg`), never a second renderer.
+ *
+ * - visible box: `textW + numeralPadX + 0.75fs` wide (numeral cell padding is
+ *   +10% for double digits), `badgeBoxHeight(fs)` tall, radius `0.30 × boxH`
+ *   (contained rounded rectangle, not a full pill);
+ * - left cell: FIXED mockup yellow (`SPLIT_ACCENT_YELLOW`, flat — never the
+ *   scene accent/`ac=`: the mark is always recognizable), rank numeral at
+ *   `0.9em` / weight 900 with dark ink `SPLIT_NUMERAL_INK` (12.07:1),
+ *   optically centered on the YELLOW CELL's ink box (`leftCellW / 2` plus the
+ *   shared ink-bearing compensation `SPLIT_NUMERAL_INK_SHIFT_FACTOR` — the
+ *   asymmetric `numeralPadX`/`cellGap` insets no longer bias it);
+ *   double digits keep the +10% cell padding (box contract) and center the
+ *   same way, single and double digits alike;
+ * - 1px inner divider (polarity-adaptive) between the cells;
+ * - right cell: the shared satin pill gradient (polarity from `topLight`)
+ *   with the period label at `0.72em` / weight 600, auto-fit down to the
+ *   `0.55em` floor for long localized words (never clipped, never past the
+ *   `maxWidth` cap).
+ *
+ * Geometry/economy contract: one `<filter id="tds">` on the chip body and one
+ * extra `<rect>` (the accent cell, clipped to the chip shape). The outline is
+ * re-stroked above the accent rect so the 1.5px polarized border survives on
+ * the covered edge. Extras never reach this builder: `xbs=split` is invalid
+ * and the legacy `rs=split` fallback degrades to the default plate in
+ * `buildHouseExtraSvg`.
+ * `t`/`tl`/scale/offset stay the existing ones (bitmap resize downstream).
+ */
+export function buildSplitChipSvg(input: SplitChipInput): { svg: string; w: number; h: number } {
+  const { fs, label } = input
+  const numeral = input.numeral.trim()
+  const font = normalizeBadgeFont(input.font)
+  const topLight = input.topLight ?? false
+  const detached = input.detached ?? false
+  const px = Math.round(fs * BADGE_BOX_PAD_X_FACTOR)
+  const numeralFs = Math.max(1, Math.round(fs * SPLIT_NUMERAL_FS_FACTOR))
+  const numeralW = Math.max(estimateTextWidth(numeral, numeralFs, font), Math.round(numeralFs * 0.35))
+  const cellGap = Math.max(2, Math.round(fs * SPLIT_DIVIDER_GAP_FACTOR))
+  const dividerW = SPLIT_DIVIDER_WIDTH
+  // Double digits keep the historical +10% numeral-cell padding (box
+  // contract, unchanged), but the numeral is no longer anchored on the padded
+  // advance box: that inset is asymmetric (`numeralPadX` on the left, the
+  // divider gap `cellGap` on the right), so it read off-center. The anchor is
+  // the YELLOW CELL's own center (`leftCellW / 2`) plus a small
+  // em-proportional ink-bearing compensation, so the rasterized glyphs sit
+  // optically centered (single and double digits alike).
+  const doubleDigit = numeral.length >= 2
+  const numeralPadX = doubleDigit ? Math.round(px * SPLIT_DOUBLE_CELL_PAD_FACTOR) : px
+  const inkShift = numeralFs * SPLIT_NUMERAL_INK_SHIFT_FACTOR
+  // Period label: 0.72em default, auto-fit down to the 0.55em floor when a
+  // localized label (Aujourd'hui/Heute/…) would push the chip past the cap.
+  // `textFitAttrs` pins the run to the measured width, so the label never
+  // clips; the chip only grows with its real ink, never past `maxWidth` when
+  // one is supplied (same `pw - 20` cap idiom as the ranking badge).
+  const labelFloorFs = Math.max(1, Math.ceil(fs * SPLIT_LABEL_MIN_FS_FACTOR))
+  let labelFs = Math.max(1, Math.round(fs * SPLIT_LABEL_FS_FACTOR))
+  let labelW = label ? Math.max(estimateTextWidth(label, labelFs, font), Math.round(labelFs * 0.35)) : 0
+  const maxCap = input.maxWidth && input.maxWidth > 0 ? input.maxWidth : Number.POSITIVE_INFINITY
+  const chipW = (lw: number): number => Math.max(1, numeralW + lw + cellGap * 2 + dividerW + numeralPadX + px)
+  while (label && labelFs > labelFloorFs && chipW(labelW) > maxCap) {
+    labelFs -= 1
+    labelW = Math.max(estimateTextWidth(label, labelFs, font), Math.round(labelFs * 0.35))
+  }
+  // Chip ink run = numeral + label + inner gaps + divider; padding is
+  // `numeralPadX` (left cell) + `px` (right cell), see `chipW`.
+  const totalW = chipW(labelW)
+  const boxH = badgeBoxHeight(fs)
+  const r = Math.round(boxH * SPLIT_RADIUS_FACTOR)
+  const renderW = totalW + TOP_SHADOW_PAD * 2
+  const renderH = boxH + TOP_SHADOW_PAD
+  const ox = TOP_SHADOW_PAD
+  const oy = 0
+  const leftCellW = numeralPadX + numeralW + cellGap
+  const pathD = detached
+    ? `M ${ox + r},${oy} L ${ox + totalW - r},${oy} A ${r},${r} 0 0,1 ${ox + totalW},${oy + r} L ${ox + totalW},${oy + boxH - r} A ${r},${r} 0 0,1 ${ox + totalW - r},${oy + boxH} L ${ox + r},${oy + boxH} A ${r},${r} 0 0,1 ${ox},${oy + boxH - r} L ${ox},${oy + r} A ${r},${r} 0 0,1 ${ox + r},${oy} Z`
+    : `M ${ox},${oy} L ${ox + totalW},${oy} L ${ox + totalW},${oy + boxH - r} A ${r},${r} 0 0,1 ${ox + totalW - r},${oy + boxH} L ${ox + r},${oy + boxH} A ${r},${r} 0 0,1 ${ox},${oy + boxH - r} Z`
+  const centerY = oy + boxH / 2
+  const stroke = topLight ? "rgba(0,0,0,0.12)" : "rgba(255,255,255,0.22)"
+  const accent = SPLIT_ACCENT_YELLOW
+  const labelInk = input.textColor ?? (topLight ? "rgba(255,255,255,0.95)" : "rgba(0,0,0,0.88)")
+  const defs = `<defs><linearGradient id="splg" x1="0" y1="0" x2="0" y2="1">${satinPillStops(topLight)}</linearGradient><clipPath id="splc"><path d="${pathD}"/></clipPath>${TOP_SHADOW_FILTER}</defs>`
+  // Chip body: satin fill + polarized border + the single shared 3D shadow.
+  const bodyEl = `<path d="${pathD}" fill="url(#splg)" stroke="${stroke}" stroke-width="1.5" filter="url(#tds)"/>`
+  const dividerX = ox + leftCellW
+  const inset = Math.round(fs * 0.16)
+  const accentEl = `<rect x="${ox}" y="${oy}" width="${Math.max(1, leftCellW)}" height="${boxH}" fill="${accent}" clip-path="url(#splc)"/>`
+  const dividerEl = `<line x1="${dividerX + dividerW / 2}" y1="${oy + inset}" x2="${dividerX + dividerW / 2}" y2="${oy + boxH - inset}" stroke="${topLight ? "rgba(0,0,0,0.20)" : "rgba(255,255,255,0.32)"}" stroke-width="${dividerW}"/>`
+  // The accent rect covers the inner half of the chip stroke on its cell:
+  // re-stroke the exact outline above it (same width/polarity, footprint
+  // unchanged). The shadow already bleeds from the body path underneath.
+  const outlineEl = `<path d="${pathD}" fill="none" stroke="${stroke}" stroke-width="1.5"/>`
+  const numeralX = ox + leftCellW / 2 + inkShift
+  const numeralEl = `<text x="${numeralX}" y="${centerY}" text-anchor="middle" dominant-baseline="central" font-family="${fontFamilyFor(numeral, font)}" font-weight="900" font-size="${numeralFs}" fill="${SPLIT_NUMERAL_INK}"${textFitAttrs(numeralW)}>${escSvg(numeral)}</text>`
+  const labelCenterX = ox + leftCellW + dividerW + cellGap + labelW / 2
+  const labelEl = label
+    ? `<text x="${labelCenterX}" y="${centerY}" text-anchor="middle" dominant-baseline="central" font-family="${fontFamilyFor(label, font)}" font-weight="600" font-size="${labelFs}" fill="${labelInk}"${textFitAttrs(labelW)}>${escSvg(label)}</text>`
+    : ""
+  return {
+    svg: `<svg xmlns="http://www.w3.org/2000/svg" width="${renderW}" height="${renderH}" viewBox="0 0 ${renderW} ${renderH}">${defs}${bodyEl}${accentEl}${dividerEl}${outlineEl}${numeralEl}${labelEl}</svg>`,
+    w: renderW,
+    h: renderH,
+  }
 }
 
 export function buildRankingPillSvg(fullText: string, fs: number, textColor: string, bg: string, topLight = false, useSatin = true, font: BadgeFont = "inter") {
@@ -1089,8 +1466,8 @@ export const GRADIENT_MARK_GRADIENT_ID = "gmg"
  * `TOP_SHADOW_PAD`, tracking tecnico `0.06em` con `textLength` pinnato sulla
  * stima `textFitAttrs`), così stack/offset/scale/cap e correzioni per-item a
  * valle restano quelli di ogni altro stile. La placca di fondo è un unico
- * `<rect>` senza stroke, largo quanto il box visibile e con il raggio
- * condiviso delle placche A/V (`AV_PLATE_RADIUS_FACTOR`), sempre scuro
+ * `<rect>` col raggio condiviso delle placche A/V
+ * (`AV_PLATE_RADIUS_FACTOR`), sempre scuro
  * (`GRADIENT_PLATE_BG`: indipendente da `topLight`, come
  * premium/knockout/nova). L'ombra 3D condivisa (`TOP_SHADOW_FILTER`) avvolge
  * l'intero lockup (placca + testo), come le altre placche. `fill` è un hex
@@ -1127,15 +1504,196 @@ export function buildGradientMarkSvg(
         .join("")}</linearGradient>`
     : ""
   const defs = `<defs>${gradDef}${TOP_SHADOW_FILTER}</defs>`
-  // Placca scura dietro i glifi (rettangolo arrotondato, NESSUNO stroke): il
-  // raggio è quello condiviso delle placche A/V, così bordo esterno sulla
-  // colonna e glifo dentro valgono anche qui.
+  // Placca scura dietro i glifi (rettangolo arrotondato) col raggio condiviso
+  // delle placche A/V, così bordo esterno sulla colonna e glifo dentro valgono
+  // anche qui. Bordo hairline della famiglia (`GRADIENT_PLATE_STROKE`, come le
+  // placche A/V): lo stroke è centrato sulla path, quindi il rect è inset di
+  // metà spessore (0.75px) e il bordo esterno visibile resta ESATTAMENTE sul
+  // box storico — footprint invariato, nessuna geometria mossa.
   const plateR = Math.round(boxH * AV_PLATE_RADIUS_FACTOR)
-  const plateEl = `<rect x="${ox}" y="${oy}" width="${totalW}" height="${boxH}" rx="${plateR}" fill="${GRADIENT_PLATE_BG}"/>`
+  const plateStrokeW = AV_PLATE_STROKE_WIDTH
+  const plateEl = `<rect x="${ox + plateStrokeW / 2}" y="${oy + plateStrokeW / 2}" width="${Math.max(1, totalW - plateStrokeW)}" height="${Math.max(1, boxH - plateStrokeW)}" rx="${plateR}" fill="${GRADIENT_PLATE_BG}" stroke="${GRADIENT_PLATE_STROKE}" stroke-width="${plateStrokeW}"/>`
   const textEl = `<text x="${ox + totalW / 2}" y="${oy + boxH / 2}" text-anchor="middle" dominant-baseline="central" font-family="${fontFamilyFor(label, font)}" font-weight="${GRADIENT_MARK_FONT_WEIGHT}" font-size="${glyphFs}" letter-spacing="0.06em" fill="${ink}"${textFitAttrs(textW)}>${escSvg(label)}</text>`
   // Un'ombra sola sull'intero lockup (placca + glifi), come le altre placche.
   const bodyEl = `<g filter="url(#tds)">${plateEl}${textEl}</g>`
   return { svg: `<svg xmlns="http://www.w3.org/2000/svg" width="${renderW}" height="${renderH}" viewBox="0 0 ${renderW} ${renderH}">${defs}${bodyEl}</svg>`, w: renderW, h: renderH }
+}
+
+// ---------------------------------------------------------------------------
+// `strip`: ONE merged plate for the whole quality group (tier · age · A/V
+// marks). Additive layout selected by the `strip` quality style; never a
+// second renderer — it reuses the shared box recipe (`badgeTextBox`,
+// `badgeBoxHeight`, `fitBadgeGlyphFs`, `TOP_SHADOW_FILTER`) and the plate
+// material of the `gradient` family (`GRADIENT_PLATE_BG`/stroke/radius).
+//
+// Every segment is its own glyph run (one `<text>` per label, `textLength`
+// pinned on the shared estimate) joined by a `·` separator drawn at 0.45
+// opacity. The whole lockup is a single SVG/raster with ONE 3D shadow filter,
+// so the historic 1 bitmap per mark (6 resvg + 6 filters for a full stack)
+// collapses to 1 + 1. Segment boxes are returned in bitmap coordinates so the
+// per-item report keeps the stable identities (`quality:tier`, `quality:age`,
+// `quality:combo:dv-atmos`, `quality:format:<fmt>`) and the existing
+// anchor/scale/offset chain.
+// ---------------------------------------------------------------------------
+
+/** Separator glyph between strip segments (single source). */
+export const QUALITY_STRIP_SEPARATOR = "·"
+/** Separator paint opacity (user requirement: 0.45). */
+export const QUALITY_STRIP_SEPARATOR_OPACITY = 0.45
+/**
+ * Lateral plate padding of the strip, as a fraction of the glyph size. Airier
+ * than the shared `BADGE_BOX_PAD_X_FACTOR` (0.75): a merged plate needs visible
+ * breathing room at both ends, so the border never hugs the first/last glyph.
+ * Strip-only — every other badge keeps the shared padding.
+ */
+export const QUALITY_STRIP_PAD_X_FACTOR = 1.05
+/**
+ * Max segments on one strip line. Two glyph runs per line keep the plate
+ * compact, so a third segment already wraps onto the next, centered line of
+ * the SAME plate (`tier · age` / `mark`). Rows are filled row-major two by
+ * two, so a wrapped strip reads 2+1, 2+2, 2+2+1, …
+ */
+export const QUALITY_STRIP_MAX_SEGMENTS_PER_ROW = 2
+/** Vertical gap between the two lines of a wrapped strip (fraction of `fs`). */
+export const QUALITY_STRIP_ROW_GAP_FACTOR = 0.12
+
+/**
+ * Max badges per line in the `row` quality-group layout. Same 2-rule as the
+ * merged strip (single source): row-major 2+1, 2+2, 2+2+1 with the shorter
+ * last line centred. The `stacked` layout never wraps (one per line).
+ */
+export const QUALITY_GROUP_ROW_MAX_ITEMS = QUALITY_STRIP_MAX_SEGMENTS_PER_ROW
+
+/** One painted segment box, in the returned bitmap's own coordinates. */
+export interface StripBadgeSegmentBox {
+  readonly top: number
+  readonly left: number
+  readonly w: number
+  readonly h: number
+}
+
+export interface StripBadgeSvgResult {
+  readonly svg: string
+  readonly w: number
+  readonly h: number
+  /** One box per non-empty input label, in the same order. */
+  readonly segments: readonly StripBadgeSegmentBox[]
+}
+
+/**
+ * Merged `strip` plate: one dark plate, one glyph run per segment and a `·`
+ * at `QUALITY_STRIP_SEPARATOR_OPACITY` between them. Up to
+ * `QUALITY_STRIP_MAX_SEGMENTS_PER_ROW` segments share one line; a longer set
+ * fills the next, centered line of the SAME plate two by two (row-major: 3 →
+ * 2+1, 4 → 2+2, 5 → 2+2+1), so the old single overlong run never happens and
+ * the odd last row is centered under the full one (one rect, one shadow
+ * filter). `maxW` (optional visible width cap) shrinks the glyph size through
+ * `fitBadgeGlyphFs` — never stretch, never clip — while every line keeps the
+ * `badgeBoxHeight(fs)` band (the common group band, so the anchor/scale chain
+ * is unchanged; every extra row adds one band plus
+ * `QUALITY_STRIP_ROW_GAP_FACTOR`).
+ */
+export function buildStripBadgeSvg(
+  labels: readonly string[],
+  fs: number,
+  font: BadgeFont = "inter",
+  maxW?: number,
+): StripBadgeSvgResult {
+  const texts = labels.map((label) => label.trim()).filter((label) => label !== "")
+  const boxH = badgeBoxHeight(fs)
+  const limit = maxW != null && maxW > 0 ? Math.round(maxW) : undefined
+  /**
+   * Segment split: `QUALITY_STRIP_MAX_SEGMENTS_PER_ROW` segments per line,
+   * filled row-major (3 → 2+1, 4 → 2+2, 5 → 2+2+1). Identities are never
+   * reordered and each row is centered inside the shared plate below.
+   */
+  const lines = (all: readonly string[]): string[][] => {
+    const rows: string[][] = []
+    for (let i = 0; i < all.length; i += QUALITY_STRIP_MAX_SEGMENTS_PER_ROW) {
+      rows.push(all.slice(i, i + QUALITY_STRIP_MAX_SEGMENTS_PER_ROW))
+    }
+    return rows.length > 0 ? rows : [[]]
+  }
+  const measure = (glyphFs: number) => {
+    // `badgeTextBox` with padXFactor 0 = natural shared run (tracking and
+    // `textLength` estimate); the plate padding is applied ONCE below.
+    const sepFs = Math.max(1, Math.round(glyphFs * 0.9))
+    const sepW = pinnedBadgeTextWidth(QUALITY_STRIP_SEPARATOR, sepFs, font)
+    const sepGap = Math.max(2, Math.round(glyphFs * 0.30))
+    // Strip-only airier lateral padding (the shared recipe stays 0.75).
+    const padX = Math.round(glyphFs * QUALITY_STRIP_PAD_X_FACTOR)
+    const rowGap = Math.max(2, Math.round(glyphFs * QUALITY_STRIP_ROW_GAP_FACTOR))
+    const rows = lines(texts).map((row) => {
+      const segW = row.map((text) => badgeTextBox(text, glyphFs, 0, font).textW)
+      const contentW =
+        segW.reduce((sum, w) => sum + w, 0) +
+        (row.length > 0 ? (row.length - 1) * (sepW + sepGap * 2) : 0)
+      return { texts: row, segW, contentW, w: contentW + padX * 2 }
+    })
+    const plateW = Math.max(1, ...rows.map((row) => row.w))
+    const plateH = rows.length * boxH + (rows.length - 1) * rowGap
+    return { rows, sepFs, sepW, sepGap, padX, rowGap, plateW, plateH }
+  }
+  // Fit the run inside the visible cap. A single line keeps the shared
+  // one-label estimate fast path; a wrapped strip starts from the natural
+  // size (the joined estimate of two lines would over-shrink) and is trimmed
+  // by the bounded loop below.
+  let glyphFs =
+    texts.length > 0 && texts.length <= QUALITY_STRIP_MAX_SEGMENTS_PER_ROW && limit != null
+      ? fitBadgeGlyphFs(texts.join(` ${QUALITY_STRIP_SEPARATOR} `), fs, limit, QUALITY_STRIP_PAD_X_FACTOR, font)
+      : fs
+  let metrics = measure(glyphFs)
+  if (limit != null) {
+    for (let guard = 0; metrics.plateW > limit && glyphFs > 4 && guard < 16; guard++) {
+      glyphFs -= 1
+      metrics = measure(glyphFs)
+    }
+  }
+  const totalW = Math.max(1, metrics.plateW)
+  const plateH = Math.max(1, metrics.plateH)
+  const renderW = totalW + TOP_SHADOW_PAD * 2
+  const renderH = plateH + TOP_SHADOW_PAD * 2
+  const ox = TOP_SHADOW_PAD
+  const oy = TOP_SHADOW_PAD
+  const plateR = Math.round(boxH * AV_PLATE_RADIUS_FACTOR)
+  const plateStrokeW = AV_PLATE_STROKE_WIDTH
+  // Same plate recipe as the `gradient` family: stroke centred on the path,
+  // the rect inset by half the width so the visible border sits on the box.
+  const plateEl =
+    `<rect x="${ox + plateStrokeW / 2}" y="${oy + plateStrokeW / 2}" width="${Math.max(1, totalW - plateStrokeW)}" height="${Math.max(1, plateH - plateStrokeW)}" rx="${plateR}" fill="${GRADIENT_PLATE_BG}" stroke="${GRADIENT_PLATE_STROKE}" stroke-width="${plateStrokeW}"/>`
+  const segments: StripBadgeSegmentBox[] = []
+  const runs: string[] = []
+  metrics.rows.forEach((row, rowIndex) => {
+    const rowTop = oy + rowIndex * (boxH + metrics.rowGap)
+    const rowCenterY = rowTop + boxH / 2
+    // Each line is centred inside the same plate: a shorter second line never
+    // hangs off one edge.
+    let cursor = ox + Math.round((totalW - row.w) / 2) + metrics.padX
+    for (let i = 0; i < row.texts.length; i++) {
+      const textW = row.segW[i]
+      const text = row.texts[i]
+      segments.push({ top: rowTop, left: cursor, w: textW, h: boxH })
+      runs.push(
+        `<text x="${cursor + textW / 2}" y="${rowCenterY}" text-anchor="middle" dominant-baseline="central" font-family="${fontFamilyFor(text, font)}" font-weight="700" font-size="${glyphFs}" letter-spacing="0.06em" fill="#ffffff"${textFitAttrs(textW)}>${escSvg(text)}</text>`,
+      )
+      cursor += textW
+      if (i < row.texts.length - 1) {
+        runs.push(
+          `<text x="${cursor + metrics.sepGap + metrics.sepW / 2}" y="${rowCenterY}" text-anchor="middle" dominant-baseline="central" font-family="${fontFamilyFor(QUALITY_STRIP_SEPARATOR, font)}" font-weight="700" font-size="${metrics.sepFs}" fill="#ffffff" opacity="${QUALITY_STRIP_SEPARATOR_OPACITY}"${textFitAttrs(metrics.sepW)}>${QUALITY_STRIP_SEPARATOR}</text>`,
+        )
+        cursor += metrics.sepGap * 2 + metrics.sepW
+      }
+    }
+  })
+  const defs = `<defs>${TOP_SHADOW_FILTER}</defs>`
+  // ONE 3D shadow for the whole lockup (plate + every glyph run).
+  const body = `<g filter="url(#tds)">${plateEl}${runs.join("")}</g>`
+  return {
+    svg: `<svg xmlns="http://www.w3.org/2000/svg" width="${renderW}" height="${renderH}" viewBox="0 0 ${renderW} ${renderH}">${defs}${body}</svg>`,
+    w: renderW,
+    h: renderH,
+    segments,
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -1159,8 +1717,9 @@ export function buildGradientMarkSvg(
 
 /** Shared emphasis style family. `mono` is shared by the quality tier/AV
  *  marks, `nova` by the quality tier/AV marks/every age badge (one material,
- *  see below); `color`/`premium` stay age-only. */
-export type AgeEmphasisStyle = "mono" | "color" | "premium" | "nova"
+ *  see below); `color`/`premium` stay age-only; `outline` is shared by the
+ *  quality tier, the age badge and every A/V mark (one wireframe material). */
+export type AgeEmphasisStyle = "mono" | "color" | "premium" | "nova" | "outline"
 
 /** High-contrast mono ink on a dark top (white, like the mono tier marks). */
 export const AGE_MONO_INK_DARK = "#ffffff"
@@ -1206,6 +1765,26 @@ export const AGE_NOVA_SKEW_X = -8
 export const AGE_NOVA_HIGHLIGHT_TOP = 0.16
 export const AGE_NOVA_HIGHLIGHT_END = 55
 
+// ---------------------------------------------------------------------------
+// `outline` (wireframe): the SAME dynamic material for quality tier, age badge
+// and every A/V mark. A stroked rounded rect with no fill, an inner contrast
+// scrim (so the glyphs stay readable on busy artwork) and satin-pill ink
+// glyphs. No raster asset, no per-format artwork: the label is a parameter.
+// ---------------------------------------------------------------------------
+
+/** Outline stroke on a LIGHT top (dark wireframe, like the satin pill rule). */
+export const AGE_OUTLINE_STROKE_LIGHT = "rgba(0,0,0,0.62)"
+/** Outline stroke on a DARK top (light wireframe). */
+export const AGE_OUTLINE_STROKE_DARK = "rgba(255,255,255,0.72)"
+/** Stroke width as a fraction of `fs` (grows with the badge). */
+export const AGE_OUTLINE_STROKE_FACTOR = 0.09
+/** Minimum outline stroke (px): never a sub-pixel hairline at badge sizes. */
+export const AGE_OUTLINE_STROKE_MIN = 1.5
+/** Inner scrim on a LIGHT top (dark protective veil under the white ink). */
+export const AGE_OUTLINE_SCRIM_LIGHT = "rgba(0,0,0,0.22)"
+/** Inner scrim on a DARK top (light protective veil under the dark ink). */
+export const AGE_OUTLINE_SCRIM_DARK = "rgba(255,255,255,0.26)"
+
 /**
  * Emphasis tag (`mono`/`color`/`premium`/`nova`). One shared recipe:
  * the box is the age family box (byte-identical footprint to the age
@@ -1227,6 +1806,10 @@ export const AGE_NOVA_HIGHLIGHT_END = 55
  *   the quality tier (4K/FHD/HD/SD) and every A/V mark (DV/ATMOS/IMAX/HDR/
  *   HDR10+/merged DV+ATMOS) render their real label through this same branch,
  *   so tier, age and formats can never diverge into two Nova looks.
+ * - `outline`: wireframe rounded rect with `fill="none"`, a polarity-adaptive
+ *   stroke (`AGE_OUTLINE_STROKE_*`, width `max(1.5, 0.09 × fs)`) and an inner
+ *   contrast scrim (`AGE_OUTLINE_SCRIM_*`) under satin-pill ink glyphs. Also
+ *   the SINGLE wireframe material for the quality tier and every A/V mark.
  *
  * Plate borders stay INSIDE the box (shared AV plate rule) so the visible
  * footprint is the same as the age knockout for the same label. With
@@ -1274,6 +1857,35 @@ export function buildAgeEmphasisSvg(
     const textEl = `<g transform="translate(${cx} ${cy}) skewX(${AGE_NOVA_SKEW_X}) translate(${-cx} ${-cy})"><text x="${cx}" y="${cy}" text-anchor="middle" dominant-baseline="central" font-family="${family}" font-weight="700" font-size="${glyphFs}" letter-spacing="0.06em" fill="${AGE_NOVA_INK}"${textFitAttrs(textW)}>${escSvg(label)}</text></g>`
     return {
       svg: `<svg xmlns="http://www.w3.org/2000/svg" width="${renderW}" height="${renderH}" viewBox="0 0 ${renderW} ${renderH}">${defs}<g filter="url(#tds)">${borderEl}${bodyEl}${sheenEl}${textEl}</g></svg>`,
+      w: renderW,
+      h: renderH,
+    }
+  }
+  if (style === "outline") {
+    // Wireframe material: a stroked rounded rect with NO fill (stroke centered
+    // on the path and kept inside the box, so the visible footprint is the
+    // age family box), an inner contrast scrim that protects the glyphs from
+    // busy artwork and satin-pill ink glyphs (same polarity rule as the
+    // `standard` pill: light top → dark scrim + white ink, dark top → light
+    // scrim + dark ink). One shadow over the whole lockup.
+    const sw = Math.max(AGE_OUTLINE_STROKE_MIN, Math.round(fs * AGE_OUTLINE_STROKE_FACTOR))
+    const stroke = topLight ? AGE_OUTLINE_STROKE_LIGHT : AGE_OUTLINE_STROKE_DARK
+    const scrim = topLight ? AGE_OUTLINE_SCRIM_LIGHT : AGE_OUTLINE_SCRIM_DARK
+    const ink = topLight ? SATIN_PILL_INK_LIGHT : SATIN_PILL_INK_DARK
+    const outerX = ox + sw / 2
+    const outerY = oy + sw / 2
+    const outerW = Math.max(1, totalW - sw)
+    const outerH = Math.max(1, boxH - sw)
+    const innerX = ox + sw
+    const innerY = oy + sw
+    const innerW = Math.max(1, totalW - sw * 2)
+    const innerH = Math.max(1, boxH - sw * 2)
+    const innerR = Math.max(0, r - sw)
+    const frameEl = `<rect x="${outerX}" y="${outerY}" width="${outerW}" height="${outerH}" rx="${r}" fill="none" stroke="${stroke}" stroke-width="${sw}"/>`
+    const scrimEl = `<rect x="${innerX}" y="${innerY}" width="${innerW}" height="${innerH}" rx="${innerR}" fill="${scrim}"/>`
+    const textEl = `<text x="${cx}" y="${cy}" text-anchor="middle" dominant-baseline="central" font-family="${family}" font-weight="700" font-size="${glyphFs}" letter-spacing="0.06em" fill="${ink}"${textFitAttrs(textW)}>${escSvg(label)}</text>`
+    return {
+      svg: `<svg xmlns="http://www.w3.org/2000/svg" width="${renderW}" height="${renderH}" viewBox="0 0 ${renderW} ${renderH}"><defs>${TOP_SHADOW_FILTER}</defs><g filter="url(#tds)">${frameEl}${scrimEl}${textEl}</g></svg>`,
       w: renderW,
       h: renderH,
     }
@@ -1364,8 +1976,8 @@ export function buildHouseGenreSvg(input: HouseGenreInput): { svg: string; w: nu
   const isMinimal = s === "minimal"
   let dims = genreBadgeSvgDims(finalFs, genreName, voteStr, yearStr, parts, s, font)
   let safePad = genreBadgeSafePad(finalFs)
-  // Per shadow e minimal, buildGenreTextSvg aggiunge shadowPad*2 al renderW finale
-  const extraShadowPad = s === "shadow" ? 8 : (isMinimal ? 2 : 0)
+  // Per shadow, ink e minimal, il builder aggiunge shadowPad*2 al renderW finale
+  const extraShadowPad = s === "shadow" || s === "ink" ? 8 : (isMinimal ? 2 : 0)
   const estimatedRenderW = dims.totalW + safePad * 2 + extraShadowPad * 2
   if (estimatedRenderW > aestheticMaxW) {
     finalFs = Math.max(aestheticMaxW / estimatedRenderW * finalFs, 10)
@@ -1412,13 +2024,17 @@ export function buildHouseGenreSvg(input: HouseGenreInput): { svg: string; w: nu
 
   let result: { svg: string; w: number; h: number }
   if (s === "bordo") {
-    result = buildGenreBorderedSvg(genreName, voteStr, yearStr, fs, textColor, bottomLight ?? false, 0, parts, font)
+    // Stella: sul corpo milky (banda chiara) l'oro annega → inchiostro testo.
+    result = buildGenreBorderedSvg(genreName, voteStr, yearStr, fs, textColor, bottomLight ?? false, 0, parts, starInkFor(bottomLight, s, textColor), font)
   } else if (s === "vetro") {
-    result = buildGenreGlassSvg(genreName, voteStr, yearStr, fs, textColor, bottomLight ?? false, 0, parts, font)
+    result = buildGenreGlassSvg(genreName, voteStr, yearStr, fs, textColor, bottomLight ?? false, 0, parts, starInkFor(bottomLight, s, textColor), font)
   } else if (isBar) {
     // Barra genere: testo ad alto contrasto polarizzato sul fondo (come pill).
     const barText = input.textColor ?? (bottomLight ? "rgba(255,255,255,0.95)" : "rgba(0,0,0,0.88)")
-    result = buildGenreBarSvg(genreName, voteStr, yearStr, pw, fs, input.textOpacity === undefined ? barText : applyFillOpacity(barText, input.textOpacity), !!bottomLight, 0, parts, font)
+    const barTextFinal = input.textOpacity === undefined ? barText : applyFillOpacity(barText, input.textOpacity)
+    // Barra satinata: polarità invertita (`satinPillStops`), la stella segue il
+    // contenitore effettivo (barra chiara su banda scura → inchiostro testo).
+    result = buildGenreBarSvg(genreName, voteStr, yearStr, pw, fs, barTextFinal, !!bottomLight, 0, parts, starInkFor(bottomLight, s, barTextFinal), font)
   } else if (isPill) {
     // colored: tinta piatta (niente satinatura); pill: satinatura polare.
     // Su accent caldo (oro/ambra) la stella oro annega: fallback in colore testo.
@@ -1426,15 +2042,27 @@ export function buildHouseGenreSvg(input: HouseGenreInput): { svg: string; w: nu
     const starFill = s === "colored" && accentColor && isWarmGoldAccent(accentColor) ? textColor : undefined
     result = buildGenrePillSvg(genreName, voteStr, yearStr, fs, bgColor, textColor, 0, parts, !!bottomLight, useSatin, starFill, font)
   } else {
-    result = buildGenreTextSvg(genreName, voteStr, yearStr, fs, textColor, s, 0, parts, font)
-    // Per shadow, il renderW include shadowPad*2 + safePad*2 aggiuntivi
+    // Testo nudo: `shadow`/`minimal` (buildGenreTextSvg) e `ink`
+    // (buildGenreInkSvg: accento in gradiente + alone, stessa geometria).
+    // L'accento arriva dallo stesso input di `colored` (pipeline per-banda
+    // `adaptiveAccentHexForBand`, risolta dal service); senza accento la resa
+    // ink resta tipografica nell'inchiostro di ricetta. Nessuna placca/bordo.
+    // Stella ink: off-white minimale (adattata sul fondo chiaro), mai oro.
+    const inkStarFill = inkStarInkFor(bottomLight, textColor)
+    const buildBare = (size: number) => s === "ink"
+      ? buildGenreInkSvg(genreName, voteStr, yearStr, size, accentColor, textColor, 0, parts, font, inkStarFill)
+      : buildGenreTextSvg(genreName, voteStr, yearStr, size, textColor, s, 0, parts, font)
+    result = buildBare(fs)
+    // Per shadow/ink il renderW include shadowPad*2 + safePad*2 aggiuntivi
     // Assicuriamoci che non superi aestheticMaxW
     let attempts = 0
-    while (result.w > aestheticMaxW && attempts < 30) {
+    // Max 3 rebuild (come la pill): la pre-shrink qui sopra porta già la
+    // larghezza vicino al target, quindi 3 iterazioni bastano e convergono.
+    while (result.w > aestheticMaxW && attempts < 3) {
       // Riduciamo fs proporzionalmente al surplus
       const targetFs = Math.max(Math.round(fs * (aestheticMaxW - 16) / result.w), 10)
       if (targetFs >= fs) { fs = 10 } else { fs = targetFs }
-      result = buildGenreTextSvg(genreName, voteStr, yearStr, fs, textColor, s, 0, parts, font)
+      result = buildBare(fs)
       attempts++
     }
   }
@@ -1596,7 +2224,14 @@ export function buildHouseRankingSvg(input: HouseRankingInput): { svg: string; w
   const fs = Math.round(finalFs)
   const isColored = s === "colored"
   const ribbonOn = input.ribbon ?? true
-  const isRibbon = s === "netflix" || (isColored && ribbonOn)
+  // Legacy `netflix-color` is ribbon-SHAPED for the anchor
+  // (`isRibbonRankingStyle` in badge-styles.ts: poster-service anchors it flush
+  // to the poster edge and sizes it with the ribbon width) and reads Standard
+  // (satin, no accent) in the UI (`resolveRibbonVariant`). It must therefore
+  // render the same satin ribbon as `netflix`: with the old exclusion the
+  // centered default plate was glued to the left edge (render/anchor mismatch).
+  // Stored values are never migrated.
+  const isRibbon = s === "netflix" || s === "netflix-color" || (isColored && ribbonOn)
   const coloredBg = isColored && accentColor && accentColor !== "#555555" ? accentColor : undefined
   const bg = coloredBg || (topLight ? "rgba(0,0,0,0.80)" : "rgba(255,255,255,0.80)")
   const recipeFg = isColored
@@ -1616,6 +2251,21 @@ export function buildHouseRankingSvg(input: HouseRankingInput): { svg: string; w
       fontSize: input.fontSize,
       textColor: input.textOpacity === undefined ? input.textColor : applyFillOpacity(input.textColor ?? (ribbonAccent ? textColorForBg(ribbonAccent) : (topLight ? "rgba(255,255,255,0.80)" : "rgba(0,0,0,0.80)")), input.textOpacity),
       font,
+    })
+  } else if (s === "split") {
+    // Flat two-tone chip (single shared builder): accent cell with the rank
+    // numeral + satin cell with the period label. Centered anchor, flush top
+    // (like the default plate); `detached` rounds all four corners.
+    return buildSplitChipSvg({
+      numeral: String(rank),
+      label: periodText,
+      fs,
+      accentColor,
+      topLight: !!topLight,
+      detached,
+      font,
+      textColor: fg,
+      maxWidth: maxBadgeW,
     })
   } else if (s === "pill") {
     return buildRankingPillSvg(fullText, fs, fg, bg, !!topLight, true, font)
@@ -1665,7 +2315,12 @@ export interface HouseExtraInput {
  * advertised as native extra styles in the Lab gallery.
  */
 export function buildHouseExtraSvg(input: HouseExtraInput): { svg: string; w: number; h: number } {
-  const s = input.style || "default"
+  // `split` is RANKING-ONLY (`rs=split`): an extra badge reached through the
+  // legacy `rs` fallback (no `xbs`) never renders the two-tone chip — it
+  // degrades to the historic default plate. `xbs=split` is not a valid value,
+  // so nothing is migrated and no extra-side style changes.
+  const rawStyle = input.style || "default"
+  const s = rawStyle === "split" ? "default" : rawStyle
   const f = normalizeBadgeFont(input.font)
   // Cap estetico per gli stili compatti: oltre il 65% di pw il testo si
   // rimpicciolisce (le label corte restano invariate).

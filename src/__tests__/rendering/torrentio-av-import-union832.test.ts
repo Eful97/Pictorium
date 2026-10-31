@@ -17,6 +17,7 @@ import {
   REVIEWED_APPROVED,
   REVIEWED_DB_BASELINE_SHA256,
   REVIEWED_EXCLUDED,
+  REVIEWED_PHASE3_APPROVED,
   REVIEWED_SNAPSHOT_SHA256,
   mergeAdditive,
   parseArgs,
@@ -57,16 +58,35 @@ const UNKNOWN_ANCHORS: Record<string, { quality: string; formats: string[] }> = 
 }
 const IMAX_IDS = ["tt0114388","tt0371746","tt0372784","tt0468569","tt0816692","tt10366460","tt10648342","tt1074638","tt10872600","tt10954984","tt11315808","tt1160419","tt12037194","tt1211837","tt1228705","tt1229238","tt12439741","tt12584954","tt1300854","tt1345836","tt1375666","tt14539740","tt1477834","tt15239678","tt15398776","tt1630029","tt1745960","tt1825683","tt18412256","tt1843866","tt2015381","tt2049403","tt2382320","tt2488496","tt2527336","tt2527338","tt2975590","tt3498820","tt3501632","tt3748528","tt3896198","tt4154756","tt4154796","tt4633694","tt5013056","tt6263850","tt6320628","tt6334354","tt6710474","tt6723592","tt6791350","tt8579674","tt9114286","tt9218128","tt9376612","tt9419884","tt9603212"]
 const CONFLICT_UNIONS: Record<string, string[]> = {
-  tt0087332: ["dv", "atmos", "hdr10plus"],
+  tt0087332: ["dv", "atmos", "hdr10plus", "hdr"],
   tt0090605: ["dv", "atmos"],
-  tt0104694: ["dv", "atmos"],
+  tt0104694: ["dv", "atmos", "hdr"],
   tt0138704: ["dv", "atmos", "hdr10plus"],
-  tt0325980: ["dv", "atmos", "hdr10plus"],
-  tt0369610: ["dv", "atmos", "hdr10plus"],
+  tt0325980: ["dv", "atmos", "hdr10plus", "hdr"],
+  tt0369610: ["dv", "atmos", "hdr10plus", "hdr"],
   tt0383574: ["dv", "atmos", "hdr10plus"],
   tt0425379: ["dv", "atmos"],
   tt0816692: ["imax", "hdr", "dv", "hdr10plus", "atmos"],
   tt1130884: ["dv", "hdr10plus"],
+}
+
+// The phase-3 batch (2026-10-31) added declared formats to 97 existing rows
+// on top of this union. The historic post-union pin keeps binding the
+// pre-phase-3 row set, so the reconstruction strips the phase-3 deltas
+// additively (never re-pins the historic bytes).
+const PHASE3_ADDED = new Map(REVIEWED_PHASE3_APPROVED.map((e) => [e.id, e.added]))
+
+function prePhase3Rows(db: Record<string, { quality: string; formats: string[] }>) {
+  const out: Record<string, unknown> = {}
+  for (const key of Object.keys(db)) {
+    if (key === "tt9288030") continue
+    const entry = db[key]
+    const added = PHASE3_ADDED.get(key)
+    out[key] = added
+      ? { ...entry, formats: entry.formats.filter((f) => !added.includes(f)) }
+      : entry
+  }
+  return out
 }
 
 function sha256Hex(buf: Buffer) {
@@ -536,11 +556,9 @@ describe("union-832 real database contract (post-apply, 937 declared entries + 1
     // scripts/torrentio-manual-insert.mjs, declared title-edition union).
     expect(db["tt9288030"]).toEqual({ quality: "4K", formats: ["dv", "hdr", "hdr10plus", "atmos"] })
     // The original 1430-row set reconstructs the pinned post-union bytes
-    // exactly: historic baseline untouched, not re-pinned.
-    const minus: Record<string, unknown> = {}
-    for (const key of Object.keys(db)) {
-      if (key !== "tt9288030") minus[key] = db[key]
-    }
+    // exactly (historic baseline untouched, not re-pinned); the phase-3
+    // declared deltas are stripped additively first.
+    const minus = prePhase3Rows(db)
     expect(Object.keys(minus)).toHaveLength(1430)
     const minusSorted: Record<string, unknown> = {}
     for (const key of Object.keys(minus).sort()) minusSorted[key] = minus[key]
@@ -623,17 +641,15 @@ describe("union-832 real database contract (post-apply, 937 declared entries + 1
   it("the historic post-union pin binds the original 1430-row subset (full 1431 bytes supersede it by exactly one row)", () => {
     // The full-file pin is intentionally superseded by the single authorized
     // manual insert (Reacher): the historic POST_UNION_DB_SHA256 now binds
-    // the original 1430-row subset, not the 1431-row file. Do NOT re-pin the
-    // full bytes to a new expected hash.
+    // the original 1430-row subset (pre-phase-3 bytes), not the current
+    // 1431-row file. Do NOT re-pin the full bytes to a new expected hash.
     const bytes = fs.readFileSync(path.join(ROOT, "src", "data", "av-specs.json"))
     expect(sha256Hex(bytes)).not.toBe(POST_UNION_DB_SHA256)
     const db = JSON.parse(bytes.toString("utf-8"))
     expect(Object.keys(db)).toHaveLength(1431)
     expect(db["tt9288030"]).toEqual({ quality: "4K", formats: ["dv", "hdr", "hdr10plus", "atmos"] })
-    const minus: Record<string, unknown> = {}
-    for (const key of Object.keys(db)) {
-      if (key !== "tt9288030") minus[key] = db[key]
-    }
+    const minus = prePhase3Rows(db)
+    expect(Object.keys(minus)).toHaveLength(1430)
     const minusSorted: Record<string, unknown> = {}
     for (const key of Object.keys(minus).sort()) minusSorted[key] = minus[key]
     expect(sha256Hex(Buffer.from(`${JSON.stringify(minusSorted, null, 2)}\n`, "utf-8"))).toBe(

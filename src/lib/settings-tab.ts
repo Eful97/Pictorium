@@ -6,8 +6,10 @@
 const VALID_TABS = ["preset", "rankings", "information", "badge", "tags", "trasforma", "prefs", "data", "spazio"] as const
 export type SettingsTabId = (typeof VALID_TABS)[number]
 
-/** Primary minimalist tabs (equal navigation). */
-export const PRIMARY_SETTINGS_TABS = ["preset", "rankings", "information", "badge", "tags", "trasforma"] as const
+/** Primary minimalist tabs (equal navigation). The legacy `rankings` id is
+ *  kept accepted above for old links only: its content now lives in the
+ *  Information (on/off masters) and Badge (ranking style) primary tabs. */
+export const PRIMARY_SETTINGS_TABS = ["preset", "information", "badge", "tags", "trasforma"] as const
 export type PrimarySettingsTabId = (typeof PRIMARY_SETTINGS_TABS)[number]
 
 /** Secondary tabs (Prefs/Data/Space): reachable via the secondary desktop

@@ -44,7 +44,7 @@ function renderRankings(seed: Record<string, unknown>) {
   localStorage.setItem("badgeDefaults", JSON.stringify(seed))
   const { Probe, ctx } = probe()
   renderWithCtx(
-    createElement("div", null, createElement(BadgeDefaultsSection, { active: true, shape: "portrait", mode: "rankings" }), createElement(Probe)),
+    createElement("div", null, createElement(BadgeDefaultsSection, { active: true, shape: "portrait", mode: "appearance" }), createElement(Probe)),
   )
   return { ctx }
 }
@@ -252,7 +252,7 @@ describe("unified presentation staging (SettingsPanel)", () => {
     const storedBefore = localStorage.getItem("badgeDefaults")
     renderPanel()
     await screen.findByTestId("presets-panel")
-    clickTab("ui.settingsTabRankings")
+    clickTab("ui.settingsTabBadge")
     const rankings = activeBadgePanel()
     expect(within(rankings).queryByTestId("poster-layout-card")).toBeNull()
     expect(checkedNames(rankingsPrimary())).toHaveLength(1)
@@ -310,7 +310,7 @@ describe("unified presentation staging (SettingsPanel)", () => {
     const storedBefore = localStorage.getItem("badgeDefaults")
     renderPanel()
     await screen.findByTestId("presets-panel")
-    clickTab("ui.settingsTabRankings")
+    clickTab("ui.settingsTabBadge")
     setShape("landscape")
     expect(within(activeBadgePanel()).queryByTestId("poster-layout-card")).toBeNull()
     expect(screen.queryByTestId("fresh-scope-selector")).toBeNull()
@@ -405,7 +405,7 @@ describe("unified presentation staging (SettingsPanel)", () => {
   it("failed Save retains the staged presentation with no extra writes", async () => {
     renderPanel()
     await screen.findByTestId("presets-panel")
-    clickTab("ui.settingsTabRankings")
+    clickTab("ui.settingsTabBadge")
     fireEvent.click(within(rankingsPrimary()).getByRole("radio", { name: "ui.posterLayoutGroupedCard" }))
     putOk = false
     fireEvent.click(screen.getByTestId("settings-save"))

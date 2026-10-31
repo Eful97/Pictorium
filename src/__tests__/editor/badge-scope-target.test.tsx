@@ -88,7 +88,7 @@ function badgeSwitch(name: string): HTMLElement {
 const GROUP_TAB: Record<"style" | "base" | "overlay" | "quality", string> = {
   style: "ui.settingsTabBadge",
   base: "ui.settingsTabInformation",
-  overlay: "ui.settingsTabRankings",
+  overlay: "ui.settingsTabBadge",
   quality: "ui.settingsTabInformation",
 }
 function openBadgeGroup(...ids: Array<"style" | "base" | "overlay" | "quality">) {
@@ -115,7 +115,7 @@ function openBadgeGroup(...ids: Array<"style" | "base" | "overlay" | "quality">)
 const ELEMENT_TAB: Record<string, string> = {
   genre: "ui.settingsTabInformation",
   logo: "ui.settingsTabInformation",
-  rank: "ui.settingsTabRankings",
+  rank: "ui.settingsTabBadge",
   ratings: "ui.settingsTabInformation",
 }
 function openElement(id: string) {
@@ -281,27 +281,29 @@ describe("badge target scope", () => {
     expect(p.get("sep")).toBe("1")
   })
 
-  it("false/[] persist to storage + PUT; current editor and delivery untouched", async () => {
+  it("master off persists to storage + PUT; current editor and delivery untouched", async () => {
     const { ctx } = renderBadge("landscape")
     await act(async () => {})
-    fireEvent.click(badgeSwitch("ui.topBadge"))
-    expect(ctx().landscape.rankingBadges).toBe(false)
-    expect(ctx().landscape.sashOrder).toEqual([])
+    fireEvent.click(badgeSwitch("ui.rankingsToggle"))
+    expect(ctx().landscape.sashOrder ?? []).not.toContain("rank")
+    // The shared plate gate is the old master key: it is re-opened, never
+    // closed by a category master (so awards/extras keep the possibility).
+    expect(ctx().landscape.rankingBadges).toBe(true)
+    const expected = ctx().landscape.sashOrder
     await act(async () => {
       await vi.advanceTimersByTimeAsync(600)
     })
     const stored = JSON.parse(localStorage.getItem("badgeDefaults") ?? "{}")
-    expect(stored.landscape.rankingBadges).toBe(false)
-    expect(stored.landscape.sashOrder).toEqual([])
+    expect(stored.landscape.sashOrder).toEqual(expected)
     const puts = (vi.mocked(fetch).mock.calls as unknown[][])
       .filter(([, init]) => (init as RequestInit)?.method === "PUT")
       .map(([, init]) => JSON.parse(String((init as RequestInit)?.body)))
     const last = puts[puts.length - 1]
-    expect(last.landscape.rankingBadges).toBe(false)
-    expect(last.landscape.sashOrder).toEqual([])
+    expect(last.landscape.sashOrder).toEqual(expected)
+    expect(last.landscape.rankingBadges).toBe(true)
     // Root defaults, current editor state and delivery shape intact.
     expect(ctx().defaultRankingBadges).toBe(true)
-    expect(ctx().defaultSashOrder.length).toBeGreaterThan(0)
+    expect(ctx().defaultSashOrder).toContain("rank")
     expect(ctx().rankingBadges).toBe(true)
     expect(ctx().defaultPosterShape).toBe("poster")
   })
@@ -375,24 +377,26 @@ describe("badge target scope", () => {
     })
     const target = screen.getByTestId("format-target-selector")
     fireEvent.click(within(target).getByText("ui.posterShapeLandscape"))
-    openElement("rank")
-    fireEvent.click(badgeSwitch("ui.topBadge"))
+    // The two on/off selectors live in Informazioni; the rank style stays in
+    // Badge. Toggle the rank master from its real home.
+    fireEvent.click(screen.getByRole("tab", { name: "ui.settingsTabInformation" }))
+    fireEvent.click(badgeSwitch("ui.rankingsToggle"))
     // Staged five-tab session: the stash lives in memory per target, so a
     // landscape toggle stages with zero localStorage writes — the legacy key
     // especially stays untouched (no cross-target resurrection from disk).
     expect(localStorage.getItem("pictorium_trend_sash_stash:landscape")).toBeNull()
     expect(localStorage.getItem("pictorium_trend_sash_stash")).toBeNull()
-    fireEvent.click(badgeSwitch("ui.topBadge"))
+    fireEvent.click(badgeSwitch("ui.rankingsToggle"))
     // Staged session: the explicit Save installs the draft into outer truth.
     await saveStaged()
     expect(ctx().landscape.sashOrder?.length).toBeGreaterThan(0)
     fireEvent.click(within(target).getByText("ui.posterShapePortrait"))
-    fireEvent.click(badgeSwitch("ui.topBadge"))
+    fireEvent.click(badgeSwitch("ui.rankingsToggle"))
     // Portrait stages to its own memory slot too — still zero durable writes.
     expect(localStorage.getItem("pictorium_trend_sash_stash")).toBeNull()
     expect(localStorage.getItem("pictorium_trend_sash_stash:landscape")).toBeNull()
     // Functional per-target restore: back ON resurrects this target's order.
-    fireEvent.click(badgeSwitch("ui.topBadge"))
+    fireEvent.click(badgeSwitch("ui.rankingsToggle"))
     await saveStaged()
     expect(ctx().defaultSashOrder.length).toBeGreaterThan(0)
     expect(ctx().defaultSashOrder).toContain("rank")

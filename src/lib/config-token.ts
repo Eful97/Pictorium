@@ -12,6 +12,7 @@ import { clamp } from "@/lib/image-utils"
 import { envWithFallback } from "@/lib/env-compat"
 import { BADGE_STYLES, RANKING_BADGE_STYLES, QUALITY_BADGE_STYLES, AGE_BADGE_STYLES, AWARD_BADGE_MODES, BADGE_FONTS, SEPARATE_RATINGS_STYLES, EXTRA_BADGE_STYLES, EXTRA_BADGE_FOLLOW_RANK } from "@/lib/badge-styles"
 import { POSTER_LAYOUTS, POSTER_FRESH_SCOPES } from "@/lib/types"
+import { QUALITY_GROUP_LAYOUTS } from "@/lib/badge-styles"
 import { retiredBadgeFamilyBindingsSchema } from "@/lib/validation"
 import { MAX_DISABLED_NETWORKS } from "@/lib/network-keys"
 import { parseGenericVariantId } from "@/lib/streaming-catalogs"
@@ -156,6 +157,8 @@ export const configTokenSchema = z.object({
   posterLayout: z.enum(POSTER_LAYOUTS).optional(),
   /** Fresh apply scope (flat-only like posterShape): absent = ranked (default condiviso). */
   posterFreshScope: z.enum(POSTER_FRESH_SCOPES).optional(),
+  /** Quality group layout (flat-only): absent = stacked (colonna storica). */
+  qualityGroupLayout: z.enum(QUALITY_GROUP_LAYOUTS).nullable().optional(),
   autoRotateClean: z.boolean(),
   // Opzionale (finding 13): i token generati prima dell'aggiunta del campo
   // (best-fit) non devono fallire il safeParse — il render usa il default del

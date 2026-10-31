@@ -32,7 +32,7 @@ import { isCardSkin, type CardSkin } from "@/lib/card-layout-skins"
 import { BadgeStyleSelector, BadgeFontSelector, AwardBadgeModeSelector } from "@/components/ui"
 import type { DefaultsPreviewFamily } from "@/lib/poster-url"
 import type { PosterElementId } from "@/components/settings/PosterElementNavigation"
-import { isBottomSeparateRatingsStyle, getSeparateRatingsStyleForShape, AGE_BADGE_STYLES, DEFAULT_AGE_BADGE_STYLE, DEFAULT_AWARD_BADGE_MODE, DEFAULT_BADGE_FONT, DEFAULT_QUALITY_BADGE_STYLE, DEFAULT_SEPARATE_RATINGS_STYLE, EXTRA_BADGE_FOLLOW_RANK, DEFAULT_QUALITY_BADGE_OFFSET_X, DEFAULT_QUALITY_BADGE_OFFSET_Y, DEFAULT_QUALITY_BADGE_OFFSET_X_LANDSCAPE, DEFAULT_QUALITY_BADGE_OFFSET_Y_LANDSCAPE, getSeparateBadgeDefaultScale } from "@/lib/badge-styles"
+import { isBottomSeparateRatingsStyle, getSeparateRatingsStyleForShape, AGE_BADGE_STYLES, DEFAULT_AGE_BADGE_STYLE, DEFAULT_AWARD_BADGE_MODE, DEFAULT_BADGE_FONT, DEFAULT_QUALITY_BADGE_STYLE, DEFAULT_QUALITY_GROUP_LAYOUT, DEFAULT_SEPARATE_RATINGS_STYLE, EXTRA_BADGE_FOLLOW_RANK, DEFAULT_QUALITY_BADGE_OFFSET_X, DEFAULT_QUALITY_BADGE_OFFSET_Y, DEFAULT_QUALITY_BADGE_OFFSET_X_LANDSCAPE, DEFAULT_QUALITY_BADGE_OFFSET_Y_LANDSCAPE, getSeparateBadgeDefaultScale } from "@/lib/badge-styles"
 import { DEFAULT_AGE_COUNTRY } from "@/lib/certification"
 import { KNOWN_VIDEO_FORMATS } from "@/lib/av-specs"
 import { NATURAL_GRADIENT_DEFAULTS } from "@/lib/gradient-presets"
@@ -61,17 +61,18 @@ import {
   RPDB_VISUAL_DEFAULTS,
 } from "@/lib/default-visual-presets"
 
-// Master Trend stash, one slot per edit target: portrait keeps the legacy
-// key (existing stashes survive), landscape gets its own so restoring one
-// format never resurrects the other format's order.
-const TREND_SASH_STASH_KEY = "pictorium_trend_sash_stash"
-const TREND_SASH_STASH_KEY_LANDSCAPE = "pictorium_trend_sash_stash:landscape"
-
-// Rank-only stash, separate from the master stash: rank OFF remembers the
-// exact order (rank position included) per edit target, so rank ON restores
-// it without reshuffling the other categories. Never clobbers the master stash.
+// Rank-only stash: rank OFF remembers the exact order (rank position
+// included) per edit target, so rank ON restores it without reshuffling the
+// other categories. The award/extra master never touches it.
 const RANK_SASH_STASH_KEY = "pictorium_rank_sash_stash"
 const RANK_SASH_STASH_KEY_LANDSCAPE = "pictorium_rank_sash_stash:landscape"
+
+// Extras master stash: OFF remembers exactly which NON-rank buckets were
+// enabled (per edit target), so ON restores those categories without
+// resurrecting ones the user had individually disabled. Never shares keys
+// with the rank stash (the two masters stay independent).
+const EXTRA_SASH_STASH_KEY = "pictorium_extra_sash_stash"
+const EXTRA_SASH_STASH_KEY_LANDSCAPE = "pictorium_extra_sash_stash:landscape"
 
 // Staged-mode stash (five-tab settings): in-memory per edit target, never
 // localStorage and never a durable config write before the global Save.
@@ -200,7 +201,7 @@ function CommonFontCard({ shape, onPreviewFamilyChange, flags }: { shape?: Badge
  * Data sources, endpoints, region, date format and API settings stay global.
  * `onPreviewFamilyChange` (optional) reports which card the user is editing so
  * the preview owner can show a pertinent sample — preview-only, never writes. */
-export type BadgeDefaultsMode = "rankings" | "information" | "appearance"
+export type BadgeDefaultsMode = "information" | "appearance"
 
 export function BadgeDefaultsSection({ active, shape, onPreviewFamilyChange, presetsEnabled = true, unifiedView, element, onOpenAdvanced, mode, testStaged, testDirty }: {
   active: boolean
@@ -213,10 +214,11 @@ export function BadgeDefaultsSection({ active, shape, onPreviewFamilyChange, pre
   /**
    * Additive presentation mode (five-tab settings): filters the existing
    * detail cards per tab without any new control implementation.
-   * - rankings: rank switch + master gate + appearance + layout (ranked-only,
-   *   no scope choice) + priority order
-   * - information: visibility switches only (no shape/font/position/size)
-   * - appearance: styles only (no visibility switches)
+   * - information: the two on/off masters (content badges + rankings), the
+   *   advanced priority order next to them, the visibility switches and the
+   *   categories (no shape/font/position/size)
+   * - appearance: styles only + the ranking style selector (unified
+   *   presentation) (no visibility switches)
    * Absent = legacy full behavior (standalone reuse/tests unchanged).
    */
   mode?: BadgeDefaultsMode
@@ -234,7 +236,6 @@ export function BadgeDefaultsSection({ active, shape, onPreviewFamilyChange, pre
   const accentColor = usePSelector((v) => v.accentColor)
   const { isLandscape, scoped } = useShapeBadgeDefaults(shape)
   const targetShape = isLandscape ? "landscape" : "portrait"
-  const sashStashKey = isLandscape ? TREND_SASH_STASH_KEY_LANDSCAPE : TREND_SASH_STASH_KEY
   const [sourcesOpen, setSourcesOpen] = useState(false)
   const [sashDrag, setSashDrag] = useState<SashBucket | null>(null)
   // Unified workspace (Phase 1): `summary` (style tab) shows presets + quick
@@ -514,6 +515,53 @@ export function BadgeDefaultsSection({ active, shape, onPreviewFamilyChange, pre
       setSashOrder(cur.filter((x) => x !== bucket))
     }
   }
+  // Top-slot selectors (Informazioni). Two independent controls:
+  // - "Badge extra" (ui.badgeExtraToggle) = every NON-rank top badge (award:
+  //   Oscar/Emmy wins, nominations, IMDb Top 250; extra: custom badge,
+  //   sub-genre, true story, …; upcoming/next-episode/new-season "new"). OFF
+  //   removes exactly those buckets from the sash while the rank bucket is
+  //   left untouched, so the classification keeps following its own switch.
+  //   Coming Soon/preRelease is NOT part of this master: it has its own
+  //   dedicated selector and stays exactly as configured there.
+  //   Enabling it only re-adds the buckets (and re-opens the shared plate gate
+  //   if a preset had closed it); it never writes the rank.
+  // - "Classifiche" (ui.rankingsToggle) = the RANK bucket only. Never awards.
+  // Turning the extras master back ON therefore restores the previous rank
+  // state verbatim (the rank bucket is never clobbered).
+  const extraMasterBuckets: SashBucket[] = ["upcoming", "new", "award", "extra"]
+  const extraMasterOn = extraMasterBuckets.some((b) => sashOrder.includes(b))
+  const extraMasterVisible = rankingBadges && extraMasterOn
+  const rankMasterVisible = rankingBadges && rankOn
+  const extraSashStashKey = isLandscape ? EXTRA_SASH_STASH_KEY_LANDSCAPE : EXTRA_SASH_STASH_KEY
+  function setExtraMaster(on: boolean) {
+    if (!on) {
+      // Remember exactly which non-rank categories were on, then drop them.
+      // The rank bucket and the shared plate gate are never touched.
+      stashSashOrder(extraSashStashKey, sashOrder.filter((x) => extraMasterBuckets.includes(x)), stagedStash)
+      setSashOrder(sashOrder.filter((x) => x === ("rank" as SashBucket)))
+      return
+    }
+    if (!rankingBadges) setRankingBadges(true)
+    // Restore the stashed subset when present; a master that was already off
+    // (no stash, e.g. preset-cleared buckets) opens the canonical categories.
+    const restored = popStashedSashOrder(extraSashStashKey, stagedStash) ?? [...extraMasterBuckets]
+    let next = sashOrder
+    for (const b of restored) {
+      if (next.includes(b)) continue
+      const home = DEFAULT_SASH_ORDER.indexOf(b)
+      next = [
+        ...next.filter((x) => DEFAULT_SASH_ORDER.indexOf(x) < home),
+        b,
+        ...next.filter((x) => DEFAULT_SASH_ORDER.indexOf(x) > home),
+      ]
+    }
+    setSashOrder(next)
+  }
+  function setRankMaster(on: boolean) {
+    if (on && !rankingBadges) setRankingBadges(true)
+    setRankBucket(on)
+  }
+
   function setRankBucket(on: boolean) {
     if (on) {
       if (sashOrder.includes("rank" as SashBucket)) return
@@ -568,9 +616,10 @@ export function BadgeDefaultsSection({ active, shape, onPreviewFamilyChange, pre
     setRibbonEnabled(next.ribbonEnabled)
   }
 
-  // Unified ranking presentation (Classifiche): one exclusive choice over the
-  // existing stored fields; standalone (mode undefined) keeps the legacy split.
-  const isRankingsTab = mode === "rankings"
+  // Unified ranking presentation (rendered in the Badge appearance tab now
+  // that the Classifiche tab is gone): one exclusive choice over the existing
+  // stored fields; standalone (mode undefined) keeps the legacy split.
+  const showUnifiedPresentation = mode === "appearance"
   const presentation: RankingPresentation =
     posterLayout === "fresh" ? "fresh" : isCardSkin(posterLayout) ? "card" : appearance
   // Remembered Card skin (transient UI only, never persisted): survives
@@ -747,6 +796,7 @@ export function BadgeDefaultsSection({ active, shape, onPreviewFamilyChange, pre
     getSeparateRatingsStyleForShape(separateRatingsStyle, isLandscape ? "landscape" : "poster") === DEFAULT_SEPARATE_RATINGS_STYLE &&
     effTarget("badgeFont", ed.defaultBadgeFont) === DEFAULT_BADGE_FONT &&
     effTarget("qualityBadgeStyle", ed.defaultQualityBadgeStyle) === DEFAULT_QUALITY_BADGE_STYLE &&
+    effTarget("qualityGroupLayout", ed.defaultQualityGroupLayout) === DEFAULT_QUALITY_GROUP_LAYOUT &&
     JSON.stringify(effTarget("videoFormats", ed.defaultVideoFormats)) === JSON.stringify([...KNOWN_VIDEO_FORMATS]) &&
     JSON.stringify(sashOrder) === JSON.stringify([...DEFAULT_SASH_ORDER]) &&
     networkLogoPosition === "auto" &&
@@ -895,6 +945,7 @@ export function BadgeDefaultsSection({ active, shape, onPreviewFamilyChange, pre
     defaultRankingBadgeStyle: "rankingBadgeStyle",
     defaultBadgeFont: "badgeFont",
     defaultQualityBadgeStyle: "qualityBadgeStyle",
+    defaultQualityGroupLayout: "qualityGroupLayout",
     defaultVideoFormats: "videoFormats",
     defaultSashOrder: "sashOrder",
     defaultNetworkLogo: "networkLogo",
@@ -1254,6 +1305,170 @@ export function BadgeDefaultsSection({ active, shape, onPreviewFamilyChange, pre
           </button>
         </div>
       )}
+      {/* Two DISTINCT on/off selectors (Informazioni home, never merged), in
+          this order: Classifiche first, then the extras master.
+          - "Classifiche" owns the rank bucket only (the numeral appears only
+            when the title actually has a rank); it never clears awards/extras.
+          - "Badge extra" owns every OTHER top badge (awards, custom extras,
+            upcoming/new/next-episode). OFF removes only those non-rank buckets,
+            so the classification keeps following its own switch and turning
+            extras back ON restores the prior rank state. Coming Soon keeps its
+            own dedicated selector.
+          The per-category order and the ranking style stay in the Badge tab. */}
+      <div
+        {...famAttrs("info")}
+        data-testid="badge-master-switches"
+        hidden={hideFor("rank", "genre", "info") || modeHide("information")}
+        className="bg-surface/50 border border-surface2/60 rounded-xl p-3.5 space-y-2 shadow-sm"
+      >
+        <div className="space-y-2">
+          <div className="flex items-center justify-between py-1">
+            <span className="text-zinc-300 font-medium flex items-center gap-1.5">
+              <Trophy className="w-3.5 h-3.5 text-amber-500" />
+              {t("ui.rankingsToggle")}
+            </span>
+            <Toggle
+              value={rankMasterVisible}
+              onChange={(v) => {
+                setRankMaster(v)
+              }}
+              label={t("ui.rankingsToggle")}
+            />
+          </div>
+          <p className="text-[11px] text-zinc-400 leading-snug -mt-1">{t("ui.rankingsToggleHint")}</p>
+          <div className="flex items-center justify-between py-1">
+            <span className="text-zinc-300 font-medium flex items-center gap-1.5">
+              <Star className="w-3.5 h-3.5 text-amber-400" />
+              {t("ui.badgeExtraToggle")}
+            </span>
+            <Toggle
+              value={extraMasterVisible}
+              onChange={(v) => {
+                setExtraMaster(v)
+              }}
+              label={t("ui.badgeExtraToggle")}
+            />
+          </div>
+          <p className="text-[11px] text-zinc-400 leading-snug -mt-1">{t("ui.badgeExtraToggleHint")}</p>
+        </div>
+      </div>
+
+      {/* Advanced: global top-badge priority (a single badge wins). Lives in
+          the Informazioni tab right next to the two on/off masters (the same
+          state/logic); the ranking style stays in the Badge tab. */}
+      <div {...famAttrs("info")} hidden={hideFor("rank", "info") || modeHide("information")} data-testid="badge-priority-order" className="bg-surface/50 border border-surface2/60 rounded-xl p-3.5 space-y-1.5 shadow-sm">
+        <div className="pt-1">
+          {mode === "information" && (
+            <p className="text-[10px] text-muted italic leading-tight pb-1">{t("ui.badgePriorityOrderHint")}</p>
+          )}
+          <button
+            type="button"
+            onClick={() => setAdvancedOpen((v) => !v)}
+            aria-expanded={advancedOpen}
+            className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg bg-surface2/70 hover:bg-surface2 text-zinc-200 hover:text-foreground border border-surface2 transition-all cursor-pointer"
+          >
+            <span className="text-[11px] font-semibold">{t("ui.advancedBadgePriority")}</span>
+            <ChevronDown
+              className={`w-3.5 h-3.5 text-zinc-400 transition-transform duration-200 ${
+                advancedOpen ? "rotate-180" : ""
+              }`}
+            />
+          </button>
+          <p className="text-[10px] text-muted italic leading-tight mt-1">{t("ui.singleBadgeHint")}</p>
+          {advancedOpen && (
+          <div className="space-y-1.5 pt-1.5">
+            <span className="text-[10px] font-semibold uppercase tracking-wide text-muted block">
+              {t("ui.sashTitle")}
+            </span>
+            <div className="space-y-1.5">
+              {(() => {
+                const sash = sashOrder ?? [...DEFAULT_SASH_ORDER]
+                // Enabled buckets in saved order, disabled ones appended canonically.
+                const ordered: SashBucket[] = [...sash, ...SASH_BUCKETS.filter((b) => !sash.includes(b))]
+                const drop = (target: SashBucket) => {
+                  if (sashDrag && sashDrag !== target) {
+                    setSashOrder(moveSashItem(sash, sashDrag, sash.indexOf(target)))
+                  }
+                  setSashDrag(null)
+                }
+                return ordered.map((b) => {
+                  const isOn = sash.includes(b)
+                  const dragging = sashDrag === b
+                  return (
+                    <div key={b}
+                         draggable={isOn}
+                         onDragStart={() => { if (isOn) setSashDrag(b) }}
+                         onDragEnd={() => setSashDrag(null)}
+                         onDragOver={isOn ? (e) => e.preventDefault() : undefined}
+                         onDrop={isOn ? (e) => { e.preventDefault(); drop(b) } : undefined}
+                         className={`flex items-center justify-between gap-1 rounded-md select-none ${dragging ? "opacity-40" : ""} ${sashDrag && !dragging && isOn ? "outline outline-1 outline-accent/30" : ""}`}>
+                      <span className="inline-flex items-center gap-1 min-w-0">
+                        {isOn && (
+                          <span title={t("ui.dragOne")}
+                                className="pointer-coarse:hidden cursor-grab active:cursor-grabbing p-1 rounded-md hover:bg-white/10 text-muted hover:text-accent transition-colors">
+                            <Menu className="w-4 h-4 stroke-[2.5]" />
+                          </span>
+                        )}
+                        <span className={`text-zinc-300 font-medium ${isOn ? "" : "opacity-50"}`}>{t(`ui.sash_${b}`)}</span>
+                      </span>
+                      <span className="inline-flex items-center gap-0.5">
+                        {mode === "information" ? (
+                          <span className={`text-[10px] font-mono px-1 ${isOn ? "text-zinc-300" : "text-zinc-600"}`}>{isOn ? `#${sash.indexOf(b) + 1}` : "—"}</span>
+                        ) : (
+                        <Toggle
+                          value={isOn}
+                          onChange={(v) => toggleBucket(b, v)}
+                          label={t(`ui.sash_${b}`)}
+                        />
+                        )}
+                      </span>
+                    </div>
+                  )
+                })
+              })()}
+            </div>
+          </div>
+          )}
+        </div>
+      </div>
+
+      {/* CARD Classifica: ONLY the rank badge selector. Rendered FIRST in the
+          Badge tab (hidden on Informazioni) so rankings stay on top in both
+          tabs; the two on/off masters above own the visibility. */}
+      <div {...famAttrs("rank")} hidden={hideFor("rank") || modeHide("appearance")} data-testid="badge-classifica-card" className="bg-surface/50 border border-surface2/60 rounded-xl p-3.5 space-y-3 shadow-sm">
+        <span className="font-semibold text-zinc-200 flex items-center gap-1.5">
+          <Trophy className="w-3.5 h-3.5 text-amber-500" />
+          {t("ui.rankFamily")}
+        </span>
+        <p className="text-[11px] text-zinc-400 italic -mt-1">{t("ui.badgeDefaultsHint")}</p>
+
+        <div className="pt-1">
+          <RankingAppearanceSelector
+            appearance={appearance}
+            variant={variant}
+            ribbonVariant={ribbonVariant}
+            side={ribbonSide}
+            onAppearance={handleAppearance}
+            onVariant={handleVariant}
+            onRibbonVariant={handleRibbonVariant}
+            onSide={(s) => setRibbonSide(s)}
+            {...(showUnifiedPresentation
+              ? {
+                  presentation,
+                  onPresentation: handlePresentation,
+                  cardSkin: isCardSkin(posterLayout) ? posterLayout : rememberedSkin,
+                  onCardSkin: handleCardSkin,
+                }
+              : {})}
+          />
+          {showUnifiedPresentation && (presentation === "fresh" || presentation === "card") && (
+            <p className="text-[10px] text-zinc-500 leading-relaxed select-none">
+              {t(presentation === "card" ? "ui.posterLayoutScopeHint" : "ui.posterFreshScopeHint")}
+            </p>
+          )}
+        </div>
+      </div>
+
       {/* Style & Presets: genre style, extra style (preset cards moved above) */}
       <BadgeGroup id="style" title={t("ui.badgeGroupStyle")} icon={Palette} defaultOpen bare={modeBare} hidden={hideFor("logo", "genre", "info")}>
 
@@ -1630,86 +1845,18 @@ export function BadgeDefaultsSection({ active, shape, onPreviewFamilyChange, pre
       </div>
       )}
 
-      {/* Special overlays: ranking, sash, network, prerelease */}
-      <BadgeGroup id="overlay" title={t("ui.badgeGroupOverlay")} icon={Trophy} defaultOpen={familyMode ? true : false} bare={modeBare} hidden={hideFor("rank", "info", "logo")}>
-      {/* CARD Rankings: rank bucket + single appearance + position */}
-      <div {...famAttrs("rank")} hidden={hideFor("rank") || modeHide("rankings")} className="bg-surface/50 border border-surface2/60 rounded-xl p-3.5 space-y-3 shadow-sm">
-        <span className="font-semibold text-zinc-200 flex items-center gap-1.5">
-          <Trophy className="w-3.5 h-3.5 text-amber-500" />
-          {t("ui.rankFamily")}
-        </span>
-        <p className="text-[11px] text-zinc-400 italic -mt-1">{t("ui.badgeDefaultsHint")}</p>
+      {/* Special overlays: sash, network, prerelease. The Classifica card is
+          rendered FIRST, above the macro-groups, so the Badge tab opens on the
+          ranking look (it stays hidden on the Informazioni tab). */}
+      <BadgeGroup id="overlay" title={t("ui.badgeGroupOverlay")} icon={Trophy} defaultOpen={familyMode ? true : false} bare={modeBare} hidden={hideFor("rank", "info", "logo") || modeHide("information")}>
 
-        {/* Top badge master (legacy): general switch for top badges */}
-        <div className="flex items-center justify-between py-1">
-          <span className="text-zinc-300 font-medium flex items-center gap-1.5">
-            <Layers className="w-3.5 h-3.5 text-zinc-400" />
-            {t("ui.topBadge")}
-          </span>
-          <Toggle
-            value={rankingBadges}
-            onChange={(v) => {
-              setRankingBadges(v)
-              if (v) {
-                // Master ON restores this target's categories (or all).
-                setSashOrder(popStashedSashOrder(sashStashKey, stagedStash) ?? [...DEFAULT_SASH_ORDER])
-              } else {
-                // Master OFF clears this target's sash; single categories
-                // stay switchable below.
-                stashSashOrder(sashStashKey, sashOrder, stagedStash)
-                setSashOrder([])
-              }
-            }}
-            label={t("ui.topBadge")}
-          />
-        </div>
-        <p className="text-[11px] text-zinc-400 italic mt-1">{t("ui.trendDefaultHint")}</p>
-
-        {/* Rankings toggle: rank bucket only, extra and the rest untouched */}
-        <div className="flex items-center justify-between py-1">
-          <span className="text-zinc-300 font-medium flex items-center gap-1.5">
-            <Trophy className="w-3.5 h-3.5 text-amber-500" />
-            {t("ui.sash_rank")}
-          </span>
-          <Toggle
-            value={rankOn}
-            onChange={(v) => setRankBucket(v)}
-            label={t("ui.sash_rank")}
-          />
-        </div>
-
-        <div className="pt-1">
-          <RankingAppearanceSelector
-            appearance={appearance}
-            variant={variant}
-            ribbonVariant={ribbonVariant}
-            side={ribbonSide}
-            onAppearance={handleAppearance}
-            onVariant={handleVariant}
-            onRibbonVariant={handleRibbonVariant}
-            onSide={(s) => setRibbonSide(s)}
-            {...(isRankingsTab
-              ? {
-                  presentation,
-                  onPresentation: handlePresentation,
-                  cardSkin: isCardSkin(posterLayout) ? posterLayout : rememberedSkin,
-                  onCardSkin: handleCardSkin,
-                }
-              : {})}
-          />
-          {isRankingsTab && (presentation === "fresh" || presentation === "card") && (
-            <p className="text-[10px] text-zinc-500 leading-relaxed select-none">
-              {t(presentation === "card" ? "ui.posterLayoutScopeHint" : "ui.posterFreshScopeHint")}
-            </p>
-          )}
-        </div>
-      </div>
-
-      {/* Sash categories (info family kept for the preview sample) */}
+      {/* Sash categories (info family kept for the preview sample). Award and
+          extra are owned by the "badge extra" master above (one unit); rank is
+          the "classifiche" master. Time-sensitive categories stay individual. */}
       <div {...famAttrs("info")} hidden={hideFor("rank", "info") || modeHide("information")} className="bg-surface/50 border border-surface2/60 rounded-xl p-3.5 space-y-1.5 shadow-sm">
         <span className="text-[11px] text-muted font-medium block">{t("ui.sashTitle")}</span>
         <div className="space-y-1.5">
-          {(["upcoming", "new", "award", "extra"] as const).map((b) => (
+          {(["upcoming", "new"] as const).map((b) => (
             <div key={b} className="flex items-center justify-between">
               <span className="text-muted">{t(`ui.sash_${b}`)}</span>
               <Toggle
@@ -1737,83 +1884,6 @@ export function BadgeDefaultsSection({ active, shape, onPreviewFamilyChange, pre
             }}
             label={t("ui.preRelease")}
           />
-        </div>
-      </div>
-
-      {/* Advanced: global top-badge priority (a single badge wins) */}
-      <div {...famAttrs("info")} hidden={hideFor("rank", "info") || modeHide("rankings")} className="bg-surface/50 border border-surface2/60 rounded-xl p-3.5 space-y-1.5 shadow-sm">
-        <div className="pt-1">
-          {mode === "rankings" && (
-            <p className="text-[10px] text-muted italic leading-tight pb-1">{t("ui.badgePriorityOrderHint")}</p>
-          )}
-          <button
-            type="button"
-            onClick={() => setAdvancedOpen((v) => !v)}
-            aria-expanded={advancedOpen}
-            className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg bg-surface2/70 hover:bg-surface2 text-zinc-200 hover:text-foreground border border-surface2 transition-all cursor-pointer"
-          >
-            <span className="text-[11px] font-semibold">{t("ui.advancedBadgePriority")}</span>
-            <ChevronDown
-              className={`w-3.5 h-3.5 text-zinc-400 transition-transform duration-200 ${
-                advancedOpen ? "rotate-180" : ""
-              }`}
-            />
-          </button>
-          <p className="text-[10px] text-muted italic leading-tight mt-1">{t("ui.singleBadgeHint")}</p>
-          {advancedOpen && (
-          <div className="space-y-1.5 pt-1.5">
-            <span className="text-[10px] font-semibold uppercase tracking-wide text-muted block">
-              {t("ui.sashTitle")}
-            </span>
-            <div className="space-y-1.5">
-              {(() => {
-                const sash = sashOrder ?? [...DEFAULT_SASH_ORDER]
-                // Enabled buckets in saved order, disabled ones appended canonically.
-                const ordered: SashBucket[] = [...sash, ...SASH_BUCKETS.filter((b) => !sash.includes(b))]
-                const drop = (target: SashBucket) => {
-                  if (sashDrag && sashDrag !== target) {
-                    setSashOrder(moveSashItem(sash, sashDrag, sash.indexOf(target)))
-                  }
-                  setSashDrag(null)
-                }
-                return ordered.map((b) => {
-                  const isOn = sash.includes(b)
-                  const dragging = sashDrag === b
-                  return (
-                    <div key={b}
-                         draggable={isOn}
-                         onDragStart={() => { if (isOn) setSashDrag(b) }}
-                         onDragEnd={() => setSashDrag(null)}
-                         onDragOver={isOn ? (e) => e.preventDefault() : undefined}
-                         onDrop={isOn ? (e) => { e.preventDefault(); drop(b) } : undefined}
-                         className={`flex items-center justify-between gap-1 rounded-md select-none ${dragging ? "opacity-40" : ""} ${sashDrag && !dragging && isOn ? "outline outline-1 outline-accent/30" : ""}`}>
-                      <span className="inline-flex items-center gap-1 min-w-0">
-                        {isOn && (
-                          <span title={t("ui.dragOne")}
-                                className="pointer-coarse:hidden cursor-grab active:cursor-grabbing p-1 rounded-md hover:bg-white/10 text-muted hover:text-accent transition-colors">
-                            <Menu className="w-4 h-4 stroke-[2.5]" />
-                          </span>
-                        )}
-                        <span className={`text-zinc-300 font-medium ${isOn ? "" : "opacity-50"}`}>{t(`ui.sash_${b}`)}</span>
-                      </span>
-                      <span className="inline-flex items-center gap-0.5">
-                        {mode === "rankings" ? (
-                          <span className={`text-[10px] font-mono px-1 ${isOn ? "text-zinc-300" : "text-zinc-600"}`}>{isOn ? `#${sash.indexOf(b) + 1}` : "—"}</span>
-                        ) : (
-                        <Toggle
-                          value={isOn}
-                          onChange={(v) => toggleBucket(b, v)}
-                          label={t(`ui.sash_${b}`)}
-                        />
-                        )}
-                      </span>
-                    </div>
-                  )
-                })
-              })()}
-            </div>
-          </div>
-          )}
         </div>
       </div>
 

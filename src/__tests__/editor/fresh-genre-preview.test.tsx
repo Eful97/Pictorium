@@ -196,7 +196,7 @@ describe("SettingsPanel: Fresh genre-style interaction previews standard, stages
 
     openBadgeTab()
     // Free tab navigation: moving between tabs never saves.
-    fireEvent.click(screen.getByRole("tab", { name: "ui.settingsTabRankings" }))
+    fireEvent.click(screen.getByRole("tab", { name: "ui.settingsTabInformation" }))
     fireEvent.click(screen.getByRole("tab", { name: "ui.settingsTabBadge" }))
     expect(puts.length).toBe(putsAfterMount)
     expect(storageSnapshot()).toBe(storedAfterMount)

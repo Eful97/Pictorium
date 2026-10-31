@@ -17,10 +17,11 @@ import { hexLuminance, computeBottomLight } from "./accent-color"
 import { normalizeGenreName } from "./genre-normalize"
 import type { SearchResult, TMDBImage } from "./types"
 import type { EnrichedAnimeItem } from "./validation"
-import type { BadgeStyle, RankingBadgeStyle, QualityBadgeStyle, BadgeFont, SeparateRatingsStyle, ExtraBadgeStyle, ExtraBadgeFollowRank } from "./badge-styles"
+import type { BadgeStyle, RankingBadgeStyle, QualityBadgeStyle, QualityGroupLayout, BadgeFont, SeparateRatingsStyle, ExtraBadgeStyle, ExtraBadgeFollowRank } from "./badge-styles"
 import type { AgeBadgeStyle, AwardBadgeMode } from "./badge-styles"
 import { isAgeBadgeStyle, normalizeAwardBadgeModeForTransport } from "./badge-styles"
 import { isExtraBadgeStyle, isExtraFollowRank } from "./badge-styles"
+import { isQualityGroupLayout } from "./badge-styles"
 import { getSeparateBadgeDefaultScale, getSeparateRatingsStyleForShape, getQualityBadgeOffsetDefault, normalizeQualityBadgeStyleForTransport } from "./badge-styles"
 import { canonicalizeBadgeItemTransforms } from "./badge-item-transforms"
 import type { LandscapeServerDefaults } from "./server-defaults"
@@ -155,6 +156,12 @@ interface BadgeParams {
    * e un ranked esplicito non prevarrebbe su un all ereditato.
    */
   posterFreshScope?: PosterFreshScope | null
+  /**
+   * Layout del gruppo qualità in editing. Sempre esplicito in preview
+   * (`qgl=stacked|row`, default "stacked"): senza, un mapping o un default
+   * salvato row scavalcherebbe la scelta editor (desync WYSIWYG).
+   */
+  qualityGroupLayout?: QualityGroupLayout | null
   /** Allineamento blocco logo/metadati in editing (preview WYSIWYG). */
   logoAlign?: "left" | "center"
   /**
@@ -380,6 +387,7 @@ export function buildUrlPattern(bp: BadgeParams & {
     logoAlign: bp.logoAlign,
     posterLayout: bp.posterLayout ?? undefined,
     posterFreshScope: bp.posterFreshScope ?? undefined,
+    qualityGroupLayout: bp.qualityGroupLayout ?? undefined,
     topBadgeScale: bp.topBadgeScale,
     topBadgeOffsetX: bp.topBadgeOffsetX,
     topBadgeOffsetY: bp.topBadgeOffsetY,
@@ -655,6 +663,13 @@ export function buildPreviewUrl(ps: PosterState, bp: BadgeParams, configToken?: 
   // default salvato ranked scavalcerebbe la scelta editor — e tornando ad
   // all senza parametro il server erediterebbe ranked (desync WYSIWYG).
   params.push(`freshScope=${bp.posterFreshScope === "all" ? "all" : "ranked"}`)
+  // Layout gruppo qualità: esplicito in preview SOLO quando lo staging lo
+  // definisce (`qgl=stacked|row`), così un mapping/default salvato row non
+  // viene mai scavalcato da un valore non posseduto dall'editor. Assente =
+  // il server risolve mapping > token > defaults > stacked.
+  if (bp.qualityGroupLayout != null) {
+    params.push(`qgl=${isQualityGroupLayout(bp.qualityGroupLayout) ? bp.qualityGroupLayout : "stacked"}`)
+  }
   // Align in preview: rilevante solo per il layout landscape (i portrait
   // restano sempre centrati per contratto).
   if (bp.posterShape === "landscape") {
@@ -848,6 +863,10 @@ export interface DefaultsPreviewParams {
    * (`freshScope=all|ranked`), mai persistito da qui.
    */
   defaultPosterFreshScope?: PosterFreshScope | null
+  /** Layout del gruppo qualità del formato (profilo `land.qualityGroupLayout`
+   *  ?? flat `defaultQualityGroupLayout`), sempre esplicito in preview
+   *  (`qgl=stacked|row`), mai persistito da qui. */
+  defaultQualityGroupLayout?: QualityGroupLayout | null
   /** Profilo Orizzontale dei default (stessi slider del Verticale): chiavi
    *  definite vincono sui flat SOLO in preview landscape — stessa regola
    *  `land ?? flat` della UI (`LandscapeDefaultsSection`) e del server
@@ -1162,6 +1181,13 @@ export function buildDefaultsPreviewUrl(bp: DefaultsPreviewParams): string {
   // default mostra davvero lo scope selezionato per quel formato.
   const effPreviewScope = (previewLandscape ? land.posterFreshScope : undefined) ?? bp.defaultPosterFreshScope
   params.push(`freshScope=${effPreviewScope === "all" ? "all" : "ranked"}`)
+  // Layout gruppo qualità effettivo del formato in anteprima (`land ?? flat`,
+  // come UI e server), esplicito solo quando definito — l'assenza lascia la
+  // risoluzione server (mapping > token > defaults > stacked).
+  const effPreviewQgl = (previewLandscape ? land.qualityGroupLayout : undefined) ?? bp.defaultQualityGroupLayout
+  if (effPreviewQgl != null) {
+    params.push(`qgl=${isQualityGroupLayout(effPreviewQgl) ? effPreviewQgl : "stacked"}`)
+  }
   // Alignment preview (landscape only — portraits stay centered by
   // contract): the profile override wins, null/absent follows the flat, flat
   // null (auto) stays omitted (the server resolves the landscape "left"

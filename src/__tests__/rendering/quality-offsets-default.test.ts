@@ -53,21 +53,21 @@ const config = (partial: Partial<PictoriumUserConfig> = {}): PictoriumUserConfig
 })
 
 describe("quality badge offset defaults (verticale vs orizzontale)", () => {
-  it("centralized defaults: portrait -10/+15, landscape 0/0", () => {
-    expect(DEFAULT_QUALITY_BADGE_OFFSET_X).toBe(-10)
-    expect(DEFAULT_QUALITY_BADGE_OFFSET_Y).toBe(15)
+  it("centralized defaults: portrait -4/+6, landscape 0/0", () => {
+    expect(DEFAULT_QUALITY_BADGE_OFFSET_X).toBe(-4)
+    expect(DEFAULT_QUALITY_BADGE_OFFSET_Y).toBe(6)
     expect(DEFAULT_QUALITY_BADGE_OFFSET_X_LANDSCAPE).toBe(0)
     expect(DEFAULT_QUALITY_BADGE_OFFSET_Y_LANDSCAPE).toBe(0)
-    expect(getQualityBadgeOffsetDefault("poster", "x")).toBe(-10)
-    expect(getQualityBadgeOffsetDefault("poster", "y")).toBe(15)
+    expect(getQualityBadgeOffsetDefault("poster", "x")).toBe(-4)
+    expect(getQualityBadgeOffsetDefault("poster", "y")).toBe(6)
     expect(getQualityBadgeOffsetDefault("landscape", "x")).toBe(0)
     expect(getQualityBadgeOffsetDefault("landscape", "y")).toBe(0)
   })
 
-  it("server fallback: portrait gets -10/+15, landscape stays 0/0", () => {
+  it("server fallback: portrait gets -4/+6, landscape stays 0/0", () => {
     const portrait = resolvePosterRenderConfig(baseInput())
-    expect(portrait.qualityBadgeOffsetX).toBe(-10)
-    expect(portrait.qualityBadgeOffsetY).toBe(15)
+    expect(portrait.qualityBadgeOffsetX).toBe(-4)
+    expect(portrait.qualityBadgeOffsetY).toBe(6)
     const landscape = resolvePosterRenderConfig(
       baseInput({ searchParams: new URLSearchParams("shape=landscape") }),
     )
@@ -106,7 +106,8 @@ describe("quality badge offset defaults (verticale vs orizzontale)", () => {
     expect(fromConfig.qualityBadgeOffsetX).toBe(9)
     expect(fromConfig.qualityBadgeOffsetY).toBe(-9)
     // Legacy portrait default stored as an explicit value stays put
-    // (explicit 10 is an intentional override, never re-seeded to 15).
+    // (explicit 10 is an intentional override, never re-seeded to the
+    // factory default).
     const explicitLegacyTen = resolvePosterRenderConfig(
       baseInput({ sd: { qualityBadgeOffsetX: -10, qualityBadgeOffsetY: 10 } }),
     )
@@ -148,7 +149,7 @@ describe("quality badge offset defaults (verticale vs orizzontale)", () => {
 })
 
 describe("stremio URLs stay WYSIWYG with the server fallback", () => {
-  it("explicit (config) emission: portrait -10/+15, landscape 0/0", () => {
+  it("explicit (config) emission: portrait -4/+6, landscape 0/0", () => {
     const portrait = buildStremioPosterUrl({
       origin: "https://x.test",
       type: "movie",
@@ -157,8 +158,8 @@ describe("stremio URLs stay WYSIWYG with the server fallback", () => {
       mapping: null,
       config: "tok",
     })
-    expect(portrait.searchParams.get("qox")).toBe("-10")
-    expect(portrait.searchParams.get("qoy")).toBe("15")
+    expect(portrait.searchParams.get("qox")).toBe("-4")
+    expect(portrait.searchParams.get("qoy")).toBe("6")
     const landscape = buildStremioPosterUrl({
       origin: "https://x.test",
       type: "movie",
@@ -220,17 +221,17 @@ describe("stremio URLs stay WYSIWYG with the server fallback", () => {
     // Firme diverse: il cambio default invalida la cache per formato.
     expect(dvPortrait).not.toBe(dvLandscape)
     // Parità server: la risoluzione senza query dà gli stessi effettivi.
-    expect(resolvePosterRenderConfig(baseInput()).qualityBadgeOffsetX).toBe(-10)
-    expect(resolvePosterRenderConfig(baseInput()).qualityBadgeOffsetY).toBe(15)
+    expect(resolvePosterRenderConfig(baseInput()).qualityBadgeOffsetX).toBe(-4)
+    expect(resolvePosterRenderConfig(baseInput()).qualityBadgeOffsetY).toBe(6)
     expect(
       resolvePosterRenderConfig(baseInput({ searchParams: new URLSearchParams("shape=landscape") })).qualityBadgeOffsetX,
     ).toBe(0)
   })
 
-  it("defaults preview emits the portrait fallback (-10/+15) when unset", () => {
+  it("defaults preview emits the portrait fallback (-4/+6) when unset", () => {
     const url = new URL(buildDefaultsPreviewUrl({} as never))
-    expect(url.searchParams.get("qox")).toBe("-10")
-    expect(url.searchParams.get("qoy")).toBe("15")
+    expect(url.searchParams.get("qox")).toBe("-4")
+    expect(url.searchParams.get("qoy")).toBe("6")
   })
 })
 
@@ -281,10 +282,10 @@ describe("useDefaults hydration: landscape provenance from raw stored data", () 
     return hook
   }
 
-  it("new settings: portrait -10/+15, landscape 0/0", async () => {
+  it("new settings: portrait -4/+6, landscape 0/0", async () => {
     const { result } = await renderSettled()
-    expect(result.current.defaultQualityBadgeOffsetX).toBe(-10)
-    expect(result.current.defaultQualityBadgeOffsetY).toBe(15)
+    expect(result.current.defaultQualityBadgeOffsetX).toBe(-4)
+    expect(result.current.defaultQualityBadgeOffsetY).toBe(6)
     expect(result.current.landscape.qualityBadgeOffsetX).toBe(0)
     expect(result.current.landscape.qualityBadgeOffsetY).toBe(0)
   })
@@ -335,7 +336,7 @@ describe("useDefaults hydration: landscape provenance from raw stored data", () 
       JSON.stringify({ landscape: { qualityBadgeOffsetX: 5, qualityBadgeOffsetY: -5 } }),
     )
     const { result } = await renderSettled()
-    expect(result.current.defaultQualityBadgeOffsetX).toBe(-10)
+    expect(result.current.defaultQualityBadgeOffsetX).toBe(-4)
     expect(result.current.landscape.qualityBadgeOffsetX).toBe(5)
     expect(result.current.landscape.qualityBadgeOffsetY).toBe(-5)
   })

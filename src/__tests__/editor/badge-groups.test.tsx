@@ -10,6 +10,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 import { act, fireEvent, screen } from "@testing-library/react"
 import { createElement } from "react"
 import { BadgeDefaultsSection } from "@/components/settings/BadgeDefaultsSection"
+import { DEFAULT_SASH_ORDER } from "@/lib/badge-priority"
 import { usePosterEditor, type PosterEditorCtx } from "@/lib/contexts/PosterEditorContext"
 import { renderWithCtx } from "@/__tests__/test-utils"
 
@@ -72,7 +73,7 @@ describe("macro-group layout", () => {
     expect(groupBody("style").hasAttribute("hidden")).toBe(false)
     expect(groupBody("base").hasAttribute("hidden")).toBe(false)
     // Collapsed content is unreachable but present for state.
-    expect(screen.queryByRole("switch", { name: "ui.topBadge" })).toBeNull()
+    expect(screen.queryByRole("switch", { name: "ui.rankingsToggle" })).toBeNull()
   })
 
   it("group toggles expand/collapse with 44px touch targets", async () => {
@@ -84,7 +85,7 @@ describe("macro-group layout", () => {
     fireEvent.click(t)
     expect(t).toHaveAttribute("aria-expanded", "true")
     expect(groupBody("overlay").hasAttribute("hidden")).toBe(false)
-    expect(screen.getByRole("switch", { name: "ui.topBadge" })).toBeInTheDocument()
+    expect(screen.getByRole("switch", { name: "ui.rankingsToggle" })).toBeInTheDocument()
     fireEvent.click(t)
     expect(t).toHaveAttribute("aria-expanded", "false")
     expect(groupBody("overlay").hasAttribute("hidden")).toBe(true)
@@ -92,14 +93,18 @@ describe("macro-group layout", () => {
 })
 
 describe("real toggles inside disclosures", () => {
-  it("overlay master off/on writes the same values as before", async () => {
+  it("extras master hides every non-rank bucket and never touches the classification", async () => {
     const { ctx } = renderBadge()
     await act(async () => {})
-    openGroup("overlay")
-    fireEvent.click(screen.getByRole("switch", { name: "ui.topBadge" }))
-    expect(ctx().defaultSashOrder).toEqual([])
-    fireEvent.click(screen.getByRole("switch", { name: "ui.topBadge" }))
-    expect(ctx().defaultSashOrder.length).toBeGreaterThan(0)
+    openAdvanced()
+    // OFF: awards/extras/upcoming/new/next-episode gone, rank bucket intact
+    // and the shared plate gate untouched (classification follows its switch).
+    fireEvent.click(screen.getByRole("switch", { name: "ui.badgeExtraToggle" }))
+    expect(ctx().defaultRankingBadges).toBe(true)
+    expect(ctx().defaultSashOrder).toEqual(["rank"])
+    fireEvent.click(screen.getByRole("switch", { name: "ui.badgeExtraToggle" }))
+    expect(ctx().defaultRankingBadges).toBe(true)
+    expect(ctx().defaultSashOrder).toEqual([...DEFAULT_SASH_ORDER])
   })
 
   it("quality toggle and network stay in their groups with untouched scope", async () => {
@@ -117,7 +122,7 @@ describe("real toggles inside disclosures", () => {
     const { ctx } = renderBadge("landscape")
     await act(async () => {})
     openGroup("overlay")
-    fireEvent.click(screen.getByRole("switch", { name: "ui.sash_rank" }))
+    fireEvent.click(screen.getByRole("switch", { name: "ui.rankingsToggle" }))
     expect(ctx().landscape.sashOrder ?? []).not.toContain("rank")
     expect(ctx().defaultSashOrder).toContain("rank")
     expect(ctx().defaultPosterShape).toBe("poster")
@@ -125,15 +130,19 @@ describe("real toggles inside disclosures", () => {
 })
 
 describe("families stay on the child cards", () => {
-  it("overlay keeps rank + info, style keeps genre/extra, base info/ratings, quality quality", async () => {
+  it("Classifica card comes first; overlay keeps info+quality, style genre/extra, base info/ratings", async () => {
     renderBadge()
     await act(async () => {})
     const fams = (id: string) =>
       Array.from(groupBody(id).querySelectorAll("[data-preview-family]")).map((el) =>
         el.getAttribute("data-preview-family"),
       )
+    // The Classifica card moved OUT of the overlay group and now sits above
+    // every macro-group (first position in the Badge tab).
+    const classifica = screen.getByTestId("badge-classifica-card")
+    expect(classifica.getAttribute("data-preview-family")).toBe("rank")
+    expect(fams("overlay")).not.toContain("rank")
     // Bodies stay mounted when collapsed, so families are queryable any time.
-    expect(fams("overlay")).toContain("rank")
     expect(fams("overlay")).toContain("info")
     expect(fams("overlay")).toContain("quality")
     // Preset-first: the builtin preset card (auto family) sits above the

@@ -188,6 +188,8 @@ export interface FullMappingCheckState {
   /** Il network segue il titolo (assente = legacy ON). */
   networkLogoFollowTitle?: boolean
   qualityBadgeStyle?: string
+  /** Layout del gruppo qualità ("stacked" = colonna storica, "row" = orizzontale). */
+  qualityGroupLayout?: string
   badgeStyle?: string
   rankingBadgeStyle?: string
   extraBadgeStyle?: string | null
@@ -270,6 +272,7 @@ export function isMappingDirty(
   // per-title change must read as unsaved (same rule as the other frozen toggles).
   if ((current.networkLogoFollowTitle ?? true) !== (eff.networkLogoFollowTitle ?? true)) return true
   if ((current.qualityBadgeStyle ?? "standard") !== (eff.qualityBadgeStyle ?? "standard")) return true
+  if ((current.qualityGroupLayout ?? "stacked") !== (eff.qualityGroupLayout ?? "stacked")) return true
   if ((current.badgeStyle ?? "shadow") !== (eff.badgeStyle ?? "shadow")) return true
   if ((current.rankingBadgeStyle ?? "default") !== (eff.rankingBadgeStyle ?? "default")) return true
   if ((current.extraBadgeStyle ?? null) !== (eff.extraBadgeStyle ?? null)) return true

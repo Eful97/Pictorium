@@ -51,6 +51,7 @@ export const LANDSCAPE_RESET_KEYS = [
   "extraBadgeStyle",
   "badgeFont",
   "qualityBadgeStyle",
+  "qualityGroupLayout",
   "videoFormats",
   "globalBadges",
   "rankingBadges",

@@ -170,11 +170,11 @@ describe("buildDefaultsPreviewUrl preview-only shape", () => {
     expect(p.get("scale")).toBe("0")
   })
 
-  it("fallback qualità per formato: portrait -10/+15, landscape 0/0", () => {
+  it("fallback qualità per formato: portrait -4/+6, landscape 0/0", () => {
     const emptyPortrait = paramsOf(buildDefaultsPreviewUrl({} as never))
     expect(emptyPortrait.get("shape")).toBe("poster")
-    expect(emptyPortrait.get("qox")).toBe("-10")
-    expect(emptyPortrait.get("qoy")).toBe("15")
+    expect(emptyPortrait.get("qox")).toBe("-4")
+    expect(emptyPortrait.get("qoy")).toBe("6")
     const emptyLandscape = paramsOf(buildDefaultsPreviewUrl({ previewShape: "landscape" } as never))
     expect(emptyLandscape.get("shape")).toBe("landscape")
     expect(emptyLandscape.get("qox")).toBe("0")

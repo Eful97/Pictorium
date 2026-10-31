@@ -8,7 +8,7 @@ import type { StreamQuality } from "@/lib/quality-tiers"
 import type { SashBucket } from "@/lib/badge-priority"
 import type { VideoFormat } from "@/lib/av-specs"
 import { isVideoFormat } from "@/lib/av-specs"
-import { isBadgeStyle, isRankingBadgeStyle, isQualityBadgeStyle, isBadgeFont, isAwardBadgeMode } from "@/lib/badge-styles"
+import { isBadgeStyle, isRankingBadgeStyle, isQualityBadgeStyle, isBadgeFont, isAwardBadgeMode, type QualityGroupLayout } from "@/lib/badge-styles"
 import type { DateFormat } from "@/lib/release-badge"
 import type { RetiredBadgeFamilyBindings } from "@/lib/types"
 import { normalizeRegion } from "@/lib/regions"
@@ -138,6 +138,8 @@ export interface LandscapeServerDefaults {
   posterLayout?: import("@/lib/types").PosterLayout | null
   /** Fresh apply scope ("ranked" = default: solo con rank; "all" = override esplicito). Assente/null = segue il flat. */
   posterFreshScope?: import("@/lib/types").PosterFreshScope | null
+  /** Quality group layout ("stacked" = historic column, "row" = horizontal). Assente/null = segue il flat. */
+  qualityGroupLayout?: import("@/lib/badge-styles").QualityGroupLayout | null
   /** Enabled sash buckets (canonical order; empty = all off). */
   sashOrder?: SashBucket[]
   /**
@@ -172,6 +174,8 @@ export interface ServerDefaults {
   badgePresets?: RetiredBadgeFamilyBindings | null
   /** Stile icone del badge qualità (standard = pill testuale). */
   qualityBadgeStyle?: QualityBadgeStyle | null
+  /** Layout del gruppo qualità ("stacked" = colonna storica, "row" = orizzontale). Assente = stacked. */
+  qualityGroupLayout?: QualityGroupLayout | null
   /** Formati A/V abilitati di default (dv, hdr, hdr10plus, atmos, imax). */
   videoFormats?: VideoFormat[] | null
   defaultVideoFormats?: VideoFormat[] | null
@@ -369,6 +373,70 @@ export interface ServerDefaults {
   seasonalHalloweenKeywords?: string[]
   /** Custom Christmas keywords (same bounds/semantics as above). */
   seasonalChristmasKeywords?: string[]
+}
+
+/**
+ * Fields of `ServerDefaults` that never reach the poster renderer. A change to
+ * any of them must NOT invalidate already-rendered posters (cache key + ETag),
+ * so `pickVisualDefaults` drops them from that hash.
+ *
+ * Categories (all verified against the poster render path — route.ts +
+ * poster-config/poster-service/best-fit-config consumers):
+ * - catalog composition / manifest display: custom catalogs, streaming opt-ins,
+ *   Top 20 source selection (catalogOrder/Renames/ShowEmojis, disabled catalogs,
+ *   per-catalog card shapes). The ranking source only decides WHICH chart a
+ *   badge reads; the resolved rank itself already travels in the poster cache
+ *   key (`r`/`lr`/`la`), so the selection never changes pixels by itself.
+ * - `/meta` + episode previews: episodeMetadataSource (meta-handler carries its
+ *   own `:es` fragment; the poster route never reads it).
+ * - catalog-name seasonal recognition: seasonal keywords (catalog-handler
+ *   match only; the poster route receives the theme as an explicit `theme=` /
+ *   mapping value).
+ * - retired Badge Lab bindings: `badgePresets` is documented inert (never
+ *   rendered, never in `POSTER_CACHE_ALLOWLIST`).
+ *
+ * A denylist (not an allowlist) is deliberate: every field NOT listed here
+ * stays in the hash by construction, so a future visual default can never serve
+ * a stale poster. A future catalog-only field would only cost extra
+ * invalidations (perf, never correctness) until it is added below.
+ */
+const CATALOG_ONLY_DEFAULTS = [
+  "customCatalogs",
+  "streamingSelections",
+  "rankingSourceMovie",
+  "rankingSourceSeries",
+  "disabledCatalogIds",
+  "homeDisabledCatalogIds",
+  "catalogOrder",
+  "catalogRenames",
+  "catalogShowEmojis",
+  "catalogShapes",
+  "episodeMetadataSource",
+  "seasonalHalloweenKeywords",
+  "seasonalChristmasKeywords",
+  "badgePresets",
+] as const satisfies readonly (keyof ServerDefaults)[]
+
+const CATALOG_ONLY_DEFAULT_KEYS: ReadonlySet<string> = new Set(CATALOG_ONLY_DEFAULTS)
+
+/**
+ * Visual/render subset of the effective server defaults, canonical for hashing:
+ * sorted keys and `undefined` treated as absent, so object key order (and an
+ * explicit `undefined` vs a missing key) never fragments the poster cache.
+ *
+ * The `landscape` profile is carried whole — `LandscapeServerDefaults` is
+ * visual-only by type (same tunables as the flat portrait, per shape).
+ */
+export function pickVisualDefaults(sd: ServerDefaults): Record<string, unknown> {
+  const out: Record<string, unknown> = {}
+  const keys = Object.keys(sd).sort() as Array<keyof ServerDefaults>
+  for (const key of keys) {
+    if (CATALOG_ONLY_DEFAULT_KEYS.has(key)) continue
+    const value = sd[key]
+    if (value === undefined) continue
+    out[key] = value
+  }
+  return out
 }
 
 const FILE = path.join(DATA_DIR, "defaults.json")
