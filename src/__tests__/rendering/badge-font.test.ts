@@ -156,7 +156,9 @@ describe("Badge font contract (bfont)", () => {
       expect(pill.svg.match(/text-anchor="middle"/g)?.length).toBe(5)
       expect(pill.svg).not.toContain('Noto Sans Symbols 2')
       expect(pill.svg).not.toContain('★')
-      expect(pill.svg).toContain('fill="url(#starg)"')
+      // Stella = path posizionato con fill risolto (pill su contenitore chiaro:
+      // inchiostro testo, come la barra), mai un glifo ★.
+      expect(pill.svg).toContain('fill="rgba(0,0,0,0.88)"><path d="M')
       expect(pill.svg).toContain('<path d="M')
       const png = await renderSVG(pill.svg, pill.w)
       expect(png).toBeInstanceOf(Buffer)

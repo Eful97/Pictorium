@@ -347,6 +347,22 @@ describe("buildGenreBadgeSVG", () => {
     const cool = buildGenrePillSvg("Dramma", "8.5", "2023", 28, "#3b82f6", "#ffffff", 0, undefined, false, false)
     expect(cool.svg).toContain("url(#starg)")
   })
+
+  it("pill satinata: stella in inchiostro testo sul contenitore chiaro, oro sul grafite", () => {
+    // Banda scura → pill bianca satinata (contenitore chiaro): come la barra,
+    // la stella prende lo stesso inchiostro del testo (l'oro annegherebbe).
+    const light = buildHouseGenreSvg({ genreName: "Dramma", voteStr: "8.5", yearStr: "2023", pw: 380, style: "pill", bottomLight: false }).svg
+    expect(light).toContain('fill="rgba(0,0,0,0.88)"><path d="M')
+    expect(light).not.toContain('fill="url(#starg)"')
+    // Banda chiara → pill grafite (contenitore scuro): oro storico invariato.
+    const dark = buildHouseGenreSvg({ genreName: "Dramma", voteStr: "8.5", yearStr: "2023", pw: 380, style: "pill", bottomLight: true }).svg
+    expect(dark).toContain('fill="url(#starg)"><path d="M')
+    // colored invariata fuori dal caso warm (oro), warm resta in colore testo.
+    const colored = buildHouseGenreSvg({ genreName: "Dramma", voteStr: "8.5", yearStr: "2023", pw: 380, style: "colored", accentColor: "#3b82f6", bottomLight: false }).svg
+    expect(colored).toContain('fill="url(#starg)"><path d="M')
+    const warmColored = buildHouseGenreSvg({ genreName: "Dramma", voteStr: "8.5", yearStr: "2023", pw: 380, style: "colored", accentColor: "#F59E0B", bottomLight: false }).svg
+    expect(warmColored).not.toContain('fill="url(#starg)"')
+  })
 })
 
 describe("GenreParts combinations", () => {

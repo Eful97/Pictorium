@@ -2037,9 +2037,14 @@ export function buildHouseGenreSvg(input: HouseGenreInput): { svg: string; w: nu
     result = buildGenreBarSvg(genreName, voteStr, yearStr, pw, fs, barTextFinal, !!bottomLight, 0, parts, starInkFor(bottomLight, s, barTextFinal), font)
   } else if (isPill) {
     // colored: tinta piatta (niente satinatura); pill: satinatura polare.
-    // Su accent caldo (oro/ambra) la stella oro annega: fallback in colore testo.
+    // Stella: la pill satinata usa la stessa polarita della barra
+    // (`satinPillStops(bottomLight)`), quindi inchiostro testo sul contenitore
+    // chiaro e oro sul grafite. colored resta invariata: su accent caldo
+    // (oro/ambra) la stella oro annega, fallback in colore testo.
     const useSatin = s !== "colored"
-    const starFill = s === "colored" && accentColor && isWarmGoldAccent(accentColor) ? textColor : undefined
+    const starFill = s === "pill"
+      ? starInkFor(bottomLight, "bar", textColor)
+      : (s === "colored" && accentColor && isWarmGoldAccent(accentColor) ? textColor : undefined)
     result = buildGenrePillSvg(genreName, voteStr, yearStr, fs, bgColor, textColor, 0, parts, !!bottomLight, useSatin, starFill, font)
   } else {
     // Testo nudo: `shadow`/`minimal` (buildGenreTextSvg) e `ink`
