@@ -11,7 +11,7 @@ export interface RecentChange {
 }
 
 export const RECENT_CHANGES: RecentChange[] = [
-  { type: "feature", text: "Import custom artwork from Postimages links", sha: "6d6c3b6", date: "2026-10-30" },
-  { type: "feature", text: "Gradient style plus fixed slots for quality and rating badges", sha: "3d2cf54", date: "2026-10-30" },
-  { type: "feature", text: "Add Paramount+ with Showtime combined network mark", sha: "5d8a44d", date: "2026-10-30" },
+  { type: "perf", text: "Speed up cold catalogs, poster renders and editor previews", sha: "611cae8", date: "2026-10-31" },
+  { type: "feature", text: "Add TVmaze rating source for series", sha: "e8daa32", date: "2026-10-31" },
+  { type: "fix", text: "Tolerate one skipped FlixPatrol publish day", sha: "2b8fe25", date: "2026-10-31" },
 ]
