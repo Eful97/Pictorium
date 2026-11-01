@@ -30,6 +30,29 @@ export interface ChangelogRelease {
  *  (which bumps on every commit and would leave the dot permanently on). */
 export const CHANGELOG: ChangelogRelease[] = [
   {
+    version: "1.26.4",
+    date: "2026-11-01",
+    title: "Release 1.26.4",
+    items: [
+      { type: "feature", text: "Add ink, split, outline and strip badge styles" },
+      { type: "feature", text: "Choose a row or column layout for quality marks" },
+      { type: "feature", text: "Add TVmaze as a rating source for series" },
+      { type: "fix", text: "Keep the live preview and preset highlight in sync while editing" },
+      { type: "fix", text: "Match the pill rating star color to the bar style" },
+      { type: "fix", text: "Refresh the RogerEbert rating icon" },
+      { type: "fix", text: "Keep platform Top 10 lists filled when a chart day is skipped" },
+      { type: "perf", text: "Speed up cold catalogs with a single defaults pass, no unused logo fetches and a lighter chart check" },
+      { type: "perf", text: "Load anime Top 20 lists with five lookups at a time" },
+      { type: "perf", text: "Load carousel posters only as tiles approach the screen" },
+      { type: "perf", text: "Decode each poster once and load only the fonts a badge uses" },
+      { type: "perf", text: "Keep posters sharper by skipping a redundant re-encode" },
+      { type: "perf", text: "Start the award lookup earlier so poster renders wait less" },
+      { type: "perf", text: "Keep memory lower while posters wait in the render queue" },
+      { type: "perf", text: "Open titles faster by analyzing poster colors in one pass" },
+      { type: "perf", text: "Cut duplicate startup requests to load the app faster" },
+    ],
+  },
+  {
     version: "1.26.3",
     date: "2026-10-30",
     title: "Release 1.26.3",
