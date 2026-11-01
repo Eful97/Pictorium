@@ -339,10 +339,18 @@ Trakt OAuth notes (multi-user): one Trakt app registration per instance (client 
 ### Concurrency & Performance
 | Variable | Default | Description |
 |---|:---:|---|
-| `PICTORIUM_MAX_CONCURRENT_RENDERS` | `4` | Max concurrent Sharp renders to prevent OOM. |
-| `PICTORIUM_RENDER_TIMEOUT_MS` | `30000` | Max render deadline before the original caller gets a bounded 503 with `Retry-After` (ms). Past the deadline the late job never caches a poster and never double-counts the 503. |
-| `PICTORIUM_CACHE_MAX_MB` | `150` | Maximum RAM allocated for in-memory image cache. |
-| `PICTORIUM_SELF_WARMUP` | `1` | Automatically pre-warm core catalogs on server start. |
+| `PICTORIUM_MAX_CONCURRENT_RENDERS` | CPU-scaled `2`–`8` (`4` in docker-compose) | Max concurrent Sharp renders to prevent OOM. Unset = `min(8, max(2, availableParallelism()))`; an explicit value (1–32) always wins, garbage falls back to `4`. |
+| `PICTORIUM_MAX_CONCURRENT_FETCHES` | `12` | Max concurrent upstream/image fetches inside the render pipeline (1–32). Waiters hold no image buffers, so this budget is deliberately larger than the render one. |
+| `PICTORIUM_RENDER_SLOT_WAIT_MS` | `15000` | Max wait for a render slot before the caller gets a bounded 503 (500–60000 ms). On Vercel without an explicit value it defaults to `7500`, under the Hobby 10 s function limit. |
+| `PICTORIUM_RENDER_QUEUE` | `0` | Bounded render queue (0–128). `0` = waiters queue up to `PICTORIUM_RENDER_SLOT_WAIT_MS`; `N` > 0 = waiters beyond `N` get an immediate 503 (backpressure instead of an unbounded queue). |
+| `PICTORIUM_ZOMBIE_GRACE_MS` | `10000` | How long a render abandoned by the deadline watchdog keeps occupying a render slot before it is force-released (1000–120000 ms). The zombie keeps running in the background until it settles. |
+| `PICTORIUM_RENDER_TIMEOUT_MS` | `30000` | Max render deadline before the original caller gets a bounded 503 with `Retry-After` (1000–40000 ms). Past the deadline the late job never caches a poster and never double-counts the 503. |
+| `PICTORIUM_NEGATIVE_CACHE_TTL_MS` | `5000` | How long a failed render (500/503/404) is remembered so a broken upstream is not hammered (1000–60000 ms). |
+| `PICTORIUM_DYNAMIC_POSTER_TTL_MS` | `21600000` (6 h) | Storage TTL for on-demand (unmapped) posters, which also drives their `Cache-Control`/Surrogate headers (clamped 5 min–24 h, ±10 % deterministic jitter per cache key). Mapped posters follow the scheduled daily refresh policy instead. |
+| `PICTORIUM_IMG_CACHE_MB` | `32` | RAM budget for the in-process downloaded-image byte cache (0–512 MB, `0` disables it). |
+| `PICTORIUM_CACHE_MAX` | `2000` | Max entries in the in-memory metadata cache (must be > 100, otherwise `2000`). This is the entry-cap knob: `PICTORIUM_CACHE_MAX_ENTRIES` is not read. |
+| `PICTORIUM_CACHE_MAX_MB` | `150` | Maximum RAM allocated for the in-memory metadata cache (must be > 10 MB, otherwise `150`). |
+| `PICTORIUM_SELF_WARMUP` | `1` | Automatically pre-warm core catalogs on server start (Docker entrypoint). |
 </details>
 
 ---

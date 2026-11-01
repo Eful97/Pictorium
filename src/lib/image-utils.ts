@@ -108,6 +108,33 @@ export async function cropBackdropToPortrait(
     .toBuffer()
 }
 
+/**
+ * Adatta la base portrait al canvas 2:3 (STD_W × STD_H).
+ *
+ * Fast path (il caso comune): se la sorgente è GIÀ esattamente STD_W × STD_H
+ * (i poster TMDB `w500` sono 500×750 e `cropBackdropToPortrait` emette lo
+ * stesso canvas) il buffer torna invariato, quindi zero encode/decode. Il
+ * vecchio `sharp(baseBuf).resize(...).toBuffer()` ri-encodava in JPEG q80
+ * (default di sharp) anche quando la geometria era un no-op: ogni render
+ * cold pagava un encode+decode completo e una generazione lossy extra prima
+ * dell'encode finale. Rimuoverla è un miglioramento di qualità intenzionale
+ * (nessuna geometria cambia).
+ *
+ * Per le altre dimensioni la geometria resta identica (cover, focus
+ * `centre`): cambia solo il codec dell'intermedio, lossless (PNG) invece del
+ * JPEG q80, così non si aggiunge alcuna generazione lossy. Il livello di
+ * compressione è basso apposta: l'intermedio è di passaggio, conta la
+ * velocità, non la dimensione.
+ */
+export async function fitPortraitBase(buf: Buffer): Promise<Buffer> {
+  const meta = await sharp(buf).metadata()
+  if (meta.width === STD_W && meta.height === STD_H) return buf
+  return sharp(buf)
+    .resize(STD_W, STD_H, { fit: "cover", position: "centre" })
+    .png({ compressionLevel: 1 })
+    .toBuffer()
+}
+
 // ---- Math utilities ----
 
 /**

@@ -6,7 +6,7 @@ import { GENRE_FALLBACK } from "@/lib/badges"
 import { RENDER_VERSION } from "./render-version"
 import { ARTWORKS_BASE } from "@/lib/tvdb"
 import { cachedImageBytes } from "@/lib/image-bytes-cache"
-import { timedFetch, readResponseBody } from "@/lib/outbound-stats"
+import { timedFetch, readResponseBodyCapped } from "@/lib/outbound-stats"
 // Batch B: STD_W/STD_H ora provengono da image-utils.ts (single source of truth)
 import { STD_W, STD_H, LAND_W, LAND_H, computeRegionStats } from "@/lib/image-utils"
 
@@ -97,9 +97,11 @@ export async function fetchImg(url: string, signal?: AbortSignal): Promise<Buffe
     if (!res.ok) throw new Error(`fetch failed: ${res.status}`)
     const cl = res.headers.get("content-length")
     if (cl && Number(cl) > MAX_IMG_SIZE) throw new Error("image too large")
-    const buf = Buffer.from(await readResponseBody(res))
-    if (buf.length > MAX_IMG_SIZE) throw new Error("image too large")
-    return buf
+    // Cap anti-OOM in streaming: il body viene consumato chunk-by-chunk con un
+    // contatore corrente e cancellato appena supera MAX_IMG_SIZE, così una
+    // risposta chunked senza content-length non alloca l'intero payload prima
+    // del controllo (il vecchio arrayBuffer-then-check bufferizzava tutto).
+    return Buffer.from(await readResponseBodyCapped(res, MAX_IMG_SIZE, () => new Error("image too large")))
   }, combined)
 }
 

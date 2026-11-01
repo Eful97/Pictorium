@@ -230,6 +230,84 @@ export async function readResponseBody(res: Response): Promise<ArrayBuffer> {
   }
 }
 
+/**
+ * OPT-IN body read with a hard size cap, streaming with a running counter.
+ *
+ * Same telemetry contract as `readResponseBody` (bodyReads/bodyBytes on a
+ * completed read, bodyErrors + lastBodyReadMs on failure) plus a cap: the
+ * body is consumed chunk-by-chunk and the stream is cancelled as soon as the
+ * running total exceeds `maxBytes`, so a chunked response without a
+ * content-length header can never allocate past the cap (the
+ * arrayBuffer-then-check alternative buffers the whole body first).
+ *
+ * Exotic Responses without a readable stream (test doubles) fall back to
+ * `readResponseBody`: same bytes, cap checked after the read.
+ */
+export async function readResponseBodyCapped(
+  res: Response,
+  maxBytes: number,
+  tooLargeError: () => Error,
+): Promise<ArrayBuffer> {
+  let host: string | null = null
+  try {
+    host = trackedResponses.get(res as unknown as object)?.host ?? null
+  } catch {
+    host = null
+  }
+  let body: ReadableStream<Uint8Array> | null | undefined
+  try {
+    body = (res as { body?: ReadableStream<Uint8Array> | null }).body
+  } catch {
+    body = null
+  }
+  if (!body || typeof body.getReader !== "function") {
+    // Exotic test doubles without a stream: same bytes, cap checked after.
+    const buf = await readResponseBody(res)
+    if (buf.byteLength > maxBytes) throw tooLargeError()
+    return buf
+  }
+  const t0 = Date.now()
+  const reader = body.getReader()
+  const chunks: Uint8Array[] = []
+  let total = 0
+  try {
+    for (;;) {
+      const { done, value } = await reader.read()
+      if (done) break
+      if (!value) continue
+      total += value.byteLength
+      if (total > maxBytes) {
+        // Stop the transfer now: the remaining chunks are never allocated.
+        await reader.cancel().catch(() => {})
+        throw tooLargeError()
+      }
+      chunks.push(value)
+    }
+    const out = new Uint8Array(total)
+    let offset = 0
+    for (const chunk of chunks) {
+      out.set(chunk, offset)
+      offset += chunk.byteLength
+    }
+    if (host !== null) {
+      const s = forHost(host)
+      s.bodyReads++
+      s.bodyBytes += total
+      const readMs = Date.now() - t0
+      s.bodyTotalReadMs += readMs
+      s.lastBodyReadMs = readMs
+    }
+    return out.buffer
+  } catch (err) {
+    if (host !== null) {
+      const s = forHost(host)
+      s.bodyErrors++
+      s.lastBodyReadMs = Date.now() - t0
+    }
+    throw err
+  }
+}
+
 export function outboundStats(): Record<string, OutboundHostStats> {
   const out: Record<string, OutboundHostStats> = {}
   for (const [host, s] of hosts) {

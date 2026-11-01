@@ -529,11 +529,13 @@ function setBoundedOverlay<K, V>(map: Map<K, V>, key: K, value: V, max: number):
 
 // Budget di memoria: ogni entry è un PNG full-canvas (500×750 o 768×432).
 // Vignette/dim dipendono solo dalle dimensioni del canvas (2 forme ⇒ 2 chiavi
-// reali); il top shade aggiunge intensità e altezza (100×101 combinazioni),
-// quindi il cap resta stretto ma ampio abbastanza per i profili in uso.
+// reali); il top shade aggiunge intensità e altezza (100×101 combinazioni) e
+// i profili reali ne toccano ~441, quindi il vecchio cap 64 ricalcolava di
+// continuo gli stessi overlay (PNG piccoli, pochi KB l'uno): 256 tiene in
+// memoria il working set osservato con un tetto comunque bounded.
 const VIGNETTE_CACHE_MAX = 8
 const PRE_RELEASE_DIM_CACHE_MAX = 8
-const TOP_SHADE_CACHE_MAX = 64
+const TOP_SHADE_CACHE_MAX = 256
 
 // ---- Vignette SVG cache (una entry per dimensioni canvas) ----
 const _vignetteCache = new Map<string, Promise<Buffer>>()

@@ -1178,13 +1178,16 @@ export function __resetPosterRenderLimiter(): void {
 // permits (default 12) exceed composite slots (default 2..8), so cold renders
 // still overlap their network waits instead of serializing behind one
 // ceiling, while total image-buffer pressure stays bounded. Held for the
-// whole render job (fetch through composite — every fetch below is
-// abort-bounded by renderAbort, so a deadline abandon settles fast) and freed
-// by the watchdog on deadline alongside the composite slot; the guarded
-// finally frees it on every other path. Same 503 + Retry-After backpressure
-// as the composite slot when permits stay busy past RENDER_SLOT_WAIT_MS. No
-// queue limit: waiters are bounded by the wait, like the composite slot with
-// RENDER_QUEUE=0.
+// fetch/decode phase only: the route releases it right before waiting for the
+// composite slot, so a render queued for a slot never keeps a fetch permit
+// (and the buffers it represents) reserved — peak heap is bounded to the
+// actual fetch phase, not fetch + queued composite. Every fetch below is
+// abort-bounded by renderAbort, so a deadline abandon settles fast; the
+// watchdog still frees it on deadline alongside the composite slot, and the
+// guarded finally frees it on every other path. Same 503 + Retry-After
+// backpressure as the composite slot when permits stay busy past
+// RENDER_SLOT_WAIT_MS. No queue limit: waiters are bounded by the wait, like
+// the composite slot with RENDER_QUEUE=0.
 const MAX_CONCURRENT_FETCHES = (() => {
   const raw = envWithFallback("MAX_CONCURRENT_FETCHES")
   const n = raw ? parseInt(raw, 10) : 12

@@ -85,7 +85,6 @@ import { isAutomaticTrendRank } from "@/lib/badge-priority"
 import { DEMOSAMPLES_FLAG, DEMO_SAMPLE_AGE_LABEL, DEMO_SAMPLE_GENRE, DEMO_SAMPLE_MOVIE_DATE, DEMO_SAMPLE_QUALITY, DEMO_SAMPLE_RANK, DEMO_SAMPLE_TV_DATE, isDemoSamplesRequest, mergeDemoSampleRatings, sampleDemoVideoFormats } from "@/lib/demo-samples"
 import {
   STD_H,
-  STD_W,
   fetchImg,
   fetchLogoImg,
   hashKey,
@@ -97,7 +96,7 @@ import {
 import { computeBottomLight } from "@/lib/accent-color"
 import { normalizeGenreName } from "@/lib/genre-normalize"
 import { NON_CLEAN_BLUR_FADE, NON_CLEAN_GRADIENT_HEIGHT } from "@/lib/gradient-defaults"
-import { LAND_W, LAND_H, landscapeBackdropUrl, pillarboxLandscapeBase, cropBackdropToPortrait } from "@/lib/image-utils"
+import { LAND_W, LAND_H, landscapeBackdropUrl, pillarboxLandscapeBase, cropBackdropToPortrait, fitPortraitBase } from "@/lib/image-utils"
 import { generatePosterBuffer, type GenerationInput, type NetworkGeometry, type BadgeGeometryReport } from "@/lib/poster-service"
 import { computeTopBadge, isNextEpisodeDisplayed } from "@/lib/poster-badge"
 import { getUpcomingReleaseLabel, parseDateFormat } from "@/lib/release-badge"
@@ -418,11 +417,17 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
 
   // 1. Get mapping + server defaults (no network)
   // (`scopedUser` già risolto sopra: serve anche al ramo tt e alle chiavi.)
-  let mapping = await getById(mediaType, tmdbId, scopedUser)
-  // Lettura revisionata via epoch: dopo un save su un'altra istanza, l'epoch
-  // avanzata invalida i default in memoria (finestra residua = 500ms di
-  // cache lettura epoch, mai i 5min del TTL defaults).
-  const sd = scopedUser ? await getServerDefaultsForUser(scopedUser) : await getServerDefaultsChecked()
+  // Le due letture sono indipendenti (mapping per titolo vs defaults di
+  // spazio): partono insieme invece di sommare due attese seriali. Lettura
+  // revisionata via epoch: dopo un save su un'altra istanza, l'epoch avanzata
+  // invalida i default in memoria (finestra residua = 500ms di cache lettura
+  // epoch, mai i 5min del TTL defaults).
+  const [mappingRow, sdRow] = await Promise.all([
+    getById(mediaType, tmdbId, scopedUser),
+    scopedUser ? getServerDefaultsForUser(scopedUser) : getServerDefaultsChecked(),
+  ])
+  let mapping = mappingRow
+  const sd = sdRow
   const qRegion = parseRegion(req.nextUrl.searchParams.get("region") ?? req.nextUrl.searchParams.get("country"))
   const configRegion = parseRegion(configOverride?.region)
   const langParam = req.nextUrl.searchParams.get("lang") || mapping?.language
@@ -2224,9 +2229,14 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
     // il default anche per Stremio. Solo con ranking ON e chiave TMDB (senza
     // chiave o a fetch fallito il QID resta null e vale lo SPARQL invariato);
     // tetto 1500ms per non tassare il render a freddo oltre la race da 2.5s.
-    if (!wikidataId && rankingEnabledEarly && effTmdbKey) {
-      wikidataId = await resolveWikidataId(mediaType, tmdbId, effTmdbKey, 1500)
-    }
+    // Avviato QUI come promise e atteso DENTRO Block B (unico consumer): la
+    // lookup QID non ritarda più l'avvio di Block A/B, si limita a
+    // sovrapporsi a loro. Semantica invariata: un reject arriva comunque al
+    // job catch attraverso l'await di Block B.
+    const wikidataIdPromise: Promise<string | null> =
+      !wikidataId && rankingEnabledEarly && effTmdbKey
+        ? resolveWikidataId(mediaType, tmdbId, effTmdbKey, 1500)
+        : Promise.resolve(wikidataId)
 
     // Saved custom base: portrait from customPosterUrl, landscape from
     // customBackdropUrl (per-format independent). Downloaded IN PARALLEL with
@@ -2452,6 +2462,11 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
         // Fix L3: il timer della race Wikidata viene cancellato quando vince
         // il fetch (prima restava attivo fino alla scadenza del timeout).
         (async () => {
+          // QID resolve was started before Block A/B; awaited here so only the
+          // Wikidata sub-fetch depends on it (keywords/ratings still run in
+          // parallel). The 2500ms race timer starts after the QID, exactly as
+          // the previous serial await did (QID stays outside that timeout).
+          const resolvedWikidataId = await wikidataIdPromise
           let wikidataTimer: ReturnType<typeof setTimeout> | undefined
           let wikidataTimedOut = false
           const wdStart = Date.now()
@@ -2464,7 +2479,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
           })
           const result: WikidataResult = await Promise.race([
             rankingEnabledEarly
-              ? fetchAllWikidata(tmdbId, mediaType, combineAbortSignals(renderAbort.signal, wdAbort.signal), { wikidataId }).catch((): WikidataResult => ({ ...emptyWikidata, degraded: true }))
+              ? fetchAllWikidata(tmdbId, mediaType, combineAbortSignals(renderAbort.signal, wdAbort.signal), { wikidataId: resolvedWikidataId }).catch((): WikidataResult => ({ ...emptyWikidata, degraded: true }))
               : Promise.resolve({ ...emptyWikidata }),
             wikidataTimeout,
           ])
@@ -2706,11 +2721,16 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
     // 6. Resize poster + compute luminance
     // Landscape: base = sfondo TMDB ritagliato sul canvas 16:9, oppure
     // pillarbox dal poster quando il titolo non ha sfondi.
+    // Portrait: `fitPortraitBase` salta il resize quando la base è già
+    // 500×750 (poster TMDB `w500`), evitando l'encode/decode JPEG q80 che il
+    // vecchio `sharp(...).resize(...).toBuffer()` pagava anche a geometria
+    // invariata (generazione lossy extra rimossa: miglioramento di qualità
+    // intenzionale, nessun cambio di geometria).
     const posterBuf = isLandscape
       ? (backdropFetch
           ? await sharp(backdropFetch).resize(LAND_W, LAND_H, { fit: 'cover', position: 'centre' }).toBuffer()
           : await pillarboxLandscapeBase(baseBuf))
-      : await sharp(baseBuf).resize(STD_W, STD_H, { fit: 'cover', position: 'centre' }).toBuffer()
+      : await fitPortraitBase(baseBuf)
     const qTopLight = req.nextUrl.searchParams.get("tl")
     const qBottomLight = req.nextUrl.searchParams.get("bl")
 
@@ -3467,6 +3487,13 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
     if (renderAbort.signal.aborted) {
       throw new Error("Render deadline exceeded before poster compositing")
     }
+    // H1 fetch permit: la fase fetch/decode è finita, quindi il permesso va
+    // rilasciato PRIMA di attendere il composite slot. Un render in coda per
+    // uno slot non tiene più occupato un permesso fetch (né il budget di
+    // buffer che rappresenta): il picco di heap resta limitato alla fase di
+    // fetch reale, non a fetch+attesa accodata. Idempotente: il finally
+    // continua a rilasciarlo su ogni altro percorso e il watchdog sul deadline.
+    releaseFetchOnce()
     // H1: single slot acquire, immediately before the composite it guards
     // (sharp buffers, blur, badge SVG→PNG). Fetch/prep above run slot-free so
     // cold renders scale with CPUs; RENDER_QUEUE/RENDER_SLOT_WAIT_MS semantics

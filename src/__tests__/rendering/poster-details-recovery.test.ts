@@ -415,8 +415,11 @@ describe("poster details recovery (networks/studios)", () => {
   it("starts details recovery while the resize is held pending (overlap)", { timeout: 20000 }, async () => {
     const tmdbId = 61015
     // Fixture buffer BEFORE arming: creation never calls .resize(), but the
-    // ordering keeps the gate strictly about the route's resize.
-    const poster = await imageBuffer("#101010", 500, 750)
+    // ordering keeps the gate strictly about the route's resize. 400×600 (not
+    // 500×750) on purpose: the route's portrait fit is a no-op on a base that
+    // already sits on the canvas (no encode/decode at all), so the resize CPU
+    // this test holds pending only exists for a base that must be fitted.
+    const poster = await imageBuffer("#101010", 400, 600)
     stubImages(poster)
     mockedGetById.mockResolvedValue(mappedFixture(tmdbId))
     mockedGetDetails.mockImplementation(async () => detailsWithCompanies(tmdbId) as never)
@@ -505,7 +508,10 @@ describe("poster details recovery (networks/studios)", () => {
 
   it("keeps mapping metadata overrides when details resolve after resize", { timeout: 20000 }, async () => {
     const tmdbId = 61017
-    const poster = await imageBuffer("#101010", 500, 750)
+    // 400×600: a base already on the 500×750 canvas skips the fit entirely,
+    // so the resize completion this test gates on only happens for a base
+    // that must be fitted.
+    const poster = await imageBuffer("#101010", 400, 600)
     stubImages(poster)
     mockedGetById.mockResolvedValue({
       ...mappedFixture(tmdbId),
