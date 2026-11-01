@@ -1,3 +1,4 @@
+import path from "node:path";
 import type { NextConfig } from "next";
 
 // Security headers statici (CSP esclusa: è calcolata per-request dal
@@ -22,6 +23,13 @@ const nextConfig: NextConfig = {
   // `npm run dev` attivo su .next.
   distDir: process.env.NEXT_DIST_DIR || ".next",
   allowedDevOrigins: ["127.0.0.1"],
+  // Turbopack rileva la root risalendo ai lockfile: nella cartella utente
+  // esiste un pnpm-lock.yaml fuori dal repository git e Next lo ignora con un
+  // warning a ogni avvio (scansione inutile dei parent). Fissare la root alla
+  // directory del progetto evita la scansione e il warning.
+  turbopack: {
+    root: path.join(__dirname),
+  },
   serverExternalPackages: ["@resvg/resvg-js", "sharp", "ioredis"],
   outputFileTracingIncludes: {
     "/api/poster/**/*": ["src/assets/fonts/**/*"],
