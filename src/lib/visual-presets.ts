@@ -296,6 +296,32 @@ export function normalizePresetExtraTuning<T extends ExtraNormalizableSnapshot>(
   return ordered as T
 }
 
+/**
+ * Highlight equality for two shape projections of a preset recipe
+ * (recognition only, never apply/params). Only the keys the PRESET projection
+ * owns are compared: a schema key without a canonical default is absent from
+ * stored presets that predate it and is explicitly left untouched by apply
+ * (see `defaultQualityGroupLayout` in `visualPresetValuesSchema`), so the
+ * live projection always carries it while the stored one cannot — comparing
+ * those keys would make every such preset impossible to highlight.
+ * Per-field (no whole-object JSON: nested key order is not canonical).
+ */
+export function presetProjectionMatches(
+  live: Record<string, unknown>,
+  preset: Record<string, unknown>,
+): boolean {
+  for (const key of Object.keys(preset)) {
+    const a = live[key]
+    const b = preset[key]
+    if (a === b) continue
+    if (Array.isArray(a) || Array.isArray(b)) {
+      if (JSON.stringify(a) === JSON.stringify(b)) continue
+    }
+    return false
+  }
+  return true
+}
+
 export function captureVisualPreset(source: z.input<typeof visualPresetValuesSchema>): VisualPresetValues {
   return visualPresetValuesSchema.parse(Object.fromEntries(
     Object.keys(visualPresetValuesSchema.shape).map((key) => [

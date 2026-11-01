@@ -41,7 +41,7 @@ import {
 } from "@/lib/poster-runtime-cache"
 import { PictoriumProvider } from "@/lib/context"
 import { MOCK_CTX } from "@/__tests__/test-utils"
-import { usePosterPreview } from "@/lib/usePosterPreview"
+import { __clearPreviewMemoryCacheForTests, usePosterPreview } from "@/lib/usePosterPreview"
 
 const META: EffectiveAccentMeta = {
   genreHex: "#1f7a8c",
@@ -59,12 +59,17 @@ const META: EffectiveAccentMeta = {
 beforeEach(() => {
   cacheClear()
   __resetEffectiveAccentDisplayForTests()
+  // H1 module-level preview cache: the producer tests reuse URL_A/URL_B, so
+  // bytes cached by a previous test would be served without an XHR and the
+  // observed request would never exist.
+  __clearPreviewMemoryCacheForTests()
   vi.unstubAllGlobals()
 })
 
 afterEach(() => {
   cacheClear()
   __resetEffectiveAccentDisplayForTests()
+  __clearPreviewMemoryCacheForTests()
   vi.unstubAllGlobals()
 })
 

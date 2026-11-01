@@ -40,6 +40,7 @@ const USER_SAVED = {
   // automatic layout) because PUT /api/defaults merges over the stored value.
   badgeItemTransforms: null,
   qualityBadgeStyle: "standard",
+  qualityGroupLayout: "stacked",
   videoFormats: ["dv", "hdr", "hdr10plus", "atmos", "imax"],
   blurEnabled: true,
   blurIntensity: 9,

@@ -16,6 +16,7 @@ import {
   personalPortraitPatch,
   resolveEffectiveLandscape,
   normalizePresetExtraTuning,
+  presetProjectionMatches,
   MAX_VISUAL_PRESETS,
   type VisualPreset,
   type VisualPresetShape,
@@ -148,12 +149,25 @@ export function VisualPresetsSection({ shape = "portrait", enabled = true, galle
   // replaces the profile object); `clean` stays schema-only for storage.
   const clean = captureVisualPreset(ed)
   const live = { ...clean, landscape: ed.landscape }
-  const personalKey = (values: VisualPresetValues) =>
-    JSON.stringify(normalizePresetExtraTuning(shape === "landscape"
+  // Shape projection of a recipe: portrait compares the isolated personal flat
+  // projection (owned layout/scope/extra-style/age included — what personal
+  // portrait apply actually writes), landscape the effective profile.
+  // Normalization first: legacy snapshots without the owned keys resolve to
+  // the canonical factory values (never the live previous look), so a legacy
+  // preset highlights exactly when the edited shape effectively matches.
+  // `live` merges the RAW profile (extras outside the preset contract, e.g.
+  // server-supported minQuality, must survive apply commits — update()
+  // replaces the profile object); `clean` stays schema-only for storage.
+  const presetProjection = (values: VisualPresetValues) =>
+    normalizePresetExtraTuning(shape === "landscape"
       ? resolveEffectiveLandscape(normalizePersonalPreset(values))
-      : personalPortraitPatch(values) as unknown as VisualPresetValues))
-  const current = personalKey(clean)
-  const presetSnapshot = (preset: VisualPreset) => personalKey(preset.values)
+      : personalPortraitPatch(values) as unknown as VisualPresetValues) as unknown as Record<string, unknown>
+  const currentProjection = presetProjection(clean)
+  // Highlight: every key the STORED preset owns must match the live edited
+  // look. Keys it leaves out (schema optionals without a canonical default,
+  // e.g. quality group layout) are preserved untouched by apply, so they can
+  // never be compared against the live value.
+  const isPresetActive = (preset: VisualPreset) => presetProjectionMatches(currentProjection, presetProjection(preset.values))
   // Create always adds a new preset: the quota is the only gate. A duplicate
   // name is reported explicitly (never silently overwrites the existing one).
   const canSave = fresh && Boolean(name.trim()) && presets.length < MAX_VISUAL_PRESETS
@@ -275,7 +289,7 @@ export function VisualPresetsSection({ shape = "portrait", enabled = true, galle
             {visiblePresets.length === 0 ? (
               <p className="text-muted text-[11px] col-span-full">{t("ui.perTitlePresetsEmpty")}</p>
             ) : visiblePresets.map((preset) => {
-              const active = current === presetSnapshot(preset)
+              const active = isPresetActive(preset)
               const thumb = thumbnailFor?.(preset) ?? null
               return (
               <button key={preset.id} type="button" disabled={busy} aria-pressed={active}
@@ -376,11 +390,11 @@ export function VisualPresetsSection({ shape = "portrait", enabled = true, galle
           <div className="flex flex-wrap gap-3 pt-2">
             {visiblePresets.map((preset) => (
               <div key={preset.id} className="relative max-w-full">
-                <button type="button" disabled={busy} aria-pressed={current === presetSnapshot(preset)}
+                <button type="button" disabled={busy} aria-pressed={isPresetActive(preset)}
                   title={preset.name}
                   onClick={() => applyPresetOrCustom(preset)}
                   className="flex items-center gap-2 max-w-full min-h-[44px] rounded-2xl border border-white/10 bg-linear-to-b from-white/[0.06] to-white/[0.02] py-2 pl-3.5 pr-5 text-zinc-300 shadow-sm hover:border-white/25 hover:text-white aria-pressed:border-accent-orange/40 aria-pressed:from-accent-orange/15 aria-pressed:to-accent-orange/5 aria-pressed:text-accent-orange transition-colors cursor-pointer disabled:opacity-50">
-                  <span aria-hidden="true" className={`h-1.5 w-1.5 shrink-0 rounded-full ${current === presetSnapshot(preset) ? "bg-accent-orange" : "bg-zinc-500"}`} />
+                  <span aria-hidden="true" className={`h-1.5 w-1.5 shrink-0 rounded-full ${isPresetActive(preset) ? "bg-accent-orange" : "bg-zinc-500"}`} />
                   <span className="max-w-[200px] truncate">{preset.name}</span>
                 </button>
                 <button type="button" disabled={busy} aria-label={`${t("ui.presetFileExportOne")} ${preset.name}`}

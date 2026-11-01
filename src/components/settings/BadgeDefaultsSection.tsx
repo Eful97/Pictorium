@@ -45,7 +45,7 @@ import { SASH_BUCKETS, DEFAULT_SASH_ORDER, parseSashOrder, moveSashItem, type Sa
 import { formatRating } from "@/lib/custom-rating/formatter"
 import { saveDefaults } from "@/lib/save-defaults"
 import { http } from "@/lib/http"
-import { captureVisualPreset, normalizePresetExtraTuning, independentLandscapeDefaults } from "@/lib/visual-presets"
+import { captureVisualPreset, normalizePresetExtraTuning, presetProjectionMatches, independentLandscapeDefaults } from "@/lib/visual-presets"
 import { clearedExtraForPresetApply } from "@/lib/extra-materialize"
 import {
   applyLandscapeIsolated,
@@ -996,6 +996,12 @@ export function BadgeDefaultsSection({ active, shape, onPreviewFamilyChange, pre
   // (e.g. extraBadgeStyle). Per-field comparison (no whole-object JSON:
   // nested key order is not canonical). Reuses existing helpers.
   const snapshotHighlightSource = captureVisualPreset(ed)
+  /** Shape projection of a recipe, extra-tuning normalized (same on both
+   *  sides of the highlight compare). */
+  function highlightProjection(values: VisualPresetValues): Record<string, unknown> {
+    const normalized = normalizePresetExtraTuning(values)
+    return (isLandscape ? resolveEffectiveLandscape(normalized) : portraitPresetPatch(normalized)) as unknown as Record<string, unknown>
+  }
   function snapshotFieldEqual(a: unknown, b: unknown): boolean {
     if (a === b) return true
     if (Array.isArray(a) || Array.isArray(b)) return JSON.stringify(a) === JSON.stringify(b)
@@ -1015,20 +1021,10 @@ export function BadgeDefaultsSection({ active, shape, onPreviewFamilyChange, pre
     // Extra-tuning normalized on both sides first (effective extra per
     // axis): legacy looks without explicit extra compare by their own rank
     // tuning, modern explicit extra compares verbatim.
-    if (!isLandscape) {
-      const cur = portraitPresetPatch(normalizePresetExtraTuning(snapshotHighlightSource)) as unknown as Record<string, unknown>
-      const pre = portraitPresetPatch(normalizePresetExtraTuning(preset)) as unknown as Record<string, unknown>
-      for (const k of Object.keys(pre)) {
-        if (!snapshotFieldEqual(cur[k], pre[k])) return false
-      }
-      return true
-    }
-    const curEff = resolveEffectiveLandscape(normalizePresetExtraTuning(snapshotHighlightSource)) as unknown as Record<string, unknown>
-    const preEff = resolveEffectiveLandscape(normalizePresetExtraTuning(preset)) as unknown as Record<string, unknown>
-    for (const k of Object.keys(preEff)) {
-      if (!snapshotFieldEqual(curEff[k], preEff[k])) return false
-    }
-    return true
+    return presetProjectionMatches(
+      highlightProjection(snapshotHighlightSource),
+      highlightProjection(preset),
+    )
   }
   const isBetterPoster = matchesSnapshotPreset(BETTER_POSTER_VISUAL_DEFAULTS) && readyLayoutStandard
   const isRpdb = matchesSnapshotPreset(RPDB_VISUAL_DEFAULTS) && readyLayoutStandard
@@ -1039,16 +1035,16 @@ export function BadgeDefaultsSection({ active, shape, onPreviewFamilyChange, pre
   // profilo. Fonti voti, logo align, fit flag e delivery restano intatti in
   // entrambi i target. `live` fonde il profilo RAW (extra fuori contratto,
   // es. chiavi server, sopravvivono all'apply); l'highlight confronta la
-  // proiezione intera per forma (flat mappati in portrait, effettivo
-  // landscape in orizzontale), mai un subset di chiavi.
+  // proiezione per forma (flat mappati in portrait, effettivo landscape in
+  // orizzontale) sulle sole chiavi che il preset possiede: quelle che lascia
+  // fuori restano ereditate all'apply per contratto (schema) e non possono
+  // essere confrontate con il live.
   const appleLive = { ...captureVisualPreset(ed), landscape: ed.landscape }
   const appleHighlightSource = captureVisualPreset(ed)
   const isApple =
-    JSON.stringify(
-      normalizePresetExtraTuning(isLandscape ? resolveEffectiveLandscape(appleHighlightSource) : portraitPresetPatch(appleHighlightSource)),
-    ) ===
-    JSON.stringify(
-      normalizePresetExtraTuning(isLandscape ? resolveEffectiveLandscape(APPLE_VISUAL_DEFAULTS) : portraitPresetPatch(APPLE_VISUAL_DEFAULTS)),
+    presetProjectionMatches(
+      highlightProjection(appleHighlightSource),
+      highlightProjection(APPLE_VISUAL_DEFAULTS),
     ) && readyLayoutStandard
   const applyApple = () => {
     const isolated = isLandscape
@@ -1358,7 +1354,10 @@ export function BadgeDefaultsSection({ active, shape, onPreviewFamilyChange, pre
           state/logic); the ranking style stays in the Badge tab. */}
       <div {...famAttrs("info")} hidden={hideFor("rank", "info") || modeHide("information")} data-testid="badge-priority-order" className="bg-surface/50 border border-surface2/60 rounded-xl p-3.5 space-y-1.5 shadow-sm">
         <div className="pt-1">
-          {mode === "information" && (
+          {/* The pointer text ("order only — switch categories in
+              Information") belongs to the order-only surfaces: on
+              Informazioni the masters it points at are already on screen. */}
+          {mode !== "information" && (
             <p className="text-[10px] text-muted italic leading-tight pb-1">{t("ui.badgePriorityOrderHint")}</p>
           )}
           <button

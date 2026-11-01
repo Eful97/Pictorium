@@ -793,16 +793,20 @@ describe("generic renewal policy (strict sources, failure retention)", () => {
     const absent = await fetchChartFamilyRows("stream2:flixpatrol:hulu:united-states:series:-", ctxFor("x:united-states:"))
     expect(absent).toMatchObject({ status: "empty", rows: [] })
     expect(absent.provenance ?? null).toBeNull()
-    // Stale chart: genuinely unavailable for this cycle, no throw.
+    // Stale chart: genuinely unavailable for this cycle, no throw. The
+    // freshness window is the current Rome day plus the two previous ones
+    // (`isFreshFlixChartDate`), so the fixture must sit at age 3 or more: a
+    // chart dated two days back is still FRESH by policy (one skipped publish
+    // day is tolerated).
     mockFpFiles({
       "united-states": {
-        date: "October 20, 2026",
+        date: "October 19, 2026",
         charts: [
           {
             catalog_id: "hulu.series",
             platform: "Hulu",
             category: "tv shows",
-            date: "October 20, 2026",
+            date: "October 19, 2026",
             entries: [huluEntry(701, 1)],
           },
         ],

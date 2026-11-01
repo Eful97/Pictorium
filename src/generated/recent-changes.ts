@@ -11,6 +11,7 @@ export interface RecentChange {
 }
 
 export const RECENT_CHANGES: RecentChange[] = [
+  { type: "fix", text: "Match pill rating star color to bar style on light badges", sha: "2e93698", date: "2026-10-31" },
   { type: "feature", text: "Add ink, split, outline and strip badge styles plus performance fixes", sha: "e24b278", date: "2026-10-31" },
   { type: "fix", text: "Update RogerEbert rating icon", sha: "12ee5a4", date: "2026-10-31" },
   { type: "perf", text: "Speed up cold catalogs, poster renders and editor previews", sha: "611cae8", date: "2026-10-31" },

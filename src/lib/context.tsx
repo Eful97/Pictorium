@@ -2041,25 +2041,33 @@ export function usePictorium(): PictoriumCtx {
   const lastPreviewSelectedId = useRef<number | null>(null)
   useEffect(() => {
     if (!navigation.selected) { lastPreviewSelectedId.current = null; setPreviewUrl(""); return }
+    const selectedId = navigation.selected.id
+    const openingTitle = lastPreviewSelectedId.current !== selectedId
     // H2 gate: aspetta i colori del poster corrente prima di costruire.
     // Senza poster (titolo senza immagini) nessun wait: gateKey null passa.
     const gatePoster = posterShape === "landscape" ? (selectedBackdrop ?? navigation.previewPoster) : navigation.previewPoster
     const gateKey = gatePoster?.file_path ?? null
-    if (gateKey && colorsResolvedForRef.current !== gateKey) {
+    // Solo il PRIMO build di un titolo appena aperto aspetta i colori: gli
+    // edit live dello stesso titolo (badge, slider, cambio formato) restano
+    // sul trailing debounce, altrimenti ogni modifica riparte dall'attesa e
+    // la preview non raggiunge lo stato live finché i colori non si
+    // risolvono.
+    if (openingTitle && gateKey && colorsResolvedForRef.current !== gateKey) {
       // Liveness fallback: se il thumb non si carica mai (CDN bloccato,
       // jsdom nei test) i colori non si risolvono e senza questo ramo la
       // preview resterebbe vuota per sempre. Dopo il wait si costruisce
       // comunque coi colori calcolati dal server sui byte correnti — il
       // reset sopra garantisce che non siano mai quelli del titolo
       // precedente (mai uno stale frame, solo un build in più nel caso
-      // patologico).
+      // patologico). Il titolo si considera aperto solo qui: il gate è
+      // one-shot per apertura, non per ogni rebuild.
       const timer = setTimeout(() => {
+        lastPreviewSelectedId.current = selectedId
         if (colorsResolvedForRef.current !== gateKey) buildPreviewUrlCb()
       }, 1000)
       return () => clearTimeout(timer)
     }
-    const selectedId = navigation.selected.id
-    if (lastPreviewSelectedId.current !== selectedId) {
+    if (openingTitle) {
       lastPreviewSelectedId.current = selectedId
       buildPreviewUrlCb()
       return
