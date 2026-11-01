@@ -5,11 +5,12 @@
  * - `luma`: Rec.709 luminance from RGB
  * - `computeRegionStats`: cached region statistics (mean/stdDev/per-channel)
  *
- * Batch B: centralizes the pixel-analysis pipeline (resize → extract →
- * removeAlpha → raw → JS loop) across poster-fit-score.ts, poster-fit-adjust.ts,
+ * Batch B: centralizes the pixel-analysis pipeline (resize → raw → JS slice →
+ * JS loop) across poster-fit-score.ts, poster-fit-adjust.ts,
  * poster-render-helpers.ts, and config-token.ts, instead of duplicating loops.
  * The per-region cache lets `topLuminance()` and `computeTextPenalty()` avoid
- * recomputing stats on overlapping crops.
+ * recomputing stats on overlapping crops; the fitted canvas itself is decoded
+ * once per buffer and shared by every region analysis (`decodePosterRawCached`).
  */
 
 import sharp from "sharp"
@@ -142,13 +143,9 @@ export interface RegionStats {
   height: number
 }
 
-interface CachedStats {
-  stats: RegionStats
-  /** Buffer hash for cache invalidation */
-  hash: number
-}
-
-const statsCache = new Map<string, CachedStats>()
+// Value = stats only: the buffer identity lives in the KEY (see
+// `computeRegionStats`), so a parallel hash field would be dead weight.
+const statsCache = new Map<string, RegionStats>()
 const STATS_CACHE_MAX = 200
 
 function bufferHash(buf: Buffer): number {
@@ -177,13 +174,19 @@ function bufferHash(buf: Buffer): number {
  * poster buffer.
  *
  * Pipeline: resize to the canvas size (default STD_W × STD_H portrait;
- * landscape callers pass LAND_W × LAND_H) with fit fill → extract region → removeAlpha
- * (RGB, stride 3) → raw pixel buffer → two JS passes over the pixels (first:
- * mean + per-channel means, second: stdDev). Not Sharp's native `.stats()`.
+ * landscape callers pass LAND_W × LAND_H) with fit fill → removeAlpha
+ * (RGB, stride 3) → raw pixel buffer → slice the region in JS → two JS passes
+ * over the pixels (first: mean + per-channel means, second: stdDev). Not
+ * Sharp's native `.stats()`.
  *
  * Results are cached per (buffer-hash, region). The hash is a strided FNV-1a
  * over the whole buffer — good enough to invalidate when the underlying image
- * buffer changes, not cryptographic.
+ * buffer changes, not cryptographic. It is part of the cache KEY (not only
+ * compared on hit), so entries from different titles coexist instead of
+ * evicting each other on the shared region geometry.
+ *
+ * The fitted canvas is decoded through `decodePosterRawCached`, so the poster
+ * is decoded once and every region analysis slices that decode.
  *
  * @param posterBuf - Raw poster image buffer (any format Sharp can read)
  * @param left - X offset within the STD_W × STD_H canvas
@@ -209,20 +212,26 @@ export async function computeRegionStats(
   const h = Math.min(canvasH - t, Math.round(height))
   if (w <= 0 || h <= 0) return null
 
-  const cacheKey = `${canvasW}x${canvasH}:${l}:${t}:${w}:${h}`
+  // Hash IN the key: the old key was the region geometry alone, so two titles
+  // sharing the same geometry (every poster does for the top/bottom strips)
+  // kept overwriting each other and the next render re-decoded. Same stats,
+  // just a key that also identifies the buffer.
   const hash = bufferHash(posterBuf)
+  const cacheKey = `${hash}:${canvasW}x${canvasH}:${l}:${t}:${w}:${h}`
   const cached = statsCache.get(cacheKey)
-  if (cached && cached.hash === hash) return cached.stats
+  if (cached) return cached
 
   try {
-    const { data: rawPixels, info } = await sharp(posterBuf)
-      .resize(canvasW, canvasH, { fit: "fill" })
-      .extract({ left: l, top: t, width: w, height: h })
-      .removeAlpha()
-      .raw()
-      .toBuffer({ resolveWithObject: true })
+    // One decode per buffer/canvas (see `decodePosterRawCached`): the same
+    // poster is analysed up to 5× (top/bottom luminance, top/bottom band,
+    // logo zone) and each call used to run its own sharp resize. Identical
+    // resize (fit fill) → identical pixels → identical stats.
+    const raw = await decodePosterRawCached(posterBuf, canvasW, canvasH)
+    const region = sliceRgb(raw, l, t, w, h)
+    if (!region) return null
+    const rawPixels = region.data
 
-    const totalPixels = info.width * info.height
+    const totalPixels = region.width * region.height
     if (totalPixels === 0) return null
 
     // Single-pass: mean + per-channel means
@@ -259,8 +268,8 @@ export async function computeRegionStats(
       meanR,
       meanG,
       meanB,
-      width: info.width,
-      height: info.height,
+      width: region.width,
+      height: region.height,
     }
 
     // Cache management (LRU-ish: evict oldest when full)
@@ -268,7 +277,7 @@ export async function computeRegionStats(
       const firstKey = statsCache.keys().next().value
       if (firstKey) statsCache.delete(firstKey)
     }
-    statsCache.set(cacheKey, { stats, hash })
+    statsCache.set(cacheKey, stats)
 
     return stats
   } catch {
@@ -278,6 +287,9 @@ export async function computeRegionStats(
 
 /**
  * Clear the region stats cache. Useful for tests.
+ *
+ * The decode-once memo (`decodePosterRawCached`) is per buffer object and
+ * needs no clearing: it is a WeakMap, so entries disappear with their buffer.
  */
 export function clearRegionStatsCache(): void {
   statsCache.clear()
@@ -326,4 +338,51 @@ export async function decodePosterRaw(buffer: Buffer, width = STD_W, height = ST
     .raw()
     .toBuffer({ resolveWithObject: true })
   return { data, width: info.width, height: info.height }
+}
+
+/**
+ * Per-buffer memo of the fitted raw canvas, keyed by the Buffer OBJECT (same
+ * bytes → same object inside a render: the route creates one `posterBuf` per
+ * request) and by canvas size.
+ *
+ * A cold render analyses the same poster up to five times — top luminance,
+ * bottom luminance, top band mean, bottom band mean, logo-zone luminance — and
+ * every analysis used to run its own `sharp(...).resize().raw()` decode
+ * (~2-3ms each). They all measure the SAME fitted canvas, so one decode is
+ * enough: `computeRegionStats` slices its region out of it with `sliceRgb`.
+ *
+ * Byte-identical by construction: the memoised value is exactly
+ * `decodePosterRaw(buffer, width, height)` (same `fit: "fill"` resize, same
+ * `removeAlpha`, same raw layout); only the result is shared. Portrait renders
+ * need ONE decode (luminance, bands and logo zone all sample 500×750);
+ * landscape needs two (luminance and logo zone sample the portrait 500×750
+ * canvas by existing contract, the bands sample 768×432 — resampling one into
+ * the other would change the measured values, i.e. pixels).
+ *
+ * Lifetime: the entry dies with the buffer (WeakMap). A failed decode is
+ * dropped from the memo so the next caller retries instead of caching the
+ * rejection forever.
+ */
+const rawDecodeMemo = new WeakMap<Buffer, Map<string, Promise<RgbData>>>()
+
+export function decodePosterRawCached(
+  buffer: Buffer,
+  width = STD_W,
+  height = STD_H,
+): Promise<RgbData> {
+  let byDims = rawDecodeMemo.get(buffer)
+  if (!byDims) {
+    byDims = new Map()
+    rawDecodeMemo.set(buffer, byDims)
+  }
+  const dims = byDims
+  const key = `${width}x${height}`
+  const hit = dims.get(key)
+  if (hit) return hit
+  const pending = decodePosterRaw(buffer, width, height).catch((err: unknown) => {
+    dims.delete(key)
+    throw err
+  })
+  dims.set(key, pending)
+  return pending
 }

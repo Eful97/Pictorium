@@ -1,4 +1,5 @@
-import { FONT_FILES } from "./fonts"
+import { fontFilesFor } from "./fonts"
+import type { FontSubset } from "./fonts"
 import { buildQualityBadgeSvg, buildQualityKnockoutSvg, buildAgeKnockoutSvg, buildAgeEmphasisSvg, buildGradientMarkSvg, buildComingSoonRibbonSvg, buildHouseExtraSvg, buildHouseGenreSvg, buildHouseRankingSvg, buildTextLogoSvg } from "./badge-svg-shared"
 import type { AgeEmphasisStyle, TextLogoStyle } from "./badge-svg-shared"
 export { buildNetflixRankBadgeSVG } from "./badge-svg-shared"
@@ -8,10 +9,10 @@ import type { BadgeStyle, RankingBadgeStyle, BadgeFont } from "./badge-styles"
 import { isRibbonRankingStyle } from "./badge-styles"
 
 
-// NOTE: i badge risolvono i font via `fontFiles: [...FONT_FILES]` in
-// renderSVG (fontdb resvg). L'embedding @font-face base64 in ogni SVG
-// (wrapSvg) è stato rimosso: resvg non applica i data URI e l'output è
-// byte-identico senza (Gate A SHA-256, Fase 1).
+// NOTE: i badge risolvono i font via `fontFiles` in renderSVG (fontdb resvg).
+// L'embedding @font-face base64 in ogni SVG (wrapSvg) è stato rimosso: resvg
+// non applica i data URI e l'output è byte-identico senza (Gate A SHA-256,
+// Fase 1).
 
 // D2: il dynamic import di resvg (init WASM) veniva rieseguito a OGNI badge —
 // un poster con ~5 badge pagava 5 init. Hoist del promise a module level: il
@@ -28,12 +29,69 @@ function loadResvg(): Promise<typeof import("@resvg/resvg-js")> {
   return resvgModule
 }
 
+/** Tag di markup: serve solo il TESTO per decidere i font di fallback. */
+const SVG_MARKUP_RE = /<[^>]*>/g
+
+/** Stesse fasce di `badge-svg-shared` (`HEBREW_RE`/`ARABIC_RE`), usate qui per
+ *  includere Rubik anche se un builder emettesse testo RTL senza dichiararlo. */
+const HEBREW_OR_ARABIC_RE = /[\u0590-\u05FF\uFB1D-\uFB4F\u0600-\u06FF\u0750-\u077F\uFB50-\uFDFF\uFE70-\uFEFF]/
+
+/**
+ * `true` quando il testo contiene caratteri fuori dalle fasce che Inter (o
+ * Rubik per ebraico/arabo) copre con certezza: ASCII, latino esteso, greco,
+ * cirillico, ebraico, arabo, latin-extended-additional (polacco, vietnamita) e
+ * punteggiatura generale (`•`, `…`, `–`).
+ *
+ * Regola FAIL-SAFE: un carattere ignoto tiene Noto Symbols2 nel fontdb (un
+ * file in più, mai un glifo che sparisce). La stella del badge genere è già un
+ * path SVG, quindi il caso comune (genere + voto + anno) non tocca Noto.
+ */
+function mayNeedSymbolFallback(text: string): boolean {
+  for (const char of text) {
+    const cp = char.codePointAt(0)!
+    if (cp < 0x80) continue
+    if (cp >= 0x00a0 && cp <= 0x024f) continue
+    if (cp >= 0x0370 && cp <= 0x04ff) continue
+    if (cp >= 0x0590 && cp <= 0x06ff) continue
+    if (cp >= 0x0750 && cp <= 0x077f) continue
+    if (cp >= 0x1e00 && cp <= 0x1eff) continue
+    if (cp >= 0x2000 && cp <= 0x206f) continue
+    if (cp >= 0xfb50 && cp <= 0xfdff) continue
+    if (cp >= 0xfe70 && cp <= 0xfeff) continue
+    return true
+  }
+  return false
+}
+
+/**
+ * Font di cui QUESTO SVG ha bisogno. Inter c'è sempre (default family di resvg
+ * e fallback dei glifi latini); gli altri gruppi solo su evidenza nell'SVG
+ * stesso. Nessun SVG senza `<text>` carica font oltre Inter.
+ */
+function fontSubsetFor(svgStr: string): FontSubset {
+  if (!svgStr.includes("<text")) return {}
+  const text = svgStr.replace(SVG_MARKUP_RE, " ")
+  return {
+    // Famiglia dichiarata da `fontFamilyFor` (doppie virgolette, ma il match
+    // sul solo nome copre anche eventuali varianti di quoting) oppure testo
+    // RTL: il fallback per-glifo di resvg non ripristina il peso, quindi Rubik
+    // deve esserci.
+    rubik: svgStr.includes("Rubik") || HEBREW_OR_ARABIC_RE.test(text),
+    barlow: svgStr.includes("Barlow Condensed"),
+    oswald: svgStr.includes("Oswald"),
+    symbols: mayNeedSymbolFallback(text),
+  }
+}
+
 export async function renderSVG(svgStr: string, w: number): Promise<Buffer> {
   const { Resvg } = await loadResvg()
   const resvg = new Resvg(svgStr, {
     fitTo: { mode: "width", value: w },
     font: {
-      fontFiles: [...FONT_FILES],
+      // Fontdb per-istanza: solo i gruppi usabili da questo SVG (vedi
+      // `fontFilesFor`/`fontSubsetFor`). Con tutti i gruppi attivi l'ordine è
+      // quello storico di `FONT_FILES` → stesso fontdb, stessi byte.
+      fontFiles: fontFilesFor(fontSubsetFor(svgStr)),
       loadSystemFonts: false,
     },
   })
@@ -62,7 +120,7 @@ const TEXT_LOGO_CACHE_MAX_ENTRIES = 200
 /**
  * Memo dell'output resvg del wordmark: la rasterizzazione è pura rispetto a
  * (testo, font normalizzato, tracking effettivo) — nessun font dinamico, i
- * `FONT_FILES` sono quelli del bundle. Sotto il limiter a 4 slot, le tile
+ * font sono quelli del bundle (`fonts.ts`). Sotto il limiter a 4 slot, le tile
  * concorrenti dello stesso titolo pagavano la stessa rasterizzazione a ogni
  * render; ora la pagano una volta sola. Il buffer è condiviso e i consumer
  * (sharp) lo leggono soltanto: stessi byte, nessun cambio di resa.
@@ -78,7 +136,7 @@ function textLogoCacheKey(text: string, font: BadgeFont, style?: TextLogoStyle):
 /**
  * Buffer PNG trasparente del logo testuale (input del path logo esistente).
  * Ricetta SVG in badge-svg-shared (`buildTextLogoSvg`): qui solo resvg, con
- * gli stessi `FONT_FILES` dei badge — nessun font esterno, nessuna dipendenza
+ * gli stessi font dei badge — nessun font esterno, nessuna dipendenza
  * nuova. `style` distingue la resa del wordmark automatico (tracking) dal
  * logo manuale, sullo stesso builder e sullo stesso path di compositing.
  */
