@@ -41,7 +41,11 @@ const log = createLogger("chart-generation")
 // the swap is atomic on complete success. New published versions make old
 // ready-body keys unreachable (ready-body cache keys carry the pinned family
 // generation id; pins always revalidate durable storage first, so a publish
-// by another instance cuts over immediately).
+// by another instance cuts over immediately). The revalidation reads the
+// small publication pointer (`chartfam:pubgen`, written by the SAME atomic
+// commit as the payload) and re-reads the full snapshot only when it changed:
+// same-generation requests cost one tiny read instead of the whole payload
+// (F4), while a cross-instance publish still cuts over immediately.
 //
 // Group identity (privacy/isolation):
 // - JW + platform families: region code + region language ONLY. Their fetches
@@ -532,6 +536,14 @@ export type ChartCommitResult = "ok" | "stale" | "error"
 interface ChartFamilyPersist {
   loadPublished(group: string, family: string): Promise<ChartFamilySnapshot | null>
   /**
+   * Cheap publication probe (F4): a small opaque token that changes on EVERY
+   * publish of this family (KV: the atomic generation pointer written by the
+   * same Lua commit as the payload; file: the snapshot's stat fingerprint) —
+   * or null when nothing is published. Optional: a backend without a cheap
+   * probe makes every pin read the full payload (historical behavior).
+   */
+  loadPublishedToken?(group: string, family: string): Promise<string | null>
+  /**
    * Guarded atomic publish commit. Writes ONLY when the caller still owns
    * the lease AND no equal-or-newer generation is published ("stale"
    * otherwise). "error" (or a throw) means nothing was durably written: the
@@ -611,6 +623,14 @@ async function kvPersist(): Promise<ChartFamilyPersist | null> {
     async loadPublished(group, family) {
       const raw = await wrap(() => kv.get<unknown>(kvPubKey(group, family)))
       return raw ? isValidSnapshot(raw, group, family) : null
+    },
+    async loadPublishedToken(group, family) {
+      // The pointer is written by COMMIT_SCRIPT in the same atomic step as the
+      // payload, so it is the authoritative "did anything change" signal.
+      // A failed read yields null = unknown → no shortcut (full read below).
+      const raw = await wrap(() => kv.get<unknown>(kvGenKey(group, family)))
+      if (raw === null || raw === undefined) return null
+      return typeof raw === "string" ? raw : String(raw)
     },
     async commitPublished(group, family, slot, snap, leaseOwner) {
       if (snapshotPayloadSize(snap) > MAX_SNAPSHOT_BYTES) {
@@ -696,6 +716,20 @@ function filePersist(dir: string): ChartFamilyPersist {
   return {
     async loadPublished(group, family) {
       return isValidSnapshot(await readJson(pubFile(group, family)), group, family)
+    },
+    async loadPublishedToken(group, family) {
+      // No separate pointer key in file mode (no new artifact, no sweep/TTL
+      // change): the snapshot's own stat is the cheap change detector — 1 stat
+      // instead of readFile + JSON.parse of up to 512KB. Every atomic replace
+      // (write tmp + rename) changes mtime/size, and one family publishes at
+      // most every 6h (fixed cadence), so two publishes can never share a
+      // fingerprint. Missing/unreadable file = null → no shortcut.
+      try {
+        const st = await fsp.stat(pubFile(group, family))
+        return `${st.mtimeMs}:${st.size}`
+      } catch {
+        return null
+      }
     },
     async commitPublished(group, family, slot, snap, leaseOwner) {
       // Single-process exactness: the whole read-check-write is serialized
@@ -832,6 +866,13 @@ const lazyKvPersist: ChartFamilyPersist = {
   async loadPublished(group, family) {
     return (await kvOrNoop()).loadPublished(group, family)
   },
+  async loadPublishedToken(group, family) {
+    // Only reached with a KV backend configured; a noop fallback has no probe
+    // (null = unknown → the caller keeps the historical full read).
+    const inner = await kvOrNoop()
+    if (!inner.loadPublishedToken) return null
+    return inner.loadPublishedToken(group, family)
+  },
   async commitPublished(group, family, slot, snap, leaseOwner) {
     return (await kvOrNoop()).commitPublished(group, family, slot, snap, leaseOwner)
   },
@@ -850,7 +891,7 @@ async function kvOrNoop(): Promise<ChartFamilyPersist> {
 
 // --- In-memory state (per process; per test-FILE registry) -------------------
 
-const publishedByFamily = new Map<string, { snap: ChartFamilySnapshot; loadedAt: number }>()
+const publishedByFamily = new Map<string, { snap: ChartFamilySnapshot; loadedAt: number; token: string | null }>()
 const metaByFamily = new Map<string, FailureMeta>()
 const leaseByFamily = new Map<string, { owner: string; expiresAt: number }>()
 
@@ -912,6 +953,25 @@ function familyKey(group: string, family: string): string {
   return `${group}:${family}`
 }
 
+/**
+ * Cheap publication probe (F4), fail-open. `undefined` = no probe available or
+ * the probe itself failed: the caller must then do the historical full read.
+ * `null` = the backend answered "nothing published" (never a shortcut either:
+ * the full read decides, exactly as before).
+ */
+async function probePublishedToken(
+  persist: ChartFamilyPersist,
+  group: string,
+  family: string,
+): Promise<string | null | undefined> {
+  if (!persist.loadPublishedToken) return undefined
+  try {
+    return await persist.loadPublishedToken(group, family)
+  } catch {
+    return undefined
+  }
+}
+
 // --- Public API ------------------------------------------------------------------
 
 export interface ChartFamilyInput extends ChartGroupInput {
@@ -922,7 +982,9 @@ export interface ChartFamilyInput extends ChartGroupInput {
  * Pin ONE family's snapshot for a request. Always revalidates against durable
  * storage first (single source of truth): a publish by another instance cuts
  * over immediately — old ready-body keys stop serving at once (strict
- * cutover). Memory is only a fallback when durable storage is unavailable or
+ * cutover). The revalidation reads the small publication pointer and only
+ * re-reads the full snapshot when the pointer changed or memory is cold (F4).
+ * Memory is only a fallback when durable storage is unavailable or
  * empty. Returns the last good published snapshot, or live mode when cold
  * (never published): cold requests use uniformly-live reads that publish on
  * success. The pin (id + snapshot) must be captured once per request and
@@ -931,17 +993,34 @@ export interface ChartFamilyInput extends ChartGroupInput {
  */
 export async function pinChartFamily(input: ChartFamilyInput): Promise<ChartFamilyPin> {
   const group = chartFamilyGroupKey(input)
+  const key = familyKey(group, input.family)
+  const persist = activePersist()
+  const mem = publishedByFamily.get(key)
+  // F4: same-generation fast path. The pointer is written by the SAME atomic
+  // commit as the payload, so an unchanged pointer proves the in-memory
+  // snapshot IS the durable one — one tiny read instead of the full payload
+  // (<=512KB, anime <=500 rows) on every catalog request. A pointer bump
+  // (another instance published) mismatches and reloads below, so strict
+  // cross-instance cutover is preserved. Cold memory / unknown token / absent
+  // probe / failed probe keep the historical full read byte-identical.
+  const probe = await probePublishedToken(persist, group, input.family)
+  if (mem && probe !== null && probe !== undefined && probe === mem.token) {
+    return { id: mem.snap.generation, snapshot: mem.snap }
+  }
   try {
-    const stored = await activePersist().loadPublished(group, input.family)
+    const stored = await persist.loadPublished(group, input.family)
     if (stored) {
-      publishedByFamily.set(familyKey(group, input.family), { snap: stored, loadedAt: Date.now() })
+      // Tag with the probe taken BEFORE the payload read: a publish landing in
+      // between makes the payload NEWER than the tag, so the next request
+      // mismatches and reloads (a tag newer than the payload could pin stale
+      // rows indefinitely).
+      publishedByFamily.set(key, { snap: stored, loadedAt: Date.now(), token: probe ?? null })
       evictOldest(publishedByFamily, MAX_GROUPS_MEMORY)
       return { id: stored.generation, snapshot: stored }
     }
   } catch {
     // Durable read failed: fall through to memory (fail-open serving).
   }
-  const mem = publishedByFamily.get(familyKey(group, input.family))
   if (mem) return { id: mem.snap.generation, snapshot: mem.snap }
   return { id: CHART_LIVE_PIN_ID, snapshot: null }
 }
@@ -1072,7 +1151,12 @@ export async function commitChartFamilySnapshot(
     outcome = "error"
   }
   if (outcome === "ok") {
-    publishedByFamily.set(key, { snap, loadedAt: now })
+    // F4: memory is tagged "unknown" (null), not with a fresh probe: another
+    // instance may publish right after our commit, and a tag NEWER than the
+    // snapshot we hold would pin stale rows until the next publish. One full
+    // read on the next request (publish cadence is >=6h per family), then the
+    // pointer fast path resumes.
+    publishedByFamily.set(key, { snap, loadedAt: now, token: null })
     evictOldest(publishedByFamily, MAX_GROUPS_MEMORY)
     metaByFamily.delete(key)
     log.debug("chartfam published new snapshot", { group, family: input.family, generation: slot })
@@ -1087,7 +1171,9 @@ export async function commitChartFamilySnapshot(
     try {
       const winner = await activePersist().loadPublished(group, input.family)
       if (winner) {
-        publishedByFamily.set(key, { snap: winner, loadedAt: Date.now() })
+        // Same "unknown" tag rule as the ok branch (F4): never a tag that can
+        // be newer than the adopted payload.
+        publishedByFamily.set(key, { snap: winner, loadedAt: Date.now(), token: null })
         evictOldest(publishedByFamily, MAX_GROUPS_MEMORY)
       }
     } catch {
@@ -1136,6 +1222,11 @@ export function __inMemoryChartGenerationPersist(): ChartFamilyPersist & {
     metas,
     async loadPublished(group, family) {
       return published.get(`${group}:${family}`) ?? null
+    },
+    async loadPublishedToken(group, family) {
+      // Test backend: the generation id is the publication pointer (same role
+      // as the KV `chartfam:pubgen` key).
+      return published.get(`${group}:${family}`)?.generation ?? null
     },
     async commitPublished(group, family, slot, snap, leaseOwner) {
       // Test backend: synchronous read-check-write (no awaits inside, so no

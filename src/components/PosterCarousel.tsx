@@ -61,6 +61,8 @@ const GAP_DESKTOP = 16
 const GAP_MOBILE = 10
 const SCROLL_SPEED = 0.5 // px per frame
 
+const POSTER_IMG_CLASS = "w-full h-full object-cover transition-transform duration-500 ease-out group-hover:scale-[1.05]"
+
 /** M21: `<img>` che porta la chiave nell'header x-api-key (object URL) invece
  *  di esporla nel query string del DOM pubblico. */
 function SecureCarouselImg({ url, alt, className }: { url: string; alt: string; className: string }) {
@@ -68,6 +70,15 @@ function SecureCarouselImg({ url, alt, className }: { url: string; alt: string; 
   const src = useSecurePosterUrl(url, tmdbKey)
   // eslint-disable-next-line @next/next/no-img-element -- poster dinamico /api/poster
   return <img src={src ?? undefined} alt={alt} className={className} loading="lazy" />
+}
+
+/** P3: tile non ancora vicina al viewport. Mostra l'URL così com'è — il
+ *  carosello non mette mai `api_key` in query, quindi è già la stessa URL
+ *  "pulita" che `useSecurePosterUrl` userebbe in assenza di chiave: nessuna
+ *  fetch anticipata, nessun layout shift (il box ha già l'aspect ratio). */
+function CarouselImgPlaceholder({ url, alt, className }: { url: string; alt: string; className: string }) {
+  // eslint-disable-next-line @next/next/no-img-element -- poster dinamico /api/poster
+  return <img src={url} alt={alt} className={className} loading="lazy" />
 }
 
 export function PosterCarousel() {
@@ -81,6 +92,17 @@ export function PosterCarousel() {
     return id ? `&u=${id}` : ""
   }, [])
   const containerRef = useRef<HTMLDivElement>(null)
+  // P3: con una chiave BYOK la fetch header-only di ogni tile parte solo quando
+  // la tile è vicina al viewport (un solo IntersectionObserver condiviso).
+  // `null` = nessun gate: ramo anonimo storico (URL diretto + loading="lazy").
+  const tmdbKey = usePSelector((v) => v.tmdbKey)
+  const tileRefs = useRef<Array<HTMLDivElement | null>>([])
+  // Stato iniziale coerente con la chiave già presente al mount: con la chiave
+  // nessuna tile è attiva finché l'observer non la avvicina al viewport, così
+  // il primo commit non monta 40 fetch. Senza chiave `null` = resa storica.
+  const [activeTiles, setActiveTiles] = useState<ReadonlySet<number> | null>(() =>
+    tmdbKey ? new Set<number>() : null,
+  )
 
   // 20 poster demo scelti a caso a ogni refresh tra gli esempi statici e i film/
   // serie di tendenza JustWatch (con rank badge coerente)
@@ -96,6 +118,47 @@ export function PosterCarousel() {
     }))
     return shuffle([...EXAMPLES, ...top]).slice(0, CAROUSEL_SIZE)
   }, [trending, t])
+
+  // P3: prima del gate ogni tile resta sull'URL senza chiave (la stessa del
+  // primo paint) invece di montare `useSecurePosterUrl`, che farebbe partire
+  // 40 fetch insieme al mount anche a carosello fuori schermo. Senza chiave,
+  // o senza IntersectionObserver, il gate non esiste e la resa è quella
+  // storica (URL diretto + loading="lazy").
+  useEffect(() => {
+    if (!tmdbKey || typeof IntersectionObserver === "undefined") {
+      setActiveTiles(null)
+      return
+    }
+    setActiveTiles((prev) => (prev && prev.size === 0 ? prev : new Set<number>()))
+    const indexByNode = new Map<Element, number>()
+    tileRefs.current.forEach((el, i) => {
+      if (el) indexByNode.set(el, i)
+    })
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const entered: number[] = []
+        for (const entry of entries) {
+          if (!entry.isIntersecting) continue
+          const idx = indexByNode.get(entry.target)
+          if (idx === undefined) continue
+          entered.push(idx)
+          // Una volta attiva la tile resta attiva: niente toggle sul marquee.
+          observer.unobserve(entry.target)
+        }
+        if (entered.length === 0) return
+        setActiveTiles((prev) => {
+          const next = new Set(prev ?? [])
+          for (const idx of entered) next.add(idx)
+          return next
+        })
+      },
+      // Precarica poco prima dell'ingresso (il marquee scorre in orizzontale).
+      { rootMargin: "200px" }
+    )
+    for (const el of indexByNode.keys()) observer.observe(el)
+    return () => observer.disconnect()
+  }, [tmdbKey, items])
+
   // D4: il transform della pista è scritto DIRETTAMENTE sul DOM via ref.
   // Prima setOffset() a ogni frame (60fps) ri-renderizzava tutte le card del
   // carousel via React; ora solo activeIndex/showLeft/showRight restano state
@@ -316,9 +379,12 @@ export function PosterCarousel() {
               // URL pulita: la chiave viaggia solo via header x-api-key
               // (SecureCarouselImg) — il server la legge lì per primo.
               const posterUrl = `/api/poster/${ex.type}/${ex.id}${ex.params}${nsSuffix}`
+              // P3: fetch header-only solo a tile vicina al viewport.
+              const secure = activeTiles === null || activeTiles.has(i)
               return (
                 <div
                   key={i}
+                  ref={(el) => { tileRefs.current[i] = el }}
                   className="shrink-0 animate-stagger-in"
                   style={{ width: cardW, animationDelay: `${(i % totalItems) * 50}ms` }}
                 >
@@ -329,7 +395,11 @@ export function PosterCarousel() {
                     <div className="relative z-[1] flex flex-col flex-1">
                       <div className="aspect-[2/3] shrink-0 relative overflow-hidden bg-surface2">
                         {/* M21: la chiave viaggia nell'header x-api-key, mai nel DOM */}
-                        <SecureCarouselImg url={posterUrl} alt={ex.title} className="w-full h-full object-cover transition-transform duration-500 ease-out group-hover:scale-[1.05]" />
+                        {secure ? (
+                          <SecureCarouselImg url={posterUrl} alt={ex.title} className={POSTER_IMG_CLASS} />
+                        ) : (
+                          <CarouselImgPlaceholder url={posterUrl} alt={ex.title} className={POSTER_IMG_CLASS} />
+                        )}
                       </div>
                     <div className="p-2 sm:p-3 relative z-10 flex-1">
                       <h3 className="text-[11px] sm:text-xs font-semibold text-foreground transition-colors duration-200 line-clamp-1">{ex.title}</h3>

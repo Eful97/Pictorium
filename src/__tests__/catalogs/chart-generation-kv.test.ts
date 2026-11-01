@@ -23,7 +23,7 @@ import { ensureFreshChartFamily } from "@/lib/chart-renewal"
 
 const { strings, kvState } = vi.hoisted(() => ({
   strings: new Map<string, { value: string; expAt: number | null }>(),
-  kvState: { blockFetches: false, failAll: false, gate: null as { release: () => void } | null },
+  kvState: { blockFetches: false, failAll: false, gate: null as { release: () => void } | null, gets: [] as string[] },
 }))
 
 function sweep(now: number): void {
@@ -45,6 +45,7 @@ const fakeKv = {
   async get<T>(key: string): Promise<T | null> {
     if (kvState.failAll) throw new Error("KV down")
     sweep(Date.now())
+    kvState.gets.push(key)
     const e = strings.get(key)
     return (e ? wireGet(e.value) : null) as T | null
   },
@@ -131,6 +132,7 @@ describe("chart-generation KV cross-instance semantics", () => {
     kvState.blockFetches = false
     kvState.failAll = false
     kvState.gate = null
+    kvState.gets = []
     __resetChartGenerationForTest()
     __setChartGenerationPersistForTest(null)
     now = utc(2026, 10, 22, 8, 0, 0) // Rome 10:00 -> JW 6h slot 20261022-06 (12h families stay 20261022-00)
@@ -159,6 +161,49 @@ describe("chart-generation KV cross-instance semantics", () => {
     const pin2 = await pinChartFamily(JW_MOVIE)
     expect(pin2.id).toBe("20261022-06")
     expect(pinnedFamilyRows(pin2)?.map((r) => r.tmdbId)).toEqual([1000, 1001, 1002])
+  })
+
+  it("same-generation pins read the small pointer only; a pointer bump reloads at once (F4)", async () => {
+    await ensureFreshChartFamily(JW_MOVIE, { fetch: okFetch(1000) })
+    const group = chartFamilyGroupKey(JW_MOVIE)
+    const pubKey = `chartfam:pub:${group}:jw:movie:charts`
+    const genKey = `chartfam:pubgen:${group}:jw:movie:charts`
+    // Cold memory: the payload is read once (unavoidable) and tagged with the
+    // pointer taken before it.
+    expect((await pinChartFamily(JW_MOVIE)).id).toBe("20261022-06")
+    // Same generation: ONE small pointer read, never the full payload.
+    kvState.gets = []
+    const warm = await pinChartFamily(JW_MOVIE)
+    expect(pinnedFamilyRows(warm)?.map((r) => r.tmdbId)).toEqual([1000, 1001, 1002])
+    expect(kvState.gets).toEqual([genKey])
+    expect(kvState.gets.includes(pubKey)).toBe(false)
+    // Another instance publishes the next generation: the pointer is written by
+    // the SAME atomic commit as the payload, so the bump alone must force the
+    // reload (strict cutover, no stale serve until the next publish).
+    const next = "20261022-12"
+    strings.set(genKey, { value: next, expAt: null })
+    strings.set(pubKey, {
+      value: JSON.stringify({
+        generation: next,
+        group,
+        family: "jw:movie:charts",
+        status: "ok",
+        rows: rowsForFamily(3, 2000),
+        fetchedAt: now,
+        publishedAt: now,
+        provenance: null,
+      }),
+      expAt: null,
+    })
+    kvState.gets = []
+    const cut = await pinChartFamily(JW_MOVIE)
+    expect(cut.id).toBe(next)
+    expect(pinnedFamilyRows(cut)?.map((r) => r.tmdbId)).toEqual([2000, 2001, 2002])
+    expect(kvState.gets).toEqual([genKey, pubKey])
+    // Back on the fast path, tagged with the new pointer.
+    kvState.gets = []
+    expect((await pinChartFamily(JW_MOVIE)).id).toBe(next)
+    expect(kvState.gets).toEqual([genKey])
   })
 
   it("families publish independently: anime outage never blocks JW/platform", async () => {

@@ -5,6 +5,7 @@ import { createLogger } from "@/lib/logger"
 import { chartGroupKey, chartPinCacheFragment, pinnedFamilyRows, type ChartFamilyPin } from "@/lib/chart-generation"
 import { ensureFreshChartFamily } from "@/lib/chart-renewal"
 import { getDetails, resolveRouteApiKey } from "@/lib/tmdb"
+import { concurrentMap } from "@/lib/episode-ordering"
 import { resolveImdbToTmdb } from "@/lib/imdb-resolver"
 import type { EnrichedAnimeItem } from "@/lib/validation"
 
@@ -79,8 +80,13 @@ export async function GET(req: NextRequest) {
       listsToFetch.map(async ({ mediaType, family }) => {
         const pinnedRows = pinnedFamilyRows(pins[family])
         const entries = (pinnedRows ?? []).map((r) => ({ imdb: r.imdbId ?? "", title: r.title ?? "", year: r.year ?? 0, tmdb: r.tmdbId || undefined }))
-        const enriched = await Promise.all(
-          entries.slice(0, 20).map(async (entry, idx): Promise<EnrichedAnimeItem | null> => {
+        // Bounded per-title TMDB fan-out (max 5 concurrent getDetails, same
+        // helper/limit as the catalogs and the browse route): a cold request
+        // must never fire 20 parallel details calls per list. Order is
+        // preserved by index slot; per-title failures stay fail-open.
+        const enriched = await concurrentMap(
+          entries.slice(0, 20),
+          async (entry, idx): Promise<EnrichedAnimeItem | null> => {
             let tmdbId = entry.tmdb
             if (!tmdbId && entry.imdb) {
               tmdbId = (await resolveImdbToTmdb(entry.imdb, mediaType, tmdbKey)) ?? undefined
@@ -99,7 +105,8 @@ export async function GET(req: NextRequest) {
               log.error("TMDB lookup failed", { error: e instanceof Error ? e.message : String(e) })
               return null
             }
-          })
+          },
+          5,
         )
         return enriched.filter((r): r is EnrichedAnimeItem => r !== null)
       })

@@ -483,6 +483,52 @@ describe("chart-generation persistence (restart + cross-instance + file)", () =>
     }
   })
 
+  it("file backend: stat detects an out-of-process publish, unchanged snapshot is not re-read (F4)", async () => {
+    const dir = await fsp.mkdtemp(path.join(os.tmpdir(), "chartfam-test-"))
+    try {
+      __setChartGenerationPersistForTest(__fileChartGenerationPersistForTest(dir))
+      await ensureFreshChartFamily(JW_MOVIE, { fetch: okFetch(1000) })
+      // Cold memory read (unavoidable) tags memory with the file fingerprint.
+      expect((await pinChartFamily(JW_MOVIE)).id).toBe("20261022-06")
+      // Same generation: one stat, never readFile + JSON.parse of the payload.
+      const readFile = vi.spyOn(fsp, "readFile")
+      try {
+        const warm = await pinChartFamily(JW_MOVIE)
+        expect(warm.id).toBe("20261022-06")
+        expect(pinnedFamilyRows(warm)?.map((r) => r.tmdbId)).toEqual([1000, 1001, 1002])
+        expect(readFile).not.toHaveBeenCalled()
+      } finally {
+        readFile.mockRestore()
+      }
+      // Another process publishes the next generation (atomic replace, no
+      // in-memory state): the fingerprint changes, so the payload IS re-read.
+      const group = chartFamilyGroupKey(JW_MOVIE)
+      const pubName = (await fsp.readdir(dir)).find((f) => f.startsWith("chartfam-pub-"))
+      expect(pubName).toBeTruthy()
+      const pubFile = path.join(dir, pubName as string)
+      await fsp.writeFile(
+        pubFile,
+        JSON.stringify({
+          generation: "20261022-12",
+          group,
+          family: "jw:movie:charts",
+          status: "ok",
+          rows: rowsForFamily(3, 2000),
+          fetchedAt: now,
+          publishedAt: now,
+          provenance: null,
+        }),
+      )
+      const later = new Date(now + 60_000)
+      await fsp.utimes(pubFile, later, later)
+      const cut = await pinChartFamily(JW_MOVIE)
+      expect(cut.id).toBe("20261022-12")
+      expect(pinnedFamilyRows(cut)?.map((r) => r.tmdbId)).toEqual([2000, 2001, 2002])
+    } finally {
+      await fsp.rm(dir, { recursive: true, force: true })
+    }
+  })
+
   it("refuses private publication when durable storage fails (cold stays live)", async () => {
     const failing = __inMemoryChartGenerationPersist()
     failing.loadPublished = async () => {
