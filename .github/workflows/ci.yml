@@ -3,6 +3,9 @@ name: CI
 on:
   push:
     branches: [master, main]
+    # Docs-only master pushes skip the whole suite (docker.yml's workflow_run
+    # consequently does not fire: no image rebuild for a README edit).
+    paths-ignore: ['**.md', 'docs/**', 'LICENSE']
   pull_request:
     # `ready_for_review` e' NECESSARIO: i tipi di default sono solo
     # opened/synchronize/reopened, quindi segnare una draft PR come "ready"
@@ -34,28 +37,76 @@ jobs:
       - run: npx tsc --noEmit
       - run: npx eslint .
 
+  # Decide se la suite pesante ha qualcosa da verificare. Un `paths-ignore` a
+  # livello workflow lascerebbe i check richiesti verify/visual PENDING per
+  # sempre sulle PR docs-only (merge bloccato), quindi la decisione vive in un
+  # job che gira sempre e che i gate pesanti consumano.
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      code: ${{ steps.filter.outputs.code }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # The base-branch comparison needs the history, not a depth-1 clone.
+          fetch-depth: 0
+      - id: filter
+        name: Detect docs-only change sets
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Default ON: anything we cannot prove docs-only keeps the heavy work.
+          code=true
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            base="${{ github.base_ref }}"
+            # Fetch the base branch explicitly: the PR checkout may not have it.
+            git fetch --no-tags origin "+refs/heads/${base}:refs/remotes/origin/${base}"
+            changed="$(git diff --name-only "origin/${base}...HEAD")"
+            if [[ -n "$changed" ]]; then
+              # Start from "docs-only" and flip on the first non-doc path.
+              code=false
+              shopt -s nocasematch
+              while IFS= read -r path; do
+                # `case` globs: `*` spans `/`, so `docs/*` covers nested files.
+                case "$path" in
+                  *.md|docs/*|LICENSE) ;;
+                  *) code=true; break ;;
+                esac
+              done <<< "$changed"
+            fi
+          fi
+          # Never emit an empty output; a git/metadata error above fails the step.
+          echo "code=$code" >> "$GITHUB_OUTPUT"
+
   # Suite pesante: parte solo quando i controlli veloci sono verdi e la PR non
-  # e' una draft (git push su master/main gira sempre).
+  # e' una draft (git push su master/main gira sempre). Un change set docs-only
+  # salta il lavoro pesante ma il job resta SUCCESS (check richiesto verde).
   # `always()` e' obbligatorio: senza, un `fast` fallito SALTA verify, e su
   # GitHub uno status check richiesto "skipped" conta come accettabile ->
   # merge consentito. Con `always()` + guardia un `fast` rosso produce un verify
   # FAILED; le draft PR continuano a saltare la suite pesante.
   verify:
-    needs: fast
+    needs: [fast, changes]
     if: always() && (github.event_name != 'pull_request' || github.event.pull_request.draft == false)
     runs-on: ubuntu-latest
     steps:
-      - name: Fast checks must be green
-        if: needs.fast.result != 'success'
+      # A failed OR skipped changes job must fail this gate, never skip it.
+      - name: Fast checks and change detection must be green
+        if: needs.fast.result != 'success' || needs.changes.result != 'success'
         run: exit 1
       - uses: actions/checkout@v7
+        if: needs.changes.outputs.code == 'true'
       - uses: actions/setup-node@v7
+        if: needs.changes.outputs.code == 'true'
         with:
           node-version: 22
           cache: npm
       - run: npm ci
+        if: needs.changes.outputs.code == 'true'
       - run: npm run test
+        if: needs.changes.outputs.code == 'true'
       - run: npm run build
+        if: needs.changes.outputs.code == 'true'
 
   commits:
     runs-on: ubuntu-latest
@@ -70,21 +121,30 @@ jobs:
       - run: node scripts/check-commit-subjects.mjs
 
   visual:
-    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
+    needs: changes
+    if: always() && (github.event_name != 'pull_request' || github.event.pull_request.draft == false)
     runs-on: ubuntu-latest
     steps:
+      - name: Changed files must be readable
+        if: needs.changes.result != 'success'
+        run: exit 1
       - uses: actions/checkout@v7
+        if: needs.changes.outputs.code == 'true'
       - uses: actions/setup-node@v7
+        if: needs.changes.outputs.code == 'true'
         with:
           node-version: 22
           cache: npm
       - run: npm ci
+        if: needs.changes.outputs.code == 'true'
       - run: npx playwright install --with-deps chromium
+        if: needs.changes.outputs.code == 'true'
       - run: npx playwright test e2e/pictorium-visual.spec.ts
+        if: needs.changes.outputs.code == 'true'
       # Su failure carica i render actual: servono per creare la variante
       # snapshot della piattaforma CI (gli snapshot sono per-OS) dopo revisione.
       - uses: actions/upload-artifact@v4
-        if: failure()
+        if: failure() && needs.changes.outputs.code == 'true'
         with:
           name: visual-test-results
           path: test-results/
