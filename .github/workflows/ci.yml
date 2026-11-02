@@ -36,11 +36,18 @@ jobs:
 
   # Suite pesante: parte solo quando i controlli veloci sono verdi e la PR non
   # e' una draft (git push su master/main gira sempre).
+  # `always()` e' obbligatorio: senza, un `fast` fallito SALTA verify, e su
+  # GitHub uno status check richiesto "skipped" conta come accettabile ->
+  # merge consentito. Con `always()` + guardia un `fast` rosso produce un verify
+  # FAILED; le draft PR continuano a saltare la suite pesante.
   verify:
     needs: fast
-    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
+    if: always() && (github.event_name != 'pull_request' || github.event.pull_request.draft == false)
     runs-on: ubuntu-latest
     steps:
+      - name: Fast checks must be green
+        if: needs.fast.result != 'success'
+        run: exit 1
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
         with:
