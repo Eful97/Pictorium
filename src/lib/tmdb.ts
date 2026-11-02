@@ -264,7 +264,7 @@ export function resolveRequestApiKey(req: { headers: Headers | { get: (name: str
 }
 
 export type ApiKeyKind = "tmdb" | "mdblist" | "tvdb" | "simkl" | "fanart"
-export type ApiKeySource = "header" | "query" | "namespace" | "env" | "none"
+export type ApiKeySource = "header" | "query" | "namespace" | "instance" | "env" | "none"
 
 export interface ResolvedApiKey {
   key: string | undefined
@@ -299,23 +299,25 @@ function searchParamsOf(req: KeyRequest): URLSearchParams | undefined {
 
 /**
  * Chiave API effettiva per kind (multi-user):
- * esplicita della richiesta > namespace utente (solo con `userId`) > env
- * globale d'istanza (opt-in). Con `userId` null il risultato è identico a
- * oggi (header/query/env, catene env invariate per kind).
+ * esplicita della richiesta > namespace utente (solo con `userId`) > chiavi
+ * d'istanza salvate (store dedicato, cifrate a riposo) > env globale
+ * d'istanza (opt-in). Con `userId` null le due sorgenti d'istanza si
+ * applicano in quest'ordine; con `userId` presente vincono namespace e
+ * richiesta esplicita.
  *
- * Su istanza pubblica multi-user (flag ON) il fallback env è DISABILITATO
- * solo per le richieste scoped (`userId` presente): altrimenti ogni `?u=`
- * senza chiave brucia la quota dell'operatore (open-proxy sulla chiave
- * d'istanza). Le richieste globali senza uuid tengono il fallback storico;
- * opt-in esplicito con `PICTORIUM_MULTI_USER_ALLOW_ENV_FALLBACK=1` per gli
- * operatori che lo vogliono anche sugli scoped. Con flag OFF tutto è
- * byte-identico a oggi.
+ * Su istanza pubblica multi-user (flag ON) i fallback d'istanza (store E env)
+ * sono DISABILITATI solo per le richieste scoped (`userId` presente):
+ * altrimenti ogni `?u=` senza chiave brucia la quota dell'operatore
+ * (open-proxy sulla chiave d'istanza). Le richieste globali senza uuid
+ * tengono i fallback storici; opt-in esplicito con
+ * `PICTORIUM_MULTI_USER_ALLOW_ENV_FALLBACK=1` per gli operatori che li
+ * vogliono anche sugli scoped. Con flag OFF tutto è byte-identico a oggi.
  *
- * - tmdb: header `x-api-key` > query `api_key` > namespace.tmdb > env TMDB.
- * - mdblist: query `mdblist_key` > namespace.mdblist > env MDBLIST.
- * - tvdb: header `x-tvdb-key` > query `tvdb_key` > namespace.tvdb > env TVDB.
- * - simkl: query `simkl_key` > header `x-simkl-key`/`simkl-api-key` > namespace.simkl > env SIMKL_CLIENT_ID/SIMKL_API_KEY.
- * - fanart: query `fanart_key` > header `x-fanart-key` > namespace.fanart > env FANART (chiave progetto: spazio vince sull'istanza).
+ * - tmdb: header `x-api-key` > query `api_key` > namespace.tmdb > istanza > env TMDB.
+ * - mdblist: query `mdblist_key` > namespace.mdblist > istanza > env MDBLIST.
+ * - tvdb: header `x-tvdb-key` > query `tvdb_key` > namespace.tvdb > istanza > env TVDB.
+ * - simkl: query `simkl_key` > header `x-simkl-key`/`simkl-api-key` > namespace.simkl > istanza > env SIMKL_CLIENT_ID/SIMKL_API_KEY.
+ * - fanart: query `fanart_key` > header `x-fanart-key` > namespace.fanart > istanza > env FANART (chiave progetto: spazio vince sull'istanza).
  */
 export async function resolveUserApiKeys(
   req: KeyRequest,
@@ -371,34 +373,55 @@ export async function resolveUserApiKeys(
       // getUserKeys logga già: qui fallback all'env sotto (degraded, mai throw).
     }
   }
-  // 3. Fallback d'istanza (stesse catene env di oggi, invariate).
-  // Con flag multi-user ON è disabilitato SOLO per le richieste scoped
-  // (`userId` presente): altrimenti ogni `?u=` senza chiave brucia la quota
+  // 3. Chiavi d'istanza (store dedicato, chiavi cifrate a riposo configurate
+  // dalla UI) e 4. fallback env condividono la STESSA guardia. Con flag
+  // multi-user ON sono disabilitati SOLO per le richieste scoped (`userId`
+  // presente): altrimenti ogni `?u=` senza chiave brucia la quota
   // dell'operatore (open-proxy sulla chiave d'istanza). Le richieste globali
   // (senza uuid, path legacy) tengono il fallback invariato; opt-in esplicito
   // con `PICTORIUM_MULTI_USER_ALLOW_ENV_FALLBACK=1` per gli operatori che lo
   // vogliono anche sugli scoped.
-  const allowEnvFallback = !userId
+  const allowInstanceFallback = !userId
     || !isMultiUserEnabled()
     || process.env.PICTORIUM_MULTI_USER_ALLOW_ENV_FALLBACK === "1"
     || process.env.POSTERIUM_MULTI_USER_ALLOW_ENV_FALLBACK === "1"
-  if (allowEnvFallback && !out.tmdb.key) {
+  // 3. Store d'istanza: dopo header/query/namespace, prima dell'env. Una
+  // lettura sola per tutte le kind; qualsiasi errore degrada alla catena env
+  // (un outage dello store non deve mai rompere cataloghi/poster).
+  if (
+    allowInstanceFallback &&
+    (!out.tmdb.key || !out.mdblist.key || !out.tvdb.key || !out.simkl.key || !out.fanart.key)
+  ) {
+    try {
+      const { getInstanceKeys } = await import("@/lib/instance-keys")
+      const instance = await getInstanceKeys()
+      if (!out.tmdb.key && instance.tmdb) out.tmdb = { key: instance.tmdb, source: "instance" }
+      if (!out.mdblist.key && instance.mdblist) out.mdblist = { key: instance.mdblist, source: "instance" }
+      if (!out.tvdb.key && instance.tvdb) out.tvdb = { key: instance.tvdb, source: "instance" }
+      if (!out.simkl.key && instance.simkl) out.simkl = { key: instance.simkl, source: "instance" }
+      if (!out.fanart.key && instance.fanart) out.fanart = { key: instance.fanart, source: "instance" }
+    } catch {
+      // Lo store logga già: qui si prosegue con l'env (degraded, mai throw).
+    }
+  }
+  // 4. Fallback d'istanza env (stesse catene env di oggi, invariate).
+  if (allowInstanceFallback && !out.tmdb.key) {
     const env = envWithFallback("TMDB_KEY") || process.env.TMDB_KEY || process.env.TMDB_API_KEY
     if (env) out.tmdb = { key: env, source: "env" }
   }
-  if (allowEnvFallback && !out.mdblist.key) {
+  if (allowInstanceFallback && !out.mdblist.key) {
     const env = envWithFallback("MDBLIST_KEY")
     if (env) out.mdblist = { key: env, source: "env" }
   }
-  if (allowEnvFallback && !out.tvdb.key) {
+  if (allowInstanceFallback && !out.tvdb.key) {
     const env = envWithFallback("TVDB_API_KEY") || process.env.TVDB_API_KEY
     if (env) out.tvdb = { key: env, source: "env" }
   }
-  if (allowEnvFallback && !out.simkl.key) {
+  if (allowInstanceFallback && !out.simkl.key) {
     const env = envWithFallback("SIMKL_CLIENT_ID") || process.env.SIMKL_CLIENT_ID || process.env.SIMKL_API_KEY
     if (env) out.simkl = { key: env, source: "env" }
   }
-  if (allowEnvFallback && !out.fanart.key) {
+  if (allowInstanceFallback && !out.fanart.key) {
     const env = envWithFallback("FANART_KEY")
     if (env) out.fanart = { key: env, source: "env" }
   }
@@ -416,9 +439,10 @@ export async function resolveUserApiKey(
 
 /**
  * Chiave effettiva per le route proxy upstream: esplicita della richiesta >
- * namespace (`?u=`) > env d'istanza. Sostituisce le letture dirette di
- * `api_key`/env nelle route, che ignoravano le chiavi salvate nel profilo
- * (chiave salvata ma poster vuoti su profilo fresco).
+ * namespace (`?u=`) > chiavi d'istanza salvate > env d'istanza. Sostituisce le
+ * letture dirette di `api_key`/env nelle route, che ignoravano le chiavi
+ * salvate nel profilo (chiave salvata ma poster vuoti su profilo fresco) e lo
+ * store d'istanza (Stremio anonimo senza env).
  */
 export async function resolveRouteApiKey(req: KeyRequest, kind: ApiKeyKind = "tmdb"): Promise<string | undefined> {
   const { getScopedUserId, extractUserParam } = await import("@/lib/user-auth")

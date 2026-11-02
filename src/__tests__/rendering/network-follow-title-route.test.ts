@@ -154,14 +154,14 @@ function armUpstream() {
 const debugBase = "http://localhost:3000/api/poster/movie/44?poster=%2Fp.jpg&logo=%2Flogo.png&preview=1&api_key=test"
 
 async function getDebug(extra: string): Promise<{ status: number; body: Record<string, unknown> }> {
-  const res = await GET(new NextRequest(`${debugBase}${extra}&debug=1`), {
+  const res = await GET(adminReq(`${debugBase}${extra}&debug=1`), {
     params: Promise.resolve({ type: "movie", id: "44" }),
   })
   return { status: res.status, body: (await res.json()) as Record<string, unknown> }
 }
 
 async function getDebugGeo(extra: string): Promise<{ status: number; body: Record<string, unknown> }> {
-  const res = await GET(new NextRequest(`${debugBase}${extra}&debug=1&netgeo=1`), {
+  const res = await GET(adminReq(`${debugBase}${extra}&debug=1&netgeo=1`), {
     params: Promise.resolve({ type: "movie", id: "44" }),
   })
   return { status: res.status, body: (await res.json()) as Record<string, unknown> }
@@ -242,7 +242,7 @@ describe("GET /api/poster debug network geometry", () => {
         id: 44, posters: [], logos: [],
         backdrops: [{ file_path: "/bg.jpg", width: 1280, height: 720, vote_average: 0, vote_count: 0, aspect_ratio: 1.78 }],
       } as never)
-      return GET(new NextRequest(
+      return GET(adminReq(
         "http://localhost:3000/api/poster/movie/44?shape=landscape&debug=1&netgeo=1&api_key=test",
       ), { params: Promise.resolve({ type: "movie", id: "44" }) })
     }
@@ -258,7 +258,7 @@ describe("GET /api/poster debug network geometry", () => {
   })
 
   it("normal (non-debug) responses are unchanged by the collector", async () => {
-    const res = await GET(new NextRequest(debugBase), {
+    const res = await GET(adminReq(debugBase), {
       params: Promise.resolve({ type: "movie", id: "44" }),
     })
     expect(res.status).toBe(200)
@@ -382,7 +382,7 @@ describe("GET /api/poster debug badge geometry", () => {
 
   it("reports the landscape canvas for landscape renders", async () => {
     const res = await GET(
-      new NextRequest(`${debugBase}&shape=landscape&debug=1&netgeo=1`),
+      adminReq(`${debugBase}&shape=landscape&debug=1&netgeo=1`),
       { params: Promise.resolve({ type: "movie", id: "44" }) },
     )
     expect(res.status).toBe(200)
@@ -445,3 +445,10 @@ describe("GET /api/poster debug badge geometry", () => {
     expect(shifted.families.network!.top - card.families.network!.top).toBe(-4)
   })
 })
+
+// Route admin fail-closed: le richieste di test presentano un ADMIN_TOKEN reale
+// (le preview restano live, come nell'editor con sessione sbloccata).
+const TEST_ADMIN_TOKEN = "route-tests-admin-token"
+process.env.ADMIN_TOKEN = TEST_ADMIN_TOKEN
+const adminReq = (url: string, init?: { headers?: Record<string, string> }) =>
+  new NextRequest(url, { ...init, headers: { ...(init?.headers ?? {}), "x-admin-token": TEST_ADMIN_TOKEN } })

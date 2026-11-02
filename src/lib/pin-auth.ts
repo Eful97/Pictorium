@@ -29,6 +29,42 @@ function isKvMode(): boolean {
 export const PIN_COOKIE_NAME = "pictorium_pin_session"
 const SESSION_DURATION_SECONDS = 30 * 24 * 60 * 60 // 30 giorni
 
+// Regole del segreto d'istanza (PIN numerico oppure password libera). Unica
+// fonte autorevole lato server: la route e setPin usano `validatePinSecret`.
+// Il formato salvato è già generico (salt:scrypt su stringa arbitraria), quindi
+// nessuna migrazione: i PIN numerici esistenti restano validi byte-identici.
+export const MIN_NUMERIC_PIN_LENGTH = 6
+export const MIN_PASSPHRASE_LENGTH = 8
+export const MAX_PIN_SECRET_LENGTH = 128
+
+export type PinSecretError = "empty" | "too_short" | "too_long"
+
+// Gli spazi esterni non fanno parte del segreto (le tastiere mobili ne
+// aggiungono): stesso trim su set e verifica, così il confine è uno solo.
+function normalizeSecret(input: unknown): string {
+  return typeof input === "string" ? input.trim() : ""
+}
+
+export function isNumericPinSecret(value: string): boolean {
+  return /^[0-9]+$/.test(value)
+}
+
+/**
+ * Solo cifre: minimo 6 (compatibilità PIN legacy). Qualsiasi altro carattere
+ * (lettere, simboli, misto): minimo 8. Vuoto/solo spazi e oltre 128 caratteri
+ * sono sempre rifiutati.
+ */
+export function validatePinSecret(
+  input: unknown,
+): { ok: true; value: string } | { ok: false; reason: PinSecretError } {
+  const value = normalizeSecret(input)
+  if (!value) return { ok: false, reason: "empty" }
+  if (value.length > MAX_PIN_SECRET_LENGTH) return { ok: false, reason: "too_long" }
+  const minLength = isNumericPinSecret(value) ? MIN_NUMERIC_PIN_LENGTH : MIN_PASSPHRASE_LENGTH
+  if (value.length < minLength) return { ok: false, reason: "too_short" }
+  return { ok: true, value }
+}
+
 export interface SecurityConfig {
   pinHash?: string // format: `${salt}:${hash}`
   sessionSecret?: string
@@ -201,7 +237,8 @@ export async function hasPinConfigured(): Promise<boolean> {
 }
 
 export async function verifyPin(pin: string): Promise<boolean> {
-  if (!pin || typeof pin !== "string") return false
+  const value = normalizeSecret(pin)
+  if (!value) return false
   const cfg = await readSecurityConfig()
   if (!cfg.pinHash) return false
   if (!adminBindingOk(cfg)) return false
@@ -209,16 +246,17 @@ export async function verifyPin(pin: string): Promise<boolean> {
   const [salt, storedHash] = cfg.pinHash.split(":")
   if (!salt || !storedHash) return false
 
-  const candidate = crypto.scryptSync(pin, salt, 64).toString("hex")
+  const candidate = crypto.scryptSync(value, salt, 64).toString("hex")
   if (candidate.length !== storedHash.length) return false
   return crypto.timingSafeEqual(Buffer.from(candidate), Buffer.from(storedHash))
 }
 
 export async function setPin(newPin: string, opts?: { viaAdminToken?: boolean }): Promise<boolean> {
-  if (!newPin || typeof newPin !== "string" || newPin.trim().length < 6) {
+  const validated = validatePinSecret(newPin)
+  if (!validated.ok) {
     return false
   }
-  const cleanPin = newPin.trim()
+  const cleanPin = validated.value
   const cfg = await readSecurityConfig()
   const { pinHash } = hashPin(cleanPin)
   // Rotazione sempre: cambiare PIN invalida tutte le sessioni precedenti

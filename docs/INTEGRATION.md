@@ -128,10 +128,11 @@ paths (or TMDB `file_path`s) are accepted.
 > requires sharing the instance `CONFIG_HMAC_SECRET` and is fail-closed in
 > production. Explicit query parameters are debuggable and versionable.
 
-### Public instances (presets mode)
+### Shared hosting (presets mode)
 
-On public instances (`PICTORIUM_POSTER_PARAMS=presets`, on by default there)
-requests other than live editor previews are canonicalised before rendering:
+On shared hosting (`PICTORIUM_POSTER_PARAMS=presets`, auto-on with
+`HOSTED_BY=elfhosted` or `MULTI_USER=1`) requests other than live editor
+previews are canonicalised before rendering:
 
 - Without an honoured `poster=` override (which needs a user space), `title`,
   `genreName`, `year`, `rd`, `fad`, `voteAverage`, `imdbId` and `wikidata_id`

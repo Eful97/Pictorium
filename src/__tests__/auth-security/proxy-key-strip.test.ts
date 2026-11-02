@@ -36,6 +36,10 @@ describe("proxy resource forwarding — strip chiavi API (M6)", () => {
   const fetchSpy = vi.spyOn(globalThis, "fetch")
 
   beforeEach(() => {
+    // Il setup globale simula un hosting condiviso: il proxy è fail-closed
+    // senza allowlist esplicita. Questi test coprono lo strip delle chiavi,
+    // non la policy (testata in addon-proxy.test.ts), quindi opt-in esplicito.
+    process.env.PICTORIUM_PROXY_ALLOW_ANY = "1"
     fetchSpy.mockReset()
     fetchSpy.mockResolvedValue(
       new Response(JSON.stringify({ metas: [] }), { status: 200, headers: { "Content-Type": "application/json" } }),
@@ -43,6 +47,7 @@ describe("proxy resource forwarding — strip chiavi API (M6)", () => {
   })
 
   afterEach(() => {
+    delete process.env.PICTORIUM_PROXY_ALLOW_ANY
     fetchSpy.mockReset()
   })
 

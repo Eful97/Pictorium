@@ -3,7 +3,7 @@
 import { useId } from "react"
 import { textColorForBg } from "@/lib/accent-color"
 import { PREMIUM_PLATE_BG, PREMIUM_PLATE_STROKE, GRADIENT_MARK_STOPS, GRADIENT_TIER_INK, premiumAccentHex } from "@/lib/quality-badge-styles"
-import { buildAgeEmphasisSvg, buildAgeKnockoutSvg, buildGenreInkSvg, buildGradientMarkSvg, buildQualityBadgeSvg, buildStripBadgeSvg } from "@/lib/badge-svg-shared"
+import { buildAgeEmphasisSvg, buildAgeKnockoutSvg, buildGenreInkSvg, buildGradientMarkSvg, buildQualityBadgeSvg, buildQualityNakedSvg, buildStripBadgeSvg } from "@/lib/badge-svg-shared"
 import type { AgeEmphasisStyle } from "@/lib/badge-svg-shared"
 
 /**
@@ -166,6 +166,17 @@ function BadgePreview({ style, accentColor, family = "quality" }: { style: strin
           svg={buildStripBadgeSvg([QUALITY_SWATCH_LABEL, "12", "DV"], AGE_SWATCH_FS).svg}
         />
       )
+    case "naked":
+      // Tier-only bare ink (quality family): plate-less standard text box with
+      // dynamic ink inverted against the top polarity (white on the dark UI)
+      // and the background-tone halo. SAME builder the poster renders with —
+      // never the generic `~` placeholder.
+      return (
+        <BuilderStylePreview
+          base={base}
+          svg={buildQualityNakedSvg(QUALITY_SWATCH_LABEL, AGE_SWATCH_FS, false).svg}
+        />
+      )
     case "knockout":
       if (family === "age") return <AgeStylePreview style="knockout" base={base} />
       // Static cutout swatch (NOT the poster renderer): white tag with the
@@ -208,7 +219,10 @@ export function BadgeStyleSelector<S extends string>({
   // Colonne esatte per conteggio (classi letterali: Tailwind le genera solo se scritte per esteso):
   // 5 opzioni in 6 colonne lascerebbero un buco a destra e pulsanti di larghezza
   // diversa dalla riga da 7 — ogni riga riempie la larghezza con i suoi pulsanti.
-  const gridCols = options.length <= 3 ? "grid-cols-3" : options.length <= 5 ? "grid-cols-3 sm:grid-cols-5" : options.length <= 6 ? "grid-cols-3 sm:grid-cols-6" : options.length <= 7 ? "grid-cols-3 sm:grid-cols-4 md:grid-cols-7" : "grid-cols-4 sm:grid-cols-4 md:grid-cols-8"
+  // 10 quality styles (the naked tier added last) fill two even rows of five
+  // instead of the 8-column branch that would leave a 8+2 gap; 8 or fewer
+  // keeps the historical layout byte-identically.
+  const gridCols = options.length <= 3 ? "grid-cols-3" : options.length <= 5 ? "grid-cols-3 sm:grid-cols-5" : options.length <= 6 ? "grid-cols-3 sm:grid-cols-6" : options.length <= 7 ? "grid-cols-3 sm:grid-cols-4 md:grid-cols-7" : options.length <= 8 ? "grid-cols-4 sm:grid-cols-4 md:grid-cols-8" : "grid-cols-4 sm:grid-cols-5"
   return (
     <div className={`grid ${gridCols} gap-1.5 w-full`}>
       {options.map((s) => {
@@ -231,7 +245,7 @@ export function BadgeStyleSelector<S extends string>({
               <BadgePreview style={s} accentColor={accentColor} family={family} />
             </span>
             <span className="text-[10px] font-semibold leading-tight truncate max-w-full">
-              {s === "shadow" ? t("ui.shadow") : s === "pill" ? t("ui.pill") : s === "bar" ? t("ui.bar") : s === "default" ? t("ui.bsDefault") : s === "colored" ? t("ui.colored") : s === "bordo" ? t("ui.bordo") : s === "vetro" ? t("ui.vetro") : s === "minimal" ? t("ui.minimal") : s === "ink" ? t("ui.ink") : s === "netflix" ? t("ui.netflix") : s === "corner" ? t("ui.corner") : s === "number" ? t("ui.number") : s === "standard" ? t("ui.qbsStandard") : s === "mono" ? t("ui.qbsMono") : s === "color" ? t("ui.qbsColor") : s === "knockout" ? t("ui.qbsKnockout") : s === "premium" ? t("ui.qbsPremium") : s === "nova" ? t("ui.qbsNova") : s === "gradient" ? t("ui.qbsGradient") : s === "outline" ? t("ui.qbsOutline") : s === "strip" ? t("ui.qbsStrip") : s}
+              {s === "shadow" ? t("ui.shadow") : s === "pill" ? t("ui.pill") : s === "bar" ? t("ui.bar") : s === "default" ? t("ui.bsDefault") : s === "colored" ? t("ui.colored") : s === "bordo" ? t("ui.bordo") : s === "vetro" ? t("ui.vetro") : s === "minimal" ? t("ui.minimal") : s === "ink" ? t("ui.ink") : s === "netflix" ? t("ui.netflix") : s === "corner" ? t("ui.corner") : s === "number" ? t("ui.number") : s === "standard" ? t("ui.qbsStandard") : s === "mono" ? t("ui.qbsMono") : s === "color" ? t("ui.qbsColor") : s === "knockout" ? t("ui.qbsKnockout") : s === "premium" ? t("ui.qbsPremium") : s === "nova" ? t("ui.qbsNova") : s === "gradient" ? t("ui.qbsGradient") : s === "outline" ? t("ui.qbsOutline") : s === "strip" ? t("ui.qbsStrip") : s === "naked" ? t("ui.qbsNaked") : s}
             </span>
           </button>
         )

@@ -102,6 +102,45 @@ describe("PIN Authentication & Security", () => {
     expect(await hasPinConfigured()).toBe(false)
   })
 
+  describe("password come alternativa al PIN numerico (nessuna migrazione)", () => {
+    it("i PIN numerici legacy restano validi a 6, 7 e 8 cifre", async () => {
+      for (const pin of ["123456", "1234567", "12345678"]) {
+        expect(await setPin(pin)).toBe(true)
+        expect(await verifyPin(pin)).toBe(true)
+        expect(await verifyPin(pin.slice(0, 5))).toBe(false)
+      }
+    })
+
+    it("accetta una password di 8+ caratteri (lettere, cifre, simboli)", async () => {
+      expect(await setPin("S3cret!pass")).toBe(true)
+      expect(await hasPinConfigured()).toBe(true)
+      expect(await verifyPin("S3cret!pass")).toBe(true)
+      expect(await verifyPin("s3cret!pass")).toBe(false)
+    })
+
+    it("rifiuta password sotto 8 caratteri ma accetta esattamente 8", async () => {
+      expect(await setPin("Abc1234")).toBe(false) // 7 caratteri non numerici
+      expect(await hasPinConfigured()).toBe(false)
+      expect(await setPin("Abc12345")).toBe(true)
+      expect(await verifyPin("Abc12345")).toBe(true)
+    })
+
+    it("rifiuta vuoto, soli spazi e oltre 128 caratteri", async () => {
+      expect(await setPin("")).toBe(false)
+      expect(await setPin("        ")).toBe(false)
+      expect(await setPin("a".repeat(129))).toBe(false)
+      expect(await hasPinConfigured()).toBe(false)
+      expect(await setPin("a".repeat(128))).toBe(true)
+      expect(await verifyPin("a".repeat(128))).toBe(true)
+    })
+
+    it("normalizza gli spazi esterni in set e verifica (stesso confine)", async () => {
+      expect(await setPin("  My pass phrase  ")).toBe(true)
+      expect(await verifyPin("My pass phrase")).toBe(true)
+      expect(await verifyPin("  My pass phrase  ")).toBe(true)
+    })
+  })
+
   it("crea e valida i token di sessione firmati HMAC", async () => {
     await setPin("654321")
     const token = await createSessionToken()
@@ -180,6 +219,43 @@ describe("PIN Authentication & Security", () => {
       expect(res.status).toBe(400)
     })
 
+    it("PUT: accetta una password e POST sblocca con quella (credenziale mai echoata)", async () => {
+      const headers = { "user-agent": "pin-passphrase-http-tests" }
+      const putRes = await PUT(createReq("PUT", "/api/auth/pin", { newPin: "Correct-Horse!" }, headers))
+      expect(putRes.status).toBe(200)
+
+      const failRes = await POST(createReq("POST", "/api/auth/pin", { pin: "wrong-password" }, headers))
+      expect(failRes.status).toBe(401)
+      const failJson = await failRes.json()
+      expect(failJson.code).toBe("pin_wrong")
+      expect(JSON.stringify(failJson)).not.toContain("wrong-password")
+
+      const okRes = await POST(createReq("POST", "/api/auth/pin", { pin: "Correct-Horse!" }, headers))
+      expect(okRes.status).toBe(200)
+      // Successo booleano soltanto: nessun eco della credenziale.
+      expect(await okRes.json()).toEqual({ success: true })
+    })
+
+    it("PUT: rifiuta una password corta con codice pin_too_short e una troppo lunga con pin_too_long", async () => {
+      const headers = { "user-agent": "pin-passphrase-http-tests" }
+      const shortRes = await PUT(createReq("PUT", "/api/auth/pin", { newPin: "Abc1234" }, headers))
+      expect(shortRes.status).toBe(400)
+      expect((await shortRes.json()).code).toBe("pin_too_short")
+
+      const longRes = await PUT(createReq("PUT", "/api/auth/pin", { newPin: "a".repeat(129) }, headers))
+      expect(longRes.status).toBe(400)
+      expect((await longRes.json()).code).toBe("pin_too_long")
+    })
+
+    it("PUT: rifiuta credenziali vuote o di soli spazi", async () => {
+      const headers = { "user-agent": "pin-passphrase-http-tests" }
+      for (const newPin of ["", "        "]) {
+        const res = await PUT(createReq("PUT", "/api/auth/pin", { newPin }, headers))
+        expect(res.status).toBe(400)
+        expect((await res.json()).code).toBe("pin_too_short")
+      }
+    })
+
     it("cambiare PIN invalida le sessioni precedenti (rotazione secret)", async () => {
       await setPin("111111")
       const oldToken = await createSessionToken()
@@ -221,6 +297,81 @@ describe("PIN Authentication & Security", () => {
       const checkRes = await GET(createReq("GET", "/api/auth/pin"))
       const json = await checkRes.json()
       expect(json.hasPin).toBe(false)
+    })
+  })
+
+  describe("primo set del PIN: gate anti-claim dell'istanza", () => {
+    const ENV_KEYS = [
+      "PICTORIUM_MULTI_USER",
+      "POSTERIUM_MULTI_USER",
+      "PICTORIUM_ADMIN_TOKEN",
+      "POSTERIUM_ADMIN_TOKEN",
+      "ADMIN_TOKEN",
+    ] as const
+    const saved = new Map<string, string | undefined>()
+    // Bucket rate-limit dedicato (20 burst): senza TRUST_PROXY lo User-Agent
+    // NON è un'identità (tutti gli anonimi condividono "local", altrimenti
+    // basterebbe ruotarlo per evadere il limite), quindi questo blocco si dà un
+    // IP fidato esplicito per non consumare i token del resto del file.
+    const headers = { "x-real-ip": "198.51.100.10" }
+
+    beforeEach(() => {
+      vi.stubEnv("PICTORIUM_TRUST_PROXY", "1")
+      for (const key of ENV_KEYS) {
+        saved.set(key, process.env[key])
+        delete process.env[key]
+      }
+    })
+
+    afterEach(() => {
+      for (const key of ENV_KEYS) {
+        const value = saved.get(key)
+        if (value === undefined) delete process.env[key]
+        else process.env[key] = value
+      }
+      saved.clear()
+    })
+
+    it("MULTI_USER=1 senza ADMIN_TOKEN: il primo set è rifiutato (401), nessun PIN e nessun cookie", async () => {
+      process.env.PICTORIUM_MULTI_USER = "1"
+      const res = await PUT(createReq("PUT", "/api/auth/pin", { newPin: "123456" }, headers))
+      expect(res.status).toBe(401)
+      expect(res.headers.get("set-cookie")).toBeNull()
+      expect((await res.json()).code).toBe("pin_claim_requires_admin_token")
+      expect(await hasPinConfigured()).toBe(false)
+    })
+
+    it("MULTI_USER=1 con ADMIN_TOKEN: il token sblocca il primo set", async () => {
+      process.env.PICTORIUM_MULTI_USER = "1"
+      process.env.PICTORIUM_ADMIN_TOKEN = "claim-token"
+      const denied = await PUT(createReq("PUT", "/api/auth/pin", { newPin: "123456" }, headers))
+      expect(denied.status).toBe(401)
+      expect(await hasPinConfigured()).toBe(false)
+
+      const res = await PUT(
+        createReq("PUT", "/api/auth/pin", { newPin: "123456" }, { ...headers, "x-admin-token": "claim-token" }),
+      )
+      expect(res.status).toBe(200)
+      expect(res.headers.get("set-cookie")).toContain("pictorium_pin_session=")
+      expect(await hasPinConfigured()).toBe(true)
+    })
+
+    it("single-user (MULTI_USER assente): il primo set dell'onboarding resta libero", async () => {
+      const res = await PUT(createReq("PUT", "/api/auth/pin", { newPin: "123456" }, headers))
+      expect(res.status).toBe(200)
+      expect(res.headers.get("set-cookie")).toContain("pictorium_pin_session=")
+      expect(await hasPinConfigured()).toBe(true)
+    })
+
+    it("PIN già impostato: in multi-utente la rotazione resta possibile col PIN corrente", async () => {
+      await setPin("123456")
+      process.env.PICTORIUM_MULTI_USER = "1"
+      const bad = await PUT(createReq("PUT", "/api/auth/pin", { newPin: "654321" }, headers))
+      expect(bad.status).toBe(401)
+
+      const ok = await PUT(createReq("PUT", "/api/auth/pin", { currentPin: "123456", newPin: "654321" }, headers))
+      expect(ok.status).toBe(200)
+      expect(await verifyPin("654321")).toBe(true)
     })
   })
 

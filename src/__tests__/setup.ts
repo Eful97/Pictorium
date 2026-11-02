@@ -1,9 +1,97 @@
-import { expect, afterEach, vi } from "vitest"
+import fs from "node:fs"
+import os from "node:os"
+import path from "node:path"
+import { expect, afterEach, afterAll, vi } from "vitest"
 import { cleanup } from "@testing-library/react"
 import * as matchers from "@testing-library/jest-dom/matchers"
 
 import { _resetPinCache } from "@/lib/pin-auth"
 import { __resetKey401Cache } from "@/lib/tmdb"
+
+// ---------------------------------------------------------------------------
+// Isolated DATA_DIR for the unit suite.
+//
+// src/lib/data-dir.ts resolves DATA_DIR as `PICTORIUM_DATA_DIR` >
+// `POSTERIUM_DATA_DIR` > `<cwd>/data`. Without the env vars the suite read and
+// wrote the developer's real `./data` working copy, so local state leaked into
+// the tests (e.g. an explicit `streamingSelections` in `./data/defaults.json`
+// switches catalogs to opt-in mode and hides the legacy platform catalogs,
+// breaking catalog assertions on an otherwise pristine HEAD).
+//
+// The module is replaced with the SAME env precedence as production, but the
+// unconfigured fallback is a per-run temp dir instead of the repo checkout.
+// The env var is deliberately NOT set ambiently: `envWithFallback("DATA_DIR")`
+// presence is a meaningful production signal (MDBList raw disk persistence
+// gate in src/lib/mdblist-raw-cache.ts) and tests that assert the
+// "not configured" behaviour must keep seeing it unset, while tests that DO
+// configure a DATA_DIR (canonical or legacy) keep their own dir verbatim.
+//
+// Per-run/per-worker dir: Vitest workers are separate processes (forks pool,
+// distinct pid) or worker threads (distinct VITEST_WORKER_ID), so parallel
+// files never share state. Each test file gets a fresh empty dir (setUp runs
+// per file) and the afterAll below removes only that dir.
+vi.mock("@/lib/data-dir", async () => {
+  const { tmpdir } = await import("node:os")
+  const { join } = await import("node:path")
+  const fallback = join(
+    tmpdir(),
+    "pictorium-vitest-data",
+    `${process.pid}-${process.env.VITEST_WORKER_ID ?? "0"}`,
+  )
+  return {
+    // Getter, not a frozen value: the mock factory result is cached per
+    // worker, so the env precedence must be read at each access (tests stub
+    // the env then `vi.resetModules()` + re-import, exactly like the real
+    // module resolves at module evaluation).
+    get DATA_DIR(): string {
+      const canonical = process.env.PICTORIUM_DATA_DIR
+      const legacy = process.env.POSTERIUM_DATA_DIR
+      const configured = canonical !== undefined ? canonical : legacy
+      return configured || fallback
+    },
+  }
+})
+
+// Must match the fallback above (module-scope vars are in TDZ when the mock
+// factory runs during setup imports, so the expression is intentionally
+// duplicated instead of shared).
+const TEST_DATA_DIR_ROOT = path.join(os.tmpdir(), "pictorium-vitest-data")
+const TEST_DATA_DIR = path.join(
+  TEST_DATA_DIR_ROOT,
+  `${process.pid}-${process.env.VITEST_WORKER_ID ?? "0"}`,
+)
+
+try {
+  fs.mkdirSync(TEST_DATA_DIR, { recursive: true })
+} catch (error) {
+  // Fail fast: silently falling back to the repo ./data is exactly the bug
+  // this isolation removes.
+  throw new Error(
+    `[vitest setup] cannot create the isolated test DATA_DIR '${TEST_DATA_DIR}': ${
+      error instanceof Error ? error.message : String(error)
+    }. Refusing to fall back to the repository ./data directory.`,
+  )
+}
+
+afterAll(() => {
+  const root = path.resolve(TEST_DATA_DIR_ROOT)
+  const target = path.resolve(TEST_DATA_DIR)
+  // Never delete anything outside the per-run temp root (in particular never
+  // the real ./data). rmSync is best-effort: a locked file on Windows must not
+  // fail an otherwise green test file.
+  if (target !== root && !target.startsWith(root + path.sep)) {
+    throw new Error(`[vitest setup] refusing to remove '${target}': outside the isolated test DATA_DIR root.`)
+  }
+  try {
+    fs.rmSync(target, { recursive: true, force: true })
+  } catch (error) {
+    console.warn(
+      `[vitest setup] could not remove the isolated test DATA_DIR '${target}': ${
+        error instanceof Error ? error.message : String(error)
+      }`,
+    )
+  }
+})
 
 expect.extend(matchers)
 
@@ -18,9 +106,16 @@ vi.mock("next/font/google", () => {
   }
 })
 
-// I test simulano un'istanza pubblica (route admin aperte senza ADMIN_TOKEN):
-// la modalità deve essere esplicita via POSTERIUM_PUBLIC_INSTANCE=1 (vedi auth.ts).
-process.env.POSTERIUM_PUBLIC_INSTANCE = "1"
+// Lo scenario "istanza pubblica" (POSTERIUM_PUBLIC_INSTANCE=1, route admin
+// aperte senza ADMIN_TOKEN) non esiste più: le route admin sono fail-closed in
+// produzione e i test che le esercitano configurano un ADMIN_TOKEN esplicito e
+// inviano l'header x-admin-token (nessun bypass implicito nel setup globale).
+//
+// I default di HARDENING poster restano quelli di un deploy condiviso, come
+// prima: la suite simula l'hosting ElfHosted (trigger supportato e reale per
+// presets mode + preview blindata, vedi poster-params-hardening.ts). Non ha
+// alcun effetto sull'autenticazione admin.
+process.env.PICTORIUM_HOSTED_BY = "elfhosted"
 
 // Node >=25 defines a global `localStorage` accessor that returns undefined
 // without --localstorage-file (ExperimentalWarning). Since it is an
@@ -54,7 +149,6 @@ afterEach(() => {
   // Stato fetch TMDB (negative cache 401) isolato tra i test: senza, un 401
   // reale (mock esauriti → rete) marchierebbe la chiave per i test seguenti.
   __resetKey401Cache()
-  process.env.POSTERIUM_PUBLIC_INSTANCE = "1"
 })
 
 const itDict: Record<string, string> = {

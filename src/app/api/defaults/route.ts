@@ -18,6 +18,7 @@ import { SHAPE_FLAT_TO_LANDSCAPE, snapshotMissingLandscape } from "@/lib/visual-
 import { retiredBadgeFamilyBindingsSchema } from "@/lib/validation"
 import { parseGenericVariantId } from "@/lib/streaming-catalogs"
 import { isLandscapeResetKey, sanitizeLandscapeReset } from "@/lib/landscape-reset"
+import { getInstanceKeyStatus } from "@/lib/instance-keys"
 
 const log = createLogger("defaults")
 
@@ -379,18 +380,22 @@ export async function GET(req: NextRequest) {
   }
   const d = await getServerDefaultsChecked()
   // Flag pubblici (solo booleani): dicono al client se l'istanza ha chiavi
-  // env, così la welcome screen appare solo quando non c'è chiave da nessuna
+  // env OPPURE salvate nello store d'istanza (cifrato, configurato dalla UI),
+  // così la welcome screen appare solo quando non c'è chiave da nessuna
   // parte (né browser né server). I VALORI restano dietro requireAdminToken
   // qui sotto — un booleano non espone alcun segreto (l'health endpoint
-  // rivela già lo stesso segnale via status degraded/healthy).
+  // rivela già lo stesso segnale via status degraded/healthy). Lo store
+  // d'istanza degrada a `null` (mai throw): un outage non rompe /api/defaults.
+  const instancePresence = await getInstanceKeyStatus().catch(() => null)
   const hasInstanceKeys = {
-    tmdbKey: !!(envWithFallback("TMDB_KEY") || process.env.TMDB_API_KEY),
-    mdblistKey: !!(envWithFallback("MDBLIST_KEY") || process.env.MDBLIST_API_KEY),
-    tvdbKey: !!(envWithFallback("TVDB_API_KEY") || process.env.TVDB_API_KEY),
+    tmdbKey: !!(envWithFallback("TMDB_KEY") || process.env.TMDB_API_KEY) || instancePresence?.tmdb === true,
+    mdblistKey: !!(envWithFallback("MDBLIST_KEY") || process.env.MDBLIST_API_KEY) || instancePresence?.mdblist === true,
+    tvdbKey: !!(envWithFallback("TVDB_API_KEY") || process.env.TVDB_API_KEY) || instancePresence?.tvdb === true,
   }
-  // Le chiavi d'istanza non devono mai trapelare su istanze pubbliche:
-  // checkAdminToken è true per chiunque con PICTORIUM_PUBLIC_INSTANCE=1,
-  // quindi qui serve requireAdminToken (solo ADMIN_TOKEN o sessione PIN valida).
+  // Le chiavi d'istanza non devono mai trapelare: il ramo fail-closed
+  // requireAdminToken (solo ADMIN_TOKEN o sessione PIN valida) le espone,
+  // mentre la lettura non autenticata riceve solo i booleani. `serverKeys`
+  // resta la proiezione degli ENV (lo store d'istanza non viene mai echoato).
   if (requireAdminToken(req)) {
     const serverKeys = {
       tmdbKey: envWithFallback("TMDB_KEY") || process.env.TMDB_API_KEY || "",

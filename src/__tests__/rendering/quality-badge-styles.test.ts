@@ -43,8 +43,8 @@ import type { ServerDefaults } from "@/lib/server-defaults"
 const ROOT = path.resolve(__dirname, "../../..")
 
 describe("quality badge styles", () => {
-  it("exposes the standard/mono/color/knockout/premium/nova/gradient/outline/strip union with standard default", () => {
-    expect([...QUALITY_BADGE_STYLES]).toEqual(["standard", "mono", "color", "knockout", "premium", "nova", "gradient", "outline", "strip"])
+  it("exposes the standard/mono/color/knockout/premium/nova/gradient/outline/strip/naked union with standard default", () => {
+    expect([...QUALITY_BADGE_STYLES]).toEqual(["standard", "mono", "color", "knockout", "premium", "nova", "gradient", "outline", "strip", "naked"])
     expect(DEFAULT_QUALITY_BADGE_STYLE).toBe("standard")
     expect(isQualityBadgeStyle("mono")).toBe(true)
     expect(isQualityBadgeStyle("color")).toBe(true)
@@ -54,6 +54,7 @@ describe("quality badge styles", () => {
     expect(isQualityBadgeStyle("nova")).toBe(true)
     expect(isQualityBadgeStyle("gradient")).toBe(true)
     expect(isQualityBadgeStyle("strip")).toBe(true)
+    expect(isQualityBadgeStyle("naked")).toBe(true)
     expect(isQualityBadgeStyle("bar")).toBe(false)
     expect(isQualityBadgeStyle(null)).toBe(false)
     expect(isQualityBadgeStyle(undefined)).toBe(false)

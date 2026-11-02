@@ -141,13 +141,13 @@ const singleMarkUrl = (extra: string) =>
   `http://localhost:3000/api/poster/movie/44?poster=%2Fq.jpg&imdbId=tt0000044&sep=0&badges=1&ranking=1&bq=1&formats=none&preview=1&demosamples=1&api_key=test${extra}`
 
 async function fetchImageFrom(url: string): Promise<Buffer> {
-  const res = await GET(new NextRequest(url), { params: Promise.resolve({ type: "movie", id: "44" }) })
+  const res = await GET(adminReq(url), { params: Promise.resolve({ type: "movie", id: "44" }) })
   expect(res.status).toBe(200)
   return Buffer.from(await res.arrayBuffer())
 }
 
 async function fetchGeoFrom(url: string): Promise<Geo> {
-  const res = await GET(new NextRequest(`${url}&debug=1&netgeo=1`), {
+  const res = await GET(adminReq(`${url}&debug=1&netgeo=1`), {
     params: Promise.resolve({ type: "movie", id: "44" }),
   })
   expect(res.status).toBe(200)
@@ -345,3 +345,10 @@ describe("quality homes on the route (wire + ghosts flag)", () => {
     expect(withGhosts.equals(plain)).toBe(true)
   }, 60000)
 })
+
+// Route admin fail-closed: le richieste di test presentano un ADMIN_TOKEN reale
+// (le preview restano live, come nell'editor con sessione sbloccata).
+const TEST_ADMIN_TOKEN = "route-tests-admin-token"
+process.env.ADMIN_TOKEN = TEST_ADMIN_TOKEN
+const adminReq = (url: string, init?: { headers?: Record<string, string> }) =>
+  new NextRequest(url, { ...init, headers: { ...(init?.headers ?? {}), "x-admin-token": TEST_ADMIN_TOKEN } })

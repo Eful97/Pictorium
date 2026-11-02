@@ -1747,7 +1747,7 @@ export default function EditView() {
             </div>
             <h2 className="text-lg font-bold text-zinc-100 mb-2">{t("ui.welcomePanelTitle")}</h2>
             <p className="text-sm text-muted mb-6 leading-relaxed">{t("ui.noKey")}</p>
-            <button type="button" onClick={() => { requestSettingsTab("spazio"); setSettingsOpen(true) }} className="btn-primary px-5 py-2.5 text-sm">
+            <button type="button" onClick={() => { requestSettingsTab(multiUserOn ? "spazio" : "data"); setSettingsOpen(true) }} className="btn-primary px-5 py-2.5 text-sm">
               {t("ui.configureKeys")}
             </button>
             <div className="grid grid-cols-3 gap-3 mt-8 w-full">

@@ -237,6 +237,11 @@ export interface PictoriumCtx {
   setTmdbKey: (v: string) => void
   /** True se l'istanza ha una chiave TMDB env (booleano pubblico /api/defaults). */
   serverHasTmdbKey: boolean
+  /** Presenza chiavi d'istanza (store cifrato o env): SOLO booleani, mai valori. */
+  instanceHasTmdbKey: boolean
+  instanceHasMdblistKey: boolean
+  /** Rilegge la presenza d'istanza dopo un salvataggio (mai valori in stato). */
+  refreshInstanceKeyPresence: () => Promise<void>
   /** Presenza chiavi server-side del namespace (solo booleani, mai valori). */
   serverKeyStatus: { tmdb: boolean; mdblist: boolean; tvdb: boolean } | null
   /** UUID del namespace su path /u/<uuid> (o ?u=), null altrove. */
@@ -521,6 +526,9 @@ export function usePictorium(): PictoriumCtx {
   // da quella del namespace: l'effettivo è l'OR dei due (vedi sotto) così la
   // rimozione della chiave profilo riazzera il flag invece di restare latchato.
   const [instanceHasTmdbKey, setInstanceHasTmdbKey] = useState(false)
+  // Presenza MDBList lato istanza (store d'istanza o env): serve solo a
+  // omettere `mdblist_key` dal template, MAI a mettere valori nel client.
+  const [instanceHasMdblistKey, setInstanceHasMdblistKey] = useState(false)
   // Namespace utente (multi-user): uuid dal path /u/<uuid> (o ?u=). Mai
   // catturato una volta sola: back/forward e navigazioni SPA che riusano
   // l'albero lascerebbero lo stato stantio (listener post-unlock mai
@@ -1156,6 +1164,7 @@ export function usePictorium(): PictoriumCtx {
       .then((r) => (r.ok ? r.json() : null))
       .then((data) => {
         if (data?.hasInstanceKeys?.tmdbKey) setInstanceHasTmdbKey(true)
+        if (data?.hasInstanceKeys?.mdblistKey) setInstanceHasMdblistKey(true)
         if (!data?.serverKeys) return
         const { tmdbKey, mdblistApiKey: mdblistKey, tvdbApiKey: tvdbKey } = data.serverKeys
         if (!savedTmdb && tmdbKey) {
@@ -1173,6 +1182,25 @@ export function usePictorium(): PictoriumCtx {
         /* ignore network errors on init */
       })
   }, [safeGetItem])
+
+  // Presence refresh after an instance-keys save (Settings → Data): the same
+  // /api/defaults signal the init load reads, so env + encrypted store stay
+  // combined and a cleared store key with an env fallback does not flip the
+  // gate off. Only booleans enter state; values are never requested.
+  const refreshInstanceKeyPresence = useCallback(async () => {
+    try {
+      const res = await userFetch("/api/defaults", { cache: "no-store" })
+      if (!res.ok) return
+      const data = (await res.json().catch(() => null)) as
+        | { hasInstanceKeys?: { tmdbKey?: boolean; mdblistKey?: boolean } }
+        | null
+      if (!data?.hasInstanceKeys) return
+      setInstanceHasTmdbKey(data.hasInstanceKeys.tmdbKey === true)
+      setInstanceHasMdblistKey(data.hasInstanceKeys.mdblistKey === true)
+    } catch {
+      /* best-effort: the save already succeeded, presence is advisory */
+    }
+  }, [])
 
   useEffect(() => {
     safeSetItem("pictorium_theme", theme)
@@ -1416,8 +1444,11 @@ export function usePictorium(): PictoriumCtx {
       // Spazi senza namespace (local-only): il token firmato porta cataloghi
       // e selezione Top 20 del device; assente altrove (template invariati).
       configToken: localConfigToken ?? undefined,
-      omitApiKey: serverKeyStatus?.tmdb === true,
-      omitMdblistKey: serverKeyStatus?.mdblist === true,
+      // Instance presence: il server risolve dallo store d'istanza (o env), il
+      // template non deve portare una chiave ridondante in chiaro. Mai valori
+      // dal server: solo i booleani di presenza.
+      omitApiKey: instanceHasTmdbKey || serverKeyStatus?.tmdb === true,
+      omitMdblistKey: instanceHasMdblistKey || serverKeyStatus?.mdblist === true,
       // Segui-spazio: omette i visuali (il server li risolve dallo spazio).
       followSpace: linkMode === "follow",
     }
@@ -1427,7 +1458,7 @@ export function usePictorium(): PictoriumCtx {
     setUrlPatternNuvio(buildUrlPattern({ ...base, idPlaceholder: "{tmdb_id}", shapePlaceholder: "{shape}" }))
     setUrlPatternNuvioImdb(buildUrlPattern({ ...base, idPlaceholder: "{imdb_id}", shapePlaceholder: "{shape}" }))
     setUrlPatternNuvioAuto(buildUrlPattern({ ...base, idPlaceholder: "{tmdb_id|imdb_id}", shapePlaceholder: "{shape}" }))
-    }, [globalBadges, rankingBadges, badgeGenre, badgeYear, badgeRating, badgeQuality, qualityBadgeStyle, qualityGroupLayout, awardBadgeStyle, defaultAwardBadgeStyle, customRatings, ratingSources, separateRatings, separateRatingsStyle, posterLayout, posterFreshScope, defaultPosterLayout, defaultPosterFreshScope, networkLogo, networkLogoPosition, networkLogoFollowTitle, preRelease, ribbonSide, ribbonEnabled, posterShape, logoAlign, gradientHeight, blurIntensity, blurFade, blurDarkness, blurEnabled, landscapeBlur, landscapeDefaults, tintStrength, topShade, topShadeHeight, badgeStyle, rankingBadgeStyle, extraBadgeStyle, badgeFont, topBadgeScale, topBadgeOffsetX, topBadgeOffsetY, extraBadgeScale, extraBadgeOffsetX, extraBadgeOffsetY, genreBadgeScale, qualityBadgeScale, networkLogoScale, separateBadgeScale, separateBadgeOffsetX, separateBadgeOffsetY, genreBadgeOffsetX, genreBadgeOffsetY, qualityBadgeOffsetX, qualityBadgeOffsetY, networkLogoOffsetX, networkLogoOffsetY, tmdbKey, lang, mdblistApiKey, currentUserId, localConfigToken, serverKeyStatus, linkMode, navigation.previewId, defaultGlobalBadges, defaultRankingBadges, defaultBadgeStyle, defaultRankingBadgeStyle, defaultExtraBadgeStyle, defaultBadgeFont, defaultQualityBadgeStyle, defaultQualityGroupLayout, defaultBadgeGenre, defaultBadgeYear, defaultBadgeRating, defaultBadgeQuality, defaultAgeBadge, defaultAgeCountry, defaultAgeBadgeStyle, defaultCustomRatings, defaultRatingSources, defaultSeparateRatings, defaultSeparateRatingsStyle, defaultGradientHeight, defaultBlurIntensity, defaultBlurFade, defaultBlurDarkness, defaultBlurEnabled, defaultTintStrength, defaultTopShade, defaultTopShadeHeight, defaultNetworkLogo, defaultNetworkLogoPosition, defaultNetworkLogoFollowTitle, defaultPreRelease, defaultDateFormat, defaultRibbonSide, defaultRibbonEnabled, defaultPosterShape, defaultLogoAlign, defaultTopBadgeScale, defaultTopBadgeOffsetX, defaultTopBadgeOffsetY, defaultExtraBadgeScale, defaultExtraBadgeOffsetX, defaultExtraBadgeOffsetY, defaultGenreBadgeScale, defaultQualityBadgeScale, defaultNetworkLogoScale, defaultSeparateBadgeScale, defaultSeparateBadgeOffsetX, defaultSeparateBadgeOffsetY, defaultGenreBadgeOffsetX, defaultGenreBadgeOffsetY, defaultQualityBadgeOffsetX, defaultQualityBadgeOffsetY, defaultNetworkLogoOffsetX, defaultNetworkLogoOffsetY]) // eslint-disable-line react-hooks/exhaustive-deps -- customBadge intentionally excluded to avoid loop
+    }, [globalBadges, rankingBadges, badgeGenre, badgeYear, badgeRating, badgeQuality, qualityBadgeStyle, qualityGroupLayout, awardBadgeStyle, defaultAwardBadgeStyle, customRatings, ratingSources, separateRatings, separateRatingsStyle, posterLayout, posterFreshScope, defaultPosterLayout, defaultPosterFreshScope, networkLogo, networkLogoPosition, networkLogoFollowTitle, preRelease, ribbonSide, ribbonEnabled, posterShape, logoAlign, gradientHeight, blurIntensity, blurFade, blurDarkness, blurEnabled, landscapeBlur, landscapeDefaults, tintStrength, topShade, topShadeHeight, badgeStyle, rankingBadgeStyle, extraBadgeStyle, badgeFont, topBadgeScale, topBadgeOffsetX, topBadgeOffsetY, extraBadgeScale, extraBadgeOffsetX, extraBadgeOffsetY, genreBadgeScale, qualityBadgeScale, networkLogoScale, separateBadgeScale, separateBadgeOffsetX, separateBadgeOffsetY, genreBadgeOffsetX, genreBadgeOffsetY, qualityBadgeOffsetX, qualityBadgeOffsetY, networkLogoOffsetX, networkLogoOffsetY, tmdbKey, lang, mdblistApiKey, currentUserId, localConfigToken, serverKeyStatus, instanceHasTmdbKey, instanceHasMdblistKey, linkMode, navigation.previewId, defaultGlobalBadges, defaultRankingBadges, defaultBadgeStyle, defaultRankingBadgeStyle, defaultExtraBadgeStyle, defaultBadgeFont, defaultQualityBadgeStyle, defaultQualityGroupLayout, defaultBadgeGenre, defaultBadgeYear, defaultBadgeRating, defaultBadgeQuality, defaultAgeBadge, defaultAgeCountry, defaultAgeBadgeStyle, defaultCustomRatings, defaultRatingSources, defaultSeparateRatings, defaultSeparateRatingsStyle, defaultGradientHeight, defaultBlurIntensity, defaultBlurFade, defaultBlurDarkness, defaultBlurEnabled, defaultTintStrength, defaultTopShade, defaultTopShadeHeight, defaultNetworkLogo, defaultNetworkLogoPosition, defaultNetworkLogoFollowTitle, defaultPreRelease, defaultDateFormat, defaultRibbonSide, defaultRibbonEnabled, defaultPosterShape, defaultLogoAlign, defaultTopBadgeScale, defaultTopBadgeOffsetX, defaultTopBadgeOffsetY, defaultExtraBadgeScale, defaultExtraBadgeOffsetX, defaultExtraBadgeOffsetY, defaultGenreBadgeScale, defaultQualityBadgeScale, defaultNetworkLogoScale, defaultSeparateBadgeScale, defaultSeparateBadgeOffsetX, defaultSeparateBadgeOffsetY, defaultGenreBadgeOffsetX, defaultGenreBadgeOffsetY, defaultQualityBadgeOffsetX, defaultQualityBadgeOffsetY, defaultNetworkLogoOffsetX, defaultNetworkLogoOffsetY]) // eslint-disable-line react-hooks/exhaustive-deps -- customBadge intentionally excluded to avoid loop
 
   // --- Default live sul titolo corrente ---
   // Una modifica ai default (barra Impostazioni) si riflette subito sulla
@@ -3495,6 +3526,9 @@ export function usePictorium(): PictoriumCtx {
     tmdbKeyInput, setTmdbKeyInput,
     showKey, setShowKey, setTmdbKey,
     serverHasTmdbKey,
+    instanceHasTmdbKey,
+    instanceHasMdblistKey,
+    refreshInstanceKeyPresence,
     serverKeyStatus,
     currentUserId,
     mdblistApiKey, setMdblistApiKey: setMdblistApiKeyFn,
@@ -3537,6 +3571,9 @@ export function usePictorium(): PictoriumCtx {
     langOpen, settingsOpen, showLangPicker,
     tmdbKeyInput, showKey, copied, mdblistApiKey, tvdbApiKey,
     serverHasTmdbKey,
+    instanceHasTmdbKey,
+    instanceHasMdblistKey,
+    refreshInstanceKeyPresence,
     serverKeyStatus,
     currentUserId,
     accentColor, autoAccentColor, setAccentColor,

@@ -1,6 +1,6 @@
 import { fontFilesFor } from "./fonts"
 import type { FontSubset } from "./fonts"
-import { buildQualityBadgeSvg, buildQualityKnockoutSvg, buildAgeKnockoutSvg, buildAgeEmphasisSvg, buildGradientMarkSvg, buildComingSoonRibbonSvg, buildHouseExtraSvg, buildHouseGenreSvg, buildHouseRankingSvg, buildTextLogoSvg } from "./badge-svg-shared"
+import { buildQualityBadgeSvg, buildQualityKnockoutSvg, buildQualityNakedSvg, buildAgeKnockoutSvg, buildAgeEmphasisSvg, buildGradientMarkSvg, buildComingSoonRibbonSvg, buildHouseExtraSvg, buildHouseGenreSvg, buildHouseRankingSvg, buildTextLogoSvg } from "./badge-svg-shared"
 import type { AgeEmphasisStyle, TextLogoStyle } from "./badge-svg-shared"
 export { buildNetflixRankBadgeSVG } from "./badge-svg-shared"
 import type { GenreParts } from "./badge-svg-shared"
@@ -314,6 +314,33 @@ export async function renderQualityBadge(
   const bg = topLight ? "rgba(0,0,0,0.80)" : "rgba(255,255,255,0.80)"
   const fg = topLight ? "rgba(255,255,255,0.80)" : "rgba(0,0,0,0.80)"
   const built = buildQualityBadgeSvg(quality, fs, fg, bg, !!topLight, normalizeBadgeFont(font), targetW)
+  const png = await renderSVG(built.svg, built.w)
+  return { png, w: built.w, h: built.h }
+}
+
+/**
+ * Renders the `naked` quality tier: the SAME text run/box as the standard
+ * satin pill (`renderQualityBadge`) with the container removed — no rect, no
+ * gradient, no border. Glyph ink inverts against the background polarity
+ * (black on a light top, white on a dark top) and a single LIGHT drop shadow
+ * (`QUALITY_NAKED_SHADOW_FILTER`) sits strictly behind the ink: no stroke
+ * halo (the old border), no plate. Same 17px base and box model, so
+ * scale/offset/anchor math downstream is unchanged. Used by the tier AND
+ * (as the plate-less default) the age pill when `qbs=naked`; an explicit
+ * non-standard age style keeps its own material. A/V marks use the existing
+ * bare icon path instead (same ink polarity, no plate).
+ */
+export async function renderQualityNakedBadge(
+  quality: string,
+  pw: number,
+  topLight?: boolean,
+  /** Font del testo (default "inter" = resa storica). */
+  font: BadgeFont = "inter",
+  /** Larghezza visibile fissa (colonna del gruppo); assente = naturale. */
+  targetW?: number,
+): Promise<{ png: Buffer; w: number; h: number }> {
+  const fs = Math.round(Math.max(17 * pw / 380, 10))
+  const built = buildQualityNakedSvg(quality, fs, !!topLight, normalizeBadgeFont(font), targetW)
   const png = await renderSVG(built.svg, built.w)
   return { png, w: built.w, h: built.h }
 }

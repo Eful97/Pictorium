@@ -32,7 +32,7 @@ import { normalizeAutomaticAccentHex } from "./accent-color"
 import type { EffectiveAccentMeta } from "./effective-accent"
 import { renderAwardLogoBadge } from "./award-logos"
 import { awardShortName, type AwardBadgeKey } from "./badge-labels"
-import { renderGenreBadge, renderRankingBadge, renderExtraBadge, renderQualityBadge, renderQualityKnockoutBadge, renderAgeKnockoutBadge, renderAgeEmphasisBadge, renderGradientMarkBadge, renderComingSoonRibbon, comingSoonRibbonLayout, renderSVG } from "./svg-badge"
+import { renderGenreBadge, renderRankingBadge, renderExtraBadge, renderQualityBadge, renderQualityKnockoutBadge, renderQualityNakedBadge, renderAgeKnockoutBadge, renderAgeEmphasisBadge, renderGradientMarkBadge, renderComingSoonRibbon, comingSoonRibbonLayout, renderSVG } from "./svg-badge"
 import { buildLogoScrim, logoContrast, logoInkLuminance, logoScrimStrength, posterLogoZoneLuminance } from "./logo-contrast"
 import { renderFirstMatchingNetworkLogoBadge, renderFirstMatchingNetworkRawBadge, renderFirstMatchingNetworkLogoBadgeHybrid, renderFirstMatchingNetworkRawBadgeHybrid, type NetworkCandidate } from "./network-svgs"
 import { computeLogoLayout, logoAlignPadX, PORTRAIT_LOGO_MAX_HEIGHT_PCT, PORTRAIT_LOGO_TOP_OFFSET, LANDSCAPE_LOGO_MAX_WIDTH_PCT, LANDSCAPE_LOGO_MAX_HEIGHT_PCT, LANDSCAPE_LOGO_BOTTOM_MARGIN_PCT, LANDSCAPE_LOGO_TOP_OFFSET, LANDSCAPE_LOGO_SHIFT_X, LANDSCAPE_LOGO_SHIFT_Y } from "./logo-layout"
@@ -1159,6 +1159,11 @@ export async function renderQualityBadgeGroup(
   // (nessun asset) condiviso da tier, età e marchi A/V: bianco pieno per
   // tier/età, gradiente orizzontale per formato (`GRADIENT_MARK_STOPS`).
   const isGradient = qualityBadgeStyle === "gradient"
+  // Naked: the WHOLE group is plate-less — standard text box with the pill
+  // container removed for the tier, the existing bare ink path for the A/V
+  // marks and the same naked builder for the default age pill. An explicit
+  // non-standard `agebs` keeps its own material (independent control wins).
+  const isNaked = qualityBadgeStyle === "naked"
   // Outline: materiale wireframe 100% dinamico (rect stroked senza fill +
   // scrim interno + inchiostro satin), condiviso da tier, età e marchi A/V —
   // nessun asset, nessun secondo renderer.
@@ -1216,6 +1221,8 @@ export async function renderQualityBadgeGroup(
     // Stile standard: la colonna è larga quanto la PILL neutra 4K (stessa
     // ricetta dell'età: satinatura, padding 0.75×fs, raggio a mezza altezza).
     // Ogni tier testuale usa questa ricetta, non un tag più largo/quadrato.
+    // `naked` condivide la STESSA scatola di testo (nessun padding/box
+    // diverso): la colonna resta identica allo standard per costruzione.
     if (!isPremium && !isColor) {
       return Math.max(1, buildQualityBadgeSvg("4K", markFs, "", "", !!topLight, markFont).w - TOP_SHADOW_PAD * 2)
     }
@@ -1350,6 +1357,17 @@ export async function renderQualityBadgeGroup(
     if (isKnockout) {
       return renderAvKnockoutBadge(iconPath, pw, markRefWidth, markInkWidth)
     }
+    if (isNaked) {
+      // Naked full group: reuse the EXISTING bare A/V path
+      // (`renderQualityIconBadge` → `renderBareAvIcon`) — glyph in the
+      // polarity ink (#000 on a light top, #fff on a dark top) with the shared
+      // 3D shadow, NO frame/plate rect. Ink width is pinned to the common
+      // group column and the height follows the asset aspect (never stretched
+      // to the tier box height): a wide wordmark is honestly shorter than the
+      // text boxes, so the stack (and a HOME frame) center it instead of
+      // faking an equal height.
+      return renderQualityIconBadge(iconPath, pw, topLightForMark, markRefWidth)
+    }
     // standard / mono: stessa cornice del tier e dell'età (mai un marchio nudo).
     return renderFramedAvBadge(iconPath, pw, markRefWidth, isMono ? "mono" : "satin", topLightForMark)
   }
@@ -1483,6 +1501,14 @@ export async function renderQualityBadgeGroup(
     if (effAgeStyle === "mono" || effAgeStyle === "color" || effAgeStyle === "premium" || effAgeStyle === "nova" || effAgeStyle === "outline") {
       return renderAgeEmphasisBadge(ageText, pw, effAgeStyle, !!topLight, normalizeBadgeFont(font), columnW)
     }
+    if (isNaked) {
+      // Naked full group: the default age pill loses its satin plate too,
+      // reusing the SAME naked builder as the tier (identical box/geometry,
+      // polarity ink + background-tone halo, shared 3D shadow on the glyphs).
+      // Only the default `standard` age material is replaced: an explicit
+      // non-standard `agebs` already returned above (independent control wins).
+      return renderQualityNakedBadge(ageText, pw, topLight, normalizeBadgeFont(font), columnW)
+    }
     return renderQualityBadge(ageText, pw, topLight, normalizeBadgeFont(font), columnW)
   }
 
@@ -1530,7 +1556,9 @@ export async function renderQualityBadgeGroup(
         ? await renderQualityKnockoutBadge(qualityText, pw, normalizeBadgeFont(font), tierTargetW)
         : isMono
           ? await renderAgeEmphasisBadge(qualityText, pw, "mono", !!topLight, normalizeBadgeFont(font), tierTargetW)
-          : await renderQualityBadge(qualityText, pw, topLight, normalizeBadgeFont(font), tierTargetW)
+          : isNaked
+            ? await renderQualityNakedBadge(qualityText, pw, topLight, normalizeBadgeFont(font), tierTargetW)
+            : await renderQualityBadge(qualityText, pw, topLight, normalizeBadgeFont(font), tierTargetW)
     }
   }
   if (!resBadge && ageText === "") return null

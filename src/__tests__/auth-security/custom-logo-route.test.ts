@@ -131,7 +131,7 @@ const CUSTOM_LOGO = "https://i.imgur.com/logo123.png"
 const CUSTOM_MAPPED_LOGO = "https://i.imgur.com/logo-mapped.png"
 
 async function renderPosterBytes(url: string): Promise<Buffer> {
-  const res = await GET(new NextRequest(url), {
+  const res = await GET(adminReq(url), {
     params: Promise.resolve({ type: "movie", id: "42" }),
   })
   expect(res.status).toBe(200)
@@ -198,7 +198,7 @@ describe("GET /api/poster custom logo path", () => {
 
   it("rejects an off-allowlist logo query with 400", async () => {
     mockedGetById.mockResolvedValue(null)
-    const res = await GET(new NextRequest("http://localhost:3000/api/poster/movie/42?logo=https://evil.com/logo.png"), {
+    const res = await GET(adminReq("http://localhost:3000/api/poster/movie/42?logo=https://evil.com/logo.png"), {
       params: Promise.resolve({ type: "movie", id: "42" }),
     })
     expect(res.status).toBe(400)
@@ -207,14 +207,14 @@ describe("GET /api/poster custom logo path", () => {
 
   it("backdrop custom allowlisted passes the gate (same bar as poster/logo, landscape bases)", async () => {
     mockedGetById.mockResolvedValue(null)
-    const res = await GET(new NextRequest(`http://localhost:3000/api/poster/movie/42?backdrop=${encodeURIComponent(CUSTOM_LOGO)}`), {
+    const res = await GET(adminReq(`http://localhost:3000/api/poster/movie/42?backdrop=${encodeURIComponent(CUSTOM_LOGO)}`), {
       params: Promise.resolve({ type: "movie", id: "42" }),
     })
     // Gate: allowlisted custom backdrops are accepted like custom poster/logo
     // (server consumption via the shared validated fetch — see
     // custom-backdrop-route.test.ts). Off-allowlist hosts stay 400.
     expect(res.status).not.toBe(400)
-    const evil = await GET(new NextRequest("http://localhost:3000/api/poster/movie/42?backdrop=https://evil.com/x.png"), {
+    const evil = await GET(adminReq("http://localhost:3000/api/poster/movie/42?backdrop=https://evil.com/x.png"), {
       params: Promise.resolve({ type: "movie", id: "42" }),
     })
     expect(evil.status).toBe(400)
@@ -288,3 +288,10 @@ describe("GET /api/poster custom logo path", () => {
     expect(changed).toBeLessThan(total)
   })
 })
+
+// Route admin fail-closed: le richieste di test presentano un ADMIN_TOKEN reale
+// (le preview restano live, come nell'editor con sessione sbloccata).
+const TEST_ADMIN_TOKEN = "route-tests-admin-token"
+process.env.ADMIN_TOKEN = TEST_ADMIN_TOKEN
+const adminReq = (url: string, init?: { headers?: Record<string, string> }) =>
+  new NextRequest(url, { ...init, headers: { ...(init?.headers ?? {}), "x-admin-token": TEST_ADMIN_TOKEN } })

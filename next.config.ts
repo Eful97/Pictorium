@@ -7,6 +7,18 @@ import type { NextConfig } from "next";
 // (artworks.thetvdb.com, anteprima Stagioni & Episodi e AniZip) e i blob:
 // delle preview secure (useSecurePosterUrl/usePosterPreview).
 // frame-ancestors permette l'embedding su HF Spaces.
+//
+// Frame embedding: le PAGINE restano senza X-Frame-Options. La policy reale è
+// il `frame-ancestors` per-request (`src/lib/csp.ts`, override
+// PICTORIUM_FRAME_ANCESTORS): un X-Frame-Options statico qui non potrebbe
+// seguirla (richiederebbe un rebuild) e su browser legacy bloccherebbe
+// l'embed su HF Spaces configurato dall'operatore. Le risposte `/api/*` non
+// sono mai incorniciate dall'app, quindi lì SAMEORIGIN è un hardening gratuito.
+//
+// HSTS solo in produzione (build `next build`/standalone): in dev/localhost
+// non ha effetto utile e non deve finire nei manifest statici.
+
+const isProductionBuild = process.env.NODE_ENV === "production"
 
 const nextConfig: NextConfig = {
   // `standalone` serve al self-hosting Docker (il Dockerfile copia
@@ -43,13 +55,29 @@ const nextConfig: NextConfig = {
     ],
   },
   async headers() {
+    const securityHeaders = [
+      { key: "X-Content-Type-Options", value: "nosniff" },
+      { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+      { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=()" },
+      // HSTS: only meaningful over HTTPS (browsers ignore it on plain HTTP) and
+      // only for production deployments. No preload, no includeSubDomains: a
+      // self-hosted instance may serve other vhosts that do not speak HTTPS.
+      ...(isProductionBuild
+        ? [{ key: "Strict-Transport-Security", value: "max-age=15552000" }]
+        : []),
+    ]
     return [
       {
         source: "/(.*)",
+        headers: securityHeaders,
+      },
+      {
+        // API responses are never framed by the app (poster images, catalogs,
+        // meta JSON): SAMEORIGIN closes framing without touching the page
+        // embedding contract, which stays on the runtime frame-ancestors CSP.
+        source: "/api/(.*)",
         headers: [
-          { key: "X-Content-Type-Options", value: "nosniff" },
-          { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
-          { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=()" },
+          { key: "X-Frame-Options", value: "SAMEORIGIN" },
         ],
       },
       {

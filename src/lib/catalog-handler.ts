@@ -798,8 +798,12 @@ export async function pictoriumCatalog(
   // il flood su `?u=vittima` non brucia la quota del proprietario.
   // NB: userParam qui è già canonico (path vince, vedi route /u/): nessuna
   // doppia identità a questo livello.
-  const preScopedUser = getScopedUserId(userParam)
-  const rl = await rateLimit(preScopedUser ? userRateLimitKey(req, preScopedUser) : rateLimitKey(req), "catalog")
+  // Spazi inventati → anonimo PRIMA del rate-limit (v1.23.0): un UUID
+  // inesistente non crea un bucket nuovo a ogni rotazione, e niente cache key
+  // separate per gli spazi fantasma.
+  let scopedUser = getScopedUserId(userParam)
+  if (scopedUser && !(await userExists(scopedUser))) scopedUser = null
+  const rl = await rateLimit(scopedUser ? userRateLimitKey(req, scopedUser) : rateLimitKey(req), "catalog")
   if (!rl.ok) return rateLimitResponse(rl.retAfter)
 
   // Alias legacy: gli addon Stremio installati prima del rename usano ID
@@ -815,9 +819,8 @@ export async function pictoriumCatalog(
   const extra = parseCatalogExtra(extraSegments, req.nextUrl.searchParams)
   // Namespace utente (multi-user): null con flag OFF o senza `?u=` → path
   // globale byte-identico a oggi. Con `u` → SOLO namespace, mai fallback.
-  // Spazi inventati → anonimo (v1.23.0): niente cache key separate.
-  let scopedUser = getScopedUserId(userParam)
-  if (scopedUser && !(await userExists(scopedUser))) scopedUser = null
+  // Già risolto sopra insieme alla verifica di esistenza (spazi inventati →
+  // anonimo, niente cache key separate): nessuna seconda lettura qui.
   // Attività di lettura per il cleanup inattivi (throttled, fire-and-forget).
   if (scopedUser) touchUserActivity(scopedUser)
   // Chiavi effettive (slice 2): esplicite della richiesta > namespace utente

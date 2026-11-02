@@ -16,10 +16,12 @@ vi.mock("@/lib/data-dir", () => ({
   DATA_DIR: `${process.cwd()}/test-results/data-landscape-reset-route-test`,
 }))
 
+const TEST_ADMIN_TOKEN = "landscape-reset-admin-token"
+
 function put(body: unknown): Promise<Response> {
   return PUT(new Request("http://localhost:3000/api/defaults", {
     method: "PUT",
-    headers: { "content-type": "application/json" },
+    headers: { "content-type": "application/json", "x-admin-token": TEST_ADMIN_TOKEN },
     body: JSON.stringify(body),
   }) as unknown as NextRequest)
 }
@@ -31,7 +33,8 @@ async function get(): Promise<Record<string, unknown>> {
 }
 
 beforeEach(async () => {
-  delete process.env.ADMIN_TOKEN
+  // Le route admin sono fail-closed: il PUT presenta un ADMIN_TOKEN reale.
+  process.env.ADMIN_TOKEN = TEST_ADMIN_TOKEN
   await setServerDefaults({})
 })
 

@@ -106,10 +106,12 @@ const mapping = (partial: Partial<Mapping> = {}): Mapping => ({
   ...partial,
 })
 
+const TEST_ADMIN_TOKEN = "remaining-shape-admin-token"
+
 function mockPutRequest(body: unknown, url = "http://localhost:3000/api/defaults"): Request {
   return new Request(url, {
     method: "PUT",
-    headers: { "content-type": "application/json" },
+    headers: { "content-type": "application/json", "x-admin-token": TEST_ADMIN_TOKEN },
     body: JSON.stringify(body),
   })
 }
@@ -456,8 +458,16 @@ describe("useDefaults shape independence for the 3B2 keys (hook)", () => {
 })
 
 describe("PUT /api/defaults backfill for the 3B2 keys", () => {
-  it("flat-only PUT snapshots the follow-rank sentinel and the align auto, then holds", async () => {
+  beforeEach(() => {
+    // Le route admin sono fail-closed: il PUT presenta un ADMIN_TOKEN reale.
+    process.env.ADMIN_TOKEN = TEST_ADMIN_TOKEN
+  })
+
+  afterEach(() => {
     delete process.env.ADMIN_TOKEN
+  })
+
+  it("flat-only PUT snapshots the follow-rank sentinel and the align auto, then holds", async () => {
     const { PUT, GET } = await freshRoute()
     const get = async () =>
       (await (
@@ -482,7 +492,6 @@ describe("PUT /api/defaults backfill for the 3B2 keys", () => {
   })
 
   it("scoped PUT snapshots independently; global namespace untouched", async () => {
-    delete process.env.ADMIN_TOKEN
     const { PUT, GET } = await freshRoute()
     const uuid = "44444444-4444-4333-8333-444444444444"
     expect(
@@ -510,7 +519,6 @@ describe("PUT /api/defaults backfill for the 3B2 keys", () => {
   })
 
   it("landscape schema accepts an explicit logoAlign override and the follow-rank sentinel", async () => {
-    delete process.env.ADMIN_TOKEN
     const { PUT, GET } = await freshRoute()
     expect(
       (

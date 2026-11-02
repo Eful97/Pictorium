@@ -84,7 +84,9 @@ describe("resolve-image allowlist", () => {
       "www.pinterest.it",
       "www.pinterest.fr",
       "www.pinterest.de",
+      "www.pinterest.es",
       "www.pinterest.co.uk",
+      "www.pinterest.co.jp",
       "pinterest.com",
       "i.pinimg.com",
       "imgur.com",
@@ -117,6 +119,12 @@ describe("resolve-image allowlist", () => {
       "example.com",
       "evilpinterest.com",
       "pinterest.com.evil.com",
+      // ccTLD NON in allowlist: un pattern generico `pinterest.<tld>`
+      // accetterebbe questo host attacker-controlled.
+      "pinterest.attacker.com",
+      "www.pinterest.attacker.com",
+      "pinterest.xyz",
+      "pinterest.top",
       "notpin.it.evil.com",
       "evifanart.tv",
       "fanart.tv.evil.com",

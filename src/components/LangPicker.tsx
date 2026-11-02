@@ -71,7 +71,11 @@ export function LangPicker({ onPickLang, onPickRegion, onDone, skipPin }: SetupW
 
   const handleSavePin = async (e?: React.FormEvent) => {
     if (e) e.preventDefault()
-    if (pin.length < 6) {
+    // Regola (mirror di pin-auth.ts, il server resta l'autorità): solo cifre →
+    // minimo 6; qualsiasi altro carattere (password) → minimo 8; max 128.
+    const value = pin.trim()
+    const minLength = /^[0-9]+$/.test(value) ? 6 : 8
+    if (value.length < minLength) {
       setPinError(t("ui.setupPinMinDigits"))
       return
     }
@@ -82,7 +86,7 @@ export function LangPicker({ onPickLang, onPickRegion, onDone, skipPin }: SetupW
       const res = await fetch("/api/auth/pin", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ newPin: pin }),
+        body: JSON.stringify({ newPin: value }),
       })
 
       if (res.ok) {
@@ -92,7 +96,8 @@ export function LangPicker({ onPickLang, onPickRegion, onDone, skipPin }: SetupW
         onDone()
       } else {
         const err = await res.json().catch(() => ({}))
-        setPinError(err.error || t("ui.pinSaveError"))
+        const localized = err.code === "pin_too_short" ? t("ui.setupPinMinDigits") : null
+        setPinError(localized ?? err.error ?? t("ui.pinSaveError"))
       }
     } catch {
       setPinError(t("ui.pinConnError"))
@@ -177,16 +182,20 @@ export function LangPicker({ onPickLang, onPickRegion, onDone, skipPin }: SetupW
                 <input
                   ref={pinInputRef}
                   type="password"
-                  inputMode="numeric"
-                  pattern="[0-9]*"
-                  maxLength={8}
+                  // Tastiera libera: un inputMode adattivo partirebbe numerico
+                  // e su mobile renderebbe impossibile digitare una password.
+                  inputMode="text"
+                  maxLength={128}
+                  autoCapitalize="none"
+                  autoCorrect="off"
+                  spellCheck={false}
                   value={pin}
                   onChange={(e) => {
-                    setPin(e.target.value.replace(/\D/g, ""))
+                    setPin(e.target.value)
                     setPinError(null)
                   }}
                   placeholder="••••"
-                  // Numeric setup PIN: LTR under RTL document.
+                  // Credenziale LTR sotto documento RTL.
                   dir="ltr"
                   className="w-full text-center text-2xl font-mono tracking-[0.3em] py-3 px-4 rounded-2xl bg-black/40 border border-white/10 text-white placeholder-zinc-600 focus:outline-none focus:border-amber-500/50 transition-colors"
                 />
@@ -202,7 +211,7 @@ export function LangPicker({ onPickLang, onPickRegion, onDone, skipPin }: SetupW
 
               <button
                 type="submit"
-                disabled={pin.length < 6 || pinLoading}
+                disabled={pin.trim().length < 6 || pinLoading}
                 className="w-full py-3 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 text-black font-semibold text-xs tracking-wide uppercase hover:opacity-90 active:scale-98 disabled:opacity-30 disabled:pointer-events-none transition-all shadow-lg shadow-amber-500/20 flex items-center justify-center gap-2 cursor-pointer"
               >
                 <span>{pinLoading ? t("ui.setupPinSaving") : t("ui.setupPinSave")}</span>

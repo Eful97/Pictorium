@@ -33,8 +33,8 @@ pinned: false
 </p>
 
 > [!TIP]
-> 🚀 **Istanze pubbliche gratuite**: crea il tuo spazio personale con la tua chiave TMDB su **[pictorium.duckdns.org](https://pictorium.duckdns.org)** (VPS comunitaria) oppure su **[pictorium.elfhosted.com](https://pictorium.elfhosted.com/)** (ElfHosted).  
-> 🧝 **Istanza privata gestita**: puoi avviare un'istanza dedicata 1-click su **[ElfHosted](https://store.elfhosted.com/product/pictorium/)**.  
+> 🚀 **Istanze pubbliche gratuite**: crea il tuo spazio personale con la tua chiave TMDB su **[pictorium.duckdns.org](https://pictorium.duckdns.org)** (VPS comunitaria) oppure su **[pictorium.elfhosted.com](https://pictorium.elfhosted.com/)** (istanza pubblica ElfHosted).
+>
 > 💬 Entra nella community su [Discord](https://discord.gg/sYfWyXYVUp) per supporto, novità e segnalazioni.  
 > ☕ Supporta il progetto su [Ko-fi](https://ko-fi.com/eful97) per mantenere attiva la VPS comunitaria.
 
@@ -195,17 +195,23 @@ Attivando `PICTORIUM_MULTI_USER=1`, l'istanza permette a più utenti di condivid
    * Clicca su **Fork** in alto a destra su [github.com/Eful97/Pictorium](https://github.com/Eful97/Pictorium).
 3. **Importa su Vercel**:
    * Accedi a [vercel.com](https://vercel.com) e clicca su **Add New… → Project**.
-   * Importa il fork di Pictorium e imposta le variabili d'ambiente:
-     * `PICTORIUM_TMDB_KEY` = *la tua chiave TMDB v3*
-     * `PICTORIUM_PUBLIC_INSTANCE` = `1`
+   * Importa il fork di Pictorium e imposta le variabili d'ambiente (tutte opzionali tranne `CONFIG_HMAC_SECRET`, necessario per i link `?config=`; Redis arriva al passo successivo):
+     * `PICTORIUM_ADMIN_TOKEN` = *un segreto a tua scelta* (opzionale: senza, il primo PIN impostato dalla UI è libero)
+     * `CONFIG_HMAC_SECRET` = *un segreto lungo e casuale* (obbligatorio in produzione per i link `?config=` di condivisione/installazione)
+     * `PROFILE_ENCRYPTION_KEY` = *hex di 64 caratteri* (obbligatoria solo con `PICTORIUM_MULTI_USER=1`)
+     * `PICTORIUM_TMDB_KEY` = *la tua chiave TMDB v3* (opzionale: puoi salvarla dopo il deploy in Impostazioni → Dati & Cache → Configura chiavi API)
    * Clicca su **Deploy**.
-4. **Collega il Database Upstash Redis (Gratuito)**:
-   * Al termine del deploy, apri la dashboard del progetto su Vercel.
-   * Vai nella scheda **Storage → Connect Store → Upstash (Redis)** e conferma la creazione.
+4. **Collega Upstash Redis — sempre obbligatorio**:
+   * Il filesystem di Vercel è read-only: senza Redis mapping e impostazioni non persistono e gli spazi degradano a link `?config=` stateless.
+   * Al termine del deploy, apri la dashboard del progetto, vai in **Storage → Connect Store → Upstash (Redis)** e conferma la creazione. Vengono iniettate `KV_REST_API_URL` / `KV_REST_API_TOKEN`; in alternativa vale `PICTORIUM_REDIS_URL`.
 5. **Redeploy**:
    * Nella scheda **Deployments**, clicca sui tre puntini (**⋯**) dell'ultimo deployment e seleziona **Redeploy** (necessario per agganciare Upstash).
-6. **Installa su Stremio**:
-   * Apri l'URL della tua istanza (es. `https://tuo-pictorium.vercel.app`), completa il wizard iniziale e clicca su **Installa su Stremio**!
+6. **Sblocca l'editor, aggiungi le chiavi e installa**:
+   * Apri l'URL della tua istanza (es. `https://tuo-pictorium.vercel.app`), imposta il primo PIN (Impostazioni → Dati & Cache) oppure incolla `PICTORIUM_ADMIN_TOKEN` in **Impostazioni → Token admin**.
+   * Salva le chiavi TMDB/MDBList/TVDB in **Impostazioni → Dati & Cache → Configura chiavi API**: sono cifrate a riposo in Upstash e le richieste Stremio anonime le risolvono senza env.
+   * Clicca su **Installa su Stremio**!
+
+> **Limite piano Hobby**: ogni funzione è limitata a ~10 s, quindi un render a freddo o un upstream lento può rispondere con un 503 limitato. Il piano Pro alza il limite; mantenere i cataloghi caldi riduce il rischio.
 
 > **Aggiornamenti Futuri**: Per aggiornare la tua istanza, ti basterà aprire il tuo fork su GitHub e cliccare su **Sync fork → Update branch**. Vercel effettuerà il redeploy automatico in 60 secondi senza toccare i tuoi dati.
 
@@ -213,39 +219,42 @@ Attivando `PICTORIUM_MULTI_USER=1`, l'istanza permette a più utenti di condivid
 
 ### 🐳 Docker & Compose
 
-Usa il `docker-compose.yml` già incluso nel repo (hardening, healthcheck e volume persistente `posterium-data` già configurati) — non serve scriverne uno a mano:
+Usa il `docker-compose.yml` già incluso nel repo (hardening, healthcheck e volume persistente `posterium-data` montato su `/data` — i salvataggi sopravvivono ai rebuild del container) — non serve scriverne uno a mano:
 
 ```bash
 git clone https://github.com/Eful97/Pictorium && cd Pictorium
 cp .env.example .env
 ```
 
-Compila nel `.env` almeno `PICTORIUM_TMDB_KEY` e `PICTORIUM_ADMIN_TOKEN` (un segreto lungo a tua scelta), poi:
+Metti i valori in `.env` — Docker Compose non legge `.env.local`. Sia `PICTORIUM_TMDB_KEY` sia `PICTORIUM_ADMIN_TOKEN` sono opzionali:
+
+* **Istanze domestiche / LAN**: lasciale vuote e avvia. Al primo avvio imposta il PIN in **Impostazioni → Dati & Cache** (6+ cifre, oppure una password di 8–128 caratteri): senza token admin il primo PIN è libero e da lì in poi sblocca l'editor. Gli endpoint Stremio restano pubblici.
+* **Esposta su internet o `PICTORIUM_MULTI_USER=1`**: imposta `PICTORIUM_ADMIN_TOKEN` (più `PROFILE_ENCRYPTION_KEY` in multi-utente). Se un token è configurato prima che esista un PIN, incollalo prima in **Impostazioni → Token admin**: serve per impostare il primo PIN.
+* **Chiavi API**: non ti serve `PICTORIUM_TMDB_KEY` nel file. Dopo lo sblocco apri **Impostazioni → Dati & Cache → Configura chiavi API** e salva la chiave TMDB (creala gratis su [themoviedb.org/signup](https://www.themoviedb.org/signup) → **Impostazioni → API → API Key (v3 auth)**), più MDBList/TVDB se le usi. Sono cifrate a riposo nel volume `/data` e le richieste Stremio anonime le risolvono senza env; le richieste scoped `?u=` non le usano mai.
+
+Poi avvia:
 
 ```bash
 docker compose up -d
 ```
 
-> Il primo avvio compila l'immagine in locale (qualche minuto, di più su ARM). Per partire subito con l'immagine precompilata: `docker compose pull pictorium && docker compose up -d --no-build`. Le route admin sono chiuse di default: incolla il token in **Impostazioni → Token admin** (solo sessione) per usare warmup, cache e salvataggi dalla UI. Solo su LAN fidata puoi usare `PICTORIUM_PUBLIC_INSTANCE=1` al posto del token.
+> Il primo avvio compila l'immagine in locale (qualche minuto, di più su ARM). Per partire subito con l'immagine precompilata: `docker compose pull pictorium && docker compose up -d --no-build`. Le route admin sono chiuse di default (fail-closed): è una sessione PIN valida (oppure il token incollato in **Impostazioni → Token admin**, solo sessione) a sbloccare warmup, cache e salvataggi dalla UI. Il vecchio `PICTORIUM_PUBLIC_INSTANCE` è stato rimosso: se ancora impostato viene ignorato e non apre nulla.
 >
 > Se venivi dal vecchio esempio con volume `pictorium-data` e hai già salvataggi, copiali prima di passare al compose del repo: `docker run --rm -v pictorium-data:/from -v posterium-data:/to alpine cp -a /from/. /to/`
 
-L'interfaccia e il manifest Stremio saranno disponibili su `http://<IP-SERVER>:8080`.
+Apri `http://<IP-SERVER>:8080`, sblocca l'editor e clicca su **Installa su Stremio**. Il manifest vive sulla stessa origine (`/manifest.json`).
 
 ---
 
 <details>
-<summary><strong>👉 Altre modalità di installazione (ElfHosted, Hugging Face, Oracle Cloud, VPS Caddy, Termux)</strong></summary>
-
-#### 🧝 ElfHosted (IaaS Gestito / 1-Click)
-Per chi preferisce non gestire server, porte o Docker: puoi avviare un'istanza Pictorium privata e gestita su Kubernetes direttamente da [ElfHosted](https://store.elfhosted.com/product/pictorium/), con HTTPS automatico, storage persistente e aggiornamenti continui.
+<summary><strong>👉 Altre modalità di installazione (Hugging Face, Oracle Cloud, VPS Caddy, Termux)</strong></summary>
 
 #### 🤗 Hugging Face Spaces
 1. Crea una Space su Hugging Face con SDK **Docker** collegata al repo `Eful97/Pictorium`.
 2. In **Settings → Variables and secrets**:
    * `NODE_OPTIONS` = `--max-old-space-size=1024`
-   * `PICTORIUM_PUBLIC_INSTANCE` = `1`
-   * `PICTORIUM_TMDB_KEY` = *la tua chiave TMDB*
+   * `PICTORIUM_ADMIN_TOKEN` = *un segreto a tua scelta* (una Space pubblica lo richiede; incolla lo stesso valore in Impostazioni → Token admin per sbloccare l'editor)
+   * `PICTORIUM_TMDB_KEY` = *la tua chiave TMDB* (opzionale: puoi anche salvarla da Impostazioni → Dati & Cache → Configura chiavi API dopo il primo sblocco)
 3. In **Settings → Storage**, collega uno Storage Bucket montato su `/data`.
 
 #### 🦾 Oracle Cloud Always Free (ARM Ampere)
@@ -254,7 +263,7 @@ sudo apt update && sudo apt install -y docker.io docker-compose-v2
 git clone https://github.com/Eful97/Pictorium && cd Pictorium
 cp .env.example .env
 ```
-Compila `PICTORIUM_TMDB_KEY` e `PICTORIUM_ADMIN_TOKEN` nel `.env`, poi `sudo docker compose up -d` (usa il compose del repo). Poi incolla il token in **Impostazioni → Token admin** (solo sessione). Su istanza esposta non usare `PICTORIUM_PUBLIC_INSTANCE=1`.
+Compila `PICTORIUM_TMDB_KEY` e `PICTORIUM_ADMIN_TOKEN` nel `.env` (puoi omettere la chiave TMDB e salvarla dopo da Impostazioni → Dati & Cache → Configura chiavi API), aggiungi `CONFIG_HMAC_SECRET` se ti servono i link `?config=`, poi `sudo docker compose up -d` (usa il compose del repo). Poi incolla il token in **Impostazioni → Token admin** (solo sessione). Le route admin sono sempre fail-closed senza token o sessione PIN; il vecchio `PICTORIUM_PUBLIC_INSTANCE` è rimosso e ignorato.
 
 #### 🖥️ VPS + Caddy (HTTPS Automatico)
 ```caddyfile
@@ -262,7 +271,7 @@ tuodominio.com {
     reverse_proxy pictorium:8080
 }
 ```
-Su dominio pubblico proteggi l'editor con `PICTORIUM_ADMIN_TOKEN` (sblocco in Impostazioni → Token admin), non con `PICTORIUM_PUBLIC_INSTANCE=1`.
+Su dominio pubblico proteggi l'editor con `PICTORIUM_ADMIN_TOKEN` (sblocco in Impostazioni → Token admin): senza, le route admin restano chiuse (fail-closed). Aggiungi `CONFIG_HMAC_SECRET` per i link `?config=` e `PROFILE_ENCRYPTION_KEY` quando `PICTORIUM_MULTI_USER=1`.
 
 #### 📱 Termux (Android)
 ```bash
@@ -280,19 +289,23 @@ npm install --ignore-scripts && npm run build && npm start
 
 | Variabile | Default | Descrizione |
 |---|:---:|---|
-| `PICTORIUM_PUBLIC_INSTANCE` | `0` | Se `1`, le route admin restano aperte senza token (LAN fidata, demo pubbliche). Su istanze esposte lasciare `0` e usare il token qui sotto. |
-| `PICTORIUM_ADMIN_TOKEN` | *(opzionale)* | Segreto per istanze private (`PUBLIC_INSTANCE=0`): incollalo in Impostazioni → Token admin (solo sessione, muore col tab) per abilitare warmup, svuotamento cache e salvataggi dalla UI. |
-| `PICTORIUM_TMDB_KEY` | *(opzionale)* | Chiave API TMDB d'istanza per generare poster e cataloghi automaticamente. |
-| `PICTORIUM_TVDB_API_KEY` | *(opzionale)* | Chiave TheTVDB per ordinamenti stagioni alternativi ed episodi. |
+| ~~`PICTORIUM_PUBLIC_INSTANCE`~~ | *(rimossa)* | Vecchio switch, non più letto: se ancora impostato viene ignorato e non apre nulla. Le route admin sono sempre fail-closed senza token o sessione PIN — usa `PICTORIUM_ADMIN_TOKEN` qui sotto. |
+| `PICTORIUM_ADMIN_TOKEN` | *(opzionale)* | Segreto per istanze private: incollalo in Impostazioni → Token admin (solo sessione, muore col tab) per abilitare warmup, svuotamento cache e salvataggi dalla UI. Senza (e senza sessione PIN) le route admin rispondono 401. |
+| `PICTORIUM_TMDB_KEY` | *(opzionale)* | Chiave API TMDB d'istanza per generare poster e cataloghi senza chiavi client. In alternativa salva le chiavi d'istanza dall'app (Impostazioni → Dati & Cache → Configura chiavi API): finiscono in uno store dedicato cifrato (KV `instance:keys` o `DATA_DIR/instance/`, AES-256-GCM, 0600) che le richieste Stremio anonime risolvono senza env; le richieste scoped `?u=` non lo usano mai. |
+| `PICTORIUM_TVDB_API_KEY` | *(opzionale)* | Chiave TheTVDB per ordinamenti stagioni alternativi, descrizioni episodi e liste TheTVDB personalizzate (BYOK: header, query `tvdb_key` o chiave del profilo vincono su questa). |
 | `PICTORIUM_MDBLIST_KEY` | *(opzionale)* | Chiave MDBList per liste personalizzate e cataloghi anime. |
+| `PICTORIUM_RATING_MIN_VOTES` | `10` | Numero minimo di voti per fonte per i rating aggregati MDBList (API media tipizzata `api.mdblist.com`): le fonti con `votes` note sotto questa soglia vengono escluse; `0` disattiva il filtro. Conteggi nulli/assenti/malformati restano sempre; RogerEbert è esente. La quota giornaliera MDBList è per account (condivisa tra chiavi/app); le chiamate rating senza chiave vengono saltate (restano i fallback Cinemeta/nativi). |
+| `PICTORIUM_FANART_KEY` | *(opzionale)* | Chiave progetto Fanart.tv per la sezione poster verticali nell'editor (solo server, mai esposta al browser). Senza, la sezione spiega che non è configurata. |
+| `PICTORIUM_TRAKT_CLIENT_ID` | *(opzionale)* | Client ID API Trakt (registrazione app Pictorium unica) per le liste pubbliche Trakt come cataloghi custom. Solo liste pubbliche, nessun OAuth. La stessa app copre l'OAuth per-spazio (PKCE, senza secret). |
+| `PICTORIUM_TRAKT_REDIRECT_URI` | *(opzionale)* | URI di redirect OAuth esatta registrata nella dashboard Trakt (il path è sempre `/api/trakt/callback`, es. `https://your-instance/api/trakt/callback`). Solo HTTPS (PKCE richiede redirect `https://`; in locale usa un tunnel HTTPS che serve l'intera origine UI). Un'istanza può servire entrambi i domini registrati; mai derivata dalla richiesta. |
 | `PICTORIUM_REGION` | `IT` | Nazione predefinita per classifiche e disponibilità streaming (`IT`, `US`, `GB`, `FR`, `DE`, `ES`, ecc.). |
 | `PICTORIUM_DATA_DIR` | `./data` | Percorso della cartella per salvare configurazioni e poster su disco. In Docker deve puntare a un volume persistente (`/data`, volume `posterium-data`, scrivibile da uid 1000): il file nasce al primo save, quindi "not found" con 0 poster a installazione fresca è normale. |
-| `PICTORIUM_REDIS_URL` | *(vuoto)* | Redis nativo (TCP) per HA multi-replica senza volume `/data`: mapping, default, profili, epoche e rate-limit diventano condivisi tra le repliche. Vince su `KV_REST_*` se entrambi settati (nessuna migrazione automatica). Su ElfHosted/K8s basta `REDIS_URL` (letto come fallback). |
+| `PICTORIUM_REDIS_URL` | *(vuoto)* | Redis nativo (TCP) per HA multi-replica senza volume `/data`: mapping, default, profili, epoche e rate-limit diventano condivisi tra le repliche. Vince su `KV_REST_*` se entrambi settati (nessuna migrazione automatica). Su deploy Kubernetes anche il semplice `REDIS_URL` è letto come fallback. |
 | `KV_REST_API_URL` / `TOKEN` | *(vuoto)* | Credenziali Upstash Redis per deploy serverless su Vercel. |
 | `PICTORIUM_KV_CACHE` | *(attiva con KV)* | Con Redis/KV, imposta `0` per tenere la cache delle risposte solo in memoria (lo stato resta su KV). Utile sulle istanze pubbliche, dove le chiavi di cache includono parti scelte dal chiamante; ogni replica rifà poi le chiamate upstream per conto suo. Sconsigliato su Vercel/serverless. |
 | `PICTORIUM_HOSTED_BY` | *(vuoto)* | Sponsor/hosting pubblico: se `elfhosted` mostra il banner ElfHosted nella home (rilevamento automatico da host `elfhosted.com` come fallback). Vuoto = nessun banner. |
-| `PICTORIUM_POSTER_PARAMS` | *(auto)* | Hardening anti cache-busting poster: `presets` limita le richieste non-preview a un set finito di render (allowlist cache key, step numerici 5/10/5px, `ac` solo palette, niente free-text/override keyless anonimi), `free` è il comportamento storico. Auto-`presets` su istanze pubbliche (`PUBLIC_INSTANCE=1`, `HOSTED_BY=elfhosted` o `MULTI_USER=1`); la preview WYSIWYG resta live negli spazi utente e sessioni sbloccate. |
-| `PICTORIUM_PREVIEW_AUTH` | *(auto)* | Hardening preview: sulle istanze pubbliche le preview anonime (`preview=1` senza spazio né sessione) vengono declassate e cachate come normali (niente bypass bot). Con spazio reale o sessione sbloccata restano live. Auto-on sulle pubbliche (`PUBLIC_INSTANCE=1`, `HOSTED_BY=elfhosted`, `MULTI_USER=1`); `0` per forzare OFF, `1` per forzare ON. |
+| `PICTORIUM_POSTER_PARAMS` | *(auto)* | Hardening anti cache-busting poster: `presets` limita le richieste non-preview a un set finito di render (allowlist cache key, step numerici 5/10/5px, `ac` solo palette, niente free-text/override keyless anonimi), `free` è il comportamento storico. Auto-`presets` su hosting condiviso (`HOSTED_BY=elfhosted` o `MULTI_USER=1`); la preview WYSIWYG resta live negli spazi utente e sessioni sbloccate. |
+| `PICTORIUM_PREVIEW_AUTH` | *(auto)* | Hardening preview: su hosting condiviso le preview anonime (`preview=1` senza spazio né sessione) vengono declassate e cachate come normali (niente bypass bot). Con spazio reale o sessione sbloccata restano live. Auto-on con `HOSTED_BY=elfhosted` o `MULTI_USER=1`; `0` per forzare OFF, `1` per forzare ON. |
 | `PICTORIUM_FRAME_ANCESTORS` | *(HF default)* | Sovrascrive i `frame-ancestors` CSP (default compatibile con HF Spaces). Es. `'self'` per istanze pubbliche che non vogliono essere embeddate. |
 | `PICTORIUM_IMAGE_FORMAT` | `webp` | Formato poster per i client che non dichiarano preferenze (`Accept` generico, quasi tutte le app Stremio): `webp` (~25–30% più leggero a pari qualità) o `jpeg` (universale, per istanze con client datati che non digeriscono webp). `?fmt=` resta override per richiesta nei due sensi. Richiede restart; il cambio invalida la cache una volta sola. |
 
@@ -300,11 +313,14 @@ npm install --ignore-scripts && npm run build && npm start
 
 | Variabile | Default | Descrizione |
 |---|:---:|---|
-| `PICTORIUM_MULTI_USER` | `0` | Se `1`, abilita gli spazi isolati per utenti su `/u/<uuid>/configure`. |
-| `PROFILE_ENCRYPTION_KEY` | *(vuoto)* | **Obbligatoria** con `MULTI_USER=1`. Chiave hex a 64 caratteri (AES-256-GCM, genera con `openssl rand -hex 32`). |
+| `CONFIG_HMAC_SECRET` | *(vuoto)* | Chiave HMAC che firma i link `?config=`/`/c/<config>/` di condivisione e installazione. Obbligatoria in produzione: senza, il server non può codificare i config token e i token non firmati vengono rifiutati (fail-closed). Accettata anche come `ENCRYPTION_KEY_SECRET`. |
+| `PICTORIUM_MULTI_USER` | `0` | Se `1`, abilita gli spazi isolati per utenti su `/u/<uuid>/configure`. In questa modalità la card PIN d'istanza e lo store chiavi API d'istanza sono nascosti: ogni spazio usa la propria password di sessione e le proprie chiavi, mentre le impostazioni d'istanza si sbloccano con `PICTORIUM_ADMIN_TOKEN`. |
+| `PROFILE_ENCRYPTION_KEY` | *(vuoto)* | **Obbligatoria** con `MULTI_USER=1`. Chiave hex a 64 caratteri (AES-256-GCM, genera con `openssl rand -hex 32`). Impostala una volta e conservala: ruotarla rende illeggibili le chiavi API e i token Trakt salvati finché non vengono reinseriti. |
 | `PICTORIUM_MAX_MAPPINGS_PER_USER` | `500` | Numero massimo di poster salvabili per ogni utente. |
 | `PICTORIUM_MAX_USERS` | *(illimitato)* | Limite massimo di utenti registrabili sull'istanza. |
 | `PICTORIUM_PUBLIC_STATS` | `1` | Imposta `0` per restituire i conteggi utenti di `/api/status` solo agli admin (la striscia "spazi" in home resta nascosta ai visitatori). |
+
+Note Trakt OAuth (multi-utente): una sola registrazione app Trakt per istanza (client ID + redirect URI qui sopra — NESSUN client secret: le nuove app Trakt usano PKCE e non ricevono secret; un `PICTORIUM_TRAKT_CLIENT_SECRET` rimasto da versioni precedenti viene ignorato, rimuovilo). Gli utenti collegano il proprio account Trakt da Impostazioni → Spazio; Pictorium importa solo la watchlist e le liste standard private, in sola lettura. L'URI di redirect deve essere `https://` (regola PKCE). I token OAuth sono cifrati con `PROFILE_ENCRYPTION_KEY` su storage persistente (volume `/data` o KV); senza persistenza le connessioni si perdono al restart.
 
 <details>
 <summary><strong>⚙️ Variabili Avanzate, Stili Predefiniti & Pipeline</strong></summary>
@@ -318,8 +334,11 @@ npm install --ignore-scripts && npm run build && npm start
 | `PICTORIUM_RIBBON_ENABLED` | `1` | Nastro stile Netflix all'angolo (`1` = nastro all'angolo, `0` = badge classifica centrato). |
 | `PICTORIUM_BLUR_ENABLED` | `1` | Attiva o disattiva lo sfondo sfocato dei poster verticali. |
 | `PICTORIUM_TINT_STRENGTH` | `20` | Intensità della tinta di scena per lo sfondo sfocato (0–100). |
-| `PICTORIUM_TOP_SHADE` | `80` | Ombra lineare superiore sul primo 25% del poster (0–100, 0 = spenta). |
+| `PICTORIUM_TOP_SHADE` | `50` | Ombra lineare superiore (0–100, 0 = spenta; copre il 25% superiore per default, regolabile con `PICTORIUM_TOP_SHADE_HEIGHT`). |
+| `PICTORIUM_TOP_SHADE_HEIGHT` | `25` | Altezza dell'ombra lineare superiore in % del canvas poster (0–100, 0 = spenta). |
 | `PICTORIUM_BADGE_QUALITY` | `1` | Mostra/nasconde il badge di risoluzione video streaming (4K/FHD). |
+| `PICTORIUM_AGE_BADGE` | `0` | Mostra/nasconde il badge testuale di classificazione per età sotto lo stack qualità (etichetta originale del paese, nessuna conversione). |
+| `PICTORIUM_AGE_COUNTRY` | `IT` | Paese della classificazione per età (ISO-2, es. `US`, `FR`; `GLOBAL` è rifiutato). Indipendente dalla lingua UI e dalla regione streaming. |
 | `PICTORIUM_QUALITY_SOURCE` | `justwatch` | Sorgente live qualità streaming: `justwatch` (solo JW, default) o `none` (no live provider; local DB still applies). Il valore legacy `torrentio` (e qualsiasi valore ignoto) è normalizzato a `justwatch` e non causa mai chiamate live a Torrentio. I dati Torrentio servono SOLO ad ampliare/aggiornare il DB locale (`av-specs.json`) tramite gli script offline invocati dall'operatore (`scripts/torrentio-av-import.mjs`, `scripts/torrentio-series-sample.mjs`) — mai a runtime. Catena poster: param `quality` esplicito > DB locale > sorgente live. |
 | `PICTORIUM_NETWORK_LOGO` | `1` | Mostra/nasconde il logo del network o studio di produzione. |
 | `PICTORIUM_PRE_RELEASE` | `0` | Velo scuro + nastro "Coming Soon" per film non ancora in streaming. |
@@ -328,10 +347,18 @@ npm install --ignore-scripts && npm run build && npm start
 ### Concorrenza & Performance
 | Variabile | Default | Descrizione |
 |---|:---:|---|
-| `PICTORIUM_MAX_CONCURRENT_RENDERS` | `4` | Limite massimo di render Sharp contemporanei (anti-OOM). |
-| `PICTORIUM_RENDER_TIMEOUT_MS` | `30000` | Timeout massimo di rendering prima del fallback (ms). |
-| `PICTORIUM_CACHE_MAX_MB` | `150` | Memoria RAM massima riservata alla cache immagini in memoria. |
-| `PICTORIUM_SELF_WARMUP` | `1` | Preriscaldamento automatico dei cataloghi all'avvio del server. |
+| `PICTORIUM_MAX_CONCURRENT_RENDERS` | Scalato sulla CPU `2`–`8` (`4` in docker-compose) | Render Sharp contemporanei massimi (anti-OOM). Non impostata = `min(8, max(2, availableParallelism()))`; un valore esplicito (1–32) vince sempre, un valore invalido ricade su `4`. |
+| `PICTORIUM_MAX_CONCURRENT_FETCHES` | `12` | Fetch upstream/immagini contemporanei massimi nella pipeline di render (1–32). Chi attende non tiene buffer immagine, quindi questo budget è volutamente più alto di quello dei render. |
+| `PICTORIUM_RENDER_SLOT_WAIT_MS` | `15000` | Attesa massima per uno slot di render prima di un 503 limitato (500–60000 ms). Su Vercel senza valore esplicito il default è `7500`, sotto il limite di 10 s delle funzioni Hobby. |
+| `PICTORIUM_RENDER_QUEUE` | `0` | Coda di render limitata (0–128). `0` = chi attende si accoda fino a `PICTORIUM_RENDER_SLOT_WAIT_MS`; `N` > 0 = oltre `N` si riceve subito un 503 (backpressure invece di coda illimitata). |
+| `PICTORIUM_ZOMBIE_GRACE_MS` | `10000` | Per quanto un render abbandonato dal deadline watchdog continua a occupare uno slot prima di essere rilasciato a forza (1000–120000 ms). Lo zombie continua in background finché non termina. |
+| `PICTORIUM_RENDER_TIMEOUT_MS` | `30000` | Deadline massima di render prima di un 503 limitato con `Retry-After` (1000–40000 ms). Oltre la deadline il job tardivo non mette mai in cache e non conta doppio il 503. |
+| `PICTORIUM_NEGATIVE_CACHE_TTL_MS` | `5000` | Per quanto un render fallito (500/503/404) viene ricordato, per non martellare un upstream rotto (1000–60000 ms). |
+| `PICTORIUM_DYNAMIC_POSTER_TTL_MS` | `21600000` (6 h) | TTL di storage per i poster on-demand (non mappati), che guida anche gli header `Cache-Control`/Surrogate (clamp 5 min–24 h, jitter deterministico ±10% per cache key). I poster mappati seguono la policy di refresh giornaliero. |
+| `PICTORIUM_IMG_CACHE_MB` | `32` | Budget RAM per la cache byte delle immagini scaricate in-process (0–512 MB, `0` la disattiva). |
+| `PICTORIUM_CACHE_MAX` | `2000` | Voci massime nella cache metadati in memoria (deve essere > 100, altrimenti `2000`). È il knob del numero di entry: `PICTORIUM_CACHE_MAX_ENTRIES` non viene letto. |
+| `PICTORIUM_CACHE_MAX_MB` | `150` | RAM massima allocata alla cache metadati in memoria (deve essere > 10 MB, altrimenti `150`). |
+| `PICTORIUM_SELF_WARMUP` | `1` | Preriscaldamento automatico dei cataloghi core all'avvio del server (entrypoint Docker). |
 </details>
 
 ---

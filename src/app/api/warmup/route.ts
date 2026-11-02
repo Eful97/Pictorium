@@ -12,7 +12,7 @@ import { buildStremioPosterSearchParams } from "@/lib/stremio-poster-params"
 import { getWarmupCatalogs } from "@/lib/catalog-definitions"
 import { getRegionDef, normalizeRegion } from "@/lib/regions"
 import { getAll } from "@/lib/store"
-import { getTrending, resolveRequestApiKey } from "@/lib/tmdb"
+import { getTrending, resolveRouteApiKey } from "@/lib/tmdb"
 import { rateLimit, rateLimitKey, rateLimitResponse } from "@/lib/rate-limit"
 import { checkAdminToken, adminAuthResponse, isSameOrigin, originMismatchResponse } from "@/lib/auth"
 import { createLogger } from "@/lib/logger"
@@ -139,37 +139,23 @@ function selfFetchOrigin(): string {
 
 export async function POST(req: NextRequest) {
   const warmupToken = envWithFallback("WARMUP_TOKEN")
-  const isPublic = envWithFallback("PUBLIC_INSTANCE") === "1"
-  if (isPublic) {
-    // Fix H3: su istanza pubblica il warmup è un amplificatore (1 req → 500
-    // poster tentati) — PICTORIUM_WARMUP_TOKEN è obbligatorio. Senza token
-    // l'endpoint non è utilizzabile (evita DoS su HF Spaces). Con token
-    // configurato, richiede x-warmup-token esatto (non basta checkAdminToken
-    // che su public è fail-open).
-    if (!warmupToken) {
-      log.warn("Warmup rejected: PICTORIUM_PUBLIC_INSTANCE=1 requires PICTORIUM_WARMUP_TOKEN")
-      return adminAuthResponse()
-    }
-    const header = req.headers.get("x-warmup-token")
-    const ok = !!header && constantTimeEqual(header, warmupToken)
-    if (!ok) return adminAuthResponse()
-  } else {
-    // Istanza privata: auth coerente con le altre route admin (fail-closed con
-    // token, fail-open solo se isPublic o dev loopback). Warmup token resta
-    // opzionale: se configurato, richiede x-warmup-token O admin token.
-    const warmupHeaderOk = !warmupToken
-      ? undefined
-      : (() => {
-          const header = req.headers.get("x-warmup-token")
-          return !!header && constantTimeEqual(header, warmupToken)
-        })()
-    if (warmupHeaderOk !== true && !checkAdminToken(req)) return adminAuthResponse()
-  }
+  // Auth coerente con le altre route admin (fail-closed: token admin o sessione
+  // PIN; aperto solo in dev loopback / ALLOW_DEV_ADMIN). Il warmup è un
+  // amplificatore di richieste (1 req → molti poster tentati), quindi
+  // PICTORIUM_WARMUP_TOKEN resta un secondo fattore opzionale: se configurato,
+  // richiede x-warmup-token esatto OPPURE un admin token valido.
+  const warmupHeaderOk = !warmupToken
+    ? undefined
+    : (() => {
+        const header = req.headers.get("x-warmup-token")
+        return !!header && constantTimeEqual(header, warmupToken)
+      })()
+  if (warmupHeaderOk !== true && !checkAdminToken(req)) return adminAuthResponse()
   const rl = await rateLimit(rateLimitKey(req), "warmup")
   if (!rl.ok) return rateLimitResponse(rl.retAfter)
   if (!isSameOrigin(req)) return originMismatchResponse()
 
-  const apiKey = resolveRequestApiKey(req)
+  const apiKey = await resolveRouteApiKey(req)
   const concurrency = boundedInt({ value: req.nextUrl.searchParams.get("concurrency"), fallback: 3, min: 1, max: 8 })
   // C2: regione per le classifiche JW (prima hardcoded IT) — la cache key
   // include già `:r<CODE>`, quindi scaldare altre regioni non avvelena IT.
@@ -280,21 +266,23 @@ export async function POST(req: NextRequest) {
 
     // C2: warm cataloghi (solo con ?catalogs=1). Stesso self-fetch dei poster:
     // scalda la cache catalogo (L1 + KV via C1) così il primo browse non paga
-    // N+1 freddo. Chiavi pass-through: senza api_key i cataloghi TMDB tornano
-    // vuoti (come da contratto), gli anime/MDBList funzionano comunque.
+    // N+1 freddo. Chiavi pass-through SOLO via header x-api-key (mai in URL:
+    // niente segreti in query/log). Senza api_key i cataloghi TMDB tornano
+    // vuoti (come da contratto), gli anime/MDBList usano la catena
+    // namespace/istanza/env della route catalogo.
     let catalogResults: WarmupResult[] | undefined
     if (warmCatalogs && Date.now() < deadlineAt) {
-      const mdblistKey = req.nextUrl.searchParams.get("mdblist_key")
       catalogResults = await Promise.all(getWarmupCatalogs().map(async (def): Promise<WarmupResult> => {
         const target = { type: def.type, id: 0, source: `catalog:${def.id}` }
         try {
           const url = buildPosterPublicUrl(`/catalog/${def.type}/${def.id}.json`, { origin: selfFetchOrigin() })
-          if (apiKey) url.searchParams.set("api_key", apiKey)
-          if (mdblistKey) url.searchParams.set("mdblist_key", mdblistKey)
           url.searchParams.set("region", warmRegion)
           const remaining = deadlineAt - Date.now()
           if (remaining <= 0) return { ...target, status: "fail" }
-          const res = await fetch(url, { signal: AbortSignal.timeout(Math.max(1_000, Math.min(20_000, remaining))) })
+          const res = await fetch(url, {
+            signal: AbortSignal.timeout(Math.max(1_000, Math.min(20_000, remaining))),
+            ...(apiKey ? { headers: { "x-api-key": apiKey } } : {}),
+          })
           if (!res.ok) return { ...target, status: "fail", statusCode: res.status }
           await res.body?.cancel().catch(() => {})
           return { ...target, status: "ok" }

@@ -93,12 +93,10 @@ export async function POST(req: NextRequest) {
   if (!rl.ok) return rateLimitResponse(rl.retAfter)
   if (error) return error
   // S10: endpoint CPU/network-heavy (fetch di fino a 17 immagini + analisi
-  // sharp). Protetto come le altre route admin: senza auth un attaccante lo
-  // userebbe come amplificatore di richieste verso image.tmdb.org e consumo
-  // CPU. Su istanza pubblica (PICTORIUM_PUBLIC_INSTANCE=1) resta aperto per
-  // l'editor; con ADMIN_TOKEN configurato richiede il token. Su istanza
-  // multi-user il proprietario dello spazio (`?u=` + secret/password) passa
-  // dal ramo scoped senza bisogno del flag public né del token globale.
+  // sharp). Protetto come le altre route admin: nessun bypass, fail-closed
+  // senza ADMIN_TOKEN o sessione PIN. Con ADMIN_TOKEN configurato richiede il
+  // token. Su istanza multi-user il proprietario dello spazio (`?u=` +
+  // secret/password) passa dal ramo scoped senza bisogno del token globale.
   if (scoped) {
     if (!(await checkUserAuth(req, scoped))) return userAuthResponse()
     if (!isSameOrigin(req)) return originMismatchResponse()

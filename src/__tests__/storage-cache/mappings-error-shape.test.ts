@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from "vitest"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { NextRequest } from "next/server"
 import { POST } from "@/app/api/mappings/route"
 import { upsert } from "@/lib/store"
@@ -18,11 +18,12 @@ vi.mock("@/lib/rate-limit", () => ({
 }))
 
 const BASE = "http://localhost:3000/api/mappings"
+const TEST_ADMIN_TOKEN = "mappings-error-admin-token"
 
 function postMapping(body: unknown): NextRequest {
   return new NextRequest(BASE, {
     method: "POST",
-    headers: { "content-type": "application/json" },
+    headers: { "content-type": "application/json", "x-admin-token": TEST_ADMIN_TOKEN },
     body: JSON.stringify(body),
   })
 }
@@ -32,8 +33,14 @@ function validBody() {
 }
 
 describe("POST /api/mappings upsert error contract", () => {
+  beforeEach(() => {
+    // Le route admin sono fail-closed: il POST presenta un ADMIN_TOKEN reale.
+    process.env.ADMIN_TOKEN = TEST_ADMIN_TOKEN
+  })
+
   afterEach(() => {
     vi.clearAllMocks()
+    delete process.env.ADMIN_TOKEN
   })
 
   it("returns JSON 500 when storage throws an unexpected error", async () => {

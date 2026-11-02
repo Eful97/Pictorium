@@ -156,13 +156,13 @@ type GeoItem = { id: string; family: string; top: number; left: number; w: numbe
 type Geo = { items: GeoItem[] }
 
 async function fetchImageFrom(url: string): Promise<Buffer> {
-  const res = await GET(new NextRequest(url), { params: Promise.resolve({ type: "movie", id: "44" }) })
+  const res = await GET(adminReq(url), { params: Promise.resolve({ type: "movie", id: "44" }) })
   expect(res.status).toBe(200)
   return Buffer.from(await res.arrayBuffer())
 }
 
 async function fetchGeoFrom(url: string): Promise<Geo> {
-  const res = await GET(new NextRequest(`${url}&debug=1&netgeo=1`), {
+  const res = await GET(adminReq(`${url}&debug=1&netgeo=1`), {
     params: Promise.resolve({ type: "movie", id: "44" }),
   })
   expect(res.status).toBe(200)
@@ -280,3 +280,10 @@ describe("rejoin returns the real render to the group-only baseline", () => {
     for (const id of QUALITY_IDS) expect(byId(rejoinedGeo, id)).toEqual(byId(baseGeo, id))
   })
 })
+
+// Route admin fail-closed: le richieste di test presentano un ADMIN_TOKEN reale
+// (le preview restano live, come nell'editor con sessione sbloccata).
+const TEST_ADMIN_TOKEN = "route-tests-admin-token"
+process.env.ADMIN_TOKEN = TEST_ADMIN_TOKEN
+const adminReq = (url: string, init?: { headers?: Record<string, string> }) =>
+  new NextRequest(url, { ...init, headers: { ...(init?.headers ?? {}), "x-admin-token": TEST_ADMIN_TOKEN } })

@@ -4,7 +4,6 @@ import { cacheGet, cacheSet } from "@/lib/cache"
 import { getTvdbSeasonTypes, getTvdbSeriesId } from "@/lib/tvdb"
 import { resolveRouteApiKey } from "@/lib/tmdb"
 import crypto from "node:crypto"
-import { envWithFallback } from "@/lib/env-compat"
 
 function hashFragment(v: string): string {
   return crypto.createHash("sha1").update(v).digest("hex").slice(0, 8)
@@ -22,8 +21,10 @@ export async function GET(req: NextRequest, context: { params: Promise<{ id: str
   const tvdbKey = rawTvdbKey.trim()
   if (!tvdbKey) return Response.json({ results: [], error: "TVDB key missing — imposta in Impostazioni" }, { status: 200 })
 
-  // tmdb key opzionale: permette di risolvere tvdb_id via TMDB external_ids (molto più affidabile di search/remoteid per id numerici)
-  const tmdbKey = req.headers.get("x-tmdb-key") || req.nextUrl.searchParams.get("tmdb_key") || (await resolveRouteApiKey(req)) || req.headers.get("x-api-key-tvdb") || envWithFallback("TMDB_KEY") || ""
+  // tmdb key opzionale: permette di risolvere tvdb_id via TMDB external_ids (molto più affidabile di search/remoteid per id numerici).
+  // resolveRouteApiKey applica la guardia multi-user (scoped `?u=` senza chiave
+  // non eredita le chiavi d'istanza/env): nessuna lettura diretta dell'env qui.
+  const tmdbKey = req.headers.get("x-tmdb-key") || req.nextUrl.searchParams.get("tmdb_key") || (await resolveRouteApiKey(req)) || req.headers.get("x-api-key-tvdb") || ""
   const cacheKey = `tvdb:seasonTypes:raw${rawId}:ak${hashFragment(tvdbKey)}:tk${hashFragment(tmdbKey || "")}`
   const cached = cacheGet<{ results: { id: number; name: string; type: string; alternateName?: string | null }[]; tvdbId?: number | null }>(cacheKey)
   if (cached) return Response.json(cached, { headers: { "Cache-Control": "public, max-age=3600, stale-while-revalidate=3600" } })

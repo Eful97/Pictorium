@@ -431,6 +431,41 @@ test.describe("poster API — functional", () => {
     expect(Buffer.compare(bufKo, bufStd)).not.toBe(0)
   })
 
+  test("quality style: naked — plate-less tier differs from the standard pill", async ({ request }) => {
+    // Avatar has no AV specs entry: tier via override, no A/V marks. `naked`
+    // shares the standard text box but removes the satin plate and inverts
+    // the ink against the top polarity, so the bytes can never alias standard.
+    const base = { genreName: "Action", voteAverage: "7.8", badges: "1", ranking: "0", quality: "4K" }
+    const resNaked = await request.get(posterUrl({ ...base, qbs: "naked" }))
+    expect(resNaked.ok()).toBeTruthy()
+    const bufNaked = await resNaked.body()
+    expect(bufNaked.length).toBeGreaterThan(1000)
+    const resStd = await request.get(posterUrl({ ...base, qbs: "standard" }))
+    expect(resStd.ok()).toBeTruthy()
+    expect(Buffer.compare(bufNaked, await resStd.body())).not.toBe(0)
+  })
+
+  test("quality style: naked is tier-only — formats=none still paints the tier", async ({ request }) => {
+    // tt0068646 (The Godfather) is verified 4K + dv/atmos in the local AV
+    // specs DB: A/V marks keep their own frame under `naked` (tier-only).
+    const base = { genreName: "Action", voteAverage: "7.8", badges: "1", ranking: "0", imdbId: "tt0068646" }
+    const resWithFormats = await request.get(posterUrl({ ...base, qbs: "naked" }))
+    expect(resWithFormats.ok()).toBeTruthy()
+    const bufWithFormats = await resWithFormats.body()
+    expect(bufWithFormats.length).toBeGreaterThan(1000)
+    // formats=none drops only the A/V marks: the naked tier must stay painted.
+    const resNone = await request.get(posterUrl({ ...base, qbs: "naked", formats: "none" }))
+    expect(resNone.ok()).toBeTruthy()
+    const bufNone = await resNone.body()
+    expect(bufNone.length).toBeGreaterThan(1000)
+    expect(Buffer.compare(bufWithFormats, bufNone)).not.toBe(0)
+    // Same URL with a different tier label renders different bytes: the tier
+    // glyphs are genuinely drawn (never an empty box with formats=none).
+    const resHd = await request.get(posterUrl({ ...base, quality: "HD", qbs: "naked", formats: "none" }))
+    expect(resHd.ok()).toBeTruthy()
+    expect(Buffer.compare(bufNone, await resHd.body())).not.toBe(0)
+  })
+
   test("quality style: premium — colored A/V marks on the dark plate, distinct from every style", async ({ request }) => {
     // tt0068646 (The Godfather) is verified 4K + dv/atmos in the local AV
     // specs DB: tier + formats are real data (no override).

@@ -1,5 +1,5 @@
 import type { NextRequest } from "next/server"
-import { afterEach, describe, expect, it, vi } from "vitest"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { resolvePosterRenderConfig, type PosterRenderConfigInput } from "@/lib/poster-config"
 import { effectiveDefaultsForShape } from "@/lib/server-defaults"
 import { configTokenSchema } from "@/lib/config-token"
@@ -351,16 +351,22 @@ describe("toggle flags reach production URLs", () => {
 })
 
 describe("PUT /api/defaults landscape visual profile", () => {
+  const TEST_ADMIN_TOKEN = "landscape-visual-admin-token"
+
+  beforeEach(() => {
+    // Le route admin sono fail-closed: il PUT presenta un ADMIN_TOKEN reale.
+    process.env.ADMIN_TOKEN = TEST_ADMIN_TOKEN
+  })
+
   function put(body: unknown): Request {
     return new Request("http://localhost:3000/api/defaults", {
       method: "PUT",
-      headers: { "content-type": "application/json" },
+      headers: { "content-type": "application/json", "x-admin-token": TEST_ADMIN_TOKEN },
       body: JSON.stringify(body),
     })
   }
 
   it("persists explicit styles/toggles/arrays and returns them", async () => {
-    delete process.env.ADMIN_TOKEN
     const res = await PUT(put({
       landscape: {
         badgeStyle: "pill", rankingBadgeStyle: "corner", extraBadgeStyle: "vetro",
@@ -379,7 +385,6 @@ describe("PUT /api/defaults landscape visual profile", () => {
   })
 
   it("rejects mistyped landscape visual values", async () => {
-    delete process.env.ADMIN_TOKEN
     expect((await PUT(put({ landscape: { badgeStyle: "glossy" } }) as unknown as NextRequest)).status).toBe(400)
     expect((await PUT(put({ landscape: { globalBadges: "yes" } }) as unknown as NextRequest)).status).toBe(400)
   })

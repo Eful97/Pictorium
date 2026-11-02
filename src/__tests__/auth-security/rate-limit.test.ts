@@ -190,4 +190,10 @@ describe("rateLimit (token bucket per (bucket, key))", () => {
     for (let i = 0; i < 120; i++) expect((await rateLimit(key, "non-esistente")).ok).toBe(true)
     expect((await rateLimit(key, "non-esistente")).ok).toBe(false)
   })
+
+  it("il bucket 'availability' è definito (30 burst dedicati, non il default da 120)", async () => {
+    const key = "availability-burst-1"
+    for (let i = 0; i < 30; i++) expect((await rateLimit(key, "availability")).ok).toBe(true)
+    expect((await rateLimit(key, "availability")).ok).toBe(false)
+  })
 })

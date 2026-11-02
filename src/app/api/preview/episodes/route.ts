@@ -14,7 +14,6 @@ import {
 import { enrichVideosWithTvdbDetailed } from "@/lib/tvdb"
 import { buildVideosFromAnizip, buildVideosFromGroups, buildVideosFromTvdbDetailed, concurrentMap, isSeasonEpisodesComplete, resolveSeasonNumbers, seasonNumberForGroup } from "@/lib/episode-ordering"
 import { groupDetailsEpisodeCount, groupDetailsRegularEpisodeCount, resolveDefaultEpisodeGroupId } from "@/lib/episode-group-default"
-import { envWithFallback } from "@/lib/env-compat"
 import { combineAbortSignals } from "@/lib/abort-signal"
 
 const PREVIEW_EPISODES_BUDGET_MS = 15000
@@ -72,7 +71,9 @@ export async function GET(req: NextRequest) {
   const language = req.nextUrl.searchParams.get("lang") || "it-IT"
   const apiKey = (await resolveRouteApiKey(req)) || ""
   const tvdbKeyParam = req.nextUrl.searchParams.get("tvdb_key") || undefined
-  const tvdbApiKey = tvdbKeyParam || (await resolveRouteApiKey(req, "tvdb")) || envWithFallback("TVDB_API_KEY") || process.env.TVDB_API_KEY || ""
+  // resolveRouteApiKey applies the multi-user guard (scoped `?u=` never falls
+  // back to operator env keys). No direct env read here: it would bypass it.
+  const tvdbApiKey = tvdbKeyParam || (await resolveRouteApiKey(req, "tvdb")) || ""
   const episodeMetadataSource = req.nextUrl.searchParams.get("source") || (tvdbApiKey ? "tvdb" : "tmdb")
 
   // "auto" (parametro assente) e "standard" esplicito hanno chiavi diverse:

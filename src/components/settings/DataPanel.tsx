@@ -411,12 +411,17 @@ export function DataPanel({ active, exportData, importData, setSettingsOpen, mul
                     <label className="text-[11px] text-muted block mb-1">{t("ui.pinCurrentLabel")}</label>
                     <input
                       type="password"
-                      inputMode="numeric"
-                      maxLength={8}
+                      // Tastiera libera: l'adattivo partirebbe numerico e su
+                      // mobile bloccherebbe le password.
+                      inputMode="text"
+                      maxLength={128}
+                      autoCapitalize="none"
+                      autoCorrect="off"
+                      spellCheck={false}
                       value={curPinInput}
-                      onChange={(e) => setCurPinInput(e.target.value.replace(/\D/g, ""))}
+                      onChange={(e) => setCurPinInput(e.target.value)}
                       placeholder="••••"
-                      // Numeric PIN: LTR under RTL document.
+                      // PIN o password: LTR under RTL document.
                       dir="ltr"
                       className="w-full text-center text-sm font-mono tracking-widest min-h-[42px] py-2 px-3 rounded-xl bg-black/40 border border-white/10 text-white placeholder-zinc-600 focus:outline-none focus:border-amber-500/50"
                     />
@@ -426,12 +431,17 @@ export function DataPanel({ active, exportData, importData, setSettingsOpen, mul
                   <label className="text-[11px] text-muted block mb-1">{t("ui.pinNewLabel")}</label>
                   <input
                     type="password"
-                    inputMode="numeric"
-                    maxLength={8}
+                    // Tastiera libera: l'adattivo partirebbe numerico e su
+                    // mobile bloccherebbe le password.
+                    inputMode="text"
+                    maxLength={128}
+                    autoCapitalize="none"
+                    autoCorrect="off"
+                    spellCheck={false}
                     value={newPinInput}
-                    onChange={(e) => setNewPinInput(e.target.value.replace(/\D/g, ""))}
+                    onChange={(e) => setNewPinInput(e.target.value)}
                     placeholder="••••"
-                    // Numeric PIN: LTR under RTL document.
+                    // PIN o password: LTR under RTL document.
                     dir="ltr"
                     className="w-full text-center text-sm font-mono tracking-widest min-h-[42px] py-2 px-3 rounded-xl bg-black/40 border border-white/10 text-white placeholder-zinc-600 focus:outline-none focus:border-amber-500/50"
                   />
@@ -447,14 +457,22 @@ export function DataPanel({ active, exportData, importData, setSettingsOpen, mul
                   </button>
                   <button
                     type="button"
-                    disabled={newPinInput.length < 6 || (pinConfig?.hasPin && !curPinInput) || pinBusy}
+                    disabled={newPinInput.trim().length < 6 || (pinConfig?.hasPin && !curPinInput.trim()) || pinBusy}
                     onClick={async () => {
+                      // Mirror di pin-auth.ts (server autorità): cifre → min 6,
+                      // password → min 8, max 128 (cap dell'input).
+                      const value = newPinInput.trim()
+                      const minLength = /^[0-9]+$/.test(value) ? 6 : 8
+                      if (value.length < minLength) {
+                        toast.error(t("ui.setupPinMinDigits"))
+                        return
+                      }
                       setPinBusy(true)
                       try {
                         const res = await fetch("/api/auth/pin", {
                           method: "PUT",
                           headers: { "Content-Type": "application/json", ...adminAuthHeaders() },
-                          body: JSON.stringify({ currentPin: curPinInput, newPin: newPinInput }),
+                          body: JSON.stringify({ currentPin: curPinInput, newPin: value }),
                         })
                         if (res.ok) {
                           if (typeof window !== "undefined") {
@@ -465,7 +483,13 @@ export function DataPanel({ active, exportData, importData, setSettingsOpen, mul
                           refreshPin()
                         } else {
                           const err = await res.json().catch(() => ({}))
-                          toast.error(err.error || t("ui.pinSaveError"))
+                          const localized =
+                            err.code === "pin_current_wrong"
+                              ? t("ui.pinLockWrong")
+                              : err.code === "pin_too_short"
+                                ? t("ui.setupPinMinDigits")
+                                : null
+                          toast.error(localized ?? err.error ?? t("ui.pinSaveError"))
                         }
                       } catch {
                         toast.error(t("ui.pinConnError"))
@@ -485,12 +509,17 @@ export function DataPanel({ active, exportData, importData, setSettingsOpen, mul
                   <label className="text-[11px] text-muted block mb-1">{t("ui.pinRemoveConfirmLabel")}</label>
                   <input
                     type="password"
-                    inputMode="numeric"
-                    maxLength={8}
+                    // Tastiera libera: l'adattivo partirebbe numerico e su
+                    // mobile bloccherebbe le password.
+                    inputMode="text"
+                    maxLength={128}
+                    autoCapitalize="none"
+                    autoCorrect="off"
+                    spellCheck={false}
                     value={curPinInput}
-                    onChange={(e) => setCurPinInput(e.target.value.replace(/\D/g, ""))}
+                    onChange={(e) => setCurPinInput(e.target.value)}
                     placeholder="••••"
-                    // Numeric PIN: LTR under RTL document.
+                    // PIN o password: LTR under RTL document.
                     dir="ltr"
                     className="w-full text-center text-sm font-mono tracking-widest min-h-[42px] py-2 px-3 rounded-xl bg-black/40 border border-white/10 text-white placeholder-zinc-600 focus:outline-none focus:border-rose-500/50"
                   />
@@ -506,7 +535,7 @@ export function DataPanel({ active, exportData, importData, setSettingsOpen, mul
                   </button>
                   <button
                     type="button"
-                    disabled={!curPinInput || pinBusy}
+                    disabled={!curPinInput.trim() || pinBusy}
                     onClick={async () => {
                       setPinBusy(true)
                       try {
@@ -524,7 +553,8 @@ export function DataPanel({ active, exportData, importData, setSettingsOpen, mul
                           refreshPin()
                         } else {
                           const err = await res.json().catch(() => ({}))
-                          toast.error(err.error || t("ui.pinLockWrong"))
+                          const localized = err.code === "pin_current_wrong" ? t("ui.pinLockWrong") : null
+                          toast.error(localized ?? err.error ?? t("ui.pinLockWrong"))
                         }
                       } catch {
                         toast.error(t("ui.pinConnError"))

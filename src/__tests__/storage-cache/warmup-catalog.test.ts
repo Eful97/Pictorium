@@ -3,13 +3,16 @@ import { NextRequest } from "next/server"
 
 describe("POST /api/mappings — catalog warmup", () => {
   const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(null, { status: 200 }))
+  const TEST_ADMIN_TOKEN = "warmup-catalog-admin-token"
 
   beforeEach(() => {
     fetchSpy.mockClear()
-    process.env.ADMIN_TOKEN = ""
+    // Le route admin sono fail-closed: il POST presenta un ADMIN_TOKEN reale.
+    process.env.ADMIN_TOKEN = TEST_ADMIN_TOKEN
   })
 
   afterEach(() => {
+    delete process.env.ADMIN_TOKEN
     // NB: NON usare vi.restoreAllMocks() qui. Il warmup della route è
     // fire-and-forget (fetch dietro getById async, con AbortSignal.timeout
     // fino a 25s): un fetch ancora in volo dopo il test userebbe il fetch
@@ -33,7 +36,7 @@ describe("POST /api/mappings — catalog warmup", () => {
 
     const req = new NextRequest("http://localhost:3000/api/mappings", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", "x-admin-token": TEST_ADMIN_TOKEN },
       body: JSON.stringify(body),
     })
 
@@ -72,7 +75,7 @@ describe("POST /api/mappings — catalog warmup", () => {
 
     const req = new NextRequest("http://localhost:3000/api/mappings", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", "x-admin-token": TEST_ADMIN_TOKEN },
       body: JSON.stringify(body),
     })
 

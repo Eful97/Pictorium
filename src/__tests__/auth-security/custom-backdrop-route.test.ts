@@ -154,7 +154,7 @@ function baseMapping(overrides?: Partial<Mapping>): Mapping {
 }
 
 async function renderPosterBytes(url: string): Promise<Buffer> {
-  const res = await GET(new NextRequest(url), {
+  const res = await GET(adminReq(url), {
     params: Promise.resolve({ type: "movie", id: "42" }),
   })
   expect(res.status).toBe(200)
@@ -218,7 +218,7 @@ describe("GET /api/poster custom landscape base", () => {
 
   it("rejects an off-allowlist backdrop query with 400 (SSRF gate untouched)", async () => {
     mockedGetById.mockResolvedValue(null)
-    const res = await GET(new NextRequest(`http://localhost:3000/api/poster/movie/42?backdrop=${encodeURIComponent("https://evil.com/x.png")}`), {
+    const res = await GET(adminReq(`http://localhost:3000/api/poster/movie/42?backdrop=${encodeURIComponent("https://evil.com/x.png")}`), {
       params: Promise.resolve({ type: "movie", id: "42" }),
     })
     expect(res.status).toBe(400)
@@ -288,3 +288,10 @@ describe("GET /api/poster custom landscape base", () => {
     expect(changed).toBeGreaterThan(total * 0.9)
   })
 })
+
+// Route admin fail-closed: le richieste di test presentano un ADMIN_TOKEN reale
+// (le preview restano live, come nell'editor con sessione sbloccata).
+const TEST_ADMIN_TOKEN = "route-tests-admin-token"
+process.env.ADMIN_TOKEN = TEST_ADMIN_TOKEN
+const adminReq = (url: string, init?: { headers?: Record<string, string> }) =>
+  new NextRequest(url, { ...init, headers: { ...(init?.headers ?? {}), "x-admin-token": TEST_ADMIN_TOKEN } })

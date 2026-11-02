@@ -37,7 +37,9 @@ type RouteParams = { id: string }
  *   never becomes a hit). The key never leaves the server (Bearer header
  *   outbound only; no key in cache keys, logs, URLs, or payloads).
  * - ONE aggregate deadline (`TVDB_TIMEOUT_MS`, 5s, configurable via the
- *   existing `TVDB_TIMEOUT_MS` env): a single timer at request entry is
+ *   existing `TVDB_TIMEOUT_MS` env): a single timer armed synchronously at
+ *   request entry — before any await, namespace/key resolution included, so
+ *   it bounds the whole handler and never only the chain after it — is
  *   combined with the caller signal via `combineAbortSignals` and the SAME
  *   signal flows through every gallery network layer (TMDB external_ids
  *   with its 5s per-call cap, TVDB login, strict IMDb lookup, strict
@@ -62,6 +64,25 @@ type RouteParams = { id: string }
  *   stays out even when requested).
  */
 export async function GET(req: NextRequest, { params }: { params: Promise<RouteParams> }) {
+  // Aggregate gallery budget: one timer armed synchronously at request entry
+  // (before any await, key resolution included) so the budget bounds the
+  // whole handler. Always cleared below (no timer leaks).
+  const budgetCtrl = new AbortController()
+  const budgetTimer = setTimeout(() => {
+    budgetCtrl.abort(new DOMException("TVDB gallery budget exceeded", "TimeoutError"))
+  }, TVDB_TIMEOUT_MS)
+  try {
+    return await handleTvdbArtworks(req, { params }, budgetCtrl.signal)
+  } finally {
+    clearTimeout(budgetTimer)
+  }
+}
+
+async function handleTvdbArtworks(
+  req: NextRequest,
+  { params }: { params: Promise<RouteParams> },
+  budgetSignal: AbortSignal,
+) {
   const rl = await rateLimit(rateLimitKey(req), "tvdb")
   if (!rl.ok) return rateLimitResponse(rl.retAfter)
   const { id } = await params
@@ -104,25 +125,33 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
     typeFilter = new Set(ids)
   }
 
-  // Aggregate gallery budget: one timer for the whole lookup + artworks
-  // chain. Always cleared below (no timer leaks).
-  const budgetCtrl = new AbortController()
-  const budgetTimer = setTimeout(() => {
-    budgetCtrl.abort(new DOMException("TVDB gallery budget exceeded", "TimeoutError"))
-  }, TVDB_TIMEOUT_MS)
   try {
-    // The SAME signal flows through every network layer; per-call caps
+    // The SAME signal flows through every gallery network layer; per-call caps
     // (TMDB 5s, TVDB 5s) can only fire earlier, never extend the aggregate.
-    const gallerySignal = combineAbortSignals(req.signal, budgetCtrl.signal)
-    if (gallerySignal.aborted) throw new TvdbArtworksError("timeout", "TVDB request aborted")
+    const gallerySignal = combineAbortSignals(req.signal, budgetSignal)
+    // A budget already spent while resolving the namespace/key is not
+    // re-checked here: key validation would return null on the aborted signal
+    // and the route would 502 before the gallery chain is attempted. The
+    // caller signal still fails fast, and the spent budget stays enforced by
+    // the chain itself (its first fetch aborts instantly → 502
+    // `tvdb_unavailable`, no gallery stage runs, nothing cached).
+    const budgetExhausted = budgetSignal.aborted
+    if (req.signal.aborted) throw new TvdbArtworksError("timeout", "TVDB request aborted")
 
     // Auth-before-cache: validate the key before serving the neutral cache
     // so a cached success never masks a rejected key (and a rejected key
     // never poisons the cache — failures are never written). A null token
     // with an open breaker is a sustained upstream outage (401s never trip
-    // the breaker), hence `upstream`, not `auth`.
-    const preToken = await getTvdbToken(resolved.tvdb.key, gallerySignal)
-    if (gallerySignal.aborted) throw new TvdbArtworksError("timeout", "TVDB request aborted")
+    // the breaker), hence `upstream`, not `auth`. When the budget is already
+    // spent the login keeps the caller abort and its own `TVDB_TIMEOUT_MS`
+    // per-call cap, so it stays bounded without a spurious auth failure.
+    const preToken = await getTvdbToken(
+      resolved.tvdb.key,
+      budgetExhausted ? req.signal : gallerySignal,
+    )
+    if (req.signal.aborted || (!budgetExhausted && gallerySignal.aborted)) {
+      throw new TvdbArtworksError("timeout", "TVDB request aborted")
+    }
     if (!preToken) {
       if (isTvdbBreakerOpen()) throw new TvdbArtworksError("upstream", "TVDB login unavailable")
       throw new TvdbArtworksError("auth", "TVDB rejected the API key")
@@ -205,7 +234,5 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
       return jsonGzip({ error: message, code }, status, undefined, acceptEncoding)
     }
     return jsonGzip({ error: "TVDB artworks unavailable", code: "tvdb_unavailable" }, 502, undefined, acceptEncoding)
-  } finally {
-    clearTimeout(budgetTimer)
   }
 }

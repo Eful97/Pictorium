@@ -194,7 +194,7 @@ function lastInput(): GenerationInput {
 }
 
 async function get(url: string) {
-  const res = await GET(new NextRequest(url), { params: Promise.resolve({ type: "movie", id: "88" }) })
+  const res = await GET(adminReq(url), { params: Promise.resolve({ type: "movie", id: "88" }) })
   expect(res.status).toBe(200)
   return lastInput()
 }
@@ -385,3 +385,10 @@ describe("auto wordmark — preview transport (lauto)", () => {
     expect(input.logoSrc).toBe(`text-logo-auto:${AUTO_WORDMARK_FONT}:DUNE`)
   })
 })
+
+// Route admin fail-closed: le richieste di test presentano un ADMIN_TOKEN reale
+// (le preview restano live, come nell'editor con sessione sbloccata).
+const TEST_ADMIN_TOKEN = "route-tests-admin-token"
+process.env.ADMIN_TOKEN = TEST_ADMIN_TOKEN
+const adminReq = (url: string, init?: { headers?: Record<string, string> }) =>
+  new NextRequest(url, { ...init, headers: { ...(init?.headers ?? {}), "x-admin-token": TEST_ADMIN_TOKEN } })

@@ -97,4 +97,35 @@ describe("GET /api/mdblist/custom fan-out cap (v1.23.0)", () => {
     expect(res.status).toBe(499)
     expect(vi.mocked(getDetails).mock.calls.length).toBeLessThanOrEqual(5)
   })
+
+  it("clamps anonymous large windows: no 1000-item TMDB fan-out", async () => {
+    vi.mocked(getDetails).mockClear()
+    const raw = Array.from({ length: 200 }, (_, i) => ({ tmdb: i + 1, imdb: "", title: `T${i}`, year: 2020, mediatype: "movie" }))
+    vi.mocked(fetchUnifiedCatalogResult).mockResolvedValue({ items: raw as never, status: "ok" })
+    vi.mocked(getDetails).mockResolvedValue({ poster_path: "/p.jpg" } as never)
+    const res = await GET(new NextRequest("http://localhost/api/mdblist/custom?url=test&limit=1000"))
+    expect(res.status).toBe(200)
+    const page = (await res.json()) as { items: unknown[] }
+    expect(page.items).toHaveLength(30)
+    expect(vi.mocked(getDetails)).toHaveBeenCalledTimes(30)
+  })
+
+  it("keeps the admin path for large windows (up to 1000)", async () => {
+    process.env.ADMIN_TOKEN = "fanout-admin-token"
+    try {
+      vi.mocked(getDetails).mockClear()
+      const raw = Array.from({ length: 200 }, (_, i) => ({ tmdb: i + 1, imdb: "", title: `T${i}`, year: 2020, mediatype: "movie" }))
+      vi.mocked(fetchUnifiedCatalogResult).mockResolvedValue({ items: raw as never, status: "ok" })
+      vi.mocked(getDetails).mockResolvedValue({ poster_path: "/p.jpg" } as never)
+      const res = await GET(new NextRequest("http://localhost/api/mdblist/custom?url=test&limit=60", {
+        headers: { "x-admin-token": "fanout-admin-token" },
+      }))
+      expect(res.status).toBe(200)
+      const page = (await res.json()) as { items: unknown[] }
+      expect(page.items).toHaveLength(60)
+      expect(vi.mocked(getDetails)).toHaveBeenCalledTimes(60)
+    } finally {
+      delete process.env.ADMIN_TOKEN
+    }
+  })
 })

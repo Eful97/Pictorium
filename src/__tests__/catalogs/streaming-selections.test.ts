@@ -342,10 +342,21 @@ describe("config token roundtrip (incl. profileless catalog-only)", () => {
 })
 
 describe("PUT /api/defaults validation + persistence", () => {
+  const TEST_ADMIN_TOKEN = "streaming-selections-admin"
+
+  beforeEach(() => {
+    // Le route admin sono fail-closed: il test presenta un token reale.
+    process.env.POSTERIUM_ADMIN_TOKEN = TEST_ADMIN_TOKEN
+  })
+
+  afterEach(() => {
+    delete process.env.POSTERIUM_ADMIN_TOKEN
+  })
+
   function putRequest(body: unknown) {
     return new Request("http://localhost:3000/api/defaults", {
       method: "PUT",
-      headers: { "content-type": "application/json" },
+      headers: { "content-type": "application/json", "x-admin-token": TEST_ADMIN_TOKEN },
       body: JSON.stringify(body),
     })
   }

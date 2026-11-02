@@ -5,18 +5,22 @@ import { hasPinConfiguredSync, verifySessionFromRequestSync } from "@/lib/pin-au
 
 const log = createLogger("auth")
 
-function resolveAdminToken(): string | undefined {
-  return envWithFallback("ADMIN_TOKEN") || process.env.ADMIN_TOKEN || undefined
+/** Una variabile definita ma vuota (o di soli spazi) non vale come configurata:
+ *  docker-compose materializza `PICTORIUM_ADMIN_TOKEN=""`, che senza questo
+ *  controllo oscurerebbe un `POSTERIUM_ADMIN_TOKEN` legacy realmente impostato.
+ *  Il valore non viene trimmato: il confronto resta sul testo configurato. */
+function nonEmptyToken(value: string | undefined): string | undefined {
+  return value && value.trim() ? value : undefined
 }
 
-/** Istanza in modalità pubblica: le route admin restano aperte senza
- *  ADMIN_TOKEN solo quando esplicitamente configurata via
- *  PICTORIUM_PUBLIC_INSTANCE=1 (legacy: POSTERIUM_PUBLIC_INSTANCE=1, HF Spaces multi-utente). In dev locale
- *  (`next dev`, NODE_ENV=development) l'accesso senza token è consentito
- *  solo su loopback (127.0.0.1/::1/localhost) o con PICTORIUM_ALLOW_DEV_ADMIN=1 (legacy: POSTERIUM_ALLOW_DEV_ADMIN=1).
- *  In produzione senza flag resta fail-closed. */
-function isPublicInstance(): boolean {
-  return envWithFallback("PUBLIC_INSTANCE") === "1"
+function resolveAdminToken(): string | undefined {
+  // Prima non-vuota vince: canonico → legacy (warning di deprecazione invariato
+  // via envWithFallback) → ADMIN_TOKEN nudo.
+  return (
+    nonEmptyToken(envWithFallback("ADMIN_TOKEN")) ??
+    nonEmptyToken(process.env.POSTERIUM_ADMIN_TOKEN) ??
+    nonEmptyToken(process.env.ADMIN_TOKEN)
+  )
 }
 
 function isLoopbackRequest(request: Request): boolean {
@@ -38,7 +42,11 @@ function isDevAdminAllowed(request: Request): boolean {
   return isLoopbackRequest(request)
 }
 
-if (!resolveAdminToken() && !isPublicInstance()) {
+// Boot diagnostics (solo log, nessun comportamento): le route admin sono
+// APERTE senza token solo in dev locale (loopback o ALLOW_DEV_ADMIN=1) o con
+// una sessione PIN valida. In produzione senza ADMIN_TOKEN restano CHIUSE
+// (fail-closed): la vecchia modalità "istanza pubblica" non esiste più.
+if (!resolveAdminToken()) {
   if (process.env.NODE_ENV === "development") {
     if (envWithFallback("ALLOW_DEV_ADMIN") === "1") {
       log.warn("⚠️  Dev locale con PICTORIUM_ALLOW_DEV_ADMIN=1 senza ADMIN_TOKEN — route admin APERTE in dev (esplicito).")
@@ -49,13 +57,9 @@ if (!resolveAdminToken() && !isPublicInstance()) {
       log.warn("   - Istanza privata: imposta PICTORIUM_ADMIN_TOKEN (o ADMIN_TOKEN) per chiudere ovunque")
     }
   } else {
-    log.warn("⚠️  Nessun ADMIN_TOKEN configurato e modalità pubblica non attiva — route admin CHIUSE (fail-closed).")
-    log.warn("   - Istanza pubblica (HF Spaces multi-utente): imposta PICTORIUM_PUBLIC_INSTANCE=1")
+    log.warn("⚠️  Nessun ADMIN_TOKEN configurato — route admin CHIUSE (fail-closed).")
     log.warn("   - Istanza privata: imposta PICTORIUM_ADMIN_TOKEN (o ADMIN_TOKEN) (x-admin-token / Bearer)")
   }
-} else if (!resolveAdminToken()) {
-  log.warn("⚠️  Modalità pubblica senza ADMIN_TOKEN — route admin APERTE (PICTORIUM_PUBLIC_INSTANCE=1).")
-  log.warn("   Imposta PICTORIUM_ADMIN_TOKEN (o ADMIN_TOKEN) per proteggerle.")
 }
 
 /** True quando un ADMIN_TOKEN è configurato (qualunque env supportata). */
@@ -83,14 +87,11 @@ export function checkAdminToken(request: Request): boolean {
     return verifySessionFromRequestSync(request)
   }
 
-  // Nessun token né PIN configurato → le route restano aperte solo in modalità
-  // pubblica esplicita (PICTORIUM_PUBLIC_INSTANCE=1) o in dev su loopback /
-  // con PICTORIUM_ALLOW_DEV_ADMIN=1. Il client non invia mai il token admin,
-  // quindi la modalità pubblica è l'unico modo per far funzionare l'editor
-  // su HF. Un'istanza di produzione privata che ha dimenticato il token
-  // NON resta esposta → fail-closed.
+  // Nessun token né PIN configurato → le route restano aperte solo in dev
+  // locale su loopback / con PICTORIUM_ALLOW_DEV_ADMIN=1. Il client non invia
+  // mai il token admin: un'istanza di produzione privata che ha dimenticato il
+  // token NON resta esposta → fail-closed (nessuna modalità "pubblica").
   if (!token) {
-    if (isPublicInstance()) return true
     if (isDevAdminAllowed(request)) return true
     return false
   }
@@ -100,10 +101,10 @@ export function checkAdminToken(request: Request): boolean {
 
 /**
  * Fail-closed admin check: richiede SEMPRE un token admin configurato o un PIN di sessione valido.
- * A differenza di checkAdminToken (che resta aperto su istanze pubbliche senza
- * ADMIN_TOKEN), questa restituisce false quando non c'è token o PIN configurato.
- * Da usare SOLO per le operazioni che devono restare protette anche su HF Spaces
- * (es. DELETE /api/mappings wipe-all).
+ * A differenza di checkAdminToken (che resta aperto solo in dev locale senza
+ * token), questa restituisce false quando non c'è token o PIN configurato.
+ * Da usare SOLO per le operazioni che devono restare protette anche sui deploy
+ * condivisi (es. DELETE /api/mappings wipe-all, telemetria cache).
  */
 export function requireAdminToken(request: Request): boolean {
   const token = resolveAdminToken()

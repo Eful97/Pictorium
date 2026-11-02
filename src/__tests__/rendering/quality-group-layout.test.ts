@@ -69,7 +69,16 @@ describe("quality group layout — row (horizontal, max 2 per line)", () => {
       // Row-major bands: (0,1) then (2,3) then (4).
       const tops = row!.items.map((item) => item.top)
       expect(tops[0], style).toBe(tops[1])
-      expect(tops[2], style).toBe(tops[3])
+      // A band shares one top only when its marks share the box height, as
+      // every plated/framed style does. `naked` paints A/V marks bare at their
+      // asset aspect height (never stretched), so a mixed-height band centres
+      // each mark independently: still inside its own band, never a new row.
+      if (stacked!.items[2].h === stacked!.items[3].h) {
+        expect(tops[2], style).toBe(tops[3])
+      } else {
+        expect(tops[3] - tops[2], style).toBeGreaterThan(0)
+        expect(tops[3] - tops[2], style).toBeLessThan(tops[4] - tops[3])
+      }
       expect(tops[2], style).toBeGreaterThan(tops[0])
       expect(tops[4], style).toBeGreaterThan(tops[2])
       // Left-to-right inside a band.

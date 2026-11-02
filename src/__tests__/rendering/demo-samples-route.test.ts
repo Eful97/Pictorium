@@ -194,9 +194,17 @@ function armEmptyUpstream() {
 }
 
 describe("GET /api/poster demo samples (Settings preview only)", () => {
+  const TEST_ADMIN_TOKEN = "demo-samples-admin-token"
+
+  // Preview WYSIWYG live: la richiesta presenta l'admin token (sessione
+  // sbloccata), come l'editor reale. Il caso anonimo declassato resta coperto
+  // dal test dedicato (token diverso in env → sessione non sbloccata).
+  const renderReq = (url: string) => new NextRequest(url, { headers: { "x-admin-token": TEST_ADMIN_TOKEN } })
+
   beforeEach(async () => {
     vi.restoreAllMocks()
     cacheClear()
+    process.env.ADMIN_TOKEN = TEST_ADMIN_TOKEN
     // Real chart-state isolation (test hook, not a mock): a snapshot published
     // by an earlier test must not shadow the rank mocks below.
     __resetChartGenerationForTest()
@@ -217,6 +225,7 @@ describe("GET /api/poster demo samples (Settings preview only)", () => {
 
   afterEach(() => {
     cacheClear()
+    delete process.env.ADMIN_TOKEN
     __resetChartGenerationForTest()
     __setChartGenerationPersistForTest(null)
     __resetTMDBSessionCache()
@@ -226,7 +235,7 @@ describe("GET /api/poster demo samples (Settings preview only)", () => {
     `http://localhost:3000/api/poster/movie/44?poster=%2Fq.jpg&imdbId=tt0000044&rsrc=imdb,tmdb&badges=1&ranking=1${extra}&api_key=test`
 
   it("fills rank, ratings average, quality tier and genre/year gaps on an accepted preview", async () => {
-    const res = await GET(new NextRequest(debugUrl("&preview=1&demosamples=1&debug=1")), {
+    const res = await GET(renderReq(debugUrl("&preview=1&demosamples=1&debug=1")), {
       params: Promise.resolve({ type: "movie", id: "44" }),
     })
     expect(res.status).toBe(200)
@@ -239,7 +248,7 @@ describe("GET /api/poster demo samples (Settings preview only)", () => {
   })
 
   it("renders genuine emptiness without the flag on the same preview", async () => {
-    const res = await GET(new NextRequest(debugUrl("&preview=1&debug=1")), {
+    const res = await GET(renderReq(debugUrl("&preview=1&debug=1")), {
       params: Promise.resolve({ type: "movie", id: "44" }),
     })
     expect(res.status).toBe(200)
@@ -267,7 +276,7 @@ describe("GET /api/poster demo samples (Settings preview only)", () => {
       imdbId: "tt0000044",
       updatedAt: "2026-01-01T00:00:00.000Z",
     })
-    const res = await GET(new NextRequest(
+    const res = await GET(renderReq(
       "http://localhost:3000/api/poster/movie/44?rsrc=imdb,tmdb&badges=1&ranking=1&demosamples=1&debug=1&api_key=test",
     ), {
       params: Promise.resolve({ type: "movie", id: "44" }),
@@ -281,7 +290,7 @@ describe("GET /api/poster demo samples (Settings preview only)", () => {
   })
 
   it("honors ranking=0 even with samples (toggles are never forced)", async () => {
-    const res = await GET(new NextRequest(
+    const res = await GET(renderReq(
       "http://localhost:3000/api/poster/movie/44?poster=%2Fq.jpg&imdbId=tt0000044&rsrc=imdb,tmdb&badges=1&ranking=0&preview=1&demosamples=1&debug=1&api_key=test",
     ), { params: Promise.resolve({ type: "movie", id: "44" }) })
     expect(res.status).toBe(200)
@@ -290,7 +299,7 @@ describe("GET /api/poster demo samples (Settings preview only)", () => {
   })
 
   it("keeps the 4K sample tier with formats=none (no invented format icons)", async () => {
-    const res = await GET(new NextRequest(debugUrl("&preview=1&demosamples=1&formats=none&debug=1")), {
+    const res = await GET(renderReq(debugUrl("&preview=1&demosamples=1&formats=none&debug=1")), {
       params: Promise.resolve({ type: "movie", id: "44" }),
     })
     expect(res.status).toBe(200)
@@ -311,7 +320,7 @@ describe("GET /api/poster demo samples (Settings preview only)", () => {
         : null,
     )
     const base = "http://localhost:3000/api/poster/movie/44?poster=%2Fq.jpg&imdbId=tt0000044&badges=1&ranking=1&api_key=test"
-    const withSamples = await GET(new NextRequest(`${base}&preview=1&demosamples=1`), {
+    const withSamples = await GET(renderReq(`${base}&preview=1&demosamples=1`), {
       params: Promise.resolve({ type: "movie", id: "44" }),
     })
     expect(withSamples.status).toBe(200)
@@ -324,7 +333,7 @@ describe("GET /api/poster demo samples (Settings preview only)", () => {
 
     hybrid.mockClear()
     rawHybrid.mockClear()
-    const genuine = await GET(new NextRequest(`${base}&preview=1`), {
+    const genuine = await GET(renderReq(`${base}&preview=1`), {
       params: Promise.resolve({ type: "movie", id: "44" }),
     })
     expect(genuine.status).toBe(200)
@@ -347,7 +356,7 @@ describe("GET /api/poster demo samples (Settings preview only)", () => {
         ? { png: Buffer.alloc(8), w: 8, h: 8, networkKey: "hbo", matchedName: "HBO" }
         : null,
     )
-    const res = await GET(new NextRequest(
+    const res = await GET(renderReq(
       "http://localhost:3000/api/poster/movie/44?poster=%2Fq.jpg&imdbId=tt0000044&badges=1&ranking=1&preview=1&demosamples=1&api_key=test",
     ), { params: Promise.resolve({ type: "movie", id: "44" }) })
     expect(res.status).toBe(200)
@@ -366,7 +375,7 @@ describe("GET /api/poster demo samples (Settings preview only)", () => {
     const spy = vi.mocked(posterService.generatePosterBuffer)
     spy.mockClear()
     // Full render (no debug short-circuit: compose is what consumes the input).
-    const res = await GET(new NextRequest(
+    const res = await GET(renderReq(
       "http://localhost:3000/api/poster/movie/44?poster=%2Fq.jpg&imdbId=tt0000044&rsrc=imdb,tmdb&sep=1&badges=1&ranking=1&preview=1&demosamples=1&api_key=test",
     ), { params: Promise.resolve({ type: "movie", id: "44" }) })
     expect(res.status).toBe(200)
@@ -386,7 +395,7 @@ describe("GET /api/poster demo samples (Settings preview only)", () => {
 
   it("prefers a real resolved quality tier over the sample", async () => {
     vi.mocked(resolveStreamQuality).mockResolvedValue({ quality: "FHD", status: "resolved", source: "test" } as never)
-    const res = await GET(new NextRequest(debugUrl("&preview=1&demosamples=1&debug=1")), {
+    const res = await GET(renderReq(debugUrl("&preview=1&demosamples=1&debug=1")), {
       params: Promise.resolve({ type: "movie", id: "44" }),
     })
     expect(res.status).toBe(200)
@@ -395,7 +404,7 @@ describe("GET /api/poster demo samples (Settings preview only)", () => {
 
   it("prefers a real chart rank over the sample", async () => {
     mockedGetJWRankings.mockResolvedValue([{ tmdbId: 44, rank: 5 }] as never)
-    const res = await GET(new NextRequest(debugUrl("&preview=1&demosamples=1&debug=1")), {
+    const res = await GET(renderReq(debugUrl("&preview=1&demosamples=1&debug=1")), {
       params: Promise.resolve({ type: "movie", id: "44" }),
     })
     expect(res.status).toBe(200)
@@ -403,7 +412,7 @@ describe("GET /api/poster demo samples (Settings preview only)", () => {
   })
 
   it("samples the vote with ranking off but rating on (actual consumers gate)", async () => {
-    const res = await GET(new NextRequest(
+    const res = await GET(renderReq(
       "http://localhost:3000/api/poster/movie/44?poster=%2Fq.jpg&imdbId=tt0000044&rsrc=imdb,tmdb&badges=1&ranking=0&br=1&preview=1&demosamples=1&debug=1&api_key=test",
     ), { params: Promise.resolve({ type: "movie", id: "44" }) })
     expect(res.status).toBe(200)
@@ -415,7 +424,7 @@ describe("GET /api/poster demo samples (Settings preview only)", () => {
   it("passes sampled values to the production renderer input", async () => {
     const spy = vi.mocked(posterService.generatePosterBuffer)
     spy.mockClear()
-    const res = await GET(new NextRequest(
+    const res = await GET(renderReq(
       "http://localhost:3000/api/poster/movie/44?poster=%2Fq.jpg&imdbId=tt0000044&rsrc=imdb,tmdb&badges=1&ranking=1&preview=1&demosamples=1&api_key=test",
     ), { params: Promise.resolve({ type: "movie", id: "44" }) })
     expect(res.status).toBe(200)
@@ -440,7 +449,7 @@ describe("GET /api/poster demo samples (Settings preview only)", () => {
   })
 
   it("renders nothing with all badges off despite sampled data", async () => {
-    const res = await GET(new NextRequest(
+    const res = await GET(renderReq(
       "http://localhost:3000/api/poster/movie/44?poster=%2Fq.jpg&imdbId=tt0000044&badges=0&ranking=0&preview=1&demosamples=1&debug=1&api_key=test",
     ), { params: Promise.resolve({ type: "movie", id: "44" }) })
     expect(res.status).toBe(200)
@@ -455,7 +464,7 @@ describe("GET /api/poster demo samples (Settings preview only)", () => {
     // Enabled-but-missing formats: the restricted selection is the only gate.
     const spy = vi.mocked(posterService.generatePosterBuffer)
     spy.mockClear()
-    const formatsRes = await GET(new NextRequest(
+    const formatsRes = await GET(renderReq(
       "http://localhost:3000/api/poster/movie/44?poster=%2Fq.jpg&imdbId=tt0000044&badges=1&ranking=1&formats=dv,atmos&preview=1&demosamples=1&api_key=test",
     ), { params: Promise.resolve({ type: "movie", id: "44" }) })
     expect(formatsRes.status).toBe(200)
@@ -465,7 +474,7 @@ describe("GET /api/poster demo samples (Settings preview only)", () => {
     expect(genInput.videoFormats).toEqual(["dv", "atmos"])
 
     // Age: no certification resolves for this title/country → style sample.
-    const ageRes = await GET(new NextRequest(
+    const ageRes = await GET(renderReq(
       debugUrl("&age=1&agecountry=IT&preview=1&demosamples=1&debug=1"),
     ), { params: Promise.resolve({ type: "movie", id: "44" }) })
     expect(ageRes.status).toBe(200)
@@ -476,7 +485,7 @@ describe("GET /api/poster demo samples (Settings preview only)", () => {
   it("samples every known format when no format is disabled and formats=none samples none", async () => {
     const spy = vi.mocked(posterService.generatePosterBuffer)
     spy.mockClear()
-    const unrestricted = await GET(new NextRequest(
+    const unrestricted = await GET(renderReq(
       "http://localhost:3000/api/poster/movie/44?poster=%2Fq.jpg&imdbId=tt0000044&badges=1&ranking=1&preview=1&demosamples=1&api_key=test",
     ), { params: Promise.resolve({ type: "movie", id: "44" }) })
     expect(unrestricted.status).toBe(200)
@@ -484,7 +493,7 @@ describe("GET /api/poster demo samples (Settings preview only)", () => {
     expect(unrestrictedInput.videoFormats).toEqual(["dv", "hdr", "hdr10plus", "atmos", "imax"])
 
     spy.mockClear()
-    const none = await GET(new NextRequest(
+    const none = await GET(renderReq(
       "http://localhost:3000/api/poster/movie/44?poster=%2Fq.jpg&imdbId=tt0000044&badges=1&ranking=1&formats=none&preview=1&demosamples=1&api_key=test",
     ), { params: Promise.resolve({ type: "movie", id: "44" }) })
     expect(none.status).toBe(200)
@@ -496,21 +505,21 @@ describe("GET /api/poster demo samples (Settings preview only)", () => {
   it("never invents formats or an age label without the flag or with the age toggle off", async () => {
     const spy = vi.mocked(posterService.generatePosterBuffer)
     spy.mockClear()
-    const genuine = await GET(new NextRequest(
+    const genuine = await GET(renderReq(
       debugUrl("&formats=dv,atmos&age=1&agecountry=IT&preview=1&debug=1"),
     ), { params: Promise.resolve({ type: "movie", id: "44" }) })
     expect(genuine.status).toBe(200)
     expect((await genuine.json()).age.label).toBeNull()
 
     spy.mockClear()
-    const genuineRender = await GET(new NextRequest(
+    const genuineRender = await GET(renderReq(
       "http://localhost:3000/api/poster/movie/44?poster=%2Fq.jpg&imdbId=tt0000044&badges=1&ranking=1&formats=dv,atmos&preview=1&api_key=test",
     ), { params: Promise.resolve({ type: "movie", id: "44" }) })
     expect(genuineRender.status).toBe(200)
     const genuineInput = spy.mock.calls[spy.mock.calls.length - 1][0] as { videoFormats?: string[] | null }
     expect(genuineInput.videoFormats).toBeNull()
 
-    const ageOff = await GET(new NextRequest(
+    const ageOff = await GET(renderReq(
       debugUrl("&age=0&preview=1&demosamples=1&debug=1"),
     ), { params: Promise.resolve({ type: "movie", id: "44" }) })
     expect(ageOff.status).toBe(200)
@@ -523,7 +532,7 @@ describe("GET /api/poster demo samples (Settings preview only)", () => {
     // never resurrected just because the title really has it.
     const spy = vi.mocked(posterService.generatePosterBuffer)
     spy.mockClear()
-    const none = await GET(new NextRequest(
+    const none = await GET(renderReq(
       "http://localhost:3000/api/poster/movie/44?poster=%2Fq.jpg&imdbId=tt0021749&badges=1&ranking=1&formats=none&preview=1&demosamples=1&api_key=test",
     ), { params: Promise.resolve({ type: "movie", id: "44" }) })
     expect(none.status).toBe(200)
@@ -531,7 +540,7 @@ describe("GET /api/poster demo samples (Settings preview only)", () => {
     expect(noneInput.videoFormats).toBeNull()
 
     spy.mockClear()
-    const restricted = await GET(new NextRequest(
+    const restricted = await GET(renderReq(
       "http://localhost:3000/api/poster/movie/44?poster=%2Fq.jpg&imdbId=tt0021749&badges=1&ranking=1&formats=imax&preview=1&demosamples=1&api_key=test",
     ), { params: Promise.resolve({ type: "movie", id: "44" }) })
     expect(restricted.status).toBe(200)
@@ -540,7 +549,7 @@ describe("GET /api/poster demo samples (Settings preview only)", () => {
     expect(restrictedInput.videoFormats).toEqual(["imax"])
 
     spy.mockClear()
-    const kept = await GET(new NextRequest(
+    const kept = await GET(renderReq(
       "http://localhost:3000/api/poster/movie/44?poster=%2Fq.jpg&imdbId=tt0021749&badges=1&ranking=1&formats=dv,imax&preview=1&demosamples=1&api_key=test",
     ), { params: Promise.resolve({ type: "movie", id: "44" }) })
     expect(kept.status).toBe(200)
@@ -552,7 +561,7 @@ describe("GET /api/poster demo samples (Settings preview only)", () => {
     // tt0021749 carries a real local spec (4K, DV only).
     const spy = vi.mocked(posterService.generatePosterBuffer)
     spy.mockClear()
-    const specRes = await GET(new NextRequest(
+    const specRes = await GET(renderReq(
       "http://localhost:3000/api/poster/movie/44?poster=%2Fq.jpg&imdbId=tt0021749&badges=1&ranking=1&preview=1&demosamples=1&api_key=test",
     ), { params: Promise.resolve({ type: "movie", id: "44" }) })
     expect(specRes.status).toBe(200)
@@ -565,7 +574,7 @@ describe("GET /api/poster demo samples (Settings preview only)", () => {
       id: 44,
       results: [{ iso_3166_1: "IT", release_dates: [{ certification: "VM14", release_date: "2024-01-10T00:00:00.000Z", type: 3 }] }],
     } as never)
-    const ageRes = await GET(new NextRequest(
+    const ageRes = await GET(renderReq(
       debugUrl("&age=1&agecountry=IT&preview=1&demosamples=1&debug=1"),
     ), { params: Promise.resolve({ type: "movie", id: "44" }) })
     expect(ageRes.status).toBe(200)
@@ -595,15 +604,15 @@ describe("GET /api/poster demo samples (Settings preview only)", () => {
     const callsBefore = agg.mock.calls.length
     // sep=1 starts the ratings fetch (its result is genuinely empty here).
     const renderUrl = "http://localhost:3000/api/poster/movie/44?rsrc=imdb,tmdb&sep=1&badges=1&ranking=1&preview=1&demosamples=1&api_key=test"
-    const first = await GET(new NextRequest(renderUrl), { params: Promise.resolve({ type: "movie", id: "44" }) })
+    const first = await GET(renderReq(renderUrl), { params: Promise.resolve({ type: "movie", id: "44" }) })
     expect(first.status).toBe(200)
     expect(agg.mock.calls.length).toBe(callsBefore + 1)
     // Canonical render was cached: the repeat serves it with zero refetch.
-    const second = await GET(new NextRequest(renderUrl), { params: Promise.resolve({ type: "movie", id: "44" }) })
+    const second = await GET(renderReq(renderUrl), { params: Promise.resolve({ type: "movie", id: "44" }) })
     expect(second.status).toBe(200)
     expect(agg.mock.calls.length).toBe(callsBefore + 1)
     // Genuine data: the downgrade removed preview semantics and samples.
-    const debug = await GET(new NextRequest(`${renderUrl}&debug=1`), {
+    const debug = await GET(renderReq(`${renderUrl}&debug=1`), {
       params: Promise.resolve({ type: "movie", id: "44" }),
     })
     expect(debug.status).toBe(200)

@@ -1320,6 +1320,67 @@ export function buildQualityBadgeSvg(
   return { svg: `<svg xmlns="http://www.w3.org/2000/svg" width="${renderW}" height="${renderH}" viewBox="0 0 ${renderW} ${renderH}">${defs}${bgEl}${textEl}</svg>`, w: renderW, h: renderH }
 }
 
+// ---------------------------------------------------------------------------
+// `naked` quality (full group): the standard text run with NO plate. Geometry
+// is the standard pill box verbatim (`badgeTextBox` with
+// `BADGE_BOX_PAD_X_FACTOR`, `badgeBoxHeight`, `TOP_SHADOW_PAD`, same
+// natural/pinned width), so w/h, the group column (`markRefWidth`),
+// anchor/scale/offset and caps are unchanged; only the gradient rect + its
+// stroke are gone.
+//
+// Ink inverts against the background polarity (black on a light top, white on
+// a dark top) — the pill ink would be unreadable without its container, and a
+// stroke halo around the glyphs reads as a border (the thing this style must
+// NOT have). Readability comes from a single LIGHT drop shadow behind the ink
+// instead: no halo, no plate, no stroke, so the box corners stay fully
+// transparent and the glyphs get exactly one shadow (never doubled).
+// The SAME builder also renders the default age pill in this style (identical
+// box). A/V marks reuse the existing bare ink path (`renderBareAvIcon`) in
+// `poster-service.ts`: same polarity ink, no plate, no halo; their height is
+// the asset aspect, never stretched to the text box.
+// ---------------------------------------------------------------------------
+
+/** Glyph ink of the `naked` tier on a LIGHT top (dark ink). */
+export const QUALITY_NAKED_INK_LIGHT = "#000000"
+/** Glyph ink of the `naked` tier on a DARK top (light ink). */
+export const QUALITY_NAKED_INK_DARK = "#ffffff"
+
+/**
+ * Light drop shadow of the `naked` style (tier AND default age pill): the
+ * glyphs have no plate and no halo, so the shadow must sit strictly BEHIND
+ * the ink and stay subtle. `TOP_SHADOW_FILTER` (dx3/dy3/blur3.5/alpha0.65) is
+ * the plate shadow and reads as a heavy box on bare text, so this dedicated
+ * tight variant (same recipe as `KNOCKOUT_SHADOW_FILTER`) keeps the text
+ * readable on busy artwork without drawing a border. One group filter = one
+ * shadow, never a double pass.
+ */
+export const QUALITY_NAKED_SHADOW_FILTER = `<filter id="qks" x="-20%" y="-20%" width="140%" height="140%"><feDropShadow dx="0" dy="1" stdDeviation="2" flood-color="#000000" flood-opacity="0.35"/></filter>`
+
+export function buildQualityNakedSvg(
+  quality: string,
+  fs: number,
+  topLight: boolean = false,
+  font: BadgeFont = "inter",
+  /** Fixed visible box width (group column); absent = natural width. */
+  targetW?: number,
+) {
+  const { glyphFs, textW, totalW, boxH } = badgeTextBox(quality, fs, BADGE_BOX_PAD_X_FACTOR, font, targetW)
+  const renderW = totalW + TOP_SHADOW_PAD * 2
+  const renderH = boxH + TOP_SHADOW_PAD * 2
+  const ox = TOP_SHADOW_PAD
+  const oy = TOP_SHADOW_PAD
+  const cx = ox + totalW / 2
+  const cy = oy + boxH / 2
+  const ink = topLight ? QUALITY_NAKED_INK_LIGHT : QUALITY_NAKED_INK_DARK
+  const attributes = `x="${cx}" y="${cy}" text-anchor="middle" dominant-baseline="central" font-family="${fontFamilyFor(quality, font)}" font-weight="700" font-size="${glyphFs}" letter-spacing="0.06em"${textFitAttrs(textW)}`
+  // Single ink pass, no stroke underlay: the old background-tone halo drew a
+  // border around the glyphs. Readability is the light shadow behind the ink.
+  const inkEl = `<text ${attributes} fill="${ink}">${escSvg(quality)}</text>`
+  const defs = `<defs>${QUALITY_NAKED_SHADOW_FILTER}</defs>`
+  const bodyEl = `<g filter="url(#qks)">${inkEl}</g>`
+  return { svg: `<svg xmlns="http://www.w3.org/2000/svg" width="${renderW}" height="${renderH}" viewBox="0 0 ${renderW} ${renderH}">${defs}${bodyEl}</svg>`, w: renderW, h: renderH }
+}
+
 /**
  * White knockout tag for the `knockout` quality style: opaque white
  * rounded tag (contained radius, not a full pill) with the tier glyphs cut

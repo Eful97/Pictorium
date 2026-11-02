@@ -37,10 +37,12 @@ afterEach(async () => {
   delete process.env.ADMIN_TOKEN
 })
 
+const TEST_ADMIN_TOKEN = "mapping-null-admin-token"
+
 function mockPutRequest(body: unknown, type = "movie", id = 123): Request {
   return new Request(`http://localhost:3000/api/mappings/${type}:${id}`, {
     method: "PUT",
-    headers: { "content-type": "application/json" },
+    headers: { "content-type": "application/json", "x-admin-token": TEST_ADMIN_TOKEN },
     body: JSON.stringify(body),
   })
 }
@@ -54,8 +56,7 @@ describe("PUT /api/mappings null fields", () => {
 
     const mapping = makeMapping()
     await store.upsert(mapping)
-
-    delete process.env.ADMIN_TOKEN
+    process.env.ADMIN_TOKEN = TEST_ADMIN_TOKEN
     const { PUT } = await import("@/app/api/mappings/[id]/route")
 
     const putReq = mockPutRequest({
@@ -89,7 +90,7 @@ describe("PUT /api/mappings null fields", () => {
     })
     await store.upsert(mapping)
 
-    delete process.env.ADMIN_TOKEN
+    process.env.ADMIN_TOKEN = TEST_ADMIN_TOKEN
     const { PUT } = await import("@/app/api/mappings/[id]/route")
 
     const putReq = mockPutRequest({ title: "Updated Title" })

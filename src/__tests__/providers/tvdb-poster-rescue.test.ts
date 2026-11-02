@@ -165,7 +165,7 @@ describe("TVDB artwork is manual-only (no automatic rescue)", () => {
 
   it("no clean + logo + key: language poster, no TVDB calls, logo dropped", async () => {
     const res = await posterGET(
-      new NextRequest("http://localhost:3000/api/poster/tv/630101?api_key=test&tvdb_key=K&debug=1"),
+      adminReq("http://localhost:3000/api/poster/tv/630101?api_key=test&tvdb_key=K&debug=1"),
       { params: Promise.resolve({ type: "tv", id: "630101" }) },
     )
     expect(res.status).toBe(200)
@@ -179,7 +179,7 @@ describe("TVDB artwork is manual-only (no automatic rescue)", () => {
 
   it("without key: same language fallback and zero TVDB calls", async () => {
     const res = await posterGET(
-      new NextRequest("http://localhost:3000/api/poster/tv/630102?api_key=test&debug=1"),
+      adminReq("http://localhost:3000/api/poster/tv/630102?api_key=test&debug=1"),
       { params: Promise.resolve({ type: "tv", id: "630102" }) },
     )
     expect(res.status).toBe(200)
@@ -193,7 +193,7 @@ describe("TVDB artwork is manual-only (no automatic rescue)", () => {
   it("manual TVDB poster remains selectable and renders from the explicit query", async () => {
     const tvdbPoster = encodeURIComponent("https://artworks.thetvdb.com/banners/v4/poster/1.jpg")
     const res = await posterGET(
-      new NextRequest(`http://localhost:3000/api/poster/tv/630105?api_key=test&preview=1&poster=${tvdbPoster}&debug=1`),
+      adminReq(`http://localhost:3000/api/poster/tv/630105?api_key=test&preview=1&poster=${tvdbPoster}&debug=1`),
       { params: Promise.resolve({ type: "tv", id: "630105" }) },
     )
     expect(res.status).toBe(200)
@@ -202,3 +202,10 @@ describe("TVDB artwork is manual-only (no automatic rescue)", () => {
     expect(requestedUrls.some((u) => u.includes("artworks.thetvdb.com/banners/v4/poster/1.jpg"))).toBe(true)
   })
 })
+
+// Route admin fail-closed: le richieste di test presentano un ADMIN_TOKEN reale
+// (le preview restano live, come nell'editor con sessione sbloccata).
+const TEST_ADMIN_TOKEN = "route-tests-admin-token"
+process.env.ADMIN_TOKEN = TEST_ADMIN_TOKEN
+const adminReq = (url: string, init?: { headers?: Record<string, string> }) =>
+  new NextRequest(url, { ...init, headers: { ...(init?.headers ?? {}), "x-admin-token": TEST_ADMIN_TOKEN } })

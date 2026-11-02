@@ -31,6 +31,7 @@ vi.mock("@/lib/data-dir", () => ({
 
 const GENRE = { id: "Default1-aaa", rev: "deadbeef" }
 const RANK = { id: "Default2-bbb", rev: "bbbbcccc" }
+const TEST_ADMIN_TOKEN = "family-global-admin-token"
 
 function payload(overrides: Record<string, unknown> = {}) {
   return {
@@ -48,7 +49,8 @@ function payload(overrides: Record<string, unknown> = {}) {
 }
 
 beforeEach(async () => {
-  delete process.env.ADMIN_TOKEN
+  // Le route admin sono fail-closed: il PUT presenta un ADMIN_TOKEN reale.
+  process.env.ADMIN_TOKEN = TEST_ADMIN_TOKEN
   await setServerDefaults({})
 })
 
@@ -61,7 +63,7 @@ afterEach(() => {
 function put(body: unknown): Promise<Response> {
   const req = new Request("http://localhost:3000/api/defaults", {
     method: "PUT",
-    headers: { "content-type": "application/json" },
+    headers: { "content-type": "application/json", "x-admin-token": TEST_ADMIN_TOKEN },
     body: JSON.stringify(body),
   })
   return PUT(req as unknown as NextRequest)

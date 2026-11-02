@@ -83,9 +83,10 @@ describe("POST /api/cache/expire", () => {
   })
 
   it("returns 400 on missing or empty target parameter", async () => {
+    process.env.ADMIN_TOKEN = "supersecret"
     const req = new NextRequest("http://localhost:3000/api/cache/expire", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", "x-admin-token": "supersecret" },
       body: JSON.stringify({}),
     })
     const res = await POST(req)

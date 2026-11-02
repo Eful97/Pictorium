@@ -20,19 +20,20 @@ operator/agent checklist.
 |---|---|---|---|
 | Docker manual | `docker build --build-arg NODE_MAX_OLD_SPACE=1024 -t pictorium .` then `docker run -p 8080:8080 -v posterium-data:/data pictorium` | named volume `/data` (legacy name `posterium-data` kept — do NOT rename, it holds user data) | entrypoint self-warmup (needs rebuilt image) |
 | Docker Compose | `docker compose up -d` (`.env` only for admin token; hardening cap_drop ALL, no-new-privileges; 512MB mem limit) | volume `posterium-data` | same |
-| HF Spaces | frontmatter `sdk: docker` + `app_port: 8080`; env `NODE_OPTIONS=--max-old-space-size=1024` + **`PICTORIUM_PUBLIC_INSTANCE=1`** | Storage bucket → `/data` (uid 1000) | same |
-| Vercel | deploy button / import repo; Next.js runtime; **`PICTORIUM_PUBLIC_INSTANCE=1`** needed for editor routes | **KV required for server-side saves** (`PICTORIUM_REDIS_URL` native Redis, or KV_REST_API_URL/TOKEN); without either profiles degrade to stateless `?config=` (needs CONFIG_HMAC_SECRET) — fs is read-only | NOT useful on Hobby (10s limit) |
+| HF Spaces | frontmatter `sdk: docker` + `app_port: 8080`; env `NODE_OPTIONS=--max-old-space-size=1024` + **`PICTORIUM_ADMIN_TOKEN`** (paste it in Settings → Admin token to unlock the editor) | Storage bucket → `/data` (uid 1000) | same |
+| Vercel | deploy button / import repo; Next.js runtime; **`PICTORIUM_ADMIN_TOKEN`** needed for editor routes (admin is fail-closed) | **KV required for server-side saves** (`PICTORIUM_REDIS_URL` native Redis, or KV_REST_API_URL/TOKEN); without either profiles degrade to stateless `?config=` (needs CONFIG_HMAC_SECRET) — fs is read-only | NOT useful on Hobby (10s limit) |
 | ElfHosted/K8s HA | image + `REDIS_URL` (or `PICTORIUM_REDIS_URL`) to the cluster Redis, no `/data` volume, ≥2 replicas | native Redis shared by all replicas (wins over KV_REST_* when both set, no auto-migration) | entrypoint self-warmup per replica |
 | VPS/Oracle/Termux | `npm run build && npm start` (or docker compose); Oracle A1 4 OCPU free tier | local `/data` | none |
 
 > **Editor routes** (`POST/GET /api/mappings`, `/api/poster-fit`, `/api/defaults`)
-> are admin-protected and **fail-closed in production** (`NODE_ENV=production`)
-> unless `PICTORIUM_PUBLIC_INSTANCE=1` is set or an admin token is configured.
-> Without the flag the editor cannot save posters and the 1-click best-fit
-> returns nothing on HF/Vercel while working in local dev. Set the flag on any
-> public multi-user instance (HF, Vercel, public VPS). On private instances
-> with an admin token, paste it in Settings → Admin token (session-only
-> unlock, `x-admin-token` auto-attached to `/api/` calls) instead of the flag.
+> are admin-protected and **fail-closed** unless an admin token is configured or
+> a PIN session is unlocked. The legacy `PICTORIUM_PUBLIC_INSTANCE` switch was
+> removed and is ignored: it never opens admin routes anymore.
+> Without a token the editor cannot save posters and the 1-click best-fit
+> returns nothing on HF/Vercel while working in local dev (loopback /
+> `PICTORIUM_ALLOW_DEV_ADMIN=1`). Set `PICTORIUM_ADMIN_TOKEN` on any public
+> instance (HF, Vercel, public VPS) and paste it in Settings → Admin token
+> (session-only unlock, `x-admin-token` auto-attached to `/api/` calls).
 >
 > **Best-fit global switch**: `PICTORIUM_BEST_FIT_ENABLED` (`0`/`false`/
 > `off` → always disabled, `1`/`true`/`on` → always enabled, unset → auto)
@@ -61,8 +62,9 @@ README "Tuning performance". Env vars are read at module level → restart neede
 
 `entrypoint.sh` runs `/api/warmup` in the background after boot:
 1. Polls `http://127.0.0.1:${PORT:-8080}/api/health` up to ~60s.
-2. POSTs `/api/warmup?lang=it` with `x-admin-token` if an admin token is set,
-   else no header (public instance fail-open).
+2. POSTs `/api/warmup?lang=it` with `x-warmup-token` when configured, else
+   with `x-admin-token`; with neither the route answers 401 (fail-closed) and
+   the call fails silently.
 3. All failures are non-fatal (`|| true`) — never blocks boot.
 
 - Disable with `PICTORIUM_SELF_WARMUP=0`.
@@ -106,10 +108,13 @@ Run these against the deployed instance:
   can time out. Warmup does not complete on Hobby — not critical.
 - `CONFIG_HMAC_SECRET` unlocks config tokens (fail-closed without it).
 - **Personal single-user instances** (one person deploying their own Vercel):
-  set `PICTORIUM_TMDB_KEY` / `PICTORIUM_MDBLIST_KEY` so catalogs populate on
-  Stremio without passing `api_key` (read as last-resort fallback; header /
-  query always win). Each person uses their own keys on their own
-  instance — do NOT share keys across public multi-user instances.
+  either set `PICTORIUM_TMDB_KEY` / `PICTORIUM_MDBLIST_KEY`, or save the keys
+  once in the app (Settings → API keys): they are encrypted at rest in the
+  dedicated instance store (KV `instance:keys`, or `DATA_DIR/instance/` in
+  file mode) and anonymous Stremio requests resolve them without env. Env stays
+  the last-resort fallback (header / query / namespace always win). Each person
+  uses their own keys on their own instance — do NOT share keys across public
+  multi-user instances.
 - **Catalog posters use the saved per-title mapping first, then instance
   defaults**: `buildStremioPosterUrl` emits mapping values (badges on/off,
   badge styles, blur, gradient, extra) with fallback to `getServerDefaults()`.
@@ -121,12 +126,14 @@ Run these against the deployed instance:
 
 - No TMDB/MDBList API keys in env or `.env`, except the opt-in
   `PICTORIUM_TMDB_KEY`/`PICTORIUM_MDBLIST_KEY` instance fallback for personal
-  single-user deploys — keys are otherwise request-scoped or namespace-scoped
-  (see the `tmdb-api` skill). Never set instance fallback keys on public
-  multi-user instances: global (unscoped) requests keep the env fallback, and
-  scoped (`?u=`) requests reuse it too once
-  `PICTORIUM_MULTI_USER_ALLOW_ENV_FALLBACK=1` is set — either way the
-  operator's quota is exposed. `PROFILE_ENCRYPTION_KEY` (64-hex, `openssl rand -hex 32`) is required
+  single-user deploys — keys are otherwise request-scoped or namespace-scoped.
+  Preferred alternative for personal deploys: the encrypted instance store
+  (Settings → API keys; KV `instance:keys` or `DATA_DIR/instance/`, 0600),
+  resolved for anonymous requests only (scoped `?u=` requests never use it).
+  Never set instance keys (env or store) on public multi-user instances: global
+  (unscoped) requests use them and the operator's quota is exposed once
+  `PICTORIUM_MULTI_USER_ALLOW_ENV_FALLBACK=1` is set for scoped requests.
+  `PROFILE_ENCRYPTION_KEY` (64-hex, `openssl rand -hex 32`) is required
   when `MULTI_USER=1`; rotating it makes stored namespace keys unreadable until
   re-entered. Stored keys never enter cache keys (sha1-hashed fragments only),
   logs, or error messages.

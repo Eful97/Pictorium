@@ -395,16 +395,26 @@ describe("age style URL roundtrip (preview = Stremio)", () => {
 })
 
 describe("PUT /api/defaults age style schema", () => {
+  const TEST_ADMIN_TOKEN = "age-style-admin-token"
+
+  beforeEach(() => {
+    // Le route admin sono fail-closed: il PUT presenta un token reale.
+    process.env.POSTERIUM_ADMIN_TOKEN = TEST_ADMIN_TOKEN
+  })
+
+  afterEach(() => {
+    delete process.env.POSTERIUM_ADMIN_TOKEN
+  })
+
   function mockPutRequest(body: unknown): Request {
     return new Request("http://localhost:3000/api/defaults", {
       method: "PUT",
-      headers: { "content-type": "application/json" },
+      headers: { "content-type": "application/json", "x-admin-token": TEST_ADMIN_TOKEN },
       body: JSON.stringify(body),
     })
   }
 
   it("accepts knockout/null and roundtrips through GET", async () => {
-    delete process.env.ADMIN_TOKEN
     const { PUT, GET } = await import("@/app/api/defaults/route")
     const putRes = await PUT(mockPutRequest({ ageBadgeStyle: "knockout" }) as unknown as NextRequest)
     expect(putRes.status).toBe(200)
@@ -416,7 +426,6 @@ describe("PUT /api/defaults age style schema", () => {
   })
 
   it("accepts the additive age styles and roundtrips them through GET", async () => {
-    delete process.env.ADMIN_TOKEN
     const { PUT, GET } = await import("@/app/api/defaults/route")
     for (const ageBadgeStyle of ["mono", "color", "premium"] as const) {
       expect((await PUT(mockPutRequest({ ageBadgeStyle }) as unknown as NextRequest)).status).toBe(200)
@@ -426,7 +435,6 @@ describe("PUT /api/defaults age style schema", () => {
   })
 
   it("rejects garbage values", async () => {
-    delete process.env.ADMIN_TOKEN
     const { PUT } = await import("@/app/api/defaults/route")
     const res = await PUT(mockPutRequest({ ageBadgeStyle: "garbage" }) as unknown as NextRequest)
     expect(res.status).toBe(400)

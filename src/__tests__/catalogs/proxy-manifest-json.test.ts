@@ -32,6 +32,9 @@ describe("proxy manifest.json alias", () => {
   const fetchSpy = vi.spyOn(globalThis, "fetch")
 
   beforeEach(() => {
+    // Hosting condiviso simulato dal setup globale: il proxy è fail-closed
+    // senza allowlist esplicita (vedi addon-proxy.test.ts per la policy).
+    process.env.PICTORIUM_PROXY_ALLOW_ANY = "1"
     fetchSpy.mockReset()
     fetchSpy.mockResolvedValue(
       new Response(JSON.stringify({ id: "up.id", name: "Up", description: "d" }), {
@@ -42,6 +45,7 @@ describe("proxy manifest.json alias", () => {
   })
 
   afterEach(() => {
+    delete process.env.PICTORIUM_PROXY_ALLOW_ANY
     fetchSpy.mockReset()
   })
 

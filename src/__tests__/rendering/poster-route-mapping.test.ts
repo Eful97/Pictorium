@@ -209,7 +209,7 @@ describe("GET /api/poster/[type]/[id] with saved mappings", () => {
       })
     })
 
-    const req = new NextRequest("http://localhost:3000/api/poster/movie/42?rv=81&mv=1784218530000")
+    const req = adminReq("http://localhost:3000/api/poster/movie/42?rv=81&mv=1784218530000")
     const res = await GET(req, { params: Promise.resolve({ type: "movie", id: "42" }) })
 
     expect(res.status).toBe(200)
@@ -246,7 +246,7 @@ describe("GET /api/poster/[type]/[id] with saved mappings", () => {
     })
     // Landscape: la base è il backdrop (senza testo), il logo resta.
     mockedGetById.mockResolvedValue({ ...nonClean, tmdbId: 44, posterShape: "landscape" })
-    const land = await GET(new NextRequest("http://localhost:3000/api/poster/movie/44?rv=81"), { params: Promise.resolve({ type: "movie", id: "44" }) })
+    const land = await GET(adminReq("http://localhost:3000/api/poster/movie/44?rv=81"), { params: Promise.resolve({ type: "movie", id: "44" }) })
     expect(land.status).toBe(200)
     expect(requestedUrls.some((url) => url.includes("/landscape-logo.png"))).toBe(true)
     // Manual logo persists on non-clean portrait; reset the byte-LRU (same
@@ -254,7 +254,7 @@ describe("GET /api/poster/[type]/[id] with saved mappings", () => {
     requestedUrls.length = 0
     __resetImageBytesForTest()
     mockedGetById.mockResolvedValue({ ...nonClean, tmdbId: 45, posterShape: "poster" })
-    const port = await GET(new NextRequest("http://localhost:3000/api/poster/movie/45?rv=81"), { params: Promise.resolve({ type: "movie", id: "45" }) })
+    const port = await GET(adminReq("http://localhost:3000/api/poster/movie/45?rv=81"), { params: Promise.resolve({ type: "movie", id: "45" }) })
     expect(port.status).toBe(200)
     expect(requestedUrls.some((url) => url.includes("/landscape-logo.png"))).toBe(true)
   })
@@ -275,7 +275,7 @@ describe("GET /api/poster/[type]/[id] with saved mappings", () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(new Uint8Array(poster), {
       headers: { "content-type": "image/png" },
     }))
-    const requestPoster = () => GET(new NextRequest("http://localhost:3000/api/poster/movie/98765?imdbId=tt1375666"), {
+    const requestPoster = () => GET(adminReq("http://localhost:3000/api/poster/movie/98765?imdbId=tt1375666"), {
       params: Promise.resolve({ type: "movie", id: "98765" }),
     })
     const first = await requestPoster()
@@ -308,7 +308,7 @@ describe("GET /api/poster/[type]/[id] with saved mappings", () => {
       logoPath: null, originalPosterPath: null, language: "it", showBadges: false,
       rankingBadges: false, updatedAt: "2026-09-12T00:00:00.000Z",
     })
-    const off = await GET(new NextRequest("http://localhost:3000/api/poster/movie/98766?imdbId=tt1375666&cr=0"), {
+    const off = await GET(adminReq("http://localhost:3000/api/poster/movie/98766?imdbId=tt1375666&cr=0"), {
       params: Promise.resolve({ type: "movie", id: "98766" }),
     })
     expect(off.status).toBe(200)
@@ -321,7 +321,7 @@ describe("GET /api/poster/[type]/[id] with saved mappings", () => {
       rankingBadges: false, customRatings: false, updatedAt: "2026-09-12T00:00:00.000Z",
     })
     mockedGetDetails.mockResolvedValue({ id: 98767, title: "Custom off mapping", genres: [], vote_average: 0, vote_count: 0 })
-    const mapped = await GET(new NextRequest("http://localhost:3000/api/poster/movie/98767?imdbId=tt1375666"), {
+    const mapped = await GET(adminReq("http://localhost:3000/api/poster/movie/98767?imdbId=tt1375666"), {
       params: Promise.resolve({ type: "movie", id: "98767" }),
     })
     expect(mapped.status).toBe(200)
@@ -379,7 +379,7 @@ describe("GET /api/poster/[type]/[id] with saved mappings", () => {
     // Isola il conteggio da eventuali task async di altri test: conta solo
     // le chiamate avvenute durante QUESTA richiesta e per QUESTO titolo.
     mockedGetDetails.mockClear()
-    const req = new NextRequest("http://localhost:3000/api/poster/movie/43?rv=81&mv=1784304930000")
+    const req = adminReq("http://localhost:3000/api/poster/movie/43?rv=81&mv=1784304930000")
     const res = await GET(req, { params: Promise.resolve({ type: "movie", id: "43" }) })
 
     expect(res.status).toBe(200)
@@ -429,7 +429,7 @@ describe("GET /api/poster/[type]/[id] with saved mappings", () => {
       })
     })
 
-    const req = new NextRequest("http://localhost:3000/api/poster/movie/42")
+    const req = adminReq("http://localhost:3000/api/poster/movie/42")
     const res = await GET(req, { params: Promise.resolve({ type: "movie", id: "42" }) })
 
     expect(res.status).toBe(200)
@@ -481,7 +481,7 @@ describe("GET /api/poster/[type]/[id] with saved mappings", () => {
       })
     })
 
-    const req = new NextRequest("http://localhost:3000/api/poster/movie/42")
+    const req = adminReq("http://localhost:3000/api/poster/movie/42")
     const res = await GET(req, { params: Promise.resolve({ type: "movie", id: "42" }) })
 
     expect(res.status).toBe(200)
@@ -538,7 +538,7 @@ describe("GET /api/poster/[type]/[id] with saved mappings", () => {
       })
     })
 
-    const req = new NextRequest("http://localhost:3000/api/poster/movie/42")
+    const req = adminReq("http://localhost:3000/api/poster/movie/42")
     const res = await GET(req, { params: Promise.resolve({ type: "movie", id: "42" }) })
 
     expect(res.status).toBe(200)
@@ -585,7 +585,7 @@ describe("GET /api/poster/[type]/[id] with saved mappings", () => {
       headers: { "content-type": "image/png" },
     }))
     const url = `http://localhost:3000/api/poster/movie/${id}${kind === "query" ? `?poster=/ratings-${id}.jpg&imdbId=tt${id}&voteAverage=5&preview=1` : ""}`
-    const res = await GET(new NextRequest(url), {
+    const res = await GET(adminReq(url), {
       params: Promise.resolve({ type: "movie", id: String(id) }),
     })
     expect(res.status).toBe(200)
@@ -600,7 +600,7 @@ describe("GET /api/poster/[type]/[id] with saved mappings", () => {
     const customCalls = vi.mocked(fetchCustomRatings).mock.calls.length
     if (enabled || kind === "non-mapped") expect(imdbCalls).toBe(1)
     else expect(imdbCalls).toBe(0)
-    const hit = await GET(new NextRequest(url), { params: Promise.resolve({ type: "movie", id: String(id) }) })
+    const hit = await GET(adminReq(url), { params: Promise.resolve({ type: "movie", id: String(id) }) })
     expect(hit.status).toBe(200)
     // Le preview (`preview=1`, ramo query) sono no-store: la route non le
     // scrive in cache, quindi la seconda GET ri-renderizza e rifà i fetch.
@@ -608,7 +608,7 @@ describe("GET /api/poster/[type]/[id] with saved mappings", () => {
     const previewRefetch = kind === "query" ? 1 : 0
     expect(fetchAggregatedRating).toHaveBeenCalledTimes(imdbCalls + (imdbCalls > 0 ? previewRefetch : 0))
     expect(fetchCustomRatings).toHaveBeenCalledTimes(customCalls + (customCalls > 0 ? previewRefetch : 0))
-    const debug = await GET(new NextRequest(`${url}${url.includes("?") ? "&" : "?"}debug=1`), {
+    const debug = await GET(adminReq(`${url}${url.includes("?") ? "&" : "?"}debug=1`), {
       params: Promise.resolve({ type: "movie", id: String(id) }),
     })
     expect(debug.status).toBe(200)
@@ -655,7 +655,7 @@ describe("GET /api/poster/[type]/[id] with saved mappings", () => {
       })
     })
 
-    const req = new NextRequest("http://localhost:3000/api/poster/movie/42")
+    const req = adminReq("http://localhost:3000/api/poster/movie/42")
     const res = await GET(req, { params: Promise.resolve({ type: "movie", id: "42" }) })
 
     expect(res.status).toBe(200)
@@ -705,13 +705,13 @@ describe("GET /api/poster/[type]/[id] with saved mappings", () => {
       headers: { "content-type": "image/png", "content-length": String(posterBuf.length) },
     }))
 
-    const single = await GET(new NextRequest("http://localhost:3000/api/poster/movie/43?rsrc=metacritic&debug=1"), {
+    const single = await GET(adminReq("http://localhost:3000/api/poster/movie/43?rsrc=metacritic&debug=1"), {
       params: Promise.resolve({ type: "movie", id: "43" }),
     })
     expect(single.status).toBe(200)
     expect((await single.json()).vote.average).toBeCloseTo(9.0)
 
-    const garbage = await GET(new NextRequest("http://localhost:3000/api/poster/movie/43?rsrc=xyz&debug=1"), {
+    const garbage = await GET(adminReq("http://localhost:3000/api/poster/movie/43?rsrc=xyz&debug=1"), {
       params: Promise.resolve({ type: "movie", id: "43" }),
     })
     expect(garbage.status).toBe(200)
@@ -750,7 +750,7 @@ describe("GET /api/poster/[type]/[id] with saved mappings", () => {
       headers: { "content-type": "image/png", "content-length": String(posterBuf.length) },
     }))
 
-    const typed = await GET(new NextRequest("http://localhost:3000/api/poster/movie/tmdb:44?debug=1"), {
+    const typed = await GET(adminReq("http://localhost:3000/api/poster/movie/tmdb:44?debug=1"), {
       params: Promise.resolve({ type: "movie", id: "tmdb:44" }),
     })
     expect(typed.status).toBe(200)
@@ -758,7 +758,7 @@ describe("GET /api/poster/[type]/[id] with saved mappings", () => {
     expect((await typed.json()).vote.average).toBeCloseTo(7.5)
 
     // Altri prefissi restano 400 (non risolvibili senza lookup dedicati).
-    const other = await GET(new NextRequest("http://localhost:3000/api/poster/movie/kitsu:44"), {
+    const other = await GET(adminReq("http://localhost:3000/api/poster/movie/kitsu:44"), {
       params: Promise.resolve({ type: "movie", id: "kitsu:44" }),
     })
     expect(other.status).toBe(400)
@@ -801,7 +801,7 @@ describe("GET /api/poster/[type]/[id] with saved mappings", () => {
       })
     })
 
-    const req = new NextRequest("http://localhost:3000/api/poster/movie/42")
+    const req = adminReq("http://localhost:3000/api/poster/movie/42")
     const res = await GET(req, { params: Promise.resolve({ type: "movie", id: "42" }) })
 
     expect(res.status).toBe(200)
@@ -846,7 +846,7 @@ describe("GET /api/poster/[type]/[id] with saved mappings", () => {
     mockedGetImages.mockClear()
     mockedGetExternalIds.mockClear()
 
-    const req1 = new NextRequest("http://localhost:3000/api/poster/movie/42?preview=1")
+    const req1 = adminReq("http://localhost:3000/api/poster/movie/42?preview=1")
     const res1 = await GET(req1, { params: Promise.resolve({ type: "movie", id: "42" }) })
     expect(res1.status).toBe(200)
     // F5a: il ramo non-mappato chiama la combined UNA volta sola e MAI
@@ -862,7 +862,7 @@ describe("GET /api/poster/[type]/[id] with saved mappings", () => {
 
     // Secondo tick di preview con parametri diversi → cache key diversa, ma la
     // session cache per type:id evita di rifare i fetch TMDB.
-    const req2 = new NextRequest("http://localhost:3000/api/poster/movie/42?preview=1&blur=0")
+    const req2 = adminReq("http://localhost:3000/api/poster/movie/42?preview=1&blur=0")
     const res2 = await GET(req2, { params: Promise.resolve({ type: "movie", id: "42" }) })
     expect(res2.status).toBe(200)
     expect(mockedGetDetailsWithExternalIds.mock.calls.length).toBe(1)
@@ -894,7 +894,7 @@ describe("GET /api/poster/[type]/[id] with saved mappings", () => {
       headers: { "content-type": "image/png" },
     }))
     vi.mocked(fetchAllWikidata).mockClear()
-    const res = await GET(new NextRequest("http://localhost:3000/api/poster/movie/61001?poster=/qid.jpg&ranking=1&wikidata_id=Q23577&preview=1"), {
+    const res = await GET(adminReq("http://localhost:3000/api/poster/movie/61001?poster=/qid.jpg&ranking=1&wikidata_id=Q23577&preview=1"), {
       params: Promise.resolve({ type: "movie", id: "61001" }),
     })
     expect(res.status).toBe(200)
@@ -912,7 +912,7 @@ describe("GET /api/poster/[type]/[id] with saved mappings", () => {
       headers: { "content-type": "image/png" },
     }))
     vi.mocked(fetchAllWikidata).mockClear()
-    const res = await GET(new NextRequest("http://localhost:3000/api/poster/movie/61002"), {
+    const res = await GET(adminReq("http://localhost:3000/api/poster/movie/61002"), {
       params: Promise.resolve({ type: "movie", id: "61002" }),
     })
     expect(res.status).toBe(200)
@@ -930,7 +930,7 @@ describe("GET /api/poster/[type]/[id] with saved mappings", () => {
       headers: { "content-type": "image/png" },
     }))
     vi.mocked(fetchAllWikidata).mockClear()
-    const res = await GET(new NextRequest("http://localhost:3000/api/poster/movie/61003"), {
+    const res = await GET(adminReq("http://localhost:3000/api/poster/movie/61003"), {
       params: Promise.resolve({ type: "movie", id: "61003" }),
     })
     expect(res.status).toBe(200)
@@ -949,7 +949,7 @@ describe("GET /api/poster/[type]/[id] with saved mappings", () => {
       headers: { "content-type": "image/png" },
     }))
     vi.mocked(fetchAllWikidata).mockClear()
-    const res = await GET(new NextRequest("http://localhost:3000/api/poster/movie/61004?api_key=testkey"), {
+    const res = await GET(adminReq("http://localhost:3000/api/poster/movie/61004?api_key=testkey"), {
       params: Promise.resolve({ type: "movie", id: "61004" }),
     })
     expect(res.status).toBe(200)
@@ -968,7 +968,7 @@ describe("GET /api/poster/[type]/[id] with saved mappings", () => {
       headers: { "content-type": "image/png" },
     }))
     vi.mocked(fetchAllWikidata).mockClear()
-    const res = await GET(new NextRequest("http://localhost:3000/api/poster/movie/61005?api_key=testkey"), {
+    const res = await GET(adminReq("http://localhost:3000/api/poster/movie/61005?api_key=testkey"), {
       params: Promise.resolve({ type: "movie", id: "61005" }),
     })
     expect(res.status).toBe(200)
@@ -1011,7 +1011,7 @@ describe("GET /api/poster/[type]/[id] in presets mode (public instance)", () => 
       headers: { "content-type": "image/png" },
     }))
     vi.mocked(resolveStreamQuality).mockClear()
-    const res = await GET(new NextRequest("http://localhost:3000/api/poster/movie/62001?api_key=k&title=Bogus"), {
+    const res = await GET(adminReq("http://localhost:3000/api/poster/movie/62001?api_key=k&title=Bogus"), {
       params: Promise.resolve({ type: "movie", id: "62001" }),
     })
     expect(res.status).toBe(200)
@@ -1030,7 +1030,7 @@ describe("GET /api/poster/[type]/[id] in presets mode (public instance)", () => 
       headers: { "content-type": "image/png" },
     }))
     vi.mocked(fetchAllWikidata).mockClear()
-    const res = await GET(new NextRequest("http://localhost:3000/api/poster/movie/62002?wikidata_id=Q999"), {
+    const res = await GET(adminReq("http://localhost:3000/api/poster/movie/62002?wikidata_id=Q999"), {
       params: Promise.resolve({ type: "movie", id: "62002" }),
     })
     expect(res.status).toBe(200)
@@ -1053,13 +1053,13 @@ describe("GET /api/poster/[type]/[id] error and edge cases", () => {
   })
 
   it("returns 400 for invalid numeric ID", async () => {
-    const req = new NextRequest("http://localhost:3000/api/poster/movie/0")
+    const req = adminReq("http://localhost:3000/api/poster/movie/0")
     const res = await GET(req, { params: Promise.resolve({ type: "movie", id: "0" }) })
     expect(res.status).toBe(400)
   })
 
   it("returns 400 for non-IMDB, non-numeric ID", async () => {
-    const req = new NextRequest("http://localhost:3000/api/poster/movie/invalid-id")
+    const req = adminReq("http://localhost:3000/api/poster/movie/invalid-id")
     const res = await GET(req, { params: Promise.resolve({ type: "movie", id: "invalid-id" }) })
     expect(res.status).toBe(400)
   })
@@ -1068,14 +1068,14 @@ describe("GET /api/poster/[type]/[id] error and edge cases", () => {
     // Prima l'URL esterno falliva dentro il try del render → 500 +
     // negative-cache per un errore del client. Ora 400 prima di slot/cache.
     for (const key of ["poster", "logo", "backdrop"]) {
-      const req = new NextRequest(`http://localhost:3000/api/poster/movie/42?${key}=http://evil.example/x.jpg`)
+      const req = adminReq(`http://localhost:3000/api/poster/movie/42?${key}=http://evil.example/x.jpg`)
       const res = await GET(req, { params: Promise.resolve({ type: "movie", id: "42" }) })
       expect(res.status).toBe(400)
     }
   })
 
   it("returns 400 for oversized text params (R1)", async () => {
-    const req = new NextRequest(`http://localhost:3000/api/poster/movie/42?extra=${"x".repeat(5000)}`)
+    const req = adminReq(`http://localhost:3000/api/poster/movie/42?extra=${"x".repeat(5000)}`)
     const res = await GET(req, { params: Promise.resolve({ type: "movie", id: "42" }) })
     expect(res.status).toBe(400)
   })
@@ -1092,7 +1092,7 @@ describe("GET /api/poster/[type]/[id] error and edge cases", () => {
       updatedAt: "2026-07-16T10:15:30.000Z",
     } as Mapping)
 
-    const req = new NextRequest("http://localhost:3000/api/poster/movie/99")
+    const req = adminReq("http://localhost:3000/api/poster/movie/99")
     const res = await GET(req, { params: Promise.resolve({ type: "movie", id: "99" }) })
     expect(res.status).toBe(404)
   })
@@ -1111,7 +1111,7 @@ describe("GET /api/poster/[type]/[id] error and edge cases", () => {
 
     vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(null, { status: 404 }))
 
-    const req = new NextRequest("http://localhost:3000/api/poster/movie/77")
+    const req = adminReq("http://localhost:3000/api/poster/movie/77")
     const res = await GET(req, { params: Promise.resolve({ type: "movie", id: "77" }) })
     expect(res.status).toBe(404)
   })
@@ -1137,7 +1137,7 @@ describe("GET /api/poster/[type]/[id] error and edge cases", () => {
       }),
     )
 
-    const req = new NextRequest("http://localhost:3000/api/poster/movie/42?rv=81")
+    const req = adminReq("http://localhost:3000/api/poster/movie/42?rv=81")
     const res = await GET(req, { params: Promise.resolve({ type: "movie", id: "42" }) })
 
     expect(res.status).toBe(200)
@@ -1145,7 +1145,7 @@ describe("GET /api/poster/[type]/[id] error and edge cases", () => {
   })
 
   it("includes CORS headers in 404 error response", async () => {
-    const req = new NextRequest("http://localhost:3000/api/poster/movie/0")
+    const req = adminReq("http://localhost:3000/api/poster/movie/0")
     const res = await GET(req, { params: Promise.resolve({ type: "movie", id: "0" }) })
     expect(res.status).toBe(400)
     expect(res.headers.get("Access-Control-Allow-Origin")).toBe("*")
@@ -1167,7 +1167,7 @@ describe("GET /api/poster/[type]/[id] error and edge cases", () => {
     vi.spyOn(globalThis, "fetch").mockImplementation(async () => new Response(new Uint8Array(poster), {
       headers: { "content-type": "image/png" },
     }))
-    const request = (etag?: string) => GET(new NextRequest(
+    const request = (etag?: string) => GET(adminReq(
       `http://localhost:3000/api/poster/movie/${id}?rv=${RENDER_VERSION}&mv=${Date.parse(updatedAt)}`,
       { headers: etag ? { "If-None-Match": etag } : {} },
     ), { params: Promise.resolve({ type: "movie", id: String(id) }) })
@@ -1206,7 +1206,7 @@ describe("GET /api/poster/[type]/[id] error and edge cases", () => {
     vi.spyOn(globalThis, "fetch").mockImplementation(async () => new Response(new Uint8Array(poster), {
       headers: { "content-type": "image/png" },
     }))
-    const request = (etag?: string) => GET(new NextRequest(`http://localhost:3000/api/poster/movie/${id}`, {
+    const request = (etag?: string) => GET(adminReq(`http://localhost:3000/api/poster/movie/${id}`, {
       headers: etag ? { "If-None-Match": etag } : {},
     }), { params: Promise.resolve({ type: "movie", id: String(id) }) })
     const first = await request()
@@ -1262,7 +1262,7 @@ describe("GET /api/poster/[type]/[id] error and edge cases", () => {
     )
 
     // First request — cache the etag
-    const req1 = new NextRequest("http://localhost:3000/api/poster/movie/42")
+    const req1 = adminReq("http://localhost:3000/api/poster/movie/42")
     const res1 = await GET(req1, { params: Promise.resolve({ type: "movie", id: "42" }) })
     expect(res1.status).toBe(200)
     const etag = res1.headers.get("ETag")
@@ -1270,7 +1270,7 @@ describe("GET /api/poster/[type]/[id] error and edge cases", () => {
 
     cacheClear() // Disabled provider preserves mapped early 304 even on a cache miss.
     // Second request with If-None-Match
-    const req2 = new NextRequest("http://localhost:3000/api/poster/movie/42", {
+    const req2 = adminReq("http://localhost:3000/api/poster/movie/42", {
       headers: { "If-None-Match": etag! },
     })
     const res2 = await GET(req2, { params: Promise.resolve({ type: "movie", id: "42" }) })
@@ -1295,7 +1295,7 @@ describe("GET /api/poster/[type]/[id] error and edge cases", () => {
         headers: { "content-type": "image/png", "content-length": String(posterBuf.length) },
       }),
     )
-    const res = await GET(new NextRequest("http://localhost:3000/api/poster/movie/43"), {
+    const res = await GET(adminReq("http://localhost:3000/api/poster/movie/43"), {
       params: Promise.resolve({ type: "movie", id: "43" }),
     })
     expect(res.status).toBe(200)
@@ -1331,7 +1331,7 @@ describe("GET /api/poster/[type]/[id] error and edge cases", () => {
       }),
     )
 
-    const req = new NextRequest("http://localhost:3000/api/poster/movie/tt1234567")
+    const req = adminReq("http://localhost:3000/api/poster/movie/tt1234567")
     const res = await GET(req, { params: Promise.resolve({ type: "movie", id: "tt1234567" }) })
     expect(res.status).toBe(200)
   })
@@ -1351,7 +1351,7 @@ describe("GET /api/poster/[type]/[id] error and edge cases", () => {
     vi.spyOn(globalThis, "fetch").mockImplementation(async () => new Response(new Uint8Array(poster), {
       headers: { "content-type": "image/png" },
     }))
-    const res = await GET(new NextRequest("http://localhost:3000/api/poster/movie/tt1375666"), {
+    const res = await GET(adminReq("http://localhost:3000/api/poster/movie/tt1375666"), {
       params: Promise.resolve({ type: "movie", id: "tt1375666" }),
     })
     expect(res.status).toBe(200)
@@ -1372,7 +1372,7 @@ describe("GET /api/poster/[type]/[id] error and edge cases", () => {
     vi.spyOn(globalThis, "fetch").mockImplementation(async () => new Response(new Uint8Array(poster), {
       headers: { "content-type": "image/png" },
     }))
-    const res = await GET(new NextRequest("http://localhost:3000/api/poster/movie/98771"), {
+    const res = await GET(adminReq("http://localhost:3000/api/poster/movie/98771"), {
       params: Promise.resolve({ type: "movie", id: "98771" }),
     })
     expect(res.status).toBe(200)
@@ -1401,7 +1401,7 @@ describe("GET /api/poster/[type]/[id] error and edge cases", () => {
       }),
     )
 
-    const req = new NextRequest("http://localhost:3000/api/poster/series/10")
+    const req = adminReq("http://localhost:3000/api/poster/series/10")
     const res = await GET(req, { params: Promise.resolve({ type: "series", id: "10" }) })
     expect(res.status).toBe(200)
   })
@@ -1427,7 +1427,7 @@ describe("GET /api/poster/[type]/[id] error and edge cases", () => {
       }),
     )
 
-    const req = new NextRequest(`http://localhost:3000/api/poster/movie/10?preview=1`)
+    const req = adminReq(`http://localhost:3000/api/poster/movie/10?preview=1`)
     const res = await GET(req, { params: Promise.resolve({ type: "movie", id: "10" }) })
     expect(res.status).toBe(200)
     // Preview should have no-cache
@@ -1459,7 +1459,7 @@ describe("GET /api/poster/[type]/[id] error and edge cases", () => {
       })
     })
 
-    const req = new NextRequest("http://localhost:3000/api/poster/movie/10")
+    const req = adminReq("http://localhost:3000/api/poster/movie/10")
     const res = await GET(req, { params: Promise.resolve({ type: "movie", id: "10" }) })
     expect(res.status).toBe(200)
   })
@@ -1497,7 +1497,7 @@ describe("GET /api/poster/[type]/[id] error and edge cases", () => {
     )
 
     mockedFetchMDBList.mockClear()
-    const req = new NextRequest("http://localhost:3000/api/poster/tv/42?animerank=5&debug=1")
+    const req = adminReq("http://localhost:3000/api/poster/tv/42?animerank=5&debug=1")
     const res = await GET(req, { params: Promise.resolve({ type: "tv", id: "42" }) })
 
     expect(res.status).toBe(200)
@@ -1538,7 +1538,7 @@ describe("GET /api/poster/[type]/[id] error and edge cases", () => {
     // Il mock qui RIFIUTA per simulare il failure (una resolve [] sarebbe una
     // miss genuina → niente fallback, vedi test sotto).
     mockedFetchMDBList.mockRejectedValueOnce(new Error("MDBList 503"))
-    const req = new NextRequest("http://localhost:3000/api/poster/tv/42?debug=1")
+    const req = adminReq("http://localhost:3000/api/poster/tv/42?debug=1")
     const res = await GET(req, { params: Promise.resolve({ type: "tv", id: "42" }) })
 
     expect(res.status).toBe(200)
@@ -1576,7 +1576,7 @@ describe("GET /api/poster/[type]/[id] error and edge cases", () => {
     // fetchMDBList riuscito ma titolo fuori chart ([]) → miss genuina: niente
     // fallback al rank salvato.
     mockedFetchMDBList.mockResolvedValueOnce([])
-    const req = new NextRequest("http://localhost:3000/api/poster/tv/42?debug=1")
+    const req = adminReq("http://localhost:3000/api/poster/tv/42?debug=1")
     const res = await GET(req, { params: Promise.resolve({ type: "tv", id: "42" }) })
 
     expect(res.status).toBe(200)
@@ -1614,7 +1614,7 @@ describe("GET /api/poster/[type]/[id] error and edge cases", () => {
 
     // getJWRankings riuscito ma senza il titolo → miss genuina.
     mockedGetJWRankings.mockResolvedValueOnce([])
-    const req = new NextRequest("http://localhost:3000/api/poster/tv/76479?debug=1")
+    const req = adminReq("http://localhost:3000/api/poster/tv/76479?debug=1")
     const res = await GET(req, { params: Promise.resolve({ type: "tv", id: "76479" }) })
 
     expect(res.status).toBe(200)
@@ -1652,7 +1652,7 @@ describe("GET /api/poster/[type]/[id] error and edge cases", () => {
 
     // Fetch fallito (outage) → degraded esplicito col rank salvato.
     mockedGetJWRankings.mockRejectedValueOnce(new Error("JW down"))
-    const req = new NextRequest("http://localhost:3000/api/poster/tv/76479?debug=1")
+    const req = adminReq("http://localhost:3000/api/poster/tv/76479?debug=1")
     const res = await GET(req, { params: Promise.resolve({ type: "tv", id: "76479" }) })
 
     expect(res.status).toBe(200)
@@ -1691,7 +1691,7 @@ describe("GET /api/poster/[type]/[id] error and edge cases", () => {
       Array.from({ length: 19 }, (_, i) => ({ tmdbId: 9000 + i, imdbId: null, rank: i + 1, title: `Other ${i}` }))
     rows.push({ tmdbId: 76479, imdbId: "tt1542876", rank: 21, title: "The Boys" })
     mockedGetJWRankings.mockResolvedValueOnce(rows)
-    const req = new NextRequest("http://localhost:3000/api/poster/tv/76479?debug=1")
+    const req = adminReq("http://localhost:3000/api/poster/tv/76479?debug=1")
     const res = await GET(req, { params: Promise.resolve({ type: "tv", id: "76479" }) })
 
     expect(res.status).toBe(200)
@@ -1728,7 +1728,7 @@ describe("GET /api/poster/[type]/[id] error and edge cases", () => {
       Array.from({ length: 19 }, (_, i) => ({ tmdbId: 9000 + i, imdbId: null, rank: i + 1, title: `Other ${i}` }))
     rows.push({ tmdbId: 76479, imdbId: "tt1542876", rank: 20, title: "The Boys" })
     mockedGetJWRankings.mockResolvedValueOnce(rows)
-    const req = new NextRequest("http://localhost:3000/api/poster/tv/76479?debug=1")
+    const req = adminReq("http://localhost:3000/api/poster/tv/76479?debug=1")
     const res = await GET(req, { params: Promise.resolve({ type: "tv", id: "76479" }) })
 
     expect(res.status).toBe(200)
@@ -1763,7 +1763,7 @@ describe("GET /api/poster/[type]/[id] error and edge cases", () => {
 
     // Genuine JW miss, but the explicit manual override still badges 25.
     mockedGetJWRankings.mockResolvedValueOnce([])
-    const req = new NextRequest("http://localhost:3000/api/poster/tv/76479?debug=1&rank=25")
+    const req = adminReq("http://localhost:3000/api/poster/tv/76479?debug=1&rank=25")
     const res = await GET(req, { params: Promise.resolve({ type: "tv", id: "76479" }) })
 
     expect(res.status).toBe(200)
@@ -1802,7 +1802,7 @@ describe("GET /api/poster/[type]/[id] error and edge cases", () => {
     // Failed fetch (outage): the saved-rank fallback stays capped at the
     // automatic window — a stale platform/custom rank never resurrects.
     mockedGetJWRankings.mockRejectedValueOnce(new Error("JW down"))
-    const req = new NextRequest("http://localhost:3000/api/poster/tv/76479?debug=1")
+    const req = adminReq("http://localhost:3000/api/poster/tv/76479?debug=1")
     const res = await GET(req, { params: Promise.resolve({ type: "tv", id: "76479" }) })
 
     expect(res.status).toBe(200)
@@ -1835,14 +1835,14 @@ describe("GET /api/poster/[type]/[id] error and edge cases", () => {
     )
 
     // With netLogo=1, it should override mapping's networkLogo: false
-    const reqOn = new NextRequest("http://localhost:3000/api/poster/tv/76479?debug=1&netLogo=1")
+    const reqOn = adminReq("http://localhost:3000/api/poster/tv/76479?debug=1&netLogo=1")
     const resOn = await GET(reqOn, { params: Promise.resolve({ type: "tv", id: "76479" }) })
     expect(resOn.status).toBe(200)
     const bodyOn = await resOn.json()
     expect(bodyOn.logos.networkLogo).toBe(true)
 
     // Without netLogo query param, it respects mapping's networkLogo: false
-    const reqDefault = new NextRequest("http://localhost:3000/api/poster/tv/76479?debug=1")
+    const reqDefault = adminReq("http://localhost:3000/api/poster/tv/76479?debug=1")
     const resDefault = await GET(reqDefault, { params: Promise.resolve({ type: "tv", id: "76479" }) })
     expect(resDefault.status).toBe(200)
     const bodyDefault = await resDefault.json()
@@ -1876,7 +1876,7 @@ describe("GET /api/poster/[type]/[id] error and edge cases", () => {
     mockedGetJWRankings.mockResolvedValue([])
 
     // Explicit region=FR
-    const reqFr = new NextRequest("http://localhost:3000/api/poster/tv/76479?debug=1&region=FR")
+    const reqFr = adminReq("http://localhost:3000/api/poster/tv/76479?debug=1&region=FR")
     await GET(reqFr, { params: Promise.resolve({ type: "tv", id: "76479" }) })
 
     // R3: la route passa anche il signal del watchdog (6° arg) — allo scatto
@@ -1891,7 +1891,7 @@ describe("GET /api/poster/[type]/[id] error and edge cases", () => {
     __resetTMDBSessionCache()
 
     // Lang fallback: lang=de -> region DE, de-DE
-    const reqDe = new NextRequest("http://localhost:3000/api/poster/tv/76479?debug=1&lang=de")
+    const reqDe = adminReq("http://localhost:3000/api/poster/tv/76479?debug=1&lang=de")
     await GET(reqDe, { params: Promise.resolve({ type: "tv", id: "76479" }) })
 
     expect(mockedGetJWRankings).toHaveBeenCalledWith("SHOW", "DE", 20, undefined, "de-DE", expect.any(AbortSignal), expect.any(Number), true)
@@ -1927,7 +1927,7 @@ describe("GET /api/poster/[type]/[id] error and edge cases", () => {
       }),
     )
 
-    const req = new NextRequest("http://localhost:3000/api/poster/movie/42")
+    const req = adminReq("http://localhost:3000/api/poster/movie/42")
     const res = await GET(req, { params: Promise.resolve({ type: "movie", id: "42" }) })
 
     expect(res.status).toBe(200)
@@ -1971,7 +1971,7 @@ describe("GET /api/poster/[type]/[id] error and edge cases", () => {
       }),
     )
 
-    const req = new NextRequest("http://localhost:3000/api/poster/movie/42")
+    const req = adminReq("http://localhost:3000/api/poster/movie/42")
     const res = await GET(req, { params: Promise.resolve({ type: "movie", id: "42" }) })
 
     expect(res.status).toBe(200)
@@ -1983,7 +1983,7 @@ describe("GET /api/poster/[type]/[id] error and edge cases", () => {
     // debug=1 espone lo stato Wikidata (degraded/timedOut).
     cacheClear()
     __resetTMDBSessionCache()
-    const reqDbg = new NextRequest("http://localhost:3000/api/poster/movie/42?debug=1")
+    const reqDbg = adminReq("http://localhost:3000/api/poster/movie/42?debug=1")
     const resDbg = await GET(reqDbg, { params: Promise.resolve({ type: "movie", id: "42" }) })
     expect(resDbg.status).toBe(200)
     const body = await resDbg.json()
@@ -2025,7 +2025,7 @@ describe("GET /api/poster/[type]/[id] error and edge cases", () => {
       }),
     )
 
-    const req = new NextRequest("http://localhost:3000/api/poster/movie/42?debug=1")
+    const req = adminReq("http://localhost:3000/api/poster/movie/42?debug=1")
     const res = await GET(req, { params: Promise.resolve({ type: "movie", id: "42" }) })
 
     expect(res.status).toBe(200)
@@ -2068,7 +2068,7 @@ describe("GET /api/poster/[type]/[id] error and edge cases", () => {
       }),
     )
 
-    const req = new NextRequest("http://localhost:3000/api/poster/movie/43?debug=1&region=US")
+    const req = adminReq("http://localhost:3000/api/poster/movie/43?debug=1&region=US")
     const res = await GET(req, { params: Promise.resolve({ type: "movie", id: "43" }) })
 
     expect(res.status).toBe(200)
@@ -2121,7 +2121,7 @@ describe("GET /api/poster/[type]/[id] con alias IMDb manuale", () => {
       })
     })
     const res = await GET(
-      new NextRequest("http://localhost:3000/api/poster/series/tt13207736"),
+      adminReq("http://localhost:3000/api/poster/series/tt13207736"),
       { params: Promise.resolve({ type: "series", id: "tt13207736" }) },
     )
     expect(res.status).toBe(200)
@@ -2135,7 +2135,7 @@ describe("GET /api/poster/[type]/[id] con alias IMDb manuale", () => {
     mockedGetAll.mockResolvedValue([])
     mockedResolveImdbToTmdb.mockResolvedValue(null)
     const res = await GET(
-      new NextRequest("http://localhost:3000/api/poster/series/tt0000000"),
+      adminReq("http://localhost:3000/api/poster/series/tt0000000"),
       { params: Promise.resolve({ type: "series", id: "tt0000000" }) },
     )
     expect(res.status).toBe(400)
@@ -2173,7 +2173,7 @@ describe("GET /api/poster/[type]/[id] con alias IMDb manuale", () => {
       })
     })
     const res = await GET(
-      new NextRequest("http://localhost:3000/api/poster/series/tt13207736"),
+      adminReq("http://localhost:3000/api/poster/series/tt13207736"),
       { params: Promise.resolve({ type: "series", id: "tt13207736" }) },
     )
     expect(res.status).toBe(200)
@@ -2204,7 +2204,7 @@ describe("GET /api/poster/[type]/[id] con alias IMDb manuale", () => {
       headers: { "content-type": "image/png" },
     }))
     const res = await GET(
-      new NextRequest("http://localhost:3000/api/poster/series/tt13207736"),
+      adminReq("http://localhost:3000/api/poster/series/tt13207736"),
       { params: Promise.resolve({ type: "series", id: "tt13207736" }) },
     )
     expect(res.status).toBe(200)
@@ -2230,7 +2230,7 @@ describe("GET /api/poster/[type]/[id] con alias IMDb manuale", () => {
       status: 200,
       headers: { "content-type": "image/png", "content-length": String(posterBuf.length) },
     }))
-    const res = await GET(new NextRequest(
+    const res = await GET(adminReq(
       "http://localhost:3000/api/poster/movie/44?poster=%2Fq.jpg&imdbId=tt0000044&sep=1&rsrc=tmdb&badges=1&ranking=0&preview=1&debug=1",
     ), { params: Promise.resolve({ type: "movie", id: "44" }) })
     expect(res.status).toBe(200)
@@ -2251,7 +2251,7 @@ describe("GET /api/poster/[type]/[id] con alias IMDb manuale", () => {
       status: 200,
       headers: { "content-type": "image/png", "content-length": String(posterBuf.length) },
     }))
-    const res = await GET(new NextRequest(
+    const res = await GET(adminReq(
       "http://localhost:3000/api/poster/movie/44?poster=%2Fq.jpg&imdbId=tt0000044&sep=1&rsrc=tmdb&badges=1&ranking=0&preview=1&debug=1",
     ), { params: Promise.resolve({ type: "movie", id: "44" }) })
     expect(res.status).toBe(200)
@@ -2278,7 +2278,7 @@ describe("invented user namespaces (v1.23.0)", () => {
       headers: { "content-type": "image/png" },
     }))
     const invented = "00000000-0000-4000-8000-000000000000"
-    const res = await GET(new NextRequest(`http://localhost:3000/api/poster/movie/61091?u=${invented}`), {
+    const res = await GET(adminReq(`http://localhost:3000/api/poster/movie/61091?u=${invented}`), {
       params: Promise.resolve({ type: "movie", id: "61091" }),
     })
     expect(res.status).toBe(200)
@@ -2286,3 +2286,10 @@ describe("invented user namespaces (v1.23.0)", () => {
   })
 })
 
+
+// Route admin fail-closed: le richieste di test presentano un ADMIN_TOKEN reale
+// (le preview restano live, come nell'editor con sessione sbloccata).
+const TEST_ADMIN_TOKEN = "route-tests-admin-token"
+process.env.ADMIN_TOKEN = TEST_ADMIN_TOKEN
+const adminReq = (url: string, init?: { headers?: Record<string, string> }) =>
+  new NextRequest(url, { ...init, headers: { ...(init?.headers ?? {}), "x-admin-token": TEST_ADMIN_TOKEN } })

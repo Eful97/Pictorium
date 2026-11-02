@@ -12,6 +12,7 @@ import { BadgeDefaultsSection } from "@/components/settings/BadgeDefaultsSection
 import { TagsNetworksSection } from "@/components/settings/TagsNetworksSection"
 import { TransformPanel } from "@/components/settings/TransformPanel"
 import { DataPanel } from "@/components/settings/DataPanel"
+import { ApiKeysSection } from "@/components/settings/ApiKeysSection"
 import { PrefsPanel } from "@/components/settings/PrefsPanel"
 import { PresetsPanel } from "@/components/settings/PresetsPanel"
 import { SeasonalKeywordsSection } from "@/components/SeasonalKeywordsSection"
@@ -764,6 +765,13 @@ export function SettingsPanel({ setSettingsOpen, exportData, importData, mobile,
             geometryOnly
           />
           <PrefsPanel active={activeTab === "prefs"} />
+          <div
+            role="tabpanel"
+            aria-label={t("ui.configureKeys")}
+            className={`space-y-3.5 text-xs ${activeTab === "data" ? "block animate-tab-fade-in" : "hidden"}`}
+          >
+            <ApiKeysSection multiUser={multiUserOn} />
+          </div>
           <DataPanel
             active={activeTab === "data"}
             exportData={exportData}

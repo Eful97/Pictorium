@@ -233,9 +233,9 @@ const metaUrl = (id: number, extra = "") => `${imgUrl(id, extra)}&accentmeta=1`
 describe("GET accentmeta branch (same real handler)", () => {
   beforeEach(() => {
     vi.restoreAllMocks()
-    // Free (private) mode: the global setup simulates a public instance
-    // (POSTERIUM_PUBLIC_INSTANCE=1 → presets hardening would strip free-text
-    // `extra` and non-palette `ac`). These vectors need the raw query chain.
+    // Free (private) mode: the global setup simulates shared hosting
+    // (HOSTED_BY=elfhosted → presets hardening would strip free-text `extra`
+    // and non-palette `ac`). These vectors need the raw query chain.
     vi.spyOn(hardening, "isPresetsPosterMode").mockReturnValue(false)
     vi.spyOn(hardening, "isPublicPosterInstance").mockReturnValue(false)
     vi.spyOn(hardening, "isPreviewAuthRequired").mockReturnValue(false)

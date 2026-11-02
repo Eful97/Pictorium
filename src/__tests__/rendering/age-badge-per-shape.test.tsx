@@ -281,17 +281,27 @@ describe("useDefaults per-shape age hydration", () => {
   })
 })
 
+const TEST_ADMIN_TOKEN = "age-per-shape-admin-token"
+
 describe("PUT /api/defaults per-shape age", () => {
+  beforeEach(() => {
+    // Le route admin sono fail-closed: il PUT presenta un ADMIN_TOKEN reale.
+    process.env.ADMIN_TOKEN = TEST_ADMIN_TOKEN
+  })
+
+  afterEach(() => {
+    delete process.env.ADMIN_TOKEN
+  })
+
   function mockPutRequest(body: unknown): Request {
     return new Request("http://localhost:3000/api/defaults", {
       method: "PUT",
-      headers: { "content-type": "application/json" },
+      headers: { "content-type": "application/json", "x-admin-token": TEST_ADMIN_TOKEN },
       body: JSON.stringify(body),
     })
   }
 
   it("accepts valid landscape age keys", async () => {
-    delete process.env.ADMIN_TOKEN
     const { PUT, GET } = await import("@/app/api/defaults/route")
     const res = await PUT(mockPutRequest({
       landscape: { ageBadge: true, ageCountry: "US", ageBadgeStyle: "knockout" },
@@ -304,7 +314,6 @@ describe("PUT /api/defaults per-shape age", () => {
   })
 
   it("rejects an invalid landscape style", async () => {
-    delete process.env.ADMIN_TOKEN
     const { PUT } = await import("@/app/api/defaults/route")
     const res = await PUT(mockPutRequest({
       landscape: { ageBadgeStyle: "garbage" },
@@ -313,7 +322,6 @@ describe("PUT /api/defaults per-shape age", () => {
   })
 
   it("accepts the additive age styles in the landscape profile", async () => {
-    delete process.env.ADMIN_TOKEN
     const { PUT, GET } = await import("@/app/api/defaults/route")
     for (const ageBadgeStyle of ["mono", "color", "premium"] as const) {
       expect((await PUT(mockPutRequest({
@@ -325,7 +333,6 @@ describe("PUT /api/defaults per-shape age", () => {
   })
 
   it("flat-only portrait edits never move an explicit profile (no leak, no reseed, no wipe)", async () => {
-    delete process.env.ADMIN_TOKEN
     const { PUT, GET } = await import("@/app/api/defaults/route")
     const get = async () =>
       (await (await GET(new Request("http://localhost:3000/api/defaults") as unknown as NextRequest)).json()) as Record<string, unknown>

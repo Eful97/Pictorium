@@ -4,6 +4,7 @@ import { combineAbortSignals } from "@/lib/abort-signal"
 import { fetchCustomMDBList, type MDBListEntry } from "@/lib/mdblist"
 import { createLogger } from "@/lib/logger"
 import { envWithFallback } from "@/lib/env-compat"
+import { isPrivateHost } from "@/lib/safe-remote-fetch"
 import { detectCatalogProvider, isTraktUserContentUrl } from "./catalog-provider-detect"
 
 // Re-export per compatibilità: il riconoscimento URL vive in
@@ -14,6 +15,54 @@ export { isTraktUserContentUrl, isTraktWatchlistUrl } from "./catalog-provider-d
 export type { CatalogProviderType, ProviderDetectionResult } from "./catalog-provider-detect"
 
 const log = createLogger("custom-catalogs")
+
+function isHostInFamily(hostname: string, pinnedHost: string): boolean {
+  const h = hostname.toLowerCase()
+  const p = pinnedHost.toLowerCase()
+  return h === p || h.endsWith(`.${p}`)
+}
+
+/**
+ * Fetch verso un endpoint provider con host ESATTO e redirect manuali.
+ *
+ * Gli host dei provider sono fissi (o override d'istanza dell'operatore), mai
+ * scelti dall'utente; l'unico salto controllabile da un upstream compromesso
+ * sono i redirect. Il `fetch` nativo li segue in automatico, quindi un 302
+ * verso `http://127.0.0.1/` o `http://169.254.169.254/` diventerebbe una SSRF.
+ * Qui ogni hop (0 incluso) deve restare nella famiglia dell'host provider e
+ * non essere un letterale privato; i body 3xx vengono cancellati invece di
+ * restare appesi. Nessuna risoluzione DNS: gli host sono fissi e il trasporto
+ * resta quello del provider (i test sostituiscono `global.fetch`).
+ */
+export async function fetchPinnedProviderUrl(
+  url: string,
+  init: RequestInit,
+  pinnedHost: string,
+): Promise<Response> {
+  let current = url
+  for (let hop = 0; hop <= 3; hop++) {
+    let target: URL
+    try {
+      target = new URL(current)
+    } catch {
+      throw new Error("Invalid provider URL")
+    }
+    const host = target.hostname.toLowerCase()
+    if (isPrivateHost(host) || !isHostInFamily(host, pinnedHost)) {
+      throw new Error("Blocked provider host")
+    }
+    const res = await fetch(current, { ...init, redirect: "manual" })
+    // I mock dei test possono omettere `status`: un payload senza status è
+    // trattato come 200 (comportamento storico di `res.ok`).
+    const status = typeof res.status === "number" ? res.status : 200
+    if (status < 300 || status >= 400) return res
+    const location = res.headers?.get?.("location") ?? null
+    if (!location) return res
+    await res.body?.cancel().catch(() => {})
+    current = new URL(location, current).href
+  }
+  throw new Error("Too many provider redirects")
+}
 // Successful normalized custom lists share one 12h source cache (user:
 // "le liste personalizzate fai sempre 12 ore"). Errors, empties,
 // incomplete/aborted prefixes and time-budget partials never land here.
@@ -186,6 +235,7 @@ function classifyTraktMediaRecord(
 
 const TRAKT_TIMEOUT_MS = 8000
 const TRAKT_PAGE_LIMIT = 100
+const TMDB_API_HOST = "api.themoviedb.org"
 
 function getTraktClientId(): string | undefined {
   return envWithFallback("TRAKT_CLIENT_ID") || process.env.TRAKT_CLIENT_ID
@@ -310,14 +360,14 @@ async function fetchLetterboxdList(url: string, limit: number = 500, signal?: Ab
     if (!requestUrl.endsWith("/")) requestUrl += "/"
 
     // 1. Richiesta HEAD per estrarre l'identificativo Letterboxd univoco
-    const headRes = await fetch(requestUrl, {
+    const headRes = await fetchPinnedProviderUrl(requestUrl, {
       method: "HEAD",
       headers: {
         "User-Agent": "Mozilla/5.0 Pictorium",
         "Accept-Language": "en-US,en;q=0.9",
       },
       signal: combineAbortSignals(signal, 8000),
-    }).catch(() => null)
+    }, "letterboxd.com").catch(() => null)
 
     const identifier = headRes?.headers?.get("x-letterboxd-identifier")
     if (!identifier) {
@@ -339,13 +389,13 @@ async function fetchLetterboxdList(url: string, limit: number = 500, signal?: Ab
       ? `https://stremthru.13377001.xyz/v0/meta/letterboxd/users/${identifier}/lists/watchlist`
       : `https://stremthru.13377001.xyz/v0/meta/letterboxd/lists/${identifier}`
 
-    const res = await fetch(stremThruUrl, {
+    const res = await fetchPinnedProviderUrl(stremThruUrl, {
       headers: {
         Accept: "application/json",
         "User-Agent": "Mozilla/5.0 Pictorium",
       },
       signal: combineAbortSignals(signal, 12000),
-    }).catch(() => null)
+    }, "stremthru.13377001.xyz").catch(() => null)
 
     if (!res) {
       log.warn("StremThru Letterboxd fetch failed", { identifier })
@@ -494,15 +544,16 @@ async function fetchTraktPaged(
   })
   try {
     const base = traktApiBase()
+    const baseHost = new URL(base).hostname
     const maxPages = Math.max(1, Math.min(25, Math.ceil(limit / TRAKT_PAGE_LIMIT)))
     const items: MDBListEntry[] = []
     for (let page = 1; page <= maxPages; page++) {
       if (signal?.aborted) return items.length ? done(items, true) : empty(transient)
       const pageUrl = `${base}${path}?page=${page}&limit=${TRAKT_PAGE_LIMIT}`
-      const res = await fetch(pageUrl, {
+      const res = await fetchPinnedProviderUrl(pageUrl, {
         headers,
         signal: combineAbortSignals(signal, TRAKT_TIMEOUT_MS),
-      }).catch(() => null)
+      }, baseHost).catch(() => null)
 
       if (!res) return items.length ? done(items, true) : empty(transient)
       // Authenticated 401 (correction cycle 1): the Bearer was just
@@ -710,6 +761,7 @@ async function fetchTraktDiscovery(
     }
 
     const base = traktApiBase()
+    const baseHost = new URL(base).hostname
     const headers = traktHeaders(clientId)
     const isMedia = scope === "media"
     const mediatype = scope === "movies" ? "movie" : "tv"
@@ -727,10 +779,10 @@ async function fetchTraktDiscovery(
     for (let page = 1; page <= maxPages; page++) {
       if (signal?.aborted) return items.length ? done(items, true) : empty("unavailable")
       const pageUrl = `${base}/${endpointScope}/${kind}?page=${page}&limit=${TRAKT_PAGE_LIMIT}${extendedSuffix}`
-      const res = await fetch(pageUrl, {
+      const res = await fetchPinnedProviderUrl(pageUrl, {
         headers,
         signal: combineAbortSignals(signal, TRAKT_TIMEOUT_MS),
-      }).catch(() => null)
+      }, baseHost).catch(() => null)
 
       if (!res) return items.length ? done(items, true) : empty("unavailable")
       if (res.status === 401 || res.status === 403) {
@@ -840,12 +892,13 @@ async function tvdbLogin(tvdbKey: string, signal?: AbortSignal): Promise<{ token
   const cached = tvdbTokenCache.get(h)
   if (cached && cached.exp > Date.now()) return { token: cached.token, status: "ok" }
   tvdbTokenCache.delete(h)
-  const res = await fetch(`${tvdbApiBase()}/login`, {
+  const tvdbHost = new URL(tvdbApiBase()).hostname
+  const res = await fetchPinnedProviderUrl(`${tvdbApiBase()}/login`, {
     method: "POST",
     headers: { Accept: "application/json", "Content-Type": "application/json", "User-Agent": "Mozilla/5.0 Pictorium" },
     body: JSON.stringify({ apikey: tvdbKey }),
     signal: combineAbortSignals(signal, TVDB_TIMEOUT_MS),
-  }).catch(() => null)
+  }, tvdbHost).catch(() => null)
   if (!res || !res.ok) {
     log.warn("TVDB login failed", res ? { status: res.status } : {})
     const status = res?.status === 401 || res?.status === 403 ? "key_missing" : res?.status === 429 ? "rate_limited" : "unavailable"
@@ -883,11 +936,12 @@ async function fetchTvdbList(url: string, tvdbKey: string | undefined, limit: nu
     let token = login.token
     let authFailure: CatalogFetchStatus | null = null
 
+    const tvdbHost = new URL(tvdbApiBase()).hostname
     const get = async (apiPath: string): Promise<Response | null> =>
-      fetch(`${tvdbApiBase()}${apiPath}`, {
+      fetchPinnedProviderUrl(`${tvdbApiBase()}${apiPath}`, {
         headers: { Accept: "application/json", Authorization: `Bearer ${token}`, "User-Agent": "Mozilla/5.0 Pictorium" },
         signal: combineAbortSignals(signal, TVDB_TIMEOUT_MS),
-      }).catch(() => null)
+      }, tvdbHost).catch(() => null)
 
     // GET con un solo retry su 401 (token scaduto → re-login). Se anche il
     // retry è 401 con token fresco, è la risorsa a essere privata.
@@ -973,7 +1027,7 @@ async function fetchTmdbCollectionOrList(
   try {
     if (provider === "tmdb_collection") {
       const endpoint = `https://api.themoviedb.org/3/collection/${encodeURIComponent(identifier)}?api_key=${encodeURIComponent(key)}&language=it-IT`
-      const res = await fetch(endpoint, { signal: combineAbortSignals(signal, 8000) }).catch(() => null)
+      const res = await fetchPinnedProviderUrl(endpoint, { signal: combineAbortSignals(signal, 8000) }, TMDB_API_HOST).catch(() => null)
       if (!res || !res.ok) return { items: [], incomplete: false }
 
       const data = await res.json()
@@ -995,7 +1049,7 @@ async function fetchTmdbCollectionOrList(
     // provider === "tmdb_list"
     // 1. Prova prima endpoint v3: /3/list/{list_id}
     const v3Endpoint = `https://api.themoviedb.org/3/list/${encodeURIComponent(identifier)}?api_key=${encodeURIComponent(key)}&language=it-IT`
-    const res = await fetch(v3Endpoint, { signal: combineAbortSignals(signal, 8000) }).catch(() => null)
+    const res = await fetchPinnedProviderUrl(v3Endpoint, { signal: combineAbortSignals(signal, 8000) }, TMDB_API_HOST).catch(() => null)
     const data = res && res.ok ? await res.json() : null
     let rawParts: TmdbListPart[] = data?.items || data?.parts || []
     let incomplete = false
@@ -1007,7 +1061,7 @@ async function fetchTmdbCollectionOrList(
       expectedKeys: string[],
     ): Promise<TmdbListPart[]> => {
       try {
-        const r = await fetch(pageUrl, { signal: combineAbortSignals(signal, 8000) })
+        const r = await fetchPinnedProviderUrl(pageUrl, { signal: combineAbortSignals(signal, 8000) }, TMDB_API_HOST)
         if (!r.ok) {
           incomplete = true
           return []
@@ -1056,7 +1110,7 @@ async function fetchTmdbCollectionOrList(
     // 2. Se v3 non trova la lista (es. 404 per liste create su TMDB v4) o non ha elementi, tenta endpoint v4: /4/list/{list_id}
     if (rawParts.length === 0) {
       const v4Endpoint = `https://api.themoviedb.org/4/list/${encodeURIComponent(identifier)}?api_key=${encodeURIComponent(key)}&language=it-IT`
-      const resV4 = await fetch(v4Endpoint, { signal: combineAbortSignals(signal, 8000) }).catch(() => null)
+      const resV4 = await fetchPinnedProviderUrl(v4Endpoint, { signal: combineAbortSignals(signal, 8000) }, TMDB_API_HOST).catch(() => null)
       if (resV4 && resV4.ok) {
         const dataV4 = await resV4.json()
         rawParts = dataV4?.results || []

@@ -10,6 +10,12 @@ import { checkAdminToken, adminAuthResponse } from "@/lib/auth"
 // le chiavi errate falliscono in fretta via negative-cache 401 (tmdb.ts).
 const FANOUT_CONCURRENCY = 5
 
+// Anon fan-out cap: the editor grid asks 30 per page (CUSTOM_PAGE_SIZE) and
+// the import preview 10. Anything larger is reserved to an authenticated
+// owner/admin (hard cap 1000): an anonymous client must not be able to burn N
+// TMDB lookups per request.
+const MAX_ANON_LIMIT = 30
+
 async function mapLimit<T, R>(items: readonly T[], limit: number, fn: (item: T) => Promise<R>, signal: AbortSignal): Promise<R[]> {
   const out = new Array<R>(items.length)
   let next = 0
@@ -79,7 +85,12 @@ export async function GET(req: NextRequest) {
 
   try {
     const detection = detectCatalogProvider(url)
-    const limit = Math.min(Math.max(parseInt(req.nextUrl.searchParams.get("limit") || "500", 10) || 500, 1), 1000)
+    const requestedLimit = Math.min(Math.max(parseInt(req.nextUrl.searchParams.get("limit") || "500", 10) || 500, 1), 1000)
+    // Large windows (`limit` above the grid page size) require a real
+    // credential: admin token or an authenticated user namespace. Anonymous
+    // requests are clamped to MAX_ANON_LIMIT before any per-item enrichment.
+    const privileged = checkAdminToken(req) || (!!userId && (await checkUserAuth(req, userId)))
+    const limit = privileged ? requestedLimit : Math.min(requestedLimit, MAX_ANON_LIMIT)
     // Il conteggio totale serve alla UI ("N titoli — anteprima K"): il raw si
     // fetcha fino a 500 (una sola chiamata upstream, cache condivisa con la
     // pagine della griglia) ma si arricchisce solo la finestra

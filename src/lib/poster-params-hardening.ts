@@ -19,34 +19,54 @@
 import { envWithFallback } from "./env-compat"
 import { GENRE_FALLBACK } from "./badges"
 import { isRankKey } from "./i18n"
+import { CHART_REGIONS, SUPPORTED_UI_LANGS } from "./regions"
 import { parseRatingSources } from "./ratings"
 import { isSeparateRatingsStyle, isQualityGroupLayout, DEFAULT_QUALITY_GROUP_LAYOUT } from "./badge-styles"
 import { isPosterLayout, isPosterFreshScope, DEFAULT_POSTER_FRESH_SCOPE } from "./types"
-import { ANIME_RANK_MAX } from "./badge-priority"
+import { ANIME_RANK_MAX, parseSashOrder } from "./badge-priority"
+import { isVideoFormat } from "./av-specs"
 import { normalizeLogoFont, sanitizeLogoText } from "./text-logo"
 import { canonicalizeBadgeItemTransforms } from "./badge-item-transforms"
 
 // Env a module level (convenzione del repo: un cambio richiede restart).
 const POSTER_PARAMS_MODE = (envWithFallback("POSTER_PARAMS") || "").toLowerCase().trim()
-const PUBLIC_INSTANCE = envWithFallback("PUBLIC_INSTANCE") === "1"
 const HOSTED_BY = (envWithFallback("HOSTED_BY") || "").toLowerCase().trim()
-// Preview blindata (v1.23.0): sulle istanze pubbliche le preview anonime
-// vengono declassate e cachate come normali (niente bypass bot). Restano live
-// per gli spazi utente reali (?u=<uuid>) e sessioni PIN/admin.
-// Auto-on sulle pubbliche; `PICTORIUM_PREVIEW_AUTH=0` permette di disattivarla.
+// Preview blindata (v1.23.0): sui deploy condivisi le preview anonime vengono
+// declassate e cachate come normali (niente bypass bot). Restano live per gli
+// spazi utente reali (?u=<uuid>) e sessioni PIN/admin.
+// Auto-on sui deploy condivisi; `PICTORIUM_PREVIEW_AUTH=0` permette di disattivarla.
 const PREVIEW_AUTH_RAW = (envWithFallback("PREVIEW_AUTH") || "").toLowerCase().trim()
 
 const MULTI_USER = envWithFallback("MULTI_USER") === "1"
 
-/** Istanza pubblica: admin aperto/token, multi-utente (es. VPS) oppure sponsor pubblico (ElfHosted). */
+// La vecchia `PICTORIUM_PUBLIC_INSTANCE` (e la variante senza prefisso) è
+// stata rimossa: non cambia più alcun comportamento. Un deploy esistente che
+// la porta ancora non deve crederla attiva in silenzio → warning una volta a
+// module load (server-side; il valore viene comunque ignorato).
+if (
+  typeof process !== "undefined" &&
+  ((process.env.PICTORIUM_PUBLIC_INSTANCE ?? "").trim() !== "" ||
+    (process.env.PUBLIC_INSTANCE ?? "").trim() !== "")
+) {
+  console.warn(
+    "[pictorium] PICTORIUM_PUBLIC_INSTANCE is removed and ignored; use PICTORIUM_HOSTED_BY=elfhosted or PICTORIUM_MULTI_USER=1 for shared-instance hardening",
+  )
+}
+
+/**
+ * Hardening dei poster attivo per hosting condiviso: multi-utente (es. VPS)
+ * oppure sponsor pubblico (ElfHosted). La vecchia `PICTORIUM_PUBLIC_INSTANCE`
+ * è stata rimossa e NON è più letta: se presente viene ignorata come se non
+ * esistesse (nessun bypass, nessun comportamento diverso).
+ */
 export function isPublicPosterInstance(): boolean {
-  return PUBLIC_INSTANCE || HOSTED_BY === "elfhosted" || MULTI_USER
+  return HOSTED_BY === "elfhosted" || MULTI_USER
 }
 
 /**
  * Modalità presets: le richieste non-preview collassano su un set finito di
  * render. `PICTORIUM_POSTER_PARAMS=presets|free` esplicito vince sempre;
- * senza, auto-on sulle pubbliche (ElfHosted, PUBLIC_INSTANCE=1, MULTI_USER=1).
+ * senza, auto-on sui deploy condivisi (ElfHosted, MULTI_USER=1).
  */
 export function isPresetsPosterMode(): boolean {
   if (POSTER_PARAMS_MODE === "presets") return true
@@ -55,8 +75,8 @@ export function isPresetsPosterMode(): boolean {
 }
 
 /**
- * Preview blindata attiva: auto-on sulle istanze pubbliche (ElfHosted,
- * PUBLIC_INSTANCE=1, MULTI_USER=1). Override esplicito: PREVIEW_AUTH=1/0.
+ * Preview blindata attiva: auto-on sui deploy condivisi (ElfHosted,
+ * MULTI_USER=1). Override esplicito: PREVIEW_AUTH=1/0.
  */
 export function isPreviewAuthRequired(): boolean {
   if (PREVIEW_AUTH_RAW === "1" || PREVIEW_AUTH_RAW === "true") return true
@@ -79,8 +99,8 @@ export interface PreviewDowngradeInput {
 
 /**
  * True quando una preview anonima va declassata a richiesta normale
- * (hardenata + cachabile): solo con blindatura opt-in attiva su pubblica,
- * senza spazio e senza sessione. Default (flag OFF): mai.
+ * (hardenata + cachabile): solo con blindatura opt-in attiva sull'hosting
+ * condiviso, senza spazio e senza sessione. Default (flag OFF): mai.
  */
 export function isPreviewDowngraded(input: PreviewDowngradeInput): boolean {
   if (!(input.presets && input.publicInstance && input.previewAuth)) return false
@@ -252,6 +272,157 @@ function canonicalizeListRank(params: URLSearchParams): void {
   else params.delete("rk")
 }
 
+/**
+ * `sash`: enum-list dei bucket di priorità. Il parser del renderer
+ * (`parseSashOrder`) è già canonico — token validi, dedup, ordine dato, solo
+ * garbage → null (= catena defaults), vuoto esplicito → [] (= tutto spento).
+ * Ri-serializzarlo è render-identico e collassa le grafie duplicate/garbage su
+ * una sola entry. Presente-ma-garbage → assente (il renderer la tratta come i
+ * default, quindi la chiave non perde informazione).
+ */
+function canonicalizeSash(params: URLSearchParams): void {
+  const raw = params.get("sash")
+  if (raw === null) return
+  const parsed = parseSashOrder(raw)
+  if (parsed === null) params.delete("sash")
+  else params.set("sash", parsed.join(","))
+}
+
+/**
+ * `formats`: lista A/V (dv/hdr/hdr10plus/atmos/imax) o sentinel `none`.
+ * Il renderer filtra già i token sconosciuti e tratta `none`/vuoto/zero-token
+ * come "nessun marchio": canonicalizzare a quella stessa semantica è
+ * render-identico e impedisce che `formats=garbage1`/`formats=garbage2`
+ * creino due chiavi per lo stesso render vuoto.
+ */
+function canonicalizeFormats(params: URLSearchParams): void {
+  const raw = params.get("formats")
+  if (raw === null) return
+  const trimmed = raw.trim()
+  if (trimmed === "" || trimmed.toLowerCase() === "none") {
+    params.set("formats", "none")
+    return
+  }
+  const valid = [...new Set(trimmed.split(",").map((t) => t.trim().toLowerCase()).filter(isVideoFormat))]
+  params.set("formats", valid.length > 0 ? valid.join(",") : "none")
+}
+
+/**
+ * `fmt`/`format`: enum finita del formato immagine servito. Il resolver
+ * (`resolveImageFormat`) accetta solo webp/avif/jpeg/jpg (case-insensitive) e
+ * per ogni altro valore ricade su Accept/default: canonicalizzare è
+ * render-identico. `fmt` vuoto è falsy nel renderer (cade su `format`), e un
+ * `fmt` presente-ma-ignoto SHADOWA `format` (letto come `fmt || format`):
+ * in quel caso si eliminano entrambi, altrimenti il garbage resterebbe in
+ * chiave senza cambiare un pixel.
+ */
+function canonicalImageFormat(raw: string): string | null {
+  const v = raw.trim().toLowerCase()
+  if (v === "jpeg" || v === "jpg") return "jpeg"
+  if (v === "webp" || v === "avif") return v
+  return null
+}
+
+function canonicalizeImageFormats(params: URLSearchParams): void {
+  if (params.has("fmt")) {
+    const raw = (params.get("fmt") ?? "").trim()
+    if (!raw) {
+      params.delete("fmt")
+    } else {
+      const v = canonicalImageFormat(raw)
+      if (v) params.set("fmt", v)
+      else {
+        params.delete("fmt")
+        params.delete("format")
+      }
+    }
+  }
+  if (params.has("format")) {
+    const v = canonicalImageFormat(params.get("format") ?? "")
+    if (v) params.set("format", v)
+    else params.delete("format")
+  }
+}
+
+// ---------------------------------------------------------------------------
+// `quality` / `lang`: canonical values shared by the cache key AND the render.
+//
+// These two are the only render inputs the poster route used to read from the
+// RAW request while the cache key came from the hardened copy. Rewriting them
+// in one place only would desynchronize key and bytes: a garbage value would
+// either mint a distinct entry for identical pixels or, worse, store its own
+// pixels under the canonical key (cross-request poisoning). They are therefore
+// canonicalized here and the route reads the canonical value back from the
+// hardened copy — key and render can never diverge.
+// ---------------------------------------------------------------------------
+
+// Streaming tiers the quality badge and the `qmin` filter actually understand
+// (`quality-tiers.ts`): the only labels the renderer can paint meaningfully.
+const CANONICAL_POSTER_QUALITIES: ReadonlySet<string> = new Set(["4K", "FHD", "HD", "SD"])
+
+/**
+ * `quality`: manual streaming tier. Case-insensitive canonical uppercase for
+ * the four known tiers (so `4k` and `4K` share one entry and `qmin` can
+ * compare them); anything else is absent = auto-detected tier, i.e. the exact
+ * render of a request without `quality=`.
+ */
+export function canonicalPosterQuality(raw: string | null | undefined): string | null {
+  const v = (raw ?? "").trim().toUpperCase()
+  return CANONICAL_POSTER_QUALITIES.has(v) ? v : null
+}
+
+// Language tags the poster endpoint genuinely localizes with: the UI languages
+// the editor/meta forward (`SUPPORTED_UI_LANGS`, including the UI-only
+// `es-419`/`pt-br`) plus the TMDB locales of the chart regions (`it-IT`,
+// `es-MX`, … — explicit manual URLs; logo tiering handles those aliases).
+const POSTER_LANG_SPELLINGS: ReadonlySet<string> = new Set([
+  ...SUPPORTED_UI_LANGS,
+  ...CHART_REGIONS.map((r) => r.lang),
+])
+// Case-insensitive fallback. UI spelling wins on a case-only clash
+// (`pt-br`/`pt-BR`): it is the one the app itself emits, and every downstream
+// consumer (dictionary lookup, logo tiers) lowercases it anyway.
+const POSTER_LANG_BY_LOWER: ReadonlyMap<string, string> = (() => {
+  const map = new Map<string, string>()
+  for (const code of SUPPORTED_UI_LANGS) {
+    const key = code.toLowerCase()
+    if (!map.has(key)) map.set(key, code)
+  }
+  for (const region of CHART_REGIONS) {
+    const key = region.lang.toLowerCase()
+    if (!map.has(key)) map.set(key, region.lang)
+  }
+  return map
+})()
+
+/**
+ * `lang`: canonical language tag (exact spelling first, then a unique
+ * case-insensitive match). An unknown tag collapses onto absent: the render
+ * falls back to `mapping.language` > region language (the same fallback as no
+ * `lang=` at all), so a garbage tag can neither fragment the cache nor repaint
+ * another request's entry.
+ */
+export function canonicalPosterLang(raw: string | null | undefined): string | null {
+  const trimmed = (raw ?? "").trim()
+  if (!trimmed) return null
+  if (POSTER_LANG_SPELLINGS.has(trimmed)) return trimmed
+  return POSTER_LANG_BY_LOWER.get(trimmed.toLowerCase()) ?? null
+}
+
+function canonicalizeQuality(params: URLSearchParams): void {
+  if (!params.has("quality")) return
+  const quality = canonicalPosterQuality(params.get("quality"))
+  if (quality) params.set("quality", quality)
+  else params.delete("quality")
+}
+
+function canonicalizeLang(params: URLSearchParams): void {
+  if (!params.has("lang")) return
+  const lang = canonicalPosterLang(params.get("lang"))
+  if (lang) params.set("lang", lang)
+  else params.delete("lang")
+}
+
 function quantizeInPlace(params: URLSearchParams, key: string, step: number): void {
   const raw = params.get(key)
   if (raw === null || raw === "") return
@@ -283,7 +454,7 @@ export interface HardenPosterQueryInput {
   readonly preview: boolean
   /** Senza user space (né ?u= né namespace): override immagini bloccati. */
   readonly anonymous: boolean
-  /** Istanza pubblica (isPublicPosterInstance). */
+  /** Hosting condiviso (isPublicPosterInstance: ElfHosted o multi-utente). */
   readonly publicInstance: boolean
   /** Mapping salvato esistente per questo titolo+namespace. */
   readonly hasMapping: boolean
@@ -364,6 +535,25 @@ export function hardenPosterSearchParams(
   canonicalizeRank(params)
   canonicalizeAnimeRank(params)
   canonicalizeListRank(params)
+  canonicalizeSash(params)
+  canonicalizeFormats(params)
+  canonicalizeImageFormats(params)
+
+  // `mv`: versione del mapping lato client, letta SOLO dal path immutable
+  // header sulla request RAW (la route usa `req.nextUrl.searchParams`), mai dal
+  // render (la versione autorevole è già `mapVersion` nella chiave). Non deve
+  // quindi mintare una entry di cache: la sua eventuale canonicalizzazione qui
+  // non tocca né pixel né header.
+  // `rw`: parametro ritirato/inerte — nessun consumer lo legge; nessuna chiave.
+  params.delete("mv")
+  params.delete("rw")
+
+  // `quality` e `lang`: canonicalizzati QUI e letti dalla route dalla copia
+  // hardenata (unico valore per chiave e render, vedi canonicalPosterQuality/
+  // canonicalPosterLang). Garbage → assente (stessa resa dell'assenza), mai una
+  // entry distinta a pixel identici e mai byte estranei sotto la chiave pulita.
+  canonicalizeQuality(params)
+  canonicalizeLang(params)
 
   // Rating sources: supported ids only, deduplicated (order kept).
   if (params.has("rsrc")) {

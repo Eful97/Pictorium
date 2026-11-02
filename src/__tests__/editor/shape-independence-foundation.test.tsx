@@ -700,10 +700,21 @@ describe("editor setters + Badge tab reset", () => {
 })
 
 describe("PUT /api/defaults shape independence (global + scoped user)", () => {
+  const TEST_ADMIN_TOKEN = "shape-foundation-admin-token"
+
+  beforeEach(() => {
+    // Le route admin sono fail-closed: il PUT presenta un ADMIN_TOKEN reale.
+    process.env.ADMIN_TOKEN = TEST_ADMIN_TOKEN
+  })
+
+  afterEach(() => {
+    delete process.env.ADMIN_TOKEN
+  })
+
   function mockPutRequest(body: unknown, url = "http://localhost:3000/api/defaults"): Request {
     return new Request(url, {
       method: "PUT",
-      headers: { "content-type": "application/json" },
+      headers: { "content-type": "application/json", "x-admin-token": TEST_ADMIN_TOKEN },
       body: JSON.stringify(body),
     })
   }
@@ -722,7 +733,6 @@ describe("PUT /api/defaults shape independence (global + scoped user)", () => {
   }
 
   it("global flat-only PUT snapshots pre-merge; partial landscape PUT never discards", async () => {
-    delete process.env.ADMIN_TOKEN
     const { PUT, GET } = await freshRoute()
     const get = async () =>
       (await (
@@ -791,7 +801,6 @@ describe("PUT /api/defaults shape independence (global + scoped user)", () => {
   })
 
   it("global flat-null PUT freezes canonical effective, later edits do not leak", async () => {
-    delete process.env.ADMIN_TOKEN
     const { PUT, GET } = await freshRoute()
     const get = async () =>
       (await (
@@ -840,7 +849,6 @@ describe("PUT /api/defaults shape independence (global + scoped user)", () => {
   })
 
   it("scoped user PUT snapshots independently; namespaces stay isolated", async () => {
-    delete process.env.ADMIN_TOKEN
     const { PUT, GET } = await freshRoute()
     const uget = async () =>
       (await (
@@ -896,14 +904,13 @@ describe("PUT /api/defaults shape independence (global + scoped user)", () => {
       const sd = await import("@/lib/server-defaults")
       expect(sd.getInstanceEnvDefaults().gradientHeight).toBe(44)
       const { PUT, GET } = await import("@/app/api/defaults/route")
-      delete process.env.ADMIN_TOKEN
       const uuid = "22222222-2222-4222-8222-222222222222"
       expect(
         (
           await PUT(
             new Request(`http://localhost:3000/api/defaults?u=${uuid}`, {
               method: "PUT",
-              headers: { "content-type": "application/json" },
+              headers: { "content-type": "application/json", "x-admin-token": TEST_ADMIN_TOKEN },
               body: JSON.stringify({ blurIntensity: 5, gradientHeight: 30 }),
             }) as unknown as NextRequest,
           )
@@ -926,7 +933,6 @@ describe("PUT /api/defaults shape independence (global + scoped user)", () => {
   })
 
   it("scoped flat-null PUT freezes canonical effective without touching globals", async () => {
-    delete process.env.ADMIN_TOKEN
     const { PUT, GET } = await freshRoute()
     const uuid = "33333333-3333-4333-8333-333333333333"
     const uget = async () =>

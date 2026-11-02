@@ -79,13 +79,19 @@ describe("GET /api/cache/status", () => {
     expect(res.status).toBe(401)
   })
 
-  it("stays fail-closed without token even on public instances", async () => {
-    // Nessun ADMIN_TOKEN (ma POSTERIUM_PUBLIC_INSTANCE=1 dal setup): la
-    // telemetria non è più aperta a chiunque come con checkAdminToken.
-    const req = new Request("http://localhost:3000/api/cache/status")
-    const res = await GET(req as never)
-
-    expect(res.status).toBe(401)
+  it("stays fail-closed without token, ignoring the removed public-instance flag", async () => {
+    // Nessun ADMIN_TOKEN; i vecchi flag PUBLIC_INSTANCE (canonico e legacy)
+    // sono rimossi e ignorati: la telemetria resta 401.
+    process.env.PICTORIUM_PUBLIC_INSTANCE = "1"
+    process.env.POSTERIUM_PUBLIC_INSTANCE = "1"
+    try {
+      const req = new Request("http://localhost:3000/api/cache/status")
+      const res = await GET(req as never)
+      expect(res.status).toBe(401)
+    } finally {
+      delete process.env.PICTORIUM_PUBLIC_INSTANCE
+      delete process.env.POSTERIUM_PUBLIC_INSTANCE
+    }
   })
 
   it("does not count expired entries", async () => {

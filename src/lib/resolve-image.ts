@@ -30,12 +30,28 @@ const MAX_IMAGE_BYTES = 10 * 1024 * 1024
  * lista viene rifiutata. Estensioni future = aggiungere radici qui + test.
  *
  * Pinterest redirige gli short link (pin.it) per geolocalizzazione verso i
- * suoi ccTLD (pinterest.it, pinterest.fr, …): la famiglia copre quindi
- * `pinterest.<tld>` oltre a `*.pinterest.com`. Boundary-safe: il match
- * richiede inizio-stringa o punto prima di "pinterest" (evilpinterest.com
- * resta fuori) e fine-stringa dopo il TLD (pinterest.com.evil.com fuori).
+ * suoi ccTLD (pinterest.it, pinterest.fr, …). Un pattern generico
+ * `pinterest.<qualsiasi-tld>` accetterebbe anche `pinterest.attacker.com`:
+ * la famiglia è quindi un'allowlist ESPLICITA di ccTLD (sotto) oltre a
+ * `pinterest.com`/`*.pinterest.com`. Boundary-safe: il match richiede
+ * inizio-stringa o punto prima di "pinterest" (evilpinterest.com resta fuori)
+ * e fine-stringa dopo il TLD (pinterest.com.evil.com fuori).
  */
-const PINTEREST_HOST_RE = /(^|\.)pinterest\.[a-z]{2,}(\.[a-z]{2,})?$/
+const PINTEREST_HOST_RE = /(^|\.)pinterest\.([a-z]{2,}(?:\.[a-z]{2,})?)$/
+// ccTLD/suffix ufficiali osservati per Pinterest (short link geolocalizzati).
+// Aggiungere una voce qui + un caso di test quando emerge un nuovo dominio.
+const PINTEREST_TLDS: ReadonlySet<string> = new Set([
+  "com",
+  // Europa
+  "it", "fr", "de", "es", "pt", "nl", "be", "at", "ch", "ie", "gb", "uk",
+  "co.uk", "se", "no", "dk", "fi", "pl", "cz", "sk", "hu", "ro", "gr", "tr",
+  "ru",
+  // Americhe
+  "ca", "mx", "com.mx", "br", "com.br", "ar", "cl", "co",
+  // Asia / Oceania / Africa
+  "jp", "co.jp", "kr", "co.kr", "in", "co.in", "au", "com.au", "nz", "co.nz",
+  "ph", "sg", "id", "co.id", "th", "co.th", "vn", "hk", "tw", "ae", "sa", "za",
+])
 const PINIMG_HOST_RE = /(^|\.)pinimg\.com$/
 const IMGUR_HOST_RE = /(^|\.)imgur\.com$/
 const REDDIT_HOST_RE = /(^|\.)(reddit\.com|redd\.it)$/
@@ -86,6 +102,11 @@ export const TMDB_IMAGE_HOST = "image.tmdb.org"
 const TMDB_DIRECT_IMAGE_RE =
   /^\/t\/p\/(w45|w92|w154|w185|w300|w342|w500|w780|w1280|h632|original)\/[^/]+$/
 const TMDB_RASTER_FILE_RE = /\.(jpg|jpeg|png|webp|gif|avif)$/i
+
+function isPinterestHostname(hostname: string): boolean {
+  const m = PINTEREST_HOST_RE.exec(hostname)
+  return !!m && PINTEREST_TLDS.has(m[2])
+}
 
 function isTpdbHostname(hostname: string): boolean {
   return hostname.toLowerCase().replace(/\.$/, "") === TPDB_HOST
@@ -162,7 +183,7 @@ export function isAllowedResolveHost(hostname: string): boolean {
   if (h === TMDB_IMAGE_HOST) return true
   if (h === POSTIMG_CC_CDN_HOST) return true
   return (
-    PINTEREST_HOST_RE.test(h) ||
+    isPinterestHostname(h) ||
     PINIMG_HOST_RE.test(h) ||
     IMGUR_HOST_RE.test(h) ||
     REDDIT_HOST_RE.test(h) ||

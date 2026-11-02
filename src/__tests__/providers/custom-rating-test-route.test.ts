@@ -1,5 +1,5 @@
 import type { NextRequest } from "next/server"
-import { afterEach, describe, expect, it, vi } from "vitest"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { POST } from "@/app/api/custom-rating/test/route"
 import { diagnoseCustomRatings } from "@/lib/custom-rating"
 
@@ -10,18 +10,27 @@ vi.mock("@/lib/custom-rating", async (importOriginal) => ({
 
 const mockedDiagnose = vi.mocked(diagnoseCustomRatings)
 
+const TEST_ADMIN_TOKEN = "custom-rating-admin-token"
+
 afterEach(() => {
   vi.restoreAllMocks()
   delete process.env.ADMIN_TOKEN
 })
 
 function post() {
-  return new Request("http://localhost:3000/api/custom-rating/test", { method: "POST" })
+  return new Request("http://localhost:3000/api/custom-rating/test", {
+    method: "POST",
+    headers: { "x-admin-token": TEST_ADMIN_TOKEN },
+  })
 }
 
 describe("POST /api/custom-rating/test", () => {
+  beforeEach(() => {
+    // Le route admin sono fail-closed: il test presenta un ADMIN_TOKEN reale.
+    process.env.ADMIN_TOKEN = TEST_ADMIN_TOKEN
+  })
+
   it("returns the diagnosis and never leaks the API key", async () => {
-    delete process.env.ADMIN_TOKEN
     vi.stubEnv("PICTORIUM_CUSTOM_RATING_ENABLED", "true")
     vi.stubEnv("PICTORIUM_CUSTOM_RATING_ENDPOINT", "https://example.com/{imdbId}")
     vi.stubEnv("PICTORIUM_CUSTOM_RATING_API_KEY", "super-secret")
@@ -37,7 +46,6 @@ describe("POST /api/custom-rating/test", () => {
   })
 
   it("passes diagnosis failures through with codes", async () => {
-    delete process.env.ADMIN_TOKEN
     mockedDiagnose.mockResolvedValue({ status: 401, ms: 30, ratings: [], error: "http-error" })
     const res = await POST(post() as unknown as NextRequest)
     expect(res.status).toBe(200)

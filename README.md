@@ -33,8 +33,8 @@ pinned: false
 </p>
 
 > [!TIP]
-> 🚀 **Free public instances**: create your personal space with your TMDB key on **[pictorium.duckdns.org](https://pictorium.duckdns.org)** (community VPS) or on **[pictorium.elfhosted.com](https://pictorium.elfhosted.com/)** (ElfHosted).  
-> 🧝 **Hosted private instance**: deploy your own dedicated instance 1-click on **[ElfHosted](https://store.elfhosted.com/product/pictorium/)**.  
+> 🚀 **Free public instances**: create your personal space with your TMDB key on **[pictorium.duckdns.org](https://pictorium.duckdns.org)** (community VPS) or on **[pictorium.elfhosted.com](https://pictorium.elfhosted.com/)** (ElfHosted public instance).
+>
 > 💬 **Join the community on [Discord](https://discord.gg/sYfWyXYVUp)** for support, updates, bug reports, and feature requests.  
 > ☕ Support the project on [Ko-fi](https://ko-fi.com/eful97) to help keep the public VPS running.
 
@@ -197,17 +197,23 @@ When `PICTORIUM_MULTI_USER=1` is enabled, multiple users can share a single serv
    * Click **Fork** at the top right of [github.com/Eful97/Pictorium](https://github.com/Eful97/Pictorium).
 3. **Import to Vercel**:
    * Sign in to [vercel.com](https://vercel.com) and click **Add New… → Project**.
-   * Import your Pictorium fork and configure Environment Variables:
-     * `PICTORIUM_TMDB_KEY` = *your TMDB v3 key*
-     * `PICTORIUM_PUBLIC_INSTANCE` = `1`
+   * Import your Pictorium fork and configure Environment Variables (all optional except `CONFIG_HMAC_SECRET`, needed for `?config=` links; Redis comes next):
+     * `PICTORIUM_ADMIN_TOKEN` = *a secret you choose* (optional: without it, the first PIN set from the UI is free)
+     * `CONFIG_HMAC_SECRET` = *a long random secret* (required in production for `?config=` share/install links)
+     * `PROFILE_ENCRYPTION_KEY` = *64-char hex* (required only with `PICTORIUM_MULTI_USER=1`)
+     * `PICTORIUM_TMDB_KEY` = *your TMDB v3 key* (optional: you can save it after deploy in Settings → Data & Cache → Configure API keys)
    * Click **Deploy**.
-4. **Connect Upstash Redis Database (Free)**:
-   * Once deployed, open the project dashboard on Vercel.
-   * Go to **Storage → Connect Store → Upstash (Redis)** and click Create & Connect.
+4. **Connect Upstash Redis — always required**:
+   * Vercel's filesystem is read-only: without Redis, mappings and settings are not persisted and spaces fall back to stateless `?config=` links.
+   * Once deployed, open the project dashboard, go to **Storage → Connect Store → Upstash (Redis)** and click Create & Connect. This injects `KV_REST_API_URL` / `KV_REST_API_TOKEN`; a native `PICTORIUM_REDIS_URL` is the alternative.
 5. **Redeploy**:
-   * Under the **Deployments** tab, click the three dots (**⋯**) on the latest deployment and select **Redeploy**.
-6. **Install on Stremio**:
-   * Open your instance URL (e.g. `https://your-pictorium.vercel.app`), complete the initial setup wizard, and click **Install to Stremio**!
+   * Under the **Deployments** tab, click the three dots (**⋯**) on the latest deployment and select **Redeploy** (needed to bind Upstash).
+6. **Unlock the editor, add keys and install**:
+   * Open your instance URL (e.g. `https://your-pictorium.vercel.app`), set the first PIN (Settings → Data & Cache) or paste `PICTORIUM_ADMIN_TOKEN` in **Settings → Admin token**.
+   * Save your TMDB/MDBList/TVDB keys in **Settings → Data & Cache → Configure API keys**: they are encrypted at rest in Upstash and anonymous Stremio requests resolve them with no env var.
+   * Click **Install to Stremio**!
+
+> **Hobby plan limit**: each function is capped at ~10 s, so a cold render or a slow upstream can return a bounded 503. Pro raises the limit; keeping catalogs warm reduces the chance.
 
 > **Future Updates**: To update your instance, simply open your GitHub fork and click **Sync fork → Update branch**. Vercel will automatically redeploy in 60 seconds while preserving your database and settings.
 
@@ -215,39 +221,42 @@ When `PICTORIUM_MULTI_USER=1` is enabled, multiple users can share a single serv
 
 ### 🐳 Docker & Compose
 
-Use the `docker-compose.yml` already included in the repo (hardening, healthcheck and persistent `posterium-data` volume preconfigured) — no need to write one by hand:
+Use the `docker-compose.yml` already included in the repo (hardening, healthcheck and the persistent `posterium-data` volume mounted on `/data` — saves survive container rebuilds) — no need to write one by hand:
 
 ```bash
 git clone https://github.com/Eful97/Pictorium && cd Pictorium
 cp .env.example .env
 ```
 
-Fill in at least `PICTORIUM_TMDB_KEY` and `PICTORIUM_ADMIN_TOKEN` (a long secret of your choice) in `.env`, then:
+Put the values in `.env` — Docker Compose does not read `.env.local`. Both `PICTORIUM_TMDB_KEY` and `PICTORIUM_ADMIN_TOKEN` are optional:
+
+* **Home / LAN instance**: leave them empty and start. On first launch set the PIN in **Settings → Data & Cache** (6+ digits, or an 8–128 character password): when no admin token is configured the first PIN is free, and it unlocks the editor from then on. Stremio endpoints stay public.
+* **Exposed to the internet or `PICTORIUM_MULTI_USER=1`**: set `PICTORIUM_ADMIN_TOKEN` (plus `PROFILE_ENCRYPTION_KEY` with multi-user). If a token is configured before any PIN exists, paste it in **Settings → Admin token** first: it is required to set the first PIN.
+* **API keys**: you do not need `PICTORIUM_TMDB_KEY` in the file. After unlocking, open **Settings → Data & Cache → Configure API keys** and save your TMDB key (create one free at [themoviedb.org/signup](https://www.themoviedb.org/signup) → **Settings → API → API Key (v3 auth)**), plus MDBList/TVDB if you use them. They are encrypted at rest in the `/data` volume and anonymous Stremio requests resolve them with no env var; scoped `?u=` requests never use them.
+
+Then start it:
 
 ```bash
 docker compose up -d
 ```
 
-> The first start builds the image locally (a few minutes, longer on ARM). To start immediately with the prebuilt image: `docker compose pull pictorium && docker compose up -d --no-build`. Admin routes are closed by default: paste the token in **Settings → Admin token** (session only) to use warmup, cache and saves from the UI. Only on a trusted LAN you may use `PICTORIUM_PUBLIC_INSTANCE=1` instead of the token.
+> The first start builds the image locally (a few minutes, longer on ARM). To start immediately with the prebuilt image: `docker compose pull pictorium && docker compose up -d --no-build`. Admin routes are closed by default (fail-closed): a valid PIN session (or the token pasted in **Settings → Admin token**, session only) is what unlocks warmup, cache and saves from the UI. The old `PICTORIUM_PUBLIC_INSTANCE` switch has been removed: if it is still set it is ignored and opens nothing.
 >
 > If you came from the old example with a `pictorium-data` volume and already have saves, copy them before switching to the repo compose: `docker run --rm -v pictorium-data:/from -v posterium-data:/to alpine cp -a /from/. /to/`
 
-Your instance and Stremio manifest will be accessible at `http://<SERVER-IP>:8080`.
+Open `http://<SERVER-IP>:8080`, unlock the editor and click **Install to Stremio**. The manifest lives at the same origin (`/manifest.json`).
 
 ---
 
 <details>
-<summary><strong>👉 Other installation methods (ElfHosted, Hugging Face, Oracle Cloud, VPS Caddy, Termux)</strong></summary>
-
-#### 🧝 ElfHosted (Managed 1-Click / Hosted App)
-For users who prefer not to manage servers, ports, or Docker: launch a private, hosted Pictorium instance on Kubernetes directly from [ElfHosted](https://store.elfhosted.com/product/pictorium/), with automatic HTTPS, persistent storage, and zero-maintenance updates.
+<summary><strong>👉 Other installation methods (Hugging Face, Oracle Cloud, VPS Caddy, Termux)</strong></summary>
 
 #### 🤗 Hugging Face Spaces
 1. Create a Space on Hugging Face using the **Docker** SDK pointing to `Eful97/Pictorium`.
 2. Under **Settings → Variables and secrets**:
    * `NODE_OPTIONS` = `--max-old-space-size=1024`
-   * `PICTORIUM_PUBLIC_INSTANCE` = `1`
-   * `PICTORIUM_TMDB_KEY` = *your TMDB key*
+   * `PICTORIUM_ADMIN_TOKEN` = *a secret you choose* (a public Space needs it; paste the same value in Settings → Admin token to unlock the editor)
+   * `PICTORIUM_TMDB_KEY` = *your TMDB key* (optional: you can also save it from Settings → Data & Cache → Configure API keys after the first unlock)
 3. Under **Settings → Storage**, attach a Storage Bucket mounted to `/data`.
 
 #### 🦾 Oracle Cloud Always Free (ARM Ampere)
@@ -256,7 +265,7 @@ sudo apt update && sudo apt install -y docker.io docker-compose-v2
 git clone https://github.com/Eful97/Pictorium && cd Pictorium
 cp .env.example .env
 ```
-Fill in `PICTORIUM_TMDB_KEY` and `PICTORIUM_ADMIN_TOKEN` in `.env`, then `sudo docker compose up -d` (uses the repo compose). Then paste the token in **Settings → Admin token** (session only). On an exposed instance do not use `PICTORIUM_PUBLIC_INSTANCE=1`.
+Fill in `PICTORIUM_TMDB_KEY` and `PICTORIUM_ADMIN_TOKEN` in `.env` (you can leave the TMDB key out and save it later from Settings → Data & Cache → Configure API keys), add `CONFIG_HMAC_SECRET` if you need `?config=` install links, then `sudo docker compose up -d` (uses the repo compose). Then paste the token in **Settings → Admin token** (session only). Admin routes are always fail-closed without a token or PIN session; the old `PICTORIUM_PUBLIC_INSTANCE` is removed and ignored.
 
 #### 🖥️ VPS + Caddy (Automatic HTTPS)
 ```caddyfile
@@ -264,7 +273,7 @@ yourdomain.com {
     reverse_proxy pictorium:8080
 }
 ```
-On a public domain protect the editor with `PICTORIUM_ADMIN_TOKEN` (unlock in Settings → Admin token), not with `PICTORIUM_PUBLIC_INSTANCE=1`.
+On a public domain protect the editor with `PICTORIUM_ADMIN_TOKEN` (unlock in Settings → Admin token): without it the admin routes stay closed (fail-closed). Add `CONFIG_HMAC_SECRET` for `?config=` links and `PROFILE_ENCRYPTION_KEY` when `PICTORIUM_MULTI_USER=1`.
 
 #### 📱 Termux (Android)
 ```bash
@@ -282,9 +291,9 @@ npm install --ignore-scripts && npm run build && npm start
 
 | Variable | Default | Description |
 |---|:---:|---|
-| `PICTORIUM_PUBLIC_INSTANCE` | `0` | Set `1` to leave admin routes open without a token (trusted LAN, public demos). On exposed instances keep `0` and use the token below. |
-| `PICTORIUM_ADMIN_TOKEN` | *(optional)* | Secret for private instances (`PUBLIC_INSTANCE=0`): paste it in Settings → Admin token (session only, dies with the tab) to enable warmup, cache clear and saves from the UI. |
-| `PICTORIUM_TMDB_KEY` | *(optional)* | Server-side TMDB API key to render posters and catalogs without client keys. |
+| ~~`PICTORIUM_PUBLIC_INSTANCE`~~ | *(removed)* | Legacy switch, no longer read: if it is still set it is ignored and opens nothing. Admin routes are always fail-closed without a token or PIN session — use `PICTORIUM_ADMIN_TOKEN` below. |
+| `PICTORIUM_ADMIN_TOKEN` | *(optional)* | Secret for private instances: paste it in Settings → Admin token (session only, dies with the tab) to enable warmup, cache clear and saves from the UI. Without it (and without a PIN session) admin routes return 401. |
+| `PICTORIUM_TMDB_KEY` | *(optional)* | Server-side TMDB API key to render posters and catalogs without client keys. Alternatively save instance keys from the app (Settings → Data & Cache → Configure API keys): they live in a dedicated encrypted store (KV `instance:keys` or `DATA_DIR/instance/`, AES-256-GCM, 0600) that anonymous Stremio requests resolve with no env set; scoped `?u=` requests never fall back to it. |
 | `PICTORIUM_TVDB_API_KEY` | *(optional)* | TheTVDB key for alternate season ordering, episode descriptions, and TheTVDB custom lists (BYOK: request header, `tvdb_key` query, or user profile key win over this). |
 | `PICTORIUM_MDBLIST_KEY` | *(optional)* | MDBList key for custom lists and anime catalogs. |
 | `PICTORIUM_RATING_MIN_VOTES` | `10` | Per-source minimum vote count for MDBList aggregated ratings (typed `api.mdblist.com` media API): sources with a known `votes` count below this are excluded; `0` disables the filter. Null/missing/malformed counts are always kept, RogerEbert is exempt. The MDBList daily quota is per account (shared across keys/apps); keyless ratings calls are skipped (Cinemeta/native fallbacks remain). |
@@ -293,23 +302,28 @@ npm install --ignore-scripts && npm run build && npm start
 | `PICTORIUM_TRAKT_REDIRECT_URI` | *(optional)* | Exact OAuth redirect URI registered in the Trakt app dashboard (path is always `/api/trakt/callback`, e.g. `https://your-instance/api/trakt/callback`). HTTPS only (PKCE requires `https://` redirects; test locally through an HTTPS tunnel serving the whole UI origin). One instance may serve both registered domains; never derived from the request. |
 | `PICTORIUM_REGION` | `IT` | Default country for streaming charts and availability (`IT`, `US`, `GB`, `FR`, `DE`, `ES`, etc.). |
 | `PICTORIUM_DATA_DIR` | `./data` | Directory path for persisting settings and saved posters on disk. In Docker it must point at a persistent volume (`/data`, `posterium-data` volume, writable by uid 1000): the data file is created on first save, so "not found" with 0 posters on a fresh install is normal. |
-| `PICTORIUM_REDIS_URL` | *(empty)* | Native Redis (TCP) for multi-replica HA without a `/data` volume: mappings, defaults, profiles, epochs and rate limits become shared across replicas. Wins over `KV_REST_*` when both are set (no automatic migration). On ElfHosted/K8s plain `REDIS_URL` is enough (read as fallback). |
+| `PICTORIUM_REDIS_URL` | *(empty)* | Native Redis (TCP) for multi-replica HA without a `/data` volume: mappings, defaults, profiles, epochs and rate limits become shared across replicas. Wins over `KV_REST_*` when both are set (no automatic migration). On Kubernetes deployments plain `REDIS_URL` is also read as a fallback. |
 | `KV_REST_API_URL` / `TOKEN` | *(empty)* | Upstash Redis credentials for Vercel serverless deployments. |
 | `PICTORIUM_KV_CACHE` | *(on with KV)* | With Redis/KV, set `0` to keep the response cache in memory only (state stays in KV). Useful on public instances, where cache keys include caller-controlled parts; each replica then fetches upstream on its own. Not recommended on Vercel/serverless. |
 | `PICTORIUM_HOSTED_BY` | *(empty)* | Public hosting sponsor: `elfhosted` shows the ElfHosted banner on the home page (auto-detected from an `elfhosted.com` host as fallback). Empty = no banner. |
-| `PICTORIUM_POSTER_PARAMS` | *(auto)* | Poster cache-busting hardening: `presets` restricts non-preview requests to a finite render set (cache-key allowlist, coarse 5/10/5px numeric steps, palette-only `ac`, no anonymous free-text/keyless overrides), `free` is the historic behavior. Auto-`presets` on public instances (`PUBLIC_INSTANCE=1`, `HOSTED_BY=elfhosted` or `MULTI_USER=1`); the WYSIWYG preview stays live for user spaces and unlocked sessions. |
-| `PICTORIUM_PREVIEW_AUTH` | *(auto)* | Preview hardening: on public instances anonymous previews (`preview=1` without a space or session) are downgraded and cached like normal requests (no bot bypass). Existing user spaces and unlocked sessions stay live. Auto-on on public instances (`PUBLIC_INSTANCE=1`, `HOSTED_BY=elfhosted`, `MULTI_USER=1`); `0` forces OFF, `1` forces ON. |
+| `PICTORIUM_POSTER_PARAMS` | *(auto)* | Poster cache-busting hardening: `presets` restricts non-preview requests to a finite render set (cache-key allowlist, coarse 5/10/5px numeric steps, palette-only `ac`, no anonymous free-text/keyless overrides), `free` is the historic behavior. Auto-`presets` on shared hosting (`HOSTED_BY=elfhosted` or `MULTI_USER=1`); the WYSIWYG preview stays live for user spaces and unlocked sessions. |
+| `PICTORIUM_PREVIEW_AUTH` | *(auto)* | Preview hardening: on shared hosting anonymous previews (`preview=1` without a space or session) are downgraded and cached like normal requests (no bot bypass). Existing user spaces and unlocked sessions stay live. Auto-on with `HOSTED_BY=elfhosted` or `MULTI_USER=1`; `0` forces OFF, `1` forces ON. |
 | `PICTORIUM_FRAME_ANCESTORS` | *(HF default)* | Overrides the CSP `frame-ancestors` (default is HF Spaces compatible). E.g. `'self'` for public instances that should never be embedded. |
+| `PICTORIUM_TRUST_PROXY` | `0` | Set `1` **only** behind a reverse proxy/Cloudflare that overwrites the client-IP headers: enables `x-real-ip` / `cf-connecting-ip` / first-hop `x-forwarded-for` for rate-limit keys. Without a trusted proxy those headers are spoofable, so by default none is read and anonymous callers share one instance bucket (`local`). |
+| `PICTORIUM_CLIENT_IP_HEADER` | *(empty)* | With `TRUST_PROXY=1`, trust exactly one header (e.g. `cf-connecting-ip` behind Cloudflare). It must carry a single proxy-set value: comma-separated or invalid names are refused with a one-time warning. |
+| `PICTORIUM_PROXY_ALLOW_DOMAINS` | *(private: open; shared: deny)* | Comma-separated allowlist of hosts (subdomains included) the addon proxy may fetch. On shared instances (`MULTI_USER=1` / `HOSTED_BY=elfhosted`) an unset list is default-deny: a public instance must not be an open relay. Private self-hosted instances keep the historic open behavior. |
+| `PICTORIUM_PROXY_ALLOW_ANY` | `0` | **Dangerous, never on a public instance**: reopens the addon proxy to any host when no allowlist is set (open relay / SSRF-by-proxy for anonymous callers). Prefer `PICTORIUM_PROXY_ALLOW_DOMAINS`. |
 | `PICTORIUM_IMAGE_FORMAT` | `webp` | Poster format for clients that declare no preference (generic `Accept`, almost all native Stremio apps): `webp` (~25–30% lighter at equal quality) or `jpeg` (universal, for instances with dated clients that cannot decode webp). `?fmt=` remains a per-request override in both directions. Requires restart; switching invalidates the cache once. |
 
 ### Multi-User Mode
 
 | Variable | Default | Description |
 |---|:---:|---|
-| `PICTORIUM_MULTI_USER` | `0` | Set `1` to enable isolated user spaces on `/u/<uuid>/configure`. |
+| `CONFIG_HMAC_SECRET` | *(empty)* | HMAC key that signs `?config=`/`/c/<config>/` share and install links. Required in production: without it the server cannot encode config tokens and unsigned tokens are rejected (fail-closed). Also accepted as `ENCRYPTION_KEY_SECRET`. |
+| `PICTORIUM_MULTI_USER` | `0` | Set `1` to enable isolated user spaces on `/u/<uuid>/configure`. In this mode the instance PIN card and instance API-key store are hidden: each space uses its own session password and keys, while instance-wide settings are unlocked with `PICTORIUM_ADMIN_TOKEN`. |
 | `PROFILE_ENCRYPTION_KEY` | *(empty)* | **Required** when `MULTI_USER=1`. 64-character hex key (AES-256-GCM, generate via `openssl rand -hex 32`). Set once and keep it: rotating it makes stored API keys and Trakt tokens unreadable until re-entered, so never rotate it gratuitously. |
 | `PICTORIUM_MAX_MAPPINGS_PER_USER` | `500` | Maximum number of saved posters allowed per user space. |
-| `PICTORIUM_MAX_USERS` | *(unlimited)* | Maximum number of user spaces that can be created. |
+| `PICTORIUM_MAX_USERS` | *(unlimited)* | Maximum number of user spaces that can be created. The unlimited default is kept for backwards compatibility (existing instances may already exceed any fixed cap); **set an explicit value on public instances** to bound name space creation. |
 | `PICTORIUM_PUBLIC_STATS` | `1` | Set `0` to return user counts from `/api/status` only to admins (the home "spaces" strip is then hidden for visitors). |
 
 Trakt OAuth notes (multi-user): one Trakt app registration per instance (client ID + redirect URI above — NO client secret: new Trakt apps sign users in with PKCE and receive no secret; a `PICTORIUM_TRAKT_CLIENT_SECRET` variable left over from an earlier version is ignored, remove it). Users connect their own Trakt account from Settings → Space; Pictorium imports only the watchlist and private standard lists, read-only (no writes, no history, Smart Lists unsupported — the app simply performs no writes). The redirect URI must be `https://` (PKCE rule): for local development register the HTTPS tunnel URL that serves the whole UI origin (both HTTPS callback URIs may stay registered). Never edit the live env file to rotate keys: set variables before start and restart. OAuth tokens are encrypted with `PROFILE_ENCRYPTION_KEY` on persistent storage (disk `/data` volume or KV); without persistence, connections are lost on restart. Disconnect deletes the local tokens (verified, fenced); the upstream revocation call is best-effort and currently unverified against official docs, so to guarantee the Trakt-side authorization is gone also remove the app under Trakt Settings → Applications (https://trakt.tv/settings/apps). If a file-backend lock is left orphaned, recover only with the service stopped — never delete a live lock.

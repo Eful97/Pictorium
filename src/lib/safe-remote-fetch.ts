@@ -36,16 +36,20 @@ export function isPrivateHost(hostname: string): boolean {
   if (isIpv4Literal(h)) {
     return (
       /^127\./.test(h) ||                          // loopback 127.0.0.0/8
-      h === "0.0.0.0" ||
+      /^0\./.test(h) ||                            // 0.0.0.0/8 "this network"
       h.startsWith("10.") ||                       // RFC 1918 10.0.0.0/8
       h.startsWith("192.168.") ||                  // RFC 1918 192.168.0.0/16
+      /^192\.0\.0\./.test(h) ||                    // 192.0.0.0/24 IETF protocol assignments
+      /^192\.88\.99\./.test(h) ||                  // 192.88.99.0/24 6to4 relay anycast
       /^172\.(1[6-9]|2\d|3[01])\./.test(h) ||      // RFC 1918 172.16.0.0/12
       /^169\.254\./.test(h) ||                     // link-local
       /^100\.(6[4-9]|[78]\d|9\d|1[01]\d|12[0-7])\./.test(h) || // CGNAT 100.64.0.0/10 (v1.23.0)
       /^198\.(18|19)\./.test(h) ||                 // benchmarking 198.18.0.0/15 (v1.23.0)
       h.startsWith("192.0.2.") ||                  // TEST-NET-1 (v1.23.0)
       h.startsWith("198.51.100.") ||               // TEST-NET-2 (v1.23.0)
-      h.startsWith("203.0.113.")                   // TEST-NET-3 (v1.23.0)
+      h.startsWith("203.0.113.") ||                // TEST-NET-3 (v1.23.0)
+      /^(22[4-9]|23\d)\./.test(h) ||               // multicast 224.0.0.0/4
+      /^(24\d|25[0-5])\./.test(h)                  // reserved 240.0.0.0/4 (incl. broadcast)
     )
   }
 
@@ -96,6 +100,7 @@ export function isPrivateIp(address: string): boolean {
     if (groups.slice(0, 7).every((g) => g === 0) && groups[7] === 1) return true // ::1
     if ((groups[0] & 0xfe00) === 0xfc00) return true // ULA fc00::/7
     if ((groups[0] & 0xffc0) === 0xfe80) return true // link-local fe80::/10
+    if ((groups[0] & 0xff00) === 0xff00) return true // multicast ff00::/8
     // IPv4-mapped: primi cinque gruppi a zero, sesto ffff, coda IPv4.
     if (groups.slice(0, 5).every((g) => g === 0) && groups[5] === 0xffff) {
       const v4 = `${groups[6] >> 8}.${groups[6] & 0xff}.${groups[7] >> 8}.${groups[7] & 0xff}`
@@ -281,7 +286,7 @@ export function hopSignal(hopTimeoutMs: number, deadlineMs: number): { signal: A
   return { deadline, signal }
 }
 
-export type SafeFetchDeniedReason = "allowlist" | "redirect-target" | "too-many-redirects"
+export type SafeFetchDeniedReason = "allowlist" | "redirect-target" | "private-target" | "too-many-redirects"
 
 /** Il fetch è stato rifiutato per policy (non per errore di rete). */
 export class SafeFetchDeniedError extends Error {
@@ -313,6 +318,28 @@ const DEFAULT_UA =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
 
 /**
+ * Rifiuta un target il cui hostname è già un letterale privato/loopback.
+ * È il check di HOP 0: la fetch DNS-pinned blocca gli IP risolti, ma un
+ * chiamante che dimentica il pre-check non deve poter raggiungere
+ * `http://127.0.0.1/...` o `http://localhost/...`. Nessuna risoluzione DNS qui
+ * (costo zero, e nessun test offline): i nomi DNS restano coperti dal
+ * `safeLookup` dell'Agent, che scarta gli IP privati alla connessione.
+ */
+function assertPublicLiteralTarget(rawUrl: string): void {
+  let hostname: string
+  try {
+    hostname = new URL(rawUrl).hostname
+  } catch {
+    throw new SafeFetchDeniedError("private-target", "Invalid target URL")
+  }
+  const h = hostname.toLowerCase().replace(/\.$/, "")
+  if (isPrivateHost(h)) {
+    log.warn("Blocked private target", { target: redactUrlForLog(rawUrl) })
+    throw new SafeFetchDeniedError("private-target", "Target is a private address")
+  }
+}
+
+/**
  * Esegue un fetch con redirect manuali, validando ogni destinazione.
  * Previene SSRF via redirect 302 verso IP privati. Il DNS pin (coppia
  * fetch/dispatcher undici) garantisce che ogni connessione usi solo indirizzi
@@ -328,6 +355,9 @@ export async function safeFetchRemote(
   let currentUrl = url
   let redirectCount = 0
   while (redirectCount <= maxRedirects) {
+    // Hop 0 incluso: un letterale privato/loopback viene rifiutato qui anche se
+    // il chiamante ha saltato il proprio pre-check (difesa in profondità).
+    assertPublicLiteralTarget(currentUrl)
     if (options.isAllowedUrl && !options.isAllowedUrl(new URL(currentUrl))) {
       log.warn("Blocked by allowlist", { target: redactUrlForLog(currentUrl) })
       throw new SafeFetchDeniedError("allowlist", "Target domain not allowed")
@@ -350,6 +380,10 @@ export async function safeFetchRemote(
     const location = res.headers.get("location")
     if (!location) return res
     const targetUrl = new URL(location, currentUrl).href
+    // Il body del 3xx non ci serve: cancellarlo rilascia subito la connessione
+    // (senza, undici tiene il socket finché il GC non la chiude) — ogni hop di
+    // redirect ne lascerebbe uno appeso.
+    await res.body?.cancel().catch(() => {})
     if (await resolveAndCheckBlocked(targetUrl)) {
       log.warn("Blocked SSRF redirect", { from: redactUrlForLog(currentUrl), to: redactUrlForLog(targetUrl) })
       throw new SafeFetchDeniedError("redirect-target", "Redirect to blocked target")

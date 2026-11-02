@@ -2,10 +2,7 @@ import { describe, expect, it, vi } from "vitest"
 import {
   POSTER_CACHE_ALLOWLIST,
   hardenPosterSearchParams,
-  isPresetsPosterMode,
-  isPreviewAuthRequired,
   isPreviewDowngraded,
-  isPublicPosterInstance,
 } from "@/lib/poster-params-hardening"
 import { normalizePosterCacheParams } from "@/lib/poster-runtime-cache"
 import { posterQuerySchema } from "@/lib/validation"
@@ -175,17 +172,54 @@ describe("hardenPosterSearchParams", () => {
 })
 
 describe("poster mode env wiring", () => {
-  it("auto-enables presets on public instances (setup forces PUBLIC_INSTANCE=1)", () => {
-    expect(isPublicPosterInstance()).toBe(true)
-    expect(isPresetsPosterMode()).toBe(true)
-  })
-
-  it("auto-enables preview auth on public instances (setup forces PUBLIC_INSTANCE=1)", () => {
-    expect(isPreviewAuthRequired()).toBe(true)
-  })
-
-  it("allows explicit PICTORIUM_PREVIEW_AUTH=0 override even on public instances", async () => {
+  it("auto-enables presets and preview auth on MULTI_USER=1", async () => {
     vi.resetModules()
+    vi.stubEnv("PICTORIUM_MULTI_USER", "1")
+    vi.stubEnv("MULTI_USER", "1")
+    const mod = await import("@/lib/poster-params-hardening")
+    expect(mod.isPublicPosterInstance()).toBe(true)
+    expect(mod.isPresetsPosterMode()).toBe(true)
+    expect(mod.isPreviewAuthRequired()).toBe(true)
+    vi.unstubAllEnvs()
+    vi.resetModules()
+  })
+
+  it("auto-enables presets and preview auth on HOSTED_BY=elfhosted", async () => {
+    vi.resetModules()
+    vi.stubEnv("PICTORIUM_HOSTED_BY", "elfhosted")
+    vi.stubEnv("HOSTED_BY", "elfhosted")
+    const mod = await import("@/lib/poster-params-hardening")
+    expect(mod.isPublicPosterInstance()).toBe(true)
+    expect(mod.isPresetsPosterMode()).toBe(true)
+    expect(mod.isPreviewAuthRequired()).toBe(true)
+    vi.unstubAllEnvs()
+    vi.resetModules()
+  })
+
+  it("ignores the removed PUBLIC_INSTANCE flag (no presets, no preview auth)", async () => {
+    vi.resetModules()
+    vi.stubEnv("PICTORIUM_PUBLIC_INSTANCE", "1")
+    vi.stubEnv("PUBLIC_INSTANCE", "1")
+    vi.stubEnv("PICTORIUM_HOSTED_BY", "")
+    vi.stubEnv("HOSTED_BY", "")
+    vi.stubEnv("PICTORIUM_MULTI_USER", "0")
+    vi.stubEnv("MULTI_USER", "0")
+    vi.stubEnv("PICTORIUM_POSTER_PARAMS", "")
+    vi.stubEnv("POSTER_PARAMS", "")
+    vi.stubEnv("PICTORIUM_PREVIEW_AUTH", "")
+    vi.stubEnv("PREVIEW_AUTH", "")
+    const mod = await import("@/lib/poster-params-hardening")
+    expect(mod.isPublicPosterInstance()).toBe(false)
+    expect(mod.isPresetsPosterMode()).toBe(false)
+    expect(mod.isPreviewAuthRequired()).toBe(false)
+    vi.unstubAllEnvs()
+    vi.resetModules()
+  })
+
+  it("allows explicit PICTORIUM_PREVIEW_AUTH=0 override even on a shared host", async () => {
+    vi.resetModules()
+    vi.stubEnv("PICTORIUM_MULTI_USER", "1")
+    vi.stubEnv("MULTI_USER", "1")
     vi.stubEnv("PICTORIUM_PREVIEW_AUTH", "0")
     vi.stubEnv("PREVIEW_AUTH", "0")
     const off = await import("@/lib/poster-params-hardening")
@@ -196,8 +230,6 @@ describe("poster mode env wiring", () => {
 
   it("disables preview auth on private instances unless explicitly forced", async () => {
     vi.resetModules()
-    vi.stubEnv("PICTORIUM_PUBLIC_INSTANCE", "0")
-    vi.stubEnv("PUBLIC_INSTANCE", "0")
     vi.stubEnv("PICTORIUM_HOSTED_BY", "")
     vi.stubEnv("HOSTED_BY", "")
     vi.stubEnv("PICTORIUM_MULTI_USER", "0")
@@ -277,5 +309,76 @@ describe("presets hardening: derived hints, rank, animerank, rsrc", () => {
   it("preview and presets off leave params untouched (WYSIWYG, private instances)", () => {
     expect(key("title=aaa", { preview: true })).toContain("title=aaa")
     expect(key("title=aaa", { presets: false })).toContain("title=aaa")
+  })
+})
+
+describe("presets hardening: canonicalized enum/inert keys", () => {
+  const key = (q: string) => normalizePosterCacheParams(hardenPosterSearchParams(new URLSearchParams(q), BASE)).toString()
+
+  it("sash: valid tokens canonicalized, garbage collapses onto absent", () => {
+    expect(key("sash=rank,new")).toBe("sash=rank%2Cnew")
+    expect(key("sash=rank,rank,NEW")).toBe("sash=rank%2Cnew")
+    expect(key("sash=bogus")).toBe(key(""))
+    expect(key("sash=bogus1")).toBe(key("sash=bogus2"))
+    // Vuoto esplicito = tutto spento (stato valido, non assente).
+    expect(key("sash=")).toBe("sash=")
+  })
+
+  it("formats: valid subset kept, all-garbage collapses onto the `none` sentinel", () => {
+    expect(key("formats=dv,atmos")).toBe("formats=dv%2Catmos")
+    expect(key("formats=dv, DV ,atmos,dv")).toBe("formats=dv%2Catmos")
+    expect(key("formats=none")).toBe("formats=none")
+    expect(key("formats=")).toBe(key("formats=none"))
+    expect(key("formats=bogus")).toBe(key("formats=none"))
+    expect(key("formats=bogus1,bogus2")).toBe(key("formats=bogus3"))
+  })
+
+  it("fmt/format: known aliases canonicalized, unknown collapses onto the default render", () => {
+    expect(key("fmt=webp")).toBe("fmt=webp")
+    expect(key("fmt=JPG")).toBe("fmt=jpeg")
+    expect(key("fmt=bogus")).toBe(key(""))
+    expect(key("fmt=bogus&format=webp")).toBe(key("")) // fmt present shadows format
+    expect(key("format=webp")).toBe("format=webp")
+    expect(key("format=bogus")).toBe(key(""))
+    expect(key("fmt=webp&format=bogus")).toBe("fmt=webp")
+  })
+
+  it("mv/rw are render-inert and never mint a cache entry", () => {
+    expect(key("mv=1784218530000")).toBe(key(""))
+    expect(key("mv=bogus")).toBe(key(""))
+    expect(key("rw=whatever")).toBe(key(""))
+  })
+
+  it("quality: canonical tiers kept (case-insensitive), anything else collapses onto the auto tier", () => {
+    // Legit tiers keep their render (canonical uppercase is the tier spelling).
+    expect(key("quality=4K")).toBe("quality=4K")
+    expect(key("quality=FHD")).toBe("quality=FHD")
+    // Case variants share ONE entry (`qmin` compares the canonical tier).
+    expect(key("quality=4k")).toBe(key("quality=4K"))
+    expect(key("quality=hd")).toBe(key("quality=HD"))
+    // Empty/garbage = auto-detected tier: exactly the render without `quality=`.
+    expect(key("quality=")).toBe(key(""))
+    expect(key("quality=bogus")).toBe(key(""))
+    expect(key("quality=ULTRA")).toBe(key(""))
+    expect(key("quality=bogus1")).toBe(key("quality=bogus2"))
+  })
+
+  it("lang: known tags kept verbatim, unknown tags collapse onto the fallback chain", () => {
+    // UI tags the editor/meta forward (incl. the UI-only variants) verbatim.
+    expect(key("lang=it")).toBe("lang=it")
+    expect(key("lang=es-419")).toBe("lang=es-419")
+    expect(key("lang=pt-br")).toBe("lang=pt-br")
+    // Explicit TMDB locales (manual URLs / logo tier aliases) verbatim.
+    expect(key("lang=it-IT")).toBe("lang=it-IT")
+    expect(key("lang=es-MX")).toBe("lang=es-MX")
+    expect(key("lang=pt-BR")).toBe("lang=pt-BR")
+    // Case variants share ONE entry.
+    expect(key("lang=IT")).toBe(key("lang=it"))
+    expect(key("lang=FR")).toBe(key("lang=fr"))
+    // Unknown = no lang (mapping > region fallback), never a distinct entry.
+    expect(key("lang=")).toBe(key(""))
+    expect(key("lang=zz")).toBe(key(""))
+    expect(key("lang=garbage!!")).toBe(key(""))
+    expect(key("lang=zz-garbage1")).toBe(key("lang=zz-garbage2"))
   })
 })

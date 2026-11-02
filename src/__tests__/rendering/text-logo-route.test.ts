@@ -202,7 +202,7 @@ describe("GET /api/poster text logo (mocked production route)", () => {
     `http://localhost:3000/api/poster/movie/44?poster=${poster}&badges=0&ranking=0&preview=1${extra}&api_key=test`
 
   it("renders the typed wordmark into the logo composite input", async () => {
-    const res = await GET(new NextRequest(previewUrl("&ltext=Dune&lfont=oswald")), {
+    const res = await GET(adminReq(previewUrl("&ltext=Dune&lfont=oswald")), {
       params: Promise.resolve({ type: "movie", id: "44" }),
     })
     expect(res.status).toBe(200)
@@ -218,7 +218,7 @@ describe("GET /api/poster text logo (mocked production route)", () => {
   })
 
   it("empty text keeps the historic no-logo render", async () => {
-    const res = await GET(new NextRequest(previewUrl("&ltext=%20%20")), {
+    const res = await GET(adminReq(previewUrl("&ltext=%20%20")), {
       params: Promise.resolve({ type: "movie", id: "44" }),
     })
     expect(res.status).toBe(200)
@@ -228,7 +228,7 @@ describe("GET /api/poster text logo (mocked production route)", () => {
   })
 
   it("unknown font falls back to the badge-font allowlist (inter)", async () => {
-    const res = await GET(new NextRequest(previewUrl("&ltext=Alien&lfont=bebas")), {
+    const res = await GET(adminReq(previewUrl("&ltext=Alien&lfont=bebas")), {
       params: Promise.resolve({ type: "movie", id: "44" }),
     })
     expect(res.status).toBe(200)
@@ -250,7 +250,7 @@ describe("GET /api/poster text logo (mocked production route)", () => {
       rankingBadges: false,
       updatedAt: "2026-01-01T00:00:00.000Z",
     } as never)
-    const res = await GET(new NextRequest(
+    const res = await GET(adminReq(
       "http://localhost:3000/api/poster/movie/44?badges=0&ranking=0&api_key=test",
     ), { params: Promise.resolve({ type: "movie", id: "44" }) })
     expect(res.status).toBe(200)
@@ -275,7 +275,7 @@ describe("GET /api/poster text logo (mocked production route)", () => {
       rankingBadges: false,
       updatedAt: "2026-01-01T00:00:00.000Z",
     } as never)
-    const res = await GET(new NextRequest(
+    const res = await GET(adminReq(
       "http://localhost:3000/api/poster/movie/44?badges=0&ranking=0&api_key=test",
     ), { params: Promise.resolve({ type: "movie", id: "44" }) })
     expect(res.status).toBe(200)
@@ -283,3 +283,10 @@ describe("GET /api/poster text logo (mocked production route)", () => {
     expect(lastInput().logoFetch).toBeNull()
   })
 })
+
+// Route admin fail-closed: le richieste di test presentano un ADMIN_TOKEN reale
+// (le preview restano live, come nell'editor con sessione sbloccata).
+const TEST_ADMIN_TOKEN = "route-tests-admin-token"
+process.env.ADMIN_TOKEN = TEST_ADMIN_TOKEN
+const adminReq = (url: string, init?: { headers?: Record<string, string> }) =>
+  new NextRequest(url, { ...init, headers: { ...(init?.headers ?? {}), "x-admin-token": TEST_ADMIN_TOKEN } })

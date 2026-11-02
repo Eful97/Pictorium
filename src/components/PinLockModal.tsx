@@ -81,7 +81,10 @@ export function PinLockModal({ onSuccess }: PinLockModalProps) {
         onSuccess()
       } else {
         const data = await res.json().catch(() => ({}))
-        setError(data.error || t("ui.pinLockWrong"))
+        // Credenziale errata: messaggio generico localizzato, niente oracolo
+        // su PIN numerico vs password.
+        const message = data.code === "pin_wrong" ? t("ui.pinLockWrong") : data.error || t("ui.pinLockWrong")
+        setError(message)
         setShake(true)
         setTimeout(() => setShake(false), 500)
         setPin("")
@@ -97,7 +100,9 @@ export function PinLockModal({ onSuccess }: PinLockModalProps) {
   }
 
   const handleKeyPress = (num: string) => {
-    if (pin.length < 8) {
+    // Keypad = comodità per i PIN numerici; il limite è il cap del segreto,
+    // così il tasto non resta muto dopo un prefisso alfanumerico.
+    if (pin.length < 128) {
       setPin((prev) => prev + num)
       setError(null)
     }
@@ -139,19 +144,25 @@ export function PinLockModal({ onSuccess }: PinLockModalProps) {
             ref={inputRef}
             id="pin-lock-input"
             type="password"
-            inputMode="numeric"
-            pattern="[0-9]*"
-            maxLength={8}
+            // Tastiera libera: un inputMode adattivo partirebbe numerico e su
+            // mobile renderebbe impossibile digitare una password. Il flusso
+            // PIN resta comodo grazie al tastierino qui sotto.
+            inputMode="text"
+            maxLength={128}
+            autoCapitalize="none"
+            autoCorrect="off"
+            spellCheck={false}
             value={pin}
             aria-invalid={error ? true : undefined}
             aria-describedby={error ? "pin-lock-subtitle pin-lock-error" : "pin-lock-subtitle"}
             onChange={(e) => {
-              const val = e.target.value.replace(/\D/g, "")
-              setPin(val)
+              // PIN o password: nessun filtro sui caratteri (il server è
+              // l'unica autorità sulla regola, i valori restano opachi).
+              setPin(e.target.value)
               setError(null)
             }}
             placeholder="••••"
-            // Numeric lock-screen PIN: LTR under RTL document.
+            // Credenziale LTR sotto documento RTL.
             dir="ltr"
             className="w-full text-center text-3xl font-mono tracking-[0.4em] py-3 px-4 rounded-2xl bg-black/40 border border-white/10 text-white placeholder-zinc-600 focus:outline-none focus:border-amber-500/50 transition-colors"
           />

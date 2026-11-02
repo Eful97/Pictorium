@@ -494,6 +494,10 @@ describe("trakt-auth server boundary (no token spread to clients)", () => {
     const cryptoAllowed = new Set([
       path.join("src", "lib", "profile-crypto.ts"),
       path.join("src", "lib", "user-keys.ts"),
+      // Instance API-key store (single-user deployments): same encrypted
+      // envelope as the namespace store, server-only like `user-keys.ts`
+      // (node:crypto/fs + KV imports already forbid any client use).
+      path.join("src", "lib", "instance-keys.ts"),
       path.join("src", "lib", "trakt-auth.ts"),
       path.join("src", "__tests__", "providers", "trakt-auth.test.ts"),
       // PKCE: the OAuth state store encrypts the per-initiation verifier at

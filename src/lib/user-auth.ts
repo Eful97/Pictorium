@@ -52,6 +52,11 @@ export function getMaxMappingsPerUser(): number {
  * Cap anti-Sybil sul numero di namespace (istanza pubblica): `0` o assente =
  * nessun limite (comportamento storico). Oltre il cap `POST /api/users`
  * risponde 429. Env `PICTORIUM_MAX_USERS` (legacy `POSTERIUM_MAX_USERS`).
+ *
+ * Il default resta illimitato di proposito: un cap implicito farebbe smettere
+ * di creare spazi a istanze esistenti che già lo superano (regressione non
+ * richiesta). Su un'istanza pubblica l'operatore imposta il valore in env
+ * (documentato in README/.env.example).
  */
 export function getMaxUsers(): number {
   const raw = envWithFallback("MAX_USERS")
@@ -387,6 +392,11 @@ export function invalidUserResponse(): Response {
  * senza token (DoS cross-user 1:1 sul bucket della vittima): con l'IP dentro,
  * l'attaccante brucia solo il proprio sotto-bucket e la quota legittima del
  * proprietario (stesso IP del suo browser) resta separata dagli IP altrui.
+ *
+ * CONTRATTO D'ORDINE: va usata solo dopo che `userExists` ha confermato il
+ * namespace. Un UUID arbitrario (inesistente) deve collassare sull'anonimo
+ * PRIMA del rate-limit, altrimenti ruotare `?u=` crea un bucket fresco a ogni
+ * richiesta e il limite è aggirabile (vedi poster route e catalog-handler).
  */
 export function userRateLimitKey(req: Request, userId: string): string {
   return `${rateLimitKey(req)}|user:${userId}`

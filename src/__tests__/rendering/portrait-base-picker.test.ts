@@ -119,9 +119,13 @@ async function router(input: unknown): Promise<Response> {
   throw new Error(`portrait-base-picker router: URL non gestito ${url.slice(0, 120)}`)
 }
 
+const TEST_ADMIN_TOKEN = "portrait-base-admin-token"
+
 async function getDebug(id: number, extra = ""): Promise<Record<string, unknown>> {
   const res = await posterGET(
-    new NextRequest(`http://localhost:3000/api/poster/movie/${id}?api_key=test&debug=1${extra}`),
+    new NextRequest(`http://localhost:3000/api/poster/movie/${id}?api_key=test&debug=1${extra}`, {
+      headers: { "x-admin-token": TEST_ADMIN_TOKEN },
+    }),
     { params: Promise.resolve({ type: "movie", id: String(id) }) },
   )
   expect(res.status).toBe(200)
@@ -148,6 +152,10 @@ const savedMapping = (overrides: Record<string, unknown> = {}) => ({
 
 beforeEach(async () => {
   cacheClear()
+  // Preview WYSIWYG live: la richiesta presenta l'admin token (sessione
+  // sbloccata), come l'editor reale; l'hardening sulle richieste anonime resta
+  // coperto dal caso dedicato (pbase anonimo senza preview).
+  process.env.ADMIN_TOKEN = TEST_ADMIN_TOKEN
   __resetTMDBSessionCache()
   __resetPosterRenderLimiter()
   __resetMdblistBreaker()
@@ -164,6 +172,7 @@ afterEach(() => {
   vi.mocked(getById).mockReset()
   vi.restoreAllMocks()
   cacheClear()
+  delete process.env.ADMIN_TOKEN
 })
 
 describe("pbase (base portrait scelta live)", () => {

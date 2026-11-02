@@ -154,7 +154,7 @@ export function usePosterFit(input: UsePosterFitInput): UsePosterFitResult {
             if (currentPathUuid()) {
               setError("Best-fit non disponibile: sblocca il tuo profilo per abilitare l'analisi automatica.")
             } else {
-              setError("Best-fit protetto: sblocca con il token admin (oppure imposta PICTORIUM_PUBLIC_INSTANCE=1 se istanza senza token).")
+              setError("Best-fit protetto: sblocca con il token admin (Impostazioni → Token admin).")
             }
           } else {
             setError(`Analisi best-fit fallita (HTTP ${res.status})`)

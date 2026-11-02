@@ -56,9 +56,9 @@ echo "[entrypoint] ============================================"
 # restart parte a freddo. Dopo il boot riscalda in background i poster più visti
 # (trending + JustWatch + mappings) così le griglie Stremio non soffrono il primo
 # burst a freddo. Disattivabile con PICTORIUM_SELF_WARMUP=0.
-# Auth: se un ADMIN_TOKEN è configurato la route warmup lo richiede; altrimenti
-# nessun header (istanza pubblica / dev: la route è fail-open). Il fallimento
-# del warmup non deve mai bloccare il boot.
+# Auth: la route warmup richiede x-warmup-token (se configurato) oppure un
+# ADMIN_TOKEN valido/PIN; senza credenziali risponde 401 (fail-closed) e il
+# self-warmup resta silenziosamente non eseguito. Mai bloccante per il boot.
 # ---------------------------------------------------------------------------
 WARMUP_ENABLED="${PICTORIUM_SELF_WARMUP:-${POSTERIUM_SELF_WARMUP:-1}}"
 if [ "$WARMUP_ENABLED" = "1" ]; then

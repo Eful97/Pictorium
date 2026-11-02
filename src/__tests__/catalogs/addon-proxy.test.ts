@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from "vitest"
+import { afterEach, describe, expect, it, vi } from "vitest"
 import { rewriteMetasPosters, rewriteSingleMetaPoster, proxyDefaultsSignature, type StremioItemMeta } from "@/lib/addon-proxy"
 import type { ServerDefaults } from "@/lib/server-defaults"
 import { resolveImdbToTmdb } from "@/lib/imdb-resolver"
@@ -129,12 +129,31 @@ describe("Addon Proxy Helpers", () => {
 describe("isAllowedByAllowlist (C3/A1 — POSTERIUM_PROXY_ALLOW_DOMAINS)", () => {
   afterEach(() => {
     delete process.env.POSTERIUM_PROXY_ALLOW_DOMAINS
+    delete process.env.PICTORIUM_PROXY_ALLOW_DOMAINS
+    delete process.env.PICTORIUM_PROXY_ALLOW_ANY
   })
 
-  it("allows everything when the env is unset or empty (default open)", () => {
-    expect(isAllowedByAllowlist(new URL("https://anything.example/x"))).toBe(true)
+  // Il setup globale simula un hosting condiviso (`PICTORIUM_HOSTED_BY=elfhosted`):
+  // senza allowlist esplicita il proxy è fail-closed.
+  it("denies arbitrary public hosts by default on a shared instance (open relay closed)", () => {
+    expect(isAllowedByAllowlist(new URL("https://anything.example/x"))).toBe(false)
     process.env.POSTERIUM_PROXY_ALLOW_DOMAINS = "  "
+    expect(isAllowedByAllowlist(new URL("https://anything.example/x"))).toBe(false)
+  })
+
+  it("opts back into an open relay only with an explicit PROXY_ALLOW_ANY=1", () => {
+    process.env.PICTORIUM_PROXY_ALLOW_ANY = "1"
     expect(isAllowedByAllowlist(new URL("https://anything.example/x"))).toBe(true)
+  })
+
+  it("keeps the legacy default-open behavior on a private (self-hosted) instance", async () => {
+    vi.resetModules()
+    vi.stubEnv("PICTORIUM_HOSTED_BY", "")
+    vi.stubEnv("PICTORIUM_MULTI_USER", "0")
+    const mod = await import("@/app/api/proxy/[...path]/route")
+    expect(mod.isAllowedByAllowlist(new URL("https://anything.example/x"))).toBe(true)
+    vi.unstubAllEnvs()
+    vi.resetModules()
   })
 
   it("allows an exact domain match and its subdomains", () => {

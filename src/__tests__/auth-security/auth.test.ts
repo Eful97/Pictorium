@@ -1,17 +1,15 @@
 import { describe, expect, it, beforeEach, afterEach } from "vitest"
 import { NextRequest } from "next/server"
-import { checkAdminToken, requireAdminToken, isSameOrigin } from "@/lib/auth"
+import { checkAdminToken, hasAdminTokenConfigured, requireAdminToken, isSameOrigin } from "@/lib/auth"
 
 const originalEnv = { ...process.env }
 
-// Regressione per il bug HF: senza ADMIN_TOKEN configurato, in produzione il
-// salvataggio poster (POST /api/mappings) era bloccato (fail-closed introdotto
-// in 415aad3) → 401 su HF Spaces dove il token non è mai impostato.
-// Il comportamento (da S1 + fix dev): senza token le route restano aperte in
-// modalità pubblica — esplicita (POSTERIUM_PUBLIC_INSTANCE=1) o dev locale
-// (NODE_ENV=development); in produzione senza flag restano fail-closed. Con
-// token configurato → fail-closed (header assente/errato → rifiutato).
-// Nota: setup.ts imposta POSTERIUM_PUBLIC_INSTANCE=1 come default per i test.
+// Fail-closed: senza ADMIN_TOKEN configurato, in produzione le route admin
+// rispondono 401. Le vecchie modalità "istanza pubblica" (PICTORIUM_PUBLIC_INSTANCE
+// / POSTERIUM_PUBLIC_INSTANCE) sono state RIMOSSE: se presenti vengono ignorate
+// come se non esistessero, senza aprire nulla. Resta l'eccezione dev locale
+// (NODE_ENV=development su loopback o con ALLOW_DEV_ADMIN=1) e la sessione PIN.
+// Con token configurato → fail-closed (header assente/errato → rifiutato).
 describe("checkAdminToken", () => {
   beforeEach(() => {
     delete process.env.POSTERIUM_ADMIN_TOKEN
@@ -22,20 +20,27 @@ describe("checkAdminToken", () => {
     process.env = { ...originalEnv }
   })
 
-  it("allows requests in production with POSTERIUM_PUBLIC_INSTANCE=1 (public instance, HF Spaces)", () => {
+  it("ignores the legacy POSTERIUM_PUBLIC_INSTANCE=1 in production (fail-closed)", () => {
     Object.assign(process.env, { NODE_ENV: "production", POSTERIUM_PUBLIC_INSTANCE: "1" })
-    const req = new NextRequest("http://localhost:3000/api/mappings", { method: "POST" })
-    expect(checkAdminToken(req)).toBe(true)
-  })
-
-  it("rejects without ADMIN_TOKEN and without the public-instance flag (fail-closed)", () => {
-    Object.assign(process.env, { NODE_ENV: "production" })
-    delete process.env.POSTERIUM_PUBLIC_INSTANCE
     const req = new NextRequest("http://localhost:3000/api/mappings", { method: "POST" })
     expect(checkAdminToken(req)).toBe(false)
   })
 
-  it("rejects a non-1 value for POSTERIUM_PUBLIC_INSTANCE", () => {
+  it("ignores the legacy PICTORIUM_PUBLIC_INSTANCE=1 in production (fail-closed)", () => {
+    Object.assign(process.env, { NODE_ENV: "production", PICTORIUM_PUBLIC_INSTANCE: "1" })
+    const req = new NextRequest("http://localhost:3000/api/mappings", { method: "POST" })
+    expect(checkAdminToken(req)).toBe(false)
+  })
+
+  it("rejects without ADMIN_TOKEN and without any instance flag (fail-closed)", () => {
+    Object.assign(process.env, { NODE_ENV: "production" })
+    delete process.env.POSTERIUM_PUBLIC_INSTANCE
+    delete process.env.PICTORIUM_PUBLIC_INSTANCE
+    const req = new NextRequest("http://localhost:3000/api/mappings", { method: "POST" })
+    expect(checkAdminToken(req)).toBe(false)
+  })
+
+  it("ignores a non-1 value for the removed legacy flag", () => {
     Object.assign(process.env, { NODE_ENV: "production", POSTERIUM_PUBLIC_INSTANCE: "true" })
     const req = new NextRequest("http://localhost:3000/api/mappings", { method: "POST" })
     expect(checkAdminToken(req)).toBe(false)
@@ -99,12 +104,12 @@ describe("checkAdminToken", () => {
     expect(res.status).toBe(401)
   })
 
-  it("allows GET /api/mappings on a public instance (flag set, no token)", async () => {
+  it("ignores the legacy public-instance flag on GET /api/mappings (401 without token)", async () => {
     process.env.POSTERIUM_PUBLIC_INSTANCE = "1"
     const req = new NextRequest("http://localhost:3000/api/mappings", { method: "GET" })
     const { GET } = await import("@/app/api/mappings/route")
     const res = await GET(req)
-    expect(res.status).toBe(200)
+    expect(res.status).toBe(401)
   })
 
   it("rejects GET /api/mappings/export without token on a protected instance", async () => {
@@ -126,8 +131,8 @@ describe("requireAdminToken (fail-closed)", () => {
     process.env = { ...originalEnv }
   })
 
-  it("rejects when no token is configured (even on a public instance)", () => {
-    Object.assign(process.env, { NODE_ENV: "production" })
+  it("rejects when no token is configured (legacy instance flags are ignored)", () => {
+    Object.assign(process.env, { NODE_ENV: "production", PICTORIUM_PUBLIC_INSTANCE: "1" })
     const req = new NextRequest("http://localhost:3000/api/mappings", { method: "DELETE" })
     expect(requireAdminToken(req)).toBe(false)
   })
@@ -156,12 +161,71 @@ describe("requireAdminToken (fail-closed)", () => {
     expect(requireAdminToken(req)).toBe(false)
   })
 
-  it("rejects DELETE /api/mappings (wipe-all) without token on a public instance", async () => {
-    Object.assign(process.env, { NODE_ENV: "production" })
+  it("rejects DELETE /api/mappings (wipe-all) without token even with the legacy flag", async () => {
+    Object.assign(process.env, { NODE_ENV: "production", POSTERIUM_PUBLIC_INSTANCE: "1" })
     const req = new NextRequest("http://localhost:3000/api/mappings", { method: "DELETE" })
     const { DELETE } = await import("@/app/api/mappings/route")
     const res = await DELETE(req)
     expect(res.status).toBe(401)
+  })
+})
+
+// Defect: `PICTORIUM_ADMIN_TOKEN=""` (definita ma vuota, come materializzato da
+// docker-compose) oscurava un `POSTERIUM_ADMIN_TOKEN` legacy reale —
+// resolveAdminToken tornava undefined → card "Token admin" nascosta e
+// checkAdminToken senza token. Regola: prima variabile NON VUOTA vince.
+describe("resolveAdminToken (prima variabile non vuota)", () => {
+  beforeEach(() => {
+    delete process.env.PICTORIUM_ADMIN_TOKEN
+    delete process.env.POSTERIUM_ADMIN_TOKEN
+    delete process.env.ADMIN_TOKEN
+  })
+
+  afterEach(() => {
+    process.env = { ...originalEnv }
+  })
+
+  const reqWithToken = (token: string) =>
+    new NextRequest("http://localhost:3000/api/mappings", {
+      method: "POST",
+      headers: { "x-admin-token": token },
+    })
+
+  it("canonico definito ma vuoto: il legacy configurato resta attivo", () => {
+    process.env.PICTORIUM_ADMIN_TOKEN = ""
+    process.env.POSTERIUM_ADMIN_TOKEN = "legacy"
+    expect(hasAdminTokenConfigured()).toBe(true)
+    expect(checkAdminToken(reqWithToken("legacy"))).toBe(true)
+  })
+
+  it("canonico di soli spazi vale come vuoto e non diventa il token", () => {
+    process.env.PICTORIUM_ADMIN_TOKEN = "   "
+    process.env.POSTERIUM_ADMIN_TOKEN = "legacy"
+    expect(hasAdminTokenConfigured()).toBe(true)
+    expect(checkAdminToken(reqWithToken("legacy"))).toBe(true)
+    expect(checkAdminToken(reqWithToken("   "))).toBe(false)
+  })
+
+  it("canonico non vuoto vince comunque sul legacy", () => {
+    process.env.PICTORIUM_ADMIN_TOKEN = "canonical"
+    process.env.POSTERIUM_ADMIN_TOKEN = "legacy"
+    expect(checkAdminToken(reqWithToken("canonical"))).toBe(true)
+    expect(checkAdminToken(reqWithToken("legacy"))).toBe(false)
+  })
+
+  it("ADMIN_TOKEN nudo resta l'ultimo fallback (prefissati vuoti)", () => {
+    process.env.PICTORIUM_ADMIN_TOKEN = ""
+    process.env.POSTERIUM_ADMIN_TOKEN = "  "
+    process.env.ADMIN_TOKEN = "bare"
+    expect(hasAdminTokenConfigured()).toBe(true)
+    expect(checkAdminToken(reqWithToken("bare"))).toBe(true)
+  })
+
+  it("vuoto ovunque: nessun token (fail-closed preservato)", () => {
+    process.env.PICTORIUM_ADMIN_TOKEN = ""
+    process.env.POSTERIUM_ADMIN_TOKEN = ""
+    expect(hasAdminTokenConfigured()).toBe(false)
+    expect(requireAdminToken(reqWithToken("anything"))).toBe(false)
   })
 })
 

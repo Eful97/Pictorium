@@ -83,12 +83,22 @@ export const DEFAULT_RANKING_BADGE_STYLE: RankingBadgeStyle = "default"
  * A/V mark as separate glyph runs joined by 0.45-opacity dot separators —
  * the whole quality group renders as a single bitmap/SVG instead of a
  * vertical stack; same identities and anchor/scale/offset chain, so per-item
- * report boxes keep working).
+ * report boxes keep working) or
+ * "naked" (FULL GROUP with NO plate: the tier and the DEFAULT age pill reuse
+ * the standard text box geometry with the rect/gradient removed and dynamic
+ * ink inverted against the background polarity — black on a light top, white
+ * on a dark top — plus ONE dedicated light drop shadow
+ * (`QUALITY_NAKED_SHADOW_FILTER`, id `qks`: dx0 / dy1 / blur2 / alpha0.35)
+ * applied to the glyph group only, so box corners stay transparent; NO halo,
+ * and `TOP_SHADOW_FILTER` is NOT used. A/V marks render bare through the
+ * existing icon path (polarity ink, no frame/plate). An explicit non-standard
+ * `agebs` still wins and keeps its own material; `naked` is NOT an
+ * `AGE_BADGE_STYLES` value, so no `agebs=naked` exists).
  * Additive: never replaces an existing style, no format/asset of its own.
  * Chain like the other styles: `qbs` query > per-title mapping >
  * config token > server defaults.
  */
-export const QUALITY_BADGE_STYLES = ["standard", "mono", "color", "knockout", "premium", "nova", "gradient", "outline", "strip"] as const
+export const QUALITY_BADGE_STYLES = ["standard", "mono", "color", "knockout", "premium", "nova", "gradient", "outline", "strip", "naked"] as const
 export type QualityBadgeStyle = (typeof QUALITY_BADGE_STYLES)[number]
 
 export const DEFAULT_QUALITY_BADGE_STYLE: QualityBadgeStyle = "standard"

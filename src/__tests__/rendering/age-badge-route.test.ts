@@ -274,7 +274,7 @@ describe("GET /api/poster age badge (mocked production route)", () => {
 
   it("movie enabled IT resolves the same-country label with bounded signal fetch", async () => {
     mockedGetReleaseDates.mockResolvedValue(movieReleaseDatesIT() as never)
-    const res = await GET(new NextRequest(movieUrl("&age=1&agecountry=IT&debug=1")), {
+    const res = await GET(adminReq(movieUrl("&age=1&agecountry=IT&debug=1")), {
       params: Promise.resolve({ type: "movie", id: "44" }),
     })
     expect(res.status).toBe(200)
@@ -298,7 +298,7 @@ describe("GET /api/poster age badge (mocked production route)", () => {
 
   it("tv enabled US resolves content_ratings without touching release_dates", async () => {
     mockedGetContentRatings.mockResolvedValue(tvContentRatingsUS() as never)
-    const res = await GET(new NextRequest(tvUrl("&age=1&agecountry=US&debug=1")), {
+    const res = await GET(adminReq(tvUrl("&age=1&agecountry=US&debug=1")), {
       params: Promise.resolve({ type: "tv", id: "1399" }),
     })
     expect(res.status).toBe(200)
@@ -324,7 +324,7 @@ describe("GET /api/poster age badge (mocked production route)", () => {
         { iso_3166_1: "US", release_dates: [{ certification: "PG-13", release_date: "2024-01-10T00:00:00.000Z", type: 3 }] },
       ],
     } as never)
-    const debug = await GET(new NextRequest(movieUrl("&age=1&agecountry=IT&debug=1")), {
+    const debug = await GET(adminReq(movieUrl("&age=1&agecountry=IT&debug=1")), {
       params: Promise.resolve({ type: "movie", id: "44" }),
     })
     expect(debug.status).toBe(200)
@@ -333,7 +333,7 @@ describe("GET /api/poster age badge (mocked production route)", () => {
     expect(body.age.degraded).toBe(false)
     // Stable canonical render: full cache policy, never the ephemeral 120s retry TTL.
     armMapping("movie", 44)
-    const render = await GET(new NextRequest(mappedUrl("movie", 44, "&age=1&agecountry=IT")), {
+    const render = await GET(adminReq(mappedUrl("movie", 44, "&age=1&agecountry=IT")), {
       params: Promise.resolve({ type: "movie", id: "44" }),
     })
     expect(render.status).toBe(200)
@@ -341,7 +341,7 @@ describe("GET /api/poster age badge (mocked production route)", () => {
   })
 
   it("default OFF performs zero extra age network (historical output unchanged)", async () => {
-    const res = await GET(new NextRequest(movieUrl("&debug=1")), {
+    const res = await GET(adminReq(movieUrl("&debug=1")), {
       params: Promise.resolve({ type: "movie", id: "44" }),
     })
     expect(res.status).toBe(200)
@@ -354,7 +354,7 @@ describe("GET /api/poster age badge (mocked production route)", () => {
 
   it("master badges=0 hides age with zero extra age network", async () => {
     mockedGetReleaseDates.mockResolvedValue(movieReleaseDatesIT() as never)
-    const res = await GET(new NextRequest(
+    const res = await GET(adminReq(
       "http://localhost:3000/api/poster/movie/44?poster=%2Fq.jpg&imdbId=tt0000044&badges=0&ranking=0&preview=1&age=1&agecountry=IT&api_key=test",
     ), {
       params: Promise.resolve({ type: "movie", id: "44" }),
@@ -373,7 +373,7 @@ describe("GET /api/poster age badge (mocked production route)", () => {
 
   it("age enabled passes the label to the production renderer (master ON)", async () => {
     mockedGetReleaseDates.mockResolvedValue(movieReleaseDatesIT() as never)
-    const res = await GET(new NextRequest(movieUrl("&age=1&agecountry=IT")), {
+    const res = await GET(adminReq(movieUrl("&age=1&agecountry=IT")), {
       params: Promise.resolve({ type: "movie", id: "44" }),
     })
     expect(res.status).toBe(200)
@@ -386,7 +386,7 @@ describe("GET /api/poster age badge (mocked production route)", () => {
 
   it("agebs=knockout resolves the knockout style end-to-end (debug + renderer input)", async () => {
     mockedGetReleaseDates.mockResolvedValue(movieReleaseDatesIT() as never)
-    const debug = await GET(new NextRequest(movieUrl("&age=1&agecountry=IT&agebs=knockout&debug=1")), {
+    const debug = await GET(adminReq(movieUrl("&age=1&agecountry=IT&agebs=knockout&debug=1")), {
       params: Promise.resolve({ type: "movie", id: "44" }),
     })
     expect(debug.status).toBe(200)
@@ -395,7 +395,7 @@ describe("GET /api/poster age badge (mocked production route)", () => {
     expect(body.age.label).toBe("VM14")
     // The debug branch returns before compositing: a real render request
     // carries the resolved style into the production renderer input.
-    const render = await GET(new NextRequest(movieUrl("&age=1&agecountry=IT&agebs=knockout")), {
+    const render = await GET(adminReq(movieUrl("&age=1&agecountry=IT&agebs=knockout")), {
       params: Promise.resolve({ type: "movie", id: "44" }),
     })
     expect(render.status).toBe(200)
@@ -407,17 +407,17 @@ describe("GET /api/poster age badge (mocked production route)", () => {
 
   it("default age style is standard and invalid agebs collapses to it", async () => {
     mockedGetReleaseDates.mockResolvedValue(movieReleaseDatesIT() as never)
-    const plain = await GET(new NextRequest(movieUrl("&age=1&agecountry=IT&debug=1")), {
+    const plain = await GET(adminReq(movieUrl("&age=1&agecountry=IT&debug=1")), {
       params: Promise.resolve({ type: "movie", id: "44" }),
     })
     expect(plain.status).toBe(200)
     expect((await plain.json()).age.style).toBe("standard")
-    const garbage = await GET(new NextRequest(movieUrl("&age=1&agecountry=IT&agebs=garbage&debug=1")), {
+    const garbage = await GET(adminReq(movieUrl("&age=1&agecountry=IT&agebs=garbage&debug=1")), {
       params: Promise.resolve({ type: "movie", id: "44" }),
     })
     expect(garbage.status).toBe(200)
     expect((await garbage.json()).age.style).toBe("standard")
-    const render = await GET(new NextRequest(movieUrl("&age=1&agecountry=IT&agebs=garbage")), {
+    const render = await GET(adminReq(movieUrl("&age=1&agecountry=IT&agebs=garbage")), {
       params: Promise.resolve({ type: "movie", id: "44" }),
     })
     expect(render.status).toBe(200)
@@ -429,12 +429,12 @@ describe("GET /api/poster age badge (mocked production route)", () => {
   it("passes the additive age styles to the single renderer", async () => {
     mockedGetReleaseDates.mockResolvedValue(movieReleaseDatesIT() as never)
     for (const style of ["mono", "color", "premium"] as const) {
-      const debug = await GET(new NextRequest(movieUrl(`&age=1&agecountry=IT&agebs=${style}&debug=1`)), {
+      const debug = await GET(adminReq(movieUrl(`&age=1&agecountry=IT&agebs=${style}&debug=1`)), {
         params: Promise.resolve({ type: "movie", id: "44" }),
       })
       expect(debug.status, style).toBe(200)
       expect((await debug.json()).age.style, style).toBe(style)
-      const render = await GET(new NextRequest(movieUrl(`&age=1&agecountry=IT&agebs=${style}`)), {
+      const render = await GET(adminReq(movieUrl(`&age=1&agecountry=IT&agebs=${style}`)), {
         params: Promise.resolve({ type: "movie", id: "44" }),
       })
       expect(render.status, style).toBe(200)
@@ -446,7 +446,7 @@ describe("GET /api/poster age badge (mocked production route)", () => {
 
   it("network failure degrades to the ephemeral 120s TTL (fail-open, retried soon)", async () => {
     mockedGetReleaseDates.mockRejectedValue(new Error("upstream boom"))
-    const debug = await GET(new NextRequest(movieUrl("&age=1&agecountry=IT&debug=1")), {
+    const debug = await GET(adminReq(movieUrl("&age=1&agecountry=IT&debug=1")), {
       params: Promise.resolve({ type: "movie", id: "44" }),
     })
     expect(debug.status).toBe(200)
@@ -456,7 +456,7 @@ describe("GET /api/poster age badge (mocked production route)", () => {
     expect(body.age.degraded).toBe(true)
     // Canonical render carries the ephemeral retry TTL, never the full one.
     armMapping("movie", 44)
-    const render = await GET(new NextRequest(mappedUrl("movie", 44, "&age=1&agecountry=IT")), {
+    const render = await GET(adminReq(mappedUrl("movie", 44, "&age=1&agecountry=IT")), {
       params: Promise.resolve({ type: "movie", id: "44" }),
     })
     expect(render.status).toBe(200)
@@ -478,7 +478,7 @@ describe("GET /api/poster age badge (mocked production route)", () => {
         },
       ],
     } as never)
-    const res = await GET(new NextRequest(movieUrl("&age=1&agecountry=IT&pre=1&debug=1")), {
+    const res = await GET(adminReq(movieUrl("&age=1&agecountry=IT&pre=1&debug=1")), {
       params: Promise.resolve({ type: "movie", id: "44" }),
     })
     expect(res.status).toBe(200)
@@ -490,3 +490,10 @@ describe("GET /api/poster age badge (mocked production route)", () => {
     expect(mockedGetReleaseDates).toHaveBeenCalled()
   })
 })
+
+// Route admin fail-closed: le richieste di test presentano un ADMIN_TOKEN reale
+// (le preview restano live, come nell'editor con sessione sbloccata).
+const TEST_ADMIN_TOKEN = "route-tests-admin-token"
+process.env.ADMIN_TOKEN = TEST_ADMIN_TOKEN
+const adminReq = (url: string, init?: { headers?: Record<string, string> }) =>
+  new NextRequest(url, { ...init, headers: { ...(init?.headers ?? {}), "x-admin-token": TEST_ADMIN_TOKEN } })

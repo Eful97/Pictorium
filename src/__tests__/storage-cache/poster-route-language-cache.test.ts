@@ -319,3 +319,92 @@ describe("GET /api/poster session cache language isolation (Phase 2)", () => {
     expect(mockedGetDetails.mock.calls.length).toBe(itCalls + frCalls.length)
   })
 })
+
+// `quality`/`lang` are render inputs AND cache-key inputs: the canonical value
+// must reach both, otherwise a garbage tag either mints a separate entry for
+// identical pixels or (worse, if only the key were rewritten) stores its own
+// pixels under the canonical key and repaints every clean request.
+describe("quality/lang canonical values: cache key and render never diverge", () => {
+  const BASE = "http://localhost:3000/api/poster/movie/909?api_key=k&logoFit=0"
+  const render = (qs: string, headers?: Record<string, string>) =>
+    GET(new NextRequest(`${BASE}${qs}`, headers ? { headers } : undefined), {
+      params: Promise.resolve({ type: "movie", id: "909" }),
+    })
+
+  beforeEach(() => {
+    vi.restoreAllMocks()
+    mockedGetDetailsWithExternalIds.mockClear()
+    mockedGetImages.mockClear()
+    mockedGetDetails.mockClear()
+    vi.mocked(fetchAggregatedRating).mockReset().mockResolvedValue(null)
+    cacheClear()
+    __resetTMDBSessionCache()
+  })
+
+  afterEach(() => {
+    cacheClear()
+    __resetTMDBSessionCache()
+    vi.unstubAllGlobals()
+  })
+
+  async function setup() {
+    const poster = await imageBuffer()
+    vi.spyOn(globalThis, "fetch").mockImplementation(async () => new Response(new Uint8Array(poster), {
+      headers: { "content-type": "image/png" },
+    }))
+    vi.mocked(getAll).mockResolvedValue([])
+    vi.mocked(getById).mockResolvedValue(null)
+    vi.mocked(getImdbAlias).mockResolvedValue(null)
+    vi.mocked(getExternalIds).mockResolvedValue({ imdb_id: null })
+  }
+
+  it("garbage lang+quality render the canonical poster and share its cache entry", async () => {
+    await setup()
+    const garbage = await render("&lang=zz-garbage!&quality=bogus")
+    expect(garbage.status).toBe(200)
+    const garbageEtag = garbage.headers.get("etag")
+    const garbageBytes = Buffer.from(await garbage.arrayBuffer())
+    expect(garbageEtag).toBeTruthy()
+
+    // Same canonical key: identical ETag (the ETag is the cache-key hash).
+    const clean = await render("")
+    expect(clean.status).toBe(200)
+    expect(clean.headers.get("etag")).toBe(garbageEtag)
+    expect(Buffer.from(await clean.arrayBuffer()).equals(garbageBytes)).toBe(true)
+
+    // No cross-request poisoning: the clean request is served from the entry
+    // the garbage request wrote (304 on its ETag, no second render).
+    cacheClear()
+    const warm = await render("&lang=zz-garbage!&quality=bogus")
+    expect(warm.status).toBe(200)
+    const warmEtag = warm.headers.get("etag")
+    const conditional = await render("", { "if-none-match": warmEtag! })
+    expect(conditional.status).toBe(304)
+
+    // Render side: the canonical fallbacks, never the garbage labels.
+    expect((await getDebug(`${BASE}&lang=zz-garbage!&debug=1`)).logoSelection.requestedLang).toBe("it")
+    // Under the old raw reads the badge painted the query text verbatim.
+    expect((await getDebug(`${BASE}&quality=bogus&debug=1`)).quality.value).toBeNull()
+  })
+
+  it("legit quality tiers and languages keep their render and one entry per tier/tag", async () => {
+    await setup()
+    // Canonical case variants share one entry (same ETag = same cache key).
+    const upper = await render("&quality=4K")
+    const lower = await render("&quality=4k")
+    expect((await getDebug(`${BASE}&quality=4K&debug=1`)).quality.value).toBe("4K")
+    expect((await getDebug(`${BASE}&quality=4k&debug=1`)).quality.value).toBe("4K")
+    expect(lower.headers.get("etag")).toBe(upper.headers.get("etag"))
+
+    const fr = await render("&lang=fr")
+    const frUpper = await render("&lang=FR")
+    expect(frUpper.headers.get("etag")).toBe(fr.headers.get("etag"))
+    expect((await getDebug(`${BASE}&lang=fr&debug=1`)).logoSelection.requestedLang).toBe("fr")
+    expect((await getDebug(`${BASE}&lang=FR&debug=1`)).logoSelection.requestedLang).toBe("fr")
+
+    // A different language stays a different render/entry (no over-collapse).
+    const it = await render("&lang=it")
+    expect((await getDebug(`${BASE}&lang=it&debug=1`)).logoSelection.requestedLang).toBe("it")
+    expect(it.headers.get("etag")).not.toBe(fr.headers.get("etag"))
+  })
+})

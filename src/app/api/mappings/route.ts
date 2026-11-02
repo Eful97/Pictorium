@@ -9,7 +9,7 @@ import { checkUserAuth, getScopedUserId, extractUserParam, invalidUserResponse, 
 import { getWarmupCatalogs } from "@/lib/catalog-definitions"
 import { getServerDefaults } from "@/lib/server-defaults"
 import { buildStremioPosterUrl } from "@/lib/stremio-poster-url"
-import { resolveRequestApiKey } from "@/lib/tmdb"
+import { resolveRouteApiKey } from "@/lib/tmdb"
 import { createLogger } from "@/lib/logger"
 import { readJsonBody, BodyTooLargeError, DEFAULT_MAX_BODY_BYTES } from "@/lib/read-body"
 
@@ -163,7 +163,7 @@ export async function POST(req: NextRequest) {
     // key `aknone` che nessuna richiesta reale riusa. La chiave viaggia
     // nell'header x-api-key (policy di tmdb.ts) e non nella query string,
     // anche se il self-fetch è su loopback: così l'URL resta pulito nei log.
-    const requestApiKey = resolveRequestApiKey(req)
+    const requestApiKey = await resolveRouteApiKey(req)
     const warmHeaders: HeadersInit | undefined = requestApiKey ? { "x-api-key": requestApiKey } : undefined
     for (const catalog of getWarmupCatalogs()) {
       const catalogUrl = `${internalOrigin}/catalog/${catalog.type}/${catalog.id}.json`

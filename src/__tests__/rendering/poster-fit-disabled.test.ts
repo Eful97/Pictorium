@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from "vitest"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { NextRequest } from "next/server"
 
 // Override globale disabilitato: simula POSTERIUM_BEST_FIT_ENABLED=0 (hoisted,
@@ -8,22 +8,27 @@ vi.mock("@/lib/best-fit-config", () => ({ BEST_FIT_GLOBAL: "off" }))
 
 import { POST } from "@/app/api/poster-fit/route"
 
+const TEST_ADMIN_TOKEN = "poster-fit-off-token"
+
 function mockNextRequest(body: unknown): NextRequest {
   return new NextRequest("http://localhost:3000/api/poster-fit", {
     method: "POST",
-    headers: { "content-type": "application/json" },
+    headers: { "content-type": "application/json", "x-admin-token": TEST_ADMIN_TOKEN },
     body: JSON.stringify(body),
   })
 }
 
 describe("POST /api/poster-fit — POSTERIUM_BEST_FIT_ENABLED=off", () => {
+  beforeEach(() => {
+    process.env.POSTERIUM_ADMIN_TOKEN = TEST_ADMIN_TOKEN
+  })
+
   afterEach(() => {
-    delete process.env.POSTERIUM_PUBLIC_INSTANCE
+    delete process.env.POSTERIUM_ADMIN_TOKEN
     vi.restoreAllMocks()
   })
 
   it("risponde with disabled=true senza calcolare lo scoring né fetchare immagini", async () => {
-    process.env.POSTERIUM_PUBLIC_INSTANCE = "1"
     const fetchSpy = vi.fn()
     vi.stubGlobal("fetch", fetchSpy)
 

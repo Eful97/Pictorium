@@ -22,16 +22,21 @@ async function makeLogoBuffer(r: number, g: number, b: number): Promise<Buffer> 
   return sharp(data, { raw: { width: 200, height: 80, channels: 4 } }).png().toBuffer()
 }
 
+const TEST_ADMIN_TOKEN = "poster-fit-test-token"
+
 function mockNextRequest(body: unknown): NextRequest {
   return new NextRequest("http://localhost:3000/api/poster-fit", {
     method: "POST",
-    headers: { "content-type": "application/json" },
+    headers: { "content-type": "application/json", "x-admin-token": TEST_ADMIN_TOKEN },
     body: JSON.stringify(body),
   })
 }
 
 describe("POST /api/poster-fit", () => {
   beforeEach(() => {
+    // Le route admin sono fail-closed: il test presenta un ADMIN_TOKEN reale
+    // (nessun bypass implicito). Ogni test auth-specifico lo sovrascrive.
+    process.env.POSTERIUM_ADMIN_TOKEN = TEST_ADMIN_TOKEN
     // La byte-cache è globale al processo: senza reset, un test che riusa gli
     // stessi path non toccherebbe la fetch stubbata e le asserzioni sugli URL
     // fallirebbero (stesso pattern di cacheClear negli altri file).
@@ -39,6 +44,7 @@ describe("POST /api/poster-fit", () => {
   })
 
   afterEach(() => {
+    delete process.env.POSTERIUM_ADMIN_TOKEN
     vi.restoreAllMocks()
   })
 
@@ -93,7 +99,7 @@ describe("POST /api/poster-fit", () => {
   it("returns 400 for invalid JSON", async () => {
     const req = new NextRequest("http://localhost:3000/api/poster-fit", {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers: { "content-type": "application/json", "x-admin-token": TEST_ADMIN_TOKEN },
       body: "not json",
     })
     const res = await POST(req)
@@ -244,7 +250,8 @@ describe("POST /api/poster-fit — auth (S10)", () => {
   afterEach(() => {
     delete process.env.POSTERIUM_ADMIN_TOKEN
     delete process.env.ADMIN_TOKEN
-    process.env.POSTERIUM_PUBLIC_INSTANCE = "1"
+    delete process.env.POSTERIUM_PUBLIC_INSTANCE
+    delete process.env.PICTORIUM_PUBLIC_INSTANCE
     vi.restoreAllMocks()
   })
 
@@ -255,13 +262,17 @@ describe("POST /api/poster-fit — auth (S10)", () => {
     expect(res.status).toBe(401)
   })
 
-  it("returns 401 in production without POSTERIUM_PUBLIC_INSTANCE (fail-closed, caso HF/Vercel)", async () => {
-    // Regressione: in locale (NODE_ENV=development) le route admin sono aperte,
-    // ma in produzione senza POSTERIUM_PUBLIC_INSTANCE=1 (o ADMIN_TOKEN) il
-    // best-fit UI risponde 401 → l'editor non mostra il poster migliore.
-    delete process.env.POSTERIUM_PUBLIC_INSTANCE
+  it("returns 401 in production without ADMIN_TOKEN, even with the legacy public-instance flag", async () => {
+    // Regressione fail-closed: il vecchio bypass PUBLIC_INSTANCE è rimosso e
+    // ignorato → senza ADMIN_TOKEN (e senza PIN) il best-fit resta 401.
+    process.env.POSTERIUM_PUBLIC_INSTANCE = "1"
+    process.env.PICTORIUM_PUBLIC_INSTANCE = "1"
     vi.stubEnv("NODE_ENV", "production")
-    const req = mockNextRequest({ posterPaths: ["/test.jpg"], logoPath: "/logo.png" })
+    const req = new NextRequest("http://localhost:3000/api/poster-fit", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ posterPaths: ["/test.jpg"], logoPath: "/logo.png" }),
+    })
     const res = await POST(req)
     expect(res.status).toBe(401)
   })

@@ -34,12 +34,12 @@ describe("POST /api/warmup — TMDB key forwarding to poster self-fetch", () => 
   beforeEach(() => {
     fetchSpy.mockClear()
     fetchSpy.mockResolvedValue(new Response(null, { status: 200 }))
-    for (const key of [...TMDB_ENV_KEYS, "PICTORIUM_PUBLIC_INSTANCE"] as const) {
+    for (const key of TMDB_ENV_KEYS) {
       savedEnv[key] = process.env[key]
       delete process.env[key]
     }
-    // The global setup simulates a public instance (POSTERIUM_PUBLIC_INSTANCE=1):
-    // warmup then requires x-warmup-token (fail-closed without a token).
+    // Warmup auth: il test presenta x-warmup-token (secondo fattore opzionale),
+    // mai l'admin token: la route resta fail-closed senza una credenziale.
     savedEnv["PICTORIUM_WARMUP_TOKEN"] = process.env.PICTORIUM_WARMUP_TOKEN
     process.env.PICTORIUM_WARMUP_TOKEN = "test-warmup-token"
   })
@@ -97,6 +97,28 @@ describe("POST /api/warmup — TMDB key forwarding to poster self-fetch", () => 
       const headers = new Headers((init?.headers as HeadersInit | undefined) ?? {})
       expect(headers.get("x-api-key")).toBeNull()
       expect(init?.signal).toBeInstanceOf(AbortSignal)
+    }
+  })
+
+  it("stays fail-closed without credentials, ignoring the removed public-instance flag", async () => {
+    const { POST } = await import("@/app/api/warmup/route")
+    delete process.env.PICTORIUM_WARMUP_TOKEN
+    delete process.env.POSTERIUM_WARMUP_TOKEN
+    delete process.env.ADMIN_TOKEN
+    delete process.env.PICTORIUM_ADMIN_TOKEN
+    delete process.env.POSTERIUM_ADMIN_TOKEN
+    process.env.PICTORIUM_PUBLIC_INSTANCE = "1"
+    process.env.POSTERIUM_PUBLIC_INSTANCE = "1"
+    try {
+      const req = new NextRequest("http://localhost:3000/api/warmup?trending=1&justwatch=0&mappings=0", {
+        method: "POST",
+      })
+      const res = await POST(req)
+      expect(res.status).toBe(401)
+      expect(posterCalls(fetchSpy)).toHaveLength(0)
+    } finally {
+      delete process.env.PICTORIUM_PUBLIC_INSTANCE
+      delete process.env.POSTERIUM_PUBLIC_INSTANCE
     }
   })
 })

@@ -17,6 +17,10 @@ vi.mock("@/lib/data-dir", () => ({
   DATA_DIR: `${process.cwd()}/test-results/data-defaults-test`,
 }))
 
+// Route admin fail-closed: i test presentano un ADMIN_TOKEN reale (nessun
+// bypass implicito). Il token viaggia nell'header di ogni richiesta.
+const TEST_ADMIN_TOKEN = "defaults-test-admin-token"
+
 afterEach(() => {
   vi.restoreAllMocks()
   cacheClear()
@@ -26,16 +30,20 @@ afterEach(() => {
 function mockPutRequest(body: unknown, headers?: Record<string, string>): Request {
   return new Request("http://localhost:3000/api/defaults", {
     method: "PUT",
-    headers: { "content-type": "application/json", ...headers },
+    headers: { "content-type": "application/json", "x-admin-token": TEST_ADMIN_TOKEN, ...headers },
     body: JSON.stringify(body),
   })
 }
 
 describe("PUT /api/defaults", () => {
+  beforeEach(() => {
+    process.env.ADMIN_TOKEN = TEST_ADMIN_TOKEN
+  })
+
   it("returns 400 for invalid JSON", async () => {
     const req = new Request("http://localhost:3000/api/defaults", {
       method: "PUT",
-      headers: { "content-type": "application/json" },
+      headers: { "content-type": "application/json", "x-admin-token": TEST_ADMIN_TOKEN },
       body: "not json",
     })
     const res = await PUT(req as unknown as NextRequest)
@@ -48,22 +56,22 @@ describe("PUT /api/defaults", () => {
     expect(res.status).toBe(400)
   })
 
-  it("returns 401 when ADMIN_TOKEN is set and header is missing", async () => {
+  it("returns 401 when the configured ADMIN_TOKEN does not match the header", async () => {
     process.env.ADMIN_TOKEN = "secret-token"
     const req = mockPutRequest({ badgeStyle: "bar" })
     const res = await PUT(req as unknown as NextRequest)
     expect(res.status).toBe(401)
   })
 
-  it("accepts valid body with no auth token set", async () => {
-    delete process.env.ADMIN_TOKEN
+  it("accepts valid body with the configured admin token", async () => {
+    process.env.ADMIN_TOKEN = TEST_ADMIN_TOKEN
     const req = mockPutRequest({ badgeStyle: "bar", rankingBadges: true })
     const res = await PUT(req as unknown as NextRequest)
     expect(res.status).toBe(200)
   })
 
   it("persists disableCleanPosters through PUT and GET", async () => {
-    delete process.env.ADMIN_TOKEN
+    process.env.ADMIN_TOKEN = TEST_ADMIN_TOKEN
     const putRes = await PUT(mockPutRequest({ disableCleanPosters: true }) as unknown as NextRequest)
     expect(putRes.status).toBe(200)
     const getRes = await GET(new Request("http://localhost:3000/api/defaults") as unknown as NextRequest)
@@ -72,7 +80,7 @@ describe("PUT /api/defaults", () => {
   })
 
   it("preserves custom catalog datasetId through PUT and GET", async () => {
-    delete process.env.ADMIN_TOKEN
+    process.env.ADMIN_TOKEN = TEST_ADMIN_TOKEN
     const catalogs = [
       { id: "cat1", name: "My CSV", type: "mixed", url: "imdb-csv:ds_abc123", datasetId: "ds_abc123", enabled: true },
     ]
@@ -84,7 +92,7 @@ describe("PUT /api/defaults", () => {
   })
 
   it("invalidates poster and catalog cache after saving defaults", async () => {
-    delete process.env.ADMIN_TOKEN
+    process.env.ADMIN_TOKEN = TEST_ADMIN_TOKEN
     cacheSet("poster:movie:1", "poster", ["poster"])
     cacheSet("catalog:movie:top", "catalog", ["catalog"])
     cacheSet("tmdb:search:avatar", "search", ["tmdb"])
@@ -99,7 +107,7 @@ describe("PUT /api/defaults", () => {
   })
 
   it("merge: un payload parziale preserva i default già salvati", async () => {
-    delete process.env.ADMIN_TOKEN
+    process.env.ADMIN_TOKEN = TEST_ADMIN_TOKEN
     await PUT(mockPutRequest({ badgeStyle: "bar", gradientHeight: 40 }) as unknown as NextRequest)
 
     const res = await PUT(mockPutRequest({ gradientHeight: 55 }) as unknown as NextRequest)
@@ -112,7 +120,7 @@ describe("PUT /api/defaults", () => {
   })
 
   it("a serialized rejoin clears persisted item offsets while preserving the moved group", async () => {
-    delete process.env.ADMIN_TOKEN
+    process.env.ADMIN_TOKEN = TEST_ADMIN_TOKEN
     // This test needs 3 extra requests: the file already sits on the 30-token
     // `defaults` burst, so it runs on its OWN rate-limit bucket (the route keys
     // an untrusted client by its user-agent) instead of exhausting the budget
@@ -161,7 +169,7 @@ describe("PUT /api/defaults", () => {
   })
 
   it("persists gradient tuning including tintStrength", async () => {
-    delete process.env.ADMIN_TOKEN
+    process.env.ADMIN_TOKEN = TEST_ADMIN_TOKEN
     const res = await PUT(mockPutRequest({ gradientHeight: 40, tintStrength: 60 }) as unknown as NextRequest)
     expect(res.status).toBe(200)
 
@@ -172,7 +180,7 @@ describe("PUT /api/defaults", () => {
   })
 
   it("rejects invalid tintStrength instead of silently stripping it", async () => {
-    delete process.env.ADMIN_TOKEN
+    process.env.ADMIN_TOKEN = TEST_ADMIN_TOKEN
     // Senza il campo nello schema, zod stripperebbe la chiave e il PUT
     // risponderebbe 200 scartando il valore (bug tinta non salvata).
     const res = await PUT(mockPutRequest({ tintStrength: "hot" }) as unknown as NextRequest)
@@ -180,7 +188,7 @@ describe("PUT /api/defaults", () => {
   })
 
   it("accepts a valid custom rating endpoint and rejects unsafe ones", async () => {
-    delete process.env.ADMIN_TOKEN
+    process.env.ADMIN_TOKEN = TEST_ADMIN_TOKEN
     const ok = await PUT(mockPutRequest({ customRatingEndpoint: "https://example.com/ratings/{imdbId}" }) as unknown as NextRequest)
     expect(ok.status).toBe(200)
     for (const bad of [
@@ -195,7 +203,7 @@ describe("PUT /api/defaults", () => {
   })
 
   it("accepts and returns the landscape blur profile, rejects mistyped keys", async () => {
-    delete process.env.ADMIN_TOKEN
+    process.env.ADMIN_TOKEN = TEST_ADMIN_TOKEN
     const res = await PUT(
       mockPutRequest({ landscape: { blurFade: 70, gradientHeight: 20, blurEnabled: true, tintStrength: 80, topShade: 10 } }) as unknown as NextRequest,
     )
@@ -210,7 +218,7 @@ describe("PUT /api/defaults", () => {
   })
 
   it("persists valid flat and landscape fresh posterLayout through PUT", async () => {
-    delete process.env.ADMIN_TOKEN
+    process.env.ADMIN_TOKEN = TEST_ADMIN_TOKEN
     // Single PUT (the shared "defaults" rate-limit bucket caps the whole
     // file at 30 requests): one body covers both the flat key and the
     // landscape profile. Persistence is verified on the stored file, like
@@ -226,7 +234,7 @@ describe("PUT /api/defaults", () => {
   })
 
   it("rejects an invalid posterLayout instead of silently stripping it", async () => {
-    delete process.env.ADMIN_TOKEN
+    process.env.ADMIN_TOKEN = TEST_ADMIN_TOKEN
     // Without the enum in the schema, zod would strip the keys and the PUT
     // would answer 200 while dropping the values. Single body covers both
     // the flat key and the landscape profile (either stripped key alone
@@ -252,7 +260,7 @@ describe("GET /api/defaults hasInstanceKeys", () => {
       saved[k] = process.env[k]
       delete process.env[k]
     }
-    delete process.env.ADMIN_TOKEN
+    process.env.ADMIN_TOKEN = TEST_ADMIN_TOKEN
   })
 
   afterEach(() => {

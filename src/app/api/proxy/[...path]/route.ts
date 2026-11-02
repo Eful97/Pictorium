@@ -5,6 +5,7 @@ import { getServerDefaultsForUser } from "@/lib/server-defaults"
 import { rateLimit, rateLimitKey, rateLimitResponse } from "@/lib/rate-limit"
 import { createLogger } from "@/lib/logger"
 import { envWithFallback } from "@/lib/env-compat"
+import { isPublicPosterInstance } from "@/lib/poster-params-hardening"
 import {
   BodyTooLargeError,
   hopSignal,
@@ -20,7 +21,16 @@ export { isIpv4Literal, isPrivateHost } from "@/lib/safe-remote-fetch"
 
 const log = createLogger("addon-proxy")
 
-const MAX_RESPONSE_BYTES = 5 * 1024 * 1024
+// Cap del body proxyato. Su un'istanza condivisa (presets/public) il tetto è
+// stretto: un addon remoto non deve poter trascinare payload enormi nella
+// funzione. Su un'istanza privata (operatore fidato) resta il cap storico 5MB,
+// che copre cataloghi grandi.
+const MAX_RESPONSE_BYTES_PRIVATE = 5 * 1024 * 1024
+const MAX_RESPONSE_BYTES_PUBLIC = 1 * 1024 * 1024
+
+function maxResponseBytes(): number {
+  return isPublicPosterInstance() ? MAX_RESPONSE_BYTES_PUBLIC : MAX_RESPONSE_BYTES_PRIVATE
+}
 
 // Deadline complessiva dell'intera operazione di proxy (fix H9): ogni hop ha
 // il proprio timeout (10-12s), ma fino a 5 redirect × timeout + lettura body
@@ -49,20 +59,51 @@ function corsHeaders() {
   }
 }
 
-/** Allowlist opzionale di domini proxy (PICTORIUM_PROXY_ALLOW_DOMAINS). */
+let lastOpenRelayWarn = 0
+
+/**
+ * Allowlist dei domini proxy (`PICTORIUM_PROXY_ALLOW_DOMAINS`, legacy
+ * `POSTERIUM_PROXY_ALLOW_DOMAINS`), con default DIVERSO per tipo di istanza:
+ *
+ * - lista esplicita → solo quei domini (+ sottodomini), sempre;
+ * - lista assente su istanza PRIVATA (self-hosted, operatore fidato) → open
+ *   legacy: la modale Proxy incolla qualunque addon e non c'è esposizione ad
+ *   anonimi;
+ * - lista assente su istanza CONDIVISA/pubblica (`MULTI_USER=1` o
+ *   `HOSTED_BY=elfhosted`) → DEFAULT-DENY: un relay aperto a qualunque host
+ *   pubblico sarebbe un open proxy/SSRF-by-proxy per chiunque. L'operatore
+ *   può riaprire esplicitamente con `PICTORIUM_PROXY_ALLOW_ANY=1` (opt-in
+ *   consapevole, commentato in `.env.example`).
+ */
 export function isAllowedByAllowlist(url: URL): boolean {
   const raw = envWithFallback("PROXY_ALLOW_DOMAINS")
-  if (!raw) return true
-  const domains = raw.split(",").map((d) => d.trim().toLowerCase()).filter(Boolean)
-  if (domains.length === 0) return true
-  const host = url.hostname.toLowerCase()
-  return domains.some((d) => host === d || host.endsWith(`.${d}`))
+  const domains = (raw ?? "").split(",").map((d) => d.trim().toLowerCase()).filter(Boolean)
+  if (domains.length > 0) {
+    const host = url.hostname.toLowerCase()
+    return domains.some((d) => host === d || host.endsWith(`.${d}`))
+  }
+  if (!isPublicPosterInstance()) return true
+  if (envWithFallback("PROXY_ALLOW_ANY") === "1") return true
+  // Denial throttled: una richiesta anonima su istanza pubblica non deve
+  // riempire i log, ma l'operatore deve vedere che manca l'allowlist.
+  const now = Date.now()
+  if (now - lastOpenRelayWarn > 60_000) {
+    lastOpenRelayWarn = now
+    log.warn(
+      "Proxy denied: PROXY_ALLOW_DOMAINS is unset on a shared instance (set it, or PROXY_ALLOW_ANY=1 to opt back into an open relay)",
+      { target: redactUrlForLog(url.href) },
+    )
+  }
+  return false
 }
 
 /** Converte un rifiuto di policy del fetch sicuro negli stessi status/body della route. */
 function safeFetchDeniedResponse(e: SafeFetchDeniedError): Response {
   if (e.reason === "allowlist") {
     return Response.json({ error: "Target domain not allowed" }, { status: 403, headers: corsHeaders() })
+  }
+  if (e.reason === "private-target") {
+    return Response.json({ error: "Invalid target URL" }, { status: 403, headers: corsHeaders() })
   }
   const body = e.reason === "redirect-target" ? "Redirect to blocked target" : "Too many redirects"
   return new Response(JSON.stringify({ error: body }), {
@@ -101,7 +142,10 @@ async function resolveProxyDv(userUuid: string | null): Promise<string | null> {
 }
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ path: string[] }> }) {
-  const rl = await rateLimit(rateLimitKey(req), "default")
+  // Bucket più stretto del generico: il proxy rilancia traffico verso host
+  // terzi, quindi non deve avere il burst largo delle route che servono solo
+  // lo spazio locale (stesso bucket "catalog": 60 burst, 5/s).
+  const rl = await rateLimit(rateLimitKey(req), "catalog")
   if (!rl.ok) return rateLimitResponse(rl.retAfter)
 
   const { path } = await params
@@ -134,7 +178,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ path
       if (!manifestRes.ok) {
         return Response.json({ error: `Failed to fetch target manifest: ${manifestRes.statusText}` }, { status: manifestRes.status, headers: corsHeaders() })
       }
-      const origManifest = (await readJsonCapped(manifestRes, MAX_RESPONSE_BYTES)) as Record<string, unknown>
+      const origManifest = (await readJsonCapped(manifestRes, maxResponseBytes())) as Record<string, unknown>
       const baseUrl = targetUrl.replace(/\/manifest\.json$/, "").replace(/\/$/, "")
 
       const userSuffix = userUuid ? `.${userUuid.slice(0, 8)}` : ""
@@ -194,7 +238,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ path
       return Response.json({ error: `Failed to fetch proxy resource: ${res.statusText}` }, { status: res.status, headers: corsHeaders() })
     }
 
-    const data = (await readJsonCapped(res, MAX_RESPONSE_BYTES)) as Record<string, unknown> & { metas?: StremioItemMeta[]; meta?: StremioItemMeta }
+    const data = (await readJsonCapped(res, maxResponseBytes())) as Record<string, unknown> & { metas?: StremioItemMeta[]; meta?: StremioItemMeta }
 
     if (data && Array.isArray(data.metas)) {
       data.metas = rewriteMetasPosters(data.metas as StremioItemMeta[], origin, userUuid, await resolveProxyDv(userUuid))

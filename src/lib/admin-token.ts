@@ -3,7 +3,7 @@
 // Credenziale admin di sessione (istanza privata con PICTORIUM_ADMIN_TOKEN):
 // il server richiede `x-admin-token`/`Authorization: Bearer` sulle route admin
 // (warmup, cache, defaults, mappings, PIN), ma il client non lo inviava mai —
-// con PUBLIC_INSTANCE=0 la UI restava chiusa fuori con 401. Questo modulo
+// senza token la UI restava chiusa fuori con 401 (fail-closed). Questo modulo
 // tiene il token SOLO in sessione (sessionStorage + fallback in memoria:
 // muore col tab, mai in localStorage/disco/URL/log) e lo allega alle chiamate
 // /api/ same-origin. Header espliciti del chiamante vincono sempre.

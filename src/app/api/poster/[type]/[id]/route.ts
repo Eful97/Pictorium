@@ -80,7 +80,7 @@ import { capPosterTtlMs, isRankFactConsumed, resolvePosterFactCapMs } from "@/li
 import { sanitizeEffectiveAccentMeta, type EffectiveAccentMeta } from "@/lib/effective-accent"
 import { hashUserFragment, msUntilPosterScheduledRefresh, userTagFragment } from "@/lib/cache"
 import { FormatOverloadError, runFormatConversion } from "@/lib/poster-format-gate"
-import { hardenPosterSearchParams, isPresetsPosterMode, isPreviewAuthRequired, isPreviewDowngraded, isPublicPosterInstance, parseListRankParam, resolveFinalRankWithListContext, sanitizePortraitBaseBackdropPath } from "@/lib/poster-params-hardening"
+import { canonicalPosterLang, canonicalPosterQuality, hardenPosterSearchParams, isPresetsPosterMode, isPreviewAuthRequired, isPreviewDowngraded, isPublicPosterInstance, parseListRankParam, resolveFinalRankWithListContext, sanitizePortraitBaseBackdropPath } from "@/lib/poster-params-hardening"
 import { isAutomaticTrendRank } from "@/lib/badge-priority"
 import { DEMOSAMPLES_FLAG, DEMO_SAMPLE_AGE_LABEL, DEMO_SAMPLE_GENRE, DEMO_SAMPLE_MOVIE_DATE, DEMO_SAMPLE_QUALITY, DEMO_SAMPLE_RANK, DEMO_SAMPLE_TV_DATE, isDemoSamplesRequest, mergeDemoSampleRatings, sampleDemoVideoFormats } from "@/lib/demo-samples"
 import {
@@ -292,20 +292,26 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
   // Namespace utente (multi-user): null con flag OFF o senza `?u=` → globale.
   const rawUser = req.nextUrl.searchParams.get("u") ?? req.nextUrl.searchParams.get("user")
   let scopedUser = getScopedUserId(rawUser)
+  // Spazi inventati → anonimo, PRIMA del rate-limit (v1.23.0): un UUID
+  // inesistente non deve creare un bucket nuovo a ogni rotazione. Niente
+  // cache key separate né hardening bypassato per gli spazi fantasma, e
+  // l'attacco a rotazione di UUID finisce nel bucket anonimo condiviso.
+  if (scopedUser && !(await userExists(scopedUser))) scopedUser = null
   // Rate-limit per-utente (multi-user): il bucket segue il namespace
   // (IP+UUID) così il flood su `?u=vittima` brucia solo il sotto-bucket
-  // dell'attaccante e non la quota legittima del proprietario.
+  // dell'attaccante e non la quota legittima del proprietario. Gli anonimi
+  // (inclusi gli UUID inesistenti appena collassati) condividono il bucket
+  // anonimo: ruotare `?u=` non produce un bucket fresco.
   const rl = await rateLimit(scopedUser ? userRateLimitKey(req, scopedUser) : rateLimitKey(req), "poster")
   if (!rl.ok) return rateLimitResponse(rl.retAfter)
-  // Spazi inventati → anonimo (v1.23.0): niente cache key separate né
-  // hardening bypassato. DOPO il rate-limit: il flood su UUID altrui resta
-  // confinato al sotto-bucket dell'attaccante.
-  if (scopedUser && !(await userExists(scopedUser))) scopedUser = null
   // Preview blindata opt-in (v1.23.0): con PICTORIUM_PREVIEW_AUTH=1 le
   // preview anonime sulle pubbliche vengono hardenate e cachate come
   // normali (niente bypass bot). Restano live: spazi esistenti (editor del
   // proprietario) e sessioni sbloccate (cookie PIN/admin). Default OFF.
   const rawPreview = req.nextUrl.searchParams.has("preview")
+  // Session unlocked (PIN cookie / admin token) computed once: it gates both
+  // the preview downgrade and the owner-only diagnostics below.
+  const previewUnlocked = hasUnlockedPreviewSession(req)
   let isPreview = rawPreview
   if (
     rawPreview &&
@@ -313,8 +319,11 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
       presets: isPresetsPosterMode(),
       publicInstance: isPublicPosterInstance(),
       previewAuth: isPreviewAuthRequired(),
-      hasScopedUser: !!scopedUser,
-      unlocked: hasUnlockedPreviewSession(req),
+      // A bare `?u=` is a manifest capability UUID, not proof of an unlocked
+      // editor session: on a shared host with preview auth only an unlocked
+      // session keeps the preview live (scoped user alone stays downgraded).
+      hasScopedUser: !!scopedUser && previewUnlocked,
+      unlocked: previewUnlocked,
     })
   ) {
     isPreview = false
@@ -430,7 +439,13 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
   const sd = sdRow
   const qRegion = parseRegion(req.nextUrl.searchParams.get("region") ?? req.nextUrl.searchParams.get("country"))
   const configRegion = parseRegion(configOverride?.region)
-  const langParam = req.nextUrl.searchParams.get("lang") || mapping?.language
+  // `quality`/`lang` canonical values: the SAME value feeds the cache key
+  // (synced into `hardenedParams` below) and every read in the render, so a
+  // garbage value can neither mint a distinct entry nor repaint the canonical
+  // one. Non-canonical = absent = the pre-existing fallback chain.
+  const canonicalQuality = canonicalPosterQuality(req.nextUrl.searchParams.get("quality"))
+  const canonicalLang = canonicalPosterLang(req.nextUrl.searchParams.get("lang"))
+  const langParam = canonicalLang || mapping?.language
   const langRegion = langParam ? (parseRegion(langParam) ?? defaultRegionForLang(langParam)) : null
   const posterRegion = getRegionDef(qRegion ?? configRegion ?? langRegion ?? normalizeRegion(sd.region))
 
@@ -538,6 +553,14 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
   // preview-downgrade path above, which applies equally to both.
   const wantAccentMeta = req.nextUrl.searchParams.get("accentmeta") === "1"
   hardenedParams.delete("accentmeta")
+  // `quality`/`lang` parity: the canonical value computed above is written into
+  // the hardened copy BEFORE the cache key, so key and render read the same
+  // bytes (hardening already canonicalizes them in presets mode; this keeps
+  // preview/private requests on the identical value instead of the raw one).
+  if (canonicalQuality) hardenedParams.set("quality", canonicalQuality)
+  else hardenedParams.delete("quality")
+  if (canonicalLang) hardenedParams.set("lang", canonicalLang)
+  else hardenedParams.delete("lang")
   const cacheParams = normalizePosterCacheParams(hardenedParams)
   cacheParams.delete("config")
   cacheParams.delete("c")
@@ -640,7 +663,11 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
   const needTrendFetch = rankingEnabledPre && !hasValidQRankOverride && !hasValidListRankPre
   const needAnimeFetch = rankingEnabledPre && !(Number.isFinite(qAnimeRankPre) && qAnimeRankPre > 0) && !hasValidListRankPre
   const animeListKey = mediaType === "movie" ? "mdblistAnimeMovie" : "mdblistAnime"
-  const animeKeyUsed = effMdblistKey || envWithFallback("MDBLIST_KEY") || process.env.MDBLIST_KEY || process.env.MDBLIST_API_KEY || undefined
+  // MDBList key effective for the anime family: resolveUserApiKeys already
+  // applies the multi-user instance/env guard (scoped requests never inherit
+  // operator keys). Never re-read the env here: that bypassed the guard and
+  // let a bare `?u=` burn the operator's MDBList quota.
+  const animeKeyUsed = effMdblistKey || undefined
   // Per-family snapshots (render-budget path): canonical rank inputs come from
   // the SAME published snapshots the catalog and rank routes read — one pin
   // per family per request (mid-request consistency). One request refreshes
@@ -917,10 +944,17 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
   // Percorso "Segui il mio spazio": politica di rivalidazione (non forza il
   // render). Stessi header su 200 e 304, mai immutable (vedi isImmutable...).
   const isLive = isLivePosterRequest(req.nextUrl.searchParams)
-  // Geometria network (`netgeo=1`, solo con `debug=1`): deve sempre
+  // Diagnostica geometria (`debug=1`): solo per il proprietario. `netgeo=1`
+  // forzava un render completo saltando TUTTE le fast-path di cache, quindi
+  // resta riservato a preview effettiva o sessione sbloccata (PIN/admin) —
+  // un anonimo non può usarlo come bypass della cache. Senza sessione il
+  // comportamento torna quello normale (plain `debug=1` resta render-free).
+  const isDebug = req.nextUrl.searchParams.get("debug") === "1"
+  const diagnosticsAllowed = isPreview || previewUnlocked
+  // Geometria network (`netgeo=1`, solo con `debug=1` autorizzato): deve sempre
   // renderizzare fresco — mai poster bytes/304/stale dalla cache al posto
   // del JSON diagnostico. Non scrive comunque in cache (return prima).
-  const wantNetGeo = req.nextUrl.searchParams.get("netgeo") === "1"
+  const wantNetGeo = isDebug && req.nextUrl.searchParams.get("netgeo") === "1" && diagnosticsAllowed
   // Ghost delle HOME qualità vuote (`ghosts=1`, solo con debug+netgeo):
   // diagnostica della preview (maniglie tratteggiate dei gruppi non dipinti).
   // Il percorso Stremio non lo chiede mai → nessun ghost riportato, nessun
@@ -1474,7 +1508,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
   // matches preferredLanguage when mapping is null, and fbLang of the
   // landscape fallback).
   let wikidataId: string | null = null
-  const sessionLang = req.nextUrl.searchParams.get("lang") || mapping?.language || posterRegion.lang2
+  const sessionLang = canonicalLang || mapping?.language || posterRegion.lang2
   {
     const queryWikidataId = hardenedParams.get("wikidata_id")
     const mappingWikidataId = mapping?.wikidataId ?? null
@@ -1517,7 +1551,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
     configOverride?.ratingSources,
     sd.ratingSources,
   )
-  const t = createT(req.nextUrl.searchParams.get("lang") || mapping?.language || posterRegion.lang2)
+  const t = createT(canonicalLang || mapping?.language || posterRegion.lang2)
 
   if (queryPoster) {
     posterPath = queryPoster
@@ -1617,7 +1651,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
     genreName = mapping.genreName ?? null
     // A saved genre is a localized string, not a language-independent ID.
     // Explicit poster language wins, just as it does for automatic posters.
-    const genreLang = req.nextUrl.searchParams.get("lang")
+    const genreLang = canonicalLang
     if (genreName && genreLang && effTmdbKey && (earlyEffMapping?.showBadges ?? mapping.showBadges) !== false && !queryGenre) {
       try {
         const cached = getTMDBSessionCache(mediaType, tmdbId, genreLang)
@@ -1646,7 +1680,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
     // decisione 304/200 avviene solo dopo aver risolto il contenuto
     // (hit fresca) o ri-renderizzato (audit freschezza, problemi 1–2).
   } else {
-    const preferredLanguage = req.nextUrl.searchParams.get("lang") || posterRegion.lang2
+    const preferredLanguage = canonicalLang || posterRegion.lang2
     posterRequestedLang = preferredLanguage
     const apiKey = effTmdbKey
     try {
@@ -2076,7 +2110,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
   if (isLandscape && !queryBackdrop && !mapping?.backdropPath && !autoBackdropPath) {
     try {
       const fbApiKey = effTmdbKey
-      const fbLang = req.nextUrl.searchParams.get("lang") || mapping?.language || posterRegion.lang2
+      const fbLang = canonicalLang || mapping?.language || posterRegion.lang2
       const cached = getTMDBSessionCache(mediaType, tmdbId, fbLang)
       let fbDetails = cached?.details
       if (!fbDetails) {
@@ -2181,7 +2215,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
     // Retry-After backpressure when all slots stay busy past the timeout.
     const qRankingEarly = req.nextUrl.searchParams.get("ranking")
     const qBqEarly = req.nextUrl.searchParams.get("bq")
-    const qQualityParam = req.nextUrl.searchParams.get("quality")
+    const qQualityParam = canonicalQuality
     // hasQuery: true se lo stile è specificato esplicitamente — via poster/mapping
     // espliciti O via config token (`?config=`). Senza, i flag query (ranking=
     // badges= bg/by/br/bq) verrebbero ignorati e il server applicherebbe i default
@@ -2657,7 +2691,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
     const detailsRecovery = needsDetailsRecovery
       ? (async () => {
         const apiKey = effTmdbKey
-        const preferredLang = req.nextUrl.searchParams.get("lang") || mapping?.language || posterRegion.lang2
+        const preferredLang = canonicalLang || mapping?.language || posterRegion.lang2
         // F6: anche il refetch dei dettagli TV riusa la session cache.
         // Un singolo retry sul fallimento transitorio (cold-start
         // upstream): senza dettagli saltano studio/network badge e il
@@ -2792,7 +2826,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
       // over the saved mapping; a downgraded preview resolves as non-preview.
       isPreview,
       // Fix L32: lingua per la risoluzione delle label prefissate (__badge.*).
-      lang: req.nextUrl.searchParams.get("lang") || mapping?.language || posterRegion.lang2,
+      lang: canonicalLang || mapping?.language || posterRegion.lang2,
     })
     const {
       badgeStyle, rankingBadgeStyle, qualityBadgeStyle, qualityGroupLayout, badgeFont,
@@ -2915,7 +2949,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
     // a manual override, a disabled `new` sash bucket, or Coming Soon keeps
     // the existing TTL untouched. An elapsed manual identity shows nothing
     // (no stale date, no cap). Shared selection, no divergent chain.
-    const ephemeralLocale = req.nextUrl.searchParams.get("lang") || mapping?.language || posterRegion.lang2
+    const ephemeralLocale = canonicalLang || mapping?.language || posterRegion.lang2
     const ephemeralDateFormat = parseDateFormat(hardenedParams.get("df") ?? sd.dateFormat ?? null) ?? "locale"
     const nextEpisodeEphemeral = isNextEpisodeDisplayed({
       mediaType,
@@ -3016,7 +3050,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
       ? sampledFormats
       : (effectiveFormats.length > 0 ? effectiveFormats : null)
 
-    const locale = req.nextUrl.searchParams.get("lang") || mapping?.language || posterRegion.lang2
+    const locale = canonicalLang || mapping?.language || posterRegion.lang2
     // Formato data badge "in uscita": query `df` > default utente > `locale`
     // (fail-closed: valori ignoti o assenti = comportamento storico).
     const dateFormat = parseDateFormat(hardenedParams.get("df") ?? sd.dateFormat ?? null) ?? "locale"
@@ -3214,11 +3248,10 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
         : null
 
     // 9. Debug mode — JSON instead of the poster (no render, no cache write,
-    // no 304). With `netgeo=1` generation runs first and the return below
-    // adds the actually rendered network geometry (single renderer source
+    // no 304). With authorized `netgeo=1` generation runs first and the return
+    // below adds the actually rendered network geometry (single renderer source
     // for the UI freeze); plain `debug=1` stays render-free for existing
     // consumers. Normal poster responses are unchanged either way.
-    const isDebug = req.nextUrl.searchParams.get("debug") === "1"
     let debugJson: Record<string, unknown> | null = null
     if (isDebug) {
       const badgeInput = {

@@ -138,10 +138,22 @@ export async function fetchLogoImg(path: string, signal?: AbortSignal): Promise<
 }
 
 export function imgSrc(path: string, size = "w500"): string {
-  if (path.startsWith("http")) {
+  if (/^https?:\/\//i.test(path)) {
     // SSRF protection: only allow the TMDB image CDN and the TVDB artworks
-    // CDN (fixed hosts — B1 rescue posters; same review bar as TMDB).
-    if (!path.startsWith("https://image.tmdb.org/t/p/") && !path.startsWith(`${ARTWORKS_BASE}/`)) {
+    // CDN (fixed hosts — B1 rescue posters; same review bar as TMDB). Host
+    // comparison is exact via URL parsing: a prefix `startsWith` check would
+    // accept `https://image.tmdb.org.evil.com/...` and `https://image.tmdb.org@evil.com/...`.
+    let parsed: URL
+    try {
+      parsed = new URL(path)
+    } catch {
+      throw new Error(`Blocked external image URL: ${path.slice(0, 60)}...`)
+    }
+    const host = parsed.hostname.toLowerCase()
+    const tmdbOk = host === "image.tmdb.org" && parsed.pathname.startsWith("/t/p/")
+    const artworksHost = new URL(ARTWORKS_BASE).hostname.toLowerCase()
+    const tvdbOk = host === artworksHost && parsed.pathname.startsWith("/")
+    if (parsed.protocol !== "https:" || (!tmdbOk && !tvdbOk)) {
       throw new Error(`Blocked external image URL: ${path.slice(0, 60)}...`)
     }
     return path

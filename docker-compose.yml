@@ -45,12 +45,11 @@ services:
       - PICTORIUM_MULTI_USER_ALLOW_ENV_FALLBACK=${PICTORIUM_MULTI_USER_ALLOW_ENV_FALLBACK:-}
       - PICTORIUM_USER_RETENTION_DAYS=${PICTORIUM_USER_RETENTION_DAYS:-}
       # ── Opzionali — Admin & Sicurezza ──
-      # PUBLIC_INSTANCE=1: route admin aperte senza token (LAN fidata/demo).
-      # Su istanze esposte lascia vuoto/0 + ADMIN_TOKEN, poi incolla il token
-      # in Impostazioni → Token admin (solo sessione) per usare la UI.
-      # Senza entrambi, l'editor resta chiuso (fail-closed); gli endpoint
-      # poster/cataloghi restano sempre aperti.
-      - PICTORIUM_PUBLIC_INSTANCE=${PICTORIUM_PUBLIC_INSTANCE:-}
+      # Admin fail-closed: senza ADMIN_TOKEN l'editor resta chiuso (401) e si
+      # sblocca col token incollato in Impostazioni → Token admin (solo
+      # sessione) o con una sessione PIN. La vecchia PICTORIUM_PUBLIC_INSTANCE
+      # è stata rimossa: se ancora presente viene ignorata e non apre nulla.
+      # Gli endpoint poster/cataloghi restano sempre aperti.
       - PICTORIUM_ADMIN_TOKEN=${PICTORIUM_ADMIN_TOKEN:-${POSTERIUM_ADMIN_TOKEN:-}}
       - POSTERIUM_ADMIN_TOKEN=${POSTERIUM_ADMIN_TOKEN:-}
       # Token warmup: l'app/entrypoint leggono PICTORIUM_/POSTERIUM_WARMUP_TOKEN

@@ -48,6 +48,9 @@ Out of scope:
 ## Hardening for public instances
 
 See `README.md` → Security and Environment Variables
-(`PUBLIC_INSTANCE=0` + `ADMIN_TOKEN`, `TRUST_PROXY` + pinned
-`CLIENT_IP_HEADER` behind Cloudflare, `PUBLIC_STATS=0`,
-`FRAME_ANCESTORS`, `PREVIEW_AUTH`).
+(`ADMIN_TOKEN` — admin routes are fail-closed without it or a PIN session;
+`TRUST_PROXY` + pinned `CLIENT_IP_HEADER` behind Cloudflare, `PUBLIC_STATS=0`,
+`FRAME_ANCESTORS`, `PREVIEW_AUTH`, `PROXY_ALLOW_DOMAINS` — the addon proxy is
+default-deny on shared instances and `PROXY_ALLOW_ANY=1` reopens it as an open
+relay). The legacy `PUBLIC_INSTANCE` switch was
+removed: it is no longer read and no longer opens admin routes.

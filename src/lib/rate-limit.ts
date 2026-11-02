@@ -69,6 +69,12 @@ const limits: Record<string, BucketConfig> = {
   // (lazy, come Fanart) — stessi burst/refill. La cache 6h/10min della route
   // assorbe i ricaricamenti; la quota TVDB resta protetta dal breaker.
   tvdb:      { maxTokens: 60,  refillRate: 5,  refillWindow: 1000 },
+  // Streaming availability index (`GET /api/streaming-availability`): read-only
+  // discovery over a cached index, called by the "Add Top 10" dialog. It has no
+  // own bucket entry, so it silently fell back to `default` (120 burst): a
+  // tight burst + slow refill keeps the index endpoint from being used as a
+  // free enumeration oracle while a real operator session stays comfortable.
+  availability: { maxTokens: 30, refillRate: 3, refillWindow: 1000 },
   // PIN auth: tentativi di brute-force su 4-8 cifre — burst contenuto e
   // refill lento (20 burst, ~2/s sostenuti). La protezione reale viene da
   // PIN min 6 cifre + rotazione sessionSecret a ogni setPin.
@@ -209,8 +215,10 @@ export function rateLimitKey(request: Request): string {
   // Estrae l'IP client per il rate limit. Precedenza: header pinnato
   // (CLIENT_IP_HEADER + TRUST_PROXY=1) > x-real-ip/cf-connecting-ip (solo se
   // trusted) > x-forwarded-for primo hop (solo se trusted, anti H2 bucket
-  // pollution) > fallback ua:/local. Senza trust nessun header IP è usato:
-  // sono tutti spoofabili da chi raggiunge l'origin direttamente.
+  // pollution) > fallback `local`. Senza trust nessun header IP è usato (sono
+  // tutti spoofabili da chi raggiunge l'origin direttamente) e nemmeno lo
+  // User-Agent distingue i bucket: senza trust l'unica identità affidabile è
+  // lo spazio utente verificato (userRateLimitKey).
   const trusted = envWithFallback("TRUST_PROXY") === "1"
   // PICTORIUM_CLIENT_IP_HEADER (with TRUST_PROXY=1): trust exactly one header,
   // e.g. "cf-connecting-ip" behind Cloudflare. Cloudflare does not set
@@ -252,9 +260,16 @@ export function rateLimitKey(request: Request): string {
       }
     }
   }
-  // Fallback: senza header IP affidabile, usa un bucket per-istanza ma con
-  // limite più alto (evita DoS del vecchio "shared"). Distinguiamo con
-  // user-agent hash quando disponibile per granularità minima.
+  // Fallback SENZA proxy fidato: nessuna identità di rete è affidabile, e
+  // nemmeno lo User-Agent lo è (è un header client arbitrario). Il vecchio
+  // fallback per-UA creava un bucket nuovo a ogni rotazione dello UA, cioè un
+  // bypass completo del rate limit su poster/auth/cataloghi con la env di
+  // default. Qui tutti gli anonimi condividono UN bucket d'istanza "local":
+  // l'isolamento reale per utente resta su `userRateLimitKey` (IP+UUID, solo
+  // dopo la verifica di esistenza del namespace), e i bucket per-UA tornano
+  // disponibili solo dietro `TRUST_PROXY=1` (ramo sotto, byte-identico).
+  if (!trusted) return "local"
+  // Dietro proxy fidato: granularità minima per user-agent come fallback.
   const ua = request.headers.get("user-agent")
   if (ua) return `ua:${ua.slice(0, 48)}`
   return "local"

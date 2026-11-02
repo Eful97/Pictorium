@@ -177,19 +177,26 @@ describe("M2: strict variant validation (read drops, write rejects, valid accept
 
   it("write boundaries reject unsafe variants (defaults PUT 400, tokens fail closed)", async () => {
     const { PUT } = await import("@/app/api/defaults/route")
-    const put = (body: unknown) =>
-      PUT(
-        new Request("http://localhost:3000/api/defaults", {
-          method: "PUT",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify(body),
-        }) as unknown as NextRequest,
-      )
-    expect((await put({ streamingSelections: [{ service: "hulu", country: "US", variant: "--evil" }] })).status).toBe(400)
-    expect((await put({ streamingSelections: [{ service: "hulu", country: "US", variant: "BAD--V" }] })).status).toBe(400)
-    expect(
-      (await put({ streamingSelections: [{ service: "hulu", country: "united-states", variant: "amazon-channels" }] })).status,
-    ).toBe(200)
+    const TEST_ADMIN_TOKEN = "variants-admin-token"
+    // Le route admin sono fail-closed: il PUT presenta un token reale.
+    process.env.POSTERIUM_ADMIN_TOKEN = TEST_ADMIN_TOKEN
+    try {
+      const put = (body: unknown) =>
+        PUT(
+          new Request("http://localhost:3000/api/defaults", {
+            method: "PUT",
+            headers: { "content-type": "application/json", "x-admin-token": TEST_ADMIN_TOKEN },
+            body: JSON.stringify(body),
+          }) as unknown as NextRequest,
+        )
+      expect((await put({ streamingSelections: [{ service: "hulu", country: "US", variant: "--evil" }] })).status).toBe(400)
+      expect((await put({ streamingSelections: [{ service: "hulu", country: "US", variant: "BAD--V" }] })).status).toBe(400)
+      expect(
+        (await put({ streamingSelections: [{ service: "hulu", country: "united-states", variant: "amazon-channels" }] })).status,
+      ).toBe(200)
+    } finally {
+      delete process.env.POSTERIUM_ADMIN_TOKEN
+    }
     // Config tokens share the same canonical gate (full + partial schemas).
     const base = {
       globalBadges: true,
