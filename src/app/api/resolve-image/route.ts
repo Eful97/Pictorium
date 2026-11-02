@@ -21,7 +21,7 @@ export async function GET(req: NextRequest) {
   const scoped = getScopedUserId(rawUser)
   if (scoped) {
     if (!(await checkUserAuth(req, scoped))) return userAuthResponse()
-  } else if (!checkAdminToken(req)) {
+  } else if (!(await checkAdminToken(req))) {
     return adminAuthResponse()
   }
   if (!isSameOrigin(req)) return originMismatchResponse()

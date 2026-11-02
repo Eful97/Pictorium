@@ -27,7 +27,7 @@ export async function POST(req: NextRequest) {
   const scoped = getScopedUserId(extractUserParam(req))
   if (scoped) {
     if (!(await checkUserAuth(req, scoped))) return userAuthResponse()
-  } else if (!checkAdminToken(req)) return adminAuthResponse()
+  } else if (!(await checkAdminToken(req))) return adminAuthResponse()
   if (!isSameOrigin(req)) return originMismatchResponse()
 
   // Nessun body da leggere: il sample è fisso server-side, nessun input client.

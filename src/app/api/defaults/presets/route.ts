@@ -15,7 +15,7 @@ async function handle(req: NextRequest, operation?: "save" | "delete") {
   if (!rl.ok) return rateLimitResponse(rl.retAfter)
   const user = getScopedUserId(extractUserParam(req))
   if (isMultiUserEnabled() && !user) return invalidUserResponse()
-  if (user ? !await checkUserAuth(req, user) : !checkAdminToken(req)) return user ? userAuthResponse() : adminAuthResponse()
+  if (user ? !await checkUserAuth(req, user) : !(await checkAdminToken(req))) return user ? userAuthResponse() : adminAuthResponse()
   if (operation && !isSameOrigin(req)) return originMismatchResponse()
   try {
     if (!operation) {

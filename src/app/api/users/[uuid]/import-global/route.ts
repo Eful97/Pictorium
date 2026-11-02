@@ -23,7 +23,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<Route
   const rl = await rateLimit(userId ? userRateLimitKey(req, userId) : rateLimitKey(req), "mappings")
   if (!rl.ok) return rateLimitResponse(rl.retAfter)
   if (!userId) return invalidUserResponse()
-  if (!requireAdminToken(req)) return adminAuthResponse()
+  if (!(await requireAdminToken(req))) return adminAuthResponse()
   if (!isSameOrigin(req)) return originMismatchResponse()
   const global = await getAll()
   try {

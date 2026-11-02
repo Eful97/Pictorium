@@ -20,80 +20,95 @@ describe("checkAdminToken", () => {
     process.env = { ...originalEnv }
   })
 
-  it("ignores the legacy POSTERIUM_PUBLIC_INSTANCE=1 in production (fail-closed)", () => {
+  it("ignores the legacy POSTERIUM_PUBLIC_INSTANCE=1 in production (fail-closed)", async () => {
     Object.assign(process.env, { NODE_ENV: "production", POSTERIUM_PUBLIC_INSTANCE: "1" })
     const req = new NextRequest("http://localhost:3000/api/mappings", { method: "POST" })
-    expect(checkAdminToken(req)).toBe(false)
+    expect(await checkAdminToken(req)).toBe(false)
   })
 
-  it("ignores the legacy PICTORIUM_PUBLIC_INSTANCE=1 in production (fail-closed)", () => {
+  it("ignores the legacy PICTORIUM_PUBLIC_INSTANCE=1 in production (fail-closed)", async () => {
     Object.assign(process.env, { NODE_ENV: "production", PICTORIUM_PUBLIC_INSTANCE: "1" })
     const req = new NextRequest("http://localhost:3000/api/mappings", { method: "POST" })
-    expect(checkAdminToken(req)).toBe(false)
+    expect(await checkAdminToken(req)).toBe(false)
   })
 
-  it("rejects without ADMIN_TOKEN and without any instance flag (fail-closed)", () => {
+  it("rejects without ADMIN_TOKEN and without any instance flag (fail-closed)", async () => {
     Object.assign(process.env, { NODE_ENV: "production" })
     delete process.env.POSTERIUM_PUBLIC_INSTANCE
     delete process.env.PICTORIUM_PUBLIC_INSTANCE
     const req = new NextRequest("http://localhost:3000/api/mappings", { method: "POST" })
-    expect(checkAdminToken(req)).toBe(false)
+    expect(await checkAdminToken(req)).toBe(false)
   })
 
-  it("ignores a non-1 value for the removed legacy flag", () => {
+  it("ignores a non-1 value for the removed legacy flag", async () => {
     Object.assign(process.env, { NODE_ENV: "production", POSTERIUM_PUBLIC_INSTANCE: "true" })
     const req = new NextRequest("http://localhost:3000/api/mappings", { method: "POST" })
-    expect(checkAdminToken(req)).toBe(false)
+    expect(await checkAdminToken(req)).toBe(false)
   })
 
-  it("allows requests in dev without a token (NODE_ENV=development è implicitamente pubblico)", () => {
+  it("allows requests in dev without a token (NODE_ENV=development è implicitamente pubblico)", async () => {
     Object.assign(process.env, { NODE_ENV: "development" })
     delete process.env.POSTERIUM_PUBLIC_INSTANCE
     const req = new NextRequest("http://localhost:3000/api/mappings", { method: "POST" })
-    expect(checkAdminToken(req)).toBe(true)
+    expect(await checkAdminToken(req)).toBe(true)
   })
 
-  it("rejects when a token is configured but the header is missing", () => {
+  it("dev loopback stays locked when a PIN is configured (PIN shadows the dev bypass)", async () => {
+    Object.assign(process.env, { NODE_ENV: "development" })
+    const { setPin, _resetPinCache, getSecurityFile } = await import("@/lib/pin-auth")
+    const { unlink } = await import("node:fs/promises")
+    _resetPinCache()
+    expect(await setPin("123456")).toBe(true)
+    try {
+      const req = new NextRequest("http://localhost:3000/api/mappings", { method: "POST" })
+      expect(await checkAdminToken(req)).toBe(false)
+    } finally {
+      _resetPinCache()
+      await unlink(getSecurityFile()).catch(() => {})
+    }
+  })
+
+  it("rejects when a token is configured but the header is missing", async () => {
     Object.assign(process.env, { NODE_ENV: "production" })
     process.env.POSTERIUM_ADMIN_TOKEN = "secret"
     const req = new NextRequest("http://localhost:3000/api/mappings", { method: "POST" })
-    expect(checkAdminToken(req)).toBe(false)
+    expect(await checkAdminToken(req)).toBe(false)
   })
 
-  it("accepts a valid x-admin-token header", () => {
+  it("accepts a valid x-admin-token header", async () => {
     process.env.POSTERIUM_ADMIN_TOKEN = "secret"
     const req = new NextRequest("http://localhost:3000/api/mappings", {
       method: "POST",
       headers: { "x-admin-token": "secret" },
     })
-    expect(checkAdminToken(req)).toBe(true)
+    expect(await checkAdminToken(req)).toBe(true)
   })
 
-  it("accepts a valid Authorization Bearer header", () => {
+  it("accepts a valid Authorization Bearer header", async () => {
     process.env.ADMIN_TOKEN = "secret"
     const req = new NextRequest("http://localhost:3000/api/mappings", {
       method: "POST",
       headers: { authorization: "Bearer secret" },
     })
-    expect(checkAdminToken(req)).toBe(true)
+    expect(await checkAdminToken(req)).toBe(true)
   })
 
-  it("rejects a wrong bearer token", () => {
+  it("rejects a wrong bearer token", async () => {
     process.env.POSTERIUM_ADMIN_TOKEN = "secret"
     const req = new NextRequest("http://localhost:3000/api/mappings", {
       method: "POST",
       headers: { authorization: "Bearer wrong" },
     })
-    expect(checkAdminToken(req)).toBe(false)
+    expect(await checkAdminToken(req)).toBe(false)
   })
 
-  it("does not short-circuit on prefix matches (constant-time compare)", () => {
+  it("does not short-circuit on prefix matches (constant-time compare)", async () => {
     process.env.POSTERIUM_ADMIN_TOKEN = "secret"
     const req = new NextRequest("http://localhost:3000/api/mappings", {
       method: "POST",
       headers: { "x-admin-token": "secre" },
     })
-    expect(checkAdminToken(req)).toBe(false)
+    expect(await checkAdminToken(req)).toBe(false)
   })
 
   it("rejects GET /api/mappings without token on a protected instance", async () => {
@@ -131,34 +146,34 @@ describe("requireAdminToken (fail-closed)", () => {
     process.env = { ...originalEnv }
   })
 
-  it("rejects when no token is configured (legacy instance flags are ignored)", () => {
+  it("rejects when no token is configured (legacy instance flags are ignored)", async () => {
     Object.assign(process.env, { NODE_ENV: "production", PICTORIUM_PUBLIC_INSTANCE: "1" })
     const req = new NextRequest("http://localhost:3000/api/mappings", { method: "DELETE" })
-    expect(requireAdminToken(req)).toBe(false)
+    expect(await requireAdminToken(req)).toBe(false)
   })
 
-  it("rejects when a token is configured but the header is missing", () => {
+  it("rejects when a token is configured but the header is missing", async () => {
     process.env.POSTERIUM_ADMIN_TOKEN = "secret"
     const req = new NextRequest("http://localhost:3000/api/mappings", { method: "DELETE" })
-    expect(requireAdminToken(req)).toBe(false)
+    expect(await requireAdminToken(req)).toBe(false)
   })
 
-  it("accepts a valid x-admin-token header", () => {
+  it("accepts a valid x-admin-token header", async () => {
     process.env.POSTERIUM_ADMIN_TOKEN = "secret"
     const req = new NextRequest("http://localhost:3000/api/mappings", {
       method: "DELETE",
       headers: { "x-admin-token": "secret" },
     })
-    expect(requireAdminToken(req)).toBe(true)
+    expect(await requireAdminToken(req)).toBe(true)
   })
 
-  it("rejects a wrong bearer token", () => {
+  it("rejects a wrong bearer token", async () => {
     process.env.POSTERIUM_ADMIN_TOKEN = "secret"
     const req = new NextRequest("http://localhost:3000/api/mappings", {
       method: "DELETE",
       headers: { authorization: "Bearer wrong" },
     })
-    expect(requireAdminToken(req)).toBe(false)
+    expect(await requireAdminToken(req)).toBe(false)
   })
 
   it("rejects DELETE /api/mappings (wipe-all) without token even with the legacy flag", async () => {
@@ -191,41 +206,41 @@ describe("resolveAdminToken (prima variabile non vuota)", () => {
       headers: { "x-admin-token": token },
     })
 
-  it("canonico definito ma vuoto: il legacy configurato resta attivo", () => {
+  it("canonico definito ma vuoto: il legacy configurato resta attivo", async () => {
     process.env.PICTORIUM_ADMIN_TOKEN = ""
     process.env.POSTERIUM_ADMIN_TOKEN = "legacy"
     expect(hasAdminTokenConfigured()).toBe(true)
-    expect(checkAdminToken(reqWithToken("legacy"))).toBe(true)
+    expect(await checkAdminToken(reqWithToken("legacy"))).toBe(true)
   })
 
-  it("canonico di soli spazi vale come vuoto e non diventa il token", () => {
+  it("canonico di soli spazi vale come vuoto e non diventa il token", async () => {
     process.env.PICTORIUM_ADMIN_TOKEN = "   "
     process.env.POSTERIUM_ADMIN_TOKEN = "legacy"
     expect(hasAdminTokenConfigured()).toBe(true)
-    expect(checkAdminToken(reqWithToken("legacy"))).toBe(true)
-    expect(checkAdminToken(reqWithToken("   "))).toBe(false)
+    expect(await checkAdminToken(reqWithToken("legacy"))).toBe(true)
+    expect(await checkAdminToken(reqWithToken("   "))).toBe(false)
   })
 
-  it("canonico non vuoto vince comunque sul legacy", () => {
+  it("canonico non vuoto vince comunque sul legacy", async () => {
     process.env.PICTORIUM_ADMIN_TOKEN = "canonical"
     process.env.POSTERIUM_ADMIN_TOKEN = "legacy"
-    expect(checkAdminToken(reqWithToken("canonical"))).toBe(true)
-    expect(checkAdminToken(reqWithToken("legacy"))).toBe(false)
+    expect(await checkAdminToken(reqWithToken("canonical"))).toBe(true)
+    expect(await checkAdminToken(reqWithToken("legacy"))).toBe(false)
   })
 
-  it("ADMIN_TOKEN nudo resta l'ultimo fallback (prefissati vuoti)", () => {
+  it("ADMIN_TOKEN nudo resta l'ultimo fallback (prefissati vuoti)", async () => {
     process.env.PICTORIUM_ADMIN_TOKEN = ""
     process.env.POSTERIUM_ADMIN_TOKEN = "  "
     process.env.ADMIN_TOKEN = "bare"
     expect(hasAdminTokenConfigured()).toBe(true)
-    expect(checkAdminToken(reqWithToken("bare"))).toBe(true)
+    expect(await checkAdminToken(reqWithToken("bare"))).toBe(true)
   })
 
-  it("vuoto ovunque: nessun token (fail-closed preservato)", () => {
+  it("vuoto ovunque: nessun token (fail-closed preservato)", async () => {
     process.env.PICTORIUM_ADMIN_TOKEN = ""
     process.env.POSTERIUM_ADMIN_TOKEN = ""
     expect(hasAdminTokenConfigured()).toBe(false)
-    expect(requireAdminToken(reqWithToken("anything"))).toBe(false)
+    expect(await requireAdminToken(reqWithToken("anything"))).toBe(false)
   })
 })
 

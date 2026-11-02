@@ -50,7 +50,7 @@ export async function GET(req: NextRequest) {
     return Response.json({ mappings })
   }
   // Fail-closed: serve ADMIN_TOKEN o una sessione PIN valida (nessuna modalità pubblica).
-  if (!checkAdminToken(req)) return adminAuthResponse()
+  if (!(await checkAdminToken(req))) return adminAuthResponse()
   const mappings = await getAll()
   return Response.json({ mappings })
 }
@@ -64,7 +64,7 @@ export async function POST(req: NextRequest) {
     const denied = await checkUserWrite(req, scoped)
     if (denied) return denied
   } else {
-    if (!checkAdminToken(req)) return adminAuthResponse()
+    if (!(await checkAdminToken(req))) return adminAuthResponse()
     if (!isSameOrigin(req)) return originMismatchResponse()
   }
   let body: unknown
@@ -181,7 +181,7 @@ export async function DELETE(req: NextRequest) {
   if (!rl.ok) return rateLimitResponse(rl.retAfter)
   // Wipe-all: richiede SEMPRE admin token, anche su istanze pubbliche senza
   // ADMIN_TOKEN configurato (fail-closed). Nessun client lo invoca.
-  if (!requireAdminToken(req)) return adminAuthResponse()
+  if (!(await requireAdminToken(req))) return adminAuthResponse()
   if (!isSameOrigin(req)) return originMismatchResponse()
   await removeAll()
   cacheInvalidatePosterData()

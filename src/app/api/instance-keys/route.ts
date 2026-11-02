@@ -34,7 +34,7 @@ export async function GET(req: NextRequest) {
 export async function PUT(req: NextRequest) {
   const rl = await rateLimit(rateLimitKey(req), "instance-keys")
   if (!rl.ok) return rateLimitResponse(rl.retAfter)
-  if (!checkAdminToken(req)) return adminAuthResponse()
+  if (!(await checkAdminToken(req))) return adminAuthResponse()
   if (!isSameOrigin(req)) return originMismatchResponse()
 
   let body: unknown

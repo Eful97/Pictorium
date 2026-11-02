@@ -18,7 +18,7 @@ export async function GET(req: NextRequest) {
     if (!(await checkUserAuth(req, scoped))) return userAuthResponse()
   } else {
     // Fail-open senza ADMIN_TOKEN (istanza pubblica HF Spaces); fail-closed con token.
-    if (!checkAdminToken(req)) return adminAuthResponse()
+    if (!(await checkAdminToken(req))) return adminAuthResponse()
   }
   const mappings = await getAll(scoped)
   const aliases = await getAllAliases(scoped)

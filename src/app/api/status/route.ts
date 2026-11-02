@@ -58,7 +58,7 @@ export async function GET(req: NextRequest) {
   const rl = await rateLimit(rateLimitKey(req), "default")
   if (!rl.ok) return rateLimitResponse(rl.retAfter)
   const multiUser = isMultiUserEnabled()
-  if (!publicStatsEnabled() && !requireAdminToken(req)) {
+  if (!publicStatsEnabled() && !(await requireAdminToken(req))) {
     // Skip listUsers entirely: no storage scan for anonymous callers.
     return Response.json({
       multiUser,

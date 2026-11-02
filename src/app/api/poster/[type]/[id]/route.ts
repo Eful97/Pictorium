@@ -269,12 +269,14 @@ function posterErrorResponse(status: PosterErrorStatus): Response {
 }
 
 /**
- * Sessione preview sbloccata: cookie PIN/admin o admin token. Sync e senza
- * I/O oltre la config cachata — sicuro sull'hot path. Mai throw.
+ * Sessione preview sbloccata: cookie PIN/admin o admin token. Prima il check
+ * sync sulla config cachata (sicuro sull'hot path, mai throw), poi il check
+ * async che legge la KV su istanza fredda (cold cache → fallthrough, non
+ * fail-closed locale). Mai throw.
  */
-function hasUnlockedPreviewSession(req: NextRequest): boolean {
+async function hasUnlockedPreviewSession(req: NextRequest): Promise<boolean> {
   try {
-    return verifySessionFromRequestSync(req) || checkAdminToken(req)
+    return verifySessionFromRequestSync(req) || (await checkAdminToken(req))
   } catch {
     return false
   }
@@ -311,7 +313,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
   const rawPreview = req.nextUrl.searchParams.has("preview")
   // Session unlocked (PIN cookie / admin token) computed once: it gates both
   // the preview downgrade and the owner-only diagnostics below.
-  const previewUnlocked = hasUnlockedPreviewSession(req)
+  const previewUnlocked = await hasUnlockedPreviewSession(req)
   let isPreview = rawPreview
   if (
     rawPreview &&

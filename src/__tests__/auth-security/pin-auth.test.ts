@@ -176,13 +176,13 @@ describe("PIN Authentication & Security", () => {
 
     // Senza cookie di sessione -> fallisce
     const unauthReq = new Request("http://localhost:3000/api/mappings")
-    expect(checkAdminToken(unauthReq)).toBe(false)
+    expect(await checkAdminToken(unauthReq)).toBe(false)
 
     // Con cookie di sessione valido -> passa
     const authReq = new Request("http://localhost:3000/api/mappings", {
       headers: { cookie },
     })
-    expect(checkAdminToken(authReq)).toBe(true)
+    expect(await checkAdminToken(authReq)).toBe(true)
   })
 
   it("rimuove il PIN solo con il PIN corrente corretto", async () => {

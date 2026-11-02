@@ -144,11 +144,6 @@ export function readSecurityConfigSync(): SecurityConfig {
   return cachedConfig ?? {}
 }
 
-export function hasPinConfiguredSync(): boolean {
-  const cfg = readSecurityConfigSync()
-  return !!cfg.pinHash && cfg.pinHash.includes(":") && adminBindingOk(cfg)
-}
-
 export function verifySessionFromRequestSync(request: Request): boolean {
   const cfg = readSecurityConfigSync()
   if (!cfg.pinHash || !cfg.sessionSecret) return false
